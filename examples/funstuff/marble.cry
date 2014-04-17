@@ -1,0 +1,108 @@
+/*
+ * Copyright (c) 2013-2014 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+
+// The classic "marble jumping" puzzle
+// see: http://en.wikipedia.org/wiki/Peg_solitaire
+// this is the "European" variation
+
+type Board = [7][7]Bit
+
+all : {n} (fin n) => [n] -> Bit
+all xs = xs == ~zero
+
+popCount : {a,b} (fin a, b >= 1, b == (lg2 a)) => [a] -> [b]
+popCount bs = ic ! 0 where
+    ic = [0] # [ if elt then prev + 1 else prev | elt <- bs | prev <- ic]
+
+posns : Board
+posns = [[False,False,True,True,True,False,False],
+         [False,True,True,True,True,True,False],
+         [True,True,True,True,True,True,True],
+         [True,True,True,True,True,True,True],
+         [True,True,True,True,True,True,True],
+         [False,True,True,True,True,True,False],
+         [False,False,True,True,True,False,False]]
+
+start : Board
+start = [[False,False,True,True,True,False,False],
+         [False,True,True,True,True,True,False],
+         [True,True,True,True,True,True,True],
+         [True,True,True,False,True,True,True],
+         [True,True,True,True,True,True,True],
+         [False,True,True,True,True,True,False],
+         [False,False,True,True,True,False,False]]
+
+// testing positions
+first : Board
+first = [[False,False,True,True,True,False,False],
+         [False,True,True,True,True,True,False],
+         [True,True,True,True,True,True,True],
+         [True,True,True,True,False,False,True],
+         [True,True,True,True,True,True,True],
+         [False,True,True,True,True,True,False],
+         [False,False,True,True,True,False,False]]
+
+second : Board
+second = [[False,False,True,True,True,False,False],
+         [False,True,True,True,True,True,False],
+         [True,True,True,True,True,True,True],
+         [True,True,True,True,True,False,True],
+         [True,True,True,True,False,True,True],
+         [False,True,True,True,False,True,False],
+         [False,False,True,True,True,False,False]]
+
+goal : Board
+goal = [[False,False,False,False,False,False,False],
+        [False,False,False,True,False,False,False],
+        [False,False,False,False,False,False,False],
+        [False,False,False,False,False,False,False],
+        [False,False,False,False,False,False,False],
+        [False,False,False,False,False,False,False],
+        [False,False,False,False,False,False,False]]
+
+validBoard : Board -> Bit
+validBoard b = join (b && ~posns) == zero
+
+validRowJump : Board -> Board -> Bit
+validRowJump a a' = validBoard a 
+                 && validBoard a' 
+                 && validRowMove (differentRow a a')
+
+differentRow : Board -> Board -> ([7], [7])
+differentRow a a' = rows ! 0
+    where rows = [(0b0000000,0b0000000)]
+               # [ if row != row' then (row,row') else old
+                 | row <- a
+                 | row' <- a'
+                 | old <- rows ]
+
+validRowMove : ([7], [7]) -> Bit
+validRowMove (r, r') = (xors == 0b0000111 ||
+                       xors == 0b0001110 ||
+                       xors == 0b0011100 ||
+                       xors == 0b0111000 ||
+                       xors == 0b1110000) 
+                      && (
+                       rxors == 0b0000011 ||
+                       rxors == 0b0000110 ||
+                       rxors == 0b0001100 ||
+                       rxors == 0b0011000 ||
+                       rxors == 0b0110000 ||
+                       rxors == 0b1100000)
+    where xors = r ^ r'
+          rxors = r && rxors
+
+validColJump : Board -> Board -> Bit
+validColJump a a' = validRowJump (transpose a) (transpose a')
+
+validMove : Board -> Board -> Bit
+validMove a a' = validRowJump a a' || validColJump a a'
+
+validMoveSequence : {n} (fin n, n >= 1) => [n] Board -> Bit
+validMoveSequence moves = all [validMove a b | a <- moves | b <- drop`{1} moves]
+
+solutionInNmoves : {n} (fin n) => [n] Board -> Bit
+property solutionInNmoves ms = validMoveSequence ([start] # ms # [second])
+

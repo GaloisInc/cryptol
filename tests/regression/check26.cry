@@ -1,0 +1,13 @@
+fst (x, y) = x
+snd (x, y) = y
+xy = (13, 21)
+check26a = (fst xy == xy.1) && (snd xy == xy.2) &&
+	   (fst xy == 13) && (snd xy == 21)
+
+xys = [ (x, y) | x <- [ 1 .. 10 ], y <- [ 2 .. 5 ] ]
+check26b = [ fst ixy | ixy <- xys ] ==
+	   [ x | x <- [ 1 .. 10 ], y <- [ 2 .. 5 ] ]
+// endianness difference
+check26c = [ fst ixy == snd ixy | ixy <- xys ] == reverse 0x0000084210
+
+check26 = check26a && check26b && check26c

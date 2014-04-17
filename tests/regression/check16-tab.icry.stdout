@@ -1,0 +1,9 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at :1:1--4:17:
+  Defaulting 1st type parameter
+             of expression Cryptol::width
+             at check16-tab.cry:1:11--1:16
+  to 4
+True

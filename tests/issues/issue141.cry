@@ -1,0 +1,10 @@
+type Permutation = String 26
+
+invSubst : (String 26, Char) -> Char
+invSubst (key, c) = candidates ! 0
+    where candidates = [0] # [ if c == k then a else p
+                             | k <- key
+                             | a <- ['A' .. 'Z']
+                             | p <- candidates
+                             ]
+

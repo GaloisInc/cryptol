@@ -1,0 +1,659 @@
+%% This is a slightly older version of exercise.sty; hacked to add commands
+%% AnswerBoxSectionMark and AnswerBoxExecute, and some other mods
+%% The newer version of exercise.sty breaks the type-setting, and it's not worth trying to fix it!
+
+%%
+%% This is file `exercise.sty',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% exercise.dtx  (with options: `package')
+%% 
+%% This is a generated file.
+%% 
+%% Copyright (C) 2003 by Paul Pichaureau
+%% 
+%% This program is free software; you can redistribute it and/or
+%% modify it under the terms of the GNU General Public License
+%% as published by the Free Software Foundation; either version 2
+%% of the License, or (at your option) any later version.
+%% 
+%% This program is distributed in the hope that it will be useful,
+%% but WITHOUT ANY WARRANTY; without even the implied warranty of
+%% MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+%% GNU General Public License for more details.
+%% 
+%% You should have received a copy of the GNU General Public License
+%% along with this program; if not, write to the Free Software
+%% Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+%% Public LaTeX Project Public
+%% 
+
+\NeedsTeXFormat{LaTeX2e}[1999/12/01]
+\ProvidesPackage{utils/exercise}
+ [2004/09/05 v1.1 Exercise package (P.Pichaureau)]
+%% \CharacterTable
+%%  {Upper-case    \A\B\C\D\E\F\G\H\I\J\K\L\M\N\O\P\Q\R\S\T\U\V\W\X\Y\Z
+%%   Lower-case    \a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z
+%%   Digits        \0\1\2\3\4\5\6\7\8\9
+%%   Exclamation   \!     Double quote  \"     Hash (number) \#
+%%   Dollar        \$     Percent       \%     Ampersand     \&
+%%   Acute accent  \'     Left paren    \(     Right paren   \)
+%%   Asterisk      \*     Plus          \+     Comma         \,
+%%   Minus         \-     Point         \.     Solidus       \/
+%%   Colon         \:     Semicolon     \;     Less than     \<
+%%   Equals        \=     Greater than  \>     Question mark \?
+%%   Commercial at \@     Left bracket  \[     Backslash     \\
+%%   Right bracket \]     Circumflex    \^     Underscore    \_
+%%   Grave accent  \`     Left brace    \{     Vertical bar  \|
+%%   Right brace   \}     Tilde         \~}
+%%
+\newif\if@AnswerOutput        \@AnswerOutputtrue
+\newif\if@AnswerDelay         \@AnswerDelayfalse
+\newif\if@ExerciseOutput      \@ExerciseOutputtrue
+\newif\if@ExerciseDelay       \@ExerciseDelayfalse
+\newif\if@AswLastExe          \@AswLastExefalse
+
+\DeclareOption{noanswer}     {\@AnswerOutputfalse}
+\DeclareOption{answeronly}   {\@ExerciseOutputfalse}
+\DeclareOption{noexercise}   {\@ExerciseOutputfalse}
+\DeclareOption{exerciseonly} {\@AnswerOutputfalse}
+\DeclareOption{outputnothing}{\@ExerciseOutputfalse\@AnswerOutputfalse}
+\DeclareOption{exercisedelayed}{\@ExerciseDelaytrue}
+\DeclareOption{answerdelayed}{\@AnswerDelaytrue}
+\DeclareOption{lastexercise} {\@AswLastExetrue}
+\newif\if@ShowLabel              \@ShowLabelfalse
+\DeclareOption{showlabel}       {\@ShowLabeltrue}
+
+\ProcessOptions
+\RequirePackage{keyval, ifthen}
+\def\ExerciseName{Exercise}%
+\def\AnswerName{Answer}%
+\def\ExerciseListName{Ex.}%
+\def\AnswerListName{Answer}%
+\def\ExePartName{Part}%
+\@ifpackageloaded{babel}{
+\addto{\captionsfrenchb}{
+  \def\ExerciseName{Exercice}%
+  \def\AnswerName{Solution}%
+  \def\ExerciseListName{Ex.}%
+  \def\AnswerListName{Sol.}%
+  \def\ExePartName{Partie}%
+}}{}
+\newlength{\Exesep}
+\setlength{\Exesep}{1\baselineskip}
+\newlength{\Exetopsep}
+\setlength{\Exetopsep}\z@
+\newlength{\Exeparsep}
+\setlength{\Exeparsep}{\parskip}
+\newlength{\Exepartopsep}
+\setlength{\Exepartopsep}\z@
+\newlength{\Exeleftmargin}
+\setlength{\Exeleftmargin}\z@
+\newlength{\Exerightmargin}
+\setlength{\Exerightmargin}\z@
+\newlength{\Exelabelwidth}
+\setlength{\Exelabelwidth}\z@
+\newlength{\Exelabelsep}
+\setlength{\Exelabelsep}\z@
+\newlength{\ExerciseBefore}
+\setlength{\ExerciseBefore}{0em}
+\newlength{\QuestionBefore}
+\setlength{\QuestionBefore}{.25em}
+\newlength{\subQuestionBefore}
+\setlength{\subQuestionBefore}{0em}
+\newlength{\subsubQuestionBefore}
+\setlength{\subsubQuestionBefore}{0em}
+\newlength{\QuestionIndent}
+\setlength{\QuestionIndent}{3em}
+\newlength{\subQuestionIndent}
+\setlength{\subQuestionIndent}{2em}
+\newlength{\subsubQuestionIndent}
+\setlength{\subsubQuestionIndent}{2.5em}
+\newcounter{Exercise}
+\gdef\@ExerciseCounter{Exercise}          %default exercise counter
+\newcounter{ExePart}[Exercise]
+\newcounter{Question}[Exercise]
+\newcounter{subQuestion}[Question]
+\newcounter{subsubQuestion}[subQuestion]
+\renewcommand{\theExercise}{\arabic{\@ExerciseCounter}}
+\renewcommand{\theExePart}{\Roman{ExePart}}
+\renewcommand{\theQuestion}{\arabic{Question}}
+\renewcommand{\thesubQuestion}{\alph{subQuestion}}
+\renewcommand{\thesubsubQuestion}{\roman{subsubQuestion}}
+\newcounter{savedQuestion}
+\newcounter{savedsubQuestion}
+\newcounter{savedsubsubQuestion}
+    \def\marker#1#2{\@tempcnta#2\whiledo{\@tempcnta>0}{#1\advance
+            \@tempcnta by -1 }}
+\def\DifficultyMarker{*}
+\newcommand{\ExerciseHeaderTitle}{\qquad \ExerciseTitle}
+\newcommand{\ExerciseHeaderDifficulty}{\theExerciseDifficulty\ }
+\newcommand{\ExerciseHeaderOrigin}{%
+\ ({\usefont{\encodingdefault}{\rmdefault}{m}{it}\ExerciseOrigin})}
+\newcommand{\ExerciseHeaderNB}{\ \theExercise}
+\newcommand{\ExerciseHeaderLabel}{\fbox{\textsc{\ExerciseLabel}}}
+\newcommand{\ExerciseHeader}{\centerline{%
+\textbf{\large\ExerciseHeaderDifficulty\ExerciseName%
+\ExerciseHeaderNB\ExerciseHeaderTitle\ExerciseHeaderOrigin}}\medskip}
+\newcommand{\ExerciseListHeader}{\ExerciseHeaderDifficulty%
+\textbf{\ExerciseListName\ExerciseHeaderNB%
+\ --- \ \ExerciseHeaderTitle}%
+\ExerciseHeaderOrigin\ignorespaces}
+\newcommand{\ExePartHeaderNB}{\ \theExePart}
+\newcommand{\ExePartHeaderTitle}{\quad --- \quad {\ExePartTitle}}
+\newcommand{\ExePartHeaderDifficulty}{\theExePartDifficulty\ }
+\newcommand{\ExePartHeader}{%
+\medskip\centerline{\emph{\large\ExePartHeaderDifficulty\ExePartName%
+\ExePartHeaderNB\ExePartHeaderTitle}}}
+\newcommand{\ExePartListHeader}{\bigskip%
+\emph{\ExePartHeaderDifficulty\ExePartName%
+\ExePartHeaderNB\ExePartHeaderTitle}\par\medskip}
+\newcommand{\QuestionNB}{\arabic{Question}.\ }
+\newcommand{\QuestionHeaderTitle}{\emph{(\QuestionTitle)}\ }
+\newcommand{\QuestionHeaderDifficulty}{\theQuestionDifficulty\ }
+\newcommand{\theQuestionDifficulty}{\marker{\DifficultyMarker}%
+{\QuestionDifficulty}}
+\newcommand{\subQuestionNB}{\alph{subQuestion})}
+\newcommand{\subQuestionHeaderTitle}{\emph{(\subQuestionTitle)}\ }
+\newcommand{\subQuestionHeaderDifficulty}{\thesubQuestionDifficulty\ }
+\newcommand{\subQuestionHeader}{\subQuestionHeaderDifficulty%
+    \subQuestionNB)\ \emph{\subQuestionHeaderTitle}}
+\newcommand{\thesubQuestionDifficulty}{\marker{\DifficultyMarker}%
+{\subQuestionDifficulty}}
+\newcommand{\subsubQuestionNB}{\roman{subsubQuestion} -- }
+\newcommand{\subsubQuestionHeaderTitle}{\emph{(\subsubQuestionTitle)}\ }
+\newcommand{\subsubQuestionHeaderDifficulty}{\thesubsubQuestionDifficulty\ }
+\newcommand{\subsubQuestionHeader}{\subsubQuestionHeaderDifficulty%
+    \subsubQuestionNB \emph{\subsubQuestionHeaderTitle} --}
+\newcommand{\thesubsubQuestionDifficulty}{%
+\marker{\DifficultyMarker}{\subsubQuestionDifficulty}}
+\newcount\@QuestionLevel \@QuestionLevel=0
+\newcommand{\the@QuestionLevel}{\number\@QuestionLevel}
+\newbox\@Exercisebox
+\newbox\all@Exercisebox
+\newbox\temp@Exercisebox
+\newbox\all@Answerbox
+\newbox\temp@Answerbox
+\newif\if@echapq \@echapqfalse
+\newif\if@Answer                \@Answerfalse
+\def\termineliste#1{\global\@echapqfalse%
+\whiledo{\@QuestionLevel>#1}%
+{\ifnum\@QuestionLevel=\colonnesLevel\end{multicols}\colonnesLevel=-10\fi%
+\end{list}\advance\@QuestionLevel by -1}%
+\ifnum\@QuestionLevel=\colonnesLevel\end{multicols}\colonnesLevel=-10\fi}
+\newif\if@ExeTitle                        \@ExeTitlefalse
+\newif\if@ExeReName                       \@ExeReNamefalse
+\global\newcount\ExerciseDifficulty       \ExerciseDifficulty=0
+\newif\if@ExeDifficulty                   \@ExeDifficultyfalse
+\newif\if@ExeOrigin                       \@ExeOriginfalse
+\newif\if@ExeLabel                        \@ExeLabelfalse
+\newif\if@ExeNB                           \@ExeNBfalse
+\def\theExerciseDifficulty{\marker{\DifficultyMarker}{\ExerciseDifficulty}}
+\define@key{PPExercise}{title}%
+{\global\@ExeTitletrue\gdef\ExerciseTitle{\string#1}}
+\define@key{PPExercise}{difficulty}%
+{\global\@ExeDifficultytrue\global\ExerciseDifficulty=\number#1}
+\define@key{PPExercise}{name}%
+{\global\@ExeReNametrue\gdef\@ExerciseName{\string#1}}
+\define@key{PPExercise}{origin}%
+{\global\@ExeOrigintrue\gdef\ExerciseOrigin{#1}}
+\define@key{PPExercise}{counter}%
+{\gdef\@ExerciseCounter{\string#1}}
+\define@key{PPExercise}{label}%
+{\global\@ExeLabeltrue\gdef\ExerciseLabel{\string#1}\gdef\ExerciseTrueLabel{#1}}
+\define@key{PPExercise}{number}%
+{\global\@ExeNBtrue\gdef\ExerciseLocalNB{\string#1}}
+%% \define@key{PPExercise}{domain}{}
+%% \define@key{PPExercise}{sdomain}{}
+%% \define@key{PPExercise}{keyword}{}
+\newif\if@ExeStared
+\newif\if@staredpb
+\newif\if@staredpart
+\newif\if@renamepart
+\@ExeStaredfalse
+\@staredpbfalse
+\@staredpartfalse
+\@renamepartfalse
+\def\@InitExe{\@savemathindent\global\@echapqfalse%
+\gdef\ExerciseTitle{}%
+\gdef\@ExerciseName{}%
+\gdef\ExerciseOrigin{}%
+\gdef\ExerciseTrueLabel{}%
+\global\ExerciseDifficulty=0%
+\global\@ExeTitlefalse%
+\global\@ExeReNamefalse%
+\global\@ExeDifficultyfalse%
+\global\@ExeOriginfalse%
+\global\@ExeNBfalse%
+\gdef\@ExerciseCounter{Exercise}%
+\setcounter{ExePart}{0}%
+\setcounter{Question}{0}%
+\global\@ExeLabelfalse}
+\def\@getExerciseInfo{%
+\if@ExeReName\def\ExerciseName{\@ExerciseName}\fi%
+\if@ExeTitle\else\def\ExerciseHeaderTitle{}\fi%
+\if@ExeOrigin\else\def\ExerciseHeaderOrigin{}\fi%
+\if@ExeLabel\else\def\ExerciseHeaderLabel{}\fi%
+\if@ExeDifficulty\else\def\ExerciseHeaderDifficulty{}\fi%
+\if@ExeStared\def\ExerciseHeaderNB{}\fi%
+\if@ExeNB\def\theExercise{\ExerciseLocalNB}\fi%
+\if@ExeLabel\label{\ExerciseLabel}\recordExerciseLabel{\ExerciseLabel}\fi%
+}
+\def\refstepExecounter{\if@ExeStared\else\if@ExeNB\else%
+\refstepcounter{\@ExerciseCounter}\fi\fi}
+\def\recordExerciseLabel#1{\@bsphack
+  \protected@write\@auxout{}%
+         {\string\newlabel{PP#1}{{\@AnswerHeaderRef}{\thepage}}}%
+  \@esphack}
+\def\@BeginExeBox{\global\setbox\@Exercisebox\vbox\bgroup}
+\def\@EndExeBox{\egroup\if@Answer\if@AnswerOutput\@DelayAnswerBox\fi%
+\else\if@ExerciseOutput\@DelayExerciseBox\fi\fi}
+\def\AnswerBoxSectionMark#1{%
+\global\setbox\temp@Answerbox%
+\vbox{\unvbox\all@Answerbox\vskip\Exesep%
+\section*{\vspace*{.5em}\hrule\hrule\vspace*{.5em}\hspace*{-\parindent}#1\vspace*{.5em}\hrule\hrule\markboth{#1}{}}%
+\unvbox\@Exercisebox\vskip\z@}%
+\global\setbox\all@Answerbox\copy\temp@Answerbox%
+}
+\def\AnswerBoxExecute#1{%
+\global\setbox\temp@Answerbox%
+\vbox{\unvbox\all@Answerbox#1\unvbox\@Exercisebox}%
+\global\setbox\all@Answerbox\copy\temp@Answerbox%
+}
+\def\@DelayAnswerBox{%
+\if@ShipThisExercise\if@AnswerDelay\global\setbox\temp@Answerbox%
+\vbox{\unvbox\all@Answerbox\vskip\Exesep\unvbox\@Exercisebox\vskip\z@}%
+\global\setbox\all@Answerbox\copy\temp@Answerbox%
+\else\unvbox\@Exercisebox\fi\fi}
+\def\@DelayExerciseBox{\if@ShipThisExercise\if@ExerciseDelay%
+\global\setbox\temp@Exercisebox%
+\vbox{\unvbox\all@Exercisebox\vskip\Exesep\unvbox\@Exercisebox\vskip\z@}%
+\global\setbox\all@Exercisebox\copy\temp@Exercisebox%
+\else\vskip\Exesep\unvbox\@Exercisebox\fi\fi}
+\newcommand{\shipoutAnswer}{\if@AnswerOutput\unvbox\all@Answerbox\fi}
+\newcommand{\shipoutExercise}{\if@ExerciseOutput\unvbox\all@Exercisebox\fi}
+\def\beginExerciseEnv{\@InitExe\@ifnextchar[\@@ExeEnv{\@@ExeEnv[]}}%]
+\def\@@ExeEnv[#1]{\setkeys{PPExercise}{#1}%
+\global\@Answerfalse\@BeginExeBox\@@@ExeEnv}
+\newcommand{\@@@ExeEnv}{%
+    \@selectExercise{\ExerciseTrueLabel}
+    \@QuestionLevel1
+    \refstepExecounter
+    \begingroup\@getExerciseInfo\ExerciseHeader\endgroup}
+\def\endExerciseEnv{\termineliste{1}\@EndExeBox}
+\def\ExerciseCmd{\@InitExe\@ifstar{\global\@ExeStaredtrue\@ExeCmd}%
+{\global\@ExeStaredfalse\@ExeCmd}}
+\def\@ExeCmd{\@ifnextchar[\@@ExeCmd{\@@ExeCmd[]}}%] for emacs
+\def\@@ExeCmd[#1]{\setkeys{PPExercise}{#1}\@@@ExeCmd}
+\newcommand{\@@@ExeCmd}{%
+    \ifnum\@QuestionLevel=0
+      \advance \@QuestionLevel by 1
+      \begin{list}{\@getExerciseInfo\ExerciseListHeader}%
+{\partopsep\Exepartopsep \labelsep\Exelabelsep \itemsep \Exesep%
+\parsep\Exeparsep \topsep\Exetopsep \labelwidth\Exelabelwidth%
+\leftmargin\Exeleftmargin \rightmargin\Exerightmargin}
+    \else
+      \termineliste{1}\@EndExeBox
+    \fi
+    \@selectExercise{\ExerciseTrueLabel}
+    \global\@Answerfalse\@BeginExeBox\refstepExecounter%
+    \item\ignorespaces
+}
+\def\defineExePartInEnv{\def\@ExePartHeader{\ExePartHeader}}
+\def\defineExePartInList{\def\@ExePartHeader{\ExePartListHeader}}
+\def\defineExerciseEnv{%
+    \defineExePartInEnv
+    \renewenvironment{Exercise}{\global\beginExerciseEnv}%
+{\@ExeStaredfalse\endExerciseEnv}
+    \renewenvironment{Exercise*}{\global\@ExeStaredtrue\beginExerciseEnv}%
+{\@ExeStaredfalse\endExerciseEnv}
+}
+\newenvironment{Exercise}{}{}
+\newenvironment{Exercise*}{}{}
+\def\defineExerciseCmd{\def\Exercise{\ExerciseCmd}}
+\renewcommand{\Exercise}{}
+\defineExerciseEnv
+\def\beginExerciseListEnv{\defineExerciseCmd\defineAnswerCmd%
+\defineExePartInList}
+\def\endExerciseListEnv{\termineliste{1}\@EndExeBox\termineliste{0}%
+\defineExerciseEnv\defineAnswerEnv}
+\newenvironment{ExerciseList}{\beginExerciseListEnv}{\endExerciseListEnv}
+\def\QuestionTitle{}
+\newif\if@QuestionTitle              \@QuestionTitlefalse
+\global\newcount\QuestionDifficulty  \QuestionDifficulty=0
+\newif\if@QuestionDifficulty         \@QuestionDifficultyfalse
+\define@key{PPQuestion}{title}{%
+\global\@QuestionTitletrue\gdef\QuestionTitle{\string#1}}
+\define@key{PPQuestion}{difficulty}{%
+\global\@QuestionDifficultytrue\global\QuestionDifficulty=\number#1}
+\def\@InitQuestion{\gdef\QuestionTitle{}%
+\global\QuestionDifficulty=0%
+\global\@QuestionTitlefalse%
+\global\@QuestionDifficultyfalse}
+\def\@getQuestionInfo{%
+\if@QuestionTitle\else\def\QuestionHeaderTitle{}\fi
+\if@QuestionDifficulty\else\def\QuestionHeaderDifficulty{}\fi
+}
+\def\EndCurrentQuestion{\termineliste{1}}
+\def\Question{\@InitQuestion\@ifnextchar[\@@Question{\@@Question[]}}%]
+\def\@@Question[#1]{\setkeys{PPQuestion}{#1}\@@@Question}
+\def\@QuestionHeader{\item[{\makebox[0cm][r]{\begingroup\@getQuestionInfo%
+\QuestionHeaderDifficulty\QuestionNB\endgroup}}]%
+\begingroup\@getQuestionInfo\QuestionHeaderTitle\endgroup\ignorespaces}
+\newcommand{\@@@Question}{%
+    \ifnum\@QuestionLevel=1
+    \advance \@QuestionLevel by 1
+    \begin{list}{}{\leftmargin \QuestionIndent
+            \partopsep0pt \parsep\parskip \topsep \QuestionBefore
+            \itemsep \QuestionBefore \labelwidth 2em
+            \labelsep .5em
+            \usecounter{Question}}
+        \if@echapq
+          \setcounter{Question}{\value{savedQuestion}}\global\@echapqfalse
+        \fi
+        \refstepcounter{Question}
+        \@restoremathindent
+        \@decalemathindent{\QuestionIndent}
+        \@QuestionHeader
+   \else
+     \ifnum\@QuestionLevel=2
+          \refstepcounter{Question}
+          \@QuestionHeader
+     \else
+     \ifnum\@QuestionLevel>2
+       \termineliste{2}
+       \refstepcounter{Question}
+       \@QuestionHeader
+     \else
+     \PackageError{exercise}{You don't respect the hierarchy of
+         questions}{Verify the Question}
+     \fi
+   \fi
+ \fi
+}
+\def\subQuestionTitle{}
+\newif\if@subQuestionTitle\@subQuestionTitlefalse
+\global\newcount\subQuestionDifficulty\subQuestionDifficulty=0
+\newif\if@subQuestionDifficulty\@subQuestionDifficultyfalse
+\define@key{PPsubQuestion}{title}{%
+\gdef\subQuestionTitle{\string#1}\global\@subQuestionTitletrue}
+\define@key{PPsubQuestion}{difficulty}{%
+\global\@subQuestionDifficultytrue\global\subQuestionDifficulty=\number#1}
+\def\@InitsubQuestion{\gdef\subQuestionTitle{}%
+\global\subQuestionDifficulty=0%
+\global\@subQuestionTitlefalse%
+\global\@subQuestionDifficultyfalse}
+\def\@getsubQuestionInfo{%
+\if@subQuestionTitle\else\def\subQuestionHeaderTitle{}\fi
+\if@subQuestionDifficulty\else\def\subQuestionHeaderDifficulty{}\fi
+}
+\def\EndCurrentsubQuestion{\termineliste{2}}
+\def\subQuestion{\@InitsubQuestion%
+\@ifnextchar[\@@subQuestion{\@@subQuestion[]}}%]
+\def\@@subQuestion[#1]{\setkeys{PPsubQuestion}{#1}\@@@subQuestion}
+\def\@subQuestionHeader{\item[{\makebox[0cm][r]%
+{\begingroup\@getsubQuestionInfo\subQuestionHeaderDifficulty%
+\subQuestionNB\endgroup}}]%
+\begingroup\@getsubQuestionInfo\subQuestionHeaderTitle\endgroup%
+\ignorespaces}
+\newcommand{\@@@subQuestion}{%
+    \ifnum\@QuestionLevel=2
+    \advance \@QuestionLevel by 1
+    \begin{list}{}{\leftmargin \subQuestionIndent
+            \partopsep0pt \parsep\parskip \topsep \subQuestionBefore
+            \itemsep \subQuestionBefore \labelwidth 2em
+            \labelsep .5em
+            \usecounter{subQuestion}}
+        \if@echapq
+          \setcounter{subQuestion}{\value{savedsubQuestion}}%
+          \global\@echapqfalse
+        \fi
+        \refstepcounter{subQuestion}
+        \@restoremathindent
+        \@decalemathindent{\subQuestionIndent}
+        \@subQuestionHeader
+   \else
+     \ifnum\@QuestionLevel=3
+          \refstepcounter{subQuestion}
+          \@subQuestionHeader
+     \else
+     \ifnum\@QuestionLevel>3
+       \termineliste{3}
+       \refstepcounter{subQuestion}
+       \@subQuestionHeader
+     \else
+     \PackageError{exercise}{You don't respect the hierarchy of
+         subQuestion}{Verify the subQuestion}
+     \fi
+   \fi
+ \fi
+}
+\def\subsubQuestionTitle{}
+\newif\if@subsubQuestionTitle\@subsubQuestionTitlefalse
+\global\newcount\subsubQuestionDifficulty\subsubQuestionDifficulty=0
+\newif\if@subsubQuestionDifficulty\@subsubQuestionDifficultyfalse
+\define@key{PPsubsubQuestion}{title}{%
+\gdef\subsubQuestionTitle{\string#1}\global\@subsubQuestionTitletrue}
+\define@key{PPsubsubQuestion}{difficulty}{%
+\global\@subsubQuestionDifficultytrue%
+\global\subsubQuestionDifficulty=\number#1}
+\def\@InitsubsubQuestion{\gdef\subsubQuestionTitle{}%
+\global\subsubQuestionDifficulty=0%
+\global\@subsubQuestionTitlefalse%
+\global\@subsubQuestionDifficultyfalse}
+\def\@getsubsubQuestionInfo{%
+\if@subsubQuestionTitle\else\def\subsubQuestionHeaderTitle{}\fi
+\if@subsubQuestionDifficulty\else\def\subsubQuestionHeaderDifficulty{}\fi
+}
+\def\EndCurrentsubsubQuestion{\termineliste{3}}
+\def\subsubQuestion{\@InitsubsubQuestion%
+\@ifnextchar[\@@subsubQuestion{\@@subsubQuestion[]}}%]
+\def\@@subsubQuestion[#1]{\setkeys{PPsubsubQuestion}{#1}\@@@subsubQuestion}
+\def\@subsubQuestionHeader{\item[{\makebox[0cm][r]%
+{\begingroup\@getsubsubQuestionInfo\subsubQuestionHeaderDifficulty%
+\subsubQuestionNB\endgroup}}]%
+\begingroup\@getsubsubQuestionInfo\subsubQuestionHeaderTitle\endgroup%
+\ignorespaces}
+\newcommand{\@@@subsubQuestion}{%
+    \ifnum\@QuestionLevel=3
+    \advance \@QuestionLevel by 1
+    \begin{list}{}{\leftmargin \subsubQuestionIndent
+            \partopsep0pt \parsep\parskip \topsep \subsubQuestionBefore
+            \itemsep \subsubQuestionBefore \labelwidth 2em
+            \labelsep .5em
+            \usecounter{subsubQuestion}}
+        \if@echapq
+          \setcounter{subsubQuestion}{\value{savedsubsubQuestion}}%
+          \global\@echapqfalse
+        \fi
+        \refstepcounter{subsubQuestion}
+        \@restoremathindent
+        \@decalemathindent{\subsubQuestionIndent}
+        \@subsubQuestionHeader
+   \else
+     \ifnum\@QuestionLevel=4
+          \refstepcounter{subsubQuestion}
+          \@subsubQuestionHeader
+     \else
+     \ifnum\@QuestionLevel>4
+       \termineliste{4}
+       \refstepcounter{subsubQuestion}
+       \@subsubQuestionHeader
+     \else
+     \PackageError{exercise}{You don't respect the hierarchy of
+         subsubQuestion}{Verify the subsubQuestion}
+     \fi
+   \fi
+ \fi
+}
+\newif\if@ExePartStared             \@ExePartStaredfalse
+\newif\if@ExePartTitle              \@ExePartTitlefalse
+\newif\if@ExePartReName             \@ExePartReNamefalse
+\newif\if@ExePartDifficulty         \@ExePartDifficultyfalse
+\global\newcount\ExePartDifficulty  \ExePartDifficulty=0
+\def\theExePartDifficulty{\marker{\DifficultyMarker}{\ExePartDifficulty}}
+\def\@InitExePart{\global\@echapqfalse%
+\gdef\ExePartTitle{}%
+\gdef\@ExePartName{}%
+\global\ExePartDifficulty=0%
+\global\@ExePartTitlefalse%
+\global\@ExePartReNamefalse%
+\global\@ExePartDifficultyfalse%
+\setcounter{Question}{0}\termineliste{1}}
+\define@key{PPExePart}{title}{\gdef\ExePartTitle{\string#1}%
+\global\@ExePartTitletrue}
+\define@key{PPExePart}{name}{\gdef\@ExePartName{\string#1}%
+\global\@ExePartReNametrue}
+\define@key{PPExePart}{difficulty}{\global\@ExePartDifficultytrue%
+\global\ExePartDifficulty=\number#1}
+\def\@getExePartInfo{%
+\if@ExePartReName\def\ExePartName{\@ExePartName}\fi
+\if@ExePartTitle\else\def\ExePartHeaderTitle{}\fi
+\if@ExePartDifficulty\else\def\ExePartHeaderDifficulty{}\fi
+\if@ExePartStared\def\ExePartHeaderNB{}\fi
+}
+\def\ExePart{\@InitExePart\@ifstar{\global\@ExePartStaredtrue\@ExePart}%
+{\global\@ExePartStaredfalse\@ExePart}}
+\def\@ExePart{\@ifnextchar[\@@ExePart{\@@ExePart[]}}%] for emacs
+\def\@@ExePart[#1]{\setkeys{PPExePart}{#1}\@@@ExePart}
+\newcommand{\@@@ExePart}{%
+    \if@ExePartStared\else\refstepcounter{ExePart}\fi
+    \begingroup\@getExePartInfo\@ExePartHeader\endgroup}
+\newbox\@Answerbox
+%% \newcommand{\AnswerHeaderRef}{Answer of \ExerciseName\ \theExercise}
+%% \newcommand{\AnswerListHeaderRef}{Answer (ex.\ \theExercise)\ ---\ }
+\newcommand{\AnswerHeader}{\medskip\centerline{\textbf{Answer of
+            \ExerciseName  \ExerciseHeaderNB}\smallskip}}
+\newcommand{\AnswerListHeader}{\textbf{Answer (ex.\
+        \ExerciseHeaderNB)\ ---\ }}
+\def\@InitAnswer{\@savemathindent\global\@echapqfalse%
+\gdef\AnswerRef{}%
+\global\@AnswerReffalse%
+\gdef\AnswerNB{}%
+\global\@AnswerNBfalse%
+\setcounter{ExePart}{0}%
+\setcounter{Question}{0}}
+\def\@getAnswerInfo{%
+\if@AnswerRef%
+\def\AnswerHeader{\ref{PP\AnswerRef}}%
+\def\AnswerListHeader{\ref{PP\AnswerRef}}%
+\else
+\if@AnswerNB
+\def\ExerciseTitle{}
+\def\ExerciseName{}
+\def\ExerciseOrigin{}
+\ExerciseDifficulty=0
+\def\theExercise{\AnswerNB}
+\else
+\if@AswLastExe
+\else
+\PackageWarning{Exercise}%
+{A answer has no reference and no number}{}%
+\def\AnswerHeaderRef{\AnswerName\ ???}%
+\def\AnswerListHeaderRef{\AnswerName\ ???}%
+\fi\fi\fi}
+\newif\if@AnswerRef         \@AnswerReffalse
+\newif\if@AnswerNB          \@AnswerNBfalse
+\define@key{PPAnswer}{ref}{\global\@AnswerReftrue\gdef\AnswerRef{\string#1}}
+\define@key{PPAnswer}{number}{\global\@AnswerNBtrue\gdef\AnswerNB{\string#1}}
+\def\beginAnswerEnv{\@InitAnswer\@ifnextchar[\@@AnswerEnv{\@@AnswerEnv[]}}%]
+\def\@@AnswerEnv[#1]{\setkeys{PPAnswer}{#1}%
+\global\@Answertrue\@BeginExeBox\@@@AnswerEnv}
+\newcommand{\@@@AnswerEnv}{%
+    \@QuestionLevel1
+    \begingroup\@getExerciseInfo\@getAnswerInfo\AnswerHeader\endgroup}
+\def\endAnswerEnv{\termineliste{1}\@EndExeBox}
+\newenvironment{Answer}{}{}
+\def\defineAnswerEnv{
+    \gdef\@AnswerHeaderRef{\AnswerHeader}
+    \renewenvironment{Answer}{\beginAnswerEnv}{\endAnswerEnv}}
+\defineAnswerEnv
+\def\AnswerCmd{\@InitAnswer\@ifnextchar[\@@AnswerCmd{\@@AnswerCmd[]}}
+\def\@@AnswerCmd[#1]{\setkeys{PPAnswer}{#1}\@@@AnswerCmd}
+\newcommand{\@@@AnswerCmd}{%
+    \ifnum\@QuestionLevel=0
+      \advance \@QuestionLevel by 1
+      \begin{list}{}{\partopsep\Exepartopsep \labelsep\Exelabelsep
+                     \itemsep \Exesep \parsep\Exeparsep
+                     \topsep\Exetopsep \labelwidth\Exelabelwidth
+                     \leftmargin\Exeleftmargin
+                     \rightmargin\Exerightmargin }
+                 \refstepExecounter
+    \else
+      \termineliste{1}\@EndExeBox
+    \fi
+    \global\@Answertrue\@BeginExeBox%
+        \item[\bgroup\@getAnswerInfo\AnswerListHeader\egroup]\ignorespaces
+}
+\def\defineAnswerCmd{\gdef\@AnswerHeaderRef{\AnswerListHeader}%
+\gdef\Answer{\AnswerCmd}}
+\newif\if@ExerciseSelected\@ExerciseSelectedfalse
+\newif\if@ExerciseNoLabelSelected\@ExerciseNoLabelSelectedtrue
+\newif\if@ExerciseOmitted\@ExerciseOmittedfalse
+\newif\if@ShipThisExercise\@ShipThisExercisetrue
+\newcommand{\ExerciseStartSelectNoLabel}{\@ExerciseNoLabelSelectedtrue}
+\newcommand{\ExerciseStopSelectNoLabel}{\@ExerciseNoLabelSelectedfalse}
+\newcommand{\ExerciseStopSelect}{\@ExerciseSelectedfalse}
+\newcommand{\ExerciseStartSelect}{\@ExerciseSelectedtrue\@ifstar{\@ExerciseOmittedtrue\def@ListOfExercise}{\@ExerciseOmittedfalse\def@ListOfExercise}}
+\def\def@ListOfExercise#1{\gdef\@ListOfExercise{#1}}
+\def\@selectExercise#1{%
+    \ifx#1\@empty
+        \if@ExerciseNoLabelSelected
+          \global\@ShipThisExercisetrue
+        \else
+          \global\@ShipThisExercisefalse
+        \fi
+    \else
+    \if@ExerciseSelected
+    \global\@ShipThisExercisefalse
+    \@for\@label:=\@ListOfExercise\do
+    { \ifthenelse{\equal{\@label}{#1}}{
+            \message{[\@label = #1] OK !!!}
+            \global\@ShipThisExercisetrue
+        }{}
+        }
+    \if@ExerciseOmitted
+      \if@ShipThisExercise
+        \global\@ShipThisExercisefalse
+      \else
+        \global\@ShipThisExercisetrue
+      \fi
+    \fi
+  \fi
+\fi
+}
+\newcommand{\ExeText}{\setcounter{savedQuestion}{\value{Question}}%
+\termineliste{1}\@echapqtrue}
+\newcount\colonnesLevel \colonnesLevel=-10
+\newskip\tempskipa
+\newskip\tempskipb
+\def\deuxcolonnes{\tempskipa=\multicolsep\colonnesLevel=\@QuestionLevel
+\ifcase\@QuestionLevel \multicolsep=\QuestionBefore %
+\or
+\multicolsep=\subQuestionBefore\or\multicolsep=\subsubQuestionBefore\fi%
+\begin{multicols}{2}}
+\@ifundefined{if@fleqn}{\newif\if@fleqn\@fleqnfalse}{}
+\newlength{\@savedmathindent}
+\newcommand{\@savemathindent}{\relax}
+\newcommand{\@decalemathindent}[1]{\relax}
+\newcommand{\@restoremathindent}{\relax}
+\if@fleqn %
+  \renewcommand{\@savemathindent}{\setlength{\@savedmathindent}{\mathindent}}
+  \renewcommand{\@decalemathindent}[1]{\addtolength{\mathindent}{#1}}
+  \renewcommand{\@restoremathindent}{\setlength{\mathindent}{\@savedmathindent}}
+\else
+  \renewcommand{\@savemathindent}{\relax}
+  \renewcommand{\@decalemathindent}[1]{\relax}
+  \renewcommand{\@restoremathindent}{\relax}
+\fi
+\def\renewcounter#1{%
+    \@ifundefined{c@#1}
+    {\@latex@error{counter #1 undefined}\@ehc}%
+    \relax
+    \let\@ifdefinable\@rc@ifdefinable
+    \@ifnextchar[{\@newctr{#1}}{}}
+\endinput
+%%
+%% End of file `exercise.sty'.

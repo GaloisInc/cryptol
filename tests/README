@@ -1,0 +1,4 @@
+Test suites:
+
+regression: tests from Cryptol-1's regression test suite.
+issues: tests related to issues in the bug tracker.

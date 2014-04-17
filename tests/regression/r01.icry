@@ -1,0 +1,5 @@
+:l r01.cry
+all ltTen [0 .. 9] where ltTen x = x < 10
+all ltTen [0 .. 10] where ltTen x = x < 10
+any ltTen [100,99 .. 10] where ltTen x = x < 10
+any ltTen [100,99 .. 9] where ltTen x = x < 10

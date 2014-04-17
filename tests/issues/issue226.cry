@@ -1,0 +1,5 @@
+module issue226 where
+
+import issue226r2
+
+foo x = x

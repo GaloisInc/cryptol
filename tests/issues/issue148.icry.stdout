@@ -1,0 +1,1 @@
+Should load and typecheck cleanly - no errors. Once it does, I'll put in a smoketest of reasonable output.

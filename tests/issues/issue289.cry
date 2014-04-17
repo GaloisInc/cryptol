@@ -1,0 +1,30 @@
+average33 : [32] -> [32] -> [32]
+average33 x y = drop`{1}(z'/2)
+    where 
+          z' : [33]
+          z' = (0b0 # x) + (0b0 # y)
+
+average1 : [32] -> [32] -> [32]
+average1 x y = (x + y)/2
+
+average2 : [32] -> [32] -> [32]
+average2 x y = x/2 + y/2 + (x%2 && y%2)
+
+average3 : [32] -> [32] -> [32]
+average3 x y = (x + y) >> 1
+
+average4 : [32] -> [32] -> [32]
+average4 x y =    (x >> 1) + (y >> 1) + (x && y && 1)
+
+average5 : [32] -> [32] -> [32]
+average5 x y = lo + ((hi - lo)>>1) where
+    lo = min x y
+    hi = max x y
+
+property av1 x y = average33 x y == average1 x y
+property av2 x y = average33 x y == average2 x y
+property av3 x y = average33 x y == average3 x y
+property av4 x y = average33 x y == average4 x y
+property av5 x y = average33 x y == average5 x y
+
+property applesOranges x y = average4 x y == average5 x y

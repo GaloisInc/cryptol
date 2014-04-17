@@ -1,0 +1,10 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at check01.cry:2:1--2:27:
+  Defaulting 4th type parameter
+             of expression (@@)
+             at check01.cry:2:17--2:19
+  to 5
+[7, 20]
+True

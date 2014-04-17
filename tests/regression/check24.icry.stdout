@@ -1,0 +1,9 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at :1:1--4:82:
+  Defaulting 1st type parameter
+             of expression Main::xor
+             at check24.cry:4:13--4:16
+  to 4
+True

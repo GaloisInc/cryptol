@@ -1,0 +1,3 @@
+check19a = ([ 0x1234fedc7531, 0x5678abcd1357 ] ^ [ 0xabcd01230a8d, 0xfdec5678c090 ]) == [ 0xb9f9ffff7fbc, 0xab94fdb5d3c7 ]
+check19b = ~ [ 0xf0f0f0f0f0f0f0f0, 0x0f0f0f0f0f0f0f0f ] == [ 0x0f0f0f0f0f0f0f0f, 0xf0f0f0f0f0f0f0f0 ]
+check19 = check19a && check19b

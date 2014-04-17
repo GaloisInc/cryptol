@@ -1,0 +1,37 @@
+initS : [1][32]
+initL : [1][32]
+initS = [0]
+initL = [0]
+ss = [ (s + a + b) <<< 3   | s <- initS # ss
+	                       | a <- [1] # ss
+	                       | b <- [0] # ls ]
+ls = [ (l + a + b) <<< (a + b) 
+                        | l <- initL # ls
+		                | a <- ss
+		                | b <- [0] # ls ]
+
+check9a = (ss @@ [0 .. 3] == [ 0x00000008, 0x00004080, 0x00068c00, 0x00a22800 ])
+       && (ls @@ [0 .. 3] == [ 0x00000800, 0x00005080, 0x00072d00, 0x00b08200 ])
+
+keyX : [4][8] -> [7][32]
+keyX key = ss @@ [ 0 .. 6 ]
+  where
+    initS : [1][32]
+    initL : [1][32]
+    initS = [0]
+    initL = split (join key)
+    ss = [ (s + a + b) <<< 3
+                    | s <- initS # ss
+				    | a <- [1] # ss
+				    | b <- [0] # ls ]
+    ls = [ (l + a + b) <<< (a + b)
+                    | l <- initL # ls
+				    | a <- ss
+				    | b <- [0] # ls ]
+
+// NOTE different endianness from Cryptol 1 test
+check9b = keyX (reverse "abcd") == 
+	    [0x00000008, 0x1b134ba3, 0x11ae69b1, 0xb7b3f42f,
+             0xc9eb1fdc, 0x008b5f36, 0x8991bc8c]
+
+check9 = check9a && check9b

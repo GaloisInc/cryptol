@@ -1,0 +1,2 @@
+
+f t = x + y where (x,y) = t

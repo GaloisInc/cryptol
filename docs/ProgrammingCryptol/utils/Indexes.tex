@@ -1,0 +1,215 @@
+%
+% Programming in Cryptol
+% Galois, Inc.
+%
+
+% funky symbolic things
+\newcommand{\indLamExp}{\index{000lambda@\ensuremath{\lambda}-expression}\xspace}
+
+% operators
+\newcommand{\indAppend}{\index{AAAappend@\texttt{\#}, \ (append)}\xspace}
+\newcommand{\indIndex}{\index{AAAselect@\texttt{"@}, \ (select)}\xspace}
+\newcommand{\indRIndex}{\index{AAAreverseselect@\texttt{"!}, \ (reverse select)}\xspace}
+\newcommand{\indIndexs}{\index{AAAselects@\texttt{"@@}, \ (permutation)}\xspace}
+\newcommand{\indRIndexs}{\index{AAAreverseselects@\texttt{"!"!}, \ (reverse permutation)}\xspace}
+\newcommand{\indShiftLeft}{\index{AAAshiftleft@\texttt{<<}, \ (shift left)}\xspace}
+\newcommand{\indShiftRight}{\index{AAAshiftleft@\texttt{>>}, \ (shift right)}\xspace}
+\newcommand{\indRotLeft}{\index{AAArotateleft@\texttt{<<<}, \ (rotate left)}\xspace}
+\newcommand{\indRotRight}{\index{AAArotateright@\texttt{>>>}, \ (rotate right)}\xspace}
+\newcommand{\indOr}{\index{AAAor@\texttt{"|}, \ (or)}\xspace}
+\newcommand{\indAnd}{\index{AAAandand@\texttt{"\&}, \ (and)}\xspace}
+\newcommand{\indXOr}{\index{AAAxor@\texttt{\;\;"\^}, \ (xor)}\xspace}
+\newcommand{\indComplement}{\index{AAAcomplement@\texttt{\;\;"\~}, \ (complement)}\xspace}
+\newcommand{\indPlus}{\index{AAAplus@\texttt{"+}, \ (add)}\xspace}
+\newcommand{\indMinus}{\index{AAAminus@\texttt{"-}, \ (subtract)}\xspace}
+\newcommand{\indExponentiate}{\index{AAAexponentiate@\texttt{"*"*}, \ (exponentiate)}\xspace}
+\newcommand{\indUnaryMinus}{\index{AAAunaryMinus@\texttt{"-}, \ (unary minus)}\xspace}
+\newcommand{\indTimes}{\index{AAAtimes@\texttt{"*}, \ (multiply)}\xspace}
+\newcommand{\indDiv}{\index{AAAdiv@\texttt{"/}, \ (divide)}\xspace}
+\newcommand{\indMod}{\index{AAAmod@\texttt{"\%}, \ (modulus)}\xspace}
+\newcommand{\indEq}{\index{AAAequals@\texttt{"="=}, \ (equal)}\xspace}
+\newcommand{\indNeq}{\index{AAequalsnot@\texttt{"!"=}, \ (not-equal)}\xspace}
+\newcommand{\indGt}{\index{AAAgreaterthan@\texttt{">}, \ (greater than)}\xspace}
+\newcommand{\indGte}{\index{AAAgreaterthanorequal@\texttt{">=}, \ (greater or equal)}\xspace}
+\newcommand{\indLt}{\index{AAAlessthan@\texttt{"<}, \ (less than)}\xspace}
+\newcommand{\indLte}{\index{AAAlessthanorequal@\texttt{"<=}, \ (less or equal)}\xspace}
+\newcommand{\indUnderscore}{\index{AAAunderscore@\texttt{\_}, \ (underscore)}\xspace}
+
+% settings
+\newcommand{\indSettingASCII}{\index{settings!\texttt{a},\ (ASCII printing)}\xspace}
+\newcommand{\indSettingType}{\index{settings!\texttt{t},\ (printing types)}\xspace}
+\newcommand{\indSettingBase}{\index{settings!\texttt{base},\ (output base)}\xspace}
+\newcommand{\indSettingEditor}{\index{settings!\texttt{editor},\ (file editor)}\xspace}
+\newcommand{\indSettingDefaulting}{\index{settings!\texttt{d},\ (defaulting)}\xspace}
+\newcommand{\indSBV}{\index{settings!\texttt{sbv}}\xspace}
+\newcommand{\indQCCount}{\index{settings!\texttt{quickCheckCount}}\xspace}
+
+% types
+\newcommand{\indTheBitType}{\index{bit}\xspace}
+\newcommand{\indTheTupleType}{\index{tuple}\xspace}
+\newcommand{\indTheWordType}{\index{word}\xspace}
+\newcommand{\indTheSequenceType}{\index{sequence}\xspace}
+\newcommand{\indTheRecordType}{\index{record}\xspace}
+\newcommand{\indTheStringType}{\index{string}\xspace}
+\newcommand{\indTheCharType}{\index{characters}\xspace}
+
+% concepts
+\newcommand{\indArbitraryPrecision}{\index{word!arbitrary precision}\xspace}
+\newcommand{\indFiniteSeq}{\index{sequence!finite}\xspace}
+\newcommand{\indNestedComp}{\index{sequence!nested}\xspace}
+\newcommand{\indInfSeq}{\index{sequence!infinite}\xspace}
+\newcommand{\indStream}{\index{streams}\xspace}
+\newcommand{\indStreamEquation}{\index{stream equations}\xspace}
+\newcommand{\indEnum}{\index{sequence!enumerations}\xspace}
+\newcommand{\indCartesian}{\index{sequence!cartesian}\xspace}
+\newcommand{\indParallel}{\index{sequence!parallel}\xspace}
+\newcommand{\indComp}{\index{sequence!comprehensions}\xspace}
+\newcommand{\indArithLift}{\index{sequence!arithmetic lifting}\xspace}
+\newcommand{\indEndianness}{\index{endianness}\xspace}
+\newcommand{\indOverflow}{\index{overflow}\xspace}
+\newcommand{\indUnderflow}{\index{underflow}\xspace}
+\newcommand{\indModular}{\index{modular arithmetic}\xspace}
+\newcommand{\indFloatingPoint}{\index{floating point}\xspace}
+\newcommand{\indTypeInference}{\index{type!inference}\xspace}
+\newcommand{\indPolymorphism}{\index{type!polymorphism}\xspace}
+\newcommand{\indMonomorphism}{\index{type!monomorphism}\xspace}
+\newcommand{\indOverloading}{\index{type!overloading}\xspace}
+\newcommand{\indUndecidable}{\index{type!undecidable}\xspace}
+\newcommand{\indPredicates}{\index{type!predicates}\xspace}
+\newcommand{\indTypeClasses}{\index{type!type classes}\xspace}
+\newcommand{\indTypeVariables}{\index{type!type variables}\xspace}
+\newcommand{\indTypeContext}{\index{type!type context}\xspace}
+\newcommand{\indTypeInline}{\index{type!inline argument types}\xspace}
+\newcommand{\indTypePositionalArguments}{\index{type!positional arguments}\xspace}
+\newcommand{\indAmbiguity}{\index{type!ambiguous}\xspace}
+\newcommand{\indSignature}{\index{type!signature}\xspace}
+\newcommand{\indTypeAnnotation}{\index{type!annotation}\xspace}
+\newcommand{\indFin}{\index{type!\texttt{fin}}\xspace}
+\newcommand{\indInf}{\index{type!\texttt{inf}}\xspace}
+\newcommand{\indDefaulting}{\index{type!defaulting}\xspace}
+\newcommand{\indRecurrence}{\index{recurrences}\xspace}
+\newcommand{\indRecursion}{\index{recursion}\xspace}
+\newcommand{\indFold}{\index{fold}\xspace}
+\newcommand{\indWhileLoop}{\index{while loop}\xspace}
+\newcommand{\indPatMatch}{\index{pattern matching}\xspace}
+\newcommand{\indProperty}{\index{properties}\xspace}
+\newcommand{\indThmFuncCorr}{\index{properties!function correspondence}\xspace}
+\newcommand{\indThmCond}{\index{properties!conditional}\xspace}
+\newcommand{\indThmPolyvalid}{\index{properties!polymorphic validity}\xspace}
+\newcommand{\indQED}{\index{properties!\texttt{Q.E.D.}}\xspace}
+\newcommand{\indContradiction}{\index{properties!\texttt{contradiction}}\xspace}
+\newcommand{\indProve}{\index{properties!proving}\xspace}
+\newcommand{\indProofCompleteness}{\index{properties!completeness}\xspace}
+\newcommand{\indCounterExample}{\index{properties!counter-example}\xspace}
+\newcommand{\indSat}{\index{satisfiability checking}\xspace}
+\newcommand{\indSafe}{\index{safety checking}\xspace}
+\newcommand{\indImport}{\index{import directive}\xspace}
+\newcommand{\indPrivate}{\index{private qualifier}\xspace}
+\newcommand{\indModuleSystem}{\index{module system}\xspace}
+
+% syntax
+\newcommand{\indCaseSensitive}{\index{case sensitivity}\xspace}
+\newcommand{\indLiterateProgramming}{\index{literate programming}\xspace}
+\newcommand{\indComments}{\index{comments}\xspace}
+\newcommand{\indFunApp}{\index{function application}\xspace}
+\newcommand{\indWhere}{\index{where clause}\xspace}
+\newcommand{\indTypSynonym}{\index{type synonym}\xspace}
+\newcommand{\indTSWord}{\index{type synonym!Word}\xspace}
+\newcommand{\indTSString}{\index{type synonym!String}\xspace}
+\newcommand{\indTSBool}{\index{type synonym!Bool}\xspace}
+
+% constants-functions
+\newcommand{\indTrue}{\index{True@\texttt{True}}\xspace}
+\newcommand{\indFalse}{\index{False@\texttt{False}}\xspace}
+\newcommand{\indTake}{\index{take@\texttt{take}}\xspace}
+\newcommand{\indTail}{\index{tail@\texttt{tail}}\xspace}
+\newcommand{\indDrop}{\index{drop@\texttt{drop}}\xspace}
+\newcommand{\indJoin}{\index{join@\texttt{join}}\xspace}
+\newcommand{\indSplit}{\index{split@\texttt{split}}\xspace}
+\newcommand{\indSplitBy}{\index{splitBy@\texttt{splitBy}}\xspace}
+\newcommand{\indGroup}{\index{group@\texttt{group}}\xspace}
+\newcommand{\indTranspose}{\index{transpose@\texttt{transpose}}\xspace}
+\newcommand{\indTupleProj}{\index{project@\texttt{project}}\xspace}
+\newcommand{\indLg}{\index{lg2@\texttt{lg2}}\xspace}
+\newcommand{\indMin}{\index{min@\texttt{min}}\xspace}
+\newcommand{\indMax}{\index{max@\texttt{max}}\xspace}
+\newcommand{\indReverse}{\index{reverse@\texttt{reverse}}\xspace}
+\newcommand{\indWidth}{\index{width@\texttt{width}}\xspace}
+\newcommand{\indError}{\index{error@\texttt{error}}\xspace}
+\newcommand{\indUndefined}{\index{undefined@\texttt{undefined}}\xspace}
+\newcommand{\indAssert}{\index{ASSERT@\texttt{ASSERT}}\xspace}
+\newcommand{\indZero}{\index{zero@\texttt{zero}}\xspace}
+\newcommand{\indAll}{\index{all@\texttt{all}}\xspace}
+\newcommand{\indElem}{\index{elem@\texttt{elem}}\xspace}
+\newcommand{\indAny}{\index{any@\texttt{any}}\xspace}
+\newcommand{\indPoly}{\index{polynomial}\xspace}
+\newcommand{\indDivPoly}{\index{polynomial!division}\xspace}
+\newcommand{\indModPoly}{\index{polynomial!modulus}\xspace}
+\newcommand{\indMulPoly}{\index{polynomial!multiplication}\xspace}
+\newcommand{\indAddPoly}{\index{polynomial!addition}\xspace}
+\newcommand{\indSubPoly}{\index{polynomial!subtraction}\xspace}
+\newcommand{\indIrredPoly}{\index{polynomial!irreducable}\xspace}
+
+% commands
+\newcommand{\indCmdBrowse}{\index{commands!browse@\texttt{:b}\ (browse)}\xspace}
+\newcommand{\indCmdLoad}{\index{commands!load@\texttt{:l}\ (load)}\xspace}
+\newcommand{\indCmdReload}{\index{commands!reload@\texttt{:r}\ (reload)}\xspace}
+\newcommand{\indCmdType}{\index{commands!type@\texttt{:t}\ (type)}\xspace}
+\newcommand{\indCmdShell}{\index{commands!shell@\texttt{"!}\ (shell)}\xspace}
+\newcommand{\indCmdEdit}{\index{commands!edit@\texttt{:e}\ (edit)}\xspace}
+\newcommand{\indCmdHelp}{\index{commands!help@\texttt{:?}\ (help)}\xspace}
+\newcommand{\indCmdQuit}{\index{commands!quit@\texttt{:q}\ (quit)}\xspace}
+\newcommand{\indCmdPrint}{\index{commands!print@\texttt{:p}\ (print)}\xspace}
+\newcommand{\indCmdInfo}{\index{commands!info@\texttt{:i}\ (info)}\xspace}
+\newcommand{\indCmdProve}{\index{commands!prove@\texttt{:prove}}\xspace}
+\newcommand{\indCmdCheck}{\index{commands!check@\texttt{:check}}\xspace}
+\newcommand{\indCmdAutoCheck}{\index{commands!check@\texttt{:check}!automatic}\xspace}
+\newcommand{\indCmdSat}{\index{commands!sat@\texttt{:sat}}\xspace}
+\newcommand{\indCmdSafe}{\index{commands!safe@\texttt{:safe}}\xspace}
+\newcommand{\indCmdLoadModule}{\index{commands!module@\texttt{:m}\ (module load)}\xspace}
+
+% other
+\newcommand{\indLineCont}{\index{command line!line continuation}\xspace}
+\newcommand{\indCompletion}{\index{command line!completion}\xspace}
+
+% non-Cryptol concepts
+\newcommand{\indCipherkey}{\index{cipherkey}\xspace}
+\newcommand{\indCiphertext}{\index{ciphertext}\xspace}
+\newcommand{\indPlaintext}{\index{plaintext}\xspace}
+\newcommand{\indShiftcipher}{\index{shift cipher}\xspace}
+\newcommand{\indCaesarscipher}{\index{Caesar's cipher}\xspace}
+\newcommand{\indVigenere}{\index{Vigen\`{e}re cipher}\xspace}
+\newcommand{\indTranspositioncipher}{\index{transposition cipher}\xspace}
+\newcommand{\indScytale}{\index{scytale}\xspace}
+\newcommand{\indAtbash}{\index{atbash}\xspace}
+\newcommand{\indRailFence}{\index{rail fence cipher}\xspace}
+\newcommand{\indKnownPTAttack}{\index{known plaintext attack}\xspace}
+\newcommand{\indSubstitutioncipher}{\index{substitution cipher}\xspace}
+\newcommand{\indMonoAlphSubst}{\index{substitution cipher!monoalphabetic}\xspace}
+\newcommand{\indPolyAlphSubst}{\index{substitution cipher!polyalphabetic}\xspace}
+\newcommand{\indPolyGraphSubst}{\index{substitution cipher!polygraphic}\xspace}
+\newcommand{\indSubstPeriod}{\index{substitution cipher!period}\xspace}
+\newcommand{\indEnigma}{\index{Enigma machine}\xspace}
+\newcommand{\indEnigmaPlugboard}{\index{Enigma machine!plugboard}\xspace}
+\newcommand{\indEnigmaRotor}{\index{Enigma machine!rotor}\xspace}
+\newcommand{\indEnigmaReflector}{\index{Enigma machine!reflector}\xspace}
+\newcommand{\indSymKey}{\index{symmetric key}\xspace}
+\newcommand{\indAES}{\index{AES}\xspace}
+\newcommand{\indGF}{\index{Galois field}\xspace}
+\newcommand{\indAESState}{\index{AES!state}\xspace}
+\newcommand{\indAESSbox}{\index{AES!SubBytes@\texttt{SubBytes}}\xspace}
+\newcommand{\indAESInvSbox}{\index{AES!InvSubBytes@\texttt{InvSubBytes}}\xspace}
+\newcommand{\indAESShiftRows}{\index{AES!ShiftRows@\texttt{ShiftRows}}\xspace}
+\newcommand{\indAESInvShiftRows}{\index{AES!InvShiftRows@\texttt{InvShiftRows}}\xspace}
+\newcommand{\indAESMixColumns}{\index{AES!MixColumns@\texttt{MixColumns}}\xspace}
+\newcommand{\indAESInvMixColumns}{\index{AES!InvMixColumns@\texttt{InvMixColumns}}\xspace}
+
+% external tools
+\newcommand{\indABC}{\index{ABC}\xspace}
+\newcommand{\indYices}{\index{Yices}\xspace}
+\newcommand{\indIsabelleHOL}{\index{Isabelle/HOL}\xspace}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "../main/Cryptol"
+%%% End: 

@@ -1,0 +1,28 @@
+\chapter{AES in Cryptol}\label{app:aes}
+
+In this appendix we present the Cryptol code for the AES\indAES in its
+entirety for reference purposes.  Chapter~\ref{chapter:aes} has a
+detailed discussion on how AES works, and the construction of the
+Cryptol model below.
+
+In the below code, simply set {\tt Nk} to be 4 for AES128, 6 for
+AES192, and 8 for AES256 on line 15. No other modifications are
+required for obtaining these AES variants. Note that we have
+rearranged the code given in Chapter~\ref{chapter:aes} below for ease
+of reading.
+%%  and eliminated the theorem declarations for simplicity.
+
+\fvset{fontsize=\footnotesize}
+\VerbatimInput[numbers=left]{aes/AES.cry}
+\commentout{
+\begin{code}
+AESEncapsulated = {
+include "AES.cry";
+};
+\end{code}
+}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "../main/Cryptol"
+%%% End: 

@@ -1,0 +1,3 @@
+ones = [1] # ones
+
+check2 = ones @ 149 == 1

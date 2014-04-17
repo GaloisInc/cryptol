@@ -1,0 +1,3 @@
+t = (0x1, { key = 4, value = "goodbye"})
+
+bug218Fixed = (t.2.value == t.2.value)

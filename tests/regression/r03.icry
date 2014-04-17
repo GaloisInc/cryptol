@@ -1,0 +1,4 @@
+:set warnDefaulting=off
+:m r03
+:sat nQueens:Solution 5
+:prove (nQueensProve:Solution 4)

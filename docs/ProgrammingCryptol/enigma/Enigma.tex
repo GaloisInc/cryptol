@@ -1,0 +1,774 @@
+\chapter{The Enigma machine}
+\label{chapter:enigma}
+
+The Enigma machine is probably the most famous of all cryptographic
+devices in history, due to the prominent role it played in
+WWII~\cite{wiki:enigma}.\indEnigma The first Enigma machines were
+available around 1920s, with various models in the market for
+commercial use. When Germans used the Enigma during WWII, they were
+using a particular model referred to as the {\em Wehrmacht Enigma}, a
+fairly advanced model available at the time.
+
+The most important role of Enigma\indEnigma is in its role in the use
+of automated machines to aid in secret communication, or what is known
+as \emph{mechanizing secrecy}.  One has to understand that computers
+as we understand them today were not available when Enigma was in
+operation. Thus, the Enigma employed a combination of mechanical
+(keyboard, rotors, etc.)  and electrical parts (lamps, wirings, etc.)
+to implement its functionality. However, our focus in this chapter
+will not be on the mechanical aspects of Enigma at all. For a highly
+readable account of that, we refer the reader to Singh's excellent
+book on cryptography~\cite{Singh:1999:CBE}. Instead, we will model
+Enigma in Cryptol in an algorithmic sense, implementing Enigma's
+operations without any reference to the underlying mechanics. More
+precisely, we will model an Enigma machine that has a plugboard, three
+interchangeable scramblers, and a fixed reflector.
+
+\todo[inline]{Add a photo or two of some Enigmas here.  Look into the
+  WikiCommons.}
+
+\todo[inline]{Provide an architectural diagram of this Cryptol
+  construction somewhere reasonable and refer to it regularly to give
+  the reader a better big-picture of how the spec hangs together
+  vs.~the actual machine.}
+
+%=====================================================================
+\section{The plugboard}
+\label{sec:enigma:plugboard}
+\sectionWithAnswers{The plugboard}{sec:enigma:plugboard}
+
+Enigma essentially implements a polyalphabetic substitution cipher
+(Section~\ref{section:subst})\indPolyAlphSubst, consisting of a number
+of rotating units that jumble up the alphabet.  The first component is
+the so called plugboard ({\em steckerbrett} in
+German)\indEnigmaPlugboard. In the original Enigma, the plugboard
+provided a means of interchanging 6-pairs or letters. For instance,
+the plugboard could be set-up so that pressing the {\tt B} key would
+actually engage the {\tt Q} key, etc.  We will slightly generalize and
+allow any number of pairings, as we are not limited by the
+availability of cables or actual space to put them in a box! Viewed in
+this sense, the plugboard is merely a permutation of the alphabet. In
+Cryptol, we can represent the plugboard combination by a string of 26
+characters, corresponding to the pairings for each letter in the
+alphabet from {\tt A} to {\tt Z}:
+
+\begin{code}
+  type Permutation = String 26
+  type Plugboard = Permutation
+\end{code}
+For instance, the plugboard matching the pairs {\tt A}-{\tt H}, {\tt
+  C}-{\tt G}, {\tt Q}-{\tt X}, {\tt T}-{\tt V}, {\tt U}-{\tt Y}, {\tt
+  W}-{\tt M}, and {\tt O}-{\tt L} can be created as follows:
+\begin{code}
+  plugboard : Plugboard
+  plugboard = "HBGDEFCAIJKOWNLPXRSVYTMQUZ"
+\end{code}
+Note that if a letter is not paired through the plugboard, then it
+goes untouched, i.e., it is paired with itself.
+
+\begin{Exercise}\label{ex:enigma:1}
+  Use Cryptol to verify that the above plugboard definition indeed
+  implements the pairings we wanted.
+\end{Exercise}
+\begin{Answer}\ansref{ex:enigma:1}
+We can simply ask Cryptol what the implied mappings are:
+\begin{Verbatim}
+  Cryptol> [ plugboard @ (c - 'A') | c <- "ACQTUWO" ]
+  "HGXVYML"
+\end{Verbatim}
+Why do we subtract the {\tt 'A'} when indexing?
+\end{Answer}
+
+\note{In Enigma, the plugboard pairings are symmetric; if {\tt A} maps
+  to {\tt H}, then {\tt H} must map to {\tt A}.}
+
+%=====================================================================
+\section{Scrambler rotors}
+\label{sec:enigma:scramblerrotors}
+\sectionWithAnswers{Scrambler rotors}{sec:enigma:scramblerrotors}
+
+The next component of the Enigma are the rotors that scramble the
+letters.  Rotors ({\em walzen} in German)\indEnigmaRotor are
+essentially permutations, with one little twist: as their name
+implies, they rotate. This rotation ensures that the next character
+the rotor will process will be encrypted using a different alphabet,
+thus giving Enigma its polyalphabetic nature.\indPolyAlphSubst
+
+The other trick employed by Enigma is how the rotations are done. In a
+typical setup, the rotors are arranged so that the first rotor rotates
+at every character, while the second rotates at every 26th, the third
+at every 676th ($=26*26$), etc. In a sense, the rotors work like the
+odometer in your car, one full rotation of the first rotor triggers
+the second, whose one full rotation triggers the third, and so on. In
+fact, more advanced models of Enigma allowed for two notches per
+rotor, i.e., two distinct positions on the rotor that will allow the
+next rotor in sequence to rotate itself. We will allow ourselves to
+have any number of notches, by simply pairing each substituted letter
+with a bit value saying whether it has an associated notch:
+\footnote{The type definition for {\tt Char} was given in
+  Example~\ref{section:subst}-\ref{ex:subst:1}.}
+
+\begin{code}
+  type Rotor = [26](Char, Bit)
+\end{code}
+The function {\tt mkRotor} will create a rotor for us from a given permutation of the letters and the notch
+locations:~\footnote{The function {\tt elem} was defined in Exercise~\ref{sec:recandrec}-\ref{ex:recfun:4:1}.\indElem}
+\begin{code}
+  mkRotor : {n} (fin n) => (Permutation, String n) -> Rotor
+  mkRotor (perm, notchLocations) = [ (p, elem (p, notchLocations))
+                                    | p <- perm
+                                   ]
+\end{code}
+\todo[inline]{A diagram here would be really useful, especially one
+  that captures the location and use of notches and the state of these
+  rotors before and after rotations.}
+Let us create a couple of rotors with notches:
+\begin{code}
+  rotor1, rotor2, rotor3 : Rotor
+  rotor1 = mkRotor ("RJICAWVQZODLUPYFEHXSMTKNGB", "IO")
+  rotor2 = mkRotor ("DWYOLETKNVQPHURZJMSFIGXCBA", "B")
+  rotor3 = mkRotor ("FGKMAJWUOVNRYIZETDPSHBLCQX", "CK")
+\end{code}
+For instance, {\tt rotor1} maps {\tt A} to {\tt R}, {\tt B} to {\tt J},
+$\ldots$, and {\tt Z} to {\tt B} in its initial position. It will engage its
+notch if one of the permuted letters {\tt I} or {\tt O} appear in its first
+position.
+
+\begin{Exercise}\label{ex:enigma:2}
+  Write out the encrypted letters for the sequence of 5 {\tt C}'s for
+  {\tt rotor1}, assuming it rotates in each step. At what points does
+  it engage its own notch to signal the next rotor to rotate?
+\end{Exercise}
+\begin{Answer}\ansref{ex:enigma:2}
+Recall that {\tt rotor1} was defined as:
+\begin{Verbatim}
+  rotor1 = mkRotor ("RJICAWVQZODLUPYFEHXSMTKNGB", "IO")
+\end{Verbatim}
+Here is a listing of the new mappings and the characters we will get
+at the output for each successive {\tt C}:
+\begin{Verbatim}
+            starting map             output       notch engaged?
+      RJICAWVQZODLUPYFEHXSMTKNGB       I              no
+      JICAWVQZODLUPYFEHXSMTKNGBR       C              no
+      ICAWVQZODLUPYFEHXSMTKNGBRJ       A              yes
+      CAWVQZODLUPYFEHXSMTKNGBRJI       W              no
+      AWVQZODLUPYFEHXSMTKNGBRJIC       V              no
+\end{Verbatim}
+Note how we get different letters as output, even though we are
+providing the same input (all {\tt C}'s.) This is the essence of the
+Enigma: the same input will not cause the same output necessarily,
+making it a polyalphabetic substitution cipher.\indPolyAlphSubst
+\end{Answer}
+
+%=====================================================================
+\section{Connecting the rotors: notches in action}
+\label{sec:enigma:notches}
+\sectionWithAnswers{Connecting the rotors: notches in action}{sec:enigma:notches}
+
+\todo[inline]{A diagram here depicting rotor interchangeability and
+  the relationship between \texttt{scramble} and rotors in the above
+  figure.}
+
+The original Enigma had three interchangeable rotors. The operator
+chose the order they were placed in the machine. In our model, we will
+allow for an arbitrary number of rotors. The tricky part of connecting
+the rotors is ensuring that the rotations of each are done properly.
+
+Let us start with a simpler problem.  If we are given a rotor and a
+particular letter to encrypt, how can we compute the output letter and
+the new rotor position?  First of all, we will need to know if the
+rotor should rotate itself, that is if the notch between this rotor
+and the previous one was activated. Also, we need to find out if the
+act of rotation in this rotor is going to cause the next rotor to
+rotate. We will model this action using the Cryptol function {\tt
+  scramble}:
+\begin{code}
+  scramble : (Bit, Char, Rotor) -> (Bit, Char, Rotor)
+\end{code}
+The function {\tt scramble} takes a triple \texttt{(rotate, c, rotor)}:
+\begin{itemize}
+\item {\tt rotate}: if {\tt True}, this rotor will rotate before
+  encryption. Indicates that the notch between this rotor and the
+  previous one was engaged,
+  \item {\tt c}: the character to encrypt, and
+  \item {\tt rotor}: the current state of the rotor.
+\end{itemize}
+Similarly, the output will also be a triple:
+\begin{itemize}
+\item {\tt notch}: {\tt True} if the notch on this rotor engages,
+  i.e., if the next rotor should rotate itself,
+\item {\tt c'}: the result of encrypting (substituting) for {\tt c}
+  with the current state of the rotor.
+\item {\tt rotor'}: the new state of the rotor. If no rotation was
+  done this will be the same as {\tt rotor}. Otherwise it will be the
+  new substitution map obtained by rotating the old one to the left by
+  one.
+\end{itemize}
+Coding {\tt scramble} is straightforward:
+\begin{code}
+  scramble (rotate, c, rotor) = (notch, c', rotor')
+    where 
+      (c', _)    = rotor @ (c - 'A')
+      (_, notch) = rotor @ 0
+      rotor'     = if rotate then rotor <<< 1 else rotor
+\end{code}
+To determine {\tt c'}, we use the substitution map to find out what
+this rotor maps the given character to, with respect to its current
+state. Note how Cryptol's pattern matching notation\indPatMatch helps
+with extraction of {\tt c'}, as we only need the character, not
+whether there is a notch at that location.  (The underscore character
+use, `\texttt{\_}',\indUnderscore means that we do not need the value
+at the position, and hence we do not give it an explicit name.) To
+determine if we have our notch engaged, all we need to do is to look
+at the first elements notch value, using Cryptol's selection operator
+({\tt @ 0}\indIndex), and we ignore the permutation value there this
+time, again using pattern matching.  Finally, to determine {\tt
+  rotor'} we merely rotate-left by 1\indRotLeft if the {\tt rotate}
+signal was received. Otherwise, we leave the {\tt rotor} unchanged.
+
+\begin{Exercise}\label{ex:enigma:3}
+  Redo Exercise~\ref{ex:enigma:2}, this time using Cryptol and the
+  {\tt scramble} function.
+\end{Exercise}
+\begin{Answer}\ansref{ex:enigma:3}
+  We can define the following value to simulate the operation of
+  always telling {\tt scramble} to rotate the rotor and providing it
+  with the input {\tt C}.
+\begin{Verbatim}
+ rotor1CCCCC = [(c1, n1), (c2, n2), (c3, n3), (c4, n4), (c5, n5)]
+    where (n1, c1, r1) = scramble (True, 'C', rotor1)
+          (n2, c2, r2) = scramble (True, 'C', r1)
+          (n3, c3, r3) = scramble (True, 'C', r2)
+          (n4, c4, r4) = scramble (True, 'C', r3)
+          (n5, c5, r5) = scramble (True, 'C', r4)
+\end{Verbatim}
+\todo[inline]{Remind reader of simultaneity of \texttt{where}
+  clauses.}  Note how we chained the output rotor values in the calls,
+through the values {\tt r1}-{\tt r2}-{\tt r3} and {\tt r4}. We have:
+\begin{Verbatim}
+  Cryptol> rotor1CCCCC
+  [(I, False), (C, False), (A, True), (W, False), (V, False)]
+\end{Verbatim}
+Note that we get precisely the same results from Cryptol as we
+predicted in the previous exercise.
+\end{Answer}
+
+\note{The actual mechanics of the Enigma machine were slightly more
+  complicated: due to the keyboard mechanism and the way notches were
+  mechanically built, the first rotor was actually rotating before the
+  encryption took place. Also, the middle rotor could double-step if
+  it engages its notch right after the third rotor
+  does~\cite{enigmaAnomaly}.
+
+  We will take the simpler view here and assume that each key press
+  causes an encryption to take place, {\em after} which the rotors do
+  their rotation, getting ready for the next input. The mechanical
+  details, while historically important, are not essential for our
+  modeling purposes here. Also, the original Enigma had {\em rings}, a
+  relatively insignificant part of the whole machine, that we ignore
+  here.}
+
+\paragraph*{Sequencing the rotors} Now that we have the rotors modeled,
+the next task is to figure out how to connect them in a sequence. As
+we mentioned, Enigma had 3 rotors originally (later versions allowing
+4). The three rotors each had a single notch (later versions allowing
+double notches).  Our model allows for arbitrary number of rotors and
+arbitrary number of notches on each.  The question we now tackle is
+the following: Given a sequence of rotors, how do we run them one
+after the other? We are looking for a function with the following
+signature:
+\begin{code}
+  joinRotors : {n} (fin n) => ([n]Rotor, Char) -> ([n]Rotor, Char)
+\end{code}
+That is, we receive {\tt n} rotors and the character to be encrypted,
+and return the updated rotors (accounting for their rotations) and the
+final character.  The implementation is an instance of the
+fold\indFold pattern (Section~\ref{sec:recandrec}), using the {\tt
+  scramble} function we have just defined:
+\begin{code}
+  joinRotors (rotors, inputChar) = (rotors', outputChar)
+    where 
+      initRotor = mkRotor (['A' .. 'Z'], [])
+      ncrs : [n+1](Bit, [8], Rotor)
+      ncrs = [(True, inputChar, initRotor)]
+                # [  scramble (notch, char, r)
+                     | r <- rotors
+                     | (notch, char, rotor') <- ncrs
+                  ]
+      rotors' = tail [ r | (_, _, r) <- ncrs ]
+      (_, outputChar, _) = ncrs ! 0
+\end{code}
+The workhorse in {\tt joinRotors} is the definition of {\tt ncrs}, a
+mnemonic for {\em notches-chars-rotors}. The idea is fairly simple.
+We simply iterate over all the given rotors ({\tt r <- rotors}), and
+{\tt scramble} the current character {\tt char}, using the rotor {\tt
+  r} and the notch value {\tt notch}.  These values come from {\tt
+  ncrs} itself, using the fold pattern\indFold encoded by the
+comprehension\indComp.  The only question is what is the seed value
+for this fold? 
+
+The seed used in {\tt ncrs} is {\tt (True, inputChar, initRotor)}. The
+first component is {\tt True}, indicating that the very first rotor
+should always rotate itself at every step. The second element is {\tt
+  inputChar}, which is the input to the whole sequence of rotors. The
+only mysterious element is the last one, which we have specified as
+{\tt initRotor}.  This rotor is defined so that it simply maps the
+letters to themselves with no notches on it, by a call to the {\tt
+  mkRotor} function we have previously defined. This rotor is merely a
+place holder to kick off the computation of {\tt ncrs}, it acts as the
+identity element in a sequence of rotors.  To compute {\tt rotors'},
+we merely project the third component of {\tt ncrs}, being careful
+about skipping the first element using {\tt tail}\indTail.  Finally,
+{\tt outputChar} is merely the output coming out of the final rotor,
+extracted using {\tt !0}\indRIndex. Note how we use Cryptol's pattern
+matching to get the second component out of the triple in the last
+line.\indPatMatch
+
+\begin{Exercise}\label{ex:enigma:4}
+  Is the action of {\tt initRotor} ever used in the definition of {\tt
+    joinRotors}?
+\end{Exercise}
+\begin{Answer}\ansref{ex:enigma:4}
+  Not unless we receive an empty sequence of rotors, i.e., a call of
+  the form: {\tt joinRotors ([], c)} for some character {\tt c}. In
+  this case, it does make sense to return {\tt c} directly, which is
+  what {\tt initRotor} will do. Note that unless we do receive an
+  empty sequence of rotors, the value of {\tt initRotor} will not be
+  used when computing the {\tt joinRotors} function.
+\end{Answer}
+
+\begin{Exercise}\label{ex:enigma:5}
+What is the final character returned by the expression:
+\begin{Verbatim}
+  joinRotors ([rotor1 rotor2 rotor3], 'F')
+\end{Verbatim}
+Use paper and pencil to figure out the answer by tracing the execution
+of {\tt joinRotors} before running it in Cryptol!
+\end{Exercise}
+\begin{Answer}\ansref{ex:enigma:5}
+  The crucial part is the value of {\tt ncrs}. Let us write it out by
+  substituting the values of {\tt rotors} and {\tt inputChar}:
+\begin{Verbatim}
+      ncrs = [(True, 'F', initRotor)]
+               # [  scramble (notch, char, r)
+                  | r <- [rotor1, rotor2, rotor3]
+                  | (notch, char, rotor') <- ncrs
+                  ]
+\end{Verbatim}
+Clearly, the first element of {\tt ncrs} will be:
+\begin{Verbatim}
+  (True, 'F', initRotor)
+\end{Verbatim}
+Therefore, the second element will be the result of the call:
+\begin{Verbatim}
+  scramble (True, 'F', rotor1)
+\end{Verbatim}
+Recall that {\tt rotor1} was defined as:
+\begin{Verbatim}
+  rotor1 = mkRotor ("RJICAWVQZODLUPYFEHXSMTKNGB", "IO")
+\end{Verbatim}
+What letter does {\tt rotor1} map {\tt F} to? Since {\tt F} is the 5th
+character (counting from 0), {\tt rotor1} maps it to the 5th element
+of its permutation, i.e., {\tt W}, remembering to count from 0!  The
+topmost element in {\tt rotor1} is {\tt R}, which is not its
+notch-list, hence it will {\em not} tell the next rotor to rotate. But
+it will rotate itself, since it received the {\tt True} signal. Thus,
+the second element of {\tt ncrs} will be:
+\begin{Verbatim}
+  (False, 'W', ...)
+\end{Verbatim}
+where we used {\tt ...} to denote the one left-rotation of {\tt
+  rotor1}. (Note that we do not need to know the precise arrangement
+of {\tt rotor1} now for the purposes of this exercise.) Now we move to
+{\tt rotor2}, we have to compute the result of the call:
+\begin{Verbatim}
+  scramble (False, 'W', rotor2)
+\end{Verbatim}
+Recall that {\tt rotor2} was defined as:
+\begin{Verbatim}
+  rotor2 = mkRotor ("DWYOLETKNVQPHURZJMSFIGXCBA", "B")
+\end{Verbatim}
+So, it maps {\tt W} to {\tt X}. (The fourth letter from the end.)  It
+will not rotate itself, and it will not tell {\tt rotor3} to rotate
+itself either since the topmost element is {\tt D} in its current
+configuration, and {\tt D} which is not in the notch-list {\tt
+  "B"}. Thus, the final {\tt scramble} call will be:
+\begin{Verbatim}
+  scramble (False, 'X', rotor3)
+\end{Verbatim}
+where
+\begin{Verbatim}
+  rotor3 = mkRotor ("FGKMAJWUOVNRYIZETDPSHBLCQX", "CK")
+\end{Verbatim}
+It is easy to see that {\tt rotor3} will map {\tt X} to {\tt C}. Thus
+the final value coming out of this expression must be {\tt C}. Indeed,
+we have:\indTupleProj
+\begin{Verbatim}
+  Cryptol> project(2, 2, joinRotors ([rotor1 rotor2 rotor3], 'F'))
+  C
+\end{Verbatim}
+Of course, Cryptol also keeps track of the new rotor positions as
+well, which we have glossed over in this discussion.
+\end{Answer}
+
+%=====================================================================
+\section{The reflector}
+\label{sec:enigma:reflector}
+\sectionWithAnswers{The reflector}{sec:enigma:reflector}
+
+The final piece of the Enigma machine is the
+reflector\indEnigmaReflector ({\em umkehrwalze} in German). The
+reflector is another substitution map. Unlike the rotors, however, the
+reflector did not rotate.  Its main function was ensuring that the
+process of encryption was reversible: The reflector did one final
+jumbling of the letters and then sent the signal back through the
+rotors in the {\em reverse} order, thus completing the loop and
+allowing the signal to reach back to the lamps that would light up.
+For our purposes, it suffices to model it just like any other
+permutation:
+\begin{code}
+  type Reflector = Permutation
+\end{code}
+Here is one example:
+\begin{code}
+  reflector : Reflector
+  reflector = "FEIPBATSCYVUWZQDOXHGLKMRJN"
+\end{code}
+Like the plugboard, the reflector is symmetric: If it maps {\tt B} to
+{\tt E}, it should map {\tt E} to {\tt B}, as in the above
+example. Furthermore, the Enigma reflectors were designed so that they
+never mapped any character to themselves, which is true for the above
+permutation as well. Interestingly, this idea of a non-identity
+reflector (i.e., never mapping any character to itself) turned out to
+be a weakness in the design, which the allies exploited in breaking
+the Enigma during WWII~\cite{Singh:1999:CBE}.
+
+\begin{Exercise}\label{ex:enigma:6}
+Write a function {\tt checkReflector} with the signature:
+\begin{Verbatim}
+  checkReflector : Reflector -> Bit
+\end{Verbatim}
+such that it returns {\tt True} if a given reflector is good (i.e.,
+symmetric and non-self mapping) and {\tt False} otherwise. Check that
+our definition of {\tt reflector} above is a good one. \lhint{Use the
+  {\tt all} function you have defined in
+  Exercise~\ref{sec:zero}-\ref{ex:zero:1}.}
+\end{Exercise}
+\begin{Answer}\ansref{ex:enigma:6}
+%% if this is {code} we have two all's
+\begin{Verbatim}
+  all : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
+  all f xs = [ f x | x <- xs ] == ~zero
+
+  checkReflector refl = all check ['A' .. 'Z']
+    where check c = (c != m) && (c == c')
+             where   m  = refl @ (c - 'A')
+                     c' = refl @ (m - 'A')
+\end{Verbatim}
+For each character in the alphabet, we first figure out what it maps
+to using the reflector, named {\tt m} above. We also find out what
+{\tt m} gets mapped to, named {\tt c'} above. To be a valid reflector
+it must hold that {\tt c} is not {\tt m} (no character maps to
+itself), and {\tt c} must be {\tt c'}. We have:
+\begin{Verbatim}
+  Cryptol> checkReflector reflector
+  True
+\end{Verbatim}
+Note how we used {\tt all}\indAll to make sure {\tt check} holds for
+all the elements of the alphabet.
+\end{Answer}
+
+%=====================================================================
+\section{Putting the pieces together}
+\label{sec:enigma:puttingittogether}
+\sectionWithAnswers{Putting the pieces together}{sec:enigma:puttingittogether}
+
+We now have all the components of the Enigma: the plugboard, rotors,
+and the reflector.  The final task is to implement the full loop. The
+Enigma ran all the rotors in sequence, then passed the signal through
+the reflector, and ran the rotors in reverse one more time before
+delivering the signal to the lamps.
+
+Before proceeding, we will define the following two helper functions:
+\begin{code}
+  substFwd, substBwd : (Permutation, Char) -> Char
+  substFwd (perm, c) = perm @ (c - 'A')
+  substBwd (perm, c) = invSubst (perm, c)
+\end{code}
+(You have defined the {\tt invSubst} function in
+Exercise~\ref{section:subst}-\ref{ex:subst:1}.) The {\tt substFwd}
+function simply returns the character that the given permutation,
+whether from the plugboard, a rotor, or the reflector. Conversely,
+{\tt substBwd} returns the character that the given permutation maps
+{\em from}, i.e., the character that will be mapped to {\tt c} using
+the permutation.
+
+\begin{Exercise}\label{ex:enigma:7}
+  Using Cryptol, verify that {\tt substFwd} and {\tt substBwd} return
+  the same elements for each letter in the alphabet for {\tt rotor1}.
+\end{Exercise}
+\begin{Answer}\ansref{ex:enigma:7}
+  We can define the following helper function, using the function {\tt
+    all} you have defined in
+  Exercise~\ref{sec:zero}-\ref{ex:zero:1}:\indAll
+\begin{code}
+  checkPermutation : Permutation -> Bit
+  checkPermutation perm = all check  ['A' .. 'Z']
+    where check  c = (c == substBwd(perm, substFwd (perm, c))) 
+                  && (c == substFwd(perm, substBwd (perm, c)))
+\end{code}
+Note that we have to check both ways (first {\tt substFwd} then {\tt
+  substBwd}, and also the other way around) in case the substitution
+is badly formed, for instance if it is mapping the same character
+twice. We have:
+\begin{Verbatim}
+  Cryptol> checkPermutation [ c | (c, _) <- rotor1 ]
+  True
+\end{Verbatim}
+For a bad permutation we would get {\tt False}:
+\begin{Verbatim}
+  Cryptol> checkPermutation (['A' .. 'Y'] # ['A'])
+  False
+\end{Verbatim}
+\end{Answer}
+
+\begin{Exercise}\label{ex:enigma:8}
+  Show that {\tt substFwd} and {\tt substBwd} are exactly the same
+  operations for the reflector. Why?
+\end{Exercise}
+\begin{Answer}\ansref{ex:enigma:8}
+  Since the reflector is symmetric, substituting backwards or forwards
+  does not matter. We can verify this with the following helper
+  function:\indAll
+\begin{code}
+  all : {a, b} (fin b) => (a -> Bit) -> [b]a -> Bit
+  all fn xs = folds ! 0 where
+    folds = [True] # [ fn x && p | x <- xs
+                                 | p <- folds]
+  checkReflectorFwdBwd : Reflector -> Bit
+  checkReflectorFwdBwd refl = all check ['A' .. 'Z']
+    where check c = substFwd (refl, c) == substBwd (refl, c)
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> checkReflectorFwdBwd reflector
+  True
+\end{Verbatim}
+\end{Answer}
+
+\paragraph*{The route back} One crucial part of the Enigma is the
+running of the rotors in reverse after the reflector. Note that this
+operation ignores the notches, i.e., the rotors do not turn while the
+signal is passing the second time through the rotors. (In a sense, the
+rotations happen after the signal completes its full loop, getting to
+the reflector and back.)  Consequently, it is much easer to code as
+well (compare this code to {\tt joinRotors}, defined in
+Section~\ref{sec:enigma:notches}):
+
+\begin{code}
+  backSignal : {n} (fin n) => ([n]Rotor, Char) -> Char
+  backSignal (rotors, inputChar) = cs ! 0
+    where 
+      cs = [inputChar] # [  substBwd ([ p | (p, _) <- r ], c)
+                          | r <- reverse rotors
+                          | c <- cs
+                         ]
+\end{code}
+Note that we explicitly reverse the rotors in the definition of {\tt
+  cs}.\indReverse (The definition of {\tt cs} is another typical
+example of a fold. See Pg.~\pageref{par:fold}.)\indFold
+
+Given all this machinery, coding the entire Enigma loop is fairly
+straightforward:
+\begin{code}
+  //enigmaLoop : {n} (fin n) => (Plugboard, [n]Rotor, Reflector, Char)
+  //                         -> ([n]Rotor, Char)
+  enigmaLoop (pboard, rotors, refl, c0) = (rotors', c5)
+    where
+      // 1. First run through the plugboard
+      c1 = substFwd (pboard, c0)
+      // 2. Now run all the rotors forward
+      (rotors', c2) = joinRotors (rotors, c1)
+      // 3. Pass through the reflector
+      c3 = substFwd (refl, c2)
+      // 4. Run the rotors backward
+      c4 = backSignal(rotors, c3)
+      // 5. Finally, back through the plugboard
+      c5 = substBwd (pboard, c4)
+\end{code}
+
+%=====================================================================
+\section{The state of the machine}
+\label{sec:state-machine}
+
+We are almost ready to construct our own Enigma machine in
+Cryptol. Before doing so, we will take a moment to represent the state
+of the Enigma machine as a Cryptol record\indTheRecordType, which will
+simplify our final construction. At any stage, the state of an Enigma
+machine is given by the status of its rotors. We will use the
+following record to represent this state, for an Enigma machine
+containing $n$ rotors:
+\begin{code}
+  type Enigma n = { plugboard : Plugboard,
+                    rotors    : [n]Rotor,
+                    reflector : Reflector
+                  }
+\end{code}
+To initialize an Enigma machine, the operator provides the plugboard
+settings, rotors, the reflector. Furthermore, the operator also gives
+the initial positions for the rotors.  Rotors can be initially rotated
+to any position before put together into the machine. We can capture
+this operation with the function {\tt mkEnigma}:
+\begin{code}
+  mkEnigma : {n} (Plugboard, [n]Rotor, Reflector, [n]Char) 
+                 -> Enigma n
+  mkEnigma (pboard, rs, refl, startingPositions) =
+      { plugboard  = pboard,
+        rotors     = [ r <<< (s - 'A')
+                     | r <- rs
+                     | s <- startingPositions
+                     ],
+        reflector  = refl
+      }
+\end{code}
+Note how we rotate each given rotor to the left by the amount given by
+its starting position.
+
+\todo[inline]{Connect ``left'' with up/down in the earlier
+  illustrations.}
+
+Given this definition, let us construct an Enigma machine out of the
+components we have created so far, using the starting positions {\tt
+  GCR} for the rotors respectively:\label{def:modelEnigma}
+\begin{code}
+  modelEnigma : Enigma 3
+  modelEnigma = mkEnigma (plugboard, [rotor1, rotor2, rotor3], 
+                          reflector, "GCR")
+\end{code}
+We now have an operational Enigma machine coded up in Cryptol!
+
+%=====================================================================
+\section{Encryption and decryption}
+\label{enigma:encdec}
+\sectionWithAnswers{Encryption and decryption}{enigma:encdec}
+
+Equipped with all the machinery we now have, coding Enigma encryption
+is fairly straightforward:
+\begin{code}
+  enigma : {n, m} (fin n, fin m) => (Enigma n, String m) -> String m
+  enigma (m, pt) = tail [ c | (_, c) <- rcs ]
+    where rcs = [(m.rotors, '*')] # 
+                [ enigmaLoop (m.plugboard, r, m.reflector, c)
+                | c      <- pt
+                | (r, _) <- rcs
+                ]
+\end{code}
+The function {\tt enigma} takes a machine with {\tt n} rotors and a
+plaintext of {\tt m} characters, returning a ciphertext of {\tt m}
+characters back.  It is yet another application of the fold pattern,
+where we start with the initial set of rotors and the placeholder
+character {\tt *} (which could be anything) to seed the fold.\indFold
+Note how the change in rotors is reflected in each iteration of the
+fold, through the {\tt enigmaLoop} function. At the end, we simply
+drop the rotors from {\tt rcs}, and take the {\tt tail}\indTail to
+skip over the seed character {\tt *}.
+
+Here is our Enigma in operation:
+\begin{Verbatim}
+  Cryptol> :set ascii=on
+  Cryptol> enigma (modelEnigma, "ENIGMAWASAREALLYCOOLMACHINE")
+  "UPEKTBSDROBVTUJGNCEHHGBXGTF"
+\end{Verbatim}
+
+\paragraph*{Decryption} As we mentioned before, Enigma was a
+self-decrypting machine, that is, encryption and decryption are
+precisely the same operations. Thus, we can define:
+\begin{code}
+  dEnigma : {n, m} (fin n, fin m) => (Enigma n, String m) -> String m
+  dEnigma = enigma
+\end{code}
+And decrypt our above message back:
+\begin{Verbatim}
+  Cryptol> dEnigma (modelEnigma, "UPEKTBSDROBVTUJGNCEHHGBXGTF")
+  "ENIGMAWASAREALLYCOOLMACHINE"
+\end{Verbatim}
+We have successfully performed our first Enigma encryption!
+
+\begin{Exercise}\label{ex:enigma:9}
+  Different models of Enigma came with different sets of rotors. You
+  can find various rotor configurations on the
+  web~\cite{wiki:enigmarotors}.  Create models of these rotors in
+  Cryptol, and run sample encryptions through them.
+\end{Exercise}
+
+\begin{Exercise}\label{ex:enigma:10}
+  As we have mentioned before, Enigma implements a polyalphabetic
+  substitution cipher\indPolyAlphSubst, where the same letter gets
+  mapped to different letters during encryption. The
+  period\indSubstPeriod of a cipher is the number of characters before
+  the encryption repeats itself, mapping the same sequence of letters
+  in the plaintext to the to the same sequence of letters in the
+  ciphertext. What is the period of an Enigma machine with $n$ rotors?
+\end{Exercise}
+\begin{Answer}\ansref{ex:enigma:10}
+  Enigma will start repeating once the rotors go back to their
+  original position.  With $n$ rotors, this will take $26^n$
+  characters. In the case of the traditional 3-rotor Enigma this
+  amounts to $26^3 = 17576$ characters. Note that we are assuming an
+  ideal Enigma here with no double-stepping~\cite{enigmaAnomaly}.
+\end{Answer}
+
+\begin{Exercise}\label{ex:enigma:11}
+  Construct a string of the form {\tt CRYPTOLXXX...XCRYPTOL}, where
+  ...'s are filled with enough number of {\tt X}'s such that
+  encrypting it with our {\tt modelEnigma} machine will map the
+  instances of ``{\tt CRYPTOL}'' to the same ciphertext. How many {\tt
+    X}'s do you need? What is the corresponding ciphertext for ``{\tt
+    CRYPTOL}'' in this encryption?
+\end{Exercise}
+\begin{Answer}\ansref{ex:enigma:11}
+  Since the period\indSubstPeriod for the 3-rotor Enigma is 17576 (see
+  the previous exercise), we need to make sure two instances of {\tt
+    CRYPTOL} are 17576 characters apart. Since {\tt CRYPTOL} has 7
+  characters, we should have 17569 X's. The following Cryptol
+  definition would return the relevant pieces:
+\begin{code}
+  enigmaCryptol = (take`{7} ct, drop`{17576} ct)
+    where   str = "CRYPTOL" # [ 'X' | _ <- [1 .. 17569] ] 
+                  # "CRYPTOL"
+            ct  = dEnigma(modelEnigma, str)
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> enigmaCryptol
+  ("KGSHMPK", "KGSHMPK")
+\end{Verbatim}
+As predicted, both instances of {\tt CRYPTOL} get encrypted as {\tt
+  KGSHMPK}.
+\end{Answer}
+
+\paragraph*{The code} You can see all the Cryptol code for our Enigma
+simulator in Appendix~\ref{app:enigma}.
+
+\commentout{
+\begin{code}
+  invSubst : (Permutation, Char) -> Char
+  invSubst (key, c) = candidates ! 0
+      where candidates = [0] # [ if c == k then a else p
+                               | k <- key
+                               | a <- ['A' .. 'Z']
+                               | p <- candidates
+                               ]
+  elem : {a, b} (fin 0, fin a, Cmp b) => (b, [a]b) -> Bit
+  elem (x, xs) = matches ! 0
+      where matches = [False] # [ m || (x == e)  | e <- xs
+                                                 | m <- matches
+                                ]
+  sanityCheck = enigma  (modelEnigma, "ENIGMAWASAREALLYCOOLMACHINE") == "UPEKTBSDROBVTUJGNCEHHGBXGTF"
+\end{code}
+}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "../main/Cryptol"
+%%% End: 

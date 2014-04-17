@@ -1,0 +1,1522 @@
+\commentout{
+\begin{code}
+  module AES where
+
+  import Enigma
+  // import Classic
+\end{code}
+}
+
+%#####################################################################
+\chapter{AES: The Advanced Encryption Standard}
+\label{chapter:aes}
+
+AES\indAES is a symmetric key encryption algorithm (a symmetric
+cipher, per the discussion in~\autoref{chapter:classic}), based on the
+Rijndael algorithm designed by Joan Daemen and Vincent
+Rijmen~\cite{DaemenR02}\glosAES. (The term {\em symmetric key} means
+that the algorithm uses the same key for encryption and
+decryption.\indSymKey) AES was adopted in 2001 by the US government,
+deemed suitable for protecting classified information up to {\em
+  secret} level for the key size 128, and up to the {\em top-secret}
+level for key sizes 192 and 256.
+
+In this chapter, we will program AES in Cryptol. Our emphasis will be
+on clarity, as opposed to efficiency, and we shall follow the NIST
+standard description of AES\indAES fairly closely~\cite{aes}\glosNIST.
+Referring to the standard as you work your way through this chapter is
+recommended.
+
+Some surprises may be at hand for the reader who has never deeply
+examined a modern cryptography algorithm before.  
+
+First, algorithms like AES are typically composed of many smaller
+units of varying kinds.  Consequently, the entire algorithm is
+constructed bottom-up by specifying and verifying each of its
+component pieces.  It is wise to handle smaller and simpler components
+first.  It is also a good practice, though hard to accomplish the
+first one or two times you write such a specification, to write
+specifications with an eye toward reuse in multiple instantiations of
+the same algorithm (e.g., different key sizes or configurations).  The
+choice between encoding configurations at the type level or the value
+level is aesthetic and practical: some verification is only possible
+when one encodes information at the type level.
+
+Second, algorithms frequently depend upon interesting data structures
+and mathematical constructs, the latter of which can be though of as
+data structures in a pure mathematics sense.  The definition, shape,
+form, and subtleties of these data structures are critical to the
+\emph{correct definition} of the crypto algorithm \emph{as well as its
+  security properties}.  Implementing an algorithm using an
+alternative datatype construction that you believe has the same
+properties as that which is stipulated in a standard is nearly always
+the wrong thing to do.  Also, the subtleties of these constructions
+usually boils down to what an engineer might think of as ``magic
+numbers''---strange initial values or specific polynomials that appear
+out of thin air.  Just remind yourself that the discovery and analysis
+of those magic values was, in general, the joint hard work of a
+community of cryptographers.
+
+%=====================================================================
+\section{Parameters}
+\label{sec:aesparams}
+
+The AES algorithm always takes 128-bits of input, and always produces
+128-bits of output, regardless of the key size.  The key-size can be
+one of 128 (AES128), 192 (AES192), or 256 (AES256).  Following the
+standard, we define the following three parameters~\cite[Section
+2.2]{aes}:
+\begin{itemize}
+\item {\tt Nb}: Number of columns, always set to 4 by the standard.
+\item {\tt Nk}: Number of key-blocks, which is the number of 32-bit
+  words in the key: 4 for AES128, 6 for AES192, and 8 for AES256;
+\item {\tt Nr}: Number of rounds, which {\tt Nr} is always $6 +
+  \mbox{\tt Nk}$, according to the standard.  Thus, 10 for AES128, 12
+  for AES192, and 14 for AES256.
+\end{itemize}
+The Cryptol definitions follow the above descriptions verbatim:
+\begin{code}
+  type AES128 = 4
+  type AES192 = 6
+  type AES256 = 8
+
+  type Nk = AES128
+  type Nb = 4
+  type Nr = 6 + Nk
+\end{code}
+The following derived type is helpful in signatures:
+\begin{code}
+  type AESKeySize = (Nk*32)
+\end{code}
+
+%=====================================================================
+\section{Polynomials in \texorpdfstring{GF($2^8$)}{GF(2,8)}}
+\label{sec:polynomials}
+\sectionWithAnswers{Polynomials in \texorpdfstring{GF($2^8$)}{GF(2,8)}}{sec:polynomials}
+
+AES\indAES works on a two-dimensional representation of the input
+arranged into bytes, called the {\em state}.\indAESState For an
+128-bit input, we have precisely 4 rows, each containing {\tt Nb}
+(i.e., 4) bytes, each of which is 8-bits wide, totaling
+$4\times4\times8 = 128$ bits. The bytes themselves are treated as
+finite field elements in the Galois field
+GF($2^8$)~\cite{wiki:galoisfield}\indGF, giving rise to the following
+declarations:
+\begin{code}
+  type GF28  = [8]
+  type State = [4][Nb]GF28
+\end{code}
+
+The hard-encoding of \texttt{GF28} in this specification is completely
+appropriate because the construction of AES depends entirely upon the
+Galois field GF($2^8$).  It is conceivable that other algorithms might
+be parameterized across GF($2^k$) for some $k$, in which case the
+underyling type declaration would also be parameterized.
+
+While a basic understanding Galois field operations is helpful, the
+details are not essential for our modeling purposes.  It suffices to
+note that GF($2^8$) has precisely 256 elements, each of which is a
+polynomial\indPoly of maximum degree 7, where the coefficients are
+either 0 or 1.  The numbers from 0 to 255 (i.e., all possible 8-bit
+values) are in one-to-one correspondence with these polynomials.  The
+coefficients of the polynomial come from the successive bits of the
+number, and vice versa.  For instance the 8-bit number 87 can be
+written as {\tt 0b01010111} in binary, and hence corresponds to the
+polynomial $x^6 + x^4 + x^2 + x^1 + 1$. Similarly, the polynomial $x^4
++ x^3 + x$ corresponds to the number {\tt 0b00011010}, i.e., 26. We
+can also compute this value by evaluating the polynomial for $x=2$,
+obtaining $2^4+2^3+2 = 16+8+2 = 26$.
+
+Cryptol allows you to write polynomials in GF($2^n$), for arbitrary
+$n$, using the following notation:
+\begin{Verbatim}
+  Cryptol> <| x^^6 + x^^4 + x^^2 + x^^1 + 1 |>
+  87
+  Cryptol> 0b1010111
+  87
+  Cryptol> <| x^^4 + x^^3 + x |>
+  26
+  Cryptol> 0b11010
+  26
+\end{Verbatim}
+
+A polynomial is similar to a decimal representation of a number,
+albeit in a more suggestive syntax.  Like with a decimal, the Cryptol
+type system will default the type to be the smallest number of bits
+required to represent the polynomial, but it may be expanded to more
+bits if an expression requires it.
+
+\paragraph*{Addition and Subtraction} Given two polynomials,
+adding\indAddPoly and subtracting\indSubPoly them in a Galois field
+GF($2^n$) results in a new polynomial where terms with the same power
+cancel each other out. When interpreted as a word, both addition and
+subtraction amount to a simple exclusive-or operation.  Cryptol's
+\Verb|^|\indXOr operator captures this idiom concisely:
+\begin{Verbatim}
+  Cryptol> (<| x^^4 + x^^2 |> ^ <| x^^5 + x^^2 + 1 |>) == \
+            <| x^^5 + x^^4 + 1 |>
+  True
+\end{Verbatim}
+Note that the term $x^2$ cancels since it appears in both
+polynomials. Also note the parentheses are required due to the
+precedence of {\tt ==} vs. {\tt \Verb|^|}.
+\begin{Exercise}\label{ex:gf:0}
+  Adding a polynomial to itself in GF($2^n$) will always yield {\tt 0}
+  since all the terms will cancel each other.  Write and prove a
+  theorem {\tt polySelfAdd} over {\tt GF28} to state this fact.
+\end{Exercise}
+\begin{Answer}\ansref{ex:gf:0}
+\todo[inline]{Recheck use of parentheses in property after \ticket{208}
+    is closed.}
+\begin{code}
+  polySelfAdd: GF28 -> Bit
+  property polySelfAdd x = (x ^ x) == zero
+\end{code}
+We have:\indSBV
+\begin{Verbatim}
+  Cryptol> :prove polySelfAdd
+  Q.E.D.
+\end{Verbatim}
+\end{Answer}
+\unparagraph While adding two polynomials does not warrant a separate
+function, we will need a version that can add a sequence of
+polynomials:
+\begin{Exercise}\label{ex:gf:add0}
+Define a function
+\begin{code}
+  gf28Add : {n} (fin n) => [n]GF28 -> GF28
+\end{code}
+that adds all the elements given.
+\lhint{Use a fold, see Pg.~\pageref{par:fold}.}\indFold
+\end{Exercise}
+\begin{Answer}\ansref{ex:gf:add0}
+\begin{code}
+  gf28Add ps = sums ! 0
+    where sums = [zero] # [ p ^ s | p <- ps
+                                  | s <- sums
+                          ]
+\end{code}
+\end{Answer}
+
+\paragraph*{Multiplication} Multiplication GF($2^n$) follows the usual
+polynomial multiplication algorithm, where we multiply the first
+polynomial with each term of the second, and add all the partial sums
+(i.e., compute their exclusive-or). While this operation can be
+programmed explicitly, Cryptol does provide the primitive {\tt
+  pmult}\indMulPoly for this purpose:
+\begin{Verbatim}
+  Cryptol> pmult <| x^^3 + x^^2 + x + 1 |> <| x^^2 + x + 1 |>
+  45
+  Cryptol> <| x^^5 + x^^3 + x^^2 + 1 |>
+  45
+\end{Verbatim}
+
+\begin{Exercise}\label{ex:gf:1}
+  Multiply the polynomials $x^3 +x^2+x+1$ and $x^2+x+1$ by hand in
+  GF($2^8$) and show that the result is indeed $x^5+x^3+x^2+1$, (i.e.,
+  $45$), justifying Cryptol's result above.
+\end{Exercise}
+\begin{Answer}\ansref{ex:gf:1}
+  \todo[inline]{Figure out outdent on this answer if this todo note is
+    removed.}  We first compute the results of multiplying our first
+  polynomial ($x^3 +x^2+x+1$) with each term in the second polynomial
+  ($x^2+x+1$) separately:
+\begin{eqnarray*}
+(x^3 + x^2 + x + 1) \times x^2   &=& x^5 + x^4 + x^3 + x^2 \\
+(x^3 + x^2 + x + 1) \times x\;\; &=& x^4 + x^3 + x^2 + x \\
+(x^3 + x^2 + x + 1) \times 1\;\; &=& x^3 + x^2 + x\;\; + 1
+\end{eqnarray*}
+We now add the resulting polynomials, remembering the adding the same
+powered terms cancel each other out. For instance, we have two
+instances each of $x^4$, $x^2$, and $x$, which all get canceled. We
+have three instances each of $x^3$ and $x^2$, so they survive the
+addition, etc.  After the addition, we are left with the polynomial
+$x^5 + x^3 + x^2 + 1$, which can be interpreted as {\tt 0b00101101},
+i.e., $45$.
+\end{Answer}
+
+\paragraph*{Reduction} If you multiply two polynomials with degrees $m$
+and $n$, you will get a new polynomial of degree $m+n$. As we
+mentioned before, the polynomials in GF($2^8$)\indGF have degree at
+most 7. Obviously, $m+n$ can be larger than $7$ when we multiply to
+elements of GF($2^8$).  So we have to find a way to map the resulting
+larger-degree polynomial back to an element of GF($2^8$). This is done
+by reduction, or modulus, with respect to an {\em irreducible
+  polynomial}\indIrredPoly. The AES algorithm uses the following
+polynomial for this purpose:
+\begin{code}
+  irreducible = <| x^^8 + x^^4 + x^^3 + x + 1 |>
+\end{code}
+(Recall in the introduction of this chapter our warning about magic!)
+
+Note that {\tt irreducible} is {\em not} an element of GF($2^8$),
+since it has degree 8. However we can use this polynomial to define
+the multiplication routine itself, which uses Cryptol's {\tt
+  pmod}\indModPoly (polynomial modulus) function, as follows:
+\begin{code}
+  gf28Mult : (GF28, GF28) -> GF28
+  gf28Mult (x, y) = pmod (pmult x y) irreducible
+\end{code}
+Polynomial modulus and division operations follow the usual schoolbook
+algorithm for long-division---a fairly laborious process in itself,
+but it is well studied in mathematics~\cite{wiki:polydiv}. Luckily for
+us, Cryptol's {\tt pdiv}\indDivPoly and {\tt pmod}\indModPoly
+functions implement these operations, saving us the programming task.
+
+\begin{Exercise}\label{ex:pdivmod}
+  Divide $x^5 + x^3 + 1$ by $x^3 + x^2 + 1$ by hand, finding the
+  quotient and the remainder.  Check your answer with Cryptol's {\tt
+    pmod} and {\tt pdiv} functions.
+\end{Exercise}
+\begin{Answer}\ansref{ex:pdivmod}
+The long division algorithm is laborious, but not particularly hard:
+\[
+\renewcommand\arraystretch{1.2}
+\begin{array}{*1r @{\hskip\arraycolsep}c@{\hskip\arraycolsep} *6r}
+%  &    &&    &  1 &  1 & 0 \\
+                &     &      &      &       & x^2   &+ x &    \\
+\cline{2-8}
+  x^3 + x^2 + 1 &\big)& x^5 &      & + x^3 &       &    & + 1\\
+                  & & x^5 & + x^4 &      & + x^2  &    &           \\
+\cline{3-6}
+                  & &     & x^4  & + x^3 & + x^2 &    & + 1  \\
+                  & &     & x^4  & + x^3 &       & + x&        \\
+\cline{4-8}
+                  & &     &      &       & x^2   & + x & + 1          \\
+\end{array}
+\]
+Therefore, the quotient is $x^2+x$ and the remainder is $x^2+x+1$. We
+can verify this easily with Cryptol:
+\begin{Verbatim}
+  Cryptol> pdiv <| x^^5 + x^^3 + 1 |> <| x^^3 + x^^2 + 1 |> == \
+     <| x^^2 + x |>
+  True
+  Cryptol> pmod <| x^^5 + x^^3 + 1 |> <| x^^3 + x^^2 + 1 |> == \
+     <| x^^2 + x + 1 |>
+  True
+\end{Verbatim}
+Another way to check your result would be to multiply the quotient by
+the divisor and add the remainder, and check that it gives us
+precisely the polynomial we started with:
+\begin{Verbatim}
+  Cryptol> pmult <| x^^2 + x |>  <| x^^3 + x^^2 + 1 |> \
+           ^ <| x^^2 + x + 1 |>
+  0x29
+  Cryptol> <| x^^5 + x^^3 + 1 |>
+  0x29
+\end{Verbatim}
+\end{Answer}
+
+\begin{Exercise}\label{ex:gf:2}
+  Write and prove theorems showing that {\tt gf28Mult} (i) has the
+  polynomial 1 as its unit, (ii) is commutative, and (iii) is
+  associative.
+\end{Exercise}
+\begin{Answer}\ansref{ex:gf:2}
+\fvset{fontsize=\footnotesize}
+\begin{code}
+  property gf28MultUnit         x =      gf28Mult(x, 1) == x
+  property gf28MultCommutative  x y =    gf28Mult(x, y) == gf28Mult(y, x)
+  property gf28MultAssociative  x y z =  gf28Mult(x, gf28Mult(y, z))
+                                         == gf28Mult(gf28Mult(x, y), z)
+\end{code}
+It turns out that proving the unit and commutativity are fairly
+trivial:\indCmdProve
+\begin{Verbatim}
+  Cryptol> :prove gf28MultUnit 
+  Q.E.D.
+  Cryptol> :prove gf28MultCommutative
+  Q.E.D.
+\end{Verbatim}
+But {\tt aesMultAssociative} takes much longer! We show the results of
+{\tt :check} below:\indCmdCheck
+\begin{Verbatim}
+  Cryptol> :check gf28MultAssociative
+  Checking case 1000 of 1000 (100.00%) 
+  1000 tests passed OK
+\end{Verbatim}
+%%   [Coverage: 5.96e-3%. (1000/16777216)]
+Note that the coverage is pretty small (on the order of $0.006\%$)
+in this case. Proving associativity of multiplication algorithms using
+SAT/SMT based technologies is a notoriously hard task~\cite[Section
+6.3.1]{DecisionProcedures2008}. If you have the time, you can let
+Cryptol run long enough to complete the {\tt :prove
+  gf28MultAssociative} command, however.
+\end{Answer}
+
+%=====================================================================
+\section{The {\ttfamily{\textbf SubBytes}} transformation}
+\label{aes:subbytes}
+\sectionWithAnswers{The {\ttfamily{\textbf SubBytes}} transformation}{aes:subbytes}
+
+\todo[inline]{Introduce a figure here, perhaps lifted from the
+  standard, to better explain this stage of the algorithm.}
+
+Recall that the state in AES\indAES is a $4\times4$ matrix of
+bytes. As part of its operation, AES\indAES performs the so called
+{\tt SubBytes} transformation\indAESSbox~\cite[Section 5.1.1]{aes},
+substituting each byte in the state with another element. Given an $x
+\in \mbox{GF}(2^8)$,\indGF the substitution for $x$ is computed as
+follows:
+\begin{enumerate}
+\item Compute the multiplicative inverse of $x$ in GF$(2^8)$\indGF,
+  call it $b$. If $x$ is 0, then take 0 as the result.
+ \item Replace bits in $b$ as follows: Each bit $b_i$ becomes $b_i
+   \oplus b_{i+4\imod{8}} \oplus b_{i+5\imod{8}} \oplus
+   b_{i+6\imod{8}} \oplus b_{i+7\imod{8}} \oplus c_i$.  Here $\oplus$
+   is exclusive-or and $c$ is {\tt 0x63}.
+\end{enumerate}
+
+\paragraph*{Computing the multiplicative inverse} It turns out that the
+inverse of any non-zero $x$ in GF$(2^8)$ can be computed by raising
+$x$ to the power 254, i.e., multiplying $x$ by itself 254
+times. (Mathematically, GF$(2^8)$\indGF is a cyclic group such that
+$x^{255}$ is always $1$ for any $x$, making $x^{254}$ the
+multiplicative inverse of $x$.)
+
+\begin{Exercise}\label{ex:gfmi:0}
+Write a function
+\begin{code}
+  gf28Pow : (GF28, [8]) -> GF28
+\end{code}
+such that the call {\tt gf28Pow (n, k)} returns $n^k$ using {\tt
+  gf28Mult} as the multiplication operator.  \lhint{Use the fact that
+  $x^0 = 1$, $x^{2n} = (x^n)^2$, and $x^{2n+1} = x \times (x^n)^2$ to
+  speed up the exponentiation.}
+\end{Exercise}
+\begin{Answer}\ansref{ex:gfmi:0}
+\begin{code}
+  gf28Pow (n, k) = pow k
+     where   sq x  = gf28Mult (x, x)
+             odd x = x ! 0
+             pow i = if i == 0 then 1
+                     else if odd i
+                          then gf28Mult (n, sq (pow (i >> 1)))
+                          else sq (pow (i >> 1))
+\end{code}
+Here is a version that follows the stream-recursion pattern:
+\begin{code}
+  gf28Pow' : (GF28, [8]) -> GF28
+  gf28Pow' (n, k) = pows ! 0
+    where   pows = [1] # [ if bit then gf28Mult (n, sq x)
+                                  else sq x
+                         | x <- pows
+                         | bit <- k
+                         ]
+            sq x = gf28Mult (x, x)
+\end{code}
+\end{Answer}
+
+\begin{Exercise}\label{ex:gfmi:01}
+Write a function
+\begin{code}
+  gf28Inverse : GF28 -> GF28
+\end{code}
+to compute the multiplicative inverse of a given element by raising it
+to the power $254$. Note that {\tt gf28Inverse} must map $0$ to
+$0$. Do you have to do anything special to make sure this happens?
+\end{Exercise}
+\begin{Answer}\ansref{ex:gfmi:01}
+\begin{code}
+  gf28Inverse x = gf28Pow (x, 254)
+\end{code}
+We do not have to do anything special about $0$, since our {\tt
+  gf28Inverse} function yields $0$ in that case:
+\begin{Verbatim}
+  Cryptol> gf28Inverse 0
+  0x00
+\end{Verbatim}
+\end{Answer}
+
+\begin{Exercise}\label{ex:gfmi:1}
+  Write and prove a property {\tt gf28InverseCorrect}, ensuring that
+  {\tt gf28Inverse x} does indeed return the multiplicative inverse of
+  {\tt x}.  Do you have to do anything special when {\tt x} is $0$?
+\end{Exercise}
+\begin{Answer}\ansref{ex:gfmi:1}
+  Since $0$ does not have a multiplicative inverse, we have to write a
+  conditional property:
+\begin{code}
+  property gf28InverseCorrect x =
+      if x == 0 then x' == 0 else gf28Mult(x, x') == 1
+    where x' = gf28Inverse x
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> :prove gf28InverseCorrect
+  Q.E.D.
+\end{Verbatim}
+\end{Answer}
+
+\paragraph*{Transforming the result} As we mentioned above, the
+AES\indAES specification asks us to transform each bit $b_i$ according
+to the following transformation:
+$$
+ b_i \oplus b_{i+4\imod{8}} \oplus b_{i+5\imod{8}} \oplus b_{i+6\imod{8}} \oplus b_{i+7\imod{8}} \oplus c_i
+$$
+For instance, bit $b_5$ becomes $b_5 \oplus b_1 \oplus b_2 \oplus b_3
+\oplus c_5$.  When interpreted at the word level, this basically
+amounts to computing:
+$$
+ b \oplus (b \ggg 4) \oplus (b \ggg 5) \oplus (b \ggg 6) \oplus (b \ggg 7) \oplus c
+$$
+by aligning the corresponding bits in the word representation.
+
+\todo[inline]{Justify/prove the equivalence of these two terms.
+  Perhaps add a property to prove it in Cryptol?}
+
+\begin{Exercise}\label{ex:aessbytes:0}
+Write a function
+\begin{code}
+  xformByte : GF28 -> GF28
+\end{code}
+that computes the above described transformation.
+\end{Exercise}
+\begin{Answer}\ansref{ex:aessbytes:0}
+\begin{code}
+  xformByte b = gf28Add [b, (b >>> 4), (b >>> 5),
+                         (b >>> 6), (b >>> 7), c]
+    where c = 0x63
+\end{code}
+\end{Answer}
+
+\todo[inline]{Remind the reader of the context again before putting
+  everything together.}
+
+\paragraph*{Putting it together} Armed with {\tt gf28Inverse} and {\tt
+  xformByte}, we can easily code the function that transforms a single
+byte as follows:
+\begin{code}
+  SubByte : GF28 -> GF28
+  SubByte b = xformByte (gf28Inverse b)
+\end{code}
+AES's {\tt SubBytes}\indAES transformation merely applies this
+function to each byte of the state:
+\begin{code}
+  SubBytes : State -> State
+  SubBytes state = [ [ SubByte b | b <- row ] | row <- state ]
+\end{code}
+
+\paragraph*{Table lookup} Our definition of the {\tt SubByte} function
+above follows how the designers of AES came up with the substitution
+maps, i.e., it is a {\em reference} implementation. For efficiency
+purposes, however, we might prefer a version that simply performs a
+look-up in a table. Notice that the type of {\tt SubByte} is {\tt GF28
+  -> GF28}, i.e., it takes a value between 0 and 255. Therefore, we
+can make a table containing the precomputed values for all possible
+256 inputs, and simply perform a table look-up instead of computing
+these values each time we need it.  In fact, Figure~7 on page 16 of
+the AES\indAES standard lists these precomputed values for
+us~\cite[Section 5.1.1]{aes}. We capture this table below in Cryptol:
+\vspace{0.25cm}
+\begin{minipage}{\textwidth}
+{\footnotesize
+\begin{code}
+  sbox : [256]GF28
+  sbox = [
+     0x63, 0x7c, 0x77, 0x7b, 0xf2, 0x6b, 0x6f, 0xc5, 0x30, 0x01, 0x67,
+     0x2b, 0xfe, 0xd7, 0xab, 0x76, 0xca, 0x82, 0xc9, 0x7d, 0xfa, 0x59,
+     0x47, 0xf0, 0xad, 0xd4, 0xa2, 0xaf, 0x9c, 0xa4, 0x72, 0xc0, 0xb7,
+     0xfd, 0x93, 0x26, 0x36, 0x3f, 0xf7, 0xcc, 0x34, 0xa5, 0xe5, 0xf1,
+     0x71, 0xd8, 0x31, 0x15, 0x04, 0xc7, 0x23, 0xc3, 0x18, 0x96, 0x05,
+     0x9a, 0x07, 0x12, 0x80, 0xe2, 0xeb, 0x27, 0xb2, 0x75, 0x09, 0x83,
+     0x2c, 0x1a, 0x1b, 0x6e, 0x5a, 0xa0, 0x52, 0x3b, 0xd6, 0xb3, 0x29,
+     0xe3, 0x2f, 0x84, 0x53, 0xd1, 0x00, 0xed, 0x20, 0xfc, 0xb1, 0x5b,
+     0x6a, 0xcb, 0xbe, 0x39, 0x4a, 0x4c, 0x58, 0xcf, 0xd0, 0xef, 0xaa,
+     0xfb, 0x43, 0x4d, 0x33, 0x85, 0x45, 0xf9, 0x02, 0x7f, 0x50, 0x3c,
+     0x9f, 0xa8, 0x51, 0xa3, 0x40, 0x8f, 0x92, 0x9d, 0x38, 0xf5, 0xbc,
+     0xb6, 0xda, 0x21, 0x10, 0xff, 0xf3, 0xd2, 0xcd, 0x0c, 0x13, 0xec,
+     0x5f, 0x97, 0x44, 0x17, 0xc4, 0xa7, 0x7e, 0x3d, 0x64, 0x5d, 0x19,
+     0x73, 0x60, 0x81, 0x4f, 0xdc, 0x22, 0x2a, 0x90, 0x88, 0x46, 0xee,
+     0xb8, 0x14, 0xde, 0x5e, 0x0b, 0xdb, 0xe0, 0x32, 0x3a, 0x0a, 0x49,
+     0x06, 0x24, 0x5c, 0xc2, 0xd3, 0xac, 0x62, 0x91, 0x95, 0xe4, 0x79,
+     0xe7, 0xc8, 0x37, 0x6d, 0x8d, 0xd5, 0x4e, 0xa9, 0x6c, 0x56, 0xf4,
+     0xea, 0x65, 0x7a, 0xae, 0x08, 0xba, 0x78, 0x25, 0x2e, 0x1c, 0xa6,
+     0xb4, 0xc6, 0xe8, 0xdd, 0x74, 0x1f, 0x4b, 0xbd, 0x8b, 0x8a, 0x70,
+     0x3e, 0xb5, 0x66, 0x48, 0x03, 0xf6, 0x0e, 0x61, 0x35, 0x57, 0xb9,
+     0x86, 0xc1, 0x1d, 0x9e, 0xe1, 0xf8, 0x98, 0x11, 0x69, 0xd9, 0x8e,
+     0x94, 0x9b, 0x1e, 0x87, 0xe9, 0xce, 0x55, 0x28, 0xdf, 0x8c, 0xa1,
+     0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0,
+     0x54, 0xbb, 0x16]
+\end{code}
+}
+\end{minipage}
+
+\noindent With this definition of {\tt sbox}, the look up variants of
+{\tt SubByte} and {\tt SubBytes} becomes:\label{aes:subbytetl}
+\begin{code}
+  SubByte' : GF28 -> GF28
+  SubByte' x = sbox @ x
+
+  SubBytes' : State -> State
+  SubBytes' state = [ [ SubByte' b | b <- row ] | row <- state ]
+\end{code}
+
+\begin{Exercise}\label{ex:sbox}
+  Write and prove a property stating that {\tt SubByte} and {\tt
+    SubByte'} are equivalent.
+\end{Exercise}
+\begin{Answer}\ansref{ex:sbox}
+\begin{code}
+  property SubByteCorrect x = SubByte x == SubByte' x
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> :prove SubByteCorrect
+  Q.E.D.
+\end{Verbatim}
+\end{Answer}
+
+\nb{The {\tt SubByte'} and {\tt SubBytes'} versions are going to be
+  more efficient for execution, naturally. We should emphasize that
+  this mode of development is quite common in modern cryptography.
+  Ciphers are typically designed using ideas from mathematics, often
+  requiring complicated algorithms.  To speed things up, however,
+  implementors use clever optimization tricks, convert functions to
+  look-up tables using precomputed values, etc.
+
+  What Cryptol allows us to do is to write the algorithms using both
+  styles, and then formally show that they are indeed equivalent, as
+  you did in Exercise~\ref{ex:sbox} above.  This mode of
+  high-assurance development makes sure that we have not made any
+  cut-and-paste errors when we wrote down the numbers in our {\tt
+    sbox} table. Equivalently, our proof also establishes that the
+  official specification~\cite[Section 5.1.1]{aes} got its own table
+  correct!}
+
+\todo[inline]{Revisit a commented-out exercise here after \ticket{210}
+  on \texttt{:safe} is addressed.}
+% \begin{Exercise}\label{ex:sbox:safe}
+%   The implementation of {\tt SubByte'} uses indexing ({\tt
+%   @})\indIndex, and hence we might be worried about
+%   index-out-of-bounds errors. In this case the table has precisely
+%   256 elements and we are indexing with a byte, so the indexing must
+%   be safe.  Use Cryptol's {\tt :safe} command\indCmdSafe to verify
+%   this claim.
+% \end{Exercise}
+% \begin{Answer}\ansref{ex:sbox:safe}
+% \begin{Verbatim}
+%   Cryptol> :safe SubByte'
+%   "SubByte'" is safe; no safety violations exist.
+% \end{Verbatim}
+% \end{Answer}
+
+%=====================================================================
+\section{The {\ttfamily{\textbf ShiftRows}} transformation}
+\label{aes:shiftrows}
+\sectionWithAnswers{The {\ttfamily{\textbf ShiftRows}} transformation}{aes:shiftrows}
+
+\todo[inline]{Need a figure here to get reader in the right frame of
+  mind.}
+
+The second transformation AES\indAES utilizes is the {\tt
+  ShiftRows}\indAESShiftRows operation~\cite[Section 5.1.2]{aes}. This
+operation treats the {\tt State} as a $4\times4$ matrix, and rotates
+the last three row to the left by the amounts 1, 2, and 3;
+respectively.  Implementing {\tt ShiftRows} in Cryptol is trivial,
+using the \verb+<<<+\indRotLeft operator:
+\begin{code}
+  ShiftRows : State -> State
+  ShiftRows state = [ row <<< shiftAmount | row <- state
+                                          | shiftAmount <- [0 .. 3]
+                    ]
+\end{code}
+
+\begin{Exercise}\label{ex:aesshiftrows:0}
+  Can you transform a state back into itself by repeated applications
+  of {\tt ShiftRows}? How many times would you need to shift?  Verify
+  your answer by writing and proving a corresponding Cryptol property.
+\end{Exercise}
+\begin{Answer}\ansref{ex:aesshiftrows:0}
+  Consider what happens after 4 calls to {\tt ShiftRows}. The first
+  row will stay the same, since it never moves. The second row moves
+  one position each time, and hence it will move 4 positions at the
+  end, restoring it back to its original starting
+  configuration. Similarly, row 3 will rotate $2\times4=8$ times,
+  again restoring it. Finally, row 4 rotates 3 times each for a total
+  of $3\times4 = 12$ times, cycling back to its starting
+  position. Hence, every 4th rotation will restore the entire state
+  back. We can verify this in Cryptol by the following property:
+\begin{code}
+  shiftRow4RestoresBack : State -> Bit
+  property shiftRow4RestoresBack state = states @ 4 == state
+     where states = [state] # [ ShiftRows s | s <- states ]
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> :prove shiftRow4RestoresBack
+  Q.E.D.
+\end{Verbatim}
+Of course, any multiple of 4 would have the same effect.
+\end{Answer}
+
+%=====================================================================
+\section{The {\ttfamily{\textbf MixColumns}} transformation}
+\label{sec:aesmixcolumns}
+\sectionWithAnswers{The {\ttfamily{\textbf MixColumns}} transformation}{sec:aesmixcolumns}
+
+The third major transformation AES\indAES performs is the {\tt
+  MixColumns}\indAESMixColumns operation~\cite[Section 5.1.3]{aes}.
+In this transformation, the {\tt State} is viewed as a $4\times4$
+matrix, and each successive column of it is replaced by the result of
+multiplying it by the matrix:
+$$
+\left[ \begin{array}{cccc} 2 & 3 & 1 & 1 \\ 1 & 2 & 3 & 1 \\ 1 & 1 & 2 & 3 \\ 3 & 1 & 1 & 2 \end{array} \right]
+$$
+
+As you might recall from linear algebra, given two \emph{compatible}
+matrices $A$ and $B$, the $ij$'th element of $A\times B$ is the
+dot-product of the $i$'th row of $A$ and the $j$'th column of $B$.
+(By \emph{compatible} we mean the number of columns of $A$ must be the
+same as the number of rows of $B$.  All our matrices are $4\times 4$,
+so they are always compatible.)  The dot-product is defined as
+multiplying the corresponding elements of two same-length vectors and
+adding the results together. The only difference here is that we use
+the functions {\tt gf28Add} and {\tt gf28Mult} for addition and
+multiplication respectively. We will develop this algorithm in the
+following sequence of exercises.
+
+\begin{Exercise}\label{ex:aesmc:0}
+Write a function {\tt gf28DotProduct} with the signature:
+\begin{code}
+  gf28DotProduct : {n} (fin n) => ([n]GF28, [n]GF28) -> GF28
+\end{code}
+such that {\tt gf28DotProduct} returns the dot-product of two length $n$ vectors of GF($2^8$) elements.
+\end{Exercise}
+\begin{Answer}\ansref{ex:aesmc:0}
+\begin{code}
+  gf28DotProduct (xs, ys) = gf28Add [ gf28Mult (x, y) | x <- xs
+                                                      | y <- ys
+                                    ]
+\end{code}
+\end{Answer}
+
+\todo[inline]{Check correct with theorem support.}
+
+\begin{Exercise}\label{ex:aesmc:1}
+  Write properties stating that the dot-matrix operation {\tt
+    gf28DotProduct} is commutative and distributive over vector
+  addition:
+\begin{eqnarray*}
+a \cdot b &=& b \cdot a \\
+a \cdot (b + c) &=& a\cdot b + a\cdot b
+\end{eqnarray*}
+Addition over vectors is defined element-wise. Prove the commutativity
+property for vectors of length 10.  Distributivity will take much
+longer, so you might want to do a {\tt :check} on it.\indCmdCheck
+\todo[inline]{Explain why distributivity is so much harder to prove.}
+\end{Exercise}
+\begin{Answer}\ansref{ex:aesmc:1}
+\fvset{fontsize=\small}
+\begin{code}
+  property DPComm a b =     gf28DotProduct (a, b) == gf28DotProduct (b, a)
+  property DPDist a b c =   gf28DotProduct (a, vectorAdd(b, c)) ==
+                            gf28Add [ab, ac]
+     where   ab = gf28DotProduct (a, b)
+             ac = gf28DotProduct (a, c)
+             vectorAdd (xs, ys) = [ gf28Add [x, y] | x <- xs
+                                                   | y <- ys
+                                  ]
+\end{code}
+We have:
+\fvset{fontsize=\normalsize}
+\begin{Verbatim}
+  AES> :prove DPComm : [10]GF28 -> [10]GF28 -> Bit
+  Q.E.D.
+  AES> :check DPDist : [10]GF28 -> [10]GF28 -> [10]GF28 -> Bit
+  Using random testing.
+  passed 1000 tests.
+\end{Verbatim}
+\todo[inline]{Revisit after \ticket{207} is addressed.}
+  % \verb+[Coverage: 0.00%. (1000/17668470647783843295832975007429185158274838968756189 ...58121606201292619776)]+
+  % The coverage number on {\tt DPDist} is a clear indication on how
+  % wild these property can get fairly quickly. (The total number of
+  % cases is $2^{3*10*8} = 2^{240}$, which is a truly enormous number!)
+You might be surprised that the total number of cases for this
+property is $2^{3*10*8} = 2^{240}$---a truly ginormous number!
+\end{Answer}
+
+\begin{Exercise}\label{ex:aesmc:2}
+Write a function
+\begin{code}
+  gf28VectorMult : {n, m, k} (fin n) => ([n]GF28, [m][n]GF28) ->
+                                         [m]GF28
+\end{code}
+computing the dot-product of its first argument with each of the $m$
+rows of the second argument, returning the resulting values as a
+vector of $m$ elements.
+\end{Exercise}
+\begin{Answer}\ansref{ex:aesmc:2}
+\begin{code}
+  gf28VectorMult (v, ms) = [ gf28DotProduct(v, m) | m <- ms ]
+\end{code}
+\end{Answer}
+
+\begin{Exercise}\label{ex:aesmc:3}
+Write a function
+\begin{code}
+  gf28MatrixMult : {n, m, k} (fin m) => ([n][m]GF28, [m][k]GF28) 
+                                      -> [n][k]GF28
+\end{code}
+which multiplies the given matrices in GF($2^8$)\indGF.
+\end{Exercise}
+\begin{Answer}\ansref{ex:aesmc:3}
+  We simply need to call {\tt gfVectorMult} of the previous exercise
+  on every row of the first matrix, after transposing the second
+  matrix to make sure columns are properly aligned. We
+  have:\indTranspose
+\begin{code}
+  gf28MatrixMult (xss, yss) = [ gf28VectorMult(xs, yss')
+                              | xs <- xss ]
+       where yss' = transpose yss
+\end{code}
+\end{Answer}
+
+\todo[inline]{Remind the reader of the context again before jumping
+  into \texttt{MixColumns}.}
+
+\unparagraph Now that we have the matrix multiplication machinery
+built, we can code {\tt MixColumns} fairly easily. Following the
+description in the AES\indAES standard~\cite[Section 5.3.1]{aes}, all
+we have to do is to multiply the matrix we have seen at the beginning
+of this section with the state:
+
+\begin{code}
+  MixColumns : State -> State
+  MixColumns state = gf28MatrixMult (m, state)
+    where m = [[2, 3, 1, 1],
+               [1, 2, 3, 1],
+               [1, 1, 2, 3],
+               [3, 1, 1, 2]]
+\end{code}
+
+Note that Cryptol makes no built-in assumption about row- or
+column-ordering of multidimensional matrices.  Of course, given
+Cryptol's concrete syntax, it makes little sense to do anything but
+row-based ordering.
+
+%=====================================================================
+\section{Key expansion}
+\label{aes:keyexpansion}
+\sectionWithAnswers{Key expansion}{aes:keyexpansion}
+
+\todo[inline]{Will we push the pipeline of verification all the way
+  through?  In particular, I'm interested in the equivalence proofs
+  between the various ticked and unticked versions of functions and
+  their composition.}
+
+Recall from Section~\ref{sec:aesparams} that AES takes 128, 192, or
+256 bit keys. The key is not used as-is, however. Instead, AES\indAES
+expands the key into a number of round keys, called the {\em key
+  schedule}. Construction of the key schedule relies on a number of
+auxiliary definitions, as we shall see shortly.
+
+\paragraph*{Round constants} AES\indAES standard refers to the constant
+array {\tt Rcon} used during key expansion. For each {\tt i}, {\tt
+  Rcon[i]} contains 4 words, the last three being 0~\cite[Section
+5.2]{aes}.  The first element is given by $x^{i-1}$, where
+exponentiation is done using the {\tt gf28Pow} function you have
+defined in Exercise~\ref{aes:subbytes}-\ref{ex:gfmi:0}. In Cryptol,
+it is easiest to define {\tt Rcon} as a function:
+\begin{code}
+  Rcon : [8] -> [4]GF28
+  Rcon i = [(gf28Pow (<| x |>, i-1)), 0, 0, 0]
+\end{code}
+
+\begin{Exercise}\label{ex:aeskerc:0}
+  By definition, AES\indAES only calls {\tt Rcon} with the parameters
+  ranging from 1--10.  Based on this, create a table-lookup version
+\begin{code}
+  Rcon' : [8] -> [4]GF28
+\end{code}
+that simply performs a look-up instead. \lhint{Use Cryptol to find out
+  what the elements of your table should be.}
+\end{Exercise}
+\begin{Answer}\ansref{ex:aeskerc:0}
+Finding out the elements is easy:
+\begin{Verbatim}
+  Cryptol> [ (Rcon i)@0 | i <- [1 .. 10] ]
+  [1, 2, 4, 8, 16, 32, 64, 128, 27, 54]
+\end{Verbatim}
+Note that we only capture the first element in each {\tt Rcon} value,
+since we know that the rest are 0. We can now use this table to define
+{\tt Rcon'} as follows:
+\begin{code}
+  Rcon' i = [(rcons @ (i-1)), 0, 0, 0]
+      where rcons : [10]GF28
+            rcons = [1, 2, 4, 8, 16, 32, 64, 128, 27, 54]
+\end{code}
+Note that we subtract 1 before indexing into the {\tt rcons} sequence
+to get the indexing right.
+\end{Answer}
+
+\begin{Exercise}\label{ex:aeskerc:1}
+  Write and prove a property that {\tt Rcon} and {\tt Rcon'} are
+  equivalent when called with numbers in the range 1--10.
+\end{Exercise}
+\begin{Answer}\ansref{ex:aeskerc:1}
+  We need to write a conditional property
+  (Section~\ref{sec:condproof})\indThmCond. Below, we use the function
+  {\tt elem} you have defined in
+  Exercise~\ref{sec:recandrec}-\ref{ex:recfun:4:1}:\indElem
+\begin{code}
+  property RconCorrect x = if elem(x, [1..10])
+                           then Rcon x == Rcon' x
+                           else True
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> :prove RconCorrect
+  Q.E.D.
+\end{Verbatim}
+\end{Answer}
+
+\todo[inline]{Will we support the \texttt{:safe} command again? See
+  \ticket{210}.  There is a commented-out exercise here on the safety
+  of \texttt{Rcon'}.}
+% \begin{Exercise}\label{ex:aeskerc:2}
+% Is {\tt Rcon'} safe? Verify your answer using Cryptol.
+% \end{Exercise}
+% \begin{Answer}\ansref{ex:aeskerc:2}
+% No, {\tt Rcon'} is {\em not} safe by itself:
+% \begin{Verbatim}
+%   Cryptol> :safe Rcon'
+%   *** 1 safety condition to be checked.
+%   *** Checking for violations of: ``..: index of symbolic-value is out of bounds
+%   (valid range is 0 thru 9).''
+%   *** Violation detected:
+%   Rcon' 0x00
+%            = ..: index of 255 is out of bounds
+%            (valid range is 0 thru 9).
+%   *** 1 problem found.
+% \end{Verbatim}
+% The premise of {\tt Rcon'} is that it must be called with numbers in
+% the range 1--10. So, all its uses are actually safe, as we shall
+% explore in Exercise~\ref{aes:keyexpansion}~\ref{ex:rconsafety}.
+% \end{Answer}
+
+\paragraph*{The {\ttfamily{\textbf SubWord}} function} AES\indAES
+specification refers to a function named {\tt SubWord}~\cite[Section
+5.2]{aes}, that takes a 32-bit word and applies the {\tt SubByte}
+transformation from Section~\ref{aes:subbytes}. This function is
+trivial to code in Cryptol:
+\begin{code}
+  SubWord : [4]GF28 -> [4]GF28
+  SubWord bs = [ SubByte' b | b <- bs ]
+\end{code}
+Note that we have used the table-lookup version ({\tt SubByte'},
+Pg~\pageref{aes:subbytetl}) above.
+
+\paragraph*{The {\ttfamily{\textbf RotWord}} function} The last
+function we need for key-expansion is named {\tt RotWord} by the
+AES\indAES standard~\cite[Section 5.2]{aes}. This function merely
+rotates a given word cyclically to the left:
+\begin{code}
+  RotWord : [4]GF28 -> [4]GF28
+  RotWord [a0, a1, a2, a3] = [a1, a2, a3, a0]
+\end{code}
+We could have used \verb+<<<+\indRotLeft to implement {\tt RotWord} as
+well, but the above definition textually looks exactly the one given
+in the standard specification, and hence is preferable for the
+purposes of clarity.
+
+\todo[inline]{Demonstrate the use of rotate and prove the
+  equivalence.}
+
+\paragraph*{The key schedule} Recall that AES\indAES operates on 128,
+192, or 256 bit keys.  These keys are used to construct a sequence of
+so called {\em round-keys}, each of which is 128-bits wide, and is
+viewed the same way as the {\tt State}:\todo[inline]{\emph{Viewed} or
+  \emph{used}?  Isn't this type abuse?}
+\begin{code}
+  type RoundKey = State
+\end{code}
+The expanded key schedule, contains {\tt Nr}+1 round-keys.  (Recall
+from Section~\ref{sec:aesparams} that {\tt Nr} is the number of
+rounds.)  It also helps to separate out the first and the last keys,
+as they are used in a slightly different fashion.  Based on this
+discussion, we use the following Cryptol type to capture the
+key-schedule:
+\begin{code}
+  type KeySchedule = (RoundKey, [Nr-1]RoundKey, RoundKey) 
+\end{code}
+
+The key schedule is computed by seeding it with the initial key and
+computing the successive elements from the previous entries.  In
+particular, the $i$th element of the expanded key is determined as
+follows, copied verbatim from the AES\indAES
+specification~\cite[Figure 11; Section 5.2]{aes}:
+\begin{Verbatim}
+   temp = w[i-1]
+   if (i mod Nk = 0)
+       temp = SubWord(RotWord(temp)) xor Rcon[i/Nk]
+   else if (Nk > 6 and i mod Nk = 4)
+       temp = SubWord(temp)
+   end if
+   w[i] = w[i-Nk] xor temp
+\end{Verbatim}
+In the pseudo-code, the {\tt w} array contains the expanded key. We
+are computing {\tt w[i]}, using the values {\tt w[i-1]} and {\tt
+  w[i-Nk]}.  The result is the exclusive-or of {\tt w[i-Nk]} and a
+mask value, called {\tt temp} above. The mask is computed using {\tt
+  w[i-1]}, the {\tt Rcon} array we have seen before, the current index
+{\tt i}, and {\tt Nk}.  This computation is best expressed as a
+function in Cryptol that we will call {\tt NextWord}.  We will name
+the {\tt w[i-1]} argument {\tt prev}, and the {\tt w[i-Nk]} argument
+{\tt old}. Otherwise, the Cryptol code just follows the pseudo-code
+above, written in a functional style to compute the mask:
+\begin{code}
+  NextWord : ([8],[4][8],[4][8]) -> [4][8]
+  NextWord(i, prev, old) = old ^ mask
+     where mask = if i % `Nk == 0
+                  then SubWord(RotWord(prev)) ^ Rcon' (i / `Nk)
+                  else if (`Nk > 6) && (i % `Nk == 4)
+                       then SubWord(prev)
+                       else prev
+\end{code}
+\nb{It is well worth studying the pseudo-code above and the Cryptol
+  equivalent to convince yourself they are expressing the same idea!}
+
+To compute the key schedule we start with the initial key as the
+seed. We then make calls to {\tt NextWord} with a sliding window of
+{\tt Nk} elements, computing the subsequent elements. Let us first
+write a function that will apply this algorithm to generate an
+infinite regression of elements:\indDrop\indTranspose
+\begin{code}
+  ExpandKeyForever : [Nk][4][8] -> [inf]RoundKey
+  ExpandKeyForever seed = [ transpose g | g <- groupBy`{4} keyWS ]
+    where keyWS = seed # [ NextWord(i, prev, old)
+                          | i    <- [`Nk ...]
+                          | prev <- drop`{Nk-1} keyWS
+                          | old  <- keyWS
+                         ]
+\end{code}
+Note how {\tt prev} tracks the previous 32-bits of the expanded key
+(by dropping the first {\tt Nk-1} elements), while {\tt old} tracks
+the {\tt i-Nk}'th recurrence for {\tt keyWS}. Once we have the
+infinite expansion, it is easy to extract just the amount we need by
+using number of rounds ({\tt Nr}) as our guide:\indIndex\indIndexs
+\begin{code}
+  ExpandKey : [AESKeySize] -> KeySchedule
+  ExpandKey key = (keys @ 0, keys @@ [1 .. (Nr - 1)], keys @ `Nr)
+    where  seed : [Nk][4][8]
+           seed = split (split key)
+           keys = ExpandKeyForever seed
+\end{code}
+The call {\tt split key} chops {\tt AESKey} into {\tt [Nk*4][8]}, and
+the outer call to {\tt split} further constructs the {\tt [Nk][4][8]}
+elements.
+
+\paragraph*{Testing {\ttfamily{\textbf ExpandKey}}} The completion of
+{\tt ExpandKey} is an important milestone in our AES\indAES
+development, and it is worth testing it before we proceed. The AES
+specification has example key-expansions that we can use. The
+following function will be handy in viewing the output correctly
+aligned:
+\begin{code}
+  fromKS : KeySchedule -> [Nr+1][4][32]
+  fromKS (f, ms, l) = [ formKeyWords (transpose k) 
+                      | k <- [f] # ms # [l] 
+                      ]
+         where formKeyWords bbs = [ join bs | bs <- bbs ]
+\end{code}
+Here is the example from Appendix~A.1 of the AES\indAES
+specification~\cite{aes}:
+\begin{Verbatim}
+  Cryptol> fromKS (ExpandKey 0x2b7e151628aed2a6abf7158809cf4f3c)
+  [[0x2b7e1516, 0x28aed2a6, 0xabf71588, 0x09cf4f3c],
+   [0xa0fafe17, 0x88542cb1, 0x23a33939, 0x2a6c7605],
+   [0xf2c295f2, 0x7a96b943, 0x5935807a, 0x7359f67f],
+   [0x3d80477d, 0x4716fe3e, 0x1e237e44, 0x6d7a883b],
+   [0xef44a541, 0xa8525b7f, 0xb671253b, 0xdb0bad00],
+   [0xd4d1c6f8, 0x7c839d87, 0xcaf2b8bc, 0x11f915bc],
+   [0x6d88a37a, 0x110b3efd, 0xdbf98641, 0xca0093fd],
+   [0x4e54f70e, 0x5f5fc9f3, 0x84a64fb2, 0x4ea6dc4f],
+   [0xead27321, 0xb58dbad2, 0x312bf560, 0x7f8d292f],
+   [0xac7766f3, 0x19fadc21, 0x28d12941, 0x575c006e],
+   [0xd014f9a8, 0xc9ee2589, 0xe13f0cc8, 0xb6630ca6]]
+\end{Verbatim}
+As you can verify this output matches the last column of the table in
+Appendix~A.1 of the reference specification for AES.\indAES
+
+\todo[inline]{A theorem for safety follows that we can re-introduce
+  after \ticket{210} is closed.}
+% \begin{Exercise}\label{ex:rconsafety}
+%   Let us revisit Exercise~\ref{aes:keyexpansion}~\ref{ex:aeskerc:2},
+%   where we have seen that {\tt Rcon'} is not safe. However, the
+%   promise was that it would only be called with numbers ranging
+%   1--10, thus all its uses would be fine. Verify this claim by
+%   proving {\tt ExpandKey} itself is safe. How about {\tt NextWord}?
+%   Is it safe?
+% \end{Exercise}
+% \begin{Answer}\ansref{ex:rconsafety}
+% Let us first check {\tt NextWord}. We have:
+% \begin{Verbatim}
+%   Cryptol> :safe NextWord
+%   *** 1 safety condition to be checked.
+%   *** Checking for violations of: ``..: index of symbolic-value is out of bounds
+%   (valid range is 0 thru 9).''
+%   *** Violation detected:
+%   NextWord (0x00, [0x00 0x00 0x00 0x00], [0x00 0x00 0x00 0x00])
+%            = ..: index of 255 is out of bounds
+%   (valid range is 0 thru 9).
+%   *** 1 problem found.
+% \end{Verbatim}
+% This is indeed to be expected, since {\tt NextWord} simply uses its
+% {\tt i} argument in the call to {\tt Rcon' (i/Nk)}, and there is no
+% guarantee that this {\tt i} will not be 0. However, the use from
+% within {\tt ExpandKey} is perfectly fine:
+% \begin{Verbatim}
+%   Cryptol> :safe ExpandKey
+%   "ExpandKey" is safe; no safety violations exist.
+% \end{Verbatim}
+% formally ensuring that the use of {\tt Rcon'} via {\tt NextWord} in
+% {\tt ExpandKey} is indeed safe.
+% \end{Answer}
+
+%=====================================================================
+\section{The {\ttfamily{\textbf AddRoundKey}} transformation}
+\label{sec:ttfam-addr-transf}
+
+{\tt AddRoundKey} is the simplest of all the transformations in
+AES~\cite[Section 5.1.4]{aes}.\indAES It merely amounts to the
+exclusive-or of the state and the current round key:\indXOr
+\begin{code}
+  AddRoundKey : (RoundKey, State) -> State
+  AddRoundKey (rk, s) = rk ^ s
+\end{code}
+Notice that Cryptol's {\tt \Verb|^|} operator applies structurally to
+arbitrary shapes, computing the exclusive-or element-wise.
+
+%=====================================================================
+\section{AES encryption}
+\label{sec:aes:encryption}
+\sectionWithAnswers{AES encryption}{sec:aes:encryption}
+
+We now have all the necessary machinery to perform AES\indAES
+encryption.
+
+\paragraph*{AES rounds} As mentioned before, AES performs encryption in
+rounds. Each round consists of performing {\tt SubBytes}
+(Section~\ref{aes:subbytes}), {\tt ShiftRows}
+(Section~\ref{aes:shiftrows}), and {\tt MixColumns}
+(Section~\ref{sec:aesmixcolumns}). Before finishing up, each round
+also adds the current round key to the state~\cite[Section
+5.1]{aes}. The Cryptol code for the rounds is fairly trivial:
+\begin{code}
+  AESRound : (RoundKey, State) -> State
+  AESRound (rk, s) = AddRoundKey (rk,
+                                  MixColumns (ShiftRows (SubBytes s)))
+\end{code}
+
+\paragraph*{The final round} The last round of AES is slightly
+different than the others. It omits the {\tt MixColumns}
+transformation:
+\begin{code}
+  AESFinalRound : (RoundKey, State) -> State
+  AESFinalRound (rk, s) = AddRoundKey (rk, ShiftRows (SubBytes s))
+\end{code}
+
+\paragraph*{Forming the input/output blocks} Recall that AES processes
+input in blocks of 128-bits, producing 128-bits of output, regardless
+of the key size.  We will need two helper functions to convert 128-bit
+messages to and from AES states.  Conversion from a message to a state
+is easy to define:
+\begin{code}
+  msgToState : [128] -> State
+  msgToState msg = transpose (split (split msg))
+\end{code}
+The first call to {\tt split} gives us 4 32-bit words, which we again
+split into bytes.  We then form the AES state by transposing the
+resulting matrix.  In the other direction, we simply transpose the
+state and perform the necessary {\tt
+  join}'s:\indTranspose\indJoin\indReverse\indSplit
+\begin{code}
+  stateToMsg : State -> [128]
+  stateToMsg st = join (join (transpose st))
+\end{code}
+
+\begin{Exercise}\label{ex:aes:enc0}
+  Write and prove a pair of properties stating that {\tt msgToState}
+  and {\tt stateToMsg} are inverses of each other.
+\end{Exercise}
+\begin{Answer}\ansref{ex:aes:enc0}
+\begin{code}
+  property msgToStateToMsg msg = stateToMsg(msgToState(msg)) == msg
+  property stToMsgToSt s = msgToState(stateToMsg s) == s
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> :prove msgToStateToMsg
+  Q.E.D.
+  Cryptol> :prove stToMsgToSt
+  Q.E.D.
+\end{Verbatim}
+\end{Answer}
+
+\paragraph*{Putting it together} To encrypt, AES merely expands the
+given key and calls the round-functions. The starting state ({\tt
+  state0} below) is constructed by adding the first round key to the
+input. We then run all the middle rounds using a simple comprehension,
+and finish up by applying the last round~\cite[Figure 5, Section
+5.1]{aes}:\indRIndex
+\begin{code}
+  aesEncrypt : ([128], [AESKeySize]) -> [128]
+  aesEncrypt (pt, key) = stateToMsg (AESFinalRound (kFinal, rounds ! 0))
+    where   (kInit, ks, kFinal) = ExpandKey key
+            state0 = AddRoundKey(kInit, msgToState pt)
+            rounds = [state0] # [ AESRound (rk, s) | rk <- ks
+                                                   | s <- rounds
+                                ]
+\end{code}
+
+\paragraph*{Testing} We can now run some test vectors. Note that, just
+because a handful of test vectors pass, we cannot claim that our
+implementation of AES is correct.  
+
+The first example comes from Appendix~B of the AES\indAES
+standard:~\cite{aes}:
+\begin{Verbatim}
+  Cryptol> aesEncrypt (0x3243f6a8885a308d313198a2e0370734,   \
+                       0x2b7e151628aed2a6abf7158809cf4f3c)
+  0x3925841d02dc09fbdc118597196a0b32
+\end{Verbatim}
+which is what the standard asserts to be the answer. (Note that you
+have to read the final box in Appendix~B column-wise!)  The second
+example comes from Appendix~C.1:
+\begin{Verbatim}
+  Cryptol> aesEncrypt (0x00112233445566778899aabbccddeeff,   \
+                       0x000102030405060708090a0b0c0d0e0f)
+  0x69c4e0d86a7b0430d8cdb78070b4c55a
+\end{Verbatim}
+Again, the result agrees with the standard.
+
+\commentout{
+\begin{code}
+  aesEncSanityCheck =  (aesEncrypt(0x3243f6a8885a308d313198a2e0370734, 0x2b7e151628aed2a6abf7158809cf4f3c) == 0x3925841d02dc09fbdc118597196a0b32) &&  (aesEncrypt(0x00112233445566778899aabbccddeeff, 0x000102030405060708090a0b0c0d0e0f) == 0x69c4e0d86a7b0430d8cdb78070b4c55a)
+\end{code}
+}
+
+\commentout{
+192 and 256 bit tests:
+\begin{Verbatim}
+aesEncrypt(0x00112233445566778899aabbccddeeff, 0x000102030405060708090a0b0c0d0e0f1011121314151617) == 0xdda97ca4864cdfe06eaf70a0ec0d7191
+aesEncrypt(0x00112233445566778899aabbccddeeff, 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f) == 0x8ea2b7ca516745bfeafc49904b496089
+\end{Verbatim}
+}
+
+\paragraph*{Other key sizes} Our development of AES has been key-size
+agnostic, relying on the definition of the parameter {\tt Nk} (See
+Section~\ref{sec:aesparams}.)  To obtain AES192, all we need is to set
+{\tt Nk} to be 6, no additional code change is needed.  Similarly, we
+merely need to set {\tt Nk} to be 8 for AES256.
+
+\begin{Exercise}\label{ex:aes192}
+  By setting {\tt Nk} to be 6 and 8 respectively, try the test vectors
+  given in Appendices C.2 and C.3 of the AES\indAES
+  standard~\cite{aes}.
+\end{Exercise}
+
+%=====================================================================
+\section{Decryption}
+\label{sec:aesdecryption}
+\sectionWithAnswers{Decryption}{sec:aesdecryption}
+
+AES decryption is fairly similar to encryption, except it uses inverse
+transformations~\cite[Figure 12, Section 5.3]{aes}. Armed with all the
+machinery we have built so far, the inverse transformations is
+relatively easy to define.
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\subsection{The {\ttfamily{\textbf InvSubBytes}} transformation}
+\label{sec:ttfam-invs-transf}
+
+The {\tt InvSubBytes} transformation reverses the {\tt SubBytes}
+transformation of Section~\ref{aes:subbytes}. As with {\tt SubBytes},
+we have a choice to either do a table lookup implementation, or follow
+the mathematical description.  We will do the former in these examples;
+you are welcome to do the latter on your own and prove the equivalence
+of the two versions.  To do so, we need to invert the transformation
+given by:
+$$
+ b \oplus b \ggg 4 \oplus b \ggg 5 \oplus b \ggg 6 \oplus b \ggg 7 \oplus c
+$$
+where $c$ is {\tt 0x63}. It turns out that the inverse of this
+transformation can be computed by
+$$
+ b \ggg 2 \oplus b \ggg 5 \oplus b \ggg 7 \oplus d
+$$
+where $d$ is {\tt 0x05}.  It is easy to code this inverse transform in
+Cryptol:
+
+\begin{code}
+  xformByte' : GF28 -> GF28
+  xformByte' b = gf28Add [(b >>> 2), (b >>> 5), (b >>> 7), d]
+    where d = 0x05
+\end{code}
+
+\begin{Exercise}\label{ex:invsb:1}
+  Write and prove a Cryptol property stating that {\tt xformByte'} is
+  the inverse of the function {\tt xformByte} that you have defined in
+  Exercise~\ref{aes:subbytes}~\ref{ex:aessbytes:0}.
+\end{Exercise}
+\begin{Answer}\ansref{ex:invsb:1}
+\begin{code}
+  property xformByteInverse x = xformByte' (xformByte x) == x
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> :prove xformByteInverse
+  Q.E.D.
+\end{Verbatim}
+\end{Answer}
+
+\unparagraph We can now define the inverse s-box
+transform,\indAESInvSbox using the multiplicative inverse function
+{\tt gf28Inverse} you have defined in
+Exercise~\ref{aes:subbytes}~\ref{ex:gfmi:01}:
+\begin{code}
+  InvSubByte : GF28 -> GF28
+  InvSubByte b = gf28Inverse (xformByte' b)
+
+  InvSubBytes : State -> State
+  InvSubBytes state =[ [ InvSubByte b | b <- row ] 
+                     | row <- state
+                     ]
+\end{code}
+
+\begin{Exercise}\label{ex:invsb:2}
+  Write and prove a Cryptol property showing that {\tt InvSubByte}
+  reverses {\tt SubByte}.\indAESSbox
+\end{Exercise}
+\begin{Answer}\ansref{ex:invsb:2}
+\begin{code}
+  property sboxInverse s = InvSubBytes (SubBytes s) == s
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> :prove xformByteInverse
+  Q.E.D.
+\end{Verbatim}
+\end{Answer}
+
+\begin{Exercise}\label{ex:invsb:3}
+  The AES specification provides an inverse s-box table~\cite[Figure
+  14, Section 5.3.2]{aes}. Write a Cryptol function {\tt InvSubBytes'}
+  using the table lookup technique. Make sure your implementation is
+  correct (i.e., equivalent to {\tt InvSubBytes}) by writing and
+  proving a corresponding property.
+\end{Exercise}
+
+\subsection{The {\ttfamily{\textbf InvShiftRows}} transformation}
+\label{sec:ttfam-invsh-transf}
+
+The {\tt InvShiftRows} transformation\indAESInvShiftRows simply
+reverses the {\tt ShiftRows}\indAESShiftRows transformation from
+Section~\ref{aes:shiftrows}:
+
+\begin{code}
+  InvShiftRows : State -> State
+  InvShiftRows state = [ row >>> shiftAmount 
+                       | row <- state
+                       | shiftAmount <- [0 .. 3]
+                       ]
+\end{code}
+
+\begin{Exercise}\label{ex:aesisr:0}
+  Write and prove a property stating that {\tt InvShiftRows} is the
+  inverse of {\tt ShiftRows}.
+\end{Exercise}
+\begin{Answer}\ansref{ex:aesisr:0}
+\begin{code}
+  property shiftRowsInverse s = InvShiftRows (ShiftRows s) == s
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> :prove shiftRowsInverse
+  Q.E.D.
+\end{Verbatim}
+\end{Answer}
+
+\subsection{The {\ttfamily{\textbf InvMixColumns}} transformation}
+\label{sec:ttfam-invm-transf}
+
+Recall from Section~\ref{sec:aesmixcolumns} that {\tt
+  MixColumns}\indAESMixColumns amounts to matrix multiplication in
+GF($2^8$).\indGF The inverse transform turns out to be the same,
+except with a different matrix:\indAESInvMixColumns
+
+\begin{code}
+  InvMixColumns : State -> State
+  InvMixColumns state = gf28MatrixMult (m, state)
+    where m = [[0x0e, 0x0b, 0x0d, 0x09],
+               [0x09, 0x0e, 0x0b, 0x0d],
+               [0x0d, 0x09, 0x0e, 0x0b],
+               [0x0b, 0x0d, 0x09, 0x0e]]
+\end{code}
+
+\begin{Exercise}\label{ex:aesimc:0}
+  Write and prove a property stating that {\tt InvMixColumns} is the
+  inverse of {\tt MixColumns}.
+\end{Exercise}
+\begin{Answer}\ansref{ex:aesimc:0}
+\begin{code}
+  property mixColumnsInverse s = InvMixColumns (MixColumns s) == s
+\end{code}
+Unlike others, this property is harder to prove automatically and will
+take much longer. Below we show the {\tt :check} results instead:
+\begin{Verbatim}
+  Cryptol> :check mixColumnsInverse
+  Checking case 1000 of 1000 (100.00%) 
+  1000 tests passed OK
+\end{Verbatim}
+
+\todo[inline]{Reflect upon coverage, in relation to \ticket{207}.}
+  % \verb+[Coverage: 0.00%. (1000/340282366920938463463374607431768211456)]+.
+  % The coverage information is an indication of the magnitude of the
+  % problem we are dealing with.}
+\end{Answer}
+
+%=====================================================================
+\section{The inverse cipher}
+\label{sec:inverse-cipher}
+
+We now also have all the ingrediants to encode AES decryption.
+Following Figure~12 (Section 5.3) of the AES\indAES
+standard~\cite{aes}: {\small
+\begin{code}
+  AESInvRound : (RoundKey, State) -> State
+  AESInvRound (rk, s) =
+    InvMixColumns (AddRoundKey (rk, InvSubBytes (InvShiftRows s)))
+
+  AESFinalInvRound : (RoundKey, State) -> State
+  AESFinalInvRound (rk, s) = AddRoundKey (rk, InvSubBytes (InvShiftRows s))
+
+  aesDecrypt : ([128], [AESKeySize]) -> [128]
+  aesDecrypt (ct, key) = stateToMsg (AESFinalInvRound (kFinal, rounds ! 0))
+    where  
+      (kFinal, ks, kInit) = ExpandKey key
+      state0 = AddRoundKey(kInit, msgToState ct)
+      rounds = [state0] # [ AESInvRound (rk, s) 
+                          | rk <- reverse ks
+                          | s  <- rounds
+                          ]
+\end{code}
+}
+
+Note how we use the results of {\tt ExpandedKey}, by carefully naming
+the first and last round keys and using the middle-keys in reverse.
+
+\paragraph*{Testing} Let us repeat the tests for AES encryption. Again,
+the first example comes from Appendix~B of the AES\indAES
+standard~\cite{aes}:
+\begin{Verbatim}
+  Cryptol> aesDecrypt (0x3925841d02dc09fbdc118597196a0b32,    \
+                       0x2b7e151628aed2a6abf7158809cf4f3c)
+  0x3243f6a8885a308d313198a2e0370734
+\end{Verbatim}
+which agrees with the original value. The second example comes from
+Appendix~C.1:
+\begin{Verbatim}
+  Cryptol> aesDecrypt (0x69c4e0d86a7b0430d8cdb78070b4c55a,   \
+                       0x000102030405060708090a0b0c0d0e0f)
+  0x00112233445566778899aabbccddeeff
+\end{Verbatim}
+Again, the result agrees with the standard.
+
+\commentout{
+\begin{code}
+  aesDecSanityCheck = (aesDecrypt(0x3925841d02dc09fbdc118597196a0b32,  0x2b7e151628aed2a6abf7158809cf4f3c) == 0x3243f6a8885a308d313198a2e0370734) && (aesDecrypt(0x69c4e0d86a7b0430d8cdb78070b4c55a,  0x000102030405060708090a0b0c0d0e0f) == 0x00112233445566778899aabbccddeeff)
+\end{code}
+}
+
+\commentout{
+192 and 256 bit tests:
+\begin{Verbatim}
+aesDecrypt(0xdda97ca4864cdfe06eaf70a0ec0d7191, 0x000102030405060708090a0b0c0d0e0f1011121314151617) == 0x00112233445566778899aabbccddeeff
+aesDecrypt(0x8ea2b7ca516745bfeafc49904b496089, 0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f) == 0x00112233445566778899aabbccddeeff
+\end{Verbatim}
+}
+
+\paragraph*{Other key sizes} Similar to encryption, all we need to
+obtain AES192 decryption is to set {\tt Nk} to be 6 in
+Section~\ref{sec:aesparams}. Setting {\tt Nk} to 8 will
+correspondingly give us AES256.
+
+\paragraph*{The code} You can see all the Cryptol code for AES in
+Appendix~\ref{app:aes}.
+
+%=====================================================================
+\section{Correctness}
+\label{sec:aescorrectattempt}
+
+While test vectors do provide good evidence of AES\indAES working
+correctly, they do not provide a proof that we have implemented the
+standard faithfully. In fact, for a block-cipher like AES, it is not
+possible to state what correctness would mean.  Tweaking some
+parameters, or changing the s-box appropriately can give us a brand
+new cipher.  And it would be impossible to tell this new cipher apart
+from AES aside from running it against published test vectors.
+
+\todo[inline]{Is this claim about correctness really true?!}  
+
+What we can do, however, is gain assurance that our implementation
+demonstrably has the desired properties. We have done this throughout
+this chapter by stating and proving a number of properties about AES
+and its constituent parts. The Cryptol methodology allows us to
+construct the code together with expected properties, allowing
+high-assurance development. We conclude this chapter with one final
+property, stating that {\tt aesEncrypt} and {\tt aesDecrypt} do indeed
+form an encryption-decryption pair:
+
+\begin{code}
+  property AESCorrect msg key = aesDecrypt (aesEncrypt (msg, key), key) == msg
+\end{code}
+
+Can we hope to automatically prove this theorem?  For 128-bit AES, the
+state space for this theorem has $2^{256}$ elements.  It would be
+naive to expect that we can prove this theorem by a push-button tool
+very quickly.\footnote{Note that, for a general algorithm with this
+  large a state space, it is entirely possible to perform automatic
+  verification using modern solvers, but if one carefully reflects
+  upon the nature of cryptographic functions, it becomes clear why it
+  should \emph{not} be the case here.}  We can however, gain some
+assurance by running it through the {\tt :check} command:\indCmdCheck
+
+\begin{Verbatim}
+  Checking case 1000 of 1000 (100.00%) 
+  1000 tests passed OK
+\end{Verbatim}
+%  [Coverage: 0.00%. (1000/11579208923731619542357098500868790785326998466564
+%                                          ...0564039457584007913129639936)]
+You will notice that even running quick-check will take a while for
+the above theorem, and the total state space for this function means
+that we have not even scratched the surface! That said, being able to
+specify these properties together with very high level code is what
+distinguishes Cryptol from other languages when it comes to
+cryptographic algorithm programming.
+
+\todo[inline]{This is highly dissatisfying!}
+
+\todo[inline]{Add some text here back when we improve proof
+  capabilities?}
+%% Furthermore, Cryptol has some further proof tools in its arsenal
+%% that will actually let us complete this proof in a reasonable
+%% amount of time, as we shall see in Section~\ref{sec:proveaes}.
+\commentout{
+\begin{code}
+  sanityCheck = (aesEncrypt (0x3243f6a8885a308d313198a2e0370734, 0x2b7e151628aed2a6abf7158809cf4f3c) 
+                            == 0x3925841d02dc09fbdc118597196a0b32)
+                        &&
+                (aesEncrypt (0x00112233445566778899aabbccddeeff, 0x000102030405060708090a0b0c0d0e0f)
+                            == 0x69c4e0d86a7b0430d8cdb78070b4c55a)
+\end{code}
+}
+
+\todo[inline]{Need a punchier conclusion to the chapter, since it ends
+  the book, or add a new conclusion.}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "../main/Cryptol"
+%%% End: 

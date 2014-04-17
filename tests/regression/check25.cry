@@ -1,0 +1,8 @@
+module check25 where
+
+tz = 13
+ty = tz
+tx = ty
+  where tz = 17
+
+check25 = tx == 13

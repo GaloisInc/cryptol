@@ -1,0 +1,4 @@
+:set warnDefaulting=off
+:set prover=yices
+:l HighAssurance.tex
+:prove caesarCorrect : ([8], String(8)) -> Bit

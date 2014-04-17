@@ -1,0 +1,10 @@
+any : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
+any f xs = [ f x | x <- xs ] != zero
+
+all : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
+all f xs = [ f x | x <- xs ] == ~zero
+
+// all ltTen [0 .. 9] where ltTen x = x < 10
+// all ltTen [0 .. 10] where ltTen x = x < 10
+// any ltTen [100 .. 10] where ltTen x = x < 10
+// any ltTen [100 .. 9] where ltTen x = x < 10

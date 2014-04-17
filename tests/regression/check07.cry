@@ -1,0 +1,14 @@
+shiftls1 = [ 0x12345678 << i | i <- [ 0 .. 32 ] ]
+shiftls2 = [ 0x12345678 << i | i <- [ 32 .. 64 ] ]
+shiftls3 = [ 0x12345678 << i | i <- [ 0x80000000 .. 0x8000000f ] ]
+shiftrs1 = [ 0x12345678 >> i | i <- [ 0 .. 32 ] ]
+shiftrs2 = [ 0x12345678 >> i | i <- [ 32 .. 64 ] ]
+shiftlbig1 : [48][48]
+shiftlbig1 = [ 0x12345678abcd << i | i <- [ 0 .. 47 ] ]
+shiftlbig1' : [48][48]
+shiftlbig1' = [ 0x12345678abcd * 2^^i | i <- [ 0 .. 47 ] ]
+
+check7a = shiftls3 == [ 0, 0 ... ] @@ [ 0 .. 0xf ]
+check7b = shiftlbig1 == shiftlbig1'
+check7c = 1 << 1 == 0
+check7 = check7a && check7b && check7c

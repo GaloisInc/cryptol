@@ -1,0 +1,12 @@
+irred : [8]
+irred = 0x1b
+xtimes a = (if a ! (width a - 1) then a' ^ irred else a')
+  where a' = a << 1
+
+gtimes : ([8], [8]) -> [8]
+gtimes (a, b)
+  = (if b == 0 then 0 else xtimes (gtimes (a, b >> 1)) ^ a')
+    // endianness difference from Cryptol-1 test:
+  where a' = if b ! 0 then a else 0
+
+check22 = [ gtimes (13, x) | x <- [ 1, 12, 192 ] ] == [ 13, 92, 183 ]

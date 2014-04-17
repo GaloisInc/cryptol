@@ -1,0 +1,10 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module comp02
+
+[error] Overlapping symbols defined:
+    (at comp02.cry:4:12--4:13, a)
+    (at comp02.cry:5:12--5:13, a)
+[error] Multiple definitions for symbol: (at comp02.cry:4:8--4:9, a)
+    (at comp02.cry:4:12--4:13, a)
+    (at comp02.cry:5:12--5:13, a)

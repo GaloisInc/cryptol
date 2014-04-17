@@ -1,0 +1,16 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at <interactive>:1:1--1:22:
+  Defaulting 4th type parameter
+             of expression (@@)
+             at <interactive>:1:8--1:10
+  to 4
+[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+[warning] at <interactive>:1:1--1:23:
+  Defaulting 4th type parameter
+             of expression (@@)
+             at <interactive>:1:9--1:11
+  to 4
+[11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]
+True

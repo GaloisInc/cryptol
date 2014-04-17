@@ -1,0 +1,81 @@
+%%
+%% This is file `sampleSec.tex',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% glossary.dtx  (with options: `sampleSec.tex,package')
+%% Copyright (C) 2006 Nicola Talbot, all rights reserved.
+%% If you modify this file, you must change its name first.
+%% You are NOT ALLOWED to distribute this file alone. You are NOT
+%% ALLOWED to take money for the distribution or use of either this
+%% file or a changed version, except for a nominal charge for copying
+%% etc.
+%% \CharacterTable
+%%  {Upper-case    \A\B\C\D\E\F\G\H\I\J\K\L\M\N\O\P\Q\R\S\T\U\V\W\X\Y\Z
+%%   Lower-case    \a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z
+%%   Digits        \0\1\2\3\4\5\6\7\8\9
+%%   Exclamation   \!     Double quote  \"     Hash (number) \#
+%%   Dollar        \$     Percent       \%     Ampersand     \&
+%%   Acute accent  \'     Left paren    \(     Right paren   \)
+%%   Asterisk      \*     Plus          \+     Comma         \,
+%%   Minus         \-     Point         \.     Solidus       \/
+%%   Colon         \:     Semicolon     \;     Less than     \<
+%%   Equals        \=     Greater than  \>     Question mark \?
+%%   Commercial at \@     Left bracket  \[     Backslash     \\
+%%   Right bracket \]     Circumflex    \^     Underscore    \_
+%%   Grave accent  \`     Left brace    \{     Vertical bar  \|
+%%   Right brace   \}     Tilde         \~}
+\documentclass{report}
+
+\usepackage[plainpages=false,colorlinks]{hyperref}
+\usepackage[style=altlist,toc,number=section]{glossary}
+
+\makeglossary
+
+\storeglosentry{ident}{name=identity matrix,description=diagonal
+matrix with 1s along the leading diagonal}
+
+\storeglosentry{diag}{name=diagonal matrix,
+description=matrix whose only non-zero entries are along
+the leading diagonal}
+
+\storeglosentry{sing}{name=singular matrix,
+description=matrix with zero determinant}
+
+\begin{document}
+
+\pagenumbering{roman}
+\tableofcontents
+
+\printglossary
+
+\chapter{Introduction}
+\pagenumbering{arabic}
+This is a sample document illustrating the use of the
+\textsf{glossary} package.
+
+\chapter{Diagonal matrices}
+
+A \gls[format=hyperit]{diag} is a matrix where all elements not on the
+leading diagonal are zero.  This is the
+primary definition, so an italic font is used for the page number.
+
+\newpage
+\section{Identity matrix}
+The \gls[format=hyperit]{ident} is a \gls{diag} whose leading
+diagonal elements are all equal to 1.
+
+Here is another entry for a \gls{diag}.
+
+\chapter{Singular Matrices}
+
+A \gls{sing} is a matrix with zero determinant.
+\useGlosentry{sing}{Singular matrices} are non-invertible.
+
+Another \gls{ident} entry.
+
+\end{document}
+\endinput
+%%
+%% End of file `sampleSec.tex'.

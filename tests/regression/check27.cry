@@ -1,0 +1,15 @@
+zeroBit : Bit
+zeroBit = zero
+
+zeroTuple : ([8], [32])
+zeroTuple = zero
+zeroTuple3 : ([8], [32], [256])
+zeroTuple3 = zero
+
+zeroFun : [8] -> [16]
+zeroFun = zero
+
+check27 = (zeroBit == False)
+	&& (zeroTuple == (0, 0)) && (zeroTuple3 == (0, 0, 0))
+	&& ((0, 0) == zeroTuple) && ((0, 0, 0) == zeroTuple3)
+	&& (zeroFun 13 == 0)

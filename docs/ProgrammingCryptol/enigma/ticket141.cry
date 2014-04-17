@@ -1,0 +1,16 @@
+/*
+ * Copyright (c) 2013-2014 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+
+type Char = [8]
+type Permutation = String 26
+
+invSubst : (String 26, Char) -> Char
+invSubst (key, c) = candidates ! 0
+    where candidates = [0] # [ if c == k then a else p
+                             | k <- key
+                             | a <- ['A' .. 'Z']
+                             | p <- candidates
+                             ]
+

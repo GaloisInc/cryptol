@@ -1,0 +1,3 @@
+:l check12.cry
+sums ([0 .. 9] : [_][32])
+check12

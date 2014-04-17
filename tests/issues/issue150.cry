@@ -1,0 +1,4 @@
+maxSeq' xs = ys
+      where ys = [0] # [ max x  y | x <- xs
+                                  | y <- ys
+                       ]

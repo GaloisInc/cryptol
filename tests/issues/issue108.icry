@@ -1,0 +1,5 @@
+:load issue108.cry
+sum []
+sum [1,2,3]
+sum [1..10]
+sum ([1..10] : [_][8])

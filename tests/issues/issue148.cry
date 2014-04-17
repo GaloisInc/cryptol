@@ -1,0 +1,10 @@
+Salsa20_expansion : {a} (a >= 1, 2 >= a) => ([16*a][8], [16][8]) -> [64][8]
+Salsa20_expansion(k, n) = z
+  where
+    [s0, s1, s2, s3] = if (`a == 2) then split("expand 32-byte k")
+                                    else split("expand 16-byte k")
+    k1 = take`{16}(k#zero)
+    k2 = drop`{16}(zero#k)
+    x = s0 # k1 # s1 # n # s2 # k2 # s3
+    z = x
+

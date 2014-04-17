@@ -1,0 +1,5 @@
+:load check08.cry
+qq @@ [0 .. 4]
+check8
+:prove prefix
+

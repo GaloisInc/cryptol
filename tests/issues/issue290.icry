@@ -1,0 +1,4 @@
+:m issue290bar
+fooConst
+issue290::fooConst
+barConst

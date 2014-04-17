@@ -1,0 +1,15 @@
+/* This is 
+  a block comment */
+
+test1 = 1 where x = 2
+          where y = 2
+
+// This is a line comment
+test2 = 1
+        where
+          x = 2
+        where
+          y = 2
+
+test3 = 1 where x = 2
+                  where y = 3

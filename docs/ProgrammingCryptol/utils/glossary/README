@@ -1,0 +1,45 @@
+LaTeX Package : glossary v 2.4
+
+Last Modified : 20th July 2006
+
+Author        : Nicola Talbot
+
+Files         : glossary.dtx   - documented source file
+                glossary.ins   - installation script
+
+This package is provided to assist generating a glossary.  It has
+a certain amount of flexibility allowing the user to customize the
+format of the glossary and define new glossary-style objects. It 
+is also possible to define acronyms.
+
+To extract the code do:
+
+latex glossary.ins
+
+This will create the files glossary.sty, glossary.perl, 
+makeglos.pl and some sample files.  Move
+glossary.sty to a subdirectory of your local texmf tree 
+(e.g. $LOCALTEXMF/tex/latex/contrib/) and glossary.perl
+to the LaTeX2HTML style files directory (e.g. latex2html/styles). 
+The Perl script makeglos.pl provides an easy interface to
+makeindex for those who can't remember (or can't be bothered) all
+the required switches.  See documentation for more details.
+
+To extract the documentation do:
+
+latex glossary.dtx
+makeindex -s gind.ist glossary
+makeindex -s gglo.ist -o glossary.gls glossary.glo
+latex glossary.dtx
+latex glossary.dtx
+
+Alternatively, if you use pdflatex instead of latex, the 
+documentation will have hyperlinks.  If you want documentation 
+on the code, remove the line:
+\OnlyDescription
+
+This material is subject to the LaTeX Project Public License. 
+See  http://www.ctan.org/tex-archive/help/Catalogue/licenses.lppl.html for the details of that license.
+
+http://theoval.cmp.uea.ac.uk/~nlct/
+

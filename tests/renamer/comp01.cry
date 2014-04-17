@@ -1,0 +1,4 @@
+module comp01 where
+
+// Test that comprehensions are getting renamed properly
+xs = [ a | a <- [1 .. 10] ]

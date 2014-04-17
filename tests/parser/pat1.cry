@@ -1,0 +1,22 @@
+
+f1 (x,y) = x
+f2 (x # y) = x
+f3 [x,y,z] = x + y + z
+f4 {x = a, y = b } = a
+f5 ((x : [8]) # (y : [10])) = x # y : [10]
+f6 (x # y : [10]) = x
+f7 (x # (y : [10])) = x
+
+/*
+if a then b else c : [10]
+
+let {} in a : [10]
+
+case a : [10] of { }
+
+// f (a :# b :: Int) = 
+
+
+(fa,fb) = f6
+
+*/

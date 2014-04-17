@@ -1,0 +1,94 @@
+%%
+%% This is file `sampleNtn.tex',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% glossary.dtx  (with options: `sampleNtn.tex,package')
+%% Copyright (C) 2006 Nicola Talbot, all rights reserved.
+%% If you modify this file, you must change its name first.
+%% You are NOT ALLOWED to distribute this file alone. You are NOT
+%% ALLOWED to take money for the distribution or use of either this
+%% file or a changed version, except for a nominal charge for copying
+%% etc.
+%% \CharacterTable
+%%  {Upper-case    \A\B\C\D\E\F\G\H\I\J\K\L\M\N\O\P\Q\R\S\T\U\V\W\X\Y\Z
+%%   Lower-case    \a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z
+%%   Digits        \0\1\2\3\4\5\6\7\8\9
+%%   Exclamation   \!     Double quote  \"     Hash (number) \#
+%%   Dollar        \$     Percent       \%     Ampersand     \&
+%%   Acute accent  \'     Left paren    \(     Right paren   \)
+%%   Asterisk      \*     Plus          \+     Comma         \,
+%%   Minus         \-     Point         \.     Solidus       \/
+%%   Colon         \:     Semicolon     \;     Less than     \<
+%%   Equals        \=     Greater than  \>     Question mark \?
+%%   Commercial at \@     Left bracket  \[     Backslash     \\
+%%   Right bracket \]     Circumflex    \^     Underscore    \_
+%%   Grave accent  \`     Left brace    \{     Vertical bar  \|
+%%   Right brace   \}     Tilde         \~}
+\documentclass{report}
+
+\usepackage[plainpages=false,colorlinks]{hyperref}
+\usepackage{html}
+\usepackage[toc,style=long,cols=3]{glossary}
+
+\makeglossary
+
+\newglossarytype{notation}{not}{ntn}[style=long,cols=2,border,header]
+
+\newcommand{\notationname}{Notation}
+\setglossary{type=notation,glsnumformat=ignore,glodelim={.}}
+
+\makenotation
+
+\begin{document}
+
+\title{Sample Document using glossary Package}
+\author{Nicola Talbot}
+\pagenumbering{alph}
+\maketitle
+
+\begin{abstract}
+\pagenumbering{Alph}
+This is a sample document illustrating the use of the
+\textsf{glossary} package.  In this example, a new glossary type
+called \texttt{notation} is defined, so that the document can have a
+separate glossary of terms and index of notation. The index of notation
+doesn't have associated numbers.
+\end{abstract}
+
+\pagenumbering{roman}
+\tableofcontents
+
+\printglossary
+
+
+\printglossary[notation]
+
+\chapter{Introduction}
+\pagenumbering{arabic}
+
+Sets\glossary{name=set,description=A collection of distinct objects}
+are denoted by a caligraphic font
+e.g.\ $\mathcal{S}$%
+\notation{name=$\mathcal{S}$,description=A set,sort=S}.
+
+Let $\mathcal{U}$ denote the universal set\notation{
+name=$\mathcal{U}$,description={The universal set},sort=U}.
+
+The cardinality\glossary{name=cardinality,
+description=The number of elements in the specified set} of
+a set $\mathcal{S}$ is denoted $|\mathcal{S}|$%
+\notation{name=$\mid\mathcal{S}\mid$,
+description=cardinality of $\mathcal{S}$,sort=cardinality}
+
+\chapter{Next}
+
+Now for a hyperlink:
+\xnotation{name=$\mathcal{U}$, description={The universal
+set}, sort=U}{$\mathcal{U}$}.
+
+\end{document}
+\endinput
+%%
+%% End of file `sampleNtn.tex'.

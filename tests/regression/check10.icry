@@ -1,0 +1,6 @@
+:l check10.cry
+v2 + v2
+v1 * v2
+check10a
+check10b
+check10

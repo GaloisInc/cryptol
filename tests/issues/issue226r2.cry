@@ -1,0 +1,3 @@
+module issue226r2 where
+
+foo y = y

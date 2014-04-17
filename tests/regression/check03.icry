@@ -1,0 +1,4 @@
+:load check03.cry
+nats 0 @@ [ 0 .. 10 ]
+nats 11 @@ [ 0 .. 10 ]
+check3

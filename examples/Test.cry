@@ -1,0 +1,45 @@
+/*
+ * Copyright (c) 2013-2014 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+
+// Don't load this on its own -- it gets pulled in by, e.g., DEStest.cry
+
+module Test where
+import Cipher
+
+evktest : {ks, bs, n} (fin bs)
+       => (Cipher ks bs, [n]([ks],[bs]), [bs]) -> [n]([bs], Bit)
+evktest (cipher, vkeysCTs, PT) =
+    [ (CT', CT' == CT) where CT' = cipher.encrypt Key PT
+    | (Key, CT) <- vkeysCTs ]
+
+evttest : {ks, bs, n} (fin bs)
+       => (Cipher ks bs, [ks], [n]([bs],[bs])) -> [n]([bs], Bit)
+evttest (cipher, Key, vtextPCTs) =
+    [ (CT', CT' == CT) where CT' = cipher.encrypt Key PT
+    | (PT, CT) <- vtextPCTs ]
+
+ekatest : {ks, bs, n} (fin bs)
+       => (Cipher ks bs, [n]([ks],[bs],[bs])) -> [n]([bs], Bit)
+ekatest (cipher, kaKPCTs) =
+    [ (CT', CT' == CT) where CT' = cipher.encrypt Key PT
+    | (Key, PT, CT) <- kaKPCTs ]
+
+dvktest : {ks, bs, n} (fin bs)
+       => (Cipher ks bs, [n]([ks],[bs]), [bs]) -> [n]([bs], Bit)
+dvktest (cipher, vkeysCTs, PT) =
+    [ (PT', PT' == PT) where PT' = cipher.decrypt Key CT
+    | (Key, CT) <- vkeysCTs ]
+
+dvttest : {ks, bs, n} (fin bs)
+       => (Cipher ks bs, [ks], [n]([bs],[bs])) -> [n]([bs], Bit)
+dvttest (cipher, Key, vtextPCTs) =
+    [ (PT', PT' == PT) where PT' = cipher.decrypt Key CT
+    | (PT, CT) <- vtextPCTs ]
+
+dkatest : {ks, bs, n} (fin bs)
+       => (Cipher ks bs, [n]([ks],[bs],[bs])) -> [n]([bs], Bit)
+dkatest (cipher, kaKPCTs) =
+    [ (PT', PT' == PT) where PT' = cipher.decrypt Key CT
+    | (Key, PT, CT) <- kaKPCTs ]

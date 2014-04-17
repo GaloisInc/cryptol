@@ -1,0 +1,4 @@
+check18 = fnrk []
+  where
+    fnrk : [0] -> Bit
+    fnrk [] = True

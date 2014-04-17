@@ -1,0 +1,4 @@
+xor : {a} ([a], [a]) -> [a]
+xor (xs, ys) = [ x != y | x <- xs | y <- ys ]
+
+check24 = [ xor (x, y) == (x ^ y) | x <- [ 0 .. 15 ], y <- [ 0 .. 15 ] ] == ~zero

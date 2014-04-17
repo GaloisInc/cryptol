@@ -1,0 +1,3069 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2 Final//EN">
+
+<!--Converted with LaTeX2HTML 2002-2-1 (1.70)
+original version by:  Nikos Drakos, CBLU, University of Leeds
+* revised and updated by:  Marcus Hennecke, Ross Moore, Herb Swan
+* with significant contributions from:
+  Jens Lippmann, Marek Rouchal, Martin Wilck and others -->
+<HTML>
+<HEAD>
+<TITLE>glossary.sty v 2.4: LaTeX2e Package to Assist Generating Glossaries</TITLE>
+<META NAME="description" CONTENT="glossary.sty v 2.4: LaTeX2e Package to Assist Generating Glossaries">
+<META NAME="keywords" CONTENT="manual">
+<META NAME="resource-type" CONTENT="document">
+<META NAME="distribution" CONTENT="global">
+
+<META NAME="Generator" CONTENT="LaTeX2HTML v2002-2-1">
+<META HTTP-EQUIV="Content-Style-Type" CONTENT="text/css">
+
+
+</HEAD>
+
+<BODY >
+
+<P>
+
+ <H1 ALIGN="CENTER">glossary.sty v 2.4: LaTeX2e Package to Assist Generating Glossaries</H1>
+<DIV>
+
+<P ALIGN="CENTER"><STRONG>Nicola L.C. Talbot</STRONG></P>
+<P ALIGN="CENTER"><STRONG>20th July 2006</STRONG></P>
+</DIV>
+<BR>
+
+<H2><A NAME="SECTION00010000000000000000">
+Contents</A>
+</H2>
+<!--Table of Contents-->
+
+<UL>
+<LI><A NAME="tex2html32"
+  HREF="manual.html#SECTION00020000000000000000">Introduction</A>
+<LI><A NAME="tex2html33"
+  HREF="manual.html#SECTION00030000000000000000">Installation</A>
+<LI><A NAME="tex2html34"
+  HREF="manual.html#SECTION00040000000000000000">Generating Glossary Information</A>
+<UL>
+<LI><A NAME="tex2html35"
+  HREF="manual.html#SECTION00041000000000000000">Storing Glossary Information</A>
+</UL>
+<BR>
+<LI><A NAME="tex2html36"
+  HREF="manual.html#SECTION00050000000000000000">makeglos.pl</A>
+<LI><A NAME="tex2html37"
+  HREF="manual.html#SECTION00060000000000000000">Displaying the Glossary</A>
+<LI><A NAME="tex2html38"
+  HREF="manual.html#SECTION00070000000000000000">Package Options</A>
+<UL>
+<LI><A NAME="tex2html39"
+  HREF="manual.html#SECTION00071000000000000000">Examples</A>
+</UL>
+<BR>
+<LI><A NAME="tex2html40"
+  HREF="manual.html#SECTION00080000000000000000">Defining New Glossary Types</A>
+<LI><A NAME="tex2html41"
+  HREF="manual.html#SECTION00090000000000000000">Acronyms</A>
+<UL>
+<LI><A NAME="tex2html42"
+  HREF="manual.html#SECTION00091000000000000000">Examples</A>
+</UL>
+<BR>
+<LI><A NAME="tex2html43"
+  HREF="manual.html#SECTION000100000000000000000">Customizing the Glossary</A>
+<LI><A NAME="tex2html44"
+  HREF="manual.html#SECTION000110000000000000000">Sample Documents</A>
+<LI><A NAME="tex2html45"
+  HREF="manual.html#SECTION000120000000000000000">LaTeX2HTML Style File</A>
+<UL>
+<LI><A NAME="tex2html46"
+  HREF="manual.html#SECTION000121000000000000000">Limitations</A>
+</UL>
+<BR>
+<LI><A NAME="tex2html47"
+  HREF="manual.html#SECTION000130000000000000000">Troubleshooting</A>
+<LI><A NAME="tex2html48"
+  HREF="manual.html#SECTION000140000000000000000">Obsolete Commands</A>
+<LI><A NAME="tex2html49"
+  HREF="manual.html#SECTION000150000000000000000">Contact Details</A>
+<LI><A NAME="tex2html50"
+  HREF="manual.html#SECTION000160000000000000000">Acknowledgements</A>
+<LI><A NAME="tex2html51"
+  HREF="manual.html#SECTION000170000000000000000">Index</A>
+</UL>
+<!--End of Table of Contents-->
+<P>
+
+<H1><A NAME="SECTION00020000000000000000">
+Introduction</A>
+</H1>
+ 
+ The <TT>glossary</TT><A NAME="1680"></A> package is provided to assist 
+generating a glossary.  It has a certain amount of flexibility, 
+allowing the user to customize the format of the glossary, and 
+define new glossary-style objects.
+
+<P>
+
+<H1><A NAME="SECTION00030000000000000000">
+Installation</A>
+</H1>
+
+<P>
+You need to make sure you have downloaded the following three
+files:
+<PRE>
+glossary.ins
+glossary.dtx
+README
+</PRE>
+To extract the code from the <TT>glossary.dtx</TT> file, you 
+will need to run the installation file through LaTeX:
+<PRE>
+latex glossary.ins
+</PRE>
+This will create the following files:
+<PRE>
+glossary.sty
+glossary.perl
+makeglos.pl
+makeglos.bat
+</PRE>
+along with several sample files. The file <TT>glossary.sty</TT>
+should be placed somewhere in the LaTeX path, e.g. 
+<TT>texmf/tex/latex/glossary/</TT> or 
+<TT>localtexmf/tex/latex/glossary/</TT>. Remember to update the
+T<SMALL>E</SMALL>X database if you are installing this package for the first time. 
+The file <TT>glossary.perl</TT> is a LaTeX2HTML style file, and 
+should be placed in the LaTeX2HTML style file directory (usually 
+<TT>latex2html/styles/</TT>). The file <TT>makeglos.pl</TT>
+is a Perl script which calls <TT>makeindex</TT><A NAME="1683"></A>.  If you are
+using UNIX or Linux, you will need to set the permissions so
+that you can execute the file:
+<PRE>
+chmod a+x makeglos.pl
+</PRE>
+You should then place this file somewhere on your path. 
+(You may also need to edit the first line of
+this file, if <TT>perl</TT><A NAME="1686"></A> is located in a directory other than <code>/usr/bin/</code><A NAME="tex2html1"
+  HREF="#foot1555"><SUP>1</SUP></A>.)
+
+<P>
+If you are not using UNIX or Linux etc, you may have to explicitly
+load the file into Perl, so you would need to do 
+<TT>perl makeglos.pl</TT> instead of just <TT>makeglos.pl</TT>.
+If you are using Windows, a batch file, <TT>makeglos.bat</TT> 
+is provided which will run Perl on <TT>makeglos.pl</TT>.
+Both <TT>makeglos.pl</TT> and <TT>makeglos.bat</TT> should
+be placed somewhere specified by the PATH environment
+variable. (For example, put them both in the same 
+directory as <TT>makeindex</TT><A NAME="1689"></A>, which will probably
+be in <code>\texmf\miktex\bin\</code>).
+
+<P>
+If you don't have Perl installed on your system, you can just use
+<TT>makeindex</TT><A NAME="1692"></A>, only you will have to remember all the 
+command line switches, and you won't be able to merge entries 
+that have the same name, but different descriptions.
+
+<P>
+Note that if you are updating the glossary package, it is
+a good idea to update <TT>makeglos.pl</TT> as it may also
+have been modified.
+
+<P>
+
+<H1><A NAME="SECTION00040000000000000000">
+Generating Glossary Information</A>
+</H1>
+
+<P>
+The standard LaTeX command <TT>&#92;makeglossary</TT> (analogous to <TT>&#92;makeindex</TT>)
+ should be placed in the document preamble. If this command
+is omitted, glossary information will be ignored.  Glossary 
+entries are generated using the command 
+<TT>&#92;glossary</TT><code>{</code><I>key-val list</I><code>}</code>.
+ This command is a slightly modified version of the standard 
+<TT>&#92;glossary</TT> command, in order to separate out the 
+information into <I>entry-name</I> and <I>entry-description</I>. 
+The argument to <TT>&#92;glossary</TT> must be a comma-separated
+list of <I>key</I>=<I>value</I> pairs.  The following keys are 
+available:
+<DIV ALIGN="CENTER">
+<TABLE CELLPADDING=3>
+<TR><TH ALIGN="LEFT"><B>Key </B></TH>
+<TH ALIGN="LEFT" VALIGN="TOP" WIDTH=400><B>Value</B></TH>
+</TR>
+<TR><TD ALIGN="LEFT"><TT><TT>name</TT><A NAME="1705"></A> </TT></TD>
+<TD ALIGN="LEFT" VALIGN="TOP" WIDTH=400>The entry name</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT><TT>description</TT><A NAME="1709"></A> </TT></TD>
+<TD ALIGN="LEFT" VALIGN="TOP" WIDTH=400>A description about the entry</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT><TT>sort</TT><A NAME="1713"></A> </TT></TD>
+<TD ALIGN="LEFT" VALIGN="TOP" WIDTH=400>How to sort the entry. (Entry name used if sort omitted)</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT><TT>format</TT><A NAME="1717"></A> </TT></TD>
+<TD ALIGN="LEFT" VALIGN="TOP" WIDTH=400>How to format the page number</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT><TT>number</TT><A NAME="1721"></A> </TT></TD>
+<TD ALIGN="LEFT" VALIGN="TOP" WIDTH=400>Override the page number with a different 
+counter. The value should be the name of a counter (e.g. 
+<TT>number=section</TT>).</TD>
+</TR>
+</TABLE>
+</DIV>
+For example:
+<PRE>
+\glossary{name={singular matrix},
+          description={A matrix with zero determinant}}
+</PRE>
+ The following example sorts on the text <TT>U</TT> instead of 
+<code>$\mathcal{U}$</code>:
+<PRE>
+\glossary{name={$\mathcal{U}$},
+          description={The universal set},
+          sort=U}
+</PRE>
+Note that you should always use the <TT>sort</TT><A NAME="1725"></A>
+key if the <TT>name</TT><A NAME="1729"></A> key contains commands, this is particularly
+important if you are using hyperlinks, as the target is constructed
+from the <TT>name</TT><A NAME="1733"></A> key if the <TT>sort</TT><A NAME="1737"></A> key is omitted.
+
+<P>
+In the glossary, each entry is followed by a list of page numbers
+that correspond to the pages where the relevant <TT>&#92;glossary</TT>
+command is placed. By default the numbers are formatted in the 
+current font, but the page number format for individual entries can be 
+changed using the <TT>format</TT><A NAME="1743"></A> key.  This should be the name of a 
+LaTeX formatting command without the preceding <code>\</code> (as with the 
+<code>|</code> operator in <TT>&#92;index</TT>.)  For example:
+<PRE>
+\glossary{name={$\mathbb{R}$},
+          description={The set of real numbers},
+          sort=R,
+          format=textbf}
+</PRE>
+In addition, the following formats are also available:
+
+<DIV ALIGN="CENTER">
+<TABLE CELLPADDING=3>
+<TR><TD ALIGN="LEFT"><TT>hyperrm</TT><A NAME="1749"></A><A NAME="1750"></A></TD>
+<TD ALIGN="LEFT">The number is a hyper link in roman</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT>hypersf</TT><A NAME="1754"></A><A NAME="1755"></A></TD>
+<TD ALIGN="LEFT">The number is a hyper link in sans-serif</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT>hypertt</TT><A NAME="1759"></A><A NAME="1760"></A></TD>
+<TD ALIGN="LEFT">The number is a hyper link in typewriter font</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT>hyperbf</TT><A NAME="1764"></A><A NAME="1765"></A></TD>
+<TD ALIGN="LEFT">The number is a hyper link in bold</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT>hypermd</TT><A NAME="1769"></A><A NAME="1770"></A></TD>
+<TD ALIGN="LEFT">The number is a hyper link in medium weight</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT>hyperit</TT><A NAME="1774"></A><A NAME="1775"></A></TD>
+<TD ALIGN="LEFT">The number is a hyper link in italic</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT>hypersl</TT><A NAME="1779"></A><A NAME="1780"></A></TD>
+<TD ALIGN="LEFT">The number is a hyper link in slanted font</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT>hyperup</TT><A NAME="1784"></A><A NAME="1785"></A></TD>
+<TD ALIGN="LEFT">The number is a hyper link in upright font</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT>hypersc</TT><A NAME="1789"></A><A NAME="1790"></A></TD>
+<TD ALIGN="LEFT">The number is a hyper link in small caps</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT>hyperem</TT><A NAME="1794"></A><A NAME="1795"></A></TD>
+<TD ALIGN="LEFT">The number is a hyper link using <TT>&#92;emph</TT></TD>
+</TR>
+</TABLE>
+</DIV>
+If the <TT>hyper</TT><A NAME="1806"></A> option has not been set,
+<TT>hyperem</TT><A NAME="1810"></A><A NAME="1811"></A> is equivalent to <TT>emph</TT>, and the remaining
+<TT>hyperrm</TT><A NAME="1815"></A><A NAME="1816"></A> etc are equivalent to <TT>textrm</TT> etc.
+Note that it is important the you use <TT>hyperrm</TT> instead of 
+<TT>hyperpage</TT>, as the <TT>&#92;hyperpage</TT> command won't
+work on a list or range of numbers in the glossary<A NAME="tex2html2"
+  HREF="#foot1559"><SUP>2</SUP></A>. If you want to define your
+own command that uses hyper links, it must be defined in an 
+analogous manner to <TT>&#92;hyperrm</TT><A NAME="1826"></A>. For example, if you want
+to display a page number in a bold italic format, that contains a 
+hyperlink to the appropriate page, you would need to define it as
+follows:
+<PRE>
+\newcommand{\hyperbfit}[2][\gls@number]{%
+\textbf{\itshape\glshyper{#1}{#2}}}
+</PRE>
+As can be seen from the definition, all the <TT>&#92;hyper</TT><I>xx</I>
+commands have an optional argument. This argument is the name of the
+counter being used. You do not need to worry about this argument if
+you only use these commands within the <TT>&#92;glossary</TT><A NAME="1833"></A> command.
+So the previous example can simply be rewritten as:
+<PRE>
+\glossary{name={$\mathbb{R}$},
+          description={The set of real numbers},
+          sort=R,
+          format=hyperbf}
+</PRE>
+
+<P>
+<B>Note:</B> although the numbers in the glossary are referred to
+as ``page'' numbers in this manual, they may in fact refer to some
+other counter, such as the <TT>section</TT> counter, depending on 
+whether the <TT>number</TT><A NAME="1838"></A> key has been used.
+
+<P>
+As with the <TT>&#92;index</TT> command, care must be taken if you
+want to use the special characters: <code>@</code> <code>|</code> <code>"</code> and
+<code>!</code>.  These characters should be preceded by the double quote
+character. For example:
+<PRE>
+\glossary{name={$"|\mathcal{S}"|$,
+description=The cardinality of the set \mathcal{S}}}
+</PRE>
+There is no provision for sub-entries, as these are 
+generally only applicable in an index, and not in a glossary.
+
+<P>
+As from version 2.14, there is an additional command available:
+
+<P>
+
+<TT>&#92;xglossary</TT><code>{</code><I>gls-entry</I><code>}{</code><I>text</I><code>}</code>
+
+<P>
+This is equivalent to
+<I>text</I><TT>&#92;glossary</TT><A NAME="1846"></A><code>{</code><I>gls-entry</I><code>}</code>,
+where <I>text</I> will be made a hyper link to the
+relevant entry in the glossary, if hyper
+links are supported.
+
+<P>
+
+<H2><A NAME="SECTION00041000000000000000">
+Storing Glossary Information</A>
+</H2>
+
+<P>
+It is very cumbersome having to use the <TT>&#92;glossary</TT><A NAME="1851"></A> command 
+throughout your document, every time you use a term that you want in 
+your glossary. This is particularly true for terms with a long
+description. The <TT>glossary</TT><A NAME="1856"></A> package provides a means
+of storing the glossary information at the beginning of the document,
+and then using it whenever required. It is strongly recommended
+that you use this approach, rather than explicity using the 
+<TT>&#92;glossary</TT><A NAME="1859"></A> command.
+
+<P>
+The following command:
+<BR>
+<BR><TT><TT>&#92;storeglosentry</TT>[</TT> <I>gls-type</I><TT>]{</TT> <I>label</I><TT>}{</TT> <I>gls-entry</I><TT>}
+</TT>
+<BR>
+<BR>
+can be used to store glossary information, where <I>label</I> is
+a unique label assigned to this entry. The information
+can then be used later with any of the following commands:
+<BR>
+<BR>
+
+<TT><TT>&#92;useglosentry</TT>[</TT> <I>opt</I><TT>]{</TT> <I>label</I><TT>}
+<BR><TT>&#92;useGlosentry</TT>[</TT> <I>opt</I><TT>]{</TT> <I>label</I><TT>}{</TT> <I>text</I><TT>}
+<BR><TT>&#92;gls</TT>[</TT> <I>opt</I><TT>]{</TT> <I>label</I><TT>}
+</TT>
+<BR>
+<BR><TT>&#92;useglosentry</TT> adds the glossary entry whose label is given by
+<I>label</I> to the appropriate glossary, 
+<TT>&#92;useGlosentry</TT> adds the glossary entry, and 
+makes <I>text</I> a hyperlink to that entry (if hyperlinks are
+supported). The third command, <TT>&#92;gls</TT>, is like
+<TT>&#92;useGlosentry</TT>, but forms <I>text</I> from the name
+given in the glossary entry.
+
+<P>
+Returning to an earlier example, instead of typing:
+<PRE>
+\glossary{name={$\mathcal{U}$},
+          description={The universal set},
+          sort=U}
+</PRE>
+every time you want to add this entry to the glossary, you 
+can instead store the information:
+
+<PRE>
+\storeglosentry{glos:U}{name={$\mathcal{U}$},
+          description={The universal set},
+          sort=U}
+</PRE>
+Now, instead of continually copying and pasting the glossary command 
+for this entry (which can have quite a large <TT>description</TT><A NAME="1880"></A> 
+field), you can use either:
+<PRE>
+\useglosentry{glos:U}
+</PRE>
+which is equivalent to:
+<PRE>
+\glossary{name={$\mathcal{U}$},
+          description={The universal set},
+          sort=U}
+</PRE>
+or you can use:
+<PRE>
+\useGlosentry{glos:U}{text}
+</PRE>
+which is equivalent to:
+<PRE>
+\xglossary{name={$\mathcal{U}$},
+          description={The universal set},
+          sort=U}{text}
+</PRE>
+or you can use:
+<PRE>
+\gls{glos:U}
+</PRE>
+which is equivalent to:
+<PRE>
+\xglossary{name={$\mathcal{U}$},
+          description={The universal set},
+          sort=U}{$\mathcal{U}$}
+</PRE>
+If you want to use glossary entries in an equation, it is better
+to use <TT>&#92;ensuremath</TT> instead of <code>$</code>...<code>$</code>.
+For example:
+<PRE>
+\storeglosentry{Gamma}{name=\ensuremath{\Gamma(z)},
+description=Gamma function,
+sort=Gamma}
+</PRE>
+You can then use this entry in either text or math mode:
+<PRE>
+The \useGlosentry{Gamma}{Gamma function} is defined as
+\begin{equation}
+\gls{Gamma} = \int_{0}^{\infty}e^{-t}t^{z-1}\,dt
+\end{equation}
+</PRE>
+If you are using hyper links, and you want to use 
+<TT>&#92;useGlosentry</TT> within math mode, you must use 
+<TT>&#92;ensuremath</TT>:
+<PRE>
+\begin{equation}
+\useGlosentry{Gamma}{\ensuremath{\Gamma(x+1)}} = x\Gamma(x)
+\end{equation}
+</PRE>
+
+<P>
+The optional argument to <TT>&#92;storeglosentry</TT><A NAME="1890"></A> (<I>gls-type</I>) 
+indicates the glossary type (see 
+<A HREF="#sec:newglostype">later</A> to find out how to define new 
+glossary types).  If omitted, the standard glossary is used.
+
+<P>
+The optional argument to <TT>&#92;useglosentry</TT><A NAME="1895"></A>, 
+<TT>&#92;useGlosentry</TT><A NAME="1900"></A> and <TT>&#92;gls</TT><A NAME="1905"></A> (<I>opt</I>) allows you to 
+add additional information to the glossary entry, for example:
+<PRE>
+\useglosentry[format=textbf]{glos:U}
+</PRE>
+is equivalent to:
+<PRE>
+\glossary{name={$\mathcal{U}$},
+          description={The universal set},
+          sort=U,
+          format=textbf}
+</PRE>
+Since version 2.4, <TT>&#92;storeglosentry</TT><A NAME="1910"></A> is robust, and 
+<TT>&#92;protect</TT> should no longer be needed, however 
+the identifying label, <I>label</I>, should not 
+contain any special characters.
+
+<P>
+As from version 2.36, if you want to use all glossary entries
+which have been defined using <TT>&#92;storeglosentry</TT>, do:
+<code>\useglosentry{*}</code>. (Note that this option is not
+available for <TT>&#92;useGlosentry</TT> and <TT>&#92;gls</TT>.)
+
+<P>
+
+<H1><A NAME="SECTION00050000000000000000">
+makeglos.pl</A>
+</H1>
+
+<P>
+Whenever a glossary entry is used, either explicity using
+<TT>&#92;glossary</TT> or <TT>&#92;xglossary</TT> or implicitly using
+<TT>&#92;useglosentry</TT>, <TT>&#92;useGlosentry</TT> and <TT>&#92;gls</TT>,
+the information is saved in a file with the extension <TT>glo</TT><A NAME="1933"></A>
+(unless the <TT>&#92;makeglossary</TT><A NAME="1935"></A> command is omitted, in which case 
+the glossary information is simply ignored.) A <TT>makeindex</TT><A NAME="1940"></A> 
+style file<A NAME="1574"></A>
+(<TT>ist</TT><A NAME="1943"></A>) is also created, which is customized for the 
+document, and can be passed to <TT>makeindex</TT><A NAME="1945"></A>.
+
+<P>
+For example, suppose your document is called <TT>mydoc.tex</TT>,
+the glossary will be saved in the file 
+<TT>mydoc.glo</TT><A NAME="1948"></A>, and the <TT>makeindex</TT><A NAME="1950"></A> style
+file <TT>mydoc.ist</TT><A NAME="1953"></A> will be created.
+ These files can then be passed to <TT>makeindex</TT><A NAME="1955"></A> as follows:
+<PRE>
+makeindex -s mydoc.ist -t mydoc.glg -o mydoc.gls mydoc.glo
+</PRE>
+which generates the output file <TT>mydoc.gls</TT><A NAME="1958"></A>,
+with transcript written to
+<TT>mydoc.glg</TT><A NAME="1960"></A>.  
+
+<P>
+The Perl script <TT>makeglos.pl</TT><A NAME="1962"></A> provided with this package
+allows you to use <TT>makeindex</TT><A NAME="1965"></A> without having to remember
+all the command line options.  The command
+<PRE>
+makeglos.pl mydoc
+</PRE>
+will perform the command:
+<PRE>
+makeindex -s mydoc.ist -t mydoc.glg -o mydoc.gls mydoc.glo
+</PRE>
+In addition, <TT>makeglos.pl</TT><A NAME="1968"></A> also takes the option 
+<TT>-m</TT> which can be used to collate entries where the
+same name has multiple descriptions.
+
+<P>
+<TT>makeglos.pl</TT><A NAME="1971"></A> has the following syntax:
+<PRE>
+makeglos.pl [-ilqrgm] [-s sty] [-o gls] [-t log] [-p num] &lt;filename&gt;
+</PRE>
+where all switches, apart from <TT>-m</TT> are the same as
+those for <TT>makeindex</TT><A NAME="1974"></A>. If there are multiple glossary types 
+(see
+<A HREF="#sec:newglostype">later</A>) 
+and the file extension is omitted, <TT>makeglos.pl</TT><A NAME="1977"></A> will
+iterate through each glossary type (it will pick up the relevant 
+information from the auxiliary file).
+
+<P>
+The name of the <TT>ist</TT><A NAME="1980"></A> file can be changed by redefining
+the command <TT>&#92;istfilename</TT>
+<I>before</I> <TT>&#92;makeglossary</TT>. 
+For example:
+<PRE>
+\renewcommand{\istfilename}{foo.ist}
+\makeglossary
+</PRE>
+Only one <TT>ist</TT><A NAME="1986"></A> file will be created per document, even if
+you have multiple glossaries with different styles. The only
+circumstance where you will need multiple <TT>ist</TT><A NAME="1988"></A> files for
+a single document is when you have multiple glossaries that use
+different counters with different compositors, but this is rarely 
+likely to occur.
+
+<P>
+Creation of the <TT>ist</TT><A NAME="1990"></A> file can be suppressed by issuing
+the command <TT>&#92;noist</TT> before
+<TT>&#92;makeglossary</TT><A NAME="1994"></A>.  It will also be suppressed when the
+command <TT>&#92;nofiles</TT><A NAME="1999"></A> is used, or if the command 
+<TT>&#92;makeglossary</TT><A NAME="2004"></A> is omitted.
+
+<P>
+It should be noted that there are a few packages that can
+cause problems with the creation of the <TT>ist</TT><A NAME="2009"></A> file,
+for example <TT>ngerman</TT><A NAME="2011"></A>.  If you encounter problems
+when LaTeX is processing the <TT>&#92;makeglossary</TT><A NAME="2014"></A> command,
+or if you get errors from <TT>makeindex</TT><A NAME="2019"></A> complaining about
+the style file, this is the most probable cause.
+See <A HREF="#itm:ngerman">later</A> for 
+information on how to fix this.
+
+<P>
+
+<H1><A NAME="SECTION00060000000000000000">
+Displaying the Glossary</A>
+</H1>
+
+<P>
+Once the <TT>gls</TT><A NAME="2022"></A> file has been created by
+<TT>makeindex</TT><A NAME="2024"></A> (as described in the previous
+ section) the glossary can then be included in the document with
+the command <TT>&#92;printglossary</TT>.
+ If chapters are defined, the glossary will start
+with<A NAME="2028"></A>
+<PRE>
+\chapter*{\glossaryname}
+</PRE>
+If not, it will start with
+<PRE>
+\section*{\glossaryname}
+</PRE>
+The format of the main body of the glossary depends on the
+options passed to the package.
+
+<P>
+
+<H1><A NAME="SECTION00070000000000000000"></A>
+<A NAME="sec:options"></A>
+<BR>
+Package Options
+</H1>
+
+<P>
+The package options must be specified as a comma-separated list 
+of <I>key</I>=<I>value</I> pairs.  Available options are:
+<DL>
+<DT><STRONG><TT>style</TT><A NAME="2037"></A></STRONG></DT>
+<DD>The glossary style. Values:
+<A NAME="1579"></A>
+<DL>
+<DT><STRONG><TT>list</TT><A NAME="2041"></A></STRONG></DT>
+<DD>use 
+<TT>description</TT> environment in the glossary
+</DD>
+<DT><STRONG><TT>altlist</TT><A NAME="2044"></A></STRONG></DT>
+<DD>modified 
+version of <TT>style=list</TT><A NAME="2053"></A>.  The description starts on the
+line following the name of the term being defined.
+
+</DD>
+<DT><STRONG><TT>super</TT><A NAME="2055"></A></STRONG></DT>
+<DD>use 
+<TT>supertabular</TT> environment in the glossary
+</DD>
+<DT><STRONG><TT>long</TT><A NAME="2058"></A></STRONG></DT>
+<DD>use 
+<TT>longtable</TT> environment in the glossary (Default)
+</DD>
+</DL>
+
+<P>
+</DD>
+<DT><STRONG><TT>header</TT><A NAME="2066"></A></STRONG></DT>
+<DD><A NAME="1581"></A> Glossary 
+header. Values:
+<DL>
+<DT><STRONG><TT>none</TT><A NAME="2070"></A></STRONG></DT>
+<DD>The glossary 
+doesn't have a heading (Default)
+</DD>
+<DT><STRONG><TT>plain</TT><A NAME="2072"></A></STRONG></DT>
+<DD>The glossary 
+has a heading
+</DD>
+</DL>
+
+<P>
+</DD>
+<DT><STRONG><TT>border</TT><A NAME="2079"></A></STRONG></DT>
+<DD><A NAME="1582"></A> Glossary 
+border.  Values:
+<DL>
+<DT><STRONG><TT>none</TT><A NAME="2083"></A></STRONG></DT>
+<DD>The glossary 
+doesn't have a border (Default)
+</DD>
+<DT><STRONG><TT>plain</TT><A NAME="2085"></A></STRONG></DT>
+<DD>Border 
+around the main body of the glossary
+</DD>
+</DL>
+
+<P>
+</DD>
+<DT><STRONG><TT>cols</TT><A NAME="2092"></A></STRONG></DT>
+<DD><A NAME="1583"></A> Number of 
+columns. Values:
+<DL>
+<DT><STRONG><TT>2</TT><A NAME="2096"></A></STRONG></DT>
+<DD>The entry name and description are in two separate 
+columns with the associated page numbers in the same column as 
+the description. (Default)
+</DD>
+<DT><STRONG><TT>3</TT><A NAME="2098"></A></STRONG></DT>
+<DD>The entry name, description and associated page numbers 
+are in three separate columns.
+</DD>
+</DL>
+
+<P>
+
+</DD>
+<DT><STRONG><TT>number</TT><A NAME="2105"></A></STRONG></DT>
+<DD>Associated number corresponding to each entry.
+This may either be the keyword <TT>none</TT><A NAME="2109"></A> indicating that
+the corresponding numbers should be suppressed, or it can be the
+name of a LaTeX counter. The default is <TT>number=page</TT><A NAME="2118"></A>.
+
+<P>
+</DD>
+<DT><STRONG><TT>toc</TT><A NAME="2125"></A></STRONG></DT>
+<DD><A NAME="1586"></A>
+Boolean variable:
+
+<DL>
+<DT><STRONG><TT>true</TT><A NAME="2129"></A></STRONG></DT>
+<DD>Add glossary to table of contents
+</DD>
+<DT><STRONG><TT>false</TT><A NAME="2131"></A></STRONG></DT>
+<DD>Omit glossary from table of contents (Default)
+</DD>
+</DL>
+Note that if you specify this option, you will need to run 
+LaTeX twice after generating the glossary.
+
+<P>
+</DD>
+<DT><STRONG><TT>hypertoc</TT><A NAME="2138"></A></STRONG></DT>
+<DD>Boolean variable. This is similar to the package option
+<TT>toc</TT><A NAME="2147"></A>, but if you are using the <TT>hyperref</TT><A NAME="2151"></A> 
+package, <TT>hypertoc</TT><A NAME="2159"></A> will generate a link to the
+point immediately before the glossary title, whereas <TT>toc</TT><A NAME="2168"></A> will 
+have a hyperlink to just after the glossary title. Note
+that you can not use both <TT>toc=true</TT><A NAME="2179"></A> and 
+<TT>hypertoc=true</TT><A NAME="2188"></A>. Default value: 
+<TT>hypertoc=false</TT><A NAME="2197"></A>.
+
+<P>
+</DD>
+<DT><STRONG><TT>hyper</TT><A NAME="2204"></A></STRONG></DT>
+<DD>Boolean
+variable:
+
+<DL>
+<DT><STRONG><TT>true</TT><A NAME="2208"></A></STRONG></DT>
+<DD>Make associated numbers in the 
+glossary a hypertext link, and also make acronyms, and the text
+given by <TT>&#92;xglossary</TT><A NAME="2210"></A> have a hyperlink to their 
+corresponding entries in the glossary.
+</DD>
+<DT><STRONG><TT>false</TT><A NAME="2215"></A></STRONG></DT>
+<DD>Don't make associated numbers a hypertext link
+</DD>
+</DL>
+If the <TT>hyperref</TT><A NAME="2217"></A> or <TT>html</TT><A NAME="2220"></A> package has 
+been loaded prior to loading <TT>glossary.sty</TT>, 
+<TT>hyper=true</TT><A NAME="2230"></A> is set, otherwise
+the default is <TT>hyper=false</TT><A NAME="2239"></A>. Note that this package
+option now encompasses the old <TT>hyperacronym</TT><A NAME="2246"></A> option.
+
+<P>
+</DD>
+<DT><STRONG><TT>section</TT><A NAME="2255"></A></STRONG></DT>
+<DD>Boolean variable:
+
+<DL>
+<DT><STRONG><TT>true</TT><A NAME="2259"></A></STRONG></DT>
+<DD>Make the glossary an unnumbered 
+section, even if chapters are defined
+</DD>
+<DT><STRONG><TT>false</TT><A NAME="2261"></A></STRONG></DT>
+<DD>Only make glossary an 
+unnumbered section if chapters are not defined (default).
+</DD>
+</DL>
+
+<P>
+</DD>
+<DT><STRONG><TT>acronym</TT><A NAME="2268"></A></STRONG></DT>
+<DD>Boolean variable:
+
+<DL>
+<DT><STRONG><TT>true</TT><A NAME="2272"></A></STRONG></DT>
+<DD>Make the list of acronyms
+separate from the main glossary.
+
+<P>
+</DD>
+<DT><STRONG><TT>false</TT><A NAME="2274"></A></STRONG></DT>
+<DD>The acronyms will all 
+be placed in the main glossary. (Default)
+</DD>
+</DL>
+
+<P>
+</DD>
+<DT><STRONG><TT>global</TT><A NAME="2281"></A></STRONG></DT>
+<DD>Boolean variable:
+
+<DL>
+<DT><STRONG><TT>false</TT><A NAME="2285"></A></STRONG></DT>
+<DD>Acronym commands only have
+a local effect. (Default)
+</DD>
+<DT><STRONG><TT>true</TT><A NAME="2287"></A></STRONG></DT>
+<DD>Acronym commands have a global
+effect.
+</DD>
+</DL>
+</DD>
+</DL>
+ The <TT>border</TT><A NAME="2294"></A>, <TT>header</TT><A NAME="2303"></A> and <TT>cols</TT><A NAME="2312"></A> options 
+should not be used in conjunction with <TT>style=list</TT><A NAME="2323"></A>
+or <TT>style=altlist</TT><A NAME="2332"></A>, as they only make sense with one of 
+the tabular-style options.
+The value for the boolean variables can be omitted if they are 
+to be set.  For example
+ <TT>toc</TT><A NAME="2339"></A> is equivalent to <TT>toc=true</TT><A NAME="2350"></A>.  Note that the 
+<TT>altlist</TT><A NAME="2352"></A> style is better suited to 
+glossaries with long entry names.
+
+<P>
+You can set up your own preferred defaults in a configuration
+file<A NAME="1593"></A>.  
+The file must be called <TT>glossary.cfg</TT><A NAME="2354"></A> and
+should be placed somewhere on the T<SMALL>E</SMALL>X path. In this file you
+can use the command 
+<TT>&#92;glossarypackageoptions</TT><code>{</code><I>option-list</I><code>}</code>
+
+where <I>option-list</I> is a comma-separated list of 
+<I>key</I>=<I>value</I> pairs, as passed to the 
+<TT>glossary</TT><A NAME="2358"></A>
+package. Note that this command may only be used in the
+configuration file.
+
+<P>
+
+<H2><A NAME="SECTION00071000000000000000">
+Examples</A>
+</H2>
+See <TT><A NAME="tex2html3"
+  HREF="glossary.pdf">glossary.pdf</A></TT> (the PDF version of this manual) for
+examples.
+
+<P>
+
+<H1><A NAME="SECTION00080000000000000000"></A>
+<A NAME="sec:newglostype"></A>
+<BR>
+Defining New Glossary Types
+</H1>
+
+<P>
+A new type of glossary can be defined using the command:
+<BR>
+<BR><TT>&#92;newglossarytype</TT><code>[</code><I>log-ext</I><code>]{</code><I>name</I><code>}{</code><I>out-ext</I><code>}{</code><I>in-ext</I><code>}[</code><I>style list</I><code>]</code>
+<BR>
+<BR>
+For example, suppose you want your document to have a separate 
+index of terms and index of notation,
+you could use <TT>&#92;makeglossary</TT><A NAME="2536"></A>, <TT>&#92;glossary</TT><A NAME="2541"></A>,
+<TT>&#92;xglossary</TT><A NAME="2546"></A> and <TT>&#92;printglossary</TT><A NAME="2551"></A> for the first 
+glossary, and define a new type of glossary called say, 
+<TT>notation</TT>, using
+<PRE>
+\newglossarytype[nlg]{notation}{not}{ntn}
+</PRE>
+which will create the analogous commands:
+<TT>&#92;makenotation</TT>, <TT>&#92;notation</TT>, <TT>&#92;xnotation</TT> 
+and <TT>&#92;printnotation</TT> which can be used for the second 
+glossary. 
+
+<P>
+As from version 2.3, <TT>&#92;newglossarytype</TT> now has an
+additional optional argument <I>style list</I>. This should
+be a comma separated list of <I>key</I>=<I>value</I> pairs
+that can be used to specify the style of the new glossary.
+If omitted, the new glossary will have the same format
+as the main glossary. The following options are available:
+<TT>number</TT>, <TT>style</TT>, <TT>header</TT>, <TT>border</TT> and
+<TT>cols</TT>. These can take the same values as those
+given in the package options (described in section&nbsp;<A HREF="#sec:options">6</A>).
+
+<P>
+The command <TT>&#92;newglossarytype</TT> should only occur in the 
+preamble.  The new commands
+ <TT>&#92;make</TT><I>name</I>, <code>\</code><I>name</I>,
+<code>\x</code><I>name</I> and <TT>&#92;print</TT><I>name</I> all have the 
+same format as their ``glossary'' counter-parts.
+
+<P>
+The glossary information will be saved to a file
+with the extension given by <I>out-ext</I> (analogous to
+<TT>glo</TT><A NAME="2572"></A>), which can then be passed to <TT>makeindex</TT><A NAME="2574"></A>
+either directly or via <TT>makeglos.pl</TT><A NAME="2577"></A>,
+and the file to be read in (i.e. the file created by 
+<TT>makeindex</TT><A NAME="2580"></A>) will have the extension <I>in-ext</I> 
+(analogous to <TT>gls</TT><A NAME="2583"></A>). 
+
+<P>
+The optional argument <I>log-ext</I> indicates
+the extension for the <TT>makeindex</TT><A NAME="2585"></A> log file, if omitted the
+extension <TT>glg</TT><A NAME="2588"></A> is used. This is not used by LaTeX,
+however <TT>makeglos.pl</TT><A NAME="2590"></A> reads in this information from
+the LaTeX auxiliary file and passes it to <TT>makeindex</TT><A NAME="2593"></A>.
+
+<P>
+For the above <TT>notation</TT> 
+example, if your document is called, say, <TT>mydoc.tex</TT>,
+ you will need to do the following:
+<PRE>
+latex mydoc
+makeglos.pl mydoc
+latex mydoc
+</PRE>
+(You may need to do an extra <code>latex mydoc</code> to get 
+cross-references up-to-date.)  Note that if you don't specify the
+file extension when using <TT>makeglos.pl</TT><A NAME="2596"></A>, it will 
+check the transcript file from the LaTeX run to determine
+all the glossary types, so, for this example,
+<PRE>
+makeglos.pl mydoc
+</PRE>
+is equivalent to:
+<PRE>
+makeglos.pl mydoc.glo
+makeglos.pl mydoc.not
+</PRE>
+since <TT>makeglos.pl</TT><A NAME="2599"></A> has read in the information
+for the <TT>notation</TT> glossary type from the file
+<TT>mydoc.log</TT>.
+
+<P>
+If you don't have Perl installed
+on your system, or for any other reason are unable to use
+<TT>makeglos.pl</TT><A NAME="2602"></A>, you can call <TT>makeindex</TT><A NAME="2605"></A>
+explicitly:
+<PRE>
+latex mydoc
+makeindex -s mydoc.ist -t mydoc.glg -o mydoc.gls mydoc.glo
+makeindex -s mydoc.ist -t mydoc.nlg -o mydoc.ntn mydoc.not
+latex mydoc
+</PRE>
+
+<P>
+Note that you can use the command 
+<TT>&#92;printglossary</TT><A NAME="2608"></A><TT>[</TT><I>name</I><TT>]</TT>
+instead of <code>\print</code><I>name</I>.
+These two commands have the same effect when using LaTeX,
+however, they have a slightly different effect when 
+using LaTeX2HTML (see <A HREF="#sec:l2h">later</A>).
+
+<P>
+If the command <code>\</code><I>glossary-type</I><code>name</code>
+is defined, (e.g. <code>\notationname</code> in the above example)
+this will be used as the title for the specified
+glossary. If this command is not defined, <TT>&#92;glossaryname</TT><A NAME="2613"></A>
+will be used instead.
+If the command <code>\short</code><I>glossary-type</I><code>name</code>
+is defined, (e.g. <TT>&#92;shortnotationname</TT> in the above
+example) this will be used for the table of contents
+entry, otherwise <code>\</code><I>glossary-type</I><code>name</code> will
+be used instead.
+For example:
+<PRE>
+\newglossarytype[nlg]{notation}{not}{ntn}
+\newcommand{\notationname}{Index of Notation}
+\newcommand{\shortnotationname}{Notation}
+</PRE>
+
+<P>
+
+<H1><A NAME="SECTION00090000000000000000">
+Acronyms</A>
+</H1>
+
+<P>
+The <TT>glossary</TT><A NAME="2620"></A> package provides the command:
+<BR>
+<BR><TT><TT>&#92;newacronym</TT>[</TT> <I>cmd-name</I><TT>]{</TT> <I>acronym</I><TT>}{</TT> <I>long</I><TT>}{</TT> <I>glossary entry</I><TT>}
+</TT>
+<BR>
+<BR>
+which can be used to define acronyms.  The argument <I>long</I> 
+is the full name, the argument <I>acronym</I> is the acronym for 
+<I>long</I> and <I>glossary entry</I> is the glossary information
+in the form used by the <TT>&#92;glossary</TT><A NAME="2625"></A> command.  If the 
+optional argument <I>cmd-name</I> is missing, 
+<TT>&#92;newacronym</TT> will create a command called 
+<code>\</code><I>acronym</I>, otherwise it will create a command 
+called <code>\</code><I>cmd-name</I> (henceforth denoted <TT>&#92;</TT><I>acr-name</I>).
+This command can then be used throughout the text.  The first
+instance of this command is equivalent to:
+<BR>
+<BR><I>long</I> <TT>(&#92;xacronym</TT><A NAME="2634"></A><code>{</code><TT>name</TT><A NAME="2639"></A><TT>=</TT><I>long</I> <TT>(</TT><I>acronym</I><TT>),</TT><I>glossary entry</I><code>}{</code><I>acronym</I><code>}</code><TT>)</TT>
+<BR>
+<BR>
+subsequent instances will be equivalent to:
+<BR>
+<BR><TT>&#92;xacronym</TT><A NAME="2643"></A><code>{</code><TT>name</TT><A NAME="2648"></A><TT>=</TT><I>long</I> <TT>(</TT><I>acronym</I><TT>),</TT><I>glossary entry</I><code>}{</code><I>acronym</I><code>}</code>
+<BR>
+<BR>
+The command <TT>&#92;</TT><I>acr-name</I> also has a starred
+version, which will make the first letter of <I>long</I>
+uppercase (for use at the start of a sentence).
+
+<P>
+Note that if you want to change the format of the acronym,
+for example, if you want the acronym to appear in small caps,
+you will need to not only use the optional argument, but you
+will also need to use the <TT>sort</TT><A NAME="2654"></A> key, otherwise you
+will get an error. For example:
+<PRE>
+\newacronym[SVM]{\textsc{svm}}{Support Vector Machine}%
+{description=Statistical pattern recognition 
+technique,sort=svm}
+</PRE>
+
+<P>
+If the package option <TT>acronym</TT><A NAME="2663"></A> is not set (default)
+<TT>&#92;xacronym</TT><A NAME="2667"></A>, is a synonym for <TT>&#92;xglossary</TT><A NAME="2672"></A>, and
+the acronyms will appear in the main glossary (remember to
+specify <TT>&#92;makeglossary</TT> and <TT>&#92;printglossary</TT>).
+If the package option <TT>acronym=true</TT><A NAME="2688"></A> is specified, a 
+new glossary type called <TT>acronym</TT> will be defined as:
+<PRE>
+\newglossarytype[alg]{acronym}{acr}{acn}
+\providecommand{\acronymname}{List of Acronyms}
+</PRE>
+You will then need to use the commands <TT>&#92;makeacronym</TT><A NAME="2690"></A>
+and <TT>&#92;printacronym</TT><A NAME="2695"></A> to make the list of acronyms appear.
+You will also need to run the <TT>acr</TT><A NAME="2700"></A> file through 
+<TT>makeindex</TT><A NAME="2702"></A> (or <TT>makeglos.pl</TT><A NAME="2705"></A>).  For example:
+<PRE>
+makeindex -s mydoc.ist -t mydoc.alg -o mydoc.acn mydoc.acr
+</PRE>
+alternatively:
+<PRE>
+makeglos.pl mydoc
+</PRE>
+Note that the package option <TT>acronym=true</TT><A NAME="2715"></A> is only
+appropriate if you want both a glossary and a separate list of
+acronyms. If you do not write in English, you can set up your 
+own language definition
+for <TT>&#92;acronymname</TT> in the configuration file 
+<TT>glossarycfg</TT><A NAME="2719"></A>. For example:
+<PRE>
+\newcommand{\acronymname}{Akronyme}
+</PRE>
+(If <TT>glossary.cfg</TT> does not exist, create a new file, add the
+appropriate definition of <TT>&#92;acronymname</TT>, and save it to the 
+same directory as <TT>glossary.sty</TT>.)
+
+<P>
+The <TT>name</TT><A NAME="2723"></A> key does not need to appear in <I>glossary
+entry</I>, as it is constructed from <I>long</I> and
+<I>acronym</I>.  By default this will be in the form:
+<I>long</I> (<I>acronym</I>), however the format can be 
+overridden using the 
+command:
+<BR>
+<BR><TT>&#92;setacronymnamefmt</TT>{<I>format</I>}
+<BR>
+<BR>
+Within <I>format</I> the following commands may 
+be used to represent <I>long</I> and <I>acronym</I>: 
+<TT>&#92;glolong</TT><A NAME="2729"></A> and 
+<TT>&#92;gloshort</TT><A NAME="2734"></A>.  For example, 
+suppose you just want the acronym to appear in the glossary entry,
+and not its full length name, then you would need to do:
+<PRE>
+\setacronymnamefmt{\gloshort}
+</PRE>
+
+<P>
+As from version 2.32, you can also modify the way the description
+key is formatted for acronyms using:
+<BR>
+<BR><TT>&#92;setacronymdescfmt</TT>{<I>format</I>}
+<BR>
+<BR>
+Within <I>format</I> you may use the commands <TT>&#92;glolong</TT><A NAME="2741"></A>
+and <TT>&#92;gloshort</TT><A NAME="2746"></A> (as above), and you can also use
+the command <TT>&#92;glodesc</TT><A NAME="2751"></A> which is the description as
+specified by the <TT>description</TT><A NAME="2756"></A> key in 
+<TT>&#92;newacronym</TT><A NAME="2760"></A>. This means that if you are using
+a tabular style glossary, you can have the abbreviated
+form in one column and the long form in the second column
+with the description. For example, the following:
+<PRE>
+\setacronymnamefmt{\gloshort}
+\setacronymdescfmt{\glolong: \glodesc}
+\newacronym{svm}{support vector machine}{description=Statistical
+pattern recognition technique}
+</PRE>
+will generate a glossary entry of the form:
+<PRE>
+\glossary{name=svm,description=support vector machine: Statistical
+pattern recognition technique}
+</PRE>
+Note that if you omit <TT>&#92;glodesc</TT><A NAME="2765"></A> from 
+<TT>&#92;setacronymdescfmt</TT> the description specified 
+in <TT>&#92;newacronym</TT> will be ignored. So 
+<PRE>
+\setacronymnamefmt{\gloshort}
+\setacronymdescfmt{\glolong}
+\newacronym{svm}{support vector machine}{description=Statistical
+pattern recognition technique}
+</PRE>
+will generate a glossary entry of the form:
+<PRE>
+\glossary{name=svm,description=support vector machine}
+</PRE>
+
+<P>
+You will need to specify the <TT>name</TT><A NAME="2774"></A> key explicitly if 
+the name contains a <TT>makeindex</TT><A NAME="2778"></A> special character.
+For example:
+<PRE>
+\newacronym{RNA}{Ribonukleins\"aure}{name={Ribonukleins\""aure (RNA)}}
+</PRE>
+Note that this will override any formatting specified by 
+<TT>&#92;setacronymnamefmt</TT><A NAME="2781"></A>.
+
+<P>
+Given an acronym named <I>acr-name</I> (the command name 
+associated with the acronym as defined in 
+<TT>&#92;newacronym</TT> without the preceding backslash),
+the following commands are also available:
+
+<P>
+<BR>
+<BR>
+
+<TT>&#92;useacronym</TT><code>[</code><I>insert</I><code>]{</code><I>acr-name</I><code>}</code>
+<BR>
+<BR>
+This command can be used instead of <TT>&#92;</TT><I>acr-name</I>.
+<TT>&#92;useacronym</TT> also has a starred version equivalent to 
+<TT>&#92;</TT><I>acr-name</I><TT>*</TT>.
+The optional argument <I>insert</I> allows you to insert text 
+after <I>long</I>, if this is the first occurrence of the 
+acronym, or after the acronym on subsequent occurrences.
+
+<P>
+<BR>
+<BR>
+
+<TT>&#92;resetacronym</TT><code>{</code><I>acr-name</I><code>}</code>
+<BR>
+<BR>
+This command will cause the next use of <TT>&#92;</TT><I>acr-name</I>
+to produce the long version. To reset all acronyms
+do <TT>&#92;resetallacronyms</TT>.
+
+<P>
+<BR>
+<BR>
+
+<TT>&#92;unsetacronym</TT><code>{</code><I>acr-name</I><code>}</code>
+<BR>
+<BR>
+This command will cause all subsequent uses of 
+<TT>&#92;</TT><I>acr-name</I> to produce the short version. 
+To unset all acronyms
+do <TT>&#92;unsetallacronyms</TT>.
+
+<P>
+<BR>
+<BR>
+
+<TT>&#92;ifacronymfirstuse</TT><code>{</code><I>acr-name</I><code>}{</code><I>true text</I><code>}{</code><I>false text</I><code>}</code>
+<BR>
+<BR>
+This will test if the acronym has been used yet.  If it has been
+used, <I>true text</I> will be implemented, otherwise
+<I>false text</I> will be implemented.
+
+<P>
+The long and short forms of an acronym can be produced explicitly 
+without a corresponding glossary entry, using the commands:
+<BR>
+<BR><TT>&#92;acrln</TT><code>{</code><I>acr-name</I><code>}</code>
+<BR><TT>&#92;acrsh</TT><code>{</code><I>acr-name</I><code>}</code>
+<BR>
+<BR>
+Or, alternatively:
+<BR>
+<BR><TT>&#92;</TT><I>acr-name</I><TT>long</TT>
+<BR><TT>&#92;</TT><I>acr-name</I><TT>short</TT>
+<BR>
+<BR>
+The first two commands (<TT>&#92;acrln</TT> and <TT>&#92;acrsh</TT>)
+have a starred form that makes the first letter uppercase.
+The other two commands, simply contain <I>long</I> and
+<I>acronym</I>.
+
+<P>
+Note that since these four commands do not generate glossary 
+entries they will therefore not contain any hyperlinks, even if 
+you have specified the <TT>hyper</TT><A NAME="2827"></A> package option. They are 
+provided for use in situations where the associated glossary 
+command may cause problems (e.g. in a sectioning command.)
+
+<P>
+Note that, as with all LaTeX commands, spaces following
+command names are ignored so if, for example, you defined 
+a new acronym called, say, SVM, then the command <code>\SVM</code> will
+ignore any spaces following it. To force a space, you 
+can either place an empty set of braces after the command
+name (e.g. <code>\SVM{}</code>) or use 
+<TT>&#92;_</TT> i.e. a backslash followed by 
+a space (e.g. <code>\SVM\ </code>). Alternatively, as from 
+version 2.22, if you load the <TT>xspace</TT><A NAME="2833"></A> package 
+before loading the <TT>glossary</TT><A NAME="2836"></A> package, spaces will
+be put in automatically using <TT>&#92;xspace</TT><A NAME="2839"></A>.
+
+<P>
+If you want the acronym to appear in a particular font,
+for example, small caps, you can redefine the command
+<TT>&#92;acronymfont</TT>. For example:
+<PRE>
+\renewcommand{\acronymfont}[1]{\textsc{#1}}
+</PRE>
+The default definition of <TT>&#92;acronymfont</TT> is:
+<PRE>
+\newcommand{\acronymfont}[1]{#1}
+</PRE>
+
+<P>
+
+<H2><A NAME="SECTION00091000000000000000">
+Examples</A>
+</H2>
+
+<P>
+<PRE>
+\newacronym{SVM}{Support Vector Machine}{description=Statistical 
+pattern recognition technique}
+</PRE>
+This will define the command <TT>&#92;SVM</TT>.  The first time this 
+command is used will display the text: Support Vector Machine 
+(SVM).  Subsequent use will simply display: SVM.  The next 
+example uses the optional argument <I>cmd-name</I> since the 
+acronym contains a non-alphabetical character:
+<PRE>
+\newacronym[KSVM]{K-SVM}{Kernel Support Vector 
+Machine}{description=Statistical pattern recognition 
+technique using the ``kernel trick''}
+</PRE>
+This will define the command <TT>&#92;KSVM</TT>.  The first time 
+this command is used will display the text: Kernel Support Vector
+Machine (K-SVM).  Subsequent use will simply display: K-SVM.
+
+<P>
+To test whether or not an acronym has been used:
+<PRE>
+\ifacronymfirstuse{SVM}{a}{an} \SVM\ is \ldots
+</PRE>
+If the acronym has not been used, the following text will
+be produced:
+<BR>
+<BR>
+a Support Vector Machine is ...
+<BR>
+<BR>
+otherwise it will produce:
+<BR>
+<BR>
+an SVM is ...
+<BR>
+<BR>
+To expand the acronym a second time:
+<PRE>
+\chapter{An overview of the \protect\SVM}
+\resetacronym{SVM}
+The \SVM\ \ldots
+</PRE>
+Note the use of <TT>&#92;protect</TT> (see 
+note&nbsp;<A HREF="#itm:fragile">15</A>.) In fact, in this situation
+it would be better to do:
+<PRE>
+\chapter[An overview of the \SVMlong]{An overview of the \protect\SVM}
+\resetacronym{SVM}
+The \SVM\ \ldots
+</PRE>
+
+<P>
+Now suppose you want the text: support vector machine, 
+instead of Support Vector Machine (i.e. you don't like the 
+uppercase letters).  You can define the acronym as follows:
+<PRE>
+\newacronym{SVM}{support vector machine}{description=Statistical 
+pattern recognition technique}
+</PRE>
+however, if the command <TT>&#92;SVM</TT> occurs at the start of the 
+sentence, you would clearly want the first letter as an
+uppercase letter.  This can be done using <TT>&#92;SVM*</TT> instead 
+of <TT>&#92;SVM</TT>.  For example:
+<PRE>
+\SVM*\ techniques are widely used \ldots
+</PRE>
+This will then come out as: Support vector machine (SVM) 
+techniques are widely used ...(Assuming this is the first 
+use of either <TT>&#92;SVM</TT> or <TT>&#92;SVM*</TT>.)
+
+<P>
+Alternatively, <TT>&#92;useacronym</TT><A NAME="2864"></A><code>{SVM}</code> can be used instead of 
+<TT>&#92;SVM</TT>. For example:
+<PRE>
+\useacronym*[s]{SVM} are widely used in the area of pattern 
+recognition.
+</PRE>
+If this is the first use of the acronym SVM, it will produce the 
+following text:
+<BR>
+<BR>
+Support vector machines (SVM) are widely used in the area of 
+pattern recognition.
+<BR>
+<BR>
+If this is not the first use of this acronym, it will produce the 
+following text:
+<BR>
+<BR>
+SVMs are widely used in the area of pattern recognition.
+
+<P>
+
+<H1><A NAME="SECTION000100000000000000000">
+Customizing the Glossary</A>
+</H1>
+The <TT>glossary</TT><A NAME="2871"></A> package provides commands which can be redefined to customize the
+glossary.  The following name commands are defined by this package:
+<DIV ALIGN="CENTER">
+<TABLE CELLPADDING=3>
+<TR><TH ALIGN="LEFT"><B>Command </B></TH>
+<TH ALIGN="LEFT"><B>Default Value</B></TH>
+</TR>
+<TR><TD ALIGN="LEFT"><TT>&#92;glossaryname</TT></TD>
+<TD ALIGN="LEFT">Glossary</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT>&#92;shortglossaryname</TT></TD>
+<TD ALIGN="LEFT"><TT>&#92;glossaryname</TT></TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT>&#92;entryname</TT></TD>
+<TD ALIGN="LEFT">Notation</TD>
+</TR>
+<TR><TD ALIGN="LEFT"><TT>&#92;descriptionname</TT></TD>
+<TD ALIGN="LEFT">Description</TD>
+</TR>
+</TABLE>
+</DIV>
+The commands <TT>&#92;entryname</TT> and <TT>&#92;descriptionname</TT>
+are put in the first two columns of the header row if you
+are using one of the tabular glossary styles together with a 
+header row (as specified by the <TT>header=true</TT><A NAME="2895"></A> package option).
+If you are using <TT>cols=3</TT><A NAME="2904"></A>, the command 
+<TT>&#92;glspageheader</TT> will be
+put in the third column of the header row. By default, this command
+does nothing.
+
+<P>
+The command <TT>&#92;shortglossaryname</TT> is used for the
+page headers and table of contents entry.
+ Any text required before or after the glossary can be added
+by redefining the commands <TT>&#92;glossarypreamble</TT>
+and <TT>&#92;glossarypostamble</TT>.
+For example.
+<PRE>
+\renewcommand{\glossarypreamble}{Page numbers in 
+italic indicate the main definition\par}
+</PRE>
+By default, <TT>&#92;glossarypreamble</TT> and <TT>&#92;glossarypostamble</TT> do nothing.
+
+<P>
+Any text required before or after the list of page numbers
+are specified by the commands <TT>&#92;glsbeforenum</TT>
+
+and <TT>&#92;glsafternum</TT>.
+By default, these commands do nothing, any redefinition
+of these commands should come somewhere before the
+relevant <TT>&#92;printglossary</TT> command.  For example:
+<PRE>
+\printglossary
+\renewcommand{\glsbeforenum}{(}
+\renewcommand{\glsafternum}{)}
+\printnotation
+</PRE>
+This will put the page number list in brackets for the
+second glossary, but not the first.
+
+<P>
+Individual glossaries can have their styles changed either
+by setting the style in the final optional argument
+to <TT>&#92;newglossarystyle</TT><A NAME="2924"></A> (see 
+<A HREF="#sec:newglostype">earlier</A>) 
+or using the command:
+<BR>
+<BR><TT>&#92;setglossarystyle</TT>[<I>type</I>]{<I>style list</I>}
+<BR>
+<BR>
+For example:
+<PRE>
+\setglossarystyle[acronym]{style=long,border=true,cols=2}
+</PRE>
+If <I>type</I> is omitted, the change is applied to the main
+glossary.
+
+<P>
+The command <TT>&#92;setglossary</TT><code>{</code><I>key-val list</I><code>}</code>
+can be used to modify some of the glossary settings. The argument
+<I>key-val list</I> is a comma-separated list of
+<I>key</I>=<I>value</I> pairs.  Available keys are:
+<DL>
+<DT><STRONG><TT>type</TT><A NAME="2933"></A></STRONG></DT>
+<DD>This is the glossary type.  
+If it is omitted, the standard glossary is assumed.
+
+<P>
+</DD>
+<DT><STRONG><TT>glsnumformat</TT><A NAME="2937"></A></STRONG></DT>
+<DD>This is the name of the command, 
+<I>without</I> the preceding backslash<A NAME="tex2html4"
+  HREF="#foot1613"><SUP>3</SUP></A>, to format the
+entry numbers. For example, to make all the entry numbers italic,
+do:
+<PRE>
+\setglossary{glsnumformat=textit}
+</PRE>
+To suppress numbering altogether, you can do:
+<PRE>
+\setglossary{glsnumformat=ignore}
+</PRE>
+
+<P>
+</DD>
+<DT><STRONG><TT>glodelim</TT><A NAME="2943"></A></STRONG></DT>
+<DD>This 
+specifies what to do after the entry description and
+before the page numbers.  The default value is a comma, unless the <TT>cols=3</TT><A NAME="2954"></A> option is specified,
+in which case it has the value <code>&amp;</code>, or if 
+<TT>style=altlist</TT><A NAME="2963"></A>, 
+in which case it is simply a space<A NAME="tex2html5"
+  HREF="#foot1614"><SUP>4</SUP></A>.  If the package option <TT>number=none</TT><A NAME="2972"></A> is
+specified, <TT>glodelim</TT><A NAME="2974"></A> will have an empty value (unless 
+<TT>cols=3</TT><A NAME="2985"></A> is specified,
+where, again, it will have the value <code>&amp;</code>.)
+This setting corresponds to the <TT>delim_0</TT><A NAME="2987"></A> key in the
+<TT>makeindex</TT><A NAME="2989"></A> style file.
+
+<P>
+Note that if you want a new line between the description
+and the list of page numbers you will need to use
+<TT>&#92;noexpand</TT>. For example:
+<PRE>
+\setglossary{glodelim={\noexpand\newline}}
+</PRE>
+
+<P>
+</DD>
+<DT><STRONG><TT>delimN</TT><A NAME="2994"></A></STRONG></DT>
+<DD>
+The delimiter to be inserted between two 
+page numbers for the same entry. (This corresponds to the 
+<TT>delim_n</TT><A NAME="2998"></A> key in the <TT>makeindex</TT><A NAME="3000"></A> style file.)
+By default, this has the value 
+<TT>,_</TT> (comma followed by a space).  If the 
+package option <TT>number=none</TT><A NAME="3010"></A> is chosen, the value is set
+to empty.
+
+<P>
+</DD>
+<DT><STRONG><TT>delimR</TT><A NAME="3012"></A></STRONG></DT>
+<DD>
+The delimiter to be inserted between the starting and ending page
+number range for the same entry.  (This corresponds to the 
+<TT>delim_r</TT><A NAME="3016"></A> key in the <TT>makeindex</TT><A NAME="3018"></A> style file.)
+By default, this has the value <code>--</code>.  If the
+package option <TT>number=none</TT><A NAME="3028"></A> is chosen, the value is set 
+to empty.
+
+<P>
+</DD>
+<DT><STRONG><TT>gloskip</TT><A NAME="3030"></A></STRONG></DT>
+<DD>
+This specifies what to do between groups.
+If <TT>style=list</TT><A NAME="3041"></A> or <TT>style=altlist</TT><A NAME="3050"></A> this has the
+value <TT>&#92;indexspace</TT>, otherwise it creates a blank row
+ in the <TT>longtable</TT> or <TT>supertabular</TT> environment.
+This command corresponds to the <TT>group_skip</TT><A NAME="3056"></A> key in
+the <TT>makeindex</TT><A NAME="3058"></A> style file.
+Note that as from version 2.3, you should no longer redefine
+the command <TT>&#92;gloskip</TT>.
+
+<P>
+</DD>
+<DT><STRONG><TT>delimT</TT><A NAME="3063"></A></STRONG></DT>
+<DD>
+The text to be inserted after the list of
+page numbers for an entry. (This corresponds to the 
+<TT>delim_t</TT><A NAME="3067"></A> key in the <TT>makeindex</TT><A NAME="3069"></A> style file.)
+The default value depends on the glossary style. It does
+nothing for the list-type styles, and has the value
+<code>\\</code> for the tabular-type styles. Note that 
+<TT>delimT</TT><A NAME="3072"></A> is separate from <TT>&#92;glsafternum</TT>.
+
+<P>
+For example, if you are using a 2 column tabular style,
+and you want a blank line after every entry (not just
+after every group) you can do the following:
+<PRE>
+\setglossary{delimT={\cr &amp; \cr},gloskip={}}
+</PRE>
+Note the use of <TT>&#92;cr</TT> instead of <code>\\</code> and 
+<TT>gloskip</TT><A NAME="3080"></A> is set to nothing otherwise there would be
+a double space between groups.
+</DD>
+</DL>
+Note that:
+<PRE>
+\setglossary{glsnumformat=ignore}
+</PRE>
+is equivalent to 
+<PRE>
+\setglossary{glsnumformat=ignore,delimN={},delimR={}}
+</PRE>
+
+<P>
+As from version 2.4, 
+you can insert text between groups by redefining the
+commands <TT>&#92;glogroupSymbols</TT>, 
+<TT>&#92;glogroupNumbers</TT>, <TT>&#92;glogroupA</TT> ... <TT>&#92;glogroupZ</TT>. For example, if you are using one
+of the list styles, the following will print the appropriate
+heading in bold, followed by a gap:
+<PRE>
+\renewcommand{\glogroupSymbols}{\textbf{Symbols}\indexspace}
+\renewcommand{\glogroupNumbers}{\textbf{Numbers}\indexspace}
+\renewcommand{\glogroupA}{\textbf{A}\indexspace}
+....% similar lines omitted
+\renewcommand{\glosgroupZ}{\textbf{Z}\indexspace}
+</PRE>
+
+<P>
+The start and end of the main body of the glossary is given by the commands:
+<TT>&#92;beforeglossary</TT> and
+<TT>&#92;afterglossary</TT>.
+If the <TT>style=list</TT><A NAME="3103"></A> 
+or <TT>style=altlist</TT><A NAME="3112"></A> 
+package options are chosen these commands simply begin and end
+the <TT>description</TT>
+environment, otherwise these commands begin and end the 
+<TT>longtable</TT> or 
+<TT>supertabular</TT> 
+environment with argument specified by 
+<TT>&#92;glossaryalignment</TT><A NAME="tex2html6"
+  HREF="#foot1148"><SUP>5</SUP></A>.
+
+<P>
+The glossary package no longer conflicts with the <TT>array</TT><A NAME="3119"></A>
+package. Changes can now be made to <TT>&#92;glossaryalignment</TT> 
+regardless of whether or not the <TT>array</TT><A NAME="3124"></A>
+package has been used.
+
+<P>
+The command <TT>&#92;gloitem</TT> indicates
+what to do at the start of each glossary entry.
+This command takes one argument, which will be the text specified by the <TT>name</TT><A NAME="3129"></A> key
+in the <TT>&#92;glossary</TT><A NAME="3133"></A> command.  In the case of the 
+<TT>style=list</TT><A NAME="3145"></A> option, 
+<TT>&#92;gloitem</TT><code>{</code><I>text</I><code>}</code>
+will do
+<BR>
+<BR><code>\item[</code><I>text</I><code>]</code>
+<BR>
+<BR>
+or if <TT>style=altlist</TT><A NAME="3156"></A>:
+<BR>
+<BR><code>\item[</code><I>text</I><code>]\mbox{}\par</code>
+<BR>
+<BR>
+otherwise it will do
+<BR>
+<BR><I>text</I><code> &amp;</code>
+<BR>
+<BR>
+This command corresponds to the <TT>item_0</TT><A NAME="3158"></A> key in the
+<TT>makeindex</TT><A NAME="3160"></A> style file.
+
+<P>
+If the glossary has a tabular style with a header row 
+(<TT>header=true</TT><A NAME="3170"></A> and either <TT>style=long</TT><A NAME="3179"></A> or 
+<TT>style=super</TT><A NAME="3188"></A>), then the header row for <TT>cols=2</TT><A NAME="3197"></A>
+will be given by:
+<PRE>
+\bfseries\entryname &amp; \bfseries \descriptionname\\
+</PRE>
+and the header row for <TT>cols=3</TT><A NAME="3206"></A> will be given by:
+<PRE>
+\bfseries\entryname &amp; \bfseries\descriptionname &amp; 
+\bfseries\glspageheader\\
+</PRE>
+(It may also contain <TT>&#92;hline&#92;hline</TT> if the 
+<TT>border</TT><A NAME="3217"></A> key is set.)
+
+<P>
+If you want to override this, you need to define the command
+<TT>&#92;glossaryheader</TT><A NAME="tex2html7"
+  HREF="#foot1616"><SUP>6</SUP></A>.
+
+<P>
+For example, if you are using a tabular style with <TT>cols=2</TT><A NAME="3234"></A>, 
+and you want the <TT>&#92;descriptionname</TT><A NAME="3236"></A> to be centred, you could 
+do:
+<PRE>
+\newcommand{\glossaryheader}{\bfseries\entryname &amp; 
+ \hfil\bfseries\descriptionname\\}
+</PRE>
+
+<P>
+If you want an extra row below the header row, you can define
+the command<TT>&#92;glossarysubheader</TT>
+
+For example, if you are using <TT>cols=3</TT><A NAME="3250"></A>, and you want an
+extra row after the header row, you can do:
+<PRE>
+\newcommand{\glossarysubheader}{ &amp; &amp; \\}
+</PRE>
+
+<P>
+The command <TT>&#92;glosstail</TT> indicates what to do at the end of
+the <TT>longtable</TT> or <TT>supertabular</TT> environment.
+
+<P>
+The width of the second column for the tabular-type styles is given by the length
+<TT>&#92;descriptionwidth</TT>.  This value can be changed using
+the <TT>&#92;setlength</TT> command (the default value is <code>0.6\linewidth</code>).
+
+<P>
+
+<H1><A NAME="SECTION000110000000000000000">
+Sample Documents</A>
+</H1>
+This package comes with the following sample documents:
+
+<UL>
+<LI><TT>sampleSec.tex</TT> -- This document uses the options: 
+<TT>style=altlist</TT><A NAME="3267"></A>, <TT>toc</TT><A NAME="3274"></A> and
+<TT>number=section</TT><A NAME="3285"></A>.  It also loads the
+<TT>hyperref</TT><A NAME="3287"></A> package before loading the 
+<TT>glossary</TT><A NAME="3290"></A> package, so the glossary has hyperlinks
+to the section numbers.  Experimenting with different package 
+options, will illustrate the different glossary styles.
+You will need to do:
+<PRE>
+pdflatex sampleSec
+makeglos.pl sampleSec
+pdflatex sampleSec
+pdflatex sampleSec
+</PRE>
+If you don't want to use <TT>makeglos.pl</TT><A NAME="3293"></A>, you will need
+to do
+<PRE>
+makeindex -s sampleSec.ist -t sampleSec.glg -o sampleSec.gls sampleSec.glo
+</PRE>
+
+<P>
+</LI>
+<LI><TT>sampleNtn.tex</TT> -- This has a glossary and defines
+a new glossary type called <TT>notation</TT>.  The glossary has
+associated page numbers, but the new glossary type doesn't.
+The two glossaries have different styles.
+You will need to do:
+<PRE>
+latex sampleNtn
+makeglos.pl sampleNtn
+latex sampleNtn
+latex sampleNtn
+</PRE>
+If you don't want to use <TT>makeglos.pl</TT><A NAME="3296"></A>, you will need
+to do
+<PRE>
+makeindex -s sampleNtn.ist -t sampleNtn.glg -o sampleNtn.gls sampleNtn.glo
+makeindex -s sampleNtn.ist -t sampleNtn.nlg -o sampleNtn.ntn sampleNtn.not
+</PRE>
+
+<P>
+</LI>
+<LI><TT>sampleNtn2.tex</TT> --This is similar to 
+<TT>sampleNtn.tex</TT>, but uses <TT>&#92;storeglosentry</TT><A NAME="3299"></A>.
+
+<P>
+</LI>
+<LI><TT>sampleEq.tex</TT> -- This has a glossary where the
+numbers in the glossary refer to the equation number rather than
+the page number (achieved with the package option 
+<TT>number=equation</TT><A NAME="3311"></A>).  The <TT>&#92;entryname</TT><A NAME="3313"></A>,
+<TT>&#92;descriptionname</TT><A NAME="3318"></A>, <TT>&#92;glossaryname</TT><A NAME="3323"></A> and
+<TT>&#92;glspageheader</TT><A NAME="3328"></A> are all redefined to customize the
+glossary. You will need to do:
+<PRE>
+latex sampleEq
+makeglos.pl sampleEq
+latex sampleEq
+</PRE>
+If you don't want to use <TT>makeglos.pl</TT><A NAME="3333"></A>, you will need
+to do
+<PRE>
+makeindex -s sampleEq.ist -t sampleEq.glg -o sampleEq.gls sampleEq.glo
+</PRE>
+
+<P>
+</LI>
+<LI><TT>sampleEqPg.tex</TT> -- This is a modified version of 
+<TT>sampleEq.tex</TT>.  This example has one glossary, where some
+of the entry numbers refer to the corresponding page number, and
+some of the entry numbers refer to the corresponding equation
+number.  You will need to do:
+<PRE>
+latex sampleEqPg
+makeglos.pl sampleEqPg
+latex sampleEqPg
+</PRE>
+If you don't want to use <TT>makeglos.pl</TT><A NAME="3336"></A>, you will need
+to do
+<PRE>
+makeindex -s sampleEqPg.ist -t sampleEqPg.glg -o sampleEqPg.gls sampleEqPg.glo
+</PRE>
+
+<P>
+</LI>
+<LI><TT>sampleAcr.tex</TT> -- This has a glossary containing
+acronyms.  It uses the style <TT>altlist</TT><A NAME="3339"></A> as this is better
+suited to glossaries with long names.  It also uses the
+<TT>hyperref</TT><A NAME="3341"></A> package, so the page numbers in the
+glossary will automatically be hyperlinks, and the acronyms
+within the text will have hyperlinks to their corresponding entry
+in the glossary.  You will need to do:
+<PRE>
+pdflatex sampleAcr
+makeglos.pl sampleAcr
+pdflatex sampleAcr
+pdflatex sampleAcr
+</PRE>
+If you don't want to use <TT>makeglos.pl</TT><A NAME="3344"></A>, you will need
+to do
+<PRE>
+makeindex -s sampleAcr.ist -t sampleAcr.glg -o sampleAcr.gls sampleAcr.glo
+</PRE>
+
+<P>
+</LI>
+<LI><TT>sample.tex</TT> -- This has a glossary entry
+with two different definitions of the same name.
+If you just use <TT>makeindex</TT><A NAME="3347"></A>, the two entries
+will be treated separately, however, if you want them
+concatenated, you can use <TT>makeglos.pl</TT><A NAME="3350"></A> with
+the <TT>-m</TT> switch. You will need to do:
+<PRE>
+pdflatex sample
+makeglos.pl -m sample
+pdflatex sample
+pdflatex sample
+</PRE> 
+(Depending on the configuration of your system, you
+may have to do <TT>perl makeglos.pl</TT> instead of
+just <TT>makeglos.pl</TT><A NAME="3353"></A>)
+
+<P>
+If you don't want to use <TT>makeglos.pl</TT><A NAME="3356"></A>, you will need
+to do
+<PRE>
+makeindex -s sample.ist -t sample.glg -o sample.gls sample.glo
+</PRE>
+however, the entries with the same name but multiple descriptions
+will not be merged. You will also have to given them different sort
+keys otherwise you will get duplicate hyper targets.
+
+<P>
+</LI>
+<LI><TT>sample4col.tex</TT>--This illustrates how to 
+modify the glossary style so that it has 4 columns. You
+will need to do:
+<PRE>
+latex sample4col
+makeglos.pl sample4col
+latex sample4col
+</PRE>
+
+<P>
+</LI>
+</UL>
+
+<P>
+
+<H1><A NAME="SECTION000120000000000000000"></A>
+<A NAME="sec:l2h"></A>
+<BR>
+LaTeX2HTML Style File
+</H1>
+
+<P>
+A LaTeX2HTML Perl script, <TT>glossary.perl</TT><A NAME="3359"></A>, is
+provided with this package for those wishing to use the
+glossary package with the LaTeX2HTML translator.
+The file <TT>glossary.perl</TT><A NAME="3361"></A> should be extracted
+along with <TT>glossary.sty</TT> when you run the
+installation script (<TT>glossary.ins</TT>) through LaTeX. 
+
+<P>
+
+<H2><A NAME="SECTION000121000000000000000">
+Limitations</A>
+</H2>
+
+<P>
+
+<UL>
+<LI>The only package options supported are: 
+<TT>style=altlist</TT><A NAME="3370"></A>, <TT>hyper=true</TT><A NAME="3379"></A>, <TT>toc=true</TT><A NAME="3388"></A>,
+<TT>acronym=true</TT><A NAME="3397"></A> and <TT>acronym=false</TT><A NAME="3406"></A>.
+
+<P>
+</LI>
+<LI>If you have more than one glossary type, the 
+secondary glossaries will occur in the same segment
+as the primary glossary if you use the command
+<code>\print</code><I>name</I> instead of 
+<code>\printglossary[</code><I>name</I><code>]</code>, where
+<I>name</I> is the name of the glossary type.
+
+<P>
+</LI>
+<LI>The command <TT>&#92;setglossary</TT><A NAME="3408"></A> must be
+placed in the preamble to have an effect.
+
+<P>
+</LI>
+<LI>The <TT>&#92;storeglosentry</TT><A NAME="3413"></A> commands must be in
+the document environment to have an effect. (They don't
+seem to work in the preamble, I don't know why.)
+
+<P>
+</LI>
+<LI>If you place a <TT>&#92;glossary</TT><A NAME="3418"></A> command
+inside an environment not translated by LaTeX2HTML
+(for example, inside a mathematics environment),
+it will not be entered into the glossary.
+
+<P>
+</LI>
+<LI>The combinations <code>""</code>, <code>"|</code>, <code>"!</code>
+and <code>"@</code> will be correctly translated, unless they
+occur within a maths environment.  This is because
+the maths environment is translated before being
+passed to <TT>&#92;glossary</TT><A NAME="3423"></A>.  You can overcome this
+by doing, e.g.:
+<BR><TT>&#92;begin</TT><code>{latexonly}</code>
+<BR><code>\glossary{name=$"|\mathcal{S}"|$,description=cardinality of set</code>
+<BR><code>$\mathcal{S}$,sort=cardinality}</code>
+<BR><TT>&#92;end</TT><code>{latexonly}</code>
+<BR><TT>&#92;begin</TT><code>{htmlonly}</code>
+<BR><code>\glossary{name=$|\mathcal{S}|$,description=cardinality of set</code>
+<BR><code>$\mathcal{S}$,sort=cardinality}</code>
+<BR><TT>&#92;end</TT><code>{htmlonly}</code>
+
+<P>
+Alternative, you can use <TT>&#92;mid</TT> instead:
+<PRE>
+\glossary{name=$\mid\mathcal{S}\mid$,description=cardinality of
+set $\mathcal{S}$,sort=cardinality}
+</PRE>
+
+<P>
+</LI>
+<LI>Glossary items with the same names but different
+definitions will not be merged.
+
+<P>
+</LI>
+<LI>The configuration file <TT>glossary.cfg</TT> is ignored.
+
+<P>
+</LI>
+</UL>
+
+<P>
+
+<H1><A NAME="SECTION000130000000000000000"></A>
+<A NAME="sec:trouble"></A>
+<BR>
+Troubleshooting
+</H1>
+
+<P>
+This is a list of common problems, for a more up-to-date FAQ, see
+<TT><A NAME="tex2html8"
+  HREF="http://theoval.cmp.uea.ac.uk/~nlct/packages/faq/">http://theoval.cmp.uea.ac.uk/~nlct/packages/faq/</A></TT>.
+
+<P>
+
+<OL>
+<LI>My glossary hasn't appeared.
+
+<P>
+Check the following:
+
+<UL>
+<LI>Have you included the command <TT>&#92;makeglossary</TT><A NAME="3438"></A>
+in the preamble?
+
+<P>
+</LI>
+<LI>Have you put the command <TT>&#92;printglossary</TT><A NAME="3443"></A> where
+you want the glossary to appear?
+
+<P>
+</LI>
+<LI>Have you used <TT>makeglos.pl</TT><A NAME="3448"></A> or <TT>makeindex</TT><A NAME="3451"></A>,
+and if you did, did it successfully create the <TT>gls</TT><A NAME="3454"></A>
+file? (Check the transcript <TT>glg</TT><A NAME="3456"></A> file.)
+
+<P>
+
+<UL>
+<LI>If you used <TT>makeindex</TT><A NAME="3458"></A> directly, did you specify 
+the <TT>ist</TT><A NAME="3461"></A> file created by <TT>&#92;makeglossary</TT><A NAME="3463"></A>,
+and did you remember to specify the output file with the extension
+<TT>gls</TT><A NAME="3468"></A>?
+
+<P>
+</LI>
+<LI>When <TT>makeindex</TT><A NAME="3470"></A> scans the <TT>ist</TT><A NAME="3473"></A> file, 
+it should generate the message:
+<PRE>
+9 attributes redefined, 0 ignored
+</PRE>
+If you have a number other than 0 ignored, then there is something
+wrong with the <TT>ist</TT><A NAME="3475"></A> file. Some packages can cause 
+problems with the creation of this file, see 
+item&nbsp;<A HREF="#itm:ngerman">16</A> below.
+</LI>
+</UL>
+
+<P>
+</LI>
+<LI>Have you remembered to LaTeX your document again
+after using <TT>makeglos.pl</TT><A NAME="3477"></A> or <TT>makeindex</TT><A NAME="3480"></A>?
+
+<P>
+</LI>
+<LI>Have you used <TT>&#92;glossary</TT><A NAME="3483"></A> or <TT>&#92;xglossary</TT><A NAME="3488"></A>?
+
+<P>
+</LI>
+<LI>If you have used <TT>&#92;storeglosentry</TT><A NAME="3493"></A>, have you also
+used <TT>&#92;useglosentry</TT><A NAME="3498"></A>, <TT>&#92;useGlosentry</TT><A NAME="3503"></A> or
+<TT>&#92;gls</TT><A NAME="3508"></A>?
+</LI>
+</UL>
+
+<P>
+If you have defined a new glossary type, have you checked
+all the analogous commands to the above?
+
+<P>
+</LI>
+<LI>My list of acronyms hasn't appeared.
+
+<P>
+Have you used the <TT>acronym=true</TT><A NAME="3520"></A> package option? If no,
+check the answers to the previous item, if yes, make sure
+you have used <TT>&#92;makeacronym</TT><A NAME="3522"></A> and <TT>&#92;printacronym</TT><A NAME="3527"></A>.
+Have you used any of the acronyms you have defined? Remember
+that <TT>&#92;acrsh</TT>, <TT>&#92;acrln</TT>, 
+<TT>&#92;</TT><I>acr-name</I><TT>short</TT> and 
+<TT>&#92;</TT><I>acr-name</I><TT>long</TT> don't generate entries
+in the list of acronyms, where <TT>&#92;</TT><I>acr-name</I> is the 
+name of an acronym command.
+
+<P>
+</LI>
+<LI>My acronym has been expanded twice.
+
+<P>
+By default, if any of your acronym commands occur within a
+group (this includes environments which form implicit grouping)
+the effect will be local to that group. You can either unset
+the acronym outside the group, or use the <TT>global</TT><A NAME="3547"></A>
+package option.
+
+<P>
+</LI>
+<LI>I get an error when using the command 
+<TT>&#92;saveglosentry</TT><A NAME="3551"></A>.
+
+<P>
+Don't use this command it's obsolete, use 
+<TT>&#92;storeglosentry</TT><A NAME="3556"></A> instead.
+
+<P>
+</LI>
+<LI>One of more of my glossary entries hasn't appeared.
+
+<P>
+Check the following
+
+<UL>
+<LI>If you defined the entry using <TT>&#92;storeglosentry</TT><A NAME="3561"></A>
+have you used either <TT>&#92;useglosentry</TT><A NAME="3566"></A>,
+<TT>&#92;useGlosentry</TT><A NAME="3571"></A> or <TT>&#92;gls</TT><A NAME="3576"></A>?
+
+<P>
+</LI>
+<LI>Have you remembered to <TT>&#92;protect</TT><A NAME="3581"></A> commands
+such as <TT>&#92;mathcal</TT> within <TT>&#92;storeglosentry</TT><A NAME="3588"></A>?
+
+<P>
+</LI>
+<LI>Have you used the characters <TT>@</TT> <TT>!</TT>
+<TT>|</TT> <code>"</code>? If so, have you preceded them
+with a double quote character?
+</LI>
+</UL>
+
+<P>
+Check the <TT>makeindex</TT><A NAME="3593"></A> log file to see if there are
+any error messages.
+
+<P>
+</LI>
+<LI>My glossary has duplicate entries on separate lines.
+
+<P>
+LaTeX treats multiple spaces equivalent to a single space, but <TT>makeindex</TT><A NAME="3596"></A>
+takes spaces into account when determining whether two entries are identical.
+For example:
+<PRE>
+\glossary{name=Identity matrix,
+description=diagonal matrix with 1's along the diagonal}
+</PRE>
+and
+<PRE>
+\glossary{name=Identity  matrix,
+description=diagonal matrix with 1's along the diagonal}
+</PRE>
+will be treated as different entries by <TT>makeindex</TT><A NAME="3599"></A>, 
+because the first has only one space
+between `Identity' and `matrix' and the second has two. 
+The easiest way to ensure consistency is to use 
+<TT>&#92;storeglosentry</TT><A NAME="3602"></A> together with <TT>&#92;useglosentry</TT><A NAME="3607"></A>,
+<TT>&#92;useGlosentry</TT><A NAME="3612"></A> or <TT>&#92;gls</TT><A NAME="3617"></A>.
+
+<P>
+</LI>
+<LI>I had an error, fixed it, but I keep getting the same error message.
+
+<P>
+Suppose you've made an error in the <TT>&#92;glossary</TT><A NAME="3622"></A> command. For example:
+<PRE>
+\glossary{name=Java,description=A programming language,format=texbf}
+</PRE>
+In this case <TT>textbf</TT> has been mis-spelt.  This error will be copied to the <TT>glo</TT><A NAME="3627"></A> file,
+which in turn will be copied to the <TT>gls</TT><A NAME="3629"></A> file by 
+<TT>makeindex</TT><A NAME="3631"></A>.  A subsequent run of LaTeX will
+read this error in.  If you fix the error in your main document, the error will still be read in from
+the <TT>gls</TT><A NAME="3634"></A> file.  The best thing to do is to delete the 
+<TT>gls</TT><A NAME="3636"></A> file, and try again.
+
+<P>
+</LI>
+<LI>My glossary has ended up wider than my page.
+
+<P>
+This may occur if you have long entry names, and you are using
+either the <TT>style=long</TT><A NAME="3645"></A> or <TT>style=super</TT><A NAME="3654"></A>
+options.  The width of the description column is proportional to 
+the line width (in fact, it's <code>0.6\linewidth</code>)
+but the first column is as wide as the widest entry name.  You
+can either redefine <TT>&#92;glossaryalignment</TT><A NAME="3656"></A> to change the
+column specifications, or use one of the list-type styles.
+
+<P>
+</LI>
+<LI>The page numbers in my glossary don't match up with the actual page numbers where the entry
+was defined.
+
+<P>
+You may need to LaTeX your document again (just as you have to do 
+with <TT>&#92;tableofcontents</TT>, <TT>&#92;listoffigures</TT> etc).
+
+<P>
+</LI>
+<LI>I'm getting a <TT>keyval</TT><A NAME="3665"></A> error.
+
+<P>
+The <TT>glossary</TT><A NAME="3668"></A> package uses the <TT>keyval</TT><A NAME="3671"></A> 
+package to extract the information from <I>key</I>=<I>value</I>
+comma separated lists.  You need to make sure the syntax is correct.  
+If your <I>value</I> contains a 
+comma, you will need to enclose <I>value</I> in curly braces. See the <TT>keyval</TT><A NAME="3674"></A> documentation for
+further information<A NAME="tex2html9"
+  HREF="#foot1617"><SUP>7</SUP></A>.
+
+<P>
+</LI>
+<LI>I've used the <TT>hyper</TT><A NAME="3682"></A> option, but nothing happens 
+when I click on the numbers in the glossary.
+
+<P>
+Check the following:
+
+<OL>
+<LI>Have you remembered to use PDFLaTeX instead of LaTeX,
+or used a driver that understands hyperlinks?
+</LI>
+<LI>Have you remembered to use the <TT>hyperref</TT><A NAME="3686"></A> or
+<TT>html</TT><A NAME="3689"></A> package?
+</LI>
+<LI>Have you remembered to use a formatting command which uses <TT>&#92;hyperlink</TT>? (E.g. using <TT>hyperbf</TT><A NAME="3694"></A><A NAME="3695"></A> instead
+of <TT>textbf</TT>)?  Remember to check the <TT>format</TT><A NAME="3699"></A> key
+in your <TT>&#92;glossary</TT><A NAME="3703"></A> commands, and the 
+<TT>glsnumformat</TT><A NAME="3708"></A> key in the <TT>&#92;setglossary</TT><A NAME="3712"></A>
+command.
+</LI>
+<LI>What application are you using to view the PDF file?
+Ghostview can display a PDF file, but ignores the links.  If you are using Windows, try
+using Adobe's Acrobat Reader, or if you are using UNIX or Linux, try using <TT>xpdf</TT><A NAME="3717"></A> or <TT>acroread</TT><A NAME="3720"></A>.
+</LI>
+</OL>
+
+<P>
+</LI>
+<LI>The <TT>glossary</TT><A NAME="3723"></A> package conflicts with the 
+<TT>datetime</TT><A NAME="3726"></A> package.
+
+<P>
+This has been fixed in version 2.01.
+
+<P>
+</LI>
+<LI>I get an error when using certain commands, such as <TT>&#92;cite</TT> or <code>~</code> in <TT>&#92;newacronym</TT><A NAME="3731"></A>.
+
+<P>
+This has been fixed in version 2.1.
+
+<P>
+</LI>
+<LI>I get the following error:
+<PRE>
+! Package array Error: Illegal pream-token (\glossaryalignment): `c' used.
+</PRE>
+
+<P>
+The <TT>glossary</TT><A NAME="3736"></A> package used to conflict with the 
+<TT>array</TT><A NAME="3739"></A> package.  This was fixed in version 2.1. 
+As from version 2.3, it doesn't matter whether you load
+the <TT>glossary</TT><A NAME="3742"></A> package before or after the
+<TT>array</TT><A NAME="3745"></A> package.
+
+<P>
+</LI>
+<LI><A NAME="itm:fragile"></A> I get the following error:
+<PRE>
+Use of \@chapter doesn't match its definition
+</PRE>
+or
+<PRE>
+! Argument of \@sect has an extra }
+</PRE>
+
+<P>
+If you want to use an acronym command in a moving argument (such as a chapter heading)
+you need to <TT>&#92;protect</TT> it first.  Note that if you do put an acronym in a chapter etc 
+heading, it will be expanded for the first time in the table of contents, not
+in the chapter heading.  The best way to get around this is to use the
+optional argument, e.g.
+<PRE>
+\chapter[Introduction to Kernel Support Vector Machines]{Introduction 
+to \protect\KSVM}
+</PRE>
+You will also need to do this if you are using bookmarks in a PDF document.
+
+<P>
+Alternatively, you can do:
+<PRE>
+\resetacronym{KSVM}
+\chapter{Introduction to \protect\KSVM}
+</PRE>
+or if you are using PDFLaTeX:
+<PRE>
+\resetacronym{KSVM}
+\chapter{Introduction to \texorpdfstring{\protect\KSVM}{KSVM}}
+</PRE>
+
+<P>
+</LI>
+<LI><A NAME="itm:ngerman"></A> The <TT>glossary</TT><A NAME="3750"></A> package conflicts with 
+<TT>ngerman</TT><A NAME="3753"></A>.
+
+<P>
+This problem is caused by the fact that <TT>ngerman</TT><A NAME="3756"></A> 
+redefines the effect of the double quote
+character, but this character is used in the creation of the 
+<TT>ist</TT><A NAME="3759"></A> <TT>makeindex</TT><A NAME="3761"></A> style file.
+Try one of the following methods:
+
+<OL>
+<LI>Include the <TT>ngerman</TT><A NAME="3764"></A> package after the 
+<TT>&#92;makeglossary</TT><A NAME="3767"></A> command:
+<PRE>
+\usepackage{glossary}
+\makeglossary
+\usepackage{ngerman}
+</PRE>
+
+<P>
+</LI>
+<LI>First omit the <TT>ngerman</TT><A NAME="3772"></A> package and include 
+<TT>&#92;makeglossary</TT><A NAME="3775"></A> then LaTeX your document.
+This will create the <TT>ist</TT><A NAME="3780"></A> file.  Then include the 
+<TT>ngerman</TT><A NAME="3782"></A> package, and insert <TT>&#92;noist</TT><A NAME="3785"></A> before
+the <TT>&#92;makeglossary</TT><A NAME="3790"></A> command, this will prevent further attempts to generate the <TT>ist</TT><A NAME="3795"></A> file.
+<PRE>
+\usepackage{ngerman}
+\usepackage{glossary}
+\noist\makeglossary
+</PRE>
+
+<P>
+</LI>
+<LI>Use <TT>&#92;noist</TT><A NAME="3797"></A>, as above, and create the 
+<TT>ist</TT><A NAME="3802"></A> file
+in an ordinary text editor. The file should contain the
+following lines:
+<PRE>
+keyword "\\glossaryentry"
+preamble "\\begin{theglossary}"
+postamble "\n\\end{theglossary}\n"
+group_skip "\\gloskip "
+item_0 "\n\\gloitem "
+delim_0 "\n\\glodelim "
+page_compositor "-"
+delim_n "\\delimN "
+delim_r "\\delimR "
+</PRE>
+</LI>
+</OL>
+It is possible that there may be other packages which will 
+also cause a problem, if so, try any of the above.
+
+<P>
+</LI>
+<LI><TT>makeglos.pl</TT><A NAME="3804"></A> gives the following error message:
+<PRE>
+unable to extract name from glossary item:
+</PRE>
+
+<P>
+You are using an old version of <TT>makeglos.pl</TT><A NAME="3807"></A> with a
+new version of the <TT>glossary</TT><A NAME="3810"></A> package. You will need
+to update your version <TT>makeglos.pl</TT><A NAME="3813"></A>.
+</LI>
+</OL>
+Let me know if you encounter any other problems or if you have any comments regarding this package.
+
+<P>
+
+<H1><A NAME="SECTION000140000000000000000">
+Obsolete Commands</A>
+</H1>
+
+<P>
+The commands described in this section are now obsolete, but 
+are currently still provided for backwards compatibility.  Their
+use is deprecated.
+
+<P>
+
+<TT>&#92;saveglosentry</TT><A NAME="3816"></A>{ <I>name</I>}{<I>description</I>}
+<BR>
+This command has now been replaced by <TT>&#92;storeglosentry</TT>.
+
+<P>
+The command <TT>&#92;glsprimaryfmt</TT> has now been removed.
+
+<P>
+The package option <TT>hyperacronym</TT><A NAME="3830"></A> is now superseded by the package option
+<TT>hyper</TT><A NAME="3839"></A>. This option was implemented prior to the
+introduction of the command <TT>&#92;xglossary</TT><A NAME="3843"></A>. Since the
+acronyms now use <TT>&#92;xglossary</TT><A NAME="3848"></A>, there is no difference
+between the <TT>hyperacronym</TT><A NAME="3858"></A> and <TT>hyper</TT><A NAME="3867"></A> options. 
+This option has a boolean value:
+
+<DL>
+<DT><STRONG><TT>true</TT><A NAME="3871"></A></STRONG></DT>
+<DD>Make acronyms link to their corresponding entry in the glossary
+</DD>
+<DT><STRONG><TT>false</TT><A NAME="3873"></A></STRONG></DT>
+<DD>Acronyms don't have a hyperlink.
+</DD>
+</DL>
+If the <TT>hyperref</TT><A NAME="3875"></A> package has been loaded prior to 
+loading <TT>glossary.sty</TT> or if <TT>hyper=true</TT><A NAME="3885"></A> is set,
+<TT>hyperacronym=true</TT><A NAME="3894"></A> otherwise 
+<TT>hyperacronym=false</TT><A NAME="3903"></A>.
+<P>
+
+<H1><A NAME="SECTION000150000000000000000">
+Contact Details</A>
+</H1>
+
+Dr Nicola Talbot
+<BR>
+School of Computing Sciences
+<BR>
+University of East Anglia
+<BR>
+Norwich. Norfolk
+<BR>
+NR4 7TJ. United Kingdom.
+<BR><TT><A NAME="tex2html10"
+  HREF="http://theoval.cmp.uea.ac.uk/~nlct/">http://theoval.cmp.uea.ac.uk/~nlct/</A></TT>
+<P>
+
+<H1><A NAME="SECTION000160000000000000000">
+Acknowledgements</A>
+</H1>
+
+<P>
+I would like to thank all the many people who have made suggestions
+and pointed out bugs.
+
+<P>
+
+<P>
+<BR>
+
+<H2><A NAME="SECTION000170000000000000000">
+Index</A>
+</H2><DL COMPACT>
+<DT><STRONG><TT>acroread</TT></STRONG>
+<DD><A HREF="manual.html#3720">Troubleshooting</A>
+<DT><STRONG><TT>array</TT></STRONG>
+<DD><A HREF="manual.html#3119">Customizing the Glossary</A>
+ | <A HREF="manual.html#3124">Customizing the Glossary</A>
+ | <A HREF="manual.html#3739">Troubleshooting</A>
+ | <A HREF="manual.html#3745">Troubleshooting</A>
+<DT><STRONG><TT>datetime</TT></STRONG>
+<DD><A HREF="manual.html#3726">Troubleshooting</A>
+<DT><STRONG><TT>&#92;descriptionname</TT></STRONG>
+<DD><A HREF="manual.html#3236">Customizing the Glossary</A>
+ | <A HREF="manual.html#3318">Sample Documents</A>
+<DT><STRONG><TT>&#92;entryname</TT></STRONG>
+<DD><A HREF="manual.html#3313">Sample Documents</A>
+<DT><STRONG>file types</STRONG>
+<DD><DL COMPACT>
+<DT><STRONG>acr</STRONG>
+<DD><A HREF="manual.html#2700">Acronyms</A>
+<DT><STRONG>cfg</STRONG>
+<DD><A HREF="manual.html#2354">Package Options</A>
+ | <A HREF="manual.html#2719">Acronyms</A>
+<DT><STRONG>glg</STRONG>
+<DD><A HREF="manual.html#1960">makeglos.pl</A>
+ | <A HREF="manual.html#2588">Defining New Glossary Types</A>
+ | <A HREF="manual.html#3456">Troubleshooting</A>
+<DT><STRONG>glo</STRONG>
+<DD><A HREF="manual.html#1933">makeglos.pl</A>
+ | <A HREF="manual.html#1948">makeglos.pl</A>
+ | <A HREF="manual.html#2572">Defining New Glossary Types</A>
+ | <A HREF="manual.html#3627">Troubleshooting</A>
+<DT><STRONG>gls</STRONG>
+<DD><A HREF="manual.html#1958">makeglos.pl</A>
+ | <A HREF="manual.html#2022">Displaying the Glossary</A>
+ | <A HREF="manual.html#2583">Defining New Glossary Types</A>
+ | <A HREF="manual.html#3454">Troubleshooting</A>
+ | <A HREF="manual.html#3468">Troubleshooting</A>
+ | <A HREF="manual.html#3629">Troubleshooting</A>
+ | <A HREF="manual.html#3634">Troubleshooting</A>
+ | <A HREF="manual.html#3636">Troubleshooting</A>
+<DT><STRONG>ist</STRONG>
+<DD><A HREF="manual.html#1943">makeglos.pl</A>
+ | <A HREF="manual.html#1953">makeglos.pl</A>
+ | <A HREF="manual.html#1980">makeglos.pl</A>
+ | <A HREF="manual.html#1986">makeglos.pl</A>
+ | <A HREF="manual.html#1988">makeglos.pl</A>
+ | <A HREF="manual.html#1990">makeglos.pl</A>
+ | <A HREF="manual.html#2009">makeglos.pl</A>
+ | <A HREF="manual.html#3461">Troubleshooting</A>
+ | <A HREF="manual.html#3473">Troubleshooting</A>
+ | <A HREF="manual.html#3475">Troubleshooting</A>
+ | <A HREF="manual.html#3759">Troubleshooting</A>
+ | <A HREF="manual.html#3780">Troubleshooting</A>
+ | <A HREF="manual.html#3795">Troubleshooting</A>
+ | <A HREF="manual.html#3802">Troubleshooting</A>
+<DT><STRONG>perl</STRONG>
+<DD><A HREF="manual.html#3359">LaTeX2HTML Style File</A>
+ | <A HREF="manual.html#3361">LaTeX2HTML Style File</A>
+</DL>
+<DT><STRONG><TT>&#92;glodesc</TT></STRONG>
+<DD><A HREF="manual.html#2751">Acronyms</A>
+ | <A HREF="manual.html#2765">Acronyms</A>
+<DT><STRONG><TT>&#92;glolong</TT></STRONG>
+<DD><A HREF="manual.html#2729">Acronyms</A>
+ | <A HREF="manual.html#2741">Acronyms</A>
+<DT><STRONG><TT>&#92;gloshort</TT></STRONG>
+<DD><A HREF="manual.html#2734">Acronyms</A>
+ | <A HREF="manual.html#2746">Acronyms</A>
+<DT><STRONG><TT>glossary</TT></STRONG>
+<DD><A HREF="manual.html#1680">Introduction</A>
+ | <A HREF="manual.html#1833">Generating Glossary Information</A>
+ | <A HREF="manual.html#1846">Generating Glossary Information</A>
+ | <A HREF="manual.html#1851">Storing Glossary Information</A>
+ | <A HREF="manual.html#1856">Storing Glossary Information</A>
+ | <A HREF="manual.html#1859">Storing Glossary Information</A>
+ | <A HREF="manual.html#2358">Package Options</A>
+ | <A HREF="manual.html#2361">Examples</A>
+ | <A HREF="manual.html#2541">Defining New Glossary Types</A>
+ | <A HREF="manual.html#2620">Acronyms</A>
+ | <A HREF="manual.html#2625">Acronyms</A>
+ | <A HREF="manual.html#2836">Acronyms</A>
+ | <A HREF="manual.html#2871">Customizing the Glossary</A>
+ | <A HREF="manual.html#3133">Customizing the Glossary</A>
+ | <A HREF="manual.html#3290">Sample Documents</A>
+ | <A HREF="manual.html#3418">Limitations</A>
+ | <A HREF="manual.html#3423">Limitations</A>
+ | <A HREF="manual.html#3483">Troubleshooting</A>
+ | <A HREF="manual.html#3622">Troubleshooting</A>
+ | <A HREF="manual.html#3668">Troubleshooting</A>
+ | <A HREF="manual.html#3703">Troubleshooting</A>
+ | <A HREF="manual.html#3723">Troubleshooting</A>
+ | <A HREF="manual.html#3736">Troubleshooting</A>
+ | <A HREF="manual.html#3742">Troubleshooting</A>
+ | <A HREF="manual.html#3750">Troubleshooting</A>
+ | <A HREF="manual.html#3810">Troubleshooting</A>
+<DT><STRONG>glossary border</STRONG>
+<DD><i>see </i> package options, border
+<DT><STRONG>glossary columns</STRONG>
+<DD><i>see </i> package options, cols
+<DT><STRONG>glossary header</STRONG>
+<DD><i>see </i> package options, header
+<DT><STRONG><TT>&#92;glossary</TT> keys</STRONG>
+<DD><DL COMPACT>
+<DT><STRONG>description</STRONG>
+<DD><A HREF="manual.html#1709">Generating Glossary Information</A>
+ | <A HREF="manual.html#1880">Storing Glossary Information</A>
+ | <A HREF="manual.html#2756">Acronyms</A>
+<DT><STRONG>format</STRONG>
+<DD><A HREF="manual.html#1717">Generating Glossary Information</A>
+ | <A HREF="manual.html#1743">Generating Glossary Information</A>
+ | <A HREF="manual.html#3699">Troubleshooting</A>
+<DD><DL COMPACT>
+<DT><STRONG>hyperbf</STRONG>
+<DD><A HREF="manual.html#1765">Generating Glossary Information</A>
+ | <A HREF="manual.html#3695">Troubleshooting</A>
+<DT><STRONG>hyperem</STRONG>
+<DD><A HREF="manual.html#1795">Generating Glossary Information</A>
+ | <A HREF="manual.html#1811">Generating Glossary Information</A>
+<DT><STRONG>hyperit</STRONG>
+<DD><A HREF="manual.html#1775">Generating Glossary Information</A>
+<DT><STRONG>hypermd</STRONG>
+<DD><A HREF="manual.html#1770">Generating Glossary Information</A>
+<DT><STRONG>hyperrm</STRONG>
+<DD><A HREF="manual.html#1750">Generating Glossary Information</A>
+ | <A HREF="manual.html#1816">Generating Glossary Information</A>
+<DT><STRONG>hypersc</STRONG>
+<DD><A HREF="manual.html#1790">Generating Glossary Information</A>
+<DT><STRONG>hypersf</STRONG>
+<DD><A HREF="manual.html#1755">Generating Glossary Information</A>
+<DT><STRONG>hypersl</STRONG>
+<DD><A HREF="manual.html#1780">Generating Glossary Information</A>
+<DT><STRONG>hypertt</STRONG>
+<DD><A HREF="manual.html#1760">Generating Glossary Information</A>
+<DT><STRONG>hyperup</STRONG>
+<DD><A HREF="manual.html#1785">Generating Glossary Information</A>
+</DL>
+<DT><STRONG>name</STRONG>
+<DD><A HREF="manual.html#1705">Generating Glossary Information</A>
+ | <A HREF="manual.html#1729">Generating Glossary Information</A>
+ | <A HREF="manual.html#1733">Generating Glossary Information</A>
+ | <A HREF="manual.html#2639">Acronyms</A>
+ | <A HREF="manual.html#2648">Acronyms</A>
+ | <A HREF="manual.html#2723">Acronyms</A>
+ | <A HREF="manual.html#2774">Acronyms</A>
+ | <A HREF="manual.html#3129">Customizing the Glossary</A>
+<DT><STRONG>number</STRONG>
+<DD><A HREF="manual.html#1721">Generating Glossary Information</A>
+ | <A HREF="manual.html#1838">Generating Glossary Information</A>
+<DT><STRONG>sort</STRONG>
+<DD><A HREF="manual.html#1713">Generating Glossary Information</A>
+ | <A HREF="manual.html#1725">Generating Glossary Information</A>
+ | <A HREF="manual.html#1737">Generating Glossary Information</A>
+ | <A HREF="manual.html#2654">Acronyms</A>
+</DL>
+<DT><STRONG>glossary style</STRONG>
+<DD><i>see </i> package options, style
+<DT><STRONG>glossary.cfg</STRONG>
+<DD><i>see </i> file type, cfg
+<DT><STRONG><TT>&#92;glossaryalignment</TT></STRONG>
+<DD><A HREF="manual.html#3656">Troubleshooting</A>
+<DT><STRONG><TT>&#92;glossaryname</TT></STRONG>
+<DD><A HREF="manual.html#2028">Displaying the Glossary</A>
+ | <A HREF="manual.html#2613">Defining New Glossary Types</A>
+ | <A HREF="manual.html#3323">Sample Documents</A>
+<DT><STRONG><TT>&#92;gls</TT></STRONG>
+<DD><A HREF="manual.html#1905">Storing Glossary Information</A>
+ | <A HREF="manual.html#3508">Troubleshooting</A>
+ | <A HREF="manual.html#3576">Troubleshooting</A>
+ | <A HREF="manual.html#3617">Troubleshooting</A>
+<DT><STRONG><TT>&#92;glspageheader</TT></STRONG>
+<DD><A HREF="manual.html#3328">Sample Documents</A>
+<DT><STRONG><TT>html</TT></STRONG>
+<DD><A HREF="manual.html#2220">Package Options</A>
+ | <A HREF="manual.html#3689">Troubleshooting</A>
+<DT><STRONG><TT>hyperref</TT></STRONG>
+<DD><A HREF="manual.html#2151">Package Options</A>
+ | <A HREF="manual.html#2217">Package Options</A>
+ | <A HREF="manual.html#3287">Sample Documents</A>
+ | <A HREF="manual.html#3341">Sample Documents</A>
+ | <A HREF="manual.html#3686">Troubleshooting</A>
+ | <A HREF="manual.html#3875">Obsolete Commands</A>
+<DT><STRONG><TT>&#92;hyperrm</TT></STRONG>
+<DD><A HREF="manual.html#1826">Generating Glossary Information</A>
+<DT><STRONG><TT>keyval</TT></STRONG>
+<DD><A HREF="manual.html#3665">Troubleshooting</A>
+ | <A HREF="manual.html#3671">Troubleshooting</A>
+ | <A HREF="manual.html#3674">Troubleshooting</A>
+<DT><STRONG><TT>&#92;makeacronym</TT></STRONG>
+<DD><A HREF="manual.html#2690">Acronyms</A>
+ | <A HREF="manual.html#3522">Troubleshooting</A>
+<DT><STRONG><TT>makeglos.pl</TT></STRONG>
+<DD><A HREF="manual.html#1962">makeglos.pl</A>
+ | <A HREF="manual.html#1968">makeglos.pl</A>
+ | <A HREF="manual.html#1971">makeglos.pl</A>
+ | <A HREF="manual.html#1977">makeglos.pl</A>
+ | <A HREF="manual.html#2577">Defining New Glossary Types</A>
+ | <A HREF="manual.html#2590">Defining New Glossary Types</A>
+ | <A HREF="manual.html#2596">Defining New Glossary Types</A>
+ | <A HREF="manual.html#2599">Defining New Glossary Types</A>
+ | <A HREF="manual.html#2602">Defining New Glossary Types</A>
+ | <A HREF="manual.html#2705">Acronyms</A>
+ | <A HREF="manual.html#3293">Sample Documents</A>
+ | <A HREF="manual.html#3296">Sample Documents</A>
+ | <A HREF="manual.html#3333">Sample Documents</A>
+ | <A HREF="manual.html#3336">Sample Documents</A>
+ | <A HREF="manual.html#3344">Sample Documents</A>
+ | <A HREF="manual.html#3350">Sample Documents</A>
+ | <A HREF="manual.html#3353">Sample Documents</A>
+ | <A HREF="manual.html#3356">Sample Documents</A>
+ | <A HREF="manual.html#3448">Troubleshooting</A>
+ | <A HREF="manual.html#3477">Troubleshooting</A>
+ | <A HREF="manual.html#3804">Troubleshooting</A>
+ | <A HREF="manual.html#3807">Troubleshooting</A>
+ | <A HREF="manual.html#3813">Troubleshooting</A>
+<DT><STRONG><TT>&#92;makeglossary</TT></STRONG>
+<DD><A HREF="manual.html#1935">makeglos.pl</A>
+ | <A HREF="manual.html#1994">makeglos.pl</A>
+ | <A HREF="manual.html#2004">makeglos.pl</A>
+ | <A HREF="manual.html#2014">makeglos.pl</A>
+ | <A HREF="manual.html#2536">Defining New Glossary Types</A>
+ | <A HREF="manual.html#3438">Troubleshooting</A>
+ | <A HREF="manual.html#3463">Troubleshooting</A>
+ | <A HREF="manual.html#3767">Troubleshooting</A>
+ | <A HREF="manual.html#3775">Troubleshooting</A>
+ | <A HREF="manual.html#3790">Troubleshooting</A>
+<DT><STRONG><TT>makeindex</TT></STRONG>
+<DD><A HREF="manual.html#1683">Installation</A>
+ | <A HREF="manual.html#1689">Installation</A>
+ | <A HREF="manual.html#1692">Installation</A>
+ | <A HREF="manual.html#1940">makeglos.pl</A>
+ | <A HREF="manual.html#1945">makeglos.pl</A>
+ | <A HREF="manual.html#1950">makeglos.pl</A>
+ | <A HREF="manual.html#1955">makeglos.pl</A>
+ | <A HREF="manual.html#1965">makeglos.pl</A>
+ | <A HREF="manual.html#1974">makeglos.pl</A>
+ | <A HREF="manual.html#2019">makeglos.pl</A>
+ | <A HREF="manual.html#2024">Displaying the Glossary</A>
+ | <A HREF="manual.html#2574">Defining New Glossary Types</A>
+ | <A HREF="manual.html#2580">Defining New Glossary Types</A>
+ | <A HREF="manual.html#2585">Defining New Glossary Types</A>
+ | <A HREF="manual.html#2593">Defining New Glossary Types</A>
+ | <A HREF="manual.html#2605">Defining New Glossary Types</A>
+ | <A HREF="manual.html#2702">Acronyms</A>
+ | <A HREF="manual.html#2778">Acronyms</A>
+ | <A HREF="manual.html#2989">Customizing the Glossary</A>
+ | <A HREF="manual.html#3000">Customizing the Glossary</A>
+ | <A HREF="manual.html#3018">Customizing the Glossary</A>
+ | <A HREF="manual.html#3058">Customizing the Glossary</A>
+ | <A HREF="manual.html#3069">Customizing the Glossary</A>
+ | <A HREF="manual.html#3160">Customizing the Glossary</A>
+ | <A HREF="manual.html#3347">Sample Documents</A>
+ | <A HREF="manual.html#3451">Troubleshooting</A>
+ | <A HREF="manual.html#3458">Troubleshooting</A>
+ | <A HREF="manual.html#3470">Troubleshooting</A>
+ | <A HREF="manual.html#3480">Troubleshooting</A>
+ | <A HREF="manual.html#3593">Troubleshooting</A>
+ | <A HREF="manual.html#3596">Troubleshooting</A>
+ | <A HREF="manual.html#3599">Troubleshooting</A>
+ | <A HREF="manual.html#3631">Troubleshooting</A>
+ | <A HREF="manual.html#3761">Troubleshooting</A>
+<DT><STRONG>makeindex key</STRONG>
+<DD><DL COMPACT>
+<DT><STRONG>delim_0</STRONG>
+<DD><A HREF="manual.html#2987">Customizing the Glossary</A>
+<DT><STRONG>delim_n</STRONG>
+<DD><A HREF="manual.html#2998">Customizing the Glossary</A>
+<DT><STRONG>delim_r</STRONG>
+<DD><A HREF="manual.html#3016">Customizing the Glossary</A>
+<DT><STRONG>delim_t</STRONG>
+<DD><A HREF="manual.html#3067">Customizing the Glossary</A>
+<DT><STRONG>group_skip</STRONG>
+<DD><A HREF="manual.html#3056">Customizing the Glossary</A>
+<DT><STRONG>item_0</STRONG>
+<DD><A HREF="manual.html#3158">Customizing the Glossary</A>
+</DL>
+<DT><STRONG>makeindex style file (.ist)</STRONG>
+<DD><i>see </i> file types, ist
+<DT><STRONG><TT>&#92;newacronym</TT></STRONG>
+<DD><A HREF="manual.html#2760">Acronyms</A>
+ | <A HREF="manual.html#3731">Troubleshooting</A>
+<DT><STRONG><TT>&#92;newglossarystyle</TT></STRONG>
+<DD><A HREF="manual.html#2924">Customizing the Glossary</A>
+<DT><STRONG><TT>ngerman</TT></STRONG>
+<DD><A HREF="manual.html#2011">makeglos.pl</A>
+ | <A HREF="manual.html#3753">Troubleshooting</A>
+ | <A HREF="manual.html#3756">Troubleshooting</A>
+ | <A HREF="manual.html#3764">Troubleshooting</A>
+ | <A HREF="manual.html#3772">Troubleshooting</A>
+ | <A HREF="manual.html#3782">Troubleshooting</A>
+<DT><STRONG><TT>&#92;nofiles</TT></STRONG>
+<DD><A HREF="manual.html#1999">makeglos.pl</A>
+<DT><STRONG><TT>&#92;noist</TT></STRONG>
+<DD><A HREF="manual.html#3785">Troubleshooting</A>
+ | <A HREF="manual.html#3797">Troubleshooting</A>
+<DT><STRONG>package options</STRONG>
+<DD><DL COMPACT>
+<DT><STRONG>,</STRONG><DD><DL COMPACT>
+<DT><STRONG>none</STRONG>
+<DD><A HREF="manual.html#2109">Package Options</A>
+</DL>
+<DT><STRONG>acronym</STRONG>
+<DD><A HREF="manual.html#2268">Package Options</A>
+ | <A HREF="manual.html#2270">Package Options</A>
+ | <A HREF="manual.html#2663">Acronyms</A>
+ | <A HREF="manual.html#2665">Acronyms</A>
+ | <A HREF="manual.html#2686">Acronyms</A>
+ | <A HREF="manual.html#2713">Acronyms</A>
+ | <A HREF="manual.html#3395">Limitations</A>
+ | <A HREF="manual.html#3404">Limitations</A>
+ | <A HREF="manual.html#3518">Troubleshooting</A>
+<DD><DL COMPACT>
+<DT><STRONG>false</STRONG>
+<DD><A HREF="manual.html#2274">Package Options</A>
+ | <A HREF="manual.html#3406">Limitations</A>
+<DT><STRONG>true</STRONG>
+<DD><A HREF="manual.html#2272">Package Options</A>
+ | <A HREF="manual.html#2688">Acronyms</A>
+ | <A HREF="manual.html#2715">Acronyms</A>
+ | <A HREF="manual.html#3397">Limitations</A>
+ | <A HREF="manual.html#3520">Troubleshooting</A>
+</DL>
+<DT><STRONG>border</STRONG>
+<DD><A HREF="manual.html#2079">Package Options</A>
+ | <A HREF="manual.html#2081">Package Options</A>
+ | <A HREF="manual.html#2294">Package Options</A>
+ | <A HREF="manual.html#2296">Package Options</A>
+ | <A HREF="manual.html#2422">Examples</A>
+ | <A HREF="manual.html#2458">Examples</A>
+ | <A HREF="manual.html#2485">Examples</A>
+ | <A HREF="manual.html#2512">Examples</A>
+ | <A HREF="manual.html#3217">Customizing the Glossary</A>
+ | <A HREF="manual.html#3219">Customizing the Glossary</A>
+<DD><DL COMPACT>
+<DT><STRONG>none</STRONG>
+<DD><A HREF="manual.html#2083">Package Options</A>
+ | <A HREF="manual.html#2424">Examples</A>
+ | <A HREF="manual.html#2514">Examples</A>
+<DT><STRONG>plain</STRONG>
+<DD><A HREF="manual.html#2085">Package Options</A>
+ | <A HREF="manual.html#2460">Examples</A>
+ | <A HREF="manual.html#2487">Examples</A>
+</DL>
+<DT><STRONG>cols</STRONG>
+<DD><A HREF="manual.html#2092">Package Options</A>
+ | <A HREF="manual.html#2094">Package Options</A>
+ | <A HREF="manual.html#2312">Package Options</A>
+ | <A HREF="manual.html#2314">Package Options</A>
+ | <A HREF="manual.html#2530">Examples</A>
+ | <A HREF="manual.html#2902">Customizing the Glossary</A>
+ | <A HREF="manual.html#2952">Customizing the Glossary</A>
+ | <A HREF="manual.html#2983">Customizing the Glossary</A>
+ | <A HREF="manual.html#3195">Customizing the Glossary</A>
+ | <A HREF="manual.html#3204">Customizing the Glossary</A>
+ | <A HREF="manual.html#3232">Customizing the Glossary</A>
+ | <A HREF="manual.html#3248">Customizing the Glossary</A>
+<DD><DL COMPACT>
+<DT><STRONG>2</STRONG>
+<DD><A HREF="manual.html#2096">Package Options</A>
+ | <A HREF="manual.html#3197">Customizing the Glossary</A>
+ | <A HREF="manual.html#3234">Customizing the Glossary</A>
+<DT><STRONG>3</STRONG>
+<DD><A HREF="manual.html#2098">Package Options</A>
+ | <A HREF="manual.html#2532">Examples</A>
+ | <A HREF="manual.html#2904">Customizing the Glossary</A>
+ | <A HREF="manual.html#2954">Customizing the Glossary</A>
+ | <A HREF="manual.html#2985">Customizing the Glossary</A>
+ | <A HREF="manual.html#3206">Customizing the Glossary</A>
+ | <A HREF="manual.html#3250">Customizing the Glossary</A>
+</DL>
+<DT><STRONG>global</STRONG>
+<DD><A HREF="manual.html#2281">Package Options</A>
+ | <A HREF="manual.html#2283">Package Options</A>
+ | <A HREF="manual.html#3547">Troubleshooting</A>
+ | <A HREF="manual.html#3549">Troubleshooting</A>
+<DD><DL COMPACT>
+<DT><STRONG>false</STRONG>
+<DD><A HREF="manual.html#2285">Package Options</A>
+<DT><STRONG>true</STRONG>
+<DD><A HREF="manual.html#2287">Package Options</A>
+</DL>
+<DT><STRONG>header</STRONG>
+<DD><A HREF="manual.html#2066">Package Options</A>
+ | <A HREF="manual.html#2068">Package Options</A>
+ | <A HREF="manual.html#2303">Package Options</A>
+ | <A HREF="manual.html#2305">Package Options</A>
+ | <A HREF="manual.html#2431">Examples</A>
+ | <A HREF="manual.html#2467">Examples</A>
+ | <A HREF="manual.html#2494">Examples</A>
+ | <A HREF="manual.html#2521">Examples</A>
+ | <A HREF="manual.html#2893">Customizing the Glossary</A>
+ | <A HREF="manual.html#3168">Customizing the Glossary</A>
+<DD><DL COMPACT>
+<DT><STRONG>none</STRONG>
+<DD><A HREF="manual.html#2070">Package Options</A>
+ | <A HREF="manual.html#2433">Examples</A>
+ | <A HREF="manual.html#2469">Examples</A>
+<DT><STRONG>plain</STRONG>
+<DD><A HREF="manual.html#2072">Package Options</A>
+ | <A HREF="manual.html#2496">Examples</A>
+ | <A HREF="manual.html#2523">Examples</A>
+<DT><STRONG>true</STRONG>
+<DD><A HREF="manual.html#2895">Customizing the Glossary</A>
+ | <A HREF="manual.html#3170">Customizing the Glossary</A>
+</DL>
+<DT><STRONG>hyper</STRONG>
+<DD><A HREF="manual.html#1806">Generating Glossary Information</A>
+ | <A HREF="manual.html#1808">Generating Glossary Information</A>
+ | <A HREF="manual.html#2204">Package Options</A>
+ | <A HREF="manual.html#2206">Package Options</A>
+ | <A HREF="manual.html#2228">Package Options</A>
+ | <A HREF="manual.html#2237">Package Options</A>
+ | <A HREF="manual.html#2827">Acronyms</A>
+ | <A HREF="manual.html#2829">Acronyms</A>
+ | <A HREF="manual.html#3377">Limitations</A>
+ | <A HREF="manual.html#3682">Troubleshooting</A>
+ | <A HREF="manual.html#3684">Troubleshooting</A>
+ | <A HREF="manual.html#3839">Obsolete Commands</A>
+ | <A HREF="manual.html#3841">Obsolete Commands</A>
+ | <A HREF="manual.html#3867">Obsolete Commands</A>
+ | <A HREF="manual.html#3869">Obsolete Commands</A>
+ | <A HREF="manual.html#3883">Obsolete Commands</A>
+<DD><DL COMPACT>
+<DT><STRONG>false</STRONG>
+<DD><A HREF="manual.html#2215">Package Options</A>
+ | <A HREF="manual.html#2239">Package Options</A>
+<DT><STRONG>true</STRONG>
+<DD><A HREF="manual.html#2208">Package Options</A>
+ | <A HREF="manual.html#2230">Package Options</A>
+ | <A HREF="manual.html#3379">Limitations</A>
+ | <A HREF="manual.html#3885">Obsolete Commands</A>
+</DL>
+<DT><STRONG>hyperacronym</STRONG>
+<DD><A HREF="manual.html#2246">Package Options</A>
+ | <A HREF="manual.html#2248">Package Options</A>
+ | <A HREF="manual.html#3830">Obsolete Commands</A>
+ | <A HREF="manual.html#3832">Obsolete Commands</A>
+ | <A HREF="manual.html#3858">Obsolete Commands</A>
+ | <A HREF="manual.html#3860">Obsolete Commands</A>
+ | <A HREF="manual.html#3892">Obsolete Commands</A>
+ | <A HREF="manual.html#3901">Obsolete Commands</A>
+<DD><DL COMPACT>
+<DT><STRONG>false</STRONG>
+<DD><A HREF="manual.html#3873">Obsolete Commands</A>
+ | <A HREF="manual.html#3903">Obsolete Commands</A>
+<DT><STRONG>true</STRONG>
+<DD><A HREF="manual.html#3871">Obsolete Commands</A>
+ | <A HREF="manual.html#3894">Obsolete Commands</A>
+</DL>
+<DT><STRONG>hypertoc</STRONG>
+<DD><A HREF="manual.html#2138">Package Options</A>
+ | <A HREF="manual.html#2140">Package Options</A>
+ | <A HREF="manual.html#2159">Package Options</A>
+ | <A HREF="manual.html#2161">Package Options</A>
+ | <A HREF="manual.html#2186">Package Options</A>
+ | <A HREF="manual.html#2195">Package Options</A>
+<DD><DL COMPACT>
+<DT><STRONG>false</STRONG>
+<DD><A HREF="manual.html#2197">Package Options</A>
+<DT><STRONG>true</STRONG>
+<DD><A HREF="manual.html#2188">Package Options</A>
+</DL>
+<DT><STRONG>number</STRONG>
+<DD><A HREF="manual.html#2105">Package Options</A>
+ | <A HREF="manual.html#2107">Package Options</A>
+ | <A HREF="manual.html#2116">Package Options</A>
+ | <A HREF="manual.html#2404">Examples</A>
+ | <A HREF="manual.html#2440">Examples</A>
+ | <A HREF="manual.html#2970">Customizing the Glossary</A>
+ | <A HREF="manual.html#3008">Customizing the Glossary</A>
+ | <A HREF="manual.html#3026">Customizing the Glossary</A>
+ | <A HREF="manual.html#3283">Sample Documents</A>
+ | <A HREF="manual.html#3309">Sample Documents</A>
+<DD><DL COMPACT>
+<DT><STRONG>equation</STRONG>
+<DD><A HREF="manual.html#3311">Sample Documents</A>
+<DT><STRONG>none</STRONG>
+<DD><A HREF="manual.html#2406">Examples</A>
+ | <A HREF="manual.html#2972">Customizing the Glossary</A>
+ | <A HREF="manual.html#3010">Customizing the Glossary</A>
+ | <A HREF="manual.html#3028">Customizing the Glossary</A>
+<DT><STRONG>page</STRONG>
+<DD><A HREF="manual.html#2118">Package Options</A>
+ | <A HREF="manual.html#2442">Examples</A>
+<DT><STRONG>section</STRONG>
+<DD><A HREF="manual.html#3285">Sample Documents</A>
+</DL>
+<DT><STRONG>section</STRONG>
+<DD><A HREF="manual.html#2255">Package Options</A>
+ | <A HREF="manual.html#2257">Package Options</A>
+<DD><DL COMPACT>
+<DT><STRONG>false</STRONG>
+<DD><A HREF="manual.html#2261">Package Options</A>
+<DT><STRONG>true</STRONG>
+<DD><A HREF="manual.html#2259">Package Options</A>
+</DL>
+<DT><STRONG>style</STRONG>
+<DD><A HREF="manual.html#2037">Package Options</A>
+ | <A HREF="manual.html#2039">Package Options</A>
+ | <A HREF="manual.html#2051">Package Options</A>
+ | <A HREF="manual.html#2321">Package Options</A>
+ | <A HREF="manual.html#2330">Package Options</A>
+ | <A HREF="manual.html#2377">Examples</A>
+ | <A HREF="manual.html#2386">Examples</A>
+ | <A HREF="manual.html#2395">Examples</A>
+ | <A HREF="manual.html#2413">Examples</A>
+ | <A HREF="manual.html#2449">Examples</A>
+ | <A HREF="manual.html#2476">Examples</A>
+ | <A HREF="manual.html#2503">Examples</A>
+ | <A HREF="manual.html#2961">Customizing the Glossary</A>
+ | <A HREF="manual.html#3039">Customizing the Glossary</A>
+ | <A HREF="manual.html#3048">Customizing the Glossary</A>
+ | <A HREF="manual.html#3101">Customizing the Glossary</A>
+ | <A HREF="manual.html#3110">Customizing the Glossary</A>
+ | <A HREF="manual.html#3143">Customizing the Glossary</A>
+ | <A HREF="manual.html#3154">Customizing the Glossary</A>
+ | <A HREF="manual.html#3177">Customizing the Glossary</A>
+ | <A HREF="manual.html#3186">Customizing the Glossary</A>
+ | <A HREF="manual.html#3265">Sample Documents</A>
+ | <A HREF="manual.html#3368">Limitations</A>
+ | <A HREF="manual.html#3643">Troubleshooting</A>
+ | <A HREF="manual.html#3652">Troubleshooting</A>
+<DD><DL COMPACT>
+<DT><STRONG>altlist</STRONG>
+<DD><A HREF="manual.html#2044">Package Options</A>
+ | <A HREF="manual.html#2332">Package Options</A>
+ | <A HREF="manual.html#2352">Package Options</A>
+ | <A HREF="manual.html#2388">Examples</A>
+ | <A HREF="manual.html#2963">Customizing the Glossary</A>
+ | <A HREF="manual.html#3050">Customizing the Glossary</A>
+ | <A HREF="manual.html#3112">Customizing the Glossary</A>
+ | <A HREF="manual.html#3156">Customizing the Glossary</A>
+ | <A HREF="manual.html#3267">Sample Documents</A>
+ | <A HREF="manual.html#3339">Sample Documents</A>
+ | <A HREF="manual.html#3370">Limitations</A>
+<DT><STRONG>list</STRONG>
+<DD><A HREF="manual.html#2041">Package Options</A>
+ | <A HREF="manual.html#2053">Package Options</A>
+ | <A HREF="manual.html#2323">Package Options</A>
+ | <A HREF="manual.html#2379">Examples</A>
+ | <A HREF="manual.html#2397">Examples</A>
+ | <A HREF="manual.html#3041">Customizing the Glossary</A>
+ | <A HREF="manual.html#3103">Customizing the Glossary</A>
+ | <A HREF="manual.html#3145">Customizing the Glossary</A>
+<DT><STRONG>long</STRONG>
+<DD><A HREF="manual.html#2058">Package Options</A>
+ | <A HREF="manual.html#2415">Examples</A>
+ | <A HREF="manual.html#2451">Examples</A>
+ | <A HREF="manual.html#2478">Examples</A>
+ | <A HREF="manual.html#2505">Examples</A>
+ | <A HREF="manual.html#3179">Customizing the Glossary</A>
+ | <A HREF="manual.html#3645">Troubleshooting</A>
+<DT><STRONG>super</STRONG>
+<DD><A HREF="manual.html#2055">Package Options</A>
+ | <A HREF="manual.html#3188">Customizing the Glossary</A>
+ | <A HREF="manual.html#3654">Troubleshooting</A>
+</DL>
+<DT><STRONG>toc</STRONG>
+<DD><A HREF="manual.html#2125">Package Options</A>
+ | <A HREF="manual.html#2127">Package Options</A>
+ | <A HREF="manual.html#2147">Package Options</A>
+ | <A HREF="manual.html#2149">Package Options</A>
+ | <A HREF="manual.html#2168">Package Options</A>
+ | <A HREF="manual.html#2170">Package Options</A>
+ | <A HREF="manual.html#2177">Package Options</A>
+ | <A HREF="manual.html#2339">Package Options</A>
+ | <A HREF="manual.html#2341">Package Options</A>
+ | <A HREF="manual.html#2348">Package Options</A>
+ | <A HREF="manual.html#3274">Sample Documents</A>
+ | <A HREF="manual.html#3276">Sample Documents</A>
+ | <A HREF="manual.html#3386">Limitations</A>
+<DD><DL COMPACT>
+<DT><STRONG>false</STRONG>
+<DD><A HREF="manual.html#2131">Package Options</A>
+<DT><STRONG>true</STRONG>
+<DD><A HREF="manual.html#2129">Package Options</A>
+ | <A HREF="manual.html#2179">Package Options</A>
+ | <A HREF="manual.html#2350">Package Options</A>
+ | <A HREF="manual.html#3388">Limitations</A>
+</DL>
+</DL>
+<DT><STRONG>page number formats</STRONG>
+<DD><DL COMPACT>
+<DT><STRONG>hyperbf</STRONG>
+<DD><A HREF="manual.html#1764">Generating Glossary Information</A>
+ | <A HREF="manual.html#3694">Troubleshooting</A>
+<DT><STRONG>hyperem</STRONG>
+<DD><A HREF="manual.html#1794">Generating Glossary Information</A>
+ | <A HREF="manual.html#1810">Generating Glossary Information</A>
+<DT><STRONG>hyperit</STRONG>
+<DD><A HREF="manual.html#1774">Generating Glossary Information</A>
+<DT><STRONG>hypermd</STRONG>
+<DD><A HREF="manual.html#1769">Generating Glossary Information</A>
+<DT><STRONG>hyperrm</STRONG>
+<DD><A HREF="manual.html#1749">Generating Glossary Information</A>
+ | <A HREF="manual.html#1815">Generating Glossary Information</A>
+<DT><STRONG>hypersc</STRONG>
+<DD><A HREF="manual.html#1789">Generating Glossary Information</A>
+<DT><STRONG>hypersf</STRONG>
+<DD><A HREF="manual.html#1754">Generating Glossary Information</A>
+<DT><STRONG>hypersl</STRONG>
+<DD><A HREF="manual.html#1779">Generating Glossary Information</A>
+<DT><STRONG>hypertt</STRONG>
+<DD><A HREF="manual.html#1759">Generating Glossary Information</A>
+<DT><STRONG>hyperup</STRONG>
+<DD><A HREF="manual.html#1784">Generating Glossary Information</A>
+</DL>
+<DT><STRONG><TT>perl</TT></STRONG>
+<DD><A HREF="manual.html#1686">Installation</A>
+<DT><STRONG><TT>&#92;printacronym</TT></STRONG>
+<DD><A HREF="manual.html#2695">Acronyms</A>
+ | <A HREF="manual.html#3527">Troubleshooting</A>
+<DT><STRONG><TT>&#92;printglossary</TT></STRONG>
+<DD><A HREF="manual.html#2551">Defining New Glossary Types</A>
+ | <A HREF="manual.html#2608">Defining New Glossary Types</A>
+ | <A HREF="manual.html#3443">Troubleshooting</A>
+<DT><STRONG><TT>&#92;protect</TT></STRONG>
+<DD><A HREF="manual.html#3581">Troubleshooting</A>
+<DT><STRONG><TT>&#92;saveglosentry</TT></STRONG>
+<DD><A HREF="manual.html#3551">Troubleshooting</A>
+ | <A HREF="manual.html#3816">Obsolete Commands</A>
+<DT><STRONG><TT>&#92;setacronymnamefmt</TT></STRONG>
+<DD><A HREF="manual.html#2781">Acronyms</A>
+<DT><STRONG><TT>&#92;setglossary</TT></STRONG>
+<DD><A HREF="manual.html#3408">Limitations</A>
+ | <A HREF="manual.html#3712">Troubleshooting</A>
+<DT><STRONG><TT>&#92;setglossary</TT> keys</STRONG>
+<DD><DL COMPACT>
+<DT><STRONG>delimN</STRONG>
+<DD><A HREF="manual.html#2994">Customizing the Glossary</A>
+<DT><STRONG>delimR</STRONG>
+<DD><A HREF="manual.html#3012">Customizing the Glossary</A>
+<DT><STRONG>delimT</STRONG>
+<DD><A HREF="manual.html#3063">Customizing the Glossary</A>
+ | <A HREF="manual.html#3072">Customizing the Glossary</A>
+<DT><STRONG>glodelim</STRONG>
+<DD><A HREF="manual.html#2943">Customizing the Glossary</A>
+ | <A HREF="manual.html#2974">Customizing the Glossary</A>
+<DT><STRONG>gloskip</STRONG>
+<DD><A HREF="manual.html#3030">Customizing the Glossary</A>
+ | <A HREF="manual.html#3080">Customizing the Glossary</A>
+<DT><STRONG>glsnumformat</STRONG>
+<DD><A HREF="manual.html#2937">Customizing the Glossary</A>
+ | <A HREF="manual.html#3708">Troubleshooting</A>
+<DT><STRONG>type</STRONG>
+<DD><A HREF="manual.html#2933">Customizing the Glossary</A>
+</DL>
+<DT><STRONG><TT>&#92;storeglosentry</TT></STRONG>
+<DD><A HREF="manual.html#1890">Storing Glossary Information</A>
+ | <A HREF="manual.html#1910">Storing Glossary Information</A>
+ | <A HREF="manual.html#3299">Sample Documents</A>
+ | <A HREF="manual.html#3413">Limitations</A>
+ | <A HREF="manual.html#3493">Troubleshooting</A>
+ | <A HREF="manual.html#3556">Troubleshooting</A>
+ | <A HREF="manual.html#3561">Troubleshooting</A>
+ | <A HREF="manual.html#3588">Troubleshooting</A>
+ | <A HREF="manual.html#3602">Troubleshooting</A>
+<DT><STRONG>table of contents, adding to</STRONG>
+<DD><i>see </i> package options, toc
+<DT><STRONG><TT>&#92;useacronym</TT></STRONG>
+<DD><A HREF="manual.html#2864">Examples</A>
+<DT><STRONG><TT>&#92;useGlosentry</TT></STRONG>
+<DD><A HREF="manual.html#1895">Storing Glossary Information</A>
+ | <A HREF="manual.html#1900">Storing Glossary Information</A>
+ | <A HREF="manual.html#3498">Troubleshooting</A>
+ | <A HREF="manual.html#3503">Troubleshooting</A>
+ | <A HREF="manual.html#3566">Troubleshooting</A>
+ | <A HREF="manual.html#3571">Troubleshooting</A>
+ | <A HREF="manual.html#3607">Troubleshooting</A>
+ | <A HREF="manual.html#3612">Troubleshooting</A>
+<DT><STRONG><TT>&#92;xacronym</TT></STRONG>
+<DD><A HREF="manual.html#2634">Acronyms</A>
+ | <A HREF="manual.html#2643">Acronyms</A>
+ | <A HREF="manual.html#2667">Acronyms</A>
+<DT><STRONG><TT>&#92;xglossary</TT></STRONG>
+<DD><A HREF="manual.html#2210">Package Options</A>
+ | <A HREF="manual.html#2546">Defining New Glossary Types</A>
+ | <A HREF="manual.html#2672">Acronyms</A>
+ | <A HREF="manual.html#3488">Troubleshooting</A>
+ | <A HREF="manual.html#3843">Obsolete Commands</A>
+ | <A HREF="manual.html#3848">Obsolete Commands</A>
+<DT><STRONG><TT>xpdf</TT></STRONG>
+<DD><A HREF="manual.html#3717">Troubleshooting</A>
+<DT><STRONG><TT>&#92;xspace</TT></STRONG>
+<DD><A HREF="manual.html#2833">Acronyms</A>
+ | <A HREF="manual.html#2839">Acronyms</A>
+
+</DL>
+
+<P>
+<BR><HR><H4>Footnotes</H4>
+<DL>
+<DT><A NAME="foot1555">... <code>/usr/bin/</code></A><A
+ HREF="manual.html#tex2html1"><SUP>1</SUP></A></DT>
+<DD>and you can also remove the <TT>.pl</TT>
+extension which isn't to everyone's liking.
+
+</DD>
+<DT><A NAME="foot1559">... glossary</A><A
+ HREF="manual.html#tex2html2"><SUP>2</SUP></A></DT>
+<DD>This is because the list and number ranges are 
+delimited using <TT>&#92;delimR</TT> and <TT>&#92;delimN</TT> instead of 
+explicitly using a comma or en-dash.
+
+</DD>
+<DT><A NAME="foot1613">... backslash</A><A
+ HREF="manual.html#tex2html4"><SUP>3</SUP></A></DT>
+<DD>Note, you should 
+no longer try redefining the command <TT>&#92;glsnumformat</TT>, as 
+this now takes an optional argument, allowing for different 
+glossary types
+
+</DD>
+<DT><A NAME="foot1614">... space</A><A
+ HREF="manual.html#tex2html5"><SUP>4</SUP></A></DT>
+<DD>This 
+is because the <TT>altlist</TT> style is intended for use with long descriptions that will look better ending with a 
+ full stop which the user can add if desired.
+
+</DD>
+<DT><A NAME="foot1148">...&#92;glossaryalignment</A><A
+ HREF="manual.html#tex2html6"><SUP>5</SUP></A></DT>
+<DD>This isn't quite true
+anymore, see the documented code for clarification
+
+</DD>
+<DT><A NAME="foot1616">...&#92;glossaryheader</A><A
+ HREF="manual.html#tex2html7"><SUP>6</SUP></A></DT>
+<DD>Note that as from version&nbsp;2.4, 
+you must use <TT>&#92;newcommand</TT> <I>not</I> <TT>&#92;renewcommand</TT>
+
+</DD>
+<DT><A NAME="foot1617">... information</A><A
+ HREF="manual.html#tex2html9"><SUP>7</SUP></A></DT>
+<DD>This should be in the directory 
+<TT>texmf/doc/latex/graphics/</TT>
+
+</DD>
+</DL>
+<BR><HR>
+<ADDRESS>
+<a href=http://theoval.cmp.uea.ac.uk/~nlct/>Nicola L. C. Talbot</a>. <a href=http://www.cmp.uea.ac.uk/>School of Computing Sciences</a>. <a href=http://www.uea.ac.uk/>University of East Anglia.</a> Last Modified: 2006-07-25
+</ADDRESS>
+</BODY>
+</HTML>

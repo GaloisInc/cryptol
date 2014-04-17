@@ -1,0 +1,13 @@
+
+// Tuples
+tuple           = (0xFF, 0xFF)
+nested_tuple1   = (0xFF, (0xFF,0xFF))
+nested_tupel2   = ((0xFF,0xFF), 0xFF)
+empty_tuple     = ()
+
+// Records
+record          = { x = 0xFF, y = 0xFF }
+nested_record   = { x = 0xFF, y = { x = 0xFF, y = 0xFF }}
+empty_records   = {}
+
+

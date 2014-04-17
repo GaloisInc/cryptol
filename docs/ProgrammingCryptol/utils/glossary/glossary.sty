@@ -1,0 +1,979 @@
+%%
+%% This is file `glossary.sty',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% glossary.dtx  (with options: `glossary.sty,package')
+%% Copyright (C) 2006 Nicola Talbot, all rights reserved.
+%% If you modify this file, you must change its name first.
+%% You are NOT ALLOWED to distribute this file alone. You are NOT
+%% ALLOWED to take money for the distribution or use of either this
+%% file or a changed version, except for a nominal charge for copying
+%% etc.
+%% \CharacterTable
+%%  {Upper-case    \A\B\C\D\E\F\G\H\I\J\K\L\M\N\O\P\Q\R\S\T\U\V\W\X\Y\Z
+%%   Lower-case    \a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z
+%%   Digits        \0\1\2\3\4\5\6\7\8\9
+%%   Exclamation   \!     Double quote  \"     Hash (number) \#
+%%   Dollar        \$     Percent       \%     Ampersand     \&
+%%   Acute accent  \'     Left paren    \(     Right paren   \)
+%%   Asterisk      \*     Plus          \+     Comma         \,
+%%   Minus         \-     Point         \.     Solidus       \/
+%%   Colon         \:     Semicolon     \;     Less than     \<
+%%   Equals        \=     Greater than  \>     Question mark \?
+%%   Commercial at \@     Left bracket  \[     Backslash     \\
+%%   Right bracket \]     Circumflex    \^     Underscore    \_
+%%   Grave accent  \`     Left brace    \{     Vertical bar  \|
+%%   Right brace   \}     Tilde         \~}
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{glossary}[2006/07/20 2.4 (NLCT)]
+\RequirePackage{ifthen}
+\RequirePackage{keyval}
+\define@key{gloss}
+{style}
+{\ifthenelse{\equal{#1}{list} \or \equal{#1}{altlist}
+\or \equal{#1}{super} \or \equal{#1}{long}}
+{\def\gls@style{#1}}
+{\PackageError{glossary}
+{Unknown glossary style '#1'}
+{Available styles are: list, altlist, super and long}}}
+\define@key{gloss}
+{header}[plain]{\ifthenelse{\equal{#1}{none} \or \equal{#1}{plain}}
+{\def\gls@header{#1}}
+{\PackageError{glossary}
+{Unknown glossary style '#1'}
+{Available styles are: none and plain}}}
+\define@key{gloss}
+{border}[plain]{\ifthenelse{\equal{#1}{none} \or \equal{#1}{plain}}
+{\def\gls@border{#1}}
+{\PackageError{glossary}
+{Unknown glossary border '#1'}
+{Available styles are: none and plain}}}
+\newcount\gls@cols
+\define@key{gloss}{cols}{\gls@cols=#1\relax
+\ifthenelse{\gls@cols<2 \or \gls@cols>3}
+{\PackageError{glossary}
+{invalid number of columns}
+{The cols option can only be 2 or 3}}
+{}}
+\define@key{gloss}
+{number}
+{\ifthenelse{\equal{#1}{none}}
+{\def\gls@glossary@number{#1}}
+{\@ifundefined{c@#1}{
+\PackageError{glossary}
+{Unknown glossary number style '#1'}
+{You may either specify "none" or the name of a counter,
+e.g. "section"}\def\gls@glossary@number{page}}{\def\gls@glossary@number{#1}}}}
+\newif\ifgls@toc
+\define@key{gloss}{toc}[true]{\ifthenelse{\equal{#1}{true}
+\or \equal{#1}{false}}
+{\csname gls@toc#1\endcsname}
+{\PackageError{glossary}{Glossary option 'toc' is boolean}
+{The value of 'toc' can only be set to 'true' or 'false'}}}
+\newif\ifgls@hypertoc
+\define@key{gloss}{hypertoc}[true]{%
+\ifthenelse{\equal{#1}{true} \or \equal{#1}{false}}
+{\csname gls@hypertoc#1\endcsname}
+{\PackageError{glossary}{Glossary option 'hypertoc' is boolean}
+{The value of 'hypertoc' can only be set to 'true' or 'false'}}}
+\newif\ifgls@section
+\define@key{gloss}{section}[true]{%
+\ifthenelse{\equal{#1}{true} \or \equal{#1}{false}}
+{\csname gls@section#1\endcsname}
+{\PackageError{glossary}{Glossary option 'section' is boolean}
+{The value of 'section' can only be set to 'true' or 'false'}}}
+\gls@sectionfalse
+\newif\ifglshyper
+\newif\ifglshyperacronym
+\define@key{gloss}{hyper}[true]{%
+\ifthenelse{\equal{#1}{true} \or \equal{#1}{false}}
+{\csname glshyper#1\endcsname\glshyperacronymtrue}
+{\PackageError{glossary}{Glossary option 'hyper' is boolean}
+{The value of 'hyper' can only be set to 'true' or 'false'}}}
+\define@key{gloss}{hyperacronym}[true]{%
+\ifthenelse{\equal{#1}{true} \or \equal{#1}{false}}
+{\csname glshyperacronym#1\endcsname}
+{\PackageError{glossary}{Glossary option 'hyperacronym' is boolean}
+{The value of 'hyperacronym' can only be set to 'true' or 'false'}}}
+\newif\ifglsacronym
+\define@key{gloss}{acronym}[true]{%
+\ifthenelse{\equal{#1}{true} \or \equal{#1}{false}}
+{\setboolean{glsacronym}{#1}}{%
+\PackageError{glossary}{Glossary option 'acronym' is boolean}{The
+value of 'acronym' can only be set to 'true' or 'false'}}}
+\newif\ifglsglobal
+\define@key{gloss}{global}[true]{\ifthenelse{\equal{#1}{true}\or
+\equal{#1}{false}}{\setboolean{glsglobal}{#1}}{%
+\PackageError{glossary}{Glossary option 'global' is boolean}{The
+value of 'global' can only be set to 'true' or 'false'}}}
+\def\gls@style{long}
+\def\gls@header{none}
+\def\gls@border{none}
+\def\gls@glossary@number{page}
+\gls@cols=2\relax
+\gls@tocfalse
+\@ifundefined{hyperpage}{\glshyperfalse\glshyperacronymfalse}{%
+\glshypertrue\glshyperacronymtrue}
+\@ifundefined{hypertarget}{
+\newcommand{\glosslabel}[2]{#2}%
+\newcommand{\glossref}[2]{#2}%
+}{%
+\newcommand{\glosslabel}[2]{\hypertarget{#1}{#2}}%
+\newcommand{\glossref}[2]{\hyperlink{#1}{#2}}
+}
+\@ifundefined{xspace}{%
+\let\glsxspace\relax}{%
+\let\glsxspace\xspace}
+\let\glossaryalignment\relax
+\newcommand{\glossarypackageoptions}[1]{\setkeys{gloss}{#1}}
+\InputIfFileExists{glossary.cfg}{%
+\typeout{Glossary configuration file loaded}}{%
+\typeout{No configuration file glossary.cfg found}}
+\renewcommand{\glossarypackageoptions}[1]{%
+\PackageError{glossary}{Command \string\glossarypackageoptions
+^^Jcan only be used in configuration file}{}}
+\DeclareOption*{\edef\@pkg@ptions{\noexpand
+\setkeys{gloss}{\CurrentOption}}
+\ifthenelse{\equal{\CurrentOption}{}}{}{\@pkg@ptions}}
+\ProcessOptions
+\ifthenelse{\(\equal{\gls@style}{list} \or
+\equal{\gls@style}{altlist}\) \and
+\(\not\equal{\gls@header}{none} \or \not\equal{\gls@border}{none}
+\or \gls@cols=3\)}
+{\PackageError{glossary}{You can't have option 'style=list' or
+'style=altlist' in combination with any of the other style
+options}{The 'list' and 'altlist' options don't have a header,
+border or number of columns option.}}
+{}
+\ifthenelse{\boolean{gls@hypertoc} \and \boolean{gls@toc}}{%
+\PackageWarning{glossary}{Can't have both 'toc' and
+'hypertoc', ignoring 'toc' option}
+\ifgls@hypertoc\gls@tocfalse\fi}{}
+\define@key{wrgloss}{name}{%
+\def\@glo@n@me{#1}%
+\@onelevel@sanitize\@glo@n@me%
+\global\let\@glo@n@me\@glo@n@me}
+\define@key{wrgloss}{description}{%
+\def\@descr{#1}%
+\@onelevel@sanitize\@descr}
+\define@key{wrgloss}{sort}{%
+\def\@s@rt{#1}%
+\@onelevel@sanitize\@s@rt
+\global\let\@s@rt\@s@rt}
+\define@key{wrgloss}{format}{\def\@f@rm@t{#1}}
+\define@key{wrgloss}{number}{\def\@glo@num{#1}}
+\newcommand{\@@wrglossary}{}
+\newcommand{\@glo@l@bel}{}
+\newcommand{\@gls@glossary@type}{glo}
+\renewcommand{\@wrglossary}[2][glossary]{\relax
+\gdef\@glo@n@me{}\def\@descr{}\def\@s@rt{}\def\@f@rm@t{}%
+\edef\@glo@num{\csname gls@#1@number\endcsname}\relax
+\xdef\@pr@fix{\csname @gls@#1@type\endcsname}%
+ \setkeys{wrgloss}{#2}\relax
+\ifthenelse{\equal{\@glo@num}{none}}{\def\@@glo@num{\thepage}}{%
+\@ifundefined{c@\@glo@num}{\PackageError{glossary}{%
+Not such counter '\@glo@num'}{The value of the 'number' key
+must be the name of a counter or the word "none"}%
+\def\@@glo@num{\thepage}}{%
+\edef\@@glo@num{\csname the\@glo@num\endcsname}}}%
+\ifthenelse{\equal{\@s@rt}{}}{\gdef\@s@rt{\@glo@n@me}}{}%
+\ifthenelse{\equal{\@glo@l@bel}{}}{%
+\gdef\@glo@l@bel{\@pr@fix:\@s@rt}}{}%
+\ifthenelse{\equal{\@f@rm@t}{}}
+{\expandafter\protected@write\csname @#1file\endcsname{}%
+{\string\glossaryentry{\@s@rt @{%
+\string\glosslabel{\@glo@l@bel}{\@glo@n@me}}\@descr
+\string\relax|glsnumformat}{\@@glo@num}}}
+{\ifthenelse{\equal{\@f@rm@t}{hyperrm} \or
+\equal{\@f@rm@t}{hypersf} \or \equal{\@f@rm@t}{hypertt}
+\or \equal{\@f@rm@t}{hypermd} \or \equal{\@f@rm@t}{hyperbf}
+\or \equal{\@f@rm@t}{hyperit} \or \equal{\@f@rm@t}{hyperem}
+\or \equal{\@f@rm@t}{hypersl} \or \equal{\@f@rm@t}{hyperup}
+\or \equal{\@f@rm@t}{hypersc}}
+{\expandafter\protected@write\csname @#1file\endcsname{}%
+    {\string\glossaryentry{\@s@rt @{%
+     \string\glosslabel{\@glo@l@bel}{\@glo@n@me}}\@descr
+     \string\relax|\@f@rm@t[\@glo@num]}{\@@glo@num}}}
+{\expandafter\protected@write\csname @#1file\endcsname{}%
+    {\string\glossaryentry{\@s@rt @{%
+     \string\glosslabel{\@glo@l@bel}{\@glo@n@me}}\@descr
+     \string\relax|\@f@rm@t}{\@@glo@num}}}}\relax
+ \endgroup\@esphack
+\@@wrglossary
+}
+\define@key{wrnsgloss}{name}{\def\@glo@n@me{#1}}
+\define@key{wrnsgloss}{description}{\def\@descr{#1}}
+\define@key{wrnsgloss}{sort}{\def\@s@rt{#1}}
+\define@key{wrnsgloss}{format}{\def\@f@rm@t{#1}}
+\define@key{wrnsgloss}{number}{\def\@glo@num{#1}}
+\newcommand{\@gls@getn@me}[1]{%
+\def\@glo@n@me{}\setkeys{wrnsgloss}{#1}%
+}
+\newcommand{\@gls@getdescr}[1]{%
+\@bsphack\begingroup
+\def\@descr{}%
+\setkeys{wrgloss}{#1}%
+\global\let\@glo@desc\@descr
+\endgroup\@esphack
+}
+\newcommand{\xglossary}{\renewcommand{\@@wrglossary}[1]{%
+\glossref{\@glo@l@bel}{##1}\renewcommand{\@@wrglossary}{}}%
+\glossary}
+\newcommand*{\@glo@label@list}{}
+\toksdef\gls@ta=0 \toksdef\gls@tb=2
+\newcommand{\@glo@label@addtolist}[1]{%
+\gls@ta={{#1}}\gls@tb=\expandafter{\@glo@label@list}%
+\xdef\@glo@label@list{\the\gls@ta,\the\gls@tb}}
+\newcommand*{\storeglosentry}[3][glossary]{%
+\ifthenelse{\equal{#2}{*}}{%
+\PackageError{glossary}{Glossary label '*' invalid}{You can't have
+a glossary entry with a * as the label}}{%
+\@ifundefined{glo@#2@entry}{%
+\@glo@label@addtolist{#2}%
+\expandafter\def\csname glo@#2@type\endcsname{#1}%
+\expandafter\def\csname glo@#2@entry\endcsname{#3}%
+\@gls@getn@me{#3}%
+\expandafter\protected@edef\csname glo@#2@name\endcsname{\@glo@n@me}%
+}{%
+\PackageError{glossary}{Glossary entry '#2' already
+defined}{There already exists a glossary entry with the label '#2'}}}%
+}
+\providecommand{\useglosentry}[2][\relax]{%
+\ifthenelse{\equal{#2}{*}}{\@for\@glolab:=\@glo@label@list\do{%
+\ifthenelse{\equal{\@glolab}{}}{}{\useglosentry[#1]{\@glolab}}}}{%
+\@ifundefined{glo@#2@type}{%
+\PackageError{glossary}{Glossary entry '#2' undefined}{You need
+to define the entry using \string\storeglosentry\space before
+using it.}}{{%
+\edef\@glostype{\csname glo@#2@type\endcsname}%
+\@glo@tb=\expandafter\expandafter\expandafter
+{\csname glo@#2@entry\endcsname}%
+\ifx#1\relax
+\edef\@glo@cmd{\expandafter\noexpand
+\csname\@glostype\endcsname{\the\@glo@tb}}%
+\else
+\edef\@glo@cmd{\expandafter\noexpand
+\csname\@glostype\endcsname{\the\@glo@tb,#1}}%
+\fi
+\@glo@cmd
+}}}}
+\providecommand{\useGlosentry}[3][\relax]{%
+\@ifundefined{glo@#2@type}{%
+\PackageError{glossary}{Glossary entry '#2' undefined}{You need
+to define the entry using \string\storeglosentry\space before
+using it.}}{{%
+\edef\@glostype{x\csname glo@#2@type\endcsname}%
+\@glo@tb=\expandafter\expandafter\expandafter
+{\csname glo@#2@entry\endcsname}%
+\ifx#1\relax
+\edef\@glo@cmd{\expandafter\noexpand
+\csname\@glostype\endcsname{\the\@glo@tb}}%
+\else
+\edef\@glo@cmd{\expandafter\noexpand
+\csname\@glostype\endcsname{\the\@glo@tb,#1}}%
+\fi
+\@glo@cmd{#3}%
+}}}
+\newcommand{\gls}[2][\relax]{%
+\useGlosentry[#1]{#2}{%
+\csname glo@#2@name\endcsname}}
+\providecommand{\saveglosentry}[3][glossary]{%
+\PackageWarning{glossary}{\string\saveglosentry\space is obsolete,
+please use \string\storeglosentry\space instead}%
+\expandafter\def\csname glo@#2@type\endcsname{#1}%
+\expandafter\def\csname glo@#2@entry\endcsname{%
+name={#2},description={#3}}}
+\newcommand*{\@gls@setnumbering}[2][glossary]{%
+\ifthenelse{\equal{#2}{none}}{%
+\def\pagecompositor{-}
+\expandafter\def\csname @#1@delimN\endcsname{}
+\expandafter\def\csname @#1@delimR\endcsname{}
+\expandafter\def\csname glsX#1Xnumformat\endcsname##1{}}{%
+\ifthenelse{\equal{#2}{page}}{%
+\def\pagecompositor{-}}{%
+\def\pagecompositor{.}}
+\expandafter\def\csname @#1@delimN\endcsname{, }
+\expandafter\def\csname @#1@delimR\endcsname{--}
+\ifglshyper
+\expandafter\def\csname glsX#1Xnumformat\endcsname##1{%
+\hyperrm[#2]{##1}}%
+\else
+\expandafter\def\csname glsX#1Xnumformat\endcsname##1{##1}\fi
+}
+}
+\@gls@setnumbering{\gls@glossary@number}
+\newcommand{\glsnumformat}[1]{%
+\@ifundefined{\@glostype}{\def\@glostype{glossary}}{}%
+\@ifundefined{glsX\@glostype Xnumformat}{%
+\PackageError{glossary}{Glossary type '\@glostype' undefined}{}}{%
+\csname glsX\@glostype Xnumformat\endcsname{#1}}}
+\def\@glostype{glossary}
+\newcommand{\delimN}{\csname @\@glostype @delimN\endcsname}
+\newcommand{\delimR}{\csname @\@glostype @delimR\endcsname}
+\newcommand{\gloitem}{\csname @\@glostype @gloitem\endcsname}
+\newcommand{\gloskip}{\csname @\@glostype @gloskip\endcsname}
+\newcommand{\delimT}{\glsafternum
+\csname @\@glostype @delimT\endcsname}
+\newcommand{\glodelim}{\csname @\@glostype @glodelim\endcsname
+\glsbeforenum}
+\newcommand{\glogroupSymbols}{}
+\newcommand{\glogroupNumbers}{}
+\newcommand{\glogroupA}{}
+\newcommand{\glogroupB}{}
+\newcommand{\glogroupC}{}
+\newcommand{\glogroupD}{}
+\newcommand{\glogroupE}{}
+\newcommand{\glogroupF}{}
+\newcommand{\glogroupG}{}
+\newcommand{\glogroupH}{}
+\newcommand{\glogroupI}{}
+\newcommand{\glogroupJ}{}
+\newcommand{\glogroupK}{}
+\newcommand{\glogroupL}{}
+\newcommand{\glogroupM}{}
+\newcommand{\glogroupN}{}
+\newcommand{\glogroupO}{}
+\newcommand{\glogroupP}{}
+\newcommand{\glogroupQ}{}
+\newcommand{\glogroupR}{}
+\newcommand{\glogroupS}{}
+\newcommand{\glogroupT}{}
+\newcommand{\glogroupU}{}
+\newcommand{\glogroupV}{}
+\newcommand{\glogroupW}{}
+\newcommand{\glogroupX}{}
+\newcommand{\glogroupY}{}
+\newcommand{\glogroupZ}{}
+\define@key{glossnum}{glsnumformat}{\def\@glsnumformat{#1}}
+\define@key{glossnum}{type}{\def\@glsnumtype{#1}}
+\define@key{glossnum}{delimN}{\def\@delimN{#1}}
+\define@key{glossnum}{delimR}{\def\@delimR{#1}}
+\define@key{glossnum}{delimT}{\def\@delimT{#1}}
+\define@key{glossnum}{gloskip}{\def\@gloskip{#1}}
+\define@key{glossnum}{glodelim}{\def\@glodelim{#1}}
+\providecommand{\ignore}[1]{}
+\newcommand{\setglossary}[1]{%
+\def\@glsnumformat{}%
+\def\@glsnumtype{glossary}%
+\def\@delimN{@dontchange@}%
+\def\@delimR{@dontchange@}%
+\def\@delimT{@dontchange@}%
+\def\@gloskip{@dontchange@}%
+\def\@glodelim{@dontchange@}%
+\setkeys{glossnum}{#1}\relax
+\@ifundefined{print\@glsnumtype}{%
+\PackageError{glossary}{Invalid glossary type '\@glsnumtype'}{%
+Glossary type '\@glsnumtype' has not been defined}
+}{%
+\ifthenelse{\equal{\@glsnumformat}{}}{}{%
+\expandafter\xdef\csname glsX\@glsnumtype Xnumformat\endcsname{%
+\noexpand\csname\@glsnumformat\noexpand\endcsname}%
+\ifthenelse{\equal{\@glsnumformat}{ignore}}{%
+\expandafter\xdef\csname @\@glsnumtype @delimN\endcsname{}%
+\expandafter\xdef\csname @\@glsnumtype @delimR\endcsname{}%
+}{}%
+}%
+\ifthenelse{\equal{\@delimN}{@dontchange@}}{}{%
+\expandafter\xdef\csname @\@glsnumtype @delimN\endcsname{%
+\@delimN}}%
+\ifthenelse{\equal{\@delimR}{@dontchange@}}{}{%
+\expandafter\xdef\csname @\@glsnumtype @delimR\endcsname{%
+\@delimR}}%
+\ifthenelse{\equal{\@delimT}{@dontchange@}}{}{%
+\expandafter\xdef\csname @\@glsnumtype @delimT\endcsname{%
+\@delimT}}%
+\ifthenelse{\equal{\@gloskip}{@dontchange@}}{}{%
+\expandafter\xdef\csname @\@glsnumtype @gloskip\endcsname{%
+\@gloskip}}%
+\ifthenelse{\equal{\@glodelim}{@dontchange@}}{}{%
+\expandafter\xdef\csname @\@glsnumtype @glodelim\endcsname{%
+\@glodelim}%
+}%
+}}
+\newcommand{\@gls@glossary@inext}{gls}
+\newcommand\printglossary[1][glossary]{%
+\def\@glostype{#1}%
+\@ifundefined{#1name}{%
+\renewcommand{\@glossaryname}{\glossaryname}}{%
+\renewcommand{\@glossaryname}{\csname #1name\endcsname}}%
+\@ifundefined{short#1name}{%
+\renewcommand{\@shortglossaryname}{\@glossaryname}}{%
+\renewcommand{\@shortglossaryname}{\csname short#1name\endcsname}}%
+\expandafter\let\expandafter\gls@number\csname gls@#1@number\endcsname
+\@input@{\jobname.\csname @gls@#1@inext\endcsname}}
+\providecommand{\glossaryname}{Glossary}
+\newcommand{\shortglossaryname}{\glossaryname}
+\newcommand{\entryname}{Notation}
+\newcommand{\descriptionname}{Description}
+\newcommand{\istfilename}{\jobname.ist}
+\def\@glossaryname{\glossaryname}
+\def\@shortglossaryname{\shortglossaryname}
+\newcommand{\@istfilename}[1]{}
+\providecommand{\glossarytitle}{%
+\@ifundefined{chapter}%
+{%
+\ifgls@hypertoc
+\phantomsection
+\@glosaddtoc{section}%
+\section*{\@glossaryname}\relax
+\else
+\section*{\@glossaryname}\relax
+\ifgls@toc\@glosaddtoc{section}\fi
+\fi}%
+{%
+\ifthenelse{\boolean{gls@section}}%
+{%
+\ifgls@hypertoc
+\phantomsection
+\@glosaddtoc{section}%
+\section*{\@glossaryname}\relax
+\else
+\section*{\@glossaryname}\relax
+\ifgls@toc\@glosaddtoc{section}\fi
+\fi}%
+{%
+\ifgls@hypertoc
+\@ifundefined{if@twoside}{%
+\clearpage}{%
+\if@twoside
+\@ifundefined{cleardoublepage}{\clearpage}{\cleardoublepage}%
+\else
+\clearpage
+\fi}%
+\phantomsection
+\@glosaddtoc{chapter}%
+\fi
+\chapter*{\@glossaryname}\relax
+\ifgls@toc\@glosaddtoc{chapter}\fi}}
+\markboth{\@shortglossaryname}{\@shortglossaryname}%
+}
+\@ifundefined{theglossary}{%
+\newenvironment{theglossary}{}{}}{%
+\PackageWarning{glossary}{Redefining 'theglossary' environment}}
+\renewenvironment{theglossary}{%
+\glossarytitle
+\glossarypreamble\@bef@reglos}{\@ftergl@s\glossarypostamble}
+\newcommand{\glossarypreamble}{}
+\newcommand{\glossarypostamble}{}
+\newcommand{\@glosaddtoc}[1]{%
+\addcontentsline{toc}{#1}{\@shortglossaryname}
+}
+\newif\ifgloitemfirst
+\newcommand{\@bef@reglos}{\global\gloitemfirsttrue\beforeglossary}
+\newcommand{\@ftergl@s}{\afterglossary\global\gloitemfirstfalse}
+\newcommand{\glossaryalignment}{\relax}
+\newcommand{\@gls@align@glossary}{}
+\newcommand{\glosstail}{%
+\@ifundefined{@gls@tail@\@glostype}{%
+\PackageError{glossary}{No glossary tail defined for glossary
+type '\@glostype'}{}}{%
+\csname @gls@tail@\@glostype\endcsname}}
+\newcommand{\@gls@tail@glossary}{}
+\newcommand{\afterglossary}{%
+\@ifundefined{@gls@afterglos@\@glostype}{%
+\PackageError{glossary}{No after glossary defined for glossary
+type '\@glostype'}{}}{%
+\csname @gls@afterglos@\@glostype\endcsname}}
+\newcommand{\beforeglossary}{%
+\@ifundefined{@gls@beforeglos@\@glostype}{%
+\PackageError{glossary}{No before glossary defined for glossary
+type '\@glostype'}{}}{%
+\csname @gls@beforeglos@\@glostype\endcsname}}
+\newcommand{\@gls@beforeglos@glossary}{}
+\newcommand{\@gls@afterglos@glossary}{}
+\newcommand{\@glossary@glodelim}{}
+\newcommand{\@glossary@delimT}{}
+\newcommand{\glsafternum}{}
+\newcommand{\glsbeforenum}{}
+\newcommand{\@glossary@gloskip}{}
+\newcommand{\@glossary@gloitem}[1]{#1}
+\newcommand{\gls@setlist}[1][glossary]{%
+\expandafter\def\csname @gls@beforeglos@#1\endcsname{%
+\begin{description}}%
+\expandafter\def\csname @gls@afterglos@#1\endcsname{%
+\end{description}}%
+\expandafter\def\csname @#1@gloskip\endcsname{\indexspace}%
+\ifthenelse{\equal{\csname gls@#1@number\endcsname}{none}}{%
+\expandafter\def\csname @#1@glodelim\endcsname{}}{%
+\expandafter\def\csname @#1@glodelim\endcsname{, }}%
+\expandafter\def\csname @#1@gloitem\endcsname##1{\item[##1]}%
+\expandafter\def\csname @#1@delimT\endcsname{}
+}
+\newcommand{\gls@setaltlist}[1][glossary]{%
+\expandafter\def\csname @gls@beforeglos@#1\endcsname{%
+\begin{description}}%
+\expandafter\def\csname @gls@afterglos@#1\endcsname{%
+\end{description}}%
+\expandafter\def\csname @#1@gloskip\endcsname{\indexspace}%
+\expandafter\def\csname @#1@gloitem\endcsname##1{%
+\item[##1]\mbox{}\nopagebreak\par\nopagebreak}%
+\expandafter\def\csname @#1@glodelim\endcsname{ }%
+\expandafter\def\csname @#1@delimT\endcsname{}
+}
+\ifthenelse{\equal{\gls@style}{super}}{
+\IfFileExists{supertab.sty}{\RequirePackage{supertab}}
+{\IfFileExists{supertabular.sty}{\RequirePackage{supertabular}}
+{\PackageError{glossary}{Option "super" chosen, but can't find
+"supertab" package}{If you want the "super" option, you have to have
+the "supertab" package installed.}}}}
+{\RequirePackage{longtable}}
+\newlength{\descriptionwidth}
+\setlength{\descriptionwidth}{0.6\linewidth}
+\newcommand{\@glossaryheader}{%
+\@ifundefined{glossaryheader}{\csname @\@glostype @header\endcsname}
+{\glossaryheader}%
+\@ifundefined{glossarysubheader}{}{\glossarysubheader}%
+}
+\newcommand{\gls@setheader}[1][glossary]{%
+\ifthenelse{\equal{\gls@header}{none}}%
+{%
+\ifthenelse{\equal{\gls@border}{none}}
+{\expandafter\def\csname @#1@header\endcsname{}%
+}{\expandafter\def\csname @#1@header\endcsname{\hline}}%
+}{%
+\ifnum\gls@cols=2\relax
+\ifthenelse{\equal{\gls@border}{none}}
+{%
+\expandafter\def\csname @#1@header\endcsname{%
+\bfseries\entryname & \bfseries \descriptionname\\}}%
+{%
+\expandafter\def\csname @#1@header\endcsname{%
+\hline\bfseries\entryname & \bfseries\descriptionname
+\\\hline\hline}}%
+\else
+\ifthenelse{\equal{\gls@border}{none}}
+{%
+\expandafter\def\csname @#1@header\endcsname{%
+\bfseries\entryname & \bfseries \descriptionname &
+\bfseries \glspageheader \\}}%
+{%
+\expandafter\def\csname @#1@header\endcsname{%
+\hline\bfseries\entryname &\bfseries\descriptionname &
+\bfseries \glspageheader \\\hline\hline}}%
+\fi
+}}
+\newcommand*{\glspageheader}{}
+\newcommand{\gls@setalignment}[1][glossary]{%
+\ifthenelse{\equal{\gls@border}{none}}
+{
+\ifnum\gls@cols=2\relax
+\expandafter\def\csname @gls@align@#1\endcsname{%
+@{\hspace{\tabcolsep}\bfseries}lp{\descriptionwidth}}
+\else
+\expandafter\def\csname @gls@align@#1\endcsname{%
+@{\hspace{\tabcolsep}\bfseries}lp{\descriptionwidth}l}
+\fi
+\expandafter\def\csname @gls@tail@#1\endcsname{}%
+}{%
+\ifnum\gls@cols=2\relax
+\expandafter\def\csname @gls@align@#1\endcsname{%
+|@{\hspace{\tabcolsep}\bfseries
+}lp{\descriptionwidth}|}
+\else
+\expandafter\def\csname @gls@align@#1\endcsname{%
+|@{\hspace{\tabcolsep}\bfseries
+}lp{\descriptionwidth}l|}
+\fi
+\expandafter\def\csname @gls@tail@#1\endcsname{\hline}%
+}%
+\expandafter\def\csname @#1@delimT\endcsname{\\}
+\ifnum\gls@cols=2\relax
+\expandafter\def\csname @#1@gloskip\endcsname{& \\}%
+\ifthenelse{\equal{\csname gls@#1@number\endcsname}{none}}{%
+\expandafter\def\csname @#1@glodelim\endcsname{}}{%
+\expandafter\def\csname @#1@glodelim\endcsname{, }}%
+\else
+\expandafter\def\csname @#1@gloskip\endcsname{& & \\}%
+\expandafter\def\csname @#1@glodelim\endcsname{& }%
+\fi
+\expandafter\def\csname @#1@gloitem\endcsname##1{##1 &}%
+}
+\newcommand{\@st@rtglostable}[2]{%
+\gls@ta={\begin{#1}}\gls@tb=\expandafter{#2}%
+\edef\@st@rtglost@ble{\the\gls@ta{\the\gls@tb}}
+\@st@rtglost@ble}
+\newcommand{\gls@setsuper}[1][glossary]{%
+\gls@setalignment[#1]%
+\gls@setheader[#1]%
+\expandafter\def\csname @gls@beforeglos@#1\endcsname{%
+\tablehead{\@glossaryheader}\tabletail{\glosstail}%
+\if\glossaryalignment\relax
+\expandafter\let\expandafter\@glossaryalignment
+\csname @gls@align@#1\endcsname
+\else
+\let\@glossaryalignment\glossaryalignment
+\fi
+\@st@rtglostable{supertabular}\@glossaryalignment}
+\expandafter\def\csname @gls@afterglos@#1\endcsname{%
+\end{supertabular}}%
+}
+\newcommand{\gls@setlong}[1][glossary]{%
+\gls@setalignment[#1]%
+\gls@setheader[#1]%
+\expandafter\def\csname @gls@beforeglos@#1\endcsname{%
+\if\relax\glossaryalignment
+\expandafter\let\expandafter\@glossaryalignment
+\csname @gls@align@#1\endcsname
+\else
+\let\@glossaryalignment\glossaryalignment
+\fi
+\@st@rtglostable{longtable}{\@glossaryalignment}
+\@glossaryheader\endhead\glosstail\endfoot}
+\expandafter\def\csname @gls@afterglos@#1\endcsname{%
+\end{longtable}}%
+}
+\newcommand{\@setglossarystyle}[1][glossary]{%
+\@ifundefined{gls@set\gls@style}{%
+\PackageError{glossary}{Glossary style '\gls@style' undefined}{}}{%
+\ifthenelse{\equal{\gls@number}{}}{}{%
+\expandafter\edef\csname gls@#1@number\endcsname{\gls@number}%
+\@gls@setnumbering[#1]{\gls@number}%
+}%
+\csname gls@set\gls@style\endcsname[#1]}}
+\let\gls@number\gls@glossary@number
+\@setglossarystyle
+\define@key{glosstyle}
+{style}
+{\ifthenelse{\equal{#1}{list} \or \equal{#1}{altlist}
+\or \equal{#1}{super} \or \equal{#1}{long}}
+{\def\gls@style{#1}}
+{\PackageError{glossary}
+{Unknown glossary style '#1'}
+{Available styles are: list, altlist, super and long}}}
+\define@key{glosstyle}
+{header}[plain]{\ifthenelse{\equal{#1}{none} \or \equal{#1}{plain}}
+{\def\gls@header{#1}}
+{\PackageError{glossary}
+{Unknown glossary style '#1'}
+{Available styles are: none and plain}}}
+\define@key{glosstyle}
+{border}[plain]{\ifthenelse{\equal{#1}{none} \or \equal{#1}{plain}}
+{\def\gls@border{#1}}
+{\PackageError{glossary}
+{Unknown glossary border '#1'}
+{Available styles are: none and plain}}}
+\define@key{glosstyle}{cols}{\gls@cols=#1\relax
+\ifthenelse{\gls@cols<2 \or \gls@cols>3}
+{\PackageError{glossary}
+{invalid number of columns}
+{The cols option can only be 2 or 3}}
+{}}
+\define@key{glosstyle}
+{number}
+{\ifthenelse{\equal{#1}{none}}
+{\def\gls@number{#1}}
+{\@ifundefined{c@#1}{
+\PackageError{glossary}
+{Unknown glossary number style '#1'}
+{You may either specify "none" or the name of a counter,
+e.g. "section"}\def\gls@number{page}}{\def\gls@number{#1}}}}
+\newcommand{\setglossarystyle}[2][glossary]{%
+\def\gls@number{}%
+\setkeys{glosstyle}{#2}%
+\@setglossarystyle[#1]%
+}
+\ifthenelse{\equal{\gls@glossary@number}{none} \and \gls@cols<3}{%
+\renewcommand{\@glossary@glodelim}{}}{}
+\newif\ifist
+\let\noist=\istfalse
+\if@filesw\isttrue\else\istfalse\fi
+\newwrite\istfile
+\catcode`\%11\relax
+\newcommand{\writeist}{
+\protected@write\@auxout{}{\protect\@istfilename{\istfilename}}
+\openout\istfile=\istfilename
+\write\istfile{% makeindex style file created by LaTeX for document "\jobname" on \the\year-\the\month-\the\day}
+\write\istfile{keyword "\string\\glossaryentry"}
+\write\istfile{preamble "\string\\begin{theglossary}"}
+\write\istfile{postamble "\string\n\string\\end{theglossary}\string\n"}
+\write\istfile{group_skip "\string\\gloskip "}
+\write\istfile{item_0 "\string\n\string\n\string\\gloitem "}
+\write\istfile{delim_0 "\string\n\string\\glodelim "}
+\write\istfile{page_compositor "\pagecompositor"}
+\write\istfile{delim_n "\string\\delimN "}
+\write\istfile{delim_r "\string\\delimR "}
+\write\istfile{delim_t "\string\\delimT "}
+\write\istfile{headings_flag 1}
+\write\istfile{heading_prefix "\string\\glogroup"}
+\write\istfile{symhead_positive "Symbols"}
+\write\istfile{numhead_positive "Numbers"}
+\closeout\istfile
+}
+\catcode`\%14\relax
+\renewcommand{\makeglossary}{
+\newwrite\@glossaryfile
+\immediate\openout\@glossaryfile=\jobname.glo
+\renewcommand{\glossary}[1][]{\gdef\@glo@l@bel{##1}%
+\@bsphack \begingroup \@wrglossary }
+\typeout {Writing glossary file \jobname .glo }
+\let \makeglossary \@empty
+\ifist\writeist\fi
+\noist}
+\renewcommand{\glossary}[1][]{%
+\@bsphack\begingroup\@sanitize\@index}
+\newcommand{\newglossarytype}[4][glg]{
+\@ifundefined{#2}{%
+\protected@write\@auxout{}{\@newglossarytype[#1]{#2}{#3}{#4}}%
+\def\@glstype{#2}\def\@glsout{#3}\def\@glsin{#4}%
+\expandafter\edef\csname gls@\@glstype @number\endcsname{%
+\gls@glossary@number}%
+\expandafter\gdef\csname glsX\@glstype Xnumformat\endcsname{%
+\glsXglossaryXnumformat}%
+\expandafter\gdef\csname @\@glstype @delimN\endcsname{%
+\@glossary@delimN}%
+\expandafter\gdef\csname @\@glstype @delimR\endcsname{%
+\@glossary@delimR}%
+\expandafter\gdef\csname @gls@\@glstype @inext\endcsname{#4}%
+\expandafter\def\csname @gls@#2@type\endcsname{#4}%
+\expandafter\edef\csname make\@glstype\endcsname{%
+\noexpand\@m@kegl@ss{\@glstype}{\@glsout}}
+\expandafter\edef\csname \@glstype\endcsname{%
+\noexpand\@gl@ss@ary{\@glstype}}
+\expandafter\edef\csname x\@glstype\endcsname{%
+\noexpand\@Gl@ss@ary{\@glstype}}
+\@namedef{print\@glstype}{%
+\printglossary[#2]}%
+}{\PackageError{glossary}{Command
+\expandafter\string\csname #2\endcsname \space already defined}{%
+You can't call your new glossary type '#2' because there already
+exists a command with this name}}%
+\@@n@wglostype}
+\newcommand{\@@n@wglostype}[1][]{%
+\setglossarystyle[\@glstype]{#1}}
+\newcommand{\@newglossarytype}[4][glg]{}
+\newcommand\@m@kegl@ss[2]{%
+\expandafter\newwrite\csname @#1file\endcsname
+\expandafter\immediate\expandafter
+\openout\csname @#1file\endcsname=\jobname.#2
+\typeout {Writing #1 file \jobname .#2 }
+\expandafter\let \csname make#1\endcsname \@empty
+\ifist\writeist\fi
+\expandafter\def\csname the#1num\endcsname{\thepage}
+\noist
+}
+\newcommand\@gl@ss@ary[2][]{\@ifundefined{@#2file}{%
+\@bsphack\begingroup\@sanitize \@index}{%
+\gdef\@glo@l@bel{#1}%
+\@bsphack \begingroup \@wrglossary[#2]}}
+\newcommand{\@Gl@ss@ary}{%
+\renewcommand{\@@wrglossary}[1]{%
+\glossref{\@glo@l@bel}{##1}\renewcommand{\@@wrglossary}{}}%
+\@gl@ss@ary}
+\@onlypreamble{\newglossarytype}
+\newcommand\@acrnmsh{}
+\newcommand\@sacrnmsh{}
+\newcommand\@acrnmln{}
+\newcommand\@acrnmcmd{}
+\newcommand\@acrnmgls{}
+\newcommand\@acrnmins{}
+\toksdef\@glo@tb=2
+\newcommand{\@acr@list}{}
+\newcommand{\@acr@addtolist}[1]{\edef\@glo@ta{#1}%
+\ifthenelse{\equal{\@acr@list}{}}{%
+\edef\@acr@list{\@glo@ta}}{%
+\@glo@tb=\expandafter{\@acr@list}%
+\edef\@acr@list{\the\@glo@tb,\@glo@ta}}}
+\newcommand{\@acronymnamefmt}{\glolong\ (\gloshort)}
+\newcommand{\setacronymnamefmt}[1]{\def\@acronymnamefmt{#1}}
+\newcommand{\@acronymdescfmt}{\glodesc}
+\newcommand{\setacronymdescfmt}[1]{\def\@acronymdescfmt{#1}}
+\newcommand{\acronymfont}[1]{#1}
+\newcommand{\newacronym}[4][]{%
+\ifthenelse{\equal{#1}{}}{\renewcommand\@acrnmcmd{#2}}{%
+\renewcommand\@acrnmcmd{#1}}
+\@ifundefined{\@acrnmcmd}{%
+\expandafter\newcommand\csname\@acrnmcmd short\endcsname{%
+#2\protect\glsxspace}
+\expandafter\newcommand\csname\@acrnmcmd @nx@short\endcsname{#2}
+\expandafter\newcommand\csname\@acrnmcmd long\endcsname{%
+#3\protect\glsxspace}
+\expandafter\newcommand\csname\@acrnmcmd @nx@long\endcsname{#3}
+\def\@acrn@entry{#4}%
+{%
+\expandafter\@gls@getdescr\expandafter{\@acrn@entry}%
+\let\glodesc\@glo@desc%
+\def\glolong{#3}%
+\@onelevel@sanitize\glolong
+\def\gloshort{\noexpand\acronymfont{#2}}%
+\@onelevel@sanitize\gloshort
+\expandafter\protected@xdef\expandafter\@acrnamefmt{\@acronymnamefmt}
+\expandafter\protected@xdef\expandafter\@acrdesc{\@acronymdescfmt}
+}%
+\@acr@addtolist{\@acrnmcmd}
+\@glo@tb=\expandafter{\@acrn@entry}%
+\protected@edef\@acr@glsentry{name={\@acrnamefmt},%
+format=glsnumformat,sort={\@acrnmcmd},\the\@glo@tb,%
+description={\@acrdesc}}%
+\@glo@tb=\expandafter{\@acr@glsentry}%
+\newboolean{\@acrnmcmd first}\setboolean{\@acrnmcmd first}{true}
+\expandafter\protected@edef\csname \@acrnmcmd\endcsname{%
+\noexpand\@ifstar{\csname @s@\@acrnmcmd\endcsname}{%
+\csname @\@acrnmcmd\endcsname}}
+\ifglshyperacronym % hyperlinks
+\expandafter\protected@edef\csname @\@acrnmcmd\endcsname{%
+\noexpand\ifthenelse{\noexpand\boolean{\@acrnmcmd first}}{%
+\csname\@acrnmcmd @nx@long\endcsname\noexpand\@acrnmins\
+(\noexpand\xacronym{\the\@glo@tb}{%
+\noexpand\acronymfont{\csname\@acrnmcmd @nx@short\endcsname}%
+})\noexpand\unsetacronym{\@acrnmcmd}%
+}{\noexpand\xacronym{\the\@glo@tb}{%
+\noexpand\acronymfont{\csname\@acrnmcmd @nx@short\endcsname}%
+\noexpand\@acrnmins}}\noexpand\glsxspace}
+\expandafter\protected@edef\csname @s@\@acrnmcmd\endcsname{%
+\noexpand\ifthenelse{\noexpand\boolean{\@acrnmcmd first}}{%
+\noexpand\expandafter\noexpand\MakeUppercase
+\csname\@acrnmcmd @nx@long\endcsname\noexpand\@acrnmins\
+(\noexpand\xacronym{\the\@glo@tb}{%
+\noexpand\acronymfont{\csname\@acrnmcmd @nx@short\endcsname}%
+})%
+\noexpand\unsetacronym{\@acrnmcmd}}{%
+\noexpand\xacronym{\the\@glo@tb}{%
+\noexpand\acronymfont{\noexpand\expandafter\noexpand\MakeUppercase
+\csname\@acrnmcmd @nx@short\endcsname}%
+\noexpand\@acrnmins}}\noexpand\glsxspace}
+\else % no hyperlinks
+\expandafter\protected@edef\csname @\@acrnmcmd\endcsname{%
+\noexpand\ifthenelse{\noexpand\boolean{\@acrnmcmd first}}{%
+\csname\@acrnmcmd @nx@long\endcsname\noexpand\@acrnmins\
+(\noexpand\acronym{\the\@glo@tb}{%
+\noexpand\acronymfont{\csname\@acrnmcmd @nx@short\endcsname}%
+})\noexpand\unsetacronym{\@acrnmcmd}%
+}{\noexpand\acronym{\the\@glo@tb}{%
+\noexpand\acronymfont{\csname\@acrnmcmd @nx@short\endcsname}%
+\noexpand\@acrnmins}}%
+\noexpand\glsxspace}
+\expandafter\protected@edef\csname @s@\@acrnmcmd\endcsname{%
+\noexpand\ifthenelse{\noexpand\boolean{\@acrnmcmd first}}{%
+\noexpand\expandafter
+\noexpand\MakeUppercase
+\csname\@acrnmcmd @nx@long\endcsname\noexpand\@acrnmins\
+(\noexpand\acronym{\the\@glo@tb}{%
+\noexpand\acronymfont{\csname\@acrnmcmd @nx@short\endcsname}%
+})%
+\noexpand\unsetacronym{\@acrnmcmd}}{%
+\noexpand\acronym{\the\@glo@tb}{%
+\noexpand\acronymfont{\noexpand\expandafter\noexpand\MakeUppercase
+\csname\@acrnmcmd @nx@short\endcsname}%
+\noexpand\@acrnmins}}\noexpand\glsxspace}
+\fi
+}{%
+\PackageError{glossary}{Command '\expandafter\string
+\csname\@acrnmcmd\endcsname' already defined}{%
+The command name specified by \string\newacronym already exists.}}}
+\newcommand{\useacronym}{\@ifstar\@suseacronym\@useacronym}
+\newcommand{\@suseacronym}[2][]{{\let\glsxspace\relax
+\def\@acrnmins{#1}\csname @s@#2\endcsname}%
+\setboolean{#2first}{false}}
+\newcommand{\@useacronym}[2][]{{\let\glsxspace\relax
+\def\@acrnmins{#1}\csname @#2\endcsname}%
+\setboolean{#2first}{false}}
+\newcommand{\acrln}{\@ifstar\@sacrln\@acrln}
+\newcommand{\@acrln}[1]{\@ifundefined{#1long}{%
+\PackageError{glossary}{Acronym '#1' has not been defined}{}}{%
+\csname#1@nx@long\endcsname}}
+\newcommand{\@sacrln}[1]{\@ifundefined{#1long}{%
+\PackageError{glossary}{Acronym '#1' has not been defined}{}}{%
+\expandafter\expandafter\expandafter
+\MakeUppercase\csname#1@nx@long\endcsname}}
+\newcommand{\acrsh}{\@ifstar\@sacrsh\@acrsh}
+\newcommand{\@acrsh}[1]{\@ifundefined{#1short}{%
+\PackageError{glossary}{Acronym '#1' has not been defined}{}}{%
+\acronymfont{\csname#1@nx@short\endcsname}}}
+\newcommand{\@sacrsh}[1]{\@ifundefined{#1short}{%
+\PackageError{glossary}{Acronym '#1' has not been defined}{}}{%
+\acronymfont{\expandafter\expandafter\expandafter
+\MakeUppercase\csname#1@nx@short\endcsname}}}
+\newcommand{\ifacronymfirstuse}[3]{%
+\@ifundefined{if#1first}{%
+\PackageError{glossary}{Acronym '#1' not defined}{}}{%
+\ifthenelse{\boolean{#1first}}{#2}{#3}}}
+\newcommand{\resetacronym}[1]{%
+\@ifundefined{if#1first}{%
+\PackageError{glossary}{Acronym '#1' not defined}{}}{%
+\ifglsglobal
+\expandafter\global\csname #1firsttrue\endcsname
+\else
+\setboolean{#1first}{true}%
+\fi}}
+\newcommand{\unsetacronym}[1]{%
+\@ifundefined{if#1first}{%
+\PackageError{glossary}{Acronym '#1' not defined}{}}{%
+\ifglsglobal
+\expandafter\global\csname #1firstfalse\endcsname
+\else
+\setboolean{#1first}{false}%
+\fi}}
+\newcommand{\resetallacronyms}{%
+\@for\@acr:=\@acr@list\do{\resetacronym{\@acr}}}
+\newcommand{\unsetallacronyms}{%
+\@for\@acr:=\@acr@list\do{\unsetacronym{\@acr}}}
+\ifglsacronym
+\newglossarytype[alg]{acronym}{acr}{acn}
+\providecommand{\acronymname}{List of Acronyms}
+\else
+\let\acronym=\glossary
+\let\xacronym=\xglossary
+\fi
+\ifglshyper
+\def\glshyper#1#2{\@glshyper{#1}#2\delimR \delimR \\}
+\def\@glshyper#1#2\delimR #3\delimR #4\\{%
+\ifx\\#3\\%
+\@delimNhyper{#1}{#2}%
+\else
+\@ifundefined{hyperlink}{#2\delimR #3}{%
+\hyperlink{#1.#2}{#2}\delimR \hyperlink{#1.#3}{#3}}%
+\fi
+}
+\def\@delimNhyper#1#2{\@@delimNhyper{#1}#2\delimN \delimN\\}
+\def\@@delimNhyper#1#2\delimN #3\delimN #4\\{%
+  \ifx\\#3\\%
+    \@ifundefined{hyperlink}{#2}{\hyperlink{#1.#2}{#2}}%
+  \else
+    \@ifundefined{hyperlink}{#2\delimN #3}{%
+\hyperlink{#1.#2}{#2}\delimN \hyperlink{#1.#3}{#3}}%
+  \fi
+}
+\newcommand\glshyperpage[1]{\glshyper{page}{#1}}
+\newcommand\glshypersection[1]{\glshyper{section}{#1}}
+\@ifundefined{chapter}
+{}
+{\let\@gls@old@chapter\@chapter
+\def\@chapter[#1]#2{\@gls@old@chapter[{#1}]{#2}%
+\@ifundefined{hyperdef}{}{\hyperdef{section}{\thesection}{}}}}
+\providecommand\hyperrm[2][\gls@number]{%
+\textrm{\glshyper{#1}{#2}}}
+\providecommand\hypersf[2][\gls@number]{%
+\textsf{\glshyper{#1}{#2}}}
+\providecommand\hypertt[2][\gls@number]{%
+\texttt{\glshyper{#1}{#2}}}
+\providecommand\hyperbf[2][\gls@number]{%
+\textbf{\glshyper{#1}{#2}}}
+\providecommand\hyperit[2][\gls@number]{%
+\textit{\glshyper{#1}{#2}}}
+\providecommand\hyperem[2][\gls@number]{%
+\emph{\glshyper{#1}{#2}}}
+\providecommand\hyperup[2][\gls@number]{%
+\textup{\glshyper{#1}{#2}}}
+\providecommand\hypersl[2][\gls@number]{%
+\textsl{\glshyper{#1}{#2}}}
+\providecommand\hypersc[2][\gls@number]{%
+\textsc{\glshyper{#1}{#2}}}
+\providecommand\hypermd[2][\gls@number]{%
+\textmd{\glshyper{#1}{#2}}}
+\else
+\providecommand\hyperrm[2][]{\textrm{#2}}
+\providecommand\hypersf[2][]{\textsf{#2}}
+\providecommand\hypertt[2][]{\texttt{#2}}
+\providecommand\hypermd[2][]{\textmd{#2}}
+\providecommand\hyperbf[2][]{\textbf{#2}}
+\providecommand\hyperit[2][]{\textit{#2}}
+\providecommand\hypersl[2][]{\textsl{#2}}
+\providecommand\hyperup[2][]{\textup{#2}}
+\providecommand\hypersc[2][]{\textsc{#2}}
+\providecommand\hyperem[2][]{\emph{#2}}
+\fi
+\endinput
+%%
+%% End of file `glossary.sty'.

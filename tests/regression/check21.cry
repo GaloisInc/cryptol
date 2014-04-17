@@ -1,0 +1,7 @@
+irred : [8]
+irred = 0x1b
+// endianness difference from Cryptol-1 test
+xtimes a = (if a ! (width a - 1) then a' ^ irred else a')
+  where a' = a << 1
+
+check21 = [ xtimes y | y <- [ 1, 12, 192 ] ] == [ 2, 24, 155 ]

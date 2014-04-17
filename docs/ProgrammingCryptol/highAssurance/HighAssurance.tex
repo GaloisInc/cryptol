@@ -1,0 +1,1125 @@
+\commentout{
+\begin{code}
+  module HighAssurance where
+
+  import Enigma
+  import Classic
+\end{code}
+}
+
+%#####################################################################
+\chapter{High-assurance programming}
+\label{cha:high-assur-progr}
+
+Writing correct software is the holy grail of programming. Bugs
+inevitably exist, however, even in thoroughly tested projects.  One
+fundamental issue is the lack of support in typical programming
+languages to let the programmer {\em state} what it means to be
+correct, let alone formally establish any notion of correctness.  To
+address this shortcoming, Cryptol advocates the high-assurance
+programming approach: programmers explicitly state correctness
+properties\indProperty along with their code, which are explicitly
+checked by the Cryptol toolset.  Properties are not comments or mere
+annotations, so there is no concern that they will become obsolete as
+your code evolves.  The goal of this chapter is to introduce you to
+these tools, and to the notion of high-assurance programming in
+Cryptol via examples.
+
+%=====================================================================
+\section{Writing properties}
+\label{sec:writingproperties}
+\sectionWithAnswers{Writing properties}{sec:writingproperties}
+
+Consider the equality:
+$$
+x^2 - y^2 = (x-y) * (x+y)
+$$
+Let us write two Cryptol functions that capture both sides of this
+equation:\indTimes\indExponentiate\indMinus\indPlus
+\begin{code}
+  sqDiff1 (x, y) = x^^2  - y^^2
+  sqDiff2 (x, y) = (x-y) * (x+y)
+\end{code}
+We would like to express the property that {\tt sqDiff1} and {\tt
+  sqDiff2} are precisely the same functions: Given the same {\tt x}
+and {\tt y}, they should return exactly the same answer. We can
+express this property in Cryptol using a {\tt properties}
+declaration:\indProperty
+\begin{code}
+  sqDiffsCorrect : ([8], [8]) -> Bit
+  property sqDiffsCorrect (x, y) = sqDiff1 (x, y) == sqDiff2 (x, y)
+\end{code}
+The above declaration reads as follows: {\tt sqDiffsCorrect} is a
+property stating that for all {\tt x} and {\tt y}, the expression {\tt
+  sqDiff1 (x, y) == sqDiff2(x, y)} evaluates to {\tt
+  True}. Furthermore, the type signature restricts the type of the
+property to apply to only 8-bit values. As usual, the type-signature
+is optional.\indSignature If not given, Cryptol will infer one for
+you.
+
+\begin{Exercise}\label{ex:thm:intro}
+  Put the above property in a file and load it into Cryptol. Then
+  issue the command:
+\begin{Verbatim}
+  Cryptol> :t sqDiffsCorrect
+\end{Verbatim}
+What do you see?\indCmdInfo
+\end{Exercise}
+\begin{Answer}\ansref{ex:thm:intro}
+  Cryptol will print the property location, name, and the type. The
+  command {\tt :i} stands for {\tt info}. It provides data about the
+  properties, type-synonyms, etc. available at the top-level of your
+  program.\indCmdInfo
+\end{Answer}
+
+\note{It is important to emphasize that the mathematical equality
+  above and the Cryptol property are {\em not} stating precisely the
+  same property.  Remember that all Cryptol arithmetic is
+  modular,\indModular while the mathematical equation is over
+  arbitrary numbers, including negative, real, or even complex
+  numbers.  The takeaway of this discussion is that we are only using
+  this example for illustration purposes: Cryptol properties relate to
+  Cryptol programs, and should not be used for expressing mathematical
+  theorems (unless, of course, you are stating group theory theorems
+  or theorems in an appropriate algebra)!  In particular, {\tt
+    sqDiffsCorrect} is a property about the Cryptol functions {\tt
+    sqDiff1} and {\tt sqDiff2}, not about the mathematical equation
+  that inspired it.}
+
+\begin{Exercise}\label{ex:thm:0}
+  Write a property {\tt revRev} stating that {\tt reverse} of a {\tt
+    reverse} returns a sequence unchanged.\indReverse
+\end{Exercise}
+\begin{Answer}\ansref{ex:thm:0}\indReverse
+\begin{code}
+  property revRev xs = reverse (reverse xs) == xs
+\end{code}
+\end{Answer}
+
+\begin{Exercise}\label{ex:thm:1}
+  Write a property {\tt appAssoc} stating that append is an
+  associative operator.\indAppend
+\end{Exercise}
+\begin{Answer}\ansref{ex:thm:1}\indAppend
+\begin{code}
+  property appAssoc (xs, ys, zs) = xs # (ys # zs) == (xs # ys) # zs
+\end{code}
+\end{Answer}
+
+\begin{Exercise}\label{ex:thm:2}
+  Write a property {\tt revApp} stating that appending two sequences
+  and reversing the result is the same as reversing the sequences and
+  appending them in the reverse order, as illustrated in the following
+  expression:\indReverse\indAppend
+\begin{Verbatim}
+   reverse ("HELLO" # "WORLD") == reverse "WORLD" # reverse "HELLO"
+\end{Verbatim}
+\end{Exercise}
+\begin{Answer}\ansref{ex:thm:2}\indReverse\indAppend
+\begin{code}
+  property revApp (xs, ys) = reverse (xs # ys) 
+                             == reverse ys # reverse xs
+\end{code}
+\end{Answer}
+
+\begin{Exercise}\label{ex:thm:3}
+  Write a property {\tt lshMul} stating that shifting left by $k$ is
+  the same as multiplying by $2^k$.
+\end{Exercise}
+\begin{Answer}\ansref{ex:thm:3}
+\begin{code}
+  property lshMul (n, k) = n << k == n * 2^^k
+\end{code}
+\end{Answer}
+
+\nb{A {\tt property} declaration simply introduces a property about
+  your program, which may or may {\em not} actually hold. It is an
+  assertion about your program, without any claim of correctness. In
+  particular, you can clearly write properties that simply do not
+  hold:}
+\begin{code}
+  property bogus x = x != x
+\end{code}
+It is important to distinguish between {\em stating} a property and
+actually {\em proving} it. So far, our focus is purely on
+specification. We will focus on actual proofs in
+Section~\ref{sec:establishcorrectness}.
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\subsection{Property-function correspondence}\indThmFuncCorr
+\label{sec:prop-funct-corr}
+
+In Cryptol, properties can be used just like ordinary definitions:
+\begin{Verbatim}
+  Cryptol> sqDiffsCorrect (3, 5)
+  True
+  Cryptol> :t sqDiffsCorrect
+  sqDiffsCorrect : ([8],[8]) -> Bit
+\end{Verbatim}
+That is, a property over {\tt$(x, y)$} is the same as a function over
+the tuple {\tt (x, y)}. We call this the property-function
+correspondence. Property declarations, aside from the slightly
+different syntax, are \emph{precisely} the same as Cryptol functions
+whose return type is \texttt{Bit}. There is no separate language for
+writing or working with properties. We simply use the full Cryptol
+language write both the programs and the properties that they satisfy.
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\subsection{Capturing test vectors}
+\label{sec:thmvec}
+
+One nice application of Cryptol properties is in capturing test
+vectors:\indZero
+\begin{code}
+  property inctest = [ f x == y | (x, y) <- testVector ] == ~zero
+    where  f x = x + 1
+           testVector = [(3, 4), (4, 5), (12, 13), (78, 79)]
+\end{code}
+Notice that the property {\tt inctest} does not have any parameters
+(no {\em forall} section), and thus acts as a simple {\tt Bit} value
+that will be true precisely when the given test case succeeds.
+
+\todo[inline]{Figure out how to re-run Cryptol in this chapter to make
+  sure the tweak to the above example (removal of dummy single formal
+  parameter) works.}
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\subsection{Polymorphic properties}
+\label{sec:polythm}
+
+Just like functions, Cryptol properties can be polymorphic as well. If
+you want to write a property for a polymorphic function, for instance,
+your properties will naturally be polymorphic too. Here is a simple
+trivial example:
+\begin{code}
+  property multShift x = x * 2 == x << 1
+\end{code}
+If we ask Cryptol the type of {\tt multShift}, we get:
+\begin{Verbatim}
+  Cryptol> :t multShift
+  multShift : {a} (fin a, a >= 2) => [a] -> Bit
+\end{Verbatim}
+That is, it is a property about all words of size at least two. The
+question is whether this property does indeed hold? In the particular
+case of {\tt multShift} that is indeed the case, below are some
+examples using the property-function correspondence:\indThmFuncCorr
+\begin{Verbatim}
+  Cryptol> multShift (5 : [8])
+  True
+  Cryptol> multShift (5 : [10])
+  True
+  Cryptol> multShift (5 : [16])
+  True
+\end{Verbatim}
+However, this is {\em not} always the case for all polymorphic Cryptol
+properties! The following example demonstrates:
+\begin{code}
+  property flipNeverIdentity x = x != ~x
+\end{code}
+The property {\tt flipNeverIdentity} states that
+complementing\indComplement the bits of a value will always result in
+a different value: a property we might expect to hold
+intuitively. Here is the type of {\tt flipNeverIdentity}:
+\begin{Verbatim}
+  Cryptol> :t flipNeverIdentity
+  flip : {a} (fin a) => a -> Bit
+\end{Verbatim}
+So, the only requirement on {\tt flipNeverIdentity} is that it
+receives some finite type.\indFin Let us try some examples:
+\begin{Verbatim}
+  Cryptol> flipNeverIdentity True
+  True
+  Cryptol> flipNeverIdentity 3
+  True
+  Cryptol> flipNeverIdentity [1 2]
+  True
+\end{Verbatim}
+However:
+\begin{Verbatim}
+  Cryptol> flipNeverIdentity (0 : [0])
+  False
+\end{Verbatim}
+That is, when given a {\tt 0}-bit wide value, the complement will in
+fact do nothing and return its argument unchanged! Therefore, the
+property {\tt flipNeverIdentity} is not valid, since it holds at
+certain monomorphic types, but not at all types.\indMonomorphism
+
+\begin{Exercise}\label{ex:polythm:1}
+  Demonstrate another monomorphic type where {\tt flipNeverIdentity}
+  does {\em not} hold.
+\end{Exercise}
+\begin{Answer}\ansref{ex:polythm:1}
+  There are many such types, all sharing the property that they do not
+  take any space to represent. Here are a couple examples:\indZero
+\begin{Verbatim}
+  Cryptol> flipNeverIdentity (zero : ([0], [0]))
+  False
+  Cryptol> flipNeverIdentity (zero : [0][8])
+  False
+\end{Verbatim}
+\end{Answer}
+
+\nb{The moral of this discussion is that the notion of polymorphic
+  validity\indThmPolyvalid (i.e., that a given polymorphic property
+  will either hold at all of its monomorphic instances or none) does
+  not hold in Cryptol. A polymorphic property can be valid at some,
+  all, or no instances of it.}
+
+\begin{Exercise}\label{ex:polythm:2}
+  The previous exercise might lead you to think that it is the 0-bit
+  word type ({\tt [0]}) that is at the root of the polymorphic
+  validity issue.  This is not true. Consider the following
+  example:\indWidth\indThmPolyvalid
+\begin{code}
+  property widthPoly x = (w == 15) || (w == 531)
+     where w = width x
+\end{code}
+What is the type of {\tt widthPoly}? At what instances does it hold?
+Write a property {\tt evenWidth} that holds only at even-width word
+instances.
+\end{Exercise}
+\begin{Answer}\ansref{ex:polythm:2}
+\begin{Verbatim}
+  Cryptol> :t widthPoly
+  widthPoly : {a, b} (fin a) => [a]b -> Bit
+\end{Verbatim}
+It is easy to see that {\tt widthPoly} holds at the instances:
+\begin{Verbatim}
+  {b} [15]b -> Bit
+\end{Verbatim}
+and
+\begin{Verbatim}
+  {b} [531]b -> Bit
+\end{Verbatim}
+but at no other. Based on this, we can write {\tt evenWidth} as
+follows:\indWidth
+\begin{code}
+  property evenWidth x = (width x) ! 0 == False
+\end{code}
+remembering that the 0'th bit of an even number is always {\tt
+  False}. We have:
+\begin{Verbatim}
+  Cryptol> evenWidth (0:[1])
+  False
+  Cryptol> evenWidth (0:[2])
+  True
+  Cryptol> evenWidth (0:[3])
+  False
+  Cryptol> evenWidth (0:[4])
+  True
+  Cryptol> evenWidth (0:[5])
+  False
+\end{Verbatim}
+\end{Answer}
+
+%=====================================================================
+\section{Establishing correctness}
+\label{sec:establishcorrectness}
+\sectionWithAnswers{Establishing correctness}{sec:establishcorrectness}
+
+Our focus so far has been using Cryptol to {\em state} properties of
+our programs, without actually trying to prove them correct. This
+separation of concerns is essential for a pragmatic development
+approach.  Properties act as contracts that programmers state along
+with their code, which can be separately checked by the
+toolset~\cite{erkok-matthews-cryptolEqChecking-09}.  This approach
+allows you to state the properties you want, and then work on your
+code until the properties are indeed satisfied. Furthermore,
+properties stay with your program forever, so they can be checked at a
+later time to ensure changes (improvements/additions/optimizations
+etc.) did not violate the stated properties.
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\subsection{Formal proofs}
+\label{sec:formal-proofs}
+
+Recall our very first property, {\tt sqDiffsCorrect}, from
+Section~\ref{sec:writingproperties}. We will now use Cryptol to
+actually prove it automatically.  To prove {\tt sqDiffsCorrect}, use
+the command {\tt :prove}:\indCmdProve
+\begin{Verbatim}
+  Cryptol> :prove sqDiffsCorrect
+  Q.E.D.
+\end{Verbatim}
+Note that the above might take a while to complete, as a formal proof
+is being produced behind the scenes.  Once Cryptol formally
+establishes the property holds, it prints ``{\tt Q.E.D.}'' to tell the
+user the proof is complete.\indQED\indProve
+
+\nb{Cryptol uses off-the-shelf SAT\glosSAT and SMT\glosSMT solvers to
+  perform these formal
+  proofs~\cite{erkok-matthews-cryptolEqChecking-09}.  By default,
+  Cryptol will use the CVC4 SMT solver~\cite{cvc4WWW} under the hood,
+  but it can be configured to use other SAT/SMT solvers as well, such
+  as SRI's Yices~\cite{YicesWWW}\indYices, or Microsoft Research's
+  Z3~\cite{Z3WWW}\footnote{To do this, first install the package(s)
+    from the URLs provided in the bibliography. Once a prover has been
+    installed you can activate it with, for example, {\tt :set
+      prover=z3}.}. Note that the {\tt :prove} command is a
+  push-button tool: once the proof starts there is no user
+  involvement. Of course, the external tool used may not be able to
+  complete all the proofs in a feasible amount of time, naturally.
+
+  \todo[inline]{Is this going to be a SAW-only capability, or Cryptol
+    as well?  Ensure that a ticket exists for forward-porting this
+    functionality.}
+
+  % While it is out of the scope of this book, let us also mention that
+  % Cryptol can also translate properties to Isabelle/HOL\indIsabelleHOL
+  % for semi-automated theorem proving purposes~\cite{Isabelle-book},
+  % where more complicated properties can be tackled with the human
+  % guidance if necessary.
+}
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\subsection{Counterexamples}
+\label{sec:counterexamples}
+
+Of course, properties can very well be invalid, due to bugs in code or
+the specifications themselves. In these cases, Cryptol will always
+print a counterexample value demonstrating why the property does not
+hold. Here is an example demonstrating what happens when things go
+wrong:
+\begin{code}
+  failure : [8] -> Bit
+  property failure x = x == x+1
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> :prove failure
+  failure 0 = False
+\end{Verbatim}
+Cryptol tells us that the property is falsifiable, and then
+demonstrates a particular value ({\tt 0} in this case) that it fails
+at. These counterexamples are extremely valuable for debugging
+purposes.\indCounterExample
+
+If you try to prove an invalid property that encodes a test vector
+(Section~\ref{sec:thmvec}), then you will get a mere indication that
+you have a contradiction, since there is no universally quantified
+variables to instantiate to show you a
+counterexample.\indContradiction  If the expression evaluates to {\tt
+  True}, then it will be a trivial proof, as expected:
+\begin{Verbatim}
+  Cryptol> :prove False
+  False = False
+  Cryptol> :prove True
+  Q.E.D.
+  Cryptol> :prove 2 == 3
+  2==3 = False
+  Cryptol> :prove reverse [1, 2] == [1, 2]
+  reverse [1, 2] == [1,2] = False
+  Cryptol> :prove 1+1 == 0
+  Q.E.D.
+\end{Verbatim}
+The very last example demonstrates modular arithmetic in operation, as
+usual.\indModular
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\subsection{Dealing with polymorphism}
+\label{sec:deal-with-polym}
+
+As we mentioned before, Cryptol properties can be polymorphic. As we
+explored before, we cannot directly prove polymorphic properties as
+they may hold for certain monomorphic instances while not for others.
+In this cases, we must tell Cryptol what particular monomorphic
+instance we would like it to prove the property at.  Let us
+demonstrate this with the {\tt multShift} property from
+Section~\ref{sec:polythm}:
+\begin{Verbatim}
+  Cryptol> :prove multShift
+    Not a monomorphic type:
+    {a} (a >= 2, fin a) => [a] -> Bit
+\end{Verbatim}
+Cryptol is telling us that it cannot prove a polymorphic property
+directly. We can, however, give a type annotation to monomorphise
+it,\indTypeAnnotation and then prove it at a desired instance:
+\begin{Verbatim}
+  Cryptol> :prove multShift : [16] -> Bit
+  Q.E.D.
+\end{Verbatim}
+In fact, you can use this very same technique to pass any bit-valued
+function to the {\tt :prove} command:\indCmdProve\indWhere
+\begin{Verbatim}
+  Cryptol> :prove dbl where dbl x = (x:[8]) * 2 == x+x
+  Q.E.D.
+\end{Verbatim}
+Of course, a \lamex (Section~\ref{sec:lamex}) would work just as well
+too:\indLamExp
+\begin{Verbatim}
+  Cryptol> :prove \x -> (x:[8]) * 2 == x+x
+  Q.E.D.
+\end{Verbatim}
+
+\begin{Exercise}\label{ex:prove:1}
+  Prove the property {\tt revRev} you wrote in
+  Exercise~\ref{sec:writingproperties}-\ref{ex:thm:0}. Try different
+  monomorphic instantiations.
+\end{Exercise}
+\begin{Answer}\ansref{ex:prove:1}
+  If we try to prove {\tt revRev} directly, we will get an error from
+  Cryptol:
+\begin{Verbatim}
+  Cryptol> :prove revRev
+  Not a valid predicate type:
+  {a, b} (fin a, Cmp b) => [a]b -> Bit
+\end{Verbatim}
+Cryptol is telling us that the property has a polymorphic type, and
+hence cannot be proven. We can easily prove instances of it, by either
+creating new properties with fixed type signatures\indSignature, or by
+monomorphising it via type annotations\indTypeAnnotation. Several
+examples are given below:
+\begin{Verbatim}
+  Cryptol> :prove revRev : [10][8] -> Bit
+  Q.E.D.
+  Cryptol> :prove revRev : [100][32] -> Bit
+  Q.E.D.
+  Cryptol> :prove revRev : [0][4] -> Bit
+  Q.E.D.
+\end{Verbatim}
+\end{Answer}
+
+\begin{Exercise}\label{ex:prove:2}
+  Prove the property {\tt appAssoc} you wrote in
+  Exercise~\ref{sec:writingproperties}-\ref{ex:thm:1}, at several
+  different monomorphic instances.
+\end{Exercise}
+
+\begin{Exercise}\label{ex:prove:3}
+  Prove the property {\tt revApp} you wrote in
+  Exercise~\ref{sec:writingproperties}-\ref{ex:thm:2}, at several
+  different monomorphic instances.
+\end{Exercise}
+
+\begin{Exercise}\label{ex:prove:4}
+  Prove the property {\tt lshMul} you wrote in
+  Exercise~\ref{sec:writingproperties}-\ref{ex:thm:3}, at several
+  different monomorphic instances.
+\end{Exercise}
+
+\begin{Exercise}\label{ex:prove:5}
+  Use the {\tt :prove} command to prove and demonstrate
+  counterexamples for the property {\tt widthPoly} defined in
+  Exercise~\ref{sec:writingproperties}-\ref{ex:polythm:2}, using
+  appropriate monomorphic instances.
+\end{Exercise}
+\begin{Answer}\ansref{ex:prove:5}
+We have:
+\begin{Verbatim}
+  Cryptol> :prove widthPoly : [15] -> Bit
+  Q.E.D.
+  Cryptol> :prove widthPoly : [531] -> Bit
+  Q.E.D.
+  Cryptol> :prove widthPoly : [8] -> Bit
+  widthPoly:[8] -> Bit 0 = False
+  Cryptol> :prove widthPoly : [32] -> Bit
+  widthPoly:[32] -> Bit 0 = False
+\end{Verbatim}
+\end{Answer}
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\subsection{Conditional proofs}
+\label{sec:condproof}
+
+It is often the case that we are interested in a property that only
+holds under certain conditions.  For instance, in
+Exercise~\ref{sec:arithmetic}-\ref{ex:arith:5:1} we have explored the
+relationship between Cryptol's division, multiplication, and modulus
+operators, where we asserted the following
+property:\indMod\indDiv\indTimes
+$$
+  x = (x / y) \times y + (x\,\%\,y)
+$$
+Obviously, this relationship holds only when $y \not= 0$. The idea
+behind a conditional Cryptol property\indThmCond is that we would like
+to capture these side-conditions formally in our specifications. 
+
+We simply use an ordinary {\tt if-then-else} expression in Cryptol to
+write conditional properties (at least until we add boolean logic
+operators to Cryptol).  If the condition is invalid, we simply return
+{\tt True}, indicating that we are not interested in that particular
+case. Depending on how natural it is to express the side-condition or
+its negation, you can use one of the following two patterns:
+% the following looks ODDLY laid out in the source but comes out OK when latex'ed
+\begin{Verbatim}[commandchars=\\\{\}]
+   if  {\em side-condition-holds}         if   {\em side-condition-fails}      
+   then{\em property-expression}          then  True
+   else True                         else {\em property-expression}
+\end{Verbatim}
+
+\begin{Exercise}\label{ex:cond:1}
+  Express the relationship between division, multiplication, and
+  modulus using a conditional Cryptol property.  Prove the property
+  for various monomorphic instances.\indMod\indDiv\indTimes\indThmCond
+\end{Exercise}
+\begin{Answer}\ansref{ex:cond:1}
+\begin{code}
+  property divModMul (x,y) = if y == 0
+                             then True   // precondition fails => True
+                             else x == (x / y) * y + x % y
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> :prove divModMul : ([4], [4]) -> Bit
+  Q.E.D.
+  Cryptol> :prove divModMul : ([8], [8]) -> Bit
+  Q.E.D.
+\end{Verbatim}
+\end{Answer}
+
+%% TODO: Pedagogy here without exceptions
+%% \nb{It is tempting to write a function:}
+%% \begin{code}
+%%  implies (a, b) = if a then b else True
+%%\end{code}
+%%to simplify writing conditional properties.
+%% However, this approach is flawed as it fails to account correctly for
+%% exceptions. We shall revisit this topic in detail in 
+%% Sections~\ref{sec:pitfall:evorder} and~\ref{sec:pitfall:thmexceptions}.
+
+\paragraph*{Recognizing messages} Our work on classic ciphers
+(Chapter~\ref{chapter:classic}) and the enigma
+(Chapter~\ref{chapter:enigma}) involved working with messages that
+contained the letters {\tt 'A'} .. {\tt 'Z'} only. When writing
+properties about these ciphers it will be handy to have a recognizer
+for such messages, as we explore in the next exercise.
+
+\begin{Exercise}\label{ex:cond:2}
+Write a function:
+\begin{code}
+  validMessage : {n} (fin n) => String n -> Bit
+\end{code}
+that returns {\tt True} exactly when the input only consists of the
+letters {\tt 'A'} through {\tt 'Z'}. \lhint{Use the functions {\tt
+    all} defined in Exercise~\ref{sec:zero}-\ref{ex:zero:1},\indAll
+  and {\tt elem} defined in
+  Exercise~\ref{sec:recandrec}-\ref{ex:recfun:4:1}.\indElem}
+\end{Exercise}
+
+\begin{Answer}\ansref{ex:cond:2}
+  Using {\tt all}\indAll and {\tt elem}\indElem, it is easy to express
+  {\tt validMessage}:
+\begin{code}
+  validMessage = all (\c -> elem (c, ['A' .. 'Z']))
+\end{code}
+Note the use of a \lamex to pass the function to {\tt all}. Of course,
+we could have defined a separate function for it in a {\tt
+  where}-clause\indWhere, but the function is short enough to directly
+write it inline.
+\end{Answer}
+
+\todo[inline]{Should we revisit directly some past examples or
+  solutions in the appendix and show what kinds of properties are
+  appropriate to write and which ones can be verified?}
+
+\begin{Exercise}\label{ex:cond:3}
+  Recall the pair of functions {\tt caesar} and {\tt dCaesar} from
+  Section~\ref{sec:caesar}.\indCaesarscipher Write a property, named
+  {\tt caesarCorrect}, stating that {\tt caesar} and {\tt dCaesar} are
+  inverses of each other for all {\tt d} (shift amount) and {\tt msg}
+  (message)'s. Is your property valid? What extra condition do you
+  need to assert on {\tt msg} for your property to hold? Prove the
+  property for all messages of length 10.
+\end{Exercise}
+\begin{Answer}\ansref{ex:cond:3}
+  A naive attempt would be to write:
+\begin{code}
+  property caesarCorrectBOGUS (d,msg) =
+           dCaesar(d, caesar(d, msg)) == msg
+\end{code}
+However, this property is not correct for all {\tt msg}'s, since
+Caesar's cipher only works for messages containing the letters {\tt
+  'A'} \ldots {\tt 'Z'}, not arbitrary 8-bit values as the above
+property suggests. We can see this easily by providing a bad input:
+\begin{Verbatim}
+  Cryptol> caesar (3, "1")
+  invalid sequence index: 240
+\end{Verbatim}
+(240 is the difference between the ASCII value of {\tt '1'}, 49, and
+the letter {\tt 'A'}, 65, interpreted as an 8-bit offset.) We should
+use the {\tt validMessage} function of the previous exercise to write
+a conditional property instead:
+\begin{code}
+  property caesarCorrect (d,msg) = if validMessage msg
+                                   then dCaesar(d, caesar(d, msg)) == msg
+                                   else True
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> :prove caesarCorrect : ([8], String(10)) -> Bit
+  Q.E.D.
+\end{Verbatim}
+\end{Answer}
+
+\begin{Exercise}\label{ex:cond:4}
+  Write and prove a property for the {\tt modelEnigma} machine
+  (Page~\pageref{def:modelEnigma}), relating the {\tt enigma} and {\tt
+    dEnigma} functions from Section~\ref{enigma:encdec}.
+\end{Exercise}
+\begin{Answer}\ansref{ex:cond:4}
+\begin{code}
+  property modelEnigmaCorrect pt =
+       if validMessage pt
+       then dEnigma (modelEnigma, enigma (modelEnigma, pt)) == pt
+       else True
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> :prove modelEnigmaCorrect : String(10) -> Bit
+  Q.E.D.
+\end{Verbatim}
+\end{Answer}
+This may take a long time to prove, depending on the speed of your
+machine, and the prover you choose.
+
+%=====================================================================
+\section{Automated random testing}
+\label{sec:quickcheck}
+\sectionWithAnswers{Automated random testing}{sec:quickcheck}
+
+Cryptol's {\tt :prove} command\indCmdProve constructs rigorous formal
+proofs using push-button tools.\footnote{While some of the solvers
+  that Cryptol uses are capable of \emph{emitting} proofs, such
+  functionality is not exposes as a Cryptol feature.}  The underlying
+technique used by Cryptol (SAT-\glosSAT and SMT-based\glosSMT
+equivalence checking) is complete\indProofCompleteness, i.e., it will
+always either prove the property or find a
+counterexample.\indCounterExample In the worst case, however, the
+proof process might take infeasible amounts of resources, potentially
+running out of memory or taking longer than the amount of time you are
+willing to wait.
+
+What is needed for daily development tasks is a mechanism to gain some
+confidence on the correctness of the properties without paying the
+price of formally proving them.  This is the goal of Cryptol's {\tt
+  :check}\indCmdCheck command, inspired by Haskell's quick-check
+library~\cite{quickcheck}.  Instead of trying to formally prove your
+property, {\tt :check} tests it at random values to give you quick
+feedback.  This approach is very suitable for rapid development.  By
+using automated testing you get frequent and quick updates from
+Cryptol regarding the status of your properties, as you work through
+your code. If you introduce a bug, it is likely (although not
+guaranteed) that the {\tt :check} command will alert you right
+away. Once you are satisfied with your code, you can use the {\tt
+  :prove} command to conduct the formal proofs, potentially leaving
+them running overnight.
+
+The syntax of the {\tt :check} command is precisely the same as the
+{\tt :prove} command. By default, it will run your property over 100
+randomly generated test cases.
+
+\begin{Exercise}\label{ex:quick:0}
+  Use the {\tt :check} command to test the property {\tt
+    caesarCorrect} you have defined in
+  Exercise~\ref{sec:condproof}-\ref{ex:cond:2}, for messages of length
+  10.  Use the command {\tt :set tests=1000}\indQCCount to change the
+  number of test cases to 1,000.  Observe the test coverage statistics
+  reported by Cryptol. How is the total number of cases computed?
+\end{Exercise}
+\begin{Answer}\ansref{ex:quick:0}
+  Here is the interaction with Cryptol (when you actually run this,
+  you will see the test cases counting up as they are
+  performed):\indQCCount
+\begin{Verbatim}
+  Cryptol> :check (caesarCorrect : ([8], String 10) -> Bit)
+  Using random testing.
+  passed 100 tests.
+  Coverage: 0.00% (100 of 2^^88 values)
+  Cryptol> :set tests=1000
+  Cryptol> :check (caesarCorrect : ([8], String 10) -> Bit)
+  Using random testing.
+  passed 1000 tests.
+  Coverage: 0.00% (1000 of 2^^88 values)
+\end{Verbatim}
+In each case, Cryptol tells us that it checked a minuscule portion of
+all possible test cases: A good reminder of what {\tt :check} is
+really doing.  The number of test cases is: $2^{8+8\times10} =
+2^{88}$. We have 8-bits for the {\tt d} value, and $10*8$ bits total
+for the 10 characters in {\tt msg}, giving us a total of 88
+bits. Since the input is 88 bits wide, we have $2^{88}$ potential test
+cases. Note how the number of test cases increase exponentially with
+the size of the message.
+\end{Answer}
+
+\begin{Exercise}\label{ex:quick:1}
+  If the property is {\em small} in size, {\tt :check} might as well
+  prove/disprove it. Try the following commands:
+\begin{Verbatim}
+  :check True
+  :check False
+  :check \x -> x==(x:[8])
+\end{Verbatim}
+\end{Exercise}
+\begin{Answer}\ansref{ex:quick:1}
+\begin{Verbatim}
+  Cryptol> :check True
+  Using exhaustive testing.
+  passed 1 tests.
+  QED
+  Cryptol> :check False
+  Using exhaustive testing.
+  FAILED for the following inputs:
+  Cryptol> :check \x -> x == (x:[8])
+  Using exhaustive testing.
+  passed 256 tests.
+  QED
+\end{Verbatim}
+Note that when Cryptol is able to exhaust all possible inputs, it returns QED, since the property is effectively proven.
+\end{Answer}
+
+\begin{Exercise}\label{ex:quick:2}
+  Write a bogus property that will be very easy to disprove using {\tt
+    :prove}, while {\tt :check} will have a hard time obtaining the
+  counterexample.  The moral of this exercise is that you should try
+  {\tt :prove} early in your development and not get too comfortable
+  with the results of {\tt :check}!\indCmdProve\indCmdCheck
+\end{Exercise}
+\begin{Answer}\ansref{ex:quick:2}
+\begin{code}
+  property easyBug x = x != (76123:[64])
+\end{code}
+The {\tt :prove} command will find the counterexample almost
+instantaneously, while {\tt :check} will have a hard time!
+\end{Answer}
+
+\paragraph*{Bulk operations} If you use {\tt :check}\indCmdCheck and
+{\tt :prove}\indCmdProve commands without any arguments, Cryptol will
+check and prove all the properties defined in your program. This is a
+simple means of exercising all your properties automatically.
+
+\todo[inline]{Do we want to reintroduce the \texttt{-n} switch, per
+  \ticket{276}?}
+%% \paragraph*{Automatic invocation} You will notice that Cryptol will
+%% automatically {\tt :check} the properties in your file when you
+%% load the file from the command line, giving you a quick status
+%% report. You can turn this behavior off by passing Cryptol the flag
+%% {\tt -n}, like this: {\tt cryptol -n myfile.cry}. You can also
+%% interrupt a running {\tt :prove}\indCmdProve or {\tt
+%% :check}\indCmdCheck command by pressing {\tt
+%% Ctrl-C}.\indCmdAutoCheck
+
+%=====================================================================
+\section{Checking satisfiability}
+\label{sec:sat}
+\sectionWithAnswers{Checking satisfiability}{sec:sat}
+
+Closely related to proving properties is the notion of checking
+satisfiability. In satisfiability checking,\indCmdSat we would like to find
+arguments to a bit-valued function such that it will evaluate to {\tt True},
+i.e., it will be satisfied.\indSat
+
+One way to think about satisfiability checking is {\em intelligently}
+searching for a solution. Here is a simple example. Let us assume we
+would like to compute the modular square-root of 9 as an 8-bit
+value. The obvious solution is {\tt 3}, of course, but we are
+wondering if there are other solutions to the equation $x^2 \equiv 9
+\imod{2^8}$. To get started, let us first define a function that will
+return {\tt True} if its argument is a square-root of 9:
+\begin{code}
+  isSqrtOf9 : [8] -> Bit
+  isSqrtOf9 x = x*x == 9
+\end{code}
+Any square-root of 9 will make the function {\tt isSqrtOf9} return
+{\tt True}, i.e., it will {\em satisfy} it.  Thus, we can use
+Cryptol's satisfiability checker to find those values of {\tt x}
+automatically:
+\begin{Verbatim}
+  Cryptol> :sat isSqrtOf9 
+  isSqrtOf9 3 = True
+\end{Verbatim}
+Not surprisingly, Cryptol told us that 3 is one such value. We can
+search for other solutions by explicitly disallowing 3:
+\begin{Verbatim}
+  Cryptol> :sat \x -> isSqrtOf9 x && ~(elem (x, [3]))
+  \x -> isSqrtOf9 x && ~(elem (x, [3])) 125 = True
+\end{Verbatim}
+Note the use of the \lamex to\indLamExp indicate the new
+constraint. (Of course, we could have defined another function {\tt
+  isSqrtOf9ButNot3} for the same effect, but the \lamex is really
+handy in this case.) We have used the function {\tt elem} you have
+defined in Exercise~\ref{sec:recandrec}-\ref{ex:recfun:4:1}\indElem to
+express the constraint {\tt x} must not be 3. In response, Cryptol
+told us that {\tt 125} is another solution. Indeed $125 * 125 =
+9\imod{2^7}$, as you can verify separately.  We can search for more:
+\begin{Verbatim}
+  Cryptol> :sat \x -> isSqrtOf9 x && ~(elem (x, [3 125]))
+  \x -> isSqrtOf9 x && ~(elem (x, [3, 125]) ) 131 = True
+\end{Verbatim}
+And more: 
+\begin{Verbatim}
+  Cryptol> :sat \x -> isSqrtOf9 x && ~(elem (x, [3 131 125]))
+  \x -> isSqrtOf9 x && ~(elem (x, [3, 131, 125]) ) 253 = True
+\end{Verbatim}
+If we try one more time, we get:
+\begin{Verbatim}
+  Cryptol> :sat \x -> isSqrtOf9 x && ~(elem (x, [3, 131, 125, 253]))
+  Unsatisfiable.
+\end{Verbatim}
+So, we can rest assured that there are exactly four 8-bit square roots
+of 9; namely 3, 131, 125, and 253. (Note that Cryptol can return the
+satisfying solutions in any order depending on the backend-solver and
+other configurations. What is guaranteed is that you will get
+precisely the same set of solutions at the end.)
+ 
+The whole point of the satisfiability checker is to be able to quickly
+search for particular values that are solutions to potentially
+complicated bit-valued functions. In this sense, satisfiability
+checking can also be considered as an automated way to invert a
+certain class of functions, going back from results to arguments. Of
+course, this search is not done blindly, but rather using SAT\glosSAT
+and SMT\glosSMT solvers to quickly find the satisfying
+values. Cryptol's {\tt :sat} command\indCmdSat hides the complexity,
+allowing the user to focus on the specification of the problem.
+
+\todo[inline]{Re-add chapter on verification, or two chapters on
+  \texttt{:sat} and \texttt{:prove}.} 
+% (We will see several larger applications of the satisfiability
+% checker in Chapter~\ref{chap:usingsat}.)
+
+\begin{Exercise}\label{ex:sat:0}
+  Fermat's last theorem states that there are no integer solutions to
+  the equation $a^n + b^n = c^n$ when $a, b, c > 0,$ and $n > 2$. We
+  cannot code Fermat's theorem in Cryptol since we do not have
+  arbitrary integers, but we can code the modular version of it where
+  the exponentiation and addition is done modulo a fixed
+  bit-size. Write a function {\tt modFermat} with the following
+  signature:
+\begin{code}
+  type Quad a = ([a], [a], [a], [a])
+  modFermat : {s} (fin s, s >= 2) => Quad s -> Bit
+\end{code}
+such that {\tt modFermat (a, b, c, n)} will return {\tt True} if the
+modular version of Fermat's equation is satisfied by the values of
+{\tt a}, {\tt b}, {\tt c}, and {\tt n}. Can you explain why you need
+the constraints {\tt fin s} and {\tt s >= 2}?
+\end{Exercise}
+\begin{Answer}\ansref{ex:sat:0}
+\begin{code}
+  modFermat (a, b, c, n) = (a > 0) && (b > 0) && (c > 0) && (n > 2)
+                         && (a^^n + b^^n == c^^n)
+\end{code}
+The {\tt fin s} predicate comes from the fact that we are doing
+arithmetic and comparisons. The predicate {\tt s >= 2} comes from the
+fact that we are comparing {\tt n} to {\tt 2}, which needs at least
+$2$ bits to represent.
+\end{Answer}
+
+\begin{Exercise}\label{ex:sat:1}
+  Use the {\tt :sat} command to see if there are any satisfying values
+  for the modular version of Fermat's last theorem for various bit
+  sizes.  Surprised? What can you conclude from your observations?
+\end{Exercise}
+\begin{Answer}\ansref{ex:sat:1}
+We can try different instantiations as follows:
+\begin{Verbatim}
+  Cryptol> :sat modFermat : Quad(2) -> Bit
+  modFermat : Quad(2) -> Bit (1, 2, 1, 3) = True
+  Cryptol> :sat modFermat : Quad(3) -> Bit
+  modFermat : Quad(3) -> Bit (4, 4, 4, 4) = True
+  Cryptol> :sat modFermat : Quad(4) -> Bit
+  modFermat : Quad(4) -> Bit (4, 4, 4, 8) = True
+\end{Verbatim}
+The modular form of Fermat's last theorem does not hold for any of the
+instances up to and including 12-bits wide, when I stopped
+experimenting myself. It is unlikely that it will hold for any
+particular bit-size, although the above demonstration is not a proof.
+(We would need to consult a mathematician for the general result!)
+Also note that Cryptol takes longer and longer to find a satisfying
+instance as you increase the bit-size.
+\end{Answer}
+
+%=====================================================================
+%% \section{Safety checking}
+%% \label{sec:safetychecking}
+
+%% Safety checking is all about run-time exceptions: Division-by-zero
+%% or index-out-of-bounds being the most infamous ones. Unlike many
+%% other languages, Cryptol does not suffer from a certain class of
+%% safety violations, such as trying to put in the number 1000 in a
+%% buffer that is only 8-bits wide, or trying to multiply a string
+%% with an integer; but certain run-time exceptions are still
+%% possible. The goal of {\em safety checking} is to ensure that these
+%% exceptions cannot happen at run-time.\indSafe\indCmdSafe
+
+%% Here is a simple example to demonstrate:
+%% \begin{Verbatim}
+%% Cryptol> :safe \(x, y) -> x/y:[8]
+%% *** 1 safety condition to be checked.
+%% *** Checking for violations of: ``"command line", line 1, col 13: divide by zero''
+%% *** Violation detected:
+%% (\(x, y) -> x/y:[8]) (0, 0)
+%%          = "command line", line 1, col 14: divide by zero
+%% *** 1 problem found.
+%%\end{Verbatim}
+%%Cryptol is telling us that the function {\tt $\backslash$(x, y) ->
+%% x/y} is {\em not} safe. When given the argument {\tt (0, 0)} it
+%% will cause a division by zero exception. If we properly guard for
+%% the condition, then the safety check will indeed pass:
+%%\begin{Verbatim}
+%% Cryptol> :safe \(x, y) -> if y == 0 then 0 else x/y:[8]
+%% *** 1 safety condition to be checked.
+%% *** Checking for violations of: ``"command line", line 1, col 35: divide by zero''
+%% *** Verified safe.
+%% *** All safety checks pass, safe to execute
+%%\end{Verbatim}
+%%By using {\tt :safe}\indCmdSafe on our top-level functions we can
+%% ensure that our program is guaranteed not to have any run-time
+%% exceptions.  Cryptol's safety-checker will detect the following
+%% run-time exceptions:
+%%\begin{itemize}
+%% \item Division ({\tt /}) and modulus ({\tt \%}) by 0, both modular
+%%   and polynomial versions (See
+%%   Section~\ref{sec:polynomials})\indDiv\indMod\indDivPoly\indModPoly
+%% \item Index-out-of-bounds errors for {\tt @}, {\tt @@}, {\tt !} and
+%%   {\tt !!},\indIndex\indIndexs\indRIndex\indRIndexs
+%%  \item Calling {\tt lg2} on {\tt 0},\indLg
+%%  \item Data dependence on {\tt error} and the {\tt undefined}
+%%    values,\indError\indUndefined
+%%  \item Failure cases for Cryptol's {\tt ASSERT}
+%%    expression.\indAssert
+%%\end{itemize}
+
+%%\begin{Exercise}\label{ex:safe:0}
+%%Consider the function:
+%%\begin{code}
+%%  lkup : ([10][8], [4]) -> [8]
+%%  lkup (xs, i) = xs @ i
+%%\end{code}
+%%Is it safe? For what values of {\tt i} does it throw an exception?
+%%\end{Exercise}
+%%\begin{Answer}\ansref{ex:safe:0}
+%%  {\tt lkup} will throw an exception whenever {\tt i} is at least
+%%  {\tt 10}. We can use Cryptol to detect this safety violation:
+%%\begin{Verbatim}
+%%  Cryptol> :safe lkup
+%%  *** 1 safety condition to be checked.
+%%  *** Checking for violations of: ``..: index of symbolic-value is out of bounds
+%%  (valid range is 0 thru 9).''
+%%  *** Violation detected:
+%%  lkup ([255 255 255 255 255 255 255 255 255 255], 13)
+%%           = .. index of 13 is out of bounds
+%%  (valid range is 0 thru 9).
+%%  *** 1 problem found.
+%%\end{Verbatim}
+%%In this case Cryptol identified that there will be an exception when
+%% {\tt i} is 13.
+%%\end{Answer}
+
+%%\begin{Exercise}\label{ex:safe:1}
+%%Here is an attempt to make {\tt lkup} safe:
+%%\begin{code}
+%%  lkup1 : ([10][8], [4]) -> [8]
+%%  lkup1 (xs, i) = if i > 10 then 0 else xs @ i
+%%\end{code}
+%%Is the fix successful? Use the {\tt :safe} command to check your
+%% answer.
+%%\end{Exercise}
+%%\begin{Answer}\ansref{ex:safe:1}
+%%No. {\tt lkup1} suffers from the infamous off-by-1 error!
+%%\begin{Verbatim}
+%%  Cryptol> :safe lkup1
+%%  *** 1 safety condition to be checked.
+%%  *** Checking for violations of: ``..: index of symbolic-value is out of bounds
+%%  (valid range is 0 thru 9).''
+%%  *** Violation detected:
+%%  lkup1 ([255 255 255 255 255 255 255 255 255 255], 10)
+%%           = ..: index of 10 is out of bounds
+%%  (valid range is 0 thru 9).
+%%  *** 1 problem found.
+%%\end{Verbatim}
+%%This time Cryptol will pin-point to the only potential error value,
+%% where {\tt i} is 10.
+%%\end{Answer}
+%%
+%%\begin{Exercise}\label{ex:safe:2}
+%%  Write a version of {\tt lkup} that fixes the safety issue. Use the
+%%  {\tt :safe} command to verify that your fix is good.
+%%\end{Exercise}
+%%\begin{Answer}\ansref{ex:safe:2}
+%%\begin{code}
+%%  lkup2 : ([10][8], [4]) -> [8]
+%%  lkup2 (xs, i) = if i > 9 then 0 else xs @ i
+%%\end{code}
+%%We have:
+%%\begin{Verbatim}
+%%  Cryptol> :safe lkup2
+%%  *** 1 safety condition to be checked.
+%%  *** Checking for violations of: ``..: index of symbolic-value is out of bounds
+%%  (valid range is 0 thru 9).''
+%%  *** Verified safe.
+%%  *** All safety checks pass, safe to execute.
+%%\end{Verbatim}
+%%\end{Answer}
+%%
+%%\paragraph*{Over-conservative safety checking}
+%% Cryptol's safety checker is very conservative: If it says that a
+%% function is {\em safe to execute}, you are guaranteed that the
+%% execution can not raise any run-time exception. However, the
+%% converse is not always true: In certain cases, Cryptol can signal a
+%% potential safety violation which will actually not cause an error
+%% when {\em run in the normal interpreter}.
+%%
+%% Here is an example to illustrate the idea. (The example is somewhat
+%% contrived, but similar patterns of coding does arise in Cryptol
+%% programming.) We will use Cryptol's {\tt undefined}
+%% value\indUndefined, which would throw an exception if executed:
+%%\begin{Verbatim}
+%%  Cryptol> (1:[8]) + undefined 
+%%  Entered Cryptol 'undefined' value
+%%\end{Verbatim}
+%%
+%%Cryptol's {\tt undefined}\indUndefined is useful when representing
+%% values that should {\em not} be needed during execution, as
+%% illustrated below:
+%%\begin{code}
+%%  choose : [8] -> [8]
+%%  choose c = ([undefined] # [1 ..]) @ index
+%%    where index = if c == 0 then 1 else c
+%%\end{code}
+%%Notice that {\tt undefined} will not be referenced: The {\tt index}
+%% can never be {\tt 0}. (Why?) If we ask {\tt :safe}, though, it will
+%% tell us the following:
+%%\begin{Verbatim}
+%%  Cryptol> :safe choose
+%%  *** 1 safety condition to be checked.
+%%  *** Checking for violations of: ``Entered Cryptol 'undefined' value''
+%%  *** Violation detected:
+%%  choose 0
+%%           = 1
+%%  *** ALERT: This safety issue is only relevant for certain target platforms
+%%  ***        and hence does not cause an exception in the above run.
+%%  ***        C and hardware translations might be subject to stricter semantics.
+%%  *** 1 problem found.
+%%\end{Verbatim}
+%%The {\tt :safe} command\indCmdSafe told us that there is a safety
+%% violation when {\tt c} is {\tt 0}, then it also showed us that if
+%% we run {\tt choose} with {\tt 0} we get the value {\tt 1}, not an
+%% exception. At first, this sounds quite counterintuitive. However,
+%% the {\tt ALERT} given by Cryptol sheds some light into the
+%% potential problem.  When Cryptol is used in the normal interpreter
+%% mode, this program will indeed not produce any exceptions. However,
+%% Cryptol programs can also be compiled to other targets, such as C
+%% or Java, or other hardware platforms. What Cryptol is telling us is
+%% that these translations are {\em not} guaranteed to be exception
+%% free, and hence it is worth making sure the generated code will
+%% behave properly.
+%%
+%% While it is important to understand what Cryptol is telling us, the
+%% user can safely ignore these alerts most of the time, especially
+%% when one is focusing only at the Cryptol level. (We will revisit
+%% this topic in Section~\ref{sec:pitfall:thmexceptions}.)
+%%
+%%\begin{Exercise}\label{ex:safe:3}
+%%  Rewrite {\tt choose} so that {\tt :safe} will not issue any
+%%  alerts.
+%%\end{Exercise}
+%%\begin{Answer}\ansref{ex:safe:3}
+%%  One way would be to replace {\tt undefined}\indUndefined with {\tt
+%%  zero}.\indZero Since the result will never be needed, we can
+%%  safely replace it with {\tt 0} without changing the semantics.
+%%\end{Answer}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "../main/Cryptol"
+%%% End: 

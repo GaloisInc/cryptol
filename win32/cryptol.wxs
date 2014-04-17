@@ -1,0 +1,73 @@
+<?xml version='1.0' encoding='windows-1252'?>
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+  <!-- NOTE: WiX doesn't support non-decimal versions -->
+  <Product Name='Cryptol $(var.version)'
+           Version='$(var.version)'
+           Manufacturer='Galois, Inc.'
+           Id='*'
+           UpgradeCode='49DAA415-C201-41EE-9448-162F667EBEC0'
+           Language='1033'
+           Codepage='1252'>
+
+    <Package Description="Cryptol $(var.version) Installer"
+             Manufacturer='Galois, Inc.'
+             InstallerVersion='200'
+             Compressed='yes' />
+
+    <Media Id='1' Cabinet='Cryptol.cab' EmbedCab='yes' />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Cryptol is already installed. Setup will now exit." />
+
+    <Directory Id='TARGETDIR' Name='SourceDir'>
+      <Directory Id='ProgramFilesFolder' Name='PFiles'>
+        <Directory Id='Galois' Name='Galois'>
+          <Directory Id='INSTALLDIR' Name='Cryptol $(var.version)'>
+	  </Directory>
+        </Directory>
+      </Directory>
+
+      <Directory Id="ProgramMenuFolder" Name="Programs">
+        <Directory Id="ProgramMenuDir" Name="Cryptol $(var.version)">
+          <Component Id="Shortcuts" Guid="444691AD-2300-48C7-9984-F893A902AE33">
+            <Shortcut Id="startmenuCryptol"
+                      Name="Cryptol $(var.version)"
+                      WorkingDirectory='INSTALLDIR'
+                      Target="[INSTALLDIR]\bin\cryptol.exe"
+                      Icon="crypto.ico"
+                      IconIndex="0" />
+            <!-- <Shortcut Id="startmenuTutorial" -->
+            <!--           Name="Cryptol Tutorial" -->
+            <!--           Target="[DOCDIR]Cryptol-Tutorial.pdf" -->
+            <!--           WorkingDirectory='INSTALLDIR' -->
+            <!--           IconIndex="0" /> -->
+            <!-- <Shortcut Id="startmenuGuide" -->
+            <!--           Name="Cryptol Programming Guide" -->
+            <!--           Target="[DOCDIR]ProgrammingGuide.pdf" -->
+            <!--           WorkingDirectory='INSTALLDIR' -->
+            <!--           IconIndex="0" /> -->
+            <RegistryValue Root='HKCU' Key='Software\Galois\Cryptol'
+                           Name='installed' Type='integer' Value='1'
+                           KeyPath='yes' />
+            <RemoveFolder Id='ProgramMenuDir' On='uninstall' />
+          </Component>
+        </Directory>
+      </Directory>
+
+    </Directory>
+
+    <Feature Id='Complete' Level='1'>
+      <ComponentGroupRef Id='ALLFILES' />
+      <ComponentRef Id='Shortcuts' />
+    </Feature>
+
+    <Icon Id="crypto.ico" SourceFile="win32/crypto.ico" />
+
+    <UI>
+      <UIRef Id="WixUI_Minimal" />
+    </UI>
+
+    <WixVariable Id="WixUILicenseRtf" Value="Cryptol_License.rtf" />
+
+
+  </Product>
+</Wix>

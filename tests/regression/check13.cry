@@ -1,0 +1,7 @@
+ick : [1][8] -> [8]
+ick [x] = x
+
+uck : [8][1] -> [8]
+uck [a, b, c, d, e, f, g, h] = a # b # c # d # e # f # g # h
+
+check13 = (ick (split 150) == 150) && (uck (split 150) == 150)

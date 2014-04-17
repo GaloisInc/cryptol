@@ -1,0 +1,31 @@
+Name:                cryptol-test-runner
+Version:             2.0
+Synopsis:            Testing framework for cryptol-2
+License:             AllRightsReserved
+Author:              Galois, Inc.
+Maintainer:          trevor@galois.com
+Copyright:           Galois Inc.
+Category:            Language
+Build-type:          Simple
+Cabal-version:       >= 1.10
+
+
+flag static
+  default: False
+  description: Create a statically-linked binary
+
+executable cryptol-test-runner
+  Main-is:             Main.hs
+  build-depends:       base,
+                       containers,
+                       process,
+                       filepath,
+                       directory,
+                       HUnit,
+                       test-framework,
+                       test-framework-hunit
+  GHC-options:         -Wall -O2
+  Default-language:    Haskell2010
+
+  if os(linux) && flag(static)
+      ld-options:      -static -pthread

@@ -1,0 +1,11 @@
+:load check07.cry
+:set base=2
+shiftls1
+shiftls2
+shiftls3
+shiftrs1
+shiftrs2
+check7a
+check7b
+check7c
+check7

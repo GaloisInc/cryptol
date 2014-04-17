@@ -1,0 +1,3 @@
+group : {perGroup, a, b, c} (fin perGroup, c == perGroup * a)
+    => [c]b -> [a][perGroup]b
+group xs = split`{each=perGroup}xs

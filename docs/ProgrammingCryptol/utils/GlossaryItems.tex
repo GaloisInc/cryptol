@@ -1,0 +1,47 @@
+%%% NB. If you put a citation here, make sure it appears elsewhere in
+%%% the document too, otherwise bibtex won't be able to find it!
+\newcommand{\glosAES}{\glossary{name=AES, description={The Advanced
+Encryption Standard~\cite{aes}}}\xspace}
+
+\newcommand{\glosFibonacci}{\glossary{name=Fibonacci numbers,
+description={The sequence $0, 1, 1, 2, 3, 5, \ldots$ After the
+elements $0$ and $1$, each consecutive element is the sum of the two
+previous numbers~\cite{wiki:fibonacci}}}\xspace}
+
+\newcommand{\glosPlaintext}{\glossary{name=Plaintext, description={A
+``readable'' message that we would like to encrypt, the message in the
+clear}}\xspace}
+
+\newcommand{\glosCiphertext}{\glossary{name=Ciphertext,
+description={The result of encrypting a plaintext message,
+``unreadable'' unless the key is known}}\xspace}
+
+\newcommand{\glosCipherkey}{\glossary{name=Cipherkey, description={The
+key used in a particular encryption/decryption task}}\xspace}
+
+\newcommand{\glosSAT}{\glossary{name=SAT Solver, description={An
+automated tool for solving boolean satisfiability problems. Cryptol
+uses SAT/SMT solvers in order to provide its high-assurance
+capabilities}}\xspace}
+
+\newcommand{\glosSMT}{\glossary{name=SMT Solver,
+description={Satisfiability Modulo Theories: An automated tool for
+establishing satisfiability problems with respect to certain
+theories. One of the theories of interest to Cryptol is that of
+bit-vectors, as it provides a natural medium for translating Cryptol's
+bit-precise theorems}}\xspace}
+
+\newcommand{\glosNIST}{\glossary{name=NIST, description={National
+Institute of Standards and Technology. The institution in charge of
+standardizing cryptoalgorithms (amongst many other things) in
+USA.}}\xspace}
+
+\newcommand{\glosGF}{\glossary{name=GF, description={Galois Field. The
+notation GF($p^n$) stands for the finite field with $p^n$
+elements. For instance, the AES algorithm uses GF($2^8$)
+internally~\cite{wiki:galoisfield}}}\xspace}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "../main/Cryptol"
+%%% End: 

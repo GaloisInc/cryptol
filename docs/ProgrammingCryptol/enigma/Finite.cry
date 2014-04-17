@@ -1,0 +1,13 @@
+/*
+ * Copyright (c) 2013-2014 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+
+xs = [ 1 .. 100 ]
+
+sumInf xs = iterSums
+    where
+        sums = [ 0 ] # [ x + y | x <- xs
+                               | y <- sums ]
+        iterSums = [ x + y | x <- sums
+                           | y <- [ 1 ...] ]

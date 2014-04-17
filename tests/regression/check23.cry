@@ -1,0 +1,17 @@
+pad : {msgLen, padding, contentLen, chunks} 
+    ( fin msgLen
+    , fin padding
+    , contentLen == msgLen + 65
+    , chunks == (contentLen + 511) / 512
+    , 64 >= width msgLen
+    , padding == (512 - contentLen % 512) % 512
+    ) => [msgLen] -> [chunks * 512]
+pad msg = msg # [True] # (zero:[padding]) # sz  //or: (`msgLen:[64])
+      where  sz : [64]
+             sz = (width msg):[64]
+
+tmsg : [4]
+tmsg = 13
+out : [512]
+out = 0xd8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004
+check23 = pad tmsg == out

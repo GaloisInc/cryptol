@@ -1,0 +1,5 @@
+// different endianness from Cryptol 1 test
+check15a = 0x80 @ 7 == False
+check15b = 0xab # 0xcd == 0xabcd
+
+check15 = check15a && check15b

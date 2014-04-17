@@ -1,0 +1,4 @@
+onetwos = [1] # twoones
+twoones = [2] # onetwos
+
+check4 = onetwos @@ [0 .. 3] == [1, 2, 1, 2]

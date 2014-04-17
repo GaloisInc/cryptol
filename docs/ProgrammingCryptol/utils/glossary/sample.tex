@@ -1,0 +1,95 @@
+%%
+%% This is file `sample.tex',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% glossary.dtx  (with options: `sample.tex,package')
+%% Copyright (C) 2006 Nicola Talbot, all rights reserved.
+%% If you modify this file, you must change its name first.
+%% You are NOT ALLOWED to distribute this file alone. You are NOT
+%% ALLOWED to take money for the distribution or use of either this
+%% file or a changed version, except for a nominal charge for copying
+%% etc.
+%% \CharacterTable
+%%  {Upper-case    \A\B\C\D\E\F\G\H\I\J\K\L\M\N\O\P\Q\R\S\T\U\V\W\X\Y\Z
+%%   Lower-case    \a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z
+%%   Digits        \0\1\2\3\4\5\6\7\8\9
+%%   Exclamation   \!     Double quote  \"     Hash (number) \#
+%%   Dollar        \$     Percent       \%     Ampersand     \&
+%%   Acute accent  \'     Left paren    \(     Right paren   \)
+%%   Asterisk      \*     Plus          \+     Comma         \,
+%%   Minus         \-     Point         \.     Solidus       \/
+%%   Colon         \:     Semicolon     \;     Less than     \<
+%%   Equals        \=     Greater than  \>     Question mark \?
+%%   Commercial at \@     Left bracket  \[     Backslash     \\
+%%   Right bracket \]     Circumflex    \^     Underscore    \_
+%%   Grave accent  \`     Left brace    \{     Vertical bar  \|
+%%   Right brace   \}     Tilde         \~}
+\documentclass[a4paper]{report}
+
+\usepackage[plainpages=false,colorlinks]{hyperref}
+\usepackage{glossary}
+
+\makeglossary
+
+
+\storeglosentry{glossary1}{name=glossary,
+description=1) list of technical words}
+
+\storeglosentry{glossary2}{name=glossary,
+description=2) collection of glosses}
+
+\storeglosentry{Perl}{name=\texttt{Perl},
+sort=Perl, % need a sort key because name contains a command
+description=A scripting language}
+
+\storeglosentry{pagelist}{name=page list,
+description={a list of individual pages or page ranges,
+e.g.\ 1,2,4,7-9}}
+
+\begin{document}
+
+\title{Sample Document Using glossary Package}
+\author{Nicola Talbot}
+\pagenumbering{alph}% prevent duplicate page link names if using PDF
+\maketitle
+
+\pagenumbering{roman}
+\tableofcontents
+
+\chapter{Introduction}
+\pagenumbering{arabic}
+
+A \gls{glossary1} is a very useful addition to any
+technical document, although a \gls{glossary2} can
+also simply be a collection of glosses, which is
+another thing entirely.
+
+Once you have run your document through \LaTeX, you
+will then need to run the \texttt{.glo} file through
+\texttt{makeindex}.  You will need to set the output
+file so that it creates a \texttt{.gls} file instead
+of an \texttt{.ind} file, and change the name of
+the log file so that it doesn't overwrite the index
+log file (if you have an index for your document).
+Rather than having to remember all the command line
+switches, you can call the \gls{Perl} script
+\texttt{makeglos.pl} which provides a convenient
+wrapper.
+
+If you have two terms with different meanings in your
+\gls{glossary1}, \texttt{makeindex} will of course treat them as two
+separate entries, however, some people prefer to
+merge them.  This can be done using \texttt{makeglos.pl}, and
+passing the option \texttt{-m}.
+
+If a comma appears within the name or description, grouping
+must be used: \gls{pagelist}.
+
+\printglossary
+
+\end{document}
+\endinput
+%%
+%% End of file `sample.tex'.

@@ -1,0 +1,32 @@
+#!/bin/sh
+
+has_git=`which git 2>/dev/null`
+if test -d .git -a -n "$has_git"; then
+    HASH=`git rev-parse HEAD`
+    BRANCH=`git rev-parse --abbrev-ref HEAD`
+
+    # Checks if there are any lines in git status
+    if test -z "`git status --porcelain`"; then
+        DIRTY=False
+    else
+        DIRTY=True
+    fi
+else
+    HASH="UNKNOWN"
+    BRANCH="UNKNOWN"
+    # well, we're not building from any git...
+    DIRTY="False"
+fi
+
+cat > src/GitRev.hs <<EOF
+module GitRev (hash, branch, dirty) where
+
+hash :: String
+hash = "$HASH"
+
+branch :: String
+branch = "$BRANCH"
+
+dirty :: Bool
+dirty = $DIRTY
+EOF

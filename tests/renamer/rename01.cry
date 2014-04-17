@@ -1,0 +1,4 @@
+module rename01 where
+
+// Rename a top-level function with one bound parameter
+f x = x

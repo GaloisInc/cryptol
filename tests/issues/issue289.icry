@@ -1,0 +1,4 @@
+:l issue289.cry
+:prove applesOranges
+:prove av1
+:prove av5

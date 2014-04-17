@@ -1,0 +1,5 @@
+:l check13.cry
+:set base=16
+ick (split 150)
+uck (split 150)
+check13

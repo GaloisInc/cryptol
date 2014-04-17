@@ -1,0 +1,5 @@
+onetwos = [1] # twoones
+twoones = [2] # onetwos
+onesytwosy = [ [one, two] | one <- onetwos | two <- twoones ]
+
+check6 = onesytwosy @@ [0 .. 3] == [ [1, 2], [2, 1], [1, 2], [2, 1] ]

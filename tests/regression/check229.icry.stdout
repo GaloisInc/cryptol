@@ -1,0 +1,4 @@
+Loading module Cryptol
+[error] :cd requires a path argument
+
+Directory `non-existent_directory' not found or not a directory

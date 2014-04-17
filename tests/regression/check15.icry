@@ -1,0 +1,7 @@
+:l check15.cry
+:set base=16
+0x80 @ 7
+0xab # 0xcd
+check15a
+check15b
+check15

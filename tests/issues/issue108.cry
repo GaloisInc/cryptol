@@ -1,0 +1,4 @@
+sum : {a,b} (fin a, fin b) => [a][b] -> [b]
+sum xs = ss ! 0
+  where
+    ss = [0] # [ s + x | x <- xs | s <- ss ]

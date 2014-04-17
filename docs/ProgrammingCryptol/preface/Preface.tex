@@ -1,0 +1,60 @@
+\chapter*{Preface}
+\addcontentsline{toc}{chapter}{Preface}
+
+Cryptol is a domain-specific language for programming, executing,
+testing, and formally reasoning about streams of bits.  It
+particularly excels at specifying and reasoning about cryptographic
+algorithms.  It has been designed to reduce the gap that currently
+exists between the {\it specification} of a cryptographic algorithm
+and its executable {\it implementation}.  As a result, a well-written
+Cryptol program will look very much like the specification of the
+algorithm it implements, and is also executable.  
+
+Our goal in this book is to both teach you the Cryptol language and
+provide a reference text for the use of the Cryptol system.  The
+Cryptol system provides: (1)~a REPL for experimentation, (2)~a parser
+and typechecker for Cryptol programs, (3)~an interpreter for executing
+Cryptol programs, (4)~automatically checking the correctness of
+Cryptol programs via randomized testing, and (5)~formally verifying
+Cryptol programs through the use of an SMT solver.
+
+We demonstrate Cryptol in action via normal programming problems,
+traditional cryptographic techniques (such as substitution ciphers),
+historical cryptographic mechanisms (such as the Enigma), and modern
+algorithms (such as DES, SHA, and AES), focusing on how they are
+elegantly modeled using the Cryptol language.  Since our emphasis is
+on programming, we introduce some of the techniques that are useful
+for the working programmer, including the use of Cryptol's validation
+and verification tools that directly support high-assurance
+programming.
+
+Our approach is hands on.  We strongly urge the reader to try out the
+material using the Cryptol toolset directly.  It would be most
+effective to read this document while trying the code and interacting
+with Cryptol itself.  For information on how to download and use the
+Cryptol toolset, please visit \url{www.cryptol.net}.
+
+Most exercises come with solutions provided at the end. We urge the
+readers to refer to solutions as a last resort as they work through
+the exercises.
+
+\note{This book covers Cryptol version 2, which is still under
+  development.  It is possible that the syntax and semantics for the
+  language or commands will change.  You may encounter bugs or
+  unexpected behaviors.  Please let us know if you encounter any
+  problems, by sending email to {\tt cryptol@galois.com} or by
+  visiting our GitHub presence linked from the Cryptol website.}
+
+The authors of this book are Levent {Erk\"{o}k}, Dylan McNamee, Joseph
+Kiniry, Iavor Diatchki, and John Launchbury, with contributions from
+Magnus Carlsson, Kyle Carter, Trevor Elliott, Adam Foltzer, Brian
+Huffman, David Lazar, John Matthews, Eric Mertens, Matt Sottile, Aaron
+Tomb, and Adam Wick.
+
+\todo[inline]{Replace manual use of Trac URLs with \texttt{ticket}
+  macro everywhere.}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "../main/Cryptol"
+%%% End: 

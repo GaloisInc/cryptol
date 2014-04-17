@@ -1,0 +1,50 @@
+module r03 where
+
+all : {n, a} (fin n) => (a -> Bit, [n]a) -> Bit
+all (f, xs) = [ f x | x <- xs ] == ~zero
+
+contains xs e = [ x == e | x <- xs ] != zero
+
+/*
+distinct : {a, b} (fin a, Cmp b) => [a+1]b -> Bit
+distinct ([x] # xs) = ~ (contains xs x) && (if width xs > 1 then distinct xs else True)
+*/
+
+distinct : {n,a} (fin n, Cmp a) => [n]a -> Bit
+distinct xs =
+    [ if n1 < n2 then x != y else True
+    | (x,n1) <- numXs , (y,n2) <- numXs
+    ] == ~zero
+  where
+      numXs = [ (x,n) | x <- xs | n <- [ (0:[width n]) ... ] ]
+
+type Position n = [width (n - 1)]
+
+type Board n = [n](Position n)
+
+type Solution n = Board n -> Bit
+
+checkDiag : {n} (fin n, n >= 1) => Board n -> (Position n, Position n) -> Bit
+checkDiag qs (i, j) = (i >= j) || (diffR != diffC)
+  where   qi = qs @ i
+          qj = qs @ j
+          diffR = if qi >= qj then qi-qj else qj-qi
+          diffC = j - i                   // we know i < j
+
+nQueens : {n} (fin n, n >= 1) => Solution n
+nQueens qs = all (inRange qs, qs) && all (checkDiag qs, ijs `{n}) && distinct qs
+
+ijs : {n}(fin n, n>= 1)=> [_](Position n, Position n)
+ijs = [ (i, j) | i <- [0 .. (n-1)], j <- [0 .. (n-1)]]
+
+inRange : {n} (fin n, n >= 1) => Board n -> Position n -> Bit
+inRange qs x = x <= `(n - 1)
+
+property nQueensProve x = (nQueens x) == False
+
+/* Try:
+
+  :sat nQueens : (Solution n)
+  where n is the problem-size
+
+*/

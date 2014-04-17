@@ -1,0 +1,3 @@
+:l check04.cry
+onetwos @@ [0 .. 10]
+check4

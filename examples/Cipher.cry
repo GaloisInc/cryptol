@@ -1,0 +1,11 @@
+/*
+ * Copyright (c) 2013-2014 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+
+module Cipher where
+
+type Cipher KeySize BlockSize =
+  { encrypt : [KeySize] -> [BlockSize] -> [BlockSize]
+  , decrypt : [KeySize] -> [BlockSize] -> [BlockSize]
+  }

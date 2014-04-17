@@ -1,0 +1,91 @@
+
+\chapter{Miscellaneous problems}
+
+%=====================================================================
+\section{Fun problems}
+\label{sec:funproblems}
+\sectionWithAnswers{Fun problems}{sec:funproblems}
+
+In this section we present a number of problems for the interested
+reader to pursue.
+
+\begin{Exercise}\label{ex:misc:riffle}
+  A riffle shuffle of a deck of even-numbered cards splits the deck
+  into two equal parts, and then alternates the cards. That is, if the
+  cards were originally numbered $1$ \ldots $10$, they will end up $1,
+  6, 2, 7, 3, 8, 4, 9, 5, 10$. Write a function {\tt riffle} that
+  takes an even number of elements and returns the elements in the new
+  order. The signature of your function should be:
+\begin{code}
+   riffle : {a b} (fin a) => [2*a]b -> [2*a]b;
+\end{code}
+You might find the following Cryptol primitive functions useful:
+\begin{Verbatim}
+   width : {a b c} (c >= width a) => [a]b -> [c]
+   take  : {a b c} (fin a,b >= 0) => (a,[a+b]c) -> [a]c
+   drop  : {a b c} (fin a,a >= 0) => (a,[a+b]c) -> [b]c
+   join  : {a b c} [a][b]c -> [a*b]c
+\end{Verbatim}
+Use the interpreter to pass arguments to these functions to
+familiarize yourself with their operation first. What happens when you
+call {\tt riffle} with a sequence that has an odd number of elements?
+\end{Exercise}
+
+\begin{Answer}\ansref{ex:misc:riffle}
+\begin{code}
+  riffle xs = join [| [x y] || x <- fh || y <- sh |]
+    where [fh sh] = split xs;
+\end{code}
+The Cryptol type-checker will {\em not} allow passing an odd number of
+elements to {\tt riffle}. To see the error message, issue: {\tt riffle
+  [1..5]}.
+\end{Answer}
+
+\begin{Exercise}\label{ex:misc:riffle2}
+  Given a deck of 52 cards, 8 riffles returns the deck to its original
+  position. Write a theorem stating this fact and prove it.
+\end{Exercise}
+\begin{Answer}\ansref{ex:misc:riffle2}
+  Note that the actual contents of the input sequence is immaterial;
+  we will just use 8-bit numbers.
+\begin{code}
+   riffle8 : [52][8] -> Bit;
+   theorem riffle8: {deck}. decks @ 8 == deck
+     where decks = [deck] # [| riffle d || d <- decks |];
+\end{code}
+\end{Answer}
+
+\begin{Exercise}\label{ex:misc:sort}
+  Define the merge-sort function in Cryptol, that works over arbitrary
+  finite sequences of words. Prove its correctness. You might want to
+  split the proof in two parts. First prove that the output is a
+  permutation of the input, and then prove that the output is always
+  in increasing order.
+\end{Exercise}
+\begin{Answer}\ansref{ex:misc:sort}
+  A solution to the merge-sort problem can be found in the {\tt
+    Examples} directory of the Cryptol distribution.
+\end{Answer}
+
+\begin{Exercise}\label{ex:misc:legato}
+  Legato's challenge refers to the verification of an 8-bit
+  multiplication algorithm encoded in Mostek assembly code. More
+  information on Legato's challenge can be found at:
+\begin{center}
+ \url{http://www.cs.utexas.edu/~moore/acl2/workshop-2004/contrib/legato/Weakest-Preconditions-Report.pdf}
+\end{center}
+Write a Cryptol program to model Legato's multiplication algorithm
+following the machine model. Prove that the multiplier is correct.
+\end{Exercise}
+\begin{Answer}\ansref{ex:misc:legato}
+A solution can be found at:
+\begin{center} \url{http://www.galois.com/blog/2009/07/08/legatosmultiplierincryptol}
+\end{center}
+\end{Answer}
+
+\begin{Exercise}\label{ex:misc:skein}
+  The Cryptol distribution comes with a variety of crypto algorithm
+  implementations, including AES and the SHA-3 candidate Skein.  Study
+  these definitions and experiment with them using the Cryptol
+  interpreter.
+\end{Exercise}

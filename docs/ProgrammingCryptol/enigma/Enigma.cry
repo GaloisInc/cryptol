@@ -1,0 +1,148 @@
+// Cryptol Enigma Simulator
+// Copyright (c) 2010-2013, Galois Inc.
+// www.cryptol.net
+// You can freely use this source code for educational purposes.
+
+// Helper synonyms:
+// type Char        = [8]
+module Enigma where
+
+type Permutation = String 26
+
+// Enigma components:
+type Plugboard   = Permutation
+type Rotor       = [26](Char, Bit)
+type Reflector   = Permutation
+
+// An enigma machine with n rotors:
+type Enigma n    = { plugboard : Plugboard,
+                     rotors    : [n]Rotor,
+                     reflector : Reflector
+                   }
+
+// Check membership in a sequence:
+elem : {a, b} (fin 0, fin a, Cmp b) => (b, [a]b) -> Bit
+elem (x, xs) = matches ! 0
+  where matches = [False] # [ m || (x == e)  | e <- xs
+                                             | m <- matches
+                            ]
+// Inverting a permutation lookup:
+invSubst : (Permutation, Char) -> Char
+invSubst (key, c) = candidates ! 0
+  where candidates = [0] # [ if c == k then a else p
+                           | k <- key
+                           | a <- ['A' .. 'Z']
+                           | p <- candidates
+                           ]
+
+// Constructing a rotor
+mkRotor : {n} (fin n) => (Permutation, String n) -> Rotor
+mkRotor (perm, notchLocations) = [ (p, elem (p, notchLocations))
+                                 | p <- perm
+                                 ]
+
+// Action of a single rotor on a character
+// Note that we encrypt and then rotate, if necessary
+scramble : (Bit, Char, Rotor) -> (Bit, Char, Rotor)
+scramble (rotate, c, rotor) = (notch, c', rotor')
+  where 
+    (c', _)    = rotor @ (c - 'A')
+    (_, notch) = rotor @ 0
+    rotor'     = if rotate then rotor <<< 1 else rotor
+
+// Connecting rotors in a sequence
+joinRotors : {n} (fin n) => ([n]Rotor, Char) -> ([n]Rotor, Char)
+joinRotors (rotors, inputChar) = (rotors', outputChar)
+  where 
+    initRotor = mkRotor (['A' .. 'Z'], [])
+    ncrs : [n+1](Bit, [8], Rotor)
+    ncrs = [(True, inputChar, initRotor)] 
+               # [ scramble (notch, char, r)
+                 | r <- rotors
+                 | (notch, char, rotor') <- ncrs
+                 ]
+    rotors' = tail [ r | (_, _, r) <- ncrs ]
+    (_, outputChar, _) = ncrs ! 0
+
+// Following the signal through a single rotor, forward and backward
+substFwd, substBwd : (Permutation, Char) -> Char
+substFwd (perm, c) = perm @ (c - 'A')
+substBwd (perm, c) = invSubst (perm, c)
+// Route the signal back from the reflector, chase through rotors
+backSignal : {n} (fin n) => ([n]Rotor, Char) -> Char
+backSignal (rotors, inputChar) = cs ! 0
+  where   cs = [inputChar] # [ substBwd ([ p | (p, _) <- r ], c)
+                             | r <- reverse rotors
+                             | c <- cs
+                             ]
+
+// The full enigma loop, from keyboard to lamps:
+// The signal goes through the plugboard, rotors, and the reflector,
+// then goes back through the sequence in reverse, out of the
+// plugboard and to the lamps
+enigmaLoop : {n} (fin n) => (Plugboard, [n]Rotor, Reflector, Char) -> ([n]Rotor, Char)
+enigmaLoop (pboard, rotors, refl, c0) = (rotors', c5)
+  where
+    c1 = substFwd (pboard, c0)
+    (rotors', c2) = joinRotors (rotors, c1)
+    c3 = substFwd (refl, c2)
+    c4 = backSignal(rotors, c3)
+    c5 = substBwd (pboard, c4)
+
+// Construct a machine out of parts
+mkEnigma : {n} (Plugboard, [n]Rotor, Reflector, [n]Char) -> Enigma n
+mkEnigma (pboard, rs, refl, startingPositions) =
+    { plugboard  = pboard
+    , rotors     = [ r <<< (s - 'A')
+                   | r <- rs
+                   | s <- startingPositions
+                   ]
+    , reflector  = refl
+    }
+
+// Encryption/Decryption
+enigma : {n, m} (fin n, fin m) => (Enigma n, String m) -> String m
+enigma (m, pt) = tail [ c | (_, c) <- rcs ]
+  where rcs = [(m.rotors, '*')] # 
+              [ enigmaLoop (m.plugboard, r, m.reflector, c)
+              | c      <- pt
+              | (r, _) <- rcs
+              ]
+
+// Decryption is the same as encryption:
+// dEnigma : {n, m} (fin n, fin m) => (Enigma n, String m) -> String m
+dEnigma = enigma
+
+
+// Build an example enigma machine:
+plugboard : Plugboard
+plugboard = "HBGDEFCAIJKOWNLPXRSVYTMQUZ"
+
+rotor1, rotor2, rotor3 : Rotor
+rotor1 = mkRotor ("RJICAWVQZODLUPYFEHXSMTKNGB", "IO")
+rotor2 = mkRotor ("DWYOLETKNVQPHURZJMSFIGXCBA", "B")
+rotor3 = mkRotor ("FGKMAJWUOVNRYIZETDPSHBLCQX", "CK")
+
+reflector : Reflector
+reflector = "FEIPBATSCYVUWZQDOXHGLKMRJN"
+
+modelEnigma : Enigma 3
+modelEnigma = mkEnigma (plugboard, [rotor1, rotor2, rotor3], reflector, "GCR")
+
+/* Example run:
+
+   cryptol> :set ascii=on
+   cryptol> enigma  (modelEnigma, "ENIGMAWASAREALLYCOOLMACHINE")
+   UPEKTBSDROBVTUJGNCEHHGBXGTF
+   cryptol> dEnigma (modelEnigma, "UPEKTBSDROBVTUJGNCEHHGBXGTF")
+   ENIGMAWASAREALLYCOOLMACHINE
+*/
+
+all: {a, n} (fin n) => (a->Bit) -> [n]a -> Bit
+all fn xs = folds ! 0 where
+    folds = [True] # [ fn x && p | x <- xs
+                                 | p <- folds]
+checkReflectorFwdBwd : Reflector -> Bit
+checkReflectorFwdBwd refl = all check ['A' .. 'Z']
+    where check c = substFwd (refl, c) == substBwd (refl, c)
+

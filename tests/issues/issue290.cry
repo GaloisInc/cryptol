@@ -1,0 +1,5 @@
+module issue290 where
+
+myWidth (xs:[a]) = `a
+
+fooConst = 0x1

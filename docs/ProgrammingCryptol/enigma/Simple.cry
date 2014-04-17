@@ -1,0 +1,42 @@
+/*
+ * Copyright (c) 2013-2014 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+
+type Char = [8]
+type Permutation = String 26
+
+invSubst : (Permutation, Char) -> Char
+invSubst (key, c) = candidates ! 0
+  where candidates = [0] # [ if c == k then a else p
+                           | k <- key
+                           | a <- ['A' .. 'Z']
+                           | p <- candidates
+                           ]
+
+myrev : {n,a} (fin n) => [n+1][a] -> [n+1][a]
+myrev xs = [ xs!i | i <- [ 0 .. n] ]
+
+sumAll xs = ys ! 0
+    where ys = [0] # [x+y | x <- xs | y <- ys]
+
+/*
+simpleRec : {n,a} (fin n) => [n]a -> a
+simpleRec xs = ret
+    where
+        (_,ret) = iters ! 0
+        iters = [ (1,xs@0) ] #
+                    [ (i,x) | x <- xs
+                            | (i, _) <- iters ]
+
+joinRotors : {n} (fin n) => [n]() -> [n]()
+joinRotors rotors = rotors'
+  where
+    ncrs = [(True, ())]
+               # [ (notch, r)
+                 | r <- rotors
+                 | (notch, _) <- ncrs
+                 ]
+    rotors' = tail [ r | (_, r) <- ncrs ]
+
+*/

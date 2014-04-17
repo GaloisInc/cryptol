@@ -1,0 +1,5 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module r03
+nQueens:Solution 5 [4, 2, 0, 3, 1] = True
+(nQueensProve:Solution 4) [2, 0, 3, 1] = False

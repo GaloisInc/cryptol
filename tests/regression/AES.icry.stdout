@@ -1,0 +1,32 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module AES
+[warning] at AES.cry:147:1--150:39:
+  Defaulting 4th type parameter
+             of expression (@@)
+             at AES.cry:147:33--147:35
+  to 4
+[warning] at AES.cry:147:1--150:39:
+  Defaulting 3rd type parameter
+             of expression (@)
+             at AES.cry:147:58--147:59
+  to 4
+[warning] at AES.cry:124:26--129:31:
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at AES.cry:127:26--127:29
+  to 3
+[warning] at AES.cry:91:1--93:23:
+  Defaulting 2nd type parameter
+             of expression (>>>)
+             at AES.cry:91:28--91:31
+  to 2
+[warning] at AES.cry:86:1--88:20:
+  Defaulting 2nd type parameter
+             of expression (<<<)
+             at AES.cry:86:25--86:28
+  to 2
+True
+True
+True
+True

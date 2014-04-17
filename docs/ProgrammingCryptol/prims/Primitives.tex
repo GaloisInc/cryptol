@@ -1,0 +1,93 @@
+\chapter{Cryptol primitive functions}
+
+\commentout{
+\begin{code}
+primsPlaceHolder=1;
+\end{code}
+}
+
+\paragraph*{Bitwise operations}
+\begin{Verbatim}
+    &&, ||, ^ : {a} a -> a -> a
+    ~         : {a} a -> a
+\end{Verbatim}
+\paragraph*{Comparisons}
+\begin{Verbatim}
+    ==, !=        : {a} (Cmp a) => a -> a -> Bit
+    <, >, <=, >=  : {a} (Cmp a) => [a] -> [a] -> Bit
+\end{Verbatim}
+\paragraph*{Arithmetic}
+\begin{Verbatim}
+    +, -, *, /, %, ** : {a} (Arith a) => a -> a -> a
+    lg2               : {a, b} (Arith a) => a -> a
+\end{Verbatim}
+%    negate            : {a b} (a >= 1) => [a]b -> [a]b
+\paragraph*{Polynomial arithmetic}
+\begin{Verbatim}
+    pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
+    pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
+    pmult : {a, b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
+\end{Verbatim}
+\paragraph*{Sequences}
+\begin{Verbatim}
+    take : {front, back, elem} (fin front) 
+        => [front + back]elem -> [front]elem
+    drop : {front, back, elem} (fin front) 
+        => [front + back]elem -> [front]elem
+    tail : {a, b} [a+1]b -> [a]b
+    #    : {a, b, c} (fin a) => ([a]b,[c]b) -> [a+c]b
+    join : {parts, each, a} (fin each) 
+        => [parts][each]a -> [parts * each]a
+
+    groupBy : {each, parts, elem} (fin each) 
+           => [parts * each]elem -> [parts][each]elem
+    splitBy : {parts, each, elem} 
+           => [parts * each]elem -> [parts][each]elem
+    reverse : {a, b} (fin a) => [a]b -> [a]b
+    @       : {a, b, c} ([a]b,[c]) -> b
+    !       : {a, b, c} (fin a) => ([a]b,[c]) -> b
+    @@      : {a, b, c, d} ([a]b,[c][d]) -> [c]b
+    !!      : {a, b, c, d} (fin a) => ([a]b,[c][d]) -> [c]b
+    width   : {a, b, c} (c >= width a) => [a]b -> [c]
+\end{Verbatim}
+\paragraph*{Shifting, rotating}
+\begin{Verbatim}
+    >>, <<, >>>, <<< : {a b c} (fin a,c >= lg2 a) 
+                     => ([a]b,[c]) -> [a]b
+\end{Verbatim}
+\paragraph*{Miscellaneous}
+\begin{Verbatim}
+    zero      : {a} a
+    transpose : {a, b, c} [a][b]c -> [b][a]c
+    min, max  : {a} (fin a) => ([a],[a]) -> [a]
+\end{Verbatim}
+%   parity    : {a} (fin a) => [a] -> Bit
+\paragraph*{Representing exceptions}
+\begin{Verbatim}
+    error     : {a, b} [a][8] -> b
+    undefined : {a} a
+\end{Verbatim}
+\todo[inline]{\texttt{error} and \texttt{undefined} are not covered in
+  the book at the moment.}
+
+\todo[inline]{What is the state of debugging (\texttt{trace},
+  \texttt{ASSERT}), randomness (\texttt{random}), and pretty-printing
+  (\texttt{format}) built-ins?}
+%\paragraph*{Debugging}
+%\begin{Verbatim}
+%    trace  : {a b c} ([a][8],b,c) -> c
+%    ASSERT : {a b} (Bit,[a][8],b) -> b
+%\end{Verbatim}
+%\paragraph*{Generating random numbers}
+%\begin{Verbatim}
+%    random : {a b} (32 >= a) => [a] -> b
+%\end{Verbatim}
+%\paragraph*{Pretty printing}
+%\begin{Verbatim}
+%    format
+%\end{Verbatim}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "../main/Cryptol"
+%%% End: 

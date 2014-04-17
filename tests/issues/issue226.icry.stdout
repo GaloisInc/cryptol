@@ -1,0 +1,28 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Cryptol
+Loading module issue226r2
+Loading module issue226
+Type Synonyms
+=============
+    type Bool = Bit
+    type Char = [8]
+    type String n = [n][8]
+    type Word n = [n]
+
+Symbols
+=======
+    drop : {front, back, elem} (fin front) => [front +
+                                               back]elem -> [back]elem
+    foo : {a} a -> a
+    groupBy : {each, parts, elem} (fin each) => [parts *
+                                                 each]elem -> [parts][each]elem
+    splitBy : {parts, each, elem} (fin each) => [parts *
+                                                 each]elem -> [parts][each]elem
+    tail : {a, b} [1 + a]b -> [a]b
+    take : {front, back, elem} (fin front) => [front +
+                                               back]elem -> [front]elem
+    undefined : {a} a
+    width : {bits, len, elem} (fin len, fin bits,
+                               bits >= width len) => [len]elem -> [bits]
+

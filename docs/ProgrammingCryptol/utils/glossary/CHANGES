@@ -1,0 +1,115 @@
+glossary.sty history:
+
+    * Version 2.4: fixed problems caused by \@sanitize.
+      Extended package option "number" to be used with 
+      any counter (not just page or section). Added
+      number key to \setglossarystyle. Removed
+      some redundant code. Fixed problems caused with
+      hyperlinks when using a mixture of counters for
+      individual entries. Added extra \hyper<xx> page 
+      formats. Added hook to provide a sub header when
+      using a tabular style glossary. Added means of
+      specifying a column header for page list column. 
+      Added facility to insert text between groups.
+      Fixed bug in documentation when omitting \OnlyDescription
+
+      *** Note that if you update to version 2.4, it ***
+      *** is advisable to delete your .gls etc files ***
+      *** before recompiling.                        ***
+
+          
+    * Version 2.38: fixed by where inappropriate spaces are
+      inserted when using xspace package.
+
+    * Version 2.37: fixed hypertoc to work with sections
+
+    * Version 2.36: added \useglosentry{*}. Fixed bug which
+      allowed a pagebreak to occur between entry name and
+      entry description when using the altlist style.
+
+    * Version 2.35: fixed makeglos.bat
+
+    * Version 2.34: \acronymname now defined using 
+      \providecommand instead of \newcommand. Fixed bug
+      that prevented redefinition of \glossaryalignment.
+
+    * Version 2.33: fixed bug that occurs when a comma is
+      used in the description field of \newacronym.
+
+    * Version 2.32: added \setacronymdescfmt. (Makes it
+      easier to align the list of acronyms with 
+      acronym in one column and the long name in the
+      second column.)
+
+    * Version 2.31: added global package option. Added 
+      \unsetacronym and \unsetallacronyms.
+
+    * Version 2.3: Made it easier to have multiple glossaries 
+      with different styles within the same document. Added 
+      facility for inserting text before and after the list of 
+      page numbers.
+
+    * Version 2.26: Fixed bug in \useacronym (optional argument 
+      was ignored in certain situations).
+
+    * Version 2.25: Minor bug fix (missing page delimiters).
+
+    * Version 2.24: Added hypertoc option, and changed the 
+      hyperlink targets in the glossary entries.
+
+    * Version 2.23: Fixed bug in hyperlinks caused by \glsxspace.
+
+    * Version 2.22: Added acronymfont. Added xspace support. 
+      Changed makeglos.pl so that it reads information from 
+      auxiliary file. Added makeglos.bat file
+
+    * Version 2.21: Added \resetallacronyms
+
+    * Version 2.2: \glossaryname is now defined using 
+      \providecommand instead of \newcommand. Checks if 
+      theglossary environment is already defined, and if so 
+      redefines it and issues a warning.
+
+    * Version 2.19: fixed bug in \storeglosentry.
+
+    * Version 2.18: fixed bug in \useacronym. Added \gls.
+
+    * Version 2.17: added acronym package option. Added 
+      \storeglosentry (replacing old \saveglosentry command)
+
+    * Version 2.16: fixed bug preventing changes to \glossaryname 
+      and \shortglossary name from having an effect.
+
+    * Version 2.15: added \shortglossaryname (for page header and 
+      table of contents)
+
+    * Version 2.14: added LaTeX2HTML support, added \xglossary 
+      command (provides hyperlink to relevent entry in the 
+      glossary), added -m switch to makeglos.pl (merges multiple 
+      entries with the same name but different descriptions).
+
+    * Version 2.13: added extra package option "hyperacronym".
+
+    * Version 2.12: mostly bug fixes, also added extra package 
+      option "section".
+
+    * Version 2.11: starred form of acronym defined. Added 
+      \useacronym.
+
+    * Version 2.1: fixed conflict with array package. Fixed 
+      problems which occured when using certain commands (such as 
+      \cite) in the last argument of \newacronym.
+
+    * Version 2.01: fixed conflict with datetime package.
+
+    * Version 2.0: provides the command \newacronym to define 
+      acronyms. Additional package options "toc" (add glossary to 
+      table of contents) and "hyper" use hyperlinks in the 
+      glossary.
+
+    * Version 1.1: provides the additional package option 
+      "number" which sets the associated glossary entry number to 
+      the page number (default), the section number or no number. 
+      Also provides the additional commands \glossarypreamble and 
+      \glossarypostamble
+

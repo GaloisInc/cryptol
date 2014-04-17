@@ -1,0 +1,7 @@
+random 120   : [32]
+random 42    : [inf][64]
+random 5     : [16][32][8]
+random 120   : ([32],[16])
+random 42    : { x : [32], y : [16] }
+(random 5    : [32] -> [32]) 5
+random (random 120 : [32]) : [32]

@@ -1,0 +1,9 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at :1:1--7:63:
+  Defaulting 3rd type parameter
+             of expression (!)
+             at check21.cry:4:18--4:19
+  to 4
+True

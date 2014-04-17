@@ -1,0 +1,5 @@
+module comp02 where
+
+// redundant variables in a comprehension causes an error
+xs = [ a | a <- [1 .. 10]
+         | a <- [1 .. 10] ]

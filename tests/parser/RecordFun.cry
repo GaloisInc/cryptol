@@ -1,0 +1,4 @@
+module RecordFun where
+
+example = { f x = x }
+

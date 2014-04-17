@@ -1,0 +1,6 @@
+module import01 where
+
+import import01_dep
+import import01_dep
+
+g = f

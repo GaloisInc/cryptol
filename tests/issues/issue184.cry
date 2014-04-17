@@ -1,0 +1,8 @@
+keyWS seed = xs
+  where
+  xs = seed # [ i | i    <- [ 0xff ... ]
+                  | prev <- drop `{4 - 1} xs
+                  | old  <- xs
+                  ]
+
+tester = take`{10} (keyWS [1,2,3,4])

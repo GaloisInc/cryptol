@@ -1,0 +1,782 @@
+\chapter{Classic ciphers}
+\label{chapter:classic}
+
+Modern cryptography has come a long way. In his excellent book on
+cryptography, Singh traces it back to at least 5th century B.C., to
+the times of Herodotus and the ancient Greeks~\cite{Singh:1999:CBE}.
+That's some 2500 years ago, and surely we do not use those methods
+anymore in modern day cryptography. However, the basic techniques are
+still relevant for appreciating the art of secret writing.
+
+Shift ciphers\indShiftcipher construct the \glosCiphertext
+ciphertext\indCiphertext from the \glosPlaintext
+plaintext\indPlaintext\ by means of a predefined {\em shifting}
+operation,\glosCipherkey where the cipherkey of a particular shift
+algorithm defines the shift amount of the cipher.\indCipherkey
+Transposition ciphers work by keeping the plaintext the same, but {\em
+  rearrange} the order of the characters according to a certain rule.
+The cipherkey is essentially the description of how this transposition
+is done.\indTranspositioncipher Substitution
+ciphers\indSubstitutioncipher generalize shifts and transpositions,
+allowing one to substitute arbitrary codes for plaintext elements.  In
+this chapter, we will study several examples of these techniques and
+see how we can code them in Cryptol.
+
+In general, ciphers boil down to pairs of functions \emph{encrypt} and
+\emph{decrypt} which ``fit together'' in the appropriate way.  Arguing
+that a cryptographic function is \emph{correct} is subtle.
+
+Correctness of cryptography is determined by cryptanalyses by expert
+cryptographers.  Each kind of cryptographic primitive (i.e., a hash, a
+symmetric cipher, an asymmetric cipher, etc.) has a set of expected
+properties, many of which can only be discovered and proven by hand
+through a lot of hard work.  Thus, to check the correctness of a
+cryptographic function, a best practice for Cryptol use is to encode
+as many of these properties as one can in Cryptol itself and use
+Cryptol's validation and verification capabilities, discussed
+later in~\autoref{cha:high-assur-progr}.  For example, the fundamental
+property of most ciphers is that encryption and decryption are
+inverses of each other.
+
+To check the correctness of an \emph{implementation} $I$ of a
+cryptographic function $C$ means that one must show that the
+implementation $I$ behaves as the specification ($C$) stipulates.  In
+the context of cryptography, the minimal conformance necesssary is
+that $I$'s output \emph{exactly} conforms to the output characterized
+by $C$.  But just because a cryptographic implementation is
+\emph{functionally correct} does not mean it is \emph{secure}.  The
+subtleties of an implementation can leak all kinds of information that
+harm the security of the cryptography, including abstraction leaking
+of sensitive values, timing attacks, side-channel attacks, etc.  These
+kinds of properties cannot currently be expressed or reasoned about in
+Cryptol.
+
+Also, Cryptol does \emph{not} give the user any feedback on the
+\emph{strength} of a given (cryptographic) algorithm.  While this is
+an interesting and useful feature, it is not part of Cryptol's current
+capabilities.
+
+%=====================================================================
+\section{Caesar's cipher}
+\label{sec:caesar}
+\sectionWithAnswers{Caesar's cipher}{sec:caesar}
+
+Caesar's cipher (a.k.a. Caesar's shift) is one of the simplest
+ciphers.  The letters in the plaintext\indPlaintext are shifted by a
+fixed number of elements down the alphabet.\indCaesarscipher For
+instance, if the shift is 2, {\tt A} becomes {\tt C}, {\tt B} becomes
+{\tt D}, and so on. Once we run out of letters, we circle back to {\tt
+  A}; so {\tt Y} becomes {\tt A}, and {\tt Z} becomes {\tt B}.  Coding
+Caesar's cipher in Cryptol is quite straightforward (recall from
+Section~\ref{sec:tsyn} that a {\tt String n} is simply a sequence of n
+8-bit words.):\indTSString
+\begin{code}
+  caesar : {n} ([8], String n) -> String n
+  caesar (s, msg) = [ shift x | x <- msg ]
+        where map     = ['A' .. 'Z'] <<< s
+              shift c = map @ (c - 'A')
+\end{code}
+In this definition, we simply get a message {\tt msg} of type {\tt
+  String n}, and perform a {\tt shift} operation on each one of the
+elements.  The {\tt shift} function is defined locally in the {\tt
+  where}-clause.\indWhere To compute the shift, we first find the
+distance of the letter from the character {\tt 'A'} (via {\tt c -
+  'A'}), and look it up in the mapping imposed by the shift. The {\tt
+  map} is simply the alphabet rotated to the left by the shift amount,
+{\tt s}. Note how we use the enumeration {\tt ['A' .. 'Z']} to get all
+the letters in the alphabet.\indEnum
+
+\begin{Exercise}\label{ex:caesar:0}
+  What is the map corresponding to a shift of 2? Use Cryptol's
+  \verb+<<<+\indRotLeft to compute it.  You can use the command {\tt
+    :set ascii=on}\indSettingASCII to print strings in ASCII, like
+  this:
+\begin{Verbatim}
+  Cryptol> :set ascii=on
+  Cryptol> "Hello World"
+  "Hello World"
+\end{Verbatim}
+Why do we use a left-rotate, instead of a right-rotate?
+\end{Exercise}
+\begin{Answer}\ansref{ex:caesar:0}
+Here is the alphabet and the corresponding shift-2 Caesar's alphabet:
+\begin{verbatim}
+  Cryptol> ['A'..'Z'] 
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+  Cryptol> ['A'..'Z'] <<< 2
+  "CDEFGHIJKLMNOPQRSTUVWXYZAB"
+\end{verbatim}
+We use a left rotate to get the characters lined up correctly, as
+illustrated above.  \indRotLeft\indRotRight
+\end{Answer}
+
+\begin{Exercise}\label{ex:caesar:1}
+  Use the above definition to encrypt the message {\tt "ATTACKATDAWN"}
+  by shifts 0, 3, 12, and 52. What happens when the shift is a
+  multiple of 26? Why?
+\end{Exercise}
+\begin{Answer}\ansref{ex:caesar:1}
+Here are Cryptol's responses:
+\begin{Verbatim}
+  Cryptol> caesar (0, "ATTACKATDAWN")
+  "ATTACKATDAWN"
+  Cryptol> caesar (3, "ATTACKATDAWN")
+  "DWWDFNDWGDZQ"
+  Cryptol> caesar (12, "ATTACKATDAWN")
+  "MFFMOWMFPMIZ"
+  Cryptol> caesar (52, "ATTACKATDAWN")
+  "ATTACKATDAWN"
+\end{Verbatim}
+If the shift is a multiple of 26 (as in 0 and 52 above), the letters
+will cycle back to their original values, so encryption will leave the
+message unchanged. Users of the Caesar's cipher should be careful
+about picking the shift amount!
+\end{Answer}
+
+\begin{Exercise}\label{ex:caesar:2}
+  Write a function {\tt dCaesar} which will decrypt a ciphertext
+  constructed by a Caesar's cipher. It should have the same signature
+  as {\tt caesar}.  Try it on the examples from the previous exercise.
+\end{Exercise}
+\begin{Answer}\ansref{ex:caesar:2}
+  The code is almost identical, except we need to use a right
+  rotate:\indRotRight
+
+\begin{code}
+  dCaesar : {n} ([8], String n) -> String n
+  dCaesar (s, msg) = [ shift x | x <- msg ]
+        where map     = ['A' .. 'Z'] >>> s
+              shift c = map @ (c - 'A')
+\end{code}
+%  dCaesar : {n} ([8], String n) -> String n
+%  dCaesar (s, msg) = [ shift x | x <- msg ]
+%    where  map     = ['A' .. 'Z']  >>> s
+%           shift c = map @ (c - 'A')
+We have:
+\begin{Verbatim}
+  Cryptol> caesar (12, "ATTACKATDAWN")
+  "MFFMOWMFPMIZ"
+  Cryptol> dCaesar (12, "MFFMOWMFPMIZ")
+  "ATTACKATDAWN"
+\end{Verbatim}
+\end{Answer}
+
+\begin{Exercise}\label{ex:caesar:3}
+  Observe that the shift amount in a Caesar cipher is very limited:
+  Any shift of {\tt d} is equivalent to a shift by {\tt d \% 26}. (For
+  instance shifting by 12 and 38 is the same thing, due to wrap around
+  at 26.) Based on this observation, how strong do you think the
+  Caesar's cipher is? Describe a simple attack that will recover the
+  plaintext and automate it using Cryptol.  Use your function to crack
+  the ciphertext {\tt JHLZHYJPWOLYPZDLHR}.
+\end{Exercise}
+\begin{Answer}\ansref{ex:caesar:3}
+  For the Caesar's cipher, the only good shifts are $1$ through $25$,
+  since shifting by $0$ would return the plaintext unchanged, and any
+  shift amount {\tt d} that is larger than $26$ and over is essentially
+  the same as shifting by {\tt d \% 26} due to wrap around. Therefore,
+  all it takes to break the Caesar cipher is to try the sizes $1$
+  through $25$, and see if we have a valid message. We can automate this
+  in Cryptol by returning all possible plaintexts using these shift
+  amounts:
+\begin{code}
+  attackCaesar : {n} (String n) -> [25](String n)
+  attackCaesar msg = [ dCaesar(i, msg) | i <- [1 .. 25] ]
+\end{code}
+If we apply this function to {\tt JHLZHYJPWOLYPZDLHR}, we get:
+\begin{Verbatim}
+  Cryptol> :set ascii=on
+  Cryptol> attackCaesar "JHLZHYJPWOLYPZDLHR",
+  ["IGKYGXIOVNKXOYCKGQ", "HFJXFWHNUMJWNXBJFP", "GEIWEVGMTLIVMWAIEO"
+   "FDHVDUFLSKHULVZHDN", "ECGUCTEKRJGTKUYGCM", "DBFTBSDJQIFSJTXFBL"
+   "CAESARCIPHERISWEAK", "BZDRZQBHOGDQHRVDZJ", "AYCQYPAGNFCPGQUCYI"
+   "ZXBPXOZFMEBOFPTBXH", "YWAOWNYELDANEOSAWG", "XVZNVMXDKCZMDNRZVF"
+   "WUYMULWCJBYLCMQYUE", "VTXLTKVBIAXKBLPXTD", "USWKSJUAHZWJAKOWSC"
+   "TRVJRITZGYVIZJNVRB", "SQUIQHSYFXUHYIMUQA", "RPTHPGRXEWTGXHLTPZ"
+   "QOSGOFQWDVSFWGKSOY", "PNRFNEPVCUREVFJRNX", "OMQEMDOUBTQDUEIQMW"
+   "NLPDLCNTASPCTDHPLV", "MKOCKBMSZROBSCGOKU", "LJNBJALRYQNARBFNJT"
+   "KIMAIZKQXPMZQAEMIS"]
+\end{Verbatim}
+If you skim through the potential ciphertexts, you will see that the
+$7^{th}$ entry is probably the one we are looking for. Hence the key
+must be $7$.  Indeed, the message is {\tt CAESARCIPHERISWEAK}.
+\end{Answer}
+
+\begin{Exercise}\label{ex:caesar:4}
+  One classic trick to strengthen ciphers is to use multiple keys. By
+  repeatedly encrypting the plaintext multiple times we can hope that
+  it will be more resistant to attacks. Do you think this scheme might
+  make the Caesar cipher stronger?
+\end{Exercise}
+\begin{Answer}\ansref{ex:caesar:4}
+  No. Using two shifts $d_1$ and $d_2$ is essentially the same as
+  using just one shift with the amount $d_1 + d_2$. Our attack
+  function would work just fine on this schema as well. In fact, we
+  wouldn't even have to know how many rounds of encryption was
+  applied. Multiple rounds is just as weak as a single round when it
+  comes to breaking the Caesar's cipher.  \end{Answer}
+
+\begin{Exercise}\label{ex:caesar:5}
+  What happens if you pass {\tt caesar} a plaintext that has
+  non-uppercase letters in it? (Let's say a digit.) How can you fix
+  this deficiency?
+\end{Exercise}
+\begin{Answer}\ansref{ex:caesar:5}
+In this case we will fail to find a mapping:
+\begin{Verbatim}
+  Cryptol> caesar (3, "12")
+  ... index of 240 is out of bounds
+  (valid range is 0 thru 25).
+\end{Verbatim}
+What happened here is that Cryptol computed the offset {\tt '1' - 'A'}
+to obtain the $8$-bit index $240$ (remember, modular arithmetic!), but
+our alphabet only has $26$ entries, causing the out-of-bounds error.
+\todo[inline]{Say something about how to guarantee that such errors
+  are impossible. (Use of preconditions, checking and proving safety,
+  etc.)}  We can simply remedy this problem by allowing our alphabet
+to contain all $8$-bit numbers:\indRotLeft
+\begin{code}
+  caesar' : {n} ([8], String n) -> String n
+  caesar' (s, msg) = [ shift x | x <- msg ]
+    where map     = [0 .. 255] <<< s
+          shift c = map @ c
+\end{code}
+Note that we no longer have to subtract {\tt 'A'}, since we are
+allowing a much wider range for our plaintext and ciphertext. (Another
+way to put this is that we are subtracting the value of the first
+element in the alphabet, which happens to be 0 in this case!
+Consequently, the number of ``good'' shifts increase from $25$ to
+$255$.)  The change in {\tt dCaesar'} is analogous:\indRotRight
+\begin{code}
+  dCaesar' : {n} ([8], String n) -> String n
+  dCaesar' (s, msg) = [ shift x | x <- msg ]
+    where  map     = [0 .. 255] >>> s
+           shift c = map @ c
+\end{code}
+\end{Answer}
+
+%=====================================================================
+\section{\texorpdfstring{Vigen\`{e}re}{Vigenere} cipher}
+\label{sec:vigenere}
+\sectionWithAnswers{\texorpdfstring{Vigen\`{e}re}{Vigenere} cipher}{sec:vigenere}
+
+The Vigen\`{e}re cipher is a variation on the Caesar's cipher, where
+one uses multiple shift amounts according to a
+keyword~\cite{wiki:vigenere}.\indVigenere Despite its simplicity, it
+earned the notorious description {\em le chiffre ind\`{e}chiffrable}
+(``the indecipherable cipher'' in French), as it was unbroken for a
+long period of time. It was very popular in the 16th century and
+onwards, only becoming routinely breakable by mid-19th century or so.
+
+To illustrate the operation of the Vigen\`{e}re cipher, let us
+consider the plaintext {\tt ATTACKATDAWN}. The cryptographer picks a
+key, let's say {\tt CRYPTOL}. We line up the plaintext and the key,
+repeating the key as much as as necessary, as in the top two lines of
+the following:
+\begin{tabbing}
+\hspace*{2cm} \= Ciphertext: \hspace*{.5cm} \= {\tt CKRPVYLVUYLG} \kill 
+\> Plaintext : \> {\tt ATTACKATDAWN} \\
+\> Cipherkey : \> {\tt CRYPTOLCRYPT} \\
+\> Ciphertext: \> {\tt CKRPVYLVUYLG}
+\end{tabbing}
+We then proceed pair by pair, shifting the plaintext character by the
+distance implied by the corresponding key character.  The first pair
+is {\tt A}-{\tt C}.  Since {\tt C} is two positions away from {\tt A}
+in the alphabet, we shift {\tt A} by two positions, again obtaining
+{\tt C}.  The second pair {\tt T}-{\tt R} proceeds similarly: Since
+{\tt R} is 17 positions away from {\tt A}, we shift {\tt T} down 17
+positions, wrapping around {\tt Z}, obtaining {\tt K}.  Proceeding in
+this fashion, we get the ciphertext {\tt CKRPVYLVUYLG}. Note how each
+step of the process is a simple application of the Caesar's
+cipher.\indCaesarscipher
+
+\begin{Exercise}\label{ex:vigenere:0}
+  One component of the Vigen\`{e}re cipher is the construction of the
+  repeated key.  Write a function {\tt cycle} with the following
+  signature:
+\begin{code}
+  cycle : {n, a} (fin n, n >= 1) => [n]a -> [inf]a
+\end{code}
+such that it returns the input sequence appended to itself repeatedly,
+turning it into an infinite sequence. Why do we need the predicate
+{\tt n >= 1}?\indPredicates
+\end{Exercise}
+\begin{Answer}\ansref{ex:vigenere:0}
+Here is one way to define {\tt cycle}, using a recursive definition:
+\begin{code}
+  cycle xs = xss
+        where xss = xs # xss
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> cycle [1 .. 3]
+  [1, 2, 3, 1, 2, ...]
+\end{Verbatim}
+If we do not have the {\tt n >= 1} predicate, then we can pass {\tt
+  cycle} the empty sequence, which would cause an infinite loop
+emitting nothing.  The predicate {\tt n >= 1} makes sure the input is
+non-empty, guaranteeing that {\tt cycle} can produce the infinite
+sequence.
+\end{Answer}
+
+\begin{Exercise}\label{ex:vigenere:1}
+  Program the Vigen\`{e}re cipher in Cryptol. It should have the
+  signature:
+\begin{code}
+  vigenere : {n, m} (fin n, n >= 1) => (String n, String m) -> String m
+\end{code}
+where the first argument is the key and the second is the
+plaintext. Note how the signature ensures that the input string and
+the output string will have precisely the same number of characters,
+{\tt m}. \lhint{Use Caesar's cipher repeatedly.}
+\end{Exercise}
+\begin{Answer}\ansref{ex:vigenere:1}
+\begin{code}
+  vigenere (key, pt) = join [ caesar (k - 'A', [c]) 
+                              | c <- pt
+                              | k <- cycle key
+                            ]
+\end{code}
+Note the shift is determined by the distance from the letter {\tt 'A'}
+for each character. Here is the cipher in action:
+\begin{Verbatim}
+  Cryptol> vigenere ("CRYPTOL", "ATTACKATDAWN")
+  "CKRPVYLVUYLG"
+\end{Verbatim}
+\end{Answer}
+
+\begin{Exercise}\label{ex:vigenere:2}
+  Write the decryption routine for Vigen\`{e}re. Then decode \\
+  {\tt "XZETGSCGTYCMGEQGAGRDEQC"} with the key {\tt "CRYPTOL"}.
+\end{Exercise}
+\begin{Answer}\ansref{ex:vigenere:2}
+Following the lead of the encryption, we can rely on {\tt dCaesar}:
+\begin{code}
+  dVigenere : {n, m} (fin n, n >= 1) => 
+              (String n, String m) -> String m
+  dVigenere (key, pt) = join [ dCaesar (k - 'A', [c]) 
+                               | c <- pt
+                               | k <- cycle key
+                             ]
+\end{code}
+The secret code is:
+\begin{Verbatim}
+  Cryptol> dVigenere ("CRYPTOL", "XZETGSCGTYCMGEQGAGRDEQC")
+  "VIGENERECANTSTOPCRYPTOL"
+\end{Verbatim}
+\end{Answer}
+
+\begin{Exercise}\label{ex:vigenere:3}
+  A known-plaintext attack\indKnownPTAttack is one where an attacker
+  obtains a plaintext-ciphertext pair, without the key. If the
+  attacker can figure out the key based on this pair then he can break
+  all subsequent communication until the key is replaced. Describe how
+  one can break the Vigen\`{e}re cipher if a plaintext-ciphertext pair
+  is known.
+\end{Exercise}
+\begin{Answer}\ansref{ex:vigenere:3}
+  All it takes is to decrypt using using the plaintext as the key and
+  message as the cipherkey. Here is this process in action. Recall
+  from the previous exercise that encrypting {\tt ATTACKATDAWN} by the
+  key {\tt CRYPTOL} yields {\tt CKRPVYLVUYLG}. Now, if an attacker
+  knows that {\tt ATTACKATDAWN} and {\tt CKRPVYLVUYLG} form a pair,
+  he/she can find the key simply by:\indVigenere
+\begin{Verbatim}
+  Cryptol> dVigenere ("ATTACKATDAWN", "CKRPVYLVUYLG")
+  "CRYPTOLCRYPT"
+\end{Verbatim}
+Note that this process will not always tell us what the key is
+precisely.  It will only be the key repeated for the given message
+size. For sufficiently large messages, or when the key does not repeat
+any characters, however, it would be really easy for an attacker to
+glean the actual key from this information.
+
+This trick works since the act of using the plaintext as the key and
+the ciphertext as the message essentially reverses the shifting
+process, revealing the shift amounts for each pair of characters.  The
+same attack would essentially work for the Caesar's cipher as well,
+where we would only need one character to crack it.\indCaesarscipher
+\end{Answer}
+
+%%%% Way too complicated for the intro.. skipping for now
+%% \section{Rail fence cipher}
+%% \lable{sec:railfence}
+%% \sectionWithAnswers{Rail fence cipher}{sec:railfence}\indRailFence
+%% The $k$-rail fence cipher is a simple example of a transposition
+%% cipher\indTranspositioncipher, where the text is written along {\em
+%% k}-lines in a zig-zag fashion. For instance, to encrypt {\tt
+%% ATTACKATDAWN} using a 3-rail fence, we construct the following
+%% text:
+%% \begin{Verbatim}
+%%  A . . . C . . . D . . .
+%% . T . A . K . T . A . N
+%% . . T . . . A . . . W .
+%% \end{Verbatim}
+%% going down and up the 3 fences in a zigzag fashion. We then read
+%% the ciphertext\indCiphertext line by line to obtain:
+%% \begin{Verbatim}
+%%   ACDTAKTANTAW
+%% \end{Verbatim}
+%% 
+%% \begin{Exercise}\label{ex:railfence:0}
+%%   Program the 3-rail fence cipher in Cryptol. You should write the
+%%   functions:
+%% \begin{code}
+%%   rail3Fence, dRail3Fence : {a} (fin a) => String((4*a))  -> String ((4*a));
+%% \end{code}
+%% that implements the 3-rails encryption/decryption. Using your
+%% functions, encrypt and decrypt the message {\tt
+%% RAILFENCECIPHERISTRICKIERTHANITLOOKS}.
+%% \end{Exercise}
+%% \begin{Answer}\ansref{ex:railfence:0}
+%% \begin{code}
+%%   rail3Fence pt = heads # mids # tails
+%%   where {
+%%      regions = groupBy (4, pt);
+%%      heads   =      [| r @ 0             || r <- regions |];
+%%      mids    = join [| [(r @ 1) (r @ 3)] || r <- regions |];
+%%      tails   =      [| r @ 2             || r <- regions |];
+%%   };
+%% \end{code}
+%% \end{Answer}
+
+%=====================================================================
+\section{The atbash}
+\label{sec:atbash}
+\sectionWithAnswers{The atbash}{sec:atbash}
+
+The atbash cipher is a form of a shift cipher, where each letter is
+replaced by the letter that occupies its mirror image position in the
+alphabet.\indAtbash That is, {\tt A} is replaced by {\tt Z}, {\tt B}
+by {\tt Y}, etc. Needless to say the atbash is hardly worthy of
+cryptographic attention, as it is trivial to break.
+
+\begin{Exercise}\label{ex:atbash:0}
+  Program the atbash in Cryptol. What is the code for {\tt
+    ATTACKATDAWN}?
+\end{Exercise}
+\begin{Answer}\ansref{ex:atbash:0}
+  Using the reverse index operator, coding atbash is
+  trivial:\indRIndex\indAtbash
+\begin{code}
+  atbash : {n} String n -> String n
+  atbash pt = [ alph ! (c - 'A') | c <- pt ]
+      where alph = ['A' .. 'Z']
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> atbash "ATTACKATDAWN"
+  "ZGGZXPZGWZDM"
+\end{Verbatim}
+\end{Answer}
+
+\begin{Exercise}\label{ex:atbash:1}
+  Program the atbash decryption in Cryptol. Do you have to write any
+  code at all? Break the code {\tt ZGYZHSRHHVOUWVXIBKGRMT}.
+\end{Exercise}
+\begin{Answer}\ansref{ex:atbash:1}
+  Notice that decryption for atbash\indAtbash is precisely the same as
+  encryption, the process is entirely the same. So, we do not have to
+  write any code at all, we can simply define:
+\begin{code}
+  dAtbash : {n} String n -> String n
+  dAtbash = atbash
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> dAtbash "ZGYZHSRHHVOUWVXIBKGRMT"
+  "ATBASHISSELFDECRYPTING"
+\end{Verbatim}
+\end{Answer}
+
+%=====================================================================
+\section{Substitution ciphers}
+\label{section:subst}
+\sectionWithAnswers{Substitution ciphers}{section:subst}
+
+Substitution ciphers\indSubstitutioncipher generalize all the ciphers
+we have seen so far, by allowing arbitrary substitutions to be made
+for individual ``components'' of the
+plaintext~\cite{wiki:substitution}.  Note that these components need
+not be individual characters, but rather can be pairs or even triples
+of characters that appear consecutively in the text. (The
+multi-character approach is termed {\em
+  polygraphic}.)\indPolyGraphSubst Furthermore, there are variants
+utilizing multiple {\em polyalphabetic} mappings,\indPolyAlphSubst as
+opposed to a single {\em monoalphabetic} mapping\indMonoAlphSubst.  We
+will focus on monoalphabetic simple substitutions, although the other
+variants are not fundamentally more difficult to implement.
+
+\tip{For the exercises in this section we will use a running key
+  repeatedly. To simplify your interaction with Cryptol, put the
+  following definition in your program file:}
+\begin{code}
+  substKey : String 26
+  substKey = "FJHWOTYRXMKBPIAZEVNULSGDCQ"
+\end{code}
+The intention is that {\tt substKey} maps {\tt A} to {\tt F}, {\tt B}
+to {\tt J}, {\tt C} to {\tt H}, and so on.
+
+\begin{Exercise}\label{ex:subst:0}
+  Implement substitution ciphers in Cryptol. Your function should have
+  the signature:
+\begin{code}
+  subst : {n} (String 26, String n) -> String n
+\end{code}
+where the first element is the key (like {\tt substKey}).
+What is the code for \\
+{\tt "SUBSTITUTIONSSAVETHEDAY"} for the key {\tt substKey}?
+\end{Exercise}
+\begin{Answer}\ansref{ex:subst:0}
+\begin{code}
+  subst (key, pt) = [ key @ (p - 'A') | p <- pt ]
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> subst(substKey, "SUBSTITUTIONSSAVETHEDAY")
+  "NLJNUXULUXAINNFSOUROWFC"
+\end{Verbatim}
+\end{Answer}
+
+\paragraph*{Decryption} Programming decryption is more subtle.  We can
+no longer use the simple selection operation ({\tt @})\indIndex on the
+key. Instead, we have to search for the character that maps to the
+given ciphertext character.
+
+\begin{Exercise}\label{ex:subst:1}
+Write a function {\tt invSubst} with the following signature:
+%%   type Char = [8] // now in prelude.cry
+\begin{code}
+  invSubst : (String 26, Char) -> Char
+\end{code}
+such that it returns the mapped plaintext character. For instance,
+with {\tt substKey}, {\tt F} should get you {\tt A}, since the key
+maps {\tt A} to {\tt F}:
+\begin{Verbatim}
+  Cryptol> invSubst (substKey, 'F')
+  A
+\end{Verbatim}
+And similarly for other examples:
+\begin{Verbatim}
+  Cryptol> invSubst (substKey, 'J')
+  B
+  Cryptol> invSubst (substKey, 'C')
+  Y
+  Cryptol> invSubst (substKey, 'Q')
+  Z
+\end{Verbatim}
+One question is what happens if you search for a non-existing
+character.  In this case you can just return {\tt 0}, a non-valid
+ASCII character, which can be interpreted as {\em not found}.
+\hint{Use a fold (see Pg.~\pageref{par:fold}).}\indFold
+\end{Exercise}
+\begin{Answer}\ansref{ex:subst:1}
+\begin{code}
+  invSubst (key, c) = candidates ! 0
+    where candidates = [0] # [ if c == k then a else p
+                             | k <- key
+                             | a <- ['A' .. 'Z']
+                             | p <- candidates
+                             ]
+\end{code}
+The comprehension\indComp defining {\tt candidates} uses a fold (see
+page~\pageref{par:fold}).\indFold The first branch ({\tt k <- key})
+walks through all the key elements, the second branch walks through
+the ordinary alphabet ({\tt a <- ['A' .. 'Z']}), and the final branch
+walks through the candidate match so far. At the end of the fold, we
+simply return the final element of {\tt candidates}. Note that we
+start with {\tt 0} as the first element, so that if no match is found
+we get a {\tt 0} back.
+\end{Answer}
+
+\begin{Exercise}\label{ex:subst:2}
+  Using {\tt invSubst}, write the decryption function {\tt dSubst}.
+  It should have the exact same signature as {\tt subst}.  Decrypt
+  {\tt FUUFHKFUWFGI}, using our running key.
+\end{Exercise}
+\begin{Answer}\ansref{ex:subst:2}
+\begin{code}
+  dSubst: {n} (String 26, String n) -> String n
+  dSubst (key, ct) = [ invSubst (key, c) | c <- ct ]
+\end{code}
+We have:
+\begin{Verbatim}
+  Cryptol> dSubst (substKey, "FUUFHKFUWFGI")
+  "ATTACKATDAWN"
+\end{Verbatim}
+\end{Answer}
+
+\todo[inline]{This exercise and the true type of \texttt{invSubst}
+  indicate that specs are needed.  In other words, we cannot capture
+  \texttt{invSubst}'s tightest type, which would encode the invariant
+  about contents being capital letters, and that lack of
+  expressiveness leaks to \texttt{dSubst}.  We really need to either
+  enrich the dependent types or add some kind of support for
+  contracts.  The reason this works most of the time is that crypto
+  algorithms work on arbitrary bytes.}
+
+\begin{Exercise}\label{ex:subst:3}
+  Try the substitution cipher with the key {\tt
+    AAAABBBBCCCCDDDDEEEEFFFFGG}. Does it still work?  What is special
+  about {\tt substKey}?
+\end{Exercise}
+\begin{Answer}\ansref{ex:subst:3}
+No, with this key we cannot decrypt properly:
+\begin{Verbatim}
+  Cryptol> subst ("AAAABBBBCCCCDDDDEEEEFFFFGG", "HELLOWORLD")
+  "BBCCDFDECA"
+  Cryptol> dSubst ("AAAABBBBCCCCDDDDEEEEFFFFGG", "BBCCDFDECA")
+  "HHLLPXPTLD"
+\end{Verbatim}
+This is because the given key maps multiple plaintext letters to the
+same ciphertext letter. (For instance, it maps all of {\tt A}, {\tt
+  B}, {\tt C}, and {\tt D} to the letter {\tt A}.) For substitution
+ciphers to work the key should not repeat the elements, providing a
+1-to-1 mapping. This property clearly holds for {\tt substKey}. Note
+that there is no shortage of keys, since for 26 letters we have 26!
+possible ways to choose keys, which gives us over 4-billion different
+choices.
+\end{Answer}
+
+%=====================================================================
+\section{The scytale}
+\label{sec:scytale}
+\sectionWithAnswers{The scytale}{sec:scytale}
+
+The scytale is one of the oldest cryptographic devices ever, dating
+back to at least the first century
+A.D.~\cite{wiki:scytale}.\indScytale Ancient Greeks used a leather
+strip on which they would write their plaintext\indPlaintext message.
+The strip would be wrapped around a rod of a certain diameter. Once
+the strip is completely wound, they would read the text row-by-row,
+essentially transposing the letters and constructing the
+ciphertext\indCiphertext. Since the ciphertext is formed by a
+rearrangement of the plaintext, the scytale is an example of a
+transposition cipher.\indTranspositioncipher To decrypt, the
+ciphertext needs to be wrapped around a rod of the same diameter,
+reversing the process. The cipherkey\indCipherkey is essentially the
+diameter of the rod used. Needless to say, the scytale does not
+provide a very strong encryption mechanism.
+
+Abstracting away from the actual rod and the leather strip, encryption
+is essentially writing the message column-by-column in a matrix and
+reading it row-by-row.  Let us illustrate with the message {\tt
+  ATTACKATDAWN}, where we can fit 4 characters per column:
+\begin{verbatim}
+    ACD
+    TKA
+    TAW
+    ATN
+\end{verbatim}
+To encrypt, we read the message row-by-row, obtaining {\tt
+  ACDTKATAWATN}. If the message does not fit properly (i.e., if it has
+empty spaces in the last column), it can be padded by {\tt Z}'s or
+some other agreed upon character. To decrypt, we essentially reverse
+the process, by writing the ciphertext row-by-row and reading it
+column-by-column.
+
+Notice how the scytale's operation is essentially matrix
+transposition.  Therefore, implementing the scytale in Cryptol is
+merely an application of the {\tt transpose} function.\indTranspose
+All we need to do is group the message by the correct number of
+elements using {\tt split}.\indSplit Below, we define the {\tt
+  diameter} to be the number of columns we have. The type synonym {\tt
+  Message} ensures we only deal with strings that properly fit the
+``rod,'' by using {\tt r} number of rows:\indJoin
+
+\begin{code}
+  scytale : {row, diameter} (fin row, fin diameter)
+            => String (row * diameter) -> String (diameter * row)
+  scytale msg = join (transpose msg')
+       where   msg' : [diameter][row][8]
+               msg' = split msg
+\end{code}
+The signature\indSignature on {\tt msg'} is revealing: We are taking a
+string that has {\tt diameter * row} characters in it, and chopping it
+up so that it has {\tt row} elements, each of which is a string that
+has {\tt diameter} characters in it.  Here is Cryptol in action,
+encrypting the message {\tt ATTACKATDAWN}:
+\begin{Verbatim}
+  Cryptol> :set ascii=on
+  Cryptol> scytale "ATTACKATDAWN"
+  "ACDTKATAWATN"
+\end{Verbatim}
+Decryption is essentially the same process, except we have to {\tt
+  split} so that we get {\tt diameter} elements
+out:\indSplit\indJoin\indScytale
+\begin{code}
+  dScytale : {row, diameter} (fin row, fin diameter) 
+             => String (row * diameter) -> String (diameter * row)
+  dScytale msg = join (transpose msg')
+     where   msg' : [row][diameter][8]
+             msg' = split msg
+\end{code}
+Again, the type on {\tt msg'} tells Cryptol that we now want {\tt
+  diameter} strings, each of which is {\tt row} long.  It is important
+to notice that the definitions of {\tt scytale} and {\tt dScytale} are
+precisely the same, except for the signature on {\tt msg'}! When
+viewed as a matrix, the types precisely tell which transposition we
+want at each step.  We have:
+\begin{Verbatim}
+  Cryptol> dScytale "ACDTKATAWATN"
+  "ATTACKATDAWN"
+\end{Verbatim}
+
+\begin{Exercise}\label{ex:scytale:0}
+  What happens if you comment out the signature for {\tt msg'} in the
+  definition of {\tt scytale}? Why?\indScytale
+\end{Exercise}
+\begin{Answer}\ansref{ex:scytale:0}
+  If you do not provide a signature for {\tt msg'}, you will get the
+  following type-error message from Cryptol:
+\begin{small}
+\begin{Verbatim}
+  Failed to validate user-specified signature.
+    In the definition of 'scytale', at classic.cry:40:1--40:8:
+      for any type row, diameter
+        fin row
+        fin diameter
+      =>
+      fin ?b
+        arising from use of expression split at classic.cry:42:17--42:22
+      fin ?d
+        arising from use of expression join at classic.cry:40:15--40:19
+      row * diameter == ?a * ?b
+        arising from matching types at classic.cry:1:1--1:1
+\end{Verbatim}
+\end{small}
+Essentially, Cryptol is complaining that it was asked to do a {\tt
+  split}\indSplit and it figured that the constraint
+$\text{\emph{diameter}}*\text{\emph{row}}=a*b$ must hold, but that is
+not sufficient to determine what {\tt a} and {\tt b} should really
+be. (There could be multiple ways to assign {\tt a} and {\tt b} to
+satisfy that requirement, for instance {\tt a=4}, {\tt b=row}; or {\tt
+  a=2} and {\tt b=2*row}, resulting in differing behavior.)  This is
+why it is unable to ``validate the user-specified signature''.  By
+putting the explicit signature for {\tt msg'}, we are giving Cryptol
+more information to resolve the ambiguity. Notice that since the code
+for {\tt scytale} and {\tt dScytale} are precisely the same except for
+the type on {\tt msg'}. This is a clear indication that the type
+signature plays an essential role here.\indAmbiguity\indSignature
+\end{Answer}
+
+\begin{Exercise}\label{ex:scytale:1}
+  How would you attack a scytale encryption, if you don't know what
+  the diameter is?
+\end{Exercise}
+\begin{Answer}\ansref{ex:scytale:1}
+  Even if we do not know the diameter, we do know that it is a divisor
+  of the length of the message. For any given message size, we can
+  compute the number of divisors of the size and try decryption until
+  we find a meaningful plaintext.  Of course, the number of potential
+  divisors will be large for large messages, but the practicality of
+  scytale stems from the choice of relatively small diameters, hence
+  the search would not take too long. (With large diameters, the
+  ancient Greeks would have to carry around very thick rods, which
+  would not be very practical in a battle scenario!)\indScytale
+\end{Answer}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "../main/Cryptol"
+%%% End: 

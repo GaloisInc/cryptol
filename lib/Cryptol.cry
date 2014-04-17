@@ -1,0 +1,35 @@
+/*
+ * Copyright (c) 2013-2014 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+
+module Cryptol where
+
+type Bool = Bit
+type String n = [n][8]
+type Word n = [n]
+type Char   = [8]
+
+take : {front,back,elem} (fin front) => [front + back] elem -> [front] elem
+take (x # _) = x
+
+drop : {front,back,elem} (fin front) => [front + back] elem -> [back] elem
+drop ((_ : [front] _) # y) = y
+
+tail : {a, b} [1 + a]b -> [a]b
+tail xs = drop`{1} xs
+
+width : {bits,len,elem} (fin len, fin bits, bits >= width len) => [len] elem -> [bits]
+width _ = `len
+
+undefined : {a} a
+undefined = error "undefined"
+
+splitBy : {parts,each,elem} (fin each) =>
+  [parts * each] elem -> [parts][each]elem
+splitBy = split
+
+groupBy : {each,parts,elem} (fin each) =>
+  [parts * each] elem -> [parts][each]elem
+groupBy = split`{parts=parts}
+

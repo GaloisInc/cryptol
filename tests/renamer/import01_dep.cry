@@ -1,0 +1,3 @@
+module import01_dep where
+
+f x = x

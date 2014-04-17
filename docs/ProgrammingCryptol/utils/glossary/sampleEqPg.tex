@@ -1,0 +1,290 @@
+%%
+%% This is file `sampleEqPg.tex',
+%% generated with the docstrip utility.
+%%
+%% The original source files were:
+%%
+%% glossary.dtx  (with options: `sampleEqPg.tex,package')
+%% Copyright (C) 2006 Nicola Talbot, all rights reserved.
+%% If you modify this file, you must change its name first.
+%% You are NOT ALLOWED to distribute this file alone. You are NOT
+%% ALLOWED to take money for the distribution or use of either this
+%% file or a changed version, except for a nominal charge for copying
+%% etc.
+%% \CharacterTable
+%%  {Upper-case    \A\B\C\D\E\F\G\H\I\J\K\L\M\N\O\P\Q\R\S\T\U\V\W\X\Y\Z
+%%   Lower-case    \a\b\c\d\e\f\g\h\i\j\k\l\m\n\o\p\q\r\s\t\u\v\w\x\y\z
+%%   Digits        \0\1\2\3\4\5\6\7\8\9
+%%   Exclamation   \!     Double quote  \"     Hash (number) \#
+%%   Dollar        \$     Percent       \%     Ampersand     \&
+%%   Acute accent  \'     Left paren    \(     Right paren   \)
+%%   Asterisk      \*     Plus          \+     Comma         \,
+%%   Minus         \-     Point         \.     Solidus       \/
+%%   Colon         \:     Semicolon     \;     Less than     \<
+%%   Equals        \=     Greater than  \>     Question mark \?
+%%   Commercial at \@     Left bracket  \[     Backslash     \\
+%%   Right bracket \]     Circumflex    \^     Underscore    \_
+%%   Grave accent  \`     Left brace    \{     Vertical bar  \|
+%%   Right brace   \}     Tilde         \~}
+\documentclass[a4paper,12pt]{report}
+
+\usepackage{amsmath}
+\usepackage[colorlinks]{hyperref}
+\usepackage[header,toc,border=none,cols=3,
+            number=equation]{glossary}[2006/07/20]
+
+\newcommand{\erf}{\operatorname{erf}}
+\newcommand{\erfc}{\operatorname{erfc}}
+
+\renewcommand{\glossaryname}{Index of Special Functions and Notations}
+
+\renewcommand{\glossarypreamble}{Numbers in italic indicate the equation number,
+numbers in bold indicate page numbers where the main definition occurs.\par}
+
+\setglossary{glsnumformat=hyperit}
+
+\renewcommand{\entryname}{Notation}
+
+\renewcommand{\descriptionname}{Function Name}
+
+\newcommand{\glossarysubheader}{ & & \\}
+
+
+\storeglosentry{Gamma}{name=\ensuremath{\Gamma(z)},
+description=Gamma function,sort=Gamma}
+
+\storeglosentry{gamma}{name=\ensuremath{\gamma(\alpha,x)},
+description=Incomplete gamma function,sort=gamma}
+
+\storeglosentry{iGamma}{name=\ensuremath{\Gamma(\alpha,x)},
+description=Incomplete gamma function,sort=Gamma}
+
+\storeglosentry{psi}{name=\ensuremath{\psi(x)},
+description=Psi function,sort=psi}
+
+\storeglosentry{erf}{name=\ensuremath{\erf(x)},
+description=Error function,sort=erf}
+
+\storeglosentry{erfc}{name=\ensuremath{\erfc(x)},
+description=Complementary error function,sort=erfc}
+
+\storeglosentry{beta}{name=\ensuremath{B(x,y)},
+description=Beta function,sort=B}
+
+\storeglosentry{Bx}{name=\ensuremath{B_x(p,q)},
+description=Incomplete beta function,sort=Bx}
+
+\storeglosentry{Tn}{name=\ensuremath{T_n(x)},
+description=Chebyshev's polynomials of the first kind,
+sort=Tn}
+
+\storeglosentry{Un}{name=\ensuremath{U_n(x)},
+description=Chebyshev's polynomials of the second kind,
+sort=Un}
+
+\storeglosentry{Hn}{name=\ensuremath{H_n(x)},
+description=Hermite polynomials,sort=Hn}
+
+\storeglosentry{Lna}{name=\ensuremath{L_n^\alpha(x)},
+description=Laguerre polynomials,sort=Lna}
+
+\storeglosentry{Znu}{name=\ensuremath{Z_\nu(z)},
+description=Bessel functions,sort=Z}
+
+\storeglosentry{Pagz}{name=\ensuremath{\Phi(\alpha,\gamma;z)},
+description=confluent hypergeometric function,sort=Pagz}
+
+\storeglosentry{kv}{name=\ensuremath{k_\nu(x)},
+description=Bateman's function,sort=kv}
+
+\storeglosentry{Dp}{name=\ensuremath{D_p(z)},
+description=Parabolic cylinder functions,sort=Dp}
+
+\storeglosentry{Fpk}{name=\ensuremath{F(\phi,k)},
+description=Elliptical integral of the first kind,sort=Fpk}
+
+\storeglosentry{C}{name=\ensuremath{C},
+description=Euler's constant,sort=C}
+
+\storeglosentry{G}{name=\ensuremath{G},
+description=Catalan's constant,sort=G}
+
+\renewcommand{\shortglossaryname}{Special Functions}
+
+\makeglossary
+
+\pagestyle{headings}
+
+\begin{document}
+
+\title{Sample Document Using Interchangable Numbering}
+\author{Nicola Talbot}
+\maketitle
+
+\begin{abstract}
+This is a sample document illustrating the use of the \textsf{glossary}
+package.  The functions here have been taken from ``Tables of
+Integrals, Series, and Products'' by I.S.~Gradshteyn and I.M~Ryzhik.
+
+The glossary lists both page numbers and equation numbers.
+Since the majority of the entries use the equation number,
+\texttt{number=equation} was used as a package option.
+The entries that should refer to the page number instead
+use the \texttt{number=equation} glossary key.
+Note that this example will only work where the
+page number and equation number compositor is the same. So
+it won't work if, say, the page numbers are of the form
+2-4 and the equation numbers are of the form 4.6.
+As most of the glossary entries should have an italic
+format, it is easiest to set the default format to
+italic.
+
+\end{abstract}
+
+\tableofcontents
+
+\printglossary
+
+\chapter{Gamma Functions}
+
+The \useGlosentry[number=page,format=hyperbf]{Gamma}{gamma function} is
+defined as
+\begin{equation}
+\gls{Gamma} = \int_{0}^{\infty}e^{-t}t^{z-1}\,dt
+\end{equation}
+
+\begin{equation}
+\useGlosentry{Gamma}{\ensuremath{\Gamma(x+1)}} = x\Gamma(x)
+\end{equation}
+
+\begin{equation}
+\gls{gamma} = \int_0^x e^{-t}t^{\alpha-1}\,dt
+\end{equation}
+
+\begin{equation}
+\gls{iGamma} = \int_x^\infty e^{-t}t^{\alpha-1}\,dt
+\end{equation}
+
+\newpage
+
+\begin{equation}
+\useGlosentry{Gamma}{\ensuremath{\Gamma(\alpha)}} = \Gamma(\alpha, x) + \gamma(\alpha, x)
+\end{equation}
+
+\begin{equation}
+\gls{psi} = \frac{d}{dx}\ln\Gamma(x)
+\end{equation}
+
+\chapter{Error Functions}
+
+The \useGlosentry[number=page,format=hyperbf]{erf}{error
+function} is defined as:
+\begin{equation}
+\gls{erf} = \frac{2}{\surd\pi}\int_0^x e^{-t^2}\,dt
+\end{equation}
+
+\begin{equation}
+\gls{erfc} = 1 - \erf(x)
+\end{equation}
+
+\chapter{Beta Function}
+
+\begin{equation}
+\gls{beta} = 2\int_0^1 t^{x-1}(1-t^2)^{y-1}\,dt
+\end{equation}
+Alternatively:
+\begin{equation}
+\gls{beta} = 2\int_0^{\frac\pi2}\sin^{2x-1}\phi\cos^{2y-1}\phi\,d\phi
+\end{equation}
+
+\begin{equation}
+\gls{beta} = \frac{\Gamma(x)\Gamma(y)}{\Gamma(x+y)} = B(y,x)
+\end{equation}
+
+\begin{equation}
+\gls{Bx} = \int_0^x t^{p-1}(1-t)^{q-1}\,dt
+\end{equation}
+
+\chapter{Chebyshev's polynomials}
+
+\begin{equation}
+\gls{Tn} = \cos(n\arccos x)
+\end{equation}
+
+\begin{equation}
+\gls{Un} = \frac{\sin[(n+1)\arccos x]}{\sin[\arccos x]}
+\end{equation}
+
+\chapter{Hermite polynomials}
+
+\begin{equation}
+\gls{Hn} = (-1)^n e^{x^2} \frac{d^n}{dx^n}(e^{-x^2})
+\end{equation}
+
+\chapter{Laguerre polynomials}
+
+\begin{equation}
+\gls{Lna} = \frac{1}{n!}e^x x^{-\alpha}
+\frac{d^n}{dx^n}(e^{-x}x^{n+\alpha})
+\end{equation}
+
+\chapter{Bessel Functions}
+
+Bessel functions $Z_\nu(z)$ are solutions of
+\begin{equation}
+\frac{d^2Z_\nu}{dz^2} + \frac{1}{z}\,\frac{dZ_\nu}{dz} +
+\left(
+1-\frac{\nu^2}{z^2}Z_\nu = 0
+\right)
+\end{equation}
+\useglosentry{Znu}
+
+\chapter{Confluent hypergeometric function}
+
+\begin{equation}
+\gls{Pagz} = 1 + \frac{\alpha}{\gamma}\,\frac{z}{1!}
++ \frac{\alpha(\alpha+1)}{\gamma(\gamma+1)}\,\frac{z^2}{2!}
++\frac{\alpha(\alpha+1)(\alpha+2)}
+      {\gamma(\gamma+1)(\gamma+2)}
+\,\frac{z^3}{3!}
++ \cdots
+\end{equation}
+
+\begin{equation}
+\gls{kv} = \frac{2}{\pi}\int_0^{\pi/2}
+\cos(x \tan\theta - \nu\theta)\,d\theta
+\end{equation}
+
+\chapter{Parabolic cylinder functions}
+
+\begin{equation}
+\gls{Dp} = 2^{\frac{p}{2}}e^{-\frac{z^2}{4}}
+\left\{
+\frac{\surd\pi}{\Gamma\left(\frac{1-p}{2}\right)}
+\Phi\left(-\frac{p}{2},\frac{1}{2};\frac{z^2}{2}\right)
+-\frac{\sqrt{2\pi}z}{\Gamma\left(-\frac{p}{2}\right)}
+\Phi\left(\frac{1-p}{2},\frac{3}{2};\frac{z^2}{2}\right)
+\right\}
+\end{equation}
+
+\chapter{Elliptical Integral of the First Kind}
+
+\begin{equation}
+\gls{Fpk} = \int_0^\phi
+\frac{d\alpha}{\sqrt{1-k^2\sin^2\alpha}}
+\end{equation}
+
+\chapter{Constants}
+
+\begin{equation}
+\gls{C} = 0.577\,215\,664\,901\ldots
+\end{equation}
+
+\begin{equation}
+\gls{G} = 0.915\,965\,594\ldots
+\end{equation}
+
+\end{document}
+\endinput
+%%
+%% End of file `sampleEqPg.tex'.

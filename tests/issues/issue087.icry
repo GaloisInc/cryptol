@@ -1,0 +1,2 @@
+:set base=2
+splitAt `{front=4} 0xff
