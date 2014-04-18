@@ -10,7 +10,7 @@
 
 module Cryptol.ModuleSystem.Env where
 
-import Paths_cryptol_parser (getDataDir)
+import Paths_cryptol (getDataDir)
 
 import Cryptol.Eval (EvalEnv)
 import Cryptol.ModuleSystem.Interface

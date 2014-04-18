@@ -22,7 +22,7 @@ import Cryptol.Parser.LexerUtils
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit(PreProc(..), guessPreProc)
 
-import Paths_cryptol_parser
+import Paths_cryptol
 }
 
 

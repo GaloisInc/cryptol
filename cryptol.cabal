@@ -147,7 +147,7 @@ library
                        Data.SBV.Utils.Boolean,
                        Data.SBV.Utils.TDiff,
                        Data.SBV.Utils.Lib,
-                       Paths_cryptol_parser,
+                       Paths_cryptol,
                        GitRev
 
   GHC-options:         -Wall -O2
@@ -160,7 +160,7 @@ executable cryptol
                        REPL.Haskeline,
                        REPL.Monad,
                        REPL.Trie,
-                       Paths_cryptol_parser
+                       Paths_cryptol
   build-depends:       base,
                        ansi-terminal,
                        containers,

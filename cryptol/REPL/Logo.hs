@@ -9,7 +9,7 @@
 module REPL.Logo where
 
 import REPL.Monad
-import Paths_cryptol_parser (version)
+import Paths_cryptol (version)
 
 import Cryptol.Version (commitShortHash)
 import Data.Version (showVersion)

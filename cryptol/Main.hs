@@ -16,7 +16,7 @@ import REPL.Haskeline
 import REPL.Monad (REPL,setREPLTitle,io)
 import REPL.Logo
 import qualified REPL.Monad as REPL
-import Paths_cryptol_parser (version)
+import Paths_cryptol (version)
 
 import Cryptol.Version (commitHash, commitBranch, commitDirty)
 import Data.Version (showVersion)
