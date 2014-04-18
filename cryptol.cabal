@@ -1,4 +1,4 @@
-Name:                cryptol-parser
+Name:                cryptol
 Version:             2.0.0
 Synopsis:            Cryptol: The Language of Cryptography
 License:             BSD3
@@ -164,7 +164,7 @@ executable cryptol
   build-depends:       base,
                        ansi-terminal,
                        containers,
-                       cryptol-parser,
+                       cryptol,
                        directory,
                        filepath,
                        haskeline,
@@ -184,7 +184,7 @@ executable cryptolnb
   build-depends:       base,
                        ansi-terminal,
                        containers,
-                       cryptol-parser,
+                       cryptol,
                        directory,
                        filepath,
                        haskeline,
