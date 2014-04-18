@@ -114,7 +114,7 @@ import Paths_cryptol
 
   '!='        { Located $$ (Token (Op NotEqual    ) _)}
   '=='        { Located $$ (Token (Op Equal       ) _)}
-  '!==='      { Located $$ (Token (Op NotEqualFun ) _)}
+  '!=='       { Located $$ (Token (Op NotEqualFun ) _)}
   '==='       { Located $$ (Token (Op EqualFun    ) _)}
   '>'         { Located $$ (Token (Op GreaterThan ) _)}
   '<'         { Located $$ (Token (Op LessThan    ) _)}
@@ -156,7 +156,7 @@ import Paths_cryptol
 %left '||'
 %left '^'
 %left '&&'
-%nonassoc '==' '!=' '===' '!==='
+%nonassoc '==' '!=' '===' '!=='
 %nonassoc '<' '>' '<=' '>='
 %right '#'
 %left  '<<' '>>' '<<<' '>>>'
@@ -342,7 +342,7 @@ iexpr                            :: { Expr }
   | iexpr '==' iexpr                { binOp $1 (op ECEq          $2) $3 }
   | iexpr '!=' iexpr                { binOp $1 (op ECNotEq       $2) $3 }
   | iexpr '===' iexpr               { binOp $1 (op ECFunEq       $2) $3 }
-  | iexpr '!===' iexpr              { binOp $1 (op ECFunNotEq    $2) $3 }
+  | iexpr '!==' iexpr               { binOp $1 (op ECFunNotEq    $2) $3 }
   | iexpr '>' iexpr                 { binOp $1 (op ECGt          $2) $3 }
   | iexpr '<' iexpr                 { binOp $1 (op ECLt          $2) $3 }
   | iexpr '<=' iexpr                { binOp $1 (op ECLtEq        $2) $3 }
@@ -421,7 +421,7 @@ aexpr                          :: { Expr                                   }
   | '(' '=='   ')'                { at ($1,$3) $ ECon ECEq          }
   | '(' '!='   ')'                { at ($1,$3) $ ECon ECNotEq       }
   | '(' '==='  ')'                { at ($1,$3) $ ECon ECFunEq       }
-  | '(' '!===' ')'                { at ($1,$3) $ ECon ECFunNotEq    }
+  | '(' '!=='  ')'                { at ($1,$3) $ ECon ECFunNotEq    }
   | '(' '>'    ')'                { at ($1,$3) $ ECon ECGt          }
   | '(' '<'    ')'                { at ($1,$3) $ ECon ECLt          }
   | '(' '<='   ')'                { at ($1,$3) $ ECon ECLtEq        }

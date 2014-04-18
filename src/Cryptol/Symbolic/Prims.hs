@@ -125,7 +125,7 @@ evalECon econ =
         cmpBinary cmpEq cmpEq SBV.true b x y
 
     ECFunNotEq    -> -- {a b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
-      -- (f !=== g) x = (f x != g x)
+      -- (f !== g) x = (f x != g x)
       tlam $ \_ ->
       tlam $ \b ->
       VFun $ \th1 -> return $

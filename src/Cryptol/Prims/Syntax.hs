@@ -159,7 +159,7 @@ instance PP ECon where
       ECEq          -> text "=="
       ECNotEq       -> text "!="
       ECFunEq       -> text "==="
-      ECFunNotEq    -> text "!==="
+      ECFunNotEq    -> text "!=="
       ECAnd         -> text "&&"
       ECOr          -> text "||"
       ECXor         -> text "^"

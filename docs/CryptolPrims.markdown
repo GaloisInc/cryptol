@@ -6,7 +6,7 @@ Old types:
     (==)   : {a}   (fin a) => (a,a) -> Bit
     (!=)   : {a}   (fin a) => (a,a) -> Bit
     (===)  : {a b} (fin b) => (a -> b,a -> b) -> a -> Bit
-    (!===) : {a b} (fin b) => (a -> b,a -> b) -> a -> Bit
+    (!==)  : {a b} (fin b) => (a -> b,a -> b) -> a -> Bit
 
     (<)    : {n} (fin n) => ([n],[n]) -> Bit
     (>)    : {n} (fin n) => ([n],[n]) -> Bit
