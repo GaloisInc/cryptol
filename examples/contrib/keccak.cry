@@ -1,0 +1,131 @@
+/*
+ * Copyright (c) 2013 David Lazar <lazard@galois.com>
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
+ * /
+
+// Specification of the Keccak (SHA-3) hash function
+// Author: David Lazar
+
+SHA_3_224 M = take(224, Keccak `{r = 1152, c = 448} M);
+SHA_3_256 M = take(256, Keccak `{r = 1088, c = 512} M);
+SHA_3_384 M = take(384, Keccak `{r = 832, c = 768} M);
+SHA_3_512 M = take(512, Keccak `{r = 576, c = 1024} M);
+
+Keccak : {r c m}
+  ( fin r, fin c, fin m
+  , r >= 0, c >= 0, m >= 0
+  , fin ((r + m + 1) / r)
+  , (r + m + 1) / r >= 0
+  , (r + m + 1) / r * r - m >= 2
+  , 64 >= (r + c) / 25
+  , 25 * ((r + c) / 25) >= r
+  ) => [m] -> [inf];
+Keccak M = squeeze `{r = r} (absorb `{w = (r + c) / 25} Ps)
+  where Ps = pad `{r = r} M;
+
+squeeze : {r w} (fin r, fin w, 64 >= w, r >= 0, 25 * w >= r) => [5][5][w] -> [inf];
+squeeze A = take(`r, flatten A) # squeeze `{r = r} (Keccak_f A);
+
+absorb : {r w n} (fin r, fin w, fin n, 64 >= w, 25 * w >= r) => [n][r] -> [5][5][w];
+absorb Ps = as ! 0
+  where {
+    as = [zero] # [| Keccak_f `{w = w} (s ^ (unflatten p)) || s <- as || p <- Ps |];
+  };
+
+pad : {r m n}
+  ( fin r, fin m, fin n
+  , n == (r + m + 1) / r
+  , r * n - m >= 2
+  ) => [m] -> [n][r];
+pad M = split (M # [True] # zero # [True]);
+
+Keccak_f : {b w} (fin w, b == 25 * w, 64 >= w) => [5][5][w] -> [5][5][w];
+Keccak_f A = rounds ! 0
+  where {
+    rounds = [A] # [| Round RC A || RC <- RCs `{w = w} || A <- rounds |];
+  };
+
+Round : {w} (fin w) => [5][5][w] -> [5][5][w] -> [5][5][w];
+Round RC A = ι RC (χ (π (ρ (θ A))));
+
+θ : {w} (fin w) => [5][5][w] -> [5][5][w];
+θ A = A'
+  where {
+    C = [| xor a || a <- A |];
+    D = [| C @ x  ^ (C @ y <<< 1)
+        || x <- [0 .. 4] >>> 1
+        || y <- [0 .. 4] <<< 1
+        |];
+    A' = [| [| a ^ (D @ x) || a <- A @ x |] || x <- [0 .. 4] |];
+  };
+
+ρ : {w} (fin w) => [5][5][w] -> [5][5][w];
+ρ A = groupBy(5, [| a <<< r || a <- join(A) || r <- R |])
+  where R = [00 36 03 41 18
+             01 44 10 45 02
+             62 06 43 15 61
+             28 55 25 21 56
+             27 20 39 08 14];
+
+π : {w} (fin w) => [5][5][w] -> [5][5][w];
+π A = groupBy(5, [| A @ ((x + (3:[8]) * y) % 5) @ x
+                 || x <- [0..4], y <- [0..4]
+                 |]);
+
+χ : {w} (fin w) => [5][5][w] -> [5][5][w];
+χ A = groupBy(5, [| (A @ x @ y) ^ (~ A @ ((x + 1) % 5) @ y
+                                   & A @ ((x + 2) % 5) @ y)
+                 || x <- [0..4], y <- [0..4]
+                 |]);
+
+ι : {w} (fin w) => [5][5][w] -> [5][5][w] -> [5][5][w];
+ι RC A = A ^ RC;
+
+RCs : {w n} (fin w, fin n, 24 >= n, n == 12 + 2 * (lg2 w)) => [n][5][5][w];
+RCs = [| [([(RC @@ [0 .. `(w - 1)])] # zero)] # zero
+      || RC <- RCs64
+      || _ <- [1 .. `n]
+      |];
+
+RCs64 : [24][64];
+RCs64 = join (transpose [
+    [0x0000000000000001 0x000000008000808B]
+    [0x0000000000008082 0x800000000000008B]
+    [0x800000000000808A 0x8000000000008089]
+    [0x8000000080008000 0x8000000000008003]
+    [0x000000000000808B 0x8000000000008002]
+    [0x0000000080000001 0x8000000000000080]
+    [0x8000000080008081 0x000000000000800A]
+    [0x8000000000008009 0x800000008000000A]
+    [0x000000000000008A 0x8000000080008081]
+    [0x0000000000000088 0x8000000000008080]
+    [0x0000000080008009 0x0000000080000001]
+    [0x000000008000000A 0x8000000080008008]
+]);
+
+unflatten : {r w} (fin r, 25*w >= r) => [r] -> [5][5][w];
+unflatten p = transpose(groupBy(5, groupBy(`w, p # zero)));
+
+flatten : {r w} [5][5][w] -> [5 * 5 * w];
+flatten A = join (join (transpose A));
+
+xor : {a b} (fin a) => [a][b] -> [b];
+xor xs = xors ! 0
+  where xors = [0] # [| x ^ z || x <- xs || z <- xors |];
