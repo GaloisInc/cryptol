@@ -3,7 +3,7 @@
  * Distributed under the terms of the BSD3 license (see LICENSE file)
  */
 
-// Description of SHA1 at http://www.itl.nist.gov/fipspubs/fip180-1.htm
+// Description of SHA1 at http://www.itl.nist.gov/fipspubs/fip180-4.htm
 
 sha1 msg = sha1' pmsg 
     where
@@ -42,7 +42,7 @@ f (t, x, y, z) =
        if (0 <= t)  && (t <= 19) then (x && y) ^ (~x && z)
         | (20 <= t) && (t <= 39) then x ^ y ^ z
         | (40 <= t) && (t <= 59) then (x && y) ^ (x && z) ^ (y && z)
-        | (60 <= t) && (t <= 80) then x ^ y ^ z
+        | (60 <= t) && (t <= 79) then x ^ y ^ z
         else error "f: t out of range"
 
 Ks : [80][32]
