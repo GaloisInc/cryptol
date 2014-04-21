@@ -33,6 +33,8 @@ extract to a location of your choice. Windows binaries are distributed
 as an `.msi` installer package which places a shortcut to the Cryptol
 interpreter in the Start menu.
 
+## Getting CVC4
+
 Cryptol currently depends on the
 [CVC4 SMT solver](http://cvc4.cs.nyu.edu/) to solve constraints during
 typechecking, and as the default solver for the `:sat` and `:prove`
@@ -70,7 +72,7 @@ versions is to:
 
 1. Run `cabal install cabal-install`
 
-1. Add cabal-install's binary path to your PATH variable (usually `~/.cabal/bin`)
+1. Add cabal-install's binary path to your `PATH` variable (usually `~/.cabal/bin`)
 
 Some supporting non-Haskell libraries are required to build
 Cryptol. Most should already be present for your operating system, but
@@ -78,6 +80,8 @@ you may need to install the following:
 
 - [The GNU Multiple Precision Arithmetic Library (GMP)](https://gmplib.org/)
 - [ncurses](https://www.gnu.org/software/ncurses/)
+
+You'll also need [CVC4](#getting-cvc4) installed when running Cryptol.
 
 ## Building Cryptol
 
@@ -105,31 +109,24 @@ binary at `.cabal-sandbox/bin/cryptol` in your source directory. You
 can either use that binary directly, or use the results of `tarball`
 or `dist` to install Cryptol in a location of your choice.
 
-## Verifying your Installation
+# Checking your Installation
 
 Run Cryptol, and at the prompt type:
 
-	                        _        _
-	   ___ _ __ _   _ _ __ | |_ ___ | |
-	  / __| '__| | | | '_ \| __/ _ \| |
-	 | (__| |  | |_| | |_) | || (_) | |
-	  \___|_|   \__, | .__/ \__\___/|_|
-	            |___/|_| version 2.0.424
-	
-	Loading module Cryptol
-	Cryptol> :prove True
+    Cryptol> :prove True
 
 If Cryptol responds
 
-	Q.E.D.
+    Q.E.D.
 
-then your installation is correct. If it prints something like
+then Cryptol is installed correctly. If it prints something like
 
-	*** An error occurred.
-	***  Unable to locate executable for cvc4
-	***  Executable specified: "cvc4"
+    *** An error occurred.
+    ***  Unable to locate executable for cvc4
+    ***  Executable specified: "cvc4"
 
-then make sure you've installed CVC4, and that the binary is on your `PATH`. 
+then make sure you've installed [CVC4](#getting-cvc4), and that the
+binary is on your `PATH`.
 
 # Contributing
 
@@ -139,18 +136,17 @@ to get involved.
 
 ## Users
 
-If you write Cryptol programs that you think would benefit the community, fork the GitHub repository, and 
-add them to the `examples/contrib` directory and submit
-a pull request.
+If you write Cryptol programs that you think would benefit the
+community, fork the GitHub repository, and add them to the
+`examples/contrib` directory and submit a pull request.
 
 We host a Cryptol mailing list, which
-you can [join here](http://community.galois.com/mailman/listinfo/cryptol-users). 
+you can [join here](http://community.galois.com/mailman/listinfo/cryptol-users).
 
-If you run into a bug in Cryptol, if something 
-doesn't make sense in the documentation, if you 
-think something could be better, or if you
-just have a cool use of Cryptol that you'd like to share with us, use the issues page on 
-[GitHub](https://github.com/GaloisInc/cryptol), or
+If you run into a bug in Cryptol, if something doesn't make sense in
+the documentation, if you think something could be better, or if you
+just have a cool use of Cryptol that you'd like to share with us, use
+the issues page on [GitHub](https://github.com/GaloisInc/cryptol), or
 send email to <cryptol@galois.com>.
 
 ## Developers
@@ -183,7 +179,7 @@ incorprate your changes.
 
 The `docs` directory of the installation package contains an
 introductory book, the `examples` directory contains a number of
-algorithms specified in Cryptol. 
+algorithms specified in Cryptol.
 
 If you are familiar with version 1 of Cryptol, you should read the
 `Version2Changes` document in the `docs` directory.
