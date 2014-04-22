@@ -3,15 +3,25 @@
  * Distributed under the terms of the BSD3 license (see LICENSE file)
  */
 
+/* To see this in action, try:
+
+  :sat nQueens : (Solution n)
+  where n is the board-size
+
+  You may find that cvc4 takes a long time for solutions bigger than 5.
+  For those sizes, we have had good luck with both Yices and Z3.  
+
+  To do that,
+
+  :set prover=Z3
+  or
+  :set prover=yices
+*/
+
 all : {n, a} (fin n) => (a -> Bit, [n]a) -> Bit
 all (f, xs) = [ f x | x <- xs ] == ~zero
 
 contains xs e = [ x == e | x <- xs ] != zero
-
-/*
-distinct : {a, b} (fin a, Cmp b) => [a+1]b -> Bit
-distinct ([x] # xs) = ~ (contains xs x) && (if width xs > 1 then distinct xs else True)
-*/
 
 distinct : {n,a} (fin n, Cmp a) => [n]a -> Bit
 distinct xs =
@@ -45,9 +55,3 @@ inRange qs x = x <= `(n - 1)
 
 property nQueensProve x = (nQueens x) == False
 
-/* Try:
-
-  :sat nQueens : (Solution n)
-  where n is the problem-size
-
-*/
