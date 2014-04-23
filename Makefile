@@ -89,7 +89,8 @@ ${PKG}: ${CS_BIN}/cryptol
 	cp examples/DEStest.cry ${PKG}/doc/examples
 	cp examples/Test.cry ${PKG}/doc/examples
 	cp examples/SHA1.cry ${PKG}/doc/examples
-	cp examples/simon.cry ${PKG}/doc/examples
+	cp examples/contrib/simon.cry ${PKG}/doc/examples/contrib
+	cp examples/contrib/spec.cry ${PKG}/doc/examples/contrib
 	cp LICENSE ${PKG}/doc
 
 ${PKG}.tar.gz: ${PKG}
