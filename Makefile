@@ -21,7 +21,8 @@ LIGHT    := ${WiX}/bin/light.exe
 
 REV      ?= $(shell git rev-parse --short=7 HEAD || echo "unknown")
 VERSION  := $(shell grep -i ^Version cryptol.cabal | awk '{ print $$2}')
-PKG      := cryptol-${VERSION}-${UNAME}-${ARCH}_${REV}
+PKG_ID   ?= ${VERSION}-${UNAME}-${ARCH}_${REV}
+PKG      := cryptol-${PKG_ID}
 
 # Windows-specific stuff
 ifneq (,$(findstring _NT,${UNAME}))
