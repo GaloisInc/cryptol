@@ -19,10 +19,10 @@ CANDLE   := ${WiX}/bin/candle.exe
 HEAT     := ${WiX}/bin/heat.exe
 LIGHT    := ${WiX}/bin/light.exe
 
-REV      ?= $(shell git rev-parse --short=7 HEAD || echo "unknown")
-VERSION  := $(shell grep -i ^Version cryptol.cabal | awk '{ print $$2}')
-PKG_ID   ?= ${VERSION}-${UNAME}-${ARCH}_${REV}
-PKG      := cryptol-${PKG_ID}
+REV         ?= $(shell git rev-parse --short=7 HEAD || echo "unknown")
+VERSION     := $(shell grep -i ^Version cryptol.cabal | awk '{ print $$2}')
+SYSTEM_DESC ?= ${UNAME}-${ARCH}_${REV}
+PKG         := cryptol-${VERSION}-${SYSTEM_DESC}
 
 # Windows-specific stuff
 ifneq (,$(findstring _NT,${UNAME}))
