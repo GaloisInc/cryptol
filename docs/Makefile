@@ -13,7 +13,7 @@ markdown: ${MARKDOWN}
 .PHONY: book
 book:
 	(cd ProgrammingCryptol; make)
-	cp ProgrammingCryptol/tmp/${BOOK} .
+	cp ProgrammingCryptol/tmp/${BOOK} ./ProgrammingCryptol.pdf
 
 %.pdf: %.md
 	pandoc $^ --toc -o $@
