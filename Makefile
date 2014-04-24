@@ -80,7 +80,7 @@ ${PKG}: ${CS_BIN}/cryptol
 	mkdir -p ${PKG}/lib
 	mkdir -p ${PKG}/doc/examples
 	cp ${CS_BIN}/cryptol ${PKG}/bin/cryptol
-	cp -R docs/*.markdown ${PKG}/doc
+	cp -R docs/*.md ${PKG}/doc
 	cp -R docs/*.pdf ${PKG}/doc
 	cp -R lib/* ${PKG}/lib
 	cp docs/ProgrammingCryptol/aes/AES.cry ${PKG}/doc/examples
