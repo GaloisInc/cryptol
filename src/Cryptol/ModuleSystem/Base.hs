@@ -112,15 +112,18 @@ loadImport li = do
 
   let i = thing li
       n = P.iModule i
-  path <- findModule n
-  pm   <- parseModule path
-  loadingImport li $ do
 
-    -- make sure that this module is the one we expect
-    unless (n == thing (P.mName pm)) (moduleNameMismatch n (mName pm))
+  alreadyLoaded <- isLoaded n
+  unless alreadyLoaded $
+    do path <- findModule n
+       pm   <- parseModule path
+       loadingImport li $ do
 
-    _ <- loadModule pm
-    return ()
+         -- make sure that this module is the one we expect
+         unless (n == thing (P.mName pm)) (moduleNameMismatch n (mName pm))
+
+         _ <- loadModule pm
+         return ()
 
 -- | Load dependencies, typecheck, and add to the eval environment.
 loadModule :: P.Module -> ModuleM T.Module
