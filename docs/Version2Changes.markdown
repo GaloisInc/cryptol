@@ -204,7 +204,7 @@ Properties (theorems in version 1)
 
 In version 1, _theorems_ are special syntax attached to function declarations.
 In version 2, the `property` keyword can be added to any function that returns
-a Bit. All of the arguments to a propertyare implicitly universally quantified.
+a Bit. All of the arguments to a property are implicitly universally quantified.
 So version 1's
 
     sqDiffThm : ([8], [8]) -> Bit;
@@ -268,3 +268,5 @@ within version 1 lets you use the `:prove` and `:check` operations to verify
 the correctness of your logic, then it becomes a simple syntax modernization
 task. Doing both at once has proven to be very difficult, and leaves you
 without tool support.
+
+% creation of function bindings in where clauses
