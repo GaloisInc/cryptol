@@ -35,9 +35,9 @@ Simon128_192' = decrypt `{n=64,m=3,T=69,j=3}
 Simon128_256' = decrypt `{n=64,m=4,T=72,j=4}
 
 // check only a few of them for now
-property correctSimon32_64 k b =   Simon32_64' k (Simon32_64 k b) == b
-property correctSimon64_96 k b =   Simon64_96' k (Simon64_96 k b) == b
-property correctSimon96_144 k b =  Simon96_144' k (Simon96_144 k b) == b
+property correctSimon32_64 k b   = Simon32_64' k (Simon32_64 k b) == b
+property correctSimon64_96 k b   = Simon64_96' k (Simon64_96 k b) == b
+property correctSimon96_144 k b  = Simon96_144' k (Simon96_144 k b) == b
 property correctSimon128_128 k b = Simon128_128' k (Simon128_128 k b) == b
 property correctSimon128_256 k b = Simon128_256' k (Simon128_256 k b) == b
 
