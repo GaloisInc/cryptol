@@ -4,7 +4,7 @@ BOOK = Cryptol.pdf
 .PHONY: all
 all: markdown book
 
-Version2Table.pdf: Version2Table.markdown
+Version2Table.pdf: Version2Table.md
 	pandoc -f markdown+tex_math_dollars $^ -o $@
 
 .PHONY: markdown
@@ -13,9 +13,9 @@ markdown: ${MARKDOWN}
 .PHONY: book
 book:
 	(cd ProgrammingCryptol; make)
-	cp ProgrammingCryptol/tmp/${BOOK} .
+	cp ProgrammingCryptol/tmp/${BOOK} ./ProgrammingCryptol.pdf
 
-%.pdf: %.markdown
+%.pdf: %.md
 	pandoc $^ --toc -o $@
 
 .PHONY: clean

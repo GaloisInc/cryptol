@@ -202,4 +202,20 @@ and by cryptographers to
  * generate test vectors for testing implementations
  * experiment with new algorithms
 
+## Acknowledgements
+
+Cryptol has been under development for over a decade with many people
+contributing to its design and implementation. Those people include
+(but are not limited to) Iavor Diatchki, Aaron Tomb, Adam Wick, Brian
+Huffman, Dylan McNamee, Joe Kiniry, John Launchbury, Matt Sottile,
+Adam Foltzer, Joe Hendrix, Trevor Elliott, Lee Pike, Mark Tullsen,
+Levent Erkök, David Lazar, Joel Stanley, Jeff Lewis, Andy Gill, Edward
+Yang, Ledah Casburn, Jim Teisher, Sigbjørn Finne, Mark Shields, Philip
+Weaver, Magnus Carlsson, Fergus Henderson, Joe Hurd, Thomas Nordin,
+John Matthews and Sally Browning. In addition, much of the work on
+Cryptol has been funded by, and lots of design input was provided by
+the team at the
+[NSA's Trusted Systems Research Group](http://www.nsa.gov/research/ia_research/),
+including Brad Martin, Frank Taylor and Sean Weaver.
+
 

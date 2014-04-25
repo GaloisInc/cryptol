@@ -1,6 +1,6 @@
 module issue290bar where
 
-import issue290
+import issue290 as issue290
 
 fooConst = 2
 barConst = issue290::fooConst
