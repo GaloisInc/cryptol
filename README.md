@@ -154,7 +154,7 @@ send email to <cryptol@galois.com>.
 If you plan to do development work on the Cryptol interpreter, please
 make a fork of the GitHub repository and send along pull
 requests. This makes it easier for us to track development and to
-incorprate your changes.
+incorporate your changes.
 
 ### Repository Structure
 
