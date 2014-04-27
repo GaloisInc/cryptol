@@ -37,7 +37,7 @@ interpreter in the Start menu.
 
 Cryptol currently depends on the
 [CVC4 SMT solver](http://cvc4.cs.nyu.edu/) to solve constraints during
-typechecking, and as the default solver for the `:sat` and `:prove`
+type checking, and as the default solver for the `:sat` and `:prove`
 commands. You can download CVC4 binaries for a variety of platforms
 from their [download page](http://cvc4.cs.nyu.edu/downloads/).
 
@@ -154,7 +154,7 @@ send email to <cryptol@galois.com>.
 If you plan to do development work on the Cryptol interpreter, please
 make a fork of the GitHub repository and send along pull
 requests. This makes it easier for us to track development and to
-incorprate your changes.
+incorporate your changes.
 
 ### Repository Structure
 
