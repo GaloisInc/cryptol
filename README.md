@@ -91,7 +91,7 @@ From the Cryptol source directory, run:
 
 This will build Cryptol in place. From there, there are additional targets:
 
-- `make test`: run the regression test suite
+- `make test`: run the regression test suite (note: 4 failures is expected)
 - `make docs`: build the Cryptol documentation (requires
   [pandoc](http://johnmacfarlane.net/pandoc/) and
   [TeX Live](https://www.tug.org/texlive/))
@@ -127,6 +127,8 @@ then Cryptol is installed correctly. If it prints something like
 
 then make sure you've installed [CVC4](#getting-cvc4), and that the
 binary is on your `PATH`.
+
+As noted above, `make test` currently results in four failures. An issue has been filed on GitHub for each of them.
 
 # Contributing
 
