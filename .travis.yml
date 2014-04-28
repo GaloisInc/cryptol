@@ -6,3 +6,5 @@ install:
   - make
 script:
   - make test
+notifications:
+  email: false
