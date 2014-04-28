@@ -1,0 +1,6 @@
+language: haskell
+ghc: 7.6
+install:
+  - make
+script:
+  - make test
