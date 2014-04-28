@@ -1,6 +1,8 @@
 language: haskell
 ghc: 7.6
 install:
+  - cabal sandbox init
+  - cabal install Cabal
   - make
 script:
   - make test
