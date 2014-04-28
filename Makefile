@@ -19,9 +19,10 @@ CANDLE   := ${WiX}/bin/candle.exe
 HEAT     := ${WiX}/bin/heat.exe
 LIGHT    := ${WiX}/bin/light.exe
 
-REV      ?= $(shell git rev-parse --short=7 HEAD || echo "unknown")
-VERSION  := $(shell grep -i ^Version cryptol.cabal | awk '{ print $$2}')
-PKG      := cryptol-${VERSION}-${UNAME}_${REV}
+REV         ?= $(shell git rev-parse --short=7 HEAD || echo "unknown")
+VERSION     := $(shell grep -i ^Version cryptol.cabal | awk '{ print $$2}')
+SYSTEM_DESC ?= ${UNAME}-${ARCH}_${REV}
+PKG         := cryptol-${VERSION}-${SYSTEM_DESC}
 
 # Windows-specific stuff
 ifneq (,$(findstring _NT,${UNAME}))
@@ -79,7 +80,7 @@ ${PKG}: ${CS_BIN}/cryptol
 	mkdir -p ${PKG}/lib
 	mkdir -p ${PKG}/doc/examples
 	cp ${CS_BIN}/cryptol ${PKG}/bin/cryptol
-	cp -R docs/*.markdown ${PKG}/doc
+	cp -R docs/*.md ${PKG}/doc
 	cp -R docs/*.pdf ${PKG}/doc
 	cp -R lib/* ${PKG}/lib
 	cp docs/ProgrammingCryptol/aes/AES.cry ${PKG}/doc/examples
@@ -89,7 +90,8 @@ ${PKG}: ${CS_BIN}/cryptol
 	cp examples/DEStest.cry ${PKG}/doc/examples
 	cp examples/Test.cry ${PKG}/doc/examples
 	cp examples/SHA1.cry ${PKG}/doc/examples
-	cp examples/simon.cry ${PKG}/doc/examples
+	cp examples/contrib/simon.cry ${PKG}/doc/examples/contrib
+	cp examples/contrib/speck.cry ${PKG}/doc/examples/contrib
 	cp LICENSE ${PKG}/doc
 
 ${PKG}.tar.gz: ${PKG}

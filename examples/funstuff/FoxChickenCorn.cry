@@ -19,7 +19,9 @@ chicken = 0x2
 corn    = 0x4
 fox     = 0x8
 
+// To see this work, try:
 // :sat solutionInNmoves : [6]BankState -> Bit
+
 solutionInNmoves : {n} (fin n) => [n] BankState -> Bit
 property solutionInNmoves states = validMoveSequence ([startState] # states # [doneState])
 

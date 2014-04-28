@@ -33,9 +33,11 @@ extract to a location of your choice. Windows binaries are distributed
 as an `.msi` installer package which places a shortcut to the Cryptol
 interpreter in the Start menu.
 
+## Getting CVC4
+
 Cryptol currently depends on the
 [CVC4 SMT solver](http://cvc4.cs.nyu.edu/) to solve constraints during
-typechecking, and as the default solver for the `:sat` and `:prove`
+type checking, and as the default solver for the `:sat` and `:prove`
 commands. You can download CVC4 binaries for a variety of platforms
 from their [download page](http://cvc4.cs.nyu.edu/downloads/).
 
@@ -70,7 +72,7 @@ versions is to:
 
 1. Run `cabal install cabal-install`
 
-1. Add cabal-install's binary path to your PATH variable (usually `~/.cabal/bin`)
+1. Add cabal-install's binary path to your `PATH` variable (usually `~/.cabal/bin`)
 
 Some supporting non-Haskell libraries are required to build
 Cryptol. Most should already be present for your operating system, but
@@ -78,6 +80,8 @@ you may need to install the following:
 
 - [The GNU Multiple Precision Arithmetic Library (GMP)](https://gmplib.org/)
 - [ncurses](https://www.gnu.org/software/ncurses/)
+
+You'll also need [CVC4](#getting-cvc4) installed when running Cryptol.
 
 ## Building Cryptol
 
@@ -87,7 +91,7 @@ From the Cryptol source directory, run:
 
 This will build Cryptol in place. From there, there are additional targets:
 
-- `make test`: run the regression test suite
+- `make test`: run the regression test suite (note: 4 failures is expected)
 - `make docs`: build the Cryptol documentation (requires
   [pandoc](http://johnmacfarlane.net/pandoc/) and
   [TeX Live](https://www.tug.org/texlive/))
@@ -105,6 +109,27 @@ binary at `.cabal-sandbox/bin/cryptol` in your source directory. You
 can either use that binary directly, or use the results of `tarball`
 or `dist` to install Cryptol in a location of your choice.
 
+# Checking your Installation
+
+Run Cryptol, and at the prompt type:
+
+    Cryptol> :prove True
+
+If Cryptol responds
+
+    Q.E.D.
+
+then Cryptol is installed correctly. If it prints something like
+
+    *** An error occurred.
+    ***  Unable to locate executable for cvc4
+    ***  Executable specified: "cvc4"
+
+then make sure you've installed [CVC4](#getting-cvc4), and that the
+binary is on your `PATH`.
+
+As noted above, `make test` currently results in four failures. An issue has been filed on GitHub for each of them.
+
 # Contributing
 
 We believe that anyone who uses Cryptol is making an important
@@ -112,6 +137,13 @@ contribution toward making Cryptol a better tool. There are many ways
 to get involved.
 
 ## Users
+
+If you write Cryptol programs that you think would benefit the
+community, fork the GitHub repository, and add them to the
+`examples/contrib` directory and submit a pull request.
+
+We host a Cryptol mailing list, which
+you can [join here](http://community.galois.com/mailman/listinfo/cryptol-users).
 
 If you run into a bug in Cryptol, if something doesn't make sense in
 the documentation, if you think something could be better, or if you
@@ -124,7 +156,7 @@ send email to <cryptol@galois.com>.
 If you plan to do development work on the Cryptol interpreter, please
 make a fork of the GitHub repository and send along pull
 requests. This makes it easier for us to track development and to
-incorprate your changes.
+incorporate your changes.
 
 ### Repository Structure
 
@@ -149,9 +181,7 @@ incorprate your changes.
 
 The `docs` directory of the installation package contains an
 introductory book, the `examples` directory contains a number of
-algorithms specified in Cryptol. We host a Cryptol mailing list, which
-you can join (TODO). If you find bugs, or would like to submit a
-patch, please use GitHub to report an issue or send us a pull request.
+algorithms specified in Cryptol.
 
 If you are familiar with version 1 of Cryptol, you should read the
 `Version2Changes` document in the `docs` directory.
@@ -173,5 +203,21 @@ and by cryptographers to
  * check or prove properties of algorithms
  * generate test vectors for testing implementations
  * experiment with new algorithms
+
+## Acknowledgements
+
+Cryptol has been under development for over a decade with many people
+contributing to its design and implementation. Those people include
+(but are not limited to) Iavor Diatchki, Aaron Tomb, Adam Wick, Brian
+Huffman, Dylan McNamee, Joe Kiniry, John Launchbury, Matt Sottile,
+Adam Foltzer, Joe Hendrix, Trevor Elliott, Lee Pike, Mark Tullsen,
+Levent Erkök, David Lazar, Joel Stanley, Jeff Lewis, Andy Gill, Edward
+Yang, Ledah Casburn, Jim Teisher, Sigbjørn Finne, Mark Shields, Philip
+Weaver, Magnus Carlsson, Fergus Henderson, Joe Hurd, Thomas Nordin,
+John Matthews and Sally Browning. In addition, much of the work on
+Cryptol has been funded by, and lots of design input was provided by
+the team at the
+[NSA's Trusted Systems Research Group](http://www.nsa.gov/research/ia_research/),
+including Brad Martin, Frank Taylor and Sean Weaver.
 
 

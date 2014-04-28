@@ -3,5 +3,7 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module issue290
 Loading module issue290bar
-
-and then a bunch of 1's and 2's instead of undefined constants
+Assuming a = 2
+2
+1
+1

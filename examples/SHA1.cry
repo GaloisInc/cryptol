@@ -3,7 +3,7 @@
  * Distributed under the terms of the BSD3 license (see LICENSE file)
  */
 
-// Description of SHA1 at http://www.itl.nist.gov/fipspubs/fip180-1.htm
+// Description of SHA1 at http://www.itl.nist.gov/fipspubs/fip180-4.htm
 
 sha1 msg = sha1' pmsg 
     where
@@ -38,13 +38,12 @@ pad : {msgLen,contentLen,chunks,padding}
 pad msg = split (msg # [True] # (zero:[padding]) # (`msgLen:[64]))
 
 f : ([8], [32], [32], [32]) -> [32]
-f (t, B, C, D) = 
-       if (0 <= t)  && (t <= 19) then (B && C) || (~B && D)
-  else if (20 <= t) && (t <= 39) then B ^ C ^ D
-  else if (40 <= t) && (t <= 59) then (B && C) || (B && D) || (C && D)
-  else if (60 <= t) && (t <= 80) then B ^ C ^ D
-  else error "f: t out of range"
-
+f (t, x, y, z) = 
+       if (0 <= t)  && (t <= 19) then (x && y) ^ (~x && z)
+        | (20 <= t) && (t <= 39) then x ^ y ^ z
+        | (40 <= t) && (t <= 59) then (x && y) ^ (x && z) ^ (y && z)
+        | (60 <= t) && (t <= 79) then x ^ y ^ z
+        else error "f: t out of range"
 
 Ks : [80][32]
 Ks = [ 0x5a827999 | t <- [0..19]  ]

@@ -8,10 +8,10 @@ dist
 results.xml
 
 # don't check in generated documentation
-docs/Cryptol.pdf
-docs/CryptolPrims.pdf
-docs/Syntax.pdf
-docs/Version2Changes.pdf
+#docs/CryptolPrims.pdf
+#docs/ProgrammingCryptol.pdf
+#docs/Syntax.pdf
+d#ocs/Version2Changes.pdf
 
 # don't check in distribution files
 cryptol-2.*
