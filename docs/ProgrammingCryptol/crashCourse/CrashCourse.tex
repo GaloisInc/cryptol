@@ -624,7 +624,7 @@ Try the following infinite enumerations:
   by putting $\ldots$ at the end\footnote{You can change this behavior
     by setting the {\tt infLength} variable, like so: {\tt Cryptol>
       :set infLength=10} will show the first 10 elements of infinite
-    lists}. Here are the responses:
+    sequences}. Here are the responses:
 \begin{Verbatim}
   [1, 2, 3, 4, 5, ...]
   [1, 3, 5, 7, 9, ...]
@@ -789,7 +789,7 @@ and finally the shape description.  In this case, Cryptol's {\tt
   [b][c][a]} is telling us that the result will be a sequence of {\tt
   b} things, each of which is a sequence of {\tt c} things, each of
 which is a word of size {\tt a}. The type constraints tell us that
-{\tt a} is at least 4, because the maximum element of the list is 12,
+{\tt a} is at least 4, because the maximum element of the sequence is 12,
 and it takes at least 4 bits to represent the value 12.  The
 constraints are that {\tt b * c == 12}, which means we should
 completely cover the entire input, and that the lengths {\tt a} and
@@ -1512,7 +1512,7 @@ as opposed to {\tt [0, 1, 0, 1, 0 ..]}, as one might
 expect\footnote{This is one of the subtle changes from Cryptol 1. The
   previous behavior can be achieved by dropping the first element from
   {\tt [1 ... ]}.}.  This behavior follows from the specification that
-the width of the elements of the list are derived from the width of
+the width of the elements of the sequence are derived from the width of
 the elements in the seed, which in this case is 0.
 \end{Answer}
 
@@ -1580,11 +1580,11 @@ like.  So, you can talk about 2-bit quantities {\tt [2]}, as well as
 depending on the needs of your application. When we want to be
 explicit about the type of a value, we say {\tt 5:[8]}. If we do not
 specify a size, Cryptol's type inference engine will pick the
-``appropriate'' value depending on the context.\indTypeInference
+appropriate value depending on the context.\indTypeInference
 Recall from Section~\ref{sec:words2} that a word is, in fact, a
 sequence of bits.  Hence, an equivalent (but verbose) way to write the
-type {\tt [17]} is {\tt [1][17]Bit}, which we would say in English as
-``a list of length one, whose element size is 17 bits long.''
+type {\tt [17]} is {\tt [17]Bit}, which we would say in English as
+``a sequence of length 17, whose elements are Bits.''
 
 \paragraph*{Tuples}\indTheTupleType A tuple is a heterogeneous
 collection of arbitrary number of
@@ -1836,7 +1836,7 @@ the Cryptol primitive {\tt take}\indTake:
 
 The type of {\tt take} says that it is parameterized over {\tt front}
 and {\tt back}, {\tt front} must be a finite value,\indFin it takes a
-list {\tt front + back} long, and returns a list {\tt front} long.
+sequence {\tt front + back} long, and returns a sequence {\tt front} long.
 
 The impact of this predicate shows up when we try to take more than
 what is available:
@@ -1876,7 +1876,7 @@ Here is another way, more direct but somewhat less satisfying:
 \begin{verbatim}
   {k} ((k - 128) * (k - 192) * (k - 256) == 0) => [k]
 \end{verbatim}
-Note that Cryptol's types do not include {\em or} predicates, 
+Note that Cryptol's type constraints do not include {\em or} predicates, 
 hence we cannot just list the possibilities in a list.
 \end{Answer}
 

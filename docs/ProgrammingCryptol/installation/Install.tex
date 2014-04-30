@@ -255,19 +255,19 @@ aliases you have defined, along with their types.
 \begin{center}
   \begin{tabular*}{0.75\textwidth}[h]{c|c|l}
     \hline
-    | \textbf{Option} | \textbf{Default value} | \textbf{Meaning} | \\
+     \textbf{Option}     & \textbf{Default value} & \textbf{Meaning}  \\
     \hline
-    | \texttt{ascii}  | \texttt{off} | \quad | \\
-    | \texttt{base}  | \texttt{} | \quad | \\
-    | \texttt{debug}  | \texttt{} | \quad | \\
-    | \texttt{infLength}  | \texttt{} | \quad | \\
-    | \texttt{iteSolver}  | \texttt{} | \todo[inline]{Talk to Brian.} | \\
-    | \texttt{prover}  | \texttt{} | \quad | \\
-    | \texttt{tests}  | \texttt{} | \quad | \\
-    | \texttt{warnDefaulting}  | \texttt{} | \quad | \\
+     \texttt{ascii}           & \texttt{off}   & print sequences of bytes as a string  \\
+     \texttt{base}            & \texttt{10}    & numeric base for printing words  \\
+     \texttt{debug}           & \texttt{off}   & whether to print verbose debugging information \\
+     \texttt{infLength}       & \texttt{5}     & number of elements to show from an infinite sequence \\
+     \texttt{iteSolver}       & \texttt{off}   & whether \texttt{:prove} calls out for help on recursive functions  \\
+     \texttt{prover}          & \texttt{cvc4}  & which SMT solver to use for \texttt{:prove}  \\
+     \texttt{tests}           & \texttt{100}   & number of tests to run for \texttt{:check} \\
+     \texttt{warnDefaulting}  & \texttt{on}    & \todo[inline]{talk to Iavor} \\
     \hline
-    \label{tab:set_options}
   \end{tabular*}
+  \label{tab:set_options}
 \end{center}
 \paragraph*{Environment options}
 A variety of environment options are set through the use of the
