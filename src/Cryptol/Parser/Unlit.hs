@@ -8,7 +8,7 @@
 --
 -- Convert a literate source file into an ordinary source file.
 
-{-# LANGUAGE OverloadedStrings, Safe #-}
+{-# LANGUAGE OverloadedStrings, Safe, PatternGuards #-}
 module Cryptol.Parser.Unlit
   ( unLit, PreProc(..), guessPreProc, knownExts
   ) where
@@ -81,23 +81,28 @@ markdown = blanks []
 
   blanks current []     = mk Comment current
   blanks current (l : ls)
-    | isCodeLine l      = mk Comment current ++ code [l] ls
-    | isOpenFence l     = mk Comment (l : current) ++ fenced [] ls
-    | isBlank l         = blanks  (l : current) ls
-    | otherwise         = comment (l : current) ls
+    | isCodeLine l             = mk Comment current ++ code [l] ls
+    | Just op <- isOpenFence l = mk Comment (l : current) ++ fenced op [] ls
+    | isBlank l                = blanks  (l : current) ls
+    | otherwise                = comment (l : current) ls
 
   code current []       = mk Code current
   code current (l : ls)
     | isCodeLine l      = code (l : current) ls
     | otherwise         = mk Code current ++ comment [] (l : ls)
 
-  fenced current []     = mk Code current  -- XXX should this be an error?
-  fenced current (l : ls)
-    | isCloseFence l    = mk Code current ++ comment [l] ls
-    | otherwise         = fenced (l : current) ls
+  fenced op current []     = mk op current  -- XXX should this be an error?
+  fenced op current (l : ls)
+    | isCloseFence l    = mk op current ++ comment [l] ls
+    | otherwise         = fenced op (l : current) ls
 
 
-  isOpenFence l  = "```cryptol" `Text.isPrefixOf` l
+  isOpenFence l  | "```cryptol" == l'         = Just Code
+                 | "```"        == l'         = Just Code
+                 | "```" `Text.isPrefixOf` l' = Just Comment
+                 | otherwise                  = Nothing
+    where
+    l' = Text.dropWhile isSpace l
   isCloseFence l = "```" `Text.isPrefixOf` l
   isBlank l      = Text.all isSpace l
   isCodeLine l   = "\t" `Text.isPrefixOf` l || "    " `Text.isPrefixOf` l
