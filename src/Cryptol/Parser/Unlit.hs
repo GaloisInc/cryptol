@@ -97,7 +97,6 @@ markdown = blanks []
     | otherwise         = fenced (l : current) ls
 
 
-  -- XXX: the fences may be indented.
   isOpenFence l  = "```cryptol" `Text.isPrefixOf` l
   isCloseFence l = "```" `Text.isPrefixOf` l
   isBlank l      = Text.all isSpace l
