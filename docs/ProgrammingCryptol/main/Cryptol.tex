@@ -50,13 +50,17 @@
 \input{utils/trickery.tex}
 
 % fonts
+\usepackage[TS1,T1]{fontenc}
+\usepackage{microtype}
+\usepackage[osf]{mathpazo}
 \usepackage{fontspec}
 \usepackage{xunicode}
 \usepackage{xltxtra}
 \defaultfontfeatures{Mapping=tex-text}
-\setmainfont[]{Times}
-\setsansfont[]{Helvetica}
-\setmonofont[Scale=0.85]{Courier}
+% NOTE: broken (and boring) font names on *nix platform:
+%\setmainfont[]{Times}
+%\setsansfont[]{Helvetica}
+%\setmonofont[Scale=0.85]{Courier}
 \usepackage{sectsty}
 \allsectionsfont{\sffamily}
 
