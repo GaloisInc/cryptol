@@ -82,6 +82,7 @@ library
                        Cryptol.TypeCheck.PP,
                        Cryptol.TypeCheck.Solve,
                        Cryptol.TypeCheck.TypeMap,
+                       Cryptol.TypeCheck.TypeOf,
                        Cryptol.TypeCheck.Defaulting,
 
                        Cryptol.TypeCheck.Solver.Eval,
