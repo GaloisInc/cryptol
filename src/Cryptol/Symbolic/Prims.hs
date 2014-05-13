@@ -326,7 +326,7 @@ evalECon econ =
                   VCons ys <$> delay (transp t' yss)
         transp (numTValue b) th
 
-    ECAt          -> -- {n,a,m} [n]a -> [m] -> a
+    ECAt          -> -- {n,a,i} (fin i) => [n]a -> [i] -> a
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
@@ -347,7 +347,7 @@ evalECon econ =
             f th = delay (selectV (\i -> nthV err th1 i) th)
         mapV f th2
 
-    ECAtBack      -> -- {n,a,m} (fin n) => [n]a -> [m] -> a
+    ECAtBack      -> -- {n,a,i} (fin n, fin i) => [n]a -> [i] -> a
       tlam $ \(finTValue -> n) ->
       tlam $ \a ->
       tlam $ \_ ->

@@ -665,7 +665,7 @@ indexPrimOne :: (Maybe Integer -> [Value] -> Integer -> Value) -> Value
 indexPrimOne op =
   tlam $ \ n  ->
   tlam $ \ _a ->
-  tlam $ \ _m ->
+  tlam $ \ _i ->
    lam $ \ l  ->
    lam $ \ r  ->
      let vs  = fromSeq l

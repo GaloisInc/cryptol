@@ -218,29 +218,29 @@ typeOf econ =
     ECAt ->
       let n = var 0 KNum
           a = var 1 KType
-          m = var 2 KNum
-      in forAll [n,a,m] [] (tSeq n a `tFun` tWord m `tFun` a)
+          i = var 2 KNum
+      in forAll [n,a,i] [ pFin i ] (tSeq n a `tFun` tWord i `tFun` a)
 
     ECAtRange ->
       let n = var 0 KNum
           a = var 1 KType
           m = var 2 KNum
           i = var 3 KNum
-      in forAll [n,a,m,i] [pFin i]
+      in forAll [n,a,m,i] [ pFin i ]
          (tSeq n a `tFun` tSeq m (tWord i) `tFun` tSeq m a)
 
     ECAtBack ->
       let n = var 0 KNum
           a = var 1 KType
-          m = var 2 KNum
-      in forAll [n,a,m] [ pFin n ] (tSeq n a `tFun` tWord m `tFun` a)
+          i = var 2 KNum
+      in forAll [n,a,i] [ pFin n, pFin i ] (tSeq n a `tFun` tWord i `tFun` a)
 
     ECAtRangeBack ->
       let n = var 0 KNum
           a = var 1 KType
           m = var 2 KNum
           i = var 3 KNum
-      in forAll [n,a,m,i] [ pFin n ]
+      in forAll [n,a,m,i] [ pFin n, pFin i ]
           (tSeq n a `tFun` tSeq m (tWord i) `tFun` tSeq m a)
 
     -- {a,b,c} (fin a) => [a+b] c -> ([a]c,[b]c)
