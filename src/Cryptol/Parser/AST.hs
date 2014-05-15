@@ -648,7 +648,7 @@ instance PP Expr where
 
       -- atoms
       EVar x        -> pp x
-      ECon x        -> pp x
+      ECon x        -> ppPrefix x
       ELit x        -> pp x
       ETuple es     -> parens (commaSep (map pp es))
       ERecord fs    -> braces (commaSep (map (ppNamed "=") fs))
