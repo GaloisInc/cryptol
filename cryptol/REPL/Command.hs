@@ -473,7 +473,7 @@ browseVars pfx = do
 
 setOptionCmd :: String -> REPL ()
 setOptionCmd str
-  | Just value <- mbValue = setUser (mkKey key) value
+  | Just value <- mbValue = setUser key value
   | null key              = mapM_ (describe . optName) (leaves userOptions)
   | otherwise             = describe key
   where
@@ -483,18 +483,17 @@ setOptionCmd str
               _ : stuff -> Just (trim stuff)
               _         -> Nothing
 
-
-
-  mkKey = takeWhile (not . isSpace)
-
   describe k = do
-    ev <- tryGetUser (mkKey k)
+    ev <- tryGetUser k
     io $ case ev of
            Just (EnvString s)   -> putStrLn (k ++ " = " ++ s)
            Just (EnvNum n)      -> putStrLn (k ++ " = " ++ show n)
            Just (EnvBool True)  -> putStrLn (k ++ " = on")
            Just (EnvBool False) -> putStrLn (k ++ " = off")
-           Nothing              -> putStrLn ("Unknown user option: `" ++ k ++ "`")
+           Nothing              -> do putStrLn ("Unknown user option: `" ++ k ++ "`")
+                                      when (any isSpace k) $ do
+                                        let (k1, k2) = break isSpace k
+                                        putStrLn ("Did you mean: `:set " ++ k1 ++ " =" ++ k2 ++ "`?")
 
 
 helpCmd :: String -> REPL ()
