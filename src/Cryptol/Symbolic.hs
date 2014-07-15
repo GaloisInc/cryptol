@@ -46,13 +46,12 @@ lookupProver "yices" = SBV.yices
 lookupProver "z3"    = SBV.z3
 lookupProver s       = error $ "invalid prover: " ++ s
 
-prove :: (String, Bool, Bool, Eval.PPOpts, String) -> (Expr, Schema) -> M.ModuleCmd ()
-prove (proverName, useSolverIte, verbose, ppOpts, input) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
+prove :: (String, Bool, Bool) -> (Expr, Schema) -> M.ModuleCmd (Either String (Maybe [Eval.Value]))
+prove (proverName, useSolverIte, verbose) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
   let extDgs = allDeclGroups modEnv
   let prover = lookupProver proverName
   case predArgTypes schema of
-    Left msg -> do putStrLn msg
-                   return (Right ((), modEnv), [])
+    Left msg -> return (Right (Left msg, modEnv), [])
     Right ts -> do when verbose $ putStrLn "Simulating..."
                    let runE = do args <- mapM forallFinType ts
                                  env <- evalDecls emptyEnv extDgs
@@ -69,25 +68,20 @@ prove (proverName, useSolverIte, verbose, ppOpts, input) (expr, schema) = protec
                                b <- runTheMonad runE simenv
                                when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
                                return b
-                   case result of
-                     SBV.ThmResult (SBV.Satisfiable {}) -> do
-                       let Right (_, cws) = SBV.getModel result
-                       let (vs, _) = parseValues ts cws
-                       let doc = hsep (text input : map (pp . Eval.WithBase ppOpts) vs)
-                       print $ doc <+> text "= False"
-                     SBV.ThmResult (SBV.Unsatisfiable {}) -> do
-                       putStrLn "Q.E.D."
-                     SBV.ThmResult _ -> do
-                       print result
-                   return (Right ((), modEnv), [])
+                   let solution = case result of
+                         SBV.ThmResult (SBV.Satisfiable {}) -> Right (Just vs)
+                           where Right (_, cws) = SBV.getModel result
+                                 (vs, _) = parseValues ts cws
+                         SBV.ThmResult (SBV.Unsatisfiable {}) -> Right Nothing
+                         SBV.ThmResult _ -> Left (show result)
+                   return (Right (solution, modEnv), [])
 
-sat :: (String, Bool, Bool, Eval.PPOpts, String) -> (Expr, Schema) -> M.ModuleCmd ()
-sat (proverName, useSolverIte, verbose, ppOpts, input) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
+sat :: (String, Bool, Bool) -> (Expr, Schema) -> M.ModuleCmd (Either String (Maybe [Eval.Value]))
+sat (proverName, useSolverIte, verbose) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
   let extDgs = allDeclGroups modEnv
   let prover = lookupProver proverName
   case predArgTypes schema of
-    Left msg -> do putStrLn msg
-                   return (Right ((), modEnv), [])
+    Left msg -> return (Right (Left msg, modEnv), [])
     Right ts -> do when verbose $ putStrLn "Simulating..."
                    let runE = do args <- mapM existsFinType ts
                                  env <- evalDecls emptyEnv extDgs
@@ -104,19 +98,15 @@ sat (proverName, useSolverIte, verbose, ppOpts, input) (expr, schema) = protectS
                                b <- runTheMonad runE simenv
                                when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
                                return b
-                   case result of
-                     SBV.SatResult (SBV.Satisfiable {}) -> do
-                       let Right (_, cws) = SBV.getModel result
-                       let (vs, _) = parseValues ts cws
-                       let doc = hsep (text input : map (pp . Eval.WithBase ppOpts) vs)
-                       print $ doc <+> text "= True"
-                     SBV.SatResult (SBV.Unsatisfiable {}) -> do
-                       putStrLn "Unsatisfiable."
-                     SBV.SatResult _ -> do
-                       print result
-                   return (Right ((), modEnv), [])
+                   let solution = case result of
+                         SBV.SatResult (SBV.Satisfiable {}) -> Right (Just vs)
+                           where Right (_, cws) = SBV.getModel result
+                                 (vs, _) = parseValues ts cws
+                         SBV.SatResult (SBV.Unsatisfiable {}) -> Right Nothing
+                         SBV.SatResult _ -> Left (show result)
+                   return (Right (solution, modEnv), [])
 
-protectStack :: Bool -> M.ModuleCmd () -> M.ModuleCmd ()
+protectStack :: Bool -> M.ModuleCmd (Either String a) -> M.ModuleCmd (Either String a)
 protectStack usingITE cmd modEnv = X.catchJust isOverflow (cmd modEnv) handler
   where isOverflow X.StackOverflow = Just ()
         isOverflow _               = Nothing
@@ -124,8 +114,7 @@ protectStack usingITE cmd modEnv = X.catchJust isOverflow (cmd modEnv) handler
             | otherwise = msgBase ++ "\n" ++
                           "Using ':set iteSolver=on' might help."
         msgBase = "Symbolic evaluation failed to terminate."
-        handler () = do putStrLn msg
-                        return (Right ((), modEnv), [])
+        handler () = return (Right (Left msg, modEnv), [])
 
 parseValues :: [FinType] -> [SBV.CW] -> ([Eval.Value], [SBV.CW])
 parseValues [] cws = ([], cws)

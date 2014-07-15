@@ -321,8 +321,14 @@ proveCmd str = do
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
+  result <- liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose) (expr, schema)
   ppOpts <- getPPValOpts
-  liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose, ppOpts, str) (expr, schema)
+  case result of
+    Left msg        -> io $ putStrLn msg
+    Right Nothing   -> io $ putStrLn "Q.E.D."
+    Right (Just vs) -> io $ print $ hsep (doc : docs) <+> text "= False"
+                         where doc = ppPrec 3 parseExpr -- function application has precedence 3
+                               docs = map (pp . E.WithBase ppOpts) vs
 
 satCmd :: String -> REPL ()
 satCmd str = do
@@ -331,8 +337,14 @@ satCmd str = do
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
+  result <- liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose) (expr, schema)
   ppOpts <- getPPValOpts
-  liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose, ppOpts, str) (expr, schema)
+  case result of
+    Left msg        -> io $ putStrLn msg
+    Right Nothing   -> io $ putStrLn "Unsatisfiable."
+    Right (Just vs) -> io $ print $ hsep (doc : docs) <+> text "= True"
+                         where doc = ppPrec 3 parseExpr -- function application has precedence 3
+                               docs = map (pp . E.WithBase ppOpts) vs
 
 specializeCmd :: String -> REPL ()
 specializeCmd str = do
