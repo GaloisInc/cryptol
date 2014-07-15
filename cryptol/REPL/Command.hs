@@ -321,7 +321,8 @@ proveCmd str = do
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose, str) (expr, schema)
+  ppOpts <- getPPValOpts
+  liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose, ppOpts, str) (expr, schema)
 
 satCmd :: String -> REPL ()
 satCmd str = do
@@ -330,7 +331,8 @@ satCmd str = do
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose, str) (expr, schema)
+  ppOpts <- getPPValOpts
+  liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose, ppOpts, str) (expr, schema)
 
 specializeCmd :: String -> REPL ()
 specializeCmd str = do

@@ -46,8 +46,8 @@ lookupProver "yices" = SBV.yices
 lookupProver "z3"    = SBV.z3
 lookupProver s       = error $ "invalid prover: " ++ s
 
-prove :: (String, Bool, Bool, String) -> (Expr, Schema) -> M.ModuleCmd ()
-prove (proverName, useSolverIte, verbose, input) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
+prove :: (String, Bool, Bool, Eval.PPOpts, String) -> (Expr, Schema) -> M.ModuleCmd ()
+prove (proverName, useSolverIte, verbose, ppOpts, input) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
   let extDgs = allDeclGroups modEnv
   let prover = lookupProver proverName
   case predArgTypes schema of
@@ -73,7 +73,6 @@ prove (proverName, useSolverIte, verbose, input) (expr, schema) = protectStack u
                      SBV.ThmResult (SBV.Satisfiable {}) -> do
                        let Right (_, cws) = SBV.getModel result
                        let (vs, _) = parseValues ts cws
-                       let ppOpts = Eval.defaultPPOpts
                        let doc = hsep (text input : map (pp . Eval.WithBase ppOpts) vs)
                        print $ doc <+> text "= False"
                      SBV.ThmResult (SBV.Unsatisfiable {}) -> do
@@ -82,8 +81,8 @@ prove (proverName, useSolverIte, verbose, input) (expr, schema) = protectStack u
                        print result
                    return (Right ((), modEnv), [])
 
-sat :: (String, Bool, Bool, String) -> (Expr, Schema) -> M.ModuleCmd ()
-sat (proverName, useSolverIte, verbose, input) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
+sat :: (String, Bool, Bool, Eval.PPOpts, String) -> (Expr, Schema) -> M.ModuleCmd ()
+sat (proverName, useSolverIte, verbose, ppOpts, input) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
   let extDgs = allDeclGroups modEnv
   let prover = lookupProver proverName
   case predArgTypes schema of
@@ -109,7 +108,6 @@ sat (proverName, useSolverIte, verbose, input) (expr, schema) = protectStack use
                      SBV.SatResult (SBV.Satisfiable {}) -> do
                        let Right (_, cws) = SBV.getModel result
                        let (vs, _) = parseValues ts cws
-                       let ppOpts = Eval.defaultPPOpts
                        let doc = hsep (text input : map (pp . Eval.WithBase ppOpts) vs)
                        print $ doc <+> text "= True"
                      SBV.SatResult (SBV.Unsatisfiable {}) -> do
