@@ -31,7 +31,7 @@ import Data.SBV.SMT.SMTLib
 -- The default options are @\"-m -f\"@, which is valid for Yices 2.1 series. You can use the @SBV_YICES_OPTIONS@ environment variable to override the options.
 yices :: SMTSolver
 yices = SMTSolver {
-           name           = "Yices"
+           name           = Yices
          , executable     = "yices-smt"
          -- , options        = ["-tc", "-smt", "-e"]   -- For Yices1
          , options        = ["-m", "-f"]  -- For Yices2

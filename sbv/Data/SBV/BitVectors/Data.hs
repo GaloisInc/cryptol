@@ -17,31 +17,35 @@
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE PatternGuards              #-}
 {-# LANGUAGE DefaultSignatures          #-}
+{-# LANGUAGE NamedFieldPuns             #-}
 
 module Data.SBV.BitVectors.Data
  ( SBool, SWord8, SWord16, SWord32, SWord64
  , SInt8, SInt16, SInt32, SInt64, SInteger, SReal, SFloat, SDouble
  , nan, infinity, sNaN, sInfinity, RoundingMode(..), smtLibSquareRoot, smtLibFusedMA
  , SymWord(..)
- , CW(..), CWVal(..), cwSameType, cwIsBit, cwToBool, normCW
+ , CW(..), CWVal(..), AlgReal(..), cwSameType, cwIsBit, cwToBool
  , mkConstCW ,liftCW2, mapCW, mapCW2
- , SW(..), trueSW, falseSW, trueCW, falseCW
+ , SW(..), trueSW, falseSW, trueCW, falseCW, normCW
  , SBV(..), NodeId(..), mkSymSBV, mkSymSBVWithRandom
  , ArrayContext(..), ArrayInfo, SymArray(..), SFunArray(..), mkSFunArray, SArray(..), arrayUIKind
- , sbvToSW, sbvToSymSW
+ , sbvToSW, sbvToSymSW, forceSWArg
  , SBVExpr(..), newExpr
  , cache, Cached, uncache, uncacheAI, HasKind(..)
- , Op(..), NamedSymVar, UnintKind(..), getTableIndex, SBVPgm(..), Symbolic, runSymbolic, runSymbolic', State, inProofMode, SBVRunMode(..), Kind(..), Outputtable(..), Result(..)
- , readResult, getResult
+ , Op(..), NamedSymVar, UnintKind(..), getTableIndex, SBVPgm(..), Symbolic, runSymbolic, runSymbolic', State, getPathCondition, extendPathCondition
+ , inProofMode, SBVRunMode(..), Kind(..), Outputtable(..), Result(..)
+ , Logic(..), SMTLibLogic(..)
  , getTraceInfo, getConstraints, addConstraint
  , SBVType(..), newUninterpreted, unintFnUIKind, addAxiom
  , Quantifier(..), needsExistentials
  , SMTLibPgm(..), SMTLibVersion(..)
  , SolverCapabilities(..)
+ , extractSymbolicSimulationState, getResult
+ , SMTScript(..), Solver(..), SMTSolver(..), SMTResult(..), SMTModel(..), SMTConfig(..), getSBranchRunConfig
  ) where
 
-import Control.Applicative  (Applicative)
 import Control.DeepSeq      (NFData(..))
+import Control.Applicative  (Applicative)
 import Control.Monad        (when)
 import Control.Monad.Fix    (MonadFix)
 import Control.Monad.Reader (MonadReader, ReaderT, ask, runReaderT)
@@ -60,6 +64,7 @@ import qualified Data.Set      as Set  (Set, empty, toList, insert)
 import qualified Data.Foldable as F    (toList)
 import qualified Data.Sequence as S    (Seq, empty, (|>))
 
+import System.Exit           (ExitCode(..))
 import System.Mem.StableName
 import System.Random
 
@@ -130,8 +135,8 @@ cwSameType x y = cwKind x == cwKind y
 -- | Is this a bit?
 cwIsBit :: CW -> Bool
 cwIsBit x = case cwKind x of
-              KBounded False 1 -> True
-              _                -> False
+              KBool -> True
+              _     -> False
 
 -- | Convert a CW to a Haskell boolean (NB. Assumes input is well-kinded)
 cwToBool :: CW -> Bool
@@ -152,7 +157,8 @@ normCW c@(CW (KBounded signed sz) (CWInteger v)) = c { cwVal = CWInteger norm }
 normCW c = c
 
 -- | Kind of symbolic value
-data Kind = KBounded Bool Int
+data Kind = KBool
+          | KBounded Bool Int
           | KUnbounded
           | KReal
           | KUninterpreted String
@@ -161,7 +167,7 @@ data Kind = KBounded Bool Int
           deriving (Eq, Ord)
 
 instance Show Kind where
-  show (KBounded False 1) = "SBool"
+  show KBool              = "SBool"
   show (KBounded False n) = "SWord" ++ show n
   show (KBounded True n)  = "SInt"  ++ show n
   show KUnbounded         = "SInteger"
@@ -176,6 +182,12 @@ newtype NodeId = NodeId Int deriving (Eq, Ord)
 -- | A symbolic word, tracking it's signedness and size.
 data SW = SW Kind NodeId deriving (Eq, Ord)
 
+-- | Forcing an argument; this is a necessary evil to make sure all the arguments
+-- to an uninterpreted function and sBranch test conditions are evaluated before called;
+-- the semantics of uinterpreted functions is necessarily strict; deviating from Haskell's
+forceSWArg :: SW -> IO ()
+forceSWArg (SW k n) = k `seq`  n `seq` return ()
+
 -- | Quantifiers: forall or exists. Note that we allow
 -- arbitrary nestings.
 data Quantifier = ALL | EX deriving Eq
@@ -186,19 +198,19 @@ needsExistentials = (EX `elem`)
 
 -- | Constant False as a SW. Note that this value always occupies slot -2.
 falseSW :: SW
-falseSW = SW (KBounded False 1) $ NodeId (-2)
+falseSW = SW KBool $ NodeId (-2)
 
 -- | Constant False as a SW. Note that this value always occupies slot -1.
 trueSW :: SW
-trueSW  = SW (KBounded False 1) $ NodeId (-1)
+trueSW  = SW KBool $ NodeId (-1)
 
 -- | Constant False as a CW. We represent it using the integer value 0.
 falseCW :: CW
-falseCW = CW (KBounded False 1) (CWInteger 0)
+falseCW = CW KBool (CWInteger 0)
 
 -- | Constant True as a CW. We represent it using the integer value 1.
 trueCW :: CW
-trueCW  = CW (KBounded False 1) (CWInteger 1)
+trueCW  = CW KBool (CWInteger 1)
 
 -- | A simple type for SBV computations, used mainly for uninterpreted constants.
 -- We keep track of the signedness/size of the arguments. A non-function will
@@ -265,6 +277,7 @@ class HasKind a where
   showType        :: a -> String
   -- defaults
   hasSign x = case kindOf x of
+                  KBool            -> False
                   KBounded b _     -> b
                   KUnbounded       -> True
                   KReal            -> True
@@ -272,13 +285,14 @@ class HasKind a where
                   KDouble          -> True
                   KUninterpreted{} -> False
   intSizeOf x = case kindOf x of
+                  KBool            -> error "SBV.HasKind.intSizeOf((S)Bool)"
                   KBounded _ s     -> s
                   KUnbounded       -> error "SBV.HasKind.intSizeOf((S)Integer)"
                   KReal            -> error "SBV.HasKind.intSizeOf((S)Real)"
                   KFloat           -> error "SBV.HasKind.intSizeOf((S)Float)"
                   KDouble          -> error "SBV.HasKind.intSizeOf((S)Double)"
                   KUninterpreted s -> error $ "SBV.HasKind.intSizeOf: Uninterpreted sort: " ++ s
-  isBoolean       x | KBounded False 1 <- kindOf x = True
+  isBoolean       x | KBool{}          <- kindOf x = True
                     | True                         = False
   isBounded       x | KBounded{}       <- kindOf x = True
                     | True                         = False
@@ -298,7 +312,7 @@ class HasKind a where
   default kindOf :: Data a => a -> Kind
   kindOf = KUninterpreted . tyconUQname . dataTypeName . dataTypeOf
 
-instance HasKind Bool    where kindOf _ = KBounded False 1
+instance HasKind Bool    where kindOf _ = KBool
 instance HasKind Int8    where kindOf _ = KBounded True  8
 instance HasKind Word8   where kindOf _ = KBounded False 8
 instance HasKind Int16   where kindOf _ = KBounded True  16
@@ -421,7 +435,7 @@ data UnintKind = UFun Int String | UArr Int String      -- in each case, arity a
 -- | Result of running a symbolic computation
 data Result = Result (Set.Set Kind)                -- kinds used in the program
                      [(String, CW)]                -- quick-check counter-example information (if any)
-                     [(String, [String])]          -- uninterpreted code segments
+                     [(String, [String])]          -- uninterpeted code segments
                      [(Quantifier, NamedSymVar)]   -- inputs (possibly existential)
                      [(SW, CW)]                    -- constants
                      [((Int, Kind, Kind), [SW])]   -- tables (automatically constructed) (tableno, index-type, result-type) elts
@@ -540,9 +554,9 @@ arrayUIKind (i, (nm, _, ctx))
         external (ArrayMerge{})  = False
 
 -- | Different means of running a symbolic piece of code
-data SBVRunMode = Proof Bool      -- ^ Symbolic simulation mode, for proof purposes. Bool is True if it's a sat instance
-                | CodeGen         -- ^ Code generation mode
-                | Concrete StdGen -- ^ Concrete simulation mode. The StdGen is for the pConstrain acceptance in cross runs
+data SBVRunMode = Proof (Bool, Maybe SMTConfig) -- ^ Symbolic simulation mode, for proof purposes. Bool is True if it's a sat instance. SMTConfig is used for 'sBranch' calls.
+                | CodeGen                       -- ^ Code generation mode
+                | Concrete StdGen               -- ^ Concrete simulation mode. The StdGen is for the pConstrain acceptance in cross runs
 
 -- | Is this a concrete run? (i.e., quick-check or test-generation like)
 isConcreteMode :: SBVRunMode -> Bool
@@ -552,6 +566,7 @@ isConcreteMode CodeGen      = False
 
 -- | The state of the symbolic interpreter
 data State  = State { runMode       :: SBVRunMode
+                    , pathCond      :: SBool
                     , rStdGen       :: IORef StdGen
                     , rCInfo        :: IORef [(String, CW)]
                     , rctr          :: IORef Int
@@ -571,12 +586,26 @@ data State  = State { runMode       :: SBVRunMode
                     , rAICache      :: IORef (Cache Int)
                     }
 
+-- | Get the current path condition
+getPathCondition :: State -> SBool
+getPathCondition = pathCond
+
+-- | Extend the path condition with the given test value.
+extendPathCondition :: State -> (SBool -> SBool) -> State
+extendPathCondition st f = st{pathCond = f (pathCond st)}
+
 -- | Are we running in proof mode?
 inProofMode :: State -> Bool
 inProofMode s = case runMode s of
                   Proof{}    -> True
                   CodeGen    -> False
                   Concrete{} -> False
+
+-- | If in proof mode, get the underlying configuration (used for 'sBranch')
+getSBranchRunConfig :: State -> Maybe SMTConfig
+getSBranchRunConfig st = case runMode st of
+                           Proof (_, s)  -> s
+                           _             -> Nothing
 
 -- | The "Symbolic" value. Either a constant (@Left@) or a symbolic
 -- value (@Right Cached@). Note that caching is essential for making
@@ -636,7 +665,7 @@ infinity = 1/0
 -- | Symbolic variant of Not-A-Number. This value will inhabit both
 -- 'SDouble' and 'SFloat'.
 sNaN :: (Floating a, SymWord a) => SBV a
-sNaN      = literal nan
+sNaN = literal nan
 
 -- | Symbolic variant of infinity. This value will inhabit both
 -- 'SDouble' and 'SFloat'.
@@ -744,6 +773,7 @@ getTableIndex st at rt elts = do
 
 -- | Create a constant word from an integral
 mkConstCW :: Integral a => Kind -> a -> CW
+mkConstCW KBool              a = normCW $ CW KBool      (CWInteger (toInteger a))
 mkConstCW k@(KBounded{})     a = normCW $ CW k          (CWInteger (toInteger a))
 mkConstCW KUnbounded         a = normCW $ CW KUnbounded (CWInteger (toInteger a))
 mkConstCW KReal              a = normCW $ CW KReal      (CWAlgReal (fromInteger (toInteger a)))
@@ -783,21 +813,20 @@ newtype Symbolic a = Symbolic (ReaderT State IO a)
 mkSymSBV :: forall a. (Random a, SymWord a) => Maybe Quantifier -> Kind -> Maybe String -> Symbolic (SBV a)
 mkSymSBV = mkSymSBVWithRandom randomIO
 
-mkSymSBVWithRandom :: forall a. SymWord a =>
-                      IO (SBV a) -> Maybe Quantifier -> Kind -> Maybe String -> Symbolic (SBV a)
-mkSymSBVWithRandom random mbQ k mbNm = do
+mkSymSBVWithRandom :: forall a. SymWord a => IO (SBV a) -> Maybe Quantifier -> Kind -> Maybe String -> Symbolic (SBV a)
+mkSymSBVWithRandom rand mbQ k mbNm = do
         st <- ask
         let q = case (mbQ, runMode st) of
-                  (Just x,  _)           -> x   -- user given, just take it
-                  (Nothing, Concrete{})  -> ALL -- concrete simulation, pick universal
-                  (Nothing, Proof True)  -> EX  -- sat mode, pick existential
-                  (Nothing, Proof False) -> ALL -- proof mode, pick universal
-                  (Nothing, CodeGen)     -> ALL -- code generation, pick universal
+                  (Just x,  _)                -> x   -- user given, just take it
+                  (Nothing, Concrete{})       -> ALL -- concrete simulation, pick universal
+                  (Nothing, Proof (True, _))  -> EX  -- sat mode, pick existential
+                  (Nothing, Proof (False, _)) -> ALL -- proof mode, pick universal
+                  (Nothing, CodeGen)          -> ALL -- code generation, pick universal
         case runMode st of
           Concrete _ | q == EX -> case mbNm of
                                     Nothing -> error $ "Cannot quick-check in the presence of existential variables, type: " ++ showType (undefined :: SBV a)
                                     Just nm -> error $ "Cannot quick-check in the presence of existential variable " ++ nm ++ " :: " ++ showType (undefined :: SBV a)
-          Concrete _           -> do v@(SBV _ (Left cw)) <- liftIO random
+          Concrete _           -> do v@(SBV _ (Left cw)) <- liftIO rand
                                      liftIO $ modifyIORef (rCInfo st) ((maybe "_" id mbNm, cw):)
                                      return v
           _          -> do (sw, internalName) <- liftIO $ newSW st k
@@ -868,7 +897,7 @@ addAxiom nm ax = do
 
 -- | Run a symbolic computation in Proof mode and return a 'Result'. The boolean
 -- argument indicates if this is a sat instance or not.
-runSymbolic :: Bool -> Symbolic a -> IO Result
+runSymbolic :: (Bool, Maybe SMTConfig) -> Symbolic a -> IO Result
 runSymbolic b c = snd `fmap` runSymbolic' (Proof b) c
 
 -- | Run a symbolic computation, and return a extra value paired up with the 'Result'
@@ -894,6 +923,7 @@ runSymbolic' currentRunMode (Symbolic c) = do
                   Concrete g -> newIORef g
                   _          -> newStdGen >>= newIORef
    let st = State { runMode      = currentRunMode
+                  , pathCond     = SBV KBool (Left trueCW)
                   , rStdGen      = rGen
                   , rCInfo       = cInfo
                   , rctr         = ctr
@@ -912,34 +942,37 @@ runSymbolic' currentRunMode (Symbolic c) = do
                   , rAICache     = aiCache
                   , rConstraints = cstrs
                   }
-   _ <- newConst st (mkConstCW (KBounded False 1) (0::Integer)) -- s(-2) == falseSW
-   _ <- newConst st (mkConstCW (KBounded False 1) (1::Integer)) -- s(-1) == trueSW
+   _ <- newConst st falseCW -- s(-2) == falseSW
+   _ <- newConst st trueCW  -- s(-1) == trueSW
    r <- runReaderT c st
-   res <- readResult st
-   return $ (r, res)
+   res <- extractSymbolicSimulationState st
+   return (r, res)
 
-readResult :: State -> IO Result
-readResult st = do
-  rpgm  <- readIORef (spgm st)
-  inpsO <- reverse `fmap` readIORef (rinps st)
-  outsO <- reverse `fmap` readIORef (routs st)
-  let swap (a, b) = (b, a)
-      cmp  (a, _) (b, _) = a `compare` b
-  cnsts <- (sortBy cmp . map swap . Map.toList) `fmap` readIORef (rconstMap st)
-  tbls  <- (sortBy (\((x, _, _), _) ((y, _, _), _) -> x `compare` y) . map swap . Map.toList) `fmap` readIORef (rtblMap st)
-  arrs  <- IMap.toAscList `fmap` readIORef (rArrayMap st)
-  unint <- Map.toList `fmap` readIORef (rUIMap st)
-  axs   <- reverse `fmap` readIORef (raxioms st)
-  knds  <- readIORef (rUsedKinds st)
-  cgMap <- Map.toList `fmap` readIORef (rCgMap st)
-  traceVals <- reverse `fmap` readIORef (rCInfo st)
-  extraCstrs <- reverse `fmap` readIORef (rConstraints st)
-  return $ Result knds traceVals cgMap inpsO cnsts tbls arrs unint axs rpgm extraCstrs outsO
+-- | Grab the program from a running symbolic simulation state. This is useful for internal purposes, for
+-- instance when implementing 'sBranch'.
+extractSymbolicSimulationState :: State -> IO Result
+extractSymbolicSimulationState st@State{ spgm=pgm, rinps=inps, routs=outs, rtblMap=tables, rArrayMap=arrays, rUIMap=uis, raxioms=axioms
+                                       , rUsedKinds=usedKinds, rCgMap=cgs, rCInfo=cInfo, rConstraints = cstrs} = do
+   SBVPgm rpgm  <- readIORef pgm
+   inpsO <- reverse `fmap` readIORef inps
+   outsO <- reverse `fmap` readIORef outs
+   let swap (a, b) = (b, a)
+       cmp  (a, _) (b, _) = a `compare` b
+   cnsts <- (sortBy cmp . map swap . Map.toList) `fmap` readIORef (rconstMap st)
+   tbls  <- (sortBy (\((x, _, _), _) ((y, _, _), _) -> x `compare` y) . map swap . Map.toList) `fmap` readIORef tables
+   arrs  <- IMap.toAscList `fmap` readIORef arrays
+   unint <- Map.toList `fmap` readIORef uis
+   axs   <- reverse `fmap` readIORef axioms
+   knds  <- readIORef usedKinds
+   cgMap <- Map.toList `fmap` readIORef cgs
+   traceVals <- reverse `fmap` readIORef cInfo
+   extraCstrs <- reverse `fmap` readIORef cstrs
+   return $ Result knds traceVals cgMap inpsO cnsts tbls arrs unint axs (SBVPgm rpgm) extraCstrs outsO
 
 getResult :: Symbolic Result
 getResult = do
   st <- ask
-  liftIO $ readResult st
+  liftIO $ extractSymbolicSimulationState st
 
 -------------------------------------------------------------------------------
 -- * Symbolic Words
@@ -1024,11 +1057,11 @@ class (HasKind a, Ord a) => SymWord a where
         let k = KUninterpreted sortName
         liftIO $ registerKind st k
         let q = case (mbQ, runMode st) of
-                  (Just x,  _)           -> x
-                  (Nothing, Proof True)  -> EX
-                  (Nothing, Proof False) -> ALL
-                  (Nothing, Concrete{})  -> error $ "SBV: Uninterpreted sort " ++ sortName ++ " can not be used in concrete simulation mode."
-                  (Nothing, CodeGen)     -> error $ "SBV: Uninterpreted sort " ++ sortName ++ " can not be used in code-generation mode."
+                  (Just x,  _)                -> x
+                  (Nothing, Proof (True, _))  -> EX
+                  (Nothing, Proof (False, _)) -> ALL
+                  (Nothing, Concrete{})       -> error $ "SBV: Uninterpreted sort " ++ sortName ++ " can not be used in concrete simulation mode."
+                  (Nothing, CodeGen)          -> error $ "SBV: Uninterpreted sort " ++ sortName ++ " can not be used in code-generation mode."
         ctr <- liftIO $ incCtr st
         let sw = SW k (NodeId ctr)
             nm = maybe ('s':show ctr) id mbNm
@@ -1264,6 +1297,55 @@ instance NFData a => NFData (SBV a) where
   rnf (SBV x y) = rnf x `seq` rnf y `seq` ()
 instance NFData SBVPgm
 
+instance NFData SMTResult where
+  rnf (Unsatisfiable _)   = ()
+  rnf (Satisfiable _ xs)  = rnf xs `seq` ()
+  rnf (Unknown _ xs)      = rnf xs `seq` ()
+  rnf (ProofError _ xs)   = rnf xs `seq` ()
+  rnf (TimeOut _)         = ()
+
+instance NFData SMTModel where
+  rnf (SMTModel assocs unints uarrs) = rnf assocs `seq` rnf unints `seq` rnf uarrs `seq` ()
+
+-- | SMT-Lib logics. If left unspecified SBV will pick the logic based on what it determines is needed. However, the
+-- user can override this choice using the 'useLogic' parameter to the configuration. This is especially handy if
+-- one is experimenting with custom logics that might be supported on new solvers.
+data SMTLibLogic
+  = AUFLIA    -- ^ Formulas over the theory of linear integer arithmetic and arrays extended with free sort and function symbols but restricted to arrays with integer indices and values
+  | AUFLIRA   -- ^ Linear formulas with free sort and function symbols over one- and two-dimentional arrays of integer index and real value
+  | AUFNIRA   -- ^ Formulas with free function and predicate symbols over a theory of arrays of arrays of integer index and real value
+  | LRA       -- ^ Linear formulas in linear real arithmetic
+  | UFLRA     -- ^ Linear real arithmetic with uninterpreted sort and function symbols. 
+  | UFNIA     -- ^ Non-linear integer arithmetic with uninterpreted sort and function symbols. 
+  | QF_ABV    -- ^ Quantifier-free formulas over the theory of bitvectors and bitvector arrays
+  | QF_AUFBV  -- ^ Quantifier-free formulas over the theory of bitvectors and bitvector arrays extended with free sort and function symbols
+  | QF_AUFLIA -- ^ Quantifier-free linear formulas over the theory of integer arrays extended with free sort and function symbols
+  | QF_AX     -- ^ Quantifier-free formulas over the theory of arrays with extensionality
+  | QF_BV     -- ^ Quantifier-free formulas over the theory of fixed-size bitvectors
+  | QF_IDL    -- ^ Difference Logic over the integers. Boolean combinations of inequations of the form x - y < b where x and y are integer variables and b is an integer constant
+  | QF_LIA    -- ^ Unquantified linear integer arithmetic. In essence, Boolean combinations of inequations between linear polynomials over integer variables
+  | QF_LRA    -- ^ Unquantified linear real arithmetic. In essence, Boolean combinations of inequations between linear polynomials over real variables. 
+  | QF_NIA    -- ^ Quantifier-free integer arithmetic. 
+  | QF_NRA    -- ^ Quantifier-free real arithmetic. 
+  | QF_RDL    -- ^ Difference Logic over the reals. In essence, Boolean combinations of inequations of the form x - y < b where x and y are real variables and b is a rational constant. 
+  | QF_UF     -- ^ Unquantified formulas built over a signature of uninterpreted (i.e., free) sort and function symbols. 
+  | QF_UFBV   -- ^ Unquantified formulas over bitvectors with uninterpreted sort function and symbols. 
+  | QF_UFIDL  -- ^ Difference Logic over the integers (in essence) but with uninterpreted sort and function symbols. 
+  | QF_UFLIA  -- ^ Unquantified linear integer arithmetic with uninterpreted sort and function symbols. 
+  | QF_UFLRA  -- ^ Unquantified linear real arithmetic with uninterpreted sort and function symbols. 
+  | QF_UFNRA  -- ^ Unquantified non-linear real arithmetic with uninterpreted sort and function symbols. 
+  | QF_FPABV  -- ^ Quantifier-free formulas over the theory of floating point numbers, arrays, and bit-vectors
+  | QF_FPA    -- ^ Quantifier-free formulas over the theory of floating point numbers
+  deriving Show
+
+-- | Chosen logic for the solver
+data Logic = PredefinedLogic SMTLibLogic  -- ^ Use one of the logics as defined by the standard
+           | CustomLogic     String       -- ^ Use this name for the logic
+
+instance Show Logic where
+  show (PredefinedLogic l) = show l
+  show (CustomLogic     s) = s
+
 -- | Translation tricks needed for specific capabilities afforded by each solver
 data SolverCapabilities = SolverCapabilities {
          capSolverName              :: String       -- ^ Name of the solver
@@ -1277,3 +1359,84 @@ data SolverCapabilities = SolverCapabilities {
        , supportsFloats             :: Bool         -- ^ Does the solver support single-precision floating point numbers?
        , supportsDoubles            :: Bool         -- ^ Does the solver support double-precision floating point numbers?
        }
+
+-- | Solver configuration. See also 'z3', 'yices', 'cvc4', 'boolector', 'mathSAT', etc. which are instantiations of this type for those solvers, with
+-- reasonable defaults. In particular, custom configuration can be created by varying those values. (Such as @z3{verbose=True}@.)
+--
+-- Most fields are self explanatory. The notion of precision for printing algebraic reals stems from the fact that such values does
+-- not necessarily have finite decimal representations, and hence we have to stop printing at some depth. It is important to
+-- emphasize that such values always have infinite precision internally. The issue is merely with how we print such an infinite
+-- precision value on the screen. The field 'printRealPrec' controls the printing precision, by specifying the number of digits after
+-- the decimal point. The default value is 16, but it can be set to any positive integer.
+--
+-- When printing, SBV will add the suffix @...@ at the and of a real-value, if the given bound is not sufficient to represent the real-value
+-- exactly. Otherwise, the number will be written out in standard decimal notation. Note that SBV will always print the whole value if it
+-- is precise (i.e., if it fits in a finite number of digits), regardless of the precision limit. The limit only applies if the representation
+-- of the real value is not finite, i.e., if it is not rational.
+data SMTConfig = SMTConfig {
+         verbose        :: Bool             -- ^ Debug mode
+       , timing         :: Bool             -- ^ Print timing information on how long different phases took (construction, solving, etc.)
+       , sBranchTimeOut :: Maybe Int        -- ^ How much time to give to the solver for each call of 'sBranch' check. (In seconds. Default: No limit.)
+       , timeOut        :: Maybe Int        -- ^ How much time to give to the solver. (In seconds. Default: No limit.)
+       , printBase      :: Int              -- ^ Print integral literals in this base (2, 8, and 10, and 16 are supported.)
+       , printRealPrec  :: Int              -- ^ Print algebraic real values with this precision. (SReal, default: 16)
+       , solverTweaks   :: [String]         -- ^ Additional lines of script to give to the solver (user specified)
+       , satCmd         :: String           -- ^ Usually "(check-sat)". However, users might tweak it based on solver characteristics.
+       , smtFile        :: Maybe FilePath   -- ^ If Just, the generated SMT script will be put in this file (for debugging purposes mostly)
+       , useSMTLib2     :: Bool             -- ^ If True, we'll treat the solver as using SMTLib2 input format. Otherwise, SMTLib1
+       , solver         :: SMTSolver        -- ^ The actual SMT solver.
+       , roundingMode   :: RoundingMode     -- ^ Rounding mode to use for floating-point conversions
+       , useLogic       :: Maybe Logic      -- ^ If Nothing, pick automatically. Otherwise, either use the given one, or use the custom string.
+       }
+
+instance Show SMTConfig where
+  show = show . solver
+
+-- | A model, as returned by a solver
+data SMTModel = SMTModel {
+        modelAssocs    :: [(String, CW)]        -- ^ Mapping of symbolic values to constants.
+     ,  modelArrays    :: [(String, [String])]  -- ^ Arrays, very crude; only works with Yices.
+     ,  modelUninterps :: [(String, [String])]  -- ^ Uninterpreted funcs; very crude; only works with Yices.
+     }
+     deriving Show
+
+-- | The result of an SMT solver call. Each constructor is tagged with
+-- the 'SMTConfig' that created it so that further tools can inspect it
+-- and build layers of results, if needed. For ordinary uses of the library,
+-- this type should not be needed, instead use the accessor functions on
+-- it. (Custom Show instances and model extractors.)
+data SMTResult = Unsatisfiable SMTConfig            -- ^ Unsatisfiable
+               | Satisfiable   SMTConfig SMTModel   -- ^ Satisfiable with model
+               | Unknown       SMTConfig SMTModel   -- ^ Prover returned unknown, with a potential (possibly bogus) model
+               | ProofError    SMTConfig [String]   -- ^ Prover errored out
+               | TimeOut       SMTConfig            -- ^ Computation timed out (see the 'timeout' combinator)
+
+-- | A script, to be passed to the solver.
+data SMTScript = SMTScript {
+          scriptBody  :: String        -- ^ Initial feed
+        , scriptModel :: Maybe String  -- ^ Optional continuation script, if the result is sat
+        }
+
+-- | An SMT engine
+type SMTEngine = SMTConfig -> Bool -> [(Quantifier, NamedSymVar)] -> [(String, UnintKind)] -> [Either SW (SW, [SW])] -> String -> IO SMTResult
+
+-- | Solvers that SBV is aware of
+data Solver = Z3
+            | Yices
+            | Boolector
+            | CVC4
+            | MathSAT
+            deriving (Show, Enum, Bounded)
+
+-- | An SMT solver
+data SMTSolver = SMTSolver {
+         name           :: Solver               -- ^ The solver in use
+       , executable     :: String               -- ^ The path to its executable
+       , options        :: [String]             -- ^ Options to provide to the solver
+       , engine         :: SMTEngine            -- ^ The solver engine, responsible for interpreting solver output
+       , xformExitCode  :: ExitCode -> ExitCode -- ^ Should we re-interpret exit codes. Most solvers behave rationally, i.e., id will do. Some (like CVC4) don't.
+       , capabilities   :: SolverCapabilities   -- ^ Various capabilities of the solver
+       }
+
+instance Show SMTSolver where
+   show = show . name

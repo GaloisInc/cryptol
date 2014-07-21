@@ -14,7 +14,6 @@ module Data.SBV.SMT.SMTLib(SMTLibPgm, SMTLibConverter, toSMTLib1, toSMTLib2, add
 import Data.Char (isDigit)
 
 import Data.SBV.BitVectors.Data
-import Data.SBV.SMT.SMT
 import Data.SBV.Provers.SExpr
 import qualified Data.SBV.SMT.SMTLib1 as SMT1
 import qualified Data.SBV.SMT.SMTLib2 as SMT2
@@ -23,6 +22,7 @@ import qualified Data.Set as Set (Set, member, toList)
 
 -- | An instance of SMT-Lib converter; instantiated for SMT-Lib v1 and v2. (And potentially for newer versions in the future.)
 type SMTLibConverter =  RoundingMode                -- ^ User selected rounding mode to be used for floating point arithmetic
+                     -> Maybe Logic                 -- ^ User selected logic to use. If Nothing, pick automatically.
                      -> SolverCapabilities          -- ^ Capabilities of the backend solver targeted
                      -> Set.Set Kind                -- ^ Kinds used in the problem
                      -> Bool                        -- ^ is this a sat problem?
@@ -45,7 +45,7 @@ toSMTLib1 :: SMTLibConverter
 -- | Convert to SMTLib-2 format
 toSMTLib2 :: SMTLibConverter
 (toSMTLib1, toSMTLib2) = (cvt SMTLib1, cvt SMTLib2)
-  where cvt v roundMode solverCaps kindInfo isSat comments qinps skolemMap consts tbls arrs uis axs asgnsSeq cstrs out
+  where cvt v roundMode smtLogic solverCaps kindInfo isSat comments qinps skolemMap consts tbls arrs uis axs asgnsSeq cstrs out
          | KUnbounded `Set.member` kindInfo && not (supportsUnboundedInts solverCaps)
          = unsupported "unbounded integers"
          | KReal `Set.member` kindInfo  && not (supportsReals solverCaps)
@@ -64,7 +64,7 @@ toSMTLib2 :: SMTLibConverter
                unsupported w = error $ "SBV: Given problem needs " ++ w ++ ", which is not supported by SBV for the chosen solver: " ++ capSolverName solverCaps
                aliasTable  = map (\(_, (x, y)) -> (y, x)) qinps
                converter   = if v == SMTLib1 then SMT1.cvt else SMT2.cvt
-               (pre, post) = converter roundMode solverCaps kindInfo isSat comments qinps skolemMap consts tbls arrs uis axs asgnsSeq cstrs out
+               (pre, post) = converter roundMode smtLogic solverCaps kindInfo isSat comments qinps skolemMap consts tbls arrs uis axs asgnsSeq cstrs out
                needsFloats  = KFloat  `Set.member` kindInfo
                needsDoubles = KDouble `Set.member` kindInfo
                needsQuantifiers

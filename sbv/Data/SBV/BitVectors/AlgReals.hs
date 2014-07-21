@@ -49,7 +49,7 @@ mkPolyReal (Left (exact, str))
 mkPolyReal (Right (k, coeffs))
  = AlgPolyRoot (k, Polynomial (normalize coeffs)) Nothing
  where normalize :: [(Integer, Integer)] -> [(Integer, Integer)]
-       normalize = merge . reverse . sortBy (compare `on` snd)
+       normalize = merge . sortBy (flip compare `on` snd)
        merge []                     = []
        merge [x]                    = [x]
        merge ((a, b):r@((c, d):xs))

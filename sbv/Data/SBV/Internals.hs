@@ -15,16 +15,13 @@ module Data.SBV.Internals (
   -- * Running symbolic programs /manually/
   Result, SBVRunMode(..), runSymbolic, runSymbolic'
   -- * Other internal structures useful for low-level programming
-  , SBV(..), slet, CW, mkConstCW, genVar, genVar_
-  , mkSymSBVWithRandom
-  , Quantifier(..)
+  , SBV(..), slet, CW(..), Kind(..), CWVal(..), AlgReal(..), mkConstCW, genVar, genVar_
   , liftQRem, liftDMod
   -- * Compilation to C
   , compileToC', compileToCLib', CgPgmBundle(..), CgPgmKind(..)
   ) where
 
-import Data.SBV.BitVectors.Data   (Result, SBVRunMode(..), runSymbolic, runSymbolic'
-                                  , SBV(..), CW, mkConstCW, Quantifier(..), mkSymSBVWithRandom)
+import Data.SBV.BitVectors.Data   (Result, SBVRunMode(..), runSymbolic, runSymbolic', SBV(..), CW(..), Kind(..), CWVal(..), AlgReal(..), mkConstCW)
 import Data.SBV.BitVectors.Model  (genVar, genVar_, slet, liftQRem, liftDMod)
 import Data.SBV.Compilers.C       (compileToC', compileToCLib')
 import Data.SBV.Compilers.CodeGen (CgPgmBundle(..), CgPgmKind(..))
