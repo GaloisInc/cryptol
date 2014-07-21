@@ -125,6 +125,7 @@ parseValues (t : ts) cws = (v : vs, cws'')
 parseValue :: FinType -> [SBV.CW] -> (Eval.Value, [SBV.CW])
 parseValue FTBit [] = error "parseValue"
 parseValue FTBit (cw : cws) = (Eval.VBit (SBV.fromCW cw), cws)
+parseValue (FTSeq 0 FTBit) cws = (Eval.VWord 0 0, cws)
 parseValue (FTSeq n FTBit) (cw : cws)
   | SBV.isBounded cw = (Eval.VWord (toInteger n) (SBV.fromCW cw), cws)
   | otherwise = error "parseValue"
@@ -180,6 +181,7 @@ forallFinType :: FinType -> TheMonad Value
 forallFinType ty =
   case ty of
     FTBit         -> VBit <$> liftSymbolic SBV.forall_
+    FTSeq 0 FTBit -> return $ VWord (SBV.literal (bv 0 0))
     FTSeq n FTBit -> VWord <$> liftSymbolic (forallBV_ n)
     FTSeq n t     -> vSeq <$> replicateM n (mkThunk t)
     FTTuple ts    -> VTuple <$> mapM mkThunk ts
@@ -192,6 +194,7 @@ existsFinType :: FinType -> TheMonad Value
 existsFinType ty =
   case ty of
     FTBit         -> VBit <$> liftSymbolic SBV.exists_
+    FTSeq 0 FTBit -> return $ VWord (SBV.literal (bv 0 0))
     FTSeq n FTBit -> VWord <$> liftSymbolic (existsBV_ n)
     FTSeq n t     -> vSeq <$> replicateM n (mkThunk t)
     FTTuple ts    -> VTuple <$> mapM mkThunk ts
