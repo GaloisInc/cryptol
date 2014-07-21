@@ -106,6 +106,7 @@ instance SDivisible (SBV BitVector) where
 extract :: Int -> Int -> SWord -> SWord
 extract i j x =
   case x of
+    _ | i < j -> SBV k (Left (CW k (CWInteger 0)))
     SBV _ (Left cw) ->
       case cw of
         CW _ (CWInteger v) -> SBV k (Left (normCW (CW k (CWInteger (v `shiftR` j)))))
