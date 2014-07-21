@@ -13,12 +13,7 @@ module Cryptol.Symbolic.BitVector where
 
 import Data.Bits
 import Control.Monad (replicateM)
-import Control.Monad.IO.Class
-import Control.Monad.Reader (MonadReader, ReaderT, ask, runReaderT)
-import Data.Bits
-import Data.IORef
 import System.Random
-import Test.QuickCheck (quickCheck)
 
 import Data.SBV.Bridge.Yices
 import Data.SBV.Internals
@@ -137,23 +132,23 @@ cat x y = SBV k (Right (cache z))
                   newExpr st k (SBVApp Join [xsw, ysw])
 
 randomSBVBitVector :: Int -> IO (SBV BitVector)
-randomSBVBitVector width = do
-  bs <- replicateM width randomIO
+randomSBVBitVector w = do
+  bs <- replicateM w randomIO
   let x = sum [ bit i | (i, b) <- zip [0..] bs, b ]
-  return (literal (bv width x))
+  return (literal (bv w x))
 
 mkSymBitVector :: Maybe Quantifier -> Maybe String -> Int -> Symbolic (SBV BitVector)
-mkSymBitVector mbQ mbNm width =
-  mkSymSBVWithRandom (randomSBVBitVector width) mbQ (KBounded False width) mbNm
+mkSymBitVector mbQ mbNm w =
+  mkSymSBVWithRandom (randomSBVBitVector w) mbQ (KBounded False w) mbNm
 
 forallBV :: String -> Int -> Symbolic (SBV BitVector)
-forallBV name width = mkSymBitVector (Just ALL) (Just name) width
+forallBV nm w = mkSymBitVector (Just ALL) (Just nm) w
 
 forallBV_ :: Int -> Symbolic (SBV BitVector)
-forallBV_ width = mkSymBitVector (Just ALL) Nothing width
+forallBV_ w = mkSymBitVector (Just ALL) Nothing w
 
 existsBV :: String -> Int -> Symbolic (SBV BitVector)
-existsBV name width = mkSymBitVector (Just EX) (Just name) width
+existsBV nm w = mkSymBitVector (Just EX) (Just nm) w
 
 existsBV_ :: Int -> Symbolic (SBV BitVector)
-existsBV_ width = mkSymBitVector (Just EX) Nothing width
+existsBV_ w = mkSymBitVector (Just EX) Nothing w
