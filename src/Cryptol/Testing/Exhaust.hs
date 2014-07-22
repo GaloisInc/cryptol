@@ -88,7 +88,7 @@ typeValues ty =
         (TCSeq, ts1)     ->
             case map tNoUser ts1 of
               [ TCon (TC (TCNum n)) _, TCon (TC TCBit) [] ] ->
-                  [ VWord n x | x <- [ 0 .. 2^n - 1 ] ]
+                  [ VWord (BV n x) | x <- [ 0 .. 2^n - 1 ] ]
 
               [ TCon (TC (TCNum n)) _, t ] ->
                   [ VSeq False xs | xs <- sequence $ genericReplicate n

@@ -110,9 +110,9 @@ parseValues (t : ts) cws = (v : vs, cws'')
 parseValue :: FinType -> [SBV.CW] -> (Eval.Value, [SBV.CW])
 parseValue FTBit [] = error "parseValue"
 parseValue FTBit (cw : cws) = (Eval.VBit (SBV.fromCW cw), cws)
-parseValue (FTSeq 0 FTBit) cws = (Eval.VWord 0 0, cws)
+parseValue (FTSeq 0 FTBit) cws = (Eval.VWord (Eval.BV 0 0), cws)
 parseValue (FTSeq n FTBit) (cw : cws)
-  | SBV.isBounded cw = (Eval.VWord (toInteger n) (SBV.fromCW cw), cws)
+  | SBV.isBounded cw = (Eval.VWord (Eval.BV (toInteger n) (SBV.fromCW cw)), cws)
   | otherwise = error "parseValue"
 parseValue (FTSeq n FTBit) cws = (Eval.VSeq True vs, cws')
   where (vs, cws') = parseValues (replicate n FTBit) cws
@@ -228,7 +228,7 @@ evalExpr :: Env -> Expr -> Value
 evalExpr env expr =
   case expr of
     ECon econ         -> evalECon econ
-    EList es ty       -> VSeq False (map eval es)
+    EList es ty       -> VSeq (tIsBit ty) (map eval es)
     ETuple es         -> VTuple (map eval es)
     ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
     ESel e sel        -> evalSel sel (eval e)

@@ -11,7 +11,7 @@
 {-# LANGUAGE BangPatterns #-}
 module Cryptol.Testing.Random where
 
-import Cryptol.Eval.Value     (Value(..),ppValue,defaultPPOpts)
+import Cryptol.Eval.Value     (BV(..),Value(..),ppValue,defaultPPOpts)
 import Cryptol.Utils.Panic    (panic)
 import Cryptol.TypeCheck.AST  (Name,Type(..),TCon(..),TC(..),tNoUser)
 
@@ -119,7 +119,7 @@ randomWord w sz g =
 
       val        = foldl' mk 0 $ genericTake (div (bits + 63) 64) (x' : xs)
       finalVal   = if sz > 1 && bits > 0 then setBit val (bits - 1) else val
-  in (VWord w finalVal, g3)
+  in (VWord (BV w finalVal), g3)
 
 
 -- | Generate a random infinite stream value.

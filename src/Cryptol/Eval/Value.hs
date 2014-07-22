@@ -72,6 +72,9 @@ finTValue tval =
 
 -- Values ----------------------------------------------------------------------
 
+data BV = BV !Integer !Integer -- ^ width, value
+                               -- The value may contain junk bits
+
 data Value
   = VRecord [(Name,Value)]    -- @ { .. } @
   | VTuple [Value]            -- @ ( .. ) @
@@ -79,8 +82,7 @@ data Value
   | VSeq Bool [Value]         -- @ [n]a   @
                               -- The boolean parameter indicates whether or not
                               -- this is a sequence of bits.
-  | VWord Integer Integer     -- @ [n]Bit @ width,value.
-                              -- The value may contain junk bits
+  | VWord BV                  -- @ [n]Bit @
   | VStream [Value]           -- @ [inf]a @
   | VFun (Value -> Value)     -- functions
   | VPoly (TValue -> Value)   -- polymorphic values (kind *)
@@ -116,9 +118,9 @@ ppValue opts = loop
     VBit b | b         -> text "True"
            | otherwise -> text "False"
     VSeq isWord vals
-       | isWord        -> uncurry (ppWord opts) (fromVWord val)
+       | isWord        -> ppWord opts (fromVWord val)
        | otherwise     -> ppWordSeq vals
-    VWord w i          -> ppWord opts w (mask w i)
+    VWord (BV w i)     -> ppWord opts (BV w (mask w i))
     VStream vals       -> brackets $ fsep
                                    $ punctuate comma
                                    ( take (useInfLength opts) (map loop vals)
@@ -147,8 +149,8 @@ data WithBase a = WithBase PPOpts a
 instance PP (WithBase Value) where
   ppPrec _ (WithBase opts v) = ppValue opts v
 
-ppWord :: PPOpts -> Integer -> Integer -> Doc
-ppWord opts width i
+ppWord :: PPOpts -> BV -> Doc
+ppWord opts (BV width i)
   | base > 36 = integer i -- not sure how to rule this out
   | asciiMode opts width = text (show (toEnum (fromInteger i) :: Char))
   | otherwise = prefix <> text value
@@ -184,8 +186,8 @@ mask w i = i .&. ((1 `shiftL` fromInteger w) - 1)
 
 -- NOTE this assumes that the sequence of bits is big-endian and finite, so the
 -- first element of the list will be the most significant bit.
-packWord :: [Bool] -> (Integer,Integer)
-packWord bits = (toInteger w,a)
+packWord :: [Bool] -> BV
+packWord bits = BV (toInteger w) a
   where
   w = length bits
   a = foldl set 0 (zip [w - 1, w - 2 .. 0] bits)
@@ -194,8 +196,8 @@ packWord bits = (toInteger w,a)
 
 -- NOTE this produces a list of bits that represent a big-endian word, so the
 -- most significant bit is the first element of the list.
-unpackWord :: Integer -> Integer -> [Bool]
-unpackWord w a = [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
+unpackWord :: BV -> [Bool]
+unpackWord (BV w a) = [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
   where
   w' = fromInteger w
 
@@ -204,7 +206,7 @@ unpackWord w a = [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
 
 -- | Create a packed word of n bits.
 word :: Integer -> Integer -> Value
-word n i = VWord n (mask n i)
+word n i = VWord (BV n (mask n i))
 
 lam :: (Value -> Value) -> Value
 lam  = VFun
@@ -222,7 +224,7 @@ toFinSeq elty = VSeq (isTBit elty)
 
 -- | This is strict!
 boolToWord :: [Bool] -> Value
-boolToWord = uncurry VWord . packWord
+boolToWord = VWord . packWord
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
@@ -261,7 +263,7 @@ fromVBit val = case val of
 fromSeq :: Value -> [Value]
 fromSeq val = case val of
   VSeq _ vs  -> vs
-  VWord w a  -> map VBit (unpackWord w a)
+  VWord bv   -> map VBit (unpackWord bv)
   VStream vs -> vs
   _          -> evalPanic "fromSeq" ["not a sequence"]
 
@@ -270,16 +272,16 @@ fromStr = map (toEnum . fromInteger . fromWord) . fromSeq
 
 -- | Extract a packed word.
 -- Note that this does not clean-up any junk bits in the word.
-fromVWord :: Value -> (Integer,Integer)
+fromVWord :: Value -> BV
 fromVWord val = case val of
-  VWord w a               -> (w,a) -- this should always mask
+  VWord bv                -> bv -- this should always mask
   VSeq isWord bs | isWord -> packWord (map fromVBit bs)
   _                       -> evalPanic "fromVWord"
                               ["not a word", show $ ppValue defaultPPOpts val]
 
 vWordLen :: Value -> Maybe Integer
 vWordLen val = case val of
-  VWord w _               -> Just w
+  VWord (BV w _)          -> Just w
   VSeq isWord bs | isWord -> Just (toInteger (length bs))
   _                       -> Nothing
 
@@ -288,7 +290,7 @@ vWordLen val = case val of
 fromWord :: Value -> Integer
 fromWord val = mask w a
   where
-  (w,a) = fromVWord val
+  BV w a = fromVWord val
 
 -- | Extract a function from a value.
 fromVFun :: Value -> (Value -> Value)

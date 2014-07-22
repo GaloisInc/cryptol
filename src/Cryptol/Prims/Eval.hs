@@ -206,7 +206,7 @@ ecDemoteV :: Value
 ecDemoteV = tlam $ \valT ->
             tlam $ \bitT ->
             case (numTValue valT, numTValue bitT) of
-              (Nat v, Nat bs) -> VWord bs v
+              (Nat v, Nat bs) -> VWord (BV bs v)
               _ -> evalPanic "Cryptol.Eval.Prim.evalConst"
                        ["Unexpected Inf in constant."
                        , show valT
@@ -306,7 +306,7 @@ arithBinary op = loop
     | Just (len,a) <- isTSeq ty = case numTValue len of
 
       -- words and finite sequences
-      Nat w | isTBit a  -> VWord w (op w (fromWord l) (fromWord r))
+      Nat w | isTBit a  -> VWord (BV w (op w (fromWord l) (fromWord r)))
             | otherwise -> VSeq False (zipWith (loop a) (fromSeq l) (fromSeq r))
 
       -- streams
@@ -337,7 +337,7 @@ arithUnary op = loop
     | Just (len,a) <- isTSeq ty = case numTValue len of
 
       -- words and finite sequences
-      Nat w | isTBit a  -> VWord w (op (fromWord x))
+      Nat w | isTBit a  -> VWord (BV w (op (fromWord x)))
             | otherwise -> VSeq False (map (loop a) (fromSeq x))
 
       Inf -> toStream (map (loop a) (fromSeq x))
@@ -535,7 +535,7 @@ logicBinary op = loop
       case numTValue len of
 
          -- words or finite sequences
-         Nat w | isTBit aty -> VWord w (op (fromWord l) (fromWord r))
+         Nat w | isTBit aty -> VWord (BV w (op (fromWord l) (fromWord r)))
                | otherwise -> VSeq False (zipWith (loop aty) (fromSeq l)
                                                              (fromSeq r))
 
@@ -565,8 +565,8 @@ logicUnary op = loop
     | isTBit ty = VBit (op (fromVBit val))
 
     | Just (_,b) <- isTSeq ty
-    , isTBit b = let (w,a) = fromVWord val
-                 in VWord w (op a)
+    , isTBit b = let BV w a = fromVWord val
+                 in VWord (BV w (op a))
 
     | Just (len,ety) <- isTSeq ty = toSeq len ety (map (loop ety) (fromSeq val))
 
@@ -596,8 +596,8 @@ logicShift opW opS
      lam  $ \ r ->
         if isTBit c
           then -- words
-            let (w,i)  = fromVWord l
-            in VWord w (opW w i (fromInteger (fromWord r)))
+            let BV w i  = fromVWord l
+            in VWord (BV w (opW w i (fromInteger (fromWord r))))
 
           else toSeq a c (opS a c (fromSeq l) (fromInteger (fromWord r)))
 
@@ -715,7 +715,7 @@ fromThenV  =
     case (first, next, len, bits) of
       (Nat first', Nat next', Nat len', Nat bits') ->
         let nums = enumFromThen first' next'
-         in VSeq False (genericTake len' (map (VWord bits') nums))
+         in VSeq False (genericTake len' (map (VWord . BV bits') nums))
       _ -> evalPanic "fromThenV" ["invalid arguments"]
 
 -- @[ 0 .. 10 ]@
@@ -729,7 +729,7 @@ fromToV  =
       (Nat first', Nat lst', Nat bits') ->
         let nums = enumFromThenTo first' (first' + 1) lst'
             len  = 1 + (lst' - first')
-         in VSeq False (genericTake len (map (VWord bits') nums))
+         in VSeq False (genericTake len (map (VWord . BV bits') nums))
 
       _ -> evalPanic "fromThenV" ["invalid arguments"]
 
@@ -745,7 +745,7 @@ fromThenToV  =
 
       (Nat first', Nat next', Nat lst', Nat len', Nat bits') ->
         let nums = enumFromThenTo first' next' lst'
-         in VSeq False (genericTake len' (map (VWord bits') nums))
+         in VSeq False (genericTake len' (map (VWord . BV bits') nums))
 
       _ -> evalPanic "fromThenV" ["invalid arguments"]
 
