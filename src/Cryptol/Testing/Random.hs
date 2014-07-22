@@ -138,12 +138,12 @@ randomSequence w mkElem sz g =
 
 -- | Generate a random tuple value.
 randomTuple :: RandomGen g => [Gen g] -> Gen g
-randomTuple gens sz = go 0 [] gens
+randomTuple gens sz = go [] gens
   where
-  go !n els [] g = (VTuple n (reverse els), g)
-  go !n els (mkElem : more) g =
+  go els [] g = (VTuple (reverse els), g)
+  go els (mkElem : more) g =
     let (v, g1) = mkElem sz g
-    in go (n+1) (v : els) more g1
+    in go (v : els) more g1
 
 -- | Generate a random record value.
 randomRecord :: RandomGen g => [(Name, Gen g)] -> Gen g

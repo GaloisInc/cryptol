@@ -318,9 +318,9 @@ arithBinary op = loop
 
     -- tuples
     | Just (_,tys) <- isTTuple ty =
-      let (len,ls) = fromVTuple l
-          (_,rs)   = fromVTuple r
-       in VTuple len (zipWith3 loop tys ls rs)
+      let ls = fromVTuple l
+          rs = fromVTuple r
+       in VTuple (zipWith3 loop tys ls rs)
 
     -- records
     | Just fs <- isTRec ty =
@@ -348,8 +348,8 @@ arithUnary op = loop
 
     -- tuples
     | Just (_,tys) <- isTTuple ty =
-      let (len,as) = fromVTuple x
-       in VTuple len (zipWith loop tys as)
+      let as = fromVTuple x
+       in VTuple (zipWith loop tys as)
 
     -- records
     | Just fs <- isTRec ty =
@@ -388,7 +388,7 @@ lexCompare ty l r
 
   -- tuples
   | Just (_,etys) <- isTTuple ty =
-    zipLexCompare etys (snd (fromVTuple l)) (snd (fromVTuple r))
+    zipLexCompare etys (fromVTuple l) (fromVTuple r)
 
   -- records
   | Just fields <- isTRec ty =
@@ -456,8 +456,8 @@ zeroV ty
     lam (\ _ -> zeroV bty)
 
   -- tuples
-  | Just (len,tys) <- isTTuple ty =
-    VTuple len (map zeroV tys)
+  | Just (_,tys) <- isTTuple ty =
+    VTuple (map zeroV tys)
 
   -- records
   | Just fields <- isTRec ty =
@@ -479,12 +479,12 @@ splitAtV front back a val =
     -- needs to be first, assuming that we're on a little-endian machine.
     Nat rightWidth | aBit ->
       let i          = fromWord val
-       in VTuple 2 [ word leftWidth (i `shiftR` fromInteger rightWidth)
-                   , word rightWidth i ]
+       in VTuple [ word leftWidth (i `shiftR` fromInteger rightWidth)
+                 , word rightWidth i ]
 
     _ ->
       let (ls,rs) = splitAt (fromInteger leftWidth) (fromSeq val)
-       in VTuple 2 [VSeq aBit ls, toSeq back a rs]
+       in VTuple [VSeq aBit ls, toSeq back a rs]
 
   where
 
@@ -543,9 +543,9 @@ logicBinary op = loop
          Inf -> toStream (zipWith (loop aty) (fromSeq l) (fromSeq r))
 
     | Just (_,etys) <- isTTuple ty =
-      let (s,ls) = fromVTuple l
-          (_,rs) = fromVTuple r
-       in VTuple s (zipWith3 loop etys ls rs)
+      let ls = fromVTuple l
+          rs = fromVTuple r
+       in VTuple (zipWith3 loop etys ls rs)
 
     | Just (_,bty) <- isTFun ty =
       lam $ \ a -> loop bty (fromVFun l a) (fromVFun r a)
@@ -571,8 +571,8 @@ logicUnary op = loop
     | Just (len,ety) <- isTSeq ty = toSeq len ety (map (loop ety) (fromSeq val))
 
     | Just (_,etys) <- isTTuple ty =
-      let (s,as) = fromVTuple val
-       in VTuple s (zipWith loop etys as)
+      let as = fromVTuple val
+       in VTuple (zipWith loop etys as)
 
     | Just (_,bty) <- isTFun ty =
       lam $ \ a -> loop bty (fromVFun val a)

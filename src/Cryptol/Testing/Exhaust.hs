@@ -97,7 +97,7 @@ typeValues ty =
 
 
         (TCFun, _)       -> []  -- We don't generate function values.
-        (TCTuple n, els) -> [ VTuple n xs | xs <- sequence (map typeValues els)]
+        (TCTuple _, els) -> [ VTuple xs | xs <- sequence (map typeValues els)]
         (TCNewtype _, _) -> []
 
     TCon _ _ -> []

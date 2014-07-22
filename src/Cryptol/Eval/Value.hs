@@ -74,7 +74,7 @@ finTValue tval =
 
 data Value
   = VRecord [(Name,Value)]    -- @ { .. } @
-  | VTuple Int [Value]        -- @ ( .. ) @
+  | VTuple [Value]            -- @ ( .. ) @
   | VBit Bool                 -- @ Bit    @
   | VSeq Bool [Value]         -- @ [n]a   @
                               -- The boolean parameter indicates whether or not
@@ -112,7 +112,7 @@ ppValue opts = loop
     VRecord fs         -> braces (sep (punctuate comma (map ppField fs)))
       where
       ppField (f,r) = pp f <+> char '=' <+> loop r
-    VTuple _ vals      -> parens (sep (punctuate comma (map loop vals)))
+    VTuple vals        -> parens (sep (punctuate comma (map loop vals)))
     VBit b | b         -> text "True"
            | otherwise -> text "False"
     VSeq isWord vals
@@ -297,10 +297,10 @@ fromVFun val = case val of
   _      -> evalPanic "fromVFun" ["not a function"]
 
 -- | Extract a tuple from a value.
-fromVTuple :: Value -> (Int,[Value])
+fromVTuple :: Value -> [Value]
 fromVTuple val = case val of
-  VTuple len vs -> (len,vs)
-  _             -> evalPanic "fromVTuple" ["not a tuple"]
+  VTuple vs -> vs
+  _         -> evalPanic "fromVTuple" ["not a tuple"]
 
 -- | Extract a record from a value.
 fromVRecord :: Value -> [(Name,Value)]
