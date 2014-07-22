@@ -168,7 +168,7 @@ forallFinType ty =
     FTBit         -> VBit <$> SBV.forall_
     FTSeq 0 FTBit -> return $ VWord (SBV.literal (bv 0 0))
     FTSeq n FTBit -> VWord <$> (forallBV_ n)
-    FTSeq n t     -> vSeq <$> replicateM n (forallFinType t)
+    FTSeq n t     -> VSeq False <$> replicateM n (forallFinType t)
     FTTuple ts    -> VTuple <$> mapM forallFinType ts
     FTRecord fs   -> VRecord <$> mapM (traverseSnd forallFinType) fs
 
@@ -178,7 +178,7 @@ existsFinType ty =
     FTBit         -> VBit <$> SBV.exists_
     FTSeq 0 FTBit -> return $ VWord (SBV.literal (bv 0 0))
     FTSeq n FTBit -> VWord <$> existsBV_ n
-    FTSeq n t     -> vSeq <$> replicateM n (existsFinType t)
+    FTSeq n t     -> VSeq False <$> replicateM n (existsFinType t)
     FTTuple ts    -> VTuple <$> mapM existsFinType ts
     FTRecord fs   -> VRecord <$> mapM (traverseSnd existsFinType) fs
 
@@ -228,7 +228,7 @@ evalExpr :: Env -> Expr -> Value
 evalExpr env expr =
   case expr of
     ECon econ         -> evalECon econ
-    EList es _ty      -> vSeq (map eval es)
+    EList es ty       -> VSeq False (map eval es)
     ETuple es         -> VTuple (map eval es)
     ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
     ESel e sel        -> evalSel sel (eval e)
@@ -258,32 +258,21 @@ evalSel sel v =
   case sel of
     TupleSel n _  ->
       case v of
-        VTuple xs -> xs !! (n - 1) -- 1-based indexing
-        VNil      -> VNil
-        VCons {}  -> liftList v
-        VFun f    -> VFun (\x -> evalSel sel (f x))
+        VTuple xs  -> xs !! (n - 1) -- 1-based indexing
+        VSeq b xs  -> VSeq b (map (evalSel sel) xs)
+        VStream xs -> VStream (map (evalSel sel) xs)
+        VFun f     -> VFun (\x -> evalSel sel (f x))
 
     RecordSel n _ ->
       case v of
         VRecord bs  -> fromJust (lookup n bs)
-        VNil        -> VNil
-        VCons {}    -> liftList v
-        VFun f      -> VFun $ \x -> evalSel sel (f x)
+        VSeq b xs   -> VSeq b (map (evalSel sel) xs)
+        VStream xs  -> VStream (map (evalSel sel) xs)
+        VFun f      -> VFun (\x -> evalSel sel (f x))
 
     ListSel n _   -> case v of
-                       --VSeq xs -> force $ xs !! n  -- 0-based indexing
                        VWord s -> VBit (SBV.sbvTestBit s n)
-                       _       -> let go :: Int -> Value -> Value
-                                      go 0 (VCons x _) = x
-                                      go i (VCons _ y) = go (i - 1) y
-                                      go _ _ = error "internal error"
-                                  in go n v
-
-  where
-  liftList VNil         = VNil
-  liftList (VCons x xs) = VCons (evalSel sel x) (liftList xs)
-  liftList _            = panic "Cryptol.Symbolic.evalSel"
-                                  ["Malformed list, while lifting selector"]
+                       _       -> fromSeq v !! n  -- 0-based indexing
 
 -- Declarations ----------------------------------------------------------------
 
@@ -303,9 +292,10 @@ evalDecl env d = (dName d, evalExpr env (dDefinition d))
 
 -- List Comprehensions ---------------------------------------------------------
 
+-- | Evaluate a comprehension.
 evalComp :: Env -> TValue -> Expr -> [[Match]] -> Value
 evalComp env seqty body ms
-  | Just (_len, _el) <- isTSeq seqty = vSeq [ evalExpr e body | e <- envs ]
+  | Just (len,el) <- isTSeq seqty = toSeq len el [ evalExpr e body | e <- envs ]
   | otherwise = evalPanic "Cryptol.Eval" [ "evalComp given a non sequence"
                                          , show seqty
                                          ]

@@ -10,10 +10,12 @@
 module Cryptol.Symbolic.Value where
 
 import Data.Bits (bitSize)
+import Data.List (genericTake)
 
-import Cryptol.Eval.Value (TValue)
+import Cryptol.Eval.Value (TValue, isTBit, numTValue)
 import Cryptol.Symbolic.BitVector
 import Cryptol.TypeCheck.AST
+import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Panic (panic)
 
 import Data.SBV (SBool, fromBitsBE, sbvTestBit, Mergeable(..))
@@ -25,8 +27,10 @@ data Value
   | VTuple [Value]            -- @ ( .. ) @
   | VBit SBool                -- @ Bit    @
   | VWord SWord               -- @ [n]Bit @
-  | VNil
-  | VCons Value Value         -- @ [n]a @ head, tail
+  | VSeq Bool [Value]         -- @ [n]a   @
+                              -- The boolean parameter indicates whether or not
+                              -- this is a sequence of bits.
+  | VStream [Value]           -- @ [inf]a @
   | VFun (Value -> Value)     -- functions
   | VPoly (TValue -> Value)   -- polymorphic values (kind *)
 
@@ -39,8 +43,8 @@ instance Mergeable Value where
       (VTuple vs1 , VTuple vs2 ) -> VTuple $ zipWith (symbolicMerge c) vs1 vs2
       (VBit b1    , VBit b2    ) -> VBit $ symbolicMerge c b1 b2
       (VWord w1   , VWord w2   ) -> VWord $ symbolicMerge c w1 w2
-      (VNil       , VNil       ) -> VNil
-      (VCons h1 t1, VCons h2 t2) -> VCons (symbolicMerge c h1 h2) (symbolicMerge c t1 t2)
+      (VSeq b1 vs1, VSeq _ vs2 ) -> VSeq b1 $ symbolicMerge c vs1 vs2
+      (VStream vs1, VStream vs2) -> VStream $ symbolicMerge c vs1 vs2
       (VFun f1    , VFun f2    ) -> VFun $ symbolicMerge c f1 f2
       (VPoly f1   , VPoly f2   ) -> VPoly $ symbolicMerge c f1 f2
       (VWord w1   , _          ) -> VWord $ symbolicMerge c w1 (fromWord v2)
@@ -51,14 +55,32 @@ instance Mergeable Value where
         | n1 == n2  = (n1, symbolicMerge c x1 x2)
         | otherwise = error "symbolicMerge: incompatible values"
 
+-- Big-endian Words ------------------------------------------------------------
+
+unpackWord :: SWord -> [SBool]
+unpackWord s = [ sbvTestBit s i | i <- reverse [0 .. bitSize s - 1] ]
+
 -- Constructors and Accessors --------------------------------------------------
+
+lam :: (Value -> Value) -> Value
+lam  = VFun
 
 tlam :: (TValue -> Value) -> Value
 tlam f = VPoly f
 
-vSeq :: [Value] -> Value
-vSeq []       = VNil
-vSeq (x : xs) = VCons x (vSeq xs)
+-- | Generate a stream.
+toStream :: [Value] -> Value
+toStream  = VStream
+
+toFinSeq :: TValue -> [Value] -> Value
+toFinSeq elty = VSeq (isTBit elty)
+
+-- | Construct either a finite sequence, or a stream.  In the finite case,
+-- record whether or not the elements were bits, to aid pretty-printing.
+toSeq :: TValue -> TValue -> [Value] -> Value
+toSeq len elty vals = case numTValue len of
+  Nat n -> toFinSeq elty (genericTake n vals)
+  Inf   -> toStream vals
 
 vApply :: Value -> Value -> Value
 vApply (VFun f) v = f v
@@ -72,17 +94,13 @@ fromWord :: Value -> SWord
 fromWord (VWord s) = s
 fromWord v = Data.SBV.fromBitsBE (map fromVBit (fromSeq v))
 
+-- | Extract a sequence.
 fromSeq :: Value -> [Value]
-fromSeq VNil = []
-fromSeq (VCons x xs) = x : fromSeq xs
-fromSeq (VWord s) = [ VBit (sbvTestBit s i) | i <- reverse [0 .. bitSize s - 1] ]
-fromSeq _ = error "fromSeq: not a sequence"
-
-fromVCons :: Value -> (Value, Value)
-fromVCons (VCons h t) = (h, t)
-fromVCons (VWord s) = fromVCons (foldr (\h t -> VCons h t) VNil bs)
-  where bs = reverse [ VBit (sbvTestBit s i) | i <- [0 .. bitSize s - 1] ]
-fromVCons _ = error "fromVCons: not a stream"
+fromSeq v = case v of
+  VSeq _ vs  -> vs
+  VWord s    -> map VBit (unpackWord s)
+  VStream vs -> vs
+  _          -> evalPanic "fromSeq" ["not a sequence"]
 
 fromVFun :: Value -> (Value -> Value)
 fromVFun (VFun f) = f
