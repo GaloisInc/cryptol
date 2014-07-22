@@ -508,7 +508,7 @@ ecSplitV =
        (Inf  , Nat e) -> toStream   $ mkChunks (infChunksOf e)
        _              -> evalPanic "splitV" ["invalid type arguments to split"]
 
--- | Split into infinately many chunks
+-- | Split into infinitely many chunks
 infChunksOf :: Integer -> [a] -> [[a]]
 infChunksOf each xs = let (as,bs) = genericSplitAt each xs
                       in as : infChunksOf each bs
