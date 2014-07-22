@@ -9,137 +9,101 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Cryptol.Symbolic.Value where
 
-import Control.Applicative
-import Control.Monad.Fix (MonadFix)
-import Control.Monad.IO.Class
-import Control.Monad.Reader (MonadReader, ReaderT, runReaderT)
-import Control.Monad.Trans (lift)
 import Data.Bits (bitSize)
-import Data.IORef
-import Data.Traversable
 
 import Cryptol.Eval.Value (TValue)
 import Cryptol.Symbolic.BitVector
 import Cryptol.TypeCheck.AST
 import Cryptol.Utils.Panic (panic)
 
-import Data.SBV (Symbolic, SBool, SMTConfig, fromBitsBE, sbvTestBit)
+import Data.SBV (SBool, fromBitsBE, sbvTestBit, Mergeable(..))
 
--- Symbolic Simulator Monad ----------------------------------------------------
-
-data SimEnv = SimEnv
-  { simConfig    :: SMTConfig
-  , simPath      :: SBool
-  , simIteSolver :: Bool
-  , simVerbose   :: Bool
-  }
-
-newtype TheMonad a = TheMonad (ReaderT SimEnv Symbolic a)
-  deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadReader SimEnv)
-
--- ^ The SBool environment parameter models the path condition, i.e.
--- an assertion derived from the context of surrounding if-then-else
--- statements. It is used to determine whether new if-then-else
--- branches are reachable. It is important to include this within the
--- monad so that a conditional in a function body will be evaluated
--- relative to the path condition where the function is applied,
--- rather than with the path condition where the function was defined.
-
-runTheMonad :: TheMonad a -> SimEnv -> Symbolic a
-runTheMonad (TheMonad r) = runReaderT r
-
-liftSymbolic :: Symbolic a -> TheMonad a
-liftSymbolic s = TheMonad (lift s)
-
--- Values and Thunks -----------------------------------------------------------
+-- Values ----------------------------------------------------------------------
 
 data Value
-  = VRecord [(Name, Thunk)]   -- @ { .. } @
-  | VTuple [Thunk]            -- @ ( .. ) @
+  = VRecord [(Name, Value)]   -- @ { .. } @
+  | VTuple [Value]            -- @ ( .. ) @
   | VBit SBool                -- @ Bit    @
   | VWord SWord               -- @ [n]Bit @
   | VNil
-  | VCons Thunk Thunk         -- @ [n]a @ head, tail
-  | VFun (Thunk -> TheMonad Value)     -- functions
-  | VPoly (TValue -> TheMonad Value)   -- polymorphic values (kind *)
+  | VCons Value Value         -- @ [n]a @ head, tail
+  | VFun (Value -> Value)     -- functions
+  | VPoly (TValue -> Value)   -- polymorphic values (kind *)
 
-data Thunk
-  = Thunk (IORef (Either (TheMonad Value) Value))
-  | Ready Value
+-- Symbolic Conditionals -------------------------------------------------------
 
-force :: Thunk -> TheMonad Value
-force (Ready v) = return v
-force (Thunk ref) = do
-  r <- liftIO $ readIORef ref
-  case r of
-    Left m -> do
-      v <- m
-      liftIO $ writeIORef ref (Right v)
-      return v
-    Right v -> return v
-
-delay :: TheMonad Value -> TheMonad Thunk
-delay m = Thunk <$> liftIO (newIORef (Left m))
-
-ready :: Value -> TheMonad Thunk
-ready v = Thunk <$> liftIO (newIORef (Right v))
+instance Mergeable Value where
+  symbolicMerge c v1 v2 =
+    case (v1, v2) of
+      (VRecord fs1, VRecord fs2) -> VRecord $ zipWith mergeField fs1 fs2
+      (VTuple vs1 , VTuple vs2 ) -> VTuple $ zipWith (symbolicMerge c) vs1 vs2
+      (VBit b1    , VBit b2    ) -> VBit $ symbolicMerge c b1 b2
+      (VWord w1   , VWord w2   ) -> VWord $ symbolicMerge c w1 w2
+      (VNil       , VNil       ) -> VNil
+      (VCons h1 t1, VCons h2 t2) -> VCons (symbolicMerge c h1 h2) (symbolicMerge c t1 t2)
+      (VFun f1    , VFun f2    ) -> VFun $ symbolicMerge c f1 f2
+      (VPoly f1   , VPoly f2   ) -> VPoly $ symbolicMerge c f1 f2
+      (VWord w1   , _          ) -> VWord $ symbolicMerge c w1 (fromWord v2)
+      (_          , VWord w2   ) -> VWord $ symbolicMerge c (fromWord v1) w2
+      (_          , _          ) -> error "symbolicMerge: incompatible values"
+    where
+      mergeField (n1, x1) (n2, x2)
+        | n1 == n2  = (n1, symbolicMerge c x1 x2)
+        | otherwise = error "symbolicMerge: incompatible values"
 
 -- Constructors and Accessors --------------------------------------------------
 
 tlam :: (TValue -> Value) -> Value
-tlam f = VPoly (return . f)
+tlam f = VPoly f
 
-vSeq :: [Thunk] -> Value
+vSeq :: [Value] -> Value
 vSeq []       = VNil
-vSeq (x : xs) = VCons x (Ready (vSeq xs))
+vSeq (x : xs) = VCons x (vSeq xs)
 
-vApply :: Value -> Value -> TheMonad Value
-vApply (VFun f) v = f (Ready v)
-vApply _ _ = fail "vApply: not a function"
+vApply :: Value -> Value -> Value
+vApply (VFun f) v = f v
+vApply _ _ = error "vApply: not a function"
 
 fromVBit :: Value -> SBool
 fromVBit (VBit b) = b
 fromVBit _ = error "fromVBit: not a bit"
 
-fromWord :: Value -> TheMonad SWord
-fromWord (VWord s) = return s
-fromWord v = do
-  thunks <- fromSeq v
-  vs <- traverse force thunks
-  let bs = map fromVBit vs
-  return $ Data.SBV.fromBitsBE bs
+fromWord :: Value -> SWord
+fromWord (VWord s) = s
+fromWord v = Data.SBV.fromBitsBE (map fromVBit (fromSeq v))
 
-fromSeq :: Value -> TheMonad [Thunk]
-fromSeq VNil = return []
-fromSeq (VCons x th) = do
-  v <- force th
-  xs <- fromSeq v
-  return (x : xs)
-fromSeq (VWord s) = return $ reverse [ Ready (VBit (sbvTestBit s i)) | i <- [0 .. bitSize s - 1] ]
+fromSeq :: Value -> [Value]
+fromSeq VNil = []
+fromSeq (VCons x xs) = x : fromSeq xs
+fromSeq (VWord s) = [ VBit (sbvTestBit s i) | i <- reverse [0 .. bitSize s - 1] ]
 fromSeq _ = error "fromSeq: not a sequence"
 
-fromVCons :: Value -> (Thunk, Thunk)
+fromVCons :: Value -> (Value, Value)
 fromVCons (VCons h t) = (h, t)
-fromVCons (VWord s) = fromVCons (foldr (\h t -> VCons (Ready h) (Ready t)) VNil bs)
+fromVCons (VWord s) = fromVCons (foldr (\h t -> VCons h t) VNil bs)
   where bs = reverse [ VBit (sbvTestBit s i) | i <- [0 .. bitSize s - 1] ]
 fromVCons _ = error "fromVCons: not a stream"
 
-fromVFun :: Value -> (Thunk -> TheMonad Value)
+fromVFun :: Value -> (Value -> Value)
 fromVFun (VFun f) = f
 fromVFun _ = error "fromVFun: not a function"
 
-fromVTuple :: Value -> [Thunk]
-fromVTuple (VTuple thunks) = thunks
+fromVPoly :: Value -> (TValue -> Value)
+fromVPoly (VPoly f) = f
+fromVPoly _ = error "fromVPoly: not a function"
+
+fromVTuple :: Value -> [Value]
+fromVTuple (VTuple vs) = vs
 fromVTuple _ = error "fromVTuple: not a tuple"
 
-fromVRecord :: Value -> [(Name, Thunk)]
+fromVRecord :: Value -> [(Name, Value)]
 fromVRecord v = case v of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record"]
 
-lookupRecord :: Name -> Value -> Thunk
+lookupRecord :: Name -> Value -> Value
 lookupRecord f rec = case lookup f (fromVRecord rec) of
-  Just th -> th
+  Just v  -> v
   Nothing -> error "lookupRecord"
 
 -- Errors ----------------------------------------------------------------------
