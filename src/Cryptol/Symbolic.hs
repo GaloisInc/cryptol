@@ -32,7 +32,6 @@ import Cryptol.Symbolic.Prims
 import Cryptol.Symbolic.Value
 
 import qualified Cryptol.Eval.Value as Eval
-import Cryptol.Eval.Value (TValue, isTSeq)
 import qualified Cryptol.Eval.Type (evalType)
 import qualified Cryptol.Eval.Env (EvalEnv(..))
 import Cryptol.TypeCheck.AST
@@ -58,7 +57,7 @@ prove (proverName, useSolverIte, verbose) (expr, schema) = protectStack useSolve
                    let v = evalExpr env expr
                    result <- SBV.proveWith prover $ do
                                args <- mapM forallFinType ts
-                               b <- return $! fromVBit (foldl vApply v args)
+                               b <- return $! fromVBit (foldl fromVFun v args)
                                when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
                                return b
                    let solution = case result of
@@ -80,7 +79,7 @@ sat (proverName, useSolverIte, verbose) (expr, schema) = protectStack useSolverI
                    let v = evalExpr env expr
                    result <- SBV.satWith prover $ do
                                args <- mapM existsFinType ts
-                               b <- return $! fromVBit (foldl vApply v args)
+                               b <- return $! fromVBit (foldl fromVFun v args)
                                when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
                                return b
                    let solution = case result of

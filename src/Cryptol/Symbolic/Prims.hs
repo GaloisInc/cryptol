@@ -14,7 +14,7 @@ import Control.Applicative
 import Data.Bits
 import Data.List (genericDrop, genericReplicate, genericSplitAt, genericTake, transpose)
 
-import Cryptol.Eval.Value (TValue, numTValue, finTValue, isTSeq, isTBit, isTFun, isTTuple, isTRec, toNumTValue, tvSeq)
+import Cryptol.Prims.Eval (binary, unary, tlamN)
 import Cryptol.Prims.Syntax (ECon(..))
 import Cryptol.Symbolic.BitVector
 import Cryptol.Symbolic.Value
@@ -61,7 +61,7 @@ evalECon econ =
       tlam $ \b ->
       VFun $ \f ->
       VFun $ \g ->
-      VFun $ \x -> cmpBinary cmpEq cmpEq SBV.true b (vApply f x) (vApply g x)
+      VFun $ \x -> cmpBinary cmpEq cmpEq SBV.true b (fromVFun f x) (fromVFun g x)
 
     ECFunNotEq    -> -- {a b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
       -- (f !== g) x = (f x != g x)
@@ -69,7 +69,7 @@ evalECon econ =
       tlam $ \b ->
       VFun $ \f ->
       VFun $ \g ->
-      VFun $ \x -> cmpBinary cmpNotEq cmpNotEq SBV.false b (vApply f x) (vApply g x)
+      VFun $ \x -> cmpBinary cmpNotEq cmpNotEq SBV.false b (fromVFun f x) (fromVFun g x)
 
     ECMin         -> -- {a} (Cmp a) => a -> a -> a
       -- min x y = if x <= y then x else y
@@ -357,22 +357,6 @@ ecDemoteV = tlam $ \valT ->
                        , show bitT
                        ]
 
-
--- Operation Lifting -----------------------------------------------------------
-
-type Binary = TValue -> Value -> Value -> Value
-
-binary :: Binary -> Value
-binary f = VPoly $ \ty ->
-           VFun $ \v1 ->
-           VFun $ \v2 -> f ty v1 v2
-
-type Unary = TValue -> Value -> Value
-
-unary :: Unary -> Value
-unary f = VPoly $ \ty ->
-          VFun $ \v -> f ty v
-
 -- Type Values -----------------------------------------------------------------
 
 -- | An easy-to-use alternative representation for type `TValue`.
@@ -396,6 +380,9 @@ toTypeVal ty
   | otherwise                    = error "internal error: bad TValue"
 
 -- Arith -----------------------------------------------------------------------
+
+type Binary = TValue -> Value -> Value -> Value
+type Unary = TValue -> Value -> Value
 
 -- | Models functions of type `{a} (Arith a) => a -> a -> a`
 arithBinary :: (SWord -> SWord -> SWord) -> Binary
@@ -535,7 +522,7 @@ infChunksOf :: Integer -> [a] -> [[a]]
 infChunksOf each xs = let (as,bs) = genericSplitAt each xs
                       in as : infChunksOf each bs
 
--- | Split into finately many chunks
+-- | Split into finitely many chunks
 finChunksOf :: Integer -> Integer -> [a] -> [[a]]
 finChunksOf 0 _ _ = []
 finChunksOf parts each xs = let (as,bs) = genericSplitAt each xs
@@ -614,8 +601,3 @@ fromThenToV  =
          in VSeq False (genericTake len' (map lit nums))
 
       _ -> evalPanic "fromThenV" ["invalid arguments"]
-
--- Miscellaneous ---------------------------------------------------------------
-
-tlamN :: (Nat' -> Value) -> Value
-tlamN f = VPoly (\x -> f (numTValue x))

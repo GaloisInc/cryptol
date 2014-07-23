@@ -6,33 +6,33 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-module Cryptol.Symbolic.Value where
+{-# LANGUAGE TypeSynonymInstances #-}
+
+module Cryptol.Symbolic.Value
+  ( Value
+  , TValue, numTValue, toNumTValue, finTValue, isTBit, isTFun, isTSeq, isTTuple, isTRec, tvSeq
+  , GenValue(..), lam, tlam, toStream, toFinSeq, toSeq
+  , fromVBit, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord
+  , fromSeq, fromWord
+  , evalPanic
+  )
+  where
 
 import Data.Bits (bitSize)
-import Data.List (genericTake)
 
-import Cryptol.Eval.Value (TValue, isTBit, numTValue)
+import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit, isTFun, isTSeq, isTTuple, isTRec, tvSeq,
+                           GenValue(..), lam, tlam, toStream, toFinSeq, toSeq,
+                           fromVBit, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord)
 import Cryptol.Symbolic.BitVector
-import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Panic (panic)
 
 import Data.SBV (SBool, fromBitsBE, sbvTestBit, Mergeable(..))
 
 -- Values ----------------------------------------------------------------------
 
-data Value
-  = VRecord [(Name, Value)]   -- @ { .. } @
-  | VTuple [Value]            -- @ ( .. ) @
-  | VBit SBool                -- @ Bit    @
-  | VWord SWord               -- @ [n]Bit @
-  | VSeq Bool [Value]         -- @ [n]a   @
-                              -- The boolean parameter indicates whether or not
-                              -- this is a sequence of bits.
-  | VStream [Value]           -- @ [inf]a @
-  | VFun (Value -> Value)     -- functions
-  | VPoly (TValue -> Value)   -- polymorphic values (kind *)
+type Value = GenValue SBool SWord
 
 -- Symbolic Conditionals -------------------------------------------------------
 
@@ -62,34 +62,6 @@ unpackWord s = [ sbvTestBit s i | i <- reverse [0 .. bitSize s - 1] ]
 
 -- Constructors and Accessors --------------------------------------------------
 
-lam :: (Value -> Value) -> Value
-lam  = VFun
-
-tlam :: (TValue -> Value) -> Value
-tlam f = VPoly f
-
--- | Generate a stream.
-toStream :: [Value] -> Value
-toStream  = VStream
-
-toFinSeq :: TValue -> [Value] -> Value
-toFinSeq elty = VSeq (isTBit elty)
-
--- | Construct either a finite sequence, or a stream.  In the finite case,
--- record whether or not the elements were bits, to aid pretty-printing.
-toSeq :: TValue -> TValue -> [Value] -> Value
-toSeq len elty vals = case numTValue len of
-  Nat n -> toFinSeq elty (genericTake n vals)
-  Inf   -> toStream vals
-
-vApply :: Value -> Value -> Value
-vApply (VFun f) v = f v
-vApply _ _ = error "vApply: not a function"
-
-fromVBit :: Value -> SBool
-fromVBit (VBit b) = b
-fromVBit _ = error "fromVBit: not a bit"
-
 fromWord :: Value -> SWord
 fromWord (VWord s) = s
 fromWord v = Data.SBV.fromBitsBE (map fromVBit (fromSeq v))
@@ -101,28 +73,6 @@ fromSeq v = case v of
   VWord s    -> map VBit (unpackWord s)
   VStream vs -> vs
   _          -> evalPanic "fromSeq" ["not a sequence"]
-
-fromVFun :: Value -> (Value -> Value)
-fromVFun (VFun f) = f
-fromVFun _ = error "fromVFun: not a function"
-
-fromVPoly :: Value -> (TValue -> Value)
-fromVPoly (VPoly f) = f
-fromVPoly _ = error "fromVPoly: not a function"
-
-fromVTuple :: Value -> [Value]
-fromVTuple (VTuple vs) = vs
-fromVTuple _ = error "fromVTuple: not a tuple"
-
-fromVRecord :: Value -> [(Name, Value)]
-fromVRecord v = case v of
-  VRecord fs -> fs
-  _          -> evalPanic "fromVRecord" ["not a record"]
-
-lookupRecord :: Name -> Value -> Value
-lookupRecord f rec = case lookup f (fromVRecord rec) of
-  Just v  -> v
-  Nothing -> error "lookupRecord"
 
 -- Errors ----------------------------------------------------------------------
 

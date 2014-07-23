@@ -11,7 +11,7 @@
 {-# LANGUAGE BangPatterns #-}
 module Cryptol.Testing.Random where
 
-import Cryptol.Eval.Value     (BV(..),Value(..),ppValue,defaultPPOpts)
+import Cryptol.Eval.Value     (BV(..),Value,GenValue(..),ppValue,defaultPPOpts)
 import Cryptol.Utils.Panic    (panic)
 import Cryptol.TypeCheck.AST  (Name,Type(..),TCon(..),TC(..),tNoUser)
 

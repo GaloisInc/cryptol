@@ -75,18 +75,21 @@ finTValue tval =
 data BV = BV !Integer !Integer -- ^ width, value
                                -- The value may contain junk bits
 
-data Value
-  = VRecord [(Name,Value)]    -- @ { .. } @
-  | VTuple [Value]            -- @ ( .. ) @
-  | VBit Bool                 -- @ Bit    @
-  | VSeq Bool [Value]         -- @ [n]a   @
-                              -- The boolean parameter indicates whether or not
-                              -- this is a sequence of bits.
-  | VWord BV                  -- @ [n]Bit @
-  | VStream [Value]           -- @ [inf]a @
-  | VFun (Value -> Value)     -- functions
-  | VPoly (TValue -> Value)   -- polymorphic values (kind *)
 
+-- | Generic value type, parameterized by bit and word types.
+data GenValue b w
+  = VRecord [(Name, GenValue b w)]      -- @ { .. } @
+  | VTuple [GenValue b w]               -- @ ( .. ) @
+  | VBit b                              -- @ Bit    @
+  | VSeq Bool [GenValue b w]            -- @ [n]a   @
+                                        -- The boolean parameter indicates whether or not
+                                        -- this is a sequence of bits.
+  | VWord w                             -- @ [n]Bit @
+  | VStream [GenValue b w]              -- @ [inf]a @
+  | VFun (GenValue b w -> GenValue b w) -- functions
+  | VPoly (TValue -> GenValue b w)      -- polymorphic values (kind *)
+
+type Value = GenValue Bool BV
 
 -- | An evaluated type.
 -- These types do not contain type variables, type synonyms, or type functions.
@@ -208,18 +211,18 @@ unpackWord (BV w a) = [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
 word :: Integer -> Integer -> Value
 word n i = VWord (BV n (mask n i))
 
-lam :: (Value -> Value) -> Value
+lam :: (GenValue b w -> GenValue b w) -> GenValue b w
 lam  = VFun
 
 -- | A type lambda that expects a @Type@.
-tlam :: (TValue -> Value) -> Value
+tlam :: (TValue -> GenValue b w) -> GenValue b w
 tlam  = VPoly
 
 -- | Generate a stream.
-toStream :: [Value] -> Value
+toStream :: [GenValue b w] -> GenValue b w
 toStream  = VStream
 
-toFinSeq :: TValue -> [Value] -> Value
+toFinSeq :: TValue -> [GenValue b w] -> GenValue b w
 toFinSeq elty = VSeq (isTBit elty)
 
 -- | This is strict!
@@ -228,7 +231,7 @@ boolToWord = VWord . packWord
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
-toSeq :: TValue -> TValue -> [Value] -> Value
+toSeq :: TValue -> TValue -> [GenValue b w] -> GenValue b w
 toSeq len elty vals = case numTValue len of
   Nat n -> toFinSeq elty (genericTake n vals)
   Inf   -> toStream vals
@@ -254,7 +257,7 @@ toPackedSeq len elty vals = case numTValue len of
 -- Value Destructors -----------------------------------------------------------
 
 -- | Extract a bit value.
-fromVBit :: Value -> Bool
+fromVBit :: GenValue b w -> b
 fromVBit val = case val of
   VBit b -> b
   _      -> evalPanic "fromVBit" ["not a Bit"]
@@ -293,25 +296,31 @@ fromWord val = mask w a
   BV w a = fromVWord val
 
 -- | Extract a function from a value.
-fromVFun :: Value -> (Value -> Value)
+fromVFun :: GenValue b w -> (GenValue b w -> GenValue b w)
 fromVFun val = case val of
   VFun f -> f
   _      -> evalPanic "fromVFun" ["not a function"]
 
+-- | Extract a polymorphic function from a value.
+fromVPoly :: GenValue b w -> (TValue -> GenValue b w)
+fromVPoly val = case val of
+  VPoly f -> f
+  _       -> evalPanic "fromVPoly" ["not a polymorphic value"]
+
 -- | Extract a tuple from a value.
-fromVTuple :: Value -> [Value]
+fromVTuple :: GenValue b w -> [GenValue b w]
 fromVTuple val = case val of
   VTuple vs -> vs
   _         -> evalPanic "fromVTuple" ["not a tuple"]
 
 -- | Extract a record from a value.
-fromVRecord :: Value -> [(Name,Value)]
+fromVRecord :: GenValue b w -> [(Name, GenValue b w)]
 fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record"]
 
 -- | Lookup a field in a record.
-lookupRecord :: Name -> Value -> Value
+lookupRecord :: Name -> GenValue b w -> GenValue b w
 lookupRecord f rec = case lookup f (fromVRecord rec) of
   Just val -> val
   Nothing  -> evalPanic "lookupRecord" ["malformed record"]

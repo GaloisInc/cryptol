@@ -276,16 +276,18 @@ doubleAndAdd base0 expMask modulus = go 1 base0 expMask
 
 -- Operation Lifting -----------------------------------------------------------
 
-type Binary = TValue -> Value -> Value -> Value
+type GenBinary b w = TValue -> GenValue b w -> GenValue b w -> GenValue b w
+type Binary = GenBinary Bool BV
 
-binary :: Binary -> Value
+binary :: GenBinary b w -> GenValue b w
 binary f = tlam $ \ ty ->
             lam $ \ a  ->
             lam $ \ b  -> f ty a b
 
-type Unary = TValue -> Value -> Value
+type GenUnary b w = TValue -> GenValue b w -> GenValue b w
+type Unary = GenUnary Bool BV
 
-unary :: Unary -> Value
+unary :: GenUnary b w -> GenValue b w
 unary f = tlam $ \ ty ->
            lam $ \ a  -> f ty a
 
@@ -513,7 +515,7 @@ infChunksOf :: Integer -> [a] -> [[a]]
 infChunksOf each xs = let (as,bs) = genericSplitAt each xs
                       in as : infChunksOf each bs
 
--- | Split into finately many chunks
+-- | Split into finitely many chunks
 finChunksOf :: Integer -> Integer -> [a] -> [[a]]
 finChunksOf 0 _ _ = []
 finChunksOf parts each xs = let (as,bs) = genericSplitAt each xs
@@ -763,5 +765,5 @@ randomV ty seed =
 
 -- Miscellaneous ---------------------------------------------------------------
 
-tlamN :: (Nat' -> Value) -> Value
+tlamN :: (Nat' -> GenValue b w) -> GenValue b w
 tlamN f = VPoly (\x -> f (numTValue x))
