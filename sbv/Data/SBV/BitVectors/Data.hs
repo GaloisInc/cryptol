@@ -40,14 +40,13 @@ module Data.SBV.BitVectors.Data
  , Quantifier(..), needsExistentials
  , SMTLibPgm(..), SMTLibVersion(..)
  , SolverCapabilities(..)
- , extractSymbolicSimulationState, getResult
+ , extractSymbolicSimulationState
  , SMTScript(..), Solver(..), SMTSolver(..), SMTResult(..), SMTModel(..), SMTConfig(..), getSBranchRunConfig
  ) where
 
 import Control.DeepSeq      (NFData(..))
 import Control.Applicative  (Applicative)
 import Control.Monad        (when)
-import Control.Monad.Fix    (MonadFix)
 import Control.Monad.Reader (MonadReader, ReaderT, ask, runReaderT)
 import Control.Monad.Trans  (MonadIO, liftIO)
 import Data.Char            (isAlpha, isAlphaNum)
@@ -806,7 +805,7 @@ sbvToSW st (SBV _ (Right f)) = uncache f st
 -- state of the computation, layered on top of IO for creating unique
 -- references to hold onto intermediate results.
 newtype Symbolic a = Symbolic (ReaderT State IO a)
-  deriving (Functor, Applicative, Monad, MonadFix, MonadIO, MonadReader State)
+                   deriving (Applicative, Functor, Monad, MonadIO, MonadReader State)
 
 -- | Create a symbolic value, based on the quantifier we have. If an explicit quantifier is given, we just use that.
 -- If not, then we pick existential for SAT calls and universal for everything else.
@@ -968,11 +967,6 @@ extractSymbolicSimulationState st@State{ spgm=pgm, rinps=inps, routs=outs, rtblM
    traceVals <- reverse `fmap` readIORef cInfo
    extraCstrs <- reverse `fmap` readIORef cstrs
    return $ Result knds traceVals cgMap inpsO cnsts tbls arrs unint axs (SBVPgm rpgm) extraCstrs outsO
-
-getResult :: Symbolic Result
-getResult = do
-  st <- ask
-  liftIO $ extractSymbolicSimulationState st
 
 -------------------------------------------------------------------------------
 -- * Symbolic Words
