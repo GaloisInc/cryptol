@@ -27,8 +27,6 @@ module Data.SBV.Provers.Prover (
        , boolector, cvc4, yices, z3, mathSAT, defaultSMTCfg
        , compileToSMTLib, generateSMTBenchmarks
        , isSBranchFeasibleInState
-       , internalSatWith, internalIsSatisfiableWith, internalIsSatisfiable
-       , internalProveWith, internalIsTheoremWith, internalIsTheorem
        ) where
 
 import Control.Monad       (when, unless)
@@ -282,30 +280,6 @@ isTheorem = isTheoremWith defaultSMTCfg
 isSatisfiable :: Provable a => Maybe Int -> a -> IO (Maybe Bool)
 isSatisfiable = isSatisfiableWith defaultSMTCfg
 
-internalIsTheoremWith :: SMTConfig -> Maybe Int -> SBool -> Symbolic (Maybe Bool)
-internalIsTheoremWith cfg mbTo p = do
-  r <- internalProveWith cfg{timeOut = mbTo} p
-  case r of
-    ThmResult (Unsatisfiable _) -> return $ Just True
-    ThmResult (Satisfiable _ _) -> return $ Just False
-    ThmResult (TimeOut _)       -> return Nothing
-    _                           -> error $ "SBV.isTheorem: Received:\n" ++ show r
-
-internalIsTheorem :: Maybe Int -> SBool -> Symbolic (Maybe Bool)
-internalIsTheorem = internalIsTheoremWith defaultSMTCfg
-
-internalIsSatisfiableWith :: SMTConfig -> Maybe Int -> SBool -> Symbolic (Maybe Bool)
-internalIsSatisfiableWith cfg mbTo p = do
-  r <- internalSatWith cfg{timeOut = mbTo} p
-  case r of
-    SatResult (Satisfiable _ _) -> return $ Just True
-    SatResult (Unsatisfiable _) -> return $ Just False
-    SatResult (TimeOut _)       -> return Nothing
-    _                           -> error $ "SBV.isSatisfiable: Received: " ++ show r
-
-internalIsSatisfiable :: Maybe Int -> SBool -> Symbolic (Maybe Bool)
-internalIsSatisfiable = internalIsSatisfiableWith defaultSMTCfg
-
 -- | Compiles to SMT-Lib and returns the resulting program as a string. Useful for saving
 -- the result to a file for off-line analysis, for instance if you have an SMT solver that's not natively
 -- supported out-of-the box by the SBV library. It takes two booleans:
@@ -351,24 +325,6 @@ proveWith config a = simulate cvt config False [] a >>= callSolver False "Checki
 satWith :: Provable a => SMTConfig -> a -> IO SatResult
 satWith config a = simulate cvt config True [] a >>= callSolver True "Checking Satisfiability.." SatResult config
   where cvt = if useSMTLib2 config then toSMTLib2 else toSMTLib1
-
-internalProveWith :: SMTConfig -> SBool -> Symbolic ThmResult
-internalProveWith config b = do
-  sw <- sbvToSymSW b
-  Result ki tr uic is cs ts as uis ax asgn cstr _ <- getResult
-  let res = Result ki tr uic is cs ts as uis ax asgn cstr [sw]
-  let cvt = if useSMTLib2 config then toSMTLib2 else toSMTLib1
-  problem <- liftIO $ runProofOn cvt config False [] res
-  liftIO $ callSolver True "Checking Satisfiability.." ThmResult config problem
-
-internalSatWith :: SMTConfig -> SBool -> Symbolic SatResult
-internalSatWith config b = do
-  sw <- sbvToSymSW b
-  Result ki tr uic is cs ts as uis ax asgn cstr _ <- getResult
-  let res = Result ki tr uic is cs ts as uis ax asgn cstr [sw]
-  let cvt = if useSMTLib2 config then toSMTLib2 else toSMTLib1
-  problem <- liftIO $ runProofOn cvt config True [] res
-  liftIO $ callSolver True "Checking Satisfiability.." SatResult config problem
 
 -- | Determine if the constraints are vacuous using the given SMT-solver
 isVacuousWith :: Provable a => SMTConfig -> a -> IO Bool

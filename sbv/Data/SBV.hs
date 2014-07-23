@@ -183,10 +183,8 @@ module Data.SBV (
   , Predicate, Provable(..), Equality(..)
   -- ** Proving properties
   , prove, proveWith, isTheorem, isTheoremWith
-  , internalProveWith, internalIsTheoremWith, internalIsTheorem
   -- ** Checking satisfiability
   , sat, satWith, isSatisfiable, isSatisfiableWith
-  , internalSatWith, internalIsSatisfiable, internalIsSatisfiableWith
   -- ** Finding all satisfying assignments
   , allSat, allSatWith
   -- ** Satisfying a sequence of boolean conditions

@@ -64,7 +64,7 @@ instance Show SatResult where
                                      "Unknown"     "Unknown. Potential model:\n"
                                      "Satisfiable" "Satisfiable. Model:\n" r
 
--- |  The Show instance of AllSatResults. Note that we have to be careful in being lazy enough
+-- | The Show instance of AllSatResults. Note that we have to be careful in being lazy enough
 -- as the typical use case is to pull results out as they become available.
 instance Show AllSatResult where
   show (AllSatResult (e, xs)) = go (0::Int) xs
