@@ -566,11 +566,16 @@ logicUnary op = loop
   loop ty val
     | isTBit ty = VBit (op (fromVBit val))
 
-    | Just (_,b) <- isTSeq ty
-    , isTBit b = let BV w a = fromVWord val
-                 in VWord (BV w (op a))
+    | Just (len,ety) <- isTSeq ty =
 
-    | Just (len,ety) <- isTSeq ty = toSeq len ety (map (loop ety) (fromSeq val))
+      case numTValue len of
+
+         -- words or finite sequences
+         Nat w | isTBit ety -> VWord (BV w (op (fromWord val)))
+               | otherwise -> VSeq False (map (loop ety) (fromSeq val))
+
+         -- streams
+         Inf -> toStream (map (loop ety) (fromSeq val))
 
     | Just (_,etys) <- isTTuple ty =
       let as = fromVTuple val
