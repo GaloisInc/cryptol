@@ -15,6 +15,10 @@ flag static
   default: False
   description: Create a statically-linked binary
 
+flag notebook
+  default: False
+  description: Build the IPython-style Cryptol notebook interface
+
 library
   Build-depends:       base            >= 4.6,
                        array           >= 0.4,
@@ -178,7 +182,10 @@ executable cryptol
       ld-options:      -static -pthread
 
 executable cryptolnb
-  buildable:           False
+  if flag(notebook)
+    buildable:         True
+  else
+    buildable:         False
   Main-is:             Main_notebook.hs
   hs-source-dirs:      cryptol, notebook
   build-depends:       base,

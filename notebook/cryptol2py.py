@@ -71,7 +71,7 @@ def setup_cryptol_process():
     """
     Static method that setups up an interactive cryptol process.
     """
-    cryptol = pexpect.spawn("../cabal-dev/bin/cryptol2nb")
+    cryptol = pexpect.spawn("../.cabal-sandbox/bin/cryptolnb")
     cryptol.setecho(False)
     return cryptol
 
