@@ -56,6 +56,7 @@ import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.AST as P
+import Cryptol.Symbolic (proverNames)
 
 import Control.Monad (unless,when)
 import Data.IORef
@@ -382,8 +383,8 @@ userOptions  = mkOptionMap
     "The number of elements to display for infinite sequences."
   , OptionDescr "tests" (EnvNum 100) (const Nothing)
     "The number of random tests to try."
-  , OptionDescr "prover" (EnvString "cvc4") checkProver
-    "The external smt solver for :prove and :sat (cvc4, yices, or z3)."
+  , OptionDescr "prover" (EnvString "cvc4") checkProver $
+    "The external smt solver for :prove and :sat (" ++ proverListString ++ ")."
   , OptionDescr "iteSolver" (EnvBool False) (const Nothing)
     "Use smt solver to filter conditional branches in proofs."
   , OptionDescr "warnDefaulting" (EnvBool True) (const Nothing)
@@ -408,9 +409,12 @@ checkInfLength val = case val of
 checkProver :: EnvVal -> Maybe String
 checkProver val = case val of
   EnvString s
-    | s `elem` ["cvc4", "yices", "z3"] -> Nothing
-    | otherwise                        -> Just "prover must be cvc4, yices, or z3"
+    | s `elem` proverNames -> Nothing
+    | otherwise            -> Just $ "prover must be " ++ proverListString
   _ -> Just "unable to parse a value for prover"
+
+proverListString :: String
+proverListString = concatMap (++ ", ") (init proverNames) ++ "or " ++ last proverNames
 
 -- Environment Utilities -------------------------------------------------------
 
