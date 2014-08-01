@@ -40,11 +40,23 @@ import Cryptol.Utils.Panic(panic)
 
 -- External interface ----------------------------------------------------------
 
+proverConfigs :: [(String, SBV.SMTConfig)]
+proverConfigs =
+  [ ("cvc4"     , SBV.cvc4     )
+  , ("yices"    , SBV.yices    )
+  , ("z3"       , SBV.z3       )
+  , ("boolector", SBV.boolector)
+  , ("mathsat"  , SBV.mathSAT  )
+  ]
+
+proverNames :: [String]
+proverNames = map fst proverConfigs
+
 lookupProver :: String -> SBV.SMTConfig
-lookupProver "cvc4"  = SBV.cvc4
-lookupProver "yices" = SBV.yices
-lookupProver "z3"    = SBV.z3
-lookupProver s       = error $ "invalid prover: " ++ s
+lookupProver s =
+  case lookup s proverConfigs of
+    Just cfg -> cfg
+    Nothing  -> error $ "invalid prover: " ++ s
 
 prove :: (String, Bool, Bool) -> (Expr, Schema) -> M.ModuleCmd (Either String (Maybe [Eval.Value]))
 prove (proverName, useSolverIte, verbose) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
