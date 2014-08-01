@@ -1970,7 +1970,26 @@ property all_key_tests_correct =
 	TV1_key_correct &&
 	TV2_key_correct &&
 	TV3_key_correct 
+```
+
+## ChaCha20-Poly1305 AEAD Decryption
+
+Below we’ll see decrypting a message. We receive a ciphertext, a
+nonce, and a tag. We know the key. We will check the tag, and then
+(assuming that it validates) decrypt the ciphertext. In this
+particular protocol, we’ll assume that there is no padding of the
+plaintext.
+
+```cryptol
+AEAD_correct key nonce cypherText AAD tag = ptMatches && isValid where
+    (pt,isValid) = AEAD_CHACHA20_POLY1305_DECRYPT key nonce cypherText AAD
+    cypherText   = (AEAD_CHACHA20_POLY1305 key nonce AeadPt AAD)
+    ptMatches    = tag == pt
+```
+
+
 	
+```cryptol
 property all_tests_correct =
   all_block_tests_correct &&
   all_enc_tests_correct &&
