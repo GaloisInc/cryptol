@@ -1482,6 +1482,8 @@ class Uninterpreted a where
   -- | Uninterpret a value, receiving an object that can be used instead. Use this version
   -- when you do not need to add an axiom about this value.
   uninterpret :: String -> a
+  -- | Uninterpret a value of the given SMTLib type (interpreting (:) as (->)).
+  mkUninterpreted :: [Kind] -> Maybe ([String], a) -> String -> a
   -- | Uninterpret a value, only for the purposes of code-generation. For execution
   -- and verification the value is used as is. For code-generation, the alternate
   -- definition is used. This is useful when we want to take advantage of native
@@ -1497,43 +1499,46 @@ class Uninterpreted a where
 
 -- Plain constants
 instance HasKind a => Uninterpreted (SBV a) where
-  sbvUninterpret mbCgData nm
+  sbvUninterpret = mkUninterpreted [kindOf (undefined :: a)]
+  mkUninterpreted ks mbCgData nm
      | Just (_, v) <- mbCgData = v
      | True                    = SBV ka $ Right $ cache result
-    where ka = kindOf (undefined :: a)
+    where ka = last ks
           result st | Just (_, v) <- mbCgData, inProofMode st = sbvToSW st v
-                    | True = do newUninterpreted st nm (SBVType [ka]) (fst `fmap` mbCgData)
+                    | True = do newUninterpreted st nm (SBVType ks) (fst `fmap` mbCgData)
                                 newExpr st ka $ SBVApp (Uninterpreted nm) []
 
 -- Functions of one argument
 instance (SymWord b, HasKind a) => Uninterpreted (SBV b -> SBV a) where
-  sbvUninterpret mbCgData nm = f
+  sbvUninterpret = mkUninterpreted [kindOf (undefined :: b), kindOf (undefined :: a)]
+  mkUninterpreted ks mbCgData nm = f
     where f arg0
            | Just (_, v) <- mbCgData, isConcrete arg0
            = v arg0
            | True
            = SBV ka $ Right $ cache result
-           where ka = kindOf (undefined :: a)
-                 kb = kindOf (undefined :: b)
+           where ka = last ks
                  result st | Just (_, v) <- mbCgData, inProofMode st = sbvToSW st (v arg0)
-                           | True = do newUninterpreted st nm (SBVType [kb, ka]) (fst `fmap` mbCgData)
+                           | True = do newUninterpreted st nm (SBVType ks) (fst `fmap` mbCgData)
                                        sw0 <- sbvToSW st arg0
                                        mapM_ forceSWArg [sw0]
                                        newExpr st ka $ SBVApp (Uninterpreted nm) [sw0]
 
 -- Functions of two arguments
 instance (SymWord c, SymWord b, HasKind a) => Uninterpreted (SBV c -> SBV b -> SBV a) where
-  sbvUninterpret mbCgData nm = f
+  sbvUninterpret = mkUninterpreted [
+              kindOf (undefined :: c),
+              kindOf (undefined :: b),
+              kindOf (undefined :: a)]
+  mkUninterpreted ks mbCgData nm = f
     where f arg0 arg1
            | Just (_, v) <- mbCgData, isConcrete arg0, isConcrete arg1
            = v arg0 arg1
            | True
            = SBV ka $ Right $ cache result
-           where ka = kindOf (undefined :: a)
-                 kb = kindOf (undefined :: b)
-                 kc = kindOf (undefined :: c)
+           where ka = last ks
                  result st | Just (_, v) <- mbCgData, inProofMode st = sbvToSW st (v arg0 arg1)
-                           | True = do newUninterpreted st nm (SBVType [kc, kb, ka]) (fst `fmap` mbCgData)
+                           | True = do newUninterpreted st nm (SBVType ks) (fst `fmap` mbCgData)
                                        sw0 <- sbvToSW st arg0
                                        sw1 <- sbvToSW st arg1
                                        mapM_ forceSWArg [sw0, sw1]
@@ -1541,18 +1546,20 @@ instance (SymWord c, SymWord b, HasKind a) => Uninterpreted (SBV c -> SBV b -> S
 
 -- Functions of three arguments
 instance (SymWord d, SymWord c, SymWord b, HasKind a) => Uninterpreted (SBV d -> SBV c -> SBV b -> SBV a) where
-  sbvUninterpret mbCgData nm = f
+  sbvUninterpret = mkUninterpreted [
+              kindOf (undefined :: d),
+              kindOf (undefined :: c),
+              kindOf (undefined :: b),
+              kindOf (undefined :: a)]
+  mkUninterpreted ks mbCgData nm = f
     where f arg0 arg1 arg2
            | Just (_, v) <- mbCgData, isConcrete arg0, isConcrete arg1, isConcrete arg2
            = v arg0 arg1 arg2
            | True
            = SBV ka $ Right $ cache result
-           where ka = kindOf (undefined :: a)
-                 kb = kindOf (undefined :: b)
-                 kc = kindOf (undefined :: c)
-                 kd = kindOf (undefined :: d)
+           where ka = last ks
                  result st | Just (_, v) <- mbCgData, inProofMode st = sbvToSW st (v arg0 arg1 arg2)
-                           | True = do newUninterpreted st nm (SBVType [kd, kc, kb, ka]) (fst `fmap` mbCgData)
+                           | True = do newUninterpreted st nm (SBVType ks) (fst `fmap` mbCgData)
                                        sw0 <- sbvToSW st arg0
                                        sw1 <- sbvToSW st arg1
                                        sw2 <- sbvToSW st arg2
@@ -1561,19 +1568,21 @@ instance (SymWord d, SymWord c, SymWord b, HasKind a) => Uninterpreted (SBV d ->
 
 -- Functions of four arguments
 instance (SymWord e, SymWord d, SymWord c, SymWord b, HasKind a) => Uninterpreted (SBV e -> SBV d -> SBV c -> SBV b -> SBV a) where
-  sbvUninterpret mbCgData nm = f
+  sbvUninterpret = mkUninterpreted [
+              kindOf (undefined :: e),
+              kindOf (undefined :: d),
+              kindOf (undefined :: c),
+              kindOf (undefined :: b),
+              kindOf (undefined :: a)]
+  mkUninterpreted ks mbCgData nm = f
     where f arg0 arg1 arg2 arg3
            | Just (_, v) <- mbCgData, isConcrete arg0, isConcrete arg1, isConcrete arg2, isConcrete arg3
            = v arg0 arg1 arg2 arg3
            | True
            = SBV ka $ Right $ cache result
-           where ka = kindOf (undefined :: a)
-                 kb = kindOf (undefined :: b)
-                 kc = kindOf (undefined :: c)
-                 kd = kindOf (undefined :: d)
-                 ke = kindOf (undefined :: e)
+           where ka = last ks
                  result st | Just (_, v) <- mbCgData, inProofMode st = sbvToSW st (v arg0 arg1 arg2 arg3)
-                           | True = do newUninterpreted st nm (SBVType [ke, kd, kc, kb, ka]) (fst `fmap` mbCgData)
+                           | True = do newUninterpreted st nm (SBVType ks) (fst `fmap` mbCgData)
                                        sw0 <- sbvToSW st arg0
                                        sw1 <- sbvToSW st arg1
                                        sw2 <- sbvToSW st arg2
@@ -1583,20 +1592,22 @@ instance (SymWord e, SymWord d, SymWord c, SymWord b, HasKind a) => Uninterprete
 
 -- Functions of five arguments
 instance (SymWord f, SymWord e, SymWord d, SymWord c, SymWord b, HasKind a) => Uninterpreted (SBV f -> SBV e -> SBV d -> SBV c -> SBV b -> SBV a) where
-  sbvUninterpret mbCgData nm = f
+  sbvUninterpret = mkUninterpreted [
+              kindOf (undefined :: f),
+              kindOf (undefined :: e),
+              kindOf (undefined :: d),
+              kindOf (undefined :: c),
+              kindOf (undefined :: b),
+              kindOf (undefined :: a)]
+  mkUninterpreted ks mbCgData nm = f
     where f arg0 arg1 arg2 arg3 arg4
            | Just (_, v) <- mbCgData, isConcrete arg0, isConcrete arg1, isConcrete arg2, isConcrete arg3, isConcrete arg4
            = v arg0 arg1 arg2 arg3 arg4
            | True
            = SBV ka $ Right $ cache result
-           where ka = kindOf (undefined :: a)
-                 kb = kindOf (undefined :: b)
-                 kc = kindOf (undefined :: c)
-                 kd = kindOf (undefined :: d)
-                 ke = kindOf (undefined :: e)
-                 kf = kindOf (undefined :: f)
+           where ka = last ks
                  result st | Just (_, v) <- mbCgData, inProofMode st = sbvToSW st (v arg0 arg1 arg2 arg3 arg4)
-                           | True = do newUninterpreted st nm (SBVType [kf, ke, kd, kc, kb, ka]) (fst `fmap` mbCgData)
+                           | True = do newUninterpreted st nm (SBVType ks) (fst `fmap` mbCgData)
                                        sw0 <- sbvToSW st arg0
                                        sw1 <- sbvToSW st arg1
                                        sw2 <- sbvToSW st arg2
@@ -1607,21 +1618,23 @@ instance (SymWord f, SymWord e, SymWord d, SymWord c, SymWord b, HasKind a) => U
 
 -- Functions of six arguments
 instance (SymWord g, SymWord f, SymWord e, SymWord d, SymWord c, SymWord b, HasKind a) => Uninterpreted (SBV g -> SBV f -> SBV e -> SBV d -> SBV c -> SBV b -> SBV a) where
-  sbvUninterpret mbCgData nm = f
+  sbvUninterpret = mkUninterpreted [
+              kindOf (undefined :: g),
+              kindOf (undefined :: f),
+              kindOf (undefined :: e),
+              kindOf (undefined :: d),
+              kindOf (undefined :: c),
+              kindOf (undefined :: b),
+              kindOf (undefined :: a)]
+  mkUninterpreted ks mbCgData nm = f
     where f arg0 arg1 arg2 arg3 arg4 arg5
            | Just (_, v) <- mbCgData, isConcrete arg0, isConcrete arg1, isConcrete arg2, isConcrete arg3, isConcrete arg4, isConcrete arg5
            = v arg0 arg1 arg2 arg3 arg4 arg5
            | True
            = SBV ka $ Right $ cache result
-           where ka = kindOf (undefined :: a)
-                 kb = kindOf (undefined :: b)
-                 kc = kindOf (undefined :: c)
-                 kd = kindOf (undefined :: d)
-                 ke = kindOf (undefined :: e)
-                 kf = kindOf (undefined :: f)
-                 kg = kindOf (undefined :: g)
+           where ka = last ks
                  result st | Just (_, v) <- mbCgData, inProofMode st = sbvToSW st (v arg0 arg1 arg2 arg3 arg4 arg5)
-                           | True = do newUninterpreted st nm (SBVType [kg, kf, ke, kd, kc, kb, ka]) (fst `fmap` mbCgData)
+                           | True = do newUninterpreted st nm (SBVType ks) (fst `fmap` mbCgData)
                                        sw0 <- sbvToSW st arg0
                                        sw1 <- sbvToSW st arg1
                                        sw2 <- sbvToSW st arg2
@@ -1634,22 +1647,24 @@ instance (SymWord g, SymWord f, SymWord e, SymWord d, SymWord c, SymWord b, HasK
 -- Functions of seven arguments
 instance (SymWord h, SymWord g, SymWord f, SymWord e, SymWord d, SymWord c, SymWord b, HasKind a)
             => Uninterpreted (SBV h -> SBV g -> SBV f -> SBV e -> SBV d -> SBV c -> SBV b -> SBV a) where
-  sbvUninterpret mbCgData nm = f
+  sbvUninterpret = mkUninterpreted [
+              kindOf (undefined :: h),
+              kindOf (undefined :: g),
+              kindOf (undefined :: f),
+              kindOf (undefined :: e),
+              kindOf (undefined :: d),
+              kindOf (undefined :: c),
+              kindOf (undefined :: b),
+              kindOf (undefined :: a)]
+  mkUninterpreted ks mbCgData nm = f
     where f arg0 arg1 arg2 arg3 arg4 arg5 arg6
            | Just (_, v) <- mbCgData, isConcrete arg0, isConcrete arg1, isConcrete arg2, isConcrete arg3, isConcrete arg4, isConcrete arg5, isConcrete arg6
            = v arg0 arg1 arg2 arg3 arg4 arg5 arg6
            | True
            = SBV ka $ Right $ cache result
-           where ka = kindOf (undefined :: a)
-                 kb = kindOf (undefined :: b)
-                 kc = kindOf (undefined :: c)
-                 kd = kindOf (undefined :: d)
-                 ke = kindOf (undefined :: e)
-                 kf = kindOf (undefined :: f)
-                 kg = kindOf (undefined :: g)
-                 kh = kindOf (undefined :: h)
+           where ka = last ks
                  result st | Just (_, v) <- mbCgData, inProofMode st = sbvToSW st (v arg0 arg1 arg2 arg3 arg4 arg5 arg6)
-                          | True = do newUninterpreted st nm (SBVType [kh, kg, kf, ke, kd, kc, kb, ka]) (fst `fmap` mbCgData)
+                          | True = do newUninterpreted st nm (SBVType ks) (fst `fmap` mbCgData)
                                       sw0 <- sbvToSW st arg0
                                       sw1 <- sbvToSW st arg1
                                       sw2 <- sbvToSW st arg2
