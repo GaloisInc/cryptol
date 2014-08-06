@@ -114,9 +114,6 @@ library
                        Cryptol.Symbolic.Prims
                        Cryptol.Symbolic.Value
 
-
-  Other-modules:       Cryptol.Parser.LexerUtils,
-                       Cryptol.Parser.ParserUtils,
                        Data.SBV,
                        Data.SBV.Bridge.Boolector,
                        Data.SBV.Bridge.CVC4,
@@ -124,6 +121,10 @@ library
                        Data.SBV.Bridge.Yices,
                        Data.SBV.Bridge.Z3,
                        Data.SBV.Internals,
+                       Data.SBV.Tools.Polynomial
+
+  Other-modules:       Cryptol.Parser.LexerUtils,
+                       Cryptol.Parser.ParserUtils,
                        Data.SBV.BitVectors.AlgReals,
                        Data.SBV.BitVectors.Data,
                        Data.SBV.BitVectors.Model,
@@ -147,7 +148,6 @@ library
                        Data.SBV.Tools.ExpectedValue,
                        Data.SBV.Tools.GenTest,
                        Data.SBV.Tools.Optimize,
-                       Data.SBV.Tools.Polynomial,
                        Data.SBV.Utils.Boolean,
                        Data.SBV.Utils.TDiff,
                        Data.SBV.Utils.Lib,
