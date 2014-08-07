@@ -23,7 +23,7 @@
 module Data.SBV.BitVectors.Model (
     Mergeable(..), EqSymbolic(..), OrdSymbolic(..), SDivisible(..), Uninterpreted(..), SIntegral
   , sbvTestBit, sbvPopCount, setBitTo, sbvShiftLeft, sbvShiftRight, sbvSignedShiftArithRight
-  , sbvRotateLeft, sbvRotateRight
+  , sbvRotateLeft, sbvRotateRight, mkUninterpreted
   , allEqual, allDifferent, inRange, sElem, oneIf, blastBE, blastLE, fullAdder, fullMultiplier
   , lsb, msb, genVar, genVar_, forall, forall_, exists, exists_
   , constrain, pConstrain, sBool, sBools, sWord8, sWord8s, sWord16, sWord16s, sWord32
@@ -1494,6 +1494,15 @@ class Uninterpreted a where
   -- minimal complete definition: 'sbvUninterpret'
   uninterpret             = sbvUninterpret Nothing
   cgUninterpret nm code v = sbvUninterpret (Just (code, v)) nm
+
+mkUninterpreted :: [Kind] -> [SBV ()] -> String -> SBV a
+mkUninterpreted ks args nm = SBV ka $ Right $ cache result where
+  ka = last ks
+  result st = do
+    newUninterpreted st nm (SBVType ks) Nothing
+    sws <- mapM (sbvToSW st) args
+    mapM_ forceSWArg sws
+    newExpr st ka $ SBVApp (Uninterpreted nm) sws
 
 -- Plain constants
 instance HasKind a => Uninterpreted (SBV a) where

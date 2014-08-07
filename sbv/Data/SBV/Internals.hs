@@ -18,10 +18,10 @@ module Data.SBV.Internals (
   , SBV(..), slet, CW(..), Kind(..), CWVal(..), AlgReal(..), mkConstCW, genVar, genVar_
   , liftQRem, liftDMod
   -- * Compilation to C
-  , compileToC', compileToCLib', CgPgmBundle(..), CgPgmKind(..)
+  , mkUninterpreted, compileToC', compileToCLib', CgPgmBundle(..), CgPgmKind(..)
   ) where
 
 import Data.SBV.BitVectors.Data   (Result, SBVRunMode(..), runSymbolic, runSymbolic', SBV(..), CW(..), Kind(..), CWVal(..), AlgReal(..), mkConstCW)
-import Data.SBV.BitVectors.Model  (genVar, genVar_, slet, liftQRem, liftDMod)
+import Data.SBV.BitVectors.Model  (genVar, genVar_, slet, liftQRem, liftDMod, mkUninterpreted)
 import Data.SBV.Compilers.C       (compileToC', compileToCLib')
 import Data.SBV.Compilers.CodeGen (CgPgmBundle(..), CgPgmKind(..))
