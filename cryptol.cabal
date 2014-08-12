@@ -16,6 +16,8 @@ flag static
   description: Create a statically-linked binary
 
 library
+  Default-language:
+    Haskell98
   Build-depends:       base            >= 4.6,
                        array           >= 0.4,
                        async           >= 2.0,
@@ -157,6 +159,8 @@ library
   GHC-options:         -Wall -O2
 
 executable cryptol
+  Default-language:
+    Haskell98
   Main-is:             Main.hs
   hs-source-dirs:      cryptol
   Other-modules:       OptParser,
@@ -182,6 +186,8 @@ executable cryptol
       ld-options:      -static -pthread
 
 executable cryptolnb
+  Default-language:
+    Haskell98
   buildable:           False
   Main-is:             Main_notebook.hs
   hs-source-dirs:      cryptol, notebook
