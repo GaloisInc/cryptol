@@ -12,13 +12,15 @@
 
 module Data.SBV.SMT.SMTLib2(cvt, addNonEqConstraints) where
 
-import Data.Bits (bit)
-import Data.Char (intToDigit)
+import Data.Bits     (bit)
+import Data.Char     (intToDigit)
+import Data.Function (on)
+import Data.Ord      (comparing)
 import qualified Data.Foldable as F (toList)
 import qualified Data.Map      as M
 import qualified Data.IntMap   as IM
 import qualified Data.Set      as Set
-import Data.List (intercalate, partition)
+import Data.List (intercalate, partition, groupBy, sortBy)
 import Numeric (showIntAtBase, showHex)
 
 import Data.SBV.BitVectors.AlgReals
@@ -36,7 +38,7 @@ addNonEqConstraints rm qinps allNonEqConstraints (SMTLibPgm _ (aliasTable, pre, 
   | True
   = Just $ intercalate "\n" $ pre
     ++ [ "; --- refuted-models ---" ]
-    ++ concatMap (nonEqs rm) (map (map intName) nonEqConstraints)
+    ++ refutedModel
     ++ post
  where refutedModel = concatMap (nonEqs rm) (map (map intName) nonEqConstraints)
        intName (s, c)
@@ -47,11 +49,27 @@ addNonEqConstraints rm qinps allNonEqConstraints (SMTLibPgm _ (aliasTable, pre, 
        topUnivs = [s | (_, (_, s)) <- takeWhile (\p -> fst p == EX) qinps]
 
 nonEqs :: RoundingMode -> [(String, CW)] -> [String]
-nonEqs _  []     =  []
-nonEqs rm [sc]   =  ["(assert " ++ nonEq rm sc ++ ")"]
-nonEqs rm (sc:r) =  ["(assert (or " ++ nonEq rm sc]
-                 ++ map (("            " ++) . nonEq rm) r
-                 ++ ["        ))"]
+nonEqs rm scs = format $ interp ps ++ disallow (map eqClass uninterpClasses)
+  where (ups, ps) = partition (isUninterpreted . snd) scs
+        format []     =  []
+        format [m]    =  ["(assert " ++ m ++ ")"]
+        format (m:ms) =  ["(assert (or " ++ m]
+                      ++ map ("            " ++) ms
+                      ++ ["        ))"]
+        -- Regular (or interpreted) sorts simply get a constraint that we disallow the current assignment
+        interp = map $ nonEq rm
+        -- Determine the equivalnce classes of uninterpreted sorts:
+        uninterpClasses = filter (\l -> length l > 1) -- Only need this class if it has at least two members
+                        . map (map fst)               -- throw away sorts, we only need the names
+                        . groupBy ((==) `on` snd)     -- make sure they belong to the same sort and have the same value
+                        . sortBy (comparing snd)      -- sort them according to their sorts first
+                        $ ups                         -- take the uninterpreted sorts
+        -- Uninterpreted sorts get a constraint that says the equivalence classes as determined by the solver are disallowed:
+        eqClass :: [String] -> String
+        eqClass [] = error "SBV.allSat.nonEqs: Impossible happened, disallow received an empty list"
+        eqClass cs = "(= " ++ unwords cs ++ ")"
+        -- Now, take the conjunction of equivalence classes and assert it's negation:
+        disallow = map $ \ec -> "(not " ++ ec ++ ")"
 
 nonEq :: RoundingMode -> (String, CW) -> String
 nonEq rm (s, c) = "(not (= " ++ s ++ " " ++ cvtCW rm c ++ "))"
@@ -61,6 +79,7 @@ tbd e = error $ "SBV.SMTLib2: Not-yet-supported: " ++ e
 
 -- | Translate a problem into an SMTLib2 script
 cvt :: RoundingMode                 -- ^ User selected rounding mode to be used for floating point arithmetic
+    -> Maybe Logic                  -- ^ SMT-Lib logic, if requested by the user
     -> SolverCapabilities           -- ^ capabilities of the current solver
     -> Set.Set Kind                 -- ^ kinds used
     -> Bool                         -- ^ is this a sat problem?
@@ -76,7 +95,7 @@ cvt :: RoundingMode                 -- ^ User selected rounding mode to be used 
     -> [SW]                         -- ^ extra constraints
     -> SW                           -- ^ output variable
     -> ([String], [String])
-cvt rm solverCaps kindInfo isSat comments inputs skolemInps consts tbls arrs uis axs (SBVPgm asgnsSeq) cstrs out = (pre, [])
+cvt rm smtLogic solverCaps kindInfo isSat comments inputs skolemInps consts tbls arrs uis axs (SBVPgm asgnsSeq) cstrs out = (pre, [])
   where -- the logic is an over-approaximation
         hasInteger = KUnbounded `Set.member` kindInfo
         hasReal    = KReal      `Set.member` kindInfo
@@ -85,6 +104,8 @@ cvt rm solverCaps kindInfo isSat comments inputs skolemInps consts tbls arrs uis
         hasBVs     = not $ null [() | KBounded{} <- Set.toList kindInfo]
         sorts      = [s | KUninterpreted s <- Set.toList kindInfo]
         logic
+           | Just l <- smtLogic
+           = ["(set-logic " ++ show l ++ ") ; NB. User specified."]
            | hasDouble || hasFloat    -- NB. We don't check for quantifiers here, we probably should..
            = if hasBVs
              then ["(set-logic QF_FPABV)"]
@@ -244,7 +265,7 @@ swFunType :: [SW] -> SW -> String
 swFunType ss s = "(" ++ unwords (map swType ss) ++ ") " ++ swType s
 
 smtType :: Kind -> String
-smtType (KBounded False 1) = "Bool"
+smtType KBool              = "Bool"
 smtType (KBounded _ sz)    = "(_ BitVec " ++ show sz ++ ")"
 smtType KUnbounded         = "Int"
 smtType KReal              = "Real"
@@ -267,14 +288,16 @@ cvtSW skolemMap s
   | True
   = show s
 
--- SMTLib2 requires the width of literals to match the type exactly;
--- hexadecimal works only for sizes that are multiples of 4.
+-- Carefully code hex numbers, SMTLib is picky about lengths of hex constants. For the time
+-- being, SBV only supports sizes that are multiples of 4, but the below code is more robust
+-- in case of future extensions to support arbitrary sizes.
 hex :: Int -> Integer -> String
+hex 1  v = "#b" ++ show v
 hex sz v
   | sz `mod` 4 == 0 = "#x" ++ pad (sz `div` 4) (showHex v "")
-  | otherwise       = "#b" ++ pad sz (showBin v "")
-  where pad n s = replicate (n - length s) '0' ++ s
-        showBin = showIntAtBase 2 intToDigit
+  | True            = "#b" ++ pad sz (showBin v "")
+   where pad n s = replicate (n - length s) '0' ++ s
+         showBin = showIntAtBase 2 intToDigit
 
 cvtCW :: RoundingMode -> CW -> String
 cvtCW rm x
@@ -318,7 +341,8 @@ cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
         boolOp   = all isBoolean arguments
         bad | intOp = error $ "SBV.SMTLib2: Unsupported operation on unbounded integers: " ++ show expr
             | True  = error $ "SBV.SMTLib2: Unsupported operation on real values: " ++ show expr
-        ensureBV = bvOp || bad
+        ensureBVOrBool = bvOp || boolOp || bad
+        ensureBV       = bvOp || bad
         addRM s = s ++ " " ++ smtRoundingMode rm
         lift2  o _ [x, y] = "(" ++ o ++ " " ++ x ++ " " ++ y ++ ")"
         lift2  o _ sbvs   = error $ "SBV.SMTLib2.sh.lift2: Unexpected arguments: "   ++ show (o, sbvs)
@@ -351,6 +375,7 @@ cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
           | needsCheck = "(ite " ++ cond ++ ssw e ++ " " ++ lkUp ++ ")"
           | True       = lkUp
           where needsCheck = case aKnd of
+                              KBool            -> (2::Integer) > fromIntegral l
                               KBounded _ n     -> (2::Integer)^n > fromIntegral l
                               KUnbounded       -> True
                               KReal            -> error "SBV.SMT.SMTLib2.cvtExp: unexpected real valued index"
@@ -362,6 +387,7 @@ cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
                  | hasSign i = "(or " ++ le0 ++ " " ++ gtl ++ ") "
                  | True      = gtl ++ " "
                 (less, leq) = case aKnd of
+                                KBool            -> error "SBV.SMT.SMTLib2.cvtExp: unexpected boolean valued index"
                                 KBounded{}       -> if hasSign i then ("bvslt", "bvsle") else ("bvult", "bvule")
                                 KUnbounded       -> ("<", "<=")
                                 KReal            -> ("<", "<=")
@@ -402,7 +428,7 @@ cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
            | intOp = "(div " ++ ssw a ++ " " ++ show (bit i :: Integer) ++ ")"  -- Implement shiftR by division by 2^i
            | True  = bad
         sh (SBVApp op args)
-          | Just f <- lookup op smtBVOpTable, ensureBV
+          | Just f <- lookup op smtBVOpTable, ensureBVOrBool
           = f (any hasSign args) (map ssw args)
           where -- The first 4 operators below do make sense for Integer's in Haskell, but there's
                 -- no obvious counterpart for them in the SMTLib translation.
@@ -446,6 +472,7 @@ cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
                                   , (Rem,         lift2   "mod")
                                   ]
                 smtOpFloatDoubleTable = smtIntRealShared
+                                  ++ [(Quot, lift2WM "/")]
                 smtIntRealShared  = [ (Plus,          lift2WM "+")
                                     , (Minus,         lift2WM "-")
                                     , (Times,         lift2WM "*")

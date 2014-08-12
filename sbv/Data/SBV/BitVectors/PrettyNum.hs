@@ -27,7 +27,6 @@ import Data.Word  (Word8, Word16, Word32, Word64)
 import Numeric    (showIntAtBase, showHex, readInt)
 
 import Data.SBV.BitVectors.Data
-import Data.SBV.BitVectors.Model () -- instances only
 
 -- | PrettyNum class captures printing of numbers in hex and binary formats; also supporting negative numbers.
 --

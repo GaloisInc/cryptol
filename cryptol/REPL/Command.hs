@@ -321,7 +321,14 @@ proveCmd str = do
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose, str) (expr, schema)
+  result <- liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose) (expr, schema)
+  ppOpts <- getPPValOpts
+  case result of
+    Left msg        -> io $ putStrLn msg
+    Right Nothing   -> io $ putStrLn "Q.E.D."
+    Right (Just vs) -> io $ print $ hsep (doc : docs) <+> text "= False"
+                         where doc = ppPrec 3 parseExpr -- function application has precedence 3
+                               docs = map (pp . E.WithBase ppOpts) vs
 
 satCmd :: String -> REPL ()
 satCmd str = do
@@ -330,7 +337,14 @@ satCmd str = do
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose, str) (expr, schema)
+  result <- liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose) (expr, schema)
+  ppOpts <- getPPValOpts
+  case result of
+    Left msg        -> io $ putStrLn msg
+    Right Nothing   -> io $ putStrLn "Unsatisfiable."
+    Right (Just vs) -> io $ print $ hsep (doc : docs) <+> text "= True"
+                         where doc = ppPrec 3 parseExpr -- function application has precedence 3
+                               docs = map (pp . E.WithBase ppOpts) vs
 
 specializeCmd :: String -> REPL ()
 specializeCmd str = do
@@ -473,7 +487,7 @@ browseVars pfx = do
 
 setOptionCmd :: String -> REPL ()
 setOptionCmd str
-  | Just value <- mbValue = setUser (mkKey key) value
+  | Just value <- mbValue = setUser key value
   | null key              = mapM_ (describe . optName) (leaves userOptions)
   | otherwise             = describe key
   where
@@ -483,18 +497,17 @@ setOptionCmd str
               _ : stuff -> Just (trim stuff)
               _         -> Nothing
 
-
-
-  mkKey = takeWhile (not . isSpace)
-
   describe k = do
-    ev <- tryGetUser (mkKey k)
+    ev <- tryGetUser k
     io $ case ev of
            Just (EnvString s)   -> putStrLn (k ++ " = " ++ s)
            Just (EnvNum n)      -> putStrLn (k ++ " = " ++ show n)
            Just (EnvBool True)  -> putStrLn (k ++ " = on")
            Just (EnvBool False) -> putStrLn (k ++ " = off")
-           Nothing              -> putStrLn ("Unknown user option: `" ++ k ++ "`")
+           Nothing              -> do putStrLn ("Unknown user option: `" ++ k ++ "`")
+                                      when (any isSpace k) $ do
+                                        let (k1, k2) = break isSpace k
+                                        putStrLn ("Did you mean: `:set " ++ k1 ++ " =" ++ k2 ++ "`?")
 
 
 helpCmd :: String -> REPL ()

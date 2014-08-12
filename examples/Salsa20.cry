@@ -3,6 +3,8 @@
  * Distributed under the terms of the BSD3 license (see LICENSE file)
  */
 
+// see http://cr.yp.to/snuffle/spec.pdf
+
 module Salsa20 where
 
 quarterround : [4][32] -> [4][32]

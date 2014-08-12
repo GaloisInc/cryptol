@@ -8,17 +8,14 @@
 
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Cryptol.Symbolic.BitVector where
 
 import Data.Bits
 import Control.Monad (replicateM)
-import Control.Monad.IO.Class
-import Control.Monad.Reader (MonadReader, ReaderT, ask, runReaderT)
-import Data.Bits
-import Data.IORef
 import System.Random
-import Test.QuickCheck (quickCheck)
 
 import Data.SBV.Bridge.Yices
 import Data.SBV.Internals
@@ -26,7 +23,7 @@ import Data.SBV.BitVectors.Data
 
 -- BitVector type --------------------------------------------------------------
 
-data BitVector = BV { width :: !Int, val :: !Integer }
+data BitVector = BV { signedcxt :: Bool, width :: !Int, val :: !Integer }
     deriving (Eq, Ord, Show)
 -- ^ Invariant: BV w x requires that 0 <= w and 0 <= x < 2^w.
 
@@ -35,44 +32,64 @@ bitMask w = bit w - 1
 
 -- | Smart constructor for bitvectors.
 bv :: Int -> Integer -> BitVector
-bv w x = BV w (x .&. bitMask w)
+bv = sbv False
 
-unsigned :: BitVector -> Integer
-unsigned = val
+sbv :: Bool -> Int -> Integer -> BitVector
+sbv b w x = BV b w (x .&. bitMask w)
 
-signed :: BitVector -> Integer
-signed (BV w x)
+unsigned :: Int -> Integer -> Integer
+unsigned w x = x + bit w
+
+signed :: Int -> Integer -> Integer
+signed w x
   | w > 0 && testBit x (w - 1) = x - bit w
   | otherwise                  = x
 
 same :: Int -> Int -> Int
 same m n = if m == n then m else error $ "BitVector size mismatch: " ++ show (m, n)
 
+instance SignCast SWord SWord where
+  signCast (SBV (KBounded _ w) (Left (cwVal -> (CWInteger x)))) =
+    SBV k (Left (CW k (CWInteger (signed w x)))) where
+      k = KBounded True w
+  signCast x@(SBV (KBounded _ w) _) = SBV k (Right (cache y)) where
+    k = KBounded True w
+    y st = do xsw <- sbvToSW st x
+              newExpr st k (SBVApp (Extract (intSizeOf x-1) 0) [xsw])
+  signCast _ = error "SignCast not called on BitVector value"
+  unsignCast (SBV (KBounded _ w) (Left (cwVal -> (CWInteger x)))) =
+    SBV k (Left (CW k (CWInteger (unsigned w x)))) where
+      k = KBounded False w
+  unsignCast x@(SBV (KBounded _ w) _) = SBV k (Right (cache y)) where
+    k = KBounded False w
+    y st = do xsw <- sbvToSW st x
+              newExpr st k (SBVApp (Extract (intSizeOf x-1) 0) [xsw])
+
 instance Num BitVector where
   fromInteger n = error $ "fromInteger " ++ show n ++ " :: BitVector"
-  BV m x + BV n y = bv (same m n) (x + y)
-  BV m x - BV n y = bv (same m n) (x - y)
-  BV m x * BV n y = bv (same m n) (x * y)
-  negate (BV m x) = bv m (- x)
+  BV s m x + BV _ n y = sbv s (same m n) (x + y)
+  BV s m x - BV _ n y = sbv s (same m n) (x - y)
+  BV s m x * BV _ n y = sbv s (same m n) (x * y)
+  negate (BV s m x) = sbv s m (- x)
   abs = id
-  signum (BV m _) = bv m 1
+  signum (BV s m _) = sbv s m 1
 
 instance Bits BitVector where
-  BV m x .&. BV n y        = BV (same m n) (x .&. y)
-  BV m x .|. BV n y        = BV (same m n) (x .|. y)
-  BV m x `xor` BV n y      = BV (same m n) (x `xor` y)
-  complement (BV m x)      = BV m (x `xor` bitMask m)
-  shift (BV m x) i         = bv m (shift x i)
-  rotate (BV m x) i        = bv m (shift x j .|. shift x (j - m))
-                               where j = i `mod` m
-  bit _i                   = error "bit: can't determine width"
-  setBit (BV m x) i        = BV m (setBit x i)
-  clearBit (BV m x) i      = BV m (clearBit x i)
-  complementBit (BV m x) i = BV m (complementBit x i)
-  testBit (BV _ x) i       = testBit x i
-  bitSize (BV m _)         = m
-  isSigned _               = False
-  popCount (BV _ x)        = popCount x
+  BV s m x .&. BV _ n y        = BV s (same m n) (x .&. y)
+  BV s m x .|. BV _ n y        = BV s (same m n) (x .|. y)
+  BV s m x `xor` BV _ n y      = BV s (same m n) (x `xor` y)
+  complement (BV s m x)        = BV s m (x `xor` bitMask m)
+  shift (BV s m x) i           = sbv s m (shift x i)
+  rotate (BV s m x) i          = sbv s m (shift x j .|. shift x (j - m))
+                                  where j = i `mod` m
+  bit _i                       = error "bit: can't determine width"
+  setBit (BV s m x) i          = BV s m (setBit x i)
+  clearBit (BV s m x) i        = BV s m (clearBit x i)
+  complementBit (BV s m x) i   = BV s m (complementBit x i)
+  testBit (BV _ _ x) i         = testBit x i
+  bitSize (BV _ m _)           = m
+  isSigned (BV s _ _)          = s
+  popCount (BV _ _ x)          = popCount x
 
 --------------------------------------------------------------------------------
 -- SBV class instances
@@ -80,12 +97,12 @@ instance Bits BitVector where
 type SWord = SBV BitVector
 
 instance HasKind BitVector where
-  kindOf (BV w _) = KBounded False w
+  kindOf (BV s w _) = KBounded s w
 
 instance SymWord BitVector where
-  literal (BV w x) = SBV k (Left (mkConstCW k x))
-      where k = KBounded False w
-  fromCW c@(CW (KBounded False w) _) = BV w (fromCW c)
+  literal (BV s w x) = SBV k (Left (mkConstCW k x))
+      where k = KBounded s w
+  fromCW c@(CW (KBounded s w) _) = BV s w (fromCW c)
   fromCW c = error $ "fromCW: Unsupported non-integral value: " ++ show c
   mkSymWord _ _ = error "mkSymWord unimplemented for type BitVector"
 
@@ -97,10 +114,10 @@ instance FromBits (SBV BitVector) where
           go !acc !i (x:xs) = go (ite x (setBit acc i) acc) (i+1) xs
 
 instance SDivisible BitVector where
-  sQuotRem (BV m x) (BV n y) = (BV w q, BV w r)
+  sQuotRem (BV _ m x) (BV _ n y) = (BV False w q, BV False w r)
     where (q, r) = quotRem x y
           w = same m n
-  sDivMod (BV m x) (BV n y) = (BV w q, BV w r)
+  sDivMod (BV _ m x) (BV _ n y) = (BV False w q, BV False w r)
     where (q, r) = divMod x y
           w = same m n
 
@@ -109,8 +126,9 @@ instance SDivisible (SBV BitVector) where
   sDivMod  = liftDMod
 
 extract :: Int -> Int -> SWord -> SWord
-extract i j x =
+extract i j x@(SBV (KBounded s _) _) =
   case x of
+    _ | i < j -> SBV k (Left (CW k (CWInteger 0)))
     SBV _ (Left cw) ->
       case cw of
         CW _ (CWInteger v) -> SBV k (Left (normCW (CW k (CWInteger (v `shiftR` j)))))
@@ -119,7 +137,7 @@ extract i j x =
       where y st = do sw <- sbvToSW st x
                       newExpr st k (SBVApp (Extract i j) [sw])
   where
-    k = KBounded False (i - j + 1)
+    k = KBounded s (i - j + 1)
 
 cat :: SWord -> SWord -> SWord
 cat x y | bitSize x == 0 = y
@@ -137,23 +155,23 @@ cat x y = SBV k (Right (cache z))
                   newExpr st k (SBVApp Join [xsw, ysw])
 
 randomSBVBitVector :: Int -> IO (SBV BitVector)
-randomSBVBitVector width = do
-  bs <- replicateM width randomIO
+randomSBVBitVector w = do
+  bs <- replicateM w randomIO
   let x = sum [ bit i | (i, b) <- zip [0..] bs, b ]
-  return (literal (bv width x))
+  return (literal (bv w x))
 
 mkSymBitVector :: Maybe Quantifier -> Maybe String -> Int -> Symbolic (SBV BitVector)
-mkSymBitVector mbQ mbNm width =
-  mkSymSBVWithRandom (randomSBVBitVector width) mbQ (KBounded False width) mbNm
+mkSymBitVector mbQ mbNm w =
+  mkSymSBVWithRandom (randomSBVBitVector w) mbQ (KBounded False w) mbNm
 
 forallBV :: String -> Int -> Symbolic (SBV BitVector)
-forallBV name width = mkSymBitVector (Just ALL) (Just name) width
+forallBV nm w = mkSymBitVector (Just ALL) (Just nm) w
 
 forallBV_ :: Int -> Symbolic (SBV BitVector)
-forallBV_ width = mkSymBitVector (Just ALL) Nothing width
+forallBV_ w = mkSymBitVector (Just ALL) Nothing w
 
 existsBV :: String -> Int -> Symbolic (SBV BitVector)
-existsBV name width = mkSymBitVector (Just EX) (Just name) width
+existsBV nm w = mkSymBitVector (Just EX) (Just nm) w
 
 existsBV_ :: Int -> Symbolic (SBV BitVector)
-existsBV_ width = mkSymBitVector (Just EX) Nothing width
+existsBV_ w = mkSymBitVector (Just EX) Nothing w

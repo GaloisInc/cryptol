@@ -72,19 +72,24 @@ finTValue tval =
 
 -- Values ----------------------------------------------------------------------
 
-data Value
-  = VRecord [(Name,Value)]    -- @ { .. } @
-  | VTuple Int [Value]        -- @ ( .. ) @
-  | VBit Bool                 -- @ Bit    @
-  | VSeq Bool [Value]         -- @ [n]a   @
-                              -- The boolean parameter indicates whether or not
-                              -- this is a sequence of bits.
-  | VWord Integer Integer     -- @ [n]Bit @ width,value.
-                              -- The value may contain junk bits
-  | VStream [Value]           -- @ [inf]a @
-  | VFun (Value -> Value)     -- functions
-  | VPoly (TValue -> Value)   -- polymorphic values (kind *)
+data BV = BV !Integer !Integer -- ^ width, value
+                               -- The value may contain junk bits
 
+
+-- | Generic value type, parameterized by bit and word types.
+data GenValue b w
+  = VRecord [(Name, GenValue b w)]      -- @ { .. } @
+  | VTuple [GenValue b w]               -- @ ( .. ) @
+  | VBit b                              -- @ Bit    @
+  | VSeq Bool [GenValue b w]            -- @ [n]a   @
+                                        -- The boolean parameter indicates whether or not
+                                        -- this is a sequence of bits.
+  | VWord w                             -- @ [n]Bit @
+  | VStream [GenValue b w]              -- @ [inf]a @
+  | VFun (GenValue b w -> GenValue b w) -- functions
+  | VPoly (TValue -> GenValue b w)      -- polymorphic values (kind *)
+
+type Value = GenValue Bool BV
 
 -- | An evaluated type.
 -- These types do not contain type variables, type synonyms, or type functions.
@@ -112,13 +117,13 @@ ppValue opts = loop
     VRecord fs         -> braces (sep (punctuate comma (map ppField fs)))
       where
       ppField (f,r) = pp f <+> char '=' <+> loop r
-    VTuple _ vals      -> parens (sep (punctuate comma (map loop vals)))
+    VTuple vals        -> parens (sep (punctuate comma (map loop vals)))
     VBit b | b         -> text "True"
            | otherwise -> text "False"
     VSeq isWord vals
-       | isWord        -> uncurry (ppWord opts) (fromVWord val)
+       | isWord        -> ppWord opts (fromVWord val)
        | otherwise     -> ppWordSeq vals
-    VWord w i          -> ppWord opts w (mask w i)
+    VWord (BV w i)     -> ppWord opts (BV w (mask w i))
     VStream vals       -> brackets $ fsep
                                    $ punctuate comma
                                    ( take (useInfLength opts) (map loop vals)
@@ -147,8 +152,8 @@ data WithBase a = WithBase PPOpts a
 instance PP (WithBase Value) where
   ppPrec _ (WithBase opts v) = ppValue opts v
 
-ppWord :: PPOpts -> Integer -> Integer -> Doc
-ppWord opts width i
+ppWord :: PPOpts -> BV -> Doc
+ppWord opts (BV width i)
   | base > 36 = integer i -- not sure how to rule this out
   | asciiMode opts width = text (show (toEnum (fromInteger i) :: Char))
   | otherwise = prefix <> text value
@@ -184,8 +189,8 @@ mask w i = i .&. ((1 `shiftL` fromInteger w) - 1)
 
 -- NOTE this assumes that the sequence of bits is big-endian and finite, so the
 -- first element of the list will be the most significant bit.
-packWord :: [Bool] -> (Integer,Integer)
-packWord bits = (toInteger w,a)
+packWord :: [Bool] -> BV
+packWord bits = BV (toInteger w) a
   where
   w = length bits
   a = foldl set 0 (zip [w - 1, w - 2 .. 0] bits)
@@ -194,8 +199,8 @@ packWord bits = (toInteger w,a)
 
 -- NOTE this produces a list of bits that represent a big-endian word, so the
 -- most significant bit is the first element of the list.
-unpackWord :: Integer -> Integer -> [Bool]
-unpackWord w a = [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
+unpackWord :: BV -> [Bool]
+unpackWord (BV w a) = [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
   where
   w' = fromInteger w
 
@@ -204,29 +209,29 @@ unpackWord w a = [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
 
 -- | Create a packed word of n bits.
 word :: Integer -> Integer -> Value
-word n i = VWord n (mask n i)
+word n i = VWord (BV n (mask n i))
 
-lam :: (Value -> Value) -> Value
+lam :: (GenValue b w -> GenValue b w) -> GenValue b w
 lam  = VFun
 
 -- | A type lambda that expects a @Type@.
-tlam :: (TValue -> Value) -> Value
+tlam :: (TValue -> GenValue b w) -> GenValue b w
 tlam  = VPoly
 
 -- | Generate a stream.
-toStream :: [Value] -> Value
+toStream :: [GenValue b w] -> GenValue b w
 toStream  = VStream
 
-toFinSeq :: TValue -> [Value] -> Value
+toFinSeq :: TValue -> [GenValue b w] -> GenValue b w
 toFinSeq elty = VSeq (isTBit elty)
 
 -- | This is strict!
 boolToWord :: [Bool] -> Value
-boolToWord = uncurry VWord . packWord
+boolToWord = VWord . packWord
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
-toSeq :: TValue -> TValue -> [Value] -> Value
+toSeq :: TValue -> TValue -> [GenValue b w] -> GenValue b w
 toSeq len elty vals = case numTValue len of
   Nat n -> toFinSeq elty (genericTake n vals)
   Inf   -> toStream vals
@@ -252,7 +257,7 @@ toPackedSeq len elty vals = case numTValue len of
 -- Value Destructors -----------------------------------------------------------
 
 -- | Extract a bit value.
-fromVBit :: Value -> Bool
+fromVBit :: GenValue b w -> b
 fromVBit val = case val of
   VBit b -> b
   _      -> evalPanic "fromVBit" ["not a Bit"]
@@ -261,7 +266,7 @@ fromVBit val = case val of
 fromSeq :: Value -> [Value]
 fromSeq val = case val of
   VSeq _ vs  -> vs
-  VWord w a  -> map VBit (unpackWord w a)
+  VWord bv   -> map VBit (unpackWord bv)
   VStream vs -> vs
   _          -> evalPanic "fromSeq" ["not a sequence"]
 
@@ -270,16 +275,16 @@ fromStr = map (toEnum . fromInteger . fromWord) . fromSeq
 
 -- | Extract a packed word.
 -- Note that this does not clean-up any junk bits in the word.
-fromVWord :: Value -> (Integer,Integer)
+fromVWord :: Value -> BV
 fromVWord val = case val of
-  VWord w a               -> (w,a) -- this should always mask
+  VWord bv                -> bv -- this should always mask
   VSeq isWord bs | isWord -> packWord (map fromVBit bs)
   _                       -> evalPanic "fromVWord"
                               ["not a word", show $ ppValue defaultPPOpts val]
 
 vWordLen :: Value -> Maybe Integer
 vWordLen val = case val of
-  VWord w _               -> Just w
+  VWord (BV w _)          -> Just w
   VSeq isWord bs | isWord -> Just (toInteger (length bs))
   _                       -> Nothing
 
@@ -288,28 +293,34 @@ vWordLen val = case val of
 fromWord :: Value -> Integer
 fromWord val = mask w a
   where
-  (w,a) = fromVWord val
+  BV w a = fromVWord val
 
 -- | Extract a function from a value.
-fromVFun :: Value -> (Value -> Value)
+fromVFun :: GenValue b w -> (GenValue b w -> GenValue b w)
 fromVFun val = case val of
   VFun f -> f
   _      -> evalPanic "fromVFun" ["not a function"]
 
+-- | Extract a polymorphic function from a value.
+fromVPoly :: GenValue b w -> (TValue -> GenValue b w)
+fromVPoly val = case val of
+  VPoly f -> f
+  _       -> evalPanic "fromVPoly" ["not a polymorphic value"]
+
 -- | Extract a tuple from a value.
-fromVTuple :: Value -> (Int,[Value])
+fromVTuple :: GenValue b w -> [GenValue b w]
 fromVTuple val = case val of
-  VTuple len vs -> (len,vs)
-  _             -> evalPanic "fromVTuple" ["not a tuple"]
+  VTuple vs -> vs
+  _         -> evalPanic "fromVTuple" ["not a tuple"]
 
 -- | Extract a record from a value.
-fromVRecord :: Value -> [(Name,Value)]
+fromVRecord :: GenValue b w -> [(Name, GenValue b w)]
 fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record"]
 
 -- | Lookup a field in a record.
-lookupRecord :: Name -> Value -> Value
+lookupRecord :: Name -> GenValue b w -> GenValue b w
 lookupRecord f rec = case lookup f (fromVRecord rec) of
   Just val -> val
   Nothing  -> evalPanic "lookupRecord" ["malformed record"]

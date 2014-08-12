@@ -24,7 +24,6 @@ import System.Random
 import Text.PrettyPrint.HughesPJ
 
 import Data.SBV.BitVectors.Data
-import Data.SBV.BitVectors.AlgReals
 import Data.SBV.BitVectors.PrettyNum (shex, showCFloat, showCDouble)
 import Data.SBV.Compilers.CodeGen
 
@@ -162,6 +161,7 @@ showCType = show . kindOf
 -- | The printf specifier for the type
 specifier :: CgConfig -> SW -> Doc
 specifier cfg sw = case kindOf sw of
+                     KBool            -> spec (False, 1)
                      KBounded b i     -> spec (b, i)
                      KUnbounded       -> spec (True, fromJust (cgInteger cfg))
                      KReal            -> specF (fromJust (cgReal cfg))
@@ -443,7 +443,7 @@ genCProg cfg fn proto (Result kindInfo _tvals cgs ins preConsts tbls arrs _ _ (S
                       len (KFloat{})         = 6 -- SFloat
                       len (KDouble{})        = 7 -- SDouble
                       len (KUnbounded{})     = 8
-                      len (KBounded False 1) = 5 -- SBool
+                      len KBool              = 5 -- SBool
                       len (KBounded False n) = 5 + length (show n) -- SWordN
                       len (KBounded True  n) = 4 + length (show n) -- SIntN
                       len (KUninterpreted s) = die $ "Uninterpreted sort: " ++ s
@@ -499,8 +499,8 @@ ppExpr cfg consts (SBVApp op opArgs) = p op (map (showSW cfg consts) opArgs)
         p (Shr i) [a]          = shift  False i a (head opArgs)
         p Not [a]              = case kindOf (head opArgs) of
                                    -- be careful about booleans, bitwise complement is not correct for them!
-                                   KBounded False 1 -> text "!" <> a
-                                   _                -> text "~" <> a
+                                   KBool -> text "!" <> a
+                                   _     -> text "~" <> a
         p Ite [a, b, c] = a <+> text "?" <+> b <+> text ":" <+> c
         p (LkUp (t, k, _, len) ind def) []
           | not rtc                    = lkUp -- ignore run-time-checks per user request
@@ -517,6 +517,7 @@ ppExpr cfg consts (SBVApp op opArgs) = p op (map (showSW cfg consts) opArgs)
                 canOverflow True  sz = (2::Integer)^(sz-1)-1 >= fromIntegral len
                 canOverflow False sz = (2::Integer)^sz    -1 >= fromIntegral len
                 (needsCheckL, needsCheckR) = case k of
+                                               KBool            -> (False, canOverflow False (1::Int))
                                                KBounded sg sz   -> (sg, canOverflow sg sz)
                                                KReal            -> die "array index with real value"
                                                KFloat           -> die "array index with float value"

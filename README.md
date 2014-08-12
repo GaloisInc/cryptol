@@ -37,7 +37,7 @@ interpreter in the Start menu.
 
 Cryptol currently depends on the
 [CVC4 SMT solver](http://cvc4.cs.nyu.edu/) to solve constraints during
-typechecking, and as the default solver for the `:sat` and `:prove`
+type checking, and as the default solver for the `:sat` and `:prove`
 commands. You can download CVC4 binaries for a variety of platforms
 from their [download page](http://cvc4.cs.nyu.edu/downloads/).
 
@@ -91,7 +91,7 @@ From the Cryptol source directory, run:
 
 This will build Cryptol in place. From there, there are additional targets:
 
-- `make test`: run the regression test suite
+- `make test`: run the regression test suite (note: 4 failures is expected)
 - `make docs`: build the Cryptol documentation (requires
   [pandoc](http://johnmacfarlane.net/pandoc/) and
   [TeX Live](https://www.tug.org/texlive/))
@@ -128,6 +128,8 @@ then Cryptol is installed correctly. If it prints something like
 then make sure you've installed [CVC4](#getting-cvc4), and that the
 binary is on your `PATH`.
 
+As noted above, `make test` currently results in four failures. An issue has been filed on GitHub for each of them.
+
 # Contributing
 
 We believe that anyone who uses Cryptol is making an important
@@ -154,7 +156,7 @@ send email to <cryptol@galois.com>.
 If you plan to do development work on the Cryptol interpreter, please
 make a fork of the GitHub repository and send along pull
 requests. This makes it easier for us to track development and to
-incorprate your changes.
+incorporate your changes.
 
 ### Repository Structure
 

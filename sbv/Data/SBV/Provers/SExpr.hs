@@ -11,10 +11,9 @@
 
 module Data.SBV.Provers.SExpr where
 
-import Control.Monad.Error ()             -- for Monad (Either String) instance
-import Data.Char           (isDigit, ord)
-import Data.List           (isPrefixOf)
-import Numeric             (readInt, readDec, readHex, fromRat)
+import Data.Char            (isDigit, ord)
+import Data.List            (isPrefixOf)
+import Numeric              (readInt, readDec, readHex, fromRat)
 
 import Data.SBV.BitVectors.AlgReals
 import Data.SBV.BitVectors.Data (nan, infinity)
