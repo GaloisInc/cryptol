@@ -346,7 +346,7 @@ satCmd str = do
     Right (Just vs) -> do
         let solutions = map (map (pp . E.WithBase ppOpts)) vs
         io $ print ((ppPrec 3 parseExpr) <+> text "is satisfied by:") -- function application has precedence 3
-        mapM_ (io . print) (if n < 0 then solutions else take n solutions)
+        mapM_ (io . print . hsep) (if n < 0 then solutions else take n solutions)
 
 specializeCmd :: String -> REPL ()
 specializeCmd str = do
