@@ -80,7 +80,7 @@ prove (proverName, useSolverIte, verbose) (expr, schema) = protectStack useSolve
                          SBV.ThmResult _ -> Left (show result)
                    return (Right (solution, modEnv), [])
 
-sat :: (String, Bool, Bool) -> (Expr, Schema) -> M.ModuleCmd (Either String (Maybe [Eval.Value]))
+sat :: (String, Bool, Bool) -> (Expr, Schema) -> M.ModuleCmd (Either String (Maybe [[Eval.Value]]))
 sat (proverName, useSolverIte, verbose) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
   let extDgs = allDeclGroups modEnv
   let prover = lookupProver proverName
@@ -89,18 +89,19 @@ sat (proverName, useSolverIte, verbose) (expr, schema) = protectStack useSolverI
     Right ts -> do when verbose $ putStrLn "Simulating..."
                    let env = evalDecls (emptyEnv useSolverIte) extDgs
                    let v = evalExpr env expr
-                   result <- SBV.satWith prover $ do
+                   SBV.AllSatResult (_, results) <- SBV.allSatWith prover $ do
                                args <- mapM existsFinType ts
                                b <- return $! fromVBit (foldl fromVFun v args)
                                when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
                                return b
-                   let solution = case result of
-                         SBV.SatResult (SBV.Satisfiable {}) -> Right (Just vs)
-                           where Right (_, cws) = SBV.getModel result
-                                 (vs, _) = parseValues ts cws
-                         SBV.SatResult (SBV.Unsatisfiable {}) -> Right Nothing
-                         SBV.SatResult _ -> Left (show result)
-                   return (Right (solution, modEnv), [])
+                   let solutions = case results of
+                               (SBV.Satisfiable {} : _) -> Right (Just vs) where
+                                   vs = map (\r -> let
+                                       Right (_, cws) = SBV.getModel r
+                                       (vs, _) = parseValues ts cws
+                                       in vs) results
+                               _                        -> Right Nothing
+                   return (Right (solutions, modEnv), [])
 
 protectStack :: Bool -> M.ModuleCmd (Either String a) -> M.ModuleCmd (Either String a)
 protectStack usingITE cmd modEnv = X.catchJust isOverflow (cmd modEnv) handler

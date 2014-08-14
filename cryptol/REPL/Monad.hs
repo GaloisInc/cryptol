@@ -381,6 +381,8 @@ userOptions  = mkOptionMap
     "display 7- or 8-bit words using ASCII notation."
   , OptionDescr "infLength" (EnvNum 5) checkInfLength
     "The number of elements to display for infinite sequences."
+  , OptionDescr "satNum" (EnvNum 1) (const Nothing)
+    "The number of solutions to display that satisfy an equation (-1 for infinity)."
   , OptionDescr "tests" (EnvNum 100) (const Nothing)
     "The number of random tests to try."
   , OptionDescr "prover" (EnvString "cvc4") checkProver $
