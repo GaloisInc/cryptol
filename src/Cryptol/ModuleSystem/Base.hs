@@ -69,6 +69,13 @@ renameExpr e = do
   env <- getFocusedEnv
   rename (R.namingEnv env) e
 
+-- | Rename an expression in the context of the focused module and an
+-- extended environment.
+renameExprWith :: ExtendedEnv -> P.Expr -> ModuleM P.Expr
+renameExprWith eenv e = do
+  env <- getFocusedEnv
+  rename (eeNames eenv `R.shadowing` R.namingEnv env) e
+
 -- NoPat -----------------------------------------------------------------------
 
 -- | Run the noPat pass.
@@ -228,7 +235,7 @@ checkExpr e = do
 checkExprWith :: ExtendedEnv -> P.Expr -> ModuleM (T.Expr,T.Schema)
 checkExprWith eenv e = do
   npe <- noPat e
-  re  <- renameExpr npe
+  re  <- renameExprWith eenv npe
   env <- getQualifiedEnv
   let env' = env <> eeIfaceDecls eenv
   typecheck T.tcExpr re env'
@@ -247,8 +254,8 @@ eeIfaceDecls EEnv { eeDecls = dgs } =
 -- | Typecheck a group of declarations in an extended environment.
 checkDeclsWith :: ExtendedEnv -> [P.Decl] -> ModuleM [T.DeclGroup]
 checkDeclsWith eenv ds = do
-  npds <- noPat ds
-  rds <- rename (eeNames eenv) npds
+  -- nopat must already be run
+  rds <- rename (eeNames eenv) ds
   env <- getQualifiedEnv
   let env' = env <> eeIfaceDecls eenv
   typecheck T.tcDecls rds env'

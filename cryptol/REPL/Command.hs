@@ -33,6 +33,7 @@ import REPL.Trie
 
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Base as M (preludeName)
+import qualified Cryptol.ModuleSystem.NamingEnv as M
 
 import qualified Cryptol.Eval.Value as E
 import qualified Cryptol.Testing.Random  as TestR
@@ -592,8 +593,15 @@ replCheckExpr e = do
 
 replCheckDecls :: [P.Decl] -> REPL [T.DeclGroup]
 replCheckDecls ds = do
+  npds <- liftModuleCmd $ M.noPat ds
   eenv <- getExtEnv
-  liftModuleCmd $ M.checkDeclsWith eenv ds
+  let dnames = M.namingEnv npds
+  ne' <- M.travNamingEnv uniqify dnames
+  let eenv' = eenv { M.eeNames = ne' `M.shadowing` M.eeNames eenv }
+  dgs <- liftModuleCmd $ M.checkDeclsWith eenv' npds
+  -- only update the REPL environment after a successful rename + typecheck
+  setExtEnv eenv'
+  return dgs
 
 replSpecExpr :: T.Expr -> REPL T.Expr
 replSpecExpr e = liftModuleCmd $ S.specialize e
@@ -624,9 +632,10 @@ replEvalExpr str =
 replEvalDecls :: String -> REPL ()
 replEvalDecls str = do
   decls <- replParseDecls str
-  -- TODO: extend name environment for all the names declared in decls
   dgs <- replCheckDecls decls
-  undefined
+  eenv <- getExtEnv
+  eenv' <- liftModuleCmd (M.evalDeclsWith eenv dgs)
+  setExtEnv eenv'
 
 replEdit :: String -> REPL Bool
 replEdit file = do

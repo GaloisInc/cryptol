@@ -19,6 +19,7 @@ module Cryptol.ModuleSystem (
   , evalExprWith
   , checkDeclsWith
   , evalDeclsWith
+  , noPat
   , focusedEnv
 
     -- * Interfaces
@@ -32,6 +33,7 @@ import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Monad
 import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.Parser.AST        as P
+import           Cryptol.Parser.NoPat (RemovePatterns)
 import qualified Cryptol.TypeCheck.AST     as T
 
 
@@ -83,3 +85,6 @@ checkDeclsWith eenv ds env = runModuleM env (interactive (Base.checkDeclsWith ee
 -- | Evaluate declarations and add them to the extended environment.
 evalDeclsWith :: ExtendedEnv -> [T.DeclGroup] -> ModuleCmd ExtendedEnv
 evalDeclsWith eenv dgs env = runModuleM env (interactive (Base.evalDeclsWith eenv dgs))
+
+noPat :: RemovePatterns a => a -> ModuleCmd a
+noPat a env = runModuleM env (interactive (Base.noPat a))

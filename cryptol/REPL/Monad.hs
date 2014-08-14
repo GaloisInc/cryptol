@@ -24,6 +24,7 @@ module REPL.Monad (
     -- ** Environment
   , getModuleEnv, setModuleEnv
   , getExtEnv, setExtEnv
+  , uniqify
   , getTSyns, getNewtypes, getVars
   , whenDebug
   , getExprNames
@@ -58,7 +59,8 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.AST as P
 
-import Control.Monad (unless,when)
+import Control.Applicative (Applicative(..))
+import Control.Monad (ap,unless,when)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef)
 import Data.List (isPrefixOf)
@@ -84,6 +86,7 @@ data RW = RW
   , eModuleEnv  :: M.ModuleEnv
   , eExtEnv     :: M.ExtendedEnv
   -- ^ The dynamic environment for new bindings, eg @:let@
+  , eNameSupply :: Int
   , eUserEnv    :: UserEnv
   }
 
@@ -97,6 +100,7 @@ defaultRW isBatch = do
     , eIsBatch    = isBatch
     , eModuleEnv  = env
     , eExtEnv     = mempty
+    , eNameSupply = 0
     , eUserEnv    = mkUserEnv userOptions
     }
 
@@ -125,6 +129,12 @@ runREPL isBatch m = do
 instance Functor REPL where
   {-# INLINE fmap #-}
   fmap f m = REPL (\ ref -> fmap f (unREPL m ref))
+
+instance Applicative REPL where
+  {-# INLINE pure #-}
+  pure = return
+  {-# INLINE (<*>) #-}
+  (<*>) = ap
 
 instance Monad REPL where
   {-# INLINE return #-}
@@ -295,6 +305,18 @@ getExtEnv  = eExtEnv `fmap` getRW
 
 setExtEnv :: M.ExtendedEnv -> REPL ()
 setExtEnv eenv = modifyRW_ (\rw -> rw { eExtEnv = eenv })
+
+-- | Given an existing qualified name, prefix it with a
+-- relatively-unique string. We make it unique by prefixing with a
+-- character @#@ that is not lexically valid in a module name.
+uniqify :: P.QName -> REPL P.QName
+uniqify (P.QName Nothing name) = do
+  i <- eNameSupply `fmap` getRW
+  modifyRW_ (\rw -> rw { eNameSupply = i+1 })
+  let modname' = P.ModName [ '#' : ("Uniq_" ++ show i) ]
+  return (P.QName (Just modname') name)
+uniqify qn =
+  panic "[REPL] uniqify" ["tried to uniqify a qualified name: " ++ pretty qn]
 
 -- User Environment Interaction ------------------------------------------------
 
