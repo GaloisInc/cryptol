@@ -15,7 +15,6 @@ import Control.Monad.Fix (mfix)
 import Control.Monad.IO.Class
 import Control.Monad.Reader (ask, local)
 import qualified Data.Map as Map
-import Data.Maybe (fromJust)
 import Data.Monoid (Monoid(..))
 import Data.Traversable (traverse)
 import qualified Control.Exception as X
@@ -46,9 +45,9 @@ lookupProver "yices" = SBV.yices
 lookupProver "z3"    = SBV.z3
 lookupProver s       = error $ "invalid prover: " ++ s
 
-prove :: (String, Bool, Bool, String) -> (Expr, Schema) -> M.ModuleCmd ()
-prove (proverName, useSolverIte, verbose, input) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
-  let extDgs = allDeclGroups modEnv
+prove :: (String, Bool, Bool, String) -> [DeclGroup] -> (Expr, Schema) -> M.ModuleCmd ()
+prove (proverName, useSolverIte, verbose, input) edecls (expr, schema) = protectStack useSolverIte $ \modEnv -> do
+  let extDgs = allDeclGroups modEnv ++ edecls
   let prover = lookupProver proverName
   case predArgTypes schema of
     Left msg -> do putStrLn msg
@@ -82,9 +81,9 @@ prove (proverName, useSolverIte, verbose, input) (expr, schema) = protectStack u
                        print result
                    return (Right ((), modEnv), [])
 
-sat :: (String, Bool, Bool, String) -> (Expr, Schema) -> M.ModuleCmd ()
-sat (proverName, useSolverIte, verbose, input) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
-  let extDgs = allDeclGroups modEnv
+sat :: (String, Bool, Bool, String) -> [DeclGroup] -> (Expr, Schema) -> M.ModuleCmd ()
+sat (proverName, useSolverIte, verbose, input) edecls (expr, schema) = protectStack useSolverIte $ \modEnv -> do
+  let extDgs = allDeclGroups modEnv ++ edecls
   let prover = lookupProver proverName
   case predArgTypes schema of
     Left msg -> do putStrLn msg
@@ -309,7 +308,9 @@ evalExpr env expr =
       evalIf s (evalExpr env e1) (evalExpr env e2)
 
     EComp ty e mss    -> evalComp env (evalType env ty) e mss
-    EVar n            -> force $ fromJust (lookupVar n env)
+    EVar n            -> force $ case lookupVar n env of
+                                   Just x -> x
+                                   _ -> panic "Cryptol.Symbolic.evalExpr" [ "Variable " ++ show n ++ " not found" ]
     -- TODO: how to deal with uninterpreted functions?
     ETAbs tv e        -> return $ VPoly $ \ty -> evalExpr (bindType (tpVar tv) ty env) e
     ETApp e ty        -> do VPoly f <- eval e
@@ -340,13 +341,17 @@ evalSel sel v =
         VNil      -> return VNil
         VCons {}  -> liftList v
         VFun f    -> return $ VFun $ \x -> evalSel sel =<< f x
+        _ -> panic "Cryptol.Symbolic.evalSel" [ "Tuple selector applied to non-tuple" ]
 
     RecordSel n _ ->
       case v of
-        VRecord bs  -> force $ fromJust (lookup n bs)
+        VRecord bs  -> force $ case lookup n bs of
+                                 Just x -> x
+                                 _ -> panic "Cryptol.Symbolic.evalSel" [ "Selector " ++ show n ++ " not found" ]
         VNil        -> return VNil
         VCons {}    -> liftList v
         VFun f      -> return $ VFun $ \x -> evalSel sel =<< f x
+        _ -> panic "Cryptol.Symbolic.evalSel" [ "Record selector applied to non-record" ]
 
     ListSel n _   -> case v of
                        --VSeq xs -> force $ xs !! n  -- 0-based indexing

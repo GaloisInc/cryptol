@@ -58,6 +58,7 @@ import Data.Char (isSpace,isPunctuation,isSymbol)
 import Data.Function (on)
 import Data.List (intercalate,isPrefixOf)
 import Data.Maybe (fromMaybe,mapMaybe)
+import Data.Monoid (mempty)
 import System.Exit (ExitCode(ExitSuccess))
 import System.Process (shell,createProcess,waitForProcess)
 import qualified System.Process as Process(runCommand)
@@ -324,20 +325,22 @@ proveCmd :: String -> REPL ()
 proveCmd str = do
   parseExpr <- replParseExpr str
   (expr, schema) <- replCheckExpr parseExpr
+  eenv <- getExtEnv
   -- spexpr <- replSpecExpr expr
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose, str) (expr, schema)
+  liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose, str) (M.eeDecls eenv) (expr, schema)
 
 satCmd :: String -> REPL ()
 satCmd str = do
   parseExpr <- replParseExpr str
   (expr, schema) <- replCheckExpr parseExpr
+  eenv <- getExtEnv
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose, str) (expr, schema)
+  liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose, str) (M.eeDecls eenv) (expr, schema)
 
 specializeCmd :: String -> REPL ()
 specializeCmd str = do
@@ -418,6 +421,7 @@ loadCmd path
         { lName = Just (T.mName m)
         , lPath = path
         }
+      setExtEnv mempty
 
 quitCmd :: REPL ()
 quitCmd  = stop
@@ -453,7 +457,7 @@ browseNewtypes pfx = do
 
 browseVars :: String -> REPL ()
 browseVars pfx = do
-  vars  <- getVars
+  vars <- getVars
   let allNames = vars
           {- This shows the built-ins as well:
              Map.union vars

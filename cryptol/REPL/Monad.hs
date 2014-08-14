@@ -51,6 +51,7 @@ import Cryptol.Prims.Types(typeOf)
 import Cryptol.Prims.Syntax(ECon(..),ppPrefix)
 import Cryptol.Eval (EvalError)
 import qualified Cryptol.ModuleSystem as M
+import qualified Cryptol.ModuleSystem.Base as M
 import Cryptol.Parser (ParseError,ppError)
 import Cryptol.Parser.NoInclude (IncludeError,ppIncludeError)
 import Cryptol.Parser.NoPat (Error)
@@ -258,8 +259,10 @@ keepOne src as = case as of
 getVars :: REPL (Map.Map P.QName M.IfaceDecl)
 getVars  = do
   me <- getModuleEnv
+  eenv <- getExtEnv
   let decls = M.focusedEnv me
-  return (keepOne "getVars" `fmap` M.ifDecls decls)
+      edecls = M.ifDecls (M.eeIfaceDecls eenv)
+  return (keepOne "getVars" `fmap` (M.ifDecls decls `mappend` edecls))
 
 getTSyns :: REPL (Map.Map P.QName T.TySyn)
 getTSyns  = do
