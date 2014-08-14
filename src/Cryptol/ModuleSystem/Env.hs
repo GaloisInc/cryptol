@@ -14,6 +14,7 @@ import Paths_cryptol (getDataDir)
 
 import Cryptol.Eval (EvalEnv)
 import Cryptol.ModuleSystem.Interface
+import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
@@ -21,7 +22,7 @@ import qualified Cryptol.TypeCheck.AST as T
 import Control.Monad (guard)
 import Data.Foldable (fold)
 import Data.Function (on)
-import Data.Monoid (Monoid(..))
+import Data.Monoid ((<>), Monoid(..))
 import System.Environment.Executable(splitExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath)
 import qualified Data.List as List
@@ -125,4 +126,29 @@ addLoadedModule tm lm
     { lmName      = T.mName tm
     , lmInterface = genIface tm
     , lmModule    = tm
+    }
+
+-- Extended Environments -------------------------------------------------------
+
+-- | Extra information we need to carry around to dynamically extend
+-- an environment outside the context of a single module. Particularly
+-- useful when dealing with interactive declarations as in @:let@ or
+-- @it@.
+
+data ExtendedEnv = EEnv
+  { eeNames :: R.NamingEnv
+  , eeDecls :: [T.DeclGroup]
+  , eeEnv   :: EvalEnv
+  }
+
+instance Monoid ExtendedEnv where
+  mempty = EEnv
+    { eeNames = mempty
+    , eeDecls = mempty
+    , eeEnv   = mempty
+    }
+  mappend ee1 ee2 = EEnv
+    { eeNames = eeNames ee1 <> eeNames ee2
+    , eeDecls = eeDecls ee1 <> eeDecls ee2
+    , eeEnv   = eeEnv   ee1 <> eeEnv   ee2
     }

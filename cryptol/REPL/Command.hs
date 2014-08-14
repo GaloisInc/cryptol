@@ -38,7 +38,7 @@ import qualified Cryptol.Eval.Value as E
 import qualified Cryptol.Testing.Random  as TestR
 import qualified Cryptol.Testing.Exhaust as TestX
 import Cryptol.Parser
-    (parseExprWith,ParseError(),Config(..),defaultConfig,parseModName)
+    (parseDeclsWith,parseExprWith,ParseError(),Config(..),defaultConfig,parseModName)
 import Cryptol.Parser.Position (emptyRange,getLoc)
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Subst as T
@@ -126,6 +126,7 @@ instance Ord CommandDescr where
 
 data CommandBody
   = ExprArg     (String   -> REPL ())
+  | DeclsArg    (String   -> REPL ())
   | ExprTypeArg (String   -> REPL ())
   | FilenameArg (FilePath -> REPL ())
   | OptionArg   (String   -> REPL ())
@@ -175,6 +176,8 @@ commandList  =
     "set the current working directory"
   , CommandDescr ":module" (FilenameArg moduleCmd)
     "load a module"
+  , CommandDescr ":let" (DeclsArg letCmd)
+    "bind Cryptol expressions to names"
 
   , CommandDescr ":check" (ExprArg qcCmd)
     "use random testing to check that the argument always returns true"
@@ -227,6 +230,9 @@ evalCmd str = do
   (val,_ty) <- replEvalExpr str
   ppOpts <- getPPValOpts
   io $ rethrowEvalError $ print $ pp $ E.WithBase ppOpts val
+
+letCmd :: String -> REPL ()
+letCmd = replEvalDecls
 
 qcCmd :: String -> REPL ()
 qcCmd "" =
@@ -551,6 +557,9 @@ replParse parse str = case parse str of
 replParseExpr :: String -> REPL P.Expr
 replParseExpr = replParse $ parseExprWith interactiveConfig
 
+replParseDecls :: String -> REPL [P.Decl]
+replParseDecls = replParse $ parseDeclsWith interactiveConfig
+
 interactiveConfig :: Config
 interactiveConfig = defaultConfig { cfgSource = "<interactive>" }
 
@@ -577,7 +586,14 @@ moduleCmdResult (res,ws0) = do
     Left err      -> raise (ModuleSystemError err)
 
 replCheckExpr :: P.Expr -> REPL (T.Expr,T.Schema)
-replCheckExpr e = liftModuleCmd $ M.checkExpr e
+replCheckExpr e = do
+  eenv <- getExtEnv
+  liftModuleCmd $ M.checkExprWith eenv e
+
+replCheckDecls :: [P.Decl] -> REPL [T.DeclGroup]
+replCheckDecls ds = do
+  eenv <- getExtEnv
+  liftModuleCmd $ M.checkDeclsWith eenv ds
 
 replSpecExpr :: T.Expr -> REPL T.Expr
 replSpecExpr e = liftModuleCmd $ S.specialize e
@@ -597,12 +613,20 @@ replEvalExpr str =
                let su = T.listSubst [ (T.tpVar a, t) | (a,t) <- tys ]
                return (def1, T.apSubst su (T.sType sig))
 
-     val <- liftModuleCmd (M.evalExpr def1)
+     eenv <- getExtEnv
+     val <- liftModuleCmd (M.evalExprWith eenv def1)
      whenDebug (io (putStrLn (dump def1)))
      return (val,ty)
   where
   warnDefault ns (x,t) =
         print $ text "Assuming" <+> ppWithNames ns x <+> text "=" <+> pp t
+
+replEvalDecls :: String -> REPL ()
+replEvalDecls str = do
+  decls <- replParseDecls str
+  -- TODO: extend name environment for all the names declared in decls
+  dgs <- replCheckDecls decls
+  undefined
 
 replEdit :: String -> REPL Bool
 replEdit file = do
@@ -666,6 +690,7 @@ parseCommand findCmd line = do
   case findCmd cmd of
     [c] -> case cBody c of
       ExprArg     body -> Just (Command (body args'))
+      DeclsArg    body -> Just (Command (body args'))
       ExprTypeArg body -> Just (Command (body args'))
       FilenameArg body -> Just (Command (body =<< expandHome args'))
       OptionArg   body -> Just (Command (body args'))

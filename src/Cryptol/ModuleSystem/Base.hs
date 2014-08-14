@@ -8,6 +8,7 @@
 
 module Cryptol.ModuleSystem.Base where
 
+import Cryptol.ModuleSystem.Env (ExtendedEnv(..))
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
 import qualified Cryptol.Eval                 as E
@@ -31,6 +32,7 @@ import Data.Foldable (foldMap)
 import Data.Function (on)
 import Data.List (nubBy)
 import Data.Maybe (mapMaybe,fromMaybe)
+import Data.Monoid ((<>), mconcat)
 import System.Directory (doesFileExist)
 import System.FilePath (addExtension,joinPath,(</>))
 import qualified Data.Map as Map
@@ -66,7 +68,6 @@ renameExpr :: P.Expr -> ModuleM P.Expr
 renameExpr e = do
   env <- getFocusedEnv
   rename (R.namingEnv env) e
-
 
 -- NoPat -----------------------------------------------------------------------
 
@@ -223,6 +224,35 @@ checkExpr e = do
   re  <- renameExpr npe
   typecheck T.tcExpr re =<< getQualifiedEnv
 
+-- | Typecheck a single expression in an extended environment.
+checkExprWith :: ExtendedEnv -> P.Expr -> ModuleM (T.Expr,T.Schema)
+checkExprWith eenv e = do
+  npe <- noPat e
+  re  <- renameExpr npe
+  env <- getQualifiedEnv
+  let env' = env <> eeIfaceDecls eenv
+  typecheck T.tcExpr re env'
+
+eeIfaceDecls :: ExtendedEnv -> IfaceDecls
+eeIfaceDecls EEnv { eeDecls = dgs } =
+  mconcat [ IfaceDecls
+            { ifTySyns   = Map.empty
+            , ifNewtypes = Map.empty
+            , ifDecls    = Map.singleton (ifDeclName ifd) [ifd]
+            }
+          | decl <- concatMap T.groupDecls dgs
+          , let ifd = mkIfaceDecl decl
+          ]
+
+-- | Typecheck a group of declarations in an extended environment.
+checkDeclsWith :: ExtendedEnv -> [P.Decl] -> ModuleM [T.DeclGroup]
+checkDeclsWith eenv ds = do
+  npds <- noPat ds
+  rds <- rename (eeNames eenv) npds
+  env <- getQualifiedEnv
+  let env' = env <> eeIfaceDecls eenv
+  typecheck T.tcDecls rds env'
+
 -- | Typecheck a module.
 checkModule :: P.Module -> ModuleM T.Module
 checkModule m = do
@@ -304,3 +334,17 @@ evalExpr :: T.Expr -> ModuleM E.Value
 evalExpr e = do
   env <- getEvalEnv
   return (E.evalExpr env e)
+
+evalExprWith :: ExtendedEnv -> T.Expr -> ModuleM E.Value
+evalExprWith eenv e = do
+  env <- getEvalEnv
+  return (E.evalExpr (env <> eeEnv eenv) e)
+
+-- | Evaluate typechecked declarations in an extended environment. The
+-- result of this is a new environment whose 'EvalEnv' is extended
+-- with the new declarations and their values.
+evalDeclsWith :: ExtendedEnv -> [T.DeclGroup] -> ModuleM ExtendedEnv
+evalDeclsWith eenv dgs = do
+  env <- getEvalEnv
+  let env' = env <> eeEnv eenv
+  return $ eenv { eeDecls = eeDecls eenv ++ dgs, eeEnv = E.evalDecls dgs env' }

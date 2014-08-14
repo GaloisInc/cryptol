@@ -23,6 +23,7 @@ module REPL.Monad (
 
     -- ** Environment
   , getModuleEnv, setModuleEnv
+  , getExtEnv, setExtEnv
   , getTSyns, getNewtypes, getVars
   , whenDebug
   , getExprNames
@@ -61,6 +62,7 @@ import Control.Monad (unless,when)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef)
 import Data.List (isPrefixOf)
+import Data.Monoid (Monoid(..))
 import Data.Typeable (Typeable)
 import System.Console.ANSI (setTitle)
 import qualified Control.Exception as X
@@ -80,6 +82,8 @@ data RW = RW
   , eContinue   :: Bool
   , eIsBatch    :: Bool
   , eModuleEnv  :: M.ModuleEnv
+  , eExtEnv     :: M.ExtendedEnv
+  -- ^ The dynamic environment for new bindings, eg @:let@
   , eUserEnv    :: UserEnv
   }
 
@@ -92,6 +96,7 @@ defaultRW isBatch = do
     , eContinue   = True
     , eIsBatch    = isBatch
     , eModuleEnv  = env
+    , eExtEnv     = mempty
     , eUserEnv    = mkUserEnv userOptions
     }
 
@@ -285,6 +290,11 @@ getModuleEnv  = eModuleEnv `fmap` getRW
 setModuleEnv :: M.ModuleEnv -> REPL ()
 setModuleEnv me = modifyRW_ (\rw -> rw { eModuleEnv = me })
 
+getExtEnv :: REPL M.ExtendedEnv
+getExtEnv  = eExtEnv `fmap` getRW
+
+setExtEnv :: M.ExtendedEnv -> REPL ()
+setExtEnv eenv = modifyRW_ (\rw -> rw { eExtEnv = eenv })
 
 -- User Environment Interaction ------------------------------------------------
 

@@ -14,6 +14,7 @@ module Cryptol.Eval (
   , EvalEnv()
   , emptyEnv
   , evalExpr
+  , evalDecls
   , EvalError(..)
   , WithBase(..)
   ) where

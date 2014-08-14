@@ -5,6 +5,7 @@ module Cryptol.Parser
   , parseProgram, parseProgramWith
   , parseExpr, parseExprWith
   , parseDecl, parseDeclWith
+  , parseDecls, parseDeclsWith
   , parseModName
   , ParseError(..), ppError
   , Layout(..)
@@ -140,6 +141,7 @@ import Paths_cryptol
 %name programLayout program_layout
 %name expr    expr
 %name decl    decl
+%name decls   decls
 %name modName modName
 %tokentype { Located Token }
 %monad { ParseM }
@@ -721,6 +723,12 @@ parseDeclWith cfg = parse cfg { cfgModuleScope = False } decl
 
 parseDecl :: String -> Either ParseError Decl
 parseDecl = parseDeclWith defaultConfig
+
+parseDeclsWith :: Config -> String -> Either ParseError [Decl]
+parseDeclsWith cfg = parse cfg { cfgModuleScope = False } decls
+
+parseDecls :: String -> Either ParseError [Decl]
+parseDecls = parseDeclsWith defaultConfig
 
 -- vim: ft=haskell
 }

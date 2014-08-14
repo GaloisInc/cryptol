@@ -10,6 +10,7 @@
 -- patterns.  It also eliminates pattern bindings by de-sugaring them
 -- into `Bind`.  Furthermore, here we associate signatures and pragmas
 -- with the names to which they belong.
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
 module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
 
@@ -39,6 +40,8 @@ instance RemovePatterns Expr where
 instance RemovePatterns Module where
   removePatterns m = runNoPatM (noPatModule m)
 
+instance RemovePatterns [Decl] where
+  removePatterns ds = runNoPatM (noPatDs ds)
 
 simpleBind :: Located QName -> Expr -> Bind
 simpleBind x e = Bind { bName = x, bParams = [], bDef = e
