@@ -106,6 +106,7 @@ instance Monoid LoadedModules where
 
 data LoadedModule = LoadedModule
   { lmName      :: ModName
+  , lmFilePath  :: FilePath
   , lmInterface :: Iface
   , lmModule    :: T.Module
   } deriving (Show)
@@ -116,13 +117,14 @@ isLoaded mn lm = any ((mn ==) . lmName) (getLoadedModules lm)
 lookupModule :: ModName -> ModuleEnv -> Maybe LoadedModule
 lookupModule mn env = List.find ((mn ==) . lmName) (getLoadedModules (meLoadedModules env))
 
-addLoadedModule :: T.Module -> LoadedModules -> LoadedModules
-addLoadedModule tm lm
+addLoadedModule :: FilePath -> T.Module -> LoadedModules -> LoadedModules
+addLoadedModule path tm lm
   | isLoaded (T.mName tm) lm = lm
   | otherwise                = LoadedModules (getLoadedModules lm ++ [loaded])
   where
   loaded = LoadedModule
     { lmName      = T.mName tm
+    , lmFilePath  = path
     , lmInterface = genIface tm
     , lmModule    = tm
     }
