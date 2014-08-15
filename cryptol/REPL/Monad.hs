@@ -52,6 +52,7 @@ import Cryptol.Prims.Syntax(ECon(..),ppPrefix)
 import Cryptol.Eval (EvalError)
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Base as M
+import qualified Cryptol.ModuleSystem.NamingEnv as M
 import Cryptol.Parser (ParseError,ppError)
 import Cryptol.Parser.NoInclude (IncludeError,ppIncludeError)
 import Cryptol.Parser.NoPat (Error)
@@ -260,9 +261,26 @@ getVars :: REPL (Map.Map P.QName M.IfaceDecl)
 getVars  = do
   me <- getModuleEnv
   eenv <- getExtEnv
+  -- the subtle part here is removing the #Uniq prefix from
+  -- interactively-bound variables, and also excluding any that are
+  -- shadowed and thus can no longer be referenced
   let decls = M.focusedEnv me
       edecls = M.ifDecls (M.eeIfaceDecls eenv)
-  return (keepOne "getVars" `fmap` (M.ifDecls decls `mappend` edecls))
+      -- is this QName something the user might actually type?
+      isShadowed (qn@(P.QName (Just (P.ModName ['#':_])) name), _) =
+          case Map.lookup localName neExprs of
+            Nothing -> False
+            Just uniqueNames -> isNamed uniqueNames
+        where localName = P.QName Nothing name
+              isNamed us = any (== qn) (map M.qname us)
+              neExprs = M.neExprs (M.eeNames eenv)
+      isShadowed _ = False
+      unqual ((P.QName _ name), ifds) = (P.QName Nothing name, ifds)
+      edecls' = Map.fromList
+              . map unqual
+              . filter isShadowed
+              $ Map.toList edecls
+  return (keepOne "getVars" `fmap` (M.ifDecls decls `mappend` edecls'))
 
 getTSyns :: REPL (Map.Map P.QName T.TySyn)
 getTSyns  = do
