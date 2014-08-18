@@ -9,16 +9,16 @@
 module Cryptol.ModuleSystem (
     -- * Module System
     ModuleEnv(..), initialModuleEnv
-  , ExtendedEnv(..)
+  , DynamicEnv(..)
   , ModuleError(..), ModuleWarning(..)
   , ModuleCmd, ModuleRes
   , findModule
   , loadModuleByPath
   , loadModule
-  , checkExprWith
-  , evalExprWith
-  , checkDeclsWith
-  , evalDeclsWith
+  , checkExpr
+  , evalExpr
+  , checkDecls
+  , evalDecls
   , noPat
   , focusedEnv
 
@@ -71,20 +71,20 @@ loadModule m env = runModuleM env $ do
 -- can extend dynamically outside of the context of a module.
 
 -- | Check the type of an expression.
-checkExprWith :: ExtendedEnv -> P.Expr -> ModuleCmd (T.Expr,T.Schema)
-checkExprWith eenv e env = runModuleM env (interactive (Base.checkExprWith eenv e))
+checkExpr :: P.Expr -> ModuleCmd (T.Expr,T.Schema)
+checkExpr e env = runModuleM env (interactive (Base.checkExpr e))
 
 -- | Evaluate an expression.
-evalExprWith :: ExtendedEnv -> T.Expr -> ModuleCmd E.Value
-evalExprWith eenv e env = runModuleM env (interactive (Base.evalExprWith eenv e))
+evalExpr :: T.Expr -> ModuleCmd E.Value
+evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
 
 -- | Typecheck declarations.
-checkDeclsWith :: ExtendedEnv -> [P.Decl] -> ModuleCmd [T.DeclGroup]
-checkDeclsWith eenv ds env = runModuleM env (interactive (Base.checkDeclsWith eenv ds))
+checkDecls :: [P.Decl] -> ModuleCmd [T.DeclGroup]
+checkDecls ds env = runModuleM env (interactive (Base.checkDecls ds))
 
 -- | Evaluate declarations and add them to the extended environment.
-evalDeclsWith :: ExtendedEnv -> [T.DeclGroup] -> ModuleCmd ExtendedEnv
-evalDeclsWith eenv dgs env = runModuleM env (interactive (Base.evalDeclsWith eenv dgs))
+evalDecls :: [T.DeclGroup] -> ModuleCmd ()
+evalDecls dgs env = runModuleM env (interactive (Base.evalDecls dgs))
 
 noPat :: RemovePatterns a => a -> ModuleCmd a
 noPat a env = runModuleM env (interactive (Base.noPat a))

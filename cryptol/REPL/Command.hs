@@ -325,22 +325,22 @@ proveCmd :: String -> REPL ()
 proveCmd str = do
   parseExpr <- replParseExpr str
   (expr, schema) <- replCheckExpr parseExpr
-  eenv <- getExtEnv
+  denv <- getDynEnv
   -- spexpr <- replSpecExpr expr
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose, str) (M.eeDecls eenv) (expr, schema)
+  liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose, str) (M.deDecls denv) (expr, schema)
 
 satCmd :: String -> REPL ()
 satCmd str = do
   parseExpr <- replParseExpr str
   (expr, schema) <- replCheckExpr parseExpr
-  eenv <- getExtEnv
+  denv <- getDynEnv
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose, str) (M.eeDecls eenv) (expr, schema)
+  liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose, str) (M.deDecls denv) (expr, schema)
 
 specializeCmd :: String -> REPL ()
 specializeCmd str = do
@@ -421,7 +421,7 @@ loadCmd path
         { lName = Just (T.mName m)
         , lPath = path
         }
-      setExtEnv mempty
+      setDynEnv mempty
 
 quitCmd :: REPL ()
 quitCmd  = stop
@@ -591,21 +591,22 @@ moduleCmdResult (res,ws0) = do
     Left err      -> raise (ModuleSystemError err)
 
 replCheckExpr :: P.Expr -> REPL (T.Expr,T.Schema)
-replCheckExpr e = do
-  eenv <- getExtEnv
-  liftModuleCmd $ M.checkExprWith eenv e
+replCheckExpr e = liftModuleCmd $ M.checkExpr e
 
 replCheckDecls :: [P.Decl] -> REPL [T.DeclGroup]
 replCheckDecls ds = do
   npds <- liftModuleCmd $ M.noPat ds
-  eenv <- getExtEnv
+  denv <- getDynEnv
   let dnames = M.namingEnv npds
   ne' <- M.travNamingEnv uniqify dnames
-  let eenv' = eenv { M.eeNames = ne' `M.shadowing` M.eeNames eenv }
-  dgs <- liftModuleCmd $ M.checkDeclsWith eenv' npds
-  -- only update the REPL environment after a successful rename + typecheck
-  setExtEnv eenv'
-  return dgs
+  let denv' = denv { M.deNames = ne' `M.shadowing` M.deNames denv }
+      undo exn = do
+        -- if typechecking fails, we want to revert changes to the
+        -- dynamic environment and reraise
+        setDynEnv denv
+        raise exn
+  setDynEnv denv'
+  catch (liftModuleCmd $ M.checkDecls npds) undo
 
 replSpecExpr :: T.Expr -> REPL T.Expr
 replSpecExpr e = liftModuleCmd $ S.specialize e
@@ -625,8 +626,7 @@ replEvalExpr str =
                let su = T.listSubst [ (T.tpVar a, t) | (a,t) <- tys ]
                return (def1, T.apSubst su (T.sType sig))
 
-     eenv <- getExtEnv
-     val <- liftModuleCmd (M.evalExprWith eenv def1)
+     val <- liftModuleCmd (M.evalExpr def1)
      whenDebug (io (putStrLn (dump def1)))
      return (val,ty)
   where
@@ -637,9 +637,7 @@ replEvalDecls :: String -> REPL ()
 replEvalDecls str = do
   decls <- replParseDecls str
   dgs <- replCheckDecls decls
-  eenv <- getExtEnv
-  eenv' <- liftModuleCmd (M.evalDeclsWith eenv dgs)
-  setExtEnv eenv'
+  liftModuleCmd (M.evalDecls dgs)
 
 replEdit :: String -> REPL Bool
 replEdit file = do
