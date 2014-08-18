@@ -628,10 +628,34 @@ replEvalExpr str =
 
      val <- liftModuleCmd (M.evalExpr def1)
      whenDebug (io (putStrLn (dump def1)))
+     -- add "it" to the namespace
+     bindItVariable def1 ty
      return (val,ty)
   where
   warnDefault ns (x,t) =
         print $ text "Assuming" <+> ppWithNames ns x <+> text "=" <+> pp t
+
+-- | Creates a fresh binding of "it" to the expression given, and adds
+-- it to the current dynamic environment
+bindItVariable :: T.Expr -> T.Type -> REPL ()
+bindItVariable expr ty = do
+  let it = T.QName Nothing (P.Name "it")
+  freshIt <- uniqify it
+  let dg = T.NonRecursive decl
+      schema = T.Forall { T.sVars  = []
+                        , T.sProps = []
+                        , T.sType  = ty
+                        }
+      decl = T.Decl { T.dName       = freshIt
+                    , T.dSignature  = schema
+                    , T.dDefinition = expr
+                    , T.dPragmas    = []
+                    }
+  liftModuleCmd (M.evalDecls [dg])
+  denv <- getDynEnv
+  let en = M.EFromBind (P.Located emptyRange freshIt)
+      nenv' = M.singletonE it en `M.shadowing` M.deNames denv
+  setDynEnv $ denv { M.deNames = nenv' }
 
 replEvalDecls :: String -> REPL ()
 replEvalDecls str = do
