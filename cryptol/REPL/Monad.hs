@@ -51,7 +51,6 @@ import Cryptol.Prims.Types(typeOf)
 import Cryptol.Prims.Syntax(ECon(..),ppPrefix)
 import Cryptol.Eval (EvalError)
 import qualified Cryptol.ModuleSystem as M
-import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import Cryptol.Parser (ParseError,ppError)

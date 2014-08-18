@@ -6,6 +6,7 @@ module Cryptol.Parser
   , parseExpr, parseExprWith
   , parseDecl, parseDeclWith
   , parseDecls, parseDeclsWith
+  , parseLetDecl, parseLetDeclWith
   , parseModName
   , ParseError(..), ppError
   , Layout(..)
@@ -142,6 +143,7 @@ import Paths_cryptol
 %name expr    expr
 %name decl    decl
 %name decls   decls
+%name letDecl let_decl
 %name modName modName
 %tokentype { Located Token }
 %monad { ParseM }
@@ -272,6 +274,17 @@ decl                    :: { Decl }
   | 'type' name tysyn_params '=' type
                            {% at ($1,$5) `fmap` mkTySyn $2 (reverse $3) $5  }
 
+let_decl                :: { Decl }
+  : apat '=' expr          { at ($1,$3) $ DPatBind $1 $3                    }
+  | name apats '=' expr    { at ($1,$4) $
+                             DBind $ Bind { bName      = fmap mkUnqual $1
+                                          , bParams    = reverse $2
+                                          , bDef       = $4
+                                          , bSignature = Nothing
+                                          , bPragmas   = []
+                                          , bMono      = False
+                                          } }
+
 newtype                 :: { Newtype }
   : 'newtype' qname '=' newtype_body
                            { Newtype { nName = $2, nParams = [], nBody = $4 } }
@@ -297,8 +310,6 @@ decls                   :: { [Decl] }
 vdecls                  :: { [Decl] }
   : decl                   { [$1] }
   | vdecls 'v;' decl       { $3 : $1 }
-
-
 
 --------------------------------------------------------------------------------
 -- if a then b else c : [10]
@@ -729,6 +740,12 @@ parseDeclsWith cfg = parse cfg { cfgModuleScope = False } decls
 
 parseDecls :: String -> Either ParseError [Decl]
 parseDecls = parseDeclsWith defaultConfig
+
+parseLetDeclWith :: Config -> String -> Either ParseError Decl
+parseLetDeclWith cfg = parse cfg { cfgModuleScope = False } letDecl
+
+parseLetDecl :: String -> Either ParseError Decl
+parseLetDecl = parseLetDeclWith defaultConfig
 
 -- vim: ft=haskell
 }

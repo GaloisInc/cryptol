@@ -39,7 +39,7 @@ import qualified Cryptol.Eval.Value as E
 import qualified Cryptol.Testing.Random  as TestR
 import qualified Cryptol.Testing.Exhaust as TestX
 import Cryptol.Parser
-    (parseDeclsWith,parseExprWith,ParseError(),Config(..),defaultConfig,parseModName)
+    (parseLetDeclWith,parseExprWith,ParseError(),Config(..),defaultConfig,parseModName)
 import Cryptol.Parser.Position (emptyRange,getLoc)
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Subst as T
@@ -562,8 +562,8 @@ replParse parse str = case parse str of
 replParseExpr :: String -> REPL P.Expr
 replParseExpr = replParse $ parseExprWith interactiveConfig
 
-replParseDecls :: String -> REPL [P.Decl]
-replParseDecls = replParse $ parseDeclsWith interactiveConfig
+replParseDecl :: String -> REPL P.Decl
+replParseDecl = replParse $ parseLetDeclWith interactiveConfig
 
 interactiveConfig :: Config
 interactiveConfig = defaultConfig { cfgSource = "<interactive>" }
@@ -659,8 +659,8 @@ bindItVariable expr ty = do
 
 replEvalDecls :: String -> REPL ()
 replEvalDecls str = do
-  decls <- replParseDecls str
-  dgs <- replCheckDecls decls
+  decl <- replParseDecl str
+  dgs <- replCheckDecls [decl]
   liftModuleCmd (M.evalDecls dgs)
 
 replEdit :: String -> REPL Bool
