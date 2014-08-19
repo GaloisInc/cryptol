@@ -335,6 +335,7 @@ data TokenKW  = KW_Arith
               | KW_transpose
               | KW_type
               | KW_where
+              | KW_let
               | KW_x
               | KW_zero
               | KW_import

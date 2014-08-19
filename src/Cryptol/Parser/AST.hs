@@ -39,6 +39,9 @@ module Cryptol.Parser.AST
   , Import(..), ImportSpec(..)
   , Newtype(..)
 
+    -- * Interactive
+  , ReplInput(..)
+
     -- * Expressions
   , Expr(..)
   , Literal(..), NumInfo(..)
@@ -179,6 +182,12 @@ data Newtype  = Newtype { nName   :: LQName       -- ^ Type name
                         , nParams :: [TParam]     -- ^ Type params
                         , nBody   :: [Named Type] -- ^ Constructor
                         } deriving (Eq,Show)
+
+-- | Input at the REPL, which can either be an expression or a @let@
+-- statement.
+data ReplInput = ExprInput Expr
+               | LetInput Decl
+                 deriving (Eq, Show)
 
 -- | Export information for a declaration.
 data ExportType = Public

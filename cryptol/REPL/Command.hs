@@ -39,7 +39,7 @@ import qualified Cryptol.Eval.Value as E
 import qualified Cryptol.Testing.Random  as TestR
 import qualified Cryptol.Testing.Exhaust as TestX
 import Cryptol.Parser
-    (parseLetDeclWith,parseExprWith,ParseError(),Config(..),defaultConfig,parseModName)
+    (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig,parseModName)
 import Cryptol.Parser.Position (emptyRange,getLoc)
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Subst as T
@@ -178,8 +178,6 @@ commandList  =
     "set the current working directory"
   , CommandDescr ":module" (FilenameArg moduleCmd)
     "load a module"
-  , CommandDescr ":let" (DeclsArg letCmd)
-    "bind Cryptol expressions to names"
 
   , CommandDescr ":check" (ExprArg qcCmd)
     "use random testing to check that the argument always returns true"
@@ -229,12 +227,14 @@ getPPValOpts =
 
 evalCmd :: String -> REPL ()
 evalCmd str = do
-  (val,_ty) <- replEvalExpr str
-  ppOpts <- getPPValOpts
-  io $ rethrowEvalError $ print $ pp $ E.WithBase ppOpts val
-
-letCmd :: String -> REPL ()
-letCmd = replEvalDecls
+  ri <- replParseInput str
+  case ri of
+    P.ExprInput expr -> do
+      (val,_ty) <- replEvalExpr expr
+      ppOpts <- getPPValOpts
+      io $ rethrowEvalError $ print $ pp $ E.WithBase ppOpts val
+    P.LetInput decl -> do
+      replEvalDecl decl
 
 qcCmd :: String -> REPL ()
 qcCmd "" =
@@ -246,7 +246,8 @@ qcCmd "" =
                   qcCmd x
 
 qcCmd str =
-  do (val,ty) <- replEvalExpr str
+  do expr <- replParseExpr str
+     (val,ty) <- replEvalExpr expr
      EnvNum testNum  <- getUser "tests"
      case TestX.testableType ty of
        Just (sz,vss) | sz <= toInteger testNum ->
@@ -559,11 +560,11 @@ replParse parse str = case parse str of
   Right a -> return a
   Left e  -> raise (ParseError e)
 
+replParseInput :: String -> REPL P.ReplInput
+replParseInput = replParse $ parseReplWith interactiveConfig
+
 replParseExpr :: String -> REPL P.Expr
 replParseExpr = replParse $ parseExprWith interactiveConfig
-
-replParseDecl :: String -> REPL P.Decl
-replParseDecl = replParse $ parseLetDeclWith interactiveConfig
 
 interactiveConfig :: Config
 interactiveConfig = defaultConfig { cfgSource = "<interactive>" }
@@ -611,10 +612,9 @@ replCheckDecls ds = do
 replSpecExpr :: T.Expr -> REPL T.Expr
 replSpecExpr e = liftModuleCmd $ S.specialize e
 
-replEvalExpr :: String -> REPL (E.Value, T.Type)
-replEvalExpr str =
-  do expr      <- replParseExpr str
-     (def,sig) <- replCheckExpr expr
+replEvalExpr :: P.Expr -> REPL (E.Value, T.Type)
+replEvalExpr expr =
+  do (def,sig) <- replCheckExpr expr
 
      let range = fromMaybe emptyRange (getLoc expr)
      (def1,ty) <-
@@ -657,10 +657,10 @@ bindItVariable expr ty = do
       nenv' = M.singletonE it en `M.shadowing` M.deNames denv
   setDynEnv $ denv { M.deNames = nenv' }
 
-replEvalDecls :: String -> REPL ()
-replEvalDecls str = do
-  decl <- replParseDecl str
+replEvalDecl :: P.Decl -> REPL ()
+replEvalDecl decl = do
   dgs <- replCheckDecls [decl]
+  whenDebug (mapM_ (\dg -> (io (putStrLn (dump dg)))) dgs)
   liftModuleCmd (M.evalDecls dgs)
 
 replEdit :: String -> REPL Bool

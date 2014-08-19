@@ -7,6 +7,7 @@ module Cryptol.Parser
   , parseDecl, parseDeclWith
   , parseDecls, parseDeclsWith
   , parseLetDecl, parseLetDeclWith
+  , parseRepl, parseReplWith
   , parseModName
   , ParseError(..), ppError
   , Layout(..)
@@ -56,6 +57,7 @@ import Paths_cryptol
   'newtype'   { Located $$ (Token (KW KW_newtype) _)}
   'module'    { Located $$ (Token (KW KW_module ) _)}
   'where'     { Located $$ (Token (KW KW_where  ) _)}
+  'let'       { Located $$ (Token (KW KW_let    ) _)}
   'if'        { Located $$ (Token (KW KW_if     ) _)}
   'then'      { Located $$ (Token (KW KW_then   ) _)}
   'else'      { Located $$ (Token (KW KW_else   ) _)}
@@ -144,6 +146,7 @@ import Paths_cryptol
 %name decl    decl
 %name decls   decls
 %name letDecl let_decl
+%name repl    repl
 %name modName modName
 %tokentype { Located Token }
 %monad { ParseM }
@@ -275,15 +278,15 @@ decl                    :: { Decl }
                            {% at ($1,$5) `fmap` mkTySyn $2 (reverse $3) $5  }
 
 let_decl                :: { Decl }
-  : apat '=' expr          { at ($1,$3) $ DPatBind $1 $3                    }
-  | name apats '=' expr    { at ($1,$4) $
-                             DBind $ Bind { bName      = fmap mkUnqual $1
-                                          , bParams    = reverse $2
-                                          , bDef       = $4
-                                          , bSignature = Nothing
-                                          , bPragmas   = []
-                                          , bMono      = False
-                                          } }
+  : 'let' apat '=' expr          { at ($2,$4) $ DPatBind $2 $4                    }
+  | 'let' name apats '=' expr    { at ($2,$5) $
+                                   DBind $ Bind { bName      = fmap mkUnqual $2
+                                                , bParams    = reverse $3
+                                                , bDef       = $5
+                                                , bSignature = Nothing
+                                                , bPragmas   = []
+                                                , bMono      = False
+                                                } }
 
 newtype                 :: { Newtype }
   : 'newtype' qname '=' newtype_body
@@ -310,6 +313,10 @@ decls                   :: { [Decl] }
 vdecls                  :: { [Decl] }
   : decl                   { [$1] }
   | vdecls 'v;' decl       { $3 : $1 }
+
+repl                    :: { ReplInput }
+  : expr                   { ExprInput $1 }
+  | let_decl               { LetInput $1 }
 
 --------------------------------------------------------------------------------
 -- if a then b else c : [10]
@@ -746,6 +753,12 @@ parseLetDeclWith cfg = parse cfg { cfgModuleScope = False } letDecl
 
 parseLetDecl :: String -> Either ParseError Decl
 parseLetDecl = parseLetDeclWith defaultConfig
+
+parseReplWith :: Config -> String -> Either ParseError ReplInput
+parseReplWith cfg = parse cfg { cfgModuleScope = False } repl
+
+parseRepl :: String -> Either ParseError ReplInput
+parseRepl = parseReplWith defaultConfig
 
 -- vim: ft=haskell
 }
