@@ -75,6 +75,9 @@ src/GitRev.hs:
 ${CS_BIN}/cryptol: ${CS_BIN}/alex ${CS_BIN}/happy | ${CS}
 	$(CABAL) install .
 
+${CS_BIN}/cryptolnb: ${CS_BIN}/alex ${CS_BIN}/happy | ${CS}
+	$(CABAL) install . -fnotebook
+
 ${PKG}: ${CS_BIN}/cryptol
 	mkdir -p ${PKG}/bin
 	mkdir -p ${PKG}/lib
@@ -128,7 +131,7 @@ test: ${CS_BIN}/cryptol-test-runner
 	)
 
 .PHONY: notebook
-notebook: ${CS_BIN}/cryptol
+notebook: ${CS_BIN}/cryptolnb
 	cd notebook && ./notebook.sh
 
 
