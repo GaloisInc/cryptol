@@ -42,6 +42,7 @@ nonEq (s, c) = "(not (= " ++ s ++ " " ++ cvtCW c ++ "))"
 
 -- | Translate a problem into an SMTLib1 script
 cvt :: RoundingMode                 -- ^ User selected rounding mode to be used for floating point arithmetic
+    -> Maybe Logic                  -- ^ SMT-Lib logic, if requested by the user
     -> SolverCapabilities           -- ^ capabilities of the current solver
     -> Set.Set Kind                 -- ^ kinds used
     -> Bool                         -- ^ is this a sat problem?
@@ -57,8 +58,9 @@ cvt :: RoundingMode                 -- ^ User selected rounding mode to be used 
     -> [SW]                         -- ^ extra constraints
     -> SW                           -- ^ output variable
     -> ([String], [String])
-cvt _roundingMode _solverCaps _kindInfo isSat comments qinps _skolemInps consts tbls arrs uis axs asgnsSeq cstrs out = (pre, post)
+cvt _roundingMode smtLogic _solverCaps _kindInfo isSat comments qinps _skolemInps consts tbls arrs uis axs asgnsSeq cstrs out = (pre, post)
   where logic
+         | Just l <- smtLogic                 = show l
          | null tbls && null arrs && null uis = "QF_BV"
          | True                               = "QF_AUFBV"
         inps = map (fst . snd) qinps
@@ -152,7 +154,7 @@ cvtCnst (s, c) = " :assumption (= " ++ show s ++ " " ++ cvtCW c ++ ")"
 
 -- no need to worry about Int/Real here as we don't support them with the SMTLib1 interface..
 cvtCW :: CW -> String
-cvtCW (CW (KBounded False 1) (CWInteger v)) = if v == 0 then "false" else "true"
+cvtCW (CW KBool (CWInteger v)) = if v == 0 then "false" else "true"
 cvtCW x@(CW _ (CWInteger v)) | not (hasSign x) = "bv" ++ show v ++ "[" ++ show (intSizeOf x) ++ "]"
 -- signed numbers (with 2's complement representation) is problematic
 -- since there's no way to put a bvneg over a positive number to get minBound..
@@ -261,7 +263,7 @@ cvtType (SBVType []) = error "SBV.SMT.SMTLib1.cvtType: internal: received an emp
 cvtType (SBVType xs) = unwords $ map kindType xs
 
 kindType :: Kind -> String
-kindType (KBounded False 1) = "Bool"
+kindType KBool              = "Bool"
 kindType (KBounded _ s)     = "BitVec[" ++ show s ++ "]"
 kindType KUnbounded         = die "unbounded Integer"
 kindType KReal              = die "real value"

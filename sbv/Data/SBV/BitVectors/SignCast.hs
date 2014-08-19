@@ -81,6 +81,7 @@ genericSign x
   | Just c <- unliteral x = literal $ fromIntegral c
   | True                  = SBV k (Right (cache y))
      where k = case kindOf x of
+                 KBool            -> error "Data.SBV.SignCast.genericSign: Called on boolean value"
                  KBounded False n -> KBounded True n
                  KBounded True  _ -> error "Data.SBV.SignCast.genericSign: Called on signed value"
                  KUnbounded       -> error "Data.SBV.SignCast.genericSign: Called on unbounded value"
@@ -97,6 +98,7 @@ genericUnsign x
   | Just c <- unliteral x = literal $ fromIntegral c
   | True                  = SBV k (Right (cache y))
      where k = case kindOf x of
+                 KBool            -> error "Data.SBV.SignCast.genericUnSign: Called on boolean value"
                  KBounded True  n -> KBounded False n
                  KBounded False _ -> error "Data.SBV.SignCast.genericUnSign: Called on unsigned value"
                  KUnbounded       -> error "Data.SBV.SignCast.genericUnSign: Called on unbounded value"

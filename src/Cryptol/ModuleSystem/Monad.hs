@@ -72,6 +72,9 @@ data ModuleError
   | OtherFailure String
     -- ^ Problems after type checking, eg. specialization
   | ModuleNameMismatch P.ModName (Located P.ModName)
+    -- ^ Module loaded by 'import' statement has the wrong module name
+  | DuplicateModuleName P.ModName FilePath FilePath
+    -- ^ Two modules loaded from different files have the same module name
     deriving (Show)
 
 instance PP ModuleError where
@@ -105,6 +108,11 @@ instance PP ModuleError where
                  , text "Saw:"      <+> pp (P.thing found)
                  , text "Expected:" <+> pp expected
                  ])
+
+    DuplicateModuleName name path1 path2 ->
+      hang (text "[error] module" <+> pp name <+>
+            text "is defined in multiple files:")
+         4 (vcat [text path1, text path2])
 
     OtherFailure x -> text x
 
@@ -147,6 +155,10 @@ typeCheckingFailed errs = do
 moduleNameMismatch :: P.ModName -> Located P.ModName -> ModuleM a
 moduleNameMismatch expected found =
   ModuleT (raise (ModuleNameMismatch expected found))
+
+duplicateModuleName :: P.ModName -> FilePath -> FilePath -> ModuleM a
+duplicateModuleName name path1 path2 =
+  ModuleT (raise (DuplicateModuleName name path1 path2))
 
 
 -- Warnings --------------------------------------------------------------------
@@ -298,10 +310,10 @@ setNameSeeds seeds = ModuleT $ do
   env <- get
   set $! env { meNameSeeds = seeds }
 
-loadedModule :: T.Module -> ModuleM ()
-loadedModule m = ModuleT $ do
+loadedModule :: FilePath -> T.Module -> ModuleM ()
+loadedModule path m = ModuleT $ do
   env <- get
-  set $! env { meLoadedModules = addLoadedModule m (meLoadedModules env) }
+  set $! env { meLoadedModules = addLoadedModule path m (meLoadedModules env) }
 
 modifyEvalEnv :: (EvalEnv -> EvalEnv) -> ModuleM ()
 modifyEvalEnv f = ModuleT $ do

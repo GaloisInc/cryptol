@@ -23,7 +23,7 @@
 module Data.SBV.BitVectors.Model (
     Mergeable(..), EqSymbolic(..), OrdSymbolic(..), SDivisible(..), Uninterpreted(..), SIntegral
   , sbvTestBit, sbvPopCount, setBitTo, sbvShiftLeft, sbvShiftRight, sbvSignedShiftArithRight
-  , sbvRotateLeft, sbvRotateRight
+  , sbvRotateLeft, sbvRotateRight, mkUninterpreted
   , allEqual, allDifferent, inRange, sElem, oneIf, blastBE, blastLE, fullAdder, fullMultiplier
   , lsb, msb, genVar, genVar_, forall, forall_, exists, exists_
   , constrain, pConstrain, sBool, sBools, sWord8, sWord8s, sWord16, sWord16s, sWord32
@@ -52,6 +52,23 @@ import Data.SBV.BitVectors.AlgReals
 import Data.SBV.BitVectors.Data
 import Data.SBV.Utils.Boolean
 
+import Data.SBV.Provers.Prover (isSBranchFeasibleInState)
+
+-- The following two imports are only needed because of the doctest expressions we have. Sigh..
+-- It might be a good idea to reorg some of the content to avoid this.
+import Data.SBV.Provers.Prover (isVacuous, prove)
+import Data.SBV.SMT.SMT (ThmResult)
+
+-- | Newer versions of GHC (Starting with 7.8 I think), distinguishes between FiniteBits and Bits classes.
+-- We should really use FiniteBitSize for SBV which would make things better. In the interim, just work
+-- around pesky warnings..
+ghcBitSize :: Bits a => a -> Int
+#if __GLASGOW_HASKELL__ >= 708
+ghcBitSize x = maybe (error "SBV.ghcBitSize: Unexpected non-finite usage!") id (bitSizeMaybe x)
+#else
+ghcBitSize = bitSize
+#endif
+
 noUnint  :: String -> a
 noUnint x = error $ "Unexpected operation called on uninterpreted value: " ++ show x
 
@@ -76,20 +93,20 @@ liftSym2 opS _    _    _    _    _    a@(SBV k _)        b                      
 
 liftSym2B :: (State -> Kind -> SW -> SW -> IO SW) -> (CW -> CW -> Bool) -> (AlgReal -> AlgReal -> Bool) -> (Integer -> Integer -> Bool) -> (Float -> Float -> Bool) -> (Double -> Double -> Bool) -> SBV b -> SBV b -> SBool
 liftSym2B _   okCW opCR opCI opCF opCD (SBV _ (Left a)) (SBV _ (Left b)) | okCW a b = literal (liftCW2 opCR opCI opCF opCD noUnint2 a b)
-liftSym2B opS _    _    _    _    _    a                b                           = SBV (KBounded False 1) $ Right $ liftSW2 opS (KBounded False 1) a b
+liftSym2B opS _    _    _    _    _    a                b                           = SBV KBool $ Right $ liftSW2 opS KBool a b
 
 liftSym1Bool :: (State -> Kind -> SW -> IO SW) -> (Bool -> Bool) -> SBool -> SBool
 liftSym1Bool _   opC (SBV _ (Left a)) = literal $ opC $ cwToBool a
-liftSym1Bool opS _   a                = SBV (KBounded False 1) $ Right $ cache c
+liftSym1Bool opS _   a                = SBV KBool $ Right $ cache c
   where c st = do sw <- sbvToSW st a
-                  opS st (KBounded False 1) sw
+                  opS st KBool sw
 
 liftSym2Bool :: (State -> Kind -> SW -> SW -> IO SW) -> (Bool -> Bool -> Bool) -> SBool -> SBool -> SBool
 liftSym2Bool _   opC (SBV _ (Left a)) (SBV _ (Left b)) = literal (cwToBool a `opC` cwToBool b)
-liftSym2Bool opS _   a                b                = SBV (KBounded False 1) $ Right $ cache c
+liftSym2Bool opS _   a                b                = SBV KBool $ Right $ cache c
   where c st = do sw1 <- sbvToSW st a
                   sw2 <- sbvToSW st b
-                  opS st (KBounded False 1) sw1 sw2
+                  opS st KBool sw1 sw2
 
 mkSymOpSC :: (SW -> SW -> Maybe SW) -> Op -> State -> Kind -> SW -> SW -> IO SW
 mkSymOpSC shortCut op st k a b = maybe (newExpr st k (SBVApp op [a, b])) return (shortCut a b)
@@ -128,8 +145,8 @@ genMkSymVar k mbq Nothing  = genVar_ mbq k
 genMkSymVar k mbq (Just s) = genVar  mbq k s
 
 instance SymWord Bool where
-  mkSymWord  = genMkSymVar (KBounded False 1)
-  literal x  = genLiteral  (KBounded False 1) (if x then (1::Integer) else 0)
+  mkSymWord  = genMkSymVar KBool
+  literal x  = genLiteral  KBool (if x then (1::Integer) else 0)
   fromCW     = cwToBool
   mbMaxBound = Just maxBound
   mbMinBound = Just minBound
@@ -755,10 +772,12 @@ instance ({-Num a,-} Bits a, SymWord a) => Bits (SBV a) where
     | True             = liftSym2 (mkSymOp  XOr) (const (const True)) (noReal "xor") xor (noFloat "xor") (noDouble "xor") x y
   complement = liftSym1 (mkSymOp1 Not) (noRealUnary "complement") complement (noFloatUnary "complement") (noDoubleUnary "complement")
   bitSize  x = case kindOf x of KBounded _ w -> w
+#if __GLASGOW_HASKELL__ >= 708
+  bitSizeMaybe _ = Just $ intSizeOf (undefined :: a)
+#endif
   isSigned x = case kindOf x of KBounded s _ -> s
   bit i      = 1 `shiftL` i
   setBit x i = x .|. sbvFromInteger (kindOf x) (bit i)
-  --BH TODO: implement setBit, clearBit, etc. separately.
   shiftL x y
     | y < 0       = shiftR x (-y)
     | y == 0      = x
@@ -770,12 +789,12 @@ instance ({-Num a,-} Bits a, SymWord a) => Bits (SBV a) where
   rotateL x y
     | y < 0       = rotateR x (-y)
     | y == 0      = x
-    | isBounded x = let sz = bitSize x in liftSym1 (mkSymOp1 (Rol (y `mod` sz))) (noRealUnary "rotateL") (rot True sz y) (noFloatUnary "rotateL") (noDoubleUnary "rotateL") x
+    | isBounded x = let sz = ghcBitSize x in liftSym1 (mkSymOp1 (Rol (y `mod` sz))) (noRealUnary "rotateL") (rot True sz y) (noFloatUnary "rotateL") (noDoubleUnary "rotateL") x
     | True        = shiftL x y   -- for unbounded Integers, rotateL is the same as shiftL in Haskell
   rotateR x y
     | y < 0       = rotateL x (-y)
     | y == 0      = x
-    | isBounded x = let sz = bitSize x in liftSym1 (mkSymOp1 (Ror (y `mod` sz))) (noRealUnary "rotateR") (rot False sz y) (noFloatUnary "rotateR") (noDoubleUnary "rotateR") x
+    | isBounded x = let sz = ghcBitSize x in liftSym1 (mkSymOp1 (Ror (y `mod` sz))) (noRealUnary "rotateR") (rot False sz y) (noFloatUnary "rotateR") (noDoubleUnary "rotateR") x
     | True        = shiftR x y   -- for unbounded integers, rotateR is the same as shiftR in Haskell
   -- NB. testBit is *not* implementable on non-concrete symbolic words
   x `testBit` i
@@ -835,7 +854,7 @@ setBitTo x i b = ite b (setBit x i) (clearBit x i)
 sbvShiftLeft :: (SIntegral a, SIntegral b) => SBV a -> SBV b -> SBV a
 sbvShiftLeft x i
   | isSigned i = error "sbvShiftLeft: shift amount should be unsigned"
-  | True       = select [x `shiftL` k | k <- [0 .. bitSize x - 1]] z i
+  | True       = select [x `shiftL` k | k <- [0 .. ghcBitSize x - 1]] z i
     where z = sbvFromInteger (kindOf x) 0
 
 -- | Generalization of 'shiftR', when the shift-amount is symbolic. Since Haskell's
@@ -848,7 +867,7 @@ sbvShiftLeft x i
 sbvShiftRight :: (SIntegral a, SIntegral b) => SBV a -> SBV b -> SBV a
 sbvShiftRight x i
   | isSigned i = error "sbvShiftRight: shift amount should be unsigned"
-  | True       = select [x `shiftR` k | k <- [0 .. bitSize x - 1]] z i
+  | True       = select [x `shiftR` k | k <- [0 .. ghcBitSize x - 1]] z i
     where z = sbvFromInteger (kindOf x) 0
 
 -- | Arithmetic shift-right with a symbolic unsigned shift amount. This is equivalent
@@ -870,7 +889,7 @@ sbvSignedShiftArithRight x i
 sbvRotateLeft :: (SIntegral a, SIntegral b) => SBV a -> SBV b -> SBV a
 sbvRotateLeft x i
   | isSigned i = error "sbvRotateLeft: shift amount should be unsigned"
-  | True       = select [x `rotateL` k | k <- [0 .. bitSize x - 1]] z i
+  | True       = select [x `rotateL` k | k <- [0 .. ghcBitSize x - 1]] z i
     where z = sbvFromInteger (kindOf x) 0
 
 -- | Generalization of 'rotateR', when the shift-amount is symbolic. Since Haskell's
@@ -879,7 +898,7 @@ sbvRotateLeft x i
 sbvRotateRight :: (SIntegral a, SIntegral b) => SBV a -> SBV b -> SBV a
 sbvRotateRight x i
   | isSigned i = error "sbvRotateRight: shift amount should be unsigned"
-  | True       = select [x `rotateR` k | k <- [0 .. bitSize x - 1]] z i
+  | True       = select [x `rotateR` k | k <- [0 .. ghcBitSize x - 1]] z i
     where z = sbvFromInteger (kindOf x) 0
 
 -- | Full adder. Returns the carry-out from the addition.
@@ -902,14 +921,14 @@ fullAdder a b
 fullMultiplier :: SIntegral a => SBV a -> SBV a -> (SBV a, SBV a)
 fullMultiplier a b
   | isSigned a = error "fullMultiplier: only works on unsigned numbers"
-  | True       = (go (bitSize a) 0 a, a*b)
+  | True       = (go (ghcBitSize a) 0 a, a*b)
   where go 0 p _ = p
         go n p x = let (c, p')  = ite (lsb x) (fullAdder p b) (false, p)
                        (o, p'') = shiftIn c p'
                        (_, x')  = shiftIn o x
                    in go (n-1) p'' x'
         shiftIn k v = (lsb v, mask .|. (v `shiftR` 1))
-           where mask = ite k (bit (bitSize v - 1)) 0
+           where mask = ite k (bit (ghcBitSize v - 1)) 0
 
 -- | Little-endian blasting of a word into its bits. Also see the 'FromBits' class.
 blastLE :: (Num a, Bits a, SymWord a) => SBV a -> [SBool]
@@ -1071,12 +1090,11 @@ instance SDivisible Integer where
 instance SDivisible CW where
   sQuotRem a b
     | CWInteger x <- cwVal a, CWInteger y <- cwVal b
-    = let (r1, r2) = sQuotRem x y in (a { cwVal = CWInteger r1 }, b { cwVal = CWInteger r2 })
-  --BH FIXME: -2^(n-1) `div` (-1) can overflow.
+    = let (r1, r2) = sQuotRem x y in (normCW a{ cwVal = CWInteger r1 }, normCW b{ cwVal = CWInteger r2 })
   sQuotRem a b = error $ "SBV.sQuotRem: impossible, unexpected args received: " ++ show (a, b)
   sDivMod a b
     | CWInteger x <- cwVal a, CWInteger y <- cwVal b
-    = let (r1, r2) = sDivMod x y in (a { cwVal = CWInteger r1 }, b { cwVal = CWInteger r2 })
+    = let (r1, r2) = sDivMod x y in (normCW a { cwVal = CWInteger r1 }, normCW b { cwVal = CWInteger r2 })
   sDivMod a b = error $ "SBV.sDivMod: impossible, unexpected args received: " ++ show (a, b)
 
 instance SDivisible SWord64 where
@@ -1177,6 +1195,24 @@ class Mergeable a where
    -- The idea is that use symbolicMerge if you know the condition is symbolic,
    -- otherwise use ite, if there's a chance it might be concrete.
    ite :: SBool -> a -> a -> a
+   -- | Branch on a condition, much like 'ite'. The exception is that SBV will
+   -- check to make sure if the test condition is feasible by making an external
+   -- call to the SMT solver. Note that this can be expensive, thus we shall use
+   -- a time-out value ('sBranchTimeOut'). There might be zero, one, or two such
+   -- external calls per 'sBranch' call:
+   --
+   --    - If condition is statically known to be True/False: 0 calls
+   --           - In this case, we simply constant fold..
+   --
+   --    - If condition is determined to be unsatisfiable   : 1 call
+   --           - In this case, we know then-branch is infeasible, so just take the else-branch
+   --
+   --    - If condition is determined to be satisfable      : 2 calls
+   --           - In this case, we know then-branch is feasible, but we still have to check if the else-branch is
+   --
+   -- In summary, 'sBranch' calls can be expensive, but they can help with the so-called symbolic-termination
+   -- problem. See "Data.SBV.Examples.Misc.SBranch" for an example.
+   sBranch :: SBool -> a -> a -> a
    -- | Total indexing operation. @select xs default index@ is intuitively
    -- the same as @xs !! index@, except it evaluates to @default@ if @index@
    -- overflows
@@ -1185,6 +1221,7 @@ class Mergeable a where
    ite s a b
     | Just t <- unliteral s = if t then a else b
     | True                  = symbolicMerge s a b
+   sBranch s = ite (reduceInPathCondition s)
    -- NB. Earlier implementation of select used the binary-search trick
    -- on the index to chop down the search space. While that is a good trick
    -- in general, it doesn't work for SBV since we do not have any notion of
@@ -1200,86 +1237,14 @@ class Mergeable a where
 
 -- SBV
 instance SymWord a => Mergeable (SBV a) where
-  -- the strict match and checking of literal equivalence is essential below,
-  -- as otherwise we risk hanging onto huge closures and blow stack! This is
-  -- against the feel that merging shouldn't look at branches if the test
-  -- expression is constant. However, it's OK to do it this way since we
-  -- expect "ite" to be used in such cases which already checks for that. That
-  -- is the use case of the symbolicMerge should be when the test is symbolic.
-  -- Of course, we do not have a way of enforcing that in the user code, but
-  -- at least our library code respects that invariant.
-  symbolicMerge t a@(SBV{}) b@(SBV{})
-     | Just av <- unliteral a, Just bv <- unliteral b, rationalSBVCheck a b, av == bv
-     = a
-     | True
-     = SBV k $ Right $ cache c
-    where k = kindOf a
-          c st = do swt <- sbvToSW st t
-                    case () of
-                      () | swt == trueSW  -> sbvToSW st a       -- these two cases should never be needed as we expect symbolicMerge to be
-                      () | swt == falseSW -> sbvToSW st b       -- called with symbolic tests, but just in case..
-                      () -> do {- It is tempting to record the choice of the test expression here as we branch down to the 'then' and 'else' branches. That is,
-                                  when we evaluate 'a', we can make use of the fact that the test expression is True, and similarly we can use the fact that it
-                                  is False when b is evaluated. In certain cases this can cut down on symbolic simulation significantly, for instance if
-                                  repetitive decisions are made in a recursive loop. Unfortunately, the implementation of this idea is quite tricky, due to
-                                  our sharing based implementation. As the 'then' branch is evaluated, we will create many expressions that are likely going
-                                  to be "reused" when the 'else' branch is executed. But, it would be *dead wrong* to share those values, as they were "cached"
-                                  under the incorrect assumptions. To wit, consider the following:
-
-                                     foo x y = ite (y .== 0) k (k+1)
-                                       where k = ite (y .== 0) x (x+1)
-
-                                  When we reduce the 'then' branch of the first ite, we'd record the assumption that y is 0. But while reducing the 'then' branch, we'd
-                                  like to share 'k', which would evaluate (correctly) to 'x' under the given assumption. When we backtrack and evaluate the 'else'
-                                  branch of the first ite, we'd see 'k' is needed again, and we'd look it up from our sharing map to find (incorrectly) that its value
-                                  is 'x', which was stored there under the assumption that y was 0, which no longer holds. Clearly, this is unsound.
-
-                                  A sound implementation would have to precisely track which assumptions were active at the time expressions get shared. That is,
-                                  in the above example, we should record that the value of 'k' was cached under the assumption that 'y' is 0. While sound, this
-                                  approach unfortunately leads to significant loss of valid sharing when the value itself had nothing to do with the assumption itself.
-                                  To wit, consider:
-
-                                     foo x y = ite (y .== 0) k (k+1)
-                                       where k = x+5
-
-                                  If we tracked the assumptions, we would recompute 'k' twice, since the branch assumptions would differ. Clearly, there is no need to
-                                  re-compute 'k' in this case since its value is independent of y. Note that the whole SBV performance story is based on agressive sharing,
-                                  and losing that would have other significant ramifications.
-
-                                  The "proper" solution would be to track, with each shared computation, precisely which assumptions it actually *depends* on, rather
-                                  than blindly recording all the assumptions present at that time. SBV's symbolic simulation engine clearly has all the info needed to do this
-                                  properly, but the implementation is not straightforward at all. For each subexpression, we would need to chase down its dependencies
-                                  transitively, which can require a lot of scanning of the generated program causing major slow-down; thus potentially defeating the
-                                  whole purpose of sharing in the first place.
-
-                                  Design choice: Keep it simple, and simply do not track the assumption at all. This will maximize sharing, at the cost of evaluating
-                                  unreachable branches. I think the simplicity is more important at this point than efficiency.
-
-                                  Also note that the user can avoid most such issues by properly combining if-then-else's with common conditions together. That is, the
-                                  first program above should be written like this:
-
-                                    foo x y = ite (y .== 0) x (x+2)
-
-                                  In general, the following transformations should be done whenever possible:
-
-                                    ite e1 (ite e1 e2 e3) e4  --> ite e1 e2 e4
-                                    ite e1 e2 (ite e1 e3 e4)  --> ite e1 e2 e4
-
-                                  This is in accordance with the general rule-of-thumb stating conditionals should be avoided as much as possible. However, we might prefer
-                                  the following:
-
-                                    ite e1 (f e2 e4) (f e3 e5) --> f (ite e1 e2 e3) (ite e1 e4 e5)
-
-                                 especially if this expression happens to be inside 'f's body itself (i.e., when f is recursive), since it reduces the number of
-                                 recursive calls. Clearly, programming with symbolic simulation in mind is another kind of beast alltogether.
-                               -}
-                               swa <- sbvToSW st a      -- evaluate 'then' branch
-                               swb <- sbvToSW st b      -- evaluate 'else' branch
-                               case () of               -- merge:
-                                 () | swa == swb                      -> return swa
-                                 () | swa == trueSW && swb == falseSW -> return swt
-                                 () | swa == falseSW && swb == trueSW -> newExpr st k (SBVApp Not [swt])
-                                 ()                                   -> newExpr st k (SBVApp Ite [swt, swa, swb])
+  -- sBranch is essentially the default method, but we are careful in not forcing the
+  -- arguments as ite does, since sBranch is expected to be used when one of the
+  -- branches is likely to be in a branch that's recursively evaluated.
+  sBranch s a b
+     | Just t <- unliteral sReduced = if t then a else b
+     | True                         = symbolicWordMerge False sReduced a b
+    where sReduced = reduceInPathCondition s
+  symbolicMerge = symbolicWordMerge True
   -- Custom version of select that translates to SMT-Lib tables at the base type of words
   select xs err ind
     | SBV _ (Left c) <- ind = case cwVal c of
@@ -1298,6 +1263,86 @@ instance SymWord a => Mergeable (SBV a) where
                                  swi <- sbvToSW st ind
                                  let len = length xs
                                  newExpr st kElt (SBVApp (LkUp (idx, kInd, kElt, len) swi swe) [])
+
+-- symbolically merge two SBV words, based on the boolean condition given.
+-- The first argument controls whether we want to reduce the branches
+-- separately first, which avoids hanging onto huge thunks, and is usually
+-- the right thing to do for ite. But we precisely do not want to do that
+-- in case of sBranch, which is the case when one of the branches (typically
+-- the "else" branch is hanging off of a recursive call.
+symbolicWordMerge :: SymWord a => Bool -> SBool -> SBV a -> SBV a -> SBV a
+symbolicWordMerge force t a b
+  | force, Just av <- unliteral a, Just bv <- unliteral b, rationalSBVCheck a b, av == bv
+  = a
+  | True
+  = SBV k $ Right $ cache c
+  where k = kindOf a
+        c st = do swt <- sbvToSW st t
+                  case () of
+                    () | swt == trueSW  -> sbvToSW st a       -- these two cases should never be needed as we expect symbolicMerge to be
+                    () | swt == falseSW -> sbvToSW st b       -- called with symbolic tests, but just in case..
+                    () -> do {- It is tempting to record the choice of the test expression here as we branch down to the 'then' and 'else' branches. That is,
+                                when we evaluate 'a', we can make use of the fact that the test expression is True, and similarly we can use the fact that it
+                                is False when b is evaluated. In certain cases this can cut down on symbolic simulation significantly, for instance if
+                                repetitive decisions are made in a recursive loop. Unfortunately, the implementation of this idea is quite tricky, due to
+                                our sharing based implementation. As the 'then' branch is evaluated, we will create many expressions that are likely going
+                                to be "reused" when the 'else' branch is executed. But, it would be *dead wrong* to share those values, as they were "cached"
+                                under the incorrect assumptions. To wit, consider the following:
+
+                                   foo x y = ite (y .== 0) k (k+1)
+                                     where k = ite (y .== 0) x (x+1)
+
+                                When we reduce the 'then' branch of the first ite, we'd record the assumption that y is 0. But while reducing the 'then' branch, we'd
+                                like to share 'k', which would evaluate (correctly) to 'x' under the given assumption. When we backtrack and evaluate the 'else'
+                                branch of the first ite, we'd see 'k' is needed again, and we'd look it up from our sharing map to find (incorrectly) that its value
+                                is 'x', which was stored there under the assumption that y was 0, which no longer holds. Clearly, this is unsound.
+
+                                A sound implementation would have to precisely track which assumptions were active at the time expressions get shared. That is,
+                                in the above example, we should record that the value of 'k' was cached under the assumption that 'y' is 0. While sound, this
+                                approach unfortunately leads to significant loss of valid sharing when the value itself had nothing to do with the assumption itself.
+                                To wit, consider:
+
+                                   foo x y = ite (y .== 0) k (k+1)
+                                     where k = x+5
+
+                                If we tracked the assumptions, we would recompute 'k' twice, since the branch assumptions would differ. Clearly, there is no need to
+                                re-compute 'k' in this case since its value is independent of y. Note that the whole SBV performance story is based on agressive sharing,
+                                and losing that would have other significant ramifications.
+
+                                The "proper" solution would be to track, with each shared computation, precisely which assumptions it actually *depends* on, rather
+                                than blindly recording all the assumptions present at that time. SBV's symbolic simulation engine clearly has all the info needed to do this
+                                properly, but the implementation is not straightforward at all. For each subexpression, we would need to chase down its dependencies
+                                transitively, which can require a lot of scanning of the generated program causing major slow-down; thus potentially defeating the
+                                whole purpose of sharing in the first place.
+
+                                Design choice: Keep it simple, and simply do not track the assumption at all. This will maximize sharing, at the cost of evaluating
+                                unreachable branches. I think the simplicity is more important at this point than efficiency.
+
+                                Also note that the user can avoid most such issues by properly combining if-then-else's with common conditions together. That is, the
+                                first program above should be written like this:
+
+                                  foo x y = ite (y .== 0) x (x+2)
+
+                                In general, the following transformations should be done whenever possible:
+
+                                  ite e1 (ite e1 e2 e3) e4  --> ite e1 e2 e4
+                                  ite e1 e2 (ite e1 e3 e4)  --> ite e1 e2 e4
+
+                                This is in accordance with the general rule-of-thumb stating conditionals should be avoided as much as possible. However, we might prefer
+                                the following:
+
+                                  ite e1 (f e2 e4) (f e3 e5) --> f (ite e1 e2 e3) (ite e1 e4 e5)
+
+                               especially if this expression happens to be inside 'f's body itself (i.e., when f is recursive), since it reduces the number of
+                               recursive calls. Clearly, programming with symbolic simulation in mind is another kind of beast alltogether.
+                             -}
+                             swa <- sbvToSW (st `extendPathCondition` (&&& t))      a -- evaluate 'then' branch
+                             swb <- sbvToSW (st `extendPathCondition` (&&& bnot t)) b -- evaluate 'else' branch
+                             case () of               -- merge:
+                               () | swa == swb                      -> return swa
+                               () | swa == trueSW && swb == falseSW -> return swt
+                               () | swa == falseSW && swb == trueSW -> newExpr st k (SBVApp Not [swt])
+                               ()                                   -> newExpr st k (SBVApp Ite [swt, swa, swb])
 
 -- Unit
 instance Mergeable () where
@@ -1400,10 +1445,10 @@ instance (SymWord a, Bounded a) => Bounded (SBV a) where
 
 -- SArrays are both "EqSymbolic" and "Mergeable"
 instance EqSymbolic (SArray a b) where
-  (SArray _ a) .== (SArray _ b) = SBV (KBounded False 1) $ Right $ cache c
+  (SArray _ a) .== (SArray _ b) = SBV KBool $ Right $ cache c
     where c st = do ai <- uncacheAI a st
                     bi <- uncacheAI b st
-                    newExpr st (KBounded False 1) (SBVApp (ArrEq ai bi) [])
+                    newExpr st KBool (SBVApp (ArrEq ai bi) [])
 
 instance SymWord b => Mergeable (SArray a b) where
   symbolicMerge = mergeArrays
@@ -1450,6 +1495,15 @@ class Uninterpreted a where
   uninterpret             = sbvUninterpret Nothing
   cgUninterpret nm code v = sbvUninterpret (Just (code, v)) nm
 
+mkUninterpreted :: [Kind] -> [SBV ()] -> String -> SBV a
+mkUninterpreted ks args nm = SBV ka $ Right $ cache result where
+  ka = last ks
+  result st = do
+    newUninterpreted st nm (SBVType ks) Nothing
+    sws <- mapM (sbvToSW st) args
+    mapM_ forceSWArg sws
+    newExpr st ka $ SBVApp (Uninterpreted nm) sws
+
 -- Plain constants
 instance HasKind a => Uninterpreted (SBV a) where
   sbvUninterpret mbCgData nm
@@ -1459,12 +1513,6 @@ instance HasKind a => Uninterpreted (SBV a) where
           result st | Just (_, v) <- mbCgData, inProofMode st = sbvToSW st v
                     | True = do newUninterpreted st nm (SBVType [ka]) (fst `fmap` mbCgData)
                                 newExpr st ka $ SBVApp (Uninterpreted nm) []
-
--- Forcing an argument; this is a necessary evil to make sure all the arguments
--- to an uninterpreted function are evaluated before called; the semantics of
--- such functions is necessarily strict; deviating from Haskell's
-forceArg :: SW -> IO ()
-forceArg (SW k n) = k `seq`  n `seq` return ()
 
 -- Functions of one argument
 instance (SymWord b, HasKind a) => Uninterpreted (SBV b -> SBV a) where
@@ -1479,7 +1527,7 @@ instance (SymWord b, HasKind a) => Uninterpreted (SBV b -> SBV a) where
                  result st | Just (_, v) <- mbCgData, inProofMode st = sbvToSW st (v arg0)
                            | True = do newUninterpreted st nm (SBVType [kb, ka]) (fst `fmap` mbCgData)
                                        sw0 <- sbvToSW st arg0
-                                       mapM_ forceArg [sw0]
+                                       mapM_ forceSWArg [sw0]
                                        newExpr st ka $ SBVApp (Uninterpreted nm) [sw0]
 
 -- Functions of two arguments
@@ -1497,7 +1545,7 @@ instance (SymWord c, SymWord b, HasKind a) => Uninterpreted (SBV c -> SBV b -> S
                            | True = do newUninterpreted st nm (SBVType [kc, kb, ka]) (fst `fmap` mbCgData)
                                        sw0 <- sbvToSW st arg0
                                        sw1 <- sbvToSW st arg1
-                                       mapM_ forceArg [sw0, sw1]
+                                       mapM_ forceSWArg [sw0, sw1]
                                        newExpr st ka $ SBVApp (Uninterpreted nm) [sw0, sw1]
 
 -- Functions of three arguments
@@ -1517,7 +1565,7 @@ instance (SymWord d, SymWord c, SymWord b, HasKind a) => Uninterpreted (SBV d ->
                                        sw0 <- sbvToSW st arg0
                                        sw1 <- sbvToSW st arg1
                                        sw2 <- sbvToSW st arg2
-                                       mapM_ forceArg [sw0, sw1, sw2]
+                                       mapM_ forceSWArg [sw0, sw1, sw2]
                                        newExpr st ka $ SBVApp (Uninterpreted nm) [sw0, sw1, sw2]
 
 -- Functions of four arguments
@@ -1539,7 +1587,7 @@ instance (SymWord e, SymWord d, SymWord c, SymWord b, HasKind a) => Uninterprete
                                        sw1 <- sbvToSW st arg1
                                        sw2 <- sbvToSW st arg2
                                        sw3 <- sbvToSW st arg3
-                                       mapM_ forceArg [sw0, sw1, sw2, sw3]
+                                       mapM_ forceSWArg [sw0, sw1, sw2, sw3]
                                        newExpr st ka $ SBVApp (Uninterpreted nm) [sw0, sw1, sw2, sw3]
 
 -- Functions of five arguments
@@ -1563,7 +1611,7 @@ instance (SymWord f, SymWord e, SymWord d, SymWord c, SymWord b, HasKind a) => U
                                        sw2 <- sbvToSW st arg2
                                        sw3 <- sbvToSW st arg3
                                        sw4 <- sbvToSW st arg4
-                                       mapM_ forceArg [sw0, sw1, sw2, sw3, sw4]
+                                       mapM_ forceSWArg [sw0, sw1, sw2, sw3, sw4]
                                        newExpr st ka $ SBVApp (Uninterpreted nm) [sw0, sw1, sw2, sw3, sw4]
 
 -- Functions of six arguments
@@ -1589,7 +1637,7 @@ instance (SymWord g, SymWord f, SymWord e, SymWord d, SymWord c, SymWord b, HasK
                                        sw3 <- sbvToSW st arg3
                                        sw4 <- sbvToSW st arg4
                                        sw5 <- sbvToSW st arg5
-                                       mapM_ forceArg [sw0, sw1, sw2, sw3, sw4, sw5]
+                                       mapM_ forceSWArg [sw0, sw1, sw2, sw3, sw4, sw5]
                                        newExpr st ka $ SBVApp (Uninterpreted nm) [sw0, sw1, sw2, sw3, sw4, sw5]
 
 -- Functions of seven arguments
@@ -1618,7 +1666,7 @@ instance (SymWord h, SymWord g, SymWord f, SymWord e, SymWord d, SymWord c, SymW
                                       sw4 <- sbvToSW st arg4
                                       sw5 <- sbvToSW st arg5
                                       sw6 <- sbvToSW st arg6
-                                      mapM_ forceArg [sw0, sw1, sw2, sw3, sw4, sw5, sw6]
+                                      mapM_ forceSWArg [sw0, sw1, sw2, sw3, sw4, sw5, sw6]
                                       newExpr st ka $ SBVApp (Uninterpreted nm) [sw0, sw1, sw2, sw3, sw4, sw5, sw6]
 
 -- Uncurried functions of two arguments
@@ -1655,7 +1703,39 @@ instance (SymWord h, SymWord g, SymWord f, SymWord e, SymWord d, SymWord c, SymW
   sbvUninterpret mbCgData nm = let f = sbvUninterpret (uc7 `fmap` mbCgData) nm in \(arg0, arg1, arg2, arg3, arg4, arg5, arg6) -> f arg0 arg1 arg2 arg3 arg4 arg5 arg6
     where uc7 (cs, fn) = (cs, \a b c d e f g -> fn (a, b, c, d, e, f, g))
 
--- | Adding arbitrary constraints.
+-- | Adding arbitrary constraints. When adding constraints, one has to be careful about
+-- making sure they are not inconsistent. The function 'isVacuous' can be use for this purpose.
+-- Here is an example. Consider the following predicate:
+--
+-- >>> let pred = do { x <- forall "x"; constrain $ x .< x; return $ x .>= (5 :: SWord8) }
+--
+-- This predicate asserts that all 8-bit values are larger than 5, subject to the constraint that the
+-- values considered satisfy @x .< x@, i.e., they are less than themselves. Since there are no values that
+-- satisfy this constraint, the proof will pass vacuously:
+--
+-- >>> prove pred
+-- Q.E.D.
+--
+-- We can use 'isVacuous' to make sure to see that the pass was vacuous:
+--
+-- >>> isVacuous pred
+-- True
+--
+-- While the above example is trivial, things can get complicated if there are multiple constraints with
+-- non-straightforward relations; so if constraints are used one should make sure to check the predicate
+-- is not vacuously true. Here's an example that is not vacuous:
+--
+--  >>> let pred' = do { x <- forall "x"; constrain $ x .> 6; return $ x .>= (5 :: SWord8) }
+--
+-- This time the proof passes as expected:
+--
+--  >>> prove pred'
+--  Q.E.D.
+--
+-- And the proof is not vacuous:
+--
+--  >>> isVacuous pred'
+--  False
 constrain :: SBool -> Symbolic ()
 constrain c = addConstraint Nothing c (bnot c)
 
@@ -1664,6 +1744,25 @@ constrain c = addConstraint Nothing c (bnot c)
 -- calls where we restrict our attention to /interesting/ parts of the input domain.
 pConstrain :: Double -> SBool -> Symbolic ()
 pConstrain t c = addConstraint (Just t) c (bnot c)
+
+-- | Boolean symbolic reduction. See if we can reduce a boolean condition to true/false
+-- using the path context information, by making external calls to the SMT solvers. Used in the
+-- implementation of 'sBranch'.
+reduceInPathCondition :: SBool -> SBool
+reduceInPathCondition b
+  | isConcrete b = b -- No reduction is needed, already a concrete value
+  | True         = SBV k $ Right $ cache c
+  where k    = kindOf b
+        c st = do -- Now that we know our boolean is not obviously true/false. Need to make an external
+                  -- call to the SMT solver to see if we can prove it is necessarily one of those
+                  let pc = getPathCondition st
+                  satTrue <- isSBranchFeasibleInState st "then" (pc &&& b)
+                  if not satTrue
+                     then return falseSW          -- condition is not satisfiable; so it must be necessarily False.
+                     else do satFalse <- isSBranchFeasibleInState st "else" (pc &&& bnot b)
+                             if not satFalse      -- negation of the condition is not satisfiable; so it must be necessarily True.
+                                then return trueSW
+                                else sbvToSW st b -- condition is not necessarily always True/False. So, keep symbolic.
 
 -- Quickcheck interface on symbolic-booleans..
 instance Testable SBool where
@@ -1702,6 +1801,10 @@ slet x f = SBV k $ Right $ cache r
                     let xsbv = SBV (kindOf x) (Right (cache (const (return xsw))))
                         res  = f xsbv
                     sbvToSW st res
+
+-- We use 'isVacuous' and 'prove' only for the "test" section in this file, and GHC complains about that. So, this shuts it up.
+__unused :: a
+__unused = error "__unused" (isVacuous :: SBool -> IO Bool) (prove :: SBool -> IO ThmResult)
 
 {-# ANN module "HLint: ignore Eta reduce"         #-}
 {-# ANN module "HLint: ignore Reduce duplication" #-}

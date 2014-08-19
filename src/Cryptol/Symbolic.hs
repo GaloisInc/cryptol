@@ -7,20 +7,21 @@
 -- Portability :  portable
 
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE PatternGuards #-}
+
 module Cryptol.Symbolic where
 
 import Control.Applicative
-import Control.Monad (foldM, liftM2, replicateM, when, zipWithM)
-import Control.Monad.Fix (mfix)
+import Control.Monad (replicateM, when, zipWithM)
 import Control.Monad.IO.Class
-import Control.Monad.Reader (ask, local)
+import Data.List (transpose)
 import qualified Data.Map as Map
 import Data.Monoid (Monoid(..))
 import Data.Traversable (traverse)
 import qualified Control.Exception as X
 
 import qualified Data.SBV as SBV
-import Data.SBV (SBool)
+import Data.SBV (Symbolic)
 
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
@@ -30,7 +31,6 @@ import Cryptol.Symbolic.Prims
 import Cryptol.Symbolic.Value
 
 import qualified Cryptol.Eval.Value as Eval
-import Cryptol.Eval.Value (TValue, isTSeq)
 import qualified Cryptol.Eval.Type (evalType)
 import qualified Cryptol.Eval.Env (EvalEnv(..))
 import Cryptol.TypeCheck.AST
@@ -39,102 +39,85 @@ import Cryptol.Utils.Panic(panic)
 
 -- External interface ----------------------------------------------------------
 
-lookupProver :: String -> SBV.SMTConfig
-lookupProver "cvc4"  = SBV.cvc4
-lookupProver "yices" = SBV.yices
-lookupProver "z3"    = SBV.z3
-lookupProver s       = error $ "invalid prover: " ++ s
+proverConfigs :: [(String, SBV.SMTConfig)]
+proverConfigs =
+  [ ("cvc4"     , SBV.cvc4     )
+  , ("yices"    , SBV.yices    )
+  , ("z3"       , SBV.z3       )
+  , ("boolector", SBV.boolector)
+  , ("mathsat"  , SBV.mathSAT  )
+  ]
 
+proverNames :: [String]
+proverNames = map fst proverConfigs
+
+lookupProver :: String -> SBV.SMTConfig
+lookupProver s =
+  case lookup s proverConfigs of
+    Just cfg -> cfg
+    Nothing  -> error $ "invalid prover: " ++ s
+
+-- | A prover result is either an error message, or potentially a
+-- counterexample or satisfying assignment.
+type ProverResult = Either String (Maybe [(Type, Expr, Eval.Value)])
 -- | TODO: document more
-prove :: (String, Bool, Bool, String)
+prove :: (String, Bool, Bool)
       -> [DeclGroup]
       -> (Expr, Schema)
-      -> M.ModuleCmd (Maybe [(Type, Expr)]) -- ^ Returns a list of arguments for a counterexample
-prove (proverName, useSolverIte, verbose, input) edecls (expr, schema) = protectStack useSolverIte $ \modEnv -> do
+      -> M.ModuleCmd ProverResult
+prove (proverName, useSolverIte, verbose) edecls (expr, schema) = protectStack useSolverIte $ \modEnv -> do
   let extDgs = allDeclGroups modEnv ++ edecls
   let prover = lookupProver proverName
   case predArgTypes schema of
-    Left msg -> do putStrLn msg
-                   return (Right (Nothing, modEnv), [])
+    Left msg -> return (Right (Left msg, modEnv), [])
     Right ts -> do when verbose $ putStrLn "Simulating..."
-                   let runE = do args <- mapM forallFinType ts
-                                 env <- evalDecls emptyEnv extDgs
-                                 v <- evalExpr env expr
-                                 b <- foldM vApply v args
-                                 return (fromVBit b)
-                   let simenv = SimEnv
-                        { simConfig = prover
-                        , simPath = SBV.true
-                        , simIteSolver = useSolverIte
-                        , simVerbose = verbose
-                        }
+                   let env = evalDecls (emptyEnv useSolverIte) extDgs
+                   let v = evalExpr env expr
                    result <- SBV.proveWith prover $ do
-                               b <- runTheMonad runE simenv
+                               args <- mapM forallFinType ts
+                               b <- return $! fromVBit (foldl fromVFun v args)
                                when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
                                return b
                    mcxexprs <- case result of
                      SBV.ThmResult (SBV.Satisfiable {}) -> do
                        let Right (_, cws) = SBV.getModel result
                        let (vs, _) = parseValues ts cws
-                       let ppOpts = Eval.defaultPPOpts
-                       let doc = hsep (text input : map (pp . Eval.WithBase ppOpts) vs)
-                       print $ doc <+> text "= False"
                        let cxtys = unFinType <$> ts
                            cxexprs = zipWithM Eval.toExpr cxtys vs
-                       return (zip cxtys <$> cxexprs)
-                     SBV.ThmResult (SBV.Unsatisfiable {}) -> do
-                       putStrLn "Q.E.D."
-                       return Nothing
-                     SBV.ThmResult _ -> do
-                       print result
-                       return Nothing
+                       return $ Right (zip3 cxtys <$> cxexprs <*> pure vs)
+                     SBV.ThmResult (SBV.Unsatisfiable {}) -> return $ Right Nothing
+                     SBV.ThmResult _ -> return $ Left (show result)
                    return (Right (mcxexprs, modEnv), [])
 
-sat :: (String, Bool, Bool, String)
+sat :: (String, Bool, Bool)
     -> [DeclGroup]
     -> (Expr, Schema)
-    -> M.ModuleCmd (Maybe [(Type, Expr)]) -- ^ Returns a list of arguments for a satisfying assignment
-sat (proverName, useSolverIte, verbose, input) edecls (expr, schema) = protectStack useSolverIte $ \modEnv -> do
+    -> M.ModuleCmd ProverResult -- ^ Returns a list of arguments for a satisfying assignment
+sat (proverName, useSolverIte, verbose) edecls (expr, schema) = protectStack useSolverIte $ \modEnv -> do
   let extDgs = allDeclGroups modEnv ++ edecls
   let prover = lookupProver proverName
   case predArgTypes schema of
-    Left msg -> do putStrLn msg
-                   return (Right (Nothing, modEnv), [])
+    Left msg -> return (Right (Left msg, modEnv), [])
     Right ts -> do when verbose $ putStrLn "Simulating..."
-                   let runE = do args <- mapM existsFinType ts
-                                 env <- evalDecls emptyEnv extDgs
-                                 v <- evalExpr env expr
-                                 b <- foldM vApply v args
-                                 return (fromVBit b)
-                   let simenv = SimEnv
-                        { simConfig = prover
-                        , simPath = SBV.true
-                        , simIteSolver = useSolverIte
-                        , simVerbose = verbose
-                        }
+                   let env = evalDecls (emptyEnv useSolverIte) extDgs
+                   let v = evalExpr env expr
                    result <- SBV.satWith prover $ do
-                               b <- runTheMonad runE simenv
+                               args <- mapM existsFinType ts
+                               b <- return $! fromVBit (foldl fromVFun v args)
                                when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
                                return b
                    msatexprs <- case result of
                      SBV.SatResult (SBV.Satisfiable {}) -> do
                        let Right (_, cws) = SBV.getModel result
                        let (vs, _) = parseValues ts cws
-                       let ppOpts = Eval.defaultPPOpts
-                       let doc = hsep (text input : map (pp . Eval.WithBase ppOpts) vs)
-                       print $ doc <+> text "= True"
                        let sattys = unFinType <$> ts
                            satexprs = zipWithM Eval.toExpr sattys vs
-                       return (zip sattys <$> satexprs)
-                     SBV.SatResult (SBV.Unsatisfiable {}) -> do
-                       putStrLn "Unsatisfiable."
-                       return Nothing
-                     SBV.SatResult _ -> do
-                       print result
-                       return Nothing
+                       return $ Right (zip3 sattys <$> satexprs <*> pure vs)
+                     SBV.SatResult (SBV.Unsatisfiable {}) -> return $ Right Nothing
+                     SBV.SatResult _ -> return $ Left (show result)
                    return (Right (msatexprs, modEnv), [])
 
-protectStack :: Bool -> M.ModuleCmd (Maybe a) -> M.ModuleCmd (Maybe a)
+protectStack :: Bool -> M.ModuleCmd ProverResult -> M.ModuleCmd ProverResult
 protectStack usingITE cmd modEnv = X.catchJust isOverflow (cmd modEnv) handler
   where isOverflow X.StackOverflow = Just ()
         isOverflow _               = Nothing
@@ -142,8 +125,7 @@ protectStack usingITE cmd modEnv = X.catchJust isOverflow (cmd modEnv) handler
             | otherwise = msgBase ++ "\n" ++
                           "Using ':set iteSolver=on' might help."
         msgBase = "Symbolic evaluation failed to terminate."
-        handler () = do putStrLn msg
-                        return (Right (Nothing, modEnv), [])
+        handler () = return (Right (Left msg, modEnv), [])
 
 parseValues :: [FinType] -> [SBV.CW] -> ([Eval.Value], [SBV.CW])
 parseValues [] cws = ([], cws)
@@ -154,14 +136,15 @@ parseValues (t : ts) cws = (v : vs, cws'')
 parseValue :: FinType -> [SBV.CW] -> (Eval.Value, [SBV.CW])
 parseValue FTBit [] = error "parseValue"
 parseValue FTBit (cw : cws) = (Eval.VBit (SBV.fromCW cw), cws)
+parseValue (FTSeq 0 FTBit) cws = (Eval.VWord (Eval.BV 0 0), cws)
 parseValue (FTSeq n FTBit) (cw : cws)
-  | SBV.isBounded cw = (Eval.VWord (toInteger n) (SBV.fromCW cw), cws)
+  | SBV.isBounded cw = (Eval.VWord (Eval.BV (toInteger n) (SBV.fromCW cw)), cws)
   | otherwise = error "parseValue"
 parseValue (FTSeq n FTBit) cws = (Eval.VSeq True vs, cws')
   where (vs, cws') = parseValues (replicate n FTBit) cws
 parseValue (FTSeq n t) cws = (Eval.VSeq False vs, cws')
   where (vs, cws') = parseValues (replicate n t) cws
-parseValue (FTTuple ts) cws = (Eval.VTuple (length vs) vs, cws')
+parseValue (FTTuple ts) cws = (Eval.VTuple vs, cws')
   where (vs, cws') = parseValues ts cws
 parseValue (FTRecord fs) cws = (Eval.VRecord (zip ns vs), cws')
   where (ns, ts) = unzip fs
@@ -216,57 +199,56 @@ predArgTypes schema@(Forall ts ps ty)
     go (TUser _ _ t) = go t
     go _ = Nothing
 
-forallFinType :: FinType -> TheMonad Value
+forallFinType :: FinType -> Symbolic Value
 forallFinType ty =
   case ty of
-    FTBit         -> VBit <$> liftSymbolic SBV.forall_
-    FTSeq n FTBit -> VWord <$> liftSymbolic (forallBV_ n)
-    FTSeq n t     -> vSeq <$> replicateM n (mkThunk t)
-    FTTuple ts    -> VTuple <$> mapM mkThunk ts
-    FTRecord fs   -> VRecord <$> mapM (traverseSnd mkThunk) fs
-  where
-    mkThunk :: FinType -> TheMonad Thunk
-    mkThunk t = Ready <$> forallFinType t
+    FTBit         -> VBit <$> SBV.forall_
+    FTSeq 0 FTBit -> return $ VWord (SBV.literal (bv 0 0))
+    FTSeq n FTBit -> VWord <$> (forallBV_ n)
+    FTSeq n t     -> VSeq False <$> replicateM n (forallFinType t)
+    FTTuple ts    -> VTuple <$> mapM forallFinType ts
+    FTRecord fs   -> VRecord <$> mapM (traverseSnd forallFinType) fs
 
-existsFinType :: FinType -> TheMonad Value
+existsFinType :: FinType -> Symbolic Value
 existsFinType ty =
   case ty of
-    FTBit         -> VBit <$> liftSymbolic SBV.exists_
-    FTSeq n FTBit -> VWord <$> liftSymbolic (existsBV_ n)
-    FTSeq n t     -> vSeq <$> replicateM n (mkThunk t)
-    FTTuple ts    -> VTuple <$> mapM mkThunk ts
-    FTRecord fs   -> VRecord <$> mapM (traverseSnd mkThunk) fs
-  where
-    mkThunk :: FinType -> TheMonad Thunk
-    mkThunk t = Ready <$> existsFinType t
+    FTBit         -> VBit <$> SBV.exists_
+    FTSeq 0 FTBit -> return $ VWord (SBV.literal (bv 0 0))
+    FTSeq n FTBit -> VWord <$> existsBV_ n
+    FTSeq n t     -> VSeq False <$> replicateM n (existsFinType t)
+    FTTuple ts    -> VTuple <$> mapM existsFinType ts
+    FTRecord fs   -> VRecord <$> mapM (traverseSnd existsFinType) fs
 
 -- Simulation environment ------------------------------------------------------
 
 data Env = Env
-  { envVars :: Map.Map QName Thunk
+  { envVars :: Map.Map QName Value
   , envTypes :: Map.Map TVar TValue
+  , envIteSolver :: Bool
   }
 
 instance Monoid Env where
   mempty = Env
     { envVars  = Map.empty
     , envTypes = Map.empty
+    , envIteSolver = False
     }
 
   mappend l r = Env
     { envVars  = Map.union (envVars  l) (envVars  r)
     , envTypes = Map.union (envTypes l) (envTypes r)
+    , envIteSolver = envIteSolver l || envIteSolver r
     }
 
-emptyEnv :: Env
-emptyEnv = Env Map.empty Map.empty
+emptyEnv :: Bool -> Env
+emptyEnv useIteSolver = Env Map.empty Map.empty useIteSolver
 
 -- | Bind a variable in the evaluation environment.
-bindVar :: (QName, Thunk) -> Env -> Env
+bindVar :: (QName, Value) -> Env -> Env
 bindVar (n, thunk) env = env { envVars = Map.insert n thunk (envVars env) }
 
 -- | Lookup a variable in the environment.
-lookupVar :: QName -> Env -> Maybe Thunk
+lookupVar :: QName -> Env -> Maybe Value
 lookupVar n env = Map.lookup n (envVars env)
 
 -- | Bind a type variable of kind *.
@@ -277,235 +259,114 @@ bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
 lookupType :: TVar -> Env -> Maybe TValue
 lookupType p env = Map.lookup p (envTypes env)
 
--- Path conditions -------------------------------------------------------------
-
-thenBranch :: SBool -> TheMonad a -> TheMonad a
-thenBranch s = local $ \e -> e { simPath = (SBV.&&&) s (simPath e) }
-
-elseBranch :: SBool -> TheMonad a -> TheMonad a
-elseBranch s = thenBranch (SBV.bnot s)
-
-isFeasible :: SBool -> TheMonad Bool
-isFeasible path
-  | path `SBV.isConcretely` (== False) = return False
-  | path `SBV.isConcretely` (== True)  = return True
-  | otherwise = do
-    useSolverIte <- simIteSolver <$> ask
-    verbose <- simVerbose <$> ask
-    config <- simConfig <$> ask
-    if useSolverIte then do
-                   when verbose $ liftIO $ putStrLn "Testing branch condition with solver..."
-                   res <- liftSymbolic $ SBV.internalIsTheoremWith config (Just 5) (SBV.bnot path)
-                   case res of
-                     Just isThm -> do let msg = if isThm then "Infeasible." else "Feasible."
-                                      when verbose $ liftIO $ putStrLn msg
-                                      return (not isThm)
-                     Nothing    -> do when verbose $ liftIO $ putStrLn "Undetermined."
-                                      return True
-      else return True
-
-evalIf :: SBool -> TheMonad Value -> TheMonad Value -> TheMonad Value
-evalIf s m1 m2 = do
-  path <- simPath <$> ask
-  let path1 = (SBV.&&&) path s
-  let path2 = (SBV.&&&) path (SBV.bnot s)
-  c1 <- isFeasible path1
-  if not c1
-    then elseBranch s m2
-    else do
-      c2 <- isFeasible path2
-      if not c2
-        then thenBranch s m1
-        else do
-          v1 <- thenBranch s m1
-          v2 <- elseBranch s m2
-          ite s v1 v2
-
 -- Expressions -----------------------------------------------------------------
 
-evalExpr :: Env -> Expr -> TheMonad Value
+evalExpr :: Env -> Expr -> Value
 evalExpr env expr =
   case expr of
-    ECon econ         -> return $ evalECon econ
-    EList es _ty      -> vSeq <$> traverse eval' es
-    ETuple es         -> VTuple <$> traverse eval' es
-    ERec fields       -> VRecord <$> traverse (traverseSnd eval') fields
-    ESel e sel        -> evalSel sel =<< eval e
-    EIf b e1 e2 -> do
-      VBit s <- evalExpr env b
-      evalIf s (evalExpr env e1) (evalExpr env e2)
-
+    ECon econ         -> evalECon econ
+    EList es ty       -> VSeq (tIsBit ty) (map eval es)
+    ETuple es         -> VTuple (map eval es)
+    ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
+    ESel e sel        -> evalSel sel (eval e)
+    EIf b e1 e2       -> evalIf (fromVBit (eval b)) (eval e1) (eval e2)
+                           where evalIf = if envIteSolver env then SBV.sBranch else SBV.ite
     EComp ty e mss    -> evalComp env (evalType env ty) e mss
-    EVar n            -> force $ case lookupVar n env of
-                                   Just x -> x
-                                   _ -> panic "Cryptol.Symbolic.evalExpr" [ "Variable " ++ show n ++ " not found" ]
+    EVar n            -> case lookupVar n env of
+                           Just x -> x
+                           _ -> panic "Cryptol.Symbolic.evalExpr" [ "Variable " ++ show n ++ " not found" ]
     -- TODO: how to deal with uninterpreted functions?
-    ETAbs tv e        -> return $ VPoly $ \ty -> evalExpr (bindType (tpVar tv) ty env) e
-    ETApp e ty        -> do VPoly f <- eval e
-                            f (evalType env ty)
-    EApp e1 e2        -> do VFun f <- eval e1
-                            f =<< eval' e2
-    EAbs n _ty e      -> return $ VFun $ \th -> evalExpr (bindVar (n, th) env) e
+    ETAbs tv e        -> VPoly $ \ty -> evalExpr (bindType (tpVar tv) ty env) e
+    ETApp e ty        -> fromVPoly (eval e) (evalType env ty)
+    EApp e1 e2        -> fromVFun (eval e1) (eval e2)
+    EAbs n _ty e      -> VFun $ \x -> evalExpr (bindVar (n, x) env) e
     EProofAbs _prop e -> eval e
     EProofApp e       -> eval e
     ECast e _ty       -> eval e
-    EWhere e ds       -> do env' <- evalDecls env ds
-                            evalExpr env' e
+    EWhere e ds       -> evalExpr (evalDecls env ds) e
     where
       eval e = evalExpr env e
-      eval' e = delay (evalExpr env e)
 
 evalType :: Env -> Type -> TValue
 evalType env ty = Cryptol.Eval.Type.evalType env' ty
   where env' = Cryptol.Eval.Env.EvalEnv Map.empty (envTypes env)
 
 
-evalSel :: Selector -> Value -> TheMonad Value
+evalSel :: Selector -> Value -> Value
 evalSel sel v =
   case sel of
     TupleSel n _  ->
       case v of
-        VTuple xs -> force $ xs !! (n - 1) -- 1-based indexing
-        VNil      -> return VNil
-        VCons {}  -> liftList v
-        VFun f    -> return $ VFun $ \x -> evalSel sel =<< f x
-        _ -> panic "Cryptol.Symbolic.evalSel" [ "Tuple selector applied to non-tuple" ]
+        VTuple xs  -> xs !! (n - 1) -- 1-based indexing
+        VSeq b xs  -> VSeq b (map (evalSel sel) xs)
+        VStream xs -> VStream (map (evalSel sel) xs)
+        VFun f     -> VFun (\x -> evalSel sel (f x))
+        _ -> panic "Cryptol.Symbolic.evalSel" [ "Tuple selector applied to incompatible type" ]
 
     RecordSel n _ ->
       case v of
-        VRecord bs  -> force $ case lookup n bs of
-                                 Just x -> x
-                                 _ -> panic "Cryptol.Symbolic.evalSel" [ "Selector " ++ show n ++ " not found" ]
-        VNil        -> return VNil
-        VCons {}    -> liftList v
-        VFun f      -> return $ VFun $ \x -> evalSel sel =<< f x
+        VRecord bs  -> case lookup n bs of
+                         Just x -> x
+                         _ -> panic "Cryptol.Symbolic.evalSel" [ "Selector " ++ show n ++ " not found" ]
+        VSeq b xs   -> VSeq b (map (evalSel sel) xs)
+        VStream xs  -> VStream (map (evalSel sel) xs)
+        VFun f      -> VFun (\x -> evalSel sel (f x))
         _ -> panic "Cryptol.Symbolic.evalSel" [ "Record selector applied to non-record" ]
 
     ListSel n _   -> case v of
-                       --VSeq xs -> force $ xs !! n  -- 0-based indexing
-                       VWord s -> return $ VBit (SBV.sbvTestBit s n)
-                       _       -> let go :: Int -> Value -> TheMonad Thunk
-                                      go 0 (VCons x _) = return x
-                                      go i (VCons _ y) = go (i - 1) =<< force y
-                                      go _ _ = error "internal error"
-                                  in force =<< go n v
-
-  where
-  liftList VNil         = return VNil
-  liftList (VCons x xs) = do x'  <- delay (evalSel sel =<< force x)
-                             xs' <- delay (liftList    =<< force xs)
-                             return (VCons x' xs')
-  liftList _            = panic "Cryptol.Symbolic.evalSel"
-                                  ["Malformed list, while lifting selector"]
+                       VWord s -> VBit (SBV.sbvTestBit s n)
+                       _       -> fromSeq v !! n  -- 0-based indexing
 
 -- Declarations ----------------------------------------------------------------
 
-evalDecls :: Env -> [DeclGroup] -> TheMonad Env
-evalDecls = foldM evalDeclGroup
+evalDecls :: Env -> [DeclGroup] -> Env
+evalDecls = foldl evalDeclGroup
 
-evalDeclGroup :: Env -> DeclGroup -> TheMonad Env
+evalDeclGroup :: Env -> DeclGroup -> Env
 evalDeclGroup env dg =
   case dg of
-    NonRecursive d -> do binding <- evalDecl env d
-                         return $ bindVar binding env
-    Recursive ds   -> mfix $ \env' -> do
-                        bindings <- traverse (evalDecl env') ds
-                        return $ foldr bindVar env bindings
+    NonRecursive d -> bindVar (evalDecl env d) env
+    Recursive ds   -> let env' = foldr bindVar env bindings
+                          bindings = map (evalDecl env') ds
+                      in env'
 
-evalDecl :: Env -> Decl -> TheMonad (QName, Thunk)
-evalDecl env d = do
-  thunk <- delay $ evalExpr env (dDefinition d)
-  return (dName d, thunk)
+evalDecl :: Env -> Decl -> (QName, Value)
+evalDecl env d = (dName d, evalExpr env (dDefinition d))
 
 -- List Comprehensions ---------------------------------------------------------
 
-data LazySeq a = LSNil | LSCons a (MLazySeq a)
-type MLazySeq a = TheMonad (LazySeq a)
+-- | Evaluate a comprehension.
+evalComp :: Env -> TValue -> Expr -> [[Match]] -> Value
+evalComp env seqty body ms
+  | Just (len,el) <- isTSeq seqty = toSeq len el [ evalExpr e body | e <- envs ]
+  | otherwise = evalPanic "Cryptol.Eval" [ "evalComp given a non sequence"
+                                         , show seqty
+                                         ]
 
-instance Functor LazySeq where
-  fmap _ LSNil = LSNil
-  fmap f (LSCons x xs) = LSCons (f x) (fmap f <$> xs)
+  -- XXX we could potentially print this as a number if the type was available.
+  where
+  -- generate a new environment for each iteration of each parallel branch
+  benvs = map (branchEnvs env) ms
 
-singleLS :: a -> LazySeq a
-singleLS x = LSCons x (return LSNil)
+  -- take parallel slices of each environment.  when the length of the list
+  -- drops below the number of branches, one branch has terminated.
+  allBranches es = length es == length ms
+  slices         = takeWhile allBranches (transpose benvs)
 
-zipWithLS :: (a -> b -> c) -> LazySeq a -> LazySeq b -> LazySeq c
-zipWithLS f (LSCons x xs) (LSCons y ys) = LSCons (f x y) (liftM2 (zipWithLS f) xs ys)
-zipWithLS _ _ _ = LSNil
-
-repeatLS :: a -> LazySeq a
-repeatLS x = xs where xs = LSCons x (return xs)
-
-transposeLS :: [LazySeq a] -> LazySeq [a]
-transposeLS = foldr (zipWithLS (:)) (repeatLS [])
-
-appendLS :: LazySeq a -> LazySeq a -> LazySeq a
-appendLS LSNil ys = ys
-appendLS (LSCons x xs') ys =
-  LSCons x $ do
-    xs <- xs'
-    return (appendLS xs ys)
-
-appendMLS :: MLazySeq a -> MLazySeq a -> MLazySeq a
-appendMLS xs ys = do
-  l <- xs
-  case l of
-    LSNil -> ys
-    LSCons x xs' -> return (LSCons x (appendMLS xs' ys))
-
-bindMLS :: MLazySeq a -> (a -> MLazySeq b) -> MLazySeq b
-bindMLS xs k = do
-  l <- xs
-  case l of
-    LSNil -> return LSNil
-    LSCons x xs' -> appendMLS (k x) (bindMLS xs' k)
-
-toLazySeq :: Value -> LazySeq Thunk
-toLazySeq (VCons th1 th2) = LSCons th1 (toLazySeq <$> force th2)
-toLazySeq VNil = LSNil
-toLazySeq (VWord w) = go (SBV.bitSize w - 1)
-  where go i | i < 0     = LSNil
-             | otherwise = LSCons (Ready (VBit (SBV.sbvTestBit w i))) (return (go (i - 1)))
-toLazySeq _ = error "toLazySeq"
-
-toSeq :: LazySeq Thunk -> TheMonad Value
-toSeq LSNil = return VNil
-toSeq (LSCons x xs) = VCons x <$> delay (toSeq =<< xs)
-
-evalComp :: Env -> TValue -> Expr -> [[Match]] -> TheMonad Value
-evalComp env seqty body ms =
-  case isTSeq seqty of
-    Nothing -> evalPanic "Cryptol.Eval" [ "evalComp given a non sequence", show seqty ]
-    Just (_len, _el) -> do
-      -- generate a new environment for each iteration of each parallel branch
-      (benvs :: [LazySeq Env]) <- mapM (branchEnvs env) ms
-      -- take parallel slices of each environment.
-      let slices :: LazySeq [Env]
-          slices = transposeLS benvs
-
-      -- join environments to produce environments at each step through the process.
-      let envs :: LazySeq Env
-          envs = fmap mconcat slices
-
-      thunks <- bindMLS (return envs) (\e -> singleLS <$> delay (evalExpr e body))
-      toSeq thunks
+  -- join environments to produce environments at each step through the process.
+  envs = map mconcat slices
 
 -- | Turn a list of matches into the final environments for each iteration of
 -- the branch.
-branchEnvs :: Env -> [Match] -> MLazySeq Env
+branchEnvs :: Env -> [Match] -> [Env]
 branchEnvs env matches =
   case matches of
-    []     -> return (singleLS env)
-    m : ms -> bindMLS (evalMatch env m) (\env' -> branchEnvs env' ms)
+    []     -> [env]
+    m : ms -> do env' <- evalMatch env m
+                 branchEnvs env' ms
 
 -- | Turn a match into the list of environments it represents.
-evalMatch :: Env -> Match -> MLazySeq Env
+evalMatch :: Env -> Match -> [Env]
 evalMatch env m = case m of
-
-  From n _ty expr -> do
-    ths <- toLazySeq <$> evalExpr env expr
-    return $ fmap (\th -> bindVar (n, th) env) ths
-
-  Let d -> do
-    binding <- evalDecl env d
-    return $ singleLS (bindVar binding env)
+  From n _ty expr -> [ bindVar (n, v) env | v <- fromSeq (evalExpr env expr) ]
+  Let d           -> [ bindVar (evalDecl env d) env ]

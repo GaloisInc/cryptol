@@ -580,7 +580,7 @@ ppNumLit n info =
     PolyLit w -> text "<|" <+> poly w <+> text "|>"
   where
   pad base pref w =
-    let txt = showIntAtBase base ("0123456789ABCDEF" !!) n ""
+    let txt = showIntAtBase base ("0123456789abcdef" !!) n ""
     in text pref <> text (replicate (w - length txt) '0') <> text txt
 
   poly w = let (res,deg) = bits Nothing [] 0 n
@@ -657,7 +657,7 @@ instance PP Expr where
 
       -- atoms
       EVar x        -> pp x
-      ECon x        -> pp x
+      ECon x        -> ppPrefix x
       ELit x        -> pp x
       ETuple es     -> parens (commaSep (map pp es))
       ERecord fs    -> braces (commaSep (map (ppNamed "=") fs))

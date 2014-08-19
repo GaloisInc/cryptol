@@ -16,6 +16,7 @@ module Data.SBV.Compilers.CodeGen where
 
 import Control.Monad.Trans
 import Control.Monad.State.Lazy
+import Control.Applicative       (Applicative)
 import Data.Char                 (toLower, isSpace)
 import Data.List                 (nub, isPrefixOf, intercalate, (\\))
 import System.Directory          (createDirectory, doesDirectoryExist, doesFileExist)
@@ -75,7 +76,7 @@ initCgState = CgState {
 -- reference parameters (for returning composite values in languages such as C),
 -- and return values.
 newtype SBVCodeGen a = SBVCodeGen (StateT CgState Symbolic a)
-                   deriving (Monad, MonadIO, MonadState CgState)
+                   deriving (Applicative, Functor, Monad, MonadIO, MonadState CgState)
 
 -- | Reach into symbolic monad from code-generation
 liftSymbolic :: Symbolic a -> SBVCodeGen a
@@ -109,7 +110,7 @@ data CgSRealType = CgFloat      -- ^ @float@
                  | CgLongDouble -- ^ @long double@
                  deriving Eq
 
--- As they would be used in a C program
+-- | 'Show' instance for 'cgSRealType' displays values as they would be used in a C program
 instance Show CgSRealType where
   show CgFloat      = "float"
   show CgDouble     = "double"
@@ -217,6 +218,7 @@ isCgMakefile :: CgPgmKind -> Bool
 isCgMakefile CgMakefile{} = True
 isCgMakefile _            = False
 
+-- | A simple way to print bundles, mostly for debugging purposes.
 instance Show CgPgmBundle where
    show (CgPgmBundle _ fs) = intercalate "\n" $ map showFile fs
     where showFile :: (FilePath, (CgPgmKind, [Doc])) -> String

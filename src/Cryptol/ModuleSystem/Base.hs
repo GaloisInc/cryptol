@@ -11,6 +11,7 @@ module Cryptol.ModuleSystem.Base where
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), deIfaceDecls)
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
+import Cryptol.ModuleSystem.Env (lookupModule, LoadedModule(..))
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Value           as E
 import qualified Cryptol.ModuleSystem.Renamer as R
@@ -106,7 +107,16 @@ loadModuleByPath :: FilePath -> ModuleM T.Module
 loadModuleByPath path = do
   pm <- parseModule path
   let n = thing (P.mName pm)
-  loadingModule n (loadModule pm)
+
+  -- Check whether this module name has already been loaded from a different file
+  env <- getModuleEnv
+  case lookupModule n env of
+    Nothing -> loadingModule n (loadModule path pm)
+    Just lm
+      | path == path' -> return (lmModule lm)
+      | otherwise     -> duplicateModuleName n path path'
+      where path' = lmFilePath lm
+
 
 -- | Load the module specified by an import.
 loadImport :: Located P.Import -> ModuleM ()
@@ -124,12 +134,12 @@ loadImport li = do
          -- make sure that this module is the one we expect
          unless (n == thing (P.mName pm)) (moduleNameMismatch n (mName pm))
 
-         _ <- loadModule pm
+         _ <- loadModule path pm
          return ()
 
 -- | Load dependencies, typecheck, and add to the eval environment.
-loadModule :: P.Module -> ModuleM T.Module
-loadModule pm = do
+loadModule :: FilePath -> P.Module -> ModuleM T.Module
+loadModule path pm = do
 
   let pm' = addPrelude pm
   loadDeps pm'
@@ -142,7 +152,7 @@ loadModule pm = do
   -- extend the eval env
   modifyEvalEnv (E.moduleEnv tcm)
 
-  loadedModule tcm
+  loadedModule path tcm
 
   return tcm
 

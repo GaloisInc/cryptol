@@ -57,10 +57,10 @@ loadModuleByPath path = do
     return m
 
 -- | Load the given parsed module.
-loadModule :: P.Module -> ModuleCmd T.Module
-loadModule m env = runModuleM env $ do
+loadModule :: FilePath -> P.Module -> ModuleCmd T.Module
+loadModule path m env = runModuleM env $ do
   let n = P.thing (P.mName m)
-  m' <- loadingModule n (Base.loadModule m)
+  m' <- loadingModule n (Base.loadModule path m)
   setFocusedModule (T.mName m')
   return m'
 

@@ -250,8 +250,8 @@ exportType ty =
   err = panic "exportType" [ "Unexpected type", show ty ]
 
 exportVar :: TVar -> Int
-exportVar (TVFree x _ _ _) = x * x
-exportVar (TVBound x _)    = 2 * x + 1
+exportVar (TVFree x _ _ _) = 2 * x        -- Free vars are even
+exportVar (TVBound x _)    = 2 * x + 1    -- Bound vars are odd
 
 
 --------------------------------------------------------------------------------

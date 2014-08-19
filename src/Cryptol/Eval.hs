@@ -45,7 +45,7 @@ evalExpr env expr = case expr of
 
   EList es ty -> evalList env es (evalType env ty)
 
-  ETuple es -> VTuple (length es) (map eval es)
+  ETuple es -> VTuple (map eval es)
 
   ERec fields -> VRecord [ (f,eval e) | (f,e) <- fields ]
 
@@ -139,7 +139,7 @@ evalSel env e sel = case sel of
 
   tupleSel n v =
     case v of
-      VTuple _ vs   -> vs !! (n - 1)
+      VTuple vs     -> vs !! (n - 1)
       VSeq False vs -> VSeq False [ tupleSel n v1 | v1 <- vs ]
       VStream vs    -> VStream [ tupleSel n v1 | v1 <- vs ]
       VFun f        -> VFun (\x -> tupleSel n (f x))

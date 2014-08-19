@@ -332,20 +332,28 @@ proveCmd str = do
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  mcx <- liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose, str)
-                                                (M.deDecls denv)
-                                                (expr, schema)
-  -- bind the counterexamples, if any, to `it`
-  for_ mcx $ \cxexprs -> do
-    case cxexprs of
-      [] -> return ()
-      -- if there's only one argument, just bind it
-      [(cxty, cxexpr)] -> bindItVariable cxexpr cxty
-      -- if there are more than one, tuple them up
-      _ -> do
-        let tty = T.tTuple (map fst cxexprs)
-            texp = T.ETuple (map snd cxexprs)
-        bindItVariable texp tty
+  result <- liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose)
+                                                   (M.deDecls denv)
+                                                   (expr, schema)
+  ppOpts <- getPPValOpts
+  case result of
+    Left msg        -> io $ putStrLn msg
+    Right Nothing   -> io $ putStrLn "Q.E.D."
+    Right (Just tevs) -> do
+      let vs = map (\(_,_,v) -> v) tevs
+          tes = map (\(t,e,_) -> (t,e)) tevs
+          doc = ppPrec 3 parseExpr -- function application has precedence 3
+          docs = map (pp . E.WithBase ppOpts) vs
+      io $ print $ hsep (doc : docs) <+> text "= False"
+      -- bind the counterexamples to `it`
+      case tes of
+        [] -> return ()
+        -- if there's only one argument, just bind it
+        [(t, e)] -> bindItVariable e t
+        -- if there are more than one, tuple them up
+        _ -> bindItVariable texp tty
+               where tty = T.tTuple (map fst tes)
+                     texp = T.ETuple (map snd tes)
 
 satCmd :: String -> REPL ()
 satCmd str = do
@@ -355,20 +363,28 @@ satCmd str = do
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  msat <- liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose, str)
-                                               (M.deDecls denv)
-                                               (expr, schema)
-  -- bind the satisfying assignment, if any, to `it`
-  for_ msat $ \satexprs -> do
-    case satexprs of
-      [] -> return ()
-      -- if there's only one argument, just bind it
-      [(satty, satexpr)] -> bindItVariable satexpr satty
-      -- if there are more than one, tuple them up
-      _ -> do
-        let tty = T.tTuple (map fst satexprs)
-            texp = T.ETuple (map snd satexprs)
-        bindItVariable texp tty
+  result <- liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose)
+                                                 (M.deDecls denv)
+                                                 (expr, schema)
+  ppOpts <- getPPValOpts
+  case result of
+    Left msg        -> io $ putStrLn msg
+    Right Nothing   -> io $ putStrLn "Unsatisfiable."
+    Right (Just tevs) -> do
+      let vs = map (\(_,_,v) -> v) tevs
+          tes = map (\(t,e,_) -> (t,e)) tevs
+          doc = ppPrec 3 parseExpr -- function application has precedence 3
+          docs = map (pp . E.WithBase ppOpts) vs
+      io $ print $ hsep (doc : docs) <+> text "= True"
+      -- bind the satisfying assignment to `it`
+      case tes of
+        [] -> return ()
+        -- if there's only one argument, just bind it
+        [(t, e)] -> bindItVariable e t
+        -- if there are more than one, tuple them up
+        _ -> bindItVariable texp tty
+               where tty = T.tTuple (map fst tes)
+                     texp = T.ETuple (map snd tes)
 
 specializeCmd :: String -> REPL ()
 specializeCmd str = do
@@ -512,7 +528,7 @@ browseVars pfx = do
 
 setOptionCmd :: String -> REPL ()
 setOptionCmd str
-  | Just value <- mbValue = setUser (mkKey key) value
+  | Just value <- mbValue = setUser key value
   | null key              = mapM_ (describe . optName) (leaves userOptions)
   | otherwise             = describe key
   where
@@ -522,18 +538,17 @@ setOptionCmd str
               _ : stuff -> Just (trim stuff)
               _         -> Nothing
 
-
-
-  mkKey = takeWhile (not . isSpace)
-
   describe k = do
-    ev <- tryGetUser (mkKey k)
+    ev <- tryGetUser k
     io $ case ev of
            Just (EnvString s)   -> putStrLn (k ++ " = " ++ s)
            Just (EnvNum n)      -> putStrLn (k ++ " = " ++ show n)
            Just (EnvBool True)  -> putStrLn (k ++ " = on")
            Just (EnvBool False) -> putStrLn (k ++ " = off")
-           Nothing              -> putStrLn ("Unknown user option: `" ++ k ++ "`")
+           Nothing              -> do putStrLn ("Unknown user option: `" ++ k ++ "`")
+                                      when (any isSpace k) $ do
+                                        let (k1, k2) = break isSpace k
+                                        putStrLn ("Did you mean: `:set " ++ k1 ++ " =" ++ k2 ++ "`?")
 
 
 helpCmd :: String -> REPL ()

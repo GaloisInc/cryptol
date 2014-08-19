@@ -1,13 +1,13 @@
 ---------------------------------------------------------------------------------
 -- |
--- Module      :  Data.SBV.Bridge.Boolector
+-- Module      :  Data.SBV.Bridge.MathSAT
 -- Copyright   :  (c) Levent Erkok
 -- License     :  BSD3
 -- Maintainer  :  erkokl@gmail.com
 -- Stability   :  experimental
 --
--- Interface to the Boolector SMT solver. Import this module if you want to use the
--- Boolector SMT prover as your backend solver. Also see:
+-- Interface to the MathSAT SMT solver. Import this module if you want to use the
+-- MathSAT SMT prover as your backend solver. Also see:
 --
 --       - "Data.SBV.Bridge.Yices"
 --
@@ -15,17 +15,17 @@
 --
 --       - "Data.SBV.Bridge.CVC4"
 --
---       - "Data.SBV.Bridge.MathSAT"
+--       - "Data.SBV.Bridge.Boolector"
 ---------------------------------------------------------------------------------
 
-module Data.SBV.Bridge.Boolector (
-  -- * Boolector specific interface
+module Data.SBV.Bridge.MathSAT (
+  -- * MathSAT specific interface
   sbvCurrentSolver
   -- ** Proving and checking satisfiability
   , prove, sat, allSat, isVacuous, isTheorem, isSatisfiable
   -- ** Optimization routines
   , optimize, minimize, maximize
-  -- * Non-Boolector specific SBV interface
+  -- * Non-MathSAT specific SBV interface
   -- $moduleExportIntro
   , module Data.SBV
   ) where
@@ -34,7 +34,7 @@ import Data.SBV hiding (prove, sat, allSat, isVacuous, isTheorem, isSatisfiable,
 
 -- | Current solver instance, pointing to cvc4.
 sbvCurrentSolver :: SMTConfig
-sbvCurrentSolver = boolector
+sbvCurrentSolver = mathSAT
 
 -- | Prove theorems, using the CVC4 SMT solver
 prove :: Provable a
