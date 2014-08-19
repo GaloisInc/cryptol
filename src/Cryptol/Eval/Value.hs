@@ -14,11 +14,13 @@
 module Cryptol.Eval.Value where
 
 import Cryptol.Eval.Error
+import Cryptol.Prims.Syntax (ECon(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
+import Control.Monad (guard, zipWithM)
 import Data.List(genericTake)
 import Data.Bits (setBit,testBit,(.&.),shiftL)
 import Numeric (showIntAtBase)
@@ -313,3 +315,40 @@ lookupRecord :: Name -> Value -> Value
 lookupRecord f rec = case lookup f (fromVRecord rec) of
   Just val -> val
   Nothing  -> evalPanic "lookupRecord" ["malformed record"]
+
+-- Value to Expression conversion ----------------------------------------------
+
+-- | Given an expected type, returns an expression that evaluates to
+-- this value, if we can determine it.
+--
+-- XXX: View patterns would probably clean up this definition a lot.
+toExpr :: Type -> Value -> Maybe Expr
+toExpr ty val = case (ty, val) of
+  (TRec tfs, VRecord vfs) -> do
+    let fns = map fst vfs
+    guard (map fst tfs == fns)
+    fes <- zipWithM toExpr (map snd tfs) (map snd vfs)
+    return $ ERec (zip fns fes)
+  (TCon (TC (TCTuple tl)) ts, VTuple l tvs) -> do
+    guard (tl == l)
+    ETuple `fmap` zipWithM toExpr ts tvs
+  (TCon (TC TCBit) [], VBit True ) -> return $ ECon ECTrue
+  (TCon (TC TCBit) [], VBit False) -> return $ ECon ECFalse
+  (TCon (TC TCSeq) [a,b], VSeq _ []) -> do
+    guard (a == tZero)
+    return $ EList [] b
+  (TCon (TC TCSeq) [a,b], VSeq _ svs) -> do
+    guard (a == tNum (length svs))
+    ses <- mapM (toExpr b) svs
+    return $ EList ses b
+  (TCon (TC TCSeq) [a,(TCon (TC TCBit) [])], VWord w v) -> do
+    guard (a == tNum w)
+    return $ ETApp (ETApp (ECon ECDemote) (tNum v)) (tNum w)
+  (_, VStream _) -> fail "cannot construct infinite expressions"
+  (_, VFun    _) -> fail "cannot convert function values to expressions"
+  (_, VPoly   _) -> fail "cannot convert polymorphic values to expressions"
+  _ -> panic "Cryptol.Eval.Value.toExpr"
+         ["type mismatch:"
+         , pretty ty
+         , render (ppValue defaultPPOpts val)
+         ]

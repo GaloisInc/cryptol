@@ -10,7 +10,7 @@
 module Cryptol.Symbolic where
 
 import Control.Applicative
-import Control.Monad (foldM, liftM2, replicateM, when)
+import Control.Monad (foldM, liftM2, replicateM, when, zipWithM)
 import Control.Monad.Fix (mfix)
 import Control.Monad.IO.Class
 import Control.Monad.Reader (ask, local)
@@ -45,13 +45,17 @@ lookupProver "yices" = SBV.yices
 lookupProver "z3"    = SBV.z3
 lookupProver s       = error $ "invalid prover: " ++ s
 
-prove :: (String, Bool, Bool, String) -> [DeclGroup] -> (Expr, Schema) -> M.ModuleCmd ()
+-- | TODO: document more
+prove :: (String, Bool, Bool, String)
+      -> [DeclGroup]
+      -> (Expr, Schema)
+      -> M.ModuleCmd (Maybe [(Type, Expr)]) -- ^ Returns a list of arguments for a counterexample
 prove (proverName, useSolverIte, verbose, input) edecls (expr, schema) = protectStack useSolverIte $ \modEnv -> do
   let extDgs = allDeclGroups modEnv ++ edecls
   let prover = lookupProver proverName
   case predArgTypes schema of
     Left msg -> do putStrLn msg
-                   return (Right ((), modEnv), [])
+                   return (Right (Nothing, modEnv), [])
     Right ts -> do when verbose $ putStrLn "Simulating..."
                    let runE = do args <- mapM forallFinType ts
                                  env <- evalDecls emptyEnv extDgs
@@ -68,26 +72,34 @@ prove (proverName, useSolverIte, verbose, input) edecls (expr, schema) = protect
                                b <- runTheMonad runE simenv
                                when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
                                return b
-                   case result of
+                   mcxexprs <- case result of
                      SBV.ThmResult (SBV.Satisfiable {}) -> do
                        let Right (_, cws) = SBV.getModel result
                        let (vs, _) = parseValues ts cws
                        let ppOpts = Eval.defaultPPOpts
                        let doc = hsep (text input : map (pp . Eval.WithBase ppOpts) vs)
                        print $ doc <+> text "= False"
+                       let cxtys = unFinType <$> ts
+                           cxexprs = zipWithM Eval.toExpr cxtys vs
+                       return (zip cxtys <$> cxexprs)
                      SBV.ThmResult (SBV.Unsatisfiable {}) -> do
                        putStrLn "Q.E.D."
+                       return Nothing
                      SBV.ThmResult _ -> do
                        print result
-                   return (Right ((), modEnv), [])
+                       return Nothing
+                   return (Right (mcxexprs, modEnv), [])
 
-sat :: (String, Bool, Bool, String) -> [DeclGroup] -> (Expr, Schema) -> M.ModuleCmd ()
+sat :: (String, Bool, Bool, String)
+    -> [DeclGroup]
+    -> (Expr, Schema)
+    -> M.ModuleCmd (Maybe [(Type, Expr)]) -- ^ Returns a list of arguments for a satisfying assignment
 sat (proverName, useSolverIte, verbose, input) edecls (expr, schema) = protectStack useSolverIte $ \modEnv -> do
   let extDgs = allDeclGroups modEnv ++ edecls
   let prover = lookupProver proverName
   case predArgTypes schema of
     Left msg -> do putStrLn msg
-                   return (Right ((), modEnv), [])
+                   return (Right (Nothing, modEnv), [])
     Right ts -> do when verbose $ putStrLn "Simulating..."
                    let runE = do args <- mapM existsFinType ts
                                  env <- evalDecls emptyEnv extDgs
@@ -104,20 +116,25 @@ sat (proverName, useSolverIte, verbose, input) edecls (expr, schema) = protectSt
                                b <- runTheMonad runE simenv
                                when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
                                return b
-                   case result of
+                   msatexprs <- case result of
                      SBV.SatResult (SBV.Satisfiable {}) -> do
                        let Right (_, cws) = SBV.getModel result
                        let (vs, _) = parseValues ts cws
                        let ppOpts = Eval.defaultPPOpts
                        let doc = hsep (text input : map (pp . Eval.WithBase ppOpts) vs)
                        print $ doc <+> text "= True"
+                       let sattys = unFinType <$> ts
+                           satexprs = zipWithM Eval.toExpr sattys vs
+                       return (zip sattys <$> satexprs)
                      SBV.SatResult (SBV.Unsatisfiable {}) -> do
                        putStrLn "Unsatisfiable."
+                       return Nothing
                      SBV.SatResult _ -> do
                        print result
-                   return (Right ((), modEnv), [])
+                       return Nothing
+                   return (Right (msatexprs, modEnv), [])
 
-protectStack :: Bool -> M.ModuleCmd () -> M.ModuleCmd ()
+protectStack :: Bool -> M.ModuleCmd (Maybe a) -> M.ModuleCmd (Maybe a)
 protectStack usingITE cmd modEnv = X.catchJust isOverflow (cmd modEnv) handler
   where isOverflow X.StackOverflow = Just ()
         isOverflow _               = Nothing
@@ -126,7 +143,7 @@ protectStack usingITE cmd modEnv = X.catchJust isOverflow (cmd modEnv) handler
                           "Using ':set iteSolver=on' might help."
         msgBase = "Symbolic evaluation failed to terminate."
         handler () = do putStrLn msg
-                        return (Right ((), modEnv), [])
+                        return (Right (Nothing, modEnv), [])
 
 parseValues :: [FinType] -> [SBV.CW] -> ([Eval.Value], [SBV.CW])
 parseValues [] cws = ([], cws)
@@ -174,6 +191,17 @@ finType ty =
     TRec fields              -> FTRecord <$> traverse (traverseSnd finType) fields
     TUser _ _ t              -> finType t
     _                        -> Nothing
+
+unFinType :: FinType -> Type
+unFinType fty =
+  case fty of
+    FTBit        -> tBit
+    FTSeq l ety  -> tSeq (tNum l) (unFinType ety)
+    FTTuple ftys -> tTuple (unFinType <$> ftys)
+    FTRecord fs  -> tRec (zip fns tys)
+      where
+        fns = fst <$> fs
+        tys = unFinType . snd <$> fs
 
 predArgTypes :: Schema -> Either String [FinType]
 predArgTypes schema@(Forall ts ps ty)

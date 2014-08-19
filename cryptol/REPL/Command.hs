@@ -55,6 +55,7 @@ import qualified Cryptol.Symbolic
 
 import Control.Monad (guard,unless,forM_,when)
 import Data.Char (isSpace,isPunctuation,isSymbol)
+import Data.Foldable (for_)
 import Data.Function (on)
 import Data.List (intercalate,isPrefixOf)
 import Data.Maybe (fromMaybe,mapMaybe)
@@ -331,7 +332,20 @@ proveCmd str = do
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose, str) (M.deDecls denv) (expr, schema)
+  mcx <- liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose, str)
+                                                (M.deDecls denv)
+                                                (expr, schema)
+  -- bind the counterexamples, if any, to `it`
+  for_ mcx $ \cxexprs -> do
+    case cxexprs of
+      [] -> return ()
+      -- if there's only one argument, just bind it
+      [(cxty, cxexpr)] -> bindItVariable cxexpr cxty
+      -- if there are more than one, tuple them up
+      _ -> do
+        let tty = T.tTuple (map fst cxexprs)
+            texp = T.ETuple (map snd cxexprs)
+        bindItVariable texp tty
 
 satCmd :: String -> REPL ()
 satCmd str = do
@@ -341,7 +355,20 @@ satCmd str = do
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose, str) (M.deDecls denv) (expr, schema)
+  msat <- liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose, str)
+                                               (M.deDecls denv)
+                                               (expr, schema)
+  -- bind the satisfying assignment, if any, to `it`
+  for_ msat $ \satexprs -> do
+    case satexprs of
+      [] -> return ()
+      -- if there's only one argument, just bind it
+      [(satty, satexpr)] -> bindItVariable satexpr satty
+      -- if there are more than one, tuple them up
+      _ -> do
+        let tty = T.tTuple (map fst satexprs)
+            texp = T.ETuple (map snd satexprs)
+        bindItVariable texp tty
 
 specializeCmd :: String -> REPL ()
 specializeCmd str = do
