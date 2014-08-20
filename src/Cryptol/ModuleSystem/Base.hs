@@ -71,6 +71,13 @@ renameExpr e = do
   denv <- getDynEnv
   rename (deNames denv `R.shadowing` R.namingEnv env) e
 
+-- | Rename declarations in the context of the focused module.
+renameDecls :: [P.Decl] -> ModuleM [P.Decl]
+renameDecls ds = do
+  env <- getFocusedEnv
+  denv <- getDynEnv
+  rename (deNames denv `R.shadowing` R.namingEnv env) ds
+
 -- NoPat -----------------------------------------------------------------------
 
 -- | Run the noPat pass.
@@ -242,8 +249,8 @@ checkExpr e = do
 checkDecls :: [P.Decl] -> ModuleM [T.DeclGroup]
 checkDecls ds = do
   -- nopat must already be run
+  rds <- renameDecls ds
   denv <- getDynEnv
-  rds <- rename (deNames denv) ds
   env <- getQualifiedEnv
   let env' = env <> deIfaceDecls denv
   typecheck T.tcDecls rds env'
