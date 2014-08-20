@@ -55,7 +55,6 @@ import qualified Cryptol.Symbolic
 
 import Control.Monad (guard,unless,forM_,when)
 import Data.Char (isSpace,isPunctuation,isSymbol)
-import Data.Foldable (for_)
 import Data.Function (on)
 import Data.List (intercalate,isPrefixOf)
 import Data.Maybe (fromMaybe,mapMaybe)
@@ -338,7 +337,10 @@ proveCmd str = do
   ppOpts <- getPPValOpts
   case result of
     Left msg        -> io $ putStrLn msg
-    Right Nothing   -> io $ putStrLn "Q.E.D."
+    Right Nothing   -> do
+      io $ putStrLn "Q.E.D."
+      -- set `it` variable to `True`
+      bindItVariable T.eTrue T.tBit
     Right (Just tevs) -> do
       let vs = map (\(_,_,v) -> v) tevs
           tes = map (\(t,e,_) -> (t,e)) tevs
@@ -369,7 +371,10 @@ satCmd str = do
   ppOpts <- getPPValOpts
   case result of
     Left msg        -> io $ putStrLn msg
-    Right Nothing   -> io $ putStrLn "Unsatisfiable."
+    Right Nothing   -> do
+      io $ putStrLn "Unsatisfiable."
+      -- set `it` variable to `False`
+      bindItVariable T.eFalse T.tBit
     Right (Just tevs) -> do
       let vs = map (\(_,_,v) -> v) tevs
           tes = map (\(t,e,_) -> (t,e)) tevs

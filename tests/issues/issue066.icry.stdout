@@ -1,0 +1,19 @@
+Loading module Cryptol
+Q.E.D.
+it : Bit
+True
+f 0 = False
+it : [4]
+0
+f 3 = True
+it : [4]
+3
+Unsatisfiable.
+it : Bit
+False
+g {x = 0, y = 1} = False
+it : {x : [32], y : [32]}
+{x = 0, y = 1}
+g {x = 0, y = 0} = True
+it : {x : [32], y : [32]}
+{x = 0, y = 0}
