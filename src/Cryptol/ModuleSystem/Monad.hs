@@ -340,3 +340,11 @@ getFocusedEnv  = ModuleT (focusedEnv `fmap` get)
 
 getQualifiedEnv :: ModuleM IfaceDecls
 getQualifiedEnv  = ModuleT (qualifiedEnv `fmap` get)
+
+getDynEnv :: ModuleM DynamicEnv
+getDynEnv  = ModuleT (meDynEnv `fmap` get)
+
+setDynEnv :: DynamicEnv -> ModuleM ()
+setDynEnv denv = ModuleT $ do
+  me <- get
+  set $! me { meDynEnv = denv }

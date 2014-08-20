@@ -95,6 +95,7 @@ $white+                   { emit $ White Space }
 "transpose"               { emit $ KW KW_transpose }
 "type"                    { emit $ KW KW_type  }
 "where"                   { emit $ KW KW_where }
+"let"                     { emit $ KW KW_let }
 "x"                       { emit $ KW KW_x }
 "zero"                    { emit $ KW KW_zero }
 "import"                  { emit $ KW KW_import }

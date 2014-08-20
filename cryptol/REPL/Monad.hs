@@ -23,6 +23,8 @@ module REPL.Monad (
 
     -- ** Environment
   , getModuleEnv, setModuleEnv
+  , getDynEnv, setDynEnv
+  , uniqify
   , getTSyns, getNewtypes, getVars
   , whenDebug
   , getExprNames
@@ -49,6 +51,8 @@ import Cryptol.Prims.Types(typeOf)
 import Cryptol.Prims.Syntax(ECon(..),ppPrefix)
 import Cryptol.Eval (EvalError)
 import qualified Cryptol.ModuleSystem as M
+import qualified Cryptol.ModuleSystem.Env as M
+import qualified Cryptol.ModuleSystem.NamingEnv as M
 import Cryptol.Parser (ParseError,ppError)
 import Cryptol.Parser.NoInclude (IncludeError,ppIncludeError)
 import Cryptol.Parser.NoPat (Error)
@@ -58,10 +62,12 @@ import Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (proverNames)
 
-import Control.Monad (unless,when)
+import Control.Applicative (Applicative(..))
+import Control.Monad (ap,unless,when)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef)
 import Data.List (isPrefixOf)
+import Data.Monoid (Monoid(..))
 import Data.Typeable (Typeable)
 import System.Console.ANSI (setTitle)
 import qualified Control.Exception as X
@@ -81,6 +87,7 @@ data RW = RW
   , eContinue   :: Bool
   , eIsBatch    :: Bool
   , eModuleEnv  :: M.ModuleEnv
+  , eNameSupply :: Int
   , eUserEnv    :: UserEnv
   }
 
@@ -93,6 +100,7 @@ defaultRW isBatch = do
     , eContinue   = True
     , eIsBatch    = isBatch
     , eModuleEnv  = env
+    , eNameSupply = 0
     , eUserEnv    = mkUserEnv userOptions
     }
 
@@ -121,6 +129,12 @@ runREPL isBatch m = do
 instance Functor REPL where
   {-# INLINE fmap #-}
   fmap f m = REPL (\ ref -> fmap f (unREPL m ref))
+
+instance Applicative REPL where
+  {-# INLINE pure #-}
+  pure = return
+  {-# INLINE (<*>) #-}
+  (<*>) = ap
 
 instance Monad REPL where
   {-# INLINE return #-}
@@ -244,8 +258,27 @@ keepOne src as = case as of
 getVars :: REPL (Map.Map P.QName M.IfaceDecl)
 getVars  = do
   me <- getModuleEnv
+  denv <- getDynEnv
+  -- the subtle part here is removing the #Uniq prefix from
+  -- interactively-bound variables, and also excluding any that are
+  -- shadowed and thus can no longer be referenced
   let decls = M.focusedEnv me
-  return (keepOne "getVars" `fmap` M.ifDecls decls)
+      edecls = M.ifDecls (M.deIfaceDecls denv)
+      -- is this QName something the user might actually type?
+      isShadowed (qn@(P.QName (Just (P.ModName ['#':_])) name), _) =
+          case Map.lookup localName neExprs of
+            Nothing -> False
+            Just uniqueNames -> isNamed uniqueNames
+        where localName = P.QName Nothing name
+              isNamed us = any (== qn) (map M.qname us)
+              neExprs = M.neExprs (M.deNames denv)
+      isShadowed _ = False
+      unqual ((P.QName _ name), ifds) = (P.QName Nothing name, ifds)
+      edecls' = Map.fromList
+              . map unqual
+              . filter isShadowed
+              $ Map.toList edecls
+  return (keepOne "getVars" `fmap` (M.ifDecls decls `mappend` edecls'))
 
 getTSyns :: REPL (Map.Map P.QName T.TySyn)
 getTSyns  = do
@@ -286,6 +319,25 @@ getModuleEnv  = eModuleEnv `fmap` getRW
 setModuleEnv :: M.ModuleEnv -> REPL ()
 setModuleEnv me = modifyRW_ (\rw -> rw { eModuleEnv = me })
 
+getDynEnv :: REPL M.DynamicEnv
+getDynEnv  = (M.meDynEnv . eModuleEnv) `fmap` getRW
+
+setDynEnv :: M.DynamicEnv -> REPL ()
+setDynEnv denv = do
+  me <- getModuleEnv
+  setModuleEnv (me { M.meDynEnv = denv })
+
+-- | Given an existing qualified name, prefix it with a
+-- relatively-unique string. We make it unique by prefixing with a
+-- character @#@ that is not lexically valid in a module name.
+uniqify :: P.QName -> REPL P.QName
+uniqify (P.QName Nothing name) = do
+  i <- eNameSupply `fmap` getRW
+  modifyRW_ (\rw -> rw { eNameSupply = i+1 })
+  let modname' = P.ModName [ '#' : ("Uniq_" ++ show i) ]
+  return (P.QName (Just modname') name)
+uniqify qn =
+  panic "[REPL] uniqify" ["tried to uniqify a qualified name: " ++ pretty qn]
 
 -- User Environment Interaction ------------------------------------------------
 

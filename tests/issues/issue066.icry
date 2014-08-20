@@ -1,0 +1,22 @@
+let f x = (x : [4]) == x
+:prove f
+:t it
+it
+let f x = (x : [4]) == 3
+:prove f
+:t it
+it
+:sat f
+:t it
+it
+let f x = (x : [4]) == 3 && x == 2
+:sat f
+:t it
+it
+let g p = (p : { x : [32], y : [32]}).x == p.y
+:prove g
+:t it
+it
+:sat g
+:t it
+it

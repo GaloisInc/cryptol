@@ -368,6 +368,12 @@ tInf      = TCon (TC TCInf) []
 tBit     :: Type
 tBit      = TCon (TC TCBit) []
 
+eTrue    :: Expr
+eTrue     = ECon ECTrue
+
+eFalse   :: Expr
+eFalse    = ECon ECFalse
+
 tWord    :: Type -> Type
 tWord a   = tSeq a tBit
 

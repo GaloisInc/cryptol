@@ -12,17 +12,16 @@
 module Cryptol.Symbolic where
 
 import Control.Applicative
-import Control.Monad (replicateM, when)
+import Control.Monad (replicateM, when, zipWithM)
 import Control.Monad.IO.Class
 import Data.List (transpose)
 import qualified Data.Map as Map
-import Data.Maybe (fromJust)
 import Data.Monoid (Monoid(..))
 import Data.Traversable (traverse)
 import qualified Control.Exception as X
 
 import qualified Data.SBV as SBV
-import Data.SBV (SBool, Symbolic)
+import Data.SBV (Symbolic)
 
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
@@ -58,9 +57,16 @@ lookupProver s =
     Just cfg -> cfg
     Nothing  -> error $ "invalid prover: " ++ s
 
-prove :: (String, Bool, Bool) -> (Expr, Schema) -> M.ModuleCmd (Either String (Maybe [Eval.Value]))
-prove (proverName, useSolverIte, verbose) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
-  let extDgs = allDeclGroups modEnv
+-- | A prover result is either an error message, or potentially a
+-- counterexample or satisfying assignment.
+type ProverResult = Either String (Maybe [(Type, Expr, Eval.Value)])
+-- | TODO: document more
+prove :: (String, Bool, Bool)
+      -> [DeclGroup]
+      -> (Expr, Schema)
+      -> M.ModuleCmd ProverResult
+prove (proverName, useSolverIte, verbose) edecls (expr, schema) = protectStack useSolverIte $ \modEnv -> do
+  let extDgs = allDeclGroups modEnv ++ edecls
   let prover = lookupProver proverName
   case predArgTypes schema of
     Left msg -> return (Right (Left msg, modEnv), [])
@@ -72,17 +78,23 @@ prove (proverName, useSolverIte, verbose) (expr, schema) = protectStack useSolve
                                b <- return $! fromVBit (foldl fromVFun v args)
                                when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
                                return b
-                   let solution = case result of
-                         SBV.ThmResult (SBV.Satisfiable {}) -> Right (Just vs)
-                           where Right (_, cws) = SBV.getModel result
-                                 (vs, _) = parseValues ts cws
-                         SBV.ThmResult (SBV.Unsatisfiable {}) -> Right Nothing
-                         SBV.ThmResult _ -> Left (show result)
-                   return (Right (solution, modEnv), [])
+                   mcxexprs <- case result of
+                     SBV.ThmResult (SBV.Satisfiable {}) -> do
+                       let Right (_, cws) = SBV.getModel result
+                       let (vs, _) = parseValues ts cws
+                       let cxtys = unFinType <$> ts
+                           cxexprs = zipWithM Eval.toExpr cxtys vs
+                       return $ Right (zip3 cxtys <$> cxexprs <*> pure vs)
+                     SBV.ThmResult (SBV.Unsatisfiable {}) -> return $ Right Nothing
+                     SBV.ThmResult _ -> return $ Left (show result)
+                   return (Right (mcxexprs, modEnv), [])
 
-sat :: (String, Bool, Bool) -> (Expr, Schema) -> M.ModuleCmd (Either String (Maybe [Eval.Value]))
-sat (proverName, useSolverIte, verbose) (expr, schema) = protectStack useSolverIte $ \modEnv -> do
-  let extDgs = allDeclGroups modEnv
+sat :: (String, Bool, Bool)
+    -> [DeclGroup]
+    -> (Expr, Schema)
+    -> M.ModuleCmd ProverResult -- ^ Returns a list of arguments for a satisfying assignment
+sat (proverName, useSolverIte, verbose) edecls (expr, schema) = protectStack useSolverIte $ \modEnv -> do
+  let extDgs = allDeclGroups modEnv ++ edecls
   let prover = lookupProver proverName
   case predArgTypes schema of
     Left msg -> return (Right (Left msg, modEnv), [])
@@ -94,15 +106,18 @@ sat (proverName, useSolverIte, verbose) (expr, schema) = protectStack useSolverI
                                b <- return $! fromVBit (foldl fromVFun v args)
                                when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
                                return b
-                   let solution = case result of
-                         SBV.SatResult (SBV.Satisfiable {}) -> Right (Just vs)
-                           where Right (_, cws) = SBV.getModel result
-                                 (vs, _) = parseValues ts cws
-                         SBV.SatResult (SBV.Unsatisfiable {}) -> Right Nothing
-                         SBV.SatResult _ -> Left (show result)
-                   return (Right (solution, modEnv), [])
+                   msatexprs <- case result of
+                     SBV.SatResult (SBV.Satisfiable {}) -> do
+                       let Right (_, cws) = SBV.getModel result
+                       let (vs, _) = parseValues ts cws
+                       let sattys = unFinType <$> ts
+                           satexprs = zipWithM Eval.toExpr sattys vs
+                       return $ Right (zip3 sattys <$> satexprs <*> pure vs)
+                     SBV.SatResult (SBV.Unsatisfiable {}) -> return $ Right Nothing
+                     SBV.SatResult _ -> return $ Left (show result)
+                   return (Right (msatexprs, modEnv), [])
 
-protectStack :: Bool -> M.ModuleCmd (Either String a) -> M.ModuleCmd (Either String a)
+protectStack :: Bool -> M.ModuleCmd ProverResult -> M.ModuleCmd ProverResult
 protectStack usingITE cmd modEnv = X.catchJust isOverflow (cmd modEnv) handler
   where isOverflow X.StackOverflow = Just ()
         isOverflow _               = Nothing
@@ -159,6 +174,17 @@ finType ty =
     TRec fields              -> FTRecord <$> traverse (traverseSnd finType) fields
     TUser _ _ t              -> finType t
     _                        -> Nothing
+
+unFinType :: FinType -> Type
+unFinType fty =
+  case fty of
+    FTBit        -> tBit
+    FTSeq l ety  -> tSeq (tNum l) (unFinType ety)
+    FTTuple ftys -> tTuple (unFinType <$> ftys)
+    FTRecord fs  -> tRec (zip fns tys)
+      where
+        fns = fst <$> fs
+        tys = unFinType . snd <$> fs
 
 predArgTypes :: Schema -> Either String [FinType]
 predArgTypes schema@(Forall ts ps ty)
@@ -246,7 +272,9 @@ evalExpr env expr =
     EIf b e1 e2       -> evalIf (fromVBit (eval b)) (eval e1) (eval e2)
                            where evalIf = if envIteSolver env then SBV.sBranch else SBV.ite
     EComp ty e mss    -> evalComp env (evalType env ty) e mss
-    EVar n            -> fromJust (lookupVar n env)
+    EVar n            -> case lookupVar n env of
+                           Just x -> x
+                           _ -> panic "Cryptol.Symbolic.evalExpr" [ "Variable " ++ show n ++ " not found" ]
     -- TODO: how to deal with uninterpreted functions?
     ETAbs tv e        -> VPoly $ \ty -> evalExpr (bindType (tpVar tv) ty env) e
     ETApp e ty        -> fromVPoly (eval e) (evalType env ty)
@@ -273,13 +301,17 @@ evalSel sel v =
         VSeq b xs  -> VSeq b (map (evalSel sel) xs)
         VStream xs -> VStream (map (evalSel sel) xs)
         VFun f     -> VFun (\x -> evalSel sel (f x))
+        _ -> panic "Cryptol.Symbolic.evalSel" [ "Tuple selector applied to incompatible type" ]
 
     RecordSel n _ ->
       case v of
-        VRecord bs  -> fromJust (lookup n bs)
+        VRecord bs  -> case lookup n bs of
+                         Just x -> x
+                         _ -> panic "Cryptol.Symbolic.evalSel" [ "Selector " ++ show n ++ " not found" ]
         VSeq b xs   -> VSeq b (map (evalSel sel) xs)
         VStream xs  -> VStream (map (evalSel sel) xs)
         VFun f      -> VFun (\x -> evalSel sel (f x))
+        _ -> panic "Cryptol.Symbolic.evalSel" [ "Record selector applied to non-record" ]
 
     ListSel n _   -> case v of
                        VWord s -> VBit (SBV.sbvTestBit s n)

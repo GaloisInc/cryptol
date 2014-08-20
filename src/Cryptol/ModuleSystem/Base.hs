@@ -8,6 +8,7 @@
 
 module Cryptol.ModuleSystem.Base where
 
+import Cryptol.ModuleSystem.Env (DynamicEnv(..), deIfaceDecls)
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
 import Cryptol.ModuleSystem.Env (lookupModule, LoadedModule(..))
@@ -32,6 +33,7 @@ import Data.Foldable (foldMap)
 import Data.Function (on)
 import Data.List (nubBy)
 import Data.Maybe (mapMaybe,fromMaybe)
+import Data.Monoid ((<>))
 import System.Directory (doesFileExist)
 import System.FilePath (addExtension,joinPath,(</>))
 import qualified Data.Map as Map
@@ -66,8 +68,8 @@ renameModule m = do
 renameExpr :: P.Expr -> ModuleM P.Expr
 renameExpr e = do
   env <- getFocusedEnv
-  rename (R.namingEnv env) e
-
+  denv <- getDynEnv
+  rename (deNames denv `R.shadowing` R.namingEnv env) e
 
 -- NoPat -----------------------------------------------------------------------
 
@@ -230,8 +232,21 @@ loadDeps m
 checkExpr :: P.Expr -> ModuleM (T.Expr,T.Schema)
 checkExpr e = do
   npe <- noPat e
+  denv <- getDynEnv
   re  <- renameExpr npe
-  typecheck T.tcExpr re =<< getQualifiedEnv
+  env <- getQualifiedEnv
+  let env' = env <> deIfaceDecls denv
+  typecheck T.tcExpr re env'
+
+-- | Typecheck a group of declarations.
+checkDecls :: [P.Decl] -> ModuleM [T.DeclGroup]
+checkDecls ds = do
+  -- nopat must already be run
+  denv <- getDynEnv
+  rds <- rename (deNames denv) ds
+  env <- getQualifiedEnv
+  let env' = env <> deIfaceDecls denv
+  typecheck T.tcDecls rds env'
 
 -- | Typecheck a module.
 checkModule :: P.Module -> ModuleM T.Module
@@ -313,4 +328,15 @@ genInferInput r env = do
 evalExpr :: T.Expr -> ModuleM E.Value
 evalExpr e = do
   env <- getEvalEnv
-  return (E.evalExpr env e)
+  denv <- getDynEnv
+  return (E.evalExpr (env <> deEnv denv) e)
+
+evalDecls :: [T.DeclGroup] -> ModuleM ()
+evalDecls dgs = do
+  env <- getEvalEnv
+  denv <- getDynEnv
+  let env' = env <> deEnv denv
+      denv' = denv { deDecls = deDecls denv ++ dgs
+                   , deEnv = E.evalDecls dgs env'
+                   }
+  setDynEnv denv'

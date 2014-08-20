@@ -136,6 +136,7 @@ cmdComp prefix c = Completion
 cmdArgument :: CommandBody -> CompletionFunc REPL
 cmdArgument ct cursor@(l,_) = case ct of
   ExprArg     _ -> completeExpr cursor
+  DeclsArg    _ -> (completeExpr +++ completeType) cursor
   ExprTypeArg _ -> (completeExpr +++ completeType) cursor
   FilenameArg _ -> completeFilename cursor
   ShellArg _    -> completeFilename cursor

@@ -33,12 +33,13 @@ import REPL.Trie
 
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Base as M (preludeName)
+import qualified Cryptol.ModuleSystem.NamingEnv as M
 
 import qualified Cryptol.Eval.Value as E
 import qualified Cryptol.Testing.Random  as TestR
 import qualified Cryptol.Testing.Exhaust as TestX
 import Cryptol.Parser
-    (parseExprWith,ParseError(),Config(..),defaultConfig,parseModName)
+    (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig,parseModName)
 import Cryptol.Parser.Position (emptyRange,getLoc)
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Subst as T
@@ -57,6 +58,7 @@ import Data.Char (isSpace,isPunctuation,isSymbol)
 import Data.Function (on)
 import Data.List (intercalate,isPrefixOf)
 import Data.Maybe (fromMaybe,mapMaybe)
+import Data.Monoid (mempty)
 import System.Exit (ExitCode(ExitSuccess))
 import System.Process (shell,createProcess,waitForProcess)
 import qualified System.Process as Process(runCommand)
@@ -126,6 +128,7 @@ instance Ord CommandDescr where
 
 data CommandBody
   = ExprArg     (String   -> REPL ())
+  | DeclsArg    (String   -> REPL ())
   | ExprTypeArg (String   -> REPL ())
   | FilenameArg (FilePath -> REPL ())
   | OptionArg   (String   -> REPL ())
@@ -224,9 +227,14 @@ getPPValOpts =
 
 evalCmd :: String -> REPL ()
 evalCmd str = do
-  (val,_ty) <- replEvalExpr str
-  ppOpts <- getPPValOpts
-  io $ rethrowEvalError $ print $ pp $ E.WithBase ppOpts val
+  ri <- replParseInput str
+  case ri of
+    P.ExprInput expr -> do
+      (val,_ty) <- replEvalExpr expr
+      ppOpts <- getPPValOpts
+      io $ rethrowEvalError $ print $ pp $ E.WithBase ppOpts val
+    P.LetInput decl -> do
+      replEvalDecl decl
 
 qcCmd :: String -> REPL ()
 qcCmd "" =
@@ -238,7 +246,8 @@ qcCmd "" =
                   qcCmd x
 
 qcCmd str =
-  do (val,ty) <- replEvalExpr str
+  do expr <- replParseExpr str
+     (val,ty) <- replEvalExpr expr
      EnvNum testNum  <- getUser "tests"
      case TestX.testableType ty of
        Just (sz,vss) | sz <= toInteger testNum ->
@@ -317,34 +326,70 @@ proveCmd :: String -> REPL ()
 proveCmd str = do
   parseExpr <- replParseExpr str
   (expr, schema) <- replCheckExpr parseExpr
+  denv <- getDynEnv
   -- spexpr <- replSpecExpr expr
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  result <- liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose) (expr, schema)
+  result <- liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose)
+                                                   (M.deDecls denv)
+                                                   (expr, schema)
   ppOpts <- getPPValOpts
   case result of
     Left msg        -> io $ putStrLn msg
-    Right Nothing   -> io $ putStrLn "Q.E.D."
-    Right (Just vs) -> io $ print $ hsep (doc : docs) <+> text "= False"
-                         where doc = ppPrec 3 parseExpr -- function application has precedence 3
-                               docs = map (pp . E.WithBase ppOpts) vs
+    Right Nothing   -> do
+      io $ putStrLn "Q.E.D."
+      -- set `it` variable to `True`
+      bindItVariable T.eTrue T.tBit
+    Right (Just tevs) -> do
+      let vs = map (\(_,_,v) -> v) tevs
+          tes = map (\(t,e,_) -> (t,e)) tevs
+          doc = ppPrec 3 parseExpr -- function application has precedence 3
+          docs = map (pp . E.WithBase ppOpts) vs
+      io $ print $ hsep (doc : docs) <+> text "= False"
+      -- bind the counterexamples to `it`
+      case tes of
+        [] -> return ()
+        -- if there's only one argument, just bind it
+        [(t, e)] -> bindItVariable e t
+        -- if there are more than one, tuple them up
+        _ -> bindItVariable texp tty
+               where tty = T.tTuple (map fst tes)
+                     texp = T.ETuple (map snd tes)
 
 satCmd :: String -> REPL ()
 satCmd str = do
   parseExpr <- replParseExpr str
   (expr, schema) <- replCheckExpr parseExpr
+  denv <- getDynEnv
   EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
-  result <- liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose) (expr, schema)
+  result <- liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose)
+                                                 (M.deDecls denv)
+                                                 (expr, schema)
   ppOpts <- getPPValOpts
   case result of
     Left msg        -> io $ putStrLn msg
-    Right Nothing   -> io $ putStrLn "Unsatisfiable."
-    Right (Just vs) -> io $ print $ hsep (doc : docs) <+> text "= True"
-                         where doc = ppPrec 3 parseExpr -- function application has precedence 3
-                               docs = map (pp . E.WithBase ppOpts) vs
+    Right Nothing   -> do
+      io $ putStrLn "Unsatisfiable."
+      -- set `it` variable to `False`
+      bindItVariable T.eFalse T.tBit
+    Right (Just tevs) -> do
+      let vs = map (\(_,_,v) -> v) tevs
+          tes = map (\(t,e,_) -> (t,e)) tevs
+          doc = ppPrec 3 parseExpr -- function application has precedence 3
+          docs = map (pp . E.WithBase ppOpts) vs
+      io $ print $ hsep (doc : docs) <+> text "= True"
+      -- bind the satisfying assignment to `it`
+      case tes of
+        [] -> return ()
+        -- if there's only one argument, just bind it
+        [(t, e)] -> bindItVariable e t
+        -- if there are more than one, tuple them up
+        _ -> bindItVariable texp tty
+               where tty = T.tTuple (map fst tes)
+                     texp = T.ETuple (map snd tes)
 
 specializeCmd :: String -> REPL ()
 specializeCmd str = do
@@ -425,6 +470,7 @@ loadCmd path
         { lName = Just (T.mName m)
         , lPath = path
         }
+      setDynEnv mempty
 
 quitCmd :: REPL ()
 quitCmd  = stop
@@ -460,7 +506,7 @@ browseNewtypes pfx = do
 
 browseVars :: String -> REPL ()
 browseVars pfx = do
-  vars  <- getVars
+  vars <- getVars
   let allNames = vars
           {- This shows the built-ins as well:
              Map.union vars
@@ -561,6 +607,9 @@ replParse parse str = case parse str of
   Right a -> return a
   Left e  -> raise (ParseError e)
 
+replParseInput :: String -> REPL P.ReplInput
+replParseInput = replParse $ parseReplWith interactiveConfig
+
 replParseExpr :: String -> REPL P.Expr
 replParseExpr = replParse $ parseExprWith interactiveConfig
 
@@ -592,13 +641,27 @@ moduleCmdResult (res,ws0) = do
 replCheckExpr :: P.Expr -> REPL (T.Expr,T.Schema)
 replCheckExpr e = liftModuleCmd $ M.checkExpr e
 
+replCheckDecls :: [P.Decl] -> REPL [T.DeclGroup]
+replCheckDecls ds = do
+  npds <- liftModuleCmd $ M.noPat ds
+  denv <- getDynEnv
+  let dnames = M.namingEnv npds
+  ne' <- M.travNamingEnv uniqify dnames
+  let denv' = denv { M.deNames = ne' `M.shadowing` M.deNames denv }
+      undo exn = do
+        -- if typechecking fails, we want to revert changes to the
+        -- dynamic environment and reraise
+        setDynEnv denv
+        raise exn
+  setDynEnv denv'
+  catch (liftModuleCmd $ M.checkDecls npds) undo
+
 replSpecExpr :: T.Expr -> REPL T.Expr
 replSpecExpr e = liftModuleCmd $ S.specialize e
 
-replEvalExpr :: String -> REPL (E.Value, T.Type)
-replEvalExpr str =
-  do expr      <- replParseExpr str
-     (def,sig) <- replCheckExpr expr
+replEvalExpr :: P.Expr -> REPL (E.Value, T.Type)
+replEvalExpr expr =
+  do (def,sig) <- replCheckExpr expr
 
      let range = fromMaybe emptyRange (getLoc expr)
      (def1,ty) <-
@@ -612,10 +675,40 @@ replEvalExpr str =
 
      val <- liftModuleCmd (M.evalExpr def1)
      whenDebug (io (putStrLn (dump def1)))
+     -- add "it" to the namespace
+     bindItVariable def1 ty
      return (val,ty)
   where
   warnDefault ns (x,t) =
         print $ text "Assuming" <+> ppWithNames ns x <+> text "=" <+> pp t
+
+-- | Creates a fresh binding of "it" to the expression given, and adds
+-- it to the current dynamic environment
+bindItVariable :: T.Expr -> T.Type -> REPL ()
+bindItVariable expr ty = do
+  let it = T.QName Nothing (P.Name "it")
+  freshIt <- uniqify it
+  let dg = T.NonRecursive decl
+      schema = T.Forall { T.sVars  = []
+                        , T.sProps = []
+                        , T.sType  = ty
+                        }
+      decl = T.Decl { T.dName       = freshIt
+                    , T.dSignature  = schema
+                    , T.dDefinition = expr
+                    , T.dPragmas    = []
+                    }
+  liftModuleCmd (M.evalDecls [dg])
+  denv <- getDynEnv
+  let en = M.EFromBind (P.Located emptyRange freshIt)
+      nenv' = M.singletonE it en `M.shadowing` M.deNames denv
+  setDynEnv $ denv { M.deNames = nenv' }
+
+replEvalDecl :: P.Decl -> REPL ()
+replEvalDecl decl = do
+  dgs <- replCheckDecls [decl]
+  whenDebug (mapM_ (\dg -> (io (putStrLn (dump dg)))) dgs)
+  liftModuleCmd (M.evalDecls dgs)
 
 replEdit :: String -> REPL Bool
 replEdit file = do
@@ -679,6 +772,7 @@ parseCommand findCmd line = do
   case findCmd cmd of
     [c] -> case cBody c of
       ExprArg     body -> Just (Command (body args'))
+      DeclsArg    body -> Just (Command (body args'))
       ExprTypeArg body -> Just (Command (body args'))
       FilenameArg body -> Just (Command (body =<< expandHome args'))
       OptionArg   body -> Just (Command (body args'))

@@ -9,6 +9,7 @@
 module Cryptol.ModuleSystem (
     -- * Module System
     ModuleEnv(..), initialModuleEnv
+  , DynamicEnv(..)
   , ModuleError(..), ModuleWarning(..)
   , ModuleCmd, ModuleRes
   , findModule
@@ -16,6 +17,9 @@ module Cryptol.ModuleSystem (
   , loadModule
   , checkExpr
   , evalExpr
+  , checkDecls
+  , evalDecls
+  , noPat
   , focusedEnv
 
     -- * Interfaces
@@ -29,6 +33,7 @@ import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Monad
 import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.Parser.AST        as P
+import           Cryptol.Parser.NoPat (RemovePatterns)
 import qualified Cryptol.TypeCheck.AST     as T
 
 
@@ -59,6 +64,12 @@ loadModule path m env = runModuleM env $ do
   setFocusedModule (T.mName m')
   return m'
 
+-- Extended Environments -------------------------------------------------------
+
+-- These functions are particularly useful for interactive modes, as
+-- they allow for expressions to be evaluated in an environment that
+-- can extend dynamically outside of the context of a module.
+
 -- | Check the type of an expression.
 checkExpr :: P.Expr -> ModuleCmd (T.Expr,T.Schema)
 checkExpr e env = runModuleM env (interactive (Base.checkExpr e))
@@ -67,3 +78,13 @@ checkExpr e env = runModuleM env (interactive (Base.checkExpr e))
 evalExpr :: T.Expr -> ModuleCmd E.Value
 evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
 
+-- | Typecheck declarations.
+checkDecls :: [P.Decl] -> ModuleCmd [T.DeclGroup]
+checkDecls ds env = runModuleM env (interactive (Base.checkDecls ds))
+
+-- | Evaluate declarations and add them to the extended environment.
+evalDecls :: [T.DeclGroup] -> ModuleCmd ()
+evalDecls dgs env = runModuleM env (interactive (Base.evalDecls dgs))
+
+noPat :: RemovePatterns a => a -> ModuleCmd a
+noPat a env = runModuleM env (interactive (Base.noPat a))
