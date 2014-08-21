@@ -1,19 +1,25 @@
 Loading module Cryptol
 Q.E.D.
-it : Bit
-True
+it : {result : Bit}
+{result = True}
 f 0 = False
-it : [4]
-0
+it : {result : Bit, arg : [4]}
+{result = False, arg = 0}
 f 3 = True
-it : [4]
-3
+it : {result : Bit, arg : [4]}
+{result = True, arg = 3}
 Unsatisfiable.
-it : Bit
-False
+it : {result : Bit}
+{result = False}
 g {x = 0, y = 1} = False
-it : {x : [32], y : [32]}
-{x = 0, y = 1}
+it : {result : Bit, arg : {x : [32], y : [32]}}
+{result = False, arg = {x = 0, y = 1}}
 g {x = 0, y = 0} = True
-it : {x : [32], y : [32]}
-{x = 0, y = 0}
+it : {result : Bit, arg : {x : [32], y : [32]}}
+{result = True, arg = {x = 0, y = 0}}
+h 0 0 = False
+it : {result : Bit, args : ([8], [8])}
+{result = False, args = (0, 0)}
+h 0 1 = True
+it : {result : Bit, args : ([8], [8])}
+{result = True, args = (0, 1)}

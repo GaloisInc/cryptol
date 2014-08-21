@@ -20,3 +20,10 @@ it
 :sat g
 :t it
 it
+let h x y = (x : [8]) < y
+:prove h
+:t it
+it
+:sat h
+:t it
+it

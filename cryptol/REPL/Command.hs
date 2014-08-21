@@ -339,24 +339,31 @@ proveCmd str = do
     Left msg        -> io $ putStrLn msg
     Right Nothing   -> do
       io $ putStrLn "Q.E.D."
-      -- set `it` variable to `True`
-      bindItVariable T.eTrue T.tBit
+      let (t, e) = mkSolverResult True Nothing
+      bindItVariable t e
     Right (Just tevs) -> do
       let vs = map (\(_,_,v) -> v) tevs
           tes = map (\(t,e,_) -> (t,e)) tevs
           doc = ppPrec 3 parseExpr -- function application has precedence 3
           docs = map (pp . E.WithBase ppOpts) vs
       io $ print $ hsep (doc : docs) <+> text "= False"
-      -- bind the counterexamples to `it`
-      case tes of
-        [] -> return ()
-        -- if there's only one argument, just bind it
-        [(t, e)] -> bindItVariable e t
-        -- if there are more than one, tuple them up
-        _ -> bindItVariable texp tty
-               where tty = T.tTuple (map fst tes)
-                     texp = T.ETuple (map snd tes)
+      -- bind the counterexample to `it`
+      let (t, e) = mkSolverResult False (Just tes)
+      bindItVariable t e
 
+-- | Run a SAT solver on the given expression. Binds the @it@ variable
+-- to a record whose form depends on the expression given.
+--
+-- For unsatisfiable formulas:
+--   { result = False }
+--
+-- For satisfiable formulas of the type @t -> Bit@:
+--   { result = True, arg = e }
+--   where e : t
+--
+-- For satisfiable formulas of the type @t1 -> t2 -> ... -> Bit@:
+--   { result = True, arg = (e1, e2, ...) }
+--   where e1 : t1, e2 : t2, ...
 satCmd :: String -> REPL ()
 satCmd str = do
   parseExpr <- replParseExpr str
@@ -373,8 +380,8 @@ satCmd str = do
     Left msg        -> io $ putStrLn msg
     Right Nothing   -> do
       io $ putStrLn "Unsatisfiable."
-      -- set `it` variable to `False`
-      bindItVariable T.eFalse T.tBit
+      let (t, e) = mkSolverResult False Nothing
+      bindItVariable t e
     Right (Just tevs) -> do
       let vs = map (\(_,_,v) -> v) tevs
           tes = map (\(t,e,_) -> (t,e)) tevs
@@ -382,14 +389,28 @@ satCmd str = do
           docs = map (pp . E.WithBase ppOpts) vs
       io $ print $ hsep (doc : docs) <+> text "= True"
       -- bind the satisfying assignment to `it`
-      case tes of
-        [] -> return ()
-        -- if there's only one argument, just bind it
-        [(t, e)] -> bindItVariable e t
-        -- if there are more than one, tuple them up
-        _ -> bindItVariable texp tty
-               where tty = T.tTuple (map fst tes)
-                     texp = T.ETuple (map snd tes)
+      let (t, e) = mkSolverResult True (Just tes)
+      bindItVariable t e
+
+-- | Make a type/expression pair that is suitable for binding to @it@
+-- after running @:sat@ or @:prove@
+mkSolverResult :: Bool -> Maybe [(T.Type, T.Expr)] -> (T.Type, T.Expr)
+mkSolverResult result marg = (rty, re)
+  where
+    rName = T.Name "result"
+    argName = T.Name "arg"
+    argsName = T.Name "args"
+    rty = T.TRec $ [(rName, T.tBit )] ++ map fst argF
+    re  = T.ERec $ [(rName, resultE)] ++ map snd argF
+    resultE = if result then T.eTrue else T.eFalse
+    argF = case marg of
+      -- no arg field if there's no counterexample
+      Nothing       -> []
+      Just []       -> []
+      Just [(t, e)] -> [((argName, t), (argName, e))]
+      -- otherwise we make a tuple of the arguments to the formula
+      Just tes      -> [((argsName, T.tTuple (map fst tes))
+                       , (argsName, T.ETuple (map snd tes)))]
 
 specializeCmd :: String -> REPL ()
 specializeCmd str = do
@@ -676,7 +697,7 @@ replEvalExpr expr =
      val <- liftModuleCmd (M.evalExpr def1)
      whenDebug (io (putStrLn (dump def1)))
      -- add "it" to the namespace
-     bindItVariable def1 ty
+     bindItVariable ty def1
      return (val,ty)
   where
   warnDefault ns (x,t) =
@@ -684,8 +705,8 @@ replEvalExpr expr =
 
 -- | Creates a fresh binding of "it" to the expression given, and adds
 -- it to the current dynamic environment
-bindItVariable :: T.Expr -> T.Type -> REPL ()
-bindItVariable expr ty = do
+bindItVariable :: T.Type -> T.Expr -> REPL ()
+bindItVariable ty expr = do
   let it = T.QName Nothing (P.Name "it")
   freshIt <- uniqify it
   let dg = T.NonRecursive decl
