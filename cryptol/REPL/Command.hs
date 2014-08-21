@@ -352,18 +352,8 @@ proveCmd str = do
       bindItVariable t e
 
 -- | Run a SAT solver on the given expression. Binds the @it@ variable
--- to a record whose form depends on the expression given.
---
--- For unsatisfiable formulas:
---   { result = False }
---
--- For satisfiable formulas of the type @t -> Bit@:
---   { result = True, arg = e }
---   where e : t
---
--- For satisfiable formulas of the type @t1 -> t2 -> ... -> Bit@:
---   { result = True, arg = (e1, e2, ...) }
---   where e1 : t1, e2 : t2, ...
+-- to a record whose form depends on the expression given. See ticket
+-- #66 for a discussion of this design.
 satCmd :: String -> REPL ()
 satCmd str = do
   parseExpr <- replParseExpr str
