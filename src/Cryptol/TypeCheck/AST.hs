@@ -380,6 +380,26 @@ tWord a   = tSeq a tBit
 tSeq     :: Type -> Type -> Type
 tSeq a b  = TCon (TC TCSeq) [a,b]
 
+tChar :: Type
+tChar = tWord (tNum (8 :: Int))
+
+eChar :: Char -> Expr
+eChar c = ETApp (ETApp (ECon ECDemote) (tNum v)) (tNum w)
+  where v = fromEnum c
+        w = 8 :: Int
+
+tString :: Int -> Type
+tString len = tSeq (tNum len) tChar
+
+eString :: String -> Expr
+eString str = EList (map eChar str) tChar
+
+-- | Make an expression that is `error` pre-applied to a type and a
+-- message.
+eError :: Type -> String -> Expr
+eError t str =
+  EApp (ETApp (ETApp (ECon ECError) t) (tNum (length str))) (eString str)
+
 tRec     :: [(Name,Type)] -> Type
 tRec      = TRec
 

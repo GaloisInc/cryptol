@@ -59,8 +59,9 @@ lookupProver s =
 
 -- | A prover result is either an error message, or potentially a
 -- counterexample or satisfying assignment.
-type ProverResult = Either String (Maybe [(Type, Expr, Eval.Value)])
--- | TODO: document more
+type ProverResult = Either String (Either [Type] [(Type, Expr, Eval.Value)])
+
+-- | TODO: Clean up ProverResult; it has grown too much to be a proper datatype!
 prove :: (String, Bool, Bool)
       -> [DeclGroup]
       -> (Expr, Schema)
@@ -78,16 +79,19 @@ prove (proverName, useSolverIte, verbose) edecls (expr, schema) = protectStack u
                                b <- return $! fromVBit (foldl fromVFun v args)
                                when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
                                return b
-                   mcxexprs <- case result of
-                     SBV.ThmResult (SBV.Satisfiable {}) -> do
+                   ecxexprs <- case result of
+                     SBV.ThmResult (SBV.Satisfiable {}) ->
                        let Right (_, cws) = SBV.getModel result
-                       let (vs, _) = parseValues ts cws
-                       let cxtys = unFinType <$> ts
+                           (vs, _) = parseValues ts cws
+                           cxtys = unFinType <$> ts
                            cxexprs = zipWithM Eval.toExpr cxtys vs
-                       return $ Right (zip3 cxtys <$> cxexprs <*> pure vs)
-                     SBV.ThmResult (SBV.Unsatisfiable {}) -> return $ Right Nothing
+                       in case zip3 cxtys <$> cxexprs <*> pure vs of
+                         Nothing -> panic "Cryptol.Symbolic.prove"
+                                      [ "unable to make counterexample into expression" ]
+                         Just tevs -> return $ Right (Right tevs)
+                     SBV.ThmResult (SBV.Unsatisfiable {}) -> return $ Right (Left (unFinType <$> ts))
                      SBV.ThmResult _ -> return $ Left (show result)
-                   return (Right (mcxexprs, modEnv), [])
+                   return (Right (ecxexprs, modEnv), [])
 
 sat :: (String, Bool, Bool)
     -> [DeclGroup]
@@ -106,16 +110,19 @@ sat (proverName, useSolverIte, verbose) edecls (expr, schema) = protectStack use
                                b <- return $! fromVBit (foldl fromVFun v args)
                                when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
                                return b
-                   msatexprs <- case result of
-                     SBV.SatResult (SBV.Satisfiable {}) -> do
+                   esatexprs <- case result of
+                     SBV.SatResult (SBV.Satisfiable {}) ->
                        let Right (_, cws) = SBV.getModel result
-                       let (vs, _) = parseValues ts cws
-                       let sattys = unFinType <$> ts
+                           (vs, _) = parseValues ts cws
+                           sattys = unFinType <$> ts
                            satexprs = zipWithM Eval.toExpr sattys vs
-                       return $ Right (zip3 sattys <$> satexprs <*> pure vs)
-                     SBV.SatResult (SBV.Unsatisfiable {}) -> return $ Right Nothing
+                       in case zip3 sattys <$> satexprs <*> pure vs of
+                         Nothing -> panic "Cryptol.Symbolic.sat"
+                                      [ "unable to make assignment into expression" ]
+                         Just tevs -> return $ Right (Right tevs)
+                     SBV.SatResult (SBV.Unsatisfiable {}) -> return $ Right (Left (unFinType <$> ts))
                      SBV.SatResult _ -> return $ Left (show result)
-                   return (Right (msatexprs, modEnv), [])
+                   return (Right (esatexprs, modEnv), [])
 
 protectStack :: Bool -> M.ModuleCmd ProverResult -> M.ModuleCmd ProverResult
 protectStack usingITE cmd modEnv = X.catchJust isOverflow (cmd modEnv) handler

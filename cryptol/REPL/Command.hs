@@ -336,19 +336,19 @@ proveCmd str = do
                                                    (expr, schema)
   ppOpts <- getPPValOpts
   case result of
-    Left msg        -> io $ putStrLn msg
-    Right Nothing   -> do
+    Left msg           -> io $ putStrLn msg
+    Right (Left ts)    -> do
       io $ putStrLn "Q.E.D."
-      let (t, e) = mkSolverResult True Nothing
+      let (t, e) = mkSolverResult "counterexample" True (Left ts)
       bindItVariable t e
-    Right (Just tevs) -> do
+    Right (Right tevs) -> do
       let vs = map (\(_,_,v) -> v) tevs
           tes = map (\(t,e,_) -> (t,e)) tevs
           doc = ppPrec 3 parseExpr -- function application has precedence 3
           docs = map (pp . E.WithBase ppOpts) vs
       io $ print $ hsep (doc : docs) <+> text "= False"
       -- bind the counterexample to `it`
-      let (t, e) = mkSolverResult False (Just tes)
+      let (t, e) = mkSolverResult "counterexample" False (Right tes)
       bindItVariable t e
 
 -- | Run a SAT solver on the given expression. Binds the @it@ variable
@@ -368,39 +368,41 @@ satCmd str = do
   ppOpts <- getPPValOpts
   case result of
     Left msg        -> io $ putStrLn msg
-    Right Nothing   -> do
+    Right (Left ts) -> do
       io $ putStrLn "Unsatisfiable."
-      let (t, e) = mkSolverResult False Nothing
+      let (t, e) = mkSolverResult "satisfying assignment" False (Left ts)
       bindItVariable t e
-    Right (Just tevs) -> do
+    Right (Right tevs) -> do
       let vs = map (\(_,_,v) -> v) tevs
           tes = map (\(t,e,_) -> (t,e)) tevs
           doc = ppPrec 3 parseExpr -- function application has precedence 3
           docs = map (pp . E.WithBase ppOpts) vs
       io $ print $ hsep (doc : docs) <+> text "= True"
       -- bind the satisfying assignment to `it`
-      let (t, e) = mkSolverResult True (Just tes)
+      let (t, e) = mkSolverResult "satisfying assignment" True (Right tes)
       bindItVariable t e
 
 -- | Make a type/expression pair that is suitable for binding to @it@
 -- after running @:sat@ or @:prove@
-mkSolverResult :: Bool -> Maybe [(T.Type, T.Expr)] -> (T.Type, T.Expr)
-mkSolverResult result marg = (rty, re)
+mkSolverResult :: String
+               -> Bool
+               -> Either [T.Type] [(T.Type, T.Expr)]
+               -> (T.Type, T.Expr)
+mkSolverResult thing result earg = (rty, re)
   where
     rName = T.Name "result"
-    argName = T.Name "arg"
-    argsName = T.Name "args"
     rty = T.TRec $ [(rName, T.tBit )] ++ map fst argF
     re  = T.ERec $ [(rName, resultE)] ++ map snd argF
     resultE = if result then T.eTrue else T.eFalse
-    argF = case marg of
-      -- no arg field if there's no counterexample
-      Nothing       -> []
-      Just []       -> []
-      Just [(t, e)] -> [((argName, t), (argName, e))]
-      -- otherwise we make a tuple of the arguments to the formula
-      Just tes      -> [((argsName, T.tTuple (map fst tes))
-                       , (argsName, T.ETuple (map snd tes)))]
+    mkArgs tes = reverse (go tes [] (1 :: Int))
+      where
+        go [] fs _ = fs
+        go ((t, e):tes') fs n = go tes' (((argName, t), (argName, e)):fs) (n+1)
+          where argName = T.Name ("arg" ++ show n)
+    argF = case earg of
+      Left ts -> mkArgs $ (map addError) ts
+        where addError t = (t, T.eError t ("no " ++ thing ++ " available"))
+      Right tes -> mkArgs tes
 
 specializeCmd :: String -> REPL ()
 specializeCmd str = do
