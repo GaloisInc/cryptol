@@ -341,7 +341,9 @@ takeV n xs =
   case xs of
     VWord w     -> VWord $ extract (bitSize w - 1) (bitSize w - fromInteger n) w
     VSeq b xs'  -> VSeq b (genericTake n xs')
-    VStream xs' -> VStream (genericTake n xs')
+    VStream xs' -> VSeq b (genericTake n xs')
+                     where b = case xs' of VBit _ : _ -> True
+                                           _          -> False
     _           -> error "takeV"
 
 -- | Make a numeric constant.
