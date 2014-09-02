@@ -2273,7 +2273,7 @@ This time all we need to make sure is that the result is not {\tt
   True}.\indZero\indTrue\indAny If we pass {\tt all} an empty
 sequence, then we will always get {\tt False}:
 \begin{Verbatim}
-  Cryptol> any eqTen [] where { eqTen x = x == 10; }
+  Cryptol> any eqTen [] where eqTen x = x == 10
   False
 \end{Verbatim}
 Again, this is the correct response since there are no elements in an
@@ -2742,7 +2742,8 @@ types-as-sets interpretation, two types in Cryptol are synonymous if
 their values happen to be equal.  
 
 For example, consider the following declarations:
-\begin{code}
+%% not "code" to avoid conflicting with previous Word8
+\begin{Verbatim}
   type Word8     = [8]
   type Word8'    = [8]
   type B         = Word8
@@ -2755,7 +2756,7 @@ For example, consider the following declarations:
 
   bar: Word8' -> Bit
   bar x = foo x
-\end{code}
+\end{Verbatim}
 Within this type context, while six \emph{names} are declared, only
 \emph{two} types are declared (\texttt{[8]} and the pair \texttt{([8],
 [8])}.  Likewise, the function types of \texttt{foo} and \texttt{bar}
@@ -2983,7 +2984,7 @@ of the use of backtick:
 The bounds in a finite sequence literal (such as {\tt [1 .. 10]}) in
 Cryptol are type-level values because the length of a sequence is part
 of its type.  Only type-level values can appear in a finite sequence
-definition.  You cannot write {\t [a .. b]} where either {\tt a} or
+definition.  You cannot write {\tt [a .. b]} where either {\tt a} or
 {\tt b} are arguments to a function.  On the other hand, an infinite
 sequence's type is fixed ({\tt [inf]a}), so the initial value in an
 infinite sequence can be a runtime variable or a type variable, but

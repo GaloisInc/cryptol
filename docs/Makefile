@@ -5,7 +5,7 @@ BOOK = Cryptol.pdf
 all: markdown book
 
 Version2Table.pdf: Version2Table.md
-	pandoc -f markdown+tex_math_dollars $^ -o $@
+	pandoc -f markdown+tex_math_dollars -V geometry:"margin=0.25in" $^ -o $@
 
 .PHONY: markdown
 markdown: ${MARKDOWN}

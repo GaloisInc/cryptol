@@ -204,7 +204,7 @@ Properties (theorems in version 1)
 
 In version 1, _theorems_ are special syntax attached to function declarations.
 In version 2, the `property` keyword can be added to any function that returns
-a Bit. All of the arguments to a propertyare implicitly universally quantified.
+a Bit. All of the arguments to a property are implicitly universally quantified.
 So version 1's
 
     sqDiffThm : ([8], [8]) -> Bit;
@@ -258,7 +258,7 @@ looks closer to most specs when it's in "big endian" mode. This is why version
 The translation between endianness can not be easily mechanized, though, so
 `:modernize` doesn't try to.
 
-As a result, our suggested translation path from version1 to version2 is either
+As a result, our suggested translation path from version 1 to version 2 is either
 to completely rewrite the code based on looking at the original spec (which is
 likely to produce surprisingly cleaner code), or if that isn't feasible to
 first translate the version 1 code to "big endian" mode (use `:set +B`), then
