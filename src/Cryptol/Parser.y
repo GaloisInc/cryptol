@@ -189,12 +189,14 @@ vmodule                    :: { Module }
 
 vmod_body                  :: { ([Located Import], [TopDecl]) }
   : vimports 'v;' vtop_decls  { (reverse $1, reverse $3) }
+  | vimports ';'  vtop_decls  { (reverse $1, reverse $3) }
   | vimports                  { (reverse $1, [])         }
   | vtop_decls                { ([], reverse $1)         }
   | {- empty -}               { ([], [])                 }
 
 vimports                   :: { [Located Import] }
   : vimports 'v;' import      { $3 : $1 }
+  | vimports ';'  import      { $3 : $1 }
   | import                    { [$1]    }
 
 -- XXX replace rComb with uses of at
@@ -249,6 +251,7 @@ top_decls                  :: { [TopDecl]  }
 vtop_decls                 :: { [TopDecl]  }
   : vtop_decl                 { $1       }
   | vtop_decls 'v;' vtop_decl { $3 ++ $1 }
+  | vtop_decls ';'  vtop_decl { $3 ++ $1 }
 
 vtop_decl               :: { [TopDecl] }
   : decl                           { [exportDecl Public $1]                   }
@@ -313,6 +316,7 @@ decls                   :: { [Decl] }
 vdecls                  :: { [Decl] }
   : decl                   { [$1] }
   | vdecls 'v;' decl       { $3 : $1 }
+  | vdecls ';'  decl       { $3 : $1 }
 
 repl                    :: { ReplInput }
   : expr                   { ExprInput $1 }
