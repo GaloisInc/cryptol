@@ -237,7 +237,8 @@ layout cfg ts0
     | EOF   <- ty = extra ++ [ virt cfg (to pos) VCurlyR | _ <- stack ] ++ [t]
 
     -- Left parens start new explicit blocks
-    | Sym ParenL <- ty = t : loop False (Explicit (Sym ParenR) : parensStack) ts
+    | Sym ParenL <- ty = parensClose ++ parensSep ++
+                       t : loop False (Explicit (Sym ParenR) : parensStack) ts
 
     -- Right parens close to the nearest explicit block, failing if they don't
     -- properly close it
@@ -264,8 +265,23 @@ layout cfg ts0
           punc | startBlock = []
                | otherwise  = [virt cfg (to pos) VSemi]
 
-          parensStack | startBlock = Virtual (col (from pos)) : stack
-                     | otherwise  =                            stack
+          -- closing tokens emitted by the parens special case
+          (parensClose,stack') =
+            (replicate (length cs) (virt cfg (to pos) VCurlyR), ps')
+            where
+            (cs,ps') = span check stack
+
+            -- don't include explicit blocks, or separators
+            check (Virtual p) = col (from pos) < p
+            check _           = False
+
+          parensSep
+            | Virtual p : _ <- stack'
+            , p == col (from pos) = [ virt cfg (to pos) VSemi ]
+            | otherwise           = []
+
+          parensStack | startBlock = Virtual (col (from pos)) : stack'
+                      | otherwise  =                            stack'
 
           (es,ps) = span isVirtual stack
 
