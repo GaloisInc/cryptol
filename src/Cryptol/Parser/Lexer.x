@@ -209,11 +209,15 @@ primLexer cfg cs = run inp Normal
 
   singleR p = Range p p (cfgSource cfg)
 
+  eofR p = Range p' p' (cfgSource cfg)
+    where
+    p' = Position { line = line p + 1, col = 0 }
+
   run i s =
     case alexScan i (stateToInt s) of
       AlexEOF ->
         case s of
-          Normal        -> ([ Located (singleR $ alexPos i) (Token EOF "end of file") ]
+          Normal        -> ([ Located (eofR $ alexPos i) (Token EOF "end of file") ]
                            , alexPos i
                            )
           InComment p _ _ ->
