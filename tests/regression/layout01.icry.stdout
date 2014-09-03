@@ -1,0 +1,42 @@
+Loading module Cryptol
+Assuming a = 1
+1
+Assuming a = 2
+[1, 2]
+Assuming a = 1
+Assuming b = 2
+{x = 1, y = 2}
+[warning] at <interactive>:1:1--1:22:
+  Defaulting 2nd type parameter
+             of expression __p0
+             at <interactive>:1:10--1:11
+  to 2
+[warning] at <interactive>:1:1--1:22:
+  Defaulting 1st type parameter
+             of expression __p0
+             at <interactive>:1:12--1:13
+  to 1
+[warning] at <interactive>:1:1--1:22:
+  Defaulting 2nd type parameter
+             of expression __p0
+             at <interactive>:1:12--1:13
+  to 2
+Assuming a = 1
+1
+[warning] at <interactive>:1:1--1:46:
+  Defaulting 2nd type parameter
+             of expression __p0
+             at <interactive>:1:15--1:16
+  to 5
+[warning] at <interactive>:1:1--1:46:
+  Defaulting 1st type parameter
+             of expression __p0
+             at <interactive>:1:22--1:23
+  to 4
+[warning] at <interactive>:1:1--1:46:
+  Defaulting 2nd type parameter
+             of expression __p0
+             at <interactive>:1:22--1:23
+  to 5
+Assuming a = 4
+10
