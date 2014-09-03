@@ -236,19 +236,13 @@ layout cfg ts0
     -- If we find the EOF, we close all open blocks, and then we stop.
     | EOF   <- ty = extra ++ [ virt cfg (to pos) VCurlyR | _ <- stack ] ++ [t]
 
-    -- Left parens and braces start new explicit blocks
-    | Sym ParenL <- ty = t : loop False (Explicit (Sym ParenR) : stack) ts
-    | Sym CurlyL <- ty = t : loop False (Explicit (Sym CurlyR) : stack) ts
+    -- Left parens start new explicit blocks
+    | Sym ParenL <- ty = t : loop False (Explicit (Sym ParenR) : parensStack) ts
 
-    -- Right parens and braces close to the nearest explicit block, failing if
-    -- they don't properly close it
+    -- Right parens close to the nearest explicit block, failing if they don't
+    -- properly close it
     | Sym ParenR <- ty
     , Explicit (Sym ParenR) : ps' <- ps = [ virt cfg (to pos) VCurlyR | _ <- es ]
-                                       ++ t
-                                        : loop False ps' ts
-
-    | Sym CurlyR <- ty
-    , Explicit (Sym CurlyR) : ps' <- ps = [ virt cfg (to pos) VCurlyR | _ <- es ]
                                        ++ t
                                         : loop False ps' ts
 
@@ -269,6 +263,9 @@ layout cfg ts0
 
           punc | startBlock = []
                | otherwise  = [virt cfg (to pos) VSemi]
+
+          parensStack | startBlock = Virtual (col (from pos)) : stack
+                     | otherwise  =                            stack
 
           (es,ps) = span isVirtual stack
 
