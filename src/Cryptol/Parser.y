@@ -324,13 +324,10 @@ repl                    :: { ReplInput }
 
 expr                             :: { Expr }
   : iexpr                           { $1 }
-  | iexpr ':' type                  { at ($1,$3) $ ETyped $1 $3 }
-  | 'if' ifBranches 'else' expr     { at ($1,$4) $ mkIf $2 $4 }
   | expr 'where' '{' '}'            { at ($1,$4) $ EWhere $1 []           }
   | expr 'where' '{' decls '}'      { at ($1,$5) $ EWhere $1 (reverse $4) }
   | expr 'where' 'v{' 'v}'          { at ($1,$2) $ EWhere $1 []           }
   | expr 'where' 'v{' vdecls 'v}'   { at ($1,$4) $ EWhere $1 (reverse $4) }
-  | '\\' apats '->' expr            { at ($1,$4) $ EFun (reverse $2) $4 }
 
 ifBranches                       :: { [(Expr, Expr)] }
   : ifBranch                        { [$1] }
@@ -341,6 +338,10 @@ ifBranch                         :: { (Expr, Expr) }
 
 iexpr                            :: { Expr }
   : aexprs                          { mkEApp $1 }
+
+  | iexpr ':' type                  { at ($1,$3) $ ETyped $1 $3 }
+  | 'if' ifBranches 'else' iexpr    { at ($1,$4) $ mkIf $2 $4 }
+  | '\\' apats '->' iexpr           { at ($1,$4) $ EFun (reverse $2) $4 }
 
   | iexpr '@'  iexpr                { binOp $1 (op ECAt          $2) $3 }
   | iexpr '@@' iexpr                { binOp $1 (op ECAtRange     $2) $3 }
