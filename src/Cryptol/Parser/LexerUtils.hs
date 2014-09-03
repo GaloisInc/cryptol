@@ -204,6 +204,15 @@ dropWhite = filter (notWhite . tokenType . thing)
         notWhite _         = True
 
 
+data Block = Virtual Int     -- ^ Virtual layout block
+           | Explicit TokenT -- ^ An explicit layout block, expecting this ending
+                             -- token.
+             deriving (Show)
+
+isVirtual :: Block -> Bool
+isVirtual Virtual {} = True
+isVirtual _          = False
+
 -- Add separators computed from layout
 layout :: Config -> [Located Token] -> [Located Token]
 layout cfg ts0
@@ -227,6 +236,22 @@ layout cfg ts0
     -- If we find the EOF, we close all open blocks, and then we stop.
     | EOF   <- ty = extra ++ [ virt cfg (to pos) VCurlyR | _ <- stack ] ++ [t]
 
+    -- Left parens and braces start new explicit blocks
+    | Sym ParenL <- ty = t : loop False (Explicit (Sym ParenR) : stack) ts
+    | Sym CurlyL <- ty = t : loop False (Explicit (Sym CurlyR) : stack) ts
+
+    -- Right parens and braces close to the nearest explicit block, failing if
+    -- they don't properly close it
+    | Sym ParenR <- ty
+    , Explicit (Sym ParenR) : ps' <- ps = [ virt cfg (to pos) VCurlyR | _ <- es ]
+                                       ++ t
+                                        : loop False ps' ts
+
+    | Sym CurlyR <- ty
+    , Explicit (Sym CurlyR) : ps' <- ps = [ virt cfg (to pos) VCurlyR | _ <- es ]
+                                       ++ t
+                                        : loop False ps' ts
+
     -- If we see the keyword `where`, we start a new virtual block
     | KW KW_where <- ty = t : virt cfg (to pos) VCurlyL
                             : loop True stack ts
@@ -245,10 +270,12 @@ layout cfg ts0
           punc | startBlock = []
                | otherwise  = [virt cfg (to pos) VSemi]
 
+          (es,ps) = span isVirtual stack
+
   -- We are the first token in a new block, push our column on the stack.
   loop True ps (t : ts) = t : extra ++ loop startBlock ps' ts
     where
-    ps' = c : ps
+    ps' = Virtual c : ps
     c   = col (from (srcRange t))
     pos = srcRange t
 
@@ -257,12 +284,12 @@ layout cfg ts0
       | otherwise                            = (False,[])
 
   -- We are not the first token in a block, check for virtual punctuation.
-  loop False (p : ps) (t : ts)
+  loop False ps@(Virtual p : ps') (t : ts)
     | col pos == p  = virt cfg pos VSemi        -- same indent: add semi
                     : t
-                    : loop False (p : ps) ts
+                    : loop False ps ts
     | col pos < p   = virt cfg pos VCurlyR      -- less indent: add }
-                    : loop False ps (t : ts)
+                    : loop False ps' (t : ts)
       where
       pos   = from (srcRange t)
 
