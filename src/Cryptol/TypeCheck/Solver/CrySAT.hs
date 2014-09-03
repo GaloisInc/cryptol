@@ -29,7 +29,7 @@ import           Data.Either (partitionEithers)
 import           MonadLib
 import           Control.Applicative
 
--- import Cryptol.Utils.Debug
+import           Cryptol.Utils.Panic
 
 infixr 2 :||
 infixr 3 :&&
@@ -495,7 +495,8 @@ mkLin :: Expr -> FM SAT.Expr
 mkLin ty0 =
   cryNoInf ty0 >>= \ty ->
   case ty of
-    K Inf                  -> error "mkLin: Inf"
+    K Inf                  -> panic "Cryptol.TypeCheck.Solver.CrySAT.mkLin"
+                                [ "K Inf after cryNoInf" ]
     K (Nat n)              -> return (SAT.K n)
     Var x                  -> isFin x >> return (satVar x)
     t1 :+ t2               -> (SAT.:+)            <$> mkLin t1 <*> mkLin t2
@@ -620,7 +621,8 @@ nLg2 0  = 0
 nLg2 n  = case genLog n 2 of
             Just (x,exact) | exact     -> x
                            | otherwise -> x + 1
-            Nothing -> error "genLog returned Nothing"
+            Nothing -> panic "Cryptol.TypeCheck.Solver.CrySAT.nLg2"
+                         [ "genLog returned Nothing" ]
 
 
 

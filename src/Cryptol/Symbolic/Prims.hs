@@ -20,6 +20,7 @@ import Cryptol.Symbolic.BitVector
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Name)
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)
+import Cryptol.Utils.Panic
 
 import qualified Data.SBV as SBV
 import Data.SBV (SBool)
@@ -280,7 +281,8 @@ evalECon econ =
             zs = take (fromInteger j) (snd (Poly.mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
         in VSeq True (map VBit (reverse zs))
 
-    ECRandom      -> error "ECRandom"
+    ECRandom      -> panic "Cryptol.Symbolic.Prims.evalECon"
+                       [ "can't symbolically evaluae ECRandom" ]
 
 
 selectV :: (Integer -> Value) -> Value -> Value
@@ -318,14 +320,14 @@ mapV f v =
   case v of
     VSeq b xs  -> VSeq b (map f xs)
     VStream xs -> VStream (map f xs)
-    _          -> error "mapV"
+    _          -> panic "Cryptol.Symbolic.Prims.mapV" [ "non-mappable value" ]
 
 catV :: Value -> Value -> Value
 catV (VWord x)   ys           = VWord (cat x (fromWord ys))
 catV xs          (VWord y)    = VWord (cat (fromWord xs) y)
 catV (VSeq b xs) (VSeq _ ys)  = VSeq b (xs ++ ys)
 catV (VSeq _ xs) (VStream ys) = VStream (xs ++ ys)
-catV _ _ = error "catV"
+catV _ _ = panic "Cryptol.Symbolic.Prims.catV" [ "non-concatenable value" ]
 
 dropV :: Integer -> Value -> Value
 dropV 0 xs = xs
@@ -334,7 +336,7 @@ dropV n xs =
     VSeq b xs'  -> VSeq b (genericDrop n xs')
     VStream xs' -> VStream (genericDrop n xs')
     VWord w     -> VWord $ extract (bitSize w - 1 - fromInteger n) 0 w
-    _           -> error "dropV"
+    _           -> panic "Cryptol.Symbolic.Prims.dropV" [ "non-droppable value" ]
 
 takeV :: Integer -> Value -> Value
 takeV n xs =
@@ -344,7 +346,7 @@ takeV n xs =
     VStream xs' -> VSeq b (genericTake n xs')
                      where b = case xs' of VBit _ : _ -> True
                                            _          -> False
-    _           -> error "takeV"
+    _           -> panic "Cryptol.Symbolic.Prims.takeV" [ "non-takeable value" ]
 
 -- | Make a numeric constant.
 -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
@@ -379,7 +381,7 @@ toTypeVal ty
   | Just (aty, bty) <- isTFun ty = TVFun (toTypeVal aty) (toTypeVal bty)
   | Just (_, tys) <- isTTuple ty = TVTuple (map toTypeVal tys)
   | Just fields <- isTRec ty     = TVRecord [ (n, toTypeVal aty) | (n, aty) <- fields ]
-  | otherwise                    = error "internal error: bad TValue"
+  | otherwise                    = panic "Cryptol.Symbolic.Prims.toTypeVal" [ "bad TValue" ]
 
 -- Arith -----------------------------------------------------------------------
 
@@ -443,12 +445,16 @@ cmpValue fb fw = cmp
         (VBit b1    , VBit b2    ) -> fb b1 b2 k
         (VWord w1   , VWord w2   ) -> fw w1 w2 k
         (VSeq _ vs1 , VSeq _ vs2 ) -> cmpValues vs1 vs2 k
-        (VStream {} , VStream {} ) -> error "Infinite streams are not comparable"
-        (VFun {}    , VFun {}    ) -> error "Functions are not comparable"
-        (VPoly {}   , VPoly {}   ) -> error "Polymorphic values are not comparable"
+        (VStream {} , VStream {} ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
+                                        [ "Infinite streams are not comparable" ]
+        (VFun {}    , VFun {}    ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
+                                        [ "Functions are not comparable" ]
+        (VPoly {}   , VPoly {}   ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
+                                        [ "Polymorphic values are not comparable" ]
         (VWord w1   , _          ) -> fw w1 (fromWord v2) k
         (_          , VWord w2   ) -> fw (fromWord v1) w2 k
-        (_          , _          ) -> error "type mismatch"
+        (_          , _          ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
+                                        [ "type mismatch" ]
 
     cmpValues (x1 : xs1) (x2 : xs2) k = cmp x1 x2 (cmpValues xs1 xs2 k)
     cmpValues _ _ k = k

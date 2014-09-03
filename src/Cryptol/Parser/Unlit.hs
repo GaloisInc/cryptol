@@ -18,6 +18,8 @@ import qualified Data.Text.Lazy as Text
 import           Data.Char(isSpace)
 import           System.FilePath(takeExtension)
 
+import           Cryptol.Utils.Panic
+
 data PreProc = None | Markdown | LaTeX
 
 knownExts :: [String]
@@ -59,7 +61,7 @@ toCryptol (Comment ls) =
                  in "/* " `Text.append` l1 : more ++ [ l `Text.append` " */" ]
 
   where
-  splitLast []  = error "splitLats []"
+  splitLast []  = panic "Cryptol.Parser.Unlit.toCryptol" [ "splitLast []" ]
   splitLast [x] = ([], x)
   splitLast (x : xs) = let (ys,y) = splitLast xs
                        in (x:ys,y)

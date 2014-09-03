@@ -55,7 +55,8 @@ lookupProver :: String -> SBV.SMTConfig
 lookupProver s =
   case lookup s proverConfigs of
     Just cfg -> cfg
-    Nothing  -> error $ "invalid prover: " ++ s
+    -- should be caught by UI for setting prover user variable
+    Nothing  -> panic "Cryptol.Symbolic" [ "invalid prover: " ++ s ]
 
 -- | A prover result is either an error message, or potentially a
 -- counterexample or satisfying assignment.
@@ -141,12 +142,12 @@ parseValues (t : ts) cws = (v : vs, cws'')
         (vs, cws'') = parseValues ts cws'
 
 parseValue :: FinType -> [SBV.CW] -> (Eval.Value, [SBV.CW])
-parseValue FTBit [] = error "parseValue"
+parseValue FTBit [] = panic "Cryptol.Symbolic.parseValue" [ "empty FTBit" ]
 parseValue FTBit (cw : cws) = (Eval.VBit (SBV.fromCW cw), cws)
 parseValue (FTSeq 0 FTBit) cws = (Eval.VWord (Eval.BV 0 0), cws)
 parseValue (FTSeq n FTBit) (cw : cws)
   | SBV.isBounded cw = (Eval.VWord (Eval.BV (toInteger n) (SBV.fromCW cw)), cws)
-  | otherwise = error "parseValue"
+  | otherwise = panic "Cryptol.Symbolic.parseValue" [ "unbounded concrete word" ]
 parseValue (FTSeq n FTBit) cws = (Eval.VSeq True vs, cws')
   where (vs, cws') = parseValues (replicate n FTBit) cws
 parseValue (FTSeq n t) cws = (Eval.VSeq False vs, cws')

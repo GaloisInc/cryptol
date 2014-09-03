@@ -12,6 +12,8 @@
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Solver.InfNat where
 
+import Cryptol.Utils.Panic
+
 -- | Natural numbers with an infinity element
 data Nat' = Nat Integer | Inf
             deriving (Show,Eq,Ord)
@@ -109,7 +111,8 @@ nLg2 (Nat 0)  = Nat 0
 nLg2 (Nat n)  = case genLog n 2 of
                   Just (x,exact) | exact     -> Nat x
                                  | otherwise -> Nat (x + 1)
-                  Nothing -> error "genLog returned Nothing"
+                  Nothing -> panic "Cryptol.TypeCheck.Solver.InfNat.nLg2"
+                               [ "genLog returned Nothing" ]
 
 -- | @nWidth n@ is number of bits needed to represent all numbers
 -- from 0 to n, inclusive. @nWidth x = nLg2 (x + 1)@.
@@ -118,7 +121,8 @@ nWidth Inf      = Inf
 nWidth (Nat 0)  = Nat 0
 nWidth (Nat n)  = case genLog n 2 of
                     Just (x,_) -> Nat (x + 1)
-                    Nothing -> error "genLog returned Nothing"
+                    Nothing -> panic "Cryptol.TypeCheck.Solver.InfNat.nWidth"
+                                 [ "genLog returned Nothing" ]
 
 
 nLenFromThen :: Nat' -> Nat' -> Nat' -> Maybe Nat'

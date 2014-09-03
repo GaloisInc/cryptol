@@ -49,11 +49,13 @@ instance Mergeable Value where
       (VPoly f1   , VPoly f2   ) -> VPoly $ symbolicMerge c f1 f2
       (VWord w1   , _          ) -> VWord $ symbolicMerge c w1 (fromWord v2)
       (_          , VWord w2   ) -> VWord $ symbolicMerge c (fromWord v1) w2
-      (_          , _          ) -> error "symbolicMerge: incompatible values"
+      (_          , _          ) -> panic "Cryptol.Symbolic.Value"
+                                      [ "symbolicMerge: incompatible values" ]
     where
       mergeField (n1, x1) (n2, x2)
         | n1 == n2  = (n1, symbolicMerge c x1 x2)
-        | otherwise = error "symbolicMerge: incompatible values"
+        | otherwise = panic "Cryptol.Symbolic.Value"
+                        [ "symbolicMerge.mergeField: incompatible values" ]
 
 -- Big-endian Words ------------------------------------------------------------
 

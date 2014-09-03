@@ -21,6 +21,8 @@ import Data.SBV.Bridge.Yices
 import Data.SBV.Internals
 import Data.SBV.BitVectors.Data
 
+import Cryptol.Utils.Panic
+
 -- BitVector type --------------------------------------------------------------
 
 data BitVector = BV { signedcxt :: Bool, width :: !Int, val :: !Integer }
@@ -46,7 +48,9 @@ signed w x
   | otherwise                  = x
 
 same :: Int -> Int -> Int
-same m n = if m == n then m else error $ "BitVector size mismatch: " ++ show (m, n)
+same m n | m == n = m
+         | otherwise = panic "Cryptol.Symbolic.BitVector.same"
+                         [ "BitVector size mismatch: " ++ show (m, n) ]
 
 instance SignCast SWord SWord where
   signCast (SBV (KBounded _ w) (Left (cwVal -> (CWInteger x)))) =
@@ -56,7 +60,8 @@ instance SignCast SWord SWord where
     k = KBounded True w
     y st = do xsw <- sbvToSW st x
               newExpr st k (SBVApp (Extract (intSizeOf x-1) 0) [xsw])
-  signCast _ = error "SignCast not called on BitVector value"
+  signCast _ = panic "Cryptol.Symbolic.BitVector"
+                 [ "signCast called on non-bitvector value" ]
   unsignCast (SBV (KBounded _ w) (Left (cwVal -> (CWInteger x)))) =
     SBV k (Left (CW k (CWInteger (unsigned w x)))) where
       k = KBounded False w
@@ -64,9 +69,12 @@ instance SignCast SWord SWord where
     k = KBounded False w
     y st = do xsw <- sbvToSW st x
               newExpr st k (SBVApp (Extract (intSizeOf x-1) 0) [xsw])
+  unsignCast _ = panic "Cryptol.Symbolic.BitVector"
+                   [ "unsignCast called on non-bitvector value" ]
 
 instance Num BitVector where
-  fromInteger n = error $ "fromInteger " ++ show n ++ " :: BitVector"
+  fromInteger n = panic "Cryptol.Symbolic.BitVector"
+                    [ "fromInteger " ++ show n ++ " :: BitVector" ]
   BV s m x + BV _ n y = sbv s (same m n) (x + y)
   BV s m x - BV _ n y = sbv s (same m n) (x - y)
   BV s m x * BV _ n y = sbv s (same m n) (x * y)
@@ -82,7 +90,8 @@ instance Bits BitVector where
   shift (BV s m x) i           = sbv s m (shift x i)
   rotate (BV s m x) i          = sbv s m (shift x j .|. shift x (j - m))
                                   where j = i `mod` m
-  bit _i                       = error "bit: can't determine width"
+  bit _i                       = panic "Cryptol.Symbolic.BitVector"
+                                   [ "bit: can't determine width" ]
   setBit (BV s m x) i          = BV s m (setBit x i)
   clearBit (BV s m x) i        = BV s m (clearBit x i)
   complementBit (BV s m x) i   = BV s m (complementBit x i)
@@ -103,8 +112,10 @@ instance SymWord BitVector where
   literal (BV s w x) = SBV k (Left (mkConstCW k x))
       where k = KBounded s w
   fromCW c@(CW (KBounded s w) _) = BV s w (fromCW c)
-  fromCW c = error $ "fromCW: Unsupported non-integral value: " ++ show c
-  mkSymWord _ _ = error "mkSymWord unimplemented for type BitVector"
+  fromCW c = panic "Cryptol.Symbolic.BitVector"
+               [ "fromCW: Unsupported non-integral value: " ++ show c ]
+  mkSymWord _ _ = panic "Cryptol.Symbolic.BitVector"
+                    [ "mkSymWord unimplemented for type BitVector" ]
 
 instance SIntegral BitVector where
 
@@ -132,12 +143,13 @@ extract i j x@(SBV (KBounded s _) _) =
     SBV _ (Left cw) ->
       case cw of
         CW _ (CWInteger v) -> SBV k (Left (normCW (CW k (CWInteger (v `shiftR` j)))))
-        _ -> error "extract"
+        _ -> panic "Cryptol.Symbolic.BitVector.extract" [ "non-integer concrete word" ]
     _ -> SBV k (Right (cache y))
       where y st = do sw <- sbvToSW st x
                       newExpr st k (SBVApp (Extract i j) [sw])
   where
     k = KBounded s (i - j + 1)
+extract _ _ _ = panic "Cryptol.Symbolic.BitVector.extract" [ "non-bitvector value" ]
 
 cat :: SWord -> SWord -> SWord
 cat x y | bitSize x == 0 = y
@@ -146,7 +158,7 @@ cat x@(SBV _ (Left a)) y@(SBV _ (Left b)) =
   case (a, b) of
     (CW _ (CWInteger m), CW _ (CWInteger n)) ->
       SBV k (Left (CW k (CWInteger ((m `shiftL` (bitSize y) .|. n)))))
-    _ -> error "cat"
+    _ -> panic "Cryptol.Symbolic.BitVector.cat" [ "non-integer concrete word" ]
   where k = KBounded False (bitSize x + bitSize y)
 cat x y = SBV k (Right (cache z))
   where k = KBounded False (bitSize x + bitSize y)

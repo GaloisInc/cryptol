@@ -36,14 +36,16 @@ import System.Random (mkStdGen)
 -- Utilities -------------------------------------------------------------------
 
 #if __GLASGOW_HASKELL__ < 706
+noNum = panic "Cryptol.Prims.Eval"
+          [ "Num instance for Bool shouldn't be used." ]
 instance Num Bool where
-  _ + _         = error "Num instance for Bool shouldn't be used."
-  _ * _         = error "Num instance for Bool shouldn't be used."
-  _ - _         = error "Num instance for Bool shouldn't be used."
-  negate _      = error "Num instance for Bool shouldn't be used."
-  abs _         = error "Num instance for Bool shouldn't be used."
-  signum _      = error "Num instance for Bool shouldn't be used."
-  fromInteger _ = error "Num instance for Bool shouldn't be used."
+  _ + _         = noNum
+  _ * _         = noNum
+  _ - _         = noNum
+  negate _      = noNum
+  abs _         = noNum
+  signum _      = noNum
+  fromInteger _ = noNum
 #endif
 
 #if __GLASGOW_HASKELL__ < 708
