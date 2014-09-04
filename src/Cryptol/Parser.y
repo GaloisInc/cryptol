@@ -145,6 +145,7 @@ import Paths_cryptol
 %name expr    expr
 %name decl    decl
 %name decls   decls
+%name vdecls  vdecls
 %name letDecl let_decl
 %name repl    repl
 %name modName modName
@@ -748,7 +749,10 @@ parseDecl :: String -> Either ParseError Decl
 parseDecl = parseDeclWith defaultConfig
 
 parseDeclsWith :: Config -> String -> Either ParseError [Decl]
-parseDeclsWith cfg = parse cfg { cfgModuleScope = False } decls
+parseDeclsWith cfg = parse cfg { cfgModuleScope = False } $
+                     case cfgLayout cfg of
+                       Layout   -> vdecls
+                       NoLayout -> decls
 
 parseDecls :: String -> Either ParseError [Decl]
 parseDecls = parseDeclsWith defaultConfig
