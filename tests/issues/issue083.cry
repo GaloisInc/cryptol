@@ -1,0 +1,3 @@
+x : ([31], [31]) -> [32]
+x (y, z) = w
+  where w = (zero # y) + (zero # z)
