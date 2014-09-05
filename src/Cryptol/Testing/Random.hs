@@ -15,10 +15,8 @@ import Cryptol.Eval.Value     (BV(..),Value,GenValue(..),ppValue,defaultPPOpts)
 import Cryptol.Utils.Panic    (panic)
 import Cryptol.TypeCheck.AST  (Name,Type(..),TCon(..),TC(..),tNoUser)
 
-import System.Random          (RandomGen, split, random, randoms, randomR)
-import Data.Word              (Word64)
-import Data.Bits              (shiftL, shiftR, (.|.), (.&.), setBit)
-import Data.List              (unfoldr, foldl', genericTake)
+import System.Random          (RandomGen, split, random, randomR)
+import Data.List              (unfoldr, genericTake)
 import Control.Monad          (forM)
 
 type Gen g = Int -> g -> (Value, g)
@@ -103,24 +101,9 @@ randomBit _ g =
 -- The size parameter is assumed to vary between 1 and 100, and we use
 -- it to generate smaller numbers first.
 randomWord :: RandomGen g => Integer -> Gen g
-randomWord w sz g =
-  let (g1,g2)    = split g
-
-      (bits,g3)  = randomR (0, div (sz * fromInteger w + 99) 100) g2
-
-      mk num new = (num `shiftL` 64) .|. toInteger (new :: Word64)
-
-      x : xs     = randoms g1
-      -- mask most significant word, so that we don't go over `bits`
-      mask       = let r   = bits `rem` 64
-                       shR = if r == 0 then 0 else 64 - r
-                   in (-1) `shiftR` shR
-      x'         = x .&. mask
-
-      val        = foldl' mk 0 $ genericTake (div (bits + 63) 64) (x' : xs)
-      finalVal   = if sz > 1 && bits > 0 then setBit val (bits - 1) else val
-  in (VWord (BV w finalVal), g3)
-
+randomWord w _sz g =
+   let (val, g1) = randomR (0,2^w-1) g
+   in (VWord (BV w val), g1)
 
 -- | Generate a random infinite stream value.
 randomStream :: RandomGen g => Gen g -> Gen g
