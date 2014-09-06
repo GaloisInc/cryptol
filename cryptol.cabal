@@ -37,6 +37,7 @@ library
                        process         >= 1.2,
                        QuickCheck      >= 2.7,
                        random          >= 1.0.1,
+                       tf-random       >= 0.5,
                        smtLib          >= 1.0.7,
                        syb             >= 0.4,
                        text            >= 1.1,
@@ -179,6 +180,7 @@ executable cryptol
                        monadLib,
                        process,
                        random,
+                       tf-random,
                        transformers
   GHC-options:         -Wall -O2
 
@@ -202,6 +204,7 @@ executable cryptolnb
                        monadLib,
                        process,
                        random,
+                       tf-random,
                        transformers
   GHC-options:         -Wall -O2
 
