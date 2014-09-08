@@ -300,7 +300,9 @@ property LoadKey_TestVectors =
 // cuts down on the problem size and is sufficient to ensure the iv's will be
 // the same. That is, if this theorem fails, then so would the final iv's used
 // by ZUC.
-property ZUC_isResistantToCollisionAttack (k, iv1, iv2) =
+//
+// Use a solver other than CVC4; Z3 and Boolector do it quickly.
+property ZUC_isResistantToCollisionAttack k iv1 iv2 =
     if iv1 != iv2
     then InitializeZUC (k, iv1) @ 1 != InitializeZUC (k, iv2) @ 1
     else True
