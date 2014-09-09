@@ -149,7 +149,7 @@ cvc4 script =
        ExitSuccess
          | out == "sat\n"     -> return Sat
          | out == "unsat\n"   -> return Unsat
-         | out == "unknwon\n" -> return Unknown
+         | out == "unknown\n" -> return Unknown
 
        -- XXX: We should not print to STDOUT here.
        -- Report to a separate logger.
