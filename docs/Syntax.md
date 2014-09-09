@@ -213,8 +213,8 @@ The components of a record or a tuple may be accessed in two ways: via
 pattern matching or by using explicit component selectors.  Explicit
 component selectors are written as follows:
 
-    (15, 20).1           == 15
-    (15, 20).2           == 20
+    (15, 20).0           == 15
+    (15, 20).1           == 20
 
     { x = 15, y = 20 }.x == 15
 
