@@ -99,7 +99,7 @@ fastSchemaOf tyenv expr =
 
 -- | Yields the return type of the selector on the given argument type.
 typeSelect :: Type -> Selector -> Type
-typeSelect (TCon _tctuple ts) (TupleSel i _) = ts !! (i - 1)
+typeSelect (TCon _tctuple ts) (TupleSel i _) = ts !! i
 typeSelect (TRec fields) (RecordSel n _) = fromJust (lookup n fields)
 typeSelect (TCon _tcseq [_, a]) (ListSel _ _) = a
 typeSelect ty _ = panic "Cryptol.TypeCheck.TypeOf.typeSelect"

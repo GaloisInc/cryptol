@@ -75,7 +75,7 @@ noPat pat =
          let len      = length ps
              ty       = TTuple (replicate len TWild)
              getN a n = sel a qx (TupleSel n (Just len))
-         return (pTy r x ty, zipWith getN as [1..] ++ concat dss)
+         return (pTy r x ty, zipWith getN as [0..] ++ concat dss)
 
     PList [] ->
       do x <- newName
@@ -116,8 +116,8 @@ noPat pat =
          let qx   = mkUnqual x
              qtmp = mkUnqual tmp
              bTmp = simpleBind (Located r qtmp) (EApp (ECon ECSplitAt) (EVar qx))
-             b1   = sel a1 qtmp (TupleSel 1 (Just 2))
-             b2   = sel a2 qtmp (TupleSel 2 (Just 2))
+             b1   = sel a1 qtmp (TupleSel 0 (Just 2))
+             b2   = sel a2 qtmp (TupleSel 1 (Just 2))
          return (pVar r x, bTmp : b1 : b2 : ds1 ++ ds2)
 
     PLocated p r1 -> inRange r1 (noPat p)

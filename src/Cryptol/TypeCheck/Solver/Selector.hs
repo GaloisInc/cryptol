@@ -30,7 +30,7 @@ recordType labels =
 tupleType :: Int -> InferM Type
 tupleType n =
   do fields <- mapM (\x -> newType (ordinal x <+> text "tuple field") KType)
-                    [ 1 .. n ]
+                    [ 0 .. (n-1) ]
      return (tTuple fields)
 
 listType :: Int -> InferM Type
@@ -86,8 +86,8 @@ solveSelector sel outerT =
       case ty of
 
         TCon (TC (TCTuple m)) ts ->
-          return $ do guard (1 <= n && n <= m)
-                      return $ ts !! (n-1)
+          return $ do guard (0 <= n && n < m)
+                      return $ ts !! n
 
         TCon (TC TCSeq) [len,el] -> liftSeq len el
         TCon (TC TCFun) [t1,t2]  -> liftFun t1 t2

@@ -276,8 +276,8 @@ list selectors, but they are used during the desugaring of patterns.
 -}
 
 data Selector = TupleSel Int   (Maybe Int)
-                -- ^ One-based tuple selection.
-                -- Optionally specifies the shape of the tuple.
+                -- ^ Zero-based tuple selection.
+                -- Optionally specifies the shape of the tuple (one-based).
 
               | RecordSel Name (Maybe [Name])
                 -- ^ Record selection.
