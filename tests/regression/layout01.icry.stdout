@@ -1,11 +1,11 @@
 Loading module Cryptol
 Assuming a = 1
-1
+0x1
 Assuming a = 2
-[1, 2]
+[0x1, 0x2]
 Assuming a = 1
 Assuming b = 2
-{x = 1, y = 2}
+{x = 0x1, y = 0x2}
 [warning] at <interactive>:1:1--1:22:
   Defaulting 2nd type parameter
              of expression __p0
@@ -22,7 +22,7 @@ Assuming b = 2
              at <interactive>:1:12--1:13
   to 2
 Assuming a = 1
-1
+0x1
 [warning] at <interactive>:1:1--1:46:
   Defaulting 2nd type parameter
              of expression __p0
@@ -39,4 +39,4 @@ Assuming a = 1
              at <interactive>:1:22--1:23
   to 5
 Assuming a = 4
-10
+0xa
