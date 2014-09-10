@@ -2472,7 +2472,7 @@ that you might be familiar from other languages, such as C:
   -- C-like Pseudo-code!
   y = i;                 // running value, start with i
   idx = 0;               // walk through the xs "array" using idx
-  while(idx <= length (xs)) \{
+  while(idx < length (xs)) \{
     y = f (xs[idx], y);  // compute next elt using the previous
     ++idx;
   \}

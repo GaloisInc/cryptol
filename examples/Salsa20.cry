@@ -180,9 +180,10 @@ Salsa20_expansion(k, n) = z
   where
     [s0, s1, s2, s3] = split("expand 32-byte k") : [4][4][8]
     [t0, t1, t2, t3] = split("expand 16-byte k") : [4][4][8]
-    x = if(`a == 2) then s0 # (take`{16} k) # s1 # n # s2 # (take`{16} k) # s3
-                    else t0 # (take`{16} k) # t1 # n # t2 # (take`{16} k) # t3
+    x = if(`a == 2) then s0 # k0 # s1 # n # s2 # k1 # s3
+                    else t0 # k0 # t1 # n # t2 # k0 # t3
     z = Salsa20(x)
+    [k0, k1] = (split(k#zero)):[2][16][8]
 
 Salsa20_encrypt : {a, b} (a >= 1, 2 >= a, fin b) => ([16*a][8], [8][8], [b][8]) -> [b][8]
 Salsa20_encrypt(k, v, m) = c
