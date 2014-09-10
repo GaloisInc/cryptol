@@ -425,7 +425,7 @@ data OptionDescr = OptionDescr
 
 userOptions :: OptionMap
 userOptions  = mkOptionMap
-  [ OptionDescr "base" (EnvNum 10) checkBase
+  [ OptionDescr "base" (EnvNum 16) checkBase
     "the base to display words at"
   , OptionDescr "debug" (EnvBool False) (const Nothing)
     "enable debugging output"

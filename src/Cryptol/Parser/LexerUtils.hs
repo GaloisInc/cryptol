@@ -18,8 +18,6 @@ import Data.Char(toLower)
 import Data.Word(Word8)
 import Codec.Binary.UTF8.String(encodeChar)
 
-import Debug.Trace
-
 
 data Config = Config
   { cfgSource      :: !FilePath     -- ^ File that we are working on
@@ -270,8 +268,7 @@ layout cfg ts0 = loop implicitScope [] ts0
 
     done ts s = (reverse (t:ts), s)
 
-    closingToken = ty == Sym ParenR
-                || ty == Sym Comma
+    closingToken = ty `elem` [ Sym ParenR, Sym Comma, Sym BracketR, Sym CurlyR ]
 
 virt :: Config -> Position -> TokenV -> Located Token
 virt cfg pos x = Located { srcRange = Range

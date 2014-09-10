@@ -290,7 +290,7 @@ rewDeclGroup rews dg =
                                             ) (TupleSel n (Just tupAr))
                           }
 
-                  return (tupD : zipWith mkFunDef [ 1 .. ] polyDs)
+                  return (tupD : zipWith mkFunDef [ 0 .. ] polyDs)
 
 
 --------------------------------------------------------------------------------

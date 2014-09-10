@@ -179,12 +179,14 @@ commandList  =
   , CommandDescr ":module" (FilenameArg moduleCmd)
     "load a module"
 
-  , CommandDescr ":check" (ExprArg qcCmd)
-    "use random testing to check that the argument always returns true"
+  , CommandDescr ":check" (ExprArg (qcCmd QCRandom))
+    "use random testing to check that the argument always returns true (if no argument, check all properties)"
+  , CommandDescr ":exhaust" (ExprArg (qcCmd QCExhaust))
+    "use exhaustive testing to prove that the argument always returns true (if no argument, check all properties)"
   , CommandDescr ":prove" (ExprArg proveCmd)
-    "use an external solver to prove that the argument always returns true"
+    "use an external solver to prove that the argument always returns true (if no argument, check all properties)"
   , CommandDescr ":sat" (ExprArg satCmd)
-    "use a solver to find a satisfying assignment for which the argument returns true"
+    "use a solver to find a satisfying assignment for which the argument returns true (if no argument, find  an assignment for all properties)"
   , CommandDescr ":debug_specialize" (ExprArg specializeCmd)
     "do type specialization on a closed expression"
   ]
@@ -236,21 +238,26 @@ evalCmd str = do
     P.LetInput decl -> do
       replEvalDecl decl
 
-qcCmd :: String -> REPL ()
-qcCmd "" =
+data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
+
+-- | Randomly test a property, or exhaustively check it if the number
+-- of values in the type under test is smaller than the @tests@
+-- environment variable, or we specify exhaustive testing.
+qcCmd :: QCMode -> String -> REPL ()
+qcCmd qcMode "" =
   do xs <- getPropertyNames
      if null xs
         then io $ putStrLn "There are no properties in scope."
         else forM_ xs $ \x ->
                do io $ putStr $ "property " ++ x ++ " "
-                  qcCmd x
+                  qcCmd qcMode x
 
-qcCmd str =
+qcCmd qcMode str =
   do expr <- replParseExpr str
      (val,ty) <- replEvalExpr expr
      EnvNum testNum  <- getUser "tests"
      case TestX.testableType ty of
-       Just (sz,vss) | sz <= toInteger testNum ->
+       Just (sz,vss) | qcMode == QCExhaust || sz <= toInteger testNum ->
          do io $ putStrLn "Using exhaustive testing."
             let doTest _ [] = panic "We've unexpectedly run out of test cases"
                                     []
@@ -321,8 +328,15 @@ qcCmd str =
                    io $ mapM_ (print . pp . E.WithBase opts) vs
                    return False
 
-
 proveCmd :: String -> REPL ()
+proveCmd "" =
+  do xs <- getPropertyNames
+     if null xs
+        then io $ putStrLn "There are no properties in scope."
+        else forM_ xs $ \x ->
+               do io $ putStr $ "property " ++ x ++ " "
+                  proveCmd x
+
 proveCmd str = do
   parseExpr <- replParseExpr str
   (expr, schema) <- replCheckExpr parseExpr
@@ -355,6 +369,13 @@ proveCmd str = do
 -- to a record whose form depends on the expression given. See ticket
 -- #66 for a discussion of this design.
 satCmd :: String -> REPL ()
+satCmd "" =
+  do xs <- getPropertyNames
+     if null xs
+        then io $ putStrLn "There are no properties in scope."
+        else forM_ xs $ \x ->
+               do io $ putStr $ "property "
+                  satCmd x
 satCmd str = do
   parseExpr <- replParseExpr str
   (expr, schema) <- replCheckExpr parseExpr

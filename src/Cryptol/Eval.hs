@@ -139,7 +139,7 @@ evalSel env e sel = case sel of
 
   tupleSel n v =
     case v of
-      VTuple vs     -> vs !! (n - 1)
+      VTuple vs     -> vs !! n
       VSeq False vs -> VSeq False [ tupleSel n v1 | v1 <- vs ]
       VStream vs    -> VStream [ tupleSel n v1 | v1 <- vs ]
       VFun f        -> VFun (\x -> tupleSel n (f x))

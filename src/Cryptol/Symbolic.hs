@@ -305,7 +305,7 @@ evalSel sel v =
   case sel of
     TupleSel n _  ->
       case v of
-        VTuple xs  -> xs !! (n - 1) -- 1-based indexing
+        VTuple xs  -> xs !! n -- 0-based indexing
         VSeq b xs  -> VSeq b (map (evalSel sel) xs)
         VStream xs -> VStream (map (evalSel sel) xs)
         VFun f     -> VFun (\x -> evalSel sel (f x))
