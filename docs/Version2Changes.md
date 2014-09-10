@@ -215,8 +215,8 @@ becomes, in version 2:
     sqDiffThm : ([8], [8]) -> Bit
     property sqDiffThm x y = sqDiff1 (x, y) == sqDiff2 (x, y)
 
-The `property` keyword is just an annotation. You can apply `:check`, `:sat`
-and `:prove` to any function that returns `Bit`.
+The `property` keyword is just an annotation. You can apply `:check`,
+`:exhaust`, `:sat` and `:prove` to any function that returns `Bit`.
 
 Current Limitations of `:modernize`
 ===================================

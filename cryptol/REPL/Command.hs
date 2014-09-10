@@ -179,8 +179,10 @@ commandList  =
   , CommandDescr ":module" (FilenameArg moduleCmd)
     "load a module"
 
-  , CommandDescr ":check" (ExprArg qcCmd)
+  , CommandDescr ":check" (ExprArg (qcCmd QCRandom))
     "use random testing to check that the argument always returns true (if no argument, check all properties)"
+  , CommandDescr ":exhaust" (ExprArg (qcCmd QCExhaust))
+    "use exhaustive testing to prove that the argument always returns true (if no argument, check all properties)"
   , CommandDescr ":prove" (ExprArg proveCmd)
     "use an external solver to prove that the argument always returns true (if no argument, check all properties)"
   , CommandDescr ":sat" (ExprArg satCmd)
@@ -236,21 +238,26 @@ evalCmd str = do
     P.LetInput decl -> do
       replEvalDecl decl
 
-qcCmd :: String -> REPL ()
-qcCmd "" =
+data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
+
+-- | Randomly test a property, or exhaustively check it if the number
+-- of values in the type under test is smaller than the @tests@
+-- environment variable, or we specify exhaustive testing.
+qcCmd :: QCMode -> String -> REPL ()
+qcCmd qcMode "" =
   do xs <- getPropertyNames
      if null xs
         then io $ putStrLn "There are no properties in scope."
         else forM_ xs $ \x ->
                do io $ putStr $ "property " ++ x ++ " "
-                  qcCmd x
+                  qcCmd qcMode x
 
-qcCmd str =
+qcCmd qcMode str =
   do expr <- replParseExpr str
      (val,ty) <- replEvalExpr expr
      EnvNum testNum  <- getUser "tests"
      case TestX.testableType ty of
-       Just (sz,vss) | sz <= toInteger testNum ->
+       Just (sz,vss) | qcMode == QCExhaust || sz <= toInteger testNum ->
          do io $ putStrLn "Using exhaustive testing."
             let doTest _ [] = panic "We've unexpectedly run out of test cases"
                                     []
