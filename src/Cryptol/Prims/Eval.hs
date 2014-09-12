@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE PatternGuards #-}
@@ -30,7 +30,7 @@ import Data.List (sortBy,transpose,genericTake,genericReplicate,genericSplitAt)
 import Data.Ord (comparing)
 import Data.Bits (Bits(..))
 
-import System.Random (mkStdGen)
+import System.Random.TF (mkTFGen)
 
 
 -- Utilities -------------------------------------------------------------------
@@ -767,7 +767,7 @@ randomV :: TValue -> Integer -> Value
 randomV ty seed =
   case randomValue (tValTy ty) of
     Nothing -> zeroV ty
-    Just gen -> fst $ gen 100 $ mkStdGen (fromIntegral seed)
+    Just gen -> fst $ gen 100 $ mkTFGen (fromIntegral seed)
 
 
 -- Miscellaneous ---------------------------------------------------------------

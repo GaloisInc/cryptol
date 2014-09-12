@@ -67,7 +67,7 @@ import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist)
 import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 import System.IO(hFlush,stdout)
-import System.Random(newStdGen)
+import System.Random.TF(newTFGen)
 import Numeric (showFFloat)
 
 #if __GLASGOW_HASKELL__ < 706
@@ -273,7 +273,7 @@ qcCmd qcMode str =
               Just gens ->
                 do io $ putStrLn "Using random testing."
                    prt testingMsg
-                   g <- io newStdGen
+                   g <- io newTFGen
                    ok <- go (TestR.runTest val gens) testNum 0 g
                    when ok $
                      case n of
