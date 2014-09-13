@@ -773,7 +773,7 @@ instance ({-Num a,-} Bits a, SymWord a) => Bits (SBV a) where
   complement = liftSym1 (mkSymOp1 Not) (noRealUnary "complement") complement (noFloatUnary "complement") (noDoubleUnary "complement")
   bitSize  x = case kindOf x of KBounded _ w -> w
 #if __GLASGOW_HASKELL__ >= 708
-  bitSizeMaybe _ = Just $ intSizeOf (undefined :: a)
+  bitSizeMaybe x = Just $ case kindOf x of KBounded _ w -> w
 #endif
   isSigned x = case kindOf x of KBounded s _ -> s
   bit i      = 1 `shiftL` i

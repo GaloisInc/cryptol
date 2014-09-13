@@ -97,6 +97,9 @@ instance Bits BitVector where
   complementBit (BV s m x) i   = BV s m (complementBit x i)
   testBit (BV _ _ x) i         = testBit x i
   bitSize (BV _ m _)           = m
+#if __GLASGOW_HASKELL__ >= 708
+  bitSizeMaybe (BV _ m _)      = Just m
+#endif
   isSigned (BV s _ _)          = s
   popCount (BV _ _ x)          = popCount x
 
