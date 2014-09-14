@@ -181,8 +181,8 @@ commandList  =
 
   , CommandDescr ":check" (ExprArg (qcCmd QCRandom))
     "use random testing to check that the argument always returns true (if no argument, check all properties)"
-  , CommandDescr ":exhaust" (ExprArg (qcCmd QCExhaust))
-    "use exhaustive testing to prove that the argument always returns true (if no argument, check all properties)"
+  -- , CommandDescr ":exhaust" (ExprArg (qcCmd QCExhaust))
+  --   "use exhaustive testing to prove that the argument always returns true (if no argument, check all properties)"
   , CommandDescr ":prove" (ExprArg proveCmd)
     "use an external solver to prove that the argument always returns true (if no argument, check all properties)"
   , CommandDescr ":sat" (ExprArg satCmd)
