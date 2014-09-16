@@ -334,12 +334,24 @@ evalDeclGroup :: Env -> DeclGroup -> Env
 evalDeclGroup env dg =
   case dg of
     NonRecursive d -> bindVar (evalDecl env d) env
-    Recursive ds   -> let env' = foldr bindVar env bindings
+    Recursive ds   -> let env' = foldr bindVar env lazyBindings
                           bindings = map (evalDecl env') ds
-                      in env'
+                          lazyBindings = [ (qname, copyBySchema env (dSignature d) v)
+                                         | (d, (qname, v)) <- zip ds bindings ]
+                      in env' -- foldr bindVar env bindings
 
 evalDecl :: Env -> Decl -> (QName, Value)
 evalDecl env d = (dName d, evalExpr env (dDefinition d))
+
+-- | Make a copy of the given value, building the spine based only on
+-- the type without forcing the value argument. This lets us avoid
+-- strictness problems when evaluating recursive definitions.
+copyBySchema :: Env -> Schema -> Value -> Value
+copyBySchema env0 (Forall params _props ty) = go params env0
+  where
+    go [] env v = logicUnary id id (evalType env ty) v
+    go (p : ps) env v =
+      VPoly (\t -> go ps (bindType (tpVar p) t env) (fromVPoly v t))
 
 -- List Comprehensions ---------------------------------------------------------
 
