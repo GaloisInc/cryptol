@@ -128,7 +128,7 @@ data RO = RO
   , iTVars    :: [TParam]                  -- ^ Type variable that are in scope
   , iTSyns    :: Map QName (DefLoc, TySyn) -- ^ Type synonyms that are in scope
   , iNewtypes :: Map QName (DefLoc, Newtype)
-   -- ^ Newtype delcarations in scope
+   -- ^ Newtype declarations in scope
    --
    -- NOTE: type synonyms take precedence over newtype.  The reason is
    -- that we can define local type synonyms, but not local newtypes.
@@ -160,7 +160,7 @@ data RW = RW
     --     1. we look in all scopes to see if it is already defined.
     --     2. if it was not defined, we create a fresh type variable,
     --        and we add it to the current scope.
-    --     3. it is an error if we encoutner an existential variable but we
+    --     3. it is an error if we encounter an existential variable but we
     --        have no current scope.
 
   , iSolvedHas :: Map Int (Expr -> Expr)
@@ -274,7 +274,7 @@ getHasGoals :: InferM [HasGoal]
 getHasGoals = do gs <- IM $ sets $ \s -> (iHasCts s, s { iHasCts = [] })
                  applySubst gs
 
--- | Specify the solution (`Expr -> Expr`) for the given constraitn (`Int`).
+-- | Specify the solution (`Expr -> Expr`) for the given constraint (`Int`).
 solveHasGoal :: Int -> (Expr -> Expr) -> InferM ()
 solveHasGoal n e =
   IM $ sets_ $ \s -> s { iSolvedHas = Map.insert n e (iSolvedHas s) }
@@ -390,7 +390,7 @@ lookupVar x =
                             return $ ExtVar $ Forall [] [] a
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
--- in scope, in schich case we must be dealing with a type constant.
+-- in scope, in which case we must be dealing with a type constant.
 lookupTVar :: QName -> InferM (Maybe Type)
 lookupTVar x = IM $ asks $ fmap (TVar . tpVar) . find this . iTVars
   where this tp = tpName tp == Just x
@@ -435,18 +435,18 @@ getTSyns = IM $ asks iTSyns
 getNewtypes :: InferM (Map QName (DefLoc,Newtype))
 getNewtypes = IM $ asks iNewtypes
 
--- | Get the ste of bound type variable that are in scope.
+-- | Get the set of bound type variables that are in scope.
 getTVars :: InferM (Set QName)
 getTVars = IM $ asks $ Set.fromList . mapMaybe tpName . iTVars
 
--- | Return the keys of the bound variablese that are in scope.
+-- | Return the keys of the bound variables that are in scope.
 getBoundInScope :: InferM (Set TVar)
 getBoundInScope = IM $ asks $ Set.fromList . map tpVar . iTVars
 
 {- | We disallow shadowing between type synonyms and type variables
-because it is confusing.  As a bonus, in the implementaiton we don't
+because it is confusing.  As a bonus, in the implementation we don't
 need to worry about where we lookup things (i.e., in the variable or
-type synonym environmnet. -}
+type synonym environment. -}
 
 checkTShadowing :: String -> QName -> InferM ()
 checkTShadowing this new =
@@ -577,7 +577,7 @@ runKindM wildOK vs (KM m) =
   kro  = KRO { allowWild = wildOK, lazyTVars = tys }
   krw  = KRW { typeParams = Map.fromList [ (x,k) | (x,Just k,_) <- vs ] }
 
--- | This is waht's returned when we lookup variables during kind checking.
+-- | This is what's returned when we lookup variables during kind checking.
 data LkpTyVar = TLocalVar Type (Maybe Kind) -- ^ Locally bound variable.
               | TOuterVar Type              -- ^ An outer binding.
 
