@@ -16,12 +16,14 @@ import Control.Monad (replicateM, when, zipWithM)
 import Control.Monad.IO.Class
 import Data.List (transpose)
 import qualified Data.Map as Map
+import Data.Maybe
 import Data.Monoid (Monoid(..))
 import Data.Traversable (traverse)
 import qualified Control.Exception as X
 
 import qualified Data.SBV as SBV
-import Data.SBV (Symbolic)
+import Data.SBV.Provers.Prover hiding (verbose)
+import Data.SBV.BitVectors.Data hiding (verbose)
 
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
@@ -46,6 +48,7 @@ proverConfigs =
   , ("z3"       , SBV.z3       )
   , ("boolector", SBV.boolector)
   , ("mathsat"  , SBV.mathSAT  )
+  , ("offline"  , SBV.defaultSMTCfg )
   ]
 
 proverNames :: [String]
@@ -62,70 +65,91 @@ lookupProver s =
 -- counterexample or satisfying assignment.
 type ProverResult = Either String (Either [Type] [(Type, Expr, Eval.Value)])
 
--- | TODO: Clean up ProverResult; it has grown too much to be a proper datatype!
-prove :: (String, Bool, Bool)
-      -> [DeclGroup]
-      -> (Expr, Schema)
-      -> M.ModuleCmd ProverResult
-prove (proverName, useSolverIte, verbose) edecls (expr, schema) = protectStack useSolverIte $ \modEnv -> do
-  let extDgs = allDeclGroups modEnv ++ edecls
-  let prover = lookupProver proverName
-  case predArgTypes schema of
-    Left msg -> return (Right (Left msg, modEnv), [])
-    Right ts -> do when verbose $ putStrLn "Simulating..."
-                   let env = evalDecls (emptyEnv useSolverIte) extDgs
-                   let v = evalExpr env expr
-                   result <- SBV.proveWith prover $ do
-                               args <- mapM forallFinType ts
-                               b <- return $! fromVBit (foldl fromVFun v args)
-                               when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
-                               return b
-                   ecxexprs <- case result of
-                     SBV.ThmResult (SBV.Satisfiable {}) ->
-                       let Right (_, cws) = SBV.getModel result
-                           (vs, _) = parseValues ts cws
-                           cxtys = unFinType <$> ts
-                           cxexprs = zipWithM Eval.toExpr cxtys vs
-                       in case zip3 cxtys <$> cxexprs <*> pure vs of
-                         Nothing -> panic "Cryptol.Symbolic.prove"
-                                      [ "unable to make counterexample into expression" ]
-                         Just tevs -> return $ Right (Right tevs)
-                     SBV.ThmResult (SBV.Unsatisfiable {}) -> return $ Right (Left (unFinType <$> ts))
-                     SBV.ThmResult _ -> return $ Left (show result)
-                   return (Right (ecxexprs, modEnv), [])
+satSMTResult :: SatResult -> SMTResult
+satSMTResult (SatResult r) = r
 
-sat :: (String, Bool, Bool)
+thmSMTResult :: ThmResult -> SMTResult
+thmSMTResult (ThmResult r) = r
+
+-- | TODO: Clean up ProverResult; it has grown too much to be a proper datatype!
+sat :: Bool
+    -> (String, Bool, Bool)
     -> [DeclGroup]
+    -> Maybe FilePath
     -> (Expr, Schema)
     -> M.ModuleCmd ProverResult -- ^ Returns a list of arguments for a satisfying assignment
-sat (proverName, useSolverIte, verbose) edecls (expr, schema) = protectStack useSolverIte $ \modEnv -> do
+sat isSat (proverName, useSolverIte, verbose) edecls mfile (expr, schema) = protectStack useSolverIte $ \modEnv -> do
   let extDgs = allDeclGroups modEnv ++ edecls
-  let prover = lookupProver proverName
+  let prover = (lookupProver proverName) { smtFile = mfile }
+  let tyFn = if isSat then existsFinType else forallFinType
+  let runFn | isSat = fmap satSMTResult . SBV.satWith prover
+            | otherwise = fmap thmSMTResult . SBV.proveWith prover
   case predArgTypes schema of
     Left msg -> return (Right (Left msg, modEnv), [])
     Right ts -> do when verbose $ putStrLn "Simulating..."
                    let env = evalDecls (emptyEnv useSolverIte) extDgs
                    let v = evalExpr env expr
-                   result <- SBV.satWith prover $ do
-                               args <- mapM existsFinType ts
+                   result <- runFn $ do
+                               args <- mapM tyFn ts
                                b <- return $! fromVBit (foldl fromVFun v args)
-                               when verbose $ liftIO $ putStrLn $ "Calling " ++ proverName ++ "..."
+                               when verbose $ liftIO $ putStrLn $
+                                 "Calling " ++ proverName ++ "..."
                                return b
                    esatexprs <- case result of
-                     SBV.SatResult (SBV.Satisfiable {}) ->
+                     SBV.Satisfiable {} ->
                        let Right (_, cws) = SBV.getModel result
                            (vs, _) = parseValues ts cws
                            sattys = unFinType <$> ts
                            satexprs = zipWithM Eval.toExpr sattys vs
                        in case zip3 sattys <$> satexprs <*> pure vs of
-                         Nothing -> panic "Cryptol.Symbolic.sat"
-                                      [ "unable to make assignment into expression" ]
+                         Nothing ->
+                           panic "Cryptol.Symbolic.sat"
+                             [ "unable to make assignment into expression" ]
                          Just tevs -> return $ Right (Right tevs)
-                     SBV.SatResult (SBV.Unsatisfiable {}) -> return $ Right (Left (unFinType <$> ts))
-                     SBV.SatResult _ -> return $ Left (show result)
+                     SBV.Unsatisfiable {} ->
+                       return $ Right (Left (unFinType <$> ts))
+                     _ -> return $ Left (rshow result)
+                            where rshow | isSat = show . SatResult
+                                        | otherwise = show . ThmResult
                    return (Right (esatexprs, modEnv), [])
 
-protectStack :: Bool -> M.ModuleCmd ProverResult -> M.ModuleCmd ProverResult
+satOffline :: Bool
+           -> Bool
+           -> Bool
+           -> [DeclGroup]
+           -> Maybe FilePath
+           -> (Expr, Schema)
+           -> M.ModuleCmd (Either String ())
+satOffline isSat useIte vrb edecls mfile (expr, schema) =
+  protectStack useIte $ \modEnv -> do
+    let extDgs = allDeclGroups modEnv ++ edecls
+    let tyFn = if isSat then existsFinType else forallFinType
+    let filename = fromMaybe "standard output" mfile
+    case predArgTypes schema of
+      Left msg -> return (Right (Left msg, modEnv), [])
+      Right ts ->
+        do when vrb $ putStrLn "Simulating..."
+           let env = evalDecls (emptyEnv useIte) extDgs
+           let v = evalExpr env expr
+           let satWord | isSat = "satisfiability"
+                       | otherwise = "validity"
+           txt <- compileToSMTLib True isSat $ do
+                    args <- mapM tyFn ts
+                    b <- return $! fromVBit (foldl fromVFun v args)
+                    liftIO $ putStrLn $
+                      "Writing to SMT-Lib file " ++ filename ++ "..."
+                    return b
+           liftIO $ putStrLn $
+             "To determine the " ++ satWord ++
+             " of the expression, use an external SMT solver."
+           case mfile of
+             Just path -> writeFile path txt
+             Nothing -> putStr txt
+           return (Right (Right (), modEnv), [])
+
+protectStack :: Bool
+             -> M.ModuleCmd (Either String a)
+             -> M.ModuleCmd (Either String a)
 protectStack usingITE cmd modEnv = X.catchJust isOverflow (cmd modEnv) handler
   where isOverflow X.StackOverflow = Just ()
         isOverflow _               = Nothing
