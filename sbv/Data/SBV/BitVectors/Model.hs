@@ -22,7 +22,7 @@
 
 module Data.SBV.BitVectors.Model (
     Mergeable(..), EqSymbolic(..), OrdSymbolic(..), SDivisible(..), Uninterpreted(..), SIntegral
-  , sbvTestBit, sbvPopCount, setBitTo, sbvShiftLeft, sbvShiftRight, sbvSignedShiftArithRight
+  , ite, iteLazy, sBranch, sbvTestBit, sbvPopCount, setBitTo, sbvShiftLeft, sbvShiftRight, sbvSignedShiftArithRight
   , sbvRotateLeft, sbvRotateRight, mkUninterpreted
   , allEqual, allDifferent, inRange, sElem, oneIf, blastBE, blastLE, fullAdder, fullMultiplier
   , lsb, msb, genVar, genVar_, forall, forall_, exists, exists_
@@ -52,11 +52,9 @@ import Data.SBV.BitVectors.AlgReals
 import Data.SBV.BitVectors.Data
 import Data.SBV.Utils.Boolean
 
-import Data.SBV.Provers.Prover (isSBranchFeasibleInState)
-
 -- The following two imports are only needed because of the doctest expressions we have. Sigh..
 -- It might be a good idea to reorg some of the content to avoid this.
-import Data.SBV.Provers.Prover (isVacuous, prove)
+import Data.SBV.Provers.Prover (isSBranchFeasibleInState, isVacuous, prove)
 import Data.SBV.SMT.SMT (ThmResult)
 
 -- | Newer versions of GHC (Starting with 7.8 I think), distinguishes between FiniteBits and Bits classes.
@@ -1180,48 +1178,16 @@ instance (SymWord a, Arbitrary a) => Arbitrary (SBV a) where
 --
 -- Minimal complete definition: 'symbolicMerge'
 class Mergeable a where
-   -- | Merge two values based on the condition. This is intended
-   -- to be a "structural" copy, walking down the values and merging
-   -- recursively through the structure of @a@. In particular,
-   -- symbolicMerge should *not* waste its time testing whether the
-   -- condition might be a literal; that will be handled by 'ite'
-   -- which should be used in all user code. In particular, any
-   -- implementation of 'symbolicMerge' should just call 'symbolicMerge'
-   -- recursively in the constituents of @a@, instead of 'ite'.
-   symbolicMerge :: SBool -> a -> a -> a
-   -- | Choose one or the other element, based on the condition.
-   -- This is similar to 'symbolicMerge', but it has a default
-   -- implementation that makes sure it's short-cut if the condition is concrete.
-   -- The idea is that use symbolicMerge if you know the condition is symbolic,
-   -- otherwise use ite, if there's a chance it might be concrete.
-   ite :: SBool -> a -> a -> a
-   -- | Branch on a condition, much like 'ite'. The exception is that SBV will
-   -- check to make sure if the test condition is feasible by making an external
-   -- call to the SMT solver. Note that this can be expensive, thus we shall use
-   -- a time-out value ('sBranchTimeOut'). There might be zero, one, or two such
-   -- external calls per 'sBranch' call:
-   --
-   --    - If condition is statically known to be True/False: 0 calls
-   --           - In this case, we simply constant fold..
-   --
-   --    - If condition is determined to be unsatisfiable   : 1 call
-   --           - In this case, we know then-branch is infeasible, so just take the else-branch
-   --
-   --    - If condition is determined to be satisfable      : 2 calls
-   --           - In this case, we know then-branch is feasible, but we still have to check if the else-branch is
-   --
-   -- In summary, 'sBranch' calls can be expensive, but they can help with the so-called symbolic-termination
-   -- problem. See "Data.SBV.Examples.Misc.SBranch" for an example.
-   sBranch :: SBool -> a -> a -> a
+   -- | Merge two values based on the condition. The first argument states
+   -- whether we force the then-and-else branches before the merging, at the
+   -- word level. This is an efficiency concern; one that we'd rather not
+   -- make but unfortunately necessary for getting symbolic simulation
+   -- working efficiently.
+   symbolicMerge :: Bool -> SBool -> a -> a -> a
    -- | Total indexing operation. @select xs default index@ is intuitively
    -- the same as @xs !! index@, except it evaluates to @default@ if @index@
    -- overflows
    select :: (SymWord b, Num b) => [a] -> a -> SBV b -> a
-   -- default definitions
-   ite s a b
-    | Just t <- unliteral s = if t then a else b
-    | True                  = symbolicMerge s a b
-   sBranch s = ite (reduceInPathCondition s)
    -- NB. Earlier implementation of select used the binary-search trick
    -- on the index to chop down the search space. While that is a good trick
    -- in general, it doesn't work for SBV since we do not have any notion of
@@ -1235,118 +1201,144 @@ class Mergeable a where
     where walk []     _ acc = acc
           walk (e:es) i acc = walk es (i-1) (ite (i .== 0) e acc)
 
+
+-- | If-then-else. This is by definition 'symbolicMerge' with both
+-- branches forced. This is typically the desired behavior, but also
+-- see 'iteLazy' should you need more laziness.
+ite :: Mergeable a => SBool -> a -> a -> a
+ite t a b
+  | Just r <- unliteral t = if r then a else b
+  | True                  = symbolicMerge True t a b
+
+-- | A Lazy version of ite, which does not force its arguments. This might
+-- cause issues for symbolic simulation with large thunks around, so use with
+-- care.
+iteLazy :: Mergeable a => SBool -> a -> a -> a
+iteLazy t a b
+  | Just r <- unliteral t = if r then a else b
+  | True                  = symbolicMerge False t a b
+
+-- | Branch on a condition, much like 'ite'. The exception is that SBV will
+-- check to make sure if the test condition is feasible by making an external
+-- call to the SMT solver. Note that this can be expensive, thus we shall use
+-- a time-out value ('sBranchTimeOut'). There might be zero, one, or two such
+-- external calls per 'sBranch' call:
+--
+--    - If condition is statically known to be True/False: 0 calls
+--           - In this case, we simply constant fold..
+--
+--    - If condition is determined to be unsatisfiable   : 1 call
+--           - In this case, we know then-branch is infeasible, so just take the else-branch
+--
+--    - If condition is determined to be satisfable      : 2 calls
+--           - In this case, we know then-branch is feasible, but we still have to check if the else-branch is
+--
+-- In summary, 'sBranch' calls can be expensive, but they can help with the so-called symbolic-termination
+-- problem. See "Data.SBV.Examples.Misc.SBranch" for an example.
+sBranch :: Mergeable a => SBool -> a -> a -> a
+sBranch t a b
+  | Just r <- unliteral c = if r then a else b
+  | True                  = symbolicMerge False c a b
+  where c = reduceInPathCondition t
+
 -- SBV
 instance SymWord a => Mergeable (SBV a) where
-  -- sBranch is essentially the default method, but we are careful in not forcing the
-  -- arguments as ite does, since sBranch is expected to be used when one of the
-  -- branches is likely to be in a branch that's recursively evaluated.
-  sBranch s a b
-     | Just t <- unliteral sReduced = if t then a else b
-     | True                         = symbolicWordMerge False sReduced a b
-    where sReduced = reduceInPathCondition s
-  symbolicMerge = symbolicWordMerge True
-  -- Custom version of select that translates to SMT-Lib tables at the base type of words
-  select xs err ind
-    | SBV _ (Left c) <- ind = case cwVal c of
-                                CWInteger i -> if i < 0 || i >= genericLength xs
-                                               then err
-                                               else xs `genericIndex` i
-                                _           -> error "SBV.select: unsupported real valued select/index expression"
-  select xs err ind  = SBV kElt $ Right $ cache r
-     where kInd = kindOf ind
-           kElt = kindOf err
-           r st  = do sws <- mapM (sbvToSW st) xs
-                      swe <- sbvToSW st err
-                      if all (== swe) sws  -- off-chance that all elts are the same
-                         then return swe
-                         else do idx <- getTableIndex st kInd kElt sws
-                                 swi <- sbvToSW st ind
-                                 let len = length xs
-                                 newExpr st kElt (SBVApp (LkUp (idx, kInd, kElt, len) swi swe) [])
+    symbolicMerge force t a b
+      | Just r <- unliteral t
+      = if r then a else b
+      | force, Just av <- unliteral a, Just bv <- unliteral b, rationalSBVCheck a b, av == bv
+      = a
+      | True
+      = SBV k $ Right $ cache c
+      where k = kindOf a
+            c st = do swt <- sbvToSW st t
+                      case () of
+                        () | swt == trueSW  -> sbvToSW st a       -- these two cases should never be needed as we expect symbolicMerge to be
+                        () | swt == falseSW -> sbvToSW st b       -- called with symbolic tests, but just in case..
+                        () -> do {- It is tempting to record the choice of the test expression here as we branch down to the 'then' and 'else' branches. That is,
+                                    when we evaluate 'a', we can make use of the fact that the test expression is True, and similarly we can use the fact that it
+                                    is False when b is evaluated. In certain cases this can cut down on symbolic simulation significantly, for instance if
+                                    repetitive decisions are made in a recursive loop. Unfortunately, the implementation of this idea is quite tricky, due to
+                                    our sharing based implementation. As the 'then' branch is evaluated, we will create many expressions that are likely going
+                                    to be "reused" when the 'else' branch is executed. But, it would be *dead wrong* to share those values, as they were "cached"
+                                    under the incorrect assumptions. To wit, consider the following:
 
--- symbolically merge two SBV words, based on the boolean condition given.
--- The first argument controls whether we want to reduce the branches
--- separately first, which avoids hanging onto huge thunks, and is usually
--- the right thing to do for ite. But we precisely do not want to do that
--- in case of sBranch, which is the case when one of the branches (typically
--- the "else" branch is hanging off of a recursive call.
-symbolicWordMerge :: SymWord a => Bool -> SBool -> SBV a -> SBV a -> SBV a
-symbolicWordMerge force t a b
-  | force, Just av <- unliteral a, Just bv <- unliteral b, rationalSBVCheck a b, av == bv
-  = a
-  | True
-  = SBV k $ Right $ cache c
-  where k = kindOf a
-        c st = do swt <- sbvToSW st t
-                  case () of
-                    () | swt == trueSW  -> sbvToSW st a       -- these two cases should never be needed as we expect symbolicMerge to be
-                    () | swt == falseSW -> sbvToSW st b       -- called with symbolic tests, but just in case..
-                    () -> do {- It is tempting to record the choice of the test expression here as we branch down to the 'then' and 'else' branches. That is,
-                                when we evaluate 'a', we can make use of the fact that the test expression is True, and similarly we can use the fact that it
-                                is False when b is evaluated. In certain cases this can cut down on symbolic simulation significantly, for instance if
-                                repetitive decisions are made in a recursive loop. Unfortunately, the implementation of this idea is quite tricky, due to
-                                our sharing based implementation. As the 'then' branch is evaluated, we will create many expressions that are likely going
-                                to be "reused" when the 'else' branch is executed. But, it would be *dead wrong* to share those values, as they were "cached"
-                                under the incorrect assumptions. To wit, consider the following:
+                                       foo x y = ite (y .== 0) k (k+1)
+                                         where k = ite (y .== 0) x (x+1)
 
-                                   foo x y = ite (y .== 0) k (k+1)
-                                     where k = ite (y .== 0) x (x+1)
+                                    When we reduce the 'then' branch of the first ite, we'd record the assumption that y is 0. But while reducing the 'then' branch, we'd
+                                    like to share 'k', which would evaluate (correctly) to 'x' under the given assumption. When we backtrack and evaluate the 'else'
+                                    branch of the first ite, we'd see 'k' is needed again, and we'd look it up from our sharing map to find (incorrectly) that its value
+                                    is 'x', which was stored there under the assumption that y was 0, which no longer holds. Clearly, this is unsound.
 
-                                When we reduce the 'then' branch of the first ite, we'd record the assumption that y is 0. But while reducing the 'then' branch, we'd
-                                like to share 'k', which would evaluate (correctly) to 'x' under the given assumption. When we backtrack and evaluate the 'else'
-                                branch of the first ite, we'd see 'k' is needed again, and we'd look it up from our sharing map to find (incorrectly) that its value
-                                is 'x', which was stored there under the assumption that y was 0, which no longer holds. Clearly, this is unsound.
+                                    A sound implementation would have to precisely track which assumptions were active at the time expressions get shared. That is,
+                                    in the above example, we should record that the value of 'k' was cached under the assumption that 'y' is 0. While sound, this
+                                    approach unfortunately leads to significant loss of valid sharing when the value itself had nothing to do with the assumption itself.
+                                    To wit, consider:
 
-                                A sound implementation would have to precisely track which assumptions were active at the time expressions get shared. That is,
-                                in the above example, we should record that the value of 'k' was cached under the assumption that 'y' is 0. While sound, this
-                                approach unfortunately leads to significant loss of valid sharing when the value itself had nothing to do with the assumption itself.
-                                To wit, consider:
+                                       foo x y = ite (y .== 0) k (k+1)
+                                         where k = x+5
 
-                                   foo x y = ite (y .== 0) k (k+1)
-                                     where k = x+5
+                                    If we tracked the assumptions, we would recompute 'k' twice, since the branch assumptions would differ. Clearly, there is no need to
+                                    re-compute 'k' in this case since its value is independent of y. Note that the whole SBV performance story is based on agressive sharing,
+                                    and losing that would have other significant ramifications.
 
-                                If we tracked the assumptions, we would recompute 'k' twice, since the branch assumptions would differ. Clearly, there is no need to
-                                re-compute 'k' in this case since its value is independent of y. Note that the whole SBV performance story is based on agressive sharing,
-                                and losing that would have other significant ramifications.
+                                    The "proper" solution would be to track, with each shared computation, precisely which assumptions it actually *depends* on, rather
+                                    than blindly recording all the assumptions present at that time. SBV's symbolic simulation engine clearly has all the info needed to do this
+                                    properly, but the implementation is not straightforward at all. For each subexpression, we would need to chase down its dependencies
+                                    transitively, which can require a lot of scanning of the generated program causing major slow-down; thus potentially defeating the
+                                    whole purpose of sharing in the first place.
 
-                                The "proper" solution would be to track, with each shared computation, precisely which assumptions it actually *depends* on, rather
-                                than blindly recording all the assumptions present at that time. SBV's symbolic simulation engine clearly has all the info needed to do this
-                                properly, but the implementation is not straightforward at all. For each subexpression, we would need to chase down its dependencies
-                                transitively, which can require a lot of scanning of the generated program causing major slow-down; thus potentially defeating the
-                                whole purpose of sharing in the first place.
+                                    Design choice: Keep it simple, and simply do not track the assumption at all. This will maximize sharing, at the cost of evaluating
+                                    unreachable branches. I think the simplicity is more important at this point than efficiency.
 
-                                Design choice: Keep it simple, and simply do not track the assumption at all. This will maximize sharing, at the cost of evaluating
-                                unreachable branches. I think the simplicity is more important at this point than efficiency.
+                                    Also note that the user can avoid most such issues by properly combining if-then-else's with common conditions together. That is, the
+                                    first program above should be written like this:
 
-                                Also note that the user can avoid most such issues by properly combining if-then-else's with common conditions together. That is, the
-                                first program above should be written like this:
+                                      foo x y = ite (y .== 0) x (x+2)
 
-                                  foo x y = ite (y .== 0) x (x+2)
+                                    In general, the following transformations should be done whenever possible:
 
-                                In general, the following transformations should be done whenever possible:
+                                      ite e1 (ite e1 e2 e3) e4  --> ite e1 e2 e4
+                                      ite e1 e2 (ite e1 e3 e4)  --> ite e1 e2 e4
 
-                                  ite e1 (ite e1 e2 e3) e4  --> ite e1 e2 e4
-                                  ite e1 e2 (ite e1 e3 e4)  --> ite e1 e2 e4
+                                    This is in accordance with the general rule-of-thumb stating conditionals should be avoided as much as possible. However, we might prefer
+                                    the following:
 
-                                This is in accordance with the general rule-of-thumb stating conditionals should be avoided as much as possible. However, we might prefer
-                                the following:
+                                      ite e1 (f e2 e4) (f e3 e5) --> f (ite e1 e2 e3) (ite e1 e4 e5)
 
-                                  ite e1 (f e2 e4) (f e3 e5) --> f (ite e1 e2 e3) (ite e1 e4 e5)
-
-                               especially if this expression happens to be inside 'f's body itself (i.e., when f is recursive), since it reduces the number of
-                               recursive calls. Clearly, programming with symbolic simulation in mind is another kind of beast alltogether.
-                             -}
-                             swa <- sbvToSW (st `extendPathCondition` (&&& t))      a -- evaluate 'then' branch
-                             swb <- sbvToSW (st `extendPathCondition` (&&& bnot t)) b -- evaluate 'else' branch
-                             case () of               -- merge:
-                               () | swa == swb                      -> return swa
-                               () | swa == trueSW && swb == falseSW -> return swt
-                               () | swa == falseSW && swb == trueSW -> newExpr st k (SBVApp Not [swt])
-                               ()                                   -> newExpr st k (SBVApp Ite [swt, swa, swb])
+                                   especially if this expression happens to be inside 'f's body itself (i.e., when f is recursive), since it reduces the number of
+                                   recursive calls. Clearly, programming with symbolic simulation in mind is another kind of beast alltogether.
+                                 -}
+                                 swa <- sbvToSW (st `extendPathCondition` (&&& t))      a -- evaluate 'then' branch
+                                 swb <- sbvToSW (st `extendPathCondition` (&&& bnot t)) b -- evaluate 'else' branch
+                                 case () of               -- merge:
+                                   () | swa == swb                      -> return swa
+                                   () | swa == trueSW && swb == falseSW -> return swt
+                                   () | swa == falseSW && swb == trueSW -> newExpr st k (SBVApp Not [swt])
+                                   ()                                   -> newExpr st k (SBVApp Ite [swt, swa, swb])
+    -- Custom version of select that translates to SMT-Lib tables at the base type of words
+    select xs err ind
+      | SBV _ (Left c) <- ind = case cwVal c of
+                                  CWInteger i -> if i < 0 || i >= genericLength xs
+                                                 then err
+                                                 else xs `genericIndex` i
+                                  _           -> error "SBV.select: unsupported real valued select/index expression"
+    select xs err ind  = SBV kElt $ Right $ cache r
+       where kInd = kindOf ind
+             kElt = kindOf err
+             r st  = do sws <- mapM (sbvToSW st) xs
+                        swe <- sbvToSW st err
+                        if all (== swe) sws  -- off-chance that all elts are the same
+                           then return swe
+                           else do idx <- getTableIndex st kInd kElt sws
+                                   swi <- sbvToSW st ind
+                                   let len = length xs
+                                   newExpr st kElt (SBVApp (LkUp (idx, kInd, kElt, len) swi swe) [])
 
 -- Unit
 instance Mergeable () where
-   symbolicMerge _ _ _ = ()
+   symbolicMerge _ _ _ _ = ()
    select _ _ _ = ()
 
 -- Mergeable instances for List/Maybe/Either/Array are useful, but can
@@ -1355,38 +1347,38 @@ instance Mergeable () where
 
 -- Lists
 instance Mergeable a => Mergeable [a] where
-  symbolicMerge t xs ys
-    | lxs == lys = zipWith (symbolicMerge t) xs ys
+  symbolicMerge f t xs ys
+    | lxs == lys = zipWith (symbolicMerge f t) xs ys
     | True       = error $ "SBV.Mergeable.List: No least-upper-bound for lists of differing size " ++ show (lxs, lys)
     where (lxs, lys) = (length xs, length ys)
 
 -- Maybe
 instance Mergeable a => Mergeable (Maybe a) where
-  symbolicMerge _ Nothing  Nothing  = Nothing
-  symbolicMerge t (Just a) (Just b) = Just $ symbolicMerge t a b
-  symbolicMerge _ a b = error $ "SBV.Mergeable.Maybe: No least-upper-bound for " ++ show (k a, k b)
+  symbolicMerge _ _ Nothing  Nothing  = Nothing
+  symbolicMerge f t (Just a) (Just b) = Just $ symbolicMerge f t a b
+  symbolicMerge _ _ a b = error $ "SBV.Mergeable.Maybe: No least-upper-bound for " ++ show (k a, k b)
       where k Nothing = "Nothing"
             k _       = "Just"
 
 -- Either
 instance (Mergeable a, Mergeable b) => Mergeable (Either a b) where
-  symbolicMerge t (Left a)  (Left b)  = Left  $ symbolicMerge t a b
-  symbolicMerge t (Right a) (Right b) = Right $ symbolicMerge t a b
-  symbolicMerge _ a b = error $ "SBV.Mergeable.Either: No least-upper-bound for " ++ show (k a, k b)
+  symbolicMerge f t (Left a)  (Left b)  = Left  $ symbolicMerge f t a b
+  symbolicMerge f t (Right a) (Right b) = Right $ symbolicMerge f t a b
+  symbolicMerge _ _ a b = error $ "SBV.Mergeable.Either: No least-upper-bound for " ++ show (k a, k b)
      where k (Left _)  = "Left"
            k (Right _) = "Right"
 
 -- Arrays
 instance (Ix a, Mergeable b) => Mergeable (Array a b) where
-  symbolicMerge t a b
-    | ba == bb = listArray ba (zipWith (symbolicMerge t) (elems a) (elems b))
+  symbolicMerge f t a b
+    | ba == bb = listArray ba (zipWith (symbolicMerge f t) (elems a) (elems b))
     | True     = error $ "SBV.Mergeable.Array: No least-upper-bound for rangeSizes" ++ show (k ba, k bb)
     where [ba, bb] = map bounds [a, b]
           k = rangeSize
 
 -- Functions
 instance Mergeable b => Mergeable (a -> b) where
-  symbolicMerge t f g x = symbolicMerge t (f x) (g x)
+  symbolicMerge f t g h x = symbolicMerge f t (g x) (h x)
   {- Following definition, while correct, is utterly inefficient. Since the
      application is delayed, this hangs on to the inner list and all the
      impending merges, even when ind is concrete. Thus, it's much better to
@@ -1396,43 +1388,43 @@ instance Mergeable b => Mergeable (a -> b) where
 
 -- 2-Tuple
 instance (Mergeable a, Mergeable b) => Mergeable (a, b) where
-  symbolicMerge t (i0, i1) (j0, j1) = (i i0 j0, i i1 j1)
-    where i a b = symbolicMerge t a b
+  symbolicMerge f t (i0, i1) (j0, j1) = (i i0 j0, i i1 j1)
+    where i a b = symbolicMerge f t a b
   select xs (err1, err2) ind = (select as err1 ind, select bs err2 ind)
     where (as, bs) = unzip xs
 
 -- 3-Tuple
 instance (Mergeable a, Mergeable b, Mergeable c) => Mergeable (a, b, c) where
-  symbolicMerge t (i0, i1, i2) (j0, j1, j2) = (i i0 j0, i i1 j1, i i2 j2)
-    where i a b = symbolicMerge t a b
+  symbolicMerge f t (i0, i1, i2) (j0, j1, j2) = (i i0 j0, i i1 j1, i i2 j2)
+    where i a b = symbolicMerge f t a b
   select xs (err1, err2, err3) ind = (select as err1 ind, select bs err2 ind, select cs err3 ind)
     where (as, bs, cs) = unzip3 xs
 
 -- 4-Tuple
 instance (Mergeable a, Mergeable b, Mergeable c, Mergeable d) => Mergeable (a, b, c, d) where
-  symbolicMerge t (i0, i1, i2, i3) (j0, j1, j2, j3) = (i i0 j0, i i1 j1, i i2 j2, i i3 j3)
-    where i a b = symbolicMerge t a b
+  symbolicMerge f t (i0, i1, i2, i3) (j0, j1, j2, j3) = (i i0 j0, i i1 j1, i i2 j2, i i3 j3)
+    where i a b = symbolicMerge f t a b
   select xs (err1, err2, err3, err4) ind = (select as err1 ind, select bs err2 ind, select cs err3 ind, select ds err4 ind)
     where (as, bs, cs, ds) = unzip4 xs
 
 -- 5-Tuple
 instance (Mergeable a, Mergeable b, Mergeable c, Mergeable d, Mergeable e) => Mergeable (a, b, c, d, e) where
-  symbolicMerge t (i0, i1, i2, i3, i4) (j0, j1, j2, j3, j4) = (i i0 j0, i i1 j1, i i2 j2, i i3 j3, i i4 j4)
-    where i a b = symbolicMerge t a b
+  symbolicMerge f t (i0, i1, i2, i3, i4) (j0, j1, j2, j3, j4) = (i i0 j0, i i1 j1, i i2 j2, i i3 j3, i i4 j4)
+    where i a b = symbolicMerge f t a b
   select xs (err1, err2, err3, err4, err5) ind = (select as err1 ind, select bs err2 ind, select cs err3 ind, select ds err4 ind, select es err5 ind)
     where (as, bs, cs, ds, es) = unzip5 xs
 
 -- 6-Tuple
 instance (Mergeable a, Mergeable b, Mergeable c, Mergeable d, Mergeable e, Mergeable f) => Mergeable (a, b, c, d, e, f) where
-  symbolicMerge t (i0, i1, i2, i3, i4, i5) (j0, j1, j2, j3, j4, j5) = (i i0 j0, i i1 j1, i i2 j2, i i3 j3, i i4 j4, i i5 j5)
-    where i a b = symbolicMerge t a b
+  symbolicMerge f t (i0, i1, i2, i3, i4, i5) (j0, j1, j2, j3, j4, j5) = (i i0 j0, i i1 j1, i i2 j2, i i3 j3, i i4 j4, i i5 j5)
+    where i a b = symbolicMerge f t a b
   select xs (err1, err2, err3, err4, err5, err6) ind = (select as err1 ind, select bs err2 ind, select cs err3 ind, select ds err4 ind, select es err5 ind, select fs err6 ind)
     where (as, bs, cs, ds, es, fs) = unzip6 xs
 
 -- 7-Tuple
 instance (Mergeable a, Mergeable b, Mergeable c, Mergeable d, Mergeable e, Mergeable f, Mergeable g) => Mergeable (a, b, c, d, e, f, g) where
-  symbolicMerge t (i0, i1, i2, i3, i4, i5, i6) (j0, j1, j2, j3, j4, j5, j6) = (i i0 j0, i i1 j1, i i2 j2, i i3 j3, i i4 j4, i i5 j5, i i6 j6)
-    where i a b = symbolicMerge t a b
+  symbolicMerge f t (i0, i1, i2, i3, i4, i5, i6) (j0, j1, j2, j3, j4, j5, j6) = (i i0 j0, i i1 j1, i i2 j2, i i3 j3, i i4 j4, i i5 j5, i i6 j6)
+    where i a b = symbolicMerge f t a b
   select xs (err1, err2, err3, err4, err5, err6, err7) ind = (select as err1 ind, select bs err2 ind, select cs err3 ind, select ds err4 ind, select es err5 ind, select fs err6 ind, select gs err7 ind)
     where (as, bs, cs, ds, es, fs, gs) = unzip7 xs
 
@@ -1450,8 +1442,10 @@ instance EqSymbolic (SArray a b) where
                     bi <- uncacheAI b st
                     newExpr st KBool (SBVApp (ArrEq ai bi) [])
 
+-- When merging arrays; we'll ignore the force argument. This is arguably
+-- the right thing to do as we've too many things and likely we want to keep it efficient.
 instance SymWord b => Mergeable (SArray a b) where
-  symbolicMerge = mergeArrays
+  symbolicMerge _ = mergeArrays
 
 -- SFunArrays are only "Mergeable". Although a brute
 -- force equality can be defined, any non-toy instance
@@ -1462,10 +1456,12 @@ instance SymArray SFunArray where
   readArray  (SFunArray f)     = f
   resetArray (SFunArray _) a   = SFunArray $ const a
   writeArray (SFunArray f) a b = SFunArray (\a' -> ite (a .== a') b (f a'))
-  mergeArrays t (SFunArray f) (SFunArray g) = SFunArray (\x -> ite t (f x) (g x))
+  mergeArrays t (SFunArray g) (SFunArray h) = SFunArray (\x -> ite t (g x) (h x))
 
+-- When merging arrays; we'll ignore the force argument. This is arguably
+-- the right thing to do as we've too many things and likely we want to keep it efficient.
 instance SymWord b => Mergeable (SFunArray a b) where
-  symbolicMerge = mergeArrays
+  symbolicMerge _ = mergeArrays
 
 -- | Uninterpreted constants and functions. An uninterpreted constant is
 -- a value that is indexed by its name. The only property the prover assumes

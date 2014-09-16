@@ -37,23 +37,23 @@ type Value = GenValue SBool SWord
 -- Symbolic Conditionals -------------------------------------------------------
 
 instance Mergeable Value where
-  symbolicMerge c v1 v2 =
+  symbolicMerge f c v1 v2 =
     case (v1, v2) of
       (VRecord fs1, VRecord fs2) -> VRecord $ zipWith mergeField fs1 fs2
-      (VTuple vs1 , VTuple vs2 ) -> VTuple $ zipWith (symbolicMerge c) vs1 vs2
-      (VBit b1    , VBit b2    ) -> VBit $ symbolicMerge c b1 b2
-      (VWord w1   , VWord w2   ) -> VWord $ symbolicMerge c w1 w2
-      (VSeq b1 vs1, VSeq _ vs2 ) -> VSeq b1 $ symbolicMerge c vs1 vs2
-      (VStream vs1, VStream vs2) -> VStream $ symbolicMerge c vs1 vs2
-      (VFun f1    , VFun f2    ) -> VFun $ symbolicMerge c f1 f2
-      (VPoly f1   , VPoly f2   ) -> VPoly $ symbolicMerge c f1 f2
-      (VWord w1   , _          ) -> VWord $ symbolicMerge c w1 (fromWord v2)
-      (_          , VWord w2   ) -> VWord $ symbolicMerge c (fromWord v1) w2
+      (VTuple vs1 , VTuple vs2 ) -> VTuple $ zipWith (symbolicMerge f c) vs1 vs2
+      (VBit b1    , VBit b2    ) -> VBit $ symbolicMerge f c b1 b2
+      (VWord w1   , VWord w2   ) -> VWord $ symbolicMerge f c w1 w2
+      (VSeq b1 vs1, VSeq _ vs2 ) -> VSeq b1 $ symbolicMerge f c vs1 vs2
+      (VStream vs1, VStream vs2) -> VStream $ symbolicMerge f c vs1 vs2
+      (VFun f1    , VFun f2    ) -> VFun $ symbolicMerge f c f1 f2
+      (VPoly f1   , VPoly f2   ) -> VPoly $ symbolicMerge f c f1 f2
+      (VWord w1   , _          ) -> VWord $ symbolicMerge f c w1 (fromWord v2)
+      (_          , VWord w2   ) -> VWord $ symbolicMerge f c (fromWord v1) w2
       (_          , _          ) -> panic "Cryptol.Symbolic.Value"
                                       [ "symbolicMerge: incompatible values" ]
     where
       mergeField (n1, x1) (n2, x2)
-        | n1 == n2  = (n1, symbolicMerge c x1 x2)
+        | n1 == n2  = (n1, symbolicMerge f c x1 x2)
         | otherwise = panic "Cryptol.Symbolic.Value"
                         [ "symbolicMerge.mergeField: incompatible values" ]
 
