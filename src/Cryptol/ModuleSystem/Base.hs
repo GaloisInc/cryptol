@@ -296,7 +296,7 @@ typecheck action i env = do
       do typeCheckWarnings warns
          typeCheckingFailed errs
 
--- | Process a list of imports, producing an aggreate interface suitable for use
+-- | Process a list of imports, producing an aggregate interface suitable for use
 -- when typechecking.
 importIfacesTc :: [P.Import] -> ModuleM IfaceDecls
 importIfacesTc is =

@@ -436,11 +436,13 @@ userOptions  = mkOptionMap
   , OptionDescr "tests" (EnvNum 100) (const Nothing)
     "The number of random tests to try."
   , OptionDescr "prover" (EnvString "cvc4") checkProver $
-    "The external smt solver for :prove and :sat (" ++ proverListString ++ ")."
+    "The external SMT solver for :prove and :sat (" ++ proverListString ++ ")."
   , OptionDescr "iteSolver" (EnvBool False) (const Nothing)
     "Use smt solver to filter conditional branches in proofs."
   , OptionDescr "warnDefaulting" (EnvBool True) (const Nothing)
     "Choose if we should display warnings when defaulting."
+  , OptionDescr "smtfile" (EnvString "-") (const Nothing)
+    "The file to use for SMT-Lib scripts (for debugging or offline proving)"
   ]
 
 -- | Check the value to the `base` option.

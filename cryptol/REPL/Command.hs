@@ -328,80 +328,74 @@ qcCmd qcMode str =
                    io $ mapM_ (print . pp . E.WithBase opts) vs
                    return False
 
-proveCmd :: String -> REPL ()
-proveCmd "" =
+satCmd, proveCmd :: String -> REPL ()
+satCmd = cmdProveSat True
+proveCmd = cmdProveSat False
+
+-- | Run a SAT solver on the given expression. Binds the @it@ variable
+-- to a record whose form depends on the expression given. See ticket
+-- #66 for a discussion of this design.
+cmdProveSat :: Bool -> String -> REPL ()
+cmdProveSat isSat "" =
   do xs <- getPropertyNames
      if null xs
         then io $ putStrLn "There are no properties in scope."
         else forM_ xs $ \x ->
                do io $ putStr $ "property " ++ x ++ " "
-                  proveCmd x
+                  cmdProveSat isSat x
+cmdProveSat isSat str = do
+  EnvString proverName <- getUser "prover"
+  EnvString fileName <- getUser "smtfile"
+  let mfile = if fileName == "-" then Nothing else Just fileName
+  case proverName of
+    "offline" -> offlineProveSat isSat str mfile
+    _ -> onlineProveSat isSat str proverName mfile
 
-proveCmd str = do
+onlineProveSat :: Bool
+               -> String -> String -> Maybe FilePath -> REPL ()
+onlineProveSat isSat str proverName mfile = do
+  EnvBool iteSolver <- getUser "iteSolver"
+  EnvBool verbose <- getUser "debug"
+  let cexStr | isSat = "satisfying assignment"
+             | otherwise = "counterexample"
   parseExpr <- replParseExpr str
   (expr, schema) <- replCheckExpr parseExpr
   denv <- getDynEnv
-  -- spexpr <- replSpecExpr expr
-  EnvString proverName <- getUser "prover"
-  EnvBool iteSolver <- getUser "iteSolver"
-  EnvBool verbose <- getUser "debug"
-  result <- liftModuleCmd $ Cryptol.Symbolic.prove (proverName, iteSolver, verbose)
-                                                   (M.deDecls denv)
-                                                   (expr, schema)
+  result <- liftModuleCmd $
+    Cryptol.Symbolic.sat isSat (proverName, iteSolver, verbose)
+                               (M.deDecls denv)
+                               mfile
+                               (expr, schema)
   ppOpts <- getPPValOpts
   case result of
     Left msg           -> io $ putStrLn msg
     Right (Left ts)    -> do
-      io $ putStrLn "Q.E.D."
-      let (t, e) = mkSolverResult "counterexample" True (Left ts)
+      io $ putStrLn (if isSat then "Unsatisfiable." else "Q.E.D.")
+      let (t, e) = mkSolverResult cexStr (not isSat) (Left ts)
       bindItVariable t e
     Right (Right tevs) -> do
       let vs = map (\(_,_,v) -> v) tevs
           tes = map (\(t,e,_) -> (t,e)) tevs
           doc = ppPrec 3 parseExpr -- function application has precedence 3
           docs = map (pp . E.WithBase ppOpts) vs
-      io $ print $ hsep (doc : docs) <+> text "= False"
+      io $ print $ hsep (doc : docs) <+>
+                   text (if isSat then "= True" else "= False")
       -- bind the counterexample to `it`
-      let (t, e) = mkSolverResult "counterexample" False (Right tes)
+      let (t, e) = mkSolverResult cexStr isSat (Right tes)
       bindItVariable t e
 
--- | Run a SAT solver on the given expression. Binds the @it@ variable
--- to a record whose form depends on the expression given. See ticket
--- #66 for a discussion of this design.
-satCmd :: String -> REPL ()
-satCmd "" =
-  do xs <- getPropertyNames
-     if null xs
-        then io $ putStrLn "There are no properties in scope."
-        else forM_ xs $ \x ->
-               do io $ putStr $ "property "
-                  satCmd x
-satCmd str = do
+offlineProveSat :: Bool -> String -> Maybe FilePath -> REPL ()
+offlineProveSat isSat str mfile = do
+  EnvBool useIte <- getUser "iteSolver"
+  EnvBool vrb <- getUser "debug"
   parseExpr <- replParseExpr str
-  (expr, schema) <- replCheckExpr parseExpr
-  denv <- getDynEnv
-  EnvString proverName <- getUser "prover"
-  EnvBool iteSolver <- getUser "iteSolver"
-  EnvBool verbose <- getUser "debug"
-  result <- liftModuleCmd $ Cryptol.Symbolic.sat (proverName, iteSolver, verbose)
-                                                 (M.deDecls denv)
-                                                 (expr, schema)
-  ppOpts <- getPPValOpts
+  exsch <- replCheckExpr parseExpr
+  decls <- fmap M.deDecls getDynEnv
+  result <- liftModuleCmd $
+    Cryptol.Symbolic.satOffline isSat useIte vrb decls mfile exsch
   case result of
-    Left msg        -> io $ putStrLn msg
-    Right (Left ts) -> do
-      io $ putStrLn "Unsatisfiable."
-      let (t, e) = mkSolverResult "satisfying assignment" False (Left ts)
-      bindItVariable t e
-    Right (Right tevs) -> do
-      let vs = map (\(_,_,v) -> v) tevs
-          tes = map (\(t,e,_) -> (t,e)) tevs
-          doc = ppPrec 3 parseExpr -- function application has precedence 3
-          docs = map (pp . E.WithBase ppOpts) vs
-      io $ print $ hsep (doc : docs) <+> text "= True"
-      -- bind the satisfying assignment to `it`
-      let (t, e) = mkSolverResult "satisfying assignment" True (Right tes)
-      bindItVariable t e
+    Left msg -> io $ putStrLn msg
+    Right () -> return ()
 
 -- | Make a type/expression pair that is suitable for binding to @it@
 -- after running @:sat@ or @:prove@
