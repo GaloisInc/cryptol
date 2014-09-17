@@ -9,7 +9,7 @@ Groups of declarations are organized based on indentation.
 Declarations with the same indentation belong to the same group.
 Lines of text that are indented more than the beginning of a
 declaration belong to that declaration, while lines of text that are
-indented less terminate a group of declaration.  Groups of
+indented less terminate a group of declarations.  Groups of
 declarations appear at the top level of a Cryptol file, and inside
 `where` blocks in expressions.  For example, consider the following
 declaration group
