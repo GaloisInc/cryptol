@@ -675,7 +675,7 @@ Try the following expressions:\indTake\indDrop\indSplitBy\indGroup\indJoin\indTr
 \begin{Verbatim}
   take`{3} [1 .. 12]
   drop`{3} [1 .. 12]
-  split`{3} [1 .. 12]
+  splitBy`{3} [1 .. 12]
   groupBy`{3} [1 .. 12]
   join [[1 .. 4], [5 .. 8], [9 .. 12]]
   join [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]
@@ -695,7 +695,7 @@ Here are Cryptol's responses:
   [1, 2, 3]
   Cryptol> drop`{3} [1 .. 12]
   [4, 5, 6, 7, 8, 9, 10, 11, 12]
-  Cryptol> split`{3}[1 .. 12]
+  Cryptol> splitBy`{3}[1 .. 12]
   [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]
   Cryptol> groupBy`{3} [1 .. 12]
   [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]
@@ -715,8 +715,8 @@ Here are Cryptol's responses:
 \begin{Exercise}\label{ex:seq:12}
   Based on your intuitions from the previous exercise, derive laws
   between the following pairs of functions: {\tt take} and {\tt drop};
-  {\tt join} and {\tt split}; {\tt join} and {\tt groupBy}; {\tt
-    split} and {\tt groupBy} and {\tt transpose} and itself.  For
+  {\tt join} and {\tt splitBy}; {\tt join} and {\tt groupBy}; {\tt
+    splitBy} and {\tt groupBy} and {\tt transpose} and itself.  For
   instance, {\tt take} and {\tt drop} satisfy the following
   equality:\indTake\indDrop\indJoin\indSplitBy\indGroup\indTranspose
 \begin{Verbatim}
@@ -730,9 +730,9 @@ satisfy.
   The following equalities are the simplest
   candidates:\indJoin\indSplitBy\indGroup\indTranspose
 \begin{Verbatim}
-  join (split`{parts=n} xs) == xs
+  join (splitBy`{parts=n} xs) == xs
   join (groupBy`{each=n} xs) == xs
-  split`{parts=n} xs == groupBy`{each=m} xs
+  splitBy`{parts=n} xs == groupBy`{each=m} xs
   transpose (transpose xs) == xs
 \end{Verbatim}
 In the first two equalities {\tt n} must be a divisor of the length of
@@ -757,7 +757,7 @@ holds for all equal length sequences {\tt xs0}, {\tt xs1}, $\ldots$,
 \end{Answer}
 
 \paragraph*{Type-directed splits} We have studied the functions {\tt
-  groupBy}\indGroup and {\tt splitBy}\indSplit above.  Cryptol also
+  groupBy}\indGroup and {\tt splitBy}\indSplitBy above.  Cryptol also
 provides a function {\tt split}\indSplit that can split a sequence
 into any number of equal-length segments.  A common way to use {\tt
   split} is to be explicit about the type of its result, instead of
