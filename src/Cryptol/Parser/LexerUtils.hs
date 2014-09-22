@@ -209,6 +209,10 @@ data Block = Virtual Int     -- ^ Virtual layout block
                              -- token.
              deriving (Show)
 
+isExplicit :: Block -> Bool
+isExplicit Explicit{} = True
+isExplicit Virtual{}  = False
+
 startsLayout :: TokenT -> Bool
 startsLayout (KW KW_where)   = True
 startsLayout (KW KW_private) = True
@@ -254,12 +258,20 @@ layout cfg ts0 = loop implicitScope [] ts0
 
       -- delimit or close a layout block
       Virtual c : rest
+          -- commas only close to an explicit marker, so if there is none, the
+          -- comma doesn't close anything
+        | Sym Comma == ty     ->
+                         if any isExplicit rest
+                            then go   (virt cfg (to pos) VCurlyR : virts) rest
+                            else done                              virts  stack
+
         | closingToken        -> go   (virt cfg (to pos) VCurlyR : virts) rest
         | col (from pos) == c -> done (virt cfg (to pos) VSemi   : virts) stack
         | col (from pos) <  c -> go   (virt cfg (to pos) VCurlyR : virts) rest
 
       -- close an explicit block
-      Explicit close : rest | close == ty -> done virts rest
+      Explicit close : rest | close     == ty -> done virts rest
+                            | Sym Comma == ty -> done virts stack
 
       _ -> done virts stack
 
@@ -268,7 +280,7 @@ layout cfg ts0 = loop implicitScope [] ts0
 
     done ts s = (reverse (t:ts), s)
 
-    closingToken = ty `elem` [ Sym ParenR, Sym Comma, Sym BracketR, Sym CurlyR ]
+    closingToken = ty `elem` [ Sym ParenR, Sym BracketR, Sym CurlyR ]
 
 virt :: Config -> Position -> TokenV -> Located Token
 virt cfg pos x = Located { srcRange = Range
