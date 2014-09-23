@@ -26,7 +26,7 @@ import Cryptol.Eval.Value
 import Cryptol.Eval.Type(evalTF)
 import Cryptol.Utils.Panic (panic)
 
-import Data.List (sortBy,transpose,genericTake,genericReplicate,genericSplitAt)
+import Data.List (sortBy,transpose,genericTake,genericReplicate,genericSplitAt,genericIndex)
 import Data.Ord (comparing)
 import Data.Bits (Bits(..))
 
@@ -685,12 +685,12 @@ indexFront :: Maybe Integer -> [Value] -> Integer -> Value
 indexFront mblen vs ix =
   case mblen of
     Just len | len <= ix -> invalidIndex ix
-    _                    -> vs !! fromInteger ix
+    _                    -> genericIndex vs ix
 
 indexBack :: Maybe Integer -> [Value] -> Integer -> Value
 indexBack mblen vs ix =
   case mblen of
-    Just len | len > ix  -> vs !! fromInteger (len - ix - 1)
+    Just len | len > ix  -> genericIndex vs (len - ix - 1)
              | otherwise -> invalidIndex ix
     Nothing              -> evalPanic "indexBack"
                             ["unexpected infinite sequence"]
