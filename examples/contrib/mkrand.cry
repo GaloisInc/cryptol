@@ -1,6 +1,6 @@
 /*
  
-MKRAND - A non-deterministic Digital Random Bit Generator
+MKRAND - A Digital Random Bit Generator
 
     The MIT License (MIT)
 
@@ -28,31 +28,15 @@ MKRAND - A non-deterministic Digital Random Bit Generator
 
    USAGE
 
-   The non-deterministic component of this process is the precise time of invocation.
-   When implementing, since most system clocks provide less than 128 bits, apply 
-   the hash function to amplify the time-dependent bits:
+   Create a 128 bit seed:
 
-   seed = sha30 (<time_bits>)
+   seed = seedUnit
 
-   Once the seed is created, you may use it to generate an infinite stream of bits:
+   Once the seed is created, you may use it to generate a stream of random bits:
 
    take `{100} (randBytes seed)
-   
-   The seed created from a hashed time-stamp is non-deterministic, since the precise 
-   time of invocation was chosen by the individual. Once the seed is created, all 
-   subsequently generated bits are deterministically random, as a function of that seed. 
-   The precise invocation time is the only secret, as far as the computation is concerned.
-   
-   Depending on your application, this distinction is important, as when generating 
-   a block of keys, for example:
 
-   take `{3} (rands seed)
-
-   The three keys will be cryptographically unique with respect to each other, 
-   however they are all a function of the same seed and therefore can all be regenerated 
-   (or verified) knowing the seed.
-
-   Here we encode a string with seedUnit, using the deterministic random stream as a 
+   Here a string is encoded with seedUnit, using the deterministic random stream as a 
    one-time pad against which to XOR the string:
    
      Encode:
@@ -63,9 +47,6 @@ MKRAND - A non-deterministic Digital Random Bit Generator
        :set ascii=on
        randXOR seedUnit [0x28, 0x2b, 0x2c, 0xfa, 0x92, 0xca, 0xb3, 0xcb, 0xed, 0x50, 0xc2,0x1b, 0x11, 0x0e, 0x70]
        "Deus Ex Machina"
-
-   Therefore, when non-determinism is desired, create the seed at the point of use, 
-   and discard after using it.
 
 */
 
