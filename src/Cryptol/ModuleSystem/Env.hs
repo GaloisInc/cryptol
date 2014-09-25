@@ -28,7 +28,6 @@ import System.Environment.Executable(splitExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath)
 import qualified Data.List as List
 
-
 -- Module Environment ----------------------------------------------------------
 
 data ModuleEnv = ModuleEnv
@@ -44,7 +43,7 @@ initialModuleEnv :: IO ModuleEnv
 initialModuleEnv  = do
   dataDir <- getDataDir
   (binDir, _) <- splitExecutablePath
-  let instDir = normalise . joinPath . init . splitPath $ binDir
+  let instDir = normalise . joinPath . init . init . splitPath $ binDir
   return ModuleEnv
     { meLoadedModules = mempty
     , meNameSeeds     = T.nameSeeds
