@@ -3,7 +3,7 @@ ARCH    := $(shell uname -m)
 
 TESTS ?= issues regression renamer
 
-CABAL_FLAGS := -j
+CABAL_FLAGS ?= -j
 
 CABAL_EXE   := cabal
 CABAL       := $(CABAL_EXE) $(CABAL_FLAGS)
