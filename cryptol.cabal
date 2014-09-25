@@ -162,6 +162,7 @@ library
                        GitRev
 
   GHC-options:         -Wall -O2
+  ghc-prof-options: -fprof-auto -prof
 
 executable cryptol
   Default-language:
@@ -187,6 +188,7 @@ executable cryptol
                        tf-random,
                        transformers
   GHC-options:         -Wall -O2
+  ghc-prof-options: -auto-all -prof -rtsopts
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread
