@@ -53,6 +53,7 @@ import Cryptol.Prims.Doc(helpDoc)
 import qualified Cryptol.Transform.Specialize as S
 import qualified Cryptol.Symbolic
 
+import qualified Control.Exception as X
 import Control.Monad (guard,unless,forM_,when)
 import Data.Char (isSpace,isPunctuation,isSymbol)
 import Data.Function (on)
@@ -317,7 +318,8 @@ qcCmd qcMode str =
 
   go doTest totNum testNum st =
      do ppProgress testNum totNum
-        case doTest (div (100 * (1 + testNum)) totNum) st of
+        res <- io $ rethrowEvalError $ X.evaluate $ doTest (div (100 * (1 + testNum)) totNum) st
+        case res of
           (Nothing, st1) -> do delProgress
                                go doTest totNum (testNum + 1) st1
           (Just vs, _g1) ->
@@ -702,6 +704,7 @@ replEvalExpr expr =
                return (def1, T.apSubst su (T.sType sig))
 
      val <- liftModuleCmd (M.evalExpr def1)
+     _ <- io $ rethrowEvalError $ X.evaluate val
      whenDebug (io (putStrLn (dump def1)))
      -- add "it" to the namespace
      bindItVariable ty def1
