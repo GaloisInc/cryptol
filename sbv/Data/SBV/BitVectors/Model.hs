@@ -605,7 +605,7 @@ sElem :: EqSymbolic a => a -> [a] -> SBool
 sElem x xs = bAny (.== x) xs
 
 -- | Returns 1 if the boolean is true, otherwise 0.
-oneIf :: ({-Num a,-} SymWord a) => SBool -> SBV a
+oneIf :: (Num a, SymWord a) => SBool -> SBV a
 oneIf t = ite t 1 0
 
 -- | Predicate for optimizing word operations like (+) and (*).
@@ -628,9 +628,17 @@ isConcreteOnes (SBV _ (Left (CW KUnbounded (CWInteger n)))) = n == -1
 isConcreteOnes _ = False
 
 -- Num instance for symbolic words.
-instance (Ord a, {-Num a,-} SymWord a) => Num (SBV a) where
---BH  fromInteger = literal . fromIntegral
-  fromInteger n = error $ "fromInteger " ++ show n ++ " :: SBV a"
+instance (Ord a, Num a, SymWord a) => Num (SBV a) where
+  fromInteger = literal . fromIntegral
+
+  -- NB: we need to be careful not to use fromInteger on bit vectors
+  -- that aren't of fixed width. Uncomment the following to make it an
+  -- error. Note, however, that this can break some code. In
+  -- particular, sbvCheckSolverInstallation depends on it working
+  -- correctly.
+
+  -- fromInteger n = error $ "fromInteger " ++ show n ++ " :: SBV a"
+
   x + y
     | isConcreteZero x = y
     | isConcreteZero y = x
@@ -751,7 +759,7 @@ noDoubleUnary o a = error $ "SBV.Double." ++ o ++ ": Unexpected argument: " ++ s
 
 -- NB. In the optimizations below, use of -1 is valid as
 -- -1 has all bits set to True for both signed and unsigned values
-instance ({-Num a,-} Bits a, SymWord a) => Bits (SBV a) where
+instance (Num a, Bits a, SymWord a) => Bits (SBV a) where
   x .&. y
     | isConcreteZero x = x
     | isConcreteOnes x = y

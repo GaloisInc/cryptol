@@ -14,7 +14,7 @@ module Cryptol.Symbolic where
 import Control.Applicative
 import Control.Monad (replicateM, when, zipWithM)
 import Control.Monad.IO.Class
-import Data.List (transpose)
+import Data.List (transpose, intercalate)
 import qualified Data.Map as Map
 import Data.Maybe
 import Data.Monoid (Monoid(..))
@@ -49,6 +49,7 @@ proverConfigs =
   , ("boolector", SBV.boolector)
   , ("mathsat"  , SBV.mathSAT  )
   , ("offline"  , SBV.defaultSMTCfg )
+  , ("any"      , SBV.defaultSMTCfg )
   ]
 
 proverNames :: [String]
@@ -72,18 +73,30 @@ thmSMTResult :: ThmResult -> SMTResult
 thmSMTResult (ThmResult r) = r
 
 -- | TODO: Clean up ProverResult; it has grown too much to be a proper datatype!
-sat :: Bool
-    -> (String, Bool, Bool)
-    -> [DeclGroup]
-    -> Maybe FilePath
-    -> (Expr, Schema)
-    -> M.ModuleCmd ProverResult -- ^ Returns a list of arguments for a satisfying assignment
-sat isSat (proverName, useSolverIte, verbose) edecls mfile (expr, schema) = protectStack useSolverIte $ \modEnv -> do
+satProve :: Bool
+         -> (String, Bool, Bool)
+         -> [DeclGroup]
+         -> Maybe FilePath
+         -> (Expr, Schema)
+         -> M.ModuleCmd ProverResult
+            -- ^ Returns a list of arguments for a satisfying assignment
+satProve isSat (proverName, useSolverIte, verbose) edecls mfile (expr, schema) = protectStack useSolverIte $ \modEnv -> do
   let extDgs = allDeclGroups modEnv ++ edecls
-  let prover = (lookupProver proverName) { smtFile = mfile }
+  provers <-
+    case proverName of
+      "any" -> SBV.sbvAvailableSolvers
+      _ -> return [(lookupProver proverName) { smtFile = mfile }]
   let tyFn = if isSat then existsFinType else forallFinType
-  let runFn | isSat = fmap satSMTResult . SBV.satWith prover
-            | otherwise = fmap thmSMTResult . SBV.proveWith prover
+  let runProver fn tag e = do
+        when verbose $ liftIO $
+          putStrLn $ "Trying proof with " ++
+                     intercalate ", " (map show provers)
+        (firstProver, res) <- fn provers e
+        when verbose $ liftIO $
+          putStrLn $ "Got result from " ++ show firstProver
+        return (tag res)
+  let runFn | isSat     = runProver SBV.satWithAny   satSMTResult
+            | otherwise = runProver SBV.proveWithAny thmSMTResult
   case predArgTypes schema of
     Left msg -> return (Right (Left msg, modEnv), [])
     Right ts -> do when verbose $ putStrLn "Simulating..."
@@ -92,8 +105,6 @@ sat isSat (proverName, useSolverIte, verbose) edecls mfile (expr, schema) = prot
                    result <- runFn $ do
                                args <- mapM tyFn ts
                                b <- return $! fromVBit (foldl fromVFun v args)
-                               when verbose $ liftIO $ putStrLn $
-                                 "Calling " ++ proverName ++ "..."
                                return b
                    esatexprs <- case result of
                      SBV.Satisfiable {} ->
@@ -113,14 +124,14 @@ sat isSat (proverName, useSolverIte, verbose) edecls mfile (expr, schema) = prot
                                         | otherwise = show . ThmResult
                    return (Right (esatexprs, modEnv), [])
 
-satOffline :: Bool
-           -> Bool
-           -> Bool
-           -> [DeclGroup]
-           -> Maybe FilePath
-           -> (Expr, Schema)
-           -> M.ModuleCmd (Either String ())
-satOffline isSat useIte vrb edecls mfile (expr, schema) =
+satProveOffline :: Bool
+                -> Bool
+                -> Bool
+                -> [DeclGroup]
+                -> Maybe FilePath
+                -> (Expr, Schema)
+                -> M.ModuleCmd (Either String ())
+satProveOffline isSat useIte vrb edecls mfile (expr, schema) =
   protectStack useIte $ \modEnv -> do
     let extDgs = allDeclGroups modEnv ++ edecls
     let tyFn = if isSat then existsFinType else forallFinType

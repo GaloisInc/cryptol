@@ -362,10 +362,10 @@ onlineProveSat isSat str proverName mfile = do
   (expr, schema) <- replCheckExpr parseExpr
   denv <- getDynEnv
   result <- liftModuleCmd $
-    Cryptol.Symbolic.sat isSat (proverName, iteSolver, verbose)
-                               (M.deDecls denv)
-                               mfile
-                               (expr, schema)
+    Cryptol.Symbolic.satProve isSat (proverName, iteSolver, verbose)
+                                    (M.deDecls denv)
+                                    mfile
+                                    (expr, schema)
   ppOpts <- getPPValOpts
   case result of
     Left msg           -> io $ putStrLn msg
@@ -392,7 +392,7 @@ offlineProveSat isSat str mfile = do
   exsch <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
   result <- liftModuleCmd $
-    Cryptol.Symbolic.satOffline isSat useIte vrb decls mfile exsch
+    Cryptol.Symbolic.satProveOffline isSat useIte vrb decls mfile exsch
   case result of
     Left msg -> io $ putStrLn msg
     Right () -> return ()
