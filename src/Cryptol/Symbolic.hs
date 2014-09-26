@@ -86,12 +86,13 @@ satProve isSat (proverName, useSolverIte, verbose) edecls mfile (expr, schema) =
     case proverName of
       "any" -> SBV.sbvAvailableSolvers
       _ -> return [(lookupProver proverName) { smtFile = mfile }]
+  let provers' = [ p { SBV.timing = verbose, SBV.verbose = verbose } | p <- provers ]
   let tyFn = if isSat then existsFinType else forallFinType
   let runProver fn tag e = do
         when verbose $ liftIO $
           putStrLn $ "Trying proof with " ++
                      intercalate ", " (map show provers)
-        (firstProver, res) <- fn provers e
+        (firstProver, res) <- fn provers' e
         when verbose $ liftIO $
           putStrLn $ "Got result from " ++ show firstProver
         return (tag res)
