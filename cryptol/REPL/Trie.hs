@@ -41,6 +41,16 @@ lookupTrie key t@(Node mp _) = case key of
 
   [] -> leaves t
 
+-- | Given a key, return either an exact match for that key, or all
+-- matches with the given prefix.
+lookupTrieExact :: String -> Trie a -> [a]
+lookupTrieExact []     (Node _ (Just x)) = return x
+lookupTrieExact []     t                 = leaves t
+lookupTrieExact (c:cs) (Node mp _)       =
+  case Map.lookup c mp of
+    Just m' -> lookupTrieExact cs m'
+    Nothing -> []
+
 -- | Return all of the values from a Trie.
 leaves :: Trie a -> [a]
 leaves (Node mp mb) = maybeToList mb ++ concatMap leaves (Map.elems mp)

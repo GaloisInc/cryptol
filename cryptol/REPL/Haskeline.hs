@@ -51,7 +51,7 @@ repl mbBatch begin =
     case mb of
 
       Just line
-        | Just cmd <- parseCommand findCommand line -> do
+        | Just cmd <- parseCommand findCommandExact line -> do
           continue <- MTL.lift $ do
             handleInterrupt handleCtrlC (runCommand cmd)
             shouldContinue
@@ -126,8 +126,8 @@ cryptolCommand cursor@(l,r)
 -- | Generate a completion from a REPL command definition.
 cmdComp :: String -> CommandDescr -> Completion
 cmdComp prefix c = Completion
-  { replacement = drop (length prefix) (cName c)
-  , display     = cName c
+  { replacement = drop (length prefix) (last (cNames c))
+  , display     = last (cNames c)
   , isFinished  = True
   }
 

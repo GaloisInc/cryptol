@@ -14,6 +14,7 @@ module REPL.Command (
   , runCommand
   , splitCommand
   , findCommand
+  , findCommandExact
   , findNbCommand
 
   , moduleCmd, loadCmd, loadPrelude
@@ -113,19 +114,19 @@ data Command
 
 -- | Command builder.
 data CommandDescr = CommandDescr
-  { cName :: String
+  { cNames :: [String]
   , cBody :: CommandBody
   , cHelp :: String
   }
 
 instance Show CommandDescr where
-  show = cName
+  show = show . cNames
 
 instance Eq CommandDescr where
-  (==) = (==) `on` cName
+  (==) = (==) `on` cNames
 
 instance Ord CommandDescr where
-  compare = compare `on` cName
+  compare = compare `on` cNames
 
 data CommandBody
   = ExprArg     (String   -> REPL ())
@@ -141,62 +142,65 @@ data CommandBody
 commands :: CommandMap
 commands  = foldl insert emptyTrie commandList
   where
-  insert m d = insertTrie (cName d) d m
+  insert m d = foldl (insertOne d) m (cNames d)
+  insertOne d m name = insertTrie name d m
 
 -- | Notebook command parsing.
 nbCommands :: CommandMap
 nbCommands  = foldl insert emptyTrie nbCommandList
   where
-  insert m d = insertTrie (cName d) d m
+  insert m d = foldl (insertOne d) m (cNames d)
+  insertOne d m name = insertTrie name d m
 
 -- | A subset of commands safe for Notebook execution
 nbCommandList :: [CommandDescr]
 nbCommandList  =
-  [ CommandDescr ":type"   (ExprArg typeOfCmd)
+  [ CommandDescr [ ":t", ":type" ] (ExprArg typeOfCmd)
     "check the type of an expression"
-  , CommandDescr ":browse" (ExprTypeArg browseCmd)
+  , CommandDescr [ ":b", ":browse" ] (ExprTypeArg browseCmd)
     "display the current environment"
-  , CommandDescr ":help"   (ExprArg helpCmd)
+  , CommandDescr [ ":?", ":help" ] (ExprArg helpCmd)
     "display a brief description about a built-in operator"
-  , CommandDescr ":set" (OptionArg setOptionCmd)
+  , CommandDescr [ ":s", ":set" ] (OptionArg setOptionCmd)
     "set an environmental option (:set on its own displays current values)"
   ]
 
 commandList :: [CommandDescr]
 commandList  =
   nbCommandList ++
-  [ CommandDescr ":quit"   (NoArg quitCmd)
+  [ CommandDescr [ ":q", ":quit" ] (NoArg quitCmd)
     "exit the REPL"
-  , CommandDescr ":load"   (FilenameArg loadCmd)
+  , CommandDescr [ ":l", ":load" ] (FilenameArg loadCmd)
     "load a module"
-  , CommandDescr ":reload" (NoArg reloadCmd)
+  , CommandDescr [ ":r", ":reload" ] (NoArg reloadCmd)
     "reload the currently loaded module"
-  , CommandDescr ":edit"   (FilenameArg editCmd)
+  , CommandDescr [ ":e", ":edit" ] (FilenameArg editCmd)
     "edit the currently loaded module"
-  , CommandDescr ":!" (ShellArg runShellCmd)
+  , CommandDescr [ ":!" ] (ShellArg runShellCmd)
     "execute a command in the shell"
-  , CommandDescr ":cd" (FilenameArg cdCmd)
+  , CommandDescr [ ":cd" ] (FilenameArg cdCmd)
     "set the current working directory"
-  , CommandDescr ":module" (FilenameArg moduleCmd)
+  , CommandDescr [ ":m", ":module" ] (FilenameArg moduleCmd)
     "load a module"
 
-  , CommandDescr ":check" (ExprArg (qcCmd QCRandom))
+  , CommandDescr [ ":check" ] (ExprArg (qcCmd QCRandom))
     "use random testing to check that the argument always returns true (if no argument, check all properties)"
-  -- , CommandDescr ":exhaust" (ExprArg (qcCmd QCExhaust))
-  --   "use exhaustive testing to prove that the argument always returns true (if no argument, check all properties)"
-  , CommandDescr ":prove" (ExprArg proveCmd)
+  , CommandDescr [ ":exhaust" ] (ExprArg (qcCmd QCExhaust))
+    "use exhaustive testing to prove that the argument always returns true (if no argument, check all properties)"
+  , CommandDescr [ ":prove" ] (ExprArg proveCmd)
     "use an external solver to prove that the argument always returns true (if no argument, check all properties)"
-  , CommandDescr ":sat" (ExprArg satCmd)
-    "use a solver to find a satisfying assignment for which the argument returns true (if no argument, find  an assignment for all properties)"
-  , CommandDescr ":debug_specialize" (ExprArg specializeCmd)
+  , CommandDescr [ ":sat" ] (ExprArg satCmd)
+    "use a solver to find a satisfying assignment for which the argument returns true (if no argument, find an assignment for all properties)"
+  , CommandDescr [ ":debug_specialize" ] (ExprArg specializeCmd)
     "do type specialization on a closed expression"
   ]
 
 genHelp :: [CommandDescr] -> [String]
 genHelp cs = map cmdHelp cs
   where
-  cmdHelp cmd = concat [ "  ", cName cmd, pad (cName cmd), cHelp cmd ]
-  padding     = 2 + maximum (map (length . cName) cs)
+  cmdHelp cmd = concat [ "  ", cmdNames cmd, pad (cmdNames cmd), cHelp cmd ]
+  cmdNames cmd = intercalate ", " (cNames cmd)
+  padding     = 2 + maximum (map (length . cmdNames) cs)
   pad n       = replicate (max 0 (padding - length n)) ' '
 
 
@@ -791,9 +795,15 @@ uncons as = case as of
 findCommand :: String -> [CommandDescr]
 findCommand str = lookupTrie str commands
 
+-- | Lookup a string in the command list, returning an exact match
+-- even if it's the prefix of another command.
+findCommandExact :: String -> [CommandDescr]
+findCommandExact str = lookupTrieExact str commands
+
 -- | Lookup a string in the notebook-safe command list.
-findNbCommand :: String -> [CommandDescr]
-findNbCommand str = lookupTrie str nbCommands
+findNbCommand :: Bool -> String -> [CommandDescr]
+findNbCommand True  str = lookupTrieExact str nbCommands
+findNbCommand False str = lookupTrie      str nbCommands
 
 -- | Parse a line as a command.
 parseCommand :: (String -> [CommandDescr]) -> String -> Maybe Command
@@ -815,7 +825,7 @@ parseCommand findCmd line = do
       Just _       -> Just (Command (evalCmd line))
       _            -> Nothing
 
-    cs -> Just (Ambiguous cmd (map cName cs))
+    cs -> Just (Ambiguous cmd (concatMap cNames cs))
 
   where
   expandHome path =
