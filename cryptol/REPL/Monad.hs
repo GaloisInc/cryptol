@@ -60,7 +60,7 @@ import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.AST as P
-import Cryptol.Symbolic (proverNames)
+import Cryptol.Symbolic (proverNames, lookupProver)
 
 import Control.Applicative (Applicative(..))
 import Control.Monad (ap,unless,when)
@@ -72,6 +72,8 @@ import Data.Typeable (Typeable)
 import System.Console.ANSI (setTitle)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
+
+import qualified Data.SBV as SBV (sbvCheckSolverInstallation)
 
 
 -- REPL Environment ------------------------------------------------------------
@@ -366,18 +368,16 @@ setUser name val = case lookupTrie name userOptions of
 
   where
   setUserOpt opt = case optDefault opt of
-    EnvString _
-      | Just err <- optCheck opt (EnvString val)
-        -> io (putStrLn err)
-      | otherwise
-        -> writeEnv (EnvString val)
+    EnvString _ -> do r <- io (optCheck opt (EnvString val))
+                      case r of
+                        Just err -> io (putStrLn err)
+                        Nothing  -> writeEnv (EnvString val)
 
     EnvNum _ -> case reads val of
-      [(x,_)]
-        | Just err <- optCheck opt (EnvNum x)
-          -> io (putStrLn err)
-        | otherwise
-          -> writeEnv (EnvNum x)
+      [(x,_)] -> do r <- io (optCheck opt (EnvNum x))
+                    case r of
+                      Just err -> io (putStrLn err)
+                      Nothing  -> writeEnv (EnvNum x)
 
       _       -> io (putStrLn ("Failed to parse number for field, `" ++ name ++ "`"))
 
@@ -419,7 +419,7 @@ mkOptionMap  = foldl insert emptyTrie
 data OptionDescr = OptionDescr
   { optName    :: String
   , optDefault :: EnvVal
-  , optCheck   :: EnvVal -> Maybe String
+  , optCheck   :: EnvVal -> IO (Maybe String)
   , optHelp    :: String
   }
 
@@ -427,45 +427,51 @@ userOptions :: OptionMap
 userOptions  = mkOptionMap
   [ OptionDescr "base" (EnvNum 16) checkBase
     "the base to display words at"
-  , OptionDescr "debug" (EnvBool False) (const Nothing)
+  , OptionDescr "debug" (EnvBool False) (const $ return Nothing)
     "enable debugging output"
-  , OptionDescr "ascii" (EnvBool False) (const Nothing)
+  , OptionDescr "ascii" (EnvBool False) (const $ return Nothing)
     "display 7- or 8-bit words using ASCII notation."
   , OptionDescr "infLength" (EnvNum 5) checkInfLength
     "The number of elements to display for infinite sequences."
-  , OptionDescr "tests" (EnvNum 100) (const Nothing)
+  , OptionDescr "tests" (EnvNum 100) (const $ return Nothing)
     "The number of random tests to try."
   , OptionDescr "prover" (EnvString "cvc4") checkProver $
     "The external SMT solver for :prove and :sat (" ++ proverListString ++ ")."
-  , OptionDescr "iteSolver" (EnvBool False) (const Nothing)
+  , OptionDescr "iteSolver" (EnvBool False) (const $ return Nothing)
     "Use smt solver to filter conditional branches in proofs."
-  , OptionDescr "warnDefaulting" (EnvBool True) (const Nothing)
+  , OptionDescr "warnDefaulting" (EnvBool True) (const $ return Nothing)
     "Choose if we should display warnings when defaulting."
-  , OptionDescr "smtfile" (EnvString "-") (const Nothing)
+  , OptionDescr "smtfile" (EnvString "-") (const $ return Nothing)
     "The file to use for SMT-Lib scripts (for debugging or offline proving)"
   ]
 
 -- | Check the value to the `base` option.
-checkBase :: EnvVal -> Maybe String
+checkBase :: EnvVal -> IO (Maybe String)
 checkBase val = case val of
   EnvNum n
-    | n >= 2 && n <= 36 -> Nothing
-    | otherwise         -> Just "base must fall between 2 and 36"
-  _                     -> Just "unable to parse a value for base"
+    | n >= 2 && n <= 36 -> return Nothing
+    | otherwise         -> return $ Just "base must fall between 2 and 36"
+  _                     -> return $ Just "unable to parse a value for base"
 
-checkInfLength :: EnvVal -> Maybe String
+checkInfLength :: EnvVal -> IO (Maybe String)
 checkInfLength val = case val of
   EnvNum n
-    | n >= 0    -> Nothing
-    | otherwise -> Just "the number of elements should be positive"
-  _ -> Just "unable to parse a value for infLength"
+    | n >= 0    -> return Nothing
+    | otherwise -> return $ Just "the number of elements should be positive"
+  _ -> return $ Just "unable to parse a value for infLength"
 
-checkProver :: EnvVal -> Maybe String
+checkProver :: EnvVal -> IO (Maybe String)
 checkProver val = case val of
   EnvString s
-    | s `elem` proverNames -> Nothing
-    | otherwise            -> Just $ "prover must be " ++ proverListString
-  _ -> Just "unable to parse a value for prover"
+    | s `notElem` proverNames     -> return $ Just $ "Prover must be " ++ proverListString
+    | s `elem` ["offline", "any"] -> return Nothing
+    | otherwise                   -> do let prover = lookupProver s
+                                        available <- SBV.sbvCheckSolverInstallation prover
+                                        unless available $
+                                          putStrLn $ "Warning: " ++ s ++ " installation not found"
+                                        return Nothing
+
+  _ -> return $ Just "unable to parse a value for prover"
 
 proverListString :: String
 proverListString = concatMap (++ ", ") (init proverNames) ++ "or " ++ last proverNames
