@@ -15,7 +15,7 @@ quarterround [y0, y1, y2, y3] = [z0, z1, z2, z3]
     z3 = y3 ^ ((z2 + z1) <<< 0xd)
     z0 = y0 ^ ((z3 + z2) <<< 0x12)
 
-quarterround_passes_tests = 
+property quarterround_passes_tests =
   (quarterround [0x00000000, 0x00000000, 0x00000000, 0x00000000] == [0x00000000, 0x00000000, 0x00000000, 0x00000000]) &&
   (quarterround [0x00000001, 0x00000000, 0x00000000, 0x00000000] == [0x08008145, 0x00000080, 0x00010200, 0x20500000]) &&
   (quarterround [0x00000000, 0x00000001, 0x00000000, 0x00000000] == [0x88000100, 0x00000001, 0x00000200, 0x00402000]) &&
@@ -33,7 +33,7 @@ rowround [y0, y1, y2, y3, y4, y5, y6, y7, y8, y9, y10, y11, y12, y13, y14, y15] 
     [z10, z11,  z8,  z9] = quarterround [y10, y11,  y8,  y9]
     [z15, z12, z13, z14] = quarterround [y15, y12, y13, y14]
 
-rowround_passes_tests =
+property rowround_passes_tests =
   (rowround [0x00000001, 0x00000000, 0x00000000, 0x00000000,
              0x00000001, 0x00000000, 0x00000000, 0x00000000,
              0x00000001, 0x00000000, 0x00000000, 0x00000000,
@@ -60,14 +60,14 @@ rowround_opt_is_rowround ys = rowround ys == rowround_opt ys
 
 columnround : [16][32] -> [16][32]
 columnround [x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, x10, x11, x12, x13, x14, x15] =
-	 [y0, y1, y2, y3, y4, y5, y6, y7, y8, y9, y10, y11, y12, y13, y14, y15]
+    [y0, y1, y2, y3, y4, y5, y6, y7, y8, y9, y10, y11, y12, y13, y14, y15]
   where
     [ y0,  y4,  y8, y12] = quarterround [ x0,  x4,  x8, x12]
     [ y5,  y9, y13,  y1] = quarterround [ x5,  x9, x13,  x1]
     [y10, y14,  y2,  y6] = quarterround [x10, x14,  x2,  x6]
     [y15,  y3,  y7, y11] = quarterround [x15,  x3,  x7, x11]
 
-columnround_passes_tests =
+property columnround_passes_tests =
   (columnround [0x00000001, 0x00000000, 0x00000000, 0x00000000,
                 0x00000001, 0x00000000, 0x00000000, 0x00000000,
                 0x00000001, 0x00000000, 0x00000000, 0x00000000,
@@ -93,13 +93,13 @@ columnround_opt_is_columnround xs = columnround xs == columnround_opt xs
 */
 
 property columnround_is_transpose_of_rowround ys =
-  rowround ys == join(transpose(split(columnround(xs))))
-  where xs = join(transpose(split(ys)))
+  rowround ys == join(transpose(split`{4}(columnround(xs))))
+  where xs = join(transpose(split`{4}ys))
 
 doubleround : [16][32] -> [16][32]
 doubleround(xs) = rowround(columnround(xs))
 
-doubleround_passes_tests =
+property doubleround_passes_tests =
   (doubleround [0x00000001, 0x00000000, 0x00000000, 0x00000000,
                 0x00000000, 0x00000000, 0x00000000, 0x00000000,
                 0x00000000, 0x00000000, 0x00000000, 0x00000000,
@@ -117,17 +117,10 @@ doubleround_passes_tests =
                 0xca531c29, 0x8e7943db, 0xac1680cd, 0xd503ca00,
                 0xa74b2ad6, 0xbc331c5c, 0x1dda24c7, 0xee928277])
 
-// byteify : {n}(fin n) => [n][32] -> [n][8] // ideal
-byteify : [32] -> [4][8] // help the type checker along
-byteify xs = groupBy`{8}xs
-
-wordendianswap : [4][8] -> [4][8]
-wordendianswap b = reverse b
-
 littleendian : [4][8] -> [32]
 littleendian b = join(reverse b)
 
-littleendian_passes_tests =
+property littleendian_passes_tests =
   (littleendian [  0,   0,   0,   0] == 0x00000000) &&
   (littleendian [ 86,  75,  30,   9] == 0x091e4b56) &&
   (littleendian [255, 255, 255, 250] == 0xfaffffff)
@@ -140,11 +133,11 @@ littleendian_is_invertable b = littleendian_inverse(littleendian(b)) == b
 Salsa20 : [64][8] -> [64][8]
 Salsa20 xs = join(ar)
   where
-    ar = [ wordendianswap (byteify words) | words <- xw + (zs@0xa) ]
-    xw = [ littleendian(xi) | xi <- split xs ]
+    ar = [ littleendian_inverse words | words <- xw + (zs@0xa) ]
+    xw = [ littleendian xi    | xi <- split xs ]
     zs = [xw] # [ doubleround(zi) | zi <- zs ]
 
-Salsa20_passes_tests =
+property Salsa20_passes_tests =
   (Salsa20 [  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
               0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
               0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
@@ -170,9 +163,8 @@ Salsa20_passes_tests =
              69, 144,  51,  57,  29,  29, 150,  26, 150,  30, 235, 249, 190, 163, 251,  48,
              27, 111, 114, 114, 118,  40, 152, 157, 180,  57,  27,  94, 107,  42, 236,  35])
 
-property Salsa20_has_no_collisions x1 x2 = 
+property Salsa20_has_no_collisions x1 x2 =
   if(x1 != x2) then doubleround(x1) != doubleround(x2) else True
-
 
 // Salsa 20 supports two key sizes, [16][8] and [32][8]
 Salsa20_expansion : {a} (a >= 1, 2 >= a) => ([16*a][8], [16][8]) -> [64][8]
@@ -187,6 +179,6 @@ Salsa20_expansion(k, n) = z
 
 Salsa20_encrypt : {a, b} (a >= 1, 2 >= a, fin b) => ([16*a][8], [8][8], [b][8]) -> [b][8]
 Salsa20_encrypt(k, v, m) = c
-  where 
+  where
     salsa = take`{b} (join [ Salsa20_expansion(k, v#(split i)) | i <- [0, 1 ... ] ])
     c = m ^ salsa
