@@ -43,13 +43,18 @@ initialModuleEnv :: IO ModuleEnv
 initialModuleEnv  = do
   dataDir <- getDataDir
   (binDir, _) <- splitExecutablePath
-  let instDir = normalise . joinPath . init . init . splitPath $ binDir
+  -- XXX Ugh. The first of these seems to work on unix-like systems,
+  -- the second seems to work on Windows. The results from
+  -- System.Environment.Executable must be inconsistent between
+  -- platforms, so for now we'll just try both. See #113
+  let instDir1 = normalise . joinPath . init . init . splitPath $ binDir
+      instDir2 = normalise . joinPath . init . splitPath $ binDir
   return ModuleEnv
     { meLoadedModules = mempty
     , meNameSeeds     = T.nameSeeds
     , meEvalEnv       = mempty
     , meFocusedModule = Nothing
-    , meSearchPath    = [dataDir </> "lib", instDir </> "lib", "."]
+    , meSearchPath    = [dataDir </> "lib", instDir1 </> "lib", instDir2 </> "lib", "."]
     , meDynEnv        = mempty
     }
 
