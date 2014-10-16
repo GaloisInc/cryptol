@@ -26,7 +26,7 @@ data CryptolPanic = CryptolPanic { panicLoc :: String
 instance Show CryptolPanic where
   show p = unlines $
     [ "You have encountered a bug in Cryptol's implementation."
-    , "*** Please report this problem to cryptol-bugs@galois.com"
+    , "*** Please create an issue at https://github.com/galoisinc/cryptol/issues"
     , ""
     , "%< --------------------------------------------------- "
     ] ++ rev ++

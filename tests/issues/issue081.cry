@@ -1,0 +1,4 @@
+y : [2]
+y = (x where x = 1) + 1
+z : [4]
+z = (f where f x = x + 1) 10

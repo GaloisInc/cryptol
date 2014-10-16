@@ -5,6 +5,9 @@ module Cryptol.Parser
   , parseProgram, parseProgramWith
   , parseExpr, parseExprWith
   , parseDecl, parseDeclWith
+  , parseDecls, parseDeclsWith
+  , parseLetDecl, parseLetDeclWith
+  , parseRepl, parseReplWith
   , parseModName
   , ParseError(..), ppError
   , Layout(..)
@@ -54,6 +57,7 @@ import Paths_cryptol
   'newtype'   { Located $$ (Token (KW KW_newtype) _)}
   'module'    { Located $$ (Token (KW KW_module ) _)}
   'where'     { Located $$ (Token (KW KW_where  ) _)}
+  'let'       { Located $$ (Token (KW KW_let    ) _)}
   'if'        { Located $$ (Token (KW KW_if     ) _)}
   'then'      { Located $$ (Token (KW KW_then   ) _)}
   'else'      { Located $$ (Token (KW KW_else   ) _)}
@@ -140,6 +144,10 @@ import Paths_cryptol
 %name programLayout program_layout
 %name expr    expr
 %name decl    decl
+%name decls   decls
+%name declsLayout decls_layout
+%name letDecl let_decl
+%name repl    repl
 %name modName modName
 %tokentype { Located Token }
 %monad { ParseM }
@@ -182,12 +190,14 @@ vmodule                    :: { Module }
 
 vmod_body                  :: { ([Located Import], [TopDecl]) }
   : vimports 'v;' vtop_decls  { (reverse $1, reverse $3) }
+  | vimports ';'  vtop_decls  { (reverse $1, reverse $3) }
   | vimports                  { (reverse $1, [])         }
   | vtop_decls                { ([], reverse $1)         }
   | {- empty -}               { ([], [])                 }
 
 vimports                   :: { [Located Import] }
   : vimports 'v;' import      { $3 : $1 }
+  | vimports ';'  import      { $3 : $1 }
   | import                    { [$1]    }
 
 -- XXX replace rComb with uses of at
@@ -242,6 +252,7 @@ top_decls                  :: { [TopDecl]  }
 vtop_decls                 :: { [TopDecl]  }
   : vtop_decl                 { $1       }
   | vtop_decls 'v;' vtop_decl { $3 ++ $1 }
+  | vtop_decls ';'  vtop_decl { $3 ++ $1 }
 
 vtop_decl               :: { [TopDecl] }
   : decl                           { [exportDecl Public $1]                   }
@@ -270,6 +281,17 @@ decl                    :: { Decl }
   | 'type' name tysyn_params '=' type
                            {% at ($1,$5) `fmap` mkTySyn $2 (reverse $3) $5  }
 
+let_decl                :: { Decl }
+  : 'let' apat '=' expr          { at ($2,$4) $ DPatBind $2 $4                    }
+  | 'let' name apats '=' expr    { at ($2,$5) $
+                                   DBind $ Bind { bName      = fmap mkUnqual $2
+                                                , bParams    = reverse $3
+                                                , bDef       = $5
+                                                , bSignature = Nothing
+                                                , bPragmas   = []
+                                                , bMono      = False
+                                                } }
+
 newtype                 :: { Newtype }
   : 'newtype' qname '=' newtype_body
                            { Newtype { nName = $2, nParams = [], nBody = $4 } }
@@ -295,8 +317,15 @@ decls                   :: { [Decl] }
 vdecls                  :: { [Decl] }
   : decl                   { [$1] }
   | vdecls 'v;' decl       { $3 : $1 }
+  | vdecls ';'  decl       { $3 : $1 }
 
+decls_layout            :: { [Decl] }
+  : 'v{' vdecls 'v}'       { $2 }
+  | 'v{' 'v}'              { [] }
 
+repl                    :: { ReplInput }
+  : expr                   { ExprInput $1 }
+  | let_decl               { LetInput $1 }
 
 --------------------------------------------------------------------------------
 -- if a then b else c : [10]
@@ -304,13 +333,10 @@ vdecls                  :: { [Decl] }
 
 expr                             :: { Expr }
   : iexpr                           { $1 }
-  | iexpr ':' type                  { at ($1,$3) $ ETyped $1 $3 }
-  | 'if' ifBranches 'else' expr     { at ($1,$4) $ mkIf $2 $4 }
   | expr 'where' '{' '}'            { at ($1,$4) $ EWhere $1 []           }
   | expr 'where' '{' decls '}'      { at ($1,$5) $ EWhere $1 (reverse $4) }
   | expr 'where' 'v{' 'v}'          { at ($1,$2) $ EWhere $1 []           }
   | expr 'where' 'v{' vdecls 'v}'   { at ($1,$4) $ EWhere $1 (reverse $4) }
-  | '\\' apats '->' expr            { at ($1,$4) $ EFun (reverse $2) $4 }
 
 ifBranches                       :: { [(Expr, Expr)] }
   : ifBranch                        { [$1] }
@@ -321,6 +347,10 @@ ifBranch                         :: { (Expr, Expr) }
 
 iexpr                            :: { Expr }
   : aexprs                          { mkEApp $1 }
+
+  | iexpr ':' type                  { at ($1,$3) $ ETyped $1 $3 }
+  | 'if' ifBranches 'else' iexpr    { at ($1,$4) $ mkIf $2 $4 }
+  | '\\' apats '->' iexpr           { at ($1,$4) $ EFun (reverse $2) $4 }
 
   | iexpr '@'  iexpr                { binOp $1 (op ECAt          $2) $3 }
   | iexpr '@@' iexpr                { binOp $1 (op ECAtRange     $2) $3 }
@@ -721,6 +751,27 @@ parseDeclWith cfg = parse cfg { cfgModuleScope = False } decl
 
 parseDecl :: String -> Either ParseError Decl
 parseDecl = parseDeclWith defaultConfig
+
+parseDeclsWith :: Config -> String -> Either ParseError [Decl]
+parseDeclsWith cfg = parse cfg { cfgModuleScope = ms } decls'
+  where (ms, decls') = case cfgLayout cfg of
+                         Layout   -> (True, declsLayout)
+                         NoLayout -> (False, decls)
+
+parseDecls :: String -> Either ParseError [Decl]
+parseDecls = parseDeclsWith defaultConfig
+
+parseLetDeclWith :: Config -> String -> Either ParseError Decl
+parseLetDeclWith cfg = parse cfg { cfgModuleScope = False } letDecl
+
+parseLetDecl :: String -> Either ParseError Decl
+parseLetDecl = parseLetDeclWith defaultConfig
+
+parseReplWith :: Config -> String -> Either ParseError ReplInput
+parseReplWith cfg = parse cfg { cfgModuleScope = False } repl
+
+parseRepl :: String -> Either ParseError ReplInput
+parseRepl = parseReplWith defaultConfig
 
 -- vim: ft=haskell
 }

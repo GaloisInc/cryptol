@@ -12,7 +12,7 @@ module Cryptol.ModuleSystem.Interface (
   , IfaceDecls(..)
   , IfaceTySyn, ifTySynName
   , IfaceNewtype
-  , IfaceDecl(..)
+  , IfaceDecl(..), mkIfaceDecl
 
   , shadowing
   , interpImport

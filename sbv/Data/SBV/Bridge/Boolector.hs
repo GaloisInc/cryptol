@@ -14,10 +14,12 @@
 --       - "Data.SBV.Bridge.Z3"
 --
 --       - "Data.SBV.Bridge.CVC4"
+--
+--       - "Data.SBV.Bridge.MathSAT"
 ---------------------------------------------------------------------------------
 
 module Data.SBV.Bridge.Boolector (
-  -- * CVC4 specific interface
+  -- * Boolector specific interface
   sbvCurrentSolver
   -- ** Proving and checking satisfiability
   , prove, sat, allSat, isVacuous, isTheorem, isSatisfiable

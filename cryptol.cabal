@@ -1,5 +1,5 @@
 Name:                cryptol
-Version:             2.0.0
+Version:             2.1.0
 Synopsis:            Cryptol: The Language of Cryptography
 License:             BSD3
 Author:              Galois, Inc.
@@ -15,9 +15,16 @@ flag static
   default: False
   description: Create a statically-linked binary
 
+flag notebook
+  default: False
+  description: Build the IPython-style Cryptol notebook interface
+
 library
+  Default-language:
+    Haskell98
   Build-depends:       base            >= 4.6,
                        array           >= 0.4,
+                       async           >= 2.0,
                        containers      >= 0.5,
                        deepseq         >= 1.3,
                        directory       >= 1.2,
@@ -25,13 +32,14 @@ library
                        filepath        >= 1.3,
                        GraphSCC        >= 1.0.4,
                        monadLib        >= 3.7.2,
-                       mtl             >= 2.1,
+                       mtl             >= 2.2.1,
                        old-time        >= 1.1,
                        presburger      >= 1.1,
                        pretty          >= 1.1,
                        process         >= 1.2,
                        QuickCheck      >= 2.7,
                        random          >= 1.0.1,
+                       tf-random       >= 0.5,
                        smtLib          >= 1.0.7,
                        syb             >= 0.4,
                        text            >= 1.1,
@@ -82,6 +90,7 @@ library
                        Cryptol.TypeCheck.PP,
                        Cryptol.TypeCheck.Solve,
                        Cryptol.TypeCheck.TypeMap,
+                       Cryptol.TypeCheck.TypeOf,
                        Cryptol.TypeCheck.Defaulting,
 
                        Cryptol.TypeCheck.Solver.Eval,
@@ -112,15 +121,17 @@ library
                        Cryptol.Symbolic.Prims
                        Cryptol.Symbolic.Value
 
-
-  Other-modules:       Cryptol.Parser.LexerUtils,
-                       Cryptol.Parser.ParserUtils,
                        Data.SBV,
                        Data.SBV.Bridge.Boolector,
                        Data.SBV.Bridge.CVC4,
+                       Data.SBV.Bridge.MathSAT,
                        Data.SBV.Bridge.Yices,
                        Data.SBV.Bridge.Z3,
                        Data.SBV.Internals,
+                       Data.SBV.Tools.Polynomial
+
+  Other-modules:       Cryptol.Parser.LexerUtils,
+                       Cryptol.Parser.ParserUtils,
                        Data.SBV.BitVectors.AlgReals,
                        Data.SBV.BitVectors.Data,
                        Data.SBV.BitVectors.Model,
@@ -140,10 +151,10 @@ library
                        Data.SBV.Provers.CVC4,
                        Data.SBV.Provers.Yices,
                        Data.SBV.Provers.Z3,
+                       Data.SBV.Provers.MathSAT,
                        Data.SBV.Tools.ExpectedValue,
                        Data.SBV.Tools.GenTest,
                        Data.SBV.Tools.Optimize,
-                       Data.SBV.Tools.Polynomial,
                        Data.SBV.Utils.Boolean,
                        Data.SBV.Utils.TDiff,
                        Data.SBV.Utils.Lib,
@@ -151,8 +162,11 @@ library
                        GitRev
 
   GHC-options:         -Wall -O2
+  ghc-prof-options: -fprof-auto -prof
 
 executable cryptol
+  Default-language:
+    Haskell98
   Main-is:             Main.hs
   hs-source-dirs:      cryptol
   Other-modules:       OptParser,
@@ -171,14 +185,21 @@ executable cryptol
                        monadLib,
                        process,
                        random,
+                       tf-random,
                        transformers
   GHC-options:         -Wall -O2
+  ghc-prof-options: -auto-all -prof -rtsopts
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread
 
 executable cryptolnb
-  buildable:           False
+  if flag(notebook)
+    buildable:         True
+  else
+    buildable:         False
+  Default-language:
+    Haskell98
   Main-is:             Main_notebook.hs
   hs-source-dirs:      cryptol, notebook
   build-depends:       base,
@@ -191,6 +212,7 @@ executable cryptolnb
                        monadLib,
                        process,
                        random,
+                       tf-random,
                        transformers
   GHC-options:         -Wall -O2
 

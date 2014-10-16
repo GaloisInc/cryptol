@@ -204,77 +204,83 @@ dropWhite = filter (notWhite . tokenType . thing)
         notWhite _         = True
 
 
+data Block = Virtual Int     -- ^ Virtual layout block
+           | Explicit TokenT -- ^ An explicit layout block, expecting this ending
+                             -- token.
+             deriving (Show)
+
+isExplicit :: Block -> Bool
+isExplicit Explicit{} = True
+isExplicit Virtual{}  = False
+
+startsLayout :: TokenT -> Bool
+startsLayout (KW KW_where)   = True
+startsLayout (KW KW_private) = True
+startsLayout _               = False
+
 -- Add separators computed from layout
 layout :: Config -> [Located Token] -> [Located Token]
-layout cfg ts0
-  | implicitScope = virt cfg pos0 VCurlyL : loop True [] ts0
-  | otherwise     = loop False [] ts0
+layout cfg ts0 = loop implicitScope [] ts0
   where
 
   (pos0,implicitScope) = case ts0 of
     t : _ -> (from (srcRange t), cfgModuleScope cfg && tokenType (thing t) /= KW KW_module)
     _     -> (start,False)
 
-  -- loop (are we first token in a block) (open block stack) tokens
+
+  loop :: Bool -> [Block] -> [Located Token] -> [Located Token]
+  loop startBlock stack (t : ts)
+    | startsLayout ty    = toks ++ loop True                             stack'  ts
+    | Sym ParenL   <- ty = toks ++ loop False (Explicit (Sym ParenR)   : stack') ts
+    | Sym CurlyL   <- ty = toks ++ loop False (Explicit (Sym CurlyR)   : stack') ts
+    | Sym BracketL <- ty = toks ++ loop False (Explicit (Sym BracketR) : stack') ts
+    | EOF          <- ty = toks
+    | otherwise          = toks ++ loop False                            stack'  ts
+
+    where
+    ty  = tokenType (thing t)
+    pos = srcRange t
+
+    (toks,offStack) = offsides startToks t stack
+
+    -- add any block start tokens, and push a level on the stack
+    (startToks,stack')
+      | startBlock = ( [ virt cfg (to pos) VCurlyL ], Virtual (col (from pos)) : offStack )
+      | otherwise  = ( [], offStack )
 
   loop _ _ [] = panic "[Lexer] layout" ["Missing EOF token"]
 
-  loop startBlock stack (t : ts)
 
-    -- If we find a lexical error, we just stop.
-    | Err _ <- ty = [t]
-
-    -- If we find the EOF, we close all open blocks, and then we stop.
-    | EOF   <- ty = extra ++ [ virt cfg (to pos) VCurlyR | _ <- stack ] ++ [t]
-
-    -- If we see the keyword `where`, we start a new virtual block
-    | KW KW_where <- ty = t : virt cfg (to pos) VCurlyL
-                            : loop True stack ts
-
-    -- If we see the keyword `private`, we start a new virtual block
-    | KW KW_private <- ty
-    , topLevel stack = punc ++ (t : virt cfg (to pos) VCurlyL
-                                  : loop True stack ts)
-
-    where ty  = tokenType (thing t)
-          pos = srcRange t
-
-          extra | startBlock = [virt cfg (to pos) VCurlyR]
-                | otherwise  = []
-
-          punc | startBlock = []
-               | otherwise  = [virt cfg (to pos) VSemi]
-
-  -- We are the first token in a new block, push our column on the stack.
-  loop True ps (t : ts) = t : extra ++ loop startBlock ps' ts
+  offsides :: [Located Token] -> Located Token -> [Block] -> ([Located Token], [Block])
+  offsides startToks t = go startToks
     where
-    ps' = c : ps
-    c   = col (from (srcRange t))
+    go virts stack = case stack of
+
+      -- delimit or close a layout block
+      Virtual c : rest
+          -- commas only close to an explicit marker, so if there is none, the
+          -- comma doesn't close anything
+        | Sym Comma == ty     ->
+                         if any isExplicit rest
+                            then go   (virt cfg (to pos) VCurlyR : virts) rest
+                            else done                              virts  stack
+
+        | closingToken        -> go   (virt cfg (to pos) VCurlyR : virts) rest
+        | col (from pos) == c -> done (virt cfg (to pos) VSemi   : virts) stack
+        | col (from pos) <  c -> go   (virt cfg (to pos) VCurlyR : virts) rest
+
+      -- close an explicit block
+      Explicit close : rest | close     == ty -> done virts rest
+                            | Sym Comma == ty -> done virts stack
+
+      _ -> done virts stack
+
+    ty  = tokenType (thing t)
     pos = srcRange t
 
-    (startBlock,extra)
-      | KW KW_private == tokenType (thing t) = (True,[virt cfg (to pos) VCurlyL])
-      | otherwise                            = (False,[])
+    done ts s = (reverse (t:ts), s)
 
-  -- We are not the first token in a block, check for virtual punctuation.
-  loop False (p : ps) (t : ts)
-    | col pos == p  = virt cfg pos VSemi        -- same indent: add semi
-                    : t
-                    : loop False (p : ps) ts
-    | col pos < p   = virt cfg pos VCurlyR      -- less indent: add }
-                    : loop False ps (t : ts)
-      where
-      pos   = from (srcRange t)
-
-  -- We are part of the currnet thing, just keep going
-  loop _ stack (t : ts) = t : loop False stack ts
-
-  -- Whether the stack contains a single top-level scope.
-  topLevel [_] = True
-  topLevel _   = False
-
-
-
+    closingToken = ty `elem` [ Sym ParenR, Sym BracketR, Sym CurlyR ]
 
 virt :: Config -> Position -> TokenV -> Located Token
 virt cfg pos x = Located { srcRange = Range
@@ -335,6 +341,7 @@ data TokenKW  = KW_Arith
               | KW_transpose
               | KW_type
               | KW_where
+              | KW_let
               | KW_x
               | KW_zero
               | KW_import

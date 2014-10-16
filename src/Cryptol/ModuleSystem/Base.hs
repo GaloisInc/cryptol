@@ -8,8 +8,10 @@
 
 module Cryptol.ModuleSystem.Base where
 
+import Cryptol.ModuleSystem.Env (DynamicEnv(..), deIfaceDecls)
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
+import Cryptol.ModuleSystem.Env (lookupModule, LoadedModule(..))
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Value           as E
 import qualified Cryptol.ModuleSystem.Renamer as R
@@ -31,6 +33,7 @@ import Data.Foldable (foldMap)
 import Data.Function (on)
 import Data.List (nubBy)
 import Data.Maybe (mapMaybe,fromMaybe)
+import Data.Monoid ((<>))
 import System.Directory (doesFileExist)
 import System.FilePath (addExtension,joinPath,(</>))
 import qualified Data.Map as Map
@@ -65,8 +68,15 @@ renameModule m = do
 renameExpr :: P.Expr -> ModuleM P.Expr
 renameExpr e = do
   env <- getFocusedEnv
-  rename (R.namingEnv env) e
+  denv <- getDynEnv
+  rename (deNames denv `R.shadowing` R.namingEnv env) e
 
+-- | Rename declarations in the context of the focused module.
+renameDecls :: [P.Decl] -> ModuleM [P.Decl]
+renameDecls ds = do
+  env <- getFocusedEnv
+  denv <- getDynEnv
+  rename (deNames denv `R.shadowing` R.namingEnv env) ds
 
 -- NoPat -----------------------------------------------------------------------
 
@@ -104,7 +114,16 @@ loadModuleByPath :: FilePath -> ModuleM T.Module
 loadModuleByPath path = do
   pm <- parseModule path
   let n = thing (P.mName pm)
-  loadingModule n (loadModule pm)
+
+  -- Check whether this module name has already been loaded from a different file
+  env <- getModuleEnv
+  case lookupModule n env of
+    Nothing -> loadingModule n (loadModule path pm)
+    Just lm
+      | path == path' -> return (lmModule lm)
+      | otherwise     -> duplicateModuleName n path path'
+      where path' = lmFilePath lm
+
 
 -- | Load the module specified by an import.
 loadImport :: Located P.Import -> ModuleM ()
@@ -112,19 +131,22 @@ loadImport li = do
 
   let i = thing li
       n = P.iModule i
-  path <- findModule n
-  pm   <- parseModule path
-  loadingImport li $ do
 
-    -- make sure that this module is the one we expect
-    unless (n == thing (P.mName pm)) (moduleNameMismatch n (mName pm))
+  alreadyLoaded <- isLoaded n
+  unless alreadyLoaded $
+    do path <- findModule n
+       pm   <- parseModule path
+       loadingImport li $ do
 
-    _ <- loadModule pm
-    return ()
+         -- make sure that this module is the one we expect
+         unless (n == thing (P.mName pm)) (moduleNameMismatch n (mName pm))
+
+         _ <- loadModule path pm
+         return ()
 
 -- | Load dependencies, typecheck, and add to the eval environment.
-loadModule :: P.Module -> ModuleM T.Module
-loadModule pm = do
+loadModule :: FilePath -> P.Module -> ModuleM T.Module
+loadModule path pm = do
 
   let pm' = addPrelude pm
   loadDeps pm'
@@ -137,7 +159,7 @@ loadModule pm = do
   -- extend the eval env
   modifyEvalEnv (E.moduleEnv tcm)
 
-  loadedModule tcm
+  loadedModule path tcm
 
   return tcm
 
@@ -217,8 +239,21 @@ loadDeps m
 checkExpr :: P.Expr -> ModuleM (T.Expr,T.Schema)
 checkExpr e = do
   npe <- noPat e
+  denv <- getDynEnv
   re  <- renameExpr npe
-  typecheck T.tcExpr re =<< getQualifiedEnv
+  env <- getQualifiedEnv
+  let env' = env <> deIfaceDecls denv
+  typecheck T.tcExpr re env'
+
+-- | Typecheck a group of declarations.
+checkDecls :: [P.Decl] -> ModuleM [T.DeclGroup]
+checkDecls ds = do
+  -- nopat must already be run
+  rds <- renameDecls ds
+  denv <- getDynEnv
+  env <- getQualifiedEnv
+  let env' = env <> deIfaceDecls denv
+  typecheck T.tcDecls rds env'
 
 -- | Typecheck a module.
 checkModule :: P.Module -> ModuleM T.Module
@@ -261,7 +296,7 @@ typecheck action i env = do
       do typeCheckWarnings warns
          typeCheckingFailed errs
 
--- | Process a list of imports, producing an aggreate interface suitable for use
+-- | Process a list of imports, producing an aggregate interface suitable for use
 -- when typechecking.
 importIfacesTc :: [P.Import] -> ModuleM IfaceDecls
 importIfacesTc is =
@@ -300,4 +335,15 @@ genInferInput r env = do
 evalExpr :: T.Expr -> ModuleM E.Value
 evalExpr e = do
   env <- getEvalEnv
-  return (E.evalExpr env e)
+  denv <- getDynEnv
+  return (E.evalExpr (env <> deEnv denv) e)
+
+evalDecls :: [T.DeclGroup] -> ModuleM ()
+evalDecls dgs = do
+  env <- getEvalEnv
+  denv <- getDynEnv
+  let env' = env <> deEnv denv
+      denv' = denv { deDecls = deDecls denv ++ dgs
+                   , deEnv = E.evalDecls dgs env'
+                   }
+  setDynEnv denv'

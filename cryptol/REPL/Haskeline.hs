@@ -15,10 +15,10 @@ import REPL.Command
 import REPL.Monad
 import REPL.Trie
 
-import Control.Monad (when)
-import Data.Char (isSpace)
+import Control.Monad (guard, when)
+import Data.Char (isAlphaNum, isSpace)
 import Data.Function (on)
-import Data.List (isPrefixOf,sortBy)
+import Data.List (isPrefixOf,nub,sortBy)
 import System.Console.Haskeline
 import System.Directory(getAppUserDataDirectory,createDirectoryIfMissing)
 import System.FilePath((</>))
@@ -51,7 +51,7 @@ repl mbBatch begin =
     case mb of
 
       Just line
-        | Just cmd <- parseCommand findCommand line -> do
+        | Just cmd <- parseCommand findCommandExact line -> do
           continue <- MTL.lift $ do
             handleInterrupt handleCtrlC (runCommand cmd)
             shouldContinue
@@ -108,34 +108,39 @@ instance MonadException REPL where
 cryptolCommand :: CompletionFunc REPL
 cryptolCommand cursor@(l,r)
   | ":" `isPrefixOf` l'
-  , Just (cmd,rest) <- splitCommand l' = case findCommand cmd of
+  , Just (cmd,rest) <- splitCommand l' = case nub (findCommand cmd) of
 
       [c] | null rest && not (any isSpace l') -> do
-            return (l, [cmdComp cmd c])
+            return (l, cmdComp cmd c)
           | otherwise -> do
             (rest',cs) <- cmdArgument (cBody c) (reverse (sanitize rest),r)
             return (unwords [rest', reverse cmd],cs)
 
       cmds ->
-        return (l, [ cmdComp l' c | c <- cmds ])
-
+        return (l, concat [ cmdComp l' c | c <- cmds ])
+  -- Complete all : commands when the line is just a :
+  | ":" == l' = return (l, concat [ cmdComp l' c | c <- nub (findCommand ":") ])
   | otherwise = completeExpr cursor
   where
   l' = sanitize (reverse l)
 
--- | Generate a completion from a REPL command definition.
-cmdComp :: String -> CommandDescr -> Completion
-cmdComp prefix c = Completion
-  { replacement = drop (length prefix) (cName c)
-  , display     = cName c
-  , isFinished  = True
-  }
+-- | Generate completions from a REPL command definition.
+cmdComp :: String -> CommandDescr -> [Completion]
+cmdComp prefix c = do
+  cName <- cNames c
+  guard (prefix `isPrefixOf` cName)
+  return $ Completion
+    { replacement = drop (length prefix) cName
+    , display     = cName
+    , isFinished  = True
+    }
 
 -- | Dispatch to a completion function based on the kind of completion the
 -- command is expecting.
 cmdArgument :: CommandBody -> CompletionFunc REPL
 cmdArgument ct cursor@(l,_) = case ct of
   ExprArg     _ -> completeExpr cursor
+  DeclsArg    _ -> (completeExpr +++ completeType) cursor
   ExprTypeArg _ -> (completeExpr +++ completeType) cursor
   FilenameArg _ -> completeFilename cursor
   ShellArg _    -> completeFilename cursor
@@ -146,7 +151,7 @@ cmdArgument ct cursor@(l,_) = case ct of
 completeExpr :: CompletionFunc REPL
 completeExpr (l,_) = do
   ns <- getExprNames
-  let n    = reverse l
+  let n    = reverse (takeWhile isIdentChar l)
       vars = filter (n `isPrefixOf`) ns
   return (l,map (nameComp n) vars)
 
@@ -154,7 +159,7 @@ completeExpr (l,_) = do
 completeType :: CompletionFunc REPL
 completeType (l,_) = do
   ns <- getTypeNames
-  let n    = reverse l
+  let n    = reverse (takeWhile isIdentChar l)
       vars = filter (n `isPrefixOf`) ns
   return (l,map (nameComp n) vars)
 
@@ -166,6 +171,8 @@ nameComp prefix c = Completion
   , isFinished  = True
   }
 
+isIdentChar :: Char -> Bool
+isIdentChar c = isAlphaNum c || c `elem` "_\'"
 
 -- | Join two completion functions together, merging and sorting their results.
 (+++) :: CompletionFunc REPL -> CompletionFunc REPL -> CompletionFunc REPL

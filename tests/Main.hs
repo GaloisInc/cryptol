@@ -177,15 +177,26 @@ generateAssertion opts dir file = testCase file $ do
 
   out      <- readFile resultOut
   expected <- readFile goldFile
-  checkOutput expected out
+  mbKnown  <- X.try (readFile knownFailureFile)
+  checkOutput mbKnown expected out
   where
+  knownFailureFile = dir </> file <.> "fails"
   goldFile  = dir </> file <.> "stdout"
   resultOut = resultDir </> file <.> "stdout"
   resultDir  = optResultDir opts </> dir
   indent str = unlines (map ("  " ++) (lines str))
-  checkOutput expected out
-    | expected == out = return ()
-    | otherwise = assertFailure $ unwords [ optDiff opts, goldFile, resultOut ]
+  checkOutput mbKnown expected out
+    | expected == out =
+      case mbKnown of
+        Left _  -> return ()
+        Right _ -> assertFailure $
+            "Test completed successfully.  Please remove " ++ knownFailureFile
+    | otherwise =
+      assertFailure $
+        case mbKnown of
+          Left (X.SomeException {}) ->
+                                  unwords [ optDiff opts, goldFile, resultOut ]
+          Right fail_msg -> fail_msg
 
 -- Test Discovery --------------------------------------------------------------
 

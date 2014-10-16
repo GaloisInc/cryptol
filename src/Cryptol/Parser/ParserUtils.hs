@@ -145,8 +145,8 @@ numLit x = panic "[Parser] numLit" ["invalid numeric literal", show x]
 
 mkTupleSel :: Range -> Integer -> ParseM (Located Selector)
 mkTupleSel pos n
-  | n == 0 = errorMessage pos
-             "0 is not a valid tuple selector (they start from 1)."
+  | n < 0 = errorMessage pos
+             (show n ++ " is not a valid tuple selector (they start from 0).")
   | toInteger asInt /= n  = errorMessage pos "Tuple selector is too large."
   | otherwise             = return $ Located pos $ TupleSel asInt Nothing
   where asInt = fromInteger n

@@ -238,15 +238,15 @@ Here are Cryptol's responses:
   semantics at the object level in different contexts.}
 
 \paragraph*{Projecting values from tuples} Use a {\tt .} followed by
-$n$ to project the $n$-th component of a tuple.  Nested projection is
+$n$ to project the $n+1$-th component of a tuple.  Nested projection is
 not supported at this time.
 
 \begin{Exercise}\label{ex:tup:2}
 Try out the following examples:
 \begin{Verbatim}
+  (1, 2+4).0
   (1, 2+4).1
-  (1, 2+4).2
-  ((1, 2), False, (3-1, (4, True))).3
+  ((1, 2), False, (3-1, (4, True))).2
 \end{Verbatim}
 \todo[inline]{Include a more interesting nested example here once
   \href{https://www.galois.com/cryptol/ticket/220}{ticket \#220} is
@@ -259,16 +259,16 @@ projection to extract the value {\tt False} from the expression:
 \begin{Answer}\ansref{ex:tup:2}
 Here are Cryptol's responses:
 \begin{Verbatim}
-  Cryptol> (1, 2+4).1
+  Cryptol> (1, 2+4).0
   1
-  Cryptol> (1, 2+4).2
+  Cryptol> (1, 2+4).1
   6
-  Cryptol> ((1, 2), False, (3-1, (4, True))).3
+  Cryptol> ((1, 2), False, (3-1, (4, True))).2
   (2, (4, True))
 \end{Verbatim}
 The required expression would be:
 \begin{Verbatim}
-  ((1, 2), (2, (4, True), 6), False).3
+  ((1, 2), (2, (4, True), 6), False).2
 \end{Verbatim}
 \end{Answer}
 
@@ -675,7 +675,7 @@ Try the following expressions:\indTake\indDrop\indSplitBy\indGroup\indJoin\indTr
 \begin{Verbatim}
   take`{3} [1 .. 12]
   drop`{3} [1 .. 12]
-  split`{3} [1 .. 12]
+  splitBy`{3} [1 .. 12]
   groupBy`{3} [1 .. 12]
   join [[1 .. 4], [5 .. 8], [9 .. 12]]
   join [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]
@@ -695,7 +695,7 @@ Here are Cryptol's responses:
   [1, 2, 3]
   Cryptol> drop`{3} [1 .. 12]
   [4, 5, 6, 7, 8, 9, 10, 11, 12]
-  Cryptol> split`{3}[1 .. 12]
+  Cryptol> splitBy`{3}[1 .. 12]
   [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]
   Cryptol> groupBy`{3} [1 .. 12]
   [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]
@@ -715,8 +715,8 @@ Here are Cryptol's responses:
 \begin{Exercise}\label{ex:seq:12}
   Based on your intuitions from the previous exercise, derive laws
   between the following pairs of functions: {\tt take} and {\tt drop};
-  {\tt join} and {\tt split}; {\tt join} and {\tt groupBy}; {\tt
-    split} and {\tt groupBy} and {\tt transpose} and itself.  For
+  {\tt join} and {\tt splitBy}; {\tt join} and {\tt groupBy}; {\tt
+    splitBy} and {\tt groupBy} and {\tt transpose} and itself.  For
   instance, {\tt take} and {\tt drop} satisfy the following
   equality:\indTake\indDrop\indJoin\indSplitBy\indGroup\indTranspose
 \begin{Verbatim}
@@ -730,9 +730,9 @@ satisfy.
   The following equalities are the simplest
   candidates:\indJoin\indSplitBy\indGroup\indTranspose
 \begin{Verbatim}
-  join (split`{parts=n} xs) == xs
+  join (splitBy`{parts=n} xs) == xs
   join (groupBy`{each=n} xs) == xs
-  split`{parts=n} xs == groupBy`{each=m} xs
+  splitBy`{parts=n} xs == groupBy`{each=m} xs
   transpose (transpose xs) == xs
 \end{Verbatim}
 In the first two equalities {\tt n} must be a divisor of the length of
@@ -757,7 +757,7 @@ holds for all equal length sequences {\tt xs0}, {\tt xs1}, $\ldots$,
 \end{Answer}
 
 \paragraph*{Type-directed splits} We have studied the functions {\tt
-  groupBy}\indGroup and {\tt splitBy}\indSplit above.  Cryptol also
+  groupBy}\indGroup and {\tt splitBy}\indSplitBy above.  Cryptol also
 provides a function {\tt split}\indSplit that can split a sequence
 into any number of equal-length segments.  A common way to use {\tt
   split} is to be explicit about the type of its result, instead of
@@ -1161,8 +1161,8 @@ In Cryptol, records are simply collections of named fields. In this
 sense, they are very similar to tuples (Section~\ref{sec:tuple}),
 which can be thought of records without field names\footnote{In fact,
   the fields of a tuple {\it can} be accessed via the dot-notation,
-  with their names being their 1-indexed position in the tuple. So
-  {\tt (1,2).2 == 2}.}. Like a tuple, the fields of a record can be of
+  with their names being their 0-indexed position in the tuple. So
+  {\tt (1,2).1 == 2}.}. Like a tuple, the fields of a record can be of
 any type.  We construct records by listing the fields inside
 curly-braces, separated by commas.  We project fields out of a record
 with the usual dot-notation.  Note that the order of fields in a
@@ -1594,7 +1594,7 @@ in parentheses, separated by commas: {\tt (3, 5, True) : ([8], [32],
   Bit)}. Tuples' types follow the same structure: {\tt (2, (False, 3),
   5) : ([8], (Bit, [32]), [32])}.  A tuple component can be any type:
 a word, another tuple, sequence, record, etc. Again, type inference
-makes writing tuple types hardly every necessary.\indTypeInference
+makes writing tuple types hardly ever necessary.\indTypeInference
 
 \paragraph*{Sequences}\indTheSequenceType A sequence is simply a 
 collection of homogeneous elements. If the element type is {\tt t},
@@ -2273,7 +2273,7 @@ This time all we need to make sure is that the result is not {\tt
   True}.\indZero\indTrue\indAny If we pass {\tt all} an empty
 sequence, then we will always get {\tt False}:
 \begin{Verbatim}
-  Cryptol> any eqTen [] where { eqTen x = x == 10; }
+  Cryptol> any eqTen [] where eqTen x = x == 10
   False
 \end{Verbatim}
 Again, this is the correct response since there are no elements in an
@@ -2472,7 +2472,7 @@ that you might be familiar from other languages, such as C:
   -- C-like Pseudo-code!
   y = i;                 // running value, start with i
   idx = 0;               // walk through the xs "array" using idx
-  while(idx <= length (xs)) \{
+  while(idx < length (xs)) \{
     y = f (xs[idx], y);  // compute next elt using the previous
     ++idx;
   \}
@@ -2742,7 +2742,8 @@ types-as-sets interpretation, two types in Cryptol are synonymous if
 their values happen to be equal.  
 
 For example, consider the following declarations:
-\begin{code}
+%% not "code" to avoid conflicting with previous Word8
+\begin{Verbatim}
   type Word8     = [8]
   type Word8'    = [8]
   type B         = Word8
@@ -2755,7 +2756,7 @@ For example, consider the following declarations:
 
   bar: Word8' -> Bit
   bar x = foo x
-\end{code}
+\end{Verbatim}
 Within this type context, while six \emph{names} are declared, only
 \emph{two} types are declared (\texttt{[8]} and the pair \texttt{([8],
 [8])}.  Likewise, the function types of \texttt{foo} and \texttt{bar}
@@ -2983,7 +2984,7 @@ of the use of backtick:
 The bounds in a finite sequence literal (such as {\tt [1 .. 10]}) in
 Cryptol are type-level values because the length of a sequence is part
 of its type.  Only type-level values can appear in a finite sequence
-definition.  You cannot write {\t [a .. b]} where either {\tt a} or
+definition.  You cannot write {\tt [a .. b]} where either {\tt a} or
 {\tt b} are arguments to a function.  On the other hand, an infinite
 sequence's type is fixed ({\tt [inf]a}), so the initial value in an
 infinite sequence can be a runtime variable or a type variable, but

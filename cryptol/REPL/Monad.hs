@@ -23,6 +23,8 @@ module REPL.Monad (
 
     -- ** Environment
   , getModuleEnv, setModuleEnv
+  , getDynEnv, setDynEnv
+  , uniqify
   , getTSyns, getNewtypes, getVars
   , whenDebug
   , getExprNames
@@ -49,6 +51,8 @@ import Cryptol.Prims.Types(typeOf)
 import Cryptol.Prims.Syntax(ECon(..),ppPrefix)
 import Cryptol.Eval (EvalError)
 import qualified Cryptol.ModuleSystem as M
+import qualified Cryptol.ModuleSystem.Env as M
+import qualified Cryptol.ModuleSystem.NamingEnv as M
 import Cryptol.Parser (ParseError,ppError)
 import Cryptol.Parser.NoInclude (IncludeError,ppIncludeError)
 import Cryptol.Parser.NoPat (Error)
@@ -56,15 +60,20 @@ import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.AST as P
+import Cryptol.Symbolic (proverNames, lookupProver)
 
-import Control.Monad (unless,when)
+import Control.Applicative (Applicative(..))
+import Control.Monad (ap,unless,when)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef)
 import Data.List (isPrefixOf)
+import Data.Monoid (Monoid(..))
 import Data.Typeable (Typeable)
 import System.Console.ANSI (setTitle)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
+
+import qualified Data.SBV as SBV (sbvCheckSolverInstallation)
 
 
 -- REPL Environment ------------------------------------------------------------
@@ -80,6 +89,7 @@ data RW = RW
   , eContinue   :: Bool
   , eIsBatch    :: Bool
   , eModuleEnv  :: M.ModuleEnv
+  , eNameSupply :: Int
   , eUserEnv    :: UserEnv
   }
 
@@ -92,6 +102,7 @@ defaultRW isBatch = do
     , eContinue   = True
     , eIsBatch    = isBatch
     , eModuleEnv  = env
+    , eNameSupply = 0
     , eUserEnv    = mkUserEnv userOptions
     }
 
@@ -120,6 +131,12 @@ runREPL isBatch m = do
 instance Functor REPL where
   {-# INLINE fmap #-}
   fmap f m = REPL (\ ref -> fmap f (unREPL m ref))
+
+instance Applicative REPL where
+  {-# INLINE pure #-}
+  pure = return
+  {-# INLINE (<*>) #-}
+  (<*>) = ap
 
 instance Monad REPL where
   {-# INLINE return #-}
@@ -243,8 +260,27 @@ keepOne src as = case as of
 getVars :: REPL (Map.Map P.QName M.IfaceDecl)
 getVars  = do
   me <- getModuleEnv
+  denv <- getDynEnv
+  -- the subtle part here is removing the #Uniq prefix from
+  -- interactively-bound variables, and also excluding any that are
+  -- shadowed and thus can no longer be referenced
   let decls = M.focusedEnv me
-  return (keepOne "getVars" `fmap` M.ifDecls decls)
+      edecls = M.ifDecls (M.deIfaceDecls denv)
+      -- is this QName something the user might actually type?
+      isShadowed (qn@(P.QName (Just (P.ModName ['#':_])) name), _) =
+          case Map.lookup localName neExprs of
+            Nothing -> False
+            Just uniqueNames -> isNamed uniqueNames
+        where localName = P.QName Nothing name
+              isNamed us = any (== qn) (map M.qname us)
+              neExprs = M.neExprs (M.deNames denv)
+      isShadowed _ = False
+      unqual ((P.QName _ name), ifds) = (P.QName Nothing name, ifds)
+      edecls' = Map.fromList
+              . map unqual
+              . filter isShadowed
+              $ Map.toList edecls
+  return (keepOne "getVars" `fmap` (M.ifDecls decls `mappend` edecls'))
 
 getTSyns :: REPL (Map.Map P.QName T.TySyn)
 getTSyns  = do
@@ -285,6 +321,25 @@ getModuleEnv  = eModuleEnv `fmap` getRW
 setModuleEnv :: M.ModuleEnv -> REPL ()
 setModuleEnv me = modifyRW_ (\rw -> rw { eModuleEnv = me })
 
+getDynEnv :: REPL M.DynamicEnv
+getDynEnv  = (M.meDynEnv . eModuleEnv) `fmap` getRW
+
+setDynEnv :: M.DynamicEnv -> REPL ()
+setDynEnv denv = do
+  me <- getModuleEnv
+  setModuleEnv (me { M.meDynEnv = denv })
+
+-- | Given an existing qualified name, prefix it with a
+-- relatively-unique string. We make it unique by prefixing with a
+-- character @#@ that is not lexically valid in a module name.
+uniqify :: P.QName -> REPL P.QName
+uniqify (P.QName Nothing name) = do
+  i <- eNameSupply `fmap` getRW
+  modifyRW_ (\rw -> rw { eNameSupply = i+1 })
+  let modname' = P.ModName [ '#' : ("Uniq_" ++ show i) ]
+  return (P.QName (Just modname') name)
+uniqify qn =
+  panic "[REPL] uniqify" ["tried to uniqify a qualified name: " ++ pretty qn]
 
 -- User Environment Interaction ------------------------------------------------
 
@@ -313,18 +368,16 @@ setUser name val = case lookupTrie name userOptions of
 
   where
   setUserOpt opt = case optDefault opt of
-    EnvString _
-      | Just err <- optCheck opt (EnvString val)
-        -> io (putStrLn err)
-      | otherwise
-        -> writeEnv (EnvString val)
+    EnvString _ -> do r <- io (optCheck opt (EnvString val))
+                      case r of
+                        Just err -> io (putStrLn err)
+                        Nothing  -> writeEnv (EnvString val)
 
     EnvNum _ -> case reads val of
-      [(x,_)]
-        | Just err <- optCheck opt (EnvNum x)
-          -> io (putStrLn err)
-        | otherwise
-          -> writeEnv (EnvNum x)
+      [(x,_)] -> do r <- io (optCheck opt (EnvNum x))
+                    case r of
+                      Just err -> io (putStrLn err)
+                      Nothing  -> writeEnv (EnvNum x)
 
       _       -> io (putStrLn ("Failed to parse number for field, `" ++ name ++ "`"))
 
@@ -366,51 +419,62 @@ mkOptionMap  = foldl insert emptyTrie
 data OptionDescr = OptionDescr
   { optName    :: String
   , optDefault :: EnvVal
-  , optCheck   :: EnvVal -> Maybe String
+  , optCheck   :: EnvVal -> IO (Maybe String)
   , optHelp    :: String
   }
 
 userOptions :: OptionMap
 userOptions  = mkOptionMap
-  [ OptionDescr "base" (EnvNum 10) checkBase
+  [ OptionDescr "base" (EnvNum 16) checkBase
     "the base to display words at"
-  , OptionDescr "debug" (EnvBool False) (const Nothing)
+  , OptionDescr "debug" (EnvBool False) (const $ return Nothing)
     "enable debugging output"
-  , OptionDescr "ascii" (EnvBool False) (const Nothing)
+  , OptionDescr "ascii" (EnvBool False) (const $ return Nothing)
     "display 7- or 8-bit words using ASCII notation."
   , OptionDescr "infLength" (EnvNum 5) checkInfLength
     "The number of elements to display for infinite sequences."
-  , OptionDescr "tests" (EnvNum 100) (const Nothing)
+  , OptionDescr "tests" (EnvNum 100) (const $ return Nothing)
     "The number of random tests to try."
-  , OptionDescr "prover" (EnvString "cvc4") checkProver
-    "The external smt solver for :prove and :sat (cvc4, yices, or z3)."
-  , OptionDescr "iteSolver" (EnvBool False) (const Nothing)
+  , OptionDescr "prover" (EnvString "cvc4") checkProver $
+    "The external SMT solver for :prove and :sat (" ++ proverListString ++ ")."
+  , OptionDescr "iteSolver" (EnvBool False) (const $ return Nothing)
     "Use smt solver to filter conditional branches in proofs."
-  , OptionDescr "warnDefaulting" (EnvBool True) (const Nothing)
+  , OptionDescr "warnDefaulting" (EnvBool True) (const $ return Nothing)
     "Choose if we should display warnings when defaulting."
+  , OptionDescr "smtfile" (EnvString "-") (const $ return Nothing)
+    "The file to use for SMT-Lib scripts (for debugging or offline proving)"
   ]
 
 -- | Check the value to the `base` option.
-checkBase :: EnvVal -> Maybe String
+checkBase :: EnvVal -> IO (Maybe String)
 checkBase val = case val of
   EnvNum n
-    | n >= 2 && n <= 36 -> Nothing
-    | otherwise         -> Just "base must fall between 2 and 36"
-  _                     -> Just "unable to parse a value for base"
+    | n >= 2 && n <= 36 -> return Nothing
+    | otherwise         -> return $ Just "base must fall between 2 and 36"
+  _                     -> return $ Just "unable to parse a value for base"
 
-checkInfLength :: EnvVal -> Maybe String
+checkInfLength :: EnvVal -> IO (Maybe String)
 checkInfLength val = case val of
   EnvNum n
-    | n >= 0    -> Nothing
-    | otherwise -> Just "the number of elements should be positive"
-  _ -> Just "unable to parse a value for infLength"
+    | n >= 0    -> return Nothing
+    | otherwise -> return $ Just "the number of elements should be positive"
+  _ -> return $ Just "unable to parse a value for infLength"
 
-checkProver :: EnvVal -> Maybe String
+checkProver :: EnvVal -> IO (Maybe String)
 checkProver val = case val of
   EnvString s
-    | s `elem` ["cvc4", "yices", "z3"] -> Nothing
-    | otherwise                        -> Just "prover must be cvc4, yices, or z3"
-  _ -> Just "unable to parse a value for prover"
+    | s `notElem` proverNames     -> return $ Just $ "Prover must be " ++ proverListString
+    | s `elem` ["offline", "any"] -> return Nothing
+    | otherwise                   -> do let prover = lookupProver s
+                                        available <- SBV.sbvCheckSolverInstallation prover
+                                        unless available $
+                                          putStrLn $ "Warning: " ++ s ++ " installation not found"
+                                        return Nothing
+
+  _ -> return $ Just "unable to parse a value for prover"
+
+proverListString :: String
+proverListString = concatMap (++ ", ") (init proverNames) ++ "or " ++ last proverNames
 
 -- Environment Utilities -------------------------------------------------------
 

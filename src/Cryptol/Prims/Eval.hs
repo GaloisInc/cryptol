@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE PatternGuards #-}
@@ -26,24 +26,26 @@ import Cryptol.Eval.Value
 import Cryptol.Eval.Type(evalTF)
 import Cryptol.Utils.Panic (panic)
 
-import Data.List (sortBy,transpose,genericTake,genericReplicate,genericSplitAt)
+import Data.List (sortBy,transpose,genericTake,genericReplicate,genericSplitAt,genericIndex)
 import Data.Ord (comparing)
 import Data.Bits (Bits(..))
 
-import System.Random (mkStdGen)
+import System.Random.TF (mkTFGen)
 
 
 -- Utilities -------------------------------------------------------------------
 
 #if __GLASGOW_HASKELL__ < 706
+noNum = panic "Cryptol.Prims.Eval"
+          [ "Num instance for Bool shouldn't be used." ]
 instance Num Bool where
-  _ + _         = error "Num instance for Bool shouldn't be used."
-  _ * _         = error "Num instance for Bool shouldn't be used."
-  _ - _         = error "Num instance for Bool shouldn't be used."
-  negate _      = error "Num instance for Bool shouldn't be used."
-  abs _         = error "Num instance for Bool shouldn't be used."
-  signum _      = error "Num instance for Bool shouldn't be used."
-  fromInteger _ = error "Num instance for Bool shouldn't be used."
+  _ + _         = noNum
+  _ * _         = noNum
+  _ - _         = noNum
+  negate _      = noNum
+  abs _         = noNum
+  signum _      = noNum
+  fromInteger _ = noNum
 #endif
 
 #if __GLASGOW_HASKELL__ < 708
@@ -206,7 +208,7 @@ ecDemoteV :: Value
 ecDemoteV = tlam $ \valT ->
             tlam $ \bitT ->
             case (numTValue valT, numTValue bitT) of
-              (Nat v, Nat bs) -> VWord bs v
+              (Nat v, Nat bs) -> VWord (BV bs v)
               _ -> evalPanic "Cryptol.Eval.Prim.evalConst"
                        ["Unexpected Inf in constant."
                        , show valT
@@ -276,16 +278,18 @@ doubleAndAdd base0 expMask modulus = go 1 base0 expMask
 
 -- Operation Lifting -----------------------------------------------------------
 
-type Binary = TValue -> Value -> Value -> Value
+type GenBinary b w = TValue -> GenValue b w -> GenValue b w -> GenValue b w
+type Binary = GenBinary Bool BV
 
-binary :: Binary -> Value
+binary :: GenBinary b w -> GenValue b w
 binary f = tlam $ \ ty ->
             lam $ \ a  ->
             lam $ \ b  -> f ty a b
 
-type Unary = TValue -> Value -> Value
+type GenUnary b w = TValue -> GenValue b w -> GenValue b w
+type Unary = GenUnary Bool BV
 
-unary :: Unary -> Value
+unary :: GenUnary b w -> GenValue b w
 unary f = tlam $ \ ty ->
            lam $ \ a  -> f ty a
 
@@ -306,7 +310,7 @@ arithBinary op = loop
     | Just (len,a) <- isTSeq ty = case numTValue len of
 
       -- words and finite sequences
-      Nat w | isTBit a  -> VWord w (op w (fromWord l) (fromWord r))
+      Nat w | isTBit a  -> VWord (BV w (op w (fromWord l) (fromWord r)))
             | otherwise -> VSeq False (zipWith (loop a) (fromSeq l) (fromSeq r))
 
       -- streams
@@ -318,9 +322,9 @@ arithBinary op = loop
 
     -- tuples
     | Just (_,tys) <- isTTuple ty =
-      let (len,ls) = fromVTuple l
-          (_,rs)   = fromVTuple r
-       in VTuple len (zipWith3 loop tys ls rs)
+      let ls = fromVTuple l
+          rs = fromVTuple r
+       in VTuple (zipWith3 loop tys ls rs)
 
     -- records
     | Just fs <- isTRec ty =
@@ -337,7 +341,7 @@ arithUnary op = loop
     | Just (len,a) <- isTSeq ty = case numTValue len of
 
       -- words and finite sequences
-      Nat w | isTBit a  -> VWord w (op (fromWord x))
+      Nat w | isTBit a  -> VWord (BV w (op (fromWord x)))
             | otherwise -> VSeq False (map (loop a) (fromSeq x))
 
       Inf -> toStream (map (loop a) (fromSeq x))
@@ -348,8 +352,8 @@ arithUnary op = loop
 
     -- tuples
     | Just (_,tys) <- isTTuple ty =
-      let (len,as) = fromVTuple x
-       in VTuple len (zipWith loop tys as)
+      let as = fromVTuple x
+       in VTuple (zipWith loop tys as)
 
     -- records
     | Just fs <- isTRec ty =
@@ -388,7 +392,7 @@ lexCompare ty l r
 
   -- tuples
   | Just (_,etys) <- isTTuple ty =
-    zipLexCompare etys (snd (fromVTuple l)) (snd (fromVTuple r))
+    zipLexCompare etys (fromVTuple l) (fromVTuple r)
 
   -- records
   | Just fields <- isTRec ty =
@@ -456,8 +460,8 @@ zeroV ty
     lam (\ _ -> zeroV bty)
 
   -- tuples
-  | Just (len,tys) <- isTTuple ty =
-    VTuple len (map zeroV tys)
+  | Just (_,tys) <- isTTuple ty =
+    VTuple (map zeroV tys)
 
   -- records
   | Just fields <- isTRec ty =
@@ -479,12 +483,12 @@ splitAtV front back a val =
     -- needs to be first, assuming that we're on a little-endian machine.
     Nat rightWidth | aBit ->
       let i          = fromWord val
-       in VTuple 2 [ word leftWidth (i `shiftR` fromInteger rightWidth)
-                   , word rightWidth i ]
+       in VTuple [ word leftWidth (i `shiftR` fromInteger rightWidth)
+                 , word rightWidth i ]
 
     _ ->
       let (ls,rs) = splitAt (fromInteger leftWidth) (fromSeq val)
-       in VTuple 2 [VSeq aBit ls, toSeq back a rs]
+       in VTuple [VSeq aBit ls, toSeq back a rs]
 
   where
 
@@ -508,12 +512,12 @@ ecSplitV =
        (Inf  , Nat e) -> toStream   $ mkChunks (infChunksOf e)
        _              -> evalPanic "splitV" ["invalid type arguments to split"]
 
--- | Split into infinately many chunks
+-- | Split into infinitely many chunks
 infChunksOf :: Integer -> [a] -> [[a]]
 infChunksOf each xs = let (as,bs) = genericSplitAt each xs
                       in as : infChunksOf each bs
 
--- | Split into finately many chunks
+-- | Split into finitely many chunks
 finChunksOf :: Integer -> Integer -> [a] -> [[a]]
 finChunksOf 0 _ _ = []
 finChunksOf parts each xs = let (as,bs) = genericSplitAt each xs
@@ -535,7 +539,7 @@ logicBinary op = loop
       case numTValue len of
 
          -- words or finite sequences
-         Nat w | isTBit aty -> VWord w (op (fromWord l) (fromWord r))
+         Nat w | isTBit aty -> VWord (BV w (op (fromWord l) (fromWord r)))
                | otherwise -> VSeq False (zipWith (loop aty) (fromSeq l)
                                                              (fromSeq r))
 
@@ -543,9 +547,9 @@ logicBinary op = loop
          Inf -> toStream (zipWith (loop aty) (fromSeq l) (fromSeq r))
 
     | Just (_,etys) <- isTTuple ty =
-      let (s,ls) = fromVTuple l
-          (_,rs) = fromVTuple r
-       in VTuple s (zipWith3 loop etys ls rs)
+      let ls = fromVTuple l
+          rs = fromVTuple r
+       in VTuple (zipWith3 loop etys ls rs)
 
     | Just (_,bty) <- isTFun ty =
       lam $ \ a -> loop bty (fromVFun l a) (fromVFun r a)
@@ -564,15 +568,20 @@ logicUnary op = loop
   loop ty val
     | isTBit ty = VBit (op (fromVBit val))
 
-    | Just (_,b) <- isTSeq ty
-    , isTBit b = let (w,a) = fromVWord val
-                 in VWord w (op a)
+    | Just (len,ety) <- isTSeq ty =
 
-    | Just (len,ety) <- isTSeq ty = toSeq len ety (map (loop ety) (fromSeq val))
+      case numTValue len of
+
+         -- words or finite sequences
+         Nat w | isTBit ety -> VWord (BV w (op (fromWord val)))
+               | otherwise -> VSeq False (map (loop ety) (fromSeq val))
+
+         -- streams
+         Inf -> toStream (map (loop ety) (fromSeq val))
 
     | Just (_,etys) <- isTTuple ty =
-      let (s,as) = fromVTuple val
-       in VTuple s (zipWith loop etys as)
+      let as = fromVTuple val
+       in VTuple (zipWith loop etys as)
 
     | Just (_,bty) <- isTFun ty =
       lam $ \ a -> loop bty (fromVFun val a)
@@ -596,8 +605,8 @@ logicShift opW opS
      lam  $ \ r ->
         if isTBit c
           then -- words
-            let (w,i)  = fromVWord l
-            in VWord w (opW w i (fromInteger (fromWord r)))
+            let BV w i  = fromVWord l
+            in VWord (BV w (opW w i (fromInteger (fromWord r))))
 
           else toSeq a c (opS a c (fromSeq l) (fromInteger (fromWord r)))
 
@@ -665,7 +674,7 @@ indexPrimOne :: (Maybe Integer -> [Value] -> Integer -> Value) -> Value
 indexPrimOne op =
   tlam $ \ n  ->
   tlam $ \ _a ->
-  tlam $ \ _m ->
+  tlam $ \ _i ->
    lam $ \ l  ->
    lam $ \ r  ->
      let vs  = fromSeq l
@@ -676,12 +685,12 @@ indexFront :: Maybe Integer -> [Value] -> Integer -> Value
 indexFront mblen vs ix =
   case mblen of
     Just len | len <= ix -> invalidIndex ix
-    _                    -> vs !! fromInteger ix
+    _                    -> genericIndex vs ix
 
 indexBack :: Maybe Integer -> [Value] -> Integer -> Value
 indexBack mblen vs ix =
   case mblen of
-    Just len | len > ix  -> vs !! fromInteger (len - ix - 1)
+    Just len | len > ix  -> genericIndex vs (len - ix - 1)
              | otherwise -> invalidIndex ix
     Nothing              -> evalPanic "indexBack"
                             ["unexpected infinite sequence"]
@@ -715,7 +724,7 @@ fromThenV  =
     case (first, next, len, bits) of
       (Nat first', Nat next', Nat len', Nat bits') ->
         let nums = enumFromThen first' next'
-         in VSeq False (genericTake len' (map (VWord bits') nums))
+         in VSeq False (genericTake len' (map (VWord . BV bits') nums))
       _ -> evalPanic "fromThenV" ["invalid arguments"]
 
 -- @[ 0 .. 10 ]@
@@ -729,7 +738,7 @@ fromToV  =
       (Nat first', Nat lst', Nat bits') ->
         let nums = enumFromThenTo first' (first' + 1) lst'
             len  = 1 + (lst' - first')
-         in VSeq False (genericTake len (map (VWord bits') nums))
+         in VSeq False (genericTake len (map (VWord . BV bits') nums))
 
       _ -> evalPanic "fromThenV" ["invalid arguments"]
 
@@ -745,7 +754,7 @@ fromThenToV  =
 
       (Nat first', Nat next', Nat lst', Nat len', Nat bits') ->
         let nums = enumFromThenTo first' next' lst'
-         in VSeq False (genericTake len' (map (VWord bits') nums))
+         in VSeq False (genericTake len' (map (VWord . BV bits') nums))
 
       _ -> evalPanic "fromThenV" ["invalid arguments"]
 
@@ -758,10 +767,10 @@ randomV :: TValue -> Integer -> Value
 randomV ty seed =
   case randomValue (tValTy ty) of
     Nothing -> zeroV ty
-    Just gen -> fst $ gen 100 $ mkStdGen (fromIntegral seed)
+    Just gen -> fst $ gen 100 $ mkTFGen (fromIntegral seed)
 
 
 -- Miscellaneous ---------------------------------------------------------------
 
-tlamN :: (Nat' -> Value) -> Value
+tlamN :: (Nat' -> GenValue b w) -> GenValue b w
 tlamN f = VPoly (\x -> f (numTValue x))

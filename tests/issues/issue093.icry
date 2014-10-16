@@ -1,0 +1,4 @@
+:l issue093.cry
+:check
+:prove
+:sat

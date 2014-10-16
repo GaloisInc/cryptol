@@ -11,16 +11,16 @@
 module Cryptol.Symbolic.Prims where
 
 import Control.Applicative
-import Control.Monad (liftM, zipWithM)
 import Data.Bits
-import Data.Traversable
+import Data.List (genericDrop, genericReplicate, genericSplitAt, genericTake, transpose)
 
-import Cryptol.Eval.Value (TValue, numTValue, finTValue, isTSeq, isTBit, isTFun, isTTuple, isTRec)
+import Cryptol.Prims.Eval (binary, unary, tlamN)
 import Cryptol.Prims.Syntax (ECon(..))
 import Cryptol.Symbolic.BitVector
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Name)
-import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
+import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)
+import Cryptol.Utils.Panic
 
 import qualified Data.SBV as SBV
 import Data.SBV (SBool)
@@ -28,61 +28,6 @@ import qualified Data.SBV.Tools.Polynomial as Poly
 
 traverseSnd :: Functor f => (a -> f b) -> (t, a) -> f (t, b)
 traverseSnd f (x, y) = (,) x <$> f y
-
--- Symbolic if-then-else -------------------------------------------------------
-
-ite :: SBool -> Value -> Value -> TheMonad Value
-ite s v1 v2
-  | Just b <- SBV.unliteral s = return $ if b then v1 else v2
-  | otherwise                 = mergeValue s v1 v2
-
-iteM :: SBool -> TheMonad Value -> TheMonad Value -> TheMonad Value
-iteM s m1 m2
-  | Just b <- SBV.unliteral s = if b then m1 else m2
-  | otherwise                 = do v1 <- m1
-                                   v2 <- m2
-                                   mergeValue s v1 v2
-
-iteThunk :: SBool -> Thunk -> Thunk -> TheMonad Thunk
-iteThunk s th1 th2
-  | Just b <- SBV.unliteral s = return $ if b then th1 else th2
-  | otherwise                 = mergeThunk s th1 th2
-
-mergeValue :: SBool -> Value -> Value -> TheMonad Value
-mergeValue c v1 v2 =
-  case (v1, v2) of
-    (VRecord fs1, VRecord fs2) -> VRecord <$> zipWithM mergeField fs1 fs2
-    (VTuple ts1 , VTuple ts2 ) -> VTuple <$> zipWithM (mergeThunk c) ts1 ts2
-    (VBit b1    , VBit b2    ) -> return $ VBit $ SBV.symbolicMerge c b1 b2
-    (VWord w1   , VWord w2   ) -> return $ VWord $ SBV.symbolicMerge c w1 w2
-    (VNil       , VNil       ) -> return $ VNil
-    (VCons h1 t1, VCons h2 t2) -> VCons <$> mergeThunk c h1 h2 <*> mergeThunk c t1 t2
-    (VFun f1    , VFun f2    ) -> return $ VFun $ \th -> do
-                                    y1 <- f1 th
-                                    y2 <- f2 th
-                                    mergeValue c y1 y2
-    (VPoly f1   , VPoly f2   ) -> return $ VPoly $ \ty -> do
-                                    y1 <- f1 ty
-                                    y2 <- f2 ty
-                                    mergeValue c y1 y2
-    (VWord w1   , _          ) -> do w2 <- fromWord v2
-                                     return $ VWord $ SBV.symbolicMerge c w1 w2
-    (_          , VWord w2   ) -> do w1 <- fromWord v1
-                                     return $ VWord $ SBV.symbolicMerge c w1 w2
-    (_          , _          ) -> fail "merge: shape mismatch"
-  where
-    mergeField (n1, th1) (n2, th2)
-      | n1 == n2  = (,) n1 <$> mergeThunk c th1 th2
-      | otherwise = error "merge: shape mismatch"
--- ^ FIXME: allow merging of VWord/VSeq.
-
-mergeThunk :: SBool -> Thunk -> Thunk -> TheMonad Thunk
-mergeThunk c (Ready v1) (Ready v2) = Ready <$> mergeValue c v1 v2
-mergeThunk c thunk1 thunk2 =
-  delay $ do
-    v1 <- force thunk1
-    v2 <- force thunk2
-    mergeValue c v1 v2
 
 -- Primitives ------------------------------------------------------------------
 
@@ -115,39 +60,29 @@ evalECon econ =
       -- (f === g) x = (f x == g x)
       tlam $ \_ ->
       tlam $ \b ->
-      VFun $ \th1 -> return $
-      VFun $ \th2 -> return $
-      VFun $ \th3 -> do
-        VFun f <- force th1
-        VFun g <- force th2
-        x <- f th3
-        y <- g th3
-        cmpBinary cmpEq cmpEq SBV.true b x y
+      VFun $ \f ->
+      VFun $ \g ->
+      VFun $ \x -> cmpBinary cmpEq cmpEq SBV.true b (fromVFun f x) (fromVFun g x)
 
     ECFunNotEq    -> -- {a b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
       -- (f !== g) x = (f x != g x)
       tlam $ \_ ->
       tlam $ \b ->
-      VFun $ \th1 -> return $
-      VFun $ \th2 -> return $
-      VFun $ \th3 -> do
-        VFun f <- force th1
-        VFun g <- force th2
-        x <- f th3
-        y <- g th3
-        cmpBinary cmpNotEq cmpNotEq SBV.false b x y
+      VFun $ \f ->
+      VFun $ \g ->
+      VFun $ \x -> cmpBinary cmpNotEq cmpNotEq SBV.false b (fromVFun f x) (fromVFun g x)
 
     ECMin         -> -- {a} (Cmp a) => a -> a -> a
       -- min x y = if x <= y then x else y
-      binary $ \a x y -> do
-        c <- cmpBinary cmpLtEq cmpLtEq SBV.false a x y
-        ite (fromVBit c) x y
+      binary $ \a x y ->
+        let c = cmpBinary cmpLtEq cmpLtEq SBV.false a x y
+        in SBV.ite (fromVBit c) x y
 
     ECMax         -> -- {a} (Cmp a) => a -> a -> a
       -- max x y = if y <= x then x else y
-      binary $ \a x y -> do
-        c <- cmpBinary cmpLtEq cmpLtEq SBV.false a y x
-        ite (fromVBit c) x y
+      binary $ \a x y ->
+        let c = cmpBinary cmpLtEq cmpLtEq SBV.false a y x
+        in SBV.ite (fromVBit c) x y
 
     ECAnd         -> binary (logicBinary (SBV.&&&) (.&.))
     ECOr          -> binary (logicBinary (SBV.|||) (.|.))
@@ -159,378 +94,259 @@ evalECon econ =
       tlam $ \m ->
       tlam $ \_ ->
       tlam $ \a ->
-      VFun $ \xs -> return $
-      VFun $ \th -> do
-        v <- force xs
-        case v of
-          VWord x -> do
-            i <- fromWord =<< force th
-            return $ VWord (SBV.sbvShiftLeft x i)
-          _ -> do
-            z <- Ready <$> zeroV a
-            let shl :: Integer -> TheMonad Value
-                shl i =
-                  case numTValue m of
-                    Inf               -> dropV i xs
-                    Nat j | i >= j    -> replicateV j z
-                          | otherwise -> do ys <- delay (dropV i xs)
-                                            zs <- delay (replicateV i z)
-                                            catV ys zs
-            selectV shl th
+      VFun $ \xs ->
+      VFun $ \y ->
+        case xs of
+          VWord x -> VWord (SBV.sbvShiftLeft x (fromWord y))
+          _ -> selectV shl y
+            where
+              shl :: Integer -> Value
+              shl i =
+                case numTValue m of
+                  Inf               -> dropV i xs
+                  Nat j | i >= j    -> replicateV j (zeroV a)
+                        | otherwise -> catV (dropV i xs) (replicateV i (zeroV a))
 
     ECShiftR      -> -- {m,n,a} (fin n) => [m] a -> [n] -> [m] a
       tlam $ \m ->
       tlam $ \_ ->
       tlam $ \a ->
-      VFun $ \xs -> return $
-      VFun $ \th -> do
-        v <- force xs
-        case v of
-          VWord x -> do
-            i <- fromWord =<< force th
-            return $ VWord (SBV.sbvShiftRight x i)
-          _ -> do
-            z <- Ready <$> zeroV a
-            let shr :: Integer -> TheMonad Value
-                shr i =
-                  case numTValue m of
-                    Inf               -> do zs <- delay (replicateV i z)
-                                            catV zs xs
-                    Nat j | i >= j    -> replicateV j z
-                          | otherwise -> do zs <- delay (replicateV i z)
-                                            ys <- delay (takeV (j - i) xs)
-                                            catV zs ys
-            selectV shr th
+      VFun $ \xs ->
+      VFun $ \y ->
+        case xs of
+          VWord x -> VWord (SBV.sbvShiftRight x (fromWord y))
+          _ -> selectV shr y
+            where
+              shr :: Integer -> Value
+              shr i =
+                case numTValue m of
+                  Inf               -> catV (replicateV i (zeroV a)) xs
+                  Nat j | i >= j    -> replicateV j (zeroV a)
+                        | otherwise -> catV (replicateV i (zeroV a)) (takeV (j - i) xs)
 
     ECRotL        -> -- {m,n,a} (fin m, fin n) => [m] a -> [n] -> [m] a
       tlam $ \m ->
       tlam $ \_ ->
       tlam $ \_ ->
-      VFun $ \xs -> return $
-      VFun $ \th -> do
-        v <- force xs
-        case v of
-          VWord x -> do
-            i <- fromWord =<< force th
-            return $ VWord (SBV.sbvRotateLeft x i)
-          _ -> do
-            let rol :: Integer -> TheMonad Value
-                rol i = do
-                  let k = i `mod` finTValue m
-                  ys <- delay (dropV k xs)
-                  zs <- delay (takeV k xs)
-                  catV ys zs
-            selectV rol th
+      VFun $ \xs ->
+      VFun $ \y ->
+        case xs of
+          VWord x -> VWord (SBV.sbvRotateLeft x (fromWord y))
+          _ -> selectV rol y
+            where
+              rol :: Integer -> Value
+              rol i = catV (dropV k xs) (takeV k xs)
+                where k = i `mod` finTValue m
 
     ECRotR        -> -- {m,n,a} (fin m, fin n) => [m] a -> [n] -> [m] a
       tlam $ \m ->
       tlam $ \_ ->
       tlam $ \_ ->
-      VFun $ \xs -> return $
-      VFun $ \th -> do
-        v <- force xs
-        case v of
-          VWord x -> do
-            i <- fromWord =<< force th
-            return $ VWord (SBV.sbvRotateRight x i)
-          _ -> do
-            let ror :: Integer -> TheMonad Value
-                ror i = do
-                  let k = (- i) `mod` finTValue m
-                  ys <- delay (dropV k xs)
-                  zs <- delay (takeV k xs)
-                  catV ys zs
-            selectV ror th
+      VFun $ \xs ->
+      VFun $ \y ->
+        case xs of
+          VWord x -> VWord (SBV.sbvRotateRight x (fromWord y))
+          _ -> selectV ror y
+            where
+              ror :: Integer -> Value
+              ror i = catV (dropV k xs) (takeV k xs)
+                where k = (- i) `mod` finTValue m
 
     ECCat         -> -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
       tlam $ \_ ->
       tlam $ \_ ->
       tlam $ \_ ->
-      VFun $ \th1 -> return $
-      VFun $ \th2 -> catV th1 th2
+      VFun $ \v1 ->
+      VFun $ \v2 -> catV v1 v2
 
     ECSplitAt     -> -- {a,b,c} (fin a) => [a+b] c -> ([a]c,[b]c)
       tlam $ \(finTValue -> a) ->
       tlam $ \_ ->
       tlam $ \_ ->
-      VFun $ \th -> do
-        xs <- delay (takeV a th)
-        ys <- delay (dropV a th)
-        return $ VTuple [xs, ys]
+      VFun $ \v -> VTuple [takeV a v, dropV a v]
 
-    ECJoin        -> -- {a,b,c} (fin b) => [a][b]c -> [a * b]c
+    ECJoin -> tlam $ \ parts ->
+              tlam $ \ each  ->
+              tlam $ \ a     -> lam (joinV parts each a)
+
+    ECSplit -> ecSplitV
+
+    ECReverse ->
       tlam $ \a ->
-      tlam $ \_ ->
-      tlam $ \c ->
-      VFun $ \th -> do
-        let go :: Thunk -> TheMonad Value
-            go xss = do
-              v <- force xss
-              case v of
-                VNil          -> return VNil
-                VCons xs xss' -> catV xs =<< delay (go xss')
-                _             -> error "join"
-        if not (numTValue a == Inf && isTBit c) then go th else do
-          -- avoid concatenating infinitely many VWords
-          let blast x = do
-                v <- force x
-                bits <- fromSeq v
-                return $ Ready (vSeq bits)
-          go =<< delay (mapV blast th)
-
-    ECSplit       -> -- {a,b,c} (fin b) => [a * b] c -> [a][b] c
-      tlam $ \(numTValue -> a) ->
-      tlam $ \(finTValue -> b) ->
-      tlam $ \_ ->
-      VFun $ \th -> do
-        let dec (Nat 0) = Nothing
-            dec (Nat n) = Just (Nat (n - 1))
-            dec Inf     = Just Inf
-        let go :: Nat' -> Thunk -> TheMonad Value
-            go t xs =
-              case dec t of
-                Nothing -> return VNil
-                Just t' -> do
-                  ys <- delay (takeV b xs)
-                  zs <- delay (dropV b xs)
-                  VCons ys <$> delay (go t' zs)
-        go a th
-
-    ECReverse     -> -- {a,b} (fin a) => [a] b -> [a] b
-      tlam $ \_ ->
-      tlam $ \_ ->
-      VFun $ \th -> do
-        v <- force th
-        ths <- fromSeq v
-        return $ vSeq (reverse ths)
-
-    ECTranspose   -> -- {a,b,c} [a][b]c -> [b][a]c
-      tlam $ \_a ->
       tlam $ \b ->
-      tlam $ \_c ->
-      VFun $ \th -> do
-        let hd :: Thunk -> TheMonad Thunk
-            hd thunk = (fst . fromVCons) <$> force thunk
-        let tl :: Thunk -> TheMonad Thunk
-            tl thunk = (snd . fromVCons) <$> force thunk
-        let dec (Nat 0) = Nothing
-            dec (Nat n) = Just (Nat (n - 1))
-            dec Inf     = Just Inf
-        let transp :: Nat' -> Thunk -> TheMonad Value
-            transp t xss =
-              case dec t of
-                Nothing -> return VNil
-                Just t' -> do
-                  ys <- delay (mapV hd xss)
-                  yss <- delay (mapV tl xss)
-                  VCons ys <$> delay (transp t' yss)
-        transp (numTValue b) th
+       lam $ \(fromSeq -> xs) -> toSeq a b (reverse xs)
 
-    ECAt          -> -- {n,a,m} [n]a -> [m] -> a
+    ECTranspose ->
+      tlam $ \a ->
+      tlam $ \b ->
+      tlam $ \c ->
+       lam $ \((map fromSeq . fromSeq) -> xs) ->
+          case numTValue a of
+             Nat 0 ->
+               let v = toSeq a c []
+               in case numTValue b of
+                    Nat n -> toSeq b (tvSeq a c) $ genericReplicate n v
+                    Inf   -> VStream $ repeat v
+             _ -> toSeq b (tvSeq a c) $ map (toSeq a c) $ transpose xs
+
+    ECAt          -> -- {n,a,i} (fin i) => [n]a -> [i] -> a
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
-      VFun $ \th1 -> return $
-      VFun $ \th2 -> do
-        err <- Ready <$> zeroV a -- default for out-of-bounds accesses
-        selectV (\i -> nthV err th1 i) th2
+      VFun $ \xs ->
+      VFun $ \y ->
+        let err = zeroV a -- default for out-of-bounds accesses
+        in selectV (\i -> nthV err xs i) y
 
     ECAtRange     -> -- {n,a,m,i} (fin i) => [n]a -> [m][i] -> [m]a
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
       tlam $ \_ ->
-      VFun $ \th1 -> return $
-      VFun $ \th2 -> do
-        err <- Ready <$> zeroV a -- default for out-of-bounds accesses
-        let f :: Thunk -> TheMonad Thunk
-            f th = delay (selectV (\i -> nthV err th1 i) th)
-        mapV f th2
+      VFun $ \xs ->
+      VFun $ \ys ->
+        let err = zeroV a -- default for out-of-bounds accesses
+        in mapV (selectV (\i -> nthV err xs i)) ys
 
-    ECAtBack      -> -- {n,a,m} (fin n) => [n]a -> [m] -> a
+    ECAtBack      -> -- {n,a,i} (fin n, fin i) => [n]a -> [i] -> a
       tlam $ \(finTValue -> n) ->
       tlam $ \a ->
       tlam $ \_ ->
-      VFun $ \th1 -> return $
-      VFun $ \th2 -> do
-        err <- Ready <$> zeroV a -- default for out-of-bounds accesses
-        selectV (\i -> nthV err th1 (n - 1 - i)) th2
+      VFun $ \xs ->
+      VFun $ \y ->
+        let err = zeroV a -- default for out-of-bounds accesses
+        in selectV (\i -> nthV err xs (n - 1 - i)) y
 
     ECAtRangeBack -> -- {n,a,m,i} (fin n, fin i) => [n]a -> [m][i] -> [m]a
       tlam $ \(finTValue -> n) ->
       tlam $ \a ->
       tlam $ \_ ->
       tlam $ \_ ->
-      VFun $ \th1 -> return $
-      VFun $ \th2 -> do
-        err <- Ready <$> zeroV a -- default for out-of-bounds accesses
-        let f :: Thunk -> TheMonad Thunk
-            f th = delay (selectV (\i -> nthV err th1 (n - 1 - i)) th)
-        mapV f th2
+      VFun $ \xs ->
+      VFun $ \ys ->
+        let err = zeroV a -- default for out-of-bounds accesses
+        in mapV (selectV (\i -> nthV err xs (n - 1 - i))) ys
 
-    ECFromThen    -> -- {first, next, bits, len} (...) => [len][bits]
-      tlam $ \first ->
-      tlam $ \next ->
-      tlam $ \bits ->
-      VPoly $ \len -> do
-        let w = fromInteger (finTValue bits)
-        let delta = finTValue next - finTValue first
-        let lit i = Ready (VWord (SBV.literal (bv w i)))
-        let go :: Integer -> Integer -> TheMonad Value
-            go 0 _ = return VNil
-            go n i = VCons (lit i) <$> delay (go (n - 1) (i + delta))
-        go (finTValue len) (finTValue first)
+    ECFromThen   -> fromThenV
+    ECFromTo     -> fromToV
+    ECFromThenTo -> fromThenToV
 
-    ECFromTo      -> -- {first, last, bits} (...) => [1 + (last - first)][bits]
-      tlam $ \first ->
-      tlam $ \lst ->
-      VPoly $ \bits -> do
-        let w = fromInteger (finTValue bits)
-        let lit i = Ready (VWord (SBV.literal (bv w i)))
-        let go :: Integer -> Integer -> TheMonad Value
-            go 0 _ = return VNil
-            go n i = VCons (lit i) <$> delay (go (n - 1) (i + 1))
-        go (finTValue lst - finTValue first + 1) (finTValue first)
-
-    ECFromThenTo  -> -- {first, next, last, bits, len} (...) => [len][bits]
-      tlam $ \first ->
-      tlam $ \next ->
-      tlam $ \_lst ->
-      tlam $ \bits ->
-      VPoly $ \len -> do
-        let w = fromInteger (finTValue bits)
-        let delta = finTValue next - finTValue first
-        let lit i = Ready (VWord (SBV.literal (bv w i)))
-        let go :: Integer -> Integer -> TheMonad Value
-            go 0 _ = return VNil
-            go n i = VCons (lit i) <$> delay (go (n - 1) (i + delta))
-        go (finTValue len) (finTValue first)
-
-    ECInfFrom     -> -- {a} (fin a) => [a] -> [inf][a]
-      tlam $ \a ->
-      VFun $ \th -> do
-        let delta = SBV.literal (bv (fromInteger (finTValue a)) 1)
-        let from x = VCons (Ready (VWord x)) <$> delay (from (x + delta))
-        x0 <- fromWord =<< force th
-        from x0
+    ECInfFrom    ->
+      tlam $ \(finTValue -> bits)  ->
+       lam $ \(fromWord  -> first) ->
+      toStream [ VWord (first + SBV.literal (bv (fromInteger bits) i)) | i <- [0 ..] ]
 
     ECInfFromThen -> -- {a} (fin a) => [a] -> [a] -> [inf][a]
       tlam $ \_ ->
-      VFun $ \th1 -> return $
-      VFun $ \th2 -> do
-        x1 <- fromWord =<< force th1
-        x2 <- fromWord =<< force th2
-        let delta = x2 - x1
-        let from x = VCons (Ready (VWord x)) <$> delay (from (x + delta))
-        from x1
+       lam $ \(fromWord -> first) ->
+       lam $ \(fromWord -> next) ->
+      toStream (map VWord (iterate (+ (next - first)) first))
 
     -- {at,len} (fin len) => [len][8] -> at
     ECError ->
       tlam $ \at ->
       tlam $ \(finTValue -> _len) ->
-      VFun $ \_msg -> zeroV  at -- error/undefined, is arbitrarily translated to 0
+      VFun $ \_msg -> zeroV at -- error/undefined, is arbitrarily translated to 0
 
     ECPMul        -> -- {a,b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
       tlam $ \(finTValue -> i) ->
       tlam $ \(finTValue -> j) ->
-      VFun $ \th1 -> return $
-      VFun $ \th2 -> do
+      VFun $ \v1 ->
+      VFun $ \v2 ->
         let k = max 1 (i + j) - 1
-        let mul _  []     ps = ps
+            mul _  []     ps = ps
             mul as (b:bs) ps = mul (SBV.false : as) bs (Poly.ites b (as `Poly.addPoly` ps) ps)
-        xs <- traverse (fmap fromVBit . force) =<< fromSeq =<< force th1
-        ys <- traverse (fmap fromVBit . force) =<< fromSeq =<< force th2
-        let zs = take (fromInteger k) (mul xs ys [] ++ repeat SBV.false)
-        return $ vSeq (map (Ready . VBit) zs)
+            xs = map fromVBit (fromSeq v1)
+            ys = map fromVBit (fromSeq v2)
+            zs = take (fromInteger k) (mul xs ys [] ++ repeat SBV.false)
+        in VSeq True (map VBit zs)
 
     ECPDiv        -> -- {a,b} (fin a, fin b) => [a] -> [b] -> [a]
       tlam $ \(finTValue -> i) ->
       tlam $ \_ ->
-      VFun $ \th1 -> return $
-      VFun $ \th2 -> do
-        xs <- traverse (fmap fromVBit . force) =<< fromSeq =<< force th1
-        ys <- traverse (fmap fromVBit . force) =<< fromSeq =<< force th2
-        let zs = take (fromInteger i) (fst (Poly.mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
-        return $ vSeq (map (Ready . VBit) (reverse zs))
+      VFun $ \v1 ->
+      VFun $ \v2 ->
+        let xs = map fromVBit (fromSeq v1)
+            ys = map fromVBit (fromSeq v2)
+            zs = take (fromInteger i) (fst (Poly.mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
+        in VSeq True (map VBit (reverse zs))
 
     ECPMod        -> -- {a,b} (fin a, fin b) => [a] -> [b+1] -> [b]
       tlam $ \_ ->
       tlam $ \(finTValue -> j) ->
-      VFun $ \th1 -> return $
-      VFun $ \th2 -> do
-        xs <- traverse (fmap fromVBit . force) =<< fromSeq =<< force th1
-        ys <- traverse (fmap fromVBit . force) =<< fromSeq =<< force th2
-        let zs = take (fromInteger j) (snd (Poly.mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
-        return $ vSeq (map (Ready . VBit) (reverse zs))
+      VFun $ \v1 ->
+      VFun $ \v2 ->
+        let xs = map fromVBit (fromSeq v1)
+            ys = map fromVBit (fromSeq v2)
+            zs = take (fromInteger j) (snd (Poly.mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
+        in VSeq True (map VBit (reverse zs))
 
-    ECRandom      -> error "ECRandom"
+    ECRandom      -> panic "Cryptol.Symbolic.Prims.evalECon"
+                       [ "can't symbolically evaluae ECRandom" ]
 
-selectV :: (Integer -> TheMonad Value) -> Thunk -> TheMonad Value
-selectV f th = do
-  ths <- fromSeq =<< force th
-  bits <- map fromVBit <$> traverse force ths -- index bits in big-endian order
-  let sel :: Integer -> [SBool] -> TheMonad Value
-      sel offset []       = f offset
-      sel offset (b : bs) = iteM b m1 m2
-        where m1 = sel (offset + 2 ^ length bs) bs
-              m2 = sel offset bs
-  sel 0 bits
 
-replicateV :: Integer -> Thunk -> TheMonad Value
-replicateV n x = return (go n)
-  where go 0 = VNil
-        go i = VCons x (Ready (go (i - 1)))
+selectV :: (Integer -> Value) -> Value -> Value
+selectV f v = sel 0 bits
+  where
+    bits = map fromVBit (fromSeq v) -- index bits in big-endian order
 
-nthV :: Thunk -> Thunk -> Integer -> TheMonad Value
-nthV err xs n = do
-  v <- force xs
+    sel :: Integer -> [SBool] -> Value
+    sel offset []       = f offset
+    sel offset (b : bs) = SBV.ite b m1 m2
+      where m1 = sel (offset + 2 ^ length bs) bs
+            m2 = sel offset bs
+
+replicateV :: Integer -> Value -> Value
+replicateV n x = VSeq False (genericReplicate n x)
+
+nth :: a -> [a] -> Int -> a
+nth def [] _ = def
+nth def (x : xs) n
+  | n == 0    = x
+  | otherwise = nth def xs (n - 1)
+
+nthV :: Value -> Value -> Integer -> Value
+nthV err v n =
   case v of
-    VCons x xs' | n == 0    -> force x
-                | otherwise -> nthV err xs' (n - 1)
+    VStream xs -> nth err xs (fromInteger n)
+    VSeq _ xs  -> nth err xs (fromInteger n)
     VWord x                 -> let i = bitSize x - 1 - fromInteger n
-                               in if i < 0 then force err else
-                                    return $ VBit (SBV.sbvTestBit x i)
-    _                       -> force err
+                               in if i < 0 then err else
+                                    VBit (SBV.sbvTestBit x i)
+    _                       -> err
 
-mapV :: (Thunk -> TheMonad Thunk) -> Thunk -> TheMonad Value
-mapV f th = do
-  v <- force th
+mapV :: (Value -> Value) -> Value -> Value
+mapV f v =
   case v of
-    VNil       -> return VNil
-    VCons x xs -> do y <- f x
-                     ys <- delay (mapV f xs)
-                     return $ VCons y ys
-    _          -> error "mapV"
+    VSeq b xs  -> VSeq b (map f xs)
+    VStream xs -> VStream (map f xs)
+    _          -> panic "Cryptol.Symbolic.Prims.mapV" [ "non-mappable value" ]
 
-catV :: Thunk -> Thunk -> TheMonad Value
-catV xs ys = do
-  v <- force xs
-  case v of
-    VCons x xs' -> VCons x <$> delay (catV xs' ys)
-    VNil        -> force ys
-    VWord x     -> do y <- fromWord =<< force ys
-                      return $ VWord (cat x y)
-    _           -> error "catV"
+catV :: Value -> Value -> Value
+catV (VWord x)   ys           = VWord (cat x (fromWord ys))
+catV xs          (VWord y)    = VWord (cat (fromWord xs) y)
+catV (VSeq b xs) (VSeq _ ys)  = VSeq b (xs ++ ys)
+catV (VSeq _ xs) (VStream ys) = VStream (xs ++ ys)
+catV _ _ = panic "Cryptol.Symbolic.Prims.catV" [ "non-concatenable value" ]
 
-dropV :: Integer -> Thunk -> TheMonad Value
-dropV 0 xs = force xs
-dropV n xs = do
-  v <- force xs
-  case v of
-    VCons _ xs' -> dropV (n - 1) xs'
-    VNil        -> return VNil
-    VWord w     -> return $ VWord $ extract (bitSize w - 1 - fromInteger n) 0 w
-    _           -> error "dropV"
+dropV :: Integer -> Value -> Value
+dropV 0 xs = xs
+dropV n xs =
+  case xs of
+    VSeq b xs'  -> VSeq b (genericDrop n xs')
+    VStream xs' -> VStream (genericDrop n xs')
+    VWord w     -> VWord $ extract (bitSize w - 1 - fromInteger n) 0 w
+    _           -> panic "Cryptol.Symbolic.Prims.dropV" [ "non-droppable value" ]
 
-takeV :: Integer -> Thunk -> TheMonad Value
-takeV 0 _ = return VNil
-takeV n xs = do
-  v <- force xs
-  case v of
-    VWord w     -> return $ VWord $ extract (bitSize w - 1) (bitSize w - fromInteger n) w
-    VCons x xs' -> VCons x <$> delay (takeV (n - 1) xs')
-    VNil        -> return VNil
-    _           -> error "takeV"
+takeV :: Integer -> Value -> Value
+takeV n xs =
+  case xs of
+    VWord w     -> VWord $ extract (bitSize w - 1) (bitSize w - fromInteger n) w
+    VSeq b xs'  -> VSeq b (genericTake n xs')
+    VStream xs' -> VSeq b (genericTake n xs')
+                     where b = case xs' of VBit _ : _ -> True
+                                           _          -> False
+    _           -> panic "Cryptol.Symbolic.Prims.takeV" [ "non-takeable value" ]
 
 -- | Make a numeric constant.
 -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
@@ -544,27 +360,6 @@ ecDemoteV = tlam $ \valT ->
                        , show valT
                        , show bitT
                        ]
-
-
--- Operation Lifting -----------------------------------------------------------
-
-type Binary = TValue -> Value -> Value -> TheMonad Value
-
-binary :: Binary -> Value
-binary f = VPoly $ \ty ->
-           return $ VFun $ \th1 ->
-           return $ VFun $ \th2 -> do
-             v1 <- force th1
-             v2 <- force th2
-             f ty v1 v2
-
-type Unary = TValue -> Value -> TheMonad Value
-
-unary :: Unary -> Value
-unary f = VPoly $ \ty ->
-          return $ VFun $ \th -> do
-            v <- force th
-            f ty v
 
 -- Type Values -----------------------------------------------------------------
 
@@ -586,56 +381,40 @@ toTypeVal ty
   | Just (aty, bty) <- isTFun ty = TVFun (toTypeVal aty) (toTypeVal bty)
   | Just (_, tys) <- isTTuple ty = TVTuple (map toTypeVal tys)
   | Just fields <- isTRec ty     = TVRecord [ (n, toTypeVal aty) | (n, aty) <- fields ]
-  | otherwise                    = error "internal error: bad TValue"
+  | otherwise                    = panic "Cryptol.Symbolic.Prims.toTypeVal" [ "bad TValue" ]
 
 -- Arith -----------------------------------------------------------------------
+
+type Binary = TValue -> Value -> Value -> Value
+type Unary = TValue -> Value -> Value
 
 -- | Models functions of type `{a} (Arith a) => a -> a -> a`
 arithBinary :: (SWord -> SWord -> SWord) -> Binary
 arithBinary op = loop . toTypeVal
   where
-    loop' ty th1 th2 = delay $ do
-      v1 <- force th1
-      v2 <- force th2
-      loop ty v1 v2
     loop ty l r =
       case ty of
         TVBit         -> evalPanic "arithBinop" ["Invalid arguments"]
-        TVSeq _ TVBit -> VWord <$> (op <$> fromWord l <*> fromWord r)
-        TVSeq 0 _     -> return VNil
-        TVSeq n t     -> VCons <$> loop' t hl hr <*> loop' (TVSeq (n - 1) t) tl tr
-                           where (hl, tl) = fromVCons l
-                                 (hr, tr) = fromVCons r
-        TVStream t    -> VCons <$> loop' t hl hr <*> loop' ty tl tr
-                           where (hl, tl) = fromVCons l
-                                 (hr, tr) = fromVCons r
-        TVTuple ts    -> VTuple <$> sequenceA (zipWith3 loop' ts (fromVTuple l) (fromVTuple r))
-        TVRecord fs   -> VRecord <$> traverse (traverseSnd id)
-                           [ (f, loop' t (lookupRecord f l) (lookupRecord f r))
-                           | (f, t) <- fs ]
-        TVFun _ t     -> return $ VFun $ \ x -> do
-                           lx <- fromVFun l x
-                           rx <- fromVFun r x
-                           loop t lx rx
+        TVSeq _ TVBit -> VWord (op (fromWord l) (fromWord r))
+        TVSeq _ t     -> VSeq False (zipWith (loop t) (fromSeq l) (fromSeq r))
+        TVStream t    -> VStream (zipWith (loop t) (fromSeq l) (fromSeq r))
+        TVTuple ts    -> VTuple (zipWith3 loop ts (fromVTuple l) (fromVTuple r))
+        TVRecord fs   -> VRecord [ (f, loop t (lookupRecord f l) (lookupRecord f r)) | (f, t) <- fs ]
+        TVFun _ t     -> VFun (\x -> loop t (fromVFun l x) (fromVFun r x))
 
 -- | Models functions of type `{a} (Arith a) => a -> a`
 arithUnary :: (SWord -> SWord) -> Unary
 arithUnary op = loop . toTypeVal
   where
-    loop' ty thunk = delay (loop ty =<< force thunk)
     loop ty v =
       case ty of
         TVBit         -> evalPanic "arithUnary" ["Invalid arguments"]
-        TVSeq _ TVBit -> VWord <$> (op <$> fromWord v)
-        TVSeq 0 _     -> return VNil
-        TVSeq n t     -> VCons <$> loop' t vh <*> loop' (TVSeq (n - 1) t) vt
-                           where (vh, vt) = fromVCons v
-        TVStream t    -> VCons <$> loop' t vh <*> loop' ty vt
-                           where (vh, vt) = fromVCons v
-        TVTuple ts    -> VTuple <$> zipWithM loop' ts (fromVTuple v)
-        TVRecord fs   -> VRecord <$> traverse (traverseSnd id)
-                           [ (f, loop' t (lookupRecord f v)) | (f, t) <- fs ]
-        TVFun _ t     -> return $ VFun $ \ x -> loop t =<< fromVFun v x
+        TVSeq _ TVBit -> VWord (op (fromWord v))
+        TVSeq _ t     -> VSeq False (map (loop t) (fromSeq v))
+        TVStream t    -> VStream (map (loop t) (fromSeq v))
+        TVTuple ts    -> VTuple (zipWith loop ts (fromVTuple v))
+        TVRecord fs   -> VRecord [ (f, loop t (lookupRecord f v)) | (f, t) <- fs ]
+        TVFun _ t     -> VFun (\x -> loop t (fromVFun v x))
 
 sExp :: SWord -> SWord -> SWord
 sExp x y = go (SBV.blastLE y)
@@ -654,131 +433,179 @@ sLg2 x = go 0
 
 -- Cmp -------------------------------------------------------------------------
 
-cmpValue :: (SBool -> SBool -> TheMonad a -> TheMonad a)
-         -> (SWord -> SWord -> TheMonad a -> TheMonad a)
-         -> (Value -> Value -> TheMonad a -> TheMonad a)
+cmpValue :: (SBool -> SBool -> a -> a)
+         -> (SWord -> SWord -> a -> a)
+         -> (Value -> Value -> a -> a)
 cmpValue fb fw = cmp
   where
     cmp v1 v2 k =
       case (v1, v2) of
-        (VRecord fs1, VRecord fs2) -> cmpThunks (map snd fs1) (map snd fs2) k
-        (VTuple ths1, VTuple ths2) -> cmpThunks ths1 ths2 k
+        (VRecord fs1, VRecord fs2) -> cmpValues (map snd fs1) (map snd fs2) k
+        (VTuple vs1 , VTuple vs2 ) -> cmpValues vs1 vs2 k
         (VBit b1    , VBit b2    ) -> fb b1 b2 k
         (VWord w1   , VWord w2   ) -> fw w1 w2 k
-        (VNil       , VNil       ) -> k
-        (VCons h1 t1, VCons h2 t2) -> cmpThunks [h1,t1] [h2,t2] k
-        (VFun {}    , VFun {}    ) -> error "Functions are not comparable"
-        (VPoly {}   , VPoly {}   ) -> error "Polymorphic values are not comparable"
-        (VWord w1   , _          ) -> do { w2 <- fromWord v2; fw w1 w2 k }
-        (_          , VWord w2   ) -> do { w1 <- fromWord v1; fw w1 w2 k }
-        (_          , _          ) -> error "type mismatch"
-    cmpThunks (x1 : xs1) (x2 : xs2) k = do
-      v1 <- force x1
-      v2 <- force x2
-      cmp v1 v2 (cmpThunks xs1 xs2 k)
-    cmpThunks _ _ k = k
+        (VSeq _ vs1 , VSeq _ vs2 ) -> cmpValues vs1 vs2 k
+        (VStream {} , VStream {} ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
+                                        [ "Infinite streams are not comparable" ]
+        (VFun {}    , VFun {}    ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
+                                        [ "Functions are not comparable" ]
+        (VPoly {}   , VPoly {}   ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
+                                        [ "Polymorphic values are not comparable" ]
+        (VWord w1   , _          ) -> fw w1 (fromWord v2) k
+        (_          , VWord w2   ) -> fw (fromWord v1) w2 k
+        (_          , _          ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
+                                        [ "type mismatch" ]
 
-lazyConj :: Monad m => SBool -> m SBool -> m SBool
-lazyConj s m
-  | s `SBV.isConcretely` (== False) = return s
-  | otherwise = liftM ((SBV.&&&) s) m
+    cmpValues (x1 : xs1) (x2 : xs2) k = cmp x1 x2 (cmpValues xs1 xs2 k)
+    cmpValues _ _ k = k
 
-lazyDisj :: Monad m => SBool -> m SBool -> m SBool
-lazyDisj s m
-  | s `SBV.isConcretely` (== True) = return s
-  | otherwise = liftM ((SBV.|||) s) m
+cmpEq :: SBV.EqSymbolic a => a -> a -> SBool -> SBool
+cmpEq x y k = (SBV.&&&) ((SBV..==) x y) k
 
-cmpEq :: (SBV.EqSymbolic a, Monad m) => a -> a -> m SBool -> m SBool
-cmpEq x y k = lazyConj ((SBV..==) x y) k
+cmpNotEq :: SBV.EqSymbolic a => a -> a -> SBool -> SBool
+cmpNotEq x y k = (SBV.|||) ((SBV../=) x y) k
 
-cmpNotEq :: (SBV.EqSymbolic a, Monad m) => a -> a -> m SBool -> m SBool
-cmpNotEq x y k = lazyDisj ((SBV../=) x y) k
+cmpLt, cmpGt :: SBV.OrdSymbolic a => a -> a -> SBool -> SBool
+cmpLt x y k = (SBV.|||) ((SBV..<) x y) (cmpEq x y k)
+cmpGt x y k = (SBV.|||) ((SBV..>) x y) (cmpEq x y k)
 
-cmpLt, cmpGt :: (SBV.OrdSymbolic a, Monad m) => a -> a -> m SBool -> m SBool
-cmpLt x y k = lazyDisj ((SBV..<) x y) (cmpEq x y k)
-cmpGt x y k = lazyDisj ((SBV..>) x y) (cmpEq x y k)
+cmpLtEq, cmpGtEq :: SBV.OrdSymbolic a => a -> a -> SBool -> SBool
+cmpLtEq x y k = (SBV.&&&) ((SBV..<=) x y) (cmpNotEq x y k)
+cmpGtEq x y k = (SBV.&&&) ((SBV..>=) x y) (cmpNotEq x y k)
 
-cmpLtEq, cmpGtEq :: (SBV.OrdSymbolic a, Monad m) => a -> a -> m SBool -> m SBool
-cmpLtEq x y k = lazyConj ((SBV..<=) x y) (cmpNotEq x y k)
-cmpGtEq x y k = lazyConj ((SBV..>=) x y) (cmpNotEq x y k)
-
-cmpBinary :: (SBool -> SBool -> TheMonad SBool -> TheMonad SBool)
-          -> (SWord -> SWord -> TheMonad SBool -> TheMonad SBool)
+cmpBinary :: (SBool -> SBool -> SBool -> SBool)
+          -> (SWord -> SWord -> SBool -> SBool)
           -> SBool -> Binary
-cmpBinary fb fw b _ty v1 v2 = liftM VBit $ cmpValue fb fw v1 v2 (return b)
+cmpBinary fb fw b _ty v1 v2 = VBit (cmpValue fb fw v1 v2 b)
 
 
 -- Logic -----------------------------------------------------------------------
 
-errorV :: String -> TValue -> TheMonad Value
-errorV msg = return . go . toTypeVal
+errorV :: String -> TValue -> Value
+errorV msg = go . toTypeVal
   where
     go ty =
       case ty of
         TVBit         -> VBit (error msg)
-        TVSeq n t     -> vSeq (replicate n (Ready (go t)))
-        TVStream t    -> let v = VCons (Ready (go t)) (Ready v) in v
-        TVTuple ts    -> VTuple [ Ready (go t) | t <- ts ]
-        TVRecord fs   -> VRecord [ (n, Ready (go t)) | (n, t) <- fs ]
-        TVFun _ t     -> VFun (\ _ -> return (go t))
+        TVSeq n t     -> VSeq False (replicate n (go t))
+        TVStream t    -> VStream (repeat (go t))
+        TVTuple ts    -> VTuple [ go t | t <- ts ]
+        TVRecord fs   -> VRecord [ (n, go t) | (n, t) <- fs ]
+        TVFun _ t     -> VFun (const (go t))
 
-
-
-zeroV :: TValue -> TheMonad Value
-zeroV = return . go . toTypeVal
+zeroV :: TValue -> Value
+zeroV = go . toTypeVal
   where
     go ty =
       case ty of
         TVBit         -> VBit SBV.false
         TVSeq n TVBit -> VWord (SBV.literal (bv n 0))
-        TVSeq n t     -> vSeq (replicate n (Ready (go t)))
-        TVStream t    -> let v = VCons (Ready (go t)) (Ready v) in v
-        TVTuple ts    -> VTuple [ Ready (go t) | t <- ts ]
-        TVRecord fs   -> VRecord [ (n, Ready (go t)) | (n, t) <- fs ]
-        TVFun _ t     -> VFun (\ _ -> return (go t))
+        TVSeq n t     -> VSeq False (replicate n (go t))
+        TVStream t    -> VStream (repeat (go t))
+        TVTuple ts    -> VTuple [ go t | t <- ts ]
+        TVRecord fs   -> VRecord [ (n, go t) | (n, t) <- fs ]
+        TVFun _ t     -> VFun (const (go t))
+
+-- | Join a sequence of sequences into a single sequence.
+joinV :: TValue -> TValue -> TValue -> Value -> Value
+joinV parts each a v =
+  let len = toNumTValue (numTValue parts `nMul` numTValue each)
+  in toSeq len a (concatMap fromSeq (fromSeq v))
+
+-- | Split implementation.
+ecSplitV :: Value
+ecSplitV =
+  tlam $ \ parts ->
+  tlam $ \ each  ->
+  tlam $ \ a     ->
+  lam  $ \ v     ->
+  let mkChunks f = map (toFinSeq a) $ f $ fromSeq v
+  in case (numTValue parts, numTValue each) of
+       (Nat p, Nat e) -> VSeq False $ mkChunks (finChunksOf p e)
+       (Inf  , Nat e) -> toStream   $ mkChunks (infChunksOf e)
+       _              -> evalPanic "splitV" ["invalid type arguments to split"]
+
+-- | Split into infinitely many chunks
+infChunksOf :: Integer -> [a] -> [[a]]
+infChunksOf each xs = let (as,bs) = genericSplitAt each xs
+                      in as : infChunksOf each bs
+
+-- | Split into finitely many chunks
+finChunksOf :: Integer -> Integer -> [a] -> [[a]]
+finChunksOf 0 _ _ = []
+finChunksOf parts each xs = let (as,bs) = genericSplitAt each xs
+                            in as : finChunksOf (parts - 1) each bs
 
 -- | Merge two values given a binop.  This is used for and, or and xor.
 logicBinary :: (SBool -> SBool -> SBool) -> (SWord -> SWord -> SWord) -> Binary
 logicBinary bop op = loop . toTypeVal
   where
-    loop' ty th1 th2 = delay $ do
-      v1 <- force th1
-      v2 <- force th2
-      loop ty v1 v2
     loop ty l r =
       case ty of
-        TVBit         -> return $ VBit (bop (fromVBit l) (fromVBit r))
-        TVSeq _ TVBit -> VWord <$> (op <$> fromWord l <*> fromWord r)
-        TVSeq 0 _     -> return VNil
-        TVSeq n t     -> VCons <$> loop' t hl hr <*> loop' (TVSeq (n - 1) t) tl tr
-                           where (hl, tl) = fromVCons l
-                                 (hr, tr) = fromVCons r
-        TVStream t    -> VCons <$> loop' t hl hr <*> loop' ty tl tr
-                           where (hl, tl) = fromVCons l
-                                 (hr, tr) = fromVCons r
-        TVTuple ts    -> VTuple <$> sequenceA (zipWith3 loop' ts (fromVTuple l) (fromVTuple r))
-        TVRecord fs   -> VRecord <$> traverse (traverseSnd id)
-                           [ (f, loop' t (lookupRecord f l) (lookupRecord f r))
-                           | (f, t) <- fs ]
-        TVFun _ t     -> return $ VFun $ \ x -> do
-                           lx <- fromVFun l x
-                           rx <- fromVFun r x
-                           loop t lx rx
+        TVBit         -> VBit (bop (fromVBit l) (fromVBit r))
+        TVSeq _ TVBit -> VWord (op (fromWord l) (fromWord r))
+        TVSeq _ t     -> VSeq False (zipWith (loop t) (fromSeq l) (fromSeq r))
+        TVStream t    -> VStream (zipWith (loop t) (fromSeq l) (fromSeq r))
+        TVTuple ts    -> VTuple (zipWith3 loop ts (fromVTuple l) (fromVTuple r))
+        TVRecord fs   -> VRecord [ (f, loop t (lookupRecord f l) (lookupRecord f r)) | (f, t) <- fs ]
+        TVFun _ t     -> VFun (\x -> loop t (fromVFun l x) (fromVFun r x))
 
 logicUnary :: (SBool -> SBool) -> (SWord -> SWord) -> Unary
 logicUnary bop op = loop . toTypeVal
   where
-    loop' ty thunk = delay (loop ty =<< force thunk)
     loop ty v =
       case ty of
-        TVBit         -> return $ VBit (bop (fromVBit v))
-        TVSeq _ TVBit -> VWord <$> (op <$> fromWord v)
-        TVSeq 0 _     -> return VNil
-        TVSeq n t     -> VCons <$> loop' t vh <*> loop' (TVSeq (n - 1) t) vt
-                           where (vh, vt) = fromVCons v
-        TVStream t    -> VCons <$> loop' t vh <*> loop' ty vt
-                           where (vh, vt) = fromVCons v
-        TVTuple ts    -> VTuple <$> zipWithM loop' ts (fromVTuple v)
-        TVRecord fs   -> VRecord <$> traverse (traverseSnd id)
-                           [ (f, loop' t (lookupRecord f v)) | (f, t) <- fs ]
-        TVFun _ t     -> return $ VFun $ \ x -> loop t =<< fromVFun v x
+        TVBit         -> VBit (bop (fromVBit v))
+        TVSeq _ TVBit -> VWord (op (fromWord v))
+        TVSeq _ t     -> VSeq False (map (loop t) (fromSeq v))
+        TVStream t    -> VStream (map (loop t) (fromSeq v))
+        TVTuple ts    -> VTuple (zipWith loop ts (fromVTuple v))
+        TVRecord fs   -> VRecord [ (f, loop t (lookupRecord f v)) | (f, t) <- fs ]
+        TVFun _ t     -> VFun (\x -> loop t (fromVFun v x))
+
+-- @[ 0, 1 .. ]@
+fromThenV :: Value
+fromThenV  =
+  tlamN $ \ first ->
+  tlamN $ \ next  ->
+  tlamN $ \ bits  ->
+  tlamN $ \ len   ->
+    case (first, next, len, bits) of
+      (Nat first', Nat next', Nat len', Nat bits') ->
+        let nums = enumFromThen first' next'
+            lit i = VWord (SBV.literal (bv (fromInteger bits') i))
+         in VSeq False (genericTake len' (map lit nums))
+      _ -> evalPanic "fromThenV" ["invalid arguments"]
+
+-- @[ 0 .. 10 ]@
+fromToV :: Value
+fromToV  =
+  tlamN $ \ first ->
+  tlamN $ \ lst   ->
+  tlamN $ \ bits  ->
+    case (first, lst, bits) of
+
+      (Nat first', Nat lst', Nat bits') ->
+        let nums = enumFromThenTo first' (first' + 1) lst'
+            len  = 1 + (lst' - first')
+            lit i = VWord (SBV.literal (bv (fromInteger bits') i))
+         in VSeq False (genericTake len (map lit nums))
+
+      _ -> evalPanic "fromThenV" ["invalid arguments"]
+
+-- @[ 0, 1 .. 10 ]@
+fromThenToV :: Value
+fromThenToV  =
+  tlamN $ \ first ->
+  tlamN $ \ next  ->
+  tlamN $ \ lst   ->
+  tlamN $ \ bits  ->
+  tlamN $ \ len   ->
+    case (first, next, lst, len, bits) of
+
+      (Nat first', Nat next', Nat lst', Nat len', Nat bits') ->
+        let nums = enumFromThenTo first' next' lst'
+            lit i = VWord (SBV.literal (bv (fromInteger bits') i))
+         in VSeq False (genericTake len' (map lit nums))
+
+      _ -> evalPanic "fromThenV" ["invalid arguments"]

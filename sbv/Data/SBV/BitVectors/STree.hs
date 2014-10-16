@@ -37,9 +37,9 @@ data STreeInternal i e = SLeaf e                        -- NB. parameter 'i' is 
                        deriving Show
 
 instance (SymWord e, Mergeable (SBV e)) => Mergeable (STree i e) where
-  symbolicMerge b (SLeaf i)  (SLeaf j)    = SLeaf (symbolicMerge b i j)
-  symbolicMerge b (SBin l r) (SBin l' r') = SBin  (symbolicMerge b l l') (symbolicMerge b r r')
-  symbolicMerge _ _          _            = error "SBV.STree.symbolicMerge: Impossible happened while merging states"
+  symbolicMerge f b (SLeaf i)  (SLeaf j)    = SLeaf (symbolicMerge f b i j)
+  symbolicMerge f b (SBin l r) (SBin l' r') = SBin  (symbolicMerge f b l l') (symbolicMerge f b r r')
+  symbolicMerge _ _ _          _            = error "SBV.STree.symbolicMerge: Impossible happened while merging states"
 
 -- | Reading a value. We bit-blast the index and descend down the full tree
 -- according to bit-values.

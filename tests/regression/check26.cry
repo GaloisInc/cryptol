@@ -1,7 +1,7 @@
 fst (x, y) = x
 snd (x, y) = y
 xy = (13, 21)
-check26a = (fst xy == xy.1) && (snd xy == xy.2) &&
+check26a = (fst xy == xy.0) && (snd xy == xy.1) &&
 	   (fst xy == 13) && (snd xy == 21)
 
 xys = [ (x, y) | x <- [ 1 .. 10 ], y <- [ 2 .. 5 ] ]
