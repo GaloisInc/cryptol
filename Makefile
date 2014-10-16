@@ -10,11 +10,10 @@ CABAL       := $(CABAL_EXE) $(CABAL_FLAGS)
 CS          := ./.cabal-sandbox
 CS_BIN      := $(CS)/bin
 
-# Used only for windows, to find the right Program Files. Right now we
-# only cut 32-bit releases.
-PROGRAM_FILES = Program\ Files
-# Windows installer tools; assumes running on Cygwin and using WiX 3.7
-WiX      := /cygdrive/c/${PROGRAM_FILES}/WiX\ Toolset\ v3.7
+# Used only for windows, to find the right Program Files.
+PROGRAM_FILES = Program\ Files\ \(x86\)
+# Windows installer tools; assumes running on Cygwin and using WiX 3.8
+WiX      := /cygdrive/c/${PROGRAM_FILES}/WiX\ Toolset\ v3.8
 CANDLE   := ${WiX}/bin/candle.exe
 HEAT     := ${WiX}/bin/heat.exe
 LIGHT    := ${WiX}/bin/light.exe
