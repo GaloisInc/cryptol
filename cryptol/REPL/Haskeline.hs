@@ -15,10 +15,10 @@ import REPL.Command
 import REPL.Monad
 import REPL.Trie
 
-import Control.Monad (when)
+import Control.Monad (guard, when)
 import Data.Char (isAlphaNum, isSpace)
 import Data.Function (on)
-import Data.List (isPrefixOf,sortBy)
+import Data.List (isPrefixOf,nub,sortBy)
 import System.Console.Haskeline
 import System.Directory(getAppUserDataDirectory,createDirectoryIfMissing)
 import System.FilePath((</>))
@@ -108,28 +108,32 @@ instance MonadException REPL where
 cryptolCommand :: CompletionFunc REPL
 cryptolCommand cursor@(l,r)
   | ":" `isPrefixOf` l'
-  , Just (cmd,rest) <- splitCommand l' = case findCommand cmd of
+  , Just (cmd,rest) <- splitCommand l' = case nub (findCommand cmd) of
 
       [c] | null rest && not (any isSpace l') -> do
-            return (l, [cmdComp cmd c])
+            return (l, cmdComp cmd c)
           | otherwise -> do
             (rest',cs) <- cmdArgument (cBody c) (reverse (sanitize rest),r)
             return (unwords [rest', reverse cmd],cs)
 
       cmds ->
-        return (l, [ cmdComp l' c | c <- cmds ])
-
+        return (l, concat [ cmdComp l' c | c <- cmds ])
+  -- Complete all : commands when the line is just a :
+  | ":" == l' = return (l, concat [ cmdComp l' c | c <- nub (findCommand ":") ])
   | otherwise = completeExpr cursor
   where
   l' = sanitize (reverse l)
 
--- | Generate a completion from a REPL command definition.
-cmdComp :: String -> CommandDescr -> Completion
-cmdComp prefix c = Completion
-  { replacement = drop (length prefix) (last (cNames c))
-  , display     = last (cNames c)
-  , isFinished  = True
-  }
+-- | Generate completions from a REPL command definition.
+cmdComp :: String -> CommandDescr -> [Completion]
+cmdComp prefix c = do
+  cName <- cNames c
+  guard (prefix `isPrefixOf` cName)
+  return $ Completion
+    { replacement = drop (length prefix) cName
+    , display     = cName
+    , isFinished  = True
+    }
 
 -- | Dispatch to a completion function based on the kind of completion the
 -- command is expecting.
