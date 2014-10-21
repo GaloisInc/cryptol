@@ -36,6 +36,7 @@ import qualified Cryptol.Eval.Value as Eval
 import qualified Cryptol.Eval.Type (evalType)
 import qualified Cryptol.Eval.Env (EvalEnv(..))
 import Cryptol.TypeCheck.AST
+import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
@@ -374,7 +375,7 @@ evalDeclGroup env dg =
                           bindings = map (evalDecl env') ds
                           lazyBindings = [ (qname, copyBySchema env (dSignature d) v)
                                          | (d, (qname, v)) <- zip ds bindings ]
-                      in env' -- foldr bindVar env bindings
+                      in env'
 
 evalDecl :: Env -> Decl -> (QName, Value)
 evalDecl env d = (dName d, evalExpr env (dDefinition d))
@@ -385,9 +386,21 @@ evalDecl env d = (dName d, evalExpr env (dDefinition d))
 copyBySchema :: Env -> Schema -> Value -> Value
 copyBySchema env0 (Forall params _props ty) = go params env0
   where
-    go [] env v = logicUnary id id (evalType env ty) v
+    go [] env v = copyByType env (evalType env ty) v
     go (p : ps) env v =
       VPoly (\t -> go ps (bindType (tpVar p) t env) (fromVPoly v t))
+
+copyByType :: Env -> TValue -> Value -> Value
+copyByType env ty v
+  | isTBit ty                    = VBit (fromVBit v)
+  | Just (n, ety) <- isTSeq ty   = case numTValue n of
+                                     Nat _ -> VSeq (isTBit ety) (fromSeq v)
+                                     Inf   -> VStream (fromSeq v)
+  | Just (_, bty) <- isTFun ty   = VFun (\x -> copyByType env bty (fromVFun v x))
+  | Just (_, tys) <- isTTuple ty = VTuple (zipWith (copyByType env) tys (fromVTuple v))
+  | Just fs <- isTRec ty         = VRecord [ (f, copyByType env t (lookupRecord f v)) | (f, t) <- fs ]
+  | otherwise                    = v
+-- copyByType env ty v = logicUnary id id (evalType env ty) v
 
 -- List Comprehensions ---------------------------------------------------------
 
