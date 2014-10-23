@@ -271,7 +271,7 @@ qcCmd qcMode str =
                         then (Nothing, vss1)
                         else (Just vs, vss1)
             ok <- go doTest sz 0 vss
-            when ok $ io $ putStrLn "QED"
+            when ok $ io $ putStrLn "Q.E.D."
 
        n -> case TestR.testableType ty of
               Nothing   -> raise (TypeNotTestable ty)
