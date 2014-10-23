@@ -323,10 +323,10 @@ mapV f v =
     _          -> panic "Cryptol.Symbolic.Prims.mapV" [ "non-mappable value" ]
 
 catV :: Value -> Value -> Value
+catV xs          (VStream ys) = VStream (fromSeq xs ++ ys)
 catV (VWord x)   ys           = VWord (cat x (fromWord ys))
 catV xs          (VWord y)    = VWord (cat (fromWord xs) y)
 catV (VSeq b xs) (VSeq _ ys)  = VSeq b (xs ++ ys)
-catV (VSeq _ xs) (VStream ys) = VStream (xs ++ ys)
 catV _ _ = panic "Cryptol.Symbolic.Prims.catV" [ "non-concatenable value" ]
 
 dropV :: Integer -> Value -> Value
