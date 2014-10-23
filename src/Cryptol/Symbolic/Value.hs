@@ -44,7 +44,7 @@ instance Mergeable Value where
       (VBit b1    , VBit b2    ) -> VBit $ symbolicMerge f c b1 b2
       (VWord w1   , VWord w2   ) -> VWord $ symbolicMerge f c w1 w2
       (VSeq b1 vs1, VSeq _ vs2 ) -> VSeq b1 $ symbolicMerge f c vs1 vs2
-      (VStream vs1, VStream vs2) -> VStream $ symbolicMerge f c vs1 vs2
+      (VStream vs1, VStream vs2) -> VStream $ mergeStream vs1 vs2
       (VFun f1    , VFun f2    ) -> VFun $ symbolicMerge f c f1 f2
       (VPoly f1   , VPoly f2   ) -> VPoly $ symbolicMerge f c f1 f2
       (VWord w1   , _          ) -> VWord $ symbolicMerge f c w1 (fromWord v2)
@@ -56,6 +56,8 @@ instance Mergeable Value where
         | n1 == n2  = (n1, symbolicMerge f c x1 x2)
         | otherwise = panic "Cryptol.Symbolic.Value"
                         [ "symbolicMerge.mergeField: incompatible values" ]
+      mergeStream xs ys =
+        symbolicMerge f c (head xs) (head ys) : mergeStream (tail xs) (tail ys)
 
 -- Big-endian Words ------------------------------------------------------------
 
