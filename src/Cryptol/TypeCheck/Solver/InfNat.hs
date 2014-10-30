@@ -125,6 +125,7 @@ nWidth (Nat n)  = case genLog n 2 of
                                  [ "genLog returned Nothing" ]
 
 
+-- | length ([ x, y .. ] :: [_][w])
 nLenFromThen :: Nat' -> Nat' -> Nat' -> Maybe Nat'
 nLenFromThen a@(Nat x) b@(Nat y) (Nat w)
   | y > x = nLenFromThenTo a b (Nat (2^w - 1))
@@ -132,11 +133,15 @@ nLenFromThen a@(Nat x) b@(Nat y) (Nat w)
 
 nLenFromThen _ _ _ = Nothing
 
+-- | length [ x, y .. z ]
 nLenFromThenTo :: Nat' -> Nat' -> Nat' -> Maybe Nat'
 nLenFromThenTo (Nat x) (Nat y) (Nat z)
-  | step /= 0 = let len   = div dist step + 1
-                in Just $ Nat $ max 0 (if x > y then if z > x then 0 else len
-                                         else if z < x then 0 else len)
+  | step /= 0 = let len = div dist step + 1
+                in Just $ Nat $ if x > y
+                                  -- decreasing
+                                  then (if z > x then 0 else len)
+                                  -- increasing
+                                  else (if z < x then 0 else len)
   where
   step = abs (x - y)
   dist = abs (x - z)
