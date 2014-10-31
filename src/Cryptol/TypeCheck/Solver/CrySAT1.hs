@@ -3,16 +3,21 @@ module Cryptol.TypeCheck.Solver.CrySAT1 where
 
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Text.PrettyPrint
+import Data.Maybe(fromMaybe)
 import Data.List(unfoldr)
 
-test = crySimplify (cryDefined expr)
+
+test = crySimplify (Not (Fin a) :|| Fin a)
+  where a = Var (Name 0)
+
+  -- crySimplify (cryDefined expr)
 {-
 unlines
           $ show (ppExpr expr)
           : "-----------------"
           : [ show $ length (map (show . ppProp) (crySimpSteps (cryDefined expr))) ]
 -}
-  where -- expr = Div (K (Nat 2) :* Var (Name 0)) (Var (Name 1))
+        -- expr = Div (K (Nat 2) :* Var (Name 0)) (Var (Name 1))
         -- expr = Max (Var (Name 0)) (K Inf)
         expr = (Var (Name 0) :+ K (Nat 4)) :- Var (Name 1)
 
@@ -26,6 +31,8 @@ infix  4 :==, :>, :>=, :==:, :>:
 infixl 6 :+, :-
 infixl 7 :*
 infixr 8 :^^
+
+
 
 -- | Propopsitions, representing Cryptol's numeric constraints (and a bit more).
 
@@ -63,12 +70,21 @@ data Expr = K Nat'
 zero :: Expr
 zero = K (Nat 0)
 
+-- | Simplify a property, if possible.
+crySimplify :: Prop -> Prop
+crySimplify p = last (p : crySimpSteps p)
 
+-- | List the simplification steps for a property.
+crySimpSteps :: Prop -> [Prop]
+crySimpSteps = unfoldr (fmap dup . crySimpStep)
+  where dup x = (x,x)
+
+-- | A single simplification step.
 crySimpStep :: Prop -> Maybe Prop
 crySimpStep prop =
   case prop of
 
-    Fin x     -> cryIsFin x
+    Fin x     -> cryIsFin x   -- Fin only on variables.
 
     x :== y   -> cryIsEq x y
     x :>  y   -> Just (cryIsGt x y)
@@ -112,14 +128,8 @@ crySimpStep prop =
     PTrue   -> Nothing
 
 
-crySimpSteps :: Prop -> [Prop]
-crySimpSteps = unfoldr (fmap dup . crySimpStep)
-  where dup x = (x,x)
 
-crySimplify :: Prop -> Prop
-crySimplify p = last (p : crySimpSteps p)
-
-
+-- | Simplification of ':&&'.
 -- XXX: Add propagation of `let x = t` where x is not in `fvs t`.
 cryAnd :: Prop -> Prop -> Maybe Prop
 cryAnd p q =
@@ -128,12 +138,41 @@ cryAnd p q =
     PFalse      -> Just PFalse
     p1 :&& p2   -> Just (p1 :&& (p2 :&& q))
 
+    Not (Fin (Var x))
+      | Just q' <- cryKnownFin x False q -> Just (p :&& q')
+
+    Fin (Var x)
+      | Just q' <- cryKnownFin x True q -> Just (p :&& q')
+
     _ -> case q of
            PTrue  -> Just p
            PFalse -> Just PFalse
            _      -> Nothing
 
 
+cryKnownFin :: Name -> Bool -> Prop -> Maybe Prop
+cryKnownFin x isFin prop =
+  case prop of
+    Fin (Var x') | x == x' -> Just (if isFin then PTrue else PFalse)
+
+    p :&& q -> case (cryKnownFin x isFin p, cryKnownFin x isFin q) of
+                 (Nothing, Nothing) -> Nothing
+                 (mbP, mbQ) -> Just (fromMaybe p mbP :&& fromMaybe q mbQ)
+
+    p :|| q -> case (cryKnownFin x isFin p, cryKnownFin x isFin q) of
+                 (Nothing, Nothing) -> Nothing
+                 (mbP, mbQ) -> Just (fromMaybe p mbP :|| fromMaybe q mbQ)
+
+    Not p   -> case cryKnownFin x isFin p of
+                 Nothing -> Nothing
+                 Just p' -> Just (Not p')
+
+    _ -> Nothing
+
+
+
+
+-- | Simplification of ':||'.
 cryOr :: Prop -> Prop -> Maybe Prop
 cryOr p q =
   case p of
@@ -143,6 +182,31 @@ cryOr p q =
            PTrue  -> Just PTrue
            PFalse -> Just p
            _      -> Nothing
+
+
+-- | Negation.
+cryNot :: Prop -> Maybe Prop
+cryNot prop =
+  case prop of
+    Fin _           -> Nothing
+
+    x :== K Inf     -> Just (Fin x)
+    K Inf :== y     -> Just (Fin y)
+
+    _ :== _         -> Nothing
+    x :>= y         -> Just (y :>  x)
+    x :>  y         -> Just (y :>= x)
+
+    _ :==: _        -> Nothing
+    _ :>:  _        -> Nothing
+
+    p :&& q         -> Just (Not p :|| Not q)
+    p :|| q         -> Just (Not p :&& Not q)
+    Not p           -> Just p
+    PFalse          -> Just PTrue
+    PTrue           -> Just PFalse
+
+
 
 
 
@@ -177,35 +241,7 @@ cryDefined expr =
       Fin x :&& Fin y :&& Fin z :&& Not (x :== y)
 
 
-
--- | Negation.
-cryNot :: Prop -> Maybe Prop
-cryNot prop =
-  case prop of
-    Fin _           -> Nothing
-
-    x :== K Inf     -> Just (Fin x)
-    K Inf :== y     -> Just (Fin y)
-
-    _ :== _         -> Nothing
-    x :>= y         -> Just (y :>  x)
-    x :>  y         -> Just (y :>= x)
-
-    _ :==: _        -> Nothing
-    _ :>:  _        -> Nothing
-
-    p :&& q         -> Just (Not p :|| Not q)
-    p :|| q         -> Just (Not p :&& Not q)
-    Not p           -> Just p
-    PFalse          -> Just PTrue
-    PTrue           -> Just PFalse
-
-
-{- If (Fin x)
-      (If (Fin y) (x :==: y) PFalse)
-      (y :== Inf)
-
--}
+-- | Simplificaiton for ':=='
 cryIsEq :: Expr -> Expr -> Maybe Prop
 
 cryIsEq (K m) (K n)   = Just (if m == n then PTrue else PFalse)
@@ -215,13 +251,11 @@ cryIsEq x (K (Nat 0)) = cryIs0 x
 
 cryIsEq (K Inf) y     = Just (Not (Fin y))
 cryIsEq x (K Inf)     = Just (Not (Fin x))
-cryIsEq x y           = Just ( x :== K Inf :&& y :== K Inf
+cryIsEq x y           = Just ( Not (Fin x) :&& Not (Fin y)
                            :|| Fin x :&& Fin y :&& x :==: y
                              )
 
-{-   Fin y
-  && (If (Fin x) (x :>: y) PTrue)
--}
+
 
 cryIsGt :: Expr -> Expr -> Prop
 cryIsGt (K m) (K n)   = if m > n then PTrue else PFalse
@@ -240,12 +274,6 @@ cryIsFin expr =
     t1 :+ t2             -> Just (Fin t1 :&& Fin t2)
     t1 :- _              -> Just (Fin t1)
 
-    {- If (Fin t1)
-         (If (Fin t2)
-             (PTrue)
-             (t1 :== zero))
-         (t2 :== zero)
-     -}
     t1 :* t2             -> Just ( Fin t1 :&& Fin t2
                                :|| t1 :== zero :&& t2 :== K Inf
                                :|| t2 :== zero :&& t1 :== K Inf
@@ -254,13 +282,6 @@ cryIsFin expr =
     Div t1 _             -> Just (Fin t1)
     Mod _ _              -> Just PTrue
 
-    {- If (Fin t1)
-          (If (Fin t2)
-              PTrue
-              (If (t1 :==: zero) PTrue (t1 :== K (Nat 1))))
-          (t2 :== zero)
-
-    -}
     t1 :^^ t2            ->
       Just ( Fin t1 :&& Fin t2
          :|| t1 :== K Inf :&& t2 :== zero   -- inf ^^ 0
