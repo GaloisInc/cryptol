@@ -81,6 +81,11 @@ nSub (Nat x) (Nat y)
 nSub _ _                      = Nothing
 
 
+-- XXX:
+-- Does it make sense to define:
+--   nDiv Inf (Nat x)  = Inf
+--   nMod Inf (Nat x)  = Nat 0
+
 {- | Rounds down.
 
 > y * q + r = x
