@@ -5,21 +5,17 @@ import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Text.PrettyPrint
 import Data.Maybe(fromMaybe)
 import Data.List(unfoldr)
+import Control.Monad(liftM, ap)
+import qualified Control.Applicative as A
 
 
-test = crySimplify (Not (Fin a) :|| Fin a)
-  where a = Var (Name 0)
+test = print $ ppProp
+     $ cryNatOp (:==:) expr expr
+  where
+  a : b : c : d : _ = map (Var . Name) [ 0 .. ]
 
-  -- crySimplify (cryDefined expr)
-{-
-unlines
-          $ show (ppExpr expr)
-          : "-----------------"
-          : [ show $ length (map (show . ppProp) (crySimpSteps (cryDefined expr))) ]
--}
-        -- expr = Div (K (Nat 2) :* Var (Name 0)) (Var (Name 1))
-        -- expr = Max (Var (Name 0)) (K Inf)
-        expr = (Var (Name 0) :+ K (Nat 4)) :- Var (Name 1)
+  expr = Min (a :* b) (inf :* (inf :* (c :+ d)))
+
 
 --------------------------------------------------------------------------------
 newtype Name = Name Int
@@ -65,10 +61,18 @@ data Expr = K Nat'
           | Width Expr
           | LenFromThen   Expr Expr Expr
           | LenFromThenTo Expr Expr Expr
-            deriving Show
+            deriving (Eq,Show)
 
 zero :: Expr
 zero = K (Nat 0)
+
+one :: Expr
+one = K (Nat 1)
+
+inf :: Expr
+inf = K Inf
+
+
 
 -- | Simplify a property, if possible.
 crySimplify :: Prop -> Prop
@@ -207,6 +211,9 @@ cryNot prop =
     PTrue           -> Just PFalse
 
 
+-- Defined (0 - 1) /\ Max inf (0 - 1) = y
+-- Defined (0 - 1) /\ inf = y
+
 
 
 
@@ -260,8 +267,37 @@ cryIsEq x y           = Just ( Not (Fin x) :&& Not (Fin y)
 cryIsGt :: Expr -> Expr -> Prop
 cryIsGt (K m) (K n)   = if m > n then PTrue else PFalse
 cryIsGt x (K (Nat 0)) = Not (x :== zero)
-cryIsGt x y           = Fin y :&& (x :== K Inf :|| Fin x :&& x :>: y)
+cryIsGt x y           = Fin y :&& (x :== inf :|| Fin x :&& x :>: y)
 
+-- Fin x /\ Fin y /\ op x y
+
+-- x + Min 1 (y*inf)
+-- x + 1, x
+
+
+cryNatOp :: (Expr -> Expr -> Prop) -> Expr -> Expr -> Prop
+cryNatOp op x y =
+  toProp $
+  do x' <- noInf x
+     y' <- noInf y
+     return (op x' y')
+  where
+  noInf x = do x' <- cryNoInf x
+               case x' of
+                 K Inf -> Impossible
+                 _     -> return x'
+
+  toProp ite =
+    case ite of
+      Impossible -> PFalse
+      Return p   -> p
+      If p t e   -> p :&& toProp t :|| Not p :&& toProp e
+
+
+  -- x = If P a b
+  -- (x = a \/ x = b) /\ x = y
+
+  -- (x = a /\ x = y) \/ (x = b /\ x = y)
 
 -- | Attempt to simplify a @fin@ constraint.
 -- Assumes a defined input.
@@ -275,8 +311,8 @@ cryIsFin expr =
     t1 :- _              -> Just (Fin t1)
 
     t1 :* t2             -> Just ( Fin t1 :&& Fin t2
-                               :|| t1 :== zero :&& t2 :== K Inf
-                               :|| t2 :== zero :&& t1 :== K Inf
+                               :|| t1 :== zero :&& t2 :== inf
+                               :|| t2 :== zero :&& t1 :== inf
                                  )
 
     Div t1 _             -> Just (Fin t1)
@@ -284,8 +320,8 @@ cryIsFin expr =
 
     t1 :^^ t2            ->
       Just ( Fin t1 :&& Fin t2
-         :|| t1 :== K Inf :&& t2 :== zero   -- inf ^^ 0
-         :|| t2 :== K Inf :&& (t1 :== zero :|| t1 :== K (Nat 1))
+         :|| t1 :== inf :&& t2 :== zero   -- inf ^^ 0
+         :|| t2 :== inf :&& (t1 :== zero :|| t1 :== one)
                            -- 0 ^^ inf,                  1 ^^ inf
            )
 
@@ -313,7 +349,7 @@ cryIs0 ty =
     t1 :^^ t2           -> Just (t1 :== zero :&& t2 :>  zero)
     Min t1 t2           -> Just (t1 :== zero :|| t2 :== zero)
     Max t1 t2           -> Just (t1 :== zero :&& t2 :== zero)
-    Lg2 t1              -> Just (t1 :== zero :|| t1 :== K (Nat 1))
+    Lg2 t1              -> Just (t1 :== zero :|| t1 :== one)
     Width t1            -> Just (t1 :== zero)
     LenFromThen x y w   -> Just (w :== zero :|| x :> y)
 
@@ -321,6 +357,148 @@ cryIs0 ty =
     LenFromThenTo x y z -> Just ( x :> y :&& z :> x
                               :|| y :> x :&& x :> z
                                 )
+
+
+--------------------------------------------------------------------------------
+-- Eliminating the @inf@ constant form finite terms.
+
+
+data IfExpr a = If Prop (IfExpr a) (IfExpr a) | Return a | Impossible
+
+instance Functor       IfExpr where fmap = liftM
+instance A.Applicative IfExpr where pure = return; (<*>) = ap
+instance Monad IfExpr where
+  return  = Return
+  fail _  = Impossible
+  m >>= k = case m of
+              Impossible -> Impossible
+              Return a   -> k a
+              If p t e   -> If p (t >>= k) (e >>= k)
+
+
+ppIfExpr :: IfExpr Expr -> Doc
+ppIfExpr expr =
+  case expr of
+    If p t e -> hang (text "if" <+> ppProp p) 2
+              ( (text "then" <+> ppIfExpr t)  $$
+                (text "else" <+> ppIfExpr e)
+              )
+    Return e    -> ppExpr e
+    Impossible  -> text "<impossible>"
+
+
+
+-- | Our goal is to bubble @inf@ terms to the top of @Return@.
+cryNoInf :: Expr -> IfExpr Expr
+cryNoInf expr =
+  case expr of
+
+    -- These are the interesting cases where we have to branch
+
+    x :* y ->
+      do x' <- cryNoInf x
+         y' <- cryNoInf y
+         case (x', y') of
+           (K Inf, K Inf) -> return inf
+           (K Inf, _)     -> If (y' :==: zero) (return zero) (return inf)
+           (_, K Inf)     -> If (x' :==: zero) (return zero) (return inf)
+           _              -> return (x' :* y')
+
+    x :^^ y ->
+      do x' <- cryNoInf x
+         y' <- cryNoInf y
+         case (x', y') of
+           (K Inf, K Inf) -> return inf
+           (K Inf, _)     -> If (y' :==: zero) (return one) (return inf)
+           (_, K Inf)     -> If (x' :==: zero) (return zero)
+                           $ If (x' :==: one)  (return one)
+                           $ return inf
+           _              -> return (x' :^^ y')
+
+
+
+
+    -- The rest just propagates
+
+    K _     -> return expr
+    Var _   -> return expr
+
+    x :+ y  ->
+      do x' <- cryNoInf x
+         y' <- cryNoInf y
+         case (x', y') of
+           (K Inf, _)  -> return inf
+           (_, K Inf)  -> return inf
+           _           -> return (x' :+ y')
+
+    x :- y  ->
+      do x' <- cryNoInf x
+         y' <- cryNoInf y
+         case (x', y') of
+           (_, K Inf)  -> Impossible
+           (K Inf, _)  -> return inf
+           _           -> return (x' :- y')
+
+    Div x y ->
+      do x' <- cryNoInf x
+         y' <- cryNoInf y
+         case (x', y') of
+           (K Inf, _) -> Impossible
+           (_, K Inf) -> return zero
+           _          -> return (Div x' y')
+
+    Mod x y ->
+      do x' <- cryNoInf x
+         y' <- cryNoInf y
+         case (x',y) of
+           (K Inf, _) -> Impossible
+           (_, K Inf) -> return x'
+           _          -> return (Mod x' y')
+
+    Min x y ->
+      do x' <- cryNoInf x
+         y' <- cryNoInf y
+         case (x',y') of
+           (K Inf, _) -> return y'
+           (_, K Inf) -> return x'
+           _          -> return (Min x' y')
+
+    Max x y ->
+      do x' <- cryNoInf x
+         y' <- cryNoInf y
+         case (x', y') of
+           (K Inf, _) -> return inf
+           (_, K Inf) -> return inf
+           _          -> return (Max x' y')
+
+    Lg2 x ->
+      do x' <- cryNoInf x
+         case x' of
+           K Inf     -> return inf
+           _         -> return (Lg2 x')
+
+    Width x ->
+      do x' <- cryNoInf x
+         case x' of
+           K Inf      -> return inf
+           _          -> return (Width x')
+
+    LenFromThen x y w   -> fun3 LenFromThen x y w
+    LenFromThenTo x y z -> fun3 LenFromThenTo x y z
+
+
+  where
+  fun3 f x y z =
+    do x' <- cryNoInf x
+       y' <- cryNoInf y
+       z' <- cryNoInf z
+       case (x',y',z') of
+         (K Inf, _, _) -> Impossible
+         (_, K Inf, _) -> Impossible
+         (_, _, K Inf) -> Impossible
+         _             -> return (f x' y' z')
+
+
 
 
 
