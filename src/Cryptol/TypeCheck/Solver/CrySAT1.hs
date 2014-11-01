@@ -2,6 +2,7 @@
 module Cryptol.TypeCheck.Solver.CrySAT1 where
 
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
+import qualified Cryptol.TypeCheck.Solver.InfNat as IN
 import Text.PrettyPrint
 import Data.Maybe(fromMaybe)
 import Data.List(unfoldr)
@@ -9,8 +10,11 @@ import Control.Monad(liftM, ap)
 import qualified Control.Applicative as A
 
 
-test = print $ ppProp
-     $ cryNatOp (:==:) expr expr
+test =
+  do print (ppExpr expr)
+     print $ ppProp
+       $ crySimplify
+       $ cryNatOp (:==:) expr (K (Nat 5))
   where
   a : b : c : d : _ = map (Var . Name) [ 0 .. ]
 
@@ -93,11 +97,21 @@ crySimpStep prop =
     x :== y   -> cryIsEq x y
     x :>  y   -> Just (cryIsGt x y)
 
-    x :>= y   -> Just (x :== y :|| x :> y)
+    x :>= y   ->
+      case (x,y) of
+        (K (Nat 0), _) -> Just (y :== zero)
+        (K Inf, _)     -> Just PTrue
+        (_, K Inf)     -> Just (x :== inf)
+        _              -> Just (x :== y :|| x :> y)
 
-    _ :==: _  -> Nothing   -- leave for a separate decision procedure
-    _ :>: _   -> Nothing   -- leave for a separate decision procedure
+    x :==: y ->
+      case (x,y) of
+        (K a, K b)     -> Just (if a == b then PTrue else PFalse)
+        (K (Nat 0), _) -> cryIs0 True y
+        (_, K (Nat 0)) -> cryIs0 True x
+        _ -> bin (:==:) x y
 
+    x :>: y -> bin (:>:) x y
 
     p :&& q ->
       case cryAnd p q of
@@ -130,6 +144,16 @@ crySimpStep prop =
 
     PFalse  -> Nothing
     PTrue   -> Nothing
+
+  where
+  bin op x y =
+    case crySimpExpr x of
+      Just x' -> Just (op x' y)
+      _ -> case crySimpExpr y of
+             Just y' -> Just (op x y')
+             Nothing -> Nothing
+
+
 
 
 
@@ -201,7 +225,10 @@ cryNot prop =
     x :>= y         -> Just (y :>  x)
     x :>  y         -> Just (y :>= x)
 
-    _ :==: _        -> Nothing
+    K (Nat 0) :==: y  -> Just (y :>: zero)
+    x :==: K (Nat 0)  -> Just (x :>: zero)
+    _ :==: _          -> Nothing
+
     _ :>:  _        -> Nothing
 
     p :&& q         -> Just (Not p :|| Not q)
@@ -253,28 +280,38 @@ cryIsEq :: Expr -> Expr -> Maybe Prop
 
 cryIsEq (K m) (K n)   = Just (if m == n then PTrue else PFalse)
 
-cryIsEq (K (Nat 0)) y = cryIs0 y
-cryIsEq x (K (Nat 0)) = cryIs0 x
+cryIsEq (K (Nat 0)) y = cryIs0 False y
+cryIsEq x (K (Nat 0)) = cryIs0 False x
 
 cryIsEq (K Inf) y     = Just (Not (Fin y))
 cryIsEq x (K Inf)     = Just (Not (Fin x))
-cryIsEq x y           = Just ( Not (Fin x) :&& Not (Fin y)
-                           :|| Fin x :&& Fin y :&& x :==: y
-                             )
+cryIsEq x y           = case crySimpExpr x of
+                          Just x' -> Just (x' :== y)
+                          Nothing ->
+                            case crySimpExpr y of
+                              Just y' -> Just (x :== y')
+                              Nothing ->
+                                Just ( Not (Fin x) :&& Not (Fin y)
+                                   :|| Fin x :&& Fin y :&& x :==: y
+                                     )
 
 
 
 cryIsGt :: Expr -> Expr -> Prop
 cryIsGt (K m) (K n)   = if m > n then PTrue else PFalse
 cryIsGt x (K (Nat 0)) = Not (x :== zero)
-cryIsGt x y           = Fin y :&& (x :== inf :|| Fin x :&& x :>: y)
+cryIsGt x y           =
+  case crySimpExpr x of
+    Just x' -> x' :> y
+    Nothing -> case crySimpExpr y of
+                 Just y' -> x :> y'
+                 Nothing -> Fin y :&& (x :== inf :|| Fin x :&& x :>: y)
 
--- Fin x /\ Fin y /\ op x y
 
--- x + Min 1 (y*inf)
--- x + 1, x
-
-
+-- | Make an expression that should work ONLY on natural nubers.
+-- Eliminates occurances of @inf@.
+-- Assumes that the two input expressions are well-formed and finite.
+-- The expression is constructed by the given function.
 cryNatOp :: (Expr -> Expr -> Prop) -> Expr -> Expr -> Prop
 cryNatOp op x y =
   toProp $
@@ -282,10 +319,10 @@ cryNatOp op x y =
      y' <- noInf y
      return (op x' y')
   where
-  noInf x = do x' <- cryNoInf x
-               case x' of
+  noInf a = do a' <- cryNoInf a
+               case a' of
                  K Inf -> Impossible
-                 _     -> return x'
+                 _     -> return a'
 
   toProp ite =
     case ite of
@@ -294,10 +331,6 @@ cryNatOp op x y =
       If p t e   -> p :&& toProp t :|| Not p :&& toProp e
 
 
-  -- x = If P a b
-  -- (x = a \/ x = b) /\ x = y
-
-  -- (x = a /\ x = y) \/ (x = b /\ x = y)
 
 -- | Attempt to simplify a @fin@ constraint.
 -- Assumes a defined input.
@@ -333,34 +366,166 @@ cryIsFin expr =
     LenFromThenTo  _ _ _ -> Just PTrue
 
 
--- | Simplify @t == 0@.
+-- | Simplify @t :== 0@ or @t :==: 0@.
 -- Assumes defined input.
-cryIs0 :: Expr -> Maybe Prop
-cryIs0 ty =
+cryIs0 :: Bool -> Expr -> Maybe Prop
+cryIs0 useFinite ty =
   case ty of
     K Inf               -> Just PFalse
     K (Nat n)           -> Just (if n == 0 then PTrue else PFalse)
     Var _               -> Nothing
-    t1 :+ t2            -> Just (t1 :== zero :&& t2 :== zero)
-    t1 :- t2            -> Just (t1 :== t2)
-    t1 :* t2            -> Just (t1 :== zero :|| t2 :== zero)
-    Div t1 t2           -> Just (t2 :> t1)
-    Mod _ _             -> Nothing -- or: Just (t2 `Divides` t1)
-    t1 :^^ t2           -> Just (t1 :== zero :&& t2 :>  zero)
-    Min t1 t2           -> Just (t1 :== zero :|| t2 :== zero)
-    Max t1 t2           -> Just (t1 :== zero :&& t2 :== zero)
-    Lg2 t1              -> Just (t1 :== zero :|| t1 :== one)
-    Width t1            -> Just (t1 :== zero)
-    LenFromThen x y w   -> Just (w :== zero :|| x :> y)
+    t1 :+ t2            -> Just (eq t1 zero :&& eq t2 zero)
+    t1 :- t2            -> Just (eq t1 t2)
+    t1 :* t2            -> Just (eq t1 zero :|| eq t2 zero)
+    Div t1 t2           -> Just (gt t2 t1)
+    Mod _ _             -> (`eq` zero) `fmap` crySimpExpr ty
+                           -- or: Just (t2 `Divides` t1)
+    t1 :^^ t2           -> Just (eq t1 zero :&& gt t2 zero)
+    Min t1 t2           -> Just (eq t1 zero :|| eq t2 zero)
+    Max t1 t2           -> Just (eq t1 zero :&& eq t2 zero)
+    Lg2 t1              -> Just (eq t1 zero :|| eq t1 one)
+    Width t1            -> Just (eq t1 zero)
+    LenFromThen x y w   -> Just (eq w zero :|| gt x y)
 
     -- See `nLenFromThenTo` in 'Cryptol.TypeCheck.Solver.InfNat'
-    LenFromThenTo x y z -> Just ( x :> y :&& z :> x
-                              :|| y :> x :&& x :> z
+    LenFromThenTo x y z -> Just ( gt x y :&& gt z x
+                              :|| gt y x :&& gt x z
                                 )
+
+  where
+  eq x y = if useFinite then x :==: y else x :== y
+  gt x y = if useFinite then x :>: y  else x :>  y
+
+
+
+--------------------------------------------------------------------------------
+-- Simplification of expressions
+--------------------------------------------------------------------------------
+
+
+-- | Make a simplification step, assuming the expression is well-formed.
+crySimpExpr :: Expr -> Maybe Expr
+crySimpExpr expr =
+  case expr of
+    K _                   -> Nothing
+    Var _                 -> Nothing
+
+    x :+ y ->
+      case (x,y) of
+        (K (Nat 0), _)    -> Just y
+        (K Inf, _)        -> Just inf
+        (_, K (Nat 0))    -> Just x
+        (_, K Inf)        -> Just inf
+        (K a, K b)        -> Just (K (IN.nAdd a b))
+        _                 -> bin (:+) x y
+
+    x :- y ->
+      case (x,y) of
+        (K (Nat 0), _)    -> Just zero
+        (K Inf, _)        -> Just inf
+        (_, K (Nat 0))    -> Just x
+        (K a, K b)        -> K `fmap` IN.nSub a b
+        _ | x == y        -> Just zero
+        _                 -> bin (:-) x y
+
+    x :* y ->
+      case (x,y) of
+        (K (Nat 0), _)    -> Just zero
+        (K (Nat 1), _)    -> Just y
+        (_, K (Nat 0))    -> Just zero
+        (_, K (Nat 1))    -> Just x
+        (K a, K b)        -> Just (K (IN.nMul a b))
+        _                 -> bin (:*) x y
+
+    Div x y ->
+      case (x,y) of
+        (K (Nat 0), _)    -> Just zero
+        (_, K Inf)        -> Just zero
+        (K a, K b)        -> K `fmap` IN.nDiv a b
+        _ | x == y        -> Just one
+        _                 -> bin Div x y
+
+    Mod x y ->
+      case (x,y) of
+        (_, K Inf)        -> Just x
+        (_, K (Nat 1))    -> Just zero
+        (K a, K b)        -> K `fmap` IN.nMod a b
+        _                 -> bin Mod x y
+
+    x :^^ y ->
+      case (x,y) of
+        (_, K (Nat 0))    -> Just one
+        (_, K (Nat 1))    -> Just x
+        (K (Nat 1), _)    -> Just one
+        (K a, K b)        -> Just (K (IN.nExp a b))
+        _                 -> bin (:^^) x y
+
+    Min x y ->
+      case (x,y) of
+        (K (Nat 0), _)    -> Just zero
+        (K Inf, _)        -> Just y
+        (_, K (Nat 0))    -> Just zero
+        (_, K Inf)        -> Just x
+        (K a, K b)        -> Just (K (IN.nMin a b))
+        _ | x == y        -> Just x
+        _                 -> bin Min x y
+
+    Max x y ->
+      case (x,y) of
+        (K (Nat 0), _)    -> Just y
+        (K Inf, _)        -> Just inf
+        (_, K (Nat 0))    -> Just x
+        (_, K Inf)        -> Just inf
+        _ | x == y        -> Just x
+        _                 -> bin Max x y
+
+    Lg2 x ->
+      case x of
+        K a               -> Just (K (IN.nLg2 a))
+        _                 -> Lg2 `fmap` crySimpExpr x
+
+
+    Width x ->
+      case x of
+        K a               -> Just (K (IN.nWidth a))
+        _                 -> Width `fmap` crySimpExpr x
+
+    LenFromThen x y w ->
+      case (x,y,w) of
+        (K a, K b, K c)   -> K `fmap` IN.nLenFromThen a b c
+        _                 -> three LenFromThen x y w
+
+    LenFromThenTo x y z ->
+      case (x,y,z) of
+        (K a, K b, K c)   -> K `fmap` IN.nLenFromThenTo a b c
+        _                 -> three LenFromThenTo x y z
+
+  where
+
+  bin op x y = case crySimpExpr x of
+                 Just x' -> Just (op x' y)
+                 Nothing -> case crySimpExpr y of
+                              Just y' -> Just (op x y')
+                              Nothing -> Nothing
+
+  three op x y z =
+    case crySimpExpr x of
+      Just x' -> Just (op x' y z)
+      Nothing ->
+        case crySimpExpr y of
+          Just y' -> Just (op x y' z)
+          Nothing ->
+            case crySimpExpr z of
+              Just z' -> Just (op x y z')
+              Nothing -> Nothing
+
+
+
 
 
 --------------------------------------------------------------------------------
 -- Eliminating the @inf@ constant form finite terms.
+--------------------------------------------------------------------------------
 
 
 data IfExpr a = If Prop (IfExpr a) (IfExpr a) | Return a | Impossible
@@ -400,8 +565,8 @@ cryNoInf expr =
          y' <- cryNoInf y
          case (x', y') of
            (K Inf, K Inf) -> return inf
-           (K Inf, _)     -> If (y' :==: zero) (return zero) (return inf)
-           (_, K Inf)     -> If (x' :==: zero) (return zero) (return inf)
+           (K Inf, _)     -> mkIf (y' :==: zero) (return zero) (return inf)
+           (_, K Inf)     -> mkIf (x' :==: zero) (return zero) (return inf)
            _              -> return (x' :* y')
 
     x :^^ y ->
@@ -409,9 +574,9 @@ cryNoInf expr =
          y' <- cryNoInf y
          case (x', y') of
            (K Inf, K Inf) -> return inf
-           (K Inf, _)     -> If (y' :==: zero) (return one) (return inf)
-           (_, K Inf)     -> If (x' :==: zero) (return zero)
-                           $ If (x' :==: one)  (return one)
+           (K Inf, _)     -> mkIf (y' :==: zero) (return one) (return inf)
+           (_, K Inf)     -> mkIf (x' :==: zero) (return zero)
+                           $ mkIf (x' :==: one)  (return one)
                            $ return inf
            _              -> return (x' :^^ y')
 
@@ -497,6 +662,11 @@ cryNoInf expr =
          (_, K Inf, _) -> Impossible
          (_, _, K Inf) -> Impossible
          _             -> return (f x' y' z')
+
+  mkIf p t e = case crySimplify p of
+                 PTrue  -> t
+                 PFalse -> e
+                 p'     -> If p' t e
 
 
 
