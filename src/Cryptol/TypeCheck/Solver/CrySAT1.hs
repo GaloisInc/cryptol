@@ -616,6 +616,7 @@ crySimpExpr expr =
 
     Mod x y ->
       case (x,y) of
+        (K (Nat 0), _)    -> Just zero
         (_, K Inf)        -> Just x
         (_, K (Nat 1))    -> Just zero
         (K a, K b)        -> K `fmap` IN.nMod a b
