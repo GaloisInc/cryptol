@@ -11,15 +11,18 @@ import qualified Control.Applicative as A
 
 
 test =
-  do print (ppExpr expr)
+  do -- print (ppExpr expr)
      mapM_ (print . ppProp)
-       $ crySimpSteps
-       $ cryDefined expr
+       $ return
+       $ crySimplify
+       $ expr
   where
   a : b : c : d : _ = map (Var . Name) [ 0 .. ]
 
-  expr = Div a b
-  rest = Min (a :* b) (inf :* (inf :* (c :+ d)))
+  expr = a :== zero
+  rest =   Div a b
+         : Min (a :* b) (inf :* (inf :* (c :+ d)))
+         : []
 
 
 --------------------------------------------------------------------------------
@@ -366,17 +369,19 @@ cryIsFin expr =
 -- | Simplify @t :== 0@ or @t :==: 0@.
 -- Assumes defined input.
 cryIs0 :: Bool -> Expr -> Maybe Prop
-cryIs0 useFinite ty =
-  case ty of
+cryIs0 useFinite expr =
+  case expr of
     K Inf               -> Just PFalse
     K (Nat n)           -> Just (if n == 0 then PTrue else PFalse)
-    Var _               -> Nothing
+    Var _ | useFinite   -> Nothing
+          | otherwise   -> Just (Fin expr :&& expr :==: zero)
     t1 :+ t2            -> Just (eq t1 zero :&& eq t2 zero)
     t1 :- t2            -> Just (eq t1 t2)
     t1 :* t2            -> Just (eq t1 zero :|| eq t2 zero)
     Div t1 t2           -> Just (gt t2 t1)
-    Mod _ _             -> (`eq` zero) `fmap` crySimpExpr ty
-                           -- or: Just (t2 `Divides` t1)
+    Mod _ _ | useFinite -> (:==: zero) `fmap` crySimpExpr expr
+            | otherwise -> Just (cryNatOp (:==:) expr zero)
+            -- or: Just (t2 `Divides` t1)
     t1 :^^ t2           -> Just (eq t1 zero :&& gt t2 zero)
     Min t1 t2           -> Just (eq t1 zero :|| eq t2 zero)
     Max t1 t2           -> Just (eq t1 zero :&& eq t2 zero)
