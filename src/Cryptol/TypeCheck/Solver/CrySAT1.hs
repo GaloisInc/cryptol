@@ -1,33 +1,34 @@
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Solver.CrySAT1 where
 
-import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
+import           Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import qualified Cryptol.TypeCheck.Solver.InfNat as IN
-import Text.PrettyPrint
-import Data.Maybe(fromMaybe)
-import Data.List(unfoldr)
-import Control.Monad(liftM, ap)
+import           Control.Monad(liftM, ap)
+
 import qualified Control.Applicative as A
+import           Data.List(unfoldr)
+import           Data.Maybe(fromMaybe)
+import           Data.Set ( Set )
+import qualified Data.Set as Set
+import           Text.PrettyPrint
 
-
+test :: IO ()
 test =
   do -- print (ppExpr expr)
-     mapM_ (print . ppProp)
-       $ return
-       $ crySimplify
-       $ expr
+     mapM_ (\p -> print (ppProp p) >> putStrLn (replicate 80 '-'))
+      $ crySimpSteps
+      $ Not (expr :== zero)
   where
   a : b : c : d : _ = map (Var . Name) [ 0 .. ]
-
-  expr = a :== zero
-  rest =   Div a b
+  expr = Mod a (b :* inf)
+  _rest =  Div a b
          : Min (a :* b) (inf :* (inf :* (c :+ d)))
          : []
 
 
 --------------------------------------------------------------------------------
 newtype Name = Name Int
-              deriving (Eq,Show)
+              deriving (Eq,Ord)
 
 infixr 2 :||
 infixr 3 :&&
@@ -46,13 +47,13 @@ data Prop = -- Preidcates on natural numbers with infinity.
           | Expr :>= Expr | Expr :> Expr
 
           -- Predicate on strict natural numbers (i.e., no infinities)
+          -- Should be introduced by 'cryNatOp', to eliminte 'inf'.
           | Expr :==: Expr | Expr :>: Expr
 
           -- Standard logical strucutre
           | Prop :&& Prop | Prop :|| Prop
           | Not Prop
           | PFalse | PTrue
-            deriving Show
 
 -- | Expressions, representing Cryptol's numeric types.
 data Expr = K Nat'
@@ -69,7 +70,7 @@ data Expr = K Nat'
           | Width Expr
           | LenFromThen   Expr Expr Expr
           | LenFromThenTo Expr Expr Expr
-            deriving (Eq,Show)
+            deriving Eq
 
 zero :: Expr
 zero = K (Nat 0)
@@ -80,6 +81,55 @@ one = K (Nat 1)
 inf :: Expr
 inf = K Inf
 
+
+-- | Compute all expressions in a property.
+cryPropExprs :: Prop -> [Expr]
+cryPropExprs = go []
+  where
+  go es prop =
+    case prop of
+      PTrue     -> es
+      PFalse    -> es
+      Not p     -> go es p
+      p :&& q   -> go (go es q) p
+      p :|| q   -> go (go es q) p
+
+      Fin x     -> x : es
+
+      x :== y   -> x : y : es
+      x :>  y   -> x : y : es
+      x :>= y   -> x : y : es
+
+      x :==: y  -> x : y : es
+      x :>:  y  -> x : y : es
+
+
+-- | Compute the immediate sub-expressions of an expression.
+cryExprExprs :: Expr -> [Expr]
+cryExprExprs expr =
+  case expr of
+    K _                 -> []
+    Var _               -> []
+    x :+ y              -> [x,y]
+    x :- y              -> [x,y]
+    x :* y              -> [x,y]
+    Div x y             -> [x,y]
+    Mod x y             -> [x,y]
+    x :^^ y             -> [x,y]
+    Min x y             -> [x,y]
+    Max x y             -> [x,y]
+    Lg2 x               -> [x]
+    Width x             -> [x]
+    LenFromThen   x y z -> [x,y,z]
+    LenFromThenTo x y z -> [x,y,z]
+
+cryExprFVS :: Expr -> Set Name
+cryExprFVS expr =
+  case expr of
+    Var x -> Set.singleton x
+    _     -> Set.unions (map cryExprFVS (cryExprExprs expr))
+
+--------------------------------------------------------------------------------
 
 
 -- | Simplify a property, if possible.
@@ -239,6 +289,7 @@ cryNot prop =
     Not p           -> Just p
     PFalse          -> Just PTrue
     PTrue           -> Just PFalse
+
 
 
 
