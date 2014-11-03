@@ -295,6 +295,8 @@ cryIsEq x y           = case crySimpExpr x of
 
 cryIsGt :: Expr -> Expr -> Prop
 cryIsGt (K m) (K n)   = if m > n then PTrue else PFalse
+cryIsGt (K (Nat 0)) _ = PFalse
+cryIsGt (K (Nat 1)) e = e :== one
 cryIsGt x y           =
   case crySimpExpr x of
     Just x' -> x' :> y
