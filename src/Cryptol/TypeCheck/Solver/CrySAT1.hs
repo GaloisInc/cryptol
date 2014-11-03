@@ -655,7 +655,10 @@ cryNoInf expr =
          case (x', y') of
            (_, K Inf)  -> Impossible
            (K Inf, _)  -> return inf
-           _           -> return (x' :- y')
+           _           -> mkIf (x' :==: y)
+                               (return zero)
+                               (mkIf (x' :>: y) (return (x' :- y'))
+                                                Impossible)
 
     Div x y ->
       do x' <- cryNoInf x
@@ -663,7 +666,7 @@ cryNoInf expr =
          case (x', y') of
            (K Inf, _) -> Impossible
            (_, K Inf) -> return zero
-           _          -> return (Div x' y')
+           _          -> mkIf (y' :>: zero) (return (Div x' y')) Impossible
 
     Mod x y ->
       do x' <- cryNoInf x
@@ -671,7 +674,7 @@ cryNoInf expr =
          case (x',y') of
            (K Inf, _) -> Impossible
            (_, K Inf) -> return x'
-           _          -> return (Mod x' y')
+           _          -> mkIf (y' :>: zero) (return (Mod x' y')) Impossible
 
     Min x y ->
       do x' <- cryNoInf x
@@ -714,7 +717,8 @@ cryNoInf expr =
          (K Inf, _, _) -> Impossible
          (_, K Inf, _) -> Impossible
          (_, _, K Inf) -> Impossible
-         _             -> return (f x' y' z')
+         _             -> mkIf (x' :==: y') Impossible
+                                            (return (f x' y' z'))
 
   mkIf p t e = case crySimplify p of
                  PTrue  -> t
