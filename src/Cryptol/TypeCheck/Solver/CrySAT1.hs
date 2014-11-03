@@ -17,7 +17,7 @@ test =
   do -- print (ppExpr expr)
      mapM_ (\p -> print (ppProp p) >> putStrLn (replicate 80 '-'))
       $ crySimpSteps
-      $ Not (expr :== zero)
+      $ cryDefined $ (a :- b) -- :== K (Nat 5))
   where
   a : b : c : d : _ = map (Var . Name) [ 0 .. ]
   expr = Mod a (b :* inf)
@@ -212,6 +212,107 @@ crySimpStep prop =
              Nothing -> Nothing
 
 
+-- | Split a property into its top-level conjuctions.
+-- Elimiantes @false@ and @true.
+crySplitAnds :: Prop -> [Prop]
+crySplitAnds = go []
+  where
+  go ps (p :&& q) = go (go ps q) p
+  go ps PTrue     = ps
+  go _  PFalse    = [PFalse]
+  go ps p         = case ps of
+                      PFalse : _  -> ps
+                      _           -> p : ps
+
+-- | Make a conjucntion of the given properties.
+-- Does not perform simplification.
+cryAnds :: [Prop] -> Prop
+cryAnds []       = PTrue
+cryAnds [p]      = p
+cryAnds (p : qs) = p :&& cryAnds qs
+
+-- | Identify propositions that are suiatable for inlining.
+cryIsDefn :: Prop -> Maybe (Name, Expr)
+cryIsDefn (Var x :==: e) = if (x `Set.member` cryExprFVS e)
+                              then Nothing
+                              else Just (x,e)
+cryIsDefn (e :==: Var x) = if (x `Set.member` cryExprFVS e)
+                              then Nothing
+                              else Just (x,e)
+cryIsDefn _              = Nothing
+
+
+
+{- | Apply the function to all elements in the list.
+Return 'Nothing' if all results were 'Nothing', otherwise it
+returns @Just answerws@, where each @answer@ is either the original
+value (if the function gave 'Nothing'), or the result of the function. -}
+anyJust :: (a -> Maybe a) -> [a] -> Maybe [a]
+anyJust _ []       = Nothing
+anyJust f (x : xs) = case (f x, anyJust f xs) of
+                       (Nothing, Nothing)   -> Nothing
+                       (Just x', Nothing)   -> Just (x' : xs)
+                       (Nothing, Just xs')  -> Just (x  : xs')
+                       (Just x', Just xs')  -> Just (x' : xs')
+
+
+-- | Replaces occurances of the name with the expression.
+-- Returns 'Nothing' if there were no occurances of the name.
+class CryLet ast where
+  cryLet :: Name -> Expr -> ast -> Maybe ast
+
+instance CryLet Expr where
+  cryLet a e = go
+    where
+    go expr =
+      case expr of
+        K _                 -> Nothing
+        Var b               -> if a == b then Just e else Nothing
+        x :+ y              -> two (:+) x y
+        x :- y              -> two (:-) x y
+        x :* y              -> two (:*) x y
+        x :^^ y             -> two (:^^) x y
+        Div x y             -> two Div x y
+        Mod x y             -> two Mod x y
+        Min x y             -> two Min x y
+        Max x y             -> two Max x y
+        Lg2 x               -> Lg2 `fmap` go x
+        Width x             -> Width `fmap` go x
+        LenFromThen x y w   -> three LenFromThen x y w
+        LenFromThenTo x y z -> three LenFromThen x y z
+
+    two f x y = do [x',y'] <- anyJust go [x,y]
+                   return (f x' y')
+
+    three f x y z = do [x',y',z'] <- anyJust go [x,y,z]
+                       return (f x' y' z')
+
+instance CryLet Prop where
+  cryLet a e = go
+    where
+    go prop =
+      case prop of
+        PFalse    -> Nothing
+        PTrue     -> Nothing
+        Not p     -> Not `fmap` go p
+        p :&& q   -> two (:&&) p q
+        p :|| q   -> two (:||) p q
+        Fin x     -> Fin `fmap` cryLet a e x
+        x :== y   -> twoE (:==) x y
+        x :>= y   -> twoE (:>=) x y
+        x :> y    -> twoE (:>) x y
+        x :==: y  -> twoE (:==:) x y
+        x :>: y   -> twoE (:>) x y
+
+    two f x y = do [x',y'] <- anyJust go [x,y]
+                   return (f x' y')
+
+    twoE f x y = do [x',y'] <- anyJust (cryLet a e) [x,y]
+                    return (f x' y')
+
+
+
+
 
 
 
@@ -230,11 +331,25 @@ cryAnd p q =
     Fin (Var x)
       | Just q' <- cryKnownFin x True q -> Just (p :&& q')
 
+    _ | Just (x,e) <- cryIsDefn p
+      , Just q'    <- cryLet x e q -> Just (p :&& q')
+
     _ -> case q of
            PTrue  -> Just p
            PFalse -> Just PFalse
            _      -> Nothing
 
+
+
+
+{-
+cryLets
+  where
+  go changes done (p : ps) =
+    case cryIsDefn p of
+      Just (a,e) -> go (p : map (cryLetExpr a e) done) (map (cryLetExpr a e) ps)
+      Nothing 
+-}
 
 cryKnownFin :: Name -> Bool -> Prop -> Maybe Prop
 cryKnownFin x isFin prop =
@@ -571,6 +686,8 @@ crySimpExpr expr =
             case crySimpExpr z of
               Just z' -> Just (op x y z')
               Nothing -> Nothing
+
+
 
 
 
