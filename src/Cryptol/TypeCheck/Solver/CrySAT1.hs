@@ -608,6 +608,7 @@ crySimpExpr expr =
     Div x y ->
       case (x,y) of
         (K (Nat 0), _)    -> Just zero
+        (_, K (Nat 1))    -> Just x
         (_, K Inf)        -> Just zero
         (K a, K b)        -> K `fmap` IN.nDiv a b
         _ | x == y        -> Just one
