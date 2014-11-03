@@ -229,17 +229,13 @@ cryNot prop =
 
     x :==: y        -> Just (x :>: y :|| y :>: x)
 
-    x :>: y         -> Nothing
+    _ :>: _         -> Nothing
 
     p :&& q         -> Just (Not p :|| Not q)
     p :|| q         -> Just (Not p :&& Not q)
     Not p           -> Just p
     PFalse          -> Just PTrue
     PTrue           -> Just PFalse
-
-
--- Defined (0 - 1) /\ Max inf (0 - 1) = y
--- Defined (0 - 1) /\ inf = y
 
 
 
