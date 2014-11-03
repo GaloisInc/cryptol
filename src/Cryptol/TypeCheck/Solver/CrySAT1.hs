@@ -12,13 +12,14 @@ import qualified Control.Applicative as A
 
 test =
   do print (ppExpr expr)
-     print $ ppProp
-       $ crySimplify
-       $ cryNatOp (:==:) expr (K (Nat 5))
+     mapM_ (print . ppProp)
+       $ crySimpSteps
+       $ cryDefined expr
   where
   a : b : c : d : _ = map (Var . Name) [ 0 .. ]
 
-  expr = Min (a :* b) (inf :* (inf :* (c :+ d)))
+  expr = Div a b
+  rest = Min (a :* b) (inf :* (inf :* (c :+ d)))
 
 
 --------------------------------------------------------------------------------
@@ -111,7 +112,11 @@ crySimpStep prop =
         (_, K (Nat 0)) -> cryIs0 True x
         _ -> bin (:==:) x y
 
-    x :>: y -> bin (:>:) x y
+    x :>: y ->
+      case x of
+        K (Nat 0)   -> Just PFalse
+        K (Nat 1)   -> cryIs0 True y
+        _           -> bin (:>:) x y
 
     p :&& q ->
       case cryAnd p q of
@@ -218,18 +223,13 @@ cryNot prop =
   case prop of
     Fin _           -> Nothing
 
-    x :== K Inf     -> Just (Fin x)
-    K Inf :== y     -> Just (Fin y)
-
-    _ :== _         -> Nothing
+    x :== y         -> Just (x :> y :|| y :> x)
     x :>= y         -> Just (y :>  x)
     x :>  y         -> Just (y :>= x)
 
-    K (Nat 0) :==: y  -> Just (y :>: zero)
-    x :==: K (Nat 0)  -> Just (x :>: zero)
-    _ :==: _          -> Nothing
+    x :==: y        -> Just (x :>: y :|| y :>: x)
 
-    _ :>:  _        -> Nothing
+    x :>: y         -> Nothing
 
     p :&& q         -> Just (Not p :|| Not q)
     p :|| q         -> Just (Not p :&& Not q)
@@ -299,7 +299,6 @@ cryIsEq x y           = case crySimpExpr x of
 
 cryIsGt :: Expr -> Expr -> Prop
 cryIsGt (K m) (K n)   = if m > n then PTrue else PFalse
-cryIsGt x (K (Nat 0)) = Not (x :== zero)
 cryIsGt x y           =
   case crySimpExpr x of
     Just x' -> x' :> y
