@@ -617,7 +617,7 @@ cryNoInf expr =
     Mod x y ->
       do x' <- cryNoInf x
          y' <- cryNoInf y
-         case (x',y) of
+         case (x',y') of
            (K Inf, _) -> Impossible
            (_, K Inf) -> return x'
            _          -> return (Mod x' y')
