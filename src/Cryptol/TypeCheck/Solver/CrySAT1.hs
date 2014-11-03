@@ -242,7 +242,6 @@ cryNot prop =
 
 
 
-
 -- | Generate a property ensuring that the expression is well-defined.
 -- This might be a bit too strict.  For example, we reject things like
 -- @max inf (0 - 1)@, which one might think would simplify to @inf@.
@@ -291,7 +290,7 @@ cryIsEq x y           = case crySimpExpr x of
                               Just y' -> Just (x :== y')
                               Nothing ->
                                 Just ( Not (Fin x) :&& Not (Fin y)
-                                   :|| Fin x :&& Fin y :&& x :==: y
+                                   :|| Fin x :&& Fin y :&& cryNatOp (:==:) x y
                                      )
 
 
@@ -305,7 +304,8 @@ cryIsGt x y           =
     Just x' -> x' :> y
     Nothing -> case crySimpExpr y of
                  Just y' -> x :> y'
-                 Nothing -> Fin y :&& (x :== inf :|| Fin x :&& x :>: y)
+                 Nothing -> Fin y :&& (x :== inf :||
+                                       Fin x :&& cryNatOp (:>:) x y)
 
 
 -- | Make an expression that should work ONLY on natural nubers.
