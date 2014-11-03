@@ -182,10 +182,19 @@ The top-level repository directories are:
 
 Within the `GaloisInc/cryptol` repository, we use the
 [git-flow model](http://nvie.com/posts/a-successful-git-branching-model/)
-for branches and merging. Our version has one notable difference: our
-`master` (rather than `develop`) branch serves as the cutting edge
-development branch, and our `release` (rather than `master`) branch is
-where only pristine, tagged releases are committed.
+for branches and merging. Our version has two notable differences:
+
+1. Our `master` (rather than `develop`) branch serves as the cutting
+   edge development branch, and our `release` (rather than `master`)
+   branch is where only pristine, tagged releases are committed.
+
+2. We use `wip` (work-in-progress) branches as a centralized storage
+   place for (usually individual) work in progress. Whereas a
+   `feature` branch is expected to be relatively stable, all bets are
+   off with a `wip` branch. Typically `wip` branches are not actually
+   merged directly into `master`, but instead are rebased into a new
+   branch where the history is cleaned up before merging into
+   `master`.
 
 In short:
 
