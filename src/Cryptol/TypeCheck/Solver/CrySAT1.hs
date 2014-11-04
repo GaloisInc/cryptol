@@ -377,8 +377,16 @@ cryKnownFin x isFin prop =
 cryOr :: Prop -> Prop -> Maybe Prop
 cryOr p q =
   case p of
-    PTrue  -> Just PTrue
-    PFalse -> Just q
+    PTrue     -> Just PTrue
+    PFalse    -> Just q
+    p1 :|| p2 -> Just (p1 :|| (p2 :|| q))
+
+    Not (Fin (Var x))
+      | Just q' <- cryKnownFin x True q -> Just (p :|| q')
+
+    Fin (Var x)
+      | Just q' <- cryKnownFin x False q -> Just (p :|| q')
+
     _ -> case q of
            PTrue  -> Just PTrue
            PFalse -> Just p
