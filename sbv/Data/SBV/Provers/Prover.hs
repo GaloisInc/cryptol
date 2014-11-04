@@ -27,12 +27,13 @@ module Data.SBV.Provers.Prover (
        , boolector, cvc4, yices, z3, mathSAT, defaultSMTCfg
        , compileToSMTLib, generateSMTBenchmarks
        , isSBranchFeasibleInState
+       , isConditionSatisfiable
        ) where
 
 import Control.Monad       (when, unless)
 import Control.Monad.Trans (liftIO)
 import Data.List           (intercalate)
-import Data.Maybe          (mapMaybe, fromMaybe)
+import Data.Maybe          (mapMaybe, fromMaybe, isJust)
 import System.FilePath     (addExtension, splitExtension)
 import System.Time         (getClockTime)
 import System.IO.Unsafe    (unsafeInterleaveIO)
@@ -443,17 +444,35 @@ isSBranchFeasibleInState st branch cond = do
        let cfg = let pickedConfig = fromMaybe defaultSMTCfg (getSBranchRunConfig st)
                  in pickedConfig { timeOut = sBranchTimeOut pickedConfig }
            msg = when (verbose cfg) . putStrLn . ("** " ++)
-       sw <- sbvToSW st cond
-       () <- forceSWArg sw
-       Result ki tr uic is cs ts as uis ax asgn cstr _ <- liftIO $ extractSymbolicSimulationState st
-       let -- Construct the corresponding sat-checker for the branch. Note that we need to
-           -- forget about the quantifiers and just use an "exist", as we're looking for a
-           -- point-satisfiability check here; whatever the original program was.
-           pgm = Result ki tr uic [(EX, n) | (_, n) <- is] cs ts as uis ax asgn cstr [sw]
-           cvt = if useSMTLib2 cfg then toSMTLib2 else toSMTLib1
-       check <- runProofOn cvt cfg True [] pgm >>= callSolver True ("sBranch: Checking " ++ show branch ++ " feasibility") SatResult cfg
+       check <- internalSATCheck cfg st cond ("sBranch: Checking " ++ show branch ++ " feasibility")
        res <- case check of
                 SatResult (Unsatisfiable _) -> return False
                 _                           -> return True   -- No risks, even if it timed-our or anything else, we say it's feasible
        msg $ "sBranch: Conclusion: " ++ if res then "Feasible" else "Unfeasible"
        return res
+
+-- | Check if a boolean condition is satisfiable in the current state. If so, it returns such a satisfying assignment
+isConditionSatisfiable :: State -> SBool -> IO (Maybe SMTModel)
+isConditionSatisfiable st cond = do
+       let cfg  = fromMaybe defaultSMTCfg (getSBranchRunConfig st)
+           msg  = when (verbose cfg) . putStrLn . ("** " ++)
+       check <- internalSATCheck cfg st cond "sAssert: Checking satisfiability"
+       res <- case check of
+                SatResult (Satisfiable _ m) -> return $ Just m
+                SatResult (Unsatisfiable _) -> return Nothing
+                _                           -> error $ "sAssert: Unexpected external result: " ++ show check
+       msg $ "sAssert: Conclusion: " ++ if isJust res then "Satisfiable" else "Unsatisfiable"
+       return res
+
+-- | Check the boolean SAT of an internal condition in the current execution state
+internalSATCheck :: SMTConfig -> State -> SBool -> String -> IO SatResult
+internalSATCheck cfg st cond msg = do
+   sw <- sbvToSW st cond
+   () <- forceSWArg sw
+   Result ki tr uic is cs ts as uis ax asgn cstr _ <- liftIO $ extractSymbolicSimulationState st
+   let -- Construct the corresponding sat-checker for the branch. Note that we need to
+       -- forget about the quantifiers and just use an "exist", as we're looking for a
+       -- point-satisfiability check here; whatever the original program was.
+       pgm = Result ki tr uic [(EX, n) | (_, n) <- is] cs ts as uis ax asgn cstr [sw]
+       cvt = if useSMTLib2 cfg then toSMTLib2 else toSMTLib1
+   runProofOn cvt cfg True [] pgm >>= callSolver True msg SatResult cfg

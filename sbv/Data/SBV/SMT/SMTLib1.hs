@@ -210,11 +210,14 @@ cvtExp (SBVApp (ArrRead i) [a]) = "(select array_" ++ show i ++ " " ++ show a ++
 cvtExp (SBVApp (Uninterpreted nm) [])   = "uninterpreted_" ++ nm
 cvtExp (SBVApp (Uninterpreted nm) args) = "(uninterpreted_" ++ nm ++ " " ++ unwords (map show args) ++ ")"
 cvtExp inp@(SBVApp op args)
+  | allBools, Just f <- lookup op boolComps
+  = f (map show args)
   | Just f <- lookup op smtOpTable
-  = f (any hasSign args) (all isBoolean args) (map show args)
+  = f (any hasSign args) allBools (map show args)
   | True
   = error $ "SBV.SMT.SMTLib1.cvtExp: impossible happened; can't translate: " ++ show inp
-  where lift2  o _ _ [x, y] = "(" ++ o ++ " " ++ x ++ " " ++ y ++ ")"
+  where allBools = all isBoolean args
+        lift2  o _ _ [x, y] = "(" ++ o ++ " " ++ x ++ " " ++ y ++ ")"
         lift2  o _ _ sbvs   = error $ "SBV.SMTLib1.cvtExp.lift2: Unexpected arguments: "   ++ show (o, sbvs)
         lift2S oU oS sgn isB sbvs
           | sgn
@@ -240,6 +243,18 @@ cvtExp inp@(SBVApp op args)
           | True
           = "(= " ++ lift2 "bvcomp" sgn isB sbvs ++ " bv1[1])"
         neq sgn isB sbvs = "(not " ++ eq sgn isB sbvs ++ ")"
+        -- Boolean comparisons.. SMTLib's bool type doesn't do comparisons, but Haskell does.. Sigh
+        boolComps      = [ (LessThan,      blt)
+                         , (GreaterThan,   blt . swp)
+                         , (LessEq,        blq)
+                         , (GreaterEq,     blq . swp)
+                         ]
+                       where blt [x, y] = "(and (not " ++ x ++ ") " ++ y ++ ")"
+                             blt xs     = error $ "SBV.SMT.SMTLib1.boolComps.blt: Impossible happened, incorrect arity (expected 2): " ++ show xs
+                             blq [x, y] = "(or (not " ++ x ++ ") " ++ y ++ ")"
+                             blq xs     = error $ "SBV.SMT.SMTLib1.boolComps.blq: Impossible happened, incorrect arity (expected 2): " ++ show xs
+                             swp [x, y] = [y, x]
+                             swp xs     = error $ "SBV.SMT.SMTLib1.boolComps.swp: Impossible happened, incorrect arity (expected 2): " ++ show xs
         smtOpTable = [ (Plus,          lift2   "bvadd")
                      , (Minus,         lift2   "bvsub")
                      , (Times,         lift2   "bvmul")

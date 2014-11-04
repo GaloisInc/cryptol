@@ -79,7 +79,7 @@ extractMap inps _modelMap solverLines =
         -- Boolector outputs in a non-parenthesized way; and also puts x's for don't care bits:
         cvt :: String -> String
         cvt s = case words s of
-                  [var, val] -> "((" ++ var ++ " #b" ++ map tr val ++ "))"
-                  _          -> s -- good-luck..
+                  [_, val, var] -> "((" ++ var ++ " #b" ++ map tr val ++ "))"
+                  _             -> s -- good-luck..
           where tr 'x' = '0'
                 tr x   = x

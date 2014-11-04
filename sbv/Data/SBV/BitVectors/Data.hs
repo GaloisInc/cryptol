@@ -1372,7 +1372,7 @@ data SMTConfig = SMTConfig {
        , timing         :: Bool             -- ^ Print timing information on how long different phases took (construction, solving, etc.)
        , sBranchTimeOut :: Maybe Int        -- ^ How much time to give to the solver for each call of 'sBranch' check. (In seconds. Default: No limit.)
        , timeOut        :: Maybe Int        -- ^ How much time to give to the solver. (In seconds. Default: No limit.)
-       , printBase      :: Int              -- ^ Print integral literals in this base (2, 8, and 10, and 16 are supported.)
+       , printBase      :: Int              -- ^ Print integral literals in this base (2, 8, 10, and 16 are supported.)
        , printRealPrec  :: Int              -- ^ Print algebraic real values with this precision. (SReal, default: 16)
        , solverTweaks   :: [String]         -- ^ Additional lines of script to give to the solver (user specified)
        , satCmd         :: String           -- ^ Usually "(check-sat)". However, users might tweak it based on solver characteristics.
