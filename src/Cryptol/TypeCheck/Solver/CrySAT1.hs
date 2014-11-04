@@ -184,10 +184,11 @@ crySimpStep prop =
         _ -> bin (:==:) x y
 
     x :>: y ->
-      case x of
-        K (Nat 0)   -> Just PFalse
-        K (Nat 1)   -> cryIs0 True y
-        _           -> bin (:>:) x y
+      case (x,y) of
+        (K (Nat 0),_)   -> Just PFalse
+        (K (Nat 1),_)   -> cryIs0 True y
+        (_, K (Nat 0))  -> cryGt0 True x
+        _               -> bin (:>:) x y
 
     p :&& q ->
       case cryAnd p q of
@@ -482,6 +483,10 @@ cryIsGt :: Expr -> Expr -> Prop
 cryIsGt (K m) (K n)   = if m > n then PTrue else PFalse
 cryIsGt (K (Nat 0)) _ = PFalse
 cryIsGt (K (Nat 1)) e = e :== one
+cryIsGt e (K (Nat 0)) = case cryGt0 False e of
+                          Just e' -> e'
+                          Nothing -> panic "cryIsGt"
+                                           ["`cryGt0 False` return `Nothing`"]
 cryIsGt x y           =
   case crySimpExpr x of
     Just x' -> x' :> y
@@ -559,6 +564,33 @@ cryIs0 useFinite expr =
   eq x y = if useFinite then x :==: y else x :== y
   gt x y = if useFinite then x :>: y  else x :>  y
 
+
+-- | Simplify @t :> 0@ or @t :>: 0@.
+cryGt0 :: Bool -> Expr -> Maybe Prop
+cryGt0 useFinite expr =
+  case expr of
+    K x                 -> Just (if x > Nat 0 then PTrue else PFalse)
+    Var _ | useFinite   -> Nothing
+          | otherwise   -> Just (Not (Fin expr) :||
+                                 Fin expr :&& cryNatOp (:>:) expr zero)
+    x :+ y              -> Just (gt x zero :|| gt y zero)
+    x :- y              -> Just (gt x y)
+    x :* y              -> Just (gt x zero :&& gt y zero)
+    Div x y             -> Just (gt x y)
+    Mod _ _ | useFinite -> (:>: zero) `fmap` crySimpExpr expr
+            | otherwise -> Just (cryNatOp (:>:) expr zero)
+            -- or: Just (Not (y `Divides` x))
+    x :^^ y             -> Just (eq x zero :&& gt y zero)
+    Min x y             -> Just (gt x zero :&& gt y zero)
+    Max x y             -> Just (gt x zero :|| gt y zero)
+    Lg2 x               -> Just (gt x one)
+    Width x             -> Just (gt x zero)
+    LenFromThen _ _ _   -> Just PTrue
+    LenFromThenTo x y z -> Just (gt x y :&& gt z x :|| gt y x :&& gt x z)
+
+  where
+  eq x y = if useFinite then x :==: y else x :== y
+  gt x y = if useFinite then x :>: y  else x :>  y
 
 
 --------------------------------------------------------------------------------
