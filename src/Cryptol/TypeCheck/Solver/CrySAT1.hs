@@ -448,7 +448,7 @@ cryDefined expr =
     Width x   -> cryDefined x
     LenFromThen x y w ->
       cryDefined x :&& cryDefined y :&& cryDefined w :&&
-      Fin x :&& Fin y :&& Fin w :&& Not (x :== y)
+      Fin x :&& Fin y :&& Fin w :&& Not (x :== y) :&& w :>= Width x
     LenFromThenTo x y z ->
       cryDefined x :&& cryDefined y :&& cryDefined z :&&
       Fin x :&& Fin y :&& Fin z :&& Not (x :== y)
