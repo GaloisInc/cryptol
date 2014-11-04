@@ -807,11 +807,16 @@ cryNoInf expr =
 
     Mod x y ->
       do x' <- cryNoInf x
-         y' <- cryNoInf y
-         case (x',y') of
-           (K Inf, _) -> Impossible
-           (_, K Inf) -> return x'
-           _          -> mkIf (y' :>: zero) (return (Mod x' y')) Impossible
+         -- `Mod x y` is finite, even if `y` is `inf`, so first check
+         -- for finiteness.
+         mkIf (Fin y)
+              (do y' <- cryNoInf y
+                  case (x',y') of
+                    (K Inf, _) -> Impossible
+                    (_, K Inf) -> Impossible
+                    _ -> mkIf (y' :>: zero) (return (Mod x' y')) Impossible
+              )
+              (return x')
 
     Min x y ->
       do x' <- cryNoInf x
