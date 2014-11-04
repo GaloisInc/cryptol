@@ -130,15 +130,20 @@ nWidth (Nat n)  = case genLog n 2 of
                                  [ "genLog returned Nothing" ]
 
 
--- | length ([ x, y .. ] :: [_][w])
+{- | @length ([ x, y .. ] : [_][w])@
+We don't check that the second element fits in `w` many bits as the 
+second element may not be part of the list.
+For example, the length of @[ 0 .. ] : [_][0]@ is @nLenFromThen 0 1 0@,
+which should evaluate to 1. -}
 nLenFromThen :: Nat' -> Nat' -> Nat' -> Maybe Nat'
-nLenFromThen a@(Nat x) b@(Nat y) (Nat w)
-  | y > x = nLenFromThenTo a b (Nat (2^w - 1))
-  | y < x = nLenFromThenTo a b (Nat 0)
+nLenFromThen a@(Nat x) b@(Nat y) wi@(Nat w)
+  | wi < nWidth a = Nothing
+  | y > x         = nLenFromThenTo a b (Nat (2^w - 1))
+  | y < x         = nLenFromThenTo a b (Nat 0)
 
 nLenFromThen _ _ _ = Nothing
 
--- | length [ x, y .. z ]
+-- | @length [ x, y .. z ]@
 nLenFromThenTo :: Nat' -> Nat' -> Nat' -> Maybe Nat'
 nLenFromThenTo (Nat x) (Nat y) (Nat z)
   | step /= 0 = let len = div dist step + 1
