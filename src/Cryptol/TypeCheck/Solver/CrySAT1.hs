@@ -1,14 +1,14 @@
 {-# LANGUAGE Safe #-}
 
 {- TODO:
-  * Implement propagating things like `x = 5`.
+  * Implement propagating things like `x = 5` (also `Not (Fin x)`, should substituie `inf` for `x).
   * Desugar more functions (e.g., min,max in terms of ite)
   * Name non-linear terms.
 -}
 
 module Cryptol.TypeCheck.Solver.CrySAT1
   ( Prop(..), Expr(..), IfExpr(..)
-  , crySimplify
+  , crySimplify, crySimplified
   , cryDefined
   , ppProp, ppPropPrec, ppExpr, ppExprPrec, ppIfExpr
   ) where
@@ -29,11 +29,11 @@ test :: IO ()
 test =
   do mapM_ (\p -> print (ppProp p) >> putStrLn (replicate 80 '-'))
       $ crySimpSteps
-      $ a :== a :+ one
+      $ a :== zero
   where
   a : b : c : d : _ = map (Var . Name) [ 0 .. ]
 
-  _rest =  Min a (a :+ one) 
+  _rest =Min a (a :+ one) 
          : Div a b
          : Mod a (b :* inf)
          : Min (a :* b) (inf :* (inf :* (c :+ d)))
@@ -151,8 +151,67 @@ cryExprFVS expr =
 
 
 -- | Simplify a property, if possible.
+-- Simplification should ensure at least the properties captrured by
+-- 'crySimplified' (as long as things are 'cryDefined').
+--
+--  crySimplified (crySimplify x) == True
 crySimplify :: Prop -> Prop
 crySimplify p = last (p : crySimpSteps p)
+
+-- | For sanity checking.
+-- Makes explicit some of the invariants of simplified terms.
+crySimplified :: Prop -> Bool
+crySimplified = go True
+  where
+  go atTop prop =
+    case prop of
+      PTrue                     -> atTop
+      PFalse                    -> atTop
+
+      -- Also, there are propagatoin properties, but a bit hard to write.
+      -- For example:  `Fin x && Not (Fin x)` should simplify to `PFalse`.
+      p :&& q                   -> go False p && go False q
+      p :|| q                   -> go False p && go False q
+
+      Not (Fin (Var _))         -> True
+      Not (x :>: y)             -> go False (x :>: y)
+      Not _                     -> False
+
+      _ :== _                   -> False
+      _ :>  _                   -> False
+      _ :>= _                   -> False
+
+      Fin (Var _)               -> True
+      Fin _                     -> False
+
+      Var _ :>: K (Nat 0)       -> True
+      _     :>: K (Nat 0)       -> False
+      K _   :>: K _             -> False
+      x     :>: y               -> noInf x && noInf y
+
+      Var _     :==: K (Nat 0)  -> True
+      K (Nat 0) :==: _          -> False
+      K _       :==: K _        -> False
+      x         :==: y          -> noInf x && noInf y
+
+  noInf expr =
+    case expr of
+      K x                 -> x /= Inf
+      Var _               -> True
+      x :+ y              -> noInf2 x y
+      x :- y              -> noInf2 x y
+      x :* y              -> noInf2 x y
+      Div x y             -> noInf2 x y
+      Mod x y             -> noInf2 x y
+      x :^^ y             -> noInf2 x y
+      Min x y             -> noInf2 x y
+      Max x y             -> noInf2 x y
+      Lg2 x               -> noInf x
+      Width x             -> noInf x
+      LenFromThen x y w   -> noInf x && noInf y && noInf w
+      LenFromThenTo x y z -> noInf x && noInf y && noInf z
+
+  noInf2 x y = noInf x && noInf y
 
 -- | List the simplification steps for a property.
 crySimpSteps :: Prop -> [Prop]
