@@ -14,14 +14,15 @@ import           Text.PrettyPrint
 
 test :: IO ()
 test =
-  do -- print (ppExpr expr)
-     mapM_ (\p -> print (ppProp p) >> putStrLn (replicate 80 '-'))
+  do mapM_ (\p -> print (ppProp p) >> putStrLn (replicate 80 '-'))
       $ crySimpSteps
-      $ cryDefined $ (a :- b) -- :== K (Nat 5))
+      $ Min (a :* b) (inf :* (inf :* (c :+ d))) :== K (Nat 5)
   where
   a : b : c : d : _ = map (Var . Name) [ 0 .. ]
-  expr = Mod a (b :* inf)
-  _rest =  Div a b
+
+  _rest =  Min a (a :+ one) 
+         : Div a b
+         : Mod a (b :* inf)
          : Min (a :* b) (inf :* (inf :* (c :+ d)))
          : []
 
@@ -148,7 +149,7 @@ crySimpStep prop =
 
     Fin x     -> cryIsFin x   -- Fin only on variables.
 
-    x :== y   -> cryIsEq x y
+    x :== y   -> Just (cryIsEq x y)
     x :>  y   -> Just (cryIsGt x y)
 
     x :>= y   ->
@@ -448,24 +449,28 @@ cryDefined expr =
 
 
 -- | Simplificaiton for ':=='
-cryIsEq :: Expr -> Expr -> Maybe Prop
+cryIsEq :: Expr -> Expr -> Prop
+cryIsEq x y =
+  case (x,y) of
+    (K m, K n)      -> if m == n then PTrue else PFalse
+    (K (Nat 0),_)   -> cryIs0' y
+    (_, K (Nat 0))  -> cryIs0' x
 
-cryIsEq (K m) (K n)   = Just (if m == n then PTrue else PFalse)
+    (K Inf, _)      -> Not (Fin y)
+    (_, K Inf)      -> Not (Fin x)
+    _ -> case crySimpExpr x of
+           Just x' -> x' :== y
+           Nothing ->
+             case crySimpExpr y of
+               Just y' -> x :== y'
+               Nothing ->
+                      Not (Fin x) :&& Not (Fin y)
+                  :|| Fin x :&& Fin y :&& cryNatOp (:==:) x y
 
-cryIsEq (K (Nat 0)) y = cryIs0 False y
-cryIsEq x (K (Nat 0)) = cryIs0 False x
-
-cryIsEq (K Inf) y     = Just (Not (Fin y))
-cryIsEq x (K Inf)     = Just (Not (Fin x))
-cryIsEq x y           = case crySimpExpr x of
-                          Just x' -> Just (x' :== y)
-                          Nothing ->
-                            case crySimpExpr y of
-                              Just y' -> Just (x :== y')
-                              Nothing ->
-                                Just ( Not (Fin x) :&& Not (Fin y)
-                                   :|| Fin x :&& Fin y :&& cryNatOp (:==:) x y
-                                     )
+  where
+  cryIs0' e = case cryIs0 False e of
+                Just e' -> e'
+                Nothing -> error "[BUG] `cryIs0 False` returned `Nothing`."
 
 
 
