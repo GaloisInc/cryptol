@@ -1,11 +1,20 @@
 {-# LANGUAGE Safe #-}
-module Cryptol.TypeCheck.Solver.CrySAT1 where
+
+-- XXX:  Implement propagating things like `x = 5`.
+
+module Cryptol.TypeCheck.Solver.CrySAT1
+  ( Prop(..), Expr(..), IfExpr(..)
+  , crySimplify
+  , cryDefined
+  , ppProp, ppPropPrec, ppExpr, ppExprPrec, ppIfExpr
+  ) where
 
 import           Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import qualified Cryptol.TypeCheck.Solver.InfNat as IN
-import           Control.Monad(liftM, ap)
+import           Cryptol.Utils.Panic(panic)
 
 import qualified Control.Applicative as A
+import           Control.Monad(liftM, ap)
 import           Data.List(unfoldr)
 import           Data.Maybe(fromMaybe)
 import           Data.Set ( Set )
@@ -43,7 +52,11 @@ infixr 8 :^^
 -- | Propopsitions, representing Cryptol's numeric constraints (and a bit more).
 
 data Prop = -- Preidcates on natural numbers with infinity.
+            -- After simplification, the expression should always be a variable.
             Fin Expr
+
+            -- Predicates on terms featuring infinity.
+            -- Eliminated during simplification.
           | Expr :== Expr
           | Expr :>= Expr | Expr :> Expr
 
@@ -318,7 +331,6 @@ instance CryLet Prop where
 
 
 -- | Simplification of ':&&'.
--- XXX: Add propagation of `let x = t` where x is not in `fvs t`.
 cryAnd :: Prop -> Prop -> Maybe Prop
 cryAnd p q =
   case p of
@@ -332,14 +344,30 @@ cryAnd p q =
     Fin (Var x)
       | Just q' <- cryKnownFin x True q -> Just (p :&& q')
 
-    _ | Just (x,e) <- cryIsDefn p
-      , Just q'    <- cryLet x e q -> Just (p :&& q')
-
     _ -> case q of
            PTrue  -> Just p
            PFalse -> Just PFalse
            _      -> Nothing
 
+
+-- | Simplification of ':||'.
+cryOr :: Prop -> Prop -> Maybe Prop
+cryOr p q =
+  case p of
+    PTrue     -> Just PTrue
+    PFalse    -> Just q
+    p1 :|| p2 -> Just (p1 :|| (p2 :|| q))
+
+    Not (Fin (Var x))
+      | Just q' <- cryKnownFin x True q -> Just (p :|| q')
+
+    Fin (Var x)
+      | Just q' <- cryKnownFin x False q -> Just (p :|| q')
+
+    _ -> case q of
+           PTrue  -> Just PTrue
+           PFalse -> Just p
+           _      -> Nothing
 
 
 
@@ -365,25 +393,6 @@ cryKnownFin x isFin prop =
 
 
 
-
--- | Simplification of ':||'.
-cryOr :: Prop -> Prop -> Maybe Prop
-cryOr p q =
-  case p of
-    PTrue     -> Just PTrue
-    PFalse    -> Just q
-    p1 :|| p2 -> Just (p1 :|| (p2 :|| q))
-
-    Not (Fin (Var x))
-      | Just q' <- cryKnownFin x True q -> Just (p :|| q')
-
-    Fin (Var x)
-      | Just q' <- cryKnownFin x False q -> Just (p :|| q')
-
-    _ -> case q of
-           PTrue  -> Just PTrue
-           PFalse -> Just p
-           _      -> Nothing
 
 
 -- | Negation.
@@ -462,7 +471,8 @@ cryIsEq x y =
   where
   cryIs0' e = case cryIs0 False e of
                 Just e' -> e'
-                Nothing -> error "[BUG] `cryIs0 False` returned `Nothing`."
+                Nothing -> panic "cryIsEq"
+                                 ["`cryIs0 False` returned `Nothing`."]
 
 
 -- | Simplificatoin for @:>@
