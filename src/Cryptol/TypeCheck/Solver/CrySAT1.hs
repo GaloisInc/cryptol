@@ -343,14 +343,6 @@ cryAnd p q =
 
 
 
-{-
-cryLets
-  where
-  go changes done (p : ps) =
-    case cryIsDefn p of
-      Just (a,e) -> go (p : map (cryLetExpr a e) done) (map (cryLetExpr a e) ps)
-      Nothing 
--}
 
 cryKnownFin :: Name -> Bool -> Prop -> Maybe Prop
 cryKnownFin x isFin prop =
@@ -448,7 +440,7 @@ cryDefined expr =
       Fin x :&& Fin y :&& Fin z :&& Not (x :== y)
 
 
--- | Simplificaiton for ':=='
+-- | Simplificaiton for @:==@
 cryIsEq :: Expr -> Expr -> Prop
 cryIsEq x y =
   case (x,y) of
@@ -473,7 +465,7 @@ cryIsEq x y =
                 Nothing -> error "[BUG] `cryIs0 False` returned `Nothing`."
 
 
-
+-- | Simplificatoin for @:>@
 cryIsGt :: Expr -> Expr -> Prop
 cryIsGt (K m) (K n)   = if m > n then PTrue else PFalse
 cryIsGt (K (Nat 0)) _ = PFalse
@@ -486,28 +478,6 @@ cryIsGt x y           =
                  Nothing -> Fin y :&& (x :== inf :||
                                        Fin x :&& cryNatOp (:>:) x y)
 
-
--- | Make an expression that should work ONLY on natural nubers.
--- Eliminates occurances of @inf@.
--- Assumes that the two input expressions are well-formed and finite.
--- The expression is constructed by the given function.
-cryNatOp :: (Expr -> Expr -> Prop) -> Expr -> Expr -> Prop
-cryNatOp op x y =
-  toProp $
-  do x' <- noInf x
-     y' <- noInf y
-     return (op x' y')
-  where
-  noInf a = do a' <- cryNoInf a
-               case a' of
-                 K Inf -> Impossible
-                 _     -> return a'
-
-  toProp ite =
-    case ite of
-      Impossible -> PFalse
-      Return p   -> p
-      If p t e   -> p :&& toProp t :|| Not p :&& toProp e
 
 
 
@@ -711,6 +681,30 @@ crySimpExpr expr =
 --------------------------------------------------------------------------------
 -- Eliminating the @inf@ constant form finite terms.
 --------------------------------------------------------------------------------
+
+
+-- | Make an expression that should work ONLY on natural nubers.
+-- Eliminates occurances of @inf@.
+-- Assumes that the two input expressions are well-formed and finite.
+-- The expression is constructed by the given function.
+cryNatOp :: (Expr -> Expr -> Prop) -> Expr -> Expr -> Prop
+cryNatOp op x y =
+  toProp $
+  do x' <- noInf x
+     y' <- noInf y
+     return (op x' y')
+  where
+  noInf a = do a' <- cryNoInf a
+               case a' of
+                 K Inf -> Impossible
+                 _     -> return a'
+
+  toProp ite =
+    case ite of
+      Impossible -> PFalse
+      Return p   -> p
+      If p t e   -> p :&& toProp t :|| Not p :&& toProp e
+
 
 
 data IfExpr a = If Prop (IfExpr a) (IfExpr a) | Return a | Impossible
