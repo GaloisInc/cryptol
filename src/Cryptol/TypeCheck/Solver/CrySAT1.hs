@@ -377,24 +377,21 @@ cryOr p q =
 
 -- | Propagate the fact that the variable is known to be finite ('True')
 -- or not-finite ('False').
+-- XXX: When @isFin == False@, we can substiltute @inf@ for @x@.
 cryKnownFin :: Name -> Bool -> Prop -> Maybe Prop
 cryKnownFin x isFin prop =
   case prop of
     Fin (Var x') | x == x' -> Just (if isFin then PTrue else PFalse)
 
-    p :&& q -> case (cryKnownFin x isFin p, cryKnownFin x isFin q) of
-                 (Nothing, Nothing) -> Nothing
-                 (mbP, mbQ) -> Just (fromMaybe p mbP :&& fromMaybe q mbQ)
+    p :&& q -> do [p',q'] <- anyJust (cryKnownFin x isFin) [p,q]
+                  return (p' :&& q')
 
-    p :|| q -> case (cryKnownFin x isFin p, cryKnownFin x isFin q) of
-                 (Nothing, Nothing) -> Nothing
-                 (mbP, mbQ) -> Just (fromMaybe p mbP :|| fromMaybe q mbQ)
+    p :|| q -> do [p',q'] <- anyJust (cryKnownFin x isFin) [p,q]
+                  return (p' :|| q')
 
-    Not p   -> case cryKnownFin x isFin p of
-                 Nothing -> Nothing
-                 Just p' -> Just (Not p')
+    Not p   -> Not `fmap` cryKnownFin x isFin p
 
-    _ -> Nothing
+    _       -> Nothing
 
 
 
