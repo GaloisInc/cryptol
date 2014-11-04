@@ -371,7 +371,8 @@ cryOr p q =
 
 
 
-
+-- | Propagate the fact that the variable is known to be finite ('True')
+-- or not-finite ('False').
 cryKnownFin :: Name -> Bool -> Prop -> Maybe Prop
 cryKnownFin x isFin prop =
   case prop of
