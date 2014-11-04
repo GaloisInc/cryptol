@@ -1,6 +1,10 @@
 {-# LANGUAGE Safe #-}
 
--- XXX:  Implement propagating things like `x = 5`.
+{- TODO:
+  * Implement propagating things like `x = 5`.
+  * Desugar more functions (e.g., min,max in terms of ite)
+  * Name non-linear terms.
+-}
 
 module Cryptol.TypeCheck.Solver.CrySAT1
   ( Prop(..), Expr(..), IfExpr(..)
@@ -25,7 +29,7 @@ test :: IO ()
 test =
   do mapM_ (\p -> print (ppProp p) >> putStrLn (replicate 80 '-'))
       $ crySimpSteps
-      $ Min (a :* b) (inf :* (inf :* (c :+ d))) :== K (Nat 5)
+      $ a :== a :+ one
   where
   a : b : c : d : _ = map (Var . Name) [ 0 .. ]
 
@@ -648,11 +652,7 @@ crySimpExpr expr =
         K a               -> Just (K (IN.nLg2 a))
         _                 -> Lg2 `fmap` crySimpExpr x
 
-
-    Width x ->
-      case x of
-        K a               -> Just (K (IN.nWidth a))
-        _                 -> Width `fmap` crySimpExpr x
+    Width x               -> Just (Lg2 (x :+ one))
 
     LenFromThen x y w ->
       case (x,y,w) of
@@ -712,7 +712,7 @@ cryNatOp op x y =
 
   toProp ite =
     case ite of
-      Impossible -> PFalse
+      Impossible -> PFalse -- It doesn't matter, but @false@ might anihilate.
       Return p   -> p
       If p t e   -> p :&& toProp t :|| Not p :&& toProp e
 
