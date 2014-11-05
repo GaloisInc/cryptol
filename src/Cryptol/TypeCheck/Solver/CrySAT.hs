@@ -253,17 +253,21 @@ crySimpStep prop =
         _ -> case bin (:==:) x y of
                Just p' -> Just p'
                -- Try to put variables on the RHS.
-               Nothing -> case (x,y) of
-                            (Var _, _) -> Nothing
-                            (_, Var _) -> Just (y :==: x)
-                            _          -> Nothing
+               Nothing | x == y -> Just PTrue
+                       | otherwise -> case (x,y) of
+                                        (Var _, _) -> Nothing
+                                        (_, Var _) -> Just (y :==: x)
+                                        _          -> Nothing
 
     x :>: y ->
       case (x,y) of
         (K (Nat 0),_)   -> Just PFalse
         (K (Nat 1),_)   -> cryIs0 True y
         (_, K (Nat 0))  -> cryGt0 True x
-        _               -> bin (:>:) x y
+        _               -> case bin (:>:) x y of
+                             Just p' -> Just p'
+                             Nothing | x == y    -> Just PFalse
+                                     | otherwise -> Nothing
 
     p :&& q ->
       case cryRearrangeAnd prop of
