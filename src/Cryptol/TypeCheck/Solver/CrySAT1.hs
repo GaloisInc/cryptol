@@ -1,7 +1,7 @@
 {-# LANGUAGE Safe #-}
 
 {- TODO:
-  * Implement propagating things like `x = 5` (also `Not (Fin x)`, should substituie `inf` for `x).
+  * Implement propagating things like `x = 5`
   * Desugar more functions (e.g., min,max in terms of ite)
   * Name non-linear terms.
 -}
@@ -29,12 +29,11 @@ test :: IO ()
 test =
   do mapM_ (\p -> print (ppProp p) >> putStrLn (replicate 80 '-'))
       $ crySimpSteps
-      $ a :== zero
+      $ Min a (a :+ one) :== a
   where
   a : b : c : d : _ = map (Var . Name) [ 0 .. ]
 
-  _rest =Min a (a :+ one) 
-         : Div a b
+  _rest = Div a b
          : Mod a (b :* inf)
          : Min (a :* b) (inf :* (inf :* (c :+ d)))
          : []
@@ -422,6 +421,8 @@ cryOr p q =
     PFalse    -> Just q
     p1 :|| p2 -> Just (p1 :|| (p2 :|| q))
 
+    -- XXX: This eliminates `fin` constraints in `q`.  Is that OK?
+
     Not (Fin (Var x))
       | Just q' <- cryKnownFin x True q -> Just (p :|| q')
 
@@ -437,20 +438,28 @@ cryOr p q =
 
 -- | Propagate the fact that the variable is known to be finite ('True')
 -- or not-finite ('False').
--- XXX: When @isFin == False@, we can substiltute @inf@ for @x@.
 cryKnownFin :: Name -> Bool -> Prop -> Maybe Prop
-cryKnownFin x isFin prop =
+cryKnownFin a isFin prop =
   case prop of
-    Fin (Var x') | x == x' -> Just (if isFin then PTrue else PFalse)
+    Fin (Var a') | a == a' -> Just (if isFin then PTrue else PFalse)
 
-    p :&& q -> do [p',q'] <- anyJust (cryKnownFin x isFin) [p,q]
+    p :&& q -> do [p',q'] <- anyJust (cryKnownFin a isFin) [p,q]
                   return (p' :&& q')
 
-    p :|| q -> do [p',q'] <- anyJust (cryKnownFin x isFin) [p,q]
+    p :|| q -> do [p',q'] <- anyJust (cryKnownFin a isFin) [p,q]
                   return (p' :|| q')
 
-    Not p   -> Not `fmap` cryKnownFin x isFin p
+    Not p   -> Not `fmap` cryKnownFin a isFin p
 
+    x :==: y
+      | not isFin, Just [x',y'] <- anyJust (cryLet a inf) [x,y]
+      -> Just (cryNatOp (:==:) x' y')
+
+    x :>: y
+      | not isFin, Just [x',y'] <- anyJust (cryLet a inf) [x,y]
+      -> Just (cryNatOp (:>:) x' y')
+
+    -- All the other cases should be simplified, eventually.
     _       -> Nothing
 
 
