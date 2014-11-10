@@ -468,9 +468,7 @@ tfWidth _ ty
   , TCon (TF TCExp) [ TCon (TC (TCNum 2)) _, t2 ] <- t1 = Just t2
 
 tfWidth _ t
-  | Just (Nat 0)   <- arg = return $ tNum (0 :: Int)
-  | Just (Nat x)   <- arg = do (n,_) <- genLog x 2
-                               return $ tNum $ n + 1
+  | Just (Nat x)   <- arg = return $ tNum (widthInteger x)
   | Just Inf <- arg       = Just tInf
   | otherwise             = Nothing
 
