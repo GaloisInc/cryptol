@@ -1210,10 +1210,17 @@ isNonLinOp expr =
                               -- sure how to do that...
 
 
-nonLin :: Expr -> NonLinM Expr
-nonLin expr
+-- | Factor-out non-linear terms, by naming them
+nonLin :: Expr -> ([(Name,Expr)], Expr)
+nonLin expr = case runId $ runStateT s0 $ nonLinM expr of
+                (e, sFin) -> (nonLinExprs sFin, e)
+  where
+  s0 = NonLinS { nextName = 0, nonLinExprs = [] }
+
+nonLinM :: Expr -> NonLinM Expr
+nonLinM expr
   | isNonLinOp expr = nameExpr expr
-  | otherwise       = cryRebuildExpr expr `fmap` mapM nonLin (cryExprExprs expr)
+  | otherwise = cryRebuildExpr expr `fmap` mapM nonLinM (cryExprExprs expr)
 
 
 
