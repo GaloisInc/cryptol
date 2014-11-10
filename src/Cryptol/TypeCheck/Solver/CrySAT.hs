@@ -20,10 +20,10 @@ import qualified Cryptol.TypeCheck.Solver.InfNat as IN
 import           Cryptol.Utils.Panic(panic)
 
 import qualified Control.Applicative as A
-import           Control.Monad(liftM, ap)
 import           Data.List(unfoldr, sortBy, intersperse)
 import           Data.Set ( Set )
 import qualified Data.Set as Set
+
 import           Text.PrettyPrint
 import           MonadLib
 
@@ -1202,7 +1202,7 @@ isNonLinOp expr =
 
     LenFromThen _ _ _ -> False -- See also comment on `LenFromThenTo`
 
-    LenFromThenTo x y z ->
+    LenFromThenTo x y _ ->
       case (x,y) of
         (K _, K _) -> False
         _          -> True    -- Actually, as long as the difference bettwen
@@ -1233,6 +1233,119 @@ nameExpr e = sets $ \s -> let x  = nextName s
                           in s1 `seq` (Var n, s1)
 
 
+--------------------------------------------------------------------------------
+-- Desugar into SMTLIB Terminology
+--------------------------------------------------------------------------------
+
+-- XXX: Expanding the if-then-elses could make things large.
+-- Perhaps keep them as first class things, in hope that the solver
+-- can do something more clever with that?
+
+
+-- | Assumes simplified, linear, finite, defined expressions.
+desugarExpr :: Expr -> IfExpr Expr
+desugarExpr expr =
+  do es <- mapM desugarExpr (cryExprExprs expr)
+     case (expr,es) of
+       (Min {}, [x,y]) -> If (x :>: y) (return y) (return x)
+       (Max {}, [x,y]) -> If (x :>: y) (return x) (return y)
+       (LenFromThenTo {}, [ x@(K (Nat a)), K (Nat b), z ])
+          | a > b -> If (z :>: x) (return zero)
+                                  (return (Div (z :- x) step :+ one))
+          | b < a -> If (x :>: z) (return zero)
+                                  (return (Div (x :- z) step :+ one))
+
+          where step = K (Nat (abs (a - b)))
+
+       _ -> return (cryRebuildExpr expr es)
+
+
+-- Assumes simplified, linear, defined.
+desugarProp :: Prop -> IfExpr Prop
+desugarProp prop =
+  case prop of
+    PFalse      -> return PFalse
+    PTrue       -> return PTrue
+    Not p       -> Not   `fmap` desugarProp p
+    p :&& q     -> (:&&) `fmap` desugarProp p `ap` desugarProp q
+    p :|| q     -> (:||) `fmap` desugarProp p `ap` desugarProp q
+    Fin (Var _) -> return prop
+    Fin _       -> unexpected
+    x :==: y    -> (:==:) `fmap` desugarExpr x `ap` desugarExpr y
+    x :>: y     -> (:>:)  `fmap` desugarExpr x `ap` desugarExpr y
+
+    _ :== _   -> unexpected
+    _ :>= _   -> unexpected
+    _ :> _    -> unexpected
+
+  where
+  unexpected = panic "desugarProp" [ show (ppProp prop) ]
+
+
+ifPropToSmtLib :: IfExpr Prop -> Doc
+ifPropToSmtLib ifProp =
+  case ifProp of
+    Impossible -> smtFun "false" []     -- Sholdn't really matter
+    Return p   -> propToSmtLib p
+    If p q r   -> smtFun "ite" [ propToSmtLib p
+                               , ifPropToSmtLib q, ifPropToSmtLib r ]
+
+propToSmtLib :: Prop -> Doc
+propToSmtLib prop =
+  case prop of
+    PFalse      -> smtFun "false" []
+    PTrue       -> smtFun "true" []
+    Not p       -> smtFun "not" [ propToSmtLib p ]
+    p :&& q     -> smtFun "and" [ propToSmtLib p, propToSmtLib q ]
+    p :|| q     -> smtFun "or"  [ propToSmtLib p, propToSmtLib q ]
+    Fin (Var x) -> smtFun ("fin_" ++ show (ppName x)) []
+    x :==: y    -> smtFun "="  [ exprToSmtLib x, exprToSmtLib y ]
+    x :>: y     -> smtFun ">"  [ exprToSmtLib x, exprToSmtLib y ]
+
+    Fin _       -> unexpected
+    _ :== _     -> unexpected
+    _ :>= _     -> unexpected
+    _ :> _      -> unexpected
+
+  where
+  unexpected = panic "desugarProp" [ show (ppProp prop) ]
+
+
+
+ifExprToSmtLib :: IfExpr Expr -> Doc
+ifExprToSmtLib ifExpr =
+  case ifExpr of
+    Impossible  -> integer 0xDEADBEEF -- Shouldn't really matter
+    Return e    -> exprToSmtLib e
+    If p x y    -> smtFun "ite" [ propToSmtLib p
+                                , ifExprToSmtLib x, ifExprToSmtLib y ]
+
+exprToSmtLib :: Expr -> Doc
+exprToSmtLib expr =
+
+  case expr of
+    K (Nat n)           -> integer n
+    K Inf               -> unexpected
+    Var a               -> ppName a
+    x :+ y              -> fun "+" [x,y]
+    x :- y              -> fun "-" [x,y]
+    x :* y              -> fun "*" [x,y]
+    Div x y             -> fun "div" [x,y]
+    Mod x y             -> fun "mod" [x,y]
+    _ :^^ _             -> unexpected
+    Min {}              -> unexpected
+    Max {}              -> unexpected
+    Lg2 {}              -> unexpected
+    Width {}            -> unexpected
+    LenFromThen {}      -> unexpected
+    LenFromThenTo {}    -> unexpected
+
+  where
+  fun x xs   = smtFun x (map exprToSmtLib xs)
+  unexpected = panic "exprToSmtLib" [ show (ppExpr expr) ]
+
+smtFun :: String -> [Doc] -> Doc
+smtFun f xs = parens $ sep (text f : xs)
 
 
 --------------------------------------------------------------------------------
