@@ -1,7 +1,7 @@
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE PatternGuards #-}
 
 {- TODO:
-  * Implement propagating things like `x = 5`
   * Desugar more functions (e.g., min,max in terms of ite)
   * Name non-linear terms.
 -}
@@ -9,9 +9,9 @@
 module Cryptol.TypeCheck.Solver.CrySAT
   ( Name, toName, fromName
   , Prop(..), Expr(..), IfExpr(..)
-  , cryAnds
+  , cryAnds, cryOrs
   , crySimplify, crySimplified
-  , cryDefined
+  , cryDefined, cryDefinedProp
   , ppProp, ppPropPrec, ppExpr, ppExprPrec, ppIfExpr, ppName
   ) where
 
@@ -25,6 +25,7 @@ import           Data.List(unfoldr, sortBy, intersperse)
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Text.PrettyPrint
+import           MonadLib
 
 test :: IO ()
 test =
@@ -150,6 +151,30 @@ cryExprExprs expr =
     Width x             -> [x]
     LenFromThen   x y z -> [x,y,z]
     LenFromThenTo x y z -> [x,y,z]
+
+cryRebuildExpr :: Expr -> [Expr] -> Expr
+cryRebuildExpr expr args =
+  case (expr,args) of
+    (K _,   [])                     -> expr
+    (Var _, [])                     -> expr
+    (_ :+ _k, [x,y])                -> x :+ y
+    (_ :- _ , [x,y])                -> x :- y
+    (_ :* _ , [x,y])                -> x :* y
+    (Div _ _, [x,y])                -> Div x y
+    (Mod _ _, [x,y])                -> Mod x y
+    (_ :^^ _, [x,y])                -> x :^^ y
+    (Min _ _, [x,y])                -> Min x y
+    (Max _ _, [x,y])                -> Max x y
+    (Lg2 _  , [x])                  -> Lg2 x
+    (Width _, [x])                  -> Width x
+    (LenFromThen   _ _ _ , [x,y,z]) -> LenFromThen x y z
+    (LenFromThenTo _ _ _ , [x,y,z]) -> LenFromThenTo x y z
+    _ -> panic "cryRebuildExpr" $ map show
+           $ text "expr:" <+> ppExpr expr
+           : [ text "arg:" <+> ppExpr a | a <- args ]
+
+
+
 
 cryExprFVS :: Expr -> Set Name
 cryExprFVS expr =
@@ -646,6 +671,17 @@ cryNot prop =
 
 
 
+-- | A condition ensure that the given *basic* proposition makes sense.
+cryDefinedProp :: Prop -> Prop
+cryDefinedProp prop =
+  case prop of
+    Fin x   -> cryDefined x
+    x :== y -> cryDefined x :&& cryDefined y
+    x :>= y -> cryDefined x :&& cryDefined y
+    _ -> panic "cryDefinedProp" [ "Not a simple property:"
+                                , show (ppProp prop)
+                                ]
+
 
 -- | Generate a property ensuring that the expression is well-defined.
 -- This might be a bit too strict.  For example, we reject things like
@@ -1122,6 +1158,79 @@ cryNoInf expr =
                  PFalse -> e
                  p'     -> If p' t e
 
+
+
+--------------------------------------------------------------------------------
+-- Separate Non-Linear Constraints
+--------------------------------------------------------------------------------
+
+isNonLinOp :: Expr -> Bool
+isNonLinOp expr =
+  case expr of
+    K _   -> False
+    Var _ -> False
+
+    _ :+ _ -> False
+
+    _ :- _ -> False
+
+    x :* y ->
+      case (x,y) of
+        (K _, _)  -> False
+        (_, K _)  -> False
+        _         -> True
+
+    Div _ y ->
+      case y of
+        K _       -> False
+        _         -> True
+
+    Mod _ y ->
+      case y of
+        K _       -> False
+        _         -> True
+
+    _ :^^ _       -> True
+
+    Min _ _       -> False
+
+    Max _ _       -> False
+
+    Lg2 _         -> True
+
+    Width _       -> True
+
+    LenFromThen _ _ _ -> False -- See also comment on `LenFromThenTo`
+
+    LenFromThenTo x y z ->
+      case (x,y) of
+        (K _, K _) -> False
+        _          -> True    -- Actually, as long as the difference bettwen
+                              -- `x` and `y` is constant we'd be OK, but not
+                              -- sure how to do that...
+
+
+nonLin :: Expr -> NonLinM Expr
+nonLin expr
+  | isNonLinOp expr = nameExpr expr
+  | otherwise       = cryRebuildExpr expr `fmap` mapM nonLin (cryExprExprs expr)
+
+
+
+type NonLinM = StateT NonLinS Id
+
+data NonLinS = NonLinS
+  { nextName    :: !Int
+  , nonLinExprs :: [(Name,Expr)]
+  }
+
+nameExpr :: Expr -> NonLinM Expr
+nameExpr e = sets $ \s -> let x  = nextName s
+                              n  = SysName x
+                              s1 = NonLinS { nextName = 1 + x
+                                           , nonLinExprs = (n,e) : nonLinExprs s
+                                           }
+                          in s1 `seq` (Var n, s1)
 
 
 
