@@ -2,14 +2,20 @@
 {-# LANGUAGE PatternGuards #-}
 
 {- TODO:
-  * Desugar more functions (e.g., min,max in terms of ite)
-  * Name non-linear terms.
+  * When naming non-linear terms, use the same name for the same expression.
+  * Call SMT solver
+
+  * Additional simplifications:
+    - Putting in a normal form to spot "prove by assumption"
+    - Additional simplification rules, namely various cancelation.
+    - Things like:  lg2 e(x) = x, where we know thate is increasing.
 -}
 
 module Cryptol.TypeCheck.Solver.CrySAT
   ( Name, toName, fromName
   , Prop(..), Expr(..), IfExpr(..)
   , cryAnds, cryOrs
+  , cryDescribeProblem
   , crySimplify, crySimplified
   , cryDefined, cryDefinedProp
   , ppProp, ppPropPrec, ppExpr, ppExprPrec, ppIfExpr, ppName
@@ -26,6 +32,12 @@ import qualified Data.Set as Set
 
 import           Text.PrettyPrint
 import           MonadLib
+
+test1 :: IO ()
+test1 = print $ cryDescribeProblem
+      $ Min (a :* b) (inf :* (inf :* (c :+ d))) :== a
+  where
+  a : b : c : d : _ = map (Var . toName) [ 0 .. ]
 
 test :: IO ()
 test =
@@ -152,6 +164,8 @@ cryExprExprs expr =
     LenFromThen   x y z -> [x,y,z]
     LenFromThenTo x y z -> [x,y,z]
 
+-- | Rebuild an expression, using the top-level strucutre of the first
+-- expression, but the second list of expressions as sub-expressions.
 cryRebuildExpr :: Expr -> [Expr] -> Expr
 cryRebuildExpr expr args =
   case (expr,args) of
@@ -174,15 +188,34 @@ cryRebuildExpr expr args =
            : [ text "arg:" <+> ppExpr a | a <- args ]
 
 
-
-
+-- | Compute the free variables in an expression.
 cryExprFVS :: Expr -> Set Name
 cryExprFVS expr =
   case expr of
     Var x -> Set.singleton x
     _     -> Set.unions (map cryExprFVS (cryExprExprs expr))
 
+-- | Compute the free variables in a proposition.
+cryPropFVS :: Prop -> Set Name
+cryPropFVS = Set.unions . map cryExprFVS . cryPropExprs
+
 --------------------------------------------------------------------------------
+
+-- | Assumes well-defined.
+cryDescribeProblem :: Prop -> Doc
+cryDescribeProblem prop0 =
+  let prop1 = crySimplify prop0
+      (nonLinExprs, linProp) = nonLinProp prop1
+      as = cryPropFVS linProp
+      smtProp = desugarProp linProp
+  in vcat $ smtDeclareVars as
+          : ifPropToSmtLib smtProp
+          : text "where"
+          : [ ppName x <+> text "=" <+> ppExpr e | (x,e) <- nonLinExprs ]
+
+
+
+
 
 
 -- | Simplify a property, if possible.
@@ -1211,16 +1244,39 @@ isNonLinOp expr =
 
 
 -- | Factor-out non-linear terms, by naming them
-nonLin :: Expr -> ([(Name,Expr)], Expr)
-nonLin expr = case runId $ runStateT s0 $ nonLinM expr of
-                (e, sFin) -> (nonLinExprs sFin, e)
+nonLinProp :: Prop -> ([(Name,Expr)], Prop)
+nonLinProp prop = case runId $ runStateT s0 $ nonLinPropM prop of
+                    (p, sFin) -> (nonLinExprs sFin, p)
   where
   s0 = NonLinS { nextName = 0, nonLinExprs = [] }
 
-nonLinM :: Expr -> NonLinM Expr
-nonLinM expr
+
+nonLinPropM :: Prop -> NonLinM Prop
+nonLinPropM prop =
+  case prop of
+    PFalse      -> return PFalse
+    PTrue       -> return PTrue
+    Not p       -> Not   `fmap` nonLinPropM p
+    p :&& q     -> (:&&) `fmap` nonLinPropM p `ap` nonLinPropM q
+    p :|| q     -> (:||) `fmap` nonLinPropM p `ap` nonLinPropM q
+    Fin (Var _) -> return prop
+    Fin _       -> unexpected
+    x :==: y    -> (:==:) `fmap` nonLinExprM x `ap` nonLinExprM y
+    x :>: y     -> (:>:)  `fmap` nonLinExprM x `ap` nonLinExprM y
+
+    _ :== _   -> unexpected
+    _ :>= _   -> unexpected
+    _ :> _    -> unexpected
+
+  where
+  unexpected = panic "nonLinPropM" [ show (ppProp prop) ]
+
+
+
+nonLinExprM :: Expr -> NonLinM Expr
+nonLinExprM expr
   | isNonLinOp expr = nameExpr expr
-  | otherwise = cryRebuildExpr expr `fmap` mapM nonLinM (cryExprExprs expr)
+  | otherwise = cryRebuildExpr expr `fmap` mapM nonLinExprM (cryExprExprs expr)
 
 
 
@@ -1305,7 +1361,7 @@ propToSmtLib prop =
     Not p       -> smtFun "not" [ propToSmtLib p ]
     p :&& q     -> smtFun "and" [ propToSmtLib p, propToSmtLib q ]
     p :|| q     -> smtFun "or"  [ propToSmtLib p, propToSmtLib q ]
-    Fin (Var x) -> smtFun ("fin_" ++ show (ppName x)) []
+    Fin (Var x) -> smtFun (smtFinName x) []
     x :==: y    -> smtFun "="  [ exprToSmtLib x, exprToSmtLib y ]
     x :>: y     -> smtFun ">"  [ exprToSmtLib x, exprToSmtLib y ]
 
@@ -1317,15 +1373,6 @@ propToSmtLib prop =
   where
   unexpected = panic "desugarProp" [ show (ppProp prop) ]
 
-
-
-ifExprToSmtLib :: IfExpr Expr -> Doc
-ifExprToSmtLib ifExpr =
-  case ifExpr of
-    Impossible  -> integer 0xDEADBEEF -- Shouldn't really matter
-    Return e    -> exprToSmtLib e
-    If p x y    -> smtFun "ite" [ propToSmtLib p
-                                , ifExprToSmtLib x, ifExprToSmtLib y ]
 
 exprToSmtLib :: Expr -> Doc
 exprToSmtLib expr =
@@ -1351,9 +1398,27 @@ exprToSmtLib expr =
   fun x xs   = smtFun x (map exprToSmtLib xs)
   unexpected = panic "exprToSmtLib" [ show (ppExpr expr) ]
 
+-- | Pretty print an SMTLIB function call.
 smtFun :: String -> [Doc] -> Doc
+smtFun f [] = text f
 smtFun f xs = parens $ sep (text f : xs)
 
+-- | Add all declarations for a variable.
+smtDeclareVar :: Name -> Doc
+smtDeclareVar x =
+  vcat
+    [ smtFun "declare-fun" [ ppName x, text "()", text "Int" ]
+    , smtFun "declare-fun" [ text (smtFinName x), text "()", text "Bool" ]
+    , smtFun "assert" [ smtFun ">=" [ ppName x, text "0" ]]
+    ]
+
+-- | Declare a set of variable.
+smtDeclareVars :: Set Name -> Doc
+smtDeclareVars xs = vcat $ map smtDeclareVar $ Set.toList xs
+
+-- | The name of a boolean variable, representing `fin x`.
+smtFinName :: Name -> String
+smtFinName x = "fin_" ++ show (ppName x)
 
 --------------------------------------------------------------------------------
 -- Pretty Printing
