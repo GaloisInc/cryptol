@@ -97,7 +97,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \y ->
         case xs of
-          VWord x -> VWord (SBV.sbvShiftLeft x (fromWord y))
+          VWord x -> VWord (SBV.sbvShiftLeft x (fromVWord y))
           _ -> selectV shl y
             where
               shl :: Integer -> Value
@@ -114,7 +114,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \y ->
         case xs of
-          VWord x -> VWord (SBV.sbvShiftRight x (fromWord y))
+          VWord x -> VWord (SBV.sbvShiftRight x (fromVWord y))
           _ -> selectV shr y
             where
               shr :: Integer -> Value
@@ -131,7 +131,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \y ->
         case xs of
-          VWord x -> VWord (SBV.sbvRotateLeft x (fromWord y))
+          VWord x -> VWord (SBV.sbvRotateLeft x (fromVWord y))
           _ -> selectV rol y
             where
               rol :: Integer -> Value
@@ -145,7 +145,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \y ->
         case xs of
-          VWord x -> VWord (SBV.sbvRotateRight x (fromWord y))
+          VWord x -> VWord (SBV.sbvRotateRight x (fromVWord y))
           _ -> selectV ror y
             where
               ror :: Integer -> Value
@@ -233,13 +233,13 @@ evalECon econ =
 
     ECInfFrom    ->
       tlam $ \(finTValue -> bits)  ->
-       lam $ \(fromWord  -> first) ->
+       lam $ \(fromVWord  -> first) ->
       toStream [ VWord (first + SBV.literal (bv (fromInteger bits) i)) | i <- [0 ..] ]
 
     ECInfFromThen -> -- {a} (fin a) => [a] -> [a] -> [inf][a]
       tlam $ \_ ->
-       lam $ \(fromWord -> first) ->
-       lam $ \(fromWord -> next) ->
+       lam $ \(fromVWord -> first) ->
+       lam $ \(fromVWord -> next) ->
       toStream (map VWord (iterate (+ (next - first)) first))
 
     -- {at,len} (fin len) => [len][8] -> at
@@ -324,8 +324,8 @@ mapV f v =
 
 catV :: Value -> Value -> Value
 catV xs          (VStream ys) = VStream (fromSeq xs ++ ys)
-catV (VWord x)   ys           = VWord (cat x (fromWord ys))
-catV xs          (VWord y)    = VWord (cat (fromWord xs) y)
+catV (VWord x)   ys           = VWord (cat x (fromVWord ys))
+catV xs          (VWord y)    = VWord (cat (fromVWord xs) y)
 catV (VSeq b xs) (VSeq _ ys)  = VSeq b (xs ++ ys)
 catV _ _ = panic "Cryptol.Symbolic.Prims.catV" [ "non-concatenable value" ]
 
@@ -395,7 +395,7 @@ arithBinary op = loop . toTypeVal
     loop ty l r =
       case ty of
         TVBit         -> evalPanic "arithBinop" ["Invalid arguments"]
-        TVSeq _ TVBit -> VWord (op (fromWord l) (fromWord r))
+        TVSeq _ TVBit -> VWord (op (fromVWord l) (fromVWord r))
         TVSeq _ t     -> VSeq False (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVStream t    -> VStream (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVTuple ts    -> VTuple (zipWith3 loop ts (fromVTuple l) (fromVTuple r))
@@ -409,7 +409,7 @@ arithUnary op = loop . toTypeVal
     loop ty v =
       case ty of
         TVBit         -> evalPanic "arithUnary" ["Invalid arguments"]
-        TVSeq _ TVBit -> VWord (op (fromWord v))
+        TVSeq _ TVBit -> VWord (op (fromVWord v))
         TVSeq _ t     -> VSeq False (map (loop t) (fromSeq v))
         TVStream t    -> VStream (map (loop t) (fromSeq v))
         TVTuple ts    -> VTuple (zipWith loop ts (fromVTuple v))
@@ -451,8 +451,8 @@ cmpValue fb fw = cmp
                                         [ "Functions are not comparable" ]
         (VPoly {}   , VPoly {}   ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
                                         [ "Polymorphic values are not comparable" ]
-        (VWord w1   , _          ) -> fw w1 (fromWord v2) k
-        (_          , VWord w2   ) -> fw (fromWord v1) w2 k
+        (VWord w1   , _          ) -> fw w1 (fromVWord v2) k
+        (_          , VWord w2   ) -> fw (fromVWord v1) w2 k
         (_          , _          ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
                                         [ "type mismatch" ]
 
@@ -543,7 +543,7 @@ logicBinary bop op = loop . toTypeVal
     loop ty l r =
       case ty of
         TVBit         -> VBit (bop (fromVBit l) (fromVBit r))
-        TVSeq _ TVBit -> VWord (op (fromWord l) (fromWord r))
+        TVSeq _ TVBit -> VWord (op (fromVWord l) (fromVWord r))
         TVSeq _ t     -> VSeq False (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVStream t    -> VStream (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVTuple ts    -> VTuple (zipWith3 loop ts (fromVTuple l) (fromVTuple r))
@@ -556,7 +556,7 @@ logicUnary bop op = loop . toTypeVal
     loop ty v =
       case ty of
         TVBit         -> VBit (bop (fromVBit v))
-        TVSeq _ TVBit -> VWord (op (fromWord v))
+        TVSeq _ TVBit -> VWord (op (fromVWord v))
         TVSeq _ t     -> VSeq False (map (loop t) (fromSeq v))
         TVStream t    -> VStream (map (loop t) (fromSeq v))
         TVTuple ts    -> VTuple (zipWith loop ts (fromVTuple v))
