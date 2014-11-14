@@ -27,9 +27,9 @@ import qualified Control.Applicative as A
 import           Data.List(unfoldr, sortBy, intersperse)
 import           Data.Set ( Set )
 import qualified Data.Set as Set
-
 import           Data.Map ( Map )
 import qualified Data.Map as Map
+import           Data.Ratio((%), denominator, numerator)
 
 import           Text.PrettyPrint
 import           MonadLib
@@ -40,14 +40,17 @@ import qualified SimpleSMT as SMT
 test1 :: IO ()
 test1 =
   do l <- SMT.newLogger
-     p <- SMT.newSolver "cvc4" ["--lang=smt2"] (Just l)
+     p <- SMT.newSolver "cvc4" ["--lang=smt2", "--incremental"] (Just l)
      SMT.setLogic p "QF_LIA"
-     (res,mb) <- cryCheck p (a :== a :+ one)
+     (res,mb) <- cryCheck p (a :== Max a (a :+ one))
      print res
      case mb of
-       Just m ->
-          print $ vcat [ ppName x <+> text "=" <+> ppExpr e
-                                  | (x,e) <- Map.toList m ]
+       Just (m,eqs) ->
+          do print $ vcat [ ppName x <+> text "=" <+> ppExpr e
+                                      | (x,e) <- Map.toList m ]
+             putStrLn "improvements:"
+             print $ vcat [ ppName x <+> text "=" <+> ppExpr e
+                                      | (x,e) <- Map.toList eqs ]
        Nothing -> return ()
      print =<< SMT.stop p
 
@@ -1411,7 +1414,9 @@ smtFinName x = "fin_" ++ show (ppName x)
 
 
 -- | Assumes well-defined.
-cryCheck :: SMT.Solver -> Prop -> IO (SMT.Result, Maybe (Map Name Expr))
+cryCheck :: SMT.Solver -> Prop -> IO ( SMT.Result
+                                     , Maybe (Map Name Expr, Map Name Expr)
+                                     )
 cryCheck p prop0 =
   do let prop1 = crySimplify prop0
          (nonLinEs, linProp) = nonLinProp prop1
@@ -1422,8 +1427,9 @@ cryCheck p prop0 =
      SMT.assert p (ifPropToSmtLib smtProp)
      res <- SMT.check p
      case res of
-       SMT.Sat -> do m <- cryGetModel p (Set.toList as)
-                     return (res, Just m)
+       SMT.Sat -> do m   <- cryGetModel p (Set.toList as)
+                     eqs <- cryImproveModel p m
+                     return (res, Just (m,eqs))
        _       -> return (res, Nothing)
 {-
   in vcat $ smtDeclareVars as
@@ -1435,6 +1441,78 @@ cryCheck p prop0 =
   declareVar a = do e  <- SMT.declare p (smtName a)    SMT.tInt
                     _  <- SMT.declare p (smtFinName a) SMT.tBool
                     SMT.assert p (SMT.geq e (SMT.int 0))
+
+
+-- | Is this the only possible value for the constant, under the current
+-- assumptions.
+-- Assumes that we are in a 'Sat' state.
+cryMustEqualK :: SMT.Solver -> Name -> Expr -> IO Bool
+cryMustEqualK solver x expr =
+  case expr of
+    K Inf     -> do SMT.push solver
+                    SMT.assert solver $ SMT.const (smtFinName x)
+                    res <- SMT.check solver
+                    SMT.pop solver
+                    return (res == SMT.Unsat)
+    K (Nat n) -> do SMT.push solver
+                    SMT.assert solver $
+                      SMT.not $
+                      SMT.and
+                        (SMT.const $ smtFinName x)
+                        (SMT.eq (SMT.const (smtName x)) (SMT.int n))
+                    res <- SMT.check solver
+                    SMT.pop solver
+                    return (res == SMT.Unsat)
+    _ -> panic "cryMustEqualK" [ "Not a constant", show (ppExpr expr) ]
+
+
+-- | Do these two variables need to always be the same, under the current
+-- assumptions.
+-- Assumes that we are in a 'Sat' state.
+cryMustEqualV :: SMT.Solver -> Name -> Name -> IO Bool
+cryMustEqualV solver x y =
+  do SMT.push solver
+     let fin a = SMT.const (smtFinName a)
+         var a = SMT.const (smtName a)
+     SMT.assert solver $
+        SMT.or (SMT.not (fin x) `SMT.and` SMT.not (fin y))
+               (fin x `SMT.and` fin y `SMT.and` SMT.eq (var x) (var y))
+     res <- SMT.check solver
+     SMT.pop solver
+     return (res == SMT.Unsat)
+
+-- | Compute a linear relation through two concrete points.
+-- Try to find a relation of the form `y = a * x + b`, where both `a` and `b`
+-- are naturals.
+linRel :: Name -> Name -> (Integer,Integer) -> (Integer,Integer) -> Maybe Prop
+linRel x y (x1,y1) (x2,y2) =
+  do guard (x1 /= x2)
+     let a' = (y1 - y2) % abs (x1 - x2)
+     guard (denominator a' == 1)
+     let a = numerator a'
+         b = y1 - a * x1
+     undefined x y a b"XXX: Finish this, rewriting equations to work with Nats"
+
+
+
+-- | Given a model, compute a set of equations of the form `x = e`,
+-- that are impleied by the model.
+cryImproveModel :: SMT.Solver -> Map Name Expr -> IO (Map Name Expr)
+cryImproveModel solver m = go Map.empty (Map.toList m)
+  where
+  go done [] = return done
+  go done ((x,e) : rest) =
+    do yesK <- cryMustEqualK solver x e
+       if yesK
+         then go (Map.insert x e done) rest
+         else goV done [] x e rest
+
+  goV done todo x e ((y,e') : more)
+    | e == e' = do yesK <- cryMustEqualV solver x y
+                   if yesK then goV (Map.insert x (Var y) done) todo x e more
+                           else goV done ((y,e'):todo) x e more
+    | otherwise = goV done ((y,e') : todo) x e more
+  goV done todo _ _ [] = go done todo
 
 
 -- | Extract the values of the given variables.
