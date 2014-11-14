@@ -126,7 +126,7 @@ data Expr = K Nat'
           | Width Expr
           | LenFromThen   Expr Expr Expr
           | LenFromThenTo Expr Expr Expr
-            deriving Eq
+            deriving (Eq)
 
 zero :: Expr
 zero = K (Nat 0)
@@ -1264,9 +1264,9 @@ nonLinPropM prop =
     x :==: y    -> (:==:) `fmap` nonLinExprM x `ap` nonLinExprM y
     x :>: y     -> (:>:)  `fmap` nonLinExprM x `ap` nonLinExprM y
 
-    _ :== _   -> unexpected
-    _ :>= _   -> unexpected
-    _ :> _    -> unexpected
+    _ :== _     -> unexpected
+    _ :>= _     -> unexpected
+    _ :> _      -> unexpected
 
   where
   unexpected = panic "nonLinPropM" [ show (ppProp prop) ]
@@ -1288,12 +1288,16 @@ data NonLinS = NonLinS
   }
 
 nameExpr :: Expr -> NonLinM Expr
-nameExpr e = sets $ \s -> let x  = nextName s
-                              n  = SysName x
-                              s1 = NonLinS { nextName = 1 + x
-                                           , nonLinExprs = (n,e) : nonLinExprs s
-                                           }
-                          in s1 `seq` (Var n, s1)
+nameExpr e = sets $ \s ->
+  case [ x | (x,e1) <- nonLinExprs s, e == e1 ] of    -- XXX: inefficient!
+    x : _ -> (Var x,s)
+    [] ->
+      let x  = nextName s
+          n  = SysName x
+          s1 = NonLinS { nextName = 1 + x
+                       , nonLinExprs = (n,e) : nonLinExprs s
+                       }
+      in s1 `seq` (Var n, s1)
 
 
 --------------------------------------------------------------------------------
