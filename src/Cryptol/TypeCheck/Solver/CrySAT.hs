@@ -32,6 +32,8 @@ import qualified Data.Set as Set
 
 import           Text.PrettyPrint
 import           MonadLib
+import           SimpleSMT (SExpr(..), smtConst)
+import qualified SimpleSMT as SMT
 
 test1 :: IO ()
 test1 = print $ cryDescribeProblem
@@ -205,13 +207,13 @@ cryPropFVS = Set.unions . map cryExprFVS . cryPropExprs
 cryDescribeProblem :: Prop -> Doc
 cryDescribeProblem prop0 =
   let prop1 = crySimplify prop0
-      (nonLinExprs, linProp) = nonLinProp prop1
+      (nonLinEs, linProp) = nonLinProp prop1
       as = cryPropFVS linProp
       smtProp = desugarProp linProp
   in vcat $ smtDeclareVars as
-          : ifPropToSmtLib smtProp
+          : text (SMT.showsSExpr (ifPropToSmtLib smtProp) "")
           : text "where"
-          : [ ppName x <+> text "=" <+> ppExpr e | (x,e) <- nonLinExprs ]
+          : [ ppName x <+> text "=" <+> ppExpr e | (x,e) <- nonLinEs ]
 
 
 
@@ -1345,25 +1347,24 @@ desugarProp prop =
   unexpected = panic "desugarProp" [ show (ppProp prop) ]
 
 
-ifPropToSmtLib :: IfExpr Prop -> Doc
+ifPropToSmtLib :: IfExpr Prop -> SExpr
 ifPropToSmtLib ifProp =
   case ifProp of
-    Impossible -> smtFun "false" []     -- Sholdn't really matter
+    Impossible -> SMT.bool False -- Sholdn't really matter
     Return p   -> propToSmtLib p
-    If p q r   -> smtFun "ite" [ propToSmtLib p
-                               , ifPropToSmtLib q, ifPropToSmtLib r ]
+    If p q r   -> SMT.ite (propToSmtLib p) (ifPropToSmtLib q) (ifPropToSmtLib r)
 
-propToSmtLib :: Prop -> Doc
+propToSmtLib :: Prop -> SExpr
 propToSmtLib prop =
   case prop of
-    PFalse      -> smtFun "false" []
-    PTrue       -> smtFun "true" []
-    Not p       -> smtFun "not" [ propToSmtLib p ]
-    p :&& q     -> smtFun "and" [ propToSmtLib p, propToSmtLib q ]
-    p :|| q     -> smtFun "or"  [ propToSmtLib p, propToSmtLib q ]
-    Fin (Var x) -> smtFun (smtFinName x) []
-    x :==: y    -> smtFun "="  [ exprToSmtLib x, exprToSmtLib y ]
-    x :>: y     -> smtFun ">"  [ exprToSmtLib x, exprToSmtLib y ]
+    PFalse      -> SMT.bool False
+    PTrue       -> SMT.bool True
+    Not p       -> SMT.not (propToSmtLib p)
+    p :&& q     -> SMT.and (propToSmtLib p) (propToSmtLib q)
+    p :|| q     -> SMT.or  (propToSmtLib p) (propToSmtLib q)
+    Fin (Var x) -> smtConst (smtFinName x)
+    x :==: y    -> SMT.eq (exprToSmtLib x) (exprToSmtLib y)
+    x :>: y     -> SMT.gt (exprToSmtLib x) (exprToSmtLib y)
 
     Fin _       -> unexpected
     _ :== _     -> unexpected
@@ -1374,18 +1375,18 @@ propToSmtLib prop =
   unexpected = panic "desugarProp" [ show (ppProp prop) ]
 
 
-exprToSmtLib :: Expr -> Doc
+exprToSmtLib :: Expr -> SExpr
 exprToSmtLib expr =
 
   case expr of
-    K (Nat n)           -> integer n
+    K (Nat n)           -> SMT.int n
     K Inf               -> unexpected
-    Var a               -> ppName a
-    x :+ y              -> fun "+" [x,y]
-    x :- y              -> fun "-" [x,y]
-    x :* y              -> fun "*" [x,y]
-    Div x y             -> fun "div" [x,y]
-    Mod x y             -> fun "mod" [x,y]
+    Var a               -> smtConst (show (ppName a))
+    x :+ y              -> SMT.add (exprToSmtLib x) (exprToSmtLib y)
+    x :- y              -> SMT.sub (exprToSmtLib x) (exprToSmtLib y)
+    x :* y              -> SMT.mul (exprToSmtLib x) (exprToSmtLib y)
+    Div x y             -> SMT.div (exprToSmtLib x) (exprToSmtLib y)
+    Mod x y             -> SMT.mod (exprToSmtLib x) (exprToSmtLib y)
     _ :^^ _             -> unexpected
     Min {}              -> unexpected
     Max {}              -> unexpected
@@ -1395,7 +1396,6 @@ exprToSmtLib expr =
     LenFromThenTo {}    -> unexpected
 
   where
-  fun x xs   = smtFun x (map exprToSmtLib xs)
   unexpected = panic "exprToSmtLib" [ show (ppExpr expr) ]
 
 -- | Pretty print an SMTLIB function call.
@@ -1419,6 +1419,10 @@ smtDeclareVars xs = vcat $ map smtDeclareVar $ Set.toList xs
 -- | The name of a boolean variable, representing `fin x`.
 smtFinName :: Name -> String
 smtFinName x = "fin_" ++ show (ppName x)
+
+
+
+
 
 --------------------------------------------------------------------------------
 -- Pretty Printing
