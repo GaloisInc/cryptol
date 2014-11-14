@@ -3,7 +3,6 @@
 
 {- TODO:
   * When naming non-linear terms, use the same name for the same expression.
-  * Call SMT solver
 
   * Additional simplifications:
     - Putting in a normal form to spot "prove by assumption"
@@ -15,7 +14,6 @@ module Cryptol.TypeCheck.Solver.CrySAT
   ( Name, toName, fromName
   , Prop(..), Expr(..), IfExpr(..)
   , cryAnds, cryOrs
-  , cryDescribeProblem
   , crySimplify, crySimplified
   , cryDefined, cryDefinedProp
   , ppProp, ppPropPrec, ppExpr, ppExprPrec, ppIfExpr, ppName
@@ -30,14 +28,29 @@ import           Data.List(unfoldr, sortBy, intersperse)
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 
+import           Data.Map ( Map )
+import qualified Data.Map as Map
+
 import           Text.PrettyPrint
 import           MonadLib
-import           SimpleSMT (SExpr(..), smtConst)
+import           SimpleSMT (SExpr(..))
 import qualified SimpleSMT as SMT
 
+
 test1 :: IO ()
-test1 = print $ cryDescribeProblem
-      $ Min (a :* b) (inf :* (inf :* (c :+ d))) :== a
+test1 =
+  do l <- SMT.newLogger
+     p <- SMT.newSolver "cvc4" ["--lang=smt2"] (Just l)
+     SMT.setLogic p "QF_LIA"
+     (res,mb) <- cryCheck p (a :== a :+ one)
+     print res
+     case mb of
+       Just m ->
+          print $ vcat [ ppName x <+> text "=" <+> ppExpr e
+                                  | (x,e) <- Map.toList m ]
+       Nothing -> return ()
+     print =<< SMT.stop p
+
   where
   a : b : c : d : _ = map (Var . toName) [ 0 .. ]
 
@@ -202,21 +215,6 @@ cryPropFVS :: Prop -> Set Name
 cryPropFVS = Set.unions . map cryExprFVS . cryPropExprs
 
 --------------------------------------------------------------------------------
-
--- | Assumes well-defined.
-cryDescribeProblem :: Prop -> Doc
-cryDescribeProblem prop0 =
-  let prop1 = crySimplify prop0
-      (nonLinEs, linProp) = nonLinProp prop1
-      as = cryPropFVS linProp
-      smtProp = desugarProp linProp
-  in vcat $ smtDeclareVars as
-          : text (SMT.showsSExpr (ifPropToSmtLib smtProp) "")
-          : text "where"
-          : [ ppName x <+> text "=" <+> ppExpr e | (x,e) <- nonLinEs ]
-
-
-
 
 
 
@@ -1235,7 +1233,7 @@ isNonLinOp expr =
 
     Width _       -> True
 
-    LenFromThen _ _ _ -> False -- See also comment on `LenFromThenTo`
+    LenFromThen _ _ _ -> True -- See also comment on `LenFromThenTo`
 
     LenFromThenTo x y _ ->
       case (x,y) of
@@ -1362,7 +1360,7 @@ propToSmtLib prop =
     Not p       -> SMT.not (propToSmtLib p)
     p :&& q     -> SMT.and (propToSmtLib p) (propToSmtLib q)
     p :|| q     -> SMT.or  (propToSmtLib p) (propToSmtLib q)
-    Fin (Var x) -> smtConst (smtFinName x)
+    Fin (Var x) -> SMT.const (smtFinName x)
     x :==: y    -> SMT.eq (exprToSmtLib x) (exprToSmtLib y)
     x :>: y     -> SMT.gt (exprToSmtLib x) (exprToSmtLib y)
 
@@ -1381,7 +1379,7 @@ exprToSmtLib expr =
   case expr of
     K (Nat n)           -> SMT.int n
     K Inf               -> unexpected
-    Var a               -> smtConst (show (ppName a))
+    Var a               -> SMT.const (smtName a)
     x :+ y              -> SMT.add (exprToSmtLib x) (exprToSmtLib y)
     x :- y              -> SMT.sub (exprToSmtLib x) (exprToSmtLib y)
     x :* y              -> SMT.mul (exprToSmtLib x) (exprToSmtLib y)
@@ -1398,27 +1396,62 @@ exprToSmtLib expr =
   where
   unexpected = panic "exprToSmtLib" [ show (ppExpr expr) ]
 
--- | Pretty print an SMTLIB function call.
-smtFun :: String -> [Doc] -> Doc
-smtFun f [] = text f
-smtFun f xs = parens $ sep (text f : xs)
 
--- | Add all declarations for a variable.
-smtDeclareVar :: Name -> Doc
-smtDeclareVar x =
-  vcat
-    [ smtFun "declare-fun" [ ppName x, text "()", text "Int" ]
-    , smtFun "declare-fun" [ text (smtFinName x), text "()", text "Bool" ]
-    , smtFun "assert" [ smtFun ">=" [ ppName x, text "0" ]]
-    ]
-
--- | Declare a set of variable.
-smtDeclareVars :: Set Name -> Doc
-smtDeclareVars xs = vcat $ map smtDeclareVar $ Set.toList xs
+-- | The name of a variable in the SMT translation.
+smtName :: Name -> String
+smtName = show . ppName
 
 -- | The name of a boolean variable, representing `fin x`.
 smtFinName :: Name -> String
 smtFinName x = "fin_" ++ show (ppName x)
+
+
+-- | Assumes well-defined.
+cryCheck :: SMT.Solver -> Prop -> IO (SMT.Result, Maybe (Map Name Expr))
+cryCheck p prop0 =
+  do let prop1 = crySimplify prop0
+         (nonLinEs, linProp) = nonLinProp prop1
+         as = cryPropFVS linProp
+
+         smtProp = desugarProp linProp
+     mapM_ declareVar (Set.toList as)
+     SMT.assert p (ifPropToSmtLib smtProp)
+     res <- SMT.check p
+     case res of
+       SMT.Sat -> do m <- cryGetModel p (Set.toList as)
+                     return (res, Just m)
+       _       -> return (res, Nothing)
+{-
+  in vcat $ smtDeclareVars as
+          : text (SMT.showsSExpr (ifPropToSmtLib smtProp) "")
+          : text "where"
+          : [ ppName x <+> text "=" <+> ppExpr e | (x,e) <- nonLinEs ]
+-}
+  where
+  declareVar a = do e  <- SMT.declare p (smtName a)    SMT.tInt
+                    _  <- SMT.declare p (smtFinName a) SMT.tBool
+                    SMT.assert p (SMT.geq e (SMT.int 0))
+
+
+-- | Extract the values of the given variables.
+-- Assumes that we are in a 'Sat' state.
+cryGetModel :: SMT.Solver -> [Name] -> IO (Map Name Expr)
+cryGetModel p = fmap Map.fromList . mapM getVal
+  where
+  getVal a =
+    do yes <- isInf a
+       if yes then return (a, K Inf)
+              else do v <- SMT.getConst p (smtName a)
+                      case v of
+                        SMT.Int x | x >= 0 -> return (a, K (Nat x))
+                        _ -> panic "cryCheck.getVal"
+                                [ "Not a natural number", show v ]
+
+  isInf a = do yes <- SMT.getConst p (smtFinName a)
+               case yes of
+                 SMT.Bool ans -> return (not ans)
+                 _            -> panic "cryCheck.isInf"
+                                       [ "Not a boolean value", show yes ]
 
 
 
