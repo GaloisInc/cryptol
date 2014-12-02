@@ -133,6 +133,7 @@ appTys expr ts =
     P.ESel      {} -> mono
     P.EList     {} -> mono
     P.EFromTo   {} -> mono
+    P.EInfFrom  {} -> mono
     P.EComp     {} -> mono
     P.EApp      {} -> mono
     P.EIf       {} -> mono
@@ -248,6 +249,12 @@ inferE expr =
                 [ P.NamedInst P.Named { name = Located l (Name x), value = y }
                 | (x,y) <- ("first",t1) : fs
                 ]
+
+    P.EInfFrom e1 Nothing ->
+      inferE $ P.EApp (P.ECon ECInfFrom) e1
+
+    P.EInfFrom e1 (Just e2) ->
+      inferE $ P.EApp (P.EApp (P.ECon ECInfFromThen) e1) e2
 
     P.EComp e mss ->
       do (mss', dss, ts) <- unzip3 `fmap` zipWithM inferCArm [ 1 .. ] mss

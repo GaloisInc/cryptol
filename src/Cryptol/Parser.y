@@ -510,8 +510,8 @@ list_expr                      :: { Expr }
   | expr ',' expr '..'            {% eFromTo $4 $1 (Just $3) Nothing    }
   | expr ',' expr '..' expr       {% eFromTo $4 $1 (Just $3) (Just $5)  }
 
-  | expr '...'                    { EApp (ECon ECInfFrom) $1 }
-  | expr ',' expr '...'           { EApp (EApp (ECon ECInfFromThen) $1) $3 }
+  | expr '...'                    { EInfFrom $1 Nothing                 }
+  | expr ',' expr '...'           { EInfFrom $1 (Just $3)               }
 
 
 list_alts                      :: { [[Match]] }
