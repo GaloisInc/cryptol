@@ -33,6 +33,7 @@ import           Data.Set (Set)
 import           Data.List(find)
 import           Data.Maybe(mapMaybe)
 import           MonadLib
+import qualified Control.Applicative as A
 import           Control.Monad.Fix(MonadFix(..))
 import           Data.Functor
 
@@ -178,6 +179,10 @@ data RW = RW
 
 instance Functor InferM where
   fmap f (IM m) = IM (fmap f m)
+
+instance A.Applicative InferM where
+  pure  = return
+  (<*>) = ap
 
 instance Monad InferM where
   return x      = IM (return x)
@@ -550,6 +555,10 @@ data KRW = KRW { typeParams :: Map QName Kind -- ^ kinds of (known) vars.
 
 instance Functor KindM where
   fmap f (KM m) = KM (fmap f m)
+
+instance A.Applicative KindM where
+  pure  = return
+  (<*>) = ap
 
 instance Monad KindM where
   return x      = KM (return x)
