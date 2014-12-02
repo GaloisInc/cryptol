@@ -206,7 +206,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \ys ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in mapV (selectV (\i -> nthV err xs i)) ys
+        in mapV (isTBit a) (selectV (\i -> nthV err xs i)) ys
 
     ECAtBack      -> -- {n,a,i} (fin n, fin i) => [n]a -> [i] -> a
       tlam $ \(finTValue -> n) ->
@@ -225,7 +225,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \ys ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in mapV (selectV (\i -> nthV err xs (n - 1 - i))) ys
+        in mapV (isTBit a) (selectV (\i -> nthV err xs (n - 1 - i))) ys
 
     ECFromThen   -> fromThenV
     ECFromTo     -> fromToV
@@ -315,10 +315,10 @@ nthV err v n =
                                     VBit (SBV.sbvTestBit x i)
     _                       -> err
 
-mapV :: (Value -> Value) -> Value -> Value
-mapV f v =
+mapV :: Bool -> (Value -> Value) -> Value -> Value
+mapV isBit f v =
   case v of
-    VSeq b xs  -> VSeq b (map f xs)
+    VSeq _ xs  -> VSeq isBit (map f xs)
     VStream xs -> VStream (map f xs)
     _          -> panic "Cryptol.Symbolic.Prims.mapV" [ "non-mappable value" ]
 
