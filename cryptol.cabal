@@ -41,6 +41,7 @@ library
                        random          >= 1.0.1,
                        tf-random       >= 0.5,
                        smtLib          >= 1.0.7,
+                       simple-smt      >= 0.3,
                        syb             >= 0.4,
                        text            >= 1.1,
                        transformers    >= 0.3,
@@ -101,8 +102,14 @@ library
                        Cryptol.TypeCheck.Solver.Numeric,
                        Cryptol.TypeCheck.Solver.Class,
                        Cryptol.TypeCheck.Solver.Selector,
-                       Cryptol.TypeCheck.Solver.CrySAT,
                        Cryptol.TypeCheck.Solver.Utils,
+
+                       Cryptol.TypeCheck.Solver.CrySAT,
+                       Cryptol.TypeCheck.Solver.Numeric.AST,
+                       Cryptol.TypeCheck.Solver.Numeric.Defined,
+                       Cryptol.TypeCheck.Solver.Numeric.Simplify,
+                       Cryptol.TypeCheck.Solver.Numeric.NonLin,
+                       Cryptol.TypeCheck.Solver.Numeric.SMT,
 
                        Cryptol.Transform.MonoValues,
                        Cryptol.Transform.Specialize,
