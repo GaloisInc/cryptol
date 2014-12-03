@@ -101,21 +101,15 @@ The following table contains Cryptol's operators and their
 associativity with lowest precedence operators first, and highest
 precedence last.
 
-Operator                Associativity
----------------         -------------
-  `||`                  left
-  `^`                   left
-  `&&`                  left
-  `->` (types)          right
-  `!=` `==`             not associative
-  `>` `<` `<=` `>=`     not associative
-  `#`                   right
-  `>>` `<<` `>>>` `<<<` left
-  `+` `-`               left
-  `*` `/` `%`           left
-  `^^`                  right
-  `!`  `!!`  `@` `@@`   left
-  (unary) `-` `~`       right
+Operator Associativity
+----------------------
+
+| Left                  | Right           | Not Associative |
+|:---------------------:|:---------------:|:---------------:|
+|`||` `&&` `^`          | `->` (types)    | `!=` `==`       |
+| `>>` `<<` `>>>` `<<<` | `^^`            | `<=` `>=`       |
+| `*` `/` `%` `+` `-`   |  `#`            | `>` `<`         |
+| `@` `@@` `!`  `!!`    | `-` `~` (unary) |                 |
 
 Table: Operator precedences.
 
