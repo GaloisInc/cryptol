@@ -21,6 +21,10 @@ import           SimpleSMT ( SExpr )
 import qualified SimpleSMT as SMT
 
 
+--------------------------------------------------------------------------------
+-- Desugar to SMT
+--------------------------------------------------------------------------------
+
 -- XXX: Expanding the if-then-elses could make things large.
 -- Perhaps keep them as first class things, in hope that the solver
 -- can do something more clever with that?
@@ -130,6 +134,54 @@ smtFinName x = "fin_" ++ show (ppName x)
 
 
 
+--------------------------------------------------------------------------------
+-- Models
+--------------------------------------------------------------------------------
+
+
+-- | Extract the values of the given variables.
+-- Assumes that we are in a 'Sat' state.
+cryGetModel :: SMT.Solver -> [Name] -> IO (Map Name Expr)
+cryGetModel p = fmap Map.fromList . mapM getVal
+  where
+  getVal a =
+    do yes <- isInf a
+       if yes then return (a, K Inf)
+              else do v <- SMT.getConst p (smtName a)
+                      case v of
+                        SMT.Int x | x >= 0 -> return (a, K (Nat x))
+                        _ -> panic "cryCheck.getVal"
+                                [ "Not a natural number", show v ]
+
+  isInf a = do yes <- SMT.getConst p (smtFinName a)
+               case yes of
+                 SMT.Bool ans -> return (not ans)
+                 _            -> panic "cryCheck.isInf"
+                                       [ "Not a boolean value", show yes ]
+
+
+
+-- | Given a model, compute a set of equations of the form `x = e`,
+-- that are impleied by the model.
+cryImproveModel :: SMT.Solver -> Map Name Expr -> IO (Map Name Expr)
+cryImproveModel solver m = go Map.empty (Map.toList m)
+  where
+  go done [] = return done
+  go done ((x,e) : rest) =
+    do yesK <- cryMustEqualK solver x e
+       if yesK
+         then go (Map.insert x e done) rest
+         else goV done [] x e rest
+
+  goV done todo x e ((y,e') : more)
+    | e == e' = do yesK <- cryMustEqualV solver x y
+                   if yesK then goV (Map.insert x (Var y) done) todo x e more
+                           else goV done ((y,e'):todo) x e more
+    | otherwise = goV done ((y,e') : todo) x e more
+  goV done todo _ _ [] = go done todo
+
+
+
 
 -- | Is this the only possible value for the constant, under the current
 -- assumptions.
@@ -154,6 +206,7 @@ cryMustEqualK solver x expr =
     _ -> panic "cryMustEqualK" [ "Not a constant", show (ppExpr expr) ]
 
 
+
 -- | Do these two variables need to always be the same, under the current
 -- assumptions.
 -- Assumes that we are in a 'Sat' state.
@@ -169,6 +222,8 @@ cryMustEqualV solver x y =
      SMT.pop solver
      return (res == SMT.Unsat)
 
+
+
 -- | Compute a linear relation through two concrete points.
 -- Try to find a relation of the form `y = a * x + b`, where both `a` and `b`
 -- are naturals.
@@ -180,49 +235,6 @@ linRel x y (x1,y1) (x2,y2) =
      let a = numerator a'
          b = y1 - a * x1
      undefined x y a b"XXX: Finish this, rewriting equations to work with Nats"
-
-
-
--- | Given a model, compute a set of equations of the form `x = e`,
--- that are impleied by the model.
-cryImproveModel :: SMT.Solver -> Map Name Expr -> IO (Map Name Expr)
-cryImproveModel solver m = go Map.empty (Map.toList m)
-  where
-  go done [] = return done
-  go done ((x,e) : rest) =
-    do yesK <- cryMustEqualK solver x e
-       if yesK
-         then go (Map.insert x e done) rest
-         else goV done [] x e rest
-
-  goV done todo x e ((y,e') : more)
-    | e == e' = do yesK <- cryMustEqualV solver x y
-                   if yesK then goV (Map.insert x (Var y) done) todo x e more
-                           else goV done ((y,e'):todo) x e more
-    | otherwise = goV done ((y,e') : todo) x e more
-  goV done todo _ _ [] = go done todo
-
-
--- | Extract the values of the given variables.
--- Assumes that we are in a 'Sat' state.
-cryGetModel :: SMT.Solver -> [Name] -> IO (Map Name Expr)
-cryGetModel p = fmap Map.fromList . mapM getVal
-  where
-  getVal a =
-    do yes <- isInf a
-       if yes then return (a, K Inf)
-              else do v <- SMT.getConst p (smtName a)
-                      case v of
-                        SMT.Int x | x >= 0 -> return (a, K (Nat x))
-                        _ -> panic "cryCheck.getVal"
-                                [ "Not a natural number", show v ]
-
-  isInf a = do yes <- SMT.getConst p (smtFinName a)
-               case yes of
-                 SMT.Bool ans -> return (not ans)
-                 _            -> panic "cryCheck.isInf"
-                                       [ "Not a boolean value", show yes ]
-
 
 
 

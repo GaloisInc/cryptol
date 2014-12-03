@@ -217,12 +217,15 @@ dump asmps goals = io $ print doc
   where
   doc = vcat [ line "asmps"
              , vcat (map (CM.ppProp . CM.crySimplify . exportProp) asmps)
+             , line "goals defined"
+             , CM.ppProp $ CM.crySimplify
+                         $ CM.cryAnds $ map CM.cryDefinedProp gs
              , line "goals"
-             , CM.ppProp $ CM.crySimplify $ CM.cryAnds
-                         $ map (exportProp . goal) goals
+             , CM.ppProp $ CM.crySimplify $ CM.cryAnds gs
              ]
 
   line msg  = text "--" <+> text msg <+>
               text (replicate (80 - 4 - length msg) '-')
 
 
+  gs        = map (exportProp . goal) goals

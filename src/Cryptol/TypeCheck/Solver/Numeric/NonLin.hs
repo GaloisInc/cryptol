@@ -3,7 +3,9 @@
 --
 -- TODO: When naming non-linear terms,
 -- use the same name for the same expression.
-module Cryptol.TypeCheck.Solver.Numeric.NonLin where
+module Cryptol.TypeCheck.Solver.Numeric.NonLin
+  ( nonLinProp
+  ) where
 
 import Cryptol.TypeCheck.Solver.Numeric.AST
 import Cryptol.Utils.Panic(panic)
