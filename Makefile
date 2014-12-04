@@ -2,6 +2,7 @@ UNAME   := $(shell uname -s)
 ARCH    := $(shell uname -m)
 
 TESTS ?= issues regression renamer
+TEST_DIFF ?= meld
 
 CABAL_FLAGS ?= -j
 
@@ -127,6 +128,7 @@ test: ${CS_BIN}/cryptol-test-runner
 	  -r output                                                        \
 	  -T --hide-successes                                              \
 	  -T --jxml=$(call adjust-path,$(CURDIR)/results.xml)              \
+	  -p $(TEST_DIFF)                                                  \
 	)
 
 .PHONY: notebook

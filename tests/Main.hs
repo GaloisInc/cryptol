@@ -192,11 +192,13 @@ generateAssertion opts dir file = testCase file $ do
         Right _ -> assertFailure $
             "Test completed successfully.  Please remove " ++ knownFailureFile
     | otherwise =
-      assertFailure $
-        case mbKnown of
-          Left (X.SomeException {}) ->
-                                  unwords [ optDiff opts, goldFile, resultOut ]
-          Right fail_msg -> fail_msg
+      case mbKnown of
+
+        Left (X.SomeException {}) ->
+          do goldFile' <- canonicalizePath goldFile
+             assertFailure (unwords [ optDiff opts, goldFile', "\\\n    ", resultOut ])
+
+        Right fail_msg -> assertFailure fail_msg
 
 -- Test Discovery --------------------------------------------------------------
 
