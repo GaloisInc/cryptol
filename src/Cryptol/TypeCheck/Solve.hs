@@ -25,19 +25,14 @@ import           Cryptol.TypeCheck.Solver.Numeric
 import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Smtlib as SMT
-import           Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import qualified Cryptol.TypeCheck.Solver.CrySAT as CM
 
 import           Cryptol.TypeCheck.Defaulting(tryDefaultWith)
-import qualified Cryptol.Utils.Panic as P
 
 import           Control.Monad(unless)
+import           Data.Either(partitionEithers)
 import           Data.List(partition)
 import qualified Data.Set as Set
-import qualified Data.Map as Map
-import           Data.Map (Map)
-
-import           Text.PrettyPrint
 
 -- Add additional constraints that ensure validity of type function.
 checkTypeFunction :: TFun -> [Type] -> [Prop]
@@ -49,76 +44,7 @@ checkTypeFunction TCLenFromThenTo [a,b,c] = [ pFin a, pFin b, pFin c, a =/= b ]
 checkTypeFunction _ _                     = []
 
 
-
-
-fromVal :: Nat' -> Type
-fromVal Inf     = tInf
-fromVal (Nat n) = tNum n
-
-
-type VarMap = Map Int TVar
-
-exportProp :: Prop -> CM.Prop
-exportProp ty =
-  case ty of
-    TUser _ _ t -> exportProp t
-    TRec {}     -> err
-    TVar {}     -> err
-    TCon (PC pc) ts ->
-      case (pc, map exportType ts) of
-        (PFin, [t])       -> CM.Fin t
-        (PEqual, [t1,t2]) -> t1 CM.:== t2
-        (PNeq,   [t1,t2]) -> t1 CM.:== t2
-        (PGeq,   [t1,t2]) -> t1 CM.:>= t2
-        _                 -> err
-    TCon _ _ -> err
-  where
-  err = panic "exportProp" [ "Unexpected type", show ty ]
-
-exportType :: Type -> CM.Expr
-exportType ty =
-  case ty of
-    TUser _ _ t -> exportType t
-    TRec {}     -> err
-    TVar x      -> CM.Var $ CM.toName $ exportVar x
-    TCon tc ts  ->
-      case tc of
-        TC TCInf     -> CM.K Inf
-        TC (TCNum x) -> CM.K (Nat x)
-        TC _         -> err
-
-        TF f ->
-          case (f, map exportType ts) of
-            (TCAdd, [t1,t2]) -> t1 CM.:+ t2
-            (TCSub, [t1,t2]) -> t1 CM.:- t2
-            (TCMul, [t1,t2]) -> t1 CM.:* t2
-            (TCDiv, [t1,t2]) -> CM.Div t1 t2
-            (TCMod, [t1,t2]) -> CM.Mod t1 t2
-            (TCExp, [t1,t2]) -> t1 CM.:^^ t2
-            (TCMin, [t1,t2]) -> CM.Min t1 t2
-            (TCMax, [t1,t2]) -> CM.Max t1 t2
-            (TCLg2, [t1])    -> CM.Lg2 t1
-            (TCWidth, [t1])  -> CM.Width t1
-            (TCLenFromThen, [t1,t2,t3])   -> CM.LenFromThen t1 t2 t3
-            (TCLenFromThenTo, [t1,t2,t3]) -> CM.LenFromThenTo t1 t2 t3
-
-            _ -> err
-
-        PC _ -> err
-
-
-  where
-  err = panic "exportType" [ "Unexpected type", show ty ]
-
-exportVar :: TVar -> Int
-exportVar (TVFree x _ _ _) = 2 * x        -- Free vars are even
-exportVar (TVBound x _)    = 2 * x + 1    -- Bound vars are odd
-
-
 --------------------------------------------------------------------------------
-
-panic :: String -> [String] -> a
-panic x m = P.panic ("Cryptol.TypeCheck.Solve." ++ x) m
 
 -- XXX at the moment, we try to solve class constraints before solving fin
 -- constraints, as they could yield fin constraints.  At some point, it would
@@ -131,7 +57,6 @@ simplifyAllConstraints =
 
 proveImplication :: LQName -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lname as asmps0 goals =
-  dump asmps0 goals >>
   case assumedOrderModel noFacts (concatMap expandProp asmps0) of
     Left (_m,p) -> do recordError (UnusableFunction (thing lname) p)
                       return emptySubst
@@ -173,11 +98,19 @@ proveImplication lname as asmps0 goals =
                                          }
 
 
+simpGoals :: [Goal] -> Inferm ()
+simpGoals gs =
+  where
+  (nonNum,nums)  = partitionEithers (map numericRight gs)
+  numericRight g = case exportProp (goal g) of
+                     Just p  -> Right (g, p)
+                     Nothing -> Left g
+
+
 
 -- | Assumes that the substitution has been applied to the goals
 simplifyGoals :: OrdFacts -> [Goal] -> InferM ()
-simplifyGoals initOrd gs1 = do dump [] gs1
-                               solveSomeGoals [] False gs1
+simplifyGoals initOrd gs1 = solveSomeGoals [] False gs1
   where
   solveSomeGoals others !changes [] =
     if changes
@@ -209,23 +142,4 @@ simplifyGoals initOrd gs1 = do dump [] gs1
 
 
 
---------------------------------------------------------------------------------
 
--- A => B, NOT A \/ B
-dump :: [Prop] -> [Goal] -> InferM()
-dump asmps goals = io $ print doc
-  where
-  doc = vcat [ line "asmps"
-             , vcat (map (CM.ppProp . CM.crySimplify . exportProp) asmps)
-             , line "goals defined"
-             , CM.ppProp $ CM.crySimplify
-                         $ CM.cryAnds $ map CM.cryDefinedProp gs
-             , line "goals"
-             , CM.ppProp $ CM.crySimplify $ CM.cryAnds gs
-             ]
-
-  line msg  = text "--" <+> text msg <+>
-              text (replicate (80 - 4 - length msg) '-')
-
-
-  gs        = map (exportProp . goal) goals

@@ -1,13 +1,12 @@
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE RecordWildCards #-}
 module Cryptol.TypeCheck.Solver.CrySAT
-  ( Name, toName, fromName
-  , Prop(..), Expr(..), IfExpr(..)
-  , cryAnds, cryOrs
-  , crySimplify, crySimplified
-  , cryDefined, cryDefinedProp
-  , ppProp, ppPropPrec, ppExpr, ppExprPrec, ppIfExpr, ppName
+  ( withScope, withSolver
+  , assumeProps, checkDefined, simplifyProps
+  , exportProp
   ) where
+
+import qualified Cryptol.TypeCheck.AST as Cry
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.TypeCheck.Solver.Numeric.Defined
@@ -17,85 +16,120 @@ import           Cryptol.TypeCheck.Solver.Numeric.SMT
 import           Cryptol.Utils.Panic ( panic )
 
 import           Control.Monad ( unless )
-import           Data.List ( intersperse )
+import           Data.Maybe ( mapMaybe )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
-import           Data.Map ( Map )
-import qualified Data.Map as Map
 import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef' )
 
-import           Text.PrettyPrint
 import           SimpleSMT ( SExpr )
 import qualified SimpleSMT as SMT
 
 
-test1 :: IO ()
-test1 =
-  do (res,mb) <- withSolver $ \s ->
-                          cryCheck s $ prepareProp (a :== Max a (a :+ one))
-     print res
-     case mb of
-       Just (m,eqs) ->
-          do print $ vcat [ ppName x <+> text "=" <+> ppExpr e
-                                      | (x,e) <- Map.toList m ]
-             putStrLn "improvements:"
-             print $ vcat [ ppName x <+> text "=" <+> ppExpr e
-                                      | (x,e) <- Map.toList eqs ]
-       Nothing -> return ()
-  where
-  a : b : c : d : _ = map (Var . toName) [ 0 .. ]
-
-test :: IO ()
-test =
-  do writeFile "out"
-      $ unlines
-      $ intersperse (replicate 80 '-')
-      $ map (show . ppProp)
-      $ crySimpSteps
-      $ Min (a :* b) (inf :* (inf :* (c :+ d))) :== a
-  where
-  a : b : c : d : _ = map (Var . toName) [ 0 .. ]
-
-  _rest = Div a b
-         : Mod a (b :* inf)
-         : Min (a :* b) (inf :* (inf :* (c :+ d)))
-         : []
-
-
-
-data SimpS a = SimpS
-  { simpsTodo       :: [ (a, Prop) ]
-  , simpsDefined    :: [ (a, SMTProp) ]       -- (ct, exp-prop)
-  , simpsNotDefined :: [ (a, Prop, SMTProp) ] -- (ct, prop, exp-defined-prop)
-  , simpsChanges    :: !Bool
-  }
 
 -- | Check that a bunch of constraints are all defined.
 -- If some are not, we return them on the 'Left'.
 -- Otherwise, we return the exported props on the 'Right'.
-checkDefined :: (a -> Prop) -> [a] -> IO (Either [a] [(a,SMTProp)])
-checkDefined export props0 = withSolver $ \s ->
-  go s False [] [] [ (p, q, prepareProp (cryDefinedProp q))
-                                          | p <- props0, let q = export p ]
+-- Does not modify the set of assumptions.
+checkDefined :: Solver -> [(a,Prop)] -> IO (Either [a] [(a,SMTProp)])
+checkDefined s props0 = withScope s $
+  go False [] [] [ (a, p, prepareProp (cryDefinedProp p)) | (a,p) <- props0 ]
 
   where
   -- Everything is defined: keep going.
-  go _ _    isDef []       [] = return (Right isDef)
+  go _    isDef []       [] = return (Right isDef)
 
   -- We have possibly non-defined, but we also added a new fact: go again.
-  go s True isDef isNotDef [] = go s False isDef [] isNotDef
+  go True isDef isNotDef [] = go False isDef [] isNotDef
 
   -- We have possibly non-defined, and nothing changed: report error.
-  go s False _ isNotDef [] = return (Left [ ct | (ct,_,_) <- isNotDef ])
+  go False _ isNotDef [] = return (Left [ ct | (ct,_,_) <- isNotDef ])
 
   -- Process one constraint.
-  go s ch isDef isNotDef ((ct,p,q) : more) =
+  go ch isDef isNotDef ((ct,p,q) : more) =
     do proved <- prove s q
        if proved then do let r = prepareProp p
-                         assert s r
-                         go s True ((ct,r) : isDef) isNotDef  more
-                 else go s ch isDef ((ct,p,q) : isNotDef) more
+                         assert s r -- add defined prop as an assumption
+                         go True ((ct,r) : isDef) isNotDef  more
+                 else go ch isDef ((ct,p,q) : isNotDef) more
 
+
+-- | Simplify a bunch of well-defined properties.
+-- Eliminates properties that are implied by the rest.
+-- Does not modify the set of assumptions.
+simplifyProps :: Solver -> [(a,SMTProp)] -> IO [a]
+simplifyProps s props = withScope s (go [] props)
+  where
+  go survived [] = return survived
+  go survived ((ct,p) : more) =
+    do proved <- withScope s $ do mapM_ (assert s . snd) more
+                                  prove s p
+       if proved
+         then go survived more
+         else do assert s p
+                 go (ct : survived) more
+
+-- | Add the given constraints as assumptions.
+-- We also assume that the constraints are well-defined.
+-- Modifies the set of assumptions.
+assumeProps :: Solver -> [Cry.Prop] -> IO ()
+assumeProps s props =
+  mapM_ (assert s . prepareProp) (map cryDefinedProp ps ++ ps)
+  where ps = mapMaybe exportProp props
+
+--------------------------------------------------------------------------------
+
+exportProp :: Cry.Prop -> Maybe Prop
+exportProp ty =
+  case ty of
+    Cry.TUser _ _ t -> exportProp t
+    Cry.TRec {}     -> Nothing
+    Cry.TVar {}     -> Nothing
+    Cry.TCon (Cry.PC pc) ts ->
+      mapM exportType ts >>= \ets ->
+      case (pc, ets) of
+        (Cry.PFin,   [t])     -> Just $ Fin t
+        (Cry.PEqual, [t1,t2]) -> Just $ t1 :== t2
+        (Cry.PNeq,   [t1,t2]) -> Just $ t1 :== t2
+        (Cry.PGeq,   [t1,t2]) -> Just $ t1 :>= t2
+        _                 -> Nothing
+    Cry.TCon _ _ -> Nothing
+
+exportType :: Cry.Type -> Maybe Expr
+exportType ty =
+  case ty of
+    Cry.TUser _ _ t -> exportType t
+    Cry.TRec {}     -> Nothing
+    Cry.TVar x      -> Just $ Var $ toName $ exportVar x
+    Cry.TCon tc ts  ->
+      case tc of
+        Cry.TC Cry.TCInf     -> Just $ K Inf
+        Cry.TC (Cry.TCNum x) -> Just $ K (Nat x)
+        Cry.TC _             -> Nothing
+
+        Cry.TF f ->
+          mapM exportType ts >>= \ets ->
+          case (f, ets) of
+            (Cry.TCAdd, [t1,t2]) -> Just $ t1 :+ t2
+            (Cry.TCSub, [t1,t2]) -> Just $ t1 :- t2
+            (Cry.TCMul, [t1,t2]) -> Just $ t1 :* t2
+            (Cry.TCDiv, [t1,t2]) -> Just $ Div t1 t2
+            (Cry.TCMod, [t1,t2]) -> Just $ Mod t1 t2
+            (Cry.TCExp, [t1,t2]) -> Just $ t1 :^^ t2
+            (Cry.TCMin, [t1,t2]) -> Just $ Min t1 t2
+            (Cry.TCMax, [t1,t2]) -> Just $ Max t1 t2
+            (Cry.TCLg2, [t1])    -> Just $ Lg2 t1
+            (Cry.TCWidth, [t1])  -> Just $ Width t1
+            (Cry.TCLenFromThen, [t1,t2,t3])   -> Just $ LenFromThen t1 t2 t3
+            (Cry.TCLenFromThenTo, [t1,t2,t3]) -> Just $ LenFromThenTo t1 t2 t3
+
+            _ -> Nothing
+
+        Cry.PC _ -> Nothing
+
+
+exportVar :: Cry.TVar -> Int
+exportVar (Cry.TVFree x _ _ _) = 2 * x        -- Free vars are even
+exportVar (Cry.TVBound x _)    = 2 * x + 1    -- Bound vars are odd
 
 
 
@@ -148,7 +182,7 @@ scopeInsert :: Name -> Scope -> Scope
 scopeInsert x Scope { .. } = Scope { scopeNames = x : scopeNames, .. }
 
 scopeAssert :: [(Name,Expr)] -> Scope -> Scope
-scopeAssert as Scope { .. } = Scope { scopeAsmps = as ++ scopeAsmps }
+scopeAssert as Scope { .. } = Scope { scopeAsmps = as ++ scopeAsmps, .. }
 
 
 -- | No scopes.
@@ -175,7 +209,7 @@ viPush VarInfo { .. } = VarInfo { curScope = scopeEmpty
 -- | Exit a scope.
 viPop :: VarInfo -> VarInfo
 viPop VarInfo { .. } = case otherScopes of
-                         curScope : otherScopes -> VarInfo { .. }
+                         c : cs -> VarInfo { curScope = c, otherScopes = cs }
                          _ -> panic "viPop" ["no more scopes"]
 
 -- | Execute a computation with a fresh solver instance.
@@ -235,25 +269,6 @@ prove s@(Solver { .. }) SMTProp { .. } =
         -- Otherwise, we could look for another one...
 
 
-
-
-
--- | Assumes well-defined.
--- XXX: NONLIN, ETC
-cryCheck :: Solver -> SMTProp -> IO ( SMT.Result
-                                    , Maybe (Map Name Expr, Map Name Expr)
-                                    )
-cryCheck s SMTProp { .. } =
-  do mapM_ (declareVar s) (Set.toList smtpVars)
-     SMT.assert (solver s) smtpLinPart
-     res <- SMT.check (solver s)
-     case res of
-       SMT.Sat -> do m   <- cryGetModel (solver s) (Set.toList smtpVars)
-                     eqs <- cryImproveModel (solver s) m
-                     return (res, Just (m,eqs))
-       _       -> return (res, Nothing)
-
---------------------------------------------------------------------------------
 
 
 
