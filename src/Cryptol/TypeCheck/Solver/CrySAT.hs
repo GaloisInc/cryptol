@@ -27,22 +27,21 @@ import qualified SimpleSMT as SMT
 
 
 -- | Check that a bunch of constraints are all defined.
--- If some are not, we return them on the 'Left'.
--- Otherwise, we return the exported props on the 'Right'.
--- Does not modify the set of assumptions.
-checkDefined :: Solver -> [(a,Prop)] -> IO (Either [a] [(a,SMTProp)])
+-- We return constraints that are not necessarily defined in the first
+-- component, and the ones that are defined in the second component.
+checkDefined :: Solver -> [(a,Prop)] -> IO ([a], [(a,SMTProp)])
 checkDefined s props0 = withScope s $
   go False [] [] [ (a, p, prepareProp (cryDefinedProp p)) | (a,p) <- props0 ]
 
   where
   -- Everything is defined: keep going.
-  go _    isDef []       [] = return (Right isDef)
+  go _    isDef []       [] = return ([], isDef)
 
   -- We have possibly non-defined, but we also added a new fact: go again.
   go True isDef isNotDef [] = go False isDef [] isNotDef
 
   -- We have possibly non-defined, and nothing changed: report error.
-  go False _ isNotDef [] = return (Left [ ct | (ct,_,_) <- isNotDef ])
+  go False isDef isNotDef [] = return ([ a | (a,_,_) <- isNotDef ], isDef)
 
   -- Process one constraint.
   go ch isDef isNotDef ((ct,p,q) : more) =
@@ -75,6 +74,10 @@ assumeProps :: Solver -> [Cry.Prop] -> IO ()
 assumeProps s props =
   mapM_ (assert s . prepareProp) (map cryDefinedProp ps ++ ps)
   where ps = mapMaybe exportProp props
+
+
+
+
 
 --------------------------------------------------------------------------------
 
@@ -215,8 +218,8 @@ viPop VarInfo { .. } = case otherScopes of
 -- | Execute a computation with a fresh solver instance.
 withSolver :: (Solver -> IO a) -> IO a
 withSolver k =
-  do l      <- SMT.newLogger
-     solver <- SMT.newSolver "cvc4" ["--lang=smt2", "--incremental"] (Just l)
+  do _l      <- SMT.newLogger
+     solver <- SMT.newSolver "cvc4" ["--lang=smt2", "--incremental"] Nothing -- (Just l)
      SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty
      a <- k Solver { .. }
@@ -245,8 +248,9 @@ declareVar Solver { .. } a =
 
 -- | Add an assertion to the current context.
 assert :: Solver -> SMTProp -> IO ()
-assert Solver { .. } SMTProp { .. } =
-  do SMT.assert solver smtpLinPart
+assert s@Solver { .. } SMTProp { .. } =
+  do mapM_ (declareVar s) (Set.toList smtpVars)
+     SMT.assert solver smtpLinPart
      modifyIORef' declared (viAssert smtpNonLinPart)
 
 

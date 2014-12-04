@@ -25,7 +25,8 @@ import           Cryptol.TypeCheck.Solver.Numeric
 import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Smtlib as SMT
-import qualified Cryptol.TypeCheck.Solver.CrySAT as CM
+import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
+import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 
 import           Cryptol.TypeCheck.Defaulting(tryDefaultWith)
 
@@ -51,95 +52,64 @@ checkTypeFunction _ _                     = []
 -- probably be good to try solving all of these in one big loop.
 simplifyAllConstraints :: InferM ()
 simplifyAllConstraints =
-  do mapM_  tryHasGoal     =<< getHasGoals
-     simplifyGoals noFacts =<< getGoals
+  do mapM_  tryHasGoal =<< getHasGoals
+     gs <- getGoals
+     addGoals =<< io (simpGoals gs)
 
 
 proveImplication :: LQName -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
-proveImplication lname as asmps0 goals =
-  case assumedOrderModel noFacts (concatMap expandProp asmps0) of
-    Left (_m,p) -> do recordError (UnusableFunction (thing lname) p)
-                      return emptySubst
-    Right (m,asmps) ->
-      do let gs = [ g { goal = q } | g <- goals
-                                   , let p = goal g
-                                         q = simpType m p
-                                   , p `notElem` asmps
-                                   , q `notElem` asmps
-                  ]
+proveImplication lname as ps gs =
+  do let gs1 = filter ((`notElem` ps) . goal) gs
+     gs2 <- io (simpGoals gs1)
+     let gs3 = filter ((`notElem` ps) . goal) gs2
+         (badClass,numCts) = partitionEithers (map numericRight gs3)
+     badNum <- case numCts of
+                 [] -> return []
+                 _  -> io $ Num.withSolver $ \s ->
+                         do Num.assumeProps s ps
+                            (nonDef,def) <- Num.checkDefined s numCts
+                            def1 <- Num.simplifyProps s def
+                            return (nonDef ++ def1)
+     case badClass ++ badClass of
+       [] -> return ()
+       us -> recordError $ UnsolvedDelcayedCt
+                         $ DelayedCt { dctSource = lname
+                                     , dctForall = as
+                                     , dctAsmps  = ps
+                                     , dctGoals  = us
+                                     }
+     return emptySubst
 
-         (_,gs1) <- collectGoals (simplifyGoals m gs)
 
-         let numAsmps = filter pIsNumeric asmps
-             (numGs,otherGs) = partition (pIsNumeric . goal) gs1
+-- | Class goals go on the left, numeric goals go on the right.
+numericRight :: Goal -> Either Goal (Goal, Num.Prop)
+numericRight g  = case Num.exportProp (goal g) of
+                    Just p  -> Right (g, p)
+                    Nothing -> Left g
 
-         gs2 <- io $ SMT.simpDelayed as m numAsmps numGs
-         case otherGs ++ gs2 of
-           [] -> return emptySubst
-           unsolved ->
-            -- Last resort, let's try to default something.
-             do let vs = Set.filter isFreeTV $ fvs $ map goal unsolved
-                evars <- varsWithAsmps
-                let candidates = vs `Set.difference` evars
-                if Set.null vs
-                  then reportErr unsolved >> return emptySubst
-                  else do let (_,uns,su,ws) =
-                               tryDefaultWith m (Set.toList candidates) unsolved
-                          mapM_ recordWarning ws
-                          unless (null uns) (reportErr uns)
-                          return su
+-- | Assumes that the substitution has been applied to the goals.
+simpGoals :: [Goal] -> IO [Goal]
+simpGoals gs0 =
+  do let (unsolvedClassCts,numCts) = solveClassCts gs0
+     case numCts of
+       [] -> return unsolvedClassCts
+       _  -> Num.withSolver $ \s ->
+          do (nonDef,def) <- Num.checkDefined s numCts
+             def1         <- Num.simplifyProps s def
+             return (nonDef ++ unsolvedClassCts ++ def1)
+
 
   where
-  reportErr us = recordError $ UnsolvedDelcayedCt
-                               DelayedCt { dctSource = lname
-                                         , dctForall = as
-                                         , dctAsmps  = asmps0
-                                         , dctGoals  = us
-                                         }
+  solveClassRight g = case classStep g of
+                        Just gs -> Right gs
+                        Nothing -> Left g
 
-
-simpGoals :: [Goal] -> Inferm ()
-simpGoals gs =
-  where
-  (nonNum,nums)  = partitionEithers (map numericRight gs)
-  numericRight g = case exportProp (goal g) of
-                     Just p  -> Right (g, p)
-                     Nothing -> Left g
-
-
-
--- | Assumes that the substitution has been applied to the goals
-simplifyGoals :: OrdFacts -> [Goal] -> InferM ()
-simplifyGoals initOrd gs1 = solveSomeGoals [] False gs1
-  where
-  solveSomeGoals others !changes [] =
-    if changes
-      then solveSomeGoals [] False others
-      else addGoals others
-
-  solveSomeGoals others !changes (g : gs) =
-    do let (m, bad, _) = goalOrderModel initOrd (others ++ gs)
-
-       if not (null bad)
-         then mapM_ (recordError . UnsolvedGoal) bad
-         else
-           case makeStep m g of
-             Unsolved -> solveSomeGoals (g : others) changes gs
-             Unsolvable ->
-               do recordError (UnsolvedGoal g)
-                  solveSomeGoals others changes gs
-
-             Solved Nothing []     -> solveSomeGoals others changes gs
-             Solved Nothing subs   -> solveSomeGoals others True (subs ++ gs)
-             Solved (Just su) subs ->
-               do extendSubst su
-                  solveSomeGoals (apSubst su others) True
-                                            (subs ++ apSubst su gs)
-
-  makeStep m g = case numericStep m g of
-                   Unsolved -> classStep g
-                   x        -> x
-
-
+  -- returns (unsolved class constraints, numeric constraints)
+  solveClassCts [] = ([], [])
+  solveClassCts gs =
+     let (classCts,numCts)    = partitionEithers (map numericRight gs)
+         (unsolved,solveds)   = partitionEithers (map solveClassRight classCts)
+         (unsolved',numCts')  = solveClassCts (concat solveds)
+     in (unsolved ++ unsolved', numCts ++ numCts')
 
 
