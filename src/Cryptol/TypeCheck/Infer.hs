@@ -121,8 +121,8 @@ appTys expr ts =
     -- Here is an example of why this might be useful:
     -- f ` { x = T } where type T = ...
     P.EWhere e ds ->
-      inferDs ds $ \ds1 -> do (e1,t1) <- appTys e ts
-                              return (EWhere e1 ds1, t1)
+      monoDs ds $ \ds1 -> do (e1,t1) <- appTys e ts
+                             return (EWhere e1 ds1, t1)
          -- XXX: Is there a scoping issue here?  I think not, but check.
 
     P.ELocated e r ->
@@ -289,8 +289,8 @@ inferE expr =
          return (EIf e1' e2' e3', tR)
 
     P.EWhere e ds ->
-      inferDs ds $ \ds1 -> do (e1,ty) <- inferE e
-                              return (EWhere e1 ds1, ty)
+      monoDs ds $ \ds1 -> do (e1,ty) <- inferE e
+                             return (EWhere e1 ds1, ty)
 
     P.ETyped e t ->
       do tSig <- checkTypeOfKind t KType
@@ -420,6 +420,22 @@ inferCArm armNum (m : ms) =
      return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, sz)
 
 
+checkBinds :: Map QName Expr -> Bool -> [P.Bind] -> InferM ([Decl], [Decl])
+checkBinds exprMap isRec binds =
+  {- Guess type is here, because while we check user supplied signatures
+     we may generate additional constraints. For example, `x - y` would
+     generate an additional constraint `x >= y`. -}
+  do (newEnv,todos) <- unzip `fmap` mapM (guessType exprMap) binds
+     let extEnv = if isRec then withVarTypes newEnv else id
+
+     extEnv $
+       do let (sigsAndMonos,noSigGen) = partitionEithers todos
+          genCs <- sequence noSigGen
+          done  <- sequence sigsAndMonos
+          simplifyAllConstraints
+          return (done, genCs)
+
+
 inferBinds :: Bool -> [P.Bind] -> InferM [Decl]
 inferBinds isRec binds =
   mdo let exprMap = Map.fromList [ (x,inst (EVar x) (dDefinition b))
@@ -429,26 +445,23 @@ inferBinds isRec binds =
           inst e (EProofAbs _ e1) = inst (EProofApp e) e1
           inst e _                = e
 
+      ((doneBs,genCandidates),cs) <- collectGoals (checkBinds exprMap isRec binds)
 
-
-
-      ((doneBs, genCandidates), cs) <-
-        collectGoals $
-
-        {- Guess type is here, because while we check user supplied signatures
-           we may generate additional constraints. For example, `x - y` would
-           generate an additional constraint `x >= y`. -}
-        do (newEnv,todos) <- unzip `fmap` mapM (guessType exprMap) binds
-           let extEnv = if isRec then withVarTypes newEnv else id
-
-           extEnv $
-             do let (sigsAndMonos,noSigGen) = partitionEithers todos
-                genCs <- sequence noSigGen
-                done  <- sequence sigsAndMonos
-                simplifyAllConstraints
-                return (done, genCs)
       genBs <- generalize genCandidates cs -- RECURSION
       return (doneBs ++ genBs)
+
+
+monoBinds :: Bool -> [P.Bind] -> InferM [Decl]
+monoBinds isRec binds =
+  mdo let exprMap = Map.fromList [ (x,inst (EVar x) (dDefinition b))
+                                 | b <- noSigs, let x = dName b ] -- REC.
+
+          inst e (ETAbs x e1)     = inst (ETApp e (TVar (tpVar x))) e1
+          inst e (EProofAbs _ e1) = inst (EProofApp e) e1
+          inst e _                = e
+
+      (doneBs,noSigs) <- checkBinds exprMap isRec binds -- REC
+      return (doneBs ++ noSigs)
 
 
 {- | Come up with a type for recursive calls to a function, and decide
@@ -640,35 +653,69 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         , dPragmas    = P.bPragmas b
         }
 
-inferDs :: FromDecl d => [d] -> ([DeclGroup] -> InferM a) -> InferM a
-inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
+-- | Check type declarations, then continue checking in the environment that
+-- they produce.
+checkTyDecls :: [TyDecl] -> InferM a -> InferM a
+checkTyDecls decls continue = loop decls
   where
-  checkTyDecls (TS t : ts) =
+  loop (TS t : ts) =
     do t1 <- checkTySyn t
-       withTySyn t1 (checkTyDecls ts)
+       withTySyn t1 (loop ts)
 
-  checkTyDecls (NT t : ts) =
+  loop (NT t : ts) =
     do t1 <- checkNewtype t
-       withNewtype t1 (checkTyDecls ts)
+       withNewtype t1 (loop ts)
 
   -- We checked all type synonyms, now continue with value-level definitions:
-  checkTyDecls [] = checkBinds [] $ orderBinds $ mapMaybe toBind ds
+  loop [] = continue
 
+inferDs :: FromDecl d => [d] -> ([DeclGroup] -> InferM a) -> InferM a
+inferDs ds continue =
+  do tyDecls <- orderTyDecls (mapMaybe toTyDecl ds)
+     checkTyDecls tyDecls $
+         checkVals [] $ orderBinds $ mapMaybe toBind ds
+  where
 
-  checkBinds decls (CyclicSCC bs : more) =
+  checkVals decls (CyclicSCC bs : more) =
      do bs1 <- inferBinds True bs
         foldr (\b m -> withVar (dName b) (dSignature b) m)
-              (checkBinds (Recursive bs1 : decls) more)
+              (checkVals (Recursive bs1 : decls) more)
               bs1
 
-  checkBinds decls (AcyclicSCC c : more) =
+  checkVals decls (AcyclicSCC c : more) =
     do [b] <- inferBinds False [c]
        withVar (dName b) (dSignature b) $
-         checkBinds (NonRecursive b : decls) more
+         checkVals (NonRecursive b : decls) more
 
   -- We are done with all value-level definitions.
   -- Now continue with anything that's in scope of the declarations.
-  checkBinds decls [] = continue (reverse decls)
+  checkVals decls [] = continue (reverse decls)
+
+-- | Infer monomorphic types for all values that lack signatures.
+monoDs :: FromDecl d => [d] -> ([DeclGroup] -> InferM a) -> InferM a
+monoDs ds continue =
+  do tyDecls <- orderTyDecls (mapMaybe toTyDecl ds)
+     checkTyDecls tyDecls $
+         checkVals [] $ orderBinds $ mapMaybe toBind ds
+
+  where
+
+  checkVals decls (CyclicSCC bs : more) =
+     do bs1 <- monoBinds True bs
+        foldr (\b m -> withVar (dName b) (dSignature b) m)
+              (checkVals (Recursive bs1 : decls) more)
+              bs1
+
+  checkVals decls (AcyclicSCC c : more) =
+    do [b] <- monoBinds False [c]
+       withVar (dName b) (dSignature b) $
+         checkVals (NonRecursive b : decls) more
+
+  -- We are done with all value-level definitions.
+  -- Now continue with anything that's in scope of the declarations.
+  checkVals decls [] = continue (reverse decls)
+
+
 
 
 tcPanic :: String -> [String] -> a
