@@ -51,7 +51,7 @@ data DelayedCt = DelayedCt
   , dctGoals  :: [Goal]
   } deriving Show
 
-data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assumeing the sub-goals.
+data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assuming the sub-goals.
             | Unsolved                    -- ^ We could not solved the goal.
             | Unsolvable                  -- ^ The goal can never be solved
               deriving (Show)
