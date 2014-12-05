@@ -4,6 +4,7 @@ module Cryptol.TypeCheck.Solver.CrySAT
   ( withScope, withSolver
   , assumeProps, checkDefined, simplifyProps
   , exportProp
+  , check
   ) where
 
 import qualified Cryptol.TypeCheck.AST as Cry
@@ -17,6 +18,8 @@ import           Cryptol.Utils.Panic ( panic )
 
 import           Control.Monad ( unless )
 import           Data.Maybe ( mapMaybe )
+import           Data.Map ( Map )
+import qualified Data.Map as Map
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef' )
@@ -25,12 +28,14 @@ import           SimpleSMT ( SExpr )
 import qualified SimpleSMT as SMT
 
 
+checkDefined :: Solver -> [(a,Prop)] -> IO ([a], [(a,SMTProp)])
+checkDefined s props0 = withScope s $ checkDefined' s props0
 
 -- | Check that a bunch of constraints are all defined.
 -- We return constraints that are not necessarily defined in the first
 -- component, and the ones that are defined in the second component.
-checkDefined :: Solver -> [(a,Prop)] -> IO ([a], [(a,SMTProp)])
-checkDefined s props0 = withScope s $
+checkDefined' :: Solver -> [(a,Prop)] -> IO ([a], [(a,SMTProp)])
+checkDefined' s props0 =
   go False [] [] [ (a, p, prepareProp (cryDefinedProp p)) | (a,p) <- props0 ]
 
   where
@@ -40,7 +45,7 @@ checkDefined s props0 = withScope s $
   -- We have possibly non-defined, but we also added a new fact: go again.
   go True isDef isNotDef [] = go False isDef [] isNotDef
 
-  -- We have possibly non-defined, and nothing changed: report error.
+  -- We have possibly non-defined predicates and nothing changed.
   go False isDef isNotDef [] = return ([ a | (a,_,_) <- isNotDef ], isDef)
 
   -- Process one constraint.
@@ -142,8 +147,11 @@ exportVar (Cry.TVBound x _)    = 2 * x + 1    -- Bound vars are odd
 
 data SMTProp = SMTProp
   { smtpVars        :: Set Name
+    -- ^ Theses vars include vars in the linear part,
+    -- as well as variables in the 'fst' of the non-linear part.
   , smtpLinPart     :: SExpr
   , smtpNonLinPart  :: [(Name,Expr)]
+    -- ^ The names are all distinct, and don't appear in the the defs.
   }
 
 -- | Prepare a property for export to an SMT solver.
@@ -215,11 +223,16 @@ viPop VarInfo { .. } = case otherScopes of
                          c : cs -> VarInfo { curScope = c, otherScopes = cs }
                          _ -> panic "viPop" ["no more scopes"]
 
+-- | All declared names
+viNames :: VarInfo -> [ Name ]
+viNames VarInfo { .. } = concatMap scopeNames (curScope : otherScopes)
+
 -- | Execute a computation with a fresh solver instance.
 withSolver :: (Solver -> IO a) -> IO a
 withSolver k =
-  do _l      <- SMT.newLogger
-     solver <- SMT.newSolver "cvc4" ["--lang=smt2", "--incremental"] Nothing -- (Just l)
+  do _l     <- SMT.newLogger
+     solver <- SMT.newSolver "cvc4" ["--lang=smt2", "--incremental"] Nothing
+                                                                  -- (Just l)
      SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty
      a <- k Solver { .. }
@@ -271,6 +284,54 @@ prove s@(Solver { .. }) SMTProp { .. } =
         -- a fake example, as we need to evaluate the nonLinear constraints.
         -- If they are all satisfied, then we have a genuine counter example.
         -- Otherwise, we could look for another one...
+
+
+-- | Check if the current set of assumptions is satisifiable, and find
+-- some facts that must hold in any models of the current assumptions.
+-- The 'Bool' is 'True' if the current asumptions *map be* satisifiable.
+-- The 'Bool' is 'False' if the current assumptions are *definately*
+-- not satisfiable.
+check :: Solver -> IO (Bool, Map Name Expr)
+check Solver { .. } =
+  do res <- SMT.check solver
+     case res of
+       SMT.Unsat   -> return (False, Map.empty)
+       SMT.Unknown -> return (True, Map.empty)
+       SMT.Sat     ->
+         do names <- viNames `fmap` readIORef declared
+            m     <- fmap Map.fromList (mapM getVal names)
+            imps  <- cryImproveModel solver m
+
+            -- XXX: Here we should apply the imps to the non-linear things
+            -- and evalute. If this results in a contradiction, than we
+            -- know that current assumptions are definately not satisfiable
+            -- because the `imps` must hold in any model of the linear part.
+            -- Also, some of the non-linear things may become linear,
+            -- so we could get further improvements.
+
+            -- For now, we just return the improvements, with the idea
+            -- that they are sent outside of CrySat (e.g., they might enable
+            -- some class constraints to be solved), the idea being that
+            -- we'd apply the substitution and start over.
+
+            return (True, imps)
+
+
+  where
+  getVal a =
+    do yes <- isInf a
+       if yes then return (a, K Inf)
+              else do v <- SMT.getConst solver (smtName a)
+                      case v of
+                        SMT.Int x | x >= 0 -> return (a, K (Nat x))
+                        _ -> panic "cryCheck.getVal"
+                                [ "Not a natural number", show v ]
+
+  isInf a = do yes <- SMT.getConst solver (smtFinName a)
+               case yes of
+                 SMT.Bool ans -> return (not ans)
+                 _            -> panic "cryCheck.isInf"
+                                       [ "Not a boolean value", show yes ]
 
 
 
