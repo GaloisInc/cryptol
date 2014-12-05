@@ -10,6 +10,7 @@ module Cryptol.TypeCheck.Solver.Numeric.Simplify where
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import qualified Cryptol.TypeCheck.Solver.InfNat as IN
 import           Cryptol.Utils.Panic( panic )
+import           Cryptol.Utils.Misc ( anyJust )
 
 import           Data.List ( unfoldr,sortBy )
 import qualified Data.Set as Set
@@ -222,72 +223,6 @@ cryIsDefn _              = Nothing
 
 
 
-{- | Apply the function to all elements in the list.
-Return 'Nothing' if all results were 'Nothing', otherwise it
-returns @Just answers@, where each @answer@ is either the original
-value (if the function gave 'Nothing'), or the result of the function. -}
-anyJust :: (a -> Maybe a) -> [a] -> Maybe [a]
-anyJust _ []       = Nothing
-anyJust f (x : xs) = case (f x, anyJust f xs) of
-                       (Nothing, Nothing)   -> Nothing
-                       (Just x', Nothing)   -> Just (x' : xs)
-                       (Nothing, Just xs')  -> Just (x  : xs')
-                       (Just x', Just xs')  -> Just (x' : xs')
-
-
--- | Replaces occurances of the name with the expression.
--- Returns 'Nothing' if there were no occurances of the name.
-class CryLet ast where
-  cryLet :: Name -> Expr -> ast -> Maybe ast
-
-instance CryLet Expr where
-  cryLet a e = go
-    where
-    go expr =
-      case expr of
-        K _                 -> Nothing
-        Var b               -> if a == b then Just e else Nothing
-        x :+ y              -> two (:+) x y
-        x :- y              -> two (:-) x y
-        x :* y              -> two (:*) x y
-        x :^^ y             -> two (:^^) x y
-        Div x y             -> two Div x y
-        Mod x y             -> two Mod x y
-        Min x y             -> two Min x y
-        Max x y             -> two Max x y
-        Lg2 x               -> Lg2 `fmap` go x
-        Width x             -> Width `fmap` go x
-        LenFromThen x y w   -> three LenFromThen x y w
-        LenFromThenTo x y z -> three LenFromThen x y z
-
-    two f x y = do [x',y'] <- anyJust go [x,y]
-                   return (f x' y')
-
-    three f x y z = do [x',y',z'] <- anyJust go [x,y,z]
-                       return (f x' y' z')
-
-instance CryLet Prop where
-  cryLet a e = go
-    where
-    go prop =
-      case prop of
-        PFalse    -> Nothing
-        PTrue     -> Nothing
-        Not p     -> Not `fmap` go p
-        p :&& q   -> two (:&&) p q
-        p :|| q   -> two (:||) p q
-        Fin x     -> Fin `fmap` cryLet a e x
-        x :== y   -> twoE (:==) x y
-        x :>= y   -> twoE (:>=) x y
-        x :> y    -> twoE (:>) x y
-        x :==: y  -> twoE (:==:) x y
-        x :>: y   -> twoE (:>) x y
-
-    two f x y = do [x',y'] <- anyJust go [x,y]
-                   return (f x' y')
-
-    twoE f x y = do [x',y'] <- anyJust (cryLet a e) [x,y]
-                    return (f x' y')
 
 
 type PropOrdering = (Int,Prop) -> (Int,Prop) -> Ordering
@@ -633,6 +568,7 @@ cryGt0 useFinite expr =
 
 
 -- | Make a simplification step, assuming the expression is well-formed.
+-- XXX: Add more rules (e.g., (1 + (2 + x)) -> (1 + 2) + x -> 3 + x
 crySimpExpr :: Expr -> Maybe Expr
 crySimpExpr expr =
   case expr of

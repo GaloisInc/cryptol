@@ -14,11 +14,16 @@ module Cryptol.TypeCheck.Solver.Numeric.AST
   , Nat'(..)
 
   , IfExpr(..), ppIfExpr
+
+  , Subst, HasVars(..), cryLet
   ) where
 
-import          Cryptol.Utils.Panic ( panic )
 import          Cryptol.TypeCheck.Solver.InfNat ( Nat'(..) )
+import          Cryptol.Utils.Panic ( panic )
+import          Cryptol.Utils.Misc ( anyJust )
 
+import           Data.Map ( Map )
+import qualified Data.Map as Map
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import qualified Control.Applicative as A
@@ -213,6 +218,70 @@ instance A.Applicative IfExpr where
   (<*>) = ap
 
 
+--------------------------------------------------------------------------------
+-- Substitution
+--------------------------------------------------------------------------------
+
+type Subst = Map Name Expr
+
+cryLet :: HasVars e => Name -> Expr -> e -> Maybe e
+cryLet x e = apSubst (Map.singleton x e)
+
+-- | Replaces occurances of the name with the expression.
+-- Returns 'Nothing' if there were no occurances of the name.
+class HasVars ast where
+  apSubst :: Subst -> ast -> Maybe ast
+
+instance HasVars Expr where
+  apSubst su = go
+    where
+    go expr =
+      case expr of
+        K _                 -> Nothing
+        Var b               -> Map.lookup b su
+        x :+ y              -> two (:+) x y
+        x :- y              -> two (:-) x y
+        x :* y              -> two (:*) x y
+        x :^^ y             -> two (:^^) x y
+        Div x y             -> two Div x y
+        Mod x y             -> two Mod x y
+        Min x y             -> two Min x y
+        Max x y             -> two Max x y
+        Lg2 x               -> Lg2 `fmap` go x
+        Width x             -> Width `fmap` go x
+        LenFromThen x y w   -> three LenFromThen x y w
+        LenFromThenTo x y z -> three LenFromThen x y z
+
+    two f x y = do [x',y'] <- anyJust go [x,y]
+                   return (f x' y')
+
+    three f x y z = do [x',y',z'] <- anyJust go [x,y,z]
+                       return (f x' y' z')
+
+instance HasVars Prop where
+  apSubst su = go
+    where
+    go prop =
+      case prop of
+        PFalse    -> Nothing
+        PTrue     -> Nothing
+        Not p     -> Not `fmap` go p
+        p :&& q   -> two (:&&) p q
+        p :|| q   -> two (:||) p q
+        Fin x     -> Fin `fmap` apSubst su x
+        x :== y   -> twoE (:==) x y
+        x :>= y   -> twoE (:>=) x y
+        x :> y    -> twoE (:>) x y
+        x :==: y  -> twoE (:==:) x y
+        x :>: y   -> twoE (:>) x y
+
+    two f x y = do [x',y'] <- anyJust go [x,y]
+                   return (f x' y')
+
+    twoE f x y = do [x',y'] <- anyJust (apSubst su) [x,y]
+                    return (f x' y')
+
+
 
 
 --------------------------------------------------------------------------------
@@ -314,5 +383,6 @@ ppIfExpr expr =
               )
     Return e    -> ppExpr e
     Impossible  -> text "<impossible>"
+
 
 

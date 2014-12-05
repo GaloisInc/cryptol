@@ -68,6 +68,7 @@ library
                        Cryptol.Utils.PP,
                        Cryptol.Utils.Panic,
                        Cryptol.Utils.Debug,
+                       Cryptol.Utils.Misc,
                        Cryptol.Version,
 
                        Cryptol.ModuleSystem,
