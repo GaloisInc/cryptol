@@ -23,6 +23,9 @@ module Cryptol.Parser.AST
   , Kind(..)
   , Type(..)
   , Prop(..)
+  , isCompleteSchema
+  , isCompleteProp
+  , isCompleteType
 
     -- * Declarations
   , Module(..)
@@ -348,6 +351,36 @@ data Prop     = CFin Type             -- ^ @ fin x   @
               | CCmp Type             -- ^ @ Cmp a @
               | CLocated Prop Range   -- ^ Location information
                 deriving (Eq,Show)
+
+
+-- | True when the schema lacks wildcards.
+isCompleteSchema :: Schema -> Bool
+isCompleteSchema (Forall _ ps ty _) =
+  all isCompleteProp ps && isCompleteType ty
+
+-- | True when the prop lacks wildcards.
+isCompleteProp :: Prop -> Bool
+isCompleteProp (CFin ty)      = isCompleteType ty
+isCompleteProp (CEqual l r)   = isCompleteType l && isCompleteType r
+isCompleteProp (CGeq l r)     = isCompleteType l && isCompleteType r
+isCompleteProp (CArith ty)    = isCompleteType ty
+isCompleteProp (CCmp ty)      = isCompleteType ty
+isCompleteProp (CLocated p _) = isCompleteProp p
+
+-- | True when the type lacks wildcards.
+isCompleteType :: Type -> Bool
+isCompleteType (TFun l r)      = isCompleteType l && isCompleteType r
+isCompleteType (TSeq l r)      = isCompleteType l && isCompleteType r
+isCompleteType TBit            = True
+isCompleteType TNum{}          = True
+isCompleteType TChar{}         = True
+isCompleteType TInf            = True
+isCompleteType (TUser _ tys)   = all isCompleteType tys
+isCompleteType (TApp _ tys)    = all isCompleteType tys
+isCompleteType (TRecord ns)    = all (isCompleteType . value) ns
+isCompleteType (TTuple tys)    = all isCompleteType tys
+isCompleteType TWild           = False
+isCompleteType (TLocated ty _) = isCompleteType ty
 
 
 --------------------------------------------------------------------------------

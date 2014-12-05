@@ -73,6 +73,7 @@ runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
 runInferM info (IM m) =
   do rec ro <- return RO { iRange     = inpRange info
                      , iVars          = Map.map ExtVar (inpVars info)
+                     , iParams        = Set.empty
                      , iTVars         = []
                      , iTSyns         = fmap mkExternal (inpTSyns info)
                      , iNewtypes      = fmap mkExternal (inpNewtypes info)
@@ -121,6 +122,9 @@ data DefLoc = IsLocal | IsExternal
 data RO = RO
   { iRange    :: Range                  -- ^ Source code being analysed
   , iVars     :: Map QName VarType      -- ^ Type of variable that are in scope
+
+  , iParams   :: Set QName              -- ^ Variables introduced by the current
+                                        --   binding
 
   {- NOTE: We assume no shadowing between these two, so it does not matter
   where we look first. Similarly, we assume no shadowing with
@@ -456,6 +460,9 @@ getTVars = IM $ asks $ Set.fromList . mapMaybe tpName . iTVars
 getBoundInScope :: InferM (Set TVar)
 getBoundInScope = IM $ asks $ Set.fromList . map tpVar . iTVars
 
+getParams :: InferM (Set QName)
+getParams  = IM $ asks iParams
+
 {- | We disallow shadowing between type synonyms and type variables
 because it is confusing.  As a bonus, in the implementation we don't
 need to worry about where we lookup things (i.e., in the variable or
@@ -528,6 +535,13 @@ withMonoType (x,lt) = withVar x (Forall [] [] (thing lt))
 -- | The sub-computation is performed with the given variables in scope.
 withMonoTypes :: Map QName (Located Type) -> InferM a -> InferM a
 withMonoTypes xs m = foldr withMonoType m (Map.toList xs)
+
+-- | The sub-computation is performed with the given variables marked as
+-- parameters.
+withParams :: Set QName -> InferM a -> InferM a
+withParams params m = IM $
+  do ro <- ask
+     local ro { iParams = iParams ro `Set.union` params } (unIM m)
 
 -- | The sub-computation is performed with the given type synonyms
 -- and variables in scope.

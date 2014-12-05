@@ -43,7 +43,7 @@ import qualified Data.Map as Map
 import           Data.Map (Map)
 import qualified Data.Set as Set
 import           Data.Either(partitionEithers)
-import           Data.Maybe(mapMaybe)
+import           Data.Maybe(mapMaybe,isJust)
 import           Data.List(partition)
 import           Data.Graph(SCC(..))
 import           Data.Traversable(forM)
@@ -335,7 +335,8 @@ inferFun desc ps e =
                                                       | n <- [ 1 :: Int .. ] ]
      largs     <- zipWithM inferP descs ps
      ds        <- combine largs
-     (e1,tRes) <- withMonoTypes ds (inferE e)
+     let params = Set.fromList (Map.keys ds)
+     (e1,tRes) <- withMonoTypes ds (withParams params (inferE e))
      let args = [ (x, thing t) | (x,t) <- largs ]
          ty   = foldr tFun tRes (map snd args)
      return (foldr (\(x,t) b -> EAbs x t b) e1 args, ty)
@@ -420,22 +421,6 @@ inferCArm armNum (m : ms) =
      return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, sz)
 
 
-checkBinds :: Map QName Expr -> Bool -> [P.Bind] -> InferM ([Decl], [Decl])
-checkBinds exprMap isRec binds =
-  {- Guess type is here, because while we check user supplied signatures
-     we may generate additional constraints. For example, `x - y` would
-     generate an additional constraint `x >= y`. -}
-  do (newEnv,todos) <- unzip `fmap` mapM (guessType exprMap) binds
-     let extEnv = if isRec then withVarTypes newEnv else id
-
-     extEnv $
-       do let (sigsAndMonos,noSigGen) = partitionEithers todos
-          genCs <- sequence noSigGen
-          done  <- sequence sigsAndMonos
-          simplifyAllConstraints
-          return (done, genCs)
-
-
 inferBinds :: Bool -> [P.Bind] -> InferM [Decl]
 inferBinds isRec binds =
   mdo let exprMap = Map.fromList [ (x,inst (EVar x) (dDefinition b))
@@ -445,23 +430,26 @@ inferBinds isRec binds =
           inst e (EProofAbs _ e1) = inst (EProofApp e) e1
           inst e _                = e
 
-      ((doneBs,genCandidates),cs) <- collectGoals (checkBinds exprMap isRec binds)
 
+
+
+      ((doneBs, genCandidates), cs) <-
+        collectGoals $
+
+        {- Guess type is here, because while we check user supplied signatures
+           we may generate additional constraints. For example, `x - y` would
+           generate an additional constraint `x >= y`. -}
+        do (newEnv,todos) <- unzip `fmap` mapM (guessType exprMap) binds
+           let extEnv = if isRec then withVarTypes newEnv else id
+
+           extEnv $
+             do let (sigsAndMonos,noSigGen) = partitionEithers todos
+                genCs <- sequence noSigGen
+                done  <- sequence sigsAndMonos
+                simplifyAllConstraints
+                return (done, genCs)
       genBs <- generalize genCandidates cs -- RECURSION
       return (doneBs ++ genBs)
-
-
-monoBinds :: Bool -> [P.Bind] -> InferM [Decl]
-monoBinds isRec binds =
-  mdo let exprMap = Map.fromList [ (x,inst (EVar x) (dDefinition b))
-                                 | b <- noSigs, let x = dName b ] -- REC.
-
-          inst e (ETAbs x e1)     = inst (ETApp e (TVar (tpVar x))) e1
-          inst e (EProofAbs _ e1) = inst (EProofApp e) e1
-          inst e _                = e
-
-      (doneBs,noSigs) <- checkBinds exprMap isRec binds -- REC
-      return (doneBs ++ noSigs)
 
 
 {- | Come up with a type for recursive calls to a function, and decide
@@ -653,68 +641,94 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         , dPragmas    = P.bPragmas b
         }
 
--- | Check type declarations, then continue checking in the environment that
--- they produce.
-checkTyDecls :: [TyDecl] -> InferM a -> InferM a
-checkTyDecls decls continue = loop decls
+inferDs :: FromDecl d => [d] -> ([DeclGroup] -> InferM a) -> InferM a
+inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
   where
-  loop (TS t : ts) =
+  checkTyDecls (TS t : ts) =
     do t1 <- checkTySyn t
-       withTySyn t1 (loop ts)
+       withTySyn t1 (checkTyDecls ts)
 
-  loop (NT t : ts) =
+  checkTyDecls (NT t : ts) =
     do t1 <- checkNewtype t
-       withNewtype t1 (loop ts)
+       withNewtype t1 (checkTyDecls ts)
 
   -- We checked all type synonyms, now continue with value-level definitions:
-  loop [] = continue
+  checkTyDecls [] = checkBinds [] $ orderBinds $ mapMaybe toBind ds
 
-inferDs :: FromDecl d => [d] -> ([DeclGroup] -> InferM a) -> InferM a
-inferDs ds continue =
-  do tyDecls <- orderTyDecls (mapMaybe toTyDecl ds)
-     checkTyDecls tyDecls $
-         checkVals [] $ orderBinds $ mapMaybe toBind ds
-  where
 
-  checkVals decls (CyclicSCC bs : more) =
+  checkBinds decls (CyclicSCC bs : more) =
      do bs1 <- inferBinds True bs
         foldr (\b m -> withVar (dName b) (dSignature b) m)
-              (checkVals (Recursive bs1 : decls) more)
+              (checkBinds (Recursive bs1 : decls) more)
               bs1
 
-  checkVals decls (AcyclicSCC c : more) =
+  checkBinds decls (AcyclicSCC c : more) =
     do [b] <- inferBinds False [c]
        withVar (dName b) (dSignature b) $
-         checkVals (NonRecursive b : decls) more
+         checkBinds (NonRecursive b : decls) more
 
   -- We are done with all value-level definitions.
   -- Now continue with anything that's in scope of the declarations.
-  checkVals decls [] = continue (reverse decls)
+  checkBinds decls [] = continue (reverse decls)
 
--- | Infer monomorphic types for all values that lack signatures.
-monoDs :: FromDecl d => [d] -> ([DeclGroup] -> InferM a) -> InferM a
+
+monoDs :: [P.Decl] -> ([DeclGroup] -> InferM a) -> InferM a
 monoDs ds continue =
-  do tyDecls <- orderTyDecls (mapMaybe toTyDecl ds)
-     checkTyDecls tyDecls $
-         checkVals [] $ orderBinds $ mapMaybe toBind ds
+  do params <- getParams
+     monoDs' params ds continue
 
+-- | Partition bindings into:
+--
+--  * Bindings that have signatures
+--  * Bindings that lack signatures, but don't mention anything from the
+--    local environment
+--  * All other bindings
+--
+-- Bindings from the third group are bindings that will be made monomorphic,
+-- while bindings from the second group will be generalized, as they could
+-- conceivably be lifted to the top-level of the program.
+monoDs' :: Set.Set QName -> [P.Decl] -> ([DeclGroup] -> InferM a) -> InferM a
+monoDs' localEnv ds = inferDs (tys ++ binds')
   where
+  -- extend the local environment with the names of bindings that don't
+  -- complete signatures
+  localEnv' = localEnv `Set.union` Set.fromList [ thing bName
+                                                | P.Bind { .. } <- sigs
+                                                , let Just sig = bSignature
+                                                , not (P.isCompleteSchema sig) ]
 
-  checkVals decls (CyclicSCC bs : more) =
-     do bs1 <- monoBinds True bs
-        foldr (\b m -> withVar (dName b) (dSignature b) m)
-              (checkVals (Recursive bs1 : decls) more)
-              bs1
+  (sigs,noSigs) = partition (isJust . P.bSignature) binds
+  (monos,gens)  = partitionMonos localEnv' noSigs
 
-  checkVals decls (AcyclicSCC c : more) =
-    do [b] <- monoBinds False [c]
-       withVar (dName b) (dSignature b) $
-         checkVals (NonRecursive b : decls) more
+  binds' = map P.DBind (sigs ++ gens ++ monos)
 
-  -- We are done with all value-level definitions.
-  -- Now continue with anything that's in scope of the declarations.
-  checkVals decls [] = continue (reverse decls)
+  -- build the list of bindings, marking the bindings that should be monomorphic
+  (tys,binds) = partitionEithers [ case toBind d of
+                                     Just b  -> Right b
+                                     Nothing -> Left d
+                                 | d <- ds ]
 
+
+partitionMonos :: Set.Set QName -> [P.Bind] -> ([P.Bind], [P.Bind])
+partitionMonos env0 binds = loop env0 [] [ (b, P.namesB b) | b <- binds ]
+  where
+  loop env ms bs
+    -- none of the remaining bindings mention the environment, so mark all of
+    -- ms as monomorphic, and return bs unchanged, to be generalized
+    | null ms'  = ( [ b { P.bMono = True } | (b,_) <- ms ]
+                  , map fst bs )
+
+    | otherwise = loop env' (ms' ++ ms) bs'
+
+    where
+    (ms',bs') = partition mentionsEnv bs
+    env'      = foldl extendEnv env ms'
+
+    mentionsEnv (_,(_,uses)) = not (Set.null (Set.intersection env uses))
+
+  extendEnv env (_,(defs,_)) = foldl addDef env defs
+    where
+    addDef env' d = Set.insert (thing d) env'
 
 
 
