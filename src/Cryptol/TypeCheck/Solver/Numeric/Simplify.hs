@@ -713,6 +713,7 @@ crySimpExpr expr =
     Lg2 x ->
       case x of
         K a               -> Just (K (IN.nLg2 a))
+        K (Nat 2) :^^ e   -> Just e
         _                 -> Lg2 `fmap` crySimpExpr x
 
     Width x               -> Just (Lg2 (x :+ one))
