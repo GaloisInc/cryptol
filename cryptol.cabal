@@ -106,6 +106,7 @@ library
 
                        Cryptol.TypeCheck.Solver.CrySAT,
                        Cryptol.TypeCheck.Solver.Numeric.AST,
+                       Cryptol.TypeCheck.Solver.Numeric.ImportExport,
                        Cryptol.TypeCheck.Solver.Numeric.Defined,
                        Cryptol.TypeCheck.Solver.Numeric.Simplify,
                        Cryptol.TypeCheck.Solver.Numeric.NonLin,

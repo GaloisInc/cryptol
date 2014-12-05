@@ -10,6 +10,7 @@ module Cryptol.TypeCheck.Solver.CrySAT
 import qualified Cryptol.TypeCheck.AST as Cry
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST
+import           Cryptol.TypeCheck.Solver.Numeric.ImportExport
 import           Cryptol.TypeCheck.Solver.Numeric.Defined
 import           Cryptol.TypeCheck.Solver.Numeric.Simplify
 import           Cryptol.TypeCheck.Solver.Numeric.NonLin
@@ -79,65 +80,6 @@ assumeProps :: Solver -> [Cry.Prop] -> IO ()
 assumeProps s props =
   mapM_ (assert s . prepareProp) (map cryDefinedProp ps ++ ps)
   where ps = mapMaybe exportProp props
-
-
-
-
-
---------------------------------------------------------------------------------
-
-exportProp :: Cry.Prop -> Maybe Prop
-exportProp ty =
-  case ty of
-    Cry.TUser _ _ t -> exportProp t
-    Cry.TRec {}     -> Nothing
-    Cry.TVar {}     -> Nothing
-    Cry.TCon (Cry.PC pc) ts ->
-      mapM exportType ts >>= \ets ->
-      case (pc, ets) of
-        (Cry.PFin,   [t])     -> Just $ Fin t
-        (Cry.PEqual, [t1,t2]) -> Just $ t1 :== t2
-        (Cry.PNeq,   [t1,t2]) -> Just $ t1 :== t2
-        (Cry.PGeq,   [t1,t2]) -> Just $ t1 :>= t2
-        _                 -> Nothing
-    Cry.TCon _ _ -> Nothing
-
-exportType :: Cry.Type -> Maybe Expr
-exportType ty =
-  case ty of
-    Cry.TUser _ _ t -> exportType t
-    Cry.TRec {}     -> Nothing
-    Cry.TVar x      -> Just $ Var $ toName $ exportVar x
-    Cry.TCon tc ts  ->
-      case tc of
-        Cry.TC Cry.TCInf     -> Just $ K Inf
-        Cry.TC (Cry.TCNum x) -> Just $ K (Nat x)
-        Cry.TC _             -> Nothing
-
-        Cry.TF f ->
-          mapM exportType ts >>= \ets ->
-          case (f, ets) of
-            (Cry.TCAdd, [t1,t2]) -> Just $ t1 :+ t2
-            (Cry.TCSub, [t1,t2]) -> Just $ t1 :- t2
-            (Cry.TCMul, [t1,t2]) -> Just $ t1 :* t2
-            (Cry.TCDiv, [t1,t2]) -> Just $ Div t1 t2
-            (Cry.TCMod, [t1,t2]) -> Just $ Mod t1 t2
-            (Cry.TCExp, [t1,t2]) -> Just $ t1 :^^ t2
-            (Cry.TCMin, [t1,t2]) -> Just $ Min t1 t2
-            (Cry.TCMax, [t1,t2]) -> Just $ Max t1 t2
-            (Cry.TCLg2, [t1])    -> Just $ Lg2 t1
-            (Cry.TCWidth, [t1])  -> Just $ Width t1
-            (Cry.TCLenFromThen, [t1,t2,t3])   -> Just $ LenFromThen t1 t2 t3
-            (Cry.TCLenFromThenTo, [t1,t2,t3]) -> Just $ LenFromThenTo t1 t2 t3
-
-            _ -> Nothing
-
-        Cry.PC _ -> Nothing
-
-
-exportVar :: Cry.TVar -> Int
-exportVar (Cry.TVFree x _ _ _) = 2 * x        -- Free vars are even
-exportVar (Cry.TVBound x _)    = 2 * x + 1    -- Bound vars are odd
 
 
 
