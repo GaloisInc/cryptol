@@ -674,14 +674,18 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
 
 monoDs :: [P.Decl] -> ([DeclGroup] -> InferM a) -> InferM a
 monoDs ds continue =
-  do params <- getParams
-     monoDs' params ds continue
+  do localEnv <- getLocalEnv
+     monoDs' localEnv ds $ \ dgs ->
+       -- extend the local environment with the declarations from this block
+       let declNames = Set.fromList [ dName | g <- dgs
+                                            , Decl { .. } <- groupDecls g ]
+        in withLocalEnv declNames (continue dgs)
 
 -- | Partition bindings into:
 --
 --  * Bindings that have signatures
---  * Bindings that lack signatures, but don't mention anything from the
---    local environment
+--  * Bindings that lack signatures, but don't mention anything lacking a
+--    signature from the local environment
 --  * All other bindings
 --
 -- Bindings from the third group are bindings that will be made monomorphic,
