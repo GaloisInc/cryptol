@@ -335,8 +335,8 @@ inferFun desc ps e =
                                                       | n <- [ 1 :: Int .. ] ]
      largs     <- zipWithM inferP descs ps
      ds        <- combine largs
-     let params = Set.fromList (Map.keys ds)
-     (e1,tRes) <- withMonoTypes ds (withParams params (inferE e))
+     let localEnv = Set.fromList (Map.keys ds)
+     (e1,tRes) <- withMonoTypes ds (withLocalEnv localEnv (inferE e))
      let args = [ (x, thing t) | (x,t) <- largs ]
          ty   = foldr tFun tRes (map snd args)
      return (foldr (\(x,t) b -> EAbs x t b) e1 args, ty)
