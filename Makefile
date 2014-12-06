@@ -128,7 +128,7 @@ test: ${CS_BIN}/cryptol-test-runner
 	  -r output                                                        \
 	  -T --hide-successes                                              \
 	  -T --jxml=$(call adjust-path,$(CURDIR)/results.xml)              \
-	  -p $(TEST_DIFF)                                                  \
+	  $(if $(TEST_DIFF),-p $(TEST_DIFF),)                              \
 	)
 
 .PHONY: notebook
