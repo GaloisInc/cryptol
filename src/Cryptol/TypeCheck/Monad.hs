@@ -73,7 +73,12 @@ runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
 runInferM info (IM m) =
   do rec ro <- return RO { iRange     = inpRange info
                      , iVars          = Map.map ExtVar (inpVars info)
-                     , iClosed        = Set.empty
+
+                       -- initialize the set of closed values to include things
+                       -- defined in the input
+                     , iClosed        = Set.union
+                                        (Set.fromList (Map.keys (inpVars info)))
+                                        (Set.fromList (Map.keys (inpNewtypes info)))
                      , iTVars         = []
                      , iTSyns         = fmap mkExternal (inpTSyns info)
                      , iNewtypes      = fmap mkExternal (inpNewtypes info)
