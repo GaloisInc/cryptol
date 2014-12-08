@@ -43,7 +43,7 @@ import qualified Data.Map as Map
 import           Data.Map (Map)
 import qualified Data.Set as Set
 import           Data.Either(partitionEithers)
-import           Data.Maybe(mapMaybe,isJust)
+import           Data.Maybe(mapMaybe)
 import           Data.List(partition)
 import           Data.Graph(SCC(..))
 import           Data.Traversable(forM)
@@ -53,6 +53,7 @@ import           Control.Monad(when,zipWithM)
 
 inferModule :: P.Module -> InferM Module
 inferModule m =
+  withClosed closed $
   inferDs (P.mDecls m) $ \ds1 ->
     do simplifyAllConstraints
        ts <- getTSyns
@@ -67,6 +68,13 @@ inferModule m =
   where
   onlyLocal (IsLocal, x)    = Just x
   onlyLocal (IsExternal, _) = Nothing
+
+  closed = Set.unions (map topNames (P.mDecls m))
+
+  topNames (P.Decl d)       = Set.fromList (map thing (fst (P.namesD   (P.tlValue d))))
+  topNames (P.TDNewtype nt) = Set.fromList (map thing (fst (P.tnamesNT (P.tlValue nt))))
+  topNames _                = Set.empty
+
 
 desugarLiteral :: Bool -> P.Literal -> InferM P.Expr
 desugarLiteral fixDec lit =
@@ -121,8 +129,8 @@ appTys expr ts =
     -- Here is an example of why this might be useful:
     -- f ` { x = T } where type T = ...
     P.EWhere e ds ->
-      monoDs ds $ \ds1 -> do (e1,t1) <- appTys e ts
-                             return (EWhere e1 ds1, t1)
+      inferDs ds $ \ds1 -> do (e1,t1) <- appTys e ts
+                              return (EWhere e1 ds1, t1)
          -- XXX: Is there a scoping issue here?  I think not, but check.
 
     P.ELocated e r ->
@@ -289,8 +297,8 @@ inferE expr =
          return (EIf e1' e2' e3', tR)
 
     P.EWhere e ds ->
-      monoDs ds $ \ds1 -> do (e1,ty) <- inferE e
-                             return (EWhere e1 ds1, ty)
+      inferDs ds $ \ds1 -> do (e1,ty) <- inferE e
+                              return (EWhere e1 ds1, ty)
 
     P.ETyped e t ->
       do tSig <- checkTypeOfKind t KType
@@ -335,8 +343,7 @@ inferFun desc ps e =
                                                       | n <- [ 1 :: Int .. ] ]
      largs     <- zipWithM inferP descs ps
      ds        <- combine largs
-     let localEnv = Set.fromList (Map.keys ds)
-     (e1,tRes) <- withMonoTypes ds (withLocalEnv localEnv (inferE e))
+     (e1,tRes) <- withMonoTypes ds (inferE e)
      let args = [ (x, thing t) | (x,t) <- largs ]
          ty   = foldr tFun tRes (map snd args)
      return (foldr (\(x,t) b -> EAbs x t b) e1 args, ty)
@@ -430,26 +437,53 @@ inferBinds isRec binds =
           inst e (EProofAbs _ e1) = inst (EProofApp e) e1
           inst e _                = e
 
-
-
-
       ((doneBs, genCandidates), cs) <-
         collectGoals $
 
-        {- Guess type is here, because while we check user supplied signatures
+        {- sigType is here, because while we check user supplied signatures
            we may generate additional constraints. For example, `x - y` would
            generate an additional constraint `x >= y`. -}
-        do (newEnv,todos) <- unzip `fmap` mapM (guessType exprMap) binds
-           let extEnv = if isRec then withVarTypes newEnv else id
+        do (sigs,noSigs) <- partitionEithers `fmap` mapM sigType binds
+           let (sigEnv,checkSigs) = unzip sigs
 
-           extEnv $
-             do let (sigsAndMonos,noSigGen) = partitionEithers todos
+           closed <- getClosed
+           let isComplete (_,schema) = Set.null (fvs schema)
+               closedSigs = filter isComplete sigEnv
+
+               closedWithSigs   = closed `Set.union` Set.fromList (map fst closedSigs)
+               usesOnlyClosed b = used `Set.isSubsetOf` closedWithSigs
+                 where
+                 (_,used) = P.namesB b
+
+               (gens,monos) = partition usesOnlyClosed noSigs
+               closed' = closedWithSigs `Set.union` Set.fromList (map (thing . P.bName) gens)
+
+               noSigs' = gens ++ [ b { P.bMono = True } | b <- monos ]
+
+           (noSigEnv,todos) <- unzip `fmap` mapM (guessType exprMap) noSigs'
+           let newEnv = noSigEnv ++ [ (name, ExtVar schema) | (name,schema) <- sigEnv ]
+               extEnv = if isRec then withVarTypes newEnv else id
+
+           withClosed closed' $ extEnv $
+             do let (noSigMono,noSigGen) = partitionEithers todos
                 genCs <- sequence noSigGen
-                done  <- sequence sigsAndMonos
+                done  <- sequence noSigMono
+                doneSigs <- sequence checkSigs
                 simplifyAllConstraints
-                return (done, genCs)
+                return (doneSigs ++ done, genCs)
       genBs <- generalize genCandidates cs -- RECURSION
       return (doneBs ++ genBs)
+  where
+
+sigType :: P.Bind -> InferM (Either ( (QName, Schema), InferM Decl ) P.Bind)
+sigType b @ P.Bind { .. } = case bSignature of
+
+  Just s -> 
+    do s1 <- checkSchema s
+       return (Left ( (thing bName, fst s1), checkSigB b s1 ))
+
+  Nothing ->
+    return (Right b)
 
 
 {- | Come up with a type for recursive calls to a function, and decide
@@ -464,27 +498,20 @@ guessType :: Map QName Expr -> P.Bind ->
                      , Either (InferM Decl)    -- no generalization
                               (InferM Decl)    -- generalize these
                      )
-guessType exprMap b@(P.Bind { .. }) =
-  case bSignature of
+guessType exprMap b@(P.Bind { .. })
+  | bMono =
+     do t <- newType (text "defintion of" <+> quotes (pp name)) KType
+        let schema = Forall [] [] t
+        return ((name, ExtVar schema), Left (checkMonoB b t))
 
-    Just s ->
-      do s1 <- checkSchema s
-         return ((name, ExtVar (fst s1)), Left (checkSigB b s1))
+  | otherwise =
 
-    Nothing
-      | bMono ->
-         do t <- newType (text "defintion of" <+> quotes (pp name)) KType
-            let schema = Forall [] [] t
-            return ((name, ExtVar schema), Left (checkMonoB b t))
+    do t <- newType (text "definition of" <+> quotes (pp name)) KType
+       let noWay = tcPanic "guessType" [ "Missing expression for:" ,
+                                                            show name ]
+           expr  = Map.findWithDefault noWay name exprMap
 
-      | otherwise ->
-
-        do t <- newType (text "definition of" <+> quotes (pp name)) KType
-           let noWay = tcPanic "guessType" [ "Missing expression for:" ,
-                                                                show name ]
-               expr  = Map.findWithDefault noWay name exprMap
-
-           return ((name, CurSCC expr t), Right (checkMonoB b t))
+       return ((name, CurSCC expr t), Right (checkMonoB b t))
   where
   name = thing bName
 
@@ -670,71 +697,6 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
   -- We are done with all value-level definitions.
   -- Now continue with anything that's in scope of the declarations.
   checkBinds decls [] = continue (reverse decls)
-
-
-monoDs :: [P.Decl] -> ([DeclGroup] -> InferM a) -> InferM a
-monoDs ds continue =
-  do localEnv <- getLocalEnv
-     monoDs' localEnv ds $ \ dgs ->
-       -- extend the local environment with the declarations from this block
-       let declNames = Set.fromList [ dName | g <- dgs
-                                            , Decl { .. } <- groupDecls g ]
-        in withLocalEnv declNames (continue dgs)
-
--- | Partition bindings into:
---
---  * Bindings that have signatures
---  * Bindings that lack signatures, but don't mention anything lacking a
---    signature from the local environment
---  * All other bindings
---
--- Bindings from the third group are bindings that will be made monomorphic,
--- while bindings from the second group will be generalized, as they could
--- conceivably be lifted to the top-level of the program.
-monoDs' :: Set.Set QName -> [P.Decl] -> ([DeclGroup] -> InferM a) -> InferM a
-monoDs' localEnv ds = inferDs (tys ++ binds')
-  where
-  -- extend the local environment with the names of bindings that don't
-  -- complete signatures
-  localEnv' = localEnv `Set.union` Set.fromList [ thing bName
-                                                | P.Bind { .. } <- sigs
-                                                , let Just sig = bSignature
-                                                , not (P.isCompleteSchema sig) ]
-
-  (sigs,noSigs) = partition (isJust . P.bSignature) binds
-  (monos,gens)  = partitionMonos localEnv' noSigs
-
-  binds' = map P.DBind (sigs ++ gens ++ monos)
-
-  -- build the list of bindings, marking the bindings that should be monomorphic
-  (tys,binds) = partitionEithers [ case toBind d of
-                                     Just b  -> Right b
-                                     Nothing -> Left d
-                                 | d <- ds ]
-
-
-partitionMonos :: Set.Set QName -> [P.Bind] -> ([P.Bind], [P.Bind])
-partitionMonos env0 binds = loop env0 [] [ (b, P.namesB b) | b <- binds ]
-  where
-  loop env ms bs
-    -- none of the remaining bindings mention the environment, so mark all of
-    -- ms as monomorphic, and return bs unchanged, to be generalized
-    | null ms'  = ( [ b { P.bMono = True } | (b,_) <- ms ]
-                  , map fst bs )
-
-    | otherwise = loop env' (ms' ++ ms) bs'
-
-    where
-    (ms',bs') = partition mentionsEnv bs
-    env'      = foldl extendEnv env ms'
-
-    mentionsEnv (_,(_,uses)) = not (Set.null (Set.intersection env uses))
-
-  extendEnv env (_,(defs,_)) = foldl addDef env defs
-    where
-    addDef env' d = Set.insert (thing d) env'
-
-
 
 tcPanic :: String -> [String] -> a
 tcPanic l msg = panic ("[TypeCheck] " ++ l) msg
