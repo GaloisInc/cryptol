@@ -428,7 +428,7 @@ inferCArm armNum (m : ms) =
      return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, sz)
 
 
-inferBinds :: Bool -> [P.Bind] -> InferM [Decl]
+inferBinds :: Bool -> [P.Bind] -> InferM (Set.Set QName, [Decl])
 inferBinds isRec binds =
   mdo let exprMap = Map.fromList [ (x,inst (EVar x) (dDefinition b))
                                  | b <- genBs, let x = dName b ] -- REC.
@@ -437,7 +437,7 @@ inferBinds isRec binds =
           inst e (EProofAbs _ e1) = inst (EProofApp e) e1
           inst e _                = e
 
-      ((doneBs, genCandidates), cs) <-
+      ((closed', doneBs, genCandidates), cs) <-
         collectGoals $
 
         {- sigType is here, because while we check user supplied signatures
@@ -456,7 +456,7 @@ inferBinds isRec binds =
                  (_,used) = P.namesB b
 
                (gens,monos) = partition usesOnlyClosed noSigs
-               closed' = closedWithSigs `Set.union` Set.fromList (map (thing . P.bName) gens)
+               newClosed = closedWithSigs `Set.union` Set.fromList (map (thing . P.bName) gens)
 
                noSigs' = gens ++ [ b { P.bMono = True } | b <- monos ]
 
@@ -464,15 +464,15 @@ inferBinds isRec binds =
            let newEnv = noSigEnv ++ [ (name, ExtVar schema) | (name,schema) <- sigEnv ]
                extEnv = if isRec then withVarTypes newEnv else id
 
-           withClosed closed' $ extEnv $
+           withClosed newClosed $ extEnv $
              do let (noSigMono,noSigGen) = partitionEithers todos
                 genCs <- sequence noSigGen
                 done  <- sequence noSigMono
                 doneSigs <- sequence checkSigs
                 simplifyAllConstraints
-                return (doneSigs ++ done, genCs)
+                return (newClosed, doneSigs ++ done, genCs)
       genBs <- generalize genCandidates cs -- RECURSION
-      return (doneBs ++ genBs)
+      return (closed', doneBs ++ genBs)
   where
 
 sigType :: P.Bind -> InferM (Either ( (QName, Schema), InferM Decl ) P.Bind)
@@ -684,15 +684,16 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
 
 
   checkBinds decls (CyclicSCC bs : more) =
-     do bs1 <- inferBinds True bs
+     do (closed',bs1) <- inferBinds True bs
         foldr (\b m -> withVar (dName b) (dSignature b) m)
-              (checkBinds (Recursive bs1 : decls) more)
+              (withClosed closed' (checkBinds (Recursive bs1 : decls) more))
               bs1
 
   checkBinds decls (AcyclicSCC c : more) =
-    do [b] <- inferBinds False [c]
+    do (closed',[b]) <- inferBinds False [c]
        withVar (dName b) (dSignature b) $
-         checkBinds (NonRecursive b : decls) more
+         withClosed closed' $
+           checkBinds (NonRecursive b : decls) more
 
   -- We are done with all value-level definitions.
   -- Now continue with anything that's in scope of the declarations.
