@@ -158,7 +158,7 @@ module Data.SBV (
   -- ** Conditionals: Mergeable values
   , Mergeable(..), ite, iteLazy, sBranch
   -- ** Conditional symbolic simulation
-  , sAssert
+  , sAssert, sAssertCont
   -- ** Symbolic equality
   , EqSymbolic(..)
   -- ** Symbolic ordering
@@ -197,6 +197,10 @@ module Data.SBV (
   -- ** Checking constraint vacuity
   , isVacuous, isVacuousWith
 
+  -- * Checking safety
+  -- $safeIntro
+  , safe, safeWith, SExecutable(..)
+
   -- * Proving properties using multiple solvers
   -- $multiIntro
   , proveWithAll, proveWithAny, satWithAll, satWithAny, allSatWithAll, allSatWithAny
@@ -214,7 +218,7 @@ module Data.SBV (
 
   -- ** Inspecting proof results
   -- $resultTypes
-  , ThmResult(..), SatResult(..), AllSatResult(..), SMTResult(..)
+  , ThmResult(..), SatResult(..), AllSatResult(..), SMTResult(..), SafeResult(..)
 
   -- ** Programmable model extraction
   -- $programmableExtraction
@@ -488,6 +492,46 @@ solution as quickly as possible, taking advantage of modern many-core machines.
 
 Note that the function 'sbvAvailableSolvers' will return all the installed solvers, which can be
 used as the first argument to all these functions, if you simply want to try all available solvers on a machine.
+-}
+
+{- $safeIntro
+
+The 'sAssert' and 'sAssertCont' functions allow users to introduce invariants through-out their code to make sure
+certain properties hold at all times. This is another mechanism to provide further documentation/contract info
+into SBV code. The functions 'safe' and 'safeWith' can then be used to statically discharge these proof assumptions.
+If a violation is found, SBV will print a model showing which inputs lead to the invariant being violated.
+
+Here's a simple example. Let's assume we have a function that does subtraction, and requires it's
+first argument to be larger than the second:
+
+>>> let sub x y = sAssert "sub: x >= y must hold!" (x .>= y) (x - y)
+
+Clearly, this function is not safe, as there's nothing that ensures us to pass a larger second argument.
+If we try to prove a theorem regarding sub, we'll get an exception:
+
+>>> prove $ \x y -> sub x y .>= (0 :: SInt16)
+*** Exception: Assertion failure: "sub: x >= y must hold!"
+  s0 = -32768 :: SInt16
+  s1 = -32767 :: SInt16
+
+Of course, we can use, 'safe' to statically see if such a violation is possible before we attempt a proof:
+
+>>> safe (sub :: SInt8 -> SInt8 -> SInt8)
+Assertion failure: "sub: x >= y must hold!"
+  s0 = -128 :: SInt8
+  s1 = -127 :: SInt8
+
+What happens if we make sure to arrange for this invariant? Consider this version:
+
+>>> let safeSub x y = ite (x .>= y) (sub x y) (sub y x)
+
+Clearly, 'safeSub' must be safe. And indeed, SBV can prove that:
+
+>>> safe (safeSub :: SInt8 -> SInt8 -> SInt8)
+No safety violations detected.
+
+Note how we used 'sub' and 'safeSub' polymorphically. We only need to monomorphise our types when a proof
+attempt is done, as we did in the 'safe' calls.
 -}
 
 {- $optimizeIntro

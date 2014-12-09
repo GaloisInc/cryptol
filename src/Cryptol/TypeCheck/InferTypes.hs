@@ -405,7 +405,7 @@ instance PP (WithNames Error) where
       TypeVariableEscaped t xs ->
         nested (text "The type" <+> ppWithNames names t <+>
                 text "is not sufficiently polymorphic.")
-               (text "It may not depend on quantified variables:" <+>
+               (text "It cannot depend on quantified variables:" <+>
                 sep (punctuate comma (map (ppWithNames names) xs)))
 
       NotForAll x t ->
