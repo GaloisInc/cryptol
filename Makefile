@@ -68,11 +68,15 @@ ${CS_BIN}/happy: | ${CS}
 src/GitRev.hs:
 	sh configure
 
-# It would be nice to refine these dependencies some in order to avoid
-# unnecessary rebuilds, but for now it's safest to just always cabal
-# install.
-.PHONY: ${CS_BIN}/cryptol
-${CS_BIN}/cryptol: ${CS_BIN}/alex ${CS_BIN}/happy | ${CS}
+
+CRYPTOL_DEPS := \
+  $(shell find src cryptol \( -name \*.hs -or -name \*.x -or -name \*.y \) -print) \
+  $(shell find lib -name \*.cry)
+
+print-%:
+	@echo $* = $($*)
+
+${CS_BIN}/cryptol: ${CS_BIN}/alex ${CS_BIN}/happy $(CRYPTOL_DEPS) | ${CS}
 	$(CABAL) install .
 
 ${CS_BIN}/cryptolnb: ${CS_BIN}/alex ${CS_BIN}/happy | ${CS}
