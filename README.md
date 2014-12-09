@@ -156,7 +156,7 @@ send email to <cryptol@galois.com>.
 If you'd like to get involved with Cryptol development, see the list
 of
 [low-hanging fruit](https://github.com/GaloisInc/cryptol/labels/low-hanging%20fruit). These
-are tasks which should be quite straightforward to implement. Make a
+are tasks which should be straightforward to implement. Make a
 fork of this GitHub repository and send along pull requests, and we'll
 be happy to incorporate your changes.
 
