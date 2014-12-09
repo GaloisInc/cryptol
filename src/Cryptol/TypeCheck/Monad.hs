@@ -44,6 +44,9 @@ data InferInput = InferInput
   , inpTSyns     :: Map QName TySyn   -- ^ Type synonyms that are in scope
   , inpNewtypes  :: Map QName Newtype -- ^ Newtypes in scope
   , inpNameSeeds :: NameSeeds         -- ^ Private state of type-checker
+
+  , inpMonoBinds :: Bool              -- ^ Should local bindings be monomorphized
+                                      --   when possible?
   } deriving Show
 
 
@@ -83,6 +86,7 @@ runInferM info (IM m) =
                      , iTSyns         = fmap mkExternal (inpTSyns info)
                      , iNewtypes      = fmap mkExternal (inpNewtypes info)
                      , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
+                     , iMonoBinds     = inpMonoBinds info
                      }
 
          (result, finalRW) <- runStateT rw $ runReaderT ro m  -- RECURSION
@@ -152,6 +156,13 @@ data RO = RO
     -- together through recursion.  The field is here so that we can
     -- look thing up before they are defined, which is OK because we
     -- don't need to know the results until everything is done.
+
+  , iMonoBinds :: Bool
+    -- ^ When this flag is set to true, bindings that lack signatures in
+    -- where-blocks will only be generalized when they only depend on other
+    -- `closed` values.  `closed` is defined as in this post on the GHC blog:
+    --
+    -- https://ghc.haskell.org/trac/ghc/blog/LetGeneralisationInGhc7
   }
 
 -- | Read-write component of the monad.
@@ -468,6 +479,10 @@ getBoundInScope = IM $ asks $ Set.fromList . map tpVar . iTVars
 -- | Retrieve the set of names in scope that belong to closed terms.
 getClosed :: InferM (Set QName)
 getClosed  = IM $ asks iClosed
+
+-- | Retrieve the value of the `mono-binds` option.
+getMonoBinds :: InferM Bool
+getMonoBinds  = IM (asks iMonoBinds)
 
 {- | We disallow shadowing between type synonyms and type variables
 because it is confusing.  As a bonus, in the implementation we don't

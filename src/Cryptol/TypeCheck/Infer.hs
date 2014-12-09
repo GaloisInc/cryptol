@@ -447,14 +447,21 @@ inferBinds isRec binds =
            let (sigEnv,checkSigs) = unzip sigs
 
            closed <- getClosed
+           monoBinds <- getMonoBinds
            let isComplete (_,schema) = Set.null (fvs schema)
                closedSigs = filter isComplete sigEnv
 
                closedSigNames   = Set.fromList (map fst closedSigs)
                closedWithSigs   = closed `Set.union` closedSigNames
-               usesOnlyClosed b = used `Set.isSubsetOf` closedWithSigs
-                 where
-                 (_,used) = P.namesB b
+
+               -- When monoBinds is enabled, this function will test membership
+               -- in the closed set.  Otherwise, it will return `True` each time
+               -- it's called.  The effect of this is that all bindings lacking
+               -- signatures will be generalized when monoBinds is set to False.
+               usesOnlyClosed
+                 | monoBinds = \ b -> let (_,used) = P.namesB b
+                                       in used `Set.isSubsetOf` closedWithSigs
+                 | otherwise = const True
 
                (gens,monos)   = partition usesOnlyClosed noSigs
                closedGenNames = Set.fromList [ thing bName | P.Bind { .. } <- gens ]

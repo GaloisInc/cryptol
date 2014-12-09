@@ -308,6 +308,9 @@ importIfacesTc is =
 genInferInput :: Range -> IfaceDecls -> ModuleM T.InferInput
 genInferInput r env = do
   seeds <- getNameSeeds
+  monoBinds <- getMonoBinds
+
+  io (print ("mono binds", monoBinds))
 
   -- TODO: include the environment needed by the module
   return T.InferInput
@@ -316,6 +319,7 @@ genInferInput r env = do
     , T.inpTSyns     =                    filterEnv ifTySyns
     , T.inpNewtypes  =                    filterEnv ifNewtypes
     , T.inpNameSeeds = seeds
+    , T.inpMonoBinds = monoBinds
     }
   where
   -- at this point, the names used in the aggregate interface should be

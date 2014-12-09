@@ -498,7 +498,7 @@ loadCmd path
         , lPath = path
         }
 
-      m <- moduleCmdResult =<< io (M.loadModuleByPath path)
+      m <- liftModuleCmd (M.loadModuleByPath path)
       whenDebug (io (putStrLn (dump m)))
       setLoadedMod LoadedModule
         { lName = Just (T.mName m)

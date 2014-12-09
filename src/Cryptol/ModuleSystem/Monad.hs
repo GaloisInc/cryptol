@@ -305,6 +305,14 @@ getIface mn = ModuleT $ do
 getNameSeeds :: ModuleM T.NameSeeds
 getNameSeeds  = ModuleT (meNameSeeds `fmap` get)
 
+getMonoBinds :: ModuleM Bool
+getMonoBinds  = ModuleT (meMonoBinds `fmap` get)
+
+setMonoBinds :: Bool -> ModuleM ()
+setMonoBinds b = ModuleT $ do
+  env <- get
+  set $! env { meMonoBinds = b }
+
 setNameSeeds :: T.NameSeeds -> ModuleM ()
 setNameSeeds seeds = ModuleT $ do
   env <- get
