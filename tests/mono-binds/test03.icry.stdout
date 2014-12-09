@@ -1,0 +1,35 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module test03
+module test03
+import Cryptol
+/* Not recursive */
+test03::test : {a, b} a -> b
+test03::test = \{a, b} (a : a) ->
+               f a b a
+               where
+                 /* Recursive */
+                 f : {c, d} c -> d
+                 f = \{c, d} (x : c) -> g c d x
+                 g : {c, d} c -> d
+                 g = \{c, d} (x : c) -> f c d x
+                 
+               
+
+Loading module Cryptol
+Loading module test03
+module test03
+import Cryptol
+/* Not recursive */
+test03::test : {a, b} a -> b
+test03::test = \{a, b} (a : a) ->
+               f a b a
+               where
+                 /* Recursive */
+                 f : {c, d} c -> d
+                 f = \{c, d} (x : c) -> g c d x
+                 g : {c, d} c -> d
+                 g = \{c, d} (x : c) -> f c d x
+                 
+               
+

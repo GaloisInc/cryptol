@@ -1,7 +1,7 @@
 UNAME   := $(shell uname -s)
 ARCH    := $(shell uname -m)
 
-TESTS ?= issues regression renamer
+TESTS ?= issues regression renamer mono-binds
 TEST_DIFF ?= meld
 
 CABAL_FLAGS ?= -j
