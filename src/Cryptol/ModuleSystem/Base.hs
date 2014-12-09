@@ -310,8 +310,6 @@ genInferInput r env = do
   seeds <- getNameSeeds
   monoBinds <- getMonoBinds
 
-  io (print ("mono binds", monoBinds))
-
   -- TODO: include the environment needed by the module
   return T.InferInput
     { T.inpRange     = r
