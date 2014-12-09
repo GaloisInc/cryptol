@@ -446,28 +446,7 @@ inferBinds isRec binds =
         do (sigs,noSigs) <- partitionEithers `fmap` mapM sigType binds
            let (sigEnv,checkSigs) = unzip sigs
 
-           closed <- getClosed
-           monoBinds <- getMonoBinds
-           let isComplete (_,schema) = Set.null (fvs schema)
-               closedSigs = filter isComplete sigEnv
-
-               closedSigNames   = Set.fromList (map fst closedSigs)
-               closedWithSigs   = closed `Set.union` closedSigNames
-
-               -- When monoBinds is enabled, this function will test membership
-               -- in the closed set.  Otherwise, it will return `True` each time
-               -- it's called.  The effect of this is that all bindings lacking
-               -- signatures will be generalized when monoBinds is set to False.
-               usesOnlyClosed
-                 | monoBinds = \ b -> let (_,used) = P.namesB b
-                                       in used `Set.isSubsetOf` closedWithSigs
-                 | otherwise = const True
-
-               (gens,monos)   = partition usesOnlyClosed noSigs
-               closedGenNames = Set.fromList [ thing bName | P.Bind { .. } <- gens ]
-               newClosed      = closedWithSigs `Set.union` closedGenNames
-
-               noSigs' = gens ++ [ b { P.bMono = True } | b <- monos ]
+           (newClosed,noSigs') <- partitionClosed sigEnv noSigs
 
            (noSigEnv,todos) <- unzip `fmap` mapM (guessType exprMap) noSigs'
            let newEnv = noSigEnv ++ [ (name, ExtVar schema) | (name,schema) <- sigEnv ]
@@ -479,12 +458,49 @@ inferBinds isRec binds =
                 done  <- sequence noSigMono
                 doneSigs <- sequence checkSigs
                 simplifyAllConstraints
-                return ( Set.union closedSigNames closedGenNames
+                return ( newClosed
                        , doneSigs ++ done
                        , genCs )
       genBs <- generalize genCandidates cs -- RECURSION
       return (closedBinds, doneBs ++ genBs)
+
+
+partitionClosed :: [(QName,Schema)] -> [P.Bind] -> InferM (Set.Set QName, [P.Bind])
+partitionClosed sigEnv noSigs =
+  do closed    <- getClosed
+     monoBinds <- getMonoBinds
+     if monoBinds
+        then return (partitionMonos closed)
+        else return (Set.empty, noSigs)
+
   where
+
+  isComplete (_,schema) = Set.null (fvs schema)
+  closedSigs            = filter isComplete sigEnv
+
+  closedSigNames   = Set.fromList (map fst closedSigs)
+  allNames         = closedSigNames `Set.union`
+                     Set.fromList (map (thing . P.bName) noSigs)
+
+  mkMono b = b { P.bMono = True }
+
+  partitionMonos closed
+      -- if any signatures weren't complete, the bindings lacking signatures
+      -- will all be made monomorphic
+    | length closedSigs < length sigEnv = (closedSigNames, map mkMono noSigs)
+
+      -- if all bindings lacking signatures only mention other closed things,
+      -- then generalize all bindings that can be generalized
+    | all usesOnlyClosed noSigs         = (allNames, noSigs)
+
+      -- otherwise, make everything monomorphic
+    | otherwise                         = (closedSigNames, map mkMono noSigs)
+    where
+    localClosed = closed `Set.union` allNames
+    usesOnlyClosed b = used `Set.isSubsetOf` localClosed
+      where
+      (_,used) = P.namesB b
+
 
 sigType :: P.Bind -> InferM (Either ( (QName, Schema), InferM Decl ) P.Bind)
 sigType b @ P.Bind { .. } = case bSignature of
