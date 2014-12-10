@@ -442,6 +442,8 @@ cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
         sh inp@(SBVApp op args)
           | intOp, Just f <- lookup op smtOpIntTable
           = f True (map ssw args)
+          | boolOp, Just f <- lookup op boolComps
+          = f (map ssw args)
           | bvOp, Just f <- lookup op smtOpBVTable
           = f (any hasSign args) (map ssw args)
           | realOp, Just f <- lookup op smtOpRealTable
@@ -464,6 +466,18 @@ cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
                                 , (LessEq,        lift2S  "bvule" "bvsle")
                                 , (GreaterEq,     lift2S  "bvuge" "bvsge")
                                 ]
+                -- Boolean comparisons.. SMTLib's bool type doesn't do comparisons, but Haskell does.. Sigh
+                boolComps      = [ (LessThan,      blt)
+                                 , (GreaterThan,   blt . swp)
+                                 , (LessEq,        blq)
+                                 , (GreaterEq,     blq . swp)
+                                 ]
+                               where blt [x, y] = "(and (not " ++ x ++ ") " ++ y ++ ")"
+                                     blt xs     = error $ "SBV.SMT.SMTLib2.boolComps.blt: Impossible happened, incorrect arity (expected 2): " ++ show xs
+                                     blq [x, y] = "(or (not " ++ x ++ ") " ++ y ++ ")"
+                                     blq xs     = error $ "SBV.SMT.SMTLib2.boolComps.blq: Impossible happened, incorrect arity (expected 2): " ++ show xs
+                                     swp [x, y] = [y, x]
+                                     swp xs     = error $ "SBV.SMT.SMTLib2.boolComps.swp: Impossible happened, incorrect arity (expected 2): " ++ show xs
                 smtOpRealTable =  smtIntRealShared
                                ++ [ (Quot,        lift2WM "/")
                                   ]

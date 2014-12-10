@@ -33,6 +33,7 @@ import           Data.Set (Set)
 import           Data.List(find)
 import           Data.Maybe(mapMaybe)
 import           MonadLib
+import qualified Control.Applicative as A
 import           Control.Monad.Fix(MonadFix(..))
 import           Data.Functor
 
@@ -179,6 +180,10 @@ data RW = RW
 instance Functor InferM where
   fmap f (IM m) = IM (fmap f m)
 
+instance A.Applicative InferM where
+  pure  = return
+  (<*>) = ap
+
 instance Monad InferM where
   return x      = IM (return x)
   fail x        = IM (fail x)
@@ -295,10 +300,18 @@ newGoalName = newName $ \s -> let x = seedGoal s
 
 -- | Generate a new free type variable.
 newTVar :: Doc -> Kind -> InferM TVar
-newTVar src k =
+newTVar src k = newTVar' src Set.empty k
+
+-- | Generate a new free type variable that depends on these additional
+-- type parameters.
+newTVar' :: Doc -> Set TVar -> Kind -> InferM TVar
+newTVar' src extraBound k =
   do bound <- getBoundInScope
+     let vs = Set.union extraBound bound
      newName $ \s -> let x = seedTVar s
-                     in (TVFree x k bound src, s { seedTVar = x + 1 })
+                     in (TVFree x k vs src, s { seedTVar = x + 1 })
+
+
 
 -- | Generate a new free type variable.
 newTParam :: Maybe QName -> Kind -> InferM TParam
@@ -551,6 +564,10 @@ data KRW = KRW { typeParams :: Map QName Kind -- ^ kinds of (known) vars.
 instance Functor KindM where
   fmap f (KM m) = KM (fmap f m)
 
+instance A.Applicative KindM where
+  pure  = return
+  (<*>) = ap
+
 instance Monad KindM where
   return x      = KM (return x)
   fail x        = KM (fail x)
@@ -604,7 +621,10 @@ kRecordWarning w = kInInferM $ recordWarning w
 
 -- | Generate a fresh unification variable of the given kind.
 kNewType :: Doc -> Kind -> KindM Type
-kNewType src k = kInInferM $ newType src k
+kNewType src k =
+  do tps <- KM $ do vs <- asks lazyTVars
+                    return $ Set.fromList [ tv | TVar tv <- Map.elems vs ]
+     kInInferM $ TVar `fmap` newTVar' src tps k
 
 -- | Lookup the definition of a type synonym.
 kLookupTSyn :: QName -> KindM (Maybe TySyn)

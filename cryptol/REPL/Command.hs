@@ -304,13 +304,13 @@ qcCmd qcMode str =
   prt msg   = io (putStr msg >> hFlush stdout)
   prtLn msg = io (putStrLn msg >> hFlush stdout)
 
-  ppProgress this tot =
+  ppProgress this tot = unlessBatch $
     let percent = show (div (100 * this) tot) ++ "%"
         width   = length percent
         pad     = replicate (totProgressWidth - width) ' '
     in prt (pad ++ percent)
 
-  del n       = prt (replicate n '\BS')
+  del n       = unlessBatch $ prt (replicate n '\BS')
   delTesting  = del (length testingMsg)
   delProgress = del totProgressWidth
 

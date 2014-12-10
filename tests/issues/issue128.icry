@@ -1,0 +1,3 @@
+:l issue128.cry
+:check ok
+:prove ok

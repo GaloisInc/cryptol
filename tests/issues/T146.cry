@@ -1,0 +1,14 @@
+mk_curve_ops f = undefined
+  where
+    c = { field = f
+        , v1    = ec_v1 f
+        , v2    = ec_v2 c
+        }
+
+ec_v1 : {fv} { v0: fv } -> fv
+ec_v1 = undefined
+
+ec_v2 : {fv} _ -> fv
+ec_v2 p = p.field.v0
+  where _ = p.field.v0
+

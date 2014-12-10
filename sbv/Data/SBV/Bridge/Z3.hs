@@ -21,8 +21,8 @@
 module Data.SBV.Bridge.Z3 (
   -- * Z3 specific interface
   sbvCurrentSolver
-  -- ** Proving and checking satisfiability
-  , prove, sat, allSat, isVacuous, isTheorem, isSatisfiable
+  -- ** Proving, checking satisfiability, and safety
+  , prove, sat, safe, allSat, isVacuous, isTheorem, isSatisfiable
   -- ** Optimization routines
   , optimize, minimize, maximize
   -- * Non-Z3 specific SBV interface
@@ -30,7 +30,7 @@ module Data.SBV.Bridge.Z3 (
   , module Data.SBV
   ) where
 
-import Data.SBV hiding (prove, sat, allSat, isVacuous, isTheorem, isSatisfiable, optimize, minimize, maximize, sbvCurrentSolver)
+import Data.SBV hiding (prove, sat, safe, allSat, isVacuous, isTheorem, isSatisfiable, optimize, minimize, maximize, sbvCurrentSolver)
 
 -- | Current solver instance, pointing to z3.
 sbvCurrentSolver :: SMTConfig
@@ -47,6 +47,12 @@ sat :: Provable a
     => a                -- ^ Property to check
     -> IO SatResult     -- ^ Response of the SMT Solver, containing the model if found
 sat = satWith sbvCurrentSolver
+
+-- | Check safety, i.e., prove that all 'sAssert' conditions are statically true in all paths
+safe :: SExecutable a
+     => a               -- ^ Program to check the safety of
+     -> IO SafeResult   -- ^ Response of the SMT solver, containing the unsafe model if found
+safe = safeWith sbvCurrentSolver
 
 -- | Find all satisfying solutions, using the Z3 SMT solver
 allSat :: Provable a

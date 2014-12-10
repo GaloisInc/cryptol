@@ -15,6 +15,7 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
 import Data.Char(toLower)
+import Data.List(foldl')
 import Data.Word(Word8)
 import Codec.Binary.UTF8.String(encodeChar)
 
@@ -156,8 +157,7 @@ emitS t cfg p s z  = emit (t s) cfg p s z
 numToken :: Integer -> String -> TokenT
 numToken rad ds = Num (toVal ds) (fromInteger rad) (length ds)
   where
-  toVal = sum . zipWith (\n x -> rad^n * x) [0 :: Integer ..]
-              . map toDig . reverse
+  toVal = foldl' (\x c -> rad * x + toDig c) 0
   toDig = if rad == 16 then fromHexDigit else fromDecDigit
 
 fromDecDigit   :: Char -> Integer

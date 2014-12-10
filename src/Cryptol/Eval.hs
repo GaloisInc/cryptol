@@ -43,7 +43,7 @@ evalExpr env expr = case expr of
 
   ECon con -> evalECon con
 
-  EList es ty -> evalList env es (evalType env ty)
+  EList es ty -> VSeq (isTBit (evalType env ty)) (map (evalExpr env) es)
 
   ETuple es -> VTuple (map eval es)
 
@@ -208,15 +208,3 @@ evalMatch env m = case m of
   -- they are typechecked that way; the read environment to evalDecl is the same
   -- as the environment to bind a new name in.
   Let d -> [evalDecl env d env]
-
-
--- Lists -----------------------------------------------------------------------
-
--- | Evaluate a list literal, optionally packing them into a word.
-evalList :: EvalEnv -> [Expr] -> TValue -> Value
-evalList env es ty = toPackedSeq w ty (map (evalExpr env) es)
-  where
-  w = TValue $ tNum $ length es
-
-
-

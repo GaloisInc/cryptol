@@ -22,7 +22,7 @@
 
 module Data.SBV.BitVectors.Model (
     Mergeable(..), EqSymbolic(..), OrdSymbolic(..), SDivisible(..), Uninterpreted(..), SIntegral
-  , ite, iteLazy, sBranch, sbvTestBit, sbvPopCount, setBitTo, sbvShiftLeft, sbvShiftRight, sbvSignedShiftArithRight
+  , ite, iteLazy, sBranch, sAssert, sAssertCont, sbvTestBit, sbvPopCount, setBitTo, sbvShiftLeft, sbvShiftRight, sbvSignedShiftArithRight
   , sbvRotateLeft, sbvRotateRight, mkUninterpreted
   , allEqual, allDifferent, inRange, sElem, oneIf, blastBE, blastLE, fullAdder, fullMultiplier
   , lsb, msb, genVar, genVar_, forall, forall_, exists, exists_
@@ -43,6 +43,10 @@ import Data.List       (genericLength, genericIndex, unzip4, unzip5, unzip6, unz
 import Data.Maybe      (fromMaybe)
 import Data.Word       (Word8, Word16, Word32, Word64)
 
+import qualified Data.Map as M
+
+import qualified Control.Exception as C
+
 import Test.QuickCheck                           (Testable(..), Arbitrary(..))
 import qualified Test.QuickCheck         as QC   (whenFail)
 import qualified Test.QuickCheck.Monadic as QC   (monadicIO, run)
@@ -52,10 +56,8 @@ import Data.SBV.BitVectors.AlgReals
 import Data.SBV.BitVectors.Data
 import Data.SBV.Utils.Boolean
 
--- The following two imports are only needed because of the doctest expressions we have. Sigh..
--- It might be a good idea to reorg some of the content to avoid this.
-import Data.SBV.Provers.Prover (isSBranchFeasibleInState, isVacuous, prove)
-import Data.SBV.SMT.SMT (ThmResult)
+import Data.SBV.Provers.Prover (isSBranchFeasibleInState, isConditionSatisfiable, isVacuous, prove, defaultSMTCfg)
+import Data.SBV.SMT.SMT (SafeResult(..), SatResult(..), ThmResult, getModelDictionary)
 
 -- | Newer versions of GHC (Starting with 7.8 I think), distinguishes between FiniteBits and Bits classes.
 -- We should really use FiniteBitSize for SBV which would make things better. In the interim, just work
@@ -1136,7 +1138,19 @@ instance SDivisible SInt8 where
   sDivMod  = liftDMod
 
 liftQRem :: (SymWord a, Num a, SDivisible a) => SBV a -> SBV a -> (SBV a, SBV a)
-liftQRem x y = ite (y .== z) (z, x) (qr x y)
+liftQRem x y
+  | isConcreteZero x
+  = (x, x)
+  | isConcreteOne y
+  = (x, z)
+{-------------------------------
+ - N.B. The seemingly innocuous variant when y == -1 only holds if the type is signed;
+ - and also is problematic around the minBound.. So, we refrain from that optimization
+  | isConcreteOnes y
+  = (-x, z)
+--------------------------------}
+  | True
+  = ite (y .== z) (z, x) (qr x y)
   where qr (SBV sgnsz (Left a)) (SBV _ (Left b)) = let (q, r) = sQuotRem a b in (SBV sgnsz (Left q), SBV sgnsz (Left r))
         qr a@(SBV sgnsz _)      b                = (SBV sgnsz (Right (cache (mk Quot))), SBV sgnsz (Right (cache (mk Rem))))
                 where mk o st = do sw1 <- sbvToSW st a
@@ -1146,7 +1160,19 @@ liftQRem x y = ite (y .== z) (z, x) (qr x y)
 
 -- Conversion from quotRem (truncate to 0) to divMod (truncate towards negative infinity)
 liftDMod :: (SymWord a, Num a, SDivisible a, SDivisible (SBV a)) => SBV a -> SBV a -> (SBV a, SBV a)
-liftDMod x y = ite (y .== z) (z, x) $ ite (signum r .== negate (signum y)) (q-1, r+y) qr
+liftDMod x y
+  | isConcreteZero x
+  = (x, x)
+  | isConcreteOne y
+  = (x, z)
+{-------------------------------
+ - N.B. The seemingly innocuous variant when y == -1 only holds if the type is signed;
+ - and also is problematic around the minBound.. So, we refrain from that optimization
+  | isConcreteOnes y
+  = (-x, z)
+--------------------------------}
+  | True
+  = ite (y .== z) (z, x) $ ite (signum r .== negate (signum y)) (q-1, r+y) qr
    where qr@(q, r) = x `sQuotRem` y
          z = sbvFromInteger (kindOf x) 0
 
@@ -1248,6 +1274,33 @@ sBranch t a b
   | Just r <- unliteral c = if r then a else b
   | True                  = symbolicMerge False c a b
   where c = reduceInPathCondition t
+
+-- | Symbolic assert. Check that the given boolean condition is always true in the given path.
+-- Otherwise symbolic simulation will stop with a run-time error.
+sAssert :: Mergeable a => String -> SBool -> a -> a
+sAssert msg = sAssertCont msg defCont
+  where defCont _   Nothing   = C.throw (SafeAlwaysFails  msg)
+        defCont cfg (Just md) = C.throw (SafeFailsInModel msg cfg (SMTModel (M.toList md) [] []))
+
+-- | Symbolic assert with a programmable continuation. Check that the given boolean condition is always true in the given path.
+-- Otherwise symbolic simulation will transfer the failing model to the given continuation. The
+-- continuation takes the @SMTConfig@, and a possible model: If it receives @Nothing@, then it means that the condition
+-- fails for all assignments to inputs. Otherwise, it'll receive @Just@ a dictionary that maps the
+-- input variables to the appropriate @CW@ values that exhibit the failure. Note that the continuation
+-- has no option but to display the result in some fashion and call error, due to its restricted type.
+sAssertCont :: Mergeable a => String -> (forall b. SMTConfig -> Maybe (M.Map String CW) -> b) -> SBool -> a -> a
+sAssertCont msg cont t a
+  | Just r <- unliteral t = if r then a else cont defaultSMTCfg Nothing
+  | True                  = symbolicMerge False cond a (die ["SBV.error: Internal-error, cannot happen: Reached false branch in checked s-Assert."])
+  where k     = kindOf t
+        cond  = SBV k $ Right $ cache c
+        die m = error $ intercalate "\n" $ ("Assertion failure: " ++ show msg) : m
+        c st  = do let pc  = getPathCondition st
+                       chk = pc &&& bnot t
+                   mbModel <- isConditionSatisfiable st chk
+                   case mbModel of
+                     Just (r@(SatResult (Satisfiable cfg _))) -> cont cfg $ Just $ getModelDictionary r
+                     _                                        -> return trueSW
 
 -- SBV
 instance SymWord a => Mergeable (SBV a) where
@@ -1662,16 +1715,16 @@ instance (SymWord h, SymWord g, SymWord f, SymWord e, SymWord d, SymWord c, SymW
                  kg = kindOf (undefined :: g)
                  kh = kindOf (undefined :: h)
                  result st | Just (_, v) <- mbCgData, inProofMode st = sbvToSW st (v arg0 arg1 arg2 arg3 arg4 arg5 arg6)
-                          | True = do newUninterpreted st nm (SBVType [kh, kg, kf, ke, kd, kc, kb, ka]) (fst `fmap` mbCgData)
-                                      sw0 <- sbvToSW st arg0
-                                      sw1 <- sbvToSW st arg1
-                                      sw2 <- sbvToSW st arg2
-                                      sw3 <- sbvToSW st arg3
-                                      sw4 <- sbvToSW st arg4
-                                      sw5 <- sbvToSW st arg5
-                                      sw6 <- sbvToSW st arg6
-                                      mapM_ forceSWArg [sw0, sw1, sw2, sw3, sw4, sw5, sw6]
-                                      newExpr st ka $ SBVApp (Uninterpreted nm) [sw0, sw1, sw2, sw3, sw4, sw5, sw6]
+                           | True = do newUninterpreted st nm (SBVType [kh, kg, kf, ke, kd, kc, kb, ka]) (fst `fmap` mbCgData)
+                                       sw0 <- sbvToSW st arg0
+                                       sw1 <- sbvToSW st arg1
+                                       sw2 <- sbvToSW st arg2
+                                       sw3 <- sbvToSW st arg3
+                                       sw4 <- sbvToSW st arg4
+                                       sw5 <- sbvToSW st arg5
+                                       sw6 <- sbvToSW st arg6
+                                       mapM_ forceSWArg [sw0, sw1, sw2, sw3, sw4, sw5, sw6]
+                                       newExpr st ka $ SBVApp (Uninterpreted nm) [sw0, sw1, sw2, sw3, sw4, sw5, sw6]
 
 -- Uncurried functions of two arguments
 instance (SymWord c, SymWord b, HasKind a) => Uninterpreted ((SBV c, SBV b) -> SBV a) where

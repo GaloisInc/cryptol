@@ -22,7 +22,8 @@ import System.FilePath
     ((</>),(<.>),takeExtension,splitFileName,splitDirectories,pathSeparator
     ,isRelative)
 import System.Process
-    (createProcess,CreateProcess(..),StdStream(..),proc,waitForProcess)
+    (createProcess,CreateProcess(..),StdStream(..),proc,waitForProcess
+    ,readProcessWithExitCode)
 import System.IO
     (hGetContents,IOMode(..),withFile,SeekMode(..),Handle,hSetBuffering
     ,BufferMode(..))
@@ -56,7 +57,7 @@ data Options = Options
   , optHelp      :: Bool
   , optResultDir :: FilePath
   , optTests     :: [TestStrategy]
-  , optDiff      :: String
+  , optDiff      :: Maybe String
   } deriving (Show)
 
 defaultOptions :: Options
@@ -66,14 +67,14 @@ defaultOptions  = Options
   , optHelp      = False
   , optResultDir = "output"
   , optTests     = []
-  , optDiff      = "meld"
+  , optDiff      = Nothing
   }
 
 setHelp :: Endo Options
 setHelp  = Endo (\ opts -> opts { optHelp = True } )
 
 setDiff :: String -> Endo Options
-setDiff diff = Endo (\opts -> opts { optDiff = diff })
+setDiff diff = Endo (\opts -> opts { optDiff = Just diff })
 
 setCryptol :: String -> Endo Options
 setCryptol path = Endo (\ opts -> opts { optCryptol = path } )
@@ -192,11 +193,19 @@ generateAssertion opts dir file = testCase file $ do
         Right _ -> assertFailure $
             "Test completed successfully.  Please remove " ++ knownFailureFile
     | otherwise =
-      assertFailure $
-        case mbKnown of
-          Left (X.SomeException {}) ->
-                                  unwords [ optDiff opts, goldFile, resultOut ]
-          Right fail_msg -> fail_msg
+      case mbKnown of
+
+        Left (X.SomeException {})
+          | Just prog <- optDiff opts ->
+            do goldFile' <- canonicalizePath goldFile
+               assertFailure (unwords [ prog, goldFile', "\\\n    ", resultOut ])
+
+          | otherwise ->
+            do goldFile' <- canonicalizePath goldFile
+               (_,out,_) <- readProcessWithExitCode "diff" [ goldFile', resultOut ] ""
+               assertFailure out
+
+        Right fail_msg -> assertFailure fail_msg
 
 -- Test Discovery --------------------------------------------------------------
 

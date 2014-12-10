@@ -12,6 +12,7 @@
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Solver.InfNat where
 
+import Data.Bits
 import Cryptol.Utils.Panic
 
 -- | Natural numbers with an infinity element
@@ -123,11 +124,7 @@ nLg2 (Nat n)  = case genLog n 2 of
 -- from 0 to n, inclusive. @nWidth x = nLg2 (x + 1)@.
 nWidth :: Nat' -> Nat'
 nWidth Inf      = Inf
-nWidth (Nat 0)  = Nat 0
-nWidth (Nat n)  = case genLog n 2 of
-                    Just (x,_) -> Nat (x + 1)
-                    Nothing -> panic "Cryptol.TypeCheck.Solver.InfNat.nWidth"
-                                 [ "genLog returned Nothing" ]
+nWidth (Nat n)  = Nat (widthInteger n)
 
 
 {- | @length ([ x, y .. ] : [_][w])@
@@ -186,4 +183,13 @@ genLog x base = Just (exactLoop 0 x)
     | otherwise = let s1 = s + 1 in s1 `seq` underLoop s1 (div i base)
 
 
+-- | Compute the number of bits required to represent the given integer.
+widthInteger :: Integer -> Integer
+widthInteger x = go' 0 (if x < 0 then complement x else x)
+  where
+    go s 0 = s
+    go s n = let s' = s + 1 in s' `seq` go s' (n `shiftR` 1)
 
+    go' s n
+      | n < bit 32 = go s n
+      | otherwise  = let s' = s + 32 in s' `seq` go' s' (n `shiftR` 32)

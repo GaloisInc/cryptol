@@ -36,49 +36,80 @@ import qualified Data.Map as Map
 
 -- Errors ----------------------------------------------------------------------
 
--- XXX make these located
 data RenamerError
   = MultipleSyms (Located QName) [NameOrigin]
     -- ^ Multiple imported symbols contain this name
-  | UnboundSym (Located QName)
-    -- ^ Symbol is not bound to any definition
+
+  | UnboundExpr (Located QName)
+    -- ^ Expression name is not bound to any definition
+
+  | UnboundType (Located QName)
+    -- ^ Type name is not bound to any definition
+
   | OverlappingSyms [NameOrigin]
     -- ^ An environment has produced multiple overlapping symbols
 
-  | BuiltInTypeDecl QName
-    -- ^ This is a built-in type name, and user may not shadow it.
+  | ExpectedValue (Located QName)
+    -- ^ When a value is expected from the naming environment, but one or more
+    -- types exist instead.
+
+  | ExpectedType (Located QName)
+    -- ^ When a type is missing from the naming environment, but one or more
+    -- values exist with the same name.
     deriving (Show)
 
 instance PP RenamerError where
   ppPrec _ e = case e of
 
     MultipleSyms lqn qns ->
-      hang (text "[error] Multiple definitions for symbol:" <+> pp lqn)
-         4 (vcat (map pp qns))
+      hang (text "[error] at" <+> pp (srcRange lqn))
+         4 $ (text "Multiple definitions for symbol:" <+> pp (thing lqn))
+          $$ vcat (map pp qns)
 
-    UnboundSym lqn ->
-      text "[error] unbound symbol:" <+> pp lqn
+    UnboundExpr lqn ->
+      hang (text "[error] at" <+> pp (srcRange lqn))
+         4 (text "Value not in scope:" <+> pp (thing lqn))
 
-    -- XXX these really need to be located
+    UnboundType lqn ->
+      hang (text "[error] at" <+> pp (srcRange lqn))
+         4 (text "Type not in scope:" <+> pp (thing lqn))
+
     OverlappingSyms qns ->
-      hang (text "[error] Overlapping symbols defined:")
-         4 (vcat (map pp qns))
+      hang (text "[error]")
+         4 $ text "Overlapping symbols defined:"
+          $$ vcat (map pp qns)
 
-    BuiltInTypeDecl q ->
-      hang (text "[error] Built-in type name may not be shadowed:")
-         4 (pp q)
+    ExpectedValue lqn ->
+      hang (text "[error] at" <+> pp (srcRange lqn))
+         4 (fsep [ text "Expected a value named", quotes (pp (thing lqn))
+                 , text "but found a type instead"
+                 , text "Did you mean `(" <> pp (thing lqn) <> text")?" ])
+
+    ExpectedType lqn ->
+      hang (text "[error] at" <+> pp (srcRange lqn))
+         4 (fsep [ text "Expected a type named", quotes (pp (thing lqn))
+                 , text "but found a value instead" ])
 
 -- Warnings --------------------------------------------------------------------
 
 data RenamerWarning
-  = SymbolShadowed [NameOrigin] [NameOrigin]
+  = SymbolShadowed NameOrigin [NameOrigin]
     deriving (Show)
 
 instance PP RenamerWarning where
-  ppPrec _ (SymbolShadowed original new) =
-    hang (text "[warning] This binding for" <+> commaSep (map pp original)
-              <+> text "shadows the existing binding")
-       4 (vcat (map pp new))
+  ppPrec _ (SymbolShadowed new originals) =
+    hang (text "[warning] at" <+> loc)
+       4 $ fsep [ text "This binding for" <+> sym
+                , text "shadows the existing binding" <> plural <+> text "from" ]
+        $$ vcat (map pp originals)
+
+    where
+    plural | length originals > 1 = char 's'
+           | otherwise            = empty
+
+    (loc,sym) = case new of
+                  Local lqn   -> (pp (srcRange lqn), pp (thing lqn))
+                  Imported qn -> (empty, pp qn)
 
 
 -- Renaming Monad --------------------------------------------------------------
@@ -158,37 +189,35 @@ shadowNames names m = RenameM $ do
   let ro' = ro { roNames = env `shadowing` roNames ro }
   local ro' (unRenameM m)
 
--- | Generate warnings when the the left environment shadows things defined in
+-- | Generate warnings when the left environment shadows things defined in
 -- the right.  Additionally, generate errors when two names overlap in the
 -- left environment.
 checkEnv :: NamingEnv -> NamingEnv -> Out
-checkEnv l r = Map.foldlWithKey (step False neExprs) mempty (neExprs l)
-     `mappend` Map.foldlWithKey (step True neTypes) mempty (neTypes l)
+checkEnv l r = Map.foldlWithKey (step neExprs) mempty (neExprs l)
+     `mappend` Map.foldlWithKey (step neTypes) mempty (neTypes l)
   where
 
-  step isType prj acc k ns = acc `mappend` Out
+  step prj acc k ns = acc `mappend` mempty
     { oWarnings = case Map.lookup k (prj r) of
         Nothing -> []
-        Just os -> [SymbolShadowed (map origin os) (map origin ns)]
+        Just os -> [SymbolShadowed (origin (head ns)) (map origin os)]
     , oErrors   = containsOverlap ns
-    } `mappend`
-      checkValidDecl isType k
+    }
 
-  containsOverlap ns = case ns of
-    [_] -> []
-    []  -> panic "Renamer" ["Invalid naming environment"]
-    _   -> [OverlappingSyms (map origin ns)]
-
-  checkValidDecl True nm@(QName _ (Name "width")) =
-    mempty { oErrors = [BuiltInTypeDecl nm] }
-  checkValidDecl _ _ = mempty
-
+-- | Check the RHS of a single name rewrite for conflicting sources.
+containsOverlap :: HasQName a => [a] -> [RenamerError]
+containsOverlap [_] = []
+containsOverlap []  = panic "Renamer" ["Invalid naming environment"]
+containsOverlap ns  = [OverlappingSyms (map origin ns)]
 
 -- | Throw errors for any names that overlap in a rewrite environment.
 checkNamingEnv :: NamingEnv -> ([RenamerError],[RenamerWarning])
-checkNamingEnv env = (oErrors out, oWarnings out)
+checkNamingEnv env = (out, [])
   where
-  out = checkEnv env mempty
+  out    = Map.foldr check outTys (neExprs env)
+  outTys = Map.foldr check mempty (neTypes env)
+
+  check ns acc = containsOverlap ns ++ acc
 
 
 -- Renaming --------------------------------------------------------------------
@@ -258,7 +287,13 @@ renameExpr qn = do
          return qn
     Nothing   ->
       do n <- located qn
-         record (UnboundSym n)
+
+         case Map.lookup qn (neTypes (roNames ro)) of
+           -- types existed with the name of the value expected
+           Just _ -> record (ExpectedValue n)
+
+           -- the value is just missing
+           Nothing -> record (UnboundExpr n)
          return qn
 
 renameType :: QName -> RenameM QName
@@ -273,7 +308,15 @@ renameType qn = do
          return qn
     Nothing   ->
       do n <- located qn
-         record (UnboundSym n)
+
+         case Map.lookup qn (neExprs (roNames ro)) of
+
+           -- values exist with the same name, so throw a different error
+           Just _ -> record (ExpectedType n)
+
+           -- no terms with the same name, so the type is just unbound
+           Nothing -> record (UnboundType n)
+
          return qn
 
 -- | Rename a schema, assuming that none of its type variables are already in
@@ -377,6 +420,7 @@ instance Rename Expr where
     ESel e' s     -> ESel    <$> rename e' <*> pure s
     EList es      -> EList   <$> rename es
     EFromTo s n e'-> EFromTo <$> rename s  <*> rename n  <*> rename e'
+    EInfFrom a b  -> EInfFrom<$> rename a  <*> rename b
     EComp e' bs   -> do bs' <- mapM renameMatch bs
                         shadowNames (namingEnv bs')
                             (EComp <$> rename e' <*> pure bs')

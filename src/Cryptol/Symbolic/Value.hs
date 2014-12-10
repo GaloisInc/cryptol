@@ -8,6 +8,7 @@
 
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module Cryptol.Symbolic.Value
@@ -15,7 +16,7 @@ module Cryptol.Symbolic.Value
   , TValue, numTValue, toNumTValue, finTValue, isTBit, isTFun, isTSeq, isTTuple, isTRec, tvSeq
   , GenValue(..), lam, tlam, toStream, toFinSeq, toSeq
   , fromVBit, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord
-  , fromSeq, fromWord
+  , fromSeq, fromVWord
   , evalPanic
   )
   where
@@ -23,8 +24,8 @@ module Cryptol.Symbolic.Value
 import Data.Bits (bitSize)
 
 import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit, isTFun, isTSeq, isTTuple, isTRec, tvSeq,
-                           GenValue(..), lam, tlam, toStream, toFinSeq, toSeq,
-                           fromVBit, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord)
+                           GenValue(..), BitWord(..), lam, tlam, toStream, toFinSeq, toSeq, fromSeq,
+                           fromVBit, fromVWord, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord)
 import Cryptol.Symbolic.BitVector
 import Cryptol.Utils.Panic (panic)
 
@@ -44,11 +45,11 @@ instance Mergeable Value where
       (VBit b1    , VBit b2    ) -> VBit $ symbolicMerge f c b1 b2
       (VWord w1   , VWord w2   ) -> VWord $ symbolicMerge f c w1 w2
       (VSeq b1 vs1, VSeq _ vs2 ) -> VSeq b1 $ symbolicMerge f c vs1 vs2
-      (VStream vs1, VStream vs2) -> VStream $ symbolicMerge f c vs1 vs2
+      (VStream vs1, VStream vs2) -> VStream $ mergeStream vs1 vs2
       (VFun f1    , VFun f2    ) -> VFun $ symbolicMerge f c f1 f2
       (VPoly f1   , VPoly f2   ) -> VPoly $ symbolicMerge f c f1 f2
-      (VWord w1   , _          ) -> VWord $ symbolicMerge f c w1 (fromWord v2)
-      (_          , VWord w2   ) -> VWord $ symbolicMerge f c (fromWord v1) w2
+      (VWord w1   , _          ) -> VWord $ symbolicMerge f c w1 (fromVWord v2)
+      (_          , VWord w2   ) -> VWord $ symbolicMerge f c (fromVWord v1) w2
       (_          , _          ) -> panic "Cryptol.Symbolic.Value"
                                       [ "symbolicMerge: incompatible values" ]
     where
@@ -56,25 +57,14 @@ instance Mergeable Value where
         | n1 == n2  = (n1, symbolicMerge f c x1 x2)
         | otherwise = panic "Cryptol.Symbolic.Value"
                         [ "symbolicMerge.mergeField: incompatible values" ]
+      mergeStream xs ys =
+        symbolicMerge f c (head xs) (head ys) : mergeStream (tail xs) (tail ys)
 
 -- Big-endian Words ------------------------------------------------------------
 
-unpackWord :: SWord -> [SBool]
-unpackWord s = [ sbvTestBit s i | i <- reverse [0 .. bitSize s - 1] ]
-
--- Constructors and Accessors --------------------------------------------------
-
-fromWord :: Value -> SWord
-fromWord (VWord s) = s
-fromWord v = Data.SBV.fromBitsBE (map fromVBit (fromSeq v))
-
--- | Extract a sequence.
-fromSeq :: Value -> [Value]
-fromSeq v = case v of
-  VSeq _ vs  -> vs
-  VWord s    -> map VBit (unpackWord s)
-  VStream vs -> vs
-  _          -> evalPanic "fromSeq" ["not a sequence"]
+instance BitWord SBool SWord where
+  packWord bs = Data.SBV.fromBitsBE bs
+  unpackWord w = [ sbvTestBit w i | i <- reverse [0 .. bitSize w - 1] ]
 
 -- Errors ----------------------------------------------------------------------
 

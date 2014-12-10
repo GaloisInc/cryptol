@@ -117,6 +117,7 @@ library
                        Cryptol.Transform.Specialize,
 
                        Cryptol.Eval,
+                       Cryptol.Eval.Arch,
                        Cryptol.Eval.Env,
                        Cryptol.Eval.Error,
                        Cryptol.Eval.Type,

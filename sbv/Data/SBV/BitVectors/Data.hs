@@ -32,7 +32,7 @@ module Data.SBV.BitVectors.Data
  , sbvToSW, sbvToSymSW, forceSWArg
  , SBVExpr(..), newExpr
  , cache, Cached, uncache, uncacheAI, HasKind(..)
- , Op(..), NamedSymVar, UnintKind(..), getTableIndex, SBVPgm(..), Symbolic, runSymbolic, runSymbolic', State, getPathCondition, extendPathCondition
+ , Op(..), NamedSymVar, UnintKind(..), getTableIndex, SBVPgm(..), Symbolic, SExecutable(..), runSymbolic, runSymbolic', State, getPathCondition, extendPathCondition
  , inProofMode, SBVRunMode(..), Kind(..), Outputtable(..), Result(..)
  , Logic(..), SMTLibLogic(..)
  , getTraceInfo, getConstraints, addConstraint
@@ -57,11 +57,11 @@ import Data.IORef           (IORef, newIORef, modifyIORef, readIORef, writeIORef
 import Data.List            (intercalate, sortBy)
 import Data.Maybe           (isJust, fromJust)
 
-import qualified Data.IntMap   as IMap (IntMap, empty, size, toAscList, lookup, insert, insertWith)
-import qualified Data.Map      as Map  (Map, empty, toList, size, insert, lookup)
-import qualified Data.Set      as Set  (Set, empty, toList, insert)
-import qualified Data.Foldable as F    (toList)
-import qualified Data.Sequence as S    (Seq, empty, (|>))
+import qualified Data.IntMap       as IMap (IntMap, empty, size, toAscList, lookup, insert, insertWith)
+import qualified Data.Map          as Map  (Map, empty, toList, size, insert, lookup)
+import qualified Data.Set          as Set  (Set, empty, toList, insert)
+import qualified Data.Foldable     as F    (toList)
+import qualified Data.Sequence     as S    (Seq, empty, (|>))
 
 import System.Exit           (ExitCode(..))
 import System.Mem.StableName
@@ -1301,6 +1301,9 @@ instance NFData SMTResult where
 instance NFData SMTModel where
   rnf (SMTModel assocs unints uarrs) = rnf assocs `seq` rnf unints `seq` rnf uarrs `seq` ()
 
+instance NFData SMTScript where
+  rnf (SMTScript b m) = rnf b `seq` rnf m `seq` ()
+
 -- | SMT-Lib logics. If left unspecified SBV will pick the logic based on what it determines is needed. However, the
 -- user can override this choice using the 'useLogic' parameter to the configuration. This is especially handy if
 -- one is experimenting with custom logics that might be supported on new solvers.
@@ -1372,7 +1375,7 @@ data SMTConfig = SMTConfig {
        , timing         :: Bool             -- ^ Print timing information on how long different phases took (construction, solving, etc.)
        , sBranchTimeOut :: Maybe Int        -- ^ How much time to give to the solver for each call of 'sBranch' check. (In seconds. Default: No limit.)
        , timeOut        :: Maybe Int        -- ^ How much time to give to the solver. (In seconds. Default: No limit.)
-       , printBase      :: Int              -- ^ Print integral literals in this base (2, 8, and 10, and 16 are supported.)
+       , printBase      :: Int              -- ^ Print integral literals in this base (2, 8, 10, and 16 are supported.)
        , printRealPrec  :: Int              -- ^ Print algebraic real values with this precision. (SReal, default: 16)
        , solverTweaks   :: [String]         -- ^ Additional lines of script to give to the solver (user specified)
        , satCmd         :: String           -- ^ Usually "(check-sat)". However, users might tweak it based on solver characteristics.
@@ -1434,3 +1437,100 @@ data SMTSolver = SMTSolver {
 
 instance Show SMTSolver where
    show = show . name
+
+-- | Symbolically executable program fragments. This class is mainly used for 'safe' calls, and is sufficently populated internally to cover most use
+-- cases. Users can extend it as they wish to allow 'safe' checks for SBV programs that return/take types that are user-defined.
+class SExecutable a where
+   sName_ :: a -> Symbolic ()
+   sName  :: [String] -> a -> Symbolic ()
+
+instance NFData a => SExecutable (Symbolic a) where
+   sName_   a = a >>= \r -> rnf r `seq` return ()
+   sName []   = sName_
+   sName xs   = error $ "SBV.SExecutable.sName: Extra unmapped name(s): " ++ intercalate ", " xs
+
+instance NFData a => SExecutable (SBV a) where
+   sName_   v = sName_ (output v)
+   sName xs v = sName xs (output v)
+
+-- Unit output
+instance SExecutable () where
+   sName_   () = sName_   (output ())
+   sName xs () = sName xs (output ())
+
+-- List output
+instance (NFData a, SymWord a) => SExecutable [SBV a] where
+   sName_   vs = sName_   (output vs)
+   sName xs vs = sName xs (output vs)
+
+-- 2 Tuple output
+instance (NFData a, SymWord a, NFData b, SymWord b) => SExecutable (SBV a, SBV b) where
+  sName_ (a, b) = sName_ (output a >> output b)
+  sName _       = sName_
+
+-- 3 Tuple output
+instance (NFData a, SymWord a, NFData b, SymWord b, NFData c, SymWord c) => SExecutable (SBV a, SBV b, SBV c) where
+  sName_ (a, b, c) = sName_ (output a >> output b >> output c)
+  sName _          = sName_
+
+-- 4 Tuple output
+instance (NFData a, SymWord a, NFData b, SymWord b, NFData c, SymWord c, NFData d, SymWord d) => SExecutable (SBV a, SBV b, SBV c, SBV d) where
+  sName_ (a, b, c, d) = sName_ (output a >> output b >> output c >> output c >> output d)
+  sName _             = sName_
+
+-- 5 Tuple output
+instance (NFData a, SymWord a, NFData b, SymWord b, NFData c, SymWord c, NFData d, SymWord d, NFData e, SymWord e) => SExecutable (SBV a, SBV b, SBV c, SBV d, SBV e) where
+  sName_ (a, b, c, d, e) = sName_ (output a >> output b >> output c >> output d >> output e)
+  sName _                = sName_
+
+-- 6 Tuple output
+instance (NFData a, SymWord a, NFData b, SymWord b, NFData c, SymWord c, NFData d, SymWord d, NFData e, SymWord e, NFData f, SymWord f) => SExecutable (SBV a, SBV b, SBV c, SBV d, SBV e, SBV f) where
+  sName_ (a, b, c, d, e, f) = sName_ (output a >> output b >> output c >> output d >> output e >> output f)
+  sName _                   = sName_
+
+-- 7 Tuple output
+instance (NFData a, SymWord a, NFData b, SymWord b, NFData c, SymWord c, NFData d, SymWord d, NFData e, SymWord e, NFData f, SymWord f, NFData g, SymWord g) => SExecutable (SBV a, SBV b, SBV c, SBV d, SBV e, SBV f, SBV g) where
+  sName_ (a, b, c, d, e, f, g) = sName_ (output a >> output b >> output c >> output d >> output e >> output f >> output g)
+  sName _                      = sName_
+
+-- Functions
+instance (SymWord a, SExecutable p) => SExecutable (SBV a -> p) where
+   sName_        k = forall_   >>= \a -> sName_   $ k a
+   sName (s:ss)  k = forall s  >>= \a -> sName ss $ k a
+   sName []      k = sName_ k
+
+-- 2 Tuple input
+instance (SymWord a, SymWord b, SExecutable p) => SExecutable ((SBV a, SBV b) -> p) where
+  sName_        k = forall_  >>= \a -> sName_   $ \b -> k (a, b)
+  sName (s:ss)  k = forall s >>= \a -> sName ss $ \b -> k (a, b)
+  sName []      k = sName_ k
+
+-- 3 Tuple input
+instance (SymWord a, SymWord b, SymWord c, SExecutable p) => SExecutable ((SBV a, SBV b, SBV c) -> p) where
+  sName_       k  = forall_  >>= \a -> sName_   $ \b c -> k (a, b, c)
+  sName (s:ss) k  = forall s >>= \a -> sName ss $ \b c -> k (a, b, c)
+  sName []     k  = sName_ k
+
+-- 4 Tuple input
+instance (SymWord a, SymWord b, SymWord c, SymWord d, SExecutable p) => SExecutable ((SBV a, SBV b, SBV c, SBV d) -> p) where
+  sName_        k = forall_  >>= \a -> sName_   $ \b c d -> k (a, b, c, d)
+  sName (s:ss)  k = forall s >>= \a -> sName ss $ \b c d -> k (a, b, c, d)
+  sName []      k = sName_ k
+
+-- 5 Tuple input
+instance (SymWord a, SymWord b, SymWord c, SymWord d, SymWord e, SExecutable p) => SExecutable ((SBV a, SBV b, SBV c, SBV d, SBV e) -> p) where
+  sName_        k = forall_  >>= \a -> sName_   $ \b c d e -> k (a, b, c, d, e)
+  sName (s:ss)  k = forall s >>= \a -> sName ss $ \b c d e -> k (a, b, c, d, e)
+  sName []      k = sName_ k
+
+-- 6 Tuple input
+instance (SymWord a, SymWord b, SymWord c, SymWord d, SymWord e, SymWord f, SExecutable p) => SExecutable ((SBV a, SBV b, SBV c, SBV d, SBV e, SBV f) -> p) where
+  sName_        k = forall_  >>= \a -> sName_   $ \b c d e f -> k (a, b, c, d, e, f)
+  sName (s:ss)  k = forall s >>= \a -> sName ss $ \b c d e f -> k (a, b, c, d, e, f)
+  sName []      k = sName_ k
+
+-- 7 Tuple input
+instance (SymWord a, SymWord b, SymWord c, SymWord d, SymWord e, SymWord f, SymWord g, SExecutable p) => SExecutable ((SBV a, SBV b, SBV c, SBV d, SBV e, SBV f, SBV g) -> p) where
+  sName_        k = forall_  >>= \a -> sName_   $ \b c d e f g -> k (a, b, c, d, e, f, g)
+  sName (s:ss)  k = forall s >>= \a -> sName ss $ \b c d e f g -> k (a, b, c, d, e, f, g)
+  sName []      k = sName_ k

@@ -13,13 +13,15 @@
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE OverlappingInstances #-}
 {-# LANGUAGE BangPatterns         #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
 
 module Data.SBV.Provers.Prover (
          SMTSolver(..), SMTConfig(..), Predicate, Provable(..)
-       , ThmResult(..), SatResult(..), AllSatResult(..), SMTResult(..)
+       , ThmResult(..), SatResult(..), AllSatResult(..), SMTResult(..), SafeResult(..)
        , isSatisfiable, isSatisfiableWith, isTheorem, isTheoremWith
        , prove, proveWith
        , sat, satWith
+       , safe, safeWith
        , allSat, allSatWith
        , isVacuous, isVacuousWith
        , SatModel(..), Modelable(..), displayModels, extractModels
@@ -27,17 +29,20 @@ module Data.SBV.Provers.Prover (
        , boolector, cvc4, yices, z3, mathSAT, defaultSMTCfg
        , compileToSMTLib, generateSMTBenchmarks
        , isSBranchFeasibleInState
+       , isConditionSatisfiable
        ) where
 
 import Control.Monad       (when, unless)
 import Control.Monad.Trans (liftIO)
 import Data.List           (intercalate)
-import Data.Maybe          (mapMaybe, fromMaybe)
+import Data.Maybe          (mapMaybe, fromMaybe, isJust)
 import System.FilePath     (addExtension, splitExtension)
 import System.Time         (getClockTime)
 import System.IO.Unsafe    (unsafeInterleaveIO)
 
 import qualified Data.Set as Set (Set, toList)
+
+import qualified Control.Exception as C
 
 import Data.SBV.BitVectors.Data
 import Data.SBV.SMT.SMT
@@ -232,6 +237,10 @@ prove = proveWith defaultSMTCfg
 sat :: Provable a => a -> IO SatResult
 sat = satWith defaultSMTCfg
 
+-- | Check if a given definition is safe; i.e., if all 'sAssert' conditions can be proven to hold.
+safe :: SExecutable a => a -> IO SafeResult
+safe = safeWith defaultSMTCfg
+
 -- | Return all satisfying assignments for a predicate, equivalent to @'allSatWith' 'defaultSMTCfg'@.
 -- Satisfying assignments are constructed lazily, so they will be available as returned by the solver
 -- and on demand.
@@ -325,6 +334,19 @@ proveWith config a = simulate cvt config False [] a >>= callSolver False "Checki
 satWith :: Provable a => SMTConfig -> a -> IO SatResult
 satWith config a = simulate cvt config True [] a >>= callSolver True "Checking Satisfiability.." SatResult config
   where cvt = if useSMTLib2 config then toSMTLib2 else toSMTLib1
+
+-- | Check if a given definition is safe using the given solver configuration; i.e., if all 'sAssert' conditions can be proven to hold.
+safeWith :: SExecutable a => SMTConfig -> a -> IO SafeResult
+safeWith config a = C.catchJust choose checkSafe return
+  where checkSafe = do let msg = when (verbose config) . putStrLn . ("** " ++)
+                           isTiming = timing config
+                       msg "Starting safety checking symbolic simulation.."
+                       res <- timeIf isTiming "problem construction" $ runSymbolic (False, Just config) $ sName_ a >>= output
+                       msg $ "Generated symbolic trace:\n" ++ show res
+                       return SafeNeverFails
+        choose e@(SafeNeverFails{})   = Just e
+        choose e@(SafeAlwaysFails{})  = Just e
+        choose e@(SafeFailsInModel{}) = Just e
 
 -- | Determine if the constraints are vacuous using the given SMT-solver
 isVacuousWith :: Provable a => SMTConfig -> a -> IO Bool
@@ -443,17 +465,35 @@ isSBranchFeasibleInState st branch cond = do
        let cfg = let pickedConfig = fromMaybe defaultSMTCfg (getSBranchRunConfig st)
                  in pickedConfig { timeOut = sBranchTimeOut pickedConfig }
            msg = when (verbose cfg) . putStrLn . ("** " ++)
-       sw <- sbvToSW st cond
-       () <- forceSWArg sw
-       Result ki tr uic is cs ts as uis ax asgn cstr _ <- liftIO $ extractSymbolicSimulationState st
-       let -- Construct the corresponding sat-checker for the branch. Note that we need to
-           -- forget about the quantifiers and just use an "exist", as we're looking for a
-           -- point-satisfiability check here; whatever the original program was.
-           pgm = Result ki tr uic [(EX, n) | (_, n) <- is] cs ts as uis ax asgn cstr [sw]
-           cvt = if useSMTLib2 cfg then toSMTLib2 else toSMTLib1
-       check <- runProofOn cvt cfg True [] pgm >>= callSolver True ("sBranch: Checking " ++ show branch ++ " feasibility") SatResult cfg
+       check <- internalSATCheck cfg st cond ("sBranch: Checking " ++ show branch ++ " feasibility")
        res <- case check of
                 SatResult (Unsatisfiable _) -> return False
                 _                           -> return True   -- No risks, even if it timed-our or anything else, we say it's feasible
        msg $ "sBranch: Conclusion: " ++ if res then "Feasible" else "Unfeasible"
        return res
+
+-- | Check if a boolean condition is satisfiable in the current state. If so, it returns such a satisfying assignment
+isConditionSatisfiable :: State -> SBool -> IO (Maybe SatResult)
+isConditionSatisfiable st cond = do
+       let cfg  = fromMaybe defaultSMTCfg (getSBranchRunConfig st)
+           msg  = when (verbose cfg) . putStrLn . ("** " ++)
+       check <- internalSATCheck cfg st cond "sAssert: Checking satisfiability"
+       res <- case check of
+                r@(SatResult (Satisfiable{})) -> return $ Just r
+                SatResult (Unsatisfiable _)   -> return Nothing
+                _                             -> error $ "sAssert: Unexpected external result: " ++ show check
+       msg $ "sAssert: Conclusion: " ++ if isJust res then "Satisfiable" else "Unsatisfiable"
+       return res
+
+-- | Check the boolean SAT of an internal condition in the current execution state
+internalSATCheck :: SMTConfig -> State -> SBool -> String -> IO SatResult
+internalSATCheck cfg st cond msg = do
+   sw <- sbvToSW st cond
+   () <- forceSWArg sw
+   Result ki tr uic is cs ts as uis ax asgn cstr _ <- liftIO $ extractSymbolicSimulationState st
+   let -- Construct the corresponding sat-checker for the branch. Note that we need to
+       -- forget about the quantifiers and just use an "exist", as we're looking for a
+       -- point-satisfiability check here; whatever the original program was.
+       pgm = Result ki tr uic [(EX, n) | (_, n) <- is] cs ts as uis ax asgn cstr [sw]
+       cvt = if useSMTLib2 cfg then toSMTLib2 else toSMTLib1
+   runProofOn cvt cfg True [] pgm >>= callSolver True msg SatResult cfg
