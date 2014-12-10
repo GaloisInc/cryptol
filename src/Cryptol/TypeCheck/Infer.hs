@@ -475,28 +475,37 @@ partitionClosed sigEnv noSigs =
 
   where
 
-  isComplete (_,schema) = Set.null (fvs schema)
-  closedSigs            = filter isComplete sigEnv
+  -- all of the local binding names
+  allNames = Set.fromList (map fst sigEnv ++ map (thing . P.bName) noSigs)
 
-  closedSigNames   = Set.fromList (map fst closedSigs)
-  allNames         = closedSigNames `Set.union`
-                     Set.fromList (map (thing . P.bName) noSigs)
+  -- bindings with complete signatures
+  completeSigs          = Set.fromList (map fst (filter isComplete sigEnv))
+  isComplete (_,schema) = Set.null (fvs schema)
 
   mkMono b = b { P.bMono = True }
 
   partitionMonos closed
-      -- if any signatures weren't complete, the bindings lacking signatures
-      -- will all be made monomorphic
-    | length closedSigs < length sigEnv = (closedSigNames, map mkMono noSigs)
+      -- if any signatures weren't complete, or any bindings lacking signatures
+      -- weren't closed, all bindings lacking signatures will be made
+      -- monomorphic
+    | Set.size completeSigs < length sigEnv =
+      (closed' `Set.union` completeSigs, map mkMono noSigs)
 
       -- if all bindings lacking signatures only mention other closed things,
       -- then generalize all bindings that can be generalized
-    | all usesOnlyClosed noSigs         = (allNames, noSigs)
+    | all usesOnlyClosed noSigs = (localClosed, noSigs)
 
-      -- otherwise, make everything monomorphic
-    | otherwise                         = (closedSigNames, map mkMono noSigs)
+    | otherwise = (closed' `Set.union` completeSigs, map mkMono noSigs)
+
     where
-    localClosed = closed `Set.union` allNames
+    -- closed names minus any shadowed names from the local scope
+    closed' = closed Set.\\ allNames
+
+    -- everything that could be closed in the current scope
+    localClosed      = Set.unions [ closed'
+                                  , completeSigs
+                                  , Set.fromList (map (thing . P.bName) noSigs)
+                                  ]
     usesOnlyClosed b = used `Set.isSubsetOf` localClosed
       where
       (_,used) = P.namesB b
