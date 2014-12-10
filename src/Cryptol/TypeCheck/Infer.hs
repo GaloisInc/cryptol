@@ -11,7 +11,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE MultiWayIf #-}
 #if __GLASGOW_HASKELL__ >= 706
 {-# LANGUAGE RecursiveDo #-}
 #else
@@ -440,6 +439,7 @@ inferBinds isTopLevel isRec binds =
           (sigs,noSigs) = partition (isJust . P.bSignature) binds
           monos         = [ b { P.bMono = True } | b <- noSigs ]
 
+
       ((doneBs, genCandidates), cs) <-
         collectGoals $
 
@@ -485,6 +485,7 @@ guessType exprMap b@(P.Bind { .. }) =
             return ((name, ExtVar schema), Left (checkMonoB b t))
 
       | otherwise ->
+
         do t <- newType (text "definition of" <+> quotes (pp name)) KType
            let noWay = tcPanic "guessType" [ "Missing expression for:" ,
                                                                 show name ]
@@ -673,11 +674,12 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
   checkBinds decls (AcyclicSCC c : more) =
     do [b] <- inferBinds isTopLevel False [c]
        withVar (dName b) (dSignature b) $
-           checkBinds (NonRecursive b : decls) more
+         checkBinds (NonRecursive b : decls) more
 
   -- We are done with all value-level definitions.
   -- Now continue with anything that's in scope of the declarations.
   checkBinds decls [] = continue (reverse decls)
+
 
 tcPanic :: String -> [String] -> a
 tcPanic l msg = panic ("[TypeCheck] " ++ l) msg
