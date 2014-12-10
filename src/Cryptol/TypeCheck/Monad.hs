@@ -562,7 +562,7 @@ withMonoTypes xs m = foldr withMonoType m (Map.toList xs)
 withClosed :: Set QName -> InferM a -> InferM a
 withClosed closed m = IM $
   do RO { .. } <- ask
-     local RO { iClosed = iClosed `Set.union` closed, .. } (unIM m)
+     local RO { iClosed = closed, .. } (unIM m)
 
 -- | The sub-computation is performed with the given type synonyms
 -- and variables in scope.
