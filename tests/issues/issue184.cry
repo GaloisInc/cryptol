@@ -1,3 +1,4 @@
+keyWS : [4][8] -> [inf][8]
 keyWS seed = xs
   where
   xs = seed # [ i | i    <- [ 0xff ... ]
