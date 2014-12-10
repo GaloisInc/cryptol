@@ -4,15 +4,13 @@ Loading module test03
 module test03
 import Cryptol
 /* Not recursive */
-test03::test : {a, b} a -> b
-test03::test = \{a, b} (a : a) ->
-               f a b a
+test03::test : {a} (a >= width a) => [a]
+test03::test = \{a} (a >= width a) ->
+               foo a <> <>
                where
-                 /* Recursive */
-                 f : {c, d} c -> d
-                 f = \{c, d} (x : c) -> g c d x
-                 g : {c, d} c -> d
-                 g = \{c, d} (x : c) -> f c d x
+                 /* Not recursive */
+                 foo : {b} (fin b, b >= width a) => [b]
+                 foo = \{b} (fin b, b >= width a) -> demote a b <> <> <>
                  
                
 
@@ -21,15 +19,13 @@ Loading module test03
 module test03
 import Cryptol
 /* Not recursive */
-test03::test : {a, b} a -> b
-test03::test = \{a, b} (a : a) ->
-               f a b a
+test03::test : {a} (a >= width a) => [a]
+test03::test = \{a} (a >= width a) ->
+               foo
                where
-                 /* Recursive */
-                 f : {c, d} c -> d
-                 f = \{c, d} (x : c) -> g c d x
-                 g : {c, d} c -> d
-                 g = \{c, d} (x : c) -> f c d x
+                 /* Not recursive */
+                 foo : [a]
+                 foo = demote a a <> <> <>
                  
                
 

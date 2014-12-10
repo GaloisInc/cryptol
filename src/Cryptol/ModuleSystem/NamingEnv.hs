@@ -228,6 +228,8 @@ instance BindsNames Module where
       where
       qn = nName n
 
+-- | The naming environment fo ra group of top-level declarations.
+
 -- | The naming environment for a single declaration, unqualified.  This is
 -- meanat to be used for things like where clauses.
 instance BindsNames Decl where

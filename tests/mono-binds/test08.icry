@@ -1,5 +1,0 @@
-:set debug=on
-:set mono-binds=off
-:l test08.cry
-:set mono-binds=on
-:l test08.cry

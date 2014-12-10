@@ -31,10 +31,13 @@ import qualified Cryptol.Eval.Value        as E
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Monad
+import           Cryptol.ModuleSystem.Renamer (Rename)
 import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.Parser.AST        as P
 import           Cryptol.Parser.NoPat (RemovePatterns)
+import           Cryptol.Parser.Position (HasLoc)
 import qualified Cryptol.TypeCheck.AST     as T
+import qualified Cryptol.TypeCheck.Depends as T
 
 
 -- Public Interface ------------------------------------------------------------
@@ -77,7 +80,7 @@ evalExpr :: T.Expr -> ModuleCmd E.Value
 evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
 
 -- | Typecheck declarations.
-checkDecls :: [P.Decl] -> ModuleCmd [T.DeclGroup]
+checkDecls :: (HasLoc d, Rename d, T.FromDecl d) => [d] -> ModuleCmd [T.DeclGroup]
 checkDecls ds env = runModuleM env (interactive (Base.checkDecls ds))
 
 -- | Evaluate declarations and add them to the extended environment.

@@ -44,7 +44,7 @@ import qualified Data.Map as Map
 import           Data.Map (Map)
 import qualified Data.Set as Set
 import           Data.Either(partitionEithers)
-import           Data.Maybe(mapMaybe)
+import           Data.Maybe(mapMaybe,isJust)
 import           Data.List(partition)
 import           Data.Graph(SCC(..))
 import           Data.Traversable(forM)
@@ -54,7 +54,6 @@ import           Control.Monad(when,zipWithM)
 
 inferModule :: P.Module -> InferM Module
 inferModule m =
-  withClosed closed $
   inferDs (P.mDecls m) $ \ds1 ->
     do simplifyAllConstraints
        ts <- getTSyns
@@ -69,12 +68,6 @@ inferModule m =
   where
   onlyLocal (IsLocal, x)    = Just x
   onlyLocal (IsExternal, _) = Nothing
-
-  closed = Set.unions (map topNames (P.mDecls m))
-
-  topNames (P.Decl d)       = Set.fromList (map thing (fst (P.namesD   (P.tlValue d))))
-  topNames (P.TDNewtype nt) = Set.fromList (map thing (fst (P.tnamesNT (P.tlValue nt))))
-  topNames _                = Set.empty
 
 
 desugarLiteral :: Bool -> P.Literal -> InferM P.Expr
@@ -429,7 +422,7 @@ inferCArm armNum (m : ms) =
      return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, sz)
 
 
-inferBinds :: Bool -> Bool -> [P.Bind] -> InferM (Set.Set QName, [Decl])
+inferBinds :: Bool -> Bool -> [P.Bind] -> InferM [Decl]
 inferBinds isTopLevel isRec binds =
   mdo let exprMap = Map.fromList [ (x,inst (EVar x) (dDefinition b))
                                  | b <- genBs, let x = dName b ] -- REC.
@@ -438,89 +431,32 @@ inferBinds isTopLevel isRec binds =
           inst e (EProofAbs _ e1) = inst (EProofApp e) e1
           inst e _                = e
 
-      ((closedBinds, doneBs, genCandidates), cs) <-
+      -- when mono-binds is enabled, and we're not checking top-level
+      -- declarations, mark all bindings lacking signatures as monomorphic
+      monoBinds <- getMonoBinds
+      let binds' | monoBinds && not isTopLevel = sigs ++ monos
+                 | otherwise                   = binds
+
+          (sigs,noSigs) = partition (isJust . P.bSignature) binds
+          monos         = [ b { P.bMono = True } | b <- noSigs ]
+
+      ((doneBs, genCandidates), cs) <-
         collectGoals $
 
-        {- sigType is here, because while we check user supplied signatures
+        {- Guess type is here, because while we check user supplied signatures
            we may generate additional constraints. For example, `x - y` would
            generate an additional constraint `x >= y`. -}
-        do (sigs,noSigs) <- partitionEithers `fmap` mapM sigType binds
-           let (sigEnv,checkSigs) = unzip sigs
+        do (newEnv,todos) <- unzip `fmap` mapM (guessType exprMap) binds'
+           let extEnv = if isRec then withVarTypes newEnv else id
 
-           (newClosed,noSigs') <- partitionClosed isTopLevel sigEnv noSigs
-
-           (noSigEnv,todos) <- unzip `fmap` mapM (guessType exprMap) noSigs'
-           let newEnv = noSigEnv ++ [ (name, ExtVar schema) | (name,schema) <- sigEnv ]
-               extEnv = if isRec then withVarTypes newEnv else id
-
-           withClosed newClosed $ extEnv $
-             do let (noSigMono,noSigGen) = partitionEithers todos
+           extEnv $
+             do let (sigsAndMonos,noSigGen) = partitionEithers todos
                 genCs <- sequence noSigGen
-                done  <- sequence noSigMono
-                doneSigs <- sequence checkSigs
+                done  <- sequence sigsAndMonos
                 simplifyAllConstraints
-                return ( newClosed
-                       , doneSigs ++ done
-                       , genCs )
+                return (done, genCs)
       genBs <- generalize genCandidates cs -- RECURSION
-      return (closedBinds, doneBs ++ genBs)
-
-
-partitionClosed :: Bool -> [(QName,Schema)] -> [P.Bind] -> InferM (Set.Set QName, [P.Bind])
-partitionClosed isTopLevel sigEnv noSigs =
-  do closed    <- getClosed
-     monoBinds <- getMonoBinds
-     if | isTopLevel -> return (closed, noSigs)
-        | monoBinds  -> return (partitionMonos closed)
-        | otherwise  -> return (Set.empty, noSigs)
-
-  where
-
-  -- all of the local binding names
-  allNames = Set.fromList (map fst sigEnv ++ map (thing . P.bName) noSigs)
-
-  -- bindings with complete signatures
-  completeSigs          = Set.fromList (map fst (filter isComplete sigEnv))
-  isComplete (_,schema) = Set.null (fvs schema)
-
-  mkMono b = b { P.bMono = True }
-
-  partitionMonos closed
-      -- if any signatures weren't complete, or any bindings lacking signatures
-      -- weren't closed, all bindings lacking signatures will be made
-      -- monomorphic
-    | Set.size completeSigs < length sigEnv =
-      (closed' `Set.union` completeSigs, map mkMono noSigs)
-
-      -- if all bindings lacking signatures only mention other closed things,
-      -- then generalize all bindings that can be generalized
-    | all usesOnlyClosed noSigs = (localClosed, noSigs)
-
-    | otherwise = (closed' `Set.union` completeSigs, map mkMono noSigs)
-
-    where
-    -- closed names minus any shadowed names from the local scope
-    closed' = closed Set.\\ allNames
-
-    -- everything that could be closed in the current scope
-    localClosed      = Set.unions [ closed'
-                                  , completeSigs
-                                  , Set.fromList (map (thing . P.bName) noSigs)
-                                  ]
-    usesOnlyClosed b = used `Set.isSubsetOf` localClosed
-      where
-      (_,used) = P.namesB b
-
-
-sigType :: P.Bind -> InferM (Either ( (QName, Schema), InferM Decl ) P.Bind)
-sigType b @ P.Bind { .. } = case bSignature of
-
-  Just s -> 
-    do s1 <- checkSchema s
-       return (Left ( (thing bName, fst s1), checkSigB b s1 ))
-
-  Nothing ->
-    return (Right b)
+      return (doneBs ++ genBs)
 
 
 {- | Come up with a type for recursive calls to a function, and decide
@@ -535,20 +471,26 @@ guessType :: Map QName Expr -> P.Bind ->
                      , Either (InferM Decl)    -- no generalization
                               (InferM Decl)    -- generalize these
                      )
-guessType exprMap b@(P.Bind { .. })
-  | bMono =
-     do t <- newType (text "defintion of" <+> quotes (pp name)) KType
-        let schema = Forall [] [] t
-        return ((name, ExtVar schema), Left (checkMonoB b t))
+guessType exprMap b@(P.Bind { .. }) =
+  case bSignature of
 
-  | otherwise =
+    Just s ->
+      do s1 <- checkSchema s
+         return ((name, ExtVar (fst s1)), Left (checkSigB b s1))
 
-    do t <- newType (text "definition of" <+> quotes (pp name)) KType
-       let noWay = tcPanic "guessType" [ "Missing expression for:" ,
-                                                            show name ]
-           expr  = Map.findWithDefault noWay name exprMap
+    Nothing
+      | bMono ->
+         do t <- newType (text "defintion of" <+> quotes (pp name)) KType
+            let schema = Forall [] [] t
+            return ((name, ExtVar schema), Left (checkMonoB b t))
 
-       return ((name, CurSCC expr t), Right (checkMonoB b t))
+      | otherwise ->
+        do t <- newType (text "definition of" <+> quotes (pp name)) KType
+           let noWay = tcPanic "guessType" [ "Missing expression for:" ,
+                                                                show name ]
+               expr  = Map.findWithDefault noWay name exprMap
+
+           return ((name, CurSCC expr t), Right (checkMonoB b t))
   where
   name = thing bName
 
@@ -723,15 +665,14 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
 
 
   checkBinds decls (CyclicSCC bs : more) =
-     do (closedBinds,bs1) <- inferBinds isTopLevel True bs
+     do bs1 <- inferBinds isTopLevel True bs
         foldr (\b m -> withVar (dName b) (dSignature b) m)
-              (withClosed closedBinds (checkBinds (Recursive bs1 : decls) more))
+              (checkBinds (Recursive bs1 : decls) more)
               bs1
 
   checkBinds decls (AcyclicSCC c : more) =
-    do (closedBinds,[b]) <- inferBinds isTopLevel False [c]
+    do [b] <- inferBinds isTopLevel False [c]
        withVar (dName b) (dSignature b) $
-         withClosed closedBinds $
            checkBinds (NonRecursive b : decls) more
 
   -- We are done with all value-level definitions.

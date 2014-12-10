@@ -1,6 +1,8 @@
 module test03 where
 
-test a = f a
+// this illustrates a case that mono-binds doesn't currently catch: an
+// expression that has a free type variable.
+test : {a} (a >= width a) => [a]
+test = foo
   where
-  f x = g x
-  g x = f x
+  foo = `(a)

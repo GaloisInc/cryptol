@@ -76,12 +76,6 @@ runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
 runInferM info (IM m) =
   do rec ro <- return RO { iRange     = inpRange info
                      , iVars          = Map.map ExtVar (inpVars info)
-
-                       -- initialize the set of closed values to include things
-                       -- defined in the input
-                     , iClosed        = Set.union
-                                        (Set.fromList (Map.keys (inpVars info)))
-                                        (Set.fromList (Map.keys (inpNewtypes info)))
                      , iTVars         = []
                      , iTSyns         = fmap mkExternal (inpTSyns info)
                      , iNewtypes      = fmap mkExternal (inpNewtypes info)
@@ -131,9 +125,6 @@ data DefLoc = IsLocal | IsExternal
 data RO = RO
   { iRange    :: Range                  -- ^ Source code being analysed
   , iVars     :: Map QName VarType      -- ^ Type of variable that are in scope
-
-  , iClosed   :: Set QName              -- ^ Variables introduced by the current
-                                        --   binding
 
   {- NOTE: We assume no shadowing between these two, so it does not matter
   where we look first. Similarly, we assume no shadowing with
@@ -476,10 +467,6 @@ getTVars = IM $ asks $ Set.fromList . mapMaybe tpName . iTVars
 getBoundInScope :: InferM (Set TVar)
 getBoundInScope = IM $ asks $ Set.fromList . map tpVar . iTVars
 
--- | Retrieve the set of names in scope that belong to closed terms.
-getClosed :: InferM (Set QName)
-getClosed  = IM $ asks iClosed
-
 -- | Retrieve the value of the `mono-binds` option.
 getMonoBinds :: InferM Bool
 getMonoBinds  = IM (asks iMonoBinds)
@@ -556,13 +543,6 @@ withMonoType (x,lt) = withVar x (Forall [] [] (thing lt))
 -- | The sub-computation is performed with the given variables in scope.
 withMonoTypes :: Map QName (Located Type) -> InferM a -> InferM a
 withMonoTypes xs m = foldr withMonoType m (Map.toList xs)
-
--- | The sub-computation is performed with the given variables marked as
--- closed.
-withClosed :: Set QName -> InferM a -> InferM a
-withClosed closed m = IM $
-  do RO { .. } <- ask
-     local RO { iClosed = closed, .. } (unIM m)
 
 -- | The sub-computation is performed with the given type synonyms
 -- and variables in scope.
