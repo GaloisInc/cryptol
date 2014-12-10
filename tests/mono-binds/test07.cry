@@ -1,0 +1,10 @@
+module test07 where
+
+test : {a} a
+test = bar
+  where
+  foo : {b} b -> b
+  foo x = x
+
+  // bar depends only on closed things (foo has a complete type signature)
+  bar = foo zero
