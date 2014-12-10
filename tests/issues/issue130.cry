@@ -1,8 +1,6 @@
 parity xs = ys!0
   where ys = [False] # [y ^ x | x <- xs | y <- ys ]
 
-// mono-binds requires a signature to foldl1, currently
-foldl1 : {a, b} (fin a) => (b -> b -> b) -> [1 + a]b -> b
 foldl1 f xs = ys!0
   where ys = [xs@0] # [ f y x | y <- ys | x <- tail xs ]
 
