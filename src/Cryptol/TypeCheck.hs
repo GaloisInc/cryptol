@@ -65,7 +65,7 @@ tcExpr e0 inp = runInferM inp
                              , show e'
                              , show t
                              ]
-      _ -> do (_,res) <- inferBinds False
+      _ -> do (_,res) <- inferBinds True False
                 [ P.Bind
                     { P.bName      = P.Located (inpRange inp)
                                    $ mkUnqual (P.Name "(expression)")

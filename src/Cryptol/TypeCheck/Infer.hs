@@ -11,6 +11,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE MultiWayIf #-}
 #if __GLASGOW_HASKELL__ >= 706
 {-# LANGUAGE RecursiveDo #-}
 #else
@@ -428,8 +429,8 @@ inferCArm armNum (m : ms) =
      return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, sz)
 
 
-inferBinds :: Bool -> [P.Bind] -> InferM (Set.Set QName, [Decl])
-inferBinds isRec binds =
+inferBinds :: Bool -> Bool -> [P.Bind] -> InferM (Set.Set QName, [Decl])
+inferBinds isTopLevel isRec binds =
   mdo let exprMap = Map.fromList [ (x,inst (EVar x) (dDefinition b))
                                  | b <- genBs, let x = dName b ] -- REC.
 
@@ -446,7 +447,7 @@ inferBinds isRec binds =
         do (sigs,noSigs) <- partitionEithers `fmap` mapM sigType binds
            let (sigEnv,checkSigs) = unzip sigs
 
-           (newClosed,noSigs') <- partitionClosed sigEnv noSigs
+           (newClosed,noSigs') <- partitionClosed isTopLevel sigEnv noSigs
 
            (noSigEnv,todos) <- unzip `fmap` mapM (guessType exprMap) noSigs'
            let newEnv = noSigEnv ++ [ (name, ExtVar schema) | (name,schema) <- sigEnv ]
@@ -465,13 +466,13 @@ inferBinds isRec binds =
       return (closedBinds, doneBs ++ genBs)
 
 
-partitionClosed :: [(QName,Schema)] -> [P.Bind] -> InferM (Set.Set QName, [P.Bind])
-partitionClosed sigEnv noSigs =
+partitionClosed :: Bool -> [(QName,Schema)] -> [P.Bind] -> InferM (Set.Set QName, [P.Bind])
+partitionClosed isTopLevel sigEnv noSigs =
   do closed    <- getClosed
      monoBinds <- getMonoBinds
-     if monoBinds
-        then return (partitionMonos closed)
-        else return (Set.empty, noSigs)
+     if | isTopLevel -> return (closed, noSigs)
+        | monoBinds  -> return (partitionMonos closed)
+        | otherwise  -> return (Set.empty, noSigs)
 
   where
 
@@ -707,6 +708,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
 inferDs :: FromDecl d => [d] -> ([DeclGroup] -> InferM a) -> InferM a
 inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
   where
+  isTopLevel = isTopDecl (head ds)
+
   checkTyDecls (TS t : ts) =
     do t1 <- checkTySyn t
        withTySyn t1 (checkTyDecls ts)
@@ -720,13 +723,13 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
 
 
   checkBinds decls (CyclicSCC bs : more) =
-     do (closedBinds,bs1) <- inferBinds True bs
+     do (closedBinds,bs1) <- inferBinds isTopLevel True bs
         foldr (\b m -> withVar (dName b) (dSignature b) m)
               (withClosed closedBinds (checkBinds (Recursive bs1 : decls) more))
               bs1
 
   checkBinds decls (AcyclicSCC c : more) =
-    do (closedBinds,[b]) <- inferBinds False [c]
+    do (closedBinds,[b]) <- inferBinds isTopLevel False [c]
        withVar (dName b) (dSignature b) $
          withClosed closedBinds $
            checkBinds (NonRecursive b : decls) more
