@@ -5,6 +5,7 @@ module Cryptol.TypeCheck.Solver.CrySAT
   , assumeProps, checkDefined, simplifyProps
   , exportProp
   , check
+  , Solver
   ) where
 
 import qualified Cryptol.TypeCheck.AST as Cry
@@ -35,6 +36,7 @@ checkDefined s props0 = withScope s $ checkDefined' s props0
 -- | Check that a bunch of constraints are all defined.
 -- We return constraints that are not necessarily defined in the first
 -- component, and the ones that are defined in the second component.
+-- Well defined constraints are asserted at this point.
 checkDefined' :: Solver -> [(a,Prop)] -> IO ([a], [(a,SMTProp)])
 checkDefined' s props0 =
   go False [] [] [ (a, p, prepareProp (cryDefinedProp p)) | (a,p) <- props0 ]
@@ -56,6 +58,12 @@ checkDefined' s props0 =
                          assert s r -- add defined prop as an assumption
                          go True ((ct,r) : isDef) isNotDef  more
                  else go ch isDef ((ct,p,q) : isNotDef) more
+
+
+
+
+
+
 
 
 -- | Simplify a bunch of well-defined properties.
@@ -230,7 +238,7 @@ prove s@(Solver { .. }) SMTProp { .. } =
 
 -- | Check if the current set of assumptions is satisifiable, and find
 -- some facts that must hold in any models of the current assumptions.
--- The 'Bool' is 'True' if the current asumptions *map be* satisifiable.
+-- The 'Bool' is 'True' if the current asumptions *may be* satisifiable.
 -- The 'Bool' is 'False' if the current assumptions are *definately*
 -- not satisfiable.
 check :: Solver -> IO (Bool, Map Name Expr)

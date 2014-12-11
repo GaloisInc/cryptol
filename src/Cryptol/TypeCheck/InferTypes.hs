@@ -123,8 +123,8 @@ data Error    = ErrorMsg Doc
                 -- ^ Quantified type variables (of kind *) needs to
                 -- match the given type, so it does not work for all types.
 
-              | UnusableFunction QName Prop
-                -- ^ The given constraint causes the signature of the
+              | UnusableFunction QName [Prop]
+                -- ^ The given constraints causes the signature of the
                 -- function to be not-satisfiable.
 
               | TooManyPositionalTypeParams
@@ -209,7 +209,7 @@ instance TVars Error where
       UnexpectedTypeWildCard    -> err
       TypeVariableEscaped t xs  -> TypeVariableEscaped (apSubst su t) xs
       NotForAll x t             -> NotForAll x (apSubst su t)
-      UnusableFunction f p      -> UnusableFunction f (apSubst su p)
+      UnusableFunction f ps      -> UnusableFunction f (apSubst su ps)
       TooManyPositionalTypeParams -> err
       CannotMixPositionalAndNamedTypeParams -> err
       AmbiguousType _           -> err
@@ -413,10 +413,11 @@ instance PP (WithNames Error) where
           (text "Quantified variable:" <+> ppWithNames names x $$
            text "cannot match type:"   <+> ppWithNames names t)
 
-      UnusableFunction f p ->
+      UnusableFunction f ps ->
         nested (text "The constraints in the type signature of"
                 <+> quotes (pp f) <+> text "are unsolvable.")
-          (text "Detected while analyzing constraint:" $$ ppWithNames names p)
+               (text "Detected while analyzing constraints:"
+                $$ vcat (map (ppWithNames names) ps))
 
       TooManyPositionalTypeParams ->
         text "Too many positional type-parameters in explicit type application"

@@ -33,7 +33,7 @@ import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,fvs,(@@))
 import           Cryptol.TypeCheck.Solver.FinOrd(noFacts,OrdFacts)
-import           Cryptol.TypeCheck.Solver.Eval(simpType)
+import           Cryptol.TypeCheck.Solver.Eval(simpType,assumedOrderModel)
 import           Cryptol.TypeCheck.Solver.InfNat(genLog)
 import           Cryptol.TypeCheck.Defaulting(tryDefault)
 import           Cryptol.Utils.Panic(panic)
@@ -522,7 +522,7 @@ generalize bs0 gs0 =
      ordM <- case assumedOrderModel noFacts (map goal gs) of
                 Left (ordModel,p) ->
                   do mapM_ recordError
-                            [ UnusableFunction n p | n <- map dName bs1]
+                            [ UnusableFunction n [p] | n <- map dName bs1]
                      return ordModel
                 Right (ordModel,_) -> return ordModel
 
