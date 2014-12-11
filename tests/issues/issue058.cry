@@ -1,0 +1,10 @@
+// None of these should typecheck without fin constraints.
+
+some : {n} [n] -> Bit
+some x = x != 0
+
+last : {n, a} (n >= 1) => [n]a -> a
+last xs = xs ! 0
+
+pad : {n} [n] -> [inf]
+pad x = x # zero
