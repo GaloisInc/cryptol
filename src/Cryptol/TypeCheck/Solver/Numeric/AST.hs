@@ -74,6 +74,7 @@ data Prop =
   | Prop :&& Prop | Prop :|| Prop
   | Not Prop
   | PFalse | PTrue
+    deriving (Eq,Show)
 
 
 -- | Expressions, representing Cryptol's numeric types.
