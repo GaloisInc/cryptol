@@ -111,7 +111,8 @@ simpGoals s gs0 =
                 case mbOk of
                   Nothing -> return Nothing
                   Just (nonDef,def,imps) ->
-                    do def1 <- Num.simplifyProps s def
+                    do let def' = [ (g,p) | (g,_,p) <- def ]
+                       def1 <- Num.simplifyProps s def'
                        let su = importImps varMap imps
                        -- XXX: Apply subst to class constraints and go again?
                        return $ Just ( apSubst su

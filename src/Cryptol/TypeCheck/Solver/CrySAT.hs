@@ -37,10 +37,11 @@ It does not modify the solver's state.
 The result is like this:
   * 'Nothing': The properties are inconsistent
   * 'Just' info:  The properties may be consistent, and here is some info:
-      * [a]:           We could not prove that these are well defineed.
-      * [(a,SMTProp)]: We proved that these are well defined.
+      * [a]:           We could not prove that these are well defined.
+      * [(a,Prop,SMTProp)]: We proved that these are well defined, and simplified
+                            the arguments to the input Prop.
       * ImpMap:        We computed some improvements. -}
-checkDefined :: Solver -> [(a,Prop)] -> IO (Maybe ([a], [(a,SMTProp)], ImpMap))
+checkDefined :: Solver -> [(a,Prop)] -> IO (Maybe ([a], [(a,Prop,SMTProp)], ImpMap))
 checkDefined s props0 = withScope s (go Map.empty [] props0)
   where
   go knownImps done notDone =
@@ -54,7 +55,7 @@ checkDefined s props0 = withScope s (go Map.empty [] props0)
 
               if Map.null novelImps
                 then return $ Just ( map fst newNotDone
-                                   , [ (x,p) | (x,_,p) <- newDone ]
+                                   , newDone
                                    , knownImps)
                 else
                   do mapM_ addImpProp (Map.toList novelImps)
@@ -92,9 +93,10 @@ checkDefined' s props0 =
   -- Process one constraint.
   go ch isDef isNotDef ((ct,p,q) : more) =
     do proved <- prove s q
-       if proved then do let r = prepareProp p
+       if proved then do let p' = crySimpPropExpr p
+                             r  = prepareProp p'
                          assert s r -- add defined prop as an assumption
-                         go True ((ct,p,r) : isDef) isNotDef  more
+                         go True ((ct,p',r) : isDef) isNotDef  more
                  else go ch isDef ((ct,p,q) : isNotDef) more
 
 
