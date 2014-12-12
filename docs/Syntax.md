@@ -296,6 +296,10 @@ Local Declarations
 
     e where ds
 
+Note that by default, any local declarations without type signatures
+are monomorphized. If you need a local declaration to be polymorphic,
+use an explicit type signature.
+
 Explicit Type Instantiation
 ===========================
 
