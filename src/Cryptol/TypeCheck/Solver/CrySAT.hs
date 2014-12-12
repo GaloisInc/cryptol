@@ -114,6 +114,11 @@ simplifyProps :: Solver -> [(a,SMTProp)] -> IO [a]
 simplifyProps s props = withScope s (go [] props)
   where
   go survived [] = return survived
+
+  -- we don't need to prove things that are already true
+  go survived ((_,p) : more)
+    | PTrue <- smtpOrig p = go survived more
+
   go survived ((ct,p) : more) =
     do proved <- withScope s $ do mapM_ (assert s . snd) more
                                   prove s p
@@ -148,6 +153,8 @@ data SMTProp = SMTProp
   , smtpLinPart     :: SExpr
   , smtpNonLinPart  :: [(Name,Expr)]
     -- ^ The names are all distinct, and don't appear in the the defs.
+  , smtpOrig        :: Prop
+    -- ^ The original prop that this was created from
   }
 
 -- | Prepare a property for export to an SMT solver.
@@ -156,6 +163,7 @@ prepareProp prop0 = SMTProp
   { smtpVars       = cryPropFVS linProp
   , smtpLinPart    = ifPropToSmtLib (desugarProp linProp)
   , smtpNonLinPart = nonLinEs
+  , smtpOrig       = prop1
   }
   where
   prop1               = crySimplify prop0
