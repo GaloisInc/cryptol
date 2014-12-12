@@ -8,6 +8,7 @@ module Cryptol.Parser
   , parseDecls, parseDeclsWith
   , parseLetDecl, parseLetDeclWith
   , parseRepl, parseReplWith
+  , parseSchema, parseSchemaWith
   , parseModName
   , ParseError(..), ppError
   , Layout(..)
@@ -148,6 +149,7 @@ import Paths_cryptol
 %name declsLayout decls_layout
 %name letDecl let_decl
 %name repl    repl
+%name schema  schema
 %name modName modName
 %tokentype { Located Token }
 %monad { ParseM }
@@ -772,6 +774,12 @@ parseReplWith cfg = parse cfg { cfgModuleScope = False } repl
 
 parseRepl :: String -> Either ParseError ReplInput
 parseRepl = parseReplWith defaultConfig
+
+parseSchemaWith :: Config -> String -> Either ParseError Schema
+parseSchemaWith cfg = parse cfg { cfgModuleScope = False } schema
+
+parseSchema :: String -> Either ParseError Schema
+parseSchema = parseSchemaWith defaultConfig
 
 -- vim: ft=haskell
 }
