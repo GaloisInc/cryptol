@@ -17,15 +17,19 @@ module Cryptol.TypeCheck.Solve
 import           Cryptol.Parser.AST(LQName, thing)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
-import           Cryptol.TypeCheck.Subst(apSubst,fvs,emptySubst,Subst)
+import           Cryptol.TypeCheck.Subst(apSubst,fvs,emptySubst,Subst,listSubst)
 import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
+import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 
 import           Cryptol.TypeCheck.Defaulting(tryDefaultWith)
 
 import           Data.Either(partitionEithers)
+import           Data.Map ( Map )
+import qualified Data.Map as Map
+import           Data.Maybe ( mapMaybe, fromMaybe )
 
 -- Add additional constraints that ensure validity of type function.
 checkTypeFunction :: TFun -> [Type] -> [Prop]
@@ -46,51 +50,76 @@ simplifyAllConstraints :: InferM ()
 simplifyAllConstraints =
   do mapM_  tryHasGoal =<< getHasGoals
      gs <- getGoals
-     addGoals =<< io (Num.withSolver (`simpGoals` gs))
+     mb <- io (Num.withSolver (`simpGoals` gs))
+     case mb of
+       Just (gs1,su) -> addGoals gs1
+       Nothing -> -- XXX: Minimize the goals involved in the conflict
+                  mapM_ (recordError . UnsolvedGoal) gs
 
 
 proveImplication :: LQName -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
   do mbErr <- io (proveImplication' lnam as ps gs)
      case mbErr of
-       Nothing  -> return ()
-       Just err -> recordError err
-     return emptySubst
+       Right su -> return su
+       Left err -> recordError err >> return emptySubst
 
-proveImplication' :: LQName -> [TParam] -> [Prop] -> [Goal] -> IO (Maybe Error)
+proveImplication' :: LQName -> [TParam] -> [Prop] -> [Goal] ->
+                                              IO (Either Error Subst)
 proveImplication' lname as ps gs =
   Num.withSolver $ \s ->
 
-  do Num.assumeProps s ps
+  do varMap <- Num.assumeProps s ps
      (possible,imps) <- Num.check s
+     let su  = importImps varMap imps
+         gs0 = apSubst su gs
+
      if not possible
-       then return $ Just $ UnusableFunction (thing lname) ps
-       else do let gs1 = filter ((`notElem` ps) . goal) gs
+       then return $ Left $ UnusableFunction (thing lname) ps
+       else -- XXX: Use imps
+            do let gs1 = filter ((`notElem` ps) . goal) gs0
                gs2 <- simpGoals s gs1
-               case gs2 of
-                 [] -> return Nothing
-                 us -> return $ Just $ UnsolvedDelcayedCt
-                                     $ DelayedCt { dctSource = lname
-                                                 , dctForall = as
-                                                 , dctAsmps  = ps
-                                                 , dctGoals  = us
-                                                 }
+
+               -- XXX: Minimize the goals invovled in the conflict
+               let gs3 = fromMaybe (gs1,emptySubst) gs2
+               case gs3 of
+                 ([],su) -> return (Right su)
+
+                 -- XXX: Do we need the su?
+                 (us,_) -> return $ Left
+                                  $ UnsolvedDelcayedCt
+                                  $ DelayedCt { dctSource = lname
+                                              , dctForall = as
+                                              , dctAsmps  = ps
+                                              , dctGoals  = us
+                                              }
 
 -- | Class goals go on the left, numeric goals go on the right.
-numericRight :: Goal -> Either Goal (Goal, Num.Prop)
+numericRight :: Goal -> Either Goal ((Goal, Num.VarMap), Num.Prop)
 numericRight g  = case Num.exportProp (goal g) of
-                    Just p  -> Right (g, p)
+                    Just (p,vm)  -> Right ((g,vm), p)
                     Nothing -> Left g
 
 -- | Assumes that the substitution has been applied to the goals.
-simpGoals :: Num.Solver -> [Goal] -> IO [Goal]
+simpGoals :: Num.Solver -> [Goal] -> IO (Maybe ([Goal],Subst))
 simpGoals s gs0 =
   do let (unsolvedClassCts,numCts) = solveClassCts gs0
+         varMap = Map.unions [ vm | ((_,vm),_) <- numCts ]
      case numCts of
-       [] -> return unsolvedClassCts
-       _  -> do (nonDef,def) <- Num.checkDefined s numCts
-                def1         <- Num.simplifyProps s def
-                return (nonDef ++ unsolvedClassCts ++ def1)
+       [] -> return $ Just (unsolvedClassCts, emptySubst)
+       _  -> do mbOk <- Num.checkDefined s numCts
+                case mbOk of
+                  Nothing -> return Nothing
+                  Just (nonDef,def,imps) ->
+                    do def1 <- Num.simplifyProps s def
+                       let su = importImps varMap imps
+                       -- XXX: Apply subst to class constraints and go again?
+                       return $ Just ( apSubst su
+                                     $ map fst nonDef ++
+                                       unsolvedClassCts ++
+                                       map fst def1
+                                     , su
+                                     )
   where
   solveClassRight g = case classStep g of
                         Just gs -> Right gs
@@ -104,6 +133,13 @@ simpGoals s gs0 =
          (unsolved',numCts')  = solveClassCts (concat solveds)
      in (unsolved ++ unsolved', numCts ++ numCts')
 
+
+importImps :: Num.VarMap -> Map Num.Name Num.Expr -> Subst
+importImps varMap = listSubst . mapMaybe imp . Map.toList
+  where
+  imp (x,e) = case (Map.lookup x varMap, Num.importType varMap e) of
+                (Just tv, Just ty) -> Just (tv,ty)
+                _                  -> Nothing
 
 
 

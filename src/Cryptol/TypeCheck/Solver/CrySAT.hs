@@ -3,7 +3,6 @@
 module Cryptol.TypeCheck.Solver.CrySAT
   ( withScope, withSolver
   , assumeProps, checkDefined, simplifyProps
-  , exportProp
   , check
   , Solver
   ) where
@@ -18,10 +17,11 @@ import           Cryptol.TypeCheck.Solver.Numeric.NonLin
 import           Cryptol.TypeCheck.Solver.Numeric.SMT
 import           Cryptol.Utils.Panic ( panic )
 
-import           Control.Monad ( unless )
-import           Data.Maybe ( mapMaybe )
+import           MonadLib
+import           Data.Maybe ( mapMaybe, fromMaybe )
 import           Data.Map ( Map )
 import qualified Data.Map as Map
+import           Data.Traversable ( traverse )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef' )
@@ -29,15 +29,53 @@ import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef' )
 import           SimpleSMT ( SExpr )
 import qualified SimpleSMT as SMT
 
+type ImpMap = Map Name Expr
 
-checkDefined :: Solver -> [(a,Prop)] -> IO ([a], [(a,SMTProp)])
-checkDefined s props0 = withScope s $ checkDefined' s props0
+{- | Check if a collection of things are defined.
+It does not modify the solver's state.
+
+The result is like this:
+  * 'Nothing': The properties are inconsistent
+  * 'Just' info:  The properties may be consistent, and here is some info:
+      * [a]:           We could not prove that these are well defineed.
+      * [(a,SMTProp)]: We proved that these are well defined.
+      * ImpMap:        We computed some improvements. -}
+checkDefined :: Solver -> [(a,Prop)] -> IO (Maybe ([a], [(a,SMTProp)], ImpMap))
+checkDefined s props0 = withScope s (go Map.empty [] props0)
+  where
+  go knownImps done notDone =
+    do (newNotDone, novelDone) <- checkDefined' s notDone
+       (possible,  imps)       <- check s
+       if not possible
+         then return Nothing
+         else
+           do let novelImps = Map.difference imps knownImps
+                  newDone   = novelDone ++ done
+
+              if Map.null novelImps
+                then return $ Just ( map fst newNotDone
+                                   , [ (x,p) | (x,_,p) <- newDone ]
+                                   , knownImps)
+                else
+                  do mapM_ addImpProp (Map.toList novelImps)
+                     let newImps    = Map.union newImps knownImps
+                         impDone    = map (updProp novelImps) newDone
+                         impNotDone = [ (a, fromMaybe p (apSubst novelImps p)) |
+                                                        (a,p) <- newNotDone ]
+                     go newImps impDone impNotDone
+
+  addImpProp (x,e) = assert s (prepareProp (Var x :== e))
+  updProp su (a,origProp,smtProp) =
+    case apSubst su origProp of
+      Nothing -> (a,origProp,smtProp)
+      Just p1 -> (a,p1,prepareProp p1)
+
 
 -- | Check that a bunch of constraints are all defined.
 -- We return constraints that are not necessarily defined in the first
 -- component, and the ones that are defined in the second component.
 -- Well defined constraints are asserted at this point.
-checkDefined' :: Solver -> [(a,Prop)] -> IO ([a], [(a,SMTProp)])
+checkDefined' :: Solver -> [(a,Prop)] -> IO ([(a,Prop)], [(a,Prop,SMTProp)])
 checkDefined' s props0 =
   go False [] [] [ (a, p, prepareProp (cryDefinedProp p)) | (a,p) <- props0 ]
 
@@ -49,14 +87,14 @@ checkDefined' s props0 =
   go True isDef isNotDef [] = go False isDef [] isNotDef
 
   -- We have possibly non-defined predicates and nothing changed.
-  go False isDef isNotDef [] = return ([ a | (a,_,_) <- isNotDef ], isDef)
+  go False isDef isNotDef [] = return ([ (a,p) | (a,p,_) <- isNotDef ], isDef)
 
   -- Process one constraint.
   go ch isDef isNotDef ((ct,p,q) : more) =
     do proved <- prove s q
        if proved then do let r = prepareProp p
                          assert s r -- add defined prop as an assumption
-                         go True ((ct,r) : isDef) isNotDef  more
+                         go True ((ct,p,r) : isDef) isNotDef  more
                  else go ch isDef ((ct,p,q) : isNotDef) more
 
 
@@ -81,13 +119,18 @@ simplifyProps s props = withScope s (go [] props)
          else do assert s p
                  go (ct : survived) more
 
+
 -- | Add the given constraints as assumptions.
 -- We also assume that the constraints are well-defined.
 -- Modifies the set of assumptions.
-assumeProps :: Solver -> [Cry.Prop] -> IO ()
+assumeProps :: Solver -> [Cry.Prop] -> IO VarMap
 assumeProps s props =
-  mapM_ (assert s . prepareProp) (map cryDefinedProp ps ++ ps)
-  where ps = mapMaybe exportProp props
+  do mapM_ (assert s . prepareProp) (map cryDefinedProp ps ++ ps)
+     return (Map.unions varMaps)
+  where (ps,varMaps) = unzip (mapMaybe exportProp props)
+  -- XXX: Instead of asserting one at a time, perhaps we should
+  -- assert a conjunction.  That way, we could simplify the whole thing
+  -- in one go, and would avoid having to assert 'true' many times.
 
 
 
@@ -114,6 +157,7 @@ prepareProp prop0 = SMTProp
   where
   prop1               = crySimplify prop0
   (nonLinEs, linProp) = nonLinProp prop1
+
 
 
 -- | An SMT solver, and some info about declared variables.
@@ -241,7 +285,7 @@ prove s@(Solver { .. }) SMTProp { .. } =
 -- The 'Bool' is 'True' if the current asumptions *may be* satisifiable.
 -- The 'Bool' is 'False' if the current assumptions are *definately*
 -- not satisfiable.
-check :: Solver -> IO (Bool, Map Name Expr)
+check :: Solver -> IO (Bool, ImpMap)
 check Solver { .. } =
   do res <- SMT.check solver
      case res of
@@ -250,7 +294,7 @@ check Solver { .. } =
        SMT.Sat     ->
          do names <- viNames `fmap` readIORef declared
             m     <- fmap Map.fromList (mapM getVal names)
-            imps  <- cryImproveModel solver m
+            imps  <- toSubst `fmap` cryImproveModel solver m
 
             -- XXX: Here we should apply the imps to the non-linear things
             -- and evalute. If this results in a contradiction, than we
@@ -283,6 +327,26 @@ check Solver { .. } =
                  _            -> panic "cryCheck.isInf"
                                        [ "Not a boolean value", show yes ]
 
+
+-- | Convert a bunch of improving equations into an idempotent substitution.
+-- Assumes that the equations don't have loops.
+toSubst :: ImpMap -> ImpMap
+toSubst m =
+  case normMap (apSubst m) m of
+    Nothing -> m
+    Just m1 -> toSubst m1
+
+
+-- | Apply a function to all elements of a map.  Returns `Nothing` if nothing
+-- changed, and @Just newmap@ otherwise.
+normMap :: (a -> Maybe a) -> Map k a -> Maybe (Map k a)
+normMap f m = mk $ runId $ runStateT False $ traverse upd m
+  where
+  mk (a,changes) = if changes then Just a else Nothing
+
+  upd x = case f x of
+            Just y  -> set True >> return y
+            Nothing -> return x
 
 
 

@@ -1,6 +1,7 @@
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Solver.Numeric.ImportExport
   ( ExportM
+  , VarMap
   , exportProp
   , runExportM
   , exportPropM
@@ -14,8 +15,8 @@ import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           MonadLib
 
-exportProp :: Cry.Prop -> Maybe Prop
-exportProp = fmap fst . runExportM . exportPropM
+exportProp :: Cry.Prop -> Maybe (Prop, VarMap)
+exportProp = runExportM . exportPropM
 
 runExportM :: ExportM a -> Maybe (a, VarMap)
 runExportM = either (\_ -> Nothing) Just

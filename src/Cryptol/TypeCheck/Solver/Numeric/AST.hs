@@ -42,7 +42,7 @@ infixr 8 :^^
 
 
 data Name = UserName Int | SysName Int
-            deriving (Eq,Ord)
+            deriving (Show,Eq,Ord)
 
 toName :: Int -> Name
 toName = UserName
@@ -91,7 +91,7 @@ data Expr = K Nat'
           | Width Expr
           | LenFromThen   Expr Expr Expr
           | LenFromThenTo Expr Expr Expr
-            deriving (Eq)
+            deriving (Eq,Show)
 
 
 -- | The constant @0@.
