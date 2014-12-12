@@ -164,6 +164,7 @@ prepareProp prop0 = SMTProp
 data Solver = Solver
   { solver    :: SMT.Solver
   , declared  :: IORef VarInfo
+  , logger    :: SMT.Logger
   }
 
 -- | Keeps track of what variables we've already declared.
@@ -224,9 +225,9 @@ viNames VarInfo { .. } = concatMap scopeNames (curScope : otherScopes)
 -- | Execute a computation with a fresh solver instance.
 withSolver :: (Solver -> IO a) -> IO a
 withSolver k =
-  do _l     <- SMT.newLogger
-     solver <- SMT.newSolver "cvc4" ["--lang=smt2", "--incremental"] Nothing
-                                                                  -- (Just l)
+  do logger <- SMT.newLogger
+     solver <- SMT.newSolver "cvc4" ["--lang=smt2", "--incremental"]
+                                                   Nothing {-(Just logger)-}
      SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty
      a <- k Solver { .. }
@@ -237,9 +238,11 @@ withSolver k =
 withScope :: Solver -> IO a -> IO a
 withScope Solver { .. } k =
   do SMT.push solver
+     SMT.logTab logger
      modifyIORef' declared viPush
      a <- k
      modifyIORef' declared viPop
+     SMT.logUntab logger
      SMT.pop solver
      return a
 
