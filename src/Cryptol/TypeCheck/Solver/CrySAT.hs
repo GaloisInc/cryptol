@@ -5,6 +5,7 @@ module Cryptol.TypeCheck.Solver.CrySAT
   , assumeProps, checkDefined, simplifyProps
   , check
   , Solver
+  , SMTProp
   ) where
 
 import qualified Cryptol.TypeCheck.AST as Cry

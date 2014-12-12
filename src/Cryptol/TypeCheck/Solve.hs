@@ -111,7 +111,7 @@ simpGoals s gs0 =
                 case mbOk of
                   Nothing -> return Nothing
                   Just (nonDef,def,imps) ->
-                    do let def' = [ (g,p) | (g,_,p) <- def ]
+                    do let def' = [ (a,p) | (a,_,p) <- eliminateRedundant def ]
                        def1 <- Num.simplifyProps s def'
                        let su = importImps varMap imps
                        -- XXX: Apply subst to class constraints and go again?
@@ -145,3 +145,22 @@ importImps varMap = listSubst . mapMaybe imp . Map.toList
 
 
 
+-- | Reduce goals of the form (a >= k1, a >= k2, a >= k3, ...) into one of the
+-- form (a >= max (k1, k2, k3, ...)), when all the k's are constant.  Otherwise,
+-- return goals unchanged.
+eliminateRedundant :: [(a,Num.Prop,Num.SMTProp)] -> [(a,Num.Prop,Num.SMTProp)]
+eliminateRedundant  = go Map.empty []
+  where
+
+  go geqs other ( g@(_,prop,_) : rest) =
+    case prop of
+      Num.Var v Num.:>= Num.K n -> go (addUpperBound v (n,g) geqs)   other  rest
+      _                         -> go                        geqs (g:other) rest
+
+  go geqs other [] = [ g | (_,g) <- Map.elems geqs ] ++ other
+
+  -- add in a possible upper bound for var
+  addUpperBound var g = Map.insertWith cmp var g
+    where
+    cmp a b | fst a > fst b = a
+            | otherwise     = b
