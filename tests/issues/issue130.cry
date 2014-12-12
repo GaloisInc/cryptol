@@ -6,5 +6,5 @@ foldl1 f xs = ys!0
 
 par = foldl1 (^)
 
-parOK : {n} [n+1] -> Bit
+parOK : {n} (fin n) => [n+1] -> Bit
 property parOK x = par x == parity x
