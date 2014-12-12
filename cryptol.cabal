@@ -41,7 +41,7 @@ library
                        random          >= 1.0.1,
                        tf-random       >= 0.5,
                        smtLib          >= 1.0.7,
-                       simple-smt      >= 0.3,
+                       simple-smt      >= 0.4,
                        syb             >= 0.4,
                        text            >= 1.1,
                        transformers    >= 0.3,
