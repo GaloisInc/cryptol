@@ -1,4 +1,6 @@
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 -- | The sytnax of numeric propositions.
 module Cryptol.TypeCheck.Solver.Numeric.AST
   ( Name, toName, sysName, fromName, ppName
@@ -19,6 +21,7 @@ module Cryptol.TypeCheck.Solver.Numeric.AST
   ) where
 
 import          Cryptol.TypeCheck.Solver.InfNat ( Nat'(..) )
+import          Cryptol.TypeCheck.TypeMap ( TrieMap(..) )
 import          Cryptol.Utils.Panic ( panic )
 import          Cryptol.Utils.Misc ( anyJust )
 
@@ -281,6 +284,183 @@ instance HasVars Prop where
 
     twoE f x y = do [x',y'] <- anyJust (apSubst su) [x,y]
                     return (f x' y')
+
+
+--------------------------------------------------------------------------------
+-- Tries
+--------------------------------------------------------------------------------
+
+data PropMap a = EmptyPM
+               | PropMap { pmFin   :: ExprMap a
+                         , pmEq
+                         , pmGeq
+                         , pmGt
+                         , pmEqH
+                         , pmGtH   :: ExprMap (ExprMap a)
+                         , pmAnd
+                         , pmOr    :: PropMap (PropMap a)
+                         , pmNot   :: PropMap a
+                         , pmFalse
+                         , pmTrue  :: Maybe a
+                         }
+
+instance TrieMap PropMap Prop where
+  emptyTM = EmptyPM
+
+  lookupTM _ EmptyPM        = Nothing
+  lookupTM p PropMap { .. } = go p
+    where
+
+    go (Fin e)          = lookupTM e pmFin
+
+    go (a :== b)        = lookupTM b =<< lookupTM a pmEq
+    go (a :>= b)        = lookupTM b =<< lookupTM a pmGeq
+    go (a :>  b)        = lookupTM b =<< lookupTM a pmGt
+
+    go (a :==: b)       = lookupTM b =<< lookupTM a pmEqH
+    go (a :>:  b)       = lookupTM b =<< lookupTM a pmGtH
+
+    go (a :&& b)        = lookupTM b =<< lookupTM a pmAnd
+    go (a :|| b)        = lookupTM b =<< lookupTM a pmOr
+    go (Not a)          = lookupTM a pmNot
+
+    go PFalse           = pmFalse
+    go PTrue            = pmTrue
+
+  alterTM _ _ EmptyPM        = EmptyPM
+  alterTM p f PropMap { .. } = go p
+    where
+
+    alter k (Just m) = Just (alterTM k f m)
+    alter _ Nothing  = Nothing
+
+    go (Fin e)          = PropMap { pmFin = alterTM e f pmFin, .. }
+
+    go (a :== b)        = PropMap { pmEq  = alterTM a (alter b) pmEq,  .. }
+    go (a :>= b)        = PropMap { pmGeq = alterTM a (alter b) pmGeq, .. }
+    go (a :>  b)        = PropMap { pmGt  = alterTM a (alter b) pmGt,  .. }
+
+    go (a :==: b)       = PropMap { pmEqH = alterTM a (alter b) pmEqH, .. }
+    go (a :>:  b)       = PropMap { pmGtH = alterTM a (alter b) pmGtH, .. }
+
+    go (a :&& b)        = PropMap { pmAnd = alterTM a (alter b) pmAnd, .. }
+    go (a :|| b)        = PropMap { pmOr  = alterTM a (alter b) pmOr,  .. }
+    go (Not a)          = PropMap { pmNot = alterTM a f         pmNot, .. }
+
+    go PFalse           = PropMap { pmFalse = f pmFalse, .. }
+    go PTrue            = PropMap { pmTrue  = f pmTrue,  .. }
+
+  toListTM EmptyPM        = []
+  toListTM PropMap { .. } =
+    [ (Fin x   ,a) | (x,a)  <- toListTM pmFin                      ] ++
+    [ (l :==  r,a) | (l,m)  <- toListTM pmEq,  (r,a) <- toListTM m ] ++
+    [ (l :>=  r,a) | (l,m)  <- toListTM pmGeq, (r,a) <- toListTM m ] ++
+    [ (l :>   r,a) | (l,m)  <- toListTM pmGt,  (r,a) <- toListTM m ] ++
+    [ (l :==: r,a) | (l,m)  <- toListTM pmEqH, (r,a) <- toListTM m ] ++
+    [ (l :>:  r,a) | (l,m)  <- toListTM pmGtH, (r,a) <- toListTM m ] ++
+    [ (l :&&  r,a) | (l,m)  <- toListTM pmAnd, (r,a) <- toListTM m ] ++
+    [ (l :||  r,a) | (l,m)  <- toListTM pmOr,  (r,a) <- toListTM m ] ++
+    [ (Not x   ,a) | (x,a)  <- toListTM pmNot                      ] ++
+    [ (PFalse  ,a) | Just a <- [pmFalse]                           ] ++
+    [ (PTrue   ,a) | Just a <- [pmTrue]                            ]
+
+
+data ExprMap a = EmptyEM
+               | ExprMap { emK             :: Map.Map Nat' a
+                         , emVar           :: Map.Map Name a
+                         , emAdd
+                         , emSub
+                         , emMul
+                         , emDiv
+                         , emMod
+                         , emExp
+                         , emMin
+                         , emMax           :: ExprMap (ExprMap a)
+                         , emLg2 
+                         , emWidth         :: ExprMap a
+                         , emLenFromThen
+                         , emLenFromThenTo :: ExprMap (ExprMap (ExprMap a))
+                         }
+
+instance TrieMap ExprMap Expr where
+  emptyTM = EmptyEM
+
+  lookupTM _ EmptyEM        = Nothing
+  lookupTM e ExprMap { .. } = go e
+    where
+
+    go (K n)            = Map.lookup n emK
+    go (Var n)          = Map.lookup n emVar
+    go (a :+ b)         = lookupTM b =<< lookupTM a emAdd
+    go (a :- b)         = lookupTM b =<< lookupTM a emSub
+    go (a :* b)         = lookupTM b =<< lookupTM a emMul
+    go (Div a b)        = lookupTM b =<< lookupTM a emDiv
+    go (Mod a b)        = lookupTM b =<< lookupTM a emMod
+    go (a :^^ b)        = lookupTM b =<< lookupTM a emExp
+    go (Min a b)        = lookupTM b =<< lookupTM a emMin
+    go (Max a b)        = lookupTM b =<< lookupTM a emMax
+    go (Lg2 a)          = lookupTM a emLg2
+    go (Width a)        = lookupTM a emWidth
+
+    go (LenFromThen a b c) = lookupTM c
+                         =<< lookupTM b
+                         =<< lookupTM a emLenFromThen
+
+    go (LenFromThenTo a b c) = lookupTM c
+                           =<< lookupTM b
+                           =<< lookupTM a emLenFromThenTo
+
+  alterTM _ _ EmptyEM        = EmptyEM
+  alterTM e f ExprMap { .. } = go e
+    where
+
+    alter k (Just m) = Just (alterTM k f m)
+    alter _ Nothing  = Nothing
+
+    go (K n)            = ExprMap { emK   = Map.alter f n emK,   .. }
+    go (Var n)          = ExprMap { emVar = Map.alter f n emVar, .. }
+
+    go (a :+ b)         = ExprMap { emAdd = alterTM a (alter b) emAdd, .. }
+    go (a :- b)         = ExprMap { emSub = alterTM a (alter b) emSub, .. }
+    go (a :* b)         = ExprMap { emMul = alterTM a (alter b) emMul, .. }
+    go (Div a b)        = ExprMap { emDiv = alterTM a (alter b) emDiv, .. }
+    go (Mod a b)        = ExprMap { emMod = alterTM a (alter b) emMod, .. }
+    go (a :^^ b)        = ExprMap { emExp = alterTM a (alter b) emExp, .. }
+    go (Min a b)        = ExprMap { emMin = alterTM a (alter b) emMin, .. }
+    go (Max a b)        = ExprMap { emMax = alterTM a (alter b) emMax, .. }
+
+    go (Lg2 a)          = ExprMap { emLg2   = alterTM a f emLg2,   .. }
+    go (Width a)        = ExprMap { emWidth = alterTM a f emWidth, .. }
+
+    go (LenFromThen a b c)   =
+      ExprMap { emLenFromThen = alterTM a (fmap (alterTM b (alter c))) emLenFromThen, .. }
+
+    go (LenFromThenTo a b c) =
+      ExprMap { emLenFromThenTo = alterTM a (fmap (alterTM b (alter c))) emLenFromThenTo, .. }
+
+  toListTM EmptyEM        = []
+  toListTM ExprMap { .. } =
+    [ (K n    , a) | (n,a) <- Map.toList emK                      ] ++
+    [ (Var n  , a) | (n,a) <- Map.toList emVar                    ] ++
+    [ (l :+ r , a) | (l,m) <- toListTM emAdd, (r,a) <- toListTM m ] ++
+    [ (l :- r , a) | (l,m) <- toListTM emSub, (r,a) <- toListTM m ] ++
+    [ (l :* r , a) | (l,m) <- toListTM emMul, (r,a) <- toListTM m ] ++
+    [ (Div l r, a) | (l,m) <- toListTM emDiv, (r,a) <- toListTM m ] ++
+    [ (Mod l r, a) | (l,m) <- toListTM emMod, (r,a) <- toListTM m ] ++
+    [ (l :^^ r, a) | (l,m) <- toListTM emExp, (r,a) <- toListTM m ] ++
+    [ (Min l r, a) | (l,m) <- toListTM emMin, (r,a) <- toListTM m ] ++
+    [ (Max l r, a) | (l,m) <- toListTM emMax, (r,a) <- toListTM m ] ++
+    [ (Lg2 x  , a) | (x,a) <- toListTM emLg2                      ] ++
+    [ (Width x, a) | (x,a) <- toListTM emWidth                    ] ++
+
+    [ (LenFromThen x y z, a) | (x,m1) <- toListTM emLenFromThen
+                             , (y,m2) <- toListTM m1
+                             , (z,a)  <- toListTM m2 ] ++
+
+    [ (LenFromThenTo x y z, a) | (x,m1) <- toListTM emLenFromThenTo
+                               , (y,m2) <- toListTM m1
+                               , (z,a)  <- toListTM m2 ]
+
 
 
 
