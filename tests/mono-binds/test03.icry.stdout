@@ -4,8 +4,8 @@ Loading module test03
 module test03
 import Cryptol
 /* Not recursive */
-test03::test : {a} (a >= width a) => [a]
-test03::test = \{a} (a >= width a) ->
+test03::test : {a} (fin a, a >= width a) => [a]
+test03::test = \{a} (fin a, a >= width a) ->
                foo a <> <>
                where
                  /* Not recursive */
@@ -19,8 +19,8 @@ Loading module test03
 module test03
 import Cryptol
 /* Not recursive */
-test03::test : {a} (a >= width a) => [a]
-test03::test = \{a} (a >= width a) ->
+test03::test : {a} (fin a, a >= width a) => [a]
+test03::test = \{a} (fin a, a >= width a) ->
                foo
                where
                  /* Not recursive */
