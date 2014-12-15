@@ -13,6 +13,7 @@ import           Cryptol.Utils.Panic( panic )
 import           Cryptol.Utils.Misc ( anyJust )
 
 import           Data.List ( unfoldr,sortBy )
+import           Data.Maybe ( fromMaybe )
 import qualified Data.Set as Set
 
 
@@ -562,9 +563,41 @@ cryGt0 useFinite expr =
   eq x y = if useFinite then x :==: y else x :== y
   gt x y = if useFinite then x :>: y  else x :>  y
 
+crySimpPropExpr :: Prop -> Prop
+crySimpPropExpr p = last (p : crySimpPropExprSteps p)
 
+crySimpPropExprSteps :: Prop -> [Prop]
+crySimpPropExprSteps  = unfoldr (fmap dup . crySimpPropExprStep)
+  where
+  dup x = (x,x)
 
+-- | Simplify only the Expr parts of a Prop.
+crySimpPropExprStep :: Prop -> Maybe Prop
+crySimpPropExprStep prop =
+  case prop of
 
+    Fin e                 -> Fin `fmap` crySimpExpr e
+
+    a :==  b              -> binop crySimpExpr (:== ) a b
+    a :>=  b              -> binop crySimpExpr (:>= ) a b
+    a :>   b              -> binop crySimpExpr (:>  ) a b
+    a :==: b              -> binop crySimpExpr (:==:) a b
+    a :>:  b              -> binop crySimpExpr (:>: ) a b
+
+    a :&& b               -> binop crySimpPropExprStep (:&&) a b
+    a :|| b               -> binop crySimpPropExprStep (:||) a b
+
+    Not p                 -> Not `fmap` crySimpPropExprStep p
+
+    PFalse                -> Nothing
+    PTrue                 -> Nothing
+
+  where
+
+  binop simp f l r =
+    case (simp l, simp r) of
+      (Nothing,Nothing) -> Nothing
+      (l',r')           -> Just (f (fromMaybe l l') (fromMaybe r r'))
 
 
 -- | Make a simplification step, assuming the expression is well-formed.
