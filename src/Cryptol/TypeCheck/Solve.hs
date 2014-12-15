@@ -24,13 +24,15 @@ import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
+import           Cryptol.Utils.Panic(panic)
+import           Cryptol.Parser.Position(rCombs)
 
 import           Cryptol.TypeCheck.Defaulting(tryDefaultWith)
 
 import           Data.Either(partitionEithers)
 import           Data.Map ( Map )
 import qualified Data.Map as Map
-import           Data.Maybe ( mapMaybe, fromMaybe )
+import           Data.Maybe ( fromMaybe )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 
@@ -87,7 +89,7 @@ proveImplication' lname as ps gs =
                -- XXX: Minimize the goals invovled in the conflict
                let gs3 = fromMaybe (gs1,emptySubst) gs2
                case gs3 of
-                 ([],su) -> return (Right su)
+                 ([],su1) -> return (Right su1)
 
                  -- XXX: Do we need the su?
                  (us,_) -> return $ Left
@@ -123,25 +125,32 @@ simpGoals s gs0 =
                 case mbOk of
                   Nothing -> return Nothing
                   Just (nonDef,def,imps) ->
-                    -- XXX: the 'imps' should be treated as new constraints!
-                    -- we are currently loosing them.
-                    do let def' = [ (a,p) | (a,_,p) <- eliminateRedundant def ]
+                    do let (su,extraProps) = importSplitImps varMap imps
+                           def' = [ (a,p) | (a,_,p) <- eliminateRedundant def ]
+                           toGoal =
+                             case map (fst . fst) def' of
+                               [g] -> \p -> g { goal = p }
+                               ds -> \p ->
+                                 Goal { goalRange = rCombs (map goalRange ds)
+                                      , goalSource = CtImprovement
+                                      , goal = p }
+
                        def1 <- Num.simplifyProps s def'
-                       let su = importImps varMap imps
 
                        -- XXX: Apply subst to class constraints and go again?
-                       return $ Just ( apSubst su
-                                     $ map fst nonDef ++
-                                       unsolvedClassCts ++
+                       return $ Just ( map toGoal extraProps ++
+                                       map fst nonDef ++
+                                       apSubst su unsolvedClassCts ++
                                        map fst def1
                                      , su
                                      )
   where
-  uvs = uniVars gs0
+  uvs         = uniVars gs0
 
   solveClassRight g = case classStep g of
                         Just gs -> Right gs
                         Nothing -> Left g
+
 
   -- returns (unsolved class constraints, numeric constraints)
   solveClassCts [] = ([], [])
@@ -152,13 +161,32 @@ simpGoals s gs0 =
      in (unsolved ++ unsolved', numCts ++ numCts')
 
 
+-- | Improt an improving substitutin into a Cryptol substitution.
+-- The substituitn will contain only unification variables.
+-- "Improvements" on skolem variables become additional constraints.
+importSplitImps :: Num.VarMap -> Map Num.Name Num.Expr -> (Subst, [Prop])
+importSplitImps varMap = mk . partitionEithers . map imp . Map.toList
+  where
+  mk (uni,props) = (listSubst uni, props)
+
+  imp (x,e) = case (Map.lookup x varMap, Num.importType varMap e) of
+                (Just tv, Just ty) ->
+                  case tv of
+                    TVFree {}  -> Left (tv,ty)
+                    TVBound {} -> Right (TVar tv =#= ty)
+                _ -> panic "importImps" [ "Failed to import:", show x, show e ]
+
+
+
+-- | Improt an improving substitutin into a Cryptol substitution.
+-- The substituitn will contain both unification and skolem variables,
+-- so this should be used when processing *givens*.
 importImps :: Num.VarMap -> Map Num.Name Num.Expr -> Subst
-importImps varMap = listSubst . mapMaybe imp . Map.toList
+importImps varMap = listSubst . map imp . Map.toList
   where
   imp (x,e) = case (Map.lookup x varMap, Num.importType varMap e) of
-                (Just tv, Just ty) -> Just (tv,ty)
-                _                  -> Nothing
-
+                (Just tv, Just ty) -> (tv,ty)
+                _ -> panic "importImps" [ "Failed to import:", show x, show e ]
 
 
 
