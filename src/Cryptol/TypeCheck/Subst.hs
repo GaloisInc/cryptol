@@ -13,12 +13,14 @@
 module Cryptol.TypeCheck.Subst where
 
 import qualified Data.Map as Map
+import           Data.Maybe (isJust)
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
 import qualified Data.Set as Set
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP
+import Cryptol.TypeCheck.TypeMap
 import Cryptol.Utils.Panic(panic)
 
 data Subst = S { suMap :: Map.Map TVar Type, suDefaulting :: !Bool }
@@ -94,6 +96,9 @@ instance FVS Schema where
 class TVars t where
   apSubst :: Subst -> t -> t      -- ^ replaces free vars
 
+instance TVars t => TVars (Maybe t) where
+  apSubst s       = fmap (apSubst s)
+
 instance TVars t => TVars [t] where
   apSubst s       = map (apSubst s)
 
@@ -126,8 +131,35 @@ defaultFreeVar (TVFree _ k _ d) =
                   , "Source: " ++ show d
                   , "Kind: " ++ show k ]
 
+instance (Functor m, TVars a) => TVars (List m a) where
+  apSubst su k = L { nil  = apSubst su (nil k)
+                   , cons = fmap (apSubst su) (cons k)
+                   }
 
+instance TVars a => TVars (TypeMap a) where
+  apSubst su TM { .. } = Map.foldlWithKey addKey tm' tys
 
+    where
+
+    addKey tm ty a = insertTM ty a tm
+
+    tm' = TM { tvar = Map.mapKeys toTVar vars
+             , tcon = fmap (apSubst su) tcon
+             , trec = fmap (apSubst su) trec
+             }
+
+    -- partition out variables that have been replaced with more specific types
+    (vars,tys) = Map.partitionWithKey (\k _ -> isJust (tIsVar k))
+               $ Map.mapKeys substTVar
+               $ fmap (apSubst su) tvar
+
+    substTVar v = Map.findWithDefault (TVar v) v (suMap su)
+
+    toTVar ty =
+      case tIsVar ty of
+        Just v  -> v
+        Nothing -> panic "Cryptol.TypeCheck.Subst.TVars (TypeMap a)"
+                         [ "Unexpected non-variable" ]
 
 
 
