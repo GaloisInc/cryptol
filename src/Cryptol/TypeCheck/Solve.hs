@@ -36,6 +36,9 @@ import           Data.Maybe ( fromMaybe )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 
+import Cryptol.TypeCheck.Solver.Numeric.AST(ppProp)
+import Text.PrettyPrint (vcat, text)
+
 -- Add additional constraints that ensure validity of type function.
 checkTypeFunction :: TFun -> [Type] -> [Prop]
 checkTypeFunction TCSub [a,b]             = [ a >== b, pFin b]
@@ -57,7 +60,7 @@ simplifyAllConstraints =
      gs <- getGoals
      mb <- io (Num.withSolver (`simpGoals` gs))
      case mb of
-       Just (gs1,su) -> addGoals gs1
+       Just (gs1,su) -> extendSubst su >> addGoals gs1
        Nothing -> -- XXX: Minimize the goals involved in the conflict
                   mapM_ (recordError . UnsolvedGoal) gs
 
@@ -135,6 +138,10 @@ simpGoals s gs0 =
                                       , goalSource = CtImprovement
                                       , goal = p }
 
+{-
+                       print $ vcat $ text "Simplifying: "
+                                      : [ ppProp x | (_,x,_) <- def ]
+-}
                        def1 <- Num.simplifyProps s def'
 
                        -- XXX: Apply subst to class constraints and go again?
