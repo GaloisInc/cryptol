@@ -18,6 +18,9 @@ module Cryptol.TypeCheck.Solver.Numeric.AST
   , IfExpr(..), ppIfExpr
 
   , Subst, HasVars(..), cryLet
+
+  , PropMap(..)
+  , ExprMap(..)
   ) where
 
 import          Cryptol.TypeCheck.Solver.InfNat ( Nat'(..) )
