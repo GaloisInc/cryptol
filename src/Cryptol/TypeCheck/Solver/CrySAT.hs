@@ -75,9 +75,10 @@ checkDefined s uniVars props0 = withScope s (go Map.empty [] props0)
 
 
 -- | Check that a bunch of constraints are all defined.
--- We return constraints that are not necessarily defined in the first
--- component, and the ones that are defined in the second component.
--- Well defined constraints are asserted at this point.
+--  * We return constraints that are not necessarily defined in the first
+--    component, and the ones that are defined in the second component.
+--  * Well defined constraints are asserted at this point.
+--  * The expressions in the defined constraints are simplified.
 checkDefined' :: Solver -> [(a,Prop)] -> IO ([(a,Prop)], [(a,Prop,SMTProp)])
 checkDefined' s props0 =
   go False [] [] [ (a, p, prepareProp (cryDefinedProp p)) | (a,p) <- props0 ]
@@ -116,10 +117,6 @@ simplifyProps s props = withScope s (go [] props)
   where
   go survived [] = return survived
 
-  -- we don't need to prove things that are already true
-  go survived ((_,p) : more)
-    | PTrue <- smtpOrig p = go survived more
-
   go survived ((ct,p) : more) =
     do proved <- withScope s $ do mapM_ (assert s . snd) more
                                   prove s p
@@ -154,8 +151,6 @@ data SMTProp = SMTProp
   , smtpLinPart     :: SExpr
   , smtpNonLinPart  :: [(Name,Expr)]
     -- ^ The names are all distinct, and don't appear in the the defs.
-  , smtpOrig        :: Prop
-    -- ^ The original prop that this was created from
   }
 
 -- | Prepare a property for export to an SMT solver.
@@ -164,7 +159,6 @@ prepareProp prop0 = SMTProp
   { smtpVars       = cryPropFVS linProp
   , smtpLinPart    = ifPropToSmtLib (desugarProp linProp)
   , smtpNonLinPart = nonLinEs
-  , smtpOrig       = prop1
   }
   where
   prop1               = crySimplify prop0
@@ -230,6 +224,7 @@ viPop VarInfo { .. } = case otherScopes of
                          c : cs -> VarInfo { curScope = c, otherScopes = cs }
                          _ -> panic "viPop" ["no more scopes"]
 
+
 -- | All declared names
 viNames :: VarInfo -> [ Name ]
 viNames VarInfo { .. } = concatMap scopeNames (curScope : otherScopes)
@@ -270,7 +265,9 @@ declareVar Solver { .. } a =
 
 -- | Add an assertion to the current context.
 assert :: Solver -> SMTProp -> IO ()
-assert s@Solver { .. } SMTProp { .. } =
+assert s@Solver { .. } SMTProp { .. }
+  | smtpLinPart == SMT.Atom "true" = return ()
+  | otherwise =
   do mapM_ (declareVar s) (Set.toList smtpVars)
      SMT.assert solver smtpLinPart
      modifyIORef' declared (viAssert smtpNonLinPart)
@@ -280,7 +277,9 @@ assert s@Solver { .. } SMTProp { .. } =
 -- the property holds, and 'False' otherwise.  In other words, getting `False`
 -- *does not* mean that the proposition does not hold.
 prove :: Solver -> SMTProp -> IO Bool
-prove s@(Solver { .. }) SMTProp { .. } =
+prove s@(Solver { .. }) SMTProp { .. }
+  | smtpLinPart == SMT.Atom "true" = return True
+  | otherwise =
   withScope s $
   do mapM_ (declareVar s) (Set.toList smtpVars)
      SMT.assert solver (SMT.not smtpLinPart)
