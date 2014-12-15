@@ -7,6 +7,7 @@ module Cryptol.TypeCheck.Solver.Numeric.ImportExport
   , exportPropM
   , exportTypeM
   , importType
+  , exportVar
   ) where
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST
@@ -48,7 +49,7 @@ exportTypeM ty =
   case ty of
     Cry.TUser _ _ t -> exportTypeM t
     Cry.TRec {}     -> raise ()
-    Cry.TVar x      -> do let name = toName (exportVar x)
+    Cry.TVar x      -> do let name = exportVar x
                           sets_ (Map.insert name x)
                           return (Var name)
     Cry.TCon tc ts  ->
@@ -77,10 +78,12 @@ exportTypeM ty =
 
         Cry.PC _ -> raise ()
 
+exportVar :: Cry.TVar -> Name
+exportVar = toName . exportVar'
 
-exportVar :: Cry.TVar -> Int
-exportVar (Cry.TVFree x _ _ _) = 2 * x        -- Free vars are even
-exportVar (Cry.TVBound x _)    = 2 * x + 1    -- Bound vars are odd
+exportVar' :: Cry.TVar -> Int
+exportVar' (Cry.TVFree x _ _ _) = 2 * x        -- Free vars are even
+exportVar' (Cry.TVBound x _)    = 2 * x + 1    -- Bound vars are odd
 
 
 importType :: VarMap -> Expr -> Maybe Cry.Type

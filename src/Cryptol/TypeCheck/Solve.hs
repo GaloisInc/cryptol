@@ -17,7 +17,8 @@ module Cryptol.TypeCheck.Solve
 import           Cryptol.Parser.AST(LQName, thing)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
-import           Cryptol.TypeCheck.Subst(apSubst,fvs,emptySubst,Subst,listSubst)
+import           Cryptol.TypeCheck.Subst
+                    (FVS,apSubst,fvs,emptySubst,Subst,listSubst)
 import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
@@ -30,6 +31,8 @@ import           Data.Either(partitionEithers)
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Maybe ( mapMaybe, fromMaybe )
+import           Data.Set ( Set )
+import qualified Data.Set as Set
 
 -- Add additional constraints that ensure validity of type function.
 checkTypeFunction :: TFun -> [Type] -> [Prop]
@@ -70,7 +73,8 @@ proveImplication' lname as ps gs =
   Num.withSolver $ \s ->
 
   do varMap <- Num.assumeProps s ps
-     (possible,imps) <- Num.check s
+
+     (possible,imps) <- Num.check s (uniVars (ps,gs))
      let su  = importImps varMap imps
          gs0 = apSubst su gs
 
@@ -94,6 +98,14 @@ proveImplication' lname as ps gs =
                                               , dctGoals  = us
                                               }
 
+uniVars :: FVS a => a -> Set Num.Name
+uniVars = Set.map Num.exportVar . Set.filter isUni . fvs
+  where
+  isUni (TVFree _ k _ _) = k == KNum
+  isUni _                = False
+
+
+
 -- | Class goals go on the left, numeric goals go on the right.
 numericRight :: Goal -> Either Goal ((Goal, Num.VarMap), Num.Prop)
 numericRight g  = case Num.exportProp (goal g) of
@@ -107,12 +119,15 @@ simpGoals s gs0 =
          varMap = Map.unions [ vm | ((_,vm),_) <- numCts ]
      case numCts of
        [] -> return $ Just (unsolvedClassCts, emptySubst)
-       _  -> do mbOk <- Num.checkDefined s numCts
+       _  -> do mbOk <- Num.checkDefined s uvs numCts
                 case mbOk of
                   Nothing -> return Nothing
                   Just (nonDef,def,imps) ->
+                    -- XXX: the 'imps' should be treated as new constraints!
+                    -- we are currently loosing them.
                     do def1 <- Num.simplifyProps s def
                        let su = importImps varMap imps
+
                        -- XXX: Apply subst to class constraints and go again?
                        return $ Just ( apSubst su
                                      $ map fst nonDef ++
@@ -121,6 +136,8 @@ simpGoals s gs0 =
                                      , su
                                      )
   where
+  uvs = uniVars gs0
+
   solveClassRight g = case classStep g of
                         Just gs -> Right gs
                         Nothing -> Left g

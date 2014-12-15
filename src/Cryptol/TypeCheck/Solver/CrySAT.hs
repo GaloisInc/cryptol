@@ -40,12 +40,13 @@ The result is like this:
       * [a]:           We could not prove that these are well defineed.
       * [(a,SMTProp)]: We proved that these are well defined.
       * ImpMap:        We computed some improvements. -}
-checkDefined :: Solver -> [(a,Prop)] -> IO (Maybe ([a], [(a,SMTProp)], ImpMap))
-checkDefined s props0 = withScope s (go Map.empty [] props0)
+checkDefined :: Solver -> Set Name -> [(a,Prop)] ->
+                                    IO (Maybe ([a], [(a,SMTProp)], ImpMap))
+checkDefined s uniVars props0 = withScope s (go Map.empty [] props0)
   where
   go knownImps done notDone =
     do (newNotDone, novelDone) <- checkDefined' s notDone
-       (possible,  imps)       <- check s
+       (possible,  imps)       <- check s uniVars
        if not possible
          then return Nothing
          else
@@ -58,7 +59,7 @@ checkDefined s props0 = withScope s (go Map.empty [] props0)
                                    , knownImps)
                 else
                   do mapM_ addImpProp (Map.toList novelImps)
-                     let newImps    = Map.union newImps knownImps
+                     let newImps    = Map.union novelImps knownImps
                          impDone    = map (updProp novelImps) newDone
                          impNotDone = [ (a, fromMaybe p (apSubst novelImps p)) |
                                                         (a,p) <- newNotDone ]
@@ -227,7 +228,7 @@ withSolver :: (Solver -> IO a) -> IO a
 withSolver k =
   do logger <- SMT.newLogger
      solver <- SMT.newSolver "cvc4" ["--lang=smt2", "--incremental"]
-                                                   Nothing {-(Just logger)-}
+                                                   Nothing -- (Just logger)
      SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty
      a <- k Solver { .. }
@@ -288,8 +289,8 @@ prove s@(Solver { .. }) SMTProp { .. } =
 -- The 'Bool' is 'True' if the current asumptions *may be* satisifiable.
 -- The 'Bool' is 'False' if the current assumptions are *definately*
 -- not satisfiable.
-check :: Solver -> IO (Bool, ImpMap)
-check Solver { .. } =
+check :: Solver -> Set Name -> IO (Bool, ImpMap)
+check Solver { .. } uniVars =
   do res <- SMT.check solver
      case res of
        SMT.Unsat   -> return (False, Map.empty)
@@ -297,7 +298,7 @@ check Solver { .. } =
        SMT.Sat     ->
          do names <- viNames `fmap` readIORef declared
             m     <- fmap Map.fromList (mapM getVal names)
-            imps  <- toSubst `fmap` cryImproveModel solver m
+            imps  <- toSubst `fmap` cryImproveModel solver uniVars m
 
             -- XXX: Here we should apply the imps to the non-linear things
             -- and evalute. If this results in a contradiction, than we
