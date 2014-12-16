@@ -140,31 +140,34 @@ instance TVars a => TVars (TypeMap a) where
 
 -- | Apply the substitution to the keys of a type map.
 apSubstTypeMapKeys :: Subst -> TypeMap a -> TypeMap a
-apSubstTypeMapKeys su = go
+apSubstTypeMapKeys su = go id
   where
 
-  go :: TypeMap a -> TypeMap a
-  go TM { .. } = foldl addKey tm' tys
+  go :: (a -> a) -> TypeMap a -> TypeMap a
+  go atNode TM { .. } = foldl addKey tm' tys
     where
 
     addKey tm (ty,a) = insertTM ty a tm
 
     tm' = TM { tvar = Map.fromList   vars
-             , tcon = fmap lgo tcon
-             , trec = fmap lgo trec
+             , tcon = fmap (lgo atNode) tcon
+             , trec = fmap (lgo atNode) trec
              }
 
     -- partition out variables that have been replaced with more specific types
     (vars,tys) = partitionEithers
                  [ case Map.lookup v (suMap su) of
-                     Just ty -> Right (ty,a)
-                     Nothing -> Left  (v,a)
+                     Just ty -> Right (ty,a')
+                     Nothing -> Left  (v, a')
 
                  | (v,a) <- Map.toList tvar
+                 , let a' = atNode a
                  ]
 
-  lgo :: List TypeMap a -> List TypeMap a
-  lgo k = k { cons = go (cons k) }
+  lgo :: (a -> a) -> List TypeMap a -> List TypeMap a
+  lgo atNode k = k { nil  = fmap atNode (nil k)
+                   , cons = go (lgo atNode) (cons k)
+                   }
 
 
 {- | WARNING: This instance assumes that the quantified variables in the
