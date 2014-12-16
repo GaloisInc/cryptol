@@ -1,0 +1,14 @@
+module test05 where
+
+foo : [10]
+foo = 10
+
+test a = 10
+  where
+  foo : [10]
+  foo = 10
+
+  f = bar
+    where
+    foo = a
+    bar = zero # foo

@@ -1,3 +1,46 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module EnigmaBroke
+Loading module Cryptol
+Loading module EnigmaBroke
+
+[error] at issue225.cry:12:1--12:11:
+  Failed to validate user-specified signature.
+    In the definition of 'EnigmaBroke::joinRotors', at issue225.cry:12:1--12:11:
+      for any type n
+        fin n
+      =>
+      fin (min n ?a8)
+        arising from
+        use of expression __p14
+        at issue225.cry:22:21--22:22
+      fin (min n ?u7)
+        arising from
+        use of expression __p14
+        at issue225.cry:22:9--22:19
+      fin (min n ?o7)
+        arising from
+        use of expression __p14
+        at issue225.cry:22:6--22:7
+      ?a8 == 1 + min n ?a8
+        arising from
+        use of expression __p14
+        at issue225.cry:22:21--22:22
+      ?u7 == 1 + min n ?u7
+        arising from
+        use of expression __p14
+        at issue225.cry:22:9--22:19
+      ?o7 == 1 + min n ?o7
+        arising from
+        use of expression __p14
+        at issue225.cry:22:6--22:7
+  where
+  ?o7 is 1st type parameter
+         of expression __p14
+         at issue225.cry:22:6--22:7
+  ?u7 is 1st type parameter
+         of expression __p14
+         at issue225.cry:22:9--22:19
+  ?a8 is 1st type parameter
+         of expression __p14
+         at issue225.cry:22:21--22:22

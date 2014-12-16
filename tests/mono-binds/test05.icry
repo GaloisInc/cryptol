@@ -1,0 +1,5 @@
+:set debug=on
+:set mono-binds=off
+:l test05.cry
+:set mono-binds=on
+:l test05.cry

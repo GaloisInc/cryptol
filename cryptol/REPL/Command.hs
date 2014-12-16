@@ -241,6 +241,8 @@ evalCmd str = do
       ppOpts <- getPPValOpts
       io $ rethrowEvalError $ print $ pp $ E.WithBase ppOpts val
     P.LetInput decl -> do
+      -- explicitly make this a top-level declaration, so that it will
+      -- be generalized if mono-binds is enabled
       replEvalDecl decl
 
 data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
@@ -498,7 +500,7 @@ loadCmd path
         , lPath = path
         }
 
-      m <- moduleCmdResult =<< io (M.loadModuleByPath path)
+      m <- liftModuleCmd (M.loadModuleByPath path)
       whenDebug (io (putStrLn (dump m)))
       setLoadedMod LoadedModule
         { lName = Just (T.mName m)
@@ -675,6 +677,7 @@ moduleCmdResult (res,ws0) = do
 replCheckExpr :: P.Expr -> REPL (T.Expr,T.Schema)
 replCheckExpr e = liftModuleCmd $ M.checkExpr e
 
+-- | Check declarations as though they were defined at the top-level.
 replCheckDecls :: [P.Decl] -> REPL [T.DeclGroup]
 replCheckDecls ds = do
   npds <- liftModuleCmd $ M.noPat ds
@@ -688,7 +691,8 @@ replCheckDecls ds = do
         setDynEnv denv
         raise exn
   setDynEnv denv'
-  catch (liftModuleCmd $ M.checkDecls npds) undo
+  let topDecls = [ P.Decl (P.TopLevel P.Public d) | d <- npds ]
+  catch (liftModuleCmd $ M.checkDecls topDecls) undo
 
 replSpecExpr :: T.Expr -> REPL T.Expr
 replSpecExpr e = liftModuleCmd $ S.specialize e

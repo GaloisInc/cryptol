@@ -23,6 +23,7 @@ import Cryptol.Parser.NoInclude (removeIncludesModule)
 import Cryptol.Parser.Position (HasLoc(..), Range, emptyRange)
 import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
+import qualified Cryptol.TypeCheck.Depends as T
 import Cryptol.Utils.PP (pretty)
 
 import Cryptol.Transform.MonoValues
@@ -72,7 +73,7 @@ renameExpr e = do
   rename (deNames denv `R.shadowing` R.namingEnv env) e
 
 -- | Rename declarations in the context of the focused module.
-renameDecls :: [P.Decl] -> ModuleM [P.Decl]
+renameDecls :: (R.Rename d, T.FromDecl d) => [d] -> ModuleM [d]
 renameDecls ds = do
   env <- getFocusedEnv
   denv <- getDynEnv
@@ -246,7 +247,7 @@ checkExpr e = do
   typecheck T.tcExpr re env'
 
 -- | Typecheck a group of declarations.
-checkDecls :: [P.Decl] -> ModuleM [T.DeclGroup]
+checkDecls :: (HasLoc d, R.Rename d, T.FromDecl d) => [d] -> ModuleM [T.DeclGroup]
 checkDecls ds = do
   -- nopat must already be run
   rds <- renameDecls ds
@@ -308,6 +309,7 @@ importIfacesTc is =
 genInferInput :: Range -> IfaceDecls -> ModuleM T.InferInput
 genInferInput r env = do
   seeds <- getNameSeeds
+  monoBinds <- getMonoBinds
 
   -- TODO: include the environment needed by the module
   return T.InferInput
@@ -316,6 +318,7 @@ genInferInput r env = do
     , T.inpTSyns     =                    filterEnv ifTySyns
     , T.inpNewtypes  =                    filterEnv ifNewtypes
     , T.inpNameSeeds = seeds
+    , T.inpMonoBinds = monoBinds
     }
   where
   -- at this point, the names used in the aggregate interface should be
