@@ -5,7 +5,7 @@ module Cryptol.TypeCheck.Solver.CrySAT
   , assumeProps, checkDefined, simplifyProps
   , check
   , Solver
-  , SMTProp
+  , SMTProp, smtpOther
   ) where
 
 import qualified Cryptol.TypeCheck.AST as Cry
@@ -19,7 +19,7 @@ import           Cryptol.TypeCheck.Solver.Numeric.SMT
 import           Cryptol.Utils.Panic ( panic )
 
 import           MonadLib
-import           Data.Maybe ( mapMaybe, fromMaybe )
+import           Data.Maybe ( mapMaybe )
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Traversable ( traverse )
@@ -30,6 +30,8 @@ import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef' )
 import           SimpleSMT ( SExpr )
 import qualified SimpleSMT as SMT
 
+
+
 type ImpMap = Map Name Expr
 
 {- | Check if a collection of things are defined.
@@ -39,11 +41,16 @@ The result is like this:
   * 'Nothing': The properties are inconsistent
   * 'Just' info:  The properties may be consistent, and here is some info:
       * [a]:           We could not prove that these are well defined.
-      * [(a,Prop,SMTProp)]: We proved that these are well defined, and simplified
-                            the arguments to the input Prop.
+      * [(a,Prop,SMTProp)]: We proved that these are well defined,
+                            and simplified the arguments to the input Prop.
       * ImpMap:        We computed some improvements. -}
-checkDefined :: Solver -> Set Name -> [(a,Prop)] ->
-                                    IO (Maybe ([a], [(a,Prop,SMTProp)], ImpMap))
+checkDefined :: Solver                                    ->
+                Set Name   {- ^ Unification variables -}  ->
+                [(a,Prop)] {- ^ Goals                 -}  ->
+                IO (Maybe ( [a]                -- could not prove
+                          , [SMTProp (a,Prop)] -- proved ok and simplified terms
+                          , ImpMap             -- computed improvements
+                          ))
 checkDefined s uniVars props0 = withScope s (go Map.empty [] props0)
   where
   go knownImps done notDone =
@@ -58,20 +65,27 @@ checkDefined s uniVars props0 = withScope s (go Map.empty [] props0)
               if Map.null novelImps
                 then return $ Just ( map fst newNotDone
                                    , newDone
-                                   , knownImps)
+                                   , knownImps
+                                   )
                 else
                   do mapM_ addImpProp (Map.toList novelImps)
                      let newImps    = Map.union novelImps knownImps
-                         impDone    = map (updProp novelImps) newDone
-                         impNotDone = [ (a, fromMaybe p (apSubst novelImps p)) |
-                                                        (a,p) <- newNotDone ]
+                         impDone    = map (updDone novelImps) newDone
+                         impNotDone = map (updNotDone novelImps) newNotDone
                      go newImps impDone impNotDone
 
   addImpProp (x,e) = assert s (prepareProp (Var x :== e))
-  updProp su (a,origProp,smtProp) =
-    case apSubst su origProp of
-      Nothing -> (a,origProp,smtProp)
-      Just p1 -> (a,p1,prepareProp p1)
+
+  updDone su ct =
+    let (g,p) = smtpOther ct
+    in case apSubst su p of
+         Nothing -> ct
+         Just p' -> (prepareProp p') { smtpOther = (g,p') }
+
+  updNotDone su (g,p) =
+    case apSubst su p of
+      Nothing -> (g,p)
+      Just p' -> (g,p')
 
 
 -- | Check that a bunch of constraints are all defined.
@@ -79,7 +93,7 @@ checkDefined s uniVars props0 = withScope s (go Map.empty [] props0)
 --    component, and the ones that are defined in the second component.
 --  * Well defined constraints are asserted at this point.
 --  * The expressions in the defined constraints are simplified.
-checkDefined' :: Solver -> [(a,Prop)] -> IO ([(a,Prop)], [(a,Prop,SMTProp)])
+checkDefined' :: Solver -> [(a,Prop)] -> IO ([(a,Prop)], [SMTProp (a,Prop)])
 checkDefined' s props0 =
   go False [] [] [ (a, p, prepareProp (cryDefinedProp p)) | (a,p) <- props0 ]
 
@@ -97,9 +111,9 @@ checkDefined' s props0 =
   go ch isDef isNotDef ((ct,p,q) : more) =
     do proved <- prove s q
        if proved then do let p' = crySimpPropExpr p
-                             r  = prepareProp p'
+                             r  = (prepareProp p') { smtpOther = (ct,p') }
                          assert s r -- add defined prop as an assumption
-                         go True ((ct,p',r) : isDef) isNotDef  more
+                         go True (r : isDef) isNotDef  more
                  else go ch isDef ((ct,p,q) : isNotDef) more
 
 
@@ -112,21 +126,21 @@ checkDefined' s props0 =
 -- | Simplify a bunch of well-defined properties.
 -- Eliminates properties that are implied by the rest.
 -- Does not modify the set of assumptions.
-simplifyProps :: Solver -> [(a,SMTProp)] -> IO [a]
+simplifyProps :: Solver -> [SMTProp a] -> IO [a]
 simplifyProps s props = withScope s (go [] props)
   where
   go survived [] = return survived
 
-  go survived ((_,p) : more)
+  go survived (p : more)
     | smtpLinPart p == SMT.Atom "true" = go survived more
 
-  go survived ((ct,p) : more) =
-    do proved <- withScope s $ do mapM_ (assert s . snd) more
+  go survived (p : more) =
+    do proved <- withScope s $ do mapM_ (assert s) more
                                   prove s p
        if proved
          then go survived more
          else do assert s p
-                 go (ct : survived) more
+                 go (smtpOther p : survived) more
 
 
 -- | Add the given constraints as assumptions.
@@ -147,21 +161,25 @@ assumeProps s props =
 
 --------------------------------------------------------------------------------
 
-data SMTProp = SMTProp
+data SMTProp a = SMTProp
   { smtpVars        :: Set Name
     -- ^ Theses vars include vars in the linear part,
     -- as well as variables in the 'fst' of the non-linear part.
   , smtpLinPart     :: SExpr
   , smtpNonLinPart  :: [(Name,Expr)]
     -- ^ The names are all distinct, and don't appear in the the defs.
+
+  , smtpOther       :: a
+    -- ^ Additional information associated with this property.
   }
 
 -- | Prepare a property for export to an SMT solver.
-prepareProp :: Prop -> SMTProp
+prepareProp :: Prop -> SMTProp ()
 prepareProp prop0 = SMTProp
   { smtpVars       = cryPropFVS linProp
   , smtpLinPart    = ifPropToSmtLib (desugarProp linProp)
   , smtpNonLinPart = nonLinEs
+  , smtpOther      = ()
   }
   where
   prop1               = crySimplify prop0
@@ -267,7 +285,7 @@ declareVar Solver { .. } a =
           modifyIORef' declared (viInsert a)
 
 -- | Add an assertion to the current context.
-assert :: Solver -> SMTProp -> IO ()
+assert :: Solver -> SMTProp a -> IO ()
 assert s@Solver { .. } SMTProp { .. }
   | smtpLinPart == SMT.Atom "true" = return ()
   | otherwise =
@@ -279,7 +297,7 @@ assert s@Solver { .. } SMTProp { .. }
 -- | Try to prove a property.  The result is 'True' when we are sure that
 -- the property holds, and 'False' otherwise.  In other words, getting `False`
 -- *does not* mean that the proposition does not hold.
-prove :: Solver -> SMTProp -> IO Bool
+prove :: Solver -> SMTProp a -> IO Bool
 prove s@(Solver { .. }) SMTProp { .. }
   | smtpLinPart == SMT.Atom "true" = return True
   | otherwise =

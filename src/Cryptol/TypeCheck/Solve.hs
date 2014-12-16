@@ -36,9 +36,6 @@ import           Data.Maybe ( fromMaybe )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 
-import Cryptol.TypeCheck.Solver.Numeric.AST(ppProp)
-import Text.PrettyPrint (vcat, text)
-
 -- Add additional constraints that ensure validity of type function.
 checkTypeFunction :: TFun -> [Type] -> [Prop]
 checkTypeFunction TCSub [a,b]             = [ a >== b, pFin b]
@@ -77,17 +74,24 @@ proveImplication' :: LQName -> [TParam] -> [Prop] -> [Goal] ->
 proveImplication' lname as ps gs =
   Num.withSolver $ \s ->
 
-  do varMap <- Num.assumeProps s ps
+  do putStrLn "PROVING"
+     mapM_ print gs
+     putStrLn "--------------"
+
+     varMap <- Num.assumeProps s ps
 
      (possible,imps) <- Num.check s (uniVars (ps,gs))
      let su  = importImps varMap imps
          gs0 = apSubst su gs
+
+     print su
 
      if not possible
        then return $ Left $ UnusableFunction (thing lname) ps
        else -- XXX: Use imps
             do let gs1 = filter ((`notElem` ps) . goal) gs0
                gs2 <- simpGoals s gs1
+               print gs2
 
                -- XXX: Minimize the goals invovled in the conflict
                let gs3 = fromMaybe (gs1,emptySubst) gs2
@@ -129,26 +133,23 @@ simpGoals s gs0 =
                   Nothing -> return Nothing
                   Just (nonDef,def,imps) ->
                     do let (su,extraProps) = importSplitImps varMap imps
-                           def' = [ (a,p) | (a,_,p) <- eliminateRedundant def ]
+
+                       let def1 = eliminateSimpleGEQ def
                            toGoal =
-                             case map (fst . fst) def' of
+                             case map (fst . fst . Num.smtpOther) def1 of
                                [g] -> \p -> g { goal = p }
-                               ds -> \p ->
-                                 Goal { goalRange = rCombs (map goalRange ds)
+                               gs  -> \p ->
+                                 Goal { goalRange = rCombs (map goalRange gs)
                                       , goalSource = CtImprovement
                                       , goal = p }
 
-{-
-                       print $ vcat $ text "Simplifying: "
-                                      : [ ppProp x | (_,x,_) <- def ]
--}
-                       def1 <- Num.simplifyProps s def'
+                       def2 <- Num.simplifyProps s def1
 
                        -- XXX: Apply subst to class constraints and go again?
-                       return $ Just ( map toGoal extraProps ++
+                       return $ Just ( apSubst su $ map toGoal extraProps ++
                                        map fst nonDef ++
-                                       apSubst su unsolvedClassCts ++
-                                       map fst def1
+                                       unsolvedClassCts ++
+                                       map (fst . fst) def2
                                      , su
                                      )
   where
@@ -180,7 +181,10 @@ importSplitImps varMap = mk . partitionEithers . map imp . Map.toList
                 (Just tv, Just ty) ->
                   case tv of
                     TVFree {}  -> Left (tv,ty)
-                    TVBound {} -> Right (TVar tv =#= ty)
+                    TVBound {} ->
+                      case ty of
+                        TVar tv2@(TVFree {}) -> Left (tv2, TVar tv)
+                        _ -> Right (TVar tv =#= ty)
                 _ -> panic "importImps" [ "Failed to import:", show x, show e ]
 
 
@@ -197,17 +201,34 @@ importImps varMap = listSubst . map imp . Map.toList
 
 
 
--- | Reduce goals of the form (a >= k1, a >= k2, a >= k3, ...) into one of the
--- form (a >= max (k1, k2, k3, ...)), when all the k's are constant.  Otherwise,
--- return goals unchanged.
-eliminateRedundant :: [(a,Num.Prop,Num.SMTProp)] -> [(a,Num.Prop,Num.SMTProp)]
-eliminateRedundant  = go Map.empty []
+{- | Simplify easy less-than-or-equal-to goals.  Those are common with long
+lists of literals, so we have special handling for them.  In particular:
+
+  * Reduce goals of the form @(a >= k1, a >= k2, a >= k3, ...)@ to
+   @a >= max (k1, k2, k3, ...)@, when all the k's are constant.
+
+  * Eliminate goals of the form @ki >= k2@, when @k2@ is leq than @k1@.
+
+  * Eliminate goals of the form @a >= 0@.
+
+NOTE:  This assumes that the goals are well-defined.
+-}
+eliminateSimpleGEQ :: [Num.SMTProp (a,Num.Prop)] -> [Num.SMTProp (a,Num.Prop)]
+eliminateSimpleGEQ = go Map.empty []
   where
 
-  go geqs other ( g@(_,prop,_) : rest) =
-    case prop of
-      Num.Var v Num.:>= Num.K n -> go (addUpperBound v (n,g) geqs)   other  rest
-      _                         -> go                        geqs (g:other) rest
+  go geqs other (g : rest) =
+    case snd (Num.smtpOther g) of
+      _ Num.:>= Num.K (Num.Nat 0) ->
+          go geqs  other rest
+
+      Num.K (Num.Nat k1) Num.:>= Num.K (Num.Nat k2)
+        | k1 >= k2 -> go geqs other rest
+
+      Num.Var v Num.:>= Num.K (Num.Nat k2) ->
+        go (addUpperBound v (k2,g) geqs) other rest
+
+      _ -> go geqs (g:other) rest
 
   go geqs other [] = [ g | (_,g) <- Map.elems geqs ] ++ other
 
@@ -216,3 +237,6 @@ eliminateRedundant  = go Map.empty []
     where
     cmp a b | fst a > fst b = a
             | otherwise     = b
+
+
+
