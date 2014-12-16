@@ -165,6 +165,7 @@ data ConstraintSource
   | CtEnumeration
   | CtDefaulting          -- ^ Just defaulting on the command line
   | CtPartialTypeFun TyFunName -- ^ Use of a partial type function.
+  | CtImprovement
     deriving Show
 
 data TyFunName = UserTyFun QName | BuiltInTyFun TFun
@@ -186,6 +187,7 @@ instance TVars ConstraintSource where
       CtEnumeration   -> src
       CtDefaulting    -> src
       CtPartialTypeFun _ -> src
+      CtImprovement    -> src
 
 instance TVars Warning where
   apSubst su warn =
@@ -479,6 +481,7 @@ instance PP ConstraintSource where
       CtEnumeration   -> text "list enumeration"
       CtDefaulting    -> text "defaulting"
       CtPartialTypeFun f -> text "use of partial type function" <+> pp f
+      CtImprovement   -> text "examination of collected goals"
 
 ppUse :: Expr -> Doc
 ppUse expr =

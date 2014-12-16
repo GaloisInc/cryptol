@@ -15,7 +15,8 @@ import           Cryptol.Utils.Panic ( panic )
 import           Control.Monad ( ap, guard )
 import           Data.Map ( Map )
 import qualified Data.Map as Map
-import           Data.Ratio ( (%), denominator, numerator )
+import           Data.Set ( Set )
+import qualified Data.Set as Set
 import           SimpleSMT ( SExpr )
 import qualified SimpleSMT as SMT
 
@@ -142,8 +143,8 @@ smtFinName x = "fin_" ++ show (ppName x)
 
 -- | Given a model, compute a set of equations of the form `x = e`,
 -- that are impleied by the model.
-cryImproveModel :: SMT.Solver -> Map Name Expr -> IO (Map Name Expr)
-cryImproveModel solver m = go Map.empty (Map.toList m)
+cryImproveModel :: SMT.Solver -> Set Name -> Map Name Expr -> IO (Map Name Expr)
+cryImproveModel solver uniVars m = go Map.empty (Map.toList m)
   where
   go done [] = return done
   go done ((x,e) : rest) =
@@ -160,6 +161,14 @@ cryImproveModel solver m = go Map.empty (Map.toList m)
   goV done todo _ _ [] = go done todo
 
 
+-- | Try to prove the given expression.
+checkUnsat :: SMT.Solver -> SExpr -> IO Bool
+checkUnsat s e =
+  do SMT.push s
+     SMT.assert s e
+     res <- SMT.check s
+     SMT.pop s
+     return (res == SMT.Unsat)
 
 
 -- | Is this the only possible value for the constant, under the current
@@ -168,20 +177,11 @@ cryImproveModel solver m = go Map.empty (Map.toList m)
 cryMustEqualK :: SMT.Solver -> Name -> Expr -> IO Bool
 cryMustEqualK solver x expr =
   case expr of
-    K Inf     -> do SMT.push solver
-                    SMT.assert solver $ SMT.const (smtFinName x)
-                    res <- SMT.check solver
-                    SMT.pop solver
-                    return (res == SMT.Unsat)
-    K (Nat n) -> do SMT.push solver
-                    SMT.assert solver $
-                      SMT.not $
-                      SMT.and
-                        (SMT.const $ smtFinName x)
-                        (SMT.eq (SMT.const (smtName x)) (SMT.int n))
-                    res <- SMT.check solver
-                    SMT.pop solver
-                    return (res == SMT.Unsat)
+    K Inf     -> checkUnsat solver (SMT.const (smtFinName x))
+    K (Nat n) -> checkUnsat solver $
+                 SMT.not $
+                 SMT.and (SMT.const $ smtFinName x)
+                         (SMT.eq (SMT.const (smtName x)) (SMT.int n))
     _ -> panic "cryMustEqualK" [ "Not a constant", show (ppExpr expr) ]
 
 
@@ -191,29 +191,54 @@ cryMustEqualK solver x expr =
 -- Assumes that we are in a 'Sat' state.
 cryMustEqualV :: SMT.Solver -> Name -> Name -> IO Bool
 cryMustEqualV solver x y =
-  do SMT.push solver
-     let fin a = SMT.const (smtFinName a)
-         var a = SMT.const (smtName a)
-     SMT.assert solver $
+     checkUnsat solver $
+        SMT.not $
         SMT.or (SMT.not (fin x) `SMT.and` SMT.not (fin y))
                (fin x `SMT.and` fin y `SMT.and` SMT.eq (var x) (var y))
-     res <- SMT.check solver
-     SMT.pop solver
-     return (res == SMT.Unsat)
+
+  where fin a = SMT.const (smtFinName a)
+        var a = SMT.const (smtName a)
+
+-- | Try to find a linear relation between the two variables, based
+-- on two observed data points.
+-- NOTE:  The variable being defined is the SECOND name.
+cryCheckLinRel :: SMT.Solver ->
+                  Name {- ^ Definition in terms of this variable. -} ->
+                  Name {- ^ Define this variable. -} ->
+                  (Integer,Integer) {- ^ Values in one model -} ->
+                  (Integer,Integer) {- ^ Values in antoher model -} ->
+                  IO (Maybe (Name,Expr))
+cryCheckLinRel s x y p1 p2 =
+  case linRel p1 p2 of
+    Nothing -> return Nothing
+    Just (a,b) ->
+      do let expr = K (Nat a) :* Var x :+ K (Nat b)
+         proved <- checkUnsat s $ propToSmtLib $ Not $ Var y :==: expr
+         if not proved
+            then return Nothing
+            else return (Just (y,expr))
 
 
+{- | Compute a linear relation through two concrete points.
+Try to find a relation of the form `y = a * x + b`, where both `a` and `b`
+are naturals.
 
--- | Compute a linear relation through two concrete points.
--- Try to find a relation of the form `y = a * x + b`, where both `a` and `b`
--- are naturals.
-linRel :: Name -> Name -> (Integer,Integer) -> (Integer,Integer) -> Maybe Prop
-linRel x y (x1,y1) (x2,y2) =
+y1 = A * x1 + B
+y2 = A * x2 + B
+(y2 - y1) = A * (x2 - x1)
+
+A = (y2 - y1) / (x2 - x1)
+B = y1 - A * x1
+-}
+linRel :: (Integer,Integer)       {- ^ First point -} ->
+          (Integer,Integer)       {- ^ Second point -} ->
+          Maybe (Integer,Integer) {- ^ (A,B) -}
+linRel (x1,y1) (x2,y2) =
   do guard (x1 /= x2)
-     let a' = (y1 - y2) % abs (x1 - x2)
-     guard (denominator a' == 1)
-     let a = numerator a'
-         b = y1 - a * x1
-     undefined x y a b"XXX: Finish this, rewriting equations to work with Nats"
-
+     let (a,r) = divMod (y2 - y1) (x2 - x1)
+     guard (r == 0 && a >= 0)
+     let b = y1 - a * x1
+     guard (b >= 0)
+     return (a,b)
 
 
