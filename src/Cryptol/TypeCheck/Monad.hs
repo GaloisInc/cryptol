@@ -23,8 +23,6 @@ import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.Unify(mgu, Result(..), UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
-import           Cryptol.TypeCheck.TypeMap
-                     (TypeMap, emptyTM, insertTM, nullTM, membersTM, toListTM)
 import           Cryptol.Utils.PP(pp, (<+>), Doc, text, quotes)
 import           Cryptol.Utils.Panic(panic)
 
@@ -91,14 +89,14 @@ runInferM info (IM m) =
        [] ->
          case (iCts finalRW, iHasCts finalRW) of
            (cts,[])
-             | nullTM cts
+             | nullGoals cts
                    -> return $ InferOK warns
                                   (iNameSeeds finalRW)
                                   (apSubst defSu result)
            (cts,has) -> return $ InferFailed warns
                 [ ( goalRange g
                   , UnsolvedGoal (apSubst theSu g)
-                  ) | g <- map snd (toListTM cts) ++ map hasGoal has
+                  ) | g <- fromGoals cts ++ map hasGoal has
                 ]
        errs -> return $ InferFailed warns [(r,apSubst theSu e) | (r,e) <- errs]
 
@@ -111,7 +109,7 @@ runInferM info (IM m) =
 
           , iNameSeeds  = inpNameSeeds info
 
-          , iCts        = emptyTM
+          , iCts        = emptyGoals
           , iHasCts     = []
           , iSolvedHas  = Map.empty
           }
@@ -175,7 +173,7 @@ data RW = RW
   , iNameSeeds :: !NameSeeds
 
   -- Constraints that need solving
-  , iCts      :: !(TypeMap Goal)                -- ^ Ordinary constraints
+  , iCts      :: !Goals                -- ^ Ordinary constraints
   , iHasCts   :: ![HasGoal]
     {- ^ Tuple/record projection constraints.  The `Int` is the "name"
          of the constraint, used so that we can name it solution properly. -}
@@ -238,13 +236,13 @@ newGoals src ps = addGoals =<< mapM (newGoal src) ps
 {- | The constraints are removed, and returned to the caller.
 The substitution IS applied to them. -}
 getGoals :: InferM [Goal]
-getGoals = applySubst =<< IM (sets $ \s -> (membersTM (iCts s), s { iCts = emptyTM }))
+getGoals =
+  do goals <- applySubst =<< IM (sets $ \s -> (iCts s, s { iCts = emptyGoals }))
+     return (fromGoals goals)
 
 -- | Add a bunch of goals that need solving.
 addGoals :: [Goal] -> InferM ()
-addGoals gs = IM $ sets_ $ \s -> s { iCts = foldl add (iCts s) gs }
-  where
-  add cts g = insertTM (goal g) g cts
+addGoals gs = IM $ sets_ $ \s -> s { iCts = foldl (flip insertGoal) (iCts s) gs }
 
 -- | Collect the goals emitted by the given sub-computation.
 -- Does not emit any new goals.
@@ -259,7 +257,7 @@ collectGoals m =
   where
 
   -- retrieve the type map only
-  getGoals'    = IM $ sets $ \ RW { .. } -> (iCts, RW { iCts = emptyTM, .. })
+  getGoals'    = IM $ sets $ \ RW { .. } -> (iCts, RW { iCts = emptyGoals, .. })
 
   -- set the type map directly
   setGoals' gs = IM $ sets $ \ RW { .. } -> ((),   RW { iCts = gs, .. })

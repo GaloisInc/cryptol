@@ -12,8 +12,8 @@
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Subst where
 
+import           Data.Either (partitionEithers)
 import qualified Data.Map as Map
-import           Data.Maybe (isJust)
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
 import qualified Data.Set as Set
@@ -132,35 +132,39 @@ defaultFreeVar (TVFree _ k _ d) =
                   , "Kind: " ++ show k ]
 
 instance (Functor m, TVars a) => TVars (List m a) where
-  apSubst su k = L { nil  = apSubst su (nil k)
-                   , cons = fmap (apSubst su) (cons k)
-                   }
+  apSubst su = fmap (apSubst su)
 
 instance TVars a => TVars (TypeMap a) where
-  apSubst su TM { .. } = Map.foldlWithKey addKey tm' tys
+  apSubst su = fmap (apSubst su)
 
+
+-- | Apply the substitution to the keys of a type map.
+apSubstTypeMapKeys :: Subst -> TypeMap a -> TypeMap a
+apSubstTypeMapKeys su = go
+  where
+
+  go :: TypeMap a -> TypeMap a
+  go TM { .. } = foldl addKey tm' tys
     where
 
-    addKey tm ty a = insertTM ty a tm
+    addKey tm (ty,a) = insertTM ty a tm
 
-    tm' = TM { tvar = Map.mapKeys toTVar vars
-             , tcon = fmap (apSubst su) tcon
-             , trec = fmap (apSubst su) trec
+    tm' = TM { tvar = Map.fromList   vars
+             , tcon = fmap lgo tcon
+             , trec = fmap lgo trec
              }
 
     -- partition out variables that have been replaced with more specific types
-    (vars,tys) = Map.partitionWithKey (\k _ -> isJust (tIsVar k))
-               $ Map.mapKeys substTVar
-               $ fmap (apSubst su) tvar
+    (vars,tys) = partitionEithers
+                 [ case Map.lookup v (suMap su) of
+                     Just ty -> Right (ty,a)
+                     Nothing -> Left  (v,a)
 
-    substTVar v = Map.findWithDefault (TVar v) v (suMap su)
+                 | (v,a) <- Map.toList tvar
+                 ]
 
-    toTVar ty =
-      case tIsVar ty of
-        Just v  -> v
-        Nothing -> panic "Cryptol.TypeCheck.Subst.TVars (TypeMap a)"
-                         [ "Unexpected non-variable" ]
-
+  lgo :: List TypeMap a -> List TypeMap a
+  lgo k = k { cons = go (cons k) }
 
 
 {- | WARNING: This instance assumes that the quantified variables in the
