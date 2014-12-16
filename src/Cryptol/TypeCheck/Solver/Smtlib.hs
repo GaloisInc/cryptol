@@ -104,7 +104,6 @@ toPred ty =
          case (tc,es) of
            (PC PEqual, [e1,e2])  -> return (e1 === e2)
            (PC PGeq, [e1,e2])    -> return (SMT.nLeq e2 e1)
-           (PC PFin, [_])        -> return SMT.true
 
            _                     -> Nothing
 

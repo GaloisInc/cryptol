@@ -91,6 +91,9 @@ type RewMap = RewMap' QName
 
 instance TrieMap RewMap' (QName,[Type],Int) where
   emptyTM  = RM emptyTM
+
+  nullTM (RM m) = nullTM m
+
   lookupTM (x,ts,n) (RM m) = do tM <- lookupTM x m
                                 tP <- lookupTM ts tM
                                 lookupTM n tP

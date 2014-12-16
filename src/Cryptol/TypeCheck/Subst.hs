@@ -12,6 +12,7 @@
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Subst where
 
+import           Data.Either (partitionEithers)
 import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
@@ -19,6 +20,7 @@ import qualified Data.Set as Set
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP
+import Cryptol.TypeCheck.TypeMap
 import Cryptol.Utils.Panic(panic)
 
 data Subst = S { suMap :: Map.Map TVar Type, suDefaulting :: !Bool }
@@ -94,6 +96,9 @@ instance FVS Schema where
 class TVars t where
   apSubst :: Subst -> t -> t      -- ^ replaces free vars
 
+instance TVars t => TVars (Maybe t) where
+  apSubst s       = fmap (apSubst s)
+
 instance TVars t => TVars [t] where
   apSubst s       = map (apSubst s)
 
@@ -126,9 +131,40 @@ defaultFreeVar (TVFree _ k _ d) =
                   , "Source: " ++ show d
                   , "Kind: " ++ show k ]
 
+instance (Functor m, TVars a) => TVars (List m a) where
+  apSubst su = fmap (apSubst su)
+
+instance TVars a => TVars (TypeMap a) where
+  apSubst su = fmap (apSubst su)
 
 
+-- | Apply the substitution to the keys of a type map.
+apSubstTypeMapKeys :: Subst -> TypeMap a -> TypeMap a
+apSubstTypeMapKeys su = go
+  where
 
+  go :: TypeMap a -> TypeMap a
+  go TM { .. } = foldl addKey tm' tys
+    where
+
+    addKey tm (ty,a) = insertTM ty a tm
+
+    tm' = TM { tvar = Map.fromList   vars
+             , tcon = fmap lgo tcon
+             , trec = fmap lgo trec
+             }
+
+    -- partition out variables that have been replaced with more specific types
+    (vars,tys) = partitionEithers
+                 [ case Map.lookup v (suMap su) of
+                     Just ty -> Right (ty,a)
+                     Nothing -> Left  (v,a)
+
+                 | (v,a) <- Map.toList tvar
+                 ]
+
+  lgo :: List TypeMap a -> List TypeMap a
+  lgo k = k { cons = go (cons k) }
 
 
 {- | WARNING: This instance assumes that the quantified variables in the

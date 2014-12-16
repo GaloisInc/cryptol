@@ -9,9 +9,13 @@
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE MultiParamTypeClasses, FunctionalDependencies #-}
 {-# LANGUAGE UndecidableInstances, FlexibleInstances #-}
+{-# LANGUAGE DeriveFunctor #-}
 module Cryptol.TypeCheck.TypeMap
-  ( TypeMap, TypesMap, TrieMap(..)
+  ( TypeMap(..), TypesMap, TrieMap(..)
   , insertTM, insertWithTM
+  , membersTM
+
+  , List(..)
   ) where
 
 import           Cryptol.TypeCheck.AST
@@ -20,14 +24,19 @@ import qualified Data.Map as Map
 import           Data.Map (Map)
 import           Data.Maybe(fromMaybe,maybeToList)
 import           Control.Monad((<=<))
-import           Data.List(sortBy)
+import           Data.List(sortBy,partition)
+import           Data.Maybe (isNothing)
 import           Data.Ord(comparing)
 
 class TrieMap m k | m -> k where
   emptyTM  :: m a
+  nullTM   :: m a -> Bool
   lookupTM :: k -> m a -> Maybe a
   alterTM  :: k -> (Maybe a -> Maybe a) -> m a -> m a
   toListTM :: m a -> [(k,a)]
+
+membersTM :: TrieMap m k => m a -> [a]
+membersTM  = map snd . toListTM
 
 insertTM :: TrieMap m k => k -> a -> m a -> m a
 insertTM t a = alterTM t (\_ -> Just a)
@@ -39,10 +48,12 @@ insertWithTM f t new = alterTM t $ \mb -> Just $ case mb of
 
 data List m a  = L { nil  :: Maybe a
                    , cons :: m (List m a)
-                   }
+                   } deriving (Functor)
 
 instance TrieMap m a => TrieMap (List m) [a] where
   emptyTM = L { nil = Nothing, cons = emptyTM }
+
+  nullTM k = isNothing (nil k) && nullTM (cons k)
 
   lookupTM k =
     case k of
@@ -61,6 +72,7 @@ instance TrieMap m a => TrieMap (List m) [a] where
 
 instance Ord a => TrieMap (Map a) a where
   emptyTM  = Map.empty
+  nullTM   = Map.null
   lookupTM = Map.lookup
   alterTM  = flip Map.alter
   toListTM = Map.toList
@@ -71,10 +83,14 @@ type TypesMap = List TypeMap
 data TypeMap a = TM { tvar :: Map TVar a
                     , tcon :: Map TCon   (List TypeMap a)
                     , trec :: Map [Name] (List TypeMap a)
-                    }
+                    } deriving (Functor)
 
 instance TrieMap TypeMap Type where
   emptyTM = TM { tvar = emptyTM, tcon = emptyTM, trec = emptyTM }
+
+  nullTM ty = and [ nullTM (tvar ty)
+                  , nullTM (tcon ty)
+                  , nullTM (trec ty) ]
 
   lookupTM ty =
     case ty of
