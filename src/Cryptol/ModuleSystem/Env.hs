@@ -37,6 +37,16 @@ data ModuleEnv = ModuleEnv
   , meFocusedModule :: Maybe ModName
   , meSearchPath    :: [FilePath]
   , meDynEnv        :: DynamicEnv
+  , meMonoBinds     :: !Bool
+  }
+
+resetModuleEnv :: ModuleEnv -> ModuleEnv
+resetModuleEnv env = env
+  { meLoadedModules = mempty
+  , meNameSeeds     = T.nameSeeds
+  , meEvalEnv       = mempty
+  , meFocusedModule = Nothing
+  , meDynEnv        = mempty
   }
 
 initialModuleEnv :: IO ModuleEnv
@@ -56,6 +66,7 @@ initialModuleEnv  = do
     , meFocusedModule = Nothing
     , meSearchPath    = [dataDir </> "lib", instDir1 </> "lib", instDir2 </> "lib", "."]
     , meDynEnv        = mempty
+    , meMonoBinds     = True
     }
 
 -- | Try to focus a loaded module in the module environment.

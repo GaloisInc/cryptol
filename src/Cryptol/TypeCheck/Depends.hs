@@ -81,6 +81,7 @@ orderBinds bs = mkScc [ (b, map thing defs, Set.toList uses)
 class FromDecl d where
   toBind    :: d -> Maybe P.Bind
   toTyDecl  :: d -> Maybe TyDecl
+  isTopDecl :: d -> Bool
 
 instance FromDecl P.TopDecl where
   toBind (P.Decl x)         = toBind (P.tlValue x)
@@ -90,6 +91,8 @@ instance FromDecl P.TopDecl where
   toTyDecl (P.Decl x)       = toTyDecl (P.tlValue x)
   toTyDecl _                = Nothing
 
+  isTopDecl _               = True
+
 instance FromDecl P.Decl where
   toBind (P.DLocated d _) = toBind d
   toBind (P.DBind b)      = return b
@@ -98,6 +101,8 @@ instance FromDecl P.Decl where
   toTyDecl (P.DLocated d _) = toTyDecl d
   toTyDecl (P.DType x)      = Just (TS x)
   toTyDecl _                = Nothing
+
+  isTopDecl _               = False
 
 {- | Given a list of declarations, annoted with (i) the names that they
 define, and (ii) the names that they use, we compute a list of strongly

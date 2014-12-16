@@ -11,7 +11,7 @@ Loading module AES
              of expression (@)
              at AES.cry:147:58--147:59
   to 4
-[warning] at AES.cry:124:26--129:31:
+[warning] at AES.cry:124:1--124:9:
   Defaulting type parameter 'bits'
              of literal or demoted expression
              at AES.cry:127:26--127:29

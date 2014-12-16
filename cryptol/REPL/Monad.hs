@@ -8,6 +8,8 @@
 
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE LambdaCase #-}
 
 module REPL.Monad (
     -- * REPL Monad
@@ -388,9 +390,11 @@ setUser name val = case lookupTrie name userOptions of
         writeEnv (EnvBool False)
       | otherwise ->
         io (putStrLn ("Failed to parse boolean for field, `" ++ name ++ "`"))
+    where
 
-  writeEnv ev =
-    modifyRW_ (\rw -> rw { eUserEnv = Map.insert name ev (eUserEnv rw) })
+    writeEnv ev =
+      do optEff opt ev
+         modifyRW_ (\rw -> rw { eUserEnv = Map.insert name ev (eUserEnv rw) })
 
 -- | Get a user option, using Maybe for failure.
 tryGetUser :: String -> REPL (Maybe EnvVal)
@@ -421,28 +425,39 @@ data OptionDescr = OptionDescr
   , optDefault :: EnvVal
   , optCheck   :: EnvVal -> IO (Maybe String)
   , optHelp    :: String
+  , optEff     :: EnvVal -> REPL ()
   }
+
+simpleOpt :: String -> EnvVal -> (EnvVal -> IO (Maybe String)) -> String
+          -> OptionDescr
+simpleOpt optName optDefault optCheck optHelp =
+  OptionDescr { optEff = \ _ -> return (), .. }
 
 userOptions :: OptionMap
 userOptions  = mkOptionMap
-  [ OptionDescr "base" (EnvNum 16) checkBase
+  [ simpleOpt "base" (EnvNum 16) checkBase
     "the base to display words at"
-  , OptionDescr "debug" (EnvBool False) (const $ return Nothing)
+  , simpleOpt "debug" (EnvBool False) (const $ return Nothing)
     "enable debugging output"
-  , OptionDescr "ascii" (EnvBool False) (const $ return Nothing)
+  , simpleOpt "ascii" (EnvBool False) (const $ return Nothing)
     "display 7- or 8-bit words using ASCII notation."
-  , OptionDescr "infLength" (EnvNum 5) checkInfLength
+  , simpleOpt "infLength" (EnvNum 5) checkInfLength
     "The number of elements to display for infinite sequences."
-  , OptionDescr "tests" (EnvNum 100) (const $ return Nothing)
+  , simpleOpt "tests" (EnvNum 100) (const $ return Nothing)
     "The number of random tests to try."
-  , OptionDescr "prover" (EnvString "cvc4") checkProver $
+  , simpleOpt "prover" (EnvString "cvc4") checkProver $
     "The external SMT solver for :prove and :sat (" ++ proverListString ++ ")."
-  , OptionDescr "iteSolver" (EnvBool False) (const $ return Nothing)
+  , simpleOpt "iteSolver" (EnvBool False) (const $ return Nothing)
     "Use smt solver to filter conditional branches in proofs."
-  , OptionDescr "warnDefaulting" (EnvBool True) (const $ return Nothing)
+  , simpleOpt "warnDefaulting" (EnvBool True) (const $ return Nothing)
     "Choose if we should display warnings when defaulting."
-  , OptionDescr "smtfile" (EnvString "-") (const $ return Nothing)
+  , simpleOpt "smtfile" (EnvString "-") (const $ return Nothing)
     "The file to use for SMT-Lib scripts (for debugging or offline proving)"
+  , OptionDescr "mono-binds" (EnvBool True) (const $ return Nothing)
+    "Whether or not to generalize bindings in a where-clause" $
+    \case EnvBool b -> do me <- getModuleEnv
+                          setModuleEnv me { M.meMonoBinds = b }
+          _         -> return ()
   ]
 
 -- | Check the value to the `base` option.

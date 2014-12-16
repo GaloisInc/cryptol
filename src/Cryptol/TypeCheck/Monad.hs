@@ -44,6 +44,8 @@ data InferInput = InferInput
   , inpTSyns     :: Map QName TySyn   -- ^ Type synonyms that are in scope
   , inpNewtypes  :: Map QName Newtype -- ^ Newtypes in scope
   , inpNameSeeds :: NameSeeds         -- ^ Private state of type-checker
+  , inpMonoBinds :: Bool              -- ^ Should local bindings without
+                                      --   signatures be monomorphized?
   } deriving Show
 
 
@@ -77,6 +79,7 @@ runInferM info (IM m) =
                      , iTSyns         = fmap mkExternal (inpTSyns info)
                      , iNewtypes      = fmap mkExternal (inpNewtypes info)
                      , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
+                     , iMonoBinds     = inpMonoBinds info
                      }
 
          (result, finalRW) <- runStateT rw $ runReaderT ro m  -- RECURSION
@@ -145,6 +148,11 @@ data RO = RO
     -- together through recursion.  The field is here so that we can
     -- look thing up before they are defined, which is OK because we
     -- don't need to know the results until everything is done.
+
+  , iMonoBinds :: Bool
+    -- ^ When this flag is set to true, bindings that lack signatures
+    -- in where-blocks will never be generalized. Bindings with type
+    -- signatures, and all bindings at top level are unaffected.
   }
 
 -- | Read-write component of the monad.
@@ -467,6 +475,10 @@ getTVars = IM $ asks $ Set.fromList . mapMaybe tpName . iTVars
 -- | Return the keys of the bound variables that are in scope.
 getBoundInScope :: InferM (Set TVar)
 getBoundInScope = IM $ asks $ Set.fromList . map tpVar . iTVars
+
+-- | Retrieve the value of the `mono-binds` option.
+getMonoBinds :: InferM Bool
+getMonoBinds  = IM (asks iMonoBinds)
 
 {- | We disallow shadowing between type synonyms and type variables
 because it is confusing.  As a bonus, in the implementation we don't

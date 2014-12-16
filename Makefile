@@ -1,7 +1,7 @@
 UNAME   := $(shell uname -s)
 ARCH    := $(shell uname -m)
 
-TESTS ?= issues regression renamer
+TESTS ?= issues regression renamer mono-binds
 TEST_DIFF ?= meld
 
 CABAL_FLAGS ?= -j
@@ -70,7 +70,7 @@ src/GitRev.hs:
 
 
 CRYPTOL_DEPS := \
-  $(shell find src cryptol \( -name \*.hs -or -name \*.x -or -name \*.y \) -print) \
+  $(shell find src cryptol \( -name \*.hs -or -name \*.x -or -name \*.y \) -and \( -not -name \*\#\* \) -print) \
   $(shell find lib -name \*.cry)
 
 print-%:

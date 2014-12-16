@@ -43,7 +43,7 @@ import qualified Data.Map as Map
 import           Data.Map (Map)
 import qualified Data.Set as Set
 import           Data.Either(partitionEithers)
-import           Data.Maybe(mapMaybe)
+import           Data.Maybe(mapMaybe,isJust)
 import           Data.List(partition)
 import           Data.Graph(SCC(..))
 import           Data.Traversable(forM)
@@ -419,9 +419,14 @@ inferCArm armNum (m : ms) =
      newGoals CtComprehension [ sz =#= (n .*. n') ]
      return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, sz)
 
-
-inferBinds :: Bool -> [P.Bind] -> InferM [Decl]
-inferBinds isRec binds =
+-- | @inferBinds isTopLevel isRec binds@ performs inference for a
+-- strongly-connected component of 'P.Bind's. If @isTopLevel@ is true,
+-- any bindings without type signatures will be generalized. If it is
+-- false, and the mono-binds flag is enabled, no bindings without type
+-- signatures will be generalized, but bindings with signatures will
+-- be unaffected.
+inferBinds :: Bool -> Bool -> [P.Bind] -> InferM [Decl]
+inferBinds isTopLevel isRec binds =
   mdo let exprMap = Map.fromList [ (x,inst (EVar x) (dDefinition b))
                                  | b <- genBs, let x = dName b ] -- REC.
 
@@ -429,7 +434,14 @@ inferBinds isRec binds =
           inst e (EProofAbs _ e1) = inst (EProofApp e) e1
           inst e _                = e
 
+      -- when mono-binds is enabled, and we're not checking top-level
+      -- declarations, mark all bindings lacking signatures as monomorphic
+      monoBinds <- getMonoBinds
+      let binds' | monoBinds && not isTopLevel = sigs ++ monos
+                 | otherwise                   = binds
 
+          (sigs,noSigs) = partition (isJust . P.bSignature) binds
+          monos         = [ b { P.bMono = True } | b <- noSigs ]
 
 
       ((doneBs, genCandidates), cs) <-
@@ -438,7 +450,7 @@ inferBinds isRec binds =
         {- Guess type is here, because while we check user supplied signatures
            we may generate additional constraints. For example, `x - y` would
            generate an additional constraint `x >= y`. -}
-        do (newEnv,todos) <- unzip `fmap` mapM (guessType exprMap) binds
+        do (newEnv,todos) <- unzip `fmap` mapM (guessType exprMap) binds'
            let extEnv = if isRec then withVarTypes newEnv else id
 
            extEnv $
@@ -643,6 +655,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
 inferDs :: FromDecl d => [d] -> ([DeclGroup] -> InferM a) -> InferM a
 inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
   where
+  isTopLevel = isTopDecl (head ds)
+
   checkTyDecls (TS t : ts) =
     do t1 <- checkTySyn t
        withTySyn t1 (checkTyDecls ts)
@@ -656,13 +670,13 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
 
 
   checkBinds decls (CyclicSCC bs : more) =
-     do bs1 <- inferBinds True bs
+     do bs1 <- inferBinds isTopLevel True bs
         foldr (\b m -> withVar (dName b) (dSignature b) m)
               (checkBinds (Recursive bs1 : decls) more)
               bs1
 
   checkBinds decls (AcyclicSCC c : more) =
-    do [b] <- inferBinds False [c]
+    do [b] <- inferBinds isTopLevel False [c]
        withVar (dName b) (dSignature b) $
          checkBinds (NonRecursive b : decls) more
 

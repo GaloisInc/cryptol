@@ -1,0 +1,5 @@
+module test04 where
+
+test a = (f (), f 10)
+  where
+  f x = (a,x)

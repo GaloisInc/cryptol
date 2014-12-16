@@ -9,4 +9,9 @@ Loading module check25
              of expression check25::tx
              at check25.cry:8:11--8:13
   to 4
+[warning] at check25.cry:1:1--8:19:
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at check25.cry:6:14--6:16
+  to 5
 True

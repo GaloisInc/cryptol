@@ -31,10 +31,13 @@ import qualified Cryptol.Eval.Value        as E
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Monad
+import           Cryptol.ModuleSystem.Renamer (Rename)
 import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.Parser.AST        as P
 import           Cryptol.Parser.NoPat (RemovePatterns)
+import           Cryptol.Parser.Position (HasLoc)
 import qualified Cryptol.TypeCheck.AST     as T
+import qualified Cryptol.TypeCheck.Depends as T
 
 
 -- Public Interface ------------------------------------------------------------
@@ -48,13 +51,11 @@ findModule :: P.ModName -> ModuleCmd FilePath
 findModule n env = runModuleM env (Base.findModule n)
 
 -- | Load the module contained in the given file.
-loadModuleByPath :: FilePath -> IO (ModuleRes T.Module)
-loadModuleByPath path = do
-  env <- initialModuleEnv
-  runModuleM env $ do
-    m <- Base.loadModuleByPath path
-    setFocusedModule (T.mName m)
-    return m
+loadModuleByPath :: FilePath -> ModuleCmd T.Module
+loadModuleByPath path env = runModuleM (resetModuleEnv env) $ do
+  m <- Base.loadModuleByPath path
+  setFocusedModule (T.mName m)
+  return m
 
 -- | Load the given parsed module.
 loadModule :: FilePath -> P.Module -> ModuleCmd T.Module
@@ -79,7 +80,7 @@ evalExpr :: T.Expr -> ModuleCmd E.Value
 evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
 
 -- | Typecheck declarations.
-checkDecls :: [P.Decl] -> ModuleCmd [T.DeclGroup]
+checkDecls :: (HasLoc d, Rename d, T.FromDecl d) => [d] -> ModuleCmd [T.DeclGroup]
 checkDecls ds env = runModuleM env (interactive (Base.checkDecls ds))
 
 -- | Evaluate declarations and add them to the extended environment.

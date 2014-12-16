@@ -1,0 +1,39 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module test06
+module test06
+import Cryptol
+/* Not recursive */
+test06::test : {a} a -> a
+test06::test = \{a} (a : a) ->
+               bar
+               where
+                 /* Not recursive */
+                 foo : a
+                 foo = zero a
+                 
+                 /* Not recursive */
+                 bar : a
+                 bar = foo
+                 
+               
+
+Loading module Cryptol
+Loading module test06
+module test06
+import Cryptol
+/* Not recursive */
+test06::test : {a} a -> a
+test06::test = \{a} (a : a) ->
+               bar
+               where
+                 /* Not recursive */
+                 foo : a
+                 foo = zero a
+                 
+                 /* Not recursive */
+                 bar : a
+                 bar = foo
+                 
+               
+
