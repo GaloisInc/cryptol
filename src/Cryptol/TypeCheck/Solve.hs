@@ -26,6 +26,7 @@ import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Parser.Position(rCombs)
+import           Cryptol.Utils.PP(pp)
 
 import           Cryptol.TypeCheck.Defaulting(tryDefaultWith)
 
@@ -35,6 +36,7 @@ import qualified Data.Map as Map
 import           Data.Maybe ( fromMaybe )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
+import qualified SimpleSMT as SMT
 
 -- Add additional constraints that ensure validity of type function.
 checkTypeFunction :: TFun -> [Type] -> [Prop]
@@ -69,14 +71,29 @@ proveImplication lnam as ps gs =
        Right su -> return su
        Left err -> recordError err >> return emptySubst
 
+debugBlock :: Num.Solver -> String -> IO a -> IO a
+debugBlock s name m =
+  do let logger = Num.logger s
+     debugLog s name
+     SMT.logTab logger
+     a <- m
+     SMT.logUntab logger
+     return a
+
+debugLog :: Num.Solver -> String -> IO ()
+debugLog _ _ = return ()
+
 proveImplication' :: LQName -> [TParam] -> [Prop] -> [Goal] ->
                                               IO (Either Error Subst)
 proveImplication' lname as ps gs =
   Num.withSolver $ \s ->
 
-  do putStrLn "PROVING"
-     mapM_ print gs
-     putStrLn "--------------"
+  debugBlock s "proveImplication'" $
+  do debugBlock s "assumes" $
+       mapM_ (debugLog s . show . pp) ps
+     debugBlock s "shows" $
+       mapM_ (debugLog s . show . pp . goal) gs
+
 
      varMap <- Num.assumeProps s ps
 
@@ -84,28 +101,29 @@ proveImplication' lname as ps gs =
      let su  = importImps varMap imps
          gs0 = apSubst su gs
 
-     print su
+     debugBlock s "substitution" $ debugLog s (show (pp su))
 
      if not possible
        then return $ Left $ UnusableFunction (thing lname) ps
        else -- XXX: Use imps
             do let gs1 = filter ((`notElem` ps) . goal) gs0
-               gs2 <- simpGoals s gs1
-               print gs2
+               mb <- simpGoals s gs1
 
                -- XXX: Minimize the goals invovled in the conflict
-               let gs3 = fromMaybe (gs1,emptySubst) gs2
+               let gs3 = fromMaybe (gs1,emptySubst) mb
                case gs3 of
                  ([],su1) -> return (Right su1)
 
                  -- XXX: Do we need the su?
-                 (us,_) -> return $ Left
-                                  $ UnsolvedDelcayedCt
-                                  $ DelayedCt { dctSource = lname
-                                              , dctForall = as
-                                              , dctAsmps  = ps
-                                              , dctGoals  = us
-                                              }
+                 (us,su2) -> 
+                    do debugBlock s "2nd su:" (debugLog s . show . pp $ su2)
+                       return $ Left
+                              $ UnsolvedDelcayedCt
+                              $ DelayedCt { dctSource = lname
+                                          , dctForall = as
+                                          , dctAsmps  = ps
+                                          , dctGoals  = us
+                                          }
 
 uniVars :: FVS a => a -> Set Num.Name
 uniVars = Set.map Num.exportVar . Set.filter isUni . fvs
@@ -132,7 +150,10 @@ simpGoals s gs0 =
                 case mbOk of
                   Nothing -> return Nothing
                   Just (nonDef,def,imps) ->
-                    do let (su,extraProps) = importSplitImps varMap imps
+                    do debugBlock s "simpGoals results (defined)" $
+                          mapM_ (debugLog s . ($ "") . SMT.showsSExpr  . Num.smtpLinPart) def
+
+                       let (su,extraProps) = importSplitImps varMap imps
 
                        let def1 = eliminateSimpleGEQ def
                            toGoal =
@@ -181,10 +202,7 @@ importSplitImps varMap = mk . partitionEithers . map imp . Map.toList
                 (Just tv, Just ty) ->
                   case tv of
                     TVFree {}  -> Left (tv,ty)
-                    TVBound {} ->
-                      case ty of
-                        TVar tv2@(TVFree {}) -> Left (tv2, TVar tv)
-                        _ -> Right (TVar tv =#= ty)
+                    TVBound {} -> Right (TVar tv =#= ty)
                 _ -> panic "importImps" [ "Failed to import:", show x, show e ]
 
 

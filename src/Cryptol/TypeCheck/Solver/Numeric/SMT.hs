@@ -13,6 +13,7 @@ import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.Utils.Panic ( panic )
 
 import           Control.Monad ( ap, guard )
+import           Data.List ( partition )
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Set ( Set )
@@ -144,8 +145,15 @@ smtFinName x = "fin_" ++ show (ppName x)
 -- | Given a model, compute a set of equations of the form `x = e`,
 -- that are impleied by the model.
 cryImproveModel :: SMT.Solver -> Set Name -> Map Name Expr -> IO (Map Name Expr)
-cryImproveModel solver uniVars m = go Map.empty (Map.toList m)
+cryImproveModel solver uniVars m = go Map.empty initialTodo
+  -- XXX: Hook in linRel
   where
+  -- Process unification variables first.  That way, if we get `x = y`, we'd
+  -- prefer `x` to be a unificaiton variabl.e
+  initialTodo    = uncurry (++) $ partition isUniVar $ Map.toList m
+  isUniVar (x,_) = x `Set.member` uniVars
+
+
   go done [] = return done
   go done ((x,e) : rest) =
     do yesK <- cryMustEqualK solver x e
