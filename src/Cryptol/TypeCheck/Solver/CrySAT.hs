@@ -117,6 +117,9 @@ simplifyProps s props = withScope s (go [] props)
   where
   go survived [] = return survived
 
+  go survived ((_,p) : more)
+    | smtpLinPart p == SMT.Atom "true" = go survived more
+
   go survived ((ct,p) : more) =
     do proved <- withScope s $ do mapM_ (assert s . snd) more
                                   prove s p
