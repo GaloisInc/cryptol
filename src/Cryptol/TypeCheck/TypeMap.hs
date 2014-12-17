@@ -33,6 +33,7 @@ class TrieMap m k | m -> k where
   nullTM   :: m a -> Bool
   lookupTM :: k -> m a -> Maybe a
   alterTM  :: k -> (Maybe a -> Maybe a) -> m a -> m a
+  unionTM  :: (a -> a -> a) -> m a -> m a -> m a
   toListTM :: m a -> [(k,a)]
 
 membersTM :: TrieMap m k => m a -> [a]
@@ -69,6 +70,14 @@ instance TrieMap m a => TrieMap (List m) [a] where
     [ ([], v)  | v <- maybeToList (nil m) ] ++
     [ (x:xs,v) | (x,m1) <- toListTM (cons m), (xs,v) <- toListTM m1 ]
 
+  unionTM f m1 m2 = L { nil  = case (nil m1, nil m2) of
+                                 (Just x, Just y) -> Just (f x y)
+                                 (Just x, _)      -> Just x
+                                 (_, Just y)      -> Just y
+                                 _                -> Nothing
+                      , cons = unionTM (unionTM f) (cons m1) (cons m2)
+                      }
+
 
 instance Ord a => TrieMap (Map a) a where
   emptyTM  = Map.empty
@@ -76,6 +85,7 @@ instance Ord a => TrieMap (Map a) a where
   lookupTM = Map.lookup
   alterTM  = flip Map.alter
   toListTM = Map.toList
+  unionTM  = Map.unionWith
 
 
 type TypesMap = List TypeMap
@@ -114,6 +124,12 @@ instance TrieMap TypeMap Type where
                             , (ts,v)  <- toListTM m1 ] ++
     [ (TRec (zip fs ts), v) | (fs,m1) <- toListTM (trec m)
                             , (ts,v)  <- toListTM m1 ]
+
+  unionTM f m1 m2 = TM { tvar = unionTM f (tvar m1) (tvar m2)
+                       , tcon = unionTM (unionTM f) (tcon m1) (tcon m2)
+                       , trec = unionTM (unionTM f) (trec m1) (trec m2)
+                       }
+
 
 updSub :: TrieMap m k => k -> (Maybe a -> Maybe a) -> Maybe (m a) -> Maybe (m a)
 updSub k f = Just . alterTM k f . fromMaybe emptyTM
