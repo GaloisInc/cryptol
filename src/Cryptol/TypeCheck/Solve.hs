@@ -81,7 +81,7 @@ debugBlock s name m =
      return a
 
 debugLog :: Num.Solver -> String -> IO ()
-debugLog _ _ = return ()
+debugLog s x = SMT.logMessage (Num.logger s) x
 
 proveImplication' :: LQName -> [TParam] -> [Prop] -> [Goal] ->
                                               IO (Either Error Subst)
@@ -144,14 +144,21 @@ simpGoals :: Num.Solver -> [Goal] -> IO (Maybe ([Goal],Subst))
 simpGoals s gs0 =
   do let (unsolvedClassCts,numCts) = solveClassCts gs0
          varMap = Map.unions [ vm | ((_,vm),_) <- numCts ]
+         updCt prop (g,vs) = case Num.importProp varMap prop of
+                               Just [g1] -> (g { goal = g1 }, vs)
+                               -- XXX: Could we get multiple gs?
+                               _         -> (g, vs)
      case numCts of
        [] -> return $ Just (unsolvedClassCts, emptySubst)
-       _  -> do mbOk <- Num.checkDefined s uvs numCts
+       _  -> do mbOk <- Num.checkDefined s updCt uvs numCts
                 case mbOk of
                   Nothing -> return Nothing
                   Just (nonDef,def,imps) ->
-                    do debugBlock s "simpGoals results (defined)" $
-                          mapM_ (debugLog s . ($ "") . SMT.showsSExpr  . Num.smtpLinPart) def
+                    do debugBlock s ("simpGoals results") $
+                         do debugBlock s "possibly not defined" $
+                              mapM_ (debugLog s . show . pp . goal . fst) nonDef
+                            debugBlock s "defined" $
+                              mapM_ (debugLog s . ($ "") . SMT.showsSExpr  . Num.smtpLinPart) def
 
                        let (su,extraProps) = importSplitImps varMap imps
 

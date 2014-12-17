@@ -45,16 +45,17 @@ The result is like this:
                             and simplified the arguments to the input Prop.
       * ImpMap:        We computed some improvements. -}
 checkDefined :: Solver                                    ->
+                (Prop -> a -> a) {- ^ Update a goal -}    ->
                 Set Name   {- ^ Unification variables -}  ->
                 [(a,Prop)] {- ^ Goals                 -}  ->
                 IO (Maybe ( [a]                -- could not prove
                           , [SMTProp (a,Prop)] -- proved ok and simplified terms
                           , ImpMap             -- computed improvements
                           ))
-checkDefined s uniVars props0 = withScope s (go Map.empty [] props0)
+checkDefined s updCt uniVars props0 = withScope s (go Map.empty [] props0)
   where
   go knownImps done notDone =
-    do (newNotDone, novelDone) <- checkDefined' s notDone
+    do (newNotDone, novelDone) <- checkDefined' s updCt notDone
        (possible,  imps)       <- check s uniVars
        if not possible
          then return Nothing
@@ -82,12 +83,12 @@ checkDefined s uniVars props0 = withScope s (go Map.empty [] props0)
          Nothing -> ct
          Just p' ->
             let p2 = crySimpPropExpr p'
-            in (prepareProp p2) { smtpOther = (g,p2) }
+            in (prepareProp p2) { smtpOther = (updCt p2 g,p2) }
 
   updNotDone su (g,p) =
     case apSubst su p of
       Nothing -> (g,p)
-      Just p' -> (g,p')
+      Just p' -> (updCt p' g,p')
 
 
 -- | Check that a bunch of constraints are all defined.
@@ -95,8 +96,9 @@ checkDefined s uniVars props0 = withScope s (go Map.empty [] props0)
 --    component, and the ones that are defined in the second component.
 --  * Well defined constraints are asserted at this point.
 --  * The expressions in the defined constraints are simplified.
-checkDefined' :: Solver -> [(a,Prop)] -> IO ([(a,Prop)], [SMTProp (a,Prop)])
-checkDefined' s props0 =
+checkDefined' :: Solver -> (Prop -> a -> a) ->
+                [(a,Prop)] -> IO ([(a,Prop)], [SMTProp (a,Prop)])
+checkDefined' s updCt props0 =
   go False [] [] [ (a, p, prepareProp (cryDefinedProp p)) | (a,p) <- props0 ]
 
   where
@@ -112,8 +114,12 @@ checkDefined' s props0 =
   -- Process one constraint.
   go ch isDef isNotDef ((ct,p,q) : more) =
     do proved <- prove s q
-       if proved then do let p' = crySimpPropExpr p
-                             r  = (prepareProp p') { smtpOther = (ct,p') }
+       if proved then do let r = case crySimpPropExprMaybe p of
+                                   Nothing -> (prepareProp p)
+                                                { smtpOther = (ct,p) }
+                                   Just p' -> (prepareProp p')
+                                               { smtpOther = (updCt p' ct, p') }
+
                          assert s r -- add defined prop as an assumption
                          go True (r : isDef) isNotDef  more
                  else go ch isDef ((ct,p,q) : isNotDef) more
