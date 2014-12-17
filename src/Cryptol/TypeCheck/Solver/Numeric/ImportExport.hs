@@ -6,6 +6,7 @@ module Cryptol.TypeCheck.Solver.Numeric.ImportExport
   , runExportM
   , exportPropM
   , exportTypeM
+  , importProp
   , importType
   , exportVar
   ) where
@@ -84,6 +85,53 @@ exportVar = toName . exportVar'
 exportVar' :: Cry.TVar -> Int
 exportVar' (Cry.TVFree x _ _ _) = 2 * x        -- Free vars are even
 exportVar' (Cry.TVBound x _)    = 2 * x + 1    -- Bound vars are odd
+
+
+importProp :: VarMap -> Prop -> Maybe [Cry.Prop]
+importProp vars prop =
+  case prop of
+    PFalse    -> Nothing
+    PTrue     -> Just []
+
+    Not p     -> importProp vars =<< pNot p
+    p1 :&& p2 -> do ps1 <- importProp vars p1
+                    ps2 <- importProp vars p2
+                    return (ps1 ++ ps2)
+    _  :|| _  -> Nothing
+
+    Fin expr -> do t <- importType vars expr
+                   return [ Cry.pFin t ]
+
+    e1 :==  e2 -> do t1 <- importType vars e1
+                     t2 <- importType vars e2
+                     return [t1 Cry.=#= t2]
+    e1 :>=  e2 -> do t1 <- importType vars e1
+                     t2 <- importType vars e2
+                     return [t1 Cry.>== t2]
+    _ :> _     -> Nothing
+    e1 :==: e2 -> do t1 <- importType vars e1
+                     t2 <- importType vars e2
+                     -- XXX: Do we need to add fin?
+                     return [t1 Cry.=#= t2]
+    _ :>: _    -> Nothing
+
+  where
+  pNot p =
+    case p of
+      PFalse  -> Just PTrue
+      PTrue   -> Nothing
+
+      Not a   -> Just a
+      _ :&& _ -> Nothing
+      a :|| b -> Just (Not a :&& Not b)
+
+      Fin a    -> Just (a :== K Inf)
+      _ :== _  -> Nothing
+      _ :>= _  -> Nothing
+      a :>  b  -> Just (b :>= a)
+      _ :==: _ -> Nothing
+      a :>: b  -> Just (b :>= a) 
+      -- XXX: Do we need to add Fin on `a` and 'b'?
 
 
 importType :: VarMap -> Expr -> Maybe Cry.Type
