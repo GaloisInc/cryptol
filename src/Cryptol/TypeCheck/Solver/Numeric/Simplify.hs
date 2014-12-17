@@ -5,85 +5,56 @@
 --  - Additional simplification rules, namely various cancelation.
 --  - Things like:  lg2 e(x) = x, where we know thate is increasing.
 
-module Cryptol.TypeCheck.Solver.Numeric.Simplify where
+module Cryptol.TypeCheck.Solver.Numeric.Simplify
+  (
+  -- * Simplify a property
+  crySimplify, crySimplifyMaybe
+
+  -- * Simplify expressions in a prop
+  , crySimpPropExpr, crySimpPropExprMaybe
+
+  -- * Simplify an expression
+  , crySimpExpr, crySimpExprMaybe
+  ) where
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import qualified Cryptol.TypeCheck.Solver.InfNat as IN
 import           Cryptol.Utils.Panic( panic )
 import           Cryptol.Utils.Misc ( anyJust )
 
-import           Data.List ( unfoldr,sortBy )
+import           Data.List ( sortBy )
 import           Data.Maybe ( fromMaybe )
+import           Control.Monad ( mplus )
 import qualified Data.Set as Set
 
 
 -- | Simplify a property, if possible.
--- Simplification should ensure at least the properties captrured by
--- 'crySimplified' (as long as things are 'cryDefined').
---
---  crySimplified (crySimplify x) == True
 crySimplify :: Prop -> Prop
-crySimplify p = last (p : crySimpSteps p)
+crySimplify p = fromMaybe p (crySimplifyMaybe p)
 
--- | For sanity checking.
--- Makes explicit some of the invariants of simplified terms.
-crySimplified :: Prop -> Bool
-crySimplified = go True
+-- | Simplify a property, if possibly.
+crySimplifyMaybe :: Prop -> Maybe Prop
+crySimplifyMaybe p =
+  fmap crySimplify (crySimpStep (fromMaybe p2 mbP3))
+  `mplus` mbP3
+  `mplus` mbP2
+  `mplus` mbP1
   where
-  go atTop prop =
-    case prop of
-      PTrue                     -> atTop
-      PFalse                    -> atTop
+  mbP1 = crySimpPropExprMaybe p
+  p1   = fromMaybe p mbP1
+  mbP2 = case p1 of
+           _ :&& _ -> cryRearrangeAnd p1
+           _ :|| _ -> cryRearrangeOr  p1
+           _       -> Nothing
+  p2   = fromMaybe p1 mbP2
+  mbP3 = case p2 of
+           Not a   -> Not `fmap` crySimplifyMaybe a
+           a :&& b -> do [a',b'] <- anyJust crySimplifyMaybe [a,b]
+                         return (a' :&& b')
+           a :|| b -> do [a',b'] <- anyJust crySimplifyMaybe [a,b]
+                         return (a' :|| b')
+           _ -> Nothing
 
-      -- Also, there are propagatoin properties, but a bit hard to write.
-      -- For example:  `Fin x && Not (Fin x)` should simplify to `PFalse`.
-      p :&& q                   -> go False p && go False q
-      p :|| q                   -> go False p && go False q
-
-      Not (Fin (Var _))         -> True
-      Not (x :>: y)             -> go False (x :>: y)
-      Not _                     -> False
-
-      _ :== _                   -> False
-      _ :>  _                   -> False
-      _ :>= _                   -> False
-
-      Fin (Var _)               -> True
-      Fin _                     -> False
-
-      Var _ :>: K (Nat 0)       -> True
-      _     :>: K (Nat 0)       -> False
-      K _   :>: K _             -> False
-      x     :>: y               -> noInf x && noInf y
-
-      Var _     :==: K (Nat 0)  -> True
-      K (Nat 0) :==: _          -> False
-      K _       :==: K _        -> False
-      x         :==: y          -> noInf x && noInf y
-
-  noInf expr =
-    case expr of
-      K x                 -> x /= Inf
-      Var _               -> True
-      x :+ y              -> noInf2 x y
-      x :- y              -> noInf2 x y
-      x :* y              -> noInf2 x y
-      Div x y             -> noInf2 x y
-      Mod x y             -> noInf2 x y
-      x :^^ y             -> noInf2 x y
-      Min x y             -> noInf2 x y
-      Max x y             -> noInf2 x y
-      Lg2 x               -> noInf x
-      Width x             -> noInf x
-      LenFromThen x y w   -> noInf x && noInf y && noInf w
-      LenFromThenTo x y z -> noInf x && noInf y && noInf z
-
-  noInf2 x y = noInf x && noInf y
-
--- | List the simplification steps for a property.
-crySimpSteps :: Prop -> [Prop]
-crySimpSteps = unfoldr (fmap dup . crySimpStep)
-  where dup x = (x,x)
 
 -- | A single simplification step.
 crySimpStep :: Prop -> Maybe Prop
@@ -105,72 +76,32 @@ crySimpStep prop =
     x :==: y ->
       case (x,y) of
         (K a, K b)     -> Just (if a == b then PTrue else PFalse)
+
         (K (Nat 0), _) -> cryIs0 True y
         (_, K (Nat 0)) -> cryIs0 True x
-        _ -> case bin (:==:) x y of
-               Just p' -> Just p'
-               -- Try to put variables on the RHS.
-               Nothing | x == y -> Just PTrue
-                       | otherwise -> case (x,y) of
-                                        (Var _, _) -> Nothing
-                                        (_, Var _) -> Just (y :==: x)
-                                        _          -> Nothing
+
+        _ | x == y    -> Just PTrue
+          | otherwise -> case (x,y) of
+                           (Var _, _) -> Nothing
+                           (_, Var _) -> Just (y :==: x)
+                           _          -> Nothing
 
     x :>: y ->
       case (x,y) of
         (K (Nat 0),_)   -> Just PFalse
         (K (Nat 1),_)   -> cryIs0 True y
         (_, K (Nat 0))  -> cryGt0 True x
-        _               -> case bin (:>:) x y of
-                             Just p' -> Just p'
-                             Nothing | x == y    -> Just PFalse
-                                     | otherwise -> Nothing
+        _ | x == y      -> Just PFalse
+          | otherwise   -> Nothing
 
-    p :&& q ->
-      case cryRearrangeAnd prop of
-        Just prop' -> Just prop'
-        Nothing ->
-          case cryAnd p q of
-            Just r  -> Just r
-            Nothing ->
-              case crySimpStep p of
-                Just p' -> Just (p' :&& q)
-                Nothing ->
-                  case crySimpStep q of
-                    Just q' -> Just (p :&& q')
-                    Nothing -> Nothing
 
-    p :|| q ->
-      case cryRearrangeOr prop of
-        Just prop' -> Just prop'
-        Nothing ->
-          case cryOr p q of
-            Just r  -> Just r
-            Nothing ->
-              case crySimpStep p of
-                Just p' -> Just (p' :|| q)
-                Nothing ->
-                  case crySimpStep q of
-                    Just q' -> Just (p :|| q')
-                    Nothing -> Nothing
+    -- For :&& and :|| we assume that the props have been rearrnaged
+    p :&& q -> cryAnd p q
+    p :|| q -> cryOr p q
 
-    Not p -> case cryNot p of
-               Just r -> Just r
-               Nothing ->
-                 case crySimpStep p of
-                   Just p' -> Just (Not p')
-                   Nothing -> Nothing
-
+    Not p   -> cryNot p
     PFalse  -> Nothing
     PTrue   -> Nothing
-
-  where
-  bin op x y =
-    case crySimpExpr x of
-      Just x' -> Just (op x' y)
-      _ -> case crySimpExpr y of
-             Just y' -> Just (op x y')
-             Nothing -> Nothing
 
 
 -- | Rebalance parens, and arrange conjucts so that we can transfer
@@ -373,6 +304,7 @@ cryOr p q =
 
 -- | Propagate the fact that the variable is known to be finite ('True')
 -- or not-finite ('False').
+-- Note that this may introduce new expression redexes.
 cryKnownFin :: Name -> Bool -> Prop -> Maybe Prop
 cryKnownFin a isFin prop =
   case prop of
@@ -428,20 +360,15 @@ cryIsEq :: Expr -> Expr -> Prop
 cryIsEq x y =
   case (x,y) of
     (K m, K n)      -> if m == n then PTrue else PFalse
+
     (K (Nat 0),_)   -> cryIs0' y
     (_, K (Nat 0))  -> cryIs0' x
 
     (K Inf, _)      -> Not (Fin y)
     (_, K Inf)      -> Not (Fin x)
-    _ -> case crySimpExpr x of
-           Just x' -> x' :== y
-           Nothing ->
-             case crySimpExpr y of
-               Just y' -> x :== y'
-               Nothing ->
-                      Not (Fin x) :&& Not (Fin y)
-                  :|| Fin x :&& Fin y :&& cryNatOp (:==:) x y
 
+    _               -> Not (Fin x) :&& Not (Fin y)
+                   :|| Fin x :&& Fin y :&& cryNatOp (:==:) x y
   where
   cryIs0' e = case cryIs0 False e of
                 Just e' -> e'
@@ -458,14 +385,8 @@ cryIsGt e (K (Nat 0)) = case cryGt0 False e of
                           Just e' -> e'
                           Nothing -> panic "cryIsGt"
                                            ["`cryGt0 False` return `Nothing`"]
-cryIsGt x y           =
-  case crySimpExpr x of
-    Just x' -> x' :> y
-    Nothing -> case crySimpExpr y of
-                 Just y' -> x :> y'
-                 Nothing -> Fin y :&& (x :== inf :||
-                                       Fin x :&& cryNatOp (:>:) x y)
-
+cryIsGt x y           = Fin y :&& (x :== inf :||
+                                   Fin x :&& cryNatOp (:>:) x y)
 
 
 
@@ -516,7 +437,7 @@ cryIs0 useFinite expr =
     t1 :- t2            -> Just (eq t1 t2)
     t1 :* t2            -> Just (eq t1 zero :|| eq t2 zero)
     Div t1 t2           -> Just (gt t2 t1)
-    Mod _ _ | useFinite -> (:==: zero) `fmap` crySimpExpr expr
+    Mod _ _ | useFinite -> Nothing
             | otherwise -> Just (cryNatOp (:==:) expr zero)
             -- or: Just (t2 `Divides` t1)
     t1 :^^ t2           -> Just (eq t1 zero :&& gt t2 zero)
@@ -548,7 +469,7 @@ cryGt0 useFinite expr =
     x :- y              -> Just (gt x y)
     x :* y              -> Just (gt x zero :&& gt y zero)
     Div x y             -> Just (gt x y)
-    Mod _ _ | useFinite -> (:>: zero) `fmap` crySimpExpr expr
+    Mod _ _ | useFinite -> Nothing
             | otherwise -> Just (cryNatOp (:>:) expr zero)
             -- or: Just (Not (y `Divides` x))
     x :^^ y             -> Just (eq x zero :&& gt y zero)
@@ -563,31 +484,29 @@ cryGt0 useFinite expr =
   eq x y = if useFinite then x :==: y else x :== y
   gt x y = if useFinite then x :>: y  else x :>  y
 
-crySimpPropExpr :: Prop -> Prop
-crySimpPropExpr p = last (p : crySimpPropExprSteps p)
-
-crySimpPropExprSteps :: Prop -> [Prop]
-crySimpPropExprSteps  = unfoldr (fmap dup . crySimpPropExprStep)
-  where
-  dup x = (x,x)
 
 -- | Simplify only the Expr parts of a Prop.
-crySimpPropExprStep :: Prop -> Maybe Prop
-crySimpPropExprStep prop =
+crySimpPropExpr :: Prop -> Prop
+crySimpPropExpr p = fromMaybe p (crySimpPropExprMaybe p)
+
+-- | Simplify only the Expr parts of a Prop.
+-- Returns `Nothing` if there were no changes.
+crySimpPropExprMaybe  :: Prop -> Maybe Prop
+crySimpPropExprMaybe prop =
   case prop of
 
-    Fin e                 -> Fin `fmap` crySimpExpr e
+    Fin e                 -> Fin `fmap` crySimpExprMaybe e
 
-    a :==  b              -> binop crySimpExpr (:== ) a b
-    a :>=  b              -> binop crySimpExpr (:>= ) a b
-    a :>   b              -> binop crySimpExpr (:>  ) a b
-    a :==: b              -> binop crySimpExpr (:==:) a b
-    a :>:  b              -> binop crySimpExpr (:>: ) a b
+    a :==  b              -> binop crySimpExprMaybe (:== ) a b
+    a :>=  b              -> binop crySimpExprMaybe (:>= ) a b
+    a :>   b              -> binop crySimpExprMaybe (:>  ) a b
+    a :==: b              -> binop crySimpExprMaybe (:==:) a b
+    a :>:  b              -> binop crySimpExprMaybe (:>: ) a b
 
-    a :&& b               -> binop crySimpPropExprStep (:&&) a b
-    a :|| b               -> binop crySimpPropExprStep (:||) a b
+    a :&& b               -> binop crySimpPropExprMaybe (:&&) a b
+    a :|| b               -> binop crySimpPropExprMaybe (:||) a b
 
-    Not p                 -> Not `fmap` crySimpPropExprStep p
+    Not p                 -> Not `fmap` crySimpPropExprMaybe p
 
     PFalse                -> Nothing
     PTrue                 -> Nothing
@@ -600,10 +519,26 @@ crySimpPropExprStep prop =
       (l',r')           -> Just (f (fromMaybe l l') (fromMaybe r r'))
 
 
+
+-- | Simplify an expression, if possible.
+crySimpExpr :: Expr -> Expr
+crySimpExpr expr = fromMaybe expr (crySimpExprMaybe expr)
+
+-- | Perform simplification from the leaves up.
+-- Returns `Nothing` if there were no changes.
+crySimpExprMaybe :: Expr -> Maybe Expr
+crySimpExprMaybe expr =
+  case crySimpExprStep (fromMaybe expr mbE1) of
+    Nothing -> mbE1
+    Just e2 -> Just (fromMaybe e2 (crySimpExprMaybe e2))
+  where
+  mbE1 = cryRebuildExpr expr `fmap` anyJust crySimpExprMaybe (cryExprExprs expr)
+
+
 -- | Make a simplification step, assuming the expression is well-formed.
 -- XXX: Add more rules (e.g., (1 + (2 + x)) -> (1 + 2) + x -> 3 + x
-crySimpExpr :: Expr -> Maybe Expr
-crySimpExpr expr =
+crySimpExprStep :: Expr -> Maybe Expr
+crySimpExprStep expr =
   case expr of
     K _                   -> Nothing
     Var _                 -> Nothing
@@ -615,7 +550,7 @@ crySimpExpr expr =
         (_, K (Nat 0))    -> Just x
         (_, K Inf)        -> Just inf
         (K a, K b)        -> Just (K (IN.nAdd a b))
-        _                 -> bin (:+) x y
+        _                 -> Nothing
 
     x :- y ->
       case (x,y) of
@@ -624,7 +559,7 @@ crySimpExpr expr =
         (_, K (Nat 0))    -> Just x
         (K a, K b)        -> K `fmap` IN.nSub a b
         _ | x == y        -> Just zero
-        _                 -> bin (:-) x y
+        _                 -> Nothing
 
     x :* y ->
       case (x,y) of
@@ -633,7 +568,7 @@ crySimpExpr expr =
         (_, K (Nat 0))    -> Just zero
         (_, K (Nat 1))    -> Just x
         (K a, K b)        -> Just (K (IN.nMul a b))
-        _                 -> bin (:*) x y
+        _                 -> Nothing
 
     Div x y ->
       case (x,y) of
@@ -642,7 +577,7 @@ crySimpExpr expr =
         (_, K Inf)        -> Just zero
         (K a, K b)        -> K `fmap` IN.nDiv a b
         _ | x == y        -> Just one
-        _                 -> bin Div x y
+        _                 -> Nothing
 
     Mod x y ->
       case (x,y) of
@@ -650,7 +585,7 @@ crySimpExpr expr =
         (_, K Inf)        -> Just x
         (_, K (Nat 1))    -> Just zero
         (K a, K b)        -> K `fmap` IN.nMod a b
-        _                 -> bin Mod x y
+        _                 -> Nothing
 
     x :^^ y ->
       case (x,y) of
@@ -658,7 +593,7 @@ crySimpExpr expr =
         (_, K (Nat 1))    -> Just x
         (K (Nat 1), _)    -> Just one
         (K a, K b)        -> Just (K (IN.nExp a b))
-        _                 -> bin (:^^) x y
+        _                 -> Nothing
 
     Min x y ->
       case (x,y) of
@@ -668,7 +603,7 @@ crySimpExpr expr =
         (_, K Inf)        -> Just x
         (K a, K b)        -> Just (K (IN.nMin a b))
         _ | x == y        -> Just x
-        _                 -> bin Min x y
+        _                 -> Nothing
 
     Max x y ->
       case (x,y) of
@@ -677,47 +612,25 @@ crySimpExpr expr =
         (_, K (Nat 0))    -> Just x
         (_, K Inf)        -> Just inf
         _ | x == y        -> Just x
-        _                 -> bin Max x y
+        _                 -> Nothing
 
     Lg2 x ->
       case x of
         K a               -> Just (K (IN.nLg2 a))
         K (Nat 2) :^^ e   -> Just e
-        _                 -> Lg2 `fmap` crySimpExpr x
+        _                 -> Nothing
 
     Width x               -> Just (Lg2 (x :+ one))
 
     LenFromThen x y w ->
       case (x,y,w) of
         (K a, K b, K c)   -> K `fmap` IN.nLenFromThen a b c
-        _                 -> three LenFromThen x y w
+        _                 -> Nothing
 
     LenFromThenTo x y z ->
       case (x,y,z) of
         (K a, K b, K c)   -> K `fmap` IN.nLenFromThenTo a b c
-        _                 -> three LenFromThenTo x y z
-
-  where
-
-  bin op x y = case crySimpExpr x of
-                 Just x' -> Just (op x' y)
-                 Nothing -> case crySimpExpr y of
-                              Just y' -> Just (op x y')
-                              Nothing -> Nothing
-
-  three op x y z =
-    case crySimpExpr x of
-      Just x' -> Just (op x' y z)
-      Nothing ->
-        case crySimpExpr y of
-          Just y' -> Just (op x y' z)
-          Nothing ->
-            case crySimpExpr z of
-              Just z' -> Just (op x y z')
-              Nothing -> Nothing
-
-
-
+        _                 -> Nothing
 
 
 
