@@ -80,7 +80,9 @@ checkDefined s uniVars props0 = withScope s (go Map.empty [] props0)
     let (g,p) = smtpOther ct
     in case apSubst su p of
          Nothing -> ct
-         Just p' -> (prepareProp p') { smtpOther = (g,p') }
+         Just p' ->
+            let p2 = crySimpPropExpr p'
+            in (prepareProp p2) { smtpOther = (g,p2) }
 
   updNotDone su (g,p) =
     case apSubst su p of
