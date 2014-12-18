@@ -654,7 +654,12 @@ crySimpExprStep expr =
         K (Nat 2) :^^ e   -> Just e
         _                 -> Nothing
 
-    Width x               -> Just (Lg2 (x :+ one))
+    -- Width x               -> Just (Lg2 (x :+ one))
+    Width x ->
+      case x of
+        K a              -> Just (K (IN.nWidth a))
+        K (Nat 2) :^^ e  -> Just (one :+ e)
+        _                -> Nothing
 
     LenFromThen x y w ->
       case (x,y,w) of
