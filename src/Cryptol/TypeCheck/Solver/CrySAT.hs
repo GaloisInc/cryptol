@@ -299,8 +299,10 @@ declareVar Solver { .. } a =
   do done <- fmap (a `viElem`) (readIORef declared)
      unless done $
        do e  <- SMT.declare solver (smtName a)    SMT.tInt
-          _  <- SMT.declare solver (smtFinName a) SMT.tBool
-          SMT.assert solver(SMT.geq e (SMT.int 0))
+          let fin_a = smtFinName a
+          _  <- SMT.declare solver fin_a SMT.tBool
+          SMT.assert solver (SMT.geq e (SMT.int 0))
+          SMT.assert solver (SMT.const fin_a)     -- HMM ???
           modifyIORef' declared (viInsert a)
 
 -- | Add an assertion to the current context.
