@@ -5,7 +5,7 @@ Loading module Main
   Defaulting type parameter 'bits'
              of literal or demoted expression
              at simon.cry2:87:28--87:30
-  to max 3 (width a`431)
+  to max (width a`431) 3
 [warning] at simon.cry2:83:1--92:15:
   Defaulting 3rd type parameter
              of expression (@)
@@ -15,5 +15,5 @@ Loading module Main
   Defaulting 3rd type parameter
              of expression (@)
              at simon.cry2:89:29--89:30
-  to max 6 (max (width (a`432 - 1)) (width a`431))
+  to max (width (a`432 - 1)) (max (width a`431) 6)
 True

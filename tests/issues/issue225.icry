@@ -1,4 +1,1 @@
-:set mono-binds=on
-:l issue225.cry
-:set mono-binds=off
 :l issue225.cry

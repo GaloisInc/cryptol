@@ -8,12 +8,14 @@
 
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE PatternGuards, ViewPatterns #-}
+{-# LANGUAGE DeriveFunctor #-}
 module Cryptol.TypeCheck.Unify where
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst
 import Cryptol.Utils.Panic (panic)
 
+import Control.Applicative (Applicative(..))
 import Data.Ord(comparing)
 import Data.List(sortBy)
 import qualified Data.Set as Set
@@ -23,6 +25,7 @@ import qualified Data.Set as Set
 type MGU = (Subst,[Prop])
 
 data Result a = OK a | Error UnificationError
+                deriving (Functor)
 
 data UnificationError
   = UniTypeMismatch Type Type
@@ -31,6 +34,13 @@ data UnificationError
   | UniRecursive TVar Type
   | UniNonPolyDepends TVar [TVar]
   | UniNonPoly TVar Type
+
+instance Applicative Result where
+  pure = OK
+
+  OK f     <*> OK x    = OK (f x)
+  OK _     <*> Error e = Error e
+  Error e  <*> _       = Error e
 
 instance Monad Result where
   return a      = OK a

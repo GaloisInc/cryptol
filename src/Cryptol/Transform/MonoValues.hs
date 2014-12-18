@@ -110,6 +110,8 @@ instance TrieMap RewMap' (QName,[Type],Int) where
 
     f2 (Just pM) = Just (alterTM n f pM)
 
+  unionTM f (RM a) (RM b) = RM (unionTM (unionTM (unionTM f)) a b)
+
   toListTM (RM m) = [ ((x,ts,n),y) | (x,tM)  <- toListTM m
                                    , (ts,pM) <- toListTM tM
                                    , (n,y)   <- toListTM pM ]
