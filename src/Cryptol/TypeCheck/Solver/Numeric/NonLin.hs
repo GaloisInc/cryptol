@@ -61,11 +61,11 @@ isNonLinOp expr =
 
 
 -- | Factor-out non-linear terms, by naming them
-nonLinProp :: Prop -> ([(Name,Expr)], Prop)
-nonLinProp prop = case runId $ runStateT s0 $ nonLinPropM prop of
-                    (p, sFin) -> (nonLinExprs sFin, p)
+nonLinProp :: Int -> Prop -> ([(Name,Expr)], Prop, Int)
+nonLinProp name prop = case runId $ runStateT s0 $ nonLinPropM prop of
+                         (p, sFin) -> (nonLinExprs sFin, p, nextName sFin)
   where
-  s0 = NonLinS { nextName = 0, nonLinExprs = [] }
+  s0 = NonLinS { nextName = name, nonLinExprs = [] }
 
 
 nonLinPropM :: Prop -> NonLinM Prop

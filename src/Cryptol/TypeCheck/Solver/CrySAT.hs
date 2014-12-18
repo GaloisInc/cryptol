@@ -22,10 +22,11 @@ import           MonadLib
 import           Data.Maybe ( mapMaybe )
 import           Data.Map ( Map )
 import qualified Data.Map as Map
-import           Data.Traversable ( traverse )
+import           Data.Traversable ( traverse, for )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
-import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef' )
+import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef',
+                              atomicModifyIORef' )
 
 import           SimpleSMT ( SExpr )
 import qualified SimpleSMT as SMT
@@ -71,19 +72,20 @@ checkDefined s updCt uniVars props0 = withScope s (go Map.empty [] props0)
                 else
                   do mapM_ addImpProp (Map.toList novelImps)
                      let newImps    = Map.union novelImps knownImps
-                         impDone    = map (updDone novelImps) newDone
-                         impNotDone = map (updNotDone novelImps) newNotDone
+                     impDone       <- mapM (updDone novelImps) newDone
+                     let impNotDone = map (updNotDone novelImps) newNotDone
                      go newImps impDone impNotDone
 
-  addImpProp (x,e) = assert s (prepareProp (Var x :== e))
+  addImpProp (x,e) = assert s =<< prepareProp s (Var x :== e)
 
   updDone su ct =
     let (g,p) = smtpOther ct
     in case apSubst su p of
-         Nothing -> ct
+         Nothing -> return ct
          Just p' ->
-            let p2 = crySimpPropExpr p'
-            in (prepareProp p2) { smtpOther = (updCt p2 g,p2) }
+           do let p2 = crySimpPropExpr p'
+              pr <- prepareProp s p2
+              return pr { smtpOther = (updCt p2 g,p2) }
 
   updNotDone su (g,p) =
     case apSubst su p of
@@ -99,7 +101,10 @@ checkDefined s updCt uniVars props0 = withScope s (go Map.empty [] props0)
 checkDefined' :: Solver -> (Prop -> a -> a) ->
                 [(a,Prop)] -> IO ([(a,Prop)], [SMTProp (a,Prop)])
 checkDefined' s updCt props0 =
-  go False [] [] [ (a, p, prepareProp (cryDefinedProp p)) | (a,p) <- props0 ]
+  do ps <- for props0 $ \(a,p) ->
+             do p' <- prepareProp s (cryDefinedProp p)
+                return (a,p,p')
+     go False [] [] ps
 
   where
   -- Everything is defined: keep going.
@@ -114,11 +119,11 @@ checkDefined' s updCt props0 =
   -- Process one constraint.
   go ch isDef isNotDef ((ct,p,q) : more) =
     do proved <- prove s q
-       if proved then do let r = case crySimpPropExprMaybe p of
-                                   Nothing -> (prepareProp p)
-                                                { smtpOther = (ct,p) }
-                                   Just p' -> (prepareProp p')
-                                               { smtpOther = (updCt p' ct, p') }
+       if proved then do r <- case crySimpPropExprMaybe p of
+                                Nothing -> do p' <- prepareProp s p
+                                              return p' { smtpOther = (ct,p) }
+                                Just p' -> do p2 <- prepareProp s p'
+                                              return p2 { smtpOther = (updCt p' ct, p') }
 
                          assert s r -- add defined prop as an assumption
                          go True (r : isDef) isNotDef  more
@@ -156,7 +161,7 @@ simplifyProps s props = withScope s (go [] props)
 -- Modifies the set of assumptions.
 assumeProps :: Solver -> [Cry.Prop] -> IO VarMap
 assumeProps s props =
-  do mapM_ (assert s . prepareProp) (map cryDefinedProp ps ++ ps)
+  do mapM_ (assert s <=< prepareProp s) (map cryDefinedProp ps ++ ps)
      return (Map.unions varMaps)
   where (ps,varMaps) = unzip (mapMaybe exportProp props)
   -- XXX: Instead of asserting one at a time, perhaps we should
@@ -182,25 +187,29 @@ data SMTProp a = SMTProp
   }
 
 -- | Prepare a property for export to an SMT solver.
-prepareProp :: Prop -> SMTProp ()
-prepareProp prop0 = SMTProp
-  { smtpVars       = cryPropFVS linProp
-  , smtpLinPart    = ifPropToSmtLib (desugarProp linProp)
-  , smtpNonLinPart = nonLinEs
-  , smtpOther      = ()
-  }
-  where
-  prop1               = crySimplify prop0
-  (nonLinEs, linProp) = nonLinProp prop1
-
-
+prepareProp :: Solver -> Prop -> IO (SMTProp ())
+prepareProp Solver { .. } prop0 =
+  do let prop1 = crySimplify prop0
+     (nonLinEs, linProp) <- atomicModifyIORef' nameSource $ \name ->
+       case nonLinProp name prop1 of
+         (nonLinEs, linProp, newName) -> (newName, (nonLinEs, linProp))
+     return SMTProp
+      { smtpVars       = cryPropFVS linProp
+      , smtpLinPart    = ifPropToSmtLib (desugarProp linProp)
+      , smtpNonLinPart = nonLinEs
+      , smtpOther      = ()
+      }
 
 -- | An SMT solver, and some info about declared variables.
 data Solver = Solver
   { solver    :: SMT.Solver
   , declared  :: IORef VarInfo
   , logger    :: SMT.Logger
+
+  , nameSource  :: IORef Int
+    -- XXX: Perhaps this should go with the scope somehow?
   }
+
 
 -- | Keeps track of what variables we've already declared.
 data VarInfo = VarInfo
@@ -266,8 +275,10 @@ withSolver k =
                                                    Nothing -- (Just logger)
      SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty
+     nameSource <- newIORef 0
      a <- k Solver { .. }
      _ <- SMT.stop solver
+
      return a
 
 -- | Execute a computation in a new solver scope.
