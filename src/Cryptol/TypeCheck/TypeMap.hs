@@ -24,7 +24,7 @@ import qualified Data.Map as Map
 import           Data.Map (Map)
 import           Data.Maybe(fromMaybe,maybeToList)
 import           Control.Monad((<=<))
-import           Data.List(sortBy,partition)
+import           Data.List(sortBy)
 import           Data.Maybe (isNothing)
 import           Data.Ord(comparing)
 
