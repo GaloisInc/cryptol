@@ -536,7 +536,6 @@ crySimpExprMaybe expr =
 
 
 -- | Make a simplification step, assuming the expression is well-formed.
--- XXX: Add more rules (e.g., (1 + (2 + x)) -> (1 + 2) + x -> 3 + x
 crySimpExprStep :: Expr -> Maybe Expr
 crySimpExprStep expr =
   case expr of
@@ -545,12 +544,31 @@ crySimpExprStep expr =
 
     x :+ y ->
       case (x,y) of
-        (K (Nat 0), _)    -> Just y
-        (K Inf, _)        -> Just inf
-        (_, K (Nat 0))    -> Just x
-        (_, K Inf)        -> Just inf
-        (K a, K b)        -> Just (K (IN.nAdd a b))
-        _                 -> Nothing
+        (K (Nat 0), _)          -> Just y
+        (K Inf, _)              -> Just inf
+        (_, K (Nat 0))          -> Just x
+        (_, K Inf)              -> Just inf
+        (K a, K b)              -> Just (K (IN.nAdd a b))
+        (_,  K b)               -> Just (K b :+ x)
+
+        (K a, K b :+ c)         -> Just (K (IN.nAdd a b) :+ x)
+        (K a :+ c1, K b :+ c2)  -> Just (K (IN.nAdd a b) :+ (c1 :+ c2))
+
+        (K a,       K b :- c)   -> Just (K (IN.nAdd a b) :- c)
+        (K a :+ c1, K b :- c)   -> Just (K (IN.nAdd a b) :+ (c1 :- c))
+
+        (K a, c :- K b)         -> case IN.nSub a b of
+                                     Just (Nat 0) -> Just c
+                                     Just r       -> Just (K r :+ c)
+                                     Nothing      -> do r <- IN.nSub b a
+                                                        return (c :- K r)
+        (K a :+ c1, c :- K b)  -> case IN.nSub a b of
+                                     Just (Nat 0) -> Just (c1 :+ c)
+                                     Just r       -> Just (K r :+ (c1 :+ c))
+                                     Nothing      -> do r <- IN.nSub b a
+                                                        return (c1 :+ (c :- K r))
+
+        _                       -> Nothing
 
     x :- y ->
       case (x,y) of
@@ -559,6 +577,22 @@ crySimpExprStep expr =
         (_, K (Nat 0))    -> Just x
         (K a, K b)        -> K `fmap` IN.nSub a b
         _ | x == y        -> Just zero
+
+        (K a :+ c1, K b)
+          | a > b         -> do a' <- IN.nSub a b
+                                return (K a' :+ c1)
+          | a == b        -> Just c1
+          | otherwise     -> do b' <- IN.nSub b a
+                                return (c1 :- K b')
+
+        (K a :+ c1, K b :+ c2)
+          | a > b         -> do a' <- IN.nSub a b
+                                return ((K a' :+ c1) :- c2)
+          | a == b        -> Just (c1 :- c2)
+          | otherwise     -> do b' <- IN.nSub b a
+                                return (c1 :- (K b' :+ c2))
+
+
         _                 -> Nothing
 
     x :* y ->
