@@ -28,8 +28,10 @@ import          Cryptol.TypeCheck.TypeMap ( TrieMap(..) )
 import          Cryptol.Utils.Panic ( panic )
 import          Cryptol.Utils.Misc ( anyJust )
 
+import           Control.Monad ( mplus )
 import           Data.Map ( Map )
 import qualified Data.Map as Map
+import           Data.Maybe ( isNothing )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import qualified Control.Applicative as A
@@ -308,6 +310,21 @@ data PropMap a = EmptyPM
                          }
 
 instance TrieMap PropMap Prop where
+  nullTM EmptyPM        = True
+  nullTM PropMap { .. } = and [ nullTM pmFin
+                              , nullTM pmEq
+                              , nullTM pmGeq
+                              , nullTM pmGt
+                              , nullTM pmEqH
+                              , nullTM pmGtH
+                              , nullTM pmAnd
+                              , nullTM pmOr
+                              , nullTM pmNot
+                              , isNothing pmFalse
+                              , isNothing pmTrue
+                              ]
+
+
   emptyTM = EmptyPM
 
   lookupTM _ EmptyPM        = Nothing
@@ -330,7 +347,20 @@ instance TrieMap PropMap Prop where
     go PFalse           = pmFalse
     go PTrue            = pmTrue
 
-  alterTM _ _ EmptyPM        = EmptyPM
+  alterTM p f EmptyPM = alterTM p f
+    PropMap { pmFin   = emptyTM
+            , pmEq    = emptyTM
+            , pmGeq   = emptyTM
+            , pmGt    = emptyTM
+            , pmEqH   = emptyTM
+            , pmGtH   = emptyTM
+            , pmAnd   = emptyTM
+            , pmOr    = emptyTM
+            , pmNot   = emptyTM
+            , pmFalse = Nothing
+            , pmTrue  = Nothing
+            }
+
   alterTM p f PropMap { .. } = go p
     where
 
@@ -352,6 +382,26 @@ instance TrieMap PropMap Prop where
 
     go PFalse           = PropMap { pmFalse = f pmFalse, .. }
     go PTrue            = PropMap { pmTrue  = f pmTrue,  .. }
+
+  unionTM _ EmptyPM r       = r
+  unionTM _ l       EmptyPM = l
+  unionTM f l       r       =
+    PropMap { pmFin   = unionTM          f  (pmFin l) (pmFin r)
+            , pmEq    = unionTM (unionTM f) (pmEq  l) (pmEq  r)
+            , pmGeq   = unionTM (unionTM f) (pmGeq l) (pmGeq r)
+            , pmGt    = unionTM (unionTM f) (pmGt  l) (pmGt  r)
+            , pmEqH   = unionTM (unionTM f) (pmEqH l) (pmEqH r)
+            , pmGtH   = unionTM (unionTM f) (pmGtH l) (pmGtH r)
+            , pmAnd   = unionTM (unionTM f) (pmAnd l) (pmAnd r)
+            , pmOr    = unionTM (unionTM f) (pmOr  l) (pmOr  r)
+            , pmNot   = unionTM          f  (pmNot l) (pmNot r)
+            , pmFalse = case (pmFalse l, pmFalse r) of
+                          (Just a, Just b) -> Just (f a b)
+                          (mbL, mbR)       -> mbL `mplus` mbR
+            , pmTrue  = case (pmTrue l, pmFalse r) of
+                          (Just a, Just b) -> Just (f a b)
+                          (mbL, mbR)       -> mbL `mplus` mbR
+            }
 
   toListTM EmptyPM        = []
   toListTM PropMap { .. } =
@@ -386,6 +436,24 @@ data ExprMap a = EmptyEM
                          }
 
 instance TrieMap ExprMap Expr where
+
+  nullTM EmptyEM        = True
+  nullTM ExprMap { .. } = and [ nullTM emK
+                              , nullTM emVar
+                              , nullTM emAdd
+                              , nullTM emSub
+                              , nullTM emMul
+                              , nullTM emDiv
+                              , nullTM emMod
+                              , nullTM emExp
+                              , nullTM emMin
+                              , nullTM emMax
+                              , nullTM emLg2
+                              , nullTM emWidth
+                              , nullTM emLenFromThen
+                              , nullTM emLenFromThenTo
+                              ]
+
   emptyTM = EmptyEM
 
   lookupTM _ EmptyEM        = Nothing
@@ -413,7 +481,23 @@ instance TrieMap ExprMap Expr where
                            =<< lookupTM b
                            =<< lookupTM a emLenFromThenTo
 
-  alterTM _ _ EmptyEM        = EmptyEM
+  alterTM e f EmptyEM = alterTM e f
+    ExprMap { emK             = emptyTM
+            , emVar           = emptyTM
+            , emAdd           = emptyTM
+            , emSub           = emptyTM
+            , emMul           = emptyTM
+            , emDiv           = emptyTM
+            , emMod           = emptyTM
+            , emExp           = emptyTM
+            , emMin           = emptyTM
+            , emMax           = emptyTM
+            , emLg2           = emptyTM
+            , emWidth         = emptyTM
+            , emLenFromThen   = emptyTM
+            , emLenFromThenTo = emptyTM
+            }
+
   alterTM e f ExprMap { .. } = go e
     where
 
@@ -440,6 +524,28 @@ instance TrieMap ExprMap Expr where
 
     go (LenFromThenTo a b c) =
       ExprMap { emLenFromThenTo = alterTM a (fmap (alterTM b (alter c))) emLenFromThenTo, .. }
+
+  unionTM _ EmptyEM r       = r
+  unionTM _ l       EmptyEM = l
+  unionTM f l       r       =
+    ExprMap { emK             = unionTM          f  (emK     l) (emK     r)
+            , emVar           = unionTM          f  (emVar   l) (emVar   r)
+            , emAdd           = unionTM (unionTM f) (emAdd   l) (emAdd   r)
+            , emSub           = unionTM (unionTM f) (emSub   l) (emSub   r)
+            , emMul           = unionTM (unionTM f) (emMul   l) (emMul   r)
+            , emDiv           = unionTM (unionTM f) (emDiv   l) (emDiv   r)
+            , emMod           = unionTM (unionTM f) (emMod   l) (emMod   r)
+            , emExp           = unionTM (unionTM f) (emExp   l) (emExp   r)
+            , emMin           = unionTM (unionTM f) (emMin   l) (emMin   r)
+            , emMax           = unionTM (unionTM f) (emMax   l) (emMax   r)
+            , emLg2           = unionTM          f  (emLg2   l) (emLg2   r)
+            , emWidth         = unionTM          f  (emWidth l) (emWidth r)
+
+            , emLenFromThen   = unionTM (unionTM (unionTM f)) (emLenFromThen l)
+                                                              (emLenFromThen r)
+            , emLenFromThenTo = unionTM (unionTM (unionTM f)) (emLenFromThenTo l)
+                                                              (emLenFromThenTo r)
+            }
 
   toListTM EmptyEM        = []
   toListTM ExprMap { .. } =
