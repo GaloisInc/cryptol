@@ -24,7 +24,7 @@ module Cryptol.TypeCheck.Solver.Numeric.AST
   ) where
 
 import          Cryptol.TypeCheck.Solver.InfNat ( Nat'(..) )
-import          Cryptol.TypeCheck.TypeMap ( TrieMap(..) )
+import          Cryptol.TypeCheck.TypeMap ( TrieMap(..), mapWithKeyTM )
 import          Cryptol.Utils.Panic ( panic )
 import          Cryptol.Utils.Misc ( anyJust )
 
@@ -417,6 +417,21 @@ instance TrieMap PropMap Prop where
     [ (PFalse  ,a) | Just a <- [pmFalse]                           ] ++
     [ (PTrue   ,a) | Just a <- [pmTrue]                            ]
 
+  mapMaybeWithKeyTM _ EmptyPM        = EmptyPM
+  mapMaybeWithKeyTM f PropMap { .. } =
+    PropMap { pmFin   = mapMaybeWithKeyTM (\t -> f (Fin t)) pmFin
+            , pmEq    = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :==  r))) pmEq
+            , pmGeq   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :>=  r))) pmGeq
+            , pmGt    = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :>   r))) pmGt
+            , pmEqH   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :==: r))) pmEqH
+            , pmGtH   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :>:  r))) pmGtH
+            , pmAnd   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :&&  r))) pmAnd
+            , pmOr    = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :||  r))) pmOr
+            , pmNot   = mapMaybeWithKeyTM (\p -> f (Not p)) pmNot
+            , pmFalse = f PFalse =<< pmFalse
+            , pmTrue  = f PTrue  =<< pmTrue
+            }
+
 
 data ExprMap a = EmptyEM
                | ExprMap { emK             :: Map.Map Nat' a
@@ -569,6 +584,32 @@ instance TrieMap ExprMap Expr where
     [ (LenFromThenTo x y z, a) | (x,m1) <- toListTM emLenFromThenTo
                                , (y,m2) <- toListTM m1
                                , (z,a)  <- toListTM m2 ]
+
+  mapMaybeWithKeyTM _ EmptyEM        = EmptyEM
+  mapMaybeWithKeyTM f ExprMap { .. } =
+    ExprMap { emK     = mapMaybeWithKeyTM (\n -> f (K   n)) emK
+            , emVar   = mapMaybeWithKeyTM (\n -> f (Var n)) emVar
+
+            , emAdd   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :+  r))) emAdd
+            , emSub   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :-  r))) emSub
+            , emMul   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :*  r))) emMul
+            , emDiv   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (Div l r))) emDiv
+            , emMod   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (Mod l r))) emMod
+            , emExp   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :^^ r))) emExp
+            , emMin   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (Min l r))) emMin
+            , emMax   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (Max l r))) emMax
+
+            , emLg2   = mapMaybeWithKeyTM (\a -> f (Lg2   a)) emLg2
+            , emWidth = mapMaybeWithKeyTM (\a -> f (Width a)) emWidth
+
+            , emLenFromThen   = mapWithKeyTM (\x ->
+                                mapWithKeyTM (\y ->
+                           mapMaybeWithKeyTM (\z -> f (LenFromThen x y z)))) emLenFromThen
+
+            , emLenFromThenTo = mapWithKeyTM (\x ->
+                                mapWithKeyTM (\y ->
+                           mapMaybeWithKeyTM (\z -> f (LenFromThenTo x y z)))) emLenFromThenTo
+            }
 
 
 
