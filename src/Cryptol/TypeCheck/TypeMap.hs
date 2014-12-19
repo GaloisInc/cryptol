@@ -14,6 +14,7 @@ module Cryptol.TypeCheck.TypeMap
   ( TypeMap(..), TypesMap, TrieMap(..)
   , insertTM, insertWithTM
   , membersTM
+  , mapTM, mapWithKeyTM, mapMaybeTM
 
   , List(..)
   ) where
@@ -36,6 +37,8 @@ class TrieMap m k | m -> k where
   unionTM  :: (a -> a -> a) -> m a -> m a -> m a
   toListTM :: m a -> [(k,a)]
 
+  mapMaybeWithKeyTM :: (k -> a -> Maybe b) -> m a -> m b
+
 membersTM :: TrieMap m k => m a -> [a]
 membersTM  = map snd . toListTM
 
@@ -46,6 +49,18 @@ insertWithTM :: TrieMap m k => (a -> a -> a) -> k -> a -> m a -> m a
 insertWithTM f t new = alterTM t $ \mb -> Just $ case mb of
                                                    Nothing  -> new
                                                    Just old -> f old new
+
+{-# INLINE mapTM #-}
+mapTM :: TrieMap m k => (a -> b) -> m a -> m b
+mapTM f = mapMaybeWithKeyTM (\ _ a -> Just (f a))
+
+{-# INLINE mapWithKeyTM #-}
+mapWithKeyTM :: TrieMap m k => (k -> a -> b) -> m a -> m b
+mapWithKeyTM f = mapMaybeWithKeyTM (\ k a -> Just (f k a))
+
+{-# INLINE mapMaybeTM #-}
+mapMaybeTM :: TrieMap m k => (a -> Maybe b) -> m a -> m b
+mapMaybeTM f = mapMaybeWithKeyTM (\_ -> f)
 
 data List m a  = L { nil  :: Maybe a
                    , cons :: m (List m a)
@@ -78,6 +93,12 @@ instance TrieMap m a => TrieMap (List m) [a] where
                       , cons = unionTM (unionTM f) (cons m1) (cons m2)
                       }
 
+  mapMaybeWithKeyTM f = go []
+    where
+    go acc l = L { nil  = f (reverse acc) =<< nil l
+                 , cons = mapMaybeWithKeyTM (\k a -> Just (go (k:acc) a)) (cons l)
+                 }
+
 
 instance Ord a => TrieMap (Map a) a where
   emptyTM  = Map.empty
@@ -86,6 +107,8 @@ instance Ord a => TrieMap (Map a) a where
   alterTM  = flip Map.alter
   toListTM = Map.toList
   unionTM  = Map.unionWith
+
+  mapMaybeWithKeyTM = Map.mapMaybeWithKey
 
 
 type TypesMap = List TypeMap
@@ -129,6 +152,14 @@ instance TrieMap TypeMap Type where
                        , tcon = unionTM (unionTM f) (tcon m1) (tcon m2)
                        , trec = unionTM (unionTM f) (trec m1) (trec m2)
                        }
+
+  mapMaybeWithKeyTM f m =
+    TM { tvar = mapMaybeWithKeyTM (\v -> f (TVar v)) (tvar m)
+       , tcon = mapWithKeyTM (\c  l -> mapMaybeWithKeyTM
+                             (\ts a -> f (TCon c ts) a) l) (tcon m)
+       , trec = mapWithKeyTM (\fs l -> mapMaybeWithKeyTM
+                             (\ts a -> f (TRec (zip fs ts)) a) l) (trec m)
+       }
 
 
 updSub :: TrieMap m k => k -> (Maybe a -> Maybe a) -> Maybe (m a) -> Maybe (m a)

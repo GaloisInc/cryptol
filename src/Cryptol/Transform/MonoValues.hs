@@ -116,6 +116,11 @@ instance TrieMap RewMap' (QName,[Type],Int) where
                                    , (ts,pM) <- toListTM tM
                                    , (n,y)   <- toListTM pM ]
 
+  mapMaybeWithKeyTM f (RM m) =
+    RM (mapWithKeyTM      (\qn  tm ->
+        mapWithKeyTM      (\tys is ->
+        mapMaybeWithKeyTM (\i   a  -> f (qn,tys,i) a) is) tm) m)
+
 -- | Note that this assumes that this pass will be run only once for each
 -- module, otherwise we will get name collisions.
 rewModule :: Module -> Module
