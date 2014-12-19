@@ -269,7 +269,15 @@ instance FVS DelayedCt where
 -- values that remain, as applying the substitution to the keys will only ever
 -- reduce the number of values that remain.
 instance TVars Goals where
-  apSubst su (Goals goals) = Goals (apSubst su (apSubstTypeMapKeys su goals))
+  apSubst su (Goals goals) =
+    Goals (mapWithKeyTM setGoal (apSubstTypeMapKeys su goals))
+    where
+    -- as the key for the goal map is the same as the goal, and the substitution
+    -- has been applied to the key already, just replace the existing goal with
+    -- the key.
+    setGoal key g = g { goalSource = apSubst su (goalSource g)
+                      , goal       = key
+                      }
 
 instance TVars Goal where
   apSubst su g = Goal { goalSource = apSubst su (goalSource g)
