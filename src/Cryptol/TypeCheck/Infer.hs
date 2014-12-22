@@ -271,7 +271,9 @@ checkE expr tGoal =
     P.EComp e mss ->
       do (mss', dss, ts) <- unzip3 `fmap` zipWithM inferCArm [ 1 .. ] mss
          (len,a)<- expectSeq tGoal
-         _      <- smallest (len:ts)
+
+         newGoals CtComprehension =<< unify len =<< smallest ts
+
          ds     <- combineMaps dss
          e'     <- withMonoTypes ds (checkE e a)
          return (EComp tGoal e' mss')
