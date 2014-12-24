@@ -684,8 +684,5 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
   -- Now continue with anything that's in scope of the declarations.
   checkBinds decls [] = continue (reverse decls)
 
-
 tcPanic :: String -> [String] -> a
 tcPanic l msg = panic ("[TypeCheck] " ++ l) msg
-
-

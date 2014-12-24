@@ -13,7 +13,7 @@ module Main where
 import OptParser
 import REPL.Command (loadCmd,loadPrelude)
 import REPL.Haskeline
-import REPL.Monad (REPL,setREPLTitle,io)
+import REPL.Monad (REPL,setREPLTitle,io,DotCryptol(..))
 import REPL.Logo
 import qualified REPL.Monad as REPL
 import Paths_cryptol (version)
@@ -27,20 +27,21 @@ import System.Exit (exitFailure)
 import System.Console.GetOpt
     (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
 
-
 data Options = Options
-  { optLoad    :: [FilePath]
-  , optVersion :: Bool
-  , optHelp    :: Bool
-  , optBatch   :: Maybe FilePath
+  { optLoad       :: [FilePath]
+  , optVersion    :: Bool
+  , optHelp       :: Bool
+  , optBatch      :: Maybe FilePath
+  , optDotCryptol :: DotCryptol
   } deriving (Show)
 
 defaultOptions :: Options
 defaultOptions  = Options
-  { optLoad    = []
-  , optVersion = False
-  , optHelp    = False
-  , optBatch   = Nothing
+  { optLoad       = []
+  , optVersion    = False
+  , optHelp       = False
+  , optBatch      = Nothing
+  , optDotCryptol = DotCDefault
   }
 
 options :: [OptDescr (OptParser Options)]
@@ -53,6 +54,12 @@ options  =
 
   , Option "h" ["help"] (NoArg setHelp)
     "display this message"
+
+  , Option ""  ["ignore-dot-cryptol"] (NoArg setDotCDisabled)
+    "disable reading of .cryptol files"
+
+  , Option ""  ["cryptol-script"] (ReqArg addDotC "FILE")
+    "read additional .cryptol files"
   ]
 
 -- | Set a single file to be loaded.  This should be extended in the future, if
@@ -71,6 +78,19 @@ setVersion  = modify $ \ opts -> opts { optVersion = True }
 -- | Signal that help should be displayed.
 setHelp :: OptParser Options
 setHelp  = modify $ \ opts -> opts { optHelp = True }
+
+-- | Disable .cryptol files entirely
+setDotCDisabled :: OptParser Options
+setDotCDisabled  = modify $ \ opts -> opts { optDotCryptol = DotCDisabled }
+
+-- | Add another file to read as a .cryptol file, unless .cryptol
+-- files have been disabled
+addDotC :: String -> OptParser Options
+addDotC path = modify $ \ opts ->
+  case optDotCryptol opts of
+    DotCDefault  -> opts { optDotCryptol = DotCFiles [path] }
+    DotCDisabled -> opts
+    DotCFiles xs -> opts { optDotCryptol = DotCFiles (path:xs) }
 
 -- | Parse arguments.
 parseArgs :: [String] -> Either [String] Options
@@ -106,7 +126,9 @@ main  = do
     Right opts
       | optHelp opts    -> displayHelp []
       | optVersion opts -> displayVersion
-      | otherwise       -> repl (optBatch opts) (setupREPL opts)
+      | otherwise       -> repl (optDotCryptol opts)
+                                (optBatch opts)
+                                (setupREPL opts)
 
 setupREPL :: Options -> REPL ()
 setupREPL opts = do
