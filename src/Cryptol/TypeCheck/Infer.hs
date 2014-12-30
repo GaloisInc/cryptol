@@ -479,14 +479,6 @@ checkFun desc ps e tGoal =
      return (foldr (\(x,t) b -> EAbs x t b) e1 args)
 
 
--- | Infer the type of a function.  This is in a separate function
--- because it is used in multiple places (expressions, bindings)
-inferFun :: Doc -> [P.Pattern] -> P.Expr -> InferM (Expr, Type)
-inferFun desc ps e =
-  do ty <- newType (text "type of function" <+> desc) KType
-     e' <- checkFun desc ps e ty
-     return (e',ty)
-
 {-| The type the is the smallest of all -}
 smallest :: [Type] -> InferM Type
 smallest []   = newType (text "length of list comprehension") KNum
