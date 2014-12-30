@@ -4,16 +4,16 @@ Loading module Main
 [warning] at simon.cry2:83:1--92:15:
   Defaulting type parameter 'bits'
              of literal or demoted expression
-             at simon.cry2:87:28--87:30
-  to max (width a`431) 3
+             at simon.cry2:87:34--87:35
+  to max (width a`450) 3
 [warning] at simon.cry2:83:1--92:15:
-  Defaulting 3rd type parameter
-             of expression (@)
-             at simon.cry2:90:27--90:28
-  to width a`433
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at simon.cry2:90:29--90:31
+  to width a`452
 [warning] at simon.cry2:83:1--92:15:
-  Defaulting 3rd type parameter
-             of expression (@)
-             at simon.cry2:89:29--89:30
-  to max (width (a`432 - 1)) (max (width a`431) 6)
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at simon.cry2:89:36--89:38
+  to max (width (a`451 - 1)) (max (width a`450) 6)
 True
