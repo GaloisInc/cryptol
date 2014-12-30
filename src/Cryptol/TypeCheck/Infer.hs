@@ -386,15 +386,14 @@ expectRec fs ty =
     TRec ls | Just tys <- mapM checkField ls ->
          return tys
 
-    TVar _ ->
-      do (tys,res) <- genTys
-         newGoals CtExactType =<< unify (TRec tys) ty
-         return res
-
     _ ->
       do (tys,res) <- genTys
-         recordError (TypeMismatch (TRec tys) ty)
+         case ty of
+           TVar TVFree{} -> do ps <- unify (TRec tys) ty
+                               newGoals CtExactType ps
+           _ -> recordError (TypeMismatch (TRec tys) ty)
          return res
+
   where
   checkField (n,t) =
     do f <- find (\f -> thing (P.name f) == n) fs
@@ -420,7 +419,7 @@ expectFin n ty =
     TCon (TC (TCNum n')) [] | toInteger n == n' ->
          return ()
 
-    TVar _ ->
+    TVar TVFree{} ->
       do newGoals CtExactType =<< unify (tNum n) ty
 
     _ ->
@@ -440,16 +439,13 @@ expectFun  = go []
         TCon (TC TCFun) [a,b] ->
              go (a:tys) (arity - 1) b
 
-        TVar _ ->
-          do args <- genArgs arity
-             res  <- newType (text "result of function") KType
-             newGoals CtExactType =<< unify (foldr tFun res args) ty
-             return (reverse tys ++ args, res)
-
         _ ->
           do args <- genArgs arity
              res  <- newType (text "result of function") KType
-             recordError (TypeMismatch (foldr tFun res args) ty)
+             case ty of
+               TVar TVFree{} -> do ps <- unify (foldr tFun res args) ty
+                                   newGoals CtExactType  ps
+               _             -> recordError (TypeMismatch (foldr tFun res args) ty)
              return (reverse tys ++ args, res)
 
     | otherwise =
