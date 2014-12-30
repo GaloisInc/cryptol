@@ -4,16 +4,16 @@ Loading module test01
 module test01
 import Cryptol
 /* Not recursive */
-test01::a : {a, b} (fin b) => [b]a -> [2 * b]a
-test01::a = \{a, b} (fin b) ->
-            (\ (x : [b]a) ->
-             f b x
+test01::a : {a, b} (fin a) => [a]b -> [2 * a]b
+test01::a = \{a, b} (fin a) ->
+            (\ (x : [a]b) ->
+             f a x
              where
                /* Not recursive */
-               f : {c} [c]a -> [b + c]a
-               f = \{c} (y : [c]a) -> (#) b c a <> x y
+               f : {c} [c]b -> [a + c]b
+               f = \{c} (y : [c]b) -> (#) a c b <> x y
                
-             ) : [b]a -> [2 * b]a
+             ) : [a]b -> [2 * a]b
 
 Loading module Cryptol
 Loading module test01

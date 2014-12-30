@@ -14,30 +14,30 @@ Loading module Main
     This binding for ss shadows the existing binding from
     (at check09.cry:5:1--5:3, Main::ss)
 [warning] at check09.cry:17:1--30:54:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at check09.cry:17:15--17:17
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at check09.cry:17:18--17:28
   to 3
 [warning] at :1:1--37:28:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at check09.cry:14:15--14:17
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at check09.cry:13:18--13:26
   to 2
 [warning] at :1:1--37:28:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at check09.cry:13:15--13:17
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at check09.cry:14:18--14:26
   to 2
 [warning] at <interactive>:1:1--1:15:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at <interactive>:1:4--1:6
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at <interactive>:1:7--1:15
   to 2
 [0x00000008, 0x00004080, 0x00068c00, 0x00a22800]
 [warning] at <interactive>:1:1--1:15:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at <interactive>:1:4--1:6
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at <interactive>:1:7--1:15
   to 2
 [0x00000800, 0x00005080, 0x00072d00, 0x00b08200]
 [0x00000008, 0x131b638b, 0x4fdd24a2, 0xb9094711, 0xa9cc106f,

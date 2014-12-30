@@ -2,8 +2,8 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at :1:1--12:70:
-  Defaulting 3rd type parameter
-             of expression (!)
-             at check22.cry:3:18--3:19
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at check22.cry:3:31--3:32
   to 4
 True
