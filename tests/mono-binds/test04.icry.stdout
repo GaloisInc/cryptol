@@ -22,11 +22,11 @@ Loading module test04
              at test04.cry:3:19--3:21
   to 4
 
-[error] at test04.cry:3:17--3:21:
+[error] at test04.cry:3:19--3:21:
   Type mismatch:
-    Expected type: [?b3]
-    Inferred type: ()
+    Expected type: ()
+    Inferred type: [?k3]
   where
-  ?b3 is type parameter 'bits'
+  ?k3 is type parameter 'bits'
          of literal or demoted expression
          at test04.cry:3:19--3:21

@@ -21,15 +21,15 @@ Loading module test02
 module test02
 import Cryptol
 /* Not recursive */
-test02::test : {a, b} a -> b
-test02::test = \{a, b} (a : a) ->
+test02::test : {a, b} b -> a
+test02::test = \{a, b} (a : b) ->
                f a
                where
                  /* Recursive */
-                 f : a -> b
-                 f = \ (x : a) -> g a
-                 g : a -> b
-                 g = \ (x : a) -> f x
+                 f : b -> a
+                 f = \ (x : b) -> g a
+                 g : b -> a
+                 g = \ (x : b) -> f x
                  
                
 
