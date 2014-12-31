@@ -236,6 +236,10 @@ instance Applicative FM where
   pure x          = FM (pure x)
   FM mf <*> FM mx = FM (mf <*> mx)
 
+instance Alternative FM where
+  empty = mzero
+  (<|>) = mplus
+
 instance Monad FM where
   return x        = FM (return x)
   FM mf >>= k     = FM (mf >>= unFM . k)
