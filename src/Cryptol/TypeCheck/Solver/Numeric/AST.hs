@@ -1,6 +1,7 @@
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveGeneric #-}
 -- | The sytnax of numeric propositions.
 module Cryptol.TypeCheck.Solver.Numeric.AST
   ( Name, toName, sysName, fromName, ppName
@@ -18,20 +19,16 @@ module Cryptol.TypeCheck.Solver.Numeric.AST
   , IfExpr(..), ppIfExpr
 
   , Subst, HasVars(..), cryLet
-
-  , PropMap(..)
-  , ExprMap(..)
   ) where
 
 import          Cryptol.TypeCheck.Solver.InfNat ( Nat'(..) )
-import          Cryptol.TypeCheck.TypeMap ( TrieMap(..), mapWithKeyTM )
 import          Cryptol.Utils.Panic ( panic )
 import          Cryptol.Utils.Misc ( anyJust )
 
-import           Control.Monad ( mplus )
+import           Data.GenericTrie (TrieKey)
+import           GHC.Generics(Generic)
 import           Data.Map ( Map )
 import qualified Data.Map as Map
-import           Data.Maybe ( isNothing )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import qualified Control.Applicative as A
@@ -50,7 +47,7 @@ infixr 8 :^^
 
 
 data Name = UserName Int | SysName Int
-            deriving (Show,Eq,Ord)
+            deriving (Show,Eq,Ord,Generic)
 
 toName :: Int -> Name
 toName = UserName
@@ -82,7 +79,7 @@ data Prop =
   | Prop :&& Prop | Prop :|| Prop
   | Not Prop
   | PFalse | PTrue
-    deriving (Eq,Show)
+    deriving (Eq,Show,Generic)
 
 
 -- | Expressions, representing Cryptol's numeric types.
@@ -100,7 +97,7 @@ data Expr = K Nat'
           | Width Expr
           | LenFromThen   Expr Expr Expr
           | LenFromThenTo Expr Expr Expr
-            deriving (Eq,Show)
+            deriving (Eq,Show,Generic)
 
 
 -- | The constant @0@.
@@ -295,322 +292,9 @@ instance HasVars Prop where
 -- Tries
 --------------------------------------------------------------------------------
 
-data PropMap a = EmptyPM
-               | PropMap { pmFin   :: ExprMap a
-                         , pmEq
-                         , pmGeq
-                         , pmGt
-                         , pmEqH
-                         , pmGtH   :: ExprMap (ExprMap a)
-                         , pmAnd
-                         , pmOr    :: PropMap (PropMap a)
-                         , pmNot   :: PropMap a
-                         , pmFalse
-                         , pmTrue  :: Maybe a
-                         }
-
-instance TrieMap PropMap Prop where
-  nullTM EmptyPM        = True
-  nullTM PropMap { .. } = and [ nullTM pmFin
-                              , nullTM pmEq
-                              , nullTM pmGeq
-                              , nullTM pmGt
-                              , nullTM pmEqH
-                              , nullTM pmGtH
-                              , nullTM pmAnd
-                              , nullTM pmOr
-                              , nullTM pmNot
-                              , isNothing pmFalse
-                              , isNothing pmTrue
-                              ]
-
-
-  emptyTM = EmptyPM
-
-  lookupTM _ EmptyPM        = Nothing
-  lookupTM p PropMap { .. } = go p
-    where
-
-    go (Fin e)          = lookupTM e pmFin
-
-    go (a :== b)        = lookupTM b =<< lookupTM a pmEq
-    go (a :>= b)        = lookupTM b =<< lookupTM a pmGeq
-    go (a :>  b)        = lookupTM b =<< lookupTM a pmGt
-
-    go (a :==: b)       = lookupTM b =<< lookupTM a pmEqH
-    go (a :>:  b)       = lookupTM b =<< lookupTM a pmGtH
-
-    go (a :&& b)        = lookupTM b =<< lookupTM a pmAnd
-    go (a :|| b)        = lookupTM b =<< lookupTM a pmOr
-    go (Not a)          = lookupTM a pmNot
-
-    go PFalse           = pmFalse
-    go PTrue            = pmTrue
-
-  alterTM p f EmptyPM = alterTM p f
-    PropMap { pmFin   = emptyTM
-            , pmEq    = emptyTM
-            , pmGeq   = emptyTM
-            , pmGt    = emptyTM
-            , pmEqH   = emptyTM
-            , pmGtH   = emptyTM
-            , pmAnd   = emptyTM
-            , pmOr    = emptyTM
-            , pmNot   = emptyTM
-            , pmFalse = Nothing
-            , pmTrue  = Nothing
-            }
-
-  alterTM p f PropMap { .. } = go p
-    where
-
-    alter k (Just m) = Just (alterTM k f m)
-    alter _ Nothing  = Nothing
-
-    go (Fin e)          = PropMap { pmFin = alterTM e f pmFin, .. }
-
-    go (a :== b)        = PropMap { pmEq  = alterTM a (alter b) pmEq,  .. }
-    go (a :>= b)        = PropMap { pmGeq = alterTM a (alter b) pmGeq, .. }
-    go (a :>  b)        = PropMap { pmGt  = alterTM a (alter b) pmGt,  .. }
-
-    go (a :==: b)       = PropMap { pmEqH = alterTM a (alter b) pmEqH, .. }
-    go (a :>:  b)       = PropMap { pmGtH = alterTM a (alter b) pmGtH, .. }
-
-    go (a :&& b)        = PropMap { pmAnd = alterTM a (alter b) pmAnd, .. }
-    go (a :|| b)        = PropMap { pmOr  = alterTM a (alter b) pmOr,  .. }
-    go (Not a)          = PropMap { pmNot = alterTM a f         pmNot, .. }
-
-    go PFalse           = PropMap { pmFalse = f pmFalse, .. }
-    go PTrue            = PropMap { pmTrue  = f pmTrue,  .. }
-
-  unionTM _ EmptyPM r       = r
-  unionTM _ l       EmptyPM = l
-  unionTM f l       r       =
-    PropMap { pmFin   = unionTM          f  (pmFin l) (pmFin r)
-            , pmEq    = unionTM (unionTM f) (pmEq  l) (pmEq  r)
-            , pmGeq   = unionTM (unionTM f) (pmGeq l) (pmGeq r)
-            , pmGt    = unionTM (unionTM f) (pmGt  l) (pmGt  r)
-            , pmEqH   = unionTM (unionTM f) (pmEqH l) (pmEqH r)
-            , pmGtH   = unionTM (unionTM f) (pmGtH l) (pmGtH r)
-            , pmAnd   = unionTM (unionTM f) (pmAnd l) (pmAnd r)
-            , pmOr    = unionTM (unionTM f) (pmOr  l) (pmOr  r)
-            , pmNot   = unionTM          f  (pmNot l) (pmNot r)
-            , pmFalse = case (pmFalse l, pmFalse r) of
-                          (Just a, Just b) -> Just (f a b)
-                          (mbL, mbR)       -> mbL `mplus` mbR
-            , pmTrue  = case (pmTrue l, pmFalse r) of
-                          (Just a, Just b) -> Just (f a b)
-                          (mbL, mbR)       -> mbL `mplus` mbR
-            }
-
-  toListTM EmptyPM        = []
-  toListTM PropMap { .. } =
-    [ (Fin x   ,a) | (x,a)  <- toListTM pmFin                      ] ++
-    [ (l :==  r,a) | (l,m)  <- toListTM pmEq,  (r,a) <- toListTM m ] ++
-    [ (l :>=  r,a) | (l,m)  <- toListTM pmGeq, (r,a) <- toListTM m ] ++
-    [ (l :>   r,a) | (l,m)  <- toListTM pmGt,  (r,a) <- toListTM m ] ++
-    [ (l :==: r,a) | (l,m)  <- toListTM pmEqH, (r,a) <- toListTM m ] ++
-    [ (l :>:  r,a) | (l,m)  <- toListTM pmGtH, (r,a) <- toListTM m ] ++
-    [ (l :&&  r,a) | (l,m)  <- toListTM pmAnd, (r,a) <- toListTM m ] ++
-    [ (l :||  r,a) | (l,m)  <- toListTM pmOr,  (r,a) <- toListTM m ] ++
-    [ (Not x   ,a) | (x,a)  <- toListTM pmNot                      ] ++
-    [ (PFalse  ,a) | Just a <- [pmFalse]                           ] ++
-    [ (PTrue   ,a) | Just a <- [pmTrue]                            ]
-
-  mapMaybeWithKeyTM _ EmptyPM        = EmptyPM
-  mapMaybeWithKeyTM f PropMap { .. } =
-    PropMap { pmFin   = mapMaybeWithKeyTM (\t -> f (Fin t)) pmFin
-            , pmEq    = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :==  r))) pmEq
-            , pmGeq   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :>=  r))) pmGeq
-            , pmGt    = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :>   r))) pmGt
-            , pmEqH   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :==: r))) pmEqH
-            , pmGtH   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :>:  r))) pmGtH
-            , pmAnd   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :&&  r))) pmAnd
-            , pmOr    = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :||  r))) pmOr
-            , pmNot   = mapMaybeWithKeyTM (\p -> f (Not p)) pmNot
-            , pmFalse = f PFalse =<< pmFalse
-            , pmTrue  = f PTrue  =<< pmTrue
-            }
-
-
-data ExprMap a = EmptyEM
-               | ExprMap { emK             :: Map.Map Nat' a
-                         , emVar           :: Map.Map Name a
-                         , emAdd
-                         , emSub
-                         , emMul
-                         , emDiv
-                         , emMod
-                         , emExp
-                         , emMin
-                         , emMax           :: ExprMap (ExprMap a)
-                         , emLg2 
-                         , emWidth         :: ExprMap a
-                         , emLenFromThen
-                         , emLenFromThenTo :: ExprMap (ExprMap (ExprMap a))
-                         }
-
-instance TrieMap ExprMap Expr where
-
-  nullTM EmptyEM        = True
-  nullTM ExprMap { .. } = and [ nullTM emK
-                              , nullTM emVar
-                              , nullTM emAdd
-                              , nullTM emSub
-                              , nullTM emMul
-                              , nullTM emDiv
-                              , nullTM emMod
-                              , nullTM emExp
-                              , nullTM emMin
-                              , nullTM emMax
-                              , nullTM emLg2
-                              , nullTM emWidth
-                              , nullTM emLenFromThen
-                              , nullTM emLenFromThenTo
-                              ]
-
-  emptyTM = EmptyEM
-
-  lookupTM _ EmptyEM        = Nothing
-  lookupTM e ExprMap { .. } = go e
-    where
-
-    go (K n)            = Map.lookup n emK
-    go (Var n)          = Map.lookup n emVar
-    go (a :+ b)         = lookupTM b =<< lookupTM a emAdd
-    go (a :- b)         = lookupTM b =<< lookupTM a emSub
-    go (a :* b)         = lookupTM b =<< lookupTM a emMul
-    go (Div a b)        = lookupTM b =<< lookupTM a emDiv
-    go (Mod a b)        = lookupTM b =<< lookupTM a emMod
-    go (a :^^ b)        = lookupTM b =<< lookupTM a emExp
-    go (Min a b)        = lookupTM b =<< lookupTM a emMin
-    go (Max a b)        = lookupTM b =<< lookupTM a emMax
-    go (Lg2 a)          = lookupTM a emLg2
-    go (Width a)        = lookupTM a emWidth
-
-    go (LenFromThen a b c) = lookupTM c
-                         =<< lookupTM b
-                         =<< lookupTM a emLenFromThen
-
-    go (LenFromThenTo a b c) = lookupTM c
-                           =<< lookupTM b
-                           =<< lookupTM a emLenFromThenTo
-
-  alterTM e f EmptyEM = alterTM e f
-    ExprMap { emK             = emptyTM
-            , emVar           = emptyTM
-            , emAdd           = emptyTM
-            , emSub           = emptyTM
-            , emMul           = emptyTM
-            , emDiv           = emptyTM
-            , emMod           = emptyTM
-            , emExp           = emptyTM
-            , emMin           = emptyTM
-            , emMax           = emptyTM
-            , emLg2           = emptyTM
-            , emWidth         = emptyTM
-            , emLenFromThen   = emptyTM
-            , emLenFromThenTo = emptyTM
-            }
-
-  alterTM e f ExprMap { .. } = go e
-    where
-
-    alter k (Just m) = Just (alterTM k f m)
-    alter _ Nothing  = Nothing
-
-    go (K n)            = ExprMap { emK   = Map.alter f n emK,   .. }
-    go (Var n)          = ExprMap { emVar = Map.alter f n emVar, .. }
-
-    go (a :+ b)         = ExprMap { emAdd = alterTM a (alter b) emAdd, .. }
-    go (a :- b)         = ExprMap { emSub = alterTM a (alter b) emSub, .. }
-    go (a :* b)         = ExprMap { emMul = alterTM a (alter b) emMul, .. }
-    go (Div a b)        = ExprMap { emDiv = alterTM a (alter b) emDiv, .. }
-    go (Mod a b)        = ExprMap { emMod = alterTM a (alter b) emMod, .. }
-    go (a :^^ b)        = ExprMap { emExp = alterTM a (alter b) emExp, .. }
-    go (Min a b)        = ExprMap { emMin = alterTM a (alter b) emMin, .. }
-    go (Max a b)        = ExprMap { emMax = alterTM a (alter b) emMax, .. }
-
-    go (Lg2 a)          = ExprMap { emLg2   = alterTM a f emLg2,   .. }
-    go (Width a)        = ExprMap { emWidth = alterTM a f emWidth, .. }
-
-    go (LenFromThen a b c)   =
-      ExprMap { emLenFromThen = alterTM a (fmap (alterTM b (alter c))) emLenFromThen, .. }
-
-    go (LenFromThenTo a b c) =
-      ExprMap { emLenFromThenTo = alterTM a (fmap (alterTM b (alter c))) emLenFromThenTo, .. }
-
-  unionTM _ EmptyEM r       = r
-  unionTM _ l       EmptyEM = l
-  unionTM f l       r       =
-    ExprMap { emK             = unionTM          f  (emK     l) (emK     r)
-            , emVar           = unionTM          f  (emVar   l) (emVar   r)
-            , emAdd           = unionTM (unionTM f) (emAdd   l) (emAdd   r)
-            , emSub           = unionTM (unionTM f) (emSub   l) (emSub   r)
-            , emMul           = unionTM (unionTM f) (emMul   l) (emMul   r)
-            , emDiv           = unionTM (unionTM f) (emDiv   l) (emDiv   r)
-            , emMod           = unionTM (unionTM f) (emMod   l) (emMod   r)
-            , emExp           = unionTM (unionTM f) (emExp   l) (emExp   r)
-            , emMin           = unionTM (unionTM f) (emMin   l) (emMin   r)
-            , emMax           = unionTM (unionTM f) (emMax   l) (emMax   r)
-            , emLg2           = unionTM          f  (emLg2   l) (emLg2   r)
-            , emWidth         = unionTM          f  (emWidth l) (emWidth r)
-
-            , emLenFromThen   = unionTM (unionTM (unionTM f)) (emLenFromThen l)
-                                                              (emLenFromThen r)
-            , emLenFromThenTo = unionTM (unionTM (unionTM f)) (emLenFromThenTo l)
-                                                              (emLenFromThenTo r)
-            }
-
-  toListTM EmptyEM        = []
-  toListTM ExprMap { .. } =
-    [ (K n    , a) | (n,a) <- Map.toList emK                      ] ++
-    [ (Var n  , a) | (n,a) <- Map.toList emVar                    ] ++
-    [ (l :+ r , a) | (l,m) <- toListTM emAdd, (r,a) <- toListTM m ] ++
-    [ (l :- r , a) | (l,m) <- toListTM emSub, (r,a) <- toListTM m ] ++
-    [ (l :* r , a) | (l,m) <- toListTM emMul, (r,a) <- toListTM m ] ++
-    [ (Div l r, a) | (l,m) <- toListTM emDiv, (r,a) <- toListTM m ] ++
-    [ (Mod l r, a) | (l,m) <- toListTM emMod, (r,a) <- toListTM m ] ++
-    [ (l :^^ r, a) | (l,m) <- toListTM emExp, (r,a) <- toListTM m ] ++
-    [ (Min l r, a) | (l,m) <- toListTM emMin, (r,a) <- toListTM m ] ++
-    [ (Max l r, a) | (l,m) <- toListTM emMax, (r,a) <- toListTM m ] ++
-    [ (Lg2 x  , a) | (x,a) <- toListTM emLg2                      ] ++
-    [ (Width x, a) | (x,a) <- toListTM emWidth                    ] ++
-
-    [ (LenFromThen x y z, a) | (x,m1) <- toListTM emLenFromThen
-                             , (y,m2) <- toListTM m1
-                             , (z,a)  <- toListTM m2 ] ++
-
-    [ (LenFromThenTo x y z, a) | (x,m1) <- toListTM emLenFromThenTo
-                               , (y,m2) <- toListTM m1
-                               , (z,a)  <- toListTM m2 ]
-
-  mapMaybeWithKeyTM _ EmptyEM        = EmptyEM
-  mapMaybeWithKeyTM f ExprMap { .. } =
-    ExprMap { emK     = mapMaybeWithKeyTM (\n -> f (K   n)) emK
-            , emVar   = mapMaybeWithKeyTM (\n -> f (Var n)) emVar
-
-            , emAdd   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :+  r))) emAdd
-            , emSub   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :-  r))) emSub
-            , emMul   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :*  r))) emMul
-            , emDiv   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (Div l r))) emDiv
-            , emMod   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (Mod l r))) emMod
-            , emExp   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (l :^^ r))) emExp
-            , emMin   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (Min l r))) emMin
-            , emMax   = mapWithKeyTM (\l -> mapMaybeWithKeyTM (\r -> f (Max l r))) emMax
-
-            , emLg2   = mapMaybeWithKeyTM (\a -> f (Lg2   a)) emLg2
-            , emWidth = mapMaybeWithKeyTM (\a -> f (Width a)) emWidth
-
-            , emLenFromThen   = mapWithKeyTM (\x ->
-                                mapWithKeyTM (\y ->
-                           mapMaybeWithKeyTM (\z -> f (LenFromThen x y z)))) emLenFromThen
-
-            , emLenFromThenTo = mapWithKeyTM (\x ->
-                                mapWithKeyTM (\y ->
-                           mapMaybeWithKeyTM (\z -> f (LenFromThenTo x y z)))) emLenFromThenTo
-            }
-
+instance TrieKey Name
+instance TrieKey Prop
+instance TrieKey Expr
 
 
 

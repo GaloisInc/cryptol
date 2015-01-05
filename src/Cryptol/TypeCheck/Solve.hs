@@ -158,13 +158,13 @@ simpGoals s gs0 =
                          do debugBlock s "possibly not defined" $
                               mapM_ (debugLog s . show . pp . goal . fst) nonDef
                             debugBlock s "defined" $
-                              mapM_ (debugLog s . ($ "") . SMT.showsSExpr  . Num.smtpLinPart) def
+                              mapM_ (debugLog s . show . Num.ppProp . Num.dpSimpExprProp) def
 
                        let (su,extraProps) = importSplitImps varMap imps
 
                        let def1 = eliminateSimpleGEQ def
                            toGoal =
-                             case map (fst . fst . Num.smtpOther) def1 of
+                             case map (fst . Num.dpData) def1 of
                                [g] -> \p -> g { goal = p }
                                gs  -> \p ->
                                  Goal { goalRange = rCombs (map goalRange gs)
@@ -177,7 +177,7 @@ simpGoals s gs0 =
                        return $ Just ( apSubst su $ map toGoal extraProps ++
                                        map fst nonDef ++
                                        unsolvedClassCts ++
-                                       map (fst . fst) def2
+                                       map fst def2
                                      , su
                                      )
   where
@@ -238,12 +238,12 @@ lists of literals, so we have special handling for them.  In particular:
 
 NOTE:  This assumes that the goals are well-defined.
 -}
-eliminateSimpleGEQ :: [Num.SMTProp (a,Num.Prop)] -> [Num.SMTProp (a,Num.Prop)]
+eliminateSimpleGEQ :: [Num.DefinedProp a] -> [Num.DefinedProp a]
 eliminateSimpleGEQ = go Map.empty []
   where
 
   go geqs other (g : rest) =
-    case snd (Num.smtpOther g) of
+    case Num.dpSimpExprProp g of
       _ Num.:>= Num.K (Num.Nat 0) ->
           go geqs  other rest
 

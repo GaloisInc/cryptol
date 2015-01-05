@@ -1,16 +1,33 @@
 {-# LANGUAGE Safe #-}
 -- | Separate Non-Linear Constraints
---
--- TODO: When naming non-linear terms,
--- use the same name for the same expression.
 module Cryptol.TypeCheck.Solver.Numeric.NonLin
   ( nonLinProp
+  , NonLinS
+  , initialNonLinS
   ) where
 
 import Cryptol.TypeCheck.Solver.Numeric.AST
 import Cryptol.Utils.Panic(panic)
 
+import           Data.GenericTrie (Trie)
+import qualified Data.GenericTrie as Trie
 import MonadLib
+
+-- | Factor-out non-linear terms, by naming them
+nonLinProp :: NonLinS -> Prop -> ([(Name,Expr)], Prop, NonLinS)
+nonLinProp s0 prop = case runId $ runStateT s0 $ nonLinPropM prop of
+                       (p, sFin) -> ( nonLinExprs sFin
+                                    , p
+                                    , sFin { nonLinExprs = [] }
+                                    )
+
+-- | The initial state for the linearization process.
+initialNonLinS :: NonLinS
+initialNonLinS = NonLinS
+  { nextName = 0
+  , nonLinExprs = []
+  , nlKnown = Trie.empty
+  }
 
 
 -- | Is the top-level operator a non-linear one.
@@ -60,14 +77,6 @@ isNonLinOp expr =
                               -- sure how to do that...
 
 
--- | Factor-out non-linear terms, by naming them
-nonLinProp :: Int -> Prop -> ([(Name,Expr)], Prop, Int)
-nonLinProp name prop = case runId $ runStateT s0 $ nonLinPropM prop of
-                         (p, sFin) -> (nonLinExprs sFin, p, nextName sFin)
-  where
-  s0 = NonLinS { nextName = name, nonLinExprs = [] }
-
-
 nonLinPropM :: Prop -> NonLinM Prop
 nonLinPropM prop =
   case prop of
@@ -102,17 +111,19 @@ type NonLinM = StateT NonLinS Id
 data NonLinS = NonLinS
   { nextName    :: !Int
   , nonLinExprs :: [(Name,Expr)]
+  , nlKnown     :: Trie Expr Name
   }
 
 nameExpr :: Expr -> NonLinM Expr
 nameExpr e = sets $ \s ->
-  case [ x | (x,e1) <- nonLinExprs s, e == e1 ] of    -- XXX: inefficient!
-    x : _ -> (Var x,s)
-    [] ->
+  case Trie.lookup e (nlKnown s) of
+    Just x -> (Var x, s)
+    Nothing ->
       let x  = nextName s
           n  = sysName x
           s1 = NonLinS { nextName = 1 + x
                        , nonLinExprs = (n,e) : nonLinExprs s
+                       , nlKnown = Trie.insert e n (nlKnown s)
                        }
       in s1 `seq` (Var n, s1)
 
