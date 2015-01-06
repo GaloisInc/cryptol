@@ -1,5 +1,6 @@
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Cryptol.TypeCheck.Solver.CrySAT
   ( withScope, withSolver
   , assumeProps, checkDefined, simplifyProps
