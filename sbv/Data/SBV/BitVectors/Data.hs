@@ -1262,8 +1262,8 @@ data SMTLibVersion = SMTLib1
 data SMTLibPgm = SMTLibPgm SMTLibVersion  ( [(String, SW)]          -- alias table
                                           , [String]                -- pre: declarations.
                                           , [String])               -- post: formula
-instance NFData SMTLibVersion
-instance NFData SMTLibPgm
+instance NFData SMTLibVersion where rnf _ = ()
+instance NFData SMTLibPgm     where rnf _ = ()
 
 instance Show SMTLibPgm where
   show (SMTLibPgm _ (_, pre, post)) = intercalate "\n" $ pre ++ post
@@ -1278,18 +1278,18 @@ instance NFData Result where
                        `seq` rnf consts `seq` rnf tbls `seq` rnf arrs
                        `seq` rnf uis    `seq` rnf axs  `seq` rnf pgm
                        `seq` rnf cstr   `seq` rnf outs
-instance NFData Kind
-instance NFData ArrayContext
-instance NFData SW
-instance NFData SBVExpr
-instance NFData Quantifier
-instance NFData SBVType
-instance NFData UnintKind
+instance NFData Kind           where rnf _ = ()
+instance NFData ArrayContext   where rnf _ = ()
+instance NFData SW             where rnf _ = ()
+instance NFData SBVExpr        where rnf _ = ()
+instance NFData Quantifier     where rnf _ = ()
+instance NFData SBVType        where rnf _ = ()
+instance NFData UnintKind      where rnf _ = ()
 instance NFData a => NFData (Cached a) where
   rnf (Cached f) = f `seq` ()
 instance NFData a => NFData (SBV a) where
   rnf (SBV x y) = rnf x `seq` rnf y `seq` ()
-instance NFData SBVPgm
+instance NFData SBVPgm where rnf _ = ()
 
 instance NFData SMTResult where
   rnf (Unsatisfiable _)   = ()

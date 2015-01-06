@@ -73,6 +73,7 @@
 -- XXX: Make sure that this really is the case for types!!
 
 {-# LANGUAGE PatternGuards, FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Cryptol.Transform.MonoValues (rewModule) where
 
 import Cryptol.Parser.AST (Pass(MonoValues))
