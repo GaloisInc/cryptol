@@ -97,7 +97,7 @@ data Expr = K Nat'
           | Width Expr
           | LenFromThen   Expr Expr Expr
           | LenFromThenTo Expr Expr Expr
-            deriving (Eq,Show,Generic)
+            deriving (Eq,Show,Generic,Ord)
 
 
 -- | The constant @0@.

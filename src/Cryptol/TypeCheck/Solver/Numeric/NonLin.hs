@@ -9,9 +9,16 @@ module Cryptol.TypeCheck.Solver.Numeric.NonLin
 import Cryptol.TypeCheck.Solver.Numeric.AST
 import Cryptol.Utils.Panic(panic)
 
+{-
 import           Data.GenericTrie (Trie)
 import qualified Data.GenericTrie as Trie
+-}
+import           Data.Map (Map)
+import qualified Data.Map as Trie
+
 import MonadLib
+
+type Trie = Map
 
 -- | Factor-out non-linear terms, by naming them
 nonLinProp :: NonLinS -> Prop -> ([(Name,Expr)], Prop, NonLinS)
@@ -125,7 +132,7 @@ nameExpr e = sets $ \s ->
                        , nonLinExprs = (n,e) : nonLinExprs s
                        , nlKnown = Trie.insert e n (nlKnown s)
                        }
-      in s1 `seq` (Var n, s1)
+      in (Var n, s1)
 
 
 
