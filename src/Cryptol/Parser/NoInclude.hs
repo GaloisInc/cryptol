@@ -63,6 +63,10 @@ tryNoIncM m = M (try (unM m))
 instance Functor NoIncM where
   fmap = liftM
 
+instance Applicative NoIncM where
+  pure = return
+  (<*>) = ap
+
 instance Monad NoIncM where
   return x = M (return x)
   m >>= f  = M (unM m >>= unM . f)

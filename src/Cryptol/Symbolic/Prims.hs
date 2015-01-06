@@ -8,6 +8,7 @@
 
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Cryptol.Symbolic.Prims where
 
 import Control.Applicative
