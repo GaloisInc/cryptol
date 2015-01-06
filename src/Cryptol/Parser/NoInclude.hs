@@ -20,6 +20,7 @@ import Cryptol.Parser.ParserUtils
 import Cryptol.Utils.PP
 
 import Data.Either (partitionEithers)
+import qualified Control.Applicative as A
 import MonadLib
 import qualified Control.Exception as X
 
@@ -63,7 +64,7 @@ tryNoIncM m = M (try (unM m))
 instance Functor NoIncM where
   fmap = liftM
 
-instance Applicative NoIncM where
+instance A.Applicative NoIncM where
   pure = return
   (<*>) = ap
 
