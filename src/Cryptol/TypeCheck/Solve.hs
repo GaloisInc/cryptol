@@ -38,6 +38,8 @@ import           Data.Set ( Set )
 import qualified Data.Set as Set
 import qualified SimpleSMT as SMT
 
+import           Text.PrettyPrint(text)
+
 -- Add additional constraints that ensure validity of type function.
 checkTypeFunction :: TFun -> [Type] -> [Prop]
 checkTypeFunction TCSub [a,b]             = [ a >== b, pFin b]
@@ -139,15 +141,36 @@ numericRight g  = case Num.exportProp (goal g) of
                     Just (p,vm)  -> Right ((g,vm), p)
                     Nothing -> Left g
 
+_testSimpGoals :: IO ()
+_testSimpGoals = Num.withSolver $ \s ->
+  do mb <- simpGoals s gs
+     case mb of
+       Just (gs1,su) ->
+          do debugBlock s "Simplified goals"
+                $ mapM_ (debugLog s . show . pp . goal) gs1
+             debugLog s (show (pp su))
+       Nothing -> debugLog s "Impossible"
+  where
+  gs = map fakeGoal [ tv 0 =#= num 5 ]
+    -- [ tv 0 =#= tInf, tMod (num 3) (tv 0) =#= num 4 ]
+
+  fakeGoal p = Goal { goalSource = undefined, goalRange = undefined, goal = p }
+  tv n = TVar (TVFree n KNum Set.empty (text "test var"))
+  num x = tNum (x :: Int)
+
 -- | Assumes that the substitution has been applied to the goals.
 simpGoals :: Num.Solver -> [Goal] -> IO (Maybe ([Goal],Subst))
 simpGoals s gs0 =
   do let (unsolvedClassCts,numCts) = solveClassCts gs0
+
          varMap = Map.unions [ vm | ((_,vm),_) <- numCts ]
          updCt prop (g,vs) = case Num.importProp varMap prop of
                                Just [g1] -> (g { goal = g1 }, vs)
-                               -- XXX: Could we get multiple gs?
-                               _         -> (g, vs)
+
+                               r -> panic "simpGoals"
+                                      [ "Unexpected import results"
+                                      , show r
+                                      ]
      case numCts of
        [] -> return $ Just (unsolvedClassCts, emptySubst)
        _  -> do mbOk <- Num.checkDefined s updCt uvs numCts

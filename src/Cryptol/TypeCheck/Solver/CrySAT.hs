@@ -65,7 +65,9 @@ checkDefined s updCt uniVars props0 = withScope s (go Map.empty [] props0)
   where
   go knownImps done notDone =
     do (newNotDone, novelDone) <- checkDefined' s updCt notDone
+       putStrLn "Checking"
        (possible,  imps)       <- check s uniVars
+       putStrLn ("Possible: " ++ show possible)
        if not possible
          then return Nothing
          else
@@ -79,6 +81,7 @@ checkDefined s updCt uniVars props0 = withScope s (go Map.empty [] props0)
                                    )
                 else
                   do mapM_ addImpProp (Map.toList novelImps)
+                     -- Apply subst to knownImps?
                      let newImps    = Map.union novelImps knownImps
                          impDone    = map (updDone novelImps) newDone
                          impNotDone = map (updNotDone novelImps) newNotDone
@@ -114,6 +117,8 @@ checkDefined' s updCt props0 =
      go False [] [] ps
 
   where
+
+
   -- Everything is defined: keep going.
   go _    isDef []       [] = return ([], isDef)
 
@@ -278,7 +283,7 @@ withSolver :: (Solver -> IO a) -> IO a
 withSolver k =
   do logger <- SMT.newLogger
      solver <- SMT.newSolver "cvc4" ["--lang=smt2", "--incremental"]
-                                                   Nothing -- (Just logger)
+                                                   Nothing --} (Just logger)
      SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty
      nameSource <- newIORef 0
@@ -308,7 +313,7 @@ declareVar Solver { .. } a =
           let fin_a = smtFinName a
           _  <- SMT.declare solver fin_a SMT.tBool
           SMT.assert solver (SMT.geq e (SMT.int 0))
-          SMT.assert solver (SMT.const fin_a)     -- HMM ???
+          -- SMT.assert solver (SMT.const fin_a)     -- HMM ???
           modifyIORef' declared (viInsert a)
 
 -- | Add an assertion to the current context.
@@ -352,7 +357,8 @@ check Solver { .. } uniVars =
        SMT.Unsat   -> return (False, Map.empty)
        SMT.Unknown -> return (True, Map.empty)
        SMT.Sat     ->
-         do names <- viNames `fmap` readIORef declared
+         do putStrLn "Trying improvements"
+            names <- viNames `fmap` readIORef declared
             m     <- fmap Map.fromList (mapM getVal names)
             imps  <- toSubst `fmap` cryImproveModel solver uniVars m
 

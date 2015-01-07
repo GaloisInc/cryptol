@@ -40,7 +40,7 @@ crySimplify p = trace ("simp: " ++ show (ppProp p)) $
 
 -- | Simplify a property, if possible.
 crySimplify' :: Prop -> Prop
-crySimplify' p = fromMaybe p (crySimplifyMaybe p)
+crySimplify' p = crySimplify p -- fromMaybe p (crySimplifyMaybe p)
 
 -- | Simplify a property, if possibly.
 crySimplifyMaybe :: Prop -> Maybe Prop
@@ -342,7 +342,6 @@ cryKnownFin a isFin prop =
 
     -- All the other cases should be simplified, eventually.
     _       -> Nothing
-
 
 
 
