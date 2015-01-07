@@ -22,38 +22,52 @@ import qualified Cryptol.TypeCheck.Solver.InfNat as IN
 import           Cryptol.Utils.Panic( panic )
 import           Cryptol.Utils.Misc ( anyJust )
 
+import           Cryptol.Utils.Debug(trace)
+
+import           Control.Monad ( mplus )
 import           Data.List ( sortBy )
 import           Data.Maybe ( fromMaybe )
-import           Control.Monad ( mplus )
 import qualified Data.Set as Set
 
 
 -- | Simplify a property, if possible.
 crySimplify :: Prop -> Prop
-crySimplify p = fromMaybe p (crySimplifyMaybe p)
+crySimplify p = trace ("simp: " ++ show (ppProp p)) $
+                  case crySimplifyMaybe p of
+                    Nothing -> trace "-> (no change)" p
+                    Just p1 -> trace ("-> " ++ show (ppProp p1)) p1
+
+
+-- | Simplify a property, if possible.
+crySimplify' :: Prop -> Prop
+crySimplify' p = fromMaybe p (crySimplifyMaybe p)
 
 -- | Simplify a property, if possibly.
 crySimplifyMaybe :: Prop -> Maybe Prop
 crySimplifyMaybe p =
-  fmap crySimplify (crySimpStep (fromMaybe p2 mbP3))
-  `mplus` mbP3
-  `mplus` mbP2
-  `mplus` mbP1
+  let mbSimpExprs = simpSubs p
+      exprsSimped = fromMaybe p mbSimpExprs
+      mbRearrange = tryRearrange exprsSimped
+      rearranged  = fromMaybe exprsSimped mbRearrange
+  in crySimplify' `fmap` (crySimpStep rearranged `mplus` mbRearrange
+                                                 `mplus` mbSimpExprs)
+
   where
-  mbP1 = crySimpPropExprMaybe p
-  p1   = fromMaybe p mbP1
-  mbP2 = case p1 of
-           _ :&& _ -> cryRearrangeAnd p1
-           _ :|| _ -> cryRearrangeOr  p1
-           _       -> Nothing
-  p2   = fromMaybe p1 mbP2
-  mbP3 = case p2 of
-           Not a   -> Not `fmap` crySimplifyMaybe a
-           a :&& b -> do [a',b'] <- anyJust crySimplifyMaybe [a,b]
-                         return (a' :&& b')
-           a :|| b -> do [a',b'] <- anyJust crySimplifyMaybe [a,b]
-                         return (a' :|| b')
-           _ -> Nothing
+  tryRearrange q = case q of
+                    _ :&& _ -> cryRearrangeAnd q
+                    _ :|| _ -> cryRearrangeOr  q
+                    _       -> Nothing
+
+  simpSubs q = case q of
+                Not a     -> Not `fmap` crySimplifyMaybe a
+                a :&& b   -> do [a',b'] <- anyJust crySimplifyMaybe [a,b]
+                                return (a' :&& b')
+                a :|| b   -> do [a',b'] <- anyJust crySimplifyMaybe [a,b]
+                                return (a' :|| b')
+                _         -> crySimpPropExprMaybe q
+
+
+
 
 
 -- | A single simplification step.
@@ -551,7 +565,7 @@ crySimpExprStep expr =
         (K a, K b)              -> Just (K (IN.nAdd a b))
         (_,  K b)               -> Just (K b :+ x)
 
-        (K a, K b :+ c)         -> Just (K (IN.nAdd a b) :+ x)
+        (K a, K b :+ c)         -> Just (K (IN.nAdd a b) :+ c)
         (K a :+ c1, K b :+ c2)  -> Just (K (IN.nAdd a b) :+ (c1 :+ c2))
 
         (K a,       K b :- c)   -> Just (K (IN.nAdd a b) :- c)
