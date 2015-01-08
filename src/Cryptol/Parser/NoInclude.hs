@@ -18,6 +18,7 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.LexerUtils (Config(..),defaultConfig)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Utils.PP
+import qualified Control.Applicative as A
 
 import Data.Either (partitionEithers)
 import MonadLib
@@ -63,7 +64,7 @@ tryNoIncM m = M (try (unM m))
 instance Functor NoIncM where
   fmap = liftM
 
-instance Applicative NoIncM where
+instance A.Applicative NoIncM where
   pure = return
   (<*>) = ap
 
