@@ -18,6 +18,7 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.LexerUtils (Config(..),defaultConfig)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Utils.PP
+import qualified Control.Applicative as A
 
 import Data.Either (partitionEithers)
 import qualified Control.Applicative as A
