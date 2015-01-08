@@ -22,8 +22,6 @@ import qualified Cryptol.TypeCheck.Solver.InfNat as IN
 import           Cryptol.Utils.Panic( panic )
 import           Cryptol.Utils.Misc ( anyJust )
 
-import           Cryptol.Utils.Debug(trace)
-
 import           Control.Monad ( mplus )
 import           Data.List ( sortBy )
 import           Data.Maybe ( fromMaybe )
@@ -32,15 +30,7 @@ import qualified Data.Set as Set
 
 -- | Simplify a property, if possible.
 crySimplify :: Prop -> Prop
-crySimplify p = trace ("simp: " ++ show (ppProp p)) $
-                  case crySimplifyMaybe p of
-                    Nothing -> trace "-> (no change)" p
-                    Just p1 -> trace ("-> " ++ show (ppProp p1)) p1
-
-
--- | Simplify a property, if possible.
-crySimplify' :: Prop -> Prop
-crySimplify' p = crySimplify p -- fromMaybe p (crySimplifyMaybe p)
+crySimplify p = fromMaybe p (crySimplifyMaybe p)
 
 -- | Simplify a property, if possibly.
 crySimplifyMaybe :: Prop -> Maybe Prop
@@ -49,8 +39,8 @@ crySimplifyMaybe p =
       exprsSimped = fromMaybe p mbSimpExprs
       mbRearrange = tryRearrange exprsSimped
       rearranged  = fromMaybe exprsSimped mbRearrange
-  in crySimplify' `fmap` (crySimpStep rearranged `mplus` mbRearrange
-                                                 `mplus` mbSimpExprs)
+  in crySimplify `fmap` (crySimpStep rearranged `mplus` mbRearrange
+                                                `mplus` mbSimpExprs)
 
   where
   tryRearrange q = case q of
@@ -426,7 +416,7 @@ cryIsFin expr =
       Just ( Fin t1 :&& Fin t2
          :|| t1 :== inf :&& t2 :== zero   -- inf ^^ 0
          :|| t2 :== inf :&& (t1 :== zero :|| t1 :== one)
-                           -- 0 ^^ inf,                  1 ^^ inf
+                             -- 0 ^^ inf,    1 ^^ inf
            )
 
     Min t1 t2            -> Just (Fin t1 :|| Fin t2)
@@ -713,7 +703,6 @@ cryNoInf expr =
                            $ mkIf (x' :==: one)  (return one)
                            $ return inf
            _              -> return (x' :^^ y')
-
 
 
 

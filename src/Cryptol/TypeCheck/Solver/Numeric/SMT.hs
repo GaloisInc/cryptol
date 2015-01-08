@@ -59,10 +59,10 @@ desugarProp prop =
     p :&& q     -> (:&&) `fmap` desugarProp p `ap` desugarProp q
     p :|| q     -> (:||) `fmap` desugarProp p `ap` desugarProp q
     Fin (Var _) -> return prop
-    Fin _       -> unexpected
     x :==: y    -> (:==:) `fmap` desugarExpr x `ap` desugarExpr y
     x :>: y     -> (:>:)  `fmap` desugarExpr x `ap` desugarExpr y
 
+    Fin _     -> unexpected
     _ :== _   -> unexpected
     _ :>= _   -> unexpected
     _ :> _    -> unexpected
@@ -86,9 +86,17 @@ propToSmtLib prop =
     Not p       -> SMT.not (propToSmtLib p)
     p :&& q     -> SMT.and (propToSmtLib p) (propToSmtLib q)
     p :|| q     -> SMT.or  (propToSmtLib p) (propToSmtLib q)
-    Fin (Var x) -> SMT.const (smtFinName x)
-    x :==: y    -> SMT.eq (exprToSmtLib x) (exprToSmtLib y)
-    x :>: y     -> SMT.gt (exprToSmtLib x) (exprToSmtLib y)
+    Fin (Var x) -> fin x
+
+    {- For the linear constraints, if the term is finite, then all of
+       its variables must have been finite.
+
+       XXX: Adding the `fin` decls at the leaves leads to some duplication:
+       We could add them just once for each conjunctoin of simple formulas,
+       but I am not sure how much this matters.
+    -}
+    x :==: y    -> addFin x y $ SMT.eq (exprToSmtLib x) (exprToSmtLib y)
+    x :>: y     -> addFin x y $ SMT.gt (exprToSmtLib x) (exprToSmtLib y)
 
     Fin _       -> unexpected
     _ :== _     -> unexpected
@@ -97,20 +105,24 @@ propToSmtLib prop =
 
   where
   unexpected = panic "desugarProp" [ show (ppProp prop) ]
+  fin x      = SMT.const (smtFinName x)
 
+  addFin x y e = foldr (\x e' -> SMT.and (fin x) e') e
+                   (Set.toList (cryExprFVS x `Set.union` cryExprFVS y))
 
 exprToSmtLib :: Expr -> SExpr
 exprToSmtLib expr =
 
   case expr of
     K (Nat n)           -> SMT.int n
-    K Inf               -> unexpected
     Var a               -> SMT.const (smtName a)
     x :+ y              -> SMT.add (exprToSmtLib x) (exprToSmtLib y)
     x :- y              -> SMT.sub (exprToSmtLib x) (exprToSmtLib y)
     x :* y              -> SMT.mul (exprToSmtLib x) (exprToSmtLib y)
     Div x y             -> SMT.div (exprToSmtLib x) (exprToSmtLib y)
     Mod x y             -> SMT.mod (exprToSmtLib x) (exprToSmtLib y)
+
+    K Inf               -> unexpected
     _ :^^ _             -> unexpected
     Min {}              -> unexpected
     Max {}              -> unexpected

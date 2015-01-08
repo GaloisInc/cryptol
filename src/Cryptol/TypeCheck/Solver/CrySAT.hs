@@ -313,7 +313,6 @@ declareVar Solver { .. } a =
           let fin_a = smtFinName a
           _  <- SMT.declare solver fin_a SMT.tBool
           SMT.assert solver (SMT.geq e (SMT.int 0))
-          -- SMT.assert solver (SMT.const fin_a)     -- HMM ???
           modifyIORef' declared (viInsert a)
 
 -- | Add an assertion to the current context.

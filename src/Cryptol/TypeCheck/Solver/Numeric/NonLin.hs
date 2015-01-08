@@ -49,12 +49,12 @@ isNonLinOp expr =
 
     Div _ y ->
       case y of
-        K _       -> False
+        K (Nat n) -> n /= 0
         _         -> True
 
     Mod _ y ->
       case y of
-        K _       -> False
+        K (Nat n) -> n /= 0
         _         -> True
 
     _ :^^ _       -> True
