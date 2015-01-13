@@ -22,8 +22,6 @@ import Data.Traversable (traverse)
 import qualified Control.Exception as X
 
 import qualified Data.SBV as SBV
-import Data.SBV.Provers.Prover hiding (verbose)
-import Data.SBV.BitVectors.Data hiding (verbose)
 
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
@@ -67,11 +65,11 @@ lookupProver s =
 -- counterexample or satisfying assignment.
 type ProverResult = Either String (Either [Type] [(Type, Expr, Eval.Value)])
 
-satSMTResult :: SatResult -> SMTResult
-satSMTResult (SatResult r) = r
+satSMTResult :: SBV.SatResult -> SBV.SMTResult
+satSMTResult (SBV.SatResult r) = r
 
-thmSMTResult :: ThmResult -> SMTResult
-thmSMTResult (ThmResult r) = r
+thmSMTResult :: SBV.ThmResult -> SBV.SMTResult
+thmSMTResult (SBV.ThmResult r) = r
 
 -- | TODO: Clean up ProverResult; it has grown too much to be a proper datatype!
 satProve :: Bool
@@ -86,7 +84,7 @@ satProve isSat (proverName, useSolverIte, verbose) edecls mfile (expr, schema) =
   provers <-
     case proverName of
       "any" -> SBV.sbvAvailableSolvers
-      _ -> return [(lookupProver proverName) { smtFile = mfile }]
+      _ -> return [(lookupProver proverName) { SBV.smtFile = mfile }]
   let provers' = [ p { SBV.timing = verbose, SBV.verbose = verbose } | p <- provers ]
   let tyFn = if isSat then existsFinType else forallFinType
   let runProver fn tag e = do
@@ -122,8 +120,8 @@ satProve isSat (proverName, useSolverIte, verbose) edecls mfile (expr, schema) =
                      SBV.Unsatisfiable {} ->
                        return $ Right (Left (unFinType <$> ts))
                      _ -> return $ Left (rshow result)
-                            where rshow | isSat = show . SatResult
-                                        | otherwise = show . ThmResult
+                            where rshow | isSat = show . SBV.SatResult
+                                        | otherwise = show . SBV.ThmResult
                    return (Right (esatexprs, modEnv), [])
 
 satProveOffline :: Bool
@@ -146,7 +144,7 @@ satProveOffline isSat useIte vrb edecls mfile (expr, schema) =
            let v = evalExpr env expr
            let satWord | isSat = "satisfiability"
                        | otherwise = "validity"
-           txt <- compileToSMTLib True isSat $ do
+           txt <- SBV.compileToSMTLib True isSat $ do
                     args <- mapM tyFn ts
                     b <- return $! fromVBit (foldl fromVFun v args)
                     liftIO $ putStrLn $
@@ -244,7 +242,7 @@ predArgTypes schema@(Forall ts ps ty)
     go (TUser _ _ t) = go t
     go _ = Nothing
 
-forallFinType :: FinType -> Symbolic Value
+forallFinType :: FinType -> SBV.Symbolic Value
 forallFinType ty =
   case ty of
     FTBit         -> VBit <$> SBV.forall_
@@ -254,7 +252,7 @@ forallFinType ty =
     FTTuple ts    -> VTuple <$> mapM forallFinType ts
     FTRecord fs   -> VRecord <$> mapM (traverseSnd forallFinType) fs
 
-existsFinType :: FinType -> Symbolic Value
+existsFinType :: FinType -> SBV.Symbolic Value
 existsFinType ty =
   case ty of
     FTBit         -> VBit <$> SBV.exists_
