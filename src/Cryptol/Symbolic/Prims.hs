@@ -13,7 +13,8 @@ module Cryptol.Symbolic.Prims where
 
 import Control.Applicative
 import Data.Bits
-import Data.List (genericDrop, genericReplicate, genericSplitAt, genericTake, transpose)
+import Data.List (genericDrop, genericReplicate, genericSplitAt, genericTake, sortBy, transpose)
+import Data.Ord (comparing)
 
 import Cryptol.Prims.Eval (binary, unary, tlamN)
 import Cryptol.Prims.Syntax (ECon(..))
@@ -441,7 +442,8 @@ cmpValue fb fw = cmp
   where
     cmp v1 v2 k =
       case (v1, v2) of
-        (VRecord fs1, VRecord fs2) -> cmpValues (map snd fs1) (map snd fs2) k
+        (VRecord fs1, VRecord fs2) -> let vals = map snd . sortBy (comparing fst)
+                                      in  cmpValues (vals fs1) (vals fs2) k
         (VTuple vs1 , VTuple vs2 ) -> cmpValues vs1 vs2 k
         (VBit b1    , VBit b2    ) -> fb b1 b2 k
         (VWord w1   , VWord w2   ) -> fw w1 w2 k
