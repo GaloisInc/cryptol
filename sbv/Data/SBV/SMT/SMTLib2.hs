@@ -50,7 +50,9 @@ addNonEqConstraints rm qinps allNonEqConstraints (SMTLibPgm _ (aliasTable, pre, 
 
 nonEqs :: RoundingMode -> [(String, CW)] -> [String]
 nonEqs rm scs = format $ interp ps ++ disallow (map eqClass uninterpClasses)
-  where (ups, ps) = partition (isUninterpreted . snd) scs
+  where isFree (KUserSort _ (Left _, _)) = True
+        isFree _                              = False
+        (ups, ps) = partition (isFree . kindOf . snd) scs
         format []     =  []
         format [m]    =  ["(assert " ++ m ++ ")"]
         format (m:ms) =  ["(assert (or " ++ m]
@@ -58,7 +60,7 @@ nonEqs rm scs = format $ interp ps ++ disallow (map eqClass uninterpClasses)
                       ++ ["        ))"]
         -- Regular (or interpreted) sorts simply get a constraint that we disallow the current assignment
         interp = map $ nonEq rm
-        -- Determine the equivalnce classes of uninterpreted sorts:
+        -- Determine the equivalence classes of uninterpreted sorts:
         uninterpClasses = filter (\l -> length l > 1) -- Only need this class if it has at least two members
                         . map (map fst)               -- throw away sorts, we only need the names
                         . groupBy ((==) `on` snd)     -- make sure they belong to the same sort and have the same value
@@ -102,7 +104,7 @@ cvt rm smtLogic solverCaps kindInfo isSat comments inputs skolemInps consts tbls
         hasFloat   = KFloat     `Set.member` kindInfo
         hasDouble  = KDouble    `Set.member` kindInfo
         hasBVs     = not $ null [() | KBounded{} <- Set.toList kindInfo]
-        sorts      = [s | KUninterpreted s <- Set.toList kindInfo]
+        usorts     = [(s, dt) | KUserSort s dt <- Set.toList kindInfo]
         logic
            | Just l <- smtLogic
            = ["(set-logic " ++ show l ++ ") ; NB. User specified."]
@@ -110,9 +112,9 @@ cvt rm smtLogic solverCaps kindInfo isSat comments inputs skolemInps consts tbls
            = if hasBVs
              then ["(set-logic QF_FPABV)"]
              else ["(set-logic QF_FPA)"]
-           | hasInteger || hasReal || not (null sorts)
+           | hasInteger || hasReal || not (null usorts)
            = case mbDefaultLogic solverCaps of
-                Nothing -> ["; Has unbounded values (Int/Real) or sorts; no logic specified."]   -- combination, let the solver pick
+                Nothing -> ["; Has unbounded values (Int/Real) or uninterpreted sorts; no logic specified."]   -- combination, let the solver pick
                 Just l  -> ["(set-logic " ++ l ++ ")"]
            | True
            = ["(set-logic " ++ qs ++ as ++ ufs ++ "BV)"]
@@ -130,7 +132,7 @@ cvt rm smtLogic solverCaps kindInfo isSat comments inputs skolemInps consts tbls
              ++ getModels
              ++ logic
              ++ [ "; --- uninterpreted sorts ---" ]
-             ++ map declSort sorts
+             ++ concatMap declSort usorts
              ++ [ "; --- literal constants ---" ]
              ++ concatMap (declConst (supportsMacros solverCaps)) consts
              ++ [ "; --- skolem constants ---" ]
@@ -187,10 +189,16 @@ cvt rm smtLogic solverCaps kindInfo isSat comments inputs skolemInps consts tbls
                         , "(assert (= "   ++ show s ++ " " ++ cvtCW rm c ++ "))"
                         ]
           where varT = show s ++ " " ++ swFunType [] s
-        declSort s = "(declare-sort " ++ s ++ " 0)"
         userName s = case s `lookup` map snd inputs of
                         Just u  | show s /= u -> " ; tracks user variable " ++ show u
                         _ -> ""
+        declSort (s, (Left  r,  _)) = ["(declare-sort " ++ s ++ " 0)  ; N.B. Uninterpreted: " ++ r]
+        declSort (s, (Right fs, _)) = [ "(declare-datatypes () ((" ++ s ++ " " ++ unwords (map (\c -> "(" ++ c ++ ")") fs) ++ ")))"
+                                      , "(define-fun " ++ s ++ "_constrIndex ((x " ++ s ++ ")) Int"
+                                      ] ++ ["   " ++ body fs (0::Int)] ++ [")"]
+                where body []     _ = ""
+                      body [_]    i = show i
+                      body (c:cs) i = "(ite (= x " ++ c ++ ") " ++ show i ++ " " ++ body cs (i+1) ++ ")"
 
 declUI :: (String, SBVType) -> [String]
 declUI (i, t) = ["(declare-fun " ++ i ++ " " ++ cvtType t ++ ")"]
@@ -265,13 +273,13 @@ swFunType :: [SW] -> SW -> String
 swFunType ss s = "(" ++ unwords (map swType ss) ++ ") " ++ swType s
 
 smtType :: Kind -> String
-smtType KBool              = "Bool"
-smtType (KBounded _ sz)    = "(_ BitVec " ++ show sz ++ ")"
-smtType KUnbounded         = "Int"
-smtType KReal              = "Real"
-smtType KFloat             = "(_ FP  8 24)"
-smtType KDouble            = "(_ FP 11 53)"
-smtType (KUninterpreted s) = s
+smtType KBool           = "Bool"
+smtType (KBounded _ sz) = "(_ BitVec " ++ show sz ++ ")"
+smtType KUnbounded      = "Int"
+smtType KReal           = "Real"
+smtType KFloat          = "(_ FloatingPoint  8 24)"
+smtType KDouble         = "(_ FloatingPoint 11 53)"
+smtType (KUserSort s _) = s
 
 cvtType :: SBVType -> String
 cvtType (SBVType []) = error "SBV.SMT.SMTLib2.cvtType: internal: received an empty type!"
@@ -301,17 +309,17 @@ hex sz v
 
 cvtCW :: RoundingMode -> CW -> String
 cvtCW rm x
-  | isBoolean       x, CWInteger       w <- cwVal x = if w == 0 then "false" else "true"
-  | isUninterpreted x, CWUninterpreted s <- cwVal x = s
-  | isReal          x, CWAlgReal       r <- cwVal x = algRealToSMTLib2 r
-  | isFloat         x, CWFloat         f <- cwVal x = showSMTFloat  rm f
-  | isDouble        x, CWDouble        d <- cwVal x = showSMTDouble rm d
-  | not (isBounded x), CWInteger       w <- cwVal x = if w >= 0 then show w else "(- " ++ show (abs w) ++ ")"
-  | not (hasSign x)  , CWInteger       w <- cwVal x = hex (intSizeOf x) w
+  | isBoolean       x, CWInteger  w      <- cwVal x = if w == 0 then "false" else "true"
+  | isUninterpreted x, CWUserSort (_, s) <- cwVal x = s
+  | isReal          x, CWAlgReal  r      <- cwVal x = algRealToSMTLib2 r
+  | isFloat         x, CWFloat    f      <- cwVal x = showSMTFloat  rm f
+  | isDouble        x, CWDouble   d      <- cwVal x = showSMTDouble rm d
+  | not (isBounded x), CWInteger  w      <- cwVal x = if w >= 0 then show w else "(- " ++ show (abs w) ++ ")"
+  | not (hasSign x)  , CWInteger  w      <- cwVal x = hex (intSizeOf x) w
   -- signed numbers (with 2's complement representation) is problematic
   -- since there's no way to put a bvneg over a positive number to get minBound..
   -- Hence, we punt and use binary notation in that particular case
-  | hasSign x        , CWInteger       w <- cwVal x = if w == negate (2 ^ intSizeOf x)
+  | hasSign x        , CWInteger  w      <- cwVal x = if w == negate (2 ^ intSizeOf x)
                                                       then mkMinBound (intSizeOf x)
                                                       else negIf (w < 0) $ hex (intSizeOf x) (abs w)
   | True = error $ "SBV.cvtCW: Impossible happened: Kind/Value disagreement on: " ++ show (kindOf x, x)
@@ -333,12 +341,12 @@ getTable m i
 cvtExp :: RoundingMode -> SkolemMap -> TableMap -> SBVExpr -> String
 cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
   where ssw = cvtSW skolemMap
-        bvOp     = all isBounded arguments
-        intOp    = any isInteger arguments
-        realOp   = any isReal arguments
-        doubleOp = any isDouble arguments
-        floatOp  = any isFloat arguments
-        boolOp   = all isBoolean arguments
+        bvOp     = all isBounded       arguments
+        intOp    = any isInteger       arguments
+        realOp   = any isReal          arguments
+        doubleOp = any isDouble        arguments
+        floatOp  = any isFloat         arguments
+        boolOp   = all isBoolean       arguments
         bad | intOp = error $ "SBV.SMTLib2: Unsupported operation on unbounded integers: " ++ show expr
             | True  = error $ "SBV.SMTLib2: Unsupported operation on real values: " ++ show expr
         ensureBVOrBool = bvOp || boolOp || bad
@@ -347,8 +355,19 @@ cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
         lift2  o _ [x, y] = "(" ++ o ++ " " ++ x ++ " " ++ y ++ ")"
         lift2  o _ sbvs   = error $ "SBV.SMTLib2.sh.lift2: Unexpected arguments: "   ++ show (o, sbvs)
         -- lift a binary operation with rounding-mode added; used for floating-point arithmetic
-        lift2WM o | doubleOp || floatOp = lift2 (addRM o)
-                  | True                = lift2 o
+        lift2WM o fo | doubleOp || floatOp = lift2 (addRM fo)
+                     | True                = lift2 o
+        lift1FP o fo | doubleOp || floatOp = lift1 fo
+                     | True                = lift1 o
+        liftAbs sgned args | doubleOp || floatOp = lift1 "fp.abs" sgned args
+                           | intOp               = lift1 "abs"    sgned args
+                           | bvOp, sgned         = mkAbs (head args) "bvslt" "bvneg"
+                           | bvOp                = head args
+                           | True                = mkAbs (head args) "<"     "-"
+          where mkAbs x cmp neg = "(ite " ++ ltz ++ " " ++ nx ++ " " ++ x ++ ")"
+                  where ltz = "(" ++ cmp ++ " " ++ x ++ " " ++ z ++ ")"
+                        nx  = "(" ++ neg ++ " " ++ x ++ ")"
+                        z   = cvtCW rm (mkConstCW (kindOf (head arguments)) (0::Integer))
         lift2B bOp vOp
           | boolOp = lift2 bOp
           | True   = lift2 vOp
@@ -360,14 +379,20 @@ cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
            | True   = "(= " ++ lift2 "bvcomp" sgn sbvs ++ " #b1)"
         neqBV sgn sbvs = "(not " ++ eqBV sgn sbvs ++ ")"
         equal sgn sbvs
-          | doubleOp = lift2 "==" sgn sbvs
-          | floatOp  = lift2 "==" sgn sbvs
+          | doubleOp = lift2 "fp.eq" sgn sbvs
+          | floatOp  = lift2 "fp.eq" sgn sbvs
           | True     = lift2 "=" sgn sbvs
         notEqual sgn sbvs
           | doubleOp = "(not " ++ equal sgn sbvs ++ ")"
           | floatOp  = "(not " ++ equal sgn sbvs ++ ")"
           | True     = lift2 "distinct" sgn sbvs
         lift2S oU oS sgn = lift2 (if sgn then oS else oU) sgn
+        lift2Cmp o fo | doubleOp || floatOp = lift2 fo
+                      | True                = lift2 o
+        unintComp o [a, b]
+          | KUserSort s (Right _, _) <- kindOf (head arguments)
+          = let idx v = "(" ++ s ++ "_constrIndex " ++ " " ++ v ++ ")" in "(" ++ o ++ " " ++ idx a ++ " " ++ idx b ++ ")"
+        unintComp o sbvs = error $ "SBV.SMT.SMTLib2.sh.unintComp: Unexpected arguments: "   ++ show (o, sbvs)
         lift1  o _ [x]    = "(" ++ o ++ " " ++ x ++ ")"
         lift1  o _ sbvs   = error $ "SBV.SMT.SMTLib2.sh.lift1: Unexpected arguments: "   ++ show (o, sbvs)
         sh (SBVApp Ite [a, b, c]) = "(ite " ++ ssw a ++ " " ++ ssw b ++ " " ++ ssw c ++ ")"
@@ -375,25 +400,25 @@ cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
           | needsCheck = "(ite " ++ cond ++ ssw e ++ " " ++ lkUp ++ ")"
           | True       = lkUp
           where needsCheck = case aKnd of
-                              KBool            -> (2::Integer) > fromIntegral l
-                              KBounded _ n     -> (2::Integer)^n > fromIntegral l
-                              KUnbounded       -> True
-                              KReal            -> error "SBV.SMT.SMTLib2.cvtExp: unexpected real valued index"
-                              KFloat           -> error "SBV.SMT.SMTLib2.cvtExp: unexpected float valued index"
-                              KDouble          -> error "SBV.SMT.SMTLib2.cvtExp: unexpected double valued index"
-                              KUninterpreted s -> error $ "SBV.SMT.SMTLib2.cvtExp: unexpected uninterpreted valued index: " ++ s
+                              KBool         -> (2::Integer) > fromIntegral l
+                              KBounded _ n  -> (2::Integer)^n > fromIntegral l
+                              KUnbounded    -> True
+                              KReal         -> error "SBV.SMT.SMTLib2.cvtExp: unexpected real valued index"
+                              KFloat        -> error "SBV.SMT.SMTLib2.cvtExp: unexpected float valued index"
+                              KDouble       -> error "SBV.SMT.SMTLib2.cvtExp: unexpected double valued index"
+                              KUserSort s _ -> error $ "SBV.SMT.SMTLib2.cvtExp: unexpected uninterpreted valued index: " ++ s
                 lkUp = "(" ++ getTable tableMap t ++ " " ++ ssw i ++ ")"
                 cond
                  | hasSign i = "(or " ++ le0 ++ " " ++ gtl ++ ") "
                  | True      = gtl ++ " "
                 (less, leq) = case aKnd of
-                                KBool            -> error "SBV.SMT.SMTLib2.cvtExp: unexpected boolean valued index"
-                                KBounded{}       -> if hasSign i then ("bvslt", "bvsle") else ("bvult", "bvule")
-                                KUnbounded       -> ("<", "<=")
-                                KReal            -> ("<", "<=")
-                                KFloat           -> ("<", "<=")
-                                KDouble          -> ("<", "<=")
-                                KUninterpreted s -> error $ "SBV.SMT.SMTLib2.cvtExp: unexpected uninterpreted valued index: " ++ s
+                                KBool         -> error "SBV.SMT.SMTLib2.cvtExp: unexpected boolean valued index"
+                                KBounded{}    -> if hasSign i then ("bvslt", "bvsle") else ("bvult", "bvule")
+                                KUnbounded    -> ("<", "<=")
+                                KReal         -> ("<", "<=")
+                                KFloat        -> ("fp.lt", "fp.leq")
+                                KDouble       -> ("fp.lt", "fp.geq")
+                                KUserSort s _ -> error $ "SBV.SMT.SMTLib2.cvtExp: unexpected uninterpreted valued index: " ++ s
                 mkCnst = cvtCW rm . mkConstCW (kindOf i)
                 le0  = "(" ++ less ++ " " ++ ssw i ++ " " ++ mkCnst 0 ++ ")"
                 gtl  = "(" ++ leq  ++ " " ++ mkCnst l ++ " " ++ ssw i ++ ")"
@@ -402,7 +427,7 @@ cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
         sh (SBVApp (Uninterpreted nm) [])   = nm
         sh (SBVApp (Uninterpreted nm) args) = "(" ++ nm' ++ " " ++ unwords (map ssw args) ++ ")"
           where -- slight hack needed here to take advantage of custom floating-point functions.. sigh.
-                fpSpecials = ["squareRoot", "fusedMA"]
+                fpSpecials = ["fp.sqrt", "fusedMA"]
                 nm' | (floatOp || doubleOp) && (nm `elem` fpSpecials) = addRM nm
                     | True                                            = nm
         sh (SBVApp (Extract 0 0) [a])   -- special SInteger -> SReal conversion
@@ -457,6 +482,8 @@ cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
           where smtOpBVTable  = [ (Plus,          lift2   "bvadd")
                                 , (Minus,         lift2   "bvsub")
                                 , (Times,         lift2   "bvmul")
+                                , (UNeg,          lift1B  "not"    "bvneg")
+                                , (Abs,           liftAbs)
                                 , (Quot,          lift2S  "bvudiv" "bvsdiv")
                                 , (Rem,           lift2S  "bvurem" "bvsrem")
                                 , (Equal,         eqBV)
@@ -479,27 +506,33 @@ cvtExp rm skolemMap tableMap expr@(SBVApp _ arguments) = sh expr
                                      swp [x, y] = [y, x]
                                      swp xs     = error $ "SBV.SMT.SMTLib2.boolComps.swp: Impossible happened, incorrect arity (expected 2): " ++ show xs
                 smtOpRealTable =  smtIntRealShared
-                               ++ [ (Quot,        lift2WM "/")
+                               ++ [ (Quot,        lift2WM "/" "fp.div")
                                   ]
                 smtOpIntTable  = smtIntRealShared
                                ++ [ (Quot,        lift2   "div")
                                   , (Rem,         lift2   "mod")
                                   ]
                 smtOpFloatDoubleTable = smtIntRealShared
-                                  ++ [(Quot, lift2WM "/")]
-                smtIntRealShared  = [ (Plus,          lift2WM "+")
-                                    , (Minus,         lift2WM "-")
-                                    , (Times,         lift2WM "*")
+                                  ++ [(Quot, lift2WM "/" "fp.div")]
+                smtIntRealShared  = [ (Plus,          lift2WM "+" "fp.add")
+                                    , (Minus,         lift2WM "-" "fp.sub")
+                                    , (Times,         lift2WM "*" "fp.mul")
+                                    , (UNeg,          lift1FP "-" "fp.neg")
+                                    , (Abs,           liftAbs)
                                     , (Equal,         equal)
                                     , (NotEqual,      notEqual)
-                                    , (LessThan,      lift2S  "<"  "<")
-                                    , (GreaterThan,   lift2S  ">"  ">")
-                                    , (LessEq,        lift2S  "<=" "<=")
-                                    , (GreaterEq,     lift2S  ">=" ">=")
+                                    , (LessThan,      lift2Cmp  "<"  "fp.lt")
+                                    , (GreaterThan,   lift2Cmp  ">"  "fp.gt")
+                                    , (LessEq,        lift2Cmp  "<=" "fp.leq")
+                                    , (GreaterEq,     lift2Cmp  ">=" "fp.geq")
                                     ]
-                -- equality is the only thing that works on uninterpreted sorts
-                uninterpretedTable = [ (Equal,    lift2S "="        "="        True)
-                                     , (NotEqual, lift2S "distinct" "distinct" True)
+                -- equality and comparisons are the only thing that works on uninterpreted sorts
+                uninterpretedTable = [ (Equal,       lift2S "="        "="        True)
+                                     , (NotEqual,    lift2S "distinct" "distinct" True)
+                                     , (LessThan,    unintComp "<")
+                                     , (GreaterThan, unintComp ">")
+                                     , (LessEq,      unintComp "<=")
+                                     , (GreaterEq,   unintComp ">=")
                                      ]
 
 rot :: (SW -> String) -> String -> Int -> SW -> String

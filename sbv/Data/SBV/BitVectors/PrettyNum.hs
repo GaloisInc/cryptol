@@ -207,21 +207,21 @@ showHDouble d
 showSMTFloat :: RoundingMode -> Float -> String
 showSMTFloat rm f
    | isNaN f             = as "NaN"
-   | isInfinite f, f < 0 = as "minusInfinity"
-   | isInfinite f        = as "plusInfinity"
-   | isNegativeZero f    = "(- ((_ asFloat 8 24) " ++ smtRoundingMode rm ++ " (/ 0 1)))"
-   | True                = "((_ asFloat 8 24) " ++ smtRoundingMode rm ++ " " ++ toSMTLibRational (toRational f) ++ ")"
-   where as s = "(as " ++ s ++ " (_ FP 8 24))"
+   | isInfinite f, f < 0 = as "-oo"
+   | isInfinite f        = as "+oo"
+   | isNegativeZero f    = "(fp.neg ((_ to_fp 8 24) " ++ smtRoundingMode rm ++ " (/ 0 1)))"
+   | True                = "((_ to_fp 8 24) " ++ smtRoundingMode rm ++ " " ++ toSMTLibRational (toRational f) ++ ")"
+   where as s = "(as " ++ s ++ " (_ FloatingPoint 8 24))"
 
 -- | A version of show for doubles that generates correct SMTLib literals using the rounding mode
 showSMTDouble :: RoundingMode -> Double -> String
 showSMTDouble rm d
    | isNaN d             = as "NaN"
-   | isInfinite d, d < 0 = as "minusInfinity"
-   | isInfinite d        = as "plusInfinity"
-   | isNegativeZero d    = "(- ((_ asFloat 11 53) " ++ smtRoundingMode rm ++ " (/ 0 1)))"
-   | True                = "((_ asFloat 11 53) " ++ smtRoundingMode rm ++ " " ++ toSMTLibRational (toRational d) ++ ")"
-   where as s = "(as " ++ s ++ " (_ FP 11 53))"
+   | isInfinite d, d < 0 = as "-oo"
+   | isInfinite d        = as "+oo"
+   | isNegativeZero d    = "(fp.neg ((_ to_fp 11 53) " ++ smtRoundingMode rm ++ " (/ 0 1)))"
+   | True                = "((_ to_fp 11 53) " ++ smtRoundingMode rm ++ " " ++ toSMTLibRational (toRational d) ++ ")"
+   where as s = "(as " ++ s ++ " (_ FloatingPoint 11 53))"
 
 -- | Show a rational in SMTLib format
 toSMTLibRational :: Rational -> String

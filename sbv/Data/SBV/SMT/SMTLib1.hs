@@ -207,6 +207,13 @@ cvtExp (SBVApp (LkUp (t, ak, _, l) i e) [])
 cvtExp (SBVApp (Extract i j) [a]) = "(extract[" ++ show i ++ ":" ++ show j ++ "] " ++ show a ++ ")"
 cvtExp (SBVApp (ArrEq i j) []) = "(= array_" ++ show i ++ " array_" ++ show j ++")"
 cvtExp (SBVApp (ArrRead i) [a]) = "(select array_" ++ show i ++ " " ++ show a ++ ")"
+cvtExp (SBVApp Abs [a])
+   | hasSign a = "(ite " ++ ltz ++ " " ++ na ++ " " ++ sa ++ ")"
+   | True      = sa
+   where sa  = show a
+         na  = "(bvneg " ++ sa ++ ")"
+         z   = cvtCW (mkConstCW (kindOf a) (0::Integer))
+         ltz = "(bvslt " ++ sa ++ " " ++ z ++ ")"
 cvtExp (SBVApp (Uninterpreted nm) [])   = "uninterpreted_" ++ nm
 cvtExp (SBVApp (Uninterpreted nm) args) = "(uninterpreted_" ++ nm ++ " " ++ unwords (map show args) ++ ")"
 cvtExp inp@(SBVApp op args)
@@ -269,6 +276,7 @@ cvtExp inp@(SBVApp op args)
                      , (And,           lift2B  "and" "bvand")
                      , (Or,            lift2B  "or"  "bvor")
                      , (Not,           lift1B  "not" "bvnot")
+                     , (UNeg,          lift1B  "not" "bvneg")
                      , (XOr,           lift2B  "xor" "bvxor")
                      , (Join,          lift2   "concat")
                      ]
@@ -278,10 +286,10 @@ cvtType (SBVType []) = error "SBV.SMT.SMTLib1.cvtType: internal: received an emp
 cvtType (SBVType xs) = unwords $ map kindType xs
 
 kindType :: Kind -> String
-kindType KBool              = "Bool"
-kindType (KBounded _ s)     = "BitVec[" ++ show s ++ "]"
-kindType KUnbounded         = die "unbounded Integer"
-kindType KReal              = die "real value"
-kindType KFloat             = die "float value"
-kindType KDouble            = die "double value"
-kindType (KUninterpreted s) = die $ "uninterpreted sort: " ++ s
+kindType KBool                = "Bool"
+kindType (KBounded _ s)       = "BitVec[" ++ show s ++ "]"
+kindType KUnbounded           = die "unbounded Integer"
+kindType KReal                = die "real value"
+kindType KFloat               = die "float value"
+kindType KDouble              = die "double value"
+kindType (KUserSort s _)      = die $ "user sort: " ++ s

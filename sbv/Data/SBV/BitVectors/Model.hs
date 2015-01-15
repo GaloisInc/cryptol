@@ -39,7 +39,7 @@ import Control.Monad   (when, liftM)
 import Data.Array      (Array, Ix, listArray, elems, bounds, rangeSize)
 import Data.Bits       (Bits(..))
 import Data.Int        (Int8, Int16, Int32, Int64)
-import Data.List       (genericLength, genericIndex, unzip4, unzip5, unzip6, unzip7, intercalate)
+import Data.List       (genericLength, genericIndex, genericTake, unzip4, unzip5, unzip6, unzip7, intercalate)
 import Data.Maybe      (fromMaybe)
 import Data.Word       (Word8, Word16, Word32, Word64)
 
@@ -69,11 +69,11 @@ ghcBitSize x = maybe (error "SBV.ghcBitSize: Unexpected non-finite usage!") id (
 ghcBitSize = bitSize
 #endif
 
-noUnint  :: String -> a
-noUnint x = error $ "Unexpected operation called on uninterpreted value: " ++ show x
+noUnint  :: (Maybe Int, String) -> a
+noUnint x = error $ "Unexpected operation called on uninterpreted/enumerated value: " ++ show x
 
-noUnint2 :: String -> String -> a
-noUnint2 x y = error $ "Unexpected binary operation called on uninterpreted values: " ++ show (x, y)
+noUnint2 :: (Maybe Int, String) -> (Maybe Int, String) -> a
+noUnint2 x y = error $ "Unexpected binary operation called on uninterpreted/enumerated values: " ++ show (x, y)
 
 liftSym1 :: (State -> Kind -> SW -> IO SW) -> (AlgReal -> AlgReal) -> (Integer -> Integer) -> (Float -> Float) -> (Double -> Double) -> SBV b -> SBV b
 liftSym1 _   opCR opCI opCF opCD   (SBV k (Left a)) = SBV k $ Left  $ mapCW opCR opCI opCF opCD noUnint a
@@ -91,9 +91,9 @@ liftSym2 :: (State -> Kind -> SW -> SW -> IO SW) -> (CW -> CW -> Bool) -> (AlgRe
 liftSym2 _   okCW opCR opCI opCF opCD   (SBV k (Left a)) (SBV _ (Left b)) | okCW a b = SBV k $ Left  $ mapCW2 opCR opCI opCF opCD noUnint2 a b
 liftSym2 opS _    _    _    _    _    a@(SBV k _)        b                           = SBV k $ Right $ liftSW2 opS k a b
 
-liftSym2B :: (State -> Kind -> SW -> SW -> IO SW) -> (CW -> CW -> Bool) -> (AlgReal -> AlgReal -> Bool) -> (Integer -> Integer -> Bool) -> (Float -> Float -> Bool) -> (Double -> Double -> Bool) -> SBV b -> SBV b -> SBool
-liftSym2B _   okCW opCR opCI opCF opCD (SBV _ (Left a)) (SBV _ (Left b)) | okCW a b = literal (liftCW2 opCR opCI opCF opCD noUnint2 a b)
-liftSym2B opS _    _    _    _    _    a                b                           = SBV KBool $ Right $ liftSW2 opS KBool a b
+liftSym2B :: (State -> Kind -> SW -> SW -> IO SW) -> (CW -> CW -> Bool) -> (AlgReal -> AlgReal -> Bool) -> (Integer -> Integer -> Bool) -> (Float -> Float -> Bool) -> (Double -> Double -> Bool) -> ((Maybe Int, String) -> (Maybe Int, String) -> Bool) -> SBV b -> SBV b -> SBool
+liftSym2B _   okCW opCR opCI opCF opCD opUI (SBV _ (Left a)) (SBV _ (Left b)) | okCW a b = literal (liftCW2 opCR opCI opCF opCD opUI a b)
+liftSym2B opS _    _    _    _    _    _    a                b                           = SBV KBool $ Right $ liftSW2 opS KBool a b
 
 liftSym1Bool :: (State -> Kind -> SW -> IO SW) -> (Bool -> Bool) -> SBool -> SBool
 liftSym1Bool _   opC (SBV _ (Left a)) = literal $ opC $ cwToBool a
@@ -408,8 +408,8 @@ for natural reasons..
 -}
 
 instance EqSymbolic (SBV a) where
-  (.==) = liftSym2B (mkSymOpSC (eqOpt trueSW)  Equal)    rationalCheck (==) (==) (==) (==)
-  (./=) = liftSym2B (mkSymOpSC (eqOpt falseSW) NotEqual) rationalCheck (/=) (/=) (/=) (/=)
+  (.==) = liftSym2B (mkSymOpSC (eqOpt trueSW)  Equal)    rationalCheck (==) (==) (==) (==) (==)
+  (./=) = liftSym2B (mkSymOpSC (eqOpt falseSW) NotEqual) rationalCheck (/=) (/=) (/=) (/=) (/=)
 
 -- | eqOpt says the references are to the same SW, thus we can optimize. Note that
 -- we explicitly disallow KFloat/KDouble here. Why? Because it's *NOT* true that
@@ -421,23 +421,28 @@ eqOpt w x y = case kindOf x of
                 KDouble -> Nothing
                 _       -> if x == y then Just w else Nothing
 
+-- For uninterpreted/enumerated values, we carefully lift through the constructor index for comparisons:
+uiLift :: String -> (Int -> Int -> Bool) -> (Maybe Int, String) -> (Maybe Int, String) -> Bool
+uiLift _ cmp (Just i, _) (Just j, _) = i `cmp` j
+uiLift w _   a           b           = error $ "Data.SBV.BitVectors.Model: Impossible happened while trying to lift " ++ w ++ " over " ++ show (a, b)
+
 instance SymWord a => OrdSymbolic (SBV a) where
   x .< y
     | Just mb <- mbMaxBound, x `isConcretely` (== mb) = false
     | Just mb <- mbMinBound, y `isConcretely` (== mb) = false
-    | True                                            = liftSym2B (mkSymOpSC (eqOpt falseSW) LessThan)    rationalCheck (<)  (<)  (<) (<) x y
+    | True                                            = liftSym2B (mkSymOpSC (eqOpt falseSW) LessThan)    rationalCheck (<)  (<)  (<)  (<) (uiLift  "<"  (<))  x y
   x .<= y
     | Just mb <- mbMinBound, x `isConcretely` (== mb) = true
     | Just mb <- mbMaxBound, y `isConcretely` (== mb) = true
-    | True                                            = liftSym2B (mkSymOpSC (eqOpt trueSW) LessEq)       rationalCheck (<=) (<=) (<=) (<=) x y
+    | True                                            = liftSym2B (mkSymOpSC (eqOpt trueSW) LessEq)       rationalCheck (<=) (<=) (<=) (<=) (uiLift "<=" (<=)) x y
   x .> y
     | Just mb <- mbMinBound, x `isConcretely` (== mb) = false
     | Just mb <- mbMaxBound, y `isConcretely` (== mb) = false
-    | True                                            = liftSym2B (mkSymOpSC (eqOpt falseSW) GreaterThan) rationalCheck (>)  (>)  (>) (>) x y
+    | True                                            = liftSym2B (mkSymOpSC (eqOpt falseSW) GreaterThan) rationalCheck (>)  (>)  (>)  (>)  (uiLift ">"  (>))  x y
   x .>= y
     | Just mb <- mbMaxBound, x `isConcretely` (== mb) = true
     | Just mb <- mbMinBound, y `isConcretely` (== mb) = true
-    | True                                            = liftSym2B (mkSymOpSC (eqOpt trueSW) GreaterEq)    rationalCheck (>=) (>=) (>=) (>=) x y
+    | True                                            = liftSym2B (mkSymOpSC (eqOpt trueSW) GreaterEq)    rationalCheck (>=) (>=) (>=) (>=) (uiLift ">=" (>=)) x y
 
 -- Bool
 instance EqSymbolic Bool where
@@ -654,15 +659,15 @@ instance (Ord a, Num a, SymWord a) => Num (SBV a) where
   x - y
     | isConcreteZero y = x
     | True             = liftSym2 (mkSymOp Minus) rationalCheck (-) (-) (-) (-) x y
-  abs a
-    | hasSign a = ite (a .< 0) (-a) a
-    | True      = a
+  -- Abs is problematic for floating point, due to -0; case, so we carefully shuttle it down
+  -- to the solver to avoid the can of worms. (Alternative would be to do an if-then-else here.)
+  abs = liftSym1 (mkSymOp1 Abs) abs abs abs abs
   signum a
     | hasSign a = ite (a .< 0) (-1) (ite (a .== 0) 0 1)
     | True      = oneIf (a ./= 0)
-  negate x
-    | isConcreteZero x = x
-    | True             = sbvFromInteger (kindOf x) 0 - x
+  -- negate is tricky because on double/float -0 is different than 0; so we
+  -- just cannot rely on its default definition; which would be 0-0, which is not -0!
+  negate = liftSym1 (mkSymOp1 UNeg) (\x -> -x) (\x -> -x) (\x -> -x) (\x -> -x)
 
 instance (SymWord a, Fractional a) => Fractional (SBV a) where
   fromRational = literal . fromRational
@@ -1230,8 +1235,11 @@ class Mergeable a where
    -- list is really humongous, which is not very common in general. (Also,
    -- for the case when the list is bit-vectors, we use SMT tables anyhow.)
    select xs err ind
-    | isReal ind = error "SBV.select: unsupported real valued select/index expression"
-    | True       = walk xs ind err
+    | isReal   ind = error "SBV.select: unsupported real valued select/index expression"
+    | isFloat  ind = error "SBV.select: unsupported float valued select/index expression"
+    | isDouble ind = error "SBV.select: unsupported double valued select/index expression"
+    | hasSign  ind = ite (ind .< 0) err (walk xs ind err)
+    | True         =                     walk xs ind err
     where walk []     _ acc = acc
           walk (e:es) i acc = walk es (i-1) (ite (i .== 0) e acc)
 
@@ -1384,18 +1392,26 @@ instance SymWord a => Mergeable (SBV a) where
                                   CWInteger i -> if i < 0 || i >= genericLength xs
                                                  then err
                                                  else xs `genericIndex` i
-                                  _           -> error "SBV.select: unsupported real valued select/index expression"
-    select xs err ind  = SBV kElt $ Right $ cache r
-       where kInd = kindOf ind
-             kElt = kindOf err
-             r st  = do sws <- mapM (sbvToSW st) xs
-                        swe <- sbvToSW st err
-                        if all (== swe) sws  -- off-chance that all elts are the same
-                           then return swe
-                           else do idx <- getTableIndex st kInd kElt sws
-                                   swi <- sbvToSW st ind
-                                   let len = length xs
-                                   newExpr st kElt (SBVApp (LkUp (idx, kInd, kElt, len) swi swe) [])
+                                  _           -> error $ "SBV.select: unsupported " ++ show (kindOf ind) ++ " valued select/index expression"
+    select xsOrig err ind = xs `seq` SBV kElt (Right (cache r))
+      where kInd = kindOf ind
+            kElt = kindOf err
+            -- Based on the index size, we need to limit the elements. For instance if the index is 8 bits, but there
+            -- are 257 elements, that last element will never be used and we can chop it of..
+            xs   = case kindOf ind of
+                     KBounded False i -> genericTake ((2::Integer) ^ (fromIntegral i     :: Integer)) xsOrig
+                     KBounded True  i -> genericTake ((2::Integer) ^ (fromIntegral (i-1) :: Integer)) xsOrig
+                     KUnbounded       -> xsOrig
+                     _                -> error $ "SBV.select: unsupported " ++ show (kindOf ind) ++ " valued select/index expression"
+            r st  = do sws <- mapM (sbvToSW st) xs
+                       swe <- sbvToSW st err
+                       if all (== swe) sws  -- off-chance that all elts are the same
+                          then return swe
+                          else do idx <- getTableIndex st kInd kElt sws
+                                  swi <- sbvToSW st ind
+                                  let len = length xs
+                                  -- NB. No need to worry here that the index might be < 0; as the SMTLib translation takes care of that automatically
+                                  newExpr st kElt (SBVApp (LkUp (idx, kInd, kElt, len) swi swe) [])
 
 -- Unit
 instance Mergeable () where

@@ -178,6 +178,9 @@ module Data.SBV (
   -- $uninterpreted
   , Uninterpreted(..), addAxiom
 
+  -- * Enumerations
+  -- $enumerations
+
   -- * Properties, proofs, and satisfiability
   -- $proveIntro
 
@@ -753,9 +756,10 @@ Users can introduce new uninterpreted sorts simply by defining a data-type in Ha
 following example demonstrates:
 
   @
-     data B = B deriving (Eq, Ord, Data, Typeable)
+     data B = B () deriving (Eq, Ord, Data, Typeable, Read, Show)
      instance SymWord  B
      instance HasKind  B
+     instance SatModel B  -- required only if 'getModel' etc. is used.
   @
 
 (Note that you'll also need to use the language pragma @DeriveDataTypeable@, and import @Data.Generics@ for the above to work.) 
@@ -763,14 +767,57 @@ following example demonstrates:
 Once GHC implements derivable user classes (<http://hackage.haskell.org/trac/ghc/ticket/5462>), we will be able to simplify this to:
 
   @
-     data B = B deriving (Eq, Ord, Data, Typeable, SymWord, HasKind)
+     data B = B () deriving (Eq, Ord, Data, Typeable, Read, Show, SymWord, HasKind)
   @
 
 This is all it takes to introduce 'B' as an uninterpreted sort in SBV, which makes the type @SBV B@ automagically become available as the type
-of symbolic values that ranges over 'B' values.
+of symbolic values that ranges over 'B' values. Note that the @()@ argument is important to distinguish it from enumerations.
 
 Uninterpreted functions over both uninterpreted and regular sorts can be declared using the facilities introduced by
 the 'Uninterpreted' class.
+-}
+
+{- $enumerations
+If the uninterpreted sort definition takes the form of an enumeration (i.e., a simple data type with all nullary constructors), then SBV will actually
+translate that as just such a data-type to SMT-Lib, and will use the constructors as the inhabitants of the said sort. A simple example is:
+
+  @
+    data X = A | B | C deriving (Eq, Ord, Data, Typeable, Read, Show)
+    instance SymWord X
+    instance HasKind X
+    instance SatModel X
+  @
+
+Now, the user can define
+
+  @
+    type SX = SBV X
+  @
+
+and treat @SX@ as a regular symbolic type ranging over the values @A@, @B@, and @C@. Such values can be compared for equality, and with the usual
+other comparison operators, such as @.==@, @./=@, @.>@, @.>=@, @<@, and @<=@.
+
+Note that in this latter case the type is no longer uninterpreted, but is properly represented as a simple enumeration of the said elements. A simple
+query would look like:
+
+   @
+     allSat $ \x -> x .== (x :: SX)
+   @
+
+which would list all three elements of this domain as satisfying solutions.
+
+   @
+     Solution #1:
+       s0 = A :: X
+     Solution #2:
+       s0 = B :: X
+     Solution #3:
+       s0 = C :: X
+     Found 3 different solutions.
+   @
+
+Note that the result is properly typed as @X@ elements; these are not mere strings. So, in a 'getModel' scenario, the user can recover actual
+elements of the domain and program further with those values as usual.
 -}
 
 {-# ANN module "HLint: ignore Use import/export shortcut" #-}

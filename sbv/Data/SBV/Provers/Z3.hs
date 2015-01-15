@@ -72,13 +72,15 @@ z3 = SMTSolver {
  where cleanErrs = intercalate "\n" . filter (not . junk) . lines
        junk = ("WARNING:" `isPrefixOf`)
        zero :: RoundingMode -> Kind -> String
-       zero _  KBool               = "false"
-       zero _  (KBounded _     sz) = "#x" ++ replicate (sz `div` 4) '0'
-       zero _  KUnbounded          = "0"
-       zero _  KReal               = "0.0"
-       zero rm KFloat              = showSMTFloat rm 0
-       zero rm KDouble             = showSMTDouble rm 0
-       zero _  (KUninterpreted s)  = error $ "SBV.Z3.zero: Unexpected uninterpreted sort: " ++ s
+       zero _  KBool                = "false"
+       zero _  (KBounded _     sz)  = "#x" ++ replicate (sz `div` 4) '0'
+       zero _  KUnbounded           = "0"
+       zero _  KReal                = "0.0"
+       zero rm KFloat               = showSMTFloat rm 0
+       zero rm KDouble              = showSMTDouble rm 0
+       -- For uninterpreted sorts, we use the first element of the enumerations if available; otherwise bail out..
+       zero _  (KUserSort _ (Right (f:_), _)) = f
+       zero _  (KUserSort s _)                = error $ "SBV.Z3.zero: Unexpected uninterpreted sort: " ++ s
        cont rm skolemMap = intercalate "\n" $ concatMap extract skolemMap
         where -- In the skolemMap:
               --    * Left's are universals: i.e., the model should be true for

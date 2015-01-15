@@ -20,7 +20,7 @@ import System.Random
 
 import Data.SBV.Bridge.Yices
 import Data.SBV.Internals
-import Data.SBV.BitVectors.Data
+import Data.SBV.BitVectors.Data (cache, sbvToSW, newExpr, normCW, SBVExpr(SBVApp), Op(Extract, Join), Quantifier(ALL, EX), mkSymSBVWithRandom)
 
 import Cryptol.Utils.Panic
 

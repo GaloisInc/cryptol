@@ -26,7 +26,7 @@ import Cryptol.Utils.Panic
 
 import qualified Data.SBV as SBV
 import Data.SBV (SBool)
-import qualified Data.SBV.Tools.Polynomial as Poly
+import qualified Data.SBV.Tools.Polynomial as Poly (ites, addPoly, mdp)
 
 traverseSnd :: Functor f => (a -> f b) -> (t, a) -> f (t, b)
 traverseSnd f (x, y) = (,) x <$> f y

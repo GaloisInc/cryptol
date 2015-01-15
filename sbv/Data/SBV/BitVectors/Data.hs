@@ -9,15 +9,17 @@
 -- Internal data-structures for the sbv library
 -----------------------------------------------------------------------------
 
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
-{-# LANGUAGE TypeOperators              #-}
-{-# LANGUAGE MultiParamTypeClasses      #-}
-{-# LANGUAGE ScopedTypeVariables        #-}
-{-# LANGUAGE FlexibleInstances          #-}
-{-# LANGUAGE PatternGuards              #-}
-{-# LANGUAGE DefaultSignatures          #-}
-{-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE    GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE    TypeSynonymInstances       #-}
+{-# LANGUAGE    TypeOperators              #-}
+{-# LANGUAGE    MultiParamTypeClasses      #-}
+{-# LANGUAGE    ScopedTypeVariables        #-}
+{-# LANGUAGE    FlexibleInstances          #-}
+{-# LANGUAGE    PatternGuards              #-}
+{-# LANGUAGE    StandaloneDeriving         #-}
+{-# LANGUAGE    DefaultSignatures          #-}
+{-# LANGUAGE    NamedFieldPuns             #-}
+{-# OPTIONS_GHC -fno-warn-orphans          #-}
 
 module Data.SBV.BitVectors.Data
  ( SBool, SWord8, SWord16, SWord32, SWord64
@@ -50,18 +52,18 @@ import Control.Monad        (when)
 import Control.Monad.Reader (MonadReader, ReaderT, ask, runReaderT)
 import Control.Monad.Trans  (MonadIO, liftIO)
 import Data.Char            (isAlpha, isAlphaNum)
-import Data.Generics        (Data(..), dataTypeName, dataTypeOf, tyconUQname)
 import Data.Int             (Int8, Int16, Int32, Int64)
 import Data.Word            (Word8, Word16, Word32, Word64)
 import Data.IORef           (IORef, newIORef, modifyIORef, readIORef, writeIORef)
 import Data.List            (intercalate, sortBy)
 import Data.Maybe           (isJust, fromJust)
 
-import qualified Data.IntMap       as IMap (IntMap, empty, size, toAscList, lookup, insert, insertWith)
-import qualified Data.Map          as Map  (Map, empty, toList, size, insert, lookup)
-import qualified Data.Set          as Set  (Set, empty, toList, insert)
-import qualified Data.Foldable     as F    (toList)
-import qualified Data.Sequence     as S    (Seq, empty, (|>))
+import qualified Data.Generics as G    (Data(..), DataType, dataTypeName, dataTypeOf, tyconUQname, dataTypeConstrs, constrFields)
+import qualified Data.IntMap   as IMap (IntMap, empty, size, toAscList, lookup, insert, insertWith)
+import qualified Data.Map      as Map  (Map, empty, toList, size, insert, lookup)
+import qualified Data.Set      as Set  (Set, empty, toList, insert)
+import qualified Data.Foldable as F    (toList)
+import qualified Data.Sequence as S    (Seq, empty, (|>))
 
 import System.Exit           (ExitCode(..))
 import System.Mem.StableName
@@ -71,53 +73,53 @@ import Data.SBV.BitVectors.AlgReals
 import Data.SBV.Utils.Lib
 
 -- | A constant value
-data CWVal = CWAlgReal       AlgReal    -- ^ algebraic real
-           | CWInteger       Integer    -- ^ bit-vector/unbounded integer
-           | CWFloat         Float      -- ^ float
-           | CWDouble        Double     -- ^ double
-           | CWUninterpreted String     -- ^ value of an uninterpreted kind
+data CWVal = CWAlgReal  AlgReal              -- ^ algebraic real
+           | CWInteger  Integer              -- ^ bit-vector/unbounded integer
+           | CWFloat    Float                -- ^ float
+           | CWDouble   Double               -- ^ double
+           | CWUserSort (Maybe Int, String)  -- ^ value of an uninterpreted/user kind. The Maybe Int shows index position for enumerations
 
 -- We cannot simply derive Eq/Ord for CWVal, since CWAlgReal doesn't have proper
 -- instances for these when values are infinitely precise reals. However, we do
 -- need a structural eq/ord for Map indexes; so define custom ones here:
 instance Eq CWVal where
-  CWAlgReal a       == CWAlgReal b       = a `algRealStructuralEqual` b
-  CWInteger a       == CWInteger b       = a == b
-  CWUninterpreted a == CWUninterpreted b = a == b
-  CWFloat a         == CWFloat b         = a == b
-  CWDouble a        == CWDouble b        = a == b
-  _                 == _                 = False
+  CWAlgReal a  == CWAlgReal b       = a `algRealStructuralEqual` b
+  CWInteger a  == CWInteger b       = a == b
+  CWUserSort a == CWUserSort b = a == b
+  CWFloat a    == CWFloat b         = a == b
+  CWDouble a   == CWDouble b        = a == b
+  _            == _                 = False
 
 instance Ord CWVal where
-  CWAlgReal a       `compare` CWAlgReal b       = a `algRealStructuralCompare` b
-  CWAlgReal _       `compare` CWInteger _       = LT
-  CWAlgReal _       `compare` CWFloat _         = LT
-  CWAlgReal _       `compare` CWDouble _        = LT
-  CWAlgReal _       `compare` CWUninterpreted _ = LT
+  CWAlgReal a `compare` CWAlgReal b   = a `algRealStructuralCompare` b
+  CWAlgReal _ `compare` CWInteger _   = LT
+  CWAlgReal _ `compare` CWFloat _     = LT
+  CWAlgReal _ `compare` CWDouble _    = LT
+  CWAlgReal _ `compare` CWUserSort _  = LT
 
-  CWInteger _       `compare` CWAlgReal _       = GT
-  CWInteger a       `compare` CWInteger b       = a `compare` b
-  CWInteger _       `compare` CWFloat _         = LT
-  CWInteger _       `compare` CWDouble _        = LT
-  CWInteger _       `compare` CWUninterpreted _ = LT
+  CWInteger _ `compare` CWAlgReal _   = GT
+  CWInteger a `compare` CWInteger b   = a `compare` b
+  CWInteger _ `compare` CWFloat _     = LT
+  CWInteger _ `compare` CWDouble _    = LT
+  CWInteger _ `compare` CWUserSort _  = LT
 
-  CWFloat _         `compare` CWAlgReal _       = GT
-  CWFloat _         `compare` CWInteger _       = GT
-  CWFloat a         `compare` CWFloat b         = a `compare` b
-  CWFloat _         `compare` CWDouble _        = LT
-  CWFloat _         `compare` CWUninterpreted _ = LT
+  CWFloat _   `compare` CWAlgReal _   = GT
+  CWFloat _   `compare` CWInteger _   = GT
+  CWFloat a   `compare` CWFloat b     = a `compare` b
+  CWFloat _   `compare` CWDouble _    = LT
+  CWFloat _   `compare` CWUserSort _  = LT
 
-  CWDouble _        `compare` CWAlgReal _       = GT
-  CWDouble _        `compare` CWInteger _       = GT
-  CWDouble _        `compare` CWFloat _         = GT
-  CWDouble a        `compare` CWDouble b        = a `compare` b
-  CWDouble _        `compare` CWUninterpreted _ = LT
+  CWDouble _  `compare` CWAlgReal _   = GT
+  CWDouble _  `compare` CWInteger _   = GT
+  CWDouble _  `compare` CWFloat _     = GT
+  CWDouble a  `compare` CWDouble b    = a `compare` b
+  CWDouble _  `compare` CWUserSort _  = LT
 
-  CWUninterpreted _ `compare` CWAlgReal _       = GT
-  CWUninterpreted _ `compare` CWInteger _       = GT
-  CWUninterpreted _ `compare` CWFloat _         = GT
-  CWUninterpreted _ `compare` CWDouble _        = GT
-  CWUninterpreted a `compare` CWUninterpreted b = a `compare` b
+  CWUserSort _ `compare` CWAlgReal _  = GT
+  CWUserSort _ `compare` CWInteger _  = GT
+  CWUserSort _ `compare` CWFloat _    = GT
+  CWUserSort _ `compare` CWDouble _   = GT
+  CWUserSort a `compare` CWUserSort b = a `compare` b
 
 -- | 'CW' represents a concrete word of a fixed size:
 -- Endianness is mostly irrelevant (see the 'FromBits' class).
@@ -155,12 +157,18 @@ normCW c@(CW (KBounded signed sz) (CWInteger v)) = c { cwVal = CWInteger norm }
             | True    = v `mod` (2 ^ sz)
 normCW c = c
 
+instance Eq  G.DataType where
+   a == b = G.tyconUQname (G.dataTypeName a) == G.tyconUQname (G.dataTypeName b)
+
+instance Ord G.DataType where
+   a `compare` b = G.tyconUQname (G.dataTypeName a) `compare` G.tyconUQname (G.dataTypeName b)
+
 -- | Kind of symbolic value
 data Kind = KBool
           | KBounded Bool Int
           | KUnbounded
           | KReal
-          | KUninterpreted String
+          | KUserSort String (Either String [String], G.DataType)
           | KFloat
           | KDouble
           deriving (Eq, Ord)
@@ -171,7 +179,7 @@ instance Show Kind where
   show (KBounded True n)  = "SInt"  ++ show n
   show KUnbounded         = "SInteger"
   show KReal              = "SReal"
-  show (KUninterpreted s) = s
+  show (KUserSort s _)    = s
   show KFloat             = "SFloat"
   show KDouble            = "SDouble"
 
@@ -226,7 +234,7 @@ instance Show SBVType where
   show (SBVType xs) = intercalate " -> " $ map show xs
 
 -- | Symbolic operations
-data Op = Plus | Times | Minus
+data Op = Plus | Times | Minus | UNeg | Abs
         | Quot | Rem
         | Equal | NotEqual
         | LessThan | GreaterThan | LessEq | GreaterEq
@@ -246,13 +254,13 @@ data Op = Plus | Times | Minus
 -- might be confusing. This function will *not* be uninterpreted in reality, as QF_FPA will define it. It's
 -- a bit of a shame, but much easier to implement it this way.
 smtLibSquareRoot :: Op
-smtLibSquareRoot = Uninterpreted "squareRoot"
+smtLibSquareRoot = Uninterpreted "fp.sqrt"
 
 -- | SMT-Lib's fusedMA over floats/doubles. Similar to the 'smtLibSquareRoot'. Note that we cannot implement
 -- this function in Haskell as precision loss would be inevitable. Maybe Haskell will eventually add this op
 -- to the Num class.
 smtLibFusedMA :: Op
-smtLibFusedMA = Uninterpreted "fusedMA"
+smtLibFusedMA = Uninterpreted "fp.fma"
 
 -- | A symbolic expression
 data SBVExpr = SBVApp !Op ![SW]
@@ -276,40 +284,40 @@ class HasKind a where
   showType        :: a -> String
   -- defaults
   hasSign x = case kindOf x of
-                  KBool            -> False
-                  KBounded b _     -> b
-                  KUnbounded       -> True
-                  KReal            -> True
-                  KFloat           -> True
-                  KDouble          -> True
-                  KUninterpreted{} -> False
+                  KBool        -> False
+                  KBounded b _ -> b
+                  KUnbounded   -> True
+                  KReal        -> True
+                  KFloat       -> True
+                  KDouble      -> True
+                  KUserSort{}  -> False
   intSizeOf x = case kindOf x of
-                  KBool            -> error "SBV.HasKind.intSizeOf((S)Bool)"
-                  KBounded _ s     -> s
-                  KUnbounded       -> error "SBV.HasKind.intSizeOf((S)Integer)"
-                  KReal            -> error "SBV.HasKind.intSizeOf((S)Real)"
-                  KFloat           -> error "SBV.HasKind.intSizeOf((S)Float)"
-                  KDouble          -> error "SBV.HasKind.intSizeOf((S)Double)"
-                  KUninterpreted s -> error $ "SBV.HasKind.intSizeOf: Uninterpreted sort: " ++ s
-  isBoolean       x | KBool{}          <- kindOf x = True
-                    | True                         = False
-  isBounded       x | KBounded{}       <- kindOf x = True
-                    | True                         = False
-  isReal          x | KReal{}          <- kindOf x = True
-                    | True                         = False
-  isFloat         x | KFloat{}         <- kindOf x = True
-                    | True                         = False
-  isDouble        x | KDouble{}        <- kindOf x = True
-                    | True                         = False
-  isInteger      x  | KUnbounded{}     <- kindOf x = True
-                    | True                         = False
-  isUninterpreted x | KUninterpreted{} <- kindOf x = True
-                    | True                         = False
+                  KBool         -> error "SBV.HasKind.intSizeOf((S)Bool)"
+                  KBounded _ s  -> s
+                  KUnbounded    -> error "SBV.HasKind.intSizeOf((S)Integer)"
+                  KReal         -> error "SBV.HasKind.intSizeOf((S)Real)"
+                  KFloat        -> error "SBV.HasKind.intSizeOf((S)Float)"
+                  KDouble       -> error "SBV.HasKind.intSizeOf((S)Double)"
+                  KUserSort s _ -> error $ "SBV.HasKind.intSizeOf: Uninterpreted sort: " ++ s
+  isBoolean       x | KBool{}      <- kindOf x = True
+                    | True                     = False
+  isBounded       x | KBounded{}   <- kindOf x = True
+                    | True                     = False
+  isReal          x | KReal{}      <- kindOf x = True
+                    | True                     = False
+  isFloat         x | KFloat{}     <- kindOf x = True
+                    | True                     = False
+  isDouble        x | KDouble{}    <- kindOf x = True
+                    | True                     = False
+  isInteger       x | KUnbounded{} <- kindOf x = True
+                    | True                     = False
+  isUninterpreted x | KUserSort{}  <- kindOf x = True
+                    | True                     = False
   showType = show . kindOf
 
-  -- default signature for uninterpreted kinds
-  default kindOf :: Data a => a -> Kind
-  kindOf = KUninterpreted . tyconUQname . dataTypeName . dataTypeOf
+  -- default signature for uninterpreted/enumerated kinds
+  default kindOf :: (Read a, G.Data a) => a -> Kind
+  kindOf = constructUKind
 
 instance HasKind Bool    where kindOf _ = KBool
 instance HasKind Int8    where kindOf _ = KBounded True  8
@@ -326,41 +334,41 @@ instance HasKind Float   where kindOf _ = KFloat
 instance HasKind Double  where kindOf _ = KDouble
 
 -- | Lift a unary function thruough a CW
-liftCW :: (AlgReal -> b) -> (Integer -> b) -> (Float -> b) -> (Double -> b) -> (String -> b) -> CW -> b
-liftCW f _ _ _ _ (CW _ (CWAlgReal v))       = f v
-liftCW _ f _ _ _ (CW _ (CWInteger v))       = f v
-liftCW _ _ f _ _ (CW _ (CWFloat v))         = f v
-liftCW _ _ _ f _ (CW _ (CWDouble v))        = f v
-liftCW _ _ _ _ f (CW _ (CWUninterpreted v)) = f v
+liftCW :: (AlgReal -> b) -> (Integer -> b) -> (Float -> b) -> (Double -> b) -> ((Maybe Int, String) -> b) -> CW -> b
+liftCW f _ _ _ _ (CW _ (CWAlgReal v))  = f v
+liftCW _ f _ _ _ (CW _ (CWInteger v))  = f v
+liftCW _ _ f _ _ (CW _ (CWFloat v))    = f v
+liftCW _ _ _ f _ (CW _ (CWDouble v))   = f v
+liftCW _ _ _ _ f (CW _ (CWUserSort v)) = f v
 
 -- | Lift a binary function through a CW
-liftCW2 :: (AlgReal -> AlgReal -> b) -> (Integer -> Integer -> b) -> (Float -> Float -> b) -> (Double -> Double -> b) -> (String -> String -> b) -> CW -> CW -> b
+liftCW2 :: (AlgReal -> AlgReal -> b) -> (Integer -> Integer -> b) -> (Float -> Float -> b) -> (Double -> Double -> b) -> ((Maybe Int, String) -> (Maybe Int, String) -> b) -> CW -> CW -> b
 liftCW2 r i f d u x y = case (cwVal x, cwVal y) of
-                         (CWAlgReal a,       CWAlgReal b)       -> r a b
-                         (CWInteger a,       CWInteger b)       -> i a b
-                         (CWFloat a,         CWFloat b)         -> f a b
-                         (CWDouble a,        CWDouble b)        -> d a b
-                         (CWUninterpreted a, CWUninterpreted b) -> u a b
-                         _                                      -> error $ "SBV.liftCW2: impossible, incompatible args received: " ++ show (x, y)
+                         (CWAlgReal a,  CWAlgReal b)  -> r a b
+                         (CWInteger a,  CWInteger b)  -> i a b
+                         (CWFloat a,    CWFloat b)    -> f a b
+                         (CWDouble a,   CWDouble b)   -> d a b
+                         (CWUserSort a, CWUserSort b) -> u a b
+                         _                            -> error $ "SBV.liftCW2: impossible, incompatible args received: " ++ show (x, y)
 
 -- | Map a unary function through a CW
-mapCW :: (AlgReal -> AlgReal) -> (Integer -> Integer) -> (Float -> Float) -> (Double -> Double) -> (String -> String) -> CW -> CW
+mapCW :: (AlgReal -> AlgReal) -> (Integer -> Integer) -> (Float -> Float) -> (Double -> Double) -> ((Maybe Int, String) -> (Maybe Int, String)) -> CW -> CW
 mapCW r i f d u x  = normCW $ CW (cwKind x) $ case cwVal x of
-                                               CWAlgReal a       -> CWAlgReal       (r a)
-                                               CWInteger a       -> CWInteger       (i a)
-                                               CWFloat a         -> CWFloat         (f a)
-                                               CWDouble a        -> CWDouble        (d a)
-                                               CWUninterpreted a -> CWUninterpreted (u a)
+                                               CWAlgReal a  -> CWAlgReal  (r a)
+                                               CWInteger a  -> CWInteger  (i a)
+                                               CWFloat a    -> CWFloat    (f a)
+                                               CWDouble a   -> CWDouble   (d a)
+                                               CWUserSort a -> CWUserSort (u a)
 
 -- | Map a binary function through a CW
-mapCW2 :: (AlgReal -> AlgReal -> AlgReal) -> (Integer -> Integer -> Integer) -> (Float -> Float -> Float) -> (Double -> Double -> Double) -> (String -> String -> String) -> CW -> CW -> CW
+mapCW2 :: (AlgReal -> AlgReal -> AlgReal) -> (Integer -> Integer -> Integer) -> (Float -> Float -> Float) -> (Double -> Double -> Double) -> ((Maybe Int, String) -> (Maybe Int, String) -> (Maybe Int, String)) -> CW -> CW -> CW
 mapCW2 r i f d u x y = case (cwSameType x y, cwVal x, cwVal y) of
-                        (True, CWAlgReal a,       CWAlgReal b)       -> normCW $ CW (cwKind x) (CWAlgReal       (r a b))
-                        (True, CWInteger a,       CWInteger b)       -> normCW $ CW (cwKind x) (CWInteger       (i a b))
-                        (True, CWFloat a,         CWFloat b)         -> normCW $ CW (cwKind x) (CWFloat         (f a b))
-                        (True, CWDouble a,        CWDouble b)        -> normCW $ CW (cwKind x) (CWDouble        (d a b))
-                        (True, CWUninterpreted a, CWUninterpreted b) -> normCW $ CW (cwKind x) (CWUninterpreted (u a b))
-                        _                                            -> error $ "SBV.mapCW2: impossible, incompatible args received: " ++ show (x, y)
+                        (True, CWAlgReal a,  CWAlgReal b)  -> normCW $ CW (cwKind x) (CWAlgReal  (r a b))
+                        (True, CWInteger a,  CWInteger b)  -> normCW $ CW (cwKind x) (CWInteger  (i a b))
+                        (True, CWFloat a,    CWFloat b)    -> normCW $ CW (cwKind x) (CWFloat    (f a b))
+                        (True, CWDouble a,   CWDouble b)   -> normCW $ CW (cwKind x) (CWDouble   (d a b))
+                        (True, CWUserSort a, CWUserSort b) -> normCW $ CW (cwKind x) (CWUserSort (u a b))
+                        _                                  -> error $ "SBV.mapCW2: impossible, incompatible args received: " ++ show (x, y)
 
 instance HasKind CW where
   kindOf = cwKind
@@ -370,7 +378,7 @@ instance HasKind SW where
 
 instance Show CW where
   show w | cwIsBit w = show (cwToBool w)
-  show w             = liftCW show show show show id w ++ " :: " ++ showType w
+  show w             = liftCW show show show show snd w ++ " :: " ++ showType w
 
 instance Show SW where
   show (SW _ (NodeId n))
@@ -392,7 +400,7 @@ instance Show Op where
   show op
     | Just s <- op `lookup` syms = s
     | True                       = error "impossible happened; can't find op!"
-    where syms = [ (Plus, "+"), (Times, "*"), (Minus, "-")
+    where syms = [ (Plus, "+"), (Times, "*"), (Minus, "-"), (UNeg, "-"), (Abs, "abs")
                  , (Quot, "quot")
                  , (Rem,  "rem")
                  , (Equal, "=="), (NotEqual, "/=")
@@ -479,7 +487,7 @@ instance Show Result where
                 ++ map (("  " ++) . show) cstrs
                 ++ ["OUTPUTS"]
                 ++ map (("  " ++) . show) os
-    where usorts = [s | KUninterpreted s <- Set.toList kinds]
+    where usorts = [s | KUserSort s _ <- Set.toList kinds]
           shs sw = show sw ++ " :: " ++ showType sw
           sht ((i, at, rt), es)  = "  Table " ++ show i ++ " : " ++ show at ++ "->" ++ show rt ++ " = " ++ show es
           shc (sw, cw) = "  " ++ show sw ++ " = " ++ show cw
@@ -742,11 +750,11 @@ newSW st k = do ctr <- incCtr st
 
 registerKind :: State -> Kind -> IO ()
 registerKind st k
-  | KUninterpreted sortName <- k, sortName `elem` reserved
+  | KUserSort sortName _ <- k, sortName `elem` reserved
   = error $ "SBV: " ++ show sortName ++ " is a reserved sort; please use a different name."
   | True
   = modifyIORef (rUsedKinds st) (Set.insert k)
- where reserved = ["Int", "Real", "List", "Array", "Bool", "NUMERAL", "DECIMAL", "STRING", "FP"]  -- Reserved by SMT-Lib
+ where reserved = ["Int", "Real", "List", "Array", "Bool", "NUMERAL", "DECIMAL", "STRING", "FP", "FloatingPoint"]  -- Reserved by SMT-Lib
 
 -- | Create a new constant; hash-cons as necessary
 newConst :: State -> CW -> IO SW
@@ -772,13 +780,13 @@ getTableIndex st at rt elts = do
 
 -- | Create a constant word from an integral
 mkConstCW :: Integral a => Kind -> a -> CW
-mkConstCW KBool              a = normCW $ CW KBool      (CWInteger (toInteger a))
-mkConstCW k@(KBounded{})     a = normCW $ CW k          (CWInteger (toInteger a))
-mkConstCW KUnbounded         a = normCW $ CW KUnbounded (CWInteger (toInteger a))
-mkConstCW KReal              a = normCW $ CW KReal      (CWAlgReal (fromInteger (toInteger a)))
-mkConstCW KFloat             a = normCW $ CW KFloat     (CWFloat   (fromInteger (toInteger a)))
-mkConstCW KDouble            a = normCW $ CW KDouble    (CWDouble  (fromInteger (toInteger a)))
-mkConstCW (KUninterpreted s) a = error $ "Unexpected call to mkConstCW with uninterpreted kind: " ++ s ++ " with value: " ++ show (toInteger a)
+mkConstCW KBool           a = normCW $ CW KBool      (CWInteger (toInteger a))
+mkConstCW k@(KBounded{})  a = normCW $ CW k          (CWInteger (toInteger a))
+mkConstCW KUnbounded      a = normCW $ CW KUnbounded (CWInteger (toInteger a))
+mkConstCW KReal           a = normCW $ CW KReal      (CWAlgReal (fromInteger (toInteger a)))
+mkConstCW KFloat          a = normCW $ CW KFloat     (CWFloat   (fromInteger (toInteger a)))
+mkConstCW KDouble         a = normCW $ CW KDouble    (CWDouble  (fromInteger (toInteger a)))
+mkConstCW (KUserSort s _) a = error $ "Unexpected call to mkConstCW with uninterpreted kind: " ++ s ++ " with value: " ++ show (toInteger a)
 
 -- | Create a new expression; hash-cons as necessary
 newExpr :: State -> Kind -> SBVExpr -> IO SW
@@ -968,6 +976,25 @@ extractSymbolicSimulationState st@State{ spgm=pgm, rinps=inps, routs=outs, rtblM
    extraCstrs <- reverse `fmap` readIORef cstrs
    return $ Result knds traceVals cgMap inpsO cnsts tbls arrs unint axs (SBVPgm rpgm) extraCstrs outsO
 
+-- | Construct an uninterpreted/enumerated kind from a piece of data; we distinguish simple enumerations as those
+-- are mapped to proper SMT-Lib2 data-types; while others go completely uninterpreted
+constructUKind :: forall a. (Read a, G.Data a) => a -> Kind
+constructUKind a = KUserSort sortName (mbEnumFields, dataType)
+  where dataType      = G.dataTypeOf a
+        sortName      = G.tyconUQname . G.dataTypeName $ dataType
+        constrs       = G.dataTypeConstrs dataType
+        isEnumeration = not (null constrs) && all (null . G.constrFields) constrs
+        mbEnumFields
+         | isEnumeration = check constrs []
+         | True          = Left $ sortName ++ "is not a finite non-empty enumeration"
+        check []     sofar = Right $ reverse sofar
+        check (c:cs) sofar = case checkConstr c of
+                                Nothing -> check cs (show c : sofar)
+                                Just s  -> Left $ sortName ++ "." ++ show c ++ ": " ++ s
+        checkConstr c = case (reads (show c) :: [(a, String)]) of
+                          ((_, "") : _)  -> Nothing
+                          _              -> Just $ "not a nullary constructor"
+
 -------------------------------------------------------------------------------
 -- * Symbolic Words
 -------------------------------------------------------------------------------
@@ -1016,8 +1043,8 @@ class (HasKind a, Ord a) => SymWord a where
   -- | One stop allocator
   mkSymWord :: Maybe Quantifier -> Maybe String -> Symbolic (SBV a)
 
-  -- minimal complete definition, Nothing.
-  -- Giving no instances is ok when defining an uninterpreted sort, but otherwise you really
+  -- minimal complete definition:: Nothing.
+  -- Giving no instances is ok when defining an uninterpreted/enumerated sort, but otherwise you really
   -- want to define: mbMaxBound, mbMinBound, literal, fromCW, mkSymWord
   forall   = mkSymWord (Just ALL) . Just
   forall_  = mkSymWord (Just ALL)   Nothing
@@ -1038,17 +1065,26 @@ class (HasKind a, Ord a) => SymWord a where
   isConcretely s p
     | Just i <- unliteral s = p i
     | True                  = False
-  -- Followings, you really want to define them unless the instance is for an uninterpreted sort
+  -- Followings, you really want to define them unless the instance is for an uninterpreted/enumerated sort
   mbMaxBound = Nothing
   mbMinBound = Nothing
-  literal x = error $ "Cannot create symbolic literals for kind: " ++ show (kindOf x)
-  fromCW cw = error $ "Cannot convert CW " ++ show cw ++ " to kind " ++ show (kindOf (undefined :: a))
 
-  default mkSymWord :: Data a => Maybe Quantifier -> Maybe String -> Symbolic (SBV a)
+  default literal :: Show a => a -> SBV a
+  literal x = let k@(KUserSort  _ (conts, _)) = kindOf x
+                  sx                          = show x
+                  mbIdx = case conts of
+                            Right xs -> sx `lookup` zip xs [0..]
+                            _        -> Nothing
+              in SBV k (Left (CW k (CWUserSort (mbIdx, sx))))
+
+  default fromCW :: Read a => CW -> a
+  fromCW (CW _ (CWUserSort (_, s))) = read s
+  fromCW cw                         = error $ "Cannot convert CW " ++ show cw ++ " to kind " ++ show (kindOf (undefined :: a))
+
+  default mkSymWord :: (Read a, G.Data a) => Maybe Quantifier -> Maybe String -> Symbolic (SBV a)
   mkSymWord mbQ mbNm = do
-        let sortName = tyconUQname . dataTypeName . dataTypeOf $ (undefined :: a)
         st <- ask
-        let k = KUninterpreted sortName
+        let k@(KUserSort sortName _) = constructUKind (undefined :: a)
         liftIO $ registerKind st k
         let q = case (mbQ, runMode st) of
                   (Just x,  _)                -> x
@@ -1104,7 +1140,7 @@ class SymArray array where
 --
 --   * Maps directly to SMT-lib arrays
 --
---   * Reading from an unintialized value is OK and yields an uninterpreted result
+--   * Reading from an unintialized value is OK and yields an unspecified result
 --
 --   * Can check for equality of these arrays
 --

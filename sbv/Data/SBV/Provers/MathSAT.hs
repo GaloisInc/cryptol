@@ -56,13 +56,15 @@ mathSAT = SMTSolver {
                                 }
          }
  where zero :: Kind -> String
-       zero KBool               = "false"
-       zero (KBounded _     sz) = "#x" ++ replicate (sz `div` 4) '0'
-       zero KUnbounded          = "0"
-       zero KReal               = "0.0"
-       zero KFloat              = error "SBV.MathSAT.zero: Unexpected sort SFloat"
-       zero KDouble             = error "SBV.MathSAT.zero: Unexpected sort SDouble"
-       zero (KUninterpreted s)  = error $ "SBV.MathSAT.zero: Unexpected uninterpreted sort: " ++ s
+       zero KBool                = "false"
+       zero (KBounded _     sz)  = "#x" ++ replicate (sz `div` 4) '0'
+       zero KUnbounded           = "0"
+       zero KReal                = "0.0"
+       zero KFloat               = error "SBV.MathSAT.zero: Unexpected sort SFloat"
+       zero KDouble              = error "SBV.MathSAT.zero: Unexpected sort SDouble"
+       -- For uninterpreted sorts, we use the first element of the enumerations if available; otherwise bail out..
+       zero (KUserSort _ (Right (f:_), _)) = f
+       zero (KUserSort s _)                = error $ "SBV.MathSAT.zero: Unexpected uninterpreted sort: " ++ s
        cont skolemMap = intercalate "\n" $ concatMap extract skolemMap
         where -- In the skolemMap:
               --    * Left's are universals: i.e., the model should be true for

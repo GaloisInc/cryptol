@@ -83,8 +83,10 @@ parseSExpr inp = do (sexp, extras) <- parse inpToks
         cvt (EApp [ECon "_", ENum a, ENum _b])                     = return $ ENum a
         cvt (EApp [ECon "root-obj", EApp (ECon "+":trms), ENum k]) = do ts <- mapM getCoeff trms
                                                                         return $ EReal $ mkPolyReal (Right (k, ts))
-        cvt (EApp [ECon "as", n, EApp [ECon "_", ECon "FP", ENum 11, ENum 53]]) = getDouble n
-        cvt (EApp [ECon "as", n, EApp [ECon "_", ECon "FP", ENum  8, ENum 24]]) = getFloat  n
+        cvt (EApp [ECon "as", n, EApp [ECon "_", ECon "FloatingPoint", ENum 11, ENum 53]]) = getDouble n
+        cvt (EApp [ECon "as", n, EApp [ECon "_", ECon "FloatingPoint", ENum  8, ENum 24]]) = getFloat  n
+        cvt (EApp [ECon "as", n, ECon "Float64"])                                          = getDouble n
+        cvt (EApp [ECon "as", n, ECon "Float32"])                                          = getFloat  n
         cvt x                                                      = return x
         getCoeff (EApp [ECon "*", ENum k, EApp [ECon "^", ECon "x", ENum p]]) = return (k, p)  -- kx^p
         getCoeff (EApp [ECon "*", ENum k,                 ECon "x"        ] ) = return (k, 1)  -- kx
@@ -95,18 +97,28 @@ parseSExpr inp = do (sexp, extras) <- parse inpToks
         getDouble (ECon s)  = case (s, rdFP (dropWhile (== '+') s)) of
                                 ("plusInfinity",  _     ) -> return $ EDouble infinity
                                 ("minusInfinity", _     ) -> return $ EDouble (-infinity)
+                                ("oo",            _     ) -> return $ EDouble infinity
+                                ("-oo",           _     ) -> return $ EDouble (-infinity)
+                                ("zero",          _     ) -> return $ EDouble 0
+                                ("-zero",         _     ) -> return $ EDouble (-0)
                                 ("NaN",           _     ) -> return $ EDouble nan
                                 (_,               Just v) -> return $ EDouble v
-                                _                         -> die $ "Cannot parse a double value from: " ++ s
+                                _               -> die $ "Cannot parse a double value from: " ++ s
+        getDouble (EApp [_, s, _, _]) = getDouble s
         getDouble (EReal r) = return $ EDouble $ fromRat $ toRational r
         getDouble x         = die $ "Cannot parse a double value from: " ++ show x
         getFloat (ECon s)   = case (s, rdFP (dropWhile (== '+') s)) of
                                 ("plusInfinity",  _     ) -> return $ EFloat infinity
                                 ("minusInfinity", _     ) -> return $ EFloat (-infinity)
+                                ("oo",            _     ) -> return $ EFloat infinity
+                                ("-oo",           _     ) -> return $ EFloat (-infinity)
+                                ("zero",          _     ) -> return $ EFloat 0
+                                ("-zero",         _     ) -> return $ EFloat (-0)
                                 ("NaN",           _     ) -> return $ EFloat nan
                                 (_,               Just v) -> return $ EFloat v
-                                _                         -> die $ "Cannot parse a float value from: " ++ s
+                                _               -> die $ "Cannot parse a float value from: " ++ s
         getFloat (EReal r)  = return $ EFloat $ fromRat $ toRational r
+        getFloat (EApp [_, s, _, _]) = getFloat s
         getFloat x          = die $ "Cannot parse a float value from: " ++ show x
 
 -- | Parses the Z3 floating point formatted numbers like so: 1.321p5/1.2123e9 etc.
