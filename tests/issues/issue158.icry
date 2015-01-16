@@ -1,0 +1,3 @@
+:l issue158.cry
+:prove thm1
+:prove thm2
