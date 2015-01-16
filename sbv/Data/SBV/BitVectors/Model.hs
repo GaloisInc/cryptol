@@ -899,20 +899,30 @@ sbvSignedShiftArithRight x i
 -- | Generalization of 'rotateL', when the shift-amount is symbolic. Since Haskell's
 -- 'rotateL' only takes an 'Int' as the shift amount, it cannot be used when we have
 -- a symbolic amount to shift with. The shift amount must be an unsigned quantity.
-sbvRotateLeft :: (SIntegral a, SIntegral b) => SBV a -> SBV b -> SBV a
+sbvRotateLeft :: (SIntegral a, SIntegral b, SDivisible (SBV b)) => SBV a -> SBV b -> SBV a
 sbvRotateLeft x i
-  | isSigned i = error "sbvRotateLeft: shift amount should be unsigned"
-  | True       = select [x `rotateL` k | k <- [0 .. ghcBitSize x - 1]] z i
-    where z = sbvFromInteger (kindOf x) 0
+  | isSigned i             = error "sbvRotateLeft: rotation amount should be unsigned"
+  | bit si <= toInteger sx = select [x `rotateL` k | k <- [0 .. bit si - 1]] z i
+                             -- ^ wrap-around not possible
+  | True                   = select [x `rotateL` k | k <- [0 .. sx - 1]] z (i `sRem` n)
+    where sx = ghcBitSize x
+          si = ghcBitSize i
+          z = sbvFromInteger (kindOf x) 0
+          n = sbvFromInteger (kindOf i) (toInteger sx)
 
 -- | Generalization of 'rotateR', when the shift-amount is symbolic. Since Haskell's
 -- 'rotateR' only takes an 'Int' as the shift amount, it cannot be used when we have
 -- a symbolic amount to shift with. The shift amount must be an unsigned quantity.
-sbvRotateRight :: (SIntegral a, SIntegral b) => SBV a -> SBV b -> SBV a
+sbvRotateRight :: (SIntegral a, SIntegral b, SDivisible (SBV b)) => SBV a -> SBV b -> SBV a
 sbvRotateRight x i
-  | isSigned i = error "sbvRotateRight: shift amount should be unsigned"
-  | True       = select [x `rotateR` k | k <- [0 .. ghcBitSize x - 1]] z i
-    where z = sbvFromInteger (kindOf x) 0
+  | isSigned i             = error "sbvRotateRight: rotation amount should be unsigned"
+  | bit si <= toInteger sx = select [x `rotateR` k | k <- [0 .. bit si - 1]] z i
+                             -- ^ wrap-around not possible
+  | True                   = select [x `rotateR` k | k <- [0 .. sx - 1]] z (i `sRem` n)
+    where sx = ghcBitSize x
+          si = ghcBitSize i
+          z = sbvFromInteger (kindOf x) 0
+          n = sbvFromInteger (kindOf i) (toInteger sx)
 
 -- | Full adder. Returns the carry-out from the addition.
 --
