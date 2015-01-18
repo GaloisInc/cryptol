@@ -87,7 +87,7 @@ ${CS_BIN}/cryptolnb: ${CS_BIN}/alex ${CS_BIN}/happy | ${CS}
 ${PKG}: ${CS_BIN}/cryptol
 	mkdir -p ${PKG}/bin
 	mkdir -p ${PKG}/lib
-	mkdir -p ${PKG}/doc/examples
+	mkdir -p ${PKG}/doc/examples/contrib
 	cp ${CS_BIN}/cryptol ${PKG}/bin/cryptol
 	cp -R docs/*.md ${PKG}/doc
 	cp -R docs/*.pdf ${PKG}/doc
@@ -99,6 +99,8 @@ ${PKG}: ${CS_BIN}/cryptol
 	cp examples/DEStest.cry ${PKG}/doc/examples
 	cp examples/Test.cry ${PKG}/doc/examples
 	cp examples/SHA1.cry ${PKG}/doc/examples
+	cp examples/contrib/mkrand.cry ${PKG}/doc/examples/contrib
+	cp examples/contrib/RC4.cry ${PKG}/doc/examples/contrib
 	cp examples/contrib/simon.cry ${PKG}/doc/examples/contrib
 	cp examples/contrib/speck.cry ${PKG}/doc/examples/contrib
 	cp LICENSE ${PKG}/doc
