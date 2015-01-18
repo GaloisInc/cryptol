@@ -61,8 +61,10 @@ ${CS}:
 ${CS_BIN}/alex: | ${CS}
 	$(CABAL) install alex
 
-# order-only dependency: we just want the sandbox to exist
-${CS_BIN}/happy: | ${CS}
+# order-only dependency: we just want the sandbox to exist. Dependency
+# on alex so that `make -j` doesn't try running simultaneous installs
+# in the same sandbox
+${CS_BIN}/happy: | ${CS} ${CS_BIN}/alex
 	$(CABAL) install happy
 
 src/GitRev.hs:
