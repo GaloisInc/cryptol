@@ -1,0 +1,30 @@
+Loading module Cryptol
+(\x -> x > 0x4) 0x5 = True
+it : {result : Bit, arg1 : [4]}
+{result = True, arg1 = 0x5}
+(\x -> x > 0x4) 0x5 = True
+(\x -> x > 0x4) 0x6 = True
+(\x -> x > 0x4) 0x7 = True
+(\x -> x > 0x4) 0x8 = True
+(\x -> x > 0x4) 0x9 = True
+(\x -> x > 0x4) 0xa = True
+(\x -> x > 0x4) 0xb = True
+(\x -> x > 0x4) 0xc = True
+(\x -> x > 0x4) 0xd = True
+(\x -> x > 0x4) 0xe = True
+(\x -> x > 0x4) 0xf = True
+it : [11]{result : Bit, arg1 : [4]}
+[{result = True, arg1 = 0x5}, {result = True, arg1 = 0x6},
+ {result = True, arg1 = 0x7}, {result = True, arg1 = 0x8},
+ {result = True, arg1 = 0x9}, {result = True, arg1 = 0xa},
+ {result = True, arg1 = 0xb}, {result = True, arg1 = 0xc},
+ {result = True, arg1 = 0xd}, {result = True, arg1 = 0xe},
+ {result = True, arg1 = 0xf}]
+must be an integer > 0 or "all"
+must be an integer > 0 or "all"
+(\x -> x > 0x4) 0x5 = True
+(\x -> x > 0x4) 0x6 = True
+(\x -> x > 0x4) 0x7 = True
+it : [3]{result : Bit, arg1 : [4]}
+[{result = True, arg1 = 0x5}, {result = True, arg1 = 0x6},
+ {result = True, arg1 = 0x7}]
