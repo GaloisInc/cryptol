@@ -10,7 +10,7 @@ module Main where
 
 import Notebook
 
-import REPL.Command 
+import REPL.Command
 import REPL.Monad (lName, lPath)
 import qualified REPL.Monad as REPL
 
@@ -48,7 +48,7 @@ handleAuto :: String -> NB ()
 handleAuto str = do
   let cfg = defaultConfig { cfgSource = "<notebook>" }
       cmdParses cmd =
-        case parseCommand findNbCommand cmd of
+        case parseCommand (findNbCommand False) cmd of
           Just (Unknown _)     -> False
           Just (Ambiguous _ _) -> False
           _                    -> True
@@ -71,7 +71,7 @@ handleModFrag m = do
   old <- getTopDecls
   let new = modNamedDecls m'
       merged = updateNamedDecls old new
-      doLoad = try $ liftREPL $ liftModuleCmd (M.loadModule (moduleFromDecls nbName merged))
+      doLoad = try $ liftREPL $ liftModuleCmd (M.loadModule "<notebook>" (moduleFromDecls nbName merged))
 
   em'' <- doLoad
   -- only update the top decls if the module successfully loaded
@@ -95,7 +95,7 @@ readUntil shouldStop = unlines . reverse <$> go []
 -- | Treat a line as an interactive command.
 handleCmd :: String -> NB ()
 handleCmd line =
-    case parseCommand findNbCommand line of
+    case parseCommand (findNbCommand False) line of
       Nothing -> return ()
       Just cmd -> do
         liftREPL $ runCommand cmd
