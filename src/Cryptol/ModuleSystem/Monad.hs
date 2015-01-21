@@ -80,9 +80,12 @@ data ModuleError
 instance PP ModuleError where
   ppPrec _ e = case e of
 
-    ModuleNotFound src _path ->
+    ModuleNotFound src path ->
       text "[error]" <+>
       text "Could not find module" <+> pp src
+      $$
+      hang (text "Searched paths:")
+         4 (vcat (map text path))
 
     CantFindFile path ->
       text "[error]" <+>

@@ -33,6 +33,7 @@ module REPL.Monad (
   , getTypeNames
   , getPropertyNames
   , LoadedModule(..), getLoadedMod, setLoadedMod
+  , setSearchPath, prependSearchPath
   , builtIns
   , getPrompt
   , shouldContinue
@@ -236,6 +237,16 @@ setLoadedMod n = do
 
 getLoadedMod :: REPL (Maybe LoadedModule)
 getLoadedMod  = eLoadedMod `fmap` getRW
+
+setSearchPath :: [FilePath] -> REPL ()
+setSearchPath path = do
+  me <- getModuleEnv
+  setModuleEnv $ me { M.meSearchPath = path }
+
+prependSearchPath :: [FilePath] -> REPL ()
+prependSearchPath path = do
+  me <- getModuleEnv
+  setModuleEnv $ me { M.meSearchPath = path ++ M.meSearchPath me }
 
 shouldContinue :: REPL Bool
 shouldContinue  = eContinue `fmap` getRW
