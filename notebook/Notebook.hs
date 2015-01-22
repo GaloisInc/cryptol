@@ -21,9 +21,9 @@ import Cryptol.Parser.Position (Located(..), emptyRange)
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP (PP(..), pp, hang, text)
 
-import Control.Applicative ((<$>))
+import Control.Applicative (Applicative(..), (<$>))
 import qualified Control.Exception as X
-import Control.Monad (forever)
+import Control.Monad (ap, forever)
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef)
 import Data.List (isPrefixOf)
 import qualified Data.Set as Set
@@ -54,6 +54,13 @@ newtype NB a = NB { unNB :: IORef RW -> REPL a }
 instance Functor NB where
   {-# INLINE fmap #-}
   fmap f m = NB (\ref -> fmap f (unNB m ref))
+
+instance Applicative NB where
+  {-# INLINE pure #-}
+  pure = return
+
+  {-# INLINE (<*>) #-}
+  (<*>) = ap
 
 instance Monad NB where
   {-# INLINE return #-}
