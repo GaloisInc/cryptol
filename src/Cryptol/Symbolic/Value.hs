@@ -29,7 +29,8 @@ import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit, is
 import Cryptol.Symbolic.BitVector
 import Cryptol.Utils.Panic (panic)
 
-import Data.SBV (SBool, fromBitsBE, sbvTestBit, Mergeable(..))
+import Data.SBV (SBool, fromBitsBE, sbvTestBit, Mergeable(..), HasKind(..))
+import Data.SBV.Internals (symbolicMergeWithKind)
 
 -- Values ----------------------------------------------------------------------
 
@@ -43,16 +44,17 @@ instance Mergeable Value where
       (VRecord fs1, VRecord fs2) -> VRecord $ zipWith mergeField fs1 fs2
       (VTuple vs1 , VTuple vs2 ) -> VTuple $ zipWith (symbolicMerge f c) vs1 vs2
       (VBit b1    , VBit b2    ) -> VBit $ symbolicMerge f c b1 b2
-      (VWord w1   , VWord w2   ) -> VWord $ symbolicMerge f c w1 w2
+      (VWord w1   , VWord w2   ) -> VWord $ mergeWord w1 w2
       (VSeq b1 vs1, VSeq _ vs2 ) -> VSeq b1 $ symbolicMerge f c vs1 vs2
       (VStream vs1, VStream vs2) -> VStream $ mergeStream vs1 vs2
       (VFun f1    , VFun f2    ) -> VFun $ symbolicMerge f c f1 f2
       (VPoly f1   , VPoly f2   ) -> VPoly $ symbolicMerge f c f1 f2
-      (VWord w1   , _          ) -> VWord $ symbolicMerge f c w1 (fromVWord v2)
-      (_          , VWord w2   ) -> VWord $ symbolicMerge f c (fromVWord v1) w2
+      (VWord w1   , _          ) -> VWord $ mergeWord w1 (fromVWord v2)
+      (_          , VWord w2   ) -> VWord $ mergeWord (fromVWord v1) w2
       (_          , _          ) -> panic "Cryptol.Symbolic.Value"
                                       [ "symbolicMerge: incompatible values" ]
     where
+      mergeWord w1 w2 = symbolicMergeWithKind (kindOf w1) f c w1 w2
       mergeField (n1, x1) (n2, x2)
         | n1 == n2  = (n1, symbolicMerge f c x1 x2)
         | otherwise = panic "Cryptol.Symbolic.Value"

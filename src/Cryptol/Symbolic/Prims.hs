@@ -26,7 +26,6 @@ import Cryptol.Utils.Panic
 
 import qualified Data.SBV as SBV
 import Data.SBV (SBool)
-import qualified Data.SBV.Tools.Polynomial as Poly (ites, addPoly, mdp)
 
 traverseSnd :: Functor f => (a -> f b) -> (t, a) -> f (t, b)
 traverseSnd f (x, y) = (,) x <$> f y
@@ -257,7 +256,7 @@ evalECon econ =
       VFun $ \v2 ->
         let k = max 1 (i + j) - 1
             mul _  []     ps = ps
-            mul as (b:bs) ps = mul (SBV.false : as) bs (Poly.ites b (as `Poly.addPoly` ps) ps)
+            mul as (b:bs) ps = mul (SBV.false : as) bs (ites b (as `addPoly` ps) ps)
             xs = map fromVBit (fromSeq v1)
             ys = map fromVBit (fromSeq v2)
             zs = take (fromInteger k) (mul xs ys [] ++ repeat SBV.false)
@@ -270,7 +269,7 @@ evalECon econ =
       VFun $ \v2 ->
         let xs = map fromVBit (fromSeq v1)
             ys = map fromVBit (fromSeq v2)
-            zs = take (fromInteger i) (fst (Poly.mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
+            zs = take (fromInteger i) (fst (mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
         in VSeq True (map VBit (reverse zs))
 
     ECPMod        -> -- {a,b} (fin a, fin b) => [a] -> [b+1] -> [b]
@@ -280,7 +279,7 @@ evalECon econ =
       VFun $ \v2 ->
         let xs = map fromVBit (fromSeq v1)
             ys = map fromVBit (fromSeq v2)
-            zs = take (fromInteger j) (snd (Poly.mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
+            zs = take (fromInteger j) (snd (mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
         in VSeq True (map VBit (reverse zs))
 
     ECRandom      -> panic "Cryptol.Symbolic.Prims.evalECon"
@@ -612,3 +611,61 @@ fromThenToV  =
          in VSeq False (genericTake len' (map lit nums))
 
       _ -> evalPanic "fromThenV" ["invalid arguments"]
+
+-- Polynomials -----------------------------------------------------------------
+
+-- TODO: Data.SBV.BitVectors.Polynomials should export ites, addPoly,
+-- and mdp (the following definitions are copied from that module)
+
+-- | Add two polynomials
+addPoly :: [SBool] -> [SBool] -> [SBool]
+addPoly xs    []      = xs
+addPoly []    ys      = ys
+addPoly (x:xs) (y:ys) = x SBV.<+> y : addPoly xs ys
+
+ites :: SBool -> [SBool] -> [SBool] -> [SBool]
+ites s xs ys
+ | Just t <- SBV.unliteral s
+ = if t then xs else ys
+ | True
+ = go xs ys
+ where go [] []         = []
+       go []     (b:bs) = SBV.ite s SBV.false b : go [] bs
+       go (a:as) []     = SBV.ite s a SBV.false : go as []
+       go (a:as) (b:bs) = SBV.ite s a b : go as bs
+
+-- conservative over-approximation of the degree
+degree :: [SBool] -> Int
+degree xs = walk (length xs - 1) $ reverse xs
+  where walk n []     = n
+        walk n (b:bs)
+         | Just t <- SBV.unliteral b
+         = if t then n else walk (n-1) bs
+         | True
+         = n -- over-estimate
+
+mdp :: [SBool] -> [SBool] -> ([SBool], [SBool])
+mdp xs ys = go (length ys - 1) (reverse ys)
+  where degTop  = degree xs
+        go _ []     = error "SBV.Polynomial.mdp: Impossible happened; exhausted ys before hitting 0"
+        go n (b:bs)
+         | n == 0   = (reverse qs, rs)
+         | True     = let (rqs, rrs) = go (n-1) bs
+                      in (ites b (reverse qs) rqs, ites b rs rrs)
+         where degQuot = degTop - n
+               ys' = replicate degQuot SBV.false ++ ys
+               (qs, rs) = divx (degQuot+1) degTop xs ys'
+
+-- return the element at index i; if not enough elements, return false
+-- N.B. equivalent to '(xs ++ repeat false) !! i', but more efficient
+idx :: [SBool] -> Int -> SBool
+idx []     _ = SBV.false
+idx (x:_)  0 = x
+idx (_:xs) i = idx xs (i-1)
+
+divx :: Int -> Int -> [SBool] -> [SBool] -> ([SBool], [SBool])
+divx n _ xs _ | n <= 0 = ([], xs)
+divx n i xs ys'        = (q:qs, rs)
+  where q        = xs `idx` i
+        xs'      = ites q (xs `addPoly` ys') xs
+        (qs, rs) = divx (n-1) (i-1) xs' (tail ys')

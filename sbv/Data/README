@@ -1,5 +1,0 @@
-NOTE: The files in this directory are a slightly modified copy of
-Levent Erkok's SBV library (http://github.com/LeventErkok/sbv). Their
-inclusion here is temporary; they will be removed once the required
-changes have been identified and incorporated into the distributed
-version.
