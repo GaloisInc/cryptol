@@ -163,6 +163,16 @@ addLoadedModule path tm lm
     , lmModule    = tm
     }
 
+removeLoadedModule :: FilePath -> LoadedModules -> LoadedModules
+removeLoadedModule path (LoadedModules ms) = LoadedModules (remove ms)
+  where
+
+  remove (lm:rest)
+    | lmFilePath lm == path = rest
+    | otherwise             = lm : remove rest
+
+  remove [] = []
+
 -- Dynamic Environments --------------------------------------------------------
 
 -- | Extra information we need to carry around to dynamically extend
