@@ -24,6 +24,7 @@ import Cryptol.Utils.PP (PP(..), pp, hang, text)
 import Control.Applicative (Applicative(..), (<$>))
 import qualified Control.Exception as X
 import Control.Monad (ap, forever)
+import Control.Monad.IO.Class (MonadIO(..))
 import Data.IORef (IORef, newIORef, readIORef, modifyIORef)
 import Data.List (isPrefixOf)
 import qualified Data.Set as Set
@@ -80,6 +81,9 @@ runNB m = do
 -- | Lift a REPL action into the NB monad.
 liftREPL :: REPL a -> NB a
 liftREPL m = NB (\_ -> m)
+
+instance MonadIO NB where
+  liftIO = io
 
 -- Primitives ------------------------------------------------------------------
 

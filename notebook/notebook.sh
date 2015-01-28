@@ -18,6 +18,6 @@ export PYTHONPATH=$PYTHONPATH:$IPNB_MAGICS
 
 pushd $CRYNB_ROOT
 ipython notebook \
-    --profile-dir=$CRYNB_ROOT/profile_cryptol \
-    --ext=cryptolmagic
+    --profile-dir=$CRYNB_ROOT/profile_cryptol #\
+#    --ext=cryptolmagic
 popd

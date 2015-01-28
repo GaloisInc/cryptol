@@ -18,6 +18,9 @@ module REPL.Monad (
   , raise
   , stop
   , catch
+  , rPutStrLn
+  , rPutStr
+  , rPrint
 
     -- ** Errors
   , REPLException(..)
@@ -48,7 +51,8 @@ module REPL.Monad (
   , userOptions
   , DotCryptol(..)
   , getUserSatNum
-
+  , getPutStr
+  , setPutStr
   ) where
 
 import REPL.Trie
@@ -98,6 +102,7 @@ data RW = RW
   , eModuleEnv  :: M.ModuleEnv
   , eNameSupply :: Int
   , eUserEnv    :: UserEnv
+  , ePutStr     :: String -> IO ()
   }
 
 -- | Initial, empty environment.
@@ -111,6 +116,7 @@ defaultRW isBatch = do
     , eModuleEnv  = env
     , eNameSupply = 0
     , eUserEnv    = mkUserEnv userOptions
+    , ePutStr     = putStr
     }
 
 -- | Build up the prompt for the REPL.
@@ -272,6 +278,29 @@ setREPLTitle :: REPL ()
 setREPLTitle  = unlessBatch $ do
   rw <- getRW
   io (setTitle (mkTitle rw))
+
+-- | Set the REPL's string-printer
+setPutStr :: (String -> IO ()) -> REPL ()
+setPutStr fn = modifyRW_ (\rw -> rw { ePutStr = fn })
+
+-- | Get the REPL's string-printer
+getPutStr :: REPL (String -> IO ())
+getPutStr = fmap ePutStr getRW
+
+
+-- | Use the configured output action to print a string
+rPutStr :: String -> REPL ()
+rPutStr str = do
+  rw <- getRW
+  io $ ePutStr rw str 
+
+-- | Use the configured output action to print a string with a trailing newline
+rPutStrLn :: String -> REPL ()
+rPutStrLn str = rPutStr $ str ++ "\n"
+
+-- | Use the configured output action to print something using its Show instance
+rPrint :: Show a => a -> REPL ()
+rPrint x = rPutStrLn (show x)
 
 builtIns :: [(String,(ECon,T.Schema))]
 builtIns = map mk [ minBound .. maxBound :: ECon ]

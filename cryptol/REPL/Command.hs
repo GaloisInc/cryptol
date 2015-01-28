@@ -198,10 +198,10 @@ commandList  =
 genHelp :: [CommandDescr] -> [String]
 genHelp cs = map cmdHelp cs
   where
-  cmdHelp cmd = concat [ "  ", cmdNames cmd, pad (cmdNames cmd), cHelp cmd ]
+  cmdHelp cmd  = concat [ "  ", cmdNames cmd, pad (cmdNames cmd), cHelp cmd ]
   cmdNames cmd = intercalate ", " (cNames cmd)
-  padding     = 2 + maximum (map (length . cmdNames) cs)
-  pad n       = replicate (max 0 (padding - length n)) ' '
+  padding      = 2 + maximum (map (length . cmdNames) cs)
+  pad n        = replicate (max 0 (padding - length n)) ' '
 
 
 -- Command Evaluation ----------------------------------------------------------
@@ -212,13 +212,13 @@ runCommand c = case c of
 
   Command cmd -> cmd `REPL.Monad.catch` handler
     where
-    handler re = io (putStrLn "" >> print (pp re))
+    handler re = rPutStrLn "" >> rPrint (pp re)
 
-  Unknown cmd -> io (putStrLn ("Unknown command: " ++ cmd))
+  Unknown cmd -> rPutStrLn ("Unknown command: " ++ cmd)
 
-  Ambiguous cmd cmds -> io $ do
-    putStrLn (cmd ++ " is ambiguous, it could mean one of:")
-    putStrLn ("\t" ++ intercalate ", " cmds)
+  Ambiguous cmd cmds -> do
+    rPutStrLn (cmd ++ " is ambiguous, it could mean one of:")
+    rPutStrLn ("\t" ++ intercalate ", " cmds)
 
 
 -- Get the setting we should use for displaying values.
@@ -239,7 +239,8 @@ evalCmd str = do
     P.ExprInput expr -> do
       (val,_ty) <- replEvalExpr expr
       ppOpts <- getPPValOpts
-      io $ rethrowEvalError $ print $ pp $ E.WithBase ppOpts val
+      out <- io $ rethrowEvalError $ return $ pp $ E.WithBase ppOpts val
+      rPrint out
     P.LetInput decl -> do
       -- explicitly make this a top-level declaration, so that it will
       -- be generalized if mono-binds is enabled
@@ -254,9 +255,9 @@ qcCmd :: QCMode -> String -> REPL ()
 qcCmd qcMode "" =
   do xs <- getPropertyNames
      if null xs
-        then io $ putStrLn "There are no properties in scope."
+        then rPutStrLn "There are no properties in scope."
         else forM_ xs $ \x ->
-               do io $ putStr $ "property " ++ x ++ " "
+               do rPutStr $ "property " ++ x ++ " "
                   qcCmd qcMode x
 
 qcCmd qcMode str =
@@ -265,7 +266,7 @@ qcCmd qcMode str =
      EnvNum testNum  <- getUser "tests"
      case TestX.testableType ty of
        Just (sz,vss) | qcMode == QCExhaust || sz <= toInteger testNum ->
-         do io $ putStrLn "Using exhaustive testing."
+         do rPutStrLn "Using exhaustive testing."
             let doTest _ [] = panic "We've unexpectedly run out of test cases"
                                     []
                 doTest _ (vs : vss1) =
@@ -273,12 +274,12 @@ qcCmd qcMode str =
                         then (Nothing, vss1)
                         else (Just vs, vss1)
             ok <- go doTest sz 0 vss
-            when ok $ io $ putStrLn "Q.E.D."
+            when ok $ rPutStrLn "Q.E.D."
 
        n -> case TestR.testableType ty of
               Nothing   -> raise (TypeNotTestable ty)
               Just gens ->
-                do io $ putStrLn "Using random testing."
+                do rPutStrLn "Using random testing."
                    prt testingMsg
                    g <- io newTFGen
                    ok <- go (TestR.runTest val gens) testNum 0 g
@@ -292,10 +293,10 @@ qcCmd qcMode str =
                                    | valNum > 2 ^ (20::Integer) =
                                        "2^^" ++ show (round $ logBase 2 valNumD :: Integer)
                                    | otherwise = show valNum
-                            io $ putStrLn $ "Coverage: "
-                                     ++ showFFloat (Just 2) percent "% ("
-                                     ++ show testNum ++ " of "
-                                     ++ showValNum ++ " values)"
+                            rPutStrLn $ "Coverage: "
+                                         ++ showFFloat (Just 2) percent "% ("
+                                         ++ show testNum ++ " of "
+                                         ++ showValNum ++ " values)"
                        Nothing -> return ()
 
   where
@@ -303,8 +304,8 @@ qcCmd qcMode str =
 
   totProgressWidth = 4    -- 100%
 
-  prt msg   = io (putStr msg >> hFlush stdout)
-  prtLn msg = io (putStrLn msg >> hFlush stdout)
+  prt msg   = rPutStr msg >> io (hFlush stdout)
+  prtLn msg = rPutStrLn msg >> io (hFlush stdout)
 
   ppProgress this tot = unlessBatch $
     let percent = show (div (100 * this) tot) ++ "%"
@@ -333,7 +334,7 @@ qcCmd qcMode str =
                 do delProgress
                    delTesting
                    prtLn "FAILED for the following inputs:"
-                   io $ mapM_ (print . pp . E.WithBase opts) vs
+                   mapM_ (rPrint . pp . E.WithBase opts) vs
                    return False
 
 satCmd, proveCmd :: String -> REPL ()
@@ -347,9 +348,9 @@ cmdProveSat :: Bool -> String -> REPL ()
 cmdProveSat isSat "" =
   do xs <- getPropertyNames
      if null xs
-        then io $ putStrLn "There are no properties in scope."
+        then rPutStrLn "There are no properties in scope."
         else forM_ xs $ \x ->
-               do io $ putStr $ "property " ++ x ++ " "
+               do rPutStr $ "property " ++ x ++ " "
                   cmdProveSat isSat x
 cmdProveSat isSat str = do
   EnvString proverName <- getUser "prover"
@@ -382,9 +383,9 @@ onlineProveSat isSat str proverName mfile = do
   case result of
     Symbolic.EmptyResult         ->
       panic "REPL.Command" [ "got EmptyResult for online prover query" ]
-    Symbolic.ProverError msg     -> io $ putStrLn msg
+    Symbolic.ProverError msg     -> rPutStrLn msg
     Symbolic.ThmResult ts        -> do
-      io $ putStrLn (if isSat then "Unsatisfiable." else "Q.E.D.")
+      rPutStrLn (if isSat then "Unsatisfiable." else "Q.E.D.")
       let (t, e) = mkSolverResult cexStr (not isSat) (Left ts)
       bindItVariable t e
     Symbolic.AllSatResult tevss -> do
@@ -394,8 +395,8 @@ onlineProveSat isSat str proverName mfile = do
             let docs = map (pp . E.WithBase ppOpts) vs
                 -- function application has precedence 3
                 doc = ppPrec 3 parseExpr
-            io $ print $ hsep (doc : docs) <+>
-                   text (if isSat then "= True" else "= False")
+            rPrint $ hsep (doc : docs) <+>
+              text (if isSat then "= True" else "= False")
           resultRecs = map (mkSolverResult cexStr isSat . Right) tess
           collectTes tes = (t, es)
             where
@@ -425,7 +426,7 @@ offlineProveSat isSat str mfile = do
   result <- liftModuleCmd $
     Symbolic.satProveOffline isSat useIte vrb decls mfile exsch
   case result of
-    Symbolic.ProverError msg -> io $ putStrLn msg
+    Symbolic.ProverError msg -> rPutStrLn msg
     Symbolic.EmptyResult -> return ()
     _ -> panic "REPL.Command" [ "unexpected prover result for offline prover" ]
 
@@ -456,12 +457,12 @@ specializeCmd str = do
   parseExpr <- replParseExpr str
   (expr, schema) <- replCheckExpr parseExpr
   spexpr <- replSpecExpr expr
-  io $ putStrLn  "Expression type:"
-  io $ print    $ pp schema
-  io $ putStrLn  "Original expression:"
-  io $ putStrLn $ dump expr
-  io $ putStrLn  "Specialized expression:"
-  io $ putStrLn $ dump spexpr
+  rPutStrLn  "Expression type:"
+  rPrint    $ pp schema
+  rPutStrLn  "Original expression:"
+  rPutStrLn $ dump expr
+  rPutStrLn  "Specialized expression:"
+  rPutStrLn $ dump spexpr
 
 typeOfCmd :: String -> REPL ()
 typeOfCmd str = do
@@ -470,8 +471,8 @@ typeOfCmd str = do
 
   -- XXX need more warnings from the module system
   --io (mapM_ printWarning ws)
-  whenDebug (io (putStrLn (dump def)))
-  io $ print $ pp expr <+> text ":" <+> pp sig
+  whenDebug (rPutStrLn (dump def))
+  rPrint $ pp expr <+> text ":" <+> pp sig
 
 reloadCmd :: REPL ()
 reloadCmd  = do
@@ -494,7 +495,7 @@ editCmd path
              else return ()
 
         Nothing   -> do
-          io (putStrLn "No files to edit.")
+          rPutStrLn "No files to edit."
           return ()
 
   | otherwise = do
@@ -510,7 +511,7 @@ moduleCmd modString
   | otherwise      = do
       case parseModName modString of
         Just m -> loadCmd =<< liftModuleCmd (M.findModule m)
-        Nothing -> io $ putStrLn "Invalid module name."
+        Nothing -> rPutStrLn "Invalid module name."
 
 loadPrelude :: REPL ()
 loadPrelude  = moduleCmd $ show $ pp M.preludeName
@@ -525,7 +526,7 @@ loadCmd path
         }
 
       m <- liftModuleCmd (M.loadModuleByPath path)
-      whenDebug (io (putStrLn (dump m)))
+      whenDebug (rPutStrLn (dump m))
       setLoadedMod LoadedModule
         { lName = Just (T.mName m)
         , lPath = path
@@ -546,23 +547,23 @@ browseTSyns :: String -> REPL ()
 browseTSyns pfx = do
   tsyns <- getTSyns
   let tsyns' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) tsyns
-  unless (Map.null tsyns') $ io $ do
-    putStrLn "Type Synonyms"
-    putStrLn "============="
+  unless (Map.null tsyns') $ do
+    rPutStrLn "Type Synonyms"
+    rPutStrLn "============="
     let ppSyn (qn,T.TySyn _ ps cs ty) = pp (T.TySyn qn ps cs ty)
-    print (nest 4 (vcat (map ppSyn (Map.toList tsyns'))))
-    putStrLn ""
+    rPrint (nest 4 (vcat (map ppSyn (Map.toList tsyns'))))
+    rPutStrLn ""
 
 browseNewtypes :: String -> REPL ()
 browseNewtypes pfx = do
   nts <- getNewtypes
   let nts' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) nts
-  unless (Map.null nts') $ io $ do
-    putStrLn "Newtypes"
-    putStrLn "========"
+  unless (Map.null nts') $ do
+    rPutStrLn "Newtypes"
+    rPutStrLn "========"
     let ppNT (qn,nt) = T.ppNewtypeShort (nt { T.ntName = qn })
-    print (nest 4 (vcat (map ppNT (Map.toList nts'))))
-    putStrLn ""
+    rPrint (nest 4 (vcat (map ppNT (Map.toList nts'))))
+    rPutStrLn ""
 
 browseVars :: String -> REPL ()
 browseVars pfx = do
@@ -581,13 +582,13 @@ browseVars pfx = do
 
   where
   ppBlock name xs =
-    unless (Map.null xs) $ io $ do
-      putStrLn name
-      putStrLn (replicate (length name) '=')
+    unless (Map.null xs) $ do
+      rPutStrLn name
+      rPutStrLn (replicate (length name) '=')
       let step k d acc =
               pp k <+> char ':' <+> pp (M.ifDeclSig d) : acc
-      print (nest 4 (vcat (Map.foldrWithKey step [] xs)))
-      putStrLn ""
+      rPrint (nest 4 (vcat (Map.foldrWithKey step [] xs)))
+      rPutStrLn ""
 
 
 
@@ -605,23 +606,23 @@ setOptionCmd str
 
   describe k = do
     ev <- tryGetUser k
-    io $ case ev of
-           Just (EnvString s)   -> putStrLn (k ++ " = " ++ s)
-           Just (EnvNum n)      -> putStrLn (k ++ " = " ++ show n)
-           Just (EnvBool True)  -> putStrLn (k ++ " = on")
-           Just (EnvBool False) -> putStrLn (k ++ " = off")
-           Nothing              -> do putStrLn ("Unknown user option: `" ++ k ++ "`")
-                                      when (any isSpace k) $ do
-                                        let (k1, k2) = break isSpace k
-                                        putStrLn ("Did you mean: `:set " ++ k1 ++ " =" ++ k2 ++ "`?")
+    case ev of
+      Just (EnvString s)   -> rPutStrLn (k ++ " = " ++ s)
+      Just (EnvNum n)      -> rPutStrLn (k ++ " = " ++ show n)
+      Just (EnvBool True)  -> rPutStrLn (k ++ " = on")
+      Just (EnvBool False) -> rPutStrLn (k ++ " = off")
+      Nothing              -> do rPutStrLn ("Unknown user option: `" ++ k ++ "`")
+                                 when (any isSpace k) $ do
+                                   let (k1, k2) = break isSpace k
+                                   rPutStrLn ("Did you mean: `:set " ++ k1 ++ " =" ++ k2 ++ "`?")
 
 
 helpCmd :: String -> REPL ()
 helpCmd cmd
-  | null cmd = io (mapM_ putStrLn (genHelp commandList))
+  | null cmd = mapM_ rPutStrLn (genHelp commandList)
   | Just (ec,_) <- lookup cmd builtIns =
-                io $ print $ helpDoc ec
-  | otherwise = do io $ putStrLn $ "// No documentation is available."
+                rPrint $ helpDoc ec
+  | otherwise = do rPutStrLn $ "// No documentation is available."
                    typeOfCmd cmd
 
 
@@ -632,7 +633,7 @@ runShellCmd cmd
             return ()
 
 cdCmd :: FilePath -> REPL ()
-cdCmd f | null f = io $ putStrLn $ "[error] :cd requires a path argument"
+cdCmd f | null f = rPutStrLn $ "[error] :cd requires a path argument"
         | otherwise = do
   exists <- io $ doesDirectoryExist f
   if exists
@@ -643,7 +644,7 @@ cdCmd f | null f = io $ putStrLn $ "[error] :cd requires a path argument"
 
 -- XXX this should probably do something a bit more specific.
 handleCtrlC :: REPL ()
-handleCtrlC  = io (putStrLn "Ctrl-C")
+handleCtrlC  = rPutStrLn "Ctrl-C"
 
 
 -- Utilities -------------------------------------------------------------------
@@ -693,7 +694,7 @@ moduleCmdResult (res,ws0) = do
 
   let ws = if yes then ws0
                   else mapMaybe filterDefaults ws0
-  io (mapM_ (print . pp) ws)
+  mapM_ (rPrint . pp) ws
   case res of
     Right (a,me') -> setModuleEnv me' >> return a
     Left err      -> raise (ModuleSystemError err)
@@ -731,19 +732,19 @@ replEvalExpr expr =
           Nothing -> raise (EvalPolyError sig)
           Just (tys,def1) ->
             do let nms = T.addTNames (T.sVars sig) IntMap.empty
-               io $ mapM_ (warnDefault nms) tys
+               mapM_ (warnDefault nms) tys
                let su = T.listSubst [ (T.tpVar a, t) | (a,t) <- tys ]
                return (def1, T.apSubst su (T.sType sig))
 
      val <- liftModuleCmd (M.evalExpr def1)
      _ <- io $ rethrowEvalError $ X.evaluate val
-     whenDebug (io (putStrLn (dump def1)))
+     whenDebug (rPutStrLn (dump def1))
      -- add "it" to the namespace
      bindItVariable ty def1
      return (val,ty)
   where
   warnDefault ns (x,t) =
-        print $ text "Assuming" <+> ppWithNames ns x <+> text "=" <+> pp t
+        rPrint $ text "Assuming" <+> ppWithNames ns x <+> text "=" <+> pp t
 
 -- | Creates a fresh binding of "it" to the expression given, and adds
 -- it to the current dynamic environment
@@ -780,7 +781,7 @@ bindItVariables ty exprs = bindItVariable seqTy seqExpr
 replEvalDecl :: P.Decl -> REPL ()
 replEvalDecl decl = do
   dgs <- replCheckDecls [decl]
-  whenDebug (mapM_ (\dg -> (io (putStrLn (dump dg)))) dgs)
+  whenDebug (mapM_ (\dg -> (rPutStrLn (dump dg))) dgs)
   liftModuleCmd (M.evalDecls dgs)
 
 replEdit :: String -> REPL Bool

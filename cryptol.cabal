@@ -177,9 +177,12 @@ executable cryptolnb
                        directory,
                        filepath,
                        haskeline,
+                       ipython-kernel,
                        monadLib,
                        process,
                        random,
+                       sbv             >= 4.0,
+                       text,
                        tf-random,
                        transformers
   GHC-options:         -Wall -O2

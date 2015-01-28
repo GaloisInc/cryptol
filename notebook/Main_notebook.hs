@@ -15,30 +15,67 @@ import REPL.Monad (lName, lPath)
 import qualified REPL.Monad as REPL
 
 import qualified Cryptol.ModuleSystem as M
+import qualified Cryptol.ModuleSystem.Monad as M (setFocusedModule)
 import Cryptol.Parser (defaultConfig, parseModule, Config(..))
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP (pp)
 
 import Control.Applicative ((<$>))
+import qualified Control.Exception as X
 import Control.Monad (forever, forM_)
+
+import qualified Data.Text as T
+
+import IHaskell.IPython.Kernel
+import IHaskell.IPython.EasyKernel (easyKernel, KernelConfig(..))
+
+import System.Environment (getArgs)
 import System.IO (hFlush, stdout)
 
+import Debug.Trace
+
 main :: IO ()
-main = runNB $ do
-  liftREPL loadPrelude `catch` \x -> io $ print $ pp x
-  io $ putStr "<READY>" >> hFlush stdout
-  let loop = do
-        line <- io getLine
-        runExns $ case line of
-          "<BEGINMOD>" ->
-            handleModFrag =<< parseModFrag =<< readUntil (== "<ENDMOD>")
-          "<BEGINAUTO>" ->
-            handleAuto =<< readUntil (== "<ENDAUTO>")
-          _ ->
-            handleCmd line
-        io $ putStr "<DONE>" >> hFlush stdout
-  forever loop
+main = do
+  args <- getArgs
+  case args of
+    ["kernel", profileFile] ->
+      runNB $ do
+        liftREPL loadPrelude `catch` \x -> io $ print $ pp x
+        easyKernel profileFile cryptolConfig
+    _ -> do
+      putStrLn "Usage:"
+      putStrLn "cryptolnb kernel FILE  -- run a kernel with FILE for \
+               \communication with the frontend"
+  
+    
+
+-- Kernel Configuration --------------------------------------------------------
+cryptolConfig :: KernelConfig NB String String
+cryptolConfig = KernelConfig
+  { languageName = "cryptol"
+  , languageVersion = [0,0,1]
+  , profileSource = return Nothing
+  , displayResult = displayRes
+  , displayOutput = displayOut
+  , completion = compl
+  , objectInfo = info
+  , run = runCell
+  , debug = False
+  }
+  where
+    displayRes str = [ DisplayData MimeHtml . T.pack $ str
+                     , DisplayData PlainText . T.pack $ str
+                     ]
+    displayOut str = [ DisplayData PlainText . T.pack $ str ]
+    compl _ _ _    = Nothing
+    info _         = Nothing
+    runCell contents clear nbPutStr = do
+      putStrOrig <- liftREPL REPL.getPutStr
+      liftREPL $ REPL.setPutStr nbPutStr
+      handleAuto (T.unpack contents)
+      liftREPL $ REPL.setPutStr putStrOrig
+      return ("", Ok, "")
 
 -- Input Handling --------------------------------------------------------------
 
@@ -69,10 +106,10 @@ handleModFrag :: P.Module -> NB ()
 handleModFrag m = do
   let m' = removeIncludes $ removeImports m
   old <- getTopDecls
+  
   let new = modNamedDecls m'
       merged = updateNamedDecls old new
       doLoad = try $ liftREPL $ liftModuleCmd (M.loadModule "<notebook>" (moduleFromDecls nbName merged))
-
   em'' <- doLoad
   -- only update the top decls if the module successfully loaded
   case em'' of
@@ -98,4 +135,5 @@ handleCmd line =
     case parseCommand (findNbCommand False) line of
       Nothing -> return ()
       Just cmd -> do
+        mod <- (liftREPL (REPL.getLoadedMod))
         liftREPL $ runCommand cmd
