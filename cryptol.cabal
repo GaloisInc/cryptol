@@ -12,6 +12,8 @@ Cabal-version:       >= 1.18
 data-files:          *.cry
 data-dir:            lib
 
+extra-source-files:  configure
+
 flag static
   default: False
   description: Create a statically-linked binary
