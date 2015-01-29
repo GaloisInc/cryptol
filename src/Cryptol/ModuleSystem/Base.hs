@@ -183,8 +183,6 @@ moduleFile :: ModName -> String -> FilePath
 moduleFile (ModName ns) = addExtension (joinPath ns)
 
 -- | Discover a module.
---
--- TODO: extend this with a search path.
 findModule :: ModName -> ModuleM FilePath
 findModule n = do
   paths <- getSearchPath

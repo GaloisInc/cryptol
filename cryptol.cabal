@@ -9,7 +9,10 @@ Category:            Language
 Build-type:          Configure
 Cabal-version:       >= 1.18
 
-data-files:          lib/Cryptol.cry
+data-files:          *.cry
+data-dir:            lib
+
+extra-source-files:  configure
 
 flag static
   default: False
@@ -33,22 +36,22 @@ library
                        generic-trie    >= 0.2,
                        GraphSCC        >= 1.0.4,
                        monadLib        >= 3.7.2,
-                       mtl,
                        old-time        >= 1.1,
                        pretty          >= 1.1,
                        process         >= 1.2,
                        QuickCheck      >= 2.7,
                        random          >= 1.0.1,
-                       tf-random       >= 0.5,
+                       sbv             >= 4.0,
                        smtLib          >= 1.0.7,
                        simple-smt      >= 0.4,
                        syb             >= 0.4,
                        text            >= 1.1,
+                       tf-random       >= 0.5,
                        transformers    >= 0.3,
                        utf8-string     >= 0.3
 
   Build-tools:         alex, happy
-  hs-source-dirs:      src, sbv
+  hs-source-dirs:      src
 
   Exposed-modules:     Cryptol.Prims.Syntax,
                        Cryptol.Prims.Types,
@@ -131,43 +134,8 @@ library
                        Cryptol.Symbolic.Prims
                        Cryptol.Symbolic.Value
 
-                       Data.SBV,
-                       Data.SBV.Bridge.Boolector,
-                       Data.SBV.Bridge.CVC4,
-                       Data.SBV.Bridge.MathSAT,
-                       Data.SBV.Bridge.Yices,
-                       Data.SBV.Bridge.Z3,
-                       Data.SBV.Internals,
-                       Data.SBV.Tools.Polynomial
-
   Other-modules:       Cryptol.Parser.LexerUtils,
                        Cryptol.Parser.ParserUtils,
-                       Data.SBV.BitVectors.AlgReals,
-                       Data.SBV.BitVectors.Data,
-                       Data.SBV.BitVectors.Model,
-                       Data.SBV.BitVectors.PrettyNum,
-                       Data.SBV.BitVectors.SignCast,
-                       Data.SBV.BitVectors.Splittable,
-                       Data.SBV.BitVectors.STree,
-                       Data.SBV.Compilers.C,
-                       Data.SBV.Compilers.CodeGen,
-                       Data.SBV.SMT.SMT,
-                       Data.SBV.SMT.SMTLib,
-                       Data.SBV.SMT.SMTLib1,
-                       Data.SBV.SMT.SMTLib2,
-                       Data.SBV.Provers.Prover,
-                       Data.SBV.Provers.SExpr,
-                       Data.SBV.Provers.Boolector,
-                       Data.SBV.Provers.CVC4,
-                       Data.SBV.Provers.Yices,
-                       Data.SBV.Provers.Z3,
-                       Data.SBV.Provers.MathSAT,
-                       Data.SBV.Tools.ExpectedValue,
-                       Data.SBV.Tools.GenTest,
-                       Data.SBV.Tools.Optimize,
-                       Data.SBV.Utils.Boolean,
-                       Data.SBV.Utils.TDiff,
-                       Data.SBV.Utils.Lib,
                        Paths_cryptol,
                        GitRev
 
@@ -182,6 +150,7 @@ executable cryptol
   Other-modules:       OptParser,
                        REPL.Command,
                        REPL.Haskeline,
+                       REPL.Logo,
                        REPL.Monad,
                        REPL.Trie,
                        Paths_cryptol
@@ -195,6 +164,7 @@ executable cryptol
                        monadLib,
                        process,
                        random,
+                       sbv,
                        tf-random,
                        transformers
   GHC-options:         -Wall -O2

@@ -53,6 +53,9 @@ findModule n env = runModuleM env (Base.findModule n)
 -- | Load the module contained in the given file.
 loadModuleByPath :: FilePath -> ModuleCmd T.Module
 loadModuleByPath path env = runModuleM (resetModuleEnv env) $ do
+  -- unload the module if it already exists
+  unloadModule path
+
   m <- Base.loadModuleByPath path
   setFocusedModule (T.mName m)
   return m
@@ -60,6 +63,9 @@ loadModuleByPath path env = runModuleM (resetModuleEnv env) $ do
 -- | Load the given parsed module.
 loadModule :: FilePath -> P.Module -> ModuleCmd T.Module
 loadModule path m env = runModuleM env $ do
+  -- unload the module if it already exists
+  unloadModule path
+
   let n = P.thing (P.mName m)
   m' <- loadingModule n (Base.loadModule path m)
   setFocusedModule (T.mName m')

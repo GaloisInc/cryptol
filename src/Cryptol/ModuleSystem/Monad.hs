@@ -80,9 +80,12 @@ data ModuleError
 instance PP ModuleError where
   ppPrec _ e = case e of
 
-    ModuleNotFound src _path ->
+    ModuleNotFound src path ->
       text "[error]" <+>
       text "Could not find module" <+> pp src
+      $$
+      hang (text "Searched paths:")
+         4 (vcat (map text path))
 
     CantFindFile path ->
       text "[error]" <+>
@@ -317,6 +320,12 @@ setNameSeeds :: T.NameSeeds -> ModuleM ()
 setNameSeeds seeds = ModuleT $ do
   env <- get
   set $! env { meNameSeeds = seeds }
+
+-- | Remove a module from the set of loaded module, by its path.
+unloadModule :: FilePath -> ModuleM ()
+unloadModule path = ModuleT $ do
+  env <- get
+  set $! env { meLoadedModules = removeLoadedModule path (meLoadedModules env) }
 
 loadedModule :: FilePath -> T.Module -> ModuleM ()
 loadedModule path m = ModuleT $ do

@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Main where
@@ -13,7 +14,8 @@ module Main where
 import OptParser
 import REPL.Command (loadCmd,loadPrelude)
 import REPL.Haskeline
-import REPL.Monad (REPL,setREPLTitle,io,DotCryptol(..))
+import REPL.Monad (REPL,setREPLTitle,io,DotCryptol(..),
+                   prependSearchPath,setSearchPath)
 import REPL.Logo
 import qualified REPL.Monad as REPL
 import Paths_cryptol (version)
@@ -22,26 +24,29 @@ import Cryptol.Version (commitHash, commitBranch, commitDirty)
 import Data.Version (showVersion)
 import Cryptol.Utils.PP(pp)
 import Data.Monoid (mconcat)
-import System.Environment (getArgs,getProgName)
+import System.Environment (getArgs, getProgName, lookupEnv)
 import System.Exit (exitFailure)
+import System.FilePath (splitSearchPath)
 import System.Console.GetOpt
     (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
 
 data Options = Options
-  { optLoad       :: [FilePath]
-  , optVersion    :: Bool
-  , optHelp       :: Bool
-  , optBatch      :: Maybe FilePath
-  , optDotCryptol :: DotCryptol
+  { optLoad            :: [FilePath]
+  , optVersion         :: Bool
+  , optHelp            :: Bool
+  , optBatch           :: Maybe FilePath
+  , optDotCryptol      :: DotCryptol
+  , optCryptolPathOnly :: Bool
   } deriving (Show)
 
 defaultOptions :: Options
 defaultOptions  = Options
-  { optLoad       = []
-  , optVersion    = False
-  , optHelp       = False
-  , optBatch      = Nothing
-  , optDotCryptol = DotCDefault
+  { optLoad            = []
+  , optVersion         = False
+  , optHelp            = False
+  , optBatch           = Nothing
+  , optDotCryptol      = DotCDefault
+  , optCryptolPathOnly = False
   }
 
 options :: [OptDescr (OptParser Options)]
@@ -60,6 +65,9 @@ options  =
 
   , Option ""  ["cryptol-script"] (ReqArg addDotC "FILE")
     "read additional .cryptol files"
+
+  , Option ""  ["cryptolpath-only"] (NoArg setCryptolPathOnly)
+    "only look for .cry files in CRYPTOLPATH; don't use built-in locations"
   ]
 
 -- | Set a single file to be loaded.  This should be extended in the future, if
@@ -91,6 +99,9 @@ addDotC path = modify $ \ opts ->
     DotCDefault  -> opts { optDotCryptol = DotCFiles [path] }
     DotCDisabled -> opts
     DotCFiles xs -> opts { optDotCryptol = DotCFiles (path:xs) }
+
+setCryptolPathOnly :: OptParser Options
+setCryptolPathOnly  = modify $ \opts -> opts { optCryptolPathOnly = True }
 
 -- | Parse arguments.
 parseArgs :: [String] -> Either [String] Options
@@ -134,6 +145,17 @@ setupREPL :: Options -> REPL ()
 setupREPL opts = do
   displayLogo True
   setREPLTitle
+  mCryptolPath <- io $ lookupEnv "CRYPTOLPATH"
+  case mCryptolPath of
+    Nothing -> return ()
+    Just path | optCryptolPathOnly opts -> setSearchPath path'
+              | otherwise               -> prependSearchPath path'
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+      -- Windows paths search from end to beginning
+      where path' = reverse (splitSearchPath path)
+#else
+      where path' = splitSearchPath path
+#endif
   case optLoad opts of
     []  -> loadPrelude `REPL.catch` \x -> io $ print $ pp x
     [l] -> loadCmd l `REPL.catch` \x -> io $ print $ pp x

@@ -33,6 +33,7 @@ module REPL.Monad (
   , getTypeNames
   , getPropertyNames
   , LoadedModule(..), getLoadedMod, setLoadedMod
+  , setSearchPath, prependSearchPath
   , builtIns
   , getPrompt
   , shouldContinue
@@ -46,6 +47,7 @@ module REPL.Monad (
   , setUser, getUser, tryGetUser
   , userOptions
   , DotCryptol(..)
+  , getUserSatNum
 
   ) where
 
@@ -76,6 +78,7 @@ import Data.Typeable (Typeable)
 import System.Console.ANSI (setTitle)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
+import Text.Read (readMaybe)
 
 import qualified Data.SBV as SBV (sbvCheckSolverInstallation)
 
@@ -234,6 +237,16 @@ setLoadedMod n = do
 
 getLoadedMod :: REPL (Maybe LoadedModule)
 getLoadedMod  = eLoadedMod `fmap` getRW
+
+setSearchPath :: [FilePath] -> REPL ()
+setSearchPath path = do
+  me <- getModuleEnv
+  setModuleEnv $ me { M.meSearchPath = path }
+
+prependSearchPath :: [FilePath] -> REPL ()
+prependSearchPath path = do
+  me <- getModuleEnv
+  setModuleEnv $ me { M.meSearchPath = path ++ M.meSearchPath me }
 
 shouldContinue :: REPL Bool
 shouldContinue  = eContinue `fmap` getRW
@@ -456,6 +469,8 @@ userOptions  = mkOptionMap
     "The number of elements to display for infinite sequences."
   , simpleOpt "tests" (EnvNum 100) (const $ return Nothing)
     "The number of random tests to try."
+  , simpleOpt "satNum" (EnvString "1") checkSatNum
+    "The maximum number of :sat solutions to display (\"all\" for no limit)."
   , simpleOpt "prover" (EnvString "cvc4") checkProver $
     "The external SMT solver for :prove and :sat (" ++ proverListString ++ ")."
   , simpleOpt "iteSolver" (EnvBool False) (const $ return Nothing)
@@ -501,6 +516,24 @@ checkProver val = case val of
 
 proverListString :: String
 proverListString = concatMap (++ ", ") (init proverNames) ++ "or " ++ last proverNames
+
+checkSatNum :: EnvVal -> IO (Maybe String)
+checkSatNum val = case val of
+  EnvString "all" -> return Nothing
+  EnvString s ->
+    case readMaybe s :: Maybe Int of
+      Just n | n >= 1 -> return Nothing
+      _               -> return $ Just "must be an integer > 0 or \"all\""
+  _ -> return $ Just "unable to parse a value for satNum"
+
+getUserSatNum :: REPL (Maybe Int)
+getUserSatNum = do
+  EnvString s <- getUser "satNum"
+  case s of
+    "all"                     -> return Nothing
+    _ | Just n <- readMaybe s -> return (Just n)
+    _                         -> panic "REPL.Monad.getUserSatNum"
+                                   [ "invalid satNum option" ]
 
 -- | Configuration of @.cryptol@ file behavior. The default option
 -- searches the following locations in order, and evaluates the first

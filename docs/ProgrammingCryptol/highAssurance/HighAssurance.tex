@@ -831,7 +831,7 @@ Not surprisingly, Cryptol told us that 3 is one such value. We can
 search for other solutions by explicitly disallowing 3:
 \begin{Verbatim}
   Cryptol> :sat \x -> isSqrtOf9 x && ~(elem (x, [3]))
-  \x -> isSqrtOf9 x && ~(elem (x, [3])) 125 = True
+  \x -> isSqrtOf9 x && ~(elem (x, [3])) 131 = True
 \end{Verbatim}
 Note the use of the \lamex to\indLamExp indicate the new
 constraint. (Of course, we could have defined another function {\tt
@@ -842,18 +842,31 @@ express the constraint {\tt x} must not be 3. In response, Cryptol
 told us that {\tt 125} is another solution. Indeed $125 * 125 =
 9\imod{2^7}$, as you can verify separately.  We can search for more:
 \begin{Verbatim}
-  Cryptol> :sat \x -> isSqrtOf9 x && ~(elem (x, [3 125]))
-  \x -> isSqrtOf9 x && ~(elem (x, [3, 125]) ) 131 = True
+  Cryptol> :sat \x -> isSqrtOf9 x && ~(elem (x, [3, 125]))
+  \x -> isSqrtOf9 x && ~(elem (x, [3, 131])) 253 = True
 \end{Verbatim}
-And more: 
+Rather than manually adding solutions we have already seen, we can
+search for other solutions by asking the satisfiability checker for
+more solutions using the {\tt satNum} setting:
 \begin{Verbatim}
-  Cryptol> :sat \x -> isSqrtOf9 x && ~(elem (x, [3 131 125]))
-  \x -> isSqrtOf9 x && ~(elem (x, [3, 131, 125]) ) 253 = True
+  Cryptol> :set satNum = 4
+  Cryptol> :sat isSqrtOf9
+  isSqrtOf9 3 = True
+  isSqrtOf9 131 = True
+  isSqrtOf9 125 = True
+  isSqrtOf9 253 = True
 \end{Verbatim}
-If we try one more time, we get:
+By default, {\tt satNum} is set to {\tt 1}, so we only see one
+solution. When we change it to {\tt 4}, the satisfiability checker
+will try to find {\em up to} 4 solutions. We can also set it to {\tt
+  all}, which will try to find as many solutions as possible.
 \begin{Verbatim}
-  Cryptol> :sat \x -> isSqrtOf9 x && ~(elem (x, [3, 131, 125, 253]))
-  Unsatisfiable.
+  Cryptol> :set satNum = 4
+  Cryptol> :sat isSqrtOf9
+  isSqrtOf9 3 = True
+  isSqrtOf9 131 = True
+  isSqrtOf9 125 = True
+  isSqrtOf9 253 = True
 \end{Verbatim}
 So, we can rest assured that there are exactly four 8-bit square roots
 of 9; namely 3, 131, 125, and 253. (Note that Cryptol can return the

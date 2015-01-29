@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -20,7 +21,6 @@ import System.Random
 
 import Data.SBV.Bridge.Yices
 import Data.SBV.Internals
-import Data.SBV.BitVectors.Data
 
 import Cryptol.Utils.Panic
 
@@ -60,7 +60,7 @@ instance SignCast SWord SWord where
   signCast x@(SBV (KBounded _ w) _) = SBV k (Right (cache y)) where
     k = KBounded True w
     y st = do xsw <- sbvToSW st x
-              newExpr st k (SBVApp (Extract (intSizeOf x-1) 0) [xsw])
+              newExpr st k (SBVApp (Extract (w - 1) 0) [xsw])
   signCast _ = panic "Cryptol.Symbolic.BitVector"
                  [ "signCast called on non-bitvector value" ]
   unsignCast (SBV (KBounded _ w) (Left (cwVal -> (CWInteger x)))) =
@@ -69,7 +69,7 @@ instance SignCast SWord SWord where
   unsignCast x@(SBV (KBounded _ w) _) = SBV k (Right (cache y)) where
     k = KBounded False w
     y st = do xsw <- sbvToSW st x
-              newExpr st k (SBVApp (Extract (intSizeOf x-1) 0) [xsw])
+              newExpr st k (SBVApp (Extract (w - 1) 0) [xsw])
   unsignCast _ = panic "Cryptol.Symbolic.BitVector"
                    [ "unsignCast called on non-bitvector value" ]
 
