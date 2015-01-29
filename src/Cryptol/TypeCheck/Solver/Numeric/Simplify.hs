@@ -1,4 +1,4 @@
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Safe, PatternGuards #-}
 -- | Simplification.
 -- TODO:
 --  - Putting in a normal form to spot "prove by assumption"
