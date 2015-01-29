@@ -107,7 +107,7 @@ propToSmtLib prop =
   unexpected = panic "desugarProp" [ show (ppProp prop) ]
   fin x      = SMT.const (smtFinName x)
 
-  addFin x y e = foldr (\x e' -> SMT.and (fin x) e') e
+  addFin x y e = foldr (\x' e' -> SMT.and (fin x') e') e
                    (Set.toList (cryExprFVS x `Set.union` cryExprFVS y))
 
 exprToSmtLib :: Expr -> SExpr
