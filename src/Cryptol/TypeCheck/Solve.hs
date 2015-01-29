@@ -38,7 +38,7 @@ import           Data.Set ( Set )
 import qualified Data.Set as Set
 import qualified SimpleSMT as SMT
 
-import           Text.PrettyPrint(text)
+import           Text.PrettyPrint(Doc, text)
 
 -- Add additional constraints that ensure validity of type function.
 checkTypeFunction :: TFun -> [Type] -> [Prop]
@@ -68,33 +68,22 @@ simplifyAllConstraints =
 
 proveImplication :: LQName -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
-  do mbErr <- io (proveImplication' lnam as ps gs)
+  do mbErr <- io (proveImplicationIO lnam as ps gs)
      case mbErr of
        Right su -> return su
        Left err -> recordError err >> return emptySubst
 
-debugBlock :: Num.Solver -> String -> IO a -> IO a
-debugBlock s name m =
-  do let logger = Num.logger s
-     debugLog s name
-     SMT.logTab logger
-     a <- m
-     SMT.logUntab logger
-     return a
 
-debugLog :: Num.Solver -> String -> IO ()
-debugLog s x = SMT.logMessage (Num.logger s) x
-
-proveImplication' :: LQName -> [TParam] -> [Prop] -> [Goal] ->
+proveImplicationIO :: LQName -> [TParam] -> [Prop] -> [Goal] ->
                                               IO (Either Error Subst)
-proveImplication' lname as ps gs =
+proveImplicationIO _ _ [] [] = return (Right emptySubst)
+proveImplicationIO lname as ps gs =
   Num.withSolver $ \s ->
+  debugBlock s "proveImplicationIO" $
 
-  debugBlock s "proveImplication'" $
-  do debugBlock s "assumes" $
-       mapM_ (debugLog s . show . pp) ps
-     debugBlock s "shows" $
-       mapM_ (debugLog s . show . pp . goal) gs
+  do debugBlock s "assumes" (debugLog s ps)
+     debugBlock s "shows"   (debugLog s gs)
+     debugLog s "------------------"
 
 
      varMap <- Num.assumeProps s ps
@@ -103,11 +92,13 @@ proveImplication' lname as ps gs =
      let su  = importImps varMap imps
          gs0 = apSubst su gs
 
-     debugBlock s "substitution" $ debugLog s (show (pp su))
+     debugBlock s "improvement from assumptions:" $ debugLog s su
 
      if not possible
-       then return $ Left $ UnusableFunction (thing lname) ps
-       else -- XXX: Use imps
+       then do debugLog s "(contradiction in assumptions)"
+               return $ Left $ UnusableFunction (thing lname) ps
+
+       else -- XXX: Use su
             do let gs1 = filter ((`notElem` ps) . goal) gs0
                mb <- simpGoals s gs1
 
@@ -118,7 +109,7 @@ proveImplication' lname as ps gs =
 
                  -- XXX: Do we need the su?
                  (us,su2) -> 
-                    do debugBlock s "2nd su:" (debugLog s . show . pp $ su2)
+                    do debugBlock s "2nd su:" (debugLog s su2)
                        return $ Left
                               $ UnsolvedDelcayedCt
                               $ DelayedCt { dctSource = lname
@@ -160,8 +151,12 @@ _testSimpGoals = Num.withSolver $ \s ->
 
 -- | Assumes that the substitution has been applied to the goals.
 simpGoals :: Num.Solver -> [Goal] -> IO (Maybe ([Goal],Subst))
+simpGoals _ []  = return (Just ([],emptySubst))
 simpGoals s gs0 =
-  do let (unsolvedClassCts,numCts) = solveClassCts gs0
+  debugBlock s "simpGoals" $
+  do debugBlock s "goals:" (debugLog s gs0)
+
+     let (unsolvedClassCts,numCts) = solveClassCts gs0
 
          varMap = Map.unions [ vm | ((_,vm),_) <- numCts ]
          updCt prop (g,vs) = case Num.importProp varMap prop of
@@ -172,16 +167,21 @@ simpGoals s gs0 =
                                       , show r
                                       ]
      case numCts of
-       [] -> return $ Just (unsolvedClassCts, emptySubst)
+       [] -> do debugBlock s "survivors" $ debugLog s unsolvedClassCts
+                return $ Just (unsolvedClassCts, emptySubst)
        _  -> do mbOk <- Num.checkDefined s updCt uvs numCts
                 case mbOk of
-                  Nothing -> return Nothing
+
+                  Nothing -> do debugLog s "check defined: impossible"
+                                return Nothing
+
                   Just (nonDef,def,imps) ->
-                    do debugBlock s ("simpGoals results") $
-                         do debugBlock s "possibly not defined" $
-                              mapM_ (debugLog s . show . pp . goal . fst) nonDef
+
+                    do debugBlock s "check defined:" $
+                         do debugBlock s "undefined" $
+                              debugLog s (map fst nonDef)
                             debugBlock s "defined" $
-                              mapM_ (debugLog s . show . Num.ppProp . Num.dpSimpExprProp) def
+                              debugLog s (map Num.dpSimpExprProp def)
 
                        let (su,extraProps) = importSplitImps varMap imps
 
@@ -195,14 +195,17 @@ simpGoals s gs0 =
                                       , goal = p }
 
                        def2 <- Num.simplifyProps s def1
+                       let allCts = apSubst su $ map toGoal extraProps ++
+                                    map fst nonDef ++
+                                    unsolvedClassCts ++
+                                    map fst def2
+
+                       debugBlock s "survivors" $
+                          do debugLog s allCts
+                             debugLog s su
 
                        -- XXX: Apply subst to class constraints and go again?
-                       return $ Just ( apSubst su $ map toGoal extraProps ++
-                                       map fst nonDef ++
-                                       unsolvedClassCts ++
-                                       map fst def2
-                                     , su
-                                     )
+                       return $ Just ( allCts, su )
   where
   uvs         = uniVars gs0
 
@@ -287,4 +290,43 @@ eliminateSimpleGEQ = go Map.empty []
             | otherwise     = b
 
 
+--------------------------------------------------------------------------------
 
+debugBlock :: Num.Solver -> String -> IO a -> IO a
+debugBlock s name m =
+  do let logger = Num.logger s
+     debugLog s name
+     SMT.logTab logger
+     a <- m
+     SMT.logUntab logger
+     return a
+
+class DebugLog t where
+  debugLog :: Num.Solver -> t -> IO ()
+
+  debugLogList :: Num.Solver -> [t] -> IO ()
+  debugLogList s ts = case ts of
+                        [] -> debugLog s "(none)"
+                        _  -> mapM_ (debugLog s) ts
+
+instance DebugLog Char where
+  debugLog s x     = SMT.logMessage (Num.logger s) (show x)
+  debugLogList s x = SMT.logMessage (Num.logger s) x
+
+instance DebugLog a => DebugLog [a] where
+  debugLog = debugLogList
+
+instance DebugLog Doc where
+  debugLog s x = debugLog s (show x)
+
+instance DebugLog Type where
+  debugLog s x = debugLog s (pp x)
+
+instance DebugLog Goal where
+  debugLog s x = debugLog s (goal x)
+
+instance DebugLog Subst where
+  debugLog s x = debugLog s (pp x)
+
+instance DebugLog Num.Prop where
+  debugLog s x = debugLog s (Num.ppProp x)

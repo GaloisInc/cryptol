@@ -65,9 +65,7 @@ checkDefined s updCt uniVars props0 = withScope s (go Map.empty [] props0)
   where
   go knownImps done notDone =
     do (newNotDone, novelDone) <- checkDefined' s updCt notDone
-       putStrLn "Checking"
        (possible,  imps)       <- check s uniVars
-       putStrLn ("Possible: " ++ show possible)
        if not possible
          then return Nothing
          else
@@ -202,9 +200,6 @@ data Solver = Solver
   { solver    :: SMT.Solver
   , declared  :: IORef VarInfo
   , logger    :: SMT.Logger
-
-  , nameSource  :: IORef Int
-    -- XXX: Perhaps this should go with the scope somehow?
   }
 
 
@@ -286,7 +281,6 @@ withSolver k =
                                                    Nothing --} (Just logger)
      SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty
-     nameSource <- newIORef 0
      a <- k Solver { .. }
      _ <- SMT.stop solver
 
@@ -356,8 +350,7 @@ check Solver { .. } uniVars =
        SMT.Unsat   -> return (False, Map.empty)
        SMT.Unknown -> return (True, Map.empty)
        SMT.Sat     ->
-         do putStrLn "Trying improvements"
-            names <- viNames `fmap` readIORef declared
+         do names <- viNames `fmap` readIORef declared
             m     <- fmap Map.fromList (mapM getVal names)
             imps  <- toSubst `fmap` cryImproveModel solver uniVars m
 
@@ -413,6 +406,6 @@ normMap f m = mk $ runId $ runStateT False $ traverse upd m
             Just y  -> set True >> return y
             Nothing -> return x
 
-
+--------------------------------------------------------------------------------
 
 
