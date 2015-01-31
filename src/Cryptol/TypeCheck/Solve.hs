@@ -24,6 +24,7 @@ import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
+import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Parser.Position(rCombs)
 import           Cryptol.Utils.PP(pp)
@@ -36,9 +37,8 @@ import qualified Data.Map as Map
 import           Data.Maybe ( fromMaybe )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
-import qualified SimpleSMT as SMT
 
-import           Text.PrettyPrint(Doc, text)
+import           Text.PrettyPrint(text)
 
 -- Add additional constraints that ensure validity of type function.
 checkTypeFunction :: TFun -> [Type] -> [Prop]
@@ -169,6 +169,7 @@ simpGoals s gs0 =
      case numCts of
        [] -> do debugBlock s "survivors" $ debugLog s unsolvedClassCts
                 return $ Just (unsolvedClassCts, emptySubst)
+
        _  -> do mbOk <- Num.checkDefined s updCt uvs numCts
                 case mbOk of
 
@@ -177,15 +178,9 @@ simpGoals s gs0 =
 
                   Just (nonDef,def,imps) ->
 
-                    do debugBlock s "check defined:" $
-                         do debugBlock s "undefined" $
-                              debugLog s (map fst nonDef)
-                            debugBlock s "defined" $
-                              debugLog s (map Num.dpSimpExprProp def)
+                    do let (su,extraProps) = importSplitImps varMap imps
 
-                       let (su,extraProps) = importSplitImps varMap imps
-
-                       let def1 = eliminateSimpleGEQ def
+                           def1 = eliminateSimpleGEQ def
                            toGoal =
                              case map (fst . Num.dpData) def1 of
                                [g] -> \p -> g { goal = p }
@@ -193,6 +188,13 @@ simpGoals s gs0 =
                                  Goal { goalRange = rCombs (map goalRange gs)
                                       , goalSource = CtImprovement
                                       , goal = p }
+
+                       debugBlock s "check defined:" $
+                         do debugBlock s "undefined" $
+                              debugLog s (map fst nonDef)
+                            debugBlock s "defined" $
+                              debugLog s (map Num.dpSimpExprProp def1)
+
 
                        def2 <- Num.simplifyProps s def1
                        let allCts = apSubst su $ map toGoal extraProps ++
@@ -236,7 +238,8 @@ importSplitImps varMap = mk . partitionEithers . map imp . Map.toList
                   case tv of
                     TVFree {}  -> Left (tv,ty)
                     TVBound {} -> Right (TVar tv =#= ty)
-                _ -> panic "importImps" [ "Failed to import:", show x, show e ]
+                _ -> panic "importSplitImps"
+                                    [ "Failed to import:", show x, show e ]
 
 
 
@@ -270,6 +273,9 @@ eliminateSimpleGEQ = go Map.empty []
 
   go geqs other (g : rest) =
     case Num.dpSimpExprProp g of
+      Num.K a Num.:== Num.K b
+        | a == b -> go geqs other rest
+
       _ Num.:>= Num.K (Num.Nat 0) ->
           go geqs  other rest
 
@@ -290,43 +296,4 @@ eliminateSimpleGEQ = go Map.empty []
             | otherwise     = b
 
 
---------------------------------------------------------------------------------
 
-debugBlock :: Num.Solver -> String -> IO a -> IO a
-debugBlock s name m =
-  do let logger = Num.logger s
-     debugLog s name
-     SMT.logTab logger
-     a <- m
-     SMT.logUntab logger
-     return a
-
-class DebugLog t where
-  debugLog :: Num.Solver -> t -> IO ()
-
-  debugLogList :: Num.Solver -> [t] -> IO ()
-  debugLogList s ts = case ts of
-                        [] -> debugLog s "(none)"
-                        _  -> mapM_ (debugLog s) ts
-
-instance DebugLog Char where
-  debugLog s x     = SMT.logMessage (Num.logger s) (show x)
-  debugLogList s x = SMT.logMessage (Num.logger s) x
-
-instance DebugLog a => DebugLog [a] where
-  debugLog = debugLogList
-
-instance DebugLog Doc where
-  debugLog s x = debugLog s (show x)
-
-instance DebugLog Type where
-  debugLog s x = debugLog s (pp x)
-
-instance DebugLog Goal where
-  debugLog s x = debugLog s (goal x)
-
-instance DebugLog Subst where
-  debugLog s x = debugLog s (pp x)
-
-instance DebugLog Num.Prop where
-  debugLog s x = debugLog s (Num.ppProp x)

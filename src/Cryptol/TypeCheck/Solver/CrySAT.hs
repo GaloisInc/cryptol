@@ -7,9 +7,14 @@ module Cryptol.TypeCheck.Solver.CrySAT
   , check
   , Solver, logger
   , DefinedProp(..)
+  , debugBlock
+  , DebugLog(..)
   ) where
 
 import qualified Cryptol.TypeCheck.AST as Cry
+import           Cryptol.TypeCheck.PP(pp)
+import           Cryptol.TypeCheck.InferTypes(Goal(..))
+import qualified Cryptol.TypeCheck.Subst as Cry
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.TypeCheck.Solver.Numeric.ImportExport
@@ -20,7 +25,7 @@ import           Cryptol.TypeCheck.Solver.Numeric.SMT
 import           Cryptol.Utils.Panic ( panic )
 
 import           MonadLib
-import           Data.Maybe ( mapMaybe )
+import           Data.Maybe ( mapMaybe, fromMaybe )
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Traversable ( traverse )
@@ -30,7 +35,7 @@ import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef',
                               atomicModifyIORef' )
 
 import qualified SimpleSMT as SMT
-
+import           Text.PrettyPrint(Doc)
 
 -- | We use this to rememebr what we simplified
 newtype SimpProp = SimpProp Prop
@@ -41,8 +46,14 @@ simpProp p = SimpProp (crySimplify p)
 
 data DefinedProp a = DefinedProp
   { dpData         :: a
-  , dpSimpProp     :: SimpProp  -- ^ Fully simplified (may have ORs)
-  , dpSimpExprProp :: Prop      -- ^ Expressions are simplified (no ORs)
+  , dpSimpProp     :: SimpProp
+    -- ^ Fully simplified (may have ORs)
+    -- These are used in the proofs, and may not be translatable back
+    -- into Cryptol.
+
+  , dpSimpExprProp :: Prop
+    -- ^ Expressions are simplified (no ORs)
+    -- These should be importable back into Cryptol props.
   }
 
 type ImpMap = Map Name Expr
@@ -59,7 +70,7 @@ checkDefined :: Solver                                    ->
                 [(a,Prop)] {- ^ Goals                 -}  ->
                 IO (Maybe ( [a]             -- could not prove
                           , [DefinedProp a] -- proved ok and simplified terms
-                          , ImpMap          -- computed improvements
+                          , Subst           -- computed improvements
                           ))
 checkDefined s updCt uniVars props0 = withScope s (go Map.empty [] props0)
   where
@@ -86,6 +97,7 @@ checkDefined s updCt uniVars props0 = withScope s (go Map.empty [] props0)
                      go newImps impDone impNotDone
 
   addImpProp (x,e) = assert s (simpProp (Var x :== e))
+
 
   updDone su ct =
     case apSubst su (dpSimpExprProp ct) of
@@ -207,19 +219,24 @@ data Solver = Solver
 data VarInfo = VarInfo
   { curScope    :: Scope
   , otherScopes :: [Scope]
-  }
+  } deriving Show
 
 data Scope = Scope
   { scopeNames    :: [Name]         -- ^ Variables declared in this scope
-  , scopeNonLin   :: [(Name,Expr)]  -- ^ Non-linear bindings
+  , scopeMarked   :: Set Name       -- ^ These are not interesting names
+                                    -- (e.g., they were defined)
   , scopeNonLinS  :: NonLinS        -- ^ Info about non-linear terms
-  }
+  } deriving Show
 
 scopeEmpty :: Scope
 scopeEmpty = Scope { scopeNames = []
-                   , scopeNonLin = []
+                   , scopeMarked = Set.empty
                    , scopeNonLinS = initialNonLinS
                    }
+
+scopeUnmarkedNames :: Scope -> [Name]
+scopeUnmarkedNames Scope { .. } = filter unmarked scopeNames
+  where unmarked x = not (x `Set.member` scopeMarked)
 
 scopeElem :: Name -> Scope -> Bool
 scopeElem x Scope { .. } = x `elem` scopeNames
@@ -227,15 +244,24 @@ scopeElem x Scope { .. } = x `elem` scopeNames
 scopeInsert :: Name -> Scope -> Scope
 scopeInsert x Scope { .. } = Scope { scopeNames = x : scopeNames, .. }
 
+scopeMark :: Name -> Scope -> Scope
+scopeMark x Scope { .. } = Scope { scopeMarked = Set.insert x scopeMarked, .. }
+
+scopeLookupNL :: Name -> Scope -> Maybe Expr
+scopeLookupNL x Scope { .. } = lookupNL x scopeNonLinS
+
+scopeSubstNL :: Subst -> Scope -> Maybe (Subst, Scope)
+scopeSubstNL su Scope { .. } =
+  do (lsu,newNL) <- apSubstNL su scopeNonLinS
+     return (lsu, Scope { scopeNonLinS = newNL, .. })
+
+
 -- | Given a *simplified* prop, separate linear and non-linear parts
 -- and return the linear ones.
 scopeAssert :: SimpProp -> Scope -> (SimpProp,Scope)
 scopeAssert (SimpProp p) Scope { .. } =
-  let (defs,p1,s1) = nonLinProp scopeNonLinS p
-  in (SimpProp p1, Scope { scopeNonLin  = defs ++ scopeNonLin
-                         , scopeNonLinS = s1
-                         , ..
-                         })
+  let (p1,s1) = nonLinProp scopeNonLinS p
+  in (SimpProp p1, Scope { scopeNonLinS = s1, ..  })
 
 
 -- | No scopes.
@@ -249,6 +275,10 @@ viElem x VarInfo { .. } = any (x `scopeElem`) (curScope : otherScopes)
 -- | Add a name to a scope.
 viInsert :: Name -> VarInfo -> VarInfo
 viInsert x VarInfo { .. } = VarInfo { curScope = scopeInsert x curScope, .. }
+
+-- | Mark a name in the current scope.
+viMark :: Name -> VarInfo -> VarInfo
+viMark x VarInfo { .. } = VarInfo { curScope = scopeMark x curScope, .. }
 
 -- | Add an assertion to the current scope. Returns the lienar part.
 viAssert :: SimpProp -> VarInfo -> (VarInfo, SimpProp)
@@ -269,9 +299,47 @@ viPop VarInfo { .. } = case otherScopes of
                          _ -> panic "viPop" ["no more scopes"]
 
 
--- | All declared names
-viNames :: VarInfo -> [ Name ]
-viNames VarInfo { .. } = concatMap scopeNames (curScope : otherScopes)
+-- | All declared names, that have not been "marked".
+-- These are the variables whose values we are interested in.
+viUnmarkedNames :: VarInfo -> [ Name ]
+viUnmarkedNames VarInfo { .. } = concatMap scopeUnmarkedNames
+                                                    (curScope : otherScopes)
+
+viLookupNL :: Name -> VarInfo -> Maybe Expr
+viLookupNL x VarInfo { .. } = scopeLookupNL x curScope
+
+viSubstNL :: Subst -> VarInfo -> Maybe (Subst, VarInfo)
+viSubstNL su VarInfo { .. } =
+  do (lsu,sc) <- scopeSubstNL su curScope
+     return (lsu, VarInfo { curScope = sc, .. })
+
+
+-- | Check if this is a non-linear var.  If so, returns its definition.
+lookupNLVar :: Solver -> Name -> IO (Maybe Expr)
+lookupNLVar Solver { .. } x = viLookupNL x `fmap` readIORef declared
+
+-- | Mark a variable is being defined, so we don't look for further
+-- improvements to it.
+markDefined :: Solver -> Name -> IO ()
+markDefined Solver { .. } x = modifyIORef' declared (viMark x)
+
+-- | Apply a substituition to the non-linear assignment.
+substNL :: Solver -> Subst -> IO (Maybe Subst)
+substNL s@Solver { .. } su =
+  do mb <- atomicModifyIORef' declared $ \vi ->
+           case viSubstNL su vi of
+             Nothing        -> (vi, Nothing)
+             Just (lsu,vi1) -> (vi1, Just lsu)
+     case mb of
+       Nothing -> return Nothing
+       Just lsu -> do mapM_ addFact (Map.toList lsu)
+                      return (Just lsu)
+  where
+  addFact (x,e) = do assert s (simpProp (Var x :== e))
+                     markDefined s x
+
+
+
 
 -- | Execute a computation with a fresh solver instance.
 withSolver :: (Solver -> IO a) -> IO a
@@ -338,36 +406,38 @@ prove s@(Solver { .. }) p =
         -- Otherwise, we could look for another one...
 
 
--- | Check if the current set of assumptions is satisifiable, and find
--- some facts that must hold in any models of the current assumptions.
--- The 'Bool' is 'True' if the current asumptions *may be* satisifiable.
--- The 'Bool' is 'False' if the current assumptions are *definately*
--- not satisfiable.
-check :: Solver -> Set Name -> IO (Bool, ImpMap)
-check Solver { .. } uniVars =
+{- | Check if the current set of assumptions is satisifiable, and find
+some facts that must hold in any models of the current assumptions.
+The 'Bool' is 'True' if the current asumptions *may be* satisifiable.
+The 'Bool' is 'False' if the current assumptions are *definately*
+not satisfiable. -}
+check :: Solver -> Set Name -> IO (Bool, Subst)
+check s@Solver { .. } uniVars =
+  debugBlock s "check" $
   do res <- SMT.check solver
      case res of
        SMT.Unsat   -> return (False, Map.empty)
        SMT.Unknown -> return (True, Map.empty)
-       SMT.Sat     ->
-         do names <- viNames `fmap` readIORef declared
-            m     <- fmap Map.fromList (mapM getVal names)
-            imps  <- toSubst `fmap` cryImproveModel solver uniVars m
+       SMT.Sat     -> debugBlock s "improvements" (getImpSubst s uniVars)
 
-            -- XXX: Here we should apply the imps to the non-linear things
-            -- and evalute. If this results in a contradiction, than we
-            -- know that current assumptions are definately not satisfiable
-            -- because the `imps` must hold in any model of the linear part.
-            -- Also, some of the non-linear things may become linear,
-            -- so we could get further improvements.
+getImpSubst :: Solver -> Set Name -> IO (Bool,Subst)
+getImpSubst s@Solver { .. } uniVars =
+  do names <- viUnmarkedNames `fmap` readIORef declared
+     m     <- fmap Map.fromList (mapM getVal names)
+     model <- cryImproveModel solver uniVars m
+     let imps = Map.toList (toSubst model)
+     debugBlock s "before" $
+        mapM_ (\(x,e) -> debugLog s (Var x :== e)) imps
 
-            -- For now, we just return the improvements, with the idea
-            -- that they are sent outside of CrySat (e.g., they might enable
-            -- some class constraints to be solved), the idea being that
-            -- we'd apply the substitution and start over.
+     res <- mapM (checkImpBind s) imps
+     let (agains,eqs) = unzip res
 
-            return (True, imps)
+     debugBlock s "after" $
+        mapM_ (\(x,e) -> debugLog s (Var x :== e)) (concat eqs)
 
+     (possible,more) <- if or agains then check s uniVars
+                                     else return (True,Map.empty)
+     return (possible, Map.union more (Map.fromList (concat eqs)))
 
   where
   getVal a =
@@ -386,9 +456,89 @@ check Solver { .. } uniVars =
                                        [ "Not a boolean value", show yes ]
 
 
+
+
+-- | Given a computed improvement `x = e`, check to see if we can get
+-- some additional information by interacting with the non-linear assignment.
+checkImpBind :: Solver -> (Name, Expr) -> IO (Bool, [(Name,Expr)])
+checkImpBind s (x,e) =
+  do mbNL <- lookupNLVar s x
+     case (mbNL,e) of
+
+       -- non-lin expression `x = e` equals constant `K`.
+       --   * new constraint: e = K
+       --   * su: `x = K`; eliminates `x`
+       (Just nlE, K {}) ->
+          do assert s (simpProp (nlE :== e))
+             markDefined s x
+             return (True, [(x,e)])
+
+       (Just nlE, Var a) -> setNLVar x nlE a
+
+       -- ordinary var, `?a`, equals constant, `K`:
+       --   * su `?a = K`; eliminates `?a`
+       (Nothing, K {}) -> setNormalVar x e
+
+       -- ordinary var = some var
+       (Nothing, Var a) ->
+          do mbNL2 <- lookupNLVar s a
+             case mbNL2 of
+
+               -- ordinary var = ordinary var
+               Nothing | SysName _ <- a ->
+                         debugBlock s "sys-var with no def" $
+                           do vi <- readIORef (declared s)
+                              debugLog s (show vi)
+                              setNormalVar x e
+                       | otherwise -> setNormalVar x e
+
+               -- ordinary var = nl var
+               Just nlE -> setNLVar a nlE x
+
+       -- ordinary var = lin rel; XXX: TODO
+
+       _ -> return (False, [])
+
+  where
+  setNormalVar var def =
+    do debugBlock s "setting-normal" (debugLog s (Var var :== def))
+       let su = Map.singleton var def
+       mbLins <- substNL s su
+       let newLins = Map.toList (fromMaybe Map.empty mbLins)
+       markDefined s var
+       return (not (null newLins), (var,def) : newLins)
+
+  -- Set a non-lin var, to another var.
+  setNLVar var nlE a =
+    do mbNL2 <- lookupNLVar s a
+       case mbNL2 of
+
+         -- non-lin `x = e1` equals non-lin `y = e2`
+         --   * new constraint: `e1 = e2`
+         --   * su: `x = y`; eliminates `x`
+         Just nlE2 ->
+           do assert s (simpProp (nlE :== nlE2))  -- probably useless
+              markDefined s var
+              return (True, [(var,Var a)])
+
+         -- non-lin `x = e1` equals `?a`
+         Nothing
+
+           -- `?a` occurs in `e1`
+           --   * do nothing; can this be useful in any way?
+           | a `Set.member` cryExprFVS nlE ->
+              return (False, [])
+
+           -- `?a` does not occur in `e1`
+           --   * su: `?a = e`; eliminates `?a`
+           | otherwise -> setNormalVar a nlE
+
+
+
+
 -- | Convert a bunch of improving equations into an idempotent substitution.
 -- Assumes that the equations don't have loops.
-toSubst :: ImpMap -> ImpMap
+toSubst :: ImpMap -> Subst
 toSubst m =
   case normMap (apSubst m) m of
     Nothing -> m
@@ -396,7 +546,7 @@ toSubst m =
 
 
 -- | Apply a function to all elements of a map.  Returns `Nothing` if nothing
--- changed, and @Just newmap@ otherwise.
+-- changed, and @Just new_map@ otherwise.
 normMap :: (a -> Maybe a) -> Map k a -> Maybe (Map k a)
 normMap f m = mk $ runId $ runStateT False $ traverse upd m
   where
@@ -407,5 +557,49 @@ normMap f m = mk $ runId $ runStateT False $ traverse upd m
             Nothing -> return x
 
 --------------------------------------------------------------------------------
+
+debugBlock :: Solver -> String -> IO a -> IO a
+debugBlock s@Solver { .. } name m =
+  do debugLog s name
+     SMT.logTab logger
+     a <- m
+     SMT.logUntab logger
+     return a
+
+class DebugLog t where
+  debugLog :: Solver -> t -> IO ()
+
+  debugLogList :: Solver -> [t] -> IO ()
+  debugLogList s ts = case ts of
+                        [] -> debugLog s "(none)"
+                        _  -> mapM_ (debugLog s) ts
+
+instance DebugLog Char where
+  debugLog s x     = SMT.logMessage (logger s) (show x)
+  debugLogList s x = SMT.logMessage (logger s) x
+
+instance DebugLog a => DebugLog [a] where
+  debugLog = debugLogList
+
+instance DebugLog a => DebugLog (Maybe a) where
+  debugLog s x = case x of
+                   Nothing -> debugLog s "(nothing)"
+                   Just a  -> debugLog s a
+
+instance DebugLog Doc where
+  debugLog s x = debugLog s (show x)
+
+instance DebugLog Cry.Type where
+  debugLog s x = debugLog s (pp x)
+
+instance DebugLog Goal where
+  debugLog s x = debugLog s (goal x)
+
+instance DebugLog Cry.Subst where
+  debugLog s x = debugLog s (pp x)
+
+instance DebugLog Prop where
+  debugLog s x = debugLog s (ppProp x)
+
 
 

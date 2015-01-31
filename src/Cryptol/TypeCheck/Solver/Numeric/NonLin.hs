@@ -1,33 +1,125 @@
-{-# LANGUAGE Safe #-}
--- | Separate Non-Linear Constraints
+{-# LANGUAGE Safe, RecordWildCards #-}
+{- | Separate Non-Linear Constraints
+When we spot a non-linear expression, we name it and add it to a map.
+
+If we see the same expression multiple times, then we give it the same name.
+
+The body of the non-linear expression is not processed further,
+so the resulting map should not contain any of the newly minted names.
+-}
+
 module Cryptol.TypeCheck.Solver.Numeric.NonLin
   ( nonLinProp
-  , NonLinS
+  , NonLinS, nonLinSubst
   , initialNonLinS
+  , apSubstNL
+  , lookupNL
   ) where
 
 import Cryptol.TypeCheck.Solver.Numeric.AST
+import Cryptol.TypeCheck.Solver.Numeric.Simplify
 import Cryptol.Utils.Panic(panic)
 
 import           Data.GenericTrie (Trie)
 import qualified Data.GenericTrie as Trie
-import MonadLib
+import qualified Data.Map as Map
+import           Data.Maybe ( fromMaybe )
+import           MonadLib
 
--- | Factor-out non-linear terms, by naming them
-nonLinProp :: NonLinS -> Prop -> ([(Name,Expr)], Prop, NonLinS)
-nonLinProp s0 prop = case runId $ runStateT s0 $ nonLinPropM prop of
-                       (p, sFin) -> ( nonLinExprs sFin
-                                    , p
-                                    , sFin { nonLinExprs = [] }
-                                    )
+
+-- | Factor-out non-linear terms, by naming them.
+nonLinProp :: NonLinS -> Prop -> (Prop, NonLinS)
+nonLinProp s0 prop = runNL s0 (nonLinPropM prop)
+
+{- | Apply a substituin to the non-linear expression database.
+Returns `Nothing` if nothing was affected.
+Otherwise returns `Just`, and a substitutuin for non-linear expressions
+that became linear. -}
+apSubstNL :: Subst -> NonLinS -> Maybe (Subst, NonLinS)
+apSubstNL su s0 = case runNL s0 (mApSubstNL su) of
+                    (Nothing,_) -> Nothing
+                    (Just su,r) -> Just (su,r)
+
+lookupNL :: Name -> NonLinS -> Maybe Expr
+lookupNL x NonLinS { .. } = Map.lookup x nonLinExprs
+
+
+runNL :: NonLinS -> NonLinM a -> (a, NonLinS)
+runNL s = runId . runStateT s
+
+-- | Get the known non-linear terms.
+nonLinSubst :: NonLinS -> Subst
+nonLinSubst = nonLinExprs
 
 -- | The initial state for the linearization process.
 initialNonLinS :: NonLinS
 initialNonLinS = NonLinS
   { nextName = 0
-  , nonLinExprs = []
+  , nonLinExprs = Map.empty
   , nlKnown = Trie.empty
   }
+
+data SubstOneRes = NoChange
+                   -- ^ Substitution does not affect the expression.
+
+                 | Updated (Maybe (Name,Expr))
+                   -- ^ The expression was updated and, maybe, it became linear.
+
+
+{- | Apply the substituint to all non-linear bindings.
+Returns `Nothing` if nothing was affected.
+Otherwise returns `Just`, and a substituion mapping names that used
+to be non-linear but became linear.
+
+Note that we may return `Just empty`, indicating that some non-linear
+expressions were update, but they remained non-linear. -}
+mApSubstNL :: Subst -> NonLinM (Maybe Subst)
+mApSubstNL su =
+  do s <- get
+     answers <- mapM (mApSubstOneNL su) (Map.toList (nonLinExprs s))
+     return (foldr upd Nothing answers)
+  where
+  upd NoChange ch     = ch
+  upd (Updated mb) ch = let lsu = fromMaybe Map.empty ch
+                        in Just (case mb of
+                                   Nothing    -> lsu
+                                   Just (x,e) -> Map.insert x e lsu)
+
+
+mApSubstOneNL :: Subst -> (Name,Expr) -> NonLinM SubstOneRes
+mApSubstOneNL su (x,e) =
+  case apSubst su e of
+    Nothing -> return NoChange
+    Just e1 ->
+      case crySimpExprMaybe e1 of
+
+        Nothing ->
+          sets $ \NonLinS { .. } ->
+            ( Updated Nothing
+            , NonLinS { nonLinExprs = Map.insert x e1 nonLinExprs
+                      , nlKnown = Trie.insert e1 x (Trie.delete e nlKnown)
+                      , .. }
+            )
+
+        Just e2
+          | isNonLinOp e2 ->
+          sets $ \NonLinS { .. } ->
+            (Updated Nothing
+            , NonLinS { nonLinExprs = Map.insert x e2 nonLinExprs
+                      , nlKnown = Trie.insert e2 x (Trie.delete e nlKnown)
+                      , .. }
+            )
+
+          | otherwise ->
+            do sets_ $ \NonLinS { .. } ->
+                 NonLinS { nonLinExprs = Map.delete x nonLinExprs
+                         , nlKnown = Trie.delete e nlKnown
+                         , ..
+                         }
+               es <- mapM nonLinExprM (cryExprExprs e2)
+               let e3 = cryRebuildExpr e2 es
+               return (Updated (Just (x,e3)))
+
 
 
 -- | Is the top-level operator a non-linear one.
@@ -110,9 +202,9 @@ type NonLinM = StateT NonLinS Id
 
 data NonLinS = NonLinS
   { nextName    :: !Int
-  , nonLinExprs :: [(Name,Expr)]
+  , nonLinExprs :: Subst
   , nlKnown     :: Trie Expr Name
-  }
+  } deriving Show
 
 nameExpr :: Expr -> NonLinM Expr
 nameExpr e = sets $ \s ->
@@ -120,9 +212,9 @@ nameExpr e = sets $ \s ->
     Just x -> (Var x, s)
     Nothing ->
       let x  = nextName s
-          n  = sysName x
+          n  = SysName x
           s1 = NonLinS { nextName = 1 + x
-                       , nonLinExprs = (n,e) : nonLinExprs s
+                       , nonLinExprs = Map.insert n e (nonLinExprs s)
                        , nlKnown = Trie.insert e n (nlKnown s)
                        }
       in (Var n, s1)

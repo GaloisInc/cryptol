@@ -80,7 +80,7 @@ exportTypeM ty =
         Cry.PC _ -> raise ()
 
 exportVar :: Cry.TVar -> Name
-exportVar = toName . exportVar'
+exportVar = UserName . exportVar'
 
 exportVar' :: Cry.TVar -> Int
 exportVar' (Cry.TVFree x _ _ _) = 2 * x        -- Free vars are even

@@ -4,7 +4,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 -- | The sytnax of numeric propositions.
 module Cryptol.TypeCheck.Solver.Numeric.AST
-  ( Name, toName, sysName, fromName, ppName
+  ( Name(..), ppName
 
   , Prop(..), cryPropExprs, cryPropFVS
   , ppProp, ppPropPrec
@@ -48,16 +48,6 @@ infixr 8 :^^
 
 data Name = UserName Int | SysName Int
             deriving (Show,Eq,Ord,Generic)
-
-toName :: Int -> Name
-toName = UserName
-
-sysName :: Int -> Name
-sysName = SysName
-
-fromName :: Name -> Maybe Int
-fromName (UserName x) = Just x
-fromName (SysName _)  = Nothing
 
 
 
