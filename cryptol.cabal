@@ -145,19 +145,20 @@ executable cryptol
                        REPL.Monad,
                        REPL.Trie,
                        Paths_cryptol
-  build-depends:       base,
-                       ansi-terminal,
-                       containers,
-                       cryptol,
-                       directory,
-                       filepath,
-                       haskeline,
-                       monadLib,
-                       process,
-                       random,
-                       sbv,
-                       tf-random,
-                       transformers
+  build-depends:       ansi-terminal
+                     , base
+                     , containers
+                     , cryptol
+                     , deepseq
+                     , directory
+                     , filepath
+                     , haskeline
+                     , monadLib
+                     , process
+                     , random
+                     , sbv
+                     , tf-random
+                     , transformers
   GHC-options:         -Wall -O2
   ghc-prof-options: -auto-all -prof -rtsopts
 
@@ -174,21 +175,22 @@ executable ICryptol
   Main-is:             Main_notebook.hs
   hs-source-dirs:      cryptol, notebook
   other-modules:       Notebook
-  build-depends:       base,
-                       ansi-terminal,
-                       containers,
-                       cryptol,
-                       directory,
-                       filepath,
-                       haskeline,
-                       ipython-kernel,
-                       monadLib,
-                       process,
-                       random,
-                       sbv             >= 4.0,
-                       text,
-                       tf-random,
-                       transformers
+  build-depends:       ansi-terminal
+                     , base
+                     , containers
+                     , cryptol
+                     , deepseq
+                     , directory
+                     , filepath
+                     , haskeline
+                     , ipython-kernel
+                     , monadLib
+                     , process
+                     , random
+                     , sbv             >= 4.0
+                     , text
+                     , tf-random
+                     , transformers
   GHC-options:         -Wall -O2
 
   if os(linux) && flag(static)

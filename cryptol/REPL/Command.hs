@@ -54,6 +54,7 @@ import Cryptol.Prims.Doc(helpDoc)
 import qualified Cryptol.Transform.Specialize as S
 import qualified Cryptol.Symbolic as Symbolic
 
+import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad (guard,unless,forM_,when)
 import Data.Char (isSpace,isPunctuation,isSymbol)
@@ -239,8 +240,13 @@ evalCmd str = do
     P.ExprInput expr -> do
       (val,_ty) <- replEvalExpr expr
       ppOpts <- getPPValOpts
-      out <- io $ rethrowEvalError $ return $ pp $ E.WithBase ppOpts val
-      rPrint out
+      -- This is the point where the value gets forced. We deepseq the
+      -- pretty-printed representation of it, rather than the value
+      -- itself, leaving it up to the pretty-printer to determine how
+      -- much of the value to force
+      out <- io $ rethrowEvalError
+                $ return $!! show $ pp $ E.WithBase ppOpts val
+      rPutStrLn out
     P.LetInput decl -> do
       -- explicitly make this a top-level declaration, so that it will
       -- be generalized if mono-binds is enabled
