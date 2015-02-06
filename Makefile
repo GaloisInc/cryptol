@@ -1,3 +1,5 @@
+HERE := $(dir $(lastword $(MAKEFILE_LIST)))
+
 UNAME   := $(shell uname -s)
 ARCH    := $(shell uname -m)
 
@@ -10,7 +12,7 @@ CABAL_INSTALL_FLAGS ?= $(CABAL_BUILD_FLAGS)
 CABAL         := cabal
 CABAL_BUILD   := $(CABAL) build $(CABAL_BUILD_FLAGS)
 CABAL_INSTALL := $(CABAL) install $(CABAL_INSTALL_FLAGS)
-CS            := ./.cabal-sandbox
+CS            := $(HERE)/.cabal-sandbox
 CS_BIN        := $(CS)/bin
 
 # Used only for windows, to find the right Program Files.
@@ -49,10 +51,11 @@ else
   PREFIX_SHARE := /share
   # goes under the share prefix
   PREFIX_DOC   := /doc/cryptol
-  PKG_PREFIX    := ${PKG}${PREFIX}
+  PKG_PREFIX   := ${PKG}${PREFIX}
 endif
 
-CRYPTOL_EXE := ./dist/build/cryptol/cryptol${EXE_EXT}
+CRYPTOL_EXE  := ./dist/build/cryptol/cryptol${EXE_EXT}
+ICRYPTOL_EXE := ./dist/build/cryptol/ICryptol${EXE_EXT}
 
 .PHONY: all
 all: ${CRYPTOL_EXE}
@@ -94,6 +97,11 @@ CRYPTOL_SRC := \
             -and \( -not -name \*\#\* \) -print) \
   $(shell find lib -name \*.cry)
 
+ICRYPTOL_SRC := \
+  $(shell find cryptol notebook \
+            \( -name \*.hs -or -name \*.x -or -name \*.y \) \
+            -and \( -not -name \*\#\* \) -print)
+
 src/GitRev.hs: .git/index
 	sh configure
 
@@ -103,17 +111,18 @@ print-%:
 # /usr/share/cryptol on POSIX, installdir/cryptol on Windows
 DATADIR := ${PREFIX_ABS}${PREFIX_SHARE}
 
-dist/setup-config: | ${CS_BIN}/alex ${CS_BIN}/happy
+dist/setup-config: cryptol.cabal | ${CS_BIN}/alex ${CS_BIN}/happy
 	$(CABAL_INSTALL) --only-dependencies
 	$(CABAL) configure                            \
           --prefix=$(call adjust-path,${PREFIX_ABS})  \
           --datasubdir=cryptol
 
-${CRYPTOL_EXE}: $(CRYPTOL_SRC) src/GitRev.hs dist/setup-config
+${CRYPTOL_EXE} ${ICRYPTOL_EXE}: $(CRYPTOL_SRC) $(ICRYPTOL_SRC) src/GitRev.hs dist/setup-config
 	$(CABAL_BUILD)
 
-# ${CS_BIN}/cryptolnb: ${CS_BIN}/alex ${CS_BIN}/happy | ${CS}
-# 	$(CABAL) install . -fnotebook
+.PHONY: notebook
+notebook: ${PKG}
+	PATH=${HERE}/${PKG_BIN}:$$PATH && cd notebook && ./notebook.sh
 
 PKG_BIN       := ${PKG_PREFIX}/bin
 PKG_SHARE     := ${PKG_PREFIX}${PREFIX_SHARE}
@@ -135,7 +144,7 @@ PKG_EXCONTRIB_FILES := examples/contrib/mkrand.cry \
                        examples/contrib/simon.cry  \
                        examples/contrib/speck.cry
 
-${PKG}: ${CRYPTOL_EXE}
+${PKG}: ${CRYPTOL_EXE} ${ICRYPTOL_EXE}
 	$(CABAL) copy --destdir=${PKG}
 # don't want to bundle the cryptol library in the binary distribution
 	rm -rf ${PKG_PREFIX}/lib
@@ -188,10 +197,6 @@ test: ${CS_BIN}/cryptol-test-runner
 	  -T --jxml=$(call adjust-path,$(CURDIR)/results.xml)              \
 	  $(if $(TEST_DIFF),-p $(TEST_DIFF),)                              \
 	)
-
-# .PHONY: notebook
-# notebook: ${CS_BIN}/cryptolnb
-# 	cd notebook && ./notebook.sh
 
 .PHONY: clean
 clean:

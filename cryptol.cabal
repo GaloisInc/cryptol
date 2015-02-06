@@ -17,7 +17,7 @@ flag static
   description: Create a statically-linked binary
 
 flag notebook
-  default: False
+  default: True
   description: Build the IPython-style Cryptol notebook interface
 
 library
@@ -161,7 +161,7 @@ executable cryptol
   if os(linux) && flag(static)
       ld-options:      -static -pthread
 
-executable cryptolnb
+executable ICryptol
   if flag(notebook)
     buildable:         True
   else
@@ -170,6 +170,7 @@ executable cryptolnb
     Haskell98
   Main-is:             Main_notebook.hs
   hs-source-dirs:      cryptol, notebook
+  other-modules:       Notebook
   build-depends:       base,
                        ansi-terminal,
                        containers,
