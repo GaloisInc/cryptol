@@ -12,6 +12,8 @@ Cabal-version:       >= 1.18
 data-files:          *.cry
 data-dir:            lib
 
+extra-source-files:  configure
+
 flag static
   default: False
   description: Create a statically-linked binary
@@ -139,6 +141,7 @@ executable cryptol
   Other-modules:       OptParser,
                        REPL.Command,
                        REPL.Haskeline,
+                       REPL.Logo,
                        REPL.Monad,
                        REPL.Trie,
                        Paths_cryptol
