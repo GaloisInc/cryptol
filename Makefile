@@ -92,9 +92,6 @@ msi: ${PKG}.msi
 # during initial setup, you have to invoke this target again manually
 ${CS}:
 	$(CABAL) sandbox init
-# XXX: Temporary until ipython-kernel is back up on Hackage
-	git submodule update --init
-	$(CABAL) sandbox add-source IHaskell/ipython-kernel
 
 ${CS_BIN}/alex: | ${CS}
 	$(CABAL_INSTALL) alex
