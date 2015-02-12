@@ -197,7 +197,7 @@ There are a couple prerequisites for the notebook:
   https://github.com/gibiansky/IHaskell#zeromq).
 
 Once these prerequisites are in place, you can run the notebook in
-place with `make notebook`, or run it from a distribution.
+place with `make notebook`, or run `icryptol` from a distribution.
 
 # Where to Look Next
 
