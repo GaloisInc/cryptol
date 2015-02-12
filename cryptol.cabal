@@ -183,11 +183,11 @@ executable icryptol-kernel
                      , directory
                      , filepath
                      , haskeline
-                     , ipython-kernel
+                     , ipython-kernel >= 0.3
                      , monadLib
                      , process
                      , random
-                     , sbv             >= 4.0
+                     , sbv            >= 4.0
                      , text
                      , tf-random
                      , transformers
