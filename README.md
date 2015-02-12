@@ -178,6 +178,32 @@ be happy to incorporate your changes.
   well as the Cryptol sources and expected outputs that comprise that
   suite
 
+### Cryptol Notebook (Experimental)
+
+If you can see this version of the README, you are on the experimental
+notebook branch which builds an additional executable
+`icryptol-kernel` along with `cryptol`. More details are available in
+issues #75, #76, and #163.
+
+There are a couple prerequisites for the notebook:
+
+- Install IPython 2.4 (see
+  http://ipython.org/install.html). Internally we've had the best luck
+  installing with `pip install --user "ipython[notebook]"`. Make sure
+  `ipython` is on your path.
+- Install ZeroMQ 4 with development headers (see
+  https://github.com/gibiansky/IHaskell#zeromq).
+- Clone @gibiansky's IHaskell repository, and add the `ipython-kernel`
+  package to the cabal sandbox:
+
+```
+% git clone https://github.com/gibiansky/IHaskell.git
+% cabal sandbox init # if you haven't already run one of the make targets
+% cabal sandbox add-source IHaskell/ipython-kernel
+```
+
+Once these prerequisites are in place, you can run the notebook in
+place with `make notebook`, or run it from a distribution.
 
 # Where to Look Next
 

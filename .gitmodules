@@ -1,0 +1,3 @@
+[submodule "IHaskell"]
+	path = IHaskell
+	url = https://github.com/gibiansky/IHaskell.git
