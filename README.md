@@ -91,6 +91,7 @@ From the Cryptol source directory, run:
 
 This will build Cryptol in place. From there, there are additional targets:
 
+- `make run`: run Cryptol in the current directory
 - `make test`: run the regression test suite (note: 4 failures is expected)
 - `make docs`: build the Cryptol documentation (requires
   [pandoc](http://johnmacfarlane.net/pandoc/) and
@@ -104,10 +105,11 @@ This will build Cryptol in place. From there, there are additional targets:
 
 ## Installing Cryptol
 
-Aside from the `docs` target, these will leave you with a Cryptol
-binary at `.cabal-sandbox/bin/cryptol` in your source directory. You
-can either use that binary directly, or use the results of `tarball`
-or `dist` to install Cryptol in a location of your choice.
+If you run `cabal install` in your source directory after running one
+of these `make` targets, you will end up with a binary in
+`.cabal-sandbox/bin/cryptol`. You can either use that binary directly,
+or use the results of `tarball` or `dist` to install Cryptol in a
+location of your choice.
 
 # Checking your Installation
 
