@@ -164,6 +164,16 @@ nbCommandList  =
     "display a brief description about a built-in operator"
   , CommandDescr [ ":s", ":set" ] (OptionArg setOptionCmd)
     "set an environmental option (:set on its own displays current values)"
+  , CommandDescr [ ":check" ] (ExprArg (qcCmd QCRandom))
+    "use random testing to check that the argument always returns true (if no argument, check all properties)"
+  , CommandDescr [ ":exhaust" ] (ExprArg (qcCmd QCExhaust))
+    "use exhaustive testing to prove that the argument always returns true (if no argument, check all properties)"
+  , CommandDescr [ ":prove" ] (ExprArg proveCmd)
+    "use an external solver to prove that the argument always returns true (if no argument, check all properties)"
+  , CommandDescr [ ":sat" ] (ExprArg satCmd)
+    "use a solver to find a satisfying assignment for which the argument returns true (if no argument, find an assignment for all properties)"
+  , CommandDescr [ ":debug_specialize" ] (ExprArg specializeCmd)
+    "do type specialization on a closed expression"
   ]
 
 commandList :: [CommandDescr]
@@ -183,17 +193,6 @@ commandList  =
     "set the current working directory"
   , CommandDescr [ ":m", ":module" ] (FilenameArg moduleCmd)
     "load a module"
-
-  , CommandDescr [ ":check" ] (ExprArg (qcCmd QCRandom))
-    "use random testing to check that the argument always returns true (if no argument, check all properties)"
-  , CommandDescr [ ":exhaust" ] (ExprArg (qcCmd QCExhaust))
-    "use exhaustive testing to prove that the argument always returns true (if no argument, check all properties)"
-  , CommandDescr [ ":prove" ] (ExprArg proveCmd)
-    "use an external solver to prove that the argument always returns true (if no argument, check all properties)"
-  , CommandDescr [ ":sat" ] (ExprArg satCmd)
-    "use a solver to find a satisfying assignment for which the argument returns true (if no argument, find an assignment for all properties)"
-  , CommandDescr [ ":debug_specialize" ] (ExprArg specializeCmd)
-    "do type specialization on a closed expression"
   ]
 
 genHelp :: [CommandDescr] -> [String]
