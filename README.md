@@ -195,14 +195,6 @@ There are a couple prerequisites for the notebook:
   `ipython` is on your path.
 - Install ZeroMQ 4 with development headers (see
   https://github.com/gibiansky/IHaskell#zeromq).
-- Clone @gibiansky's IHaskell repository, and add the `ipython-kernel`
-  package to the cabal sandbox:
-
-```
-% git clone https://github.com/gibiansky/IHaskell.git
-% cabal sandbox init # if you haven't already run one of the make targets
-% cabal sandbox add-source IHaskell/ipython-kernel
-```
 
 Once these prerequisites are in place, you can run the notebook in
 place with `make notebook`, or run it from a distribution.
