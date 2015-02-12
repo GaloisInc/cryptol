@@ -4,7 +4,7 @@ c = get_config()
 
 # If you're using a Cabal sandbox, either put its bindir on your $PATH
 # or modify this variable
-exe = 'ICryptol'
+exe = 'icryptol-kernel'
 
 c.KernelManager.kernel_cmd = [exe, 'kernel', '{connection_file}']
 
