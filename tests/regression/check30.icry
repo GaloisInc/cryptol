@@ -1,0 +1,3 @@
+:l check30.cry
+:set warnShadowing=off
+:r

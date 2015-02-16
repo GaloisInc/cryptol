@@ -477,6 +477,8 @@ userOptions  = mkOptionMap
     "Use smt solver to filter conditional branches in proofs."
   , simpleOpt "warnDefaulting" (EnvBool True) (const $ return Nothing)
     "Choose if we should display warnings when defaulting."
+  , simpleOpt "warnShadowing" (EnvBool True) (const $ return Nothing)
+    "Choose if we should display warnings when shadowing symbols."
   , simpleOpt "smtfile" (EnvString "-") (const $ return Nothing)
     "The file to use for SMT-Lib scripts (for debugging or offline proving)"
   , OptionDescr "mono-binds" (EnvBool True) (const $ return Nothing)
