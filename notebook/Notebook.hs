@@ -76,7 +76,13 @@ instance Monad NB where
 runNB :: NB a -> IO a
 runNB m = do
   ref <- newIORef =<< defaultRW
-  runREPL True $ unNB (liftREPL REPL.disableLet >> m) ref
+  let init = liftREPL $ do
+        -- `let` is confusing in notebook context (see #163)
+        REPL.disableLet
+        -- turn of warning noise (#163)
+        REPL.setUser "warnDefaulting" "no"
+        REPL.setUser "warnShadowing"  "no"
+  runREPL True $ unNB (init >> m) ref
 
 -- | Lift a REPL action into the NB monad.
 liftREPL :: REPL a -> NB a
