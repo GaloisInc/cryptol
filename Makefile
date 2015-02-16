@@ -103,7 +103,7 @@ print-%:
 # /usr/share/cryptol on POSIX, installdir/cryptol on Windows
 DATADIR := ${PREFIX_ABS}${PREFIX_SHARE}
 
-dist/setup-config: | ${CS_BIN}/alex ${CS_BIN}/happy
+dist/setup-config: cryptol.cabal | ${CS_BIN}/alex ${CS_BIN}/happy
 	$(CABAL_INSTALL) --only-dependencies
 	$(CABAL) configure                            \
           --prefix=$(call adjust-path,${PREFIX_ABS})  \
