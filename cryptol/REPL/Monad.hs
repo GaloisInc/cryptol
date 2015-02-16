@@ -42,6 +42,9 @@ module REPL.Monad (
   , shouldContinue
   , unlessBatch
   , asBatch
+  , disableLet
+  , enableLet
+  , getLetEnabled
   , setREPLTitle
 
     -- ** Config Options
@@ -103,6 +106,7 @@ data RW = RW
   , eNameSupply :: Int
   , eUserEnv    :: UserEnv
   , ePutStr     :: String -> IO ()
+  , eLetEnabled :: Bool
   }
 
 -- | Initial, empty environment.
@@ -117,6 +121,7 @@ defaultRW isBatch = do
     , eNameSupply = 0
     , eUserEnv    = mkUserEnv userOptions
     , ePutStr     = putStr
+    , eLetEnabled = True
     }
 
 -- | Build up the prompt for the REPL.
@@ -273,6 +278,16 @@ asBatch body = do
   modifyRW_ $ (\ rw -> rw { eIsBatch = True })
   body
   modifyRW_ $ (\ rw -> rw { eIsBatch = wasBatch })
+
+disableLet :: REPL ()
+disableLet  = modifyRW_ (\ rw -> rw { eLetEnabled = False })
+
+enableLet :: REPL ()
+enableLet  = modifyRW_ (\ rw -> rw { eLetEnabled = True })
+
+-- | Are let-bindings enabled in this REPL?
+getLetEnabled :: REPL Bool
+getLetEnabled = fmap eLetEnabled getRW
 
 setREPLTitle :: REPL ()
 setREPLTitle  = unlessBatch $ do

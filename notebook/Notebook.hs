@@ -76,7 +76,7 @@ instance Monad NB where
 runNB :: NB a -> IO a
 runNB m = do
   ref <- newIORef =<< defaultRW
-  runREPL True $ unNB m ref
+  runREPL True $ unNB (liftREPL REPL.disableLet >> m) ref
 
 -- | Lift a REPL action into the NB monad.
 liftREPL :: REPL a -> NB a

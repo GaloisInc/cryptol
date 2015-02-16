@@ -54,6 +54,7 @@ import Cryptol.Prims.Doc(helpDoc)
 import qualified Cryptol.Transform.Specialize as S
 import qualified Cryptol.Symbolic as Symbolic
 
+import Control.Applicative ((<$>))
 import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad (guard,unless,forM_,when)
@@ -234,7 +235,10 @@ getPPValOpts =
 
 evalCmd :: String -> REPL ()
 evalCmd str = do
-  ri <- replParseInput str
+  letEnabled <- getLetEnabled
+  ri <- if letEnabled
+          then replParseInput str
+          else P.ExprInput <$> replParseExpr str
   case ri of
     P.ExprInput expr -> do
       (val,_ty) <- replEvalExpr expr
