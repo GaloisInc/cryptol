@@ -35,6 +35,7 @@ import REPL.Trie
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Base as M (preludeName)
 import qualified Cryptol.ModuleSystem.NamingEnv as M
+import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowed))
 
 import qualified Cryptol.Eval.Value as E
 import qualified Cryptol.Testing.Random  as TestR
@@ -691,18 +692,30 @@ liftModuleCmd cmd = moduleCmdResult =<< io . cmd =<< getModuleEnv
 
 moduleCmdResult :: M.ModuleRes a -> REPL a
 moduleCmdResult (res,ws0) = do
-  EnvBool yes <- getUser "warnDefaulting"
+  EnvBool warnDefaulting <- getUser "warnDefaulting"
+  EnvBool warnShadowing  <- getUser "warnShadowing"
+  -- XXX: let's generalize this pattern
   let isDefaultWarn (T.DefaultingTo _ _) = True
       isDefaultWarn _ = False
 
+      filterDefaults w | warnDefaulting = Just w
       filterDefaults (M.TypeCheckWarnings xs) =
         case filter (not . isDefaultWarn . snd) xs of
           [] -> Nothing
           ys -> Just (M.TypeCheckWarnings ys)
       filterDefaults w = Just w
 
-  let ws = if yes then ws0
-                  else mapMaybe filterDefaults ws0
+      isShadowWarn (M.SymbolShadowed _ _) = True
+      isShadowWarn _ = False
+
+      filterShadowing w | warnShadowing = Just w
+      filterShadowing (M.RenamerWarnings xs) =
+        case filter (not . isShadowWarn) xs of
+          [] -> Nothing
+          ys -> Just (M.RenamerWarnings ys)
+      filterShadowing w = Just w
+
+  let ws = mapMaybe filterDefaults . mapMaybe filterShadowing $ ws0
   mapM_ (rPrint . pp) ws
   case res of
     Right (a,me') -> setModuleEnv me' >> return a
