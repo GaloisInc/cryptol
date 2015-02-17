@@ -1,12 +1,12 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module test05
-[warning] at test05.cry:9:3--9:6
+[warning] at ./test05.cry:9:3--9:6
     This binding for foo shadows the existing binding from
-    (at test05.cry:4:1--4:4, test05::foo)
-[warning] at test05.cry:13:5--13:8
+    (at ./test05.cry:4:1--4:4, test05::foo)
+[warning] at ./test05.cry:13:5--13:8
     This binding for foo shadows the existing binding from
-    (at test05.cry:9:3--9:6, foo)
+    (at ./test05.cry:9:3--9:6, foo)
 module test05
 import Cryptol
 /* Not recursive */
@@ -41,16 +41,16 @@ test05::test = \{a, b, c} (c >= 4, fin c) (a : [a]b) ->
 
 Loading module Cryptol
 Loading module test05
-[warning] at test05.cry:9:3--9:6
+[warning] at ./test05.cry:9:3--9:6
     This binding for foo shadows the existing binding from
-    (at test05.cry:4:1--4:4, test05::foo)
-[warning] at test05.cry:13:5--13:8
+    (at ./test05.cry:4:1--4:4, test05::foo)
+[warning] at ./test05.cry:13:5--13:8
     This binding for foo shadows the existing binding from
-    (at test05.cry:9:3--9:6, foo)
-[warning] at test05.cry:1:1--14:21:
+    (at ./test05.cry:9:3--9:6, foo)
+[warning] at ./test05.cry:1:1--14:21:
   Defaulting 1st type parameter
              of expression (#)
-             at test05.cry:14:16--14:17
+             at ./test05.cry:14:16--14:17
   to 0
 module test05
 import Cryptol

@@ -4,12 +4,12 @@ Loading module Main
 [warning] at :1:1--7:45:
   Defaulting type parameter 'bits'
              of finite enumeration
-             at check08.cry:9:25--9:33
+             at ./check08.cry:9:25--9:33
   to 3
 [warning] at :1:1--7:45:
   Defaulting type parameter 'bits'
              of finite enumeration
-             at check08.cry:7:16--7:24
+             at ./check08.cry:7:16--7:24
   to 3
 [warning] at <interactive>:1:1--1:15:
   Defaulting type parameter 'bits'

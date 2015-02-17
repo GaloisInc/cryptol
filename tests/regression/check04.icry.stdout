@@ -4,12 +4,12 @@ Loading module Main
 [warning] at :1:1--4:45:
   Defaulting type parameter 'bits'
              of finite enumeration
-             at check04.cry:4:21--4:29
+             at ./check04.cry:4:21--4:29
   to 2
 [warning] at :1:1--4:45:
   Defaulting type parameter 'bits'
              of literal or demoted expression
-             at check04.cry:4:43--4:44
+             at ./check04.cry:4:43--4:44
   to 2
 [warning] at <interactive>:1:1--1:21:
   Defaulting type parameter 'bits'

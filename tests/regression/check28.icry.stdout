@@ -4,6 +4,6 @@ Loading module Main
 [warning] at :1:1--2:42:
   Defaulting 2nd type parameter
              of expression Main::xs
-             at check28.cry:2:29--2:31
+             at ./check28.cry:2:29--2:31
   to 3
 True
