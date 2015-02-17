@@ -19,7 +19,7 @@ import qualified Cryptol.ModuleSystem.Monad as M (setFocusedModule)
 import Cryptol.Parser (defaultConfig, parseModule, Config(..))
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.TypeCheck.AST as T
-import Cryptol.Utils.PP (pp)
+import Cryptol.Utils.PP (pp, pretty)
 
 import Control.Applicative ((<$>))
 import qualified Control.Exception as X
@@ -73,9 +73,14 @@ cryptolConfig = KernelConfig
     runCell contents clear nbPutStr = do
       putStrOrig <- liftREPL REPL.getPutStr
       liftREPL $ REPL.setPutStr nbPutStr
-      handleAuto (T.unpack contents)
+      let go = do
+            handleAuto (T.unpack contents)
+            return ("", Ok)
+          handle exn =
+            return (pretty exn, Err)
+      (result, status) <- catch go handle
       liftREPL $ REPL.setPutStr putStrOrig
-      return ("", Ok, "")
+      return (result, status, "")
 
 -- Input Handling --------------------------------------------------------------
 
