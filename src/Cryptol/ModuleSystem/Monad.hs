@@ -351,6 +351,19 @@ setFocusedModule n = ModuleT $ do
 getSearchPath :: ModuleM [FilePath]
 getSearchPath  = ModuleT (meSearchPath `fmap` get)
 
+-- | Run a 'ModuleM' action in a context with a prepended search
+-- path. Useful for temporarily looking in other places while
+-- resolving imports, for example.
+withPrependedSearchPath :: [FilePath] -> ModuleM a -> ModuleM a
+withPrependedSearchPath fps m = ModuleT $ do
+  env0 <- get
+  let fps0 = meSearchPath env0
+  set $! env0 { meSearchPath = fps ++ fps0 }
+  x <- unModuleT m
+  env <- get
+  set $! env { meSearchPath = fps0 }
+  return x
+
 -- XXX improve error handling here
 getFocusedEnv :: ModuleM IfaceDecls
 getFocusedEnv  = ModuleT (focusedEnv `fmap` get)

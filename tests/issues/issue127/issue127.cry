@@ -1,0 +1,3 @@
+module issue127 where
+
+import Foo

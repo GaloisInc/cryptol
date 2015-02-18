@@ -4,9 +4,9 @@ Loading module comp02
 
 [error]
     Overlapping symbols defined:
-    (at comp02.cry:4:12--4:13, a)
-    (at comp02.cry:5:12--5:13, a)
-[error] at comp02.cry:4:8--4:9
+    (at ./comp02.cry:4:12--4:13, a)
+    (at ./comp02.cry:5:12--5:13, a)
+[error] at ./comp02.cry:4:8--4:9
     Multiple definitions for symbol: a
-    (at comp02.cry:4:12--4:13, a)
-    (at comp02.cry:5:12--5:13, a)
+    (at ./comp02.cry:4:12--4:13, a)
+    (at ./comp02.cry:5:12--5:13, a)

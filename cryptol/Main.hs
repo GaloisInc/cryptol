@@ -26,7 +26,7 @@ import Cryptol.Utils.PP(pp)
 import Data.Monoid (mconcat)
 import System.Environment (getArgs, getProgName, lookupEnv)
 import System.Exit (exitFailure)
-import System.FilePath (splitSearchPath)
+import System.FilePath (splitSearchPath, takeDirectory)
 import System.Console.GetOpt
     (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
 
@@ -156,6 +156,10 @@ setupREPL opts = do
 #else
       where path' = splitSearchPath path
 #endif
+  case optBatch opts of
+    Nothing -> return ()
+    -- add the directory containing the batch file to the module search path
+    Just file -> prependSearchPath [ takeDirectory file ]
   case optLoad opts of
     []  -> loadPrelude `REPL.catch` \x -> io $ print $ pp x
     [l] -> loadCmd l `REPL.catch` \x -> io $ print $ pp x

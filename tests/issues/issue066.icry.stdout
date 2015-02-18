@@ -12,7 +12,7 @@ f 0x3 = True
 it : {result : Bit, arg1 : [4]}
 {result = True, arg1 = 0x3}
 True
-Unsatisfiable.
+Unsatisfiable
 it : {result : Bit, arg1 : [4]}
 
 Run-time error: no satisfying assignment available
