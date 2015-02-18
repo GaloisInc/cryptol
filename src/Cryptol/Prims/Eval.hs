@@ -452,9 +452,10 @@ zeroV ty
 
   -- sequences
   | Just (n,ety) <- isTSeq ty =
-    toSeq n ety $ case numTValue n of
-                    Nat w -> replicate (fromInteger w) (zeroV ety)
-                    Inf   -> repeat                    (zeroV ety)
+    case numTValue n of
+      Nat w | isTBit ety -> word n 0
+            | otherwise  -> toSeq n ety (replicate (fromInteger w) (zeroV ety))
+      Inf                -> toSeq n ety (repeat                    (zeroV ety))
 
   -- functions
   | Just (_,bty) <- isTFun ty =
