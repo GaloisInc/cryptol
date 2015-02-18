@@ -453,7 +453,7 @@ zeroV ty
   -- sequences
   | Just (n,ety) <- isTSeq ty =
     case numTValue n of
-      Nat w | isTBit ety -> word n 0
+      Nat w | isTBit ety -> word w 0
             | otherwise  -> toSeq n ety (replicate (fromInteger w) (zeroV ety))
       Inf                -> toSeq n ety (repeat                    (zeroV ety))
 
