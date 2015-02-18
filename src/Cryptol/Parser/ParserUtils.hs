@@ -24,18 +24,18 @@ import Control.Monad(liftM,ap)
 import qualified Data.Traversable as T (mapM)
 
 parse :: Config -> ParseM a -> String -> Either ParseError a
-parse cfg p cs    = case unP p eofPos (S toks) of
+parse cfg p cs    = case unP p cfg eofPos (S toks) of
                       Left err    -> Left err
                       Right (a,_) -> Right a
   where (toks,eofPos) = lexer cfg cs
 
 
 {- The parser is parameterized by the pozition of the final token. -}
-data ParseM a   = P { unP :: Position -> S -> Either ParseError (a,S) }
+data ParseM a   = P { unP :: Config -> Position -> S -> Either ParseError (a,S) }
 
 
 lexerP :: (Located Token -> ParseM a) -> ParseM a
-lexerP k = P $ \p (S ts) ->
+lexerP k = P $ \cfg p (S ts) ->
   case ts of
     t : _ | Err e <- tokenType it ->
       Left $ HappyErrorMsg (srcRange t) $
@@ -48,35 +48,38 @@ lexerP k = P $ \p (S ts) ->
            LexicalError        -> "lexical error: " ++ tokenText it
       where it = thing t
 
-    t : more -> unP (k t) p (S more)
-    []       -> Left (HappyError p Nothing)
+    t : more -> unP (k t) cfg p (S more)
+    []       -> Left (HappyError (cfgSource cfg) p Nothing)
 
-data ParseError = HappyError Position (Maybe Token)
+data ParseError = HappyError FilePath Position (Maybe Token)
                 | HappyErrorMsg Range String
                   deriving Show
 
 newtype S = S [Located Token]
 
 instance PP ParseError where
-  ppPrec _ (HappyError _ tok) = case tok of
+  ppPrec _ (HappyError _ _ tok) = case tok of
                                   Nothing -> text "end of input"
                                   Just t  -> pp t
   ppPrec _ (HappyErrorMsg _ x) = text x
 
 ppError :: ParseError -> Doc
-ppError (HappyError pos (Just tok))
-  | Err _ <- tokenType tok = text "Parse error at" <+> pp pos <> comma <+>
+ppError (HappyError path pos (Just tok))
+  | Err _ <- tokenType tok = text "Parse error at" <+>
+                              text path <> char ':' <> pp pos <> comma <+>
                               pp tok
-ppError e@(HappyError pos _) = text "Parse error at" <+> pp pos <> comma <+>
+ppError e@(HappyError path pos _) =
+                               text "Parse error at" <+>
+                               text path <> char ':' <> pp pos <> comma <+>
                                text "unexpected" <+> pp e
 ppError (HappyErrorMsg p x)  = text "Parse error at" <+> pp p $$ nest 2 (text x)
 
 instance Monad ParseM where
-  return a  = P (\_ s -> Right (a,s))
+  return a  = P (\_ _ s -> Right (a,s))
   fail s    = panic "[Parser] fail" [s]
-  m >>= k   = P (\p s1 -> case unP m p s1 of
+  m >>= k   = P (\cfg p s1 -> case unP m cfg p s1 of
                             Left e       -> Left e
-                            Right (a,s2) -> unP (k a) p s2)
+                            Right (a,s2) -> unP (k a) cfg p s2)
 
 instance Functor ParseM where
   fmap = liftM
@@ -86,16 +89,16 @@ instance Applicative ParseM where
   (<*>) = ap
 
 happyError :: ParseM a
-happyError = P $ \p (S ls) ->
+happyError = P $ \cfg p (S ls) ->
   Left $ case listToMaybe ls of
-           Nothing -> HappyError p Nothing
-           Just l  -> HappyError (from (srcRange l)) (Just (thing l))
+           Nothing -> HappyError (cfgSource cfg) p Nothing
+           Just l  -> HappyError (cfgSource cfg) (from (srcRange l)) (Just (thing l))
 
 errorMessage :: Range -> String -> ParseM a
-errorMessage r x = P $ \_ _ -> Left (HappyErrorMsg r x)
+errorMessage r x = P $ \_ _ _ -> Left (HappyErrorMsg r x)
 
 customError :: String -> Located Token -> ParseM a
-customError x t = P $ \_ _ -> Left (HappyErrorMsg (srcRange t) x)
+customError x t = P $ \_ _ _ -> Left (HappyErrorMsg (srcRange t) x)
 
 mkModName :: {-reversed-} [LName] -> Located ModName
 mkModName xs = Located { srcRange = rComb (srcRange f) (srcRange l)
