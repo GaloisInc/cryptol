@@ -333,8 +333,10 @@ qcCmd qcMode str =
              do opts <- getPPValOpts
                 do delProgress
                    delTesting
-                   prtLn "FAILED for the following inputs:"
-                   io $ mapM_ (print . pp . E.WithBase opts) vs
+                   case vs of
+                     [] -> prtLn "FAILED"
+                     _  -> do prtLn "FAILED for the following inputs:"
+                              io $ mapM_ (print . pp . E.WithBase opts) vs
                    return False
 
 satCmd, proveCmd :: String -> REPL ()
@@ -350,7 +352,9 @@ cmdProveSat isSat "" =
      if null xs
         then io $ putStrLn "There are no properties in scope."
         else forM_ xs $ \x ->
-               do io $ putStr $ "property " ++ x ++ " "
+               do if isSat
+                     then io $ putStr $ ":sat "   ++ x ++ "\n\t"
+                     else io $ putStr $ ":prove " ++ x ++ "\n\t"
                   cmdProveSat isSat x
 cmdProveSat isSat str = do
   EnvString proverName <- getUser "prover"
@@ -385,7 +389,7 @@ onlineProveSat isSat str proverName mfile = do
       panic "REPL.Command" [ "got EmptyResult for online prover query" ]
     Symbolic.ProverError msg     -> io $ putStrLn msg
     Symbolic.ThmResult ts        -> do
-      io $ putStrLn (if isSat then "Unsatisfiable." else "Q.E.D.")
+      io $ putStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
       let (t, e) = mkSolverResult cexStr (not isSat) (Left ts)
       bindItVariable t e
     Symbolic.AllSatResult tevss -> do
