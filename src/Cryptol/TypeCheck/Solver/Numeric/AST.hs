@@ -25,7 +25,7 @@ import          Cryptol.TypeCheck.Solver.InfNat ( Nat'(..) )
 import          Cryptol.Utils.Panic ( panic )
 import          Cryptol.Utils.Misc ( anyJust )
 
-import           Data.GenericTrie (TrieKey)
+-- import           Data.GenericTrie (TrieKey)
 import           GHC.Generics(Generic)
 import           Data.Map ( Map )
 import qualified Data.Map as Map
@@ -282,9 +282,9 @@ instance HasVars Prop where
 -- Tries
 --------------------------------------------------------------------------------
 
-instance TrieKey Name
-instance TrieKey Prop
-instance TrieKey Expr
+-- instance TrieKey Name
+-- instance TrieKey Prop
+-- instance TrieKey Expr
 
 
 

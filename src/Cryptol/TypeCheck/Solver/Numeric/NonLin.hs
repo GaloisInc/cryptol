@@ -20,11 +20,20 @@ import Cryptol.TypeCheck.Solver.Numeric.AST
 import Cryptol.TypeCheck.Solver.Numeric.Simplify
 import Cryptol.Utils.Panic(panic)
 
-import           Data.GenericTrie (Trie)
-import qualified Data.GenericTrie as Trie
+-- import           Data.GenericTrie (Trie)
+-- import qualified Data.GenericTrie as Trie
 import qualified Data.Map as Map
 import           Data.Maybe ( fromMaybe )
 import           MonadLib
+import           Data.Map (Map)
+import qualified Data.Map as Map
+
+type Trie   = Map
+
+trie_empty  = Map.empty
+trie_insert = Map.insert
+trie_delete = Map.delete
+trie_lookup = Map.lookup
 
 
 -- | Factor-out non-linear terms, by naming them.
@@ -56,7 +65,7 @@ initialNonLinS :: NonLinS
 initialNonLinS = NonLinS
   { nextName = 0
   , nonLinExprs = Map.empty
-  , nlKnown = Trie.empty
+  , nlKnown = trie_empty
   }
 
 data SubstOneRes = NoChange
@@ -97,7 +106,7 @@ mApSubstOneNL su (x,e) =
           sets $ \NonLinS { .. } ->
             ( Updated Nothing
             , NonLinS { nonLinExprs = Map.insert x e1 nonLinExprs
-                      , nlKnown = Trie.insert e1 x (Trie.delete e nlKnown)
+                      , nlKnown = trie_insert e1 x (trie_delete e nlKnown)
                       , .. }
             )
 
@@ -106,14 +115,14 @@ mApSubstOneNL su (x,e) =
           sets $ \NonLinS { .. } ->
             (Updated Nothing
             , NonLinS { nonLinExprs = Map.insert x e2 nonLinExprs
-                      , nlKnown = Trie.insert e2 x (Trie.delete e nlKnown)
+                      , nlKnown = trie_insert e2 x (trie_delete e nlKnown)
                       , .. }
             )
 
           | otherwise ->
             do sets_ $ \NonLinS { .. } ->
                  NonLinS { nonLinExprs = Map.delete x nonLinExprs
-                         , nlKnown = Trie.delete e nlKnown
+                         , nlKnown = trie_delete e nlKnown
                          , ..
                          }
                es <- mapM nonLinExprM (cryExprExprs e2)
@@ -208,14 +217,14 @@ data NonLinS = NonLinS
 
 nameExpr :: Expr -> NonLinM Expr
 nameExpr e = sets $ \s ->
-  case Trie.lookup e (nlKnown s) of
+  case trie_lookup e (nlKnown s) of
     Just x -> (Var x, s)
     Nothing ->
       let x  = nextName s
           n  = SysName x
           s1 = NonLinS { nextName = 1 + x
                        , nonLinExprs = Map.insert n e (nonLinExprs s)
-                       , nlKnown = Trie.insert e n (nlKnown s)
+                       , nlKnown = trie_insert e n (nlKnown s)
                        }
       in (Var n, s1)
 
