@@ -18,7 +18,7 @@ module Cryptol.TypeCheck.Solver.Numeric.AST
 
   , IfExpr(..), ppIfExpr
 
-  , Subst, HasVars(..), cryLet
+  , Subst, HasVars(..), cryLet, composeSubst
   ) where
 
 import          Cryptol.TypeCheck.Solver.InfNat ( Nat'(..) )
@@ -27,6 +27,7 @@ import          Cryptol.Utils.Misc ( anyJust )
 
 -- import           Data.GenericTrie (TrieKey)
 import           GHC.Generics(Generic)
+import           Data.Maybe (fromMaybe)
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Set ( Set )
@@ -219,6 +220,11 @@ instance A.Applicative IfExpr where
 --------------------------------------------------------------------------------
 
 type Subst = Map Name Expr
+
+composeSubst :: Subst -> Subst -> Subst
+composeSubst g f = Map.union f' g
+  where
+  f' = fmap (\e -> fromMaybe e (apSubst g e)) f
 
 cryLet :: HasVars e => Name -> Expr -> e -> Maybe e
 cryLet x e = apSubst (Map.singleton x e)

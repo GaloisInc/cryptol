@@ -46,6 +46,9 @@ simpProp p = SimpProp (crySimplify p)
 
 data DefinedProp a = DefinedProp
   { dpData         :: a
+    -- ^ Optional data to assocate with prop.
+    -- Often, the origianl `Goal` from which the prop was extracted.
+
   , dpSimpProp     :: SimpProp
     -- ^ Fully simplified (may have ORs)
     -- These are used in the proofs, and may not be translatable back
@@ -54,6 +57,7 @@ data DefinedProp a = DefinedProp
   , dpSimpExprProp :: Prop
     -- ^ Expressions are simplified (no ORs)
     -- These should be importable back into Cryptol props.
+    -- XXX: What about `sys` variables?
   }
 
 type ImpMap = Map Name Expr
@@ -70,34 +74,40 @@ checkDefined :: Solver                                    ->
                 [(a,Prop)] {- ^ Goals                 -}  ->
                 IO (Maybe ( [a]             -- could not prove
                           , [DefinedProp a] -- proved ok and simplified terms
-                          , Subst           -- computed improvements
+                          , Subst -- computed improvements, for the conjuction
+                                   -- of the proved properties.
                           ))
 checkDefined s updCt uniVars props0 = withScope s (go Map.empty [] props0)
   where
   go knownImps done notDone =
     do (newNotDone, novelDone) <- checkDefined' s updCt notDone
        (possible,  imps)       <- check s uniVars
+
        if not possible
          then return Nothing
          else
-           do let novelImps = Map.difference imps knownImps
+           do let goAgain novelImps newDone =
+                    do mapM_ addImpProp (Map.toList novelImps)
+                       let newImps    = composeSubst novelImps knownImps
+                           impDone    = map (updDone novelImps) newDone
+                           impNotDone = map (updNotDone novelImps) newNotDone
+                       go newImps impDone impNotDone
+
+              let novelImps = Map.difference imps knownImps
                   newDone   = novelDone ++ done
 
               if Map.null novelImps
-                then return $ Just ( map fst newNotDone
-                                   , newDone
-                                   , knownImps
-                                   )
-                else
-                  do mapM_ addImpProp (Map.toList novelImps)
-                     -- Apply subst to knownImps?
-                     let newImps    = Map.union novelImps knownImps
-                         impDone    = map (updDone novelImps) newDone
-                         impNotDone = map (updNotDone novelImps) newNotDone
-                     go newImps impDone impNotDone
+                then case findImpByDef [] newDone of
+                       Nothing -> return $ Just ( map fst newNotDone
+                                                , newDone
+                                                , knownImps
+                                                )
+                       Just ((x,e), rest) ->
+                         goAgain (Map.singleton x e) rest
+
+                else goAgain novelImps newDone
 
   addImpProp (x,e) = assert s (simpProp (Var x :== e))
-
 
   updDone su ct =
     case apSubst su (dpSimpExprProp ct) of
@@ -114,12 +124,22 @@ checkDefined s updCt uniVars props0 = withScope s (go Map.empty [] props0)
       Nothing -> (g,p)
       Just p' -> (updCt p' g,p')
 
+  findImpByDef _ [] = Nothing
+  findImpByDef qs (p : ps) =
+    case improveByDefn uniVars p of
+      Nothing  -> findImpByDef (p : qs) ps
+      Just yes -> Just (yes, qs ++ ps)
+
+
+
 
 -- | Check that a bunch of constraints are all defined.
 --  * We return constraints that are not necessarily defined in the first
 --    component, and the ones that are defined in the second component.
 --  * Well defined constraints are asserted at this point.
 --  * The expressions in the defined constraints are simplified.
+--  * The expressions in the well-defined constraint may mention sys. vars.
+--    (i.e., named non-linear terms)
 checkDefined' :: Solver -> (Prop -> a -> a) ->
                 [(a,Prop)] -> IO ([(a,Prop)], [DefinedProp a])
 checkDefined' s updCt props0 =
@@ -166,8 +186,8 @@ checkDefined' s updCt props0 =
 
 
 -- | Simplify a bunch of well-defined properties.
--- Eliminates properties that are implied by the rest.
--- Does not modify the set of assumptions.
+--  * Eliminates properties that are implied by the rest.
+--  * Does not modify the set of assumptions.
 simplifyProps :: Solver -> [DefinedProp a] -> IO [a]
 simplifyProps s props = withScope s (go [] props)
   where
@@ -189,8 +209,8 @@ simplifyProps s props = withScope s (go [] props)
 
 
 -- | Add the given constraints as assumptions.
--- We also assume that the constraints are well-defined.
--- Modifies the set of assumptions.
+--  * We assume that the constraints are well-defined.
+--  * Modifies the set of assumptions.
 assumeProps :: Solver -> [Cry.Prop] -> IO VarMap
 assumeProps s props =
   do mapM_ (assert s . simpProp) (map cryDefinedProp ps ++ ps)
@@ -204,28 +224,73 @@ assumeProps s props =
 
 
 
+
+{- | If we see an equation: `?x = e`, and:
+      * ?x is a unification variable
+      * `e` is "zonked" (substitution is fully applied)
+      * ?x does not appear in `e`.
+    then, we can improve `?x` to `e`.
+-}
+improveByDefn :: Set Name -> DefinedProp a -> Maybe (Name,Expr)
+improveByDefn uvs p =
+  case dpSimpExprProp p of
+    Var x :== e
+      | x `Set.member` uvs -> tryToBind x e
+    e :== Var x
+      | x `Set.member` uvs -> tryToBind x e
+    _ -> Nothing
+
+  where
+  tryToBind x e
+    | x `Set.member` cryExprFVS e = Nothing
+    | otherwise                   = Just (x,e)
+
+
+
 --------------------------------------------------------------------------------
 
 
 -- | An SMT solver, and some info about declared variables.
 data Solver = Solver
   { solver    :: SMT.Solver
+    -- ^ The actual solver
+
   , declared  :: IORef VarInfo
+    -- ^ Information about declared variables, and assumptions in scope.
+
   , logger    :: SMT.Logger
+    -- ^ For debuging
   }
 
 
--- | Keeps track of what variables we've already declared.
+-- | Keeps track of declared variables and non-linear terms.
 data VarInfo = VarInfo
   { curScope    :: Scope
   , otherScopes :: [Scope]
   } deriving Show
 
 data Scope = Scope
-  { scopeNames    :: [Name]         -- ^ Variables declared in this scope
-  , scopeMarked   :: Set Name       -- ^ These are not interesting names
-                                    -- (e.g., they were defined)
+  { scopeNames    :: [Name]
+    -- ^ Variables declared in this scope (not counting the ones from
+    -- previous scopes).
+
+  , scopeMarked   :: Set Name
+    {- ^ These are not interesting names.  This is used when we apply
+    a substitution to the non-linear terms. Example:
+    Consider a NL term:  x :=  a * b
+    We apply the su. { a := 5 }.
+    As a result, `x` becomes linear: 5 * b, so we remove from the NonLinS.
+    However, the variable `x` may be still mentioned in other assertions.
+    So, we add a new assertion `x = 5 * b`.  All done!  From now on, though,
+    we don't wnat to ever have to deal with `x` in any models: it really is
+    just a left-over from the old NL term.  We implement this by "marking"
+    `x`, and simply ignoring it when we compute models.
+    -}
+
   , scopeNonLinS  :: NonLinS        -- ^ Info about non-linear terms
+    {- ^ These are the non-linear terms mentioned in the assertions
+    that are currently asserted (including ones from previous scopes). -}
+
   } deriving Show
 
 scopeEmpty :: Scope
@@ -233,10 +298,6 @@ scopeEmpty = Scope { scopeNames = []
                    , scopeMarked = Set.empty
                    , scopeNonLinS = initialNonLinS
                    }
-
-scopeUnmarkedNames :: Scope -> [Name]
-scopeUnmarkedNames Scope { .. } = filter unmarked scopeNames
-  where unmarked x = not (x `Set.member` scopeMarked)
 
 scopeElem :: Name -> Scope -> Bool
 scopeElem x Scope { .. } = x `elem` scopeNames
@@ -250,6 +311,10 @@ scopeMark x Scope { .. } = Scope { scopeMarked = Set.insert x scopeMarked, .. }
 scopeLookupNL :: Name -> Scope -> Maybe Expr
 scopeLookupNL x Scope { .. } = lookupNL x scopeNonLinS
 
+-- | Apply a substitution to the non-linear terms in this scope.
+--    * Returns 'Nothing' if there were no changes.
+--    * The resulting substitution should define only "sys" vars,
+--      and is for non-linear terms that became linear.
 scopeSubstNL :: Subst -> Scope -> Maybe (Subst, Scope)
 scopeSubstNL su Scope { .. } =
   do (lsu,newNL) <- apSubstNL su scopeNonLinS
@@ -302,8 +367,12 @@ viPop VarInfo { .. } = case otherScopes of
 -- | All declared names, that have not been "marked".
 -- These are the variables whose values we are interested in.
 viUnmarkedNames :: VarInfo -> [ Name ]
-viUnmarkedNames VarInfo { .. } = concatMap scopeUnmarkedNames
-                                                    (curScope : otherScopes)
+viUnmarkedNames VarInfo { .. } = filter (not . isMarked)
+                                                (concatMap scopeNames scopes)
+  where
+  allMarked   = Set.unions (map scopeMarked scopes)
+  isMarked x  = x `Set.member` allMarked
+  scopes      = curScope : otherScopes
 
 viLookupNL :: Name -> VarInfo -> Maybe Expr
 viLookupNL x VarInfo { .. } = scopeLookupNL x curScope
@@ -318,12 +387,21 @@ viSubstNL su VarInfo { .. } =
 lookupNLVar :: Solver -> Name -> IO (Maybe Expr)
 lookupNLVar Solver { .. } x = viLookupNL x `fmap` readIORef declared
 
--- | Mark a variable is being defined, so we don't look for further
+-- | Mark a variable as being defined, so we don't look for further
 -- improvements to it.
 markDefined :: Solver -> Name -> IO ()
 markDefined Solver { .. } x = modifyIORef' declared (viMark x)
 
--- | Apply a substituition to the non-linear assignment.
+{- | Apply a substituition to the non-linear terms.
+      * If some of the NL terms became linear, then the relation between
+        the sys variable and the new linear term is asserted as a fact.
+        We do this, so that other assertions that mention this variable
+        know about the change.
+        XXX: If the sys. var is in a previous scope, than this assignment
+        would be "undone" when we exit the current scope.
+
+      * Furthermore, the "sys" variable is marked, so that we don't ask
+        for it during improvements -}
 substNL :: Solver -> Subst -> IO (Maybe Subst)
 substNL s@Solver { .. } su =
   do mb <- atomicModifyIORef' declared $ \vi ->
@@ -339,12 +417,19 @@ substNL s@Solver { .. } su =
                      markDefined s x
 
 
+-- | All known non-linear terms.
+getNLSubst :: Solver -> IO Subst
+getNLSubst Solver { .. } =
+  do VarInfo { .. } <- readIORef declared
+     return $ nonLinSubst $ scopeNonLinS curScope
 
 
 -- | Execute a computation with a fresh solver instance.
 withSolver :: (Solver -> IO a) -> IO a
 withSolver k =
-  do logger <- SMT.newLogger
+  do -- logger <- SMT.newLogger
+     let logger = quietLogger
+
      solver <- SMT.newSolver "cvc4" ["--lang=smt2", "--incremental"]
                                                    Nothing --} (Just logger)
      SMT.setLogic solver "QF_LIA"
@@ -353,6 +438,12 @@ withSolver k =
      _ <- SMT.stop solver
 
      return a
+
+  where
+  quietLogger = SMT.Logger { SMT.logMessage = \_ -> return ()
+                           , SMT.logTab     = return ()
+                           , SMT.logUntab   = return ()
+                           }
 
 -- | Execute a computation in a new solver scope.
 withScope :: Solver -> IO a -> IO a
@@ -420,25 +511,38 @@ check s@Solver { .. } uniVars =
        SMT.Unknown -> return (True, Map.empty)
        SMT.Sat     -> debugBlock s "improvements" (getImpSubst s uniVars)
 
+-- | The set of unification variables is used to guide ordering of
+-- assignments (we prefer assigning to them, as that amounts to doing
+-- type inference).
 getImpSubst :: Solver -> Set Name -> IO (Bool,Subst)
 getImpSubst s@Solver { .. } uniVars =
   do names <- viUnmarkedNames `fmap` readIORef declared
      m     <- fmap Map.fromList (mapM getVal names)
      model <- cryImproveModel solver uniVars m
+     nlSu  <- getNLSubst s
+     let su  = composeSubst nlSu (toSubst model)
+
+         -- XXX: The improvemnts that are being ignored here could
+         -- lead to extar, potentially useful, constraints.
+         su1 = Map.filterWithKey (\k _ -> case k of
+                                            SysName {} -> False
+                                            _          -> True) su
+     return (True, su1)
+{-
      let imps = Map.toList (toSubst model)
      debugBlock s "before" $
-        mapM_ (\(x,e) -> debugLog s (Var x :== e)) imps
+       mapM_ (\(x,e) -> debugLog s (Var x :== e)) imps
 
      res <- mapM (checkImpBind s) imps
      let (agains,eqs) = unzip res
 
      debugBlock s "after" $
-        mapM_ (\(x,e) -> debugLog s (Var x :== e)) (concat eqs)
+       mapM_ (\(x,e) -> debugLog s (Var x :== e)) (concat eqs)
 
      (possible,more) <- if or agains then check s uniVars
                                      else return (True,Map.empty)
      return (possible, Map.union more (Map.fromList (concat eqs)))
-
+-}
   where
   getVal a =
     do yes <- isInf a
@@ -454,6 +558,17 @@ getImpSubst s@Solver { .. } uniVars =
                  SMT.Bool ans -> return (not ans)
                  _            -> panic "cryCheck.isInf"
                                        [ "Not a boolean value", show yes ]
+
+
+-- If subst contains:
+-- x := e(_y)      (where _y = e', a NL term)
+-- we should replace `x` with `e(e'/_y)`, not just e
+
+-- If subst contains:
+-- _y := e      (where _y = e1, a NL term)
+-- we get that a new equations should always hold: e = e'
+-- this is "derived" fact in GHC parlance: if we notice that it is
+-- impossible, then we can be sure 
 
 
 

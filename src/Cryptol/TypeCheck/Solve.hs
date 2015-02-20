@@ -102,12 +102,12 @@ proveImplicationIO lname as ps gs =
             do let gs1 = filter ((`notElem` ps) . goal) gs0
                mb <- simpGoals s gs1
 
-               -- XXX: Minimize the goals invovled in the conflict
                let gs3 = fromMaybe (gs1,emptySubst) mb
                case gs3 of
                  ([],su1) -> return (Right su1)
 
                  -- XXX: Do we need the su?
+                -- XXX: Minimize the goals invovled in the conflict
                  (us,su2) -> 
                     do debugBlock s "2nd su:" (debugLog s su2)
                        return $ Left
@@ -142,7 +142,9 @@ _testSimpGoals = Num.withSolver $ \s ->
              debugLog s (show (pp su))
        Nothing -> debugLog s "Impossible"
   where
-  gs = map fakeGoal [ tv 0 =#= num 5 ]
+  gs = map fakeGoal [ tv 0 =#= tv 1 .*. tv 2 ]
+
+
     -- [ tv 0 =#= tInf, tMod (num 3) (tv 0) =#= num 4 ]
 
   fakeGoal p = Goal { goalSource = undefined, goalRange = undefined, goal = p }
@@ -225,8 +227,9 @@ simpGoals s gs0 =
      in (unsolved ++ unsolved', numCts ++ numCts')
 
 
--- | Improt an improving substitutin into a Cryptol substitution.
--- The substituitn will contain only unification variables.
+-- | Import an improving substitutin (i.e., a bunch of equations)
+-- into a Cryptol substitution (which is idempotent).
+-- The substitution will contain only unification variables.
 -- "Improvements" on skolem variables become additional constraints.
 importSplitImps :: Num.VarMap -> Map Num.Name Num.Expr -> (Subst, [Prop])
 importSplitImps varMap = mk . partitionEithers . map imp . Map.toList
@@ -243,8 +246,8 @@ importSplitImps varMap = mk . partitionEithers . map imp . Map.toList
 
 
 
--- | Improt an improving substitutin into a Cryptol substitution.
--- The substituitn will contain both unification and skolem variables,
+-- | Import an improving substitution into a Cryptol substitution.
+-- The substitution will contain both unification and skolem variables,
 -- so this should be used when processing *givens*.
 importImps :: Num.VarMap -> Map Num.Name Num.Expr -> Subst
 importImps varMap = listSubst . map imp . Map.toList
@@ -255,8 +258,9 @@ importImps varMap = listSubst . map imp . Map.toList
 
 
 
-{- | Simplify easy less-than-or-equal-to goals.  Those are common with long
-lists of literals, so we have special handling for them.  In particular:
+{- | Simplify easy less-than-or-equal-to and equal-to goals.
+Those are common with long lists of literals, so we have special handling
+for them.  In particular:
 
   * Reduce goals of the form @(a >= k1, a >= k2, a >= k3, ...)@ to
    @a >= max (k1, k2, k3, ...)@, when all the k's are constant.
