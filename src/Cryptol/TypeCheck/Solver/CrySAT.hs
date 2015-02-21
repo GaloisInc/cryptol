@@ -427,11 +427,11 @@ getNLSubst Solver { .. } =
 -- | Execute a computation with a fresh solver instance.
 withSolver :: (Solver -> IO a) -> IO a
 withSolver k =
-  do -- logger <- SMT.newLogger
-     let logger = quietLogger
+  do logger <- SMT.newLogger
+     -- let logger = quietLogger
 
      solver <- SMT.newSolver "cvc4" ["--lang=smt2", "--incremental"]
-                                                   Nothing --} (Just logger)
+                                                   {-Nothing --} (Just logger)
      SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty
      a <- k Solver { .. }
@@ -459,14 +459,25 @@ withScope Solver { .. } k =
 
 -- | Declare a variable.
 declareVar :: Solver -> Name -> IO ()
-declareVar Solver { .. } a =
+declareVar s@Solver { .. } a =
   do done <- fmap (a `viElem`) (readIORef declared)
      unless done $
        do e  <- SMT.declare solver (smtName a)    SMT.tInt
           let fin_a = smtFinName a
-          _  <- SMT.declare solver fin_a SMT.tBool
+          fin <- SMT.declare solver fin_a SMT.tBool
           SMT.assert solver (SMT.geq e (SMT.int 0))
+
+          nlSu <- getNLSubst s
           modifyIORef' declared (viInsert a)
+          case Map.lookup a nlSu of
+            Nothing -> return ()
+            Just e  ->
+              do let finDef = crySimplify (Fin e)
+                 mapM_ (declareVar s) (Set.toList (cryPropFVS finDef))
+                 SMT.assert solver $
+                    SMT.eq fin (ifPropToSmtLib (desugarProp finDef))
+
+
 
 -- | Add an assertion to the current context.
 -- INVARIANT: Assertion is simplified.
@@ -484,6 +495,7 @@ assert s@Solver { .. } p =
 prove :: Solver -> Prop -> IO Bool
 prove _ PTrue = return True
 prove s@(Solver { .. }) p =
+  debugBlock s ("Proving: " ++ show (ppProp p)) $
   withScope s $
   do assert s (simpProp (Not p))
      res <- SMT.check solver

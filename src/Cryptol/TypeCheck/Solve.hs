@@ -142,7 +142,7 @@ _testSimpGoals = Num.withSolver $ \s ->
              debugLog s (show (pp su))
        Nothing -> debugLog s "Impossible"
   where
-  gs = map fakeGoal [ tv 0 =#= tv 1 .*. tv 2 ]
+  gs = map fakeGoal [ tv 1 .*. tv 2 >== tv 1 .*. tv 2 ]
 
 
     -- [ tv 0 =#= tInf, tMod (num 3) (tv 0) =#= num 4 ]

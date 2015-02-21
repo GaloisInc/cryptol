@@ -177,7 +177,6 @@ isNonLinOp expr =
                               -- `x` and `y` is constant we'd be OK, but not
                               -- sure how to do that...
 
-
 nonLinPropM :: Prop -> NonLinM Prop
 nonLinPropM prop =
   case prop of
