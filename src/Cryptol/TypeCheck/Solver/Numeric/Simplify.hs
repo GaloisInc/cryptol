@@ -73,6 +73,7 @@ crySimpStep prop =
     x :>= y   ->
       case (x,y) of
         (K (Nat 0), _) -> Just (y :== zero)
+        (K (Nat a), Width b) -> Just (K (Nat (2 ^ a)) :>= b)
         (K Inf, _)     -> Just PTrue
         (_, K Inf)     -> Just (x :== inf)
         _              -> Just (x :== inf :|| x :+ one :> y)
