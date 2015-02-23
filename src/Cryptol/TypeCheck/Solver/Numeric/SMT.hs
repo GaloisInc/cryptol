@@ -81,9 +81,18 @@ ifPropToSmtLib ifProp =
 propToSmtLib :: Prop -> SExpr
 propToSmtLib prop =
   case prop of
-    PFalse      -> SMT.bool False
-    PTrue       -> SMT.bool True
-    Not p       -> SMT.not (propToSmtLib p)
+    PFalse       -> SMT.bool False
+    PTrue        -> SMT.bool True
+    Not p        -> case p of
+                      Fin _   -> SMT.not (propToSmtLib p)
+
+                      -- It is IMPORTANT that the fin constraints are outside
+                      -- the not.
+                      x :>: y -> addFin $ SMT.geq (exprToSmtLib y)
+                                                  (exprToSmtLib x)
+                      _ -> unexpected
+
+
     p :&& q     -> SMT.and (propToSmtLib p) (propToSmtLib q)
     p :|| q     -> SMT.or  (propToSmtLib p) (propToSmtLib q)
     Fin (Var x) -> fin x
@@ -95,8 +104,8 @@ propToSmtLib prop =
        We could add them just once for each conjunctoin of simple formulas,
        but I am not sure how much this matters.
     -}
-    x :==: y    -> addFin x y $ SMT.eq (exprToSmtLib x) (exprToSmtLib y)
-    x :>: y     -> addFin x y $ SMT.gt (exprToSmtLib x) (exprToSmtLib y)
+    x :==: y    -> addFin $ SMT.eq (exprToSmtLib x) (exprToSmtLib y)
+    x :>: y     -> addFin $ SMT.gt (exprToSmtLib x) (exprToSmtLib y)
 
     Fin _       -> unexpected
     _ :== _     -> unexpected
@@ -107,8 +116,8 @@ propToSmtLib prop =
   unexpected = panic "desugarProp" [ show (ppProp prop) ]
   fin x      = SMT.const (smtFinName x)
 
-  addFin x y e = foldr (\x' e' -> SMT.and (fin x') e') e
-                   (Set.toList (cryExprFVS x `Set.union` cryExprFVS y))
+  addFin e   = foldr (\x' e' -> SMT.and (fin x') e') e
+                     (Set.toList (cryPropFVS prop))
 
 exprToSmtLib :: Expr -> SExpr
 exprToSmtLib expr =
