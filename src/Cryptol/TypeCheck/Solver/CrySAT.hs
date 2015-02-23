@@ -430,7 +430,10 @@ withSolver k =
   do -- logger <- SMT.newLogger
      let logger = quietLogger
 
-     solver <- SMT.newSolver "cvc4" ["--lang=smt2", "--incremental"]
+     solver <- SMT.newSolver "cvc4" [ "--lang=smt2"
+                                    , "--incremental"
+                                    , "--rewrite-divk"
+                                    ]
                                                    Nothing --} (Just logger)
      SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty
