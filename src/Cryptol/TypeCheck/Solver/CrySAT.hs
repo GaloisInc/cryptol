@@ -427,11 +427,11 @@ getNLSubst Solver { .. } =
 -- | Execute a computation with a fresh solver instance.
 withSolver :: (Solver -> IO a) -> IO a
 withSolver k =
-  do logger <- SMT.newLogger
-     -- let logger = quietLogger
+  do -- logger <- SMT.newLogger
+     let logger = quietLogger
 
      solver <- SMT.newSolver "cvc4" ["--lang=smt2", "--incremental"]
-                                                   {-Nothing --} (Just logger)
+                                                   Nothing --} (Just logger)
      SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty
      a <- k Solver { .. }
