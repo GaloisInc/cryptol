@@ -245,6 +245,9 @@ layout cfg ts0 = loop implicitScope [] ts0
 
     -- add any block start tokens, and push a level on the stack
     (startToks,stack')
+      | startBlock && ty == EOF = ( [ virt cfg (to pos) VCurlyR
+                                    , virt cfg (to pos) VCurlyL ]
+                                  , offStack )
       | startBlock = ( [ virt cfg (to pos) VCurlyL ], Virtual (col (from pos)) : offStack )
       | otherwise  = ( [], offStack )
 
