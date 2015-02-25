@@ -11,6 +11,8 @@ module Cryptol.TypeCheck.Solver.CrySAT
   , DebugLog(..)
   ) where
 
+import Cryptol.Utils.Debug(trace)
+
 import qualified Cryptol.TypeCheck.AST as Cry
 import           Cryptol.TypeCheck.PP(pp)
 import           Cryptol.TypeCheck.InferTypes(Goal(..))
@@ -28,14 +30,16 @@ import           MonadLib
 import           Data.Maybe ( mapMaybe, fromMaybe )
 import           Data.Map ( Map )
 import qualified Data.Map as Map
+import           Data.Foldable ( any, all )
 import           Data.Traversable ( traverse )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef',
                               atomicModifyIORef' )
+import           Prelude hiding (any,all)
 
 import qualified SimpleSMT as SMT
-import           Text.PrettyPrint(Doc)
+import           Text.PrettyPrint(Doc,vcat,text)
 
 -- | We use this to rememebr what we simplified
 newtype SimpProp = SimpProp Prop
@@ -44,23 +48,23 @@ simpProp :: Prop -> SimpProp
 simpProp p = SimpProp (crySimplify p)
 
 
+-- | 'dpSimpProp' and 'dpSimpExprProp' should be logicaly equivalent,
+-- to each other, and to whatever 'a' represenets (usually 'a' is a 'Goal').
 data DefinedProp a = DefinedProp
   { dpData         :: a
     -- ^ Optional data to assocate with prop.
     -- Often, the origianl `Goal` from which the prop was extracted.
 
   , dpSimpProp     :: SimpProp
-    -- ^ Fully simplified (may have ORs)
-    -- These are used in the proofs, and may not be translatable back
-    -- into Cryptol.
+    {- ^ Fully simplified: may mention ORs, and named non-linear terms.
+    These are what we send to the prover, and we don't attempt to
+    convert them back into Cryptol types. -}
 
   , dpSimpExprProp :: Prop
-    -- ^ Expressions are simplified (no ORs)
-    -- These should be importable back into Cryptol props.
-    -- XXX: What about `sys` variables?
+    {- ^ A version of the proposition where just the expression terms
+    have been simplified.  These should not contain ORs or named non-linear
+    terms because we want to import them back into Crytpol types. -}
   }
-
-type ImpMap = Map Name Expr
 
 {- | Check if a collection of things are defined.
 It does not modify the solver's state.
@@ -124,6 +128,7 @@ checkDefined s updCt uniVars props0 = withScope s (go Map.empty [] props0)
       Nothing -> (g,p)
       Just p' -> (updCt p' g,p')
 
+  -- Try to prove something by unification (e.g., ?x = a * b)
   findImpByDef _ [] = Nothing
   findImpByDef qs (p : ps) =
     case improveByDefn uniVars p of
@@ -427,8 +432,8 @@ getNLSubst Solver { .. } =
 -- | Execute a computation with a fresh solver instance.
 withSolver :: (Solver -> IO a) -> IO a
 withSolver k =
-  do -- logger <- SMT.newLogger
-     let logger = quietLogger
+  do logger <- SMT.newLogger
+     -- let logger = quietLogger
 
      solver <- SMT.newSolver "cvc4" [ "--lang=smt2"
                                     , "--incremental"
@@ -524,40 +529,38 @@ check s@Solver { .. } uniVars =
      case res of
        SMT.Unsat   -> return (False, Map.empty)
        SMT.Unknown -> return (True, Map.empty)
-       SMT.Sat     -> debugBlock s "improvements" (getImpSubst s uniVars)
+       SMT.Sat     ->
+        do impMap <- debugBlock s "improvements" (getImpSubst s uniVars)
+           return (True, impMap)
 
--- | The set of unification variables is used to guide ordering of
--- assignments (we prefer assigning to them, as that amounts to doing
--- type inference).
-getImpSubst :: Solver -> Set Name -> IO (Bool,Subst)
+{- | The set of unification variables is used to guide ordering of
+assignments (we prefer assigning to them, as that amounts to doing
+type inference).
+
+Returns an improving substitution, which may mention the names of
+non-linear terms.
+-}
+getImpSubst :: Solver -> Set Name -> IO Subst
 getImpSubst s@Solver { .. } uniVars =
   do names <- viUnmarkedNames `fmap` readIORef declared
      m     <- fmap Map.fromList (mapM getVal names)
-     model <- cryImproveModel solver uniVars m
-     nlSu  <- getNLSubst s
-     let su  = composeSubst nlSu (toSubst model)
+     impSu <- cryImproveModel solver uniVars m
 
-         -- XXX: The improvemnts that are being ignored here could
-         -- lead to extar, potentially useful, constraints.
-         su1 = Map.filterWithKey (\k _ -> case k of
-                                            SysName {} -> False
-                                            _          -> True) su
-     return (True, su1)
-{-
-     let imps = Map.toList (toSubst model)
-     debugBlock s "before" $
-       mapM_ (\(x,e) -> debugLog s (Var x :== e)) imps
+     let isNonLinName (SysName {})  = True
+         isNonLinName (UserName {}) = False
 
-     res <- mapM (checkImpBind s) imps
-     let (agains,eqs) = unzip res
 
-     debugBlock s "after" $
-       mapM_ (\(x,e) -> debugLog s (Var x :== e)) (concat eqs)
+         keep k e = not (isNonLinName k) &&
+                    all (not . isNonLinName) (cryExprFVS e)
 
-     (possible,more) <- if or agains then check s uniVars
-                                     else return (True,Map.empty)
-     return (possible, Map.union more (Map.fromList (concat eqs)))
--}
+         (easy,tricky) = Map.partitionWithKey keep impSu
+         dump (x,e) = debugLog s (show (ppProp (Var x :== e)))
+
+     when (not (Map.null tricky)) $
+       debugBlock s "Tricky subst" $ mapM_ dump (Map.toList tricky)
+
+     return easy
+
   where
   getVal a =
     do yes <- isInf a
@@ -575,19 +578,11 @@ getImpSubst s@Solver { .. } uniVars =
                                        [ "Not a boolean value", show yes ]
 
 
--- If subst contains:
--- x := e(_y)      (where _y = e', a NL term)
--- we should replace `x` with `e(e'/_y)`, not just e
-
--- If subst contains:
--- _y := e      (where _y = e1, a NL term)
--- we get that a new equations should always hold: e = e'
--- this is "derived" fact in GHC parlance: if we notice that it is
--- impossible, then we can be sure 
 
 
 
 
+-- XXX: NOT QUITE, I THINK.
 -- | Given a computed improvement `x = e`, check to see if we can get
 -- some additional information by interacting with the non-linear assignment.
 checkImpBind :: Solver -> (Name, Expr) -> IO (Bool, [(Name,Expr)])
@@ -665,26 +660,6 @@ checkImpBind s (x,e) =
 
 
 
-
--- | Convert a bunch of improving equations into an idempotent substitution.
--- Assumes that the equations don't have loops.
-toSubst :: ImpMap -> Subst
-toSubst m =
-  case normMap (apSubst m) m of
-    Nothing -> m
-    Just m1 -> toSubst m1
-
-
--- | Apply a function to all elements of a map.  Returns `Nothing` if nothing
--- changed, and @Just new_map@ otherwise.
-normMap :: (a -> Maybe a) -> Map k a -> Maybe (Map k a)
-normMap f m = mk $ runId $ runStateT False $ traverse upd m
-  where
-  mk (a,changes) = if changes then Just a else Nothing
-
-  upd x = case f x of
-            Just y  -> set True >> return y
-            Nothing -> return x
 
 --------------------------------------------------------------------------------
 

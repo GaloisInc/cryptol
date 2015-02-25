@@ -42,8 +42,15 @@ nonLinProp s0 prop = runNL s0 (nonLinPropM prop)
 
 {- | Apply a substituin to the non-linear expression database.
 Returns `Nothing` if nothing was affected.
-Otherwise returns `Just`, and a substitutuin for non-linear expressions
-that became linear. -}
+Otherwise returns `Just`, and a substitution for non-linear expressions
+that became linear.
+
+The definitions of NL terms do not contain other named NL terms,
+so it does not matter if the substitution contains bindings like @_a = e@.
+
+There should be no bindings that mention NL term names in the definitions
+of the substition (i.e, things like @x = _a@ are NOT ok).
+-}
 apSubstNL :: Subst -> NonLinS -> Maybe (Subst, NonLinS)
 apSubstNL su s0 = case runNL s0 (mApSubstNL su) of
                     (Nothing,_) -> Nothing
@@ -81,7 +88,7 @@ Otherwise returns `Just`, and a substituion mapping names that used
 to be non-linear but became linear.
 
 Note that we may return `Just empty`, indicating that some non-linear
-expressions were update, but they remained non-linear. -}
+expressions were updated, but they remained non-linear. -}
 mApSubstNL :: Subst -> NonLinM (Maybe Subst)
 mApSubstNL su =
   do s <- get

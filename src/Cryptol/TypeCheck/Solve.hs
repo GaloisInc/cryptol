@@ -109,7 +109,7 @@ proveImplicationIO lname as ps gs =
                  -- XXX: Do we need the su?
                 -- XXX: Minimize the goals invovled in the conflict
                  (us,su2) -> 
-                    do debugBlock s "2nd su:" (debugLog s su2)
+                    do debugBlock s "FAILED: 2nd su:" (debugLog s su2)
                        return $ Left
                               $ UnsolvedDelcayedCt
                               $ DelayedCt { dctSource = lname
@@ -134,7 +134,8 @@ numericRight g  = case Num.exportProp (goal g) of
 
 _testSimpGoals :: IO ()
 _testSimpGoals = Num.withSolver $ \s ->
-  do mb <- simpGoals s gs
+  do Num.assumeProps s asmps
+     mb <- simpGoals s gs
      case mb of
        Just (gs1,su) ->
           do debugBlock s "Simplified goals"
@@ -142,8 +143,9 @@ _testSimpGoals = Num.withSolver $ \s ->
              debugLog s (show (pp su))
        Nothing -> debugLog s "Impossible"
   where
-  gs = map fakeGoal [ tv 1 .*. tv 2 >== tv 1 .*. tv 2 ]
-
+  asmps = [ pFin (tv 1) ]
+  gs = map fakeGoal [ tv 0 =#= (num 1 .+. tMin (tv 1) (tv 0)) ]
+  -- ?g4 == 1 + min m ?g4
 
     -- [ tv 0 =#= tInf, tMod (num 3) (tv 0) =#= num 4 ]
 

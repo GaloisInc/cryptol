@@ -10,16 +10,18 @@ module Cryptol.TypeCheck.Solver.Numeric.SMT
 
 import           Cryptol.TypeCheck.Solver.InfNat
 import           Cryptol.TypeCheck.Solver.Numeric.AST
+import           Cryptol.TypeCheck.Solver.Numeric.Simplify(crySimplify)
+import           Cryptol.Utils.Misc ( anyJust )
 import           Cryptol.Utils.Panic ( panic )
 
-import           Control.Monad ( ap, guard )
-import           Data.List ( partition )
+import           Data.List ( partition, unfoldr )
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           SimpleSMT ( SExpr )
 import qualified SimpleSMT as SMT
+import           MonadLib
 
 
 --------------------------------------------------------------------------------
@@ -113,7 +115,7 @@ propToSmtLib prop =
     _ :> _      -> unexpected
 
   where
-  unexpected = panic "desugarProp" [ show (ppProp prop) ]
+  unexpected = panic "propToSmtLib" [ show (ppProp prop) ]
   fin x      = SMT.const (smtFinName x)
 
   addFin e   = foldr (\x' e' -> SMT.and (fin x') e') e
@@ -160,11 +162,43 @@ smtFinName x = "fin_" ++ show (ppName x)
 -- Models
 --------------------------------------------------------------------------------
 
+-- | Get the value for the given variable.
+-- Assumes that we are in a SAT state.
+getVal :: SMT.Solver -> Name -> IO Expr
+getVal s a =
+  do yes <- isInf a
+     if yes
+       then return (K Inf)
+       else do v <- SMT.getConst s (smtName a)
+               case v of
+                 SMT.Int x | x >= 0 -> return (K (Nat x))
+                 _ -> panic "cryCheck.getVal" [ "Not a natural number", show v ]
+
+  where
+  isInf v = do yes <- SMT.getConst s (smtFinName v)
+               case yes of
+                 SMT.Bool ans -> return (not ans)
+                 _            -> panic "cryCheck.isInf"
+                                       [ "Not a boolean value", show yes ]
 
 
+-- | Get the values for the given names.
+getVals :: SMT.Solver -> [Name] -> IO (Map Name Expr)
+getVals s xs =
+  do es <- mapM (getVal s) xs
+     return (Map.fromList (zip xs es))
 
-{- | Given a model, compute a set of equations of the form `x = e`,
-that are impleied by the model.  These have the form:
+
+-- | Convert a bunch of improving equations into an idempotent substitution.
+-- Assumes that the equations don't have loops.
+toSubst :: Map Name Expr -> Subst
+toSubst m0 = last (m0 : unfoldr step m0)
+  where step m = do m1 <- anyJust (apSubst m) m
+                    return (m1,m1)
+
+
+{- | Given a model, compute an improving substitution, implied by the model.
+The entries in the substitution look like this:
 
   * @x = A@         variable @x@ must equal constant @A@
 
@@ -177,8 +211,7 @@ that are impleied by the model.  These have the form:
 
 
 cryImproveModel :: SMT.Solver -> Set Name -> Map Name Expr -> IO (Map Name Expr)
-cryImproveModel solver uniVars m = go Map.empty initialTodo
-  -- XXX: Hook in linRel
+cryImproveModel solver uniVars m = toSubst `fmap` go Map.empty initialTodo
   where
   -- Process unification variables first.  That way, if we get `x = y`, we'd
   -- prefer `x` to be a unificaiton variabl.
@@ -190,20 +223,42 @@ cryImproveModel solver uniVars m = go Map.empty initialTodo
   go done ((x,e) : rest) =
 
     -- x = K?
-    do yesK <- cryMustEqualK solver x e
-       if yesK
-         then go (Map.insert x e done) rest
-         else goV done [] x e rest
+    do mbCounter <- cryMustEqualK solver (Map.keys m) x e
+       case mbCounter of
+         Nothing -> go (Map.insert x e done) rest
+         Just ce -> goV ce done [] x e rest
 
-  goV done todo x e ((y,e') : more)
+  goV ce done todo x e ((y,e') : more)
     -- x = y?
     | e == e' = do yesK <- cryMustEqualV solver x y
                    if yesK then go (Map.insert x (Var y) done)
                                    (reverse todo ++ more)
-                           else goV done ((y,e'):todo) x e more
-    | otherwise = goV done ((y,e') : todo) x e more
+                           else tryLR
 
-  goV done todo _ _ [] = go done (reverse todo)
+    | otherwise = next
+
+    where
+    next = goV ce done ((y,e'):todo) x e more
+
+    tryLR =
+      case ( x `Set.member` uniVars
+           , e
+           , e'
+           , Map.lookup x ce
+           , Map.lookup y ce
+           ) of
+        (True, K x1, K y1, Just (K x2), Just (K y2)) ->
+           do mb <- cryCheckLinRel solver y x (y1,x1) (y2,x2)
+              case mb of
+                Just r  -> go (Map.insert x r done)
+                              (reverse todo ++ more)
+                Nothing -> next
+        _ -> next
+
+
+  goV _ done todo _ _ [] = go done (reverse todo)
+
+
 
 
 
@@ -217,14 +272,36 @@ checkUnsat s e =
      return (res == SMT.Unsat)
 
 
+-- | Try to prove the given expression.
+-- If we fail, we try to give a counter example.
+-- If the answer is unknown, then we return an empty counter example.
+getCounterExample :: SMT.Solver -> [Name] -> SExpr -> IO (Maybe (Map Name Expr))
+getCounterExample s xs e =
+  do SMT.push s
+     SMT.assert s e
+     res <- SMT.check s
+     ans <- case res of
+              SMT.Unsat   -> return Nothing
+              SMT.Unknown -> return (Just Map.empty)
+              SMT.Sat     -> Just `fmap` getVals s xs
+     SMT.pop s
+     return ans
+
+
+
+
+
 -- | Is this the only possible value for the constant, under the current
 -- assumptions.
 -- Assumes that we are in a 'Sat' state.
-cryMustEqualK :: SMT.Solver -> Name -> Expr -> IO Bool
-cryMustEqualK solver x expr =
+-- Returns 'Nothing' if the variables must always match the given value.
+-- Otherwise, we return a counter-example (which may be empty, if uniknown)
+cryMustEqualK :: SMT.Solver -> [Name] ->
+                 Name -> Expr -> IO (Maybe (Map Name Expr))
+cryMustEqualK solver xs x expr =
   case expr of
-    K Inf     -> checkUnsat solver (SMT.const (smtFinName x))
-    K (Nat n) -> checkUnsat solver $
+    K Inf     -> getCounterExample solver xs (SMT.const (smtFinName x))
+    K (Nat n) -> getCounterExample solver xs $
                  SMT.not $
                  SMT.and (SMT.const $ smtFinName x)
                          (SMT.eq (SMT.const (smtName x)) (SMT.int n))
@@ -245,25 +322,86 @@ cryMustEqualV solver x y =
   where fin a = SMT.const (smtFinName a)
         var a = SMT.const (smtName a)
 
+
 -- | Try to find a linear relation between the two variables, based
 -- on two observed data points.
 -- NOTE:  The variable being defined is the SECOND name.
 cryCheckLinRel :: SMT.Solver ->
          {- x -} Name {- ^ Definition in terms of this variable. -} ->
          {- y -} Name {- ^ Define this variable. -} ->
-                 (Integer,Integer) {- ^ Values in one model (x,y) -} ->
-                 (Integer,Integer) {- ^ Values in antoher model (x,y) -} ->
-                 IO (Maybe (Name,Expr))
+                 (Nat',Nat') {- ^ Values in one model (x,y) -} ->
+                 (Nat',Nat') {- ^ Values in antoher model (x,y) -} ->
+                 IO (Maybe Expr)
 cryCheckLinRel s x y p1 p2 =
-  case linRel p1 p2 of
-    Nothing -> return Nothing
-    Just (a,b) ->
-      do let expr = K (Nat a) :* Var x :+ K (Nat b)
-         proved <- checkUnsat s $ propToSmtLib $ Not $ Var y :==: expr
+  -- First, try to find a linear relation that holds in all finite cases.
+  do SMT.push s
+     SMT.assert s (isFin x)
+     SMT.assert s (isFin y)
+     ans <- case (p1,p2) of
+              ((Nat x1, Nat y1), (Nat x2, Nat y2)) ->
+                  checkLR x1 y1 x2 y2
+
+              ((Inf,    Inf),    (Nat x2, Nat y2)) ->
+                 mbGoOn (getFinPt x2) $ \(x1,y1) -> checkLR x1 y1 x2 y2
+
+              ((Nat x1, Nat y1), (Inf,    Inf)) ->
+                 mbGoOn (getFinPt x1) $ \(x2,y2) -> checkLR x1 y1 x2 y2
+
+              _ -> return Nothing
+
+     SMT.pop s
+
+     -- Next, check the infinite cases: if @y = A * x + B@, then
+     -- either both @x@ and @y@ must be infinite or they both must be finite.
+     -- Note that we don't consider relations where A = 0: because they
+     -- would be handled when we checked that @y@ is a constant.
+     case ans of
+       Nothing -> return Nothing
+       Just e ->
+         do SMT.push s
+            SMT.assert s (SMT.not (SMT.eq (isFin x) (isFin y)))
+            c <- SMT.check s
+            SMT.pop s
+            case c of
+              SMT.Unsat -> return (Just e)
+              _         -> return Nothing
+
+  where
+  isFin a = SMT.const (smtFinName a)
+
+  checkLR x1 y1 x2 y2 =
+    mbGoOn (return (linRel (x1,y1) (x2,y2))) $ \(a,b) ->
+      do let expr = case a of
+                      1 -> Var x :+ K (Nat b)
+                      _ -> K (Nat a) :* Var x :+ K (Nat b)
+         proved <- checkUnsat s $ propToSmtLib $ crySimplify
+                                $ Not $ Var y :==: expr
          if not proved
             then return Nothing
-            else return (Just (y,expr))
+            else return (Just expr)
 
+  -- Try to get an example of another point, which is finite, and at
+  -- different @x@ coordinate.
+  getFinPt otherX =
+    do SMT.push s
+       SMT.assert s (SMT.not (SMT.eq (SMT.const (smtName x)) (SMT.int otherX)))
+       smtAns <- SMT.check s
+       ans <- case smtAns of
+                SMT.Sat ->
+                  do vX <- SMT.getConst s (smtName x)
+                     vY <- SMT.getConst s (smtName y)
+                     case (vX, vY) of
+                       (SMT.Int vx, SMT.Int vy)
+                          | vx >= 0 && vy >= 0 -> return (Just (vx,vy))
+                       _ -> return Nothing
+                _ -> return Nothing
+       SMT.pop s
+       return ans
+
+  mbGoOn m k = do ans <- m
+                  case ans of
+                    Nothing -> return Nothing
+                    Just a  -> k a
 
 {- | Compute a linear relation through two concrete points.
 Try to find a relation of the form `y = a * x + b`, where both `a` and `b`
@@ -282,7 +420,7 @@ linRel :: (Integer,Integer)       {- ^ First point -} ->
 linRel (x1,y1) (x2,y2) =
   do guard (x1 /= x2)
      let (a,r) = divMod (y2 - y1) (x2 - x1)
-     guard (r == 0 && a >= 0)
+     guard (r == 0 && a > 0)    -- Not interested in A = 0
      let b = y1 - a * x1
      guard (b >= 0)
      return (a,b)
