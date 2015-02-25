@@ -27,7 +27,6 @@ import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Parser.Position(rCombs)
-import           Cryptol.Utils.PP(pp)
 
 import           Cryptol.TypeCheck.Defaulting(tryDefaultWith)
 
@@ -134,18 +133,15 @@ numericRight g  = case Num.exportProp (goal g) of
 
 _testSimpGoals :: IO ()
 _testSimpGoals = Num.withSolver $ \s ->
-  do Num.assumeProps s asmps
+  do _ <- Num.assumeProps s asmps
      mb <- simpGoals s gs
      case mb of
-       Just (gs1,su) ->
-          do debugBlock s "Simplified goals"
-                $ mapM_ (debugLog s . show . pp . goal) gs1
-             debugLog s (show (pp su))
+       Just _  -> debugLog s "End of test"
        Nothing -> debugLog s "Impossible"
   where
   asmps = [ pFin (tv 1) ]
   gs = map fakeGoal [ tv 0 =#= (num 1 .+. tMin (tv 1) (tv 0)) ]
-  -- ?g4 == 1 + min m ?g4
+--  gs = map fakeGoal [ pFin (num 1 .+. tMin (tv 1) (tv 0)) ]
 
     -- [ tv 0 =#= tInf, tMod (num 3) (tv 0) =#= num 4 ]
 
@@ -157,7 +153,7 @@ _testSimpGoals = Num.withSolver $ \s ->
 simpGoals :: Num.Solver -> [Goal] -> IO (Maybe ([Goal],Subst))
 simpGoals _ []  = return (Just ([],emptySubst))
 simpGoals s gs0 =
-  debugBlock s "simpGoals" $
+  debugBlock s "Simplifying goals" $
   do debugBlock s "goals:" (debugLog s gs0)
 
      let (unsolvedClassCts,numCts) = solveClassCts gs0
@@ -171,14 +167,14 @@ simpGoals s gs0 =
                                       , show r
                                       ]
      case numCts of
-       [] -> do debugBlock s "survivors" $ debugLog s unsolvedClassCts
+       [] -> do debugBlock s "After simplification (no numerics):"
+                  $ debugLog s unsolvedClassCts
                 return $ Just (unsolvedClassCts, emptySubst)
 
        _  -> do mbOk <- Num.checkDefined s updCt uvs numCts
                 case mbOk of
 
-                  Nothing -> do debugLog s "check defined: impossible"
-                                return Nothing
+                  Nothing -> return Nothing
 
                   Just (nonDef,def,imps) ->
 
@@ -193,20 +189,13 @@ simpGoals s gs0 =
                                       , goalSource = CtImprovement
                                       , goal = p }
 
-                       debugBlock s "check defined:" $
-                         do debugBlock s "undefined" $
-                              debugLog s (map fst nonDef)
-                            debugBlock s "defined" $
-                              debugLog s (map Num.dpSimpExprProp def1)
-
-
                        def2 <- Num.simplifyProps s def1
                        let allCts = apSubst su $ map toGoal extraProps ++
                                     map fst nonDef ++
                                     unsolvedClassCts ++
                                     map fst def2
 
-                       debugBlock s "survivors" $
+                       debugBlock s "After simplification:" $
                           do debugLog s allCts
                              debugLog s su
 

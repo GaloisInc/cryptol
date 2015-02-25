@@ -81,14 +81,17 @@ checkDefined :: Solver                                    ->
                           , Subst -- computed improvements, for the conjuction
                                    -- of the proved properties.
                           ))
-checkDefined s updCt uniVars props0 = withScope s (go Map.empty [] props0)
+checkDefined s updCt uniVars props0 =
+  debugBlock s "Checking for well-defined properties" $
+  withScope s (go Map.empty [] props0)
   where
   go knownImps done notDone =
     do (newNotDone, novelDone) <- checkDefined' s updCt notDone
        (possible,  imps)       <- check s uniVars
 
        if not possible
-         then return Nothing
+         then do debugLog s "Found contradiction"
+                 return Nothing
          else
            do let goAgain novelImps newDone =
                     do mapM_ addImpProp (Map.toList novelImps)
@@ -102,10 +105,16 @@ checkDefined s updCt uniVars props0 = withScope s (go Map.empty [] props0)
 
               if Map.null novelImps
                 then case findImpByDef [] newDone of
-                       Nothing -> return $ Just ( map fst newNotDone
-                                                , newDone
-                                                , knownImps
-                                                )
+                       Nothing ->
+                         do debugBlock s "Not well-defined:" $
+                              debugLog s (map snd newNotDone)
+                            debugBlock s "Always defined:" $
+                              debugLog s (map dpSimpExprProp newDone)
+
+                            return $ Just ( map fst newNotDone
+                                          , newDone
+                                          , knownImps
+                                          )
                        Just ((x,e), rest) ->
                          goAgain (Map.singleton x e) rest
 
@@ -194,7 +203,9 @@ checkDefined' s updCt props0 =
 --  * Eliminates properties that are implied by the rest.
 --  * Does not modify the set of assumptions.
 simplifyProps :: Solver -> [DefinedProp a] -> IO [a]
-simplifyProps s props = withScope s (go [] props)
+simplifyProps s props =
+  debugBlock s "Simplifying properties" $
+  withScope s (go [] props)
   where
   go survived [] = return survived
 
@@ -491,8 +502,9 @@ declareVar s@Solver { .. } a =
 -- INVARIANT: Assertion is simplified.
 assert :: Solver -> SimpProp -> IO ()
 assert _ (SimpProp PTrue) = return ()
-assert s@Solver { .. } p =
-  do SimpProp p1 <- atomicModifyIORef' declared (viAssert p)
+assert s@Solver { .. } p@(SimpProp p0) =
+  do debugLog s ("Assuming: " ++ show (ppProp p0))
+     SimpProp p1 <- atomicModifyIORef' declared (viAssert p)
      mapM_ (declareVar s) (Set.toList (cryPropFVS p1))
      SMT.assert solver $ ifPropToSmtLib $ desugarProp p1
 
@@ -508,9 +520,9 @@ prove s@(Solver { .. }) p =
   do assert s (simpProp (Not p))
      res <- SMT.check solver
      case res of
-       SMT.Unsat   -> return True
-       SMT.Unknown -> return False  -- We are not sure
-       SMT.Sat     -> return False
+       SMT.Unsat   -> debugLog s "Proved" >> return True
+       SMT.Unknown -> debugLog s "Not proved" >> return False -- We are not sure
+       SMT.Sat     -> debugLog s "Not proved" >> return False
         -- XXX: If the answer is Sat, it is possible that this is a
         -- a fake example, as we need to evaluate the nonLinear constraints.
         -- If they are all satisfied, then we have a genuine counter example.
@@ -524,13 +536,14 @@ The 'Bool' is 'False' if the current assumptions are *definately*
 not satisfiable. -}
 check :: Solver -> Set Name -> IO (Bool, Subst)
 check s@Solver { .. } uniVars =
-  debugBlock s "check" $
   do res <- SMT.check solver
      case res of
-       SMT.Unsat   -> return (False, Map.empty)
-       SMT.Unknown -> return (True, Map.empty)
+       SMT.Unsat   -> debugLog s "Not satisfiable" >> return (False, Map.empty)
+       SMT.Unknown -> debugLog s "Unknown" >> return (True, Map.empty)
        SMT.Sat     ->
-        do impMap <- debugBlock s "improvements" (getImpSubst s uniVars)
+        do debugLog s "Satisfiable"
+           impMap <- debugBlock s "Computing improvements"
+                    (getImpSubst s uniVars)
            return (True, impMap)
 
 {- | The set of unification variables is used to guide ordering of
@@ -557,7 +570,12 @@ getImpSubst s@Solver { .. } uniVars =
          dump (x,e) = debugLog s (show (ppProp (Var x :== e)))
 
      when (not (Map.null tricky)) $
-       debugBlock s "Tricky subst" $ mapM_ dump (Map.toList tricky)
+       debugBlock s "Tricky subst:" $ mapM_ dump (Map.toList tricky)
+
+     if Map.null easy
+        then debugLog s "(no improvements)"
+        else mapM_ dump (Map.toList easy)
+
 
      return easy
 

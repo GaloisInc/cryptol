@@ -43,7 +43,7 @@ library
                        random          >= 1.0.1,
                        sbv             >= 4.0,
                        smtLib          >= 1.0.7,
-                       simple-smt      >= 0.4,
+                       simple-smt      >= 0.5.4,
                        syb             >= 0.4,
                        text            >= 1.1,
                        tf-random       >= 0.5,
