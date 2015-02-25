@@ -11,6 +11,7 @@ module Cryptol.TypeCheck.Solver.Numeric.SMT
 import           Cryptol.TypeCheck.Solver.InfNat
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.TypeCheck.Solver.Numeric.Simplify(crySimplify)
+import           Cryptol.TypeCheck.Solver.Numeric.Defined(cryDefined)
 import           Cryptol.Utils.Misc ( anyJust )
 import           Cryptol.Utils.Panic ( panic )
 
@@ -240,20 +241,26 @@ cryImproveModel solver uniVars m = toSubst `fmap` go Map.empty initialTodo
     where
     next = goV ce done ((y,e'):todo) x e more
 
-    tryLR =
-      case ( x `Set.member` uniVars
-           , e
-           , e'
-           , Map.lookup x ce
-           , Map.lookup y ce
+    tryLR_with v1 v1Expr v2 v2Expr =
+      case ( v1 `Set.member` uniVars
+           , v1Expr
+           , v2Expr
+           , Map.lookup v1 ce
+           , Map.lookup v2 ce
            ) of
         (True, K x1, K y1, Just (K x2), Just (K y2)) ->
-           do mb <- cryCheckLinRel solver y x (y1,x1) (y2,x2)
-              case mb of
-                Just r  -> go (Map.insert x r done)
-                              (reverse todo ++ more)
-                Nothing -> next
-        _ -> next
+          cryCheckLinRel solver v2 v1 (y1,x1) (y2,x2)
+        _ -> return Nothing
+
+    tryLR =
+      do mb <- tryLR_with x e y e'
+         case mb of
+           Just r  -> go (Map.insert x r done) (reverse todo ++ more)
+           Nothing ->
+             do mb1 <- tryLR_with y e' x e
+                case mb1 of
+                  Nothing -> next
+                  Just r -> go (Map.insert y r done) (reverse todo ++ more)
 
 
   goV _ done todo _ _ [] = go done (reverse todo)
@@ -370,15 +377,23 @@ cryCheckLinRel s x y p1 p2 =
   isFin a = SMT.const (smtFinName a)
 
   checkLR x1 y1 x2 y2 =
-    mbGoOn (return (linRel (x1,y1) (x2,y2))) $ \(a,b) ->
-      do let expr = case a of
-                      1 -> Var x :+ K (Nat b)
-                      _ -> K (Nat a) :* Var x :+ K (Nat b)
+    -- putStrLn ("checkLR: " ++ show (x1,y1) ++ "   " ++ show (x2,y2)) >>
+    mbGoOn (return (linRel (x1,y1) (x2,y2))) (\(a,b) ->
+      do let sumTerm v
+                | b == 0    = v
+                | b < 0     = v :- K (Nat b)
+                | otherwise = v :+ K (Nat b)
+
+             expr
+               | a == 1     = sumTerm (Var x)
+               | a <  0     = K (Nat b) :- K (Nat (negate a)) :* Var x
+               | otherwise  = sumTerm (K (Nat a) :* Var x)
+
          proved <- checkUnsat s $ propToSmtLib $ crySimplify
-                                $ Not $ Var y :==: expr
+                                $ Not $ cryDefined expr :&& Var y :==: expr
          if not proved
             then return Nothing
-            else return (Just expr)
+            else return (Just expr))
 
   -- Try to get an example of another point, which is finite, and at
   -- different @x@ coordinate.
@@ -404,8 +419,9 @@ cryCheckLinRel s x y p1 p2 =
                     Just a  -> k a
 
 {- | Compute a linear relation through two concrete points.
-Try to find a relation of the form `y = a * x + b`, where both `a` and `b`
-are naturals.
+Try to find a relation of the form @y = a * x + b@.
+Depending on the signs of @a@ and @b@, we need additional checks,
+to ensure tha @a * x + b@ is valid.
 
 y1 = A * x1 + B
 y2 = A * x2 + B
@@ -420,9 +436,9 @@ linRel :: (Integer,Integer)       {- ^ First point -} ->
 linRel (x1,y1) (x2,y2) =
   do guard (x1 /= x2)
      let (a,r) = divMod (y2 - y1) (x2 - x1)
-     guard (r == 0 && a > 0)    -- Not interested in A = 0
+     guard (r == 0 && a /= 0)    -- Not interested in A = 0
      let b = y1 - a * x1
-     guard (b >= 0)
+     guard $ not $ a < 0 && b < 0   -- No way this will give a natural nubmer.
      return (a,b)
 
 

@@ -58,7 +58,7 @@ simplifyAllConstraints :: InferM ()
 simplifyAllConstraints =
   do mapM_  tryHasGoal =<< getHasGoals
      gs <- getGoals
-     mb <- io (Num.withSolver (`simpGoals` gs))
+     mb <- io (Num.withSolver False (`simpGoals` gs))
      case mb of
        Just (gs1,su) -> extendSubst su >> addGoals gs1
        Nothing -> -- XXX: Minimize the goals involved in the conflict
@@ -77,7 +77,7 @@ proveImplicationIO :: LQName -> [TParam] -> [Prop] -> [Goal] ->
                                               IO (Either Error Subst)
 proveImplicationIO _ _ [] [] = return (Right emptySubst)
 proveImplicationIO lname as ps gs =
-  Num.withSolver $ \s ->
+  Num.withSolver False $ \s ->
   debugBlock s "proveImplicationIO" $
 
   do debugBlock s "assumes" (debugLog s ps)
@@ -132,16 +132,16 @@ numericRight g  = case Num.exportProp (goal g) of
                     Nothing -> Left g
 
 _testSimpGoals :: IO ()
-_testSimpGoals = Num.withSolver $ \s ->
+_testSimpGoals = Num.withSolver True $ \s ->
   do _ <- Num.assumeProps s asmps
      mb <- simpGoals s gs
      case mb of
        Just _  -> debugLog s "End of test"
        Nothing -> debugLog s "Impossible"
   where
-  asmps = [ pFin (tv 1) ]
-  gs = map fakeGoal [ tv 0 =#= (num 1 .+. tMin (tv 1) (tv 0)) ]
---  gs = map fakeGoal [ pFin (num 1 .+. tMin (tv 1) (tv 0)) ]
+  asmps = [ tv 0 >== num 1, num 2 >== tv 0 ]
+--   gs = map fakeGoal [ num 32 =#= tv 1 .+. (num 16 .*. tv 0) ]
+  gs = map fakeGoal [ num 32 =#= tv 1 .+. (num 16 .*. tv 0) ]
 
     -- [ tv 0 =#= tInf, tMod (num 3) (tv 0) =#= num 4 ]
 
