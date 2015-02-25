@@ -46,17 +46,12 @@ main  = do
 
 -- Command Line Options --------------------------------------------------------
 
-data TestStrategy
-  = TestDiscover FilePath
-  | TestFile FilePath
-    deriving (Show)
-
 data Options = Options
   { optCryptol   :: String
   , optOther     :: [String]
   , optHelp      :: Bool
   , optResultDir :: FilePath
-  , optTests     :: [TestStrategy]
+  , optTests     :: [FilePath]
   , optDiff      :: Maybe String
   } deriving (Show)
 
@@ -85,20 +80,14 @@ addOther arg = Endo (\ opts -> opts { optOther = optOther opts ++ [arg] } )
 setResultDir :: String -> Endo Options
 setResultDir path = Endo (\ opts -> opts { optResultDir = path })
 
-addDiscover :: String -> Endo Options
-addDiscover path =
-  Endo (\ opts -> opts { optTests = TestDiscover path : optTests opts })
-
 addTestFile :: String -> Endo Options
 addTestFile path =
-  Endo (\ opts -> opts { optTests = TestFile path : optTests opts })
+  Endo (\ opts -> opts { optTests = path : optTests opts })
 
 options :: [OptDescr (Endo Options)]
 options  =
   [ Option "c" ["cryptol"] (ReqArg setCryptol "PATH")
     "the cryptol executable to use"
-  , Option "d" ["base"] (ReqArg addDiscover "PATH")
-    "the base directory for test discovery"
   , Option "r" ["result-dir"] (ReqArg setResultDir "PATH")
     "the result directory for test runs"
   , Option "p" ["diff-prog"] (ReqArg setDiff "PROG")
@@ -209,22 +198,21 @@ generateAssertion opts dir file = testCase file $ do
 
 -- Test Discovery --------------------------------------------------------------
 
-findTests :: [TestStrategy] -> IO TestFiles
+findTests :: [FilePath] -> IO TestFiles
 findTests  = foldM step mempty
   where
-  step tests strategy = do
-    tests' <- evalStrategy strategy
+  step tests path = do
+    tests' <- evalStrategy path
     return (tests `mappend` tests')
 
-  evalStrategy strategy = case strategy of
-
-    TestDiscover path -> testDiscovery path
-
-    TestFile path ->
-      let (dir,file) = splitFileName path
-          dirs       = splitDirectories dir
-          insert d t = TestFiles (Map.singleton d t) []
-       in return $! foldr insert (TestFiles Map.empty [file]) dirs
+  evalStrategy path =
+    do isDir <- doesDirectoryExist path
+       if isDir
+         then testDiscovery path
+         else let (dir,file) = splitFileName path
+                  dirs       = splitDirectories dir
+                  insert d t = TestFiles (Map.singleton d t) []
+              in return $! foldr insert (TestFiles Map.empty [file]) dirs
 
 
 -- | Files that end in .icry are cryptol test cases.
