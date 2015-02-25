@@ -4,14 +4,13 @@
 module Cryptol.TypeCheck.Solver.CrySAT
   ( withScope, withSolver
   , assumeProps, checkDefined, simplifyProps
+  , minimizeContradiction
   , check
   , Solver, logger
   , DefinedProp(..)
   , debugBlock
   , DebugLog(..)
   ) where
-
-import Cryptol.Utils.Debug(trace)
 
 import qualified Cryptol.TypeCheck.AST as Cry
 import           Cryptol.TypeCheck.PP(pp)
@@ -28,10 +27,8 @@ import           Cryptol.Utils.Panic ( panic )
 
 import           MonadLib
 import           Data.Maybe ( mapMaybe, fromMaybe )
-import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Foldable ( any, all )
-import           Data.Traversable ( traverse )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef',
@@ -39,7 +36,7 @@ import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef',
 import           Prelude hiding (any,all)
 
 import qualified SimpleSMT as SMT
-import           Text.PrettyPrint(Doc,vcat,text)
+import           Text.PrettyPrint(Doc)
 
 -- | We use this to rememebr what we simplified
 newtype SimpProp = SimpProp Prop
@@ -237,6 +234,30 @@ assumeProps s props =
   -- in one go, and would avoid having to assert 'true' many times.
 
 
+
+
+-- | Given a list of propositions that together lead to a contradiction,
+-- find a sub-set that still leads to a contradiction (but is smaller).
+minimizeContradiction :: Solver -> [(a,Prop)] -> IO [a]
+minimizeContradiction s ps = start [] (map prep ps)
+  where
+  prep (a,p) = (a, simpProp p)
+
+  start bad [] = return bad
+  start bad (p : more) =
+    do solPush s
+       go bad [] (p : more)
+
+  go _ _ [] = panic "minimizeContradiction"
+                  $ ("No contradiction" : map (show . ppProp . snd) ps)
+  go bad prev ((a,p) : more) =
+    do assert s p
+       res <- SMT.check (solver s)
+       case res of
+         SMT.Unsat -> do solPop s
+                         assert s p
+                         start (a : bad) prev
+         _ -> go bad ((a,p) : prev) more
 
 
 
@@ -463,16 +484,24 @@ withSolver chatty k =
                            , SMT.logUntab   = return ()
                            }
 
--- | Execute a computation in a new solver scope.
-withScope :: Solver -> IO a -> IO a
-withScope Solver { .. } k =
+solPush :: Solver -> IO ()
+solPush Solver { .. } =
   do SMT.push solver
      SMT.logTab logger
      modifyIORef' declared viPush
-     a <- k
-     modifyIORef' declared viPop
+
+solPop :: Solver -> IO ()
+solPop Solver { .. } =
+  do modifyIORef' declared viPop
      SMT.logUntab logger
      SMT.pop solver
+
+-- | Execute a computation in a new solver scope.
+withScope :: Solver -> IO a -> IO a
+withScope s k =
+  do solPush s
+     a <- k
+     solPop s
      return a
 
 -- | Declare a variable.
@@ -489,8 +518,8 @@ declareVar s@Solver { .. } a =
           modifyIORef' declared (viInsert a)
           case Map.lookup a nlSu of
             Nothing -> return ()
-            Just e  ->
-              do let finDef = crySimplify (Fin e)
+            Just e'  ->
+              do let finDef = crySimplify (Fin e')
                  mapM_ (declareVar s) (Set.toList (cryPropFVS finDef))
                  SMT.assert solver $
                     SMT.eq fin (ifPropToSmtLib (desugarProp finDef))

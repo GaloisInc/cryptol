@@ -30,8 +30,9 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Map (Map)
 import           Data.Set (Set)
-import           Data.List(find)
+import           Data.List(find, minimumBy, groupBy, sortBy)
 import           Data.Maybe(mapMaybe)
+import           Data.Function(on)
 import           MonadLib
 import qualified Control.Applicative as A
 import           Control.Monad.Fix(MonadFix(..))
@@ -97,11 +98,14 @@ runInferM info (IM m) =
                                   (iNameSeeds finalRW)
                                   (apSubst defSu result)
            (cts,has) -> return $ InferFailed warns
+                $ dropErrorsFromSameLoc
                 [ ( goalRange g
                   , UnsolvedGoal (apSubst theSu g)
                   ) | g <- fromGoals cts ++ map hasGoal has
                 ]
-       errs -> return $ InferFailed warns [(r,apSubst theSu e) | (r,e) <- errs]
+       errs -> return $ InferFailed warns
+                      $ dropErrorsFromSameLoc
+                                  [(r,apSubst theSu e) | (r,e) <- errs]
 
   where
   mkExternal x = (IsExternal, x)
@@ -116,6 +120,17 @@ runInferM info (IM m) =
           , iHasCts     = []
           , iSolvedHas  = Map.empty
           }
+
+  dropErrorsFromSameLoc = map chooseBestError . groupBy ((==)    `on` fst)
+                                              . sortBy  (cmpRange `on` fst)
+
+  addErrorSize (r,e) = (length (show (pp e)), (r,e))
+  chooseBestError    = snd . minimumBy (compare `on` fst) . map addErrorSize
+
+  -- The actual order does not matter
+  cmpRange (Range x y z) (Range a b c) = compare (x,y,z) (a,b,c)
+
+
 
 
 newtype InferM a = IM { unIM :: ReaderT RO (StateT RW IO) a }

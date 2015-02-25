@@ -33,7 +33,6 @@ import           Cryptol.TypeCheck.Defaulting(tryDefaultWith)
 import           Data.Either(partitionEithers)
 import           Data.Map ( Map )
 import qualified Data.Map as Map
-import           Data.Maybe ( fromMaybe )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 
@@ -60,9 +59,8 @@ simplifyAllConstraints =
      gs <- getGoals
      mb <- io (Num.withSolver False (`simpGoals` gs))
      case mb of
-       Just (gs1,su) -> extendSubst su >> addGoals gs1
-       Nothing -> -- XXX: Minimize the goals involved in the conflict
-                  mapM_ (recordError . UnsolvedGoal) gs
+       Right (gs1,su) -> extendSubst su >> addGoals gs1
+       Left badGs     -> mapM_ (recordError . UnsolvedGoal) badGs
 
 
 proveImplication :: LQName -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
@@ -101,7 +99,9 @@ proveImplicationIO lname as ps gs =
             do let gs1 = filter ((`notElem` ps) . goal) gs0
                mb <- simpGoals s gs1
 
-               let gs3 = fromMaybe (gs1,emptySubst) mb
+               let gs3 = case mb of
+                           Left bad  -> (bad,emptySubst)
+                           Right ans -> ans
                case gs3 of
                  ([],su1) -> return (Right su1)
 
@@ -136,8 +136,8 @@ _testSimpGoals = Num.withSolver True $ \s ->
   do _ <- Num.assumeProps s asmps
      mb <- simpGoals s gs
      case mb of
-       Just _  -> debugLog s "End of test"
-       Nothing -> debugLog s "Impossible"
+       Right _  -> debugLog s "End of test"
+       Left _   -> debugLog s "Impossible"
   where
   asmps = [ tv 0 >== num 1, num 2 >== tv 0 ]
 --   gs = map fakeGoal [ num 32 =#= tv 1 .+. (num 16 .*. tv 0) ]
@@ -149,9 +149,15 @@ _testSimpGoals = Num.withSolver True $ \s ->
   tv n = TVar (TVFree n KNum Set.empty (text "test var"))
   num x = tNum (x :: Int)
 
--- | Assumes that the substitution has been applied to the goals.
-simpGoals :: Num.Solver -> [Goal] -> IO (Maybe ([Goal],Subst))
-simpGoals _ []  = return (Just ([],emptySubst))
+{- | Try to simplify a bunch of goals.
+Assumes that the substitution has been applied to the goals.
+The result:
+  * Left gs:  the original goals were contradictory; here a subset that
+              leads to the contradiction.
+  * Right (gs,su): here is the simplified set of goals,
+                   and an improving substitution. -}
+simpGoals :: Num.Solver -> [Goal] -> IO (Either [Goal] ([Goal],Subst))
+simpGoals _ []  = return (Right ([],emptySubst))
 simpGoals s gs0 =
   debugBlock s "Simplifying goals" $
   do debugBlock s "goals:" (debugLog s gs0)
@@ -169,12 +175,14 @@ simpGoals s gs0 =
      case numCts of
        [] -> do debugBlock s "After simplification (no numerics):"
                   $ debugLog s unsolvedClassCts
-                return $ Just (unsolvedClassCts, emptySubst)
+                return $ Right (unsolvedClassCts, emptySubst)
 
        _  -> do mbOk <- Num.checkDefined s updCt uvs numCts
                 case mbOk of
 
-                  Nothing -> return Nothing
+                  Nothing ->
+                    do badGs <- Num.minimizeContradiction s numCts
+                       return (Left (map fst badGs))
 
                   Just (nonDef,def,imps) ->
 
@@ -200,7 +208,7 @@ simpGoals s gs0 =
                              debugLog s su
 
                        -- XXX: Apply subst to class constraints and go again?
-                       return $ Just ( allCts, su )
+                       return $ Right ( allCts, su )
   where
   uvs         = uniVars gs0
 
