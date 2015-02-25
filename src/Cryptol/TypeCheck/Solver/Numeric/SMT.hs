@@ -235,7 +235,7 @@ cryImproveModel solver uniVars m = toSubst `fmap` go Map.empty initialTodo
                                    (reverse todo ++ more)
                            else tryLR
 
-    | otherwise = next
+    | otherwise = tryLR
 
     where
     next = goV ce done ((y,e'):todo) x e more
