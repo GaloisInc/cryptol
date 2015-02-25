@@ -163,31 +163,48 @@ smtFinName x = "fin_" ++ show (ppName x)
 
 
 
--- | Given a model, compute a set of equations of the form `x = e`,
--- that are impleied by the model.
+{- | Given a model, compute a set of equations of the form `x = e`,
+that are impleied by the model.  These have the form:
+
+  * @x = A@         variable @x@ must equal constant @A@
+
+  * @x = y@         variable @x@ must equal variable @y@
+
+  * @x = A * y + B@ (coming soon)
+                    variable @x@ is a linear function of @y@,
+                    @A@ and @B@ are natural numbers.
+-}
+
+
 cryImproveModel :: SMT.Solver -> Set Name -> Map Name Expr -> IO (Map Name Expr)
 cryImproveModel solver uniVars m = go Map.empty initialTodo
   -- XXX: Hook in linRel
   where
   -- Process unification variables first.  That way, if we get `x = y`, we'd
-  -- prefer `x` to be a unificaiton variabl.e
+  -- prefer `x` to be a unificaiton variabl.
   initialTodo    = uncurry (++) $ partition isUniVar $ Map.toList m
   isUniVar (x,_) = x `Set.member` uniVars
 
 
   go done [] = return done
   go done ((x,e) : rest) =
+
+    -- x = K?
     do yesK <- cryMustEqualK solver x e
        if yesK
          then go (Map.insert x e done) rest
          else goV done [] x e rest
 
   goV done todo x e ((y,e') : more)
+    -- x = y?
     | e == e' = do yesK <- cryMustEqualV solver x y
-                   if yesK then goV (Map.insert x (Var y) done) todo x e more
+                   if yesK then go (Map.insert x (Var y) done)
+                                   (reverse todo ++ more)
                            else goV done ((y,e'):todo) x e more
     | otherwise = goV done ((y,e') : todo) x e more
-  goV done todo _ _ [] = go done todo
+
+  goV done todo _ _ [] = go done (reverse todo)
+
 
 
 -- | Try to prove the given expression.
@@ -232,11 +249,11 @@ cryMustEqualV solver x y =
 -- on two observed data points.
 -- NOTE:  The variable being defined is the SECOND name.
 cryCheckLinRel :: SMT.Solver ->
-                  Name {- ^ Definition in terms of this variable. -} ->
-                  Name {- ^ Define this variable. -} ->
-                  (Integer,Integer) {- ^ Values in one model -} ->
-                  (Integer,Integer) {- ^ Values in antoher model -} ->
-                  IO (Maybe (Name,Expr))
+         {- x -} Name {- ^ Definition in terms of this variable. -} ->
+         {- y -} Name {- ^ Define this variable. -} ->
+                 (Integer,Integer) {- ^ Values in one model (x,y) -} ->
+                 (Integer,Integer) {- ^ Values in antoher model (x,y) -} ->
+                 IO (Maybe (Name,Expr))
 cryCheckLinRel s x y p1 p2 =
   case linRel p1 p2 of
     Nothing -> return Nothing
