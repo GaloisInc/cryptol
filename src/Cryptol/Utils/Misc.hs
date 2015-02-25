@@ -1,17 +1,21 @@
 {-# LANGUAGE Safe #-}
 module Cryptol.Utils.Misc where
 
+import Data.Traversable (Traversable, traverse)
+import MonadLib
 
-{- | Apply the function to all elements in the list.
-Return 'Nothing' if all results were 'Nothing', otherwise it
-returns @Just answers@, where each @answer@ is either the original
-value (if the function gave 'Nothing'), or the result of the function. -}
-anyJust :: (a -> Maybe a) -> [a] -> Maybe [a]
-anyJust _ []       = Nothing
-anyJust f (x : xs) = case (f x, anyJust f xs) of
-                       (Nothing, Nothing)   -> Nothing
-                       (Just x', Nothing)   -> Just (x' : xs)
-                       (Nothing, Just xs')  -> Just (x  : xs')
-                       (Just x', Just xs')  -> Just (x' : xs')
+
+-- | Apply a function to all elements of a container.
+-- Returns `Nothing` if nothing changed, and @Just container@ otherwise.
+anyJust :: Traversable t => (a -> Maybe a) -> t a -> Maybe (t a)
+anyJust f m = mk $ runId $ runStateT False $ traverse upd m
+  where
+  mk (a,changes) = if changes then Just a else Nothing
+
+  upd x = case f x of
+            Just y  -> set True >> return y
+            Nothing -> return x
+
+
 
 
