@@ -36,7 +36,6 @@ import           Cryptol.TypeCheck.Subst (listSubst,apSubst,fvs,(@@))
 import           Cryptol.TypeCheck.Solver.FinOrd(noFacts,OrdFacts)
 import           Cryptol.TypeCheck.Solver.Eval(simpType,assumedOrderModel)
 import           Cryptol.TypeCheck.Solver.InfNat(genLog)
-import           Cryptol.TypeCheck.Defaulting(tryDefault)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.PP
 
@@ -699,7 +698,7 @@ generalize bs0 gs0 =
 
      when (not (null ambig)) $ recordError $ AmbiguousType $ map dName bs
 
-     let (as0,here1,defSu,ws) = tryDefault maybeAmbig here0
+     (as0,here1,defSu,ws) <- io $ improveByDefaulting maybeAmbig here0
      mapM_ recordWarning ws
      let here = map goal here1
 
@@ -772,7 +771,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         when (not (null ambig)) $ recordError
                                 $ AmbiguousType [ thing (P.bName b) ]
 
-        let (_,_,defSu2,ws) = tryDefault maybeAmbig later
+        (_,_,defSu2,ws) <- io $ improveByDefaulting maybeAmbig later
         mapM_ recordWarning ws
         extendSubst defSu2
 

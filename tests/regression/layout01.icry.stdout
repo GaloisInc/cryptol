@@ -3,8 +3,8 @@ Assuming a = 1
 0x1
 Assuming a = 2
 [0x1, 0x2]
-Assuming a = 1
 Assuming b = 2
+Assuming a = 1
 {x = 0x1, y = 0x2}
 [warning] at <interactive>:1:1--1:22:
   Defaulting type parameter 'bits'

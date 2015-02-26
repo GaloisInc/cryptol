@@ -12,6 +12,7 @@ module Cryptol.TypeCheck.Solve
   ( simplifyAllConstraints
   , proveImplication
   , checkTypeFunction
+  , improveByDefaulting
   ) where
 
 import           Cryptol.Parser.AST(LQName, thing)
@@ -114,7 +115,7 @@ proveImplicationIO lname varsInEnv as ps gs =
                     -- Last hope: try to default stuff
                     do let vs    = Set.filter isFreeTV $ fvs $ map goal us
                            dVars = Set.toList (vs `Set.difference` varsInEnv)
-                       (_,us1,su2,ws) <- imporveByDefaultingWith s dVars us
+                       (_,us1,su2,ws) <- improveByDefaultingWith s dVars us
                        case us1 of
                           [] -> return (Right (su2 @@ su1, ws))
                           _  -> reportUnsolved us1
@@ -338,7 +339,18 @@ eliminateSimpleGEQ = go Map.empty []
       3. a substitution which indicates what got defaulted.
 -}
 
-imporveByDefaultingWith ::
+improveByDefaulting ::
+  [TVar] ->   -- candidates for defaulting
+  [Goal] ->   -- constraints
+    IO  ( [TVar]    -- non-defaulted
+        , [Goal]    -- new constraints
+        , Subst     -- improvements from defaultign
+        , [Warning] -- warnings about defaulting
+        )
+improveByDefaulting xs gs = Num.withSolver False $ \s ->
+  improveByDefaultingWith s xs gs
+
+improveByDefaultingWith ::
   Num.Solver ->
   [TVar] ->   -- candidates for defaulting
   [Goal] ->   -- constraints
@@ -347,7 +359,7 @@ imporveByDefaultingWith ::
         , Subst     -- improvements from defaultign
         , [Warning] -- warnings about defaulting
         )
-imporveByDefaultingWith s as ps =
+improveByDefaultingWith s as ps =
   classify (Map.fromList [ (a,([],Set.empty)) | a <- as ]) [] [] ps
 
   where
@@ -442,6 +454,7 @@ imporveByDefaultingWith s as ps =
              -- checked that there are no recursive dependencies.
              , [ (y, (apSubst su1 ts1, vs1)) | (y,(ts1,vs1)) <- more ]
              )
+
 
 
 
