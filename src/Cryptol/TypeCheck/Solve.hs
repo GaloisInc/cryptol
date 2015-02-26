@@ -18,7 +18,8 @@ import           Cryptol.Parser.AST(LQName, thing)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Subst
-                    (FVS,apSubst,fvs,emptySubst,Subst,listSubst)
+                    (FVS,apSubst,fvs,singleSubst,
+                          emptySubst,Subst,listSubst, (@@))
 import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
@@ -27,8 +28,6 @@ import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Parser.Position(rCombs)
-
-import           Cryptol.TypeCheck.Defaulting(tryDefaultWith)
 
 import           Data.Either(partitionEithers)
 import           Data.Map ( Map )
@@ -65,16 +64,24 @@ simplifyAllConstraints =
 
 proveImplication :: LQName -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
-  do mbErr <- io (proveImplicationIO lnam as ps gs)
+  do evars <- varsWithAsmps
+     mbErr <- io (proveImplicationIO lnam evars as ps gs)
      case mbErr of
-       Right su -> return su
+       Right (su,ws) ->
+          do mapM_ recordWarning ws
+             return su
        Left err -> recordError err >> return emptySubst
 
 
-proveImplicationIO :: LQName -> [TParam] -> [Prop] -> [Goal] ->
-                                              IO (Either Error Subst)
-proveImplicationIO _ _ [] [] = return (Right emptySubst)
-proveImplicationIO lname as ps gs =
+proveImplicationIO :: LQName   -> -- ^ Checking this function
+                      Set TVar -> -- ^ These appear in the env., and we should
+                                  -- not try to default them.
+                     [TParam]  -> -- ^ Type parameters
+                     [Prop]    -> -- ^ Assumed constraints
+                     [Goal]    -> -- ^ Collected constraints
+                     IO (Either Error (Subst,[Warning]))
+proveImplicationIO _ _ _ [] [] = return (Right (emptySubst,[]))
+proveImplicationIO lname varsInEnv as ps gs =
   Num.withSolver False $ \s ->
   debugBlock s "proveImplicationIO" $
 
@@ -99,23 +106,27 @@ proveImplicationIO lname as ps gs =
             do let gs1 = filter ((`notElem` ps) . goal) gs0
                mb <- simpGoals s gs1
 
-               let gs3 = case mb of
-                           Left bad  -> (bad,emptySubst)
-                           Right ans -> ans
-               case gs3 of
-                 ([],su1) -> return (Right su1)
+               case mb of
+                 Left badGs     -> reportUnsolved badGs
+                 Right ([],su1) -> return (Right (su1,[]))
 
-                 -- XXX: Do we need the su?
-                -- XXX: Minimize the goals invovled in the conflict
-                 (us,su2) -> 
-                    do debugBlock s "FAILED: 2nd su:" (debugLog s su2)
-                       return $ Left
-                              $ UnsolvedDelcayedCt
-                              $ DelayedCt { dctSource = lname
-                                          , dctForall = as
-                                          , dctAsmps  = ps
-                                          , dctGoals  = us
-                                          }
+                 Right (us,su1) -> 
+                    -- Last hope: try to default stuff
+                    do let vs    = Set.filter isFreeTV $ fvs $ map goal us
+                           dVars = Set.toList (vs `Set.difference` varsInEnv)
+                       (_,us1,su2,ws) <- imporveByDefaultingWith s dVars us
+                       case us1 of
+                          [] -> return (Right (su2 @@ su1, ws))
+                          _  -> reportUnsolved us1
+  where
+  reportUnsolved us =
+    return $ Left $ UnsolvedDelcayedCt
+                  $ DelayedCt { dctSource = lname
+                              , dctForall = as
+                              , dctAsmps  = ps
+                              , dctGoals  = us
+                              }
+
 
 uniVars :: FVS a => a -> Set Num.Name
 uniVars = Set.map Num.exportVar . Set.filter isUni . fvs
@@ -297,6 +308,140 @@ eliminateSimpleGEQ = go Map.empty []
     where
     cmp a b | fst a > fst b = a
             | otherwise     = b
+
+
+
+
+--------------------------------------------------------------------------------
+
+-- This is what we use to avoid ambiguity when generalizing.
+
+{- If a variable, `a`, is:
+    1. Of kind KNum
+    2. Generic (i.e., does not appear in the environment)
+    3. It appears only in constraints but not in the resulting type
+       (i.e., it is not on the RHS of =>)
+    4. It (say, the variable 'a') appears only in constraints like this:
+        3.1 `a >= t` with (`a` not in `fvs t`)
+        3.2 in the `s` of `fin s`
+
+  Then we replace `a` with `max(t1 .. tn)` where the `ts`
+  are from the constraints `a >= t`.
+
+  If `t1 .. tn` is empty, then we replace `a` with 0.
+
+  This function assumes that 1-3 have been checked, and implements the rest.
+  So, given some variables and constraints that are about to be generalized,
+  we return:
+      1. a new (same or smaller) set of variables to quantify,
+      2. a new set of constraints,
+      3. a substitution which indicates what got defaulted.
+-}
+
+imporveByDefaultingWith ::
+  Num.Solver ->
+  [TVar] ->   -- candidates for defaulting
+  [Goal] ->   -- constraints
+    IO  ( [TVar]    -- non-defaulted
+        , [Goal]    -- new constraints
+        , Subst     -- improvements from defaultign
+        , [Warning] -- warnings about defaulting
+        )
+imporveByDefaultingWith s as ps =
+  classify (Map.fromList [ (a,([],Set.empty)) | a <- as ]) [] [] ps
+
+  where
+  -- leq: candidate definitions (i.e. of the form x >= t, x `notElem` fvs t)
+  --      for each of these, we keep the list of `t`, and the free vars in them.
+  -- fins: all `fin` constraints
+  -- others: any other constraints
+  classify leqs fins others [] =
+    do let -- First, we use the `leqs` to choose some definitions.
+           (defs, newOthers)  = select [] [] (fvs others) (Map.toList leqs)
+           su                 = listSubst defs
+
+       -- Do this to simplify the instantiated "fin" constraints.
+       mb <- simpGoals s (newOthers ++ others ++ apSubst su fins)
+       case mb of
+         Right (gs1,su1) ->
+           let warn (x,t) =
+                 case x of
+                   TVFree _ _ _ d -> DefaultingTo d t
+                   TVBound {} -> panic "Crypto.TypeCheck.Infer"
+                     [ "tryDefault attempted to default a quantified variable."
+                     ]
+
+            in return ( [ a | a <- as, a `notElem` map fst defs ]
+                      , gs1
+                      , su1 @@ su    -- XXX: is that right?
+                      , map warn defs
+                      )
+
+
+
+         -- Something went wrong, don't default.
+         Left _ -> return (as,ps,emptySubst,[])
+
+
+  classify leqs fins others (prop : more) =
+      case tNoUser (goal prop) of
+
+        -- We found a `fin` constraint.
+        TCon (PC PFin) [ _ ] -> classify leqs (prop : fins) others more
+
+        -- Things of the form: x >= T(x) are not defaulted.
+        TCon (PC PGeq) [ TVar x, t ]
+          | x `elem` as && x `Set.notMember` freeRHS ->
+           classify leqs' fins others more
+           where freeRHS = fvs t
+                 add (xs1,vs1) (xs2,vs2) = (xs1 ++ xs2, Set.union vs1 vs2)
+                 leqs' = Map.insertWith add x ([(t,prop)],freeRHS) leqs
+
+        _ -> classify leqs fins (prop : others) more
+
+
+  -- Pickout which variables may be defaulted and how.
+    -- XXX: simpType t
+  select yes no _ [] = ([ (x, t) | (x,t) <- yes ] ,no)
+  select yes no otherFree ((x,(rhsG,vs)) : more) =
+    select newYes newNo newFree newMore
+
+    where
+    (ts,gs) = unzip rhsG
+
+    -- `x` selected only if appears nowehere else.
+    -- this includes other candidates for defaulting.
+    (newYes,newNo,newFree,newMore)
+
+        -- Mentioned in other constraints, definately not defaultable.
+        | x `Set.member` otherFree = noDefaulting
+
+        | otherwise =
+            let deps = [ y | (y,(_,yvs)) <- more, x `Set.member` yvs ]
+                recs = filter (`Set.member` vs) deps
+            in if not (null recs) || isBoundTV x -- x >= S(y), y >= T(x)
+                                 then noDefaulting
+
+                                  -- x >= S,    y >= T(x)   or
+                                  -- x >= S(y), y >= S
+                                  else yesDefaulting
+
+        where
+        noDefaulting = ( yes, gs ++ no, vs `Set.union` otherFree, more )
+
+        yesDefaulting =
+          let ty  = case ts of
+                      [] -> tNum (0::Int)
+                      _  -> foldr1 tMax ts
+              su1 = singleSubst x ty
+          in ( (x,ty) : [ (y,apSubst su1 t) | (y,t) <- yes ]
+             , no         -- We know that `x` does not appear here
+             , otherFree  -- We know that `x` did not appear here either
+
+             -- No need to update the `vs` because we've already
+             -- checked that there are no recursive dependencies.
+             , [ (y, (apSubst su1 ts1, vs1)) | (y,(ts1,vs1)) <- more ]
+             )
 
 
 
