@@ -552,29 +552,17 @@ crySimpExprStep expr =
 
     x :+ y ->
       case (x,y) of
-        (K (Nat 0), _)          -> Just y
-        (K Inf, _)              -> Just inf
-        (K a, K b)              -> Just (K (IN.nAdd a b))
-        (_,  K b)               -> Just (K b :+ x)
-
-        -- Adding constants
+        (K (Nat 0), _)    -> Just y
+        (K Inf, _)        -> Just inf
+        (K a, K b)        -> Just (K (IN.nAdd a b))
         (K a, K b :+ c)   -> Just (K (IN.nAdd a b) :+ c)
-        (K a, K b :- c)   -> Just (K (IN.nAdd a b) :- c)
-        (K a, c :- K b)   -> case IN.nSub a b of
-                               Just (Nat 0) -> Just c
-                               Just r       -> Just (K r :+ c)
-                               Nothing      -> do r <- IN.nSub b a
-                                                  return (c :- K r)
 
-        (K a :+ c1, K b :+ c2) -> Just (K (IN.nAdd a b) :+ (c1 :+ c2))
-        (K a :+ c1, K b :- c)  -> Just (K (IN.nAdd a b) :+ (c1 :- c))
-        (K a :+ c1, c :- K b)  -> case IN.nSub a b of
-                                     Just (Nat 0) -> Just (c1 :+ c)
-                                     Just r       -> Just (K r :+ (c1 :+ c))
-                                     Nothing  -> do r <- IN.nSub b a
-                                                    return (c1 :+ (c :- K r))
+        -- Normalize a bit
+        (_,  K b)         -> Just (K b :+ x)
+        (_,  b :- c)      -> Just ((x :+ b) :- c)
+        (a :+ b, _)       -> Just (a :+ (b :+ y))
 
-        _                       -> Nothing
+        _                 -> Nothing
 
     x :- y ->
       case (x,y) of
@@ -601,7 +589,6 @@ crySimpExprStep expr =
 
         _                 -> Nothing
 
-    -- XXX: More rules like +
     x :* y ->
       case (x,y) of
         (K (Nat 0), _)    -> Just zero
@@ -610,6 +597,11 @@ crySimpExprStep expr =
         (_,   K _)        -> Just (y :* x)
 
         (K a, K b :* z)   -> Just (K (IN.nMul a b) :* z)
+
+        -- Normalize, somewhat
+        (a :* b, _)       -> Just (a :* (b :* y))
+        (Var a, Var b)
+          | b > a         -> Just (y :* x)
 
         _                 -> Nothing
 
