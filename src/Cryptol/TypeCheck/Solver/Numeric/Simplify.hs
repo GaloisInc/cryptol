@@ -539,6 +539,10 @@ crySimpExprMaybe expr =
   mbE1 = cryRebuildExpr expr `fmap` anyJust crySimpExprMaybe (cryExprExprs expr)
 
 
+
+-- XXX: Add rules to group togethere occurances of variables
+
+
 -- | Make a simplification step, assuming the expression is well-formed.
 crySimpExprStep :: Expr -> Maybe Expr
 crySimpExprStep expr =
@@ -550,27 +554,25 @@ crySimpExprStep expr =
       case (x,y) of
         (K (Nat 0), _)          -> Just y
         (K Inf, _)              -> Just inf
-        (_, K (Nat 0))          -> Just x
-        (_, K Inf)              -> Just inf
         (K a, K b)              -> Just (K (IN.nAdd a b))
         (_,  K b)               -> Just (K b :+ x)
 
-        (K a, K b :+ c)         -> Just (K (IN.nAdd a b) :+ c)
-        (K a :+ c1, K b :+ c2)  -> Just (K (IN.nAdd a b) :+ (c1 :+ c2))
+        -- Adding constants
+        (K a, K b :+ c)   -> Just (K (IN.nAdd a b) :+ c)
+        (K a, K b :- c)   -> Just (K (IN.nAdd a b) :- c)
+        (K a, c :- K b)   -> case IN.nSub a b of
+                               Just (Nat 0) -> Just c
+                               Just r       -> Just (K r :+ c)
+                               Nothing      -> do r <- IN.nSub b a
+                                                  return (c :- K r)
 
-        (K a,       K b :- c)   -> Just (K (IN.nAdd a b) :- c)
-        (K a :+ c1, K b :- c)   -> Just (K (IN.nAdd a b) :+ (c1 :- c))
-
-        (K a, c :- K b)         -> case IN.nSub a b of
-                                     Just (Nat 0) -> Just c
-                                     Just r       -> Just (K r :+ c)
-                                     Nothing      -> do r <- IN.nSub b a
-                                                        return (c :- K r)
+        (K a :+ c1, K b :+ c2) -> Just (K (IN.nAdd a b) :+ (c1 :+ c2))
+        (K a :+ c1, K b :- c)  -> Just (K (IN.nAdd a b) :+ (c1 :- c))
         (K a :+ c1, c :- K b)  -> case IN.nSub a b of
                                      Just (Nat 0) -> Just (c1 :+ c)
                                      Just r       -> Just (K r :+ (c1 :+ c))
-                                     Nothing      -> do r <- IN.nSub b a
-                                                        return (c1 :+ (c :- K r))
+                                     Nothing  -> do r <- IN.nSub b a
+                                                    return (c1 :+ (c :- K r))
 
         _                       -> Nothing
 
@@ -599,13 +601,16 @@ crySimpExprStep expr =
 
         _                 -> Nothing
 
+    -- XXX: More rules like +
     x :* y ->
       case (x,y) of
         (K (Nat 0), _)    -> Just zero
         (K (Nat 1), _)    -> Just y
-        (_, K (Nat 0))    -> Just zero
-        (_, K (Nat 1))    -> Just x
         (K a, K b)        -> Just (K (IN.nMul a b))
+        (_,   K _)        -> Just (y :* x)
+
+        (K a, K b :* z)   -> Just (K (IN.nMul a b) :* z)
+
         _                 -> Nothing
 
     Div x y ->
