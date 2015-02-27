@@ -28,6 +28,7 @@ import Cryptol.Utils.PP (pretty)
 
 import Cryptol.Transform.MonoValues
 
+import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad (unless)
 import Data.Foldable (foldMap)
@@ -43,6 +44,7 @@ import System.FilePath ( addExtension
                        , takeDirectory
                        , takeFileName
                        )
+import qualified System.IO.Error as IOE
 import qualified Data.Map as Map
 
 -- Renaming --------------------------------------------------------------------
@@ -99,10 +101,13 @@ noPat a = do
 parseModule :: FilePath -> ModuleM P.Module
 parseModule path = do
 
-  e <- io (X.try (readFile path) :: IO (Either X.IOException String))
-  bytes <- case e of
+  e <- io $ X.try $ do
+    bytes <- readFile path
+    return $!! bytes
+  bytes <- case (e :: Either X.IOException String) of
     Right bytes -> return bytes
-    Left _      -> cantFindFile path
+    Left exn | IOE.isDoesNotExistError exn -> cantFindFile path
+             | otherwise                   -> otherIOError path exn
 
   let cfg = P.defaultConfig
               { P.cfgSource  = path
