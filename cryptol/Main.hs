@@ -18,17 +18,19 @@ import REPL.Monad (REPL,setREPLTitle,io,DotCryptol(..),
                    prependSearchPath,setSearchPath)
 import REPL.Logo
 import qualified REPL.Monad as REPL
+
+import Cryptol.Utils.PP(pp)
+import Cryptol.Version (commitHash, commitBranch, commitDirty)
 import Paths_cryptol (version)
 
-import Cryptol.Version (commitHash, commitBranch, commitDirty)
 import Data.Version (showVersion)
-import Cryptol.Utils.PP(pp)
 import Data.Monoid (mconcat)
+import GHC.IO.Encoding (setLocaleEncoding, utf8)
+import System.Console.GetOpt
+    (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
 import System.Environment (getArgs, getProgName, lookupEnv)
 import System.Exit (exitFailure)
 import System.FilePath (splitSearchPath, takeDirectory)
-import System.Console.GetOpt
-    (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
 
 data Options = Options
   { optLoad            :: [FilePath]
@@ -127,6 +129,7 @@ displayHelp errs = do
 
 main :: IO ()
 main  = do
+  setLocaleEncoding utf8
   args <- getArgs
   case parseArgs args of
 
