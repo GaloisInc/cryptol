@@ -464,7 +464,8 @@ getNLSubst Solver { .. } =
 -- | Execute a computation with a fresh solver instance.
 withSolver :: Bool -> (Solver -> IO a) -> IO a
 withSolver chatty k =
-  do logger <- if chatty then SMT.newLogger else return quietLogger
+  do -- let chatty = True
+     logger <- if chatty then SMT.newLogger else return quietLogger
 
      solver <- SMT.newSolver "cvc4" [ "--lang=smt2"
                                     , "--incremental"

@@ -31,6 +31,7 @@ import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Parser.Position(rCombs)
 
 import           Data.Either(partitionEithers)
+import           Data.Maybe(catMaybes)
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Set ( Set )
@@ -184,6 +185,7 @@ simpGoals s gs0 =
                                       [ "Unexpected import results"
                                       , show r
                                       ]
+
      case numCts of
        [] -> do debugBlock s "After simplification (no numerics):"
                   $ debugLog s unsolvedClassCts
@@ -245,15 +247,21 @@ simpGoals s gs0 =
 importSplitImps :: Num.VarMap -> Map Num.Name Num.Expr -> (Subst, [Prop])
 importSplitImps varMap = mk . partitionEithers . map imp . Map.toList
   where
-  mk (uni,props) = (listSubst uni, props)
+  mk (uni,props) = (listSubst (catMaybes uni), props)
 
   imp (x,e) = case (Map.lookup x varMap, Num.importType varMap e) of
                 (Just tv, Just ty) ->
                   case tv of
-                    TVFree {}  -> Left (tv,ty)
+                    TVFree {}  -> Left (Just (tv,ty))
                     TVBound {} -> Right (TVar tv =#= ty)
-                _ -> panic "importSplitImps"
-                                    [ "Failed to import:", show x, show e ]
+
+                {- This may happen if we are working on an implication,
+                and we have an improvement about a variable in the
+                assumptions that is not in any og the goals.
+                XXX: Perhaps, we should mark these variable, so we don't waste
+                time to "improve" them. -}
+
+                _ -> Left Nothing
 
 
 
