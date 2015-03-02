@@ -12,8 +12,10 @@
 # POSIX layout for the installation of the icryptol-kernel executable
 # and the profile.tar that contains the basic cryptol profile for
 # IPython. By setting the IPYTHONDIR environment variable, you can
-# control where this profile is created (by default it should be in
+# control where this profile is created (if not set it will be in
 # $HOME/.ipython).
+
+IPYTHONDIR=${IPYTHONDIR:-$HOME/.ipython}
 
 set -e
 
@@ -29,7 +31,7 @@ command -v icryptol-kernel >/dev/null 2>&1 || {
 
 ipython locate profile cryptol 2>&1 || {
     tar -C $IPYTHONDIR \
-        -xf $(dirname $(which icryptol-kernel))/../share/icryptol/profile.tar
+        -xf $(dirname $(which icryptol-kernel))/../share/ICryptol/profile.tar
 }
 
 ipython notebook --profile=cryptol $@

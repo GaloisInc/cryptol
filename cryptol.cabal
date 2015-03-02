@@ -18,10 +18,6 @@ flag static
   default: False
   description: Create a statically-linked binary
 
-flag notebook
-  default: True
-  description: Build the IPython-style Cryptol notebook interface
-
 library
   Default-language:
     Haskell98
@@ -118,12 +114,16 @@ library
                        Cryptol.Eval.Value,
 
                        Cryptol.Testing.Random,
-                       Cryptol.Testing.Exhaust
+                       Cryptol.Testing.Exhaust,
 
-                       Cryptol.Symbolic
-                       Cryptol.Symbolic.BitVector
-                       Cryptol.Symbolic.Prims
-                       Cryptol.Symbolic.Value
+                       Cryptol.Symbolic,
+                       Cryptol.Symbolic.BitVector,
+                       Cryptol.Symbolic.Prims,
+                       Cryptol.Symbolic.Value,
+
+                       Cryptol.REPL.Command,
+                       Cryptol.REPL.Monad,
+                       Cryptol.REPL.Trie
 
   Other-modules:       Cryptol.Parser.LexerUtils,
                        Cryptol.Parser.ParserUtils,
@@ -139,11 +139,8 @@ executable cryptol
   Main-is:             Main.hs
   hs-source-dirs:      cryptol
   Other-modules:       OptParser,
-                       REPL.Command,
                        REPL.Haskeline,
                        REPL.Logo,
-                       REPL.Monad,
-                       REPL.Trie,
                        Paths_cryptol
   build-depends:       ansi-terminal
                      , base
@@ -161,37 +158,6 @@ executable cryptol
                      , transformers
   GHC-options:         -Wall -O2
   ghc-prof-options: -auto-all -prof -rtsopts
-
-  if os(linux) && flag(static)
-      ld-options:      -static -pthread
-
-executable icryptol-kernel
-  if flag(notebook)
-    buildable:         True
-  else
-    buildable:         False
-  Default-language:
-    Haskell98
-  Main-is:             Main_notebook.hs
-  hs-source-dirs:      cryptol, notebook
-  other-modules:       Notebook
-  build-depends:       ansi-terminal
-                     , base
-                     , containers
-                     , cryptol
-                     , deepseq
-                     , directory
-                     , filepath
-                     , haskeline
-                     , ipython-kernel >= 0.3
-                     , monadLib
-                     , process
-                     , random
-                     , sbv            >= 4.0
-                     , text
-                     , tf-random
-                     , transformers
-  GHC-options:         -Wall -O2
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread

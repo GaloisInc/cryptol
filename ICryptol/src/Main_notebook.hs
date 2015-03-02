@@ -10,9 +10,9 @@ module Main where
 
 import Notebook
 
-import REPL.Command
-import REPL.Monad (lName, lPath)
-import qualified REPL.Monad as REPL
+import Cryptol.REPL.Command
+import Cryptol.REPL.Monad (lName, lPath)
+import qualified Cryptol.REPL.Monad as REPL
 
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Monad as M (setFocusedModule)
@@ -45,10 +45,8 @@ main = do
         easyKernel profileFile cryptolConfig
     _ -> do
       putStrLn "Usage:"
-      putStrLn "cryptolnb kernel FILE  -- run a kernel with FILE for \
+      putStrLn "icryptol-kernel kernel FILE  -- run a kernel with FILE for \
                \communication with the frontend"
-  
-    
 
 -- Kernel Configuration --------------------------------------------------------
 cryptolConfig :: KernelConfig NB String String

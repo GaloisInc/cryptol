@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-module REPL.Trie where
+module Cryptol.REPL.Trie where
 
 import           Cryptol.Utils.Panic (panic)
 import qualified Data.Map as Map

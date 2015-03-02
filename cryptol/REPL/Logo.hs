@@ -8,7 +8,7 @@
 
 module REPL.Logo where
 
-import REPL.Monad
+import Cryptol.REPL.Monad
 import Paths_cryptol (version)
 
 import Cryptol.Version (commitShortHash)

@@ -11,7 +11,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
 
-module REPL.Monad (
+module Cryptol.REPL.Monad (
     -- * REPL Monad
     REPL(..), runREPL
   , io
@@ -45,7 +45,8 @@ module REPL.Monad (
   , disableLet
   , enableLet
   , getLetEnabled
-  , setREPLTitle
+  , updateREPLTitle
+  , setUpdateREPLTitle
 
     -- ** Config Options
   , EnvVal(..)
@@ -58,7 +59,7 @@ module REPL.Monad (
   , setPutStr
   ) where
 
-import REPL.Trie
+import Cryptol.REPL.Trie
 
 import Cryptol.Prims.Types(typeOf)
 import Cryptol.Prims.Syntax(ECon(..),ppPrefix)
@@ -82,7 +83,6 @@ import Data.IORef
 import Data.List (isPrefixOf)
 import Data.Monoid (Monoid(..))
 import Data.Typeable (Typeable)
-import System.Console.ANSI (setTitle)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
 import Text.Read (readMaybe)
@@ -97,16 +97,17 @@ data LoadedModule = LoadedModule
   , lPath :: FilePath        -- ^ Focused file
   }
 
--- REPL RW Environment.
+-- | REPL RW Environment.
 data RW = RW
-  { eLoadedMod  :: Maybe LoadedModule
-  , eContinue   :: Bool
-  , eIsBatch    :: Bool
-  , eModuleEnv  :: M.ModuleEnv
-  , eNameSupply :: Int
-  , eUserEnv    :: UserEnv
-  , ePutStr     :: String -> IO ()
-  , eLetEnabled :: Bool
+  { eLoadedMod   :: Maybe LoadedModule
+  , eContinue    :: Bool
+  , eIsBatch     :: Bool
+  , eModuleEnv   :: M.ModuleEnv
+  , eNameSupply  :: Int
+  , eUserEnv     :: UserEnv
+  , ePutStr      :: String -> IO ()
+  , eLetEnabled  :: Bool
+  , eUpdateTitle :: REPL ()
   }
 
 -- | Initial, empty environment.
@@ -114,14 +115,15 @@ defaultRW :: Bool -> IO RW
 defaultRW isBatch = do
   env <- M.initialModuleEnv
   return RW
-    { eLoadedMod  = Nothing
-    , eContinue   = True
-    , eIsBatch    = isBatch
-    , eModuleEnv  = env
-    , eNameSupply = 0
-    , eUserEnv    = mkUserEnv userOptions
-    , ePutStr     = putStr
-    , eLetEnabled = True
+    { eLoadedMod   = Nothing
+    , eContinue    = True
+    , eIsBatch     = isBatch
+    , eModuleEnv   = env
+    , eNameSupply  = 0
+    , eUserEnv     = mkUserEnv userOptions
+    , ePutStr      = putStr
+    , eLetEnabled  = True
+    , eUpdateTitle = return ()
     }
 
 -- | Build up the prompt for the REPL.
@@ -129,11 +131,6 @@ mkPrompt :: RW -> String
 mkPrompt rw
   | eIsBatch rw = ""
   | otherwise   = maybe "cryptol" pretty (lName =<< eLoadedMod rw) ++ "> "
-
-mkTitle :: RW -> String
-mkTitle rw = maybe "" (\ m -> pretty m ++ " - ") (lName =<< eLoadedMod rw)
-          ++ "cryptol"
-
 
 -- REPL Monad ------------------------------------------------------------------
 
@@ -244,7 +241,7 @@ getPrompt  = mkPrompt `fmap` getRW
 setLoadedMod :: LoadedModule -> REPL ()
 setLoadedMod n = do
   modifyRW_ (\ rw -> rw { eLoadedMod = Just n })
-  setREPLTitle
+  updateREPLTitle
 
 getLoadedMod :: REPL (Maybe LoadedModule)
 getLoadedMod  = eLoadedMod `fmap` getRW
@@ -289,10 +286,15 @@ enableLet  = modifyRW_ (\ rw -> rw { eLetEnabled = True })
 getLetEnabled :: REPL Bool
 getLetEnabled = fmap eLetEnabled getRW
 
-setREPLTitle :: REPL ()
-setREPLTitle  = unlessBatch $ do
+-- | Update the title
+updateREPLTitle :: REPL ()
+updateREPLTitle  = unlessBatch $ do
   rw <- getRW
-  io (setTitle (mkTitle rw))
+  eUpdateTitle rw
+
+-- | Set the function that will be called when updating the title
+setUpdateREPLTitle :: REPL () -> REPL ()
+setUpdateREPLTitle m = modifyRW_ (\rw -> rw { eUpdateTitle = m })
 
 -- | Set the REPL's string-printer
 setPutStr :: (String -> IO ()) -> REPL ()

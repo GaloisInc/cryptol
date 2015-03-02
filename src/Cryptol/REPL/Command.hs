@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE CPP, PatternGuards, FlexibleContexts #-}
-module REPL.Command (
+module Cryptol.REPL.Command (
     -- * Commands
     Command(..), CommandDescr(..), CommandBody(..)
   , parseCommand
@@ -29,8 +29,8 @@ module REPL.Command (
   , moduleCmdResult
   ) where
 
-import REPL.Monad
-import REPL.Trie
+import Cryptol.REPL.Monad
+import Cryptol.REPL.Trie
 
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Base as M (preludeName)
@@ -212,7 +212,7 @@ genHelp cs = map cmdHelp cs
 runCommand :: Command -> REPL ()
 runCommand c = case c of
 
-  Command cmd -> cmd `REPL.Monad.catch` handler
+  Command cmd -> cmd `Cryptol.REPL.Monad.catch` handler
     where
     handler re = rPutStrLn "" >> rPrint (pp re)
 

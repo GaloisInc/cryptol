@@ -12,9 +12,10 @@
 
 module REPL.Haskeline where
 
-import           REPL.Command
-import           REPL.Monad
-import           REPL.Trie
+import           Cryptol.REPL.Command
+import           Cryptol.REPL.Monad
+import           Cryptol.REPL.Trie
+import           Cryptol.Utils.PP
 
 import qualified Control.Exception as X
 import           Control.Monad (guard, when)
@@ -23,12 +24,12 @@ import qualified Control.Monad.Trans.Class as MTL
 import           Data.Char (isAlphaNum, isSpace)
 import           Data.Function (on)
 import           Data.List (isPrefixOf,nub,sortBy)
+import           System.Console.ANSI (setTitle)
 import           System.Console.Haskeline
 import           System.Directory ( doesFileExist
                                   , getHomeDirectory
                                   , getCurrentDirectory)
 import           System.FilePath ((</>))
-
 
 -- | Haskeline-specific repl implementation.
 repl :: DotCryptol -> Maybe FilePath -> REPL () -> IO ()
@@ -124,6 +125,16 @@ instance MonadException REPL where
       return (return a)
     unREPL runBody ref
 
+-- Titles ----------------------------------------------------------------------
+
+mkTitle :: Maybe LoadedModule -> String
+mkTitle lm = maybe "" (\ m -> pretty m ++ " - ") (lName =<< lm)
+          ++ "cryptol"
+
+setREPLTitle :: REPL ()
+setREPLTitle = do
+  lm <- getLoadedMod
+  io (setTitle (mkTitle lm))
 
 -- Completion ------------------------------------------------------------------
 

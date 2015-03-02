@@ -55,7 +55,6 @@ else
 endif
 
 CRYPTOL_EXE  := ./dist/build/cryptol/cryptol${EXE_EXT}
-ICRYPTOL_EXE := ./dist/build/cryptol/icryptol-kernel${EXE_EXT}
 
 .PHONY: all
 all: ${CRYPTOL_EXE}
@@ -63,14 +62,6 @@ all: ${CRYPTOL_EXE}
 .PHONY: run
 run: ${CRYPTOL_EXE}
 	CRYPTOLPATH=$(call adjust-path,$(CURDIR)/lib) ${CRYPTOL_EXE}
-
-.PHONY: notebook
-notebook: ${PKG}
-	mkdir -p $(CURDIR)/.ipython
-	IPYTHONDIR=$(CURDIR)/.ipython \
-	PATH=$(call adjust-path,${CURDIR}/${PKG_BIN}):$$PATH \
-	CRYPTOLPATH=$(call adjust-path,$(CURDIR)/lib) \
-	${PKG_BIN}/icryptol --notebook-dir=$(call adjust-path,${PKG_EXNB})
 
 .PHONY: docs
 docs:
@@ -105,19 +96,11 @@ CRYPTOL_SRC := \
             -and \( -not -name \*\#\* \) -print) \
   $(shell find lib -name \*.cry)
 
-ICRYPTOL_SRC := \
-  $(shell find cryptol notebook \
-            \( -name \*.hs -or -name \*.x -or -name \*.y \) \
-            -and \( -not -name \*\#\* \) -print)
-
 src/GitRev.hs: .git/index
 	sh configure
 
 print-%:
 	@echo $* = $($*)
-
-# /usr/share/cryptol on POSIX, installdir/cryptol on Windows
-DATADIR := ${PREFIX_ABS}${PREFIX_SHARE}
 
 dist/setup-config: cryptol.cabal | ${CS_BIN}/alex ${CS_BIN}/happy
 	$(CABAL_INSTALL) --only-dependencies
@@ -125,17 +108,15 @@ dist/setup-config: cryptol.cabal | ${CS_BIN}/alex ${CS_BIN}/happy
           --prefix=$(call adjust-path,${PREFIX_ABS})  \
           --datasubdir=cryptol
 
-${CRYPTOL_EXE} ${ICRYPTOL_EXE}: $(CRYPTOL_SRC) $(ICRYPTOL_SRC) src/GitRev.hs dist/setup-config
+${CRYPTOL_EXE}: $(CRYPTOL_SRC) src/GitRev.hs dist/setup-config
 	$(CABAL_BUILD)
 
 
 PKG_BIN       := ${PKG_PREFIX}/bin
 PKG_SHARE     := ${PKG_PREFIX}${PREFIX_SHARE}
 PKG_CRY       := ${PKG_SHARE}/cryptol
-PKG_ICRY      := ${PKG_SHARE}/icryptol
 PKG_DOC       := ${PKG_SHARE}${PREFIX_DOC}
 PKG_EXAMPLES  := ${PKG_DOC}/examples
-PKG_EXNB      := ${PKG_EXAMPLES}/notebook
 PKG_EXCONTRIB := ${PKG_EXAMPLES}/contrib
 
 PKG_EXAMPLE_FILES := docs/ProgrammingCryptol/aes/AES.cry       \
@@ -146,45 +127,30 @@ PKG_EXAMPLE_FILES := docs/ProgrammingCryptol/aes/AES.cry       \
                      examples/Test.cry                         \
                      examples/SHA1.cry                         \
 
-PKG_EXNB_FILES := examples/notebook/AES.ipynb
-
 PKG_EXCONTRIB_FILES := examples/contrib/mkrand.cry \
                        examples/contrib/RC4.cry    \
                        examples/contrib/simon.cry  \
                        examples/contrib/speck.cry
 
-PROFILE_CRYPTOL_SRC := notebook/profile_cryptol/ipython_config.py \
-                       notebook/profile_cryptol/static/base/images/ipynblogo.png \
-                       notebook/profile_cryptol/static/custom/custom.css \
-                       notebook/profile_cryptol/static/custom/custom.js
-notebook/profile.tar: ${PROFILE_CRYPTOL_SRC}
-	(cd notebook && tar -cvf profile.tar profile_cryptol)
-
-${PKG}: ${CRYPTOL_EXE} ${ICRYPTOL_EXE} \
-        notebook/icryptol notebook/profile.tar \
+${PKG}: ${CRYPTOL_EXE} \
         docs/*.md docs/*.pdf LICENSE \
         ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES}
 	$(CABAL) copy --destdir=${PKG}
 # script not included in the copy
-	cp notebook/icryptol ${PKG_BIN}
 # don't want to bundle the cryptol library in the binary distribution
 	rm -rf ${PKG_PREFIX}/lib
 	mkdir -p ${PKG_CRY}
 	mkdir -p ${PKG_ICRY}
 	mkdir -p ${PKG_DOC}
 	mkdir -p ${PKG_EXAMPLES}
-	mkdir -p ${PKG_EXNB}
 	mkdir -p ${PKG_EXCONTRIB}
 	cp docs/*.md ${PKG_DOC}
 	cp docs/*.pdf ${PKG_DOC}
 	cp LICENSE ${PKG_DOC}
 	for EXAMPLE in ${PKG_EXAMPLE_FILES}; do \
           cp $$EXAMPLE ${PKG_EXAMPLES}; done
-	for EXAMPLE in ${PKG_EXNB_FILES}; do \
-          cp $$EXAMPLE ${PKG_EXNB}; done
 	for EXAMPLE in ${PKG_EXCONTRIB_FILES}; do \
           cp $$EXAMPLE ${PKG_EXCONTRIB}; done
-	cp -r notebook/profile.tar ${PKG_ICRY}
 
 ${PKG}.tar.gz: ${PKG}
 	tar -czvf $@ $<
@@ -233,7 +199,6 @@ clean:
 	rm -rf cryptol-${VERSION}*.tar.gz
 	rm -rf cryptol-${VERSION}*.zip
 	rm -rf cryptol-${VERSION}*.msi
-	rm -rf .ipython
 
 .PHONY: squeaky
 squeaky: clean

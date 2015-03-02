@@ -9,9 +9,9 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 module Notebook where
 
-import REPL.Command (loadPrelude,findNbCommand,parseCommand,runCommand,replParse,liftModuleCmd)
-import REPL.Monad (REPL(..) ,runREPL, lName, lPath)
-import qualified REPL.Monad as REPL
+import Cryptol.REPL.Command (loadPrelude,findNbCommand,parseCommand,runCommand,replParse,liftModuleCmd)
+import Cryptol.REPL.Monad (REPL(..) ,runREPL, lName, lPath)
+import qualified Cryptol.REPL.Monad as REPL
 
 import qualified Cryptol.ModuleSystem as M
 import Cryptol.Parser (defaultConfig, parseModule, Config(..), ParseError)

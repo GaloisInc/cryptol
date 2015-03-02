@@ -12,12 +12,12 @@
 module Main where
 
 import OptParser
-import REPL.Command (loadCmd,loadPrelude)
+import Cryptol.REPL.Command (loadCmd,loadPrelude)
+import Cryptol.REPL.Monad (REPL,updateREPLTitle,setUpdateREPLTitle,
+                   io,DotCryptol(..),prependSearchPath,setSearchPath)
+import qualified Cryptol.REPL.Monad as REPL
 import REPL.Haskeline
-import REPL.Monad (REPL,setREPLTitle,io,DotCryptol(..),
-                   prependSearchPath,setSearchPath)
 import REPL.Logo
-import qualified REPL.Monad as REPL
 import Paths_cryptol (version)
 
 import Cryptol.Version (commitHash, commitBranch, commitDirty)
@@ -144,7 +144,8 @@ main  = do
 setupREPL :: Options -> REPL ()
 setupREPL opts = do
   displayLogo True
-  setREPLTitle
+  setUpdateREPLTitle setREPLTitle
+  updateREPLTitle
   mCryptolPath <- io $ lookupEnv "CRYPTOLPATH"
   case mCryptolPath of
     Nothing -> return ()
