@@ -1,0 +1,2 @@
+unflatten : {r, w, z} (fin r, 25 * w >= r, fin w, z == (5 - r % 5) % 5) => [r] -> [5][5][w]
+unflatten p = transpose (groupBy`{5} (groupBy`{w}(p # zero:[z])))
