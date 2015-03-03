@@ -140,7 +140,6 @@ ${PKG}: ${CRYPTOL_EXE} \
 # don't want to bundle the cryptol library in the binary distribution
 	rm -rf ${PKG_PREFIX}/lib
 	mkdir -p ${PKG_CRY}
-	mkdir -p ${PKG_ICRY}
 	mkdir -p ${PKG_DOC}
 	mkdir -p ${PKG_EXAMPLES}
 	mkdir -p ${PKG_EXCONTRIB}
