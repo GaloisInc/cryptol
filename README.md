@@ -1,6 +1,6 @@
 # Cryptol, version 2
 
-    This version of Cryptol is (C) 2013-2014 Galois, Inc., and
+    This version of Cryptol is (C) 2013-2015 Galois, Inc., and
     distributed under a standard, three-clause BSD license. Please see
     the file LICENSE, distributed with this software, for specific
     terms and conditions.
@@ -56,23 +56,10 @@ Windows. We regularly build and test it in the following environments:
 
 ## Prerequisites
 
-Cryptol is developed using GHC 7.6.3 and cabal-install 1.18. While you
-can install these independently, the easiest way to get the correct
-versions is to:
-
-1.  Install [Haskell Platform 2013.2.0.0](http://www.haskell.org/platform/)
-
-    **Mac Users**: the current version of the Haskell Platform has
-    some incompatibilities with Mac OS X 10.9; it is easier to install
-    GHC, cabal-install, alex, and happy from
-    [MacPorts](https://www.macports.org/) or
-    [Homebrew](http://brew.sh/).
-
-1. Run `cabal update`
-
-1. Run `cabal install cabal-install`
-
-1. Add cabal-install's binary path to your `PATH` variable (usually `~/.cabal/bin`)
+Cryptol is developed using GHC 7.8.4 and cabal-install 1.22. The
+easiest way to get the correct versions is to follow the instructions
+on the
+[haskell.org downloads page](https://www.haskell.org/downloads).
 
 Some supporting non-Haskell libraries are required to build
 Cryptol. Most should already be present for your operating system, but
@@ -100,7 +87,7 @@ This will build Cryptol in place. From there, there are additional targets:
 - `make dist`: build a platform-specific distribution. On all
   platforms except Windows, this is currently equivalent to `make
   tarball`. On Windows, this will build an `.msi` package using
-  [WiX Toolset 3.7](http://wixtoolset.org/), which must be installed
+  [WiX Toolset 3.8](http://wixtoolset.org/), which must be installed
   separately.
 
 ## Installing Cryptol
@@ -110,27 +97,6 @@ of these `make` targets, you will end up with a binary in
 `.cabal-sandbox/bin/cryptol`. You can either use that binary directly,
 or use the results of `tarball` or `dist` to install Cryptol in a
 location of your choice.
-
-# Checking your Installation
-
-Run Cryptol, and at the prompt type:
-
-    Cryptol> :prove True
-
-If Cryptol responds
-
-    Q.E.D.
-
-then Cryptol is installed correctly. If it prints something like
-
-    *** An error occurred.
-    ***  Unable to locate executable for cvc4
-    ***  Executable specified: "cvc4"
-
-then make sure you've installed [CVC4](#getting-cvc4), and that the
-binary is on your `PATH`.
-
-As noted above, `make test` currently results in four failures. An issue has been filed on GitHub for each of them.
 
 # Contributing
 
@@ -170,10 +136,6 @@ be happy to incorporate your changes.
 - `/examples`: Cryptol sources implementing several interesting
   algorithms
 - `/lib`: Cryptol standard library sources
-- `/notebook`: Experimental Cryptol IPython Notebook implementation
-- `/sbv`: Haskell sources for the `sbv` library, derived from Levent
-  Erkok's [`sbv` library](http://leventerkok.github.io/sbv/) (see
-  `/sbv/LICENSE`)
 - `/src`: Haskell sources for the `cryptol` library (the bulk of the
   implementation)
 - `/tests`: Haskell sources for the Cryptol regression test suite, as
@@ -182,22 +144,8 @@ be happy to incorporate your changes.
 
 ### Cryptol Notebook (Experimental)
 
-If you can see this version of the README, you are on the experimental
-notebook branch which builds an additional executable
-`icryptol-kernel` along with `cryptol`. More details are available in
-issues #75, #76, and #163.
-
-There are a couple prerequisites for the notebook:
-
-- Install IPython 2.4 (see
-  http://ipython.org/install.html). Internally we've had the best luck
-  installing with `pip install --user "ipython[notebook]"`. Make sure
-  `ipython` is on your path.
-- Install ZeroMQ 4 with development headers (see
-  https://github.com/gibiansky/IHaskell#zeromq).
-
-Once these prerequisites are in place, you can run the notebook in
-place with `make notebook`, or run `icryptol` from a distribution.
+The ICryptol notebook interface is now a
+[standalone project](https://github.com/GaloisInc/ICryptol).
 
 # Where to Look Next
 
@@ -241,5 +189,3 @@ Cryptol has been funded by, and lots of design input was provided by
 the team at the
 [NSA's Trusted Systems Research Group](http://www.nsa.gov/research/ia_research/),
 including Brad Martin, Frank Taylor and Sean Weaver.
-
-
