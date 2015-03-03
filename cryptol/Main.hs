@@ -19,7 +19,7 @@ import REPL.Monad (REPL,setREPLTitle,io,
 import REPL.Logo
 import qualified REPL.Monad as REPL
 
-import Cryptol.Utils.PP(pp)
+import Cryptol.Utils.PP
 import Cryptol.Version (commitHash, commitBranch, commitDirty)
 import Paths_cryptol (version)
 
@@ -146,6 +146,13 @@ main  = do
 
 setupREPL :: Options -> REPL ()
 setupREPL opts = do
+  smoke <- REPL.smokeTest
+  case smoke of
+    [] -> return ()
+    _  -> io $ do
+      print (hang (text "Errors encountered on startup; exiting:")
+                4 (vcat (map pp smoke)))
+      exitFailure
   displayLogo True
   setREPLTitle
   mCryptolPath <- io $ lookupEnv "CRYPTOLPATH"
