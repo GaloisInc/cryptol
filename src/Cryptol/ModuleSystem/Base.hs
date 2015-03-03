@@ -28,6 +28,7 @@ import Cryptol.Utils.PP (pretty)
 
 import Cryptol.Transform.MonoValues
 
+import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad (unless)
 import Data.Foldable (foldMap)
@@ -36,9 +37,15 @@ import Data.List (nubBy)
 import Data.Maybe (mapMaybe,fromMaybe)
 import Data.Monoid ((<>))
 import System.Directory (doesFileExist)
-import System.FilePath (addExtension,joinPath,(</>))
+import System.FilePath ( addExtension
+                       , isAbsolute
+                       , joinPath
+                       , (</>)
+                       , takeDirectory
+                       , takeFileName
+                       )
+import qualified System.IO.Error as IOE
 import qualified Data.Map as Map
-
 
 -- Renaming --------------------------------------------------------------------
 
@@ -94,10 +101,13 @@ noPat a = do
 parseModule :: FilePath -> ModuleM P.Module
 parseModule path = do
 
-  e <- io (X.try (readFile path) :: IO (Either X.IOException String))
-  bytes <- case e of
+  e <- io $ X.try $ do
+    bytes <- readFile path
+    return $!! bytes
+  bytes <- case (e :: Either X.IOException String) of
     Right bytes -> return bytes
-    Left _      -> cantFindFile path
+    Left exn | IOE.isDoesNotExistError exn -> cantFindFile path
+             | otherwise                   -> otherIOError path exn
 
   let cfg = P.defaultConfig
               { P.cfgSource  = path
@@ -112,18 +122,21 @@ parseModule path = do
 
 -- | Load a module by its path.
 loadModuleByPath :: FilePath -> ModuleM T.Module
-loadModuleByPath path = do
-  pm <- parseModule path
+loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
+  let fileName = takeFileName path
+  -- path' is the resolved, absolute path
+  path' <- findFile fileName
+  pm <- parseModule path'
   let n = thing (P.mName pm)
 
   -- Check whether this module name has already been loaded from a different file
   env <- getModuleEnv
   case lookupModule n env of
-    Nothing -> loadingModule n (loadModule path pm)
+    Nothing -> loadingModule n (loadModule path' pm)
     Just lm
-      | path == path' -> return (lmModule lm)
-      | otherwise     -> duplicateModuleName n path path'
-      where path' = lmFilePath lm
+      | path' == loaded -> return (lmModule lm)
+      | otherwise       -> duplicateModuleName n path' loaded
+      where loaded = lmFilePath lm
 
 
 -- | Load the module specified by an import.
@@ -201,6 +214,24 @@ findModule n = do
     path <- paths
     ext  <- P.knownExts
     return (path </> moduleFile n ext)
+
+-- | Discover a file. This is distinct from 'findModule' in that we
+-- assume we've already been given a particular file name.
+findFile :: FilePath -> ModuleM FilePath
+findFile path | isAbsolute path = do
+  -- No search path checking for absolute paths
+  b <- io (doesFileExist path)
+  if b then return path else cantFindFile path
+findFile path = do
+  paths <- getSearchPath
+  loop (possibleFiles paths)
+  where
+  loop paths = case paths of
+    path':rest -> do
+      b <- io (doesFileExist path')
+      if b then return path' else loop rest
+    [] -> cantFindFile path
+  possibleFiles paths = map (</> path) paths
 
 preludeName :: P.ModName
 preludeName  = P.ModName ["Cryptol"]

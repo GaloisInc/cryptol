@@ -182,7 +182,7 @@ test: ${CS_BIN}/cryptol-test-runner
 	( cd tests &&                                                      \
 	echo "Testing on $(UNAME)-$(ARCH)" &&                              \
 	$(realpath $(CS_BIN)/cryptol-test-runner)                          \
-	  $(foreach t,$(TESTS),-d $t)                                      \
+	  $(TESTS)                                                         \
 	  -c $(call adjust-path,${CURDIR}/${PKG_BIN}/cryptol${EXE_EXT})    \
 	  -r output                                                        \
 	  -T --hide-successes                                              \

@@ -12,30 +12,34 @@
 module Main where
 
 import OptParser
+
 import Cryptol.REPL.Command (loadCmd,loadPrelude)
 import Cryptol.REPL.Monad (REPL,updateREPLTitle,setUpdateREPLTitle,
-                   io,DotCryptol(..),prependSearchPath,setSearchPath)
+                   io,prependSearchPath,setSearchPath)
 import qualified Cryptol.REPL.Monad as REPL
+
 import REPL.Haskeline
 import REPL.Logo
+
+import Cryptol.Utils.PP
+import Cryptol.Version (commitHash, commitBranch, commitDirty)
 import Paths_cryptol (version)
 
-import Cryptol.Version (commitHash, commitBranch, commitDirty)
 import Data.Version (showVersion)
-import Cryptol.Utils.PP(pp)
 import Data.Monoid (mconcat)
-import System.Environment (getArgs, getProgName, lookupEnv)
-import System.Exit (exitFailure)
-import System.FilePath (splitSearchPath)
+import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import System.Console.GetOpt
     (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
+import System.Environment (getArgs, getProgName, lookupEnv)
+import System.Exit (exitFailure)
+import System.FilePath (splitSearchPath, takeDirectory)
 
 data Options = Options
   { optLoad            :: [FilePath]
   , optVersion         :: Bool
   , optHelp            :: Bool
   , optBatch           :: Maybe FilePath
-  , optDotCryptol      :: DotCryptol
+  , optCryptolrc       :: Cryptolrc
   , optCryptolPathOnly :: Bool
   } deriving (Show)
 
@@ -45,7 +49,7 @@ defaultOptions  = Options
   , optVersion         = False
   , optHelp            = False
   , optBatch           = Nothing
-  , optDotCryptol      = DotCDefault
+  , optCryptolrc       = CryrcDefault
   , optCryptolPathOnly = False
   }
 
@@ -60,11 +64,11 @@ options  =
   , Option "h" ["help"] (NoArg setHelp)
     "display this message"
 
-  , Option ""  ["ignore-dot-cryptol"] (NoArg setDotCDisabled)
-    "disable reading of .cryptol files"
+  , Option ""  ["ignore-cryptolrc"] (NoArg setCryrcDisabled)
+    "disable reading of .cryptolrc files"
 
-  , Option ""  ["cryptol-script"] (ReqArg addDotC "FILE")
-    "read additional .cryptol files"
+  , Option ""  ["cryptolrc-script"] (ReqArg addCryrc "FILE")
+    "read additional .cryptolrc files"
 
   , Option ""  ["cryptolpath-only"] (NoArg setCryptolPathOnly)
     "only look for .cry files in CRYPTOLPATH; don't use built-in locations"
@@ -87,18 +91,18 @@ setVersion  = modify $ \ opts -> opts { optVersion = True }
 setHelp :: OptParser Options
 setHelp  = modify $ \ opts -> opts { optHelp = True }
 
--- | Disable .cryptol files entirely
-setDotCDisabled :: OptParser Options
-setDotCDisabled  = modify $ \ opts -> opts { optDotCryptol = DotCDisabled }
+-- | Disable .cryptolrc files entirely
+setCryrcDisabled :: OptParser Options
+setCryrcDisabled  = modify $ \ opts -> opts { optCryptolrc = CryrcDisabled }
 
--- | Add another file to read as a .cryptol file, unless .cryptol
+-- | Add another file to read as a @.cryptolrc@ file, unless @.cryptolrc@
 -- files have been disabled
-addDotC :: String -> OptParser Options
-addDotC path = modify $ \ opts ->
-  case optDotCryptol opts of
-    DotCDefault  -> opts { optDotCryptol = DotCFiles [path] }
-    DotCDisabled -> opts
-    DotCFiles xs -> opts { optDotCryptol = DotCFiles (path:xs) }
+addCryrc :: String -> OptParser Options
+addCryrc path = modify $ \ opts ->
+  case optCryptolrc opts of
+    CryrcDefault  -> opts { optCryptolrc = CryrcFiles [path] }
+    CryrcDisabled -> opts
+    CryrcFiles xs -> opts { optCryptolrc = CryrcFiles (path:xs) }
 
 setCryptolPathOnly :: OptParser Options
 setCryptolPathOnly  = modify $ \opts -> opts { optCryptolPathOnly = True }
@@ -127,6 +131,7 @@ displayHelp errs = do
 
 main :: IO ()
 main  = do
+  setLocaleEncoding utf8
   args <- getArgs
   case parseArgs args of
 
@@ -137,12 +142,19 @@ main  = do
     Right opts
       | optHelp opts    -> displayHelp []
       | optVersion opts -> displayVersion
-      | otherwise       -> repl (optDotCryptol opts)
+      | otherwise       -> repl (optCryptolrc opts)
                                 (optBatch opts)
                                 (setupREPL opts)
 
 setupREPL :: Options -> REPL ()
 setupREPL opts = do
+  smoke <- REPL.smokeTest
+  case smoke of
+    [] -> return ()
+    _  -> io $ do
+      print (hang (text "Errors encountered on startup; exiting:")
+                4 (vcat (map pp smoke)))
+      exitFailure
   displayLogo True
   setUpdateREPLTitle setREPLTitle
   updateREPLTitle
@@ -157,6 +169,10 @@ setupREPL opts = do
 #else
       where path' = splitSearchPath path
 #endif
+  case optBatch opts of
+    Nothing -> return ()
+    -- add the directory containing the batch file to the module search path
+    Just file -> prependSearchPath [ takeDirectory file ]
   case optLoad opts of
     []  -> loadPrelude `REPL.catch` \x -> io $ print $ pp x
     [l] -> loadCmd l `REPL.catch` \x -> io $ print $ pp x

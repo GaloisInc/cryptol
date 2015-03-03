@@ -53,10 +53,16 @@ module Cryptol.REPL.Monad (
   , OptionDescr(..)
   , setUser, getUser, tryGetUser
   , userOptions
-  , DotCryptol(..)
   , getUserSatNum
+
+    -- ** Configurable Output
   , getPutStr
   , setPutStr
+
+    -- ** Smoke Test
+  , smokeTest
+  , Smoke(..)
+
   ) where
 
 import Cryptol.REPL.Trie
@@ -76,13 +82,15 @@ import Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (proverNames, lookupProver)
 
-import Control.Applicative (Applicative(..))
+import Control.Applicative ((<$>), Applicative(..))
 import Control.Monad (ap,unless,when)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef)
-import Data.List (isPrefixOf)
+import Data.List (intercalate, isPrefixOf)
+import Data.Maybe (catMaybes)
 import Data.Monoid (Monoid(..))
 import Data.Typeable (Typeable)
+import System.Directory (findExecutable)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
 import Text.Read (readMaybe)
@@ -583,26 +591,37 @@ getUserSatNum = do
     _                         -> panic "REPL.Monad.getUserSatNum"
                                    [ "invalid satNum option" ]
 
--- | Configuration of @.cryptol@ file behavior. The default option
--- searches the following locations in order, and evaluates the first
--- file that exists in batch mode on interpreter startup:
---
--- 1. $PWD/.cryptol
--- 2. $HOME/.cryptol
---
--- If files are specified, they will all be evaluated, but none of the
--- default files will be (unless they are explicitly specified).
---
--- The disabled option inhibits any reading of any .cryptol files.
-data DotCryptol =
-    DotCDefault
-  | DotCDisabled
-  | DotCFiles [FilePath]
-  deriving (Show)
-
 -- Environment Utilities -------------------------------------------------------
 
 whenDebug :: REPL () -> REPL ()
 whenDebug m = do
   EnvBool b <- getUser "debug"
   when b m
+
+-- Smoke Testing ---------------------------------------------------------------
+
+smokeTest :: REPL [Smoke]
+smokeTest = catMaybes <$> sequence tests
+  where
+    tests = [ cvc4exists ]
+
+type SmokeTest = REPL (Maybe Smoke)
+
+data Smoke
+  = CVC4NotFound
+  deriving (Show, Eq)
+
+instance PP Smoke where
+  ppPrec _ smoke =
+    case smoke of
+      CVC4NotFound -> text . intercalate " " $ [
+          "[error] cvc4 is required to run Cryptol, but was not found in the"
+        , "system path. See the Cryptol README for more on how to install cvc4."
+        ]
+
+cvc4exists :: SmokeTest
+cvc4exists = do
+  mPath <- io $ findExecutable "cvc4"
+  case mPath of
+    Nothing -> return (Just CVC4NotFound)
+    Just _  -> return Nothing

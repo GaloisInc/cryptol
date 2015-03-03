@@ -26,6 +26,7 @@ import           Cryptol.Parser.Position (Range)
 import           Cryptol.Utils.PP
 
 import Control.Applicative (Applicative(..))
+import Control.Exception (IOException)
 import Data.Function (on)
 import Data.Maybe (isJust)
 import MonadLib
@@ -57,6 +58,8 @@ data ModuleError
     -- ^ Unable to find the module given, tried looking in these paths
   | CantFindFile FilePath
     -- ^ Unable to open a file
+  | OtherIOError FilePath IOException
+    -- ^ Some other IO error occurred while reading this file
   | ModuleParseError FilePath Parser.ParseError
     -- ^ Generated this parse error when parsing the file for module m
   | RecursiveModules [ImportSource]
@@ -90,6 +93,11 @@ instance PP ModuleError where
     CantFindFile path ->
       text "[error]" <+>
       text "can't find file:" <+> text path
+
+    OtherIOError path exn ->
+      hang (text "[error]" <+>
+            text "IO error while loading file:" <+> text path <> colon)
+         4 (text (show exn))
 
     ModuleParseError _source err -> Parser.ppError err
 
@@ -127,6 +135,9 @@ moduleNotFound name paths = ModuleT (raise (ModuleNotFound name paths))
 
 cantFindFile :: FilePath -> ModuleM a
 cantFindFile path = ModuleT (raise (CantFindFile path))
+
+otherIOError :: FilePath -> IOException -> ModuleM a
+otherIOError path exn = ModuleT (raise (OtherIOError path exn))
 
 moduleParseError :: FilePath -> Parser.ParseError -> ModuleM a
 moduleParseError path err =
@@ -350,6 +361,19 @@ setFocusedModule n = ModuleT $ do
 
 getSearchPath :: ModuleM [FilePath]
 getSearchPath  = ModuleT (meSearchPath `fmap` get)
+
+-- | Run a 'ModuleM' action in a context with a prepended search
+-- path. Useful for temporarily looking in other places while
+-- resolving imports, for example.
+withPrependedSearchPath :: [FilePath] -> ModuleM a -> ModuleM a
+withPrependedSearchPath fps m = ModuleT $ do
+  env0 <- get
+  let fps0 = meSearchPath env0
+  set $! env0 { meSearchPath = fps ++ fps0 }
+  x <- unModuleT m
+  env <- get
+  set $! env { meSearchPath = fps0 }
+  return x
 
 -- XXX improve error handling here
 getFocusedEnv :: ModuleM IfaceDecls
