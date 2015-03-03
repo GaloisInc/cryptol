@@ -46,7 +46,6 @@ module REPL.Monad (
   , OptionDescr(..)
   , setUser, getUser, tryGetUser
   , userOptions
-  , DotCryptol(..)
   , getUserSatNum
 
   ) where
@@ -536,23 +535,6 @@ getUserSatNum = do
     _ | Just n <- readMaybe s -> return (Just n)
     _                         -> panic "REPL.Monad.getUserSatNum"
                                    [ "invalid satNum option" ]
-
--- | Configuration of @.cryptol@ file behavior. The default option
--- searches the following locations in order, and evaluates the first
--- file that exists in batch mode on interpreter startup:
---
--- 1. $PWD/.cryptol
--- 2. $HOME/.cryptol
---
--- If files are specified, they will all be evaluated, but none of the
--- default files will be (unless they are explicitly specified).
---
--- The disabled option inhibits any reading of any .cryptol files.
-data DotCryptol =
-    DotCDefault
-  | DotCDisabled
-  | DotCFiles [FilePath]
-  deriving (Show)
 
 -- Environment Utilities -------------------------------------------------------
 

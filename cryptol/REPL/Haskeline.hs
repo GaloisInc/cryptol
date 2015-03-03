@@ -29,15 +29,14 @@ import           System.Directory ( doesFileExist
                                   , getCurrentDirectory)
 import           System.FilePath ((</>))
 
-
 -- | Haskeline-specific repl implementation.
-repl :: DotCryptol -> Maybe FilePath -> REPL () -> IO ()
-repl dotC mbBatch begin =
+repl :: Cryptolrc -> Maybe FilePath -> REPL () -> IO ()
+repl cryrc mbBatch begin =
   do settings <- setHistoryFile (replSettings isBatch)
      runREPL isBatch (runInputTBehavior style settings body)
   where
   body = withInterrupt $ do
-    MTL.lift evalDotCryptol
+    MTL.lift evalCryptolrc
     MTL.lift begin
     loop
 
@@ -70,20 +69,20 @@ repl dotC mbBatch begin =
                                       getInputLines newPropmpt (init l : ls)
                  | otherwise -> return $ Just $ unlines $ reverse $ l : ls
 
-  evalDotCryptol =
-    case dotC of
-      DotCDefault -> do
+  evalCryptolrc =
+    case cryrc of
+      CryrcDefault -> do
         here <- io $ getCurrentDirectory
         home <- io $ getHomeDirectory
-        let dcHere = here </> ".cryptol"
-            dcHome = home </> ".cryptol"
+        let dcHere = here </> ".cryptolrc"
+            dcHome = home </> ".cryptolrc"
         isHere <- io $ doesFileExist dcHere
         isHome <- io $ doesFileExist dcHome
         if | isHere    -> slurp dcHere
            | isHome    -> slurp dcHome
-           | otherwise -> whenDebug $ io $ putStrLn "no .cryptol found"
-      DotCFiles paths -> mapM_ slurp paths
-      DotCDisabled -> return ()
+           | otherwise -> whenDebug $ io $ putStrLn "no .cryptolrc found"
+      CryrcFiles paths -> mapM_ slurp paths
+      CryrcDisabled -> return ()
 
   -- | Actually read the contents of a file, but don't save the
   -- history
@@ -111,6 +110,24 @@ replSettings isBatch = Settings
   , autoAddHistory = not isBatch
   }
 
+-- .cryptolrc ------------------------------------------------------------------
+
+-- | Configuration of @.cryptolrc@ file behavior. The default option
+-- searches the following locations in order, and evaluates the first
+-- file that exists in batch mode on interpreter startup:
+--
+-- 1. $PWD/.cryptolrc
+-- 2. $HOME/.cryptolrc
+--
+-- If files are specified, they will all be evaluated, but none of the
+-- default files will be (unless they are explicitly specified).
+--
+-- The disabled option inhibits any reading of any .cryptolrc files.
+data Cryptolrc =
+    CryrcDefault
+  | CryrcDisabled
+  | CryrcFiles [FilePath]
+  deriving (Show)
 
 -- Utilities -------------------------------------------------------------------
 
