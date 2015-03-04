@@ -44,6 +44,7 @@ ifneq (,$(findstring _NT,${UNAME}))
   # goes under the share prefix
   PREFIX_DOC    := /doc
   PKG_PREFIX    := ${PKG}/${PREFIX}
+  ROOT_PATH     := /cygdrive/c
 else
   DIST := ${PKG}.tar.gz ${PKG}.zip
   EXE_EXT :=
@@ -56,6 +57,7 @@ else
   # goes under the share prefix
   PREFIX_DOC   := /doc/cryptol
   PKG_PREFIX   := ${PKG}${PREFIX}
+  ROOT_PATH    := /
 endif
 
 CRYPTOL_EXE  := ./dist/build/cryptol/cryptol${EXE_EXT}
@@ -119,7 +121,7 @@ else
   # doesn't yet fully support relocatable packages. 2. We have to
   # provide *some* prefix here even if we're not using it, otherwise
   # `cabal copy` will make a mess in the PKG directory.
-  PREFIX_ARG            := --prefix=$(call adjust-path,/)
+  PREFIX_ARG            := --prefix=$(call adjust-path,${ROOT_PATH})
   DESTDIR_ARG           := --destdir=${PKG}
   RELOCATABLE_ARG       :=
 endif
