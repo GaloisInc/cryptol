@@ -1,4 +1,4 @@
-HERE := $(dir $(lastword $(MAKEFILE_LIST)))
+HERE := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 
 UNAME   := $(shell uname -s)
 ARCH    := $(shell uname -m)
@@ -33,7 +33,9 @@ ifneq (,$(findstring _NT,${UNAME}))
   DIST := ${PKG}.msi
   EXE_EXT := .exe
   adjust-path = '$(shell cygpath -w $1)'
-  PREFIX ?= ${PROGRAM_FILES}/Galois/Cryptol\ ${VERSION}
+  PREFIX ?=
+  # For a systemwide distribution .msi, use:
+  # PREFIX ?= ${PROGRAM_FILES}/Galois/Cryptol\ ${VERSION}
   # split this up because `cabal copy` strips drive letters
   PREFIX_ABS    := /cygdrive/c/${PREFIX}
   # since Windows installs aren't overlapping like /usr/local, we
@@ -46,7 +48,9 @@ else
   DIST := ${PKG}.tar.gz ${PKG}.zip
   EXE_EXT :=
   adjust-path = '$1'
-  PREFIX ?= /usr/local
+  PREFIX ?=
+  # For a systemwide distribution like an .rpm or .pkg, use something like:
+  # PREFIX ?= /usr/local
   PREFIX_ABS := ${PREFIX}
   PREFIX_SHARE := /share
   # goes under the share prefix
@@ -102,11 +106,28 @@ src/GitRev.hs: .git/index
 print-%:
 	@echo $* = $($*)
 
-dist/setup-config: cryptol.cabal | ${CS_BIN}/alex ${CS_BIN}/happy
+# We do things differently based on whether we have a PREFIX set by
+# the user. If we do, then we know the eventual path it'll wind up in
+# (useful for stuff like RPMs or Homebrew). If not, we try to be as
+# relocatable as possible.
+ifneq (,${PREFIX})
+  PREFIX_ARG      := --prefix=$(call adjust-path,${PREFIX_ABS})
+  DESTDIR_ARG     := --destdir=${PKG}
+  RELOCATABLE_ARG := -f-relocatable
+else
+  # This is kind of weird: 1. Prefix argument must be absolute; Cabal
+  # doesn't yet fully support relocatable packages. 2. We have to
+  # provide *some* prefix here even if we're not using it, otherwise
+  # `cabal copy` will make a mess in the PKG directory.
+  PREFIX_ARG            := --prefix=/
+  DESTDIR_ARG           := --destdir=${PKG}
+  RELOCATABLE_ARG       :=
+endif
+
+dist/setup-config: cryptol.cabal Makefile | ${CS_BIN}/alex ${CS_BIN}/happy
 	$(CABAL_INSTALL) --only-dependencies
-	$(CABAL) configure                            \
-          --prefix=$(call adjust-path,${PREFIX_ABS})  \
-          --datasubdir=cryptol
+	$(CABAL) configure ${PREFIX_ARG} --datasubdir=cryptol \
+          ${RELOCATABLE_ARG}
 
 ${CRYPTOL_EXE}: $(CRYPTOL_SRC) src/GitRev.hs dist/setup-config
 	$(CABAL_BUILD)
@@ -135,7 +156,7 @@ PKG_EXCONTRIB_FILES := examples/contrib/mkrand.cry \
 ${PKG}: ${CRYPTOL_EXE} \
         docs/*.md docs/*.pdf LICENSE \
         ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES}
-	$(CABAL) copy --destdir=${PKG}
+	$(CABAL) copy ${DESTDIR_ARG}
 # script not included in the copy
 # don't want to bundle the cryptol library in the binary distribution
 	rm -rf ${PKG_PREFIX}/lib

@@ -18,6 +18,10 @@ flag static
   default: False
   description: Create a statically-linked binary
 
+flag relocatable
+  default: True
+  description: Don't use the Cabal-provided data directory for looking up Cryptol libraries. This is useful when the data directory can't be known ahead of time, like for a relocatable distribution.
+
 library
   Default-language:
     Haskell98
@@ -27,7 +31,6 @@ library
                        containers      >= 0.5,
                        deepseq         >= 1.3,
                        directory       >= 1.2,
-                       executable-path >= 0.0.3,
                        filepath        >= 1.3,
                        GraphSCC        >= 1.0.4,
                        monadLib        >= 3.7.2,
@@ -132,6 +135,9 @@ library
 
   GHC-options:         -Wall -O2
   ghc-prof-options: -fprof-auto -prof
+
+  if flag(relocatable)
+      cpp-options: -DRELOCATABLE
 
 executable cryptol
   Default-language:
