@@ -119,7 +119,7 @@ else
   # doesn't yet fully support relocatable packages. 2. We have to
   # provide *some* prefix here even if we're not using it, otherwise
   # `cabal copy` will make a mess in the PKG directory.
-  PREFIX_ARG            := --prefix=/
+  PREFIX_ARG            := --prefix=$(call adjust-path,/)
   DESTDIR_ARG           := --destdir=${PKG}
   RELOCATABLE_ARG       :=
 endif
