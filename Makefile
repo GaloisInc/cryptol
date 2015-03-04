@@ -100,7 +100,7 @@ CRYPTOL_SRC := \
             -and \( -not -name \*\#\* \) -print) \
   $(shell find lib -name \*.cry)
 
-src/GitRev.hs: .git/index
+src/GitRev.hs:
 	sh configure
 
 print-%:
