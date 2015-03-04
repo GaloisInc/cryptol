@@ -1,11 +1,18 @@
 module issue177 where
 
-import Cryptol
+import issue177A
+import issue177B as B
+import issue177C as C
 
-type Byte = Cryptol::Word 8
+type Byte = [8]
 
-x : issue177::Byte
-x = Cryptol::undefined
+w : Byte
+w = zero
 
-y : Byte
-y = issue177::x
+x : Word16
+x = zero
+
+y : B::Word32
+y = zero
+
+z = C::z
