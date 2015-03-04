@@ -172,6 +172,15 @@ ${PKG}: ${CRYPTOL_EXE} \
 	for EXAMPLE in ${PKG_EXCONTRIB_FILES}; do \
           cp $$EXAMPLE ${PKG_EXCONTRIB}; done
 
+.PHONY: install
+install: ${PKG}
+	[ -n "${PREFIX}" ] \
+          || (echo "[error] Can't install without PREFIX set"; false)
+	(cd ${PKG_PREFIX}; \
+          find .          -type d -exec install -d        ${PREFIX}/{} \; ; \
+          find bin   -not -type d -exec install -m 755 {} ${PREFIX}/{} \; ; \
+          find share -not -type d -exec install -m 644 {} ${PREFIX}/{} \;)
+
 ${PKG}.tar.gz: ${PKG}
 	tar -czvf $@ $<
 
