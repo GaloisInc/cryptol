@@ -1,0 +1,11 @@
+module issue177 where
+
+import Cryptol
+
+type Byte = Cryptol::Word 8
+
+x : issue177::Byte
+x = Cryptol::undefined
+
+y : Byte
+y = issue177::x
