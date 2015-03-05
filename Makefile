@@ -115,7 +115,7 @@ print-%:
 ifneq (,${PREFIX})
   PREFIX_ARG      := --prefix=$(call adjust-path,${PREFIX_ABS})
   DESTDIR_ARG     := --destdir=${PKG}
-  RELOCATABLE_ARG := -f-relocatable
+  CONFIGURE_ARGS  := -f-relocatable -f-self-contained
 else
   # This is kind of weird: 1. Prefix argument must be absolute; Cabal
   # doesn't yet fully support relocatable packages. 2. We have to
@@ -123,13 +123,13 @@ else
   # `cabal copy` will make a mess in the PKG directory.
   PREFIX_ARG            := --prefix=$(call adjust-path,${ROOT_PATH})
   DESTDIR_ARG           := --destdir=${PKG}
-  RELOCATABLE_ARG       :=
+  CONFIGURE_ARGS        := -f-self-contained
 endif
 
 dist/setup-config: cryptol.cabal Makefile | ${CS_BIN}/alex ${CS_BIN}/happy
 	$(CABAL_INSTALL) --only-dependencies
 	$(CABAL) configure ${PREFIX_ARG} --datasubdir=cryptol \
-          ${RELOCATABLE_ARG}
+          ${CONFIGURE_ARGS}
 
 ${CRYPTOL_EXE}: $(CRYPTOL_SRC) src/GitRev.hs dist/setup-config
 	$(CABAL_BUILD)

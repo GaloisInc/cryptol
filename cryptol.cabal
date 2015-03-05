@@ -22,6 +22,10 @@ flag relocatable
   default: True
   description: Don't use the Cabal-provided data directory for looking up Cryptol libraries. This is useful when the data directory can't be known ahead of time, like for a relocatable distribution.
 
+flag self-contained
+  default: True
+  description: Compile the text of the Cryptol Prelude into the library
+
 library
   Default-language:
     Haskell98
@@ -130,6 +134,7 @@ library
 
   Other-modules:       Cryptol.Parser.LexerUtils,
                        Cryptol.Parser.ParserUtils,
+                       Cryptol.Prelude,
                        Paths_cryptol,
                        GitRev
 
@@ -138,6 +143,10 @@ library
 
   if flag(relocatable)
       cpp-options: -DRELOCATABLE
+
+  if flag(self-contained)
+    build-depends:     heredoc >= 0.2
+    cpp-options:       -DSELF_CONTAINED
 
 executable cryptol
   Default-language:
