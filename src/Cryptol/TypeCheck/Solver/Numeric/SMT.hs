@@ -358,6 +358,7 @@ cryCheckLinRel s x y p1 p2 =
 
      SMT.pop s
 
+
      -- Next, check the infinite cases: if @y = A * x + B@, then
      -- either both @x@ and @y@ must be infinite or they both must be finite.
      -- Note that we don't consider relations where A = 0: because they
@@ -381,7 +382,7 @@ cryCheckLinRel s x y p1 p2 =
     mbGoOn (return (linRel (x1,y1) (x2,y2))) (\(a,b) ->
       do let sumTerm v
                 | b == 0    = v
-                | b < 0     = v :- K (Nat b)
+                | b < 0     = v :- K (Nat (negate b))
                 | otherwise = v :+ K (Nat b)
 
              expr
