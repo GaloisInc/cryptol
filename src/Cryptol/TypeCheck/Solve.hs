@@ -200,11 +200,17 @@ simpGoals s gs0 =
 
                   Just (nonDef,def,imps) ->
 
+                    -- XXX: What should we do with the extra props...
                     do let (su,extraProps) = importSplitImps varMap imps
 
                            def1 = eliminateSimpleGEQ def
                            toGoal =
                              case map (fst . Num.dpData) def1 of
+                               []  -> case gs0 of
+                                        g : _ -> \p -> g { goal = p }
+                                        [] -> panic "simplification"
+                                                [ "Goals out of no goals." ]
+
                                [g] -> \p -> g { goal = p }
                                gs  -> \p ->
                                  Goal { goalRange = rCombs (map goalRange gs)
