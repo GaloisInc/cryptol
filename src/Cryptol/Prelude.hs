@@ -3,6 +3,8 @@
 
 module Cryptol.Prelude (writePreludeContents) where
 
+import Cryptol.ModuleSystem.Monad
+
 #ifdef SELF_CONTAINED
 
 import System.Directory (getTemporaryDirectory)
@@ -15,7 +17,7 @@ preludeContents = [there|lib/Cryptol.cry|]
 -- | Write the contents of the Prelude to a temporary file so that
 -- Cryptol can load the module.
 writePreludeContents :: ModuleM FilePath
-writePreludeContents = do
+writePreludeContents = io $ do
   tmpdir <- getTemporaryDirectory
   (path, h) <- openTempFile tmpdir "Cryptol.cry"
   hPutStr h preludeContents
@@ -24,7 +26,6 @@ writePreludeContents = do
 
 #else
 
-import Cryptol.ModuleSystem.Monad
 import Cryptol.Parser.AST as P
 
 -- | If we're not self-contained, the Prelude is just missing
