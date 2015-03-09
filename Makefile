@@ -224,7 +224,6 @@ test: ${CS_BIN}/cryptol-test-runner
 .PHONY: clean
 clean:
 	cabal clean
-	rm -f src/GitRev.hs
 	rm -f $(CS_BIN)/cryptol-test-suite
 	rm -rf cryptol-${VERSION}*/
 	rm -rf cryptol-${VERSION}*.tar.gz
