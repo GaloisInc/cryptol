@@ -10,14 +10,11 @@ Homepage:            http://www.cryptol.net/
 Bug-reports:         https://github.com/GaloisInc/cryptol/issues
 Copyright:           2013-2015 Galois Inc.
 Category:            Language
-Build-type:          Configure
+Build-type:          Simple
 Cabal-version:       >= 1.18
 
 data-files:          *.cry
 data-dir:            lib
-
-extra-source-files:  configure
-extra-tmp-files:     src/GitRev.hs
 
 source-repository head
   type:     git
@@ -62,6 +59,7 @@ library
                        smtLib          >= 1.0.7,
                        syb             >= 0.4,
                        text            >= 1.1,
+                       template-haskell,
                        tf-random       >= 0.5,
                        transformers    >= 0.3,
                        utf8-string     >= 0.3
@@ -150,7 +148,8 @@ library
                        Cryptol.Parser.ParserUtils,
                        Cryptol.Prelude,
                        Paths_cryptol,
-                       GitRev
+                       GitRev,
+                       GitRev.TH
 
   GHC-options:         -Wall -O2
   ghc-prof-options: -fprof-auto -prof
