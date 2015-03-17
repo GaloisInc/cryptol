@@ -3,13 +3,13 @@
 
 module GitRev (hash, branch, dirty) where
 
-import GitRev.TH
+import Development.GitRev
 
 hash :: String
-hash = $(getHash)
+hash = $(gitHash)
 
 branch :: String
-branch = $(getBranch)
+branch = $(gitBranch)
 
 dirty :: Bool
-dirty = $(getDirty)
+dirty = $(gitDirty)
