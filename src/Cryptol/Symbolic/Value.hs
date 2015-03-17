@@ -29,8 +29,8 @@ import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit, is
 import Cryptol.Symbolic.BitVector
 import Cryptol.Utils.Panic (panic)
 
-import Data.SBV (SBool, fromBitsBE, sbvTestBit, Mergeable(..), HasKind(..))
-import Data.SBV.Internals (symbolicMergeWithKind)
+import Data.SBV (SBool, fromBitsBE, Mergeable(..), HasKind(..), EqSymbolic(..))
+import Data.SBV.Internals (symbolicMergeWithKind, genLiteral)
 
 -- Values ----------------------------------------------------------------------
 
@@ -66,7 +66,10 @@ instance Mergeable Value where
 
 instance BitWord SBool SWord where
   packWord bs = Data.SBV.fromBitsBE bs
-  unpackWord w = [ sbvTestBit w i | i <- reverse [0 .. bitSize w - 1] ]
+  unpackWord w = [ sbvTestBit' w i | i <- reverse [0 .. bitSize w - 1] ]
+
+sbvTestBit' :: SWord -> Int -> SBool
+sbvTestBit' w i = extract i i w .== literalSWord 1 1
 
 -- Errors ----------------------------------------------------------------------
 

@@ -16,6 +16,7 @@
 module Cryptol.Symbolic.BitVector where
 
 import Data.Bits
+import Data.List (foldl')
 import Control.Monad (replicateM)
 import System.Random
 
@@ -124,9 +125,8 @@ instance SymWord BitVector where
 instance SIntegral BitVector where
 
 instance FromBits (SBV BitVector) where
-  fromBitsLE bs = go (literal (bv (length bs) 0)) 0 bs
-    where go !acc _  []     = acc
-          go !acc !i (x:xs) = go (ite x (setBit acc i) acc) (i+1) xs
+  fromBitsLE bs = foldl' f (literalSWord 0 0) bs
+    where f w b = cat (ite b (literalSWord 1 1) (literalSWord 1 0)) w
 
 instance SDivisible BitVector where
   sQuotRem (BV _ m x) (BV _ n y) = (BV False w q, BV False w r)
@@ -169,6 +169,9 @@ cat x y = SBV k (Right (cache z))
         z st = do xsw <- sbvToSW st x
                   ysw <- sbvToSW st y
                   newExpr st k (SBVApp Join [xsw, ysw])
+
+literalSWord :: Int -> Integer -> SWord
+literalSWord w i = genLiteral (KBounded False w) i
 
 randomSBVBitVector :: Int -> IO (SBV BitVector)
 randomSBVBitVector w = do
