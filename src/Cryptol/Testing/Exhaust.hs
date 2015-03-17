@@ -8,9 +8,9 @@
 
 module Cryptol.Testing.Exhaust where
 
+import qualified Cryptol.Testing.Eval as Eval
 import Cryptol.TypeCheck.AST
 import Cryptol.Eval.Value
-import Cryptol.Utils.Panic(panic)
 
 import Control.Applicative((<$>))
 import Data.List(genericReplicate)
@@ -31,17 +31,8 @@ testableType ty =
     Please note that this function assumes that the values come from
     a call to `testableType` (i.e., things are type-correct)
  -}
-runTest :: Value -> [Value] -> Bool
-runTest (VFun f) (v : vs) = runTest (f v) vs
-runTest (VFun _) []       = panic "Not enough arguments while applyng function"
-                                  []
-runTest (VBit b) []       = b
-runTest v vs              = panic "Type error while running test" $
-                              [ "Function:"
-                              , show $ ppValue defaultPPOpts v
-                              , "Argumnets:"
-                              ] ++ map (show . ppValue defaultPPOpts) vs
-
+runOneTest :: Value -> [Value] -> IO Eval.TestResult
+runOneTest = Eval.runOneTest
 
 {- | Given a fully-evaluated type, try to compute the number of values in it.
 Returns `Nothing` for infinite types, user-defined types, polymorhic types,

@@ -38,6 +38,7 @@ import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowed))
 
 import qualified Cryptol.Eval.Value as E
+import qualified Cryptol.Testing.Eval    as Test
 import qualified Cryptol.Testing.Random  as TestR
 import qualified Cryptol.Testing.Exhaust as TestX
 import Cryptol.Parser
@@ -279,10 +280,9 @@ qcCmd qcMode str =
          do rPutStrLn "Using exhaustive testing."
             let doTest _ [] = panic "We've unexpectedly run out of test cases"
                                     []
-                doTest _ (vs : vss1) =
-                    if TestX.runTest val vs
-                        then (Nothing, vss1)
-                        else (Just vs, vss1)
+                doTest _ (vs : vss1) = do
+                  result <- TestX.runOneTest val vs
+                  return (result, vss1)
             ok <- go doTest sz 0 vss
             when ok $ rPutStrLn "Q.E.D."
 
@@ -292,7 +292,7 @@ qcCmd qcMode str =
                 do rPutStrLn "Using random testing."
                    prt testingMsg
                    g <- io newTFGen
-                   ok <- go (TestR.runTest val gens) testNum 0 g
+                   ok <- go (TestR.runOneTest val gens) testNum 0 g
                    when ok $
                      case n of
                        Just (valNum,_) ->
@@ -335,19 +335,29 @@ qcCmd qcMode str =
 
   go doTest totNum testNum st =
      do ppProgress testNum totNum
-        res <- io $ rethrowEvalError $ X.evaluate $ doTest (div (100 * (1 + testNum)) totNum) st
+        res <- io $ doTest (div (100 * (1 + testNum)) totNum) st
+        opts <- getPPValOpts
+        delProgress
         case res of
-          (Nothing, st1) -> do delProgress
-                               go doTest totNum (testNum + 1) st1
-          (Just vs, _g1) ->
-             do opts <- getPPValOpts
-                do delProgress
-                   delTesting
-                   case vs of
-                     [] -> prtLn "FAILED"
-                     _  -> do prtLn "FAILED for the following inputs:"
-                              mapM_ (rPrint . pp . E.WithBase opts) vs
-                   return False
+          (Test.Pass, st1) -> do delProgress
+                                 go doTest totNum (testNum + 1) st1
+          (failure, _g1) -> do
+            delTesting
+            case failure of
+              Test.FailFalse [] -> do
+                prtLn "FAILED"
+              Test.FailFalse vs -> do
+                prtLn "FAILED for the following inputs:"
+                mapM_ (rPrint . pp . E.WithBase opts) vs
+              Test.FailError err [] -> do
+                prtLn "ERROR"
+                rPrint (pp err)
+              Test.FailError err vs -> do
+                prtLn "ERROR for the following inputs:"
+                mapM_ (rPrint . pp . E.WithBase opts) vs
+                rPrint (pp err)
+              Test.Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
+            return False
 
 satCmd, proveCmd :: String -> REPL ()
 satCmd = cmdProveSat True

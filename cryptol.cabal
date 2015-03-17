@@ -132,8 +132,9 @@ library
                        Cryptol.Eval.Type,
                        Cryptol.Eval.Value,
 
-                       Cryptol.Testing.Random,
+                       Cryptol.Testing.Eval,
                        Cryptol.Testing.Exhaust,
+                       Cryptol.Testing.Random,
 
                        Cryptol.Symbolic,
                        Cryptol.Symbolic.BitVector,
