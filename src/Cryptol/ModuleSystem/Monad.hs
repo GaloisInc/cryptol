@@ -89,6 +89,8 @@ instance PP ModuleError where
       $$
       hang (text "Searched paths:")
          4 (vcat (map text path))
+      $$
+      text "Set the CRYPTOLPATH environment variable to search more directories"
 
     CantFindFile path ->
       text "[error]" <+>
