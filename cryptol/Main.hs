@@ -8,6 +8,7 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
@@ -32,7 +33,7 @@ import System.Console.GetOpt
     (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
 import System.Environment (getArgs, getProgName, lookupEnv)
 import System.Exit (exitFailure)
-import System.FilePath (splitSearchPath, takeDirectory)
+import System.FilePath (searchPathSeparator, splitSearchPath, takeDirectory)
 
 data Options = Options
   { optLoad            :: [FilePath]
@@ -127,8 +128,24 @@ displayHelp :: [String] -> IO ()
 displayHelp errs = do
   prog <- getProgName
   let banner = "Usage: " ++ prog ++ " [OPTIONS]"
+      paraLines = fsep . map text . words . unlines
+      ppEnv (varname, desc) = hang varname 4 (paraLines $ desc)
+      envs = [
+          ( "CRYPTOLPATH"
+          , [ "A `" ++ [searchPathSeparator] ++ "`-separated"
+            , "list of directories to be searched for Cryptol modules in"
+            , "addition to the default locations"
+            ]
+          )
+        , ( "SBV_{ABC,BOOLECTOR,CVC4,MATHSAT,YICES,Z3}_OPTIONS"
+          , [ "A string of command-line arguments to be passed to the"
+            , "corresponding solver invoked for `:sat` and `:prove`"
+            ]
+          )
+        ]
   putStrLn (usageInfo (concat (errs ++ [banner])) options)
-
+  print $ hang "Influential environment variables:"
+             4 (vcat (map ppEnv envs))
 main :: IO ()
 main  = do
   setLocaleEncoding utf8
@@ -152,7 +169,7 @@ setupREPL opts = do
   case smoke of
     [] -> return ()
     _  -> io $ do
-      print (hang (text "Errors encountered on startup; exiting:")
+      print (hang "Errors encountered on startup; exiting:"
                 4 (vcat (map pp smoke)))
       exitFailure
   displayLogo True
