@@ -6,6 +6,8 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE PatternGuards #-}
+
 module Cryptol.TypeCheck.Solver.Selector (tryHasGoal) where
 
 import Cryptol.TypeCheck.AST

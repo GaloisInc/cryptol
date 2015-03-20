@@ -121,7 +121,7 @@ bindVar v@(TVBound _ k) t
   | otherwise     = uniError $ UniKindMismatch k (kindOf t)
 
 
-bindVar x@(TVFree _ k inScope d) t
+bindVar x@(TVFree _ k inScope _d) t
   | not (k == kindOf t)     = uniError $ UniKindMismatch k (kindOf t)
   | recTy && k == KType     = uniError $ UniRecursive x t
   | not (Set.null escaped)  = uniError $ UniNonPolyDepends x$ Set.toList escaped
@@ -131,11 +131,3 @@ bindVar x@(TVFree _ k inScope d) t
     vs      = fvs t
     escaped = Set.filter isBoundTV vs `Set.difference` inScope
     recTy   = x `Set.member` vs
-
-
-
-
-
-
-
-

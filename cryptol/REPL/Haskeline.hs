@@ -35,14 +35,14 @@ import           System.FilePath ((</>))
 repl :: Cryptolrc -> Maybe FilePath -> REPL () -> IO ()
 repl cryrc mbBatch begin =
   do settings <- setHistoryFile (replSettings isBatch)
-     runREPL isBatch (runInputTBehavior style settings body)
+     runREPL isBatch (runInputTBehavior behavior settings body)
   where
   body = withInterrupt $ do
     MTL.lift evalCryptolrc
     MTL.lift begin
     loop
 
-  (isBatch,style) = case mbBatch of
+  (isBatch,behavior) = case mbBatch of
     Nothing   -> (False,defaultBehavior)
     Just path -> (True,useFile path)
 

@@ -34,7 +34,7 @@ simpDelayed :: [TParam] -> OrdFacts -> [Prop] -> [Goal] -> IO [Goal]
 simpDelayed _qvars ordAsmp origAsmps goals =
   do ans <- mapM tryGoal goals
 
-     let (natsDone,natsNot) = partition snd ans
+     let (_natsDone,natsNot) = partition snd ans
      -- XXX: check that `natsDone` also hold for the infinite case
      return (map fst natsNot)
 

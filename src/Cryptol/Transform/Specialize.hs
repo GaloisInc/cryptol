@@ -251,10 +251,10 @@ reifyName name tys = intercalate "_" (showName name : concatMap showT tys)
       case typ of
         TCon tc ts  -> showTCon tc : concatMap showT ts
         TUser _ _ t -> showT t
-        TVar tvar   -> [ "a" ++ show (tvInt tvar) ]
-        TRec trec   -> "rec" : concatMap showRecFld trec
-    showTCon tcon =
-      case tcon of
+        TVar tv     -> [ "a" ++ show (tvInt tv) ]
+        TRec tr     -> "rec" : concatMap showRecFld tr
+    showTCon tCon =
+      case tCon of
         TC tc -> showTC tc
         PC pc -> showPC pc
         TF tf -> showTF tf

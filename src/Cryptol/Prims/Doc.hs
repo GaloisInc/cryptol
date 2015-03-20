@@ -28,7 +28,7 @@ helpDoc prim =
   where ty = typeOf prim
 
 method :: String -> [Doc] -> [String] -> Doc
-method txt is notes =
+method txt _is notes =
   hang (text txt) 2 (vcat [ text "*" <+> text i | i <- notes ])
   -- XXX: Display what instances are supported.
 

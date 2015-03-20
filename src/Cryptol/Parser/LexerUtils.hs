@@ -223,7 +223,7 @@ layout :: Config -> [Located Token] -> [Located Token]
 layout cfg ts0 = loop implicitScope [] ts0
   where
 
-  (pos0,implicitScope) = case ts0 of
+  (_pos0,implicitScope) = case ts0 of
     t : _ -> (from (srcRange t), cfgModuleScope cfg && tokenType (thing t) /= KW KW_module)
     _     -> (start,False)
 
