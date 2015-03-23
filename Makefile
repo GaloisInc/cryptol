@@ -124,15 +124,17 @@ print-%:
 ifneq (,${PREFIX})
   PREFIX_ARG      := --prefix=$(call adjust-path,${PREFIX_ABS})
   DESTDIR_ARG     := --destdir=${PKG}
-  CONFIGURE_ARGS  := -f-relocatable -f-self-contained
+  CONFIGURE_ARGS  := -f-relocatable -f-self-contained \
+                     --docdir=$(call adjust-path,${PREFIX_SHARE}/${PREFIX_DOC})
 else
   # This is kind of weird: 1. Prefix argument must be absolute; Cabal
   # doesn't yet fully support relocatable packages. 2. We have to
   # provide *some* prefix here even if we're not using it, otherwise
   # `cabal copy` will make a mess in the PKG directory.
-  PREFIX_ARG            := --prefix=$(call adjust-path,${ROOT_PATH})
-  DESTDIR_ARG           := --destdir=${PKG}
-  CONFIGURE_ARGS        := -f-self-contained
+  PREFIX_ARG      := --prefix=$(call adjust-path,${ROOT_PATH})
+  DESTDIR_ARG     := --destdir=${PKG}
+  CONFIGURE_ARGS  := -f-self-contained \
+                     --docdir=$(call adjust-path,${PREFIX_SHARE}/${PREFIX_DOC})
 endif
 
 dist/setup-config: cryptol.cabal Makefile | ${CS_BIN}/alex ${CS_BIN}/happy
@@ -165,23 +167,22 @@ PKG_EXCONTRIB_FILES := examples/contrib/mkrand.cry \
                        examples/contrib/speck.cry
 
 ${PKG}: ${CRYPTOL_EXE} \
-        docs/*.md docs/*.pdf LICENSE \
+        docs/*.md docs/*.pdf LICENSE LICENSE.rtf \
         ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES}
 	$(CABAL) copy ${DESTDIR_ARG}
-# script not included in the copy
-# don't want to bundle the cryptol library in the binary distribution
-	rm -rf ${PKG_PREFIX}/lib
 	mkdir -p ${PKG_CRY}
 	mkdir -p ${PKG_DOC}
 	mkdir -p ${PKG_EXAMPLES}
 	mkdir -p ${PKG_EXCONTRIB}
 	cp docs/*.md ${PKG_DOC}
 	cp docs/*.pdf ${PKG_DOC}
-	cp LICENSE ${PKG_DOC}
 	for EXAMPLE in ${PKG_EXAMPLE_FILES}; do \
           cp $$EXAMPLE ${PKG_EXAMPLES}; done
 	for EXAMPLE in ${PKG_EXCONTRIB_FILES}; do \
           cp $$EXAMPLE ${PKG_EXCONTRIB}; done
+# cleanup unwanted files
+# don't want to bundle the cryptol library in the binary distribution
+	rm -rf ${PKG_PREFIX}/lib; rm -rf ${PKG_PREFIX}/*windows-ghc*
 
 .PHONY: install
 install: ${PKG}
