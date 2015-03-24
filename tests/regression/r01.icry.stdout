@@ -2,26 +2,26 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at <interactive>:1:1--1:42:
-  Defaulting 1st type parameter
-             of expression ltTen
-             at <interactive>:1:5--1:10
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at <interactive>:1:11--1:19
   to 4
 True
 [warning] at <interactive>:1:1--1:43:
-  Defaulting 1st type parameter
-             of expression ltTen
-             at <interactive>:1:5--1:10
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at <interactive>:1:11--1:20
   to 4
 False
 [warning] at <interactive>:1:1--1:48:
-  Defaulting 1st type parameter
-             of expression ltTen
-             at <interactive>:1:5--1:10
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at <interactive>:1:11--1:25
   to 7
 False
 [warning] at <interactive>:1:1--1:47:
-  Defaulting 1st type parameter
-             of expression ltTen
-             at <interactive>:1:5--1:10
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at <interactive>:1:11--1:24
   to 7
 True

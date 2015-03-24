@@ -2,14 +2,14 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at :1:1--3:25:
-  Defaulting 1st type parameter
-             of expression Main::ones
-             at check02.cry:3:10--3:14
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at ./check02.cry:3:24--3:25
   to 1
 [warning] at <interactive>:1:1--1:18:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at <interactive>:1:6--1:8
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at <interactive>:1:9--1:18
   to 4
 Assuming a = 1
 [0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1]

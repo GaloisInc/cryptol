@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -25,6 +25,7 @@ import           Control.Applicative(Applicative(..),(<$>))
 import           Data.Maybe(maybeToList)
 import           Data.Either(partitionEithers)
 import qualified Data.Map as Map
+import           Data.Traversable(traverse)
 
 
 class RemovePatterns t where
@@ -147,6 +148,7 @@ noPatE expr =
     ESel e s      -> ESel    <$> noPatE e <*> return s
     EList es      -> EList   <$> mapM noPatE es
     EFromTo {}    -> return expr
+    EInfFrom e e' -> EInfFrom <$> noPatE e <*> traverse noPatE e'
     EComp e mss   -> EComp  <$> noPatE e <*> mapM noPatArm mss
     EApp e1 e2    -> EApp   <$> noPatE e1 <*> noPatE e2
     EAppT e ts    -> EAppT  <$> noPatE e <*> return ts

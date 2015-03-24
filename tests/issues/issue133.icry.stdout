@@ -1,5 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-example1 : {a} (a >= 1, 2 >= a) => [16 * a][8] -> [16][8]
-example2 : {a} (a >= 1, 2 >= a) => [16 * a][8] -> [16][8]
+Using exhaustive testing.
+passed 256 tests.
+Q.E.D.
+Q.E.D.

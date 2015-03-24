@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -8,27 +8,29 @@
 
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Cryptol.Symbolic.Value
   ( Value
   , TValue, numTValue, toNumTValue, finTValue, isTBit, isTFun, isTSeq, isTTuple, isTRec, tvSeq
   , GenValue(..), lam, tlam, toStream, toFinSeq, toSeq
   , fromVBit, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord
-  , fromSeq, fromWord
+  , fromSeq, fromVWord
   , evalPanic
   )
   where
 
-import Data.Bits (bitSize)
+import Data.Bits (finiteBitSize)
 
 import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit, isTFun, isTSeq, isTTuple, isTRec, tvSeq,
-                           GenValue(..), lam, tlam, toStream, toFinSeq, toSeq,
-                           fromVBit, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord)
+                           GenValue(..), BitWord(..), lam, tlam, toStream, toFinSeq, toSeq, fromSeq,
+                           fromVBit, fromVWord, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord)
 import Cryptol.Symbolic.BitVector
 import Cryptol.Utils.Panic (panic)
 
-import Data.SBV (SBool, fromBitsBE, sbvTestBit, Mergeable(..))
+import Data.SBV (SBool, fromBitsBE, Mergeable(..), HasKind(..), EqSymbolic(..))
+import Data.SBV.Internals (symbolicMergeWithKind)
 
 -- Values ----------------------------------------------------------------------
 
@@ -42,39 +44,32 @@ instance Mergeable Value where
       (VRecord fs1, VRecord fs2) -> VRecord $ zipWith mergeField fs1 fs2
       (VTuple vs1 , VTuple vs2 ) -> VTuple $ zipWith (symbolicMerge f c) vs1 vs2
       (VBit b1    , VBit b2    ) -> VBit $ symbolicMerge f c b1 b2
-      (VWord w1   , VWord w2   ) -> VWord $ symbolicMerge f c w1 w2
+      (VWord w1   , VWord w2   ) -> VWord $ mergeWord w1 w2
       (VSeq b1 vs1, VSeq _ vs2 ) -> VSeq b1 $ symbolicMerge f c vs1 vs2
-      (VStream vs1, VStream vs2) -> VStream $ symbolicMerge f c vs1 vs2
+      (VStream vs1, VStream vs2) -> VStream $ mergeStream vs1 vs2
       (VFun f1    , VFun f2    ) -> VFun $ symbolicMerge f c f1 f2
       (VPoly f1   , VPoly f2   ) -> VPoly $ symbolicMerge f c f1 f2
-      (VWord w1   , _          ) -> VWord $ symbolicMerge f c w1 (fromWord v2)
-      (_          , VWord w2   ) -> VWord $ symbolicMerge f c (fromWord v1) w2
+      (VWord w1   , _          ) -> VWord $ mergeWord w1 (fromVWord v2)
+      (_          , VWord w2   ) -> VWord $ mergeWord (fromVWord v1) w2
       (_          , _          ) -> panic "Cryptol.Symbolic.Value"
                                       [ "symbolicMerge: incompatible values" ]
     where
+      mergeWord w1 w2 = symbolicMergeWithKind (kindOf w1) f c w1 w2
       mergeField (n1, x1) (n2, x2)
         | n1 == n2  = (n1, symbolicMerge f c x1 x2)
         | otherwise = panic "Cryptol.Symbolic.Value"
                         [ "symbolicMerge.mergeField: incompatible values" ]
+      mergeStream xs ys =
+        symbolicMerge f c (head xs) (head ys) : mergeStream (tail xs) (tail ys)
 
 -- Big-endian Words ------------------------------------------------------------
 
-unpackWord :: SWord -> [SBool]
-unpackWord s = [ sbvTestBit s i | i <- reverse [0 .. bitSize s - 1] ]
+instance BitWord SBool SWord where
+  packWord bs = Data.SBV.fromBitsBE bs
+  unpackWord w = [ sbvTestBit' w i | i <- reverse [0 .. finiteBitSize w - 1] ]
 
--- Constructors and Accessors --------------------------------------------------
-
-fromWord :: Value -> SWord
-fromWord (VWord s) = s
-fromWord v = Data.SBV.fromBitsBE (map fromVBit (fromSeq v))
-
--- | Extract a sequence.
-fromSeq :: Value -> [Value]
-fromSeq v = case v of
-  VSeq _ vs  -> vs
-  VWord s    -> map VBit (unpackWord s)
-  VStream vs -> vs
-  _          -> evalPanic "fromSeq" ["not a sequence"]
+sbvTestBit' :: SWord -> Int -> SBool
+sbvTestBit' w i = extract i i w .== literalSWord 1 1
 
 -- Errors ----------------------------------------------------------------------
 

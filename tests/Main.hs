@@ -1,6 +1,7 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -8,6 +9,7 @@
 
 module Main where
 
+import Control.Applicative ((<$>))
 import Control.Monad (when,unless,foldM)
 import Data.List (isPrefixOf,partition,nub)
 import Data.Monoid (Monoid(..),Endo(..))
@@ -22,7 +24,8 @@ import System.FilePath
     ((</>),(<.>),takeExtension,splitFileName,splitDirectories,pathSeparator
     ,isRelative)
 import System.Process
-    (createProcess,CreateProcess(..),StdStream(..),proc,waitForProcess)
+    (createProcess,CreateProcess(..),StdStream(..),proc,waitForProcess
+    ,readProcessWithExitCode)
 import System.IO
     (hGetContents,IOMode(..),withFile,SeekMode(..),Handle,hSetBuffering
     ,BufferMode(..))
@@ -32,6 +35,9 @@ import Test.HUnit (assertFailure)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
 
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+import Text.Regex
+#endif
 
 main :: IO ()
 main  = do
@@ -45,18 +51,13 @@ main  = do
 
 -- Command Line Options --------------------------------------------------------
 
-data TestStrategy
-  = TestDiscover FilePath
-  | TestFile FilePath
-    deriving (Show)
-
 data Options = Options
   { optCryptol   :: String
   , optOther     :: [String]
   , optHelp      :: Bool
   , optResultDir :: FilePath
-  , optTests     :: [TestStrategy]
-  , optDiff      :: String
+  , optTests     :: [FilePath]
+  , optDiff      :: Maybe String
   } deriving (Show)
 
 defaultOptions :: Options
@@ -66,14 +67,14 @@ defaultOptions  = Options
   , optHelp      = False
   , optResultDir = "output"
   , optTests     = []
-  , optDiff      = "meld"
+  , optDiff      = Nothing
   }
 
 setHelp :: Endo Options
 setHelp  = Endo (\ opts -> opts { optHelp = True } )
 
 setDiff :: String -> Endo Options
-setDiff diff = Endo (\opts -> opts { optDiff = diff })
+setDiff diff = Endo (\opts -> opts { optDiff = Just diff })
 
 setCryptol :: String -> Endo Options
 setCryptol path = Endo (\ opts -> opts { optCryptol = path } )
@@ -84,20 +85,14 @@ addOther arg = Endo (\ opts -> opts { optOther = optOther opts ++ [arg] } )
 setResultDir :: String -> Endo Options
 setResultDir path = Endo (\ opts -> opts { optResultDir = path })
 
-addDiscover :: String -> Endo Options
-addDiscover path =
-  Endo (\ opts -> opts { optTests = TestDiscover path : optTests opts })
-
 addTestFile :: String -> Endo Options
 addTestFile path =
-  Endo (\ opts -> opts { optTests = TestFile path : optTests opts })
+  Endo (\ opts -> opts { optTests = path : optTests opts })
 
 options :: [OptDescr (Endo Options)]
 options  =
   [ Option "c" ["cryptol"] (ReqArg setCryptol "PATH")
     "the cryptol executable to use"
-  , Option "d" ["base"] (ReqArg addDiscover "PATH")
-    "the base directory for test discovery"
   , Option "r" ["result-dir"] (ReqArg setResultDir "PATH")
     "the result directory for test runs"
   , Option "p" ["diff-prog"] (ReqArg setDiff "PROG")
@@ -175,7 +170,7 @@ generateAssertion opts dir file = testCase file $ do
     do hSetBuffering hout NoBuffering
        cryptol2 opts hout dir ["-b",file]
 
-  out      <- readFile resultOut
+  out      <- fixPaths <$> readFile resultOut
   expected <- readFile goldFile
   mbKnown  <- X.try (readFile knownFailureFile)
   checkOutput mbKnown expected out
@@ -192,30 +187,37 @@ generateAssertion opts dir file = testCase file $ do
         Right _ -> assertFailure $
             "Test completed successfully.  Please remove " ++ knownFailureFile
     | otherwise =
-      assertFailure $
-        case mbKnown of
-          Left (X.SomeException {}) ->
-                                  unwords [ optDiff opts, goldFile, resultOut ]
-          Right fail_msg -> fail_msg
+      case mbKnown of
+
+        Left (X.SomeException {})
+          | Just prog <- optDiff opts ->
+            do goldFile' <- canonicalizePath goldFile
+               assertFailure (unwords [ prog, goldFile', "\\\n    ", resultOut ])
+
+          | otherwise ->
+            do goldFile' <- canonicalizePath goldFile
+               (_,out,_) <- readProcessWithExitCode "diff" [ goldFile', resultOut ] ""
+               assertFailure out
+
+        Right fail_msg -> assertFailure fail_msg
 
 -- Test Discovery --------------------------------------------------------------
 
-findTests :: [TestStrategy] -> IO TestFiles
+findTests :: [FilePath] -> IO TestFiles
 findTests  = foldM step mempty
   where
-  step tests strategy = do
-    tests' <- evalStrategy strategy
+  step tests path = do
+    tests' <- evalStrategy path
     return (tests `mappend` tests')
 
-  evalStrategy strategy = case strategy of
-
-    TestDiscover path -> testDiscovery path
-
-    TestFile path ->
-      let (dir,file) = splitFileName path
-          dirs       = splitDirectories dir
-          insert d t = TestFiles (Map.singleton d t) []
-       in return $! foldr insert (TestFiles Map.empty [file]) dirs
+  evalStrategy path =
+    do isDir <- doesDirectoryExist path
+       if isDir
+         then testDiscovery path
+         else let (dir,file) = splitFileName path
+                  dirs       = splitDirectories dir
+                  insert d t = TestFiles (Map.singleton d t) []
+              in return $! foldr insert (TestFiles Map.empty [file]) dirs
 
 
 -- | Files that end in .icry are cryptol test cases.
@@ -273,3 +275,21 @@ testDiscovery from = do
 -- | Screen out dotfiles.
 isDotFile :: FilePath -> Bool
 isDotFile path = "." `isPrefixOf` path
+
+-- | Normalize to unix-style paths with forward slashes when on
+-- Windows. This is pretty crude; it just looks for any non-whitespace
+-- strings that contain a blackslash and end in @.cry@ or @.icry@.
+fixPaths :: String -> String
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+fixPaths str = go str
+  where
+  go str
+    | Just (pre, match, post, _) <- matchCryFile str
+    = pre ++ (subst match) ++ go post
+    | otherwise
+    = str
+  subst match = subRegex (mkRegex "\\\\") match "/"
+  matchCryFile = matchRegexAll (mkRegex "\\\\([^[:space:]]*\\.i?cry)")
+#else
+fixPaths = id
+#endif

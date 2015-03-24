@@ -1,0 +1,119 @@
+/*
+
+MKRAND - A Digital Random Bit Generator
+
+    The MIT License (MIT)
+
+    Copyright (c) 2014, TAG Universal Machine.
+
+    Permission is hereby granted, free of charge, to any person
+    obtaining a copy of this software and associated documentation
+    files (the "Software"), to deal in the Software without
+    restriction, including without limitation the rights to use, copy,
+    modify, merge, publish, distribute, sublicense, and/or sell copies
+    of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be
+    included in all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+    NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+    HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+    WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
+   --
+
+   USAGE
+
+   Create a 128 bit seed:
+
+   seed = seedUnit
+
+   Once the seed is created, you may use it to generate a stream of random bits:
+
+   take `{100} (randBytes seed)
+
+   Here a string is encoded with seedUnit, using the deterministic random stream as a
+   one-time pad against which to XOR the string:
+
+     Encode:
+       randXOR seedUnit "Deus Ex Machina"
+       [0x28, 0x2b, 0x2c, 0xfa, 0x92, 0xca, 0xb3, 0xcb, 0xed, 0x50, 0xc2,v0x1b, 0x11, 0x0e, 0x70]
+
+     Decode:
+       :set ascii=on
+       randXOR seedUnit [0x28, 0x2b, 0x2c, 0xfa, 0x92, 0xca, 0xb3, 0xcb, 0xed, 0x50, 0xc2,0x1b, 0x11, 0x0e, 0x70]
+       "Deus Ex Machina"
+
+*/
+
+module MKRAND where
+
+type Seg   = [0x80]
+type Field = [0x80]Seg
+
+/* Canonical seed - a segment with a single True bit in the center */
+seedUnit:Seg
+seedUnit = (0 :[63]) # (1:[1]) # (0:[64])
+
+
+/*
+ *  Field - Unfold an application of Rule 30 to a seed
+ */
+field: Seg -> [inf]Seg
+field s = new
+  where
+    new = [s] # [ rule30 row | row <- new]
+    rule30 r = [ a ^ (b || c) | a <- r >>> 1
+                              | b <- r
+                              | c <- r <<< 1
+               ]
+
+
+/* SHA30 - Use the input segment as the seed, generate two square fields,
+ * keep the center column of the second.
+ */
+sha30: Seg -> Seg
+sha30 s = take`{0x80} (drop`{0x80} [ r @ ((((width r) / 2)-1):[8]) | r <- field s])
+
+
+/*
+ * RAND - Seed XOR (SHA30 Seed)
+ */
+rands : Seg -> [inf]Seg
+rands s = rest
+  where
+     rand p = p ^ (sha30 p)
+     rest = [rand s] # [rand x | x <- rest]
+
+
+/* Break segments into bytes */
+randBytes : Seg -> [inf][8]
+randBytes s = groupBy`{8} (join (rands s))
+
+
+/* XOR a byte string into a random byte string, using the given seed */
+randXOR : {n} Seg ->  String n -> String n
+randXOR seed src = [s ^ r | s <- src
+                          | r <- randBytes seed
+                   ]
+
+/* OTP example */
+
+property otp_encdec =
+     randXOR seedUnit "Deus Ex Machina" == c
+  && randXOR seedUnit c == "Deus Ex Machina"
+  where c = [ 0x28, 0x2b, 0x2c, 0xfa
+            , 0x92, 0xca, 0xb3, 0xcb
+            , 0xed, 0x50, 0xc2, 0x1b
+            , 0x11, 0x0e, 0x70]
+
+otp_involutive : {len} (fin len) => String len -> Bit
+otp_involutive msg = randXOR seedUnit (randXOR seedUnit msg) == msg
+
+property otp_involutive_32 msg = otp_involutive (msg : String 32)

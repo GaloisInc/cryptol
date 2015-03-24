@@ -1,16 +1,19 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE PatternGuards #-}
 
 module Cryptol.ModuleSystem.Env where
 
+#ifndef RELOCATABLE
 import Paths_cryptol (getDataDir)
+#endif
 
 import Cryptol.Eval (EvalEnv)
 import Cryptol.ModuleSystem.Interface
@@ -24,8 +27,9 @@ import Data.Foldable (fold)
 import Data.Function (on)
 import qualified Data.Map as Map
 import Data.Monoid ((<>), Monoid(..))
-import System.Environment.Executable(splitExecutablePath)
-import System.FilePath ((</>), normalise, joinPath, splitPath)
+import System.Directory (getAppUserDataDirectory, getCurrentDirectory)
+import System.Environment(getExecutablePath)
+import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
 import qualified Data.List as List
 
 -- Module Environment ----------------------------------------------------------
@@ -37,25 +41,54 @@ data ModuleEnv = ModuleEnv
   , meFocusedModule :: Maybe ModName
   , meSearchPath    :: [FilePath]
   , meDynEnv        :: DynamicEnv
+  , meMonoBinds     :: !Bool
+  }
+
+resetModuleEnv :: ModuleEnv -> ModuleEnv
+resetModuleEnv env = env
+  { meLoadedModules = mempty
+  , meNameSeeds     = T.nameSeeds
+  , meEvalEnv       = mempty
+  , meFocusedModule = Nothing
+  , meDynEnv        = mempty
   }
 
 initialModuleEnv :: IO ModuleEnv
 initialModuleEnv  = do
+  curDir <- getCurrentDirectory
+#ifndef RELOCATABLE
   dataDir <- getDataDir
-  (binDir, _) <- splitExecutablePath
-  -- XXX Ugh. The first of these seems to work on unix-like systems,
-  -- the second seems to work on Windows. The results from
-  -- System.Environment.Executable must be inconsistent between
-  -- platforms, so for now we'll just try both. See #113
-  let instDir1 = normalise . joinPath . init . init . splitPath $ binDir
-      instDir2 = normalise . joinPath . init . splitPath $ binDir
+#endif
+  binDir <- takeDirectory `fmap` getExecutablePath
+  let instDir = normalise . joinPath . init . splitPath $ binDir
+  userDir <- getAppUserDataDirectory "cryptol"
   return ModuleEnv
     { meLoadedModules = mempty
     , meNameSeeds     = T.nameSeeds
     , meEvalEnv       = mempty
     , meFocusedModule = Nothing
-    , meSearchPath    = [dataDir </> "lib", instDir1 </> "lib", instDir2 </> "lib", "."]
+      -- we search these in order, taking the first match
+    , meSearchPath    = [ curDir
+                          -- something like $HOME/.cryptol
+                        , userDir
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+                          -- ../cryptol on win32
+                        , instDir </> "cryptol"
+#else
+                          -- ../share/cryptol on others
+                        , instDir </> "share" </> "cryptol"
+#endif
+
+#ifndef RELOCATABLE
+                          -- Cabal-defined data directory. Since this
+                          -- is usually a global location like
+                          -- /usr/local, search this one last in case
+                          -- someone has multiple Cryptols
+                        , dataDir
+#endif
+                        ]
     , meDynEnv        = mempty
+    , meMonoBinds     = True
     }
 
 -- | Try to focus a loaded module in the module environment.
@@ -136,6 +169,16 @@ addLoadedModule path tm lm
     , lmInterface = genIface tm
     , lmModule    = tm
     }
+
+removeLoadedModule :: FilePath -> LoadedModules -> LoadedModules
+removeLoadedModule path (LoadedModules ms) = LoadedModules (remove ms)
+  where
+
+  remove (lm:rest)
+    | lmFilePath lm == path = rest
+    | otherwise             = lm : remove rest
+
+  remove [] = []
 
 -- Dynamic Environments --------------------------------------------------------
 

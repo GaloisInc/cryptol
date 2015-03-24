@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -8,12 +8,14 @@
 
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE PatternGuards, ViewPatterns #-}
+{-# LANGUAGE DeriveFunctor #-}
 module Cryptol.TypeCheck.Unify where
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst
 import Cryptol.Utils.Panic (panic)
 
+import Control.Applicative (Applicative(..))
 import Data.Ord(comparing)
 import Data.List(sortBy)
 import qualified Data.Set as Set
@@ -23,6 +25,7 @@ import qualified Data.Set as Set
 type MGU = (Subst,[Prop])
 
 data Result a = OK a | Error UnificationError
+                deriving (Functor)
 
 data UnificationError
   = UniTypeMismatch Type Type
@@ -31,6 +34,13 @@ data UnificationError
   | UniRecursive TVar Type
   | UniNonPolyDepends TVar [TVar]
   | UniNonPoly TVar Type
+
+instance Applicative Result where
+  pure = OK
+
+  OK f     <*> OK x    = OK (f x)
+  OK _     <*> Error e = Error e
+  Error e  <*> _       = Error e
 
 instance Monad Result where
   return a      = OK a
@@ -111,7 +121,7 @@ bindVar v@(TVBound _ k) t
   | otherwise     = uniError $ UniKindMismatch k (kindOf t)
 
 
-bindVar x@(TVFree _ k inScope d) t
+bindVar x@(TVFree _ k inScope _d) t
   | not (k == kindOf t)     = uniError $ UniKindMismatch k (kindOf t)
   | recTy && k == KType     = uniError $ UniRecursive x t
   | not (Set.null escaped)  = uniError $ UniNonPolyDepends x$ Set.toList escaped
@@ -121,11 +131,3 @@ bindVar x@(TVFree _ k inScope d) t
     vs      = fvs t
     escaped = Set.filter isBoundTV vs `Set.difference` inScope
     recTy   = x `Set.member` vs
-
-
-
-
-
-
-
-

@@ -1,0 +1,3 @@
+t = (0x1, { key = 4, value = "goodbye"})
+
+bug116Fixed = (t.1.value == t.1.value)

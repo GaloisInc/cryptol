@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -235,6 +235,10 @@ instance Functor FM where
 instance Applicative FM where
   pure x          = FM (pure x)
   FM mf <*> FM mx = FM (mf <*> mx)
+
+instance Alternative FM where
+  empty = mzero
+  (<|>) = mplus
 
 instance Monad FM where
   return x        = FM (return x)

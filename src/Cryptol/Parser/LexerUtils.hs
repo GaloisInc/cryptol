@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -15,6 +15,7 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
 import Data.Char(toLower)
+import Data.List(foldl')
 import Data.Word(Word8)
 import Codec.Binary.UTF8.String(encodeChar)
 
@@ -156,8 +157,7 @@ emitS t cfg p s z  = emit (t s) cfg p s z
 numToken :: Integer -> String -> TokenT
 numToken rad ds = Num (toVal ds) (fromInteger rad) (length ds)
   where
-  toVal = sum . zipWith (\n x -> rad^n * x) [0 :: Integer ..]
-              . map toDig . reverse
+  toVal = foldl' (\x c -> rad * x + toDig c) 0
   toDig = if rad == 16 then fromHexDigit else fromDecDigit
 
 fromDecDigit   :: Char -> Integer
@@ -223,7 +223,7 @@ layout :: Config -> [Located Token] -> [Located Token]
 layout cfg ts0 = loop implicitScope [] ts0
   where
 
-  (pos0,implicitScope) = case ts0 of
+  (_pos0,implicitScope) = case ts0 of
     t : _ -> (from (srcRange t), cfgModuleScope cfg && tokenType (thing t) /= KW KW_module)
     _     -> (start,False)
 
@@ -245,6 +245,9 @@ layout cfg ts0 = loop implicitScope [] ts0
 
     -- add any block start tokens, and push a level on the stack
     (startToks,stack')
+      | startBlock && ty == EOF = ( [ virt cfg (to pos) VCurlyR
+                                    , virt cfg (to pos) VCurlyL ]
+                                  , offStack )
       | startBlock = ( [ virt cfg (to pos) VCurlyL ], Virtual (col (from pos)) : offStack )
       | otherwise  = ( [], offStack )
 

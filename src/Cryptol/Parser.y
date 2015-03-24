@@ -8,6 +8,7 @@ module Cryptol.Parser
   , parseDecls, parseDeclsWith
   , parseLetDecl, parseLetDeclWith
   , parseRepl, parseReplWith
+  , parseSchema, parseSchemaWith
   , parseModName
   , ParseError(..), ppError
   , Layout(..)
@@ -148,6 +149,7 @@ import Paths_cryptol
 %name declsLayout decls_layout
 %name letDecl let_decl
 %name repl    repl
+%name schema  schema
 %name modName modName
 %tokentype { Located Token }
 %monad { ParseM }
@@ -162,10 +164,10 @@ import Paths_cryptol
 %nonassoc 'then' 'else'
 %nonassoc ':'
 %left '||'
-%left '^'
 %left '&&'
 %nonassoc '==' '!=' '===' '!=='
 %nonassoc '<' '>' '<=' '>='
+%left '^'
 %right '#'
 %left  '<<' '>>' '<<<' '>>>'
 %left  '+' '-'
@@ -510,8 +512,8 @@ list_expr                      :: { Expr }
   | expr ',' expr '..'            {% eFromTo $4 $1 (Just $3) Nothing    }
   | expr ',' expr '..' expr       {% eFromTo $4 $1 (Just $3) (Just $5)  }
 
-  | expr '...'                    { EApp (ECon ECInfFrom) $1 }
-  | expr ',' expr '...'           { EApp (EApp (ECon ECInfFromThen) $1) $3 }
+  | expr '...'                    { EInfFrom $1 Nothing                 }
+  | expr ',' expr '...'           { EInfFrom $1 (Just $3)               }
 
 
 list_alts                      :: { [[Match]] }
@@ -772,6 +774,12 @@ parseReplWith cfg = parse cfg { cfgModuleScope = False } repl
 
 parseRepl :: String -> Either ParseError ReplInput
 parseRepl = parseReplWith defaultConfig
+
+parseSchemaWith :: Config -> String -> Either ParseError Schema
+parseSchemaWith cfg = parse cfg { cfgModuleScope = False } schema
+
+parseSchema :: String -> Either ParseError Schema
+parseSchema = parseSchemaWith defaultConfig
 
 -- vim: ft=haskell
 }

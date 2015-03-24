@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -84,6 +84,7 @@ namesE expr =
     ESel e _      -> namesE e
     EList es      -> Set.unions (map namesE es)
     EFromTo _ _ _ -> Set.empty
+    EInfFrom e e' -> Set.union (namesE e) (maybe Set.empty namesE e')
     EComp e arms  -> let (dss,uss) = unzip (map namesArm arms)
                      in Set.union (boundNames (concat dss) (namesE e))
                                   (Set.unions uss)
@@ -194,6 +195,7 @@ tnamesE expr =
     EList es      -> Set.unions (map tnamesE es)
     EFromTo a b c -> Set.union (tnamesT a)
                      (Set.union (maybe Set.empty tnamesT b) (maybe Set.empty tnamesT c))
+    EInfFrom e e' -> Set.union (tnamesE e) (maybe Set.empty tnamesE e')
     EComp e mss   -> Set.union (tnamesE e) (Set.unions (map tnamesM (concat mss)))
     EApp e1 e2    -> Set.union (tnamesE e1) (tnamesE e2)
     EAppT e fs    -> Set.union (tnamesE e) (Set.unions (map tnamesTI fs))

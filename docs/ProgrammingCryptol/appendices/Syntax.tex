@@ -333,6 +333,10 @@ f p1 p2 = e              // Function definition
 e where ds
 \end{verbatim}
 
+Note that by default, any local declarations without type signatures
+are monomorphized. If you need a local declaration to be polymorphic,
+use an explicit type signature.
+
 \section{Explicit Type Instantiation}\label{explicit-type-instantiation}
 
 If \texttt{f} is a polymorphic value with type:

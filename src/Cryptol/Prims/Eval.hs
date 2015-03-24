@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -20,10 +20,11 @@ module Cryptol.Prims.Eval where
 import Cryptol.Prims.Syntax (ECon(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),fromNat,genLog, nMul)
+import qualified Cryptol.Eval.Arch as Arch
 import Cryptol.Eval.Error
-import Cryptol.Testing.Random (randomValue)
-import Cryptol.Eval.Value
 import Cryptol.Eval.Type(evalTF)
+import Cryptol.Eval.Value
+import Cryptol.Testing.Random (randomValue)
 import Cryptol.Utils.Panic (panic)
 
 import Data.List (sortBy,transpose,genericTake,genericReplicate,genericSplitAt,genericIndex)
@@ -208,7 +209,7 @@ ecDemoteV :: Value
 ecDemoteV = tlam $ \valT ->
             tlam $ \bitT ->
             case (numTValue valT, numTValue bitT) of
-              (Nat v, Nat bs) -> VWord (BV bs v)
+              (Nat v, Nat bs) -> VWord (mkBv bs v)
               _ -> evalPanic "Cryptol.Eval.Prim.evalConst"
                        ["Unexpected Inf in constant."
                        , show valT
@@ -310,7 +311,7 @@ arithBinary op = loop
     | Just (len,a) <- isTSeq ty = case numTValue len of
 
       -- words and finite sequences
-      Nat w | isTBit a  -> VWord (BV w (op w (fromWord l) (fromWord r)))
+      Nat w | isTBit a  -> VWord (mkBv w (op w (fromWord l) (fromWord r)))
             | otherwise -> VSeq False (zipWith (loop a) (fromSeq l) (fromSeq r))
 
       -- streams
@@ -341,7 +342,7 @@ arithUnary op = loop
     | Just (len,a) <- isTSeq ty = case numTValue len of
 
       -- words and finite sequences
-      Nat w | isTBit a  -> VWord (BV w (op (fromWord x)))
+      Nat w | isTBit a  -> VWord (mkBv w (op (fromWord x)))
             | otherwise -> VSeq False (map (loop a) (fromSeq x))
 
       Inf -> toStream (map (loop a) (fromSeq x))
@@ -451,9 +452,10 @@ zeroV ty
 
   -- sequences
   | Just (n,ety) <- isTSeq ty =
-    toSeq n ety $ case numTValue n of
-                    Nat w -> replicate (fromInteger w) (zeroV ety)
-                    Inf   -> repeat                    (zeroV ety)
+    case numTValue n of
+      Nat w | isTBit ety -> word w 0
+            | otherwise  -> toSeq n ety (replicate (fromInteger w) (zeroV ety))
+      Inf                -> toSeq n ety (repeat                    (zeroV ety))
 
   -- functions
   | Just (_,bty) <- isTFun ty =
@@ -539,7 +541,7 @@ logicBinary op = loop
       case numTValue len of
 
          -- words or finite sequences
-         Nat w | isTBit aty -> VWord (BV w (op (fromWord l) (fromWord r)))
+         Nat w | isTBit aty -> VWord (mkBv w (op (fromWord l) (fromWord r)))
                | otherwise -> VSeq False (zipWith (loop aty) (fromSeq l)
                                                              (fromSeq r))
 
@@ -573,7 +575,7 @@ logicUnary op = loop
       case numTValue len of
 
          -- words or finite sequences
-         Nat w | isTBit ety -> VWord (BV w (op (fromWord val)))
+         Nat w | isTBit ety -> VWord (mkBv w (op (fromWord val)))
                | otherwise -> VSeq False (map (loop ety) (fromSeq val))
 
          -- streams
@@ -722,6 +724,8 @@ fromThenV  =
   tlamN $ \ bits  ->
   tlamN $ \ len   ->
     case (first, next, len, bits) of
+      (_         , _        , _       , Nat bits')
+        | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
       (Nat first', Nat next', Nat len', Nat bits') ->
         let nums = enumFromThen first' next'
          in VSeq False (genericTake len' (map (VWord . BV bits') nums))
@@ -734,7 +738,8 @@ fromToV  =
   tlamN $ \ lst   ->
   tlamN $ \ bits  ->
     case (first, lst, bits) of
-
+      (_         , _       , Nat bits')
+        | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
       (Nat first', Nat lst', Nat bits') ->
         let nums = enumFromThenTo first' (first' + 1) lst'
             len  = 1 + (lst' - first')
@@ -751,7 +756,8 @@ fromThenToV  =
   tlamN $ \ bits  ->
   tlamN $ \ len   ->
     case (first, next, lst, len, bits) of
-
+      (_         , _        , _       , _       , Nat bits')
+        | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
       (Nat first', Nat next', Nat lst', Nat len', Nat bits') ->
         let nums = enumFromThenTo first' next' lst'
          in VSeq False (genericTake len' (map (VWord . BV bits') nums))

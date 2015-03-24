@@ -1,0 +1,38 @@
+swap : [256][8] -> [8] -> [8] -> [256][8]
+swap s i j = [ s @ (if n == i then j else
+                    if n == j then i else
+                    n)
+             | n <- [0..255]
+             ]
+
+ksa_step : [inf][8] -> [8] -> [8] -> [256][8] -> ([8],[256][8])
+ksa_step key i j s = (j', swap s i j')
+ where j' = j + s@i + key@i
+
+ksa : [inf][8] -> [256][8]
+ksa key = (go ! 0).1 where
+ go : [257]([8],[256][8])
+ go = [(0,[0..255])] # [ ksa_step key i j s
+                       | i <- [0..255]
+                       | (j,s) <- go
+                       ]
+
+ks_step : [8] -> [8] -> [256][8] -> ([8],[256][8],[8])
+ks_step i j s = (j',s',s@(s@i + s@j'))
+ where j' = j + s@i
+       s' = swap s i j'
+
+ks key = [ k | (_,_,k) <- drop`{1} go ] where
+ go = [(0,ksa key',0)] # [ ks_step i j s
+                         | i <- loop
+                         | (j,s,k) <- go
+                         ]
+ key' = key # key'
+ loop = [1..255] # [0] # loop
+
+///////
+// "Test vectors" from wikipedia
+
+property test1 = take (ks "Key") == [0xEB,0x9F,0x77,0x81,0xB7,0x34,0xCA,0x72,0xA7,0x19]
+property test2 = take (ks "Wiki") == [0x60,0x44,0xDB,0x6D,0x41,0xB7]
+property test3 = take (ks "Secret") == [0x04,0xD4,0x6B,0x05,0x3C,0xA8,0x7B,0x59]

@@ -1,0 +1,6 @@
+module test02 where
+
+test a = f a
+  where
+  f x = g a
+  g x = f x

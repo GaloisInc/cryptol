@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -253,6 +253,7 @@ data Expr     = EVar QName                      -- ^ @ x @
               | ESel Expr Selector              -- ^ @ e.l @
               | EList [Expr]                    -- ^ @ [1,2,3] @
               | EFromTo Type (Maybe Type) (Maybe Type)   -- ^ @[1, 5 ..  117 ] @
+              | EInfFrom Expr (Maybe Expr)      -- ^ @ [1, 3 ...] @
               | EComp Expr [[Match]]            -- ^ @ [ 1 | x <- xs ] @
               | EApp Expr Expr                  -- ^ @ f x @
               | EAppT Expr [TypeInst]           -- ^ @ f `{x = 8}, f`{8} @
@@ -665,6 +666,8 @@ instance PP Expr where
       EFromTo e1 e2 e3 -> brackets (pp e1 <> step <+> text ".." <+> end)
         where step = maybe empty (\e -> comma <+> pp e) e2
               end  = maybe empty pp e3
+      EInfFrom e1 e2 -> brackets (pp e1 <> step <+> text "...")
+        where step = maybe empty (\e -> comma <+> pp e) e2
       EComp e mss   -> brackets (pp e <+> vcat (map arm mss))
         where arm ms = text "|" <+> commaSep (map pp ms)
       ETypeVal t    -> text "`" <> ppPrec 5 t     -- XXX
@@ -893,6 +896,7 @@ instance NoPos Expr where
       ESel x y      -> ESel     (noPos x) y
       EList x       -> EList    (noPos x)
       EFromTo x y z -> EFromTo  (noPos x) (noPos y) (noPos z)
+      EInfFrom x y  -> EInfFrom (noPos x) (noPos y)
       EComp x y     -> EComp    (noPos x) (noPos y)
       EApp  x y     -> EApp     (noPos x) (noPos y)
       EAppT x y     -> EAppT    (noPos x) (noPos y)

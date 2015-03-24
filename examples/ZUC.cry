@@ -1,4 +1,4 @@
-// Copyright (c) 2011, 2014 Galois, Inc.
+// Copyright (c) 2011-2015 Galois, Inc.
 // An implementation of ZUC, Version 1.5
 
 // Version info: If the following variable is set to True, then we implement

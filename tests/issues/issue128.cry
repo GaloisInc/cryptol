@@ -1,0 +1,4 @@
+copy : [inf] -> [inf]
+copy ([b] # x) = if b then [True] # copy x else [False] # copy x
+
+property ok = copy ([True] # zero) @ 0

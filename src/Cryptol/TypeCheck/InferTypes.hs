@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -15,6 +15,7 @@ module Cryptol.TypeCheck.InferTypes where
 
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
+import           Cryptol.TypeCheck.TypeMap
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.AST(LQName)
@@ -30,6 +31,21 @@ import qualified Data.IntMap as IntMap
 -- | The types of variables in the environment.
 data VarType = ExtVar Schema      -- ^ Known type
              | CurSCC Expr Type   -- ^ Part of current SCC
+
+newtype Goals = Goals (TypeMap Goal)
+                deriving (Show)
+
+emptyGoals :: Goals
+emptyGoals  = Goals emptyTM
+
+nullGoals :: Goals -> Bool
+nullGoals (Goals tm) = nullTM tm
+
+fromGoals :: Goals -> [Goal]
+fromGoals (Goals tm) = membersTM tm
+
+insertGoal :: Goal -> Goals -> Goals
+insertGoal g (Goals tm) = Goals (insertTM (goal g) g tm)
 
 -- | Something that we need to find evidence for.
 data Goal = Goal
@@ -249,6 +265,19 @@ instance FVS DelayedCt where
                             Set.fromList (map tpVar (dctForall d))
 
 
+-- This first applies the substitution to the keys of the goal map, then to the
+-- values that remain, as applying the substitution to the keys will only ever
+-- reduce the number of values that remain.
+instance TVars Goals where
+  apSubst su (Goals goals) =
+    Goals (mapWithKeyTM setGoal (apSubstTypeMapKeys su goals))
+    where
+    -- as the key for the goal map is the same as the goal, and the substitution
+    -- has been applied to the key already, just replace the existing goal with
+    -- the key.
+    setGoal key g = g { goalSource = apSubst su (goalSource g)
+                      , goal       = key
+                      }
 
 instance TVars Goal where
   apSubst su g = Goal { goalSource = apSubst su (goalSource g)
@@ -405,7 +434,7 @@ instance PP (WithNames Error) where
       TypeVariableEscaped t xs ->
         nested (text "The type" <+> ppWithNames names t <+>
                 text "is not sufficiently polymorphic.")
-               (text "It may not depend on quantified variables:" <+>
+               (text "It cannot depend on quantified variables:" <+>
                 sep (punctuate comma (map (ppWithNames names) xs)))
 
       NotForAll x t ->

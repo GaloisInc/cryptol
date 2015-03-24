@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -8,11 +8,13 @@
 
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Cryptol.Symbolic.Prims where
 
 import Control.Applicative
 import Data.Bits
-import Data.List (genericDrop, genericReplicate, genericSplitAt, genericTake, transpose)
+import Data.List (genericDrop, genericReplicate, genericSplitAt, genericTake, sortBy, transpose)
+import Data.Ord (comparing)
 
 import Cryptol.Prims.Eval (binary, unary, tlamN)
 import Cryptol.Prims.Syntax (ECon(..))
@@ -24,7 +26,6 @@ import Cryptol.Utils.Panic
 
 import qualified Data.SBV as SBV
 import Data.SBV (SBool)
-import qualified Data.SBV.Tools.Polynomial as Poly
 
 traverseSnd :: Functor f => (a -> f b) -> (t, a) -> f (t, b)
 traverseSnd f (x, y) = (,) x <$> f y
@@ -97,7 +98,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \y ->
         case xs of
-          VWord x -> VWord (SBV.sbvShiftLeft x (fromWord y))
+          VWord x -> VWord (SBV.sbvShiftLeft x (fromVWord y))
           _ -> selectV shl y
             where
               shl :: Integer -> Value
@@ -114,7 +115,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \y ->
         case xs of
-          VWord x -> VWord (SBV.sbvShiftRight x (fromWord y))
+          VWord x -> VWord (SBV.sbvShiftRight x (fromVWord y))
           _ -> selectV shr y
             where
               shr :: Integer -> Value
@@ -131,7 +132,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \y ->
         case xs of
-          VWord x -> VWord (SBV.sbvRotateLeft x (fromWord y))
+          VWord x -> VWord (SBV.sbvRotateLeft x (fromVWord y))
           _ -> selectV rol y
             where
               rol :: Integer -> Value
@@ -145,7 +146,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \y ->
         case xs of
-          VWord x -> VWord (SBV.sbvRotateRight x (fromWord y))
+          VWord x -> VWord (SBV.sbvRotateRight x (fromVWord y))
           _ -> selectV ror y
             where
               ror :: Integer -> Value
@@ -206,7 +207,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \ys ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in mapV (selectV (\i -> nthV err xs i)) ys
+        in mapV (isTBit a) (selectV (\i -> nthV err xs i)) ys
 
     ECAtBack      -> -- {n,a,i} (fin n, fin i) => [n]a -> [i] -> a
       tlam $ \(finTValue -> n) ->
@@ -225,7 +226,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \ys ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in mapV (selectV (\i -> nthV err xs (n - 1 - i))) ys
+        in mapV (isTBit a) (selectV (\i -> nthV err xs (n - 1 - i))) ys
 
     ECFromThen   -> fromThenV
     ECFromTo     -> fromToV
@@ -233,13 +234,13 @@ evalECon econ =
 
     ECInfFrom    ->
       tlam $ \(finTValue -> bits)  ->
-       lam $ \(fromWord  -> first) ->
+       lam $ \(fromVWord  -> first) ->
       toStream [ VWord (first + SBV.literal (bv (fromInteger bits) i)) | i <- [0 ..] ]
 
     ECInfFromThen -> -- {a} (fin a) => [a] -> [a] -> [inf][a]
       tlam $ \_ ->
-       lam $ \(fromWord -> first) ->
-       lam $ \(fromWord -> next) ->
+       lam $ \(fromVWord -> first) ->
+       lam $ \(fromVWord -> next) ->
       toStream (map VWord (iterate (+ (next - first)) first))
 
     -- {at,len} (fin len) => [len][8] -> at
@@ -255,7 +256,7 @@ evalECon econ =
       VFun $ \v2 ->
         let k = max 1 (i + j) - 1
             mul _  []     ps = ps
-            mul as (b:bs) ps = mul (SBV.false : as) bs (Poly.ites b (as `Poly.addPoly` ps) ps)
+            mul as (b:bs) ps = mul (SBV.false : as) bs (ites b (as `addPoly` ps) ps)
             xs = map fromVBit (fromSeq v1)
             ys = map fromVBit (fromSeq v2)
             zs = take (fromInteger k) (mul xs ys [] ++ repeat SBV.false)
@@ -268,7 +269,7 @@ evalECon econ =
       VFun $ \v2 ->
         let xs = map fromVBit (fromSeq v1)
             ys = map fromVBit (fromSeq v2)
-            zs = take (fromInteger i) (fst (Poly.mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
+            zs = take (fromInteger i) (fst (mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
         in VSeq True (map VBit (reverse zs))
 
     ECPMod        -> -- {a,b} (fin a, fin b) => [a] -> [b+1] -> [b]
@@ -278,7 +279,7 @@ evalECon econ =
       VFun $ \v2 ->
         let xs = map fromVBit (fromSeq v1)
             ys = map fromVBit (fromSeq v2)
-            zs = take (fromInteger j) (snd (Poly.mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
+            zs = take (fromInteger j) (snd (mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
         in VSeq True (map VBit (reverse zs))
 
     ECRandom      -> panic "Cryptol.Symbolic.Prims.evalECon"
@@ -310,23 +311,23 @@ nthV err v n =
   case v of
     VStream xs -> nth err xs (fromInteger n)
     VSeq _ xs  -> nth err xs (fromInteger n)
-    VWord x                 -> let i = bitSize x - 1 - fromInteger n
+    VWord x                 -> let i = finiteBitSize x - 1 - fromInteger n
                                in if i < 0 then err else
                                     VBit (SBV.sbvTestBit x i)
     _                       -> err
 
-mapV :: (Value -> Value) -> Value -> Value
-mapV f v =
+mapV :: Bool -> (Value -> Value) -> Value -> Value
+mapV isBit f v =
   case v of
-    VSeq b xs  -> VSeq b (map f xs)
+    VSeq _ xs  -> VSeq isBit (map f xs)
     VStream xs -> VStream (map f xs)
     _          -> panic "Cryptol.Symbolic.Prims.mapV" [ "non-mappable value" ]
 
 catV :: Value -> Value -> Value
-catV (VWord x)   ys           = VWord (cat x (fromWord ys))
-catV xs          (VWord y)    = VWord (cat (fromWord xs) y)
+catV xs          (VStream ys) = VStream (fromSeq xs ++ ys)
+catV (VWord x)   ys           = VWord (cat x (fromVWord ys))
+catV xs          (VWord y)    = VWord (cat (fromVWord xs) y)
 catV (VSeq b xs) (VSeq _ ys)  = VSeq b (xs ++ ys)
-catV (VSeq _ xs) (VStream ys) = VStream (xs ++ ys)
 catV _ _ = panic "Cryptol.Symbolic.Prims.catV" [ "non-concatenable value" ]
 
 dropV :: Integer -> Value -> Value
@@ -335,13 +336,13 @@ dropV n xs =
   case xs of
     VSeq b xs'  -> VSeq b (genericDrop n xs')
     VStream xs' -> VStream (genericDrop n xs')
-    VWord w     -> VWord $ extract (bitSize w - 1 - fromInteger n) 0 w
+    VWord w     -> VWord $ extract (finiteBitSize w - 1 - fromInteger n) 0 w
     _           -> panic "Cryptol.Symbolic.Prims.dropV" [ "non-droppable value" ]
 
 takeV :: Integer -> Value -> Value
 takeV n xs =
   case xs of
-    VWord w     -> VWord $ extract (bitSize w - 1) (bitSize w - fromInteger n) w
+    VWord w     -> VWord $ extract (finiteBitSize w - 1) (finiteBitSize w - fromInteger n) w
     VSeq b xs'  -> VSeq b (genericTake n xs')
     VStream xs' -> VSeq b (genericTake n xs')
                      where b = case xs' of VBit _ : _ -> True
@@ -395,7 +396,7 @@ arithBinary op = loop . toTypeVal
     loop ty l r =
       case ty of
         TVBit         -> evalPanic "arithBinop" ["Invalid arguments"]
-        TVSeq _ TVBit -> VWord (op (fromWord l) (fromWord r))
+        TVSeq _ TVBit -> VWord (op (fromVWord l) (fromVWord r))
         TVSeq _ t     -> VSeq False (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVStream t    -> VStream (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVTuple ts    -> VTuple (zipWith3 loop ts (fromVTuple l) (fromVTuple r))
@@ -409,7 +410,7 @@ arithUnary op = loop . toTypeVal
     loop ty v =
       case ty of
         TVBit         -> evalPanic "arithUnary" ["Invalid arguments"]
-        TVSeq _ TVBit -> VWord (op (fromWord v))
+        TVSeq _ TVBit -> VWord (op (fromVWord v))
         TVSeq _ t     -> VSeq False (map (loop t) (fromSeq v))
         TVStream t    -> VStream (map (loop t) (fromSeq v))
         TVTuple ts    -> VTuple (zipWith loop ts (fromVTuple v))
@@ -418,7 +419,7 @@ arithUnary op = loop . toTypeVal
 
 sExp :: SWord -> SWord -> SWord
 sExp x y = go (SBV.blastLE y)
-  where go []       = SBV.literal (bv (bitSize x) 1)
+  where go []       = SBV.literal (bv (finiteBitSize x) 1)
         go (b : bs) = SBV.ite b (x * s) s
             where a = go bs
                   s = a * a
@@ -427,8 +428,8 @@ sExp x y = go (SBV.blastLE y)
 sLg2 :: SWord -> SWord
 sLg2 x = go 0
   where
-    lit n = SBV.literal (bv (bitSize x) n)
-    go i | i < bitSize x = SBV.ite ((SBV..<=) x (lit (2^i))) (lit (toInteger i)) (go (i + 1))
+    lit n = SBV.literal (bv (finiteBitSize x) n)
+    go i | i < finiteBitSize x = SBV.ite ((SBV..<=) x (lit (2^i))) (lit (toInteger i)) (go (i + 1))
          | otherwise     = lit (toInteger i)
 
 -- Cmp -------------------------------------------------------------------------
@@ -440,7 +441,8 @@ cmpValue fb fw = cmp
   where
     cmp v1 v2 k =
       case (v1, v2) of
-        (VRecord fs1, VRecord fs2) -> cmpValues (map snd fs1) (map snd fs2) k
+        (VRecord fs1, VRecord fs2) -> let vals = map snd . sortBy (comparing fst)
+                                      in  cmpValues (vals fs1) (vals fs2) k
         (VTuple vs1 , VTuple vs2 ) -> cmpValues vs1 vs2 k
         (VBit b1    , VBit b2    ) -> fb b1 b2 k
         (VWord w1   , VWord w2   ) -> fw w1 w2 k
@@ -451,8 +453,8 @@ cmpValue fb fw = cmp
                                         [ "Functions are not comparable" ]
         (VPoly {}   , VPoly {}   ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
                                         [ "Polymorphic values are not comparable" ]
-        (VWord w1   , _          ) -> fw w1 (fromWord v2) k
-        (_          , VWord w2   ) -> fw (fromWord v1) w2 k
+        (VWord w1   , _          ) -> fw w1 (fromVWord v2) k
+        (_          , VWord w2   ) -> fw (fromVWord v1) w2 k
         (_          , _          ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
                                         [ "type mismatch" ]
 
@@ -543,7 +545,7 @@ logicBinary bop op = loop . toTypeVal
     loop ty l r =
       case ty of
         TVBit         -> VBit (bop (fromVBit l) (fromVBit r))
-        TVSeq _ TVBit -> VWord (op (fromWord l) (fromWord r))
+        TVSeq _ TVBit -> VWord (op (fromVWord l) (fromVWord r))
         TVSeq _ t     -> VSeq False (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVStream t    -> VStream (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVTuple ts    -> VTuple (zipWith3 loop ts (fromVTuple l) (fromVTuple r))
@@ -556,7 +558,7 @@ logicUnary bop op = loop . toTypeVal
     loop ty v =
       case ty of
         TVBit         -> VBit (bop (fromVBit v))
-        TVSeq _ TVBit -> VWord (op (fromWord v))
+        TVSeq _ TVBit -> VWord (op (fromVWord v))
         TVSeq _ t     -> VSeq False (map (loop t) (fromSeq v))
         TVStream t    -> VStream (map (loop t) (fromSeq v))
         TVTuple ts    -> VTuple (zipWith loop ts (fromVTuple v))
@@ -609,3 +611,61 @@ fromThenToV  =
          in VSeq False (genericTake len' (map lit nums))
 
       _ -> evalPanic "fromThenV" ["invalid arguments"]
+
+-- Polynomials -----------------------------------------------------------------
+
+-- TODO: Data.SBV.BitVectors.Polynomials should export ites, addPoly,
+-- and mdp (the following definitions are copied from that module)
+
+-- | Add two polynomials
+addPoly :: [SBool] -> [SBool] -> [SBool]
+addPoly xs    []      = xs
+addPoly []    ys      = ys
+addPoly (x:xs) (y:ys) = x SBV.<+> y : addPoly xs ys
+
+ites :: SBool -> [SBool] -> [SBool] -> [SBool]
+ites s xs ys
+ | Just t <- SBV.unliteral s
+ = if t then xs else ys
+ | True
+ = go xs ys
+ where go [] []         = []
+       go []     (b:bs) = SBV.ite s SBV.false b : go [] bs
+       go (a:as) []     = SBV.ite s a SBV.false : go as []
+       go (a:as) (b:bs) = SBV.ite s a b : go as bs
+
+-- conservative over-approximation of the degree
+degree :: [SBool] -> Int
+degree xs = walk (length xs - 1) $ reverse xs
+  where walk n []     = n
+        walk n (b:bs)
+         | Just t <- SBV.unliteral b
+         = if t then n else walk (n-1) bs
+         | True
+         = n -- over-estimate
+
+mdp :: [SBool] -> [SBool] -> ([SBool], [SBool])
+mdp xs ys = go (length ys - 1) (reverse ys)
+  where degTop  = degree xs
+        go _ []     = error "SBV.Polynomial.mdp: Impossible happened; exhausted ys before hitting 0"
+        go n (b:bs)
+         | n == 0   = (reverse qs, rs)
+         | True     = let (rqs, rrs) = go (n-1) bs
+                      in (ites b (reverse qs) rqs, ites b rs rrs)
+         where degQuot = degTop - n
+               ys' = replicate degQuot SBV.false ++ ys
+               (qs, rs) = divx (degQuot+1) degTop xs ys'
+
+-- return the element at index i; if not enough elements, return false
+-- N.B. equivalent to '(xs ++ repeat false) !! i', but more efficient
+idx :: [SBool] -> Int -> SBool
+idx []     _ = SBV.false
+idx (x:_)  0 = x
+idx (_:xs) i = idx xs (i-1)
+
+divx :: Int -> Int -> [SBool] -> [SBool] -> ([SBool], [SBool])
+divx n _ xs _ | n <= 0 = ([], xs)
+divx n i xs ys'        = (q:qs, rs)
+  where q        = xs `idx` i
+        xs'      = ites q (xs `addPoly` ys') xs
+        (qs, rs) = divx (n-1) (i-1) xs' (tail ys')

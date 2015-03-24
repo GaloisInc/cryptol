@@ -1,0 +1,3 @@
+module issue177B where
+
+type Word32 = [32]

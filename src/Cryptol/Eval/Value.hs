@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -9,10 +9,12 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Safe #-}
 
 module Cryptol.Eval.Value where
 
+import qualified Cryptol.Eval.Arch as Arch
 import Cryptol.Eval.Error
 import Cryptol.Prims.Syntax (ECon(..))
 import Cryptol.TypeCheck.AST
@@ -77,6 +79,10 @@ finTValue tval =
 data BV = BV !Integer !Integer -- ^ width, value
                                -- The value may contain junk bits
 
+-- | Smart constructor for 'BV's that checks for the width limit
+mkBv :: Integer -> Integer -> BV
+mkBv w i | w >= Arch.maxBigIntWidth = wordTooWide w
+         | otherwise = BV w i
 
 -- | Generic value type, parameterized by bit and word types.
 data GenValue b w
@@ -183,35 +189,45 @@ ppWord opts (BV width i)
 
 -- Big-endian Words ------------------------------------------------------------
 
+class BitWord b w where
+
+  -- | NOTE this assumes that the sequence of bits is big-endian and finite, so the
+  -- first element of the list will be the most significant bit.
+  packWord :: [b] -> w
+
+  -- | NOTE this produces a list of bits that represent a big-endian word, so the
+  -- most significant bit is the first element of the list.
+  unpackWord :: w -> [b]
+
+
 mask :: Integer  -- ^ Bit-width
      -> Integer  -- ^ Value
      -> Integer  -- ^ Masked result
-mask w i = i .&. ((1 `shiftL` fromInteger w) - 1)
+mask w i | w >= Arch.maxBigIntWidth = wordTooWide w
+         | otherwise                = i .&. ((1 `shiftL` fromInteger w) - 1)
 
 
--- NOTE this assumes that the sequence of bits is big-endian and finite, so the
--- first element of the list will be the most significant bit.
-packWord :: [Bool] -> BV
-packWord bits = BV (toInteger w) a
-  where
-  w = length bits
-  a = foldl set 0 (zip [w - 1, w - 2 .. 0] bits)
-  set acc (n,b) | b         = setBit acc n
-                | otherwise = acc
+instance BitWord Bool BV where
 
--- NOTE this produces a list of bits that represent a big-endian word, so the
--- most significant bit is the first element of the list.
-unpackWord :: BV -> [Bool]
-unpackWord (BV w a) = [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
-  where
-  w' = fromInteger w
+  packWord bits = BV (toInteger w) a
+    where
+      w = case length bits of
+            len | toInteger len >= Arch.maxBigIntWidth -> wordTooWide (toInteger len)
+                | otherwise                  -> len
+      a = foldl set 0 (zip [w - 1, w - 2 .. 0] bits)
+      set acc (n,b) | b         = setBit acc n
+                    | otherwise = acc
+
+  unpackWord (BV w a) = [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
+    where
+      w' = fromInteger w
 
 
 -- Value Constructors ----------------------------------------------------------
 
 -- | Create a packed word of n bits.
 word :: Integer -> Integer -> Value
-word n i = VWord (BV n (mask n i))
+word n i = VWord (mkBv n (mask n i))
 
 lam :: (GenValue b w -> GenValue b w) -> GenValue b w
 lam  = VFun
@@ -265,7 +281,7 @@ fromVBit val = case val of
   _      -> evalPanic "fromVBit" ["not a Bit"]
 
 -- | Extract a sequence.
-fromSeq :: Value -> [Value]
+fromSeq :: BitWord b w => GenValue b w -> [GenValue b w]
 fromSeq val = case val of
   VSeq _ vs  -> vs
   VWord bv   -> map VBit (unpackWord bv)
@@ -277,12 +293,11 @@ fromStr = map (toEnum . fromInteger . fromWord) . fromSeq
 
 -- | Extract a packed word.
 -- Note that this does not clean-up any junk bits in the word.
-fromVWord :: Value -> BV
+fromVWord :: BitWord b w => GenValue b w -> w
 fromVWord val = case val of
   VWord bv                -> bv -- this should always mask
   VSeq isWord bs | isWord -> packWord (map fromVBit bs)
-  _                       -> evalPanic "fromVWord"
-                              ["not a word", show $ ppValue defaultPPOpts val]
+  _                       -> evalPanic "fromVWord" ["not a word"]
 
 vWordLen :: Value -> Maybe Integer
 vWordLen val = case val of

@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -23,10 +23,14 @@ import Cryptol.Parser.NoInclude (removeIncludesModule)
 import Cryptol.Parser.Position (HasLoc(..), Range, emptyRange)
 import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
+import qualified Cryptol.TypeCheck.Depends as T
 import Cryptol.Utils.PP (pretty)
+
+import Cryptol.Prelude (writePreludeContents)
 
 import Cryptol.Transform.MonoValues
 
+import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad (unless)
 import Data.Foldable (foldMap)
@@ -35,9 +39,15 @@ import Data.List (nubBy)
 import Data.Maybe (mapMaybe,fromMaybe)
 import Data.Monoid ((<>))
 import System.Directory (doesFileExist)
-import System.FilePath (addExtension,joinPath,(</>))
+import System.FilePath ( addExtension
+                       , isAbsolute
+                       , joinPath
+                       , (</>)
+                       , takeDirectory
+                       , takeFileName
+                       )
+import qualified System.IO.Error as IOE
 import qualified Data.Map as Map
-
 
 -- Renaming --------------------------------------------------------------------
 
@@ -72,7 +82,7 @@ renameExpr e = do
   rename (deNames denv `R.shadowing` R.namingEnv env) e
 
 -- | Rename declarations in the context of the focused module.
-renameDecls :: [P.Decl] -> ModuleM [P.Decl]
+renameDecls :: (R.Rename d, T.FromDecl d) => [d] -> ModuleM [d]
 renameDecls ds = do
   env <- getFocusedEnv
   denv <- getDynEnv
@@ -93,10 +103,13 @@ noPat a = do
 parseModule :: FilePath -> ModuleM P.Module
 parseModule path = do
 
-  e <- io (X.try (readFile path) :: IO (Either X.IOException String))
-  bytes <- case e of
+  e <- io $ X.try $ do
+    bytes <- readFile path
+    return $!! bytes
+  bytes <- case (e :: Either X.IOException String) of
     Right bytes -> return bytes
-    Left _      -> cantFindFile path
+    Left exn | IOE.isDoesNotExistError exn -> cantFindFile path
+             | otherwise                   -> otherIOError path exn
 
   let cfg = P.defaultConfig
               { P.cfgSource  = path
@@ -111,18 +124,21 @@ parseModule path = do
 
 -- | Load a module by its path.
 loadModuleByPath :: FilePath -> ModuleM T.Module
-loadModuleByPath path = do
-  pm <- parseModule path
+loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
+  let fileName = takeFileName path
+  -- path' is the resolved, absolute path
+  path' <- findFile fileName
+  pm <- parseModule path'
   let n = thing (P.mName pm)
 
   -- Check whether this module name has already been loaded from a different file
   env <- getModuleEnv
   case lookupModule n env of
-    Nothing -> loadingModule n (loadModule path pm)
+    Nothing -> loadingModule n (loadModule path' pm)
     Just lm
-      | path == path' -> return (lmModule lm)
-      | otherwise     -> duplicateModuleName n path path'
-      where path' = lmFilePath lm
+      | path' == loaded -> return (lmModule lm)
+      | otherwise       -> duplicateModuleName n path' loaded
+      where loaded = lmFilePath lm
 
 
 -- | Load the module specified by an import.
@@ -182,8 +198,6 @@ moduleFile :: ModName -> String -> FilePath
 moduleFile (ModName ns) = addExtension (joinPath ns)
 
 -- | Discover a module.
---
--- TODO: extend this with a search path.
 findModule :: ModName -> ModuleM FilePath
 findModule n = do
   paths <- getSearchPath
@@ -195,13 +209,36 @@ findModule n = do
       b <- io (doesFileExist path)
       if b then return path else loop rest
 
-    [] -> moduleNotFound n =<< getSearchPath
+    [] -> handleNotFound
+
+  handleNotFound =
+    case n of
+      m | m == preludeName -> writePreludeContents
+      _ -> moduleNotFound n =<< getSearchPath
 
   -- generate all possible search paths
   possibleFiles paths = do
     path <- paths
     ext  <- P.knownExts
     return (path </> moduleFile n ext)
+
+-- | Discover a file. This is distinct from 'findModule' in that we
+-- assume we've already been given a particular file name.
+findFile :: FilePath -> ModuleM FilePath
+findFile path | isAbsolute path = do
+  -- No search path checking for absolute paths
+  b <- io (doesFileExist path)
+  if b then return path else cantFindFile path
+findFile path = do
+  paths <- getSearchPath
+  loop (possibleFiles paths)
+  where
+  loop paths = case paths of
+    path':rest -> do
+      b <- io (doesFileExist path')
+      if b then return path' else loop rest
+    [] -> cantFindFile path
+  possibleFiles paths = map (</> path) paths
 
 preludeName :: P.ModName
 preludeName  = P.ModName ["Cryptol"]
@@ -246,7 +283,7 @@ checkExpr e = do
   typecheck T.tcExpr re env'
 
 -- | Typecheck a group of declarations.
-checkDecls :: [P.Decl] -> ModuleM [T.DeclGroup]
+checkDecls :: (HasLoc d, R.Rename d, T.FromDecl d) => [d] -> ModuleM [T.DeclGroup]
 checkDecls ds = do
   -- nopat must already be run
   rds <- renameDecls ds
@@ -308,6 +345,7 @@ importIfacesTc is =
 genInferInput :: Range -> IfaceDecls -> ModuleM T.InferInput
 genInferInput r env = do
   seeds <- getNameSeeds
+  monoBinds <- getMonoBinds
 
   -- TODO: include the environment needed by the module
   return T.InferInput
@@ -316,6 +354,7 @@ genInferInput r env = do
     , T.inpTSyns     =                    filterEnv ifTySyns
     , T.inpNewtypes  =                    filterEnv ifNewtypes
     , T.inpNameSeeds = seeds
+    , T.inpMonoBinds = monoBinds
     }
   where
   -- at this point, the names used in the aggregate interface should be

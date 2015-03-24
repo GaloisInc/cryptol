@@ -1,0 +1,18 @@
+module issue177 where
+
+import issue177A
+import issue177B as B
+import issue177C as C
+
+type Byte = [8]
+
+w : Byte
+w = zero
+
+x : Word16
+x = zero
+
+y : B::Word32
+y = zero
+
+z = C::z

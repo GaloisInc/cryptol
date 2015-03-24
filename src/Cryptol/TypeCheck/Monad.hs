@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -33,6 +33,7 @@ import           Data.Set (Set)
 import           Data.List(find)
 import           Data.Maybe(mapMaybe)
 import           MonadLib
+import qualified Control.Applicative as A
 import           Control.Monad.Fix(MonadFix(..))
 import           Data.Functor
 
@@ -43,6 +44,8 @@ data InferInput = InferInput
   , inpTSyns     :: Map QName TySyn   -- ^ Type synonyms that are in scope
   , inpNewtypes  :: Map QName Newtype -- ^ Newtypes in scope
   , inpNameSeeds :: NameSeeds         -- ^ Private state of type-checker
+  , inpMonoBinds :: Bool              -- ^ Should local bindings without
+                                      --   signatures be monomorphized?
   } deriving Show
 
 
@@ -76,6 +79,7 @@ runInferM info (IM m) =
                      , iTSyns         = fmap mkExternal (inpTSyns info)
                      , iNewtypes      = fmap mkExternal (inpNewtypes info)
                      , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
+                     , iMonoBinds     = inpMonoBinds info
                      }
 
          (result, finalRW) <- runStateT rw $ runReaderT ro m  -- RECURSION
@@ -87,13 +91,15 @@ runInferM info (IM m) =
      case iErrors finalRW of
        [] ->
          case (iCts finalRW, iHasCts finalRW) of
-           ([],[]) -> return $ InferOK warns
+           (cts,[])
+             | nullGoals cts
+                   -> return $ InferOK warns
                                   (iNameSeeds finalRW)
                                   (apSubst defSu result)
            (cts,has) -> return $ InferFailed warns
                 [ ( goalRange g
                   , UnsolvedGoal (apSubst theSu g)
-                  ) | g <- cts ++ map hasGoal has
+                  ) | g <- fromGoals cts ++ map hasGoal has
                 ]
        errs -> return $ InferFailed warns [(r,apSubst theSu e) | (r,e) <- errs]
 
@@ -106,7 +112,7 @@ runInferM info (IM m) =
 
           , iNameSeeds  = inpNameSeeds info
 
-          , iCts        = []
+          , iCts        = emptyGoals
           , iHasCts     = []
           , iSolvedHas  = Map.empty
           }
@@ -142,6 +148,11 @@ data RO = RO
     -- together through recursion.  The field is here so that we can
     -- look thing up before they are defined, which is OK because we
     -- don't need to know the results until everything is done.
+
+  , iMonoBinds :: Bool
+    -- ^ When this flag is set to true, bindings that lack signatures
+    -- in where-blocks will never be generalized. Bindings with type
+    -- signatures, and all bindings at top level are unaffected.
   }
 
 -- | Read-write component of the monad.
@@ -170,7 +181,7 @@ data RW = RW
   , iNameSeeds :: !NameSeeds
 
   -- Constraints that need solving
-  , iCts      :: ![Goal]                -- ^ Ordinary constraints
+  , iCts      :: !Goals                -- ^ Ordinary constraints
   , iHasCts   :: ![HasGoal]
     {- ^ Tuple/record projection constraints.  The `Int` is the "name"
          of the constraint, used so that we can name it solution properly. -}
@@ -178,6 +189,10 @@ data RW = RW
 
 instance Functor InferM where
   fmap f (IM m) = IM (fmap f m)
+
+instance A.Applicative InferM where
+  pure  = return
+  (<*>) = ap
 
 instance Monad InferM where
   return x      = IM (return x)
@@ -229,21 +244,31 @@ newGoals src ps = addGoals =<< mapM (newGoal src) ps
 {- | The constraints are removed, and returned to the caller.
 The substitution IS applied to them. -}
 getGoals :: InferM [Goal]
-getGoals = applySubst =<< IM (sets $ \s -> (iCts s, s { iCts = [] }))
+getGoals =
+  do goals <- applySubst =<< IM (sets $ \s -> (iCts s, s { iCts = emptyGoals }))
+     return (fromGoals goals)
 
 -- | Add a bunch of goals that need solving.
 addGoals :: [Goal] -> InferM ()
-addGoals gs = IM $ sets_ $ \s -> s { iCts = gs ++ iCts s }
+addGoals gs = IM $ sets_ $ \s -> s { iCts = foldl (flip insertGoal) (iCts s) gs }
 
 -- | Collect the goals emitted by the given sub-computation.
 -- Does not emit any new goals.
 collectGoals :: InferM a -> InferM (a, [Goal])
 collectGoals m =
-  do origGs <- getGoals
+  do origGs <- applySubst =<< getGoals'
      a      <- m
      newGs  <- getGoals
-     addGoals origGs
+     setGoals' origGs
      return (a, newGs)
+
+  where
+
+  -- retrieve the type map only
+  getGoals'    = IM $ sets $ \ RW { .. } -> (iCts, RW { iCts = emptyGoals, .. })
+
+  -- set the type map directly
+  setGoals' gs = IM $ sets $ \ RW { .. } -> ((),   RW { iCts = gs, .. })
 
 
 
@@ -295,10 +320,18 @@ newGoalName = newName $ \s -> let x = seedGoal s
 
 -- | Generate a new free type variable.
 newTVar :: Doc -> Kind -> InferM TVar
-newTVar src k =
+newTVar src k = newTVar' src Set.empty k
+
+-- | Generate a new free type variable that depends on these additional
+-- type parameters.
+newTVar' :: Doc -> Set TVar -> Kind -> InferM TVar
+newTVar' src extraBound k =
   do bound <- getBoundInScope
+     let vs = Set.union extraBound bound
      newName $ \s -> let x = seedTVar s
-                     in (TVFree x k bound src, s { seedTVar = x + 1 })
+                     in (TVFree x k vs src, s { seedTVar = x + 1 })
+
+
 
 -- | Generate a new free type variable.
 newTParam :: Maybe QName -> Kind -> InferM TParam
@@ -443,6 +476,10 @@ getTVars = IM $ asks $ Set.fromList . mapMaybe tpName . iTVars
 getBoundInScope :: InferM (Set TVar)
 getBoundInScope = IM $ asks $ Set.fromList . map tpVar . iTVars
 
+-- | Retrieve the value of the `mono-binds` option.
+getMonoBinds :: InferM Bool
+getMonoBinds  = IM (asks iMonoBinds)
+
 {- | We disallow shadowing between type synonyms and type variables
 because it is confusing.  As a bonus, in the implementation we don't
 need to worry about where we lookup things (i.e., in the variable or
@@ -551,6 +588,10 @@ data KRW = KRW { typeParams :: Map QName Kind -- ^ kinds of (known) vars.
 instance Functor KindM where
   fmap f (KM m) = KM (fmap f m)
 
+instance A.Applicative KindM where
+  pure  = return
+  (<*>) = ap
+
 instance Monad KindM where
   return x      = KM (return x)
   fail x        = KM (fail x)
@@ -604,7 +645,10 @@ kRecordWarning w = kInInferM $ recordWarning w
 
 -- | Generate a fresh unification variable of the given kind.
 kNewType :: Doc -> Kind -> KindM Type
-kNewType src k = kInInferM $ newType src k
+kNewType src k =
+  do tps <- KM $ do vs <- asks lazyTVars
+                    return $ Set.fromList [ tv | TVar tv <- Map.elems vs ]
+     kInInferM $ TVar `fmap` newTVar' src tps k
 
 -- | Lookup the definition of a type synonym.
 kLookupTSyn :: QName -> KindM (Maybe TySyn)

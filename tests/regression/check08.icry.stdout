@@ -2,19 +2,19 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at :1:1--7:45:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at check08.cry:9:22--9:24
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at ./check08.cry:9:25--9:33
   to 3
 [warning] at :1:1--7:45:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at check08.cry:7:13--7:15
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at ./check08.cry:7:16--7:24
   to 3
 [warning] at <interactive>:1:1--1:15:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at <interactive>:1:4--1:6
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at <interactive>:1:7--1:15
   to 3
 [0x00000001, 0x00000002, 0x00000005, 0x0000000c, 0x0000001b]
 True

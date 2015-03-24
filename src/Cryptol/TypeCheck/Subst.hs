@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -9,9 +9,11 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Subst where
 
+import           Data.Either (partitionEithers)
 import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
@@ -19,6 +21,7 @@ import qualified Data.Set as Set
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP
+import Cryptol.TypeCheck.TypeMap
 import Cryptol.Utils.Panic(panic)
 
 data Subst = S { suMap :: Map.Map TVar Type, suDefaulting :: !Bool }
@@ -94,6 +97,9 @@ instance FVS Schema where
 class TVars t where
   apSubst :: Subst -> t -> t      -- ^ replaces free vars
 
+instance TVars t => TVars (Maybe t) where
+  apSubst s       = fmap (apSubst s)
+
 instance TVars t => TVars [t] where
   apSubst s       = map (apSubst s)
 
@@ -126,9 +132,44 @@ defaultFreeVar (TVFree _ k _ d) =
                   , "Source: " ++ show d
                   , "Kind: " ++ show k ]
 
+instance (Functor m, TVars a) => TVars (List m a) where
+  apSubst su = fmap (apSubst su)
+
+instance TVars a => TVars (TypeMap a) where
+  apSubst su = fmap (apSubst su)
 
 
+-- | Apply the substitution to the keys of a type map.
+apSubstTypeMapKeys :: Subst -> TypeMap a -> TypeMap a
+apSubstTypeMapKeys su = go (\_ x -> x) id
+  where
 
+  go :: (a -> a -> a) -> (a -> a) -> TypeMap a -> TypeMap a
+  go merge atNode TM { .. } = foldl addKey tm' tys
+    where
+    addKey tm (ty,a) = insertWithTM merge ty a tm
+
+    tm' = TM { tvar = Map.fromList   vars
+             , tcon = fmap (lgo merge atNode) tcon
+             , trec = fmap (lgo merge atNode) trec
+             }
+
+    -- partition out variables that have been replaced with more specific types
+    (vars,tys) = partitionEithers
+                 [ case Map.lookup v (suMap su) of
+                     Just ty -> Right (ty,a')
+                     Nothing -> Left  (v, a')
+
+                 | (v,a) <- Map.toList tvar
+                 , let a' = atNode a
+                 ]
+
+  lgo :: (a -> a -> a) -> (a -> a) -> List TypeMap a -> List TypeMap a
+  lgo merge atNode k = k { nil  = fmap atNode (nil k)
+                         , cons = go (unionTM merge)
+                                     (lgo merge atNode)
+                                     (cons k)
+                         }
 
 
 {- | WARNING: This instance assumes that the quantified variables in the
