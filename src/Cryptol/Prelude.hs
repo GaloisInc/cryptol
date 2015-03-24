@@ -1,3 +1,13 @@
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2015 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- Include the prelude when building with -fself-contained
+
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE QuasiQuotes #-}
 
