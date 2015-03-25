@@ -125,7 +125,7 @@ ifneq (,${PREFIX})
   PREFIX_ARG      := --prefix=$(call adjust-path,${PREFIX_ABS})
   DESTDIR_ARG     := --destdir=${PKG}
   CONFIGURE_ARGS  := -f-relocatable -f-self-contained \
-                     --docdir=$(call adjust-path,${PREFIX_SHARE}/${PREFIX_DOC})
+                     --docdir=$(call adjust-path,${PREFIX}/${PREFIX_SHARE}/${PREFIX_DOC})
 else
   # This is kind of weird: 1. Prefix argument must be absolute; Cabal
   # doesn't yet fully support relocatable packages. 2. We have to
@@ -183,6 +183,8 @@ ${PKG}: ${CRYPTOL_EXE} \
 # cleanup unwanted files
 # don't want to bundle the cryptol library in the binary distribution
 	rm -rf ${PKG_PREFIX}/lib; rm -rf ${PKG_PREFIX}/*windows-ghc*
+# don't ship haddock
+	rm -rf ${PKG_DOC}/html
 
 .PHONY: install
 install: ${PKG}
