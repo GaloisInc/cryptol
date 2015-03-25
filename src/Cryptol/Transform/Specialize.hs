@@ -80,7 +80,7 @@ specializeExpr expr =
     ESel e s      -> ESel <$> specializeExpr e <*> pure s
     EIf e1 e2 e3  -> EIf <$> specializeExpr e1 <*> specializeExpr e2 <*> specializeExpr e3
     EComp t e mss -> EComp t <$> specializeExpr e <*> traverse (traverse specializeMatch) mss
-    -- ^ Bindings within list comprehensions always have monomorphic types.
+    -- Bindings within list comprehensions always have monomorphic types.
     EVar {}       -> specializeConst expr
     ETAbs t e     -> do
       cache <- getSpecCache
@@ -88,10 +88,10 @@ specializeExpr expr =
       e' <- specializeExpr e
       setSpecCache cache
       return (ETAbs t e')
-    -- ^ We need to make sure that after processing `e`, no
-    -- specialized decls mentioning type variable `t` escape outside
-    -- the `ETAbs`. To avoid this, we reset to an empty SpecCache
-    -- while we run `specializeExpr e`, and restore it afterward: this
+    -- We need to make sure that after processing `e`, no specialized
+    -- decls mentioning type variable `t` escape outside the
+    -- `ETAbs`. To avoid this, we reset to an empty SpecCache while we
+    -- run `specializeExpr e`, and restore it afterward: this
     -- effectively prevents the specializer from registering any type
     -- instantiations involving `t` for any decls bound outside the
     -- scope of `t`.
@@ -121,7 +121,7 @@ withDeclGroups :: [DeclGroup] -> SpecM a
 withDeclGroups dgs action = do
   let decls = concatMap groupDecls dgs
   let newCache = Map.fromList [ (dName d, (d, emptyTM)) | d <- decls ]
-  -- | We assume that the names bound in dgs are disjoint from the other names in scope.
+  -- We assume that the names bound in dgs are disjoint from the other names in scope.
   modifySpecCache (Map.union newCache)
   result <- action
   -- Then reassemble the DeclGroups.
@@ -137,10 +137,10 @@ withDeclGroups dgs action = do
           else return [Recursive ds']
       splitDeclGroup (NonRecursive d) = map NonRecursive <$> splitDecl d
   dgs' <- concat <$> traverse splitDeclGroup dgs
-  -- | Get updated map of only the local entries we added.
+  -- Get updated map of only the local entries we added.
   newCache' <- flip Map.intersection newCache <$> getSpecCache
   let nameTable = fmap (fmap fst . snd) newCache'
-  -- | Remove local definitions from the cache.
+  -- Remove local definitions from the cache.
   modifySpecCache (flip Map.difference newCache)
   return (result, dgs', nameTable)
 
@@ -342,4 +342,3 @@ allPublicQNames =
 
 traverseSnd :: Functor f => (b -> f c) -> (a, b) -> f (a, c)
 traverseSnd f (x, y) = (,) x <$> f y
-

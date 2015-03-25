@@ -40,7 +40,7 @@ flag self-contained
 library
   Default-language:
     Haskell98
-  Build-depends:       base            >= 4.6,
+  Build-depends:       base            >= 4.6 && < 5,
                        array           >= 0.4,
                        async           >= 2.0,
                        containers      >= 0.5,
