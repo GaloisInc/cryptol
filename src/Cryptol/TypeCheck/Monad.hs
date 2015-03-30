@@ -47,6 +47,9 @@ data InferInput = InferInput
   , inpNameSeeds :: NameSeeds         -- ^ Private state of type-checker
   , inpMonoBinds :: Bool              -- ^ Should local bindings without
                                       --   signatures be monomorphized?
+  , inpSolverProg:: FilePath          -- ^ The SMT solver to invoke
+  , inpSolverArgs:: [String]          -- ^ Additional arguments to pass
+                                      --   to the solver
   } deriving Show
 
 
@@ -81,11 +84,8 @@ runInferM info (IM m) =
                      , iNewtypes      = fmap mkExternal (inpNewtypes info)
                      , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
                      , iMonoBinds     = inpMonoBinds info
-                     , iSolverProg    = "cvc4"
-                     , iSolverArgs    = [ "--lang=smt2"
-                                        , "--incremental"
-                                        , "--rewrite-divk"
-                                        ]
+                     , iSolverProg    = inpSolverProg info
+                     , iSolverArgs    = inpSolverArgs info
                      }
 
          (result, finalRW) <- runStateT rw $ runReaderT ro m  -- RECURSION

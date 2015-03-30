@@ -84,9 +84,10 @@ import Cryptol.Symbolic (proverNames, lookupProver)
 
 import Control.Applicative ((<$>), Applicative(..))
 import Control.Monad (ap,unless,when)
+import Data.Char (isSpace)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef)
-import Data.List (intercalate, isPrefixOf)
+import Data.List (intercalate, isPrefixOf, unfoldr)
 import Data.Maybe (catMaybes)
 import Data.Monoid (Monoid(..))
 import Data.Typeable (Typeable)
@@ -428,6 +429,7 @@ type UserEnv = Map.Map String EnvVal
 
 data EnvVal
   = EnvString String
+  | EnvArgs   [String]
   | EnvNum    !Int
   | EnvBool   Bool
     deriving (Show)
@@ -453,6 +455,12 @@ setUser name val = case lookupTrie name userOptions of
                         Just err -> io (putStrLn err)
                         Nothing  -> writeEnv (EnvString val)
 
+    EnvArgs _ -> do let args = splitOptArgs val
+                    r <- io (optCheck opt (EnvArgs args))
+                    case r of
+                      Just err -> io (putStrLn err)
+                      Nothing  -> writeEnv (EnvArgs args)
+
     EnvNum _ -> case reads val of
       [(x,_)] -> do r <- io (optCheck opt (EnvNum x))
                     case r of
@@ -473,6 +481,27 @@ setUser name val = case lookupTrie name userOptions of
     writeEnv ev =
       do optEff opt ev
          modifyRW_ (\rw -> rw { eUserEnv = Map.insert name ev (eUserEnv rw) })
+
+splitOptArgs :: String -> [String]
+splitOptArgs  = unfoldr (parse "")
+  where
+
+  parse acc (c:cs) | isQuote c       = quoted (c:acc) cs
+                   | not (isSpace c) = parse (c:acc) cs
+                   | otherwise       = result acc cs
+  parse acc []                       = result acc []
+
+  quoted acc (c:cs) | isQuote c      = parse  (c:acc) cs
+                    | otherwise      = quoted (c:acc) cs
+  quoted acc []                      = result acc []
+
+  result []  [] = Nothing
+  result []  cs = parse [] (dropWhile isSpace cs)
+  result acc cs = Just (reverse acc, dropWhile isSpace cs)
+
+  isQuote :: Char -> Bool
+  isQuote c = c `elem` ("'\"" :: String)
+
 
 -- | Get a user option, using Maybe for failure.
 tryGetUser :: String -> REPL (Maybe EnvVal)
@@ -540,6 +569,25 @@ userOptions  = mkOptionMap
     \case EnvBool b -> do me <- getModuleEnv
                           setModuleEnv me { M.meMonoBinds = b }
           _         -> return ()
+
+  , OptionDescr "tc-solver" (EnvString "cvc4")
+    (const (return Nothing)) -- TODO: check for the program in the path
+    "The solver that will be used by the type checker" $
+    \case EnvString prog -> do me <- getModuleEnv
+                               setModuleEnv me { M.meSolverProg = prog }
+          _              -> return ()
+
+  , OptionDescr "tc-solver-args" (EnvArgs [ "--lang=smt2"
+                                          , "--incremental"
+                                          , "--rewrite-divk" ])
+    (const (return Nothing))
+    "The solver that will be used by the type checker" $
+    \case EnvArgs args  -> do me <- getModuleEnv
+                              setModuleEnv me { M.meSolverArgs = args }
+          EnvString str -> do me <- getModuleEnv
+                              setModuleEnv me { M.meSolverArgs = [str] }
+          _             -> return ()
+
   ]
 
 -- | Check the value to the `base` option.

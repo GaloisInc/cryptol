@@ -391,3 +391,13 @@ setDynEnv :: DynamicEnv -> ModuleM ()
 setDynEnv denv = ModuleT $ do
   me <- get
   set $! me { meDynEnv = denv }
+
+setSolver :: FilePath -> [String] -> ModuleM ()
+setSolver prog args = ModuleT $ do
+  me <- get
+  set $! me { meSolverProg = prog, meSolverArgs = args }
+
+getSolver :: ModuleM (FilePath,[String])
+getSolver  = ModuleT $ do
+  me <- get
+  return (meSolverProg me, meSolverArgs me)

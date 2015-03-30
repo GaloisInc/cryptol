@@ -632,6 +632,7 @@ setOptionCmd str
     ev <- tryGetUser k
     case ev of
       Just (EnvString s)   -> rPutStrLn (k ++ " = " ++ s)
+      Just (EnvArgs as)    -> rPutStrLn (k ++ " = " ++ intercalate " " as)
       Just (EnvNum n)      -> rPutStrLn (k ++ " = " ++ show n)
       Just (EnvBool True)  -> rPutStrLn (k ++ " = on")
       Just (EnvBool False) -> rPutStrLn (k ++ " = off")
