@@ -477,6 +477,7 @@ withSolver prog args chatty k =
 
      solver <- SMT.newSolver prog args Nothing --} (Just logger)
      SMT.setLogic solver "QF_LIA"
+     SMT.setOptionMaybe solver ":global-decls" "false"
      declared <- newIORef viEmpty
      a <- k Solver { .. }
      _ <- SMT.stop solver
