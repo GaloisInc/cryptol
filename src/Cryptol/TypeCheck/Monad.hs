@@ -81,6 +81,11 @@ runInferM info (IM m) =
                      , iNewtypes      = fmap mkExternal (inpNewtypes info)
                      , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
                      , iMonoBinds     = inpMonoBinds info
+                     , iSolverProg    = "cvc4"
+                     , iSolverArgs    = [ "--lang=smt2"
+                                        , "--incremental"
+                                        , "--rewrite-divk"
+                                        ]
                      }
 
          (result, finalRW) <- runStateT rw $ runReaderT ro m  -- RECURSION
@@ -168,6 +173,13 @@ data RO = RO
     -- ^ When this flag is set to true, bindings that lack signatures
     -- in where-blocks will never be generalized. Bindings with type
     -- signatures, and all bindings at top level are unaffected.
+
+  , iSolverProg :: FilePath
+    -- ^ The SMT solver being used.
+
+  , iSolverArgs :: [String]
+    -- ^ Any additional arguments that should be given to the SMT solver when
+    -- starting it.
   }
 
 -- | Read-write component of the monad.
@@ -244,6 +256,11 @@ recordWarning :: Warning -> InferM ()
 recordWarning w =
   do r <- curRange
      IM $ sets_ $ \s -> s { iWarnings = (r,w) : iWarnings s }
+
+getSolver :: InferM (FilePath,[String])
+getSolver  = IM $
+  do RO { .. } <- ask
+     return (iSolverProg,iSolverArgs)
 
 --------------------------------------------------------------------------------
 newGoal :: ConstraintSource -> Prop -> InferM Goal
