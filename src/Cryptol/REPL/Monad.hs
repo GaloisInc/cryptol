@@ -82,13 +82,11 @@ import Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (proverNames, lookupProver)
 
-import Control.Applicative ((<$>), Applicative(..))
 import Control.Monad (ap,unless,when)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef)
 import Data.List (intercalate, isPrefixOf)
 import Data.Maybe (catMaybes)
-import Data.Monoid (Monoid(..))
 import Data.Typeable (Typeable)
 import System.Directory (findExecutable)
 import qualified Control.Exception as X
@@ -97,6 +95,10 @@ import Text.Read (readMaybe)
 
 import Data.SBV.Dynamic (sbvCheckSolverInstallation)
 
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative ((<$>), Applicative(..))
+import Data.Monoid (Monoid(..))
+#endif
 
 -- REPL Environment ------------------------------------------------------------
 

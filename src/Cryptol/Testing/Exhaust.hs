@@ -12,8 +12,11 @@ import qualified Cryptol.Testing.Eval as Eval
 import Cryptol.TypeCheck.AST
 import Cryptol.Eval.Value
 
-import Control.Applicative((<$>))
 import Data.List(genericReplicate)
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative((<$>))
+#endif
 
 {- | Given a (function) type, compute all possible inputs for it.
 We also return the total number of test (i.e., the length of the outer list. -}

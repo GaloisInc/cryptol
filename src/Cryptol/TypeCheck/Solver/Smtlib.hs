@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE OverloadedStrings, RecordWildCards, PatternGuards, Trustworthy #-}
+{-# LANGUAGE OverloadedStrings, RecordWildCards, PatternGuards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Cryptol.TypeCheck.Solver.Smtlib (simpDelayed) where
 

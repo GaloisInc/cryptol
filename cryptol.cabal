@@ -151,8 +151,9 @@ library
                        Paths_cryptol,
                        GitRev
 
+  default-extensions:  CPP
   GHC-options:         -Wall -O2
-  ghc-prof-options: -fprof-auto -prof
+  ghc-prof-options:    -fprof-auto -prof
 
   if flag(relocatable)
       cpp-options: -DRELOCATABLE
@@ -184,8 +185,9 @@ executable cryptol
                      , sbv
                      , tf-random
                      , transformers
+  default-extensions:  CPP
   GHC-options:         -Wall -O2
-  ghc-prof-options: -auto-all -prof -rtsopts
+  ghc-prof-options:    -auto-all -prof -rtsopts
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread

@@ -19,9 +19,13 @@ import Cryptol.Utils.Panic
 
 import Data.Maybe(listToMaybe,fromMaybe)
 import Data.Bits(testBit,setBit)
-import Control.Applicative ((<$>),Applicative(..))
 import Control.Monad(liftM,ap)
-import qualified Data.Traversable as T (mapM)
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative ((<$>),Applicative(..))
+import Data.Traversable (mapM)
+import Prelude hiding (mapM)
+#endif
 
 parse :: Config -> ParseM a -> String -> Either ParseError a
 parse cfg p cs    = case unP p cfg eofPos (S toks) of
@@ -220,8 +224,8 @@ binOp x f y = at (x,y) $ EApp (EApp f x) y
 
 eFromTo :: Range -> Expr -> Maybe Expr -> Maybe Expr -> ParseM Expr
 eFromTo r e1 e2 e3 = EFromTo <$> exprToNumT r e1
-                             <*> T.mapM (exprToNumT r) e2
-                             <*> T.mapM (exprToNumT r) e3
+                             <*> mapM (exprToNumT r) e2
+                             <*> mapM (exprToNumT r) e3
 exprToNumT :: Range -> Expr -> ParseM Type
 exprToNumT r expr =
   case translateExprToNumT expr of

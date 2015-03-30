@@ -15,9 +15,11 @@ import Cryptol.Eval.Value
 import Cryptol.TypeCheck.AST
 import Cryptol.Utils.PP
 
-import           Data.Monoid (Monoid(..))
 import qualified Data.Map as Map
 
+#if __GLASGOW_HASKELL__ < 710
+import           Data.Monoid (Monoid(..))
+#endif
 
 -- Evaluation Environment ------------------------------------------------------
 
@@ -62,6 +64,3 @@ bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
 -- | Lookup a type variable.
 lookupType :: TVar -> EvalEnv -> Maybe TValue
 lookupType p env = Map.lookup p (envTypes env)
-
-
-
