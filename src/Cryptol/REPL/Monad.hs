@@ -429,7 +429,7 @@ type UserEnv = Map.Map String EnvVal
 
 data EnvVal
   = EnvString String
-  | EnvArgs   [String]
+  | EnvProg   String [String]
   | EnvNum    !Int
   | EnvBool   Bool
     deriving (Show)
@@ -455,11 +455,13 @@ setUser name val = case lookupTrie name userOptions of
                         Just err -> io (putStrLn err)
                         Nothing  -> writeEnv (EnvString val)
 
-    EnvArgs _ -> do let args = splitOptArgs val
-                    r <- io (optCheck opt (EnvArgs args))
-                    case r of
-                      Just err -> io (putStrLn err)
-                      Nothing  -> writeEnv (EnvArgs args)
+    EnvProg _ _ ->
+      case splitOptArgs val of
+        prog:args -> do r <- io (optCheck opt (EnvProg prog args))
+                        case r of
+                          Just err -> io (putStrLn err)
+                          Nothing  -> writeEnv (EnvProg prog args)
+        []        -> io (putStrLn ("Failed to parse command for field, `" ++ name ++ "`"))
 
     EnvNum _ -> case reads val of
       [(x,_)] -> do r <- io (optCheck opt (EnvNum x))
@@ -570,23 +572,15 @@ userOptions  = mkOptionMap
                           setModuleEnv me { M.meMonoBinds = b }
           _         -> return ()
 
-  , OptionDescr "tc-solver" (EnvString "cvc4")
+  , OptionDescr "tc-solver" (EnvProg "cvc4" [ "--lang=smt2"
+                                            , "--incremental"
+                                            , "--rewrite-divk" ])
     (const (return Nothing)) -- TODO: check for the program in the path
     "The solver that will be used by the type checker" $
-    \case EnvString prog -> do me <- getModuleEnv
-                               setModuleEnv me { M.meSolverProg = prog }
-          _              -> return ()
-
-  , OptionDescr "tc-solver-args" (EnvArgs [ "--lang=smt2"
-                                          , "--incremental"
-                                          , "--rewrite-divk" ])
-    (const (return Nothing))
-    "The solver that will be used by the type checker" $
-    \case EnvArgs args  -> do me <- getModuleEnv
-                              setModuleEnv me { M.meSolverArgs = args }
-          EnvString str -> do me <- getModuleEnv
-                              setModuleEnv me { M.meSolverArgs = [str] }
-          _             -> return ()
+    \case EnvProg prog args -> do me <- getModuleEnv
+                                  setModuleEnv me { M.meSolverProg = prog
+                                                  , M.meSolverArgs = args }
+          _                 -> return ()
 
   ]
 
