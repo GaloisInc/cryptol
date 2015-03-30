@@ -6,6 +6,8 @@ ARCH    := $(shell uname -m)
 TESTS ?= issues regression renamer mono-binds
 TEST_DIFF ?= meld
 
+IGNORE_EXPECTED ?= --ignore-expected
+
 CABAL_BUILD_FLAGS   ?= -j
 CABAL_INSTALL_FLAGS ?= $(CABAL_BUILD_FLAGS)
 
@@ -230,6 +232,7 @@ test: ${CS_BIN}/cryptol-test-runner
 	  -r output                                                        \
 	  -T --hide-successes                                              \
 	  -T --jxml=$(call adjust-path,$(CURDIR)/results.xml)              \
+	  $(IGNORE_EXPECTED)                                               \
 	  $(if $(TEST_DIFF),-p $(TEST_DIFF),)                              \
 	)
 

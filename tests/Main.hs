@@ -61,6 +61,7 @@ data Options = Options
   , optResultDir :: FilePath
   , optTests     :: [FilePath]
   , optDiff      :: Maybe String
+  , optIgnoreExpected :: Bool
   } deriving (Show)
 
 defaultOptions :: Options
@@ -71,6 +72,7 @@ defaultOptions  = Options
   , optResultDir = "output"
   , optTests     = []
   , optDiff      = Nothing
+  , optIgnoreExpected = False
   }
 
 setHelp :: Endo Options
@@ -92,6 +94,10 @@ addTestFile :: String -> Endo Options
 addTestFile path =
   Endo (\ opts -> opts { optTests = path : optTests opts })
 
+setIgnoreExpected :: Endo Options
+setIgnoreExpected  =
+  Endo (\ opts -> opts { optIgnoreExpected = True })
+
 options :: [OptDescr (Endo Options)]
 options  =
   [ Option "c" ["cryptol"] (ReqArg setCryptol "PATH")
@@ -102,6 +108,8 @@ options  =
     "use this diffing program on failures"
   , Option "T" [] (ReqArg addOther "STRING")
     "add an argument to pass to the test-runner main"
+  , Option "i" ["ignore-expected"] (NoArg setIgnoreExpected)
+    "ignore expected failures"
   , Option "h" ["help"] (NoArg setHelp)
     "display this message"
   ]
@@ -201,7 +209,8 @@ generateAssertion opts dir file = testCase file $ do
                (_,diffOut,_) <- readProcessWithExitCode "diff" [ goldFile', resultOut ] ""
                assertFailure diffOut
 
-        Right fail_msg -> assertFailure fail_msg
+        Right fail_msg | optIgnoreExpected opts -> return ()
+                       | otherwise              -> assertFailure fail_msg
 
 -- Test Discovery --------------------------------------------------------------
 
