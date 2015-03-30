@@ -43,7 +43,9 @@ Cryptol currently depends on the
 [CVC4 SMT solver](http://cvc4.cs.nyu.edu/) to solve constraints during
 type checking, and as the default solver for the `:sat` and `:prove`
 commands. You can download CVC4 binaries for a variety of platforms
-from their [download page](http://cvc4.cs.nyu.edu/downloads/).
+from their [download page](http://cvc4.cs.nyu.edu/downloads/). Note
+that if you install Cryptol using Homebrew, CVC4 will be installed
+automatically.
 
 # Building Cryptol From Source
 
