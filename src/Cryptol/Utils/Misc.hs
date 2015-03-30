@@ -1,4 +1,4 @@
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Safe, FlexibleContexts #-}
 module Cryptol.Utils.Misc where
 
 import Data.Traversable (Traversable, traverse)
