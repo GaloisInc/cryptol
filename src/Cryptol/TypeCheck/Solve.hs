@@ -58,7 +58,8 @@ simplifyAllConstraints :: InferM ()
 simplifyAllConstraints =
   do mapM_  tryHasGoal =<< getHasGoals
      gs <- getGoals
-     mb <- io (Num.withSolver False (`simpGoals` gs))
+     (prog,args) <- getSolver
+     mb <- io (Num.withSolver prog args False (`simpGoals` gs))
      case mb of
        Right (gs1,su) -> extendSubst su >> addGoals gs1
        Left badGs     -> mapM_ (recordError . UnsolvedGoal) badGs
@@ -67,7 +68,8 @@ simplifyAllConstraints =
 proveImplication :: LQName -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
-     mbErr <- io (proveImplicationIO lnam evars as ps gs)
+     (prog,args) <- getSolver
+     mbErr <- io (proveImplicationIO prog args lnam evars as ps gs)
      case mbErr of
        Right (su,ws) ->
           do mapM_ recordWarning ws
@@ -75,16 +77,18 @@ proveImplication lnam as ps gs =
        Left err -> recordError err >> return emptySubst
 
 
-proveImplicationIO :: LQName   -> -- ^ Checking this function
+proveImplicationIO :: FilePath ->
+                      [String] ->
+                      LQName   -> -- ^ Checking this function
                       Set TVar -> -- ^ These appear in the env., and we should
                                   -- not try to default them.
                      [TParam]  -> -- ^ Type parameters
                      [Prop]    -> -- ^ Assumed constraints
                      [Goal]    -> -- ^ Collected constraints
                      IO (Either Error (Subst,[Warning]))
-proveImplicationIO _ _ _ [] [] = return (Right (emptySubst,[]))
-proveImplicationIO lname varsInEnv as ps gs =
-  Num.withSolver False $ \s ->
+proveImplicationIO _ _ _ _ _ [] [] = return (Right (emptySubst,[]))
+proveImplicationIO prog args lname varsInEnv as ps gs =
+  Num.withSolver prog args False $ \s ->
   debugBlock s "proveImplicationIO" $
 
   do debugBlock s "assumes" (debugLog s ps)
@@ -144,8 +148,8 @@ numericRight g  = case Num.exportProp (goal g) of
                     Just (p,vm)  -> Right ((g,vm), p)
                     Nothing -> Left g
 
-_testSimpGoals :: IO ()
-_testSimpGoals = Num.withSolver True $ \s ->
+_testSimpGoals :: FilePath -> [String] -> IO ()
+_testSimpGoals prog args = Num.withSolver prog args True $ \s ->
   do _ <- Num.assumeProps s asmps
      mb <- simpGoals s gs
      case mb of
@@ -354,6 +358,8 @@ eliminateSimpleGEQ = go Map.empty []
 -}
 
 improveByDefaulting ::
+  String ->
+  [String] ->
   [TVar] ->   -- candidates for defaulting
   [Goal] ->   -- constraints
     IO  ( [TVar]    -- non-defaulted
@@ -361,7 +367,7 @@ improveByDefaulting ::
         , Subst     -- improvements from defaultign
         , [Warning] -- warnings about defaulting
         )
-improveByDefaulting xs gs = Num.withSolver False $ \s ->
+improveByDefaulting prog args xs gs = Num.withSolver prog args False $ \s ->
   improveByDefaultingWith s xs gs
 
 improveByDefaultingWith ::

@@ -470,17 +470,14 @@ getNLSubst Solver { .. } =
 
 
 -- | Execute a computation with a fresh solver instance.
-withSolver :: Bool -> (Solver -> IO a) -> IO a
-withSolver chatty k =
+withSolver :: FilePath -> [String] -> Bool -> (Solver -> IO a) -> IO a
+withSolver prog args chatty k =
   do -- let chatty = True
      logger <- if chatty then SMT.newLogger else return quietLogger
 
-     solver <- SMT.newSolver "cvc4" [ "--lang=smt2"
-                                    , "--incremental"
-                                    , "--rewrite-divk"
-                                    ]
-                                                   Nothing --} (Just logger)
+     solver <- SMT.newSolver prog args Nothing --} (Just logger)
      SMT.setLogic solver "QF_LIA"
+     _ <- SMT.setOptionMaybe solver ":global-decls" "false"
      declared <- newIORef viEmpty
      a <- k Solver { .. }
      _ <- SMT.stop solver

@@ -59,7 +59,7 @@ library
                        random          >= 1.0.1,
                        sbv             >= 4.2,
                        smtLib          >= 1.0.7,
-                       simple-smt      >= 0.5.4,
+                       simple-smt      >= 0.5.5,
                        syb             >= 0.4,
                        text            >= 1.1,
                        template-haskell,
@@ -166,7 +166,7 @@ library
   GHC-options:         -Wall -O2 -fsimpl-tick-factor=140
   -- the `fsimpl-tick-factor` is needed to finish optimizing the
   -- generic trie.
-  ghc-prof-options: -fprof-auto -prof
+  ghc-prof-options:    -fprof-auto -prof
 
   if flag(relocatable)
       cpp-options: -DRELOCATABLE
@@ -200,7 +200,7 @@ executable cryptol
                      , transformers
   default-extensions:  CPP
   GHC-options:         -Wall -O2
-  ghc-prof-options: -auto-all -prof -rtsopts
+  ghc-prof-options:    -auto-all -prof -rtsopts
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread
