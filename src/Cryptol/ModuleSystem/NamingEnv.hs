@@ -16,12 +16,14 @@ import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
+import qualified Data.Map as Map
+
+#if __GLASGOW_HASKELL__ < 710
 import Control.Applicative (Applicative, (<$>), (<*>))
 import Data.Monoid (Monoid(..))
 import Data.Foldable (foldMap)
 import Data.Traversable (traverse)
-import qualified Data.Map as Map
-
+#endif
 
 -- Name Locations --------------------------------------------------------------
 

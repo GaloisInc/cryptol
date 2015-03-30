@@ -26,11 +26,15 @@ import Control.Monad (guard)
 import Data.Foldable (fold)
 import Data.Function (on)
 import qualified Data.Map as Map
-import Data.Monoid ((<>), Monoid(..))
+import Data.Monoid ((<>))
 import System.Directory (getAppUserDataDirectory, getCurrentDirectory)
 import System.Environment(getExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
 import qualified Data.List as List
+
+#if __GLASGOW_HASKELL__ < 710
+import Data.Monoid (Monoid(..))
+#endif
 
 -- Module Environment ----------------------------------------------------------
 

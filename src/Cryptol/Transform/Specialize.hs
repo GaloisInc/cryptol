@@ -16,15 +16,17 @@ import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Monad as M
 
-import Control.Applicative
 import Data.List (intercalate)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
-import Data.Traversable (traverse)
 
 import MonadLib
 
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative
+import Data.Traversable (traverse)
+#endif
 
 -- Specializer Monad -----------------------------------------------------------
 

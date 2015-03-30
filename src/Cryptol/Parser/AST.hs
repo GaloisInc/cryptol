@@ -68,8 +68,11 @@ import qualified Data.Set as Set
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
-import           Data.Monoid (Monoid(..))
 import           Numeric(showIntAtBase)
+
+#if __GLASGOW_HASKELL__ < 710
+import           Data.Monoid (Monoid(..))
+#endif
 
 -- | Module names are just namespaces.
 --

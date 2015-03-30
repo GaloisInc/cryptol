@@ -11,7 +11,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Cryptol.Symbolic.Prims where
 
-import Control.Applicative
 import Data.Bits
 import Data.List (genericDrop, genericReplicate, genericSplitAt, genericTake, sortBy, transpose)
 import Data.Ord (comparing)
@@ -26,6 +25,10 @@ import Cryptol.Utils.Panic
 
 import qualified Data.SBV as SBV
 import Data.SBV (SBool)
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative
+#endif
 
 traverseSnd :: Functor f => (a -> f b) -> (t, a) -> f (t, b)
 traverseSnd f (x, y) = (,) x <$> f y
