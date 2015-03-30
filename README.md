@@ -33,6 +33,10 @@ extract to a location of your choice. Windows binaries are distributed
 as an `.msi` installer package which places a shortcut to the Cryptol
 interpreter in the Start menu.
 
+On Mac OS X, Cryptol is also available via
+[Homebrew](http://brew.sh/). Simply run `brew update && brew install
+cryptol` to get the latest stable version.
+
 ## Getting CVC4
 
 Cryptol currently depends on the
@@ -49,10 +53,9 @@ on [GitHub](https://github.com/GaloisInc/cryptol).
 Cryptol builds and runs on various flavors of Linux, Mac OS X, and
 Windows. We regularly build and test it in the following environments:
 
-- Mac OS X 10.9 64-bit
-- CentOS 5 32/64-bit
+- Mac OS X 10.10 64-bit
 - CentOS 6 32/64-bit
-- Windows XP 32-bit
+- Windows 7 32-bit
 
 ## Prerequisites
 
