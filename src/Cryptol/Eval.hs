@@ -29,9 +29,11 @@ import Cryptol.Utils.PP
 import Cryptol.Prims.Eval
 
 import Data.List (transpose)
-import Data.Monoid (Monoid(..),mconcat)
 import qualified Data.Map as Map
 
+#if __GLASGOW_HASKELL__ < 710
+import Data.Monoid (Monoid(..),mconcat)
+#endif
 
 -- Expression Evaluation -------------------------------------------------------
 

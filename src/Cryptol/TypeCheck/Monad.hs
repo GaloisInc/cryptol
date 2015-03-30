@@ -35,7 +35,10 @@ import           Data.Maybe(mapMaybe)
 import           MonadLib
 import qualified Control.Applicative as A
 import           Control.Monad.Fix(MonadFix(..))
+
+#if __GLASGOW_HASKELL__ < 710
 import           Data.Functor
+#endif
 
 -- | Information needed for type inference.
 data InferInput = InferInput

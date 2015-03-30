@@ -9,10 +9,9 @@
 
 module Main where
 
-import Control.Applicative ((<$>))
-import Control.Monad (when,unless,foldM)
+import Control.Monad (when,foldM)
 import Data.List (isPrefixOf,partition,nub)
-import Data.Monoid (Monoid(..),Endo(..))
+import Data.Monoid (Endo(..))
 import System.Console.GetOpt
     (getOpt,usageInfo,ArgOrder(..),OptDescr(..),ArgDescr(..))
 import System.Directory
@@ -27,13 +26,17 @@ import System.Process
     (createProcess,CreateProcess(..),StdStream(..),proc,waitForProcess
     ,readProcessWithExitCode)
 import System.IO
-    (hGetContents,IOMode(..),withFile,SeekMode(..),Handle,hSetBuffering
-    ,BufferMode(..))
+    (IOMode(..),withFile,Handle,hSetBuffering,BufferMode(..))
 import Test.Framework (defaultMain,Test,testGroup)
 import Test.Framework.Providers.HUnit (testCase)
 import Test.HUnit (assertFailure)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative ((<$>))
+import Data.Monoid (Monoid(..))
+#endif
 
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
 import Text.Regex
@@ -179,7 +182,6 @@ generateAssertion opts dir file = testCase file $ do
   goldFile  = dir </> file <.> "stdout"
   resultOut = resultDir </> file <.> "stdout"
   resultDir  = optResultDir opts </> dir
-  indent str = unlines (map ("  " ++) (lines str))
   checkOutput mbKnown expected out
     | expected == out =
       case mbKnown of
@@ -196,8 +198,8 @@ generateAssertion opts dir file = testCase file $ do
 
           | otherwise ->
             do goldFile' <- canonicalizePath goldFile
-               (_,out,_) <- readProcessWithExitCode "diff" [ goldFile', resultOut ] ""
-               assertFailure out
+               (_,diffOut,_) <- readProcessWithExitCode "diff" [ goldFile', resultOut ] ""
+               assertFailure diffOut
 
         Right fail_msg -> assertFailure fail_msg
 
