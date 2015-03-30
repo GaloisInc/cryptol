@@ -26,13 +26,15 @@ import Cryptol.Parser.Position
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
+import MonadLib
+import qualified Data.Map as Map
+
+#if __GLASGOW_HASKELL__ < 710
 import Control.Applicative(Applicative(..),(<$>))
 import Data.Foldable (foldMap)
 import Data.Monoid (Monoid(..))
 import Data.Traversable (traverse)
-import MonadLib
-import qualified Data.Map as Map
-
+#endif
 
 -- Errors ----------------------------------------------------------------------
 

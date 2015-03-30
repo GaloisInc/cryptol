@@ -21,7 +21,6 @@ import Cryptol.Utils.PP
 import qualified Control.Applicative as A
 
 import Data.Either (partitionEithers)
-import qualified Control.Applicative as A
 import MonadLib
 import qualified Control.Exception as X
 

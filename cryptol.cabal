@@ -162,6 +162,7 @@ library
                        Paths_cryptol,
                        GitRev
 
+  default-extensions:  CPP
   GHC-options:         -Wall -O2 -fsimpl-tick-factor=140
   -- the `fsimpl-tick-factor` is needed to finish optimizing the
   -- generic trie.
@@ -197,6 +198,7 @@ executable cryptol
                      , sbv
                      , tf-random
                      , transformers
+  default-extensions:  CPP
   GHC-options:         -Wall -O2
   ghc-prof-options: -auto-all -prof -rtsopts
 
