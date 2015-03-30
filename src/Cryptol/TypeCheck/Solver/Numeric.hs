@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -275,7 +275,7 @@ goalOrderModel m0 todo =
                                -- we know that these goals cannot be solved
                                -- but we don't have a good way to report the err
                                -- For now, we just leave the goals alone
-                               Left err -> (m,bad,others)
+                               Left _err -> (m,bad,others)
 
                                Right (m1,_) -> (m1,bad,others)
 
@@ -290,6 +290,3 @@ goalOrderModel m0 todo =
       OrdCannot         -> go m bad (g : others) changes gs
       OrdImprove t1 t2  -> go m bad (g { goal = t1 =#= t2 } : others) changes gs
       OrdImpossible     -> go m (g : bad) others changes gs
-
-
-

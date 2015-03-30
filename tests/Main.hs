@@ -1,6 +1,7 @@
+{-# LANGUAGE CPP #-}
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -8,6 +9,7 @@
 
 module Main where
 
+import Control.Applicative ((<$>))
 import Control.Monad (when,unless,foldM)
 import Data.List (isPrefixOf,partition,nub)
 import Data.Monoid (Monoid(..),Endo(..))
@@ -33,6 +35,9 @@ import Test.HUnit (assertFailure)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
 
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+import Text.Regex
+#endif
 
 main :: IO ()
 main  = do
@@ -165,7 +170,7 @@ generateAssertion opts dir file = testCase file $ do
     do hSetBuffering hout NoBuffering
        cryptol2 opts hout dir ["-b",file]
 
-  out      <- readFile resultOut
+  out      <- fixPaths <$> readFile resultOut
   expected <- readFile goldFile
   mbKnown  <- X.try (readFile knownFailureFile)
   checkOutput mbKnown expected out
@@ -270,3 +275,21 @@ testDiscovery from = do
 -- | Screen out dotfiles.
 isDotFile :: FilePath -> Bool
 isDotFile path = "." `isPrefixOf` path
+
+-- | Normalize to unix-style paths with forward slashes when on
+-- Windows. This is pretty crude; it just looks for any non-whitespace
+-- strings that contain a blackslash and end in @.cry@ or @.icry@.
+fixPaths :: String -> String
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+fixPaths str = go str
+  where
+  go str
+    | Just (pre, match, post, _) <- matchCryFile str
+    = pre ++ (subst match) ++ go post
+    | otherwise
+    = str
+  subst match = subRegex (mkRegex "\\\\") match "/"
+  matchCryFile = matchRegexAll (mkRegex "\\\\([^[:space:]]*\\.i?cry)")
+#else
+fixPaths = id
+#endif

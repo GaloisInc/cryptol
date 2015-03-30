@@ -1,9 +1,3 @@
-
-// Cryptol Enigma Simulator
-// Copyright (c) 2010-2013, Galois Inc.
-// www.cryptol.net
-// You can freely use this source code for educational purposes.
-
 // Helper synonyms:
 // type Char        = [8]
 module Enigma where

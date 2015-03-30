@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -11,13 +11,16 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
 
-module REPL.Monad (
+module Cryptol.REPL.Monad (
     -- * REPL Monad
     REPL(..), runREPL
   , io
   , raise
   , stop
   , catch
+  , rPutStrLn
+  , rPutStr
+  , rPrint
 
     -- ** Errors
   , REPLException(..)
@@ -39,19 +42,30 @@ module REPL.Monad (
   , shouldContinue
   , unlessBatch
   , asBatch
-  , setREPLTitle
+  , disableLet
+  , enableLet
+  , getLetEnabled
+  , updateREPLTitle
+  , setUpdateREPLTitle
 
     -- ** Config Options
   , EnvVal(..)
   , OptionDescr(..)
   , setUser, getUser, tryGetUser
   , userOptions
-  , DotCryptol(..)
   , getUserSatNum
+
+    -- ** Configurable Output
+  , getPutStr
+  , setPutStr
+
+    -- ** Smoke Test
+  , smokeTest
+  , Smoke(..)
 
   ) where
 
-import REPL.Trie
+import Cryptol.REPL.Trie
 
 import Cryptol.Prims.Types(typeOf)
 import Cryptol.Prims.Syntax(ECon(..),ppPrefix)
@@ -68,14 +82,15 @@ import Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (proverNames, lookupProver)
 
-import Control.Applicative (Applicative(..))
+import Control.Applicative ((<$>), Applicative(..))
 import Control.Monad (ap,unless,when)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef)
-import Data.List (isPrefixOf)
+import Data.List (intercalate, isPrefixOf)
+import Data.Maybe (catMaybes)
 import Data.Monoid (Monoid(..))
 import Data.Typeable (Typeable)
-import System.Console.ANSI (setTitle)
+import System.Directory (findExecutable)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
 import Text.Read (readMaybe)
@@ -90,14 +105,17 @@ data LoadedModule = LoadedModule
   , lPath :: FilePath        -- ^ Focused file
   }
 
--- REPL RW Environment.
+-- | REPL RW Environment.
 data RW = RW
-  { eLoadedMod  :: Maybe LoadedModule
-  , eContinue   :: Bool
-  , eIsBatch    :: Bool
-  , eModuleEnv  :: M.ModuleEnv
-  , eNameSupply :: Int
-  , eUserEnv    :: UserEnv
+  { eLoadedMod   :: Maybe LoadedModule
+  , eContinue    :: Bool
+  , eIsBatch     :: Bool
+  , eModuleEnv   :: M.ModuleEnv
+  , eNameSupply  :: Int
+  , eUserEnv     :: UserEnv
+  , ePutStr      :: String -> IO ()
+  , eLetEnabled  :: Bool
+  , eUpdateTitle :: REPL ()
   }
 
 -- | Initial, empty environment.
@@ -105,12 +123,15 @@ defaultRW :: Bool -> IO RW
 defaultRW isBatch = do
   env <- M.initialModuleEnv
   return RW
-    { eLoadedMod  = Nothing
-    , eContinue   = True
-    , eIsBatch    = isBatch
-    , eModuleEnv  = env
-    , eNameSupply = 0
-    , eUserEnv    = mkUserEnv userOptions
+    { eLoadedMod   = Nothing
+    , eContinue    = True
+    , eIsBatch     = isBatch
+    , eModuleEnv   = env
+    , eNameSupply  = 0
+    , eUserEnv     = mkUserEnv userOptions
+    , ePutStr      = putStr
+    , eLetEnabled  = True
+    , eUpdateTitle = return ()
     }
 
 -- | Build up the prompt for the REPL.
@@ -118,11 +139,6 @@ mkPrompt :: RW -> String
 mkPrompt rw
   | eIsBatch rw = ""
   | otherwise   = maybe "cryptol" pretty (lName =<< eLoadedMod rw) ++ "> "
-
-mkTitle :: RW -> String
-mkTitle rw = maybe "" (\ m -> pretty m ++ " - ") (lName =<< eLoadedMod rw)
-          ++ "cryptol"
-
 
 -- REPL Monad ------------------------------------------------------------------
 
@@ -233,7 +249,7 @@ getPrompt  = mkPrompt `fmap` getRW
 setLoadedMod :: LoadedModule -> REPL ()
 setLoadedMod n = do
   modifyRW_ (\ rw -> rw { eLoadedMod = Just n })
-  setREPLTitle
+  updateREPLTitle
 
 getLoadedMod :: REPL (Maybe LoadedModule)
 getLoadedMod  = eLoadedMod `fmap` getRW
@@ -268,10 +284,48 @@ asBatch body = do
   body
   modifyRW_ $ (\ rw -> rw { eIsBatch = wasBatch })
 
-setREPLTitle :: REPL ()
-setREPLTitle  = unlessBatch $ do
+disableLet :: REPL ()
+disableLet  = modifyRW_ (\ rw -> rw { eLetEnabled = False })
+
+enableLet :: REPL ()
+enableLet  = modifyRW_ (\ rw -> rw { eLetEnabled = True })
+
+-- | Are let-bindings enabled in this REPL?
+getLetEnabled :: REPL Bool
+getLetEnabled = fmap eLetEnabled getRW
+
+-- | Update the title
+updateREPLTitle :: REPL ()
+updateREPLTitle  = unlessBatch $ do
   rw <- getRW
-  io (setTitle (mkTitle rw))
+  eUpdateTitle rw
+
+-- | Set the function that will be called when updating the title
+setUpdateREPLTitle :: REPL () -> REPL ()
+setUpdateREPLTitle m = modifyRW_ (\rw -> rw { eUpdateTitle = m })
+
+-- | Set the REPL's string-printer
+setPutStr :: (String -> IO ()) -> REPL ()
+setPutStr fn = modifyRW_ (\rw -> rw { ePutStr = fn })
+
+-- | Get the REPL's string-printer
+getPutStr :: REPL (String -> IO ())
+getPutStr = fmap ePutStr getRW
+
+
+-- | Use the configured output action to print a string
+rPutStr :: String -> REPL ()
+rPutStr str = do
+  rw <- getRW
+  io $ ePutStr rw str 
+
+-- | Use the configured output action to print a string with a trailing newline
+rPutStrLn :: String -> REPL ()
+rPutStrLn str = rPutStr $ str ++ "\n"
+
+-- | Use the configured output action to print something using its Show instance
+rPrint :: Show a => a -> REPL ()
+rPrint x = rPutStrLn (show x)
 
 builtIns :: [(String,(ECon,T.Schema))]
 builtIns = map mk [ minBound .. maxBound :: ECon ]
@@ -537,26 +591,37 @@ getUserSatNum = do
     _                         -> panic "REPL.Monad.getUserSatNum"
                                    [ "invalid satNum option" ]
 
--- | Configuration of @.cryptol@ file behavior. The default option
--- searches the following locations in order, and evaluates the first
--- file that exists in batch mode on interpreter startup:
---
--- 1. $PWD/.cryptol
--- 2. $HOME/.cryptol
---
--- If files are specified, they will all be evaluated, but none of the
--- default files will be (unless they are explicitly specified).
---
--- The disabled option inhibits any reading of any .cryptol files.
-data DotCryptol =
-    DotCDefault
-  | DotCDisabled
-  | DotCFiles [FilePath]
-  deriving (Show)
-
 -- Environment Utilities -------------------------------------------------------
 
 whenDebug :: REPL () -> REPL ()
 whenDebug m = do
   EnvBool b <- getUser "debug"
   when b m
+
+-- Smoke Testing ---------------------------------------------------------------
+
+smokeTest :: REPL [Smoke]
+smokeTest = catMaybes <$> sequence tests
+  where
+    tests = [ cvc4exists ]
+
+type SmokeTest = REPL (Maybe Smoke)
+
+data Smoke
+  = CVC4NotFound
+  deriving (Show, Eq)
+
+instance PP Smoke where
+  ppPrec _ smoke =
+    case smoke of
+      CVC4NotFound -> text . intercalate " " $ [
+          "[error] cvc4 is required to run Cryptol, but was not found in the"
+        , "system path. See the Cryptol README for more on how to install cvc4."
+        ]
+
+cvc4exists :: SmokeTest
+cvc4exists = do
+  mPath <- io $ findExecutable "cvc4"
+  case mPath of
+    Nothing -> return (Just CVC4NotFound)
+    Just _  -> return Nothing

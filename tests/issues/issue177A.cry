@@ -1,0 +1,3 @@
+module issue177A where
+
+type Word16 = [16]

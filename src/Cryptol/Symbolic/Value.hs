@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -10,7 +10,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeSynonymInstances #-}
-
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Cryptol.Symbolic.Value
   ( Value
   , TValue, numTValue, toNumTValue, finTValue, isTBit, isTFun, isTSeq, isTTuple, isTRec, tvSeq
@@ -21,7 +21,7 @@ module Cryptol.Symbolic.Value
   )
   where
 
-import Data.Bits (bitSize)
+import Data.Bits (finiteBitSize)
 
 import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit, isTFun, isTSeq, isTTuple, isTRec, tvSeq,
                            GenValue(..), BitWord(..), lam, tlam, toStream, toFinSeq, toSeq, fromSeq,
@@ -29,7 +29,7 @@ import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit, is
 import Cryptol.Symbolic.BitVector
 import Cryptol.Utils.Panic (panic)
 
-import Data.SBV (SBool, fromBitsBE, sbvTestBit, Mergeable(..), HasKind(..))
+import Data.SBV (SBool, fromBitsBE, Mergeable(..), HasKind(..), EqSymbolic(..))
 import Data.SBV.Internals (symbolicMergeWithKind)
 
 -- Values ----------------------------------------------------------------------
@@ -66,7 +66,10 @@ instance Mergeable Value where
 
 instance BitWord SBool SWord where
   packWord bs = Data.SBV.fromBitsBE bs
-  unpackWord w = [ sbvTestBit w i | i <- reverse [0 .. bitSize w - 1] ]
+  unpackWord w = [ sbvTestBit' w i | i <- reverse [0 .. finiteBitSize w - 1] ]
+
+sbvTestBit' :: SWord -> Int -> SBool
+sbvTestBit' w i = extract i i w .== literalSWord 1 1
 
 -- Errors ----------------------------------------------------------------------
 

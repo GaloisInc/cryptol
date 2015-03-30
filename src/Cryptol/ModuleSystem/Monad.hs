@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -89,6 +89,8 @@ instance PP ModuleError where
       $$
       hang (text "Searched paths:")
          4 (vcat (map text path))
+      $$
+      text "Set the CRYPTOLPATH environment variable to search more directories"
 
     CantFindFile path ->
       text "[error]" <+>

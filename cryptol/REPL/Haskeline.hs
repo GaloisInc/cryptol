@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -12,9 +12,10 @@
 
 module REPL.Haskeline where
 
-import           REPL.Command
-import           REPL.Monad
-import           REPL.Trie
+import           Cryptol.REPL.Command
+import           Cryptol.REPL.Monad
+import           Cryptol.REPL.Trie
+import           Cryptol.Utils.PP
 
 import qualified Control.Exception as X
 import           Control.Monad (guard, when)
@@ -23,25 +24,25 @@ import qualified Control.Monad.Trans.Class as MTL
 import           Data.Char (isAlphaNum, isSpace)
 import           Data.Function (on)
 import           Data.List (isPrefixOf,nub,sortBy)
+import           System.Console.ANSI (setTitle)
 import           System.Console.Haskeline
 import           System.Directory ( doesFileExist
                                   , getHomeDirectory
                                   , getCurrentDirectory)
 import           System.FilePath ((</>))
 
-
 -- | Haskeline-specific repl implementation.
-repl :: DotCryptol -> Maybe FilePath -> REPL () -> IO ()
-repl dotC mbBatch begin =
+repl :: Cryptolrc -> Maybe FilePath -> REPL () -> IO ()
+repl cryrc mbBatch begin =
   do settings <- setHistoryFile (replSettings isBatch)
-     runREPL isBatch (runInputTBehavior style settings body)
+     runREPL isBatch (runInputTBehavior behavior settings body)
   where
   body = withInterrupt $ do
-    MTL.lift evalDotCryptol
+    MTL.lift evalCryptolrc
     MTL.lift begin
     loop
 
-  (isBatch,style) = case mbBatch of
+  (isBatch,behavior) = case mbBatch of
     Nothing   -> (False,defaultBehavior)
     Just path -> (True,useFile path)
 
@@ -70,20 +71,20 @@ repl dotC mbBatch begin =
                                       getInputLines newPropmpt (init l : ls)
                  | otherwise -> return $ Just $ unlines $ reverse $ l : ls
 
-  evalDotCryptol =
-    case dotC of
-      DotCDefault -> do
+  evalCryptolrc =
+    case cryrc of
+      CryrcDefault -> do
         here <- io $ getCurrentDirectory
         home <- io $ getHomeDirectory
-        let dcHere = here </> ".cryptol"
-            dcHome = home </> ".cryptol"
+        let dcHere = here </> ".cryptolrc"
+            dcHome = home </> ".cryptolrc"
         isHere <- io $ doesFileExist dcHere
         isHome <- io $ doesFileExist dcHome
         if | isHere    -> slurp dcHere
            | isHome    -> slurp dcHome
-           | otherwise -> whenDebug $ io $ putStrLn "no .cryptol found"
-      DotCFiles paths -> mapM_ slurp paths
-      DotCDisabled -> return ()
+           | otherwise -> whenDebug $ io $ putStrLn "no .cryptolrc found"
+      CryrcFiles paths -> mapM_ slurp paths
+      CryrcDisabled -> return ()
 
   -- | Actually read the contents of a file, but don't save the
   -- history
@@ -111,6 +112,24 @@ replSettings isBatch = Settings
   , autoAddHistory = not isBatch
   }
 
+-- .cryptolrc ------------------------------------------------------------------
+
+-- | Configuration of @.cryptolrc@ file behavior. The default option
+-- searches the following locations in order, and evaluates the first
+-- file that exists in batch mode on interpreter startup:
+--
+-- 1. $PWD/.cryptolrc
+-- 2. $HOME/.cryptolrc
+--
+-- If files are specified, they will all be evaluated, but none of the
+-- default files will be (unless they are explicitly specified).
+--
+-- The disabled option inhibits any reading of any .cryptolrc files.
+data Cryptolrc =
+    CryrcDefault
+  | CryrcDisabled
+  | CryrcFiles [FilePath]
+  deriving (Show)
 
 -- Utilities -------------------------------------------------------------------
 
@@ -124,6 +143,16 @@ instance MonadException REPL where
       return (return a)
     unREPL runBody ref
 
+-- Titles ----------------------------------------------------------------------
+
+mkTitle :: Maybe LoadedModule -> String
+mkTitle lm = maybe "" (\ m -> pretty m ++ " - ") (lName =<< lm)
+          ++ "cryptol"
+
+setREPLTitle :: REPL ()
+setREPLTitle = do
+  lm <- getLoadedMod
+  io (setTitle (mkTitle lm))
 
 -- Completion ------------------------------------------------------------------
 

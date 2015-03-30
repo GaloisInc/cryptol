@@ -1,12 +1,12 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
 
-module REPL.Trie where
+module Cryptol.REPL.Trie where
 
 import           Cryptol.Utils.Panic (panic)
 import qualified Data.Map as Map

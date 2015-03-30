@@ -1,0 +1,7 @@
+module issue177C where
+
+z : Word64
+z = zero
+
+private
+  type Word64 = [64]

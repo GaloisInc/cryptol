@@ -1,4 +1,3 @@
-*.pyc
 *\#*
 *~
 .DS_Store
@@ -11,7 +10,13 @@ results.xml
 #docs/CryptolPrims.pdf
 #docs/ProgrammingCryptol.pdf
 #docs/Syntax.pdf
-d#ocs/Version2Changes.pdf
+#docs/Version2Changes.pdf
 
 # don't check in distribution files
 cryptol-2.*
+
+# temporary notebook stuff until we split out the repo
+/ICryptol/ICryptol-2.*
+/ICryptol/profile.tar
+/ICryptol/profile_cryptol/security/
+/ICryptol/profile_cryptol/startup/

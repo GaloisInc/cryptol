@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -25,6 +25,8 @@ import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Depends as T
 import Cryptol.Utils.PP (pretty)
+
+import Cryptol.Prelude (writePreludeContents)
 
 import Cryptol.Transform.MonoValues
 
@@ -207,7 +209,12 @@ findModule n = do
       b <- io (doesFileExist path)
       if b then return path else loop rest
 
-    [] -> moduleNotFound n =<< getSearchPath
+    [] -> handleNotFound
+
+  handleNotFound =
+    case n of
+      m | m == preludeName -> writePreludeContents
+      _ -> moduleNotFound n =<< getSearchPath
 
   -- generate all possible search paths
   possibleFiles paths = do

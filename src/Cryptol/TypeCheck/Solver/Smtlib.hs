@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -24,8 +24,8 @@ import           Data.List(partition)
 import           Data.Maybe(mapMaybe)
 import qualified Data.Set as Set
 import           System.Directory(findExecutable)
-import           System.Environment.Executable(splitExecutablePath)
-import           System.FilePath((</>))
+import           System.Environment(getExecutablePath)
+import           System.FilePath((</>), takeDirectory)
 import           System.Process(readProcessWithExitCode)
 import           System.Exit(ExitCode(..))
 
@@ -34,7 +34,7 @@ simpDelayed :: [TParam] -> OrdFacts -> [Prop] -> [Goal] -> IO [Goal]
 simpDelayed _qvars ordAsmp origAsmps goals =
   do ans <- mapM tryGoal goals
 
-     let (natsDone,natsNot) = partition snd ans
+     let (_natsDone,natsNot) = partition snd ans
      -- XXX: check that `natsDone` also hold for the infinite case
      return (map fst natsNot)
 
@@ -132,7 +132,7 @@ findCvc4 = do
   case mfp of
     Just fp -> return fp
     Nothing -> do
-     (bindir,_) <- splitExecutablePath
+     bindir <- takeDirectory `fmap` getExecutablePath
      return (bindir </> "cvc4")
 
 cvc4 :: SMT.Script -> IO SMTResult

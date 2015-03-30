@@ -1,3 +1,5 @@
+HERE := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
+
 UNAME   := $(shell uname -s)
 ARCH    := $(shell uname -m)
 
@@ -10,7 +12,7 @@ CABAL_INSTALL_FLAGS ?= $(CABAL_BUILD_FLAGS)
 CABAL         := cabal
 CABAL_BUILD   := $(CABAL) build $(CABAL_BUILD_FLAGS)
 CABAL_INSTALL := $(CABAL) install $(CABAL_INSTALL_FLAGS)
-CS            := ./.cabal-sandbox
+CS            := $(HERE)/.cabal-sandbox
 CS_BIN        := $(CS)/bin
 
 # Used only for windows, to find the right Program Files.
@@ -31,7 +33,9 @@ ifneq (,$(findstring _NT,${UNAME}))
   DIST := ${PKG}.msi
   EXE_EXT := .exe
   adjust-path = '$(shell cygpath -w $1)'
-  PREFIX ?= ${PROGRAM_FILES}/Galois/Cryptol\ ${VERSION}
+  PREFIX ?=
+  # For a systemwide distribution .msi, use:
+  # PREFIX ?= ${PROGRAM_FILES}/Galois/Cryptol\ ${VERSION}
   # split this up because `cabal copy` strips drive letters
   PREFIX_ABS    := /cygdrive/c/${PREFIX}
   # since Windows installs aren't overlapping like /usr/local, we
@@ -40,19 +44,23 @@ ifneq (,$(findstring _NT,${UNAME}))
   # goes under the share prefix
   PREFIX_DOC    := /doc
   PKG_PREFIX    := ${PKG}/${PREFIX}
+  ROOT_PATH     := /cygdrive/c
 else
   DIST := ${PKG}.tar.gz ${PKG}.zip
   EXE_EXT :=
   adjust-path = '$1'
-  PREFIX ?= /usr/local
+  PREFIX ?=
+  # For a systemwide distribution like an .rpm or .pkg, use something like:
+  # PREFIX ?= /usr/local
   PREFIX_ABS := ${PREFIX}
   PREFIX_SHARE := /share
   # goes under the share prefix
   PREFIX_DOC   := /doc/cryptol
-  PKG_PREFIX    := ${PKG}${PREFIX}
+  PKG_PREFIX   := ${PKG}${PREFIX}
+  ROOT_PATH    := /
 endif
 
-CRYPTOL_EXE := ./dist/build/cryptol/cryptol${EXE_EXT}
+CRYPTOL_EXE  := ./dist/build/cryptol/cryptol${EXE_EXT}
 
 .PHONY: all
 all: ${CRYPTOL_EXE}
@@ -88,32 +96,55 @@ ${CS_BIN}/alex: | ${CS}
 ${CS_BIN}/happy: | ${CS} ${CS_BIN}/alex
 	$(CABAL_INSTALL) happy
 
+GIT_INFO_FILES :=
+ifneq ("$(wildcard .git/index)","")
+GIT_INFO_FILES := ${GIT_INFO_FILES} .git/index
+endif
+ifneq ("$(wildcard .git/HEAD)","")
+GIT_INFO_FILES := ${GIT_INFO_FILES} .git/HEAD
+endif
+ifneq ("$(wildcard .git/packed-refs)","")
+GIT_INFO_FILES := ${GIT_INFO_FILES} .git/packed-refs
+endif
+
 CRYPTOL_SRC := \
   $(shell find src cryptol \
             \( -name \*.hs -or -name \*.x -or -name \*.y \) \
             -and \( -not -name \*\#\* \) -print) \
-  $(shell find lib -name \*.cry)
-
-src/GitRev.hs: .git/index
-	sh configure
+  $(shell find lib -name \*.cry) \
+  ${GIT_INFO_FILES}
 
 print-%:
 	@echo $* = $($*)
 
-# /usr/share/cryptol on POSIX, installdir/cryptol on Windows
-DATADIR := ${PREFIX_ABS}${PREFIX_SHARE}
+# We do things differently based on whether we have a PREFIX set by
+# the user. If we do, then we know the eventual path it'll wind up in
+# (useful for stuff like RPMs or Homebrew). If not, we try to be as
+# relocatable as possible.
+ifneq (,${PREFIX})
+  PREFIX_ARG      := --prefix=$(call adjust-path,${PREFIX_ABS})
+  DESTDIR_ARG     := --destdir=${PKG}
+  CONFIGURE_ARGS  := -f-relocatable -f-self-contained \
+                     --docdir=$(call adjust-path,${PREFIX}/${PREFIX_SHARE}/${PREFIX_DOC})
+else
+  # This is kind of weird: 1. Prefix argument must be absolute; Cabal
+  # doesn't yet fully support relocatable packages. 2. We have to
+  # provide *some* prefix here even if we're not using it, otherwise
+  # `cabal copy` will make a mess in the PKG directory.
+  PREFIX_ARG      := --prefix=$(call adjust-path,${ROOT_PATH})
+  DESTDIR_ARG     := --destdir=${PKG}
+  CONFIGURE_ARGS  := -f-self-contained \
+                     --docdir=$(call adjust-path,${PREFIX_SHARE}/${PREFIX_DOC})
+endif
 
-dist/setup-config: cryptol.cabal | ${CS_BIN}/alex ${CS_BIN}/happy
+dist/setup-config: cryptol.cabal Makefile | ${CS_BIN}/alex ${CS_BIN}/happy
 	$(CABAL_INSTALL) --only-dependencies
-	$(CABAL) configure                            \
-          --prefix=$(call adjust-path,${PREFIX_ABS})  \
-          --datasubdir=cryptol
+	$(CABAL) configure ${PREFIX_ARG} --datasubdir=cryptol \
+          ${CONFIGURE_ARGS}
 
-${CRYPTOL_EXE}: $(CRYPTOL_SRC) src/GitRev.hs dist/setup-config
+${CRYPTOL_EXE}: $(CRYPTOL_SRC) dist/setup-config
 	$(CABAL_BUILD)
 
-# ${CS_BIN}/cryptolnb: ${CS_BIN}/alex ${CS_BIN}/happy | ${CS}
-# 	$(CABAL) install . -fnotebook
 
 PKG_BIN       := ${PKG_PREFIX}/bin
 PKG_SHARE     := ${PKG_PREFIX}${PREFIX_SHARE}
@@ -128,28 +159,41 @@ PKG_EXAMPLE_FILES := docs/ProgrammingCryptol/aes/AES.cry       \
                      examples/Cipher.cry                       \
                      examples/DEStest.cry                      \
                      examples/Test.cry                         \
-                     examples/SHA1.cry
+                     examples/SHA1.cry                         \
 
 PKG_EXCONTRIB_FILES := examples/contrib/mkrand.cry \
                        examples/contrib/RC4.cry    \
                        examples/contrib/simon.cry  \
                        examples/contrib/speck.cry
 
-${PKG}: ${CRYPTOL_EXE}
-	$(CABAL) copy --destdir=${PKG}
-# don't want to bundle the cryptol library in the binary distribution
-	rm -rf ${PKG_PREFIX}/lib
+${PKG}: ${CRYPTOL_EXE} \
+        docs/*.md docs/*.pdf LICENSE LICENSE.rtf \
+        ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES}
+	$(CABAL) copy ${DESTDIR_ARG}
 	mkdir -p ${PKG_CRY}
 	mkdir -p ${PKG_DOC}
 	mkdir -p ${PKG_EXAMPLES}
 	mkdir -p ${PKG_EXCONTRIB}
 	cp docs/*.md ${PKG_DOC}
 	cp docs/*.pdf ${PKG_DOC}
-	cp LICENSE ${PKG_DOC}
 	for EXAMPLE in ${PKG_EXAMPLE_FILES}; do \
           cp $$EXAMPLE ${PKG_EXAMPLES}; done
 	for EXAMPLE in ${PKG_EXCONTRIB_FILES}; do \
           cp $$EXAMPLE ${PKG_EXCONTRIB}; done
+# cleanup unwanted files
+# don't want to bundle the cryptol library in the binary distribution
+	rm -rf ${PKG_PREFIX}/lib; rm -rf ${PKG_PREFIX}/*windows-ghc*
+# don't ship haddock
+	rm -rf ${PKG_DOC}/html
+
+.PHONY: install
+install: ${PKG}
+	[ -n "${PREFIX}" ] \
+          || (echo "[error] Can't install without PREFIX set"; false)
+	(cd ${PKG_PREFIX}; \
+          find .          -type d -exec install -d        ${PREFIX}/{} \; ; \
+          find bin   -not -type d -exec install -m 755 {} ${PREFIX}/{} \; ; \
+          find share -not -type d -exec install -m 644 {} ${PREFIX}/{} \;)
 
 ${PKG}.tar.gz: ${PKG}
 	tar -czvf $@ $<
@@ -189,14 +233,9 @@ test: ${CS_BIN}/cryptol-test-runner
 	  $(if $(TEST_DIFF),-p $(TEST_DIFF),)                              \
 	)
 
-# .PHONY: notebook
-# notebook: ${CS_BIN}/cryptolnb
-# 	cd notebook && ./notebook.sh
-
 .PHONY: clean
 clean:
 	cabal clean
-	rm -f src/GitRev.hs
 	rm -f $(CS_BIN)/cryptol-test-suite
 	rm -rf cryptol-${VERSION}*/
 	rm -rf cryptol-${VERSION}*.tar.gz

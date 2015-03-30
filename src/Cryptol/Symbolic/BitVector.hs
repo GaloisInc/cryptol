@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -10,12 +10,13 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE CPP #-}
+
 module Cryptol.Symbolic.BitVector where
 
 import Data.Bits
+import Data.List (foldl')
 import Control.Monad (replicateM)
 import System.Random
 
@@ -97,12 +98,21 @@ instance Bits BitVector where
   clearBit (BV s m x) i        = BV s m (clearBit x i)
   complementBit (BV s m x) i   = BV s m (complementBit x i)
   testBit (BV _ _ x) i         = testBit x i
-  bitSize (BV _ m _)           = m
-#if __GLASGOW_HASKELL__ >= 708
+  bitSize x
+    | Just m <- bitSizeMaybe x = m
+    | otherwise                = panic "Cryptol.Symbolic.BitVector"
+                                   [ "bitSize should be total for BitVector" ]
   bitSizeMaybe (BV _ m _)      = Just m
-#endif
   isSigned (BV s _ _)          = s
   popCount (BV _ _ x)          = popCount x
+
+instance FiniteBits BitVector where
+  finiteBitSize (BV _ m _) = m
+
+instance FiniteBits (SBV BitVector) where
+  finiteBitSize (SBV (KBounded _ w) _) = w
+  finiteBitSize _ = panic "Cryptol.Symbolic.BitVector"
+                          [ "finiteBitSize called on non-bitvector value" ]
 
 --------------------------------------------------------------------------------
 -- SBV class instances
@@ -124,9 +134,8 @@ instance SymWord BitVector where
 instance SIntegral BitVector where
 
 instance FromBits (SBV BitVector) where
-  fromBitsLE bs = go (literal (bv (length bs) 0)) 0 bs
-    where go !acc _  []     = acc
-          go !acc !i (x:xs) = go (ite x (setBit acc i) acc) (i+1) xs
+  fromBitsLE bs = foldl' f (literalSWord 0 0) bs
+    where f w b = cat (ite b (literalSWord 1 1) (literalSWord 1 0)) w
 
 instance SDivisible BitVector where
   sQuotRem (BV _ m x) (BV _ n y) = (BV False w q, BV False w r)
@@ -156,19 +165,22 @@ extract i j x@(SBV (KBounded s _) _) =
 extract _ _ _ = panic "Cryptol.Symbolic.BitVector.extract" [ "non-bitvector value" ]
 
 cat :: SWord -> SWord -> SWord
-cat x y | bitSize x == 0 = y
-        | bitSize y == 0 = x
+cat x y | finiteBitSize x == 0 = y
+        | finiteBitSize y == 0 = x
 cat x@(SBV _ (Left a)) y@(SBV _ (Left b)) =
   case (a, b) of
     (CW _ (CWInteger m), CW _ (CWInteger n)) ->
-      SBV k (Left (CW k (CWInteger ((m `shiftL` (bitSize y) .|. n)))))
+      SBV k (Left (CW k (CWInteger ((m `shiftL` (finiteBitSize y) .|. n)))))
     _ -> panic "Cryptol.Symbolic.BitVector.cat" [ "non-integer concrete word" ]
-  where k = KBounded False (bitSize x + bitSize y)
+  where k = KBounded False (finiteBitSize x + finiteBitSize y)
 cat x y = SBV k (Right (cache z))
-  where k = KBounded False (bitSize x + bitSize y)
+  where k = KBounded False (finiteBitSize x + finiteBitSize y)
         z st = do xsw <- sbvToSW st x
                   ysw <- sbvToSW st y
                   newExpr st k (SBVApp Join [xsw, ysw])
+
+literalSWord :: Int -> Integer -> SWord
+literalSWord w i = genLiteral (KBounded False w) i
 
 randomSBVBitVector :: Int -> IO (SBV BitVector)
 randomSBVBitVector w = do
