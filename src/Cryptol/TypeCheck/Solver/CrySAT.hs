@@ -332,7 +332,7 @@ data Scope = Scope
     `x`, and simply ignoring it when we compute models.
     -}
 
-  , scopeNonLinS  :: NonLinS        -- ^ Info about non-linear terms
+  , scopeNonLinS  :: NonLinS
     {- ^ These are the non-linear terms mentioned in the assertions
     that are currently asserted (including ones from previous scopes). -}
 

@@ -77,15 +77,15 @@ proveImplication lnam as ps gs =
        Left err -> recordError err >> return emptySubst
 
 
-proveImplicationIO :: FilePath ->
-                      [String] ->
-                      LQName   -> -- ^ Checking this function
-                      Set TVar -> -- ^ These appear in the env., and we should
-                                  -- not try to default them.
-                     [TParam]  -> -- ^ Type parameters
-                     [Prop]    -> -- ^ Assumed constraints
-                     [Goal]    -> -- ^ Collected constraints
-                     IO (Either Error (Subst,[Warning]))
+proveImplicationIO :: FilePath
+                   -> [String]
+                   -> LQName   -- ^ Checking this functi
+                   -> Set TVar -- ^ These appear in the env., and we should
+                               -- not try to default the
+                   -> [TParam] -- ^ Type parameters
+                   -> [Prop]   -- ^ Assumed constraint
+                   -> [Goal]   -- ^ Collected constraints
+                   -> IO (Either Error (Subst,[Warning]))
 proveImplicationIO _ _ _ _ _ [] [] = return (Right (emptySubst,[]))
 proveImplicationIO prog args lname varsInEnv as ps gs =
   Num.withSolver prog args False $ \s ->
