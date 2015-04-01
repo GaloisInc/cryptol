@@ -211,9 +211,6 @@ The entries in the substitution look like this:
 -}
 
 
-data Solver = Solver SMT.Solver SMT.Logger
-
-
 cryImproveModel :: SMT.Solver -> SMT.Logger -> Set Name -> Map Name Expr
                 -> IO (Map Name Expr)
 cryImproveModel solver logger uniVars m = toSubst `fmap` go Map.empty initialTodo
