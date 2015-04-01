@@ -443,7 +443,7 @@ linRel (x1,y1) (x2,y2) =
      let (a,r) = divMod (y2 - y1) (x2 - x1)
      guard (r == 0 && a /= 0)    -- Not interested in A = 0
      let b = y1 - a * x1
-     guard $ not $ a < 0 && b < 0   -- No way this will give a natural nubmer.
+     guard $ not $ a < 0 && b < 0   -- No way this will give a natural number.
      return (a,b)
 
 

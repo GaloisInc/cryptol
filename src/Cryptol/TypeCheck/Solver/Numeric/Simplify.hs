@@ -32,7 +32,7 @@ import qualified Data.Set as Set
 crySimplify :: Prop -> Prop
 crySimplify p = fromMaybe p (crySimplifyMaybe p)
 
--- | Simplify a property, if possibly.
+-- | Simplify a property, if possible.
 crySimplifyMaybe :: Prop -> Maybe Prop
 crySimplifyMaybe p =
   let mbSimpExprs = simpSubs p
