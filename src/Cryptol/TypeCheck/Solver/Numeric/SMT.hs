@@ -340,7 +340,7 @@ cryCheckLinRel :: SMT.Solver -> SMT.Logger ->
                  (Nat',Nat') {- ^ Values in one model (x,y) -} ->
                  (Nat',Nat') {- ^ Values in another model (x,y) -} ->
                  IO (Maybe Expr)
-cryCheckLinRel s l x y p1 p2 =
+cryCheckLinRel s logger x y p1 p2 =
   -- First, try to find a linear relation that holds in all finite cases.
   do SMT.push s
      SMT.assert s (isFin x)
@@ -379,7 +379,7 @@ cryCheckLinRel s l x y p1 p2 =
   isFin a = SMT.const (smtFinName a)
 
   checkLR x1 y1 x2 y2 =
-    -- putStrLn ("checkLR: " ++ show (x1,y1) ++ "   " ++ show (x2,y2)) >>
+    SMT.logMessage logger ("checkLR: " ++ show (x1,y1) ++ "   " ++ show (x2,y2)) >>
     mbGoOn (return (linRel (x1,y1) (x2,y2))) (\(a,b) ->
       do let sumTerm v
                 | b == 0    = v
