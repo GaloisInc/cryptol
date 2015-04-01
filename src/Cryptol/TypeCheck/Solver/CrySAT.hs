@@ -472,8 +472,8 @@ getNLSubst Solver { .. } =
 -- | Execute a computation with a fresh solver instance.
 withSolver :: FilePath -> [String] -> Bool -> (Solver -> IO a) -> IO a
 withSolver prog args chatty k =
-  do -- let chatty = True
-     logger <- if chatty then SMT.newLogger else return quietLogger
+  do let chatty = True
+     logger <- if chatty then SMT.newLogger 0 else return quietLogger
 
      solver <- SMT.newSolver prog args Nothing --} (Just logger)
      _ <- SMT.setOptionMaybe solver ":global-decls" "false"
@@ -486,6 +486,8 @@ withSolver prog args chatty k =
 
   where
   quietLogger = SMT.Logger { SMT.logMessage = \_ -> return ()
+                           , SMT.logLevel   = return 0
+                           , SMT.logSetLevel= \_ -> return ()
                            , SMT.logTab     = return ()
                            , SMT.logUntab   = return ()
                            }
@@ -591,7 +593,7 @@ getImpSubst :: Solver -> Set Name -> IO Subst
 getImpSubst s@Solver { .. } uniVars =
   do names <- viUnmarkedNames `fmap` readIORef declared
      m     <- fmap Map.fromList (mapM getVal names)
-     impSu <- cryImproveModel solver uniVars m
+     impSu <- cryImproveModel solver logger uniVars m
 
      let isNonLinName (SysName {})  = True
          isNonLinName (UserName {}) = False

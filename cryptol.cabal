@@ -59,7 +59,7 @@ library
                        random          >= 1.0.1,
                        sbv             >= 4.2,
                        smtLib          >= 1.0.7,
-                       simple-smt      >= 0.5.5,
+                       simple-smt      >= 0.6.0,
                        syb             >= 0.4,
                        text            >= 1.1,
                        template-haskell,

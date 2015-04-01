@@ -211,8 +211,12 @@ The entries in the substitution look like this:
 -}
 
 
-cryImproveModel :: SMT.Solver -> Set Name -> Map Name Expr -> IO (Map Name Expr)
-cryImproveModel solver uniVars m = toSubst `fmap` go Map.empty initialTodo
+data Solver = Solver SMT.Solver SMT.Logger
+
+
+cryImproveModel :: SMT.Solver -> SMT.Logger -> Set Name -> Map Name Expr
+                -> IO (Map Name Expr)
+cryImproveModel solver logger uniVars m = toSubst `fmap` go Map.empty initialTodo
   where
   -- Process unification variables first.  That way, if we get `x = y`, we'd
   -- prefer `x` to be a unificaiton variabl.
@@ -249,7 +253,7 @@ cryImproveModel solver uniVars m = toSubst `fmap` go Map.empty initialTodo
            , Map.lookup v2 ce
            ) of
         (True, K x1, K y1, Just (K x2), Just (K y2)) ->
-          cryCheckLinRel solver v2 v1 (y1,x1) (y2,x2)
+          cryCheckLinRel solver logger v2 v1 (y1,x1) (y2,x2)
         _ -> return Nothing
 
     tryLR =
@@ -333,13 +337,13 @@ cryMustEqualV solver x y =
 -- | Try to find a linear relation between the two variables, based
 -- on two observed data points.
 -- NOTE:  The variable being defined is the SECOND name.
-cryCheckLinRel :: SMT.Solver ->
+cryCheckLinRel :: SMT.Solver -> SMT.Logger ->
          {- x -} Name {- ^ Definition in terms of this variable. -} ->
          {- y -} Name {- ^ Define this variable. -} ->
                  (Nat',Nat') {- ^ Values in one model (x,y) -} ->
-                 (Nat',Nat') {- ^ Values in antoher model (x,y) -} ->
+                 (Nat',Nat') {- ^ Values in another model (x,y) -} ->
                  IO (Maybe Expr)
-cryCheckLinRel s x y p1 p2 =
+cryCheckLinRel s l x y p1 p2 =
   -- First, try to find a linear relation that holds in all finite cases.
   do SMT.push s
      SMT.assert s (isFin x)
