@@ -473,7 +473,7 @@ getNLSubst Solver { .. } =
 -- | Execute a computation with a fresh solver instance.
 withSolver :: FilePath -> [String] -> Bool -> (Solver -> IO a) -> IO a
 withSolver prog args chatty k =
-  do let chatty = True
+  do --let chatty = True
      logger <- if chatty then SMT.newLogger 0 else return quietLogger
 
      solver <- SMT.newSolver prog args Nothing --} (Just logger)
