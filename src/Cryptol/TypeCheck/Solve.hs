@@ -388,7 +388,7 @@ improveByDefaulting ::
   [Goal] ->   -- constraints
     IO  ( [TVar]    -- non-defaulted
         , [Goal]    -- new constraints
-        , Subst     -- improvements from defaultign
+        , Subst     -- improvements from defaulting
         , [Warning] -- warnings about defaulting
         )
 improveByDefaulting prog args xs gs = Num.withSolver prog args False $ \s ->
@@ -400,7 +400,7 @@ improveByDefaultingWith ::
   [Goal] ->   -- constraints
     IO  ( [TVar]    -- non-defaulted
         , [Goal]    -- new constraints
-        , Subst     -- improvements from defaultign
+        , Subst     -- improvements from defaulting
         , [Warning] -- warnings about defaulting
         )
 improveByDefaultingWith s as ps =
