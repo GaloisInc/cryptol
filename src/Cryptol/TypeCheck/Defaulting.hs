@@ -32,17 +32,16 @@ import Data.Maybe(fromMaybe)
 
 
 
-
 --------------------------------------------------------------------------------
 -- This is used when we just want to instantiate things in the REPL.
 
 -- | Try to pick a reasonable instantiation for an expression, with
 -- the given type.  This is useful when we do evaluation at the REPL.
--- The resaulting types should satisfy the constraints of the schema.
+-- The resulting types should satisfy the constraints of the schema.
 defaultExpr :: Range -> Expr -> Schema -> Maybe ([(TParam,Type)], Expr)
 defaultExpr r e s =
   do let vs = sVars s
-     guard $ all (\v -> kindOf v == KNum) vs  -- only defautl numerics.
+     guard $ all (\v -> kindOf v == KNum) vs  -- only default numerics.
      ps <- simplify [] $ map toGoal $ sProps s
      soln <- go [] vs ps
      tys  <- mapM (`lookup` soln) vs
@@ -62,7 +61,7 @@ defaultExpr r e s =
   go done as@(tp0:_) ps =
     do let (a,n) = fromMaybe (tpVar tp0, 0) $ msum (map candidate ps)
        -- If no candidate works, we try to set the variable to 0
-       -- This handles a case when all we have letft are fin constraints.
+       -- This handles a case when all we have left are fin constraints.
 
        (tp,tps) <- getParam a as
        let ty = tNum n

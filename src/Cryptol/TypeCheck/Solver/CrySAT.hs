@@ -54,12 +54,12 @@ simpProp :: Prop -> SimpProp
 simpProp p = SimpProp (crySimplify p)
 
 
--- | 'dpSimpProp' and 'dpSimpExprProp' should be logicaly equivalent,
--- to each other, and to whatever 'a' represenets (usually 'a' is a 'Goal').
+-- | 'dpSimpProp' and 'dpSimpExprProp' should be logically equivalent,
+-- to each other, and to whatever 'a' represents (usually 'a' is a 'Goal').
 data DefinedProp a = DefinedProp
   { dpData         :: a
-    -- ^ Optional data to assocate with prop.
-    -- Often, the origianl `Goal` from which the prop was extracted.
+    -- ^ Optional data to associate with prop.
+    -- Often, the original `Goal` from which the prop was extracted.
 
   , dpSimpProp     :: SimpProp
     {- ^ Fully simplified: may mention ORs, and named non-linear terms.
@@ -84,7 +84,7 @@ checkDefined :: Solver                                    ->
                 [(a,Prop)] {- ^ Goals                 -}  ->
                 IO (Maybe ( [a]             -- could not prove
                           , [DefinedProp a] -- proved ok and simplified terms
-                          , Subst -- computed improvements, for the conjuction
+                          , Subst -- computed improvements, for the conjunction
                                    -- of the proved properties.
                           ))
 checkDefined s updCt uniVars props0 =
@@ -305,7 +305,7 @@ data Solver = Solver
     -- ^ Information about declared variables, and assumptions in scope.
 
   , logger    :: SMT.Logger
-    -- ^ For debuging
+    -- ^ For debugging
   }
 
 
