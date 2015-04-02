@@ -31,9 +31,9 @@ cryDefined expr =
                  Fin y :&& x :>= y
     x :* y    -> cryDefined x :&& cryDefined y
     Div x y   -> cryDefined x :&& cryDefined y :&&
-                 Fin x :&& Not (y :== zero)
+                 Fin x :&& y :>= K (Nat 1)
     Mod x y   -> cryDefined x :&& cryDefined y :&&
-                 Fin x :&& Not (y :== zero)
+                 Fin x :&& y :>= K (Nat 1)
     x :^^ y   -> cryDefined x :&& cryDefined y
     Min x y   -> cryDefined x :&& cryDefined y
     Max x y   -> cryDefined x :&& cryDefined y
