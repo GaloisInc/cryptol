@@ -47,6 +47,9 @@ from their [download page](http://cvc4.cs.nyu.edu/downloads/). Note
 that if you install Cryptol using Homebrew, CVC4 will be installed
 automatically.
 
+After installation, make sure that `cvc4` (or `cvc4.exe` on Windows)
+is on your PATH.
+
 # Building Cryptol From Source
 
 In addition to the binaries, the Cryptol source is available publicly
