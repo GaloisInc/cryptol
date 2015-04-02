@@ -16,6 +16,7 @@ module Cryptol.TypeCheck.Solve
   ) where
 
 import           Cryptol.Parser.AST(LQName, thing)
+import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Subst
@@ -30,6 +31,7 @@ import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Parser.Position(rCombs)
 
+import           Control.Monad (unless)
 import           Data.Either(partitionEithers)
 import           Data.Maybe(catMaybes)
 import           Data.Map ( Map )
@@ -98,7 +100,7 @@ proveImplicationIO prog args lname varsInEnv as ps gs =
 
      varMap <- Num.assumeProps s ps
 
-     (possible,imps) <- Num.check s (uniVars (ps,gs))
+     (possible,imps,extra) <- Num.check s (uniVars (ps,gs))
      let su  = importImps varMap imps
          gs0 = apSubst su gs
 
@@ -109,8 +111,13 @@ proveImplicationIO prog args lname varsInEnv as ps gs =
                return $ Left $ UnusableFunction (thing lname) ps
 
        else -- XXX: Use su
-            do let gs1 = filter ((`notElem` ps) . goal) gs0
-               mb <- simpGoals s gs1
+            do let (scs,invalid) = importSideConds varMap extra
+               unless (null invalid) $
+                   panic "proveImplicationIO" ( "Unable to import all side conditions:"
+                                              : map (show . Num.ppProp) invalid )
+
+               let gs1 = filter ((`notElem` ps) . goal) gs0
+               mb <- simpGoals s (scs ++ gs1)
 
                case mb of
                  Left badGs     -> reportUnsolved badGs
@@ -202,10 +209,12 @@ simpGoals s gs0 =
                     do badGs <- Num.minimizeContradiction s numCts
                        return (Left (map fst badGs))
 
-                  Just (nonDef,def,imps) ->
+                  Just (nonDef,def,imps,wds) ->
 
                     -- XXX: What should we do with the extra props...
                     do let (su,extraProps) = importSplitImps varMap imps
+
+                           (sideConds,invalid) = importSideConds varMap wds
 
                            def1 = eliminateSimpleGEQ def
                            toGoal =
@@ -221,11 +230,16 @@ simpGoals s gs0 =
                                       , goalSource = CtImprovement
                                       , goal = p }
 
+                       unless (null invalid) $
+                           panic "simpGoals" ( "Unable to import required well-definedness constraints:"
+                                             : map (show . Num.ppProp) invalid )
+
                        def2 <- Num.simplifyProps s def1
                        let allCts = apSubst su $ map toGoal extraProps ++
                                     map fst nonDef ++
                                     unsolvedClassCts ++
-                                    map fst def2
+                                    map fst def2 ++
+                                    sideConds
 
                        debugBlock s "After simplification:" $
                           do debugLog s allCts
@@ -284,6 +298,16 @@ importImps varMap = listSubst . map imp . Map.toList
   imp (x,e) = case (Map.lookup x varMap, Num.importType varMap e) of
                 (Just tv, Just ty) -> (tv,ty)
                 _ -> panic "importImps" [ "Failed to import:", show x, show e ]
+
+
+
+importSideConds :: Num.VarMap -> [Num.Prop] -> ([Goal],[Num.Prop])
+importSideConds varMap = go [] []
+  where
+  go ok bad []     = ([ Goal CtImprovement emptyRange g | g <- ok], bad)
+  go ok bad (p:ps) = case Num.importProp varMap p of
+                       Just p' -> go (p' ++ ok)    bad  ps
+                       Nothing -> go        ok  (p:bad) ps
 
 
 

@@ -212,35 +212,38 @@ The entries in the substitution look like this:
 
 
 cryImproveModel :: SMT.Solver -> SMT.Logger -> Set Name -> Map Name Expr
-                -> IO (Map Name Expr)
-cryImproveModel solver logger uniVars m = toSubst `fmap` go Map.empty initialTodo
+                -> IO (Map Name Expr, [Prop])
+cryImproveModel solver logger uniVars m = mkSubst `fmap` go Map.empty [] initialTodo
   where
+  mkSubst (m,e) = (toSubst m, e)
+
   -- Process unification variables first.  That way, if we get `x = y`, we'd
-  -- prefer `x` to be a unificaiton variabl.
+  -- prefer `x` to be a unification variable.
   initialTodo    = uncurry (++) $ partition isUniVar $ Map.toList m
   isUniVar (x,_) = x `Set.member` uniVars
 
 
-  go done [] = return done
-  go done ((x,e) : rest) =
+  go done extra []             = return (done,extra)
+  go done extra ((x,e) : rest) =
 
     -- x = K?
     do mbCounter <- cryMustEqualK solver (Map.keys m) x e
        case mbCounter of
-         Nothing -> go (Map.insert x e done) rest
-         Just ce -> goV ce done [] x e rest
+         Nothing -> go (Map.insert x e done) extra rest
+         Just ce -> goV ce done extra [] x e rest
 
-  goV ce done todo x e ((y,e') : more)
+  goV ce done extra todo x e ((y,e') : more)
     -- x = y?
     | e == e' = do yesK <- cryMustEqualV solver x y
                    if yesK then go (Map.insert x (Var y) done)
+                                   extra
                                    (reverse todo ++ more)
                            else tryLR
 
     | otherwise = tryLR
 
     where
-    next = goV ce done ((y,e'):todo) x e more
+    next = goV ce done extra ((y,e'):todo) x e more
 
     tryLR_with v1 v1Expr v2 v2Expr =
       case ( v1 `Set.member` uniVars
@@ -256,15 +259,15 @@ cryImproveModel solver logger uniVars m = toSubst `fmap` go Map.empty initialTod
     tryLR =
       do mb <- tryLR_with x e y e'
          case mb of
-           Just r  -> go (Map.insert x r done) (reverse todo ++ more)
+           Just (r,e) -> go (Map.insert x r done) (e:extra) (reverse todo ++ more)
            Nothing ->
              do mb1 <- tryLR_with y e' x e
                 case mb1 of
                   Nothing -> next
-                  Just r -> go (Map.insert y r done) (reverse todo ++ more)
+                  Just (r,e) -> go (Map.insert y r done) (e:extra) (reverse todo ++ more)
 
 
-  goV _ done todo _ _ [] = go done (reverse todo)
+  goV _ done extra todo _ _ [] = go done extra (reverse todo)
 
 
 
@@ -339,7 +342,9 @@ cryCheckLinRel :: SMT.Solver -> SMT.Logger ->
          {- y -} Name {- ^ Define this variable. -} ->
                  (Nat',Nat') {- ^ Values in one model (x,y) -} ->
                  (Nat',Nat') {- ^ Values in another model (x,y) -} ->
-                 IO (Maybe Expr)
+                 IO (Maybe (Expr,Prop))
+                 {- ^ Either nothing, or an improving expression, and any
+                      additional obligations -}
 cryCheckLinRel s logger x y p1 p2 =
   -- First, try to find a linear relation that holds in all finite cases.
   do SMT.push s
@@ -392,10 +397,10 @@ cryCheckLinRel s logger x y p1 p2 =
                | otherwise  = sumTerm (K (Nat a) :* Var x)
 
          proved <- checkUnsat s $ propToSmtLib $ crySimplify
-                                $ Not $ cryDefined expr :&& Var y :==: expr
+                                $ Not $ {- cryDefined expr :&& -} Var y :==: expr
          if not proved
             then return Nothing
-            else return (Just expr))
+            else return (Just (expr,cryDefined expr)))
 
   -- Try to get an example of another point, which is finite, and at
   -- different @x@ coordinate.

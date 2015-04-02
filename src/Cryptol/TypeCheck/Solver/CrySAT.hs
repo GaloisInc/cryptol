@@ -86,14 +86,16 @@ checkDefined :: Solver                                    ->
                           , [DefinedProp a] -- proved ok and simplified terms
                           , Subst -- computed improvements, for the conjunction
                                    -- of the proved properties.
+                          , [Prop]
+                            -- any side conditions generated
                           ))
 checkDefined s updCt uniVars props0 =
   debugBlock s "Checking for well-defined properties" $
-  withScope s (go Map.empty [] props0)
+  withScope s (go Map.empty [] [] props0)
   where
-  go knownImps done notDone =
+  go knownImps extra done notDone =
     do (newNotDone, novelDone) <- checkDefined' s updCt notDone
-       (possible,  imps)       <- check s uniVars
+       (possible, imps, scs)   <- check s uniVars
 
        if not possible
          then do debugLog s "Found contradiction"
@@ -104,7 +106,10 @@ checkDefined s updCt uniVars props0 =
                        let newImps    = composeSubst novelImps knownImps
                            impDone    = map (updDone novelImps) newDone
                            impNotDone = map (updNotDone novelImps) newNotDone
-                       go newImps impDone impNotDone
+
+                       -- the side conditions (scs) are all well defined, so we
+                       -- don't need to pass them through again.
+                       go newImps (scs ++ extra) impDone impNotDone
 
               let novelImps = Map.difference imps knownImps
                   newDone   = novelDone ++ done
@@ -120,6 +125,7 @@ checkDefined s updCt uniVars props0 =
                             return $ Just ( map fst newNotDone
                                           , newDone
                                           , knownImps
+                                          , scs ++ extra
                                           )
                        Just ((x,e), rest) ->
                          goAgain (Map.singleton x e) rest
@@ -473,7 +479,7 @@ getNLSubst Solver { .. } =
 -- | Execute a computation with a fresh solver instance.
 withSolver :: FilePath -> [String] -> Bool -> (Solver -> IO a) -> IO a
 withSolver prog args chatty k =
-  do --let chatty = True
+  do -- let chatty = True
      logger <- if chatty then SMT.newLogger 0 else return quietLogger
 
      solver <- SMT.newSolver prog args Nothing --} (Just logger)
@@ -571,17 +577,17 @@ some facts that must hold in any models of the current assumptions.
 The 'Bool' is 'True' if the current asumptions *may be* satisifiable.
 The 'Bool' is 'False' if the current assumptions are *definately*
 not satisfiable. -}
-check :: Solver -> Set Name -> IO (Bool, Subst)
+check :: Solver -> Set Name -> IO (Bool, Subst, [Prop])
 check s@Solver { .. } uniVars =
   do res <- SMT.check solver
      case res of
-       SMT.Unsat   -> debugLog s "Not satisfiable" >> return (False, Map.empty)
-       SMT.Unknown -> debugLog s "Unknown" >> return (True, Map.empty)
+       SMT.Unsat   -> debugLog s "Not satisfiable" >> return (False, Map.empty, [])
+       SMT.Unknown -> debugLog s "Unknown" >> return (True, Map.empty, [])
        SMT.Sat     ->
         do debugLog s "Satisfiable"
-           impMap <- debugBlock s "Computing improvements"
-                    (getImpSubst s uniVars)
-           return (True, impMap)
+           (impMap,sideConds) <- debugBlock s "Computing improvements"
+                                     (getImpSubst s uniVars)
+           return (True, impMap, sideConds)
 
 {- | The set of unification variables is used to guide ordering of
 assignments (we prefer assigning to them, as that amounts to doing
@@ -590,11 +596,12 @@ type inference).
 Returns an improving substitution, which may mention the names of
 non-linear terms.
 -}
-getImpSubst :: Solver -> Set Name -> IO Subst
+getImpSubst :: Solver -> Set Name -> IO (Subst,[Prop])
 getImpSubst s@Solver { .. } uniVars =
   do names <- viUnmarkedNames `fmap` readIORef declared
      m     <- fmap Map.fromList (mapM getVal names)
-     impSu <- cryImproveModel solver logger uniVars m
+     (impSu,sideConditions)
+           <- cryImproveModel solver logger uniVars m
 
      let isNonLinName (SysName {})  = True
          isNonLinName (UserName {}) = False
@@ -606,6 +613,9 @@ getImpSubst s@Solver { .. } uniVars =
          (easy,tricky) = Map.partitionWithKey keep impSu
          dump (x,e) = debugLog s (show (ppProp (Var x :== e)))
 
+     debugBlock s "side conditions:" $
+         mapM_ (debugLog s . show . ppProp) sideConditions
+
      when (not (Map.null tricky)) $
        debugBlock s "Tricky subst:" $ mapM_ dump (Map.toList tricky)
 
@@ -614,7 +624,7 @@ getImpSubst s@Solver { .. } uniVars =
         else mapM_ dump (Map.toList easy)
 
 
-     return easy
+     return (easy,sideConditions)
 
   where
   getVal a =
