@@ -19,6 +19,7 @@ import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Solver.Eval (assumedOrderModel,simpType)
 import Cryptol.TypeCheck.Solver.FinOrd(noFacts,OrdFacts,ordFactsToGoals)
 import Cryptol.TypeCheck.Solver.Numeric(numericStep,goalOrderModel)
+import Cryptol.TypeCheck.Solve (tryGetModel)
 import Cryptol.TypeCheck.Subst
   (Subst,apSubst,listSubst,fvs,emptySubst,singleSubst)
 import Cryptol.Utils.Panic(panic)
@@ -31,6 +32,31 @@ import Data.Maybe(fromMaybe)
 
 
 
+-- | An alternative implementation of @defaultExpr@ that uses the SMT solver to
+-- extract a model.
+defaultExpr' :: FilePath -> [String] -> Range -> Expr -> Schema
+             -> IO (Maybe ([(TParam,Type)], Expr))
+defaultExpr' prog args r e s =
+  if all (\v -> kindOf v == KNum) (sVars s)
+     then do let params = map tpVar (sVars s)
+                 goals  = [ Goal CtDefaulting r p | p <- sProps s ]
+             mbSubst <- tryGetModel prog args params goals
+             case mbSubst of
+               Just su -> return $ do tys <- mapM (bindParam su) params
+                                      return (zip (sVars s) tys, appExpr tys)
+               Nothing -> return Nothing
+
+     else return Nothing
+
+  where
+
+  bindParam su tp =
+    do let ty  = TVar tp
+           ty' = apSubst su ty
+       guard (ty /= ty')
+       return ty'
+
+  appExpr tys = foldl (\e1 _ -> EProofApp e1) (foldl ETApp e tys) (sProps s)
 
 --------------------------------------------------------------------------------
 -- This is used when we just want to instantiate things in the REPL.

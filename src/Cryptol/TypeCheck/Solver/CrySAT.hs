@@ -12,7 +12,7 @@
 {-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Solver.CrySAT
   ( withScope, withSolver
-  , assumeProps, checkDefined, simplifyProps
+  , assumeProps, checkDefined, simplifyProps, getModel
   , minimizeContradiction
   , check
   , Solver, logger
@@ -36,6 +36,7 @@ import           Cryptol.Utils.Panic ( panic )
 
 import           MonadLib
 import           Data.Maybe ( mapMaybe, fromMaybe )
+import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Foldable ( any, all )
 import           Data.Set ( Set )
@@ -47,7 +48,7 @@ import           Prelude hiding (any,all)
 import qualified SimpleSMT as SMT
 import           Text.PrettyPrint(Doc)
 
--- | We use this to rememebr what we simplified
+-- | We use this to remember what we simplified
 newtype SimpProp = SimpProp Prop
 
 simpProp :: Prop -> SimpProp
@@ -298,6 +299,45 @@ improveByDefn uvs p =
     | otherwise                   = Just (x,e)
 
 
+type Model = Map Name (Cry.TVar,Integer)
+
+-- | Attempt to find a finite model for the variables involved in a set of
+-- goals.
+getModel :: Solver -> [Goal] -> IO (Maybe Model)
+getModel s goals = withScope s $
+
+  do varMap <- assumeProps s (map goal goals)
+     assumeAllFin varMap
+     res <- SMT.check (solver s)
+     case res of
+       SMT.Sat -> extractModel varMap
+       _       -> return Nothing
+
+  where
+
+  assumeAllFin varMap =
+    mapM_ assertFin (Map.keys varMap)
+
+  assertFin n =
+       SMT.assert (solver s) (SMT.const (smtFinName n))
+
+  extractModel varMap =
+    do binds <- forM (Map.toList varMap) $ \ (n,tv) ->
+                  do mb <- getInst n
+                     case mb of
+                       Just i  -> return (Just (n,(tv,i)))
+                       Nothing -> return Nothing
+
+       return (Map.fromList `fmap` sequence binds)
+
+  -- check to see if the variable became inf, otherwise extract its value.
+  getInst n =
+    do val <- SMT.getConst (solver s) (smtName n)
+       case val of
+         SMT.Int i -> return (Just i)
+         _         -> return Nothing
+
+
 
 --------------------------------------------------------------------------------
 
@@ -334,7 +374,7 @@ data Scope = Scope
     As a result, `x` becomes linear: 5 * b, so we remove from the NonLinS.
     However, the variable `x` may be still mentioned in other assertions.
     So, we add a new assertion `x = 5 * b`.  All done!  From now on, though,
-    we don't wnat to ever have to deal with `x` in any models: it really is
+    we don't want to ever have to deal with `x` in any models: it really is
     just a left-over from the old NL term.  We implement this by "marking"
     `x`, and simply ignoring it when we compute models.
     -}
@@ -397,7 +437,7 @@ viInsert x VarInfo { .. } = VarInfo { curScope = scopeInsert x curScope, .. }
 viMark :: Name -> VarInfo -> VarInfo
 viMark x VarInfo { .. } = VarInfo { curScope = scopeMark x curScope, .. }
 
--- | Add an assertion to the current scope. Returns the lienar part.
+-- | Add an assertion to the current scope. Returns the linear part.
 viAssert :: SimpProp -> VarInfo -> (VarInfo, SimpProp)
 viAssert p VarInfo { .. } = ( VarInfo { curScope = s1, .. }, p1)
   where (p1, s1) = scopeAssert p curScope
@@ -444,7 +484,7 @@ lookupNLVar Solver { .. } x = viLookupNL x `fmap` readIORef declared
 markDefined :: Solver -> Name -> IO ()
 markDefined Solver { .. } x = modifyIORef' declared (viMark x)
 
-{- | Apply a substituition to the non-linear terms.
+{- | Apply a substitution to the non-linear terms.
       * If some of the NL terms became linear, then the relation between
         the sys variable and the new linear term is asserted as a fact.
         We do this, so that other assertions that mention this variable
@@ -572,10 +612,10 @@ prove s@(Solver { .. }) p =
         -- Otherwise, we could look for another one...
 
 
-{- | Check if the current set of assumptions is satisifiable, and find
+{- | Check if the current set of assumptions is satisfiable, and find
 some facts that must hold in any models of the current assumptions.
-The 'Bool' is 'True' if the current asumptions *may be* satisifiable.
-The 'Bool' is 'False' if the current assumptions are *definately*
+The 'Bool' is 'True' if the current assumptions *may be* satisfiable.
+The 'Bool' is 'False' if the current assumptions are *definitely*
 not satisfiable. -}
 check :: Solver -> Set Name -> IO (Bool, Subst, [Prop])
 check s@Solver { .. } uniVars =

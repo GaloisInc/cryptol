@@ -13,6 +13,7 @@ module Cryptol.TypeCheck.Solve
   , proveImplication
   , checkTypeFunction
   , improveByDefaulting
+  , tryGetModel
   ) where
 
 import           Cryptol.Parser.AST(LQName, thing)
@@ -21,7 +22,8 @@ import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Subst
                     (FVS,apSubst,fvs,singleSubst,
-                          emptySubst,Subst,listSubst, (@@))
+                          emptySubst,Subst,listSubst, (@@), Subst,
+                          defaultingSubst)
 import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
@@ -501,4 +503,43 @@ improveByDefaultingWith s as ps =
 
 
 
+-- | Attempt to default the given constraints by asserting them in the SMT
+-- solver, and asking it for a model.
+tryGetModel ::
+  String ->
+  [String] ->
+  [TVar] ->   -- variables to try defaulting
+  [Goal] ->   -- constraints
+    IO (Maybe Subst)
+tryGetModel prog args xs gs =
+  Num.withSolver prog args False $ \ s -> tryGetModelWith s xs gs
 
+tryGetModelWith ::
+  Num.Solver ->
+  [TVar] ->
+  [Goal] ->   -- constraints
+    IO (Maybe Subst)
+tryGetModelWith s xs goals =
+  do mbModel <- Num.getModel s goals
+     case mbModel of
+       Just model -> checkModel $ defaultingSubst
+                                $ listSubst [ (tv,tNum i) | (tv,i) <- Map.elems model
+                                                          , tv `elem` xs ]
+       Nothing    -> return Nothing
+
+  where
+
+  -- make sure that the constraints can be simplified when using this
+  -- model.
+  checkModel su =
+    do let gs = apSubst su goals
+       res <- simpGoals s gs
+       case res of
+
+         -- conservatively, require that all goals are discharged by the model
+         Right (goals',su')
+           | null goals' -> return (Just (su' @@ su))
+           | otherwise   -> return Nothing
+
+         -- simplification failed under this substitution, the model is invalid.
+         Left _ -> return Nothing

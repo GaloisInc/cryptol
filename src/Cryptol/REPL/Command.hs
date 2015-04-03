@@ -48,7 +48,7 @@ import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Subst as T
 import qualified Cryptol.TypeCheck.InferTypes as T
 import Cryptol.TypeCheck.PP (dump,ppWithNames)
-import Cryptol.TypeCheck.Defaulting(defaultExpr)
+import Cryptol.TypeCheck.Defaulting(defaultExpr,defaultExpr')
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
@@ -736,8 +736,12 @@ replEvalExpr expr =
   do (def,sig) <- replCheckExpr expr
 
      let range = fromMaybe emptyRange (getLoc expr)
+
+     EnvProg prog args <- getUser "tc-solver"
+     mbDef <- io (defaultExpr' prog args range def sig)
+
      (def1,ty) <-
-        case defaultExpr range def sig of
+        case mbDef of
           Nothing -> raise (EvalPolyError sig)
           Just (tys,def1) ->
             do let nms = T.addTNames (T.sVars sig) IntMap.empty
