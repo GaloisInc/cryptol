@@ -14,8 +14,8 @@ test05::foo : [10]
 test05::foo = demote 10 10 <> <> <>
 
 /* Not recursive */
-test05::test : {a, b, c} (c >= 4, fin c) => [a]b -> [c]
-test05::test = \{a, b, c} (c >= 4, fin c) (a : [a]b) ->
+test05::test : {a, b, c} (fin c, c >= 4) => [a]b -> [c]
+test05::test = \{a, b, c} (fin c, c >= 4) (a : [a]b) ->
                demote 10 c <> <> <>
                where
                  /* Not recursive */
@@ -59,8 +59,8 @@ test05::foo : [10]
 test05::foo = demote 10 10 <> <> <>
 
 /* Not recursive */
-test05::test : {a, b, c} (c >= 4, fin c) => [a]b -> [c]
-test05::test = \{a, b, c} (c >= 4, fin c) (a : [a]b) ->
+test05::test : {a, b, c} (fin c, c >= 4) => [a]b -> [c]
+test05::test = \{a, b, c} (fin c, c >= 4) (a : [a]b) ->
                demote 10 c <> <> <>
                where
                  /* Not recursive */

@@ -9,10 +9,9 @@
 
 module Main where
 
-import Control.Applicative ((<$>))
-import Control.Monad (when,unless,foldM)
+import Control.Monad (when,foldM)
 import Data.List (isPrefixOf,partition,nub)
-import Data.Monoid (Monoid(..),Endo(..))
+import Data.Monoid (Endo(..))
 import System.Console.GetOpt
     (getOpt,usageInfo,ArgOrder(..),OptDescr(..),ArgDescr(..))
 import System.Directory
@@ -27,13 +26,17 @@ import System.Process
     (createProcess,CreateProcess(..),StdStream(..),proc,waitForProcess
     ,readProcessWithExitCode)
 import System.IO
-    (hGetContents,IOMode(..),withFile,SeekMode(..),Handle,hSetBuffering
-    ,BufferMode(..))
+    (IOMode(..),withFile,Handle,hSetBuffering,BufferMode(..))
 import Test.Framework (defaultMain,Test,testGroup)
 import Test.Framework.Providers.HUnit (testCase)
 import Test.HUnit (assertFailure)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative ((<$>))
+import Data.Monoid (Monoid(..))
+#endif
 
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
 import Text.Regex
@@ -58,6 +61,7 @@ data Options = Options
   , optResultDir :: FilePath
   , optTests     :: [FilePath]
   , optDiff      :: Maybe String
+  , optIgnoreExpected :: Bool
   } deriving (Show)
 
 defaultOptions :: Options
@@ -68,6 +72,7 @@ defaultOptions  = Options
   , optResultDir = "output"
   , optTests     = []
   , optDiff      = Nothing
+  , optIgnoreExpected = False
   }
 
 setHelp :: Endo Options
@@ -89,6 +94,10 @@ addTestFile :: String -> Endo Options
 addTestFile path =
   Endo (\ opts -> opts { optTests = path : optTests opts })
 
+setIgnoreExpected :: Endo Options
+setIgnoreExpected  =
+  Endo (\ opts -> opts { optIgnoreExpected = True })
+
 options :: [OptDescr (Endo Options)]
 options  =
   [ Option "c" ["cryptol"] (ReqArg setCryptol "PATH")
@@ -99,6 +108,8 @@ options  =
     "use this diffing program on failures"
   , Option "T" [] (ReqArg addOther "STRING")
     "add an argument to pass to the test-runner main"
+  , Option "i" ["ignore-expected"] (NoArg setIgnoreExpected)
+    "ignore expected failures"
   , Option "h" ["help"] (NoArg setHelp)
     "display this message"
   ]
@@ -179,7 +190,6 @@ generateAssertion opts dir file = testCase file $ do
   goldFile  = dir </> file <.> "stdout"
   resultOut = resultDir </> file <.> "stdout"
   resultDir  = optResultDir opts </> dir
-  indent str = unlines (map ("  " ++) (lines str))
   checkOutput mbKnown expected out
     | expected == out =
       case mbKnown of
@@ -196,10 +206,11 @@ generateAssertion opts dir file = testCase file $ do
 
           | otherwise ->
             do goldFile' <- canonicalizePath goldFile
-               (_,out,_) <- readProcessWithExitCode "diff" [ goldFile', resultOut ] ""
-               assertFailure out
+               (_,diffOut,_) <- readProcessWithExitCode "diff" [ goldFile', resultOut ] ""
+               assertFailure diffOut
 
-        Right fail_msg -> assertFailure fail_msg
+        Right fail_msg | optIgnoreExpected opts -> return ()
+                       | otherwise              -> assertFailure fail_msg
 
 -- Test Discovery --------------------------------------------------------------
 

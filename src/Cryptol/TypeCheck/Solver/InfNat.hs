@@ -10,14 +10,20 @@
 -- element, and various arithmetic operators on them.
 
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.TypeCheck.Solver.InfNat where
 
 import Data.Bits
 import Cryptol.Utils.Panic
 
+import Data.GenericTrie(TrieKey)
+import GHC.Generics(Generic)
+
 -- | Natural numbers with an infinity element
 data Nat' = Nat Integer | Inf
-            deriving (Show,Eq,Ord)
+            deriving (Show,Eq,Ord,Generic)
+
+instance TrieKey Nat'
 
 fromNat :: Nat' -> Maybe Integer
 fromNat n' =
@@ -82,6 +88,11 @@ nSub (Nat x) (Nat y)
 nSub _ _                      = Nothing
 
 
+-- XXX:
+-- Does it make sense to define:
+--   nDiv Inf (Nat x)  = Inf
+--   nMod Inf (Nat x)  = Nat 0
+
 {- | Rounds down.
 
 > y * q + r = x
@@ -122,18 +133,28 @@ nWidth Inf      = Inf
 nWidth (Nat n)  = Nat (widthInteger n)
 
 
+{- | @length ([ x, y .. ] : [_][w])@
+We don't check that the second element fits in `w` many bits as the 
+second element may not be part of the list.
+For example, the length of @[ 0 .. ] : [_][0]@ is @nLenFromThen 0 1 0@,
+which should evaluate to 1. -}
 nLenFromThen :: Nat' -> Nat' -> Nat' -> Maybe Nat'
-nLenFromThen a@(Nat x) b@(Nat y) (Nat w)
-  | y > x = nLenFromThenTo a b (Nat (2^w - 1))
-  | y < x = nLenFromThenTo a b (Nat 0)
+nLenFromThen a@(Nat x) b@(Nat y) wi@(Nat w)
+  | wi < nWidth a = Nothing
+  | y > x         = nLenFromThenTo a b (Nat (2^w - 1))
+  | y < x         = nLenFromThenTo a b (Nat 0)
 
 nLenFromThen _ _ _ = Nothing
 
+-- | @length [ x, y .. z ]@
 nLenFromThenTo :: Nat' -> Nat' -> Nat' -> Maybe Nat'
 nLenFromThenTo (Nat x) (Nat y) (Nat z)
-  | step /= 0 = let len   = div dist step + 1
-                in Just $ Nat $ max 0 (if x > y then if z > x then 0 else len
-                                         else if z < x then 0 else len)
+  | step /= 0 = let len = div dist step + 1
+                in Just $ Nat $ if x > y
+                                  -- decreasing
+                                  then (if z > x then 0 else len)
+                                  -- increasing
+                                  else (if z < x then 0 else len)
   where
   step = abs (x - y)
   dist = abs (x - z)

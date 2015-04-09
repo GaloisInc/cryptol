@@ -6,655 +6,810 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Safe, PatternGuards #-}
+{-# LANGUAGE Safe #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Solver.CrySAT
-  (debug
-  , Prop(..)
-  , Expr(..)
-  , PropSet
-  , noProps
-  , assert
-  , checkSat
-  , Result(..)
-  , InfNat(..)
-  , Name
-  , toName
-  , fromName
+  ( withScope, withSolver
+  , assumeProps, checkDefined, simplifyProps, getModel
+  , minimizeContradiction
+  , check
+  , Solver, logger
+  , DefinedProp(..)
+  , debugBlock
+  , DebugLog(..)
   ) where
 
-import qualified Data.Integer.SAT as SAT
-import           Data.Set(Set)
-import qualified Data.Set as Set
-import           Data.Either (partitionEithers)
+import qualified Cryptol.TypeCheck.AST as Cry
+import           Cryptol.TypeCheck.PP(pp)
+import           Cryptol.TypeCheck.InferTypes(Goal(..))
+import qualified Cryptol.TypeCheck.Subst as Cry
+
+import           Cryptol.TypeCheck.Solver.Numeric.AST
+import           Cryptol.TypeCheck.Solver.Numeric.ImportExport
+import           Cryptol.TypeCheck.Solver.Numeric.Defined
+import           Cryptol.TypeCheck.Solver.Numeric.Simplify
+import           Cryptol.TypeCheck.Solver.Numeric.NonLin
+import           Cryptol.TypeCheck.Solver.Numeric.SMT
+import           Cryptol.Utils.Panic ( panic )
+
 import           MonadLib
-import           Control.Applicative
+import           Data.Maybe ( mapMaybe, fromMaybe )
+import           Data.Map (Map)
+import qualified Data.Map as Map
+import           Data.Foldable ( any, all )
+import           Data.Set ( Set )
+import qualified Data.Set as Set
+import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef',
+                              atomicModifyIORef' )
+import           Prelude hiding (any,all)
 
-import           Cryptol.Utils.Panic
+import qualified SimpleSMT as SMT
+import           Text.PrettyPrint(Doc)
 
-infixr 2 :||
-infixr 3 :&&
-infix  4 :==, :>, :>=
-infixl 6 :+, :-
-infixl 7 :*
+-- | We use this to remember what we simplified
+newtype SimpProp = SimpProp Prop
 
-
-data Name = UserName Int | SysName Int
-            deriving (Show,Eq,Ord)
-
-toName :: Int -> Name
-toName = UserName
-
-fromName :: Name -> Maybe Int
-fromName (UserName x) = Just x
-fromName (SysName _)  = Nothing
+simpProp :: Prop -> SimpProp
+simpProp p = SimpProp (crySimplify p)
 
 
-exportName :: Name -> SAT.Name
-exportName n = SAT.toName $ case n of
-                              UserName i -> 2 * i
-                              SysName i  -> 2 * i + 1
+-- | 'dpSimpProp' and 'dpSimpExprProp' should be logically equivalent,
+-- to each other, and to whatever 'a' represents (usually 'a' is a 'Goal').
+data DefinedProp a = DefinedProp
+  { dpData         :: a
+    -- ^ Optional data to associate with prop.
+    -- Often, the original `Goal` from which the prop was extracted.
 
-satVar :: Name -> SAT.Expr
-satVar = SAT.Var . exportName
+  , dpSimpProp     :: SimpProp
+    {- ^ Fully simplified: may mention ORs, and named non-linear terms.
+    These are what we send to the prover, and we don't attempt to
+    convert them back into Cryptol types. -}
 
-importName :: Int -> Name
-importName x = case divMod x 2 of
-                 (q,r) | r == 0     -> UserName q
-                       | otherwise  -> SysName q
-
-satCheckSat :: SAT.PropSet -> Maybe [ (Name,Integer) ]
-satCheckSat =  fmap (map imp) . SAT.checkSat
-  where imp (x,v) = (importName x, v)
-
-
-data Prop = Fin Expr
-          | Expr :== Expr | Expr :/= Expr
-          | Expr :>= Expr | Expr :> Expr
-          | Prop :&& Prop | Prop :|| Prop
-          | Not Prop
-            deriving Show
-
-data Expr = K InfNat
-          | Var Name
-          | Expr :+ Expr
-          | Expr :- Expr
-          | Expr :* Expr
-          | Div Expr Expr
-          | Mod Expr Expr
-          | Expr :^^ Expr
-          | Min Expr Expr
-          | Max Expr Expr
-          | Lg2 Expr
-          | Width Expr
-          | LenFromThen   Expr Expr Expr
-          | LenFromThenTo Expr Expr Expr
-            deriving Show
-
-debug :: PropSet -> [S]
-debug (PS m) = runId $ findAll m
-
-newtype PropSet = PS (ChoiceT Id S)
-
-noProps :: PropSet
-noProps = PS $ return S { finVars   = Set.empty
-                        , infVars   = Set.empty
-                        , linear    = SAT.noProps
-                        , nonLin    = []
-                        , waitVars  = Set.empty
-                        , changes   = False
-                        , nextVar   = 0
-                        }
-
-assert :: Prop -> PropSet -> PropSet
-assert p (PS m) =
-  PS $ do s <- m
-          (_,s1) <- runStateT s
-                  $ unFM
-                  $ cvt p >> checkConsistent
-          return s1
-
-  where
-  cvt (p1 :&& p2) = cvt p1 `mkAnd` cvt p2
-  cvt (p1 :|| p2) = cvt p1 `mkOr`  cvt p2
-  cvt (Not p1)    = cvt (mkNot p1)
-  cvt (Fin t)     = cryDefined t  `mkAnd` cryIsFin t
-  cvt (t1 :== t2) = cryDefined t1 `mkAnd` cryDefined t2 `mkAnd` cryIsEq  t1 t2
-  cvt (t1 :/= t2) = cryDefined t1 `mkAnd` cryDefined t2 `mkAnd` cryIsNeq t1 t2
-  cvt (t1 :>= t2) = cryDefined t1 `mkAnd` cryDefined t2 `mkAnd` cryIsGeq t1 t2
-  cvt (t1 :>  t2) = cryDefined t1 `mkAnd` cryDefined t2 `mkAnd` cryIsGt  t1 t2
-
-  mkNot q = case q of
-              p1 :&& p2 -> mkNot p1 :|| mkNot p2
-              p1 :|| p2 -> mkNot p1 :&& mkNot p2
-              Not p1    -> p1
-              Fin e     -> e  :== K Inf
-              t1 :== t2 -> t1 :/= t2
-              t1 :/= t2 -> t1 :== t2
-              t1 :>= t2 -> t2 :> t1
-              t1 :>  t2 -> t2 :>= t1
-
-
-data InfNat = Nat Integer | Inf
-              deriving (Eq,Ord,Show)
-
-data Result = Sat [(Int,InfNat)]
-            | Unsat
-            | Unknown
-              deriving Show
-
-checkSat :: PropSet -> Result
-checkSat (PS ch) =
-  runId $
-  do mb <- runChoiceT ch
-     return $ case mb of
-                Nothing -> Unsat
-                Just (s, more) ->
-                  case getModel s of
-                    Just m  -> Sat m
-                    Nothing -> case checkSat (PS more) of
-                                 Unsat -> Unknown
-                                 x     -> x
-
-getModel :: S -> Maybe [(Int,InfNat)]
-getModel s =
-  do let ps = linear s
-     m  <- satCheckSat ps
-     let exact = [ satVar x SAT.:== SAT.K v | (x,v) <- m ]
-     m1 <- satCheckSat $ foldr SAT.assert SAT.noProps
-                       $ exact ++
-                         [ satVar x SAT.:== cvt m nl | (x,nl) <- nonLin s ]
-     return [ (x,v) | (UserName x, v)
-                          <- [ (x,Inf)  | x <- Set.toList (infVars s) ] ++
-                             [ (x,Nat v) | (x,v) <- m1 ] ]
-
-  where
-  lkp m x = case lookup x m of
-              Nothing -> 0
-              Just n  -> n
-  cvt m nl =
-    case nl of
-      NLDiv e x  -> SAT.Div e (lkp m x)
-      NLMod e x  -> SAT.Mod e (lkp m x)
-      NLExp x y  -> SAT.K $ lkp m x ^ lkp m y
-      NLExpL k y -> SAT.K $ k ^ lkp m y
-      NLExpR x k -> SAT.K $ lkp m x ^ k
-      NLMul x y  -> SAT.K $ lkp m x * lkp m y
-      NLLg2 x    -> SAT.K $ nLg2 (lkp m x)
-
-
-
---------------------------------------------------------------------------------
-
-data NonLin = NLDiv SAT.Expr Name
-            | NLMod SAT.Expr Name
-            | NLExp Name Name
-            | NLExpL Integer Name
-            | NLExpR Name Integer
-            | NLMul Name Name
-            | NLLg2 Name
-              deriving Show
-
-setNL :: Name -> Integer -> (Name,NonLin) -> Either (Name,NonLin) SAT.Prop
-setNL x n (v, nl) = case it of
-                      Left nl1 -> Left (x,nl1)
-                      Right e  -> Right (satVar v SAT.:== e)
-  where
-  it = case nl of
-         NLDiv e y  | x == y            -> Right $ SAT.Div e n
-         NLMod e y  | x == y            -> Right $ SAT.Mod e n
-         NLMul y z  | y == z && x == y  -> Right $ SAT.K $ n * n
-                    | x == y            -> Right $ n SAT.:* satVar z
-                    | x == z            -> Right $ n SAT.:* satVar y
-         NLExp y z  | y == z && x == y  -> Right $ SAT.K $ n ^ n
-                    | x == y            -> Left  $ NLExpL n z
-                    | x == z            -> Left  $ NLExpR y n
-         NLExpL k z | x == z            -> Right $ SAT.K $ k ^ n
-         NLExpR y k | x == y            -> Right $ SAT.K $ n ^ k
-         NLLg2 y    | x == y            -> Right $ SAT.K $ nLg2 n
-         _                              -> Left nl
-
-
-data S = S
-  { finVars   :: Set Name     -- all of these are ordinary finite vars
-  , infVars   :: Set Name     -- these vars are all equal to Inf (XXX: subst?)
-  , linear    :: SAT.PropSet  -- linear constraints
-  , nonLin    :: [(Name,NonLin)] -- non-linear (delayed) constraints
-  , waitVars  :: Set Name     -- waiting for improvements to these
-                              -- improvements here may turn non-lin into lin
-                              -- INV: these are a subset of finVars
-  , changes   :: Bool         -- temp: did something improve last time?
-                              -- if so we should restart.
-  , nextVar   :: !Int         -- source of new variables
+  , dpSimpExprProp :: Prop
+    {- ^ A version of the proposition where just the expression terms
+    have been simplified.  These should not contain ORs or named non-linear
+    terms because we want to import them back into Crytpol types. -}
   }
 
-newtype FM a = FM { unFM :: StateT S (ChoiceT Id) a }
+{- | Check if a collection of things are defined.
+It does not modify the solver's state.
 
-instance Functor FM where
-  fmap f (FM m) = FM (fmap f m)
+The result is like this:
+  * 'Nothing': The properties are inconsistent
+  * 'Just' info:  The properties may be consistent, and here is some info. -}
+checkDefined :: Solver                                    ->
+                (Prop -> a -> a) {- ^ Update a goal -}    ->
+                Set Name   {- ^ Unification variables -}  ->
+                [(a,Prop)] {- ^ Goals                 -}  ->
+                IO (Maybe ( [a]             -- could not prove
+                          , [DefinedProp a] -- proved ok and simplified terms
+                          , Subst -- computed improvements, for the conjunction
+                                   -- of the proved properties.
+                          , [Prop]
+                            -- any side conditions generated
+                          ))
+checkDefined s updCt uniVars props0 =
+  debugBlock s "Checking for well-defined properties" $
+  withScope s (go Map.empty [] [] props0)
+  where
+  go knownImps extra done notDone =
+    do (newNotDone, novelDone) <- checkDefined' s updCt notDone
+       (possible, imps, scs)   <- check s uniVars
 
-instance Applicative FM where
-  pure x          = FM (pure x)
-  FM mf <*> FM mx = FM (mf <*> mx)
+       if not possible
+         then do debugLog s "Found contradiction"
+                 return Nothing
+         else
+           do let goAgain novelImps newDone =
+                    do mapM_ addImpProp (Map.toList novelImps)
+                       let newImps    = composeSubst novelImps knownImps
+                           impDone    = map (updDone novelImps) newDone
+                           impNotDone = map (updNotDone novelImps) newNotDone
 
-instance Alternative FM where
-  empty = mzero
-  (<|>) = mplus
+                       -- the side conditions (scs) are all well defined, so we
+                       -- don't need to pass them through again.
+                       go newImps (scs ++ extra) impDone impNotDone
 
-instance Monad FM where
-  return x        = FM (return x)
-  FM mf >>= k     = FM (mf >>= unFM . k)
+              let novelImps = Map.difference imps knownImps
+                  newDone   = novelDone ++ done
 
-instance MonadPlus FM where
-  mzero = FM mzero
-  mplus (FM m1) (FM m2) = FM (mplus m1 m2)
+              if Map.null novelImps
+                then case findImpByDef [] newDone of
+                       Nothing ->
+                         do debugBlock s "Not well-defined:" $
+                              debugLog s (map snd newNotDone)
+                            debugBlock s "Always defined:" $
+                              debugLog s (map dpSimpExprProp newDone)
 
+                            return $ Just ( map fst newNotDone
+                                          , newDone
+                                          , knownImps
+                                          , scs ++ extra
+                                          )
+                       Just ((x,e), rest) ->
+                         goAgain (Map.singleton x e) rest
 
-noChanges :: F
-noChanges = FM $ sets_ $ \s -> s { changes = False }
+                else goAgain novelImps newDone
 
-addLin :: SAT.Prop -> F
-addLin p = FM $ sets_ $ \s -> s { linear = SAT.assert p (linear s)
-                                , changes = True }
+  addImpProp (x,e) = assert s (simpProp (Var x :== e))
 
+  updDone su ct =
+    case apSubst su (dpSimpExprProp ct) of
+      Nothing -> ct
+      Just p' ->
+        let p2 = crySimpPropExpr p'
+        in DefinedProp { dpData = updCt p2 (dpData ct)
+                       , dpSimpExprProp = p2
+                       , dpSimpProp = simpProp p2
+                       }
 
-checkConsistent :: F
-checkConsistent =
-  do s <- FM get
-     when (changes s) $
-       case satCheckSat (linear s) of
-         Nothing -> mzero
-         Just m  ->
-          do noChanges
-             mapM_ tryImprove [ (x,v) | (x,v) <- m, x `Set.member` waitVars s ]
-             checkConsistent
+  updNotDone su (g,p) =
+    case apSubst su p of
+      Nothing -> (g,p)
+      Just p' -> (updCt p' g,p')
 
-tryImprove :: (Name,Integer) -> F
-tryImprove (x,n) =
-  do s <- FM get
-     case satCheckSat (SAT.assert (satVar x SAT.:/= SAT.K n) (linear s)) of
-       Nothing -> doImprove x n
-       Just _  -> return ()
-
-doImprove :: Name -> Integer -> F
-doImprove x n =
-  do resumed <- FM $ sets $ \s ->
-       let (stay, go) = partitionEithers $ map (setNL x n) (nonLin s)
-       in (go, s { nonLin = stay, waitVars = Set.delete x (waitVars s) })
-     mapM_ addLin resumed
-
-
-getLin :: FM SAT.PropSet
-getLin = FM $ linear `fmap` get
-
-newName :: FM Name
-newName = FM $ sets $ \s -> let x = nextVar s
-                            in (SysName x, s { nextVar = x + 1 })
-
-addNonLin :: NonLin -> FM SAT.Expr
-addNonLin nl =
-  do x <- newName
-     FM $ sets_ $ \s -> s { nonLin = (x,nl) : nonLin s }
-     isFin x
-     return $ satVar x
-
-
-type F = FM ()
-
-mkAnd :: F -> F -> F
-mkAnd f1 f2 = f1 >> f2
-
-mkOr  :: F -> F -> F
-mkOr f1 f2 = f1 `mplus` f2
-
-tt :: F
-tt = return ()
-
-ff :: F
-ff = mzero
-
-isEq :: Expr -> Expr -> F
-isEq t1 t2 = addLin =<< ((SAT.:==) <$> mkLin t1 <*> mkLin t2)
-
-isGt :: Expr -> Expr -> F
-isGt t1 t2 = addLin =<< ((SAT.:>) <$> mkLin t1 <*> mkLin t2)
-
-isFin :: Name -> F
-isFin x = do FM $ do s <- get
-                     guard (Set.notMember x (infVars s))
-                     set s { finVars = Set.insert x (finVars s) }
-             addLin (satVar x SAT.:>= SAT.K 0)
-
-isInf :: Name -> F
-isInf x = FM $ do s <- get
-                  guard (Set.notMember x (finVars s))
-                  set s { infVars = Set.insert x (infVars s) }
+  -- Try to prove something by unification (e.g., ?x = a * b)
+  findImpByDef _ [] = Nothing
+  findImpByDef qs (p : ps) =
+    case improveByDefn uniVars p of
+      Nothing  -> findImpByDef (p : qs) ps
+      Just yes -> Just (yes, qs ++ ps)
 
 
 
---------------------------------------------------------------------------------
+
+-- | Check that a bunch of constraints are all defined.
+--  * We return constraints that are not necessarily defined in the first
+--    component, and the ones that are defined in the second component.
+--  * Well defined constraints are asserted at this point.
+--  * The expressions in the defined constraints are simplified.
+--  * The expressions in the well-defined constraint may mention sys. vars.
+--    (i.e., named non-linear terms)
+checkDefined' :: Solver -> (Prop -> a -> a) ->
+                [(a,Prop)] -> IO ([(a,Prop)], [DefinedProp a])
+checkDefined' s updCt props0 =
+  do let ps = [ (a,p,simpProp (cryDefinedProp p)) | (a,p) <- props0 ]
+     go False [] [] ps
+
+  where
 
 
-cryIsEq :: Expr -> Expr -> F
-cryIsEq t1 t2 = (cryIsInf t1 `mkAnd` cryIsInf t2) `mkOr`
-                (cryIsFin t1 `mkAnd` cryIsFin t2 `mkAnd` isEq t1 t2)
+  -- Everything is defined: keep going.
+  go _    isDef []       [] = return ([], isDef)
 
-cryIsNeq :: Expr -> Expr -> F
-cryIsNeq t1 t2 = cryIsGt t1 t2 `mkOr` cryIsGt t2 t1
+  -- We have possibly non-defined, but we also added a new fact: go again.
+  go True isDef isNotDef [] = go False isDef [] isNotDef
 
-cryIsGt :: Expr -> Expr -> F
-cryIsGt t1 t2 = (cryIsInf t1 `mkAnd` cryIsFin t2) `mkOr`
-                (cryIsFin t1 `mkAnd` cryIsFin t2  `mkAnd` isGt t1 t2)
+  -- We have possibly non-defined predicates and nothing changed.
+  go False isDef isNotDef [] = return ([ (a,p) | (a,p,_) <- isNotDef ], isDef)
 
-cryIsGeq :: Expr -> Expr -> F
-cryIsGeq t1 t2 = cryIsEq t1 t2 `mkOr` cryIsGt t1 t2
+  -- Process one constraint.
+  go ch isDef isNotDef ((ct,p,q@(SimpProp defCt)) : more) =
+    do proved <- prove s defCt
+       if proved then do let r = case crySimpPropExprMaybe p of
+                                   Nothing ->
+                                     DefinedProp
+                                        { dpData = ct
+                                        , dpSimpExprProp = p
+                                        , dpSimpProp = simpProp p
+                                        }
+                                   Just p' ->
+                                     DefinedProp
+                                       { dpData = updCt p' ct
+                                       , dpSimpExprProp = p'
+                                       , dpSimpProp = simpProp p'
+                                       }
+                         -- add defined prop as an assumption
+                         assert s (dpSimpProp r)
+                         go True (r : isDef) isNotDef  more
+                 else go ch isDef ((ct,p,q) : isNotDef) more
 
-cryIsDifferent :: Expr -> Expr -> F
-cryIsDifferent t1 t2 = cryIsGt t1 t2 `mkOr` cryIsGt t2 t1
 
 
-{- XXX: Are we being a bit too strict here?
-Some oprtations may be defined even if one of their arguments
-is not.  For example, perhaps the following should not be rejected:
-inf + undefined -> inf
-0 - undefined   -> 0
-0 * undefined   -> 0
-mod undefined 1 -> 0
-1 ^ undefined   -> 1
-undefined ^ 0   -> 1`
-min 0 undefined -> 0
-max inf undefined -> inf
+
+
+
+
+-- | Simplify a bunch of well-defined properties.
+--  * Eliminates properties that are implied by the rest.
+--  * Does not modify the set of assumptions.
+simplifyProps :: Solver -> [DefinedProp a] -> IO [a]
+simplifyProps s props =
+  debugBlock s "Simplifying properties" $
+  withScope s (go [] props)
+  where
+  go survived [] = return survived
+
+  go survived (DefinedProp { dpSimpProp = SimpProp PTrue } : more) =
+                                                          go survived more
+
+  go survived (p : more) =
+    case dpSimpProp p of
+      SimpProp PTrue -> go survived more
+      SimpProp p' ->
+        do proved <- withScope s $ do mapM_ (assert s . dpSimpProp) more
+                                      prove s p'
+           if proved
+             then go survived more
+             else do assert s (SimpProp p')
+                     go (dpData p : survived) more
+
+
+-- | Add the given constraints as assumptions.
+--  * We assume that the constraints are well-defined.
+--  * Modifies the set of assumptions.
+assumeProps :: Solver -> [Cry.Prop] -> IO VarMap
+assumeProps s props =
+  do mapM_ (assert s . simpProp) (map cryDefinedProp ps ++ ps)
+     return (Map.unions varMaps)
+  where (ps,varMaps) = unzip (mapMaybe exportProp props)
+  -- XXX: Instead of asserting one at a time, perhaps we should
+  -- assert a conjunction.  That way, we could simplify the whole thing
+  -- in one go, and would avoid having to assert 'true' many times.
+
+
+
+
+-- | Given a list of propositions that together lead to a contradiction,
+-- find a sub-set that still leads to a contradiction (but is smaller).
+minimizeContradiction :: Solver -> [(a,Prop)] -> IO [a]
+minimizeContradiction s ps = start [] (map prep ps)
+  where
+  prep (a,p) = (a, simpProp p)
+
+  start bad [] = return bad
+  start bad (p : more) =
+    do solPush s
+       go bad [] (p : more)
+
+  go _ _ [] = panic "minimizeContradiction"
+                  $ ("No contradiction" : map (show . ppProp . snd) ps)
+  go bad prev ((a,p) : more) =
+    do assert s p
+       res <- SMT.check (solver s)
+       case res of
+         SMT.Unsat -> do solPop s
+                         assert s p
+                         start (a : bad) prev
+         _ -> go bad ((a,p) : prev) more
+
+
+
+
+{- | If we see an equation: `?x = e`, and:
+      * ?x is a unification variable
+      * `e` is "zonked" (substitution is fully applied)
+      * ?x does not appear in `e`.
+    then, we can improve `?x` to `e`.
 -}
-cryDefined :: Expr -> F
-cryDefined ty =
-  case ty of
-    K _        -> tt
-    Var _      -> tt
-    t1 :+ t2  -> cryDefined t1 `mkAnd` cryDefined t2
-    t1 :- t2  -> cryDefined t1 `mkAnd` cryDefined t2 `mkAnd`
-                 cryIsFin t2   `mkAnd` cryIsGeq t1 t2
-    t1 :* t2  -> cryDefined t1 `mkAnd` cryDefined t2
-    Div t1 t2  -> cryDefined t1 `mkAnd` cryDefined t2 `mkAnd`
-                  cryIsFin t1   `mkAnd` cryIsGt t2 (K $ Nat 0)
-    Mod t1 t2  -> cryDefined t1 `mkAnd` cryDefined t2 `mkAnd`
-                  cryIsFin t1   `mkAnd` cryIsGt t2 (K $ Nat 0)
+improveByDefn :: Set Name -> DefinedProp a -> Maybe (Name,Expr)
+improveByDefn uvs p =
+  case dpSimpExprProp p of
+    Var x :== e
+      | x `Set.member` uvs -> tryToBind x e
+    e :== Var x
+      | x `Set.member` uvs -> tryToBind x e
+    _ -> Nothing
 
-    t1 :^^ t2  -> cryDefined t1 `mkAnd` cryDefined t2
-    Min t1 t2  -> cryDefined t1 `mkAnd` cryDefined t2
-    Max t1 t2  -> cryDefined t1 `mkAnd` cryDefined t2
-    Lg2 t1     -> cryDefined t1
-    Width t1   -> cryDefined t1
-    LenFromThen t1 t2 t3 ->
-      cryDefined t1 `mkAnd` cryDefined t2 `mkAnd`
-      cryDefined t3 `mkAnd` cryIsFin t1   `mkAnd`
-      cryIsFin t2   `mkAnd` cryIsFin t3  `mkAnd`
-      cryIsDifferent t1 t2
-    LenFromThenTo t1 t2 t3 ->
-      cryDefined t1 `mkAnd` cryDefined t2 `mkAnd`
-      cryDefined t3 `mkAnd` cryIsFin t1   `mkAnd`
-      cryIsFin t2   `mkAnd` cryIsFin t3  `mkAnd`
-      cryIsDifferent t1 t2
-
-
--- Assuming a defined input.
-cryIsInf :: Expr -> F
-cryIsInf ty =
-  case ty of
-    K Inf               -> tt
-    K (Nat _)           -> ff
-    Var x               -> isInf x
-    t1 :+ t2            -> cryIsInf t1 `mkOr` cryIsInf t2
-    t1 :- _             -> cryIsInf t1
-    t1 :* t2            -> (cryIsInf t1 `mkAnd` cryIsGt t2 (K $ Nat 0))`mkOr`
-                           (cryIsInf t2 `mkAnd` cryIsGt t1 (K $ Nat 0))
-    Div t1 _            -> cryIsInf t1
-    Mod _  _            -> ff
-    t1 :^^ t2           -> (cryIsInf t1 `mkAnd` cryIsGt t2 (K $ Nat 0))`mkOr`
-                           (cryIsInf t2 `mkAnd` cryIsGt t1 (K $ Nat 1))
-    Min t1 t2           -> cryIsInf t1  `mkAnd` cryIsInf t2
-    Max t1 t2           -> cryIsInf t1 `mkOr` cryIsInf t2
-    Lg2 t1              -> cryIsInf t1
-    Width t1            -> cryIsInf t1
-    LenFromThen _ _ _   -> ff
-    LenFromThenTo _ _ _ -> ff
-
-
--- Assuming a defined input.
-cryIsFin :: Expr -> F
-cryIsFin ty =
-  case ty of
-    K Inf         -> ff
-    K (Nat _)     -> tt
-    Var x         -> isFin x
-    t1 :+ t2      -> cryIsFin t1 `mkAnd` cryIsFin t2
-    t1 :- _       -> cryIsFin t1
-    t1 :* t2      -> (cryIsFin t1 `mkAnd` cryIsFin t2) `mkOr`
-                      cryIsEq t1 (K $ Nat 0)       `mkOr`
-                      cryIsEq t2 (K $ Nat 0)
-
-    Div t1 _      -> cryIsFin t1
-    Mod _ _       -> tt
-    t1 :^^ t2     -> (cryIsFin t1 `mkAnd` cryIsFin t2) `mkOr`
-                      cryIsEq t1 (K $ Nat 0)            `mkOr`
-                      cryIsEq t1 (K $ Nat 1)            `mkOr`
-                      cryIsEq t2 (K $ Nat 0)
-
-    Min t1 t2     -> (cryIsFin t1 `mkAnd` cryIsGeq t2 t1) `mkOr`
-                     (cryIsFin t2 `mkAnd` cryIsGeq t1 t2)
-
-    Max t1 t2     -> cryIsFin t1 `mkAnd` cryIsFin t2
-    Lg2 t1        -> cryIsFin t1
-    Width t1      -> cryIsFin t1
-    LenFromThen  _ _ _   -> tt
-    LenFromThenTo  _ _ _ -> tt
-
--- eliminate Inf terms from finite values
-cryNoInf :: Expr -> FM Expr
-cryNoInf ty =
-  case ty of
-    K Inf :+ _   -> mzero
-    _ :+ K Inf   -> mzero
-
-    K Inf :- _   -> mzero
-    _ :- K Inf   -> mzero
-
-    K Inf :* t2  -> cryIsEq t2 (K $ Nat 0) >> return (K $ Nat 0)
-    t1 :* K Inf  -> cryIsEq t1 (K $ Nat 0) >> return (K $ Nat 0)
-
-    Div (K Inf) _    -> mzero
-    Div _ (K Inf)    -> return $ K $ Nat 0
-
-    Mod (K Inf) _    -> mzero
-    Mod t1 (K Inf)   -> cryNoInf t1
-
-    K Inf :^^ t2   -> cryIsEq t2 (K $ Nat 0) >> return (K $ Nat 1)
-    t1 :^^ K Inf   -> msum [ cryIsEq t1 (K $ Nat 0) >> return (K $ Nat 0)
-                           , cryIsEq t1 (K $ Nat 1) >> return (K $ Nat 1)
-                           ]
-
-    Min (K Inf) t2   -> cryNoInf t2
-    Min t1 (K Inf)   -> cryNoInf t1
-
-    Max (K Inf) _    -> mzero
-    Max _ (K Inf)    -> mzero
-
-    Lg2 (K Inf)      -> mzero
-
-    Width (K Inf)    -> mzero
-
-    LenFromThen (K Inf) _ _   -> mzero
-    LenFromThen _ (K Inf) _   -> mzero
-    LenFromThen _ _ (K Inf)   -> mzero
-
-    LenFromThenTo (K Inf) _ _ -> mzero
-    LenFromThenTo _ (K Inf) _ -> mzero
-    LenFromThenTo _ _ (K Inf) -> mzero
-
-    K Inf                    -> mzero
-
-    _                        -> return ty
-
-
--- Assumes a finite, and defined input.
-mkLin :: Expr -> FM SAT.Expr
-mkLin ty0 =
-  cryNoInf ty0 >>= \ty ->
-  case ty of
-    K Inf                  -> panic "Cryptol.TypeCheck.Solver.CrySAT.mkLin"
-                                [ "K Inf after cryNoInf" ]
-    K (Nat n)              -> return (SAT.K n)
-    Var x                  -> isFin x >> return (satVar x)
-    t1 :+ t2               -> (SAT.:+)            <$> mkLin t1 <*> mkLin t2
-    t1 :- t2               -> (SAT.:-)            <$> mkLin t1 <*> mkLin t2
-    t1 :* t2               -> join $ mkMul        <$> mkLin t1 <*> mkLin t2
-    Div t1 t2              -> join $ mkDiv        <$> mkLin t1 <*> mkLin t2
-    Mod t1 t2              -> join $ mkMod        <$> mkLin t1 <*> mkLin t2
-    t1 :^^ t2              -> join $ mkExp        <$> mkLin t1 <*> mkLin t2
-    Min t1 t2              -> mkMin               <$> mkLin t1 <*> mkLin t2
-    Max t1 t2              -> mkMax               <$> mkLin t1 <*> mkLin t2
-    Lg2 t1                 -> join $ mkLg2        <$> mkLin t1
-    Width t1               -> join $ mkWidth       <$> mkLin t1
-    LenFromThen t1 t2 t3   -> join $ mkLenFromThen <$> mkLin t1
-                                                   <*> mkLin t2
-                                                   <*> mkLin t3
-    LenFromThenTo t1 t2 t3 -> join $ mkLenFromThenTo <$> mkLin t1
-                                                     <*> mkLin t2
-                                                     <*> mkLin t3
   where
-  mkMin t1 t2 = SAT.If (t1 SAT.:< t2) t1 t2
-  mkMax t1 t2 = SAT.If (t1 SAT.:< t2) t2 t1
-
-  mkMul t1 t2 =
-    do mb <- toConst t1
-       case mb of
-         Just n -> return (n SAT.:* t2)
-         Nothing ->
-            do mb1 <- toConst t2
-               case mb1 of
-                 Just n  -> return (n SAT.:* t1)
-                 Nothing -> do x <- toVar t1
-                               y <- toVar t2
-                               addNonLin (NLMul x y)
-
-  mkDiv t1 t2 =
-    do mb <- toConst t2
-       case mb of
-         Just n  -> return (SAT.Div t1 n)
-         Nothing -> do x <- toVar t2
-                       addNonLin (NLDiv t1 x)
-
-  mkMod t1 t2 =
-    do mb <- toConst t2
-       case mb of
-         Just n  -> return (SAT.Mod t1 n)
-         Nothing -> do x <- toVar t2
-                       addNonLin (NLMod t1 x)
-
-  mkLg2 t1 =
-    do mb <- toConst t1
-       case mb of
-         Just n   -> return $ SAT.K $ nLg2 n
-         Nothing  -> do x <- toVar t1
-                        addNonLin (NLLg2 x)
-
-  mkWidth t1 = mkLg2 (SAT.K 1 SAT.:+ t1)
-
-  mkExp t1 t2 =
-    do mb <- toConst t1
-       case mb of
-         Just n ->
-           do mb1 <- toConst t2
-              case mb1 of
-                Just m  -> return $ SAT.K $ n ^ m
-                Nothing -> do y <- toVar t2
-                              addNonLin (NLExpL n y)
-         Nothing -> do x <- toVar t1
-                       y <- toVar t2
-                       addNonLin (NLExp x y)
+  tryToBind x e
+    | x `Set.member` cryExprFVS e = Nothing
+    | otherwise                   = Just (x,e)
 
 
+type Model = Map Name (Cry.TVar,Integer)
 
-  -- derived
-  mkLenFromThen x y w =
-    do upTo <- msum [ do addLin (y SAT.:> x)
-                         w1 <- mkExp (SAT.K 2) w
-                         return (w1 SAT.:- SAT.K 1)
-                    , do addLin (x SAT.:> y)
-                         return (SAT.K 0)
-                    ]
-       mkLenFromThenTo x y upTo
+-- | Attempt to find a finite model for the variables involved in a set of
+-- goals.
+getModel :: Solver -> [Goal] -> IO (Maybe Model)
+getModel s goals = withScope s $
 
-  mkLenFromThenTo x y z =
-    msum [ do addLin (x SAT.:> y)   -- going down
-              msum [ addLin (z SAT.:> x)  >> return (SAT.K 0)
-                   , addLin (z SAT.:== x) >> return (SAT.K 1)
-                   , do addLin (z SAT.:< x)
-                        t <- mkDiv (x SAT.:- z) (x SAT.:- y)
-                        return (SAT.K 1 SAT.:+ t)
-                   ]
+  do varMap <- assumeProps s (map goal goals)
+     assumeAllFin varMap
+     res <- SMT.check (solver s)
+     case res of
+       SMT.Sat -> extractModel varMap
+       _       -> return Nothing
 
-         , do addLin (x SAT.:< y)   -- going up
-              msum [ addLin (z SAT.:< x)  >> return (SAT.K 0)
-                   , addLin (z SAT.:== x) >> return (SAT.K 1)
-                   , do addLin (z SAT.:> x)
-                        t <- mkDiv (z SAT.:- x) (y SAT.:- x)
-                        return (SAT.K 1 SAT.:+ t)
-                   ]
+  where
 
-         ]
+  assumeAllFin varMap =
+    mapM_ assertFin (Map.keys varMap)
 
-toConst :: SAT.Expr -> FM (Maybe Integer)
-toConst (SAT.K n) = return (Just n)
-toConst t = do l <- getLin
-               case SAT.getExprRange t l of
-                 Nothing -> return Nothing
-                 Just vs -> msum $ map (return . Just) vs
+  assertFin n =
+       SMT.assert (solver s) (SMT.const (smtFinName n))
 
-toVar :: SAT.Expr -> FM Name
-toVar (SAT.Var x) | Just n <- SAT.fromName x = return $ importName n
-toVar e       = do x <- newName
-                   addLin (satVar x SAT.:== e)
-                   FM $ sets_ $ \s -> s { waitVars = Set.insert x (waitVars s) }
-                   return x
+  extractModel varMap =
+    do binds <- forM (Map.toList varMap) $ \ (n,tv) ->
+                  do mb <- getInst n
+                     case mb of
+                       Just i  -> return (Just (n,(tv,i)))
+                       Nothing -> return Nothing
 
---------------------------------------------------------------------------------
+       return (Map.fromList `fmap` sequence binds)
 
--- | Rounds up.
--- @lg2 x = y@, iff @y@ is the smallest number such that @x <= 2 ^ y@
-nLg2 :: Integer -> Integer
-nLg2 0  = 0
-nLg2 n  = case genLog n 2 of
-            Just (x,exact) | exact     -> x
-                           | otherwise -> x + 1
-            Nothing -> panic "Cryptol.TypeCheck.Solver.CrySAT.nLg2"
-                         [ "genLog returned Nothing" ]
+  -- check to see if the variable became inf, otherwise extract its value.
+  getInst n =
+    do val <- SMT.getConst (solver s) (smtName n)
+       case val of
+         SMT.Int i -> return (Just i)
+         _         -> return Nothing
 
 
 
 --------------------------------------------------------------------------------
 
--- | Compute the logarithm of a number in the given base, rounded down to the
--- closest integer.  The boolean indicates if we the result is exact
--- (i.e., True means no rounding happened, False means we rounded down).
--- The logarithm base is the second argument.
-genLog :: Integer -> Integer -> Maybe (Integer, Bool)
-genLog x 0    = if x == 1 then Just (0, True) else Nothing
-genLog _ 1    = Nothing
-genLog 0 _    = Nothing
-genLog x base = Just (exactLoop 0 x)
-  where
-  exactLoop s i
-    | i == 1     = (s,True)
-    | i < base   = (s,False)
-    | otherwise  =
-        let s1 = s + 1
-        in s1 `seq` case divMod i base of
-                      (j,r)
-                        | r == 0    -> exactLoop s1 j
-                        | otherwise -> (underLoop s1 j, False)
 
-  underLoop s i
-    | i < base  = s
-    | otherwise = let s1 = s + 1 in s1 `seq` underLoop s1 (div i base)
+-- | An SMT solver, and some info about declared variables.
+data Solver = Solver
+  { solver    :: SMT.Solver
+    -- ^ The actual solver
+
+  , declared  :: IORef VarInfo
+    -- ^ Information about declared variables, and assumptions in scope.
+
+  , logger    :: SMT.Logger
+    -- ^ For debugging
+  }
+
+
+-- | Keeps track of declared variables and non-linear terms.
+data VarInfo = VarInfo
+  { curScope    :: Scope
+  , otherScopes :: [Scope]
+  } deriving Show
+
+data Scope = Scope
+  { scopeNames    :: [Name]
+    -- ^ Variables declared in this scope (not counting the ones from
+    -- previous scopes).
+
+  , scopeMarked   :: Set Name
+    {- ^ These are not interesting names.  This is used when we apply
+    a substitution to the non-linear terms. Example:
+    Consider a NL term:  x :=  a * b
+    We apply the su. { a := 5 }.
+    As a result, `x` becomes linear: 5 * b, so we remove from the NonLinS.
+    However, the variable `x` may be still mentioned in other assertions.
+    So, we add a new assertion `x = 5 * b`.  All done!  From now on, though,
+    we don't want to ever have to deal with `x` in any models: it really is
+    just a left-over from the old NL term.  We implement this by "marking"
+    `x`, and simply ignoring it when we compute models.
+    -}
+
+  , scopeNonLinS  :: NonLinS
+    {- ^ These are the non-linear terms mentioned in the assertions
+    that are currently asserted (including ones from previous scopes). -}
+
+  } deriving Show
+
+scopeEmpty :: Scope
+scopeEmpty = Scope { scopeNames = []
+                   , scopeMarked = Set.empty
+                   , scopeNonLinS = initialNonLinS
+                   }
+
+scopeElem :: Name -> Scope -> Bool
+scopeElem x Scope { .. } = x `elem` scopeNames
+
+scopeInsert :: Name -> Scope -> Scope
+scopeInsert x Scope { .. } = Scope { scopeNames = x : scopeNames, .. }
+
+scopeMark :: Name -> Scope -> Scope
+scopeMark x Scope { .. } = Scope { scopeMarked = Set.insert x scopeMarked, .. }
+
+scopeLookupNL :: Name -> Scope -> Maybe Expr
+scopeLookupNL x Scope { .. } = lookupNL x scopeNonLinS
+
+-- | Apply a substitution to the non-linear terms in this scope.
+--    * Returns 'Nothing' if there were no changes.
+--    * The resulting substitution should define only "sys" vars,
+--      and is for non-linear terms that became linear.
+scopeSubstNL :: Subst -> Scope -> Maybe (Subst, Scope)
+scopeSubstNL su Scope { .. } =
+  do (lsu,newNL) <- apSubstNL su scopeNonLinS
+     return (lsu, Scope { scopeNonLinS = newNL, .. })
+
+
+-- | Given a *simplified* prop, separate linear and non-linear parts
+-- and return the linear ones.
+scopeAssert :: SimpProp -> Scope -> (SimpProp,Scope)
+scopeAssert (SimpProp p) Scope { .. } =
+  let (p1,s1) = nonLinProp scopeNonLinS p
+  in (SimpProp p1, Scope { scopeNonLinS = s1, ..  })
+
+
+-- | No scopes.
+viEmpty :: VarInfo
+viEmpty = VarInfo { curScope = scopeEmpty, otherScopes = [] }
+
+-- | Check if a name is any of the scopes.
+viElem :: Name -> VarInfo -> Bool
+viElem x VarInfo { .. } = any (x `scopeElem`) (curScope : otherScopes)
+
+-- | Add a name to a scope.
+viInsert :: Name -> VarInfo -> VarInfo
+viInsert x VarInfo { .. } = VarInfo { curScope = scopeInsert x curScope, .. }
+
+-- | Mark a name in the current scope.
+viMark :: Name -> VarInfo -> VarInfo
+viMark x VarInfo { .. } = VarInfo { curScope = scopeMark x curScope, .. }
+
+-- | Add an assertion to the current scope. Returns the linear part.
+viAssert :: SimpProp -> VarInfo -> (VarInfo, SimpProp)
+viAssert p VarInfo { .. } = ( VarInfo { curScope = s1, .. }, p1)
+  where (p1, s1) = scopeAssert p curScope
+
+-- | Enter a scope.
+viPush :: VarInfo -> VarInfo
+viPush VarInfo { .. } =
+  VarInfo { curScope = scopeEmpty { scopeNonLinS = scopeNonLinS curScope }
+          , otherScopes = curScope : otherScopes
+          }
+
+-- | Exit a scope.
+viPop :: VarInfo -> VarInfo
+viPop VarInfo { .. } = case otherScopes of
+                         c : cs -> VarInfo { curScope = c, otherScopes = cs }
+                         _ -> panic "viPop" ["no more scopes"]
+
+
+-- | All declared names, that have not been "marked".
+-- These are the variables whose values we are interested in.
+viUnmarkedNames :: VarInfo -> [ Name ]
+viUnmarkedNames VarInfo { .. } = filter (not . isMarked)
+                                                (concatMap scopeNames scopes)
+  where
+  allMarked   = Set.unions (map scopeMarked scopes)
+  isMarked x  = x `Set.member` allMarked
+  scopes      = curScope : otherScopes
+
+viLookupNL :: Name -> VarInfo -> Maybe Expr
+viLookupNL x VarInfo { .. } = scopeLookupNL x curScope
+
+viSubstNL :: Subst -> VarInfo -> Maybe (Subst, VarInfo)
+viSubstNL su VarInfo { .. } =
+  do (lsu,sc) <- scopeSubstNL su curScope
+     return (lsu, VarInfo { curScope = sc, .. })
+
+
+-- | Check if this is a non-linear var.  If so, returns its definition.
+lookupNLVar :: Solver -> Name -> IO (Maybe Expr)
+lookupNLVar Solver { .. } x = viLookupNL x `fmap` readIORef declared
+
+-- | Mark a variable as being defined, so we don't look for further
+-- improvements to it.
+markDefined :: Solver -> Name -> IO ()
+markDefined Solver { .. } x = modifyIORef' declared (viMark x)
+
+{- | Apply a substitution to the non-linear terms.
+      * If some of the NL terms became linear, then the relation between
+        the sys variable and the new linear term is asserted as a fact.
+        We do this, so that other assertions that mention this variable
+        know about the change.
+        XXX: If the sys. var is in a previous scope, than this assignment
+        would be "undone" when we exit the current scope.
+
+      * Furthermore, the "sys" variable is marked, so that we don't ask
+        for it during improvements -}
+substNL :: Solver -> Subst -> IO (Maybe Subst)
+substNL s@Solver { .. } su =
+  do mb <- atomicModifyIORef' declared $ \vi ->
+           case viSubstNL su vi of
+             Nothing        -> (vi, Nothing)
+             Just (lsu,vi1) -> (vi1, Just lsu)
+     case mb of
+       Nothing -> return Nothing
+       Just lsu -> do mapM_ addFact (Map.toList lsu)
+                      return (Just lsu)
+  where
+  addFact (x,e) = do assert s (simpProp (Var x :== e))
+                     markDefined s x
+
+
+-- | All known non-linear terms.
+getNLSubst :: Solver -> IO Subst
+getNLSubst Solver { .. } =
+  do VarInfo { .. } <- readIORef declared
+     return $ nonLinSubst $ scopeNonLinS curScope
+
+
+-- | Execute a computation with a fresh solver instance.
+withSolver :: FilePath -> [String] -> Bool -> (Solver -> IO a) -> IO a
+withSolver prog args chatty k =
+  do -- let chatty = True
+     logger <- if chatty then SMT.newLogger 0 else return quietLogger
+
+     solver <- SMT.newSolver prog args Nothing --} (Just logger)
+     _ <- SMT.setOptionMaybe solver ":global-decls" "false"
+     SMT.setLogic solver "QF_LIA"
+     declared <- newIORef viEmpty
+     a <- k Solver { .. }
+     _ <- SMT.stop solver
+
+     return a
+
+  where
+  quietLogger = SMT.Logger { SMT.logMessage = \_ -> return ()
+                           , SMT.logLevel   = return 0
+                           , SMT.logSetLevel= \_ -> return ()
+                           , SMT.logTab     = return ()
+                           , SMT.logUntab   = return ()
+                           }
+
+solPush :: Solver -> IO ()
+solPush Solver { .. } =
+  do SMT.push solver
+     SMT.logTab logger
+     modifyIORef' declared viPush
+
+solPop :: Solver -> IO ()
+solPop Solver { .. } =
+  do modifyIORef' declared viPop
+     SMT.logUntab logger
+     SMT.pop solver
+
+-- | Execute a computation in a new solver scope.
+withScope :: Solver -> IO a -> IO a
+withScope s k =
+  do solPush s
+     a <- k
+     solPop s
+     return a
+
+-- | Declare a variable.
+declareVar :: Solver -> Name -> IO ()
+declareVar s@Solver { .. } a =
+  do done <- fmap (a `viElem`) (readIORef declared)
+     unless done $
+       do e  <- SMT.declare solver (smtName a)    SMT.tInt
+          let fin_a = smtFinName a
+          fin <- SMT.declare solver fin_a SMT.tBool
+          SMT.assert solver (SMT.geq e (SMT.int 0))
+
+          nlSu <- getNLSubst s
+          modifyIORef' declared (viInsert a)
+          case Map.lookup a nlSu of
+            Nothing -> return ()
+            Just e'  ->
+              do let finDef = crySimplify (Fin e')
+                 mapM_ (declareVar s) (Set.toList (cryPropFVS finDef))
+                 SMT.assert solver $
+                    SMT.eq fin (ifPropToSmtLib (desugarProp finDef))
+
+
+
+-- | Add an assertion to the current context.
+-- INVARIANT: Assertion is simplified.
+assert :: Solver -> SimpProp -> IO ()
+assert _ (SimpProp PTrue) = return ()
+assert s@Solver { .. } p@(SimpProp p0) =
+  do debugLog s ("Assuming: " ++ show (ppProp p0))
+     SimpProp p1 <- atomicModifyIORef' declared (viAssert p)
+     mapM_ (declareVar s) (Set.toList (cryPropFVS p1))
+     SMT.assert solver $ ifPropToSmtLib $ desugarProp p1
+
+
+-- | Try to prove a property.  The result is 'True' when we are sure that
+-- the property holds, and 'False' otherwise.  In other words, getting `False`
+-- *does not* mean that the proposition does not hold.
+prove :: Solver -> Prop -> IO Bool
+prove _ PTrue = return True
+prove s@(Solver { .. }) p =
+  debugBlock s ("Proving: " ++ show (ppProp p)) $
+  withScope s $
+  do assert s (simpProp (Not p))
+     res <- SMT.check solver
+     case res of
+       SMT.Unsat   -> debugLog s "Proved" >> return True
+       SMT.Unknown -> debugLog s "Not proved" >> return False -- We are not sure
+       SMT.Sat     -> debugLog s "Not proved" >> return False
+        -- XXX: If the answer is Sat, it is possible that this is a
+        -- a fake example, as we need to evaluate the nonLinear constraints.
+        -- If they are all satisfied, then we have a genuine counter example.
+        -- Otherwise, we could look for another one...
+
+
+{- | Check if the current set of assumptions is satisfiable, and find
+some facts that must hold in any models of the current assumptions.
+The 'Bool' is 'True' if the current assumptions *may be* satisfiable.
+The 'Bool' is 'False' if the current assumptions are *definitely*
+not satisfiable. -}
+check :: Solver -> Set Name -> IO (Bool, Subst, [Prop])
+check s@Solver { .. } uniVars =
+  do res <- SMT.check solver
+     case res of
+       SMT.Unsat   -> debugLog s "Not satisfiable" >> return (False, Map.empty, [])
+       SMT.Unknown -> debugLog s "Unknown" >> return (True, Map.empty, [])
+       SMT.Sat     ->
+        do debugLog s "Satisfiable"
+           (impMap,sideConds) <- debugBlock s "Computing improvements"
+                                     (getImpSubst s uniVars)
+           return (True, impMap, sideConds)
+
+{- | The set of unification variables is used to guide ordering of
+assignments (we prefer assigning to them, as that amounts to doing
+type inference).
+
+Returns an improving substitution, which may mention the names of
+non-linear terms.
+-}
+getImpSubst :: Solver -> Set Name -> IO (Subst,[Prop])
+getImpSubst s@Solver { .. } uniVars =
+  do names <- viUnmarkedNames `fmap` readIORef declared
+     m     <- fmap Map.fromList (mapM getVal names)
+     (impSu,sideConditions)
+           <- cryImproveModel solver logger uniVars m
+
+     let isNonLinName (SysName {})  = True
+         isNonLinName (UserName {}) = False
+
+
+         keep k e = not (isNonLinName k) &&
+                    all (not . isNonLinName) (cryExprFVS e)
+
+         (easy,tricky) = Map.partitionWithKey keep impSu
+         dump (x,e) = debugLog s (show (ppProp (Var x :== e)))
+
+     debugBlock s "side conditions:" $
+         mapM_ (debugLog s . show . ppProp) sideConditions
+
+     when (not (Map.null tricky)) $
+       debugBlock s "Tricky subst:" $ mapM_ dump (Map.toList tricky)
+
+     if Map.null easy
+        then debugLog s "(no improvements)"
+        else mapM_ dump (Map.toList easy)
+
+
+     return (easy,sideConditions)
+
+  where
+  getVal a =
+    do yes <- isInf a
+       if yes then return (a, K Inf)
+              else do v <- SMT.getConst solver (smtName a)
+                      case v of
+                        SMT.Int x | x >= 0 -> return (a, K (Nat x))
+                        _ -> panic "cryCheck.getVal"
+                                [ "Not a natural number", show v ]
+
+  isInf a = do yes <- SMT.getConst solver (smtFinName a)
+               case yes of
+                 SMT.Bool ans -> return (not ans)
+                 _            -> panic "cryCheck.isInf"
+                                       [ "Not a boolean value", show yes ]
+
+
+
+
+
+
+-- XXX: NOT QUITE, I THINK.
+-- | Given a computed improvement `x = e`, check to see if we can get
+-- some additional information by interacting with the non-linear assignment.
+checkImpBind :: Solver -> (Name, Expr) -> IO (Bool, [(Name,Expr)])
+checkImpBind s (x,e) =
+  do mbNL <- lookupNLVar s x
+     case (mbNL,e) of
+
+       -- non-lin expression `x = e` equals constant `K`.
+       --   * new constraint: e = K
+       --   * su: `x = K`; eliminates `x`
+       (Just nlE, K {}) ->
+          do assert s (simpProp (nlE :== e))
+             markDefined s x
+             return (True, [(x,e)])
+
+       (Just nlE, Var a) -> setNLVar x nlE a
+
+       -- ordinary var, `?a`, equals constant, `K`:
+       --   * su `?a = K`; eliminates `?a`
+       (Nothing, K {}) -> setNormalVar x e
+
+       -- ordinary var = some var
+       (Nothing, Var a) ->
+          do mbNL2 <- lookupNLVar s a
+             case mbNL2 of
+
+               -- ordinary var = ordinary var
+               Nothing | SysName _ <- a ->
+                         debugBlock s "sys-var with no def" $
+                           do vi <- readIORef (declared s)
+                              debugLog s (show vi)
+                              setNormalVar x e
+                       | otherwise -> setNormalVar x e
+
+               -- ordinary var = nl var
+               Just nlE -> setNLVar a nlE x
+
+       -- ordinary var = lin rel; XXX: TODO
+
+       _ -> return (False, [])
+
+  where
+  setNormalVar var def =
+    do debugBlock s "setting-normal" (debugLog s (Var var :== def))
+       let su = Map.singleton var def
+       mbLins <- substNL s su
+       let newLins = Map.toList (fromMaybe Map.empty mbLins)
+       markDefined s var
+       return (not (null newLins), (var,def) : newLins)
+
+  -- Set a non-lin var, to another var.
+  setNLVar var nlE a =
+    do mbNL2 <- lookupNLVar s a
+       case mbNL2 of
+
+         -- non-lin `x = e1` equals non-lin `y = e2`
+         --   * new constraint: `e1 = e2`
+         --   * su: `x = y`; eliminates `x`
+         Just nlE2 ->
+           do assert s (simpProp (nlE :== nlE2))  -- probably useless
+              markDefined s var
+              return (True, [(var,Var a)])
+
+         -- non-lin `x = e1` equals `?a`
+         Nothing
+
+           -- `?a` occurs in `e1`
+           --   * do nothing; can this be useful in any way?
+           | a `Set.member` cryExprFVS nlE ->
+              return (False, [])
+
+           -- `?a` does not occur in `e1`
+           --   * su: `?a = e`; eliminates `?a`
+           | otherwise -> setNormalVar a nlE
+
+
+
+
+--------------------------------------------------------------------------------
+
+debugBlock :: Solver -> String -> IO a -> IO a
+debugBlock s@Solver { .. } name m =
+  do debugLog s name
+     SMT.logTab logger
+     a <- m
+     SMT.logUntab logger
+     return a
+
+class DebugLog t where
+  debugLog :: Solver -> t -> IO ()
+
+  debugLogList :: Solver -> [t] -> IO ()
+  debugLogList s ts = case ts of
+                        [] -> debugLog s "(none)"
+                        _  -> mapM_ (debugLog s) ts
+
+instance DebugLog Char where
+  debugLog s x     = SMT.logMessage (logger s) (show x)
+  debugLogList s x = SMT.logMessage (logger s) x
+
+instance DebugLog a => DebugLog [a] where
+  debugLog = debugLogList
+
+instance DebugLog a => DebugLog (Maybe a) where
+  debugLog s x = case x of
+                   Nothing -> debugLog s "(nothing)"
+                   Just a  -> debugLog s a
+
+instance DebugLog Doc where
+  debugLog s x = debugLog s (show x)
+
+instance DebugLog Cry.Type where
+  debugLog s x = debugLog s (pp x)
+
+instance DebugLog Goal where
+  debugLog s x = debugLog s (goal x)
+
+instance DebugLog Cry.Subst where
+  debugLog s x = debugLog s (pp x)
+
+instance DebugLog Prop where
+  debugLog s x = debugLog s (ppProp x)
 
 
 

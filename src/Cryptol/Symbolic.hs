@@ -12,14 +12,11 @@
 
 module Cryptol.Symbolic where
 
-import Control.Applicative
 import Control.Monad (replicateM, when, zipWithM)
 import Control.Monad.IO.Class
 import Data.List (transpose, intercalate)
 import qualified Data.Map as Map
 import Data.Maybe
-import Data.Monoid (Monoid(..))
-import Data.Traversable (traverse)
 import qualified Control.Exception as X
 
 import qualified Data.SBV.Dynamic as SBV
@@ -38,6 +35,12 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative
+import Data.Monoid (Monoid(..))
+import Data.Traversable (traverse)
+#endif
 
 -- External interface ----------------------------------------------------------
 

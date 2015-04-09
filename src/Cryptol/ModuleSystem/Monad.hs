@@ -25,12 +25,14 @@ import qualified Cryptol.TypeCheck.AST as T
 import           Cryptol.Parser.Position (Range)
 import           Cryptol.Utils.PP
 
-import Control.Applicative (Applicative(..))
 import Control.Exception (IOException)
 import Data.Function (on)
 import Data.Maybe (isJust)
 import MonadLib
 
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative (Applicative(..))
+#endif
 
 -- Errors ----------------------------------------------------------------------
 
@@ -391,3 +393,13 @@ setDynEnv :: DynamicEnv -> ModuleM ()
 setDynEnv denv = ModuleT $ do
   me <- get
   set $! me { meDynEnv = denv }
+
+setSolver :: FilePath -> [String] -> ModuleM ()
+setSolver prog args = ModuleT $ do
+  me <- get
+  set $! me { meSolverProg = prog, meSolverArgs = args }
+
+getSolver :: ModuleM (FilePath,[String])
+getSolver  = ModuleT $ do
+  me <- get
+  return (meSolverProg me, meSolverArgs me)

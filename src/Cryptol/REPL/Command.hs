@@ -48,7 +48,7 @@ import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Subst as T
 import qualified Cryptol.TypeCheck.InferTypes as T
 import Cryptol.TypeCheck.PP (dump,ppWithNames)
-import Cryptol.TypeCheck.Defaulting(defaultExpr)
+import Cryptol.TypeCheck.Defaulting(defaultExpr,defaultExpr')
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
@@ -56,7 +56,6 @@ import Cryptol.Prims.Doc(helpDoc)
 import qualified Cryptol.Transform.Specialize as S
 import qualified Cryptol.Symbolic as Symbolic
 
-import Control.Applicative ((<$>))
 import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad (guard,unless,forM_,when)
@@ -64,7 +63,7 @@ import Data.Char (isSpace,isPunctuation,isSymbol)
 import Data.Function (on)
 import Data.List (intercalate,isPrefixOf,nub)
 import Data.Maybe (fromMaybe,mapMaybe)
-import Data.Monoid (mempty)
+import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
 import System.Process (shell,createProcess,waitForProcess)
 import qualified System.Process as Process(runCommand)
@@ -76,35 +75,9 @@ import System.IO(hFlush,stdout)
 import System.Random.TF(newTFGen)
 import Numeric (showFFloat)
 
-#if __GLASGOW_HASKELL__ < 706
-import Control.Monad (liftM)
-import qualified Text.ParserCombinators.ReadP as P
-import Text.Read hiding (step)
-import System.Environment (getEnvironment)
-
-lookupEnv :: String -> IO (Maybe String)
-lookupEnv key = lookup key `liftM` getEnvironment
-
-readEither :: Read a => String -> Either String a
-readEither s =
-  case [ x | (x,"") <- readPrec_to_S read' minPrec s ] of
-    [x] -> Right x
-    []  -> Left "Prelude.read: no parse"
-    _   -> Left "Prelude.read: ambiguous parse"
- where
-  read' =
-    do x <- readPrec
-       lift P.skipSpaces
-       return x
-
--- | Parse a string using the 'Read' instance.
--- Succeeds if there is exactly one valid result.
-readMaybe :: Read a => String -> Maybe a
-readMaybe s = case readEither s of
-                Left _  -> Nothing
-                Right a -> Just a
-#else
-import System.Environment (lookupEnv)
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative ((<$>))
+import Data.Monoid (mempty)
 #endif
 
 -- Commands --------------------------------------------------------------------
@@ -632,6 +605,7 @@ setOptionCmd str
     ev <- tryGetUser k
     case ev of
       Just (EnvString s)   -> rPutStrLn (k ++ " = " ++ s)
+      Just (EnvProg p as)  -> rPutStrLn (k ++ " = " ++ intercalate " " (p:as))
       Just (EnvNum n)      -> rPutStrLn (k ++ " = " ++ show n)
       Just (EnvBool True)  -> rPutStrLn (k ++ " = on")
       Just (EnvBool False) -> rPutStrLn (k ++ " = off")
@@ -762,8 +736,12 @@ replEvalExpr expr =
   do (def,sig) <- replCheckExpr expr
 
      let range = fromMaybe emptyRange (getLoc expr)
+
+     EnvProg prog args <- getUser "tc-solver"
+     mbDef <- io (defaultExpr' prog args range def sig)
+
      (def1,ty) <-
-        case defaultExpr range def sig of
+        case mbDef of
           Nothing -> raise (EvalPolyError sig)
           Just (tys,def1) ->
             do let nms = T.addTNames (T.sVars sig) IntMap.empty

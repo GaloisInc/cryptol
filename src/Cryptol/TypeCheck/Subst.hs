@@ -57,9 +57,11 @@ substToList su | suDefaulting su = Nothing
 
 
 instance PP (WithNames Subst) where
-  ppPrec _ (WithNames s mp) = text "Substitution:" $$ nest 2
-                                (vcat $ map pp1 $ Map.toList $ suMap s)
+  ppPrec _ (WithNames s mp)
+    | null els  = text "(empty substitution)"
+    | otherwise = text "Substitution:" $$ nest 2 (vcat (map pp1 els))
     where pp1 (x,t) = ppWithNames mp x <+> text "=" <+> ppWithNames mp t
+          els       = Map.toList (suMap s)
 
 instance PP Subst where
   ppPrec n = ppWithNamesPrec IntMap.empty n

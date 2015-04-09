@@ -67,7 +67,7 @@ data DelayedCt = DelayedCt
   , dctGoals  :: [Goal]
   } deriving Show
 
-data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assumeing the sub-goals.
+data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assuming the sub-goals.
             | Unsolved                    -- ^ We could not solved the goal.
             | Unsolvable                  -- ^ The goal can never be solved
               deriving (Show)
@@ -139,8 +139,8 @@ data Error    = ErrorMsg Doc
                 -- ^ Quantified type variables (of kind *) needs to
                 -- match the given type, so it does not work for all types.
 
-              | UnusableFunction QName Prop
-                -- ^ The given constraint causes the signature of the
+              | UnusableFunction QName [Prop]
+                -- ^ The given constraints causes the signature of the
                 -- function to be not-satisfiable.
 
               | TooManyPositionalTypeParams
@@ -165,6 +165,7 @@ data ConstraintSource
   | CtEnumeration
   | CtDefaulting          -- ^ Just defaulting on the command line
   | CtPartialTypeFun TyFunName -- ^ Use of a partial type function.
+  | CtImprovement
     deriving Show
 
 data TyFunName = UserTyFun QName | BuiltInTyFun TFun
@@ -186,6 +187,7 @@ instance TVars ConstraintSource where
       CtEnumeration   -> src
       CtDefaulting    -> src
       CtPartialTypeFun _ -> src
+      CtImprovement    -> src
 
 instance TVars Warning where
   apSubst su warn =
@@ -225,7 +227,7 @@ instance TVars Error where
       UnexpectedTypeWildCard    -> err
       TypeVariableEscaped t xs  -> TypeVariableEscaped (apSubst su t) xs
       NotForAll x t             -> NotForAll x (apSubst su t)
-      UnusableFunction f p      -> UnusableFunction f (apSubst su p)
+      UnusableFunction f ps      -> UnusableFunction f (apSubst su ps)
       TooManyPositionalTypeParams -> err
       CannotMixPositionalAndNamedTypeParams -> err
       AmbiguousType _           -> err
@@ -442,10 +444,11 @@ instance PP (WithNames Error) where
           (text "Quantified variable:" <+> ppWithNames names x $$
            text "cannot match type:"   <+> ppWithNames names t)
 
-      UnusableFunction f p ->
+      UnusableFunction f ps ->
         nested (text "The constraints in the type signature of"
                 <+> quotes (pp f) <+> text "are unsolvable.")
-          (text "Detected while analyzing constraint:" $$ ppWithNames names p)
+               (text "Detected while analyzing constraints:"
+                $$ vcat (map (ppWithNames names) ps))
 
       TooManyPositionalTypeParams ->
         text "Too many positional type-parameters in explicit type application"
@@ -486,6 +489,7 @@ instance PP ConstraintSource where
       CtEnumeration   -> text "list enumeration"
       CtDefaulting    -> text "defaulting"
       CtPartialTypeFun f -> text "use of partial type function" <+> pp f
+      CtImprovement   -> text "examination of collected goals"
 
 ppUse :: Expr -> Doc
 ppUse expr =

@@ -15,10 +15,13 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst
 import Cryptol.Utils.Panic (panic)
 
-import Control.Applicative (Applicative(..))
 import Data.Ord(comparing)
 import Data.List(sortBy)
 import qualified Data.Set as Set
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative (Applicative(..))
+#endif
 
 -- | The most general unifier is a substitution and a set of constraints
 -- on bound variables.

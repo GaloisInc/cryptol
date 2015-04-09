@@ -33,7 +33,6 @@ import Cryptol.Transform.MonoValues
 import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad (unless)
-import Data.Foldable (foldMap)
 import Data.Function (on)
 import Data.List (nubBy)
 import Data.Maybe (mapMaybe,fromMaybe)
@@ -48,6 +47,10 @@ import System.FilePath ( addExtension
                        )
 import qualified System.IO.Error as IOE
 import qualified Data.Map as Map
+
+#if __GLASGOW_HASKELL__ < 710
+import Data.Foldable (foldMap)
+#endif
 
 -- Renaming --------------------------------------------------------------------
 
@@ -346,6 +349,7 @@ genInferInput :: Range -> IfaceDecls -> ModuleM T.InferInput
 genInferInput r env = do
   seeds <- getNameSeeds
   monoBinds <- getMonoBinds
+  (prog,args) <- getSolver
 
   -- TODO: include the environment needed by the module
   return T.InferInput
@@ -355,6 +359,8 @@ genInferInput r env = do
     , T.inpNewtypes  =                    filterEnv ifNewtypes
     , T.inpNameSeeds = seeds
     , T.inpMonoBinds = monoBinds
+    , T.inpSolverProg= prog
+    , T.inpSolverArgs= args
     }
   where
   -- at this point, the names used in the aggregate interface should be

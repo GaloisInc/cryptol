@@ -26,11 +26,15 @@ import Control.Monad (guard)
 import Data.Foldable (fold)
 import Data.Function (on)
 import qualified Data.Map as Map
-import Data.Monoid ((<>), Monoid(..))
+import Data.Monoid ((<>))
 import System.Directory (getAppUserDataDirectory, getCurrentDirectory)
 import System.Environment(getExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
 import qualified Data.List as List
+
+#if __GLASGOW_HASKELL__ < 710
+import Data.Monoid (Monoid(..))
+#endif
 
 -- Module Environment ----------------------------------------------------------
 
@@ -42,6 +46,8 @@ data ModuleEnv = ModuleEnv
   , meSearchPath    :: [FilePath]
   , meDynEnv        :: DynamicEnv
   , meMonoBinds     :: !Bool
+  , meSolverProg    :: FilePath
+  , meSolverArgs    :: [String]
   }
 
 resetModuleEnv :: ModuleEnv -> ModuleEnv
@@ -89,6 +95,8 @@ initialModuleEnv  = do
                         ]
     , meDynEnv        = mempty
     , meMonoBinds     = True
+    , meSolverProg    = "cvc4"
+    , meSolverArgs    = [ "--lang=smt2", "--incremental", "--rewrite-divk" ]
     }
 
 -- | Try to focus a loaded module in the module environment.
