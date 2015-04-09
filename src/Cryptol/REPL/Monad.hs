@@ -95,7 +95,7 @@ import qualified Control.Exception as X
 import qualified Data.Map as Map
 import Text.Read (readMaybe)
 
-import qualified Data.SBV as SBV (sbvCheckSolverInstallation)
+import Data.SBV.Dynamic (sbvCheckSolverInstallation)
 
 
 -- REPL Environment ------------------------------------------------------------
@@ -563,7 +563,7 @@ checkProver val = case val of
     | s `notElem` proverNames     -> return $ Just $ "Prover must be " ++ proverListString
     | s `elem` ["offline", "any"] -> return Nothing
     | otherwise                   -> do let prover = lookupProver s
-                                        available <- SBV.sbvCheckSolverInstallation prover
+                                        available <- sbvCheckSolverInstallation prover
                                         unless available $
                                           putStrLn $ "Warning: " ++ s ++ " installation not found"
                                         return Nothing

@@ -22,9 +22,7 @@ import Data.Monoid (Monoid(..))
 import Data.Traversable (traverse)
 import qualified Control.Exception as X
 
-import qualified Data.SBV as SBV
 import qualified Data.SBV.Dynamic as SBV
-import qualified Data.SBV.Internals as SBV
 
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
@@ -81,12 +79,6 @@ allSatSMTResults (SBV.AllSatResult (_, rs)) = rs
 thmSMTResults :: SBV.ThmResult -> [SBV.SMTResult]
 thmSMTResults (SBV.ThmResult r) = [r]
 
-allSatWithAny :: [SBV.SMTConfig] -> SBV.Symbolic SBV.SVal -> IO (SBV.Solver, SBV.AllSatResult)
-allSatWithAny cfgs s = SBV.allSatWithAny cfgs (fmap (SBV.SBV :: SBV.SVal -> SBV.SBV Bool) s)
-
-proveWithAny :: [SBV.SMTConfig] -> SBV.Symbolic SBV.SVal -> IO (SBV.Solver, SBV.ThmResult)
-proveWithAny cfgs s = SBV.proveWithAny cfgs (fmap (SBV.SBV :: SBV.SVal -> SBV.SBV Bool) s)
-
 satProve :: Bool
          -> Maybe Int -- ^ satNum
          -> (String, Bool, Bool)
@@ -110,8 +102,8 @@ satProve isSat mSatNum (proverName, useSolverIte, verbose) edecls mfile (expr, s
         when verbose $ liftIO $
           putStrLn $ "Got result from " ++ show firstProver
         return (tag res)
-  let runFn | isSat     = runProver allSatWithAny allSatSMTResults
-            | otherwise = runProver proveWithAny  thmSMTResults
+  let runFn | isSat     = runProver SBV.allSatWithAny allSatSMTResults
+            | otherwise = runProver SBV.proveWithAny  thmSMTResults
   case predArgTypes schema of
     Left msg -> return (Right (ProverError msg, modEnv), [])
     Right ts -> do when verbose $ putStrLn "Simulating..."
@@ -152,9 +144,6 @@ satProve isSat mSatNum (proverName, useSolverIte, verbose) edecls mfile (expr, s
                                            [ "attempted to evaluate bogus boolean for pretty-printing" ]
                    return (Right (esatexprs, modEnv), [])
 
-compileToSMTLib :: Bool -> Bool -> SBV.Symbolic SBV.SVal -> IO String
-compileToSMTLib a b s = SBV.compileToSMTLib a b (fmap (SBV.SBV :: SBV.SVal -> SBV.SBV Bool) s)
-
 satProveOffline :: Bool
                 -> Bool
                 -> Bool
@@ -175,7 +164,7 @@ satProveOffline isSat useIte vrb edecls mfile (expr, schema) =
            let v = evalExpr env expr
            let satWord | isSat = "satisfiability"
                        | otherwise = "validity"
-           txt <- compileToSMTLib True isSat $ do
+           txt <- SBV.compileToSMTLib True isSat $ do
                     args <- mapM tyFn ts
                     b <- return $! fromVBit (foldl fromVFun v args)
                     liftIO $ putStrLn $
@@ -209,13 +198,13 @@ parseValues (t : ts) cws = (v : vs, cws'')
 
 parseValue :: FinType -> [SBV.CW] -> (Eval.Value, [SBV.CW])
 parseValue FTBit [] = panic "Cryptol.Symbolic.parseValue" [ "empty FTBit" ]
-parseValue FTBit (cw : cws) = (Eval.VBit (SBV.fromCW cw), cws)
+parseValue FTBit (cw : cws) = (Eval.VBit (SBV.cwToBool cw), cws)
 parseValue (FTSeq 0 FTBit) cws = (Eval.VWord (Eval.BV 0 0), cws)
-parseValue (FTSeq n FTBit) (cw : cws)
-  | SBV.isBounded cw = (Eval.VWord (Eval.BV (toInteger n) (SBV.fromCW cw)), cws)
-  | otherwise = panic "Cryptol.Symbolic.parseValue" [ "unbounded concrete word" ]
-parseValue (FTSeq n FTBit) cws = (Eval.VSeq True vs, cws')
-  where (vs, cws') = parseValues (replicate n FTBit) cws
+parseValue (FTSeq n FTBit) cws =
+  case SBV.genParse (SBV.KBounded False n) cws of
+    Just (x, cws') -> (Eval.VWord (Eval.BV (toInteger n) x), cws')
+    Nothing        -> (Eval.VSeq True vs, cws')
+      where (vs, cws') = parseValues (replicate n FTBit) cws
 parseValue (FTSeq n t) cws = (Eval.VSeq False vs, cws')
   where (vs, cws') = parseValues (replicate n t) cws
 parseValue (FTTuple ts) cws = (Eval.VTuple vs, cws')
@@ -335,9 +324,6 @@ lookupType p env = Map.lookup p (envTypes env)
 
 -- Expressions -----------------------------------------------------------------
 
-svSBranch :: SBool -> Value -> Value -> Value
-svSBranch t x y = SBV.sBranch (SBV.SBV t) x y
-
 evalExpr :: Env -> Expr -> Value
 evalExpr env expr =
   case expr of
@@ -347,7 +333,7 @@ evalExpr env expr =
     ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
     ESel e sel        -> evalSel sel (eval e)
     EIf b e1 e2       -> evalIf (fromVBit (eval b)) (eval e1) (eval e2)
-                           where evalIf = if envIteSolver env then svSBranch else iteValue
+                           where evalIf = if envIteSolver env then sBranchValue else iteValue
     EComp ty e mss    -> evalComp env (evalType env ty) e mss
     EVar n            -> case lookupVar n env of
                            Just x -> x

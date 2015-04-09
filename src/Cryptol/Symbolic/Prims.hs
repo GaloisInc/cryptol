@@ -24,10 +24,7 @@ import Cryptol.TypeCheck.AST (Name)
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)
 import Cryptol.Utils.Panic
 
-import qualified Data.SBV as SBV
-import qualified Data.SBV.Internals as SBV (SBV(..))
 import qualified Data.SBV.Dynamic as SBV
---import Data.SBV (SBool)
 
 traverseSnd :: Functor f => (a -> f b) -> (t, a) -> f (t, b)
 traverseSnd f (x, y) = (,) x <$> f y
@@ -79,13 +76,13 @@ evalECon econ =
       -- min x y = if x <= y then x else y
       binary $ \a x y ->
         let c = cmpBinary cmpLtEq cmpLtEq SBV.svFalse a x y
-        in SBV.ite (SBV.SBV (fromVBit c)) x y
+        in iteValue (fromVBit c) x y
 
     ECMax         -> -- {a} (Cmp a) => a -> a -> a
       -- max x y = if y <= x then x else y
       binary $ \a x y ->
         let c = cmpBinary cmpLtEq cmpLtEq SBV.svFalse a y x
-        in SBV.ite (SBV.SBV (fromVBit c)) x y
+        in iteValue (fromVBit c) x y
 
     ECAnd         -> binary (logicBinary SBV.svAnd SBV.svAnd)
     ECOr          -> binary (logicBinary SBV.svOr SBV.svOr)
