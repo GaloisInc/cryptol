@@ -18,7 +18,7 @@ module Cryptol.Symbolic.Value
   , fromVBit, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord
   , fromSeq, fromVWord
   , evalPanic
-  , iteValue, mergeValue
+  , iteValue, sBranchValue, mergeValue
   )
   where
 
@@ -28,8 +28,6 @@ import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit, is
 import Cryptol.Symbolic.BitVector
 import Cryptol.Utils.Panic (panic)
 
-import Data.SBV (Mergeable(..))
-import Data.SBV.Internals (SBV(..))
 import Data.SBV.Dynamic
 
 -- Values ----------------------------------------------------------------------
@@ -44,6 +42,15 @@ iteValue c x y =
     Just True  -> x
     Just False -> y
     Nothing    -> mergeValue True c x y
+
+sBranchValue :: SBool -> Value -> Value -> Value
+sBranchValue t x y =
+  case svAsBool c of
+    Just True  -> x
+    Just False -> y
+    Nothing    -> mergeValue False c x y
+  where
+    c = svReduceInPathCondition t
 
 mergeValue :: Bool -> SBool -> Value -> Value -> Value
 mergeValue f c v1 v2 =
@@ -69,9 +76,6 @@ mergeValue f c v1 v2 =
                     [ "mergeValue.mergeField: incompatible values" ]
     mergeStream xs ys =
       mergeValue f c (head xs) (head ys) : mergeStream (tail xs) (tail ys)
-
-instance Mergeable Value where
-  symbolicMerge f (SBV c) = mergeValue f c
 
 -- Big-endian Words ------------------------------------------------------------
 
