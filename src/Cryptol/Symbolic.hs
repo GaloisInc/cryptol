@@ -27,7 +27,6 @@ import qualified Data.SBV.Dynamic as SBV
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 
-import Cryptol.Symbolic.BitVector
 import Cryptol.Symbolic.Prims
 import Cryptol.Symbolic.Value
 

@@ -18,7 +18,6 @@ import Data.Ord (comparing)
 import Cryptol.Eval.Value (BitWord(..))
 import Cryptol.Prims.Eval (binary, unary, tlamN)
 import Cryptol.Prims.Syntax (ECon(..))
-import Cryptol.Symbolic.BitVector
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Name)
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)

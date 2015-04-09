@@ -12,7 +12,12 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Cryptol.Symbolic.Value
-  ( Value
+  ( SBool, SWord
+  , literalSWord
+  , fromBitsLE
+  , forallBV_, existsBV_
+  , forallSBool_, existsSBool_
+  , Value
   , TValue, numTValue, toNumTValue, finTValue, isTBit, isTFun, isTSeq, isTTuple, isTRec, tvSeq
   , GenValue(..), lam, tlam, toStream, toFinSeq, toSeq
   , fromVBit, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord
@@ -22,13 +27,40 @@ module Cryptol.Symbolic.Value
   )
   where
 
-import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit, isTFun, isTSeq, isTTuple, isTRec, tvSeq,
-                           GenValue(..), BitWord(..), lam, tlam, toStream, toFinSeq, toSeq, fromSeq,
-                           fromVBit, fromVWord, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord)
-import Cryptol.Symbolic.BitVector
-import Cryptol.Utils.Panic (panic)
+import Data.List (foldl')
 
 import Data.SBV.Dynamic
+
+import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit,
+                           isTFun, isTSeq, isTTuple, isTRec, tvSeq, GenValue(..),
+                           BitWord(..), lam, tlam, toStream, toFinSeq, toSeq,
+                           fromSeq, fromVBit, fromVWord, fromVFun, fromVPoly,
+                           fromVTuple, fromVRecord, lookupRecord)
+import Cryptol.Utils.Panic (panic)
+
+-- SBool and SWord -------------------------------------------------------------
+
+type SBool = SVal
+type SWord = SVal
+
+fromBitsLE :: [SBool] -> SWord
+fromBitsLE bs = foldl' f (literalSWord 0 0) bs
+  where f w b = svJoin (svToWord1 b) w
+
+literalSWord :: Int -> Integer -> SWord
+literalSWord w i = svInteger (KBounded False w) i
+
+forallBV_ :: Int -> Symbolic SWord
+forallBV_ w = svMkSymVar (Just ALL) (KBounded False w) Nothing
+
+existsBV_ :: Int -> Symbolic SWord
+existsBV_ w = svMkSymVar (Just EX) (KBounded False w) Nothing
+
+forallSBool_ :: Symbolic SBool
+forallSBool_ = svMkSymVar (Just ALL) KBool Nothing
+
+existsSBool_ :: Symbolic SBool
+existsSBool_ = svMkSymVar (Just EX) KBool Nothing
 
 -- Values ----------------------------------------------------------------------
 
