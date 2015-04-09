@@ -148,7 +148,6 @@ library
                        Cryptol.Testing.Random,
 
                        Cryptol.Symbolic,
-                       Cryptol.Symbolic.BitVector,
                        Cryptol.Symbolic.Prims,
                        Cryptol.Symbolic.Value,
 
