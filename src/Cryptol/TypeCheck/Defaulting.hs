@@ -39,8 +39,7 @@ defaultExpr' :: FilePath -> [String] -> Range -> Expr -> Schema
 defaultExpr' prog args r e s =
   if all (\v -> kindOf v == KNum) (sVars s)
      then do let params = map tpVar (sVars s)
-                 goals  = [ Goal CtDefaulting r p | p <- sProps s ]
-             mbSubst <- tryGetModel prog args params goals
+             mbSubst <- tryGetModel prog args params (sProps s)
              case mbSubst of
                Just su -> return $ do tys <- mapM (bindParam su) params
                                       return (zip (sVars s) tys, appExpr tys)

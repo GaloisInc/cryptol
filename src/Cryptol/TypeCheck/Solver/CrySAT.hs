@@ -39,6 +39,7 @@ import           Data.Maybe ( mapMaybe, fromMaybe )
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Foldable ( any, all )
+import           Data.Traversable ( for )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef',
@@ -245,9 +246,17 @@ simplifyProps s props =
 --  * We assume that the constraints are well-defined.
 --  * Modifies the set of assumptions.
 assumeProps :: Solver -> [Cry.Prop] -> IO VarMap
-assumeProps s props =
-  do mapM_ (assert s . simpProp) (map cryDefinedProp ps ++ ps)
-     return (Map.unions varMaps)
+assumeProps s props = fmap fst (assumeProps' s props)
+
+
+-- | Add the given constraints as assumptions.
+--  * We assume that the constraints are well-defined.
+--  * Modifies the set of assumptions.
+assumeProps' :: Solver -> [Cry.Prop] -> IO (VarMap, [SimpProp])
+assumeProps' s props =
+  do let simpProps = map simpProp (map cryDefinedProp ps ++ ps)
+     mapM_ (assert s) simpProps
+     return (Map.unions varMaps, simpProps)
   where (ps,varMaps) = unzip (mapMaybe exportProp props)
   -- XXX: Instead of asserting one at a time, perhaps we should
   -- assert a conjunction.  That way, we could simplify the whole thing
@@ -303,45 +312,38 @@ improveByDefn uvs p =
     | otherwise                   = Just (x,e)
 
 
-type Model = Map Name (Cry.TVar,Integer)
+{- | Attempt to find a substituion that, when applied, makes all of the
+given properties hold. -}
+getModel :: Solver -> [Cry.Prop] -> IO (Maybe Cry.Subst)
+getModel s props = withScope s $
+  do (varMap,ps) <- assumeProps' s props
+     res         <- SMT.check (solver s)
 
--- | Attempt to find a finite model for the variables involved in a set of
--- goals.
-getModel :: Solver -> [Goal] -> IO (Maybe Model)
-getModel s goals = withScope s $
-
-  do varMap <- assumeProps s (map goal goals)
-     assumeAllFin varMap
-     res <- SMT.check (solver s)
      case res of
-       SMT.Sat -> extractModel varMap
-       _       -> return Nothing
+       SMT.Sat ->
+          do vs <- getVals (solver s) (Map.keys varMap)
+             -- This is guaranteed to be a model only for the *linear*
+             -- properties, so now we check if it works for the rest too.
+
+             let su1  = fmap K vs
+                 ps1  = [ fromMaybe p (apSubst su1 p) | SimpProp p <- ps ]
+                 ok p = case crySimplify p of
+                          PTrue -> True
+                          _     -> False
+
+                 su2 = Cry.listSubst
+                     $ Map.elems
+                     $ Map.intersectionWith (,) varMap (fmap numTy vs)
+
+             return (guard (all ok ps1) >> return su2)
+
+
+       _ -> return Nothing
+
 
   where
-
-  assumeAllFin varMap =
-    mapM_ assertFin (Map.keys varMap)
-
-  assertFin n =
-       SMT.assert (solver s) (SMT.const (smtFinName n))
-
-  extractModel varMap =
-    do binds <- forM (Map.toList varMap) $ \ (n,tv) ->
-                  do mb <- getInst n
-                     case mb of
-                       Just i  -> return (Just (n,(tv,i)))
-                       Nothing -> return Nothing
-
-       return (Map.fromList `fmap` sequence binds)
-
-  -- check to see if the variable became inf, otherwise extract its value.
-  getInst n =
-    do val <- SMT.getConst (solver s) (smtName n)
-       case val of
-         SMT.Int i -> return (Just i)
-         _         -> return Nothing
-
-
+  numTy Inf     = Cry.tInf
+  numTy (Nat k) = Cry.tNum k
 
 --------------------------------------------------------------------------------
 

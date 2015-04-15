@@ -511,37 +511,12 @@ tryGetModel ::
   String ->
   [String] ->
   [TVar] ->   -- variables to try defaulting
-  [Goal] ->   -- constraints
+  [Prop] ->   -- constraints
     IO (Maybe Subst)
-tryGetModel prog args xs gs =
-  Num.withSolver prog args False $ \ s -> tryGetModelWith s xs gs
+tryGetModel prog args xs ps =
+  Num.withSolver prog args False $ \ s ->
+    -- We are only interested in finite instantiations
+    Num.getModel s (map (pFin . TVar) xs ++ ps)
 
-tryGetModelWith ::
-  Num.Solver ->
-  [TVar] ->
-  [Goal] ->   -- constraints
-    IO (Maybe Subst)
-tryGetModelWith s xs goals =
-  do mbModel <- Num.getModel s goals
-     case mbModel of
-       Just model -> checkModel $ defaultingSubst
-                                $ listSubst [ (tv,tNum i) | (tv,i) <- Map.elems model
-                                                          , tv `elem` xs ]
-       Nothing    -> return Nothing
 
-  where
 
-  -- make sure that the constraints can be simplified when using this
-  -- model.
-  checkModel su =
-    do let gs = apSubst su goals
-       res <- simpGoals s gs
-       case res of
-
-         -- conservatively, require that all goals are discharged by the model
-         Right (goals',su')
-           | null goals' -> return (Just (su' @@ su))
-           | otherwise   -> return Nothing
-
-         -- simplification failed under this substitution, the model is invalid.
-         Left _ -> return Nothing
