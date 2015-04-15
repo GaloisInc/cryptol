@@ -96,12 +96,16 @@ checkDefined s updCt uniVars props0 =
   where
   go knownImps extra done notDone =
     do (newNotDone, novelDone) <- checkDefined' s updCt notDone
-       (possible, imps, scs)   <- check s uniVars
+       -- (possible, imps, scs)   <- check s uniVars
+       mbImps <- check s uniVars
 
-       if not possible
-         then do debugLog s "Found contradiction"
-                 return Nothing
-         else
+       case mbImps of
+         Nothing ->
+           do debugLog s "Found contradiction"
+              return Nothing
+
+         -- XXX
+         Just (imps,scs) ->
            do let goAgain novelImps newDone =
                     do mapM_ addImpProp (Map.toList novelImps)
                        let newImps    = composeSubst novelImps knownImps
@@ -614,20 +618,36 @@ prove s@(Solver { .. }) p =
 
 {- | Check if the current set of assumptions is satisfiable, and find
 some facts that must hold in any models of the current assumptions.
-The 'Bool' is 'True' if the current assumptions *may be* satisfiable.
-The 'Bool' is 'False' if the current assumptions are *definitely*
-not satisfiable. -}
-check :: Solver -> Set Name -> IO (Bool, Subst, [Prop])
+
+Returns `Nothing` if the currently asserted constraints are known to
+be unsatisfiable.
+
+Returns `Just (su, sub-goals)` is the current set is satisfiable.
+  * The `su` is a substitution that may be applied to the current constraint
+    set without loosing generality.
+  * The `sub-goals` are additional constraints that must hold if the
+    constraint set is to be satisfiable.
+-}
+check :: Solver -> Set Name -> IO (Maybe (Subst, [Prop]))
 check s@Solver { .. } uniVars =
   do res <- SMT.check solver
      case res of
-       SMT.Unsat   -> debugLog s "Not satisfiable" >> return (False, Map.empty, [])
-       SMT.Unknown -> debugLog s "Unknown" >> return (True, Map.empty, [])
+
+       SMT.Unsat   ->
+        do debugLog s "Not satisfiable"
+           return Nothing
+
+       SMT.Unknown ->
+        do debugLog s "Unknown"
+           return (Just (Map.empty, []))
+
        SMT.Sat     ->
         do debugLog s "Satisfiable"
            (impMap,sideConds) <- debugBlock s "Computing improvements"
                                      (getImpSubst s uniVars)
-           return (True, impMap, sideConds)
+           return (Just (impMap, sideConds))
+
+
 
 {- | The set of unification variables is used to guide ordering of
 assignments (we prefer assigning to them, as that amounts to doing

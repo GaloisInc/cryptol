@@ -102,37 +102,39 @@ proveImplicationIO prog args lname varsInEnv as ps gs =
 
      varMap <- Num.assumeProps s ps
 
-     (possible,imps,extra) <- Num.check s (uniVars (ps,gs))
-     let su  = importImps varMap imps
-         gs0 = apSubst su gs
+     mbImps <- Num.check s (uniVars (ps,gs))
+     case mbImps of
 
-     debugBlock s "improvement from assumptions:" $ debugLog s su
+       Nothing ->
+         do debugLog s "(contradiction in assumptions)"
+            return $ Left $ UnusableFunction (thing lname) ps
 
-     if not possible
-       then do debugLog s "(contradiction in assumptions)"
-               return $ Left $ UnusableFunction (thing lname) ps
+       Just (imps,extra) ->
+         do let su  = importImps varMap imps
+                gs0 = apSubst su gs
 
-       else -- XXX: Use su
-            do let (scs,invalid) = importSideConds varMap extra
-               unless (null invalid) $
-                   panic "proveImplicationIO" ( "Unable to import all side conditions:"
+            debugBlock s "improvement from assumptions:" $ debugLog s su
+
+            let (scs,invalid) = importSideConds varMap extra
+            unless (null invalid) $
+              panic "proveImplicationIO" ( "Unable to import all side conditions:"
                                               : map (show . Num.ppProp) invalid )
 
-               let gs1 = filter ((`notElem` ps) . goal) gs0
-               mb <- simpGoals s (scs ++ gs1)
+            let gs1 = filter ((`notElem` ps) . goal) gs0
+            mb <- simpGoals s (scs ++ gs1)
 
-               case mb of
-                 Left badGs     -> reportUnsolved badGs
-                 Right ([],su1) -> return (Right (su1,[]))
+            case mb of
+              Left badGs     -> reportUnsolved badGs
+              Right ([],su1) -> return (Right (su1,[]))
 
-                 Right (us,su1) -> 
-                    -- Last hope: try to default stuff
-                    do let vs    = Set.filter isFreeTV $ fvs $ map goal us
-                           dVars = Set.toList (vs `Set.difference` varsInEnv)
-                       (_,us1,su2,ws) <- improveByDefaultingWith s dVars us
-                       case us1 of
-                          [] -> return (Right (su2 @@ su1, ws))
-                          _  -> reportUnsolved us1
+              Right (us,su1) -> 
+                 -- Last hope: try to default stuff
+                 do let vs    = Set.filter isFreeTV $ fvs $ map goal us
+                        dVars = Set.toList (vs `Set.difference` varsInEnv)
+                    (_,us1,su2,ws) <- improveByDefaultingWith s dVars us
+                    case us1 of
+                       [] -> return (Right (su2 @@ su1, ws))
+                       _  -> reportUnsolved us1
   where
   reportUnsolved us =
     return $ Left $ UnsolvedDelcayedCt
