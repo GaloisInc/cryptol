@@ -74,6 +74,25 @@ data DefinedProp a = DefinedProp
     terms because we want to import them back into Crytpol types. -}
   }
 
+
+instance HasVars SimpProp where
+  apSubst su (SimpProp p) = do p1 <- apSubst su p
+                               let p2 = crySimplify p1
+                               guard (p1 /= p2)
+                               return (SimpProp p2)
+
+apSubstDefinedProp :: (Prop -> a -> a) ->
+                      Subst -> DefinedProp a -> Maybe (DefinedProp a)
+apSubstDefinedProp updCt su DefinedProp { .. } =
+  do s1 <- apSubst su dpSimpProp
+     return $ case apSubst su dpSimpExprProp of
+                Nothing -> DefinedProp { dpSimpProp = s1, .. }
+                Just p1 -> DefinedProp { dpSimpProp = s1
+                                       , dpSimpExprProp = p1
+                                       , dpData = updCt p1 dpData
+                                       }
+
+
 {- | Check if a collection of things are defined.
 It does not modify the solver's state.
 
@@ -212,6 +231,65 @@ checkDefined' s updCt props0 =
                  else go ch isDef ((ct,p,q) : isNotDef) more
 
 
+{- | Check if the given constraint is guaranteed to be well-defined.
+This means that it cannot be instantiated in a way that would result in
+undefined behaviour.
+
+This estimate is consevative:
+  * if we return `Right`, then the property is definately well-defined
+  * if we return `Left`, then we don't know if the property is well-defined
+
+If the property is well-defined, then we also simplify it.
+-}
+checkDefined1 :: Solver -> (Prop -> a -> a) ->
+                (a,Prop) -> IO (Either (a,Prop) (DefinedProp a))
+checkDefined1 s updCt (ct,p) =
+  do proved <- prove s defCt
+     return $
+       if proved
+         then Right $
+                case crySimpPropExprMaybe p of
+                  Nothing -> DefinedProp { dpData         = ct
+                                         , dpSimpExprProp = p
+                                         , dpSimpProp     = simpProp p
+                                         }
+                  Just p' -> DefinedProp { dpData         = updCt p' ct
+                                         , dpSimpExprProp = p'
+                                         , dpSimpProp     = simpProp p'
+                                         }
+         else Left (ct,p)
+  where
+  SimpProp defCt = simpProp (cryDefinedProp p)
+
+
+{-
+prepareConstraints ::
+  Solver -> (Prop -> a -> a) ->
+  [(a,Prop)] -> ?
+prepareConstraints s updCt uniVars cs =
+  do res <- mapM (checkDefined1 s updCt) cs
+     let (unknown,ok) = paritionEithers res
+
+     solPush s
+     mapM_ (assert s . dpSimpProp) ok
+
+
+  where
+  apSuUnknwon su (x,p) =
+    case apSubst su p of
+      Nothing -> Left (x,p)
+      Just p1 -> Right (updCt p1 x, p1)
+
+  go unknown ok =
+    do mb <- check s uniVars
+       case mb of
+         Nothing ->
+            do solPop s
+               do bad <- minimizeContradictionSimpDef s ok
+                  return (Left bad)
+         Just (moreImps,moreSubGoals) ->
+-}
+
 
 
 
@@ -262,6 +340,29 @@ assumeProps' s props =
   -- assert a conjunction.  That way, we could simplify the whole thing
   -- in one go, and would avoid having to assert 'true' many times.
 
+
+
+
+-- | Given a list of propositions that together lead to a contradiction,
+-- find a sub-set that still leads to a contradiction (but is smaller).
+minimizeContradictionSimpDef :: Solver -> [DefinedProp a] -> IO [a]
+minimizeContradictionSimpDef s ps = start [] ps
+  where
+  start bad [] = return (map dpData bad)
+  start bad (p : more) =
+    do solPush s
+       go bad [] (p : more)
+
+  go _ _ [] = panic "minimizeContradiction"
+               $ ("No contradiction" : map (show . ppProp . dpSimpExprProp) ps)
+  go bad prev (d : more) =
+    do assert s (dpSimpProp d)
+       res <- SMT.check (solver s)
+       case res of
+         SMT.Unsat -> do solPop s
+                         assert s (dpSimpProp d)
+                         start (d : bad) prev
+         _ -> go bad (d : prev) more
 
 
 
@@ -655,8 +756,9 @@ check s@Solver { .. } uniVars =
 assignments (we prefer assigning to them, as that amounts to doing
 type inference).
 
-Returns an improving substitution, which may mention the names of
-non-linear terms.
+Returns an improving substitution, which (in principle) may mention
+the names of non-linear terms.
+XXX: At the moment we discard such improvements.
 -}
 getImpSubst :: Solver -> Set Name -> IO (Subst,[Prop])
 getImpSubst s@Solver { .. } uniVars =
@@ -685,9 +787,26 @@ getImpSubst s@Solver { .. } uniVars =
         then debugLog s "(no improvements)"
         else mapM_ dump (Map.toList easy)
 
+     scs <- mapM importSideCond sideConditions
 
-     return (easy,sideConditions)
+     return (easy,scs)
 
+
+  where
+  importSideCond expr =
+    case expr of
+      e1 :>= e2 -> do e1 <- impNL e1
+                      e2 <- impNL e2
+                      return (e1 :>= e2)
+      _ -> panic "importSideCond" [ "Unexpected side condition:", show expr ]
+
+  impNL e =
+    case e of
+      Var x -> do mb <- lookupNLVar s x
+                  case mb of
+                    Just e1 -> return e1
+                    Nothing -> return e
+      _ -> return e
 
 
 

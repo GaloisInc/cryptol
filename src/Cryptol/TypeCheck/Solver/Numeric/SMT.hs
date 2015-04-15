@@ -13,7 +13,6 @@ module Cryptol.TypeCheck.Solver.Numeric.SMT
 import           Cryptol.TypeCheck.Solver.InfNat
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.TypeCheck.Solver.Numeric.Simplify(crySimplify)
-import           Cryptol.TypeCheck.Solver.Numeric.Defined(cryDefined)
 import           Cryptol.Utils.Misc ( anyJust )
 import           Cryptol.Utils.Panic ( panic )
 
@@ -267,16 +266,16 @@ cryImproveModel solver logger uniVars model =
     tryLR =
       do mb <- tryLR_with x e y e'
          case mb of
-           Just (r,subGoal) -> go (Map.insert x r done)
-                                  (subGoal : extra)
-                                  (reverse todo ++ more)
+           Just (r,subGoals) -> go (Map.insert x r done)
+                                   (subGoals ++ extra)
+                                   (reverse todo ++ more)
            Nothing ->
              do mb1 <- tryLR_with y e' x e
                 case mb1 of
                   Nothing -> next
-                  Just (r, subGoal) -> go (Map.insert y r done)
-                                          (subGoal : extra)
-                                          (reverse todo ++ more)
+                  Just (r, subGoals) -> go (Map.insert y r done)
+                                           (subGoals ++ extra)
+                                           (reverse todo ++ more)
 
 
     tryLR_with v1 v1Expr v2 v2Expr =
@@ -364,7 +363,7 @@ cryCheckLinRel :: SMT.Solver -> SMT.Logger ->
          {- y -} Name {- ^ Define this variable. -} ->
                  (Nat',Nat') {- ^ Values in one model (x,y) -} ->
                  (Nat',Nat') {- ^ Values in another model (x,y) -} ->
-                 IO (Maybe (Expr,Prop))
+                 IO (Maybe (Expr,[Prop]))
                  {- ^ Either nothing, or an improving expression, and any
                       additional obligations -}
 cryCheckLinRel s logger x y p1 p2 =
@@ -405,24 +404,44 @@ cryCheckLinRel s logger x y p1 p2 =
   where
   isFin a = SMT.const (smtFinName a)
 
+  -- XXX: Duplicates `cryDefined`
+  -- The constraints are always of the form: x >= K, or K >= x
+  wellDefined e =
+    case e of
+      (K (Nat a) :* t) :- K (Nat b) ->
+        let c = div (b + a - 1) a
+        in [ t :>= K (Nat c) ]
+
+      K (Nat b) :- (K (Nat a) :* t)
+        -> let c = div b a
+           in [ K (Nat c) :>= t ]
+
+      a  :- b -> [ a :>= b ]
+
+      _ -> []
+
+
   checkLR x1 y1 x2 y2 =
-    SMT.logMessage logger ("checkLR: " ++ show (x1,y1) ++ "   " ++ show (x2,y2)) >>
-    mbGoOn (return (linRel (x1,y1) (x2,y2))) (\(a,b) ->
-      do let sumTerm v
-                | b == 0    = v
-                | b < 0     = v :- K (Nat (negate b))
-                | otherwise = v :+ K (Nat b)
+    do SMT.logMessage logger ("checkLR: " ++ show (x1,y1) ++ "   "
+                                          ++ show (x2,y2))
+       mbGoOn (return (linRel (x1,y1) (x2,y2))) (\(a,b) ->
+         do let sumTerm v
+                   | b == 0    = v
+                   | b < 0     = v :- K (Nat (negate b))
+                   | otherwise = v :+ K (Nat b)
 
-             expr
-               | a == 1     = sumTerm (Var x)
-               | a <  0     = K (Nat b) :- K (Nat (negate a)) :* Var x
-               | otherwise  = sumTerm (K (Nat a) :* Var x)
+                expr
+                  | a == 1     = sumTerm (Var x)
+                  | a <  0     = K (Nat b) :- K (Nat (negate a)) :* Var x
+                  | otherwise  = sumTerm (K (Nat a) :* Var x)
 
-         proved <- checkUnsat s $ propToSmtLib $ crySimplify
-                                $ Not $ {- cryDefined expr :&& -} Var y :==: expr
-         if not proved
-            then return Nothing
-            else return (Just (expr,cryDefined expr)))
+            proved <- checkUnsat s
+                    $ propToSmtLib $ crySimplify
+                    $ Not $ Var y :==: expr
+
+            if not proved
+               then return Nothing
+               else return (Just (expr,wellDefined expr)))
 
   -- Try to get an example of another point, which is finite, and at
   -- different @x@ coordinate.
