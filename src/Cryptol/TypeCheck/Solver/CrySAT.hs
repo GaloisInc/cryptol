@@ -659,7 +659,7 @@ non-linear terms.
 getImpSubst :: Solver -> Set Name -> IO (Subst,[Prop])
 getImpSubst s@Solver { .. } uniVars =
   do names <- viUnmarkedNames `fmap` readIORef declared
-     m     <- fmap Map.fromList (mapM getVal names)
+     m     <- getVals solver names
      (impSu,sideConditions)
            <- cryImproveModel solver logger uniVars m
 
@@ -685,22 +685,6 @@ getImpSubst s@Solver { .. } uniVars =
 
 
      return (easy,sideConditions)
-
-  where
-  getVal a =
-    do yes <- isInf a
-       if yes then return (a, K Inf)
-              else do v <- SMT.getConst solver (smtName a)
-                      case v of
-                        SMT.Int x | x >= 0 -> return (a, K (Nat x))
-                        _ -> panic "cryCheck.getVal"
-                                [ "Not a natural number", show v ]
-
-  isInf a = do yes <- SMT.getConst solver (smtFinName a)
-               case yes of
-                 SMT.Bool ans -> return (not ans)
-                 _            -> panic "cryCheck.isInf"
-                                       [ "Not a boolean value", show yes ]
 
 
 

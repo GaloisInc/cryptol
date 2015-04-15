@@ -6,6 +6,8 @@ module Cryptol.TypeCheck.Solver.Numeric.SMT
   , smtFinName
   , ifPropToSmtLib
   , cryImproveModel
+  , getVal
+  , getVals
   ) where
 
 import           Cryptol.TypeCheck.Solver.InfNat
@@ -163,16 +165,17 @@ smtFinName x = "fin_" ++ show (ppName x)
 -- Models
 --------------------------------------------------------------------------------
 
--- | Get the value for the given variable.
--- Assumes that we are in a SAT state.
-getVal :: SMT.Solver -> Name -> IO Expr
+{- | Get the value for the given name.
+      * Assumes that we are in a SAT state (i.e., there is a model)
+      * Assumes that the name is in the model -}
+getVal :: SMT.Solver -> Name -> IO Nat'
 getVal s a =
   do yes <- isInf a
      if yes
-       then return (K Inf)
+       then return Inf
        else do v <- SMT.getConst s (smtName a)
                case v of
-                 SMT.Int x | x >= 0 -> return (K (Nat x))
+                 SMT.Int x | x >= 0 -> return (Nat x)
                  _ -> panic "cryCheck.getVal" [ "Not a natural number", show v ]
 
   where
@@ -184,7 +187,7 @@ getVal s a =
 
 
 -- | Get the values for the given names.
-getVals :: SMT.Solver -> [Name] -> IO (Map Name Expr)
+getVals :: SMT.Solver -> [Name] -> IO (Map Name Nat')
 getVals s xs =
   do es <- mapM (getVal s) xs
      return (Map.fromList (zip xs es))
@@ -211,27 +214,43 @@ The entries in the substitution look like this:
 -}
 
 
-cryImproveModel :: SMT.Solver -> SMT.Logger -> Set Name -> Map Name Expr
-                -> IO (Map Name Expr, [Prop])
-cryImproveModel solver logger uniVars m = mkSubst `fmap` go Map.empty [] initialTodo
-  where
-  mkSubst (m,e) = (toSubst m, e)
 
+{- | We are mostly interested in improving unification variables.
+However, it is also useful to improve skolem variables, as this could
+turn non-linear constraints into linear ones.  For example, if we
+have a constraint @x * y = z@, and we can figure out that @x@ must be 5,
+then we end up with a linear constraint @5 * y = z@.
+-}
+cryImproveModel :: SMT.Solver -> SMT.Logger -> Set Name -> Map Name Nat'
+                -> IO (Map Name Expr, [Prop])
+cryImproveModel solver logger uniVars model =
+  do (imps,subGoals) <- go Map.empty [] initialTodo
+     return (toSubst imps, subGoals)
+
+  where
   -- Process unification variables first.  That way, if we get `x = y`, we'd
   -- prefer `x` to be a unification variable.
-  initialTodo    = uncurry (++) $ partition isUniVar $ Map.toList m
+  initialTodo    = uncurry (++) $ partition isUniVar $ Map.toList model
   isUniVar (x,_) = x `Set.member` uniVars
 
 
+  -- done:  the set of known improvements
+  -- extra: the collection of inferred sub-goals
   go done extra []             = return (done,extra)
   go done extra ((x,e) : rest) =
 
     -- x = K?
-    do mbCounter <- cryMustEqualK solver (Map.keys m) x e
+    do mbCounter <- cryMustEqualK solver (Map.keys model) x e
        case mbCounter of
-         Nothing -> go (Map.insert x e done) extra rest
+         Nothing -> go (Map.insert x (K e) done) extra rest
          Just ce -> goV ce done extra [] x e rest
 
+
+  -- ce:    a counter example to `x = e`
+  -- done:  known improvements
+  -- extra: known sub-goals
+  -- todo:  more work to process once we are done with `x`.
+  goV _  done extra todo _ _ [] = go done extra (reverse todo)
   goV ce done extra todo x e ((y,e') : more)
     -- x = y?
     | e == e' = do yesK <- cryMustEqualV solver x y
@@ -245,6 +264,21 @@ cryImproveModel solver logger uniVars m = mkSubst `fmap` go Map.empty [] initial
     where
     next = goV ce done extra ((y,e'):todo) x e more
 
+    tryLR =
+      do mb <- tryLR_with x e y e'
+         case mb of
+           Just (r,subGoal) -> go (Map.insert x r done)
+                                  (subGoal : extra)
+                                  (reverse todo ++ more)
+           Nothing ->
+             do mb1 <- tryLR_with y e' x e
+                case mb1 of
+                  Nothing -> next
+                  Just (r, subGoal) -> go (Map.insert y r done)
+                                          (subGoal : extra)
+                                          (reverse todo ++ more)
+
+
     tryLR_with v1 v1Expr v2 v2Expr =
       case ( v1 `Set.member` uniVars
            , v1Expr
@@ -252,22 +286,11 @@ cryImproveModel solver logger uniVars m = mkSubst `fmap` go Map.empty [] initial
            , Map.lookup v1 ce
            , Map.lookup v2 ce
            ) of
-        (True, K x1, K y1, Just (K x2), Just (K y2)) ->
+        (True, x1, y1, Just x2, Just y2) ->
           cryCheckLinRel solver logger v2 v1 (y1,x1) (y2,x2)
         _ -> return Nothing
 
-    tryLR =
-      do mb <- tryLR_with x e y e'
-         case mb of
-           Just (r,e) -> go (Map.insert x r done) (e:extra) (reverse todo ++ more)
-           Nothing ->
-             do mb1 <- tryLR_with y e' x e
-                case mb1 of
-                  Nothing -> next
-                  Just (r,e) -> go (Map.insert y r done) (e:extra) (reverse todo ++ more)
 
-
-  goV _ done extra todo _ _ [] = go done extra (reverse todo)
 
 
 
@@ -286,7 +309,7 @@ checkUnsat s e =
 -- | Try to prove the given expression.
 -- If we fail, we try to give a counter example.
 -- If the answer is unknown, then we return an empty counter example.
-getCounterExample :: SMT.Solver -> [Name] -> SExpr -> IO (Maybe (Map Name Expr))
+getCounterExample :: SMT.Solver -> [Name] -> SExpr -> IO (Maybe (Map Name Nat'))
 getCounterExample s xs e =
   do SMT.push s
      SMT.assert s e
@@ -308,15 +331,14 @@ getCounterExample s xs e =
 -- Returns 'Nothing' if the variables must always match the given value.
 -- Otherwise, we return a counter-example (which may be empty, if uniknown)
 cryMustEqualK :: SMT.Solver -> [Name] ->
-                 Name -> Expr -> IO (Maybe (Map Name Expr))
-cryMustEqualK solver xs x expr =
-  case expr of
-    K Inf     -> getCounterExample solver xs (SMT.const (smtFinName x))
-    K (Nat n) -> getCounterExample solver xs $
-                 SMT.not $
-                 SMT.and (SMT.const $ smtFinName x)
-                         (SMT.eq (SMT.const (smtName x)) (SMT.int n))
-    _ -> panic "cryMustEqualK" [ "Not a constant", show (ppExpr expr) ]
+                 Name -> Nat' -> IO (Maybe (Map Name Nat'))
+cryMustEqualK solver xs x val =
+  case val of
+    Inf   -> getCounterExample solver xs (SMT.const (smtFinName x))
+    Nat n -> getCounterExample solver xs $
+             SMT.not $
+             SMT.and (SMT.const $ smtFinName x)
+                     (SMT.eq (SMT.const (smtName x)) (SMT.int n))
 
 
 
