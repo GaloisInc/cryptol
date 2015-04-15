@@ -36,7 +36,6 @@ import           Cryptol.Utils.Panic ( panic )
 
 import           MonadLib
 import           Data.Maybe ( mapMaybe, fromMaybe )
-import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Foldable ( any, all )
 import           Data.Traversable ( for )
@@ -504,20 +503,8 @@ scopeElem x Scope { .. } = x `elem` scopeNames
 scopeInsert :: Name -> Scope -> Scope
 scopeInsert x Scope { .. } = Scope { scopeNames = x : scopeNames, .. }
 
-scopeMark :: Name -> Scope -> Scope
-scopeMark x Scope { .. } = Scope { scopeMarked = Set.insert x scopeMarked, .. }
-
 scopeLookupNL :: Name -> Scope -> Maybe Expr
 scopeLookupNL x Scope { .. } = lookupNL x scopeNonLinS
-
--- | Apply a substitution to the non-linear terms in this scope.
---    * Returns 'Nothing' if there were no changes.
---    * The resulting substitution should define only "sys" vars,
---      and is for non-linear terms that became linear.
-scopeSubstNL :: Subst -> Scope -> Maybe (Subst, Scope)
-scopeSubstNL su Scope { .. } =
-  do (lsu,newNL) <- apSubstNL su scopeNonLinS
-     return (lsu, Scope { scopeNonLinS = newNL, .. })
 
 
 -- | Given a *simplified* prop, separate linear and non-linear parts
@@ -539,10 +526,6 @@ viElem x VarInfo { .. } = any (x `scopeElem`) (curScope : otherScopes)
 -- | Add a name to a scope.
 viInsert :: Name -> VarInfo -> VarInfo
 viInsert x VarInfo { .. } = VarInfo { curScope = scopeInsert x curScope, .. }
-
--- | Mark a name in the current scope.
-viMark :: Name -> VarInfo -> VarInfo
-viMark x VarInfo { .. } = VarInfo { curScope = scopeMark x curScope, .. }
 
 -- | Add an assertion to the current scope. Returns the linear part.
 viAssert :: SimpProp -> VarInfo -> (VarInfo, SimpProp)
@@ -576,44 +559,10 @@ viUnmarkedNames VarInfo { .. } = filter (not . isMarked)
 viLookupNL :: Name -> VarInfo -> Maybe Expr
 viLookupNL x VarInfo { .. } = scopeLookupNL x curScope
 
-viSubstNL :: Subst -> VarInfo -> Maybe (Subst, VarInfo)
-viSubstNL su VarInfo { .. } =
-  do (lsu,sc) <- scopeSubstNL su curScope
-     return (lsu, VarInfo { curScope = sc, .. })
-
 
 -- | Check if this is a non-linear var.  If so, returns its definition.
 lookupNLVar :: Solver -> Name -> IO (Maybe Expr)
 lookupNLVar Solver { .. } x = viLookupNL x `fmap` readIORef declared
-
--- | Mark a variable as being defined, so we don't look for further
--- improvements to it.
-markDefined :: Solver -> Name -> IO ()
-markDefined Solver { .. } x = modifyIORef' declared (viMark x)
-
-{- | Apply a substitution to the non-linear terms.
-      * If some of the NL terms became linear, then the relation between
-        the sys variable and the new linear term is asserted as a fact.
-        We do this, so that other assertions that mention this variable
-        know about the change.
-        XXX: If the sys. var is in a previous scope, than this assignment
-        would be "undone" when we exit the current scope.
-
-      * Furthermore, the "sys" variable is marked, so that we don't ask
-        for it during improvements -}
-substNL :: Solver -> Subst -> IO (Maybe Subst)
-substNL s@Solver { .. } su =
-  do mb <- atomicModifyIORef' declared $ \vi ->
-           case viSubstNL su vi of
-             Nothing        -> (vi, Nothing)
-             Just (lsu,vi1) -> (vi1, Just lsu)
-     case mb of
-       Nothing -> return Nothing
-       Just lsu -> do mapM_ addFact (Map.toList lsu)
-                      return (Just lsu)
-  where
-  addFact (x,e) = do assert s (simpProp (Var x :== e))
-                     markDefined s x
 
 
 -- | All known non-linear terms.
@@ -795,9 +744,9 @@ getImpSubst s@Solver { .. } uniVars =
   where
   importSideCond expr =
     case expr of
-      e1 :>= e2 -> do e1 <- impNL e1
-                      e2 <- impNL e2
-                      return (e1 :>= e2)
+      e1 :>= e2 -> do e1' <- impNL e1
+                      e2' <- impNL e2
+                      return (e1' :>= e2')
       _ -> panic "importSideCond" [ "Unexpected side condition:", show expr ]
 
   impNL e =
@@ -809,84 +758,6 @@ getImpSubst s@Solver { .. } uniVars =
       _ -> return e
 
 
-
-
-
--- XXX: NOT QUITE, I THINK.
--- | Given a computed improvement `x = e`, check to see if we can get
--- some additional information by interacting with the non-linear assignment.
-checkImpBind :: Solver -> (Name, Expr) -> IO (Bool, [(Name,Expr)])
-checkImpBind s (x,e) =
-  do mbNL <- lookupNLVar s x
-     case (mbNL,e) of
-
-       -- non-lin expression `x = e` equals constant `K`.
-       --   * new constraint: e = K
-       --   * su: `x = K`; eliminates `x`
-       (Just nlE, K {}) ->
-          do assert s (simpProp (nlE :== e))
-             markDefined s x
-             return (True, [(x,e)])
-
-       (Just nlE, Var a) -> setNLVar x nlE a
-
-       -- ordinary var, `?a`, equals constant, `K`:
-       --   * su `?a = K`; eliminates `?a`
-       (Nothing, K {}) -> setNormalVar x e
-
-       -- ordinary var = some var
-       (Nothing, Var a) ->
-          do mbNL2 <- lookupNLVar s a
-             case mbNL2 of
-
-               -- ordinary var = ordinary var
-               Nothing | SysName _ <- a ->
-                         debugBlock s "sys-var with no def" $
-                           do vi <- readIORef (declared s)
-                              debugLog s (show vi)
-                              setNormalVar x e
-                       | otherwise -> setNormalVar x e
-
-               -- ordinary var = nl var
-               Just nlE -> setNLVar a nlE x
-
-       -- ordinary var = lin rel; XXX: TODO
-
-       _ -> return (False, [])
-
-  where
-  setNormalVar var def =
-    do debugBlock s "setting-normal" (debugLog s (Var var :== def))
-       let su = Map.singleton var def
-       mbLins <- substNL s su
-       let newLins = Map.toList (fromMaybe Map.empty mbLins)
-       markDefined s var
-       return (not (null newLins), (var,def) : newLins)
-
-  -- Set a non-lin var, to another var.
-  setNLVar var nlE a =
-    do mbNL2 <- lookupNLVar s a
-       case mbNL2 of
-
-         -- non-lin `x = e1` equals non-lin `y = e2`
-         --   * new constraint: `e1 = e2`
-         --   * su: `x = y`; eliminates `x`
-         Just nlE2 ->
-           do assert s (simpProp (nlE :== nlE2))  -- probably useless
-              markDefined s var
-              return (True, [(var,Var a)])
-
-         -- non-lin `x = e1` equals `?a`
-         Nothing
-
-           -- `?a` occurs in `e1`
-           --   * do nothing; can this be useful in any way?
-           | a `Set.member` cryExprFVS nlE ->
-              return (False, [])
-
-           -- `?a` does not occur in `e1`
-           --   * su: `?a = e`; eliminates `?a`
-           | otherwise -> setNormalVar a nlE
 
 
 
