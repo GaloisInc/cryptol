@@ -159,8 +159,8 @@ numericRight g  = case Num.exportProp (goal g) of
                     Just (p,vm)  -> Right ((g,vm), p)
                     Nothing -> Left g
 
-_testSimpGoals :: FilePath -> [String] -> IO ()
-_testSimpGoals prog args = Num.withSolver prog args True $ \s ->
+_testSimpGoals :: IO ()
+_testSimpGoals = Num.withSolver "cvc4" [ "--lang=smt2", "--incremental" ] True $ \s ->
   do _ <- Num.assumeProps s asmps
      mb <- simpGoals s gs
      case mb of
@@ -206,14 +206,10 @@ simpGoals s gs0 =
                   $ debugLog s unsolvedClassCts
                 return $ Right (unsolvedClassCts, emptySubst)
 
-       _  -> do mbOk <- Num.checkDefined s updCt uvs numCts
+       _  -> do mbOk <- Num.prepareConstraints s updCt uvs numCts
                 case mbOk of
-
-                  Nothing ->
-                    do badGs <- Num.minimizeContradiction s numCts
-                       return (Left (map fst badGs))
-
-                  Just (nonDef,def,imps,wds) ->
+                  Left bad -> return (Left (map fst bad))
+                  Right (nonDef,def,imps,wds) ->
 
                     -- XXX: What should we do with the extra props...
                     do let (su,extraProps) = importSplitImps varMap imps

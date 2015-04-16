@@ -12,13 +12,13 @@
 {-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Solver.CrySAT
   ( withScope, withSolver
-  , assumeProps, checkDefined, simplifyProps, getModel
-  , minimizeContradiction
+  , assumeProps, simplifyProps, getModel
   , check
   , Solver, logger
   , DefinedProp(..)
   , debugBlock
   , DebugLog(..)
+  , prepareConstraints
   ) where
 
 import qualified Cryptol.TypeCheck.AST as Cry
@@ -36,6 +36,8 @@ import           Cryptol.Utils.Panic ( panic )
 
 import           MonadLib
 import           Data.Maybe ( mapMaybe, fromMaybe )
+import           Data.Either ( partitionEithers )
+import           Data.List(nub)
 import qualified Data.Map as Map
 import           Data.Foldable ( any, all )
 import           Data.Traversable ( for )
@@ -92,143 +94,6 @@ apSubstDefinedProp updCt su DefinedProp { .. } =
                                        }
 
 
-{- | Check if a collection of things are defined.
-It does not modify the solver's state.
-
-The result is like this:
-  * 'Nothing': The properties are inconsistent
-  * 'Just' info:  The properties may be consistent, and here is some info. -}
-checkDefined :: Solver                                    ->
-                (Prop -> a -> a) {- ^ Update a goal -}    ->
-                Set Name   {- ^ Unification variables -}  ->
-                [(a,Prop)] {- ^ Goals                 -}  ->
-                IO (Maybe ( [a]             -- could not prove
-                          , [DefinedProp a] -- proved ok and simplified terms
-                          , Subst -- computed improvements, for the conjunction
-                                   -- of the proved properties.
-                          , [Prop]
-                            -- any side conditions generated
-                          ))
-checkDefined s updCt uniVars props0 =
-  debugBlock s "Checking for well-defined properties" $
-  withScope s (go Map.empty [] [] props0)
-  where
-  go knownImps extra done notDone =
-    do (newNotDone, novelDone) <- checkDefined' s updCt notDone
-       -- (possible, imps, scs)   <- check s uniVars
-       mbImps <- check s uniVars
-
-       case mbImps of
-         Nothing ->
-           do debugLog s "Found contradiction"
-              return Nothing
-
-         -- XXX
-         Just (imps,scs) ->
-           do let goAgain novelImps newDone =
-                    do mapM_ addImpProp (Map.toList novelImps)
-                       let newImps    = composeSubst novelImps knownImps
-                           impDone    = map (updDone novelImps) newDone
-                           impNotDone = map (updNotDone novelImps) newNotDone
-
-                       -- the side conditions (scs) are all well defined, so we
-                       -- don't need to pass them through again.
-                       go newImps (scs ++ extra) impDone impNotDone
-
-              let novelImps = Map.difference imps knownImps
-                  newDone   = novelDone ++ done
-
-              if Map.null novelImps
-                then case findImpByDef [] newDone of
-                       Nothing ->
-                         do debugBlock s "Not well-defined:" $
-                              debugLog s (map snd newNotDone)
-                            debugBlock s "Always defined:" $
-                              debugLog s (map dpSimpExprProp newDone)
-
-                            return $ Just ( map fst newNotDone
-                                          , newDone
-                                          , knownImps
-                                          , scs ++ extra
-                                          )
-                       Just ((x,e), rest) ->
-                         goAgain (Map.singleton x e) rest
-
-                else goAgain novelImps newDone
-
-  addImpProp (x,e) = assert s (simpProp (Var x :== e))
-
-  updDone su ct =
-    case apSubst su (dpSimpExprProp ct) of
-      Nothing -> ct
-      Just p' ->
-        let p2 = crySimpPropExpr p'
-        in DefinedProp { dpData = updCt p2 (dpData ct)
-                       , dpSimpExprProp = p2
-                       , dpSimpProp = simpProp p2
-                       }
-
-  updNotDone su (g,p) =
-    case apSubst su p of
-      Nothing -> (g,p)
-      Just p' -> (updCt p' g,p')
-
-  -- Try to prove something by unification (e.g., ?x = a * b)
-  findImpByDef _ [] = Nothing
-  findImpByDef qs (p : ps) =
-    case improveByDefn uniVars p of
-      Nothing  -> findImpByDef (p : qs) ps
-      Just yes -> Just (yes, qs ++ ps)
-
-
-
-
--- | Check that a bunch of constraints are all defined.
---  * We return constraints that are not necessarily defined in the first
---    component, and the ones that are defined in the second component.
---  * Well defined constraints are asserted at this point.
---  * The expressions in the defined constraints are simplified.
---  * The expressions in the well-defined constraint may mention sys. vars.
---    (i.e., named non-linear terms)
-checkDefined' :: Solver -> (Prop -> a -> a) ->
-                [(a,Prop)] -> IO ([(a,Prop)], [DefinedProp a])
-checkDefined' s updCt props0 =
-  do let ps = [ (a,p,simpProp (cryDefinedProp p)) | (a,p) <- props0 ]
-     go False [] [] ps
-
-  where
-
-
-  -- Everything is defined: keep going.
-  go _    isDef []       [] = return ([], isDef)
-
-  -- We have possibly non-defined, but we also added a new fact: go again.
-  go True isDef isNotDef [] = go False isDef [] isNotDef
-
-  -- We have possibly non-defined predicates and nothing changed.
-  go False isDef isNotDef [] = return ([ (a,p) | (a,p,_) <- isNotDef ], isDef)
-
-  -- Process one constraint.
-  go ch isDef isNotDef ((ct,p,q@(SimpProp defCt)) : more) =
-    do proved <- prove s defCt
-       if proved then do let r = case crySimpPropExprMaybe p of
-                                   Nothing ->
-                                     DefinedProp
-                                        { dpData = ct
-                                        , dpSimpExprProp = p
-                                        , dpSimpProp = simpProp p
-                                        }
-                                   Just p' ->
-                                     DefinedProp
-                                       { dpData = updCt p' ct
-                                       , dpSimpExprProp = p'
-                                       , dpSimpProp = simpProp p'
-                                       }
-                         -- add defined prop as an assumption
-                         assert s (dpSimpProp r)
-                         go True (r : isDef) isNotDef  more
-                 else go ch isDef ((ct,p,q) : isNotDef) more
-
 
 {- | Check if the given constraint is guaranteed to be well-defined.
 This means that it cannot be instantiated in a way that would result in
@@ -261,34 +126,59 @@ checkDefined1 s updCt (ct,p) =
   SimpProp defCt = simpProp (cryDefinedProp p)
 
 
-{-
+
 prepareConstraints ::
-  Solver -> (Prop -> a -> a) ->
-  [(a,Prop)] -> ?
+  Solver -> (Prop -> a -> a) -> Set Name ->
+  [(a,Prop)] -> IO (Either [a] ([a], [DefinedProp a], Subst, [Prop]))
 prepareConstraints s updCt uniVars cs =
   do res <- mapM (checkDefined1 s updCt) cs
-     let (unknown,ok) = paritionEithers res
-
-     solPush s
-     mapM_ (assert s . dpSimpProp) ok
+     let (unknown,ok) = partitionEithers res
+     goStep1 unknown ok Map.empty []
 
 
   where
-  apSuUnknwon su (x,p) =
+  getImps ok = withScope s $
+               do mapM_ (assert s . dpSimpProp) ok
+                  check s uniVars
+
+  mapEither f = partitionEithers . map f
+
+  apSuUnk su (x,p) =
     case apSubst su p of
       Nothing -> Left (x,p)
       Just p1 -> Right (updCt p1 x, p1)
 
-  go unknown ok =
-    do mb <- check s uniVars
+  apSuOk su p = case apSubstDefinedProp updCt su p of
+                  Nothing -> Left p
+                  Just p1 -> Right p1
+
+  apSubst' su x = fromMaybe x (apSubst su x)
+
+  goStep1 unknown ok su sgs =
+    let (ok1, moreSu) = improveByDefnMany updCt uniVars ok
+    in go unknown ok1 (composeSubst moreSu su) sgs
+
+  go unknown ok su sgs =
+    do mb <- getImps ok
        case mb of
          Nothing ->
-            do solPop s
-               do bad <- minimizeContradictionSimpDef s ok
-                  return (Left bad)
-         Just (moreImps,moreSubGoals) ->
--}
+           do bad <- minimizeContradictionSimpDef s ok
+              return (Left bad)
+         Just (imps,subGoals)
+           | not (null okNew) -> goStep1 unknown (okNew ++ okOld) newSu newGs
+           | otherwise ->
+             do res <- mapM (checkDefined1 s updCt) unkNew
+                let (stillUnk,nowOk) = partitionEithers res
+                if null nowOk
+                  then return (Right ( map fst (unkNew ++ unkOld)
+                                     , ok, newSu, newGs))
+                  else goStep1 (stillUnk ++ unkOld) (nowOk ++ ok) newSu newGs
 
+           where (okOld, okNew)  = mapEither (apSuOk  imps) ok
+                 (unkOld,unkNew) = mapEither (apSuUnk imps) unknown
+                 newSu = composeSubst imps su
+                 newGs = nub (subGoals ++ map (apSubst' su) sgs)
+                                          -- XXX: inefficient
 
 
 
@@ -364,31 +254,26 @@ minimizeContradictionSimpDef s ps = start [] ps
          _ -> go bad (d : prev) more
 
 
-
--- | Given a list of propositions that together lead to a contradiction,
--- find a sub-set that still leads to a contradiction (but is smaller).
-minimizeContradiction :: Solver -> [(a,Prop)] -> IO [a]
-minimizeContradiction s ps = start [] (map prep ps)
+improveByDefnMany :: (Prop -> a -> a) -> Set Name ->
+                    [DefinedProp a] -> ([DefinedProp a], Subst)
+improveByDefnMany updCt uvs = go [] Map.empty
   where
-  prep (a,p) = (a, simpProp p)
+  mbSu su x = case apSubstDefinedProp updCt su x of
+                Nothing -> Left x
+                Just y  -> Right y
 
-  start bad [] = return bad
-  start bad (p : more) =
-    do solPush s
-       go bad [] (p : more)
+  go todo su (p : ps) =
+    let p1 = fromMaybe p (apSubstDefinedProp updCt su p)
+    in case improveByDefn uvs p1 of
+         Just (x,e) -> go todo (Map.insert x e su) ps
+                      -- `p` is solved, so ignore
+         Nothing    -> go (p1 : todo) su ps
 
-  go _ _ [] = panic "minimizeContradiction"
-                  $ ("No contradiction" : map (show . ppProp . snd) ps)
-  go bad prev ((a,p) : more) =
-    do assert s p
-       res <- SMT.check (solver s)
-       case res of
-         SMT.Unsat -> do solPop s
-                         assert s p
-                         start (a : bad) prev
-         _ -> go bad ((a,p) : prev) more
-
-
+  go todo su [] =
+    let (same,changed) = partitionEithers (map (mbSu su) todo)
+    in case changed of
+         [] -> (same,su)
+         _  -> go same su changed
 
 
 {- | If we see an equation: `?x = e`, and:
