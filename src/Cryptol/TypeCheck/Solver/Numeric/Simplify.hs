@@ -22,10 +22,11 @@ import qualified Cryptol.TypeCheck.Solver.InfNat as IN
 import           Cryptol.Utils.Panic( panic )
 import           Cryptol.Utils.Misc ( anyJust )
 
-import           Control.Monad ( mplus )
+import           Control.Monad ( mplus, guard )
 import           Data.List ( sortBy )
-import           Data.Maybe ( fromMaybe )
+import           Data.Maybe ( fromMaybe, maybeToList )
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 
 
 -- | Simplify a property, if possible.
@@ -550,26 +551,53 @@ crySimpExprMaybe expr =
 -- XXX: Add rules to group together occurances of variables
 
 
--- | Make a simplification step, assuming the expression is well-formed.
+splitSum :: Expr -> [Expr]
+splitSum e0 = go e0 []
+  where go (e1 :+ e2) es = go e1 (go e2 es)
+        go e es          = e : es
+
+normSum :: Expr -> Expr
+normSum = go 0 Map.empty Nothing . splitSum
+  where
+  -- constants, variables, other terms
+  go _ _  _ (K Inf : _)       = K Inf
+  go k xs t (K (Nat n) : es)  = go (k + n) xs t es
+  go k xs t (Var x : es)      = go k (Map.insertWith (+) x 1 xs) t es
+  go k xs t (K (Nat n) :* Var x : es)
+    | n == 0                  = go k xs t es
+    | otherwise               = go k (Map.insertWith (+) x n xs) t es
+  go k xs Nothing (e : es)    = go k xs (Just e) es
+  go k xs (Just t) (e : es)   = go k xs (Just (t :+ e)) es
+
+  go k xs t [] =
+    let ifNot p e = if not p then e else []
+        terms     = ifNot (k == 0) [K (Nat k)]
+                 ++ ifNot (Map.null xs)
+                      [ if n == 1 then Var x else K (Nat n) :* Var x
+                                                  | (x,n) <- Map.toList xs ]
+                 ++ maybeToList t
+    in case terms of
+         [] -> K (Nat 0)
+         ts -> foldr1 (:+) ts
+
+
 crySimpExprStep :: Expr -> Maybe Expr
-crySimpExprStep expr =
+crySimpExprStep e =
+  case crySimpExprStep1 e of
+    Just e1 -> Just e1
+    Nothing -> do let e1 = normSum e
+                  guard (e /= e1)
+                  return e1
+
+-- | Make a simplification step, assuming the expression is well-formed.
+crySimpExprStep1 :: Expr -> Maybe Expr
+crySimpExprStep1 expr =
   case expr of
     K _                   -> Nothing
     Var _                 -> Nothing
 
-    x :+ y ->
-      case (x,y) of
-        (K (Nat 0), _)    -> Just y
-        (K Inf, _)        -> Just inf
-        (K a, K b)        -> Just (K (IN.nAdd a b))
-
-        -- Normalize a bit
-        (_,  K b)         -> Just (K b :+ x)
-        (_,  K b :+ c)    -> Just ((K b :+ x) :+ c)
-        (_,  b :- c)      -> Just ((x :+ b) :- c)
-        (a :+ b, _)       -> Just (a :+ (b :+ y))
-
-        _                 -> Nothing
+    x :+ (b :- c)         -> Just ((x :+ b) :- c)
+    _ :+ _                -> Nothing
 
     x :- y ->
       case (x,y) of
