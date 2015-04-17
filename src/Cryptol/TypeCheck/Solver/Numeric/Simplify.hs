@@ -388,10 +388,13 @@ cryIsEq x y =
 cryIsGt :: Expr -> Expr -> Prop
 cryIsGt (K m) (K n)   = if m > n then PTrue else PFalse
 cryIsGt (K (Nat 0)) _ = PFalse
-cryIsGt (K (Nat 1)) e = e :== one
+cryIsGt (K (Nat 1)) e = case cryIs0 False e of
+                          Just e' -> e'
+                          Nothing -> panic "cryIsGt (1)"
+                                           ["`cryGt0 False` return `Nothing`"]
 cryIsGt e (K (Nat 0)) = case cryGt0 False e of
                           Just e' -> e'
-                          Nothing -> panic "cryIsGt"
+                          Nothing -> panic "cryIsGt (2)"
                                            ["`cryGt0 False` return `Nothing`"]
 cryIsGt x y           = Fin y :&& (x :== inf :||
                                    Fin x :&& cryNatOp (:>:) x y)
