@@ -1,8 +1,11 @@
-{-# LANGUAGE Safe, FlexibleContexts #-}
+{-# LANGUAGE Safe, FlexibleContexts, CPP #-}
 module Cryptol.Utils.Misc where
 
-import Data.Traversable (Traversable, traverse)
 import MonadLib
+
+#if __GLASGOW_HASKELL__ < 710
+import Data.Traversable (Traversable, traverse)
+#endif
 
 
 -- | Apply a function to all elements of a container.

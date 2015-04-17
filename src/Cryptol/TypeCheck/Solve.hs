@@ -13,7 +13,8 @@ module Cryptol.TypeCheck.Solve
   , proveImplication
   , checkTypeFunction
   , improveByDefaulting
-  , tryGetModel
+  , defaultReplExpr
+  , simpType
   ) where
 
 import           Cryptol.Parser.AST(LQName, thing)
@@ -22,20 +23,20 @@ import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Subst
                     (FVS,apSubst,fvs,singleSubst,
-                          emptySubst,Subst,listSubst, (@@), Subst,
-                          defaultingSubst)
+                          emptySubst,Subst,listSubst, (@@), Subst)
 import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
+import qualified Cryptol.TypeCheck.Solver.Numeric.Simplify as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Parser.Position(rCombs)
 
-import           Control.Monad (unless)
+import           Control.Monad (unless, guard)
 import           Data.Either(partitionEithers)
-import           Data.Maybe(catMaybes)
+import           Data.Maybe(catMaybes, fromMaybe)
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Set ( Set )
@@ -500,6 +501,33 @@ improveByDefaultingWith s as ps =
              )
 
 
+-- | Try to pick a reasonable instantiation for an expression, with
+-- the given type.  This is useful when we do evaluation at the REPL.
+-- The resulting types should satisfy the constraints of the schema.
+defaultReplExpr :: FilePath -> [String] -> Expr -> Schema
+             -> IO (Maybe ([(TParam,Type)], Expr))
+defaultReplExpr prog args e s =
+  if all (\v -> kindOf v == KNum) (sVars s)
+     then do let params = map tpVar (sVars s)
+             mbSubst <- tryGetModel prog args params (sProps s)
+             case mbSubst of
+               Just su -> return $ do tys <- mapM (bindParam su) params
+                                      return (zip (sVars s) tys, appExpr tys)
+               Nothing -> return Nothing
+
+     else return Nothing
+
+  where
+
+  bindParam su tp =
+    do let ty  = TVar tp
+           ty' = apSubst su ty
+       guard (ty /= ty')
+       return ty'
+
+  appExpr tys = foldl (\e1 _ -> EProofApp e1) (foldl ETApp e tys) (sProps s)
+
+
 
 -- | Attempt to default the given constraints by asserting them in the SMT
 -- solver, and asking it for a model.
@@ -513,6 +541,37 @@ tryGetModel prog args xs ps =
   Num.withSolver prog args False $ \ s ->
     -- We are only interested in finite instantiations
     Num.getModel s (map (pFin . TVar) xs ++ ps)
+
+--------------------------------------------------------------------------------
+
+simpType :: Type -> Type
+simpType ty =
+  case ty of
+    TCon c ts ->
+      case c of
+        TF {}    -> fromMaybe ty $
+                    do (e,vm) <- Num.exportType ty
+                       e1     <- Num.crySimpExprMaybe e
+                       Num.importType vm e1
+
+        _        -> TCon c (map simpType ts)
+
+    TVar _       -> ty
+    TUser x ts t -> TUser x ts (simpType t)
+    TRec fs      -> TRec [ (l, simpType t) | (l,t) <- fs ]
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

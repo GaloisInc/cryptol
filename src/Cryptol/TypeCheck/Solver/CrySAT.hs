@@ -40,7 +40,6 @@ import           Data.Either ( partitionEithers )
 import           Data.List(nub)
 import qualified Data.Map as Map
 import           Data.Foldable ( any, all )
-import           Data.Traversable ( for )
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef',
@@ -49,6 +48,7 @@ import           Prelude hiding (any,all)
 
 import qualified SimpleSMT as SMT
 import           Text.PrettyPrint(Doc)
+
 
 -- | We use this to remember what we simplified
 newtype SimpProp = SimpProp Prop

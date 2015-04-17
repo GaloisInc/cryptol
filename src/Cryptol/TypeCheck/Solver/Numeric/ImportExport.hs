@@ -3,6 +3,7 @@ module Cryptol.TypeCheck.Solver.Numeric.ImportExport
   ( ExportM
   , VarMap
   , exportProp
+  , exportType
   , runExportM
   , exportPropM
   , exportTypeM
@@ -19,6 +20,9 @@ import           MonadLib
 
 exportProp :: Cry.Prop -> Maybe (Prop, VarMap)
 exportProp = runExportM . exportPropM
+
+exportType :: Cry.Prop -> Maybe (Expr, VarMap)
+exportType = runExportM . exportTypeM
 
 runExportM :: ExportM a -> Maybe (a, VarMap)
 runExportM = either (\_ -> Nothing) Just

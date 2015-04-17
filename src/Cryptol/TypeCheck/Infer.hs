@@ -33,8 +33,6 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,fvs,(@@))
-import           Cryptol.TypeCheck.Solver.FinOrd(noFacts,OrdFacts)
-import           Cryptol.TypeCheck.Solver.Eval(simpType,assumedOrderModel)
 import           Cryptol.TypeCheck.Solver.InfNat(genLog)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.PP
@@ -638,11 +636,11 @@ guessType exprMap b@(P.Bind { .. }) =
 
 
 -- | Try to evaluate the inferred type of a mono-binding
-simpMonoBind :: OrdFacts -> Decl -> Decl
-simpMonoBind m d =
+simpMonoBind :: Decl -> Decl
+simpMonoBind d =
   case dSignature d of
     Forall [] [] t ->
-      let t1 = simpType m t
+      let t1 = simpType t
       in if t == t1 then d else d { dSignature  = Forall [] [] t1
                                   , dDefinition = ECast (dDefinition d) t1
                                   }
@@ -668,14 +666,7 @@ generalize bs0 gs0 =
      bs1 <- forM bs0 $ \b -> do s <- applySubst (dSignature b)
                                 return b { dSignature = s }
 
-     ordM <- case assumedOrderModel noFacts (map goal gs) of
-                Left (ordModel,p) ->
-                  do mapM_ recordError
-                            [ UnusableFunction n [p] | n <- map dName bs1]
-                     return ordModel
-                Right (ordModel,_) -> return ordModel
-
-     let bs = map (simpMonoBind ordM) bs1
+     let bs = map simpMonoBind bs1
 
      let goalFVS g  = Set.filter isFreeTV $ fvs $ goal g
          inGoals    = Set.unions $ map goalFVS gs
