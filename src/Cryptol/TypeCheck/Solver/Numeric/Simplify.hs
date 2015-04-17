@@ -547,7 +547,7 @@ crySimpExprMaybe expr =
 
 
 
--- XXX: Add rules to group togethere occurances of variables
+-- XXX: Add rules to group together occurances of variables
 
 
 -- | Make a simplification step, assuming the expression is well-formed.
@@ -562,10 +562,10 @@ crySimpExprStep expr =
         (K (Nat 0), _)    -> Just y
         (K Inf, _)        -> Just inf
         (K a, K b)        -> Just (K (IN.nAdd a b))
-        (K a, K b :+ c)   -> Just (K (IN.nAdd a b) :+ c)
 
         -- Normalize a bit
         (_,  K b)         -> Just (K b :+ x)
+        (_,  K b :+ c)    -> Just ((K b :+ x) :+ c)
         (_,  b :- c)      -> Just ((x :+ b) :- c)
         (a :+ b, _)       -> Just (a :+ (b :+ y))
 
