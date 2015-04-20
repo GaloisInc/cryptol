@@ -237,10 +237,12 @@ assumeProps' s props =
 minimizeContradictionSimpDef :: Solver -> [DefinedProp a] -> IO [a]
 minimizeContradictionSimpDef s ps = start [] ps
   where
-  start bad [] = return (map dpData bad)
-  start bad (p : more) =
-    do solPush s
-       go bad [] (p : more)
+  start bad todo =
+    do res <- SMT.check (solver s)
+       case res of
+         SMT.Unsat -> return (map dpData bad)
+         _         -> do solPush s
+                         go bad [] todo
 
   go _ _ [] = panic "minimizeContradiction"
                $ ("No contradiction" : map (show . ppProp . dpSimpExprProp) ps)
