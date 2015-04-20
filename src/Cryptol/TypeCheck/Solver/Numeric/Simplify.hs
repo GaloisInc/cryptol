@@ -1,4 +1,4 @@
-{-# LANGUAGE Safe, PatternGuards #-}
+{-# LANGUAGE Safe, PatternGuards, BangPatterns #-}
 -- | Simplification.
 -- TODO:
 --  - Putting in a normal form to spot "prove by assumption"
@@ -27,6 +27,7 @@ import           Data.List ( sortBy )
 import           Data.Maybe ( fromMaybe, maybeToList )
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+
 
 
 -- | Simplify a property, if possible.
@@ -551,34 +552,73 @@ crySimpExprMaybe expr =
 -- XXX: Add rules to group together occurances of variables
 
 
-splitSum :: Expr -> [Expr]
-splitSum e0 = go e0 []
-  where go (e1 :+ e2) es = go e1 (go e2 es)
-        go e es          = e : es
+data Sign = Pos | Neg deriving Show
+
+otherSign :: Sign -> Sign
+otherSign s = case s of
+                Pos -> Neg
+                Neg -> Pos
+
+signed :: Sign -> Integer -> Integer
+signed s = case s of
+             Pos -> id
+             Neg -> negate
+
+splitSum :: Expr -> [(Sign,Expr)]
+splitSum e0 = go Pos e0 []
+  where go s (e1 :+ e2) es = go s e1 (go s e2 es)
+        go s (e1 :- e2) es = go s e1 (go (otherSign s) e2 es)
+        go s e es          = (s,e) : es
 
 normSum :: Expr -> Expr
-normSum = go 0 Map.empty Nothing . splitSum
+normSum = posTerm . go 0 Map.empty Nothing . splitSum
   where
+
   -- constants, variables, other terms
-  go _ _  _ (K Inf : _)       = K Inf
-  go k xs t (K (Nat n) : es)  = go (k + n) xs t es
-  go k xs t (Var x : es)      = go k (Map.insertWith (+) x 1 xs) t es
-  go k xs t (K (Nat n) :* Var x : es)
-    | n == 0                  = go k xs t es
-    | otherwise               = go k (Map.insertWith (+) x n xs) t es
-  go k xs Nothing (e : es)    = go k xs (Just e) es
-  go k xs (Just t) (e : es)   = go k xs (Just (t :+ e)) es
+  go !_ !_  !_ ((Pos,K Inf) : _) = (Pos, K Inf)
+
+  go k xs t ((s, K (Nat n)) : es) = go (k + signed s n) xs t es
+
+  go k xs t ((s, Var x) : es) = go k (Map.insertWith (+) x (signed s 1) xs) t es
+
+  go k xs t ((s, K (Nat n) :* Var x) : es)
+    | n == 0     = go k xs t es
+    | otherwise  = go k (Map.insertWith (+) x (signed s n) xs) t es
+
+  go k xs Nothing (e : es) = go k xs (Just e) es
+
+  go k xs (Just e1) (e2 : es) = go k xs (Just (add e1 e2)) es
 
   go k xs t [] =
-    let ifNot p e = if not p then e else []
-        terms     = ifNot (k == 0) [K (Nat k)]
-                 ++ ifNot (Map.null xs)
-                      [ if n == 1 then Var x else K (Nat n) :* Var x
-                                                  | (x,n) <- Map.toList xs ]
+    let terms     = constTerm k
+                 ++ concatMap varTerm (Map.toList xs)
                  ++ maybeToList t
+
     in case terms of
-         [] -> K (Nat 0)
-         ts -> foldr1 (:+) ts
+         [] -> (Pos, K (Nat 0))
+         ts -> foldr1 add ts
+
+  constTerm k
+    | k == 0    = []
+    | k >  0    = [ (Pos, K (Nat k)) ]
+    | otherwise = [ (Neg, K (Nat (negate k))) ]
+
+  varTerm (x,k)
+    | k == 0    = []
+    | k == 1    = [ (Pos, Var x) ]
+    | k > 0     = [ (Pos, K (Nat k) :* Var x) ]
+    | k == (-1) = [ (Neg, Var x) ]
+    | otherwise = [ (Neg, K (Nat (negate k)) :* Var x) ]
+
+  add (s1,t1) (s2,t2) =
+    case (s1,s2) of
+      (Pos,Pos) -> (Pos, t1 :+ t2)
+      (Pos,Neg) -> (Pos, t1 :- t2)
+      (Neg,Pos) -> (Pos, t2 :- t1)
+      (Neg,Neg) -> (Neg, t1 :+ t2)
+
+  posTerm (Pos,x) = x
+  posTerm (Neg,x) = K (Nat 0) :- x
 
 
 crySimpExprStep :: Expr -> Maybe Expr
@@ -596,33 +636,8 @@ crySimpExprStep1 expr =
     K _                   -> Nothing
     Var _                 -> Nothing
 
-    x :+ (b :- c)         -> Just ((x :+ b) :- c)
     _ :+ _                -> Nothing
-
-    x :- y ->
-      case (x,y) of
-        (K (Nat 0), _)    -> Just zero
-        (K Inf, _)        -> Just inf
-        (_, K (Nat 0))    -> Just x
-        (K a, K b)        -> K `fmap` IN.nSub a b
-        _ | x == y        -> Just zero
-
-        (K a :+ c1, K b)
-          | a > b         -> do a' <- IN.nSub a b
-                                return (K a' :+ c1)
-          | a == b        -> Just c1
-          | otherwise     -> do b' <- IN.nSub b a
-                                return (c1 :- K b')
-
-        (K a :+ c1, K b :+ c2)
-          | a > b         -> do a' <- IN.nSub a b
-                                return ((K a' :+ c1) :- c2)
-          | a == b        -> Just (c1 :- c2)
-          | otherwise     -> do b' <- IN.nSub b a
-                                return (c1 :- (K b' :+ c2))
-
-
-        _                 -> Nothing
+    _ :- _                -> Nothing
 
     x :* y ->
       case (x,y) of
