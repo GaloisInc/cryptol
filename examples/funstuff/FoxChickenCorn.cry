@@ -73,7 +73,7 @@ all : {n} (fin n) => [n] -> Bit
 all xs = xs == ~zero
 
 // "population count" - how many bits are on
-popCount : {a,b} (fin a, b >= 1, b == (lg2 a)) => [a] -> [b]
+popCount : {a,b} (fin a, b >= 1, b == (width a)) => [a] -> [b]
 popCount bs = ic ! 0 where
     ic = [0] # [ if elt then prev + 1 else prev | elt <- bs | prev <- ic]
 
