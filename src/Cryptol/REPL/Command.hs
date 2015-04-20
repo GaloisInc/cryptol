@@ -735,8 +735,9 @@ replEvalExpr :: P.Expr -> REPL (E.Value, T.Type)
 replEvalExpr expr =
   do (def,sig) <- replCheckExpr expr
 
-     EnvProg prog args <- getUser "tc-solver"
-     mbDef <- io (defaultReplExpr prog args def sig)
+     me <- getModuleEnv
+     let cfg = M.meSolverConfig me
+     mbDef <- io (defaultReplExpr cfg def sig)
 
      (def1,ty) <-
         case mbDef of

@@ -46,8 +46,7 @@ data ModuleEnv = ModuleEnv
   , meSearchPath    :: [FilePath]
   , meDynEnv        :: DynamicEnv
   , meMonoBinds     :: !Bool
-  , meSolverProg    :: FilePath
-  , meSolverArgs    :: [String]
+  , meSolverConfig  :: T.SolverConfig
   }
 
 resetModuleEnv :: ModuleEnv -> ModuleEnv
@@ -95,8 +94,11 @@ initialModuleEnv  = do
                         ]
     , meDynEnv        = mempty
     , meMonoBinds     = True
-    , meSolverProg    = "cvc4"
-    , meSolverArgs    = [ "--lang=smt2", "--incremental", "--rewrite-divk" ]
+    , meSolverConfig  = T.SolverConfig
+                          { T.solverPath = "cvc4"
+                          , T.solverArgs = [ "--lang=smt2", "--incremental", "--rewrite-divk" ]
+                          , T.solverVerbose = 0
+                          }
     }
 
 -- | Try to focus a loaded module in the module environment.

@@ -349,7 +349,7 @@ genInferInput :: Range -> IfaceDecls -> ModuleM T.InferInput
 genInferInput r env = do
   seeds <- getNameSeeds
   monoBinds <- getMonoBinds
-  (prog,args) <- getSolver
+  cfg <- getSolverConfig
 
   -- TODO: include the environment needed by the module
   return T.InferInput
@@ -359,8 +359,7 @@ genInferInput r env = do
     , T.inpNewtypes  =                    filterEnv ifNewtypes
     , T.inpNameSeeds = seeds
     , T.inpMonoBinds = monoBinds
-    , T.inpSolverProg= prog
-    , T.inpSolverArgs= args
+    , T.inpSolverConfig = cfg
     }
   where
   -- at this point, the names used in the aggregate interface should be

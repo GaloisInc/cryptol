@@ -77,6 +77,7 @@ import Cryptol.Parser (ParseError,ppError)
 import Cryptol.Parser.NoInclude (IncludeError,ppIncludeError)
 import Cryptol.Parser.NoPat (Error)
 import qualified Cryptol.TypeCheck.AST as T
+import qualified Cryptol.TypeCheck as T
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.AST as P
@@ -580,10 +581,19 @@ userOptions  = mkOptionMap
     (const (return Nothing)) -- TODO: check for the program in the path
     "The solver that will be used by the type checker" $
     \case EnvProg prog args -> do me <- getModuleEnv
-                                  setModuleEnv me { M.meSolverProg = prog
-                                                  , M.meSolverArgs = args }
+                                  let cfg = M.meSolverConfig me
+                                  setModuleEnv me { M.meSolverConfig =
+                                                      cfg { T.solverPath = prog
+                                                          , T.solverArgs = args } }
           _                 -> return ()
 
+  , OptionDescr "tc-debug" (EnvNum 0)
+    (const (return Nothing))
+    "Enable type-checker debugging output" $
+    \case EnvNum n -> do me <- getModuleEnv
+                         let cfg = M.meSolverConfig me
+                         setModuleEnv me { M.meSolverConfig = cfg{ T.solverVerbose = fromIntegral n } }
+          _        -> return ()
   ]
 
 -- | Check the value to the `base` option.
@@ -669,3 +679,6 @@ cvc4exists = do
   case mPath of
     Nothing -> return (Just CVC4NotFound)
     Just _  -> return Nothing
+
+
+

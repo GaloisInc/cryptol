@@ -12,6 +12,7 @@ module Cryptol.TypeCheck
   , tcDecls
   , InferInput(..)
   , InferOutput(..)
+  , SolverConfig(..)
   , NameSeeds
   , nameSeeds
   , Error(..)
@@ -34,7 +35,7 @@ import           Cryptol.TypeCheck.Monad
                    )
 import           Cryptol.Prims.Types(typeOf)
 import           Cryptol.TypeCheck.Infer (inferModule, inferBinds, inferDs)
-import           Cryptol.TypeCheck.InferTypes(Error(..),Warning(..),VarType(..))
+import           Cryptol.TypeCheck.InferTypes(Error(..),Warning(..),VarType(..), SolverConfig(..))
 import           Cryptol.TypeCheck.Solve(simplifyAllConstraints)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)

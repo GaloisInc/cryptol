@@ -63,8 +63,8 @@ simplifyAllConstraints :: InferM ()
 simplifyAllConstraints =
   do mapM_  tryHasGoal =<< getHasGoals
      gs <- getGoals
-     (prog,args) <- getSolver
-     mb <- io (Num.withSolver prog args False (`simpGoals` gs))
+     cfg <- getSolverConfig
+     mb <- io (Num.withSolver cfg (`simpGoals` gs))
      case mb of
        Right (gs1,su) -> extendSubst su >> addGoals gs1
        Left badGs     -> mapM_ (recordError . UnsolvedGoal) badGs
@@ -73,8 +73,8 @@ simplifyAllConstraints =
 proveImplication :: LQName -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
-     (prog,args) <- getSolver
-     mbErr <- io (proveImplicationIO prog args lnam evars as ps gs)
+     cfg <- getSolverConfig
+     mbErr <- io (proveImplicationIO cfg lnam evars as ps gs)
      case mbErr of
        Right (su,ws) ->
           do mapM_ recordWarning ws
@@ -82,8 +82,7 @@ proveImplication lnam as ps gs =
        Left err -> recordError err >> return emptySubst
 
 
-proveImplicationIO :: FilePath
-                   -> [String]
+proveImplicationIO :: SolverConfig
                    -> LQName   -- ^ Checking this functi
                    -> Set TVar -- ^ These appear in the env., and we should
                                -- not try to default the
@@ -91,9 +90,9 @@ proveImplicationIO :: FilePath
                    -> [Prop]   -- ^ Assumed constraint
                    -> [Goal]   -- ^ Collected constraints
                    -> IO (Either Error (Subst,[Warning]))
-proveImplicationIO _ _ _ _ _ [] [] = return (Right (emptySubst,[]))
-proveImplicationIO prog args lname varsInEnv as ps gs =
-  Num.withSolver prog args False $ \s ->
+proveImplicationIO _   _     _         _  [] [] = return (Right (emptySubst,[]))
+proveImplicationIO cfg lname varsInEnv as ps gs =
+  Num.withSolver cfg $ \s ->
   debugBlock s "proveImplicationIO" $
 
   do debugBlock s "assumes" (debugLog s ps)
@@ -161,13 +160,18 @@ numericRight g  = case Num.exportProp (goal g) of
                     Nothing -> Left g
 
 _testSimpGoals :: IO ()
-_testSimpGoals = Num.withSolver "cvc4" [ "--lang=smt2", "--incremental" ] True $ \s ->
+_testSimpGoals = Num.withSolver cfg $ \s ->
   do _ <- Num.assumeProps s asmps
      mb <- simpGoals s gs
      case mb of
        Right _  -> debugLog s "End of test"
        Left _   -> debugLog s "Impossible"
   where
+  cfg = SolverConfig { solverPath = "cvc4"
+                     , solverArgs = [ "--lang=smt2", "--incremental" ]
+                     , solverVerbose = 1
+                     }
+
   asmps = [ tv 0 >== num 1, num 2 >== tv 0 ]
 --   gs = map fakeGoal [ num 32 =#= tv 1 .+. (num 16 .*. tv 0) ]
   gs = map fakeGoal [ num 32 =#= tv 1 .+. (num 16 .*. tv 0) ]
@@ -383,8 +387,7 @@ eliminateSimpleGEQ = go Map.empty []
 -}
 
 improveByDefaulting ::
-  String ->
-  [String] ->
+  SolverConfig ->
   [TVar] ->   -- candidates for defaulting
   [Goal] ->   -- constraints
     IO  ( [TVar]    -- non-defaulted
@@ -392,8 +395,7 @@ improveByDefaulting ::
         , Subst     -- improvements from defaulting
         , [Warning] -- warnings about defaulting
         )
-improveByDefaulting prog args xs gs = Num.withSolver prog args False $ \s ->
-  improveByDefaultingWith s xs gs
+improveByDefaulting cfg xs gs = Num.withSolver cfg $ \s -> improveByDefaultingWith s xs gs
 
 improveByDefaultingWith ::
   Num.Solver ->
@@ -504,12 +506,12 @@ improveByDefaultingWith s as ps =
 -- | Try to pick a reasonable instantiation for an expression, with
 -- the given type.  This is useful when we do evaluation at the REPL.
 -- The resulting types should satisfy the constraints of the schema.
-defaultReplExpr :: FilePath -> [String] -> Expr -> Schema
+defaultReplExpr :: SolverConfig -> Expr -> Schema
              -> IO (Maybe ([(TParam,Type)], Expr))
-defaultReplExpr prog args e s =
+defaultReplExpr cfg e s =
   if all (\v -> kindOf v == KNum) (sVars s)
      then do let params = map tpVar (sVars s)
-             mbSubst <- tryGetModel prog args params (sProps s)
+             mbSubst <- tryGetModel cfg params (sProps s)
              case mbSubst of
                Just su -> return $ do tys <- mapM (bindParam su) params
                                       return (zip (sVars s) tys, appExpr tys)
@@ -532,13 +534,12 @@ defaultReplExpr prog args e s =
 -- | Attempt to default the given constraints by asserting them in the SMT
 -- solver, and asking it for a model.
 tryGetModel ::
-  String ->
-  [String] ->
+  SolverConfig ->
   [TVar] ->   -- variables to try defaulting
   [Prop] ->   -- constraints
     IO (Maybe Subst)
-tryGetModel prog args xs ps =
-  Num.withSolver prog args False $ \ s ->
+tryGetModel cfg xs ps =
+  Num.withSolver cfg $ \ s ->
     -- We are only interested in finite instantiations
     Num.getModel s (map (pFin . TVar) xs ++ ps)
 

@@ -23,7 +23,7 @@ module Cryptol.TypeCheck.Solver.CrySAT
 
 import qualified Cryptol.TypeCheck.AST as Cry
 import           Cryptol.TypeCheck.PP(pp)
-import           Cryptol.TypeCheck.InferTypes(Goal(..))
+import           Cryptol.TypeCheck.InferTypes(Goal(..), SolverConfig(..))
 import qualified Cryptol.TypeCheck.Subst as Cry
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST
@@ -456,14 +456,12 @@ getNLSubst Solver { .. } =
   do VarInfo { .. } <- readIORef declared
      return $ nonLinSubst $ scopeNonLinS curScope
 
-
 -- | Execute a computation with a fresh solver instance.
-withSolver :: FilePath -> [String] -> Bool -> (Solver -> IO a) -> IO a
-withSolver prog args chatty k =
-  do -- let chatty = True
-     logger <- if chatty then SMT.newLogger 0 else return quietLogger
+withSolver :: SolverConfig -> (Solver -> IO a) -> IO a
+withSolver SolverConfig { .. } k =
+  do logger <- if solverVerbose > 0 then SMT.newLogger 0 else return quietLogger
 
-     solver <- SMT.newSolver prog args Nothing --} (Just logger)
+     solver <- SMT.newSolver solverPath solverArgs Nothing --} (Just logger)
      _ <- SMT.setOptionMaybe solver ":global-decls" "false"
      SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty

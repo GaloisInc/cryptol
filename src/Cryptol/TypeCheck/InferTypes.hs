@@ -28,6 +28,15 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 
+
+
+data SolverConfig = SolverConfig
+  { solverPath    :: FilePath   -- ^ The SMT solver to invoke
+  , solverArgs    :: [String]   -- ^ Additional arguments to pass to the solver
+  , solverVerbose :: Int        -- ^ How verbose to be when type-checking
+  } deriving Show
+
+
 -- | The types of variables in the environment.
 data VarType = ExtVar Schema      -- ^ Known type
              | CurSCC Expr Type   -- ^ Part of current SCC
