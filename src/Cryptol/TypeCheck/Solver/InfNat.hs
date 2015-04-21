@@ -138,6 +138,16 @@ We don't check that the second element fits in `w` many bits as the
 second element may not be part of the list.
 For example, the length of @[ 0 .. ] : [_][0]@ is @nLenFromThen 0 1 0@,
 which should evaluate to 1. -}
+
+
+{- XXX: It would appear that the actual notaion also requires `y` to fit in...
+It is not clear if that's a good idea.  Consider, for example,
+
+    [ 1, 4 .., 2 ]
+
+Crytpol infers that this list has one element, but it insists that the
+width of the elements be at least 3, to accomodate the 4.
+-}
 nLenFromThen :: Nat' -> Nat' -> Nat' -> Maybe Nat'
 nLenFromThen a@(Nat x) b@(Nat y) wi@(Nat w)
   | wi < nWidth a = Nothing
@@ -160,6 +170,52 @@ nLenFromThenTo (Nat x) (Nat y) (Nat z)
   dist = abs (x - z)
 
 nLenFromThenTo _ _ _ = Nothing
+
+{- Note [Sequences of Length 1]
+
+  `nLenFromThenTo x y z == 1`
+
+  dist < step && (x > y && z <= x   ||   y >= x && z >= x)
+
+  case 1: dist < step && x > y && z <= x
+  case 2: dist < step && y >= x && z >= x
+
+  case 1: if    `z <= x`,
+          then  `x - z >= 0`,
+          hence `dist = x - z`    (a)
+
+          if    `x > y`
+          then  `x - y` > 0
+          hence `step = x - y`    (b)
+
+          from (a) and (b):
+            `dist < step`
+            `x - z < x - y`
+            `-z < -y`
+            `z > y`
+
+  case 1 summary:  x >= z && z > y
+
+
+
+  case 2: if y >= x, then step = y - x   (a)
+          if z >= x, then dist = z - x   (b)
+
+          dist < step =
+          (z - x) < (y - x) =
+          (z < y)
+
+  case 2 summary: y > z, z >= x
+
+------------------------
+
+  `nLenFromThen x y w == 1`
+    | y > x         = nLenFromThenTo x y (Nat (2^w - 1))
+    | y < x         = nLenFromThenTo x y (Nat 0)
+
+    y >= 2^w, y > x
+
+-}
 
 
 --------------------------------------------------------------------------------

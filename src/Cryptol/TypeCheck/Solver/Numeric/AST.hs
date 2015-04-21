@@ -9,7 +9,7 @@ module Cryptol.TypeCheck.Solver.Numeric.AST
   , Prop(..), cryPropExprs, cryPropFVS
   , ppProp, ppPropPrec
 
-  , Expr(..), zero, one, inf, cryAnds, cryOrs
+  , Expr(..), zero, one, two, inf, cryAnds, cryOrs
   , cryExprExprs, cryRebuildExpr
   , cryExprFVS
   , ppExpr, ppExprPrec
@@ -98,6 +98,10 @@ zero = K (Nat 0)
 -- | The constant @1@.
 one :: Expr
 one = K (Nat 1)
+
+-- | The constant @2@.
+two :: Expr
+two = K (Nat 2)
 
 -- | The constant @infinity@.
 inf :: Expr

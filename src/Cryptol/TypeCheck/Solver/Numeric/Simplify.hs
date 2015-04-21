@@ -88,7 +88,9 @@ crySimpStep prop =
         (K a, K b)     -> Just (if a == b then PTrue else PFalse)
 
         (K (Nat 0), _) -> cryIs0 True y
+        (K (Nat 1), _) -> cryIs1 True y
         (_, K (Nat 0)) -> cryIs0 True x
+        (_, K (Nat 1)) -> cryIs1 True x
 
         _ | x == y    -> Just PTrue
           | otherwise -> case (x,y) of
@@ -372,7 +374,9 @@ cryIsEq x y =
     (K m, K n)      -> if m == n then PTrue else PFalse
 
     (K (Nat 0),_)   -> cryIs0' y
+    (K (Nat 1),_)   -> cryIs1' y
     (_, K (Nat 0))  -> cryIs0' x
+    (_, K (Nat 1))  -> cryIs1' x
 
     (K Inf, _)      -> Not (Fin y)
     (_, K Inf)      -> Not (Fin x)
@@ -384,6 +388,13 @@ cryIsEq x y =
                 Just e' -> e'
                 Nothing -> panic "cryIsEq"
                                  ["`cryIs0 False` returned `Nothing`."]
+
+  cryIs1' e = case cryIs1 False e of
+                Just e' -> e'
+                Nothing -> panic "cryIsEq"
+                                 ["`cryIs0 False` returned `Nothing`."]
+
+
 
 
 -- | Simplificatoin for @:>@
@@ -468,6 +479,54 @@ cryIs0 useFinite expr =
   where
   eq x y = if useFinite then x :==: y else x :== y
   gt x y = if useFinite then x :>: y  else x :>  y
+
+
+cryIs1 :: Bool -> Expr -> Maybe Prop
+cryIs1 useFinite expr =
+  case expr of
+    K Inf               -> Just PFalse
+    K (Nat n)           -> Just (if n == 1 then PTrue else PFalse)
+    Var _ | useFinite   -> Nothing
+          | otherwise   -> Just (Fin expr :&& expr :==: one)
+    t1 :+ t2            -> Just (eq t1 zero :&& eq t2 one :||
+                                 eq t1 one  :&& eq t1 zero)
+    t1 :- t2            -> Just (eq t1 (t2 :+ one))
+    t1 :* t2            -> Just (eq t1 one :&& eq t2 one)
+
+    Div t1 t2           -> Just (gt (two :* t2) t1 :&& gt (t1 :+ one) t2)
+
+    Mod _ _ | useFinite -> Nothing
+            | otherwise -> Just (cryNatOp (:==:) expr one)
+
+
+    t1 :^^ t2           -> Just (eq t1 one :|| eq t2 zero)
+
+    Min t1 t2           -> Just (eq t1 one :&& gt t2 zero :||
+                                 eq t2 one :&& gt t1 zero)
+
+    Max t1 t2           -> Just (eq t1 one :&& gt two t2 :||
+                                 eq t2 one :&& gt two t1)
+
+    Lg2 t1              -> Just (eq t1 two)
+    Width t1            -> Just (eq t1 one)
+
+    -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
+    LenFromThen x y w   -> Just (gt y x :&& gt (y :+ one) (two :^^ w))
+
+    -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
+    LenFromThenTo x y z -> Just (gt z y :&& gt (x :+ one) z     :||
+                                 gt y z :&& gt (z :+ one) x)
+  where
+  eq x y = if useFinite then x :==: y else x :== y
+  gt x y = if useFinite then x :>: y  else x :>  y
+
+
+
+
+
+
+
+
 
 
 -- | Simplify @t :> 0@ or @t :>: 0@.
