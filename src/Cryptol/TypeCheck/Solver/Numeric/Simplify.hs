@@ -469,7 +469,7 @@ cryIs0 useFinite expr =
     Max t1 t2           -> Just (eq t1 zero :&& eq t2 zero)
     Lg2 t1              -> Just (eq t1 zero :|| eq t1 one)
     Width t1            -> Just (eq t1 zero)
-    LenFromThen x y w   -> Just (eq w zero :|| gt x y)
+    LenFromThen _ _ _   -> Just PFalse
 
     -- See `nLenFromThenTo` in 'Cryptol.TypeCheck.Solver.InfNat'
     LenFromThenTo x y z -> Just ( gt x y :&& gt z x
