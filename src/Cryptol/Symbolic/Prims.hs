@@ -419,7 +419,7 @@ arithUnary op = loop . toTypeVal
         TVFun _ t     -> VFun (\x -> loop t (fromVFun v x))
 
 sExp :: SWord -> SWord -> SWord
-sExp x y = go (unpackWord y)
+sExp x y = go (reverse (unpackWord y)) -- bits in little-endian order
   where go []       = literalSWord (SBV.svBitSize x) 1
         go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
             where a = go bs
