@@ -161,7 +161,9 @@ numericRight g  = case Num.exportProp (goal g) of
 
 _testSimpGoals :: IO ()
 _testSimpGoals = Num.withSolver cfg $ \s ->
-  do _ <- Num.assumeProps s asmps
+  do mapM_ dump asmps
+
+     _ <- Num.assumeProps s asmps
      mb <- simpGoals s gs
      case mb of
        Right _  -> debugLog s "End of test"
@@ -181,6 +183,12 @@ _testSimpGoals = Num.withSolver cfg $ \s ->
   fakeGoal p = Goal { goalSource = undefined, goalRange = undefined, goal = p }
   tv n = TVar (TVFree n KNum Set.empty (text "test var"))
   num x = tNum (x :: Int)
+
+  dump a = do putStrLn "-------------------_"
+              case Num.exportProp a of
+                Just (b,_) -> do print $ Num.ppProp' $ Num.propToProp' b
+                                 putStrLn "-------------------"
+                Nothing    -> print "can't export"
 
 {- | Try to simplify a bunch of goals.
 Assumes that the substitution has been applied to the goals.

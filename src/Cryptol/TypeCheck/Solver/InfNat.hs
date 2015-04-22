@@ -171,6 +171,16 @@ nLenFromThenTo (Nat x) (Nat y) (Nat z)
 
 nLenFromThenTo _ _ _ = Nothing
 
+{- Note [Sequences of Length 0]
+
+  nLenFromThenTo x y z == 0
+    case 1: x > y  && z > x
+    case 2: x <= y && z < x
+
+  nLenFromThen x y w == 0
+    impossible
+-}
+
 {- Note [Sequences of Length 1]
 
   `nLenFromThenTo x y z == 1`

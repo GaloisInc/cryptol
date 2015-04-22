@@ -16,7 +16,7 @@ module Cryptol.TypeCheck.Solver.Numeric.AST
 
   , Nat'(..)
 
-  , IfExpr(..), ppIfExpr
+  , IfExpr, IfExpr'(..), ppIf, ppIfExpr
 
   , Subst, HasVars(..), cryLet, composeSubst
   ) where
@@ -201,9 +201,12 @@ cryPropFVS = Set.unions . map cryExprFVS . cryPropExprs
 
 
 
-data IfExpr a = If Prop (IfExpr a) (IfExpr a) | Return a | Impossible
+data IfExpr' p a = If p (IfExpr' p a) (IfExpr' p a) | Return a | Impossible
+                deriving Eq
 
-instance Monad IfExpr where
+type IfExpr = IfExpr' Prop
+
+instance Monad (IfExpr' p) where
   return  = Return
   fail _  = Impossible
   m >>= k = case m of
@@ -211,10 +214,10 @@ instance Monad IfExpr where
               Return a   -> k a
               If p t e   -> If p (t >>= k) (e >>= k)
 
-instance Functor IfExpr where
+instance Functor (IfExpr' p) where
   fmap  = liftM
 
-instance A.Applicative IfExpr where
+instance A.Applicative (IfExpr' p) where
   pure  = return
   (<*>) = ap
 
@@ -245,20 +248,20 @@ instance HasVars Expr where
       case expr of
         K _                 -> Nothing
         Var b               -> Map.lookup b su
-        x :+ y              -> two (:+) x y
-        x :- y              -> two (:-) x y
-        x :* y              -> two (:*) x y
-        x :^^ y             -> two (:^^) x y
-        Div x y             -> two Div x y
-        Mod x y             -> two Mod x y
-        Min x y             -> two Min x y
-        Max x y             -> two Max x y
+        x :+ y              -> bin (:+) x y
+        x :- y              -> bin (:-) x y
+        x :* y              -> bin (:*) x y
+        x :^^ y             -> bin (:^^) x y
+        Div x y             -> bin Div x y
+        Mod x y             -> bin Mod x y
+        Min x y             -> bin Min x y
+        Max x y             -> bin Max x y
         Lg2 x               -> Lg2 `fmap` go x
         Width x             -> Width `fmap` go x
         LenFromThen x y w   -> three LenFromThen x y w
         LenFromThenTo x y z -> three LenFromThen x y z
 
-    two f x y = do [x',y'] <- anyJust go [x,y]
+    bin f x y = do [x',y'] <- anyJust go [x,y]
                    return (f x' y')
 
     three f x y z = do [x',y',z'] <- anyJust go [x,y,z]
@@ -272,8 +275,8 @@ instance HasVars Prop where
         PFalse    -> Nothing
         PTrue     -> Nothing
         Not p     -> Not `fmap` go p
-        p :&& q   -> two (:&&) p q
-        p :|| q   -> two (:||) p q
+        p :&& q   -> bin (:&&) p q
+        p :|| q   -> bin (:||) p q
         Fin x     -> Fin `fmap` apSubst su x
         x :== y   -> twoE (:==) x y
         x :>= y   -> twoE (:>=) x y
@@ -281,7 +284,7 @@ instance HasVars Prop where
         x :==: y  -> twoE (:==:) x y
         x :>: y   -> twoE (:>) x y
 
-    two f x y = do [x',y'] <- anyJust go [x,y]
+    bin f x y = do [x',y'] <- anyJust go [x,y]
                    return (f x' y')
 
     twoE f x y = do [x',y'] <- anyJust (apSubst su) [x,y]
@@ -390,14 +393,20 @@ ppExprPrec prec expr =
 
 -- | Pretty print an experssion with ifs.
 ppIfExpr :: IfExpr Expr -> Doc
-ppIfExpr expr =
-  case expr of
-    If p t e -> hang (text "if" <+> ppProp p) 2
-              ( (text "then" <+> ppIfExpr t)  $$
-                (text "else" <+> ppIfExpr e)
-              )
-    Return e    -> ppExpr e
-    Impossible  -> text "<impossible>"
+ppIfExpr = ppIf ppProp ppExpr
+
+-- | Pretty print an experssion with ifs.
+ppIf :: (p -> Doc) -> (a -> Doc) -> IfExpr' p a -> Doc
+ppIf ppAtom ppVal = go
+  where
+  go expr =
+    case expr of
+      If p t e -> hang (text "if" <+> ppAtom p) 2
+                ( (text "then" <+> go t)  $$
+                  (text "else" <+> go e)
+                )
+      Return e    -> ppVal e
+      Impossible  -> text "<impossible>"
 
 
 
