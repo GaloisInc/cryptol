@@ -12,22 +12,18 @@
 
 module Cryptol.Symbolic where
 
-import Control.Applicative
 import Control.Monad (replicateM, when, zipWithM)
 import Control.Monad.IO.Class
 import Data.List (transpose, intercalate)
 import qualified Data.Map as Map
 import Data.Maybe
-import Data.Monoid (Monoid(..))
-import Data.Traversable (traverse)
 import qualified Control.Exception as X
 
-import qualified Data.SBV as SBV
+import qualified Data.SBV.Dynamic as SBV
 
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 
-import Cryptol.Symbolic.BitVector
 import Cryptol.Symbolic.Prims
 import Cryptol.Symbolic.Value
 
@@ -38,6 +34,12 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative
+import Data.Monoid (Monoid(..))
+import Data.Traversable (traverse)
+#endif
 
 -- External interface ----------------------------------------------------------
 
@@ -198,13 +200,13 @@ parseValues (t : ts) cws = (v : vs, cws'')
 
 parseValue :: FinType -> [SBV.CW] -> (Eval.Value, [SBV.CW])
 parseValue FTBit [] = panic "Cryptol.Symbolic.parseValue" [ "empty FTBit" ]
-parseValue FTBit (cw : cws) = (Eval.VBit (SBV.fromCW cw), cws)
+parseValue FTBit (cw : cws) = (Eval.VBit (SBV.cwToBool cw), cws)
 parseValue (FTSeq 0 FTBit) cws = (Eval.VWord (Eval.BV 0 0), cws)
-parseValue (FTSeq n FTBit) (cw : cws)
-  | SBV.isBounded cw = (Eval.VWord (Eval.BV (toInteger n) (SBV.fromCW cw)), cws)
-  | otherwise = panic "Cryptol.Symbolic.parseValue" [ "unbounded concrete word" ]
-parseValue (FTSeq n FTBit) cws = (Eval.VSeq True vs, cws')
-  where (vs, cws') = parseValues (replicate n FTBit) cws
+parseValue (FTSeq n FTBit) cws =
+  case SBV.genParse (SBV.KBounded False n) cws of
+    Just (x, cws') -> (Eval.VWord (Eval.BV (toInteger n) x), cws')
+    Nothing        -> (Eval.VSeq True vs, cws')
+      where (vs, cws') = parseValues (replicate n FTBit) cws
 parseValue (FTSeq n t) cws = (Eval.VSeq False vs, cws')
   where (vs, cws') = parseValues (replicate n t) cws
 parseValue (FTTuple ts) cws = (Eval.VTuple vs, cws')
@@ -265,8 +267,8 @@ predArgTypes schema@(Forall ts ps ty)
 forallFinType :: FinType -> SBV.Symbolic Value
 forallFinType ty =
   case ty of
-    FTBit         -> VBit <$> SBV.forall_
-    FTSeq 0 FTBit -> return $ VWord (SBV.literal (bv 0 0))
+    FTBit         -> VBit <$> forallSBool_
+    FTSeq 0 FTBit -> return $ VWord (literalSWord 0 0)
     FTSeq n FTBit -> VWord <$> (forallBV_ n)
     FTSeq n t     -> VSeq False <$> replicateM n (forallFinType t)
     FTTuple ts    -> VTuple <$> mapM forallFinType ts
@@ -275,8 +277,8 @@ forallFinType ty =
 existsFinType :: FinType -> SBV.Symbolic Value
 existsFinType ty =
   case ty of
-    FTBit         -> VBit <$> SBV.exists_
-    FTSeq 0 FTBit -> return $ VWord (SBV.literal (bv 0 0))
+    FTBit         -> VBit <$> existsSBool_
+    FTSeq 0 FTBit -> return $ VWord (literalSWord 0 0)
     FTSeq n FTBit -> VWord <$> existsBV_ n
     FTSeq n t     -> VSeq False <$> replicateM n (existsFinType t)
     FTTuple ts    -> VTuple <$> mapM existsFinType ts
@@ -333,7 +335,7 @@ evalExpr env expr =
     ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
     ESel e sel        -> evalSel sel (eval e)
     EIf b e1 e2       -> evalIf (fromVBit (eval b)) (eval e1) (eval e2)
-                           where evalIf = if envIteSolver env then SBV.sBranch else SBV.ite
+                           where evalIf = if envIteSolver env then sBranchValue else iteValue
     EComp ty e mss    -> evalComp env (evalType env ty) e mss
     EVar n            -> case lookupVar n env of
                            Just x -> x
@@ -377,7 +379,7 @@ evalSel sel v =
         _ -> panic "Cryptol.Symbolic.evalSel" [ "Record selector applied to non-record" ]
 
     ListSel n _   -> case v of
-                       VWord s -> VBit (SBV.sbvTestBit s n)
+                       VWord s -> VBit (SBV.svTestBit s n)
                        _       -> fromSeq v !! n  -- 0-based indexing
 
 -- Declarations ----------------------------------------------------------------

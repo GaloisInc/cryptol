@@ -27,13 +27,16 @@ import Cryptol.Version (commitHash, commitBranch, commitDirty)
 import Paths_cryptol (version)
 
 import Data.Version (showVersion)
-import Data.Monoid (mconcat)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import System.Console.GetOpt
     (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
 import System.Environment (getArgs, getProgName, lookupEnv)
 import System.Exit (exitFailure)
 import System.FilePath (searchPathSeparator, splitSearchPath, takeDirectory)
+
+#if __GLASGOW_HASKELL__ < 710
+import Data.Monoid (mconcat)
+#endif
 
 data Options = Options
   { optLoad            :: [FilePath]

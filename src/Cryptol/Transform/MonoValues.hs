@@ -79,11 +79,14 @@ module Cryptol.Transform.MonoValues (rewModule) where
 import Cryptol.Parser.AST (Pass(MonoValues))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.TypeMap
-import Control.Applicative
 import Data.List(sortBy,groupBy)
 import Data.Either(partitionEithers)
 import Data.Map (Map)
 import MonadLib
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative
+#endif
 
 {- (f,t,n) |--> x  means that when we spot instantiations of `f` with `ts` and
 `n` proof argument, we should replace them with `Var x` -}

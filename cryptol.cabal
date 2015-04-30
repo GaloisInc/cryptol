@@ -1,5 +1,5 @@
 Name:                cryptol
-Version:             2.2.2
+Version:             2.2.3
 Synopsis:            Cryptol: The Language of Cryptography
 Description: Cryptol is a domain-specific language for specifying cryptographic algorithms. A Cryptol implementation of an algorithm resembles its mathematical specification more closely than an implementation in a general purpose language. For more, see <http://www.cryptol.net/>.
 License:             BSD3
@@ -23,7 +23,7 @@ source-repository head
 source-repository this
   type:     git
   location: https://github.com/GaloisInc/cryptol.git
-  tag:      v2.2.2
+  tag:      v2.2.3
 
 flag static
   default: False
@@ -56,7 +56,7 @@ library
                        process         >= 1.2,
                        QuickCheck      >= 2.7,
                        random          >= 1.0.1,
-                       sbv             >= 4.2 && < 4.3,
+                       sbv             >= 4.3,
                        smtLib          >= 1.0.7,
                        syb             >= 0.4,
                        text            >= 1.1,
@@ -138,7 +138,6 @@ library
                        Cryptol.Testing.Random,
 
                        Cryptol.Symbolic,
-                       Cryptol.Symbolic.BitVector,
                        Cryptol.Symbolic.Prims,
                        Cryptol.Symbolic.Value,
 
@@ -152,8 +151,9 @@ library
                        Paths_cryptol,
                        GitRev
 
+  default-extensions:  CPP
   GHC-options:         -Wall -O2
-  ghc-prof-options: -fprof-auto -prof
+  ghc-prof-options:    -fprof-auto -prof
 
   if flag(relocatable)
       cpp-options: -DRELOCATABLE
@@ -185,8 +185,9 @@ executable cryptol
                      , sbv
                      , tf-random
                      , transformers
+  default-extensions:  CPP
   GHC-options:         -Wall -O2
-  ghc-prof-options: -auto-all -prof -rtsopts
+  ghc-prof-options:    -auto-all -prof -rtsopts
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread

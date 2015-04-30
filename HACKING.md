@@ -30,6 +30,15 @@ as regression tests. The test suite itself is written using the
 `test-framework` library, so it can readily output XML for consumption
 by Jenkins and other CI systems.
 
+## Stackage
+
+On the Jenkins machines, we `cp stackage.config cabal.config` before
+building in order to build against a Stackage LTS snapshot (updated
+periodically). This is to ensure compatibility with downstream
+dependencies that rely on Stackage for their stability. We do not have
+`cabal.config` in place by default, though, so developers can use
+different versions of the compiler.
+
 ## Running tests
 
 To run the test suite, run `make test` from the root of the

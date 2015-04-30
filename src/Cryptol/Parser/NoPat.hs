@@ -21,12 +21,14 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
 import           MonadLib
-import           Control.Applicative(Applicative(..),(<$>))
 import           Data.Maybe(maybeToList)
 import           Data.Either(partitionEithers)
 import qualified Data.Map as Map
-import           Data.Traversable(traverse)
 
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative(Applicative(..),(<$>))
+import           Data.Traversable(traverse)
+#endif
 
 class RemovePatterns t where
   -- | Eliminate all patterns in a program.

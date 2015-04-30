@@ -11,21 +11,23 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Cryptol.Symbolic.Prims where
 
-import Control.Applicative
 import Data.Bits
 import Data.List (genericDrop, genericReplicate, genericSplitAt, genericTake, sortBy, transpose)
 import Data.Ord (comparing)
 
+import Cryptol.Eval.Value (BitWord(..))
 import Cryptol.Prims.Eval (binary, unary, tlamN)
 import Cryptol.Prims.Syntax (ECon(..))
-import Cryptol.Symbolic.BitVector
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Name)
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)
 import Cryptol.Utils.Panic
 
-import qualified Data.SBV as SBV
-import Data.SBV (SBool)
+import qualified Data.SBV.Dynamic as SBV
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative
+#endif
 
 traverseSnd :: Functor f => (a -> f b) -> (t, a) -> f (t, b)
 traverseSnd f (x, y) = (,) x <$> f y
@@ -36,25 +38,25 @@ traverseSnd f (x, y) = (,) x <$> f y
 evalECon :: ECon -> Value
 evalECon econ =
   case econ of
-    ECTrue        -> VBit SBV.true
-    ECFalse       -> VBit SBV.false
+    ECTrue        -> VBit SBV.svTrue
+    ECFalse       -> VBit SBV.svFalse
     ECDemote      -> ecDemoteV -- Converts a numeric type into its corresponding value.
                                -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
-    ECPlus        -> binary (arithBinary (+)) -- {a} (Arith a) => a -> a -> a
-    ECMinus       -> binary (arithBinary (-)) -- {a} (Arith a) => a -> a -> a
-    ECMul         -> binary (arithBinary (*)) -- {a} (Arith a) => a -> a -> a
-    ECDiv         -> binary (arithBinary (SBV.sQuot)) -- {a} (Arith a) => a -> a -> a
-    ECMod         -> binary (arithBinary (SBV.sRem)) -- {a} (Arith a) => a -> a -> a
+    ECPlus        -> binary (arithBinary SBV.svPlus) -- {a} (Arith a) => a -> a -> a
+    ECMinus       -> binary (arithBinary SBV.svMinus) -- {a} (Arith a) => a -> a -> a
+    ECMul         -> binary (arithBinary SBV.svTimes) -- {a} (Arith a) => a -> a -> a
+    ECDiv         -> binary (arithBinary SBV.svQuot) -- {a} (Arith a) => a -> a -> a
+    ECMod         -> binary (arithBinary SBV.svRem) -- {a} (Arith a) => a -> a -> a
     ECExp         -> binary (arithBinary sExp) -- {a} (Arith a) => a -> a -> a
     ECLg2         -> unary (arithUnary sLg2) -- {a} (Arith a) => a -> a
-    ECNeg         -> unary (arithUnary negate)
+    ECNeg         -> unary (arithUnary SBV.svUNeg)
 
-    ECLt          -> binary (cmpBinary cmpLt cmpLt SBV.false)
-    ECGt          -> binary (cmpBinary cmpGt cmpGt SBV.false)
-    ECLtEq        -> binary (cmpBinary cmpLtEq cmpLtEq SBV.true)
-    ECGtEq        -> binary (cmpBinary cmpGtEq cmpGtEq SBV.true)
-    ECEq          -> binary (cmpBinary cmpEq cmpEq SBV.true)
-    ECNotEq       -> binary (cmpBinary cmpNotEq cmpNotEq SBV.false)
+    ECLt          -> binary (cmpBinary cmpLt cmpLt SBV.svFalse)
+    ECGt          -> binary (cmpBinary cmpGt cmpGt SBV.svFalse)
+    ECLtEq        -> binary (cmpBinary cmpLtEq cmpLtEq SBV.svTrue)
+    ECGtEq        -> binary (cmpBinary cmpGtEq cmpGtEq SBV.svTrue)
+    ECEq          -> binary (cmpBinary cmpEq cmpEq SBV.svTrue)
+    ECNotEq       -> binary (cmpBinary cmpNotEq cmpNotEq SBV.svFalse)
 
     -- FIXME: the next 4 "primitives" should be defined in the Cryptol prelude.
     ECFunEq       -> -- {a b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
@@ -63,7 +65,7 @@ evalECon econ =
       tlam $ \b ->
       VFun $ \f ->
       VFun $ \g ->
-      VFun $ \x -> cmpBinary cmpEq cmpEq SBV.true b (fromVFun f x) (fromVFun g x)
+      VFun $ \x -> cmpBinary cmpEq cmpEq SBV.svTrue b (fromVFun f x) (fromVFun g x)
 
     ECFunNotEq    -> -- {a b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
       -- (f !== g) x = (f x != g x)
@@ -71,24 +73,24 @@ evalECon econ =
       tlam $ \b ->
       VFun $ \f ->
       VFun $ \g ->
-      VFun $ \x -> cmpBinary cmpNotEq cmpNotEq SBV.false b (fromVFun f x) (fromVFun g x)
+      VFun $ \x -> cmpBinary cmpNotEq cmpNotEq SBV.svFalse b (fromVFun f x) (fromVFun g x)
 
     ECMin         -> -- {a} (Cmp a) => a -> a -> a
       -- min x y = if x <= y then x else y
       binary $ \a x y ->
-        let c = cmpBinary cmpLtEq cmpLtEq SBV.false a x y
-        in SBV.ite (fromVBit c) x y
+        let c = cmpBinary cmpLtEq cmpLtEq SBV.svFalse a x y
+        in iteValue (fromVBit c) x y
 
     ECMax         -> -- {a} (Cmp a) => a -> a -> a
       -- max x y = if y <= x then x else y
       binary $ \a x y ->
-        let c = cmpBinary cmpLtEq cmpLtEq SBV.false a y x
-        in SBV.ite (fromVBit c) x y
+        let c = cmpBinary cmpLtEq cmpLtEq SBV.svFalse a y x
+        in iteValue (fromVBit c) x y
 
-    ECAnd         -> binary (logicBinary (SBV.&&&) (.&.))
-    ECOr          -> binary (logicBinary (SBV.|||) (.|.))
-    ECXor         -> binary (logicBinary (SBV.<+>) xor)
-    ECCompl       -> unary (logicUnary (SBV.bnot) complement)
+    ECAnd         -> binary (logicBinary SBV.svAnd SBV.svAnd)
+    ECOr          -> binary (logicBinary SBV.svOr SBV.svOr)
+    ECXor         -> binary (logicBinary SBV.svXOr SBV.svXOr)
+    ECCompl       -> unary (logicUnary SBV.svNot SBV.svNot)
     ECZero        -> VPoly zeroV
 
     ECShiftL      -> -- {m,n,a} (fin n) => [m] a -> [n] -> [m] a
@@ -98,7 +100,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \y ->
         case xs of
-          VWord x -> VWord (SBV.sbvShiftLeft x (fromVWord y))
+          VWord x -> VWord (SBV.svShiftLeft x (fromVWord y))
           _ -> selectV shl y
             where
               shl :: Integer -> Value
@@ -115,7 +117,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \y ->
         case xs of
-          VWord x -> VWord (SBV.sbvShiftRight x (fromVWord y))
+          VWord x -> VWord (SBV.svShiftRight x (fromVWord y))
           _ -> selectV shr y
             where
               shr :: Integer -> Value
@@ -132,7 +134,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \y ->
         case xs of
-          VWord x -> VWord (SBV.sbvRotateLeft x (fromVWord y))
+          VWord x -> VWord (SBV.svRotateLeft x (fromVWord y))
           _ -> selectV rol y
             where
               rol :: Integer -> Value
@@ -146,7 +148,7 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \y ->
         case xs of
-          VWord x -> VWord (SBV.sbvRotateRight x (fromVWord y))
+          VWord x -> VWord (SBV.svRotateRight x (fromVWord y))
           _ -> selectV ror y
             where
               ror :: Integer -> Value
@@ -235,13 +237,13 @@ evalECon econ =
     ECInfFrom    ->
       tlam $ \(finTValue -> bits)  ->
        lam $ \(fromVWord  -> first) ->
-      toStream [ VWord (first + SBV.literal (bv (fromInteger bits) i)) | i <- [0 ..] ]
+      toStream [ VWord (SBV.svPlus first (literalSWord (fromInteger bits) i)) | i <- [0 ..] ]
 
     ECInfFromThen -> -- {a} (fin a) => [a] -> [a] -> [inf][a]
       tlam $ \_ ->
        lam $ \(fromVWord -> first) ->
        lam $ \(fromVWord -> next) ->
-      toStream (map VWord (iterate (+ (next - first)) first))
+      toStream (map VWord (iterate (SBV.svPlus (SBV.svMinus next first)) first))
 
     -- {at,len} (fin len) => [len][8] -> at
     ECError ->
@@ -256,10 +258,10 @@ evalECon econ =
       VFun $ \v2 ->
         let k = max 1 (i + j) - 1
             mul _  []     ps = ps
-            mul as (b:bs) ps = mul (SBV.false : as) bs (ites b (as `addPoly` ps) ps)
+            mul as (b:bs) ps = mul (SBV.svFalse : as) bs (ites b (as `addPoly` ps) ps)
             xs = map fromVBit (fromSeq v1)
             ys = map fromVBit (fromSeq v2)
-            zs = take (fromInteger k) (mul xs ys [] ++ repeat SBV.false)
+            zs = take (fromInteger k) (mul xs ys [] ++ repeat SBV.svFalse)
         in VSeq True (map VBit zs)
 
     ECPDiv        -> -- {a,b} (fin a, fin b) => [a] -> [b] -> [a]
@@ -269,7 +271,7 @@ evalECon econ =
       VFun $ \v2 ->
         let xs = map fromVBit (fromSeq v1)
             ys = map fromVBit (fromSeq v2)
-            zs = take (fromInteger i) (fst (mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
+            zs = take (fromInteger i) (fst (mdp (reverse xs) (reverse ys)) ++ repeat SBV.svFalse)
         in VSeq True (map VBit (reverse zs))
 
     ECPMod        -> -- {a,b} (fin a, fin b) => [a] -> [b+1] -> [b]
@@ -279,7 +281,7 @@ evalECon econ =
       VFun $ \v2 ->
         let xs = map fromVBit (fromSeq v1)
             ys = map fromVBit (fromSeq v2)
-            zs = take (fromInteger j) (snd (mdp (reverse xs) (reverse ys)) ++ repeat SBV.false)
+            zs = take (fromInteger j) (snd (mdp (reverse xs) (reverse ys)) ++ repeat SBV.svFalse)
         in VSeq True (map VBit (reverse zs))
 
     ECRandom      -> panic "Cryptol.Symbolic.Prims.evalECon"
@@ -293,7 +295,7 @@ selectV f v = sel 0 bits
 
     sel :: Integer -> [SBool] -> Value
     sel offset []       = f offset
-    sel offset (b : bs) = SBV.ite b m1 m2
+    sel offset (b : bs) = iteValue b m1 m2
       where m1 = sel (offset + 2 ^ length bs) bs
             m2 = sel offset bs
 
@@ -311,9 +313,9 @@ nthV err v n =
   case v of
     VStream xs -> nth err xs (fromInteger n)
     VSeq _ xs  -> nth err xs (fromInteger n)
-    VWord x                 -> let i = finiteBitSize x - 1 - fromInteger n
+    VWord x                 -> let i = SBV.svBitSize x - 1 - fromInteger n
                                in if i < 0 then err else
-                                    VBit (SBV.sbvTestBit x i)
+                                    VBit (SBV.svTestBit x i)
     _                       -> err
 
 mapV :: Bool -> (Value -> Value) -> Value -> Value
@@ -325,8 +327,8 @@ mapV isBit f v =
 
 catV :: Value -> Value -> Value
 catV xs          (VStream ys) = VStream (fromSeq xs ++ ys)
-catV (VWord x)   ys           = VWord (cat x (fromVWord ys))
-catV xs          (VWord y)    = VWord (cat (fromVWord xs) y)
+catV (VWord x)   ys           = VWord (SBV.svJoin x (fromVWord ys))
+catV xs          (VWord y)    = VWord (SBV.svJoin (fromVWord xs) y)
 catV (VSeq b xs) (VSeq _ ys)  = VSeq b (xs ++ ys)
 catV _ _ = panic "Cryptol.Symbolic.Prims.catV" [ "non-concatenable value" ]
 
@@ -336,13 +338,13 @@ dropV n xs =
   case xs of
     VSeq b xs'  -> VSeq b (genericDrop n xs')
     VStream xs' -> VStream (genericDrop n xs')
-    VWord w     -> VWord $ extract (finiteBitSize w - 1 - fromInteger n) 0 w
+    VWord w     -> VWord $ SBV.svExtract (SBV.svBitSize w - 1 - fromInteger n) 0 w
     _           -> panic "Cryptol.Symbolic.Prims.dropV" [ "non-droppable value" ]
 
 takeV :: Integer -> Value -> Value
 takeV n xs =
   case xs of
-    VWord w     -> VWord $ extract (finiteBitSize w - 1) (finiteBitSize w - fromInteger n) w
+    VWord w     -> VWord $ SBV.svExtract (SBV.svBitSize w - 1) (SBV.svBitSize w - fromInteger n) w
     VSeq b xs'  -> VSeq b (genericTake n xs')
     VStream xs' -> VSeq b (genericTake n xs')
                      where b = case xs' of VBit _ : _ -> True
@@ -355,7 +357,7 @@ ecDemoteV :: Value
 ecDemoteV = tlam $ \valT ->
             tlam $ \bitT ->
             case (numTValue valT, numTValue bitT) of
-              (Nat v, Nat bs) -> VWord (SBV.literal (bv (fromInteger bs) v))
+              (Nat v, Nat bs) -> VWord (literalSWord (fromInteger bs) v)
               _ -> evalPanic "Cryptol.Prove.evalECon"
                        ["Unexpected Inf in constant."
                        , show valT
@@ -418,19 +420,19 @@ arithUnary op = loop . toTypeVal
         TVFun _ t     -> VFun (\x -> loop t (fromVFun v x))
 
 sExp :: SWord -> SWord -> SWord
-sExp x y = go (SBV.blastLE y)
-  where go []       = SBV.literal (bv (finiteBitSize x) 1)
-        go (b : bs) = SBV.ite b (x * s) s
+sExp x y = go (reverse (unpackWord y)) -- bits in little-endian order
+  where go []       = literalSWord (SBV.svBitSize x) 1
+        go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
             where a = go bs
-                  s = a * a
+                  s = SBV.svTimes a a
 
 -- | Ceiling (log_2 x)
 sLg2 :: SWord -> SWord
 sLg2 x = go 0
   where
-    lit n = SBV.literal (bv (finiteBitSize x) n)
-    go i | i < finiteBitSize x = SBV.ite ((SBV..<=) x (lit (2^i))) (lit (toInteger i)) (go (i + 1))
-         | otherwise     = lit (toInteger i)
+    lit n = literalSWord (SBV.svBitSize x) n
+    go i | i < SBV.svBitSize x = SBV.svIte (SBV.svLessEq x (lit (2^i))) (lit (toInteger i)) (go (i + 1))
+         | otherwise           = lit (toInteger i)
 
 -- Cmp -------------------------------------------------------------------------
 
@@ -461,19 +463,19 @@ cmpValue fb fw = cmp
     cmpValues (x1 : xs1) (x2 : xs2) k = cmp x1 x2 (cmpValues xs1 xs2 k)
     cmpValues _ _ k = k
 
-cmpEq :: SBV.EqSymbolic a => a -> a -> SBool -> SBool
-cmpEq x y k = (SBV.&&&) ((SBV..==) x y) k
+cmpEq :: SWord -> SWord -> SBool -> SBool
+cmpEq x y k = SBV.svAnd (SBV.svEqual x y) k
 
-cmpNotEq :: SBV.EqSymbolic a => a -> a -> SBool -> SBool
-cmpNotEq x y k = (SBV.|||) ((SBV../=) x y) k
+cmpNotEq :: SWord -> SWord -> SBool -> SBool
+cmpNotEq x y k = SBV.svOr (SBV.svNotEqual x y) k
 
-cmpLt, cmpGt :: SBV.OrdSymbolic a => a -> a -> SBool -> SBool
-cmpLt x y k = (SBV.|||) ((SBV..<) x y) (cmpEq x y k)
-cmpGt x y k = (SBV.|||) ((SBV..>) x y) (cmpEq x y k)
+cmpLt, cmpGt :: SWord -> SWord -> SBool -> SBool
+cmpLt x y k = SBV.svOr (SBV.svLessThan x y) (cmpEq x y k)
+cmpGt x y k = SBV.svOr (SBV.svGreaterThan x y) (cmpEq x y k)
 
-cmpLtEq, cmpGtEq :: SBV.OrdSymbolic a => a -> a -> SBool -> SBool
-cmpLtEq x y k = (SBV.&&&) ((SBV..<=) x y) (cmpNotEq x y k)
-cmpGtEq x y k = (SBV.&&&) ((SBV..>=) x y) (cmpNotEq x y k)
+cmpLtEq, cmpGtEq :: SWord -> SWord -> SBool -> SBool
+cmpLtEq x y k = SBV.svAnd (SBV.svLessEq x y) (cmpNotEq x y k)
+cmpGtEq x y k = SBV.svAnd (SBV.svGreaterEq x y) (cmpNotEq x y k)
 
 cmpBinary :: (SBool -> SBool -> SBool -> SBool)
           -> (SWord -> SWord -> SBool -> SBool)
@@ -500,8 +502,8 @@ zeroV = go . toTypeVal
   where
     go ty =
       case ty of
-        TVBit         -> VBit SBV.false
-        TVSeq n TVBit -> VWord (SBV.literal (bv n 0))
+        TVBit         -> VBit SBV.svFalse
+        TVSeq n TVBit -> VWord (literalSWord n 0)
         TVSeq n t     -> VSeq False (replicate n (go t))
         TVStream t    -> VStream (repeat (go t))
         TVTuple ts    -> VTuple [ go t | t <- ts ]
@@ -575,7 +577,7 @@ fromThenV  =
     case (first, next, len, bits) of
       (Nat first', Nat next', Nat len', Nat bits') ->
         let nums = enumFromThen first' next'
-            lit i = VWord (SBV.literal (bv (fromInteger bits') i))
+            lit i = VWord (literalSWord (fromInteger bits') i)
          in VSeq False (genericTake len' (map lit nums))
       _ -> evalPanic "fromThenV" ["invalid arguments"]
 
@@ -590,7 +592,7 @@ fromToV  =
       (Nat first', Nat lst', Nat bits') ->
         let nums = enumFromThenTo first' (first' + 1) lst'
             len  = 1 + (lst' - first')
-            lit i = VWord (SBV.literal (bv (fromInteger bits') i))
+            lit i = VWord (literalSWord (fromInteger bits') i)
          in VSeq False (genericTake len (map lit nums))
 
       _ -> evalPanic "fromThenV" ["invalid arguments"]
@@ -607,7 +609,7 @@ fromThenToV  =
 
       (Nat first', Nat next', Nat lst', Nat len', Nat bits') ->
         let nums = enumFromThenTo first' next' lst'
-            lit i = VWord (SBV.literal (bv (fromInteger bits') i))
+            lit i = VWord (literalSWord (fromInteger bits') i)
          in VSeq False (genericTake len' (map lit nums))
 
       _ -> evalPanic "fromThenV" ["invalid arguments"]
@@ -621,25 +623,25 @@ fromThenToV  =
 addPoly :: [SBool] -> [SBool] -> [SBool]
 addPoly xs    []      = xs
 addPoly []    ys      = ys
-addPoly (x:xs) (y:ys) = x SBV.<+> y : addPoly xs ys
+addPoly (x:xs) (y:ys) = SBV.svXOr x y : addPoly xs ys
 
 ites :: SBool -> [SBool] -> [SBool] -> [SBool]
 ites s xs ys
- | Just t <- SBV.unliteral s
+ | Just t <- SBV.svAsBool s
  = if t then xs else ys
  | True
  = go xs ys
  where go [] []         = []
-       go []     (b:bs) = SBV.ite s SBV.false b : go [] bs
-       go (a:as) []     = SBV.ite s a SBV.false : go as []
-       go (a:as) (b:bs) = SBV.ite s a b : go as bs
+       go []     (b:bs) = SBV.svIte s SBV.svFalse b : go [] bs
+       go (a:as) []     = SBV.svIte s a SBV.svFalse : go as []
+       go (a:as) (b:bs) = SBV.svIte s a b : go as bs
 
 -- conservative over-approximation of the degree
 degree :: [SBool] -> Int
 degree xs = walk (length xs - 1) $ reverse xs
   where walk n []     = n
         walk n (b:bs)
-         | Just t <- SBV.unliteral b
+         | Just t <- SBV.svAsBool b
          = if t then n else walk (n-1) bs
          | True
          = n -- over-estimate
@@ -653,13 +655,13 @@ mdp xs ys = go (length ys - 1) (reverse ys)
          | True     = let (rqs, rrs) = go (n-1) bs
                       in (ites b (reverse qs) rqs, ites b rs rrs)
          where degQuot = degTop - n
-               ys' = replicate degQuot SBV.false ++ ys
+               ys' = replicate degQuot SBV.svFalse ++ ys
                (qs, rs) = divx (degQuot+1) degTop xs ys'
 
 -- return the element at index i; if not enough elements, return false
 -- N.B. equivalent to '(xs ++ repeat false) !! i', but more efficient
 idx :: [SBool] -> Int -> SBool
-idx []     _ = SBV.false
+idx []     _ = SBV.svFalse
 idx (x:_)  0 = x
 idx (_:xs) i = idx xs (i-1)
 
