@@ -33,13 +33,22 @@ extract to a location of your choice. Windows binaries are distributed
 as an `.msi` installer package which places a shortcut to the Cryptol
 interpreter in the Start menu.
 
+On Mac OS X, Cryptol is also available via
+[Homebrew](http://brew.sh/). Simply run `brew update && brew install
+cryptol` to get the latest stable version.
+
 ## Getting CVC4
 
 Cryptol currently depends on the
 [CVC4 SMT solver](http://cvc4.cs.nyu.edu/) to solve constraints during
 type checking, and as the default solver for the `:sat` and `:prove`
 commands. You can download CVC4 binaries for a variety of platforms
-from their [download page](http://cvc4.cs.nyu.edu/downloads/).
+from their [download page](http://cvc4.cs.nyu.edu/downloads/). Note
+that if you install Cryptol using Homebrew, CVC4 will be installed
+automatically.
+
+After installation, make sure that `cvc4` (or `cvc4.exe` on Windows)
+is on your PATH.
 
 # Building Cryptol From Source
 
@@ -49,10 +58,9 @@ on [GitHub](https://github.com/GaloisInc/cryptol).
 Cryptol builds and runs on various flavors of Linux, Mac OS X, and
 Windows. We regularly build and test it in the following environments:
 
-- Mac OS X 10.9 64-bit
-- CentOS 5 32/64-bit
+- Mac OS X 10.10 64-bit
 - CentOS 6 32/64-bit
-- Windows XP 32-bit
+- Windows 7 32-bit
 
 ## Prerequisites
 
