@@ -44,7 +44,7 @@ exportPropM ty =
       case (pc, ets) of
         (Cry.PFin,   [t])     -> return (Fin t)
         (Cry.PEqual, [t1,t2]) -> return (t1 :== t2)
-        (Cry.PNeq,   [t1,t2]) -> return (t1 :== t2)
+        (Cry.PNeq,   [t1,t2]) -> return (Not (t1 :== t2))
         (Cry.PGeq,   [t1,t2]) -> return (t1 :>= t2)
         _                     -> raise ()
     Cry.TCon _ _ -> raise ()
