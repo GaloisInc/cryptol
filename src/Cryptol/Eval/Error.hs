@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -30,6 +30,7 @@ data EvalError
   = InvalidIndex Integer
   | TypeCannotBeDemoted Type
   | DivideByZero
+  | WordTooWide Integer
   | UserError String
     deriving (Typeable,Show)
 
@@ -38,6 +39,8 @@ instance PP EvalError where
     InvalidIndex i -> text "invalid sequence index:" <+> integer i
     TypeCannotBeDemoted t -> text "type cannot be demoted:" <+> pp t
     DivideByZero -> text "division by 0"
+    WordTooWide w ->
+      text "word too wide for memory:" <+> integer w <+> text "bits"
     UserError x -> text "Run-time error:" <+> text x
 
 instance X.Exception EvalError
@@ -53,6 +56,12 @@ typeCannotBeDemoted t = X.throw (TypeCannotBeDemoted t)
 -- | For division by 0.
 divideByZero :: a
 divideByZero = X.throw DivideByZero
+
+-- | For when we know that a word is too wide and will exceed gmp's
+-- limits (though words approaching this size will probably cause the
+-- system to crash anyway due to lack of memory)
+wordTooWide :: Integer -> a
+wordTooWide w = X.throw (WordTooWide w)
 
 -- | For `error`
 cryUserError :: String -> a

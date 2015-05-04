@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -12,22 +12,24 @@
 module Cryptol.TypeCheck.Solver.Class (classStep, expandProp) where
 
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.InferTypes(Goal(..), Solved(..))
+import Cryptol.TypeCheck.InferTypes(Goal(..))
 
 
 -- | Solve class constraints.
-classStep :: Goal -> Solved
+-- If not, then we return 'Nothing'.
+-- If solved, ther we return 'Just' a list of sub-goals.
+classStep :: Goal -> Maybe [Goal]
 classStep g = case goal g of
   TCon (PC PArith) [ty] -> solveArithInst g (tNoUser ty)
   TCon (PC PCmp) [ty]   -> solveCmpInst g   (tNoUser ty)
-  _                     -> Unsolved
+  _                     -> Nothing
 
 -- | Solve an original goal in terms of the give sub-goals.
-solved :: Goal -> [Prop] -> Solved
-solved g ps = Solved Nothing [ g { goal = p } | p <- ps ]
+solved :: Goal -> [Prop] -> Maybe [Goal]
+solved g ps = Just [ g { goal = p } | p <- ps ]
 
 -- | Solve an Arith constraint by instance, if possible.
-solveArithInst :: Goal -> Type -> Solved
+solveArithInst :: Goal -> Type -> Maybe [Goal]
 solveArithInst g ty = case ty of
 
   -- Arith [n]e
@@ -42,25 +44,25 @@ solveArithInst g ty = case ty of
   -- (Arith a, Arith b) => Arith { x1 : a, x2 : b }
   TRec fs -> solved g [ pArith ety | (_,ety) <- fs ]
 
-  _ -> Unsolved
+  _ -> Nothing
 
 -- | Solve an Arith constraint for a sequence.  The type passed here is the
 -- element type of the sequence.
-solveArithSeq :: Goal -> Type -> Type -> Solved
+solveArithSeq :: Goal -> Type -> Type -> Maybe [Goal]
 solveArithSeq g n ty = case ty of
 
   -- fin n => Arith [n]Bit
   TCon (TC TCBit) [] -> solved g [ pFin n ]
 
   -- variables are not solvable.
-  TVar {} -> Unsolved
+  TVar {} -> Nothing
 
   -- Arith ty => Arith [n]ty
   _ -> solved g [ pArith ty ]
 
 
 -- | Solve Cmp constraints.
-solveCmpInst :: Goal -> Type -> Solved
+solveCmpInst :: Goal -> Type -> Maybe [Goal]
 solveCmpInst g ty = case ty of
 
   -- Cmp Bit
@@ -75,7 +77,7 @@ solveCmpInst g ty = case ty of
   -- (Cmp a, Cmp b) => Cmp { x:a, y:b }
   TRec fs -> solved g [ pCmp e | (_,e) <- fs ]
 
-  _ -> Unsolved
+  _ -> Nothing
 
 
 -- | Add propositions that are implied by the given one.

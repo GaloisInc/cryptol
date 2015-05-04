@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -14,6 +14,7 @@ module Cryptol.Eval (
   , EvalEnv()
   , emptyEnv
   , evalExpr
+  , evalDecls
   , EvalError(..)
   , WithBase(..)
   ) where
@@ -28,9 +29,11 @@ import Cryptol.Utils.PP
 import Cryptol.Prims.Eval
 
 import Data.List (transpose)
-import Data.Monoid (Monoid(..),mconcat)
 import qualified Data.Map as Map
 
+#if __GLASGOW_HASKELL__ < 710
+import Data.Monoid (Monoid(..),mconcat)
+#endif
 
 -- Expression Evaluation -------------------------------------------------------
 
@@ -42,7 +45,7 @@ evalExpr env expr = case expr of
 
   ECon con -> evalECon con
 
-  EList es ty -> evalList env es (evalType env ty)
+  EList es ty -> VSeq (isTBit (evalType env ty)) (map (evalExpr env) es)
 
   ETuple es -> VTuple (map eval es)
 
@@ -138,7 +141,7 @@ evalSel env e sel = case sel of
 
   tupleSel n v =
     case v of
-      VTuple vs     -> vs !! (n - 1)
+      VTuple vs     -> vs !! n
       VSeq False vs -> VSeq False [ tupleSel n v1 | v1 <- vs ]
       VStream vs    -> VStream [ tupleSel n v1 | v1 <- vs ]
       VFun f        -> VFun (\x -> tupleSel n (f x))
@@ -207,15 +210,3 @@ evalMatch env m = case m of
   -- they are typechecked that way; the read environment to evalDecl is the same
   -- as the environment to bind a new name in.
   Let d -> [evalDecl env d env]
-
-
--- Lists -----------------------------------------------------------------------
-
--- | Evaluate a list literal, optionally packing them into a word.
-evalList :: EvalEnv -> [Expr] -> TValue -> Value
-evalList env es ty = toPackedSeq w ty (map (evalExpr env) es)
-  where
-  w = TValue $ tNum $ length es
-
-
-

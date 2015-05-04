@@ -1,10 +1,10 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at check01.cry:2:1--2:27:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at check01.cry:2:17--2:19
+[warning] at ./check01.cry:2:1--2:27:
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at ./check01.cry:2:24--2:26
   to 5
-[7, 20]
+[0x00000007, 0x00000014]
 True

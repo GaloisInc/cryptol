@@ -1,0 +1,32 @@
+Loading module Cryptol
+Q.E.D.
+it : {result : Bit, arg1 : [4]}
+
+Run-time error: no counterexample available
+True
+f 0x0 = False
+it : {result : Bit, arg1 : [4]}
+{result = False, arg1 = 0x0}
+False
+f 0x3 = True
+it : {result : Bit, arg1 : [4]}
+{result = True, arg1 = 0x3}
+True
+Unsatisfiable
+it : {result : Bit, arg1 : [4]}
+
+Run-time error: no satisfying assignment available
+g {x = 0x00000000, y = 0x00000001} = False
+it : {result : Bit, arg1 : {x : [32], y : [32]}}
+{result = False, arg1 = {x = 0x00000000, y = 0x00000001}}
+g {x = 0x00000000, y = 0x00000000} = True
+it : {result : Bit, arg1 : {x : [32], y : [32]}}
+{result = True, arg1 = {x = 0x00000000, y = 0x00000000}}
+h 0x00 0x00 = False
+it : {result : Bit, arg1 : [8], arg2 : [8]}
+{result = False, arg1 = 0x00, arg2 = 0x00}
+0x00
+0x00
+h 0x00 0x01 = True
+it : {result : Bit, arg1 : [8], arg2 : [8]}
+{result = True, arg1 = 0x00, arg2 = 0x01}

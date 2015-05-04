@@ -1,5 +1,3 @@
-example1 : {a} (a >= 1, 2 >= a) => [16*a][8] -> [16][8]
-example1 k = drop`{16} ((zero : [16*(2 - a)][8]) #k)
-
-example2 : {a} (a >= 1, 2 >= a) => [16*a][8] -> [16][8]
-example2 k = drop`{16} (zero # k)
+gcd : [8] -> [8] -> [8]
+gcd a b = if(b == 0) then a
+          else gcd b (a%b)

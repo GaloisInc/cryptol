@@ -1,0 +1,19 @@
+// The puzzle goes like this:
+// You've got 30 coins that add up to $1.09 - what are they?
+coinPuzzle : [10] -> [10] -> [10] -> [10] -> Bit
+coinPuzzle a b c d = (coinCount a b c d 30) && (coinSum a b c d 109)
+
+coinSum : [10] -> [10] -> [10] -> [10] -> [10] -> Bit
+coinSum   a b c d s = (a + 5 * b + 10 * c + 25 * d) == s
+
+coinCount : [10] -> [10] -> [10] -> [10] -> [10] -> Bit
+coinCount a b c d s = (((a + b + c + d) == s) && // the coin count adds up
+                       (a <= s && b <= s && c <= s && d <= s)) // and we don't wrap
+
+// run it like this:
+// :set satNum = all
+// :sat coinPuzzle
+// coinPuzzle 19 7 3 1 = True
+// coinPuzzle 24 1 3 2 = True
+// coinPuzzle 14 13 3 0 = True
+// coinPuzzle 19 4 7 0 = True

@@ -1,0 +1,30 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+property f0 Using exhaustive testing.
+FAILED
+property t0 Using exhaustive testing.
+passed 1 tests.
+Q.E.D.
+property t1 Using random testing.
+testing...passed 100 tests.
+Coverage: 0.00% (100 of 2^^32 values)
+property t2 Using random testing.
+testing...passed 100 tests.
+Coverage: 0.00% (100 of 2^^64 values)
+:prove f0
+	f0 = False
+:prove t0
+	Q.E.D.
+:prove t1
+	Q.E.D.
+:prove t2
+	Q.E.D.
+:sat f0
+	Unsatisfiable
+:sat t0
+	t0 = True
+:sat t1
+	t1 0x00000000 = True
+:sat t2
+	t2 0x00000000 0x00000000 = True

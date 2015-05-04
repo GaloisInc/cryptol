@@ -1,0 +1,85 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module test05
+[warning] at ./test05.cry:9:3--9:6
+    This binding for foo shadows the existing binding from
+    (at ./test05.cry:4:1--4:4, test05::foo)
+[warning] at ./test05.cry:13:5--13:8
+    This binding for foo shadows the existing binding from
+    (at ./test05.cry:9:3--9:6, foo)
+module test05
+import Cryptol
+/* Not recursive */
+test05::foo : [10]
+test05::foo = demote 10 10 <> <> <>
+
+/* Not recursive */
+test05::test : {a, b, c} (fin c, c >= 4) => [a]b -> [c]
+test05::test = \{a, b, c} (fin c, c >= 4) (a : [a]b) ->
+               demote 10 c <> <> <>
+               where
+                 /* Not recursive */
+                 foo : [10]
+                 foo = demote 10 10 <> <> <>
+                 
+                 /* Not recursive */
+                 f : {d} (fin d) => [a + d]b
+                 f = \{d} (fin d) ->
+                     (bar d <>
+                      where
+                        /* Not recursive */
+                        foo : [a]b
+                        foo = a
+                        
+                        /* Not recursive */
+                        bar : {e} (fin e) => [e + a]b
+                        bar = \{e} (fin e) -> (#) e a b <> (zero ([e]b)) foo
+                        
+                      ) : [a + d]b
+                 
+               
+
+Loading module Cryptol
+Loading module test05
+[warning] at ./test05.cry:9:3--9:6
+    This binding for foo shadows the existing binding from
+    (at ./test05.cry:4:1--4:4, test05::foo)
+[warning] at ./test05.cry:13:5--13:8
+    This binding for foo shadows the existing binding from
+    (at ./test05.cry:9:3--9:6, foo)
+[warning] at ./test05.cry:1:1--14:21:
+  Defaulting 1st type parameter
+             of expression (#)
+             at ./test05.cry:14:16--14:17
+  to 0
+module test05
+import Cryptol
+/* Not recursive */
+test05::foo : [10]
+test05::foo = demote 10 10 <> <> <>
+
+/* Not recursive */
+test05::test : {a, b, c} (fin c, c >= 4) => [a]b -> [c]
+test05::test = \{a, b, c} (fin c, c >= 4) (a : [a]b) ->
+               demote 10 c <> <> <>
+               where
+                 /* Not recursive */
+                 foo : [10]
+                 foo = demote 10 10 <> <> <>
+                 
+                 /* Not recursive */
+                 f : [0 + a]b
+                 f = bar
+                     where
+                       /* Not recursive */
+                       foo : [a]b
+                       foo = a
+                       
+                       /* Not recursive */
+                       bar : [0 + a]b
+                       bar = (#) 0 a b <> (zero ([0]b)) foo
+                       
+                     
+                 
+               
+

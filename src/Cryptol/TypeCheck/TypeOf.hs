@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2014 Galois, Inc.
+-- Copyright   :  (c) 2014-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -16,6 +16,8 @@ module Cryptol.TypeCheck.TypeOf
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst
 import Cryptol.Prims.Types (typeOf)
+import Cryptol.Utils.Panic
+import Cryptol.Utils.PP
 
 import           Data.Map    (Map)
 import qualified Data.Map as Map
@@ -37,7 +39,8 @@ fastTypeOf tyenv expr =
     EAbs x t e    -> tFun t (fastTypeOf (Map.insert x (Forall [] [] t) tyenv) e)
     EApp e _      -> case tIsFun (fastTypeOf tyenv e) of
                         Just (_, t) -> t
-                        Nothing     -> error "internal error"
+                        Nothing     -> panic "Cryptol.TypeCheck.TypeOf.fastTypeOf"
+                                         [ "EApp with non-function operator" ]
     ECast _ t     -> t
     -- Polymorphic fragment
     ECon      {}  -> polymorphic
@@ -51,7 +54,8 @@ fastTypeOf tyenv expr =
     polymorphic =
       case fastSchemaOf tyenv expr of
         Forall [] [] ty -> ty
-        _ -> error "internal error: unexpected polymorphic type"
+        _ -> panic "Cryptol.TypeCheck.TypeOf.fastTypeOf"
+               [ "unexpected polymorphic type" ]
 
 fastSchemaOf :: Map QName Schema -> Expr -> Schema
 fastSchemaOf tyenv expr =
@@ -64,13 +68,18 @@ fastSchemaOf tyenv expr =
     ETApp e t      -> case fastSchemaOf tyenv e of
                         Forall (tparam : tparams) props ty -> Forall tparams (apSubst s props) (apSubst s ty)
                                                                 where s = singleSubst (tpVar tparam) t
-                        _ -> error "internal error"
+                        _ -> panic "Cryptol.TypeCheck.TypeOf.fastSchemaOf"
+                               [ "ETApp body with no type parameters" ]
     EProofAbs p e  -> case fastSchemaOf tyenv e of
                         Forall [] props ty -> Forall [] (p : props) ty
-                        _ -> error "internal error"
+                        _ -> panic "Cryptol.TypeCheck.TypeOf.fastSchemaOf"
+                               [ "EProofAbs with polymorphic expression" ]
     EProofApp e    -> case fastSchemaOf tyenv e of
                         Forall [] (_ : props) ty -> Forall [] props ty
-                        _ -> error "internal error"
+                        _ -> panic "Cryptol.TypeCheck.TypeOf.fastSchemaOf"
+                               [ "EProofApp with polymorphic expression or"
+                               , "no props in scope"
+                               ]
     EWhere e dgs   -> fastSchemaOf (foldr addDeclGroup tyenv dgs) e
                         where addDeclGroup (Recursive ds) = flip (foldr addDecl) ds
                               addDeclGroup (NonRecursive d) = addDecl d
@@ -90,7 +99,9 @@ fastSchemaOf tyenv expr =
 
 -- | Yields the return type of the selector on the given argument type.
 typeSelect :: Type -> Selector -> Type
-typeSelect (TCon _tctuple ts) (TupleSel i _) = ts !! (i - 1)
+typeSelect (TUser _ _ ty) sel = typeSelect ty sel
+typeSelect (TCon _tctuple ts) (TupleSel i _) = ts !! i
 typeSelect (TRec fields) (RecordSel n _) = fromJust (lookup n fields)
 typeSelect (TCon _tcseq [_, a]) (ListSel _ _) = a
-typeSelect _ _ = error "internal error: typeSelect"
+typeSelect ty _ = panic "Cryptol.TypeCheck.TypeOf.typeSelect"
+                    [ "cannot apply selector to value of type", render (pp ty) ]

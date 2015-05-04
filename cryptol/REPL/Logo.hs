@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -8,7 +8,7 @@
 
 module REPL.Logo where
 
-import REPL.Monad
+import Cryptol.REPL.Monad
 import Paths_cryptol (version)
 
 import Cryptol.Version (commitShortHash)

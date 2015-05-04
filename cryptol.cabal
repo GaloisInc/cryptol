@@ -1,46 +1,74 @@
 Name:                cryptol
-Version:             2.0.0
+Version:             2.2.3
 Synopsis:            Cryptol: The Language of Cryptography
+Description: Cryptol is a domain-specific language for specifying cryptographic algorithms. A Cryptol implementation of an algorithm resembles its mathematical specification more closely than an implementation in a general purpose language. For more, see <http://www.cryptol.net/>.
 License:             BSD3
+License-files:       LICENSE, LICENSE.rtf
 Author:              Galois, Inc.
 Maintainer:          cryptol@galois.com
-Copyright:           2013-2014 Galois Inc.
+Homepage:            http://www.cryptol.net/
+Bug-reports:         https://github.com/GaloisInc/cryptol/issues
+Copyright:           2013-2015 Galois Inc.
 Category:            Language
-Build-type:          Configure
-Cabal-version:       >= 1.18
+Build-type:          Simple
+Cabal-version:       >= 1.20
 
-data-files:          lib/Cryptol.cry
+data-files:          *.cry
+data-dir:            lib
+
+source-repository head
+  type:     git
+  location: https://github.com/GaloisInc/cryptol.git
+
+source-repository this
+  type:     git
+  location: https://github.com/GaloisInc/cryptol.git
+  tag:      v2.2.3
 
 flag static
   default: False
   description: Create a statically-linked binary
 
+flag relocatable
+  default: True
+  description: Don't use the Cabal-provided data directory for looking up Cryptol libraries. This is useful when the data directory can't be known ahead of time, like for a relocatable distribution.
+
+flag self-contained
+  default: True
+  description: Compile the text of the Cryptol Prelude into the library
+
 library
-  Build-depends:       base            >= 4.6,
+  Default-language:
+    Haskell98
+  Build-depends:       base            >= 4.6 && < 5,
                        array           >= 0.4,
                        async           >= 2.0,
                        containers      >= 0.5,
                        deepseq         >= 1.3,
                        directory       >= 1.2,
-                       executable-path >= 0.0.3,
                        filepath        >= 1.3,
+                       gitrev          >= 1.0,
+                       generic-trie    >= 0.3.0.1,
                        GraphSCC        >= 1.0.4,
                        monadLib        >= 3.7.2,
-                       mtl             >= 2.2.1,
                        old-time        >= 1.1,
-                       presburger      >= 1.1,
+                       presburger      >= 1.3,
                        pretty          >= 1.1,
                        process         >= 1.2,
                        QuickCheck      >= 2.7,
                        random          >= 1.0.1,
+                       sbv             >= 4.3,
                        smtLib          >= 1.0.7,
+                       simple-smt      >= 0.6.0,
                        syb             >= 0.4,
                        text            >= 1.1,
+                       template-haskell,
+                       tf-random       >= 0.5,
                        transformers    >= 0.3,
                        utf8-string     >= 0.3
 
   Build-tools:         alex, happy
-  hs-source-dirs:      src, sbv
+  hs-source-dirs:      src
 
   Exposed-modules:     Cryptol.Prims.Syntax,
                        Cryptol.Prims.Types,
@@ -60,6 +88,7 @@ library
                        Cryptol.Utils.PP,
                        Cryptol.Utils.Panic,
                        Cryptol.Utils.Debug,
+                       Cryptol.Utils.Misc,
                        Cryptol.Version,
 
                        Cryptol.ModuleSystem,
@@ -84,119 +113,87 @@ library
                        Cryptol.TypeCheck.Solve,
                        Cryptol.TypeCheck.TypeMap,
                        Cryptol.TypeCheck.TypeOf,
-                       Cryptol.TypeCheck.Defaulting,
 
-                       Cryptol.TypeCheck.Solver.Eval,
-                       Cryptol.TypeCheck.Solver.FinOrd,
                        Cryptol.TypeCheck.Solver.InfNat,
-                       Cryptol.TypeCheck.Solver.Interval,
-                       Cryptol.TypeCheck.Solver.Smtlib,
-                       Cryptol.TypeCheck.Solver.Numeric,
                        Cryptol.TypeCheck.Solver.Class,
                        Cryptol.TypeCheck.Solver.Selector,
-                       Cryptol.TypeCheck.Solver.CrySAT,
                        Cryptol.TypeCheck.Solver.Utils,
+
+                       Cryptol.TypeCheck.Solver.CrySAT,
+                       Cryptol.TypeCheck.Solver.Numeric.AST,
+                       Cryptol.TypeCheck.Solver.Numeric.ImportExport,
+                       Cryptol.TypeCheck.Solver.Numeric.Defined,
+                       Cryptol.TypeCheck.Solver.Numeric.Simplify,
+                       Cryptol.TypeCheck.Solver.Numeric.NonLin,
+                       Cryptol.TypeCheck.Solver.Numeric.SMT,
 
                        Cryptol.Transform.MonoValues,
                        Cryptol.Transform.Specialize,
 
                        Cryptol.Eval,
+                       Cryptol.Eval.Arch,
                        Cryptol.Eval.Env,
                        Cryptol.Eval.Error,
                        Cryptol.Eval.Type,
                        Cryptol.Eval.Value,
 
+                       Cryptol.Testing.Eval,
+                       Cryptol.Testing.Exhaust,
                        Cryptol.Testing.Random,
-                       Cryptol.Testing.Exhaust
 
-                       Cryptol.Symbolic
-                       Cryptol.Symbolic.BitVector
-                       Cryptol.Symbolic.Prims
-                       Cryptol.Symbolic.Value
+                       Cryptol.Symbolic,
+                       Cryptol.Symbolic.Prims,
+                       Cryptol.Symbolic.Value,
 
-                       Data.SBV,
-                       Data.SBV.Bridge.Boolector,
-                       Data.SBV.Bridge.CVC4,
-                       Data.SBV.Bridge.MathSAT,
-                       Data.SBV.Bridge.Yices,
-                       Data.SBV.Bridge.Z3,
-                       Data.SBV.Internals,
-                       Data.SBV.Tools.Polynomial
+                       Cryptol.REPL.Command,
+                       Cryptol.REPL.Monad,
+                       Cryptol.REPL.Trie
 
   Other-modules:       Cryptol.Parser.LexerUtils,
                        Cryptol.Parser.ParserUtils,
-                       Data.SBV.BitVectors.AlgReals,
-                       Data.SBV.BitVectors.Data,
-                       Data.SBV.BitVectors.Model,
-                       Data.SBV.BitVectors.PrettyNum,
-                       Data.SBV.BitVectors.SignCast,
-                       Data.SBV.BitVectors.Splittable,
-                       Data.SBV.BitVectors.STree,
-                       Data.SBV.Compilers.C,
-                       Data.SBV.Compilers.CodeGen,
-                       Data.SBV.SMT.SMT,
-                       Data.SBV.SMT.SMTLib,
-                       Data.SBV.SMT.SMTLib1,
-                       Data.SBV.SMT.SMTLib2,
-                       Data.SBV.Provers.Prover,
-                       Data.SBV.Provers.SExpr,
-                       Data.SBV.Provers.Boolector,
-                       Data.SBV.Provers.CVC4,
-                       Data.SBV.Provers.Yices,
-                       Data.SBV.Provers.Z3,
-                       Data.SBV.Provers.MathSAT,
-                       Data.SBV.Tools.ExpectedValue,
-                       Data.SBV.Tools.GenTest,
-                       Data.SBV.Tools.Optimize,
-                       Data.SBV.Utils.Boolean,
-                       Data.SBV.Utils.TDiff,
-                       Data.SBV.Utils.Lib,
+                       Cryptol.Prelude,
                        Paths_cryptol,
                        GitRev
 
-  GHC-options:         -Wall -O2
+  default-extensions:  CPP
+  GHC-options:         -Wall -O2 -fsimpl-tick-factor=140
+  -- the `fsimpl-tick-factor` is needed to finish optimizing the
+  -- generic trie.
+  ghc-prof-options:    -fprof-auto -prof
+
+  if flag(relocatable)
+      cpp-options: -DRELOCATABLE
+
+  if flag(self-contained)
+    build-depends:     heredoc >= 0.2
+    cpp-options:       -DSELF_CONTAINED
 
 executable cryptol
+  Default-language:
+    Haskell98
   Main-is:             Main.hs
   hs-source-dirs:      cryptol
   Other-modules:       OptParser,
-                       REPL.Command,
                        REPL.Haskeline,
-                       REPL.Monad,
-                       REPL.Trie,
+                       REPL.Logo,
                        Paths_cryptol
-  build-depends:       base,
-                       ansi-terminal,
-                       containers,
-                       cryptol,
-                       directory,
-                       filepath,
-                       haskeline,
-                       monadLib,
-                       process,
-                       random,
-                       transformers
+  build-depends:       ansi-terminal
+                     , base
+                     , containers
+                     , cryptol
+                     , deepseq
+                     , directory
+                     , filepath
+                     , haskeline
+                     , monadLib
+                     , process
+                     , random
+                     , sbv
+                     , tf-random
+                     , transformers
+  default-extensions:  CPP
   GHC-options:         -Wall -O2
-
-  if os(linux) && flag(static)
-      ld-options:      -static -pthread
-
-executable cryptolnb
-  buildable:           False
-  Main-is:             Main_notebook.hs
-  hs-source-dirs:      cryptol, notebook
-  build-depends:       base,
-                       ansi-terminal,
-                       containers,
-                       cryptol,
-                       directory,
-                       filepath,
-                       haskeline,
-                       monadLib,
-                       process,
-                       random,
-                       transformers
-  GHC-options:         -Wall -O2
+  ghc-prof-options:    -auto-all -prof -rtsopts
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread

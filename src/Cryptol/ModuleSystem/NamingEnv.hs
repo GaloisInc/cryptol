@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -16,10 +16,14 @@ import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
-import Data.Monoid (Monoid(..))
-import Data.Foldable (foldMap)
 import qualified Data.Map as Map
 
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative (Applicative, (<$>), (<*>))
+import Data.Monoid (Monoid(..))
+import Data.Foldable (foldMap)
+import Data.Traversable (traverse)
+#endif
 
 -- Name Locations --------------------------------------------------------------
 
@@ -114,6 +118,21 @@ shadowing l r = NamingEnv
   { neExprs = Map.union (neExprs l) (neExprs r)
   , neTypes = Map.union (neTypes l) (neTypes r) }
 
+travNamingEnv :: Applicative f => (QName -> f QName) -> NamingEnv -> f NamingEnv
+travNamingEnv f ne = NamingEnv <$> neExprs' <*> neTypes'
+  where
+    neExprs' = traverse (traverse travE) (neExprs ne)
+    neTypes' = traverse (traverse travT) (neTypes ne)
+    travE en = case en of
+      EFromBind lqn    -> EFromBind    <$> travLoc lqn
+      EFromNewtype lqn -> EFromNewtype <$> travLoc lqn
+      EFromMod qn      -> EFromMod     <$> f qn
+    travT tn = case tn of
+      TFromParam qn    -> TFromParam   <$> f qn
+      TFromSyn lqn     -> TFromSyn     <$> travLoc lqn
+      TFromNewtype lqn -> TFromNewtype <$> travLoc lqn
+      TFromMod qn      -> TFromMod     <$> f qn
+    travLoc loc = Located (srcRange loc) <$> f (thing loc)
 
 -- | Things that define exported names.
 class BindsNames a where

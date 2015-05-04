@@ -1,13 +1,13 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
 
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE PatternGuards #-}
@@ -20,30 +20,33 @@ module Cryptol.Prims.Eval where
 import Cryptol.Prims.Syntax (ECon(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),fromNat,genLog, nMul)
+import qualified Cryptol.Eval.Arch as Arch
 import Cryptol.Eval.Error
-import Cryptol.Testing.Random (randomValue)
-import Cryptol.Eval.Value
 import Cryptol.Eval.Type(evalTF)
+import Cryptol.Eval.Value
+import Cryptol.Testing.Random (randomValue)
 import Cryptol.Utils.Panic (panic)
 
-import Data.List (sortBy,transpose,genericTake,genericReplicate,genericSplitAt)
+import Data.List (sortBy,transpose,genericTake,genericReplicate,genericSplitAt,genericIndex)
 import Data.Ord (comparing)
 import Data.Bits (Bits(..))
 
-import System.Random (mkStdGen)
+import System.Random.TF (mkTFGen)
 
 
 -- Utilities -------------------------------------------------------------------
 
 #if __GLASGOW_HASKELL__ < 706
+noNum = panic "Cryptol.Prims.Eval"
+          [ "Num instance for Bool shouldn't be used." ]
 instance Num Bool where
-  _ + _         = error "Num instance for Bool shouldn't be used."
-  _ * _         = error "Num instance for Bool shouldn't be used."
-  _ - _         = error "Num instance for Bool shouldn't be used."
-  negate _      = error "Num instance for Bool shouldn't be used."
-  abs _         = error "Num instance for Bool shouldn't be used."
-  signum _      = error "Num instance for Bool shouldn't be used."
-  fromInteger _ = error "Num instance for Bool shouldn't be used."
+  _ + _         = noNum
+  _ * _         = noNum
+  _ - _         = noNum
+  negate _      = noNum
+  abs _         = noNum
+  signum _      = noNum
+  fromInteger _ = noNum
 #endif
 
 #if __GLASGOW_HASKELL__ < 708
@@ -206,7 +209,7 @@ ecDemoteV :: Value
 ecDemoteV = tlam $ \valT ->
             tlam $ \bitT ->
             case (numTValue valT, numTValue bitT) of
-              (Nat v, Nat bs) -> VWord (BV bs v)
+              (Nat v, Nat bs) -> VWord (mkBv bs v)
               _ -> evalPanic "Cryptol.Eval.Prim.evalConst"
                        ["Unexpected Inf in constant."
                        , show valT
@@ -308,7 +311,7 @@ arithBinary op = loop
     | Just (len,a) <- isTSeq ty = case numTValue len of
 
       -- words and finite sequences
-      Nat w | isTBit a  -> VWord (BV w (op w (fromWord l) (fromWord r)))
+      Nat w | isTBit a  -> VWord (mkBv w (op w (fromWord l) (fromWord r)))
             | otherwise -> VSeq False (zipWith (loop a) (fromSeq l) (fromSeq r))
 
       -- streams
@@ -339,7 +342,7 @@ arithUnary op = loop
     | Just (len,a) <- isTSeq ty = case numTValue len of
 
       -- words and finite sequences
-      Nat w | isTBit a  -> VWord (BV w (op (fromWord x)))
+      Nat w | isTBit a  -> VWord (mkBv w (op (fromWord x)))
             | otherwise -> VSeq False (map (loop a) (fromSeq x))
 
       Inf -> toStream (map (loop a) (fromSeq x))
@@ -449,9 +452,10 @@ zeroV ty
 
   -- sequences
   | Just (n,ety) <- isTSeq ty =
-    toSeq n ety $ case numTValue n of
-                    Nat w -> replicate (fromInteger w) (zeroV ety)
-                    Inf   -> repeat                    (zeroV ety)
+    case numTValue n of
+      Nat w | isTBit ety -> word w 0
+            | otherwise  -> toSeq n ety (replicate (fromInteger w) (zeroV ety))
+      Inf                -> toSeq n ety (repeat                    (zeroV ety))
 
   -- functions
   | Just (_,bty) <- isTFun ty =
@@ -537,7 +541,7 @@ logicBinary op = loop
       case numTValue len of
 
          -- words or finite sequences
-         Nat w | isTBit aty -> VWord (BV w (op (fromWord l) (fromWord r)))
+         Nat w | isTBit aty -> VWord (mkBv w (op (fromWord l) (fromWord r)))
                | otherwise -> VSeq False (zipWith (loop aty) (fromSeq l)
                                                              (fromSeq r))
 
@@ -571,7 +575,7 @@ logicUnary op = loop
       case numTValue len of
 
          -- words or finite sequences
-         Nat w | isTBit ety -> VWord (BV w (op (fromWord val)))
+         Nat w | isTBit ety -> VWord (mkBv w (op (fromWord val)))
                | otherwise -> VSeq False (map (loop ety) (fromSeq val))
 
          -- streams
@@ -683,12 +687,12 @@ indexFront :: Maybe Integer -> [Value] -> Integer -> Value
 indexFront mblen vs ix =
   case mblen of
     Just len | len <= ix -> invalidIndex ix
-    _                    -> vs !! fromInteger ix
+    _                    -> genericIndex vs ix
 
 indexBack :: Maybe Integer -> [Value] -> Integer -> Value
 indexBack mblen vs ix =
   case mblen of
-    Just len | len > ix  -> vs !! fromInteger (len - ix - 1)
+    Just len | len > ix  -> genericIndex vs (len - ix - 1)
              | otherwise -> invalidIndex ix
     Nothing              -> evalPanic "indexBack"
                             ["unexpected infinite sequence"]
@@ -720,6 +724,8 @@ fromThenV  =
   tlamN $ \ bits  ->
   tlamN $ \ len   ->
     case (first, next, len, bits) of
+      (_         , _        , _       , Nat bits')
+        | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
       (Nat first', Nat next', Nat len', Nat bits') ->
         let nums = enumFromThen first' next'
          in VSeq False (genericTake len' (map (VWord . BV bits') nums))
@@ -732,7 +738,8 @@ fromToV  =
   tlamN $ \ lst   ->
   tlamN $ \ bits  ->
     case (first, lst, bits) of
-
+      (_         , _       , Nat bits')
+        | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
       (Nat first', Nat lst', Nat bits') ->
         let nums = enumFromThenTo first' (first' + 1) lst'
             len  = 1 + (lst' - first')
@@ -749,7 +756,8 @@ fromThenToV  =
   tlamN $ \ bits  ->
   tlamN $ \ len   ->
     case (first, next, lst, len, bits) of
-
+      (_         , _        , _       , _       , Nat bits')
+        | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
       (Nat first', Nat next', Nat lst', Nat len', Nat bits') ->
         let nums = enumFromThenTo first' next' lst'
          in VSeq False (genericTake len' (map (VWord . BV bits') nums))
@@ -765,7 +773,7 @@ randomV :: TValue -> Integer -> Value
 randomV ty seed =
   case randomValue (tValTy ty) of
     Nothing -> zeroV ty
-    Just gen -> fst $ gen 100 $ mkStdGen (fromIntegral seed)
+    Just gen -> fst $ gen 100 $ mkTFGen (fromIntegral seed)
 
 
 -- Miscellaneous ---------------------------------------------------------------

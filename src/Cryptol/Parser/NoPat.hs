@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -10,6 +10,7 @@
 -- patterns.  It also eliminates pattern bindings by de-sugaring them
 -- into `Bind`.  Furthermore, here we associate signatures and pragmas
 -- with the names to which they belong.
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
 module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
 
@@ -20,11 +21,14 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
 import           MonadLib
-import           Control.Applicative(Applicative(..),(<$>))
 import           Data.Maybe(maybeToList)
 import           Data.Either(partitionEithers)
 import qualified Data.Map as Map
 
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative(Applicative(..),(<$>))
+import           Data.Traversable(traverse)
+#endif
 
 class RemovePatterns t where
   -- | Eliminate all patterns in a program.
@@ -39,6 +43,8 @@ instance RemovePatterns Expr where
 instance RemovePatterns Module where
   removePatterns m = runNoPatM (noPatModule m)
 
+instance RemovePatterns [Decl] where
+  removePatterns ds = runNoPatM (noPatDs ds)
 
 simpleBind :: Located QName -> Expr -> Bind
 simpleBind x e = Bind { bName = x, bParams = [], bDef = e
@@ -72,7 +78,7 @@ noPat pat =
          let len      = length ps
              ty       = TTuple (replicate len TWild)
              getN a n = sel a qx (TupleSel n (Just len))
-         return (pTy r x ty, zipWith getN as [1..] ++ concat dss)
+         return (pTy r x ty, zipWith getN as [0..] ++ concat dss)
 
     PList [] ->
       do x <- newName
@@ -113,8 +119,8 @@ noPat pat =
          let qx   = mkUnqual x
              qtmp = mkUnqual tmp
              bTmp = simpleBind (Located r qtmp) (EApp (ECon ECSplitAt) (EVar qx))
-             b1   = sel a1 qtmp (TupleSel 1 (Just 2))
-             b2   = sel a2 qtmp (TupleSel 2 (Just 2))
+             b1   = sel a1 qtmp (TupleSel 0 (Just 2))
+             b2   = sel a2 qtmp (TupleSel 1 (Just 2))
          return (pVar r x, bTmp : b1 : b2 : ds1 ++ ds2)
 
     PLocated p r1 -> inRange r1 (noPat p)
@@ -144,6 +150,7 @@ noPatE expr =
     ESel e s      -> ESel    <$> noPatE e <*> return s
     EList es      -> EList   <$> mapM noPatE es
     EFromTo {}    -> return expr
+    EInfFrom e e' -> EInfFrom <$> noPatE e <*> traverse noPatE e'
     EComp e mss   -> EComp  <$> noPatE e <*> mapM noPatArm mss
     EApp e1 e2    -> EApp   <$> noPatE e1 <*> noPatE e2
     EAppT e ts    -> EAppT  <$> noPatE e <*> return ts

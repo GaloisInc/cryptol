@@ -1,0 +1,17 @@
+thm1 : [16] -> Bit
+property thm1 x = (x <<< 16 == x) && (x >>> 16 == x)
+
+thm2 : [16] -> [16] -> Bit
+property thm2 x i = x >>> i == x >>> (i && 0x000f)
+
+thm3 : [15] -> [8] -> Bit
+property thm3 x i = x <<< i == x <<< (i % 15)
+
+thm4 : [15] -> [15] -> Bit
+property thm4 x i = x <<< i >>> i == x
+
+thm5 : [15] -> [3] -> Bit
+property thm5 x i = x <<< i >>> i == x
+
+thm6 : [8] -> [4] -> [4] -> Bit
+property thm6 x i j = x <<< i >>> j == x <<< (i - j)

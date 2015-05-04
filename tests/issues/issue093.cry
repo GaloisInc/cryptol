@@ -1,0 +1,5 @@
+property t0 = True
+property t1 x = x == (x : [32])
+property t2 x y = if (x : [32]) < (y : [32]) then y != zero else True
+not_a_prop = True
+property f0 = False

@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -10,11 +10,20 @@
 -- element, and various arithmetic operators on them.
 
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.TypeCheck.Solver.InfNat where
+
+import Data.Bits
+import Cryptol.Utils.Panic
+
+import Data.GenericTrie(TrieKey)
+import GHC.Generics(Generic)
 
 -- | Natural numbers with an infinity element
 data Nat' = Nat Integer | Inf
-            deriving (Show,Eq,Ord)
+            deriving (Show,Eq,Ord,Generic)
+
+instance TrieKey Nat'
 
 fromNat :: Nat' -> Maybe Integer
 fromNat n' =
@@ -79,6 +88,11 @@ nSub (Nat x) (Nat y)
 nSub _ _                      = Nothing
 
 
+-- XXX:
+-- Does it make sense to define:
+--   nDiv Inf (Nat x)  = Inf
+--   nMod Inf (Nat x)  = Nat 0
+
 {- | Rounds down.
 
 > y * q + r = x
@@ -109,35 +123,109 @@ nLg2 (Nat 0)  = Nat 0
 nLg2 (Nat n)  = case genLog n 2 of
                   Just (x,exact) | exact     -> Nat x
                                  | otherwise -> Nat (x + 1)
-                  Nothing -> error "genLog returned Nothing"
+                  Nothing -> panic "Cryptol.TypeCheck.Solver.InfNat.nLg2"
+                               [ "genLog returned Nothing" ]
 
 -- | @nWidth n@ is number of bits needed to represent all numbers
 -- from 0 to n, inclusive. @nWidth x = nLg2 (x + 1)@.
 nWidth :: Nat' -> Nat'
 nWidth Inf      = Inf
-nWidth (Nat 0)  = Nat 0
-nWidth (Nat n)  = case genLog n 2 of
-                    Just (x,_) -> Nat (x + 1)
-                    Nothing -> error "genLog returned Nothing"
+nWidth (Nat n)  = Nat (widthInteger n)
 
 
+{- | @length ([ x, y .. ] : [_][w])@
+We don't check that the second element fits in `w` many bits as the 
+second element may not be part of the list.
+For example, the length of @[ 0 .. ] : [_][0]@ is @nLenFromThen 0 1 0@,
+which should evaluate to 1. -}
+
+
+{- XXX: It would appear that the actual notaion also requires `y` to fit in...
+It is not clear if that's a good idea.  Consider, for example,
+
+    [ 1, 4 .., 2 ]
+
+Crytpol infers that this list has one element, but it insists that the
+width of the elements be at least 3, to accomodate the 4.
+-}
 nLenFromThen :: Nat' -> Nat' -> Nat' -> Maybe Nat'
-nLenFromThen a@(Nat x) b@(Nat y) (Nat w)
-  | y > x = nLenFromThenTo a b (Nat (2^w - 1))
-  | y < x = nLenFromThenTo a b (Nat 0)
+nLenFromThen a@(Nat x) b@(Nat y) wi@(Nat w)
+  | wi < nWidth a = Nothing
+  | y > x         = nLenFromThenTo a b (Nat (2^w - 1))
+  | y < x         = nLenFromThenTo a b (Nat 0)
 
 nLenFromThen _ _ _ = Nothing
 
+-- | @length [ x, y .. z ]@
 nLenFromThenTo :: Nat' -> Nat' -> Nat' -> Maybe Nat'
 nLenFromThenTo (Nat x) (Nat y) (Nat z)
-  | step /= 0 = let len   = div dist step + 1
-                in Just $ Nat $ max 0 (if x > y then if z > x then 0 else len
-                                         else if z < x then 0 else len)
+  | step /= 0 = let len = div dist step + 1
+                in Just $ Nat $ if x > y
+                                  -- decreasing
+                                  then (if z > x then 0 else len)
+                                  -- increasing
+                                  else (if z < x then 0 else len)
   where
   step = abs (x - y)
   dist = abs (x - z)
 
 nLenFromThenTo _ _ _ = Nothing
+
+{- Note [Sequences of Length 0]
+
+  nLenFromThenTo x y z == 0
+    case 1: x > y  && z > x
+    case 2: x <= y && z < x
+
+  nLenFromThen x y w == 0
+    impossible
+-}
+
+{- Note [Sequences of Length 1]
+
+  `nLenFromThenTo x y z == 1`
+
+  dist < step && (x > y && z <= x   ||   y >= x && z >= x)
+
+  case 1: dist < step && x > y && z <= x
+  case 2: dist < step && y >= x && z >= x
+
+  case 1: if    `z <= x`,
+          then  `x - z >= 0`,
+          hence `dist = x - z`    (a)
+
+          if    `x > y`
+          then  `x - y` > 0
+          hence `step = x - y`    (b)
+
+          from (a) and (b):
+            `dist < step`
+            `x - z < x - y`
+            `-z < -y`
+            `z > y`
+
+  case 1 summary:  x >= z && z > y
+
+
+
+  case 2: if y >= x, then step = y - x   (a)
+          if z >= x, then dist = z - x   (b)
+
+          dist < step =
+          (z - x) < (y - x) =
+          (z < y)
+
+  case 2 summary: y > z, z >= x
+
+------------------------
+
+  `nLenFromThen x y w == 1`
+    | y > x         = nLenFromThenTo x y (Nat (2^w - 1))
+    | y < x         = nLenFromThenTo x y (Nat 0)
+
+    y >= 2^w, y > x
+
+-}
 
 
 --------------------------------------------------------------------------------
@@ -167,4 +255,13 @@ genLog x base = Just (exactLoop 0 x)
     | otherwise = let s1 = s + 1 in s1 `seq` underLoop s1 (div i base)
 
 
+-- | Compute the number of bits required to represent the given integer.
+widthInteger :: Integer -> Integer
+widthInteger x = go' 0 (if x < 0 then complement x else x)
+  where
+    go s 0 = s
+    go s n = let s' = s + 1 in s' `seq` go s' (n `shiftR` 1)
 
+    go' s n
+      | n < bit 32 = go s n
+      | otherwise  = let s' = s + 32 in s' `seq` go' s' (n `shiftR` 32)

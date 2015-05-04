@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -39,6 +39,9 @@ module Cryptol.Parser.AST
   , Import(..), ImportSpec(..)
   , Newtype(..)
 
+    -- * Interactive
+  , ReplInput(..)
+
     -- * Expressions
   , Expr(..)
   , Literal(..), NumInfo(..)
@@ -65,8 +68,11 @@ import qualified Data.Set as Set
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
-import           Data.Monoid (Monoid(..))
 import           Numeric(showIntAtBase)
+
+#if __GLASGOW_HASKELL__ < 710
+import           Data.Monoid (Monoid(..))
+#endif
 
 -- | Module names are just namespaces.
 --
@@ -180,6 +186,12 @@ data Newtype  = Newtype { nName   :: LQName       -- ^ Type name
                         , nBody   :: [Named Type] -- ^ Constructor
                         } deriving (Eq,Show)
 
+-- | Input at the REPL, which can either be an expression or a @let@
+-- statement.
+data ReplInput = ExprInput Expr
+               | LetInput Decl
+                 deriving (Eq, Show)
+
 -- | Export information for a declaration.
 data ExportType = Public
                 | Private
@@ -244,6 +256,7 @@ data Expr     = EVar QName                      -- ^ @ x @
               | ESel Expr Selector              -- ^ @ e.l @
               | EList [Expr]                    -- ^ @ [1,2,3] @
               | EFromTo Type (Maybe Type) (Maybe Type)   -- ^ @[1, 5 ..  117 ] @
+              | EInfFrom Expr (Maybe Expr)      -- ^ @ [1, 3 ...] @
               | EComp Expr [[Match]]            -- ^ @ [ 1 | x <- xs ] @
               | EApp Expr Expr                  -- ^ @ f x @
               | EAppT Expr [TypeInst]           -- ^ @ f `{x = 8}, f`{8} @
@@ -267,8 +280,8 @@ list selectors, but they are used during the desugaring of patterns.
 -}
 
 data Selector = TupleSel Int   (Maybe Int)
-                -- ^ One-based tuple selection.
-                -- Optionally specifies the shape of the tuple.
+                -- ^ Zero-based tuple selection.
+                -- Optionally specifies the shape of the tuple (one-based).
 
               | RecordSel Name (Maybe [Name])
                 -- ^ Record selection.
@@ -656,6 +669,8 @@ instance PP Expr where
       EFromTo e1 e2 e3 -> brackets (pp e1 <> step <+> text ".." <+> end)
         where step = maybe empty (\e -> comma <+> pp e) e2
               end  = maybe empty pp e3
+      EInfFrom e1 e2 -> brackets (pp e1 <> step <+> text "...")
+        where step = maybe empty (\e -> comma <+> pp e) e2
       EComp e mss   -> brackets (pp e <+> vcat (map arm mss))
         where arm ms = text "|" <+> commaSep (map pp ms)
       ETypeVal t    -> text "`" <> ppPrec 5 t     -- XXX
@@ -884,6 +899,7 @@ instance NoPos Expr where
       ESel x y      -> ESel     (noPos x) y
       EList x       -> EList    (noPos x)
       EFromTo x y z -> EFromTo  (noPos x) (noPos y) (noPos z)
+      EInfFrom x y  -> EInfFrom (noPos x) (noPos y)
       EComp x y     -> EComp    (noPos x) (noPos y)
       EApp  x y     -> EApp     (noPos x) (noPos y)
       EAppT x y     -> EAppT    (noPos x) (noPos y)

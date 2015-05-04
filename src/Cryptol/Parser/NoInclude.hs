@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -18,6 +18,7 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.LexerUtils (Config(..),defaultConfig)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Utils.PP
+import qualified Control.Applicative as A
 
 import Data.Either (partitionEithers)
 import MonadLib
@@ -62,6 +63,10 @@ tryNoIncM m = M (try (unM m))
 
 instance Functor NoIncM where
   fmap = liftM
+
+instance A.Applicative NoIncM where
+  pure = return
+  (<*>) = ap
 
 instance Monad NoIncM where
   return x = M (return x)

@@ -1,0 +1,10 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module issue177A
+Loading module issue177B
+Loading module issue177C
+Loading module issue177
+w : Byte
+x : Word16
+y : B::Word32
+z : ?issue177C::Word64

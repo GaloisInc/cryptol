@@ -1,0 +1,31 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module test03
+module test03
+import Cryptol
+/* Not recursive */
+test03::test : {a} (fin a, a >= width a) => [a]
+test03::test = \{a} (fin a, a >= width a) ->
+               foo a <> <>
+               where
+                 /* Not recursive */
+                 foo : {b} (fin b, b >= width a) => [b]
+                 foo = \{b} (fin b, b >= width a) -> demote a b <> <> <>
+                 
+               
+
+Loading module Cryptol
+Loading module test03
+module test03
+import Cryptol
+/* Not recursive */
+test03::test : {a} (fin a, a >= width a) => [a]
+test03::test = \{a} (fin a, a >= width a) ->
+               foo
+               where
+                 /* Not recursive */
+                 foo : [a]
+                 foo = demote a a <> <> <>
+                 
+               
+

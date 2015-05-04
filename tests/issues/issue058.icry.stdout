@@ -1,0 +1,30 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at ./issue058.cry:4:1--4:16:
+  Failed to validate user-specified signature.
+    In the definition of 'Main::some', at ./issue058.cry:4:1--4:5:
+      for any type n
+      fin n
+        arising from
+        use of expression (!=)
+        at ./issue058.cry:4:12--4:14
+[error] at ./issue058.cry:7:1--7:17:
+  Failed to validate user-specified signature.
+    In the definition of 'Main::last', at ./issue058.cry:7:1--7:5:
+      for any type n, a
+        n >= 1
+      =>
+      fin n
+        arising from
+        use of expression (!)
+        at ./issue058.cry:7:14--7:15
+[error] at ./issue058.cry:10:1--10:17:
+  Failed to validate user-specified signature.
+    In the definition of 'Main::pad', at ./issue058.cry:10:1--10:4:
+      for any type n
+      fin n
+        arising from
+        use of expression (#)
+        at ./issue058.cry:10:11--10:12

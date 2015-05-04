@@ -1,0 +1,5 @@
+(x where x = 1)
+[x where x = 1, x where x = 2]
+{ x = x where x = 1, y = y where y = 2 }
+x where (x,y) = (1,2)
+x where { x = x, y = y } = { x = 10, y = 20 }

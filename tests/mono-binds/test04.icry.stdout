@@ -1,0 +1,32 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module test04
+module test04
+import Cryptol
+/* Not recursive */
+test04::test : {a, b} (fin b, b >= 4) => a -> ((a, ()), (a, [b]))
+test04::test = \{a, b} (fin b, b >= 4) (a : a) ->
+               (f () (), f [b] (demote 10 b <> <> <>))
+               where
+                 /* Not recursive */
+                 f : {c} c -> (a, c)
+                 f = \{c} (x : c) -> (a, x)
+                 
+               
+
+Loading module Cryptol
+Loading module test04
+[warning] at ./test04.cry:1:1--5:14:
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at ./test04.cry:3:19--3:21
+  to 4
+
+[error] at ./test04.cry:3:19--3:21:
+  Type mismatch:
+    Expected type: ()
+    Inferred type: [?k3]
+  where
+  ?k3 is type parameter 'bits'
+         of literal or demoted expression
+         at ./test04.cry:3:19--3:21

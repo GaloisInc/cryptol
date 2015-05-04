@@ -588,7 +588,7 @@ SunscreenKeystream = (parseHexString
     # "c4:0c:59:45:39:8b:6e:da:1a:83:2c:89:c1:67:ea:cd:90:1d:7e:2b:f3:63."
     ) )
 
-property SunscreenKeystream_correct (skref:[skwidth][8]) =
+SunscreenKeystream_correct (skref:[skwidth][8]) =
     take`{skwidth}
         (groupBy`{8} (join (join(ChaCha20ExpandKey
                                     Sunscreen_Key Sunscreen_Nonce 1)))) == skref
@@ -1454,12 +1454,13 @@ Email: dylan@galois.com
 ## The ChaCha20 Block Functions
 
 ```cryptol
-property TV_block_correct key nonce blockcounter result = ChaCha20Block key nonce blockcounter == result
+// helper macros for higher-up properties
+TV_block_correct key nonce blockcounter result = ChaCha20Block key nonce blockcounter == result
 	
-property TV_block_Keystream_correct key nonce blockcounter keystream =
+TV_block_Keystream_correct key nonce blockcounter keystream =
 	take`{0x40} (groupBy`{8} (join (join (ChaCha20ExpandKey key nonce blockcounter)))) == keystream
 
-property ChaCha20_block_correct key nonce blockcounter result keystream = 
+ChaCha20_block_correct key nonce blockcounter result keystream = 
 	TV_block_correct key nonce blockcounter result && 
 	TV_block_Keystream_correct key nonce blockcounter keystream
 ```
@@ -1590,7 +1591,7 @@ property all_block_tests_correct =
 ## ChaCha20 Encryption
 
 ```cryptol
-property ChaCha20_enc_correct key nonce blockcounter plaintext cyphertext = ChaCha20EncryptBytes plaintext key nonce blockcounter == cyphertext
+ChaCha20_enc_correct key nonce blockcounter plaintext cyphertext = ChaCha20EncryptBytes plaintext key nonce blockcounter == cyphertext
 ```
 
 ### Test Vector #1
@@ -1721,7 +1722,7 @@ property all_enc_tests_correct =
 ## Poly1305 Message Authentication Code
 
 ```cryptol
-property poly1305_MAC_correct key text tag = Poly1305 key text == tag
+poly1305_MAC_correct key text tag = Poly1305 key text == tag
 ```
 
 ### Test Vector #1
@@ -2055,7 +2056,8 @@ property TV1_otk_correct = Poly1305_key_correct TV1_AEAD_key TV1_AEAD_nonce TV1_
 Next, we construct the AEAD buffer
 
 ```cryptol
-property poly_input_correct AeadAAD cypherText result = (AeadConstruction AeadAAD cypherText) == result
+// Helper macros for further properties
+poly_input_correct AeadAAD cypherText result = (AeadConstruction AeadAAD cypherText) == result
 
 property TV1_poly_input_correct = (poly_input_correct TV1_AEAD_AAD TV1_AEAD_cypherText TV1_AEAD_Poly_input)
 ```

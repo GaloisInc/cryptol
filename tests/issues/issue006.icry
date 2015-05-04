@@ -1,0 +1,9 @@
+:l issue006.cry
+g 5
+let f x = 0
+g 5
+(f : [32] -> [32]) 5
+let f x = if (x : [32]) == 0 then 1 else x * (f (x - 1))
+f 5
+let h x = g x
+h 5

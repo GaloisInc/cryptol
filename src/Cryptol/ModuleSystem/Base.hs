@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -8,8 +8,10 @@
 
 module Cryptol.ModuleSystem.Base where
 
+import Cryptol.ModuleSystem.Env (DynamicEnv(..), deIfaceDecls)
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
+import Cryptol.ModuleSystem.Env (lookupModule, LoadedModule(..))
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Value           as E
 import qualified Cryptol.ModuleSystem.Renamer as R
@@ -21,20 +23,34 @@ import Cryptol.Parser.NoInclude (removeIncludesModule)
 import Cryptol.Parser.Position (HasLoc(..), Range, emptyRange)
 import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
+import qualified Cryptol.TypeCheck.Depends as T
 import Cryptol.Utils.PP (pretty)
+
+import Cryptol.Prelude (writePreludeContents)
 
 import Cryptol.Transform.MonoValues
 
+import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad (unless)
-import Data.Foldable (foldMap)
 import Data.Function (on)
 import Data.List (nubBy)
 import Data.Maybe (mapMaybe,fromMaybe)
+import Data.Monoid ((<>))
 import System.Directory (doesFileExist)
-import System.FilePath (addExtension,joinPath,(</>))
+import System.FilePath ( addExtension
+                       , isAbsolute
+                       , joinPath
+                       , (</>)
+                       , takeDirectory
+                       , takeFileName
+                       )
+import qualified System.IO.Error as IOE
 import qualified Data.Map as Map
 
+#if __GLASGOW_HASKELL__ < 710
+import Data.Foldable (foldMap)
+#endif
 
 -- Renaming --------------------------------------------------------------------
 
@@ -65,8 +81,15 @@ renameModule m = do
 renameExpr :: P.Expr -> ModuleM P.Expr
 renameExpr e = do
   env <- getFocusedEnv
-  rename (R.namingEnv env) e
+  denv <- getDynEnv
+  rename (deNames denv `R.shadowing` R.namingEnv env) e
 
+-- | Rename declarations in the context of the focused module.
+renameDecls :: (R.Rename d, T.FromDecl d) => [d] -> ModuleM [d]
+renameDecls ds = do
+  env <- getFocusedEnv
+  denv <- getDynEnv
+  rename (deNames denv `R.shadowing` R.namingEnv env) ds
 
 -- NoPat -----------------------------------------------------------------------
 
@@ -83,10 +106,13 @@ noPat a = do
 parseModule :: FilePath -> ModuleM P.Module
 parseModule path = do
 
-  e <- io (X.try (readFile path) :: IO (Either X.IOException String))
-  bytes <- case e of
+  e <- io $ X.try $ do
+    bytes <- readFile path
+    return $!! bytes
+  bytes <- case (e :: Either X.IOException String) of
     Right bytes -> return bytes
-    Left _      -> cantFindFile path
+    Left exn | IOE.isDoesNotExistError exn -> cantFindFile path
+             | otherwise                   -> otherIOError path exn
 
   let cfg = P.defaultConfig
               { P.cfgSource  = path
@@ -101,10 +127,22 @@ parseModule path = do
 
 -- | Load a module by its path.
 loadModuleByPath :: FilePath -> ModuleM T.Module
-loadModuleByPath path = do
-  pm <- parseModule path
+loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
+  let fileName = takeFileName path
+  -- path' is the resolved, absolute path
+  path' <- findFile fileName
+  pm <- parseModule path'
   let n = thing (P.mName pm)
-  loadingModule n (loadModule pm)
+
+  -- Check whether this module name has already been loaded from a different file
+  env <- getModuleEnv
+  case lookupModule n env of
+    Nothing -> loadingModule n (loadModule path' pm)
+    Just lm
+      | path' == loaded -> return (lmModule lm)
+      | otherwise       -> duplicateModuleName n path' loaded
+      where loaded = lmFilePath lm
+
 
 -- | Load the module specified by an import.
 loadImport :: Located P.Import -> ModuleM ()
@@ -122,12 +160,12 @@ loadImport li = do
          -- make sure that this module is the one we expect
          unless (n == thing (P.mName pm)) (moduleNameMismatch n (mName pm))
 
-         _ <- loadModule pm
+         _ <- loadModule path pm
          return ()
 
 -- | Load dependencies, typecheck, and add to the eval environment.
-loadModule :: P.Module -> ModuleM T.Module
-loadModule pm = do
+loadModule :: FilePath -> P.Module -> ModuleM T.Module
+loadModule path pm = do
 
   let pm' = addPrelude pm
   loadDeps pm'
@@ -140,7 +178,7 @@ loadModule pm = do
   -- extend the eval env
   modifyEvalEnv (E.moduleEnv tcm)
 
-  loadedModule tcm
+  loadedModule path tcm
 
   return tcm
 
@@ -163,8 +201,6 @@ moduleFile :: ModName -> String -> FilePath
 moduleFile (ModName ns) = addExtension (joinPath ns)
 
 -- | Discover a module.
---
--- TODO: extend this with a search path.
 findModule :: ModName -> ModuleM FilePath
 findModule n = do
   paths <- getSearchPath
@@ -176,13 +212,36 @@ findModule n = do
       b <- io (doesFileExist path)
       if b then return path else loop rest
 
-    [] -> moduleNotFound n =<< getSearchPath
+    [] -> handleNotFound
+
+  handleNotFound =
+    case n of
+      m | m == preludeName -> writePreludeContents
+      _ -> moduleNotFound n =<< getSearchPath
 
   -- generate all possible search paths
   possibleFiles paths = do
     path <- paths
     ext  <- P.knownExts
     return (path </> moduleFile n ext)
+
+-- | Discover a file. This is distinct from 'findModule' in that we
+-- assume we've already been given a particular file name.
+findFile :: FilePath -> ModuleM FilePath
+findFile path | isAbsolute path = do
+  -- No search path checking for absolute paths
+  b <- io (doesFileExist path)
+  if b then return path else cantFindFile path
+findFile path = do
+  paths <- getSearchPath
+  loop (possibleFiles paths)
+  where
+  loop paths = case paths of
+    path':rest -> do
+      b <- io (doesFileExist path')
+      if b then return path' else loop rest
+    [] -> cantFindFile path
+  possibleFiles paths = map (</> path) paths
 
 preludeName :: P.ModName
 preludeName  = P.ModName ["Cryptol"]
@@ -220,8 +279,21 @@ loadDeps m
 checkExpr :: P.Expr -> ModuleM (T.Expr,T.Schema)
 checkExpr e = do
   npe <- noPat e
+  denv <- getDynEnv
   re  <- renameExpr npe
-  typecheck T.tcExpr re =<< getQualifiedEnv
+  env <- getQualifiedEnv
+  let env' = env <> deIfaceDecls denv
+  typecheck T.tcExpr re env'
+
+-- | Typecheck a group of declarations.
+checkDecls :: (HasLoc d, R.Rename d, T.FromDecl d) => [d] -> ModuleM [T.DeclGroup]
+checkDecls ds = do
+  -- nopat must already be run
+  rds <- renameDecls ds
+  denv <- getDynEnv
+  env <- getQualifiedEnv
+  let env' = env <> deIfaceDecls denv
+  typecheck T.tcDecls rds env'
 
 -- | Typecheck a module.
 checkModule :: P.Module -> ModuleM T.Module
@@ -264,7 +336,7 @@ typecheck action i env = do
       do typeCheckWarnings warns
          typeCheckingFailed errs
 
--- | Process a list of imports, producing an aggreate interface suitable for use
+-- | Process a list of imports, producing an aggregate interface suitable for use
 -- when typechecking.
 importIfacesTc :: [P.Import] -> ModuleM IfaceDecls
 importIfacesTc is =
@@ -276,6 +348,8 @@ importIfacesTc is =
 genInferInput :: Range -> IfaceDecls -> ModuleM T.InferInput
 genInferInput r env = do
   seeds <- getNameSeeds
+  monoBinds <- getMonoBinds
+  cfg <- getSolverConfig
 
   -- TODO: include the environment needed by the module
   return T.InferInput
@@ -284,6 +358,8 @@ genInferInput r env = do
     , T.inpTSyns     =                    filterEnv ifTySyns
     , T.inpNewtypes  =                    filterEnv ifNewtypes
     , T.inpNameSeeds = seeds
+    , T.inpMonoBinds = monoBinds
+    , T.inpSolverConfig = cfg
     }
   where
   -- at this point, the names used in the aggregate interface should be
@@ -303,4 +379,15 @@ genInferInput r env = do
 evalExpr :: T.Expr -> ModuleM E.Value
 evalExpr e = do
   env <- getEvalEnv
-  return (E.evalExpr env e)
+  denv <- getDynEnv
+  return (E.evalExpr (env <> deEnv denv) e)
+
+evalDecls :: [T.DeclGroup] -> ModuleM ()
+evalDecls dgs = do
+  env <- getEvalEnv
+  denv <- getDynEnv
+  let env' = env <> deEnv denv
+      denv' = denv { deDecls = deDecls denv ++ dgs
+                   , deEnv = E.evalDecls dgs env'
+                   }
+  setDynEnv denv'

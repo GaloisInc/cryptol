@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -17,6 +17,8 @@ import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as Text
 import           Data.Char(isSpace)
 import           System.FilePath(takeExtension)
+
+import           Cryptol.Utils.Panic
 
 data PreProc = None | Markdown | LaTeX
 
@@ -59,7 +61,7 @@ toCryptol (Comment ls) =
                  in "/* " `Text.append` l1 : more ++ [ l `Text.append` " */" ]
 
   where
-  splitLast []  = error "splitLats []"
+  splitLast []  = panic "Cryptol.Parser.Unlit.toCryptol" [ "splitLast []" ]
   splitLast [x] = ([], x)
   splitLast (x : xs) = let (ys,y) = splitLast xs
                        in (x:ys,y)

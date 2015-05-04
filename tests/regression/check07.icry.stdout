@@ -2,44 +2,44 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at :1:1--14:39:
-  Defaulting 1st type parameter
-             of expression (<<)
-             at check07.cry:13:13--13:15
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at ./check07.cry:13:21--13:22
   to 1
 [warning] at :1:1--14:39:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at check07.cry:11:36--11:38
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at ./check07.cry:11:39--11:51
   to 4
-[warning] at check07.cry:7:1--7:56:
-  Defaulting 2nd type parameter
-             of expression (<<)
-             at check07.cry:7:31--7:33
+[warning] at ./check07.cry:7:1--7:56:
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at ./check07.cry:7:43--7:54
   to 6
 [warning] at :1:1--14:39:
-  Defaulting 2nd type parameter
-             of expression (>>)
-             at check07.cry:5:25--5:27
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at ./check07.cry:5:37--5:49
   to 7
 [warning] at :1:1--14:39:
-  Defaulting 2nd type parameter
-             of expression (>>)
-             at check07.cry:4:25--4:27
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at ./check07.cry:4:37--4:48
   to 6
 [warning] at :1:1--14:39:
-  Defaulting 2nd type parameter
-             of expression (<<)
-             at check07.cry:3:25--3:27
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at ./check07.cry:3:37--3:65
   to 32
 [warning] at :1:1--14:39:
-  Defaulting 2nd type parameter
-             of expression (<<)
-             at check07.cry:2:25--2:27
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at ./check07.cry:2:37--2:49
   to 7
 [warning] at :1:1--14:39:
-  Defaulting 2nd type parameter
-             of expression (<<)
-             at check07.cry:1:25--1:27
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at ./check07.cry:1:37--1:48
   to 6
 [0b00010010001101000101011001111000,
  0b00100100011010001010110011110000,

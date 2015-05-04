@@ -1,0 +1,15 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+:prove thm1
+	Q.E.D.
+:prove thm2
+	Q.E.D.
+:prove thm3
+	Q.E.D.
+:prove thm4
+	Q.E.D.
+:prove thm5
+	Q.E.D.
+:prove thm6
+	Q.E.D.

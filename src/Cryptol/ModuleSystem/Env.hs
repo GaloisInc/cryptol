@@ -1,19 +1,23 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE PatternGuards #-}
 
 module Cryptol.ModuleSystem.Env where
 
+#ifndef RELOCATABLE
 import Paths_cryptol (getDataDir)
+#endif
 
 import Cryptol.Eval (EvalEnv)
 import Cryptol.ModuleSystem.Interface
+import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
@@ -21,11 +25,16 @@ import qualified Cryptol.TypeCheck.AST as T
 import Control.Monad (guard)
 import Data.Foldable (fold)
 import Data.Function (on)
-import Data.Monoid (Monoid(..))
-import System.Environment.Executable(splitExecutablePath)
-import System.FilePath ((</>), normalise, joinPath, splitPath)
+import qualified Data.Map as Map
+import Data.Monoid ((<>))
+import System.Directory (getAppUserDataDirectory, getCurrentDirectory)
+import System.Environment(getExecutablePath)
+import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
 import qualified Data.List as List
 
+#if __GLASGOW_HASKELL__ < 710
+import Data.Monoid (Monoid(..))
+#endif
 
 -- Module Environment ----------------------------------------------------------
 
@@ -35,19 +44,61 @@ data ModuleEnv = ModuleEnv
   , meEvalEnv       :: EvalEnv
   , meFocusedModule :: Maybe ModName
   , meSearchPath    :: [FilePath]
+  , meDynEnv        :: DynamicEnv
+  , meMonoBinds     :: !Bool
+  , meSolverConfig  :: T.SolverConfig
+  }
+
+resetModuleEnv :: ModuleEnv -> ModuleEnv
+resetModuleEnv env = env
+  { meLoadedModules = mempty
+  , meNameSeeds     = T.nameSeeds
+  , meEvalEnv       = mempty
+  , meFocusedModule = Nothing
+  , meDynEnv        = mempty
   }
 
 initialModuleEnv :: IO ModuleEnv
 initialModuleEnv  = do
+  curDir <- getCurrentDirectory
+#ifndef RELOCATABLE
   dataDir <- getDataDir
-  (binDir, _) <- splitExecutablePath
+#endif
+  binDir <- takeDirectory `fmap` getExecutablePath
   let instDir = normalise . joinPath . init . splitPath $ binDir
+  userDir <- getAppUserDataDirectory "cryptol"
   return ModuleEnv
     { meLoadedModules = mempty
     , meNameSeeds     = T.nameSeeds
     , meEvalEnv       = mempty
     , meFocusedModule = Nothing
-    , meSearchPath    = [dataDir </> "lib", instDir </> "lib", "."]
+      -- we search these in order, taking the first match
+    , meSearchPath    = [ curDir
+                          -- something like $HOME/.cryptol
+                        , userDir
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+                          -- ../cryptol on win32
+                        , instDir </> "cryptol"
+#else
+                          -- ../share/cryptol on others
+                        , instDir </> "share" </> "cryptol"
+#endif
+
+#ifndef RELOCATABLE
+                          -- Cabal-defined data directory. Since this
+                          -- is usually a global location like
+                          -- /usr/local, search this one last in case
+                          -- someone has multiple Cryptols
+                        , dataDir
+#endif
+                        ]
+    , meDynEnv        = mempty
+    , meMonoBinds     = True
+    , meSolverConfig  = T.SolverConfig
+                          { T.solverPath = "cvc4"
+                          , T.solverArgs = [ "--lang=smt2", "--incremental", "--rewrite-divk" ]
+                          , T.solverVerbose = 0
+                          }
     }
 
 -- | Try to focus a loaded module in the module environment.
@@ -106,6 +157,7 @@ instance Monoid LoadedModules where
 
 data LoadedModule = LoadedModule
   { lmName      :: ModName
+  , lmFilePath  :: FilePath
   , lmInterface :: Iface
   , lmModule    :: T.Module
   } deriving (Show)
@@ -116,13 +168,65 @@ isLoaded mn lm = any ((mn ==) . lmName) (getLoadedModules lm)
 lookupModule :: ModName -> ModuleEnv -> Maybe LoadedModule
 lookupModule mn env = List.find ((mn ==) . lmName) (getLoadedModules (meLoadedModules env))
 
-addLoadedModule :: T.Module -> LoadedModules -> LoadedModules
-addLoadedModule tm lm
+addLoadedModule :: FilePath -> T.Module -> LoadedModules -> LoadedModules
+addLoadedModule path tm lm
   | isLoaded (T.mName tm) lm = lm
   | otherwise                = LoadedModules (getLoadedModules lm ++ [loaded])
   where
   loaded = LoadedModule
     { lmName      = T.mName tm
+    , lmFilePath  = path
     , lmInterface = genIface tm
     , lmModule    = tm
     }
+
+removeLoadedModule :: FilePath -> LoadedModules -> LoadedModules
+removeLoadedModule path (LoadedModules ms) = LoadedModules (remove ms)
+  where
+
+  remove (lm:rest)
+    | lmFilePath lm == path = rest
+    | otherwise             = lm : remove rest
+
+  remove [] = []
+
+-- Dynamic Environments --------------------------------------------------------
+
+-- | Extra information we need to carry around to dynamically extend
+-- an environment outside the context of a single module. Particularly
+-- useful when dealing with interactive declarations as in @:let@ or
+-- @it@.
+
+data DynamicEnv = DEnv
+  { deNames :: R.NamingEnv
+  , deDecls :: [T.DeclGroup]
+  , deEnv   :: EvalEnv
+  }
+
+instance Monoid DynamicEnv where
+  mempty = DEnv
+    { deNames = mempty
+    , deDecls = mempty
+    , deEnv   = mempty
+    }
+  mappend de1 de2 = DEnv
+    { deNames = deNames de1 <> deNames de2
+    , deDecls = deDecls de1 <> deDecls de2
+    , deEnv   = deEnv   de1 <> deEnv   de2
+    }
+
+-- | Build 'IfaceDecls' that correspond to all of the bindings in the
+-- dynamic environment.
+--
+-- XXX: if we ever add type synonyms or newtypes at the REPL, revisit
+-- this.
+deIfaceDecls :: DynamicEnv -> IfaceDecls
+deIfaceDecls DEnv { deDecls = dgs } =
+  mconcat [ IfaceDecls
+            { ifTySyns   = Map.empty
+            , ifNewtypes = Map.empty
+            , ifDecls    = Map.singleton (ifDeclName ifd) [ifd]
+            }
+          | decl <- concatMap T.groupDecls dgs
+          , let ifd = mkIfaceDecl decl
+          ]

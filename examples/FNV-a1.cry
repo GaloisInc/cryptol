@@ -1,0 +1,39 @@
+/*
+ * Copyright (c) 2014-2015 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+
+fnv1a : {n} (fin n) => [n] -> [64]
+fnv1a ws = fnv1a' (pad ws)
+
+pad : {msgLen,chunks,padding}
+     ( fin msgLen
+     , chunks     == (msgLen+7) / 8
+     , padding    == (8 - msgLen % 8) % 8
+     )
+     => [msgLen] -> [chunks][8]
+pad msg = split (msg # (zero:[padding]))
+
+fnv1a' : {chunks} (fin chunks) => [chunks][8] -> [64]
+fnv1a' msg = Ss ! 0
+  where
+   Ss = [fnv1a_offset_basis] #
+           [ block s m
+           | s <- Ss
+           | m <- msg
+           ]
+
+block : {padding} ( padding == 64 - 8) => [64] -> [8] -> [64]
+block state val = (state ^ ((zero : [padding]) # val)) * fnv1a_prime
+
+fnv1a_offset_basis : [64]
+fnv1a_offset_basis = 14695981039346656037
+
+fnv1a_prime : [64]
+fnv1a_prime = 1099511628211
+
+t1 = fnv1a [] == 0xcbf29ce484222325
+t2 = fnv1a (join "a") == 0xaf63dc4c8601ec8c
+t3 = fnv1a (join "foobar") == 0x85944171f73967e8
+
+property testsPass = [t1, t2, t3] == ~zero

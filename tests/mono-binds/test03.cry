@@ -1,0 +1,9 @@
+module test03 where
+
+// expression with a free type variable. Since mono-binds
+// monomorphizes everything rather than using fancy rules to generalize
+// some local binds, this test probably isn't relevant anymore
+test : {a} (fin a, a >= width a) => [a]
+test = foo
+  where
+  foo = `(a)

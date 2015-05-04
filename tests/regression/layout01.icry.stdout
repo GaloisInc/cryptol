@@ -1,0 +1,22 @@
+Loading module Cryptol
+Assuming a = 1
+0x1
+Assuming a = 2
+[0x1, 0x2]
+Assuming a = 1
+Assuming b = 2
+{x = 0x1, y = 0x2}
+[warning] at <interactive>:1:1--1:22:
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at <interactive>:1:20--1:21
+  to 2
+Assuming a = 1
+0x1
+[warning] at <interactive>:1:1--1:46:
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at <interactive>:1:42--1:44
+  to 5
+Assuming a = 4
+0xa

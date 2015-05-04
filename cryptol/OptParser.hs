@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -9,7 +9,11 @@
 
 module OptParser where
 
-import Data.Monoid (Endo(..),Monoid(..))
+import Data.Monoid (Endo(..))
+
+#if __GLASGOW_HASKELL__ < 710
+import Data.Monoid (Monoid(..))
+#endif
 
 data OptParser opt
   = OptSuccess (Endo opt)

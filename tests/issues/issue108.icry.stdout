@@ -2,9 +2,9 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 Assuming a = 0
-0
+0x0
 Assuming a = 2
-2
+0x2
 Assuming a = 4
-7
-55
+0x7
+0x37

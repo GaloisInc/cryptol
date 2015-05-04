@@ -33,6 +33,7 @@
 %\usepackage[paperwidth=5.5in,paperheight=8.5in]{geometry}
 \usepackage{geometry}
 
+% for bound books:
 %\setlength{\textwidth}{340pt}
 %\setlength{\textheight}{502pt}
 
@@ -42,7 +43,8 @@
    pdftitle     = \titleline,
    pdfkeywords  = {Cryptol, Cryptography, Programming},
    pdfauthor    = {Galois, Inc.},
-   pdfpagemode  = UseOutlines
+   pdfpagemode  = UseOutlines,
+   pdfborder    = 0 0 0
 }
 
 \input{utils/Indexes.tex}
@@ -107,7 +109,7 @@ without loss of continuity.}\end{minipage}}\end{center}}
 }
 \cfoot{}
 \fancyfoot[LE,RO]{\changefont{\textsf{\thepage}}}
-\fancyfoot[LO,RE]{\changefont{\textsf{\copyright\ 2010--2014, Galois, Inc.}}}
+\fancyfoot[LO,RE]{\changefont{\textsf{\copyright\ 2010--2015, Galois, Inc.}}}
 %% \fancyhead[LE]{\fancyplain{}{\textsf{\draftdate}}}
 %% \fancyhead[RO]{\fancyplain{}{\textsf{DO NOT DISTRIBUTE!}}}
 \fancyhead[RO,LE]{\fancyplain{}{}} %% outer
@@ -131,10 +133,13 @@ without loss of continuity.}\end{minipage}}\end{center}}
 
 \pagenumbering{roman}
 
-\includepdf[pages={1},scale=1.0]{cover/CryptolSmallCover.pdf}
+%% \includepdf[pages={1},scale=1.0]{cover/CryptolSmallCover.pdf}
+\includepdf[pages={1},scale=1.0]{cover/ProgrammingCryptolCover.pdf}
 
-\advance\voffset by -26pt
-\setlength{\hoffset}{-26pt}
+%\advance\voffset by -26pt
+%\setlength{\hoffset}{-26pt}
+
+% for bound-books
 % \setlength{\oddsidemargin}{36pt}
 % \setlength{\evensidemargin}{-36pt}
 
@@ -355,6 +360,7 @@ include "../aes/AESCode.tex";
 }
 
 %%%% Grammar
+%% TODO: make this not empty
 \input{appendices/grammar.tex}
 
 %%%% Glossary

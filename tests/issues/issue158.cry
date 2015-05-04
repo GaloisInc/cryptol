@@ -1,0 +1,7 @@
+// Testing shifts at types [a] -> [b] -> [a] with 2^b < a
+
+thm1 : [2] -> Bit
+thm1 i = 0x01 << i == 0x01 << i
+
+thm2 : [2] -> Bit
+thm2 i = 0x80 >> i == 0x80 >> i

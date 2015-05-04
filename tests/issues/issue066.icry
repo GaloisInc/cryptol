@@ -1,0 +1,35 @@
+let f x = (x : [4]) == x
+:prove f
+:t it
+it
+it.result
+let f x = (x : [4]) == 3
+:prove f
+:t it
+it
+it.result
+:sat f
+:t it
+it
+it.result
+let f x = (x : [4]) == 3 && x == 2
+:sat f
+:t it
+it
+let g p = (p : { x : [32], y : [32]}).x == p.y
+:prove g
+:t it
+it
+:sat g
+:t it
+it
+let h x y = (x : [8]) < y
+:prove h
+:t it
+it
+let result = it
+result.arg1
+result.arg2
+:sat h
+:t it
+it

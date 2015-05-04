@@ -4,8 +4,8 @@ Loading module Main
 [warning] at :1:1--5:76:
   Defaulting type parameter 'bits'
              of literal or demoted expression
-             at check14.cry:5:41--5:42
+             at ./check14.cry:5:73--5:74
   to 3
 Assuming a = 3
-[[3, 2, 1, 0], [7, 6, 5, 4]]
+[[0x3, 0x2, 0x1, 0x0], [0x7, 0x6, 0x5, 0x4]]
 True

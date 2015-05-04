@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -9,8 +9,10 @@
 module Cryptol.TypeCheck
   ( tcModule
   , tcExpr
+  , tcDecls
   , InferInput(..)
   , InferOutput(..)
+  , SolverConfig(..)
   , NameSeeds
   , nameSeeds
   , Error(..)
@@ -22,6 +24,7 @@ module Cryptol.TypeCheck
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position(Range)
 import           Cryptol.TypeCheck.AST
+import           Cryptol.TypeCheck.Depends (FromDecl)
 import           Cryptol.TypeCheck.Monad
                    ( runInferM
                    , InferInput(..)
@@ -31,8 +34,8 @@ import           Cryptol.TypeCheck.Monad
                    , lookupVar
                    )
 import           Cryptol.Prims.Types(typeOf)
-import           Cryptol.TypeCheck.Infer (inferModule, inferBinds)
-import           Cryptol.TypeCheck.InferTypes(Error(..),Warning(..),VarType(..))
+import           Cryptol.TypeCheck.Infer (inferModule, inferBinds, inferDs)
+import           Cryptol.TypeCheck.InferTypes(Error(..),Warning(..),VarType(..), SolverConfig(..))
 import           Cryptol.TypeCheck.Solve(simplifyAllConstraints)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
@@ -63,7 +66,7 @@ tcExpr e0 inp = runInferM inp
                              , show e'
                              , show t
                              ]
-      _ -> do res <- inferBinds False
+      _ -> do res <- inferBinds True False
                 [ P.Bind
                     { P.bName      = P.Located (inpRange inp)
                                    $ mkUnqual (P.Name "(expression)")
@@ -80,6 +83,11 @@ tcExpr e0 inp = runInferM inp
                           ( "Multiple declarations when check expression:"
                           : map show res
                           )
+
+tcDecls :: FromDecl d => [d] -> InferInput -> IO (InferOutput [DeclGroup])
+tcDecls ds inp = runInferM inp $ inferDs ds $ \dgs -> do
+                   simplifyAllConstraints
+                   return dgs
 
 ppWarning :: (Range,Warning) -> Doc
 ppWarning (r,w) = text "[warning] at" <+> pp r <> colon $$ nest 2 (pp w)

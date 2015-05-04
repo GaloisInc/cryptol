@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -25,11 +25,14 @@ import qualified Cryptol.TypeCheck.AST as T
 import           Cryptol.Parser.Position (Range)
 import           Cryptol.Utils.PP
 
-import Control.Applicative (Applicative(..))
+import Control.Exception (IOException)
 import Data.Function (on)
 import Data.Maybe (isJust)
 import MonadLib
 
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative (Applicative(..))
+#endif
 
 -- Errors ----------------------------------------------------------------------
 
@@ -57,6 +60,8 @@ data ModuleError
     -- ^ Unable to find the module given, tried looking in these paths
   | CantFindFile FilePath
     -- ^ Unable to open a file
+  | OtherIOError FilePath IOException
+    -- ^ Some other IO error occurred while reading this file
   | ModuleParseError FilePath Parser.ParseError
     -- ^ Generated this parse error when parsing the file for module m
   | RecursiveModules [ImportSource]
@@ -72,18 +77,31 @@ data ModuleError
   | OtherFailure String
     -- ^ Problems after type checking, eg. specialization
   | ModuleNameMismatch P.ModName (Located P.ModName)
+    -- ^ Module loaded by 'import' statement has the wrong module name
+  | DuplicateModuleName P.ModName FilePath FilePath
+    -- ^ Two modules loaded from different files have the same module name
     deriving (Show)
 
 instance PP ModuleError where
   ppPrec _ e = case e of
 
-    ModuleNotFound src _path ->
+    ModuleNotFound src path ->
       text "[error]" <+>
       text "Could not find module" <+> pp src
+      $$
+      hang (text "Searched paths:")
+         4 (vcat (map text path))
+      $$
+      text "Set the CRYPTOLPATH environment variable to search more directories"
 
     CantFindFile path ->
       text "[error]" <+>
       text "can't find file:" <+> text path
+
+    OtherIOError path exn ->
+      hang (text "[error]" <+>
+            text "IO error while loading file:" <+> text path <> colon)
+         4 (text (show exn))
 
     ModuleParseError _source err -> Parser.ppError err
 
@@ -106,6 +124,11 @@ instance PP ModuleError where
                  , text "Expected:" <+> pp expected
                  ])
 
+    DuplicateModuleName name path1 path2 ->
+      hang (text "[error] module" <+> pp name <+>
+            text "is defined in multiple files:")
+         4 (vcat [text path1, text path2])
+
     OtherFailure x -> text x
 
 
@@ -116,6 +139,9 @@ moduleNotFound name paths = ModuleT (raise (ModuleNotFound name paths))
 
 cantFindFile :: FilePath -> ModuleM a
 cantFindFile path = ModuleT (raise (CantFindFile path))
+
+otherIOError :: FilePath -> IOException -> ModuleM a
+otherIOError path exn = ModuleT (raise (OtherIOError path exn))
 
 moduleParseError :: FilePath -> Parser.ParseError -> ModuleM a
 moduleParseError path err =
@@ -147,6 +173,10 @@ typeCheckingFailed errs = do
 moduleNameMismatch :: P.ModName -> Located P.ModName -> ModuleM a
 moduleNameMismatch expected found =
   ModuleT (raise (ModuleNameMismatch expected found))
+
+duplicateModuleName :: P.ModName -> FilePath -> FilePath -> ModuleM a
+duplicateModuleName name path1 path2 =
+  ModuleT (raise (DuplicateModuleName name path1 path2))
 
 
 -- Warnings --------------------------------------------------------------------
@@ -293,15 +323,29 @@ getIface mn = ModuleT $ do
 getNameSeeds :: ModuleM T.NameSeeds
 getNameSeeds  = ModuleT (meNameSeeds `fmap` get)
 
+getMonoBinds :: ModuleM Bool
+getMonoBinds  = ModuleT (meMonoBinds `fmap` get)
+
+setMonoBinds :: Bool -> ModuleM ()
+setMonoBinds b = ModuleT $ do
+  env <- get
+  set $! env { meMonoBinds = b }
+
 setNameSeeds :: T.NameSeeds -> ModuleM ()
 setNameSeeds seeds = ModuleT $ do
   env <- get
   set $! env { meNameSeeds = seeds }
 
-loadedModule :: T.Module -> ModuleM ()
-loadedModule m = ModuleT $ do
+-- | Remove a module from the set of loaded module, by its path.
+unloadModule :: FilePath -> ModuleM ()
+unloadModule path = ModuleT $ do
   env <- get
-  set $! env { meLoadedModules = addLoadedModule m (meLoadedModules env) }
+  set $! env { meLoadedModules = removeLoadedModule path (meLoadedModules env) }
+
+loadedModule :: FilePath -> T.Module -> ModuleM ()
+loadedModule path m = ModuleT $ do
+  env <- get
+  set $! env { meLoadedModules = addLoadedModule path m (meLoadedModules env) }
 
 modifyEvalEnv :: (EvalEnv -> EvalEnv) -> ModuleM ()
 modifyEvalEnv f = ModuleT $ do
@@ -322,9 +366,42 @@ setFocusedModule n = ModuleT $ do
 getSearchPath :: ModuleM [FilePath]
 getSearchPath  = ModuleT (meSearchPath `fmap` get)
 
+-- | Run a 'ModuleM' action in a context with a prepended search
+-- path. Useful for temporarily looking in other places while
+-- resolving imports, for example.
+withPrependedSearchPath :: [FilePath] -> ModuleM a -> ModuleM a
+withPrependedSearchPath fps m = ModuleT $ do
+  env0 <- get
+  let fps0 = meSearchPath env0
+  set $! env0 { meSearchPath = fps ++ fps0 }
+  x <- unModuleT m
+  env <- get
+  set $! env { meSearchPath = fps0 }
+  return x
+
 -- XXX improve error handling here
 getFocusedEnv :: ModuleM IfaceDecls
 getFocusedEnv  = ModuleT (focusedEnv `fmap` get)
 
 getQualifiedEnv :: ModuleM IfaceDecls
 getQualifiedEnv  = ModuleT (qualifiedEnv `fmap` get)
+
+getDynEnv :: ModuleM DynamicEnv
+getDynEnv  = ModuleT (meDynEnv `fmap` get)
+
+setDynEnv :: DynamicEnv -> ModuleM ()
+setDynEnv denv = ModuleT $ do
+  me <- get
+  set $! me { meDynEnv = denv }
+
+setSolver :: T.SolverConfig -> ModuleM ()
+setSolver cfg = ModuleT $ do
+  me <- get
+  set $! me { meSolverConfig = cfg }
+
+getSolverConfig :: ModuleM T.SolverConfig
+getSolverConfig  = ModuleT $ do
+  me <- get
+  return (meSolverConfig me)
+
+

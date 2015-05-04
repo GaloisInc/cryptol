@@ -1,0 +1,5 @@
+:l issue081.cry
+y
+z
+((x where x = 1) + 1) : [2]
+((f where f x = x + 1) 10) : [4]

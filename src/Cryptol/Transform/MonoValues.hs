@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2014 Galois, Inc.
+-- Copyright   :  (c) 2013-2015 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -73,16 +73,20 @@
 -- XXX: Make sure that this really is the case for types!!
 
 {-# LANGUAGE PatternGuards, FlexibleInstances, MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Cryptol.Transform.MonoValues (rewModule) where
 
 import Cryptol.Parser.AST (Pass(MonoValues))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.TypeMap
-import Control.Applicative
 import Data.List(sortBy,groupBy)
 import Data.Either(partitionEithers)
 import Data.Map (Map)
 import MonadLib
+
+#if __GLASGOW_HASKELL__ < 710
+import Control.Applicative
+#endif
 
 {- (f,t,n) |--> x  means that when we spot instantiations of `f` with `ts` and
 `n` proof argument, we should replace them with `Var x` -}
@@ -91,6 +95,9 @@ type RewMap = RewMap' QName
 
 instance TrieMap RewMap' (QName,[Type],Int) where
   emptyTM  = RM emptyTM
+
+  nullTM (RM m) = nullTM m
+
   lookupTM (x,ts,n) (RM m) = do tM <- lookupTM x m
                                 tP <- lookupTM ts tM
                                 lookupTM n tP
@@ -107,9 +114,16 @@ instance TrieMap RewMap' (QName,[Type],Int) where
 
     f2 (Just pM) = Just (alterTM n f pM)
 
+  unionTM f (RM a) (RM b) = RM (unionTM (unionTM (unionTM f)) a b)
+
   toListTM (RM m) = [ ((x,ts,n),y) | (x,tM)  <- toListTM m
                                    , (ts,pM) <- toListTM tM
                                    , (n,y)   <- toListTM pM ]
+
+  mapMaybeWithKeyTM f (RM m) =
+    RM (mapWithKeyTM      (\qn  tm ->
+        mapWithKeyTM      (\tys is ->
+        mapMaybeWithKeyTM (\i   a  -> f (qn,tys,i) a) is) tm) m)
 
 -- | Note that this assumes that this pass will be run only once for each
 -- module, otherwise we will get name collisions.
@@ -290,7 +304,7 @@ rewDeclGroup rews dg =
                                             ) (TupleSel n (Just tupAr))
                           }
 
-                  return (tupD : zipWith mkFunDef [ 1 .. ] polyDs)
+                  return (tupD : zipWith mkFunDef [ 0 .. ] polyDs)
 
 
 --------------------------------------------------------------------------------

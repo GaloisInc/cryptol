@@ -1,0 +1,4 @@
+unflatten : {r, w}
+            (fin r, 5 * w >= r, fin w)
+            => [r] -> [w][5]
+unflatten p = groupBy`{5}(p # zero)
