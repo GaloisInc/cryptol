@@ -559,33 +559,25 @@ tryGetModel cfg xs ps =
 --------------------------------------------------------------------------------
 
 simpType :: Type -> Type
-simpType ty =
+simpType ty = fromMaybe ty (simpTypeMaybe ty)
+
+simpTypeMaybe :: Type -> Maybe Type
+simpTypeMaybe ty =
   case ty of
     TCon c ts ->
       case c of
-        TF {}    -> fromMaybe ty $
-                    do (e,vm) <- Num.exportType ty
+        TF {}    -> do (e,vm) <- Num.exportType ty
                        e1     <- Num.crySimpExprMaybe e
                        Num.importType vm e1
 
-        _        -> TCon c (map simpType ts)
+        _        -> TCon c `fmap` anyJust simpTypeMaybe ts
 
-    TVar _       -> ty
-    TUser x ts t -> TUser x ts (simpType t)
-    TRec fs      -> TRec [ (l, simpType t) | (l,t) <- fs ]
-
-
-
-
-
-
-
-
-
-
-
-
-
+    TVar _       -> Nothing
+    TUser x ts t -> TUser x ts `fmap` simpTypeMaybe t
+    TRec fs      ->
+      do let (ls,ts) = unzip fs
+         ts' <- anyJust simpTypeMaybe ts
+         return (TRec (zip ls ts'))
 
 
 

@@ -705,7 +705,7 @@ generalize bs0 gs0 =
          genE e = foldr ETAbs (foldr EProofAbs (apSubst su e) qs) asPs
          genB d = d { dDefinition = genE (dDefinition d)
                     , dSignature  = Forall asPs qs
-                                  $ apSubst su $ sType $ dSignature d
+                                  $ simpType $ apSubst su $ sType $ dSignature d
                     }
 
      addGoals later
@@ -777,7 +777,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
 
      return Decl
         { dName       = thing (P.bName b)
-        , dSignature  = Forall as asmps t
+        , dSignature  = Forall as asmps $ simpType t
         , dDefinition = foldr ETAbs (foldr EProofAbs e2 asmps) as
         , dPragmas    = P.bPragmas b
         }
