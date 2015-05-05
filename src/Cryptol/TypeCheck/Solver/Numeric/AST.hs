@@ -372,7 +372,7 @@ ppExprPrec prec expr =
     x :* y              -> bin "*" 7 0 1 x y
     Div x y             -> fun "div" [x,y]
     Mod x y             -> fun "mod" [x,y]
-    x :^^ y             -> bin "*" 8 1 0 x y
+    x :^^ y             -> bin "^^" 8 1 0 x y
     Min x y             -> fun "min" [x,y]
     Max x y             -> fun "max" [x,y]
     Lg2 x               -> fun "lg2" [x]
