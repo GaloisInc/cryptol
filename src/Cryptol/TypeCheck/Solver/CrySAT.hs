@@ -51,7 +51,7 @@ import           Text.PrettyPrint(Doc)
 
 
 -- | We use this to remember what we simplified
-newtype SimpProp = SimpProp Prop
+newtype SimpProp = SimpProp { unSimpProp :: Prop }
 
 simpProp :: Prop -> SimpProp
 simpProp p = SimpProp (crySimplify p)
@@ -396,10 +396,10 @@ scopeLookupNL x Scope { .. } = lookupNL x scopeNonLinS
 
 -- | Given a *simplified* prop, separate linear and non-linear parts
 -- and return the linear ones.
-scopeAssert :: SimpProp -> Scope -> (SimpProp,Scope)
+scopeAssert :: SimpProp -> Scope -> ([SimpProp],Scope)
 scopeAssert (SimpProp p) Scope { .. } =
-  let (p1,s1) = nonLinProp scopeNonLinS p
-  in (SimpProp p1, Scope { scopeNonLinS = s1, ..  })
+  let (ps1,s1) = nonLinProp scopeNonLinS p
+  in (map SimpProp ps1, Scope { scopeNonLinS = s1, ..  })
 
 
 -- | No scopes.
@@ -415,7 +415,7 @@ viInsert :: Name -> VarInfo -> VarInfo
 viInsert x VarInfo { .. } = VarInfo { curScope = scopeInsert x curScope, .. }
 
 -- | Add an assertion to the current scope. Returns the linear part.
-viAssert :: SimpProp -> VarInfo -> (VarInfo, SimpProp)
+viAssert :: SimpProp -> VarInfo -> (VarInfo, [SimpProp])
 viAssert p VarInfo { .. } = ( VarInfo { curScope = s1, .. }, p1)
   where (p1, s1) = scopeAssert p curScope
 
@@ -528,9 +528,11 @@ assert :: Solver -> SimpProp -> IO ()
 assert _ (SimpProp PTrue) = return ()
 assert s@Solver { .. } p@(SimpProp p0) =
   do debugLog s ("Assuming: " ++ show (ppProp p0))
-     SimpProp p1 <- atomicModifyIORef' declared (viAssert p)
-     mapM_ (declareVar s) (Set.toList (cryPropFVS p1))
-     SMT.assert solver $ ifPropToSmtLib $ desugarProp p1
+     ps1' <- atomicModifyIORef' declared (viAssert p)
+     let ps1 = map unSimpProp ps1'
+         vs  = Set.toList $ Set.unions $ map cryPropFVS ps1
+     mapM_ (declareVar s) vs
+     mapM_ (SMT.assert solver . ifPropToSmtLib . desugarProp) ps1
 
 
 -- | Try to prove a property.  The result is 'True' when we are sure that

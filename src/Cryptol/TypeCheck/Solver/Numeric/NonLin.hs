@@ -37,8 +37,9 @@ trie_lookup = Map.lookup
 
 
 -- | Factor-out non-linear terms, by naming them.
-nonLinProp :: NonLinS -> Prop -> (Prop, NonLinS)
-nonLinProp s0 prop = runNL s0 (nonLinPropM prop)
+nonLinProp :: NonLinS -> Prop -> ([Prop], NonLinS)
+nonLinProp s0 prop = (p : ps, s)
+  where ((p,ps),s) = runNL s0 (nonLinPropM prop)
 
 {- | Apply a substituin to the non-linear expression database.
 Returns `Nothing` if nothing was affected.
@@ -51,17 +52,21 @@ so it does not matter if the substitution contains bindings like @_a = e@.
 There should be no bindings that mention NL term names in the definitions
 of the substition (i.e, things like @x = _a@ are NOT ok).
 -}
-apSubstNL :: Subst -> NonLinS -> Maybe (Subst, NonLinS)
+apSubstNL :: Subst -> NonLinS -> Maybe (Subst, [Prop], NonLinS)
 apSubstNL su s0 = case runNL s0 (mApSubstNL su) of
-                    (Nothing,_) -> Nothing
-                    (Just su,r) -> Just (su,r)
+                    ((Nothing,_),_) -> Nothing
+                    ((Just su,ps),r) -> Just (su,ps,r)
 
 lookupNL :: Name -> NonLinS -> Maybe Expr
 lookupNL x NonLinS { .. } = Map.lookup x nonLinExprs
 
 
-runNL :: NonLinS -> NonLinM a -> (a, NonLinS)
-runNL s = runId . runStateT s
+runNL :: NonLinS -> NonLinM a -> ((a, [Prop]), NonLinS)
+runNL s m = runId
+          $ runStateT s 
+          $ do a  <- m
+               ps <- finishTodos
+               return (a,ps)
 
 -- | Get the known non-linear terms.
 nonLinSubst :: NonLinS -> Subst
@@ -73,7 +78,9 @@ initialNonLinS = NonLinS
   { nextName = 0
   , nonLinExprs = Map.empty
   , nlKnown = trie_empty
+  , nlTodo = []
   }
+
 
 data SubstOneRes = NoChange
                    -- ^ Substitution does not affect the expression.
@@ -184,6 +191,18 @@ isNonLinOp expr =
                               -- `x` and `y` is constant we'd be OK, but not
                               -- sure how to do that...
 
+nlImplied :: Expr -> Name -> [Prop]
+nlImplied expr x =
+  map crySimplify $
+  case expr of
+    K (Nat n) :^^ e | n >= 2 -> [ Var x :>= one, Var x :>= e :+ one ]
+    Mod _ e                  -> [ e     :>= Var x :+ one ]
+
+    _                        -> []
+
+
+
+
 nonLinPropM :: Prop -> NonLinM Prop
 nonLinPropM prop =
   case prop of
@@ -219,6 +238,7 @@ data NonLinS = NonLinS
   { nextName    :: !Int
   , nonLinExprs :: Subst
   , nlKnown     :: Trie Expr Name
+  , nlTodo      :: [Prop]
   } deriving Show
 
 nameExpr :: Expr -> NonLinM Expr
@@ -231,8 +251,21 @@ nameExpr e = sets $ \s ->
           s1 = NonLinS { nextName = 1 + x
                        , nonLinExprs = Map.insert n e (nonLinExprs s)
                        , nlKnown = trie_insert e n (nlKnown s)
+                       , nlTodo = nlImplied e n ++ nlTodo s
                        }
       in (Var n, s1)
+
+
+finishTodos :: NonLinM [Prop]
+finishTodos =
+  do s <- get
+     case nlTodo s of
+       [] -> return []
+       p : ps ->
+        do set s { nlTodo = ps }
+           p'  <- nonLinPropM p
+           ps' <- finishTodos
+           return (p' : ps')
 
 
 
