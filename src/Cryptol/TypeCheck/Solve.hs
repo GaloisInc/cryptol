@@ -247,6 +247,11 @@ simpGoals s gs0 =
                            panic "simpGoals" ( "Unable to import required well-definedness constraints:"
                                              : map (show . Num.ppProp) invalid )
 
+                       if null nonDef
+                         then debugLog s "(all constraints are well-defined)"
+                         else debugBlock s "Non-well defined constratins:" $
+                                debugLog s (map fst nonDef)
+
                        def2 <- Num.simplifyProps s def1
                        let allCts = apSubst su $ map toGoal extraProps ++
                                     map fst nonDef ++

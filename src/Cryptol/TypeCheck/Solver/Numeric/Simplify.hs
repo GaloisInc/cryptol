@@ -455,7 +455,9 @@ cryIsFin expr =
 --------------------------------------------------------------------------------
 -- An alternative representation
 
-data Atom = AFin Name | AGt Expr Expr | AEq Expr Expr
+data Atom = AFin Name
+          | AGt Expr Expr   -- on naturals
+          | AEq Expr Expr   -- on naturals
             deriving Eq
 
 type Prop' = IfExpr' Atom Bool
@@ -477,6 +479,8 @@ propToProp' prop =
     PTrue     -> pTrue
 
 
+--------------------------------------------------------------------------------
+-- Pretty print
 
 ppAtom :: Atom -> Doc
 ppAtom atom =
@@ -488,6 +492,10 @@ ppAtom atom =
 ppProp' :: Prop' -> Doc
 ppProp' = ppIf ppAtom (text . show)
 
+--------------------------------------------------------------------------------
+
+
+-- | Implementation of `==`
 pEq :: Expr -> Expr -> Prop'
 pEq x (K (Nat 0)) = pEq0 x
 pEq x (K (Nat 1)) = pEq1 x
@@ -496,11 +504,13 @@ pEq (K (Nat 1)) y = pEq1 y
 pEq x y = pIf (pInf x) (pInf y)
         $ pAnd (pFin y) (pAtom (AEq x y))
 
+-- | Implementation of `>=`
 pGeq :: Expr -> Expr -> Prop'
 pGeq x y = pIf (pInf x) pTrue
          $ pIf (pFin y) (pAtom (AGt (x :+ one) y))
            pFalse
 
+-- | Implementation of `Fin` on expressions.
 pFin :: Expr -> Prop'
 pFin expr =
   case expr of
@@ -530,12 +540,15 @@ pFin expr =
 
 
 
+-- | False
 pFalse :: Prop'
 pFalse = Return False
 
+-- | True
 pTrue :: Prop'
 pTrue = Return True
 
+-- | NEgation
 pNot :: Prop' -> Prop'
 pNot p =
   case p of
@@ -543,12 +556,15 @@ pNot p =
     Return a   -> Return (not a)
     If c t e   -> If c (pNot t) (pNot e)
 
+-- | Sugar for `and`
 pAnd :: Prop' -> Prop' -> Prop'
 pAnd p q = pIf p q pFalse
 
+-- | Sugar for `or`
 pOr :: Prop' -> Prop' -> Prop'
 pOr p q = pIf p pTrue q
 
+-- | If-then-else with non-atom at decision.
 pIf :: (Eq a, Eq p) =>
         IfExpr' p Bool -> IfExpr' p a -> IfExpr' p a -> IfExpr' p a
 pIf c t e =
@@ -559,6 +575,7 @@ pIf c t e =
     _ | t == e    -> t
     If p t1 e1    -> If p (pIf t1 t e) (pIf e1 t e) -- duplicates
 
+-- | Atoms to propositions.
 pAtom :: Atom -> Prop'
 pAtom p = do a <- case p of
                     AFin _  -> return p
@@ -566,9 +583,12 @@ pAtom p = do a <- case p of
                     AGt x y -> liftM2 AGt (eNoInf x) (eNoInf y)
              If a pTrue pFalse
 
+-- | Implement `e1 > e2`.
 pGt :: Expr -> Expr -> Prop'
 pGt x y = pIf (pFin y) (pIf (pFin x) (pAtom (AGt x y)) pTrue) pFalse
 
+-- | Special rules implementing `e == 0`
+--   Assuming the original expression was well-formed.
 pEq0 :: Expr -> Prop'
 pEq0 expr =
   case expr of
@@ -588,6 +608,8 @@ pEq0 expr =
     LenFromThen _ _ _   -> pFalse
     LenFromThenTo x y z -> pIf (pGt x y) (pGt z x) (pGt x z)
 
+-- | Special rules implementing `e == 1`
+--   Assuming the original expression was well-formed.
 pEq1 :: Expr -> Prop'
 pEq1 expr =
   case expr of
@@ -620,6 +642,7 @@ pEq1 expr =
 pInf :: Expr -> Prop'
 pInf = pNot . pFin
 
+--------------------------------------------------------------------------------
 
 
 type IExpr = IfExpr' Atom Expr
@@ -974,6 +997,8 @@ normSum = posTerm . go 0 Map.empty Nothing . splitSum
 
   posTerm (Pos,x) = x
   posTerm (Neg,x) = K (Nat 0) :- x
+
+
 
 
 crySimpExprStep :: Expr -> Maybe Expr
