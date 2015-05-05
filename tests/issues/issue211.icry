@@ -1,0 +1,4 @@
+take`{1} (join [0x1, 0x2, error "boom", 0x4])
+take`{1} [True, False, error "boom", True]
+(splitAt`{0} [True, False, error "boom", True]).0
+(splitAt`{0} [True, False, error "boom", True]).1
