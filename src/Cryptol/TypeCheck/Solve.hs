@@ -30,6 +30,7 @@ import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.Simplify as Num
+import qualified Cryptol.TypeCheck.Solver.Numeric.Simplify1 as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
 import           Cryptol.Utils.Panic(panic)
@@ -233,8 +234,13 @@ simpGoals s gs0 =
                            (sideConds,invalid) = importSideConds varMap wds
 
 
-                           inIfForm = map (Num.ppProp' . Num.propToProp' .
-                                           Num.dpSimpExprProp) def
+                           inIfForm =
+                              Num.ppProp' $
+                              Num.propToProp' $
+                              case def of
+                                [] -> Num.PTrue
+                                _  -> foldr1 (Num.:&&)
+                                    $ map Num.dpSimpExprProp def
 
                            def1 = eliminateSimpleGEQ def
                            toGoal =
