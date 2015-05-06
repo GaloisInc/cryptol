@@ -15,6 +15,7 @@ module Cryptol.TypeCheck.Solve
   , improveByDefaulting
   , defaultReplExpr
   , simpType
+  , simpTypeMaybe
   ) where
 
 import           Cryptol.Parser.AST(LQName, thing)
@@ -32,6 +33,7 @@ import qualified Cryptol.TypeCheck.Solver.Numeric.Simplify as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
 import           Cryptol.Utils.Panic(panic)
+import           Cryptol.Utils.Misc(anyJust)
 import           Cryptol.Parser.Position(rCombs)
 
 import           Control.Monad (unless, guard)
@@ -162,6 +164,7 @@ numericRight g  = case Num.exportProp (goal g) of
 _testSimpGoals :: IO ()
 _testSimpGoals = Num.withSolver cfg $ \s ->
   do mapM_ dump asmps
+     mapM_ (dump .goal) gs
 
      _ <- Num.assumeProps s asmps
      mb <- simpGoals s gs
@@ -174,9 +177,8 @@ _testSimpGoals = Num.withSolver cfg $ \s ->
                      , solverVerbose = 1
                      }
 
-  asmps = [ tv 0 >== num 1, num 2 >== tv 0 ]
---   gs = map fakeGoal [ num 32 =#= tv 1 .+. (num 16 .*. tv 0) ]
-  gs = map fakeGoal [ num 32 =#= tv 1 .+. (num 16 .*. tv 0) ]
+  asmps = [] -- [ pFin (tv 0) ]
+  gs = map fakeGoal [ pFin (num 2 .^. tv 0 .-. num 1) ]
 
     -- [ tv 0 =#= tInf, tMod (num 3) (tv 0) =#= num 4 ]
 
@@ -189,6 +191,7 @@ _testSimpGoals = Num.withSolver cfg $ \s ->
                 Just (b,_) -> do print $ Num.ppProp' $ Num.propToProp' b
                                  putStrLn "-------------------"
                 Nothing    -> print "can't export"
+
 
 {- | Try to simplify a bunch of goals.
 Assumes that the substitution has been applied to the goals.
@@ -229,6 +232,10 @@ simpGoals s gs0 =
 
                            (sideConds,invalid) = importSideConds varMap wds
 
+
+                           inIfForm = map (Num.ppProp' . Num.propToProp' .
+                                           Num.dpSimpExprProp) def
+
                            def1 = eliminateSimpleGEQ def
                            toGoal =
                              case map (fst . Num.dpData) def1 of
@@ -248,7 +255,10 @@ simpGoals s gs0 =
                                              : map (show . Num.ppProp) invalid )
 
                        if null nonDef
-                         then debugLog s "(all constraints are well-defined)"
+                         then do debugLog s "(all constraints are well-defined)"
+                                 debugBlock s "In If-form:" $
+                                    debugLog s inIfForm
+
                          else debugBlock s "Non-well defined constratins:" $
                                 debugLog s (map fst nonDef)
 

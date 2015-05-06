@@ -1,4 +1,5 @@
 {-# LANGUAGE Safe, PatternGuards, BangPatterns #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 -- | Simplification.
 -- TODO:
 --  - Putting in a normal form to spot "prove by assumption"
@@ -493,7 +494,62 @@ ppProp' :: Prop' -> Doc
 ppProp' = ppIf ppAtom (text . show)
 
 --------------------------------------------------------------------------------
+-- General logic stuff
 
+-- | False
+pFalse :: Prop'
+pFalse = Return False
+
+-- | True
+pTrue :: Prop'
+pTrue = Return True
+
+-- | Negation
+pNot :: Prop' -> Prop'
+pNot p =
+  case p of
+    Impossible -> Impossible
+    Return a   -> Return (not a)
+    If c t e   -> If c (pNot t) (pNot e)
+
+-- | And
+pAnd :: Prop' -> Prop' -> Prop'
+pAnd p q = pIf p q pFalse
+
+-- | Or
+pOr :: Prop' -> Prop' -> Prop'
+pOr p q = pIf p pTrue q
+
+
+-- | If-then-else with non-atom at decision.
+pIf :: (Eq a, Eq p) =>
+        IfExpr' p Bool -> IfExpr' p a -> IfExpr' p a -> IfExpr' p a
+pIf c t e =
+  case c of
+    Impossible    -> Impossible
+    Return True   -> t
+    Return False  -> e
+    _ | t == e    -> t -- slow for large expressions
+    If p t1 e1
+      | t2 == e2  -> t2
+      | otherwise -> If p t2 e2
+      where
+      t2 = pIf t1 t e
+      e2 = pIf e1 t e
+
+-- | Atoms to propositions.
+pAtom :: Atom -> Prop'
+pAtom p = do a <- case p of
+                    AFin _  -> return p
+                    AEq x y -> liftM2 AEq (eNoInf x) (eNoInf y)
+                    AGt x y -> liftM2 AGt (eNoInf x) (eNoInf y)
+             If a pTrue pFalse
+
+
+
+
+--------------------------------------------------------------------------------
+-- Implementation of Cryptol constraints
 
 -- | Implementation of `==`
 pEq :: Expr -> Expr -> Prop'
@@ -538,54 +594,15 @@ pFin expr =
     LenFromThen  _ _ _   -> pTrue
     LenFromThenTo  _ _ _ -> pTrue
 
-
-
--- | False
-pFalse :: Prop'
-pFalse = Return False
-
--- | True
-pTrue :: Prop'
-pTrue = Return True
-
--- | NEgation
-pNot :: Prop' -> Prop'
-pNot p =
-  case p of
-    Impossible -> Impossible
-    Return a   -> Return (not a)
-    If c t e   -> If c (pNot t) (pNot e)
-
--- | Sugar for `and`
-pAnd :: Prop' -> Prop' -> Prop'
-pAnd p q = pIf p q pFalse
-
--- | Sugar for `or`
-pOr :: Prop' -> Prop' -> Prop'
-pOr p q = pIf p pTrue q
-
--- | If-then-else with non-atom at decision.
-pIf :: (Eq a, Eq p) =>
-        IfExpr' p Bool -> IfExpr' p a -> IfExpr' p a -> IfExpr' p a
-pIf c t e =
-  case c of
-    Impossible    -> Impossible
-    Return True   -> t
-    Return False  -> e
-    _ | t == e    -> t
-    If p t1 e1    -> If p (pIf t1 t e) (pIf e1 t e) -- duplicates
-
--- | Atoms to propositions.
-pAtom :: Atom -> Prop'
-pAtom p = do a <- case p of
-                    AFin _  -> return p
-                    AEq x y -> liftM2 AEq (eNoInf x) (eNoInf y)
-                    AGt x y -> liftM2 AGt (eNoInf x) (eNoInf y)
-             If a pTrue pFalse
-
 -- | Implement `e1 > e2`.
 pGt :: Expr -> Expr -> Prop'
 pGt x y = pIf (pFin y) (pIf (pFin x) (pAtom (AGt x y)) pTrue) pFalse
+
+-- `e == inf`
+pInf :: Expr -> Prop'
+pInf = pNot . pFin
+
+
 
 -- | Special rules implementing `e == 0`
 --   Assuming the original expression was well-formed.
@@ -638,12 +655,85 @@ pEq1 expr =
     LenFromThen x y w   -> pAnd (pGt y x) (pGeq y (two :^^ w))
     LenFromThenTo x y z -> pIf (pGt z y) (pGeq x z) (pGeq z x)
 
-
-pInf :: Expr -> Prop'
-pInf = pNot . pFin
-
 --------------------------------------------------------------------------------
 
+{-
+aSimplify :: Atom -> Either Atom Bool
+aSimplify atom =
+  case atom of
+    AFin _    -> Left atom
+
+    AEq e1 e2
+      | e1' == e2'              -> Right True
+      | K _ <- e1', K _ <- e2'  -> Right False
+
+
+      -- Move variables to one side
+      -- Cancel common factors
+      | otherwise               -> Left (AEq e1' e2')
+
+      where
+      e1' = crySimpExpr e1
+      e2' = crySimpExpr e2
+
+    AGt e1 e2
+      | K (Nat 0) <- e1'        -> Right False
+
+      where
+      e1' = crySimpExpr e1
+      e2' = crySimpExpr e2
+
+balanceEq (K (Nat a) :+ e1) (K (Nat b) :+ e2)
+  | a >= b    = balanceEq e2 (K (Nat (a - b)) :+ e1)
+  | otherwise = balanceEq e1 (K (Nat (b - a)) :+ e2)
+
+-}
+
+
+
+
+
+
+instance HasVars Prop' where
+  apSubst su prop =
+    case prop of
+      Impossible -> Nothing
+      Return _   -> Nothing
+      If a t e   ->
+        case apSubstAtom su a of
+          Nothing -> do [x,y] <- branches
+                        return (If a x y)
+          Just a' -> Just $ fromMaybe (pIf a' t e)
+                          $ do [x,y] <- branches
+                               return (pIf a' x y)
+
+        where branches = anyJust (apSubst su) [t,e]
+
+-- | Apply a substituition to an atom
+apSubstAtom :: Subst -> Atom -> Maybe Prop'
+apSubstAtom su atom =
+  case atom of
+    AFin x    -> do e <- Map.lookup x su
+                    return (pFin e)
+    AEq e1 e2 -> do [x,y] <- anyJust (apSubst su) [e1,e2]
+                    return (pEq x y)
+    AGt e1 e2 -> do [x,y] <- anyJust (apSubst su) [e1,e2]
+                    return (pGt x y)
+
+
+-- | The various way in which the given proposition may be true.
+-- The Boolean indicates if the atom is +ve:
+-- 'True' for positive, 'False' for -ve.
+truePaths :: Prop' -> [ [(Bool,Atom)] ]
+truePaths prop =
+  case prop of
+    Impossible    -> []
+    Return False  -> []
+    Return True   -> [ [] ]
+    If a t e      -> map ((True,a):)  (truePaths t) ++
+                     map ((False,a):) (truePaths e)
+
+--------------------------------------------------------------------------------
 
 type IExpr = IfExpr' Atom Expr
 
