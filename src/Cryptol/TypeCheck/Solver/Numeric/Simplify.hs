@@ -16,6 +16,8 @@ module Cryptol.TypeCheck.Solver.Numeric.Simplify
 
   -- * Simplify an expression
   , crySimpExpr, crySimpExprMaybe
+
+  , Sign(..), splitSum, normSum
   ) where
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST

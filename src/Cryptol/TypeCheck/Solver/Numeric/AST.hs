@@ -241,6 +241,10 @@ cryLet x e = apSubst (Map.singleton x e)
 class HasVars ast where
   apSubst :: Subst -> ast -> Maybe ast
 
+-- | This is used in the simplification to "apply" substitutions to Props.
+instance HasVars Bool where
+  apSubst _ _ = Nothing
+
 instance HasVars Expr where
   apSubst su = go
     where
