@@ -10,6 +10,7 @@ module Cryptol.TypeCheck.Solver.Numeric.SMT
   , getVals
   ) where
 
+import           Cryptol.TypeCheck.AST (TVar(TVFree,TVBound))
 import           Cryptol.TypeCheck.Solver.InfNat
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.TypeCheck.Solver.Numeric.Simplify(crySimplify)
@@ -19,7 +20,6 @@ import           Cryptol.Utils.Panic ( panic )
 import           Data.List ( partition, unfoldr )
 import           Data.Map ( Map )
 import qualified Data.Map as Map
-import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           SimpleSMT ( SExpr )
 import qualified SimpleSMT as SMT
@@ -150,11 +150,21 @@ exprToSmtLib expr =
 
 -- | The name of a variable in the SMT translation.
 smtName :: Name -> String
-smtName = show . ppName
+smtName a = case a of
+              SysName n -> name "s" n
+              UserName tv -> case tv of
+                               TVFree n _ _ _ -> name "u" n
+                               TVBound n _    -> name "k" n
+
+  where
+  name p n = case divMod n 26 of
+               (q,r) -> p ++ toEnum (fromEnum 'a' + r) :
+                              (if q == 0 then "" else show q)
+  
 
 -- | The name of a boolean variable, representing `fin x`.
 smtFinName :: Name -> String
-smtFinName x = "fin_" ++ show (ppName x)
+smtFinName x = "fin_" ++ smtName x
 
 
 
@@ -220,17 +230,19 @@ turn non-linear constraints into linear ones.  For example, if we
 have a constraint @x * y = z@, and we can figure out that @x@ must be 5,
 then we end up with a linear constraint @5 * y = z@.
 -}
-cryImproveModel :: SMT.Solver -> SMT.Logger -> Set Name -> Map Name Nat'
+cryImproveModel :: SMT.Solver -> SMT.Logger -> Map Name Nat'
                 -> IO (Map Name Expr, [Prop])
-cryImproveModel solver logger uniVars model =
+cryImproveModel solver logger model =
   do (imps,subGoals) <- go Map.empty [] initialTodo
      return (toSubst imps, subGoals)
 
   where
   -- Process unification variables first.  That way, if we get `x = y`, we'd
   -- prefer `x` to be a unification variable.
-  initialTodo    = uncurry (++) $ partition isUniVar $ Map.toList model
-  isUniVar (x,_) = x `Set.member` uniVars
+  initialTodo    = uncurry (++) $ partition (isUniVar . fst) $ Map.toList model
+  isUniVar x     = case x of
+                     UserName (TVFree {}) -> True
+                     _                    -> False
 
 
   -- done:  the set of known improvements
@@ -279,7 +291,7 @@ cryImproveModel solver logger uniVars model =
 
 
     tryLR_with v1 v1Expr v2 v2Expr =
-      case ( v1 `Set.member` uniVars
+      case ( isUniVar v1
            , v1Expr
            , v2Expr
            , Map.lookup v1 ce

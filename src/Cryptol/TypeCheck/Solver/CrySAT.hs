@@ -128,9 +128,9 @@ checkDefined1 s updCt (ct,p) =
 
 
 prepareConstraints ::
-  Solver -> (Prop -> a -> a) -> Set Name ->
+  Solver -> (Prop -> a -> a) ->
   [(a,Prop)] -> IO (Either [a] ([a], [DefinedProp a], Subst, [Prop]))
-prepareConstraints s updCt uniVars cs =
+prepareConstraints s updCt cs =
   do res <- mapM (checkDefined1 s updCt) cs
      let (unknown,ok) = partitionEithers res
      goStep1 unknown ok Map.empty []
@@ -139,7 +139,7 @@ prepareConstraints s updCt uniVars cs =
   where
   getImps ok = withScope s $
                do mapM_ (assert s . dpSimpProp) ok
-                  check s uniVars
+                  check s
 
   mapEither f = partitionEithers . map f
 
@@ -155,7 +155,7 @@ prepareConstraints s updCt uniVars cs =
   apSubst' su x = fromMaybe x (apSubst su x)
 
   goStep1 unknown ok su sgs =
-    let (ok1, moreSu) = improveByDefnMany updCt uniVars ok
+    let (ok1, moreSu) = improveByDefnMany updCt ok
     in go unknown ok1 (composeSubst moreSu su) sgs
 
   go unknown ok su sgs =
@@ -212,19 +212,12 @@ simplifyProps s props =
 -- | Add the given constraints as assumptions.
 --  * We assume that the constraints are well-defined.
 --  * Modifies the set of assumptions.
-assumeProps :: Solver -> [Cry.Prop] -> IO VarMap
-assumeProps s props = fmap fst (assumeProps' s props)
-
-
--- | Add the given constraints as assumptions.
---  * We assume that the constraints are well-defined.
---  * Modifies the set of assumptions.
-assumeProps' :: Solver -> [Cry.Prop] -> IO (VarMap, [SimpProp])
-assumeProps' s props =
-  do let simpProps = map simpProp (map cryDefinedProp ps ++ ps)
+assumeProps :: Solver -> [Cry.Prop] -> IO [SimpProp]
+assumeProps s props =
+  do let ps = mapMaybe exportProp props
+     let simpProps = map simpProp (map cryDefinedProp ps ++ ps)
      mapM_ (assert s) simpProps
-     return (Map.unions varMaps, simpProps)
-  where (ps,varMaps) = unzip (mapMaybe exportProp props)
+     return simpProps
   -- XXX: Instead of asserting one at a time, perhaps we should
   -- assert a conjunction.  That way, we could simplify the whole thing
   -- in one go, and would avoid having to assert 'true' many times.
@@ -256,9 +249,9 @@ minimizeContradictionSimpDef s ps = start [] ps
          _ -> go bad (d : prev) more
 
 
-improveByDefnMany :: (Prop -> a -> a) -> Set Name ->
+improveByDefnMany :: (Prop -> a -> a) ->
                     [DefinedProp a] -> ([DefinedProp a], Subst)
-improveByDefnMany updCt uvs = go [] Map.empty
+improveByDefnMany updCt = go [] Map.empty
   where
   mbSu su x = case apSubstDefinedProp updCt su x of
                 Nothing -> Left x
@@ -266,7 +259,7 @@ improveByDefnMany updCt uvs = go [] Map.empty
 
   go todo su (p : ps) =
     let p1 = fromMaybe p (apSubstDefinedProp updCt su p)
-    in case improveByDefn uvs p1 of
+    in case improveByDefn p1 of
          Just (x,e) -> go todo (Map.insert x e su) ps
                       -- `p` is solved, so ignore
          Nothing    -> go (p1 : todo) su ps
@@ -284,13 +277,13 @@ improveByDefnMany updCt uvs = go [] Map.empty
       * ?x does not appear in `e`.
     then, we can improve `?x` to `e`.
 -}
-improveByDefn :: Set Name -> DefinedProp a -> Maybe (Name,Expr)
-improveByDefn uvs p =
+improveByDefn :: DefinedProp a -> Maybe (Name,Expr)
+improveByDefn p =
   case dpSimpExprProp p of
     Var x :== e
-      | x `Set.member` uvs -> tryToBind x e
+      | isUV x  -> tryToBind x e
     e :== Var x
-      | x `Set.member` uvs -> tryToBind x e
+      | isUV x -> tryToBind x e
     _ -> Nothing
 
   where
@@ -298,17 +291,21 @@ improveByDefn uvs p =
     | x `Set.member` cryExprFVS e = Nothing
     | otherwise                   = Just (x,e)
 
+  isUV (UserName (Cry.TVFree {})) = True
+  isUV _                          = False
+
 
 {- | Attempt to find a substituion that, when applied, makes all of the
 given properties hold. -}
 getModel :: Solver -> [Cry.Prop] -> IO (Maybe Cry.Subst)
 getModel s props = withScope s $
-  do (varMap,ps) <- assumeProps' s props
-     res         <- SMT.check (solver s)
+  do ps  <- assumeProps s props
+     res <- SMT.check (solver s)
+     let vars = Set.toList $ Set.unions $ map (cryPropFVS . unSimpProp) ps
 
      case res of
        SMT.Sat ->
-          do vs <- getVals (solver s) (Map.keys varMap)
+          do vs <- getVals (solver s) vars
              -- This is guaranteed to be a model only for the *linear*
              -- properties, so now we check if it works for the rest too.
 
@@ -319,8 +316,7 @@ getModel s props = withScope s $
                           _     -> False
 
                  su2 = Cry.listSubst
-                     $ Map.elems
-                     $ Map.intersectionWith (,) varMap (fmap numTy vs)
+                          [ (x, numTy v) | (UserName x, v) <- Map.toList vs ]
 
              return (guard (all ok ps1) >> return su2)
 
@@ -463,7 +459,9 @@ withSolver :: SolverConfig -> (Solver -> IO a) -> IO a
 withSolver SolverConfig { .. } k =
   do logger <- if solverVerbose > 0 then SMT.newLogger 0 else return quietLogger
 
-     solver <- SMT.newSolver solverPath solverArgs Nothing --} (Just logger)
+
+     let smtDbg = if solverVerbose > 1 then Just logger else Nothing
+     solver <- SMT.newSolver solverPath solverArgs smtDbg
      _ <- SMT.setOptionMaybe solver ":global-decls" "false"
      SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty
@@ -567,8 +565,8 @@ Returns `Just (su, sub-goals)` is the current set is satisfiable.
   * The `sub-goals` are additional constraints that must hold if the
     constraint set is to be satisfiable.
 -}
-check :: Solver -> Set Name -> IO (Maybe (Subst, [Prop]))
-check s@Solver { .. } uniVars =
+check :: Solver -> IO (Maybe (Subst, [Prop]))
+check s@Solver { .. } =
   do res <- SMT.check solver
      case res of
 
@@ -583,7 +581,7 @@ check s@Solver { .. } uniVars =
        SMT.Sat     ->
         do debugLog s "Satisfiable"
            (impMap,sideConds) <- debugBlock s "Computing improvements"
-                                     (getImpSubst s uniVars)
+                                     (getImpSubst s)
            return (Just (impMap, sideConds))
 
 
@@ -596,17 +594,17 @@ Returns an improving substitution, which (in principle) may mention
 the names of non-linear terms.
 XXX: At the moment we discard such improvements.
 -}
-getImpSubst :: Solver -> Set Name -> IO (Subst,[Prop])
-getImpSubst s@Solver { .. } uniVars =
+getImpSubst :: Solver -> IO (Subst,[Prop])
+getImpSubst s@Solver { .. } =
   do names <- viUnmarkedNames `fmap` readIORef declared
      m     <- getVals solver names
      (impSu,sideConditions)
-           <- cryImproveModel solver logger uniVars m
+           <- cryImproveModel solver logger m
 
      let isNonLinName (SysName {})  = True
          isNonLinName (UserName {}) = False
 
-
+         -- XXX
          keep k e = not (isNonLinName k) &&
                     all (not . isNonLinName) (cryExprFVS e)
 

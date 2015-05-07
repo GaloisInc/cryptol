@@ -595,6 +595,9 @@ instance PP (WithNames TVar) where
   ppPrec _ (WithNames (TVFree x _ _ _) _) =
     char '?' <> text (intToName x)
 
+instance PP TVar where
+  ppPrec = ppWithNamesPrec IntMap.empty
+
 instance PP TParam where
   ppPrec = ppWithNamesPrec IntMap.empty
 

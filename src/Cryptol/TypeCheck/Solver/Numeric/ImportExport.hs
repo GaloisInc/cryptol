@@ -1,7 +1,6 @@
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Solver.Numeric.ImportExport
   ( ExportM
-  , VarMap
   , exportProp
   , exportType
   , runExportM
@@ -9,29 +8,24 @@ module Cryptol.TypeCheck.Solver.Numeric.ImportExport
   , exportTypeM
   , importProp
   , importType
-  , exportVar
   ) where
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import qualified Cryptol.TypeCheck.AST as Cry
-import           Data.Map ( Map )
-import qualified Data.Map as Map
 import           MonadLib
 
-exportProp :: Cry.Prop -> Maybe (Prop, VarMap)
+exportProp :: Cry.Prop -> Maybe Prop
 exportProp = runExportM . exportPropM
 
-exportType :: Cry.Prop -> Maybe (Expr, VarMap)
+exportType :: Cry.Prop -> Maybe Expr
 exportType = runExportM . exportTypeM
 
-runExportM :: ExportM a -> Maybe (a, VarMap)
+runExportM :: ExportM a -> Maybe a
 runExportM = either (\_ -> Nothing) Just
            . runId
            . runExceptionT
-           . runStateT Map.empty
 
-type ExportM = StateT VarMap (ExceptionT () Id)
-type VarMap  = Map Name Cry.TVar
+type ExportM = ExceptionT () Id
 
 exportPropM :: Cry.Prop -> ExportM Prop
 exportPropM ty =
@@ -54,9 +48,7 @@ exportTypeM ty =
   case ty of
     Cry.TUser _ _ t -> exportTypeM t
     Cry.TRec {}     -> raise ()
-    Cry.TVar x      -> do let name = exportVar x
-                          sets_ (Map.insert name x)
-                          return (Var name)
+    Cry.TVar x      -> return $ Var $ UserName x
     Cry.TCon tc ts  ->
       case tc of
         Cry.TC Cry.TCInf     -> return (K Inf)
@@ -83,38 +75,30 @@ exportTypeM ty =
 
         Cry.PC _ -> raise ()
 
-exportVar :: Cry.TVar -> Name
-exportVar = UserName . exportVar'
-
-exportVar' :: Cry.TVar -> Int
-exportVar' (Cry.TVFree x _ _ _) = 2 * x        -- Free vars are even
-exportVar' (Cry.TVBound x _)    = 2 * x + 1    -- Bound vars are odd
-
-
-importProp :: VarMap -> Prop -> Maybe [Cry.Prop]
-importProp vars prop =
+importProp :: Prop -> Maybe [Cry.Prop]
+importProp prop =
   case prop of
     PFalse    -> Nothing
     PTrue     -> Just []
 
-    Not p     -> importProp vars =<< pNot p
-    p1 :&& p2 -> do ps1 <- importProp vars p1
-                    ps2 <- importProp vars p2
+    Not p     -> importProp =<< pNot p
+    p1 :&& p2 -> do ps1 <- importProp p1
+                    ps2 <- importProp p2
                     return (ps1 ++ ps2)
     _  :|| _  -> Nothing
 
-    Fin expr -> do t <- importType vars expr
+    Fin expr -> do t <- importType expr
                    return [ Cry.pFin t ]
 
-    e1 :==  e2 -> do t1 <- importType vars e1
-                     t2 <- importType vars e2
+    e1 :==  e2 -> do t1 <- importType e1
+                     t2 <- importType e2
                      return [t1 Cry.=#= t2]
-    e1 :>=  e2 -> do t1 <- importType vars e1
-                     t2 <- importType vars e2
+    e1 :>=  e2 -> do t1 <- importType e1
+                     t2 <- importType e2
                      return [t1 Cry.>== t2]
     _ :> _     -> Nothing
-    e1 :==: e2 -> do t1 <- importType vars e1
-                     t2 <- importType vars e2
+    e1 :==: e2 -> do t1 <- importType e1
+                     t2 <- importType e2
                      -- XXX: Do we need to add fin?
                      return [t1 Cry.=#= t2]
     _ :>: _    -> Nothing
@@ -138,12 +122,14 @@ importProp vars prop =
       -- XXX: Do we need to add Fin on `a` and 'b'?
 
 
-importType :: VarMap -> Expr -> Maybe Cry.Type
-importType vars = go
+importType :: Expr -> Maybe Cry.Type
+importType = go
   where
   go expr =
     case expr of
-      Var x               -> Cry.TVar `fmap` Map.lookup x vars
+      Var x               -> case x of
+                               UserName v -> return (Cry.TVar v)
+                               _          -> Nothing
       K n                 -> case n of
                                Nat x -> Just (Cry.tNum x)
                                Inf   -> Just (Cry.tInf)

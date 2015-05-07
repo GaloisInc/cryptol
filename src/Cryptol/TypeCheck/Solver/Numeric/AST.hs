@@ -21,6 +21,8 @@ module Cryptol.TypeCheck.Solver.Numeric.AST
   , Subst, HasVars(..), cryLet, composeSubst
   ) where
 
+import          Cryptol.TypeCheck.AST(TVar)
+import          Cryptol.TypeCheck.PP(pp)
 import          Cryptol.TypeCheck.Solver.InfNat ( Nat'(..) )
 import          Cryptol.Utils.Panic ( panic )
 import          Cryptol.Utils.Misc ( anyJust )
@@ -47,7 +49,7 @@ infixr 8 :^^
 
 
 
-data Name = UserName Int | SysName Int
+data Name = UserName TVar | SysName Int
             deriving (Show,Eq,Ord,Generic)
 
 
@@ -314,7 +316,7 @@ instance HasVars Prop where
 ppName :: Name -> Doc
 ppName name =
   case name of
-    UserName x -> text (names !! x)
+    UserName x -> pp x
     SysName  x -> char '_' <> text (names !! x)
 
 -- | An infinite list of names, for pretty prinitng.

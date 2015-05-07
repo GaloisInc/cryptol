@@ -23,7 +23,7 @@ import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Subst
-                    (FVS,apSubst,fvs,singleSubst,
+                    (apSubst,fvs,singleSubst,
                           emptySubst,Subst,listSubst, (@@), Subst)
 import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
@@ -103,9 +103,9 @@ proveImplicationIO cfg lname varsInEnv as ps gs =
      debugLog s "------------------"
 
 
-     varMap <- Num.assumeProps s ps
+     _simpPs <- Num.assumeProps s ps
 
-     mbImps <- Num.check s (uniVars (ps,gs))
+     mbImps <- Num.check s
      case mbImps of
 
        Nothing ->
@@ -113,12 +113,12 @@ proveImplicationIO cfg lname varsInEnv as ps gs =
             return $ Left $ UnusableFunction (thing lname) ps
 
        Just (imps,extra) ->
-         do let su  = importImps varMap imps
+         do let su  = importImps imps
                 gs0 = apSubst su gs
 
             debugBlock s "improvement from assumptions:" $ debugLog s su
 
-            let (scs,invalid) = importSideConds varMap extra
+            let (scs,invalid) = importSideConds extra
             unless (null invalid) $
               panic "proveImplicationIO" ( "Unable to import all side conditions:"
                                               : map (show . Num.ppProp) invalid )
@@ -148,18 +148,12 @@ proveImplicationIO cfg lname varsInEnv as ps gs =
                               }
 
 
-uniVars :: FVS a => a -> Set Num.Name
-uniVars = Set.map Num.exportVar . Set.filter isUni . fvs
-  where
-  isUni (TVFree _ k _ _) = k == KNum
-  isUni _                = False
-
 
 
 -- | Class goals go on the left, numeric goals go on the right.
-numericRight :: Goal -> Either Goal ((Goal, Num.VarMap), Num.Prop)
+numericRight :: Goal -> Either Goal (Goal, Num.Prop)
 numericRight g  = case Num.exportProp (goal g) of
-                    Just (p,vm)  -> Right ((g,vm), p)
+                    Just p  -> Right (g, p)
                     Nothing -> Left g
 
 _testSimpGoals :: IO ()
@@ -189,7 +183,7 @@ _testSimpGoals = Num.withSolver cfg $ \s ->
 
   dump a = do putStrLn "-------------------_"
               case Num.exportProp a of
-                Just (b,_) -> do print $ Num.ppProp' $ Num.propToProp' b
+                Just b     -> do print $ Num.ppProp' $ Num.propToProp' b
                                  putStrLn "-------------------"
                 Nothing    -> print "can't export"
 
@@ -209,9 +203,8 @@ simpGoals s gs0 =
 
      let (unsolvedClassCts,numCts) = solveClassCts gs0
 
-         varMap = Map.unions [ vm | ((_,vm),_) <- numCts ]
-         updCt prop (g,vs) = case Num.importProp varMap prop of
-                               Just [g1] -> (g { goal = g1 }, vs)
+         updCt prop g = case Num.importProp prop of
+                               Just [g1] -> g { goal = g1 }
 
                                r -> panic "simpGoals"
                                       [ "Unexpected import results"
@@ -223,15 +216,15 @@ simpGoals s gs0 =
                   $ debugLog s unsolvedClassCts
                 return $ Right (unsolvedClassCts, emptySubst)
 
-       _  -> do mbOk <- Num.prepareConstraints s updCt uvs numCts
+       _  -> do mbOk <- Num.prepareConstraints s updCt numCts
                 case mbOk of
-                  Left bad -> return (Left (map fst bad))
+                  Left bad -> return (Left bad)
                   Right (nonDef,def,imps,wds) ->
 
                     -- XXX: What should we do with the extra props...
-                    do let (su,extraProps) = importSplitImps varMap imps
+                    do let (su,extraProps) = importSplitImps imps
 
-                           (sideConds,invalid) = importSideConds varMap wds
+                           (sideConds,invalid) = importSideConds wds
 
 
                            inIfForm =
@@ -244,7 +237,7 @@ simpGoals s gs0 =
 
                            def1 = eliminateSimpleGEQ def
                            toGoal =
-                             case map (fst . Num.dpData) def1 of
+                             case map Num.dpData def1 of
                                []  -> case gs0 of
                                         g : _ -> \p -> g { goal = p }
                                         [] -> panic "simplification"
@@ -266,13 +259,13 @@ simpGoals s gs0 =
                                     debugLog s inIfForm
 
                          else debugBlock s "Non-well defined constratins:" $
-                                debugLog s (map fst nonDef)
+                                debugLog s nonDef
 
                        def2 <- Num.simplifyProps s def1
                        let allCts = apSubst su $ map toGoal extraProps ++
-                                    map fst nonDef ++
+                                    nonDef ++
                                     unsolvedClassCts ++
-                                    map fst def2 ++
+                                    def2 ++
                                     sideConds
 
                        debugBlock s "After simplification:" $
@@ -282,8 +275,6 @@ simpGoals s gs0 =
                        -- XXX: Apply subst to class constraints and go again?
                        return $ Right ( allCts, su )
   where
-  uvs         = uniVars gs0
-
   solveClassRight g = case classStep g of
                         Just gs -> Right gs
                         Nothing -> Left g
@@ -302,13 +293,13 @@ simpGoals s gs0 =
 -- into a Cryptol substitution (which is idempotent).
 -- The substitution will contain only unification variables.
 -- "Improvements" on skolem variables become additional constraints.
-importSplitImps :: Num.VarMap -> Map Num.Name Num.Expr -> (Subst, [Prop])
-importSplitImps varMap = mk . partitionEithers . map imp . Map.toList
+importSplitImps :: Map Num.Name Num.Expr -> (Subst, [Prop])
+importSplitImps = mk . partitionEithers . map imp . Map.toList
   where
   mk (uni,props) = (listSubst (catMaybes uni), props)
 
-  imp (x,e) = case (Map.lookup x varMap, Num.importType varMap e) of
-                (Just tv, Just ty) ->
+  imp (x,e) = case (x, Num.importType e) of
+                (Num.UserName tv, Just ty) ->
                   case tv of
                     TVFree {}  -> Left (Just (tv,ty))
                     TVBound {} -> Right (TVar tv =#= ty)
@@ -326,20 +317,20 @@ importSplitImps varMap = mk . partitionEithers . map imp . Map.toList
 -- | Import an improving substitution into a Cryptol substitution.
 -- The substitution will contain both unification and skolem variables,
 -- so this should be used when processing *givens*.
-importImps :: Num.VarMap -> Map Num.Name Num.Expr -> Subst
-importImps varMap = listSubst . map imp . Map.toList
+importImps :: Map Num.Name Num.Expr -> Subst
+importImps = listSubst . map imp . Map.toList
   where
-  imp (x,e) = case (Map.lookup x varMap, Num.importType varMap e) of
-                (Just tv, Just ty) -> (tv,ty)
+  imp (x,e) = case (x, Num.importType e) of
+                (Num.UserName tv, Just ty) -> (tv,ty)
                 _ -> panic "importImps" [ "Failed to import:", show x, show e ]
 
 
 
-importSideConds :: Num.VarMap -> [Num.Prop] -> ([Goal],[Num.Prop])
-importSideConds varMap = go [] []
+importSideConds :: [Num.Prop] -> ([Goal],[Num.Prop])
+importSideConds = go [] []
   where
   go ok bad []     = ([ Goal CtImprovement emptyRange g | g <- ok], bad)
-  go ok bad (p:ps) = case Num.importProp varMap p of
+  go ok bad (p:ps) = case Num.importProp p of
                        Just p' -> go (p' ++ ok)    bad  ps
                        Nothing -> go        ok  (p:bad) ps
 
@@ -582,9 +573,9 @@ simpTypeMaybe ty =
   case ty of
     TCon c ts ->
       case c of
-        TF {}    -> do (e,vm) <- Num.exportType ty
-                       e1     <- Num.crySimpExprMaybe e
-                       Num.importType vm e1
+        TF {}    -> do e  <- Num.exportType ty
+                       e1 <- Num.crySimpExprMaybe e
+                       Num.importType e1
 
         _        -> TCon c `fmap` anyJust simpTypeMaybe ts
 
