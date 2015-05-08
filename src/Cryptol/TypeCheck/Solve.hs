@@ -47,12 +47,13 @@ import qualified Data.Set as Set
 
 import           Text.PrettyPrint(text)
 
--- Add additional constraints that ensure validity of type function.
+-- | Add additional constraints that ensure validity of type function.
 checkTypeFunction :: TFun -> [Type] -> [Prop]
 checkTypeFunction TCSub [a,b]             = [ a >== b, pFin b]
 checkTypeFunction TCDiv [a,b]             = [ b >== tOne, pFin a ]
 checkTypeFunction TCMod [a,b]             = [ b >== tOne, pFin a ]
-checkTypeFunction TCLenFromThen   [a,b,c] = [ pFin a, pFin b, pFin c, a =/= b ]
+checkTypeFunction TCLenFromThen   [a,b,w] =
+            [ pFin a, pFin b, pFin c, a =/= b, w >== tWidth a ]
 checkTypeFunction TCLenFromThenTo [a,b,c] = [ pFin a, pFin b, pFin c, a =/= b ]
 checkTypeFunction _ _                     = []
 
