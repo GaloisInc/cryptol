@@ -40,7 +40,6 @@ import           Data.Either ( partitionEithers )
 import           Data.List(nub)
 import qualified Data.Map as Map
 import           Data.Foldable ( any, all )
-import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef',
                               atomicModifyIORef' )
@@ -125,7 +124,22 @@ checkDefined1 s updCt (ct,p) =
   where
   SimpProp defCt = simpProp (cryDefinedProp p)
 
-
+{-
+improveGoals s gs =
+  withScope s $
+    do mapM_ (assert s . doExport) gs
+       mb <- check s
+       case mb of
+         Nothing       -> return Nothing
+         Just (su,wfs) -> undefined
+  where
+  doExport g = case exportProp (goal g) of
+                 Just p  -> simpProp p
+                 Nothing -> panic "improveGoals"
+                              [ "Failed to export goal"
+                              , show g
+                              ]
+-}
 
 prepareConstraints ::
   Solver -> (Prop -> a -> a) ->
@@ -355,19 +369,6 @@ data Scope = Scope
     -- ^ Variables declared in this scope (not counting the ones from
     -- previous scopes).
 
-  , scopeMarked   :: Set Name
-    {- ^ These are not interesting names.  This is used when we apply
-    a substitution to the non-linear terms. Example:
-    Consider a NL term:  x :=  a * b
-    We apply the su. { a := 5 }.
-    As a result, `x` becomes linear: 5 * b, so we remove from the NonLinS.
-    However, the variable `x` may be still mentioned in other assertions.
-    So, we add a new assertion `x = 5 * b`.  All done!  From now on, though,
-    we don't want to ever have to deal with `x` in any models: it really is
-    just a left-over from the old NL term.  We implement this by "marking"
-    `x`, and simply ignoring it when we compute models.
-    -}
-
   , scopeNonLinS  :: NonLinS
     {- ^ These are the non-linear terms mentioned in the assertions
     that are currently asserted (including ones from previous scopes). -}
@@ -375,19 +376,13 @@ data Scope = Scope
   } deriving Show
 
 scopeEmpty :: Scope
-scopeEmpty = Scope { scopeNames = []
-                   , scopeMarked = Set.empty
-                   , scopeNonLinS = initialNonLinS
-                   }
+scopeEmpty = Scope { scopeNames = [], scopeNonLinS = initialNonLinS }
 
 scopeElem :: Name -> Scope -> Bool
 scopeElem x Scope { .. } = x `elem` scopeNames
 
 scopeInsert :: Name -> Scope -> Scope
 scopeInsert x Scope { .. } = Scope { scopeNames = x : scopeNames, .. }
-
-scopeLookupNL :: Name -> Scope -> Maybe Expr
-scopeLookupNL x Scope { .. } = lookupNL x scopeNonLinS
 
 
 -- | Given a *simplified* prop, separate linear and non-linear parts
@@ -432,20 +427,9 @@ viPop VarInfo { .. } = case otherScopes of
 -- | All declared names, that have not been "marked".
 -- These are the variables whose values we are interested in.
 viUnmarkedNames :: VarInfo -> [ Name ]
-viUnmarkedNames VarInfo { .. } = filter (not . isMarked)
-                                                (concatMap scopeNames scopes)
-  where
-  allMarked   = Set.unions (map scopeMarked scopes)
-  isMarked x  = x `Set.member` allMarked
-  scopes      = curScope : otherScopes
+viUnmarkedNames VarInfo { .. } = concatMap scopeNames scopes
+  where scopes      = curScope : otherScopes
 
-viLookupNL :: Name -> VarInfo -> Maybe Expr
-viLookupNL x VarInfo { .. } = scopeLookupNL x curScope
-
-
--- | Check if this is a non-linear var.  If so, returns its definition.
-lookupNLVar :: Solver -> Name -> IO (Maybe Expr)
-lookupNLVar Solver { .. } x = viLookupNL x `fmap` readIORef declared
 
 
 -- | All known non-linear terms.
@@ -586,66 +570,61 @@ check s@Solver { .. } =
 
 
 
-{- | The set of unification variables is used to guide ordering of
-assignments (we prefer assigning to them, as that amounts to doing
-type inference).
-
-Returns an improving substitution, which (in principle) may mention
-the names of non-linear terms.
-XXX: At the moment we discard such improvements.
+{- | Assuming that we are in a satisfiable state, try to compute an
+improving substitution.  We also return additional constraints that must
+hold for the currently asserted propositions to hold.
 -}
 getImpSubst :: Solver -> IO (Subst,[Prop])
 getImpSubst s@Solver { .. } =
   do names <- viUnmarkedNames `fmap` readIORef declared
      m     <- getVals solver names
-     (impSu,sideConditions)
-           <- cryImproveModel solver logger m
+     (impSu,sideConditions) <- cryImproveModel solver logger m
+
+     nlSu <- getNLSubst s
 
      let isNonLinName (SysName {})  = True
          isNonLinName (UserName {}) = False
 
-         -- XXX
-         keep k e = not (isNonLinName k) &&
-                    all (not . isNonLinName) (cryExprFVS e)
+         (nlFacts, vFacts) = Map.partitionWithKey (\k _ -> isNonLinName k) impSu
 
-         (easy,tricky) = Map.partitionWithKey keep impSu
-         dump (x,e) = debugLog s (show (ppProp (Var x :== e)))
+         (vV, vNL)  = Map.partition noNLVars vFacts
 
-     debugBlock s "side conditions:" $
-         mapM_ (debugLog s . show . ppProp) sideConditions
+         nlSu1  = fmap (doAppSubst vV) nlSu
 
-     when (not (Map.null tricky)) $
-       debugBlock s "Tricky subst:" $ mapM_ dump (Map.toList tricky)
+         (vNL_su,vNL_eqs) = Map.partitionWithKey goodDef
+                          $ fmap (doAppSubst nlSu1) vNL
 
-     if Map.null easy
-        then debugLog s "(no improvements)"
-        else mapM_ dump (Map.toList easy)
+         nlSu2 = fmap (doAppSubst vNL_su) nlSu1
+         nlLkp x = case Map.lookup x nlSu2 of
+                     Just e  -> e
+                     Nothing -> panic "getImpSubst"
+                                [ "Missing NL variable:", show x ]
 
-     scs <- mapM importSideCond sideConditions
+         allSides =
+           [ Var a   :== e                  | (a,e) <- Map.toList vNL_eqs ] ++
+           [ nlLkp x :== doAppSubst nlSu2 e | (x,e) <- Map.toList nlFacts ] ++
+           [ doAppSubst nlSu2 si            | si    <- sideConditions ]
 
-     return (easy,scs)
+         theImpSu = composeSubst vNL_su vV
+
+     debugBlock s "Improvments" $
+       do debugBlock s "substitution" $
+            mapM_ (debugLog s . dump) (Map.toList theImpSu)
+          debugBlock s "side-conditions" $ debugLog s allSides
+
+
+     return (theImpSu, allSides)
 
 
   where
-  importSideCond expr =
-    case expr of
-      e1 :>= e2 -> do e1' <- impNL e1
-                      e2' <- impNL e2
-                      return (e1' :>= e2')
-      _ -> panic "importSideCond" [ "Unexpected side condition:", show expr ]
+  goodDef k e = not (k `Set.member` cryExprFVS e)
 
-  impNL e =
-    case e of
-      Var x -> do mb <- lookupNLVar s x
-                  case mb of
-                    Just e1 -> return e1
-                    Nothing -> return e
-      _ -> return e
+  isNLVar (SysName _) = True
+  isNLVar _           = False
 
+  noNLVars e = all (not . isNLVar) (cryExprFVS e)
 
-
-
-
+  dump (x,e) = show (ppProp (Var x :== e))
 
 --------------------------------------------------------------------------------
 

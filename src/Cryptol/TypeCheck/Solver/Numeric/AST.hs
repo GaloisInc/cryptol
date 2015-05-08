@@ -18,7 +18,7 @@ module Cryptol.TypeCheck.Solver.Numeric.AST
 
   , IfExpr, IfExpr'(..), ppIf, ppIfExpr
 
-  , Subst, HasVars(..), cryLet, composeSubst
+  , Subst, HasVars(..), cryLet, composeSubst, doAppSubst
   ) where
 
 import          Cryptol.TypeCheck.AST(TVar)
@@ -237,6 +237,9 @@ composeSubst g f = Map.union f' g
 
 cryLet :: HasVars e => Name -> Expr -> e -> Maybe e
 cryLet x e = apSubst (Map.singleton x e)
+
+doAppSubst :: HasVars a => Subst -> a -> a
+doAppSubst su a = fromMaybe a (apSubst su a)
 
 -- | Replaces occurances of the name with the expression.
 -- Returns 'Nothing' if there were no occurances of the name.
