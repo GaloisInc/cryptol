@@ -18,11 +18,11 @@ module Cryptol.TypeCheck.Solver.Numeric.NonLin
 
 import Cryptol.TypeCheck.Solver.Numeric.AST
 import Cryptol.TypeCheck.Solver.Numeric.Simplify
+import Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr
 import Cryptol.Utils.Panic(panic)
 
 -- import           Data.GenericTrie (Trie)
 -- import qualified Data.GenericTrie as Trie
-import qualified Data.Map as Map
 import           Data.Maybe ( fromMaybe )
 import           MonadLib
 import           Data.Map (Map)
@@ -55,7 +55,7 @@ of the substition (i.e, things like @x = _a@ are NOT ok).
 apSubstNL :: Subst -> NonLinS -> Maybe (Subst, [Prop], NonLinS)
 apSubstNL su s0 = case runNL s0 (mApSubstNL su) of
                     ((Nothing,_),_) -> Nothing
-                    ((Just su,ps),r) -> Just (su,ps,r)
+                    ((Just su1,ps),r) -> Just (su1,ps,r)
 
 lookupNL :: Name -> NonLinS -> Maybe Expr
 lookupNL x NonLinS { .. } = Map.lookup x nonLinExprs

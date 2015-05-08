@@ -11,7 +11,8 @@
 module Cryptol.TypeCheck.Solve
   ( simplifyAllConstraints
   , proveImplication
-  , checkTypeFunction
+  , wfType
+  , wfTypeFunction
   , improveByDefaulting
   , defaultReplExpr
   , simpType
@@ -29,8 +30,8 @@ import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
-import qualified Cryptol.TypeCheck.Solver.Numeric.Simplify as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.Simplify1 as Num
+import qualified Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
 import           Cryptol.Utils.Panic(panic)
@@ -47,15 +48,34 @@ import qualified Data.Set as Set
 
 import           Text.PrettyPrint(text)
 
--- | Add additional constraints that ensure validity of type function.
-checkTypeFunction :: TFun -> [Type] -> [Prop]
-checkTypeFunction TCSub [a,b]             = [ a >== b, pFin b]
-checkTypeFunction TCDiv [a,b]             = [ b >== tOne, pFin a ]
-checkTypeFunction TCMod [a,b]             = [ b >== tOne, pFin a ]
-checkTypeFunction TCLenFromThen   [a,b,w] =
-            [ pFin a, pFin b, pFin c, a =/= b, w >== tWidth a ]
-checkTypeFunction TCLenFromThenTo [a,b,c] = [ pFin a, pFin b, pFin c, a =/= b ]
-checkTypeFunction _ _                     = []
+{- | Add additional constraints that ensure validity of type function.
+Note that these constraints do not introduce additional malformed types,
+so the well-formedness constraints are guaranteed to be well-formed.
+This assumes that the parameters are well-formed. -}
+wfTypeFunction :: TFun -> [Type] -> [Prop]
+wfTypeFunction TCSub [a,b]             = [ a >== b, pFin b]
+wfTypeFunction TCDiv [a,b]             = [ b >== tOne, pFin a ]
+wfTypeFunction TCMod [a,b]             = [ b >== tOne, pFin a ]
+wfTypeFunction TCLenFromThen   [a,b,w] =
+         [ pFin a, pFin b, pFin w, a =/= b, w >== tWidth a ]
+wfTypeFunction TCLenFromThenTo [a,b,c] = [ pFin a, pFin b, pFin c, a =/= b ]
+wfTypeFunction _ _                     = []
+
+-- | Add additional constraints that ensure the validity of a type.
+wfType :: Type -> [Prop]
+wfType t =
+  case t of
+    TCon c ts ->
+      let ps = concatMap wfType ts
+      in case c of
+           TF f -> wfTypeFunction f ts ++ ps
+           _    -> ps
+
+    TVar _      -> []
+    TUser _ _ s -> wfType s
+    TRec fs     -> concatMap (wfType . snd) fs
+
+
 
 
 --------------------------------------------------------------------------------

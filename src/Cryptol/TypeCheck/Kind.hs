@@ -26,7 +26,7 @@ import           Cryptol.Parser.Position
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad hiding (withTParams)
 import           Cryptol.TypeCheck.Solve (simplifyAllConstraints
-                                         ,checkTypeFunction)
+                                         ,wfTypeFunction)
 import           Cryptol.Utils.PP
 
 import qualified Data.Map as Map
@@ -257,7 +257,7 @@ doCheckType ty k =
          -- constraints.
          case it of
            TCon (TF f) ts' ->
-              case checkTypeFunction f ts' of
+              case wfTypeFunction f ts' of
                  [] -> return ()
                  ps -> kNewGoals (CtPartialTypeFun (BuiltInTyFun f)) ps
            _ -> return ()

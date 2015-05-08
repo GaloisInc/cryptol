@@ -125,6 +125,7 @@ library
                        Cryptol.TypeCheck.Solver.Numeric.Defined,
                        Cryptol.TypeCheck.Solver.Numeric.Simplify,
                        Cryptol.TypeCheck.Solver.Numeric.Simplify1,
+                       Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr,
                        Cryptol.TypeCheck.Solver.Numeric.NonLin,
                        Cryptol.TypeCheck.Solver.Numeric.SMT,
 

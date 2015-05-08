@@ -1,17 +1,23 @@
 {-# LANGUAGE Safe, PatternGuards, BangPatterns #-}
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
--- | Simplification.
--- TODO:
---  - Putting in a normal form to spot "prove by assumption"
---  - Additional simplification rules, namely various cancelation.
---  - Things like:  lg2 e(x) = x, where we know thate is increasing.
+{- | Simplification.
+The rules in this module are all conditional on the expressions being
+well-defined.
+
+So, for example, consider the formula `P`, which corresponds to `fin e`.
+`P` says the following:
+
+    if e is well-formed, then will evaluate to a finite natural number.
+
+More concretely, consider `fin (3 - 5)`.  This will be simplified to `True`,
+which does not mean that `3 - 5` is actually finite.
+-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Simplify1 (propToProp', ppProp') where
 
-import           Cryptol.TypeCheck.Solver.Numeric.Simplify
+import           Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr
                    (crySimpExpr, splitSum, normSum, Sign(..))
 import           Cryptol.TypeCheck.Solver.Numeric.AST
-import qualified Cryptol.TypeCheck.Solver.InfNat as IN
 import           Cryptol.Utils.Misc ( anyJust )
 
 import           Control.Monad ( liftM2 )
@@ -27,7 +33,7 @@ data Atom = AFin Name
           | AEq Expr Expr   -- on naturals
             deriving Eq
 
-type I     = IfExpr' Atom
+type I    = IfExpr' Atom
 
 
 -- tmp
@@ -166,7 +172,9 @@ pAtom p = do a <- case p of
              If a pTrue pFalse
   where
   prep x    = do y <- eNoInf x
-                 return (crySimpExpr y)
+                 case y of
+                   K Inf -> Impossible
+                   _     -> return (crySimpExpr y)
   bin f x y = liftM2 f (prep x) (prep y)
 
 
@@ -190,7 +198,7 @@ pGeq x y = pIf (pInf x) pTrue
          $ pIf (pFin y) (pAtom (AGt (x :+ one) y))
            pFalse
 
--- | Implementation of `Fin` on expressions.
+-- | Implementation of `Fin`
 pFin :: Expr -> I Bool
 pFin expr =
   case expr of
@@ -218,18 +226,17 @@ pFin expr =
     LenFromThen  _ _ _   -> pTrue
     LenFromThenTo  _ _ _ -> pTrue
 
--- | Implement `e1 > e2`.
+-- | Implementation `e1 > e2`.
 pGt :: Expr -> Expr -> I Bool
 pGt x y = pIf (pFin y) (pIf (pFin x) (pAtom (AGt x y)) pTrue) pFalse
 
--- `e == inf`
+-- | Implementation of `e == inf`
 pInf :: Expr -> I Bool
 pInf = pNot . pFin
 
 
 
--- | Special rules implementing `e == 0`
---   Assuming the original expression was well-formed.
+-- | Special case: `e == 0`
 pEq0 :: Expr -> I Bool
 pEq0 expr =
   case expr of
@@ -249,8 +256,7 @@ pEq0 expr =
     LenFromThen _ _ _   -> pFalse
     LenFromThenTo x y z -> pIf (pGt x y) (pGt z x) (pGt x z)
 
--- | Special rules implementing `e == 1`
---   Assuming the original expression was well-formed.
+-- | Special case: `e == 1`
 pEq1 :: Expr -> I Bool
 pEq1 expr =
   case expr of
@@ -296,40 +302,16 @@ pKnownInf x prop = fromMaybe prop (apSubst (Map.singleton x (K Inf)) prop)
 
 
 
-{-
-aSimplify :: Atom -> Either Atom Bool
-aSimplify atom =
-  case atom of
-    AFin _    -> Left atom
-
-    AEq e1 e2
-      | e1' == e2'              -> Right True
-      | K _ <- e1', K _ <- e2'  -> Right False
-
-
-      -- Move variables to one side
-      -- Cancel common factors
-      | otherwise               -> Left (AEq e1' e2')
-
-      where
-      e1' = crySimpExpr e1
-      e2' = crySimpExpr e2
-
-    AGt e1 e2
-      | K (Nat 0) <- e1'        -> Right False
-
-      where
-      e1' = crySimpExpr e1
-      e2' = crySimpExpr e2
--}
 
 -- Cancel constants
+-- If the original equation was valid, it continues to be valid.
 balanceEq :: Expr -> Expr -> (Expr, Expr)
 balanceEq (K (Nat a) :+ e1) (K (Nat b) :+ e2)
   | a >= b    = balanceEq e2 (K (Nat (a - b)) :+ e1)
   | otherwise = balanceEq e1 (K (Nat (b - a)) :+ e2)
 
--- Move subtraction to the other side
+-- Move subtraction to the other side.
+-- If the original equation was valid, this will continue to be valid.
 balanceEq e1 e2
   | not (null neg_es1 && null neg_es2) = balanceEq (mk neg_es2 pos_es1)
                                                    (mk neg_es1 pos_es2)
@@ -361,7 +343,7 @@ balanceGt (K (Nat a) :+ e1) (K (Nat b) :+ e2)
 
 --------------------------------------------------------------------------------
 
--- | Our goal is to bubble @inf@ terms to the top of @Return@.
+-- | Eliminate `inf`, except at the top level.
 eNoInf :: Expr -> I Expr
 eNoInf expr =
   case expr of
