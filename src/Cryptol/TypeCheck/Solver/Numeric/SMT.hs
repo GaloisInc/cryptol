@@ -43,10 +43,14 @@ desugarExpr expr =
        (Min {}, [x,y]) -> If (x :>: y) (return y) (return x)
        (Max {}, [x,y]) -> If (x :>: y) (return x) (return y)
        (LenFromThenTo {}, [ x@(K (Nat a)), K (Nat b), z ])
+
+          -- going down
           | a > b -> If (z :>: x) (return zero)
-                                  (return (Div (z :- x) step :+ one))
-          | b < a -> If (x :>: z) (return zero)
                                   (return (Div (x :- z) step :+ one))
+
+          -- goind up
+          | b > a -> If (x :>: z) (return zero)
+                                  (return (Div (z :- x) step :+ one))
 
           where step = K (Nat (abs (a - b)))
 
