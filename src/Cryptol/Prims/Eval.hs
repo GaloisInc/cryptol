@@ -29,6 +29,7 @@ import Cryptol.Utils.Panic (panic)
 
 import Data.List (sortBy,transpose,genericTake,genericReplicate,genericSplitAt,genericIndex)
 import Data.Ord (comparing)
+import Data.Orphans ()
 import Data.Bits (Bits(..))
 
 import System.Random.TF (mkTFGen)
@@ -47,34 +48,6 @@ instance Num Bool where
   abs _         = noNum
   signum _      = noNum
   fromInteger _ = noNum
-#endif
-
-#if __GLASGOW_HASKELL__ < 708
-instance Bits Bool where
-  (.&.) = (&&)
-
-  (.|.) = (||)
-
-  xor = (/=)
-
-  complement = not
-
-  shift a 0 = a
-  shift _ _ = False
-
-  rotate a _ = a
-
-  bitSize _ = 1
-
-  isSigned _ = False
-
-  testBit a 1 = a
-  testBit _ _ = False
-
-  bit 0 = True
-  bit _ = False
-
-  popCount a = if a then 1 else 0
 #endif
 
 
