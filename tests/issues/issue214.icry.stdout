@@ -1,0 +1,8 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at ./issue214.cry:2:1--2:42:
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at ./issue214.cry:2:29--2:41
+  to max 2 (max (width (2 * a`74 - 1)) (width (2 * a`74 - 2)))
