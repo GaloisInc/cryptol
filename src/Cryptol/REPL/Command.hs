@@ -288,7 +288,7 @@ qcCmd qcMode str =
   totProgressWidth = 4    -- 100%
 
   lg2 :: Integer -> Integer
-  lg2 x | x >= 2^(1024::Int) = 1024 + lg2 (x - 2^(1024::Int))
+  lg2 x | x >= 2^(1024::Int) = 1024 + lg2 (x `div` 2^(1024::Int))
         | x == 0       = 0
         | otherwise    = let valNumD = fromIntegral x :: Double
                          in round $ logBase 2 valNumD :: Integer
