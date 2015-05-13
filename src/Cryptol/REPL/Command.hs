@@ -276,7 +276,7 @@ qcCmd qcMode str =
                                    | valNum > 2 ^ (20::Integer) =
                                        "2^^" ++ show (lg2 valNum)
                                    | otherwise = show valNum
-                            rPutStrLn $ "TMD Coverage: "
+                            rPutStrLn $ "Coverage: "
                                          ++ showFFloat (Just 2) percent "% ("
                                          ++ show testNum ++ " of "
                                          ++ showValNum ++ " values)"
