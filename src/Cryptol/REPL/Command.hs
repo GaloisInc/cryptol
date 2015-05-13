@@ -274,9 +274,9 @@ qcCmd qcMode str =
                                         / valNumD
                                 showValNum
                                    | valNum > 2 ^ (20::Integer) =
-                                       "2^^" ++ show (round $ logBase 2 valNumD :: Integer)
+                                       "2^^" ++ show (lg2 valNum)
                                    | otherwise = show valNum
-                            rPutStrLn $ "Coverage: "
+                            rPutStrLn $ "TMD Coverage: "
                                          ++ showFFloat (Just 2) percent "% ("
                                          ++ show testNum ++ " of "
                                          ++ showValNum ++ " values)"
@@ -286,6 +286,12 @@ qcCmd qcMode str =
   testingMsg = "testing..."
 
   totProgressWidth = 4    -- 100%
+
+  lg2 :: Integer -> Integer
+  lg2 x | x >= 2^(1024::Int) = 1024 + lg2 (x - 2^(1024::Int))
+        | x == 0       = 0
+        | otherwise    = let valNumD = fromIntegral x :: Double
+                         in round $ logBase 2 valNumD :: Integer
 
   prt msg   = rPutStr msg >> io (hFlush stdout)
   prtLn msg = rPutStrLn msg >> io (hFlush stdout)
