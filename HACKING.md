@@ -278,5 +278,9 @@ The release process is:
    to work.
 1. Upload the `.sig` files to the draft release on Github.
 1. Publish the release and announce it (**TODO**: compile mailing
-   lists, social media outlets, etc where we should make sure to
-   announce)
+
+    - <http://www.cryptol.net> (in the `cryptol2-web.git` repo)
+    - <cryptol-team@lists.galois.com>
+    - <cryptol-users@community.galois.com>
+    - @galois on Twitter (for major releases)
+    - TODO: more?
