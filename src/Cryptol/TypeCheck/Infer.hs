@@ -634,17 +634,19 @@ guessType exprMap b@(P.Bind { .. }) =
   where
   name = thing bName
 
-
--- | Try to evaluate the inferred type of a mono-binding
-simpMonoBind :: Decl -> Decl
-simpMonoBind d =
+-- | Try to evaluate the inferred type in a binding.
+simpBind :: Decl -> Decl
+simpBind d =
   case dSignature d of
-    Forall [] [] t ->
-      let t1 = simpType t
-      in if t == t1 then d else d { dSignature  = Forall [] [] t1
-                                  , dDefinition = ECast (dDefinition d) t1
-                                  }
-    _ -> d
+    Forall as qs t ->
+      case simpTypeMaybe t of
+        Nothing -> d
+        Just t1 -> d { dSignature  = Forall as qs t1
+                     , dDefinition = ECast (dDefinition d) t1
+                     }
+
+
+
 
 
 -- | The inputs should be declarations with monomorphic types
@@ -666,7 +668,7 @@ generalize bs0 gs0 =
      bs1 <- forM bs0 $ \b -> do s <- applySubst (dSignature b)
                                 return b { dSignature = s }
 
-     let bs = map simpMonoBind bs1
+     let bs = map simpBind bs1
 
      let goalFVS g  = Set.filter isFreeTV $ fvs $ goal g
          inGoals    = Set.unions $ map goalFVS gs
@@ -705,11 +707,11 @@ generalize bs0 gs0 =
          genE e = foldr ETAbs (foldr EProofAbs (apSubst su e) qs) asPs
          genB d = d { dDefinition = genE (dDefinition d)
                     , dSignature  = Forall asPs qs
-                                  $ simpType $ apSubst su $ sType $ dSignature d
+                                  $ apSubst su $ sType $ dSignature d
                     }
 
      addGoals later
-     return (map genB bs)
+     return (map (simpBind . genB) bs)
 
 
 
@@ -777,7 +779,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
 
      return Decl
         { dName       = thing (P.bName b)
-        , dSignature  = Forall as asmps $ simpType t
+        , dSignature  = Forall as asmps t
         , dDefinition = foldr ETAbs (foldr EProofAbs e2 asmps) as
         , dPragmas    = P.bPragmas b
         }
