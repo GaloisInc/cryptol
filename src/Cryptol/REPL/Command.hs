@@ -59,6 +59,8 @@ import qualified Cryptol.Symbolic as Symbolic
 import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad (guard,unless,forM_,when)
+import qualified Data.ByteString as BS
+import Data.Bits ((.&.))
 import Data.Char (isSpace,isPunctuation,isSymbol)
 import Data.Function (on)
 import Data.List (intercalate,isPrefixOf,nub)
@@ -107,6 +109,7 @@ instance Ord CommandDescr where
 
 data CommandBody
   = ExprArg     (String   -> REPL ())
+  | FileExprArg (FilePath -> String -> REPL ())
   | DeclsArg    (String   -> REPL ())
   | ExprTypeArg (String   -> REPL ())
   | FilenameArg (FilePath -> REPL ())
@@ -169,6 +172,8 @@ commandList  =
     "set the current working directory"
   , CommandDescr [ ":m", ":module" ] (FilenameArg moduleCmd)
     "load a module"
+  , CommandDescr [ ":w", ":write" ] (FileExprArg writeFileCmd)
+    "write data of type `fin n => [n][8]` to a file"
   ]
 
 genHelp :: [CommandDescr] -> [String]
@@ -477,6 +482,22 @@ typeOfCmd str = do
   whenDebug (rPutStrLn (dump def))
   rPrint $ pp expr <+> text ":" <+> pp sig
 
+writeFileCmd :: FilePath -> String -> REPL ()
+writeFileCmd file str = do
+  expr         <- replParseExpr str
+  (val,ty)     <- replEvalExpr expr
+  if not (tIsByteSeq ty)
+   then rPrint $ text "Can not write expression of types other than [n][8].  Type was: " <+> pp ty
+   else wf file =<< serializeValue val
+ where
+  wf fp bytes   = replWriteFile fp bytes (rPutStrLn . show)
+  noOutFileErr  = rPutStrLn "Must ':set outputFile=...' before using ':write'"
+  tIsByteSeq    = maybe False (tIsByte . snd) . T.tIsSeq
+  tIsByte   x   = maybe False (\(n,b) -> T.tIsBit b && T.tIsNum n == Just 8) (T.tIsSeq x)
+  serializeValue (E.VSeq _ vs) = return $ BS.pack $ map (serializeByte . E.fromVWord) vs
+  serializeValue _             = panic "REPL write" ["Impossible: Non-VSeq value of type [n][8]."]
+  serializeByte (E.BV _ v)     = fromIntegral (v .&. 0xFF)
+
 reloadCmd :: REPL ()
 reloadCmd  = do
   mb <- getLoadedMod
@@ -764,6 +785,11 @@ replEvalExpr expr =
   warnDefault ns (x,t) =
         rPrint $ text "Assuming" <+> ppWithNames ns x <+> text "=" <+> pp t
 
+replWriteFile :: FilePath -> BS.ByteString -> (X.SomeException -> REPL ()) -> REPL ()
+replWriteFile fp bytes handler =
+ do x <- io $ X.catch (BS.writeFile fp bytes >> return Nothing) (\x -> return (Just x))
+    maybe (return ()) handler x
+
 -- | Creates a fresh binding of "it" to the expression given, and adds
 -- it to the current dynamic environment
 bindItVariable :: T.Type -> T.Expr -> REPL ()
@@ -876,7 +902,10 @@ parseCommand findCmd line = do
       OptionArg   body -> Just (Command (body args'))
       ShellArg    body -> Just (Command (body args'))
       NoArg       body -> Just (Command  body)
-
+      FileExprArg body -> case words args' of
+                            (fp:_:_)  -> let expr = drop (length fp + 1) args'
+                                         in Just (Command (body fp expr))
+                            _         -> Nothing
     [] -> case uncons cmd of
       Just (':',_) -> Just (Unknown cmd)
       Just _       -> Just (Command (evalCmd line))
