@@ -113,6 +113,7 @@ library
                        Cryptol.TypeCheck.Solve,
                        Cryptol.TypeCheck.TypeMap,
                        Cryptol.TypeCheck.TypeOf,
+                       Cryptol.TypeCheck.Sanity,
 
                        Cryptol.TypeCheck.Solver.InfNat,
                        Cryptol.TypeCheck.Solver.Class,
