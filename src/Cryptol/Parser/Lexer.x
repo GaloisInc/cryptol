@@ -246,12 +246,7 @@ primLexer cfg cs = run inp Normal
               , alexPos i)
 
       AlexError i'  ->
-          let p1 = alexPos i
-              p2 = alexPos i'
-              inp = input i
-              bad = if line p1 == line p2
-                      then take (col p2 - col p1) inp
-                      else takeWhile (/= '\n')    inp
+          let bad = Text.takeWhile (/= '\n') (input i)
           in
           ( [ Located (Range (alexPos i) (alexPos i') (cfgSource cfg))
                $ Token (Err LexicalError) bad ]
