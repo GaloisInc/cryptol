@@ -47,7 +47,11 @@ data ModuleEnv = ModuleEnv
   , meDynEnv        :: DynamicEnv
   , meMonoBinds     :: !Bool
   , meSolverConfig  :: T.SolverConfig
+  , meCoreLint      :: CoreLint
   }
+
+data CoreLint = NoCoreLint        -- ^ Don't run core lint
+              | CoreLint          -- ^ Run core lint
 
 resetModuleEnv :: ModuleEnv -> ModuleEnv
 resetModuleEnv env = env
@@ -99,6 +103,7 @@ initialModuleEnv  = do
                           , T.solverArgs = [ "--lang=smt2", "--incremental", "--rewrite-divk" ]
                           , T.solverVerbose = 0
                           }
+    , meCoreLint      = NoCoreLint
     }
 
 -- | Try to focus a loaded module in the module environment.

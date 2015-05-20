@@ -594,6 +594,14 @@ userOptions  = mkOptionMap
                          let cfg = M.meSolverConfig me
                          setModuleEnv me { M.meSolverConfig = cfg{ T.solverVerbose = fromIntegral n } }
           _        -> return ()
+  , OptionDescr "core-lint" (EnvBool False)
+    (const (return Nothing))
+    "Enable sanity checking of type-checker" $
+      let setIt x = do me <- getModuleEnv
+                       setModuleEnv me { M.meCoreLint = x }
+      in \case EnvBool True  -> setIt M.CoreLint
+               EnvBool False -> setIt M.NoCoreLint
+               _             -> return ()
   ]
 
 -- | Check the value to the `base` option.
