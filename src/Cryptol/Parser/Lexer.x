@@ -246,7 +246,7 @@ primLexer cfg cs = run inp Normal
               , alexPos i)
 
       AlexError i'  ->
-          let bad = Text.takeWhile (/= '\n') (input i)
+          let bad = Text.take 1 (input i)
           in
           ( [ Located (Range (alexPos i) (alexPos i') (cfgSource cfg))
                $ Token (Err LexicalError) bad ]

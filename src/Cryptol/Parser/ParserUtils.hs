@@ -54,7 +54,7 @@ lexerP k = P $ \cfg p (S ts) ->
            UnterminatedChar    -> "unterminated character"
            InvalidString       -> "invalid string literal: " ++ T.unpack (tokenText it)
            InvalidChar         -> "invalid character literal: " ++ T.unpack (tokenText it)
-           LexicalError        -> "lexical error: " ++ T.unpack (tokenText it)
+           LexicalError        -> "unrecognized character: " ++ T.unpack (tokenText it)
       where it = thing t
 
     t : more -> unP (k t) cfg p (S more)
