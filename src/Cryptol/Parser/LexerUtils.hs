@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 module Cryptol.Parser.LexerUtils where
 
@@ -14,10 +15,12 @@ import Cryptol.Parser.Unlit(PreProc(None))
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
-import Data.Char(toLower)
-import Data.List(foldl')
-import Data.Word(Word8)
-import Codec.Binary.UTF8.String(encodeChar)
+import           Data.Char(toLower,generalCategory,isAscii,ord)
+import qualified Data.Char as Char
+import           Data.List(foldl')
+import           Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy as T
+import           Data.Word(Word8)
 
 
 data Config = Config
@@ -40,13 +43,13 @@ defaultConfig  = Config
   }
 
 
-type Action = Config -> Position -> String -> LexS
+type Action = Config -> Position -> Text -> LexS
            -> (Maybe (Located Token), LexS)
 
 data LexS   = Normal
-            | InComment Position ![Position] [String]
-            | InString Position String
-            | InChar   Position String
+            | InComment Position ![Position] [Text]
+            | InString Position Text
+            | InChar   Position Text
 
 
 startComment :: Action
@@ -65,7 +68,7 @@ endComent cfg p txt s =
   where
   mkToken f cs =
     let r   = Range { from = f, to = moves p txt, source = cfgSource cfg }
-        str = concat $ reverse $ txt : cs
+        str = T.concat $ reverse $ txt : cs
     in Located { srcRange = r, thing = Token (White BlockComment) str }
 
 addToComment :: Action
@@ -87,20 +90,24 @@ endString cfg pe txt s = case s of
   parseStr s1 = case reads s1 of
                   [(cs, "")] -> StrLit cs
                   _          -> Err InvalidString
+
   mkToken ps str = Located { srcRange = Range
                                { from   = ps
                                , to     = moves pe txt
                                , source = cfgSource cfg
                                }
                            , thing    = Token
-                               { tokenType = parseStr (str ++ txt)
-                               , tokenText = str ++ txt
+                               { tokenType = parseStr (T.unpack tokStr)
+                               , tokenText = tokStr
                                }
                            }
+    where
+    tokStr = str `T.append` txt
+
 
 addToString :: Action
 addToString _ _ txt s = case s of
-  InString p str -> (Nothing,InString p (str ++ txt))
+  InString p str -> (Nothing,InString p (str `T.append` txt))
   _              -> panic "[Lexer] addToString" ["outside string"]
 
 
@@ -124,16 +131,18 @@ endChar cfg pe txt s =
                                , source = cfgSource cfg
                                }
                            , thing    = Token
-                               { tokenType = parseChar (str ++ txt)
-                               , tokenText = str ++ txt
+                               { tokenType = parseChar (T.unpack tokStr)
+                               , tokenText = tokStr
                                }
                            }
+    where
+    tokStr = str `T.append` txt
 
 
 
 addToChar :: Action
 addToChar _ _ txt s = case s of
-  InChar p str -> (Nothing,InChar p (str ++ txt))
+  InChar p str -> (Nothing,InChar p (str `T.append` txt))
   _              -> panic "[Lexer] addToChar" ["outside character"]
 
 
@@ -141,7 +150,7 @@ mkIdent :: Action
 mkIdent cfg p s z = (Just Located { srcRange = r, thing = Token t s }, z)
   where
   r = Range { from = p, to = moves p s, source = cfgSource cfg }
-  t = Ident s
+  t = Ident (T.unpack s)
 
 emit :: TokenT -> Action
 emit t cfg p s z  = (Just Located { srcRange = r, thing = Token t s }, z)
@@ -149,7 +158,7 @@ emit t cfg p s z  = (Just Located { srcRange = r, thing = Token t s }, z)
 
 
 emitS :: (String -> TokenT) -> Action
-emitS t cfg p s z  = emit (t s) cfg p s z
+emitS t cfg p s z  = emit (t (T.unpack s)) cfg p s z
 
 
 
@@ -175,22 +184,15 @@ fromHexDigit x'
 
 data AlexInput            = Inp { alexPos           :: !Position
                                 , alexInputPrevChar :: !Char
-                                , input             :: !String
-                                , moreBytes         :: ![Word8]
+                                , input             :: !Text
                                 } deriving Show
 
 alexGetByte :: AlexInput -> Maybe (Word8, AlexInput)
 alexGetByte i =
-  case moreBytes i of
-    b : bs -> Just (b, i { moreBytes = bs })
-    [] ->
-      case input i of
-        c:cs -> alexGetByte Inp { alexPos = move (alexPos i) c
-                                , alexInputPrevChar = c
-                                , input             = cs
-                                , moreBytes         = encodeChar c
-                                }
-        []   -> Nothing
+  do (c,rest) <- T.uncons (input i)
+     let i' = i { alexPos = move (alexPos i) c, input = rest }
+         b  = byteForChar c
+     return (b,i')
 
 data Layout = Layout | NoLayout
 
@@ -299,7 +301,7 @@ virt cfg pos x = Located { srcRange = Range
 
 --------------------------------------------------------------------------------
 
-data Token    = Token { tokenType :: TokenT, tokenText :: String }
+data Token    = Token { tokenType :: TokenT, tokenText :: Text }
                 deriving Show
 
 -- | Virtual tokens, inserted by layout processing.
@@ -402,6 +404,43 @@ data TokenT   = Num Integer Int Int   -- ^ value, base, number of digits
                 deriving (Eq,Show)
 
 instance PP Token where
-  ppPrec _ (Token _ s) = text s
+  ppPrec _ (Token _ s) = text (T.unpack s)
 
-
+byteForChar :: Char -> Word8
+byteForChar c
+  | c <= '\6' = non_graphic
+  | isAscii c = fromIntegral (ord c)
+  | otherwise = case generalCategory c of
+                  Char.LowercaseLetter       -> lower
+                  Char.OtherLetter           -> lower
+                  Char.UppercaseLetter       -> upper
+                  Char.TitlecaseLetter       -> upper
+                  Char.DecimalNumber         -> digit
+                  Char.OtherNumber           -> digit
+                  Char.ConnectorPunctuation  -> symbol
+                  Char.DashPunctuation       -> symbol
+                  Char.OtherPunctuation      -> symbol
+                  Char.MathSymbol            -> symbol
+                  Char.CurrencySymbol        -> symbol
+                  Char.ModifierSymbol        -> symbol
+                  Char.OtherSymbol           -> symbol
+                  Char.Space                 -> sp
+                  Char.ModifierLetter        -> other
+                  Char.NonSpacingMark        -> other
+                  Char.SpacingCombiningMark  -> other
+                  Char.EnclosingMark         -> other
+                  Char.LetterNumber          -> other
+                  Char.OpenPunctuation       -> other
+                  Char.ClosePunctuation      -> other
+                  Char.InitialQuote          -> other
+                  Char.FinalQuote            -> tick
+                  _                          -> non_graphic
+  where
+  non_graphic     = 0
+  upper           = 1
+  lower           = 2
+  digit           = 3
+  symbol          = 4
+  sp              = 5
+  other           = 6
+  tick            = 7

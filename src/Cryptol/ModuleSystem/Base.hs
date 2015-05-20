@@ -37,6 +37,8 @@ import Data.Function (on)
 import Data.List (nubBy)
 import Data.Maybe (mapMaybe,fromMaybe)
 import Data.Monoid ((<>))
+import           Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy.IO as T
 import System.Directory (doesFileExist)
 import System.FilePath ( addExtension
                        , isAbsolute
@@ -107,9 +109,9 @@ parseModule :: FilePath -> ModuleM P.Module
 parseModule path = do
 
   e <- io $ X.try $ do
-    bytes <- readFile path
+    bytes <- T.readFile path
     return $!! bytes
-  bytes <- case (e :: Either X.IOException String) of
+  bytes <- case (e :: Either X.IOException Text) of
     Right bytes -> return bytes
     Left exn | IOE.isDoesNotExistError exn -> cantFindFile path
              | otherwise                   -> otherIOError path exn

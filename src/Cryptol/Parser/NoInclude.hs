@@ -19,6 +19,8 @@ import Cryptol.Parser.LexerUtils (Config(..),defaultConfig)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Utils.PP
 import qualified Control.Applicative as A
+import           Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy.IO as T
 
 import Data.Either (partitionEithers)
 import MonadLib
@@ -139,9 +141,9 @@ resolveInclude lf = pushPath lf $ do
     Left err -> M (raise [IncludeParseError err])
 
 -- | Read a file referenced by an include.
-readInclude :: Located FilePath -> NoIncM String
+readInclude :: Located FilePath -> NoIncM Text
 readInclude path = do
-  source <- readFile (thing path) `failsWith` handler
+  source <- T.readFile (thing path) `failsWith` handler
   return source
   where
   handler :: X.IOException -> NoIncM a

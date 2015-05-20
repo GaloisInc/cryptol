@@ -20,6 +20,8 @@ import Cryptol.Utils.Panic
 import Data.Maybe(listToMaybe,fromMaybe)
 import Data.Bits(testBit,setBit)
 import Control.Monad(liftM,ap)
+import           Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy as T
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative ((<$>),Applicative(..))
@@ -27,7 +29,10 @@ import Data.Traversable (mapM)
 import Prelude hiding (mapM)
 #endif
 
-parse :: Config -> ParseM a -> String -> Either ParseError a
+parseString :: Config -> ParseM a -> String -> Either ParseError a
+parseString cfg p cs = parse cfg p (T.pack cs)
+
+parse :: Config -> ParseM a -> Text -> Either ParseError a
 parse cfg p cs    = case unP p cfg eofPos (S toks) of
                       Left err    -> Left err
                       Right (a,_) -> Right a
@@ -47,9 +52,9 @@ lexerP k = P $ \cfg p (S ts) ->
            UnterminatedComment -> "unterminated comment"
            UnterminatedString  -> "unterminated string"
            UnterminatedChar    -> "unterminated character"
-           InvalidString       -> "invalid string literal: " ++ tokenText it
-           InvalidChar         -> "invalid character literal: " ++ tokenText it
-           LexicalError        -> "lexical error: " ++ tokenText it
+           InvalidString       -> "invalid string literal: " ++ T.unpack (tokenText it)
+           InvalidChar         -> "invalid character literal: " ++ T.unpack (tokenText it)
+           LexicalError        -> "lexical error: " ++ T.unpack (tokenText it)
       where it = thing t
 
     t : more -> unP (k t) cfg p (S more)
