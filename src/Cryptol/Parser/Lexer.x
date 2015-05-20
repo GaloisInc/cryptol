@@ -28,7 +28,7 @@ $uniother       = \x6
 $unitick        = \x7
 
 @id_first     = [a-zA-Z_] | $unilower | $uniupper
-@id_next      = [a-zA-Z0-9_] | $unilower | $uniupper | $unidigit | $unitick
+@id_next      = [a-zA-Z0-9_'] | $unilower | $uniupper | $unidigit | $unitick
 
 @id           = @id_first @id_next*
 
