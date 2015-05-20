@@ -12,6 +12,7 @@ import qualified Data.Set as Set
 import Data.List(sort, sortBy)
 import Data.Function (on)
 import MonadLib
+import qualified Control.Applicative as A
 
 import           Data.Map ( Map )
 import qualified Data.Map as Map
@@ -418,7 +419,7 @@ newtype TcM a = TcM (ReaderT RO (ExceptionT Error (StateT RW Id)) a)
 instance Functor TcM where
   fmap = liftM
 
-instance Applicative TcM where
+instance A.Applicative TcM where
   pure  = return
   (<*>) = ap
 
