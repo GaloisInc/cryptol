@@ -19,11 +19,11 @@ import           Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr
                    (crySimpExpr, splitSum, normSum, Sign(..))
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.Utils.Misc ( anyJust )
+import           Cryptol.Utils.PP
 
 import           Control.Monad ( liftM2 )
 import           Data.Maybe ( fromMaybe )
 import qualified Data.Map as Map
-import           Text.PrettyPrint
 import           Data.Either(partitionEithers)
 
 
