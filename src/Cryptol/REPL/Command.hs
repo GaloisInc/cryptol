@@ -174,6 +174,8 @@ commandList  =
     "load a module"
   , CommandDescr [ ":w", ":write" ] (FileExprArg writeFileCmd)
     "write data of type `fin n => [n][8]` to a file"
+  , CommandDescr [ ":read" ] (FilenameArg readFileCmd)
+    "read data from a file as type `fin n => [n][8]`, binding the value to variable `it`"
   ]
 
 genHelp :: [CommandDescr] -> [String]
@@ -482,6 +484,16 @@ typeOfCmd str = do
   whenDebug (rPutStrLn (dump def))
   rPrint $ pp expr <+> text ":" <+> pp sig
 
+readFileCmd :: FilePath -> REPL ()
+readFileCmd fp = do
+  bytes <- replReadFile fp (\err -> rPutStrLn (show err) >> return Nothing)
+  case bytes of
+      Nothing -> return ()
+      Just bs ->
+        do let expr = T.eString (map (toEnum . fromIntegral) (BS.unpack bs))
+               ty   = T.tString (BS.length bs)
+           bindItVariable ty expr
+
 writeFileCmd :: FilePath -> String -> REPL ()
 writeFileCmd file str = do
   expr         <- replParseExpr str
@@ -491,12 +503,11 @@ writeFileCmd file str = do
    else wf file =<< serializeValue val
  where
   wf fp bytes   = replWriteFile fp bytes (rPutStrLn . show)
-  noOutFileErr  = rPutStrLn "Must ':set outputFile=...' before using ':write'"
   tIsByteSeq    = maybe False (tIsByte . snd) . T.tIsSeq
   tIsByte   x   = maybe False (\(n,b) -> T.tIsBit b && T.tIsNum n == Just 8) (T.tIsSeq x)
   serializeValue (E.VSeq _ vs) = return $ BS.pack $ map (serializeByte . E.fromVWord) vs
   serializeValue _             = panic "REPL write" ["Impossible: Non-VSeq value of type [n][8]."]
-  serializeByte (E.BV _ v)     = fromIntegral (v .&. 0xFF)
+  serializeByte  (E.BV _ v)    = fromIntegral (v .&. 0xFF)
 
 reloadCmd :: REPL ()
 reloadCmd  = do
@@ -787,8 +798,13 @@ replEvalExpr expr =
 
 replWriteFile :: FilePath -> BS.ByteString -> (X.SomeException -> REPL ()) -> REPL ()
 replWriteFile fp bytes handler =
- do x <- io $ X.catch (BS.writeFile fp bytes >> return Nothing) (\x -> return (Just x))
+ do x <- io $ X.catch (BS.writeFile fp bytes >> return Nothing) (return . Just)
     maybe (return ()) handler x
+
+replReadFile :: FilePath -> (X.SomeException -> REPL (Maybe BS.ByteString)) -> REPL (Maybe BS.ByteString)
+replReadFile fp handler =
+ do x <- io $ X.catch (Right `fmap` BS.readFile fp) (\e -> return $ Left e)
+    either handler (return . Just) x
 
 -- | Creates a fresh binding of "it" to the expression given, and adds
 -- it to the current dynamic environment
