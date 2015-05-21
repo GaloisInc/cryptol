@@ -406,6 +406,15 @@ data TokenT   = Num Integer Int Int   -- ^ value, base, number of digits
 instance PP Token where
   ppPrec _ (Token _ s) = text (T.unpack s)
 
+
+-- | Collapse characters into a single Word8, identifying ASCII, and classes of
+-- unicode.  This came from:
+--
+-- https://github.com/glguy/config-value/blob/master/src/Config/LexerUtils.hs
+--
+-- Which adapted:
+--
+-- https://github.com/ghc/ghc/blob/master/compiler/parser/Lexer.x
 byteForChar :: Char -> Word8
 byteForChar c
   | c <= '\6' = non_graphic
