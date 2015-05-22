@@ -7,4 +7,4 @@ Loading module issue177
 w : Byte
 x : Word16
 y : B::Word32
-z : ?issue177C::Word64
+z : issue177C::Word64

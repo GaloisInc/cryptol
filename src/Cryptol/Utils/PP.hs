@@ -12,28 +12,43 @@ module Cryptol.Utils.PP where
 
 import           Cryptol.ModuleSystem.Name
 
-import qualified Text.PrettyPrint as PJ
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import qualified Data.Monoid as M
 import           Data.String (IsString(..))
+import qualified Text.PrettyPrint as PJ
 
 
 -- | How to display names.
-type NameEnv = Map QName QName
+newtype NameEnv = NameEnv (Map QName QName)
+                  deriving (Show)
 
-emptyNameEnv :: NameEnv
-emptyNameEnv  = Map.empty
+mkNameEnv :: [(QName,QName)] -> NameEnv
+mkNameEnv  = NameEnv . Map.fromList
 
-newtype Doc = Doc { runDoc :: NameEnv -> PJ.Doc }
+-- | Compose two naming environments.
+extend :: NameEnv -> NameEnv -> NameEnv
+extend (NameEnv l) (NameEnv r) = NameEnv (lkp `fmap` l)
+  where
+  lkp a = Map.findWithDefault a a r
+
+instance M.Monoid NameEnv where
+  mempty                          = NameEnv Map.empty
+  mappend (NameEnv a) (NameEnv b) = NameEnv (Map.union a b)
+
+newtype Doc = Doc (NameEnv -> PJ.Doc)
+
+runDoc :: NameEnv -> Doc -> PJ.Doc
+runDoc names (Doc f) = f names
 
 instance Show Doc where
-  show d = show (runDoc d emptyNameEnv)
+  show d = show (runDoc mempty d)
 
 instance IsString Doc where
   fromString = text
 
 render :: Doc -> String
-render d = PJ.render (runDoc d emptyNameEnv)
+render d = PJ.render (runDoc mempty d)
 
 class PP a where
   ppPrec :: Int -> a -> Doc
@@ -191,13 +206,17 @@ colon  = liftPJ PJ.colon
 
 -- Names -----------------------------------------------------------------------
 
+withNameEnv :: (NameEnv -> Doc) -> Doc
+withNameEnv f = Doc (\e -> runDoc e (f e))
+
 instance PP ModName where
   ppPrec _ (ModName ns) = hcat (punctuate (text "::") (map text ns))
 
 instance PP QName where
-  ppPrec _ (QName mb n) = mbNs <> pp n
-    where
-    mbNs = maybe empty (\ mn -> pp mn <> text "::") mb
+  ppPrec _ qn = withNameEnv $ \ (NameEnv env) ->
+    let QName mb n = Map.findWithDefault qn qn env
+        mbNs = maybe empty (\ mn -> pp mn <> text "::") mb
+     in mbNs <> pp n
 
 instance PP Name where
   ppPrec _ (Name x)       = text x

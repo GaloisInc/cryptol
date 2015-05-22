@@ -20,8 +20,9 @@ module Cryptol.ModuleSystem.Interface (
   , genIface
   ) where
 
-import           Cryptol.Parser.AST (mkQual)
+import           Cryptol.ModuleSystem.Name (mkQual)
 import           Cryptol.TypeCheck.AST
+import           Cryptol.Utils.PP
 
 import qualified Data.Map as Map
 
@@ -89,12 +90,21 @@ mkIfaceDecl d = IfaceDecl
   , ifDeclPragmas = dPragmas d
   }
 
-mapIfaceDecls :: (QName -> QName) -> IfaceDecls -> IfaceDecls
-mapIfaceDecls f decls = IfaceDecls
-  { ifTySyns = Map.mapKeys f (ifTySyns decls)
-  , ifNewtypes = Map.mapKeys f (ifNewtypes decls)
-  , ifDecls  = Map.mapKeys f (ifDecls decls)
-  }
+-- | Like mapIfaceDecls, but gives you back a NameEnv that describes the
+-- transformation.
+mapIfaceDecls :: (QName -> QName) -> IfaceDecls -> (IfaceDecls,NameEnv)
+mapIfaceDecls f decls = (decls',names)
+  where
+  decls' = IfaceDecls
+    { ifTySyns   = Map.mapKeys f (ifTySyns decls)
+    , ifNewtypes = Map.mapKeys f (ifNewtypes decls)
+    , ifDecls    = Map.mapKeys f (ifDecls decls)
+    }
+
+  namesFor :: (IfaceDecls -> Map.Map QName a) -> NameEnv
+  namesFor prj = mkNameEnv [ (k, f k) | k <- Map.keys (prj decls) ]
+
+  names = mconcat [ namesFor ifTySyns, namesFor ifNewtypes, namesFor ifDecls ]
 
 filterIfaceDecls :: (QName -> Bool) -> IfaceDecls -> IfaceDecls
 filterIfaceDecls p decls = IfaceDecls
@@ -106,7 +116,7 @@ filterIfaceDecls p decls = IfaceDecls
   check :: QName -> a -> Bool
   check k _ = p k
 
-unqualified :: IfaceDecls -> IfaceDecls
+unqualified :: IfaceDecls -> (IfaceDecls,NameEnv)
 unqualified  = mapIfaceDecls (mkUnqual . unqual)
 
 -- | Generate an Iface from a typechecked module.
@@ -142,31 +152,30 @@ genIface m = Iface
                                             ]
 
 -- | Interpret an import declaration in the scope of the interface it targets.
-interpImport :: Import -> Iface -> Iface
-interpImport i iface = Iface
-  { ifModName = ifModName iface
-  , ifPublic  = qualify restricted
-  , ifPrivate = mempty
-  }
+interpImport :: Import -> Iface -> (Iface,NameEnv)
+interpImport i iface = (iface',names)
   where
+  iface' = Iface
+    { ifModName = ifModName iface
+    , ifPublic  = qualified
+    , ifPrivate = mempty
+    }
+
   -- the initial set of names is {unqualified => qualified}
-  public = unqualified (ifPublic iface)
+  public = ifPublic iface
 
   -- qualify imported names
-  qualify | Just n <- iAs i = \ names -> qualifyNames n names
-          | otherwise       = id
+  (qualified,names) | Just n <- iAs i = qualifyNames n restricted
+                    | otherwise       = unqualified restricted
 
   -- interpret an import spec to quotient a naming map
   restricted
-    | Just (Hiding names) <- iSpec i =
-      let qnames = map mkUnqual names
-       in filterIfaceDecls (\qn -> not (qn `elem` qnames)) public
+    | Just (Hiding ns) <- iSpec i =
+       filterIfaceDecls (\qn -> not (unqual qn `elem` ns)) public
 
-    | Just (Only names) <- iSpec i =
-      let qnames = map mkUnqual names
-       in filterIfaceDecls (\qn -> qn `elem` qnames) public
+    | Just (Only ns) <- iSpec i =
+       filterIfaceDecls (\qn -> unqual qn `elem` ns) public
 
     | otherwise = public
 
-  -- this assumes that it's getting a list of _only_ unqualified names
   qualifyNames pfx = mapIfaceDecls (\ n -> mkQual pfx (unqual n))

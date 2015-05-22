@@ -475,7 +475,8 @@ typeOfCmd str = do
   -- XXX need more warnings from the module system
   --io (mapM_ printWarning ws)
   whenDebug (rPutStrLn (dump def))
-  rPrint $ pp expr <+> text ":" <+> pp sig
+  (_,names) <- getFocusedEnv
+  rPrint $ runDoc names $ pp expr <+> text ":" <+> pp sig
 
 reloadCmd :: REPL ()
 reloadCmd  = do
@@ -542,36 +543,37 @@ quitCmd  = stop
 
 browseCmd :: String -> REPL ()
 browseCmd pfx = do
-  browseTSyns pfx
-  browseNewtypes pfx
-  browseVars pfx
+  env <- getFocusedEnv
+  browseTSyns env pfx
+  browseNewtypes env pfx
+  browseVars env pfx
 
-browseTSyns :: String -> REPL ()
-browseTSyns pfx = do
-  tsyns <- getTSyns
-  let tsyns' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) tsyns
+browseTSyns :: (M.IfaceDecls,NameEnv) -> String -> REPL ()
+browseTSyns (decls,names) pfx = do
+  let tsyns = keepOne "browseTSyns" `fmap` M.ifTySyns decls
+      tsyns' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) tsyns
   unless (Map.null tsyns') $ do
     rPutStrLn "Type Synonyms"
     rPutStrLn "============="
     let ppSyn (qn,T.TySyn _ ps cs ty) = pp (T.TySyn qn ps cs ty)
-    rPrint (nest 4 (vcat (map ppSyn (Map.toList tsyns'))))
+    rPrint (runDoc names (nest 4 (vcat (map ppSyn (Map.toList tsyns')))))
     rPutStrLn ""
 
-browseNewtypes :: String -> REPL ()
-browseNewtypes pfx = do
-  nts <- getNewtypes
-  let nts' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) nts
+browseNewtypes :: (M.IfaceDecls,NameEnv) -> String -> REPL ()
+browseNewtypes (decls,names) pfx = do
+  let nts  = keepOne "browseNewtypes" `fmap` M.ifNewtypes decls
+      nts' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) nts
   unless (Map.null nts') $ do
     rPutStrLn "Newtypes"
     rPutStrLn "========"
     let ppNT (qn,nt) = T.ppNewtypeShort (nt { T.ntName = qn })
-    rPrint (nest 4 (vcat (map ppNT (Map.toList nts'))))
+    rPrint (runDoc names (nest 4 (vcat (map ppNT (Map.toList nts')))))
     rPutStrLn ""
 
-browseVars :: String -> REPL ()
-browseVars pfx = do
-  vars <- getVars
-  let allNames = vars
+browseVars :: (M.IfaceDecls,NameEnv) -> String -> REPL ()
+browseVars (decls,names) pfx = do
+  let vars = keepOne "browseVars" `fmap` M.ifDecls decls
+      allNames = vars
           {- This shows the built-ins as well:
              Map.union vars
                   (Map.fromList [ (Name x,t) | (x,(_,t)) <- builtIns ]) -}
@@ -590,7 +592,7 @@ browseVars pfx = do
       rPutStrLn (replicate (length name) '=')
       let step k d acc =
               pp k <+> char ':' <+> pp (M.ifDeclSig d) : acc
-      rPrint (nest 4 (vcat (Map.foldrWithKey step [] xs)))
+      rPrint (runDoc names (nest 4 (vcat (Map.foldrWithKey step [] xs))))
       rPutStrLn ""
 
 

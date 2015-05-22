@@ -21,8 +21,9 @@ import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
+import Cryptol.Utils.PP (NameEnv)
 
-import Control.Monad (guard)
+import Control.Monad (guard,mapAndUnzipM)
 import Data.Foldable (fold)
 import Data.Function (on)
 import qualified Data.Map as Map
@@ -122,30 +123,31 @@ loadedModules = map lmModule . getLoadedModules . meLoadedModules
 --
 -- This could really do with some better error handling, just returning mempty
 -- when one of the imports fails isn't really desirable.
-focusedEnv :: ModuleEnv -> IfaceDecls
+focusedEnv :: ModuleEnv -> (IfaceDecls,NameEnv)
 focusedEnv me = fold $ do
-  (iface,imports) <- loadModuleEnv interpImport me
-  let local = unqualified (ifPublic iface `mappend` ifPrivate iface)
-  return (local `shadowing` imports)
+  (iface,imports,names) <- loadModuleEnv interpImport me
+  let (local,lns) = unqualified (ifPublic iface `mappend` ifPrivate iface)
+  return (local `shadowing` imports,lns `mappend` names)
 
 -- | Produce an ifaceDecls that represents the internal environment of the
 -- module, used for typechecking.
 qualifiedEnv :: ModuleEnv -> IfaceDecls
 qualifiedEnv me = fold $ do
-  (iface,imports) <- loadModuleEnv (\ _ iface -> iface) me
+  (iface,imports,_) <- loadModuleEnv (\ _ iface -> (iface,mempty)) me
   return (mconcat [ ifPublic iface, ifPrivate iface, imports ])
 
-loadModuleEnv :: (Import -> Iface -> Iface) -> ModuleEnv
-              -> Maybe (Iface,IfaceDecls)
+loadModuleEnv :: (Import -> Iface -> (Iface,NameEnv)) -> ModuleEnv
+              -> Maybe (Iface,IfaceDecls,NameEnv)
 loadModuleEnv processIface me = do
   fm      <- meFocusedModule me
   lm      <- lookupModule fm me
-  imports <- mapM loadImport (T.mImports (lmModule lm))
-  return (lmInterface lm, mconcat imports)
+  (is,ns) <- mapAndUnzipM loadImport (T.mImports (lmModule lm))
+  return (lmInterface lm, mconcat is, mconcat ns)
   where
   loadImport i = do
     lm <- lookupModule (iModule i) me
-    return (ifPublic (processIface i (lmInterface lm)))
+    let (decls,names) = processIface i (lmInterface lm)
+    return (ifPublic decls,names)
 
 
 -- Loaded Modules --------------------------------------------------------------

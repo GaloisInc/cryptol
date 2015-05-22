@@ -84,14 +84,14 @@ renameModule m = do
 -- | Rename an expression in the context of the focused module.
 renameExpr :: P.Expr -> ModuleM P.Expr
 renameExpr e = do
-  env <- getFocusedEnv
+  (env,_) <- getFocusedEnv
   denv <- getDynEnv
   rename (deNames denv `R.shadowing` R.namingEnv env) e
 
 -- | Rename declarations in the context of the focused module.
 renameDecls :: (R.Rename d, T.FromDecl d) => [d] -> ModuleM [d]
 renameDecls ds = do
-  env <- getFocusedEnv
+  (env,_) <- getFocusedEnv
   denv <- getDynEnv
   rename (deNames denv `R.shadowing` R.namingEnv env) ds
 
@@ -195,7 +195,7 @@ fullyQualified i = i { iAs = Just (iModule i) }
 
 -- | Process the interface specified by an import.
 importIface :: P.Import -> ModuleM Iface
-importIface i = interpImport i `fmap` getIface (T.iModule i)
+importIface i = (fst . interpImport i) `fmap` getIface (T.iModule i)
 
 -- | Load a series of interfaces, merging their public interfaces.
 importIfaces :: [P.Import] -> ModuleM IfaceDecls
