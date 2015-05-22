@@ -42,13 +42,13 @@ runDoc :: NameEnv -> Doc -> PJ.Doc
 runDoc names (Doc f) = f names
 
 instance Show Doc where
-  show d = show (runDoc mempty d)
+  show d = show (runDoc M.mempty d)
 
 instance IsString Doc where
   fromString = text
 
 render :: Doc -> String
-render d = PJ.render (runDoc mempty d)
+render d = PJ.render (runDoc M.mempty d)
 
 class PP a where
   ppPrec :: Int -> a -> Doc
