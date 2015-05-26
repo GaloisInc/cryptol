@@ -80,6 +80,7 @@ apSubstAtom su atom =
                     return (pGt x y)
 
 
+{- TODO: Unused
 -- | The various way in which the given proposition may be true.
 -- The Boolean indicates if the atom is +ve:
 -- 'True' for positive, 'False' for -ve.
@@ -91,7 +92,7 @@ truePaths prop =
     Return True   -> [ [] ]
     If a t e      -> map ((True,a):)  (truePaths t) ++
                      map ((False,a):) (truePaths e)
-
+-}
 
 
 --------------------------------------------------------------------------------
@@ -331,11 +332,11 @@ balanceEq x y = (x,y)
 
 
 
-
+{- TODO: unused
 balanceGt (K (Nat a) :+ e1) (K (Nat b) :+ e2)
   | a >= b    = balanceGt (K (Nat (a - b)) :+ e1) e2
   | otherwise = balanceGt e1                      (K (Nat (b - a)) :+ e2)
-
+-}
 
 
 

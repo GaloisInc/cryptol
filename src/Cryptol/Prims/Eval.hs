@@ -483,8 +483,8 @@ splitAtV front back a val =
 
     -- remember that words are big-endian in cryptol, so the masked portion
     -- needs to be first, assuming that we're on a little-endian machine.
-    Nat rightWidth | aBit, VWord (BV w a) <- val ->
-      let i          = mask w a
+    Nat rightWidth | aBit, VWord (BV w v) <- val ->
+      let i          = mask w v
        in VTuple [ word leftWidth (i `shiftR` fromInteger rightWidth)
                  , word rightWidth i ]
 

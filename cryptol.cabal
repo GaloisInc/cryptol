@@ -1,5 +1,5 @@
 Name:                cryptol
-Version:             2.2.3
+Version:             2.3.0
 Synopsis:            Cryptol: The Language of Cryptography
 Description: Cryptol is a domain-specific language for specifying cryptographic algorithms. A Cryptol implementation of an algorithm resembles its mathematical specification more closely than an implementation in a general purpose language. For more, see <http://www.cryptol.net/>.
 License:             BSD3
@@ -23,7 +23,7 @@ source-repository head
 source-repository this
   type:     git
   location: https://github.com/GaloisInc/cryptol.git
-  tag:      v2.2.3
+  tag:      v2.3.0
 
 flag static
   default: False

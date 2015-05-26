@@ -30,9 +30,16 @@ import qualified Data.Map as Map
 
 type Trie   = Map
 
+trie_empty :: Map k a
 trie_empty  = Map.empty
+
+trie_insert :: Expr -> a -> Map Expr a -> Map Expr a
 trie_insert = Map.insert
+
+trie_delete :: Expr -> Map Expr a -> Map Expr a
 trie_delete = Map.delete
+
+trie_lookup :: Expr -> Map Expr a -> Maybe a
 trie_lookup = Map.lookup
 
 
