@@ -16,8 +16,10 @@ module Cryptol.Parser
   , guessPreProc, PreProc(..)
   ) where
 
-import Data.Maybe(fromMaybe)
-import Control.Monad(liftM2,msum)
+import           Data.Maybe(fromMaybe)
+import           Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy as T
+import           Control.Monad(liftM2,msum)
 
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
@@ -25,6 +27,7 @@ import Cryptol.Parser.Position
 import Cryptol.Parser.LexerUtils
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit(PreProc(..), guessPreProc)
+
 
 import Paths_cryptol
 }
@@ -716,7 +719,7 @@ field_ty_vals                  :: { [Named Type] }
 
 parseModName :: String -> Maybe ModName
 parseModName txt =
-  case parse defaultConfig { cfgModuleScope = False } modName txt of
+  case parseString defaultConfig { cfgModuleScope = False } modName txt of
     Right a -> Just (thing a)
     Left _  -> Nothing
 
@@ -727,7 +730,7 @@ addImplicitIncludes cfg (Program ds) =
         rng    = Range { source = cfgSource cfg, from = start, to = start }
 
 
-parseProgramWith :: Config -> String -> Either ParseError Program
+parseProgramWith :: Config -> Text -> Either ParseError Program
 parseProgramWith cfg s = case res s of
                           Left err -> Left err
                           Right a  -> Right (addImplicitIncludes cfg a)
@@ -736,49 +739,49 @@ parseProgramWith cfg s = case res s of
                       Layout   -> programLayout
                       NoLayout -> program
 
-parseModule :: Config -> String -> Either ParseError Module
+parseModule :: Config -> Text -> Either ParseError Module
 parseModule cfg = parse cfg { cfgModuleScope = True } vmodule
 
-parseProgram :: Layout -> String -> Either ParseError Program
+parseProgram :: Layout -> Text -> Either ParseError Program
 parseProgram l = parseProgramWith defaultConfig { cfgLayout = l }
 
 parseExprWith :: Config -> String -> Either ParseError Expr
-parseExprWith cfg = parse cfg { cfgModuleScope = False } expr
+parseExprWith cfg = parseString cfg { cfgModuleScope = False } expr
 
 parseExpr :: String -> Either ParseError Expr
 parseExpr = parseExprWith defaultConfig
 
-parseDeclWith :: Config -> String -> Either ParseError Decl
+parseDeclWith :: Config -> Text -> Either ParseError Decl
 parseDeclWith cfg = parse cfg { cfgModuleScope = False } decl
 
-parseDecl :: String -> Either ParseError Decl
+parseDecl :: Text -> Either ParseError Decl
 parseDecl = parseDeclWith defaultConfig
 
-parseDeclsWith :: Config -> String -> Either ParseError [Decl]
+parseDeclsWith :: Config -> Text -> Either ParseError [Decl]
 parseDeclsWith cfg = parse cfg { cfgModuleScope = ms } decls'
   where (ms, decls') = case cfgLayout cfg of
                          Layout   -> (True, declsLayout)
                          NoLayout -> (False, decls)
 
-parseDecls :: String -> Either ParseError [Decl]
+parseDecls :: Text -> Either ParseError [Decl]
 parseDecls = parseDeclsWith defaultConfig
 
-parseLetDeclWith :: Config -> String -> Either ParseError Decl
+parseLetDeclWith :: Config -> Text -> Either ParseError Decl
 parseLetDeclWith cfg = parse cfg { cfgModuleScope = False } letDecl
 
-parseLetDecl :: String -> Either ParseError Decl
+parseLetDecl :: Text -> Either ParseError Decl
 parseLetDecl = parseLetDeclWith defaultConfig
 
 parseReplWith :: Config -> String -> Either ParseError ReplInput
-parseReplWith cfg = parse cfg { cfgModuleScope = False } repl
+parseReplWith cfg = parseString cfg { cfgModuleScope = False } repl
 
 parseRepl :: String -> Either ParseError ReplInput
 parseRepl = parseReplWith defaultConfig
 
-parseSchemaWith :: Config -> String -> Either ParseError Schema
+parseSchemaWith :: Config -> Text -> Either ParseError Schema
 parseSchemaWith cfg = parse cfg { cfgModuleScope = False } schema
 
-parseSchema :: String -> Either ParseError Schema
+parseSchema :: Text -> Either ParseError Schema
 parseSchema = parseSchemaWith defaultConfig
 
 -- vim: ft=haskell

@@ -1,6 +1,7 @@
 {
 -- At present Alex generates code with too many warnings.
 {-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -w #-}
 module Cryptol.Parser.Lexer
   ( primLexer, lexer, Layout(..)
@@ -14,11 +15,22 @@ module Cryptol.Parser.Lexer
 import Cryptol.Parser.Position
 import Cryptol.Parser.LexerUtils
 import Cryptol.Parser.Unlit(unLit)
+import Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as Text
 }
 
-$id_first     = [a-zA-Z_α-ωΑ-Ω]
-$id_next      = [a-zA-Z0-9_'α-ωΑ-Ω]
+$uniupper       = \x1
+$unilower       = \x2
+$unidigit       = \x3
+$unisymbol      = \x4
+$unispace       = \x5
+$uniother       = \x6
+$unitick        = \x7
+
+@id_first     = [a-zA-Z_] | $unilower | $uniupper
+@id_next      = [a-zA-Z0-9_'] | $unilower | $uniupper | $unidigit | $unitick
+
+@id           = @id_first @id_next*
 
 @num2         = "0b" [0-1]+
 @num8         = "0o" [0-7]+
@@ -109,7 +121,7 @@ $white+                   { emit $ White Space }
 @num16                    { emitS (numToken 16 . drop 2) }
 
 "_"                       { emit $ Sym Underscore }
-$id_first $id_next*       { mkIdent }
+@id                       { mkIdent }
 
 "+"                       { emit $ Op Plus }
 "-"                       { emit $ Op Minus }
@@ -186,7 +198,7 @@ stateToInt (InChar {})    = char
 -- | Returns the tokens in the last position of the input that we processed.
 -- White space is removed, and layout processing is done as requested.
 -- This stream is fed to the parser.
-lexer :: Config -> String -> ([Located Token], Position)
+lexer :: Config -> Text -> ([Located Token], Position)
 lexer cfg cs = ( case cfgLayout cfg of
                    Layout   -> layout cfg lexemes
                    NoLayout -> lexemes
@@ -197,15 +209,12 @@ lexer cfg cs = ( case cfgLayout cfg of
 
 -- | Returns the tokens and the last position of the input that we processed.
 -- The tokens include whte space tokens.
-primLexer :: Config -> String -> ([Located Token], Position)
+primLexer :: Config -> Text -> ([Located Token], Position)
 primLexer cfg cs = run inp Normal
   where
   inp = Inp { alexPos           = start
             , alexInputPrevChar = '\n'
-            , input             = Text.unpack      -- XXX: Use Text
-                                $ unLit (cfgPreProc cfg)
-                                $ Text.pack cs
-            , moreBytes = [] }
+            , input             = unLit (cfgPreProc cfg) cs }
 
   singleR p = Range p p (cfgSource cfg)
 
@@ -237,19 +246,14 @@ primLexer cfg cs = run inp Normal
               , alexPos i)
 
       AlexError i'  ->
-          let p1 = alexPos i
-              p2 = alexPos i'
-              inp = input i
-              bad = if line p1 == line p2
-                      then take (col p2 - col p1) inp
-                      else takeWhile (/= '\n')    inp
+          let bad = Text.take 1 (input i)
           in
           ( [ Located (Range (alexPos i) (alexPos i') (cfgSource cfg))
                $ Token (Err LexicalError) bad ]
           , alexPos i')
       AlexSkip i' _ -> run i' s
       AlexToken i' l act ->
-        let txt         = take l (input i)
+        let txt         = Text.take (fromIntegral l) (input i)
             (mtok,s')   = act cfg (alexPos i) txt s
             (rest,pos)  = run i' $! s'
         in case mtok of

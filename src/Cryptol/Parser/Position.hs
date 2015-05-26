@@ -9,7 +9,8 @@
 {-# LANGUAGE Safe #-}
 module Cryptol.Parser.Position where
 
-import Data.List(foldl')
+import           Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy as T
 
 import Cryptol.Utils.PP
 
@@ -40,8 +41,8 @@ move p c = case c of
             '\n' -> p { col = 1, line = 1 + line p }
             _    -> p { col = 1 + col p }
 
-moves :: Position -> String -> Position
-moves p cs = foldl' move p cs
+moves :: Position -> Text -> Position
+moves p cs = T.foldl' move p cs
 
 rComb :: Range -> Range -> Range
 rComb r1 r2  = Range { from = rFrom, to = rTo, source = source r1 }
