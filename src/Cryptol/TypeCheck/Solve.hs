@@ -34,6 +34,7 @@ import qualified Cryptol.TypeCheck.Solver.Numeric.Simplify1 as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
+import           Cryptol.Utils.PP (text)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
 import           Cryptol.Parser.Position(rCombs)
@@ -46,7 +47,6 @@ import qualified Data.Map as Map
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 
-import           Text.PrettyPrint(text)
 
 {- | Add additional constraints that ensure validity of type function.
 Note that these constraints do not introduce additional malformed types,

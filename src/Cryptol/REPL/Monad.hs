@@ -27,6 +27,7 @@ module Cryptol.REPL.Monad (
   , rethrowEvalError
 
     -- ** Environment
+  , getFocusedEnv, keepOne
   , getModuleEnv, setModuleEnv
   , getDynEnv, setDynEnv
   , uniqify
@@ -341,14 +342,14 @@ keepOne src as = case as of
   [a] -> a
   _   -> panic ("REPL: " ++ src) ["name clash in interface file"]
 
-getVars :: REPL (Map.Map P.QName M.IfaceDecl)
-getVars  = do
+getFocusedEnv :: REPL (M.IfaceDecls,NameEnv)
+getFocusedEnv  = do
   me <- getModuleEnv
   denv <- getDynEnv
   -- the subtle part here is removing the #Uniq prefix from
   -- interactively-bound variables, and also excluding any that are
   -- shadowed and thus can no longer be referenced
-  let decls = M.focusedEnv me
+  let (decls,names) = M.focusedEnv me
       edecls = M.ifDecls (M.deIfaceDecls denv)
       -- is this QName something the user might actually type?
       isShadowed (qn@(P.QName (Just (P.ModName ['#':_])) name), _) =
@@ -364,18 +365,21 @@ getVars  = do
               . map unqual
               . filter isShadowed
               $ Map.toList edecls
-  return (keepOne "getVars" `fmap` (M.ifDecls decls `mappend` edecls'))
+  return (decls `mappend` mempty { M.ifDecls = edecls' }, names)
+
+getVars :: REPL (Map.Map P.QName M.IfaceDecl)
+getVars  = do
+  (decls,_) <- getFocusedEnv
+  return (keepOne "getVars" `fmap` M.ifDecls decls)
 
 getTSyns :: REPL (Map.Map P.QName T.TySyn)
 getTSyns  = do
-  me <- getModuleEnv
-  let decls = M.focusedEnv me
+  (decls,_) <- getFocusedEnv
   return (keepOne "getTSyns" `fmap` M.ifTySyns decls)
 
 getNewtypes :: REPL (Map.Map P.QName T.Newtype)
 getNewtypes = do
-  me <- getModuleEnv
-  let decls = M.focusedEnv me
+  (decls,_) <- getFocusedEnv
   return (keepOne "getNewtypes" `fmap` M.ifNewtypes decls)
 
 -- | Get visible variable names.
@@ -594,6 +598,14 @@ userOptions  = mkOptionMap
                          let cfg = M.meSolverConfig me
                          setModuleEnv me { M.meSolverConfig = cfg{ T.solverVerbose = fromIntegral n } }
           _        -> return ()
+  , OptionDescr "core-lint" (EnvBool False)
+    (const (return Nothing))
+    "Enable sanity checking of type-checker" $
+      let setIt x = do me <- getModuleEnv
+                       setModuleEnv me { M.meCoreLint = x }
+      in \case EnvBool True  -> setIt M.CoreLint
+               EnvBool False -> setIt M.NoCoreLint
+               _             -> return ()
   ]
 
 -- | Check the value to the `base` option.

@@ -32,6 +32,7 @@ import           Cryptol.TypeCheck.Solver.Numeric.Defined
 import           Cryptol.TypeCheck.Solver.Numeric.Simplify
 import           Cryptol.TypeCheck.Solver.Numeric.NonLin
 import           Cryptol.TypeCheck.Solver.Numeric.SMT
+import           Cryptol.Utils.PP ( Doc )
 import           Cryptol.Utils.Panic ( panic )
 
 import           MonadLib
@@ -46,7 +47,6 @@ import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef',
 import           Prelude hiding (any,all)
 
 import qualified SimpleSMT as SMT
-import           Text.PrettyPrint(Doc)
 
 
 -- | We use this to remember what we simplified

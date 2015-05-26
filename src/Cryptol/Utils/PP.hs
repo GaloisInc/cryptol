@@ -8,21 +8,47 @@
 
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE PatternGuards #-}
-module Cryptol.Utils.PP
-  ( PP(..)
-  , pp
-  , pretty
-  , optParens
-  , ppInfix
-  , Assoc(..)
-  , Infix(..)
-  , module Text.PrettyPrint
-  , ordinal
-  , ordSuffix
-  , commaSep
-  ) where
+module Cryptol.Utils.PP where
 
-import Text.PrettyPrint
+import           Cryptol.ModuleSystem.Name
+
+import           Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+import qualified Data.Monoid as M
+import           Data.String (IsString(..))
+import qualified Text.PrettyPrint as PJ
+
+
+-- | How to display names.
+newtype NameEnv = NameEnv (Map QName QName)
+                  deriving (Show)
+
+mkNameEnv :: [(QName,QName)] -> NameEnv
+mkNameEnv  = NameEnv . Map.fromList
+
+-- | Compose two naming environments.
+extend :: NameEnv -> NameEnv -> NameEnv
+extend (NameEnv l) (NameEnv r) = NameEnv (lkp `fmap` l)
+  where
+  lkp a = Map.findWithDefault a a r
+
+instance M.Monoid NameEnv where
+  mempty                          = NameEnv Map.empty
+  mappend (NameEnv a) (NameEnv b) = NameEnv (Map.union a b)
+
+newtype Doc = Doc (NameEnv -> PJ.Doc)
+
+runDoc :: NameEnv -> Doc -> PJ.Doc
+runDoc names (Doc f) = f names
+
+instance Show Doc where
+  show d = show (runDoc M.mempty d)
+
+instance IsString Doc where
+  fromString = text
+
+render :: Doc -> String
+render d = PJ.render (runDoc M.mempty d)
 
 class PP a where
   ppPrec :: Int -> a -> Doc
@@ -92,4 +118,114 @@ ordSuffix n0 =
   m       = n `mod` 100
   notTeen = m < 11 || m > 19
 
+
+-- Wrapped Combinators ---------------------------------------------------------
+
+liftPJ :: PJ.Doc -> Doc
+liftPJ d = Doc (const d)
+
+liftPJ1 :: (PJ.Doc -> PJ.Doc) -> Doc -> Doc
+liftPJ1 f (Doc d) = Doc (\env -> f (d env))
+
+liftPJ2 :: (PJ.Doc -> PJ.Doc -> PJ.Doc) -> (Doc -> Doc -> Doc)
+liftPJ2 f (Doc a) (Doc b) = Doc (\e -> f (a e) (b e))
+
+liftSep :: ([PJ.Doc] -> PJ.Doc) -> ([Doc] -> Doc)
+liftSep f ds = Doc (\e -> f [ d e | Doc d <- ds ])
+
+(<>) :: Doc -> Doc -> Doc
+(<>)  = liftPJ2 (PJ.<>)
+
+(<+>) :: Doc -> Doc -> Doc
+(<+>)  = liftPJ2 (PJ.<+>)
+
+($$) :: Doc -> Doc -> Doc
+($$)  = liftPJ2 (PJ.$$)
+
+sep :: [Doc] -> Doc
+sep  = liftSep PJ.sep
+
+fsep :: [Doc] -> Doc
+fsep  = liftSep PJ.fsep
+
+hsep :: [Doc] -> Doc
+hsep  = liftSep PJ.hsep
+
+hcat :: [Doc] -> Doc
+hcat  = liftSep PJ.hcat
+
+vcat :: [Doc] -> Doc
+vcat  = liftSep PJ.vcat
+
+hang :: Doc -> Int -> Doc -> Doc
+hang (Doc p) i (Doc q) = Doc (\e -> PJ.hang (p e) i (q e))
+
+nest :: Int -> Doc -> Doc
+nest n = liftPJ1 (PJ.nest n)
+
+parens :: Doc -> Doc
+parens  = liftPJ1 PJ.parens
+
+braces :: Doc -> Doc
+braces  = liftPJ1 PJ.braces
+
+brackets :: Doc -> Doc
+brackets  = liftPJ1 PJ.brackets
+
+quotes :: Doc -> Doc
+quotes  = liftPJ1 PJ.quotes
+
+punctuate :: Doc -> [Doc] -> [Doc]
+punctuate p = go
+  where
+  go (d:ds) | null ds   = [d]
+            | otherwise = d <> p : go ds
+  go []                 = []
+
+text :: String -> Doc
+text s = liftPJ (PJ.text s)
+
+char :: Char -> Doc
+char c = liftPJ (PJ.char c)
+
+integer :: Integer -> Doc
+integer i = liftPJ (PJ.integer i)
+
+int :: Int -> Doc
+int i = liftPJ (PJ.int i)
+
+comma :: Doc
+comma  = liftPJ PJ.comma
+
+empty :: Doc
+empty  = liftPJ PJ.empty
+
+colon :: Doc
+colon  = liftPJ PJ.colon
+
+
+-- Names -----------------------------------------------------------------------
+
+withNameEnv :: (NameEnv -> Doc) -> Doc
+withNameEnv f = Doc (\e -> runDoc e (f e))
+
+instance PP ModName where
+  ppPrec _ (ModName ns) = hcat (punctuate (text "::") (map text ns))
+
+instance PP QName where
+  ppPrec _ qn = withNameEnv $ \ (NameEnv env) ->
+    let QName mb n = Map.findWithDefault qn qn env
+        mbNs = maybe empty (\ mn -> pp mn <> text "::") mb
+     in mbNs <> pp n
+
+instance PP Name where
+  ppPrec _ (Name x)       = text x
+  -- XXX: This may clash with user-specified names.
+  ppPrec _ (NewName p x)  = text "__" <> passName p <> int x
+
+passName :: Pass -> Doc
+passName pass =
+  case pass of
+    NoPat       -> text "p"
+    MonoValues  -> text "mv"
 

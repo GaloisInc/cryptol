@@ -59,6 +59,7 @@ module Cryptol.Parser.AST
   , cppKind, ppSelector
   ) where
 
+import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.Position
 import Cryptol.Prims.Syntax
 import Cryptol.Utils.PP
@@ -74,31 +75,6 @@ import           Numeric(showIntAtBase)
 import           Data.Monoid (Monoid(..))
 #endif
 
--- | Module names are just namespaces.
---
--- INVARIANT: the list of strings should never be empty in a valid module name.
-newtype ModName = ModName [String]
-                  deriving (Eq,Ord,Show)
-
-data Name     = Name String
-              | NewName Pass Int
-               deriving (Eq,Ord,Show)
-
-data QName    = QName (Maybe ModName) Name
-               deriving (Eq,Ord,Show)
-
-mkQual :: ModName -> Name -> QName
-mkQual  = QName . Just
-
-mkUnqual :: Name -> QName
-mkUnqual  = QName Nothing
-
-unqual :: QName -> Name
-unqual (QName _ n) = n
-
-
-data Pass     = NoPat | MonoValues
-               deriving (Eq,Ord,Show)
 
 -- | A name with location information.
 type LName    = Located Name
@@ -108,6 +84,7 @@ type LQName   = Located QName
 
 -- | A string with location information.
 type LString  = Located String
+
 
 newtype Program = Program [TopDecl]
                   deriving (Eq,Show)
@@ -546,26 +523,6 @@ instance PP Bind where
 instance PP TySyn where
   ppPrec _ (TySyn x xs t) = text "type" <+> ppL x <+> fsep (map (ppPrec 1) xs)
                                         <+> text "=" <+> pp t
-
-instance PP ModName where
-  ppPrec _ (ModName ns) = hcat (punctuate (text "::") (map text ns))
-
-instance PP QName where
-  ppPrec _ (QName mb n) = mbNs <> pp n
-    where
-    mbNs = maybe empty (\ mn -> pp mn <> text "::") mb
-
-instance PP Name where
-  ppPrec _ (Name x)       = text x
-  -- XXX: This may clash with user-specified names.
-  ppPrec _ (NewName p x)  = text "__" <> passName p <> int x
-
-passName :: Pass -> Doc
-passName pass =
-  case pass of
-    NoPat       -> text "p"
-    MonoValues  -> text "mv"
-
 instance PP Literal where
   ppPrec _ lit =
     case lit of

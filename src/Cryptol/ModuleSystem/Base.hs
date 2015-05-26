@@ -11,7 +11,8 @@ module Cryptol.ModuleSystem.Base where
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), deIfaceDecls)
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
-import Cryptol.ModuleSystem.Env (lookupModule, LoadedModule(..))
+import Cryptol.ModuleSystem.Env (lookupModule, LoadedModule(..)
+                                , meCoreLint, CoreLint(..))
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Value           as E
 import qualified Cryptol.ModuleSystem.Renamer as R
@@ -24,7 +25,10 @@ import Cryptol.Parser.Position (HasLoc(..), Range, emptyRange)
 import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Depends as T
+import qualified Cryptol.TypeCheck.PP as T
+import qualified Cryptol.TypeCheck.Sanity as TcSanity
 import Cryptol.Utils.PP (pretty)
+import Cryptol.Utils.Panic (panic)
 
 import Cryptol.Prelude (writePreludeContents)
 
@@ -82,14 +86,14 @@ renameModule m = do
 -- | Rename an expression in the context of the focused module.
 renameExpr :: P.Expr -> ModuleM P.Expr
 renameExpr e = do
-  env <- getFocusedEnv
+  (env,_) <- getFocusedEnv
   denv <- getDynEnv
   rename (deNames denv `R.shadowing` R.namingEnv env) e
 
 -- | Rename declarations in the context of the focused module.
 renameDecls :: (R.Rename d, T.FromDecl d) => [d] -> ModuleM [d]
 renameDecls ds = do
-  env <- getFocusedEnv
+  (env,_) <- getFocusedEnv
   denv <- getDynEnv
   rename (deNames denv `R.shadowing` R.namingEnv env) ds
 
@@ -193,7 +197,7 @@ fullyQualified i = i { iAs = Just (iModule i) }
 
 -- | Process the interface specified by an import.
 importIface :: P.Import -> ModuleM Iface
-importIface i = interpImport i `fmap` getIface (T.iModule i)
+importIface i = (fst . interpImport i) `fmap` getIface (T.iModule i)
 
 -- | Load a series of interfaces, merging their public interfaces.
 importIfaces :: [P.Import] -> ModuleM IfaceDecls
@@ -285,7 +289,8 @@ checkExpr e = do
   re  <- renameExpr npe
   env <- getQualifiedEnv
   let env' = env <> deIfaceDecls denv
-  typecheck T.tcExpr re env'
+      act  = TCAction { tcAction = T.tcExpr, tcLinter = exprLinter }
+  typecheck act re env'
 
 -- | Typecheck a group of declarations.
 checkDecls :: (HasLoc d, R.Rename d, T.FromDecl d) => [d] -> ModuleM [T.DeclGroup]
@@ -295,7 +300,8 @@ checkDecls ds = do
   denv <- getDynEnv
   env <- getQualifiedEnv
   let env' = env <> deIfaceDecls denv
-  typecheck T.tcDecls rds env'
+      act  = TCAction { tcAction = T.tcDecls, tcLinter = declsLinter }
+  typecheck act rds env'
 
 -- | Typecheck a module.
 checkModule :: P.Module -> ModuleM T.Module
@@ -312,26 +318,72 @@ checkModule m = do
   -- rename everything
   scm <- renameModule npm
 
+  let act = TCAction { tcAction = T.tcModule
+                     , tcLinter = moduleLinter (P.thing (P.mName m)) }
   -- typecheck
-  tcm <- typecheck T.tcModule scm =<< importIfacesTc (map thing (P.mImports scm))
+  tcm <- typecheck act scm =<< importIfacesTc (map thing (P.mImports scm))
 
   return (Cryptol.Transform.MonoValues.rewModule tcm)
 
+data TCLinter o = TCLinter
+  { lintCheck ::
+      o -> T.InferInput -> Either TcSanity.Error [TcSanity.ProofObligation]
+  , lintModule :: Maybe P.ModName
+  }
 
-type TCAction i o = i -> T.InferInput -> IO (T.InferOutput o)
+
+exprLinter :: TCLinter (T.Expr, T.Schema)
+exprLinter = TCLinter
+  { lintCheck = \(e',s) i ->
+      case TcSanity.tcExpr (T.inpVars i) e' of
+        Left err     -> Left err
+        Right (s1,os)
+          | TcSanity.same s s1  -> Right os
+          | otherwise -> Left (TcSanity.TypeMismatch s s1)
+  , lintModule = Nothing
+  }
+
+declsLinter :: TCLinter [ T.DeclGroup ]
+declsLinter = TCLinter
+  { lintCheck = \ds' i -> case TcSanity.tcDecls (T.inpVars i) ds' of
+                            Left err -> Left err
+                            Right os -> Right os
+
+  , lintModule = Nothing
+  }
+
+moduleLinter :: P.ModName -> TCLinter T.Module
+moduleLinter m = TCLinter
+  { lintCheck   = \m' i -> case TcSanity.tcModule (T.inpVars i) m' of
+                            Left err -> Left err
+                            Right os -> Right os
+  , lintModule  = Just m
+  }
+
+
+data TCAction i o = TCAction
+  { tcAction :: i -> T.InferInput -> IO (T.InferOutput o)
+  , tcLinter :: TCLinter o
+  }
 
 typecheck :: HasLoc i => TCAction i o -> i -> IfaceDecls -> ModuleM o
-typecheck action i env = do
+typecheck act i env = do
 
   let range = fromMaybe emptyRange (getLoc i)
   input <- genInferInput range env
-  out   <- io (action i input)
+  out   <- io (tcAction act i input)
 
   case out of
 
     T.InferOK warns seeds o ->
       do setNameSeeds seeds
          typeCheckWarnings warns
+         menv <- getModuleEnv
+         case meCoreLint menv of
+           NoCoreLint -> return ()
+           CoreLint   -> case lintCheck (tcLinter act) o input of
+                           Right as -> io $ mapM_ (print . T.pp) as
+                           Left err -> panic "Core lint failed:" [show err]
          return o
 
     T.InferFailed warns errs ->

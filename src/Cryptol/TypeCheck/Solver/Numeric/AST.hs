@@ -24,6 +24,8 @@ module Cryptol.TypeCheck.Solver.Numeric.AST
 import          Cryptol.TypeCheck.AST(TVar)
 import          Cryptol.TypeCheck.PP(pp)
 import          Cryptol.TypeCheck.Solver.InfNat ( Nat'(..) )
+import          Cryptol.Utils.PP ( Doc, text, (<+>), hang, ($$), char, (<>)
+                                 , parens, integer, sep )
 import          Cryptol.Utils.Panic ( panic )
 import          Cryptol.Utils.Misc ( anyJust )
 
@@ -36,8 +38,6 @@ import           Data.Set ( Set )
 import qualified Data.Set as Set
 import qualified Control.Applicative as A
 import           Control.Monad ( liftM, ap )
-import           Text.PrettyPrint ( Doc, text, (<+>), hang, ($$), char, (<>)
-                                  , parens, integer, sep )
 
 
 infixr 2 :||

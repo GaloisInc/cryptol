@@ -1,8 +1,12 @@
 module Cryptol.TypeCheck.Sanity
   ( tcExpr
   , tcDecls
-  , ProofObligation(..)
+  , tcModule
+  , ProofObligation
+  , Error(..)
+  , same
   ) where
+
 
 import Cryptol.TypeCheck.AST
 import Cryptol.Prims.Types(typeOf)
@@ -29,6 +33,9 @@ tcDecls env ds0 = case runTcM env (go ds0) of
   go []       = return ()
   go (d : ds) = do xs <- checkDeclGroup d
                    withVars xs (go ds)
+
+tcModule :: Map QName Schema -> Module -> Either Error [ ProofObligation ]
+tcModule env m = tcDecls env (mDecls m)
 
 
 --------------------------------------------------------------------------------
@@ -408,7 +415,7 @@ data RO = RO
   , roVars    :: Map QName Schema
   }
 
-data ProofObligation = PForall [TParam] [Prop] Prop
+type ProofObligation = Schema -- but the type is of kind Prop
 
 data RW = RW
   { woProofObligations :: [ProofObligation]
@@ -464,9 +471,9 @@ data Error =
   | RepeatedVariableInForall TParam
   | BadMatch Type
   | EmptyArm
-
   | UndefinedTypeVaraible TVar
   | UndefinedVariable QName
+    deriving Show
 
 reportError :: Error -> TcM a
 reportError e = TcM (raise e)
@@ -493,7 +500,7 @@ proofObligation :: Prop -> TcM ()
 proofObligation p = TcM $
   do ro <- ask
      sets_ $ \rw -> rw { woProofObligations =
-                             PForall (Map.elems (roTVars ro)) (roAsmps ro) p
+                             Forall (Map.elems (roTVars ro)) (roAsmps ro) p
                            : woProofObligations rw }
 
 lookupTVar :: TVar -> TcM Kind

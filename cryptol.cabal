@@ -96,6 +96,7 @@ library
                        Cryptol.ModuleSystem.Env,
                        Cryptol.ModuleSystem.Interface,
                        Cryptol.ModuleSystem.Monad,
+                       Cryptol.ModuleSystem.Name,
                        Cryptol.ModuleSystem.NamingEnv,
                        Cryptol.ModuleSystem.Renamer,
 
