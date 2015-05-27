@@ -194,7 +194,7 @@ _testSimpGoals = Num.withSolver cfg $ \s ->
                      }
 
   asmps = [] -- [ pFin (tv 0) ]
-  gs = map fakeGoal [ pFin (num 2 .^. tv 0 .-. num 1) ]
+  gs = map fakeGoal [ num 2 .^. tv 0 =#= num 8, pFin (tv 0) ]
 
     -- [ tv 0 =#= tInf, tMod (num 3) (tv 0) =#= num 4 ]
 

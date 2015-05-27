@@ -17,6 +17,7 @@ module Cryptol.TypeCheck.Solver.Numeric.Simplify
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr
+import           Cryptol.TypeCheck.Solver.InfNat(genLog,rootExact)
 import           Cryptol.Utils.Panic( panic )
 import           Cryptol.Utils.Misc ( anyJust )
 
@@ -82,11 +83,8 @@ crySimpStep prop =
     x :==: y ->
       case (x,y) of
         (K a, K b)     -> Just (if a == b then PTrue else PFalse)
-
-        (K (Nat 0), _) -> cryIs0 True y
-        (K (Nat 1), _) -> cryIs1 True y
-        (_, K (Nat 0)) -> cryIs0 True x
-        (_, K (Nat 1)) -> cryIs1 True x
+        (K (Nat n), _) | Just p <- cryIsNat True n y -> Just p
+        (_, K (Nat n)) | Just p <- cryIsNat True n x -> Just p
 
         _ | x == y    -> Just PTrue
           | otherwise -> case (x,y) of
@@ -97,7 +95,7 @@ crySimpStep prop =
     x :>: y ->
       case (x,y) of
         (K (Nat 0),_)   -> Just PFalse
-        (K (Nat 1),_)   -> cryIs0 True y
+        (K (Nat 1),_)   -> Just $ y :==: zero
         (_, K (Nat 0))  -> cryGt0 True x
 
         _ | x == y      -> Just PFalse
@@ -369,26 +367,14 @@ cryIsEq x y =
   case (x,y) of
     (K m, K n)      -> if m == n then PTrue else PFalse
 
-    (K (Nat 0),_)   -> cryIs0' y
-    (K (Nat 1),_)   -> cryIs1' y
-    (_, K (Nat 0))  -> cryIs0' x
-    (_, K (Nat 1))  -> cryIs1' x
-
     (K Inf, _)      -> Not (Fin y)
     (_, K Inf)      -> Not (Fin x)
 
+    (K (Nat n),_) | Just p <- cryIsNat False n y -> p
+    (_,K (Nat n)) | Just p <- cryIsNat False n x -> p
+
     _               -> Not (Fin x) :&& Not (Fin y)
                    :|| Fin x :&& Fin y :&& cryNatOp (:==:) x y
-  where
-  cryIs0' e = case cryIs0 False e of
-                Just e' -> e'
-                Nothing -> panic "cryIsEq"
-                                 ["`cryIs0 False` returned `Nothing`."]
-
-  cryIs1' e = case cryIs1 False e of
-                Just e' -> e'
-                Nothing -> panic "cryIsEq"
-                                 ["`cryIs0 False` returned `Nothing`."]
 
 
 
@@ -397,10 +383,8 @@ cryIsEq x y =
 cryIsGt :: Expr -> Expr -> Prop
 cryIsGt (K m) (K n)   = if m > n then PTrue else PFalse
 cryIsGt (K (Nat 0)) _ = PFalse
-cryIsGt (K (Nat 1)) e = case cryIs0 False e of
-                          Just e' -> e'
-                          Nothing -> panic "cryIsGt (1)"
-                                           ["`cryGt0 False` return `Nothing`"]
+cryIsGt (K (Nat 1)) e = e :== zero
+
 cryIsGt e (K (Nat 0)) = case cryGt0 False e of
                           Just e' -> e'
                           Nothing -> panic "cryIsGt (2)"
@@ -444,85 +428,99 @@ cryIsFin expr =
     LenFromThenTo  _ _ _ -> Just PTrue
 
 
-
--- | Simplify @t :== 0@ or @t :==: 0@.
--- Assumes defined input.
-cryIs0 :: Bool -> Expr -> Maybe Prop
-cryIs0 useFinite expr =
+cryIsNat :: Bool -> Integer -> Expr -> Maybe Prop
+cryIsNat useFinite n expr =
   case expr of
-    K Inf               -> Just PFalse
-    K (Nat n)           -> Just (if n == 0 then PTrue else PFalse)
+    K Inf     -> Just PFalse
+
+    K (Nat m) -> Just (if m == n then PTrue else PFalse)
+
     Var _ | useFinite   -> Nothing
-          | otherwise   -> Just (Fin expr :&& expr :==: zero)
-    t1 :+ t2            -> Just (eq t1 zero :&& eq t2 zero)
-    t1 :- t2            -> Just (eq t1 t2)
-    t1 :* t2            -> Just (eq t1 zero :|| eq t2 zero)
-    Div t1 t2           -> Just (gt t2 t1)
+          | otherwise   -> Just (Fin expr :&& expr :==: K (Nat n))
+
+    K (Nat m) :+ e2     -> Just $ if m > n then PFalse
+                                           else eq e2 $ K $ Nat $ m - n
+
+    x :+ y
+      | n == 0          -> Just (eq x zero :&& eq y zero)
+      | n == 1          -> Just (eq x zero :&& eq y one :||
+                                 eq x one  :&& eq y zero)
+      | otherwise       -> Nothing
+
+    e1 :- e2            -> Just $ eq (K (Nat n) :+ e1) e2
+
+    K (Nat m) :* e2     ->
+      Just $ if m == 0
+                then if n == 0 then PTrue else PFalse
+                else case divMod n m of
+                       (q,r) -> if r == 0 then eq e2 (K (Nat q))
+                                          else PFalse
+    e1 :* e2
+      | n == 0          -> Just (eq e1 zero :|| eq e2 zero)
+      | n == 1          -> Just (eq e1 one :&& eq e2 one)
+      | otherwise       -> Nothing
+
+    -- (x >= n * y) /\ ((n+1) * y > x)
+    Div x y             -> Just (gt (one :+ x) (K (Nat n) :* y) :&&
+                                 gt (K (Nat (n + 1))) y)
+
     Mod _ _ | useFinite -> Nothing
-            | otherwise -> Just (cryNatOp (:==:) expr zero)
-            -- or: Just (t2 `Divides` t1)
-    t1 :^^ t2           -> Just (eq t1 zero :&& gt t2 zero)
-    Min t1 t2           -> Just (eq t1 zero :|| eq t2 zero)
-    Max t1 t2           -> Just (eq t1 zero :&& eq t2 zero)
-    Lg2 t1              -> Just (eq t1 zero :|| eq t1 one)
-    Width t1            -> Just (eq t1 zero)
-    LenFromThen _ _ _   -> Just PFalse
+            | otherwise -> Just (cryNatOp (:==:) expr (K (Nat n)))
+
+
+    K (Nat m) :^^ y     -> Just $ case genLog n m of
+                                    Just (a, exact)
+                                      | exact -> eq y (K (Nat a))
+                                    _ -> PFalse
+    x :^^ K (Nat m)     -> Just $ case rootExact n m of
+                                    Just a  -> eq x (K (Nat a))
+                                    Nothing -> PFalse
+    x :^^ y
+      | n == 0          -> Just (eq x zero :&& gt y zero)
+      | n == 1          -> Just (eq x one  :|| eq y zero)
+      | otherwise       -> Nothing
+
+    Min x y
+      | n == 0          -> Just (eq x zero :|| eq y zero)
+      | otherwise       -> Just ( eq x (K (Nat n)) :&& gt y (K (Nat (n - 1)))
+                              :|| eq y (K (Nat n)) :&& gt x (K (Nat (n - 1)))
+                                )
+
+    Max x y             -> Just ( eq x (K (Nat n)) :&& gt (K (Nat (n + 1))) y
+                              :|| eq y (K (Nat n)) :&& gt (K (Nat (n + 1))) y
+                                )
+
+    -- Don't bother as we should probalby remove this one
+    Lg2 _               -> Nothing
+
+    Width x
+      | n == 0          -> Just (eq x zero)
+      | otherwise       -> Just (gt x (K (Nat (2^(n-1) - 1))) :&&
+                                 gt (K (Nat (2 ^ n))) x)
+
+    LenFromThen x y w
+      | n == 0          -> Just PFalse
+
+      -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
+      | n == 1          -> Just (gt y x :&& gt (y :+ one) (two :^^ w))
+      | otherwise       -> Nothing -- XXX: maybe some more?
+
 
     -- See `nLenFromThenTo` in 'Cryptol.TypeCheck.Solver.InfNat'
-    LenFromThenTo x y z -> Just ( gt x y :&& gt z x
+    LenFromThenTo x y z
+      | n == 0          -> Just ( gt x y :&& gt z x
                               :|| gt y x :&& gt x z
                                 )
 
-  where
-  eq x y = if useFinite then x :==: y else x :== y
-  gt x y = if useFinite then x :>: y  else x :>  y
-
-
-cryIs1 :: Bool -> Expr -> Maybe Prop
-cryIs1 useFinite expr =
-  case expr of
-    K Inf               -> Just PFalse
-    K (Nat n)           -> Just (if n == 1 then PTrue else PFalse)
-    Var _ | useFinite   -> Nothing
-          | otherwise   -> Just (Fin expr :&& expr :==: one)
-    t1 :+ t2            -> Just (eq t1 zero :&& eq t2 one :||
-                                 eq t1 one  :&& eq t1 zero)
-    t1 :- t2            -> Just (eq t1 (t2 :+ one))
-    t1 :* t2            -> Just (eq t1 one :&& eq t2 one)
-
-    Div t1 t2           -> Just (gt (two :* t2) t1 :&& gt (t1 :+ one) t2)
-
-    Mod _ _ | useFinite -> Nothing
-            | otherwise -> Just (cryNatOp (:==:) expr one)
-
-
-    t1 :^^ t2           -> Just (eq t1 one :|| eq t2 zero)
-
-    Min t1 t2           -> Just (eq t1 one :&& gt t2 zero :||
-                                 eq t2 one :&& gt t1 zero)
-
-    Max t1 t2           -> Just (eq t1 one :&& gt two t2 :||
-                                 eq t2 one :&& gt two t1)
-
-    Lg2 t1              -> Just (eq t1 two)
-    Width t1            -> Just (eq t1 one)
-
-    -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
-    LenFromThen x y w   -> Just (gt y x :&& gt (y :+ one) (two :^^ w))
-
-    -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
-    LenFromThenTo x y z -> Just (gt z y :&& gt (x :+ one) z     :||
+      -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
+      | n == 1          -> Just (gt z y :&& gt (x :+ one) z     :||
                                  gt y z :&& gt (z :+ one) x)
+      | otherwise       -> Nothing -- XXX: maybe some more?
+
+
   where
   eq x y = if useFinite then x :==: y else x :== y
   gt x y = if useFinite then x :>: y  else x :>  y
-
-
-
-
-
-
-
 
 
 
