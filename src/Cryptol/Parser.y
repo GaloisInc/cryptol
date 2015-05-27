@@ -745,10 +745,10 @@ parseModule cfg = parse cfg { cfgModuleScope = True } vmodule
 parseProgram :: Layout -> Text -> Either ParseError Program
 parseProgram l = parseProgramWith defaultConfig { cfgLayout = l }
 
-parseExprWith :: Config -> String -> Either ParseError Expr
-parseExprWith cfg = parseString cfg { cfgModuleScope = False } expr
+parseExprWith :: Config -> Text -> Either ParseError Expr
+parseExprWith cfg = parse cfg { cfgModuleScope = False } expr
 
-parseExpr :: String -> Either ParseError Expr
+parseExpr :: Text -> Either ParseError Expr
 parseExpr = parseExprWith defaultConfig
 
 parseDeclWith :: Config -> Text -> Either ParseError Decl
@@ -772,10 +772,10 @@ parseLetDeclWith cfg = parse cfg { cfgModuleScope = False } letDecl
 parseLetDecl :: Text -> Either ParseError Decl
 parseLetDecl = parseLetDeclWith defaultConfig
 
-parseReplWith :: Config -> String -> Either ParseError ReplInput
-parseReplWith cfg = parseString cfg { cfgModuleScope = False } repl
+parseReplWith :: Config -> Text -> Either ParseError ReplInput
+parseReplWith cfg = parse cfg { cfgModuleScope = False } repl
 
-parseRepl :: String -> Either ParseError ReplInput
+parseRepl :: Text -> Either ParseError ReplInput
 parseRepl = parseReplWith defaultConfig
 
 parseSchemaWith :: Config -> Text -> Either ParseError Schema

@@ -74,6 +74,7 @@ import qualified Data.IntMap as IntMap
 import System.IO(hFlush,stdout)
 import System.Random.TF(newTFGen)
 import Numeric (showFFloat)
+import qualified Data.Text.Lazy as T
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative ((<$>))
@@ -675,10 +676,10 @@ replParse parse str = case parse str of
   Left e  -> raise (ParseError e)
 
 replParseInput :: String -> REPL P.ReplInput
-replParseInput = replParse $ parseReplWith interactiveConfig
+replParseInput = replParse (parseReplWith interactiveConfig . T.pack)
 
 replParseExpr :: String -> REPL P.Expr
-replParseExpr = replParse $ parseExprWith interactiveConfig
+replParseExpr = replParse (parseExprWith interactiveConfig . T.pack)
 
 interactiveConfig :: Config
 interactiveConfig = defaultConfig { cfgSource = "<interactive>" }
