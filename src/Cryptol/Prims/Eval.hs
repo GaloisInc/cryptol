@@ -489,7 +489,7 @@ splitAtV front back a val =
                  , word rightWidth i ]
 
     _ ->
-      let (ls,rs) = splitAt (fromInteger leftWidth) (fromSeq val)
+      let (ls,rs) = genericSplitAt leftWidth (fromSeq val)
        in VTuple [VSeq aBit ls, toSeq back a rs]
 
   where
