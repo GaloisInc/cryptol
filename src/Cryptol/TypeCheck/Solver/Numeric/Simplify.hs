@@ -439,7 +439,7 @@ cryIsNat useFinite n expr =
           | otherwise   -> Just (Fin expr :&& expr :==: K (Nat n))
 
     K (Nat m) :+ e2     -> Just $ if m > n then PFalse
-                                           else eq e2 $ K $ Nat $ m - n
+                                           else eq e2 $ K $ Nat $ n - m
 
     x :+ y
       | n == 0          -> Just (eq x zero :&& eq y zero)
