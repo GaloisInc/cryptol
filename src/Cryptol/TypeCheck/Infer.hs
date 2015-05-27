@@ -642,8 +642,13 @@ simpBind d =
       case simpTypeMaybe t of
         Nothing -> d
         Just t1 -> d { dSignature  = Forall as qs t1
-                     , dDefinition = ECast (dDefinition d) t1
+                     , dDefinition = castUnder t1 (dDefinition d)
                      }
+  where
+  -- Assumes the quantifiers match
+  castUnder t (ETAbs a e)     = ETAbs a (castUnder t e)
+  castUnder t (EProofAbs p e) = EProofAbs p (castUnder t e)
+  castUnder t e               = ECast e t
 
 
 

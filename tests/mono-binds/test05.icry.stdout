@@ -25,17 +25,17 @@ test05::test = \{a, b, c} (fin c, c >= 4) (a : [a]b) ->
                  /* Not recursive */
                  f : {d} (fin d) => [a + d]b
                  f = \{d} (fin d) ->
-                     (bar d <>
-                      where
-                        /* Not recursive */
-                        foo : [a]b
-                        foo = a
-                        
-                        /* Not recursive */
-                        bar : {e} (fin e) => [e + a]b
-                        bar = \{e} (fin e) -> (#) e a b <> (zero ([e]b)) foo
-                        
-                      ) : [a + d]b
+                     bar d <>
+                     where
+                       /* Not recursive */
+                       foo : [a]b
+                       foo = a
+                       
+                       /* Not recursive */
+                       bar : {e} (fin e) => [a + e]b
+                       bar = \{e} (fin e) -> (#) e a b <> (zero ([e]b)) foo : [a + e]b
+                       
+                     
                  
                
 
