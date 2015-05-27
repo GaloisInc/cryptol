@@ -265,3 +265,34 @@ widthInteger x = go' 0 (if x < 0 then complement x else x)
     go' s n
       | n < bit 32 = go s n
       | otherwise  = let s' = s + 32 in s' `seq` go' s' (n `shiftR` 32)
+
+
+-- | Compute the exact root of a natural number.
+-- The second argument specifies which root we are computing.
+rootExact :: Integer -> Integer -> Maybe Integer
+rootExact x y = do (z,True) <- genRoot x y
+                   return z
+
+
+
+{- | Compute the the n-th root of a natural number, rounded down to
+the closest natural number.  The boolean indicates if the result
+is exact (i.e., True means no rounding was done, False means rounded down).
+The second argument specifies which root we are computing. -}
+genRoot :: Integer -> Integer -> Maybe (Integer, Bool)
+genRoot _  0    = Nothing
+genRoot x0 1    = Just (x0, True)
+genRoot x0 root = Just (search 0 (x0+1))
+  where
+  search from to = let x = from + div (to - from) 2
+                       a = x ^ root
+                   in case compare a x0 of
+                        EQ              -> (x, True)
+                        LT | x /= from  -> search x to
+                           | otherwise  -> (from, False)
+                        GT | x /= to    -> search from x
+                           | otherwise  -> (from, False)
+
+
+
+
