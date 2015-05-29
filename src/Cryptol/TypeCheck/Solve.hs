@@ -183,23 +183,28 @@ _testSimpGoals = Num.withSolver cfg $ \s ->
      mapM_ (dump .goal) gs
 
      _ <- Num.assumeProps s asmps
+     _mbImps <- Num.check s
+
+
      mb <- simpGoals s gs
      case mb of
        Right _  -> debugLog s "End of test"
        Left _   -> debugLog s "Impossible"
   where
   cfg = SolverConfig { solverPath = "cvc4"
-                     , solverArgs = [ "--lang=smt2", "--incremental" ]
+                     , solverArgs = [ "--lang=smt2", "--incremental", "--rewrite-divk" ]
                      , solverVerbose = 1
                      }
 
-  asmps = [] -- [ pFin (tv 0) ]
-  gs = map fakeGoal [ num 2 .^. tv 0 =#= num 8, pFin (tv 0) ]
+  asmps = []
+
+  gs    = map fakeGoal [ num 16 >== tMod (btv 0) (num 16) ]
 
     -- [ tv 0 =#= tInf, tMod (num 3) (tv 0) =#= num 4 ]
 
   fakeGoal p = Goal { goalSource = undefined, goalRange = undefined, goal = p }
-  tv n = TVar (TVFree n KNum Set.empty (text "test var"))
+  tv n  = TVar (TVFree n KNum Set.empty (text "test var"))
+  btv n = TVar (TVBound n KNum)
   num x = tNum (x :: Int)
 
   dump a = do putStrLn "-------------------_"
