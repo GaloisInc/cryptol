@@ -17,8 +17,7 @@ module Cryptol.TypeCheck.Solver.Numeric.Simplify
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr
-import           Cryptol.TypeCheck.Solver.InfNat(genLog,rootExact)
-import           Cryptol.Utils.Panic( panic )
+import           Cryptol.TypeCheck.Solver.InfNat(genLog,genRoot,rootExact)
 import           Cryptol.Utils.Misc ( anyJust )
 
 import           Control.Monad ( mplus )
@@ -94,9 +93,8 @@ crySimpStep prop =
 
     x :>: y ->
       case (x,y) of
-        (K (Nat 0),_)   -> Just PFalse
-        (K (Nat 1),_)   -> Just $ y :==: zero
-        (_, K (Nat 0))  -> cryGt0 True x
+        (K (Nat n),_)  | Just p <- cryNatGt True n y -> Just p
+        (_, K (Nat n)) | Just p <- cryGtNat True n x -> Just p
 
         _ | x == y      -> Just PFalse
           | otherwise   -> Nothing
@@ -382,13 +380,9 @@ cryIsEq x y =
 -- | Simplificatoin for @:>@
 cryIsGt :: Expr -> Expr -> Prop
 cryIsGt (K m) (K n)   = if m > n then PTrue else PFalse
-cryIsGt (K (Nat 0)) _ = PFalse
-cryIsGt (K (Nat 1)) e = e :== zero
+cryIsGt (K (Nat n)) e | Just p <- cryNatGt False n e = p
+cryIsGt e (K (Nat n)) | Just p <- cryGtNat False n e = p
 
-cryIsGt e (K (Nat 0)) = case cryGt0 False e of
-                          Just e' -> e'
-                          Nothing -> panic "cryIsGt (2)"
-                                           ["`cryGt0 False` return `Nothing`"]
 cryIsGt x y           = Fin y :&& (x :== inf :||
                                    Fin x :&& cryNatOp (:>:) x y)
 
@@ -522,34 +516,146 @@ cryIsNat useFinite n expr =
   eq x y = if useFinite then x :==: y else x :== y
   gt x y = if useFinite then x :>: y  else x :>  y
 
+-- | Constant > expression
+cryNatGt :: Bool -> Integer -> Expr -> Maybe Prop
+cryNatGt useFinite n expr
+  | n == 0    = Just PFalse
+  | n == 1    = Just (eq expr zero)
+  | otherwise =
+    case expr of
+      K x   -> Just $ if Nat n > x then PTrue else PFalse
+
+      Var _ -> Nothing
+
+      K (Nat m) :+ y -> Just $ if n >= m then gt (k (n - m)) y else PFalse
+      _ :+ _         -> Nothing
+
+      x :- y         -> Just $ gt (k n :+ y) x
+
+      K (Nat m) :* y
+        | m == 0    -> Just PTrue   -- because we know that n > 1
+        | otherwise -> Just $ case divMod n m of
+                                (q,0) -> gt (k q) y
+                                (0,_) -> eq y zero
+                                (q,_) -> gt (k (q + 1)) y
+      _ :* _          -> Nothing
+
+      Div x y         -> Just $ gt (k n :* y) x
+
+      Mod _ (K (Nat m))
+        | m <= n      -> Just PTrue
+
+      Mod (K (Nat m)) _
+        | m < n       -> Just PTrue
+      Mod _ _         -> Nothing
 
 
--- | Simplify @t :> 0@ or @t :>: 0@.
-cryGt0 :: Bool -> Expr -> Maybe Prop
-cryGt0 useFinite expr =
+      K (Nat m) :^^ y
+        | m == 0      -> Just PTrue   -- because n > 1
+        | m == 1      -> Just PTrue   -- ditto
+        | otherwise   -> do (a,exact) <- genLog n m
+                            return $ if exact
+                                        then gt (k a) y
+                                        else gt (k (a + 1)) y
+      x :^^ K (Nat m)
+        | m == 0      -> Just PTrue
+        | m == 1      -> Just (gt (k n) x)
+        | otherwise   -> do (a,exact) <- genRoot n m
+                            return $ if exact
+                                        then gt (k a) x
+                                        else gt (k (a + 1)) x
+      _ :^^ _         -> Nothing
+
+      Min x y         -> Just $ gt (k n) x :|| gt (k n) y
+      Max x y         -> Just $ gt (k n) x :&& gt (k n) y
+
+      Lg2 _           -> Nothing    -- Going away
+      Width x         -> Just $ gt (k (2 ^ n)) x
+
+      LenFromThen _ _ _   -> Nothing -- Are there some rules?
+
+      LenFromThenTo _ _ _ -> Nothing -- Are there some rulesj
+
+  where
+  k x    = K (Nat x)
+  eq x y = if useFinite then x :==: y else x :== y
+  gt x y = if useFinite then x :>: y  else x :>  y
+
+
+
+-- | Expression > constant
+cryGtNat :: Bool -> Integer -> Expr -> Maybe Prop
+cryGtNat useFinite n expr =
   case expr of
-    K x                 -> Just (if x > Nat 0 then PTrue else PFalse)
-    Var _ | useFinite   -> Nothing
-          | otherwise   -> Just (Not (Fin expr) :||
-                                 Fin expr :&& cryNatOp (:>:) expr zero)
-    x :+ y              -> Just (gt x zero :|| gt y zero)
-    x :- y              -> Just (gt x y)
-    x :* y              -> Just (gt x zero :&& gt y zero)
-    Div x y             -> Just (gt x y)
-    Mod _ _ | useFinite -> Nothing
-            | otherwise -> Just (cryNatOp (:>:) expr zero)
-            -- or: Just (Not (y `Divides` x))
-    x :^^ y             -> Just (eq x zero :&& gt y zero)
-    Min x y             -> Just (gt x zero :&& gt y zero)
-    Max x y             -> Just (gt x zero :|| gt y zero)
-    Lg2 x               -> Just (gt x one)
-    Width x             -> Just (gt x zero)
-    LenFromThen _ _ _   -> Just PTrue
-    LenFromThenTo x y z -> Just (gt x y :&& gt z x :|| gt y x :&& gt x z)
+    K x                 -> Just $ if x > Nat n then PTrue else PFalse
+    Var _               -> Nothing
+
+    K (Nat m) :+ y
+      | m > n           -> Just PTrue
+      | otherwise       -> Just (gt y (K (Nat (n - m))))
+
+    x :+ y
+      | n == 0          -> Just (gt x zero :|| gt y zero)
+      | otherwise       -> Nothing
+
+    x :- y              -> Just $ gt x (K (Nat n) :+ y)
+
+
+    K (Nat m) :* y
+      | m > 0           -> Just $ case divMod n m of
+                                    (a,0) -> gt y $ K (Nat a)
+                                    (0,_) -> eq y zero
+                                    (a,_) -> gt y $ K $ Nat $ a - 1
+
+    x :* y
+      | n == 0          -> Just (gt x zero :&& gt y zero)
+      | otherwise       -> Nothing
+
+    Div x y             -> Just $ gt (one :+ x) (K (Nat (n+1)) :* y)
+
+    Mod _ (K (Nat m))
+      | m <= n          -> Just PFalse
+    Mod (K (Nat m)) _
+      | m < n           -> Just PFalse
+    Mod _ _             -> Nothing
+
+    K (Nat m) :^^ y
+      | m == 0          -> Just $ if n == 0 then eq y zero else PFalse
+      | m == 1          -> Just $ if n == 0 then PTrue else PFalse
+      | otherwise       -> do (a,_exact) <- genLog n m
+                              Just (gt y (K (Nat a)))
+
+    x :^^ K (Nat m)
+      | m == 0          -> Just $ if n == 0 then PTrue else PFalse
+      | m == 1          -> Just $ gt x (K (Nat n))
+      | otherwise       -> do (a,exact) <- genRoot n m
+                              Just $ if exact
+                                        then gt x (K (Nat a))
+                                        else gt (one :+ x) (K (Nat (a+1)))
+
+    x :^^ y
+      | n == 0          -> Just (gt x zero :|| eq y zero)
+      | otherwise       -> Nothing
+
+    Min x y             -> Just $ gt x (K (Nat n)) :&& gt y (K (Nat n))
+    Max x y             -> Just $ gt x (K (Nat n)) :|| gt y (K (Nat n))
+
+    Lg2 _               -> Nothing    -- Going away
+
+    Width x             -> Just $ gt (one :+ x) (K (Nat (2 ^ n)))
+
+    LenFromThen _ _ _
+      | n == 0          -> Just PTrue
+      | otherwise       -> Nothing -- Are there some rules?
+
+    LenFromThenTo x y z
+      | n == 0          -> Just (gt x y :&& gt z x :|| gt y x :&& gt x z)
+      | otherwise       -> Nothing
 
   where
   eq x y = if useFinite then x :==: y else x :== y
   gt x y = if useFinite then x :>: y  else x :>  y
+
 
 
 -- | Simplify only the Expr parts of a Prop.
