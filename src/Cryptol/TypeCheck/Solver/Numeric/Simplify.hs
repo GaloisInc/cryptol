@@ -70,14 +70,17 @@ crySimpStep prop =
 
     x :>= y   ->
       case (x,y) of
+        -- XXX: DUPLICTION
         (K (Nat 0), _) -> Just (y :== zero)
         (K (Nat a), Width b) -> Just (K (Nat (2 ^ a)) :>= b)
 
         (_,       K (Nat 0)) -> Just PTrue
         (Width e, K (Nat b)) -> Just (e :>= K (Nat (2^(b-1))))
+
+
         (K Inf, _)     -> Just PTrue
         (_, K Inf)     -> Just (x :== inf)
-        _              -> Just (x :== inf :|| x :+ one :> y)
+        _              -> Just (x :== inf :|| one :+ x :> y)
 
     x :==: y ->
       case (x,y) of
