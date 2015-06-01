@@ -106,8 +106,8 @@ evalECon econ =
               shl i =
                 case numTValue m of
                   Inf               -> dropV i xs
-                  Nat j | i >= j    -> replicateV j (zeroV a)
-                        | otherwise -> catV (dropV i xs) (replicateV i (zeroV a))
+                  Nat j | i >= j    -> replicateV j a (zeroV a)
+                        | otherwise -> catV (dropV i xs) (replicateV i a (zeroV a))
 
     ECShiftR      -> -- {m,n,a} (fin n) => [m] a -> [n] -> [m] a
       tlam $ \m ->
@@ -122,9 +122,9 @@ evalECon econ =
               shr :: Integer -> Value
               shr i =
                 case numTValue m of
-                  Inf               -> catV (replicateV i (zeroV a)) xs
-                  Nat j | i >= j    -> replicateV j (zeroV a)
-                        | otherwise -> catV (replicateV i (zeroV a)) (takeV (j - i) xs)
+                  Inf               -> catV (replicateV i a (zeroV a)) xs
+                  Nat j | i >= j    -> replicateV j a (zeroV a)
+                        | otherwise -> catV (replicateV i a (zeroV a)) (takeV (j - i) xs)
 
     ECRotL        -> -- {m,n,a} (fin m, fin n) => [m] a -> [n] -> [m] a
       tlam $ \m ->
@@ -298,8 +298,12 @@ selectV f v = sel 0 bits
       where m1 = sel (offset + 2 ^ length bs) bs
             m2 = sel offset bs
 
-replicateV :: Integer -> Value -> Value
-replicateV n x = VSeq False (genericReplicate n x)
+replicateV :: Integer -- ^ number of elements
+           -> TValue  -- ^ type of element
+           -> Value   -- ^ element
+           -> Value
+replicateV n (toTypeVal -> TVBit) x = VSeq True  (genericReplicate n x)
+replicateV n _                    x = VSeq False (genericReplicate n x)
 
 nth :: a -> [a] -> Int -> a
 nth def [] _ = def
