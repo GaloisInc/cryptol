@@ -101,11 +101,12 @@ tBinOpPrec :: Map.Map TFun  (Assoc,Int)
   -- lowest to highest
   e_table =
     [ (LeftAssoc,  [ ECOr  ])
-    , (LeftAssoc,  [ ECXor ])
     , (LeftAssoc,  [ ECAnd ])
 
     , (NonAssoc,   [ ECEq, ECNotEq, ECFunEq, ECFunNotEq ])
     , (NonAssoc,   [ ECLt, ECGt, ECLtEq, ECGtEq ])
+
+    , (LeftAssoc,  [ ECXor ])
 
     , (RightAssoc, [ ECCat ])
     , (LeftAssoc,  [ ECShiftL, ECShiftR, ECRotL, ECRotR ])
