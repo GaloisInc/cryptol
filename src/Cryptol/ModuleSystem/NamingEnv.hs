@@ -20,7 +20,7 @@ import Data.Maybe (catMaybes)
 import qualified Data.Map as Map
 
 #if __GLASGOW_HASKELL__ < 710
-import Control.Applicative (Applicative, (<$>), (<*>))
+import Control.Applicative (Applicative, (<$>), (<*>), pure)
 import Data.Monoid (Monoid(..))
 import Data.Foldable (foldMap)
 import Data.Traversable (traverse)
