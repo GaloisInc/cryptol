@@ -685,7 +685,6 @@ generalize bs0 gs0 =
          inSigs     = Set.filter isFreeTV $ fvs $ map dSignature bs
          candidates = Set.union inGoals inSigs
 
-
      asmpVs <- varsWithAsmps
 
 
@@ -694,20 +693,21 @@ generalize bs0 gs0 =
          stays g       = any (`Set.member` gen0) $ Set.toList $ goalFVS g
          (here0,later) = partition stays gs
 
-     -- Figure our what might be ambigious
+     -- Figure out what might be ambigious
      let (maybeAmbig, ambig) = partition ((KNum ==) . kindOf)
                              $ Set.toList
                              $ Set.difference gen0 inSigs
 
      when (not (null ambig)) $ recordError $ AmbiguousType $ map dName bs
 
+
      cfg <- getSolverConfig
      (as0,here1,defSu,ws) <- io $ improveByDefaulting cfg maybeAmbig here0
      mapM_ recordWarning ws
      let here = map goal here1
 
-     let as     = as0 ++ Set.toList (Set.difference inSigs asmpVs)
-         asPs   = [ TParam { tpUnique = x, tpKind = k, tpName = Nothing }
+     let as   = as0 ++ Set.toList (Set.difference inSigs asmpVs)
+         asPs = [ TParam { tpUnique = x, tpKind = k, tpName = Nothing }
                                                    | TVFree x k _ _ <- as ]
      totSu <- getSubst
      let
