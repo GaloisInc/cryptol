@@ -24,7 +24,7 @@ import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Subst
-                    (apSubst,fvs,singleSubst,
+                    (apSubst,fvs,singleSubst,substToList,
                           emptySubst,Subst,listSubst, (@@), Subst)
 import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
@@ -441,7 +441,8 @@ improveByDefaulting ::
         , Subst     -- improvements from defaulting
         , [Warning] -- warnings about defaulting
         )
-improveByDefaulting cfg xs gs = Num.withSolver cfg $ \s -> improveByDefaultingWith s xs gs
+improveByDefaulting cfg xs gs =
+  Num.withSolver cfg $ \s -> improveByDefaultingWith s xs gs
 
 improveByDefaultingWith ::
   Num.Solver ->
@@ -476,9 +477,12 @@ improveByDefaultingWith s as ps =
                      [ "tryDefault attempted to default a quantified variable."
                      ]
 
-            in return ( [ a | a <- as, a `notElem` map fst defs ]
+               newSu = su1 @@ su     -- XXX: is that right?
+               names = Set.fromList $ map fst $ fromMaybe [] $ substToList newSu
+
+            in return ( [ a | a <- as, not (a `Set.member` names) ]
                       , gs1
-                      , su1 @@ su    -- XXX: is that right?
+                      , newSu
                       , map warn defs
                       )
 
