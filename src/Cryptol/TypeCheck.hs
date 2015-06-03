@@ -75,6 +75,8 @@ tcExpr e0 inp = runInferM inp
                     , P.bPragmas   = []
                     , P.bSignature = Nothing
                     , P.bMono      = False
+                    , P.bInfix     = False
+                    , P.bFixity    = Nothing
                     } ]
 
               case res of

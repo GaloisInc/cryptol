@@ -290,6 +290,9 @@ rewDeclGroup rews dg =
                                    [ Recursive monoDs ]
 
                         , dPragmas    = [] -- ?
+
+                        , dInfix = False
+                        , dFixity = Nothing
                         }
 
                       mkProof e _ = EProofApp e

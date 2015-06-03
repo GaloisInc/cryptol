@@ -19,7 +19,7 @@ import Cryptol.Utils.Panic
 
 import Data.Maybe(listToMaybe,fromMaybe)
 import Data.Bits(testBit,setBit)
-import Control.Monad(liftM,ap)
+import Control.Monad(liftM,ap,when)
 import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
 
@@ -154,6 +154,18 @@ numLit (Num x base digs)
 
 numLit x = panic "[Parser] numLit" ["invalid numeric literal", show x]
 
+intVal :: Located Token -> ParseM Integer
+intVal tok =
+  case tokenType (thing tok) of
+    Num x _ _ -> return x
+    _         -> errorMessage (srcRange tok) "Expected an integer"
+
+mkFixity :: Assoc -> Located Token -> [LQName] -> ParseM Decl
+mkFixity assoc tok qns =
+  do l <- intVal tok
+     when (l < 0 || l > 10)
+          (errorMessage (srcRange tok) "Fixity levels must be between 0 and 10")
+     return (DFixity (Fixity assoc (fromInteger l)) qns)
 
 mkTupleSel :: Range -> Integer -> ParseM (Located Selector)
 mkTupleSel pos n
@@ -224,8 +236,8 @@ op s r = at r (ECon s)
 unOp :: Expr -> Expr -> Expr
 unOp f x = at (f,x) $ EApp f x
 
-binOp :: Expr -> Expr -> Expr -> Expr
-binOp x f y = at (x,y) $ EApp (EApp f x) y
+binOp :: Expr -> Located QName -> Expr -> Expr
+binOp x f y = at (x,y) $ EInfix x f y
 
 eFromTo :: Range -> Expr -> Maybe Expr -> Maybe Expr -> ParseM Expr
 eFromTo r e1 e2 e3 = EFromTo <$> exprToNumT r e1
@@ -311,6 +323,8 @@ mkProperty f ps e = DBind Bind { bName       = fmap mkUnqual f
                                , bSignature  = Nothing
                                , bPragmas    = [PragmaProperty]
                                , bMono       = False
+                               , bInfix      = False
+                               , bFixity     = Nothing
                                }
 
 mkIf :: [(Expr, Expr)] -> Expr -> Expr

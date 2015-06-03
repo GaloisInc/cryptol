@@ -14,7 +14,11 @@ module Cryptol.Parser.Utils
   ) where
 
 import Cryptol.Parser.AST
+import Cryptol.Parser.Position (at)
 import Cryptol.Prims.Syntax
+
+import qualified Data.Map as Map
+
 
 translateExprToNumT :: Expr -> Maybe Type
 translateExprToNumT expr =
@@ -22,11 +26,19 @@ translateExprToNumT expr =
     ELocated e r -> (`TLocated` r) `fmap` translateExprToNumT e
     EVar (QName Nothing (Name "width")) -> mkFun TCWidth
     EVar x       -> return (TUser x [])
-    ECon x       -> cvtCon x
     ELit x       -> cvtLit x
     EApp e1 e2   -> do t1 <- translateExprToNumT e1
                        t2 <- translateExprToNumT e2
                        tApp t1 t2
+
+    EInfix a o b -> do e1 <- translateExprToNumT a
+                       e2 <- translateExprToNumT b
+                       ec <- cvtCon =<< Map.lookup (thing o) primNames
+                       f  <- tApp (at o ec) e1
+                       tApp f e2
+
+    EParens e    -> translateExprToNumT e
+
     _            -> Nothing
 
   where

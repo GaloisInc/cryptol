@@ -12,9 +12,13 @@ module Cryptol.Prims.Syntax
   , eBinOpPrec
   , tBinOpPrec
   , ppPrefix
+
+  , primNames
   ) where
 
+import           Cryptol.ModuleSystem.Name (QName,Name(Name),mkUnqual)
 import           Cryptol.Utils.PP
+import           Cryptol.Utils.Panic (panic)
 import qualified Data.Map as Map
 
 -- | Built-in types.
@@ -138,67 +142,81 @@ instance PP TFun where
       TCLenFromThenTo   -> text "lengthFromThenTo"
 
 
+primNames :: Map.Map QName ECon
+primDocs  :: Map.Map ECon  QName
+
+(primNames,primDocs) = (Map.fromList prims, Map.fromList (map swap prims))
+  where
+  swap (a,b) = (b,a)
+
+  prim ec n = (mkUnqual (Name n), ec)
+
+  prims =
+    [ prim ECTrue        "True"
+    , prim ECFalse       "False"
+    , prim ECPlus        "+"
+    , prim ECMinus       "-"
+    , prim ECMul         "*"
+    , prim ECDiv         "/"
+    , prim ECMod         "%"
+    , prim ECExp         "^^"
+    , prim ECLg2         "lg2"
+    , prim ECLt          "<"
+    , prim ECGt          ">"
+    , prim ECLtEq        "<="
+    , prim ECGtEq        ">="
+    , prim ECEq          "=="
+    , prim ECNotEq       "!="
+    , prim ECFunEq       "==="
+    , prim ECFunNotEq    "!=="
+    , prim ECAnd         "&&"
+    , prim ECOr          "||"
+    , prim ECXor         "^"
+    , prim ECCompl       "~"
+    , prim ECShiftL      "<<"
+    , prim ECShiftR      ">>"
+    , prim ECRotL        "<<<"
+    , prim ECRotR        ">>>"
+    , prim ECCat         "#"
+    , prim ECAt          "@"
+    , prim ECAtRange     "@@"
+    , prim ECAtBack      "!"
+    , prim ECAtRangeBack "!!"
+    , prim ECMin         "min"
+    , prim ECMax         "max"
+
+    , prim ECSplitAt     "splitAt"
+    , prim ECZero        "zero"
+    , prim ECJoin        "join"
+    , prim ECSplit       "split"
+    , prim ECReverse     "reverse"
+    , prim ECTranspose   "transpose"
+
+    , prim ECDemote      "demote"
+
+    , prim ECFromThen    "fromThen"
+    , prim ECFromTo      "fromTo"
+    , prim ECFromThenTo  "fromThenTo"
+
+    , prim ECInfFrom     "infFrom"
+    , prim ECInfFromThen "infFromThen"
+
+    , prim ECError       "error"
+
+    , prim ECPMul        "pmult"
+    , prim ECPDiv        "pdiv"
+    , prim ECPMod        "pmod"
+
+    , prim ECRandom      "random"
+    ]
+
 
 instance PP ECon where
-  ppPrec _ con =
-    case con of
-      ECTrue        -> text "True"
-      ECFalse       -> text "False"
-      ECPlus        -> text "+"
-      ECMinus       -> text "-"
-      ECMul         -> text "*"
-      ECDiv         -> text "/"
-      ECMod         -> text "%"
-      ECExp         -> text "^^"
-      ECLg2         -> text "lg2"
-      ECNeg         -> text "-"
-      ECLt          -> text "<"
-      ECGt          -> text ">"
-      ECLtEq        -> text "<="
-      ECGtEq        -> text ">="
-      ECEq          -> text "=="
-      ECNotEq       -> text "!="
-      ECFunEq       -> text "==="
-      ECFunNotEq    -> text "!=="
-      ECAnd         -> text "&&"
-      ECOr          -> text "||"
-      ECXor         -> text "^"
-      ECCompl       -> text "~"
-      ECShiftL      -> text "<<"
-      ECShiftR      -> text ">>"
-      ECRotL        -> text "<<<"
-      ECRotR        -> text ">>>"
-      ECCat         -> text "#"
-      ECAt          -> text "@"
-      ECAtRange     -> text "@@"
-      ECAtBack      -> text "!"
-      ECAtRangeBack -> text "!!"
-      ECMin         -> text "min"
-      ECMax         -> text "max"
-
-      ECSplitAt     -> text "splitAt"
-      ECZero        -> text "zero"
-      ECJoin        -> text "join"
-      ECSplit       -> text "split"
-      ECReverse     -> text "reverse"
-      ECTranspose   -> text "transpose"
-
-      ECDemote      -> text "demote"
-
-      ECFromThen    -> text "fromThen"
-      ECFromTo      -> text "fromTo"
-      ECFromThenTo  -> text "fromThenTo"
-
-      ECInfFrom     -> text "infFrom"
-      ECInfFromThen -> text "infFromThen"
-
-      ECError       -> text "error"
-
-      ECPMul        -> text "pmult"
-      ECPDiv        -> text "pdiv"
-      ECPMod        -> text "pmod"
-
-      ECRandom      -> text "random"
+  ppPrec _ ECNeg = text "-"
+  ppPrec _ con   = pp (Map.findWithDefault err con primDocs)
+    where
+    err = panic "Cryptol.Prims.Syntax" [ "Primitive missing from name map"
+                                       , show con ]
 
 ppPrefix :: ECon -> Doc
 ppPrefix con = optParens (Map.member con eBinOpPrec) (pp con)

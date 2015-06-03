@@ -129,6 +129,11 @@ focusedEnv me = fold $ do
   let (local,lns) = unqualified (ifPublic iface `mappend` ifPrivate iface)
   return (local `shadowing` imports,lns `mappend` names)
 
+-- | The unqualified declarations and name environment for the dynamic
+-- environment.
+dynamicEnv :: ModuleEnv -> (IfaceDecls,NameEnv)
+dynamicEnv me = unqualified (deIfaceDecls (meDynEnv me))
+
 -- | Produce an ifaceDecls that represents the internal environment of the
 -- module, used for typechecking.
 qualifiedEnv :: ModuleEnv -> IfaceDecls

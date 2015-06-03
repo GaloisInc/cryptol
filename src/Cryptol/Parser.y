@@ -16,6 +16,7 @@ module Cryptol.Parser
   , guessPreProc, PreProc(..)
   ) where
 
+import           Control.Applicative as A
 import           Data.Maybe(fromMaybe)
 import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
@@ -45,13 +46,13 @@ import Paths_cryptol
   'hiding'    { Located $$ (Token (KW KW_hiding)    _)}
   'private'   { Located $$ (Token (KW KW_private)   _)}
   'property'  { Located $$ (Token (KW KW_property)  _)}
+  'infix'     { Located $$ (Token (KW KW_infix)     _)}
+  'infixl'    { Located $$ (Token (KW KW_infixl)    _)}
+  'infixr'    { Located $$ (Token (KW KW_infixr)    _)}
 
-  'False'     { Located $$ (Token (KW KW_False  ) _)}
-  'True'      { Located $$ (Token (KW KW_True   ) _)}
   'Arith'     { Located $$ (Token (KW KW_Arith  ) _)}
   'Bit'       { Located $$ (Token (KW KW_Bit    ) _)}
   'Cmp'       { Located $$ (Token (KW KW_Cmp    ) _)}
-  'error'     { Located $$ (Token (KW KW_error  ) _)}
   'fin'       { Located $$ (Token (KW KW_fin    ) _)}
   'inf'       { Located $$ (Token (KW KW_inf    ) _)}
   'lg2'       { Located $$ (Token (KW KW_lg2    ) _)}
@@ -67,17 +68,7 @@ import Paths_cryptol
   'else'      { Located $$ (Token (KW KW_else   ) _)}
   'min'       { Located $$ (Token (KW KW_min    ) _)}
   'max'       { Located $$ (Token (KW KW_max    ) _)}
-  'zero'      { Located $$ (Token (KW KW_zero   ) _)}
-  'join'      { Located $$ (Token (KW KW_join   ) _)}
-  'reverse'   { Located $$ (Token (KW KW_reverse) _)}
-  'split'     { Located $$ (Token (KW KW_split  ) _)}
-  'splitAt'   { Located $$ (Token (KW KW_splitAt) _)}
-  'transpose' { Located $$ (Token (KW KW_transpose) _)}
   'x'         { Located $$ (Token (KW KW_x)       _)}
-  'pmult'     { Located $$ (Token (KW KW_pmult)   _)}
-  'pmod'      { Located $$ (Token (KW KW_pmod)    _)}
-  'pdiv'      { Located $$ (Token (KW KW_pdiv)    _)}
-  'random'    { Located $$ (Token (KW KW_random)  _)}
 
   '['         { Located $$ (Token (Sym BracketL) _)}
   ']'         { Located $$ (Token (Sym BracketR) _)}
@@ -109,39 +100,22 @@ import Paths_cryptol
   'v}'        { Located $$ (Token (Virt VCurlyR)  _)}
   'v;'        { Located $$ (Token (Virt VSemi)    _)}
 
-  '+'         { Located $$ (Token (Op Plus        ) _)}
-  '-'         { Located $$ (Token (Op Minus       ) _)}
-  '*'         { Located $$ (Token (Op Mul         ) _)}
-  '/'         { Located $$ (Token (Op Div         ) _)}
-  '^^'        { Located $$ (Token (Op Exp         ) _)}
-  '%'         { Located $$ (Token (Op Mod         ) _)}
+  '+'         { Located $$ (Token (Op Plus)  _)}
+  '-'         { Located $$ (Token (Op Minus) _)}
+  '*'         { Located $$ (Token (Op Mul)   _)}
+  '/'         { Located $$ (Token (Op Div)   _)}
+  '^^'        { Located $$ (Token (Op Exp)   _)}
+  '%'         { Located $$ (Token (Op Mod)   _)}
 
-  '^'         { Located $$ (Token (Op Xor         ) _)}
-  '||'        { Located $$ (Token (Op Disj        ) _)}
-  '&&'        { Located $$ (Token (Op Conj        ) _)}
+  '~'         { Located $$ (Token (Op Complement) _)}
 
-  '!='        { Located $$ (Token (Op NotEqual    ) _)}
-  '=='        { Located $$ (Token (Op Equal       ) _)}
-  '!=='       { Located $$ (Token (Op NotEqualFun ) _)}
-  '==='       { Located $$ (Token (Op EqualFun    ) _)}
-  '>'         { Located $$ (Token (Op GreaterThan ) _)}
-  '<'         { Located $$ (Token (Op LessThan    ) _)}
-  '<='        { Located $$ (Token (Op LEQ         ) _)}
-  '>='        { Located $$ (Token (Op GEQ         ) _)}
+  '=='        { Located $$ (Token (Op Equal) _)}
+  '<='        { Located $$ (Token (Op LEQ)   _)}
+  '>='        { Located $$ (Token (Op GEQ)   _)}
 
-  '>>'        { Located $$ (Token (Op ShiftR      ) _)}
-  '<<'        { Located $$ (Token (Op ShiftL      ) _)}
-  '>>>'       { Located $$ (Token (Op RotR        ) _)}
-  '<<<'       { Located $$ (Token (Op RotL        ) _)}
+  '#'         { Located $$ (Token (Op Hash) _)}
 
-  '~'         { Located $$ (Token (Op Complement  ) _)}
-
-  '@'         { Located $$ (Token (Op At          ) _)}
-  '@@'        { Located $$ (Token (Op AtAt        ) _)}
-  '!'         { Located $$ (Token (Op Bang        ) _)}
-  '!!'        { Located $$ (Token (Op BangBang    ) _)}
-  '#'         { Located $$ (Token (Op Hash        ) _)}
-
+  OP          { $$@(Located _ (Token (Op {}) _))}
 
 %name vmodule vmodule
 %name program program
@@ -166,18 +140,14 @@ import Paths_cryptol
 %left     'where'
 %nonassoc 'then' 'else'
 %nonassoc ':'
-%left '||'
-%left '&&'
-%nonassoc '==' '!=' '===' '!=='
-%nonassoc '<' '>' '<=' '>='
-%left '^'
+%nonassoc '=='
+%nonassoc '<=' '>='
 %right '#'
-%left  '<<' '>>' '<<<' '>>>'
 %left  '+' '-'
 %left  '*' '/' '%'
 %right '^^'
-%left  '@' '@@' '!' '!!'
 %right NEG '~'
+%left OP
 %%
 
 
@@ -281,10 +251,28 @@ decl                    :: { Decl }
                                           , bSignature = Nothing
                                           , bPragmas   = []
                                           , bMono      = False
+                                          , bInfix     = False
+                                          , bFixity    = Nothing
                                           } }
+
+  | apat op apat '=' expr  { at ($1,$5) $
+                             DBind $ Bind { bName      = $2
+                                          , bParams    = [$1,$3]
+                                          , bDef       = $5
+                                          , bSignature = Nothing
+                                          , bPragmas   = []
+                                          , bMono      = False
+                                          , bInfix     = True
+                                          , bFixity    = Nothing
+                                          } }
+
   | 'type' name '=' type   {% at ($1,$4) `fmap` mkTySyn $2 [] $4 }
   | 'type' name tysyn_params '=' type
                            {% at ($1,$5) `fmap` mkTySyn $2 (reverse $3) $5  }
+
+  | 'infixl' NUM ops       {% mkFixity LeftAssoc  $2 (reverse $3) }
+  | 'infixr' NUM ops       {% mkFixity RightAssoc $2 (reverse $3) }
+  | 'infix'  NUM ops       {% mkFixity NonAssoc   $2 (reverse $3) }
 
 let_decl                :: { Decl }
   : 'let' apat '=' expr          { at ($2,$4) $ DPatBind $2 $4                    }
@@ -295,6 +283,8 @@ let_decl                :: { Decl }
                                                 , bSignature = Nothing
                                                 , bPragmas   = []
                                                 , bMono      = False
+                                                , bInfix     = False
+                                                , bFixity    = Nothing
                                                 } }
 
 newtype                 :: { Newtype }
@@ -307,9 +297,12 @@ newtype_body            :: { [Named Type] }
   : '{' '}'                { [] }
   | '{' field_types '}'    { $2 }
 
-vars_comma              :: { [ LName ]  }
-  : name                   { [ $1]      }
-  | vars_comma ',' name    { $3 : $1    }
+vars_comma                 :: { [ LName ]  }
+  : name                      { [ $1]      }
+  | vars_comma ',' name       { $3 : $1    }
+
+  | '(' op ')'                { [fmap unqual $2]    }
+  | vars_comma ',' '(' op ')' { fmap unqual $4 : $1 }
 
 apats                   :: { [Pattern]  }
   : apat                   { [$1]       }
@@ -351,47 +344,38 @@ ifBranch                         :: { (Expr, Expr) }
   : expr 'then' expr                { ($1, $3) }
 
 iexpr                            :: { Expr }
+  : expr10                          { $1 }
+  | iexpr op expr10                 { binOp $1 $2 $3 }
+  | iexpr ':' type                  { at ($1,$3) $ ETyped $1 $3 }
+
+expr10                           :: { Expr }
   : aexprs                          { mkEApp $1 }
 
-  | iexpr ':' type                  { at ($1,$3) $ ETyped $1 $3 }
   | 'if' ifBranches 'else' iexpr    { at ($1,$4) $ mkIf $2 $4 }
   | '\\' apats '->' iexpr           { at ($1,$4) $ EFun (reverse $2) $4 }
 
-  | iexpr '@'  iexpr                { binOp $1 (op ECAt          $2) $3 }
-  | iexpr '@@' iexpr                { binOp $1 (op ECAtRange     $2) $3 }
-  | iexpr '!'  iexpr                { binOp $1 (op ECAtBack      $2) $3 }
-  | iexpr '!!' iexpr                { binOp $1 (op ECAtRangeBack $2) $3 }
-  | iexpr '#'  iexpr                { binOp $1 (op ECCat         $2) $3 }
-
-  | iexpr '+' iexpr                 { binOp $1 (op ECPlus        $2) $3 }
-  | iexpr '-' iexpr                 { binOp $1 (op ECMinus       $2) $3 }
-  | iexpr '*' iexpr                 { binOp $1 (op ECMul         $2) $3 }
-  | iexpr '/' iexpr                 { binOp $1 (op ECDiv         $2) $3 }
-  | iexpr '%' iexpr                 { binOp $1 (op ECMod         $2) $3 }
-  | iexpr '^^' iexpr                { binOp $1 (op ECExp         $2) $3 }
-
-  | iexpr '^'  iexpr                { binOp $1 (op ECXor         $2) $3 }
-  | iexpr '||' iexpr                { binOp $1 (op ECOr          $2) $3 }
-  | iexpr '&&' iexpr                { binOp $1 (op ECAnd         $2) $3 }
-
-  | iexpr '==' iexpr                { binOp $1 (op ECEq          $2) $3 }
-  | iexpr '!=' iexpr                { binOp $1 (op ECNotEq       $2) $3 }
-  | iexpr '===' iexpr               { binOp $1 (op ECFunEq       $2) $3 }
-  | iexpr '!==' iexpr               { binOp $1 (op ECFunNotEq    $2) $3 }
-  | iexpr '>' iexpr                 { binOp $1 (op ECGt          $2) $3 }
-  | iexpr '<' iexpr                 { binOp $1 (op ECLt          $2) $3 }
-  | iexpr '<=' iexpr                { binOp $1 (op ECLtEq        $2) $3 }
-  | iexpr '>=' iexpr                { binOp $1 (op ECGtEq        $2) $3 }
-
-  | iexpr '<<' iexpr                { binOp $1 (op ECShiftL      $2) $3 }
-  | iexpr '>>' iexpr                { binOp $1 (op ECShiftR      $2) $3 }
-  | iexpr '<<<' iexpr               { binOp $1 (op ECRotL        $2) $3 }
-  | iexpr '>>>' iexpr               { binOp $1 (op ECRotR        $2) $3 }
   | '-' iexpr %prec NEG             { unOp     (op ECNeg         $1) $2 }
   | '~' iexpr                       { unOp     (op ECCompl       $1) $2 }
 
+op                               :: { LQName }
+  : OP                              { let Token (Op (Other str)) _ = thing $1
+                                       in mkUnqual (Name str) A.<$ $1 }
 
+    -- special cases for operators that are also used at the type-level
+  | '*'                             { Located $1 $ mkUnqual (Name "*" ) }
+  | '+'                             { Located $1 $ mkUnqual (Name "+" ) }
+  | '-'                             { Located $1 $ mkUnqual (Name "-" ) }
+  | '/'                             { Located $1 $ mkUnqual (Name "/" ) }
+  | '%'                             { Located $1 $ mkUnqual (Name "%" ) }
+  | '^^'                            { Located $1 $ mkUnqual (Name "^^") }
+  | '#'                             { Located $1 $ mkUnqual (Name "#" ) }
+  | '>='                            { Located $1 $ mkUnqual (Name ">=") }
+  | '=='                            { Located $1 $ mkUnqual (Name "==") }
+  | '<='                            { Located $1 $ mkUnqual (Name "<=") }
 
+ops                     :: { [LQName] }
+  : op                     { [$1] }
+  | ops ',' op             { $3 : $1 }
 
 aexprs                         :: { [Expr]  }
   : aexpr                         { [$1]    }
@@ -400,33 +384,15 @@ aexprs                         :: { [Expr]  }
 aexpr                          :: { Expr                                   }
   : qname                         { at $1 $ EVar (thing $1)                }
 
-  | 'min'                         { at $1 $ ECon ECMin                     }
-  | 'max'                         { at $1 $ ECon ECMax                     }
-  | 'lg2'                         { at $1 $ ECon ECLg2                     }
-
-  | 'zero'                        { at $1 $ ECon ECZero                    }
-  | 'join'                        { at $1 $ ECon ECJoin                    }
-  | 'split'                       { at $1 $ ECon ECSplit                   }
-  | 'splitAt'                     { at $1 $ ECon ECSplitAt                 }
+  | 'min'                         { at $1 $ EVar $ mkUnqual (Name "min")   }
+  | 'max'                         { at $1 $ EVar $ mkUnqual (Name "max")   }
+  | 'lg2'                         { at $1 $ EVar $ mkUnqual (Name "lg2")   }
 
   | NUM                           { at $1 $ numLit (tokenType (thing $1))  }
   | STRLIT                        { at $1 $ ELit $ ECString $ getStr $1    }
   | CHARLIT                       { at $1 $ ELit $ ECNum (getNum $1) CharLit }
-  | 'False'                       { at $1 $ ECon ECFalse                   }
-  | 'True'                        { at $1 $ ECon ECTrue                    }
 
-  | 'error'                       { at $1 $ ECon ECError                   }
-
-  | 'reverse'                     { at $1 $ ECon ECReverse                 }
-  | 'transpose'                   { at $1 $ ECon ECTranspose               }
-
-  | 'pmult'                       { at $1 $ ECon ECPMul                    }
-  | 'pdiv'                        { at $1 $ ECon ECPDiv                    }
-  | 'pmod'                        { at $1 $ ECon ECPMod                    }
-
-  | 'random'                      { at $1 $ ECon ECRandom                  }
-
-  | '(' expr ')'                  { at ($1,$3) $2                          }
+  | '(' expr ')'                  { at ($1,$3) $ EParens $2                }
   | '(' tuple_exprs ')'           { at ($1,$3) $ ETuple (reverse $2)       }
   | '(' ')'                       { at ($1,$2) $ ETuple []                 }
   | '{' '}'                       { at ($1,$2) $ ERecord []                }
@@ -436,36 +402,7 @@ aexpr                          :: { Expr                                   }
   | '`' tick_ty                   { at ($1,$2) $ ETypeVal $2               }
   | aexpr '.' selector            { at ($1,$3) $ ESel $1 (thing $3)        }
 
-  | '(' '@'    ')'                { at ($1,$3) $ ECon ECAt          }
-  | '(' '@@'   ')'                { at ($1,$3) $ ECon ECAtRange     }
-  | '(' '!'    ')'                { at ($1,$3) $ ECon ECAtBack      }
-  | '(' '!!'   ')'                { at ($1,$3) $ ECon ECAtRangeBack }
-  | '(' '#'    ')'                { at ($1,$3) $ ECon ECCat         }
-
-  | '(' '+'    ')'                { at ($1,$3) $ ECon ECPlus        }
-  | '(' '-'    ')'                { at ($1,$3) $ ECon ECMinus       }
-  | '(' '*'    ')'                { at ($1,$3) $ ECon ECMul         }
-  | '(' '/'    ')'                { at ($1,$3) $ ECon ECDiv         }
-  | '(' '%'    ')'                { at ($1,$3) $ ECon ECMod         }
-  | '(' '^^'   ')'                { at ($1,$3) $ ECon ECExp         }
-
-  | '(' '^'    ')'                { at ($1,$3) $ ECon ECXor         }
-  | '(' '||'   ')'                { at ($1,$3) $ ECon ECOr          }
-  | '(' '&&'   ')'                { at ($1,$3) $ ECon ECAnd         }
-
-  | '(' '=='   ')'                { at ($1,$3) $ ECon ECEq          }
-  | '(' '!='   ')'                { at ($1,$3) $ ECon ECNotEq       }
-  | '(' '==='  ')'                { at ($1,$3) $ ECon ECFunEq       }
-  | '(' '!=='  ')'                { at ($1,$3) $ ECon ECFunNotEq    }
-  | '(' '>'    ')'                { at ($1,$3) $ ECon ECGt          }
-  | '(' '<'    ')'                { at ($1,$3) $ ECon ECLt          }
-  | '(' '<='   ')'                { at ($1,$3) $ ECon ECLtEq        }
-  | '(' '>='   ')'                { at ($1,$3) $ ECon ECGtEq        }
-
-  | '(' '<<'   ')'                { at ($1,$3) $ ECon ECShiftL      }
-  | '(' '>>'   ')'                { at ($1,$3) $ ECon ECShiftR      }
-  | '(' '<<<'  ')'                { at ($1,$3) $ ECon ECRotL        }
-  | '(' '>>>'  ')'                { at ($1,$3) $ ECon ECRotR        }
+  | '(' op ')'                    { at ($1,$3) $ EVar $ thing $2           }
 
   | '<|'            '|>'          {% mkPoly (rComb $1 $2) [] }
   | '<|' poly_terms '|>'          {% mkPoly (rComb $1 $3) $2 }

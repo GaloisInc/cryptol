@@ -345,12 +345,15 @@ keepOne src as = case as of
 getFocusedEnv :: REPL (M.IfaceDecls,NameEnv)
 getFocusedEnv  = do
   me <- getModuleEnv
-  denv <- getDynEnv
+  -- dyNames is a NameEnv that removes the #Uniq prefix from interactively-bound
+  -- variables.
+  let (dyDecls,dyNames) = M.dynamicEnv me
+
   -- the subtle part here is removing the #Uniq prefix from
   -- interactively-bound variables, and also excluding any that are
   -- shadowed and thus can no longer be referenced
   let (decls,names) = M.focusedEnv me
-      edecls = M.ifDecls (M.deIfaceDecls denv)
+      edecls = M.ifDecls dyDecls
       -- is this QName something the user might actually type?
       isShadowed (qn@(P.QName (Just (P.ModName ['#':_])) name), _) =
           case Map.lookup localName neExprs of
@@ -358,14 +361,14 @@ getFocusedEnv  = do
             Just uniqueNames -> isNamed uniqueNames
         where localName = P.QName Nothing name
               isNamed us = any (== qn) (map M.qname us)
-              neExprs = M.neExprs (M.deNames denv)
+              neExprs = M.neExprs (M.deNames (M.meDynEnv me))
       isShadowed _ = False
       unqual ((P.QName _ name), ifds) = (P.QName Nothing name, ifds)
       edecls' = Map.fromList
               . map unqual
               . filter isShadowed
               $ Map.toList edecls
-  return (decls `mappend` mempty { M.ifDecls = edecls' }, names)
+  return (decls `mappend` mempty { M.ifDecls = edecls' }, names `mappend` dyNames)
 
 getVars :: REPL (Map.Map P.QName M.IfaceDecl)
 getVars  = do

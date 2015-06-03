@@ -8,6 +8,7 @@
 
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiWayIf #-}
 
 module Cryptol.ModuleSystem.Renamer (
     NamingEnv(), shadowing
@@ -58,6 +59,8 @@ data RenamerError
   | ExpectedType (Located QName)
     -- ^ When a type is missing from the naming environment, but one or more
     -- values exist with the same name.
+
+  | FixityError (Located QName) (Located QName)
     deriving (Show)
 
 instance PP RenamerError where
@@ -91,6 +94,12 @@ instance PP RenamerError where
       hang (text "[error] at" <+> pp (srcRange lqn))
          4 (fsep [ text "Expected a type named", quotes (pp (thing lqn))
                  , text "but found a value instead" ])
+
+    FixityError o1 o2 ->
+      hang (text "[error]")
+         4 (fsep [ text "The fixities of", pp o1, text "and", pp o2
+                 , text "are not compatible.  "
+                 , text "You may use explicit parenthesis to disambiguate" ])
 
 -- Warnings --------------------------------------------------------------------
 
@@ -268,6 +277,7 @@ instance Rename Decl where
     DType syn         -> DType         <$> rename syn
     DLocated d' r     -> withLoc r
                        $ DLocated      <$> rename d'  <*> pure r
+    DFixity{}         -> panic "Renamer" ["Unexpected fixity declaration", show d]
 
 instance Rename Newtype where
   rename n      = do
@@ -277,26 +287,32 @@ instance Rename Newtype where
                    , nParams = nParams n
                    , nBody   = body' }
 
-renameExpr :: QName -> RenameM QName
-renameExpr qn = do
+renameVar :: QName -> RenameM Expr
+renameVar qn = do
   ro <- RenameM ask
   case Map.lookup qn (neExprs (roNames ro)) of
-    Just [en] -> return (qname en)
-    Just []   -> panic "Renamer" ["Invalid expression renaming environment"]
+    Just [en] -> return (EVar (qname en))
+    Just []   ->
+      panic "Renamer" ["Invalid expression renaming environment"]
     Just syms ->
       do n <- located qn
          record (MultipleSyms n (map origin syms))
-         return qn
-    Nothing   ->
-      do n <- located qn
+         return (EVar qn)
+    Nothing
 
-         case Map.lookup qn (neTypes (roNames ro)) of
-           -- types existed with the name of the value expected
-           Just _ -> record (ExpectedValue n)
+      | Just prim <- Map.lookup qn primNames ->
+        return (ECon prim)
 
-           -- the value is just missing
-           Nothing -> record (UnboundExpr n)
-         return qn
+      | otherwise ->
+        do n <- located qn
+
+           case Map.lookup qn (neTypes (roNames ro)) of
+             -- types existed with the name of the value expected
+             Just _ -> record (ExpectedValue n)
+
+             -- the value is just missing
+             Nothing -> record (UnboundExpr n)
+           return (EVar qn)
 
 renameType :: QName -> RenameM QName
 renameType qn = do
@@ -385,7 +401,11 @@ bindingTypeEnv b = patParams `shadowing` sigParams
 -- to allow for top-level renaming
 instance Rename Bind where
   rename b      = do
-    n' <- renameLoc renameExpr (bName b)
+    le <- renameLoc renameVar (bName b)
+    n' <- case thing le of
+            EVar n' -> return le { thing = n' }
+            _       -> panic "Renamer" [ "Invalid name in binding:", show le ]
+
     shadowNames (bindingTypeEnv b) $ do
       (patenv,pats') <- renamePats (bParams b)
       sig'           <- traverse renameSchema (bSignature b)
@@ -414,7 +434,7 @@ instance Rename Pattern where
 
 instance Rename Expr where
   rename e = case e of
-    EVar n        -> EVar    <$> renameExpr n
+    EVar n        -> renameVar n
     ECon _        -> return e
     ELit _        -> return e
     ETuple es     -> ETuple  <$> rename es
@@ -436,6 +456,64 @@ instance Rename Expr where
                         shadowNames ps' (EFun ps' <$> rename e')
     ELocated e' r -> withLoc r
                    $ ELocated <$> rename e' <*> pure r
+
+    EParens p     -> rename p
+    EInfix x y z  -> do op <- renameOp y
+                        renameInfix x y op z
+
+renameInfix :: Expr -> Located QName -> (Expr,Fixity) -> Expr -> RenameM Expr
+
+renameInfix (EInfix e1 o1 e2) o2 opr@(o2',Fixity a2 p2) e3 =
+  do opl@(o1',Fixity a1 p1) <- renameOp o1
+
+     if | p1 > p2 || (p1 == p2 && a1 == LeftAssoc && a2 == LeftAssoc) ->
+          do el <- renameInfix e1 o1 opl e2
+             er <- rename e3
+             return (o2' `EApp` el `EApp` er)
+
+        | p1 < p2 || (p1 == p2 && a1 == RightAssoc && a2 == RightAssoc) ->
+          do el <- rename e1
+             er <- renameInfix e2 o2 opr e3
+             return (o1' `EApp` el `EApp` er)
+
+        | otherwise ->
+          do record (FixityError o1 o2)
+             e1' <- rename e1
+             e2' <- rename e2
+             e3' <- rename e3
+             return (o2' `EApp` (o1' `EApp` e1' `EApp` e2') `EApp` e3')
+
+renameInfix (ELocated e _) o2 opr e3 =
+     renameInfix e o2 opr e3
+
+renameInfix e _ (op,_) e3 =
+  do e'  <- rename e
+     e3' <- rename e3
+     return (op `EApp` e' `EApp` e3')
+
+
+renameOp :: Located QName -> RenameM (Expr,Fixity)
+renameOp ln = withLoc ln $
+  do e  <- renameVar (thing ln)
+     ro <- RenameM ask
+     case e of
+
+       -- lookup the operator in the fixed prim table
+       e' @ (ECon n) ->
+         case Map.lookup n eBinOpPrec of
+           Just (a,i) -> return (e',Fixity a i)
+           Nothing    -> panic "Renamer" [ "No fixity for primitive:"
+                                         , show n
+                                         , show ln ]
+
+       -- lookup the operator in the environment
+       e' @ (EVar n) ->
+         case Map.lookup n (neFixity (roNames ro)) of
+           Just [fixity] -> return (e',fixity)
+           _             -> return (e',defaultFixity)
+
+       _      -> panic "Renamer" [ "Invalid infix operator", show e ]
+
 
 instance Rename TypeInst where
   rename ti = case ti of
@@ -475,7 +553,7 @@ instance Rename TySyn where
   rename (TySyn n ps ty) =
      shadowNames ps (TySyn <$> renameLoc renameType n <*> pure ps <*> rename ty)
 
-renameLoc :: (a -> RenameM a) -> Located a -> RenameM (Located a)
+renameLoc :: (a -> RenameM b) -> Located a -> RenameM (Located b)
 renameLoc by loc = do
   a' <- by (thing loc)
   return loc { thing = a' }

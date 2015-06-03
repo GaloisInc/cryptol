@@ -6,7 +6,7 @@
 module Cryptol.Parser.Lexer
   ( primLexer, lexer, Layout(..)
   , Token(..), TokenT(..)
-  , TokenV(..), TokenKW(..), TokenErr(..), TokenOp(..), TokenSym(..), TokenW(..)
+  , TokenV(..), TokenKW(..), TokenErr(..), TokenSym(..), TokenW(..)
   , Located(..)
   , Config(..)
   , defaultConfig
@@ -31,6 +31,8 @@ $unitick        = \x7
 @id_next      = [a-zA-Z0-9_'] | $unilower | $uniupper | $unidigit | $unitick
 
 @id           = @id_first @id_next*
+
+@op           = ([\!\@\#\$\%\^\&\*\~\>\<\?\+\=\|] | $unisymbol)+
 
 @num2         = "0b" [0-1]+
 @num8         = "0o" [0-7]+
@@ -74,17 +76,13 @@ $white+                   { emit $ White Space }
 "Arith"                   { emit $ KW KW_Arith }
 "Bit"                     { emit $ KW KW_Bit }
 "Cmp"                     { emit $ KW KW_Cmp }
-"False"                   { emit $ KW KW_False }
 "Inf"                     { emit $ KW KW_inf }
-"True"                    { emit $ KW KW_True }
 "else"                    { emit $ KW KW_else }
 "Eq"                      { emit $ KW KW_Eq }
-"error"                   { emit $ KW KW_error }
 "extern"                  { emit $ KW KW_extern }
 "fin"                     { emit $ KW KW_fin }
 "if"                      { emit $ KW KW_if }
 "private"                 { emit $ KW KW_private }
-"join"                    { emit $ KW KW_join }
 "include"                 { emit $ KW KW_include }
 "inf"                     { emit $ KW KW_inf }
 "lg2"                     { emit $ KW KW_lg2 }
@@ -96,24 +94,19 @@ $white+                   { emit $ White Space }
 "newtype"                 { emit $ KW KW_newtype }
 "pragma"                  { emit $ KW KW_pragma }
 "property"                { emit $ KW KW_property }
-"pmult"                   { emit $ KW KW_pmult }
-"pdiv"                    { emit $ KW KW_pdiv }
-"pmod"                    { emit $ KW KW_pmod }
-"random"                  { emit $ KW KW_random }
-"reverse"                 { emit $ KW KW_reverse }
-"split"                   { emit $ KW KW_split }
-"splitAt"                 { emit $ KW KW_splitAt }
 "then"                    { emit $ KW KW_then }
-"transpose"               { emit $ KW KW_transpose }
 "type"                    { emit $ KW KW_type  }
 "where"                   { emit $ KW KW_where }
 "let"                     { emit $ KW KW_let }
 "x"                       { emit $ KW KW_x }
-"zero"                    { emit $ KW KW_zero }
 "import"                  { emit $ KW KW_import }
 "as"                      { emit $ KW KW_as }
 "hiding"                  { emit $ KW KW_hiding }
 "newtype"                 { emit $ KW KW_newtype }
+
+"infixl"                  { emit $ KW KW_infixl }
+"infixr"                  { emit $ KW KW_infixr }
+"infix"                   { emit $ KW KW_infix  }
 
 @num2                     { emitS (numToken 2  . drop 2) }
 @num8                     { emitS (numToken 8  . drop 2) }
@@ -122,39 +115,6 @@ $white+                   { emit $ White Space }
 
 "_"                       { emit $ Sym Underscore }
 @id                       { mkIdent }
-
-"+"                       { emit $ Op Plus }
-"-"                       { emit $ Op Minus }
-"*"                       { emit $ Op Mul }
-"/"                       { emit $ Op Div }
-"%"                       { emit $ Op Mod }
-"^^"                      { emit $ Op Exp }
-
-"!="                      { emit $ Op NotEqual }
-"=="                      { emit $ Op Equal }
-"==="                     { emit $ Op EqualFun }
-"!=="                     { emit $ Op NotEqualFun }
-">"                       { emit $ Op GreaterThan }
-"<"                       { emit $ Op LessThan }
-"<="                      { emit $ Op LEQ }
-">="                      { emit $ Op GEQ }
-
-">>"                      { emit $ Op ShiftR }
-"<<"                      { emit $ Op ShiftL }
-">>>"                     { emit $ Op RotR }
-"<<<"                     { emit $ Op RotL }
-
-"~"                       { emit $ Op Complement }
-
-"^"                       { emit $ Op Xor  }
-"||"                      { emit $ Op Disj }
-"&&"                      { emit $ Op Conj }
-
-"!"                       { emit $ Op Bang }
-"!!"                      { emit $ Op BangBang }
-"@"                       { emit $ Op At }
-"@@"                      { emit $ Op AtAt }
-"#"                       { emit $ Op Hash }
 
 "\"                       { emit $ Sym Lambda }
 "->"                      { emit $ Sym ArrR }
@@ -182,6 +142,27 @@ $white+                   { emit $ White Space }
 
 \"                        { startString }
 \'                        { startChar }
+
+-- special cases for types and kinds
+"+"                       { emit  (Op   Plus ) }
+"-"                       { emit  (Op   Minus) }
+"*"                       { emit  (Op   Mul  ) }
+"/"                       { emit  (Op   Div  ) }
+"%"                       { emit  (Op   Mod  ) }
+"^^"                      { emit  (Op   Exp  ) }
+"=="                      { emit  (Op   Equal) }
+"<="                      { emit  (Op   LEQ  ) }
+">="                      { emit  (Op   GEQ  ) }
+"*"                       { emit  (Op   Hash ) }
+
+-- hash is used as a kind, and as a pattern
+"#"                       { emit  (Op   Hash ) }
+
+-- ~ is used for unary complement
+"~"                       { emit  (Op   Complement) }
+
+-- all other operators
+@op                       { emitS (Op . Other) }
 }
 
 

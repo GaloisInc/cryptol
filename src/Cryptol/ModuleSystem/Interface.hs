@@ -38,9 +38,9 @@ data Iface = Iface
   } deriving (Show)
 
 data IfaceDecls = IfaceDecls
-  { ifTySyns :: Map.Map QName    [IfaceTySyn]
-  , ifNewtypes  :: Map.Map QName [IfaceNewtype]
-  , ifDecls  :: Map.Map QName    [IfaceDecl]
+  { ifTySyns   :: Map.Map QName [IfaceTySyn]
+  , ifNewtypes :: Map.Map QName [IfaceNewtype]
+  , ifDecls    :: Map.Map QName [IfaceDecl]
   } deriving (Show)
 
 instance Monoid IfaceDecls where
@@ -65,9 +65,9 @@ mergeByName f ls rs
 -- | Like mappend for IfaceDecls, but preferring entries on the left.
 shadowing :: IfaceDecls -> IfaceDecls -> IfaceDecls
 shadowing l r = IfaceDecls
-  { ifTySyns = Map.union (ifTySyns l) (ifTySyns r)
+  { ifTySyns   = Map.union (ifTySyns   l) (ifTySyns   r)
   , ifNewtypes = Map.union (ifNewtypes l) (ifNewtypes r)
-  , ifDecls  = Map.union (ifDecls  l) (ifDecls  r)
+  , ifDecls    = Map.union (ifDecls    l) (ifDecls    r)
   }
 
 type IfaceTySyn = TySyn
@@ -81,6 +81,8 @@ data IfaceDecl = IfaceDecl
   { ifDeclName    :: QName
   , ifDeclSig     :: Schema
   , ifDeclPragmas :: [Pragma]
+  , ifDeclInfix   :: Bool
+  , ifDeclFixity  :: Maybe Fixity
   } deriving (Show)
 
 mkIfaceDecl :: Decl -> IfaceDecl
@@ -88,6 +90,8 @@ mkIfaceDecl d = IfaceDecl
   { ifDeclName    = dName d
   , ifDeclSig     = dSignature d
   , ifDeclPragmas = dPragmas d
+  , ifDeclInfix   = dInfix d
+  , ifDeclFixity  = dFixity d
   }
 
 -- | Like mapIfaceDecls, but gives you back a NameEnv that describes the

@@ -50,7 +50,7 @@ Loading module test05
 [warning] at ./test05.cry:1:1--14:21:
   Defaulting 1st type parameter
              of expression (#)
-             at ./test05.cry:14:16--14:17
+             at ./test05.cry:14:11--14:21
   to 0
 module test05
 import Cryptol

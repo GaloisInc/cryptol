@@ -477,7 +477,7 @@ typeOfCmd str = do
   --io (mapM_ printWarning ws)
   whenDebug (rPutStrLn (dump def))
   (_,names) <- getFocusedEnv
-  rPrint $ runDoc names $ pp expr <+> text ":" <+> pp sig
+  rPrint $ runDoc names $ pp def <+> text ":" <+> pp sig
 
 reloadCmd :: REPL ()
 reloadCmd  = do
@@ -592,7 +592,8 @@ browseVars (decls,names) pfx = do
       rPutStrLn name
       rPutStrLn (replicate (length name) '=')
       let step k d acc =
-              pp k <+> char ':' <+> pp (M.ifDeclSig d) : acc
+              optParens (M.ifDeclInfix d) (pp k)
+                <+> char ':' <+> pp (M.ifDeclSig d) : acc
       rPrint (runDoc names (nest 4 (vcat (Map.foldrWithKey step [] xs))))
       rPutStrLn ""
 
@@ -782,6 +783,8 @@ bindItVariable ty expr = do
                     , T.dSignature  = schema
                     , T.dDefinition = expr
                     , T.dPragmas    = []
+                    , T.dInfix      = False
+                    , T.dFixity     = Nothing
                     }
   liftModuleCmd (M.evalDecls [dg])
   denv <- getDynEnv

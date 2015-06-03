@@ -16,6 +16,7 @@ module Cryptol.Parser.AST
   , Name(..)
   , Named(..)
   , Pass(..)
+  , Assoc(..)
 
     -- * Types
   , Schema(..)
@@ -29,6 +30,7 @@ module Cryptol.Parser.AST
   , Program(..)
   , TopDecl(..)
   , Decl(..)
+  , Fixity(..), defaultFixity
   , TySyn(..)
   , Bind(..)
   , Pragma(..)
@@ -63,6 +65,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.Position
 import Cryptol.Prims.Syntax
 import Cryptol.Utils.PP
+import Cryptol.Utils.Panic (panic)
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -109,6 +112,7 @@ data TopDecl  = Decl (TopLevel Decl)
                 deriving (Eq,Show)
 
 data Decl     = DSignature [LQName] Schema
+              | DFixity !Fixity [LQName]
               | DPragma [LQName] Pragma
               | DBind Bind
               | DPatBind Pattern Expr
@@ -150,9 +154,18 @@ data Bind     = Bind { bName      :: LQName       -- ^ Defined thing
                      , bParams    :: [Pattern]    -- ^ Parameters
                      , bDef       :: Expr         -- ^ Definition
                      , bSignature :: Maybe Schema -- ^ Optional type sig
+                     , bInfix     :: Bool         -- ^ Infix operator?
+                     , bFixity    :: Maybe Fixity -- ^ Optional fixity info
                      , bPragmas   :: [Pragma]     -- ^ Optional pragmas
                      , bMono      :: Bool  -- ^ Is this a monomorphic binding
                      } deriving (Eq,Show)
+
+data Fixity   = Fixity { fAssoc :: !Assoc
+                       , fLevel :: !Int
+                       } deriving (Eq,Show)
+
+defaultFixity :: Fixity
+defaultFixity  = Fixity LeftAssoc 9
 
 data Pragma   = PragmaNote String
               | PragmaProperty
@@ -243,6 +256,9 @@ data Expr     = EVar QName                      -- ^ @ x @
               | ETypeVal Type                   -- ^ @ `(x + 1)@, @x@ is a type
               | EFun [Pattern] Expr             -- ^ @ \\x y -> x @
               | ELocated Expr Range             -- ^ position annotation
+
+              | EParens Expr                    -- ^ @ (e)   @ (Removed by Fixity)
+              | EInfix Expr (LQName) Expr       -- ^ @ a + b @ (Removed by Fixity)
                 deriving (Eq,Show)
 
 data TypeInst = NamedInst (Named Type)
@@ -474,9 +490,15 @@ instance PP Decl where
       DSignature xs s -> commaSep (map ppL xs) <+> text ":" <+> pp s
       DPatBind p e    -> pp p <+> text "=" <+> pp e
       DBind b         -> ppPrec n b
+      DFixity f ns    -> ppFixity f ns
       DPragma xs p    -> ppPragma xs p
       DType ts        -> ppPrec n ts
       DLocated d _    -> ppPrec n d
+
+ppFixity :: Fixity -> [LQName] -> Doc
+ppFixity (Fixity LeftAssoc  i) ns = text "infixl" <+> int i <+> commaSep (map pp ns)
+ppFixity (Fixity RightAssoc i) ns = text "infixr" <+> int i <+> commaSep (map pp ns)
+ppFixity (Fixity NonAssoc   i) ns = text "infix"  <+> int i <+> commaSep (map pp ns)
 
 instance PP Newtype where
   ppPrec _ nt = hsep
@@ -511,13 +533,19 @@ ppPragma xs p =
 
 instance PP Bind where
   ppPrec _ b = sig $$ vcat [ ppPragma [f] p | p <- bPragmas b ] $$
-               hang (lhs <+> eq) 4 (pp (bDef b))
-    where f = bName b
+               hang (def <+> eq) 4 (pp (bDef b))
+    where def | bInfix b  = lhsOp
+              | otherwise = lhs
+          f = bName b
           sig = case bSignature b of
                   Nothing -> empty
                   Just s  -> pp (DSignature [f] s)
           eq  = if bMono b then text ":=" else text "="
           lhs = ppL f <+> fsep (map (ppPrec 3) (bParams b))
+
+          lhsOp = case bParams b of
+                    [x,y] -> pp x <+> ppL f <+> pp y
+                    _     -> panic "AST" [ "Malformed infix operator", show b ]
 
 
 instance PP TySyn where
@@ -662,6 +690,10 @@ instance PP Expr where
                        wrap n 3 (ppPrec 3 e <+> fsep (map (ppPrec 4) es))
 
       ELocated e _  -> ppPrec n e
+
+      EParens e -> parens (pp e)
+
+      EInfix e1 op e2 -> wrap n 0 (pp e1 <+> pp (thing op) <+> pp e2) 
 
 instance PP Selector where
   ppPrec _ sel =
@@ -816,6 +848,7 @@ instance NoPos Decl where
       DSignature x y   -> DSignature (noPos x) (noPos y)
       DPragma    x y   -> DPragma    (noPos x) (noPos y)
       DPatBind   x y   -> DPatBind   (noPos x) (noPos y)
+      DFixity f ns     -> DFixity f (noPos ns)
       DBind      x     -> DBind      (noPos x)
       DType      x     -> DType      (noPos x)
       DLocated   x _   -> noPos x
@@ -831,6 +864,8 @@ instance NoPos Bind where
                  , bParams    = noPos (bParams    x)
                  , bDef       = noPos (bDef       x)
                  , bSignature = noPos (bSignature x)
+                 , bInfix     = bInfix x
+                 , bFixity    = bFixity x
                  , bPragmas   = noPos (bPragmas   x)
                  , bMono      = bMono x
                  }
@@ -866,6 +901,9 @@ instance NoPos Expr where
       ETypeVal x    -> ETypeVal (noPos x)
       EFun x y      -> EFun     (noPos x) (noPos y)
       ELocated x _  -> noPos x
+
+      EParens e     -> EParens (noPos e)
+      EInfix x y z  -> EInfix (noPos x) y (noPos z)
 
 instance NoPos TypeInst where
   noPos (PosInst ts)   = PosInst (noPos ts)

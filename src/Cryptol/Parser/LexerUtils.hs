@@ -314,18 +314,14 @@ data TokenW   = BlockComment | LineComment | Space
 data TokenKW  = KW_Arith
               | KW_Bit
               | KW_Cmp
-              | KW_False
-              | KW_True
               | KW_else
               | KW_Eq
-              | KW_error
               | KW_extern
               | KW_fin
               | KW_if
               | KW_private
               | KW_include
               | KW_inf
-              | KW_join
               | KW_lg2
               | KW_lengthFromThen
               | KW_lengthFromThenTo
@@ -334,33 +330,26 @@ data TokenKW  = KW_Arith
               | KW_module
               | KW_newtype
               | KW_pragma
-              | KW_pmult
-              | KW_pdiv
-              | KW_pmod
               | KW_property
-              | KW_random
-              | KW_reverse
-              | KW_split
-              | KW_splitAt
               | KW_then
-              | KW_transpose
               | KW_type
               | KW_where
               | KW_let
               | KW_x
-              | KW_zero
               | KW_import
               | KW_as
               | KW_hiding
+              | KW_infixl
+              | KW_infixr
+              | KW_infix
                 deriving (Eq,Show)
 
+-- | The named operators are a special case for parsing types, and 'Other' is
+-- used for all other cases that lexed as an operator.
 data TokenOp  = Plus | Minus | Mul | Div | Exp | Mod
-              | NotEqual | Equal | LessThan | GreaterThan | LEQ | GEQ
-              | EqualFun | NotEqualFun
-              | ShiftL | ShiftR | RotL | RotR
-              | Conj | Disj | Xor
-              | Complement
-              | Bang | BangBang | At | AtAt | Hash
+              | Equal | LEQ | GEQ
+              | Complement | Hash
+              | Other String
                 deriving (Eq,Show)
 
 data TokenSym = Bar

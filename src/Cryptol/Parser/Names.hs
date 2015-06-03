@@ -46,6 +46,7 @@ namesD decl =
     DBind b       -> namesB b
     DPatBind p e  -> (namesP p, namesE e)
     DSignature {} -> ([],Set.empty)
+    DFixity{}     -> ([],Set.empty)
     DPragma {}    -> ([],Set.empty)
     DType {}      -> ([],Set.empty)
     DLocated d _  -> namesD d
@@ -60,6 +61,7 @@ allNamesD decl =
     DBind b         -> fst (namesB b)
     DPatBind p _    -> namesP p
     DSignature ns _ -> ns
+    DFixity _ ns    -> ns
     DPragma ns _    -> ns
     DType ts        -> [tsName ts]
     DLocated d _    -> allNamesD d
@@ -97,6 +99,9 @@ namesE expr =
     ETypeVal _    -> Set.empty
     EFun ps e     -> boundNames (namesPs ps) (namesE e)
     ELocated e _  -> namesE e
+
+    EParens e     -> namesE e
+    EInfix a o b  -> Set.insert (thing o) (Set.union (namesE a) (namesE b))
 
 -- | The names defined by a group of patterns.
 namesPs :: [Pattern] -> [Located QName]
@@ -168,6 +173,7 @@ tnamesD :: Decl -> ([Located QName], Set QName)
 tnamesD decl =
   case decl of
     DSignature _ s       -> ([], tnamesS s)
+    DFixity {}           -> ([], Set.empty)
     DPragma {}           -> ([], Set.empty)
     DBind b              -> ([], tnamesB b)
     DPatBind _ e         -> ([], tnamesE e)
@@ -206,6 +212,9 @@ tnamesE expr =
     ETypeVal t    -> tnamesT t
     EFun ps e     -> Set.union (Set.unions (map tnamesP ps)) (tnamesE e)
     ELocated e _  -> tnamesE e
+
+    EParens e     -> tnamesE e
+    EInfix a _ b  -> Set.union (tnamesE a) (tnamesE b)
 
 tnamesTI :: TypeInst -> Set QName
 tnamesTI (NamedInst f)  = tnamesT (value f)

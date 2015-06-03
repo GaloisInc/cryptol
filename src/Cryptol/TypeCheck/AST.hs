@@ -21,13 +21,15 @@ module Cryptol.TypeCheck.AST
   , ExportType(..)
   , ExportSpec(..), isExportedBind, isExportedType
   , Pragma(..)
+  , Fixity(..)
   ) where
 
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST ( Name(..), Selector(..),Pragma(..), ppSelector
                           , Import(..), ImportSpec(..), ExportType(..)
                           , ExportSpec(..), ModName(..), isExportedBind
-                          , isExportedType, QName(..), mkUnqual, unqual )
+                          , isExportedType, QName(..), mkUnqual, unqual
+                          , Fixity(..) )
 import Cryptol.Utils.Panic(panic)
 import Cryptol.TypeCheck.PP
 
@@ -258,6 +260,8 @@ data Decl       = Decl { dName        :: QName
                        , dSignature   :: Schema
                        , dDefinition  :: Expr
                        , dPragmas     :: [Pragma]
+                       , dInfix       :: !Bool
+                       , dFixity      :: Maybe Fixity
                        } deriving (Show)
 
 
