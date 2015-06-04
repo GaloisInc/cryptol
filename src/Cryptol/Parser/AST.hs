@@ -33,6 +33,7 @@ module Cryptol.Parser.AST
   , Fixity(..), defaultFixity
   , TySyn(..)
   , Bind(..)
+  , BindDef(..), LBindDef
   , Pragma(..)
   , ExportType(..)
   , ExportSpec(..), exportBind, exportType
@@ -152,13 +153,19 @@ data TySyn    = TySyn LQName [TParam] Type
 -}
 data Bind     = Bind { bName      :: LQName       -- ^ Defined thing
                      , bParams    :: [Pattern]    -- ^ Parameters
-                     , bDef       :: Expr         -- ^ Definition
+                     , bDef       :: LBindDef     -- ^ Definition
                      , bSignature :: Maybe Schema -- ^ Optional type sig
                      , bInfix     :: Bool         -- ^ Infix operator?
                      , bFixity    :: Maybe Fixity -- ^ Optional fixity info
                      , bPragmas   :: [Pragma]     -- ^ Optional pragmas
                      , bMono      :: Bool  -- ^ Is this a monomorphic binding
                      } deriving (Eq,Show)
+
+type LBindDef = Located BindDef
+
+data BindDef  = DPrim
+              | DExpr Expr
+                deriving (Eq,Show)
 
 data Fixity   = Fixity { fAssoc :: !Assoc
                        , fLevel :: !Int
@@ -533,7 +540,7 @@ ppPragma xs p =
 
 instance PP Bind where
   ppPrec _ b = sig $$ vcat [ ppPragma [f] p | p <- bPragmas b ] $$
-               hang (def <+> eq) 4 (pp (bDef b))
+               hang (def <+> eq) 4 (pp (thing (bDef b)))
     where def | bInfix b  = lhsOp
               | otherwise = lhs
           f = bName b
@@ -546,6 +553,11 @@ instance PP Bind where
           lhsOp = case bParams b of
                     [x,y] -> pp x <+> ppL f <+> pp y
                     _     -> panic "AST" [ "Malformed infix operator", show b ]
+
+
+instance PP BindDef where
+  ppPrec _ DPrim     = text "<primitive>"
+  ppPrec p (DExpr e) = ppPrec p e
 
 
 instance PP TySyn where

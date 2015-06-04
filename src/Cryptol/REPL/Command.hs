@@ -781,7 +781,7 @@ bindItVariable ty expr = do
                         }
       decl = T.Decl { T.dName       = freshIt
                     , T.dSignature  = schema
-                    , T.dDefinition = expr
+                    , T.dDefinition = T.DExpr expr
                     , T.dPragmas    = []
                     , T.dInfix      = False
                     , T.dFixity     = Nothing

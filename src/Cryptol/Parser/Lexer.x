@@ -108,6 +108,8 @@ $white+                   { emit $ White Space }
 "infixr"                  { emit $ KW KW_infixr }
 "infix"                   { emit $ KW KW_infix  }
 
+"primitive"               { emit $ KW KW_primitive }
+
 @num2                     { emitS (numToken 2  . drop 2) }
 @num8                     { emitS (numToken 8  . drop 2) }
 @num10                    { emitS (numToken 10 . drop 0) }

@@ -71,7 +71,12 @@ tsName (TySyn lqn _ _) = lqn
 
 -- | The names defined and used by a single binding.
 namesB :: Bind -> ([Located QName], Set QName)
-namesB b = ([bName b], boundNames (namesPs (bParams b)) (namesE (bDef b)))
+namesB b = ([bName b], boundNames (namesPs (bParams b)) (namesDef (thing (bDef b))))
+
+
+namesDef :: BindDef -> Set QName
+namesDef DPrim     = Set.empty
+namesDef (DExpr e) = namesE e
 
 
 -- | The names used by an expression.
@@ -186,7 +191,11 @@ tnamesB b = Set.unions [setS, setP, setE]
   where
     setS = maybe Set.empty tnamesS (bSignature b)
     setP = Set.unions (map tnamesP (bParams b))
-    setE = tnamesE (bDef b)
+    setE = tnamesDef (thing (bDef b))
+
+tnamesDef :: BindDef -> Set QName
+tnamesDef DPrim     = Set.empty
+tnamesDef (DExpr e) = tnamesE e
 
 -- | The type names used by an expression.
 tnamesE :: Expr -> Set QName

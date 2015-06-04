@@ -16,7 +16,7 @@ module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
 
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
-import Cryptol.Parser.Position(Range(..),start)
+import Cryptol.Parser.Position(Range(..),emptyRange,start,at)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
@@ -26,7 +26,7 @@ import           Data.Either(partitionEithers)
 import qualified Data.Map as Map
 
 #if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative(Applicative(..),(<$>))
+import           Control.Applicative(Applicative(..),(<$>)(<$))
 import           Data.Traversable(traverse)
 #endif
 
@@ -47,7 +47,8 @@ instance RemovePatterns [Decl] where
   removePatterns ds = runNoPatM (noPatDs ds)
 
 simpleBind :: Located QName -> Expr -> Bind
-simpleBind x e = Bind { bName = x, bParams = [], bDef = e
+simpleBind x e = Bind { bName = x, bParams = []
+                      , bDef = at e (Located emptyRange (DExpr e))
                       , bSignature = Nothing, bPragmas = []
                       , bMono = True, bInfix = False, bFixity = Nothing
                       }
@@ -190,8 +191,15 @@ noPatM (MatchLet b) = (return . MatchLet) <$> noMatchB b
 
 noMatchB :: Bind -> NoPatM Bind
 noMatchB b =
-  do (ps,e) <- noPatFun (bParams b) (bDef b)
-     return b { bParams = ps, bDef = e }
+  case thing (bDef b) of
+
+    DPrim | null (bParams b) -> return b
+          | otherwise        -> panic "NoPat" [ "noMatchB: primitive with params"
+                                              , show b ]
+
+    DExpr e ->
+      do (ps,e') <- noPatFun (bParams b) e
+         return b { bParams = ps, bDef = DExpr e' <$ bDef b }
 
 noMatchD :: Decl -> NoPatM [Decl]
 noMatchD decl =
@@ -209,7 +217,7 @@ noMatchD decl =
                           let e2 = foldl ETyped e1 ts
                           return $ DBind Bind { bName = x
                                               , bParams = []
-                                              , bDef = e2
+                                              , bDef = at e (Located emptyRange (DExpr e2))
                                               , bSignature = Nothing
                                               , bPragmas = []
                                               , bMono = False

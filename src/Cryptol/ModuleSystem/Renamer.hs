@@ -419,6 +419,10 @@ instance Rename Bind where
                     , bPragmas   = p'
                     }
 
+instance Rename BindDef where
+  rename DPrim     = return DPrim
+  rename (DExpr e) = DExpr <$> rename e
+
 -- NOTE: this only renames types within the pattern.
 instance Rename Pattern where
   rename p      = case p of

@@ -236,6 +236,10 @@ instance TVars Decl where
                             , dDefinition = apSubst su (dDefinition d)
                             }
 
+instance TVars DeclDef where
+  apSubst su (DExpr e) = DExpr (apSubst su e)
+  apSubst _  DPrim     = DPrim
+
 instance TVars Module where
   apSubst su m = m { mDecls = apSubst su (mDecls m) }
 

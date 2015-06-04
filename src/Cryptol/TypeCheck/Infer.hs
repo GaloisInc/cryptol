@@ -567,7 +567,10 @@ inferCArm armNum (m : ms) =
 -- be unaffected.
 inferBinds :: Bool -> Bool -> [P.Bind] -> InferM [Decl]
 inferBinds isTopLevel isRec binds =
-  mdo let exprMap = Map.fromList [ (x,inst (EVar x) (dDefinition b))
+  mdo let dExpr (DExpr e) = e
+          dExpr DPrim     = panic "[TypeCheck]" [ "primitive in a recursive group" ]
+  
+          exprMap = Map.fromList [ (x,inst (EVar x) (dExpr (dDefinition b)))
                                  | b <- genBs, let x = dName b ] -- REC.
 
           inst e (ETAbs x e1)     = inst (ETApp e (TVar (tpVar x))) e1
@@ -647,7 +650,9 @@ simpBind d =
       case simpTypeMaybe t of
         Nothing -> d
         Just t1 -> d { dSignature  = Forall as qs t1
-                     , dDefinition = castUnder t1 (dDefinition d)
+                     , dDefinition = case dDefinition d of
+                                       DPrim   -> DPrim
+                                       DExpr e -> DExpr (castUnder t1 e)
                      }
   where
   -- Assumes the quantifiers match
@@ -715,7 +720,9 @@ generalize bs0 gs0 =
          qs     = map (apSubst su) here
 
          genE e = foldr ETAbs (foldr EProofAbs (apSubst su e) qs) asPs
-         genB d = d { dDefinition = genE (dDefinition d)
+         genB d = d { dDefinition = case dDefinition d of
+                                      DExpr e -> DExpr (genE e)
+                                      DPrim   -> DPrim
                     , dSignature  = Forall asPs qs
                                   $ apSubst su $ sType $ dSignature d
                     }
@@ -725,27 +732,55 @@ generalize bs0 gs0 =
 
 
 
-
 checkMonoB :: P.Bind -> Type -> InferM Decl
 checkMonoB b t =
   inRangeMb (getLoc b) $
-  do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) (P.bDef b) t
-     let f = thing (P.bName b)
-     return Decl { dName = f
-                 , dSignature = Forall [] [] t
-                 , dDefinition = e1
-                 , dPragmas = P.bPragmas b
-                 , dInfix = P.bInfix b
-                 , dFixity = P.bFixity b
-                 }
+  case thing (P.bDef b) of
+
+    P.DPrim ->
+         return Decl { dName = thing (P.bName b)
+                     , dSignature = Forall [] [] t
+                     , dDefinition = DPrim
+                     , dPragmas = P.bPragmas b
+                     , dInfix = P.bInfix b
+                     , dFixity = P.bFixity b
+                     }
+
+    P.DExpr e ->
+      do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) e t
+         let f = thing (P.bName b)
+         return Decl { dName = f
+                     , dSignature = Forall [] [] t
+                     , dDefinition = DExpr e1
+                     , dPragmas = P.bPragmas b
+                     , dInfix = P.bInfix b
+                     , dFixity = P.bFixity b
+                     }
 
 -- XXX: Do we really need to do the defaulting business in two different places?
 checkSigB :: P.Bind -> (Schema,[Goal]) -> InferM Decl
-checkSigB b (Forall as asmps0 t0, validSchema) =
+checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
+
+ -- XXX what should we do with validSchema in this case?
+ P.DPrim
+   | not (null validSchema) ->
+     return Decl
+        { dName       = thing (P.bName b)
+        , dSignature  = Forall as asmps0 t0
+        , dDefinition = DPrim
+        , dPragmas    = P.bPragmas b
+        , dInfix      = P.bInfix b
+        , dFixity     = P.bFixity b
+        }
+
+   | otherwise ->
+     panic "[TypeCheck]" [ "invalid primitive schema", show b, show validSchema ]
+
+ P.DExpr e0 ->
   inRangeMb (getLoc b) $
   withTParams as $
   do (e1,cs0) <- collectGoals $
-                do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) (P.bDef b) t0
+                do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) e0 t0
                    () <- simplifyAllConstraints  -- XXX: using `asmps` also...
                    return e1
      cs <- applySubst cs0
@@ -792,7 +827,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
      return Decl
         { dName       = thing (P.bName b)
         , dSignature  = Forall as asmps t
-        , dDefinition = foldr ETAbs (foldr EProofAbs e2 asmps) as
+        , dDefinition = DExpr (foldr ETAbs (foldr EProofAbs e2 asmps) as)
         , dPragmas    = P.bPragmas b
         , dInfix      = P.bInfix b
         , dFixity     = P.bFixity b

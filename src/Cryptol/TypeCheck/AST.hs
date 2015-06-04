@@ -258,11 +258,15 @@ groupDecls dg = case dg of
 
 data Decl       = Decl { dName        :: QName
                        , dSignature   :: Schema
-                       , dDefinition  :: Expr
+                       , dDefinition  :: DeclDef
                        , dPragmas     :: [Pragma]
                        , dInfix       :: !Bool
                        , dFixity      :: Maybe Fixity
                        } deriving (Show)
+
+data DeclDef    = DPrim
+                | DExpr Expr
+                  deriving (Show)
 
 
 
@@ -874,6 +878,10 @@ instance PP (WithNames Decl) where
         else text "pragmas" <+> pp dName <+> sep (map pp dPragmas)
     ) $$
     pp dName <+> text "=" <+> ppWithNames nm dDefinition
+
+instance PP (WithNames DeclDef) where
+  ppPrec _ (WithNames DPrim _)      = text "<primitive>"
+  ppPrec _ (WithNames (DExpr e) nm) = ppWithNames nm e
 
 instance PP Decl where
   ppPrec = ppWithNamesPrec IntMap.empty

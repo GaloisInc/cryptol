@@ -342,6 +342,7 @@ data TokenKW  = KW_Arith
               | KW_infixl
               | KW_infixr
               | KW_infix
+              | KW_primitive
                 deriving (Eq,Show)
 
 -- | The named operators are a special case for parsing types, and 'Other' is

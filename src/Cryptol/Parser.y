@@ -70,6 +70,8 @@ import Paths_cryptol
   'max'       { Located $$ (Token (KW KW_max    ) _)}
   'x'         { Located $$ (Token (KW KW_x)       _)}
 
+  'primitive' { Located $$ (Token (KW KW_primitive) _)}
+
   '['         { Located $$ (Token (Sym BracketL) _)}
   ']'         { Located $$ (Token (Sym BracketR) _)}
   '<-'        { Located $$ (Token (Sym ArrL    ) _)}
@@ -236,10 +238,35 @@ vtop_decl               :: { [TopDecl] }
   | 'property' name apats '=' expr { [exportDecl Public (mkProperty $2 $3 $5)]}
   | 'property' name       '=' expr { [exportDecl Public (mkProperty $2 [] $4)]}
   | newtype                        { [exportNewtype Public $1]                }
+  | 'primitive' prim_bind          { [exportDecl Public $ at ($1,$2) $ DBind $2]}
 
 top_decl                :: { TopDecl }
   : decl                   { Decl (TopLevel {tlExport = Public, tlValue = $1}) }
   | 'include' STRLIT       {% Include `fmap` fromStrLit $2 }
+  | 'primitive' prim_bind  { exportDecl Public $ at ($1,$2) $ DBind $2 }
+
+prim_bind               :: { Bind }
+  : name ':' schema        { Bind { bName      = fmap mkUnqual $1
+                                  , bParams    = []
+                                  , bDef       = at $3 (Located emptyRange DPrim)
+                                  , bSignature = Just $3
+                                  , bPragmas   = []
+                                  , bMono      = False
+                                  , bInfix     = False
+                                  , bFixity    = Nothing
+                                  } }
+
+  | '(' op ')' ':' schema  { Bind { bName      = $2
+                                  , bParams    = []
+                                  , bDef       = at $5 (Located emptyRange DPrim)
+                                  , bSignature = Just $5
+                                  , bPragmas   = []
+                                  , bMono      = False
+                                  , bInfix     = True
+                                  , bFixity    = Nothing
+                                  } }
+
+
 
 decl                    :: { Decl }
   : vars_comma ':' schema  { at (head $1,$3) $ DSignature (map (fmap mkUnqual) (reverse $1)) $3   }
@@ -247,7 +274,7 @@ decl                    :: { Decl }
   | name apats '=' expr    { at ($1,$4) $
                              DBind $ Bind { bName      = fmap mkUnqual $1
                                           , bParams    = reverse $2
-                                          , bDef       = $4
+                                          , bDef       = at $4 (Located emptyRange (DExpr $4))
                                           , bSignature = Nothing
                                           , bPragmas   = []
                                           , bMono      = False
@@ -258,7 +285,7 @@ decl                    :: { Decl }
   | apat op apat '=' expr  { at ($1,$5) $
                              DBind $ Bind { bName      = $2
                                           , bParams    = [$1,$3]
-                                          , bDef       = $5
+                                          , bDef       = at $5 (Located emptyRange (DExpr $5))
                                           , bSignature = Nothing
                                           , bPragmas   = []
                                           , bMono      = False
@@ -279,7 +306,7 @@ let_decl                :: { Decl }
   | 'let' name apats '=' expr    { at ($2,$5) $
                                    DBind $ Bind { bName      = fmap mkUnqual $2
                                                 , bParams    = reverse $3
-                                                , bDef       = $5
+                                                , bDef       = at $5 (Located emptyRange (DExpr $5))
                                                 , bSignature = Nothing
                                                 , bPragmas   = []
                                                 , bMono      = False
@@ -298,11 +325,12 @@ newtype_body            :: { [Named Type] }
   | '{' field_types '}'    { $2 }
 
 vars_comma                 :: { [ LName ]  }
-  : name                      { [ $1]      }
-  | vars_comma ',' name       { $3 : $1    }
+  : var                       { [ $1]      }
+  | vars_comma ',' var        { $3 : $1    }
 
-  | '(' op ')'                { [fmap unqual $2]    }
-  | vars_comma ',' '(' op ')' { fmap unqual $4 : $1 }
+var                        :: { LName }
+  : name                      { $1 }
+  | '(' op ')'                { fmap unqual $2 }
 
 apats                   :: { [Pattern]  }
   : apat                   { [$1]       }

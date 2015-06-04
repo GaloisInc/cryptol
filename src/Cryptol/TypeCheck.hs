@@ -5,6 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
+{-# LANGUAGE PatternGuards #-}
 
 module Cryptol.TypeCheck
   ( tcModule
@@ -71,7 +72,7 @@ tcExpr e0 inp = runInferM inp
                     { P.bName      = P.Located (inpRange inp)
                                    $ mkUnqual (P.Name "(expression)")
                     , P.bParams    = []
-                    , P.bDef       = expr
+                    , P.bDef       = P.Located (inpRange inp) (P.DExpr expr)
                     , P.bPragmas   = []
                     , P.bSignature = Nothing
                     , P.bMono      = False
@@ -80,7 +81,12 @@ tcExpr e0 inp = runInferM inp
                     } ]
 
               case res of
-                [d] -> return (dDefinition d, dSignature d)
+                [d] | DExpr e <- dDefinition d -> return (e, dSignature d)
+                    | otherwise                ->
+                       panic "Cryptol.TypeCheck.tcExpr"
+                          [ "Expected an expression in definition"
+                          , show d ]
+
                 _   -> panic "Cryptol.TypeCheck.tcExpr"
                           ( "Multiple declarations when check expression:"
                           : map show res

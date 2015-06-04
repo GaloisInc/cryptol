@@ -356,12 +356,19 @@ convertible t1 t2 = go t1 t2
 -- | Check a declaration. The boolean indicates if we should check the siganture
 checkDecl :: Bool -> Decl -> TcM (QName, Schema)
 checkDecl checkSig d =
-  do let s = dSignature d
-     when checkSig $ checkSchema s
-     s1 <- exprSchema (dDefinition d)
-     unless (same s s1) $
-       reportError $ TypeMismatch s s1
-     return (dName d, s)
+  case dDefinition d of
+
+    DPrim ->
+      do when checkSig $ checkSchema $ dSignature d
+         return (dName d, dSignature d)
+
+    DExpr e ->
+      do let s = dSignature d
+         when checkSig $ checkSchema s
+         s1 <- exprSchema e
+         unless (same s s1) $
+           reportError $ TypeMismatch s s1
+         return (dName d, s)
 
 checkDeclGroup :: DeclGroup -> TcM [(QName, Schema)]
 checkDeclGroup dg =

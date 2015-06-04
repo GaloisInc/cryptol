@@ -398,7 +398,12 @@ evalDeclGroup env dg =
                       in env'
 
 evalDecl :: Env -> Decl -> (QName, Value)
-evalDecl env d = (dName d, evalExpr env (dDefinition d))
+evalDecl env d = (dName d, evalDeclDef env (dDefinition d))
+
+evalDeclDef :: Env -> DeclDef -> Value
+evalDeclDef env (DExpr e) = evalExpr env e
+evalDeclDef _   DPrim     = panic "Cryptol.Symbolic.evalDeclDef"
+                                  [ "Unimplemented primitive" ]
 
 -- | Make a copy of the given value, building the spine based only on
 -- the type without forcing the value argument. This lets us avoid

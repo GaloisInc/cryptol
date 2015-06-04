@@ -212,8 +212,12 @@ rewM rews ma =
 
 
 rewD :: RewMap -> Decl -> M Decl
-rewD rews d = do e <- rewE rews (dDefinition d)
+rewD rews d = do e <- rewDef rews (dDefinition d)
                  return d { dDefinition = e }
+
+rewDef :: RewMap -> DeclDef -> M DeclDef
+rewDef rews (DExpr e) = DExpr <$> rewE rews e
+rewDef _    DPrim     = return DPrim
 
 rewDeclGroup :: RewMap -> DeclGroup -> M DeclGroup
 rewDeclGroup rews dg =
@@ -231,9 +235,12 @@ rewDeclGroup rews dg =
   sameTParams    (_,tps1,x,_) (_,tps2,y,_) = tps1 == tps2 && x == y
   compareTParams (_,tps1,x,_) (_,tps2,y,_) = compare (x,tps1) (y,tps2)
 
-  consider d   = let (tps,props,e) = splitTParams (dDefinition d)
-                 in if not (null tps) && notFun e
-                     then Right (d, tps, props, e)
+  consider d   =
+    case dDefinition d of
+      DPrim   -> Left d
+      DExpr e -> let (tps,props,e') = splitTParams e
+                 in if not (null tps) && notFun e'
+                     then Right (d, tps, props, e')
                      else Left d
 
   rewSame ds =
@@ -252,7 +259,7 @@ rewDeclGroup rews dg =
                              , d { dName        = newN
                                  , dSignature   = (dSignature d)
                                          { sVars = [], sProps = [] }
-                                 , dDefinition  = e1
+                                 , dDefinition  = DExpr e1
                                  }
                              )
 
@@ -262,7 +269,7 @@ rewDeclGroup rews dg =
                                 let newBody = EVar (dName f')
                                     newE = EWhere newBody
                                               [ Recursive [f'] ]
-                                in foldr ETAbs
+                                in DExpr $ foldr ETAbs
                                    (foldr EProofAbs newE props) tps
                             }
                       ]
@@ -285,6 +292,7 @@ rewDeclGroup rews dg =
                                     (map (sType . dSignature) monoDs)
 
                         , dDefinition =
+                            DExpr  $
                             addTPs $
                             EWhere (ETuple [ EVar (dName d) | d <- monoDs ])
                                    [ Recursive monoDs ]
@@ -301,6 +309,7 @@ rewDeclGroup rews dg =
 
                       mkFunDef n f =
                         f { dDefinition =
+                              DExpr  $
                               addTPs $ ESel ( flip (foldl mkProof) props
                                             $ flip (foldl ETApp) tys
                                             $ EVar tupName
