@@ -762,19 +762,14 @@ checkSigB :: P.Bind -> (Schema,[Goal]) -> InferM Decl
 checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
 
  -- XXX what should we do with validSchema in this case?
- P.DPrim
-   | not (null validSchema) ->
-     return Decl
-        { dName       = thing (P.bName b)
-        , dSignature  = Forall as asmps0 t0
-        , dDefinition = DPrim
-        , dPragmas    = P.bPragmas b
-        , dInfix      = P.bInfix b
-        , dFixity     = P.bFixity b
-        }
-
-   | otherwise ->
-     panic "[TypeCheck]" [ "invalid primitive schema", show b, show validSchema ]
+ P.DPrim ->
+   do return Decl { dName       = thing (P.bName b)
+                  , dSignature  = Forall as asmps0 t0
+                  , dDefinition = DPrim
+                  , dPragmas    = P.bPragmas b
+                  , dInfix      = P.bInfix b
+                  , dFixity     = P.bFixity b
+                  }
 
  P.DExpr e0 ->
   inRangeMb (getLoc b) $

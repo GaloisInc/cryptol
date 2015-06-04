@@ -5,6 +5,9 @@
 
 module Cryptol where
 
+infixl 6 +
+primitive (+) : {a} (Arith a) => a -> a -> a
+
 type Bool = Bit
 type String n = [n][8]
 type Word n = [n]

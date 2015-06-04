@@ -331,3 +331,21 @@ mkIf :: [(Expr, Expr)] -> Expr -> Expr
 mkIf ifThens theElse = foldr addIfThen theElse ifThens
     where
     addIfThen (cond, doexpr) elseExpr = EIf cond doexpr elseExpr
+
+-- | Generate a signature and a primitive binding.  The reason for generating
+-- both instead of just adding the signature at this point is that it means the
+-- primitive declarations don't need to be treated differently in the noPat
+-- pass.
+mkPrim :: LQName -> Schema -> [Decl]
+mkPrim n sig =
+  [ DBind Bind { bName      = n
+               , bParams    = []
+               , bDef       = at sig (Located emptyRange DPrim)
+               , bSignature = Nothing
+               , bPragmas   = []
+               , bMono      = False
+               , bInfix     = False
+               , bFixity    = Nothing
+               }
+  , DSignature [n] sig
+  ]

@@ -223,8 +223,8 @@ program_layout             :: { Program }
   | 'v{''v}'                  { Program []           }
 
 top_decls                  :: { [TopDecl]  }
-  : top_decl ';'              { [$1]       }
-  | top_decls top_decl ';'    { $2 : $1    }
+  : top_decl ';'              { $1         }
+  | top_decls top_decl ';'    { $2 ++ $1   }
 
 vtop_decls                 :: { [TopDecl]  }
   : vtop_decl                 { $1       }
@@ -238,33 +238,16 @@ vtop_decl               :: { [TopDecl] }
   | 'property' name apats '=' expr { [exportDecl Public (mkProperty $2 $3 $5)]}
   | 'property' name       '=' expr { [exportDecl Public (mkProperty $2 [] $4)]}
   | newtype                        { [exportNewtype Public $1]                }
-  | 'primitive' prim_bind          { [exportDecl Public $ at ($1,$2) $ DBind $2]}
+  | 'primitive' prim_bind          { map (exportDecl Public . at ($1,$2)) $2  }
 
-top_decl                :: { TopDecl }
-  : decl                   { Decl (TopLevel {tlExport = Public, tlValue = $1}) }
-  | 'include' STRLIT       {% Include `fmap` fromStrLit $2 }
-  | 'primitive' prim_bind  { exportDecl Public $ at ($1,$2) $ DBind $2 }
+top_decl                :: { [TopDecl] }
+  : decl                   { [Decl (TopLevel {tlExport = Public, tlValue = $1})] }
+  | 'include' STRLIT       {% (return . Include) `fmap` fromStrLit $2 }
+  | 'primitive' prim_bind  { map (exportDecl Public . at ($1,$2)) $2 }
 
-prim_bind               :: { Bind }
-  : name ':' schema        { Bind { bName      = fmap mkUnqual $1
-                                  , bParams    = []
-                                  , bDef       = at $3 (Located emptyRange DPrim)
-                                  , bSignature = Just $3
-                                  , bPragmas   = []
-                                  , bMono      = False
-                                  , bInfix     = False
-                                  , bFixity    = Nothing
-                                  } }
-
-  | '(' op ')' ':' schema  { Bind { bName      = $2
-                                  , bParams    = []
-                                  , bDef       = at $5 (Located emptyRange DPrim)
-                                  , bSignature = Just $5
-                                  , bPragmas   = []
-                                  , bMono      = False
-                                  , bInfix     = True
-                                  , bFixity    = Nothing
-                                  } }
+prim_bind               :: { [Decl] }
+  : name ':' schema        { mkPrim (fmap mkUnqual $1) $3 }
+  | '(' op ')' ':' schema  { mkPrim                $2  $5 }
 
 
 

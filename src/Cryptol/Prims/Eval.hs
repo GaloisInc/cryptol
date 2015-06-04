@@ -9,6 +9,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -79,6 +80,16 @@ instance Bits Bool where
 
 
 -- Primitives ------------------------------------------------------------------
+
+evalPrim :: Decl -> Value
+evalPrim Decl { .. } = case dName of
+
+  QName (Just (ModName ["Cryptol"])) (Name "+") ->
+    binary (arithBinary (liftBinArith (+)))
+
+  _ ->
+    panic "Eval" [ "Unimplemented primitive", show dName ]
+
 
 evalECon :: ECon -> Value
 evalECon ec = case ec of

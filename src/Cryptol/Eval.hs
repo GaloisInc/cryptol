@@ -123,11 +123,11 @@ evalDeclGroup dg env = env'
     NonRecursive d -> evalDecl env d env
 
 evalDecl :: ReadEnv -> Decl -> EvalEnv -> EvalEnv
-evalDecl renv d = bindVar (dName d) (evalDef renv (dDefinition d))
-
-evalDef :: ReadEnv -> DeclDef -> Value
-evalDef renv (DExpr e) = evalExpr renv e
-evalDef _    DPrim     = panic "Eval" [ "unimplemented primitive" ]
+evalDecl renv d =
+  bindVar (dName d) $
+    case dDefinition d of
+      DPrim   -> evalPrim d
+      DExpr e -> evalExpr renv e
 
 
 -- Selectors -------------------------------------------------------------------
