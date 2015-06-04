@@ -246,8 +246,8 @@ top_decl                :: { [TopDecl] }
   | 'primitive' prim_bind  { map (exportDecl Public . at ($1,$2)) $2 }
 
 prim_bind               :: { [Decl] }
-  : name ':' schema        { mkPrim (fmap mkUnqual $1) $3 }
-  | '(' op ')' ':' schema  { mkPrim                $2  $5 }
+  : name ':' schema        { mkPrim False (fmap mkUnqual $1) $3 }
+  | '(' op ')' ':' schema  { mkPrim True                 $2  $5 }
 
 
 
