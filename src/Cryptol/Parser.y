@@ -250,7 +250,7 @@ top_decl                :: { [TopDecl] }
   | prim_bind              { $1                                                   }
 
 prim_bind               :: { [TopDecl] }
-  : mbDoc 'primitive' name ':' schema        { mkPrim $1 False (fmap mkUnqual $3) $5 }
+  : mbDoc 'primitive' name  ':' schema       { mkPrim $1 False (fmap mkUnqual $3) $5 }
   | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrim $1 True                 $4  $7 }
 
 

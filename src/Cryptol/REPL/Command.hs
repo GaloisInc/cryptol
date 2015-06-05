@@ -53,7 +53,6 @@ import Cryptol.TypeCheck.PP (dump,ppWithNames)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
-import Cryptol.Prims.Doc(helpDoc)
 import qualified Cryptol.Transform.Specialize as S
 import qualified Cryptol.Symbolic as Symbolic
 
@@ -632,11 +631,20 @@ helpCmd cmd
   | otherwise =
     case parseHelpName cmd of
       Just qname ->
-        do (env,_) <- getFocusedEnv
+        do (env,nameEnv) <- getFocusedEnv
            case Map.lookup qname (M.ifDecls env) of
              Just [M.IfaceDecl { .. }]
-               | Just str <- ifDeclDoc -> do rPutStrLn ""
-                                             rPutStrLn str
+               | Just str <- ifDeclDoc ->
+                 do rPutStrLn ""
+
+                    rPrint $ runDoc nameEnv
+                           $ nest 4
+                           $ optParens ifDeclInfix (pp qname)
+                             <+> colon
+                             <+> pp (ifDeclSig)
+
+                    rPutStrLn ""
+                    rPutStrLn str
 
              _ -> rPutStrLn "// No documentation is available."
 

@@ -5,20 +5,79 @@
 
 module Cryptol where
 
-infixl 6 +
+/**
+ * The value corresponding to a numeric type.
+ */
+primitive demote : {val, bits} (fin val, fin bits, bits >= width val) => [bits]
+
+infixl 6 +, -
+infixl 7 *, /
+infixr 8 ^^
 
 /**
- *     (+) : {a} (Arith a) => a -> a -> a
- *
  * Add two values.
  *  * For words, addition uses modulo arithmetic.
  *  * Structured values are added element-wise.
  */
 primitive (+) : {a} (Arith a) => a -> a -> a
 
+/**
+ * For words, subtraction uses modulo arithmetic.
+ * Structured values are subtracted element-wise. Defined as:
+ * a - b = a + negate b
+ * See also: `negate'.
+ */
+primitive (-) : {a} (Arith a) => a -> a -> a
+
+/**
+ * For words, multiplies two words, modulus 2^^a.
+ * Structured values are multiplied element-wise.
+ */
+primitive (*) : {a} (Arith a) => a -> a -> a
+
+/**
+ * For words, divides two words, modulus 2^^a.
+ * Structured values are divided element-wise.
+ */
+primitive (/) : {a} (Arith a) => a -> a -> a
+
+/**
+ * For words, takes the modulus of two words, modulus 2^^a.
+ * Over structured values, operates element-wise.
+ * Be careful, as this will often give unexpected results due to interaction of
+ * the two moduli.
+ */
+primitive (%) : {a} (Arith a) => a -> a -> a
+
+/**
+ * For words, takes the exponent of two words, modulus 2^^a.
+ * Over structured values, operates element-wise.
+ * Be careful, due to its fast-growing nature, exponentiation is prone to
+ * interacting poorly with defaulting.
+ */
+primitive (^^) : {a} (Arith a) => a -> a -> a
+
+/*
+ * Log base two.
+ * 
+ * For words, computes the ceiling of log, base 2, of a number.
+ * Over structured values, operates element-wise.
+ */
+/* primitive lg2 : {a} (Arith a) => a -> a */
+
+
 type Bool = Bit
+
+/**
+ * The constant True. Corresponds to the bit value 1.
+ */
 primitive True  : Bit
+
+/**
+ * The constant False. Corresponds to the bit value 0.
+ */
 primitive False : Bit
+
 
 type String n = [n][8]
 type Word n = [n]

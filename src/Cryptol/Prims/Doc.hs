@@ -51,51 +51,6 @@ dEverything = [ dBits, dWords, dSeqs, dTuples, dRecords, dFuns ]
 description :: ECon -> Doc
 description prim =
   case prim of
-    ECTrue    -> text "The constant True. Corresponds to the bit value 1."
-    ECFalse   -> text "The constant False. Corresponds to the bit value 0."
-
-    ECDemote  -> text "The value corresponding to a numeric type."
-
-    ECPlus    -> method "Add two values."
-                    dAriths
-                    [ "For words, addition uses modulo arithmetic."
-                    , "Structured values are added element-wise."
-                    ]
-
-    ECMinus           -> method "Infix subtraction."
-                    dAriths
-                    [ "For words, subtraction uses modulo arithmetic."
-                    , "Structured values are subtracted element-wise. Defined as:"
-                    , "a - b = a + negate b"
-                    , "See also: `negate'."
-                    ]
-    ECMul             -> method "Multiplies two values."
-                    dAriths
-                    [ "For words, multiplies two words, modulus 2^^a."
-                    , "Structured values are multiplied element-wise."
-                    ]
-    ECDiv             -> method "Divides two values."
-                    dAriths
-                    [ "For words, divides two words, modulus 2^^a."
-                    , "Structured values are divided element-wise."
-                    ]
-    ECMod             -> method "Infix modulus."
-                    dAriths
-                    [ "For words, takes the modulus of two words, modulus 2^^a."
-                    , "Over structured values, operates element-wise."
-                    , "Be careful, as this will often give unexpected results due to interaction of the two moduli."
-                    ]
-    ECExp             -> method "Exponentiation."
-                    dAriths
-                    [ "For words, takes the exponent of two words, modulus 2^^a."
-                    , "Over structured values, operates element-wise."
-                    , "Be careful, due to its fast-growing nature, exponentiation is prone to interacting poorly with defaulting."
-                    ]
-    ECLg2             -> method "Log base two"
-                    dAriths
-                    [ "For words, computes the ceiling of log, base 2, of a number."
-                    , "Over structured values, operates element-wise."
-                    ]
     ECNeg             -> method "Unary negation"
                     dAriths
                     [ "Returns the twos complement of its argument."
