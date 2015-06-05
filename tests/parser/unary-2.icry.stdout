@@ -1,0 +1,15 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+[warning] at :1:1--3:23:
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at ./unary-2.cry:3:22--3:23
+  to 2
+[warning] at :1:1--3:23:
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at ./unary-2.cry:2:22--2:23
+  to 2
+True
+True

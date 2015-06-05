@@ -379,8 +379,8 @@ expr10                           :: { Expr }
   | 'if' ifBranches 'else' iexpr    { at ($1,$4) $ mkIf $2 $4 }
   | '\\' apats '->' iexpr           { at ($1,$4) $ EFun (reverse $2) $4 }
 
-  | '-' iexpr %prec NEG             { unOp     (op ECNeg         $1) $2 }
-  | '~' iexpr                       { unOp     (op ECCompl       $1) $2 }
+  | '-' expr10 %prec NEG            { unOp     (op ECNeg         $1) $2 }
+  | '~' expr10                      { unOp     (op ECCompl       $1) $2 }
 
 op                               :: { LQName }
   : OP                              { let Token (Op (Other str)) _ = thing $1
