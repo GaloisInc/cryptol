@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE CPP, PatternGuards, FlexibleContexts #-}
+{-# LANGUAGE CPP, PatternGuards, FlexibleContexts, RecordWildCards #-}
 module Cryptol.REPL.Command (
     -- * Commands
     Command(..), CommandDescr(..), CommandBody(..)
@@ -42,7 +42,8 @@ import qualified Cryptol.Testing.Eval    as Test
 import qualified Cryptol.Testing.Random  as TestR
 import qualified Cryptol.Testing.Exhaust as TestX
 import Cryptol.Parser
-    (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig,parseModName)
+    (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
+    ,parseModName,parseHelpName)
 import Cryptol.Parser.Position (emptyRange)
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Subst as T
@@ -138,7 +139,7 @@ nbCommandList  =
   , CommandDescr [ ":b", ":browse" ] (ExprTypeArg browseCmd)
     "display the current environment"
   , CommandDescr [ ":?", ":help" ] (ExprArg helpCmd)
-    "display a brief description about a built-in operator"
+    "display a brief description about a function"
   , CommandDescr [ ":s", ":set" ] (OptionArg setOptionCmd)
     "set an environmental option (:set on its own displays current values)"
   , CommandDescr [ ":check" ] (ExprArg (qcCmd QCRandom))
@@ -627,11 +628,20 @@ setOptionCmd str
 
 helpCmd :: String -> REPL ()
 helpCmd cmd
-  | null cmd = mapM_ rPutStrLn (genHelp commandList)
-  | Just (ec,_) <- lookup cmd builtIns =
-                rPrint $ helpDoc ec
-  | otherwise = do rPutStrLn $ "// No documentation is available."
-                   typeOfCmd cmd
+  | null cmd  = mapM_ rPutStrLn (genHelp commandList)
+  | otherwise =
+    case parseHelpName cmd of
+      Just qname ->
+        do (env,_) <- getFocusedEnv
+           case Map.lookup qname (M.ifDecls env) of
+             Just [M.IfaceDecl { .. }]
+               | Just str <- ifDeclDoc -> do rPutStrLn ""
+                                             rPutStrLn str
+
+             _ -> rPutStrLn "// No documentation is available."
+
+      Nothing ->
+           rPutStrLn ("Unable to parse name: " ++ cmd)
 
 
 runShellCmd :: String -> REPL ()
@@ -785,6 +795,7 @@ bindItVariable ty expr = do
                     , T.dPragmas    = []
                     , T.dInfix      = False
                     , T.dFixity     = Nothing
+                    , T.dDoc        = Nothing
                     }
   liftModuleCmd (M.evalDecls [dg])
   denv <- getDynEnv

@@ -25,14 +25,11 @@ import           MonadLib
 import           Data.Maybe(maybeToList)
 import           Data.Either(partitionEithers)
 import qualified Data.Map as Map
-import           Data.Text.Lazy (Text)
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative(Applicative(..),(<$>)(<$))
 import           Data.Traversable(traverse)
 #endif
-
-import Debug.Trace
 
 class RemovePatterns t where
   -- | Eliminate all patterns in a program.
@@ -311,7 +308,7 @@ noPatModule m =
 type AnnotMap = ( Map.Map QName [Located Pragma]
                 , Map.Map QName [Located Schema]
                 , Map.Map QName [Located Fixity]
-                , Map.Map QName [Text]
+                , Map.Map QName [Located String]
                 )
 
 -- | Add annotations to exported declaration groups.
@@ -372,7 +369,7 @@ annotB Bind { .. } =
                    f <- lift $ checkFixs name (jn thisFixes)
                    d <- lift $ checkDocs name (jn thisDocs)
                    set (pragmas1,sigs1,fixes1,docs1)
-                   traceShow d $ return Bind { bSignature = s
+                   return Bind { bSignature = s
                                , bPragmas = map thing (jn thisPs) ++ bPragmas
                                , bFixity = f
                                , bDoc = d
@@ -394,11 +391,11 @@ checkFixs f fs@(x:_) = do recordError $ MultipleFixities f $ map srcRange fs
                           return (Just (thing x))
 
 
-checkDocs :: QName -> [Text] -> NoPatM (Maybe Text)
-checkDocs _ []    = return Nothing
-checkDocs _ [d]   = return (Just d)
-checkDocs f (d:_) = do recordError $ MultipleDocs f
-                       return (Just d)
+checkDocs :: QName -> [Located String] -> NoPatM (Maybe String)
+checkDocs _ []       = return Nothing
+checkDocs _ [d]      = return (Just (thing d))
+checkDocs f ds@(d:_) = do recordError $ MultipleDocs f (map srcRange ds)
+                          return (Just (thing d))
 
 
 -- | Does this declaration provide some signatures?
@@ -419,7 +416,7 @@ toFixity (DFixity f ns) = [ (thing n, [Located (srcRange n) f]) | n <- ns ]
 toFixity _              = []
 
 -- | Does this top-level declaration provide a documentation string?
-toDocs :: TopLevel Decl -> [(QName, [Text])]
+toDocs :: TopLevel Decl -> [(QName, [Located String])]
 toDocs TopLevel { .. }
   | Just txt <- tlDoc = go txt tlValue
   | otherwise = []
@@ -450,7 +447,7 @@ data Error  = MultipleSignatures QName [Located Schema]
             | PragmaNoBind (Located QName) Pragma
             | MultipleFixities QName [Range]
             | FixityNoBind (Located QName)
-            | MultipleDocs QName
+            | MultipleDocs QName [Range]
               deriving (Show)
 
 instance Functor NoPatM where fmap = liftM
@@ -514,7 +511,7 @@ instance PP Error where
         text "Fixity declaration without a matching binding for:" <+>
          pp (thing n)
 
-      -- XXX it would be nice to have the locations of the documentation strings
-      MultipleDocs n ->
+      MultipleDocs n locs ->
         text "Multiple documentation blocks given for:" <+> pp n
+        $$ nest 2 (vcat (map pp locs))
 

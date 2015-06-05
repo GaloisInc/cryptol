@@ -73,7 +73,6 @@ import qualified Data.Set as Set
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
-import           Data.Text.Lazy (Text)
 import           Numeric(showIntAtBase)
 
 #if __GLASGOW_HASKELL__ < 710
@@ -92,12 +91,12 @@ type LString  = Located String
 
 
 newtype Program = Program [TopDecl]
-                  deriving (Eq,Show)
+                  deriving (Show)
 
 data Module = Module { mName    :: Located ModName
                      , mImports :: [Located Import]
                      , mDecls   :: [TopDecl]
-                     } deriving (Eq,Show)
+                     } deriving (Show)
 
 modRange :: Module -> Range
 modRange m = rCombs $ catMaybes
@@ -111,7 +110,7 @@ modRange m = rCombs $ catMaybes
 data TopDecl  = Decl (TopLevel Decl)
               | TDNewtype (TopLevel Newtype)
               | Include (Located FilePath)
-                deriving (Eq,Show)
+                deriving (Show)
 
 data Decl     = DSignature [LQName] Schema
               | DFixity !Fixity [LQName]
@@ -160,7 +159,7 @@ data Bind     = Bind { bName      :: LQName       -- ^ Defined thing
                      , bFixity    :: Maybe Fixity -- ^ Optional fixity info
                      , bPragmas   :: [Pragma]     -- ^ Optional pragmas
                      , bMono      :: Bool         -- ^ Is this a monomorphic binding
-                     , bDoc       :: Maybe Text   -- ^ Optional doc string
+                     , bDoc       :: Maybe String -- ^ Optional doc string
                      } deriving (Eq,Show)
 
 type LBindDef = Located BindDef
@@ -197,9 +196,9 @@ data ExportType = Public
                   deriving (Eq,Show,Ord)
 
 data TopLevel a = TopLevel { tlExport :: ExportType
-                           , tlDoc    :: Maybe Text
+                           , tlDoc    :: Maybe (Located String)
                            , tlValue  :: a
-                           } deriving (Show,Eq,Ord)
+                           } deriving (Show)
 
 instance Functor TopLevel where
   fmap f tl = tl { tlValue = f (tlValue tl) }

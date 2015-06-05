@@ -266,7 +266,7 @@ anonRecord ~(Just r) ts = TRecord (map toField ts)
   where noName    = Located { srcRange = r, thing = Name "" }
         toField t = Named { name = noName, value = t }
 
-exportDecl :: Maybe Text -> ExportType -> Decl -> TopDecl
+exportDecl :: Maybe (Located String) -> ExportType -> Decl -> TopDecl
 exportDecl mbDoc e d = Decl TopLevel { tlExport = e
                                      , tlDoc    = mbDoc
                                      , tlValue  = d }
@@ -344,7 +344,7 @@ mkIf ifThens theElse = foldr addIfThen theElse ifThens
 -- pass.  This is also the reason we add the doc to the TopLevel constructor,
 -- instead of just place it on the binding directly.  A better solution might be
 -- to just have a different constructor for primitives.
-mkPrim :: Maybe Text -> Bool -> LQName -> Schema -> [TopDecl]
+mkPrim :: Maybe (Located String) -> Bool -> LQName -> Schema -> [TopDecl]
 mkPrim mbDoc isInfix n sig =
   [ exportDecl mbDoc Public
     $ DBind Bind { bName      = n
@@ -360,3 +360,33 @@ mkPrim mbDoc isInfix n sig =
   , exportDecl Nothing Public
     $ DSignature [n] sig
   ]
+
+mkDoc :: Located Text -> Located String
+mkDoc ltxt = ltxt { thing = docStr }
+  where
+
+  docStr = unlines
+         $ map T.unpack
+         $ dropPrefix
+         $ trimFront
+         $ T.lines
+         $ T.dropWhileEnd (`elem` "/* \r\n\t")
+         $ thing ltxt
+
+  trimFront []                     = []
+  trimFront (l:ls)
+    | T.all (`elem` "/* \r\n\t") l = ls
+    | otherwise                    = T.dropWhile (`elem` "/* ") l : ls
+
+  dropPrefix []        = []
+  dropPrefix [t]       = [T.dropWhile (`elem` "/* ") t]
+  dropPrefix ts@(l:ls) =
+    case T.uncons l of
+      Just (c,_) | all (commonPrefix c) ls -> dropPrefix (map (T.drop 1) ts)
+      _                                    -> ts
+
+    where
+    commonPrefix c t =
+      case T.uncons t of
+        Just (c',_) -> c == c'
+        Nothing     -> False

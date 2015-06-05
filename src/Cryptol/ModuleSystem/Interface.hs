@@ -83,6 +83,7 @@ data IfaceDecl = IfaceDecl
   , ifDeclPragmas :: [Pragma]
   , ifDeclInfix   :: Bool
   , ifDeclFixity  :: Maybe Fixity
+  , ifDeclDoc     :: Maybe String
   } deriving (Show)
 
 mkIfaceDecl :: Decl -> IfaceDecl
@@ -92,6 +93,7 @@ mkIfaceDecl d = IfaceDecl
   , ifDeclPragmas = dPragmas d
   , ifDeclInfix   = dInfix d
   , ifDeclFixity  = dFixity d
+  , ifDeclDoc     = dDoc d
   }
 
 -- | Like mapIfaceDecls, but gives you back a NameEnv that describes the

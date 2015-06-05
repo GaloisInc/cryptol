@@ -9,7 +9,7 @@ module Cryptol.Parser
   , parseLetDecl, parseLetDeclWith
   , parseRepl, parseReplWith
   , parseSchema, parseSchemaWith
-  , parseModName
+  , parseModName, parseHelpName
   , ParseError(..), ppError
   , Layout(..)
   , Config(..), defaultConfig
@@ -132,6 +132,7 @@ import Paths_cryptol
 %name repl    repl
 %name schema  schema
 %name modName modName
+%name helpName help_name
 %tokentype { Located Token }
 %monad { ParseM }
 %lexer { lexerP } { Located _ (Token EOF _) }
@@ -253,10 +254,10 @@ prim_bind               :: { [TopDecl] }
   | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrim $1 True                 $4  $7 }
 
 
-doc                     :: { Text }
-  : DOC                    { tokenText (thing $1) }
+doc                     :: { Located String }
+  : DOC                    { mkDoc (fmap tokenText $1) }
 
-mbDoc                   :: { Maybe Text }
+mbDoc                   :: { Maybe (Located String) }
   : doc                    { Just $1 }
   | {- empty -}            { Nothing }
 
@@ -653,6 +654,15 @@ modName                        :: { Located ModName }
 qname                          :: { Located QName }
   : qname_parts                   { mkQName $1 }
 
+help_name                      :: { Located QName }
+  : help_name_parts               { mkQName $1 }
+
+help_name_parts                :: { [LName] }
+  : name                          { [$1] }
+  | op                            { [fmap unqual $1] }
+  | qname_parts '::' name         { $3:$1 }
+  | qname_parts '::' op           { fmap unqual $3:$1 }
+
 {- The types that can come after a back-tick: either a type demotion,
 or an explicit type application.  Explicit type applications are converted
 to records, which cannot be demoted. -}
@@ -681,6 +691,12 @@ field_ty_vals                  :: { [Named Type] }
 parseModName :: String -> Maybe ModName
 parseModName txt =
   case parseString defaultConfig { cfgModuleScope = False } modName txt of
+    Right a -> Just (thing a)
+    Left _  -> Nothing
+
+parseHelpName :: String -> Maybe QName
+parseHelpName txt =
+  case parseString defaultConfig { cfgModuleScope = False } helpName txt of
     Right a -> Just (thing a)
     Left _  -> Nothing
 
