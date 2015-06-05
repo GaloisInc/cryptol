@@ -73,6 +73,7 @@ import qualified Data.Set as Set
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
+import           Data.Text.Lazy (Text)
 import           Numeric(showIntAtBase)
 
 #if __GLASGOW_HASKELL__ < 710
@@ -158,7 +159,8 @@ data Bind     = Bind { bName      :: LQName       -- ^ Defined thing
                      , bInfix     :: Bool         -- ^ Infix operator?
                      , bFixity    :: Maybe Fixity -- ^ Optional fixity info
                      , bPragmas   :: [Pragma]     -- ^ Optional pragmas
-                     , bMono      :: Bool  -- ^ Is this a monomorphic binding
+                     , bMono      :: Bool         -- ^ Is this a monomorphic binding
+                     , bDoc       :: Maybe Text   -- ^ Optional doc string
                      } deriving (Eq,Show)
 
 type LBindDef = Located BindDef
@@ -195,6 +197,7 @@ data ExportType = Public
                   deriving (Eq,Show,Ord)
 
 data TopLevel a = TopLevel { tlExport :: ExportType
+                           , tlDoc    :: Maybe Text
                            , tlValue  :: a
                            } deriving (Show,Eq,Ord)
 
@@ -880,6 +883,7 @@ instance NoPos Bind where
                  , bFixity    = bFixity x
                  , bPragmas   = noPos (bPragmas   x)
                  , bMono      = bMono x
+                 , bDoc       = bDoc x
                  }
 
 instance NoPos Pragma where

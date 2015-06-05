@@ -119,6 +119,8 @@ import Paths_cryptol
 
   OP          { $$@(Located _ (Token (Op {}) _))}
 
+  DOC         { $$@(Located _ (Token (White DocStr) _)) }
+
 %name vmodule vmodule
 %name program program
 %name programLayout program_layout
@@ -232,23 +234,31 @@ vtop_decls                 :: { [TopDecl]  }
   | vtop_decls ';'  vtop_decl { $3 ++ $1 }
 
 vtop_decl               :: { [TopDecl] }
-  : decl                           { [exportDecl Public $1]                   }
-  | 'private' 'v{' vtop_decls 'v}' { changeExport Private (reverse $3)        }
-  | 'include' STRLIT               {% (return . Include) `fmap` fromStrLit $2 }
-  | 'property' name apats '=' expr { [exportDecl Public (mkProperty $2 $3 $5)]}
-  | 'property' name       '=' expr { [exportDecl Public (mkProperty $2 [] $4)]}
-  | newtype                        { [exportNewtype Public $1]                }
-  | 'primitive' prim_bind          { map (exportDecl Public . at ($1,$2)) $2  }
+  : decl                           { [exportDecl Nothing   Public $1]                 }
+  | doc decl                       { [exportDecl (Just $1) Public $2]                 }
+  | 'private' 'v{' vtop_decls 'v}' { changeExport Private (reverse $3)                }
+  | 'include' STRLIT               {% (return . Include) `fmap` fromStrLit $2         }
+  | 'property' name apats '=' expr { [exportDecl Nothing Public (mkProperty $2 $3 $5)]}
+  | 'property' name       '=' expr { [exportDecl Nothing Public (mkProperty $2 [] $4)]}
+  | newtype                        { [exportNewtype Public $1]                        }
+  | prim_bind                      { $1 }
 
 top_decl                :: { [TopDecl] }
-  : decl                   { [Decl (TopLevel {tlExport = Public, tlValue = $1})] }
-  | 'include' STRLIT       {% (return . Include) `fmap` fromStrLit $2 }
-  | 'primitive' prim_bind  { map (exportDecl Public . at ($1,$2)) $2 }
+  : decl                   { [Decl (TopLevel {tlExport = Public, tlValue = $1 })] }
+  | 'include' STRLIT       {% (return . Include) `fmap` fromStrLit $2             }
+  | prim_bind              { $1                                                   }
 
-prim_bind               :: { [Decl] }
-  : name ':' schema        { mkPrim False (fmap mkUnqual $1) $3 }
-  | '(' op ')' ':' schema  { mkPrim True                 $2  $5 }
+prim_bind               :: { [TopDecl] }
+  : mbDoc 'primitive' name ':' schema        { mkPrim $1 False (fmap mkUnqual $3) $5 }
+  | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrim $1 True                 $4  $7 }
 
+
+doc                     :: { Text }
+  : DOC                    { tokenText (thing $1) }
+
+mbDoc                   :: { Maybe Text }
+  : doc                    { Just $1 }
+  | {- empty -}            { Nothing }
 
 
 decl                    :: { Decl }
@@ -263,6 +273,7 @@ decl                    :: { Decl }
                                           , bMono      = False
                                           , bInfix     = False
                                           , bFixity    = Nothing
+                                          , bDoc       = Nothing
                                           } }
 
   | apat op apat '=' expr  { at ($1,$5) $
@@ -274,6 +285,7 @@ decl                    :: { Decl }
                                           , bMono      = False
                                           , bInfix     = True
                                           , bFixity    = Nothing
+                                          , bDoc       = Nothing
                                           } }
 
   | 'type' name '=' type   {% at ($1,$4) `fmap` mkTySyn $2 [] $4 }
@@ -295,6 +307,7 @@ let_decl                :: { Decl }
                                                 , bMono      = False
                                                 , bInfix     = False
                                                 , bFixity    = Nothing
+                                                , bDoc       = Nothing
                                                 } }
 
 newtype                 :: { Newtype }

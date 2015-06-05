@@ -266,17 +266,22 @@ anonRecord ~(Just r) ts = TRecord (map toField ts)
   where noName    = Located { srcRange = r, thing = Name "" }
         toField t = Named { name = noName, value = t }
 
-exportDecl :: ExportType -> Decl -> TopDecl
-exportDecl e d = Decl TopLevel { tlExport = e, tlValue = d }
+exportDecl :: Maybe Text -> ExportType -> Decl -> TopDecl
+exportDecl mbDoc e d = Decl TopLevel { tlExport = e
+                                     , tlDoc    = mbDoc
+                                     , tlValue  = d }
 
 exportNewtype :: ExportType -> Newtype -> TopDecl
-exportNewtype e n = TDNewtype TopLevel { tlExport = e, tlValue = n }
+exportNewtype e n = TDNewtype TopLevel { tlExport = e
+                                       , tlDoc    = Nothing
+                                       , tlValue  = n }
 
 changeExport :: ExportType -> [TopDecl] -> [TopDecl]
-changeExport e = map $ \ td -> case td of
-  Decl d      -> Decl      d { tlExport = e }
-  TDNewtype n -> TDNewtype n { tlExport = e }
-  Include _   -> td
+changeExport e = map change
+  where
+  change (Decl d)      = Decl      d { tlExport = e }
+  change (TDNewtype n) = TDNewtype n { tlExport = e }
+  change td@Include{}  = td
 
 mkTypeInst :: Named Type -> TypeInst
 mkTypeInst x | thing (name x) == Name "" = PosInst (value x)
@@ -325,6 +330,7 @@ mkProperty f ps e = DBind Bind { bName       = fmap mkUnqual f
                                , bMono       = False
                                , bInfix      = False
                                , bFixity     = Nothing
+                               , bDoc        = Nothing
                                }
 
 mkIf :: [(Expr, Expr)] -> Expr -> Expr
@@ -335,17 +341,22 @@ mkIf ifThens theElse = foldr addIfThen theElse ifThens
 -- | Generate a signature and a primitive binding.  The reason for generating
 -- both instead of just adding the signature at this point is that it means the
 -- primitive declarations don't need to be treated differently in the noPat
--- pass.
-mkPrim :: Bool -> LQName -> Schema -> [Decl]
-mkPrim isInfix n sig =
-  [ DBind Bind { bName      = n
-               , bParams    = []
-               , bDef       = at sig (Located emptyRange DPrim)
-               , bSignature = Nothing
-               , bPragmas   = []
-               , bMono      = False
-               , bInfix     = isInfix
-               , bFixity    = Nothing
-               }
-  , DSignature [n] sig
+-- pass.  This is also the reason we add the doc to the TopLevel constructor,
+-- instead of just place it on the binding directly.  A better solution might be
+-- to just have a different constructor for primitives.
+mkPrim :: Maybe Text -> Bool -> LQName -> Schema -> [TopDecl]
+mkPrim mbDoc isInfix n sig =
+  [ exportDecl mbDoc Public
+    $ DBind Bind { bName      = n
+                 , bParams    = []
+                 , bDef       = at sig (Located emptyRange DPrim)
+                 , bSignature = Nothing
+                 , bPragmas   = []
+                 , bMono      = False
+                 , bInfix     = isInfix
+                 , bFixity    = Nothing
+                 , bDoc       = Nothing
+                 }
+  , exportDecl Nothing Public
+    $ DSignature [n] sig
   ]

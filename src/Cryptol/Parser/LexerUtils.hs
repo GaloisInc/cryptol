@@ -47,37 +47,39 @@ type Action = Config -> Position -> Text -> LexS
            -> (Maybe (Located Token), LexS)
 
 data LexS   = Normal
-            | InComment Position ![Position] [Text]
+            | InComment Bool Position ![Position] [Text]
             | InString Position Text
             | InChar   Position Text
 
 
-startComment :: Action
-startComment _ p txt s = (Nothing, InComment p stack chunks)
-  where (stack,chunks) = case s of
-                           Normal            -> ([], [txt])
-                           InComment q qs cs -> (q : qs, txt : cs)
-                           _                 -> panic "[Lexer] startComment" ["in a string"]
+startComment :: Bool -> Action
+startComment isDoc _ p txt s = (Nothing, InComment d p stack chunks)
+  where (d,stack,chunks) = case s of
+                           Normal                -> (isDoc, [], [txt])
+                           InComment doc q qs cs -> (doc, q : qs, txt : cs)
+                           _                     -> panic "[Lexer] startComment" ["in a string"]
 
 endComent :: Action
 endComent cfg p txt s =
   case s of
-    InComment f [] cs     -> (Just (mkToken f cs), Normal)
-    InComment _ (q:qs) cs -> (Nothing, InComment q qs (txt : cs))
+    InComment d f [] cs     -> (Just (mkToken d f cs), Normal)
+    InComment d _ (q:qs) cs -> (Nothing, InComment d q qs (txt : cs))
     _                     -> panic "[Lexer] endComment" ["outside commend"]
   where
-  mkToken f cs =
+  mkToken isDoc f cs =
     let r   = Range { from = f, to = moves p txt, source = cfgSource cfg }
         str = T.concat $ reverse $ txt : cs
-    in Located { srcRange = r, thing = Token (White BlockComment) str }
+
+        tok = if isDoc then DocStr else BlockComment
+    in Located { srcRange = r, thing = Token (White tok) str }
 
 addToComment :: Action
-addToComment _ _ txt s = (Nothing, InComment p stack (txt : chunks))
+addToComment _ _ txt s = (Nothing, InComment doc p stack (txt : chunks))
   where
-  (p, stack, chunks) =
+  (doc, p, stack, chunks) =
      case s of
-       InComment q qs cs -> (q,qs,cs)
-       _                 -> panic "[Lexer] addToComment" ["outside comment"]
+       InComment d q qs cs -> (d,q,qs,cs)
+       _                   -> panic "[Lexer] addToComment" ["outside comment"]
 
 startString :: Action
 startString _ p txt _ = (Nothing,InString p txt)
@@ -202,7 +204,7 @@ data Layout = Layout | NoLayout
 -- | Drop white-space tokens from the input.
 dropWhite :: [Located Token] -> [Located Token]
 dropWhite = filter (notWhite . tokenType . thing)
-  where notWhite (White _) = False
+  where notWhite (White w) = w == DocStr
         notWhite _         = True
 
 
@@ -222,7 +224,7 @@ startsLayout _               = False
 
 -- Add separators computed from layout
 layout :: Config -> [Located Token] -> [Located Token]
-layout cfg ts0 = loop implicitScope [] ts0
+layout cfg ts0 = loop False implicitScope [] ts0
   where
 
   (_pos0,implicitScope) = case ts0 of
@@ -230,20 +232,23 @@ layout cfg ts0 = loop implicitScope [] ts0
     _     -> (start,False)
 
 
-  loop :: Bool -> [Block] -> [Located Token] -> [Located Token]
-  loop startBlock stack (t : ts)
-    | startsLayout ty    = toks ++ loop True                             stack'  ts
-    | Sym ParenL   <- ty = toks ++ loop False (Explicit (Sym ParenR)   : stack') ts
-    | Sym CurlyL   <- ty = toks ++ loop False (Explicit (Sym CurlyR)   : stack') ts
-    | Sym BracketL <- ty = toks ++ loop False (Explicit (Sym BracketR) : stack') ts
+  loop :: Bool -> Bool -> [Block] -> [Located Token] -> [Located Token]
+  loop afterDoc startBlock stack (t : ts)
+    | startsLayout ty    = toks ++ loop False True                             stack'  ts
+    | Sym ParenL   <- ty = toks ++ loop False False (Explicit (Sym ParenR)   : stack') ts
+    | Sym CurlyL   <- ty = toks ++ loop False False (Explicit (Sym CurlyR)   : stack') ts
+    | Sym BracketL <- ty = toks ++ loop False False (Explicit (Sym BracketR) : stack') ts
     | EOF          <- ty = toks
-    | otherwise          = toks ++ loop False                            stack'  ts
+    | White DocStr <- ty = toks ++ loop True  False                            stack'  ts
+    | otherwise          = toks ++ loop False False                            stack'  ts
 
     where
     ty  = tokenType (thing t)
     pos = srcRange t
 
-    (toks,offStack) = offsides startToks t stack
+    (toks,offStack)
+      | afterDoc  = ([t], stack)
+      | otherwise = offsides startToks t stack
 
     -- add any block start tokens, and push a level on the stack
     (startToks,stack')
@@ -253,7 +258,7 @@ layout cfg ts0 = loop implicitScope [] ts0
       | startBlock = ( [ virt cfg (to pos) VCurlyL ], Virtual (col (from pos)) : offStack )
       | otherwise  = ( [], offStack )
 
-  loop _ _ [] = panic "[Lexer] layout" ["Missing EOF token"]
+  loop _ _ _ [] = panic "[Lexer] layout" ["Missing EOF token"]
 
 
   offsides :: [Located Token] -> Located Token -> [Block] -> ([Located Token], [Block])
@@ -308,7 +313,7 @@ data Token    = Token { tokenType :: TokenT, tokenText :: Text }
 data TokenV   = VCurlyL| VCurlyR | VSemi
                 deriving (Eq,Show)
 
-data TokenW   = BlockComment | LineComment | Space
+data TokenW   = BlockComment | LineComment | Space | DocStr
                 deriving (Eq,Show)
 
 data TokenKW  = KW_Arith

@@ -87,6 +87,9 @@ evalPrim Decl { .. } = case dName of
   QName (Just (ModName ["Cryptol"])) (Name "+") ->
     binary (arithBinary (liftBinArith (+)))
 
+  QName (Just (ModName ["Cryptol"])) (Name "True")  -> VBit True
+  QName (Just (ModName ["Cryptol"])) (Name "False") -> VBit False
+
   _ ->
     panic "Eval" [ "Unimplemented primitive", show dName ]
 
@@ -94,9 +97,6 @@ evalPrim Decl { .. } = case dName of
 evalECon :: ECon -> Value
 evalECon ec = case ec of
 
-  ECFalse       -> VBit False
-  ECTrue        -> VBit True
-  ECPlus        -> binary (arithBinary (liftBinArith (+)))
   ECMinus       -> binary (arithBinary (liftBinArith (-)))
   ECMul         -> binary (arithBinary (liftBinArith (*)))
   ECDiv         -> binary (arithBinary (liftBinArith divWrap))
@@ -213,6 +213,8 @@ evalECon ec = case ec of
   ECRandom ->
     tlam $ \a ->
      lam $ \(fromWord -> x) -> randomV a x
+
+  _ -> panic "Eval" [ "Un-ported primitive", show ec ]
 
 
 -- | Make a numeric constant.

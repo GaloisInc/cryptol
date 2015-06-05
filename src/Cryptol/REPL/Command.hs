@@ -735,7 +735,7 @@ replCheckDecls ds = do
         setDynEnv denv
         raise exn
   setDynEnv denv'
-  let topDecls = [ P.Decl (P.TopLevel P.Public d) | d <- npds ]
+  let topDecls = [ P.Decl (P.TopLevel P.Public Nothing d) | d <- npds ]
   catch (liftModuleCmd $ M.checkDecls topDecls) undo
 
 replSpecExpr :: T.Expr -> REPL T.Expr

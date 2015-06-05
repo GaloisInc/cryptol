@@ -6,9 +6,20 @@
 module Cryptol where
 
 infixl 6 +
+
+/**
+ *     (+) : {a} (Arith a) => a -> a -> a
+ *
+ * Add two values.
+ *  * For words, addition uses modulo arithmetic.
+ *  * Structured values are added element-wise.
+ */
 primitive (+) : {a} (Arith a) => a -> a -> a
 
 type Bool = Bit
+primitive True  : Bit
+primitive False : Bit
+
 type String n = [n][8]
 type Word n = [n]
 type Char   = [8]

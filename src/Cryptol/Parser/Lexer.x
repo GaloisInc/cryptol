@@ -44,7 +44,10 @@ $unitick        = \x7
 
 :-
 
-<0,comment> "/*"          { startComment }
+<0,comment> {
+"/*"           { startComment False }
+"/**"          { startComment True  }
+}
 
 <comment> {
 "*/"                      { endComent }
@@ -212,7 +215,7 @@ primLexer cfg cs = run inp Normal
           Normal        -> ([ Located (eofR $ alexPos i) (Token EOF "end of file") ]
                            , alexPos i
                            )
-          InComment p _ _ ->
+          InComment _ p _ _ ->
               ( [ Located (singleR p)
                 $ Token (Err UnterminatedComment) "unterminated comment"
                 ]

@@ -744,6 +744,7 @@ checkMonoB b t =
                      , dPragmas = P.bPragmas b
                      , dInfix = P.bInfix b
                      , dFixity = P.bFixity b
+                     , dDoc = P.bDoc b
                      }
 
     P.DExpr e ->
@@ -755,6 +756,7 @@ checkMonoB b t =
                      , dPragmas = P.bPragmas b
                      , dInfix = P.bInfix b
                      , dFixity = P.bFixity b
+                     , dDoc = P.bDoc b
                      }
 
 -- XXX: Do we really need to do the defaulting business in two different places?
@@ -769,6 +771,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
                   , dPragmas    = P.bPragmas b
                   , dInfix      = P.bInfix b
                   , dFixity     = P.bFixity b
+                  , dDoc        = P.bDoc b
                   }
 
  P.DExpr e0 ->
@@ -826,6 +829,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
         , dPragmas    = P.bPragmas b
         , dInfix      = P.bInfix b
         , dFixity     = P.bFixity b
+        , dDoc        = P.bDoc b
         }
 
 inferDs :: FromDecl d => [d] -> ([DeclGroup] -> InferM a) -> InferM a

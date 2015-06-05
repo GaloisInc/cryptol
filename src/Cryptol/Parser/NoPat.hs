@@ -10,6 +10,7 @@
 -- patterns.  It also eliminates pattern bindings by de-sugaring them
 -- into `Bind`.  Furthermore, here we associate signatures and pragmas
 -- with the names to which they belong.
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
 module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
@@ -24,11 +25,14 @@ import           MonadLib
 import           Data.Maybe(maybeToList)
 import           Data.Either(partitionEithers)
 import qualified Data.Map as Map
+import           Data.Text.Lazy (Text)
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative(Applicative(..),(<$>)(<$))
 import           Data.Traversable(traverse)
 #endif
+
+import Debug.Trace
 
 class RemovePatterns t where
   -- | Eliminate all patterns in a program.
@@ -51,6 +55,7 @@ simpleBind x e = Bind { bName = x, bParams = []
                       , bDef = at e (Located emptyRange (DExpr e))
                       , bSignature = Nothing, bPragmas = []
                       , bMono = True, bInfix = False, bFixity = Nothing
+                      , bDoc = Nothing
                       }
 
 sel :: Pattern -> QName -> Selector -> Bind
@@ -223,6 +228,7 @@ noMatchD decl =
                                               , bMono = False
                                               , bInfix = False
                                               , bFixity = Nothing
+                                              , bDoc = Nothing
                                               } : map DBind bs
     DType {}        -> return [decl]
 
@@ -235,7 +241,8 @@ noPatDs ds =
      let pragmaMap = Map.fromListWith (++) $ concatMap toPragma ds1
          sigMap    = Map.fromListWith (++) $ concatMap toSig ds1
          fixMap    = Map.fromListWith (++) $ concatMap toFixity ds1
-     (ds2, (pMap,sMap,fMap)) <- runStateT (pragmaMap, sigMap, fixMap) $ annotDs ds1
+     (ds2, (pMap,sMap,fMap,_)) <- runStateT (pragmaMap, sigMap, fixMap, Map.empty)
+                                            (annotDs ds1)
 
      forM_ (Map.toList pMap) $ \(n,ps) ->
        forM_ ps $ \p -> recordError $ PragmaNoBind (p { thing = n }) (thing p)
@@ -258,9 +265,11 @@ noPatTopDs tds =
          pragmaMap = Map.fromListWith (++) $ concatMap toPragma allDecls
          sigMap    = Map.fromListWith (++) $ concatMap toSig    allDecls
          fixMap    = Map.fromListWith (++) $ concatMap toFixity allDecls
+         docMap    = Map.fromListWith (++) $ concatMap toDocs   tds
 
      let exportGroups = zipWith (\ td ds -> td { tlValue = ds }) tds noPatGroups
-     (tds', (pMap,sMap,fMap)) <- runStateT (pragmaMap,sigMap,fixMap) (annotTopDs exportGroups)
+     (tds', (pMap,sMap,fMap,_)) <- runStateT (pragmaMap,sigMap,fixMap,docMap)
+                                             (annotTopDs exportGroups)
 
      forM_ (Map.toList pMap) $ \(n,ps) ->
        forM_ ps $ \p -> recordError $ PragmaNoBind (p { thing = n }) (thing p)
@@ -302,6 +311,7 @@ noPatModule m =
 type AnnotMap = ( Map.Map QName [Located Pragma]
                 , Map.Map QName [Located Schema]
                 , Map.Map QName [Located Fixity]
+                , Map.Map QName [Text]
                 )
 
 -- | Add annotations to exported declaration groups.
@@ -349,19 +359,23 @@ annotD decl =
 -- | Add pragma/signature annotations to a binding.
 annotB :: Bind -> StateT AnnotMap NoPatM Bind
 annotB Bind { .. } =
-  do (ps,ss,fs) <- get
-     let name = thing bName
-     case ( Map.updateLookupWithKey (\_ _ -> Nothing) name ps
-          , Map.updateLookupWithKey (\_ _ -> Nothing) name ss
-          , Map.updateLookupWithKey (\_ _ -> Nothing) name fs
+  do (ps,ss,fs,ds) <- get
+     let name       = thing bName
+         remove _ _ = Nothing
+     case ( Map.updateLookupWithKey remove name ps
+          , Map.updateLookupWithKey remove name ss
+          , Map.updateLookupWithKey remove name fs
+          , Map.updateLookupWithKey remove name ds
           ) of
-           ( (thisPs, pragmas1), (thisSigs, sigs1), (thisFixes, fixes1)) ->
+           ( (thisPs, pragmas1), (thisSigs, sigs1), (thisFixes, fixes1), (thisDocs, docs1)) ->
                 do s <- lift $ checkSigs name (jn thisSigs)
                    f <- lift $ checkFixs name (jn thisFixes)
-                   set (pragmas1,sigs1,fixes1)
-                   return Bind { bSignature = s
+                   d <- lift $ checkDocs name (jn thisDocs)
+                   set (pragmas1,sigs1,fixes1,docs1)
+                   traceShow d $ return Bind { bSignature = s
                                , bPragmas = map thing (jn thisPs) ++ bPragmas
                                , bFixity = f
+                               , bDoc = d
                                , ..
                                }
   where jn x = concat (maybeToList x)
@@ -378,6 +392,13 @@ checkFixs _ []       = return Nothing
 checkFixs _ [f]      = return (Just (thing f))
 checkFixs f fs@(x:_) = do recordError $ MultipleFixities f $ map srcRange fs
                           return (Just (thing x))
+
+
+checkDocs :: QName -> [Text] -> NoPatM (Maybe Text)
+checkDocs _ []    = return Nothing
+checkDocs _ [d]   = return (Just d)
+checkDocs f (d:_) = do recordError $ MultipleDocs f
+                       return (Just d)
 
 
 -- | Does this declaration provide some signatures?
@@ -397,6 +418,25 @@ toFixity :: Decl -> [(QName, [Located Fixity])]
 toFixity (DFixity f ns) = [ (thing n, [Located (srcRange n) f]) | n <- ns ]
 toFixity _              = []
 
+-- | Does this top-level declaration provide a documentation string?
+toDocs :: TopLevel Decl -> [(QName, [Text])]
+toDocs TopLevel { .. }
+  | Just txt <- tlDoc = go txt tlValue
+  | otherwise = []
+  where
+  go txt decl =
+    case decl of
+      DSignature ns _ -> [ (thing n, [txt]) | n <- ns ]
+      DFixity _ ns    -> [ (thing n, [txt]) | n <- ns ]
+      DBind b         -> [ (thing (bName b), [txt]) ]
+      DLocated d _    -> go txt d
+
+      -- XXX revisit these
+      DPatBind _ _    -> []
+      DPragma _ _     -> []
+      DType _         -> []
+
+
 
 
 
@@ -410,6 +450,7 @@ data Error  = MultipleSignatures QName [Located Schema]
             | PragmaNoBind (Located QName) Pragma
             | MultipleFixities QName [Range]
             | FixityNoBind (Located QName)
+            | MultipleDocs QName
               deriving (Show)
 
 instance Functor NoPatM where fmap = liftM
@@ -472,3 +513,8 @@ instance PP Error where
         text "At" <+> pp (srcRange n) <> colon <+>
         text "Fixity declaration without a matching binding for:" <+>
          pp (thing n)
+
+      -- XXX it would be nice to have the locations of the documentation strings
+      MultipleDocs n ->
+        text "Multiple documentation blocks given for:" <+> pp n
+

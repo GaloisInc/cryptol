@@ -301,6 +301,7 @@ rewDeclGroup rews dg =
 
                         , dInfix = False
                         , dFixity = Nothing
+                        , dDoc = Nothing
                         }
 
                       mkProof e _ = EProofApp e

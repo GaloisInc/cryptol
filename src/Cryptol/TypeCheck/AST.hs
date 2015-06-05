@@ -37,6 +37,7 @@ import           Data.Map    (Map)
 import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
+import           Data.Text.Lazy (Text)
 
 {- | A Cryptol module.
 -}
@@ -262,6 +263,7 @@ data Decl       = Decl { dName        :: QName
                        , dPragmas     :: [Pragma]
                        , dInfix       :: !Bool
                        , dFixity      :: Maybe Fixity
+                       , dDoc         :: Maybe Text
                        } deriving (Show)
 
 data DeclDef    = DPrim

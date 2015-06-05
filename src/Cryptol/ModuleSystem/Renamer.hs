@@ -30,8 +30,6 @@ import Cryptol.Utils.PP
 import MonadLib
 import qualified Data.Map as Map
 
-import Debug.Trace
-
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative(Applicative(..),(<$>))
 import Data.Foldable (foldMap)
