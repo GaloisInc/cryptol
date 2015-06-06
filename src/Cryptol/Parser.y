@@ -611,9 +611,13 @@ help_name                      :: { Located QName }
 
 help_name_parts                :: { [LName] }
   : name                          { [$1] }
-  | op                            { [fmap unqual $1] }
   | qname_parts '::' name         { $3:$1 }
+
+  | op                            { [fmap unqual $1] }
   | qname_parts '::' op           { fmap unqual $3:$1 }
+
+  | '(' op ')'                    { [fmap unqual $2] }
+  | '(' qname_parts '::' op ')'   { fmap unqual $4:$2 }
 
 {- The types that can come after a back-tick: either a type demotion,
 or an explicit type application.  Explicit type applications are converted
