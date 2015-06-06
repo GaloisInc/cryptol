@@ -165,6 +165,9 @@ namesT vs = go
                     -> Set.empty
       TUser x ts    -> Set.insert x (Set.unions (map go ts))
 
+      TParens t     -> namesT vs t
+      TInfix a _ b  -> Set.union (namesT vs a) (namesT vs b)
+
 
 -- | The type names defined and used by a group of mutually recursive declarations.
 tnamesDs :: [Decl] -> ([Located QName], Set QName)
@@ -280,3 +283,5 @@ tnamesT ty =
     TRecord fs    -> Set.unions (map (tnamesT . value) fs)
     TLocated t _  -> tnamesT t
     TUser x ts    -> Set.insert x (Set.unions (map tnamesT ts))
+    TParens t     -> tnamesT t
+    TInfix a _ c  -> Set.union (tnamesT a) (tnamesT c)

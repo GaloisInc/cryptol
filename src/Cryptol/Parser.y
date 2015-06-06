@@ -515,7 +515,7 @@ schema_vars                    :: { Located [TParam] }
   | '{' schema_params '}'         { Located (rComb $1 $3) (reverse $2) }
 
 schema_quals                   :: { Located [Prop] }
-  : type '=>'                     {% fmap (\x -> at (x,$2) (Located emptyRange x)) (mkProp $1) }
+  : type '=>'                     {% fmap (\x -> at (x,$2) x) (mkProp $1) }
 
 kind                             :: { Located Kind      }
   : '#'                             { Located $1 KNum   }

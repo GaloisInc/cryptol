@@ -397,5 +397,53 @@ mkDoc ltxt = ltxt { thing = docStr }
         Nothing     -> False
 
 
-mkProp :: Type -> ParseM [Prop]
-mkProp ty = undefined
+mkProp :: Type -> ParseM (Located [Prop])
+mkProp ty =
+  case ty of
+    TLocated t r -> Located r `fmap` props r t
+    _            -> panic "Parser" [ "Invalid type given to mkProp"
+                                   , "expected a location"
+                                   , show ty ]
+
+  where
+
+  props r t =
+    case t of
+      TInfix a o b   -> infixProp r a o b
+      TUser f xs     -> prefixProp r f xs
+      TTuple ts      -> concat `fmap` mapM (props r) ts
+      TParens t'     -> props r  t'
+      TLocated t' r' -> props r' t'
+
+      TApp{}    -> err
+      TFun{}    -> err
+      TSeq{}    -> err
+      TBit{}    -> err
+      TNum{}    -> err
+      TChar{}   -> err
+      TInf{}    -> err
+      TWild     -> err
+      TRecord{} -> err
+
+    where
+    err = errorMessage r "Invalid constraint"
+
+  infixProp r a o b =
+    case thing o of
+      QName Nothing (Name "==") -> return [CLocated (CEqual a b) r]
+      QName Nothing (Name ">=") -> return [CLocated (CGeq   a b) r]
+      QName Nothing (Name "<=") -> return [CLocated (CGeq   b a) r]
+      _                         -> errorMessage r "Invalid constraint"
+
+  prefixProp r f xs =
+    case f of
+      QName Nothing (Name "Arith") | [x] <- xs ->
+        return [CLocated (CArith x) r]
+
+      QName Nothing (Name "fin") | [x] <- xs ->
+        return [CLocated (CFin x) r]
+
+      QName Nothing (Name "Cmp") | [x] <- xs ->
+        return [CLocated (CCmp x) r]
+
+      _ -> errorMessage r "Invalid constraint"

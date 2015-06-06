@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 module Cryptol.Prims.Syntax
-  ( TFun(..)
+  ( TFun(..), tfunPrec, tfunNames
   , ECon(..)
   , eBinOpPrec
   , tBinOpPrec
@@ -44,6 +44,36 @@ data TFun
 
     deriving (Show, Eq, Ord, Bounded, Enum)
 
+
+-- | The fixity table for infix type operators.
+tfunPrec  :: Map.Map TFun (Assoc,Int)
+tfunPrec   =
+  Map.fromList [ (n,(a,l)) | (t,l) <- zip table [0 ..], (n,a) <- t ]
+  where
+
+  table =
+    [ [ (TCAdd, LeftAssoc), (TCSub, LeftAssoc) ]
+    , [ (TCMul, LeftAssoc), (TCDiv, LeftAssoc), (TCMod, LeftAssoc) ]
+    , [ (TCExp, RightAssoc) ]
+    ]
+
+tfunNames :: Map.Map QName TFun
+tfunNames  = Map.fromList
+  [ tprim "+"                TCAdd
+  , tprim "-"                TCSub
+  , tprim "*"                TCMul
+  , tprim "/"                TCDiv
+  , tprim "%"                TCMod
+  , tprim "^^"               TCExp
+  , tprim "lg2"              TCLg2
+  , tprim "width"            TCWidth
+  , tprim "min"              TCMin
+  , tprim "max"              TCMax
+  , tprim "lengthFromThen"   TCLenFromThen
+  , tprim "lengthFromThenTo" TCLenFromThenTo
+  ]
+  where
+  tprim n p = (mkUnqual (Name n), p)
 
 
 -- | Built-in constants.

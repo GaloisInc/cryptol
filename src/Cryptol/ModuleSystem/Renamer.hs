@@ -9,6 +9,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Cryptol.ModuleSystem.Renamer (
     NamingEnv(), shadowing
@@ -367,6 +368,8 @@ instance Rename Type where
     TChar _      -> return t
     TInf         -> return t
 
+    TUser (QName Nothing (Name "Bit")) [] -> return TBit
+
     TUser (QName Nothing (Name "width")) ps
                  -> TApp TCWidth <$> rename ps
 
@@ -377,6 +380,56 @@ instance Rename Type where
     TWild        -> return t
     TLocated t' r -> withLoc r
                  $ TLocated <$> rename t' <*> pure r
+
+    TParens t'   -> rename t'
+
+    TInfix a o b -> do op <- renameTypeOp o
+                       renameTInfix a o op b
+
+-- | Resolve infix operators at the type-level.
+--
+-- XXX this only renames to existing type primitives right now, maybe in the
+-- future we should update this to allow for user-defined infix operators at the
+-- type level?
+renameTInfix :: Type -> LQName -> (TFun,Fixity) -> Type -> RenameM Type
+renameTInfix (TInfix t1 op1 t2) op2 o2@(f2,Fixity a2 p2) t3 =
+  do o1@(f1,Fixity a1 p1) <- renameTypeOp op1
+
+     if | p1 > p2 || (p1 == p2 && a1 == LeftAssoc && a2 == LeftAssoc) ->
+          do tl <- renameTInfix t1 op1 o1 t2
+             tr <- rename t3
+             return (TApp f2 [tl,tr])
+
+        | p1 < p2 || (p1 == p2 && a1 == RightAssoc && a2 == RightAssoc) ->
+          do tl <- rename t1
+             tr <- renameTInfix t2 op2 o2 t3
+             return (TApp f1 [tl,tr])
+
+        | otherwise ->
+          panic "Renamer" [ "fixity problem for built-in operators"
+                          , show o1
+                          , show o2 ]
+
+renameTInfix (TLocated t1 _) op2 o2 t2 =
+     renameTInfix t1 op2 o2 t2
+
+renameTInfix t1 _ (f,_) t2 =
+  do l <- rename t1
+     r <- rename t2
+     return (TApp f [l,r])
+
+renameTypeOp :: Located QName -> RenameM (TFun,Fixity)
+renameTypeOp op =
+  do tf <- case Map.lookup (thing op) tfunNames of
+             Just tfun -> return tfun
+             Nothing   -> do record (UnboundType op)
+                             -- any TFun will do here, we're not actually
+                             -- producing a program from this pass.
+                             return TCAdd
+
+     let (fAssoc,fLevel) = tfunPrec Map.! tf
+     return (tf, Fixity { .. })
+
 
 instance Rename Pragma where
   rename p      = case p of
