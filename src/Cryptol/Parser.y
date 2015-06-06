@@ -50,14 +50,6 @@ import Paths_cryptol
   'infixl'    { Located $$ (Token (KW KW_infixl)    _)}
   'infixr'    { Located $$ (Token (KW KW_infixr)    _)}
 
-  'Arith'     { Located $$ (Token (KW KW_Arith  ) _)}
-  'Bit'       { Located $$ (Token (KW KW_Bit    ) _)}
-  'Cmp'       { Located $$ (Token (KW KW_Cmp    ) _)}
-  'fin'       { Located $$ (Token (KW KW_fin    ) _)}
-  'inf'       { Located $$ (Token (KW KW_inf    ) _)}
-  'lg2'       { Located $$ (Token (KW KW_lg2    ) _)}
-  'lengthFromThen'   { Located $$ (Token (KW KW_lengthFromThen) _)}
-  'lengthFromThenTo' { Located $$ (Token (KW KW_lengthFromThenTo) _)}
   'type'      { Located $$ (Token (KW KW_type   ) _)}
   'newtype'   { Located $$ (Token (KW KW_newtype) _)}
   'module'    { Located $$ (Token (KW KW_module ) _)}
@@ -66,8 +58,6 @@ import Paths_cryptol
   'if'        { Located $$ (Token (KW KW_if     ) _)}
   'then'      { Located $$ (Token (KW KW_then   ) _)}
   'else'      { Located $$ (Token (KW KW_else   ) _)}
-  'min'       { Located $$ (Token (KW KW_min    ) _)}
-  'max'       { Located $$ (Token (KW KW_max    ) _)}
   'x'         { Located $$ (Token (KW KW_x)       _)}
 
   'primitive' { Located $$ (Token (KW KW_primitive) _)}
@@ -103,17 +93,11 @@ import Paths_cryptol
   'v;'        { Located $$ (Token (Virt VSemi)    _)}
 
   '+'         { Located $$ (Token (Op Plus)  _)}
-  '-'         { Located $$ (Token (Op Minus) _)}
   '*'         { Located $$ (Token (Op Mul)   _)}
-  '/'         { Located $$ (Token (Op Div)   _)}
   '^^'        { Located $$ (Token (Op Exp)   _)}
-  '%'         { Located $$ (Token (Op Mod)   _)}
 
+  '-'         { Located $$ (Token (Op Minus) _)}
   '~'         { Located $$ (Token (Op Complement) _)}
-
-  '=='        { Located $$ (Token (Op Equal) _)}
-  '<='        { Located $$ (Token (Op LEQ)   _)}
-  '>='        { Located $$ (Token (Op GEQ)   _)}
 
   '#'         { Located $$ (Token (Op Hash) _)}
 
@@ -386,17 +370,13 @@ op                               :: { LQName }
   : OP                              { let Token (Op (Other str)) _ = thing $1
                                        in mkUnqual (Name str) A.<$ $1 }
 
-    -- special cases for operators that are also used at the type-level
+    -- special cases for operators that are re-used elsewhere
   | '*'                             { Located $1 $ mkUnqual (Name "*" ) }
   | '+'                             { Located $1 $ mkUnqual (Name "+" ) }
   | '-'                             { Located $1 $ mkUnqual (Name "-" ) }
-  | '/'                             { Located $1 $ mkUnqual (Name "/" ) }
-  | '%'                             { Located $1 $ mkUnqual (Name "%" ) }
+  | '~'                             { Located $1 $ mkUnqual (Name "~" ) }
   | '^^'                            { Located $1 $ mkUnqual (Name "^^") }
   | '#'                             { Located $1 $ mkUnqual (Name "#" ) }
-  | '>='                            { Located $1 $ mkUnqual (Name ">=") }
-  | '=='                            { Located $1 $ mkUnqual (Name "==") }
-  | '<='                            { Located $1 $ mkUnqual (Name "<=") }
 
 ops                     :: { [LQName] }
   : op                     { [$1] }
@@ -408,10 +388,6 @@ aexprs                         :: { [Expr]  }
 
 aexpr                          :: { Expr                                   }
   : qname                         { at $1 $ EVar (thing $1)                }
-
-  | 'min'                         { at $1 $ EVar $ mkUnqual (Name "min")   }
-  | 'max'                         { at $1 $ EVar $ mkUnqual (Name "max")   }
-  | 'lg2'                         { at $1 $ EVar $ mkUnqual (Name "lg2")   }
 
   | NUM                           { at $1 $ numLit (tokenType (thing $1))  }
   | STRLIT                        { at $1 $ ELit $ ECString $ getStr $1    }
@@ -539,11 +515,7 @@ schema_vars                    :: { Located [TParam] }
   | '{' schema_params '}'         { Located (rComb $1 $3) (reverse $2) }
 
 schema_quals                   :: { Located [Prop] }
-  : '(' ')' '=>'                  { Located (rComb $1 $3) []           }
-  | prop '=>'                     { Located
-                                    (rComb (fromMaybe $2 (getLoc $1)) $2) [$1] }
-  | '(' props ')' '=>'            { Located (rComb $1 $4) (reverse $2) }
-
+  : type '=>'                     {% fmap (\x -> at (x,$2) (Located emptyRange x)) (mkProp $1) }
 
 kind                             :: { Located Kind      }
   : '#'                             { Located $1 KNum   }
@@ -565,51 +537,31 @@ tysyn_params                  :: { [TParam]  }
   : tysyn_param                  { [$1]      }
   | tysyn_params tysyn_param     { $2 : $1   }
 
-
-prop                           :: { Prop }
-  : type '==' type                { at ($1,$3) $ CEqual  $1 $3 }
-  | type '<=' type                { at ($1,$3) $ CGeq $3 $1 }
-  | type '>=' type                { at ($1,$3) $ CGeq $1 $3 }
-  | 'fin' atype                   { at ($1,$2) $ CFin $2    }
-  | 'Arith' atype                 { at ($1,$2) $ CArith $2  }
-  | 'Cmp' atype                   { at ($1,$2) $ CCmp   $2  }
-
-props                          :: { [Prop]                  }
-  : prop                          { [$1]                    }
-  | props ',' prop                { $3 : $1                 }
-
 type                           :: { Type                             }
-  : type '->' type                { at ($1,$3) $ TFun $1 $3          }
-  | type '+'  type                { at ($1,$3) $ TApp TCAdd [$1, $3] }
-  | type '-'  type                { at ($1,$3) $ TApp TCSub [$1, $3] }
-  | type '*'  type                { at ($1,$3) $ TApp TCMul [$1, $3] }
-  | type '/'  type                { at ($1,$3) $ TApp TCDiv [$1, $3] }
-  | type '%'  type                { at ($1,$3) $ TApp TCMod [$1, $3] }
-  | type '^^' type                { at ($1,$3) $ TApp TCExp [$1, $3] }
+  : app_type '->' type            { at ($1,$3) $ TFun $1 $3          }
+  | type op app_type              { at ($1,$3) $ TInfix $1 $2 $3     }
   | app_type                      { $1                               }
 
 app_type                       :: { Type }
-  : 'lg2'   atype                 { at ($1,$2) $ TApp TCLg2   [$2]    }
-  | 'lengthFromThen' atype atype  { at ($1,$3) $ TApp TCLenFromThen [$2,$3] }
-  | 'lengthFromThenTo' atype atype
-                       atype      { at ($1,$4) $ TApp TCLenFromThen [$2,$3,$4] }
-  | 'min'   atype atype           { at ($1,$3) $ TApp TCMin   [$2,$3] }
-  | 'max'   atype atype           { at ($1,$3) $ TApp TCMax   [$2,$3] }
+  -- : 'lg2'   atype                 { at ($1,$2) $ TApp TCLg2   [$2]    }
+  -- | 'lengthFromThen' atype atype  { at ($1,$3) $ TApp TCLenFromThen [$2,$3] }
+  -- | 'lengthFromThenTo' atype atype
+  --                      atype      { at ($1,$4) $ TApp TCLenFromThen [$2,$3,$4] }
+  -- | 'min'   atype atype           { at ($1,$3) $ TApp TCMin   [$2,$3] }
+  -- | 'max'   atype atype           { at ($1,$3) $ TApp TCMax   [$2,$3] }
 
-  | dimensions atype              { at ($1,$2) $ foldr TSeq $2 (reverse (thing $1)) }
+  : dimensions atype              { at ($1,$2) $ foldr TSeq $2 (reverse (thing $1)) }
   | qname atypes                  { at ($1,head $2)
                                      $ TUser (thing $1) (reverse $2) }
   | atype                         { $1                    }
 
 atype                          :: { Type }
   : qname                         { at $1 $ TUser (thing $1) []        }
-  | 'Bit'                         { at $1 $ TBit                       }
-  | 'inf'                         { at $1 $ TInf                       }
   | NUM                           { at $1 $ TNum  (getNum $1)          }
   | CHARLIT                       { at $1 $ TChar (toEnum $ fromInteger
                                                           $ getNum $1) }
   | '[' type ']'                  { at ($1,$3) $ TSeq $2 TBit          }
-  | '(' type ')'                  { at ($1,$3) $2                      }
+  | '(' type ')'                  { at ($1,$3) $ TParens $2            }
   | '(' ')'                       { at ($1,$2) $ TTuple []             }
   | '(' tuple_types ')'           { at ($1,$3) $ TTuple  (reverse $2)  }
   | '{' '}'                       { at ($1,$2) $ TRecord []            }

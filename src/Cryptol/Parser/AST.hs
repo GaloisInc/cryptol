@@ -344,6 +344,8 @@ data Type     = TFun Type Type          -- ^ @[8] -> [8]@
               | TTuple [Type]           -- ^ @([8], [32])@
               | TWild                   -- ^ @_@, just some type.
               | TLocated Type Range     -- ^ Location information
+              | TParens Type            -- ^ @ (ty) @
+              | TInfix Type LQName Type -- ^ @ ty + ty @
                 deriving (Eq,Show)
 
 data Prop     = CFin Type             -- ^ @ fin x   @
@@ -809,6 +811,11 @@ instance PP Type where
 
       TLocated t _   -> ppPrec n t
 
+      TParens t      -> parens (pp t)
+
+      TInfix t1 o t2 -> optParens (n > 0)
+                      $ sep [ppPrec 2 t1 <+> pp o, ppPrec 1 t2]
+
 instance PP Prop where
   ppPrec n prop =
     case prop of
@@ -961,6 +968,8 @@ instance NoPos Type where
       TNum n        -> TNum n
       TChar n       -> TChar n
       TLocated x _  -> noPos x
+      TParens x     -> TParens (noPos x)
+      TInfix x y z  -> TInfix (noPos x) y (noPos z)
 
 instance NoPos Prop where
   noPos prop =

@@ -76,23 +76,11 @@ $white+                   { emit $ White Space }
 "//" .*                   { emit $ White LineComment }
 
 -- Please update the docs, if you add new entries.
-"Arith"                   { emit $ KW KW_Arith }
-"Bit"                     { emit $ KW KW_Bit }
-"Cmp"                     { emit $ KW KW_Cmp }
-"Inf"                     { emit $ KW KW_inf }
 "else"                    { emit $ KW KW_else }
-"Eq"                      { emit $ KW KW_Eq }
 "extern"                  { emit $ KW KW_extern }
-"fin"                     { emit $ KW KW_fin }
 "if"                      { emit $ KW KW_if }
 "private"                 { emit $ KW KW_private }
 "include"                 { emit $ KW KW_include }
-"inf"                     { emit $ KW KW_inf }
-"lg2"                     { emit $ KW KW_lg2 }
-"lengthFromThen"          { emit $ KW KW_lengthFromThen }
-"lengthFromThenTo"        { emit $ KW KW_lengthFromThenTo }
-"max"                     { emit $ KW KW_max }
-"min"                     { emit $ KW KW_min }
 "module"                  { emit $ KW KW_module }
 "newtype"                 { emit $ KW KW_newtype }
 "pragma"                  { emit $ KW KW_pragma }
@@ -152,13 +140,7 @@ $white+                   { emit $ White Space }
 "+"                       { emit  (Op   Plus ) }
 "-"                       { emit  (Op   Minus) }
 "*"                       { emit  (Op   Mul  ) }
-"/"                       { emit  (Op   Div  ) }
-"%"                       { emit  (Op   Mod  ) }
 "^^"                      { emit  (Op   Exp  ) }
-"=="                      { emit  (Op   Equal) }
-"<="                      { emit  (Op   LEQ  ) }
-">="                      { emit  (Op   GEQ  ) }
-"*"                       { emit  (Op   Hash ) }
 
 -- hash is used as a kind, and as a pattern
 "#"                       { emit  (Op   Hash ) }

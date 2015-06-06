@@ -197,6 +197,9 @@ validDemotedType rng ty =
     TUser {}     -> ok
     TApp {}      -> ok
 
+    TParens t    -> validDemotedType rng t
+    TInfix{}     -> bad "Infix operator"
+
   where bad x = errorMessage rng (x ++ " cannot be demoted.")
         ok    = return $ at rng ty
 
@@ -361,6 +364,8 @@ mkPrim mbDoc isInfix n sig =
     $ DSignature [n] sig
   ]
 
+-- | Fix-up the documentation strings by removing the comment delimiters on each
+-- end, and stripping out common prefixes on all the remaining lines.
 mkDoc :: Located Text -> Located String
 mkDoc ltxt = ltxt { thing = docStr }
   where
@@ -390,3 +395,7 @@ mkDoc ltxt = ltxt { thing = docStr }
       case T.uncons t of
         Just (c',_) -> c == c'
         Nothing     -> False
+
+
+mkProp :: Type -> ParseM [Prop]
+mkProp ty = undefined
