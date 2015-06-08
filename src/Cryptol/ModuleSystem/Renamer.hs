@@ -288,32 +288,27 @@ instance Rename Newtype where
                    , nParams = nParams n
                    , nBody   = body' }
 
-renameVar :: QName -> RenameM Expr
+renameVar :: QName -> RenameM QName
 renameVar qn = do
   ro <- RenameM ask
   case Map.lookup qn (neExprs (roNames ro)) of
-    Just [en] -> return (EVar (qname en))
+    Just [en] -> return (qname en)
     Just []   ->
       panic "Renamer" ["Invalid expression renaming environment"]
     Just syms ->
       do n <- located qn
          record (MultipleSyms n (map origin syms))
-         return (EVar qn)
-    Nothing
+         return qn
+    Nothing ->
+      do n <- located qn
 
-      | Just prim <- Map.lookup qn primNames ->
-        return (ECon prim)
+         case Map.lookup qn (neTypes (roNames ro)) of
+           -- types existed with the name of the value expected
+           Just _ -> record (ExpectedValue n)
 
-      | otherwise ->
-        do n <- located qn
-
-           case Map.lookup qn (neTypes (roNames ro)) of
-             -- types existed with the name of the value expected
-             Just _ -> record (ExpectedValue n)
-
-             -- the value is just missing
-             Nothing -> record (UnboundExpr n)
-           return (EVar qn)
+           -- the value is just missing
+           Nothing -> record (UnboundExpr n)
+         return qn
 
 renameType :: QName -> RenameM QName
 renameType qn = do
@@ -368,10 +363,16 @@ instance Rename Type where
     TChar _      -> return t
     TInf         -> return t
 
-    TUser (QName Nothing (Name "Bit")) [] -> return TBit
+    TUser (QName Nothing (Name n)) ps
+      | n == "inf", null ps     -> return TInf
+      | n == "Bit", null ps     -> return TBit
 
-    TUser (QName Nothing (Name "width")) ps
-                 -> TApp TCWidth <$> rename ps
+      | n == "lg2"              -> TApp TCLg2           <$> rename ps
+      | n == "min"              -> TApp TCMin           <$> rename ps
+      | n == "max"              -> TApp TCMax           <$> rename ps
+      | n == "lengthFromThen"   -> TApp TCLenFromThen   <$> rename ps
+      | n == "lengthFromThenTo" -> TApp TCLenFromThenTo <$> rename ps
+      | n == "width"            -> TApp TCWidth <$> rename ps
 
     TUser qn ps  -> TUser    <$> renameType qn <*> rename ps
     TApp f xs    -> TApp f   <$> rename xs
@@ -454,11 +455,7 @@ bindingTypeEnv b = patParams `shadowing` sigParams
 -- to allow for top-level renaming
 instance Rename Bind where
   rename b      = do
-    le <- renameLoc renameVar (bName b)
-    n' <- case thing le of
-            EVar n' -> return le { thing = n' }
-            _       -> panic "Renamer" [ "Invalid name in binding:", show le ]
-
+    n' <- renameLoc renameVar (bName b)
     shadowNames (bindingTypeEnv b) $ do
       (patenv,pats') <- renamePats (bParams b)
       sig'           <- traverse renameSchema (bSignature b)
@@ -491,8 +488,7 @@ instance Rename Pattern where
 
 instance Rename Expr where
   rename e = case e of
-    EVar n        -> renameVar n
-    ECon _        -> return e
+    EVar n        -> EVar <$> renameVar n
     ELit _        -> return e
     ETuple es     -> ETuple  <$> rename es
     ERecord fs    -> ERecord <$> rename fs
@@ -551,25 +547,11 @@ renameInfix e _ (op,_) e3 =
 
 renameOp :: Located QName -> RenameM (Expr,Fixity)
 renameOp ln = withLoc ln $
-  do e  <- renameVar (thing ln)
+  do n  <- renameVar (thing ln)
      ro <- RenameM ask
-     case e of
-
-       -- lookup the operator in the fixed prim table
-       e' @ (ECon n) ->
-         case Map.lookup n eBinOpPrec of
-           Just (a,i) -> return (e',Fixity a i)
-           Nothing    -> panic "Renamer" [ "No fixity for primitive:"
-                                         , show n
-                                         , show ln ]
-
-       -- lookup the operator in the environment
-       e' @ (EVar n) ->
-         case Map.lookup n (neFixity (roNames ro)) of
-           Just [fixity] -> return (e',fixity)
-           _             -> return (e',defaultFixity)
-
-       _      -> panic "Renamer" [ "Invalid infix operator", show e ]
+     case Map.lookup n (neFixity (roNames ro)) of
+       Just [fixity] -> return (EVar n,fixity)
+       _             -> return (EVar n,defaultFixity)
 
 
 instance Rename TypeInst where

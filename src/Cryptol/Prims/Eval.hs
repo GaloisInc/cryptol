@@ -18,7 +18,6 @@
 
 module Cryptol.Prims.Eval where
 
-import Cryptol.Prims.Syntax (ECon(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),fromNat,genLog, nMul)
 import qualified Cryptol.Eval.Arch as Arch
@@ -31,6 +30,8 @@ import Cryptol.Utils.Panic (panic)
 import Data.List (sortBy,transpose,genericTake,genericReplicate,genericSplitAt,genericIndex)
 import Data.Ord (comparing)
 import Data.Bits (Bits(..))
+
+import qualified Data.Map.Strict as Map
 
 import System.Random.TF (mkTFGen)
 
@@ -82,139 +83,120 @@ instance Bits Bool where
 -- Primitives ------------------------------------------------------------------
 
 evalPrim :: Decl -> Value
-evalPrim Decl { .. } = case dName of
+evalPrim Decl { dName = QName (Just (ModName ["Cryptol"])) (Name prim), .. }
+  | Just val <- Map.lookup prim primTable = val
 
-  QName (Just (ModName ["Cryptol"])) (Name "+") ->
-    binary (arithBinary (liftBinArith (+)))
-
-  QName (Just (ModName ["Cryptol"])) (Name "True")  -> VBit True
-  QName (Just (ModName ["Cryptol"])) (Name "False") -> VBit False
-
-  _ ->
+evalPrim Decl { .. } =
     panic "Eval" [ "Unimplemented primitive", show dName ]
 
+primTable :: Map.Map String Value
+primTable = Map.fromList
+  [ ("+"          , binary (arithBinary (liftBinArith (+))))
+  , ("-"          , binary (arithBinary (liftBinArith (-))))
+  , ("*"          , binary (arithBinary (liftBinArith (*))))
+  , ("/"          , binary (arithBinary (liftBinArith divWrap)))
+  , ("%"          , binary (arithBinary (liftBinArith modWrap)))
+  , ("^^"         , binary (arithBinary modExp))
+  , ("lg2"        , unary  (arithUnary lg2))
+  , ("negate"     , unary  (arithUnary negate))
+  , ("<"          , binary (cmpOrder (\o -> o == LT           )))
+  , (">"          , binary (cmpOrder (\o -> o == GT           )))
+  , ("<="         , binary (cmpOrder (\o -> o == LT || o == EQ)))
+  , (">="         , binary (cmpOrder (\o -> o == GT || o == EQ)))
+  , ("=="         , binary (cmpOrder (\o ->            o == EQ)))
+  , ("!="         , binary (cmpOrder (\o ->            o /= EQ)))
+  , ("&&"         , binary (logicBinary (.&.)))
+  , ("||"         , binary (logicBinary (.|.)))
+  , ("^"          , binary (logicBinary xor))
+  , ("complement" , unary  (logicUnary complement))
+  , ("<<"         , logicShift shiftLW shiftLS)
+  , (">>"         , logicShift shiftRW shiftRS)
+  , ("<<<"        , logicShift rotateLW rotateLS)
+  , (">>>"        , logicShift rotateRW rotateRS)
+  , ("True"       , VBit True)
+  , ("False"      , VBit False)
 
-evalECon :: ECon -> Value
-evalECon ec = case ec of
+  , ("demote"     , ecDemoteV)
 
-  ECMinus       -> binary (arithBinary (liftBinArith (-)))
-  ECMul         -> binary (arithBinary (liftBinArith (*)))
-  ECDiv         -> binary (arithBinary (liftBinArith divWrap))
-  ECMod         -> binary (arithBinary (liftBinArith modWrap))
-  ECExp         -> binary (arithBinary modExp)
-  ECLg2         -> unary  (arithUnary lg2)
-  ECNeg         -> unary  (arithUnary negate)
-  ECLt          -> binary (cmpOrder (\o -> o == LT           ))
-  ECGt          -> binary (cmpOrder (\o -> o == GT           ))
-  ECLtEq        -> binary (cmpOrder (\o -> o == LT || o == EQ))
-  ECGtEq        -> binary (cmpOrder (\o -> o == GT || o == EQ))
-  ECEq          -> binary (cmpOrder (\o ->            o == EQ))
-  ECNotEq       -> binary (cmpOrder (\o ->            o /= EQ))
-  ECMin         -> binary (withOrder minV)
-  ECMax         -> binary (withOrder maxV)
-  ECAnd         -> binary (logicBinary (.&.))
-  ECOr          -> binary (logicBinary (.|.))
-  ECXor         -> binary (logicBinary xor)
-  ECCompl       -> unary  (logicUnary complement)
-  ECShiftL      -> logicShift shiftLW shiftLS
-  ECShiftR      -> logicShift shiftRW shiftRS
-  ECRotL        -> logicShift rotateLW rotateLS
-  ECRotR        -> logicShift rotateRW rotateRS
+  , ("#"          , tlam $ \ front ->
+                    tlam $ \ back  ->
+                    tlam $ \ elty  ->
+                    lam  $ \ l     ->
+                    lam  $ \ r     -> ccatV front back elty l r)
 
-  ECDemote -> ecDemoteV
+  , ("@"          , indexPrimOne  indexFront)
+  , ("@@"         , indexPrimMany indexFrontRange)
+  , ("!"          , indexPrimOne  indexBack)
+  , ("!!"         , indexPrimMany indexBackRange)
 
-  ECCat -> tlam $ \ front ->
-           tlam $ \ back  ->
-           tlam $ \ elty  ->
-            lam  $ \ l     ->
-            lam  $ \ r     -> ccatV front back elty l r
+  , ("zero"       , tlam zeroV)
 
-  ECAt          -> indexPrimOne  indexFront
-  ECAtRange     -> indexPrimMany indexFrontRange
-  ECAtBack      -> indexPrimOne  indexBack
-  ECAtRangeBack -> indexPrimMany indexBackRange
+  , ("join"       , tlam $ \ parts ->
+                    tlam $ \ each  ->
+                    tlam $ \ a     -> lam (joinV parts each a))
 
-  ECFunEq    -> funCmp (== EQ)
-  ECFunNotEq -> funCmp (/= EQ)
+  , ("split"      , ecSplitV)
 
-  ECZero        -> tlam zeroV
+  , ("splitAt"    , tlam $ \ front ->
+                    tlam $ \ back  ->
+                    tlam $ \ a     -> lam (splitAtV front back a))
 
-  ECJoin -> tlam $ \ parts ->
-            tlam $ \ each  ->
-            tlam $ \ a     -> lam (joinV parts each a)
+  , ("fromThen"   , fromThenV)
+  , ("fromTo"     , fromToV)
+  , ("fromThenTo" , fromThenToV)
 
-  ECSplit -> ecSplitV
-  ECSplitAt -> tlam $ \ front ->
-               tlam $ \ back  ->
-               tlam $ \ a     -> lam (splitAtV front back a)
+  , ("infFrom"    , tlam $ \(finTValue -> bits)  ->
+                     lam $ \(fromWord  -> first) ->
+                    toStream (map (word bits) [ first .. ]))
 
-  ECFromThen   -> fromThenV
-  ECFromTo     -> fromToV
-  ECFromThenTo -> fromThenToV
+  , ("infFromThen", tlam $ \(finTValue -> bits)  ->
+                     lam $ \(fromWord  -> first) ->
+                     lam $ \(fromWord  -> next)  ->
+                    toStream [ word bits n | n <- [ first, next .. ] ])
 
-  ECInfFrom    ->
-    tlam $ \(finTValue -> bits)  ->
-     lam $ \(fromWord  -> first) ->
-    toStream (map (word bits) [ first .. ])
+  , ("error"      , tlam $ \_              ->
+                    tlam $ \_              ->
+                     lam $ \(fromStr -> s) -> cryUserError s)
 
-  ECInfFromThen ->
-    tlam $ \(finTValue -> bits)  ->
-     lam $ \(fromWord  -> first) ->
-     lam $ \(fromWord  -> next)  ->
-    toStream [ word bits n | n <- [ first, next .. ] ]
+  , ("reverse"    , tlam $ \a ->
+                    tlam $ \b ->
+                     lam $ \(fromSeq -> xs) -> toSeq a b (reverse xs))
 
-  ECError ->
-    tlam $ \_              ->
-    tlam $ \_              ->
-     lam $ \(fromStr -> s) -> cryUserError s
+  , ("transpose"  , tlam $ \a ->
+                    tlam $ \b ->
+                    tlam $ \c ->
+                     lam $ \((map fromSeq . fromSeq) -> xs) ->
+                        case numTValue a of
+                           Nat 0 ->
+                             let val = toSeq a c []
+                             in case numTValue b of
+                                  Nat n -> toSeq b (tvSeq a c) $ genericReplicate n val
+                                  Inf   -> VStream $ repeat val
+                           _ -> toSeq b (tvSeq a c) $ map (toSeq a c) $ transpose xs)
 
-  ECReverse ->
-    tlam $ \a ->
-    tlam $ \b ->
-     lam $ \(fromSeq -> xs) -> toSeq a b (reverse xs)
+  , ("pmult"       ,
+    let mul !res !_ !_ 0 = res
+        mul  res bs as n = mul (if even as then res else xor res bs)
+                               (bs `shiftL` 1) (as `shiftR` 1) (n-1)
+     in tlam $ \(finTValue -> a) ->
+        tlam $ \(finTValue -> b) ->
+         lam $ \(fromWord  -> x) ->
+         lam $ \(fromWord  -> y) -> word (max 1 (a + b) - 1) (mul 0 x y b))
 
-  ECTranspose ->
-    tlam $ \a ->
-    tlam $ \b ->
-    tlam $ \c ->
-     lam $ \((map fromSeq . fromSeq) -> xs) ->
-        case numTValue a of
-           Nat 0 ->
-             let val = toSeq a c []
-             in case numTValue b of
-                  Nat n -> toSeq b (tvSeq a c) $ genericReplicate n val
-                  Inf   -> VStream $ repeat val
-           _ -> toSeq b (tvSeq a c) $ map (toSeq a c) $ transpose xs
+  , ("pdiv"        , tlam $ \(fromInteger . finTValue -> a) ->
+                     tlam $ \(fromInteger . finTValue -> b) ->
+                      lam $ \(fromWord  -> x) ->
+                      lam $ \(fromWord  -> y) -> word (toInteger a)
+                                                      (fst (divModPoly x a y b)))
 
-  ECPMul ->
-    tlam $ \(finTValue -> a) ->
-    tlam $ \(finTValue -> b) ->
-     lam $ \(fromWord  -> x) ->
-     lam $ \(fromWord  -> y) -> word (max 1 (a + b) - 1) (mul 0 x y b)
-     where
-     mul !res !_ !_ 0 = res
-     mul  res bs as n = mul (if even as then res else xor res bs)
-                            (bs `shiftL` 1) (as `shiftR` 1) (n-1)
-
-  ECPDiv ->
-    tlam $ \(fromInteger . finTValue -> a) ->
-    tlam $ \(fromInteger . finTValue -> b) ->
-     lam $ \(fromWord  -> x) ->
-     lam $ \(fromWord  -> y) -> word (toInteger a)
-                                     (fst (divModPoly x a y b))
-
-  ECPMod ->
-    tlam $ \(fromInteger . finTValue -> a) ->
-    tlam $ \(fromInteger . finTValue -> b) ->
-     lam $ \(fromWord  -> x) ->
-     lam $ \(fromWord  -> y) -> word (toInteger b)
-                                     (snd (divModPoly x a y (b+1)))
-
-  ECRandom ->
-    tlam $ \a ->
-     lam $ \(fromWord -> x) -> randomV a x
-
-  _ -> panic "Eval" [ "Un-ported primitive", show ec ]
+  , ("pmod"        , tlam $ \(fromInteger . finTValue -> a) ->
+                     tlam $ \(fromInteger . finTValue -> b) ->
+                      lam $ \(fromWord  -> x) ->
+                      lam $ \(fromWord  -> y) -> word (toInteger b)
+                                                      (snd (divModPoly x a y (b+1))))
+  , ("random"      , tlam $ \a ->
+                      lam $ \(fromWord -> x) -> randomV a x)
+  ]
 
 
 -- | Make a numeric constant.

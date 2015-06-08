@@ -329,7 +329,6 @@ lookupType p env = Map.lookup p (envTypes env)
 evalExpr :: Env -> Expr -> Value
 evalExpr env expr =
   case expr of
-    ECon econ         -> evalECon econ
     EList es ty       -> VSeq (tIsBit ty) (map eval es)
     ETuple es         -> VTuple (map eval es)
     ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
@@ -398,12 +397,11 @@ evalDeclGroup env dg =
                       in env'
 
 evalDecl :: Env -> Decl -> (QName, Value)
-evalDecl env d = (dName d, evalDeclDef env (dDefinition d))
-
-evalDeclDef :: Env -> DeclDef -> Value
-evalDeclDef env (DExpr e) = evalExpr env e
-evalDeclDef _   DPrim     = panic "Cryptol.Symbolic.evalDeclDef"
-                                  [ "Unimplemented primitive" ]
+evalDecl env d = (dName d, body)
+  where
+  body = case dDefinition d of
+           DExpr e -> evalExpr env e
+           DPrim   -> evalPrim d
 
 -- | Make a copy of the given value, building the spine based only on
 -- the type without forcing the value argument. This lets us avoid

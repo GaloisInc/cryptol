@@ -212,7 +212,6 @@ instance TVars Expr where
         ECast e t     -> ECast (go e) (apSubst su t)
 
         EVar {}       -> expr
-        ECon {}       -> expr
 
         ETuple es     -> ETuple (map go es)
         ERec fs       -> ERec [ (f, go e) | (f,e) <- fs ]

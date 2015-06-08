@@ -179,7 +179,6 @@ rewE rews = go
                           Nothing  -> EProofApp <$> go e
                           Just yes -> return yes
 
-      ECon {}         -> return expr
       EList es t      -> EList   <$> mapM go es <*> return t
       ETuple es       -> ETuple  <$> mapM go es
       ERec fs         -> ERec    <$> (forM fs $ \(f,e) -> do e1 <- go e

@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -16,13 +17,13 @@ import Data.Ord (comparing)
 
 import Cryptol.Eval.Value (BitWord(..))
 import Cryptol.Prims.Eval (binary, unary, tlamN)
-import Cryptol.Prims.Syntax (ECon(..))
 import Cryptol.Symbolic.Value
-import Cryptol.TypeCheck.AST (Name)
+import Cryptol.TypeCheck.AST (ModName(..),QName(..),Name(..),Decl(..))
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)
 import Cryptol.Utils.Panic
 
 import qualified Data.SBV.Dynamic as SBV
+import qualified Data.Map as Map
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
@@ -33,66 +34,43 @@ traverseSnd f (x, y) = (,) x <$> f y
 
 -- Primitives ------------------------------------------------------------------
 
--- See also Cryptol.Prims.Eval.evalECon
-evalECon :: ECon -> Value
-evalECon econ =
-  case econ of
-    ECTrue        -> VBit SBV.svTrue
-    ECFalse       -> VBit SBV.svFalse
-    ECDemote      -> ecDemoteV -- Converts a numeric type into its corresponding value.
-                               -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
-    ECPlus        -> binary (arithBinary SBV.svPlus) -- {a} (Arith a) => a -> a -> a
-    ECMinus       -> binary (arithBinary SBV.svMinus) -- {a} (Arith a) => a -> a -> a
-    ECMul         -> binary (arithBinary SBV.svTimes) -- {a} (Arith a) => a -> a -> a
-    ECDiv         -> binary (arithBinary SBV.svQuot) -- {a} (Arith a) => a -> a -> a
-    ECMod         -> binary (arithBinary SBV.svRem) -- {a} (Arith a) => a -> a -> a
-    ECExp         -> binary (arithBinary sExp) -- {a} (Arith a) => a -> a -> a
-    ECLg2         -> unary (arithUnary sLg2) -- {a} (Arith a) => a -> a
-    ECNeg         -> unary (arithUnary SBV.svUNeg)
+evalPrim :: Decl -> Value
+evalPrim Decl { dName = QName (Just (ModName ["Cryptol"])) (Name prim), .. }
+  | Just val <- Map.lookup prim primTable = val
 
-    ECLt          -> binary (cmpBinary cmpLt cmpLt SBV.svFalse)
-    ECGt          -> binary (cmpBinary cmpGt cmpGt SBV.svFalse)
-    ECLtEq        -> binary (cmpBinary cmpLtEq cmpLtEq SBV.svTrue)
-    ECGtEq        -> binary (cmpBinary cmpGtEq cmpGtEq SBV.svTrue)
-    ECEq          -> binary (cmpBinary cmpEq cmpEq SBV.svTrue)
-    ECNotEq       -> binary (cmpBinary cmpNotEq cmpNotEq SBV.svFalse)
+evalPrim Decl { .. } =
+    panic "Eval" [ "Unimplemented primitive", show dName ]
 
-    -- FIXME: the next 4 "primitives" should be defined in the Cryptol prelude.
-    ECFunEq       -> -- {a b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
-      -- (f === g) x = (f x == g x)
-      tlam $ \_ ->
-      tlam $ \b ->
-      VFun $ \f ->
-      VFun $ \g ->
-      VFun $ \x -> cmpBinary cmpEq cmpEq SBV.svTrue b (fromVFun f x) (fromVFun g x)
+-- See also Cryptol.Prims.Eval.primTable
+primTable :: Map.Map String Value
+primTable  = Map.fromList
+  [ ("True"        , VBit SBV.svTrue)
+  , ("False"       , VBit SBV.svFalse)
+  , ("demote"      , ecDemoteV) -- Converts a numeric type into its corresponding value.
+                                -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
+  , ("+"           , binary (arithBinary SBV.svPlus)) -- {a} (Arith a) => a -> a -> a
+  , ("-"           , binary (arithBinary SBV.svMinus)) -- {a} (Arith a) => a -> a -> a
+  , ("*"           , binary (arithBinary SBV.svTimes)) -- {a} (Arith a) => a -> a -> a
+  , ("/"           , binary (arithBinary SBV.svQuot)) -- {a} (Arith a) => a -> a -> a
+  , ("%"           , binary (arithBinary SBV.svRem)) -- {a} (Arith a) => a -> a -> a
+  , ("^^"          , binary (arithBinary sExp)) -- {a} (Arith a) => a -> a -> a
+  , ("lg2"         , unary (arithUnary sLg2)) -- {a} (Arith a) => a -> a
+  , ("negate"      , unary (arithUnary SBV.svUNeg))
 
-    ECFunNotEq    -> -- {a b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
-      -- (f !== g) x = (f x != g x)
-      tlam $ \_ ->
-      tlam $ \b ->
-      VFun $ \f ->
-      VFun $ \g ->
-      VFun $ \x -> cmpBinary cmpNotEq cmpNotEq SBV.svFalse b (fromVFun f x) (fromVFun g x)
+  , ("<"           , binary (cmpBinary cmpLt cmpLt SBV.svFalse))
+  , (">"           , binary (cmpBinary cmpGt cmpGt SBV.svFalse))
+  , ("<="          , binary (cmpBinary cmpLtEq cmpLtEq SBV.svTrue))
+  , (">="          , binary (cmpBinary cmpGtEq cmpGtEq SBV.svTrue))
+  , ("=="          , binary (cmpBinary cmpEq cmpEq SBV.svTrue))
+  , ("!="          , binary (cmpBinary cmpNotEq cmpNotEq SBV.svFalse))
 
-    ECMin         -> -- {a} (Cmp a) => a -> a -> a
-      -- min x y = if x <= y then x else y
-      binary $ \a x y ->
-        let c = cmpBinary cmpLtEq cmpLtEq SBV.svFalse a x y
-        in iteValue (fromVBit c) x y
+  , ("&&"          , binary (logicBinary SBV.svAnd SBV.svAnd))
+  , ("||"          , binary (logicBinary SBV.svOr SBV.svOr))
+  , ("^"           , binary (logicBinary SBV.svXOr SBV.svXOr))
+  , ("complement"  , unary (logicUnary SBV.svNot SBV.svNot))
+  , ("zero"        , VPoly zeroV)
 
-    ECMax         -> -- {a} (Cmp a) => a -> a -> a
-      -- max x y = if y <= x then x else y
-      binary $ \a x y ->
-        let c = cmpBinary cmpLtEq cmpLtEq SBV.svFalse a y x
-        in iteValue (fromVBit c) x y
-
-    ECAnd         -> binary (logicBinary SBV.svAnd SBV.svAnd)
-    ECOr          -> binary (logicBinary SBV.svOr SBV.svOr)
-    ECXor         -> binary (logicBinary SBV.svXOr SBV.svXOr)
-    ECCompl       -> unary (logicUnary SBV.svNot SBV.svNot)
-    ECZero        -> VPoly zeroV
-
-    ECShiftL      -> -- {m,n,a} (fin n) => [m] a -> [n] -> [m] a
+  , ("<<"          ,  -- {m,n,a} (fin n) => [m] a -> [n] -> [m] a
       tlam $ \m ->
       tlam $ \_ ->
       tlam $ \a ->
@@ -100,16 +78,17 @@ evalECon econ =
       VFun $ \y ->
         case xs of
           VWord x -> VWord (SBV.svShiftLeft x (fromVWord y))
-          _ -> selectV shl y
-            where
-              shl :: Integer -> Value
-              shl i =
-                case numTValue m of
-                  Inf               -> dropV i xs
-                  Nat j | i >= j    -> replicateV j a (zeroV a)
-                        | otherwise -> catV (dropV i xs) (replicateV i a (zeroV a))
+          _ ->
+            let shl :: Integer -> Value
+                shl i =
+                  case numTValue m of
+                    Inf               -> dropV i xs
+                    Nat j | i >= j    -> replicateV j a (zeroV a)
+                          | otherwise -> catV (dropV i xs) (replicateV i a (zeroV a))
 
-    ECShiftR      -> -- {m,n,a} (fin n) => [m] a -> [n] -> [m] a
+             in selectV shl y)
+
+  , (">>"          , -- {m,n,a} (fin n) => [m] a -> [n] -> [m] a
       tlam $ \m ->
       tlam $ \_ ->
       tlam $ \a ->
@@ -117,16 +96,16 @@ evalECon econ =
       VFun $ \y ->
         case xs of
           VWord x -> VWord (SBV.svShiftRight x (fromVWord y))
-          _ -> selectV shr y
-            where
-              shr :: Integer -> Value
-              shr i =
-                case numTValue m of
-                  Inf               -> catV (replicateV i a (zeroV a)) xs
-                  Nat j | i >= j    -> replicateV j a (zeroV a)
-                        | otherwise -> catV (replicateV i a (zeroV a)) (takeV (j - i) xs)
+          _ ->
+           let shr :: Integer -> Value
+               shr i =
+                 case numTValue m of
+                   Inf               -> catV (replicateV i a (zeroV a)) xs
+                   Nat j | i >= j    -> replicateV j a (zeroV a)
+                         | otherwise -> catV (replicateV i a (zeroV a)) (takeV (j - i) xs)
+             in selectV shr y)
 
-    ECRotL        -> -- {m,n,a} (fin m, fin n) => [m] a -> [n] -> [m] a
+  , ("<<<"         , -- {m,n,a} (fin m, fin n) => [m] a -> [n] -> [m] a
       tlam $ \m ->
       tlam $ \_ ->
       tlam $ \_ ->
@@ -134,13 +113,12 @@ evalECon econ =
       VFun $ \y ->
         case xs of
           VWord x -> VWord (SBV.svRotateLeft x (fromVWord y))
-          _ -> selectV rol y
-            where
-              rol :: Integer -> Value
-              rol i = catV (dropV k xs) (takeV k xs)
-                where k = i `mod` finTValue m
+          _ -> let rol :: Integer -> Value
+                   rol i = catV (dropV k xs) (takeV k xs)
+                     where k = i `mod` finTValue m
+                in selectV rol y)
 
-    ECRotR        -> -- {m,n,a} (fin m, fin n) => [m] a -> [n] -> [m] a
+  , (">>>"         , -- {m,n,a} (fin m, fin n) => [m] a -> [n] -> [m] a
       tlam $ \m ->
       tlam $ \_ ->
       tlam $ \_ ->
@@ -148,37 +126,37 @@ evalECon econ =
       VFun $ \y ->
         case xs of
           VWord x -> VWord (SBV.svRotateRight x (fromVWord y))
-          _ -> selectV ror y
-            where
-              ror :: Integer -> Value
-              ror i = catV (dropV k xs) (takeV k xs)
-                where k = (- i) `mod` finTValue m
+          _ ->
+            let ror :: Integer -> Value
+                ror i = catV (dropV k xs) (takeV k xs)
+                  where k = (- i) `mod` finTValue m
+             in selectV ror y)
 
-    ECCat         -> -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
+  , ("#"           , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
       tlam $ \_ ->
       tlam $ \_ ->
       tlam $ \_ ->
       VFun $ \v1 ->
-      VFun $ \v2 -> catV v1 v2
+      VFun $ \v2 -> catV v1 v2)
 
-    ECSplitAt     -> -- {a,b,c} (fin a) => [a+b] c -> ([a]c,[b]c)
+  , ("splitAt"     , -- {a,b,c} (fin a) => [a+b] c -> ([a]c,[b]c)
       tlam $ \(finTValue -> a) ->
       tlam $ \_ ->
       tlam $ \_ ->
-      VFun $ \v -> VTuple [takeV a v, dropV a v]
+      VFun $ \v -> VTuple [takeV a v, dropV a v])
 
-    ECJoin -> tlam $ \ parts ->
-              tlam $ \ each  ->
-              tlam $ \ a     -> lam (joinV parts each a)
+  , ("join"        , tlam $ \ parts ->
+                     tlam $ \ each  ->
+                     tlam $ \ a     -> lam (joinV parts each a))
 
-    ECSplit -> ecSplitV
+  , ("split"       , ecSplitV)
 
-    ECReverse ->
+  , ("reverse"     ,
       tlam $ \a ->
       tlam $ \b ->
-       lam $ \(fromSeq -> xs) -> toSeq a b (reverse xs)
+       lam $ \(fromSeq -> xs) -> toSeq a b (reverse xs))
 
-    ECTranspose ->
+  , ("transpose"    ,
       tlam $ \a ->
       tlam $ \b ->
       tlam $ \c ->
@@ -189,18 +167,18 @@ evalECon econ =
                in case numTValue b of
                     Nat n -> toSeq b (tvSeq a c) $ genericReplicate n v
                     Inf   -> VStream $ repeat v
-             _ -> toSeq b (tvSeq a c) $ map (toSeq a c) $ transpose xs
+             _ -> toSeq b (tvSeq a c) $ map (toSeq a c) $ transpose xs)
 
-    ECAt          -> -- {n,a,i} (fin i) => [n]a -> [i] -> a
+  , ("@"           , -- {n,a,i} (fin i) => [n]a -> [i] -> a
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
       VFun $ \xs ->
       VFun $ \y ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in selectV (\i -> nthV err xs i) y
+        in selectV (\i -> nthV err xs i) y)
 
-    ECAtRange     -> -- {n,a,m,i} (fin i) => [n]a -> [m][i] -> [m]a
+  , ("@@"          , -- {n,a,m,i} (fin i) => [n]a -> [m][i] -> [m]a
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
@@ -208,18 +186,18 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \ys ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in mapV (isTBit a) (selectV (\i -> nthV err xs i)) ys
+        in mapV (isTBit a) (selectV (\i -> nthV err xs i)) ys)
 
-    ECAtBack      -> -- {n,a,i} (fin n, fin i) => [n]a -> [i] -> a
+  , ("!"           , -- {n,a,i} (fin n, fin i) => [n]a -> [i] -> a
       tlam $ \(finTValue -> n) ->
       tlam $ \a ->
       tlam $ \_ ->
       VFun $ \xs ->
       VFun $ \y ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in selectV (\i -> nthV err xs (n - 1 - i)) y
+        in selectV (\i -> nthV err xs (n - 1 - i)) y)
 
-    ECAtRangeBack -> -- {n,a,m,i} (fin n, fin i) => [n]a -> [m][i] -> [m]a
+  , ("!!"          , -- {n,a,m,i} (fin n, fin i) => [n]a -> [m][i] -> [m]a
       tlam $ \(finTValue -> n) ->
       tlam $ \a ->
       tlam $ \_ ->
@@ -227,30 +205,30 @@ evalECon econ =
       VFun $ \xs ->
       VFun $ \ys ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in mapV (isTBit a) (selectV (\i -> nthV err xs (n - 1 - i))) ys
+        in mapV (isTBit a) (selectV (\i -> nthV err xs (n - 1 - i))) ys)
 
-    ECFromThen   -> fromThenV
-    ECFromTo     -> fromToV
-    ECFromThenTo -> fromThenToV
+  , ("fromThen"    , fromThenV)
+  , ("fromTo"      , fromToV)
+  , ("fromThenTo"  , fromThenToV)
 
-    ECInfFrom    ->
+  , ("infFrom"     ,
       tlam $ \(finTValue -> bits)  ->
        lam $ \(fromVWord  -> first) ->
-      toStream [ VWord (SBV.svPlus first (literalSWord (fromInteger bits) i)) | i <- [0 ..] ]
+      toStream [ VWord (SBV.svPlus first (literalSWord (fromInteger bits) i)) | i <- [0 ..] ])
 
-    ECInfFromThen -> -- {a} (fin a) => [a] -> [a] -> [inf][a]
+  , ("infFromThen" , -- {a} (fin a) => [a] -> [a] -> [inf][a]
       tlam $ \_ ->
        lam $ \(fromVWord -> first) ->
        lam $ \(fromVWord -> next) ->
-      toStream (map VWord (iterate (SBV.svPlus (SBV.svMinus next first)) first))
+      toStream (map VWord (iterate (SBV.svPlus (SBV.svMinus next first)) first)))
 
     -- {at,len} (fin len) => [len][8] -> at
-    ECError ->
+  , ("error"       ,
       tlam $ \at ->
       tlam $ \(finTValue -> _len) ->
-      VFun $ \_msg -> zeroV at -- error/undefined, is arbitrarily translated to 0
+      VFun $ \_msg -> zeroV at) -- error/undefined, is arbitrarily translated to 0
 
-    ECPMul        -> -- {a,b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
+  , ("pmult"       , -- {a,b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
       tlam $ \(finTValue -> i) ->
       tlam $ \(finTValue -> j) ->
       VFun $ \v1 ->
@@ -261,9 +239,9 @@ evalECon econ =
             xs = map fromVBit (fromSeq v1)
             ys = map fromVBit (fromSeq v2)
             zs = take (fromInteger k) (mul xs ys [] ++ repeat SBV.svFalse)
-        in VSeq True (map VBit zs)
+        in VSeq True (map VBit zs))
 
-    ECPDiv        -> -- {a,b} (fin a, fin b) => [a] -> [b] -> [a]
+  , ("pdiv"        , -- {a,b} (fin a, fin b) => [a] -> [b] -> [a]
       tlam $ \(finTValue -> i) ->
       tlam $ \_ ->
       VFun $ \v1 ->
@@ -271,9 +249,9 @@ evalECon econ =
         let xs = map fromVBit (fromSeq v1)
             ys = map fromVBit (fromSeq v2)
             zs = take (fromInteger i) (fst (mdp (reverse xs) (reverse ys)) ++ repeat SBV.svFalse)
-        in VSeq True (map VBit (reverse zs))
+        in VSeq True (map VBit (reverse zs)))
 
-    ECPMod        -> -- {a,b} (fin a, fin b) => [a] -> [b+1] -> [b]
+  , ("pmod"        , -- {a,b} (fin a, fin b) => [a] -> [b+1] -> [b]
       tlam $ \_ ->
       tlam $ \(finTValue -> j) ->
       VFun $ \v1 ->
@@ -281,10 +259,11 @@ evalECon econ =
         let xs = map fromVBit (fromSeq v1)
             ys = map fromVBit (fromSeq v2)
             zs = take (fromInteger j) (snd (mdp (reverse xs) (reverse ys)) ++ repeat SBV.svFalse)
-        in VSeq True (map VBit (reverse zs))
+        in VSeq True (map VBit (reverse zs)))
 
-    ECRandom      -> panic "Cryptol.Symbolic.Prims.evalECon"
-                       [ "can't symbolically evaluae ECRandom" ]
+  , ("random"      , panic "Cryptol.Symbolic.Prims.evalECon"
+                       [ "can't symbolically evaluae ECRandom" ])
+  ]
 
 
 selectV :: (Integer -> Value) -> Value -> Value

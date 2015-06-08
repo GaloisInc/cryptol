@@ -84,7 +84,6 @@ namesE :: Expr -> Set QName
 namesE expr =
   case expr of
     EVar x        -> Set.singleton x
-    ECon _        -> Set.empty
     ELit _        -> Set.empty
     ETuple es     -> Set.unions (map namesE es)
     ERecord fs    -> Set.unions (map (namesE . value) fs)
@@ -205,7 +204,6 @@ tnamesE :: Expr -> Set QName
 tnamesE expr =
   case expr of
     EVar _        -> Set.empty
-    ECon _        -> Set.empty
     ELit _        -> Set.empty
     ETuple es     -> Set.unions (map tnamesE es)
     ERecord fs    -> Set.unions (map (tnamesE . value) fs)

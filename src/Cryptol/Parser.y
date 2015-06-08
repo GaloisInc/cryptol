@@ -234,8 +234,8 @@ top_decl                :: { [TopDecl] }
   | prim_bind              { $1                                                   }
 
 prim_bind               :: { [TopDecl] }
-  : mbDoc 'primitive' name  ':' schema       { mkPrim $1 False (fmap mkUnqual $3) $5 }
-  | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrim $1 True                 $4  $7 }
+  : mbDoc 'primitive' name  ':' schema       { mkPrimDecl $1 False (fmap mkUnqual $3) $5 }
+  | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrimDecl $1 True                 $4  $7 }
 
 
 doc                     :: { Located String }
@@ -363,8 +363,8 @@ expr10                           :: { Expr }
   | 'if' ifBranches 'else' iexpr    { at ($1,$4) $ mkIf $2 $4 }
   | '\\' apats '->' iexpr           { at ($1,$4) $ EFun (reverse $2) $4 }
 
-  | '-' expr10 %prec NEG            { unOp     (op ECNeg         $1) $2 }
-  | '~' expr10                      { unOp     (op ECCompl       $1) $2 }
+  | '-' expr10 %prec NEG            { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual (Name "negate")))) $2 }
+  | '~' expr10                      { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual (Name "complement")))) $2 }
 
 op                               :: { LQName }
   : OP                              { let Token (Op (Other str)) _ = thing $1

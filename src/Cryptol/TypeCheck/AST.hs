@@ -24,6 +24,7 @@ module Cryptol.TypeCheck.AST
   , Fixity(..)
   ) where
 
+import Cryptol.ModuleSystem.Name (mkQual)
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST ( Name(..), Selector(..),Pragma(..), ppSelector
                           , Import(..), ImportSpec(..), ExportType(..)
@@ -34,7 +35,6 @@ import Cryptol.Utils.Panic(panic)
 import Cryptol.TypeCheck.PP
 
 import           Data.Map    (Map)
-import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
 
@@ -180,9 +180,7 @@ instance Ord TVar where
 
 
 
-data Expr   = ECon ECon                 -- ^ Built-in constant
-
-            | EList [Expr] Type         -- ^ List value (with type of elements)
+data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | ETuple [Expr]             -- ^ Tuple value
             | ERec [(Name,Expr)]        -- ^ Record value
             | ESel Expr Selector        -- ^ Elimination for tuple/record/list
@@ -377,11 +375,14 @@ tInf      = TCon (TC TCInf) []
 tBit     :: Type
 tBit      = TCon (TC TCBit) []
 
+ePrim    :: String -> Expr
+ePrim n   = EVar (mkQual (ModName ["Cryptol"]) (Name n))
+
 eTrue    :: Expr
-eTrue     = ECon ECTrue
+eTrue     = ePrim "True"
 
 eFalse   :: Expr
-eFalse    = ECon ECFalse
+eFalse    = ePrim "False"
 
 tWord    :: Type -> Type
 tWord a   = tSeq a tBit
@@ -393,7 +394,7 @@ tChar :: Type
 tChar = tWord (tNum (8 :: Int))
 
 eChar :: Char -> Expr
-eChar c = ETApp (ETApp (ECon ECDemote) (tNum v)) (tNum w)
+eChar c = ETApp (ETApp (ePrim "Demote") (tNum v)) (tNum w)
   where v = fromEnum c
         w = 8 :: Int
 
@@ -407,7 +408,7 @@ eString str = EList (map eChar str) tChar
 -- message.
 eError :: Type -> String -> Expr
 eError t str =
-  EApp (ETApp (ETApp (ECon ECError) t) (tNum (length str))) (eString str)
+  EApp (ETApp (ETApp (ePrim "Error") t) (tNum (length str))) (eString str)
 
 tRec     :: [(Name,Type)] -> Type
 tRec      = TRec
@@ -652,8 +653,8 @@ instance PP (WithNames Type) where
 
           (_, _)              -> pp pc <+> fsep (map (go 4) ts)
 
-      _ | Just tinf <- isTInfix ty0 -> optParens (prec > 2)
-                                     $ ppInfix 2 isTInfix tinf
+      -- _ | Just tinf <- isTInfix ty0 -> optParens (prec > 2)
+      --                                $ ppInfix 2 isTInfix tinf
 
       TCon f ts -> optParens (prec > 3)
                 $ pp f <+> fsep (map (go 4) ts)
@@ -661,12 +662,12 @@ instance PP (WithNames Type) where
     where
     go p t = ppWithNamesPrec nmMap p t
 
-    isTInfix (WithNames (TCon (TF ieOp) [ieLeft',ieRight']) _) =
-      do let ieLeft  = WithNames ieLeft' nmMap
-             ieRight = WithNames ieRight' nmMap
-         (ieAssoc,iePrec) <- Map.lookup ieOp tBinOpPrec
-         return Infix { .. }
-    isTInfix _ = Nothing
+    -- isTInfix (WithNames (TCon (TF ieOp) [ieLeft',ieRight']) _) =
+    --   do let ieLeft  = WithNames ieLeft' nmMap
+    --          ieRight = WithNames ieRight' nmMap
+    --      (ieAssoc,iePrec) <- Map.lookup ieOp tBinOpPrec
+    --      return Infix { .. }
+    -- isTInfix _ = Nothing
 
 addTNames :: [TParam] -> NameMap -> NameMap
 addTNames as ns = foldr (uncurry IntMap.insert) ns
@@ -751,8 +752,6 @@ instance PP UserTC where
 instance PP (WithNames Expr) where
   ppPrec prec (WithNames expr nm) =
     case expr of
-      ECon c        -> ppPrefix c
-
       EList [] t    -> optParens (prec > 0)
                     $ text "[]" <+> colon <+> ppWP prec t
 

@@ -12,7 +12,7 @@
 module Cryptol.Parser.AST
   ( -- * Names
     ModName(..), {-splitNamespace, parseModName, nsChar,-} modRange
-  , QName(..), mkQual, mkUnqual, unqual
+  , QName(..), mkPrim, mkQual, mkUnqual, unqual
   , Name(..)
   , Named(..)
   , Pass(..)
@@ -68,7 +68,6 @@ import Cryptol.Prims.Syntax
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
-import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
@@ -248,7 +247,6 @@ data Literal  = ECNum Integer NumInfo           -- ^ @0x10@  (HexLit 2)
                 deriving (Eq,Show)
 
 data Expr     = EVar QName                      -- ^ @ x @
-              | ECon ECon                       -- ^ @ split @
               | ELit Literal                    -- ^ @ 0x10 @
               | ETuple [Expr]                   -- ^ @ (1,2,3) @
               | ERecord [Named Expr]            -- ^ @ { x = 1, y = 2 } @
@@ -609,17 +607,11 @@ ppNumLit n info =
 wrap :: Int -> Int -> Doc -> Doc
 wrap contextPrec myPrec doc = if myPrec < contextPrec then parens doc else doc
 
--- | Succeeds if the expression is an infix operator.
-isInfixOp :: Expr -> Maybe (ECon, Assoc, Int)
-isInfixOp (ELocated e _)  = isInfixOp e
-isInfixOp (ECon x)        = do (a,p) <- Map.lookup x eBinOpPrec
-                               return (x,a,p)
-isInfixOp _               = Nothing
-
-isPrefixOp :: Expr -> Maybe ECon
-isPrefixOp (ELocated e _)                        = isPrefixOp e
-isPrefixOp (ECon x) | x == ECNeg || x == ECCompl = Just x
-isPrefixOp _                                     = Nothing
+isPrefixOp :: Expr -> Maybe Doc
+isPrefixOp (ELocated e _)                               = isPrefixOp e
+isPrefixOp e@(EVar (QName Nothing (Name n))) | n == "-" = Just (pp e)
+                                             | n == "~" = Just (pp e)
+isPrefixOp _                                            = Nothing
 
 isEApp :: Expr -> Maybe (Expr, Expr)
 isEApp (ELocated e _)     = isEApp e
@@ -631,20 +623,6 @@ asEApps expr = go expr []
     where go e es = case isEApp e of
                       Nothing       -> (e, es)
                       Just (e1, e2) -> go e1 (e2 : es)
-
-isEInfix :: Expr -> Maybe (Infix ECon Expr)
-isEInfix e =
-  do (e1,ieRight) <- isEApp e
-     (f,ieLeft)   <- isEApp e1
-     (ieOp,ieAssoc,iePrec) <- isInfixOp f
-     return Infix { .. }
-
-isTInfix :: Type -> Maybe (Infix TFun Type)
-isTInfix (TLocated t _)  = isTInfix t
-isTInfix (TApp ieOp [ieLeft,ieRight]) =
-  do (ieAssoc,iePrec) <- Map.lookup ieOp tBinOpPrec
-     return Infix { .. }
-isTInfix _               = Nothing
 
 instance PP TypeInst where
   ppPrec _ (PosInst t)   = pp t
@@ -662,7 +640,6 @@ instance PP Expr where
 
       -- atoms
       EVar x        -> pp x
-      ECon x        -> ppPrefix x
       ELit x        -> pp x
       ETuple es     -> parens (commaSep (map pp es))
       ERecord fs    -> braces (commaSep (map (ppNamed "=") fs))
@@ -695,12 +672,9 @@ instance PP Expr where
 
 
       -- applications
-      _ | Just einf <- isEInfix expr
-                    -> optParens (n>2) $ ppInfix 2 isEInfix einf
-
       EApp e1 e2
         | Just op <- isPrefixOp e1
-                    -> wrap n 3 (pp op <> ppPrec 3 e2)
+                    -> wrap n 3 (op <> ppPrec 3 e2)
 
       EApp _ _      -> let (e, es) = asEApps expr in
                        wrap n 3 (ppPrec 3 e <+> fsep (map (ppPrec 4) es))
@@ -792,11 +766,6 @@ instance PP Type where
       TSeq t1 TBit   -> brackets (pp t1)
       TSeq t1 t2     -> optParens (n > 3)
                       $ brackets (pp t1) <> ppPrec 3 t2
-
-      TApp _ [_,_]
-        | Just tinf <- isTInfix ty
-                     -> optParens (n > 2)
-                      $ ppInfix 2 isTInfix tinf
 
       TApp f ts      -> optParens (n > 2)
                       $ pp f <+> fsep (map (ppPrec 4) ts)
@@ -906,7 +875,6 @@ instance NoPos Expr where
   noPos expr =
     case expr of
       EVar x        -> EVar     x
-      ECon x        -> ECon     x
       ELit x        -> ELit     x
       ETuple x      -> ETuple   (noPos x)
       ERecord x     -> ERecord  (noPos x)

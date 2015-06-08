@@ -15,7 +15,6 @@
 {-# LANGUAGE RecordWildCards #-}
 module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
 
-import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position(Range(..),emptyRange,start,at)
 import Cryptol.Utils.PP
@@ -121,7 +120,8 @@ noPat pat =
          r <- getRange
          let qx   = mkUnqual x
              qtmp = mkUnqual tmp
-             bTmp = simpleBind (Located r qtmp) (EApp (ECon ECSplitAt) (EVar qx))
+             prim = EVar (mkUnqual (Name "splitAt"))
+             bTmp = simpleBind (Located r qtmp) (EApp prim (EVar qx))
              b1   = sel a1 qtmp (TupleSel 0 (Just 2))
              b2   = sel a2 qtmp (TupleSel 1 (Just 2))
          return (pVar r x, bTmp : b1 : b2 : ds1 ++ ds2)
@@ -146,7 +146,6 @@ noPatE :: Expr -> NoPatM Expr
 noPatE expr =
   case expr of
     EVar {}       -> return expr
-    ECon {}       -> return expr
     ELit {}       -> return expr
     ETuple es     -> ETuple  <$> mapM noPatE es
     ERecord es    -> ERecord <$> mapM noPatF es

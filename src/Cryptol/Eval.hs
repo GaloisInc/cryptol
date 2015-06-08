@@ -43,8 +43,6 @@ moduleEnv m env = evalDecls (mDecls m) (evalNewtypes (mNewtypes m) env)
 evalExpr :: EvalEnv -> Expr -> Value
 evalExpr env expr = case expr of
 
-  ECon con -> evalECon con
-
   EList es ty -> VSeq (isTBit (evalType env ty)) (map (evalExpr env) es)
 
   ETuple es -> VTuple (map eval es)

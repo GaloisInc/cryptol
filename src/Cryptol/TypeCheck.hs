@@ -34,7 +34,6 @@ import           Cryptol.TypeCheck.Monad
                    , nameSeeds
                    , lookupVar
                    )
-import           Cryptol.Prims.Types(typeOf)
 import           Cryptol.TypeCheck.Infer (inferModule, inferBinds, inferDs)
 import           Cryptol.TypeCheck.InferTypes(Error(..),Warning(..),VarType(..), SolverConfig(..))
 import           Cryptol.TypeCheck.Solve(simplifyAllConstraints)
@@ -57,7 +56,6 @@ tcExpr e0 inp = runInferM inp
   go expr =
     case expr of
       P.ELocated e _ -> go e
-      P.ECon ec -> return (ECon ec, typeOf ec)
       P.EVar x  ->
         do res <- lookupVar x
            case res of

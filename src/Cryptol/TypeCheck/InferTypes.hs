@@ -19,7 +19,6 @@ import           Cryptol.TypeCheck.TypeMap
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.AST(LQName)
-import           Cryptol.Prims.Syntax(ECon(..))
 import           Cryptol.Utils.PP
 import           Cryptol.TypeCheck.PP
 import           Cryptol.Utils.Panic(panic)
@@ -503,12 +502,12 @@ instance PP ConstraintSource where
 ppUse :: Expr -> Doc
 ppUse expr =
   case expr of
-    ECon ECDemote       -> text "literal or demoted expression"
-    ECon ECInfFrom      -> text "infinite enumeration"
-    ECon ECInfFromThen  -> text "infinite enumeration (with step)"
-    ECon ECFromThen     -> text "finite enumeration"
-    ECon ECFromTo       -> text "finite enumeration"
-    ECon ECFromThenTo   -> text "finite enumeration"
+    -- ECon ECDemote       -> text "literal or demoted expression"
+    -- ECon ECInfFrom      -> text "infinite enumeration"
+    -- ECon ECInfFromThen  -> text "infinite enumeration (with step)"
+    -- ECon ECFromThen     -> text "finite enumeration"
+    -- ECon ECFromTo       -> text "finite enumeration"
+    -- ECon ECFromThenTo   -> text "finite enumeration"
     _                   -> text "expression" <+> pp expr
 
 instance PP (WithNames Goal) where

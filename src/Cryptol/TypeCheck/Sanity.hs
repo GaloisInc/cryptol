@@ -9,7 +9,6 @@ module Cryptol.TypeCheck.Sanity
 
 
 import Cryptol.TypeCheck.AST
-import Cryptol.Prims.Types(typeOf)
 import Cryptol.TypeCheck.Subst(apSubst, fvs, singleSubst)
 
 import qualified Data.Set as Set
@@ -135,8 +134,6 @@ exprType expr =
 exprSchema :: Expr -> TcM Schema
 exprSchema expr =
   case expr of
-
-    ECon c -> return (typeOf c)
 
     EList es t ->
       do checkTypeIs KType t

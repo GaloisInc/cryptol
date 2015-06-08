@@ -71,9 +71,7 @@ library
   hs-source-dirs:      src
 
   Exposed-modules:     Cryptol.Prims.Syntax,
-                       Cryptol.Prims.Types,
                        Cryptol.Prims.Eval,
-                       Cryptol.Prims.Doc,
 
                        Cryptol.Parser,
                        Cryptol.Parser.Lexer,

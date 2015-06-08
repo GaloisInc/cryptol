@@ -75,7 +75,6 @@ specialize expr modEnv = run $ do
 specializeExpr :: Expr -> SpecM Expr
 specializeExpr expr =
   case expr of
-    ECon _econ    -> pure expr
     EList es t    -> EList <$> traverse specializeExpr es <*> pure t
     ETuple es     -> ETuple <$> traverse specializeExpr es
     ERec fs       -> ERec <$> traverse (traverseSnd specializeExpr) fs

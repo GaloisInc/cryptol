@@ -12,7 +12,6 @@ module Cryptol.Parser.ParserUtils where
 import Cryptol.Parser.AST
 import Cryptol.Parser.Lexer
 import Cryptol.Parser.Position
-import Cryptol.Prims.Syntax
 import Cryptol.Parser.Utils (translateExprToNumT)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
@@ -233,9 +232,6 @@ mkEApp es@(eLast : _) = at (eFirst,eLast) $ foldl EApp f xs
 mkEApp es        = panic "[Parser] mkEApp" ["Unexpected:", show es]
 
 
-op :: ECon -> Range -> Expr
-op s r = at r (ECon s)
-
 unOp :: Expr -> Expr -> Expr
 unOp f x = at (f,x) $ EApp f x
 
@@ -347,8 +343,8 @@ mkIf ifThens theElse = foldr addIfThen theElse ifThens
 -- pass.  This is also the reason we add the doc to the TopLevel constructor,
 -- instead of just place it on the binding directly.  A better solution might be
 -- to just have a different constructor for primitives.
-mkPrim :: Maybe (Located String) -> Bool -> LQName -> Schema -> [TopDecl]
-mkPrim mbDoc isInfix n sig =
+mkPrimDecl :: Maybe (Located String) -> Bool -> LQName -> Schema -> [TopDecl]
+mkPrimDecl mbDoc isInfix n sig =
   [ exportDecl mbDoc Public
     $ DBind Bind { bName      = n
                  , bParams    = []

@@ -14,10 +14,7 @@ module Cryptol.Parser.Utils
   ) where
 
 import Cryptol.Parser.AST
-import Cryptol.Parser.Position (at)
 import Cryptol.Prims.Syntax
-
-import qualified Data.Map as Map
 
 
 translateExprToNumT :: Expr -> Maybe Type
@@ -33,9 +30,7 @@ translateExprToNumT expr =
 
     EInfix a o b -> do e1 <- translateExprToNumT a
                        e2 <- translateExprToNumT b
-                       ec <- cvtCon =<< Map.lookup (thing o) primNames
-                       f  <- tApp (at o ec) e1
-                       tApp f e2
+                       return (TInfix e1 o e2)
 
     EParens e    -> translateExprToNumT e
 
@@ -54,16 +49,3 @@ translateExprToNumT expr =
   cvtLit (ECNum n CharLit)  = return (TChar $ toEnum $ fromInteger n)
   cvtLit (ECNum n _)        = return (TNum n)
   cvtLit (ECString _)       = Nothing
-
-  cvtCon c =
-    case c of
-      ECPlus        -> mkFun TCAdd
-      ECMinus       -> mkFun TCSub
-      ECMul         -> mkFun TCMul
-      ECDiv         -> mkFun TCDiv
-      ECMod         -> mkFun TCMod
-      ECExp         -> mkFun TCExp
-      ECLg2         -> mkFun TCLg2
-      ECMin         -> mkFun TCMin
-      ECMax         -> mkFun TCMax
-      _             -> Nothing

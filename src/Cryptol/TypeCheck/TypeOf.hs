@@ -15,7 +15,6 @@ module Cryptol.TypeCheck.TypeOf
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst
-import Cryptol.Prims.Types (typeOf)
 import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
 
@@ -43,7 +42,6 @@ fastTypeOf tyenv expr =
                                          [ "EApp with non-function operator" ]
     ECast _ t     -> t
     -- Polymorphic fragment
-    ECon      {}  -> polymorphic
     EVar      {}  -> polymorphic
     ETAbs     {}  -> polymorphic
     ETApp     {}  -> polymorphic
@@ -61,7 +59,6 @@ fastSchemaOf :: Map QName Schema -> Expr -> Schema
 fastSchemaOf tyenv expr =
   case expr of
     -- Polymorphic fragment
-    ECon econ      -> typeOf econ
     EVar x         -> fromJust (Map.lookup x tyenv)
     ETAbs tparam e -> case fastSchemaOf tyenv e of
                         Forall tparams props ty -> Forall (tparam : tparams) props ty

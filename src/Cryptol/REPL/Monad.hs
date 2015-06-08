@@ -38,7 +38,6 @@ module Cryptol.REPL.Monad (
   , getPropertyNames
   , LoadedModule(..), getLoadedMod, setLoadedMod
   , setSearchPath, prependSearchPath
-  , builtIns
   , getPrompt
   , shouldContinue
   , unlessBatch
@@ -68,8 +67,6 @@ module Cryptol.REPL.Monad (
 
 import Cryptol.REPL.Trie
 
-import Cryptol.Prims.Types(typeOf)
-import Cryptol.Prims.Syntax(ECon(..),ppPrefix)
 import Cryptol.Eval (EvalError)
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
@@ -332,10 +329,6 @@ rPutStrLn str = rPutStr $ str ++ "\n"
 rPrint :: Show a => a -> REPL ()
 rPrint x = rPutStrLn (show x)
 
-builtIns :: [(String,(ECon,T.Schema))]
-builtIns = map mk [ minBound .. maxBound :: ECon ]
-  where mk x = (show (ppPrefix x), (x, typeOf x))
-
 -- | Only meant for use with one of getVars or getTSyns.
 keepOne :: String -> [a] -> a
 keepOne src as = case as of
@@ -387,8 +380,7 @@ getNewtypes = do
 
 -- | Get visible variable names.
 getExprNames :: REPL [String]
-getExprNames  = do as <- (map getName . Map.keys) `fmap` getVars
-                   return (map fst builtIns ++ as)
+getExprNames  = (map getName . Map.keys) `fmap` getVars
 
 -- | Get visible type signature names.
 getTypeNames :: REPL [String]

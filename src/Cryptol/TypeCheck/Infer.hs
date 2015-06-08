@@ -20,8 +20,6 @@
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Infer where
 
-import           Cryptol.Prims.Syntax(ECon(..))
-import           Cryptol.Prims.Types(typeOf)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Parser.Names as P
@@ -71,7 +69,7 @@ desugarLiteral fixDec lit =
   do l <- curRange
      let named (x,y)  = P.NamedInst
                         P.Named { name = Located l (Name x), value = P.TNum y }
-         demote fs    = P.EAppT (P.ECon ECDemote) (map named fs)
+         demote fs    = P.EAppT (P.EVar (P.mkPrim "demote")) (map named fs)
 
      return $ case lit of
 
@@ -110,10 +108,6 @@ appTys expr ts tGoal =
 
     P.ELit l -> do e <- desugarLiteral False l
                    appTys e ts tGoal
-
-    P.ECon ec -> do let s1 = typeOf ec
-                    (e',t) <- instantiateWith (ECon ec) s1 ts
-                    checkHasType e' t tGoal
 
     P.EAppT e fs ->
       do ps <- mapM inferTyParam fs
@@ -191,11 +185,6 @@ checkE expr tGoal =
 
     P.ELit l -> (`checkE` tGoal) =<< desugarLiteral False l
 
-    P.ECon ec ->
-      do let s1 = typeOf ec
-         (e',t) <- instantiateWith (ECon ec) s1 []
-         checkHasType e' t tGoal
-
     P.ETuple es ->
       do etys <- expectTuple (length es) tGoal
          es'  <- zipWithM checkE es etys
@@ -233,7 +222,7 @@ checkE expr tGoal =
          let totLen = tNum (2::Int) .^. bit
              lstT   = totLen .-. tNum (1::Int)
 
-         appTys (P.ECon ECFromTo)
+         appTys (P.EVar (P.mkPrim "fromTo"))
            [ Located rng (Just (mkUnqual (Name x)), y)
            | (x,y) <- [ ("first",fstT), ("last", lstT), ("bits", bit) ]
            ] tGoal
@@ -246,15 +235,15 @@ checkE expr tGoal =
                  (Nothing, Nothing) -> tcPanic "checkE"
                                         [ "EFromTo _ Nothing Nothing" ]
                  (Just t2, Nothing) ->
-                    (ECFromThen, [ ("next", t2) ])
+                    (P.EVar (P.mkPrim "fromThen"), [ ("next", t2) ])
 
                  (Nothing, Just t3) ->
-                    (ECFromTo, [ ("last", t3) ])
+                    (P.EVar (P.mkPrim "fromTo"), [ ("last", t3) ])
 
                  (Just t2, Just t3) ->
-                    (ECFromThenTo, [ ("next",t2), ("last",t3) ])
+                    (P.EVar (P.mkPrim "fromThenTo"), [ ("next",t2), ("last",t3) ])
 
-         let e' = P.EAppT (P.ECon c)
+         let e' = P.EAppT c
                   [ P.NamedInst P.Named { name = Located l (Name x), value = y }
                   | (x,y) <- ("first",t1) : fs
                   ]
@@ -262,10 +251,10 @@ checkE expr tGoal =
          checkE e' tGoal
 
     P.EInfFrom e1 Nothing ->
-      checkE (P.EApp (P.ECon ECInfFrom) e1) tGoal
+      checkE (P.EApp (P.EVar (P.mkPrim "infFrom")) e1) tGoal
 
     P.EInfFrom e1 (Just e2) ->
-      checkE (P.EApp (P.EApp (P.ECon ECInfFromThen) e1) e2) tGoal
+      checkE (P.EApp (P.EApp (P.EVar (P.mkPrim "infFromThen")) e1) e2) tGoal
 
     P.EComp e mss ->
       do (mss', dss, ts) <- unzip3 `fmap` zipWithM inferCArm [ 1 .. ] mss
@@ -281,9 +270,10 @@ checkE expr tGoal =
       do ts <- mapM inferTyParam fs
          appTys e ts tGoal
 
-    P.EApp fun@(dropLoc -> P.EApp (dropLoc -> P.ECon c) _)
+    P.EApp fun@(dropLoc -> P.EApp (dropLoc -> P.EVar c) _)
            arg@(dropLoc -> P.ELit l)
-      | c `elem` [ ECShiftL, ECShiftR, ECRotL, ECRotR, ECAt, ECAtBack ] ->
+      | c `elem` [ P.mkPrim "<<", P.mkPrim ">>", P.mkPrim "<<<", P.mkPrim ">>>"
+                 , P.mkPrim "@", P.mkPrim "@@" ] ->
         do newArg <- do l1 <- desugarLiteral True l
                         return $ case arg of
                                    P.ELocated _ pos -> P.ELocated l1 pos
@@ -313,7 +303,7 @@ checkE expr tGoal =
 
     P.ETypeVal t ->
       do l <- curRange
-         checkE (P.EAppT (P.ECon ECDemote)
+         checkE (P.EAppT (P.EVar (P.mkPrim "demote"))
                   [P.NamedInst
                    P.Named { name = Located l (Name "val"), value = t }]) tGoal
 

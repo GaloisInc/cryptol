@@ -14,6 +14,11 @@ data Name     = Name String
 data QName    = QName (Maybe ModName) Name
                deriving (Eq,Ord,Show)
 
+-- XXX It would be nice to also mark this as a name that doesn't need to be
+-- resolved, if it's going to be created before renaming.
+mkPrim :: String -> QName
+mkPrim n = mkQual (ModName ["Cryptol"]) (Name n)
+
 mkQual :: ModName -> Name -> QName
 mkQual  = QName . Just
 

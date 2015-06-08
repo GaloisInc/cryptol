@@ -28,6 +28,7 @@ import           Cryptol.TypeCheck.Monad hiding (withTParams)
 import           Cryptol.TypeCheck.Solve (simplifyAllConstraints
                                          ,wfTypeFunction)
 import           Cryptol.Utils.PP
+import           Cryptol.Utils.Panic (panic)
 
 import qualified Data.Map as Map
 import           Data.List(sortBy,groupBy)
@@ -271,6 +272,12 @@ doCheckType ty k =
 
     P.TUser x []    -> checkTyThing x k
     P.TUser x ts    -> tySyn False x ts k
+
+    P.TInfix{}      -> panic "KindCheck"
+                       [ "TInfix not removed by the renamer", show ty ]
+
+    P.TParens{}     -> panic "KindCheck"
+                       [ "TParens not removed by the renamer", show ty ]
 
   where
   checkF f = do t <- kInRange (srcRange (name f))
