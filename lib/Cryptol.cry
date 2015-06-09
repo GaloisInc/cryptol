@@ -10,6 +10,8 @@ module Cryptol where
  */
 primitive demote : {val, bits} (fin val, fin bits, bits >= width val) => [bits]
 
+infix 4 ==, !=, <=, >=, <, >
+infixr 5 #
 infixl 6 +, -
 infixl 7 *, /
 infixr 8 ^^
@@ -88,7 +90,7 @@ primitive negate : {a} (Arith a) => a -> a
 /**
  * Binary complement
  */
-primitive (~) : {a} a -> a
+primitive complement : {a} a -> a
 
 /**
  * Less-than. Only works on comparable arguments.

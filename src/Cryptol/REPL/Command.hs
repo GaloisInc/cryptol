@@ -373,7 +373,7 @@ onlineProveSat isSat str proverName mfile = do
   let cexStr | isSat = "satisfying assignment"
              | otherwise = "counterexample"
   parseExpr <- replParseExpr str
-  (expr, schema) <- replCheckExpr parseExpr
+  (_, expr, schema) <- replCheckExpr parseExpr
   denv <- getDynEnv
   result <- liftModuleCmd $
     Symbolic.satProve
@@ -425,10 +425,10 @@ offlineProveSat isSat str mfile = do
   EnvBool useIte <- getUser "iteSolver"
   EnvBool vrb <- getUser "debug"
   parseExpr <- replParseExpr str
-  exsch <- replCheckExpr parseExpr
+  (_,e,s) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
   result <- liftModuleCmd $
-    Symbolic.satProveOffline isSat useIte vrb decls mfile exsch
+    Symbolic.satProveOffline isSat useIte vrb decls mfile (e,s)
   case result of
     Symbolic.ProverError msg -> rPutStrLn msg
     Symbolic.EmptyResult -> return ()
@@ -459,7 +459,7 @@ mkSolverResult thing result earg = (rty, re)
 specializeCmd :: String -> REPL ()
 specializeCmd str = do
   parseExpr <- replParseExpr str
-  (expr, schema) <- replCheckExpr parseExpr
+  (_, expr, schema) <- replCheckExpr parseExpr
   spexpr <- replSpecExpr expr
   rPutStrLn  "Expression type:"
   rPrint    $ pp schema
@@ -470,14 +470,15 @@ specializeCmd str = do
 
 typeOfCmd :: String -> REPL ()
 typeOfCmd str = do
-  expr      <- replParseExpr str
-  (def,sig) <- replCheckExpr expr
+
+  expr         <- replParseExpr str
+  (re,def,sig) <- replCheckExpr expr
 
   -- XXX need more warnings from the module system
   --io (mapM_ printWarning ws)
   whenDebug (rPutStrLn (dump def))
   (_,names) <- getFocusedEnv
-  rPrint $ runDoc names $ pp def <+> text ":" <+> pp sig
+  rPrint $ runDoc names $ pp re <+> text ":" <+> pp sig
 
 reloadCmd :: REPL ()
 reloadCmd  = do
@@ -731,12 +732,13 @@ moduleCmdResult (res,ws0) = do
       filterShadowing w = Just w
 
   let ws = mapMaybe filterDefaults . mapMaybe filterShadowing $ ws0
-  mapM_ (rPrint . pp) ws
+  (_,names) <- getFocusedEnv
+  mapM_ (rPrint . runDoc names . pp) ws
   case res of
     Right (a,me') -> setModuleEnv me' >> return a
-    Left err      -> raise (ModuleSystemError err)
+    Left err      -> raise (ModuleSystemError names err)
 
-replCheckExpr :: P.Expr -> REPL (T.Expr,T.Schema)
+replCheckExpr :: P.Expr -> REPL (P.Expr,T.Expr,T.Schema)
 replCheckExpr e = liftModuleCmd $ M.checkExpr e
 
 -- | Check declarations as though they were defined at the top-level.
@@ -761,7 +763,7 @@ replSpecExpr e = liftModuleCmd $ S.specialize e
 
 replEvalExpr :: P.Expr -> REPL (E.Value, T.Type)
 replEvalExpr expr =
-  do (def,sig) <- replCheckExpr expr
+  do (_,def,sig) <- replCheckExpr expr
 
      me <- getModuleEnv
      let cfg = M.meSolverConfig me

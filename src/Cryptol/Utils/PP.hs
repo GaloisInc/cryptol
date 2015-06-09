@@ -20,17 +20,24 @@ import qualified Text.PrettyPrint as PJ
 
 
 -- | How to display names.
-newtype NameEnv = NameEnv (Map QName QName)
+newtype NameEnv = NameEnv (Map QName NameInfo)
                   deriving (Show)
 
-mkNameEnv :: [(QName,QName)] -> NameEnv
+data NameInfo = NameInfo { niDisp  :: QName
+                         , niInfix :: Bool
+                         } deriving (Show)
+
+mkNameEnv :: [(QName,NameInfo)] -> NameEnv
 mkNameEnv  = NameEnv . Map.fromList
 
 -- | Compose two naming environments.
 extend :: NameEnv -> NameEnv -> NameEnv
 extend (NameEnv l) (NameEnv r) = NameEnv (lkp `fmap` l)
   where
-  lkp a = Map.findWithDefault a a r
+  lkp ni = Map.findWithDefault ni (niDisp ni) r
+
+getNameInfo :: QName -> NameEnv -> NameInfo
+getNameInfo n (NameEnv e) = Map.findWithDefault (NameInfo n False) n e
 
 instance M.Monoid NameEnv where
   mempty                          = NameEnv Map.empty
@@ -209,19 +216,26 @@ colon  = liftPJ PJ.colon
 withNameEnv :: (NameEnv -> Doc) -> Doc
 withNameEnv f = Doc (\e -> runDoc e (f e))
 
+fixNameEnv :: NameEnv -> Doc -> Doc
+fixNameEnv env (Doc f) = Doc (\_ -> f env)
+
 instance PP ModName where
   ppPrec _ (ModName ns) = hcat (punctuate (text "::") (map text ns))
 
 instance PP QName where
-  ppPrec _ qn = withNameEnv $ \ (NameEnv env) ->
-    let QName mb n = Map.findWithDefault qn qn env
+  ppPrec _ qn = withNameEnv $ \ names ->
+    let NameInfo (QName mb n) isInfix = getNameInfo qn names
         mbNs = maybe empty (\ mn -> pp mn <> text "::") mb
-     in mbNs <> pp n
+     in optParens isInfix (mbNs <> pp n)
 
 instance PP Name where
   ppPrec _ (Name x)       = text x
   -- XXX: This may clash with user-specified names.
   ppPrec _ (NewName p x)  = text "__" <> passName p <> int x
+
+-- | Pretty-print the qualified name as-is; don't consult the environment.
+ppQName :: QName -> Doc
+ppQName (QName mb n) = maybe empty (\ mn -> pp mn <> text "::") mb <> pp n
 
 passName :: Pass -> Doc
 passName pass =

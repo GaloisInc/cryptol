@@ -639,7 +639,10 @@ instance PP Expr where
     case expr of
 
       -- atoms
-      EVar x        -> pp x
+      EVar x        -> withNameEnv $ \ env ->
+        let NameInfo qn isInfix = getNameInfo x env
+         in optParens isInfix (ppQName qn)
+
       ELit x        -> pp x
       ETuple es     -> parens (commaSep (map pp es))
       ERecord fs    -> braces (commaSep (map (ppNamed "=") fs))
@@ -670,6 +673,12 @@ instance PP Expr where
                                 $$ nest 2 (vcat (map pp ds))
                                 $$ text "")
 
+      -- infix applications
+      EApp (EApp (EVar f) x) y ->
+        wrap n 3 $ withNameEnv $ \ env ->
+          let NameInfo qn isInfix = getNameInfo f env
+           in if isInfix then ppPrec 3 x <+> ppQName qn <+> ppPrec 3 y
+                         else ppQName qn <+> ppPrec 3 x <+> ppPrec 3 y
 
       -- applications
       EApp e1 e2

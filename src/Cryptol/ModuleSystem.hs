@@ -77,8 +77,9 @@ loadModule path m env = runModuleM env $ do
 -- they allow for expressions to be evaluated in an environment that
 -- can extend dynamically outside of the context of a module.
 
--- | Check the type of an expression.
-checkExpr :: P.Expr -> ModuleCmd (T.Expr,T.Schema)
+-- | Check the type of an expression.  Give back the renamed expression, the
+-- core expression, and its type schema.
+checkExpr :: P.Expr -> ModuleCmd (P.Expr,T.Expr,T.Schema)
 checkExpr e env = runModuleM env (interactive (Base.checkExpr e))
 
 -- | Evaluate an expression.

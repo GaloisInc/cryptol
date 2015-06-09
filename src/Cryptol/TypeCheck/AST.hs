@@ -394,7 +394,7 @@ tChar :: Type
 tChar = tWord (tNum (8 :: Int))
 
 eChar :: Char -> Expr
-eChar c = ETApp (ETApp (ePrim "Demote") (tNum v)) (tNum w)
+eChar c = ETApp (ETApp (ePrim "demote") (tNum v)) (tNum w)
   where v = fromEnum c
         w = 8 :: Int
 
@@ -408,7 +408,7 @@ eString str = EList (map eChar str) tChar
 -- message.
 eError :: Type -> String -> Expr
 eError t str =
-  EApp (ETApp (ETApp (ePrim "Error") t) (tNum (length str))) (eString str)
+  EApp (ETApp (ETApp (ePrim "error") t) (tNum (length str))) (eString str)
 
 tRec     :: [(Name,Type)] -> Type
 tRec      = TRec
@@ -772,7 +772,9 @@ instance PP (WithNames Expr) where
       EComp _ e mss -> let arm ms = text "|" <+> commaSep (map ppW ms)
                        in brackets $ ppW e <+> vcat (map arm mss)
 
-      EVar x        -> pp x
+      EVar x        -> withNameEnv $ \ env ->
+                       let NameInfo qn isInfix = getNameInfo x env
+                        in optParens isInfix (ppQName qn)
 
       EAbs {}       -> let (xs,e) = splitWhile splitAbs expr
                        in ppLam nm prec [] [] xs e
@@ -785,6 +787,14 @@ instance PP (WithNames Expr) where
                            (ps,e2) = splitWhile splitProofAbs e1
                            (xs,e3) = splitWhile splitAbs      e2
                        in ppLam nm prec ts ps xs e3
+
+      -- infix applications
+      EApp (EApp (EVar o) a) b ->
+        withNameEnv $ \ env ->
+          let NameInfo qn isInfix = getNameInfo o env
+           in optParens (prec > 3)
+            $ if isInfix then ppPrec 3 a <+> ppQName qn <+> ppPrec 3 b
+                         else ppQName qn <+> ppPrec 3 a <+> ppPrec 3 b
 
       EApp e1 e2    -> optParens (prec > 3)
                     $  ppWP 3 e1 <+> ppWP 4 e2

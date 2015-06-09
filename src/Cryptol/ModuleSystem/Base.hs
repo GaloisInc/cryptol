@@ -282,7 +282,7 @@ loadDeps m
 -- Type Checking ---------------------------------------------------------------
 
 -- | Typecheck a single expression.
-checkExpr :: P.Expr -> ModuleM (T.Expr,T.Schema)
+checkExpr :: P.Expr -> ModuleM (P.Expr,T.Expr,T.Schema)
 checkExpr e = do
   npe <- noPat e
   denv <- getDynEnv
@@ -290,7 +290,8 @@ checkExpr e = do
   env <- getQualifiedEnv
   let env' = env <> deIfaceDecls denv
       act  = TCAction { tcAction = T.tcExpr, tcLinter = exprLinter }
-  typecheck act re env'
+  (te,s) <- typecheck act re env'
+  return (re,te,s)
 
 -- | Typecheck a group of declarations.
 checkDecls :: (HasLoc d, R.Rename d, T.FromDecl d) => [d] -> ModuleM [T.DeclGroup]

@@ -183,7 +183,7 @@ data REPLException
   | NoPatError [Error]
   | NoIncludeError [IncludeError]
   | EvalError EvalError
-  | ModuleSystemError M.ModuleError
+  | ModuleSystemError NameEnv M.ModuleError
   | EvalPolyError T.Schema
   | TypeNotTestable T.Type
     deriving (Show,Typeable)
@@ -203,7 +203,7 @@ instance PP REPLException where
                                   ]
     NoPatError es        -> vcat (map pp es)
     NoIncludeError es    -> vcat (map ppIncludeError es)
-    ModuleSystemError me -> pp me
+    ModuleSystemError ns me -> fixNameEnv ns (pp me)
     EvalError e          -> pp e
     EvalPolyError s      -> text "Cannot evaluate polymorphic value."
                          $$ text "Type:" <+> pp s

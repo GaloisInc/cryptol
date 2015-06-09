@@ -107,10 +107,14 @@ mapIfaceDecls f decls = (decls',names)
     , ifDecls    = Map.mapKeys f (ifDecls decls)
     }
 
-  namesFor :: (IfaceDecls -> Map.Map QName a) -> NameEnv
-  namesFor prj = mkNameEnv [ (k, f k) | k <- Map.keys (prj decls) ]
+  namesFor :: (a -> Bool) -> (IfaceDecls -> Map.Map QName a) -> NameEnv
+  namesFor isInfix prj =
+    mkNameEnv [ (k, info) | (k,ds) <- Map.toList (prj decls)
+                          , let info = NameInfo (f k) (isInfix ds) ]
 
-  names = mconcat [ namesFor ifTySyns, namesFor ifNewtypes, namesFor ifDecls ]
+  names = mconcat [ namesFor (const False)     ifTySyns
+                  , namesFor (const False)     ifNewtypes
+                  , namesFor (all ifDeclInfix) ifDecls ]
 
 filterIfaceDecls :: (QName -> Bool) -> IfaceDecls -> IfaceDecls
 filterIfaceDecls p decls = IfaceDecls
