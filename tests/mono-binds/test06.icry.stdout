@@ -10,7 +10,7 @@ test06::test = \{a} (a : a) ->
                where
                  /* Not recursive */
                  foo : a
-                 foo = zero a
+                 foo = Cryptol::zero a
                  
                  /* Not recursive */
                  bar : a
@@ -29,7 +29,7 @@ test06::test = \{a} (a : a) ->
                where
                  /* Not recursive */
                  foo : a
-                 foo = zero a
+                 foo = Cryptol::zero a
                  
                  /* Not recursive */
                  bar : a

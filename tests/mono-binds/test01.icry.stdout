@@ -11,7 +11,7 @@ test01::a = \{a, b} (fin a) ->
              where
                /* Not recursive */
                f : {c} [c]b -> [a + c]b
-               f = \{c} (y : [c]b) -> (#) a c b <> x y
+               f = \{c} (y : [c]b) -> Cryptol::# a c b <> x y
                
              ) : [a]b -> [2 * a]b
 
@@ -27,7 +27,7 @@ test01::a = \{a, b} (fin a) ->
              where
                /* Not recursive */
                f : [a]b -> [a + a]b
-               f = \ (y : [a]b) -> (#) a a b <> x y
+               f = \ (y : [a]b) -> Cryptol::# a a b <> x y
                
              ) : [a]b -> [2 * a]b
 
