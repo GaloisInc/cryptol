@@ -17,7 +17,7 @@ infix 4 ==, ===, !=, !==
 infix 5 >, >=, <, <=
 
 infixr 5 #
-infixl 6 +, -
+infixl 6 ^, +, -
 infixl 7 *, /
 infixr 8 ^^
 infix  9 @, @@, !, !!
