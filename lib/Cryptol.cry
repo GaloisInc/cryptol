@@ -10,11 +10,17 @@ module Cryptol where
  */
 primitive demote : {val, bits} (fin val, fin bits, bits >= width val) => [bits]
 
-infix 4 ==, !=, <=, >=, <, >
+infixr 2 ||
+infixr 3 &&
+
+infix 4 ==, ===, !=, !==
+infix 5 >, >=, <, <=
+
 infixr 5 #
 infixl 6 +, -
 infixl 7 *, /
 infixr 8 ^^
+infix  9 @, @@, !, !!
 
 /**
  * Add two values.

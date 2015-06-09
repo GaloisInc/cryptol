@@ -502,13 +502,14 @@ instance PP ConstraintSource where
 ppUse :: Expr -> Doc
 ppUse expr =
   case expr of
-    -- ECon ECDemote       -> text "literal or demoted expression"
-    -- ECon ECInfFrom      -> text "infinite enumeration"
-    -- ECon ECInfFromThen  -> text "infinite enumeration (with step)"
-    -- ECon ECFromThen     -> text "finite enumeration"
-    -- ECon ECFromTo       -> text "finite enumeration"
-    -- ECon ECFromThenTo   -> text "finite enumeration"
-    _                   -> text "expression" <+> pp expr
+    EVar (QName (Just (ModName ["Cryptol"])) (Name prim))
+      | prim == "demote"       -> text "literal or demoted expression"
+      | prim == "infFrom"      -> text "infinite enumeration"
+      | prim == "infFromThen"  -> text "infinite enumeration (with step)"
+      | prim == "fromThen"     -> text "finite enumeration"
+      | prim == "fromTo"       -> text "finite enumeration"
+      | prim == "fromThenTo"   -> text "finite enumeration"
+    _                          -> text "expression" <+> pp expr
 
 instance PP (WithNames Goal) where
   ppPrec _ (WithNames g names) =
