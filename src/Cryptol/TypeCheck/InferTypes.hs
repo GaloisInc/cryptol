@@ -167,7 +167,7 @@ data ConstraintSource
   = CtComprehension       -- ^ Computing shape of list comprehension
   | CtSplitPat            -- ^ Use of a split pattern
   | CtTypeSig             -- ^ A type signature in a pattern or expression
-  | CtInst Expr           -- ^ Instantiation of this expreesion
+  | CtInst Expr           -- ^ Instantiation of this expression
   | CtSelector
   | CtExactType
   | CtEnumeration
