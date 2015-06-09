@@ -273,7 +273,7 @@ checkE expr tGoal =
     P.EApp fun@(dropLoc -> P.EApp (dropLoc -> P.EVar c) _)
            arg@(dropLoc -> P.ELit l)
       | c `elem` [ P.mkPrim "<<", P.mkPrim ">>", P.mkPrim "<<<", P.mkPrim ">>>"
-                 , P.mkPrim "@", P.mkPrim "@@" ] ->
+                 , P.mkPrim "@", P.mkPrim "!" ] ->
         do newArg <- do l1 <- desugarLiteral True l
                         return $ case arg of
                                    P.ELocated _ pos -> P.ELocated l1 pos
