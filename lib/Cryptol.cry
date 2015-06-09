@@ -16,11 +16,15 @@ infixr 3 &&
 infix 4 ==, ===, !=, !==
 infix 5 >, >=, <, <=
 
-infixr 5 #
-infixl 6 ^, +, -
-infixl 7 *, /
-infixr 8 ^^
-infix  9 @, @@, !, !!
+infixl 6 ^
+
+infixr 7 #
+infixl 6 <<, <<<, >>, >>>
+
+infixl 8 +, -
+infixl 9 *, /
+infixr 10 ^^
+infixl 11 @, @@, !, !!
 
 /**
  * Add two values.

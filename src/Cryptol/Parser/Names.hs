@@ -264,6 +264,7 @@ tnamesC prop =
     CArith t     -> tnamesT t
     CCmp t       -> tnamesT t
     CLocated p _ -> tnamesC p
+    CType t      -> tnamesT t
 
 -- | Compute the type synonyms/type variables used by a type.
 tnamesT :: Type -> Set QName

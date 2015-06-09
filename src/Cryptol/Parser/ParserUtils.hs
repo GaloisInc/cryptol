@@ -18,7 +18,7 @@ import Cryptol.Utils.Panic
 
 import Data.Maybe(listToMaybe,fromMaybe)
 import Data.Bits(testBit,setBit)
-import Control.Monad(liftM,ap,when)
+import Control.Monad(liftM,ap,unless)
 import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
 
@@ -162,8 +162,8 @@ intVal tok =
 mkFixity :: Assoc -> Located Token -> [LQName] -> ParseM Decl
 mkFixity assoc tok qns =
   do l <- intVal tok
-     when (l < 0 || l > 10)
-          (errorMessage (srcRange tok) "Fixity levels must be between 0 and 10")
+     unless (l >= 0 && l <= 20)
+          (errorMessage (srcRange tok) "Fixity levels must be between 0 and 20")
      return (DFixity (Fixity assoc (fromInteger l)) qns)
 
 mkTupleSel :: Range -> Integer -> ParseM (Located Selector)
@@ -197,7 +197,7 @@ validDemotedType rng ty =
     TApp {}      -> ok
 
     TParens t    -> validDemotedType rng t
-    TInfix{}     -> bad "Infix operator"
+    TInfix{}     -> ok
 
   where bad x = errorMessage rng (x ++ " cannot be demoted.")
         ok    = return $ at rng ty
@@ -405,7 +405,7 @@ mkProp ty =
 
   props r t =
     case t of
-      TInfix a o b   -> infixProp r a o b
+      TInfix{}       -> infixProp t
       TUser f xs     -> prefixProp r f xs
       TTuple ts      -> concat `fmap` mapM (props r) ts
       TParens t'     -> props r  t'
@@ -424,13 +424,11 @@ mkProp ty =
     where
     err = errorMessage r "Invalid constraint"
 
-  infixProp r a o b =
-    case thing o of
-      QName Nothing (Name "==") -> return [CLocated (CEqual a b) r]
-      QName Nothing (Name ">=") -> return [CLocated (CGeq   a b) r]
-      QName Nothing (Name "<=") -> return [CLocated (CGeq   b a) r]
-      _                         -> errorMessage r "Invalid constraint"
+  -- we have to delay these until renaming, when we have the fixity table
+  -- present
+  infixProp t = return [CType t]
 
+  -- these can be translated right away
   prefixProp r f xs =
     case f of
       QName Nothing (Name "Arith") | [x] <- xs ->

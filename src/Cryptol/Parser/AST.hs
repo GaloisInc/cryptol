@@ -9,6 +9,8 @@
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE PatternGuards   #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable #-}
 module Cryptol.Parser.AST
   ( -- * Names
     ModName(..), {-splitNamespace, parseModName, nsChar,-} modRange
@@ -76,7 +78,9 @@ import           Data.Maybe (catMaybes)
 import           Numeric(showIntAtBase)
 
 #if __GLASGOW_HASKELL__ < 710
+import           Data.Foldable (Foldable(..))
 import           Data.Monoid (Monoid(..))
+import           Data.Traversable (Traversable(..))
 #endif
 
 
@@ -173,7 +177,7 @@ data Fixity   = Fixity { fAssoc :: !Assoc
                        } deriving (Eq,Show)
 
 defaultFixity :: Fixity
-defaultFixity  = Fixity LeftAssoc 9
+defaultFixity  = Fixity LeftAssoc 20
 
 data Pragma   = PragmaNote String
               | PragmaProperty
@@ -309,7 +313,7 @@ data Pattern  = PVar LName                    -- ^ @ x @
 
 
 data Named a  = Named { name :: Located Name, value :: a }
-                deriving (Eq,Show)
+                deriving (Eq,Show,Foldable,Traversable)
 
 instance Functor Named where
   fmap f x = x { value = f (value x) }
@@ -353,6 +357,8 @@ data Prop     = CFin Type             -- ^ @ fin x   @
               | CArith Type           -- ^ @ Arith a @
               | CCmp Type             -- ^ @ Cmp a @
               | CLocated Prop Range   -- ^ Location information
+
+              | CType Type            -- ^ After parsing
                 deriving (Eq,Show)
 
 
@@ -817,6 +823,8 @@ instance PP Prop where
       CGeq t1 t2   -> ppPrec 2 t1 <+> text ">=" <+> ppPrec 2 t2
       CLocated c _ -> ppPrec n c
 
+      CType t      -> ppPrec n t
+
 
 --------------------------------------------------------------------------------
 -- Drop all position information, so equality reflects program structure
@@ -970,5 +978,6 @@ instance NoPos Prop where
       CArith x      -> CArith (noPos x)
       CCmp x        -> CCmp   (noPos x)
       CLocated c _  -> noPos c
+      CType t       -> CType (noPos t)
 
 

@@ -42,7 +42,7 @@ data TFun
 tBinOpPrec :: Map.Map TFun (Assoc,Int)
 tBinOpPrec  = mkMap t_table
   where
-  mkMap t = Map.fromList [ (op,(a,n)) | ((a,ops),n) <- zip t [0..] , op <- ops ]
+  mkMap t = Map.fromList [ (op,(a,n)) | ((a,ops),n) <- zip t [1..] , op <- ops ]
 
   -- lowest to highest
   t_table =

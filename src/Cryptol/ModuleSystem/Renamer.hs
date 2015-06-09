@@ -62,6 +62,10 @@ data RenamerError
     -- values exist with the same name.
 
   | FixityError (Located QName) (Located QName)
+    -- ^ When the fixity of two operators conflict
+
+  | InvalidConstraint Type
+    -- ^ When it's not possible to produce a Prop from a Type.
     deriving (Show)
 
 instance PP RenamerError where
@@ -101,6 +105,10 @@ instance PP RenamerError where
          4 (fsep [ text "The fixities of", pp o1, text "and", pp o2
                  , text "are not compatible.  "
                  , text "You may use explicit parenthesis to disambiguate" ])
+
+    InvalidConstraint ty ->
+      hang (text "[error]" <+> maybe empty (\r -> text "at" <+> pp r) (getLoc ty))
+         4 (fsep [ pp ty, text "is not a valid constraint" ])
 
 -- Warnings --------------------------------------------------------------------
 
@@ -354,10 +362,36 @@ instance Rename Prop where
     CLocated p' r -> withLoc r
                    $ CLocated <$> rename p' <*> pure r
 
+    -- here, we rename the type and then require that it produces something that
+    -- looks like a Prop
+    CType t -> translateProp t
+
+translateProp :: Type -> RenameM Prop
+translateProp ty = go =<< rnType True ty
+  where
+  go t = case t of
+
+    TLocated t' r -> (`CLocated` r) <$> go t'
+
+    TUser (QName Nothing (Name p)) [l,r]
+      | p == "==" -> pure (CEqual l r)
+      | p == ">=" -> pure (CGeq l r)
+      | p == "<=" -> pure (CGeq r l)
+
+    _ ->
+      do record (InvalidConstraint ty)
+         return (CType t)
+
+
 instance Rename Type where
-  rename t      = case t of
-    TFun a b     -> TFun     <$> rename a  <*> rename b
-    TSeq n a     -> TSeq     <$> rename n  <*> rename a
+  rename = rnType False
+
+rnType :: Bool -> Type -> RenameM Type
+rnType isProp = go
+  where
+  go t = case t of
+    TFun a b     -> TFun     <$> go a  <*> go b
+    TSeq n a     -> TSeq     <$> go n  <*> go a
     TBit         -> return t
     TNum _       -> return t
     TChar _      -> return t
@@ -367,69 +401,82 @@ instance Rename Type where
       | n == "inf", null ps     -> return TInf
       | n == "Bit", null ps     -> return TBit
 
-      | n == "lg2"              -> TApp TCLg2           <$> rename ps
-      | n == "min"              -> TApp TCMin           <$> rename ps
-      | n == "max"              -> TApp TCMax           <$> rename ps
-      | n == "lengthFromThen"   -> TApp TCLenFromThen   <$> rename ps
-      | n == "lengthFromThenTo" -> TApp TCLenFromThenTo <$> rename ps
-      | n == "width"            -> TApp TCWidth <$> rename ps
+      | n == "lg2"              -> TApp TCLg2           <$> traverse go ps
+      | n == "min"              -> TApp TCMin           <$> traverse go ps
+      | n == "max"              -> TApp TCMax           <$> traverse go ps
+      | n == "lengthFromThen"   -> TApp TCLenFromThen   <$> traverse go ps
+      | n == "lengthFromThenTo" -> TApp TCLenFromThenTo <$> traverse go ps
+      | n == "width"            -> TApp TCWidth         <$> traverse go ps
 
-    TUser qn ps  -> TUser    <$> renameType qn <*> rename ps
-    TApp f xs    -> TApp f   <$> rename xs
-    TRecord fs   -> TRecord  <$> rename fs
-    TTuple fs    -> TTuple   <$> rename fs
+    TUser qn ps  -> TUser    <$> renameType qn <*> traverse go ps
+    TApp f xs    -> TApp f   <$> traverse go xs
+    TRecord fs   -> TRecord  <$> traverse (traverse go) fs
+    TTuple fs    -> TTuple   <$> traverse go fs
     TWild        -> return t
     TLocated t' r -> withLoc r
-                 $ TLocated <$> rename t' <*> pure r
+                 $ TLocated <$> go t' <*> pure r
 
-    TParens t'   -> rename t'
+    TParens t'   -> go t'
 
-    TInfix a o b -> do op <- renameTypeOp o
-                       renameTInfix a o op b
+    TInfix a o b -> do op <- renameTypeOp isProp o
+                       renameTInfix isProp a o op b
+
+type TOp = Type -> Type -> Type
 
 -- | Resolve infix operators at the type-level.
 --
 -- XXX this only renames to existing type primitives right now, maybe in the
 -- future we should update this to allow for user-defined infix operators at the
 -- type level?
-renameTInfix :: Type -> LQName -> (TFun,Fixity) -> Type -> RenameM Type
-renameTInfix (TInfix t1 op1 t2) op2 o2@(f2,Fixity a2 p2) t3 =
-  do o1@(f1,Fixity a1 p1) <- renameTypeOp op1
+renameTInfix :: Bool -> Type -> LQName -> (TOp,Fixity) -> Type -> RenameM Type
+renameTInfix isProp (TInfix t1 op1 t2) op2 o2@(f2,Fixity a2 p2) t3 =
+  do o1@(f1,Fixity a1 p1) <- renameTypeOp isProp op1
 
      if | p1 > p2 || (p1 == p2 && a1 == LeftAssoc && a2 == LeftAssoc) ->
-          do tl <- renameTInfix t1 op1 o1 t2
-             tr <- rename t3
-             return (TApp f2 [tl,tr])
+          do tl <- renameTInfix isProp t1 op1 o1 t2
+             tr <- rnType isProp t3
+             return (f2 tl tr)
 
         | p1 < p2 || (p1 == p2 && a1 == RightAssoc && a2 == RightAssoc) ->
-          do tl <- rename t1
-             tr <- renameTInfix t2 op2 o2 t3
-             return (TApp f1 [tl,tr])
+          do tl <- rnType isProp t1
+             tr <- renameTInfix isProp t2 op2 o2 t3
+             return (f1 tl tr)
 
         | otherwise ->
           panic "Renamer" [ "fixity problem for built-in operators"
-                          , show o1
-                          , show o2 ]
+                          , show op1
+                          , show op2 ]
 
-renameTInfix (TLocated t1 _) op2 o2 t2 =
-     renameTInfix t1 op2 o2 t2
+renameTInfix isProp (TLocated t1 _) op2 o2 t2 =
+     renameTInfix isProp t1 op2 o2 t2
 
-renameTInfix t1 _ (f,_) t2 =
-  do l <- rename t1
-     r <- rename t2
-     return (TApp f [l,r])
+renameTInfix isProp t1 _ (f,_) t2 =
+  do l <- rnType isProp t1
+     r <- rnType isProp t2
+     return (f l r)
 
-renameTypeOp :: Located QName -> RenameM (TFun,Fixity)
-renameTypeOp op =
-  do tf <- case Map.lookup (thing op) tfunNames of
-             Just tfun -> return tfun
-             Nothing   -> do record (UnboundType op)
-                             -- any TFun will do here, we're not actually
-                             -- producing a program from this pass.
-                             return TCAdd
+-- | Rename a type operator, mapping it to a real type function.  When isProp is
+-- True, it's assumed that the renaming is happening in the context of a Prop,
+-- which allows unresolved operators to propagate without an error.  They will
+-- be resolved in the CType case for Prop.
+renameTypeOp :: Bool -> Located QName -> RenameM (TOp,Fixity)
+renameTypeOp isProp op =
+  do let sym   = unqual (thing op)
+         props = [ Name "==", Name ">=", Name "<=" ]
+         lkp   = do n               <- Map.lookup (thing op) tfunNames
+                    (fAssoc,fLevel) <- Map.lookup n tBinOpPrec
+                    return (n,Fixity { .. })
+     case lkp of
+       Just (p,f) ->
+            return (\x y -> TApp p [x,y], f)
 
-     let (fAssoc,fLevel) = tBinOpPrec Map.! tf
-     return (tf, Fixity { .. })
+       Nothing
+         | isProp && sym `elem` props ->
+           do return (\x y -> TUser (thing op) [x,y], Fixity NonAssoc 0)
+
+         | otherwise ->
+           do record (UnboundType op)
+              return (\x y -> TUser (thing op) [x,y], defaultFixity)
 
 
 instance Rename Pragma where
