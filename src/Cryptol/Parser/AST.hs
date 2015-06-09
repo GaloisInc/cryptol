@@ -69,6 +69,7 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
 import qualified Data.Set as Set
+import qualified Data.Map as Map
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
@@ -624,6 +625,13 @@ asEApps expr = go expr []
                       Nothing       -> (e, es)
                       Just (e1, e2) -> go e1 (e2 : es)
 
+isTInfix :: Type -> Maybe (Infix TFun Type)
+isTInfix (TLocated t _)  = isTInfix t
+isTInfix (TApp ieOp [ieLeft,ieRight]) =
+  do (ieAssoc,iePrec) <- Map.lookup ieOp tBinOpPrec
+     return Infix { .. }
+isTInfix _               = Nothing
+
 instance PP TypeInst where
   ppPrec _ (PosInst t)   = pp t
   ppPrec _ (NamedInst x) = ppNamed "=" x
@@ -775,6 +783,11 @@ instance PP Type where
       TSeq t1 TBit   -> brackets (pp t1)
       TSeq t1 t2     -> optParens (n > 3)
                       $ brackets (pp t1) <> ppPrec 3 t2
+
+      TApp _ [_,_]
+        | Just tinf <- isTInfix ty
+                     -> optParens (n > 2)
+                      $ ppInfix 2 isTInfix tinf
 
       TApp f ts      -> optParens (n > 2)
                       $ pp f <+> fsep (map (ppPrec 4) ts)

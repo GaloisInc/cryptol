@@ -35,6 +35,7 @@ import Cryptol.Utils.Panic(panic)
 import Cryptol.TypeCheck.PP
 
 import           Data.Map    (Map)
+import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
 
@@ -653,8 +654,8 @@ instance PP (WithNames Type) where
 
           (_, _)              -> pp pc <+> fsep (map (go 4) ts)
 
-      -- _ | Just tinf <- isTInfix ty0 -> optParens (prec > 2)
-      --                                $ ppInfix 2 isTInfix tinf
+      _ | Just tinf <- isTInfix ty0 -> optParens (prec > 2)
+                                     $ ppInfix 2 isTInfix tinf
 
       TCon f ts -> optParens (prec > 3)
                 $ pp f <+> fsep (map (go 4) ts)
@@ -662,12 +663,12 @@ instance PP (WithNames Type) where
     where
     go p t = ppWithNamesPrec nmMap p t
 
-    -- isTInfix (WithNames (TCon (TF ieOp) [ieLeft',ieRight']) _) =
-    --   do let ieLeft  = WithNames ieLeft' nmMap
-    --          ieRight = WithNames ieRight' nmMap
-    --      (ieAssoc,iePrec) <- Map.lookup ieOp tBinOpPrec
-    --      return Infix { .. }
-    -- isTInfix _ = Nothing
+    isTInfix (WithNames (TCon (TF ieOp) [ieLeft',ieRight']) _) =
+      do let ieLeft  = WithNames ieLeft' nmMap
+             ieRight = WithNames ieRight' nmMap
+         (ieAssoc,iePrec) <- Map.lookup ieOp tBinOpPrec
+         return Infix { .. }
+    isTInfix _ = Nothing
 
 addTNames :: [TParam] -> NameMap -> NameMap
 addTNames as ns = foldr (uncurry IntMap.insert) ns

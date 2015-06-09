@@ -428,7 +428,7 @@ renameTypeOp op =
                              -- producing a program from this pass.
                              return TCAdd
 
-     let (fAssoc,fLevel) = tfunPrec Map.! tf
+     let (fAssoc,fLevel) = tBinOpPrec Map.! tf
      return (tf, Fixity { .. })
 
 
