@@ -638,9 +638,13 @@ helpCmd cmd
                | Just str <- ifDeclDoc ->
                  do rPutStrLn ""
 
+                    let property
+                          | P.PragmaProperty `elem` ifDeclPragmas = text "property"
+                          | otherwise                             = empty
                     rPrint $ runDoc nameEnv
                            $ nest 4
-                           $ optParens ifDeclInfix (pp qname)
+                           $ property
+                             <+> optParens ifDeclInfix (pp qname)
                              <+> colon
                              <+> pp (ifDeclSig)
 

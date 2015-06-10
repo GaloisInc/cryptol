@@ -223,8 +223,8 @@ vtop_decl               :: { [TopDecl] }
   | doc decl                       { [exportDecl (Just $1) Public $2]                 }
   | 'private' 'v{' vtop_decls 'v}' { changeExport Private (reverse $3)                }
   | 'include' STRLIT               {% (return . Include) `fmap` fromStrLit $2         }
-  | 'property' name apats '=' expr { [exportDecl Nothing Public (mkProperty $2 $3 $5)]}
-  | 'property' name       '=' expr { [exportDecl Nothing Public (mkProperty $2 [] $4)]}
+  | mbDoc 'property' name apats '=' expr { [exportDecl $1 Public (mkProperty $3 $4 $6)]}
+  | mbDoc 'property' name       '=' expr { [exportDecl $1 Public (mkProperty $3 [] $5)]}
   | newtype                        { [exportNewtype Public $1]                        }
   | prim_bind                      { $1 }
 
@@ -236,7 +236,6 @@ top_decl                :: { [TopDecl] }
 prim_bind               :: { [TopDecl] }
   : mbDoc 'primitive' name  ':' schema       { mkPrimDecl $1 False (fmap mkUnqual $3) $5 }
   | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrimDecl $1 True                 $4  $7 }
-
 
 doc                     :: { Located String }
   : DOC                    { mkDoc (fmap tokenText $1) }
