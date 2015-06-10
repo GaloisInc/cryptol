@@ -26,7 +26,7 @@ import           Data.Either(partitionEithers)
 import qualified Data.Map as Map
 
 #if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative(Applicative(..),(<$>)(<$))
+import           Control.Applicative(Applicative(..),(<$>),(<$))
 import           Data.Traversable(traverse)
 #endif
 
