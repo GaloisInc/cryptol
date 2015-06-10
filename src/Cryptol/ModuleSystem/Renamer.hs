@@ -443,7 +443,7 @@ renameTInfix isProp (TInfix t1 op1 t2) op2 o2@(f2,Fixity a2 p2) t3 =
              return (f1 tl tr)
 
         | otherwise ->
-          panic "Renamer" [ "fixity problem for built-in operators"
+          panic "Renamer" [ "fixity problem for type operators"
                           , show op1
                           , show op2 ]
 
@@ -472,7 +472,7 @@ renameTypeOp isProp op =
 
        Nothing
          | isProp && sym `elem` props ->
-           do return (\x y -> TUser (thing op) [x,y], Fixity NonAssoc 0)
+              return (\x y -> TUser (thing op) [x,y], Fixity NonAssoc 0)
 
          | otherwise ->
            do record (UnboundType op)

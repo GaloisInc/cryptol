@@ -16,4 +16,4 @@ Loading module Main
              of literal or demoted expression
              at ./simon.cry2:89:36--89:38
   to max 6 (max (width a`569) (width (a`570 - 1)))
-False
+True

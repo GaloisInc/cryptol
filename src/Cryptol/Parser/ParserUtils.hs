@@ -162,7 +162,7 @@ intVal tok =
 mkFixity :: Assoc -> Located Token -> [LQName] -> ParseM Decl
 mkFixity assoc tok qns =
   do l <- intVal tok
-     unless (l >= 0 && l <= 20)
+     unless (l >= 1 && l <= 100)
           (errorMessage (srcRange tok) "Fixity levels must be between 0 and 20")
      return (DFixity (Fixity assoc (fromInteger l)) qns)
 

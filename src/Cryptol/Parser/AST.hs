@@ -176,8 +176,9 @@ data Fixity   = Fixity { fAssoc :: !Assoc
                        , fLevel :: !Int
                        } deriving (Eq,Show)
 
+-- | The fixity used when none is provided.
 defaultFixity :: Fixity
-defaultFixity  = Fixity LeftAssoc 20
+defaultFixity  = Fixity LeftAssoc 100
 
 data Pragma   = PragmaNote String
               | PragmaProperty
