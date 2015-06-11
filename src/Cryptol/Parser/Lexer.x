@@ -31,8 +31,11 @@ $unitick        = \x7
 @id_next      = [a-zA-Z0-9_'] | $unilower | $uniupper | $unidigit | $unitick
 
 @id           = @id_first @id_next*
-
 @op           = ([\!\@\#\$\%\^\&\*\~\>\<\?\+\=\|\/] | $unisymbol)+
+
+@qual         = (@id $white* :: $white*)+
+@qual_id      = @qual @id
+@qual_op      = @qual @op
 
 @num2         = "0b" [0-1]+
 @num8         = "0o" [0-7]+
@@ -74,6 +77,9 @@ $unitick        = \x7
 <0> {
 $white+                   { emit $ White Space }
 "//" .*                   { emit $ White LineComment }
+
+@qual_id                  { mkQualIdent }
+@qual_op                  { mkQualOp }
 
 -- Please update the docs, if you add new entries.
 "else"                    { emit $ KW KW_else }
@@ -119,7 +125,6 @@ $white+                   { emit $ White Space }
 ";"                       { emit $ Sym Semi }
 "."                       { emit $ Sym Dot }
 ":"                       { emit $ Sym Colon }
-"::"                      { emit $ Sym ColonColon }
 "`"                       { emit $ Sym BackTick }
 ".."                      { emit $ Sym DotDot }
 "..."                     { emit $ Sym DotDotDot }
@@ -149,7 +154,7 @@ $white+                   { emit $ White Space }
 "~"                       { emit  (Op   Complement) }
 
 -- all other operators
-@op                       { emitS (Op . Other) }
+@op                       { emitS (Op . Other []) }
 }
 
 

@@ -15,7 +15,7 @@ import Cryptol.Parser.Unlit(PreProc(None))
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
-import           Data.Char(toLower,generalCategory,isAscii,ord)
+import           Data.Char(toLower,generalCategory,isAscii,ord,isSpace)
 import qualified Data.Char as Char
 import           Data.List(foldl')
 import           Data.Text.Lazy (Text)
@@ -152,7 +152,21 @@ mkIdent :: Action
 mkIdent cfg p s z = (Just Located { srcRange = r, thing = Token t s }, z)
   where
   r = Range { from = p, to = moves p s, source = cfgSource cfg }
-  t = Ident (T.unpack s)
+  t = Ident [] (T.unpack s)
+
+mkQualIdent :: Action
+mkQualIdent cfg p s z = (Just Located { srcRange = r, thing = Token t s}, z)
+  where
+  r = Range { from = p, to = moves p s, source = cfgSource cfg }
+  t = Ident (map T.unpack ns) (T.unpack i)
+  (ns,i) = splitQual s
+
+mkQualOp :: Action
+mkQualOp cfg p s z = (Just Located { srcRange = r, thing = Token t s}, z)
+  where
+  r = Range { from = p, to = moves p s, source = cfgSource cfg }
+  t = Op (Other (map T.unpack ns) (T.unpack i))
+  (ns,i) = splitQual s
 
 emit :: TokenT -> Action
 emit t cfg p s z  = (Just Located { srcRange = r, thing = Token t s }, z)
@@ -161,6 +175,23 @@ emit t cfg p s z  = (Just Located { srcRange = r, thing = Token t s }, z)
 
 emitS :: (String -> TokenT) -> Action
 emitS t cfg p s z  = emit (t (T.unpack s)) cfg p s z
+
+
+-- | Split out the prefix and name part of an identifier/operator.
+splitQual :: T.Text -> ([T.Text], T.Text)
+splitQual t =
+  case splitNS (T.filter (not . isSpace) t) of
+    []  -> panic "[Lexer] mkQualIdent" ["invalid qualified name", show t]
+    [i] -> ([], i)
+    xs  -> (init xs, last xs)
+
+  where
+
+  -- split on the namespace separator, `::`
+  splitNS s =
+    case T.breakOn "::" s of
+      (l,r) | T.null r  -> [l]
+            | otherwise -> l : splitNS (T.drop 2 r)
 
 
 
@@ -355,7 +386,7 @@ data TokenKW  = KW_Arith
 data TokenOp  = Plus | Minus | Mul | Div | Exp | Mod
               | Equal | LEQ | GEQ
               | Complement | Hash
-              | Other String
+              | Other [String] String
                 deriving (Eq,Show)
 
 data TokenSym = Bar
@@ -368,7 +399,6 @@ data TokenSym = Bar
               | DotDot
               | DotDotDot
               | Colon
-              | ColonColon
               | BackTick
               | ParenL   | ParenR
               | BracketL | BracketR
@@ -387,7 +417,7 @@ data TokenErr = UnterminatedComment
 
 data TokenT   = Num Integer Int Int   -- ^ value, base, number of digits
               | ChrLit  Char          -- ^ character literal
-              | Ident String          -- ^ identifier
+              | Ident [String] String -- ^ (qualified) identifier
               | StrLit String         -- ^ string literal
               | KW    TokenKW         -- ^ keyword
               | Op    TokenOp         -- ^ operator

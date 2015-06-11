@@ -36,9 +36,11 @@ import Paths_cryptol
 
 %token
   NUM         { $$@(Located _ (Token (Num   {}) _))}
-  IDENT       { $$@(Located _ (Token (Ident {}) _))}
   STRLIT      { $$@(Located _ (Token (StrLit {}) _))}
   CHARLIT     { $$@(Located _ (Token (ChrLit {}) _))}
+
+  IDENT       { $$@(Located _ (Token (Ident [] _) _))}
+  QIDENT      { $$@(Located _ (Token  Ident{}     _))}
 
   'include'   { Located $$ (Token (KW KW_include)   _)}
   'import'    { Located $$ (Token (KW KW_import)    _)}
@@ -81,7 +83,6 @@ import Paths_cryptol
   '='         { Located $$ (Token (Sym EqDef   ) _)}
   '`'         { Located $$ (Token (Sym BackTick) _)}
   ':'         { Located $$ (Token (Sym Colon   ) _)}
-  '::'        { Located $$ (Token (Sym ColonColon) _)}
   '->'        { Located $$ (Token (Sym ArrR    ) _)}
   '=>'        { Located $$ (Token (Sym FatArrR ) _)}
   '\\'        { Located $$ (Token (Sym Lambda  ) _)}
@@ -101,7 +102,8 @@ import Paths_cryptol
 
   '#'         { Located $$ (Token (Op Hash) _)}
 
-  OP          { $$@(Located _ (Token (Op {}) _))}
+  OP          { $$@(Located _ (Token (Op (Other [] _)) _))}
+  QOP         { $$@(Located _ (Token (Op  Other{}   )  _))}
 
   DOC         { $$@(Located _ (Token (White DocStr) _)) }
 
@@ -136,7 +138,7 @@ import Paths_cryptol
 %left  '*' '/' '%'
 %right '^^'
 %right NEG '~'
-%left OP
+%left OP QOP
 %%
 
 
@@ -234,8 +236,8 @@ top_decl                :: { [TopDecl] }
   | prim_bind              { $1                                                   }
 
 prim_bind               :: { [TopDecl] }
-  : mbDoc 'primitive' name  ':' schema       { mkPrimDecl $1 False (fmap mkUnqual $3) $5 }
-  | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrimDecl $1 True                 $4  $7 }
+  : mbDoc 'primitive' name  ':' schema       { mkPrimDecl $1 False $3 $5 }
+  | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrimDecl $1 True  $4 $7 }
 
 doc                     :: { Located String }
   : DOC                    { mkDoc (fmap tokenText $1) }
@@ -261,7 +263,7 @@ decl                    :: { Decl }
                                           } }
 
   | apat op apat '=' expr  { at ($1,$5) $
-                             DBind $ Bind { bName      = $2
+                             DBind $ Bind { bName      = fmap mkUnqual $2
                                           , bParams    = [$1,$3]
                                           , bDef       = at $5 (Located emptyRange (DExpr $5))
                                           , bSignature = Nothing
@@ -310,7 +312,7 @@ vars_comma                 :: { [ LName ]  }
 
 var                        :: { LName }
   : name                      { $1 }
-  | '(' op ')'                { fmap unqual $2 }
+  | '(' op ')'                { $2 }
 
 apats                   :: { [Pattern]  }
   : apat                   { [$1]       }
@@ -338,7 +340,7 @@ repl                    :: { ReplInput }
 
 
 expr                             :: { Expr }
-  : iexpr                           { $1 }
+  : cexpr                           { $1 }
   | expr 'where' '{' '}'            { at ($1,$4) $ EWhere $1 []           }
   | expr 'where' '{' decls '}'      { at ($1,$5) $ EWhere $1 (reverse $4) }
   | expr 'where' 'v{' 'v}'          { at ($1,$2) $ EWhere $1 []           }
@@ -351,33 +353,43 @@ ifBranches                       :: { [(Expr, Expr)] }
 ifBranch                         :: { (Expr, Expr) }
   : expr 'then' expr                { ($1, $3) }
 
+cexpr                            :: { Expr }
+  : sig_expr                        { $1 }
+  | 'if' ifBranches 'else' iexpr    { at ($1,$4) $ mkIf $2 $4 }
+  | '\\' apats '->' iexpr           { at ($1,$4) $ EFun (reverse $2) $4 }
+
+sig_expr                         :: { Expr }
+  : iexpr                           { $1 }
+  | iexpr ':' type                  { at ($1,$3) $ ETyped $1 $3 }
+
 iexpr                            :: { Expr }
   : expr10                          { $1 }
-  | iexpr op expr10                 { binOp $1 $2 $3 }
-  | iexpr ':' type                  { at ($1,$3) $ ETyped $1 $3 }
+  | iexpr qop expr10                { binOp $1 $2 $3 }
 
 expr10                           :: { Expr }
   : aexprs                          { mkEApp $1 }
 
-  | 'if' ifBranches 'else' iexpr    { at ($1,$4) $ mkIf $2 $4 }
-  | '\\' apats '->' iexpr           { at ($1,$4) $ EFun (reverse $2) $4 }
-
   | '-' expr10 %prec NEG            { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual (Name "negate")))) $2 }
   | '~' expr10                      { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual (Name "complement")))) $2 }
 
-op                               :: { LQName }
-  : OP                              { let Token (Op (Other str)) _ = thing $1
-                                       in mkUnqual (Name str) A.<$ $1 }
+qop                              :: { LQName }
+  : op                              { fmap mkUnqual $1 }
+  | QOP                             { let Token (Op (Other ns i)) _ = thing $1
+                                       in mkQual (ModName ns) (Name i) A.<$ $1 }
+
+op                               :: { LName }
+  : OP                              { let Token (Op (Other [] str)) _ = thing $1
+                                       in Name str A.<$ $1 }
 
     -- special cases for operators that are re-used elsewhere
-  | '*'                             { Located $1 $ mkUnqual (Name "*" ) }
-  | '+'                             { Located $1 $ mkUnqual (Name "+" ) }
-  | '-'                             { Located $1 $ mkUnqual (Name "-" ) }
-  | '~'                             { Located $1 $ mkUnqual (Name "~" ) }
-  | '^^'                            { Located $1 $ mkUnqual (Name "^^") }
-  | '#'                             { Located $1 $ mkUnqual (Name "#" ) }
+  | '*'                             { Located $1 $ Name "*" }
+  | '+'                             { Located $1 $ Name "+" }
+  | '-'                             { Located $1 $ Name "-" }
+  | '~'                             { Located $1 $ Name "~" }
+  | '^^'                            { Located $1 $ Name "^^" }
+  | '#'                             { Located $1 $ Name "#" }
 
-ops                     :: { [LQName] }
+ops                     :: { [LName] }
   : op                     { [$1] }
   | ops ',' op             { $3 : $1 }
 
@@ -402,7 +414,7 @@ aexpr                          :: { Expr                                   }
   | '`' tick_ty                   { at ($1,$2) $ ETypeVal $2               }
   | aexpr '.' selector            { at ($1,$3) $ ESel $1 (thing $3)        }
 
-  | '(' op ')'                    { at ($1,$3) $ EVar $ thing $2           }
+  | '(' qop ')'                   { at ($1,$3) $ EVar $ thing $2           }
 
   | '<|'            '|>'          {% mkPoly (rComb $1 $2) [] }
   | '<|' poly_terms '|>'          {% mkPoly (rComb $1 $3) $2 }
@@ -536,10 +548,10 @@ tysyn_params                  :: { [TParam]  }
   : tysyn_param                  { [$1]      }
   | tysyn_params tysyn_param     { $2 : $1   }
 
-type                           :: { Type                             }
-  : app_type '->' type            { at ($1,$3) $ TFun $1 $3          }
-  | type op app_type              { at ($1,$3) $ TInfix $1 $2 $3     }
-  | app_type                      { $1                               }
+type                           :: { Type                                         }
+  : app_type '->' type            { at ($1,$3) $ TFun $1 $3                      }
+  | type op app_type              { at ($1,$3) $ TInfix $1 (fmap mkUnqual $2) $3 }
+  | app_type                      { $1                                           }
 
 app_type                       :: { Type }
   -- : 'lg2'   atype                 { at ($1,$2) $ TApp TCLg2   [$2]    }
@@ -587,10 +599,6 @@ field_types                    :: { [Named Type] }
   | field_types ',' field_type    { $3 : $1 }
 
 
-qname_parts                       :: { [LName] } -- Reversed!
-  : name                          { [$1] }
-  | qname_parts '::' name         { $3 : $1 }
-
 name               :: { LName }
   : IDENT             { $1 { thing = getName $1 } }
   | 'x'               { Located { srcRange = $1, thing = Name "x" }}
@@ -600,23 +608,17 @@ name               :: { LName }
 
 
 modName                        :: { Located ModName }
-  : qname_parts                   { mkModName $1 }
+  : qname                         { mkModName $1 }
 
 qname                          :: { Located QName }
-  : qname_parts                   { mkQName $1 }
+  : name                          { fmap mkUnqual $1 }
+  | QIDENT                        { let Token (Ident ns i) _ = thing $1
+                                     in mkQual (ModName ns) (Name i) A.<$ $1 }
 
-help_name                      :: { Located QName }
-  : help_name_parts               { mkQName $1 }
-
-help_name_parts                :: { [LName] }
-  : name                          { [$1] }
-  | qname_parts '::' name         { $3:$1 }
-
-  | op                            { [fmap unqual $1] }
-  | qname_parts '::' op           { fmap unqual $3:$1 }
-
-  | '(' op ')'                    { [fmap unqual $2] }
-  | '(' qname_parts '::' op ')'   { fmap unqual $4:$2 }
+help_name                      :: { Located QName    }
+  : qname                         { $1               }
+  | qop                           { $1               }
+  | '(' qop ')'                   { $2               }
 
 {- The types that can come after a back-tick: either a type demotion,
 or an explicit type application.  Explicit type applications are converted

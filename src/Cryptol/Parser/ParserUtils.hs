@@ -108,12 +108,11 @@ errorMessage r x = P $ \_ _ _ -> Left (HappyErrorMsg r x)
 customError :: String -> Located Token -> ParseM a
 customError x t = P $ \_ _ _ -> Left (HappyErrorMsg (srcRange t) x)
 
-mkModName :: {-reversed-} [LName] -> Located ModName
-mkModName xs = Located { srcRange = rComb (srcRange f) (srcRange l)
-                       , thing    = ModName [ x | Name x <- map thing ns ]
-                       }
-  where l : _       = xs
-        ns@(f : _)  = reverse xs
+mkModName :: LQName -> Located ModName
+mkModName  = fmap $ \ (QName mb (Name n)) ->
+  case mb of
+    Just (ModName ns) -> ModName (ns ++ [n])
+    Nothing           -> ModName [n]
 
 mkQName :: {-reversed-} [LName] -> Located QName
 mkQName [x] = fmap mkUnqual x
@@ -130,7 +129,7 @@ mkSchema xs ps t = Forall xs ps t Nothing
 
 getName :: Located Token -> Name
 getName l = case thing l of
-              Token (Ident x) _ -> Name x
+              Token (Ident [] x) _ -> Name x
               _ -> panic "[Parser] getName" ["not an Ident:", show l]
 
 getNum :: Located Token -> Integer
@@ -159,12 +158,12 @@ intVal tok =
     Num x _ _ -> return x
     _         -> errorMessage (srcRange tok) "Expected an integer"
 
-mkFixity :: Assoc -> Located Token -> [LQName] -> ParseM Decl
+mkFixity :: Assoc -> Located Token -> [LName] -> ParseM Decl
 mkFixity assoc tok qns =
   do l <- intVal tok
      unless (l >= 1 && l <= 100)
           (errorMessage (srcRange tok) "Fixity levels must be between 0 and 20")
-     return (DFixity (Fixity assoc (fromInteger l)) qns)
+     return (DFixity (Fixity assoc (fromInteger l)) (map (fmap mkUnqual) qns))
 
 mkTupleSel :: Range -> Integer -> ParseM (Located Selector)
 mkTupleSel pos n
@@ -343,10 +342,10 @@ mkIf ifThens theElse = foldr addIfThen theElse ifThens
 -- pass.  This is also the reason we add the doc to the TopLevel constructor,
 -- instead of just place it on the binding directly.  A better solution might be
 -- to just have a different constructor for primitives.
-mkPrimDecl :: Maybe (Located String) -> Bool -> LQName -> Schema -> [TopDecl]
+mkPrimDecl :: Maybe (Located String) -> Bool -> LName -> Schema -> [TopDecl]
 mkPrimDecl mbDoc isInfix n sig =
   [ exportDecl mbDoc Public
-    $ DBind Bind { bName      = n
+    $ DBind Bind { bName      = qname
                  , bParams    = []
                  , bDef       = at sig (Located emptyRange DPrim)
                  , bSignature = Nothing
@@ -357,8 +356,10 @@ mkPrimDecl mbDoc isInfix n sig =
                  , bDoc       = Nothing
                  }
   , exportDecl Nothing Public
-    $ DSignature [n] sig
+    $ DSignature [qname] sig
   ]
+  where
+  qname = fmap mkUnqual n
 
 -- | Fix-up the documentation strings by removing the comment delimiters on each
 -- end, and stripping out common prefixes on all the remaining lines.
