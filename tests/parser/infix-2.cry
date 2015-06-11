@@ -1,0 +1,12 @@
+
+import Cryptol as c
+
+/**
+ * Test that qualified infix operators work
+ */
+test1 = [c::True,c::False] c::+ [c::True,c::False] c::== c::zero
+
+/**
+ * Test that qualified operators used in prefix form work
+ */
+test2 = (c::+) c::zero [c::True] c::== [c::True]
