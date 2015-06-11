@@ -17,6 +17,7 @@ module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
 
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position(Range(..),emptyRange,start,at)
+import Cryptol.Parser.Names (namesP)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
@@ -426,14 +427,11 @@ toDocs TopLevel { .. }
       DFixity _ ns    -> [ (thing n, [txt]) | n <- ns ]
       DBind b         -> [ (thing (bName b), [txt]) ]
       DLocated d _    -> go txt d
+      DPatBind p _    -> [ (thing n, [txt]) | n <- namesP p ]
 
       -- XXX revisit these
-      DPatBind _ _    -> []
       DPragma _ _     -> []
       DType _         -> []
-
-
-
 
 
 --------------------------------------------------------------------------------
