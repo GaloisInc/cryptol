@@ -1,0 +1,28 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+    test1 : Bit
+
+Test that doc strings work on signatures
+
+
+    test2 : Bit
+
+Test that doc strings work on value bindings
+
+
+    test3 : {a} a -> a
+
+Test that doc strings work on function bindings
+
+
+    property test4 : Bit -> Bit
+
+Test that doc strings work on property declarations
+
+
+    (++) : {a} a -> a -> a
+
+Test that doc strings work on fixity declarations
+
