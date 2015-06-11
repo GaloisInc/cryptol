@@ -221,19 +221,27 @@ vtop_decls                 :: { [TopDecl]  }
   | vtop_decls ';'  vtop_decl { $3 ++ $1 }
 
 vtop_decl               :: { [TopDecl] }
-  : decl                           { [exportDecl Nothing   Public $1]                 }
-  | doc decl                       { [exportDecl (Just $1) Public $2]                 }
-  | 'private' 'v{' vtop_decls 'v}' { changeExport Private (reverse $3)                }
-  | 'include' STRLIT               {% (return . Include) `fmap` fromStrLit $2         }
-  | mbDoc 'property' name apats '=' expr { [exportDecl $1 Public (mkProperty $3 $4 $6)]}
-  | mbDoc 'property' name       '=' expr { [exportDecl $1 Public (mkProperty $3 [] $5)]}
-  | newtype                        { [exportNewtype Public $1]                        }
-  | prim_bind                      { $1 }
+  : decl                   { [exportDecl Nothing   Public $1]                 }
+  | doc decl               { [exportDecl (Just $1) Public $2]                 }
+  | mbDoc 'include' STRLIT {% (return . Include) `fmap` fromStrLit $3         }
+  | mbDoc 'property' name apats '=' expr
+                           { [exportDecl $1 Public (mkProperty $3 $4 $6)]     }
+  | mbDoc 'property' name       '=' expr
+                           { [exportDecl $1 Public (mkProperty $3 [] $5)]     }
+  | mbDoc newtype          { [exportNewtype Public $2]                        }
+  | prim_bind              { $1                                               }
+  | private_decls          { $1                                               }
 
 top_decl                :: { [TopDecl] }
   : decl                   { [Decl (TopLevel {tlExport = Public, tlValue = $1 })] }
   | 'include' STRLIT       {% (return . Include) `fmap` fromStrLit $2             }
   | prim_bind              { $1                                                   }
+
+private_decls           :: { [TopDecl] }
+  : 'private' 'v{' vtop_decls 'v}'
+                           { changeExport Private (reverse $3)                }
+  | doc 'private' 'v{' vtop_decls 'v}'
+                           { changeExport Private (reverse $4)                }
 
 prim_bind               :: { [TopDecl] }
   : mbDoc 'primitive' name  ':' schema       { mkPrimDecl $1 False $3 $5 }
