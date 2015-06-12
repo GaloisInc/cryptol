@@ -27,6 +27,11 @@ module Cryptol.REPL.Command (
   , replEvalExpr
   , replCheckExpr
 
+    -- Check, SAT, and prove
+  , qcCmd, QCMode(..)
+  , satCmd
+  , proveCmd
+
     -- Misc utilities
   , handleCtrlC
   , sanitize
