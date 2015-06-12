@@ -17,7 +17,15 @@ module Cryptol.REPL.Command (
   , findCommandExact
   , findNbCommand
 
-  , moduleCmd, loadCmd, loadPrelude
+  , moduleCmd, loadCmd, loadPrelude, setOptionCmd
+
+    -- Parsing
+  , interactiveConfig
+  , replParseExpr
+
+    -- Evaluation and Typechecking
+  , replEvalExpr
+  , replCheckExpr
 
     -- Misc utilities
   , handleCtrlC
