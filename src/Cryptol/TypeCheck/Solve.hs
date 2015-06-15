@@ -198,9 +198,10 @@ _testSimpGoals = Num.withSolver cfg $ \s ->
 
   asmps = []
 
-  gs    = map fakeGoal [ num 16 >== tMod (btv 0) (num 16) ]
+  gs    = map fakeGoal [ tv 0 =#= tMin (num 10) (tv 1)
+                       , tv 1 =#= num 10
+                       ]
 
-    -- [ tv 0 =#= tInf, tMod (num 3) (tv 0) =#= num 4 ]
 
   fakeGoal p = Goal { goalSource = undefined, goalRange = undefined, goal = p }
   tv n  = TVar (TVFree n KNum Set.empty (text "test var"))

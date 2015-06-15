@@ -30,9 +30,10 @@ import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.TypeCheck.Solver.Numeric.ImportExport
 import           Cryptol.TypeCheck.Solver.Numeric.Defined
 import           Cryptol.TypeCheck.Solver.Numeric.Simplify
+import           Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr(crySimpExpr)
 import           Cryptol.TypeCheck.Solver.Numeric.NonLin
 import           Cryptol.TypeCheck.Solver.Numeric.SMT
-import           Cryptol.Utils.PP ( Doc )
+import           Cryptol.Utils.PP -- ( Doc )
 import           Cryptol.Utils.Panic ( panic )
 
 import           MonadLib
@@ -124,22 +125,8 @@ checkDefined1 s updCt (ct,p) =
   where
   SimpProp defCt = simpProp (cryDefinedProp p)
 
-{-
-improveGoals s gs =
-  withScope s $
-    do mapM_ (assert s . doExport) gs
-       mb <- check s
-       case mb of
-         Nothing       -> return Nothing
-         Just (su,wfs) -> undefined
-  where
-  doExport g = case exportProp (goal g) of
-                 Just p  -> simpProp p
-                 Nothing -> panic "improveGoals"
-                              [ "Failed to export goal"
-                              , show g
-                              ]
--}
+
+
 
 prepareConstraints ::
   Solver -> (Prop -> a -> a) ->
@@ -169,8 +156,8 @@ prepareConstraints s updCt cs =
   apSubst' su x = fromMaybe x (apSubst su x)
 
   goStep1 unknown ok su sgs =
-    let (ok1, moreSu) = improveByDefnMany updCt ok
-    in go unknown ok1 (composeSubst moreSu su) sgs
+    do let (ok1, moreSu) = improveByDefnMany updCt ok
+       go unknown ok1 (composeSubst moreSu su) (map (apSubst' moreSu) sgs)
 
   go unknown ok su sgs =
     do mb <- getImps ok
@@ -274,14 +261,15 @@ improveByDefnMany updCt = go [] Map.empty
   go todo su (p : ps) =
     let p1 = fromMaybe p (apSubstDefinedProp updCt su p)
     in case improveByDefn p1 of
-         Just (x,e) -> go todo (Map.insert x e su) ps
+         Just (x,e) ->
+            go todo (composeSubst (Map.singleton x e) su) ps
                       -- `p` is solved, so ignore
          Nothing    -> go (p1 : todo) su ps
 
   go todo su [] =
     let (same,changed) = partitionEithers (map (mbSu su) todo)
     in case changed of
-         [] -> (same,su)
+         [] -> (same, fmap crySimpExpr su)
          _  -> go same su changed
 
 
