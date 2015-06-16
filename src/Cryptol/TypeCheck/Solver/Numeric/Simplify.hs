@@ -601,9 +601,7 @@ cryGtNat useFinite n expr =
 
     K (Nat m) :* y
       | m > 0           -> Just $ case divMod n m of
-                                    (a,0) -> gt y $ K (Nat a)
-                                    (0,_) -> eq y zero
-                                    (a,_) -> gt y $ K $ Nat $ a - 1
+                                    (a,_) -> gt y $ K $ Nat a
 
     x :* y
       | n == 0          -> Just (gt x zero :&& gt y zero)
