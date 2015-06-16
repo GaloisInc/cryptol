@@ -66,7 +66,6 @@ exportTypeM ty =
             (Cry.TCExp, [t1,t2]) -> return (t1 :^^ t2)
             (Cry.TCMin, [t1,t2]) -> return (Min t1 t2)
             (Cry.TCMax, [t1,t2]) -> return (Max t1 t2)
-            (Cry.TCLg2, [t1])    -> return (Lg2 t1)
             (Cry.TCWidth, [t1])  -> return (Width t1)
             (Cry.TCLenFromThen,   [t1,t2,t3]) -> return (LenFromThen   t1 t2 t3)
             (Cry.TCLenFromThenTo, [t1,t2,t3]) -> return (LenFromThenTo t1 t2 t3)
@@ -141,7 +140,6 @@ importType = go
       x :^^ y             -> op2 Cry.TCExp x y
       Min x y             -> op2 Cry.TCMin x y
       Max x y             -> op2 Cry.TCMax x y
-      Lg2 x               -> op1 Cry.TCLg2 x
       Width x             -> op1 Cry.TCWidth x
       LenFromThen   x y z -> op3 Cry.TCLenFromThen x y z
       LenFromThenTo x y z -> op3 Cry.TCLenFromThenTo x y z

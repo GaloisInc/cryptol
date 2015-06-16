@@ -296,7 +296,6 @@ reifyName name tys = intercalate "_" (showName name : concatMap showT tys)
         TCMul           -> "mul"
         TCDiv           -> "div"
         TCMod           -> "mod"
-        TCLg2           -> "lg2"
         TCExp           -> "exp"
         TCWidth         -> "width"
         TCMin           -> "min"

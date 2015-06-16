@@ -37,7 +37,6 @@ cryDefined expr =
     x :^^ y   -> cryDefined x :&& cryDefined y
     Min x y   -> cryDefined x :&& cryDefined y
     Max x y   -> cryDefined x :&& cryDefined y
-    Lg2 x     -> cryDefined x
     Width x   -> cryDefined x
     LenFromThen x y w ->
       cryDefined x :&& cryDefined y :&& cryDefined w :&&

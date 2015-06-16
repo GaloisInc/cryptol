@@ -86,7 +86,6 @@ data Expr = K Nat'
           | Expr :^^ Expr
           | Min Expr Expr
           | Max Expr Expr
-          | Lg2 Expr
           | Width Expr
           | LenFromThen   Expr Expr Expr
           | LenFromThenTo Expr Expr Expr
@@ -159,7 +158,6 @@ cryExprExprs expr =
     x :^^ y             -> [x,y]
     Min x y             -> [x,y]
     Max x y             -> [x,y]
-    Lg2 x               -> [x]
     Width x             -> [x]
     LenFromThen   x y z -> [x,y,z]
     LenFromThenTo x y z -> [x,y,z]
@@ -179,7 +177,6 @@ cryRebuildExpr expr args =
     (_ :^^ _, [x,y])                -> x :^^ y
     (Min _ _, [x,y])                -> Min x y
     (Max _ _, [x,y])                -> Max x y
-    (Lg2 _  , [x])                  -> Lg2 x
     (Width _, [x])                  -> Width x
     (LenFromThen   _ _ _ , [x,y,z]) -> LenFromThen x y z
     (LenFromThenTo _ _ _ , [x,y,z]) -> LenFromThenTo x y z
@@ -265,7 +262,6 @@ instance HasVars Expr where
         Mod x y             -> bin Mod x y
         Min x y             -> bin Min x y
         Max x y             -> bin Max x y
-        Lg2 x               -> Lg2 `fmap` go x
         Width x             -> Width `fmap` go x
         LenFromThen x y w   -> three LenFromThen x y w
         LenFromThenTo x y z -> three LenFromThen x y z
@@ -384,7 +380,6 @@ ppExprPrec prec expr =
     x :^^ y             -> bin "^^" 8 1 0 x y
     Min x y             -> fun "min" [x,y]
     Max x y             -> fun "max" [x,y]
-    Lg2 x               -> fun "lg2" [x]
     Width x             -> fun "width" [x]
     LenFromThen x y w   -> fun "lenFromThen" [x,y,w]
     LenFromThenTo x y z -> fun "lenFromThenTo" [x,y,z]

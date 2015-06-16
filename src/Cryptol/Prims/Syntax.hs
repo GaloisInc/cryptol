@@ -23,7 +23,6 @@ data TFun
   | TCMul                 -- ^ @ : Num -> Num -> Num @
   | TCDiv                 -- ^ @ : Num -> Num -> Num @
   | TCMod                 -- ^ @ : Num -> Num -> Num @
-  | TCLg2                 -- ^ @ : Num -> Num @
   | TCExp                 -- ^ @ : Num -> Num -> Num @
   | TCWidth               -- ^ @ : Num -> Num @
   | TCMin                 -- ^ @ : Num -> Num -> Num @
@@ -59,7 +58,6 @@ tfunNames  = Map.fromList
   , tprim "/"                TCDiv
   , tprim "%"                TCMod
   , tprim "^^"               TCExp
-  , tprim "lg2"              TCLg2
   , tprim "width"            TCWidth
   , tprim "min"              TCMin
   , tprim "max"              TCMax
@@ -77,7 +75,6 @@ instance PP TFun where
       TCMul             -> text "*"
       TCDiv             -> text "/"
       TCMod             -> text "%"
-      TCLg2             -> text "lg2"
       TCExp             -> text "^^"
       TCWidth           -> text "width"
       TCMin             -> text "min"

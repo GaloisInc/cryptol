@@ -550,7 +550,6 @@ instance HasKind TFun where
   kindOf tfun =
     case tfun of
       TCWidth  -> KNum :-> KNum
-      TCLg2    -> KNum :-> KNum
 
       TCAdd    -> KNum :-> KNum :-> KNum
       TCSub    -> KNum :-> KNum :-> KNum

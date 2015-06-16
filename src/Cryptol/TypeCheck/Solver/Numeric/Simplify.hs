@@ -419,7 +419,6 @@ cryIsFin expr =
 
     Min t1 t2            -> Just (Fin t1 :|| Fin t2)
     Max t1 t2            -> Just (Fin t1 :&& Fin t2)
-    Lg2 t1               -> Just (Fin t1)
     Width t1             -> Just (Fin t1)
     LenFromThen  _ _ _   -> Just PTrue
     LenFromThenTo  _ _ _ -> Just PTrue
@@ -486,9 +485,6 @@ cryIsNat useFinite n expr =
     Max x y             -> Just ( eq x (K (Nat n)) :&& gt (K (Nat (n + 1))) y
                               :|| eq y (K (Nat n)) :&& gt (K (Nat (n + 1))) y
                                 )
-
-    -- Don't bother as we should probalby remove this one
-    Lg2 _               -> Nothing
 
     Width x
       | n == 0          -> Just (eq x zero)
@@ -572,7 +568,6 @@ cryNatGt useFinite n expr
       Min x y         -> Just $ gt (k n) x :|| gt (k n) y
       Max x y         -> Just $ gt (k n) x :&& gt (k n) y
 
-      Lg2 _           -> Nothing    -- Going away
       Width x         -> Just $ gt (k (2 ^ n)) x
 
       LenFromThen _ _ _   -> Nothing -- Are there some rules?
@@ -642,8 +637,6 @@ cryGtNat useFinite n expr =
 
     Min x y             -> Just $ gt x (K (Nat n)) :&& gt y (K (Nat n))
     Max x y             -> Just $ gt x (K (Nat n)) :|| gt y (K (Nat n))
-
-    Lg2 _               -> Nothing    -- Going away
 
     Width x             -> Just $ gt (one :+ x) (K (Nat (2 ^ n)))
 
@@ -788,12 +781,6 @@ cryNoInf expr =
            (K Inf, _) -> return inf
            (_, K Inf) -> return inf
            _          -> return (Max x' y')
-
-    Lg2 x ->
-      do x' <- cryNoInf x
-         case x' of
-           K Inf     -> return inf
-           _         -> return (Lg2 x')
 
     Width x ->
       do x' <- cryNoInf x

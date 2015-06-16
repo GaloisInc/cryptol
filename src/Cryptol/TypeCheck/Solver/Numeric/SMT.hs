@@ -143,7 +143,6 @@ exprToSmtLib expr =
     _ :^^ _             -> unexpected
     Min {}              -> unexpected
     Max {}              -> unexpected
-    Lg2 {}              -> unexpected
     Width {}            -> unexpected
     LenFromThen {}      -> unexpected
     LenFromThenTo {}    -> unexpected

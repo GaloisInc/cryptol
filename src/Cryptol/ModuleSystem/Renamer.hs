@@ -401,7 +401,6 @@ rnType isProp = go
       | n == "inf", null ps     -> return TInf
       | n == "Bit", null ps     -> return TBit
 
-      | n == "lg2"              -> TApp TCLg2           <$> traverse go ps
       | n == "min"              -> TApp TCMin           <$> traverse go ps
       | n == "max"              -> TApp TCMax           <$> traverse go ps
       | n == "lengthFromThen"   -> TApp TCLenFromThen   <$> traverse go ps

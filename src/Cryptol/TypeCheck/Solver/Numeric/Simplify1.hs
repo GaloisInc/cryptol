@@ -222,7 +222,6 @@ pFin expr =
 
     Min t1 t2            -> pOr (pFin t1) (pFin t2)
     Max t1 t2            -> pAnd (pFin t1) (pFin t2)
-    Lg2 t1               -> pFin t1
     Width t1             -> pFin t1
     LenFromThen  _ _ _   -> pTrue
     LenFromThenTo  _ _ _ -> pTrue
@@ -252,7 +251,6 @@ pEq0 expr =
     t1 :^^ t2           -> pIf (pEq t2 zero) pFalse (pEq t1 zero)
     Min t1 t2           -> pOr  (pEq t1 zero) (pEq t2 zero)
     Max t1 t2           -> pAnd (pEq t1 zero) (pEq t2 zero)
-    Lg2 t1              -> pOr  (pEq t1 zero) (pEq t1 one)
     Width t1            -> pEq t1 zero
     LenFromThen _ _ _   -> pFalse
     LenFromThenTo x y z -> pIf (pGt x y) (pGt z x) (pGt x z)
@@ -279,7 +277,6 @@ pEq1 expr =
                          $ pIf (pEq t2 one) (pGt two t1)
                            pFalse
 
-    Lg2 t1              -> pEq t1 two
     Width t1            -> pEq t1 one
 
     -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
@@ -429,12 +426,6 @@ eNoInf expr =
            (K Inf, _) -> return inf
            (_, K Inf) -> return inf
            _          -> return (Max x' y')
-
-    Lg2 x ->
-      do x' <- eNoInf x
-         case x' of
-           K Inf     -> return inf
-           _         -> return (Lg2 x')
 
     Width x ->
       do x' <- eNoInf x

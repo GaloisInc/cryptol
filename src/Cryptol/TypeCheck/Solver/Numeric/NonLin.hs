@@ -185,8 +185,6 @@ isNonLinOp expr =
 
     Max _ _       -> False
 
-    Lg2 _         -> True
-
     Width _       -> True
 
     LenFromThen _ _ _ -> True -- See also comment on `LenFromThenTo`

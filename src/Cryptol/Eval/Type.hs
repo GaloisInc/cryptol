@@ -49,7 +49,6 @@ evalTF' f vs
   | TCMul           <- f, [x,y]   <- vs  =      nMul x y
   | TCDiv           <- f, [x,y]   <- vs  = mb $ nDiv x y
   | TCMod           <- f, [x,y]   <- vs  = mb $ nMod x y
-  | TCLg2           <- f, [x]     <- vs  =      nLg2 x
   | TCWidth         <- f, [x]     <- vs  =      nWidth x
   | TCExp           <- f, [x,y]   <- vs  =      nExp x y
   | TCMin           <- f, [x,y]   <- vs  =      nMin x y
