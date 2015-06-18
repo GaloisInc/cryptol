@@ -33,6 +33,7 @@ import Cryptol.Parser.AST ( Name(..), Selector(..),Pragma(..), ppSelector
                           , Fixity(..) )
 import Cryptol.Utils.Panic(panic)
 import Cryptol.TypeCheck.PP
+import Cryptol.TypeCheck.Solver.InfNat
 
 import           Data.Map    (Map)
 import qualified Data.Map as Map
@@ -283,15 +284,20 @@ isBoundTV _             = False
 
 
 --------------------------------------------------------------------------------
+
+tIsNat' :: Type -> Maybe Nat'
+tIsNat' ty =
+  case tNoUser ty of
+    TCon (TC (TCNum x)) [] -> Just (Nat x)
+    TCon (TC TCInf)     [] -> Just Inf
+    _                      -> Nothing
+
 tIsNum :: Type -> Maybe Integer
-tIsNum ty = case tNoUser ty of
-              TCon (TC (TCNum x)) [] -> Just x
-              _                      -> Nothing
+tIsNum ty = do Nat x <- tIsNat' ty
+               return x
 
 tIsInf :: Type -> Bool
-tIsInf ty = case tNoUser ty of
-              TCon (TC TCInf) [] -> True
-              _                  -> False
+tIsInf ty = tIsNat' ty == Just Inf
 
 tIsVar :: Type -> Maybe TVar
 tIsVar ty = case tNoUser ty of
@@ -317,6 +323,19 @@ tIsTuple :: Type -> Maybe [Type]
 tIsTuple ty = case tNoUser ty of
                 TCon (TC (TCTuple _)) ts -> Just ts
                 _                        -> Nothing
+
+tIsBinFun :: TFun -> Type -> Maybe (Type,Type)
+tIsBinFun f ty = case tNoUser ty of
+                   TCon (TF g) [a,b] | f == g -> Just (a,b)
+                   _                          -> Nothing
+
+-- | Split up repeated occurances of the given binary type-level function.
+tSplitFun :: TFun -> Type -> [Type]
+tSplitFun f t0 = go t0 []
+  where go ty xs = case tIsBinFun f ty of
+                     Just (a,b) -> go a (go b xs)
+                     Nothing    -> ty : xs
+
 
 pIsFin :: Prop -> Maybe Type
 pIsFin ty = case tNoUser ty of
@@ -373,6 +392,12 @@ tTwo      = tNum (2 :: Int)
 tInf     :: Type
 tInf      = TCon (TC TCInf) []
 
+tNat'    :: Nat' -> Type
+tNat' n'  = case n' of
+              Inf   -> tInf
+              Nat n -> tNum n
+
+
 tBit     :: Type
 tBit      = TCon (TC TCBit) []
 
@@ -424,7 +449,7 @@ infixr 5 `tFun`
 tFun     :: Type -> Type -> Type
 tFun a b  = TCon (TC TCFun) [a,b]
 
--- | Eliminate type synonyms.
+-- | Eliminate outermost type synonyms.
 tNoUser  :: Type -> Type
 tNoUser t = case t of
               TUser _ _ a -> tNoUser a
