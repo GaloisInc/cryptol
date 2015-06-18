@@ -78,17 +78,17 @@ data Prop =
 -- | Expressions, representing Cryptol's numeric types.
 data Expr = K Nat'
           | Var Name
-          | Expr :+ Expr
-          | Expr :- Expr
-          | Expr :* Expr
-          | Div Expr Expr
-          | Mod Expr Expr
-          | Expr :^^ Expr
-          | Min Expr Expr
-          | Max Expr Expr
-          | Width Expr
-          | LenFromThen   Expr Expr Expr
-          | LenFromThenTo Expr Expr Expr
+          | Expr :+ Expr                  -- total
+          | Expr :- Expr                  -- partial: x >= y, fin y
+          | Expr :* Expr                  -- total
+          | Div Expr Expr                 -- partial: fin x, y >= 1
+          | Mod Expr Expr                 -- partial: fin x, y >= 1
+          | Expr :^^ Expr                 -- total
+          | Min Expr Expr                 -- total
+          | Max Expr Expr                 -- total
+          | Width Expr                    -- total
+          | LenFromThen   Expr Expr Expr  -- partial: x /= y, w >= width x
+          | LenFromThenTo Expr Expr Expr  -- partial: x /= y
             deriving (Eq,Show,Generic,Ord)
 
 
