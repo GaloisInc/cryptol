@@ -106,7 +106,7 @@ runInferM info (IM m) =
            (cts,has) -> return $ InferFailed warns
                 $ dropErrorsFromSameLoc
                 [ ( goalRange g
-                  , UnsolvedGoal (apSubst theSu g)
+                  , UnsolvedGoal False (apSubst theSu g)
                   ) | g <- fromGoals cts ++ map hasGoal has
                 ]
        errs -> return $ InferFailed warns

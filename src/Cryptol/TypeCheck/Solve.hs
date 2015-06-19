@@ -91,7 +91,7 @@ simplifyAllConstraints =
      mb <- io (Num.withSolver cfg (`simpGoals` gs))
      case mb of
        Right (gs1,su) -> extendSubst su >> addGoals gs1
-       Left badGs     -> mapM_ (recordError . UnsolvedGoal) badGs
+       Left badGs     -> mapM_ (recordError . UnsolvedGoal True) badGs
 
 
 proveImplication :: LQName -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
@@ -228,92 +228,110 @@ simpGoals s gs0 =
   debugBlock s "Simplifying goals" $
   do debugBlock s "goals:" (debugLog s gs0)
 
-     let (unsolvedClassCts,numCts) = solveClassCts gs0
 
-         updCt prop g = case Num.importProp prop of
-                               Just [g1] -> g { goal = g1 }
+     case impossibleClass of
+       [] ->
+         case numCts of
+           [] -> do debugBlock s "After simplification (no numerics):"
+                      $ debugLog s unsolvedClassCts
+                    return $ Right (unsolvedClassCts, emptySubst)
 
-                               r -> panic "simpGoals"
-                                      [ "Unexpected import results"
-                                      , show r
-                                      ]
+           _ -> solveNumCts
 
-     case numCts of
-       [] -> do debugBlock s "After simplification (no numerics):"
-                  $ debugLog s unsolvedClassCts
-                return $ Right (unsolvedClassCts, emptySubst)
+       _ -> return (Left impossibleClass)
 
-       _  -> do mbOk <- Num.prepareConstraints s updCt numCts
-                case mbOk of
-                  Left bad -> return (Left bad)
-                  Right (nonDef,def,imps,wds) ->
-
-                    -- XXX: What should we do with the extra props...
-                    do let (su,extraProps) = importSplitImps imps
-
-                           (sideConds,invalid) = importSideConds wds
-
-
-                           inIfForm =
-                              Num.ppProp' $
-                              Num.propToProp' $
-                              case def of
-                                [] -> Num.PTrue
-                                _  -> foldr1 (Num.:&&)
-                                    $ map Num.dpSimpExprProp def
-
-                           def1 = eliminateSimpleGEQ def
-                           toGoal =
-                             case map Num.dpData def1 of
-                               []  -> case gs0 of
-                                        g : _ -> \p -> g { goal = p }
-                                        [] -> panic "simplification"
-                                                [ "Goals out of no goals." ]
-
-                               [g] -> \p -> g { goal = p }
-                               gs  -> \p ->
-                                 Goal { goalRange = rCombs (map goalRange gs)
-                                      , goalSource = CtImprovement
-                                      , goal = p }
-
-                       unless (null invalid) $
-                           panic "simpGoals" ( "Unable to import required well-definedness constraints:"
-                                             : map (show . Num.ppProp) invalid )
-
-                       if null nonDef
-                         then do debugLog s "(all constraints are well-defined)"
-                                 debugBlock s "In If-form:" $
-                                    debugLog s inIfForm
-
-                         else debugBlock s "Non-well defined constratins:" $
-                                debugLog s nonDef
-
-                       def2 <- Num.simplifyProps s def1
-                       let allCts = apSubst su $ map toGoal extraProps ++
-                                    nonDef ++
-                                    unsolvedClassCts ++
-                                    def2 ++
-                                    sideConds
-
-                       debugBlock s "After simplification:" $
-                          do debugLog s allCts
-                             debugLog s su
-
-                       -- XXX: Apply subst to class constraints and go again?
-                       return $ Right ( allCts, su )
   where
-  solveClassRight g = case classStep g of
-                        Just gs -> Right gs
-                        Nothing -> Left g
+  (impossibleClass,unsolvedClassCts,numCts) = solveClassCts [] [] [] gs0
+
+  solveClassCts impossible unsolved numerics goals =
+    case goals of
+      []     -> (impossible, unsolved, numerics)
+      g : gs ->
+        case numericRight g of
+          Right n -> solveClassCts impossible unsolved (n : numerics) gs
+          Left c  ->
+            case classStep c of
+
+              Unsolvable ->
+                solveClassCts (g : impossible) unsolved numerics gs
+
+              Unsolved ->
+                solveClassCts impossible (g : unsolved) numerics gs
+
+              Solved Nothing subs ->
+                solveClassCts impossible unsolved numerics (subs ++ gs)
+
+              Solved (Just su) _ ->
+                panic "solveClassCts" [ "Unexpected substituion"
+                                      , show su ]
+
+  updCt prop g = case Num.importProp prop of
+                   Just [g1] -> g { goal = g1 }
+
+                   r -> panic "simpGoals" [ "Unexpected import results"
+                                          , show r
+                                          ]
+
+  solveNumCts =
+    do mbOk <- Num.prepareConstraints s updCt numCts
+       case mbOk of
+         Left bad -> return (Left bad)
+         Right (nonDef,def,imps,wds) ->
+
+           -- XXX: What should we do with the extra props...
+           do let (su,extraProps) = importSplitImps imps
+
+                  (sideConds,invalid) = importSideConds wds
 
 
-  -- returns (unsolved class constraints, numeric constraints)
-  solveClassCts [] = ([], [])
-  solveClassCts gs =
-     let (classCts,numCts)    = partitionEithers (map numericRight gs)
-         (unsolved,solveds)   = partitionEithers (map solveClassRight classCts)
-         (unsolved',numCts')  = solveClassCts (concat solveds)
-     in (unsolved ++ unsolved', numCts ++ numCts')
+                  inIfForm =
+                     Num.ppProp' $
+                     Num.propToProp' $
+                     case def of
+                       [] -> Num.PTrue
+                       _  -> foldr1 (Num.:&&)
+                           $ map Num.dpSimpExprProp def
+
+                  def1 = eliminateSimpleGEQ def
+                  toGoal =
+                    case map Num.dpData def1 of
+                      []  -> case gs0 of
+                               g : _ -> \p -> g { goal = p }
+                               [] -> panic "simplification"
+                                       [ "Goals out of no goals." ]
+
+                      [g] -> \p -> g { goal = p }
+                      gs  -> \p ->
+                        Goal { goalRange = rCombs (map goalRange gs)
+                             , goalSource = CtImprovement
+                             , goal = p }
+
+              unless (null invalid) $
+                  panic "simpGoals" ( "Unable to import required well-definedness constraints:"
+                                    : map (show . Num.ppProp) invalid )
+
+              if null nonDef
+                then do debugLog s "(all constraints are well-defined)"
+                        debugBlock s "In If-form:" $
+                           debugLog s inIfForm
+
+                else debugBlock s "Non-well defined constratins:" $
+                       debugLog s nonDef
+
+              def2 <- Num.simplifyProps s def1
+              let allCts = apSubst su $ map toGoal extraProps ++
+                           nonDef ++
+                           unsolvedClassCts ++
+                           def2 ++
+                           sideConds
+
+              debugBlock s "After simplification:" $
+                 do debugLog s allCts
+                    debugLog s su
+
+              -- XXX: Apply subst to class constraints and go again?
+              return $ Right ( allCts, su )
+ 
 
 
 -- | Import an improving substitutin (i.e., a bunch of equations)
