@@ -24,7 +24,7 @@ import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Subst
-                    (apSubst,fvs,singleSubst,substToList,
+                    (apSubst,fvs,singleSubst,substToList, isEmptySubst,
                           emptySubst,Subst,listSubst, (@@), Subst)
 import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
@@ -564,13 +564,23 @@ defaultReplExpr cfg e s =
      then do let params = map tpVar (sVars s)
              mbSubst <- tryGetModel cfg params (sProps s)
              case mbSubst of
-               Just su -> return $ do tys <- mapM (bindParam su) params
-                                      return (zip (sVars s) tys, appExpr tys)
-               Nothing -> return Nothing
+               Just su ->
+                 do res <- Num.withSolver cfg $ \so ->
+                              simpGoals so (map (makeGoal su) (sProps s))
+                    return $
+                      case res of
+                        Right ([],su1) | isEmptySubst su1 ->
+                         do tys <- mapM (bindParam su) params
+                            return (zip (sVars s) tys, appExpr tys)
+                        _ -> Nothing
+               _ -> return Nothing
 
      else return Nothing
-
   where
+  makeGoal su p = Goal { goalSource = error "goal source"
+                       , goalRange  = error "goal range"
+                       , goal       = apSubst su p
+                       }
 
   bindParam su tp =
     do let ty  = TVar tp
