@@ -183,6 +183,7 @@ crySimpExprStep1 expr =
         (K Inf, _)        -> Just inf
         (_, K (Nat 0))    -> Just x
         (_, K Inf)        -> Just inf
+        (K a, K b)        -> Just (K (IN.nMax a b))
         _ | x == y        -> Just x
         _                 -> Nothing
 
