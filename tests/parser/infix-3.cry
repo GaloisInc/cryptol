@@ -1,0 +1,3 @@
+
+(/\) : Bool -> Bool -> Bool
+p /\ q = p && q
