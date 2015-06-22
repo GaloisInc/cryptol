@@ -363,7 +363,7 @@ ifBranch                         :: { (Expr, Expr) }
 
 cexpr                            :: { Expr }
   : sig_expr                        { $1 }
-  | 'if' ifBranches 'else' cexpr    { at ($1,$4) $ mkIf $2 $4 }
+  | 'if' ifBranches 'else' cexpr    { at ($1,$4) $ mkIf (reverse $2) $4 }
   | '\\' apats '->' cexpr           { at ($1,$4) $ EFun (reverse $2) $4 }
 
 sig_expr                         :: { Expr }
