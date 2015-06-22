@@ -634,22 +634,22 @@ helpCmd cmd
       Just qname ->
         do (env,nameEnv) <- getFocusedEnv
            case Map.lookup qname (M.ifDecls env) of
-             Just [M.IfaceDecl { .. }]
-               | Just str <- ifDeclDoc ->
-                 do rPutStrLn ""
+             Just [M.IfaceDecl { .. }] ->
+               do rPutStrLn ""
 
-                    let property
-                          | P.PragmaProperty `elem` ifDeclPragmas = text "property"
-                          | otherwise                             = empty
-                    rPrint $ runDoc nameEnv
-                           $ nest 4
-                           $ property
-                             <+> optParens ifDeclInfix (pp qname)
-                             <+> colon
-                             <+> pp (ifDeclSig)
+                  let property
+                        | P.PragmaProperty `elem` ifDeclPragmas = text "property"
+                        | otherwise                             = empty
+                  rPrint $ runDoc nameEnv
+                         $ nest 4
+                         $ property
+                           <+> optParens ifDeclInfix (pp qname)
+                           <+> colon
+                           <+> pp (ifDeclSig)
 
-                    rPutStrLn ""
-                    rPutStrLn str
+                  case ifDeclDoc of
+                    Just str -> rPutStrLn ('\n' : str)
+                    Nothing  -> return ()
 
              _ -> rPutStrLn "// No documentation is available."
 
