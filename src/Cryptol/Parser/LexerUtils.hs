@@ -64,7 +64,7 @@ endComent cfg p txt s =
   case s of
     InComment d f [] cs     -> (Just (mkToken d f cs), Normal)
     InComment d _ (q:qs) cs -> (Nothing, InComment d q qs (txt : cs))
-    _                     -> panic "[Lexer] endComment" ["outside commend"]
+    _                     -> panic "[Lexer] endComment" ["outside comment"]
   where
   mkToken isDoc f cs =
     let r   = Range { from = f, to = moves p txt, source = cfgSource cfg }
@@ -80,6 +80,20 @@ addToComment _ _ txt s = (Nothing, InComment doc p stack (txt : chunks))
      case s of
        InComment d q qs cs -> (d,q,qs,cs)
        _                   -> panic "[Lexer] addToComment" ["outside comment"]
+
+startEndComment :: Action
+startEndComment cfg p txt s =
+  case s of
+    Normal -> (Just tok, Normal)
+      where tok = Located
+                    { srcRange = Range { from   = p
+                                       , to     = moves p txt
+                                       , source = cfgSource cfg
+                                       }
+                    , thing = Token (White BlockComment) txt
+                    }
+    InComment d p1 ps cs -> (Nothing, InComment d p1 ps (txt : cs))
+    _ -> panic "[Lexer] startEndComment" ["in string or char?"]
 
 startString :: Action
 startString _ p txt _ = (Nothing,InString p txt)

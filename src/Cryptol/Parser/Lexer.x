@@ -48,12 +48,13 @@ $unitick        = \x7
 :-
 
 <0,comment> {
-"/*"           { startComment False }
-"/**"          { startComment True  }
+\/\*                     { startComment False }
+\/\*\*+                  { startComment True  }
+\/\*+\/                  { startEndComment    }
 }
 
 <comment> {
-"*/"                      { endComent }
+\*+\/                     { endComent }
 .                         { addToComment }
 \n                        { addToComment }
 }
