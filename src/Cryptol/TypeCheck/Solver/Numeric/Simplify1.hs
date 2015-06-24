@@ -141,13 +141,22 @@ mkIf a t e
   | t == e    = t
   | otherwise = case a of
                   AFin x -> If a (pKnownFin x t) (pKnownInf x e)
+                  _ | If b@(AFin y) _ _ <- t -> If b (mkFinIf y) (mkInfIf y)
+                    | If b@(AFin y) _ _ <- e -> If b (mkFinIf y) (mkInfIf y)
+
                   AEq x' y'
-                    | x == y  -> t
+                    | x == y    -> t
                     | otherwise -> If (AEq x y) t e
                     where (x,y) = balanceEq x' y'
 
 
                   _      -> If a t e
+
+  where
+  mkFinIf y = mkIf a (pKnownFin y t) (pKnownFin y e)
+  mkInfIf y = case apSubstAtom (Map.singleton y (K Inf)) a of
+                Nothing -> mkIf a (pKnownInf y t) (pKnownInf y t)
+                Just a' -> pIf a' (pKnownInf y t) (pKnownInf y t)
 
 
 -- | If-then-else with non-atom at decision.
