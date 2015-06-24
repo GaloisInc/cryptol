@@ -458,7 +458,7 @@ cryIsNat useFinite n expr =
 
     -- (x >= n * y) /\ ((n+1) * y > x)
     Div x y             -> Just (gt (one :+ x) (K (Nat n) :* y) :&&
-                                 gt (K (Nat (n + 1))) y)
+                                 gt (K (Nat (n + 1)) :* y) x
 
     Mod _ _ | useFinite -> Nothing
             | otherwise -> Just (cryNatOp (:==:) expr (K (Nat n)))
