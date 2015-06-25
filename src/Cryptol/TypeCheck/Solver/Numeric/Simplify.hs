@@ -71,7 +71,7 @@ crySimpStep prop =
     x :>= y   ->
       case (x,y) of
         -- XXX: DUPLICTION
-        (K (Nat 0), _) -> Just (y :== zero)
+        (K (Nat 0), _)       -> Just (y :== zero)
         (K (Nat a), Width b) -> Just (K (Nat (2 ^ a)) :>= b)
 
         (_,       K (Nat 0)) -> Just PTrue
@@ -458,7 +458,7 @@ cryIsNat useFinite n expr =
 
     -- (x >= n * y) /\ ((n+1) * y > x)
     Div x y             -> Just (gt (one :+ x) (K (Nat n) :* y) :&&
-                                 gt (K (Nat (n + 1)) :* y) x
+                                 gt (K (Nat (n + 1)) :* y) x)
 
     Mod _ _ | useFinite -> Nothing
             | otherwise -> Just (cryNatOp (:==:) expr (K (Nat n)))
