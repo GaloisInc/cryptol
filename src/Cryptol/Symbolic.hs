@@ -378,7 +378,8 @@ evalSel sel v =
         _ -> panic "Cryptol.Symbolic.evalSel" [ "Record selector applied to non-record" ]
 
     ListSel n _   -> case v of
-                       VWord s -> VBit (SBV.svTestBit s n)
+                       VWord s -> VBit (SBV.svTestBit s i)
+                                    where i = SBV.svBitSize s - 1 - n
                        _       -> fromSeq v !! n  -- 0-based indexing
 
 -- Declarations ----------------------------------------------------------------
