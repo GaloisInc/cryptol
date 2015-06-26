@@ -3,7 +3,7 @@ Version:             2.3.0
 Synopsis:            Cryptol: The Language of Cryptography
 Description: Cryptol is a domain-specific language for specifying cryptographic algorithms. A Cryptol implementation of an algorithm resembles its mathematical specification more closely than an implementation in a general purpose language. For more, see <http://www.cryptol.net/>.
 License:             BSD3
-License-files:       LICENSE, LICENSE.rtf
+License-file:        LICENSE
 Author:              Galois, Inc.
 Maintainer:          cryptol@galois.com
 Homepage:            http://www.cryptol.net/
@@ -11,7 +11,7 @@ Bug-reports:         https://github.com/GaloisInc/cryptol/issues
 Copyright:           2013-2015 Galois Inc.
 Category:            Language
 Build-type:          Simple
-Cabal-version:       >= 1.20
+Cabal-version:       >= 1.18
 
 data-files:          *.cry
 data-dir:            lib
