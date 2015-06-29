@@ -1,7 +1,7 @@
 Loading module Cryptol
 
 [error] at <interactive>:1:1--1:11:
-  Unsolved constraint:
+  Unsolvable constraint:
     0 >= 1
       arising from
       use of partial type function -
