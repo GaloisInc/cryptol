@@ -33,6 +33,7 @@ module Cryptol.Parser.AST
   , TopDecl(..)
   , Decl(..)
   , Fixity(..), defaultFixity
+  , FixityCmp(..), compareFixity
   , TySyn(..)
   , Bind(..)
   , BindDef(..), LBindDef
@@ -176,6 +177,21 @@ data Fixity   = Fixity { fAssoc :: !Assoc
                        , fLevel :: !Int
                        } deriving (Eq,Show)
 
+data FixityCmp = FCError
+               | FCLeft
+               | FCRight
+                 deriving (Show,Eq)
+
+compareFixity :: Fixity -> Fixity -> FixityCmp
+compareFixity (Fixity a1 p1) (Fixity a2 p2) =
+  case compare p1 p2 of
+    GT -> FCLeft
+    LT -> FCRight
+    EQ -> case (a1,a2) of
+            (LeftAssoc,LeftAssoc)   -> FCLeft
+            (RightAssoc,RightAssoc) -> FCRight
+            _                       -> FCError
+
 -- | The fixity used when none is provided.
 defaultFixity :: Fixity
 defaultFixity  = Fixity LeftAssoc 100
@@ -271,7 +287,7 @@ data Expr     = EVar QName                      -- ^ @ x @
               | ELocated Expr Range             -- ^ position annotation
 
               | EParens Expr                    -- ^ @ (e)   @ (Removed by Fixity)
-              | EInfix Expr (LQName) Expr       -- ^ @ a + b @ (Removed by Fixity)
+              | EInfix Expr (LQName) Fixity Expr-- ^ @ a + b @ (Removed by Fixity)
                 deriving (Eq,Show)
 
 data TypeInst = NamedInst (Named Type)
@@ -349,7 +365,7 @@ data Type     = TFun Type Type          -- ^ @[8] -> [8]@
               | TWild                   -- ^ @_@, just some type.
               | TLocated Type Range     -- ^ Location information
               | TParens Type            -- ^ @ (ty) @
-              | TInfix Type LQName Type -- ^ @ ty + ty @
+              | TInfix Type LQName Fixity Type -- ^ @ ty + ty @
                 deriving (Eq,Show)
 
 data Prop     = CFin Type             -- ^ @ fin x   @
@@ -707,7 +723,7 @@ instance PP Expr where
 
       EParens e -> parens (pp e)
 
-      EInfix e1 op e2 -> wrap n 0 (pp e1 <+> pp (thing op) <+> pp e2) 
+      EInfix e1 op _ e2 -> wrap n 0 (pp e1 <+> pp (thing op) <+> pp e2) 
 
 instance PP Selector where
   ppPrec _ sel =
@@ -811,8 +827,8 @@ instance PP Type where
 
       TParens t      -> parens (pp t)
 
-      TInfix t1 o t2 -> optParens (n > 0)
-                      $ sep [ppPrec 2 t1 <+> pp o, ppPrec 1 t2]
+      TInfix t1 o _ t2 -> optParens (n > 0)
+                        $ sep [ppPrec 2 t1 <+> pp o, ppPrec 1 t2]
 
 instance PP Prop where
   ppPrec n prop =
@@ -924,7 +940,7 @@ instance NoPos Expr where
       ELocated x _  -> noPos x
 
       EParens e     -> EParens (noPos e)
-      EInfix x y z  -> EInfix (noPos x) y (noPos z)
+      EInfix x y f z-> EInfix (noPos x) y f (noPos z)
 
 instance NoPos TypeInst where
   noPos (PosInst ts)   = PosInst (noPos ts)
@@ -968,7 +984,7 @@ instance NoPos Type where
       TChar n       -> TChar n
       TLocated x _  -> noPos x
       TParens x     -> TParens (noPos x)
-      TInfix x y z  -> TInfix (noPos x) y (noPos z)
+      TInfix x y f z-> TInfix (noPos x) y f (noPos z)
 
 instance NoPos Prop where
   noPos prop =

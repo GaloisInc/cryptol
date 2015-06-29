@@ -316,6 +316,7 @@ checkProp prop =
     P.CArith t1     -> tcon (PC PArith)         [t1]    (Just KProp)
     P.CCmp t1       -> tcon (PC PCmp)           [t1]    (Just KProp)
     P.CLocated p r1 -> kInRange r1 (checkProp p)
+    P.CType _       -> panic "checkProp" [ "Unexpected CType", show prop ]
 
 
 -- | Check that a type has the expected kind.

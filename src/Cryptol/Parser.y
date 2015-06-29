@@ -556,10 +556,10 @@ tysyn_params                  :: { [TParam]  }
   : tysyn_param                  { [$1]      }
   | tysyn_params tysyn_param     { $2 : $1   }
 
-type                           :: { Type                                         }
-  : app_type '->' type            { at ($1,$3) $ TFun $1 $3                      }
-  | type op app_type              { at ($1,$3) $ TInfix $1 (fmap mkUnqual $2) $3 }
-  | app_type                      { $1                                           }
+type                           :: { Type                                                       }
+  : app_type '->' type            { at ($1,$3) $ TFun $1 $3                                    }
+  | type op app_type              { at ($1,$3) $ TInfix $1 (fmap mkUnqual $2) defaultFixity $3 }
+  | app_type                      { $1                                                         }
 
 app_type                       :: { Type }
   -- : 'lg2'   atype                 { at ($1,$2) $ TApp TCLg2   [$2]    }

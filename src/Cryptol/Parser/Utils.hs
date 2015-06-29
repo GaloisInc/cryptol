@@ -28,9 +28,9 @@ translateExprToNumT expr =
                        t2 <- translateExprToNumT e2
                        tApp t1 t2
 
-    EInfix a o b -> do e1 <- translateExprToNumT a
-                       e2 <- translateExprToNumT b
-                       return (TInfix e1 o e2)
+    EInfix a o f b -> do e1 <- translateExprToNumT a
+                         e2 <- translateExprToNumT b
+                         return (TInfix e1 o f e2)
 
     EParens e    -> translateExprToNumT e
 

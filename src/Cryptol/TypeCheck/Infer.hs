@@ -311,8 +311,9 @@ checkE expr tGoal =
 
     P.ELocated e r  -> inRange r (checkE e tGoal)
 
+    P.EInfix a op _ b -> checkE (P.EVar (thing op) `P.EApp` a `P.EApp` b) tGoal
+
     P.EParens{} -> tcPanic "checkE" [ "Unexpected EParens" ]
-    P.EInfix{}  -> tcPanic "checkE" [ "Unexpected EInfix" ]
 
 
 expectSeq :: Type -> InferM (Type,Type)

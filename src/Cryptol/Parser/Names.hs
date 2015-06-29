@@ -105,7 +105,7 @@ namesE expr =
     ELocated e _  -> namesE e
 
     EParens e     -> namesE e
-    EInfix a o b  -> Set.insert (thing o) (Set.union (namesE a) (namesE b))
+    EInfix a o _ b-> Set.insert (thing o) (Set.union (namesE a) (namesE b))
 
 -- | The names defined by a group of patterns.
 namesPs :: [Pattern] -> [Located QName]
@@ -165,7 +165,7 @@ namesT vs = go
       TUser x ts    -> Set.insert x (Set.unions (map go ts))
 
       TParens t     -> namesT vs t
-      TInfix a _ b  -> Set.union (namesT vs a) (namesT vs b)
+      TInfix a _ _ b-> Set.union (namesT vs a) (namesT vs b)
 
 
 -- | The type names defined and used by a group of mutually recursive declarations.
@@ -224,7 +224,7 @@ tnamesE expr =
     ELocated e _  -> tnamesE e
 
     EParens e     -> tnamesE e
-    EInfix a _ b  -> Set.union (tnamesE a) (tnamesE b)
+    EInfix a _ _ b-> Set.union (tnamesE a) (tnamesE b)
 
 tnamesTI :: TypeInst -> Set QName
 tnamesTI (NamedInst f)  = tnamesT (value f)
@@ -283,4 +283,4 @@ tnamesT ty =
     TLocated t _  -> tnamesT t
     TUser x ts    -> Set.insert x (Set.unions (map tnamesT ts))
     TParens t     -> tnamesT t
-    TInfix a _ c  -> Set.union (tnamesT a) (tnamesT c)
+    TInfix a _ _ c-> Set.union (tnamesT a) (tnamesT c)

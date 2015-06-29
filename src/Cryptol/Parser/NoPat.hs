@@ -166,7 +166,7 @@ noPatE expr =
     ELocated e r1 -> ELocated <$> inRange r1 (noPatE e) <*> return r1
 
     EParens e     -> EParens <$> noPatE e
-    EInfix x y z  -> EInfix  <$> noPatE x <*> pure y <*> noPatE z
+    EInfix x y f z-> EInfix  <$> noPatE x <*> pure y <*> pure f <*> noPatE z
 
   where noPatF x = do e <- noPatE (value x)
                       return x { value = e }

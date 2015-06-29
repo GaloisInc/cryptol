@@ -38,6 +38,7 @@ import Data.Monoid (Monoid(..))
 import Data.Traversable (traverse)
 #endif
 
+
 -- Errors ----------------------------------------------------------------------
 
 data RenamerError
@@ -417,42 +418,45 @@ rnType isProp = go
 
     TParens t'   -> go t'
 
-    TInfix a o b -> do op <- renameTypeOp isProp o
-                       renameTInfix isProp a o op b
+    TInfix a o _ b ->
+      do op <- renameTypeOp isProp o
+         a' <- go a
+         b' <- go b
+         mkTInfix a' op b'
+
 
 type TOp = Type -> Type -> Type
 
--- | Resolve infix operators at the type-level.
---
--- XXX this only renames to existing type primitives right now, maybe in the
--- future we should update this to allow for user-defined infix operators at the
--- type level?
-renameTInfix :: Bool -> Type -> LQName -> (TOp,Fixity) -> Type -> RenameM Type
-renameTInfix isProp (TInfix t1 op1 t2) op2 o2@(f2,Fixity a2 p2) t3 =
-  do o1@(f1,Fixity a1 p1) <- renameTypeOp isProp op1
+mkTInfix :: Type -> (TOp,Fixity) -> Type -> RenameM Type
 
-     if | p1 > p2 || (p1 == p2 && a1 == LeftAssoc && a2 == LeftAssoc) ->
-          do tl <- renameTInfix isProp t1 op1 o1 t2
-             tr <- rnType isProp t3
-             return (f2 tl tr)
+-- this should be one of the props, or an error, so just assume that its fixity
+-- is `infix 0`.
+mkTInfix t@(TUser op [x,y]) (o2,f2) z =
+  do let f1 = Fixity NonAssoc 0
+     case compareFixity f1 f2 of
+       FCLeft  -> return (o2 t z)
+       FCRight -> return (TUser op [x,o2 y z])
+       FCError -> panic "Renamer" [ "fixity problem for type operators"
+                                  , show (o2 t z) ]
 
-        | p1 < p2 || (p1 == p2 && a1 == RightAssoc && a2 == RightAssoc) ->
-          do tl <- rnType isProp t1
-             tr <- renameTInfix isProp t2 op2 o2 t3
-             return (f1 tl tr)
+mkTInfix t@(TApp o1 [x,y]) (o2,f2) z
+  | Just (a1,p1) <- Map.lookup o1 tBinOpPrec =
+     case compareFixity (Fixity a1 p1) f2 of
+       FCLeft  -> return (o2 t z)
+       FCRight -> return (TApp o1 [x,o2 y z])
+       FCError -> panic "Renamer" [ "fixity problem for type operators"
+                                  , show (o2 t z) ]
 
-        | otherwise ->
-          panic "Renamer" [ "fixity problem for type operators"
-                          , show op1
-                          , show op2 ]
+mkTInfix (TLocated t r) op z =
+  do t' <- mkTInfix t op z
+     case t' of
+       TApp  c [x,y] -> return (TApp  c [TLocated x r, y])
+       TUser c [x,y] -> return (TUser c [TLocated x r, y])
+       _             -> return t'
 
-renameTInfix isProp (TLocated t1 _) op2 o2 t2 =
-     renameTInfix isProp t1 op2 o2 t2
+mkTInfix t (op,_) z =
+     return (op t z)
 
-renameTInfix isProp t1 _ (f,_) t2 =
-  do l <- rnType isProp t1
-     r <- rnType isProp t2
-     return (f l r)
 
 -- | Rename a type operator, mapping it to a real type function.  When isProp is
 -- True, it's assumed that the renaming is happening in the context of a Prop,
@@ -557,47 +561,38 @@ instance Rename Expr where
                    $ ELocated <$> rename e' <*> pure r
 
     EParens p     -> rename p
-    EInfix x y z  -> do op <- renameOp y
-                        renameInfix x y op z
+    EInfix x y _ z-> do op <- renameOp y
+                        x' <- rename x
+                        y' <- rename z
+                        mkEInfix x' op y'
 
-renameInfix :: Expr -> Located QName -> (Expr,Fixity) -> Expr -> RenameM Expr
+mkEInfix :: Expr                   -- ^ May contain infix expressions
+         -> (Located QName,Fixity) -- ^ The operator to use
+         -> Expr                   -- ^ Will not contain infix expressions
+         -> RenameM Expr
 
-renameInfix (EInfix e1 o1 e2) o2 opr@(o2',Fixity a2 p2) e3 =
-  do opl@(o1',Fixity a1 p1) <- renameOp o1
+mkEInfix e@(EInfix x o1 f1 y) (o2,f2) z =
+  case compareFixity f1 f2 of
+    FCLeft  -> return (EInfix e o2 f2 z)
+    FCRight -> return (EInfix x o1 f1 (EInfix y o2 f2 z))
+    FCError -> do record (FixityError o1 o2)
+                  return (EInfix e o2 f2 z)
 
-     if | p1 > p2 || (p1 == p2 && a1 == LeftAssoc && a2 == LeftAssoc) ->
-          do el <- renameInfix e1 o1 opl e2
-             er <- rename e3
-             return (o2' `EApp` el `EApp` er)
+mkEInfix (ELocated e' r) op z =
+  do EInfix x o f y <- mkEInfix e' op z
+     return (EInfix (ELocated x r) o f y)
 
-        | p1 < p2 || (p1 == p2 && a1 == RightAssoc && a2 == RightAssoc) ->
-          do el <- rename e1
-             er <- renameInfix e2 o2 opr e3
-             return (o1' `EApp` el `EApp` er)
-
-        | otherwise ->
-          do record (FixityError o1 o2)
-             e1' <- rename e1
-             e2' <- rename e2
-             e3' <- rename e3
-             return (o2' `EApp` (o1' `EApp` e1' `EApp` e2') `EApp` e3')
-
-renameInfix (ELocated e _) o2 opr e3 =
-     renameInfix e o2 opr e3
-
-renameInfix e _ (op,_) e3 =
-  do e'  <- rename e
-     e3' <- rename e3
-     return (op `EApp` e' `EApp` e3')
+mkEInfix e (o,f) z =
+     return (EInfix e o f z)
 
 
-renameOp :: Located QName -> RenameM (Expr,Fixity)
+renameOp :: Located QName -> RenameM (Located QName,Fixity)
 renameOp ln = withLoc ln $
   do n  <- renameVar (thing ln)
      ro <- RenameM ask
      case Map.lookup n (neFixity (roNames ro)) of
-       Just [fixity] -> return (EVar n,fixity)
-       _             -> return (EVar n,defaultFixity)
+       Just [fixity] -> return (ln { thing = n },fixity)
+       _             -> return (ln { thing = n },defaultFixity)
 
 
 instance Rename TypeInst where

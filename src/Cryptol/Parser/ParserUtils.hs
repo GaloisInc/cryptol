@@ -234,8 +234,9 @@ mkEApp es        = panic "[Parser] mkEApp" ["Unexpected:", show es]
 unOp :: Expr -> Expr -> Expr
 unOp f x = at (f,x) $ EApp f x
 
+-- Use defaultFixity as a placeholder, it will be fixed during renaming.
 binOp :: Expr -> Located QName -> Expr -> Expr
-binOp x f y = at (x,y) $ EInfix x f y
+binOp x f y = at (x,y) $ EInfix x f defaultFixity y
 
 eFromTo :: Range -> Expr -> Maybe Expr -> Maybe Expr -> ParseM Expr
 eFromTo r e1 e2 e3 = EFromTo <$> exprToNumT r e1
