@@ -447,12 +447,8 @@ mkTInfix t@(TApp o1 [x,y]) (o2,f2) z
        FCError -> panic "Renamer" [ "fixity problem for type operators"
                                   , show (o2 t z) ]
 
-mkTInfix (TLocated t r) op z =
-  do t' <- mkTInfix t op z
-     case t' of
-       TApp  c [x,y] -> return (TApp  c [TLocated x r, y])
-       TUser c [x,y] -> return (TUser c [TLocated x r, y])
-       _             -> return t'
+mkTInfix (TLocated t _) op z =
+     mkTInfix t op z
 
 mkTInfix t (op,_) z =
      return (op t z)
@@ -560,27 +556,29 @@ instance Rename Expr where
     ELocated e' r -> withLoc r
                    $ ELocated <$> rename e' <*> pure r
 
-    EParens p     -> rename p
+    EParens p     -> EParens <$> rename p
     EInfix x y _ z-> do op <- renameOp y
                         x' <- rename x
-                        y' <- rename z
-                        mkEInfix x' op y'
+                        z' <- rename z
+                        mkEInfix x' op z'
 
 mkEInfix :: Expr                   -- ^ May contain infix expressions
          -> (Located QName,Fixity) -- ^ The operator to use
          -> Expr                   -- ^ Will not contain infix expressions
          -> RenameM Expr
 
-mkEInfix e@(EInfix x o1 f1 y) (o2,f2) z =
+mkEInfix e@(EInfix x o1 f1 y) op@(o2,f2) z =
   case compareFixity f1 f2 of
     FCLeft  -> return (EInfix e o2 f2 z)
-    FCRight -> return (EInfix x o1 f1 (EInfix y o2 f2 z))
+
+    FCRight -> do r <- mkEInfix y op z
+                  return (EInfix x o1 f1 r)
+
     FCError -> do record (FixityError o1 o2)
                   return (EInfix e o2 f2 z)
 
-mkEInfix (ELocated e' r) op z =
-  do EInfix x o f y <- mkEInfix e' op z
-     return (EInfix (ELocated x r) o f y)
+mkEInfix (ELocated e' _) op z =
+     mkEInfix e' op z
 
 mkEInfix e (o,f) z =
      return (EInfix e o f z)

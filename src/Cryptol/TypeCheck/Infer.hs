@@ -313,7 +313,7 @@ checkE expr tGoal =
 
     P.EInfix a op _ b -> checkE (P.EVar (thing op) `P.EApp` a `P.EApp` b) tGoal
 
-    P.EParens{} -> tcPanic "checkE" [ "Unexpected EParens" ]
+    P.EParens e -> checkE e tGoal
 
 
 expectSeq :: Type -> InferM (Type,Type)
