@@ -431,19 +431,21 @@ mkTInfix :: Type -> (TOp,Fixity) -> Type -> RenameM Type
 
 -- this should be one of the props, or an error, so just assume that its fixity
 -- is `infix 0`.
-mkTInfix t@(TUser op [x,y]) (o2,f2) z =
+mkTInfix t@(TUser o1 [x,y]) op@(o2,f2) z =
   do let f1 = Fixity NonAssoc 0
      case compareFixity f1 f2 of
        FCLeft  -> return (o2 t z)
-       FCRight -> return (TUser op [x,o2 y z])
+       FCRight -> do r <- mkTInfix y op z
+                     return (TUser o1 [x,r])
        FCError -> panic "Renamer" [ "fixity problem for type operators"
                                   , show (o2 t z) ]
 
-mkTInfix t@(TApp o1 [x,y]) (o2,f2) z
+mkTInfix t@(TApp o1 [x,y]) op@(o2,f2) z
   | Just (a1,p1) <- Map.lookup o1 tBinOpPrec =
      case compareFixity (Fixity a1 p1) f2 of
        FCLeft  -> return (o2 t z)
-       FCRight -> return (TApp o1 [x,o2 y z])
+       FCRight -> do r <- mkTInfix y op z
+                     return (TApp o1 [x,r])
        FCError -> panic "Renamer" [ "fixity problem for type operators"
                                   , show (o2 t z) ]
 
