@@ -179,7 +179,7 @@ loadModule path pm = do
   -- XXX make it possible to configure output
   io (putStrLn ("Loading module " ++ pretty (P.thing (P.mName pm'))))
 
-  tcm <- checkModule pm'
+  tcm <- checkModule path pm'
 
   -- extend the eval env
   modifyEvalEnv (E.moduleEnv tcm)
@@ -305,10 +305,10 @@ checkDecls ds = do
   typecheck act rds env'
 
 -- | Typecheck a module.
-checkModule :: P.Module -> ModuleM T.Module
-checkModule m = do
+checkModule :: FilePath -> P.Module -> ModuleM T.Module
+checkModule path m = do
   -- remove includes first
-  e   <- io (removeIncludesModule m)
+  e   <- io (removeIncludesModule path m)
   nim <- case e of
            Right nim  -> return nim
            Left ierrs -> noIncludeErrors ierrs
