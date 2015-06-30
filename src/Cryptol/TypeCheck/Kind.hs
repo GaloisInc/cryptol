@@ -273,11 +273,11 @@ doCheckType ty k =
     P.TUser x []    -> checkTyThing x k
     P.TUser x ts    -> tySyn False x ts k
 
+    P.TParens t     -> doCheckType t k
+
     P.TInfix{}      -> panic "KindCheck"
                        [ "TInfix not removed by the renamer", show ty ]
 
-    P.TParens{}     -> panic "KindCheck"
-                       [ "TParens not removed by the renamer", show ty ]
 
   where
   checkF f = do t <- kInRange (srcRange (name f))

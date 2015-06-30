@@ -416,7 +416,7 @@ rnType isProp = go
     TLocated t' r -> withLoc r
                  $ TLocated <$> go t' <*> pure r
 
-    TParens t'   -> go t'
+    TParens t'   -> TParens <$> go t'
 
     TInfix a o _ b ->
       do op <- renameTypeOp isProp o
