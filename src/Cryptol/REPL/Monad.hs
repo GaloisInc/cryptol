@@ -82,6 +82,7 @@ import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (proverNames, lookupProver)
 
 import Control.Monad (ap,unless,when)
+import Control.Monad.IO.Class
 import Data.Char (isSpace)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef)
@@ -172,6 +173,8 @@ instance Monad REPL where
     x <- unREPL m ref
     unREPL (f x) ref
 
+instance MonadIO REPL where
+  liftIO = io
 
 -- Exceptions ------------------------------------------------------------------
 

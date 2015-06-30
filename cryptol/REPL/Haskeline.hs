@@ -133,9 +133,6 @@ data Cryptolrc =
 
 -- Utilities -------------------------------------------------------------------
 
-instance MTL.MonadIO REPL where
-  liftIO = io
-
 instance MonadException REPL where
   controlIO branchIO = REPL $ \ ref -> do
     runBody <- branchIO $ RunIO $ \ m -> do
