@@ -25,9 +25,21 @@ import qualified Data.Text.Lazy.IO as T
 import Data.Either (partitionEithers)
 import MonadLib
 import qualified Control.Exception as X
-import           System.Directory (makeAbsolute)
 import           System.FilePath (takeDirectory,(</>),isAbsolute)
 
+#if MIN_VERSION_directory(1,2,2)
+import           System.Directory (makeAbsolute)
+#else
+import           System.Directory (getCurrentDirectory)
+import           System.FilePath (isRelative, normalise)
+
+-- from the source of directory-1.2.2.1
+makeAbsolute :: FilePath -> IO FilePath
+makeAbsolute = fmap normalise . absolutize
+  where absolutize path
+          | isRelative path = fmap (</> path) getCurrentDirectory
+          | otherwise       = return path
+#endif
 
 removeIncludesModule :: FilePath -> Module -> IO (Either [IncludeError] Module)
 removeIncludesModule modPath m = runNoIncM modPath (noIncludeModule m)
