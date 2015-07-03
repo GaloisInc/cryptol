@@ -101,43 +101,43 @@ primitive complement : {a} a -> a
 /**
  * Less-than. Only works on comparable arguments.
  */
-primitive (<) : {a} (Cmp a) => a -> a -> Bool
+primitive (<) : {a} (Cmp a) => a -> a -> Bit
 
 /**
  * Greater-than of two comparable arguments.
  */
-primitive (>) : {a} (Cmp a) => a -> a -> Bool
+primitive (>) : {a} (Cmp a) => a -> a -> Bit
 
 /**
  * Less-than or equal of two comparable arguments.
  */
-primitive (<=) : {a} (Cmp a) => a -> a -> Bool
+primitive (<=) : {a} (Cmp a) => a -> a -> Bit
 
 /**
  * Greater-than or equal of two comparable arguments.
  */
-primitive (>=) : {a} (Cmp a) => a -> a -> Bool
+primitive (>=) : {a} (Cmp a) => a -> a -> Bit
 
 /**
  * Compares any two values of the same type for equality.
  */
-primitive (==) : {a} (Cmp a) => a -> a -> Bool
+primitive (==) : {a} (Cmp a) => a -> a -> Bit
 
 /**
  * Compares any two values of the same type for inequality.
  */
-primitive (!=) : {a} (Cmp a) => a -> a -> Bool
+primitive (!=) : {a} (Cmp a) => a -> a -> Bit
 
 /**
  * Compare the outputs of two functions for equality
  */
-(===) : {a,b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bool)
+(===) : {a,b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
 f === g = \ x -> f x == g x
 
 /**
  * Compare the outputs of two functions for inequality
  */
-(!==) : {a,b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bool)
+(!==) : {a,b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
 f !== g = \x -> f x != g x
 
 /**
