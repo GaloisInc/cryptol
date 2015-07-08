@@ -19,7 +19,6 @@ import           Cryptol.Utils.PP
 
 import qualified Control.Exception as X
 import           Control.Monad (guard, when)
-import qualified Control.Monad.IO.Class as MTL
 import qualified Control.Monad.Trans.Class as MTL
 import           Data.Char (isAlphaNum, isSpace)
 import           Data.Function (on)
