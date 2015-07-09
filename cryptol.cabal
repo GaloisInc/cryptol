@@ -214,6 +214,7 @@ executable cryptol-server
                      , bytestring >= 0.10
                      , containers >= 0.5
                      , cryptol
+                     , filepath
                      , text >= 1.2
                      , transformers >= 0.4
                      , unordered-containers >= 0.2
