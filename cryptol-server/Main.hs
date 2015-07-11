@@ -29,6 +29,7 @@ import Cryptol.REPL.Command
 import Cryptol.REPL.Monad
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.ModuleSystem as M
+import Cryptol.Utils.PP
 
 import Cryptol.Aeson ()
 
@@ -75,13 +76,13 @@ instance FromJSON FunHandle where
 data RResult
   = RRValue E.Value
   | RRFunValue FunHandle T.Type
-  | RRType T.Schema
+  | RRType T.Schema String -- pretty-printed type
   | RRDecls M.IfaceDecls
   | RRCheck String
   | RRExhaust String
   | RRSat String
   | RRProve String
-  | RRInteractiveError REPLException
+  | RRInteractiveError REPLException String -- pretty-printed exception
   | RRUnknownCmd Text
   | RRBadMessage BS.ByteString String
   | RROk
@@ -92,8 +93,8 @@ instance ToJSON RResult where
       [ "tag" .= "value", "value" .= v ]
     RRFunValue fh t -> object
       [ "tag" .= "funValue", "handle" .= fh, "type" .= t ]
-    RRType s -> object
-      [ "tag" .= "type", "value" .= s ]
+    RRType s pps -> object
+      [ "tag" .= "type", "value" .= s, "pp" .= pps ]
     RRDecls ifds -> object
       [ "tag" .= "decls", "decls" .= ifds ]
     RRCheck out -> object
@@ -104,8 +105,8 @@ instance ToJSON RResult where
       [ "tag" .= "sat", "out" .= out ]
     RRProve out -> object
       [ "tag" .= "prove", "out" .= out ]
-    RRInteractiveError err -> object
-      [ "tag" .= "interactiveError", "error" .= err ]
+    RRInteractiveError err pps -> object
+      [ "tag" .= "interactiveError", "error" .= err, "pp" .= pps ]
     RRUnknownCmd txt -> object
       [ "tag" .= "unknownCommand", "command" .= txt ]
     RRBadMessage msg err -> object
@@ -193,7 +194,7 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
 #endif
   loadPrelude
   funHandles <- io $ newIORef (Map.empty, minBound :: FunHandle)
-  let handle err = reply rep (RRInteractiveError err)
+  let handle err = reply rep (RRInteractiveError err (show (pp err)))
       loop = do
         msg <- io $ receive rep
         io $ putStrLn "[cryptol-worker] received message:"
@@ -222,7 +223,7 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
             RCTypeOf txt -> do
               expr <- replParseExpr (T.unpack txt)
               (_expr, _def, sch) <- replCheckExpr expr
-              reply rep (RRType sch)
+              reply rep (RRType sch (show (pp sch)))
             RCSetOpt key val -> do
               setOptionCmd (T.unpack key ++ "=" ++ T.unpack val)
               reply rep RROk
