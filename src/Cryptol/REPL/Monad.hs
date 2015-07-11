@@ -80,7 +80,7 @@ import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.AST as P
-import Cryptol.Symbolic (proverNames, lookupProver)
+import Cryptol.Symbolic (proverNames, lookupProver, SatNum(..))
 
 import Control.Monad (ap,unless,when)
 import Data.IORef
@@ -582,12 +582,12 @@ checkSatNum val = case val of
       _               -> return $ Just "must be an integer > 0 or \"all\""
   _ -> return $ Just "unable to parse a value for satNum"
 
-getUserSatNum :: REPL (Maybe Int)
+getUserSatNum :: REPL SatNum
 getUserSatNum = do
   EnvString s <- getUser "satNum"
   case s of
-    "all"                     -> return Nothing
-    _ | Just n <- readMaybe s -> return (Just n)
+    "all"                     -> return AllSat
+    _ | Just n <- readMaybe s -> return (SomeSat n)
     _                         -> panic "REPL.Monad.getUserSatNum"
                                    [ "invalid satNum option" ]
 
