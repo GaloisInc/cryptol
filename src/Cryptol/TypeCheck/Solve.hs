@@ -205,7 +205,7 @@ _testSimpGoals = Num.withSolver cfg $ \s ->
 
   fakeGoal p = Goal { goalSource = undefined, goalRange = undefined, goal = p }
   tv n  = TVar (TVFree n KNum Set.empty (text "test var"))
-  btv n = TVar (TVBound n KNum)
+  _btv n = TVar (TVBound n KNum)
   num x = tNum (x :: Int)
 
   dump a = do putStrLn "-------------------_"
