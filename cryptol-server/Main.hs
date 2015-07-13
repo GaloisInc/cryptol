@@ -27,6 +27,7 @@ import Text.Read
 import qualified Cryptol.Eval.Value as E
 import Cryptol.REPL.Command
 import Cryptol.REPL.Monad
+import Cryptol.Symbolic (ProverResult(..))
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.ModuleSystem as M
 import Cryptol.Utils.PP
@@ -80,8 +81,12 @@ data RResult
   | RRDecls M.IfaceDecls
   | RRCheck String
   | RRExhaust String
-  | RRSat String
-  | RRProve String
+  | RRSat [[E.Value]]
+    -- ^ A list of satisfying assignments. Empty list means unsat, max
+    -- length determined by @satNum@ interpreter option
+  | RRProve (Maybe [E.Value])
+    -- ^ Counterexample if invalid or 'Nothing' if valid
+  | RRProverError String
   | RRInteractiveError REPLException String -- pretty-printed exception
   | RRUnknownCmd Text
   | RRBadMessage BS.ByteString String
@@ -102,9 +107,11 @@ instance ToJSON RResult where
     RRExhaust out -> object
       [ "tag" .= "exhaust", "out" .= out ]
     RRSat out -> object
-      [ "tag" .= "sat", "out" .= out ]
+      [ "tag" .= "sat", "assignments" .= out ]
     RRProve out -> object
-      [ "tag" .= "prove", "out" .= out ]
+      [ "tag" .= "prove", "counterexample" .= out ]
+    RRProverError msg -> object
+      [ "tag" .= "proverError", "message" .= msg ]
     RRInteractiveError err pps -> object
       [ "tag" .= "interactiveError", "error" .= err, "pp" .= pps ]
     RRUnknownCmd txt -> object
@@ -233,12 +240,28 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
             RCExhaust expr -> do
               (_, out) <- withCapturedOutput (qcCmd QCExhaust (T.unpack expr))
               reply rep (RRExhaust out)
-            RCProve expr ->  do
-              (_, out) <- withCapturedOutput (proveCmd (T.unpack expr))
-              reply rep (RRProve out)
+            RCProve expr -> do
+              result <- onlineProveSat False (T.unpack expr) Nothing
+              case result of
+                AllSatResult [cex] ->
+                  reply rep (RRProve (Just (map (\(_,_,v) -> v) cex)))
+                ThmResult _ ->
+                  reply rep (RRProve Nothing)
+                ProverError err ->
+                  reply rep (RRProverError err)
+                _ ->
+                  reply rep (RRProverError "unexpected prover result")
             RCSat expr ->  do
-              (_, out) <- withCapturedOutput (satCmd (T.unpack expr))
-              reply rep (RRSat out)
+              result <- onlineProveSat True (T.unpack expr) Nothing
+              case result of
+                AllSatResult sas ->
+                  reply rep (RRSat (map (map (\(_,_,v) -> v)) sas))
+                ThmResult _ ->
+                  reply rep (RRSat [])
+                ProverError err ->
+                  reply rep (RRProverError err)
+                _ ->
+                  reply rep (RRProverError "unexpected prover result")
             RCLoadModule fp -> do
               loadCmd fp
               reply rep RROk

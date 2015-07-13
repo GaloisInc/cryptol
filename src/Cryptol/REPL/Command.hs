@@ -31,6 +31,8 @@ module Cryptol.REPL.Command (
   , qcCmd, QCMode(..)
   , satCmd
   , proveCmd
+  , onlineProveSat
+  , offlineProveSat
 
     -- Misc utilities
   , handleCtrlC
@@ -395,7 +397,7 @@ cmdProveSat isSat expr = do
             Just path -> io $ writeFile path smtlib
             Nothing -> rPutStr smtlib
     _ -> do
-      result <- onlineProveSat isSat expr proverName mfile
+      result <- onlineProveSat isSat expr mfile
       ppOpts <- getPPValOpts
       case result of
         Symbolic.EmptyResult         ->
@@ -435,8 +437,9 @@ cmdProveSat isSat expr = do
             (t, es ) -> bindItVariables t es
 
 onlineProveSat :: Bool
-               -> String -> String -> Maybe FilePath -> REPL Symbolic.ProverResult
-onlineProveSat isSat str proverName mfile = do
+               -> String -> Maybe FilePath -> REPL Symbolic.ProverResult
+onlineProveSat isSat str mfile = do
+  EnvString proverName <- getUser "prover"
   EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
   satNum <- getUserSatNum
