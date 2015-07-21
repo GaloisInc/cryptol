@@ -110,7 +110,7 @@ GIT_INFO_FILES := ${GIT_INFO_FILES} .git/packed-refs
 endif
 
 CRYPTOL_SRC := \
-  $(shell find src cryptol \
+  $(shell find src cryptol cryptol-server \
             \( -name \*.hs -or -name \*.x -or -name \*.y \) \
             -and \( -not -name \*\#\* \) -print) \
   $(shell find lib -name \*.cry) \
@@ -118,6 +118,11 @@ CRYPTOL_SRC := \
 
 print-%:
 	@echo $* = $($*)
+
+# If CRYPTOL_SERVER is nonempty, build the cryptol-server executable
+ifneq (,${CRYPTOL_SERVER})
+  SERVER_FLAG := -fserver
+endif
 
 # We do things differently based on whether we have a PREFIX set by
 # the user. If we do, then we know the eventual path it'll wind up in
@@ -127,7 +132,8 @@ ifneq (,${PREFIX})
   PREFIX_ARG      := --prefix=$(call adjust-path,${PREFIX_ABS})
   DESTDIR_ARG     := --destdir=${PKG}
   CONFIGURE_ARGS  := -f-relocatable -f-self-contained \
-                     --docdir=$(call adjust-path,${PREFIX}/${PREFIX_SHARE}/${PREFIX_DOC})
+                     --docdir=$(call adjust-path,${PREFIX}/${PREFIX_SHARE}/${PREFIX_DOC}) \
+                     ${SERVER_FLAG}
 else
   # This is kind of weird: 1. Prefix argument must be absolute; Cabal
   # doesn't yet fully support relocatable packages. 2. We have to
@@ -136,7 +142,8 @@ else
   PREFIX_ARG      := --prefix=$(call adjust-path,${ROOT_PATH})
   DESTDIR_ARG     := --destdir=${PKG}
   CONFIGURE_ARGS  := -f-self-contained \
-                     --docdir=$(call adjust-path,${PREFIX_SHARE}/${PREFIX_DOC})
+                     --docdir=$(call adjust-path,${PREFIX_SHARE}/${PREFIX_DOC}) \
+                     ${SERVER_FLAG}
 endif
 
 dist/setup-config: cryptol.cabal Makefile | ${CS_BIN}/alex ${CS_BIN}/happy

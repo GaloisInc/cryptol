@@ -1,9 +1,25 @@
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2015 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- Alpha version of a Cryptol server that communicates via JSON over
+-- ZeroMQ. This API is highly unstable and extremely likely to change
+-- in the near future.
+
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
-{-# OPTIONS_GHC -Wall -fdefer-typed-holes -fno-warn-type-defaults #-}
+{-# OPTIONS_GHC -Wall -fno-warn-type-defaults #-}
 module Main where
+
+#if !(MIN_VERSION_base(4,8,0))
+import Control.Applicative
+#endif
 
 import Control.Concurrent
 import Control.Monad

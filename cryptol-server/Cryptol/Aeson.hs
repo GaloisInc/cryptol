@@ -20,7 +20,6 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Vector as V
 
 import qualified Cryptol.Eval.Error as E
 import qualified Cryptol.Eval.Value as E
@@ -102,14 +101,6 @@ instance FromJSON E.Value where
            E.VSeq <$> s .: "isWord" <*> s .: "elements"
     <|> E.VWord <$> o .: "word"
     <|> error ("unexpected JSON value: " ++ show o)
-
-nth :: Alternative f => Int -> Value -> f Value
-nth i = \case
-  Array v ->
-    case v V.!? i of
-      Nothing -> empty
-      Just x -> pure x
-  _ -> empty
 
 instance ToJSON P.Token where
   toJSON = toJSON . pp
