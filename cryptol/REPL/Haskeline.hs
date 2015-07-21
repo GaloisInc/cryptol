@@ -19,7 +19,6 @@ import           Cryptol.Utils.PP
 
 import qualified Control.Exception as X
 import           Control.Monad (guard, when)
-import qualified Control.Monad.IO.Class as MTL
 import qualified Control.Monad.Trans.Class as MTL
 import           Data.Char (isAlphaNum, isSpace)
 import           Data.Function (on)
@@ -132,9 +131,6 @@ data Cryptolrc =
   deriving (Show)
 
 -- Utilities -------------------------------------------------------------------
-
-instance MTL.MonadIO REPL where
-  liftIO = io
 
 instance MonadException REPL where
   controlIO branchIO = REPL $ \ ref -> do
