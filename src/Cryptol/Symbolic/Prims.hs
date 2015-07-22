@@ -173,39 +173,39 @@ primTable  = Map.fromList
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
-      VFun $ \xs ->
+      VFun $ \(fromSeq -> xs) ->
       VFun $ \y ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in selectV (\i -> nthV err xs i) y)
+        in atV err xs y)
 
   , ("@@"          , -- {n,a,m,i} (fin i) => [n]a -> [m][i] -> [m]a
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
       tlam $ \_ ->
-      VFun $ \xs ->
+      VFun $ \(fromSeq -> xs) ->
       VFun $ \ys ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in mapV (isTBit a) (selectV (\i -> nthV err xs i)) ys)
+        in mapV (isTBit a) (atV err xs) ys)
 
   , ("!"           , -- {n,a,i} (fin n, fin i) => [n]a -> [i] -> a
-      tlam $ \(finTValue -> n) ->
+      tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
-      VFun $ \xs ->
+      VFun $ \(fromSeq -> xs) ->
       VFun $ \y ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in selectV (\i -> nthV err xs (n - 1 - i)) y)
+        in atV err (reverse xs) y)
 
   , ("!!"          , -- {n,a,m,i} (fin n, fin i) => [n]a -> [m][i] -> [m]a
-      tlam $ \(finTValue -> n) ->
+      tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
       tlam $ \_ ->
-      VFun $ \xs ->
+      VFun $ \(fromSeq -> xs) ->
       VFun $ \ys ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in mapV (isTBit a) (selectV (\i -> nthV err xs (n - 1 - i))) ys)
+        in mapV (isTBit a) (atV err (reverse xs)) ys)
 
   , ("fromThen"    , fromThenV)
   , ("fromTo"      , fromToV)
@@ -276,6 +276,24 @@ selectV f v = sel 0 bits
     sel offset (b : bs) = iteValue b m1 m2
       where m1 = sel (offset + 2 ^ length bs) bs
             m2 = sel offset bs
+
+atV :: Value -> [Value] -> Value -> Value
+atV def vs i =
+  case i of
+    VSeq True (map fromVBit -> bits) -> -- index bits in big-endian order
+      case foldr weave vs bits of
+        [] -> def
+        y : _ -> y
+    VWord x -> foldr f def (zip [0 .. 2 ^ SBV.svBitSize x - 1] vs)
+      where
+        k = SBV.svKind x
+        f (n, v) y = iteValue (SBV.svEqual x (SBV.svInteger k n)) v y
+    _ -> evalPanic "Cryptol.Symbolic.Prims.selectV" ["Invalid index argument"]
+  where
+    weave :: SBool -> [Value] -> [Value]
+    weave _ [] = []
+    weave b [x1] = [iteValue b def x1]
+    weave b (x1 : x2 : xs) = iteValue b x2 x1 : weave b xs
 
 replicateV :: Integer -- ^ number of elements
            -> TValue  -- ^ type of element
