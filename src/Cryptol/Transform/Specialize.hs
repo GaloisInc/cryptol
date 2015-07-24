@@ -120,10 +120,12 @@ specializeMatch (Let decl)
 withDeclGroups :: [DeclGroup] -> SpecM a
                   -> SpecM (a, [DeclGroup], Map QName (TypesMap QName))
 withDeclGroups dgs action = do
+  origCache <- getSpecCache
   let decls = concatMap groupDecls dgs
   let newCache = Map.fromList [ (dName d, (d, emptyTM)) | d <- decls ]
+  let savedCache = Map.intersection origCache newCache
   -- We assume that the names bound in dgs are disjoint from the other names in scope.
-  modifySpecCache (Map.union newCache)
+  setSpecCache (Map.union newCache origCache)
   result <- action
   -- Then reassemble the DeclGroups.
   let splitDecl :: Decl -> SpecM [Decl]
@@ -142,7 +144,7 @@ withDeclGroups dgs action = do
   newCache' <- flip Map.intersection newCache <$> getSpecCache
   let nameTable = fmap (fmap fst . snd) newCache'
   -- Remove local definitions from the cache.
-  modifySpecCache (flip Map.difference newCache)
+  modifySpecCache (Map.union savedCache . flip Map.difference newCache)
   return (result, dgs', nameTable)
 
 -- | Compute the specialization of `EWhere e dgs`. A decl within `dgs`
