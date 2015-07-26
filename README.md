@@ -19,7 +19,7 @@ This release is an interpreter for version 2 of the Cryptol
 language. The interpreter includes a `:check` command, which tests
 predicates written in Cryptol against randomly-generated test vectors
 (in the style of
-[QuickCheck](http://hackage.haskell.org/package/QuickCheck). There is
+[QuickCheck](http://hackage.haskell.org/package/QuickCheck)). There is
 also a `:prove` command, which calls out to SMT solvers, such as
 Yices, Z3, or CVC4, to prove predicates for all possible inputs.
 
@@ -129,11 +129,10 @@ send email to <cryptol@galois.com>.
 
 ## Developers
 
-If you'd like to get involved with Cryptol development, see the list
-of
+If you'd like to get involved with Cryptol development, see the list of
 [low-hanging fruit](https://github.com/GaloisInc/cryptol/labels/low-hanging%20fruit). These
 are tasks which should be straightforward to implement. Make a
-fork of this GitHub repository and send along pull requests, and we'll
+fork of this GitHub repository, send along pull requests and we'll
 be happy to incorporate your changes.
 
 ### Repository Structure
