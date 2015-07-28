@@ -147,7 +147,7 @@ else
 endif
 
 dist/setup-config: cryptol.cabal Makefile | ${CS_BIN}/alex ${CS_BIN}/happy
-	$(CABAL_INSTALL) --only-dependencies
+	$(CABAL_INSTALL) --only-dependencies ${SERVER_FLAG}
 	$(CABAL) configure ${PREFIX_ARG} --datasubdir=cryptol \
           ${CONFIGURE_ARGS}
 
