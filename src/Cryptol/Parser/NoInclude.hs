@@ -18,6 +18,7 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.LexerUtils (Config(..),defaultConfig)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Utils.PP
+import Cryptol.Parser.Unlit (guessPreProc)
 import qualified Control.Applicative as A
 import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy.IO as T
@@ -173,7 +174,7 @@ noIncTopDecl td = case td of
 resolveInclude :: Located FilePath -> NoIncM [TopDecl]
 resolveInclude lf = pushPath lf $ do
   source <- readInclude lf
-  case parseProgramWith (defaultConfig { cfgSource = thing lf }) source of
+  case parseProgramWith (defaultConfig { cfgSource = thing lf, cfgPreProc = guessPreProc (thing lf) }) source of
 
     Right prog -> do
       Program ds <- withIncPath (thing lf) (noIncludeProgram prog)
