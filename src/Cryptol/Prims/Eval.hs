@@ -522,6 +522,8 @@ finChunksOf parts each xs = let (as,bs) = genericSplitAt each xs
 
 
 ccatV :: TValue -> TValue -> TValue -> Value -> Value -> Value
+ccatV _front _back (isTBit -> True) (VWord (BV i x)) (VWord (BV j y)) =
+  VWord (BV (i + j) (shiftL x (fromInteger j) + y))
 ccatV front back elty l r =
   toSeq (evalTF TCAdd [front,back]) elty (fromSeq l ++ fromSeq r)
 
