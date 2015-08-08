@@ -28,8 +28,9 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 import Cryptol.Prims.Eval
 
-import Data.List (transpose)
+import Control.Applicative (pure, ZipList(..))
 import qualified Data.Map as Map
+import Data.Traversable (traverse)
 
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (Monoid(..),mconcat)
@@ -165,6 +166,49 @@ evalSel env e sel = case sel of
 
 
 
+-- List Comprehension Environments ---------------------------------------------
+
+-- | Evaluation environments for list comprehensions: Each variable
+-- name is bound to a list of values, one for each element in the list
+-- comprehension. The Left constructor is for "pure" bindings
+-- originating outside the list comprehension, which have the same
+-- value for all list positions.
+data ListEnv = ListEnv
+  { leVars :: Map.Map QName (Either Value [Value])
+  , leTypes :: Map.Map TVar TValue
+  }
+
+instance Monoid ListEnv where
+  mempty = ListEnv
+    { leVars       = Map.empty
+    , leTypes      = Map.empty
+    }
+
+  mappend l r = ListEnv
+    { leVars     = Map.union (leVars     l) (leVars     r)
+    , leTypes    = Map.union (leTypes    l) (leTypes    r)
+    }
+
+toListEnv :: EvalEnv -> ListEnv
+toListEnv e =
+  ListEnv
+  { leVars = fmap Left (envVars e)
+  , leTypes = envTypes e
+  }
+
+-- | Take parallel slices of the list environment. If some names are
+-- bound to longer lists of values (e.g. if they come from a different
+-- parallel branch of a comprehension) then the last elements will be
+-- dropped as the lists are zipped together.
+zipListEnv :: ListEnv -> [EvalEnv]
+zipListEnv (ListEnv vm tm) =
+  [ EvalEnv { envVars = v, envTypes = tm }
+  | v <- getZipList (traverse (either pure ZipList) vm) ]
+
+bindVarList :: QName -> [Value] -> ListEnv -> ListEnv
+bindVarList n vs lenv = lenv { leVars = Map.insert n (Right vs) (leVars lenv) }
+
+
 -- List Comprehensions ---------------------------------------------------------
 
 -- | Evaluate a comprehension.
@@ -178,37 +222,35 @@ evalComp env seqty body ms
   -- XXX we could potentially print this as a number if the type was available.
   where
   -- generate a new environment for each iteration of each parallel branch
-  benvs = map (branchEnvs env) ms
-
-  -- take parallel slices of each environment.  when the length of the list
-  -- drops below the number of branches, one branch has terminated.
-  allBranches es = length es == length ms
-  slices         = takeWhile allBranches (transpose benvs)
+  benvs :: [ListEnv]
+  benvs = map (branchEnvs (toListEnv env)) ms
 
   -- join environments to produce environments at each step through the process.
-  envs = map mconcat slices
+  envs :: [EvalEnv]
+  envs = zipListEnv (mconcat benvs)
 
 -- | Turn a list of matches into the final environments for each iteration of
 -- the branch.
-branchEnvs :: ReadEnv -> [Match] -> [EvalEnv]
-branchEnvs env matches = case matches of
-
-  m:ms -> do
-    env' <- evalMatch env m
-    branchEnvs env' ms
-
-  [] -> return env
+branchEnvs :: ListEnv -> [Match] -> ListEnv
+branchEnvs env matches = foldl evalMatch env matches
 
 -- | Turn a match into the list of environments it represents.
-evalMatch :: EvalEnv -> Match -> [EvalEnv]
-evalMatch env m = case m of
+evalMatch :: ListEnv -> Match -> ListEnv
+evalMatch lenv m = case m of
 
   -- many envs
-  From n _ty expr -> do
-    e <- fromSeq (evalExpr env expr)
-    return (bindVar n e env)
+  From n _ty expr -> bindVarList n (concat vss) lenv'
+    where
+      vss = [ fromSeq (evalExpr env expr) | env <- zipListEnv lenv ]
+      stutter (Left x) = Left x
+      stutter (Right xs) = Right [ x | (x, vs) <- zip xs vss, _ <- vs ]
+      lenv' = lenv { leVars = fmap stutter (leVars lenv) }
 
   -- XXX we don't currently evaluate these as though they could be recursive, as
-  -- they are typechecked that way; the read environment to evalDecl is the same
+  -- they are typechecked that way; the read environment to evalExpr is the same
   -- as the environment to bind a new name in.
-  Let d -> [evalDecl env d env]
+  Let d -> bindVarList (dName d) (map f (zipListEnv lenv)) lenv
+    where f env =
+            case dDefinition d of
+              DPrim   -> evalPrim d
+              DExpr e -> evalExpr env e
