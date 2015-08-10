@@ -55,7 +55,8 @@ $unitick        = \x7
 
 <comment> {
 \*+\/                     { endComent }
-.                         { addToComment }
+[^\*]+                    { addToComment }
+\*                        { addToComment }
 \n                        { addToComment }
 }
 
