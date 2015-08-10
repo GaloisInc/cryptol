@@ -36,7 +36,7 @@ nAdd Inf _           = Inf
 nAdd _ Inf           = Inf
 nAdd (Nat x) (Nat y) = Nat (x + y)
 
-{-| Some algerbaic properties of interest:
+{-| Some algebraic properties of interest:
 
 > 1 * x = x
 > x * (y * z) = (x * y) * z
@@ -53,7 +53,7 @@ nMul _ Inf           = Inf
 nMul (Nat x) (Nat y) = Nat (x * y)
 
 
-{-| Some algeibraic properties of interest:
+{-| Some algebraic properties of interest:
 
 > x ^ 0        = 1
 > x ^ (n + 1)  = x * (x ^ n)
@@ -134,19 +134,19 @@ nWidth (Nat n)  = Nat (widthInteger n)
 
 
 {- | @length ([ x, y .. ] : [_][w])@
-We don't check that the second element fits in `w` many bits as the 
+We don't check that the second element fits in `w` many bits as the
 second element may not be part of the list.
 For example, the length of @[ 0 .. ] : [_][0]@ is @nLenFromThen 0 1 0@,
 which should evaluate to 1. -}
 
 
-{- XXX: It would appear that the actual notaion also requires `y` to fit in...
+{- XXX: It would appear that the actual notation also requires `y` to fit in...
 It is not clear if that's a good idea.  Consider, for example,
 
     [ 1, 4 .., 2 ]
 
-Crytpol infers that this list has one element, but it insists that the
-width of the elements be at least 3, to accomodate the 4.
+Cryptol infers that this list has one element, but it insists that the
+width of the elements be at least 3, to accommodate the 4.
 -}
 nLenFromThen :: Nat' -> Nat' -> Nat' -> Maybe Nat'
 nLenFromThen a@(Nat x) b@(Nat y) wi@(Nat w)
