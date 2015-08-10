@@ -29,10 +29,12 @@ main = defaultMain [
     bgroup "parser" [
         parser "Prelude" "lib/Cryptol.cry"
       , parser "BigSequence" "bench/data/BigSequence.cry"
+      , parser "BigSequenceHex" "bench/data/BigSequenceHex.cry"
       ]
   , bgroup "typechecker" [
         tc "Prelude" "lib/Cryptol.cry"
       , tc "BigSequence" "bench/data/BigSequence.cry"
+      , tc "BigSequenceHex" "bench/data/BigSequenceHex.cry"
       ]
   ]
 
