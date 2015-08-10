@@ -110,7 +110,7 @@ GIT_INFO_FILES := ${GIT_INFO_FILES} .git/packed-refs
 endif
 
 CRYPTOL_SRC := \
-  $(shell find src cryptol cryptol-server \
+  $(shell find src cryptol cryptol-server bench \
             \( -name \*.hs -or -name \*.x -or -name \*.y \) \
             -and \( -not -name \*\#\* \) -print) \
   $(shell find lib -name \*.cry) \
@@ -242,6 +242,17 @@ test: ${CS_BIN}/cryptol-test-runner
 	  $(IGNORE_EXPECTED)                                               \
 	  $(if $(TEST_DIFF),-p $(TEST_DIFF),)                              \
 	)
+
+# Since this is meant for development rather than end-user builds,
+# this tries to stay out of the way of the other targets by
+# reconfiguring, then removing dist/setup-config so that other targets
+# aren't left in a weird state
+.PHONY: bench
+bench: cryptol.cabal Makefile | ${CS_BIN}/alex ${CS_BIN}/happy
+	$(CABAL_INSTALL) --only-dependencies --enable-benchmarks
+	$(CABAL) configure --enable-benchmarks
+	$(CABAL) bench
+	rm -rf dist/setup-config
 
 .PHONY: clean
 clean:
