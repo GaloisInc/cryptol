@@ -28,11 +28,11 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 import Cryptol.Prims.Eval
 
-import Control.Applicative (pure, ZipList(..))
 import qualified Data.Map as Map
-import Data.Traversable (traverse)
+import Data.Traversable (sequenceA)
 
 #if __GLASGOW_HASKELL__ < 710
+import Control.Applicative (Applicative(..))
 import Data.Monoid (Monoid(..),mconcat)
 #endif
 
@@ -168,31 +168,53 @@ evalSel env e sel = case sel of
 
 -- List Comprehension Environments ---------------------------------------------
 
+-- | A variation of the ZipList type from Control.Applicative, with a
+-- separate constructor for pure values. This datatype is used to
+-- represent the list of values that each variable takes on within a
+-- list comprehension. The @Zip@ constructor is for bindings that take
+-- different values at different positions in the list, while the
+-- @Pure@ constructor is for bindings originating outside the list
+-- comprehension, which have the same value for all list positions.
+data ZList a = Pure a | Zip [a]
+
+getZList :: ZList a -> [a]
+getZList (Pure x) = repeat x
+getZList (Zip xs) = xs
+
+instance Functor ZList where
+  fmap f (Pure x) = Pure (f x)
+  fmap f (Zip xs) = Zip (map f xs)
+
+instance Applicative ZList where
+  pure x = Pure x
+  Pure f <*> Pure x = Pure (f x)
+  Pure f <*> Zip xs = Zip (map f xs)
+  Zip fs <*> Pure x = Zip (map ($ x) fs)
+  Zip fs <*> Zip xs = Zip (zipWith ($) fs xs)
+
 -- | Evaluation environments for list comprehensions: Each variable
 -- name is bound to a list of values, one for each element in the list
--- comprehension. The Left constructor is for "pure" bindings
--- originating outside the list comprehension, which have the same
--- value for all list positions.
+-- comprehension.
 data ListEnv = ListEnv
-  { leVars :: Map.Map QName (Either Value [Value])
+  { leVars :: Map.Map QName (ZList Value)
   , leTypes :: Map.Map TVar TValue
   }
 
 instance Monoid ListEnv where
   mempty = ListEnv
-    { leVars       = Map.empty
-    , leTypes      = Map.empty
+    { leVars  = Map.empty
+    , leTypes = Map.empty
     }
 
   mappend l r = ListEnv
-    { leVars     = Map.union (leVars     l) (leVars     r)
-    , leTypes    = Map.union (leTypes    l) (leTypes    r)
+    { leVars  = Map.union (leVars  l) (leVars  r)
+    , leTypes = Map.union (leTypes l) (leTypes r)
     }
 
 toListEnv :: EvalEnv -> ListEnv
 toListEnv e =
   ListEnv
-  { leVars = fmap Left (envVars e)
+  { leVars = fmap Pure (envVars e)
   , leTypes = envTypes e
   }
 
@@ -203,10 +225,10 @@ toListEnv e =
 zipListEnv :: ListEnv -> [EvalEnv]
 zipListEnv (ListEnv vm tm) =
   [ EvalEnv { envVars = v, envTypes = tm }
-  | v <- getZipList (traverse (either pure ZipList) vm) ]
+  | v <- getZList (sequenceA vm) ]
 
 bindVarList :: QName -> [Value] -> ListEnv -> ListEnv
-bindVarList n vs lenv = lenv { leVars = Map.insert n (Right vs) (leVars lenv) }
+bindVarList n vs lenv = lenv { leVars = Map.insert n (Zip vs) (leVars lenv) }
 
 
 -- List Comprehensions ---------------------------------------------------------
@@ -242,8 +264,8 @@ evalMatch lenv m = case m of
   From n _ty expr -> bindVarList n (concat vss) lenv'
     where
       vss = [ fromSeq (evalExpr env expr) | env <- zipListEnv lenv ]
-      stutter (Left x) = Left x
-      stutter (Right xs) = Right [ x | (x, vs) <- zip xs vss, _ <- vs ]
+      stutter (Pure x) = Pure x
+      stutter (Zip xs) = Zip [ x | (x, vs) <- zip xs vss, _ <- vs ]
       lenv' = lenv { leVars = fmap stutter (leVars lenv) }
 
   -- XXX we don't currently evaluate these as though they could be recursive, as
