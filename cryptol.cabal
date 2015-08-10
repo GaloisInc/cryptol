@@ -241,4 +241,5 @@ benchmark cryptol-bench
   build-depends:       base
                      , criterion
                      , cryptol
+                     , deepseq
                      , text
