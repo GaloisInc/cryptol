@@ -450,12 +450,14 @@ cryCheckLinRel s logger x y p1 p2 =
                   | a <  0     = K (Nat b) :- K (Nat (negate a)) :* Var x
                   | otherwise  = sumTerm (K (Nat a) :* Var x)
 
+            SMT.logMessage logger ("candidate: " ++ show (ppProp (Var y :==: expr)))
+
             proved <- checkUnsat s
                     $ propToSmtLib $ crySimplify
                     $ Not $ Var y :==: expr
 
             if not proved
-               then return Nothing
+               then SMT.logMessage logger "failed" >> return Nothing
                else return (Just (expr,wellDefined expr)))
 
   -- Try to get an example of another point, which is finite, and at
