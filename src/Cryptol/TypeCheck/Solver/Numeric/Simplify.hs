@@ -371,6 +371,8 @@ cryIsEq x y =
     (K Inf, _)      -> Not (Fin y)
     (_, K Inf)      -> Not (Fin x)
 
+    (Div x y, z)    -> x :>= z :* y :&& (one :+ z) :* y :> x
+
     (K (Nat n),_) | Just p <- cryIsNat False n y -> p
     (_,K (Nat n)) | Just p <- cryIsNat False n x -> p
 
