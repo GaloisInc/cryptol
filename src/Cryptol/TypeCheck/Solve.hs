@@ -21,6 +21,7 @@ module Cryptol.TypeCheck.Solve
 
 import           Cryptol.Parser.AST(LQName, thing)
 import           Cryptol.Parser.Position (emptyRange)
+import           Cryptol.TypeCheck.PP(pp)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Subst
@@ -35,6 +36,7 @@ import qualified Cryptol.TypeCheck.Solver.Numeric.Simplify1 as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
+import           Cryptol.TypeCheck.Solver.Simplify (tryRewritePropAsSubst)
 import           Cryptol.Utils.PP (text)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
@@ -180,6 +182,8 @@ numericRight g  = case Num.exportProp (goal g) of
                     Nothing -> Left g
 
 
+
+
 {- Constraints and satisfiability:
 
   1. [Satisfiable] A collection of constraints is _satisfiable_, if there is an
@@ -237,7 +241,7 @@ simpGoals' s gs0 = go emptySubst [] (wellFormed gs0 ++ gs0)
                 Left err -> return (Left err, su)
                 Right impSu ->
                   let (unchanged,changed) =
-                                      partitionEithers (map (applyImp su) gs3)
+                                    partitionEithers (map (applyImp impSu) gs3)
                       new = wellFormed changed
                   in go (impSu @@ su) unchanged (new ++ changed)
 
@@ -311,7 +315,12 @@ solveNumerics s consultGs solveGs =
 
 computeImprovements :: Num.Solver -> [Goal] -> IO (Either [Goal] Subst)
 computeImprovements s gs
-  | (x,t) : _ <- mapMaybe improveByDefn gs = return (Right (singleSubst x t))
+  -- Find things of the form: `x = t`.  We might do some rewriting to put
+  -- it in this form, if needed.
+  | (x,t) : _ <- mapMaybe (tryRewritePropAsSubst . goal) gs =
+    do let su = singleSubst x t
+       debugLog s ("Improve by definition: " ++ show (pp su))
+       return (Right su)
   | otherwise =
   debugBlock s "Computing improvements" $
   do let nums = [ g | Right g <- map numericRight gs ]
@@ -333,23 +342,6 @@ computeImprovements s gs
 
 
 
-{- | If we see an equation: `?x = e`, and:
-      * ?x is a unification variable
-      * `e` is "zonked" (substitution is fully applied)
-      * ?x does not appear in `e`.
-    then, we can improve `?x` to `e`.
--}
-improveByDefn :: Goal -> Maybe (TVar, Type)
-improveByDefn g =
-  do res <- pIsEq (goal g)
-     case res of
-       (TVar x, t) -> tryToBind x t
-       (t, TVar x) -> tryToBind x t
-       _           -> Nothing
-  where
-  tryToBind x t =
-    do guard (isFreeTV x && not (x `Set.member` fvs t))
-       return (x,t)
 
 
 -- | Import an improving substitutin (i.e., a bunch of equations)
