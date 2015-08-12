@@ -13,8 +13,8 @@ Symbols
 =======
     (!) : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b
     (!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
-    (!=) : {a} (Cmp a) => a -> a -> Bool
-    (!==) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bool
+    (!=) : {a} (Cmp a) => a -> a -> Bit
+    (!==) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
     (#) : {front, back,
            a} (fin front) => [front]a -> [back]a -> [front + back]a
     (%) : {a} (Arith a) => a -> a -> a
@@ -23,14 +23,14 @@ Symbols
     (+) : {a} (Arith a) => a -> a -> a
     (-) : {a} (Arith a) => a -> a -> a
     (/) : {a} (Arith a) => a -> a -> a
-    (<) : {a} (Cmp a) => a -> a -> Bool
+    (<) : {a} (Cmp a) => a -> a -> Bit
     (<<) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
     (<<<) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
-    (<=) : {a} (Cmp a) => a -> a -> Bool
-    (==) : {a} (Cmp a) => a -> a -> Bool
-    (===) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bool
-    (>) : {a} (Cmp a) => a -> a -> Bool
-    (>=) : {a} (Cmp a) => a -> a -> Bool
+    (<=) : {a} (Cmp a) => a -> a -> Bit
+    (==) : {a} (Cmp a) => a -> a -> Bit
+    (===) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
+    (>) : {a} (Cmp a) => a -> a -> Bit
+    (>=) : {a} (Cmp a) => a -> a -> Bit
     (>>) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
     (>>>) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
     (@) : {a, b, c} (fin c) => [a]b -> [c] -> b

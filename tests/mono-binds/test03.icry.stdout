@@ -9,8 +9,8 @@ test03::test = \{a} (fin a, a >= width a) ->
                foo a <> <>
                where
                  /* Not recursive */
-                 foo : {b} (b >= width a, fin b) => [b]
-                 foo = \{b} (b >= width a, fin b) -> Cryptol::demote a b <> <> <>
+                 foo : {b} (fin b, b >= width a) => [b]
+                 foo = \{b} (fin b, b >= width a) -> Cryptol::demote a b <> <> <>
                  
                
 
