@@ -34,6 +34,7 @@ import qualified Cryptol.TypeCheck.Solver.Numeric.Simplify1 as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
+import           Cryptol.TypeCheck.Solver.Simplify (tryRewritePropAsSubst)
 import           Cryptol.Utils.PP (text)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
@@ -80,6 +81,13 @@ wfType t =
 
 --------------------------------------------------------------------------------
 
+normalizeGoals :: [Goal] -> [Goal]
+normalizeGoals  = map normalize
+  where
+  normalize g = fromMaybe g $
+    do (uvar,ty) <- tryRewritePropAsSubst (goal g)
+       return g { goal = TVar uvar =#= simpType ty }
+
 -- XXX at the moment, we try to solve class constraints before solving fin
 -- constraints, as they could yield fin constraints.  At some point, it would
 -- probably be good to try solving all of these in one big loop.
@@ -88,7 +96,7 @@ simplifyAllConstraints =
   do mapM_  tryHasGoal =<< getHasGoals
      gs <- getGoals
      cfg <- getSolverConfig
-     mb <- io (Num.withSolver cfg (`simpGoals` gs))
+     mb <- io (Num.withSolver cfg (`simpGoals` normalizeGoals gs))
      case mb of
        Right (gs1,su) -> extendSubst su >> addGoals gs1
        Left badGs     -> mapM_ (recordError . UnsolvedGoal True) badGs
@@ -98,7 +106,7 @@ proveImplication :: LQName -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
      cfg <- getSolverConfig
-     mbErr <- io (proveImplicationIO cfg lnam evars as ps gs)
+     mbErr <- io (proveImplicationIO cfg lnam evars as ps (normalizeGoals gs))
      case mbErr of
        Right (su,ws) ->
           do mapM_ recordWarning ws

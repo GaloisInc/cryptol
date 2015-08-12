@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE PatternGuards, ViewPatterns #-}
 {-# LANGUAGE DeriveFunctor #-}
