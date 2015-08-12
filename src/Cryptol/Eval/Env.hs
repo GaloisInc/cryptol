@@ -8,7 +8,7 @@
 
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Safe #-}
-
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.Eval.Env where
 
 import Cryptol.Eval.Value
@@ -16,6 +16,9 @@ import Cryptol.TypeCheck.AST
 import Cryptol.Utils.PP
 
 import qualified Data.Map as Map
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid (Monoid(..))
@@ -28,7 +31,7 @@ type ReadEnv = EvalEnv
 data EvalEnv = EvalEnv
   { envVars       :: Map.Map QName Value
   , envTypes      :: Map.Map TVar TValue
-  }
+  } deriving (Generic, NFData)
 
 instance Monoid EvalEnv where
   mempty = EvalEnv

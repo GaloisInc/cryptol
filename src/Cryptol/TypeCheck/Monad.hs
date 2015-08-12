@@ -12,6 +12,7 @@
 #else
 {-# LANGUAGE DoRec #-}
 #endif
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.TypeCheck.Monad
   ( module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
@@ -37,6 +38,9 @@ import           MonadLib
 import qualified Control.Applicative as A
 import           Control.Monad.Fix(MonadFix(..))
 
+import GHC.Generics (Generic)
+import Control.DeepSeq
+
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor
 #endif
@@ -59,7 +63,7 @@ data InferInput = InferInput
 data NameSeeds = NameSeeds
   { seedTVar    :: !Int
   , seedGoal    :: !Int
-  } deriving Show
+  } deriving (Show, Generic, NFData)
 
 -- | The initial seeds, used when checking a fresh program.
 nameSeeds :: NameSeeds

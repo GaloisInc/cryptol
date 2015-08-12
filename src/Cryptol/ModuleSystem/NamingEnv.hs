@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.ModuleSystem.NamingEnv where
 
 import Cryptol.ModuleSystem.Interface
@@ -19,6 +20,9 @@ import Cryptol.Utils.Panic (panic)
 import Data.Maybe (catMaybes)
 import qualified Data.Map as Map
 
+import GHC.Generics (Generic)
+import Control.DeepSeq
+
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative (Applicative, (<$>), (<*>), pure)
 import Data.Monoid (Monoid(..))
@@ -30,7 +34,7 @@ import Data.Traversable (traverse)
 
 data NameOrigin = Local (Located QName)
                 | Imported QName
-                  deriving (Show)
+                  deriving (Show,Generic,NFData)
 
 instance PP NameOrigin where
   ppPrec _ o = case o of
@@ -47,13 +51,13 @@ instance PP NameOrigin where
 data EName = EFromBind (Located QName)
            | EFromNewtype (Located QName)
            | EFromMod QName
-             deriving (Show)
+             deriving (Show, Generic, NFData)
 
 data TName = TFromParam QName
            | TFromSyn (Located QName)
            | TFromNewtype (Located QName)
            | TFromMod QName
-             deriving (Show)
+             deriving (Show, Generic, NFData)
 
 class HasQName a where
   qname  :: a -> QName
@@ -93,7 +97,7 @@ data NamingEnv = NamingEnv { neExprs :: Map.Map QName [EName]
                            , neTypes :: Map.Map QName [TName]
                              -- ^ Type renaming environment
                            , neFixity:: Map.Map QName [Fixity]
-                           } deriving (Show)
+                           } deriving (Show, Generic, NFData)
 
 instance Monoid NamingEnv where
   mempty        =

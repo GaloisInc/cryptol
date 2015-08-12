@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe, PatternGuards #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.Parser.ParserUtils where
 
 import Cryptol.Parser.AST
@@ -21,6 +22,9 @@ import Data.Bits(testBit,setBit)
 import Control.Monad(liftM,ap,unless)
 import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative ((<$>),Applicative(..))
@@ -61,7 +65,7 @@ lexerP k = P $ \cfg p (S ts) ->
 
 data ParseError = HappyError FilePath Position (Maybe Token)
                 | HappyErrorMsg Range String
-                  deriving Show
+                  deriving (Show, Generic, NFData)
 
 newtype S = S [Located Token]
 

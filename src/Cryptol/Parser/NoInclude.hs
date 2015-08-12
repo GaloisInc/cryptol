@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE RecordWildCards #-}
-
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.Parser.NoInclude
   ( removeIncludesModule
   , IncludeError(..), ppIncludeError
@@ -27,6 +27,9 @@ import Data.Either (partitionEithers)
 import MonadLib
 import qualified Control.Exception as X
 import           System.FilePath (takeDirectory,(</>),isAbsolute)
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 #if MIN_VERSION_directory(1,2,2)
 import           System.Directory (makeAbsolute)
@@ -50,7 +53,7 @@ data IncludeError
   = IncludeFailed (Located FilePath)
   | IncludeParseError ParseError
   | IncludeCycle [Located FilePath]
-    deriving (Show)
+    deriving (Show,Generic,NFData)
 
 ppIncludeError :: IncludeError -> Doc
 ppIncludeError ie = case ie of

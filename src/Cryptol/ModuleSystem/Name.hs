@@ -1,18 +1,21 @@
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.ModuleSystem.Name where
 
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 -- | Module names are just namespaces.
 --
 -- INVARIANT: the list of strings should never be empty in a valid module name.
 newtype ModName = ModName [String]
-                  deriving (Eq,Ord,Show)
+                  deriving (Eq,Ord,Show,Generic,NFData)
 
 data Name     = Name String
               | NewName Pass Int
-               deriving (Eq,Ord,Show)
+               deriving (Eq,Ord,Show,Generic,NFData)
 
 data QName    = QName (Maybe ModName) Name
-               deriving (Eq,Ord,Show)
+               deriving (Eq,Ord,Show,Generic,NFData)
 
 -- XXX It would be nice to also mark this as a name that doesn't need to be
 -- resolved, if it's going to be created before renaming.
@@ -30,4 +33,4 @@ unqual (QName _ n) = n
 
 
 data Pass     = NoPat | MonoValues
-               deriving (Eq,Ord,Show)
+               deriving (Eq,Ord,Show,Generic,NFData)

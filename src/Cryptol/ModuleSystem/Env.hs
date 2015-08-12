@@ -8,7 +8,7 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE PatternGuards #-}
-
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.ModuleSystem.Env where
 
 #ifndef RELOCATABLE
@@ -33,6 +33,9 @@ import System.Environment(getExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
 import qualified Data.List as List
 
+import GHC.Generics (Generic)
+import Control.DeepSeq
+
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid (Monoid(..))
 #endif
@@ -49,10 +52,11 @@ data ModuleEnv = ModuleEnv
   , meMonoBinds     :: !Bool
   , meSolverConfig  :: T.SolverConfig
   , meCoreLint      :: CoreLint
-  }
+  } deriving (Generic, NFData)
 
 data CoreLint = NoCoreLint        -- ^ Don't run core lint
               | CoreLint          -- ^ Run core lint
+  deriving (Generic, NFData)
 
 resetModuleEnv :: ModuleEnv -> ModuleEnv
 resetModuleEnv env = env
@@ -159,7 +163,7 @@ loadModuleEnv processIface me = do
 
 newtype LoadedModules = LoadedModules
   { getLoadedModules :: [LoadedModule]
-  } deriving (Show)
+  } deriving (Show, Generic, NFData)
 -- ^ Invariant: All the dependencies of any module `m` must precede `m` in the list.
 
 instance Monoid LoadedModules where
@@ -172,7 +176,7 @@ data LoadedModule = LoadedModule
   , lmFilePath  :: FilePath
   , lmInterface :: Iface
   , lmModule    :: T.Module
-  } deriving (Show)
+  } deriving (Show, Generic, NFData)
 
 isLoaded :: ModName -> LoadedModules -> Bool
 isLoaded mn lm = any ((mn ==) . lmName) (getLoadedModules lm)
@@ -213,7 +217,7 @@ data DynamicEnv = DEnv
   { deNames :: R.NamingEnv
   , deDecls :: [T.DeclGroup]
   , deEnv   :: EvalEnv
-  }
+  } deriving (Generic, NFData)
 
 instance Monoid DynamicEnv where
   mempty = DEnv

@@ -11,6 +11,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.Parser.AST
   ( -- * Names
     ModName(..), {-splitNamespace, parseModName, nsChar,-} modRange
@@ -78,6 +79,9 @@ import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
 import           Numeric(showIntAtBase)
 
+import GHC.Generics (Generic)
+import Control.DeepSeq
+
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Foldable (Foldable(..))
 import           Data.Monoid (Monoid(..))
@@ -101,7 +105,7 @@ newtype Program = Program [TopDecl]
 data Module = Module { mName    :: Located ModName
                      , mImports :: [Located Import]
                      , mDecls   :: [TopDecl]
-                     } deriving (Show)
+                     } deriving (Show, Generic, NFData)
 
 modRange :: Module -> Range
 modRange m = rCombs $ catMaybes
@@ -115,7 +119,7 @@ modRange m = rCombs $ catMaybes
 data TopDecl  = Decl (TopLevel Decl)
               | TDNewtype (TopLevel Newtype)
               | Include (Located FilePath)
-                deriving (Show)
+                deriving (Show,Generic,NFData)
 
 data Decl     = DSignature [LQName] Schema
               | DFixity !Fixity [LQName]
@@ -124,13 +128,13 @@ data Decl     = DSignature [LQName] Schema
               | DPatBind Pattern Expr
               | DType TySyn
               | DLocated Decl Range
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 -- | An import declaration.
 data Import = Import { iModule    :: ModName
                      , iAs        :: Maybe ModName
                      , iSpec      :: Maybe ImportSpec
-                     } deriving (Eq,Show)
+                     } deriving (Eq,Show,Generic,NFData)
 
 -- | The list of names following an import.
 --
@@ -139,10 +143,10 @@ data Import = Import { iModule    :: ModName
 -- present.
 data ImportSpec = Hiding [Name]
                 | Only   [Name]
-                  deriving (Eq,Show)
+                  deriving (Eq,Show,Generic,NFData)
 
 data TySyn    = TySyn LQName [TParam] Type
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 {- | Bindings.  Notes:
 
@@ -165,17 +169,17 @@ data Bind     = Bind { bName      :: LQName       -- ^ Defined thing
                      , bPragmas   :: [Pragma]     -- ^ Optional pragmas
                      , bMono      :: Bool         -- ^ Is this a monomorphic binding
                      , bDoc       :: Maybe String -- ^ Optional doc string
-                     } deriving (Eq,Show)
+                     } deriving (Eq,Show,Generic,NFData)
 
 type LBindDef = Located BindDef
 
 data BindDef  = DPrim
               | DExpr Expr
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 data Fixity   = Fixity { fAssoc :: !Assoc
                        , fLevel :: !Int
-                       } deriving (Eq,Show)
+                       } deriving (Eq,Show,Generic,NFData)
 
 data FixityCmp = FCError
                | FCLeft
@@ -198,12 +202,12 @@ defaultFixity  = Fixity LeftAssoc 100
 
 data Pragma   = PragmaNote String
               | PragmaProperty
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 data Newtype  = Newtype { nName   :: LQName       -- ^ Type name
                         , nParams :: [TParam]     -- ^ Type params
                         , nBody   :: [Named Type] -- ^ Constructor
-                        } deriving (Eq,Show)
+                        } deriving (Eq,Show,Generic,NFData)
 
 -- | Input at the REPL, which can either be an expression or a @let@
 -- statement.
@@ -214,19 +218,19 @@ data ReplInput = ExprInput Expr
 -- | Export information for a declaration.
 data ExportType = Public
                 | Private
-                  deriving (Eq,Show,Ord)
+                  deriving (Eq,Show,Ord,Generic,NFData)
 
 data TopLevel a = TopLevel { tlExport :: ExportType
                            , tlDoc    :: Maybe (Located String)
                            , tlValue  :: a
-                           } deriving (Show)
+                           } deriving (Show,Generic,NFData)
 
 instance Functor TopLevel where
   fmap f tl = tl { tlValue = f (tlValue tl) }
 
 data ExportSpec = ExportSpec { eTypes  :: Set.Set QName
                              , eBinds  :: Set.Set QName
-                             } deriving (Show)
+                             } deriving (Show,Generic,NFData)
 
 instance Monoid ExportSpec where
   mempty      = ExportSpec { eTypes = mempty, eBinds = mempty }
@@ -261,12 +265,12 @@ data NumInfo  = BinLit Int                      -- ^ n-digit binary literal
               | HexLit Int                      -- ^ n-digit hex literal
               | CharLit                         -- ^ character literal
               | PolyLit Int                     -- ^ polynomial literal
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 -- | Literals.
 data Literal  = ECNum Integer NumInfo           -- ^ @0x10@  (HexLit 2)
               | ECString String                 -- ^ @\"hello\"@
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 data Expr     = EVar QName                      -- ^ @ x @
               | ELit Literal                    -- ^ @ 0x10 @
@@ -288,11 +292,11 @@ data Expr     = EVar QName                      -- ^ @ x @
 
               | EParens Expr                    -- ^ @ (e)   @ (Removed by Fixity)
               | EInfix Expr (LQName) Fixity Expr-- ^ @ a + b @ (Removed by Fixity)
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 data TypeInst = NamedInst (Named Type)
               | PosInst Type
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 
 {- | Selectors are used for projecting from various components.
@@ -312,11 +316,11 @@ data Selector = TupleSel Int   (Maybe Int)
               | ListSel Int    (Maybe Int)
                 -- ^ List selection.
                 -- Optionally specifies the length of the list.
-                deriving (Eq,Show,Ord)
+                deriving (Eq,Show,Ord,Generic,NFData)
 
 data Match    = Match Pattern Expr              -- ^ p <- e
               | MatchLet Bind
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 data Pattern  = PVar LName                    -- ^ @ x @
               | PWild                         -- ^ @ _ @
@@ -326,27 +330,27 @@ data Pattern  = PVar LName                    -- ^ @ x @
               | PTyped Pattern Type           -- ^ @ x : [8] @
               | PSplit Pattern Pattern        -- ^ @ (x # y) @
               | PLocated Pattern Range        -- ^ Location information
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 
 data Named a  = Named { name :: Located Name, value :: a }
-                deriving (Eq,Show,Foldable,Traversable)
+                deriving (Eq,Show,Foldable,Traversable,Generic,NFData)
 
 instance Functor Named where
   fmap f x = x { value = f (value x) }
 
 
 data Schema   = Forall [TParam] [Prop] Type (Maybe Range)
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 data Kind     = KNum | KType
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 data TParam   = TParam { tpName  :: Name
                        , tpKind  :: Maybe Kind
                        , tpRange :: Maybe Range
                        }
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 tpQName :: TParam -> QName
 tpQName  = mkUnqual . tpName
@@ -366,7 +370,7 @@ data Type     = TFun Type Type          -- ^ @[8] -> [8]@
               | TLocated Type Range     -- ^ Location information
               | TParens Type            -- ^ @ (ty) @
               | TInfix Type LQName Fixity Type -- ^ @ ty + ty @
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 data Prop     = CFin Type             -- ^ @ fin x   @
               | CEqual Type Type      -- ^ @ x == 10 @
@@ -376,7 +380,7 @@ data Prop     = CFin Type             -- ^ @ fin x   @
               | CLocated Prop Range   -- ^ Location information
 
               | CType Type            -- ^ After parsing
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic,NFData)
 
 
 --------------------------------------------------------------------------------

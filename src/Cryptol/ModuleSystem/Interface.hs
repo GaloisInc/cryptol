@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.ModuleSystem.Interface (
     Iface(..)
   , IfaceDecls(..)
@@ -26,6 +27,9 @@ import           Cryptol.Utils.PP
 
 import qualified Data.Map as Map
 
+import GHC.Generics (Generic)
+import Control.DeepSeq
+
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Monoid (Monoid(..))
 #endif
@@ -35,13 +39,13 @@ data Iface = Iface
   { ifModName :: ModName
   , ifPublic  :: IfaceDecls
   , ifPrivate :: IfaceDecls
-  } deriving (Show)
+  } deriving (Show, Generic, NFData)
 
 data IfaceDecls = IfaceDecls
   { ifTySyns   :: Map.Map QName [IfaceTySyn]
   , ifNewtypes :: Map.Map QName [IfaceNewtype]
   , ifDecls    :: Map.Map QName [IfaceDecl]
-  } deriving (Show)
+  } deriving (Show, Generic, NFData)
 
 instance Monoid IfaceDecls where
   mempty      = IfaceDecls Map.empty Map.empty Map.empty
@@ -84,7 +88,7 @@ data IfaceDecl = IfaceDecl
   , ifDeclInfix   :: Bool
   , ifDeclFixity  :: Maybe Fixity
   , ifDeclDoc     :: Maybe String
-  } deriving (Show)
+  } deriving (Show, Generic, NFData)
 
 mkIfaceDecl :: Decl -> IfaceDecl
 mkIfaceDecl d = IfaceDecl

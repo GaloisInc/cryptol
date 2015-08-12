@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE FlexibleContexts #-}
-
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.ModuleSystem.Monad where
 
 import           Cryptol.Eval.Env (EvalEnv)
@@ -30,6 +30,9 @@ import Data.Function (on)
 import Data.Maybe (isJust)
 import MonadLib
 
+import GHC.Generics (Generic)
+import Control.DeepSeq
+
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative (Applicative(..))
 #endif
@@ -39,7 +42,7 @@ import Control.Applicative (Applicative(..))
 data ImportSource
   = FromModule P.ModName
   | FromImport (Located P.Import)
-    deriving (Show)
+    deriving (Show,Generic,NFData)
 
 instance Eq ImportSource where
   (==) = (==) `on` importedModule
@@ -81,6 +84,23 @@ data ModuleError
   | DuplicateModuleName P.ModName FilePath FilePath
     -- ^ Two modules loaded from different files have the same module name
     deriving (Show)
+
+instance NFData ModuleError where
+  rnf e = case e of
+    ModuleNotFound src path              -> src `deepseq` path `deepseq` ()
+    CantFindFile path                    -> path `deepseq` ()
+    OtherIOError path exn                -> path `deepseq` exn `seq` ()
+    ModuleParseError source err          -> source `deepseq` err `deepseq` ()
+    RecursiveModules mods                -> mods `deepseq` ()
+    RenamerErrors src errs               -> src `deepseq` errs `deepseq` ()
+    NoPatErrors src errs                 -> src `deepseq` errs `deepseq` ()
+    NoIncludeErrors src errs             -> src `deepseq` errs `deepseq` ()
+    TypeCheckingFailed src errs          -> src `deepseq` errs `deepseq` ()
+    ModuleNameMismatch expected found    ->
+      expected `deepseq` found `deepseq` ()
+    DuplicateModuleName name path1 path2 ->
+      name `deepseq` path1 `deepseq` path2 `deepseq` ()
+    OtherFailure x                       -> x `deepseq` ()
 
 instance PP ModuleError where
   ppPrec _ e = case e of
@@ -184,7 +204,7 @@ duplicateModuleName name path1 path2 =
 data ModuleWarning
   = TypeCheckWarnings [(Range,T.Warning)]
   | RenamerWarnings [RenamerWarning]
-    deriving (Show)
+    deriving (Show,Generic,NFData)
 
 instance PP ModuleWarning where
   ppPrec _ w = case w of

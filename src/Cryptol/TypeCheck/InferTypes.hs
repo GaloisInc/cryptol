@@ -10,7 +10,7 @@
 
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
-
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.TypeCheck.InferTypes where
 
 import           Cryptol.TypeCheck.AST
@@ -27,13 +27,14 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 
-
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 data SolverConfig = SolverConfig
   { solverPath    :: FilePath   -- ^ The SMT solver to invoke
   , solverArgs    :: [String]   -- ^ Additional arguments to pass to the solver
   , solverVerbose :: Int        -- ^ How verbose to be when type-checking
-  } deriving Show
+  } deriving (Show, Generic, NFData)
 
 
 -- | The types of variables in the environment.
@@ -60,7 +61,7 @@ data Goal = Goal
   { goalSource :: ConstraintSource  -- ^ With it is about
   , goalRange  :: Range             -- ^ Part of source code that caused goal
   , goal       :: Prop              -- ^ What needs to be proved
-  } deriving Show
+  } deriving (Show,Generic,NFData)
 
 data HasGoal = HasGoal
   { hasName :: !Int
@@ -73,7 +74,7 @@ data DelayedCt = DelayedCt
   , dctForall :: [TParam]
   , dctAsmps  :: [Prop]
   , dctGoals  :: [Goal]
-  } deriving Show
+  } deriving (Show,Generic,NFData)
 
 data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assuming the sub-goals.
             | Unsolved                    -- ^ We could not solved the goal.
@@ -83,7 +84,7 @@ data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assuming the sub-goals.
 data Warning  = DefaultingKind P.TParam P.Kind
               | DefaultingWildType P.Kind
               | DefaultingTo Doc Type
-                deriving Show
+                deriving (Show,Generic,NFData)
 
 -- | Various errors that might happen during type checking/inference
 data Error    = ErrorMsg Doc
@@ -162,7 +163,7 @@ data Error    = ErrorMsg Doc
               | AmbiguousType [QName]
 
 
-                deriving Show
+                deriving (Show,Generic,NFData)
 
 -- | Information about how a constraint came to be, used in error reporting.
 data ConstraintSource
@@ -176,10 +177,10 @@ data ConstraintSource
   | CtDefaulting          -- ^ Just defaulting on the command line
   | CtPartialTypeFun TyFunName -- ^ Use of a partial type function.
   | CtImprovement
-    deriving Show
+    deriving (Show,Generic,NFData)
 
 data TyFunName = UserTyFun QName | BuiltInTyFun TFun
-                deriving Show
+                deriving (Show,Generic,NFData)
 
 instance PP TyFunName where
   ppPrec c (UserTyFun x)    = ppPrec c x

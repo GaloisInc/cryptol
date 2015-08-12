@@ -8,6 +8,7 @@
 
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.Utils.PP where
 
 import           Cryptol.ModuleSystem.Name
@@ -18,6 +19,8 @@ import qualified Data.Monoid as M
 import           Data.String (IsString(..))
 import qualified Text.PrettyPrint as PJ
 
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 -- | How to display names.
 newtype NameEnv = NameEnv (Map QName NameInfo)
@@ -43,7 +46,7 @@ instance M.Monoid NameEnv where
   mempty                          = NameEnv Map.empty
   mappend (NameEnv a) (NameEnv b) = NameEnv (Map.union a b)
 
-newtype Doc = Doc (NameEnv -> PJ.Doc)
+newtype Doc = Doc (NameEnv -> PJ.Doc) deriving (Generic, NFData)
 
 runDoc :: NameEnv -> Doc -> PJ.Doc
 runDoc names (Doc f) = f names
@@ -73,7 +76,7 @@ optParens b body | b         = parens body
 
 -- | Information about associativity.
 data Assoc = LeftAssoc | RightAssoc | NonAssoc
-              deriving (Show,Eq)
+              deriving (Show,Eq,Generic,NFData)
 
 -- | Information about an infix expression of some sort.
 data Infix op thing = Infix

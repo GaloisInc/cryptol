@@ -5,9 +5,9 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-module Main where
 
-import Control.DeepSeq
+{-# LANGUAGE OverloadedStrings #-}
+module Main where
 
 import qualified Data.Text.Lazy     as T
 import qualified Data.Text.Lazy.IO  as T
@@ -20,7 +20,10 @@ import qualified Cryptol.Parser           as P
 import qualified Cryptol.Parser.AST       as P
 import qualified Cryptol.Parser.NoInclude as P
 
-import qualified Cryptol.TypeCheck as T
+import qualified Cryptol.Symbolic as S
+
+import qualified Cryptol.TypeCheck     as T
+import qualified Cryptol.TypeCheck.AST as T
 
 import Criterion.Main
 
@@ -30,11 +33,26 @@ main = defaultMain [
         parser "Prelude" "lib/Cryptol.cry"
       , parser "BigSequence" "bench/data/BigSequence.cry"
       , parser "BigSequenceHex" "bench/data/BigSequenceHex.cry"
+      , parser "AES" "bench/data/AES.cry"
       ]
   , bgroup "typechecker" [
         tc "Prelude" "lib/Cryptol.cry"
       , tc "BigSequence" "bench/data/BigSequence.cry"
       , tc "BigSequenceHex" "bench/data/BigSequenceHex.cry"
+      , tc "AES" "bench/data/AES.cry"
+      ]
+  , bgroup "conc_eval" [
+        ceval "AES" "bench/data/AES.cry" "bench bench_data"
+      ]
+  , bgroup "sym_eval" [
+        seval False "AES" "bench/data/AES.cry" "aesEncrypt (zero, zero)"
+      , seval False "ZUC"
+          "bench/data/ZUC.cry" "ZUC_isResistantToCollisionAttack"
+      ]
+  , bgroup "sym_eval_ite" [
+        seval True "aesEncrypt" "bench/data/AES.cry" "aesEncrypt (zero, zero)"
+      , seval True "ZUC"
+          "bench/data/ZUC.cry" "ZUC_isResistantToCollisionAttack"
       ]
   ]
 
@@ -42,7 +60,7 @@ main = defaultMain [
 parser :: String -> FilePath -> Benchmark
 parser name path =
   env (T.readFile path) $ \(~bytes) ->
-    bench name $ whnfIO $ do
+    bench name $ nfIO $ do
       let cfg = P.defaultConfig
                 { P.cfgSource  = path
                 , P.cfgPreProc = P.guessPreProc path
@@ -73,15 +91,37 @@ tc name path =
           M.renameModule npm
         return (scm, menv')
   in env setup $ \ ~(scm, menv) ->
-    bench name $ whnfIO $ M.runModuleM menv $ do
+    bench name $ nfIO $ M.runModuleM menv $ do
       let act = M.TCAction { M.tcAction = T.tcModule
                            , M.tcLinter = M.moduleLinter (P.thing (P.mName scm)) }
       M.typecheck act scm =<< M.importIfacesTc (map P.thing (P.mImports scm))
 
--- FIXME: this should only throw off the first benchmark run, but still...
-instance NFData P.Module where
-  rnf _ = ()
+ceval :: String -> FilePath -> T.Text -> Benchmark
+ceval name path expr =
+  let setup = do
+        menv <- M.initialModuleEnv
+        (Right (texpr, menv'), _) <- M.runModuleM menv $ do
+          m <- M.loadModuleByPath path
+          M.setFocusedModule (T.mName m)
+          let Right pexpr = P.parseExpr expr
+          (_, texpr, _) <- M.checkExpr pexpr
+          return texpr
+        return (texpr, menv')
+  in env setup $ \ ~(texpr, menv) ->
+    bench name $ nfIO $ M.runModuleM menv $ M.evalExpr texpr
 
--- FIXME: this should only throw off the first benchmark run, but still...
-instance NFData M.ModuleEnv where
-  rnf _ = ()
+seval :: Bool-> String -> FilePath -> T.Text -> Benchmark
+seval useIte name path expr =
+  let setup = do
+        menv <- M.initialModuleEnv
+        (Right (texpr, menv'), _) <- M.runModuleM menv $ do
+          m <- M.loadModuleByPath path
+          M.setFocusedModule (T.mName m)
+          let Right pexpr = P.parseExpr expr
+          (_, texpr, _) <- M.checkExpr pexpr
+          return texpr
+        return (texpr, menv')
+  in env setup $ \ ~(texpr, menv) ->
+    bench name $ flip nf texpr $ \texpr' ->
+      let senv = S.evalDecls (S.emptyEnv useIte) (S.allDeclGroups menv)
+      in S.evalExpr senv texpr'

@@ -13,6 +13,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
 module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
 
 import Cryptol.Parser.AST
@@ -25,6 +26,9 @@ import           MonadLib
 import           Data.Maybe(maybeToList)
 import           Data.Either(partitionEithers)
 import qualified Data.Map as Map
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 #if __GLASGOW_HASKELL__ < 710
 import           Control.Applicative(Applicative(..),(<$>),(<$))
@@ -445,7 +449,7 @@ data Error  = MultipleSignatures QName [Located Schema]
             | MultipleFixities QName [Range]
             | FixityNoBind (Located QName)
             | MultipleDocs QName [Range]
-              deriving (Show)
+              deriving (Show,Generic,NFData)
 
 instance Functor NoPatM where fmap = liftM
 instance Applicative NoPatM where pure = return; (<*>) = ap
