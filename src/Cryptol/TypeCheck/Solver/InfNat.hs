@@ -31,6 +31,26 @@ fromNat n' =
     Nat i -> Just i
     _     -> Nothing
 
+--------------------------------------------------------------------------------
+
+nEq :: Maybe Nat' -> Maybe Nat' -> Bool
+nEq (Just x) (Just y) = x == y
+nEq _ _               = False
+
+nGt :: Maybe Nat' -> Maybe Nat' -> Bool
+nGt (Just x) (Just y) = x > y
+nGt _ _               = False
+
+nFin :: Maybe Nat' -> Bool
+nFin (Just x)         = x /= Inf
+nFin _                = False
+
+
+
+
+--------------------------------------------------------------------------------
+
+
 nAdd :: Nat' -> Nat' -> Nat'
 nAdd Inf _           = Inf
 nAdd _ Inf           = Inf
