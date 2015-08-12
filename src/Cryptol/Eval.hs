@@ -29,11 +29,11 @@ import Cryptol.Utils.PP
 import Cryptol.Prims.Eval
 
 import qualified Data.Map as Map
-import Data.Traversable (sequenceA)
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative (Applicative(..))
 import Data.Monoid (Monoid(..),mconcat)
+import Data.Traversable (sequenceA)
 #endif
 
 -- Expression Evaluation -------------------------------------------------------
