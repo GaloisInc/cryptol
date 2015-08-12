@@ -251,7 +251,7 @@ test: ${CS_BIN}/cryptol-test-runner
 bench: cryptol.cabal Makefile | ${CS_BIN}/alex ${CS_BIN}/happy
 	$(CABAL_INSTALL) --only-dependencies --enable-benchmarks
 	$(CABAL) configure --enable-benchmarks
-	$(CABAL) bench
+	$(CABAL) bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench.xml)
 	rm -rf dist/setup-config
 
 .PHONY: clean
