@@ -23,6 +23,7 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.TypeMap
 import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.Misc(anyJust)
 
 data Subst = S { suMap :: Map.Map TVar Type, suDefaulting :: !Bool }
                   deriving Show
@@ -92,6 +93,27 @@ instance FVS Schema where
   fvs (Forall as ps t) =
       Set.difference (Set.union (fvs ps) (fvs t)) bound
     where bound = Set.fromList (map tpVar as)
+
+
+-- | Apply a substitution.  Returns `Nothing` if nothing changed.
+apSubstMaybe :: Subst -> Type -> Maybe Type
+apSubstMaybe su ty =
+  case ty of
+    TCon t ts     -> TCon t `fmap` anyJust (apSubstMaybe su) ts
+    TUser f ts t  -> do t1 <- apSubstMaybe su t
+                        return (TUser f (map (apSubst su) ts) t1)
+    TRec fs       -> TRec `fmap` anyJust fld fs
+      where fld (x,t) = do t1 <- apSubstMaybe su t
+                           return (x,t1)
+    TVar x ->
+      case Map.lookup x (suMap su) of
+        Just t -> Just $ if suDefaulting su
+                            then apSubst (defaultingSubst emptySubst) t
+                            else t
+        Nothing -> if suDefaulting su
+                    then Just (defaultFreeVar x)
+                    else Nothing
+
 
 
 

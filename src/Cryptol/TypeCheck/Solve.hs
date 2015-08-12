@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE PatternGuards, BangPatterns #-}
+{-# LANGUAGE PatternGuards, BangPatterns, RecordWildCards #-}
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Solve
   ( simplifyAllConstraints
@@ -25,7 +25,8 @@ import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Subst
                     (apSubst,fvs,singleSubst,substToList, isEmptySubst,
-                          emptySubst,Subst,listSubst, (@@), Subst)
+                          emptySubst,Subst,listSubst, (@@), Subst,
+                           apSubstMaybe)
 import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
@@ -37,11 +38,10 @@ import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
 import           Cryptol.Utils.PP (text)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
-import           Cryptol.Parser.Position(rCombs)
 
 import           Control.Monad (unless, guard)
 import           Data.Either(partitionEithers)
-import           Data.Maybe(catMaybes, fromMaybe)
+import           Data.Maybe(catMaybes, fromMaybe, mapMaybe)
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Set ( Set )
@@ -80,30 +80,27 @@ wfType t =
 
 --------------------------------------------------------------------------------
 
--- XXX at the moment, we try to solve class constraints before solving fin
--- constraints, as they could yield fin constraints.  At some point, it would
--- probably be good to try solving all of these in one big loop.
 simplifyAllConstraints :: InferM ()
 simplifyAllConstraints =
   do mapM_  tryHasGoal =<< getHasGoals
      gs <- getGoals
      cfg <- getSolverConfig
-     mb <- io (Num.withSolver cfg (`simpGoals` gs))
+     (mb,su) <- io (Num.withSolver cfg (`simpGoals'` gs))
+     extendSubst su
      case mb of
-       Right (gs1,su) -> extendSubst su >> addGoals gs1
-       Left badGs     -> mapM_ (recordError . UnsolvedGoal True) badGs
+       Right gs1  -> addGoals gs1
+       Left badGs -> mapM_ (recordError . UnsolvedGoal True) badGs
 
 
 proveImplication :: LQName -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
      cfg <- getSolverConfig
-     mbErr <- io (proveImplicationIO cfg lnam evars as ps gs)
+     (mbErr,su) <- io (proveImplicationIO cfg lnam evars as ps gs)
      case mbErr of
-       Right (su,ws) ->
-          do mapM_ recordWarning ws
-             return su
-       Left err -> recordError err >> return emptySubst
+       Right ws -> mapM_ recordWarning ws
+       Left err -> recordError err
+     return su
 
 
 proveImplicationIO :: SolverConfig
@@ -113,25 +110,28 @@ proveImplicationIO :: SolverConfig
                    -> [TParam] -- ^ Type parameters
                    -> [Prop]   -- ^ Assumed constraint
                    -> [Goal]   -- ^ Collected constraints
-                   -> IO (Either Error (Subst,[Warning]))
-proveImplicationIO _   _     _         _  [] [] = return (Right (emptySubst,[]))
+                   -> IO (Either Error [Warning], Subst)
+proveImplicationIO _   _     _         _  [] [] = return (Right [], emptySubst)
 proveImplicationIO cfg lname varsInEnv as ps gs =
   Num.withSolver cfg $ \s ->
   debugBlock s "proveImplicationIO" $
 
   do debugBlock s "assumes" (debugLog s ps)
      debugBlock s "shows"   (debugLog s gs)
-     debugLog s "------------------"
+     debugLog s "1. ------------------"
 
 
      _simpPs <- Num.assumeProps s ps
 
      mbImps <- Num.check s
+     debugLog s "2. ------------------"
+
+
      case mbImps of
 
        Nothing ->
          do debugLog s "(contradiction in assumptions)"
-            return $ Left $ UnusableFunction (thing lname) ps
+            return (Left $ UnusableFunction (thing lname) ps, emptySubst)
 
        Just (imps,extra) ->
          do let su  = importImps imps
@@ -145,28 +145,30 @@ proveImplicationIO cfg lname varsInEnv as ps gs =
                                               : map (show . Num.ppProp) invalid )
 
             let gs1 = filter ((`notElem` ps) . goal) gs0
-            mb <- simpGoals s (scs ++ gs1)
+
+            debugLog s "3. ---------------------"
+            (mb,su1) <- simpGoals' s (scs ++ gs1)
 
             case mb of
-              Left badGs     -> reportUnsolved badGs
-              Right ([],su1) -> return (Right (su1,[]))
+              Left badGs  -> reportUnsolved badGs (su1 @@ su)
+              Right []    -> return (Right [], su1 @@ su)
 
-              Right (us,su1) -> 
+              Right us ->
                  -- Last hope: try to default stuff
                  do let vs    = Set.filter isFreeTV $ fvs $ map goal us
                         dVars = Set.toList (vs `Set.difference` varsInEnv)
                     (_,us1,su2,ws) <- improveByDefaultingWith s dVars us
                     case us1 of
-                       [] -> return (Right (su2 @@ su1, ws))
-                       _  -> reportUnsolved us1
+                       [] -> return (Right ws, su2 @@ su1 @@ su)
+                       _  -> reportUnsolved us1 (su2 @@ su1 @@ su)
   where
-  reportUnsolved us =
-    return $ Left $ UnsolvedDelcayedCt
+  reportUnsolved us su =
+    return ( Left $ UnsolvedDelcayedCt
                   $ DelayedCt { dctSource = lname
                               , dctForall = as
                               , dctAsmps  = ps
                               , dctGoals  = us
-                              }
+                              }, su)
 
 
 
@@ -177,161 +179,177 @@ numericRight g  = case Num.exportProp (goal g) of
                     Just p  -> Right (g, p)
                     Nothing -> Left g
 
-_testSimpGoals :: IO ()
-_testSimpGoals = Num.withSolver cfg $ \s ->
-  do mapM_ dump asmps
-     mapM_ (dump .goal) gs
 
-     _ <- Num.assumeProps s asmps
-     _mbImps <- Num.check s
+{- Constraints and satisfiability:
+
+  1. [Satisfiable] A collection of constraints is _satisfiable_, if there is an
+     assignment for the variables that make all constraints true.
+
+  2. [Valid] If a constraint is satisfiable for any assignment of its free
+     variables, then it is _valid_, and may be ommited.
+
+  3. [Partial] A constraint may _partial_, which means that under some
+     assignment it is neither true nor false.  For example:
+     `x - y > 5` is true for `{ x = 15, y = 3 }`, it is false for
+     `{ x = 5, y = 4 }`, and it is neither for `{ x = 1, y = 2 }`.
+
+     Note that constraints that are always true or undefined are NOT
+     valid, as there are assignemntes for which they are not true.
+     An example of such constraint is `x - y >= 0`.
+
+  4. [Provability] Instead of thinking of three possible values for
+     satisfiability (i.e., true, false, and unknown), we could instead
+     think of asking: "Is constraint C provable".  This essentailly
+     maps "true" to "true", and "false,unknown" to "false", if we
+     treat constraints with malformed parameters as unprovable.
+-}
 
 
-     mb <- simpGoals s gs
-     case mb of
-       Right _  -> debugLog s "End of test"
-       Left _   -> debugLog s "Impossible"
+{-
+The plan:
+  1. Start with a set of constraints, CS
+  2. Compute its well-defined closure, DS.
+  3. Simplify constraints: evaluate terms in constraints as much as possible
+  4. Solve: eliminate constraints that are true
+  5. Check for consistency
+  6. Compute improvements
+  7. For each type in the improvements, add well-defined constraints
+  8. Instentiate constraints with substitution
+  9. Goto 3
+-}
+
+simpGoals' :: Num.Solver -> [Goal] -> IO (Either [Goal] [Goal], Subst)
+simpGoals' s gs0 = go emptySubst [] (wellFormed gs0 ++ gs0)
   where
-  cfg = SolverConfig { solverPath = "cvc4"
-                     , solverArgs = [ "--lang=smt2", "--incremental", "--rewrite-divk" ]
-                     , solverVerbose = 1
-                     }
+  -- Assumes that the well-formed constraints are themselves well-formed.
+  wellFormed gs = [ g { goal = p } | g <- gs, p <- wfType (goal g) ]
 
-  asmps = []
+  go su old [] = return (Right old, su)
+  go su old gs =
+    do gs1  <- simplifyConstraintTerms s gs
+       res  <- solveConstraints s old gs1
+       case res of
+         Left err -> return (Left err, su)
+         Right gs2 ->
+           do let gs3 = gs2 ++ old
+              mb <- computeImprovements s gs3
+              case mb of
+                Left err -> return (Left err, su)
+                Right impSu ->
+                  let (unchanged,changed) =
+                                      partitionEithers (map (applyImp su) gs3)
+                      new = wellFormed changed
+                  in go (impSu @@ su) unchanged (new ++ changed)
 
-  gs    = map fakeGoal [ tv 0 =#= tMin (num 10) (tv 1)
-                       , tv 1 =#= num 10
-                       ]
-
-
-  fakeGoal p = Goal { goalSource = undefined, goalRange = undefined, goal = p }
-  tv n  = TVar (TVFree n KNum Set.empty (text "test var"))
-  _btv n = TVar (TVBound n KNum)
-  num x = tNum (x :: Int)
-
-  dump a = do putStrLn "-------------------_"
-              case Num.exportProp a of
-                Just b     -> do print $ Num.ppProp' $ Num.propToProp' b
-                                 putStrLn "-------------------"
-                Nothing    -> print "can't export"
-
-
-{- | Try to simplify a bunch of goals.
-Assumes that the substitution has been applied to the goals.
-The result:
-  * Left gs:  the original goals were contradictory; here a subset that
-              leads to the contradiction.
-  * Right (gs,su): here is the simplified set of goals,
-                   and an improving substitution. -}
-simpGoals :: Num.Solver -> [Goal] -> IO (Either [Goal] ([Goal],Subst))
-simpGoals _ []  = return (Right ([],emptySubst))
-simpGoals s gs0 =
-  debugBlock s "Simplifying goals" $
-  do debugBlock s "goals:" (debugLog s gs0)
+  applyImp su g = case apSubstMaybe su (goal g) of
+                    Nothing -> Left g
+                    Just p  -> Right g { goal = p }
 
 
-     case impossibleClass of
-       [] ->
-         case numCts of
-           [] -> do debugBlock s "After simplification (no numerics):"
-                      $ debugLog s unsolvedClassCts
-                    return $ Right (unsolvedClassCts, emptySubst)
+{- Note:
+It is good to consider the other goals when evaluating terms.
+For example, consider the constraints:
 
-           _ -> solveNumCts
+    P (x * inf), x >= 1
 
-       _ -> return (Left impossibleClass)
+We cannot simplify `x * inf` on its own, because we do not know if `x`
+might be 0.  However, in the contxt of `x >= 1`, we know that this is
+impossible, and we can simplify the constraints to:
+
+    P inf, x >= 1
+
+However, we should be careful to avoid circular reasoning, as we wouldn't
+want to use the fact that `x >= 1` to simplify `x >= 1` to true.
+-}
+
+-- XXX: currently simplify individually
+simplifyConstraintTerms :: Num.Solver -> [Goal] -> IO [Goal]
+simplifyConstraintTerms s gs =
+  debugBlock s "Simplifying terms" $ return (map simpGoal gs)
+  where simpGoal g = g { goal = simpProp (goal g) }
+
+
+solveConstraints :: Num.Solver ->
+                    [Goal] {- We may use these, but don't try to solve,
+                              we already tried and failed. -} ->
+                    [Goal] {- Need to solve these -} ->
+                    IO (Either [Goal] [Goal])
+                    -- ^ Left: contradiciting goals,
+                    --   Right: goals that were not solved, or sub-goals
+                    --          for solved goals.  Does not include "old"
+solveConstraints s otherGs gs0 =
+  debugBlock s "Solving constraints" $ solveClassCts [] [] gs0
 
   where
-  (impossibleClass,unsolvedClassCts,numCts) = solveClassCts [] [] [] gs0
+  otherNumerics = [ g | Right g <- map numericRight otherGs ]
 
-  solveClassCts impossible unsolved numerics goals =
-    case goals of
-      []     -> (impossible, unsolved, numerics)
-      g : gs ->
-        case numericRight g of
-          Right n -> solveClassCts impossible unsolved (n : numerics) gs
-          Left c  ->
-            case classStep c of
+  solveClassCts unsolvedClass numerics [] =
+    do unsolvedNum <- solveNumerics s otherNumerics numerics
+       return (Right (unsolvedClass ++ unsolvedNum))
 
-              Unsolvable ->
-                solveClassCts (g : impossible) unsolved numerics gs
-
-              Unsolved ->
-                solveClassCts impossible (g : unsolved) numerics gs
-
-              Solved Nothing subs ->
-                solveClassCts impossible unsolved numerics (subs ++ gs)
-
-              Solved (Just su) _ ->
-                panic "solveClassCts" [ "Unexpected substituion"
-                                      , show su ]
-
-  updCt prop g = case Num.importProp prop of
-                   Just [g1] -> g { goal = g1 }
-
-                   r -> panic "simpGoals" [ "Unexpected import results"
-                                          , show r
-                                          ]
-
-  solveNumCts =
-    do mbOk <- Num.prepareConstraints s updCt numCts
-       case mbOk of
-         Left bad -> return (Left bad)
-         Right (nonDef,def,imps,wds) ->
-
-           -- XXX: What should we do with the extra props...
-           do let (su,extraProps) = importSplitImps imps
-
-                  (sideConds,invalid) = importSideConds wds
+  solveClassCts unsolved numerics (g : gs) =
+    case numericRight g of
+      Right n -> solveClassCts unsolved (n : numerics) gs
+      Left c  ->
+        case classStep c of
+          Unsolvable          -> return (Left [g])
+          Unsolved            -> solveClassCts (g : unsolved) numerics gs
+          Solved Nothing subs -> solveClassCts unsolved numerics (subs ++ gs)
+          Solved (Just su) _  -> panic "solveClassCts"
+                                          [ "Unexpected substituion", show su ]
 
 
-                  inIfForm =
-                     Num.ppProp' $
-                     Num.propToProp' $
-                     case def of
-                       [] -> Num.PTrue
-                       _  -> foldr1 (Num.:&&)
-                           $ map Num.dpSimpExprProp def
+solveNumerics :: Num.Solver ->
+                 [(Goal,Num.Prop)] {- ^ Consult these -} ->
+                 [(Goal,Num.Prop)] {- ^ Solve these -}   ->
+                 IO [Goal]
+solveNumerics s consultGs solveGs =
+  Num.withScope s $
+    do _   <- Num.assumeProps s (map (goal . fst) consultGs)
+       Num.simplifyProps s (map Num.knownDefined solveGs)
 
-                  def1 = eliminateSimpleGEQ def
-                  toGoal =
-                    case map Num.dpData def1 of
-                      []  -> case gs0 of
-                               g : _ -> \p -> g { goal = p }
-                               [] -> panic "simplification"
-                                       [ "Goals out of no goals." ]
 
-                      [g] -> \p -> g { goal = p }
-                      gs  -> \p ->
-                        Goal { goalRange = rCombs (map goalRange gs)
-                             , goalSource = CtImprovement
-                             , goal = p }
+computeImprovements :: Num.Solver -> [Goal] -> IO (Either [Goal] Subst)
+computeImprovements s gs
+  | (x,t) : _ <- mapMaybe improveByDefn gs = return (Right (singleSubst x t))
+  | otherwise =
+  debugBlock s "Computing improvements" $
+  do let nums = [ g | Right g <- map numericRight gs ]
+     res <- Num.withScope s $
+        do _  <- Num.assumeProps s (map (goal . fst) nums)
+           mb <- Num.check s
+           case mb of
+             Nothing       -> return Nothing
+             Just (suish,_ps1) ->
+                let (su,_ps2) = importSplitImps suish
+                in return (Just su)
+     case res of
+       Just su -> return (Right su)
+       Nothing ->
+         do bad <- Num.minimizeContradictionSimpDef s
+                                                (map Num.knownDefined nums)
+            return (Left bad)
 
-              unless (null invalid) $
-                  panic "simpGoals" ( "Unable to import required well-definedness constraints:"
-                                    : map (show . Num.ppProp) invalid )
 
-              if null nonDef
-                then do debugLog s "(all constraints are well-defined)"
-                        debugBlock s "In If-form:" $
-                           debugLog s inIfForm
 
-                else debugBlock s "Non-well defined constratins:" $
-                       debugLog s nonDef
 
-              def2 <- Num.simplifyProps s def1
-              let allCts = apSubst su $ map toGoal extraProps ++
-                           nonDef ++
-                           unsolvedClassCts ++
-                           def2 ++
-                           sideConds
-
-              debugBlock s "After simplification:" $
-                 do debugLog s allCts
-                    debugLog s su
-
-              -- XXX: Apply subst to class constraints and go again?
-              return $ Right ( allCts, su )
- 
+{- | If we see an equation: `?x = e`, and:
+      * ?x is a unification variable
+      * `e` is "zonked" (substitution is fully applied)
+      * ?x does not appear in `e`.
+    then, we can improve `?x` to `e`.
+-}
+improveByDefn :: Goal -> Maybe (TVar, Type)
+improveByDefn g =
+  do res <- pIsEq (goal g)
+     case res of
+       (TVar x, t) -> tryToBind x t
+       (t, TVar x) -> tryToBind x t
+       _           -> Nothing
+  where
+  tryToBind x t =
+    do guard (isFreeTV x && not (x `Set.member` fvs t))
+       return (x,t)
 
 
 -- | Import an improving substitutin (i.e., a bunch of equations)
@@ -380,47 +398,6 @@ importSideConds = go [] []
                        Nothing -> go        ok  (p:bad) ps
 
 
-
-{- | Simplify easy less-than-or-equal-to and equal-to goals.
-Those are common with long lists of literals, so we have special handling
-for them.  In particular:
-
-  * Reduce goals of the form @(a >= k1, a >= k2, a >= k3, ...)@ to
-   @a >= max (k1, k2, k3, ...)@, when all the k's are constant.
-
-  * Eliminate goals of the form @ki >= k2@, when @k2@ is leq than @k1@.
-
-  * Eliminate goals of the form @a >= 0@.
-
-NOTE:  This assumes that the goals are well-defined.
--}
-eliminateSimpleGEQ :: [Num.DefinedProp a] -> [Num.DefinedProp a]
-eliminateSimpleGEQ = go Map.empty []
-  where
-
-  go geqs other (g : rest) =
-    case Num.dpSimpExprProp g of
-      Num.K a Num.:== Num.K b
-        | a == b -> go geqs other rest
-
-      _ Num.:>= Num.K (Num.Nat 0) ->
-          go geqs  other rest
-
-      Num.K (Num.Nat k1) Num.:>= Num.K (Num.Nat k2)
-        | k1 >= k2 -> go geqs other rest
-
-      Num.Var v Num.:>= Num.K (Num.Nat k2) ->
-        go (addUpperBound v (k2,g) geqs) other rest
-
-      _ -> go geqs (g:other) rest
-
-  go geqs other [] = [ g | (_,g) <- Map.elems geqs ] ++ other
-
-  -- add in a possible upper bound for var
-  addUpperBound var g = Map.insertWith cmp var g
-    where
-    cmp a b | fst a > fst b = a
-            | otherwise     = b
 
 
 
@@ -486,9 +463,9 @@ improveByDefaultingWith s as ps =
            su                 = listSubst defs
 
        -- Do this to simplify the instantiated "fin" constraints.
-       mb <- simpGoals s (newOthers ++ others ++ apSubst su fins)
+       (mb,su1) <- simpGoals' s (newOthers ++ others ++ apSubst su fins)
        case mb of
-         Right (gs1,su1) ->
+         Right gs1 ->
            let warn (x,t) =
                  case x of
                    TVFree _ _ _ d -> DefaultingTo d t
@@ -508,7 +485,7 @@ improveByDefaultingWith s as ps =
 
 
          -- Something went wrong, don't default.
-         Left _ -> return (as,ps,emptySubst,[])
+         Left _ -> return (as,ps,su1 @@ su,[])
 
 
   classify leqs fins others (prop : more) =
@@ -583,11 +560,11 @@ defaultReplExpr cfg e s =
              mbSubst <- tryGetModel cfg params (sProps s)
              case mbSubst of
                Just su ->
-                 do res <- Num.withSolver cfg $ \so ->
-                              simpGoals so (map (makeGoal su) (sProps s))
+                 do (res,su1) <- Num.withSolver cfg $ \so ->
+                              simpGoals' so (map (makeGoal su) (sProps s))
                     return $
                       case res of
-                        Right ([],su1) | isEmptySubst su1 ->
+                        Right [] | isEmptySubst su1 ->
                          do tys <- mapM (bindParam su) params
                             return (zip (sVars s) tys, appExpr tys)
                         _ -> Nothing
@@ -627,6 +604,16 @@ tryGetModel cfg xs ps =
 simpType :: Type -> Type
 simpType ty = fromMaybe ty (simpTypeMaybe ty)
 
+simpProp :: Prop -> Prop
+simpProp p = case p of
+              TUser f ts q -> TUser f (map simpType ts) (simpProp q)
+              TCon c ts    -> TCon c (map simpType ts)
+              TVar {}      -> panic "simpProp" ["variable", show p]
+              TRec {}      -> panic "simpProp" ["record", show p]
+
+
+
+
 simpTypeMaybe :: Type -> Maybe Type
 simpTypeMaybe ty =
   case ty of
@@ -644,6 +631,46 @@ simpTypeMaybe ty =
       do let (ls,ts) = unzip fs
          ts' <- anyJust simpTypeMaybe ts
          return (TRec (zip ls ts'))
+
+
+
+--------------------------------------------------------------------------------
+_testSimpGoals :: IO ()
+_testSimpGoals = Num.withSolver cfg $ \s ->
+  do mapM_ dump asmps
+     mapM_ (dump .goal) gs
+
+     _ <- Num.assumeProps s asmps
+     _mbImps <- Num.check s
+
+
+     (mb,_) <- simpGoals' s gs
+     case mb of
+       Right _  -> debugLog s "End of test"
+       Left _   -> debugLog s "Impossible"
+  where
+  cfg = SolverConfig { solverPath = "cvc4"
+                     , solverArgs = [ "--lang=smt2", "--incremental", "--rewrite-divk" ]
+                     , solverVerbose = 1
+                     }
+
+  asmps = []
+
+  gs    = map fakeGoal [ tv 0 =#= tMin (num 10) (tv 1)
+                       , tv 1 =#= num 10
+                       ]
+
+
+  fakeGoal p = Goal { goalSource = undefined, goalRange = undefined, goal = p }
+  tv n  = TVar (TVFree n KNum Set.empty (text "test var"))
+  _btv n = TVar (TVBound n KNum)
+  num x = tNum (x :: Int)
+
+  dump a = do putStrLn "-------------------_"
+              case Num.exportProp a of
+                Just b     -> do print $ Num.ppProp' $ Num.propToProp' b
+                                 putStrLn "-------------------"
+                Nothing    -> print "can't export"
 
 
 

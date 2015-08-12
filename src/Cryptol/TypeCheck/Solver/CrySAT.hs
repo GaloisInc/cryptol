@@ -18,7 +18,8 @@ module Cryptol.TypeCheck.Solver.CrySAT
   , DefinedProp(..)
   , debugBlock
   , DebugLog(..)
-  , prepareConstraints
+  , knownDefined
+  , minimizeContradictionSimpDef
   ) where
 
 import qualified Cryptol.TypeCheck.AST as Cry
@@ -29,7 +30,6 @@ import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.TypeCheck.Solver.Numeric.ImportExport
 import           Cryptol.TypeCheck.Solver.Numeric.Defined
 import           Cryptol.TypeCheck.Solver.Numeric.Simplify
-import           Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr(crySimpExpr)
 import           Cryptol.TypeCheck.Solver.Numeric.NonLin
 import           Cryptol.TypeCheck.Solver.Numeric.SMT
 import           Cryptol.Utils.PP -- ( Doc )
@@ -37,8 +37,6 @@ import           Cryptol.Utils.Panic ( panic )
 
 import           MonadLib
 import           Data.Maybe ( mapMaybe, fromMaybe )
-import           Data.Either ( partitionEithers )
-import           Data.List(nub)
 import qualified Data.Map as Map
 import           Data.Foldable ( any, all )
 import qualified Data.Set as Set
@@ -74,112 +72,16 @@ data DefinedProp a = DefinedProp
     terms because we want to import them back into Crytpol types. -}
   }
 
+knownDefined :: (a,Prop) -> DefinedProp a
+knownDefined (a,p) = DefinedProp
+  { dpData = a, dpSimpProp = simpProp p, dpSimpExprProp = p }
+
 
 instance HasVars SimpProp where
   apSubst su (SimpProp p) = do p1 <- apSubst su p
                                let p2 = crySimplify p1
                                guard (p1 /= p2)
                                return (SimpProp p2)
-
-apSubstDefinedProp :: (Prop -> a -> a) ->
-                      Subst -> DefinedProp a -> Maybe (DefinedProp a)
-apSubstDefinedProp updCt su DefinedProp { .. } =
-  do s1 <- apSubst su dpSimpProp
-     return $ case apSubst su dpSimpExprProp of
-                Nothing -> DefinedProp { dpSimpProp = s1, .. }
-                Just p1 -> DefinedProp { dpSimpProp = s1
-                                       , dpSimpExprProp = p1
-                                       , dpData = updCt p1 dpData
-                                       }
-
-
-
-{- | Check if the given constraint is guaranteed to be well-defined.
-This means that it cannot be instantiated in a way that would result in
-undefined behaviour.
-
-This estimate is consevative:
-  * if we return `Right`, then the property is definately well-defined
-  * if we return `Left`, then we don't know if the property is well-defined
-
-If the property is well-defined, then we also simplify it.
--}
-checkDefined1 :: Solver -> (Prop -> a -> a) ->
-                (a,Prop) -> IO (Either (a,Prop) (DefinedProp a))
-checkDefined1 s updCt (ct,p) =
-  do proved <- prove s defCt
-     return $
-       if proved
-         then Right $
-                case crySimpPropExprMaybe p of
-                  Nothing -> DefinedProp { dpData         = ct
-                                         , dpSimpExprProp = p
-                                         , dpSimpProp     = simpProp p
-                                         }
-                  Just p' -> DefinedProp { dpData         = updCt p' ct
-                                         , dpSimpExprProp = p'
-                                         , dpSimpProp     = simpProp p'
-                                         }
-         else Left (ct,p)
-  where
-  SimpProp defCt = simpProp (cryDefinedProp p)
-
-
-
-
-prepareConstraints ::
-  Solver -> (Prop -> a -> a) ->
-  [(a,Prop)] -> IO (Either [a] ([a], [DefinedProp a], Subst, [Prop]))
-prepareConstraints s updCt cs =
-  do res <- mapM (checkDefined1 s updCt) cs
-     let (unknown,ok) = partitionEithers res
-     goStep1 unknown ok Map.empty []
-
-
-  where
-  getImps ok = withScope s $
-               do mapM_ (assert s . dpSimpProp) ok
-                  check s
-
-  mapEither f = partitionEithers . map f
-
-  apSuUnk su (x,p) =
-    case apSubst su p of
-      Nothing -> Left (x,p)
-      Just p1 -> Right (updCt p1 x, p1)
-
-  apSuOk su p = case apSubstDefinedProp updCt su p of
-                  Nothing -> Left p
-                  Just p1 -> Right p1
-
-  apSubst' su x = fromMaybe x (apSubst su x)
-
-  goStep1 unknown ok su sgs =
-    do let (ok1, moreSu) = improveByDefnMany updCt ok
-       go unknown ok1 (composeSubst moreSu su) (map (apSubst' moreSu) sgs)
-
-  go unknown ok su sgs =
-    do mb <- getImps ok
-       case mb of
-         Nothing ->
-           do bad <- minimizeContradictionSimpDef s ok
-              return (Left bad)
-         Just (imps,subGoals)
-           | not (null okNew) -> goStep1 unknown (okNew ++ okOld) newSu newGs
-           | otherwise ->
-             do res <- mapM (checkDefined1 s updCt) unkNew
-                let (stillUnk,nowOk) = partitionEithers res
-                if null nowOk
-                  then return (Right ( map fst (unkNew ++ unkOld)
-                                     , ok, newSu, newGs))
-                  else goStep1 (stillUnk ++ unkOld) (nowOk ++ ok) newSu newGs
-
-           where (okOld, okNew)  = mapEither (apSuOk  imps) ok
-                 (unkOld,unkNew) = mapEither (apSuUnk imps) unknown
-                 newSu = composeSubst imps su
-                 newGs = nub (subGoals ++ map (apSubst' su) sgs)
-                                          -- XXX: inefficient
-
 
 
 
@@ -190,7 +92,7 @@ prepareConstraints s updCt cs =
 simplifyProps :: Solver -> [DefinedProp a] -> IO [a]
 simplifyProps s props =
   debugBlock s "Simplifying properties" $
-  withScope s (go [] props)
+  withScope s (go [] (eliminateSimpleGEQ props))
   where
   go survived [] = return survived
 
@@ -207,6 +109,51 @@ simplifyProps s props =
              then go survived more
              else do assert s (SimpProp p')
                      go (dpData p : survived) more
+
+
+{- | Simplify easy less-than-or-equal-to and equal-to goals.
+Those are common with long lists of literals, so we have special handling
+for them.  In particular:
+
+  * Reduce goals of the form @(a >= k1, a >= k2, a >= k3, ...)@ to
+   @a >= max (k1, k2, k3, ...)@, when all the k's are constant.
+
+  * Eliminate goals of the form @ki >= k2@, when @k2@ is leq than @k1@.
+
+  * Eliminate goals of the form @a >= 0@.
+
+NOTE:  This assumes that the goals are well-defined.
+-}
+eliminateSimpleGEQ :: [DefinedProp a] -> [DefinedProp a]
+eliminateSimpleGEQ = go Map.empty []
+  where
+
+  go geqs other (g : rest) =
+    case dpSimpExprProp g of
+      K a :== K b
+        | a == b -> go geqs other rest
+
+      _ :>= K (Nat 0) ->
+          go geqs  other rest
+
+      K (Nat k1) :>= K (Nat k2)
+        | k1 >= k2 -> go geqs other rest
+
+      Var v :>= K (Nat k2) ->
+        go (addUpperBound v (k2,g) geqs) other rest
+
+      _ -> go geqs (g:other) rest
+
+  go geqs other [] = [ g | (_,g) <- Map.elems geqs ] ++ other
+
+  -- add in a possible upper bound for var
+  addUpperBound var g = Map.insertWith cmp var g
+    where
+    cmp a b | fst a > fst b = a
+            | otherwise     = b
+
+
+
 
 
 -- | Add the given constraints as assumptions.
@@ -248,52 +195,6 @@ minimizeContradictionSimpDef s ps = start [] ps
                          start (d : bad) prev
          _ -> go bad (d : prev) more
 
-
-improveByDefnMany :: (Prop -> a -> a) ->
-                    [DefinedProp a] -> ([DefinedProp a], Subst)
-improveByDefnMany updCt = go [] Map.empty
-  where
-  mbSu su x = case apSubstDefinedProp updCt su x of
-                Nothing -> Left x
-                Just y  -> Right y
-
-  go todo su (p : ps) =
-    let p1 = fromMaybe p (apSubstDefinedProp updCt su p)
-    in case improveByDefn p1 of
-         Just (x,e) ->
-            go todo (composeSubst (Map.singleton x e) su) ps
-                      -- `p` is solved, so ignore
-         Nothing    -> go (p1 : todo) su ps
-
-  go todo su [] =
-    let (same,changed) = partitionEithers (map (mbSu su) todo)
-    in case changed of
-         [] -> (same, fmap crySimpExpr su)
-         _  -> go same su changed
-
-
-{- | If we see an equation: `?x = e`, and:
-      * ?x is a unification variable
-      * `e` is "zonked" (substitution is fully applied)
-      * ?x does not appear in `e`.
-    then, we can improve `?x` to `e`.
--}
-improveByDefn :: DefinedProp a -> Maybe (Name,Expr)
-improveByDefn p =
-  case dpSimpExprProp p of
-    Var x :== e
-      | isUV x  -> tryToBind x e
-    e :== Var x
-      | isUV x -> tryToBind x e
-    _ -> Nothing
-
-  where
-  tryToBind x e
-    | x `Set.member` cryExprFVS e = Nothing
-    | otherwise                   = Just (x,e)
-
-  isUV (UserName (Cry.TVFree {})) = True
-  isUV _                          = False
 
 
 {- | Attempt to find a substituion that, when applied, makes all of the
