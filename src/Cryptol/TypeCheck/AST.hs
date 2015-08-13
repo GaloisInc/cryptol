@@ -13,7 +13,7 @@
 module Cryptol.TypeCheck.AST
   ( module Cryptol.TypeCheck.AST
   , TFun(..)
-  , Name(..), QName(..), mkUnqual, unqual
+  , Name(..), QName(..), mkModName, mkName, mkUnqual, unqual
   , ModName(..)
   , Selector(..)
   , Import(..)
@@ -24,12 +24,13 @@ module Cryptol.TypeCheck.AST
   , Fixity(..)
   ) where
 
-import Cryptol.ModuleSystem.Name (mkQual)
+import Cryptol.ModuleSystem.Name (mkQual, mkName)
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST ( Name(..), Selector(..),Pragma(..), ppSelector
                           , Import(..), ImportSpec(..), ExportType(..)
                           , ExportSpec(..), ModName(..), isExportedBind
                           , isExportedType, QName(..), mkUnqual, unqual
+                          , mkModName
                           , Fixity(..) )
 import Cryptol.Utils.Panic(panic)
 import Cryptol.TypeCheck.PP
@@ -402,7 +403,7 @@ tBit     :: Type
 tBit      = TCon (TC TCBit) []
 
 ePrim    :: String -> Expr
-ePrim n   = EVar (mkQual (ModName ["Cryptol"]) (Name n))
+ePrim n   = EVar (mkQual (mkModName ["Cryptol"]) (mkName n))
 
 eTrue    :: Expr
 eTrue     = ePrim "True"

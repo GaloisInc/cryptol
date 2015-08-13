@@ -292,7 +292,7 @@ loadingModule  = loading . FromModule
 -- | Push an "interactive" context onto the loading stack.  A bit of a hack, as
 -- it uses a faked module name
 interactive :: ModuleM a -> ModuleM a
-interactive  = loadingModule (P.ModName ["<interactive>"])
+interactive  = loadingModule (P.mkModName ["<interactive>"])
 
 loading :: ImportSource -> ModuleM a -> ModuleM a
 loading src m = ModuleT $ do

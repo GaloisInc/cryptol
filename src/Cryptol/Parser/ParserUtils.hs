@@ -108,8 +108,8 @@ errorMessage r x = P $ \_ _ _ -> Left (HappyErrorMsg r x)
 customError :: String -> Located Token -> ParseM a
 customError x t = P $ \_ _ _ -> Left (HappyErrorMsg (srcRange t) x)
 
-mkModName :: LQName -> Located ModName
-mkModName  = fmap $ \ (QName mb (Name n)) ->
+mkLModName :: LQName -> Located ModName
+mkLModName  = fmap $ \ (QName mb (Name n)) ->
   case mb of
     Just (ModName ns) -> ModName (ns ++ [n])
     Nothing           -> ModName [n]
@@ -129,7 +129,7 @@ mkSchema xs ps t = Forall xs ps t Nothing
 
 getName :: Located Token -> Name
 getName l = case thing l of
-              Token (Ident [] x) _ -> Name x
+              Token (Ident [] x) _ -> mkName x
               _ -> panic "[Parser] getName" ["not an Ident:", show l]
 
 getNum :: Located Token -> Integer
@@ -262,7 +262,7 @@ exprToNumT r expr =
 -- It is used to represent anonymous type applications.
 anonRecord :: Maybe Range -> [Type] -> Type
 anonRecord ~(Just r) ts = TRecord (map toField ts)
-  where noName    = Located { srcRange = r, thing = Name "" }
+  where noName    = Located { srcRange = r, thing = mkName "" }
         toField t = Named { name = noName, value = t }
 
 exportDecl :: Maybe (Located String) -> ExportType -> Decl -> TopDecl
@@ -283,18 +283,18 @@ changeExport e = map change
   change td@Include{}  = td
 
 mkTypeInst :: Named Type -> TypeInst
-mkTypeInst x | thing (name x) == Name "" = PosInst (value x)
-             | otherwise                 = NamedInst x
+mkTypeInst x | thing (name x) == mkName "" = PosInst (value x)
+             | otherwise                   = NamedInst x
 
 
 mkTParam :: Located Name -> Maybe Kind -> ParseM TParam
 mkTParam Located { srcRange = rng, thing = n } k
-  | Name "width" <- n = errorMessage rng "`width` is not a valid type parameter name."
+  | n == mkName "width" = errorMessage rng "`width` is not a valid type parameter name."
   | otherwise = return (TParam n k (Just rng))
 
 mkTySyn :: Located Name -> [TParam] -> Type -> ParseM Decl
 mkTySyn n ps b
-  | Name "width" <- thing n = errorMessage (srcRange n) "`width` is not a valid type synonym name."
+  | thing n == mkName "width" = errorMessage (srcRange n) "`width` is not a valid type synonym name."
   | otherwise = return $ DType $ TySyn (fmap mkUnqual n) ps b
 
 polyTerm :: Range -> Integer -> Integer -> ParseM (Bool, Integer)
@@ -433,13 +433,13 @@ mkProp ty =
   -- these can be translated right away
   prefixProp r f xs =
     case f of
-      QName Nothing (Name "Arith") | [x] <- xs ->
+      QName Nothing n | n == mkName "Arith", [x] <- xs ->
         return [CLocated (CArith x) r]
 
-      QName Nothing (Name "fin") | [x] <- xs ->
+      QName Nothing n | n == mkName "fin", [x] <- xs ->
         return [CLocated (CFin x) r]
 
-      QName Nothing (Name "Cmp") | [x] <- xs ->
+      QName Nothing n | n == mkName "Cmp", [x] <- xs ->
         return [CLocated (CCmp x) r]
 
       _ -> errorMessage r "Invalid constraint"

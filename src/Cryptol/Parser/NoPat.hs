@@ -121,7 +121,7 @@ noPat pat =
          r <- getRange
          let qx   = mkUnqual x
              qtmp = mkUnqual tmp
-             prim = EVar (mkUnqual (Name "splitAt"))
+             prim = EVar (mkUnqual (mkName "splitAt"))
              bTmp = simpleBind (Located r qtmp) (EApp prim (EVar qx))
              b1   = sel a1 qtmp (TupleSel 0 (Just 2))
              b2   = sel a2 qtmp (TupleSel 1 (Just 2))

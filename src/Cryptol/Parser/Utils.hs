@@ -21,7 +21,7 @@ translateExprToNumT :: Expr -> Maybe Type
 translateExprToNumT expr =
   case expr of
     ELocated e r -> (`TLocated` r) `fmap` translateExprToNumT e
-    EVar (QName Nothing (Name "width")) -> mkFun TCWidth
+    EVar (QName Nothing n) | n == mkName "width" -> mkFun TCWidth
     EVar x       -> return (TUser x [])
     ELit x       -> cvtLit x
     EApp e1 e2   -> do t1 <- translateExprToNumT e1

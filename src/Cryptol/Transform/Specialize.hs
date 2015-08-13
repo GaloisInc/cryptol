@@ -15,6 +15,7 @@ import Cryptol.TypeCheck.Subst
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Monad as M
+import Cryptol.ModuleSystem.Name (unpack)
 
 import Data.List (intercalate)
 import           Data.Map (Map)
@@ -241,12 +242,12 @@ freshName (QName m name) tys = do
   let go = if name' `elem` bNames
                then loop (1 :: Integer)
                else name'
-  return $ QName m (Name go)
+  return $ QName m (mkName go)
 
 matchingBoundNames :: (Maybe ModName) -> SpecM [String]
 matchingBoundNames m = do
   qns <- allPublicQNames <$> liftSpecT M.getModuleEnv
-  return [ n | QName m' (Name n) <- qns , m == m' ]
+  return [ unpack n | QName m' (Name n) <- qns , m == m' ]
 
 reifyName :: Name -> [Type] -> String
 reifyName name tys = intercalate "_" (showName name : concatMap showT tys)
@@ -287,9 +288,9 @@ reifyName name tys = intercalate "_" (showName name : concatMap showT tys)
         TupleSel  _ sig -> "tup"  : maybe [] ((:[]) . show) sig
         RecordSel x sig -> "rec"  : showName x : map showName (maybe [] id sig)
         ListSel   _ sig -> "list" : maybe [] ((:[]) . show) sig
-    showName nm = 
+    showName nm =
       case nm of
-        Name s       -> s
+        Name s       -> unpack s
         NewName _ n -> "x" ++ show n
     showTF tf =
       case tf of

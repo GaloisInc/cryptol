@@ -220,7 +220,7 @@ fixNameEnv :: NameEnv -> Doc -> Doc
 fixNameEnv env (Doc f) = Doc (\_ -> f env)
 
 instance PP ModName where
-  ppPrec _ (ModName ns) = hcat (punctuate (text "::") (map text ns))
+  ppPrec _ (ModName ns) = hcat (punctuate (text "::") (map (text . unpack) ns))
 
 instance PP QName where
   ppPrec _ qn = withNameEnv $ \ names ->
@@ -229,7 +229,7 @@ instance PP QName where
      in optParens isInfix (mbNs <> pp n)
 
 instance PP Name where
-  ppPrec _ (Name x)       = text x
+  ppPrec _ (Name x)       = text (unpack x)
   -- XXX: This may clash with user-specified names.
   ppPrec _ (NewName p x)  = text "__" <> passName p <> int x
 

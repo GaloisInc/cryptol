@@ -485,7 +485,7 @@ mkSolverResult :: String
                -> (T.Type, T.Expr)
 mkSolverResult thing result earg = (rty, re)
   where
-    rName = T.Name "result"
+    rName = T.mkName "result"
     rty = T.TRec $ [(rName, T.tBit )] ++ map fst argF
     re  = T.ERec $ [(rName, resultE)] ++ map snd argF
     resultE = if result then T.eTrue else T.eFalse
@@ -493,7 +493,7 @@ mkSolverResult thing result earg = (rty, re)
       where
         go [] fs _ = fs
         go ((t, e):tes') fs n = go tes' (((argName, t), (argName, e)):fs) (n+1)
-          where argName = T.Name ("arg" ++ show n)
+          where argName = T.mkName ("arg" ++ show n)
     argF = case earg of
       Left ts -> mkArgs $ (map addError) ts
         where addError t = (t, T.eError t ("no " ++ thing ++ " available"))
@@ -839,7 +839,7 @@ replEvalExpr expr =
 -- it to the current dynamic environment
 bindItVariable :: T.Type -> T.Expr -> REPL ()
 bindItVariable ty expr = do
-  let it = T.QName Nothing (P.Name "it")
+  let it = T.QName Nothing (P.mkName "it")
   freshIt <- uniqify it
   let dg = T.NonRecursive decl
       schema = T.Forall { T.sVars  = []

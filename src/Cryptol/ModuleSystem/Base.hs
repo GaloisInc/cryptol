@@ -204,7 +204,7 @@ importIfaces :: [P.Import] -> ModuleM IfaceDecls
 importIfaces is = foldMap ifPublic `fmap` mapM importIface is
 
 moduleFile :: ModName -> String -> FilePath
-moduleFile (ModName ns) = addExtension (joinPath ns)
+moduleFile n = addExtension (joinPath (P.unModName n))
 
 -- | Discover a module.
 findModule :: ModName -> ModuleM FilePath
@@ -250,7 +250,7 @@ findFile path = do
   possibleFiles paths = map (</> path) paths
 
 preludeName :: P.ModName
-preludeName  = P.ModName ["Cryptol"]
+preludeName  = P.mkModName ["Cryptol"]
 
 -- | Add the prelude to the import list if it's not already mentioned.
 addPrelude :: P.Module -> P.Module

@@ -68,7 +68,7 @@ tcExpr e0 inp = runInferM inp
       _ -> do res <- inferBinds True False
                 [ P.Bind
                     { P.bName      = P.Located (inpRange inp)
-                                   $ mkUnqual (P.Name "(expression)")
+                                   $ mkUnqual (P.mkName "(expression)")
                     , P.bParams    = []
                     , P.bDef       = P.Located (inpRange inp) (P.DExpr expr)
                     , P.bPragmas   = []

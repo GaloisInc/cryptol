@@ -15,7 +15,7 @@
 module Cryptol.Parser.AST
   ( -- * Names
     ModName(..), {-splitNamespace, parseModName, nsChar,-} modRange
-  , QName(..), mkPrim, mkQual, mkUnqual, unqual
+  , QName(..), mkModName, unModName, mkName, mkPrim, asPrim, mkQual, mkUnqual, unqual
   , Name(..)
   , Named(..)
   , Pass(..)
@@ -634,8 +634,8 @@ wrap contextPrec myPrec doc = if myPrec < contextPrec then parens doc else doc
 
 isPrefixOp :: Expr -> Maybe Doc
 isPrefixOp (ELocated e _)                               = isPrefixOp e
-isPrefixOp e@(EVar (QName Nothing (Name n))) | n == "-" = Just (pp e)
-                                             | n == "~" = Just (pp e)
+isPrefixOp e@(EVar (QName Nothing n)) | n == mkName "-" = Just (pp e)
+                                      | n == mkName "~" = Just (pp e)
 isPrefixOp _                                            = Nothing
 
 isEApp :: Expr -> Maybe (Expr, Expr)

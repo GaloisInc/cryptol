@@ -26,6 +26,7 @@ import Cryptol.Eval.Type(evalTF)
 import Cryptol.Eval.Value
 import Cryptol.Testing.Random (randomValue)
 import Cryptol.Utils.Panic (panic)
+import Cryptol.ModuleSystem.Name (Ident, pack)
 
 import Data.List (sortBy,transpose,genericTake,genericReplicate,genericSplitAt,genericIndex)
 import Data.Ord (comparing)
@@ -83,14 +84,14 @@ instance Bits Bool where
 -- Primitives ------------------------------------------------------------------
 
 evalPrim :: Decl -> Value
-evalPrim Decl { dName = QName (Just (ModName ["Cryptol"])) (Name prim), .. }
-  | Just val <- Map.lookup prim primTable = val
+evalPrim Decl { dName = QName (Just m) (Name prim), .. }
+  | m == mkModName ["Cryptol"], Just val <- Map.lookup prim primTable = val
 
 evalPrim Decl { .. } =
     panic "Eval" [ "Unimplemented primitive", show dName ]
 
-primTable :: Map.Map String Value
-primTable = Map.fromList
+primTable :: Map.Map Ident Value
+primTable = Map.fromList $ map (\(n, v) -> (pack n, v))
   [ ("+"          , binary (arithBinary (liftBinArith (+))))
   , ("-"          , binary (arithBinary (liftBinArith (-))))
   , ("*"          , binary (arithBinary (liftBinArith (*))))
