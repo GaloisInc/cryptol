@@ -1,16 +1,18 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE Trustworthy #-}
 
 module Cryptol.TypeCheck.Solver.Simplify (
-    Fins, filterFins,
+    Fins,
     tryRewritePropAsSubst
   ) where
 
 
 import Cryptol.Prims.Syntax (TFun(..))
-import Cryptol.TypeCheck.AST (Type(..),Prop,TVar,pIsEq,isFreeTV,TCon(..),pIsFin)
+import Cryptol.TypeCheck.AST (Type(..),Prop,TVar,pIsEq,isFreeTV,TCon(..))
 import Cryptol.TypeCheck.InferTypes (Goal(..))
 import Cryptol.TypeCheck.Subst (fvs)
+import Cryptol.TypeCheck.PP (pp)
 
 import           Control.Monad (msum,guard,mzero)
 import           Data.Function (on)
@@ -18,15 +20,13 @@ import           Data.List (sortBy)
 import           Data.Maybe (catMaybes,listToMaybe)
 import qualified Data.Set as Set
 
+import Debug.Trace
+
 
 -- | Type variables that are known to have a `fin` constraint. This set is used
 -- to justify the addition of a subtraction on the rhs of an equality
 -- constraint.
 type Fins = Set.Set TVar
-
-filterFins :: [Goal] -> Fins
-filterFins gs = Set.unions [ fvs ty | Goal { .. } <- gs
-                                    , Just ty     <- [pIsFin goal] ]
 
 
 -- | When given an equality constraint, attempt to rewrite it to the form `?x =
@@ -36,6 +36,9 @@ filterFins gs = Set.unions [ fvs ty | Goal { .. } <- gs
 tryRewritePropAsSubst :: Fins -> Prop -> Maybe (TVar,Type)
 tryRewritePropAsSubst fins p =
   do (x,y) <- pIsEq p
+
+     () <- traceShowM (map pp (Set.toList fins))
+     () <- traceShowM (pp p)
 
      let vars = Set.toList (Set.filter isFreeTV (fvs p))
 
@@ -57,7 +60,15 @@ rank (_,ty) = go ty
 
 
 -- | Rewrite an equation with respect to a unification variable ?x, into the
--- form `?x = t`.
+-- form `?x = t`.  There are two interesting cases to consider (four with
+-- symmetry):
+--
+--  * ?x = ty
+--  * expr containing ?x = expr
+--
+-- In the first case, we just return the type variable and the type, but in the
+-- second we try to rewrite the equation until it's in the form of the first
+-- case.
 tryRewriteEq :: Fins -> TVar -> Type -> Type -> Maybe (TVar,Type)
 tryRewriteEq fins uvar l r =
   msum [ do guard (uvarTy == l && uvar `Set.notMember` rfvs)
@@ -88,7 +99,14 @@ allFin :: Fins -> Type -> Bool
 allFin fins ty = fvs ty `Set.isSubsetOf` fins
 
 
--- | Rewrite an equality until the LHS is just uvar. Return the rewritten RHS.
+-- | Rewrite an equality until the LHS is just `uvar`. Return the rewritten RHS.
+--
+-- There are a few interesting cases when rewriting the equality:
+--
+--  A o B = R  when `uvar` is only present in A
+--  A o B = R  when `uvar` is only present in B
+--
+-- Each of these cases ...
 rewriteLHS :: Fins -> TVar -> Type -> Type -> Maybe Type
 rewriteLHS fins uvar = go
   where
@@ -102,8 +120,6 @@ rewriteLHS fins uvar = go
            inX  = Set.member uvar xfvs
            inY  = Set.member uvar yfvs
 
-       -- for now, don't handle the complicated case where the variable shows up
-       -- multiple times in an expression
        if | inX && inY -> mzero
           | inX        -> balanceR x tf y rhs
           | inY        -> balanceL x tf y rhs
@@ -121,7 +137,7 @@ rewriteLHS fins uvar = go
 
   -- invert the type function to balance the equation, when the variable occurs
   -- on the LHS of the expression `x tf y`
-  balanceR x TCAdd y rhs = do guardSubtract y
+  balanceR x TCAdd y rhs = do guardFin y
                               go x (TCon (TF TCSub) [rhs,y])
   balanceR x TCSub y rhs = go x (TCon (TF TCAdd) [rhs,y])
   balanceR _ _     _ _   = mzero
@@ -129,14 +145,14 @@ rewriteLHS fins uvar = go
 
   -- invert the type function to balance the equation, when the variable occurs
   -- on the RHS of the expression `x tf y`
-  balanceL x TCAdd y rhs = do guardSubtract y
+  balanceL x TCAdd y rhs = do guardFin y
                               go y (TCon (TF TCSub) [rhs,x])
   balanceL x TCSub y rhs = go (TCon (TF TCAdd) [rhs,y]) x
   balanceL _ _     _ _   = mzero
 
 
-  -- guard that it's OK to subtract this type from something else.
+  -- guard that the type is finite
   --
   -- XXX this ignores things like `min x inf` where x is finite, and just
   -- assumes that it won't work.
-  guardSubtract ty = guard (allFin fins ty)
+  guardFin ty = guard (allFin fins ty)

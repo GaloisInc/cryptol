@@ -37,7 +37,7 @@ import qualified Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
 import           Cryptol.TypeCheck.Solver.Simplify
-                    (Fins,filterFins,tryRewritePropAsSubst)
+                    (Fins,tryRewritePropAsSubst)
 import           Cryptol.Utils.PP (text)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
@@ -318,7 +318,7 @@ computeImprovements :: Num.Solver -> [Goal] -> IO (Either [Goal] Subst)
 computeImprovements s gs
   -- Find things of the form: `x = t`.  We might do some rewriting to put
   -- it in this form, if needed.
-  | (x,t) : _ <- mapMaybe (improveByDefn (filterFins gs)) gs =
+  | (x,t) : _ <- mapMaybe (improveByDefn fins) gs =
     do let su = singleSubst x t
        debugLog s ("Improve by definition: " ++ show (pp su))
        return (Right su)
@@ -339,6 +339,12 @@ computeImprovements s gs
          do bad <- Num.minimizeContradictionSimpDef s
                                                 (map Num.knownDefined nums)
             return (Left bad)
+
+  where
+
+  -- XXX remove this once the interval analysis is done
+  fins = Set.fromList [ tv | Goal { .. } <- gs
+                           , Just tv     <- [ tIsVar =<< pIsFin goal ] ]
 
 
 improveByDefn :: Fins -> Goal -> Maybe (TVar,Type)
