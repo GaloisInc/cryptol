@@ -10,6 +10,7 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.Prelude (writePreludeContents) where
 
