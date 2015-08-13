@@ -1,12 +1,14 @@
 module Cryptol.ModuleSystem.Name where
 
-type Ident = String
+import qualified Data.Text as Text
+
+type Ident = Text.Text
 
 pack :: String -> Ident
-pack = id
+pack = Text.pack
 
 unpack :: Ident -> String
-unpack = id
+unpack = Text.unpack
 
 -- | Module names are just namespaces.
 --
