@@ -1,6 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE Trustworthy #-}
 
 module Cryptol.TypeCheck.Solver.Simplify (
     Fins,
@@ -10,17 +9,13 @@ module Cryptol.TypeCheck.Solver.Simplify (
 
 import Cryptol.Prims.Syntax (TFun(..))
 import Cryptol.TypeCheck.AST (Type(..),Prop,TVar,pIsEq,isFreeTV,TCon(..))
-import Cryptol.TypeCheck.InferTypes (Goal(..))
 import Cryptol.TypeCheck.Subst (fvs)
-import Cryptol.TypeCheck.PP (pp)
 
 import           Control.Monad (msum,guard,mzero)
 import           Data.Function (on)
 import           Data.List (sortBy)
 import           Data.Maybe (catMaybes,listToMaybe)
 import qualified Data.Set as Set
-
-import Debug.Trace
 
 
 -- | Type variables that are known to have a `fin` constraint. This set is used
@@ -36,9 +31,6 @@ type Fins = Set.Set TVar
 tryRewritePropAsSubst :: Fins -> Prop -> Maybe (TVar,Type)
 tryRewritePropAsSubst fins p =
   do (x,y) <- pIsEq p
-
-     () <- traceShowM (map pp (Set.toList fins))
-     () <- traceShowM (pp p)
 
      let vars = Set.toList (Set.filter isFreeTV (fvs p))
 
