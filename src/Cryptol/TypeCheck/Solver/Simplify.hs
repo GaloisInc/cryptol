@@ -38,7 +38,8 @@ tryRewritePropAsSubst fins p =
                  $ catMaybes [ tryRewriteEq fins var x y | var <- vars ]
 
 
--- | Rank a rewrite.
+-- | Rank a rewrite, favoring expressions that have fewer subtractions than
+-- additions.
 rank :: (TVar,Type) -> Int
 rank (_,ty) = go ty
   where
@@ -98,7 +99,17 @@ allFin fins ty = fvs ty `Set.isSubsetOf` fins
 --  A o B = R  when `uvar` is only present in A
 --  A o B = R  when `uvar` is only present in B
 --
--- Each of these cases ...
+-- In the first case, as we only consider addition and subtraction, the
+-- rewriting will continue on the left, after moving the `B` side to the RHS of
+-- the equation.  In the second case, if the operation is addition, the `A` side
+-- will be moved to the RHS, with rewriting continuing in `B`. However, in the
+-- case of subtraction, the `B` side is moved to the RHS, and rewriting
+-- continues on the RHS instead.
+--
+-- In both cases, if the operation is addition, rewriting will only continue if
+-- the operand being moved to the RHS is known to be finite. If this check was
+-- not done, we would end up violating the well-definedness condition for
+-- subtraction (for a, b: well defined (a - b) iff fin b).
 rewriteLHS :: Fins -> TVar -> Type -> Type -> Maybe Type
 rewriteLHS fins uvar = go
   where
