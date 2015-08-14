@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternGuards #-}
+
 -- | An interval interpretation of types.
 module Cryptol.TypeCheck.Solver.Numeric.Interval where
 
