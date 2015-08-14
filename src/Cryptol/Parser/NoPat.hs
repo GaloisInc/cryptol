@@ -13,7 +13,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
 
 import Cryptol.Parser.AST
@@ -449,7 +449,9 @@ data Error  = MultipleSignatures QName [Located Schema]
             | MultipleFixities QName [Range]
             | FixityNoBind (Located QName)
             | MultipleDocs QName [Range]
-              deriving (Show,Generic,NFData)
+              deriving (Show,Generic)
+
+instance NFData Error
 
 instance Functor NoPatM where fmap = liftM
 instance Applicative NoPatM where pure = return; (<*>) = ap

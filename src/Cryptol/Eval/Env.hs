@@ -8,7 +8,7 @@
 
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Safe #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Env where
 
 import Cryptol.Eval.Value
@@ -31,7 +31,9 @@ type ReadEnv = EvalEnv
 data EvalEnv = EvalEnv
   { envVars       :: Map.Map QName Value
   , envTypes      :: Map.Map TVar TValue
-  } deriving (Generic, NFData)
+  } deriving (Generic)
+
+instance NFData EvalEnv
 
 instance Monoid EvalEnv where
   mempty = EvalEnv

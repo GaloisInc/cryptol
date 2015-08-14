@@ -11,7 +11,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Safe #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Value where
 
 import qualified Cryptol.Eval.Arch as Arch
@@ -79,7 +79,9 @@ finTValue tval =
 
 -- | width, value
 -- The value may contain junk bits
-data BV = BV !Integer !Integer deriving (Generic, NFData)
+data BV = BV !Integer !Integer deriving (Generic)
+
+instance NFData BV
 
 -- | Smart constructor for 'BV's that checks for the width limit
 mkBv :: Integer -> Integer -> BV
@@ -98,13 +100,17 @@ data GenValue b w
   | VStream [GenValue b w]              -- @ [inf]a @
   | VFun (GenValue b w -> GenValue b w) -- functions
   | VPoly (TValue -> GenValue b w)      -- polymorphic values (kind *)
-  deriving (Generic, NFData)
+  deriving (Generic)
+
+instance (NFData b, NFData w) => NFData (GenValue b w)
 
 type Value = GenValue Bool BV
 
 -- | An evaluated type.
 -- These types do not contain type variables, type synonyms, or type functions.
-newtype TValue = TValue { tValTy :: Type } deriving (Generic, NFData)
+newtype TValue = TValue { tValTy :: Type } deriving (Generic)
+
+instance NFData TValue
 
 instance Show TValue where
   showsPrec p (TValue v) = showsPrec p v

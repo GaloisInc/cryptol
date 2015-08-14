@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.ModuleSystem.Monad where
 
 import           Cryptol.Eval.Env (EvalEnv)
@@ -42,7 +42,9 @@ import Control.Applicative (Applicative(..))
 data ImportSource
   = FromModule P.ModName
   | FromImport (Located P.Import)
-    deriving (Show,Generic,NFData)
+    deriving (Show,Generic)
+
+instance NFData ImportSource
 
 instance Eq ImportSource where
   (==) = (==) `on` importedModule
@@ -204,7 +206,9 @@ duplicateModuleName name path1 path2 =
 data ModuleWarning
   = TypeCheckWarnings [(Range,T.Warning)]
   | RenamerWarnings [RenamerWarning]
-    deriving (Show,Generic,NFData)
+    deriving (Show,Generic)
+
+instance NFData ModuleWarning
 
 instance PP ModuleWarning where
   ppPrec _ w = case w of

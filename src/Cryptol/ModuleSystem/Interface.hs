@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.ModuleSystem.Interface (
     Iface(..)
   , IfaceDecls(..)
@@ -39,13 +39,17 @@ data Iface = Iface
   { ifModName :: ModName
   , ifPublic  :: IfaceDecls
   , ifPrivate :: IfaceDecls
-  } deriving (Show, Generic, NFData)
+  } deriving (Show, Generic)
+
+instance NFData Iface
 
 data IfaceDecls = IfaceDecls
   { ifTySyns   :: Map.Map QName [IfaceTySyn]
   , ifNewtypes :: Map.Map QName [IfaceNewtype]
   , ifDecls    :: Map.Map QName [IfaceDecl]
-  } deriving (Show, Generic, NFData)
+  } deriving (Show, Generic)
+
+instance NFData IfaceDecls
 
 instance Monoid IfaceDecls where
   mempty      = IfaceDecls Map.empty Map.empty Map.empty
@@ -88,7 +92,9 @@ data IfaceDecl = IfaceDecl
   , ifDeclInfix   :: Bool
   , ifDeclFixity  :: Maybe Fixity
   , ifDeclDoc     :: Maybe String
-  } deriving (Show, Generic, NFData)
+  } deriving (Show, Generic)
+
+instance NFData IfaceDecl
 
 mkIfaceDecl :: Decl -> IfaceDecl
 mkIfaceDecl d = IfaceDecl

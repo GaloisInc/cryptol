@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Parser.NoInclude
   ( removeIncludesModule
   , IncludeError(..), ppIncludeError
@@ -53,7 +53,9 @@ data IncludeError
   = IncludeFailed (Located FilePath)
   | IncludeParseError ParseError
   | IncludeCycle [Located FilePath]
-    deriving (Show,Generic,NFData)
+    deriving (Show,Generic)
+
+instance NFData IncludeError
 
 ppIncludeError :: IncludeError -> Doc
 ppIncludeError ie = case ie of

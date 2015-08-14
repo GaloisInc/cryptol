@@ -12,7 +12,7 @@
 #else
 {-# LANGUAGE DoRec #-}
 #endif
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.TypeCheck.Monad
   ( module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
@@ -63,7 +63,9 @@ data InferInput = InferInput
 data NameSeeds = NameSeeds
   { seedTVar    :: !Int
   , seedGoal    :: !Int
-  } deriving (Show, Generic, NFData)
+  } deriving (Show, Generic)
+
+instance NFData NameSeeds
 
 -- | The initial seeds, used when checking a fresh program.
 nameSeeds :: NameSeeds

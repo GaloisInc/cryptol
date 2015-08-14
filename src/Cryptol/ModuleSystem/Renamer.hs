@@ -10,7 +10,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.ModuleSystem.Renamer (
     NamingEnv(), shadowing
   , BindsNames(..)
@@ -70,7 +70,9 @@ data RenamerError
 
   | InvalidConstraint Type
     -- ^ When it's not possible to produce a Prop from a Type.
-    deriving (Show,Generic,NFData)
+    deriving (Show,Generic)
+
+instance NFData RenamerError
 
 instance PP RenamerError where
   ppPrec _ e = case e of
@@ -118,7 +120,9 @@ instance PP RenamerError where
 
 data RenamerWarning
   = SymbolShadowed NameOrigin [NameOrigin]
-    deriving (Show,Generic,NFData)
+    deriving (Show,Generic)
+
+instance NFData RenamerWarning
 
 instance PP RenamerWarning where
   ppPrec _ (SymbolShadowed new originals) =

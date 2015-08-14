@@ -8,7 +8,7 @@
 
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Utils.PP where
 
 import           Cryptol.ModuleSystem.Name
@@ -46,7 +46,9 @@ instance M.Monoid NameEnv where
   mempty                          = NameEnv Map.empty
   mappend (NameEnv a) (NameEnv b) = NameEnv (Map.union a b)
 
-newtype Doc = Doc (NameEnv -> PJ.Doc) deriving (Generic, NFData)
+newtype Doc = Doc (NameEnv -> PJ.Doc) deriving (Generic)
+
+instance NFData Doc
 
 runDoc :: NameEnv -> Doc -> PJ.Doc
 runDoc names (Doc f) = f names
@@ -76,7 +78,9 @@ optParens b body | b         = parens body
 
 -- | Information about associativity.
 data Assoc = LeftAssoc | RightAssoc | NonAssoc
-              deriving (Show,Eq,Generic,NFData)
+              deriving (Show,Eq,Generic)
+
+instance NFData Assoc
 
 -- | Information about an infix expression of some sort.
 data Infix op thing = Infix

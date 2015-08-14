@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe, PatternGuards #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Parser.ParserUtils where
 
 import Cryptol.Parser.AST
@@ -65,7 +65,9 @@ lexerP k = P $ \cfg p (S ts) ->
 
 data ParseError = HappyError FilePath Position (Maybe Token)
                 | HappyErrorMsg Range String
-                  deriving (Show, Generic, NFData)
+                  deriving (Show, Generic)
+
+instance NFData ParseError
 
 newtype S = S [Located Token]
 

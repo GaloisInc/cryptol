@@ -8,7 +8,7 @@
 
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE DeriveGeneric, DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Parser.LexerUtils where
 
 import Cryptol.Parser.Position
@@ -355,14 +355,20 @@ virt cfg pos x = Located { srcRange = Range
 --------------------------------------------------------------------------------
 
 data Token    = Token { tokenType :: TokenT, tokenText :: Text }
-                deriving (Show, Generic, NFData)
+                deriving (Show, Generic)
+
+instance NFData Token
 
 -- | Virtual tokens, inserted by layout processing.
 data TokenV   = VCurlyL| VCurlyR | VSemi
-                deriving (Eq,Show,Generic,NFData)
+                deriving (Eq,Show,Generic)
+
+instance NFData TokenV
 
 data TokenW   = BlockComment | LineComment | Space | DocStr
-                deriving (Eq,Show,Generic,NFData)
+                deriving (Eq,Show,Generic)
+
+instance NFData TokenW
 
 data TokenKW  = KW_Arith
               | KW_Bit
@@ -396,7 +402,9 @@ data TokenKW  = KW_Arith
               | KW_infixr
               | KW_infix
               | KW_primitive
-                deriving (Eq,Show,Generic,NFData)
+                deriving (Eq,Show,Generic)
+
+instance NFData TokenKW
 
 -- | The named operators are a special case for parsing types, and 'Other' is
 -- used for all other cases that lexed as an operator.
@@ -404,7 +412,9 @@ data TokenOp  = Plus | Minus | Mul | Div | Exp | Mod
               | Equal | LEQ | GEQ
               | Complement | Hash
               | Other [String] String
-                deriving (Eq,Show,Generic,NFData)
+                deriving (Eq,Show,Generic)
+
+instance NFData TokenOp
 
 data TokenSym = Bar
               | ArrL | ArrR | FatArrR
@@ -422,7 +432,9 @@ data TokenSym = Bar
               | CurlyL   | CurlyR
               | TriL     | TriR
               | Underscore
-                deriving (Eq,Show,Generic,NFData)
+                deriving (Eq,Show,Generic)
+
+instance NFData TokenSym
 
 data TokenErr = UnterminatedComment
               | UnterminatedString
@@ -430,7 +442,9 @@ data TokenErr = UnterminatedComment
               | InvalidString
               | InvalidChar
               | LexicalError
-                deriving (Eq,Show,Generic,NFData)
+                deriving (Eq,Show,Generic)
+
+instance NFData TokenErr
 
 data TokenT   = Num Integer Int Int   -- ^ value, base, number of digits
               | ChrLit  Char          -- ^ character literal
@@ -443,7 +457,9 @@ data TokenT   = Num Integer Int Int   -- ^ value, base, number of digits
               | White TokenW          -- ^ white space token
               | Err   TokenErr        -- ^ error token
               | EOF
-                deriving (Eq,Show,Generic,NFData)
+                deriving (Eq,Show,Generic)
+
+instance NFData TokenT
 
 instance PP Token where
   ppPrec _ (Token _ s) = text (T.unpack s)
