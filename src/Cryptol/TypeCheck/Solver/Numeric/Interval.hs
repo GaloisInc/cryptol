@@ -67,6 +67,41 @@ iIsFin i = case iUpper i of
              _        -> True
 
 
+-- | Returns 'True' when the intervals definitely overlap, and 'False'
+-- otherwise.
+iDisjoint :: Interval -> Interval -> Bool
+iDisjoint
+  (Interval (Nat l1) (Just (Nat h1)))
+  (Interval (Nat l2) (Just (Nat h2))) =
+    or [ h1 > l2 && h1 < h2, l1 > l2 && l1 < h2 ]
+iDisjoint _ _ = False
+
+
+-- | Intersect two intervals, yielding a new one that describes the space where
+-- they overlap.  If the two intervals are disjoint, the result will be
+-- 'Nothing'.
+iIntersect :: Interval -> Interval -> Maybe Interval
+iIntersect i j =
+  case (lower,upper) of
+    (Nat l, Just (Nat u)) | l < u -> ok
+    (Nat _, Just  Inf)            -> ok
+    (Nat _, Nothing)              -> ok
+    (Inf,   Just Inf)             -> ok
+    _                             -> Nothing
+  where
+
+  ok    = Just (Interval lower upper)
+
+  lower = nMax (iLower i) (iLower j)
+
+  upper = case (iUpper i, iUpper j) of
+            (Just a, Just b)            -> Just (nMin a b)
+            (Nothing,Nothing)           -> Nothing
+            (Just l,Nothing) | l /= Inf -> Just l
+            (Nothing,Just r) | r /= Inf -> Just r
+            _                           -> Nothing
+
+
 -- | Any value
 iAny :: Interval
 iAny = Interval (Nat 0) (Just Inf)
