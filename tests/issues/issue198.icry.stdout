@@ -15,5 +15,5 @@ Loading module Main
   Defaulting type parameter 'bits'
              of literal or demoted expression
              at ./simon.cry2:89:36--89:38
-  to max 6 (max (width (a`570 - 1)) (width a`569))
+  to max 6 (max (width a`569) (width (a`570 - 1)))
 True

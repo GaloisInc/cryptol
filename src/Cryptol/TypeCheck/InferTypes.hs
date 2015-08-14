@@ -11,6 +11,7 @@
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ViewPatterns #-}
 module Cryptol.TypeCheck.InferTypes where
 
 import           Cryptol.TypeCheck.AST
@@ -519,7 +520,7 @@ instance PP ConstraintSource where
 ppUse :: Expr -> Doc
 ppUse expr =
   case expr of
-    EVar (QName (Just (ModName ["Cryptol"])) (Name prim))
+    EVar (P.asPrim -> Just prim)
       | prim == "demote"       -> text "literal or demoted expression"
       | prim == "infFrom"      -> text "infinite enumeration"
       | prim == "infFromThen"  -> text "infinite enumeration (with step)"

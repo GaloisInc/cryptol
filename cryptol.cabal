@@ -122,6 +122,7 @@ library
                        Cryptol.TypeCheck.Solver.Class,
                        Cryptol.TypeCheck.Solver.Selector,
                        Cryptol.TypeCheck.Solver.Utils,
+                       Cryptol.TypeCheck.Solver.Simplify,
 
                        Cryptol.TypeCheck.Solver.CrySAT,
                        Cryptol.TypeCheck.Solver.Numeric.AST,

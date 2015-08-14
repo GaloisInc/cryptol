@@ -381,10 +381,10 @@ translateProp ty = go =<< rnType True ty
 
     TLocated t' r -> (`CLocated` r) <$> go t'
 
-    TUser (QName Nothing (Name p)) [l,r]
-      | p == "==" -> pure (CEqual l r)
-      | p == ">=" -> pure (CGeq l r)
-      | p == "<=" -> pure (CGeq r l)
+    TUser (QName Nothing p) [l,r]
+      | p == mkName "==" -> pure (CEqual l r)
+      | p == mkName ">=" -> pure (CGeq l r)
+      | p == mkName "<=" -> pure (CGeq r l)
 
     _ ->
       do record (InvalidConstraint ty)
@@ -405,15 +405,15 @@ rnType isProp = go
     TChar _      -> return t
     TInf         -> return t
 
-    TUser (QName Nothing (Name n)) ps
-      | n == "inf", null ps     -> return TInf
-      | n == "Bit", null ps     -> return TBit
+    TUser (QName Nothing n) ps
+      | n == mkName "inf", null ps     -> return TInf
+      | n == mkName "Bit", null ps     -> return TBit
 
-      | n == "min"              -> TApp TCMin           <$> traverse go ps
-      | n == "max"              -> TApp TCMax           <$> traverse go ps
-      | n == "lengthFromThen"   -> TApp TCLenFromThen   <$> traverse go ps
-      | n == "lengthFromThenTo" -> TApp TCLenFromThenTo <$> traverse go ps
-      | n == "width"            -> TApp TCWidth         <$> traverse go ps
+      | n == mkName "min"              -> TApp TCMin           <$> traverse go ps
+      | n == mkName "max"              -> TApp TCMax           <$> traverse go ps
+      | n == mkName "lengthFromThen"   -> TApp TCLenFromThen   <$> traverse go ps
+      | n == mkName "lengthFromThenTo" -> TApp TCLenFromThenTo <$> traverse go ps
+      | n == mkName "width"            -> TApp TCWidth         <$> traverse go ps
 
     TUser qn ps  -> TUser    <$> renameType qn <*> traverse go ps
     TApp f xs    -> TApp f   <$> traverse go xs
@@ -470,7 +470,7 @@ mkTInfix t (op,_) z =
 renameTypeOp :: Bool -> Located QName -> RenameM (TOp,Fixity)
 renameTypeOp isProp op =
   do let sym   = unqual (thing op)
-         props = [ Name "==", Name ">=", Name "<=" ]
+         props = [ mkName "==", mkName ">=", mkName "<=" ]
          lkp   = do n               <- Map.lookup (thing op) tfunNames
                     (fAssoc,fLevel) <- Map.lookup n tBinOpPrec
                     return (n,Fixity { .. })

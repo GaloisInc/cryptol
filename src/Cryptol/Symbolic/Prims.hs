@@ -18,9 +18,10 @@ import Data.Ord (comparing)
 import Cryptol.Eval.Value (BitWord(..))
 import Cryptol.Prims.Eval (binary, unary, tlamN)
 import Cryptol.Symbolic.Value
-import Cryptol.TypeCheck.AST (ModName(..),QName(..),Name(..),Decl(..))
+import Cryptol.TypeCheck.AST (QName(..),Name(..),Decl(..),mkModName,mkName)
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)
 import Cryptol.Utils.Panic
+import Cryptol.ModuleSystem.Name (Ident, pack)
 
 import qualified Data.SBV.Dynamic as SBV
 import qualified Data.Map as Map
@@ -35,15 +36,15 @@ traverseSnd f (x, y) = (,) x <$> f y
 -- Primitives ------------------------------------------------------------------
 
 evalPrim :: Decl -> Value
-evalPrim Decl { dName = QName (Just (ModName ["Cryptol"])) (Name prim), .. }
-  | Just val <- Map.lookup prim primTable = val
+evalPrim Decl { dName = QName (Just m) (Name prim), .. }
+  | m == mkModName ["Cryptol"], Just val <- Map.lookup prim primTable = val
 
 evalPrim Decl { .. } =
     panic "Eval" [ "Unimplemented primitive", show dName ]
 
 -- See also Cryptol.Prims.Eval.primTable
-primTable :: Map.Map String Value
-primTable  = Map.fromList
+primTable :: Map.Map Ident Value
+primTable  = Map.fromList $ map (\(n, v) -> (pack n, v))
   [ ("True"        , VBit SBV.svTrue)
   , ("False"       , VBit SBV.svFalse)
   , ("demote"      , ecDemoteV) -- Converts a numeric type into its corresponding value.

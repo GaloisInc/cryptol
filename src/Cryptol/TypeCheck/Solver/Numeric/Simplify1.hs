@@ -18,6 +18,7 @@ module Cryptol.TypeCheck.Solver.Numeric.Simplify1 (propToProp', ppProp') where
 import           Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr
                    (crySimpExpr, splitSum, normSum, Sign(..))
 import           Cryptol.TypeCheck.Solver.Numeric.AST
+import           Cryptol.TypeCheck.Solver.InfNat(genLog,rootExact)
 import           Cryptol.Utils.Misc ( anyJust )
 import           Cryptol.Utils.PP
 
@@ -195,18 +196,19 @@ pAtom p = do a <- case p of
 
 -- | Implementation of `==`
 pEq :: Expr -> Expr -> I Bool
-pEq x (K (Nat 0)) = pEq0 x
-pEq x (K (Nat 1)) = pEq1 x
-pEq (K (Nat 0)) y = pEq0 y
-pEq (K (Nat 1)) y = pEq1 y
-pEq x y = pIf (pInf x) (pInf y)
-        $ pAnd (pFin y) (pAtom (AEq x y))
+pEq x (K (Nat n)) = pIsNat n x
+pEq (K (Nat n)) y = pIsNat n y
+pEq x y = pIf (pInf x) (pInf y) (pAnd (pFin y) (pAtom (AEq x y)))
 
 -- | Implementation of `>=`
 pGeq :: Expr -> Expr -> I Bool
-pGeq x y = pIf (pInf x) pTrue
-         $ pIf (pFin y) (pAtom (AGt (x :+ one) y))
-           pFalse
+pGeq x y = pIf (pInf x) pTrue (pAnd (pFin y) (pAtom (AGt (one :+ x) y)))
+
+-- | Implementation `e1 > e2`.
+pGt :: Expr -> Expr -> I Bool
+pGt x y = pNot (pGeq y x)
+
+
 
 -- | Implementation of `Fin`
 pFin :: Expr -> I Bool
@@ -235,62 +237,101 @@ pFin expr =
     LenFromThen  _ _ _   -> pTrue
     LenFromThenTo  _ _ _ -> pTrue
 
--- | Implementation `e1 > e2`.
-pGt :: Expr -> Expr -> I Bool
-pGt x y = pIf (pFin y) (pIf (pFin x) (pAtom (AGt x y)) pTrue) pFalse
-
 -- | Implementation of `e == inf`
 pInf :: Expr -> I Bool
 pInf = pNot . pFin
 
-
-
--- | Special case: `e == 0`
-pEq0 :: Expr -> I Bool
-pEq0 expr =
+pIsNat :: Integer -> Expr -> I Bool
+pIsNat n expr =
   case expr of
     K Inf               -> pFalse
-    K (Nat n)           -> if n == 0 then pTrue else pFalse
-    Var _               -> pAnd (pFin expr) (pAtom (AEq expr zero))
-    t1 :+ t2            -> pAnd (pEq t1 zero) (pEq t2 zero)
-    t1 :- t2            -> pEq t1 t2
-    t1 :* t2            -> pOr (pEq t1 zero) (pEq t2 zero)
-    Div t1 t2           -> pGt t2 t1
-    Mod _ _             -> pAtom (AEq expr zero)  -- or divides
-    t1 :^^ t2           -> pIf (pEq t2 zero) pFalse (pEq t1 zero)
-    Min t1 t2           -> pOr  (pEq t1 zero) (pEq t2 zero)
-    Max t1 t2           -> pAnd (pEq t1 zero) (pEq t2 zero)
-    Width t1            -> pEq t1 zero
-    LenFromThen _ _ _   -> pFalse
-    LenFromThenTo x y z -> pIf (pGt x y) (pGt z x) (pGt x z)
+    K (Nat m)           -> if m == n then pTrue else pFalse
+    Var _               -> nothing
 
--- | Special case: `e == 1`
-pEq1 :: Expr -> I Bool
-pEq1 expr =
-  case expr of
-    K Inf               -> pFalse
-    K (Nat n)           -> if n == 1 then pTrue else pFalse
-    Var _               -> pAnd (pFin expr) (pAtom (AEq expr one))
-    t1 :+ t2            -> pIf (pEq t1 zero) (pEq t2 one)
-                         $ pIf (pEq t2 zero) (pEq t1 one) pFalse
-    t1 :- t2            -> pEq t1 (t2 :+ one)
-    t1 :* t2            -> pAnd (pEq t1 one) (pEq t2 one)
-    Div t1 t2           -> pAnd (pGt (two :* t2) t1) (pGeq t1 t2)
-    Mod _ _             -> pAtom (AEq expr one)
-    t1 :^^ t2           -> pOr (pEq t1 one) (pEq t2 zero)
+    K (Nat m) :+ e2     -> if n < m then pFalse
+                                    else pIsNat (n - m) e2
+    x :+ y
+      | n == 0          -> pAnd (pIsNat 0 x) (pIsNat 0 y)
+      | n == 1          -> pOr  (pAnd (pIsNat 0 x) (pIsNat 1 y))
+                                (pAnd (pIsNat 1 x) (pIsNat 0 y))
+      | otherwise       -> nothing
 
-    Min t1 t2           -> pIf (pEq t1 one) (pGt t2 zero)
-                         $ pIf (pEq t2 one) (pGt t1 zero)
-                           pFalse
-    Max t1 t2           -> pIf (pEq t1 one) (pGt two t2)
-                         $ pIf (pEq t2 one) (pGt two t1)
-                           pFalse
+    e1 :- e2            -> pEq (K (Nat n) :+ e1) e2
 
-    Width t1            -> pEq t1 one
+    K (Nat m) :* e2     ->
+      if m == 0
+        then if n == 0 then pTrue else pFalse
+        else case divMod n m of
+                    (q,r) -> if r == 0 then pIsNat q e2
+                                       else pFalse
+    e1 :* e2
+      | n == 0          -> pOr  (pIsNat 0 e1) (pIsNat 0 e2)
+      | n == 1          -> pAnd (pIsNat 1 e1) (pIsNat 1 e2)
+      | otherwise       -> nothing
 
-    -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
-    LenFromThen x y w   -> pAnd (pGt y x) (pGeq y (two :^^ w))
-    LenFromThenTo x y z -> pIf (pGt z y) (pGeq x z) (pGeq z x)
+    -- (x >= n * y) /\ ((n+1) * y > x)
+    Div x y             -> pAnd (pGt (one :+ x) (K (Nat n) :* y))
+                                (pGt (K (Nat (n + 1)) :* y) x)
+
+
+    Mod _ _             -> nothing
+
+    K (Nat m) :^^ y     -> case genLog n m of
+                             Just (a, exact) | exact -> pIsNat a y
+                             _                       -> pFalse
+    x :^^ K (Nat m)     -> case rootExact n m of
+                             Just a  -> pIsNat a x
+                             Nothing -> pFalse
+    x :^^ y
+      | n == 0          -> pAnd (pIsNat 0 x) (pGt y zero)
+      | n == 1          -> pOr  (pIsNat 1 x) (pIsNat 0 y)
+      | otherwise       -> nothing
+
+    Min x y
+      | n == 0          -> pOr (pIsNat 0 x) (pIsNat 0 y)
+      | otherwise       -> pOr (pAnd (pIsNat n x) (pGt y (K (Nat (n - 1)))))
+                               (pAnd (pIsNat n y) (pGt x (K (Nat (n - 1)))))
+
+    Max x y             -> pOr (pAnd (pIsNat n x) (pGt (K (Nat (n + 1))) y))
+                               (pAnd (pIsNat n y) (pGt (K (Nat (n + 1))) y))
+
+
+    Width x
+      | n == 0          -> pIsNat 0 x
+      | otherwise       -> pAnd (pGt x (K (Nat (2^(n-1) - 1))))
+                                (pGt (K (Nat (2 ^ n))) x)
+
+{-
+    LenFromThen x y w
+      | n == 0          -> Just PFalse
+
+      -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
+      | n == 1          -> Just (gt y x :&& gt (y :+ one) (two :^^ w))
+      | otherwise       -> Nothing -- XXX: maybe some more?
+
+
+    -- See `nLenFromThenTo` in 'Cryptol.TypeCheck.Solver.InfNat'
+    LenFromThenTo x y z
+      | n == 0          -> Just ( gt x y :&& gt z x
+                              :|| gt y x :&& gt x z
+                                )
+
+      -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
+      | n == 1          -> Just (gt z y :&& gt (x :+ one) z     :||
+                                 gt y z :&& gt (z :+ one) x)
+      | otherwise       -> Nothing -- XXX: maybe some more?
+
+
+-}
+  where
+  nothing = pAnd (pFin expr) (pAtom (AEq expr (K (Nat n))))
+
+
+pIsGtThanNat :: Integer -> Expr -> I Bool
+pIsGtThanNat = undefined
+
+pNatIsGtThan :: Integer -> Expr -> I Bool
+pNatIsGtThan = undefined
 
 --------------------------------------------------------------------------------
 

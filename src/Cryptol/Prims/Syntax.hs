@@ -11,7 +11,7 @@ module Cryptol.Prims.Syntax
   ( TFun(..), tBinOpPrec, tfunNames
   ) where
 
-import           Cryptol.ModuleSystem.Name (QName,Name(Name),mkUnqual)
+import           Cryptol.ModuleSystem.Name (QName,Name(Name),mkUnqual,pack)
 import           Cryptol.Utils.PP
 import qualified Data.Map as Map
 
@@ -69,7 +69,7 @@ tfunNames  = Map.fromList
   , tprim "lengthFromThenTo" TCLenFromThenTo
   ]
   where
-  tprim n p = (mkUnqual (Name n), p)
+  tprim n p = (mkUnqual (Name (pack n)), p)
 
 instance PP TFun where
   ppPrec _ tcon =

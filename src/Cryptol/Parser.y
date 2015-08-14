@@ -150,7 +150,7 @@ vmodule                    :: { Module }
     { let { (is,ts) = $2
             -- XXX make a location from is and ts
           ; modName = Located { srcRange = emptyRange
-                              , thing    = ModName ["Main"]
+                              , thing    = mkModName ["Main"]
                               }
           } in Module modName is ts }
 
@@ -377,25 +377,25 @@ iexpr                            :: { Expr }
 expr10                           :: { Expr }
   : aexprs                          { mkEApp $1 }
 
-  | '-' expr10 %prec NEG            { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual (Name "negate")))) $2 }
-  | '~' expr10                      { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual (Name "complement")))) $2 }
+  | '-' expr10 %prec NEG            { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual (mkName "negate")))) $2 }
+  | '~' expr10                      { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual (mkName "complement")))) $2 }
 
 qop                              :: { LQName }
   : op                              { fmap mkUnqual $1 }
   | QOP                             { let Token (Op (Other ns i)) _ = thing $1
-                                       in mkQual (ModName ns) (Name i) A.<$ $1 }
+                                       in mkQual (mkModName ns) (mkName i) A.<$ $1 }
 
 op                               :: { LName }
   : OP                              { let Token (Op (Other [] str)) _ = thing $1
-                                       in Name str A.<$ $1 }
+                                       in mkName str A.<$ $1 }
 
     -- special cases for operators that are re-used elsewhere
-  | '*'                             { Located $1 $ Name "*" }
-  | '+'                             { Located $1 $ Name "+" }
-  | '-'                             { Located $1 $ Name "-" }
-  | '~'                             { Located $1 $ Name "~" }
-  | '^^'                            { Located $1 $ Name "^^" }
-  | '#'                             { Located $1 $ Name "#" }
+  | '*'                             { Located $1 $ mkName "*" }
+  | '+'                             { Located $1 $ mkName "+" }
+  | '-'                             { Located $1 $ mkName "-" }
+  | '~'                             { Located $1 $ mkName "~" }
+  | '^^'                            { Located $1 $ mkName "^^" }
+  | '#'                             { Located $1 $ mkName "#" }
 
 ops                     :: { [LName] }
   : op                     { [$1] }
@@ -609,19 +609,19 @@ field_types                    :: { [Named Type] }
 
 name               :: { LName }
   : IDENT             { $1 { thing = getName $1 } }
-  | 'x'               { Located { srcRange = $1, thing = Name "x" }}
-  | 'private'         { Located { srcRange = $1, thing = Name "private" } }
-  | 'as'              { Located { srcRange = $1, thing = Name "as" } }
-  | 'hiding'          { Located { srcRange = $1, thing = Name "hiding" } }
+  | 'x'               { Located { srcRange = $1, thing = mkName "x" }}
+  | 'private'         { Located { srcRange = $1, thing = mkName "private" } }
+  | 'as'              { Located { srcRange = $1, thing = mkName "as" } }
+  | 'hiding'          { Located { srcRange = $1, thing = mkName "hiding" } }
 
 
 modName                        :: { Located ModName }
-  : qname                         { mkModName $1 }
+  : qname                         { mkLModName $1 }
 
 qname                          :: { Located QName }
   : name                          { fmap mkUnqual $1 }
   | QIDENT                        { let Token (Ident ns i) _ = thing $1
-                                     in mkQual (ModName ns) (Name i) A.<$ $1 }
+                                     in mkQual (mkModName ns) (mkName i) A.<$ $1 }
 
 help_name                      :: { Located QName    }
   : qname                         { $1               }

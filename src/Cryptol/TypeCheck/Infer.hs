@@ -68,7 +68,7 @@ desugarLiteral :: Bool -> P.Literal -> InferM P.Expr
 desugarLiteral fixDec lit =
   do l <- curRange
      let named (x,y)  = P.NamedInst
-                        P.Named { name = Located l (Name x), value = P.TNum y }
+                        P.Named { name = Located l (mkName x), value = P.TNum y }
          demote fs    = P.EAppT (P.EVar (P.mkPrim "demote")) (map named fs)
 
      return $ case lit of
@@ -223,7 +223,7 @@ checkE expr tGoal =
              lstT   = totLen .-. tNum (1::Int)
 
          appTys (P.EVar (P.mkPrim "fromTo"))
-           [ Located rng (Just (mkUnqual (Name x)), y)
+           [ Located rng (Just (mkUnqual (mkName x)), y)
            | (x,y) <- [ ("first",fstT), ("last", lstT), ("bits", bit) ]
            ] tGoal
 
@@ -244,7 +244,7 @@ checkE expr tGoal =
                     (P.EVar (P.mkPrim "fromThenTo"), [ ("next",t2), ("last",t3) ])
 
          let e' = P.EAppT c
-                  [ P.NamedInst P.Named { name = Located l (Name x), value = y }
+                  [ P.NamedInst P.Named { name = Located l (mkName x), value = y }
                   | (x,y) <- ("first",t1) : fs
                   ]
 
@@ -305,7 +305,7 @@ checkE expr tGoal =
       do l <- curRange
          checkE (P.EAppT (P.EVar (P.mkPrim "demote"))
                   [P.NamedInst
-                   P.Named { name = Located l (Name "val"), value = t }]) tGoal
+                   P.Named { name = Located l (mkName "val"), value = t }]) tGoal
 
     P.EFun ps e -> checkFun (text "anonymous function") ps e tGoal
 

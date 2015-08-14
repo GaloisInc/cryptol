@@ -10,6 +10,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cryptol.REPL.Monad (
     -- * REPL Monad
@@ -351,7 +352,7 @@ getFocusedEnv  = do
   let (decls,names) = M.focusedEnv me
       edecls = M.ifDecls dyDecls
       -- is this QName something the user might actually type?
-      isShadowed (qn@(P.QName (Just (P.ModName ['#':_])) name), _) =
+      isShadowed (qn@(P.QName (Just (P.unModName -> ['#':_])) name), _) =
           case Map.lookup localName neExprs of
             Nothing -> False
             Just uniqueNames -> isNamed uniqueNames
@@ -422,7 +423,7 @@ uniqify :: P.QName -> REPL P.QName
 uniqify (P.QName Nothing name) = do
   i <- eNameSupply `fmap` getRW
   modifyRW_ (\rw -> rw { eNameSupply = i+1 })
-  let modname' = P.ModName [ '#' : ("Uniq_" ++ show i) ]
+  let modname' = P.mkModName [ '#' : ("Uniq_" ++ show i) ]
   return (P.QName (Just modname') name)
 uniqify qn =
   panic "[REPL] uniqify" ["tried to uniqify a qualified name: " ++ pretty qn]
