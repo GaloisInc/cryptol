@@ -128,6 +128,8 @@ library
                        Cryptol.TypeCheck.Solver.Numeric.AST,
                        Cryptol.TypeCheck.Solver.Numeric.ImportExport,
                        Cryptol.TypeCheck.Solver.Numeric.Defined,
+                       Cryptol.TypeCheck.Solver.Numeric.Fin,
+                       Cryptol.TypeCheck.Solver.Numeric.Interval,
                        Cryptol.TypeCheck.Solver.Numeric.Simplify,
                        Cryptol.TypeCheck.Solver.Numeric.Simplify1,
                        Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr,

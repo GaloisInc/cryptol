@@ -10,24 +10,27 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 module Cryptol.TypeCheck.Solver.CrySAT
   ( withScope, withSolver
   , assumeProps, simplifyProps, getModel
   , check
-  , Solver, logger
+  , Solver, logger, getIntervals
   , DefinedProp(..)
   , debugBlock
   , DebugLog(..)
-  , knownDefined
+  , knownDefined, numericRight
   , minimizeContradictionSimpDef
   ) where
 
 import qualified Cryptol.TypeCheck.AST as Cry
-import           Cryptol.TypeCheck.InferTypes(Goal(..), SolverConfig(..))
+import           Cryptol.TypeCheck.InferTypes(Goal(..), SolverConfig(..), Solved(..))
 import qualified Cryptol.TypeCheck.Subst as Cry
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST
+import           Cryptol.TypeCheck.Solver.Numeric.Fin
 import           Cryptol.TypeCheck.Solver.Numeric.ImportExport
+import           Cryptol.TypeCheck.Solver.Numeric.Interval
 import           Cryptol.TypeCheck.Solver.Numeric.Defined
 import           Cryptol.TypeCheck.Solver.Numeric.Simplify
 import           Cryptol.TypeCheck.Solver.Numeric.NonLin
@@ -36,7 +39,8 @@ import           Cryptol.Utils.PP -- ( Doc )
 import           Cryptol.Utils.Panic ( panic )
 
 import           MonadLib
-import           Data.Maybe ( mapMaybe, fromMaybe )
+import           Data.Maybe ( fromMaybe )
+import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Foldable ( any, all )
 import qualified Data.Set as Set
@@ -52,6 +56,11 @@ newtype SimpProp = SimpProp { unSimpProp :: Prop }
 
 simpProp :: Prop -> SimpProp
 simpProp p = SimpProp (crySimplify p)
+
+
+class    HasProp a        where getProp :: a -> Cry.Prop
+instance HasProp Cry.Prop where getProp  = id
+instance HasProp Goal     where getProp  = goal
 
 
 -- | 'dpSimpProp' and 'dpSimpExprProp' should be logically equivalent,
@@ -77,11 +86,11 @@ knownDefined (a,p) = DefinedProp
   { dpData = a, dpSimpProp = simpProp p, dpSimpExprProp = p }
 
 
-instance HasVars SimpProp where
-  apSubst su (SimpProp p) = do p1 <- apSubst su p
-                               let p2 = crySimplify p1
-                               guard (p1 /= p2)
-                               return (SimpProp p2)
+-- | Class goals go on the left, numeric goals go on the right.
+numericRight :: Goal -> Either Goal (Goal, Prop)
+numericRight g  = case exportProp (goal g) of
+                    Just p  -> Right (g, p)
+                    Nothing -> Left g
 
 
 
@@ -89,7 +98,7 @@ instance HasVars SimpProp where
 -- | Simplify a bunch of well-defined properties.
 --  * Eliminates properties that are implied by the rest.
 --  * Does not modify the set of assumptions.
-simplifyProps :: Solver -> [DefinedProp a] -> IO [a]
+simplifyProps :: Solver -> [DefinedProp Goal] -> IO [Goal]
 simplifyProps s props =
   debugBlock s "Simplifying properties" $
   withScope s (go [] (eliminateSimpleGEQ props))
@@ -103,12 +112,33 @@ simplifyProps s props =
     case dpSimpProp p of
       SimpProp PTrue -> go survived more
       SimpProp p' ->
-        do proved <- withScope s $ do mapM_ (assert s . dpSimpProp) more
-                                      prove s p'
-           if proved
-             then go survived more
-             else do assert s (SimpProp p')
-                     go (dpData p : survived) more
+        do mbProved <- withScope s $
+             do mapM_ (assert s) more
+                e <- getIntervals s
+                case e of
+                  Left _     -> return Nothing
+                  Right ints -> do b <- prove s p'
+                                   return (Just (ints,b))
+           case mbProved of
+             Just (_,True)  -> go survived more
+
+             Just (ints,False) ->
+               debugLog s ("Using the fin solver:" ++ show (pp (goal (dpData p)))) >>
+               case cryIsFin ints (dpData p) of
+                 Solved _ gs' ->
+                   do debugLog s "solved"
+                      let more' = [ knownDefined g | Right g <- map numericRight gs' ]
+                      go survived (more' ++ more)
+                 Unsolved ->
+                   do debugLog s "unsolved"
+                      assert s p
+                      go (dpData p : survived) more
+
+                 Unsolvable ->
+                   do debugLog s "unsolvable"
+                      go (dpData p:survived) more
+
+             Nothing -> go (dpData p:survived) more
 
 
 {- | Simplify easy less-than-or-equal-to and equal-to goals.
@@ -161,10 +191,14 @@ eliminateSimpleGEQ = go Map.empty []
 --  * Modifies the set of assumptions.
 assumeProps :: Solver -> [Cry.Prop] -> IO [SimpProp]
 assumeProps s props =
-  do let ps = mapMaybe exportProp props
-     let simpProps = map simpProp (map cryDefinedProp ps ++ ps)
+  do let ps = [ (p,p') | p       <- props
+                       , Just p' <- [exportProp p] ]
+
+     let defPs = [ (p,cryDefinedProp p') | (p,p') <- ps ]
+
+     let simpProps = map knownDefined (defPs ++ ps)
      mapM_ (assert s) simpProps
-     return simpProps
+     return (map dpSimpProp simpProps)
   -- XXX: Instead of asserting one at a time, perhaps we should
   -- assert a conjunction.  That way, we could simplify the whole thing
   -- in one go, and would avoid having to assert 'true' many times.
@@ -174,7 +208,7 @@ assumeProps s props =
 
 -- | Given a list of propositions that together lead to a contradiction,
 -- find a sub-set that still leads to a contradiction (but is smaller).
-minimizeContradictionSimpDef :: Solver -> [DefinedProp a] -> IO [a]
+minimizeContradictionSimpDef :: HasProp a => Solver -> [DefinedProp a] -> IO [a]
 minimizeContradictionSimpDef s ps = start [] ps
   where
   start bad todo =
@@ -187,11 +221,11 @@ minimizeContradictionSimpDef s ps = start [] ps
   go _ _ [] = panic "minimizeContradiction"
                $ ("No contradiction" : map (show . ppProp . dpSimpExprProp) ps)
   go bad prev (d : more) =
-    do assert s (dpSimpProp d)
+    do assert s d
        res <- SMT.check (solver s)
        case res of
          SMT.Unsat -> do solPop s
-                         assert s (dpSimpProp d)
+                         assert s d
                          start (d : bad) prev
          _ -> go bad (d : prev) more
 
@@ -261,10 +295,24 @@ data Scope = Scope
     {- ^ These are the non-linear terms mentioned in the assertions
     that are currently asserted (including ones from previous scopes). -}
 
+  , scopeIntervals :: Either Cry.TVar (Map.Map Cry.TVar Interval)
+    -- ^ Either a type variable that makes the asserted properties unsatisfiable
+    -- (due to a broken interval), or the current set of intervals for type
+    -- variables. If a variable is not in the interval map, its value can be
+    -- anything.
+    --
+    -- This includes all intervals from previous scopes.
+
+  , scopeAsserted  :: [Cry.Prop]
+    -- ^ This is the set of currently-asserted cryptol properties only in this
+    -- scope.
+    --
+    -- This includes all asserted props from previous scopes.
   } deriving Show
 
 scopeEmpty :: Scope
-scopeEmpty = Scope { scopeNames = [], scopeNonLinS = initialNonLinS }
+scopeEmpty = Scope { scopeNames = [], scopeNonLinS = initialNonLinS
+                   , scopeIntervals = Right Map.empty, scopeAsserted = [] }
 
 scopeElem :: Name -> Scope -> Bool
 scopeElem x Scope { .. } = x `elem` scopeNames
@@ -272,13 +320,34 @@ scopeElem x Scope { .. } = x `elem` scopeNames
 scopeInsert :: Name -> Scope -> Scope
 scopeInsert x Scope { .. } = Scope { scopeNames = x : scopeNames, .. }
 
+scopeAssertNew :: Cry.Prop -> Scope -> Scope
+scopeAssertNew prop Scope { .. } =
+  Scope { scopeIntervals = ints'
+        , scopeAsserted  = props
+        , .. }
+
+  where
+  props = prop : scopeAsserted
+  ints' = case scopeIntervals of
+            Left tv    -> Left tv
+            Right ints -> case computePropIntervals ints props of
+                            NoChange           -> scopeIntervals
+                            NewIntervals is    -> Right is
+                            InvalidInterval tv -> Left tv
+
 
 -- | Given a *simplified* prop, separate linear and non-linear parts
 -- and return the linear ones.
-scopeAssert :: SimpProp -> Scope -> ([SimpProp],Scope)
-scopeAssert (SimpProp p) Scope { .. } =
+scopeAssertSimpProp :: SimpProp -> Scope -> ([SimpProp],Scope)
+scopeAssertSimpProp (SimpProp p) Scope { .. } =
   let (ps1,s1) = nonLinProp scopeNonLinS p
   in (map SimpProp ps1, Scope { scopeNonLinS = s1, ..  })
+
+
+scopeAssert :: HasProp a => DefinedProp a -> Scope -> ([SimpProp],Scope)
+scopeAssert DefinedProp { .. } s =
+  let (ps1,s1) = scopeAssertSimpProp dpSimpProp s
+   in (ps1,scopeAssertNew (getProp dpData) s1)
 
 
 -- | No scopes.
@@ -294,14 +363,20 @@ viInsert :: Name -> VarInfo -> VarInfo
 viInsert x VarInfo { .. } = VarInfo { curScope = scopeInsert x curScope, .. }
 
 -- | Add an assertion to the current scope. Returns the linear part.
-viAssert :: SimpProp -> VarInfo -> (VarInfo, [SimpProp])
-viAssert p VarInfo { .. } = ( VarInfo { curScope = s1, .. }, p1)
-  where (p1, s1) = scopeAssert p curScope
+viAssertSimpProp :: SimpProp -> VarInfo -> (VarInfo, [SimpProp])
+viAssertSimpProp p VarInfo { .. } = ( VarInfo { curScope = s1, .. }, p1)
+  where (p1, s1) = scopeAssertSimpProp p curScope
+
+viAssert :: HasProp a => DefinedProp a -> VarInfo -> (VarInfo, [SimpProp])
+viAssert d VarInfo { .. } = (VarInfo { curScope = s1, .. },p1)
+  where (p1, s1) = scopeAssert d curScope
 
 -- | Enter a scope.
 viPush :: VarInfo -> VarInfo
 viPush VarInfo { .. } =
-  VarInfo { curScope = scopeEmpty { scopeNonLinS = scopeNonLinS curScope }
+  VarInfo { curScope = scopeEmpty { scopeNonLinS   = scopeNonLinS curScope
+                                  , scopeAsserted  = scopeAsserted curScope
+                                  , scopeIntervals = scopeIntervals curScope }
           , otherScopes = curScope : otherScopes
           }
 
@@ -318,6 +393,11 @@ viUnmarkedNames :: VarInfo -> [ Name ]
 viUnmarkedNames VarInfo { .. } = concatMap scopeNames scopes
   where scopes      = curScope : otherScopes
 
+
+getIntervals :: Solver -> IO (Either Cry.TVar (Map Cry.TVar Interval))
+getIntervals Solver { .. } =
+  do vi <- readIORef declared
+     return (scopeIntervals (curScope vi))
 
 
 -- | All known non-linear terms.
@@ -394,11 +474,28 @@ declareVar s@Solver { .. } a =
 
 -- | Add an assertion to the current context.
 -- INVARIANT: Assertion is simplified.
-assert :: Solver -> SimpProp -> IO ()
-assert _ (SimpProp PTrue) = return ()
-assert s@Solver { .. } p@(SimpProp p0) =
+assert :: HasProp a => Solver -> DefinedProp a -> IO ()
+assert _               DefinedProp { dpSimpProp = SimpProp PTrue } = return ()
+assert s@Solver { .. } def@DefinedProp { dpSimpProp = p } =
+  do debugLog s ("Assuming: " ++ show (ppProp (unSimpProp p)))
+     a <- getIntervals s
+     debugLog s ("Intervals before:" ++ show (either pp ppIntervals a))
+     ps1' <- atomicModifyIORef' declared (viAssert def)
+     b <- getIntervals s
+     debugLog s ("Intervals after:" ++ show (either pp ppIntervals b))
+     let ps1 = map unSimpProp ps1'
+         vs  = Set.toList $ Set.unions $ map cryPropFVS ps1
+     mapM_ (declareVar s) vs
+     mapM_ (SMT.assert solver . ifPropToSmtLib . desugarProp) ps1
+
+
+-- | Add an assertion to the current context.
+-- INVARIANT: Assertion is simplified.
+assertSimpProp :: Solver -> SimpProp -> IO ()
+assertSimpProp _ (SimpProp PTrue) = return ()
+assertSimpProp s@Solver { .. } p@(SimpProp p0) =
   do debugLog s ("Assuming: " ++ show (ppProp p0))
-     ps1' <- atomicModifyIORef' declared (viAssert p)
+     ps1' <- atomicModifyIORef' declared (viAssertSimpProp p)
      let ps1 = map unSimpProp ps1'
          vs  = Set.toList $ Set.unions $ map cryPropFVS ps1
      mapM_ (declareVar s) vs
@@ -409,11 +506,11 @@ assert s@Solver { .. } p@(SimpProp p0) =
 -- the property holds, and 'False' otherwise.  In other words, getting `False`
 -- *does not* mean that the proposition does not hold.
 prove :: Solver -> Prop -> IO Bool
-prove _ PTrue = return True
-prove s@(Solver { .. }) p =
+prove _ PTrue  = return True
+prove s@Solver { .. } p =
   debugBlock s ("Proving: " ++ show (ppProp p)) $
   withScope s $
-  do assert s (simpProp (Not p))
+  do assertSimpProp s (simpProp (Not p))
      res <- SMT.check solver
      case res of
        SMT.Unsat   -> debugLog s "Proved" >> return True
@@ -439,22 +536,31 @@ Returns `Just (su, sub-goals)` is the current set is satisfiable.
 -}
 check :: Solver -> IO (Maybe (Subst, [Prop]))
 check s@Solver { .. } =
-  do res <- SMT.check solver
-     case res of
+  do e <- getIntervals s
+     case e of
 
-       SMT.Unsat   ->
-        do debugLog s "Not satisfiable"
-           return Nothing
+       Left tv ->
+         do debugLog s ("Invalid interval: " ++ show (pp tv))
+            return Nothing
 
-       SMT.Unknown ->
-        do debugLog s "Unknown"
-           return (Just (Map.empty, []))
+       Right ints ->
+         do debugLog s ("Intervals:" ++ show (ppIntervals ints))
+            res <- SMT.check solver
+            case res of
 
-       SMT.Sat     ->
-        do debugLog s "Satisfiable"
-           (impMap,sideConds) <- debugBlock s "Computing improvements"
-                                     (getImpSubst s)
-           return (Just (impMap, sideConds))
+              SMT.Unsat   ->
+               do debugLog s "Not satisfiable"
+                  return Nothing
+
+              SMT.Unknown ->
+               do debugLog s "Unknown"
+                  return (Just (Map.empty, []))
+
+              SMT.Sat     ->
+               do debugLog s "Satisfiable"
+                  (impMap,sideConds) <- debugBlock s "Computing improvements"
+                                            (getImpSubst s)
+                  return (Just (impMap, sideConds))
 
 
 

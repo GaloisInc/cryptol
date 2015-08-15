@@ -1,14 +1,17 @@
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE BangPatterns #-}
 
 -- | An interval interpretation of types.
 module Cryptol.TypeCheck.Solver.Numeric.Interval where
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat
+import Cryptol.Utils.PP hiding (int)
 
 import           Data.Map ( Map )
 import qualified Data.Map as Map
-import Text.PrettyPrint
+import           Data.Maybe (catMaybes)
+
 
 -- | Only meaningful for numeric types
 typeInterval :: Map TVar Interval -> Type -> Interval
@@ -41,6 +44,74 @@ typeInterval varInfo = go
 
       _ -> iAny
 
+
+data IntervalUpdate = NoChange
+                    | InvalidInterval TVar
+                    | NewIntervals (Map TVar Interval)
+                      deriving (Show)
+
+updateInterval :: (TVar,Interval) -> Map TVar Interval -> IntervalUpdate
+updateInterval (x,int) varInts =
+  case Map.lookup x varInts of
+    Just int' ->
+      case iIntersect int int' of
+        Just val | int' /= val -> NewIntervals (Map.insert x val varInts)
+                 | otherwise   -> NoChange
+        Nothing                -> InvalidInterval x
+
+    Nothing   -> NewIntervals (Map.insert x int varInts)
+
+
+computePropIntervals :: Map TVar Interval -> [Prop] -> IntervalUpdate
+computePropIntervals ints ps0 = go (3 :: Int) False ints ps0
+  where
+  go !_n False _ [] = NoChange
+
+  go !n True  is []
+    | n > 0     = changed is (go (n-1) False is ps0)
+    | otherwise = NewIntervals is
+
+  go !n new   is (p:ps) =
+    case foldr (update is) NoChange (propInterval is p) of
+      InvalidInterval i -> InvalidInterval i
+      NewIntervals is'  -> go n True is' ps
+      NoChange          -> go n new  is  ps
+
+  changed a x = case x of
+                  NoChange -> NewIntervals a
+                  r        -> r
+
+  update is0 int NoChange            = updateInterval int is0
+  update _   _   (InvalidInterval i) = InvalidInterval i
+  update _   int (NewIntervals is)   = changed is (updateInterval int is)
+
+
+-- | What we learn about variables from a single prop.
+propInterval :: Map TVar Interval -> Prop -> [(TVar,Interval)]
+propInterval varInts prop = catMaybes
+  [ do ty <- pIsFin prop
+       x  <- tIsVar ty
+       return (x,iAnyFin)
+
+  , do (l,r) <- pIsEq prop
+       x     <- tIsVar l
+       return (x,typeInterval varInts r)
+
+  , do (l,r) <- pIsEq prop
+       x     <- tIsVar r
+       return (x,typeInterval varInts l)
+
+  , do (l,r) <- pIsGeq prop
+       x     <- tIsVar l
+       let int = typeInterval varInts r
+       return (x,int { iUpper = Just Inf })
+
+  , do (l,r) <- pIsGeq prop
+       x     <- tIsVar r
+       let int = typeInterval varInts l
+       return (x,int { iLower = Nat 0 })
+  ]
+
 --------------------------------------------------------------------------------
 
 data Interval = Interval
@@ -50,12 +121,17 @@ data Interval = Interval
                             -- than all *natural* numbers.
   } deriving (Eq,Show)
 
-ppInterval :: Interval -> Doc
-ppInterval x = brackets (hsep [ pp (iLower x)
-                              , text ".."
-                              , maybe empty pp (iUpper x)])
+ppIntervals :: Map TVar Interval -> Doc
+ppIntervals  = vcat . map ppr . Map.toList
   where
-  pp a = case a of
+  ppr (var,i) = pp var <> char ':' <+> ppInterval i
+
+ppInterval :: Interval -> Doc
+ppInterval x = brackets (hsep [ ppr (iLower x)
+                              , text ".."
+                              , maybe (text "fin") ppr (iUpper x)])
+  where
+  ppr a = case a of
            Nat n -> integer n
            Inf   -> text "inf"
 
@@ -85,11 +161,11 @@ iDisjoint _ _ = False
 iIntersect :: Interval -> Interval -> Maybe Interval
 iIntersect i j =
   case (lower,upper) of
-    (Nat l, Just (Nat u)) | l < u -> ok
-    (Nat _, Just  Inf)            -> ok
-    (Nat _, Nothing)              -> ok
-    (Inf,   Just Inf)             -> ok
-    _                             -> Nothing
+    (Nat l, Just (Nat u)) | l <= u -> ok
+    (Nat _, Just  Inf)             -> ok
+    (Nat _, Nothing)               -> ok
+    (Inf,   Just Inf)              -> ok
+    _                              -> Nothing
   where
 
   ok    = Just (Interval lower upper)

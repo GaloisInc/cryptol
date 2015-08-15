@@ -32,12 +32,12 @@ import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
+import           Cryptol.TypeCheck.Solver.Numeric.Interval (Interval)
 import qualified Cryptol.TypeCheck.Solver.Numeric.Simplify1 as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
-import           Cryptol.TypeCheck.Solver.Simplify
-                    (Fins,tryRewritePropAsSubst)
+import           Cryptol.TypeCheck.Solver.Simplify (tryRewritePropAsSubst)
 import           Cryptol.Utils.PP (text)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
@@ -176,14 +176,6 @@ proveImplicationIO cfg lname varsInEnv as ps gs =
 
 
 
--- | Class goals go on the left, numeric goals go on the right.
-numericRight :: Goal -> Either Goal (Goal, Num.Prop)
-numericRight g  = case Num.exportProp (goal g) of
-                    Just p  -> Right (g, p)
-                    Nothing -> Left g
-
-
-
 
 {- Constraints and satisfiability:
 
@@ -219,7 +211,7 @@ The plan:
   5. Check for consistency
   6. Compute improvements
   7. For each type in the improvements, add well-defined constraints
-  8. Instentiate constraints with substitution
+  8. Instantiate constraints with substitution
   9. Goto 3
 -}
 
@@ -286,14 +278,14 @@ solveConstraints s otherGs gs0 =
   debugBlock s "Solving constraints" $ solveClassCts [] [] gs0
 
   where
-  otherNumerics = [ g | Right g <- map numericRight otherGs ]
+  otherNumerics = [ g | Right g <- map Num.numericRight otherGs ]
 
   solveClassCts unsolvedClass numerics [] =
     do unsolvedNum <- solveNumerics s otherNumerics numerics
        return (Right (unsolvedClass ++ unsolvedNum))
 
   solveClassCts unsolved numerics (g : gs) =
-    case numericRight g of
+    case Num.numericRight g of
       Right n -> solveClassCts unsolved (n : numerics) gs
       Left c  ->
         case classStep c of
@@ -315,41 +307,39 @@ solveNumerics s consultGs solveGs =
 
 
 computeImprovements :: Num.Solver -> [Goal] -> IO (Either [Goal] Subst)
-computeImprovements s gs
-  -- Find things of the form: `x = t`.  We might do some rewriting to put
-  -- it in this form, if needed.
-  | (x,t) : _ <- mapMaybe (improveByDefn fins) gs =
-    do let su = singleSubst x t
-       debugLog s ("Improve by definition: " ++ show (pp su))
-       return (Right su)
-  | otherwise =
+computeImprovements s gs =
   debugBlock s "Computing improvements" $
-  do let nums = [ g | Right g <- map numericRight gs ]
+  do let nums = [ g | Right g <- map Num.numericRight gs ]
      res <- Num.withScope s $
         do _  <- Num.assumeProps s (map (goal . fst) nums)
            mb <- Num.check s
            case mb of
              Nothing       -> return Nothing
              Just (suish,_ps1) ->
-                let (su,_ps2) = importSplitImps suish
-                in return (Just su)
+               do let (su,_ps2) = importSplitImps suish
+                  -- Num.check has already checked that the intervals are sane,
+                  -- so we don't need to check for a broken interval here
+                  Right ints <- Num.getIntervals s
+                  return (Just (ints,su))
      case res of
-       Just su -> return (Right su)
+       Just (ints,su)
+         | isEmptySubst su
+         , (x,t) : _ <- mapMaybe (improveByDefn ints) gs ->
+           do let su' = singleSubst x t
+              debugLog s ("Improve by definition: " ++ show (pp su'))
+              return (Right su')
+
+         | otherwise -> return (Right su)
+
        Nothing ->
          do bad <- Num.minimizeContradictionSimpDef s
                                                 (map Num.knownDefined nums)
             return (Left bad)
 
-  where
 
-  -- XXX remove this once the interval analysis is done
-  fins = Set.fromList [ tv | Goal { .. } <- gs
-                           , Just tv     <- [ tIsVar =<< pIsFin goal ] ]
-
-
-improveByDefn :: Fins -> Goal -> Maybe (TVar,Type)
-improveByDefn fins Goal { .. } =
-  do (var,ty) <- tryRewritePropAsSubst fins goal
+improveByDefn :: Map TVar Interval -> Goal -> Maybe (TVar,Type)
+improveByDefn ints Goal { .. } =
+  do (var,ty) <- tryRewritePropAsSubst ints goal
      return (var,simpType ty)
 
 

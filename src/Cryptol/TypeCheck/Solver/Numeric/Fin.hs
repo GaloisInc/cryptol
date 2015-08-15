@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternGuards #-}
+
 -- | Simplification of `fin` constraints.
 module Cryptol.TypeCheck.Solver.Numeric.Fin where
 
@@ -8,9 +10,16 @@ import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Solver.Numeric.Interval
 import Cryptol.TypeCheck.Solver.InfNat
 
+
 cryIsFin :: Map TVar Interval -> Goal -> Solved
 cryIsFin varInfo g =
-  case tNoUser (goal g) of
+  case pIsFin (goal g) of
+    Just ty -> cryIsFinType varInfo g ty
+    Nothing -> Unsolved
+
+cryIsFinType :: Map TVar Interval -> Goal -> Type -> Solved
+cryIsFinType varInfo g ty =
+  case tNoUser ty of
 
     TCon (TC tc) [] | TCNum _ <- tc -> solved []
 

@@ -2,33 +2,28 @@
 {-# LANGUAGE MultiWayIf #-}
 
 module Cryptol.TypeCheck.Solver.Simplify (
-    Fins,
     tryRewritePropAsSubst
   ) where
 
 
 import Cryptol.Prims.Syntax (TFun(..))
 import Cryptol.TypeCheck.AST (Type(..),Prop,TVar,pIsEq,isFreeTV,TCon(..))
+import Cryptol.TypeCheck.Solver.Numeric.Interval (Interval,iIsFin,typeInterval)
 import Cryptol.TypeCheck.Subst (fvs)
 
 import           Control.Monad (msum,guard,mzero)
 import           Data.Function (on)
 import           Data.List (sortBy)
 import           Data.Maybe (catMaybes,listToMaybe)
+import           Data.Map (Map)
 import qualified Data.Set as Set
-
-
--- | Type variables that are known to have a `fin` constraint. This set is used
--- to justify the addition of a subtraction on the rhs of an equality
--- constraint.
-type Fins = Set.Set TVar
 
 
 -- | When given an equality constraint, attempt to rewrite it to the form `?x =
 -- ...`, by moving all occurrences of `?x` to the LHS, and any other variables
 -- to the RHS.  This will only work when there's only one unification variable
 -- present in the prop.
-tryRewritePropAsSubst :: Fins -> Prop -> Maybe (TVar,Type)
+tryRewritePropAsSubst :: Map TVar Interval -> Prop -> Maybe (TVar,Type)
 tryRewritePropAsSubst fins p =
   do (x,y) <- pIsEq p
 
@@ -62,7 +57,7 @@ rank (_,ty) = go ty
 -- In the first case, we just return the type variable and the type, but in the
 -- second we try to rewrite the equation until it's in the form of the first
 -- case.
-tryRewriteEq :: Fins -> TVar -> Type -> Type -> Maybe (TVar,Type)
+tryRewriteEq :: Map TVar Interval -> TVar -> Type -> Type -> Maybe (TVar,Type)
 tryRewriteEq fins uvar l r =
   msum [ do guard (uvarTy == l && uvar `Set.notMember` rfvs)
             return (uvar, r)
@@ -88,8 +83,8 @@ tryRewriteEq fins uvar l r =
 
 
 -- | Check that a type contains only finite type variables.
-allFin :: Fins -> Type -> Bool
-allFin fins ty = fvs ty `Set.isSubsetOf` fins
+allFin :: Map TVar Interval -> Type -> Bool
+allFin ints ty = iIsFin (typeInterval ints ty)
 
 
 -- | Rewrite an equality until the LHS is just `uvar`. Return the rewritten RHS.
@@ -110,7 +105,7 @@ allFin fins ty = fvs ty `Set.isSubsetOf` fins
 -- the operand being moved to the RHS is known to be finite. If this check was
 -- not done, we would end up violating the well-definedness condition for
 -- subtraction (for a, b: well defined (a - b) iff fin b).
-rewriteLHS :: Fins -> TVar -> Type -> Type -> Maybe Type
+rewriteLHS :: Map TVar Interval -> TVar -> Type -> Type -> Maybe Type
 rewriteLHS fins uvar = go
   where
 
