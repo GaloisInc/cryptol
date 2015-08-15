@@ -18,7 +18,7 @@ import Data.Ord (comparing)
 import Cryptol.Eval.Value (BitWord(..))
 import Cryptol.Prims.Eval (binary, unary, tlamN)
 import Cryptol.Symbolic.Value
-import Cryptol.TypeCheck.AST (QName(..),Name(..),Decl(..),mkModName,mkName)
+import Cryptol.TypeCheck.AST (QName(..),Name(..),Decl(..),mkModName)
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)
 import Cryptol.Utils.Panic
 import Cryptol.ModuleSystem.Name (Ident, pack)
