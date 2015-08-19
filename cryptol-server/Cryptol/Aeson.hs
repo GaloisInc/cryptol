@@ -15,7 +15,6 @@ import Control.Exception
 import Data.Aeson
 import Data.Aeson.TH
 import qualified Data.HashMap.Strict as HM
-import Data.List
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Text (Text)
@@ -57,7 +56,7 @@ instance ToJSON a => ToJSON (Map QName a) where
 -- purposes of this API where we're dealing with top-level names.
 keyToQName :: Text -> QName
 keyToQName str =
-  case map T.unpack (T.split (== '.') str) of
+  case T.split (== '.') str of
     []   -> error "empty QName"
     [""] -> error "empty QName"
     [x]  -> mkUnqual (Name x)
@@ -65,9 +64,9 @@ keyToQName str =
 
 keyFromQName :: QName -> Text
 keyFromQName = \case
-  QName Nothing (Name x) -> T.pack x
+  QName Nothing (Name x) -> x
   QName (Just (ModName mn)) (Name x) ->
-    T.pack (intercalate "." (mn ++ [x]))
+    T.intercalate "." (mn ++ [x])
   _ -> error "NewName unsupported in JSON"
 
 instance ToJSON Doc where
