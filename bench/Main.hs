@@ -34,25 +34,29 @@ main = defaultMain [
       , parser "BigSequence" "bench/data/BigSequence.cry"
       , parser "BigSequenceHex" "bench/data/BigSequenceHex.cry"
       , parser "AES" "bench/data/AES.cry"
+      , parser "SHA512" "bench/data/SHA512.cry"
       ]
   , bgroup "typechecker" [
         tc "Prelude" "lib/Cryptol.cry"
       , tc "BigSequence" "bench/data/BigSequence.cry"
       , tc "BigSequenceHex" "bench/data/BigSequenceHex.cry"
       , tc "AES" "bench/data/AES.cry"
+      , tc "SHA512" "bench/data/SHA512.cry"
       ]
   , bgroup "conc_eval" [
         ceval "AES" "bench/data/AES.cry" "bench bench_data"
+      , ceval "SHA512" "bench/data/SHA512.cry" "testVector1 ()"
       ]
   , bgroup "sym_eval" [
         seval False "AES" "bench/data/AES.cry" "aesEncrypt (zero, zero)"
-      , seval False "ZUC"
-          "bench/data/ZUC.cry" "ZUC_isResistantToCollisionAttack"
+      , seval False "ZUC" "bench/data/ZUC.cry"
+          "ZUC_isResistantToCollisionAttack"
+      , seval False "SHA512" "bench/data/SHA512.cry" "testVector1 ()"
       ]
   , bgroup "sym_eval_ite" [
         seval True "aesEncrypt" "bench/data/AES.cry" "aesEncrypt (zero, zero)"
-      , seval True "ZUC"
-          "bench/data/ZUC.cry" "ZUC_isResistantToCollisionAttack"
+      , seval True "ZUC" "bench/data/ZUC.cry" "ZUC_isResistantToCollisionAttack"
+      , seval True "SHA512" "bench/data/SHA512.cry" "testVector1 ()"
       ]
   ]
 
