@@ -31,7 +31,7 @@ $unitick        = \x7
 @id_next      = [a-zA-Z0-9_'] | $unilower | $uniupper | $unidigit | $unitick
 
 @id           = @id_first @id_next*
-@op           = ([\!\@\#\$\%\^\&\*\~\>\<\?\+\=\|\/\\] | $unisymbol)+
+@op           = ([\!\@\#\$\%\^\&\*\~\>\<\?\+\=\|\/\\\-] | $unisymbol)+
 
 @qual         = (@id $white* :: $white*)+
 @qual_id      = @qual @id
