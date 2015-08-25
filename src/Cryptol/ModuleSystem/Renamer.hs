@@ -70,6 +70,9 @@ data RenamerError
 
   | InvalidConstraint Type
     -- ^ When it's not possible to produce a Prop from a Type.
+
+  | MalformedConstraint (Located Type)
+    -- ^ When a constraint appears within another constraint
     deriving (Show,Generic)
 
 instance NFData RenamerError
@@ -115,6 +118,11 @@ instance PP RenamerError where
     InvalidConstraint ty ->
       hang (text "[error]" <+> maybe empty (\r -> text "at" <+> pp r) (getLoc ty))
          4 (fsep [ pp ty, text "is not a valid constraint" ])
+
+    MalformedConstraint t ->
+      hang (text "[error] at" <+> pp (srcRange t))
+         4 (sep [ quotes (pp (thing t))
+                , text "is not a valid argument to a constraint" ])
 
 -- Warnings --------------------------------------------------------------------
 
@@ -415,6 +423,13 @@ rnType isProp = go
       | n == mkName "lengthFromThenTo" -> TApp TCLenFromThenTo <$> traverse go ps
       | n == mkName "width"            -> TApp TCWidth         <$> traverse go ps
 
+        -- This should only happen in error, as fin constraints are constructed
+        -- in the parser. (Cryptol.Parser.ParserUtils.mkProp)
+      | n == mkName "fin" && isProp    ->
+        do locTy <- located t
+           record (MalformedConstraint locTy)
+           return t
+
     TUser qn ps  -> TUser    <$> renameType qn <*> traverse go ps
     TApp f xs    -> TApp f   <$> traverse go xs
     TRecord fs   -> TRecord  <$> traverse (traverse go) fs
@@ -429,37 +444,43 @@ rnType isProp = go
       do op <- renameTypeOp isProp o
          a' <- go a
          b' <- go b
-         mkTInfix a' op b'
+         mkTInfix isProp a' op b'
 
 
 type TOp = Type -> Type -> Type
 
-mkTInfix :: Type -> (TOp,Fixity) -> Type -> RenameM Type
+mkTInfix :: Bool -> Type -> (TOp,Fixity) -> Type -> RenameM Type
 
 -- this should be one of the props, or an error, so just assume that its fixity
 -- is `infix 0`.
-mkTInfix t@(TUser o1 [x,y]) op@(o2,f2) z =
+mkTInfix True t@(TUser o1 [x,y]) op@(o2,f2) z =
   do let f1 = Fixity NonAssoc 0
      case compareFixity f1 f2 of
        FCLeft  -> return (o2 t z)
-       FCRight -> do r <- mkTInfix y op z
+       FCRight -> do r <- mkTInfix True y op z
                      return (TUser o1 [x,r])
-       FCError -> panic "Renamer" [ "fixity problem for type operators"
-                                  , show (o2 t z) ]
 
-mkTInfix t@(TApp o1 [x,y]) op@(o2,f2) z
+       -- Just reconstruct with the TUser part being an application. If this was
+       -- a real error, it will have been caught by now.
+       FCError -> return (o2 t z)
+
+-- In this case, we know the fixities of both sides.
+mkTInfix isProp t@(TApp o1 [x,y]) op@(o2,f2) z
   | Just (a1,p1) <- Map.lookup o1 tBinOpPrec =
      case compareFixity (Fixity a1 p1) f2 of
        FCLeft  -> return (o2 t z)
-       FCRight -> do r <- mkTInfix y op z
+       FCRight -> do r <- mkTInfix isProp y op z
                      return (TApp o1 [x,r])
+
+       -- As the fixity table is known, and this is a case where the fixity came
+       -- from that table, it's a real error if the fixities didn't work out.
        FCError -> panic "Renamer" [ "fixity problem for type operators"
                                   , show (o2 t z) ]
 
-mkTInfix (TLocated t _) op z =
-     mkTInfix t op z
+mkTInfix isProp (TLocated t _) op z =
+     mkTInfix isProp t op z
 
-mkTInfix t (op,_) z =
+mkTInfix _ t (op,_) z =
      return (op t z)
 
 
