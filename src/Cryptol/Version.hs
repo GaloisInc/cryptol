@@ -8,8 +8,15 @@
 
 {-# LANGUAGE Safe #-}
 
-module Cryptol.Version where
+module Cryptol.Version (
+    commitHash
+  , commitShortHash
+  , commitBranch
+  , commitDirty
+  , version
+  ) where
 
+import Paths_cryptol
 import qualified GitRev
 
 commitHash :: String
