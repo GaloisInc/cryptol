@@ -1022,7 +1022,7 @@ AEAD_CHACHA20_POLY1305 : {m, n}
                        => [256] -> [96] -> [m][8] -> [n][8]
                        -> [m+16][8]
 
-AEAD_CHACHA20_POLY1305 k nonce p aad = (ct # tag) where 
+AEAD_CHACHA20_POLY1305 k nonce p aad = (ct # tag) where
 ```
 
 Some protocols may have unique per-invocation inputs that are not 96-
@@ -1077,8 +1077,8 @@ takes a 256-bit key and 96-bit nonce as follows:
 	
 //ct in this function has tag removed
 AeadConstruction (AAD : [n][8]) (CT : [m][8]) = (AAD # padding1 # CT # padding2 # adlen # ptlen) where
-	padding1 = (zero:[(16-n%16)][8])
-	padding2 = (zero:[(16-m%16)][8])
+	padding1 = (zero:[(16-n%16)%16][8])
+	padding2 = (zero:[(16-m%16)%16][8])
 	adlen : [8][8]
 	adlen = groupBy`{8}(littleendian (groupBy`{8}(`n:[64])))
 	ptlen : [8][8]
