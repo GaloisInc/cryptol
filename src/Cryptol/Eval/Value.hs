@@ -78,15 +78,14 @@ finTValue tval =
 -- Values ----------------------------------------------------------------------
 
 -- | width, value
--- The value may contain junk bits
+-- Invariant: The value must be within the range 0 .. 2^width-1
 data BV = BV !Integer !Integer deriving (Generic)
 
 instance NFData BV
 
 -- | Smart constructor for 'BV's that checks for the width limit
 mkBv :: Integer -> Integer -> BV
-mkBv w i | w >= Arch.maxBigIntWidth = wordTooWide w
-         | otherwise = BV w i
+mkBv w i = BV w (mask w i)
 
 -- | Generic value type, parameterized by bit and word types.
 data GenValue b w
@@ -140,7 +139,7 @@ ppValue opts = loop
     VSeq isWord vals
        | isWord        -> ppWord opts (fromVWord val)
        | otherwise     -> ppWordSeq vals
-    VWord (BV w i)     -> ppWord opts (BV w (mask w i))
+    VWord (BV w i)     -> ppWord opts (BV w i)
     VStream vals       -> brackets $ fsep
                                    $ punctuate comma
                                    ( take (useInfLength opts) (map loop vals)
@@ -236,7 +235,7 @@ instance BitWord Bool BV where
 
 -- | Create a packed word of n bits.
 word :: Integer -> Integer -> Value
-word n i = VWord (mkBv n (mask n i))
+word n i = VWord (mkBv n i)
 
 lam :: (GenValue b w -> GenValue b w) -> GenValue b w
 lam  = VFun
@@ -301,7 +300,6 @@ fromStr :: Value -> String
 fromStr = map (toEnum . fromInteger . fromWord) . fromSeq
 
 -- | Extract a packed word.
--- Note that this does not clean-up any junk bits in the word.
 fromVWord :: BitWord b w => GenValue b w -> w
 fromVWord val = case val of
   VWord bv                -> bv -- this should always mask
@@ -317,9 +315,8 @@ vWordLen val = case val of
 
 -- | Turn a value into an integer represented by w bits.
 fromWord :: Value -> Integer
-fromWord val = mask w a
-  where
-  BV w a = fromVWord val
+fromWord val = a
+  where BV _ a = fromVWord val
 
 -- | Extract a function from a value.
 fromVFun :: GenValue b w -> (GenValue b w -> GenValue b w)

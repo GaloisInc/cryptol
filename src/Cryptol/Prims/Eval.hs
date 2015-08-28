@@ -477,12 +477,11 @@ splitAtV :: TValue -> TValue -> TValue -> Value -> Value
 splitAtV front back a val =
   case numTValue back of
 
-    -- remember that words are big-endian in cryptol, so the masked portion
-    -- needs to be first, assuming that we're on a little-endian machine.
-    Nat rightWidth | aBit, VWord (BV w v) <- val ->
-      let i          = mask w v
-       in VTuple [ word leftWidth (i `shiftR` fromInteger rightWidth)
-                 , word rightWidth i ]
+    -- Remember that words are big-endian in cryptol, so the first component
+    -- needs to be shifted, and the second component just needs to be masked.
+    Nat rightWidth | aBit, VWord (BV _ i) <- val ->
+          VTuple [ VWord (BV leftWidth (i `shiftR` fromInteger rightWidth))
+                 , VWord (mkBv rightWidth i) ]
 
     _ ->
       let (ls,rs) = genericSplitAt leftWidth (fromSeq val)
@@ -539,7 +538,8 @@ logicBinary op = loop
       case numTValue len of
 
          -- words or finite sequences
-         Nat w | isTBit aty -> VWord (mkBv w (op (fromWord l) (fromWord r)))
+         Nat w | isTBit aty -> VWord (BV w (op (fromWord l) (fromWord r)))
+                               -- We assume that bitwise ops do not need re-masking
                | otherwise -> VSeq False (zipWith (loop aty) (fromSeq l)
                                                              (fromSeq r))
 
@@ -593,8 +593,8 @@ logicUnary op = loop
 
 
 logicShift :: (Integer -> Integer -> Int -> Integer)
-              -- ^ the Integer value (argument 2) may contain junk bits, but the
-              -- Int (argument 3) will always be clean
+              -- ^ The function may assume its arguments are masked.
+              -- It is responsible for masking its result if needed.
            -> (TValue -> TValue -> [Value] -> Int -> [Value])
            -> Value
 logicShift opW opS
@@ -614,7 +614,7 @@ logicShift opW opS
 shiftLW :: Integer -> Integer -> Int -> Integer
 shiftLW w ival by
   | toInteger by >= w = 0
-  | otherwise         = shiftL ival by
+  | otherwise         = mask w (shiftL ival by)
 
 shiftLS :: TValue -> TValue -> [Value] -> Int -> [Value]
 shiftLS w ety vs by =
@@ -627,7 +627,7 @@ shiftLS w ety vs by =
 shiftRW :: Integer -> Integer -> Int -> Integer
 shiftRW w i by
   | toInteger by >= w = 0
-  | otherwise         = shiftR (mask w i) by
+  | otherwise         = shiftR i by
 
 shiftRS :: TValue -> TValue -> [Value] -> Int -> [Value]
 shiftRS w ety vs by =
@@ -640,7 +640,7 @@ shiftRS w ety vs by =
 -- XXX integer doesn't implement rotateL, as there's no bit bound
 rotateLW :: Integer -> Integer -> Int -> Integer
 rotateLW 0 i _  = i
-rotateLW w i by = (i `shiftL` b) .|. (mask w i `shiftR` (fromInteger w - b))
+rotateLW w i by = mask w $ (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
   where b = by `mod` fromInteger w
 
 
@@ -655,7 +655,7 @@ rotateLS w _ vs at =
 -- XXX integer doesn't implement rotateR, as there's no bit bound
 rotateRW :: Integer -> Integer -> Int -> Integer
 rotateRW 0 i _  = i
-rotateRW w i by = (mask w i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
+rotateRW w i by = mask w $ (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
   where b = by `mod` fromInteger w
 
 rotateRS :: TValue -> TValue -> [Value] -> Int -> [Value]
