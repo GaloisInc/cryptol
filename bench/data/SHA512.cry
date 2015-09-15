@@ -1,4 +1,4 @@
-// Provided by Sean Weaver as a performance regression in issue #269
+// Provided by @sdwelle as a performance regression in issue #269
 
 module SHA512 where
 
