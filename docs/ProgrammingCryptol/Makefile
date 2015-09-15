@@ -2,7 +2,6 @@ TARGET    = Cryptol
 TMP       = tmp
 MAIN      = main
 MAINTARGET= ${MAIN}/${TARGET}
-TMPTARGET = ${TMP}/${TARGET}
 SRCS      = ${wildcard *.tex */*.tex *.sty */*.sty} ${wildcard *.bib */*.bib} \
 	    ${wildcard *.sty} Makefile ${wildcard *.cry */*.cry}
 SPELLSRC  = ${filter-out ${wildcard utils/*.tex}, ${wildcard *.tex */*.tex}}
@@ -16,9 +15,9 @@ AUX       = ${wildcard ${TMP}/*.blg} ${wildcard ${TMP}/*.bbl} ${wildcard ${TMP}/
 	    ${wildcard ${TMP}/*.ind} ${wildcard ${TMP}/*.brf} ${wildcard ${TMP}/*.glg} \
 	    ${wildcard ${TMP}/*.glo} ${wildcard ${TMP}/*.gls} ${wildcard ${TMP}/*.ist} \
 
-LATEX     = xelatex -output-driver=xdvipdfmx -output-directory=${TMP} -halt-on-error -file-line-error
-BIBTEX    = bibtex
-MAKEINDEX = makeindex
+LATEXMK = latexmk -xelatex -outdir=${TMP}
+
+# LATEX     = xelatex -output-driver=xdvipdfmx -output-directory=${TMP} -halt-on-error -file-line-error
 
 # TODO: Switch to using pdflatex or rubber?
 # TODO: Ensure that TEXINPUTS is set correctly to make \includes and \usepackages more robust?
@@ -33,40 +32,18 @@ test:
 
 pdf: ${TARGET}.pdf
 
-${TMP}:
-	mkdir -p ${TMP}
+${TARGET}.pdf: ${SRCS}
+	${LATEXMK} ${MAINTARGET}.tex
 
-${TARGET}.pdf: ${SRCS} ${TMP}
-	# surely I don't need this many latex's and indexes etc; but this looks like a sure fire way of
-	# getting numbers right.. heh
-	${LATEX}     ${MAINTARGET}
-	${MAKEINDEX} ${TMP}/Cryptol.glo -s ${TMP}/Cryptol.ist -t ${TMP}/Cryptol.glg -o ${TMP}/Cryptol.gls
-	${MAKEINDEX} ${TMPTARGET}
-	${BIBTEX}    ${TMPTARGET}
-	${LATEX}     ${MAINTARGET}
-	${MAKEINDEX} ${TMPTARGET}
-	${MAKEINDEX} ${TMP}/Cryptol.glo -s ${TMP}/Cryptol.ist -t ${TMP}/Cryptol.glg -o ${TMP}/Cryptol.gls
-	${BIBTEX}    ${TMPTARGET}
-	${LATEX}     ${MAINTARGET}
-	${LATEX}     ${MAINTARGET}
-
-# for quickly seeing changes; might get the labels wrong
-quick: ${SRCS}
-	${LATEX}     ${MAINTARGET}
-
-# load into Cryptol
-cry:
-	cryptol-2 ${MAINTARGET}.tex
-# TODO see ticket #276
-#	cryptol -n ${MAINTARGET}
-
-.PHONY: spellClean superClean clean quickSpell
+.PHONY: squeaky superClean clean quickSpell
 
 clean:
+	${LATEXMK} -c ${MAINTARGET}.tex
 	rm -f ${AUX}
 
-superClean: clean
-	rm -f ${TARGET}.pdf 
+squeaky: clean
+	${LATEXMK} -C ${MAINTARGET}.tex
+	rm -f ${AUX}
 	make -C tools clean
 
 spellClean:

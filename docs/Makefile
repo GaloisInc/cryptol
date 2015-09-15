@@ -22,3 +22,8 @@ book:
 clean:
 	rm -f ${MARKDOWN}
 	rm -f ${BOOK}
+
+.PHONY: squeaky
+squeaky:
+	rm -f ${MARKDOWN}
+	(cd ProgrammingCryptol; make squeaky)

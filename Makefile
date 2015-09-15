@@ -266,6 +266,6 @@ clean:
 .PHONY: squeaky
 squeaky: clean
 	-$(CABAL) sandbox delete
-	(cd docs; make clean)
+	(cd docs; make squeaky)
 	rm -rf dist
 	rm -rf tests/dist
