@@ -21,7 +21,7 @@ import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (QName(..),Name(..),Decl(..),mkModName)
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)
 import Cryptol.Utils.Panic
-import Cryptol.ModuleSystem.Name (Ident, pack)
+import Cryptol.ModuleSystem.Name (Ident, pack, preludeName)
 
 import qualified Data.SBV.Dynamic as SBV
 import qualified Data.Map as Map
@@ -37,7 +37,7 @@ traverseSnd f (x, y) = (,) x <$> f y
 
 evalPrim :: Decl -> Value
 evalPrim Decl { dName = QName (Just m) (Name prim), .. }
-  | m == mkModName ["Cryptol"], Just val <- Map.lookup prim primTable = val
+  | m == preludeName, Just val <- Map.lookup prim primTable = val
 
 evalPrim Decl { .. } =
     panic "Eval" [ "Unimplemented primitive", show dName ]

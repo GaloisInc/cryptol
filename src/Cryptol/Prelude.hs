@@ -15,6 +15,7 @@
 module Cryptol.Prelude (writePreludeContents) where
 
 import Cryptol.ModuleSystem.Monad
+import Cryptol.ModuleSystem.Name (preludeName)
 
 #ifdef SELF_CONTAINED
 
@@ -41,6 +42,6 @@ import Cryptol.Parser.AST as P
 
 -- | If we're not self-contained, the Prelude is just missing
 writePreludeContents :: ModuleM FilePath
-writePreludeContents = moduleNotFound (P.ModName ["Cryptol"]) =<< getSearchPath
+writePreludeContents = moduleNotFound preludeName =<< getSearchPath
 
 #endif

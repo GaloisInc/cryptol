@@ -11,6 +11,7 @@ module Cryptol.ModuleSystem.Base where
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), deIfaceDecls)
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
+import Cryptol.ModuleSystem.Name (preludeName)
 import Cryptol.ModuleSystem.Env (lookupModule, LoadedModule(..)
                                 , meCoreLint, CoreLint(..))
 import qualified Cryptol.Eval                 as E
@@ -248,9 +249,6 @@ findFile path = do
       if b then return path' else loop rest
     [] -> cantFindFile path
   possibleFiles paths = map (</> path) paths
-
-preludeName :: P.ModName
-preludeName  = P.mkModName ["Cryptol"]
 
 -- | Add the prelude to the import list if it's not already mentioned.
 addPrelude :: P.Module -> P.Module
