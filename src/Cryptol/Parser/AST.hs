@@ -12,19 +12,20 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Parser.AST
   ( -- * Names
-    ModName(..), {-splitNamespace, parseModName, nsChar,-} modRange
-  , QName(..), mkModName, unModName, mkName, mkPrim, asPrim, mkQual, mkUnqual, unqual
-  , Name(..)
+    Ident, mkIdent, mkInfix, isInfixIdent, nullIdent
+  , ModName, modRange
+  , PName(..), getModName, getIdent, mkUnqual, mkQual
   , Named(..)
   , Pass(..)
   , Assoc(..)
 
     -- * Types
   , Schema(..)
-  , TParam(..), tpQName
+  , TParam(..)
   , Kind(..)
   , Type(..)
   , Prop(..)
@@ -60,16 +61,17 @@ module Cryptol.Parser.AST
 
     -- * Positions
   , Located(..)
-  , LName, LQName, LString
+  , LPName, LString
   , NoPos(..)
 
     -- * Pretty-printing
   , cppKind, ppSelector
   ) where
 
-import Cryptol.ModuleSystem.Name
+import Cryptol.Parser.Name
 import Cryptol.Parser.Position
-import Cryptol.Prims.Syntax
+import Cryptol.Prims.Syntax (TFun(..))
+import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
@@ -78,6 +80,7 @@ import qualified Data.Map as Map
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
+import qualified Data.Text as T
 import           Numeric(showIntAtBase)
 
 import GHC.Generics (Generic)
@@ -90,27 +93,26 @@ import           Data.Traversable (Traversable(..))
 #endif
 
 
--- | A name with location information.
-type LName    = Located Name
+-- AST -------------------------------------------------------------------------
 
--- | A qualified name with location information.
-type LQName   = Located QName
+-- | A name with location information.
+type LPName    = Located PName
 
 -- | A string with location information.
 type LString  = Located String
 
 
-newtype Program = Program [TopDecl]
-                  deriving (Show)
+newtype Program name = Program [TopDecl name]
+                       deriving (Show)
 
-data Module = Module { mName    :: Located ModName
-                     , mImports :: [Located Import]
-                     , mDecls   :: [TopDecl]
-                     } deriving (Show, Generic)
+data Module name = Module { mName    :: Located ModName
+                          , mImports :: [Located Import]
+                          , mDecls   :: [TopDecl name]
+                          } deriving (Show, Generic)
 
-instance NFData Module
+instance NFData name => NFData (Module name)
 
-modRange :: Module -> Range
+modRange :: Module name -> Range
 modRange m = rCombs $ catMaybes
     [ getLoc (mName m)
     , getLoc (mImports m)
@@ -119,26 +121,26 @@ modRange m = rCombs $ catMaybes
     ]
 
 
-data TopDecl  = Decl (TopLevel Decl)
-              | TDNewtype (TopLevel Newtype)
-              | Include (Located FilePath)
-                deriving (Show,Generic)
+data TopDecl name = Decl (TopLevel (Decl name))
+                  | TDNewtype (TopLevel (Newtype name))
+                  | Include (Located FilePath)
+                    deriving (Show,Generic)
 
-instance NFData TopDecl
+instance NFData name => NFData (TopDecl name)
 
-data Decl     = DSignature [LQName] Schema
-              | DFixity !Fixity [LQName]
-              | DPragma [LQName] Pragma
-              | DBind Bind
-              | DPatBind Pattern Expr
-              | DType TySyn
-              | DLocated Decl Range
-                deriving (Eq,Show,Generic)
+data Decl name = DSignature [Located name] (Schema name)
+               | DFixity !Fixity [Located name]
+               | DPragma [Located name] Pragma
+               | DBind (Bind name)
+               | DPatBind (Pattern name) (Expr name)
+               | DType (TySyn name)
+               | DLocated (Decl name) Range
+                 deriving (Eq,Show,Generic)
 
-instance NFData Decl
+instance NFData name => NFData (Decl name)
 
 -- | An import declaration.
-data Import = Import { iModule    :: ModName
+data Import = Import { iModule    :: !ModName
                      , iAs        :: Maybe ModName
                      , iSpec      :: Maybe ImportSpec
                      } deriving (Eq,Show,Generic)
@@ -150,16 +152,16 @@ instance NFData Import
 -- INVARIANT: All of the 'Name' entries in the list are expected to be
 -- unqualified names; the 'QName' or 'NewName' constructors should not be
 -- present.
-data ImportSpec = Hiding [Name]
-                | Only   [Name]
+data ImportSpec = Hiding [Ident]
+                | Only   [Ident]
                   deriving (Eq,Show,Generic)
 
 instance NFData ImportSpec
 
-data TySyn    = TySyn LQName [TParam] Type
+data TySyn n  = TySyn (Located n) [TParam n] (Type n)
                 deriving (Eq,Show,Generic)
 
-instance NFData TySyn
+instance NFData name => NFData (TySyn name)
 
 {- | Bindings.  Notes:
 
@@ -173,26 +175,26 @@ instance NFData TySyn
       by the type checker.  However, they are useful when de-sugaring
       patterns.
 -}
-data Bind     = Bind { bName      :: LQName       -- ^ Defined thing
-                     , bParams    :: [Pattern]    -- ^ Parameters
-                     , bDef       :: LBindDef     -- ^ Definition
-                     , bSignature :: Maybe Schema -- ^ Optional type sig
-                     , bInfix     :: Bool         -- ^ Infix operator?
-                     , bFixity    :: Maybe Fixity -- ^ Optional fixity info
-                     , bPragmas   :: [Pragma]     -- ^ Optional pragmas
-                     , bMono      :: Bool         -- ^ Is this a monomorphic binding
-                     , bDoc       :: Maybe String -- ^ Optional doc string
-                     } deriving (Eq,Show,Generic)
+data Bind name = Bind { bName      :: Located name -- ^ Defined thing
+                      , bParams    :: [Pattern name]-- ^ Parameters
+                      , bDef       :: Located (BindDef name) -- ^ Definition
+                      , bSignature :: Maybe (Schema name) -- ^ Optional type sig
+                      , bInfix     :: Bool         -- ^ Infix operator?
+                      , bFixity    :: Maybe Fixity -- ^ Optional fixity info
+                      , bPragmas   :: [Pragma]     -- ^ Optional pragmas
+                      , bMono      :: Bool         -- ^ Is this a monomorphic binding
+                      , bDoc       :: Maybe String -- ^ Optional doc string
+                      } deriving (Eq,Show,Generic)
 
-instance NFData Bind
+instance NFData name => NFData (Bind name)
 
-type LBindDef = Located BindDef
+type LBindDef = Located (BindDef PName)
 
-data BindDef  = DPrim
-              | DExpr Expr
-                deriving (Eq,Show,Generic)
+data BindDef name = DPrim
+                  | DExpr (Expr name)
+                    deriving (Eq,Show,Generic)
 
-instance NFData BindDef
+instance NFData name => NFData (BindDef name)
 
 data Fixity   = Fixity { fAssoc :: !Assoc
                        , fLevel :: !Int
@@ -225,18 +227,18 @@ data Pragma   = PragmaNote String
 
 instance NFData Pragma
 
-data Newtype  = Newtype { nName   :: LQName       -- ^ Type name
-                        , nParams :: [TParam]     -- ^ Type params
-                        , nBody   :: [Named Type] -- ^ Constructor
-                        } deriving (Eq,Show,Generic)
+data Newtype name = Newtype { nName   :: Located name        -- ^ Type name
+                            , nParams :: [TParam name]       -- ^ Type params
+                            , nBody   :: [Named (Type name)] -- ^ Constructor
+                            } deriving (Eq,Show,Generic)
 
-instance NFData Newtype
+instance NFData name => NFData (Newtype name)
 
 -- | Input at the REPL, which can either be an expression or a @let@
 -- statement.
-data ReplInput = ExprInput Expr
-               | LetInput Decl
-                 deriving (Eq, Show)
+data ReplInput name = ExprInput (Expr name)
+                    | LetInput (Decl name)
+                      deriving (Eq, Show)
 
 -- | Export information for a declaration.
 data ExportType = Public
@@ -248,43 +250,40 @@ instance NFData ExportType
 data TopLevel a = TopLevel { tlExport :: ExportType
                            , tlDoc    :: Maybe (Located String)
                            , tlValue  :: a
-                           } deriving (Show,Generic)
+                           } deriving (Show,Generic,Functor,Foldable,Traversable)
 
 instance NFData a => NFData (TopLevel a)
 
-instance Functor TopLevel where
-  fmap f tl = tl { tlValue = f (tlValue tl) }
+data ExportSpec name = ExportSpec { eTypes  :: Set.Set name
+                                  , eBinds  :: Set.Set name
+                                  } deriving (Show,Generic)
 
-data ExportSpec = ExportSpec { eTypes  :: Set.Set QName
-                             , eBinds  :: Set.Set QName
-                             } deriving (Show,Generic)
+instance NFData name => NFData (ExportSpec name)
 
-instance NFData ExportSpec
-
-instance Monoid ExportSpec where
+instance Ord name => Monoid (ExportSpec name) where
   mempty      = ExportSpec { eTypes = mempty, eBinds = mempty }
   mappend l r = ExportSpec { eTypes = mappend (eTypes l) (eTypes r)
                            , eBinds  = mappend (eBinds  l) (eBinds  r)
                            }
 
 -- | Add a binding name to the export list, if it should be exported.
-exportBind :: TopLevel QName -> ExportSpec
+exportBind :: Ord name => TopLevel name -> ExportSpec name
 exportBind n
   | tlExport n == Public = mempty { eBinds = Set.singleton (tlValue n) }
   | otherwise            = mempty
 
 -- | Check to see if a binding is exported.
-isExportedBind :: QName -> ExportSpec -> Bool
+isExportedBind :: Ord name => name -> ExportSpec name -> Bool
 isExportedBind n = Set.member n . eBinds
 
 -- | Add a type synonym name to the export list, if it should be exported.
-exportType :: TopLevel QName -> ExportSpec
+exportType :: Ord name => TopLevel name -> ExportSpec name
 exportType n
   | tlExport n == Public = mempty { eTypes = Set.singleton (tlValue n) }
   | otherwise            = mempty
 
 -- | Check to see if a type synonym is exported.
-isExportedType :: QName -> ExportSpec -> Bool
+isExportedType :: Ord name => name -> ExportSpec name -> Bool
 isExportedType n = Set.member n . eTypes
 
 -- | Infromation about the representation of a numeric constant.
@@ -305,35 +304,35 @@ data Literal  = ECNum Integer NumInfo           -- ^ @0x10@  (HexLit 2)
 
 instance NFData Literal
 
-data Expr     = EVar QName                      -- ^ @ x @
+data Expr n   = EVar n                          -- ^ @ x @
               | ELit Literal                    -- ^ @ 0x10 @
-              | ETuple [Expr]                   -- ^ @ (1,2,3) @
-              | ERecord [Named Expr]            -- ^ @ { x = 1, y = 2 } @
-              | ESel Expr Selector              -- ^ @ e.l @
-              | EList [Expr]                    -- ^ @ [1,2,3] @
-              | EFromTo Type (Maybe Type) (Maybe Type)   -- ^ @[1, 5 ..  117 ] @
-              | EInfFrom Expr (Maybe Expr)      -- ^ @ [1, 3 ...] @
-              | EComp Expr [[Match]]            -- ^ @ [ 1 | x <- xs ] @
-              | EApp Expr Expr                  -- ^ @ f x @
-              | EAppT Expr [TypeInst]           -- ^ @ f `{x = 8}, f`{8} @
-              | EIf Expr Expr Expr              -- ^ @ if ok then e1 else e2 @
-              | EWhere Expr [Decl]              -- ^ @ 1 + x where { x = 2 } @
-              | ETyped Expr Type                -- ^ @ 1 : [8] @
-              | ETypeVal Type                   -- ^ @ `(x + 1)@, @x@ is a type
-              | EFun [Pattern] Expr             -- ^ @ \\x y -> x @
-              | ELocated Expr Range             -- ^ position annotation
+              | ETuple [Expr n]                 -- ^ @ (1,2,3) @
+              | ERecord [Named (Expr n)]        -- ^ @ { x = 1, y = 2 } @
+              | ESel (Expr n) (Selector n)      -- ^ @ e.l @
+              | EList [Expr n]                  -- ^ @ [1,2,3] @
+              | EFromTo (Type n) (Maybe (Type n)) (Maybe (Type n)) -- ^ @[1, 5 ..  117 ] @
+              | EInfFrom (Expr n) (Maybe (Expr n))-- ^ @ [1, 3 ...] @
+              | EComp (Expr n) [[Match n]]      -- ^ @ [ 1 | x <- xs ] @
+              | EApp (Expr n) (Expr n)          -- ^ @ f x @
+              | EAppT (Expr n) [(TypeInst n)]   -- ^ @ f `{x = 8}, f`{8} @
+              | EIf (Expr n) (Expr n) (Expr n)  -- ^ @ if ok then e1 else e2 @
+              | EWhere (Expr n) [Decl n]        -- ^ @ 1 + x where { x = 2 } @
+              | ETyped (Expr n) (Type n)        -- ^ @ 1 : [8] @
+              | ETypeVal (Type n)               -- ^ @ `(x + 1)@, @x@ is a type
+              | EFun [Pattern n] (Expr n)       -- ^ @ \\x y -> x @
+              | ELocated (Expr n) Range         -- ^ position annotation
 
-              | EParens Expr                    -- ^ @ (e)   @ (Removed by Fixity)
-              | EInfix Expr (LQName) Fixity Expr-- ^ @ a + b @ (Removed by Fixity)
+              | EParens (Expr n)                -- ^ @ (e)   @ (Removed by Fixity)
+              | EInfix (Expr n) (Located n) Fixity (Expr n)-- ^ @ a + b @ (Removed by Fixity)
                 deriving (Eq,Show,Generic)
 
-instance NFData Expr
+instance NFData name => NFData (Expr name)
 
-data TypeInst = NamedInst (Named Type)
-              | PosInst Type
-                deriving (Eq,Show,Generic)
+data TypeInst name = NamedInst (Named (Type name))
+                   | PosInst (Type name)
+                     deriving (Eq,Show,Generic)
 
-instance NFData TypeInst
+instance NFData name => NFData (TypeInst name)
 
 
 {- | Selectors are used for projecting from various components.
@@ -342,174 +341,168 @@ that is being selected.  Currently, there is no surface syntax for
 list selectors, but they are used during the desugaring of patterns.
 -}
 
-data Selector = TupleSel Int   (Maybe Int)
-                -- ^ Zero-based tuple selection.
-                -- Optionally specifies the shape of the tuple (one-based).
+data Selector name = TupleSel Int   (Maybe Int)
+                     -- ^ Zero-based tuple selection.
+                     -- Optionally specifies the shape of the tuple (one-based).
 
-              | RecordSel Name (Maybe [Name])
-                -- ^ Record selection.
-                -- Optionally specifies the shape of the record.
+                   | RecordSel name (Maybe [name])
+                     -- ^ Record selection.
+                     -- Optionally specifies the shape of the record.
 
-              | ListSel Int    (Maybe Int)
-                -- ^ List selection.
-                -- Optionally specifies the length of the list.
-                deriving (Eq,Show,Ord,Generic)
+                   | ListSel Int    (Maybe Int)
+                     -- ^ List selection.
+                     -- Optionally specifies the length of the list.
+                     deriving (Eq,Show,Ord,Generic)
 
-instance NFData Selector
+instance NFData name => NFData (Selector name)
 
-data Match    = Match Pattern Expr              -- ^ p <- e
-              | MatchLet Bind
-                deriving (Eq,Show,Generic)
+data Match name = Match (Pattern name) (Expr name)              -- ^ p <- e
+                | MatchLet (Bind name)
+                  deriving (Eq,Show,Generic)
 
-instance NFData Match
+instance NFData name => NFData (Match name)
 
-data Pattern  = PVar LName                    -- ^ @ x @
-              | PWild                         -- ^ @ _ @
-              | PTuple [Pattern]              -- ^ @ (x,y,z) @
-              | PRecord [ Named Pattern ]     -- ^ @ { x = (a,b,c), y = z } @
-              | PList [ Pattern ]             -- ^ @ [ x, y, z ] @
-              | PTyped Pattern Type           -- ^ @ x : [8] @
-              | PSplit Pattern Pattern        -- ^ @ (x # y) @
-              | PLocated Pattern Range        -- ^ Location information
-                deriving (Eq,Show,Generic)
+data Pattern n = PVar (Located n)              -- ^ @ x @
+               | PWild                         -- ^ @ _ @
+               | PTuple [Pattern n]            -- ^ @ (x,y,z) @
+               | PRecord [ Named (Pattern n) ] -- ^ @ { x = (a,b,c), y = z } @
+               | PList [ Pattern n ]           -- ^ @ [ x, y, z ] @
+               | PTyped (Pattern n) (Type n)   -- ^ @ x : [8] @
+               | PSplit (Pattern n) (Pattern n)-- ^ @ (x # y) @
+               | PLocated (Pattern n) Range    -- ^ Location information
+                 deriving (Eq,Show,Generic)
 
-instance NFData Pattern
+instance NFData name => NFData (Pattern name)
 
-data Named a  = Named { name :: Located Name, value :: a }
-                deriving (Eq,Show,Foldable,Traversable,Generic)
+data Named a = Named { name :: Located Ident, value :: a }
+               deriving (Eq,Show,Foldable,Traversable,Generic,Functor)
 
 instance NFData a => NFData (Named a)
 
-instance Functor Named where
-  fmap f x = x { value = f (value x) }
 
-
-data Schema   = Forall [TParam] [Prop] Type (Maybe Range)
+data Schema n = Forall [TParam n] [Prop n] (Type n) (Maybe Range)
                 deriving (Eq,Show,Generic)
 
-instance NFData Schema
+instance NFData name => NFData (Schema name)
 
 data Kind     = KNum | KType
                 deriving (Eq,Show,Generic)
 
 instance NFData Kind
 
-data TParam   = TParam { tpName  :: Name
+data TParam n = TParam { tpName  :: n
                        , tpKind  :: Maybe Kind
                        , tpRange :: Maybe Range
                        }
                 deriving (Eq,Show,Generic)
 
-instance NFData TParam
-
-tpQName :: TParam -> QName
-tpQName  = mkUnqual . tpName
+instance NFData name => NFData (TParam name)
 
 
-data Type     = TFun Type Type          -- ^ @[8] -> [8]@
-              | TSeq Type Type          -- ^ @[8] a@
+data Type n   = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
+              | TSeq (Type n) (Type n)  -- ^ @[8] a@
               | TBit                    -- ^ @Bit@
               | TNum Integer            -- ^ @10@
               | TChar Char              -- ^ @'a'@
               | TInf                    -- ^ @inf@
-              | TUser QName [Type]      -- ^ A type variable or synonym
-              | TApp TFun [Type]        -- ^ @2 + x@
-              | TRecord [Named Type]    -- ^ @{ x : [8], y : [32] }@
-              | TTuple [Type]           -- ^ @([8], [32])@
+              | TUser n [Type n]        -- ^ A type variable or synonym
+              | TApp TFun [Type n]      -- ^ @2 + x@
+              | TRecord [Named (Type n)]-- ^ @{ x : [8], y : [32] }@
+              | TTuple [Type n]         -- ^ @([8], [32])@
               | TWild                   -- ^ @_@, just some type.
-              | TLocated Type Range     -- ^ Location information
-              | TParens Type            -- ^ @ (ty) @
-              | TInfix Type LQName Fixity Type -- ^ @ ty + ty @
+              | TLocated (Type n) Range -- ^ Location information
+              | TParens (Type n)        -- ^ @ (ty) @
+              | TInfix (Type n) (Located n) Fixity (Type n) -- ^ @ ty + ty @
                 deriving (Eq,Show,Generic)
 
-instance NFData Type
+instance NFData name => NFData (Type name)
 
-data Prop     = CFin Type             -- ^ @ fin x   @
-              | CEqual Type Type      -- ^ @ x == 10 @
-              | CGeq Type Type        -- ^ @ x >= 10 @
-              | CArith Type           -- ^ @ Arith a @
-              | CCmp Type             -- ^ @ Cmp a @
-              | CLocated Prop Range   -- ^ Location information
+data Prop n   = CFin (Type n)             -- ^ @ fin x   @
+              | CEqual (Type n) (Type n)  -- ^ @ x == 10 @
+              | CGeq (Type n) (Type n)    -- ^ @ x >= 10 @
+              | CArith (Type n)           -- ^ @ Arith a @
+              | CCmp (Type n)             -- ^ @ Cmp a @
+              | CLocated (Prop n) Range   -- ^ Location information
 
-              | CType Type            -- ^ After parsing
+              | CType (Type n)            -- ^ After parsing
                 deriving (Eq,Show,Generic)
 
-instance NFData Prop
+instance NFData name => NFData (Prop name)
 
 --------------------------------------------------------------------------------
 -- Note: When an explicit location is missing, we could use the sub-components
 -- to try to estimate a location...
 
 
-instance AddLoc Expr where
+instance AddLoc (Expr n) where
   addLoc = ELocated
 
   dropLoc (ELocated e _) = dropLoc e
   dropLoc e              = e
 
-instance HasLoc Expr where
+instance HasLoc (Expr name) where
   getLoc (ELocated _ r) = Just r
   getLoc _              = Nothing
 
-instance HasLoc TParam where
+instance HasLoc (TParam name) where
   getLoc (TParam _ _ r) = r
 
-instance AddLoc TParam where
+instance AddLoc (TParam name) where
   addLoc (TParam a b _) l = TParam a b (Just l)
   dropLoc (TParam a b _)  = TParam a b Nothing
 
-instance HasLoc Type where
+instance HasLoc (Type name) where
   getLoc (TLocated _ r) = Just r
   getLoc _              = Nothing
 
-instance AddLoc Type where
+instance AddLoc (Type name) where
   addLoc = TLocated
 
   dropLoc (TLocated e _) = dropLoc e
   dropLoc e              = e
 
-instance HasLoc Prop where
+instance HasLoc (Prop name) where
   getLoc (CLocated _ r) = Just r
   getLoc _              = Nothing
 
-instance AddLoc Prop where
+instance AddLoc (Prop name) where
   addLoc = CLocated
 
   dropLoc (CLocated e _) = dropLoc e
   dropLoc e              = e
 
-instance AddLoc Pattern where
+instance AddLoc (Pattern name) where
   addLoc = PLocated
 
   dropLoc (PLocated e _) = dropLoc e
   dropLoc e              = e
 
-instance HasLoc Pattern where
+instance HasLoc (Pattern name) where
   getLoc (PLocated _ r) = Just r
   getLoc _              = Nothing
 
-instance HasLoc Bind where
+instance HasLoc (Bind name) where
   getLoc b = getLoc (bName b, bDef b)
 
-instance HasLoc Match where
+instance HasLoc (Match name) where
   getLoc (Match p e)    = getLoc (p,e)
   getLoc (MatchLet b)   = getLoc b
 
 instance HasLoc a => HasLoc (Named a) where
   getLoc l = getLoc (name l, value l)
 
-instance HasLoc Schema where
+instance HasLoc (Schema name) where
   getLoc (Forall _ _ _ r) = r
 
-instance AddLoc Schema where
+instance AddLoc (Schema name) where
   addLoc  (Forall xs ps t _) r = Forall xs ps t (Just r)
   dropLoc (Forall xs ps t _)   = Forall xs ps t Nothing
 
-instance HasLoc Decl where
+instance HasLoc (Decl name) where
   getLoc (DLocated _ r) = Just r
   getLoc _              = Nothing
 
-instance AddLoc Decl where
+instance AddLoc (Decl name) where
   addLoc d r             = DLocated d r
 
   dropLoc (DLocated d _) = dropLoc d
@@ -518,13 +511,13 @@ instance AddLoc Decl where
 instance HasLoc a => HasLoc (TopLevel a) where
   getLoc = getLoc . tlValue
 
-instance HasLoc TopDecl where
+instance HasLoc (TopDecl name) where
   getLoc td = case td of
     Decl tld    -> getLoc tld
     TDNewtype n -> getLoc n
     Include lfp -> getLoc lfp
 
-instance HasLoc Module where
+instance HasLoc (Module name) where
   getLoc m
     | null locs = Nothing
     | otherwise = Just (rCombs locs)
@@ -534,7 +527,7 @@ instance HasLoc Module where
                      , getLoc (mDecls m)
                      ]
 
-instance HasLoc Newtype where
+instance HasLoc (Newtype name) where
   getLoc n
     | null locs = Nothing
     | otherwise = Just (rCombs locs)
@@ -559,22 +552,22 @@ ppNamed :: PP a => String -> Named a -> Doc
 ppNamed s x = ppL (name x) <+> text s <+> pp (value x)
 
 
-instance PP Module where
+instance (Show name, PPName name) => PP (Module name) where
   ppPrec _ m = text "module" <+> ppL (mName m) <+> text "where"
             $$ vcat (map ppL (mImports m))
             $$ vcat (map pp (mDecls m))
 
-instance PP Program where
+instance (Show name, PPName name) => PP (Program name) where
   ppPrec _ (Program ds) = vcat (map pp ds)
 
-instance PP TopDecl where
+instance (Show name, PPName name) => PP (TopDecl name) where
   ppPrec _ top_decl =
     case top_decl of
       Decl    d   -> pp d
       TDNewtype n -> pp n
       Include l   -> text "include" <+> text (show (thing l))
 
-instance PP Decl where
+instance (Show name, PPName name) => PP (Decl name) where
   ppPrec n decl =
     case decl of
       DSignature xs s -> commaSep (map ppL xs) <+> text ":" <+> pp s
@@ -585,12 +578,12 @@ instance PP Decl where
       DType ts        -> ppPrec n ts
       DLocated d _    -> ppPrec n d
 
-ppFixity :: Fixity -> [LQName] -> Doc
+ppFixity :: PPName name => Fixity -> [Located name] -> Doc
 ppFixity (Fixity LeftAssoc  i) ns = text "infixl" <+> int i <+> commaSep (map pp ns)
 ppFixity (Fixity RightAssoc i) ns = text "infixr" <+> int i <+> commaSep (map pp ns)
 ppFixity (Fixity NonAssoc   i) ns = text "infix"  <+> int i <+> commaSep (map pp ns)
 
-instance PP Newtype where
+instance PPName name => PP (Newtype name) where
   ppPrec _ nt = hsep
     [ text "newtype", ppL (nName nt), hsep (map pp (nParams nt)), char '='
     , braces (commaSep (map (ppNamed ":") (nBody nt))) ]
@@ -616,12 +609,12 @@ instance PP Pragma where
   ppPrec _ (PragmaNote x) = text x
   ppPrec _ PragmaProperty = text "property"
 
-ppPragma :: [LQName] -> Pragma -> Doc
+ppPragma :: PPName name => [Located name] -> Pragma -> Doc
 ppPragma xs p =
   text "/*" <+> text "pragma" <+> commaSep (map ppL xs) <+> text ":" <+> pp p
   <+> text "*/"
 
-instance PP Bind where
+instance (Show name, PPName name) => PP (Bind name) where
   ppPrec _ b = sig $$ vcat [ ppPragma [f] p | p <- bPragmas b ] $$
                hang (def <+> eq) 4 (pp (thing (bDef b)))
     where def | bInfix b  = lhsOp
@@ -638,12 +631,12 @@ instance PP Bind where
                     _     -> panic "AST" [ "Malformed infix operator", show b ]
 
 
-instance PP BindDef where
+instance (Show name, PPName name) => PP (BindDef name) where
   ppPrec _ DPrim     = text "<primitive>"
   ppPrec p (DExpr e) = ppPrec p e
 
 
-instance PP TySyn where
+instance PPName name => PP (TySyn name) where
   ppPrec _ (TySyn x xs t) = text "type" <+> ppL x <+> fsep (map (ppPrec 1) xs)
                                         <+> text "=" <+> pp t
 instance PP Literal where
@@ -688,31 +681,31 @@ ppNumLit n info =
 wrap :: Int -> Int -> Doc -> Doc
 wrap contextPrec myPrec doc = if myPrec < contextPrec then parens doc else doc
 
-isPrefixOp :: Expr -> Maybe Doc
+isPrefixOp :: Expr n -> Maybe Doc
 isPrefixOp (ELocated e _)                               = isPrefixOp e
-isPrefixOp e@(EVar (QName Nothing n)) | n == mkName "-" = Just (pp e)
-                                      | n == mkName "~" = Just (pp e)
+-- isPrefixOp e@(EVar (QName Nothing n)) | n == mkName "-" = Just (pp e)
+--                                       | n == mkName "~" = Just (pp e)
 isPrefixOp _                                            = Nothing
 
-isEApp :: Expr -> Maybe (Expr, Expr)
+isEApp :: Expr n -> Maybe (Expr n, Expr n)
 isEApp (ELocated e _)     = isEApp e
 isEApp (EApp e1 e2)       = Just (e1,e2)
 isEApp _                  = Nothing
 
-asEApps :: Expr -> (Expr, [Expr])
+asEApps :: Expr n -> (Expr n, [Expr n])
 asEApps expr = go expr []
     where go e es = case isEApp e of
                       Nothing       -> (e, es)
                       Just (e1, e2) -> go e1 (e2 : es)
 
-isTInfix :: Type -> Maybe (Infix TFun Type)
-isTInfix (TLocated t _)  = isTInfix t
-isTInfix (TApp ieOp [ieLeft,ieRight]) =
-  do (ieAssoc,iePrec) <- Map.lookup ieOp tBinOpPrec
-     return Infix { .. }
-isTInfix _               = Nothing
+-- isTInfix :: Type n -> Maybe (Infix TFun (Type n))
+-- isTInfix (TLocated t _)  = isTInfix t
+-- isTInfix (TApp ieOp [ieLeft,ieRight]) =
+--   do (ieAssoc,iePrec) <- Map.lookup ieOp tBinOpPrec
+--      return Infix { .. }
+-- isTInfix _               = Nothing
 
-instance PP TypeInst where
+instance PPName name => PP (TypeInst name) where
   ppPrec _ (PosInst t)   = pp t
   ppPrec _ (NamedInst x) = ppNamed "=" x
 
@@ -721,16 +714,13 @@ instance PP TypeInst where
 2: infix expression   (separate precedence table)
 3: application, prefix expressions
 -}
-instance PP Expr where
+instance (Show name, PPName name) => PP (Expr name) where
   -- Wrap if top level operator in expression is less than `n`
   ppPrec n expr =
     case expr of
 
       -- atoms
-      EVar x        -> withNameEnv $ \ env ->
-        let NameInfo qn isInfix = getNameInfo x env
-         in optParens isInfix (ppQName qn)
-
+      EVar x        -> ppPrefixName x
       ELit x        -> pp x
       ETuple es     -> parens (commaSep (map pp es))
       ERecord fs    -> braces (commaSep (map (ppNamed "=") fs))
@@ -762,11 +752,12 @@ instance PP Expr where
                                 $$ text "")
 
       -- infix applications
-      EApp (EApp (EVar f) x) y ->
-        wrap n 3 $ withNameEnv $ \ env ->
-          let NameInfo qn isInfix = getNameInfo f env
-           in if isInfix then ppPrec 3 x <+> ppQName qn <+> ppPrec 3 y
-                         else ppQName qn <+> ppPrec 3 x <+> ppPrec 3 y
+      -- XXX why did we need this case?
+      -- EApp (EApp (EVar f) x) y ->
+      --   wrap n 3 $ withNameEnv $ \ env ->
+      --     let NameInfo qn isInfix = getNameInfo f env
+      --      in if isInfix then ppPrec 3 x <+> ppQName qn <+> ppPrec 3 y
+      --                    else ppQName qn <+> ppPrec 3 x <+> ppPrec 3 y
 
       -- applications
       EApp e1 e2
@@ -780,9 +771,9 @@ instance PP Expr where
 
       EParens e -> parens (pp e)
 
-      EInfix e1 op _ e2 -> wrap n 0 (pp e1 <+> pp (thing op) <+> pp e2) 
+      EInfix e1 op _ e2 -> wrap n 0 (pp e1 <+> ppInfixName (thing op) <+> pp e2)
 
-instance PP Selector where
+instance PPName name => PP (Selector name) where
   ppPrec _ sel =
     case sel of
       TupleSel x sig    -> int x <+> ppSig tupleSig sig
@@ -798,7 +789,7 @@ instance PP Selector where
 
 
 -- | Display the thing selected by the selector, nicely.
-ppSelector :: Selector -> Doc
+ppSelector :: PPName name => Selector name -> Doc
 ppSelector sel =
   case sel of
     TupleSel x _  -> ordinal x <+> text "field"
@@ -807,7 +798,7 @@ ppSelector sel =
 
 
 
-instance PP Pattern where
+instance PPName name => PP (Pattern name) where
   ppPrec n pat =
     case pat of
       PVar x        -> pp (thing x)
@@ -819,12 +810,12 @@ instance PP Pattern where
       PSplit p1 p2  -> wrap n 1 (ppPrec 1 p1 <+> text "#" <+> ppPrec 1 p2)
       PLocated p _  -> ppPrec n p
 
-instance PP Match where
+instance (Show name, PPName name) => PP (Match name) where
   ppPrec _ (Match p e)  = pp p <+> text "<-" <+> pp e
   ppPrec _ (MatchLet b) = pp b
 
 
-instance PP Schema where
+instance PPName name => PP (Schema name) where
   ppPrec _ (Forall xs ps t _) = sep [vars <+> preds, pp t]
     where vars = case xs of
                    [] -> empty
@@ -842,7 +833,7 @@ cppKind :: Kind -> Doc
 cppKind KType = text "a value type"
 cppKind KNum  = text "a numeric type"
 
-instance PP TParam where
+instance PPName name => PP (TParam name) where
   ppPrec n (TParam p Nothing _)   = ppPrec n p
   ppPrec n (TParam p (Just k) _)  = wrap n 1 (pp p <+> text ":" <+> pp k)
 
@@ -850,7 +841,7 @@ instance PP TParam where
 -- 3: wrap application
 -- 2: wrap function
 -- 1:
-instance PP Type where
+instance PPName name => PP (Type name) where
   ppPrec n ty =
     case ty of
       TWild          -> text "_"
@@ -864,10 +855,10 @@ instance PP Type where
       TSeq t1 t2     -> optParens (n > 3)
                       $ brackets (pp t1) <> ppPrec 3 t2
 
-      TApp _ [_,_]
-        | Just tinf <- isTInfix ty
-                     -> optParens (n > 2)
-                      $ ppInfix 2 isTInfix tinf
+      -- TApp _ [_,_]
+      --   | Just tinf <- isTInfix ty
+      --                -> optParens (n > 2)
+      --                 $ ppInfix 2 isTInfix tinf
 
       TApp f ts      -> optParens (n > 2)
                       $ pp f <+> fsep (map (ppPrec 4) ts)
@@ -887,7 +878,7 @@ instance PP Type where
       TInfix t1 o _ t2 -> optParens (n > 0)
                         $ sep [ppPrec 2 t1 <+> pp o, ppPrec 1 t2]
 
-instance PP Prop where
+instance PPName name => PP (Prop name) where
   ppPrec n prop =
     case prop of
       CFin t       -> text "fin"   <+> ppPrec 4 t
@@ -917,16 +908,16 @@ instance NoPos t => NoPos (Named t) where
 instance NoPos t => NoPos [t]       where noPos = fmap noPos
 instance NoPos t => NoPos (Maybe t) where noPos = fmap noPos
 
-instance NoPos Program where
+instance NoPos (Program name) where
   noPos (Program x) = Program (noPos x)
 
-instance NoPos Module where
+instance NoPos (Module name) where
   noPos m = Module { mName    = mName m
                    , mImports = noPos (mImports m)
                    , mDecls   = noPos (mDecls m)
                    }
 
-instance NoPos TopDecl where
+instance NoPos (TopDecl name) where
   noPos decl =
     case decl of
       Decl    x   -> Decl     (noPos x)
@@ -936,7 +927,7 @@ instance NoPos TopDecl where
 instance NoPos a => NoPos (TopLevel a) where
   noPos tl = tl { tlValue = noPos (tlValue tl) }
 
-instance NoPos Decl where
+instance NoPos (Decl name) where
   noPos decl =
     case decl of
       DSignature x y   -> DSignature (noPos x) (noPos y)
@@ -947,13 +938,13 @@ instance NoPos Decl where
       DType      x     -> DType      (noPos x)
       DLocated   x _   -> noPos x
 
-instance NoPos Newtype where
+instance NoPos (Newtype name) where
   noPos n = Newtype { nName   = noPos (nName n)
                     , nParams = nParams n
                     , nBody   = noPos (nBody n)
                     }
 
-instance NoPos Bind where
+instance NoPos (Bind name) where
   noPos x = Bind { bName      = noPos (bName      x)
                  , bParams    = noPos (bParams    x)
                  , bDef       = noPos (bDef       x)
@@ -972,10 +963,10 @@ instance NoPos Pragma where
 
 
 
-instance NoPos TySyn where
+instance NoPos (TySyn name) where
   noPos (TySyn x y z) = TySyn (noPos x) (noPos y) (noPos z)
 
-instance NoPos Expr where
+instance NoPos (Expr name) where
   noPos expr =
     case expr of
       EVar x        -> EVar     x
@@ -999,15 +990,15 @@ instance NoPos Expr where
       EParens e     -> EParens (noPos e)
       EInfix x y f z-> EInfix (noPos x) y f (noPos z)
 
-instance NoPos TypeInst where
+instance NoPos (TypeInst name) where
   noPos (PosInst ts)   = PosInst (noPos ts)
   noPos (NamedInst fs) = NamedInst (noPos fs)
 
-instance NoPos Match where
+instance NoPos (Match name) where
   noPos (Match x y)  = Match (noPos x) (noPos y)
   noPos (MatchLet b) = MatchLet (noPos b)
 
-instance NoPos Pattern where
+instance NoPos (Pattern name) where
   noPos pat =
     case pat of
       PVar x       -> PVar    (noPos x)
@@ -1019,13 +1010,13 @@ instance NoPos Pattern where
       PSplit x y   -> PSplit  (noPos x) (noPos y)
       PLocated x _ -> noPos x
 
-instance NoPos Schema where
+instance NoPos (Schema name) where
   noPos (Forall x y z _) = Forall (noPos x) (noPos y) (noPos z) Nothing
 
-instance NoPos TParam where
+instance NoPos (TParam name) where
   noPos (TParam x y _)  = TParam x y Nothing
 
-instance NoPos Type where
+instance NoPos (Type name) where
   noPos ty =
     case ty of
       TWild         -> TWild
@@ -1043,7 +1034,7 @@ instance NoPos Type where
       TParens x     -> TParens (noPos x)
       TInfix x y f z-> TInfix (noPos x) y f (noPos z)
 
-instance NoPos Prop where
+instance NoPos (Prop name) where
   noPos prop =
     case prop of
       CEqual  x y   -> CEqual  (noPos x) (noPos y)

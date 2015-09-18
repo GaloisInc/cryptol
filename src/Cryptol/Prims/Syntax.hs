@@ -7,11 +7,14 @@
 -- Portability :  portable
 
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Cryptol.Prims.Syntax
   ( TFun(..), tBinOpPrec, tfunNames
   ) where
 
-import           Cryptol.ModuleSystem.Name (QName,Name(Name),mkUnqual,pack)
+import           Cryptol.Parser.Name (PName,mkUnqual)
+import           Cryptol.Utils.Ident (mkIdent)
 import           Cryptol.Utils.PP
 import qualified Data.Map as Map
 
@@ -54,7 +57,7 @@ tBinOpPrec  = mkMap t_table
     , (RightAssoc,  [ TCExp ])
     ]
 
-tfunNames :: Map.Map QName TFun
+tfunNames :: Map.Map PName TFun
 tfunNames  = Map.fromList
   [ tprim "+"                TCAdd
   , tprim "-"                TCSub
@@ -69,7 +72,7 @@ tfunNames  = Map.fromList
   , tprim "lengthFromThenTo" TCLenFromThenTo
   ]
   where
-  tprim n p = (mkUnqual (Name (pack n)), p)
+  tprim n p = (mkUnqual (mkIdent n), p)
 
 instance PP TFun where
   ppPrec _ tcon =

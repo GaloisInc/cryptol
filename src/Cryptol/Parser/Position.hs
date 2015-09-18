@@ -8,6 +8,8 @@
 
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module Cryptol.Parser.Position where
 
 import           Data.Text.Lazy (Text)
@@ -76,6 +78,10 @@ instance PP Range where
 
 instance PP a => PP (Located a) where
   ppPrec _ l = parens (text "at" <+> pp (srcRange l) <> comma <+> pp (thing l))
+
+instance PPName a => PPName (Located a) where
+  ppPrefixName Located { .. } = ppPrefixName thing
+  ppInfixName  Located { .. } = ppInfixName  thing
 
 
 

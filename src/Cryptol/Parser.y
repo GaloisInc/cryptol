@@ -607,16 +607,19 @@ field_types                    :: { [Named Type] }
   | field_types ',' field_type    { $3 : $1 }
 
 
-name               :: { LName }
+name               :: { LPName }
   : IDENT             { $1 { thing = getName $1 } }
-  | 'x'               { Located { srcRange = $1, thing = mkName "x" }}
-  | 'private'         { Located { srcRange = $1, thing = mkName "private" } }
-  | 'as'              { Located { srcRange = $1, thing = mkName "as" } }
-  | 'hiding'          { Located { srcRange = $1, thing = mkName "hiding" } }
+  | 'x'               { Located { srcRange = $1, thing = mkUnqual (mkIdent "x") }}
+  | 'private'         { Located { srcRange = $1, thing = mkUnqual (mkIdent "private") } }
+  | 'as'              { Located { srcRange = $1, thing = mkUnqual (mkIdent "as") } }
+  | 'hiding'          { Located { srcRange = $1, thing = mkUnqual (mkIdent "hiding") } }
 
 
 modName                        :: { Located ModName }
-  : qname                         { mkLModName $1 }
+  : name                          { fmap identText $1 }
+  | QIDENT                        { let Token (Ident ns i) = thing $1
+                                     in mkModName (ns ++ i) A.<$ $1 }
+
 
 qname                          :: { Located QName }
   : name                          { fmap mkUnqual $1 }

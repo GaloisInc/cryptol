@@ -8,6 +8,12 @@
 
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE CPP #-}
+
+#ifndef MIN_VERSION_directory
+#define MIN_VERSION_directory(a,b,c) 0
+#endif
+
 module Cryptol.Parser.NoInclude
   ( removeIncludesModule
   , IncludeError(..), ppIncludeError

@@ -8,20 +8,24 @@
 
 {-# LANGUAGE Safe, PatternGuards #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE CPP #-}
 module Cryptol.Parser.ParserUtils where
 
 import Cryptol.Parser.AST
 import Cryptol.Parser.Lexer
 import Cryptol.Parser.Position
-import Cryptol.Parser.Utils (translateExprToNumT)
+import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
 import Data.Maybe(listToMaybe,fromMaybe)
 import Data.Bits(testBit,setBit)
+import Data.List (intercalate)
 import Control.Monad(liftM,ap,unless)
+import qualified Data.Text as S
 import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
+
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -114,28 +118,16 @@ errorMessage r x = P $ \_ _ _ -> Left (HappyErrorMsg r x)
 customError :: String -> Located Token -> ParseM a
 customError x t = P $ \_ _ _ -> Left (HappyErrorMsg (srcRange t) x)
 
-mkLModName :: LQName -> Located ModName
-mkLModName  = fmap $ \ (QName mb (Name n)) ->
-  case mb of
-    Just (ModName ns) -> ModName (ns ++ [n])
-    Nothing           -> ModName [n]
-
-mkQName :: {-reversed-} [LName] -> Located QName
-mkQName [x] = fmap mkUnqual x
-mkQName xs =
-  Located { srcRange = rComb (srcRange f) (srcRange l)
-          , thing    = mkQual (ModName [ x | Name x <- map thing ns ]) (thing l)
-          }
-  where l : ls      = xs
-        ns@(f : _)  = reverse ls
+mkModName :: [String] -> ModName
+mkModName strs = S.pack (intercalate "::" strs)
 
 -- Note that type variables are not resolved at this point: they are tcons.
-mkSchema :: [TParam] -> [Prop] -> Type -> Schema
+mkSchema :: [TParam PName] -> [Prop PName] -> Type PName -> Schema PName
 mkSchema xs ps t = Forall xs ps t Nothing
 
-getName :: Located Token -> Name
+getName :: Located Token -> PName
 getName l = case thing l of
-              Token (Ident [] x) _ -> mkName x
+              Token (Ident [] x) _ -> mkUnqual (mkIdent (S.pack x))
               _ -> panic "[Parser] getName" ["not an Ident:", show l]
 
 getNum :: Located Token -> Integer
@@ -149,7 +141,7 @@ getStr l = case thing l of
              Token (StrLit x) _ -> x
              _ -> panic "[Parser] getStr" ["not a string:", show l]
 
-numLit :: TokenT -> Expr
+numLit :: TokenT -> Expr PName
 numLit (Num x base digs)
   | base == 2   = ELit $ ECNum x (BinLit digs)
   | base == 8   = ELit $ ECNum x (OctLit digs)
@@ -164,14 +156,14 @@ intVal tok =
     Num x _ _ -> return x
     _         -> errorMessage (srcRange tok) "Expected an integer"
 
-mkFixity :: Assoc -> Located Token -> [LName] -> ParseM Decl
+mkFixity :: Assoc -> Located Token -> [LPName] -> ParseM (Decl PName)
 mkFixity assoc tok qns =
   do l <- intVal tok
      unless (l >= 1 && l <= 100)
           (errorMessage (srcRange tok) "Fixity levels must be between 0 and 20")
-     return (DFixity (Fixity assoc (fromInteger l)) (map (fmap mkUnqual) qns))
+     return (DFixity (Fixity assoc (fromInteger l)) qns)
 
-mkTupleSel :: Range -> Integer -> ParseM (Located Selector)
+mkTupleSel :: Range -> Integer -> ParseM (Located (Selector PName))
 mkTupleSel pos n
   | n < 0 = errorMessage pos
              (show n ++ " is not a valid tuple selector (they start from 0).")
@@ -185,7 +177,7 @@ fromStrLit loc = case tokenType (thing loc) of
   _          -> errorMessage (srcRange loc) "Expected a string literal"
 
 
-validDemotedType :: Range -> Type -> ParseM Type
+validDemotedType :: Range -> Type PName -> ParseM (Type PName)
 validDemotedType rng ty =
   case ty of
     TLocated t r -> validDemotedType r t
@@ -207,7 +199,7 @@ validDemotedType rng ty =
   where bad x = errorMessage rng (x ++ " cannot be demoted.")
         ok    = return $ at rng ty
 
-mkEApp :: [Expr] -> Expr
+mkEApp :: [Expr PName] -> Expr PName
 mkEApp es@(eLast : _) = at (eFirst,eLast) $ foldl EApp f xs
   where
   eFirst : rest = reverse es
@@ -237,18 +229,18 @@ mkEApp es@(eLast : _) = at (eFirst,eLast) $ foldl EApp f xs
 mkEApp es        = panic "[Parser] mkEApp" ["Unexpected:", show es]
 
 
-unOp :: Expr -> Expr -> Expr
+unOp :: Expr PName -> Expr PName -> Expr PName
 unOp f x = at (f,x) $ EApp f x
 
 -- Use defaultFixity as a placeholder, it will be fixed during renaming.
-binOp :: Expr -> Located QName -> Expr -> Expr
+binOp :: Expr PName -> Located PName -> Expr PName -> Expr PName
 binOp x f y = at (x,y) $ EInfix x f defaultFixity y
 
-eFromTo :: Range -> Expr -> Maybe Expr -> Maybe Expr -> ParseM Expr
+eFromTo :: Range -> Expr PName -> Maybe (Expr PName) -> Maybe (Expr PName) -> ParseM (Expr PName)
 eFromTo r e1 e2 e3 = EFromTo <$> exprToNumT r e1
                              <*> mapM (exprToNumT r) e2
                              <*> mapM (exprToNumT r) e3
-exprToNumT :: Range -> Expr -> ParseM Type
+exprToNumT :: Range -> Expr PName -> ParseM (Type PName)
 exprToNumT r expr =
   case translateExprToNumT expr of
     Just t -> return t
@@ -266,42 +258,45 @@ exprToNumT r expr =
 
 -- | WARNING: This is a bit of a hack.
 -- It is used to represent anonymous type applications.
-anonRecord :: Maybe Range -> [Type] -> Type
+anonRecord :: Maybe Range -> [Type PName] -> Type PName
 anonRecord ~(Just r) ts = TRecord (map toField ts)
-  where noName    = Located { srcRange = r, thing = mkName "" }
+  where noName    = Located { srcRange = r, thing = mkUnqual (mkIdent (S.pack "")) }
         toField t = Named { name = noName, value = t }
 
-exportDecl :: Maybe (Located String) -> ExportType -> Decl -> TopDecl
+exportDecl :: Maybe (Located String) -> ExportType -> Decl PName -> TopDecl PName
 exportDecl mbDoc e d = Decl TopLevel { tlExport = e
                                      , tlDoc    = mbDoc
                                      , tlValue  = d }
 
-exportNewtype :: ExportType -> Newtype -> TopDecl
+exportNewtype :: ExportType -> Newtype PName -> TopDecl PName
 exportNewtype e n = TDNewtype TopLevel { tlExport = e
                                        , tlDoc    = Nothing
                                        , tlValue  = n }
 
-changeExport :: ExportType -> [TopDecl] -> [TopDecl]
+changeExport :: ExportType -> [TopDecl PName] -> [TopDecl PName]
 changeExport e = map change
   where
   change (Decl d)      = Decl      d { tlExport = e }
   change (TDNewtype n) = TDNewtype n { tlExport = e }
   change td@Include{}  = td
 
-mkTypeInst :: Named Type -> TypeInst
-mkTypeInst x | thing (name x) == mkName "" = PosInst (value x)
-             | otherwise                   = NamedInst x
+mkTypeInst :: Named PName (Type PName) -> TypeInst PName
+mkTypeInst x | nullIdent (getIdent (thing (name x))) = PosInst (value x)
+             | otherwise                             = NamedInst x
 
 
-mkTParam :: Located Name -> Maybe Kind -> ParseM TParam
+mkTParam :: Located PName -> Maybe Kind -> ParseM (TParam PName)
 mkTParam Located { srcRange = rng, thing = n } k
-  | n == mkName "width" = errorMessage rng "`width` is not a valid type parameter name."
+  | getIdent n == widthIdent = errorMessage rng "`width` is not a valid type parameter name."
   | otherwise = return (TParam n k (Just rng))
 
-mkTySyn :: Located Name -> [TParam] -> Type -> ParseM Decl
-mkTySyn n ps b
-  | thing n == mkName "width" = errorMessage (srcRange n) "`width` is not a valid type synonym name."
-  | otherwise = return $ DType $ TySyn (fmap mkUnqual n) ps b
+mkTySyn :: Located PName -> [TParam PName] -> Type PName -> ParseM (Decl PName)
+mkTySyn ln ps b
+  | getIdent (thing ln) == widthIdent =
+    errorMessage (srcRange ln) "`width` is not a valid type synonym name."
+
+  | otherwise =
+    return $ DType $ TySyn ln ps b
 
 polyTerm :: Range -> Integer -> Integer -> ParseM (Bool, Integer)
 polyTerm rng k p
@@ -309,7 +304,7 @@ polyTerm rng k p
   | k == 1          = return (True, p)
   | otherwise       = errorMessage rng "Invalid polynomial coefficient"
 
-mkPoly :: Range -> [ (Bool,Integer) ] -> ParseM Expr
+mkPoly :: Range -> [ (Bool,Integer) ] -> ParseM (Expr PName)
 mkPoly rng terms = mk 0 (map fromInteger bits)
   where
   w    = case terms of
@@ -326,8 +321,8 @@ mkPoly rng terms = mk 0 (map fromInteger bits)
 
 
 -- NOTE: The list of patterns is reversed!
-mkProperty :: LName -> [Pattern] -> Expr -> Decl
-mkProperty f ps e = DBind Bind { bName       = fmap mkUnqual f
+mkProperty :: LPName -> [Pattern PName] -> Expr PName -> Decl PName
+mkProperty f ps e = DBind Bind { bName       = f
                                , bParams     = reverse ps
                                , bDef        = at e (Located emptyRange (DExpr (ETyped e TBit)))
                                , bSignature  = Nothing
@@ -338,7 +333,7 @@ mkProperty f ps e = DBind Bind { bName       = fmap mkUnqual f
                                , bDoc        = Nothing
                                }
 
-mkIf :: [(Expr, Expr)] -> Expr -> Expr
+mkIf :: [(Expr PName, Expr PName)] -> Expr PName -> Expr PName
 mkIf ifThens theElse = foldr addIfThen theElse ifThens
     where
     addIfThen (cond, doexpr) elseExpr = EIf cond doexpr elseExpr
@@ -349,24 +344,22 @@ mkIf ifThens theElse = foldr addIfThen theElse ifThens
 -- pass.  This is also the reason we add the doc to the TopLevel constructor,
 -- instead of just place it on the binding directly.  A better solution might be
 -- to just have a different constructor for primitives.
-mkPrimDecl :: Maybe (Located String) -> Bool -> LName -> Schema -> [TopDecl]
-mkPrimDecl mbDoc isInfix n sig =
+mkPrimDecl :: Maybe (Located String) -> LPName -> Schema PName -> [TopDecl PName]
+mkPrimDecl mbDoc ln sig =
   [ exportDecl mbDoc Public
-    $ DBind Bind { bName      = qname
+    $ DBind Bind { bName      = ln
                  , bParams    = []
                  , bDef       = at sig (Located emptyRange DPrim)
                  , bSignature = Nothing
                  , bPragmas   = []
                  , bMono      = False
-                 , bInfix     = isInfix
+                 , bInfix     = isInfixIdent (getIdent (thing ln))
                  , bFixity    = Nothing
                  , bDoc       = Nothing
                  }
   , exportDecl Nothing Public
-    $ DSignature [qname] sig
+    $ DSignature [ln] sig
   ]
-  where
-  qname = fmap mkUnqual n
 
 -- | Fix-up the documentation strings by removing the comment delimiters on each
 -- end, and stripping out common prefixes on all the remaining lines.
@@ -401,7 +394,7 @@ mkDoc ltxt = ltxt { thing = docStr }
         Nothing     -> False
 
 
-mkProp :: Type -> ParseM (Located [Prop])
+mkProp :: Type PName -> ParseM (Located [Prop PName])
 mkProp ty =
   case ty of
     TLocated t r -> Located r `fmap` props r t
@@ -437,15 +430,15 @@ mkProp ty =
   infixProp t = return [CType t]
 
   -- these can be translated right away
-  prefixProp r f xs =
-    case f of
-      QName Nothing n | n == mkName "Arith", [x] <- xs ->
-        return [CLocated (CArith x) r]
+  prefixProp r f xs
+    | i == arithIdent, [x] <- xs = return [CLocated (CArith x) r]
+    | i == finIdent,   [x] <- xs = return [CLocated (CFin x) r]
+    | i == cmpIdent,   [x] <- xs = return [CLocated (CCmp x) r]
+    | otherwise                  = errorMessage r "Invalid constraint"
+    where
+    i = getIdent f
 
-      QName Nothing n | n == mkName "fin", [x] <- xs ->
-        return [CLocated (CFin x) r]
-
-      QName Nothing n | n == mkName "Cmp", [x] <- xs ->
-        return [CLocated (CCmp x) r]
-
-      _ -> errorMessage r "Invalid constraint"
+arithIdent, finIdent, cmpIdent :: Ident
+arithIdent = mkIdent (S.pack "Arith")
+finIdent   = mkIdent (S.pack "fin")
+cmpIdent   = mkIdent (S.pack "Cmp")

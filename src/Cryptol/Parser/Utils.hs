@@ -9,19 +9,25 @@
 -- Utility functions that are also useful for translating programs
 -- from previous Cryptol versions.
 
+{-# LANGUAGE OverloadedStrings #-}
+
 module Cryptol.Parser.Utils
   ( translateExprToNumT
+  , widthIdent
   ) where
 
 import Cryptol.Parser.AST
 import Cryptol.Prims.Syntax
 
 
-translateExprToNumT :: Expr -> Maybe Type
+widthIdent :: Ident
+widthIdent  = mkIdent "width"
+
+translateExprToNumT :: Expr PName -> Maybe (Type PName)
 translateExprToNumT expr =
   case expr of
     ELocated e r -> (`TLocated` r) `fmap` translateExprToNumT e
-    EVar (QName Nothing n) | n == mkName "width" -> mkFun TCWidth
+    EVar n | getIdent n == widthIdent -> mkFun TCWidth
     EVar x       -> return (TUser x [])
     ELit x       -> cvtLit x
     EApp e1 e2   -> do t1 <- translateExprToNumT e1

@@ -14,6 +14,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
 
 import Cryptol.Parser.AST
@@ -39,19 +41,19 @@ class RemovePatterns t where
   -- | Eliminate all patterns in a program.
   removePatterns :: t -> (t, [Error])
 
-instance RemovePatterns Program where
+instance RemovePatterns (Program PName) where
   removePatterns p = runNoPatM (noPatProg p)
 
-instance RemovePatterns Expr where
+instance RemovePatterns (Expr PName) where
   removePatterns e = runNoPatM (noPatE e)
 
-instance RemovePatterns Module where
+instance RemovePatterns (Module PName) where
   removePatterns m = runNoPatM (noPatModule m)
 
-instance RemovePatterns [Decl] where
+instance RemovePatterns [Decl PName] where
   removePatterns ds = runNoPatM (noPatDs ds)
 
-simpleBind :: Located QName -> Expr -> Bind
+simpleBind :: Located PName -> Expr PName -> Bind PName
 simpleBind x e = Bind { bName = x, bParams = []
                       , bDef = at e (Located emptyRange (DExpr e))
                       , bSignature = Nothing, bPragmas = []
@@ -59,7 +61,7 @@ simpleBind x e = Bind { bName = x, bParams = []
                       , bDoc = Nothing
                       }
 
-sel :: Pattern -> QName -> Selector -> Bind
+sel :: Pattern PName -> PName -> Selector PName -> Bind PName
 sel p x s = let (a,ts) = splitSimpleP p
             in simpleBind a (foldl ETyped (ESel (EVar x) s) ts)
 
@@ -67,7 +69,7 @@ sel p x s = let (a,ts) = splitSimpleP p
 -- Simple patterns may only contain variables and type annotations.
 
 -- XXX: We can replace the types in the selcetors with annotations on the bindings.
-noPat :: Pattern -> NoPatM (Pattern, [Bind])
+noPat :: Pattern PName -> NoPatM (Pattern PName, [Bind PName])
 noPat pat =
   case pat of
     PVar x -> return (PVar x, [])
@@ -81,10 +83,9 @@ noPat pat =
       do (as,dss) <- unzip `fmap` mapM noPat ps
          x <- newName
          r <- getRange
-         let qx       = mkUnqual x
          let len      = length ps
              ty       = TTuple (replicate len TWild)
-             getN a n = sel a qx (TupleSel n (Just len))
+             getN a n = sel a x (TupleSel n (Just len))
          return (pTy r x ty, zipWith getN as [0..] ++ concat dss)
 
     PList [] ->
@@ -96,20 +97,18 @@ noPat pat =
       do (as,dss) <- unzip `fmap` mapM noPat ps
          x <- newName
          r <- getRange
-         let qx       = mkUnqual x
-             len      = length ps
+         let len      = length ps
              ty       = TSeq (TNum (fromIntegral len)) TWild
-             getN a n = sel a qx (ListSel n (Just len))
+             getN a n = sel a x (ListSel n (Just len))
          return (pTy r x ty, zipWith getN as [0..] ++ concat dss)
 
     PRecord fs ->
       do (as,dss) <- unzip `fmap` mapM (noPat . value) fs
          x <- newName
          r <- getRange
-         let qx       = mkUnqual x
-             shape    = map (thing . name) fs
+         let shape    = map (thing . name) fs
              ty       = TRecord (map (fmap (\_ -> TWild)) fs)
-             getN a n = sel a qx (RecordSel n (Just shape))
+             getN a n = sel a x (RecordSel n (Just shape))
          return (pTy r x ty, zipWith getN as shape ++ concat dss)
 
     PTyped p t ->
@@ -123,12 +122,10 @@ noPat pat =
          x <- newName
          tmp <- newName
          r <- getRange
-         let qx   = mkUnqual x
-             qtmp = mkUnqual tmp
-             prim = EVar (mkUnqual (mkName "splitAt"))
-             bTmp = simpleBind (Located r qtmp) (EApp prim (EVar qx))
-             b1   = sel a1 qtmp (TupleSel 0 (Just 2))
-             b2   = sel a2 qtmp (TupleSel 1 (Just 2))
+         let prim = EVar (mkUnqual (mkIdent "splitAt"))
+             bTmp = simpleBind (Located r tmp) (EApp prim (EVar x))
+             b1   = sel a1 tmp (TupleSel 0 (Just 2))
+             b2   = sel a2 tmp (TupleSel 1 (Just 2))
          return (pVar r x, bTmp : b1 : b2 : ds1 ++ ds2)
 
     PLocated p r1 -> inRange r1 (noPat p)
@@ -138,8 +135,8 @@ noPat pat =
   pTy  r x t = PTyped (PVar (Located r x)) t
 
 
-splitSimpleP :: Pattern -> (Located QName, [Type])
-splitSimpleP (PVar x)     = (fmap mkUnqual x, [])
+splitSimpleP :: Pattern PName -> (Located PName, [Type PName])
+splitSimpleP (PVar x)     = (x, [])
 splitSimpleP (PTyped p t) = let (x,ts) = splitSimpleP p
                             in (x, t:ts)
 splitSimpleP p            = panic "splitSimpleP"
@@ -147,7 +144,7 @@ splitSimpleP p            = panic "splitSimpleP"
 
 --------------------------------------------------------------------------------
 
-noPatE :: Expr -> NoPatM Expr
+noPatE :: Expr PName -> NoPatM (Expr PName)
 noPatE expr =
   case expr of
     EVar {}       -> return expr
@@ -175,7 +172,7 @@ noPatE expr =
   where noPatF x = do e <- noPatE (value x)
                       return x { value = e }
 
-noPatFun :: [Pattern] -> Expr -> NoPatM ([Pattern], Expr)
+noPatFun :: [Pattern PName] -> Expr PName -> NoPatM ([Pattern PName], Expr PName)
 noPatFun ps e =
   do (xs,bs) <- unzip <$> mapM noPat ps
      e1 <- noPatE e
@@ -185,17 +182,17 @@ noPatFun ps e =
      return (xs, body)
 
 
-noPatArm :: [Match] -> NoPatM [Match]
+noPatArm :: [Match PName] -> NoPatM [Match PName]
 noPatArm ms = concat <$> mapM noPatM ms
 
-noPatM :: Match -> NoPatM [Match]
+noPatM :: Match PName -> NoPatM [Match PName]
 noPatM (Match p e) =
   do (x,bs) <- noPat p
      e1     <- noPatE e
      return (Match x e1 : map MatchLet bs)
 noPatM (MatchLet b) = (return . MatchLet) <$> noMatchB b
 
-noMatchB :: Bind -> NoPatM Bind
+noMatchB :: Bind PName -> NoPatM (Bind PName)
 noMatchB b =
   case thing (bDef b) of
 
@@ -207,7 +204,7 @@ noMatchB b =
       do (ps,e') <- noPatFun (bParams b) e
          return b { bParams = ps, bDef = DExpr e' <$ bDef b }
 
-noMatchD :: Decl -> NoPatM [Decl]
+noMatchD :: Decl PName -> NoPatM [Decl PName]
 noMatchD decl =
   case decl of
     DSignature {}   -> return [decl]
@@ -236,7 +233,7 @@ noMatchD decl =
     DLocated d r1   -> do bs <- inRange r1 $ noMatchD d
                           return $ map (`DLocated` r1) bs
 
-noPatDs :: [Decl] -> NoPatM [Decl]
+noPatDs :: [Decl PName] -> NoPatM [Decl PName]
 noPatDs ds =
   do ds1 <- concat <$> mapM noMatchD ds
      let pragmaMap = Map.fromListWith (++) $ concatMap toPragma ds1
@@ -258,7 +255,7 @@ noPatDs ds =
 
      return ds2
 
-noPatTopDs :: [TopLevel Decl] -> NoPatM [TopLevel Decl]
+noPatTopDs :: [TopLevel (Decl PName)] -> NoPatM [TopLevel (Decl PName)]
 noPatTopDs tds =
   do noPatGroups <- mapM (noMatchD . tlValue) tds
 
@@ -286,7 +283,7 @@ noPatTopDs tds =
      return tds'
 
 
-noPatProg :: Program -> NoPatM Program
+noPatProg :: Program PName -> NoPatM (Program PName)
 noPatProg (Program topDs) =
   do let (ds, others) = partitionEithers (map isDecl topDs)
      ds1 <- noPatTopDs ds
@@ -296,7 +293,7 @@ noPatProg (Program topDs) =
   isDecl (Decl d) = Left d
   isDecl d        = Right d
 
-noPatModule :: Module -> NoPatM Module
+noPatModule :: Module PName -> NoPatM (Module PName)
 noPatModule m =
   do let (ds, others) = partitionEithers (map isDecl (mDecls m))
      ds1 <- noPatTopDs ds
@@ -309,10 +306,10 @@ noPatModule m =
 
 --------------------------------------------------------------------------------
 
-type AnnotMap = ( Map.Map QName [Located Pragma]
-                , Map.Map QName [Located Schema]
-                , Map.Map QName [Located Fixity]
-                , Map.Map QName [Located String]
+type AnnotMap = ( Map.Map PName [Located  Pragma       ]
+                , Map.Map PName [Located (Schema PName)]
+                , Map.Map PName [Located  Fixity       ]
+                , Map.Map PName [Located  String       ]
                 )
 
 -- | Add annotations to exported declaration groups.
@@ -321,7 +318,8 @@ type AnnotMap = ( Map.Map QName [Located Pragma]
 -- export specifications, this will favor the specification of the binding.
 -- This is most likely the intended behavior, so it's probably fine, but it does
 -- smell a bit.
-annotTopDs :: [TopLevel [Decl]] -> StateT AnnotMap NoPatM [TopLevel Decl]
+annotTopDs :: [TopLevel [Decl PName]]
+           -> StateT AnnotMap NoPatM [TopLevel (Decl PName)]
 annotTopDs tds =
   case tds of
 
@@ -336,7 +334,7 @@ annotTopDs tds =
 
 
 -- | Add annotations, keeping track of which annotation are not yet used up.
-annotDs :: [Decl] -> StateT AnnotMap NoPatM [Decl]
+annotDs :: [Decl PName] -> StateT AnnotMap NoPatM [Decl PName]
 annotDs (d : ds) =
   do ignore <- runExceptionT (annotD d)
      case ignore of
@@ -346,7 +344,7 @@ annotDs [] = return []
 
 -- | Add annotations, keeping track of which annotation are not yet used up.
 -- The exception indicates which declarations are no longer needed.
-annotD :: Decl -> ExceptionT () (StateT AnnotMap NoPatM) Decl
+annotD :: Decl PName -> ExceptionT () (StateT AnnotMap NoPatM) (Decl PName)
 annotD decl =
   case decl of
     DBind b       -> DBind <$> lift (annotB b)
@@ -358,7 +356,7 @@ annotD decl =
     DLocated d r  -> (`DLocated` r) <$> annotD d
 
 -- | Add pragma/signature annotations to a binding.
-annotB :: Bind -> StateT AnnotMap NoPatM Bind
+annotB :: Bind PName -> StateT AnnotMap NoPatM (Bind PName)
 annotB Bind { .. } =
   do (ps,ss,fs,ds) <- get
      let name       = thing bName
@@ -382,20 +380,20 @@ annotB Bind { .. } =
   where jn x = concat (maybeToList x)
 
 -- | Check for multiple signatures.
-checkSigs :: QName -> [Located Schema] -> NoPatM (Maybe Schema)
+checkSigs :: PName -> [Located (Schema PName)] -> NoPatM (Maybe (Schema PName))
 checkSigs _ []             = return Nothing
 checkSigs _ [s]            = return (Just (thing s))
 checkSigs f xs@(s : _ : _) = do recordError $ MultipleSignatures f xs
                                 return (Just (thing s))
 
-checkFixs :: QName -> [Located Fixity] -> NoPatM (Maybe Fixity)
+checkFixs :: PName -> [Located Fixity] -> NoPatM (Maybe Fixity)
 checkFixs _ []       = return Nothing
 checkFixs _ [f]      = return (Just (thing f))
 checkFixs f fs@(x:_) = do recordError $ MultipleFixities f $ map srcRange fs
                           return (Just (thing x))
 
 
-checkDocs :: QName -> [Located String] -> NoPatM (Maybe String)
+checkDocs :: PName -> [Located String] -> NoPatM (Maybe String)
 checkDocs _ []       = return Nothing
 checkDocs _ [d]      = return (Just (thing d))
 checkDocs f ds@(d:_) = do recordError $ MultipleDocs f (map srcRange ds)
@@ -403,24 +401,24 @@ checkDocs f ds@(d:_) = do recordError $ MultipleDocs f (map srcRange ds)
 
 
 -- | Does this declaration provide some signatures?
-toSig :: Decl -> [(QName, [Located Schema])]
+toSig :: Decl PName -> [(PName, [Located (Schema PName)])]
 toSig (DLocated d _)      = toSig d
 toSig (DSignature xs s)   = [ (thing x,[Located (srcRange x) s]) | x <- xs ]
 toSig _                   = []
 
 -- | Does this declaration provide some signatures?
-toPragma :: Decl -> [(QName, [Located Pragma])]
+toPragma :: Decl PName -> [(PName, [Located Pragma])]
 toPragma (DLocated d _)   = toPragma d
 toPragma (DPragma xs s)   = [ (thing x,[Located (srcRange x) s]) | x <- xs ]
 toPragma _                = []
 
 -- | Does this declaration provide fixity information?
-toFixity :: Decl -> [(QName, [Located Fixity])]
+toFixity :: Decl PName -> [(PName, [Located Fixity])]
 toFixity (DFixity f ns) = [ (thing n, [Located (srcRange n) f]) | n <- ns ]
 toFixity _              = []
 
 -- | Does this top-level declaration provide a documentation string?
-toDocs :: TopLevel Decl -> [(QName, [Located String])]
+toDocs :: TopLevel (Decl PName) -> [(PName, [Located String])]
 toDocs TopLevel { .. }
   | Just txt <- tlDoc = go txt tlValue
   | otherwise = []
@@ -443,12 +441,12 @@ newtype NoPatM a = M { unM :: ReaderT Range (StateT RW Id) a }
 
 data RW     = RW { names :: !Int, errors :: [Error] }
 
-data Error  = MultipleSignatures QName [Located Schema]
-            | SignatureNoBind (Located QName) Schema
-            | PragmaNoBind (Located QName) Pragma
-            | MultipleFixities QName [Range]
-            | FixityNoBind (Located QName)
-            | MultipleDocs QName [Range]
+data Error  = MultipleSignatures PName [Located (Schema PName)]
+            | SignatureNoBind (Located PName) (Schema PName)
+            | PragmaNoBind (Located PName) Pragma
+            | MultipleFixities PName [Range]
+            | FixityNoBind (Located PName)
+            | MultipleDocs PName [Range]
               deriving (Show,Generic)
 
 instance NFData Error
@@ -462,7 +460,7 @@ instance Monad NoPatM where
 
 
 -- | Pick a new name, to be used when desugaring patterns.
-newName :: NoPatM Name
+newName :: NoPatM PName
 newName = M $ sets $ \s -> let x = names s
                            in (NewName NoPat x, s { names = x + 1 })
 

@@ -11,46 +11,72 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Utils.PP where
 
-import           Cryptol.ModuleSystem.Name
+import           Cryptol.Utils.Ident
 
+import           Control.DeepSeq
+import           Control.Monad (mplus)
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
+import           Data.Maybe (fromMaybe)
 import qualified Data.Monoid as M
 import           Data.String (IsString(..))
+import qualified Data.Text as T
+import           GHC.Generics (Generic)
 import qualified Text.PrettyPrint as PJ
 
-import GHC.Generics (Generic)
-import Control.DeepSeq
 
--- | How to display names.
-newtype NameEnv = NameEnv (Map QName NameInfo)
+
+-- Name Displaying -------------------------------------------------------------
+
+-- | How to display names, inspired by the GHC `Outputable` module. Getting a
+-- value of 'Nothing' from the NameDisp function indicates that the name is not
+-- in scope.
+data NameDisp = EmptyNameDisp
+              | NameDisp (ModName -> Ident -> Maybe NameFormat)
+
+instance M.Monoid NameDisp where
+  mempty = EmptyNameDisp
+
+  mappend (NameDisp f)  (NameDisp g)  = NameDisp (\m n -> f m n `mplus` g m n)
+  mappend EmptyNameDisp EmptyNameDisp = EmptyNameDisp
+  mappend EmptyNameDisp x             = x
+  mappend x             _             = x
+
+
+data NameFormat = UnQualified
+                | Qualified !ModName
+                | NotInScope
                   deriving (Show)
 
-data NameInfo = NameInfo { niDisp  :: QName
-                         , niInfix :: Bool
-                         } deriving (Show)
+alwaysQualify :: NameDisp
+alwaysQualify  = NameDisp $ \ mn _ -> Just (Qualified mn)
 
-mkNameEnv :: [(QName,NameInfo)] -> NameEnv
-mkNameEnv  = NameEnv . Map.fromList
+neverQualify :: NameDisp
+neverQualify  = NameDisp $ \ _ _ -> Just UnQualified
 
--- | Compose two naming environments.
-extend :: NameEnv -> NameEnv -> NameEnv
-extend (NameEnv l) (NameEnv r) = NameEnv (lkp `fmap` l)
-  where
-  lkp ni = Map.findWithDefault ni (niDisp ni) r
+-- | Compose two naming environments, preferring names from the left
+-- environment.
+extend :: NameDisp -> NameDisp -> NameDisp
+extend  = M.mappend
 
-getNameInfo :: QName -> NameEnv -> NameInfo
-getNameInfo n (NameEnv e) = Map.findWithDefault (NameInfo n False) n e
+-- | Get the format for a name. When 'Nothing' is returned, the name is not
+-- currently in scope.
+getNameFormat :: ModName -> Ident -> NameDisp -> NameFormat
+getNameFormat m i (NameDisp f)  = fromMaybe NotInScope (f m i)
+getNameFormat _ _ EmptyNameDisp = NotInScope
 
-instance M.Monoid NameEnv where
-  mempty                          = NameEnv Map.empty
-  mappend (NameEnv a) (NameEnv b) = NameEnv (Map.union a b)
+-- | Produce a document in the context of the current 'NameDisp'.
+withNameDisp :: (NameDisp -> Doc) -> Doc
+withNameDisp k = Doc (\disp -> runDoc disp (k disp))
 
-newtype Doc = Doc (NameEnv -> PJ.Doc) deriving (Generic)
+
+-- Documents -------------------------------------------------------------------
+
+newtype Doc = Doc (NameDisp -> PJ.Doc) deriving (Generic)
 
 instance NFData Doc
 
-runDoc :: NameEnv -> Doc -> PJ.Doc
+runDoc :: NameDisp -> Doc -> PJ.Doc
 runDoc names (Doc f) = f names
 
 instance Show Doc where
@@ -64,6 +90,13 @@ render d = PJ.render (runDoc M.mempty d)
 
 class PP a where
   ppPrec :: Int -> a -> Doc
+
+class PP a => PPName a where
+  -- | Print a name in prefix: @f a b@ or @(+) a b)@
+  ppPrefixName :: a -> Doc
+
+  -- | Print a name as an infix operator: @a + b@
+  ppInfixName  :: a -> Doc
 
 pp :: PP a => a -> Doc
 pp = ppPrec 0
@@ -217,36 +250,8 @@ empty  = liftPJ PJ.empty
 colon :: Doc
 colon  = liftPJ PJ.colon
 
+instance PP T.Text where
+  ppPrec _ str = text (T.unpack str)
 
--- Names -----------------------------------------------------------------------
-
-withNameEnv :: (NameEnv -> Doc) -> Doc
-withNameEnv f = Doc (\e -> runDoc e (f e))
-
-fixNameEnv :: NameEnv -> Doc -> Doc
-fixNameEnv env (Doc f) = Doc (\_ -> f env)
-
-instance PP ModName where
-  ppPrec _ (ModName ns) = hcat (punctuate (text "::") (map (text . unpack) ns))
-
-instance PP QName where
-  ppPrec _ qn = withNameEnv $ \ names ->
-    let NameInfo (QName mb n) isInfix = getNameInfo qn names
-        mbNs = maybe empty (\ mn -> pp mn <> text "::") mb
-     in optParens isInfix (mbNs <> pp n)
-
-instance PP Name where
-  ppPrec _ (Name x)       = text (unpack x)
-  -- XXX: This may clash with user-specified names.
-  ppPrec _ (NewName p x)  = text "__" <> passName p <> int x
-
--- | Pretty-print the qualified name as-is; don't consult the environment.
-ppQName :: QName -> Doc
-ppQName (QName mb n) = maybe empty (\ mn -> pp mn <> text "::") mb <> pp n
-
-passName :: Pass -> Doc
-passName pass =
-  case pass of
-    NoPat       -> text "p"
-    MonoValues  -> text "mv"
-
+instance PP Ident where
+  ppPrec _ i = text (T.unpack (identText i))
