@@ -75,14 +75,12 @@ renameModule :: P.Module -> ModuleM P.Module
 renameModule m = do
   iface <- importIfaces (map thing (P.mImports m))
 
-  let menv    = R.namingEnv m
-      (es,ws) = R.checkNamingEnv menv
+  let (es,ws) = R.checkNamingEnv menv
 
   renamerWarnings ws
   unless (null es) (renamerErrors es)
 
-  -- explicitly shadow the imported environment with the local environment
-  rename (menv `R.shadowing` R.namingEnv iface) m
+  rename (R.namingEnv iface) m
 
 -- | Rename an expression in the context of the focused module.
 renameExpr :: P.Expr -> ModuleM P.Expr

@@ -163,9 +163,9 @@ data PC     = PEqual        -- ^ @_ == _@
             | PFin          -- ^ @fin _@
 
             -- classes
-            | PHas (Selector Name) -- ^ @Has sel type field@ does not appear in schemas
-            | PArith               -- ^ @Arith _@
-            | PCmp                 -- ^ @Cmp _@
+            | PHas Selector -- ^ @Has sel type field@ does not appear in schemas
+            | PArith        -- ^ @Arith _@
+            | PCmp          -- ^ @Cmp _@
               deriving (Show,Eq,Ord,Generic)
 
 instance NFData PC
@@ -210,7 +210,7 @@ instance Ord TVar where
 data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | ETuple [Expr]             -- ^ Tuple value
             | ERec [(Name,Expr)]        -- ^ Record value
-            | ESel Expr (Selector Name) -- ^ Elimination for tuple/record/list
+            | ESel Expr Selector        -- ^ Elimination for tuple/record/list
 
             | EIf Expr Expr Expr        -- ^ If-then-else
             | EComp Type Expr [[Match]] -- ^ List comprehensions
@@ -497,7 +497,7 @@ pCmp t = TCon (PC PCmp) [t]
 x >== y = TCon (PC PGeq) [x,y]
 
 -- | A `Has` constraint, used for tuple and record selection.
-pHas :: Selector Name -> Type -> Type -> Prop
+pHas :: Selector -> Type -> Type -> Prop
 pHas l ty fi = TCon (PC (PHas l)) [ty,fi]
 
 pFin :: Type -> Prop

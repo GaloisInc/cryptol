@@ -308,7 +308,7 @@ data Expr n   = EVar n                          -- ^ @ x @
               | ELit Literal                    -- ^ @ 0x10 @
               | ETuple [Expr n]                 -- ^ @ (1,2,3) @
               | ERecord [Named (Expr n)]        -- ^ @ { x = 1, y = 2 } @
-              | ESel (Expr n) (Selector n)      -- ^ @ e.l @
+              | ESel (Expr n) Selector          -- ^ @ e.l @
               | EList [Expr n]                  -- ^ @ [1,2,3] @
               | EFromTo (Type n) (Maybe (Type n)) (Maybe (Type n)) -- ^ @[1, 5 ..  117 ] @
               | EInfFrom (Expr n) (Maybe (Expr n))-- ^ @ [1, 3 ...] @
@@ -341,20 +341,20 @@ that is being selected.  Currently, there is no surface syntax for
 list selectors, but they are used during the desugaring of patterns.
 -}
 
-data Selector name = TupleSel Int   (Maybe Int)
-                     -- ^ Zero-based tuple selection.
-                     -- Optionally specifies the shape of the tuple (one-based).
+data Selector = TupleSel Int   (Maybe Int)
+                -- ^ Zero-based tuple selection.
+                -- Optionally specifies the shape of the tuple (one-based).
 
-                   | RecordSel name (Maybe [name])
-                     -- ^ Record selection.
-                     -- Optionally specifies the shape of the record.
+              | RecordSel Ident (Maybe [Ident])
+                -- ^ Record selection.
+                -- Optionally specifies the shape of the record.
 
-                   | ListSel Int    (Maybe Int)
-                     -- ^ List selection.
-                     -- Optionally specifies the length of the list.
-                     deriving (Eq,Show,Ord,Generic)
+              | ListSel Int    (Maybe Int)
+                -- ^ List selection.
+                -- Optionally specifies the length of the list.
+                deriving (Eq,Show,Ord,Generic)
 
-instance NFData name => NFData (Selector name)
+instance NFData Selector
 
 data Match name = Match (Pattern name) (Expr name)              -- ^ p <- e
                 | MatchLet (Bind name)
@@ -773,7 +773,7 @@ instance (Show name, PPName name) => PP (Expr name) where
 
       EInfix e1 op _ e2 -> wrap n 0 (pp e1 <+> ppInfixName (thing op) <+> pp e2)
 
-instance PPName name => PP (Selector name) where
+instance PP Selector where
   ppPrec _ sel =
     case sel of
       TupleSel x sig    -> int x <+> ppSig tupleSig sig
@@ -789,7 +789,7 @@ instance PPName name => PP (Selector name) where
 
 
 -- | Display the thing selected by the selector, nicely.
-ppSelector :: PPName name => Selector name -> Doc
+ppSelector :: Selector -> Doc
 ppSelector sel =
   case sel of
     TupleSel x _  -> ordinal x <+> text "field"

@@ -8,6 +8,7 @@
 
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -156,6 +157,7 @@ instance PP RenamerWarning where
 
 data RO = RO
   { roLoc   :: Range
+  , roMod   :: !ModName
   , roNames :: NamingEnv
   }
 
@@ -171,6 +173,16 @@ instance Monoid Out where
 
 newtype RenameM a = RenameM
   { unRenameM :: ReaderT RO (WriterT Out SupplyM) a }
+
+instance Monoid a => Monoid (RenameM a) where
+  {-# INLINE mempty #-}
+  mempty = return mempty
+
+  {-# INLINE mappend #-}
+  mappend a b =
+    do x <- a
+       y <- b
+       return (mappend x y)
 
 instance Functor RenameM where
   {-# INLINE fmap #-}
@@ -190,12 +202,15 @@ instance Monad RenameM where
   {-# INLINE (>>=) #-}
   m >>= k       = RenameM (unRenameM m >>= unRenameM . k)
 
-runRenamer :: Supply -> NamingEnv -> RenameM a
+runRenamer :: Supply -> ModName -> NamingEnv -> RenameM a
            -> (Either [RenamerError] (a,Supply),[RenamerWarning])
-runRenamer s env m = (res,oWarnings out)
+runRenamer s ns env m = (res,oWarnings out)
   where
 
-  ((a,out),s') = runM (unRenameM m) RO { roLoc = emptyRange, roNames = env } s
+  ((a,out),s') = runM (unRenameM m) RO { roLoc = emptyRange
+                                       , roNames = env
+                                       , roMod = ns
+                                       } s
 
   res | null (oErrors out) = Right (a,s')
       | otherwise          = Left (oErrors out)
@@ -206,10 +221,13 @@ record err = records [err]
 records :: [RenamerError] -> RenameM ()
 records errs = RenameM (put mempty { oErrors = errs })
 
+curLoc :: RenameM Range
+curLoc  = RenameM (roLoc `fmap` ask)
+
 located :: a -> RenameM (Located a)
-located a = RenameM $ do
-  ro <- ask
-  return Located { srcRange = roLoc ro, thing = a }
+located thing =
+  do srcRange <- curLoc
+     return Located { .. }
 
 withLoc :: HasLoc loc => loc -> RenameM a -> RenameM a
 withLoc loc m = RenameM $ case getLoc loc of
@@ -220,6 +238,10 @@ withLoc loc m = RenameM $ case getLoc loc of
 
   Nothing -> unRenameM m
 
+-- | Retrieve the name of the current module.
+getNS :: RenameM ModName
+getNS  = RenameM (roMod `fmap` ask)
+
 -- | Shadow the current naming environment with some more names.
 shadowNames :: BindsNames env => env -> RenameM a -> RenameM a
 shadowNames names m = RenameM $ do
@@ -228,6 +250,12 @@ shadowNames names m = RenameM $ do
   put (checkEnv env (roNames ro))
   let ro' = ro { roNames = env `shadowing` roNames ro }
   local ro' (unRenameM m)
+
+shadowNamesNS :: BindsNames (InModule env) => env -> RenameM a -> RenameM a
+shadowNamesNS names m =
+  do ns <- getNS
+     shadowNames (InModule ns names) m
+
 
 -- | Generate warnings when the left environment shadows things defined in
 -- the right.  Additionally, generate errors when two names overlap in the
@@ -269,9 +297,9 @@ class Rename f where
   rename :: f PName -> RenameM (f Name)
 
 instance Rename Module where
-  rename Module { .. } = do
-    decls' <- traverse rename mDecls
-    return Module { mDecls = decls', .. }
+  rename m =
+    do decls' <- shadowNames m (traverse rename (mDecls m))
+       return m { mDecls = decls' }
 
 instance Rename TopDecl where
   rename td     = case td of
@@ -291,8 +319,11 @@ instance Rename Decl where
     DPragma ns p      -> DPragma       <$> traverse (rnLocated renameVar) ns
                                        <*> pure p
     DBind b           -> DBind         <$> rename b
-    DPatBind pat e    -> shadowNames (namingEnv pat) $ DPatBind <$> rename pat
-                                                                <*> rename e
+
+    -- XXX we probably shouldn't see these at this point...
+    DPatBind pat e    -> do (pe,[pat']) <- renamePats [pat]
+                            shadowNames pe (DPatBind pat' <$> rename e)
+
     DType syn         -> DType         <$> rename syn
     DLocated d' r     -> withLoc r
                        $ DLocated      <$> rename d'  <*> pure r
@@ -332,48 +363,72 @@ renameVar qn = do
            -- the value is just missing
            Nothing -> record (UnboundExpr n)
 
-         supply $ liftSupply
-                $ mkParameter (getIdent qn) (srcRange n)
+         mkFakeName qn
+
+-- | Produce a name if one exists. Note that this includes situations where
+-- overlap exists, as it's just a query about anything being in scope. In the
+-- event that overlap does exist, an error will be recorded.
+typeExists :: PName -> RenameM (Maybe Name)
+typeExists pn =
+  do ro <- RenameM ask
+     case Map.lookup pn (neTypes (roNames ro)) of
+       Just [n]  -> return (Just n)
+       Just []   -> panic "Renamer" ["Invalid type renaming environment"]
+       Just syms -> do n <- located pn
+                       record (MultipleSyms n syms)
+                       return (Just (head syms))
+       Nothing -> return Nothing
 
 renameType :: PName -> RenameM Name
-renameType qn = do
-  ro <- RenameM ask
-  case Map.lookup qn (neTypes (roNames ro)) of
-    Just [n]  -> return n
-    Just []   -> panic "Renamer" ["Invalid type renaming environment"]
-    Just syms ->
-      do n <- located qn
-         record (MultipleSyms n syms)
-         return (head syms)
+renameType pn =
+  do mb <- typeExists pn
+     case mb of
+       Just n -> return n
 
-    -- This is an unbound value. Record an error and invent a bogus real name
-    -- for it.
-    Nothing ->
-      do n <- located qn
+       -- This is an unbound value. Record an error and invent a bogus real name
+       -- for it.
+       Nothing ->
+         do ro <- RenameM ask
+            let n = Located { srcRange = roLoc ro, thing = pn }
 
-         case Map.lookup qn (neExprs (roNames ro)) of
+            case Map.lookup pn (neExprs (roNames ro)) of
 
-           -- values exist with the same name, so throw a different error
-           Just _ -> record (ExpectedType n)
+              -- values exist with the same name, so throw a different error
+              Just _ -> record (ExpectedType n)
 
-           -- no terms with the same name, so the type is just unbound
-           Nothing -> record (UnboundType n)
+              -- no terms with the same name, so the type is just unbound
+              Nothing -> record (UnboundType n)
 
-         supply $ liftSupply
-                $ mkParameter (getIdent qn) (srcRange n)
+            mkFakeName pn
+
+-- | Assuming an error has been recorded already, construct a fake name that's
+-- not expected to make it out of the renamer.
+mkFakeName :: PName -> RenameM Name
+mkFakeName pn = RenameM $
+  do ro <- ask
+     inBase (liftSupply (mkParameter (getIdent pn) (roLoc ro)))
 
 -- | Rename a schema, assuming that none of its type variables are already in
 -- scope.
 instance Rename Schema where
-  rename s@(Forall ps _ _ _) = shadowNames ps (renameSchema s)
+  rename s = snd `fmap` renameSchema s
 
 -- | Rename a schema, assuming that the type variables have already been brought
 -- into scope.
-renameSchema :: Schema PName -> RenameM (Schema Name)
-renameSchema (Forall ps p ty loc) = Forall <$> traverse rename ps
-                                           <*> traverse rename p
-                                           <*> rename ty
-                                           <*> pure loc
+renameSchema :: Schema PName -> RenameM (NamingEnv,Schema Name)
+renameSchema (Forall ps p ty loc) =
+  do env <- supply (namingEnv ps)
+     s'  <- shadowNames env $ Forall <$> traverse rename ps
+                                     <*> traverse rename p
+                                     <*> rename ty
+                                     <*> pure loc
+
+     return (env,s')
+
+instance Rename TParam where
+  rename TParam { .. } =
+    do n <- renameType tpName
+       return TParam { tpName = n, .. }
 
 instance Rename Prop where
   rename p      = case p of
@@ -425,21 +480,22 @@ rnType isProp = go
     TInf         -> return TInf
 
     TUser pn ps
-      | i == "inf", null ps     -> return TInf
-      | i == "Bit", null ps     -> return TBit
+      | i == mkIdent "inf", null ps     -> return TInf
+      | i == mkIdent "Bit", null ps     -> return TBit
 
-      | i == "min"              -> TApp TCMin           <$> traverse go ps
-      | i == "max"              -> TApp TCMax           <$> traverse go ps
-      | i == "lengthFromThen"   -> TApp TCLenFromThen   <$> traverse go ps
-      | i == "lengthFromThenTo" -> TApp TCLenFromThenTo <$> traverse go ps
-      | i == "width"            -> TApp TCWidth         <$> traverse go ps
+      | i == mkIdent "min"              -> TApp TCMin           <$> traverse go ps
+      | i == mkIdent "max"              -> TApp TCMax           <$> traverse go ps
+      | i == mkIdent "lengthFromThen"   -> TApp TCLenFromThen   <$> traverse go ps
+      | i == mkIdent "lengthFromThenTo" -> TApp TCLenFromThenTo <$> traverse go ps
+      | i == mkIdent "width"            -> TApp TCWidth         <$> traverse go ps
 
         -- This should only happen in error, as fin constraints are constructed
         -- in the parser. (Cryptol.Parser.ParserUtils.mkProp)
-      | i == "fin" && isProp    ->
+      | i == mkIdent "fin" && isProp    ->
         do locTy <- located t
            record (MalformedConstraint locTy)
-           TUser undefined <$> traverse go ps
+           n <- mkFakeName pn
+           TUser n <$> traverse go ps
 
       where
       i = getIdent pn
@@ -525,46 +581,20 @@ renameTypeOp isProp op =
            do record (UnboundType op)
               return (\x y -> TUser sym' [x,y], defaultFixity)
 
-
--- | The type renaming environment generated by a binding. This includes any
--- type variables introduced by the signature, shadowed by any type variables
--- introduced by the patterns of the binding.
-bindingTypeEnv :: Bind PName -> SupplyM NamingEnv
-bindingTypeEnv b =
-  do sigParams <- namingEnv (bSignature b)
-     patParams <- foldMap params (bParams b)
-     return (patParams `shadowing` sigParams)
-  where
-
-  -- XXX the location information could be finer grained, here
-  params pat =
-    do let loc = fromMaybe emptyRange (getLoc pat)
-       foldMap (param loc) (tnamesP pat)
-
-  param loc qn =
-    do n <- liftSupply (mkParameter (getIdent qn) loc)
-       return (singletonT qn n)
-
 -- | Rename a binding.
---
--- NOTE: this does not bind its own name into the naming context of its body.
--- The assumption here is that this has been done by the enclosing environment,
--- to allow for top-level renaming
 instance Rename Bind where
   rename b      = do
-    n'  <- rnLocated renameVar (bName b)
-    env <- supply (bindingTypeEnv b)
-    shadowNames env $ do
-      (patenv,pats') <- renamePats (bParams b)
-      sig'           <- traverse renameSchema (bSignature b)
-      shadowNames patenv $
-        do e'   <- rnLocated rename (bDef b)
-           return b { bName      = n'
-                    , bParams    = pats'
-                    , bDef       = e'
-                    , bSignature = sig'
-                    , bPragmas   = bPragmas b
-                    }
+    n'    <- rnLocated renameVar (bName b)
+    mbSig <- traverse renameSchema (bSignature b)
+    shadowNames (fst `fmap` mbSig) $
+      do (patEnv,pats') <- renamePats (bParams b)
+         e'             <- shadowNames patEnv (rnLocated rename (bDef b))
+         return b { bName      = n'
+                  , bParams    = pats'
+                  , bDef       = e'
+                  , bSignature = snd `fmap` mbSig
+                  , bPragmas   = bPragmas b
+                  }
 
 instance Rename BindDef where
   rename DPrim     = return DPrim
@@ -589,24 +619,25 @@ instance Rename Expr where
     ELit l        -> return (ELit l)
     ETuple es     -> ETuple  <$> traverse rename es
     ERecord fs    -> ERecord <$> traverse (rnNamed rename) fs
-    ESel e' s     -> ESel    <$> rename e' <*> rename s
+    ESel e' s     -> ESel    <$> rename e' <*> pure s
     EList es      -> EList   <$> traverse rename es
     EFromTo s n e'-> EFromTo <$> rename s
                              <*> traverse rename n
                              <*> traverse rename e'
     EInfFrom a b  -> EInfFrom<$> rename a  <*> traverse rename b
-    EComp e' bs   -> do bs' <- mapM renameMatch bs
-                        shadowNames (namingEnv bs')
-                            (EComp <$> rename e' <*> pure bs')
+    EComp e' bs   -> do arms' <- traverse renameArm bs
+                        let (envs,bs') = unzip arms'
+                        shadowNames envs (EComp <$> rename e' <*> pure bs')
     EApp f x      -> EApp    <$> rename f  <*> rename x
     EAppT f ti    -> EAppT   <$> rename f  <*> traverse rename ti
     EIf b t f     -> EIf     <$> rename b  <*> rename t  <*> rename f
-    EWhere e' ds  -> shadowNames ds $ EWhere <$> rename e'
-                                             <*> traverse rename ds
+    EWhere e' ds  -> do ns <- getNS
+                        shadowNames (map (InModule ns) ds) $
+                          EWhere <$> rename e' <*> traverse rename ds
     ETyped e' ty  -> ETyped  <$> rename e' <*> rename ty
     ETypeVal ty   -> ETypeVal<$> rename ty
-    EFun ps e'    -> do ps' <- traverse rename ps
-                        shadowNames ps' (EFun ps' <$> rename e')
+    EFun ps e'    -> do (env,ps') <- renamePats ps
+                        shadowNames env (EFun ps' <$> rename e')
     ELocated e' r -> withLoc r
                    $ ELocated <$> rename e' <*> pure r
 
@@ -652,34 +683,109 @@ instance Rename TypeInst where
     NamedInst nty -> NamedInst <$> traverse rename nty
     PosInst ty    -> PosInst   <$> rename ty
 
-renameMatch :: [Match PName] -> RenameM [Match Name]
-renameMatch  = loop
-  where
-  loop ms = case ms of
+renameArm :: [Match PName] -> RenameM (NamingEnv,[Match Name])
 
-    m:rest -> do
-      m' <- rename m
-      (m':) <$> shadowNames m' (loop rest)
+renameArm (m:ms) =
+  do (me,m') <- renameMatch m
+     shadowNames me $
+       do (env,rest) <- renameArm ms
 
-    [] -> return []
+          -- NOTE: the inner environment shadows the outer one, for examples
+          -- like this:
+          --
+          -- [ x | x <- xs, let x = 10 ]
+          return (env `shadowing` me, m':rest)
 
+renameArm [] =
+     return (mempty,[])
+
+-- | The name environment generated by a single match.
+renameMatch :: Match PName -> RenameM (NamingEnv,Match Name)
+
+renameMatch (Match p e) =
+  do (pe,[p']) <- renamePats [p]
+     e'        <- rename e
+     return (pe,Match p' e')
+
+renameMatch (MatchLet b) =
+  do ns <- getNS
+     be <- supply (namingEnv (InModule ns b))
+     b' <- shadowNames be (rename b)
+     return (be,MatchLet b')
+
+-- | Rename patterns, and collect the new environment that they introduce.
 renamePats :: [Pattern PName] -> RenameM (NamingEnv,[Pattern Name])
 renamePats  = loop
   where
   loop ps = case ps of
 
     p:rest -> do
-      p' <- rename p
-      pe <- supply (namingEnv p')
-      (env',rest') <- loop rest
-      return (pe `mappend` env', p':rest')
+      pe <- patternEnv p
+      shadowNames pe $
+        do p'           <- rename p
+           (env',rest') <- loop rest
+           return (pe `mappend` env', p':rest')
 
     [] -> return (mempty, [])
 
+patternEnv :: Pattern PName -> RenameM NamingEnv
+patternEnv p0 = go p0
+  where
+  go (PVar Located { .. }) =
+    do n <- supply (liftSupply (mkParameter (getIdent thing) srcRange))
+       return (singletonE thing n)
+
+  go PWild            = return mempty
+  go (PTuple ps)      = foldMap go ps
+  go (PRecord fs)     = foldMap (foldMap go) fs
+  go (PList ps)       = foldMap go ps
+  go (PTyped p ty)    = go p `mappend` typeEnv ty
+  go (PSplit a b)     = go a `mappend` go b
+  go (PLocated p loc) = withLoc loc (go p)
+
+  typeEnv (TFun a b) = typeEnv a `mappend` typeEnv b
+  typeEnv (TSeq a b) = typeEnv a `mappend` typeEnv b
+
+  typeEnv TBit       = return mempty
+  typeEnv TNum{}     = return mempty
+  typeEnv TChar{}    = return mempty
+  typeEnv TInf       = return mempty
+
+  typeEnv (TUser pn ps) =
+    do mb <- typeExists pn
+       case mb of
+
+         -- The type is already bound, don't introduce anything.
+         Just _ -> foldMap typeEnv ps
+
+         Nothing
+           -- The type isn't bound, and has no parameters, so it names a portion
+           -- of the type of the pattern.
+           | null ps ->
+             do loc <- curLoc
+                n   <- supply (liftSupply (mkParameter (getIdent pn) loc))
+                return (singletonT pn n)
+
+           -- This references a type synonym that's not in scope. Record an
+           -- error and continue with a made up name.
+           | otherwise ->
+             do loc <- curLoc
+                record (UnboundType (Located loc pn))
+                n   <- supply (liftSupply (mkParameter (getIdent pn) loc))
+                return (singletonT pn n)
+
+  typeEnv (TApp _ ts)       = foldMap typeEnv ts
+  typeEnv (TRecord fs)      = foldMap (foldMap typeEnv) fs
+  typeEnv (TTuple ts)       = foldMap typeEnv ts
+  typeEnv TWild             = return mempty
+  typeEnv (TLocated ty loc) = withLoc loc (typeEnv ty)
+  typeEnv (TParens ty)      = typeEnv ty
+  typeEnv (TInfix a _ _ b)  = typeEnv a `mappend` typeEnv b
+
 instance Rename Match where
   rename m = case m of
-    Match p e  ->                Match    <$> rename p <*> rename e
-    MatchLet b -> shadowNames b (MatchLet <$> rename b)
+    Match p e  ->                  Match    <$> rename p <*> rename e
+    MatchLet b -> shadowNamesNS b (MatchLet <$> rename b)
 
 instance Rename TySyn where
   rename (TySyn n ps ty) =
