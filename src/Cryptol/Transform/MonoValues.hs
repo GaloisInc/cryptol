@@ -74,6 +74,7 @@
 
 {-# LANGUAGE PatternGuards, FlexibleInstances, MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP #-}
 module Cryptol.Transform.MonoValues (rewModule) where
 
 import Cryptol.Parser.AST (Pass(MonoValues))
@@ -81,7 +82,6 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.TypeMap
 import Data.List(sortBy,groupBy)
 import Data.Either(partitionEithers)
-import Data.Map (Map)
 import MonadLib
 
 #if __GLASGOW_HASKELL__ < 710
@@ -90,10 +90,10 @@ import Control.Applicative
 
 {- (f,t,n) |--> x  means that when we spot instantiations of `f` with `ts` and
 `n` proof argument, we should replace them with `Var x` -}
-newtype RewMap' a = RM (Map QName (TypesMap (Map Int a)))
-type RewMap = RewMap' QName
+newtype RewMap' a = RM (NameMap (TypesMap (Map Int a)))
+type RewMap = RewMap' Name
 
-instance TrieMap RewMap' (QName,[Type],Int) where
+instance TrieMap RewMap' (Name,[Type],Int) where
   emptyTM  = RM emptyTM
 
   nullTM (RM m) = nullTM m

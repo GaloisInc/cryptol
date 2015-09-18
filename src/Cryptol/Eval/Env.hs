@@ -9,9 +9,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE CPP #-}
 module Cryptol.Eval.Env where
 
 import Cryptol.Eval.Value
+import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.Utils.PP
 
@@ -29,7 +31,7 @@ import           Data.Monoid (Monoid(..))
 type ReadEnv = EvalEnv
 
 data EvalEnv = EvalEnv
-  { envVars       :: Map.Map QName Value
+  { envVars       :: NameMap Value
   , envTypes      :: Map.Map TVar TValue
   } deriving (Generic)
 

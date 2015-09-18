@@ -61,7 +61,7 @@ simpleBind x e = Bind { bName = x, bParams = []
                       , bDoc = Nothing
                       }
 
-sel :: Pattern PName -> PName -> Selector PName -> Bind PName
+sel :: Pattern PName -> PName -> Selector -> Bind PName
 sel p x s = let (a,ts) = splitSimpleP p
             in simpleBind a (foldl ETyped (ESel (EVar x) s) ts)
 

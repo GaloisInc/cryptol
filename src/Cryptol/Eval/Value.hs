@@ -354,8 +354,8 @@ lookupRecord f rec = case lookup f (fromVRecord rec) of
 -- this value, if we can determine it.
 --
 -- XXX: View patterns would probably clean up this definition a lot.
-toExpr :: Type -> Value -> Maybe Expr
-toExpr ty val = case (ty, val) of
+toExpr :: PrimMap -> Type -> Value -> Maybe Expr
+toExpr prims ty val = case (ty, val) of
   (TRec tfs, VRecord vfs) -> do
     let fns = map fst vfs
     guard (map fst tfs == fns)

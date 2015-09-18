@@ -163,7 +163,7 @@ mkFixity assoc tok qns =
           (errorMessage (srcRange tok) "Fixity levels must be between 0 and 20")
      return (DFixity (Fixity assoc (fromInteger l)) qns)
 
-mkTupleSel :: Range -> Integer -> ParseM (Located (Selector PName))
+mkTupleSel :: Range -> Integer -> ParseM (Located Selector)
 mkTupleSel pos n
   | n < 0 = errorMessage pos
              (show n ++ " is not a valid tuple selector (they start from 0).")
@@ -280,7 +280,7 @@ changeExport e = map change
   change (TDNewtype n) = TDNewtype n { tlExport = e }
   change td@Include{}  = td
 
-mkTypeInst :: Named PName (Type PName) -> TypeInst PName
+mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (getIdent (thing (name x))) = PosInst (value x)
              | otherwise                             = NamedInst x
 

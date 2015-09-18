@@ -13,6 +13,7 @@
 {-# LANGUAGE DeriveGeneric                       #-}
 module Cryptol.TypeCheck.AST
   ( module Cryptol.TypeCheck.AST
+  , Name()
   , TFun(..)
   , Selector(..)
   , Import(..)

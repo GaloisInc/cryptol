@@ -25,7 +25,7 @@ import qualified Data.Map as Map
 -- | Given a typing environment and an expression, compute the type of
 -- the expression as quickly as possible, assuming that the expression
 -- is well formed with correct type annotations.
-fastTypeOf :: Map QName Schema -> Expr -> Type
+fastTypeOf :: Map Name Schema -> Expr -> Type
 fastTypeOf tyenv expr =
   case expr of
     -- Monomorphic fragment
@@ -55,7 +55,7 @@ fastTypeOf tyenv expr =
         _ -> panic "Cryptol.TypeCheck.TypeOf.fastTypeOf"
                [ "unexpected polymorphic type" ]
 
-fastSchemaOf :: Map QName Schema -> Expr -> Schema
+fastSchemaOf :: Map Name Schema -> Expr -> Schema
 fastSchemaOf tyenv expr =
   case expr of
     -- Polymorphic fragment

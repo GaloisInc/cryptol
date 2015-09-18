@@ -21,10 +21,10 @@ import           Data.Map ( Map )
 import qualified Data.Map as Map
 
 
-tcExpr :: Map QName Schema -> Expr -> Either Error (Schema, [ ProofObligation ])
+tcExpr :: Map Name Schema -> Expr -> Either Error (Schema, [ ProofObligation ])
 tcExpr env e = runTcM env (exprSchema e)
 
-tcDecls :: Map QName Schema -> [DeclGroup] -> Either Error [ ProofObligation ]
+tcDecls :: Map Name Schema -> [DeclGroup] -> Either Error [ ProofObligation ]
 tcDecls env ds0 = case runTcM env (go ds0) of
                     Left err     -> Left err
                     Right (_,ps) -> Right ps
@@ -33,7 +33,7 @@ tcDecls env ds0 = case runTcM env (go ds0) of
   go (d : ds) = do xs <- checkDeclGroup d
                    withVars xs (go ds)
 
-tcModule :: Map QName Schema -> Module -> Either Error [ ProofObligation ]
+tcModule :: Map Name Schema -> Module -> Either Error [ ProofObligation ]
 tcModule env m = tcDecls env (mDecls m)
 
 
@@ -351,7 +351,7 @@ convertible t1 t2 = go t1 t2
 --------------------------------------------------------------------------------
 
 -- | Check a declaration. The boolean indicates if we should check the siganture
-checkDecl :: Bool -> Decl -> TcM (QName, Schema)
+checkDecl :: Bool -> Decl -> TcM (Name, Schema)
 checkDecl checkSig d =
   case dDefinition d of
 
@@ -367,7 +367,7 @@ checkDecl checkSig d =
            reportError $ TypeMismatch s s1
          return (dName d, s)
 
-checkDeclGroup :: DeclGroup -> TcM [(QName, Schema)]
+checkDeclGroup :: DeclGroup -> TcM [(Name, Schema)]
 checkDeclGroup dg =
   case dg of
     NonRecursive d -> do x <- checkDecl True d
@@ -379,7 +379,7 @@ checkDeclGroup dg =
          withVars xs $ mapM (checkDecl False) ds
 
 
-checkMatch :: Match -> TcM ((QName, Schema), Type)
+checkMatch :: Match -> TcM ((Name, Schema), Type)
 checkMatch ma =
   case ma of
     From x t e ->
@@ -396,7 +396,7 @@ checkMatch ma =
     Let d -> do x <- checkDecl True d
                 return (x, tNum (1 :: Int))
 
-checkArm :: [Match] -> TcM ([(QName, Schema)], Type)
+checkArm :: [Match] -> TcM ([(Name, Schema)], Type)
 checkArm []   = reportError EmptyArm
 checkArm [m]  = do (x,l) <- checkMatch m
                    return ([x], l)
@@ -416,7 +416,7 @@ checkArm (m : ms) =
 data RO = RO
   { roTVars   :: Map Int TParam
   , roAsmps   :: [Prop]
-  , roVars    :: Map QName Schema
+  , roVars    :: Map Name Schema
   }
 
 type ProofObligation = Schema -- but the type is of kind Prop
@@ -441,7 +441,7 @@ instance Monad TcM where
                         let TcM m1 = f a
                         m1)
 
-runTcM :: Map QName Schema -> TcM a -> Either Error (a, [ProofObligation])
+runTcM :: Map Name Schema -> TcM a -> Either Error (a, [ProofObligation])
 runTcM env (TcM m) =
   case runM m ro rw of
     (Left err, _) -> Left err
@@ -476,7 +476,7 @@ data Error =
   | BadMatch Type
   | EmptyArm
   | UndefinedTypeVaraible TVar
-  | UndefinedVariable QName
+  | UndefinedVariable Name
     deriving Show
 
 reportError :: Error -> TcM a
@@ -492,10 +492,10 @@ withAsmp p (TcM m) = TcM $
   do ro <- ask
      local ro { roAsmps = p : roAsmps ro } m
 
-withVar :: QName -> Type -> TcM a -> TcM a
+withVar :: Name -> Type -> TcM a -> TcM a
 withVar x t = withVars [(x,tMono t)]
 
-withVars :: [(QName, Schema)] -> TcM a -> TcM a
+withVars :: [(Name, Schema)] -> TcM a -> TcM a
 withVars xs (TcM m) = TcM $
   do ro <- ask
      local ro { roVars = Map.union (Map.fromList xs) (roVars ro) } m
@@ -519,7 +519,7 @@ lookupTVar x =
               | otherwise       -> reportError $ KindMismatch (kindOf tp) k
             Nothing  -> reportError $ UndefinedTypeVaraible x
 
-lookupVar :: QName -> TcM Schema
+lookupVar :: Name -> TcM Schema
 lookupVar x =
   do ro <- TcM ask
      case Map.lookup x (roVars ro) of

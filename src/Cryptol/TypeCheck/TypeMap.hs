@@ -19,6 +19,7 @@ module Cryptol.TypeCheck.TypeMap
   , List(..)
   ) where
 
+import           Cryptol.ModuleSystem.Name
 import           Cryptol.TypeCheck.AST
 
 import qualified Data.Map as Map
@@ -168,3 +169,12 @@ updSub k f = Just . alterTM k f . fromMaybe emptyTM
 instance Show a => Show (TypeMap a) where
   showsPrec p xs = showsPrec p (toListTM xs)
 
+
+instance TrieMap NameMap Name where
+  emptyTM           = emptyNM
+  nullTM            = nullNM
+  lookupTM          = lookupNM
+  alterTM           = alterNM
+  unionTM           = unionWithNM
+  toListTM          = toListNM
+  mapMaybeWithKeyTM = mapMaybeWithKeyNM
