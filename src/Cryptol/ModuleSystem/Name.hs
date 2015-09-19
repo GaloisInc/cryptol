@@ -46,7 +46,6 @@ import           Cryptol.Utils.PP
 
 import qualified Control.Applicative as A
 import           Control.DeepSeq
-import qualified Data.Text as T
 import qualified Data.IntMap.Lazy as I
 import qualified Data.Monoid as M
 import           GHC.Generics (Generic)
@@ -86,10 +85,6 @@ instance Ord Name where
 
 instance NFData NameInfo
 instance NFData Name
-
-ppNamespace :: NameInfo -> Doc
-ppNamespace (Declared modName) = pp modName <> text "::"
-ppNamespace Parameter          = empty
 
 -- | Figure out how the name should be displayed, by referencing the display
 -- function in the environment. NOTE: this function doesn't take into account
@@ -207,6 +202,7 @@ mkParameter nIdent nLoc s =
 
 -- Maps of Names ---------------------------------------------------------------
 
+-- | Maps that take advantage of the unique key in names.
 newtype NameMap a = NameMap { nmElems :: I.IntMap (Name,a)
                             } deriving (Functor,Foldable,Traversable,Show)
 

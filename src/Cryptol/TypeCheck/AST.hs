@@ -30,7 +30,7 @@ import Cryptol.Parser.AST ( Selector(..),Pragma(..), ppSelector
                           , Import(..), ImportSpec(..), ExportType(..)
                           , ExportSpec(..), isExportedBind
                           , isExportedType, Fixity(..) )
-import Cryptol.Utils.Ident (isInfixIdent,ModName)
+import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
@@ -86,7 +86,7 @@ instance NFData TySyn
 data Newtype  = Newtype { ntName   :: Name
                         , ntParams :: [TParam]
                         , ntConstraints :: [Prop]
-                        , ntFields :: [(Name,Type)]
+                        , ntFields :: [(Ident,Type)]
                         } deriving (Show, Generic)
 
 instance NFData Newtype
@@ -124,7 +124,7 @@ data Type   = TCon TCon [Type]
               Example: `TUser T ts t` is really just the type `t` that
               was written as `T ts` by the user. -}
 
-            | TRec [(Name,Type)]
+            | TRec [(Ident,Type)]
               -- ^ Record type
 
               deriving (Show,Eq,Ord,Generic)
@@ -210,7 +210,7 @@ instance Ord TVar where
 
 data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | ETuple [Expr]             -- ^ Tuple value
-            | ERec [(Name,Expr)]        -- ^ Record value
+            | ERec [(Ident,Expr)]       -- ^ Record value
             | ESel Expr Selector        -- ^ Elimination for tuple/record/list
 
             | EIf Expr Expr Expr        -- ^ If-then-else
@@ -445,7 +445,7 @@ tChar = tWord (tNum (8 :: Int))
 tString :: Int -> Type
 tString len = tSeq (tNum len) tChar
 
-tRec     :: [(Name,Type)] -> Type
+tRec     :: [(Ident,Type)] -> Type
 tRec      = TRec
 
 tTuple   :: [Type] -> Type

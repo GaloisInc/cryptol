@@ -10,6 +10,7 @@ module Cryptol.TypeCheck.Sanity
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst(apSubst, fvs, singleSubst)
+import Cryptol.Utils.Ident
 
 import qualified Data.Set as Set
 import Data.List(sort, sortBy)
@@ -458,9 +459,9 @@ data Error =
     TypeMismatch Schema Schema    -- ^ expected, actual
   | ExpectedMono Schema           -- ^ expected a mono type, got this
   | TupleSelectorOutOfRange Int Int
-  | MissingField Name [Name]
+  | MissingField Ident [Ident]
   | UnexpectedTupleShape Int Int
-  | UnexpectedRecordShape [Name] [Name]
+  | UnexpectedRecordShape [Ident] [Ident]
   | UnexpectedSequenceShape Int Type
   | BadSelector Selector Type
   | BadInstantiation

@@ -21,6 +21,7 @@ module Cryptol.TypeCheck.TypeMap
 
 import           Cryptol.ModuleSystem.Name
 import           Cryptol.TypeCheck.AST
+import           Cryptol.Utils.Ident
 
 import qualified Data.Map as Map
 import           Data.Map (Map)
@@ -115,8 +116,8 @@ instance Ord a => TrieMap (Map a) a where
 type TypesMap = List TypeMap
 
 data TypeMap a = TM { tvar :: Map TVar a
-                    , tcon :: Map TCon   (List TypeMap a)
-                    , trec :: Map [Name] (List TypeMap a)
+                    , tcon :: Map TCon    (List TypeMap a)
+                    , trec :: Map [Ident] (List TypeMap a)
                     } deriving (Functor)
 
 instance TrieMap TypeMap Type where
