@@ -260,7 +260,7 @@ exprToNumT r expr =
 -- It is used to represent anonymous type applications.
 anonRecord :: Maybe Range -> [Type PName] -> Type PName
 anonRecord ~(Just r) ts = TRecord (map toField ts)
-  where noName    = Located { srcRange = r, thing = mkUnqual (mkIdent (S.pack "")) }
+  where noName    = Located { srcRange = r, thing = mkIdent (S.pack "") }
         toField t = Named { name = noName, value = t }
 
 exportDecl :: Maybe (Located String) -> ExportType -> Decl PName -> TopDecl PName
@@ -281,8 +281,8 @@ changeExport e = map change
   change td@Include{}  = td
 
 mkTypeInst :: Named (Type PName) -> TypeInst PName
-mkTypeInst x | nullIdent (getIdent (thing (name x))) = PosInst (value x)
-             | otherwise                             = NamedInst x
+mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
+             | otherwise                  = NamedInst x
 
 
 mkTParam :: Located PName -> Maybe Kind -> ParseM (TParam PName)

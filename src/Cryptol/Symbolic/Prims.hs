@@ -18,13 +18,15 @@ import Data.Ord (comparing)
 import Cryptol.Eval.Value (BitWord(..))
 import Cryptol.Prims.Eval (binary, unary, tlamN)
 import Cryptol.Symbolic.Value
-import Cryptol.TypeCheck.AST (QName(..),Name(..),Decl(..),mkModName)
+import Cryptol.TypeCheck.AST (Decl(..))
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)
 import Cryptol.Utils.Panic
-import Cryptol.ModuleSystem.Name (Ident, pack, preludeName)
+import Cryptol.ModuleSystem.Name (asPrim)
+import Cryptol.Utils.Ident (Ident,mkIdent)
 
 import qualified Data.SBV.Dynamic as SBV
 import qualified Data.Map as Map
+import qualified Data.Text as T
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative
@@ -36,15 +38,15 @@ traverseSnd f (x, y) = (,) x <$> f y
 -- Primitives ------------------------------------------------------------------
 
 evalPrim :: Decl -> Value
-evalPrim Decl { dName = QName (Just m) (Name prim), .. }
-  | m == preludeName, Just val <- Map.lookup prim primTable = val
+evalPrim Decl { dName = n, .. }
+  | Just prim <- asPrim n, Just val <- Map.lookup prim primTable = val
 
 evalPrim Decl { .. } =
     panic "Eval" [ "Unimplemented primitive", show dName ]
 
 -- See also Cryptol.Prims.Eval.primTable
 primTable :: Map.Map Ident Value
-primTable  = Map.fromList $ map (\(n, v) -> (pack n, v))
+primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   [ ("True"        , VBit SBV.svTrue)
   , ("False"       , VBit SBV.svFalse)
   , ("demote"      , ecDemoteV) -- Converts a numeric type into its corresponding value.
@@ -373,7 +375,7 @@ data TypeVal
   | TVSeq Int TypeVal
   | TVStream TypeVal
   | TVTuple [TypeVal]
-  | TVRecord [(Name, TypeVal)]
+  | TVRecord [(Ident, TypeVal)]
   | TVFun TypeVal TypeVal
 
 toTypeVal :: TValue -> TypeVal

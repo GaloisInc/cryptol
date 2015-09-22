@@ -429,7 +429,6 @@ tNat' n'  = case n' of
               Inf   -> tInf
               Nat n -> tNum n
 
-
 tBit     :: Type
 tBit      = TCon (TC TCBit) []
 
@@ -540,6 +539,19 @@ newtypeConType nt =
     $ TRec (ntFields nt) `tFun` TCon (newtypeTyCon nt) (map (TVar . tpVar) as)
   where
   as = ntParams nt
+
+
+
+type PrimMap = Map.Map Ident Name
+
+-- | Construct a primitive, given a map to the unique names of the Cryptol
+-- module.
+ePrim :: PrimMap -> Ident -> Expr
+ePrim pm n = EVar (Map.findWithDefault err n pm)
+  where
+  err = panic "Cryptol.TypeCheck.AST.ePrim"
+        [ "Unable to find primitive: " ++ show n ]
+
 
 --------------------------------------------------------------------------------
 

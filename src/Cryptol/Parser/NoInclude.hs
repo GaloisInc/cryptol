@@ -51,7 +51,7 @@ makeAbsolute = fmap normalise . absolutize
           | otherwise       = return path
 #endif
 
-removeIncludesModule :: FilePath -> Module -> IO (Either [IncludeError] Module)
+removeIncludesModule :: FilePath -> Module PName -> IO (Either [IncludeError] (Module PName))
 removeIncludesModule modPath m = runNoIncM modPath (noIncludeModule m)
 
 
@@ -162,19 +162,19 @@ collectErrors f ts = do
   return rs
 
 -- | Remove includes from a module.
-noIncludeModule :: Module -> NoIncM Module
+noIncludeModule :: Module PName -> NoIncM (Module PName)
 noIncludeModule m = update `fmap` collectErrors noIncTopDecl (mDecls m)
   where
   update tds = m { mDecls = concat tds }
 
 -- | Remove includes from a program.
-noIncludeProgram :: Program -> NoIncM Program
+noIncludeProgram :: Program PName -> NoIncM (Program PName)
 noIncludeProgram (Program tds) =
   (Program . concat) `fmap` collectErrors noIncTopDecl tds
 
 -- | Substitute top-level includes with the declarations from the files they
 -- reference.
-noIncTopDecl :: TopDecl -> NoIncM [TopDecl]
+noIncTopDecl :: TopDecl PName -> NoIncM [TopDecl PName]
 noIncTopDecl td = case td of
   Decl _     -> return [td]
   TDNewtype _-> return [td]
@@ -182,7 +182,7 @@ noIncTopDecl td = case td of
 
 -- | Resolve the file referenced by a include into a list of top-level
 -- declarations.
-resolveInclude :: Located FilePath -> NoIncM [TopDecl]
+resolveInclude :: Located FilePath -> NoIncM [TopDecl PName]
 resolveInclude lf = pushPath lf $ do
   source <- readInclude lf
   case parseProgramWith (defaultConfig { cfgSource = thing lf, cfgPreProc = guessPreProc (thing lf) }) source of

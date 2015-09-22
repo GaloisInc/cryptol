@@ -64,7 +64,7 @@ inferModule m =
   onlyLocal (IsLocal, x)    = Just x
   onlyLocal (IsExternal, _) = Nothing
 
-desugarLiteral :: Bool -> P.Literal -> InferM P.Expr
+desugarLiteral :: Bool -> P.Literal -> InferM (P.Expr Name)
 desugarLiteral fixDec lit =
   do l <- curRange
      let named (x,y)  = P.NamedInst
@@ -95,7 +95,7 @@ desugarLiteral fixDec lit =
 
 
 -- | Infer the type of an expression with an explicit instantiation.
-appTys :: P.Expr -> [Located (Maybe QName,Type)] -> Type -> InferM Expr
+appTys :: P.Expr -> [Located (Maybe Name,Type)] -> Type -> InferM Expr
 appTys expr ts tGoal =
   case expr of
     P.EVar x ->

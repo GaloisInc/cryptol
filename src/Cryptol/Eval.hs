@@ -23,6 +23,7 @@ import Cryptol.Eval.Error
 import Cryptol.Eval.Env
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
+import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
@@ -96,7 +97,7 @@ evalExpr env expr = case expr of
 
 -- Newtypes --------------------------------------------------------------------
 
-evalNewtypes :: Map.Map QName Newtype -> EvalEnv -> EvalEnv
+evalNewtypes :: Map.Map Name Newtype -> EvalEnv -> EvalEnv
 evalNewtypes nts env = Map.foldl (flip evalNewtype) env nts
 
 -- | Introduce the constructor function for a newtype.
@@ -196,19 +197,19 @@ instance Applicative ZList where
 -- name is bound to a list of values, one for each element in the list
 -- comprehension.
 data ListEnv = ListEnv
-  { leVars :: Map.Map QName (ZList Value)
+  { leVars :: NameMap (ZList Value)
   , leTypes :: Map.Map TVar TValue
   }
 
 instance Monoid ListEnv where
   mempty = ListEnv
-    { leVars  = Map.empty
+    { leVars  = emptyNM
     , leTypes = Map.empty
     }
 
   mappend l r = ListEnv
-    { leVars  = Map.union (leVars  l) (leVars  r)
-    , leTypes = Map.union (leTypes l) (leTypes r)
+    { leVars  = unionWithNM const (leVars  l) (leVars  r)
+    , leTypes = Map.union         (leTypes l) (leTypes r)
     }
 
 toListEnv :: EvalEnv -> ListEnv
@@ -227,8 +228,8 @@ zipListEnv (ListEnv vm tm) =
   [ EvalEnv { envVars = v, envTypes = tm }
   | v <- getZList (sequenceA vm) ]
 
-bindVarList :: QName -> [Value] -> ListEnv -> ListEnv
-bindVarList n vs lenv = lenv { leVars = Map.insert n (Zip vs) (leVars lenv) }
+bindVarList :: Name -> [Value] -> ListEnv -> ListEnv
+bindVarList n vs lenv = lenv { leVars = insertNM n (Zip vs) (leVars lenv) }
 
 
 -- List Comprehensions ---------------------------------------------------------

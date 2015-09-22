@@ -14,13 +14,14 @@ import Cryptol.TypeCheck.Monad( InferM, unify, newGoals, lookupNewtype
                               , newType, applySubst, addHasGoal, solveHasGoal
                               )
 import Cryptol.TypeCheck.Subst(listSubst,apSubst)
+import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP(text,pp,ordinal,(<+>))
 import Cryptol.Utils.Panic(panic)
 
 import Control.Monad(forM,guard)
 
 
-recordType :: [Name] -> InferM Type
+recordType :: [Ident] -> InferM Type
 recordType labels =
   do fields <- forM labels $ \l ->
         do t <- newType (text "record field" <+> pp l) KType

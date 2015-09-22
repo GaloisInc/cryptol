@@ -15,8 +15,6 @@ import           Cryptol.Utils.Ident
 
 import           Control.DeepSeq
 import           Control.Monad (mplus)
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
 import           Data.Maybe (fromMaybe)
 import qualified Data.Monoid as M
 import           Data.String (IsString(..))

@@ -12,6 +12,7 @@
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.TypeCheck.InferTypes where
 
 import           Cryptol.TypeCheck.AST
@@ -19,9 +20,10 @@ import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.TypeMap
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
-import           Cryptol.Parser.AST(LQName)
 import           Cryptol.Utils.PP
+import           Cryptol.ModuleSystem.Name (asPrim,nameLoc)
 import           Cryptol.TypeCheck.PP
+import           Cryptol.Utils.Ident (identText)
 import           Cryptol.Utils.Panic(panic)
 
 import qualified Data.Set as Set
@@ -74,7 +76,7 @@ data HasGoal = HasGoal
 
 -- | Delayed implication constraints, arising from user-specified type sigs.
 data DelayedCt = DelayedCt
-  { dctSource :: LQName   -- ^ Signature that gave rise to this constraint
+  { dctSource :: Name   -- ^ Signature that gave rise to this constraint
   , dctForall :: [TParam]
   , dctAsmps  :: [Prop]
   , dctGoals  :: [Goal]
@@ -87,7 +89,7 @@ data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assuming the sub-goals.
             | Unsolvable                  -- ^ The goal can never be solved
               deriving (Show)
 
-data Warning  = DefaultingKind P.TParam P.Kind
+data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingWildType P.Kind
               | DefaultingTo Doc Type
                 deriving (Show,Generic)
@@ -105,31 +107,31 @@ data Error    = ErrorMsg Doc
                 -- ^ Number of extra parameters, kind of resut
                 -- (which should not be of the form @_ -> _@)
 
-              | TooManyTySynParams QName Int
+              | TooManyTySynParams Name Int
                 -- ^ Type-synonym, number of extra params
 
-              | TooFewTySynParams QName Int
+              | TooFewTySynParams Name Int
                 -- ^ Type-synonym, number of missing params
 
-              | RepeatedTyParams [P.TParam]
+              | RepeatedTyParams [P.TParam Name]
                 -- ^ Type parameters with the same name (in definition)
 
-              | RepeatedDefinitions QName [Range]
+              | RepeatedDefinitions Name [Range]
                 -- ^ Multiple definitions for the same name
 
-              | RecursiveTypeDecls [LQName]
+              | RecursiveTypeDecls [Name]
                 -- ^ The type synonym declarations are recursive
 
-              | UndefinedTypeSynonym QName
+              | UndefinedTypeSynonym Name
                 -- ^ Use of a type synonym that was not defined
 
-              | UndefinedVariable QName
+              | UndefinedVariable Name
                 -- ^ Use of a variable that was not defined
 
-              | UndefinedTypeParam QName
+              | UndefinedTypeParam Name
                 -- ^ Attempt to explicitly instantiate a non-existent param.
 
-              | MultipleTypeParamDefs QName [Range]
+              | MultipleTypeParamDefs Name [Range]
                 -- ^ Multiple definitions for the same type parameter
 
               | TypeMismatch Type Type
@@ -158,7 +160,7 @@ data Error    = ErrorMsg Doc
                 -- ^ Quantified type variables (of kind *) needs to
                 -- match the given type, so it does not work for all types.
 
-              | UnusableFunction QName [Prop]
+              | UnusableFunction Name [Prop]
                 -- ^ The given constraints causes the signature of the
                 -- function to be not-satisfiable.
 
@@ -168,7 +170,7 @@ data Error    = ErrorMsg Doc
 
               | CannotMixPositionalAndNamedTypeParams
 
-              | AmbiguousType [QName]
+              | AmbiguousType [Name]
 
 
                 deriving (Show,Generic)
@@ -191,7 +193,7 @@ data ConstraintSource
 
 instance NFData ConstraintSource
 
-data TyFunName = UserTyFun QName | BuiltInTyFun TFun
+data TyFunName = UserTyFun Name | BuiltInTyFun TFun
                 deriving (Show,Generic)
 
 instance NFData TyFunName
@@ -520,13 +522,13 @@ instance PP ConstraintSource where
 ppUse :: Expr -> Doc
 ppUse expr =
   case expr of
-    EVar (P.asPrim -> Just prim)
-      | prim == "demote"       -> text "literal or demoted expression"
-      | prim == "infFrom"      -> text "infinite enumeration"
-      | prim == "infFromThen"  -> text "infinite enumeration (with step)"
-      | prim == "fromThen"     -> text "finite enumeration"
-      | prim == "fromTo"       -> text "finite enumeration"
-      | prim == "fromThenTo"   -> text "finite enumeration"
+    EVar (asPrim -> Just prim)
+      | identText prim == "demote"       -> text "literal or demoted expression"
+      | identText prim == "infFrom"      -> text "infinite enumeration"
+      | identText prim == "infFromThen"  -> text "infinite enumeration (with step)"
+      | identText prim == "fromThen"     -> text "finite enumeration"
+      | identText prim == "fromTo"       -> text "finite enumeration"
+      | identText prim == "fromThenTo"   -> text "finite enumeration"
     _                          -> text "expression" <+> pp expr
 
 instance PP (WithNames Goal) where
@@ -540,8 +542,8 @@ instance PP (WithNames DelayedCt) where
   ppPrec _ (WithNames d names) =
     sig $$ nest 2 (vars $$ asmps $$ vcat (map (ppWithNames ns1) (dctGoals d)))
     where
-    sig = text "In the definition of" <+> quotes (pp (thing name)) <>
-          comma <+> text "at" <+> pp (srcRange name) <> colon
+    sig = text "In the definition of" <+> quotes (pp (nameLoc name)) <>
+          comma <+> text "at" <+> pp (nameLoc name) <> colon
 
     name  = dctSource d
     vars = case dctForall d of

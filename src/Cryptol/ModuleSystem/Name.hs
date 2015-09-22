@@ -8,6 +8,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+
+-- for the instances of RunM and BaseM
+{-# LANGUAGE UndecidableInstances #-}
 
 module Cryptol.ModuleSystem.Name (
     -- * Names
@@ -23,7 +27,9 @@ module Cryptol.ModuleSystem.Name (
   , mkParameter
 
     -- ** Unique Supply
-  , SupplyM(), runSupplyM, nextUniqueM, liftSupply
+  , FreshM(..), nextUniqueM
+  , SupplyT(), runSupplyT
+  , SupplyM(), runSupplyM
   , Supply(), emptySupply, nextUnique
 
     -- * Name Maps
@@ -54,7 +60,7 @@ import           MonadLib
 
 -- Names -----------------------------------------------------------------------
 
--- | Information about the origin of the name.
+-- | Information about the binding site of the name.
 data NameInfo = Declared !ModName
                 -- ^ This name refers to a declaration from this module
               | Parameter
@@ -132,9 +138,77 @@ asPrim Name { .. }
 
 -- Name Supply -----------------------------------------------------------------
 
+class Monad m => FreshM m where
+  liftSupply :: (Supply -> (a,Supply)) -> m a
+
+instance FreshM m => FreshM (ExceptionT i m) where
+  liftSupply f = lift (liftSupply f)
+
+instance (M.Monoid i, FreshM m) => FreshM (WriterT i m) where
+  liftSupply f = lift (liftSupply f)
+
+instance FreshM m => FreshM (ReaderT i m) where
+  liftSupply f = lift (liftSupply f)
+
+instance FreshM m => FreshM (StateT i m) where
+  liftSupply f = lift (liftSupply f)
+
+instance FreshM SupplyM where
+  liftSupply f = SupplyM (liftSupply f)
+
+instance Monad m => FreshM (SupplyT m) where
+  liftSupply f = SupplyT $
+    do s <- get
+       let (a,s') = f s
+       set $! s'
+       return a
+
 -- | A monad for easing the use of the supply.
-newtype SupplyM a = SupplyM (StateT Supply Lift a)
+newtype SupplyT m a = SupplyT { unSupply :: StateT Supply m a }
+
+runSupplyT :: Monad m => Supply -> SupplyT m a -> m (a,Supply)
+runSupplyT s (SupplyT m) = runStateT s m
+
+instance Monad m => Functor (SupplyT m) where
+  fmap f (SupplyT m) = SupplyT (fmap f m)
+  {-# INLINE fmap #-}
+
+instance Monad m => Applicative (SupplyT m) where
+  pure x = SupplyT (pure x)
+  {-# INLINE pure #-}
+
+  f <*> g = SupplyT (unSupply f <*> unSupply g)
+  {-# INLINE (<*>) #-}
+
+instance Monad m => Monad (SupplyT m) where
+  return = pure
+  {-# INLINE return #-}
+
+  m >>= f = SupplyT (unSupply m >>= unSupply . f)
+  {-# INLINE (>>=) #-}
+
+instance BaseM m n => BaseM (SupplyT m) n where
+  inBase m = SupplyT (inBase m)
+  {-# INLINE inBase #-}
+
+instance RunM m (a,Supply) r => RunM (SupplyT m) a (Supply -> r) where
+  runM (SupplyT m) s = runM m s
+  {-# INLINE runM #-}
+
+
+newtype SupplyM a = SupplyM (SupplyT Id a)
                     deriving (Functor,A.Applicative,Monad)
+
+runSupplyM :: Supply -> SupplyM a -> (a,Supply)
+runSupplyM s m = runM m s
+
+instance RunM SupplyM a (Supply -> (a,Supply)) where
+  runM (SupplyM m) s = runM m s
+  {-# INLINE runM #-}
+
+instance BaseM SupplyM SupplyM where
+  inBase = id
+  {-# INLINE inBase #-}
 
 instance M.Monoid a => M.Monoid (SupplyM a) where
   mempty      = return mempty
@@ -142,31 +216,9 @@ instance M.Monoid a => M.Monoid (SupplyM a) where
                    y <- b
                    return (mappend x y)
 
-instance BaseM SupplyM SupplyM where
-  inBase = id
-  {-# INLINE inBase #-}
-
-instance RunM SupplyM a (Supply -> (a,Supply)) where
-  runM m s = runSupplyM s m
-  {-# INLINE runM #-}
-
-runSupplyM :: Supply -> SupplyM a -> (a,Supply)
-runSupplyM s0 (SupplyM m) = runM m s0
-
 -- | Retrieve the next unique from the supply.
-nextUniqueM :: SupplyM Int
-nextUniqueM  = SupplyM $
-  do Supply n <- get
-     set $! Supply (n+1)
-     return n
-
--- | Lift an operation that uses a 'Supply' into the 'SupplyM' monad.
-liftSupply :: (Supply -> (a,Supply)) -> SupplyM a
-liftSupply f = SupplyM $
-  do s <- get
-     let (a,s') = f s
-     set $! s'
-     return a
+nextUniqueM :: FreshM m => m Int
+nextUniqueM  = liftSupply nextUnique
 
 
 data Supply = Supply !Int
@@ -204,7 +256,9 @@ mkParameter nIdent nLoc s =
 
 -- | Maps that take advantage of the unique key in names.
 newtype NameMap a = NameMap { nmElems :: I.IntMap (Name,a)
-                            } deriving (Functor,Foldable,Traversable,Show)
+                            } deriving (Functor,Foldable,Traversable,Show,Generic)
+
+instance NFData a => NFData (NameMap a)
 
 toListNM :: NameMap a -> [(Name,a)]
 toListNM NameMap { .. } = I.elems nmElems

@@ -75,13 +75,17 @@
 {-# LANGUAGE PatternGuards, FlexibleInstances, MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Transform.MonoValues (rewModule) where
 
-import Cryptol.Parser.AST (Pass(MonoValues))
+import Cryptol.ModuleSystem.Name (NameMap,SupplyM,liftSupply,Supply,mkDeclared)
+import Cryptol.Parser.Position (emptyRange)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.TypeMap
+import Cryptol.Utils.Ident (ModName)
 import Data.List(sortBy,groupBy)
 import Data.Either(partitionEithers)
+import Data.Map (Map)
 import MonadLib
 
 #if __GLASGOW_HASKELL__ < 710
@@ -127,34 +131,30 @@ instance TrieMap RewMap' (Name,[Type],Int) where
 
 -- | Note that this assumes that this pass will be run only once for each
 -- module, otherwise we will get name collisions.
-rewModule :: Module -> Module
-rewModule m = fst
-            $ runId
-            $ runStateT 0
-            $ runReaderT (Just (mName m))
-            $ do ds <- mapM (rewDeclGroup emptyTM) (mDecls m)
-                 return m { mDecls = ds }
+rewModule :: Supply -> Module -> (Module,Supply)
+rewModule s m = runM body (mName m) s
+  where
+  body = do ds <- mapM (rewDeclGroup emptyTM) (mDecls m)
+            return m { mDecls = ds }
 
 --------------------------------------------------------------------------------
 
-type M      = ReaderT RO (StateT RW Id)
+type M  = ReaderT RO SupplyM
+type RO = ModName
 
-type RO = Maybe ModName   -- are we at the top level?
-type RW = Int             -- to generate names
+-- | Produce a fresh top-level name.
+newName :: M Name
+newName  =
+  do ns <- ask
+     liftSupply (mkDeclared ns "$mono" emptyRange)
 
-newName :: M QName
-newName =
-  do n  <- sets $ \s -> (s, s + 1)
-     seq n $ return (QName Nothing (NewName MonoValues n))
+newTopOrLocalName :: M Name
+newTopOrLocalName  = newName
 
-newTopOrLocalName :: M QName
-newTopOrLocalName =
-  do mb <- ask
-     n  <- sets $ \s -> (s, s + 1)
-     seq n $ return (QName mb (NewName MonoValues n))
-
+-- | Not really any distinction between global and local, all names get the
+-- module prefix added, and a unique id.
 inLocal :: M a -> M a
-inLocal = local Nothing
+inLocal  = id
 
 
 

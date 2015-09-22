@@ -4,6 +4,7 @@ module Cryptol.Utils.Ident where
 
 import           Control.DeepSeq (NFData)
 import qualified Data.Text as T
+import           Data.String (IsString(..))
 import           GHC.Generics (Generic)
 
 
@@ -22,6 +23,9 @@ instance Eq Ident where
 
 instance Ord Ident where
   compare (Ident _ i1) (Ident _ i2) = compare i1 i2
+
+instance IsString Ident where
+  fromString str = mkIdent (T.pack str)
 
 instance NFData Ident
 

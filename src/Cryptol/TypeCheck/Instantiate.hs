@@ -21,7 +21,7 @@ import Data.Either(partitionEithers)
 import MonadLib
 
 
-instantiateWith :: Expr -> Schema -> [Located (Maybe QName,Type)]
+instantiateWith :: Expr -> Schema -> [Located (Maybe Name,Type)]
                 -> InferM (Expr,Type)
 instantiateWith e s ts
   | null named      = instantiateWithPos e s positional
@@ -83,7 +83,7 @@ ECast (EProofApp (ETApp e t)) t1
   - there will be one `EProofApp` for each constraint on the schema;
   - there will be `ECast` if we had equality constraints from normalization.
 -}
-instantiateWithNames :: Expr -> Schema -> [Located (QName,Type)]
+instantiateWithNames :: Expr -> Schema -> [Located (Name,Type)]
                      -> InferM (Expr,Type)
 instantiateWithNames e (Forall as ps t) xs =
   do sequence_ repeatedParams

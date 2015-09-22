@@ -19,7 +19,6 @@ module Cryptol.TypeCheck.Solve
   , simpTypeMaybe
   ) where
 
-import           Cryptol.Parser.AST(LQName, thing)
 import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.TypeCheck.PP(pp)
 import           Cryptol.TypeCheck.AST
@@ -95,7 +94,7 @@ simplifyAllConstraints =
        Left badGs -> mapM_ (recordError . UnsolvedGoal True) badGs
 
 
-proveImplication :: LQName -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
+proveImplication :: Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
      cfg <- getSolverConfig
@@ -107,7 +106,7 @@ proveImplication lnam as ps gs =
 
 
 proveImplicationIO :: SolverConfig
-                   -> LQName   -- ^ Checking this functi
+                   -> Name     -- ^ Checking this function
                    -> Set TVar -- ^ These appear in the env., and we should
                                -- not try to default the
                    -> [TParam] -- ^ Type parameters
@@ -134,7 +133,7 @@ proveImplicationIO cfg lname varsInEnv as ps gs =
 
        Nothing ->
          do debugLog s "(contradiction in assumptions)"
-            return (Left $ UnusableFunction (thing lname) ps, emptySubst)
+            return (Left $ UnusableFunction lname ps, emptySubst)
 
        Just (imps,extra) ->
          do let su  = importImps imps

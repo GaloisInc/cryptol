@@ -13,7 +13,8 @@ module Cryptol.Testing.Random where
 
 import Cryptol.Eval.Value     (BV(..),Value,GenValue(..))
 import qualified Cryptol.Testing.Eval as Eval
-import Cryptol.TypeCheck.AST  (Name,Type(..),TCon(..),TC(..),tNoUser)
+import Cryptol.TypeCheck.AST  (Type(..),TCon(..),TC(..),tNoUser)
+import Cryptol.Utils.Ident    (Ident)
 
 import Control.Monad          (forM)
 import Data.List              (unfoldr, genericTake)
@@ -125,7 +126,7 @@ randomTuple gens sz = go [] gens
     in go (v : els) more g1
 
 -- | Generate a random record value.
-randomRecord :: RandomGen g => [(Name, Gen g)] -> Gen g
+randomRecord :: RandomGen g => [(Ident, Gen g)] -> Gen g
 randomRecord gens sz = go [] gens
   where
   go els [] g = (VRecord (reverse els), g)

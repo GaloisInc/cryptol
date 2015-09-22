@@ -39,7 +39,7 @@ import           Control.Monad(unless,forM)
 
 
 -- | Check a type signature.
-checkSchema :: P.Schema -> InferM (Schema, [Goal])
+checkSchema :: P.Schema Name -> InferM (Schema, [Goal])
 checkSchema (P.Forall xs ps t mb) =
   do ((xs1,(ps1,t1)), gs) <-
         collectGoals $
@@ -55,7 +55,7 @@ checkSchema (P.Forall xs ps t mb) =
           Just r  -> inRange r
 
 -- | Check a type-synonym declaration.
-checkTySyn :: P.TySyn -> InferM TySyn
+checkTySyn :: P.TySyn Name -> InferM TySyn
 checkTySyn (P.TySyn x as t) =
   do ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
@@ -70,7 +70,7 @@ checkTySyn (P.TySyn x as t) =
 
 -- | Check a newtype declaration.
 -- XXX: Do something with constraints.
-checkNewtype :: P.Newtype -> InferM Newtype
+checkNewtype :: P.Newtype Name -> InferM Newtype
 checkNewtype (P.Newtype x as fs) =
   do ((as1,fs1),gs) <- collectGoals $
        inRange (srcRange x) $
@@ -91,7 +91,7 @@ checkNewtype (P.Newtype x as fs) =
 
 
 
-checkType :: P.Type -> Maybe Kind -> InferM Type
+checkType :: P.Type Name -> Maybe Kind -> InferM Type
 checkType t k =
   do (_, t1) <- withTParams True [] $ doCheckType t k
      return t1
@@ -125,7 +125,7 @@ There are two reasons for this choice:
      annotation) in the rest.
 -}
 
-withTParams :: Bool -> [P.TParam] -> KindM a -> InferM ([TParam], a)
+withTParams :: Bool -> [P.TParam Name] -> KindM a -> InferM ([TParam], a)
 withTParams allowWildCards xs m =
   mdo mapM_ recordError duplicates
       (a, vars) <- runKindM allowWildCards (zip' xs ts) m
@@ -133,13 +133,13 @@ withTParams allowWildCards xs m =
       return (as,a)
   where
   getKind vs tp =
-    case Map.lookup (P.tpQName tp) vs of
+    case Map.lookup (P.tpName tp) vs of
       Just k  -> return k
       Nothing -> do recordWarning (DefaultingKind tp P.KNum)
                     return KNum
 
   newTP vs tp = do k <- getKind vs tp
-                   n <- newTParam (Just (mkUnqual (P.tpName tp))) k
+                   n <- newTParam (Just (P.tpName tp)) k
                    return (n, TVar (tpVar n))
 
 
@@ -147,7 +147,7 @@ withTParams allowWildCards xs m =
   This is needed to make the monadic recursion work correctly,
   because the data dependency is only on the part that is known. -}
   zip' [] _           = []
-  zip' (a:as) ~(t:ts) = (mkUnqual (P.tpName a), fmap cvtK (P.tpKind a), t) : zip' as ts
+  zip' (a:as) ~(t:ts) = (P.tpName a, fmap cvtK (P.tpKind a), t) : zip' as ts
 
   cvtK P.KNum  = KNum
   cvtK P.KType = KType
@@ -158,7 +158,7 @@ withTParams allowWildCards xs m =
 
 -- | Check an application of a type constant.
 tcon :: TCon            -- ^ Type constant being applied
-     -> [P.Type]        -- ^ Type parameters
+     -> [P.Type Name]   -- ^ Type parameters
      -> Maybe Kind      -- ^ Expected kind
      -> KindM Type      -- ^ Resulting type
 tcon tc ts0 k =
@@ -167,8 +167,8 @@ tcon tc ts0 k =
 
 -- | Check a use of a type-synonym, newtype, or scoped-type variable.
 tySyn :: Bool         -- ^ Should we check for scoped type vars.
-      -> QName        -- ^ Name of type sysnonym
-      -> [P.Type]     -- ^ Type synonym parameters
+      -> Name         -- ^ Name of type sysnonym
+      -> [P.Type Name]-- ^ Type synonym parameters
       -> Maybe Kind   -- ^ Expected kind
       -> KindM Type   -- ^ Resulting type
 tySyn scoped x ts k =
@@ -215,7 +215,7 @@ tySyn scoped x ts k =
 
 
 -- | Check a type-application.
-appTy :: [P.Type]             -- ^ Parameters to type function
+appTy :: [P.Type Name]        -- ^ Parameters to type function
       -> Kind                 -- ^ Kind of type function
       -> KindM ([Type], Kind) -- ^ Validated parameters, resulting kind
 appTy [] k1 = return ([],k1)
@@ -231,7 +231,7 @@ appTy ts k1 =
 
 
 -- | Validate a parsed type.
-doCheckType :: P.Type         -- ^ Type that needs to be checked
+doCheckType :: P.Type Name  -- ^ Type that needs to be checked
           -> Maybe Kind     -- ^ Expected kind (if any)
           -> KindM Type     -- ^ Checked type
 doCheckType ty k =
@@ -287,7 +287,7 @@ doCheckType ty k =
 
 
 -- | Check a type-variable or type-synonym.
-checkTyThing :: QName         -- ^ Name of thing that needs checking
+checkTyThing :: Name          -- ^ Name of thing that needs checking
              -> Maybe Kind    -- ^ Expected kind
              -> KindM Type
 checkTyThing x k =
@@ -306,7 +306,7 @@ checkTyThing x k =
 
 
 -- | Validate a parsed proposition.
-checkProp :: P.Prop           -- ^ Proposition that need to be checked
+checkProp :: P.Prop Name      -- ^ Proposition that need to be checked
           -> KindM Type       -- ^ Checked representation
 checkProp prop =
   case prop of

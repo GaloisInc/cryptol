@@ -39,17 +39,17 @@ instance NFData EvalEnv
 
 instance Monoid EvalEnv where
   mempty = EvalEnv
-    { envVars       = Map.empty
+    { envVars       = emptyNM
     , envTypes      = Map.empty
     }
 
   mappend l r = EvalEnv
-    { envVars     = Map.union (envVars     l) (envVars     r)
-    , envTypes    = Map.union (envTypes    l) (envTypes    r)
+    { envVars     = unionWithNM const (envVars     l) (envVars     r)
+    , envTypes    = Map.union         (envTypes    l) (envTypes    r)
     }
 
 instance PP (WithBase EvalEnv) where
-  ppPrec _ (WithBase opts env) = brackets (fsep (map bind (Map.toList (envVars env))))
+  ppPrec _ (WithBase opts env) = brackets (fsep (map bind (toListNM (envVars env))))
     where
     bind (k,v) = pp k <+> text "->" <+> ppValue opts v
 
@@ -57,12 +57,12 @@ emptyEnv :: EvalEnv
 emptyEnv  = mempty
 
 -- | Bind a variable in the evaluation environment.
-bindVar :: QName -> Value -> EvalEnv -> EvalEnv
-bindVar n val env = env { envVars = Map.insert n val (envVars env) }
+bindVar :: Name -> Value -> EvalEnv -> EvalEnv
+bindVar n val env = env { envVars = insertNM n val (envVars env) }
 
 -- | Lookup a variable in the environment.
-lookupVar :: QName -> EvalEnv -> Maybe Value
-lookupVar n env = Map.lookup n (envVars env)
+lookupVar :: Name -> EvalEnv -> Maybe Value
+lookupVar n env = lookupNM n (envVars env)
 
 -- | Bind a type variable of kind *.
 bindType :: TVar -> TValue -> EvalEnv -> EvalEnv

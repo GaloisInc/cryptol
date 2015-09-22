@@ -170,43 +170,6 @@ instance BindsNames (TParam PName) where
        n <- liftSupply (mkParameter (getIdent tpName) range)
        return (singletonT tpName n)
 
--- -- | Generate an expression renaming environment from a pattern.  This ignores
--- -- type parameters that can be bound by the pattern.
--- instance BindsNames (AtLoc (Pattern PName)) where
---   namingEnv (AtLoc loc p0) = go loc p0
---     where
---     go loc (PVar Located { .. }) =
---       do n <- liftSupply (mkParameter (getIdent thing) loc)
---          return (singletonE thing n)
-
---     go _   PWild            = return mempty
---     go loc (PTuple ps)      = foldMap (go loc) ps
---     go loc (PRecord fs)     = foldMap (foldMap (go loc)) fs
---     go loc (PList ps)       = foldMap (go loc) ps
---     go loc (PTyped p ty)    = go loc p `mappend` namingEnv (AtLoc loc ty)
---     go loc (PSplit a b)     = go loc a `mappend` go loc b
---     go _   (PLocated p loc) = go loc p
-
--- -- | Introduce the binding environment for all variables present in a type.
--- instance BindsNames (WithEnv (AtLoc (Type PName))) where
---   namingEnv (AtLoc loc ty0) = go loc ty0
---     where
---     go loc (TFun a b) = go loc a `mappend` go loc b
---     go loc (TSeq a b) = go loc a `mappend` go loc b
---     go _   TBit = return mempty
---     go _   TNum{} = return mempty
---     go _   TChar{} = return mempty
---     go _   TInf = return mempty
---     go loc (TUser n [Type n]        -- ^ A type variable or synonym
---     go loc (TApp TFun [Type n]      -- ^ @2 + x@
---     go loc (TRecord [Named (Type n)]-- ^ @{ x : [8], y : [32] }@
---     go loc (TTuple [Type n]         -- ^ @([8], [32])@
---     go loc (TWild                   -- ^ @_@, just some type.
---     go loc (TLocated (Type n) Range -- ^ Location information
---     go loc (TParens (Type n)        -- ^ @ (ty) @
---     go loc (TInfix (Type n) (Located n) Fixity (Type n) -- ^ @ ty + ty @
-
-
 -- | The naming environment for a single module.  This is the mapping from
 -- unqualified names to fully qualified names with uniques.
 instance BindsNames (Module PName) where

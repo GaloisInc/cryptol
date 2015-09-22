@@ -16,7 +16,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Parser.AST
   ( -- * Names
-    Ident, mkIdent, mkInfix, isInfixIdent, nullIdent
+    Ident, mkIdent, mkInfix, isInfixIdent, nullIdent, identText
   , ModName, modRange
   , PName(..), getModName, getIdent, mkUnqual, mkQual
   , Named(..)
@@ -61,7 +61,7 @@ module Cryptol.Parser.AST
 
     -- * Positions
   , Located(..)
-  , LPName, LString
+  , LPName, LString, LIdent
   , NoPos(..)
 
     -- * Pretty-printing
@@ -76,11 +76,9 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
 import qualified Data.Set as Set
-import qualified Data.Map as Map
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
-import qualified Data.Text as T
 import           Numeric(showIntAtBase)
 
 import GHC.Generics (Generic)
@@ -97,6 +95,9 @@ import           Data.Traversable (Traversable(..))
 
 -- | A name with location information.
 type LPName    = Located PName
+
+-- | An identifier with location information.
+type LIdent    = Located Ident
 
 -- | A string with location information.
 type LString  = Located String
@@ -681,12 +682,6 @@ ppNumLit n info =
 wrap :: Int -> Int -> Doc -> Doc
 wrap contextPrec myPrec doc = if myPrec < contextPrec then parens doc else doc
 
-isPrefixOp :: Expr n -> Maybe Doc
-isPrefixOp (ELocated e _)                               = isPrefixOp e
--- isPrefixOp e@(EVar (QName Nothing n)) | n == mkName "-" = Just (pp e)
---                                       | n == mkName "~" = Just (pp e)
-isPrefixOp _                                            = Nothing
-
 isEApp :: Expr n -> Maybe (Expr n, Expr n)
 isEApp (ELocated e _)     = isEApp e
 isEApp (EApp e1 e2)       = Just (e1,e2)
@@ -697,13 +692,6 @@ asEApps expr = go expr []
     where go e es = case isEApp e of
                       Nothing       -> (e, es)
                       Just (e1, e2) -> go e1 (e2 : es)
-
--- isTInfix :: Type n -> Maybe (Infix TFun (Type n))
--- isTInfix (TLocated t _)  = isTInfix t
--- isTInfix (TApp ieOp [ieLeft,ieRight]) =
---   do (ieAssoc,iePrec) <- Map.lookup ieOp tBinOpPrec
---      return Infix { .. }
--- isTInfix _               = Nothing
 
 instance PPName name => PP (TypeInst name) where
   ppPrec _ (PosInst t)   = pp t
@@ -758,11 +746,6 @@ instance (Show name, PPName name) => PP (Expr name) where
       --     let NameInfo qn isInfix = getNameInfo f env
       --      in if isInfix then ppPrec 3 x <+> ppQName qn <+> ppPrec 3 y
       --                    else ppQName qn <+> ppPrec 3 x <+> ppPrec 3 y
-
-      -- applications
-      EApp e1 e2
-        | Just op <- isPrefixOp e1
-                    -> wrap n 3 (op <> ppPrec 3 e2)
 
       EApp _ _      -> let (e, es) = asEApps expr in
                        wrap n 3 (ppPrec 3 e <+> fsep (map (ppPrec 4) es))

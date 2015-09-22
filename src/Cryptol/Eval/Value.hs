@@ -18,12 +18,14 @@ import qualified Cryptol.Eval.Arch as Arch
 import Cryptol.Eval.Error
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
+import Cryptol.Utils.Ident (Ident,mkIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
 import Control.Monad (guard, zipWithM)
 import Data.List(genericTake)
 import Data.Bits (setBit,testBit,(.&.),shiftL)
+import qualified Data.Text as T
 import Numeric (showIntAtBase)
 
 import GHC.Generics (Generic)
@@ -48,7 +50,7 @@ isTTuple :: TValue -> Maybe (Int,[TValue])
 isTTuple (TValue (TCon (TC (TCTuple n)) ts)) = Just (n, map TValue ts)
 isTTuple _ = Nothing
 
-isTRec :: TValue -> Maybe [(Name, TValue)]
+isTRec :: TValue -> Maybe [(Ident, TValue)]
 isTRec (TValue (TRec fs)) = Just [ (x, TValue t) | (x,t) <- fs ]
 isTRec _ = Nothing
 
@@ -89,7 +91,7 @@ mkBv w i = BV w (mask w i)
 
 -- | Generic value type, parameterized by bit and word types.
 data GenValue b w
-  = VRecord [(Name, GenValue b w)]      -- @ { .. } @
+  = VRecord [(Ident, GenValue b w)]     -- @ { .. } @
   | VTuple [GenValue b w]               -- @ ( .. ) @
   | VBit b                              -- @ Bit    @
   | VSeq Bool [GenValue b w]            -- @ [n]a   @
@@ -337,13 +339,13 @@ fromVTuple val = case val of
   _         -> evalPanic "fromVTuple" ["not a tuple"]
 
 -- | Extract a record from a value.
-fromVRecord :: GenValue b w -> [(Name, GenValue b w)]
+fromVRecord :: GenValue b w -> [(Ident, GenValue b w)]
 fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record"]
 
 -- | Lookup a field in a record.
-lookupRecord :: Name -> GenValue b w -> GenValue b w
+lookupRecord :: Ident -> GenValue b w -> GenValue b w
 lookupRecord f rec = case lookup f (fromVRecord rec) of
   Just val -> val
   Nothing  -> evalPanic "lookupRecord" ["malformed record"]
@@ -355,32 +357,37 @@ lookupRecord f rec = case lookup f (fromVRecord rec) of
 --
 -- XXX: View patterns would probably clean up this definition a lot.
 toExpr :: PrimMap -> Type -> Value -> Maybe Expr
-toExpr prims ty val = case (ty, val) of
-  (TRec tfs, VRecord vfs) -> do
-    let fns = map fst vfs
-    guard (map fst tfs == fns)
-    fes <- zipWithM toExpr (map snd tfs) (map snd vfs)
-    return $ ERec (zip fns fes)
-  (TCon (TC (TCTuple tl)) ts, VTuple tvs) -> do
-    guard (tl == (length tvs))
-    ETuple `fmap` zipWithM toExpr ts tvs
-  (TCon (TC TCBit) [], VBit True ) -> return $ ePrim "True"
-  (TCon (TC TCBit) [], VBit False) -> return $ ePrim "False"
-  (TCon (TC TCSeq) [a,b], VSeq _ []) -> do
-    guard (a == tZero)
-    return $ EList [] b
-  (TCon (TC TCSeq) [a,b], VSeq _ svs) -> do
-    guard (a == tNum (length svs))
-    ses <- mapM (toExpr b) svs
-    return $ EList ses b
-  (TCon (TC TCSeq) [a,(TCon (TC TCBit) [])], VWord (BV w v)) -> do
-    guard (a == tNum w)
-    return $ ETApp (ETApp (ePrim "demote") (tNum v)) (tNum w)
-  (_, VStream _) -> fail "cannot construct infinite expressions"
-  (_, VFun    _) -> fail "cannot convert function values to expressions"
-  (_, VPoly   _) -> fail "cannot convert polymorphic values to expressions"
-  _ -> panic "Cryptol.Eval.Value.toExpr"
-         ["type mismatch:"
-         , pretty ty
-         , render (ppValue defaultPPOpts val)
-         ]
+toExpr prims = go
+  where
+
+  prim n = ePrim prims (mkIdent (T.pack n))
+
+  go ty val = case (ty, val) of
+    (TRec tfs, VRecord vfs) -> do
+      let fns = map fst vfs
+      guard (map fst tfs == fns)
+      fes <- zipWithM go (map snd tfs) (map snd vfs)
+      return $ ERec (zip fns fes)
+    (TCon (TC (TCTuple tl)) ts, VTuple tvs) -> do
+      guard (tl == (length tvs))
+      ETuple `fmap` zipWithM go ts tvs
+    (TCon (TC TCBit) [], VBit True ) -> return (prim "True")
+    (TCon (TC TCBit) [], VBit False) -> return (prim "False")
+    (TCon (TC TCSeq) [a,b], VSeq _ []) -> do
+      guard (a == tZero)
+      return $ EList [] b
+    (TCon (TC TCSeq) [a,b], VSeq _ svs) -> do
+      guard (a == tNum (length svs))
+      ses <- mapM (go b) svs
+      return $ EList ses b
+    (TCon (TC TCSeq) [a,(TCon (TC TCBit) [])], VWord (BV w v)) -> do
+      guard (a == tNum w)
+      return $ ETApp (ETApp (prim "demote") (tNum v)) (tNum w)
+    (_, VStream _) -> fail "cannot construct infinite expressions"
+    (_, VFun    _) -> fail "cannot convert function values to expressions"
+    (_, VPoly   _) -> fail "cannot convert polymorphic values to expressions"
+    _ -> panic "Cryptol.Eval.Value.toExpr"
+           ["type mismatch:"
+           , pretty ty
+           , render (ppValue defaultPPOpts val)
+           ]
