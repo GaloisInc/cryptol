@@ -187,7 +187,7 @@ data REPLException
   | NoPatError [Error]
   | NoIncludeError [IncludeError]
   | EvalError EvalError
-  | ModuleSystemError NameEnv M.ModuleError
+  | ModuleSystemError NameDisp M.ModuleError
   | EvalPolyError T.Schema
   | TypeNotTestable T.Type
     deriving (Show,Typeable)
@@ -207,7 +207,7 @@ instance PP REPLException where
                                   ]
     NoPatError es        -> vcat (map pp es)
     NoIncludeError es    -> vcat (map ppIncludeError es)
-    ModuleSystemError ns me -> fixNameEnv ns (pp me)
+    ModuleSystemError ns me -> withNameDisp ns (pp me)
     EvalError e          -> pp e
     EvalPolyError s      -> text "Cannot evaluate polymorphic value."
                          $$ text "Type:" <+> pp s
@@ -339,17 +339,17 @@ keepOne src as = case as of
   [a] -> a
   _   -> panic ("REPL: " ++ src) ["name clash in interface file"]
 
-getFocusedEnv :: REPL (M.IfaceDecls,NameEnv)
+getFocusedEnv :: REPL (M.IfaceDecls,NameDisp)
 getFocusedEnv  = do
   me <- getModuleEnv
   -- dyNames is a NameEnv that removes the #Uniq prefix from interactively-bound
   -- variables.
-  let (dyDecls,dyNames) = M.dynamicEnv me
+  let (dyDecls,dyNames,dyDisp) = M.dynamicEnv me
 
   -- the subtle part here is removing the #Uniq prefix from
   -- interactively-bound variables, and also excluding any that are
   -- shadowed and thus can no longer be referenced
-  let (decls,names) = M.focusedEnv me
+  let (fDecls,fNames,fDisp) = M.focusedEnv me
       edecls = M.ifDecls dyDecls
       -- is this QName something the user might actually type?
       isShadowed (qn@(P.QName (Just (P.unModName -> ['#':_])) name), _) =

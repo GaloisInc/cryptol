@@ -22,6 +22,7 @@ module Cryptol.TypeCheck.AST
   , ExportSpec(..), isExportedBind, isExportedType
   , Pragma(..)
   , Fixity(..)
+  , PrimMap(..)
   ) where
 
 import Cryptol.ModuleSystem.Name hiding (NameMap)
@@ -542,15 +543,10 @@ newtypeConType nt =
 
 
 
-type PrimMap = Map.Map Ident Name
-
 -- | Construct a primitive, given a map to the unique names of the Cryptol
 -- module.
 ePrim :: PrimMap -> Ident -> Expr
-ePrim pm n = EVar (Map.findWithDefault err n pm)
-  where
-  err = panic "Cryptol.TypeCheck.AST.ePrim"
-        [ "Unable to find primitive: " ++ show n ]
+ePrim pm n = EVar (lookupPrimDecl n pm)
 
 
 --------------------------------------------------------------------------------

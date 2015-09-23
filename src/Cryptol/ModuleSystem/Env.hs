@@ -9,6 +9,8 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module Cryptol.ModuleSystem.Env where
 
 #ifndef RELOCATABLE
@@ -17,13 +19,14 @@ import Paths_cryptol (getDataDir)
 
 import Cryptol.Eval (EvalEnv)
 import Cryptol.ModuleSystem.Interface
+import Cryptol.ModuleSystem.Name (Supply,emptySupply)
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
-import Cryptol.Utils.PP (NameEnv)
+import Cryptol.Utils.PP (NameDisp)
 
-import Control.Monad (guard,mapAndUnzipM)
+import Control.Monad (guard)
 import Data.Foldable (fold)
 import Data.Function (on)
 import qualified Data.Map as Map
@@ -52,6 +55,7 @@ data ModuleEnv = ModuleEnv
   , meMonoBinds     :: !Bool
   , meSolverConfig  :: T.SolverConfig
   , meCoreLint      :: CoreLint
+  , meSupply        :: !Supply
   } deriving (Generic)
 
 instance NFData ModuleEnv
@@ -113,6 +117,7 @@ initialModuleEnv  = do
                           , T.solverVerbose = 0
                           }
     , meCoreLint      = NoCoreLint
+    , meSupply        = emptySupply
     }
 
 -- | Try to focus a loaded module in the module environment.
@@ -127,40 +132,50 @@ loadedModules :: ModuleEnv -> [T.Module]
 loadedModules = map lmModule . getLoadedModules . meLoadedModules
 
 -- | Produce an ifaceDecls that represents the focused environment of the module
--- system.
+-- system, as well as a 'NameDisp' for pretty-printing names according to the
+-- imports.
 --
--- This could really do with some better error handling, just returning mempty
--- when one of the imports fails isn't really desirable.
-focusedEnv :: ModuleEnv -> (IfaceDecls,NameEnv)
-focusedEnv me = fold $ do
-  (iface,imports,names) <- loadModuleEnv interpImport me
-  let (local,lns) = unqualified (ifPublic iface `mappend` ifPrivate iface)
-  return (local `shadowing` imports,lns `mappend` names)
+-- XXX This could really do with some better error handling, just returning
+-- mempty when one of the imports fails isn't really desirable.
+focusedEnv :: ModuleEnv -> (IfaceDecls,R.NamingEnv,NameDisp)
+focusedEnv me = fold $
+  do fm   <- meFocusedModule me
+     lm   <- lookupModule fm me
+     deps <- mapM loadImport (T.mImports (lmModule lm))
+     let (ifaces,names) = unzip deps
+         Iface { .. }   = lmInterface lm
+         localDecls     = ifPublic `mappend` ifPrivate
+         localNames     = R.unqualifiedEnv localDecls
+         namingEnv      = mconcat (localNames:names)
+
+     return (mconcat (localDecls:ifaces), namingEnv, R.toNameDisp namingEnv)
+  where
+  loadImport imp =
+    do lm <- lookupModule (iModule imp) me
+       let decls = ifPublic (lmInterface lm)
+       return (decls,R.interpImport imp decls)
 
 -- | The unqualified declarations and name environment for the dynamic
 -- environment.
-dynamicEnv :: ModuleEnv -> (IfaceDecls,NameEnv)
-dynamicEnv me = unqualified (deIfaceDecls (meDynEnv me))
-
--- | Produce an ifaceDecls that represents the internal environment of the
--- module, used for typechecking.
-qualifiedEnv :: ModuleEnv -> IfaceDecls
-qualifiedEnv me = fold $ do
-  (iface,imports,_) <- loadModuleEnv (\ _ iface -> (iface,mempty)) me
-  return (mconcat [ ifPublic iface, ifPrivate iface, imports ])
-
-loadModuleEnv :: (Import -> Iface -> (Iface,NameEnv)) -> ModuleEnv
-              -> Maybe (Iface,IfaceDecls,NameEnv)
-loadModuleEnv processIface me = do
-  fm      <- meFocusedModule me
-  lm      <- lookupModule fm me
-  (is,ns) <- mapAndUnzipM loadImport (T.mImports (lmModule lm))
-  return (lmInterface lm, mconcat is, mconcat ns)
+dynamicEnv :: ModuleEnv -> (IfaceDecls,R.NamingEnv,NameDisp)
+dynamicEnv me = (decls,names,R.toNameDisp names)
   where
-  loadImport i = do
-    lm <- lookupModule (iModule i) me
-    let (decls,names) = processIface i (lmInterface lm)
-    return (ifPublic decls,names)
+  decls = deIfaceDecls (meDynEnv me)
+  names = R.unqualifiedEnv decls
+
+-- | Retrieve all 'IfaceDecls' referenced by a module, as well as all of its
+-- public and private declarations, checking expressions
+qualifiedEnv :: ModuleEnv -> IfaceDecls
+qualifiedEnv me = fold $
+  do fm   <- meFocusedModule me
+     lm   <- lookupModule fm me
+     deps <- mapM loadImport (T.mImports (lmModule lm))
+     let Iface { .. } = lmInterface lm
+     return (mconcat (ifPublic : ifPrivate : deps))
+  where
+  loadImport imp =
+    do lm <- lookupModule (iModule imp) me
+       return (ifPublic (lmInterface lm))
 
 
 -- Loaded Modules --------------------------------------------------------------

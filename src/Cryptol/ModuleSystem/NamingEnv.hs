@@ -14,15 +14,14 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE PatternGuards #-}
 
 module Cryptol.ModuleSystem.NamingEnv where
 
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.AST
-import Cryptol.Parser.Names (namesP)
 import Cryptol.Parser.Position
-import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
@@ -71,6 +70,65 @@ instance Monoid NamingEnv where
               , neFixity = Map.unionsWith (++) (map neFixity envs) }
 
 
+-- | Generate a mapping from 'Ident' to 'Name' for a given naming environment.
+toPrimMap :: NamingEnv -> PrimMap
+toPrimMap NamingEnv { .. } = PrimMap { .. }
+  where
+  primDecls = Map.fromList [ (nameIdent n,n) | ns <- Map.elems neExprs
+                                             , n  <- ns ]
+  primTypes = Map.fromList [ (nameIdent n,n) | ns <- Map.elems neTypes
+                                             , n  <- ns ]
+
+
+-- | Generate a display format based on a naming environment.
+toNameDisp :: NamingEnv -> NameDisp
+toNameDisp NamingEnv { .. } = NameDisp display
+  where
+  display mn ident = Map.lookup (mn,ident) names
+
+  -- only format declared names, as parameters don't need any special
+  -- formatting.
+  names = Map.fromList
+     $ [ mkEntry pn mn (nameIdent n) | (pn,ns)     <- Map.toList neExprs
+                                     , n           <- ns
+                                     , Declared mn <- [nameInfo n] ]
+
+    ++ [ mkEntry pn mn (nameIdent n) | (pn,ns)     <- Map.toList neTypes
+                                     , n           <- ns
+                                     , Declared mn <- [nameInfo n] ]
+
+  mkEntry pn mn i = ((mn,i),fmt)
+    where
+    fmt = case getModName pn of
+            Just ns -> Qualified ns
+            Nothing -> UnQualified
+
+
+
+
+-- | Qualify all symbols in a 'NamingEnv' with the given prefix.
+qualify :: ModName -> NamingEnv -> NamingEnv
+qualify pfx NamingEnv { .. } =
+  NamingEnv { neExprs = Map.mapKeys toQual neExprs
+            , neTypes = Map.mapKeys toQual neTypes
+            , .. }
+
+  where
+  -- XXX we don't currently qualify fresh names
+  toQual (Qual _ n)  = Qual pfx n
+  toQual (UnQual n)  = Qual pfx n
+  toQual n@NewName{} = n
+
+filterNames :: (PName -> Bool) -> NamingEnv -> NamingEnv
+filterNames p NamingEnv { .. } =
+  NamingEnv { neExprs = Map.filterWithKey check neExprs
+            , neTypes = Map.filterWithKey check neTypes
+            , .. }
+  where
+  check :: PName -> a -> Bool
+  check n _ = p n
+
+
 -- | Singleton type renaming environment.
 singletonT :: PName -> Name -> NamingEnv
 singletonT qn tn = mempty { neTypes = Map.singleton qn [tn] }
@@ -97,6 +155,10 @@ data InModule a = InModule !ModName a
                   deriving (Functor,Traversable,Foldable,Show)
 
 
+-- | Generate a 'NamingEnv' using an explicit supply.
+namingEnv' :: BindsNames a => a -> Supply -> (NamingEnv,Supply)
+namingEnv' a supply = runSupplyM supply (namingEnv a)
+
 -- | Things that define exported names.
 class BindsNames a where
   namingEnv :: a -> SupplyM NamingEnv
@@ -115,41 +177,58 @@ instance BindsNames a => BindsNames [a] where
 instance BindsNames (Schema PName) where
   namingEnv (Forall ps _ _ _) = foldMap namingEnv ps
 
--- -- | Produce a naming environment from an interface file, that contains a
--- -- mapping only from unqualified names to qualified ones.
--- instance BindsNames Iface where
---   namingEnv = namingEnv . ifPublic
 
--- -- | Translate a set of declarations from an interface into a naming
--- -- environment.
--- instance BindsNames IfaceDecls where
---   namingEnv binds = mconcat [ types, newtypes, vars ]
---     where
+-- | Interpret an import in the context of an interface, to produce a name
+-- environment for the renamer, and a 'NameDisp' for pretty-printing.
+interpImport :: Import -> IfaceDecls -> NamingEnv
+interpImport imp publicDecls = qualified
+  where
 
---     types = mempty
---       { neTypes = Map.map (map (TFromMod . ifTySynName)) (ifTySyns binds)
---       }
+  -- optionally qualify names based on the import
+  qualified | Just pfx <- iAs imp = qualify pfx restricted
+            | otherwise           =             restricted
 
---     newtypes = mempty
---       { neTypes = Map.map (map (TFromMod . T.ntName)) (ifNewtypes binds)
---       , neExprs = Map.map (map (EFromMod . T.ntName)) (ifNewtypes binds)
---       }
+  -- restrict or hide imported symbols
+  restricted
+    | Just (Hiding ns) <- iSpec imp =
+       filterNames (\qn -> not (getIdent qn `elem` ns)) public
 
---     vars = mempty
---       { neExprs  = Map.map (map (EFromMod . ifDeclName)) (ifDecls binds)
---       , neFixity = Map.fromList [ (n,fs) | ds <- Map.elems (ifDecls binds)
---                                          , all ifDeclInfix ds
---                                          , let fs = catMaybes (map ifDeclFixity ds)
---                                                n  = ifDeclName (head ds) ]
---       }
+    | Just (Only ns) <- iSpec imp =
+       filterNames (\qn -> getIdent qn `elem` ns) public
+
+    | otherwise = public
+
+  -- generate the initial environment from the public interface, where no names
+  -- are qualified
+  public = unqualifiedEnv publicDecls
 
 
--- -- | Translate names bound by the patterns of a match into a renaming
--- -- environment.
--- instance BindsNames Match where
---   namingEnv m = case m of
---     Match p _  -> namingEnv p
---     MatchLet b -> namingEnv b
+-- | Generate a naming environment from a declaration interface, where none of
+-- the names are qualified.
+unqualifiedEnv :: IfaceDecls -> NamingEnv
+unqualifiedEnv IfaceDecls { .. } =
+  mconcat [ exprs, tySyns, ntTypes, ntExprs
+          , mempty { neFixity = Map.fromList fixity } ]
+  where
+  toPName n = mkUnqual (nameIdent n)
+
+  exprs   = mconcat [ singletonE (toPName n) n | n <- Map.keys ifDecls ]
+  tySyns  = mconcat [ singletonT (toPName n) n | n <- Map.keys ifTySyns ]
+  ntTypes = mconcat [ singletonT (toPName n) n | n <- Map.keys ifNewtypes ]
+  ntExprs = mconcat [ singletonE (toPName n) n | n <- Map.keys ifNewtypes ]
+
+  fixity =
+    catMaybes [ do f <- ifDeclFixity d; return (ifDeclName d,[f])
+              | d:_ <- Map.elems ifDecls ]
+
+
+data ImportIface = ImportIface Import Iface
+
+-- | Produce a naming environment from an interface file, that contains a
+-- mapping only from unqualified names to qualified ones.
+instance BindsNames ImportIface where
+  namingEnv (ImportIface imp Iface { .. }) =
+    return (interpImport imp ifPublic)
 
 -- | Introduce the name 
 instance BindsNames (InModule (Bind PName)) where
@@ -180,9 +259,9 @@ instance BindsNames (Module PName) where
 instance BindsNames (InModule (TopDecl PName)) where
   namingEnv (InModule ns td) =
     case td of
-      Decl td      -> namingEnv (InModule ns (tlValue td))
-      TDNewtype td -> namingEnv (InModule ns (tlValue td))
-      Include _    -> return mempty
+      Decl d      -> namingEnv (InModule ns (tlValue d))
+      TDNewtype d -> namingEnv (InModule ns (tlValue d))
+      Include _   -> return mempty
 
 instance BindsNames (InModule (Newtype PName)) where
   namingEnv (InModule ns Newtype { .. }) =
@@ -193,7 +272,7 @@ instance BindsNames (InModule (Newtype PName)) where
 
 -- | The naming environment for a single declaration.
 instance BindsNames (InModule (Decl PName)) where
-  namingEnv (InModule ns d) = case d of
+  namingEnv (InModule pfx d) = case d of
     DBind b ->
       do n <- mkName (bName b)
          return (singletonE (thing (bName b)) n `mappend` fixity n b)
@@ -201,14 +280,14 @@ instance BindsNames (InModule (Decl PName)) where
     DSignature ns _sig    -> foldMap qualBind ns
     DPragma ns _p         -> foldMap qualBind ns
     DType (TySyn lqn _ _) -> qualType lqn
-    DLocated d' _         -> namingEnv (InModule ns d')
+    DLocated d' _         -> namingEnv (InModule pfx d')
     DPatBind _pat _e      -> panic "ModuleSystem" ["Unexpected pattern binding"]
     DFixity{}             -> panic "ModuleSystem" ["Unexpected fixity declaration"]
 
     where
 
     mkName ln =
-      liftSupply (mkDeclared ns (getIdent (thing ln)) (srcRange ln))
+      liftSupply (mkDeclared pfx (getIdent (thing ln)) (srcRange ln))
 
     qualBind ln =
       do n <- mkName ln

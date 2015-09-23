@@ -43,6 +43,11 @@ module Cryptol.ModuleSystem.Name (
   , unionWithNM
   , toListNM
   , mapMaybeWithKeyNM
+
+    -- ** PrimMap
+  , PrimMap(..)
+  , lookupPrimDecl
+  , lookupPrimType
   ) where
 
 import           Cryptol.Parser.Position (Range)
@@ -52,7 +57,9 @@ import           Cryptol.Utils.PP
 
 import qualified Control.Applicative as A
 import           Control.DeepSeq
+import           Control.Monad.Fix (MonadFix(mfix))
 import qualified Data.IntMap.Lazy as I
+import qualified Data.Map as Map
 import qualified Data.Monoid as M
 import           GHC.Generics (Generic)
 import           MonadLib
@@ -187,6 +194,9 @@ instance Monad m => Monad (SupplyT m) where
   m >>= f = SupplyT (unSupply m >>= unSupply . f)
   {-# INLINE (>>=) #-}
 
+instance MonadT SupplyT where
+  lift m = SupplyT (lift m)
+
 instance BaseM m n => BaseM (SupplyT m) n where
   inBase m = SupplyT (inBase m)
   {-# INLINE inBase #-}
@@ -195,9 +205,12 @@ instance RunM m (a,Supply) r => RunM (SupplyT m) a (Supply -> r) where
   runM (SupplyT m) s = runM m s
   {-# INLINE runM #-}
 
+instance MonadFix m => MonadFix (SupplyT m) where
+  mfix f = SupplyT (mfix (unSupply . f))
+
 
 newtype SupplyM a = SupplyM (SupplyT Id a)
-                    deriving (Functor,A.Applicative,Monad)
+                    deriving (Functor,A.Applicative,Monad,MonadFix)
 
 runSupplyM :: Supply -> SupplyM a -> (a,Supply)
 runSupplyM s m = runM m s
@@ -222,13 +235,16 @@ nextUniqueM  = liftSupply nextUnique
 
 
 data Supply = Supply !Int
+              deriving (Show,Generic)
+
+instance NFData Supply
 
 -- | This should only be used once at library initialization, and threaded
 -- through the rest of the session.  The supply is started at 0x1000 to leave us
 -- plenty of room for names that the compiler needs to know about (wired-in
 -- constants).
 emptySupply :: Supply
-emptySupply  = Supply 0x1000
+emptySupply  = Supply 0
 
 nextUnique :: Supply -> (Int,Supply)
 nextUnique (Supply n) = s' `seq` (n,s')
@@ -298,3 +314,27 @@ mapMaybeWithKeyNM f (NameMap m) = NameMap (I.mapMaybeWithKey f' m)
   where
   f' _ (n,a) = do b <- f n a
                   return (n,b)
+
+
+-- Prim Maps -------------------------------------------------------------------
+
+-- | A mapping from an identifier defined in some module to its real name.
+data PrimMap = PrimMap { primDecls :: Map.Map Ident Name
+                       , primTypes :: Map.Map Ident Name
+                       } deriving (Show)
+
+lookupPrimDecl, lookupPrimType :: Ident -> PrimMap -> Name
+
+-- | It's assumed that we're looking things up that we know already exist, so
+-- this will panic if it doesn't find the name.
+lookupPrimDecl name PrimMap { .. } = Map.findWithDefault err name primDecls
+  where
+  err = panic "Cryptol.ModuleSystem.Name.lookupPrimDecl"
+        [ "Unknown declaration: " ++ show name ]
+
+-- | It's assumed that we're looking things up that we know already exist, so
+-- this will panic if it doesn't find the name.
+lookupPrimType name PrimMap { .. } = Map.findWithDefault err name primTypes
+  where
+  err = panic "Cryptol.ModuleSystem.Name.lookupPrimType"
+        [ "Unknown type: " ++ show name ]

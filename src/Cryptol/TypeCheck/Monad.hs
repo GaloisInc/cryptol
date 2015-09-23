@@ -18,6 +18,7 @@ module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
   ) where
 
+import           Cryptol.ModuleSystem.Name (SupplyT,runSupplyT,FreshM(..),Supply)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
@@ -58,8 +59,10 @@ data InferInput = InferInput
   , inpSolverConfig :: SolverConfig   -- ^ Options for the constraint solver
 
   , inpPrimNames :: !PrimMap          -- ^ The mapping from 'Ident' to 'Name',
-                                      -- for names that the typechecker needs to
-                                      -- refer to.
+                                      -- for names that the typechecker
+                                      -- needs to refer to.
+
+  , inpSupply :: !Supply              -- ^ The supply for fresh name generation
   } deriving Show
 
 
@@ -81,7 +84,7 @@ data InferOutput a
   = InferFailed [(Range,Warning)] [(Range,Error)]
     -- ^ We found some errors
 
-  | InferOK [(Range,Warning)] NameSeeds a
+  | InferOK [(Range,Warning)] NameSeeds Supply a
     -- ^ Type inference was successful.
 
 
@@ -97,9 +100,12 @@ runInferM info (IM m) =
                      , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
                      , iMonoBinds     = inpMonoBinds info
                      , iSolverConfig  = inpSolverConfig info
+                     , iPrimNames     = inpPrimNames info
                      }
 
-         (result, finalRW) <- runStateT rw $ runReaderT ro m  -- RECURSION
+         ((result, finalRW),supply') <-
+             runSupplyT (inpSupply info) $ runStateT rw
+                                         $ runReaderT ro m  -- RECURSION
 
      let theSu    = iSubst finalRW
          defSu    = defaultingSubst theSu
@@ -112,6 +118,7 @@ runInferM info (IM m) =
              | nullGoals cts
                    -> return $ InferOK warns
                                   (iNameSeeds finalRW)
+                                  supply'
                                   (apSubst defSu result)
            (cts,has) -> return $ InferFailed warns
                 $ dropErrorsFromSameLoc
@@ -149,7 +156,7 @@ runInferM info (IM m) =
 
 
 
-newtype InferM a = IM { unIM :: ReaderT RO (StateT RW IO) a }
+newtype InferM a = IM { unIM :: ReaderT RO (StateT RW (SupplyT IO)) a }
 
 data DefLoc = IsLocal | IsExternal
 
@@ -186,6 +193,8 @@ data RO = RO
     -- signatures, and all bindings at top level are unaffected.
 
   , iSolverConfig :: SolverConfig
+
+  , iPrimNames :: !PrimMap
   }
 
 -- | Read-write component of the monad.
@@ -235,6 +244,9 @@ instance Monad InferM where
 instance MonadFix InferM where
   mfix f        = IM (mfix (unIM . f))
 
+instance FreshM InferM where
+  liftSupply f = IM (liftSupply f)
+
 
 io :: IO a -> InferM a
 io m = IM $ inBase m
@@ -268,7 +280,11 @@ getSolverConfig =
   do RO { .. } <- IM ask
      return iSolverConfig
 
-
+-- | Retrieve the mapping between identifiers and declarations in the prelude.
+getPrimMap :: InferM PrimMap
+getPrimMap  =
+  do RO { .. } <- IM ask
+     return iPrimNames
 
 
 --------------------------------------------------------------------------------

@@ -13,7 +13,9 @@ module Cryptol.ModuleSystem.Monad where
 import           Cryptol.Eval.Env (EvalEnv)
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
-import           Cryptol.ModuleSystem.Renamer (RenamerError(),RenamerWarning())
+import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
+import           Cryptol.ModuleSystem.Renamer
+                     (RenamerError(),RenamerWarning(),NamingEnv)
 import qualified Cryptol.Parser     as Parser
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position (Located)
@@ -23,6 +25,7 @@ import qualified Cryptol.Parser.NoInclude as NoInc
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
 import           Cryptol.Parser.Position (Range)
+import           Cryptol.Utils.Ident (interactiveName)
 import           Cryptol.Utils.PP
 
 import Control.Exception (IOException)
@@ -267,6 +270,13 @@ instance MonadT ModuleT where
   {-# INLINE lift #-}
   lift = ModuleT . lift . lift . lift . lift
 
+instance Monad m => FreshM (ModuleT m) where
+  liftSupply f = ModuleT $
+    do me <- get
+       let (a,s') = f (meSupply me)
+       set $! me { meSupply = s' }
+       return a
+
 runModuleT :: Monad m
            => ModuleEnv
            -> ModuleT m a
@@ -316,7 +326,7 @@ loadingModule  = loading . FromModule
 -- | Push an "interactive" context onto the loading stack.  A bit of a hack, as
 -- it uses a faked module name
 interactive :: ModuleM a -> ModuleM a
-interactive  = loadingModule (P.mkModName ["<interactive>"])
+interactive  = loadingModule interactiveName
 
 loading :: ImportSource -> ModuleM a -> ModuleM a
 loading src m = ModuleT $ do
@@ -347,6 +357,9 @@ getIface mn = ModuleT $ do
 getNameSeeds :: ModuleM T.NameSeeds
 getNameSeeds  = ModuleT (meNameSeeds `fmap` get)
 
+getSupply :: ModuleM Supply
+getSupply  = ModuleT (meSupply `fmap` get)
+
 getMonoBinds :: ModuleM Bool
 getMonoBinds  = ModuleT (meMonoBinds `fmap` get)
 
@@ -359,6 +372,11 @@ setNameSeeds :: T.NameSeeds -> ModuleM ()
 setNameSeeds seeds = ModuleT $ do
   env <- get
   set $! env { meNameSeeds = seeds }
+
+setSupply :: Supply -> ModuleM ()
+setSupply supply = ModuleT $
+  do env <- get
+     set $! env { meSupply = supply }
 
 -- | Remove a module from the set of loaded module, by its path.
 unloadModule :: FilePath -> ModuleM ()
@@ -404,7 +422,7 @@ withPrependedSearchPath fps m = ModuleT $ do
   return x
 
 -- XXX improve error handling here
-getFocusedEnv :: ModuleM (IfaceDecls,NameEnv)
+getFocusedEnv :: ModuleM (IfaceDecls,NamingEnv,NameDisp)
 getFocusedEnv  = ModuleT (focusedEnv `fmap` get)
 
 getQualifiedEnv :: ModuleM IfaceDecls

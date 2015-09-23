@@ -10,11 +10,11 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Cryptol.Symbolic where
 
 import Control.Monad (replicateM, when, zipWithM)
-import Control.Monad.IO.Class
 import Data.List (transpose, intercalate)
 import qualified Data.Map as Map
 import qualified Control.Exception as X
@@ -23,6 +23,9 @@ import qualified Data.SBV.Dynamic as SBV
 
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
+import qualified Cryptol.ModuleSystem.Base as M
+import qualified Cryptol.ModuleSystem.Monad as M
+import qualified Cryptol.ModuleSystem.Name as M
 
 import Cryptol.Symbolic.Prims
 import Cryptol.Symbolic.Value
@@ -32,6 +35,7 @@ import qualified Cryptol.Eval.Type (evalType)
 import qualified Cryptol.Eval.Env (EvalEnv(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
+import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
@@ -111,7 +115,8 @@ proverError :: String -> M.ModuleCmd ProverResult
 proverError msg modEnv = return (Right (ProverError msg, modEnv), [])
 
 satProve :: ProverCommand -> M.ModuleCmd ProverResult
-satProve ProverCommand {..} = protectStack pcUseSolverIte proverError $ \modEnv -> do
+satProve ProverCommand {..} = protectStack pcUseSolverIte proverError $ \modEnv ->
+  M.runModuleM modEnv $ do
   let (isSat, mSatNum) = case pcQueryType of
         ProveQuery -> (False, Nothing)
         SatQuery sn -> case sn of
@@ -120,25 +125,26 @@ satProve ProverCommand {..} = protectStack pcUseSolverIte proverError $ \modEnv 
   let extDgs = allDeclGroups modEnv ++ pcExtraDecls
   provers <-
     case pcProverName of
-      "any" -> SBV.sbvAvailableSolvers
+      "any" -> M.io SBV.sbvAvailableSolvers
       _ -> return [(lookupProver pcProverName) { SBV.smtFile = pcSmtFile }]
   let provers' = [ p { SBV.timing = pcVerbose, SBV.verbose = pcVerbose } | p <- provers ]
   let tyFn = if isSat then existsFinType else forallFinType
   let runProver fn tag e = do
-        when pcVerbose $ liftIO $
+        when pcVerbose $ M.io $
           putStrLn $ "Trying proof with " ++
                      intercalate ", " (map show provers)
-        (firstProver, res) <- fn provers' e
-        when pcVerbose $ liftIO $
+        (firstProver, res) <- M.io (fn provers' e)
+        when pcVerbose $ M.io $
           putStrLn $ "Got result from " ++ show firstProver
         return (tag res)
   let runFn | isSat     = runProver SBV.allSatWithAny allSatSMTResults
             | otherwise = runProver SBV.proveWithAny  thmSMTResults
   case predArgTypes pcSchema of
-    Left msg -> return (Right (ProverError msg, modEnv), [])
-    Right ts -> do when pcVerbose $ putStrLn "Simulating..."
+    Left msg -> return (ProverError msg)
+    Right ts -> do when pcVerbose $ M.io $ putStrLn "Simulating..."
                    let env = evalDecls (emptyEnv pcUseSolverIte) extDgs
                    let v = evalExpr env pcExpr
+                   prims <- M.getPrimMap
                    results' <- runFn $ do
                                  args <- mapM tyFn ts
                                  b <- return $! fromVBit (foldl fromVFun v args)
@@ -155,7 +161,7 @@ satProve ProverCommand {..} = protectStack pcUseSolverIte proverError $ \modEnv 
                            let Right (_, cws) = SBV.getModel result
                                (vs, _) = parseValues ts cws
                                sattys = unFinType <$> ts
-                               satexprs = zipWithM Eval.toExpr sattys vs
+                               satexprs = zipWithM (Eval.toExpr prims) sattys vs
                            in case zip3 sattys <$> satexprs <*> pure vs of
                              Nothing ->
                                panic "Cryptol.Symbolic.sat"
@@ -172,7 +178,7 @@ satProve ProverCommand {..} = protectStack pcUseSolverIte proverError $ \modEnv 
                                         | otherwise = show . SBV.ThmResult . head
                                   boom = panic "Cryptol.Symbolic.sat"
                                            [ "attempted to evaluate bogus boolean for pretty-printing" ]
-                   return (Right (esatexprs, modEnv), [])
+                   return esatexprs
 
 satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
 satProveOffline ProverCommand {..} =
@@ -240,7 +246,7 @@ data FinType
     = FTBit
     | FTSeq Int FinType
     | FTTuple [FinType]
-    | FTRecord [(Name, FinType)]
+    | FTRecord [(Ident, FinType)]
 
 numType :: Type -> Maybe Int
 numType (TCon (TC (TCNum n)) [])
@@ -305,7 +311,7 @@ existsFinType ty =
 -- Simulation environment ------------------------------------------------------
 
 data Env = Env
-  { envVars :: Map.Map QName Value
+  { envVars :: Map.Map Name Value
   , envTypes :: Map.Map TVar TValue
   , envIteSolver :: Bool
   }
@@ -327,11 +333,11 @@ emptyEnv :: Bool -> Env
 emptyEnv useIteSolver = Env Map.empty Map.empty useIteSolver
 
 -- | Bind a variable in the evaluation environment.
-bindVar :: (QName, Value) -> Env -> Env
+bindVar :: (Name, Value) -> Env -> Env
 bindVar (n, thunk) env = env { envVars = Map.insert n thunk (envVars env) }
 
 -- | Lookup a variable in the environment.
-lookupVar :: QName -> Env -> Maybe Value
+lookupVar :: Name -> Env -> Maybe Value
 lookupVar n env = Map.lookup n (envVars env)
 
 -- | Bind a type variable of kind *.
@@ -371,7 +377,7 @@ evalExpr env expr =
 
 evalType :: Env -> Type -> TValue
 evalType env ty = Cryptol.Eval.Type.evalType env' ty
-  where env' = Cryptol.Eval.Env.EvalEnv Map.empty (envTypes env)
+  where env' = Cryptol.Eval.Env.EvalEnv M.emptyNM (envTypes env)
 
 
 evalSel :: Selector -> Value -> Value
@@ -415,7 +421,7 @@ evalDeclGroup env dg =
                                          | (d, (qname, v)) <- zip ds bindings ]
                       in env'
 
-evalDecl :: Env -> Decl -> (QName, Value)
+evalDecl :: Env -> Decl -> (Name, Value)
 evalDecl env d = (dName d, body)
   where
   body = case dDefinition d of

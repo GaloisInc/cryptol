@@ -22,8 +22,9 @@ module Cryptol.TypeCheck
   , ppError
   ) where
 
+import           Cryptol.ModuleSystem.Name (liftSupply,mkDeclared)
 import qualified Cryptol.Parser.AST as P
-import           Cryptol.Parser.Position(Range)
+import           Cryptol.Parser.Position(Range,emptyRange)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Depends (FromDecl)
 import           Cryptol.TypeCheck.Monad
@@ -37,25 +38,26 @@ import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Infer (inferModule, inferBinds, inferDs)
 import           Cryptol.TypeCheck.InferTypes(Error(..),Warning(..),VarType(..), SolverConfig(..))
 import           Cryptol.TypeCheck.Solve(simplifyAllConstraints)
+import           Cryptol.Utils.Ident (packModName,packIdent)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
 
-tcModule :: P.Module -> InferInput -> IO (InferOutput Module)
+tcModule :: P.Module Name -> InferInput -> IO (InferOutput Module)
 tcModule m inp = runInferM inp
                $ do x <- inferModule m
                     simplifyAllConstraints
                     return x
 
-tcExpr :: P.Expr -> InferInput -> IO (InferOutput (Expr,Schema))
+tcExpr :: P.Expr Name -> InferInput -> IO (InferOutput (Expr,Schema))
 tcExpr e0 inp = runInferM inp
-                $ do x <- go e0
+                $ do x <- go emptyRange e0
                      simplifyAllConstraints
                      return x
 
   where
-  go expr =
+  go loc expr =
     case expr of
-      P.ELocated e _ -> go e
+      P.ELocated e loc' -> go loc' e
       P.EVar x  ->
         do res <- lookupVar x
            case res of
@@ -65,10 +67,10 @@ tcExpr e0 inp = runInferM inp
                              , show e'
                              , show t
                              ]
-      _ -> do res <- inferBinds True False
+      _ -> do fresh <- liftSupply (mkDeclared (packModName ["<expr>"]) (packIdent "(expression)") loc)
+              res   <- inferBinds True False
                 [ P.Bind
-                    { P.bName      = P.Located (inpRange inp)
-                                   $ mkUnqual (P.mkName "(expression)")
+                    { P.bName      = P.Located { P.srcRange = loc, P.thing = fresh }
                     , P.bParams    = []
                     , P.bDef       = P.Located (inpRange inp) (P.DExpr expr)
                     , P.bPragmas   = []

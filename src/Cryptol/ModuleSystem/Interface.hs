@@ -9,6 +9,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE RecordWildCards #-}
 module Cryptol.ModuleSystem.Interface (
     Iface(..)
   , IfaceDecls(..)
@@ -16,16 +17,13 @@ module Cryptol.ModuleSystem.Interface (
   , IfaceNewtype
   , IfaceDecl(..), mkIfaceDecl
 
-  , shadowing
-  , interpImport
-  , unqualified
   , genIface
+  , ifacePrimMap
   ) where
 
 import           Cryptol.ModuleSystem.Name
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Ident (ModName)
-import           Cryptol.Utils.PP
 
 import qualified Data.Map as Map
 
@@ -73,14 +71,6 @@ mergeByName f ls rs
   | [l] <- ls, [r] <- rs, f l == f r = ls
   | otherwise                        = ls ++ rs
 
--- | Like mappend for IfaceDecls, but preferring entries on the left.
-shadowing :: IfaceDecls -> IfaceDecls -> IfaceDecls
-shadowing l r = IfaceDecls
-  { ifTySyns   = Map.union (ifTySyns   l) (ifTySyns   r)
-  , ifNewtypes = Map.union (ifNewtypes l) (ifNewtypes r)
-  , ifDecls    = Map.union (ifDecls    l) (ifDecls    r)
-  }
-
 type IfaceTySyn = TySyn
 
 ifTySynName :: TySyn -> Name
@@ -108,39 +98,6 @@ mkIfaceDecl d = IfaceDecl
   , ifDeclFixity  = dFixity d
   , ifDeclDoc     = dDoc d
   }
-
--- | Like mapIfaceDecls, but gives you back a NameEnv that describes the
--- transformation.
-mapIfaceDecls :: (Name -> Name) -> IfaceDecls -> (IfaceDecls,NameDisp)
-mapIfaceDecls f decls = (decls',names)
-  where
-  decls' = IfaceDecls
-    { ifTySyns   = Map.mapKeys f (ifTySyns decls)
-    , ifNewtypes = Map.mapKeys f (ifNewtypes decls)
-    , ifDecls    = Map.mapKeys f (ifDecls decls)
-    }
-
-  namesFor :: (a -> Bool) -> (IfaceDecls -> Map.Map Name a) -> NameDisp
-  namesFor isInfix prj = undefined
-    -- mkNameEnv [ (k, info) | (k,ds) <- Map.toList (prj decls)
-    --                       , let info = NameInfo (f k) (isInfix ds) ]
-
-  names = mconcat [ namesFor (const False)     ifTySyns
-                  , namesFor (const False)     ifNewtypes
-                  , namesFor (all ifDeclInfix) ifDecls ]
-
-filterIfaceDecls :: (Name -> Bool) -> IfaceDecls -> IfaceDecls
-filterIfaceDecls p decls = IfaceDecls
-  { ifTySyns = Map.filterWithKey check (ifTySyns decls)
-  , ifNewtypes = Map.filterWithKey check (ifNewtypes decls)
-  , ifDecls  = Map.filterWithKey check (ifDecls decls)
-  }
-  where
-  check :: Name -> a -> Bool
-  check k _ = p k
-
-unqualified :: IfaceDecls -> (IfaceDecls,NameDisp)
-unqualified  = undefined -- mapIfaceDecls (mkUnqual . unqual)
 
 -- | Generate an Iface from a typechecked module.
 genIface :: Module -> Iface
@@ -174,31 +131,26 @@ genIface m = Iface
                                             , let qn = dName d
                                             ]
 
--- | Interpret an import declaration in the scope of the interface it targets.
-interpImport :: Import -> Iface -> (Iface,NameDisp)
-interpImport i iface = (iface',names)
+
+-- | Produce a PrimMap from an interface.
+--
+-- NOTE: the map will expose /both/ public and private names.
+ifacePrimMap :: Iface -> PrimMap
+ifacePrimMap Iface { .. } =
+  PrimMap { primDecls = merge primDecls
+          , primTypes = merge primTypes }
   where
-  iface' = Iface
-    { ifModName = ifModName iface
-    , ifPublic  = qualified
-    , ifPrivate = mempty
-    }
+  merge f = Map.union (f public) (f private)
 
-  -- the initial set of names is {unqualified => qualified}
-  public = ifPublic iface
+  public  = ifaceDeclsPrimMap ifPublic
+  private = ifaceDeclsPrimMap ifPrivate
 
-  -- qualify imported names
-  (qualified,names) | Just n <- iAs i = qualifyNames n restricted
-                    | otherwise       = unqualified restricted
-
-  -- interpret an import spec to quotient a naming map
-  restricted
-    | Just (Hiding ns) <- iSpec i =
-       filterIfaceDecls (\qn -> undefined {- not (unqual qn `elem` ns)-}) public
-
-    | Just (Only ns) <- iSpec i =
-       filterIfaceDecls undefined {- (\qn -> unqual qn `elem` ns) -} public
-
-    | otherwise = public
-
-  qualifyNames pfx = undefined -- mapIfaceDecls (\ n -> mkQual pfx (unqual n))
+ifaceDeclsPrimMap :: IfaceDecls -> PrimMap
+ifaceDeclsPrimMap IfaceDecls { .. } =
+  PrimMap { primDecls = Map.fromList (newtypes ++ exprs)
+          , primTypes = Map.fromList (newtypes ++ types)
+          }
+  where
+  exprs    = [ (nameIdent n, n) | n <- Map.keys ifDecls    ]
+  newtypes = [ (nameIdent n, n) | n <- Map.keys ifNewtypes ]
+  types    = [ (nameIdent n, n) | n <- Map.keys ifTySyns   ]

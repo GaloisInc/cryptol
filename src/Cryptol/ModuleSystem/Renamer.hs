@@ -17,9 +17,10 @@
 
 module Cryptol.ModuleSystem.Renamer (
     NamingEnv(), shadowing
-  , BindsNames(..)
+  , BindsNames(..), namingEnv'
   , checkNamingEnv
-  , Rename(..), runRenamer
+  , shadowNames
+  , Rename(..), runRenamer, RenameM()
   , RenamerError(..)
   , RenamerWarning(..)
   ) where
@@ -28,7 +29,6 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
-import Cryptol.Parser.Names (tnamesP)
 import Cryptol.Parser.Position
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
@@ -38,7 +38,6 @@ import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Data.Maybe (fromMaybe)
 
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative(Applicative(..),(<$>))

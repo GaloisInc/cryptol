@@ -20,6 +20,7 @@
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Infer where
 
+import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Parser.Names as P
@@ -32,6 +33,7 @@ import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,fvs,(@@))
 import           Cryptol.TypeCheck.Solver.InfNat(genLog)
+import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.PP
 
@@ -47,7 +49,7 @@ import           Control.Monad(when,zipWithM)
 
 -- import Cryptol.Utils.Debug
 
-inferModule :: P.Module -> InferM Module
+inferModule :: P.Module Name -> InferM Module
 inferModule m =
   inferDs (P.mDecls m) $ \ds1 ->
     do simplifyAllConstraints
@@ -64,12 +66,20 @@ inferModule m =
   onlyLocal (IsLocal, x)    = Just x
   onlyLocal (IsExternal, _) = Nothing
 
+
+-- | Construct a primitive in the parsed AST.
+mkPrim :: String -> InferM (P.Expr Name)
+mkPrim str =
+  do prims <- getPrimMap
+     return (P.EVar (lookupPrimDecl (packIdent str) prims))
+
 desugarLiteral :: Bool -> P.Literal -> InferM (P.Expr Name)
 desugarLiteral fixDec lit =
   do l <- curRange
+     demotePrim <- mkPrim "demote"
      let named (x,y)  = P.NamedInst
-                        P.Named { name = Located l (mkName x), value = P.TNum y }
-         demote fs    = P.EAppT (P.EVar (P.mkPrim "demote")) (map named fs)
+                        P.Named { name = Located l (packIdent x), value = P.TNum y }
+         demote fs    = P.EAppT demotePrim (map named fs)
 
      return $ case lit of
 
@@ -95,7 +105,7 @@ desugarLiteral fixDec lit =
 
 
 -- | Infer the type of an expression with an explicit instantiation.
-appTys :: P.Expr -> [Located (Maybe Name,Type)] -> Type -> InferM Expr
+appTys :: P.Expr Name -> [Located (Maybe Ident,Type)] -> Type -> InferM Expr
 appTys expr ts tGoal =
   case expr of
     P.EVar x ->
@@ -145,11 +155,11 @@ appTys expr ts tGoal =
                   checkHasType ie t tGoal
 
 
-inferTyParam :: P.TypeInst -> InferM (Located (Maybe QName, Type))
+inferTyParam :: P.TypeInst Name -> InferM (Located (Maybe Ident, Type))
 inferTyParam (P.NamedInst param) =
   do let loc = srcRange (P.name param)
      t <- inRange loc $ checkType (P.value param) Nothing
-     return $ Located loc (Just (mkUnqual (thing (P.name param))), t)
+     return $ Located loc (Just (thing (P.name param)), t)
 
 inferTyParam (P.PosInst param) =
   do t   <- checkType param Nothing
@@ -158,13 +168,13 @@ inferTyParam (P.PosInst param) =
               Just r  -> return r
      return Located { srcRange = rng, thing = (Nothing, t) }
 
-checkTypeOfKind :: P.Type -> Kind -> InferM Type
+checkTypeOfKind :: P.Type Name -> Kind -> InferM Type
 checkTypeOfKind ty k = checkType ty (Just k)
 
 
 -- | We use this when we want to ensure that the expr has exactly
 -- (syntactically) the given type.
-inferE :: Doc -> P.Expr -> InferM (Expr, Type)
+inferE :: Doc -> P.Expr Name -> InferM (Expr, Type)
 inferE desc expr =
   do t  <- newType desc KType
      e1 <- checkE expr t
@@ -172,7 +182,7 @@ inferE desc expr =
 
 -- | Infer the type of an expression, and translate it to a fully elaborated
 -- core term.
-checkE :: P.Expr -> Type -> InferM Expr
+checkE :: P.Expr Name -> Type -> InferM Expr
 checkE expr tGoal =
   case expr of
     P.EVar x ->
@@ -222,8 +232,9 @@ checkE expr tGoal =
          let totLen = tNum (2::Int) .^. bit
              lstT   = totLen .-. tNum (1::Int)
 
-         appTys (P.EVar (P.mkPrim "fromTo"))
-           [ Located rng (Just (mkUnqual (mkName x)), y)
+         fromToPrim <- mkPrim "fromTo"
+         appTys fromToPrim
+           [ Located rng (Just (packIdent x), y)
            | (x,y) <- [ ("first",fstT), ("last", lstT), ("bits", bit) ]
            ] tGoal
 
@@ -235,26 +246,29 @@ checkE expr tGoal =
                  (Nothing, Nothing) -> tcPanic "checkE"
                                         [ "EFromTo _ Nothing Nothing" ]
                  (Just t2, Nothing) ->
-                    (P.EVar (P.mkPrim "fromThen"), [ ("next", t2) ])
+                    ("fromThen", [ ("next", t2) ])
 
                  (Nothing, Just t3) ->
-                    (P.EVar (P.mkPrim "fromTo"), [ ("last", t3) ])
+                    ("fromTo", [ ("last", t3) ])
 
                  (Just t2, Just t3) ->
-                    (P.EVar (P.mkPrim "fromThenTo"), [ ("next",t2), ("last",t3) ])
+                    ("fromThenTo", [ ("next",t2), ("last",t3) ])
 
-         let e' = P.EAppT c
-                  [ P.NamedInst P.Named { name = Located l (mkName x), value = y }
+         prim <- mkPrim c
+         let e' = P.EAppT prim
+                  [ P.NamedInst P.Named { name = Located l (packIdent x), value = y }
                   | (x,y) <- ("first",t1) : fs
                   ]
 
          checkE e' tGoal
 
     P.EInfFrom e1 Nothing ->
-      checkE (P.EApp (P.EVar (P.mkPrim "infFrom")) e1) tGoal
+      do prim <- mkPrim "infFrom"
+         checkE (P.EApp prim e1) tGoal
 
     P.EInfFrom e1 (Just e2) ->
-      checkE (P.EApp (P.EApp (P.EVar (P.mkPrim "infFromThen")) e1) e2) tGoal
+      do prim <- mkPrim "infFromThen"
+         checkE (P.EApp (P.EApp prim e1) e2) tGoal
 
     P.EComp e mss ->
       do (mss', dss, ts) <- unzip3 `fmap` zipWithM inferCArm [ 1 .. ] mss
@@ -272,8 +286,8 @@ checkE expr tGoal =
 
     P.EApp fun@(dropLoc -> P.EApp (dropLoc -> P.EVar c) _)
            arg@(dropLoc -> P.ELit l)
-      | c `elem` [ P.mkPrim "<<", P.mkPrim ">>", P.mkPrim "<<<", P.mkPrim ">>>"
-                 , P.mkPrim "@", P.mkPrim "!" ] ->
+      | Just n <- asPrim c
+      , n `elem` map packIdent [ "<<", ">>", "<<<", ">>>" , "@", "!" ] ->
         do newArg <- do l1 <- desugarLiteral True l
                         return $ case arg of
                                    P.ELocated _ pos -> P.ELocated l1 pos
@@ -303,9 +317,10 @@ checkE expr tGoal =
 
     P.ETypeVal t ->
       do l <- curRange
-         checkE (P.EAppT (P.EVar (P.mkPrim "demote"))
+         prim <- mkPrim "demote"
+         checkE (P.EAppT prim
                   [P.NamedInst
-                   P.Named { name = Located l (mkName "val"), value = t }]) tGoal
+                   P.Named { name = Located l (packIdent "val"), value = t }]) tGoal
 
     P.EFun ps e -> checkFun (text "anonymous function") ps e tGoal
 
@@ -369,7 +384,7 @@ expectTuple n ty =
                      <+> text "tuple field"
                in newType desc KType
 
-expectRec :: [P.Named a] -> Type -> InferM [(Name,a,Type)]
+expectRec :: [P.Named a] -> Type -> InferM [(Ident,a,Type)]
 expectRec fs ty =
   case ty of
 
@@ -456,7 +471,7 @@ checkHasType e inferredType givenType =
        _  -> newGoals CtExactType ps >> return (ECast e givenType)
 
 
-checkFun :: Doc -> [P.Pattern] -> P.Expr -> Type -> InferM Expr
+checkFun :: Doc -> [P.Pattern Name] -> P.Expr Name -> Type -> InferM Expr
 checkFun _    [] e tGoal = checkE e tGoal
 checkFun desc ps e tGoal =
   inNewScope $
@@ -481,7 +496,7 @@ smallest ts   = do a <- newType (text "length of list comprehension") KNum
                    return a
 
 
-checkP :: Doc -> P.Pattern -> Type -> InferM (Located QName)
+checkP :: Doc -> P.Pattern Name -> Type -> InferM (Located Name)
 checkP desc p tGoal =
   do (x, t) <- inferP desc p
      ps <- unify tGoal (thing t)
@@ -491,14 +506,13 @@ checkP desc p tGoal =
 
 {-| Infer the type of a pattern.  Assumes that the pattern will be just
 a variable. -}
-inferP :: Doc -> P.Pattern -> InferM (QName, Located Type)
+inferP :: Doc -> P.Pattern Name -> InferM (Name, Located Type)
 inferP desc pat =
   case pat of
 
     P.PVar x0 ->
       do a   <- newType desc KType
-         let x = thing x0
-         return (mkUnqual x, x0 { thing = a })
+         return (thing x0, x0 { thing = a })
 
     P.PTyped p t ->
       do tSig <- checkTypeOfKind t KType
@@ -510,7 +524,7 @@ inferP desc pat =
 
 
 -- | Infer the type of one match in a list comprehension.
-inferMatch :: P.Match -> InferM (Match, QName, Located Type, Type)
+inferMatch :: P.Match Name -> InferM (Match, Name, Located Type, Type)
 inferMatch (P.Match p e) =
   do (x,t) <- inferP (text "XXX:MATCH") p
      n     <- newType (text "sequence length of comprehension match") KNum
@@ -527,10 +541,10 @@ inferMatch (P.MatchLet b)
                       [ "Unexpected polymorphic match let:", show b ]
 
 -- | Infer the type of one arm of a list comprehension.
-inferCArm :: Int -> [P.Match] -> InferM
+inferCArm :: Int -> [P.Match Name] -> InferM
               ( [Match]
-              , Map QName (Located Type)-- defined vars
-              , Type                    -- length of sequence
+              , Map Name (Located Type)-- defined vars
+              , Type                   -- length of sequence
               )
 
 inferCArm _ [] = do n <- newType (text "lenght of empty comprehension") KNum
@@ -556,7 +570,7 @@ inferCArm armNum (m : ms) =
 -- false, and the mono-binds flag is enabled, no bindings without type
 -- signatures will be generalized, but bindings with signatures will
 -- be unaffected.
-inferBinds :: Bool -> Bool -> [P.Bind] -> InferM [Decl]
+inferBinds :: Bool -> Bool -> [P.Bind Name] -> InferM [Decl]
 inferBinds isTopLevel isRec binds =
   mdo let dExpr (DExpr e) = e
           dExpr DPrim     = panic "[TypeCheck]" [ "primitive in a recursive group" ]
@@ -604,8 +618,8 @@ inferBinds isTopLevel isRec binds =
      The `exprMap` is a thunk where we can lookup the final expressions
      and we should be careful not to force it.
 -}
-guessType :: Map QName Expr -> P.Bind ->
-              InferM ( (QName, VarType)
+guessType :: Map Name Expr -> P.Bind Name ->
+              InferM ( (Name, VarType)
                      , Either (InferM Decl)    -- no generalization
                               (InferM Decl)    -- generalize these
                      )
@@ -723,7 +737,7 @@ generalize bs0 gs0 =
 
 
 
-checkMonoB :: P.Bind -> Type -> InferM Decl
+checkMonoB :: P.Bind Name -> Type -> InferM Decl
 checkMonoB b t =
   inRangeMb (getLoc b) $
   case thing (P.bDef b) of
@@ -751,7 +765,7 @@ checkMonoB b t =
                      }
 
 -- XXX: Do we really need to do the defaulting business in two different places?
-checkSigB :: P.Bind -> (Schema,[Goal]) -> InferM Decl
+checkSigB :: P.Bind Name -> (Schema,[Goal]) -> InferM Decl
 checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
 
  -- XXX what should we do with validSchema in this case?
@@ -786,7 +800,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
 
      asmps1 <- applySubst asmps0
 
-     defSu1 <- proveImplication (P.bName b) as asmps1 (validSchema ++ now)
+     defSu1 <- proveImplication (thing (P.bName b)) as asmps1 (validSchema ++ now)
      let later = apSubst defSu1 later0
          asmps = apSubst defSu1 asmps1
 

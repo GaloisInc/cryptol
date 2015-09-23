@@ -23,7 +23,7 @@ import qualified Cryptol.Parser.AST as P
 import           Cryptol.Utils.PP
 import           Cryptol.ModuleSystem.Name (asPrim,nameLoc)
 import           Cryptol.TypeCheck.PP
-import           Cryptol.Utils.Ident (identText)
+import           Cryptol.Utils.Ident (Ident,identText)
 import           Cryptol.Utils.Panic(panic)
 
 import qualified Data.Set as Set
@@ -128,10 +128,10 @@ data Error    = ErrorMsg Doc
               | UndefinedVariable Name
                 -- ^ Use of a variable that was not defined
 
-              | UndefinedTypeParam Name
+              | UndefinedTypeParam (Located Ident)
                 -- ^ Attempt to explicitly instantiate a non-existent param.
 
-              | MultipleTypeParamDefs Name [Range]
+              | MultipleTypeParamDefs Ident [Range]
                 -- ^ Multiple definitions for the same type parameter
 
               | TypeMismatch Type Type
