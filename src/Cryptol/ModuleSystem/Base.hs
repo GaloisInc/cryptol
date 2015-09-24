@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Cryptol.ModuleSystem.Base where
 
@@ -319,15 +320,16 @@ checkExpr e = do
 -- | Typecheck a group of declarations.
 --
 -- INVARIANT: This assumes that NoPat has already been run on the declarations.
-checkDecls :: (R.BindsNames (d PName), R.Rename d, T.FromDecl (d Name)
+checkDecls :: (R.BindsNames (R.InModule (d PName)), R.Rename d, T.FromDecl (d Name)
               ,HasLoc (d Name))
            => [d PName] -> ModuleM [T.DeclGroup]
 checkDecls ds = do
   (decls,names) <- getLocalEnv
 
   -- introduce names for the declarations before renaming them
-  rds <- rename interactiveName names $ R.shadowNames ds
-                                      $ traverse R.rename ds
+  rds <- rename interactiveName names
+       $ R.shadowNames (map (R.InModule interactiveName) ds)
+       $ traverse R.rename ds
 
   prims <- getPrimMap
   let act  = TCAction { tcAction = T.tcDecls, tcLinter = declsLinter

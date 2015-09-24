@@ -21,7 +21,7 @@ import qualified Control.Exception as X
 
 import qualified Data.SBV.Dynamic as SBV
 
-import qualified Cryptol.ModuleSystem as M
+import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M

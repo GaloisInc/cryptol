@@ -31,7 +31,7 @@ module Cryptol.REPL.Monad (
   , getFocusedEnv, keepOne
   , getModuleEnv, setModuleEnv
   , getDynEnv, setDynEnv
-  , uniqify
+  , uniqify, freshName
   , getTSyns, getNewtypes, getVars
   , whenDebug
   , getExprNames
@@ -71,12 +71,15 @@ import Cryptol.REPL.Trie
 import Cryptol.Eval (EvalError)
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
+import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import Cryptol.Parser (ParseError,ppError)
 import Cryptol.Parser.NoInclude (IncludeError,ppIncludeError)
 import Cryptol.Parser.NoPat (Error)
+import Cryptol.Parser.Position (emptyRange)
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck as T
+import qualified Cryptol.Utils.Ident as I
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.AST as P
@@ -86,7 +89,7 @@ import Control.Monad (ap,unless,when)
 import Control.Monad.IO.Class
 import Data.Char (isSpace)
 import Data.IORef
-    (IORef,newIORef,readIORef,modifyIORef)
+    (IORef,newIORef,readIORef,modifyIORef,atomicModifyIORef)
 import Data.List (intercalate, isPrefixOf, unfoldr)
 import Data.Maybe (catMaybes)
 import Data.Typeable (Typeable)
@@ -115,7 +118,6 @@ data RW = RW
   , eContinue    :: Bool
   , eIsBatch     :: Bool
   , eModuleEnv   :: M.ModuleEnv
-  , eNameSupply  :: Int
   , eUserEnv     :: UserEnv
   , ePutStr      :: String -> IO ()
   , eLetEnabled  :: Bool
@@ -131,7 +133,6 @@ defaultRW isBatch = do
     , eContinue    = True
     , eIsBatch     = isBatch
     , eModuleEnv   = env
-    , eNameSupply  = 0
     , eUserEnv     = mkUserEnv userOptions
     , ePutStr      = putStr
     , eLetEnabled  = True
@@ -177,6 +178,12 @@ instance Monad REPL where
 instance MonadIO REPL where
   liftIO = io
 
+instance M.FreshM REPL where
+  liftSupply f = modifyRW $ \ RW { .. } ->
+    let (a,s') = f (M.meSupply eModuleEnv)
+     in (RW { eModuleEnv = eModuleEnv { M.meSupply = s' }, .. },a)
+
+
 -- Exceptions ------------------------------------------------------------------
 
 -- | REPL exceptions.
@@ -207,7 +214,7 @@ instance PP REPLException where
                                   ]
     NoPatError es        -> vcat (map pp es)
     NoIncludeError es    -> vcat (map ppIncludeError es)
-    ModuleSystemError ns me -> withNameDisp ns (pp me)
+    ModuleSystemError ns me -> fixNameDisp ns (pp me)
     EvalError e          -> pp e
     EvalPolyError s      -> text "Cannot evaluate polymorphic value."
                          $$ text "Type:" <+> pp s
@@ -242,6 +249,9 @@ io m = REPL (\ _ -> m)
 
 getRW :: REPL RW
 getRW  = REPL readIORef
+
+modifyRW :: (RW -> (RW,a)) -> REPL a
+modifyRW f = REPL (\ ref -> atomicModifyIORef ref f)
 
 modifyRW_ :: (RW -> RW) -> REPL ()
 modifyRW_ f = REPL (\ ref -> modifyIORef ref f)
@@ -339,47 +349,51 @@ keepOne src as = case as of
   [a] -> a
   _   -> panic ("REPL: " ++ src) ["name clash in interface file"]
 
-getFocusedEnv :: REPL (M.IfaceDecls,NameDisp)
+getFocusedEnv :: REPL (M.IfaceDecls,M.NamingEnv,NameDisp)
 getFocusedEnv  = do
   me <- getModuleEnv
   -- dyNames is a NameEnv that removes the #Uniq prefix from interactively-bound
   -- variables.
   let (dyDecls,dyNames,dyDisp) = M.dynamicEnv me
-
-  -- the subtle part here is removing the #Uniq prefix from
-  -- interactively-bound variables, and also excluding any that are
-  -- shadowed and thus can no longer be referenced
   let (fDecls,fNames,fDisp) = M.focusedEnv me
-      edecls = M.ifDecls dyDecls
-      -- is this QName something the user might actually type?
-      isShadowed (qn@(P.QName (Just (P.unModName -> ['#':_])) name), _) =
-          case Map.lookup localName neExprs of
-            Nothing -> False
-            Just uniqueNames -> isNamed uniqueNames
-        where localName = P.QName Nothing name
-              isNamed us = any (== qn) (map M.qname us)
-              neExprs = M.neExprs (M.deNames (M.meDynEnv me))
-      isShadowed _ = False
-      unqual ((P.QName _ name), ifds) = (P.QName Nothing name, ifds)
-      edecls' = Map.fromList
-              . map unqual
-              . filter isShadowed
-              $ Map.toList edecls
-  return (decls `mappend` mempty { M.ifDecls = edecls' }, names `mappend` dyNames)
+  return ( dyDecls `mappend` fDecls
+         , dyNames `M.shadowing` fNames
+         , dyDisp `mappend` fDisp)
 
-getVars :: REPL (Map.Map P.QName M.IfaceDecl)
+  -- -- the subtle part here is removing the #Uniq prefix from
+  -- -- interactively-bound variables, and also excluding any that are
+  -- -- shadowed and thus can no longer be referenced
+  -- let (fDecls,fNames,fDisp) = M.focusedEnv me
+  --     edecls = M.ifDecls dyDecls
+  --     -- is this QName something the user might actually type?
+  --     isShadowed (qn@(P.QName (Just (P.unModName -> ['#':_])) name), _) =
+  --         case Map.lookup localName neExprs of
+  --           Nothing -> False
+  --           Just uniqueNames -> isNamed uniqueNames
+  --       where localName = P.QName Nothing name
+  --             isNamed us = any (== qn) (map M.qname us)
+  --             neExprs = M.neExprs (M.deNames (M.meDynEnv me))
+  --     isShadowed _ = False
+  --     unqual ((P.QName _ name), ifds) = (P.QName Nothing name, ifds)
+  --     edecls' = Map.fromList
+  --             . map unqual
+  --             . filter isShadowed
+  --             $ Map.toList edecls
+  -- return (decls `mappend` mempty { M.ifDecls = edecls' }, names `mappend` dyNames)
+
+getVars :: REPL (Map.Map M.Name M.IfaceDecl)
 getVars  = do
-  (decls,_) <- getFocusedEnv
+  (decls,_,_) <- getFocusedEnv
   return (keepOne "getVars" `fmap` M.ifDecls decls)
 
-getTSyns :: REPL (Map.Map P.QName T.TySyn)
+getTSyns :: REPL (Map.Map M.Name T.TySyn)
 getTSyns  = do
-  (decls,_) <- getFocusedEnv
+  (decls,_,_) <- getFocusedEnv
   return (keepOne "getTSyns" `fmap` M.ifTySyns decls)
 
-getNewtypes :: REPL (Map.Map P.QName T.Newtype)
+getNewtypes :: REPL (Map.Map M.Name T.Newtype)
 getNewtypes = do
-  (decls,_) <- getFocusedEnv
+  (decls,_,_) <- getFocusedEnv
   return (keepOne "getNewtypes" `fmap` M.ifNewtypes decls)
 
 -- | Get visible variable names.
@@ -399,7 +413,7 @@ getPropertyNames =
      return [ getName x | (x,d) <- Map.toList xs,
                 T.PragmaProperty `elem` M.ifDeclPragmas d ]
 
-getName :: P.QName -> String
+getName :: M.Name -> String
 getName  = show . pp
 
 getModuleEnv :: REPL M.ModuleEnv
@@ -419,14 +433,32 @@ setDynEnv denv = do
 -- | Given an existing qualified name, prefix it with a
 -- relatively-unique string. We make it unique by prefixing with a
 -- character @#@ that is not lexically valid in a module name.
-uniqify :: P.QName -> REPL P.QName
-uniqify (P.QName Nothing name) = do
-  i <- eNameSupply `fmap` getRW
-  modifyRW_ (\rw -> rw { eNameSupply = i+1 })
-  let modname' = P.mkModName [ '#' : ("Uniq_" ++ show i) ]
-  return (P.QName (Just modname') name)
-uniqify qn =
-  panic "[REPL] uniqify" ["tried to uniqify a qualified name: " ++ pretty qn]
+uniqify :: M.Name -> REPL M.Name
+
+uniqify name =
+  case M.nameInfo name of
+    M.Declared ns ->
+      M.liftSupply (M.mkDeclared ns (M.nameIdent name) (M.nameLoc name))
+
+    M.Parameter ->
+      panic "[REPL] uniqify" ["tried to uniqify a parameter: " ++ pretty name]
+
+
+-- uniqify (P.QName Nothing name) = do
+--   i <- eNameSupply `fmap` getRW
+--   modifyRW_ (\rw -> rw { eNameSupply = i+1 })
+--   let modname' = P.mkModName [ '#' : ("Uniq_" ++ show i) ]
+--   return (P.QName (Just modname') name)
+
+-- uniqify qn =
+--   panic "[REPL] uniqify" ["tried to uniqify a qualified name: " ++ pretty qn]
+
+
+-- | Generate a fresh name using the given index. The name will reside within
+-- the "<interactive>" namespace.
+freshName :: I.Ident -> REPL M.Name
+freshName i = M.liftSupply (M.mkDeclared I.interactiveName i emptyRange)
+
 
 -- User Environment Interaction ------------------------------------------------
 

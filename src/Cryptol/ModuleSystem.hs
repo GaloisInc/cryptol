@@ -6,6 +6,8 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE FlexibleContexts #-}
+
 module Cryptol.ModuleSystem (
     -- * Module System
     ModuleEnv(..), initialModuleEnv
@@ -21,6 +23,9 @@ module Cryptol.ModuleSystem (
   , evalDecls
   , noPat
   , focusedEnv
+  , getPrimMap
+  , renameVar
+  , renameType
 
     -- * Interfaces
   , Iface(..), IfaceDecls(..), genIface
@@ -31,8 +36,8 @@ import qualified Cryptol.Eval.Value        as E
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Monad
-import           Cryptol.ModuleSystem.Name (Name)
-import           Cryptol.ModuleSystem.Renamer (Rename,BindsNames)
+import           Cryptol.ModuleSystem.Name (Name,PrimMap)
+import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.Parser.AST        as P
 import           Cryptol.Parser.Name (PName)
@@ -40,6 +45,7 @@ import           Cryptol.Parser.NoPat (RemovePatterns)
 import           Cryptol.Parser.Position (HasLoc)
 import qualified Cryptol.TypeCheck.AST     as T
 import qualified Cryptol.TypeCheck.Depends as T
+import qualified Cryptol.Utils.Ident as M
 
 
 -- Public Interface ------------------------------------------------------------
@@ -47,6 +53,9 @@ import qualified Cryptol.TypeCheck.Depends as T
 type ModuleCmd a = ModuleEnv -> IO (ModuleRes a)
 
 type ModuleRes a = (Either ModuleError (a,ModuleEnv), [ModuleWarning])
+
+getPrimMap :: ModuleCmd PrimMap
+getPrimMap me = runModuleM me Base.getPrimMap
 
 -- | Find the file associated with a module name in the module search path.
 findModule :: P.ModName -> ModuleCmd FilePath
@@ -89,10 +98,12 @@ evalExpr :: T.Expr -> ModuleCmd E.Value
 evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
 
 -- | Typecheck declarations.
-checkDecls :: (HasLoc (d Name), Rename d, T.FromDecl (d Name)
-              ,BindsNames (d PName))
+checkDecls :: (HasLoc (d Name), R.Rename d, T.FromDecl (d Name)
+              ,R.BindsNames (R.InModule (d PName)))
            => [d PName] -> ModuleCmd [T.DeclGroup]
-checkDecls ds env = runModuleM env (interactive (Base.checkDecls ds))
+checkDecls ds env = runModuleM env
+                  $ interactive
+                  $ Base.checkDecls ds
 
 -- | Evaluate declarations and add them to the extended environment.
 evalDecls :: [T.DeclGroup] -> ModuleCmd ()
@@ -100,3 +111,11 @@ evalDecls dgs env = runModuleM env (interactive (Base.evalDecls dgs))
 
 noPat :: RemovePatterns a => a -> ModuleCmd a
 noPat a env = runModuleM env (interactive (Base.noPat a))
+
+renameVar :: R.NamingEnv -> PName -> ModuleCmd Name
+renameVar names n env = runModuleM env $ interactive $
+  Base.rename M.interactiveName names (R.renameVar n)
+
+renameType :: R.NamingEnv -> PName -> ModuleCmd Name
+renameType names n env = runModuleM env $ interactive $
+  Base.rename M.interactiveName names (R.renameType n)

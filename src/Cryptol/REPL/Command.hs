@@ -48,9 +48,10 @@ import Cryptol.REPL.Monad
 import Cryptol.REPL.Trie
 
 import qualified Cryptol.ModuleSystem as M
-import qualified Cryptol.ModuleSystem.Name as M (preludeName)
+import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowed))
+import qualified Cryptol.Utils.Ident as M
 
 import qualified Cryptol.Eval.Value as E
 import qualified Cryptol.Testing.Eval    as Test
@@ -90,6 +91,7 @@ import qualified Data.IntMap as IntMap
 import System.IO(hFlush,stdout)
 import System.Random.TF(newTFGen)
 import Numeric (showFFloat)
+import qualified Data.Text as ST
 import qualified Data.Text.Lazy as T
 
 #if __GLASGOW_HASKELL__ < 710
@@ -405,7 +407,7 @@ cmdProveSat isSat expr = do
         Symbolic.ProverError msg     -> rPutStrLn msg
         Symbolic.ThmResult ts        -> do
           rPutStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
-          let (t, e) = mkSolverResult cexStr (not isSat) (Left ts)
+          (t, e) <- mkSolverResult cexStr (not isSat) (Left ts)
           bindItVariable t e
         Symbolic.AllSatResult tevss -> do
           let tess = map (map $ \(t,e,_) -> (t,e)) tevss
@@ -417,8 +419,8 @@ cmdProveSat isSat expr = do
                     doc = ppPrec 3 parseExpr
                 rPrint $ hsep (doc : docs) <+>
                   text (if isSat then "= True" else "= False")
-              resultRecs = map (mkSolverResult cexStr isSat . Right) tess
-              collectTes tes = (t, es)
+          resultRecs <- mapM (mkSolverResult cexStr isSat . Right) tess
+          let collectTes tes = (t, es)
                 where
                   (ts, es) = unzip tes
                   t = case nub ts of
@@ -477,27 +479,38 @@ offlineProveSat isSat str mfile = do
         }
   liftModuleCmd $ Symbolic.satProveOffline cmd
 
+rIdent :: M.Ident
+rIdent  = M.packIdent "result"
+
 -- | Make a type/expression pair that is suitable for binding to @it@
 -- after running @:sat@ or @:prove@
 mkSolverResult :: String
                -> Bool
                -> Either [T.Type] [(T.Type, T.Expr)]
-               -> (T.Type, T.Expr)
-mkSolverResult thing result earg = (rty, re)
+               -> REPL (T.Type, T.Expr)
+mkSolverResult thing result earg =
+  do prims <- getPrimMap
+     let eError str = T.ePrim prims (M.packIdent "error")
+         addError t = (t, T.eError prims t ("no " ++ thing ++ " available"))
+
+         argF = case earg of
+                  Left ts   -> mkArgs (map addError ts)
+                  Right tes -> mkArgs tes
+
+         eTrue  = T.ePrim prims (M.packIdent "True")
+         eFalse = T.ePrim prims (M.packIdent "False")
+         resultE = if result then eTrue else eFalse
+
+         rty = T.TRec $ [(rIdent, T.tBit )] ++ map fst argF
+         re  = T.ERec $ [(rIdent, resultE)] ++ map snd argF
+
+     return (rty, re)
   where
-    rName = T.mkName "result"
-    rty = T.TRec $ [(rName, T.tBit )] ++ map fst argF
-    re  = T.ERec $ [(rName, resultE)] ++ map snd argF
-    resultE = if result then T.eTrue else T.eFalse
-    mkArgs tes = reverse (go tes [] (1 :: Int))
-      where
-        go [] fs _ = fs
-        go ((t, e):tes') fs n = go tes' (((argName, t), (argName, e)):fs) (n+1)
-          where argName = T.mkName ("arg" ++ show n)
-    argF = case earg of
-      Left ts -> mkArgs $ (map addError) ts
-        where addError t = (t, T.eError t ("no " ++ thing ++ " available"))
-      Right tes -> mkArgs tes
+  mkArgs tes = zipWith mkArg [1 :: Int ..] tes
+    where
+    mkArg n (t,e) =
+      let argName = M.packIdent ("arg" ++ show n)
+       in ((argName,t),(argName,e))
 
 specializeCmd :: String -> REPL ()
 specializeCmd str = do
@@ -520,7 +533,7 @@ typeOfCmd str = do
   -- XXX need more warnings from the module system
   --io (mapM_ printWarning ws)
   whenDebug (rPutStrLn (dump def))
-  (_,names) <- getFocusedEnv
+  (_,_,names) <- getFocusedEnv
   rPrint $ runDoc names $ pp re <+> text ":" <+> pp sig
 
 reloadCmd :: REPL ()
@@ -588,12 +601,13 @@ quitCmd  = stop
 
 browseCmd :: String -> REPL ()
 browseCmd pfx = do
-  env <- getFocusedEnv
+  (iface,_,disp) <- getFocusedEnv
+  let env = (iface,disp)
   browseTSyns env pfx
   browseNewtypes env pfx
   browseVars env pfx
 
-browseTSyns :: (M.IfaceDecls,NameEnv) -> String -> REPL ()
+browseTSyns :: (M.IfaceDecls,NameDisp) -> String -> REPL ()
 browseTSyns (decls,names) pfx = do
   let tsyns = keepOne "browseTSyns" `fmap` M.ifTySyns decls
       tsyns' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) tsyns
@@ -604,7 +618,7 @@ browseTSyns (decls,names) pfx = do
     rPrint (runDoc names (nest 4 (vcat (map ppSyn (Map.toList tsyns')))))
     rPutStrLn ""
 
-browseNewtypes :: (M.IfaceDecls,NameEnv) -> String -> REPL ()
+browseNewtypes :: (M.IfaceDecls,NameDisp) -> String -> REPL ()
 browseNewtypes (decls,names) pfx = do
   let nts  = keepOne "browseNewtypes" `fmap` M.ifNewtypes decls
       nts' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) nts
@@ -615,7 +629,7 @@ browseNewtypes (decls,names) pfx = do
     rPrint (runDoc names (nest 4 (vcat (map ppNT (Map.toList nts')))))
     rPutStrLn ""
 
-browseVars :: (M.IfaceDecls,NameEnv) -> String -> REPL ()
+browseVars :: (M.IfaceDecls,NameDisp) -> String -> REPL ()
 browseVars (decls,names) pfx = do
   let vars = keepOne "browseVars" `fmap` M.ifDecls decls
       allNames = vars
@@ -669,14 +683,16 @@ setOptionCmd str
                                    rPutStrLn ("Did you mean: `:set " ++ k1 ++ " =" ++ k2 ++ "`?")
 
 
+-- XXX at the moment, this can only look at declarations.
 helpCmd :: String -> REPL ()
 helpCmd cmd
   | null cmd  = mapM_ rPutStrLn (genHelp commandList)
   | otherwise =
     case parseHelpName cmd of
       Just qname ->
-        do (env,nameEnv) <- getFocusedEnv
-           case Map.lookup qname (M.ifDecls env) of
+        do (env,rnEnv,nameEnv) <- getFocusedEnv
+           name <- liftModuleCmd (M.renameVar rnEnv qname)
+           case Map.lookup name (M.ifDecls env) of
              Just [M.IfaceDecl { .. }] ->
                do rPutStrLn ""
 
@@ -723,10 +739,13 @@ handleCtrlC  = rPutStrLn "Ctrl-C"
 
 -- Utilities -------------------------------------------------------------------
 
-isNamePrefix :: String -> P.QName -> Bool
-isNamePrefix pfx n = case n of
-  P.QName _ (P.Name _) -> pfx `isPrefixOf` pretty n
-  _                    -> False
+isNamePrefix :: String -> M.Name -> Bool
+isNamePrefix pfx =
+  let pfx' = ST.pack pfx
+   in \n -> case M.nameInfo n of
+              M.Declared _ -> pfx' `ST.isPrefixOf` M.identText (M.nameIdent n)
+              M.Parameter  -> False
+
 
 {-
 printWarning :: (Range,Warning) -> IO ()
@@ -742,14 +761,17 @@ replParse parse str = case parse str of
   Right a -> return a
   Left e  -> raise (ParseError e)
 
-replParseInput :: String -> REPL P.ReplInput
+replParseInput :: String -> REPL (P.ReplInput P.PName)
 replParseInput = replParse (parseReplWith interactiveConfig . T.pack)
 
-replParseExpr :: String -> REPL P.Expr
+replParseExpr :: String -> REPL (P.Expr P.PName)
 replParseExpr = replParse (parseExprWith interactiveConfig . T.pack)
 
 interactiveConfig :: Config
 interactiveConfig = defaultConfig { cfgSource = "<interactive>" }
+
+getPrimMap :: REPL M.PrimMap
+getPrimMap  = liftModuleCmd M.getPrimMap
 
 liftModuleCmd :: M.ModuleCmd a -> REPL a
 liftModuleCmd cmd = moduleCmdResult =<< io . cmd =<< getModuleEnv
@@ -779,23 +801,22 @@ moduleCmdResult (res,ws0) = do
       filterShadowing w = Just w
 
   let ws = mapMaybe filterDefaults . mapMaybe filterShadowing $ ws0
-  (_,names) <- getFocusedEnv
+  (_,_,names) <- getFocusedEnv
   mapM_ (rPrint . runDoc names . pp) ws
   case res of
     Right (a,me') -> setModuleEnv me' >> return a
     Left err      -> raise (ModuleSystemError names err)
 
-replCheckExpr :: P.Expr -> REPL (P.Expr,T.Expr,T.Schema)
+replCheckExpr :: P.Expr P.PName -> REPL (P.Expr M.Name,T.Expr,T.Schema)
 replCheckExpr e = liftModuleCmd $ M.checkExpr e
 
 -- | Check declarations as though they were defined at the top-level.
-replCheckDecls :: [P.Decl] -> REPL [T.DeclGroup]
+replCheckDecls :: [P.Decl P.PName] -> REPL [T.DeclGroup]
 replCheckDecls ds = do
   npds <- liftModuleCmd $ M.noPat ds
   denv <- getDynEnv
-  let dnames = M.namingEnv npds
-  ne' <- M.travNamingEnv uniqify dnames
-  let denv' = denv { M.deNames = ne' `M.shadowing` M.deNames denv }
+  dnames <- M.liftSupply (M.namingEnv' (map (M.InModule M.interactiveName) npds))
+  let denv' = denv { M.deNames = dnames `M.shadowing` M.deNames denv }
       undo exn = do
         -- if typechecking fails, we want to revert changes to the
         -- dynamic environment and reraise
@@ -803,12 +824,12 @@ replCheckDecls ds = do
         raise exn
   setDynEnv denv'
   let topDecls = [ P.Decl (P.TopLevel P.Public Nothing d) | d <- npds ]
-  catch (liftModuleCmd $ M.checkDecls topDecls) undo
+  catch (liftModuleCmd (M.checkDecls topDecls)) undo
 
 replSpecExpr :: T.Expr -> REPL T.Expr
 replSpecExpr e = liftModuleCmd $ S.specialize e
 
-replEvalExpr :: P.Expr -> REPL (E.Value, T.Type)
+replEvalExpr :: P.Expr P.PName -> REPL (E.Value, T.Type)
 replEvalExpr expr =
   do (_,def,sig) <- replCheckExpr expr
 
@@ -835,14 +856,16 @@ replEvalExpr expr =
   warnDefault ns (x,t) =
         rPrint $ text "Assuming" <+> ppWithNames ns x <+> text "=" <+> pp t
 
+
+itIdent :: M.Ident
+itIdent  = M.packIdent "it"
+
 -- | Creates a fresh binding of "it" to the expression given, and adds
 -- it to the current dynamic environment
 bindItVariable :: T.Type -> T.Expr -> REPL ()
 bindItVariable ty expr = do
-  let it = T.QName Nothing (P.mkName "it")
-  freshIt <- uniqify it
-  let dg = T.NonRecursive decl
-      schema = T.Forall { T.sVars  = []
+  freshIt <- freshName itIdent
+  let schema = T.Forall { T.sVars  = []
                         , T.sProps = []
                         , T.sType  = ty
                         }
@@ -854,10 +877,10 @@ bindItVariable ty expr = do
                     , T.dFixity     = Nothing
                     , T.dDoc        = Nothing
                     }
-  liftModuleCmd (M.evalDecls [dg])
+  liftModuleCmd (M.evalDecls [T.NonRecursive decl])
   denv <- getDynEnv
-  let en = M.EFromBind (P.Located emptyRange freshIt)
-      nenv' = M.singletonE it en `M.shadowing` M.deNames denv
+  let nenv' = M.singletonE (P.UnQual itIdent) freshIt
+                           `M.shadowing` M.deNames denv
   setDynEnv $ denv { M.deNames = nenv' }
 
 -- | Creates a fresh binding of "it" to a finite sequence of
@@ -870,7 +893,7 @@ bindItVariables ty exprs = bindItVariable seqTy seqExpr
     seqTy = T.tSeq (T.tNum len) ty
     seqExpr = T.EList exprs ty
 
-replEvalDecl :: P.Decl -> REPL ()
+replEvalDecl :: P.Decl P.PName -> REPL ()
 replEvalDecl decl = do
   dgs <- replCheckDecls [decl]
   whenDebug (mapM_ (\dg -> (rPutStrLn (dump dg))) dgs)

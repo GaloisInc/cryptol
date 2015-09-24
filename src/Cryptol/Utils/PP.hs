@@ -32,6 +32,9 @@ import qualified Text.PrettyPrint as PJ
 data NameDisp = EmptyNameDisp
               | NameDisp (ModName -> Ident -> Maybe NameFormat)
 
+instance Show NameDisp where
+  show _ = "<NameDisp>"
+
 instance M.Monoid NameDisp where
   mempty = EmptyNameDisp
 
@@ -66,6 +69,10 @@ getNameFormat _ _ EmptyNameDisp = NotInScope
 -- | Produce a document in the context of the current 'NameDisp'.
 withNameDisp :: (NameDisp -> Doc) -> Doc
 withNameDisp k = Doc (\disp -> runDoc disp (k disp))
+
+-- | Fix the way that names are displayed inside of a doc.
+fixNameDisp :: NameDisp -> Doc -> Doc
+fixNameDisp disp (Doc f) = Doc (\ _ -> f disp)
 
 
 -- Documents -------------------------------------------------------------------

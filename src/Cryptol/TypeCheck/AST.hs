@@ -31,7 +31,7 @@ import Cryptol.Parser.AST ( Selector(..),Pragma(..), ppSelector
                           , Import(..), ImportSpec(..), ExportType(..)
                           , ExportSpec(..), isExportedBind
                           , isExportedType, Fixity(..) )
-import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName)
+import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,packIdent)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
@@ -547,6 +547,20 @@ newtypeConType nt =
 -- module.
 ePrim :: PrimMap -> Ident -> Expr
 ePrim pm n = EVar (lookupPrimDecl n pm)
+
+-- | Make an expression that is `error` pre-applied to a type and a message.
+eError :: PrimMap -> Type -> String -> Expr
+eError prims t str =
+  EApp (ETApp (ETApp (ePrim prims (packIdent "error")) t)
+              (tNum (length str))) (eString prims str)
+
+eString :: PrimMap -> String -> Expr
+eString prims str = EList (map (eChar prims) str) tChar
+
+eChar :: PrimMap -> Char -> Expr
+eChar prims c = ETApp (ETApp (ePrim prims (packIdent "demote")) (tNum v)) (tNum w)
+  where v = fromEnum c
+        w = 8 :: Int
 
 
 --------------------------------------------------------------------------------

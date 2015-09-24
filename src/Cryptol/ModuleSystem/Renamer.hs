@@ -17,12 +17,14 @@
 
 module Cryptol.ModuleSystem.Renamer (
     NamingEnv(), shadowing
-  , BindsNames(..), namingEnv'
+  , BindsNames(..), InModule(..), namingEnv'
   , checkNamingEnv
   , shadowNames
   , Rename(..), runRenamer, RenameM()
   , RenamerError(..)
   , RenamerWarning(..)
+  , renameVar
+  , renameType
   ) where
 
 import Cryptol.ModuleSystem.Name
