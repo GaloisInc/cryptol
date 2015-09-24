@@ -82,11 +82,13 @@ library
                        Cryptol.Parser.AST,
                        Cryptol.Parser.Position,
                        Cryptol.Parser.Names,
+                       Cryptol.Parser.Name,
                        Cryptol.Parser.NoPat,
                        Cryptol.Parser.NoInclude,
                        Cryptol.Parser.Utils,
                        Cryptol.Parser.Unlit,
 
+                       Cryptol.Utils.Ident,
                        Cryptol.Utils.PP,
                        Cryptol.Utils.Panic,
                        Cryptol.Utils.Debug,
