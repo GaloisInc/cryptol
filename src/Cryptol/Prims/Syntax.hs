@@ -7,14 +7,13 @@
 -- Portability :  portable
 
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.Prims.Syntax
   ( TFun(..), tBinOpPrec, tfunNames
   ) where
 
 import           Cryptol.Parser.Name (PName,mkUnqual)
-import           Cryptol.Utils.Ident (mkIdent)
+import           Cryptol.Utils.Ident (packIdent,packInfix)
 import           Cryptol.Utils.PP
 import qualified Data.Map as Map
 
@@ -59,20 +58,22 @@ tBinOpPrec  = mkMap t_table
 
 tfunNames :: Map.Map PName TFun
 tfunNames  = Map.fromList
-  [ tprim "+"                TCAdd
-  , tprim "-"                TCSub
-  , tprim "*"                TCMul
-  , tprim "/"                TCDiv
-  , tprim "%"                TCMod
-  , tprim "^^"               TCExp
-  , tprim "width"            TCWidth
-  , tprim "min"              TCMin
-  , tprim "max"              TCMax
-  , tprim "lengthFromThen"   TCLenFromThen
-  , tprim "lengthFromThenTo" TCLenFromThenTo
+  [ tinfix  "+"                TCAdd
+  , tinfix  "-"                TCSub
+  , tinfix  "*"                TCMul
+  , tinfix  "/"                TCDiv
+  , tinfix  "%"                TCMod
+  , tinfix  "^^"               TCExp
+  , tprefix "width"            TCWidth
+  , tprefix "min"              TCMin
+  , tprefix "max"              TCMax
+  , tprefix "lengthFromThen"   TCLenFromThen
+  , tprefix "lengthFromThenTo" TCLenFromThenTo
   ]
   where
-  tprim n p = (mkUnqual (mkIdent n), p)
+
+  tprefix n p = (mkUnqual (packIdent n), p)
+  tinfix  n p = (mkUnqual (packInfix n), p)
 
 instance PP TFun where
   ppPrec _ tcon =

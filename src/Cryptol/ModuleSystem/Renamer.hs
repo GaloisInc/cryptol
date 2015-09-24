@@ -32,6 +32,7 @@ import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
+import Cryptol.Utils.Ident (packIdent,packInfix)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -562,25 +563,23 @@ mkTInfix _ t (op,_) z =
 renameTypeOp :: Bool -> Located PName -> RenameM (TOp,Fixity)
 renameTypeOp isProp op =
   do let sym   = thing op
-         props = [ mkUnqual (mkIdent "==")
-                 , mkUnqual (mkIdent ">=")
-                 , mkUnqual (mkIdent "<=") ]
+         props = [ mkUnqual (packInfix "==")
+                 , mkUnqual (packInfix ">=")
+                 , mkUnqual (packInfix "<=") ]
          lkp   = do n               <- Map.lookup (thing op) tfunNames
                     (fAssoc,fLevel) <- Map.lookup n tBinOpPrec
                     return (n,Fixity { .. })
 
-     sym' <- renameType sym
      case lkp of
        Just (p,f) ->
             return (\x y -> TApp p [x,y], f)
 
-       Nothing
-         | isProp && sym `elem` props ->
-              return (\x y -> TUser sym' [x,y], Fixity NonAssoc 0)
-
-         | otherwise ->
-           do record (UnboundType op)
-              return (\x y -> TUser sym' [x,y], defaultFixity)
+       Nothing ->
+         do sym' <- renameType sym
+            if isProp && sym `elem` props
+               then return (\x y -> TUser sym' [x,y], Fixity NonAssoc 0)
+               else do record (UnboundType op)
+                       return (\x y -> TUser sym' [x,y], defaultFixity)
 
 -- | Rename a binding.
 instance Rename Bind where

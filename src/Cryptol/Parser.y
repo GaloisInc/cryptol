@@ -1,6 +1,5 @@
 {
 {-# LANGUAGE Trustworthy #-}
-{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Parser
   ( parseModule
   , parseProgram, parseProgramWith
@@ -27,9 +26,10 @@ import           Control.Monad(liftM2,msum)
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
-import Cryptol.Parser.LexerUtils hiding (mkIdent)
+import Cryptol.Parser.LexerUtils
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit(PreProc(..), guessPreProc)
+import Cryptol.Utils.Ident (packIdent,packInfix)
 
 import Paths_cryptol
 }
@@ -378,25 +378,25 @@ iexpr                            :: { Expr PName }
 expr10                           :: { Expr PName }
   : aexprs                          { mkEApp $1 }
 
-  | '-' expr10 %prec NEG            { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual "negate"))) $2 }
-  | '~' expr10                      { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual "complement"))) $2 }
+  | '-' expr10 %prec NEG            { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual (packIdent "negate")))) $2 }
+  | '~' expr10                      { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual (packIdent "complement")))) $2 }
 
 qop                              :: { LPName }
   : op                              { $1 }
   | QOP                             { let Token (Op (Other ns i)) _ = thing $1
-                                       in mkQual (mkModName ns) (mkIdent (ST.pack i)) A.<$ $1 }
+                                       in mkQual (mkModName ns) (packInfix i) A.<$ $1 }
 
 op                               :: { LPName }
   : OP                              { let Token (Op (Other [] str)) _ = thing $1
-                                       in mkUnqual (mkIdent (ST.pack str)) A.<$ $1 }
+                                       in mkUnqual (packInfix str) A.<$ $1 }
 
     -- special cases for operators that are re-used elsewhere
-  | '*'                             { Located $1 $ mkUnqual "*" }
-  | '+'                             { Located $1 $ mkUnqual "+" }
-  | '-'                             { Located $1 $ mkUnqual "-" }
-  | '~'                             { Located $1 $ mkUnqual "~" }
-  | '^^'                            { Located $1 $ mkUnqual "^^" }
-  | '#'                             { Located $1 $ mkUnqual "#" }
+  | '*'                             { Located $1 $ mkUnqual $ packInfix "*" }
+  | '+'                             { Located $1 $ mkUnqual $ packInfix "+" }
+  | '-'                             { Located $1 $ mkUnqual $ packInfix "-" }
+  | '~'                             { Located $1 $ mkUnqual $ packInfix "~" }
+  | '^^'                            { Located $1 $ mkUnqual $ packInfix "^^" }
+  | '#'                             { Located $1 $ mkUnqual $ packInfix "#" }
 
 ops                     :: { [LPName] }
   : op                     { [$1] }
@@ -610,11 +610,11 @@ field_types                    :: { [Named (Type PName)] }
 
 ident              :: { Located Ident }
   : IDENT             { let Token (Ident _ str) _ = thing $1
-                         in $1 { thing = mkIdent (ST.pack str) } }
-  | 'x'               { Located { srcRange = $1, thing = mkIdent "x" }}
-  | 'private'         { Located { srcRange = $1, thing = mkIdent "private" } }
-  | 'as'              { Located { srcRange = $1, thing = mkIdent "as" } }
-  | 'hiding'          { Located { srcRange = $1, thing = mkIdent "hiding" } }
+                         in $1 { thing = packIdent str } }
+  | 'x'               { Located { srcRange = $1, thing = packIdent "x" }}
+  | 'private'         { Located { srcRange = $1, thing = packIdent "private" } }
+  | 'as'              { Located { srcRange = $1, thing = packIdent "as" } }
+  | 'hiding'          { Located { srcRange = $1, thing = packIdent "hiding" } }
 
 
 name               :: { LPName }
@@ -630,7 +630,7 @@ modName                        :: { Located ModName }
 qname                          :: { Located PName }
   : name                          { $1 }
   | QIDENT                        { let Token (Ident ns i) _ = thing $1
-                                     in mkQual (mkModName ns) (mkIdent (ST.pack i)) A.<$ $1 }
+                                     in mkQual (mkModName ns) (packIdent i) A.<$ $1 }
 
 help_name                      :: { Located PName    }
   : qname                         { $1               }
