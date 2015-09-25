@@ -5,8 +5,9 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
+{-# LANGUAGE Trustworthy #-}
 
-{-# LANGUAGE RecordWildCards, CPP, Safe #-}
+{-# LANGUAGE RecordWildCards, CPP #-}
 #if __GLASGOW_HASKELL__ >= 706
 {-# LANGUAGE RecursiveDo #-}
 #else
@@ -18,7 +19,8 @@ module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
   ) where
 
-import           Cryptol.ModuleSystem.Name (SupplyT,runSupplyT,FreshM(..),Supply)
+import           Cryptol.ModuleSystem.Name (SupplyT,runSupplyT,FreshM(..),Supply
+                      ,nameIdent,lookupPrimDecl)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
@@ -45,6 +47,8 @@ import Control.DeepSeq
 #if __GLASGOW_HASKELL__ < 710
 import           Data.Functor
 #endif
+
+import Debug.Trace
 
 -- | Information needed for type inference.
 data InferInput = InferInput
@@ -475,7 +479,12 @@ lookupVar x =
          do mbNT <- lookupNewtype x
             case mbNT of
               Just nt -> return (ExtVar (newtypeConType nt))
-              Nothing -> do recordError $ UndefinedVariable x
+              Nothing -> do () <- traceShowM ("var", x)
+                            ps <- getPrimMap
+                            traceShowM ("prim", lookupPrimDecl (nameIdent x) ps)
+                            RO { .. } <- IM ask
+                            traceShowM (Map.keys iVars)
+                            recordError $ UndefinedVariable x
                             a <- newType (text "type of" <+> pp x) KType
                             return $ ExtVar $ Forall [] [] a
 

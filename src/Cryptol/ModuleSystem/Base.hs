@@ -83,7 +83,8 @@ rename modName env m = do
     Left errs -> renamerErrors errs
 
 -- | Rename a module in the context of its imported modules.
-renameModule :: P.Module PName -> ModuleM (IfaceDecls,R.NamingEnv,P.Module Name)
+renameModule :: P.Module PName
+             -> ModuleM (IfaceDecls,R.NamingEnv,R.NamingEnv,P.Module Name)
 renameModule m = do
   (decls,menv) <- importIfaces (map thing (P.mImports m))
   let (es,ws) = R.checkNamingEnv menv
@@ -91,8 +92,8 @@ renameModule m = do
   renamerWarnings ws
   unless (null es) (renamerErrors es)
 
-  rm <- rename (thing (mName m)) menv (R.rename m)
-  return (decls,menv,rm)
+  (declsEnv,rm) <- rename (thing (mName m)) menv (R.renameModule m)
+  return (decls,menv,declsEnv,rm)
 
 -- | Rename declarations in the context of the focused module.
 --
@@ -363,14 +364,13 @@ checkModule path m = do
   npm <- noPat nim
 
   -- rename everything
-  (tcEnv,rnEnv,scm) <- renameModule npm
+  (tcEnv,rnEnv,declsEnv,scm) <- renameModule npm
 
   -- when generating the prim map for the typechecker, if we're checking the
   -- prelude, we have to generate the map from the renaming environment, as we
   -- don't have the interface yet.
   prims <- if thing (mName m) == preludeName
-              then do env <- liftSupply (R.namingEnv' npm)
-                      return (R.toPrimMap env)
+              then return (R.toPrimMap declsEnv)
               else getPrimMap
 
   -- typecheck

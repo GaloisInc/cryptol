@@ -24,6 +24,7 @@ module Cryptol.ModuleSystem.Renamer (
   , RenamerWarning(..)
   , renameVar
   , renameType
+  , renameModule
   ) where
 
 import Cryptol.ModuleSystem.Name
@@ -31,7 +32,7 @@ import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
-import Cryptol.Utils.Ident (packIdent,packInfix)
+import Cryptol.Utils.Ident (packIdent)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -297,6 +298,12 @@ supply m = RenameM (inBase m)
 class Rename f where
   rename :: f PName -> RenameM (f Name)
 
+renameModule :: Module PName -> RenameM (NamingEnv,Module Name)
+renameModule m =
+  do env    <- supply (namingEnv m)
+     decls' <- shadowNames env (traverse rename (mDecls m))
+     return (env,m { mDecls = decls' })
+
 instance Rename Module where
   rename m =
     do decls' <- shadowNames m (traverse rename (mDecls m))
@@ -478,7 +485,7 @@ instance Rename Type where
     go (TChar c)     = return (TChar c)
     go  TInf         = return TInf
 
-    go t@(TUser pn ps)
+    go (TUser pn ps)
       | i == packIdent "inf", null ps     = return TInf
       | i == packIdent "Bit", null ps     = return TBit
 
@@ -591,13 +598,10 @@ lookupFixity op =
     Nothing    -> (\x y -> TUser sym [x,y], Fixity NonAssoc 0)
 
   where
-  sym   = thing op
-  props = [ mkUnqual (packInfix "==")
-          , mkUnqual (packInfix ">=")
-          , mkUnqual (packInfix "<=") ]
-  lkp   = do n               <- Map.lookup (thing op) tfunNames
-             (fAssoc,fLevel) <- Map.lookup n tBinOpPrec
-             return (n,Fixity { .. })
+  sym = thing op
+  lkp = do n               <- Map.lookup (thing op) tfunNames
+           (fAssoc,fLevel) <- Map.lookup n tBinOpPrec
+           return (n,Fixity { .. })
 
 -- | Rename a binding.
 instance Rename Bind where
