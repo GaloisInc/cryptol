@@ -13,7 +13,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.ModuleSystem.Renamer (
     NamingEnv(), shadowing
@@ -444,35 +443,81 @@ instance Rename Prop where
 
     -- here, we rename the type and then require that it produces something that
     -- looks like a Prop
-    CType t -> translateProp t
+    CType t -> translateProp =<< resolveTypeFixity t
 
 translateProp :: Type PName -> RenameM (Prop Name)
-translateProp ty = go =<< rnType True ty
+translateProp ty = go ty
   where
-  go :: Type Name -> RenameM (Prop Name)
   go t = case t of
 
     TLocated t' r -> (`CLocated` r) <$> go t'
 
+    -- these are the only cases that will produce valid props.
     TUser n [l,r]
-      | i == mkIdent "==" -> pure (CEqual l r)
-      | i == mkIdent ">=" -> pure (CGeq l r)
-      | i == mkIdent "<=" -> pure (CGeq r l)
+      | i == packIdent "==" -> CEqual <$> rename l <*> rename r
+      | i == packIdent ">=" -> CGeq   <$> rename l <*> rename r
+      | i == packIdent "<=" -> CGeq   <$> rename r <*> rename l
       where
-      i = nameIdent n
+      i = getIdent n
 
+    -- record an error, but continue renaming to gather any other errors
     _ ->
       do record (InvalidConstraint ty)
-         return (CType t)
+         CType <$> rename t
 
 
+-- | Resolve fixity, then rename the resulting type.
 instance Rename Type where
-  rename = rnType False
+  rename ty0 = go =<< resolveTypeFixity ty0
+    where
+    go :: Type PName -> RenameM (Type Name)
+    go (TFun a b)    = TFun     <$> go a  <*> go b
+    go (TSeq n a)    = TSeq     <$> go n  <*> go a
+    go  TBit         = return TBit
+    go (TNum c)      = return (TNum c)
+    go (TChar c)     = return (TChar c)
+    go  TInf         = return TInf
 
-rnType :: Bool -> Type PName -> RenameM (Type Name)
-rnType isProp = go
+    go t@(TUser pn ps)
+      | i == packIdent "inf", null ps     = return TInf
+      | i == packIdent "Bit", null ps     = return TBit
+
+      | i == packIdent "min"              = TApp TCMin           <$> traverse go ps
+      | i == packIdent "max"              = TApp TCMax           <$> traverse go ps
+      | i == packIdent "lengthFromThen"   = TApp TCLenFromThen   <$> traverse go ps
+      | i == packIdent "lengthFromThenTo" = TApp TCLenFromThenTo <$> traverse go ps
+      | i == packIdent "width"            = TApp TCWidth         <$> traverse go ps
+
+      -- XXX is this case actully needed now?
+      -- | i == packIdent "fin" =
+      --   do locTy <- located t
+      --      record (MalformedConstraint locTy)
+      --      n <- mkFakeName pn
+      --      TUser n <$> traverse go ps
+
+      where
+      i = getIdent pn
+
+    go (TUser qn ps)   = TUser    <$> renameType qn <*> traverse go ps
+    go (TApp f xs)     = TApp f   <$> traverse go xs
+    go (TRecord fs)    = TRecord  <$> traverse (rnNamed go) fs
+    go (TTuple fs)     = TTuple   <$> traverse go fs
+    go  TWild          = return TWild
+    go (TLocated t' r) = withLoc r (TLocated <$> go t' <*> pure r)
+
+    go (TParens t')    = TParens <$> go t'
+
+    -- at this point, the fixity is correct, and we just need to perform
+    -- renaming.
+    go (TInfix a o f b) = TInfix <$> rename a
+                                 <*> rnLocated renameType o
+                                 <*> pure f
+                                 <*> rename b
+
+
+resolveTypeFixity :: Type PName -> RenameM (Type PName)
+resolveTypeFixity  = go
   where
-  go :: Type PName -> RenameM (Type Name)
   go t = case t of
     TFun a b     -> TFun     <$> go a  <*> go b
     TSeq n a     -> TSeq     <$> go n  <*> go a
@@ -480,68 +525,45 @@ rnType isProp = go
     TNum c       -> return (TNum c)
     TChar c      -> return (TChar c)
     TInf         -> return TInf
-
-    TUser pn ps
-      | i == mkIdent "inf", null ps     -> return TInf
-      | i == mkIdent "Bit", null ps     -> return TBit
-
-      | i == mkIdent "min"              -> TApp TCMin           <$> traverse go ps
-      | i == mkIdent "max"              -> TApp TCMax           <$> traverse go ps
-      | i == mkIdent "lengthFromThen"   -> TApp TCLenFromThen   <$> traverse go ps
-      | i == mkIdent "lengthFromThenTo" -> TApp TCLenFromThenTo <$> traverse go ps
-      | i == mkIdent "width"            -> TApp TCWidth         <$> traverse go ps
-
-        -- This should only happen in error, as fin constraints are constructed
-        -- in the parser. (Cryptol.Parser.ParserUtils.mkProp)
-      | i == mkIdent "fin" && isProp    ->
-        do locTy <- located t
-           record (MalformedConstraint locTy)
-           n <- mkFakeName pn
-           TUser n <$> traverse go ps
-
-      where
-      i = getIdent pn
-
-    TUser qn ps  -> TUser    <$> renameType qn <*> traverse go ps
+    TUser pn ps  -> TUser pn <$> traverse go ps
     TApp f xs    -> TApp f   <$> traverse go xs
-    TRecord fs   -> TRecord  <$> traverse (rnNamed go) fs
+    TRecord fs   -> TRecord  <$> traverse (traverse go) fs
     TTuple fs    -> TTuple   <$> traverse go fs
     TWild        -> return TWild
-    TLocated t' r -> withLoc r
-                 $ TLocated <$> go t' <*> pure r
+    TLocated t' r-> withLoc r (TLocated <$> go t' <*> pure r)
 
     TParens t'   -> TParens <$> go t'
 
     TInfix a o _ b ->
-      do op <- renameTypeOp isProp o
+      do let op = lookupFixity o
          a' <- go a
          b' <- go b
-         mkTInfix isProp a' op b'
+         mkTInfix a' op b'
 
 
-type TOp = Type Name -> Type Name -> Type Name
+type TOp = Type PName -> Type PName -> Type PName
 
-mkTInfix :: Bool -> Type Name -> (TOp,Fixity) -> Type Name -> RenameM (Type Name)
+mkTInfix :: Type PName -> (TOp,Fixity) -> Type PName -> RenameM (Type PName)
 
 -- this should be one of the props, or an error, so just assume that its fixity
 -- is `infix 0`.
-mkTInfix True t@(TUser o1 [x,y]) op@(o2,f2) z =
+mkTInfix t@(TUser o1 [x,y]) op@(o2,f2) z =
   do let f1 = Fixity NonAssoc 0
      case compareFixity f1 f2 of
        FCLeft  -> return (o2 t z)
-       FCRight -> do r <- mkTInfix True y op z
+       FCRight -> do r <- mkTInfix y op z
                      return (TUser o1 [x,r])
 
        -- Just reconstruct with the TUser part being an application. If this was
-       -- a real error, it will have been caught by now.
+       -- a real error, it will be caught during renaming.
        FCError -> return (o2 t z)
 
 -- In this case, we know the fixities of both sides.
-mkTInfix isProp t@(TApp o1 [x,y]) op@(o2,f2) z
+mkTInfix t@(TApp o1 [x,y]) op@(o2,f2) z
   | Just (a1,p1) <- Map.lookup o1 tBinOpPrec =
      case compareFixity (Fixity a1 p1) f2 of
        FCLeft  -> return (o2 t z)
-       FCRight -> do r <- mkTInfix isProp y op z
+       FCRight -> do r <- mkTInfix y op z
                      return (TApp o1 [x,r])
 
        -- As the fixity table is known, and this is a case where the fixity came
@@ -549,37 +571,33 @@ mkTInfix isProp t@(TApp o1 [x,y]) op@(o2,f2) z
        FCError -> panic "Renamer" [ "fixity problem for type operators"
                                   , show (o2 t z) ]
 
-mkTInfix isProp (TLocated t _) op z =
-     mkTInfix isProp t op z
+mkTInfix (TLocated t _) op z =
+     mkTInfix t op z
 
-mkTInfix _ t (op,_) z =
+mkTInfix t (op,_) z =
      return (op t z)
 
 
--- | Rename a type operator, mapping it to a real type function.  When isProp is
--- True, it's assumed that the renaming is happening in the context of a Prop,
--- which allows unresolved operators to propagate without an error.  They will
--- be resolved in the CType case for Prop.
-renameTypeOp :: Bool -> Located PName -> RenameM (TOp,Fixity)
-renameTypeOp isProp op =
-  do let sym   = thing op
-         props = [ mkUnqual (packInfix "==")
-                 , mkUnqual (packInfix ">=")
-                 , mkUnqual (packInfix "<=") ]
-         lkp   = do n               <- Map.lookup (thing op) tfunNames
-                    (fAssoc,fLevel) <- Map.lookup n tBinOpPrec
-                    return (n,Fixity { .. })
+-- | When possible, rewrite the type operator to a known constructor, otherwise
+-- return a 'TOp' that reconstructs the original term, and a default fixity.
+lookupFixity :: Located PName -> (TOp,Fixity)
+lookupFixity op =
+  case lkp of
+    Just (p,f) -> (\x y -> TApp p [x,y], f)
 
-     case lkp of
-       Just (p,f) ->
-            return (\x y -> TApp p [x,y], f)
+    -- unknown type operator, just use default fixity
+    -- NOTE: this works for the props defined above, as all other operators
+    -- are defined with a higher precedence.
+    Nothing    -> (\x y -> TUser sym [x,y], Fixity NonAssoc 0)
 
-       Nothing ->
-         do sym' <- renameType sym
-            if isProp && sym `elem` props
-               then return (\x y -> TUser sym' [x,y], Fixity NonAssoc 0)
-               else do record (UnboundType op)
-                       return (\x y -> TUser sym' [x,y], defaultFixity)
+  where
+  sym   = thing op
+  props = [ mkUnqual (packInfix "==")
+          , mkUnqual (packInfix ">=")
+          , mkUnqual (packInfix "<=") ]
+  lkp   = do n               <- Map.lookup (thing op) tfunNames
+             (fAssoc,fLevel) <- Map.lookup n tBinOpPrec
+             return (n,Fixity { .. })
 
 -- | Rename a binding.
 instance Rename Bind where

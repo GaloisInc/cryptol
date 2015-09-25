@@ -330,11 +330,13 @@ lookupPrimDecl, lookupPrimType :: Ident -> PrimMap -> Name
 lookupPrimDecl name PrimMap { .. } = Map.findWithDefault err name primDecls
   where
   err = panic "Cryptol.ModuleSystem.Name.lookupPrimDecl"
-        [ "Unknown declaration: " ++ show name ]
+        [ "Unknown declaration: " ++ show name
+        , show primDecls ]
 
 -- | It's assumed that we're looking things up that we know already exist, so
 -- this will panic if it doesn't find the name.
 lookupPrimType name PrimMap { .. } = Map.findWithDefault err name primTypes
   where
   err = panic "Cryptol.ModuleSystem.Name.lookupPrimType"
-        [ "Unknown type: " ++ show name ]
+        [ "Unknown type: " ++ show name
+        , show primTypes ]

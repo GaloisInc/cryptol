@@ -65,6 +65,9 @@ import Data.Foldable (foldMap)
 import Data.Traversable (traverse)
 #endif
 
+import Debug.Trace
+
+
 -- Renaming --------------------------------------------------------------------
 
 rename :: ModName -> R.NamingEnv -> R.RenameM a -> ModuleM a
@@ -362,8 +365,12 @@ checkModule path m = do
   -- rename everything
   (tcEnv,rnEnv,scm) <- renameModule npm
 
+  -- when generating the prim map for the typechecker, if we're checking the
+  -- prelude, we have to generate the map from the renaming environment, as we
+  -- don't have the interface yet.
   prims <- if thing (mName m) == preludeName
-              then return (R.toPrimMap rnEnv)
+              then do env <- liftSupply (R.namingEnv' npm)
+                      return (R.toPrimMap env)
               else getPrimMap
 
   -- typecheck
