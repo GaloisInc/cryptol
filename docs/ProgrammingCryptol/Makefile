@@ -38,6 +38,8 @@ ${TMP}:
 
 ${TARGET}.pdf: ${SRCS} ${TMP}
 	# surely I don't need this many latex's and indexes etc; but this looks like a sure fire way of
+	${LATEXMK} -c ${MAINTARGET}.tex
+	${LATEXMK} -c ${MAINTARGET}.tex
 	# getting numbers right.. heh
 	${LATEX}     ${MAINTARGET}
 	${MAKEINDEX} ${TMP}/Cryptol.glo -s ${TMP}/Cryptol.ist -t ${TMP}/Cryptol.glg -o ${TMP}/Cryptol.gls
@@ -54,18 +56,12 @@ ${TARGET}.pdf: ${SRCS} ${TMP}
 quick: ${SRCS}
 	${LATEX}     ${MAINTARGET}
 
-# load into Cryptol
-cry:
-	cryptol-2 ${MAINTARGET}.tex
-# TODO see ticket #276
-#	cryptol -n ${MAINTARGET}
-
-.PHONY: spellClean superClean clean quickSpell
+.PHONY: squeaky superClean clean quickSpell
 
 clean:
 	rm -f ${AUX}
 
-superClean: clean
+squeaky: clean
 	rm -f ${TARGET}.pdf 
 	make -C tools clean
 
