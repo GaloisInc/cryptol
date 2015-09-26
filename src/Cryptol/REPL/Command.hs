@@ -256,12 +256,14 @@ data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 -- environment variable, or we specify exhaustive testing.
 qcCmd :: QCMode -> String -> REPL ()
 qcCmd qcMode "" =
-  do xs <- getPropertyNames
+  do (xs,disp) <- getPropertyNames
+     let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
         then rPutStrLn "There are no properties in scope."
         else forM_ xs $ \x ->
-               do rPutStr $ "property " ++ x ++ " "
-                  qcCmd qcMode x
+               do let str = nameStr x
+                  rPutStr $ "property " ++ str ++ " "
+                  qcCmd qcMode str
 
 qcCmd qcMode str =
   do expr <- replParseExpr str
@@ -367,14 +369,16 @@ proveCmd = cmdProveSat False
 -- design.
 cmdProveSat :: Bool -> String -> REPL ()
 cmdProveSat isSat "" =
-  do xs <- getPropertyNames
+  do (xs,disp) <- getPropertyNames
+     let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
         then rPutStrLn "There are no properties in scope."
         else forM_ xs $ \x ->
-               do if isSat
-                     then rPutStr $ ":sat "   ++ x ++ "\n\t"
-                     else rPutStr $ ":prove " ++ x ++ "\n\t"
-                  cmdProveSat isSat x
+               do let str = nameStr x
+                  if isSat
+                     then rPutStr $ ":sat "   ++ str ++ "\n\t"
+                     else rPutStr $ ":prove " ++ str ++ "\n\t"
+                  cmdProveSat isSat str
 cmdProveSat isSat expr = do
   let cexStr | isSat = "satisfying assignment"
              | otherwise = "counterexample"
@@ -649,9 +653,7 @@ browseVars (decls,names) pfx = do
     unless (Map.null xs) $ do
       rPutStrLn name
       rPutStrLn (replicate (length name) '=')
-      let step k d acc =
-              optParens (M.ifDeclInfix d) (pp k)
-                <+> char ':' <+> pp (M.ifDeclSig d) : acc
+      let step k d acc = pp k <+> char ':' <+> pp (M.ifDeclSig d) : acc
       rPrint (runDoc names (nest 4 (vcat (Map.foldrWithKey step [] xs))))
       rPutStrLn ""
 

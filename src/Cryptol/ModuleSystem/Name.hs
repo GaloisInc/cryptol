@@ -1,14 +1,9 @@
 {-# LANGUAGE Trustworthy #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 -- for the instances of RunM and BaseM
 {-# LANGUAGE UndecidableInstances #-}
@@ -31,18 +26,6 @@ module Cryptol.ModuleSystem.Name (
   , SupplyT(), runSupplyT
   , SupplyM(), runSupplyM
   , Supply(), emptySupply, nextUnique
-
-    -- * Name Maps
-  , NameMap()
-  , emptyNM
-  , nullNM
-  , insertNM
-  , alterNM
-  , lookupNM
-  , findWithDefaultNM
-  , unionWithNM
-  , toListNM
-  , mapMaybeWithKeyNM
 
     -- ** PrimMap
   , PrimMap(..)
@@ -266,54 +249,6 @@ mkParameter :: Ident -> Range -> Supply -> (Name,Supply)
 mkParameter nIdent nLoc s =
   let (nUnique,s') = nextUnique s
    in (Name { nInfo = Parameter, .. }, s')
-
-
--- Maps of Names ---------------------------------------------------------------
-
--- | Maps that take advantage of the unique key in names.
-newtype NameMap a = NameMap { nmElems :: I.IntMap (Name,a)
-                            } deriving (Functor,Foldable,Traversable,Show,Generic)
-
-instance NFData a => NFData (NameMap a)
-
-toListNM :: NameMap a -> [(Name,a)]
-toListNM NameMap { .. } = I.elems nmElems
-
-emptyNM :: NameMap a
-emptyNM  = NameMap { nmElems = I.empty }
-
-nullNM :: NameMap a -> Bool
-nullNM NameMap { .. } = I.null nmElems
-
-insertNM :: Name -> a -> NameMap a -> NameMap a
-insertNM n a (NameMap ns) = NameMap (I.insert (nUnique n) (n,a) ns)
-
-lookupNM :: Name -> NameMap a -> Maybe a
-lookupNM Name { .. } (NameMap m) = snd `fmap` I.lookup nUnique m
-
-alterNM :: Name -> (Maybe a -> Maybe a) -> NameMap a -> NameMap a
-alterNM k f (NameMap m) = NameMap (I.alter f' (nUnique k) m)
-  where
-  f' (Just (n,a)) = do a' <- f (Just a)
-                       return (n,a')
-  f' Nothing      = do a  <- f Nothing
-                       return (k,a)
-
-findWithDefaultNM :: a -> Name -> NameMap a -> a
-findWithDefaultNM a Name { .. } (NameMap m) =
-  snd (I.findWithDefault (undefined,a) nUnique m)
-
-unionWithNM :: (a -> a -> a) -> NameMap a -> NameMap a -> NameMap a
-unionWithNM combine (NameMap a) (NameMap b) = NameMap (I.unionWith combine' a b)
-  where
-  -- As the uniques were the same, the name values will also be the same.
-  combine' (n,x) (_,y) = (n,combine x y)
-
-mapMaybeWithKeyNM :: (Name -> a -> Maybe b) -> NameMap a -> NameMap b
-mapMaybeWithKeyNM f (NameMap m) = NameMap (I.mapMaybeWithKey f' m)
-  where
-  f' _ (n,a) = do b <- f n a
-                  return (n,b)
 
 
 -- Prim Maps -------------------------------------------------------------------

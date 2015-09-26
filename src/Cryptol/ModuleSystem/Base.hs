@@ -65,8 +65,6 @@ import Data.Foldable (foldMap)
 import Data.Traversable (traverse)
 #endif
 
-import Debug.Trace
-
 
 -- Renaming --------------------------------------------------------------------
 
@@ -84,7 +82,7 @@ rename modName env m = do
 
 -- | Rename a module in the context of its imported modules.
 renameModule :: P.Module PName
-             -> ModuleM (IfaceDecls,R.NamingEnv,R.NamingEnv,P.Module Name)
+             -> ModuleM (IfaceDecls,R.NamingEnv,P.Module Name)
 renameModule m = do
   (decls,menv) <- importIfaces (map thing (P.mImports m))
   let (es,ws) = R.checkNamingEnv menv
@@ -93,7 +91,7 @@ renameModule m = do
   unless (null es) (renamerErrors es)
 
   (declsEnv,rm) <- rename (thing (mName m)) menv (R.renameModule m)
-  return (decls,menv,declsEnv,rm)
+  return (decls,declsEnv,rm)
 
 -- | Rename declarations in the context of the focused module.
 --
@@ -364,7 +362,7 @@ checkModule path m = do
   npm <- noPat nim
 
   -- rename everything
-  (tcEnv,rnEnv,declsEnv,scm) <- renameModule npm
+  (tcEnv,declsEnv,scm) <- renameModule npm
 
   -- when generating the prim map for the typechecker, if we're checking the
   -- prelude, we have to generate the map from the renaming environment, as we

@@ -197,19 +197,19 @@ instance Applicative ZList where
 -- name is bound to a list of values, one for each element in the list
 -- comprehension.
 data ListEnv = ListEnv
-  { leVars :: NameMap (ZList Value)
+  { leVars :: Map.Map Name (ZList Value)
   , leTypes :: Map.Map TVar TValue
   }
 
 instance Monoid ListEnv where
   mempty = ListEnv
-    { leVars  = emptyNM
+    { leVars  = Map.empty
     , leTypes = Map.empty
     }
 
   mappend l r = ListEnv
-    { leVars  = unionWithNM const (leVars  l) (leVars  r)
-    , leTypes = Map.union         (leTypes l) (leTypes r)
+    { leVars  = Map.union (leVars  l) (leVars  r)
+    , leTypes = Map.union (leTypes l) (leTypes r)
     }
 
 toListEnv :: EvalEnv -> ListEnv
@@ -229,7 +229,7 @@ zipListEnv (ListEnv vm tm) =
   | v <- getZList (sequenceA vm) ]
 
 bindVarList :: Name -> [Value] -> ListEnv -> ListEnv
-bindVarList n vs lenv = lenv { leVars = insertNM n (Zip vs) (leVars lenv) }
+bindVarList n vs lenv = lenv { leVars = Map.insert n (Zip vs) (leVars lenv) }
 
 
 -- List Comprehensions ---------------------------------------------------------

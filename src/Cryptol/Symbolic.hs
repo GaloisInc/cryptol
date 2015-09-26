@@ -25,7 +25,6 @@ import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
-import qualified Cryptol.ModuleSystem.Name as M
 
 import Cryptol.Symbolic.Prims
 import Cryptol.Symbolic.Value
@@ -377,7 +376,7 @@ evalExpr env expr =
 
 evalType :: Env -> Type -> TValue
 evalType env ty = Cryptol.Eval.Type.evalType env' ty
-  where env' = Cryptol.Eval.Env.EvalEnv M.emptyNM (envTypes env)
+  where env' = Cryptol.Eval.Env.EvalEnv Map.empty (envTypes env)
 
 
 evalSel :: Selector -> Value -> Value

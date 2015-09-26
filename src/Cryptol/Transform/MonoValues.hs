@@ -78,7 +78,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Transform.MonoValues (rewModule) where
 
-import Cryptol.ModuleSystem.Name (NameMap,SupplyM,liftSupply,Supply,mkDeclared)
+import Cryptol.ModuleSystem.Name (SupplyM,liftSupply,Supply,mkDeclared)
 import Cryptol.Parser.Position (emptyRange)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.TypeMap
@@ -94,7 +94,7 @@ import Control.Applicative
 
 {- (f,t,n) |--> x  means that when we spot instantiations of `f` with `ts` and
 `n` proof argument, we should replace them with `Var x` -}
-newtype RewMap' a = RM (NameMap (TypesMap (Map Int a)))
+newtype RewMap' a = RM (Map Name (TypesMap (Map Int a)))
 type RewMap = RewMap' Name
 
 instance TrieMap RewMap' (Name,[Type],Int) where

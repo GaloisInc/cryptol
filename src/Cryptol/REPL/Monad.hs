@@ -407,11 +407,12 @@ getTypeNames  =
      nts <- getNewtypes
      return $ map getName $ Map.keys tss ++ Map.keys nts
 
-getPropertyNames :: REPL [String]
+getPropertyNames :: REPL ([M.Name],NameDisp)
 getPropertyNames =
-  do xs <- getVars
-     return [ getName x | (x,d) <- Map.toList xs,
-                T.PragmaProperty `elem` M.ifDeclPragmas d ]
+  do (decls,_,names) <- getFocusedEnv
+     let xs = keepOne "getPropertyNames" `fmap` M.ifDecls decls
+     return ([ x | (x,d) <- Map.toList xs,
+                T.PragmaProperty `elem` M.ifDeclPragmas d ], names)
 
 getName :: M.Name -> String
 getName  = show . pp
