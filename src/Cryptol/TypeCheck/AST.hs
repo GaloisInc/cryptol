@@ -25,7 +25,7 @@ module Cryptol.TypeCheck.AST
   , PrimMap(..)
   ) where
 
-import Cryptol.ModuleSystem.Name hiding (NameMap)
+import Cryptol.ModuleSystem.Name
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST ( Selector(..),Pragma(..), ppSelector
                           , Import(..), ImportSpec(..), ExportType(..)
