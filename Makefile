@@ -178,15 +178,15 @@ PKG_EXCONTRIB_FILES := examples/contrib/mkrand.cry \
 ${PKG}: ${CRYPTOL_EXE} \
         docs/*.md docs/*.pdf LICENSE LICENSE.rtf \
         ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES}
-	$(CABAL) copy ${DESTDIR_ARG}
-	mkdir -p ${PKG_CRY}
-	mkdir -p ${PKG_DOC}
-	mkdir -p ${PKG_EXAMPLES}
-	mkdir -p ${PKG_EXCONTRIB}
-	cp docs/*.md ${PKG_DOC}
-	cp docs/*.pdf ${PKG_DOC}
+	$(CABAL) copy ${DESTDIR_ARG} && \
+	mkdir -p ${PKG_CRY} && \
+	mkdir -p ${PKG_DOC} && \
+	mkdir -p ${PKG_EXAMPLES} && \
+	mkdir -p ${PKG_EXCONTRIB} && \
+	cp docs/*.md ${PKG_DOC} && \
+	cp docs/*.pdf ${PKG_DOC} && \
 	for EXAMPLE in ${PKG_EXAMPLE_FILES}; do \
-          cp $$EXAMPLE ${PKG_EXAMPLES}; done
+          cp $$EXAMPLE ${PKG_EXAMPLES}; done && \
 	for EXAMPLE in ${PKG_EXCONTRIB_FILES}; do \
           cp $$EXAMPLE ${PKG_EXCONTRIB}; done
 # cleanup unwanted files
