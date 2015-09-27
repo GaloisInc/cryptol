@@ -528,15 +528,11 @@ resolveTypeFixity  = go
   go t = case t of
     TFun a b     -> TFun     <$> go a  <*> go b
     TSeq n a     -> TSeq     <$> go n  <*> go a
-    TBit         -> return TBit
-    TNum c       -> return (TNum c)
-    TChar c      -> return (TChar c)
-    TInf         -> return TInf
     TUser pn ps  -> TUser pn <$> traverse go ps
     TApp f xs    -> TApp f   <$> traverse go xs
     TRecord fs   -> TRecord  <$> traverse (traverse go) fs
     TTuple fs    -> TTuple   <$> traverse go fs
-    TWild        -> return TWild
+
     TLocated t' r-> withLoc r (TLocated <$> go t' <*> pure r)
 
     TParens t'   -> TParens <$> go t'
@@ -546,6 +542,12 @@ resolveTypeFixity  = go
          a' <- go a
          b' <- go b
          mkTInfix a' op b'
+
+    TBit         -> return t
+    TNum _       -> return t
+    TChar _      -> return t
+    TInf         -> return t
+    TWild        -> return t
 
 
 type TOp = Type PName -> Type PName -> Type PName
