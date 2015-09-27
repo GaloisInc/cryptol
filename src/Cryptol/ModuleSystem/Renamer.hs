@@ -32,7 +32,7 @@ import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
-import Cryptol.Utils.Ident (packIdent)
+import Cryptol.Utils.Ident (packIdent,packInfix)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -550,20 +550,23 @@ resolveTypeFixity  = go
 
 type TOp = Type PName -> Type PName -> Type PName
 
+infixProps :: [PName]
+infixProps  = map (mkUnqual . packInfix) [ "==", ">=", "<=" ]
+
 mkTInfix :: Type PName -> (TOp,Fixity) -> Type PName -> RenameM (Type PName)
 
--- this should be one of the props, or an error, so just assume that its fixity
--- is `infix 0`.
-mkTInfix t@(TUser o1 [x,y]) op@(o2,f2) z =
-  do let f1 = Fixity NonAssoc 0
-     case compareFixity f1 f2 of
-       FCLeft  -> return (o2 t z)
-       FCRight -> do r <- mkTInfix y op z
-                     return (TUser o1 [x,r])
+-- only if the function is one of props
+mkTInfix t@(TUser o1 [x,y]) op@(o2,f2) z
+  | o1 `elem` infixProps =
+    do let f1 = Fixity NonAssoc 0
+       case compareFixity f1 f2 of
+         FCLeft  -> return (o2 t z)
+         FCRight -> do r <- mkTInfix y op z
+                       return (TUser o1 [x,r])
 
-       -- Just reconstruct with the TUser part being an application. If this was
-       -- a real error, it will be caught during renaming.
-       FCError -> return (o2 t z)
+         -- Just reconstruct with the TUser part being an application. If this was
+         -- a real error, it will be caught during renaming.
+         FCError -> return (o2 t z)
 
 -- In this case, we know the fixities of both sides.
 mkTInfix t@(TApp o1 [x,y]) op@(o2,f2) z
