@@ -37,7 +37,6 @@ writePreludeContents = io $ do
 
 #else
 
-import Cryptol.Parser.AST as P
 import Cryptol.Utils.Ident (preludeName)
 
 -- | If we're not self-contained, the Prelude is just missing

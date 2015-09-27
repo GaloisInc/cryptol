@@ -61,8 +61,8 @@ instance PPName PName where
             Nothing -> empty
 
   ppInfixName n
-    | isInfixIdent i = panic "AST" [ "non-symbol infix name:" ++ show n ]
-    | otherwise      = pfx <> pp i
+    | isInfixIdent i = pfx <> pp i
+    | otherwise      = panic "AST" [ "non-symbol infix name:" ++ show n ]
     where
     i   = getIdent n
     pfx = case getModName n of

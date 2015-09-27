@@ -542,7 +542,7 @@ instance PP (WithNames DelayedCt) where
   ppPrec _ (WithNames d names) =
     sig $$ nest 2 (vars $$ asmps $$ vcat (map (ppWithNames ns1) (dctGoals d)))
     where
-    sig = text "In the definition of" <+> quotes (pp (nameLoc name)) <>
+    sig = text "In the definition of" <+> quotes (pp name) <>
           comma <+> text "at" <+> pp (nameLoc name) <> colon
 
     name  = dctSource d

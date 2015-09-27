@@ -16,6 +16,7 @@ module Cryptol.ModuleSystem.Name (
   , nameInfo
   , nameLoc
   , asPrim
+  , cmpNameLexical
 
     -- ** Creation
   , mkDeclared
@@ -41,9 +42,9 @@ import           Cryptol.Utils.PP
 import qualified Control.Applicative as A
 import           Control.DeepSeq
 import           Control.Monad.Fix (MonadFix(mfix))
-import qualified Data.IntMap.Lazy as I
 import qualified Data.Map as Map
 import qualified Data.Monoid as M
+import           Data.Ord (comparing)
 import           GHC.Generics (Generic)
 import           MonadLib
 
@@ -81,6 +82,20 @@ instance Ord Name where
 
 instance NFData NameInfo
 instance NFData Name
+
+cmpNameLexical :: Name -> Name -> Ordering
+cmpNameLexical l r =
+  case (nameInfo l, nameInfo r) of
+
+    (Declared nsl,Declared nsr) ->
+      case compare nsl nsr of
+        EQ  -> comparing nameIdent l r
+        cmp -> cmp
+
+    (Parameter,Parameter) -> comparing nameIdent l r
+
+    (Declared nsl,Parameter) -> compare nsl (identText (nameIdent r))
+    (Parameter,Declared nsr) -> compare (identText (nameIdent l)) nsr
 
 -- | Figure out how the name should be displayed, by referencing the display
 -- function in the environment. NOTE: this function doesn't take into account

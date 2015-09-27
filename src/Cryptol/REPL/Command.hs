@@ -60,7 +60,6 @@ import qualified Cryptol.Testing.Exhaust as TestX
 import Cryptol.Parser
     (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
     ,parseModName,parseHelpName)
-import Cryptol.Parser.Position (emptyRange)
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Subst as T
 import qualified Cryptol.TypeCheck.InferTypes as T
@@ -78,7 +77,7 @@ import qualified Control.Exception as X
 import Control.Monad (guard,unless,forM_,when)
 import Data.Char (isSpace,isPunctuation,isSymbol)
 import Data.Function (on)
-import Data.List (intercalate,isPrefixOf,nub)
+import Data.List (intercalate,nub,sortBy)
 import Data.Maybe (fromMaybe,mapMaybe)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
@@ -494,8 +493,7 @@ mkSolverResult :: String
                -> REPL (T.Type, T.Expr)
 mkSolverResult thing result earg =
   do prims <- getPrimMap
-     let eError str = T.ePrim prims (M.packIdent "error")
-         addError t = (t, T.eError prims t ("no " ++ thing ++ " available"))
+     let addError t = (t, T.eError prims t ("no " ++ thing ++ " available"))
 
          argF = case earg of
                   Left ts   -> mkArgs (map addError ts)
@@ -618,8 +616,9 @@ browseTSyns (decls,names) pfx = do
   unless (Map.null tsyns') $ do
     rPutStrLn "Type Synonyms"
     rPutStrLn "============="
-    let ppSyn (qn,T.TySyn _ ps cs ty) = pp (T.TySyn qn ps cs ty)
-    rPrint (runDoc names (nest 4 (vcat (map ppSyn (Map.toList tsyns')))))
+    let sorted = sortBy (M.cmpNameLexical `on` T.tsName) (Map.elems tsyns')
+    let ppSyn (T.TySyn qn ps cs ty) = pp (T.TySyn qn ps cs ty)
+    rPrint (runDoc names (nest 4 (vcat (map ppSyn sorted))))
     rPutStrLn ""
 
 browseNewtypes :: (M.IfaceDecls,NameDisp) -> String -> REPL ()
@@ -629,17 +628,15 @@ browseNewtypes (decls,names) pfx = do
   unless (Map.null nts') $ do
     rPutStrLn "Newtypes"
     rPutStrLn "========"
-    let ppNT (qn,nt) = T.ppNewtypeShort (nt { T.ntName = qn })
-    rPrint (runDoc names (nest 4 (vcat (map ppNT (Map.toList nts')))))
+    let sorted = sortBy (M.cmpNameLexical `on` T.ntName) (Map.elems nts')
+        ppNT   = T.ppNewtypeShort
+    rPrint (runDoc names (nest 4 (vcat (map ppNT sorted))))
     rPutStrLn ""
 
 browseVars :: (M.IfaceDecls,NameDisp) -> String -> REPL ()
 browseVars (decls,names) pfx = do
   let vars = keepOne "browseVars" `fmap` M.ifDecls decls
       allNames = vars
-          {- This shows the built-ins as well:
-             Map.union vars
-                  (Map.fromList [ (Name x,t) | (x,(_,t)) <- builtIns ]) -}
       vars' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) allNames
 
       isProp p     = T.PragmaProperty `elem` (M.ifDeclPragmas p)
@@ -653,8 +650,10 @@ browseVars (decls,names) pfx = do
     unless (Map.null xs) $ do
       rPutStrLn name
       rPutStrLn (replicate (length name) '=')
-      let step k d acc = pp k <+> char ':' <+> pp (M.ifDeclSig d) : acc
-      rPrint (runDoc names (nest 4 (vcat (Map.foldrWithKey step [] xs))))
+      let sorted = sortBy (M.cmpNameLexical `on` M.ifDeclName) (Map.elems xs)
+      let ppVar M.IfaceDecl { .. } = pp ifDeclName
+                                 <+> char ':' <+> pp ifDeclSig
+      rPrint (runDoc names (nest 4 (vcat (map ppVar sorted))))
       rPutStrLn ""
 
 
