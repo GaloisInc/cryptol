@@ -811,18 +811,16 @@ replCheckExpr e = liftModuleCmd $ M.checkExpr e
 -- | Check declarations as though they were defined at the top-level.
 replCheckDecls :: [P.Decl P.PName] -> REPL [T.DeclGroup]
 replCheckDecls ds = do
-  npds <- liftModuleCmd $ M.noPat ds
-  denv <- getDynEnv
-  dnames <- M.liftSupply (M.namingEnv' (map (M.InModule M.interactiveName) npds))
-  let denv' = denv { M.deNames = dnames `M.shadowing` M.deNames denv }
-      undo exn = do
-        -- if typechecking fails, we want to revert changes to the
-        -- dynamic environment and reraise
-        setDynEnv denv
-        raise exn
-  setDynEnv denv'
-  let topDecls = [ P.Decl (P.TopLevel P.Public Nothing d) | d <- npds ]
-  catch (liftModuleCmd (M.checkDecls topDecls)) undo
+
+  -- check the decls
+  npds        <- liftModuleCmd (M.noPat ds)
+  (names,ds') <- liftModuleCmd (M.checkDecls npds)
+
+  -- extend the naming env
+  denv        <- getDynEnv
+  setDynEnv denv { M.deNames = names `M.shadowing` M.deNames denv }
+
+  return ds'
 
 replSpecExpr :: T.Expr -> REPL T.Expr
 replSpecExpr e = liftModuleCmd $ S.specialize e

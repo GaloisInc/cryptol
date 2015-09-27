@@ -100,7 +100,7 @@ evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
 -- | Typecheck declarations.
 checkDecls :: (HasLoc (d Name), R.Rename d, T.FromDecl (d Name)
               ,R.BindsNames (R.InModule (d PName)))
-           => [d PName] -> ModuleCmd [T.DeclGroup]
+           => [d PName] -> ModuleCmd (R.NamingEnv,[T.DeclGroup])
 checkDecls ds env = runModuleM env
                   $ interactive
                   $ Base.checkDecls ds

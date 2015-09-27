@@ -294,9 +294,7 @@ getLocalEnv  =
   do (decls,fNames,_) <- getFocusedEnv
      denv             <- getDynEnv
      let dynDecls = deIfaceDecls denv
-         dynNames = R.unqualifiedEnv dynDecls
-
-     return (dynDecls `mappend` decls, dynNames `R.shadowing` fNames)
+     return (dynDecls `mappend` decls, deNames denv `R.shadowing` fNames)
 
 -- | Typecheck a single expression, yielding a renamed parsed expression,
 -- typechecked core expression, and a type schema.
@@ -324,19 +322,20 @@ checkExpr e = do
 -- INVARIANT: This assumes that NoPat has already been run on the declarations.
 checkDecls :: (R.BindsNames (R.InModule (d PName)), R.Rename d, T.FromDecl (d Name)
               ,HasLoc (d Name))
-           => [d PName] -> ModuleM [T.DeclGroup]
+           => [d PName] -> ModuleM (R.NamingEnv,[T.DeclGroup])
 checkDecls ds = do
   (decls,names) <- getLocalEnv
 
   -- introduce names for the declarations before renaming them
-  rds <- rename interactiveName names
-       $ R.shadowNames (map (R.InModule interactiveName) ds)
-       $ traverse R.rename ds
+  declsEnv <- liftSupply (R.namingEnv' (map (R.InModule interactiveName) ds))
+  rds <- rename interactiveName names $ R.shadowNames declsEnv
+                                      $ traverse R.rename ds
 
   prims <- getPrimMap
   let act  = TCAction { tcAction = T.tcDecls, tcLinter = declsLinter
                       , tcPrims = prims }
-  typecheck act rds decls
+  ds' <- typecheck act rds decls
+  return (declsEnv,ds')
 
 -- | Generate the primitive map. If the prelude is currently being loaded, this
 -- should be generated directly from the naming environment given to the renamer
