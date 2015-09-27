@@ -175,7 +175,9 @@ PKG_EXCONTRIB_FILES := examples/contrib/mkrand.cry \
                        examples/contrib/simon.cry  \
                        examples/contrib/speck.cry
 
-${PKG}: ${CRYPTOL_EXE} \
+${PKG}: ${PKG_BIN}/cryptol
+
+${PKG_BIN}/cryptol: ${CRYPTOL_EXE} \
         docs/*.md docs/*.pdf LICENSE LICENSE.rtf \
         ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES}
 	$(CABAL) copy ${DESTDIR_ARG} && \
@@ -224,13 +226,12 @@ ${PKG}.msi: ${PKG} win32/cryptol.wxs
 	rm -f *.wixpdb
 
 ${CS_BIN}/cryptol-test-runner: \
-  ${PKG}                       \
   $(CURDIR)/tests/Main.hs      \
   $(CURDIR)/tests/cryptol-test-runner.cabal
 	$(CABAL_INSTALL) ./tests
 
 .PHONY: test
-test: ${CS_BIN}/cryptol-test-runner
+test: ${CS_BIN}/cryptol-test-runner ${PKG_BIN}/cryptol
 	( cd tests &&                                                      \
 	echo "Testing on $(UNAME)-$(ARCH)" &&                              \
 	$(realpath $(CS_BIN)/cryptol-test-runner)                          \
