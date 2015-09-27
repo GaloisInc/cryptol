@@ -55,6 +55,11 @@ alwaysQualify  = NameDisp $ \ mn _ -> Just (Qualified mn)
 neverQualify :: NameDisp
 neverQualify  = NameDisp $ \ _ _ -> Just UnQualified
 
+fmtModName :: ModName -> NameFormat -> ModName
+fmtModName _  UnQualified    = T.empty
+fmtModName _  (Qualified mn) = mn
+fmtModName mn NotInScope     = mn
+
 -- | Compose two naming environments, preferring names from the left
 -- environment.
 extend :: NameDisp -> NameDisp -> NameDisp

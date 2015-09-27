@@ -17,6 +17,7 @@ module Cryptol.ModuleSystem.Name (
   , nameLoc
   , asPrim
   , cmpNameLexical
+  , cmpNameDisplay
 
     -- ** Creation
   , mkDeclared
@@ -83,6 +84,7 @@ instance Ord Name where
 instance NFData NameInfo
 instance NFData Name
 
+-- | Compare two names lexically.
 cmpNameLexical :: Name -> Name -> Ordering
 cmpNameLexical l r =
   case (nameInfo l, nameInfo r) of
@@ -96,6 +98,35 @@ cmpNameLexical l r =
 
     (Declared nsl,Parameter) -> compare nsl (identText (nameIdent r))
     (Parameter,Declared nsr) -> compare (identText (nameIdent l)) nsr
+
+
+-- | Compare two names by the way they would be displayed.
+cmpNameDisplay :: NameDisp -> Name -> Name -> Ordering
+cmpNameDisplay disp l r =
+  case (nameInfo l, nameInfo r) of
+
+    (Declared nsl, Declared nsr) ->
+      let pfxl = fmtModName nsl (getNameFormat nsl (nameIdent l) disp)
+          pfxr = fmtModName nsr (getNameFormat nsr (nameIdent r) disp)
+       in case compare pfxl pfxr of
+            EQ  -> compare (nameIdent l) (nameIdent r)
+            cmp -> cmp
+
+    (Parameter,Parameter) ->
+      compare (nameIdent l) (nameIdent r)
+
+    (Declared nsl,Parameter) ->
+      let pfxl = fmtModName nsl (getNameFormat nsl (nameIdent l) disp)
+       in case compare pfxl (identText (nameIdent r)) of
+            EQ  -> GT
+            cmp -> cmp
+
+    (Parameter,Declared nsr) ->
+      let pfxr = fmtModName nsr (getNameFormat nsr (nameIdent r) disp)
+       in case compare (identText (nameIdent l)) pfxr of
+            EQ  -> LT
+            cmp -> cmp
+
 
 -- | Figure out how the name should be displayed, by referencing the display
 -- function in the environment. NOTE: this function doesn't take into account

@@ -616,9 +616,8 @@ browseTSyns (decls,names) pfx = do
   unless (Map.null tsyns') $ do
     rPutStrLn "Type Synonyms"
     rPutStrLn "============="
-    let sorted = sortBy (M.cmpNameLexical `on` T.tsName) (Map.elems tsyns')
-    let ppSyn (T.TySyn qn ps cs ty) = pp (T.TySyn qn ps cs ty)
-    rPrint (runDoc names (nest 4 (vcat (map ppSyn sorted))))
+    let sorted = sortBy (M.cmpNameDisplay names `on` T.tsName) (Map.elems tsyns')
+    rPrint (runDoc names (nest 4 (vcat (map pp sorted))))
     rPutStrLn ""
 
 browseNewtypes :: (M.IfaceDecls,NameDisp) -> String -> REPL ()
@@ -628,9 +627,8 @@ browseNewtypes (decls,names) pfx = do
   unless (Map.null nts') $ do
     rPutStrLn "Newtypes"
     rPutStrLn "========"
-    let sorted = sortBy (M.cmpNameLexical `on` T.ntName) (Map.elems nts')
-        ppNT   = T.ppNewtypeShort
-    rPrint (runDoc names (nest 4 (vcat (map ppNT sorted))))
+    let sorted = sortBy (M.cmpNameDisplay names `on` T.ntName) (Map.elems nts')
+    rPrint (runDoc names (nest 4 (vcat (map T.ppNewtypeShort sorted))))
     rPutStrLn ""
 
 browseVars :: (M.IfaceDecls,NameDisp) -> String -> REPL ()
@@ -650,9 +648,8 @@ browseVars (decls,names) pfx = do
     unless (Map.null xs) $ do
       rPutStrLn name
       rPutStrLn (replicate (length name) '=')
-      let sorted = sortBy (M.cmpNameLexical `on` M.ifDeclName) (Map.elems xs)
-      let ppVar M.IfaceDecl { .. } = pp ifDeclName
-                                 <+> char ':' <+> pp ifDeclSig
+      let sorted = sortBy (M.cmpNameDisplay names `on` M.ifDeclName) (Map.elems xs)
+      let ppVar M.IfaceDecl { .. } = pp ifDeclName <+> char ':' <+> pp ifDeclSig
       rPrint (runDoc names (nest 4 (vcat (map ppVar sorted))))
       rPutStrLn ""
 
