@@ -145,7 +145,7 @@ instance PP RenamerWarning where
     hang (text "[warning] at" <+> loc)
        4 $ fsep [ text "This binding for" <+> sym
                 , text "shadows the existing binding" <> plural <+> text "from" ]
-        $$ vcat (map pp originals)
+        $$ vcat (map ppLocName originals)
 
     where
     plural | length originals > 1 = char 's'
