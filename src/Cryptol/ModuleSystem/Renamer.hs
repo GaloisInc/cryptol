@@ -701,8 +701,8 @@ renameOp ln = withLoc ln $
   do n  <- renameVar (thing ln)
      ro <- RenameM ask
      case Map.lookup n (neFixity (roNames ro)) of
-       Just [fixity] -> return (ln { thing = n },fixity)
-       _             -> return (ln { thing = n },defaultFixity)
+       Just fixity -> return (ln { thing = n },fixity)
+       Nothing     -> return (ln { thing = n },defaultFixity)
 
 
 instance Rename TypeInst where

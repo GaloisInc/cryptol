@@ -25,6 +25,7 @@ import Cryptol.Parser.Position
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
+import Data.List (nub)
 import Data.Maybe (catMaybes,fromMaybe)
 import qualified Data.Map as Map
 
@@ -47,7 +48,7 @@ data NamingEnv = NamingEnv { neExprs :: Map.Map PName [Name]
                              -- ^ Expr renaming environment
                            , neTypes :: Map.Map PName [Name]
                              -- ^ Type renaming environment
-                           , neFixity:: Map.Map Name [Fixity]
+                           , neFixity:: Map.Map Name Fixity
                              -- ^ Expression-level fixity environment
                            } deriving (Show, Generic)
 
@@ -59,15 +60,23 @@ instance Monoid NamingEnv where
               , neTypes  = Map.empty
               , neFixity = Map.empty }
 
+  -- NOTE: merging the fixity maps is a special case that just prefers the left
+  -- entry, as they're already keyed by a name with a unique
   mappend l r   =
-    NamingEnv { neExprs  = Map.unionWith (++) (neExprs  l) (neExprs  r)
-              , neTypes  = Map.unionWith (++) (neTypes  l) (neTypes  r)
-              , neFixity = Map.unionWith (++) (neFixity l) (neFixity r) }
+    NamingEnv { neExprs  = Map.unionWith merge (neExprs  l) (neExprs  r)
+              , neTypes  = Map.unionWith merge (neTypes  l) (neTypes  r)
+              , neFixity = Map.union           (neFixity l) (neFixity r) }
 
   mconcat envs  =
-    NamingEnv { neExprs  = Map.unionsWith (++) (map neExprs  envs)
-              , neTypes  = Map.unionsWith (++) (map neTypes  envs)
-              , neFixity = Map.unionsWith (++) (map neFixity envs) }
+    NamingEnv { neExprs  = Map.unionsWith merge (map neExprs  envs)
+              , neTypes  = Map.unionsWith merge (map neTypes  envs)
+              , neFixity = Map.unions           (map neFixity envs) }
+
+-- | Merge two name maps, collapsing cases where the entries are the same, and
+-- producing conflicts otherwise.
+merge :: [Name] -> [Name] -> [Name]
+merge xs ys | xs == ys  = xs
+            | otherwise = nub (xs ++ ys)
 
 
 -- | Generate a mapping from 'Ident' to 'Name' for a given naming environment.
@@ -218,7 +227,7 @@ unqualifiedEnv IfaceDecls { .. } =
   ntExprs = mconcat [ singletonE (toPName n) n | n <- Map.keys ifNewtypes ]
 
   fixity =
-    catMaybes [ do f <- ifDeclFixity d; return (ifDeclName d,[f])
+    catMaybes [ do f <- ifDeclFixity d; return (ifDeclName d,f)
               | d:_ <- Map.elems ifDecls ]
 
 
@@ -237,7 +246,7 @@ instance BindsNames (InModule (Bind PName)) where
        n <- liftSupply (mkDeclared ns (getIdent thing) srcRange)
 
        let fixity = case bFixity b of
-             Just f  -> mempty { neFixity = Map.singleton n [f] }
+             Just f  -> mempty { neFixity = Map.singleton n f }
              Nothing -> mempty
 
        return (singletonE thing n `mappend` fixity)
@@ -299,5 +308,5 @@ instance BindsNames (InModule (Decl PName)) where
 
     fixity n b =
       case bFixity b of
-        Just f  -> mempty { neFixity = Map.singleton n [f] }
+        Just f  -> mempty { neFixity = Map.singleton n f }
         Nothing -> mempty
