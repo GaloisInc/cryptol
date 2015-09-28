@@ -700,7 +700,7 @@ helpCmd cmd
                   rPrint $ runDoc nameEnv
                          $ nest 4
                          $ property
-                           <+> optParens ifDeclInfix (pp qname)
+                           <+> pp qname
                            <+> colon
                            <+> pp (ifDeclSig)
 
