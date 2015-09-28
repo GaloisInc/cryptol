@@ -91,7 +91,7 @@ instance PP RenamerError where
     MultipleSyms lqn qns ->
       hang (text "[error] at" <+> pp (srcRange lqn))
          4 $ (text "Multiple definitions for symbol:" <+> pp (thing lqn))
-          $$ vcat (map pp qns)
+          $$ vcat (map ppLocName qns)
 
     UnboundExpr lqn ->
       hang (text "[error] at" <+> pp (srcRange lqn))
@@ -104,7 +104,7 @@ instance PP RenamerError where
     OverlappingSyms qns ->
       hang (text "[error]")
          4 $ text "Overlapping symbols defined:"
-          $$ vcat (map pp qns)
+          $$ vcat (map ppLocName qns)
 
     ExpectedValue lqn ->
       hang (text "[error] at" <+> pp (srcRange lqn))

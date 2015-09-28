@@ -18,6 +18,7 @@ module Cryptol.ModuleSystem.Name (
   , asPrim
   , cmpNameLexical
   , cmpNameDisplay
+  , ppLocName
 
     -- ** Creation
   , mkDeclared
@@ -35,7 +36,7 @@ module Cryptol.ModuleSystem.Name (
   , lookupPrimType
   ) where
 
-import           Cryptol.Parser.Position (Range)
+import           Cryptol.Parser.Position (Range,Located(..))
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
@@ -153,6 +154,10 @@ instance PPName Name where
                                          , show nIdent ]
 
   ppPrefixName n @ Name { .. } = optParens (isInfixIdent nIdent) (ppName n)
+
+-- | Pretty-print a name with its source location information.
+ppLocName :: Name -> Doc
+ppLocName n = pp Located { srcRange = nameLoc n, thing = n }
 
 nameUnique :: Name -> Int
 nameUnique  = nUnique
