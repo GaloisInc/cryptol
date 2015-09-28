@@ -93,15 +93,6 @@ renameModule m = do
   (declsEnv,rm) <- rename (thing (mName m)) menv (R.renameModule m)
   return (decls,declsEnv,rm)
 
--- | Rename declarations in the context of the focused module.
---
--- NOTE: the dynamic environment shadows the import environment here, so that
--- things defined with let will be in scope.
-renameDecls :: R.Rename d => ModName -> [d PName] -> ModuleM [d Name]
-renameDecls modName ds = do
-  (_,env,_) <- getFocusedEnv
-  denv <- getDynEnv
-  rename modName (deNames denv `R.shadowing` env) (traverse R.rename ds)
 
 -- NoPat -----------------------------------------------------------------------
 
