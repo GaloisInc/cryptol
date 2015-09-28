@@ -6,11 +6,11 @@ import Cryptol
 /* Not recursive */
 test04::test : {a, b} (fin b, b >= 4) => a -> ((a, ()), (a, [b]))
 test04::test = \{a, b} (fin b, b >= 4) (a : a) ->
-               (f () (), f [b] (Cryptol::demote 10 b <> <> <>))
+               (test04::f () (), test04::f [b] (Cryptol::demote 10 b <> <> <>))
                where
                  /* Not recursive */
-                 f : {c} c -> (a, c)
-                 f = \{c} (x : c) -> (a, x)
+                 test04::f : {c} c -> (a, c)
+                 test04::f = \{c} (x : c) -> (a, x)
                  
                
 
