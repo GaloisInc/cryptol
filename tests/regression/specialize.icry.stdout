@@ -9,32 +9,32 @@ Specialized expression:
 specialize::top
 where
   /* Not recursive */
-  specialize::f_bit_bit : (Bit, Bit) -> (Bit, Bit)
-  specialize::f_bit_bit = \ (__p1 : (Bit, Bit)) ->
-                          (x, y)
-                          where
-                            /* Not recursive */
-                            x : Bit
-                            x = __p1 .0 /* of 2 */
-                            
-                            /* Not recursive */
-                            y : Bit
-                            y = __p1 .1 /* of 2 */
-                            
-                          
+  specialize::f : (Bit, Bit) -> (Bit, Bit)
+  specialize::f = \ (__p1 : (Bit, Bit)) ->
+                  (specialize::x, specialize::y)
+                  where
+                    /* Not recursive */
+                    specialize::x : Bit
+                    specialize::x = __p1 .0 /* of 2 */
+                    
+                    /* Not recursive */
+                    specialize::y : Bit
+                    specialize::y = __p1 .1 /* of 2 */
+                    
+                  
   
   /* Not recursive */
   specialize::top : (Bit, Bit) -> (Bit, Bit)
   specialize::top = \ (__p0 : (Bit, Bit)) ->
-                    specialize::f_bit_bit (x, y)
+                    specialize::f (specialize::x, specialize::y)
                     where
                       /* Not recursive */
-                      x : Bit
-                      x = __p0 .0 /* of 2 */
+                      specialize::x : Bit
+                      specialize::x = __p0 .0 /* of 2 */
                       
                       /* Not recursive */
-                      y : Bit
-                      y = __p0 .1 /* of 2 */
+                      specialize::y : Bit
+                      specialize::y = __p0 .1 /* of 2 */
                       
                     
   
