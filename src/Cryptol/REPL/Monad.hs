@@ -90,7 +90,7 @@ import Control.Monad.IO.Class
 import Data.Char (isSpace)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef,atomicModifyIORef)
-import Data.List (intercalate, isPrefixOf, unfoldr)
+import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
 import Data.Maybe (catMaybes)
 import Data.Typeable (Typeable)
 import System.Directory (findExecutable)
@@ -401,12 +401,18 @@ getTypeNames  =
      nts <- getNewtypes
      return $ map getName $ Map.keys tss ++ Map.keys nts
 
+-- | Return a list of property names.
+--
+-- NOTE: we sort by displayed name here, but it would be just as easy to sort by
+-- the position in the file, using nameLoc.
 getPropertyNames :: REPL ([M.Name],NameDisp)
 getPropertyNames =
   do (decls,_,names) <- getFocusedEnv
      let xs = M.ifDecls decls
-     return ([ x | (x,d) <- Map.toList xs,
-                T.PragmaProperty `elem` M.ifDeclPragmas d ], names)
+         ps = sortBy (M.cmpNameDisplay names)
+            $ [ x | (x,d) <- Map.toList xs, T.PragmaProperty `elem` M.ifDeclPragmas d ]
+
+     return (ps, names)
 
 getName :: M.Name -> String
 getName  = show . pp
