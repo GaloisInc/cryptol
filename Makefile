@@ -175,7 +175,7 @@ PKG_EXCONTRIB_FILES := examples/contrib/mkrand.cry \
                        examples/contrib/simon.cry  \
                        examples/contrib/speck.cry
 
-${PKG}: ${PKG_BIN}/cryptol
+${PKG}: ${CRYPTOL_EXE}
 
 ${PKG_BIN}/cryptol: ${CRYPTOL_EXE} \
         docs/*.md docs/*.pdf LICENSE LICENSE.rtf \
@@ -243,6 +243,9 @@ test: ${CS_BIN}/cryptol-test-runner ${PKG_BIN}/cryptol
 	  $(IGNORE_EXPECTED)                                               \
 	  $(if $(TEST_DIFF),-p $(TEST_DIFF),)                              \
 	)
+
+print-%:
+	@echo "$* = $($*)"
 
 # Since this is meant for development rather than end-user builds,
 # this tries to stay out of the way of the other targets by
