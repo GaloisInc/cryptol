@@ -266,7 +266,7 @@ deIfaceDecls DEnv { deDecls = dgs } =
   mconcat [ IfaceDecls
             { ifTySyns   = Map.empty
             , ifNewtypes = Map.empty
-            , ifDecls    = Map.singleton (ifDeclName ifd) [ifd]
+            , ifDecls    = Map.singleton (ifDeclName ifd) ifd
             }
           | decl <- concatMap T.groupDecls dgs
           , let ifd = mkIfaceDecl decl

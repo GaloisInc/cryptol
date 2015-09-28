@@ -45,9 +45,9 @@ data Iface = Iface
 instance NFData Iface
 
 data IfaceDecls = IfaceDecls
-  { ifTySyns   :: Map.Map Name [IfaceTySyn]
-  , ifNewtypes :: Map.Map Name [IfaceNewtype]
-  , ifDecls    :: Map.Map Name [IfaceDecl]
+  { ifTySyns   :: Map.Map Name IfaceTySyn
+  , ifNewtypes :: Map.Map Name IfaceNewtype
+  , ifDecls    :: Map.Map Name IfaceDecl
   } deriving (Show, Generic)
 
 instance NFData IfaceDecls
@@ -55,21 +55,15 @@ instance NFData IfaceDecls
 instance Monoid IfaceDecls where
   mempty      = IfaceDecls Map.empty Map.empty Map.empty
   mappend l r = IfaceDecls
-    { ifTySyns   = Map.unionWith (mergeByName ifTySynName) (ifTySyns l)   (ifTySyns r)
-    , ifNewtypes = Map.unionWith (mergeByName ntName)      (ifNewtypes l) (ifNewtypes r)
-    , ifDecls    = Map.unionWith (mergeByName ifDeclName)  (ifDecls l)    (ifDecls r)
+    { ifTySyns   = Map.union (ifTySyns l)   (ifTySyns r)
+    , ifNewtypes = Map.union (ifNewtypes l) (ifNewtypes r)
+    , ifDecls    = Map.union (ifDecls l)    (ifDecls r)
     }
   mconcat ds  = IfaceDecls
-    { ifTySyns   = Map.unionsWith (mergeByName ifTySynName) (map ifTySyns ds)
-    , ifNewtypes = Map.unionsWith (mergeByName ntName)      (map ifNewtypes ds)
-    , ifDecls    = Map.unionsWith (mergeByName ifDeclName)  (map ifDecls  ds)
+    { ifTySyns   = Map.unions (map ifTySyns   ds)
+    , ifNewtypes = Map.unions (map ifNewtypes ds)
+    , ifDecls    = Map.unions (map ifDecls    ds)
     }
-
--- | Merge the entries in the simple case.
-mergeByName :: (a -> Name) -> [a] -> [a] -> [a]
-mergeByName f ls rs
-  | [l] <- ls, [r] <- rs, f l == f r = ls
-  | otherwise                        = ls ++ rs
 
 type IfaceTySyn = TySyn
 
@@ -117,19 +111,16 @@ genIface m = Iface
   where
 
   (tsPub,tsPriv) =
-      Map.partitionWithKey (\ qn _ -> qn `isExportedType` mExports m )
-      $ fmap return (mTySyns m)
-
+      Map.partitionWithKey (\ qn _ -> qn `isExportedType` mExports m ) (mTySyns m)
   (ntPub,ntPriv) =
-      Map.partitionWithKey (\ qn _ -> qn `isExportedType` mExports m )
-      $ fmap return (mNewtypes m)
+      Map.partitionWithKey (\ qn _ -> qn `isExportedType` mExports m ) (mNewtypes m)
 
   (dPub,dPriv) =
       Map.partitionWithKey (\ qn _ -> qn `isExportedBind` mExports m)
-      $ Map.fromList [ (qn,[mkIfaceDecl d]) | dg <- mDecls m
-                                            , d  <- groupDecls dg
-                                            , let qn = dName d
-                                            ]
+      $ Map.fromList [ (qn,mkIfaceDecl d) | dg <- mDecls m
+                                          , d  <- groupDecls dg
+                                          , let qn = dName d
+                                          ]
 
 
 -- | Produce a PrimMap from an interface.

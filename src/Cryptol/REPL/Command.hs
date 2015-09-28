@@ -611,7 +611,7 @@ browseCmd pfx = do
 
 browseTSyns :: (M.IfaceDecls,NameDisp) -> String -> REPL ()
 browseTSyns (decls,names) pfx = do
-  let tsyns = keepOne "browseTSyns" `fmap` M.ifTySyns decls
+  let tsyns = M.ifTySyns decls
       tsyns' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) tsyns
   unless (Map.null tsyns') $ do
     rPutStrLn "Type Synonyms"
@@ -622,7 +622,7 @@ browseTSyns (decls,names) pfx = do
 
 browseNewtypes :: (M.IfaceDecls,NameDisp) -> String -> REPL ()
 browseNewtypes (decls,names) pfx = do
-  let nts  = keepOne "browseNewtypes" `fmap` M.ifNewtypes decls
+  let nts  = M.ifNewtypes decls
       nts' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) nts
   unless (Map.null nts') $ do
     rPutStrLn "Newtypes"
@@ -633,7 +633,7 @@ browseNewtypes (decls,names) pfx = do
 
 browseVars :: (M.IfaceDecls,NameDisp) -> String -> REPL ()
 browseVars (decls,names) pfx = do
-  let vars = keepOne "browseVars" `fmap` M.ifDecls decls
+  let vars = M.ifDecls decls
       allNames = vars
       vars' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) allNames
 
@@ -691,7 +691,7 @@ helpCmd cmd
         do (env,rnEnv,nameEnv) <- getFocusedEnv
            name <- liftModuleCmd (M.renameVar rnEnv qname)
            case Map.lookup name (M.ifDecls env) of
-             Just [M.IfaceDecl { .. }] ->
+             Just M.IfaceDecl { .. } ->
                do rPutStrLn ""
 
                   let property
@@ -708,7 +708,7 @@ helpCmd cmd
                     Just str -> rPutStrLn ('\n' : str)
                     Nothing  -> return ()
 
-             _ -> rPutStrLn "// No documentation is available."
+             Nothing -> rPutStrLn "// No documentation is available."
 
       Nothing ->
            rPutStrLn ("Unable to parse name: " ++ cmd)

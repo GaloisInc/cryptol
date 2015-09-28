@@ -28,7 +28,7 @@ module Cryptol.REPL.Monad (
   , rethrowEvalError
 
     -- ** Environment
-  , getFocusedEnv, keepOne
+  , getFocusedEnv
   , getModuleEnv, setModuleEnv
   , getDynEnv, setDynEnv
   , uniqify, freshName
@@ -343,12 +343,6 @@ rPutStrLn str = rPutStr $ str ++ "\n"
 rPrint :: Show a => a -> REPL ()
 rPrint x = rPutStrLn (show x)
 
--- | Only meant for use with one of getVars or getTSyns.
-keepOne :: String -> [a] -> a
-keepOne src as = case as of
-  [a] -> a
-  _   -> panic ("REPL: " ++ src) ["name clash in interface file"]
-
 getFocusedEnv :: REPL (M.IfaceDecls,M.NamingEnv,NameDisp)
 getFocusedEnv  = do
   me <- getModuleEnv
@@ -384,17 +378,17 @@ getFocusedEnv  = do
 getVars :: REPL (Map.Map M.Name M.IfaceDecl)
 getVars  = do
   (decls,_,_) <- getFocusedEnv
-  return (keepOne "getVars" `fmap` M.ifDecls decls)
+  return (M.ifDecls decls)
 
 getTSyns :: REPL (Map.Map M.Name T.TySyn)
 getTSyns  = do
   (decls,_,_) <- getFocusedEnv
-  return (keepOne "getTSyns" `fmap` M.ifTySyns decls)
+  return (M.ifTySyns decls)
 
 getNewtypes :: REPL (Map.Map M.Name T.Newtype)
 getNewtypes = do
   (decls,_,_) <- getFocusedEnv
-  return (keepOne "getNewtypes" `fmap` M.ifNewtypes decls)
+  return (M.ifNewtypes decls)
 
 -- | Get visible variable names.
 getExprNames :: REPL [String]
@@ -410,7 +404,7 @@ getTypeNames  =
 getPropertyNames :: REPL ([M.Name],NameDisp)
 getPropertyNames =
   do (decls,_,names) <- getFocusedEnv
-     let xs = keepOne "getPropertyNames" `fmap` M.ifDecls decls
+     let xs = M.ifDecls decls
      return ([ x | (x,d) <- Map.toList xs,
                 T.PragmaProperty `elem` M.ifDeclPragmas d ], names)
 

@@ -45,7 +45,7 @@ import qualified Control.Exception as X
 import Control.Monad (unless)
 import Data.Function (on)
 import Data.List (nubBy)
-import Data.Maybe (mapMaybe,fromMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy.IO as T
@@ -447,27 +447,15 @@ genInferInput r prims env = do
   -- TODO: include the environment needed by the module
   return T.InferInput
     { T.inpRange     = r
-    , T.inpVars      = Map.map ifDeclSig (filterEnv ifDecls)
-    , T.inpTSyns     =                    filterEnv ifTySyns
-    , T.inpNewtypes  =                    filterEnv ifNewtypes
+    , T.inpVars      = Map.map ifDeclSig (ifDecls env)
+    , T.inpTSyns     = ifTySyns env
+    , T.inpNewtypes  = ifNewtypes env
     , T.inpNameSeeds = seeds
     , T.inpMonoBinds = monoBinds
     , T.inpSolverConfig = cfg
     , T.inpSupply    = supply
     , T.inpPrimNames = prims
     }
-
-  where
-  -- at this point, the names used in the aggregate interface should be
-  -- unique
-  keepOne :: (Name,[a]) -> Maybe (Name,a)
-  keepOne (qn,syns) = case syns of
-    [syn] -> Just (qn,syn)
-    _     -> Nothing
-
-  -- keep symbols without duplicates.  the renamer would have caught
-  -- duplication already, so this is safe.
-  filterEnv p = Map.fromList (mapMaybe keepOne (Map.toList (p env)))
 
 
 -- Evaluation ------------------------------------------------------------------

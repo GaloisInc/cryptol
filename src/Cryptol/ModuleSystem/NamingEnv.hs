@@ -228,7 +228,7 @@ unqualifiedEnv IfaceDecls { .. } =
 
   fixity =
     catMaybes [ do f <- ifDeclFixity d; return (ifDeclName d,f)
-              | d:_ <- Map.elems ifDecls ]
+              | d    <- Map.elems ifDecls ]
 
 
 data ImportIface = ImportIface Import Iface
