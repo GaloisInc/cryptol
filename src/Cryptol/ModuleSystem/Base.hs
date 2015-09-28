@@ -319,8 +319,8 @@ checkDecls ds = do
 
   -- introduce names for the declarations before renaming them
   declsEnv <- liftSupply (R.namingEnv' (map (R.InModule interactiveName) ds))
-  rds <- rename interactiveName names $ R.shadowNames declsEnv
-                                      $ traverse R.rename ds
+  rds <- rename interactiveName (declsEnv `R.shadowing` names)
+             (traverse R.rename ds)
 
   prims <- getPrimMap
   let act  = TCAction { tcAction = T.tcDecls, tcLinter = declsLinter
