@@ -248,15 +248,20 @@ getNS  = RenameM (roMod `fmap` ask)
 
 -- | Shadow the current naming environment with some more names.
 shadowNames :: BindsNames env => env -> RenameM a -> RenameM a
-shadowNames  = shadowNames' True
+shadowNames  = shadowNames' CheckAll
+
+data EnvCheck = CheckAll     -- ^ Check for overlap and shadowing
+              | CheckOverlap -- ^ Only check for overlap
+              | CheckNone    -- ^ Don't check the environment
+                deriving (Eq,Show)
 
 -- | Shadow the current naming environment with some more names. The boolean
 -- parameter indicates whether or not to check for shadowing.
-shadowNames' :: BindsNames env => Bool -> env -> RenameM a -> RenameM a
-shadowNames' checkShadowing names m = RenameM $ do
+shadowNames' :: BindsNames env => EnvCheck -> env -> RenameM a -> RenameM a
+shadowNames' check names m = RenameM $ do
   env <- inBase (namingEnv names)
   ro  <- ask
-  put (checkEnv (roDisp ro) checkShadowing env (roNames ro))
+  put (checkEnv (roDisp ro) check env (roNames ro))
   let ro' = ro { roNames = env `shadowing` roNames ro }
   local ro' (unRenameM m)
 
@@ -269,15 +274,16 @@ shadowNamesNS names m =
 -- | Generate warnings when the left environment shadows things defined in
 -- the right.  Additionally, generate errors when two names overlap in the
 -- left environment.
-checkEnv :: NameDisp -> Bool -> NamingEnv -> NamingEnv -> Out
-checkEnv disp checkShadowing l r =
-               Map.foldlWithKey (step neExprs) mempty (neExprs l)
-     `mappend` Map.foldlWithKey (step neTypes) mempty (neTypes l)
+checkEnv :: NameDisp -> EnvCheck -> NamingEnv -> NamingEnv -> Out
+checkEnv _    CheckNone _ _ = mempty
+checkEnv disp check     l r = Map.foldlWithKey (step neExprs) mempty (neExprs l)
+                    `mappend` Map.foldlWithKey (step neTypes) mempty (neTypes l)
+
   where
 
   step prj acc k ns = acc `mappend` mempty
     { oWarnings =
-        if checkShadowing
+        if check == CheckAll
            then case Map.lookup k (prj r) of
                   Nothing -> []
                   Just os -> [SymbolShadowed (head ns) os disp]
@@ -316,7 +322,7 @@ renameModule :: Module PName -> RenameM (NamingEnv,Module Name)
 renameModule m =
   do env    <- supply (namingEnv m)
      -- NOTE: we explicitly hide shadowing errors here, by using shadowNames'
-     decls' <-  shadowNames' False env (traverse rename (mDecls m))
+     decls' <-  shadowNames' CheckOverlap env (traverse rename (mDecls m))
      return (env,m { mDecls = decls' })
 
 instance Rename TopDecl where
@@ -625,7 +631,9 @@ instance Rename Bind where
     mbSig <- traverse renameSchema (bSignature b)
     shadowNames (fst `fmap` mbSig) $
       do (patEnv,pats') <- renamePats (bParams b)
-         e'             <- shadowNames patEnv (rnLocated rename (bDef b))
+         -- NOTE: renamePats will generate warnings, so we don't need to trigger
+         -- them again here.
+         e'             <- shadowNames' CheckNone patEnv (rnLocated rename (bDef b))
          return b { bName      = n'
                   , bParams    = pats'
                   , bDef       = e'
@@ -674,7 +682,9 @@ instance Rename Expr where
     ETyped e' ty  -> ETyped  <$> rename e' <*> rename ty
     ETypeVal ty   -> ETypeVal<$> rename ty
     EFun ps e'    -> do (env,ps') <- renamePats ps
-                        shadowNames env (EFun ps' <$> rename e')
+                        -- NOTE: renamePats will generate warnings, so we don't
+                        -- need to duplicate them here
+                        shadowNames' CheckNone env (EFun ps' <$> rename e')
     ELocated e' r -> withLoc r
                    $ ELocated <$> rename e' <*> pure r
 
