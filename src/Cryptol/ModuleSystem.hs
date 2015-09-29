@@ -42,9 +42,7 @@ import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.Parser.AST        as P
 import           Cryptol.Parser.Name (PName)
 import           Cryptol.Parser.NoPat (RemovePatterns)
-import           Cryptol.Parser.Position (HasLoc)
 import qualified Cryptol.TypeCheck.AST     as T
-import qualified Cryptol.TypeCheck.Depends as T
 import qualified Cryptol.Utils.Ident as M
 
 
@@ -97,10 +95,8 @@ checkExpr e env = runModuleM env (interactive (Base.checkExpr e))
 evalExpr :: T.Expr -> ModuleCmd E.Value
 evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
 
--- | Typecheck declarations.
-checkDecls :: (HasLoc (d Name), R.Rename d, T.FromDecl (d Name)
-              ,R.BindsNames (R.InModule (d PName)))
-           => [d PName] -> ModuleCmd (R.NamingEnv,[T.DeclGroup])
+-- | Typecheck top-level declarations.
+checkDecls :: [P.TopDecl PName] -> ModuleCmd (R.NamingEnv,[T.DeclGroup])
 checkDecls ds env = runModuleM env
                   $ interactive
                   $ Base.checkDecls ds

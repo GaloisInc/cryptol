@@ -821,7 +821,11 @@ replCheckDecls ds = do
 
   -- check the decls
   npds        <- liftModuleCmd (M.noPat ds)
-  (names,ds') <- liftModuleCmd (M.checkDecls npds)
+
+  let mkTop d = P.Decl P.TopLevel { P.tlExport = P.Public
+                                  , P.tlDoc    = Nothing
+                                  , P.tlValue  = d }
+  (names,ds') <- liftModuleCmd (M.checkDecls (map mkTop npds))
 
   -- extend the naming env
   denv        <- getDynEnv

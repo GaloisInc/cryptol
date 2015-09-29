@@ -29,7 +29,6 @@ import Cryptol.Parser.NoInclude (removeIncludesModule)
 import Cryptol.Parser.Position (HasLoc(..), Range, emptyRange)
 import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
-import qualified Cryptol.TypeCheck.Depends as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
 import Cryptol.Utils.Ident (preludeName,interactiveName,unpackModName)
@@ -311,9 +310,7 @@ checkExpr e = do
 -- | Typecheck a group of declarations.
 --
 -- INVARIANT: This assumes that NoPat has already been run on the declarations.
-checkDecls :: (R.BindsNames (R.InModule (d PName)), R.Rename d, T.FromDecl (d Name)
-              ,HasLoc (d Name))
-           => [d PName] -> ModuleM (R.NamingEnv,[T.DeclGroup])
+checkDecls :: [P.TopDecl PName] -> ModuleM (R.NamingEnv,[T.DeclGroup])
 checkDecls ds = do
   (decls,names) <- getLocalEnv
 
@@ -411,7 +408,7 @@ data TCAction i o = TCAction
   , tcPrims  :: PrimMap
   }
 
-typecheck :: HasLoc i => TCAction i o -> i -> IfaceDecls -> ModuleM o
+typecheck :: (Show i, Show o, HasLoc i) => TCAction i o -> i -> IfaceDecls -> ModuleM o
 typecheck act i env = do
 
   let range = fromMaybe emptyRange (getLoc i)
