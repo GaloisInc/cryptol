@@ -214,6 +214,7 @@ runRenamer s ns env m = (res,oWarnings out)
                                        , roNames = env
                                        , roMod = ns
                                        , roDisp = neverQualifyMod ns
+                                           `mappend` toNameDisp env
                                        } s
 
   res | null (oErrors out) = Right (a,s')
@@ -255,9 +256,8 @@ shadowNames' :: BindsNames env => Bool -> env -> RenameM a -> RenameM a
 shadowNames' checkShadowing names m = RenameM $ do
   env <- inBase (namingEnv names)
   ro  <- ask
-  let disp' = roDisp ro `mappend` toNameDisp env
-  put (checkEnv disp' checkShadowing env (roNames ro))
-  let ro' = ro { roNames = env `shadowing` roNames ro, roDisp = disp' }
+  put (checkEnv (roDisp ro) checkShadowing env (roNames ro))
+  let ro' = ro { roNames = env `shadowing` roNames ro }
   local ro' (unRenameM m)
 
 shadowNamesNS :: BindsNames (InModule env) => env -> RenameM a -> RenameM a
@@ -316,7 +316,7 @@ renameModule :: Module PName -> RenameM (NamingEnv,Module Name)
 renameModule m =
   do env    <- supply (namingEnv m)
      -- NOTE: we explicitly hide shadowing errors here, by using shadowNames'
-     decls' <- shadowNames' False env (traverse rename (mDecls m))
+     decls' <-  shadowNames' False env (traverse rename (mDecls m))
      return (env,m { mDecls = decls' })
 
 instance Rename TopDecl where

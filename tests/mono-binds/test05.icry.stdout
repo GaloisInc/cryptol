@@ -3,7 +3,7 @@ Loading module Cryptol
 Loading module test05
 [warning] at ./test05.cry:9:3--9:6
     This binding for foo shadows the existing binding from
-    (at ./test05.cry:4:1--4:4, test05::foo)
+    (at ./test05.cry:4:1--4:4, foo)
 [warning] at ./test05.cry:13:5--13:8
     This binding for foo shadows the existing binding from
     (at ./test05.cry:9:3--9:6, foo)
@@ -19,24 +19,25 @@ test05::test = \{a, b, c} (fin c, c >= 4) (a : [a]b) ->
                Cryptol::demote 10 c <> <> <>
                where
                  /* Not recursive */
-                 foo : [10]
-                 foo = Cryptol::demote 10 10 <> <> <>
+                 test05::foo : [10]
+                 test05::foo = Cryptol::demote 10 10 <> <> <>
                  
                  /* Not recursive */
-                 f : {d} (fin d) => [a + d]b
-                 f = \{d} (fin d) ->
-                     bar d <>
-                     where
-                       /* Not recursive */
-                       foo : [a]b
-                       foo = a
-                       
-                       /* Not recursive */
-                       bar : {e} (fin e) => [a + e]b
-                       bar = \{e} (fin e) ->
-                             Cryptol::# e a b <> (Cryptol::zero ([e]b)) foo : [a + e]b
-                       
-                     
+                 test05::f : {d} (fin d) => [a + d]b
+                 test05::f = \{d} (fin d) ->
+                             test05::bar d <>
+                             where
+                               /* Not recursive */
+                               test05::foo : [a]b
+                               test05::foo = a
+                               
+                               /* Not recursive */
+                               test05::bar : {e} (fin e) => [a + e]b
+                               test05::bar = \{e} (fin e) ->
+                                             (Cryptol::#) e a b <> (Cryptol::zero ([e]b)) test05::foo : [a +
+                                                                                                         e]b
+                               
+                             
                  
                
 
@@ -65,22 +66,22 @@ test05::test = \{a, b, c} (fin c, c >= 4) (a : [a]b) ->
                Cryptol::demote 10 c <> <> <>
                where
                  /* Not recursive */
-                 foo : [10]
-                 foo = Cryptol::demote 10 10 <> <> <>
+                 test05::foo : [10]
+                 test05::foo = Cryptol::demote 10 10 <> <> <>
                  
                  /* Not recursive */
-                 f : [0 + a]b
-                 f = bar
-                     where
-                       /* Not recursive */
-                       foo : [a]b
-                       foo = a
-                       
-                       /* Not recursive */
-                       bar : [0 + a]b
-                       bar = Cryptol::# 0 a b <> (Cryptol::zero ([0]b)) foo
-                       
-                     
+                 test05::f : [0 + a]b
+                 test05::f = test05::bar
+                             where
+                               /* Not recursive */
+                               test05::foo : [a]b
+                               test05::foo = a
+                               
+                               /* Not recursive */
+                               test05::bar : [0 + a]b
+                               test05::bar = (Cryptol::#) 0 a b <> (Cryptol::zero ([0]b)) test05::foo
+                               
+                             
                  
                
 
