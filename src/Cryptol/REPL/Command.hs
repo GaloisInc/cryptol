@@ -796,7 +796,7 @@ moduleCmdResult (res,ws0) = do
           ys -> Just (M.TypeCheckWarnings ys)
       filterDefaults w = Just w
 
-      isShadowWarn (M.SymbolShadowed _ _) = True
+      isShadowWarn (M.SymbolShadowed _ _ _) = True
 
       filterShadowing w | warnShadowing = Just w
       filterShadowing (M.RenamerWarnings xs) =

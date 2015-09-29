@@ -31,6 +31,9 @@ import qualified Text.PrettyPrint as PJ
 -- in scope.
 data NameDisp = EmptyNameDisp
               | NameDisp (ModName -> Ident -> Maybe NameFormat)
+                deriving (Generic)
+
+instance NFData NameDisp
 
 instance Show NameDisp where
   show _ = "<NameDisp>"
@@ -48,6 +51,12 @@ data NameFormat = UnQualified
                 | Qualified !ModName
                 | NotInScope
                   deriving (Show)
+
+-- | Never qualify names from this module.
+neverQualifyMod :: ModName -> NameDisp
+neverQualifyMod mn = NameDisp $ \ mn' _ ->
+  if mn == mn' then Just UnQualified
+               else Nothing
 
 alwaysQualify :: NameDisp
 alwaysQualify  = NameDisp $ \ mn _ -> Just (Qualified mn)

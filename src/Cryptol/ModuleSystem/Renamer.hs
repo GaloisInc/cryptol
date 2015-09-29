@@ -53,33 +53,33 @@ import Data.Traversable (traverse)
 -- Errors ----------------------------------------------------------------------
 
 data RenamerError
-  = MultipleSyms (Located PName) [Name]
+  = MultipleSyms (Located PName) [Name] NameDisp
     -- ^ Multiple imported symbols contain this name
 
-  | UnboundExpr (Located PName)
+  | UnboundExpr (Located PName) NameDisp
     -- ^ Expression name is not bound to any definition
 
-  | UnboundType (Located PName)
+  | UnboundType (Located PName) NameDisp
     -- ^ Type name is not bound to any definition
 
-  | OverlappingSyms [Name]
+  | OverlappingSyms [Name] NameDisp
     -- ^ An environment has produced multiple overlapping symbols
 
-  | ExpectedValue (Located PName)
+  | ExpectedValue (Located PName) NameDisp
     -- ^ When a value is expected from the naming environment, but one or more
     -- types exist instead.
 
-  | ExpectedType (Located PName)
+  | ExpectedType (Located PName) NameDisp
     -- ^ When a type is missing from the naming environment, but one or more
     -- values exist with the same name.
 
-  | FixityError (Located Name) (Located Name)
+  | FixityError (Located Name) (Located Name) NameDisp
     -- ^ When the fixity of two operators conflict
 
-  | InvalidConstraint (Type PName)
+  | InvalidConstraint (Type PName) NameDisp
     -- ^ When it's not possible to produce a Prop from a Type.
 
-  | MalformedConstraint (Located (Type PName))
+  | MalformedConstraint (Located (Type PName)) NameDisp
     -- ^ When a constraint appears within another constraint
     deriving (Show,Generic)
 
@@ -88,46 +88,46 @@ instance NFData RenamerError
 instance PP RenamerError where
   ppPrec _ e = case e of
 
-    MultipleSyms lqn qns ->
+    MultipleSyms lqn qns disp -> fixNameDisp disp $
       hang (text "[error] at" <+> pp (srcRange lqn))
          4 $ (text "Multiple definitions for symbol:" <+> pp (thing lqn))
           $$ vcat (map ppLocName qns)
 
-    UnboundExpr lqn ->
+    UnboundExpr lqn disp -> fixNameDisp disp $
       hang (text "[error] at" <+> pp (srcRange lqn))
          4 (text "Value not in scope:" <+> pp (thing lqn))
 
-    UnboundType lqn ->
+    UnboundType lqn disp -> fixNameDisp disp $
       hang (text "[error] at" <+> pp (srcRange lqn))
          4 (text "Type not in scope:" <+> pp (thing lqn))
 
-    OverlappingSyms qns ->
+    OverlappingSyms qns disp -> fixNameDisp disp $
       hang (text "[error]")
          4 $ text "Overlapping symbols defined:"
           $$ vcat (map ppLocName qns)
 
-    ExpectedValue lqn ->
+    ExpectedValue lqn disp -> fixNameDisp disp $
       hang (text "[error] at" <+> pp (srcRange lqn))
          4 (fsep [ text "Expected a value named", quotes (pp (thing lqn))
                  , text "but found a type instead"
                  , text "Did you mean `(" <> pp (thing lqn) <> text")?" ])
 
-    ExpectedType lqn ->
+    ExpectedType lqn disp -> fixNameDisp disp $
       hang (text "[error] at" <+> pp (srcRange lqn))
          4 (fsep [ text "Expected a type named", quotes (pp (thing lqn))
                  , text "but found a value instead" ])
 
-    FixityError o1 o2 ->
+    FixityError o1 o2 disp -> fixNameDisp disp $
       hang (text "[error]")
          4 (fsep [ text "The fixities of", pp o1, text "and", pp o2
                  , text "are not compatible.  "
                  , text "You may use explicit parenthesis to disambiguate" ])
 
-    InvalidConstraint ty ->
+    InvalidConstraint ty disp -> fixNameDisp disp $
       hang (text "[error]" <+> maybe empty (\r -> text "at" <+> pp r) (getLoc ty))
          4 (fsep [ pp ty, text "is not a valid constraint" ])
 
-    MalformedConstraint t ->
+    MalformedConstraint t disp -> fixNameDisp disp $
       hang (text "[error] at" <+> pp (srcRange t))
          4 (sep [ quotes (pp (thing t))
                 , text "is not a valid argument to a constraint" ])
@@ -135,13 +135,13 @@ instance PP RenamerError where
 -- Warnings --------------------------------------------------------------------
 
 data RenamerWarning
-  = SymbolShadowed Name [Name]
+  = SymbolShadowed Name [Name] NameDisp
     deriving (Show,Generic)
 
 instance NFData RenamerWarning
 
 instance PP RenamerWarning where
-  ppPrec _ (SymbolShadowed new originals) =
+  ppPrec _ (SymbolShadowed new originals disp) = fixNameDisp disp $
     hang (text "[warning] at" <+> loc)
        4 $ fsep [ text "This binding for" <+> sym
                 , text "shadows the existing binding" <> plural <+> text "from" ]
@@ -161,6 +161,7 @@ data RO = RO
   { roLoc   :: Range
   , roMod   :: !ModName
   , roNames :: NamingEnv
+  , roDisp  :: !NameDisp
   }
 
 data Out = Out
@@ -212,16 +213,16 @@ runRenamer s ns env m = (res,oWarnings out)
   ((a,out),s') = runM (unRenameM m) RO { roLoc = emptyRange
                                        , roNames = env
                                        , roMod = ns
+                                       , roDisp = neverQualifyMod ns
                                        } s
 
   res | null (oErrors out) = Right (a,s')
       | otherwise          = Left (oErrors out)
 
-record :: RenamerError -> RenameM ()
-record err = records [err]
-
-records :: [RenamerError] -> RenameM ()
-records errs = RenameM (put mempty { oErrors = errs })
+record :: (NameDisp -> RenamerError) -> RenameM ()
+record f = RenameM $
+  do RO { .. } <- ask
+     put mempty { oErrors = [f roDisp] }
 
 curLoc :: RenameM Range
 curLoc  = RenameM (roLoc `fmap` ask)
@@ -254,8 +255,9 @@ shadowNames' :: BindsNames env => Bool -> env -> RenameM a -> RenameM a
 shadowNames' checkShadowing names m = RenameM $ do
   env <- inBase (namingEnv names)
   ro  <- ask
-  put (checkEnv checkShadowing env (roNames ro))
-  let ro' = ro { roNames = env `shadowing` roNames ro }
+  let disp' = roDisp ro `mappend` toNameDisp env
+  put (checkEnv disp' checkShadowing env (roNames ro))
+  let ro' = ro { roNames = env `shadowing` roNames ro, roDisp = disp' }
   local ro' (unRenameM m)
 
 shadowNamesNS :: BindsNames (InModule env) => env -> RenameM a -> RenameM a
@@ -267,8 +269,8 @@ shadowNamesNS names m =
 -- | Generate warnings when the left environment shadows things defined in
 -- the right.  Additionally, generate errors when two names overlap in the
 -- left environment.
-checkEnv :: Bool -> NamingEnv -> NamingEnv -> Out
-checkEnv checkShadowing l r =
+checkEnv :: NameDisp -> Bool -> NamingEnv -> NamingEnv -> Out
+checkEnv disp checkShadowing l r =
                Map.foldlWithKey (step neExprs) mempty (neExprs l)
      `mappend` Map.foldlWithKey (step neTypes) mempty (neTypes l)
   where
@@ -278,17 +280,17 @@ checkEnv checkShadowing l r =
         if checkShadowing
            then case Map.lookup k (prj r) of
                   Nothing -> []
-                  Just os -> [SymbolShadowed (head ns) os]
+                  Just os -> [SymbolShadowed (head ns) os disp]
 
            else []
-    , oErrors   = containsOverlap ns
+    , oErrors   = containsOverlap disp ns
     }
 
 -- | Check the RHS of a single name rewrite for conflicting sources.
-containsOverlap :: [Name] -> [RenamerError]
-containsOverlap [_] = []
-containsOverlap []  = panic "Renamer" ["Invalid naming environment"]
-containsOverlap ns  = [OverlappingSyms ns]
+containsOverlap :: NameDisp -> [Name] -> [RenamerError]
+containsOverlap _    [_] = []
+containsOverlap _    []  = panic "Renamer" ["Invalid naming environment"]
+containsOverlap disp ns  = [OverlappingSyms ns disp]
 
 -- | Throw errors for any names that overlap in a rewrite environment.
 checkNamingEnv :: NamingEnv -> ([RenamerError],[RenamerWarning])
@@ -297,7 +299,9 @@ checkNamingEnv env = (out, [])
   out    = Map.foldr check outTys (neExprs env)
   outTys = Map.foldr check mempty (neTypes env)
 
-  check ns acc = containsOverlap ns ++ acc
+  disp   = toNameDisp env
+
+  check ns acc = containsOverlap disp ns ++ acc
 
 supply :: SupplyM a -> RenameM a
 supply m = RenameM (inBase m)
