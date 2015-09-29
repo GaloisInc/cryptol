@@ -175,20 +175,18 @@ PKG_EXCONTRIB_FILES := examples/contrib/mkrand.cry \
                        examples/contrib/simon.cry  \
                        examples/contrib/speck.cry
 
-${PKG}: ${CRYPTOL_EXE}
-
-${PKG_BIN}/cryptol: ${CRYPTOL_EXE} \
+${PKG}: ${CRYPTOL_EXE} \
         docs/*.md docs/*.pdf LICENSE LICENSE.rtf \
         ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES}
-	$(CABAL) copy ${DESTDIR_ARG} && \
-	mkdir -p ${PKG_CRY} && \
-	mkdir -p ${PKG_DOC} && \
-	mkdir -p ${PKG_EXAMPLES} && \
-	mkdir -p ${PKG_EXCONTRIB} && \
-	cp docs/*.md ${PKG_DOC} && \
-	cp docs/*.pdf ${PKG_DOC} && \
+	$(CABAL) copy ${DESTDIR_ARG}
+	mkdir -p ${PKG_CRY}
+	mkdir -p ${PKG_DOC}
+	mkdir -p ${PKG_EXAMPLES}
+	mkdir -p ${PKG_EXCONTRIB}
+	cp docs/*.md ${PKG_DOC}
+	cp docs/*.pdf ${PKG_DOC}
 	for EXAMPLE in ${PKG_EXAMPLE_FILES}; do \
-          cp $$EXAMPLE ${PKG_EXAMPLES}; done && \
+          cp $$EXAMPLE ${PKG_EXAMPLES}; done
 	for EXAMPLE in ${PKG_EXCONTRIB_FILES}; do \
           cp $$EXAMPLE ${PKG_EXCONTRIB}; done
 # cleanup unwanted files
@@ -226,12 +224,13 @@ ${PKG}.msi: ${PKG} win32/cryptol.wxs
 	rm -f *.wixpdb
 
 ${CS_BIN}/cryptol-test-runner: \
+  ${PKG}                       \
   $(CURDIR)/tests/Main.hs      \
   $(CURDIR)/tests/cryptol-test-runner.cabal
 	$(CABAL_INSTALL) ./tests
 
 .PHONY: test
-test: ${CS_BIN}/cryptol-test-runner ${PKG_BIN}/cryptol
+test: ${CS_BIN}/cryptol-test-runner
 	( cd tests &&                                                      \
 	echo "Testing on $(UNAME)-$(ARCH)" &&                              \
 	$(realpath $(CS_BIN)/cryptol-test-runner)                          \
@@ -243,9 +242,6 @@ test: ${CS_BIN}/cryptol-test-runner ${PKG_BIN}/cryptol
 	  $(IGNORE_EXPECTED)                                               \
 	  $(if $(TEST_DIFF),-p $(TEST_DIFF),)                              \
 	)
-
-print-%:
-	@echo "$* = $($*)"
 
 # Since this is meant for development rather than end-user builds,
 # this tries to stay out of the way of the other targets by
@@ -270,6 +266,6 @@ clean:
 .PHONY: squeaky
 squeaky: clean
 	-$(CABAL) sandbox delete
-	(cd docs; make squeaky)
+	(cd docs; make clean)
 	rm -rf dist
 	rm -rf tests/dist
