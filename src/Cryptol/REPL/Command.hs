@@ -77,7 +77,7 @@ import qualified Control.Exception as X
 import Control.Monad (guard,unless,forM_,when)
 import Data.Char (isSpace,isPunctuation,isSymbol)
 import Data.Function (on)
-import Data.List (intercalate,nub,sortBy)
+import Data.List (intercalate,nub,sortBy,partition)
 import Data.Maybe (fromMaybe,mapMaybe)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
@@ -86,6 +86,7 @@ import qualified System.Process as Process(runCommand)
 import System.FilePath((</>), isPathSeparator)
 import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.IntMap as IntMap
 import System.IO(hFlush,stdout)
 import System.Random.TF(newTFGen)
@@ -603,55 +604,61 @@ quitCmd  = stop
 
 browseCmd :: String -> REPL ()
 browseCmd pfx = do
-  (iface,_,disp) <- getFocusedEnv
-  let env = (iface,disp)
-  browseTSyns env pfx
-  browseNewtypes env pfx
-  browseVars env pfx
+  (iface,names,disp) <- getFocusedEnv
+  let (visibleTypes,visibleDecls) = M.visibleNames names
 
-browseTSyns :: (M.IfaceDecls,NameDisp) -> String -> REPL ()
-browseTSyns (decls,names) pfx = do
-  let tsyns = M.ifTySyns decls
-      tsyns' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) tsyns
-  unless (Map.null tsyns') $ do
+      (visibleType,visibleDecl)
+        | null pfx  =
+          ((`Set.member` visibleTypes)
+          ,(`Set.member` visibleDecls))
+
+        | otherwise =
+          (\n -> n `Set.member` visibleTypes && pfx `isNamePrefix` n
+          ,\n -> n `Set.member` visibleDecls && pfx `isNamePrefix` n)
+
+  browseTSyns    visibleType iface disp
+  browseNewtypes visibleType iface disp
+  browseVars     visibleDecl iface disp
+
+browseTSyns :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
+browseTSyns isVisible M.IfaceDecls { .. } names = do
+  let tsyns = sortBy (M.cmpNameDisplay names `on` T.tsName)
+              [ ts | ts <- Map.elems ifTySyns, isVisible (T.tsName ts) ]
+  unless (null tsyns) $ do
     rPutStrLn "Type Synonyms"
     rPutStrLn "============="
-    let sorted = sortBy (M.cmpNameDisplay names `on` T.tsName) (Map.elems tsyns')
-    rPrint (runDoc names (nest 4 (vcat (map pp sorted))))
+    rPrint (runDoc names (nest 4 (vcat (map pp tsyns))))
     rPutStrLn ""
 
-browseNewtypes :: (M.IfaceDecls,NameDisp) -> String -> REPL ()
-browseNewtypes (decls,names) pfx = do
-  let nts  = M.ifNewtypes decls
-      nts' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) nts
-  unless (Map.null nts') $ do
+browseNewtypes :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
+browseNewtypes isVisible M.IfaceDecls { .. } names = do
+  let nts = sortBy (M.cmpNameDisplay names `on` T.ntName)
+            [ nt | nt <- Map.elems ifNewtypes, isVisible (T.ntName nt) ]
+  unless (null nts) $ do
     rPutStrLn "Newtypes"
     rPutStrLn "========"
-    let sorted = sortBy (M.cmpNameDisplay names `on` T.ntName) (Map.elems nts')
-    rPrint (runDoc names (nest 4 (vcat (map T.ppNewtypeShort sorted))))
+    rPrint (runDoc names (nest 4 (vcat (map T.ppNewtypeShort nts))))
     rPutStrLn ""
 
-browseVars :: (M.IfaceDecls,NameDisp) -> String -> REPL ()
-browseVars (decls,names) pfx = do
-  let vars = M.ifDecls decls
-      allNames = vars
-      vars' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) allNames
+browseVars :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
+browseVars isVisible M.IfaceDecls { .. } names = do
+  let vars = sortBy (M.cmpNameDisplay names `on` M.ifDeclName)
+             [ d | d <- Map.elems ifDecls, isVisible (M.ifDeclName d) ]
 
-      isProp p     = T.PragmaProperty `elem` (M.ifDeclPragmas p)
-      (props,syms) = Map.partition isProp vars'
+
+  let isProp p     = T.PragmaProperty `elem` (M.ifDeclPragmas p)
+      (props,syms) = partition isProp vars
 
   ppBlock "Properties" props
-  ppBlock "Symbols" syms
+  ppBlock "Symbols"    syms
 
   where
-  ppBlock name xs =
-    unless (Map.null xs) $ do
-      rPutStrLn name
-      rPutStrLn (replicate (length name) '=')
-      let sorted = sortBy (M.cmpNameDisplay names `on` M.ifDeclName) (Map.elems xs)
-      let ppVar M.IfaceDecl { .. } = pp ifDeclName <+> char ':' <+> pp ifDeclSig
-      rPrint (runDoc names (nest 4 (vcat (map ppVar sorted))))
-      rPutStrLn ""
+  ppBlock name xs = unless (null xs) $
+    do rPutStrLn name
+       rPutStrLn (replicate (length name) '=')
+       let ppVar M.IfaceDecl { .. } = pp ifDeclName <+> char ':' <+> pp ifDeclSig
+       rPrint (runDoc names (nest 4 (vcat (map ppVar xs))))
+       rPutStrLn ""
 
 
 

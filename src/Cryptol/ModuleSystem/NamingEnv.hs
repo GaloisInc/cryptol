@@ -28,6 +28,7 @@ import Cryptol.Utils.Panic (panic)
 import Data.List (nub)
 import Data.Maybe (catMaybes,fromMaybe)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -113,6 +114,17 @@ toNameDisp NamingEnv { .. } = NameDisp display
             Nothing -> UnQualified
 
 
+-- | Produce sets of visible names for types and declarations.
+--
+-- NOTE: if entries in the NamingEnv would have produced a name clash, they will
+-- be omitted from the resulting sets.
+visibleNames :: NamingEnv -> ({- types -} Set.Set Name
+                             ,{- decls -} Set.Set Name)
+
+visibleNames NamingEnv { .. } = (types,decls)
+  where
+  types = Set.fromList [ n | [n] <- Map.elems neTypes ]
+  decls = Set.fromList [ n | [n] <- Map.elems neExprs ]
 
 
 -- | Qualify all symbols in a 'NamingEnv' with the given prefix.
