@@ -246,10 +246,15 @@ getNS  = RenameM (roMod `fmap` ask)
 
 -- | Shadow the current naming environment with some more names.
 shadowNames :: BindsNames env => env -> RenameM a -> RenameM a
-shadowNames names m = RenameM $ do
+shadowNames  = shadowNames' True
+
+-- | Shadow the current naming environment with some more names. The boolean
+-- parameter indicates whether or not to check for shadowing.
+shadowNames' :: BindsNames env => Bool -> env -> RenameM a -> RenameM a
+shadowNames' checkShadowing names m = RenameM $ do
   env <- inBase (namingEnv names)
   ro  <- ask
-  put (checkEnv env (roNames ro))
+  put (checkEnv checkShadowing env (roNames ro))
   let ro' = ro { roNames = env `shadowing` roNames ro }
   local ro' (unRenameM m)
 
@@ -262,15 +267,20 @@ shadowNamesNS names m =
 -- | Generate warnings when the left environment shadows things defined in
 -- the right.  Additionally, generate errors when two names overlap in the
 -- left environment.
-checkEnv :: NamingEnv -> NamingEnv -> Out
-checkEnv l r = Map.foldlWithKey (step neExprs) mempty (neExprs l)
+checkEnv :: Bool -> NamingEnv -> NamingEnv -> Out
+checkEnv checkShadowing l r =
+               Map.foldlWithKey (step neExprs) mempty (neExprs l)
      `mappend` Map.foldlWithKey (step neTypes) mempty (neTypes l)
   where
 
   step prj acc k ns = acc `mappend` mempty
-    { oWarnings = case Map.lookup k (prj r) of
-        Nothing -> []
-        Just os -> [SymbolShadowed (head ns) os]
+    { oWarnings =
+        if checkShadowing
+           then case Map.lookup k (prj r) of
+                  Nothing -> []
+                  Just os -> [SymbolShadowed (head ns) os]
+
+           else []
     , oErrors   = containsOverlap ns
     }
 
@@ -301,13 +311,9 @@ class Rename f where
 renameModule :: Module PName -> RenameM (NamingEnv,Module Name)
 renameModule m =
   do env    <- supply (namingEnv m)
-     decls' <- shadowNames env (traverse rename (mDecls m))
+     -- NOTE: we explicitly hide shadowing errors here, by using shadowNames'
+     decls' <- shadowNames' False env (traverse rename (mDecls m))
      return (env,m { mDecls = decls' })
-
-instance Rename Module where
-  rename m =
-    do decls' <- shadowNames m (traverse rename (mDecls m))
-       return m { mDecls = decls' }
 
 instance Rename TopDecl where
   rename td     = case td of

@@ -146,7 +146,7 @@ focusedEnv me = fold $
          Iface { .. }   = lmInterface lm
          localDecls     = ifPublic `mappend` ifPrivate
          localNames     = R.unqualifiedEnv localDecls
-         namingEnv      = mconcat (localNames:names)
+         namingEnv      = localNames `R.shadowing` mconcat names
 
      return (mconcat (localDecls:ifaces), namingEnv, R.toNameDisp namingEnv)
   where
