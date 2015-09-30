@@ -529,8 +529,6 @@ userOptions  = mkOptionMap
     "The maximum number of :sat solutions to display (\"all\" for no limit)."
   , simpleOpt "prover" (EnvString "cvc4") checkProver $
     "The external SMT solver for :prove and :sat (" ++ proverListString ++ ")."
-  , simpleOpt "iteSolver" (EnvBool False) (const $ return Nothing)
-    "Use smt solver to filter conditional branches in proofs."
   , simpleOpt "warnDefaulting" (EnvBool True) (const $ return Nothing)
     "Choose if we should display warnings when defaulting."
   , simpleOpt "warnShadowing" (EnvBool True) (const $ return Nothing)
