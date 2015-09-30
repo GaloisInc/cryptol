@@ -542,16 +542,16 @@ kind                             :: { Located Kind      }
   | '*'                             { Located $1 KType  }
 
 schema_param                   :: { TParam PName }
-  : name                          {% mkTParam $1 Nothing           }
-  | name ':' kind                 {% mkTParam (at ($1,$3) $1) (Just (thing $3)) }
+  : ident                         {% mkTParam $1 Nothing           }
+  | ident ':' kind                {% mkTParam (at ($1,$3) $1) (Just (thing $3)) }
 
 schema_params                    :: { [TParam PName] }
   : schema_param                    { [$1] }
   | schema_params ',' schema_param  { $3 : $1 }
 
 tysyn_param                   :: { TParam PName }
-  : name                         {% mkTParam $1 Nothing }
-  | '(' name ':' kind ')'        {% mkTParam (at ($1,$5) $2) (Just (thing $4)) }
+  : ident                        {% mkTParam $1 Nothing }
+  | '(' ident ':' kind ')'       {% mkTParam (at ($1,$5) $2) (Just (thing $4)) }
 
 tysyn_params                  :: { [TParam PName]  }
   : tysyn_param                  { [$1]      }

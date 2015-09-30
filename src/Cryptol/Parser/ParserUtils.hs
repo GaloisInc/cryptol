@@ -285,10 +285,10 @@ mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
              | otherwise                  = NamedInst x
 
 
-mkTParam :: Located PName -> Maybe Kind -> ParseM (TParam PName)
+mkTParam :: Located Ident -> Maybe Kind -> ParseM (TParam PName)
 mkTParam Located { srcRange = rng, thing = n } k
-  | getIdent n == widthIdent = errorMessage rng "`width` is not a valid type parameter name."
-  | otherwise = return (TParam n k (Just rng))
+  | n == widthIdent = errorMessage rng "`width` is not a valid type parameter name."
+  | otherwise       = return (TParam (mkUnqual n) k (Just rng))
 
 mkTySyn :: Located PName -> [TParam PName] -> Type PName -> ParseM (Decl PName)
 mkTySyn ln ps b
