@@ -511,13 +511,6 @@ instance Rename Type where
       | i == packIdent "lengthFromThenTo" = TApp TCLenFromThenTo <$> traverse go ps
       | i == packIdent "width"            = TApp TCWidth         <$> traverse go ps
 
-      -- XXX is this case actully needed now?
-      -- | i == packIdent "fin" =
-      --   do locTy <- located t
-      --      record (MalformedConstraint locTy)
-      --      n <- mkFakeName pn
-      --      TUser n <$> traverse go ps
-
       where
       i = getIdent pn
 
