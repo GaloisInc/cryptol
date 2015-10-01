@@ -78,8 +78,6 @@ data ProverCommand = ProverCommand {
     -- ^ The type of query to run
   , pcProverName :: String
     -- ^ Which prover to use (one of the strings in 'proverConfigs')
-  , pcUseSolverIte :: Bool
-    -- ^ Whether to force branches (see 'Data.SBV.Dynamic.svSymbolicMerge')
   , pcVerbose :: Bool
     -- ^ Verbosity flag passed to SBV
   , pcExtraDecls :: [DeclGroup]
@@ -111,7 +109,7 @@ proverError :: String -> M.ModuleCmd ProverResult
 proverError msg modEnv = return (Right (ProverError msg, modEnv), [])
 
 satProve :: ProverCommand -> M.ModuleCmd ProverResult
-satProve ProverCommand {..} = protectStack pcUseSolverIte proverError $ \modEnv -> do
+satProve ProverCommand {..} = protectStack proverError $ \modEnv -> do
   let (isSat, mSatNum) = case pcQueryType of
         ProveQuery -> (False, Nothing)
         SatQuery sn -> case sn of
@@ -137,7 +135,7 @@ satProve ProverCommand {..} = protectStack pcUseSolverIte proverError $ \modEnv 
   case predArgTypes pcSchema of
     Left msg -> return (Right (ProverError msg, modEnv), [])
     Right ts -> do when pcVerbose $ putStrLn "Simulating..."
-                   let env = evalDecls (emptyEnv pcUseSolverIte) extDgs
+                   let env = evalDecls mempty extDgs
                    let v = evalExpr env pcExpr
                    results' <- runFn $ do
                                  args <- mapM tyFn ts
@@ -176,7 +174,7 @@ satProve ProverCommand {..} = protectStack pcUseSolverIte proverError $ \modEnv 
 
 satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
 satProveOffline ProverCommand {..} =
-  protectStack pcUseSolverIte (\msg modEnv -> return (Right (Left msg, modEnv), [])) $ \modEnv -> do
+  protectStack (\msg modEnv -> return (Right (Left msg, modEnv), [])) $ \modEnv -> do
     let isSat = case pcQueryType of
           ProveQuery -> False
           SatQuery _ -> True
@@ -186,28 +184,22 @@ satProveOffline ProverCommand {..} =
       Left msg -> return (Right (Left msg, modEnv), [])
       Right ts ->
         do when pcVerbose $ putStrLn "Simulating..."
-           let env = evalDecls (emptyEnv pcUseSolverIte) extDgs
+           let env = evalDecls mempty extDgs
            let v = evalExpr env pcExpr
            smtlib <- SBV.compileToSMTLib True isSat $ do
              args <- mapM tyFn ts
              b <- return $! fromVBit (foldl fromVFun v args)
              return b
            return (Right (Right smtlib, modEnv), [])
-{-
--}
 
-protectStack :: Bool
-             -> (String -> M.ModuleCmd a)
+protectStack :: (String -> M.ModuleCmd a)
              -> M.ModuleCmd a
              -> M.ModuleCmd a
-protectStack usingITE mkErr cmd modEnv =
+protectStack mkErr cmd modEnv =
   X.catchJust isOverflow (cmd modEnv) handler
   where isOverflow X.StackOverflow = Just ()
         isOverflow _               = Nothing
-        msg | usingITE  = msgBase
-            | otherwise = msgBase ++ "\n" ++
-                          "Using ':set iteSolver=on' might help."
-        msgBase = "Symbolic evaluation failed to terminate."
+        msg = "Symbolic evaluation failed to terminate."
         handler () = mkErr msg modEnv -- (Right (ProverError msg, modEnv), [])
 
 parseValues :: [FinType] -> [SBV.CW] -> ([Eval.Value], [SBV.CW])
@@ -307,24 +299,18 @@ existsFinType ty =
 data Env = Env
   { envVars :: Map.Map QName Value
   , envTypes :: Map.Map TVar TValue
-  , envIteSolver :: Bool
   }
 
 instance Monoid Env where
   mempty = Env
     { envVars  = Map.empty
     , envTypes = Map.empty
-    , envIteSolver = False
     }
 
   mappend l r = Env
     { envVars  = Map.union (envVars  l) (envVars  r)
     , envTypes = Map.union (envTypes l) (envTypes r)
-    , envIteSolver = envIteSolver l || envIteSolver r
     }
-
-emptyEnv :: Bool -> Env
-emptyEnv useIteSolver = Env Map.empty Map.empty useIteSolver
 
 -- | Bind a variable in the evaluation environment.
 bindVar :: (QName, Value) -> Env -> Env
@@ -351,8 +337,7 @@ evalExpr env expr =
     ETuple es         -> VTuple (map eval es)
     ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
     ESel e sel        -> evalSel sel (eval e)
-    EIf b e1 e2       -> evalIf (fromVBit (eval b)) (eval e1) (eval e2)
-                           where evalIf = if envIteSolver env then sBranchValue else iteValue
+    EIf b e1 e2       -> iteValue (fromVBit (eval b)) (eval e1) (eval e2)
     EComp ty e mss    -> evalComp env (evalType env ty) e mss
     EVar n            -> case lookupVar n env of
                            Just x -> x
