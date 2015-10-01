@@ -360,7 +360,6 @@ cmdProveSat isSat str = do
 onlineProveSat :: Bool
                -> String -> String -> Maybe FilePath -> REPL ()
 onlineProveSat isSat str proverName mfile = do
-  EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
   mSatNum <- getUserSatNum
   let cexStr | isSat = "satisfying assignment"
@@ -372,7 +371,7 @@ onlineProveSat isSat str proverName mfile = do
     Symbolic.satProve
       isSat
       mSatNum
-      (proverName, iteSolver, verbose)
+      (proverName, verbose)
       (M.deDecls denv)
       mfile
       (expr, schema)
@@ -415,13 +414,12 @@ onlineProveSat isSat str proverName mfile = do
 
 offlineProveSat :: Bool -> String -> Maybe FilePath -> REPL ()
 offlineProveSat isSat str mfile = do
-  EnvBool useIte <- getUser "iteSolver"
   EnvBool vrb <- getUser "debug"
   parseExpr <- replParseExpr str
   exsch <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
   result <- liftModuleCmd $
-    Symbolic.satProveOffline isSat useIte vrb decls mfile exsch
+    Symbolic.satProveOffline isSat vrb decls mfile exsch
   case result of
     Symbolic.ProverError msg -> rPutStrLn msg
     Symbolic.EmptyResult -> return ()

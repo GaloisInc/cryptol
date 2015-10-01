@@ -41,6 +41,14 @@ import Data.Monoid (Monoid(..))
 import Data.Traversable (traverse)
 #endif
 
+#if MIN_VERSION_sbv(5,1,0)
+smtMode :: SBV.SMTLibVersion
+smtMode = SBV.SMTLib2
+#else
+smtMode :: Bool
+smtMode = True
+#endif
+
 -- External interface ----------------------------------------------------------
 
 proverConfigs :: [(String, SBV.SMTConfig)]
@@ -83,12 +91,12 @@ thmSMTResults (SBV.ThmResult r) = [r]
 
 satProve :: Bool
          -> Maybe Int -- ^ satNum
-         -> (String, Bool, Bool)
+         -> (String, Bool)
          -> [DeclGroup]
          -> Maybe FilePath
          -> (Expr, Schema)
          -> M.ModuleCmd ProverResult
-satProve isSat mSatNum (proverName, useSolverIte, verbose) edecls mfile (expr, schema) = protectStack useSolverIte $ \modEnv -> do
+satProve isSat mSatNum (proverName, verbose) edecls mfile (expr, schema) = protectStack $ \modEnv -> do
   let extDgs = allDeclGroups modEnv ++ edecls
   provers <-
     case proverName of
@@ -109,7 +117,7 @@ satProve isSat mSatNum (proverName, useSolverIte, verbose) edecls mfile (expr, s
   case predArgTypes schema of
     Left msg -> return (Right (ProverError msg, modEnv), [])
     Right ts -> do when verbose $ putStrLn "Simulating..."
-                   let env = evalDecls (emptyEnv useSolverIte) extDgs
+                   let env = evalDecls emptyEnv extDgs
                    let v = evalExpr env expr
                    results' <- runFn $ do
                                  args <- mapM tyFn ts
@@ -148,13 +156,12 @@ satProve isSat mSatNum (proverName, useSolverIte, verbose) edecls mfile (expr, s
 
 satProveOffline :: Bool
                 -> Bool
-                -> Bool
                 -> [DeclGroup]
                 -> Maybe FilePath
                 -> (Expr, Schema)
                 -> M.ModuleCmd ProverResult
-satProveOffline isSat useIte vrb edecls mfile (expr, schema) =
-  protectStack useIte $ \modEnv -> do
+satProveOffline isSat vrb edecls mfile (expr, schema) =
+  protectStack $ \modEnv -> do
     let extDgs = allDeclGroups modEnv ++ edecls
     let tyFn = if isSat then existsFinType else forallFinType
     let filename = fromMaybe "standard output" mfile
@@ -162,11 +169,11 @@ satProveOffline isSat useIte vrb edecls mfile (expr, schema) =
       Left msg -> return (Right (ProverError msg, modEnv), [])
       Right ts ->
         do when vrb $ putStrLn "Simulating..."
-           let env = evalDecls (emptyEnv useIte) extDgs
+           let env = evalDecls emptyEnv extDgs
            let v = evalExpr env expr
            let satWord | isSat = "satisfiability"
                        | otherwise = "validity"
-           txt <- SBV.compileToSMTLib True isSat $ do
+           txt <- SBV.compileToSMTLib smtMode isSat $ do
                     args <- mapM tyFn ts
                     b <- return $! fromVBit (foldl fromVFun v args)
                     liftIO $ putStrLn $
@@ -180,16 +187,12 @@ satProveOffline isSat useIte vrb edecls mfile (expr, schema) =
              Nothing -> putStr txt
            return (Right (EmptyResult, modEnv), [])
 
-protectStack :: Bool
+protectStack :: M.ModuleCmd ProverResult
              -> M.ModuleCmd ProverResult
-             -> M.ModuleCmd ProverResult
-protectStack usingITE cmd modEnv = X.catchJust isOverflow (cmd modEnv) handler
+protectStack cmd modEnv = X.catchJust isOverflow (cmd modEnv) handler
   where isOverflow X.StackOverflow = Just ()
         isOverflow _               = Nothing
-        msg | usingITE  = msgBase
-            | otherwise = msgBase ++ "\n" ++
-                          "Using ':set iteSolver=on' might help."
-        msgBase = "Symbolic evaluation failed to terminate."
+        msg = "Symbolic evaluation failed to terminate."
         handler () = return (Right (ProverError msg, modEnv), [])
 
 parseValues :: [FinType] -> [SBV.CW] -> ([Eval.Value], [SBV.CW])
@@ -289,24 +292,21 @@ existsFinType ty =
 data Env = Env
   { envVars :: Map.Map QName Value
   , envTypes :: Map.Map TVar TValue
-  , envIteSolver :: Bool
   }
 
 instance Monoid Env where
   mempty = Env
     { envVars  = Map.empty
     , envTypes = Map.empty
-    , envIteSolver = False
     }
 
   mappend l r = Env
     { envVars  = Map.union (envVars  l) (envVars  r)
     , envTypes = Map.union (envTypes l) (envTypes r)
-    , envIteSolver = envIteSolver l || envIteSolver r
     }
 
-emptyEnv :: Bool -> Env
-emptyEnv useIteSolver = Env Map.empty Map.empty useIteSolver
+emptyEnv :: Env
+emptyEnv = mempty
 
 -- | Bind a variable in the evaluation environment.
 bindVar :: (QName, Value) -> Env -> Env
@@ -334,8 +334,7 @@ evalExpr env expr =
     ETuple es         -> VTuple (map eval es)
     ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
     ESel e sel        -> evalSel sel (eval e)
-    EIf b e1 e2       -> evalIf (fromVBit (eval b)) (eval e1) (eval e2)
-                           where evalIf = if envIteSolver env then sBranchValue else iteValue
+    EIf b e1 e2       -> iteValue (fromVBit (eval b)) (eval e1) (eval e2)
     EComp ty e mss    -> evalComp env (evalType env ty) e mss
     EVar n            -> case lookupVar n env of
                            Just x -> x

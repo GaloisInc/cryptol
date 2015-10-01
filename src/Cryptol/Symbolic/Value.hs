@@ -23,7 +23,7 @@ module Cryptol.Symbolic.Value
   , fromVBit, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord
   , fromSeq, fromVWord
   , evalPanic
-  , iteValue, sBranchValue, mergeValue
+  , iteValue, mergeValue
   )
   where
 
@@ -74,15 +74,6 @@ iteValue c x y =
     Just True  -> x
     Just False -> y
     Nothing    -> mergeValue True c x y
-
-sBranchValue :: SBool -> Value -> Value -> Value
-sBranchValue t x y =
-  case svAsBool c of
-    Just True  -> x
-    Just False -> y
-    Nothing    -> mergeValue False c x y
-  where
-    c = svReduceInPathCondition t
 
 mergeValue :: Bool -> SBool -> Value -> Value -> Value
 mergeValue f c v1 v2 =
