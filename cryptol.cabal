@@ -61,7 +61,7 @@ library
                        process         >= 1.2,
                        QuickCheck      >= 2.7,
                        random          >= 1.0.1,
-                       sbv             >= 4.3,
+                       sbv             (>= 4.3 && < 5.0) || (>= 5.1 && < 5.2),
                        smtLib          >= 1.0.7,
                        simple-smt      >= 0.6.0,
                        syb             >= 0.4,
@@ -203,7 +203,7 @@ executable cryptol
                      , tf-random
                      , transformers
   default-extensions:  CPP
-  GHC-options:         -Wall -O2
+  GHC-options:         -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
   ghc-prof-options:    -auto-all -prof -rtsopts
 
   if os(linux) && flag(static)
@@ -215,7 +215,7 @@ executable cryptol-server
   other-modules:       Cryptol.Aeson
   default-language:    Haskell2010
   default-extensions:  OverloadedStrings
-  GHC-options:         -Wall -O2
+  GHC-options:         -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
   ghc-prof-options:    -auto-all -prof -rtsopts
   if os(linux) && flag(static)
       ld-options:      -static -pthread
@@ -239,7 +239,7 @@ benchmark cryptol-bench
   main-is:             Main.hs
   hs-source-dirs:      bench
   default-language:    Haskell2010
-  GHC-options:         -Wall -O2
+  GHC-options:         -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
   ghc-prof-options:    -auto-all -prof -rtsopts
   if os(linux) && flag(static)
       ld-options:      -static -pthread

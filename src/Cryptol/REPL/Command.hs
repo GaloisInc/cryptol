@@ -446,7 +446,6 @@ onlineProveSat :: Bool
                -> String -> Maybe FilePath -> REPL Symbolic.ProverResult
 onlineProveSat isSat str mfile = do
   EnvString proverName <- getUser "prover"
-  EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
   satNum <- getUserSatNum
   parseExpr <- replParseExpr str
@@ -455,7 +454,6 @@ onlineProveSat isSat str mfile = do
   let cmd = Symbolic.ProverCommand {
           pcQueryType    = if isSat then SatQuery satNum else ProveQuery
         , pcProverName   = proverName
-        , pcUseSolverIte = iteSolver
         , pcVerbose      = verbose
         , pcExtraDecls   = decls
         , pcSmtFile      = mfile
@@ -466,7 +464,6 @@ onlineProveSat isSat str mfile = do
 
 offlineProveSat :: Bool -> String -> Maybe FilePath -> REPL (Either String String)
 offlineProveSat isSat str mfile = do
-  EnvBool iteSolver <- getUser "iteSolver"
   EnvBool verbose <- getUser "debug"
   parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
@@ -474,7 +471,6 @@ offlineProveSat isSat str mfile = do
   let cmd = Symbolic.ProverCommand {
           pcQueryType    = if isSat then SatQuery (SomeSat 0) else ProveQuery
         , pcProverName   = "offline"
-        , pcUseSolverIte = iteSolver
         , pcVerbose      = verbose
         , pcExtraDecls   = decls
         , pcSmtFile      = mfile
@@ -994,3 +990,4 @@ parseCommand findCmd line = do
       '~' : c : more | isPathSeparator c -> do dir <- io getHomeDirectory
                                                return (dir </> more)
       _ -> return path
+
