@@ -38,8 +38,6 @@ ${TMP}:
 
 ${TARGET}.pdf: ${SRCS} ${TMP}
 	# surely I don't need this many latex's and indexes etc; but this looks like a sure fire way of
-	${LATEXMK} -c ${MAINTARGET}.tex
-	${LATEXMK} -c ${MAINTARGET}.tex
 	# getting numbers right.. heh
 	${LATEX}     ${MAINTARGET}
 	${MAKEINDEX} ${TMP}/Cryptol.glo -s ${TMP}/Cryptol.ist -t ${TMP}/Cryptol.glg -o ${TMP}/Cryptol.gls
