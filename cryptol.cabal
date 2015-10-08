@@ -47,6 +47,7 @@ library
   Build-depends:       base            >= 4.7 && < 5,
                        array           >= 0.4,
                        async           >= 2.0,
+                       base-orphans    >= 0.1,
                        containers      >= 0.5,
                        deepseq         >= 1.3,
                        directory       >= 1.2,
