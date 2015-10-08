@@ -6,12 +6,8 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE RecordWildCards, CPP, Safe #-}
-#if __GLASGOW_HASKELL__ >= 706
+{-# LANGUAGE RecordWildCards, Safe #-}
 {-# LANGUAGE RecursiveDo #-}
-#else
-{-# LANGUAGE DoRec #-}
-#endif
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.TypeCheck.Monad
   ( module Cryptol.TypeCheck.Monad
@@ -41,9 +37,8 @@ import           Control.Monad.Fix(MonadFix(..))
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
-#if __GLASGOW_HASKELL__ < 710
-import           Data.Functor
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- | Information needed for type inference.
 data InferInput = InferInput

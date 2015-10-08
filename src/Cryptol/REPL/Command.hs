@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE CPP, PatternGuards, FlexibleContexts, RecordWildCards #-}
+{-# LANGUAGE PatternGuards, FlexibleContexts, RecordWildCards #-}
 module Cryptol.REPL.Command (
     -- * Commands
     Command(..), CommandDescr(..), CommandBody(..)
@@ -92,10 +92,8 @@ import System.Random.TF(newTFGen)
 import Numeric (showFFloat)
 import qualified Data.Text.Lazy as T
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative ((<$>))
-import Data.Monoid (mempty)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- Commands --------------------------------------------------------------------
 

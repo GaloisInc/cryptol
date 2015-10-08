@@ -17,10 +17,6 @@
 {-# OPTIONS_GHC -Wall -fno-warn-type-defaults #-}
 module Main where
 
-#if !(MIN_VERSION_base(4,8,0))
-import Control.Applicative
-#endif
-
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class
@@ -49,6 +45,9 @@ import qualified Cryptol.ModuleSystem as M
 import Cryptol.Utils.PP
 
 import Cryptol.Aeson ()
+
+import Prelude ()
+import Prelude.Compat
 
 data RCommand
   = RCEvalExpr Text

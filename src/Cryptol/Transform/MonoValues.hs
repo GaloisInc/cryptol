@@ -84,9 +84,8 @@ import Data.Either(partitionEithers)
 import Data.Map (Map)
 import MonadLib
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-#endif
+import Prelude ()
+import Prelude.Compat
 
 {- (f,t,n) |--> x  means that when we spot instantiations of `f` with `ts` and
 `n` proof argument, we should replace them with `Var x` -}

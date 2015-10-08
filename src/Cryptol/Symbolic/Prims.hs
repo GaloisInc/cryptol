@@ -18,7 +18,7 @@ import Data.Ord (comparing)
 import Cryptol.Eval.Value (BitWord(..))
 import Cryptol.Prims.Eval (binary, unary, tlamN)
 import Cryptol.Symbolic.Value
-import Cryptol.TypeCheck.AST (QName(..),Name(..),Decl(..),mkModName)
+import Cryptol.TypeCheck.AST (QName(..),Name(..),Decl(..))
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)
 import Cryptol.Utils.Panic
 import Cryptol.ModuleSystem.Name (Ident, pack, preludeName)
@@ -26,9 +26,8 @@ import Cryptol.ModuleSystem.Name (Ident, pack, preludeName)
 import qualified Data.SBV.Dynamic as SBV
 import qualified Data.Map as Map
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-#endif
+import Prelude ()
+import Prelude.Compat
 
 traverseSnd :: Functor f => (a -> f b) -> (t, a) -> f (t, b)
 traverseSnd f (x, y) = (,) x <$> f y

@@ -6,7 +6,6 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -14,8 +13,6 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 module Cryptol.Prims.Eval where
 
 import Cryptol.TypeCheck.AST
@@ -35,51 +32,6 @@ import Data.Bits (Bits(..))
 import qualified Data.Map.Strict as Map
 
 import System.Random.TF (mkTFGen)
-
-
--- Utilities -------------------------------------------------------------------
-
-#if __GLASGOW_HASKELL__ < 706
-noNum = panic "Cryptol.Prims.Eval"
-          [ "Num instance for Bool shouldn't be used." ]
-instance Num Bool where
-  _ + _         = noNum
-  _ * _         = noNum
-  _ - _         = noNum
-  negate _      = noNum
-  abs _         = noNum
-  signum _      = noNum
-  fromInteger _ = noNum
-#endif
-
-#if __GLASGOW_HASKELL__ < 708
-instance Bits Bool where
-  (.&.) = (&&)
-
-  (.|.) = (||)
-
-  xor = (/=)
-
-  complement = not
-
-  shift a 0 = a
-  shift _ _ = False
-
-  rotate a _ = a
-
-  bitSize _ = 1
-
-  isSigned _ = False
-
-  testBit a 1 = a
-  testBit _ _ = False
-
-  bit 0 = True
-  bit _ = False
-
-  popCount a = if a then 1 else 0
-#endif
-
 
 -- Primitives ------------------------------------------------------------------
 

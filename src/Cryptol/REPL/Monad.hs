@@ -97,10 +97,8 @@ import Text.Read (readMaybe)
 
 import Data.SBV.Dynamic (sbvCheckSolverInstallation)
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative ((<$>), Applicative(..))
-import Data.Monoid (Monoid(..))
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- REPL Environment ------------------------------------------------------------
 

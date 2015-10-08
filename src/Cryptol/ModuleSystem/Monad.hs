@@ -33,9 +33,8 @@ import MonadLib
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative (Applicative(..))
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- Errors ----------------------------------------------------------------------
 

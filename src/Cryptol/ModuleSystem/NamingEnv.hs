@@ -23,12 +23,8 @@ import qualified Data.Map as Map
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative (Applicative, (<$>), (<*>), pure)
-import Data.Monoid (Monoid(..))
-import Data.Foldable (foldMap)
-import Data.Traversable (traverse)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- Name Locations --------------------------------------------------------------
 

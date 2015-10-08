@@ -24,10 +24,8 @@ import Data.Maybe (catMaybes)
 
 import MonadLib
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-import Data.Traversable (traverse)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- Specializer Monad -----------------------------------------------------------
 

@@ -6,12 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE CPP #-}
-#if __GLASGOW_HASKELL__ >= 706
 {-# LANGUAGE RecursiveDo #-}
-#else
-{-# LANGUAGE DoRec, RecursiveDo #-}
-#endif
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Kind
   ( checkType

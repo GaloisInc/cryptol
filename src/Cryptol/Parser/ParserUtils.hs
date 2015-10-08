@@ -26,11 +26,8 @@ import qualified Data.Text.Lazy as T
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative ((<$>),Applicative(..))
-import Data.Traversable (mapM)
-import Prelude hiding (mapM)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 parseString :: Config -> ParseM a -> String -> Either ParseError a
 parseString cfg p cs = parse cfg p (T.pack cs)

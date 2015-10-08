@@ -11,9 +11,8 @@ module OptParser where
 
 import Data.Monoid (Endo(..))
 
-#if __GLASGOW_HASKELL__ < 710
-import Data.Monoid (Monoid(..))
-#endif
+import Prelude ()
+import Prelude.Compat
 
 data OptParser opt
   = OptSuccess (Endo opt)
