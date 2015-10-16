@@ -10,7 +10,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -33,12 +32,8 @@ import qualified Data.Set as Set
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative (Applicative, (<$>), (<*>), pure)
-import Data.Monoid (Monoid(..))
-import Data.Foldable (Foldable,foldMap)
-import Data.Traversable (Traversable,traverse)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 
 -- Naming Environment ----------------------------------------------------------

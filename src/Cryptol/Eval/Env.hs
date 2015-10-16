@@ -22,9 +22,8 @@ import qualified Data.Map as Map
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
-#if __GLASGOW_HASKELL__ < 710
-import           Data.Monoid (Monoid(..))
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- Evaluation Environment ------------------------------------------------------
 

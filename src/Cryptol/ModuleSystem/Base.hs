@@ -59,10 +59,8 @@ import System.FilePath ( addExtension
 import qualified System.IO.Error as IOE
 import qualified Data.Map as Map
 
-#if __GLASGOW_HASKELL__ < 710
-import Data.Foldable (foldMap)
-import Data.Traversable (traverse)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 
 -- Renaming --------------------------------------------------------------------

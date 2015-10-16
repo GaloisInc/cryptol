@@ -6,7 +6,6 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE PatternGuards   #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -84,12 +83,8 @@ import           Numeric(showIntAtBase)
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
-#if __GLASGOW_HASKELL__ < 710
-import           Data.Foldable (Foldable(..))
-import           Data.Monoid (Monoid(..))
-import           Data.Traversable (Traversable(..))
-#endif
-
+import Prelude ()
+import Prelude.Compat
 
 -- AST -------------------------------------------------------------------------
 

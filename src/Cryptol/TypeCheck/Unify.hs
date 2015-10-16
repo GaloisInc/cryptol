@@ -6,7 +6,6 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE PatternGuards, ViewPatterns #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -20,9 +19,8 @@ import Data.Ord(comparing)
 import Data.List(sortBy)
 import qualified Data.Set as Set
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative (Applicative(..))
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- | The most general unifier is a substitution and a set of constraints
 -- on bound variables.

@@ -37,19 +37,7 @@ import           System.FilePath (takeDirectory,(</>),isAbsolute)
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
-#if MIN_VERSION_directory(1,2,2)
-import           System.Directory (makeAbsolute)
-#else
-import           System.Directory (getCurrentDirectory)
-import           System.FilePath (isRelative, normalise)
-
--- from the source of directory-1.2.2.1
-makeAbsolute :: FilePath -> IO FilePath
-makeAbsolute = fmap normalise . absolutize
-  where absolutize path
-          | isRelative path = fmap (</> path) getCurrentDirectory
-          | otherwise       = return path
-#endif
+import System.Directory (makeAbsolute)
 
 removeIncludesModule :: FilePath -> Module PName -> IO (Either [IncludeError] (Module PName))
 removeIncludesModule modPath m = runNoIncM modPath (noIncludeModule m)

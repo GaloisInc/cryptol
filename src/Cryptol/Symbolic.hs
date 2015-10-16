@@ -38,11 +38,8 @@ import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-import Data.Monoid (Monoid(..))
-import Data.Traversable (traverse)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- External interface ----------------------------------------------------------
 

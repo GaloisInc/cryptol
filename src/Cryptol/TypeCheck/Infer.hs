@@ -8,15 +8,10 @@
 --
 -- Assumes that the `NoPat` pass has been run.
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
-#if __GLASGOW_HASKELL__ >= 706
 {-# LANGUAGE RecursiveDo #-}
-#else
-{-# LANGUAGE DoRec, RecursiveDo #-}
-#endif
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Infer where
 
