@@ -13,8 +13,7 @@ module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
   ) where
 
-import           Cryptol.ModuleSystem.Name (SupplyT,runSupplyT,FreshM(..),Supply
-                      ,nameIdent,lookupPrimDecl)
+import           Cryptol.ModuleSystem.Name (SupplyT,runSupplyT,FreshM(..),Supply)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
