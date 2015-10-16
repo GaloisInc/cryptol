@@ -86,7 +86,7 @@ import Cryptol.Utils.Ident (ModName)
 import Data.List(sortBy,groupBy)
 import Data.Either(partitionEithers)
 import Data.Map (Map)
-import MonadLib
+import MonadLib hiding (mapM)
 
 import Prelude ()
 import Prelude.Compat

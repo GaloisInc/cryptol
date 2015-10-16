@@ -36,7 +36,7 @@ import Cryptol.Utils.Ident (packIdent,packInfix)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
-import MonadLib
+import MonadLib hiding (mapM)
 import qualified Data.Map as Map
 
 import GHC.Generics (Generic)

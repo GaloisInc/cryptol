@@ -24,7 +24,7 @@ import Cryptol.Parser.Names (namesP)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
-import           MonadLib
+import           MonadLib hiding (mapM)
 import           Data.Maybe(maybeToList)
 import           Data.Either(partitionEithers)
 import qualified Data.Map as Map

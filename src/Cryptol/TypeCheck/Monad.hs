@@ -30,7 +30,7 @@ import           Data.Set (Set)
 import           Data.List(find, minimumBy, groupBy, sortBy)
 import           Data.Maybe(mapMaybe)
 import           Data.Function(on)
-import           MonadLib
+import           MonadLib hiding (mapM)
 import qualified Control.Applicative as A
 import           Control.Monad.Fix(MonadFix(..))
 
