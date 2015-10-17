@@ -54,6 +54,9 @@ packIdent  = mkIdent . T.pack
 packInfix :: String -> Ident
 packInfix  = mkInfix . T.pack
 
+unpackIdent :: Ident -> String
+unpackIdent  = T.unpack . identText
+
 mkIdent :: T.Text -> Ident
 mkIdent  = Ident False
 
