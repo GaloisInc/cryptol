@@ -40,7 +40,7 @@ import MonadLib hiding (mapM)
 import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -78,7 +78,7 @@ data RenamerError
     -- ^ When a constraint appears within another constraint
     deriving (Show,Generic)
 
-instance NFData RenamerError
+instance NFData RenamerError where rnf = genericRnf
 
 instance PP RenamerError where
   ppPrec _ e = case e of
@@ -133,7 +133,7 @@ data RenamerWarning
   = SymbolShadowed Name [Name] NameDisp
     deriving (Show,Generic)
 
-instance NFData RenamerWarning
+instance NFData RenamerWarning where rnf = genericRnf
 
 instance PP RenamerWarning where
   ppPrec _ (SymbolShadowed new originals disp) = fixNameDisp disp $

@@ -30,7 +30,7 @@ import           Data.Either(partitionEithers)
 import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -447,7 +447,7 @@ data Error  = MultipleSignatures PName [Located (Schema PName)]
             | MultipleDocs PName [Range]
               deriving (Show,Generic)
 
-instance NFData Error
+instance NFData Error where rnf = genericRnf
 
 instance Functor NoPatM where fmap = liftM
 instance Applicative NoPatM where pure = return; (<*>) = ap

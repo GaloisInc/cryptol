@@ -13,7 +13,7 @@ module Cryptol.Utils.PP where
 
 import           Cryptol.Utils.Ident
 
-import           Control.DeepSeq
+import           Control.DeepSeq.Generics
 import           Control.Monad (mplus)
 import           Data.Maybe (fromMaybe)
 import qualified Data.Monoid as M
@@ -21,8 +21,6 @@ import           Data.String (IsString(..))
 import qualified Data.Text as T
 import           GHC.Generics (Generic)
 import qualified Text.PrettyPrint as PJ
-
-
 
 -- Name Displaying -------------------------------------------------------------
 
@@ -33,7 +31,7 @@ data NameDisp = EmptyNameDisp
               | NameDisp (ModName -> Ident -> Maybe NameFormat)
                 deriving (Generic)
 
-instance NFData NameDisp
+instance NFData NameDisp where rnf = genericRnf
 
 instance Show NameDisp where
   show _ = "<NameDisp>"
@@ -93,7 +91,7 @@ fixNameDisp disp (Doc f) = Doc (\ _ -> f disp)
 
 newtype Doc = Doc (NameDisp -> PJ.Doc) deriving (Generic)
 
-instance NFData Doc
+instance NFData Doc where rnf = genericRnf
 
 runDoc :: NameDisp -> Doc -> PJ.Doc
 runDoc names (Doc f) = f names
@@ -132,7 +130,7 @@ optParens b body | b         = parens body
 data Assoc = LeftAssoc | RightAssoc | NonAssoc
               deriving (Show,Eq,Generic)
 
-instance NFData Assoc
+instance NFData Assoc where rnf = genericRnf
 
 -- | Information about an infix expression of some sort.
 data Infix op thing = Infix

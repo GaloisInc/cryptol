@@ -31,7 +31,7 @@ import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 data SolverConfig = SolverConfig
   { solverPath    :: FilePath   -- ^ The SMT solver to invoke
@@ -39,7 +39,7 @@ data SolverConfig = SolverConfig
   , solverVerbose :: Int        -- ^ How verbose to be when type-checking
   } deriving (Show, Generic)
 
-instance NFData SolverConfig
+instance NFData SolverConfig where rnf = genericRnf
 
 -- | The types of variables in the environment.
 data VarType = ExtVar Schema      -- ^ Known type
@@ -67,7 +67,7 @@ data Goal = Goal
   , goal       :: Prop              -- ^ What needs to be proved
   } deriving (Show,Generic)
 
-instance NFData Goal
+instance NFData Goal where rnf = genericRnf
 
 data HasGoal = HasGoal
   { hasName :: !Int
@@ -82,7 +82,7 @@ data DelayedCt = DelayedCt
   , dctGoals  :: [Goal]
   } deriving (Show,Generic)
 
-instance NFData DelayedCt
+instance NFData DelayedCt where rnf = genericRnf
 
 data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assuming the sub-goals.
             | Unsolved                    -- ^ We could not solved the goal.
@@ -94,7 +94,7 @@ data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingTo Doc Type
                 deriving (Show,Generic)
 
-instance NFData Warning
+instance NFData Warning where rnf = genericRnf
 
 -- | Various errors that might happen during type checking/inference
 data Error    = ErrorMsg Doc
@@ -175,7 +175,7 @@ data Error    = ErrorMsg Doc
 
                 deriving (Show,Generic)
 
-instance NFData Error
+instance NFData Error where rnf = genericRnf
 
 -- | Information about how a constraint came to be, used in error reporting.
 data ConstraintSource
@@ -191,12 +191,12 @@ data ConstraintSource
   | CtImprovement
     deriving (Show,Generic)
 
-instance NFData ConstraintSource
+instance NFData ConstraintSource where rnf = genericRnf
 
 data TyFunName = UserTyFun Name | BuiltInTyFun TFun
                 deriving (Show,Generic)
 
-instance NFData TyFunName
+instance NFData TyFunName where rnf = genericRnf
 
 instance PP TyFunName where
   ppPrec c (UserTyFun x)    = ppPrec c x

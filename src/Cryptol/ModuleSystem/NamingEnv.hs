@@ -30,7 +30,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -48,7 +48,7 @@ data NamingEnv = NamingEnv { neExprs :: Map.Map PName [Name]
                              -- ^ Expression-level fixity environment
                            } deriving (Show, Generic)
 
-instance NFData NamingEnv
+instance NFData NamingEnv where rnf = genericRnf
 
 instance Monoid NamingEnv where
   mempty        =
@@ -74,7 +74,6 @@ merge :: [Name] -> [Name] -> [Name]
 merge xs ys | xs == ys  = xs
             | otherwise = nub (xs ++ ys)
 
-
 -- | Generate a mapping from 'Ident' to 'Name' for a given naming environment.
 toPrimMap :: NamingEnv -> PrimMap
 toPrimMap NamingEnv { .. } = PrimMap { .. }
@@ -83,7 +82,6 @@ toPrimMap NamingEnv { .. } = PrimMap { .. }
                                              , n  <- ns ]
   primTypes = Map.fromList [ (nameIdent n,n) | ns <- Map.elems neTypes
                                              , n  <- ns ]
-
 
 -- | Generate a display format based on a naming environment.
 toNameDisp :: NamingEnv -> NameDisp
@@ -120,7 +118,6 @@ visibleNames NamingEnv { .. } = (types,decls)
   where
   types = Set.fromList [ n | [n] <- Map.elems neTypes ]
   decls = Set.fromList [ n | [n] <- Map.elems neExprs ]
-
 
 -- | Qualify all symbols in a 'NamingEnv' with the given prefix.
 qualify :: ModName -> NamingEnv -> NamingEnv

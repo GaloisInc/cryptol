@@ -29,7 +29,7 @@ import qualified Data.Text as T
 import Numeric (showIntAtBase)
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 -- Utilities -------------------------------------------------------------------
 
@@ -83,7 +83,7 @@ finTValue tval =
 -- Invariant: The value must be within the range 0 .. 2^width-1
 data BV = BV !Integer !Integer deriving (Generic)
 
-instance NFData BV
+instance NFData BV where rnf = genericRnf
 
 -- | Smart constructor for 'BV's that checks for the width limit
 mkBv :: Integer -> Integer -> BV
@@ -103,7 +103,7 @@ data GenValue b w
   | VPoly (TValue -> GenValue b w)      -- polymorphic values (kind *)
   deriving (Generic)
 
-instance (NFData b, NFData w) => NFData (GenValue b w)
+instance (NFData b, NFData w) => NFData (GenValue b w) where rnf = genericRnf
 
 type Value = GenValue Bool BV
 
@@ -111,7 +111,7 @@ type Value = GenValue Bool BV
 -- These types do not contain type variables, type synonyms, or type functions.
 newtype TValue = TValue { tValTy :: Type } deriving (Generic)
 
-instance NFData TValue
+instance NFData TValue where rnf = genericRnf
 
 instance Show TValue where
   showsPrec p (TValue v) = showsPrec p v

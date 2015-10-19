@@ -4,7 +4,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
-
 -- for the instances of RunM and BaseM
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -42,7 +41,7 @@ import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
 
 import qualified Control.Applicative as A
-import           Control.DeepSeq
+import           Control.DeepSeq.Generics
 import           Control.Monad.Fix (MonadFix(mfix))
 import qualified Data.Map as Map
 import qualified Data.Monoid as M
@@ -52,7 +51,6 @@ import           MonadLib
 
 
 -- Names -----------------------------------------------------------------------
-
 -- | Information about the binding site of the name.
 data NameInfo = Declared !ModName
                 -- ^ This name refers to a declaration from this module
@@ -82,8 +80,8 @@ instance Eq Name where
 instance Ord Name where
   compare a b = compare (nUnique a) (nUnique b)
 
-instance NFData NameInfo
-instance NFData Name
+instance NFData NameInfo where rnf = genericRnf
+instance NFData Name where rnf = genericRnf
 
 -- | Compare two names lexically.
 cmpNameLexical :: Name -> Name -> Ordering
@@ -271,7 +269,7 @@ nextUniqueM  = liftSupply nextUnique
 data Supply = Supply !Int
               deriving (Show,Generic)
 
-instance NFData Supply
+instance NFData Supply where rnf = genericRnf
 
 -- | This should only be used once at library initialization, and threaded
 -- through the rest of the session.  The supply is started at 0x1000 to leave us

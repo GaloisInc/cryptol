@@ -37,7 +37,7 @@ import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
 import qualified Data.List as List
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -57,13 +57,13 @@ data ModuleEnv = ModuleEnv
   , meSupply        :: !Supply
   } deriving (Generic)
 
-instance NFData ModuleEnv
+instance NFData ModuleEnv where rnf = genericRnf
 
 data CoreLint = NoCoreLint        -- ^ Don't run core lint
               | CoreLint          -- ^ Run core lint
   deriving (Generic)
 
-instance NFData CoreLint
+instance NFData CoreLint where rnf = genericRnf
 
 resetModuleEnv :: ModuleEnv -> ModuleEnv
 resetModuleEnv env = env
@@ -184,7 +184,7 @@ newtype LoadedModules = LoadedModules
   } deriving (Show, Generic)
 -- ^ Invariant: All the dependencies of any module `m` must precede `m` in the list.
 
-instance NFData LoadedModules
+instance NFData LoadedModules where rnf = genericRnf
 
 instance Monoid LoadedModules where
   mempty        = LoadedModules []
@@ -198,7 +198,7 @@ data LoadedModule = LoadedModule
   , lmModule    :: T.Module
   } deriving (Show, Generic)
 
-instance NFData LoadedModule
+instance NFData LoadedModule where rnf = genericRnf
 
 isLoaded :: ModName -> LoadedModules -> Bool
 isLoaded mn lm = any ((mn ==) . lmName) (getLoadedModules lm)
@@ -241,7 +241,7 @@ data DynamicEnv = DEnv
   , deEnv   :: EvalEnv
   } deriving (Generic)
 
-instance NFData DynamicEnv
+instance NFData DynamicEnv where rnf = genericRnf
 
 instance Monoid DynamicEnv where
   mempty = DEnv

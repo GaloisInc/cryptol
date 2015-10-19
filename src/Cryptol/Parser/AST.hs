@@ -81,7 +81,7 @@ import           Data.Maybe (catMaybes)
 import           Numeric(showIntAtBase)
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -106,7 +106,7 @@ data Module name = Module { mName    :: Located ModName
                           , mDecls   :: [TopDecl name]
                           } deriving (Show, Generic)
 
-instance NFData name => NFData (Module name)
+instance NFData name => NFData (Module name) where rnf = genericRnf
 
 modRange :: Module name -> Range
 modRange m = rCombs $ catMaybes
@@ -122,7 +122,7 @@ data TopDecl name = Decl (TopLevel (Decl name))
                   | Include (Located FilePath)
                     deriving (Show,Generic)
 
-instance NFData name => NFData (TopDecl name)
+instance NFData name => NFData (TopDecl name) where rnf = genericRnf
 
 data Decl name = DSignature [Located name] (Schema name)
                | DFixity !Fixity [Located name]
@@ -133,7 +133,7 @@ data Decl name = DSignature [Located name] (Schema name)
                | DLocated (Decl name) Range
                  deriving (Eq,Show,Generic)
 
-instance NFData name => NFData (Decl name)
+instance NFData name => NFData (Decl name) where rnf = genericRnf
 
 -- | An import declaration.
 data Import = Import { iModule    :: !ModName
@@ -141,7 +141,7 @@ data Import = Import { iModule    :: !ModName
                      , iSpec      :: Maybe ImportSpec
                      } deriving (Eq,Show,Generic)
 
-instance NFData Import
+instance NFData Import where rnf = genericRnf
 
 -- | The list of names following an import.
 --
@@ -152,12 +152,12 @@ data ImportSpec = Hiding [Ident]
                 | Only   [Ident]
                   deriving (Eq,Show,Generic)
 
-instance NFData ImportSpec
+instance NFData ImportSpec where rnf = genericRnf
 
 data TySyn n  = TySyn (Located n) [TParam n] (Type n)
                 deriving (Eq,Show,Generic)
 
-instance NFData name => NFData (TySyn name)
+instance NFData name => NFData (TySyn name) where rnf = genericRnf
 
 {- | Bindings.  Notes:
 
@@ -182,7 +182,7 @@ data Bind name = Bind { bName      :: Located name -- ^ Defined thing
                       , bDoc       :: Maybe String -- ^ Optional doc string
                       } deriving (Eq,Show,Generic)
 
-instance NFData name => NFData (Bind name)
+instance NFData name => NFData (Bind name) where rnf = genericRnf
 
 type LBindDef = Located (BindDef PName)
 
@@ -190,13 +190,13 @@ data BindDef name = DPrim
                   | DExpr (Expr name)
                     deriving (Eq,Show,Generic)
 
-instance NFData name => NFData (BindDef name)
+instance NFData name => NFData (BindDef name) where rnf = genericRnf
 
 data Fixity   = Fixity { fAssoc :: !Assoc
                        , fLevel :: !Int
                        } deriving (Eq,Show,Generic)
 
-instance NFData Fixity
+instance NFData Fixity where rnf = genericRnf
 
 data FixityCmp = FCError
                | FCLeft
@@ -221,14 +221,14 @@ data Pragma   = PragmaNote String
               | PragmaProperty
                 deriving (Eq,Show,Generic)
 
-instance NFData Pragma
+instance NFData Pragma where rnf = genericRnf
 
 data Newtype name = Newtype { nName   :: Located name        -- ^ Type name
                             , nParams :: [TParam name]       -- ^ Type params
                             , nBody   :: [Named (Type name)] -- ^ Constructor
                             } deriving (Eq,Show,Generic)
 
-instance NFData name => NFData (Newtype name)
+instance NFData name => NFData (Newtype name) where rnf = genericRnf
 
 -- | Input at the REPL, which can either be an expression or a @let@
 -- statement.
@@ -241,20 +241,20 @@ data ExportType = Public
                 | Private
                   deriving (Eq,Show,Ord,Generic)
 
-instance NFData ExportType
+instance NFData ExportType where rnf = genericRnf
 
 data TopLevel a = TopLevel { tlExport :: ExportType
                            , tlDoc    :: Maybe (Located String)
                            , tlValue  :: a
                            } deriving (Show,Generic,Functor,Foldable,Traversable)
 
-instance NFData a => NFData (TopLevel a)
+instance NFData a => NFData (TopLevel a) where rnf = genericRnf
 
 data ExportSpec name = ExportSpec { eTypes  :: Set.Set name
                                   , eBinds  :: Set.Set name
                                   } deriving (Show,Generic)
 
-instance NFData name => NFData (ExportSpec name)
+instance NFData name => NFData (ExportSpec name) where rnf = genericRnf
 
 instance Ord name => Monoid (ExportSpec name) where
   mempty      = ExportSpec { eTypes = mempty, eBinds = mempty }
@@ -291,14 +291,14 @@ data NumInfo  = BinLit Int                      -- ^ n-digit binary literal
               | PolyLit Int                     -- ^ polynomial literal
                 deriving (Eq,Show,Generic)
 
-instance NFData NumInfo
+instance NFData NumInfo where rnf = genericRnf
 
 -- | Literals.
 data Literal  = ECNum Integer NumInfo           -- ^ @0x10@  (HexLit 2)
               | ECString String                 -- ^ @\"hello\"@
                 deriving (Eq,Show,Generic)
 
-instance NFData Literal
+instance NFData Literal where rnf = genericRnf
 
 data Expr n   = EVar n                          -- ^ @ x @
               | ELit Literal                    -- ^ @ 0x10 @
@@ -322,14 +322,13 @@ data Expr n   = EVar n                          -- ^ @ x @
               | EInfix (Expr n) (Located n) Fixity (Expr n)-- ^ @ a + b @ (Removed by Fixity)
                 deriving (Eq,Show,Generic)
 
-instance NFData name => NFData (Expr name)
+instance NFData name => NFData (Expr name) where rnf = genericRnf
 
 data TypeInst name = NamedInst (Named (Type name))
                    | PosInst (Type name)
                      deriving (Eq,Show,Generic)
 
-instance NFData name => NFData (TypeInst name)
-
+instance NFData name => NFData (TypeInst name) where rnf = genericRnf
 
 {- | Selectors are used for projecting from various components.
 Each selector has an option spec to specify the shape of the thing
@@ -350,13 +349,13 @@ data Selector = TupleSel Int   (Maybe Int)
                 -- Optionally specifies the length of the list.
                 deriving (Eq,Show,Ord,Generic)
 
-instance NFData Selector
+instance NFData Selector where rnf = genericRnf
 
 data Match name = Match (Pattern name) (Expr name)              -- ^ p <- e
                 | MatchLet (Bind name)
                   deriving (Eq,Show,Generic)
 
-instance NFData name => NFData (Match name)
+instance NFData name => NFData (Match name) where rnf = genericRnf
 
 data Pattern n = PVar (Located n)              -- ^ @ x @
                | PWild                         -- ^ @ _ @
@@ -368,23 +367,22 @@ data Pattern n = PVar (Located n)              -- ^ @ x @
                | PLocated (Pattern n) Range    -- ^ Location information
                  deriving (Eq,Show,Generic)
 
-instance NFData name => NFData (Pattern name)
+instance NFData name => NFData (Pattern name) where rnf = genericRnf
 
 data Named a = Named { name :: Located Ident, value :: a }
                deriving (Eq,Show,Foldable,Traversable,Generic,Functor)
 
-instance NFData a => NFData (Named a)
-
+instance NFData a => NFData (Named a) where rnf = genericRnf
 
 data Schema n = Forall [TParam n] [Prop n] (Type n) (Maybe Range)
                 deriving (Eq,Show,Generic)
 
-instance NFData name => NFData (Schema name)
+instance NFData name => NFData (Schema name) where rnf = genericRnf
 
 data Kind     = KNum | KType
                 deriving (Eq,Show,Generic)
 
-instance NFData Kind
+instance NFData Kind where rnf = genericRnf
 
 data TParam n = TParam { tpName  :: n
                        , tpKind  :: Maybe Kind
@@ -392,8 +390,7 @@ data TParam n = TParam { tpName  :: n
                        }
                 deriving (Eq,Show,Generic)
 
-instance NFData name => NFData (TParam name)
-
+instance NFData name => NFData (TParam name) where rnf = genericRnf
 
 data Type n   = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
               | TSeq (Type n) (Type n)  -- ^ @[8] a@
@@ -411,7 +408,7 @@ data Type n   = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
               | TInfix (Type n) (Located n) Fixity (Type n) -- ^ @ ty + ty @
                 deriving (Eq,Show,Generic)
 
-instance NFData name => NFData (Type name)
+instance NFData name => NFData (Type name) where rnf = genericRnf
 
 data Prop n   = CFin (Type n)             -- ^ @ fin x   @
               | CEqual (Type n) (Type n)  -- ^ @ x == 10 @
@@ -423,7 +420,7 @@ data Prop n   = CFin (Type n)             -- ^ @ fin x   @
               | CType (Type n)            -- ^ After parsing
                 deriving (Eq,Show,Generic)
 
-instance NFData name => NFData (Prop name)
+instance NFData name => NFData (Prop name) where rnf = genericRnf
 
 --------------------------------------------------------------------------------
 -- Note: When an explicit location is missing, we could use the sub-components

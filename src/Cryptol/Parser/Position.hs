@@ -16,26 +16,26 @@ import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 import Cryptol.Utils.PP
 
 data Located a  = Located { srcRange :: !Range, thing :: a }
                   deriving (Eq,Show,Generic)
 
-instance NFData a => NFData (Located a)
+instance NFData a => NFData (Located a) where rnf = genericRnf
 
 data Position   = Position { line :: !Int, col :: !Int }
                   deriving (Eq,Ord,Show,Generic)
 
-instance NFData Position
+instance NFData Position where rnf = genericRnf
 
 data Range      = Range { from   :: !Position
                         , to     :: !Position
                         , source :: FilePath }
                   deriving (Eq,Show,Generic)
 
-instance NFData Range
+instance NFData Range where rnf = genericRnf
 
 -- | An empty range.
 --

@@ -35,7 +35,7 @@ import qualified Control.Exception as X
 import           System.FilePath (takeDirectory,(</>),isAbsolute)
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 import System.Directory (getCurrentDirectory)
 import System.FilePath (isRelative, normalise)
@@ -58,7 +58,7 @@ data IncludeError
   | IncludeCycle [Located FilePath]
     deriving (Show,Generic)
 
-instance NFData IncludeError
+instance NFData IncludeError where rnf = genericRnf
 
 ppIncludeError :: IncludeError -> Doc
 ppIncludeError ie = case ie of

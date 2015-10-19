@@ -28,7 +28,7 @@ import           Cryptol.Utils.Ident (ModName)
 import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -41,7 +41,7 @@ data Iface = Iface
   , ifPrivate :: IfaceDecls
   } deriving (Show, Generic)
 
-instance NFData Iface
+instance NFData Iface where rnf = genericRnf
 
 data IfaceDecls = IfaceDecls
   { ifTySyns   :: Map.Map Name IfaceTySyn
@@ -49,7 +49,7 @@ data IfaceDecls = IfaceDecls
   , ifDecls    :: Map.Map Name IfaceDecl
   } deriving (Show, Generic)
 
-instance NFData IfaceDecls
+instance NFData IfaceDecls where rnf = genericRnf
 
 instance Monoid IfaceDecls where
   mempty      = IfaceDecls Map.empty Map.empty Map.empty
@@ -80,7 +80,7 @@ data IfaceDecl = IfaceDecl
   , ifDeclDoc     :: Maybe String
   } deriving (Show, Generic)
 
-instance NFData IfaceDecl
+instance NFData IfaceDecl where rnf = genericRnf
 
 mkIfaceDecl :: Decl -> IfaceDecl
 mkIfaceDecl d = IfaceDecl

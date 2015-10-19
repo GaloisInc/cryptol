@@ -18,7 +18,7 @@ import           Cryptol.Utils.PP
 import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 -- | Built-in types.
 data TFun
@@ -42,7 +42,7 @@ data TFun
 
     deriving (Show, Eq, Ord, Bounded, Enum, Generic)
 
-instance NFData TFun
+instance NFData TFun where rnf = genericRnf
 
 tBinOpPrec :: Map.Map TFun (Assoc,Int)
 tBinOpPrec  = mkMap t_table

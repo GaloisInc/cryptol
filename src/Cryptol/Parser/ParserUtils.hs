@@ -28,7 +28,7 @@ import qualified Data.Text.Lazy as T
 
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -68,7 +68,7 @@ data ParseError = HappyError FilePath Position (Maybe Token)
                 | HappyErrorMsg Range String
                   deriving (Show, Generic)
 
-instance NFData ParseError
+instance NFData ParseError where rnf = genericRnf
 
 newtype S = S [Located Token]
 

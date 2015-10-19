@@ -34,7 +34,7 @@ import Data.Maybe (isJust)
 import MonadLib
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -46,7 +46,7 @@ data ImportSource
   | FromImport (Located P.Import)
     deriving (Show,Generic)
 
-instance NFData ImportSource
+instance NFData ImportSource where rnf = genericRnf
 
 instance Eq ImportSource where
   (==) = (==) `on` importedModule
@@ -210,7 +210,7 @@ data ModuleWarning
   | RenamerWarnings [RenamerWarning]
     deriving (Show,Generic)
 
-instance NFData ModuleWarning
+instance NFData ModuleWarning where rnf = genericRnf
 
 instance PP ModuleWarning where
   ppPrec _ w = case w of

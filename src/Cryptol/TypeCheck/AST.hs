@@ -37,7 +37,7 @@ import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 import           Data.Map    (Map)
 import qualified Data.Map as Map
@@ -54,7 +54,7 @@ data Module = Module { mName     :: !ModName
                      , mDecls    :: [DeclGroup]
                      } deriving (Show, Generic)
 
-instance NFData Module
+instance NFData Module where rnf = genericRnf
 
 -- | Kinds, classify types.
 data Kind   = KType
@@ -64,14 +64,14 @@ data Kind   = KType
               deriving (Eq, Show, Generic)
 infixr 5 :->
 
-instance NFData Kind
+instance NFData Kind where rnf = genericRnf
 
 
 -- | The types of polymorphic values.
 data Schema = Forall { sVars :: [TParam], sProps :: [Prop], sType :: Type }
               deriving (Eq, Show, Generic)
 
-instance NFData Schema
+instance NFData Schema where rnf = genericRnf
 
 -- | Type synonym.
 data TySyn  = TySyn { tsName        :: Name       -- ^ Name
@@ -81,7 +81,7 @@ data TySyn  = TySyn { tsName        :: Name       -- ^ Name
                     }
               deriving (Eq, Show, Generic)
 
-instance NFData TySyn
+instance NFData TySyn where rnf = genericRnf
 
 -- | Named records
 data Newtype  = Newtype { ntName   :: Name
@@ -90,7 +90,7 @@ data Newtype  = Newtype { ntName   :: Name
                         , ntFields :: [(Ident,Type)]
                         } deriving (Show, Generic)
 
-instance NFData Newtype
+instance NFData Newtype where rnf = genericRnf
 
 -- | Type parameters.
 data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
@@ -99,7 +99,7 @@ data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
                      }
               deriving (Show, Generic)
 
-instance NFData TParam
+instance NFData TParam where rnf = genericRnf
 
 instance Eq TParam where
   x == y = tpUnique x == tpUnique y
@@ -130,7 +130,7 @@ data Type   = TCon TCon [Type]
 
               deriving (Show,Eq,Ord,Generic)
 
-instance NFData Type
+instance NFData Type where rnf = genericRnf
 
 -- | The type is supposed to be of kind `KProp`
 type Prop   = Type
@@ -148,13 +148,13 @@ data TVar   = TVFree !Int Kind (Set TVar) Doc
             | TVBound !Int Kind
               deriving (Show,Generic)
 
-instance NFData TVar
+instance NFData TVar where rnf = genericRnf
 
 -- | Type constants.
 data TCon   = TC TC | PC PC | TF TFun
               deriving (Show,Eq,Ord,Generic)
 
-instance NFData TCon
+instance NFData TCon where rnf = genericRnf
 
 -- | Built-in type constants.
 
@@ -170,7 +170,7 @@ data PC     = PEqual        -- ^ @_ == _@
             | PCmp          -- ^ @Cmp _@
               deriving (Show,Eq,Ord,Generic)
 
-instance NFData PC
+instance NFData PC where rnf = genericRnf
 
 -- | 1-1 constants.
 data TC     = TCNum Integer            -- ^ Numbers
@@ -182,12 +182,12 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCNewtype UserTC         -- ^ user-defined, @T@
               deriving (Show,Eq,Ord,Generic)
 
-instance NFData TC
+instance NFData TC where rnf = genericRnf
 
 data UserTC = UserTC Name Kind
               deriving (Show,Generic)
 
-instance NFData UserTC
+instance NFData UserTC where rnf = genericRnf
 
 instance Eq UserTC where
   UserTC x _ == UserTC y _ = x == y
@@ -266,7 +266,7 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
 
               deriving (Show, Generic)
 
-instance NFData Expr
+instance NFData Expr where rnf = genericRnf
 
 
 data Match  = From Name Type Expr -- ^ do we need this type?  it seems like it
@@ -274,13 +274,13 @@ data Match  = From Name Type Expr -- ^ do we need this type?  it seems like it
             | Let Decl
               deriving (Show, Generic)
 
-instance NFData Match
+instance NFData Match where rnf = genericRnf
 
 data DeclGroup  = Recursive   [Decl]    -- ^ Mutually recursive declarations
                 | NonRecursive Decl     -- ^ Non-recursive declaration
                   deriving (Show,Generic)
 
-instance NFData DeclGroup
+instance NFData DeclGroup where rnf = genericRnf
 
 groupDecls :: DeclGroup -> [Decl]
 groupDecls dg = case dg of
@@ -296,13 +296,13 @@ data Decl       = Decl { dName        :: !Name
                        , dDoc         :: Maybe String
                        } deriving (Show,Generic)
 
-instance NFData Decl
+instance NFData Decl where rnf = genericRnf
 
 data DeclDef    = DPrim
                 | DExpr Expr
                   deriving (Show,Generic)
 
-instance NFData DeclDef
+instance NFData DeclDef where rnf = genericRnf
 
 --------------------------------------------------------------------------------
 

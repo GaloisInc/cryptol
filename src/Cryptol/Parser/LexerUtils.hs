@@ -24,7 +24,7 @@ import qualified Data.Text.Lazy as T
 import           Data.Word(Word8)
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 data Config = Config
   { cfgSource      :: !FilePath     -- ^ File that we are working on
@@ -357,18 +357,18 @@ virt cfg pos x = Located { srcRange = Range
 data Token    = Token { tokenType :: TokenT, tokenText :: Text }
                 deriving (Show, Generic)
 
-instance NFData Token
+instance NFData Token where rnf = genericRnf
 
 -- | Virtual tokens, inserted by layout processing.
 data TokenV   = VCurlyL| VCurlyR | VSemi
                 deriving (Eq,Show,Generic)
 
-instance NFData TokenV
+instance NFData TokenV where rnf = genericRnf
 
 data TokenW   = BlockComment | LineComment | Space | DocStr
                 deriving (Eq,Show,Generic)
 
-instance NFData TokenW
+instance NFData TokenW where rnf = genericRnf
 
 data TokenKW  = KW_Arith
               | KW_Bit
@@ -404,7 +404,7 @@ data TokenKW  = KW_Arith
               | KW_primitive
                 deriving (Eq,Show,Generic)
 
-instance NFData TokenKW
+instance NFData TokenKW where rnf = genericRnf
 
 -- | The named operators are a special case for parsing types, and 'Other' is
 -- used for all other cases that lexed as an operator.
@@ -414,7 +414,7 @@ data TokenOp  = Plus | Minus | Mul | Div | Exp | Mod
               | Other [String] String
                 deriving (Eq,Show,Generic)
 
-instance NFData TokenOp
+instance NFData TokenOp where rnf = genericRnf
 
 data TokenSym = Bar
               | ArrL | ArrR | FatArrR
@@ -434,7 +434,7 @@ data TokenSym = Bar
               | Underscore
                 deriving (Eq,Show,Generic)
 
-instance NFData TokenSym
+instance NFData TokenSym where rnf = genericRnf
 
 data TokenErr = UnterminatedComment
               | UnterminatedString
@@ -444,7 +444,7 @@ data TokenErr = UnterminatedComment
               | LexicalError
                 deriving (Eq,Show,Generic)
 
-instance NFData TokenErr
+instance NFData TokenErr where rnf = genericRnf
 
 data TokenT   = Num Integer Int Int   -- ^ value, base, number of digits
               | ChrLit  Char          -- ^ character literal
@@ -459,7 +459,7 @@ data TokenT   = Num Integer Int Int   -- ^ value, base, number of digits
               | EOF
                 deriving (Eq,Show,Generic)
 
-instance NFData TokenT
+instance NFData TokenT where rnf = genericRnf
 
 instance PP Token where
   ppPrec _ (Token _ s) = text (T.unpack s)

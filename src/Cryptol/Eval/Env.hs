@@ -20,7 +20,7 @@ import Cryptol.Utils.PP
 import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -34,7 +34,7 @@ data EvalEnv = EvalEnv
   , envTypes      :: Map.Map TVar TValue
   } deriving (Generic)
 
-instance NFData EvalEnv
+instance NFData EvalEnv where rnf = genericRnf
 
 instance Monoid EvalEnv where
   mempty = EvalEnv

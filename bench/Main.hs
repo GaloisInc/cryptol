@@ -9,6 +9,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
+import Data.Monoid
+
 import qualified Data.Text.Lazy     as T
 import qualified Data.Text.Lazy.IO  as T
 
@@ -48,15 +50,10 @@ main = defaultMain [
       , ceval "SHA512" "bench/data/SHA512.cry" "testVector1 ()"
       ]
   , bgroup "sym_eval" [
-        seval False "AES" "bench/data/AES.cry" "aesEncrypt (zero, zero)"
-      , seval False "ZUC" "bench/data/ZUC.cry"
+        seval "AES" "bench/data/AES.cry" "aesEncrypt (zero, zero)"
+      , seval "ZUC" "bench/data/ZUC.cry"
           "ZUC_isResistantToCollisionAttack"
-      , seval False "SHA512" "bench/data/SHA512.cry" "testVector1 ()"
-      ]
-  , bgroup "sym_eval_ite" [
-        seval True "aesEncrypt" "bench/data/AES.cry" "aesEncrypt (zero, zero)"
-      , seval True "ZUC" "bench/data/ZUC.cry" "ZUC_isResistantToCollisionAttack"
-      , seval True "SHA512" "bench/data/SHA512.cry" "testVector1 ()"
+      , seval "SHA512" "bench/data/SHA512.cry" "testVector1 ()"
       ]
   ]
 
@@ -114,8 +111,8 @@ ceval name path expr =
   in env setup $ \ ~(texpr, menv) ->
     bench name $ nfIO $ M.runModuleM menv $ M.evalExpr texpr
 
-seval :: Bool-> String -> FilePath -> T.Text -> Benchmark
-seval useIte name path expr =
+seval :: String -> FilePath -> T.Text -> Benchmark
+seval name path expr =
   let setup = do
         menv <- M.initialModuleEnv
         (Right (texpr, menv'), _) <- M.runModuleM menv $ do
@@ -127,5 +124,5 @@ seval useIte name path expr =
         return (texpr, menv')
   in env setup $ \ ~(texpr, menv) ->
     bench name $ flip nf texpr $ \texpr' ->
-      let senv = S.evalDecls (S.emptyEnv useIte) (S.allDeclGroups menv)
+      let senv = S.evalDecls mempty (S.allDeclGroups menv)
       in S.evalExpr senv texpr'

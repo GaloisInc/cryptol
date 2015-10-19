@@ -35,7 +35,7 @@ import qualified Control.Applicative as A
 import           Control.Monad.Fix(MonadFix(..))
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
+import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -67,7 +67,7 @@ data NameSeeds = NameSeeds
   , seedGoal    :: !Int
   } deriving (Show, Generic)
 
-instance NFData NameSeeds
+instance NFData NameSeeds where rnf = genericRnf
 
 -- | The initial seeds, used when checking a fresh program.
 nameSeeds :: NameSeeds
