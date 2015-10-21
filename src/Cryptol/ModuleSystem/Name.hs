@@ -40,7 +40,6 @@ import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
 
-import qualified Control.Applicative as A
 import           Control.DeepSeq.Generics
 import           Control.Monad.Fix (MonadFix(mfix))
 import qualified Data.Map as Map
@@ -48,6 +47,8 @@ import qualified Data.Monoid as M
 import           Data.Ord (comparing)
 import           GHC.Generics (Generic)
 import           MonadLib
+import           Prelude ()
+import           Prelude.Compat
 
 
 -- Names -----------------------------------------------------------------------
@@ -242,7 +243,7 @@ instance MonadFix m => MonadFix (SupplyT m) where
 
 
 newtype SupplyM a = SupplyM (SupplyT Id a)
-                    deriving (Functor,A.Applicative,Monad,MonadFix)
+                    deriving (Functor,Applicative,Monad,MonadFix)
 
 runSupplyM :: Supply -> SupplyM a -> (a,Supply)
 runSupplyM s m = runM m s
