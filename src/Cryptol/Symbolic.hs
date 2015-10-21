@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 -- |
 -- Module      :  $Header$
 -- Copyright   :  (c) 2013-2015 Galois, Inc.
@@ -8,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -99,6 +99,9 @@ data ProverResult = AllSatResult [SatResult] -- LAZY
                   | EmptyResult
                   | ProverError  String
 
+satSMTResults :: SBV.SatResult -> [SBV.SMTResult]
+satSMTResults (SBV.SatResult r) = [r]
+
 allSatSMTResults :: SBV.AllSatResult -> [SBV.SMTResult]
 allSatSMTResults (SBV.AllSatResult (_, rs)) = rs
 
@@ -124,6 +127,20 @@ satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
   let provers' = [ p { SBV.timing = pcVerbose, SBV.verbose = pcVerbose } | p <- provers ]
   let tyFn = if isSat then existsFinType else forallFinType
   let runProver fn tag e = do
+        case provers of
+          [prover] -> do
+            when pcVerbose $ M.io $
+              putStrLn $ "Trying proof with " ++ show prover
+            res <- M.io (fn prover e)
+            when pcVerbose $ M.io $
+              putStrLn $ "Got result from " ++ show prover
+            return (tag res)
+          _ ->
+            return [ SBV.ProofError
+                       prover
+                       [":sat with option prover=any requires option satNum=1"]
+                   | prover <- provers ]
+      runProvers fn tag e = do
         when pcVerbose $ M.io $
           putStrLn $ "Trying proof with " ++
                      intercalate ", " (map show provers)
@@ -131,8 +148,11 @@ satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
         when pcVerbose $ M.io $
           putStrLn $ "Got result from " ++ show firstProver
         return (tag res)
-  let runFn | isSat     = runProver SBV.allSatWithAny allSatSMTResults
-            | otherwise = runProver SBV.proveWithAny  thmSMTResults
+  let runFn = case pcQueryType of
+        ProveQuery -> runProvers SBV.proveWithAny thmSMTResults
+        SatQuery sn -> case sn of
+          SomeSat 1 -> runProvers SBV.satWithAny satSMTResults
+          _         -> runProver SBV.allSatWith allSatSMTResults
   case predArgTypes pcSchema of
     Left msg -> return (ProverError msg)
     Right ts -> do when pcVerbose $ M.io $ putStrLn "Simulating..."
@@ -188,7 +208,7 @@ satProveOffline ProverCommand {..} =
         do when pcVerbose $ putStrLn "Simulating..."
            let env = evalDecls mempty extDgs
            let v = evalExpr env pcExpr
-           smtlib <- SBV.compileToSMTLib True isSat $ do
+           smtlib <- SBV.compileToSMTLib SBV.SMTLib2 isSat $ do
              args <- mapM tyFn ts
              b <- return $! fromVBit (foldl fromVFun v args)
              return b
