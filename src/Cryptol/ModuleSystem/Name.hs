@@ -306,7 +306,9 @@ mkParameter nIdent nLoc s =
 -- | A mapping from an identifier defined in some module to its real name.
 data PrimMap = PrimMap { primDecls :: Map.Map Ident Name
                        , primTypes :: Map.Map Ident Name
-                       } deriving (Show)
+                       } deriving (Show, Generic)
+
+instance NFData PrimMap where rnf = genericRnf
 
 lookupPrimDecl, lookupPrimType :: Ident -> PrimMap -> Name
 

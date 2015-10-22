@@ -9,14 +9,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Data.Monoid
-
 import qualified Data.Text.Lazy     as T
 import qualified Data.Text.Lazy.IO  as T
 
-import qualified Cryptol.ModuleSystem.Base  as M
-import qualified Cryptol.ModuleSystem.Env   as M
-import qualified Cryptol.ModuleSystem.Monad as M
+import qualified Cryptol.ModuleSystem.Base      as M
+import qualified Cryptol.ModuleSystem.Env       as M
+import qualified Cryptol.ModuleSystem.Monad     as M
+import qualified Cryptol.ModuleSystem.NamingEnv as M
 
 import qualified Cryptol.Parser           as P
 import qualified Cryptol.Parser.AST       as P
@@ -26,6 +25,8 @@ import qualified Cryptol.Symbolic as S
 
 import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
+
+import qualified Cryptol.Utils.Ident as I
 
 import Criterion.Main
 
@@ -82,20 +83,26 @@ tc name path =
                 }
             Right pm = P.parseModule cfg bytes
         menv <- M.initialModuleEnv
-        (Right (scm, menv'), _) <- M.runModuleM menv $ do
+        (Right ((prims, scm, tcEnv), menv'), _) <- M.runModuleM menv $ do
           -- code from `loadModule` and `checkModule` in
           -- `Cryptol.ModuleSystem.Base`
           let pm' = M.addPrelude pm
           M.loadDeps pm'
           Right nim <- M.io (P.removeIncludesModule path pm')
           npm <- M.noPat nim
-          M.renameModule npm
-        return (scm, menv')
-  in env setup $ \ ~(scm, menv) ->
+          (tcEnv,declsEnv,scm) <- M.renameModule npm
+          prims <- if P.thing (P.mName pm) == I.preludeName
+                   then return (M.toPrimMap declsEnv)
+                   else M.getPrimMap
+          return (prims, scm, tcEnv)
+        return (prims, scm, tcEnv, menv')
+  in env setup $ \ ~(prims, scm, tcEnv, menv) ->
     bench name $ nfIO $ M.runModuleM menv $ do
       let act = M.TCAction { M.tcAction = T.tcModule
-                           , M.tcLinter = M.moduleLinter (P.thing (P.mName scm)) }
-      M.typecheck act scm =<< M.importIfacesTc (map P.thing (P.mImports scm))
+                           , M.tcLinter = M.moduleLinter (P.thing (P.mName scm))
+                           , M.tcPrims  = prims
+                           }
+      M.typecheck act scm tcEnv
 
 ceval :: String -> FilePath -> T.Text -> Benchmark
 ceval name path expr =
