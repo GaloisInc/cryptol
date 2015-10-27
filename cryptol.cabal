@@ -221,7 +221,7 @@ executable cryptol-server
   if os(linux) && flag(static)
       ld-options:      -static -pthread
   if flag(server)
-      build-depends:   aeson >= 0.9
+      build-depends:   aeson >= 0.8
                      , aeson-pretty >= 0.7
                      , base
                      , base-compat
