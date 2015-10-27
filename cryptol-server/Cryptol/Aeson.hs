@@ -112,8 +112,6 @@ instance FromJSON E.BV where
     bv <- o .: "bitvector"
     E.BV <$> bv .: "width" <*> bv .: "value"
 
--- $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''REPLException)
--- $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''NameEnv)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''NameInfo)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''E.EvalError)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''P.ParseError)
@@ -145,10 +143,7 @@ $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''T.Select
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } { fieldLabelModifier = drop 1 } ''T.Fixity)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''T.Pragma)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''Assoc)
--- $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''QName)
--- $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''ModName)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''Name)
--- $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''Pass)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''IfaceDecl)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''T.Newtype)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''T.TySyn)
