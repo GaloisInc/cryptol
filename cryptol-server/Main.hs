@@ -281,7 +281,7 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
               loadCmd fp
               reply rep RROk
             RCDecls -> do
-              (decls, _names) <- getFocusedEnv
+              (decls, _namingEnv, _nameDisp) <- getFocusedEnv
               reply rep (RRDecls decls)
             RCUnknownCmd cmd -> reply rep (RRUnknownCmd cmd)
             RCExit -> do
