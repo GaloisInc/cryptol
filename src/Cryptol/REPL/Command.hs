@@ -546,7 +546,8 @@ readFileCmd fp = do
   case bytes of
       Nothing -> return ()
       Just bs ->
-        do let expr = T.eString (map (toEnum . fromIntegral) (BS.unpack bs))
+        do pm <- getPrimMap
+           let expr = T.eString pm (map (toEnum . fromIntegral) (BS.unpack bs))
                ty   = T.tString (BS.length bs)
            bindItVariable ty expr
 
