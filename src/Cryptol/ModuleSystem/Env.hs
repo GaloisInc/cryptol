@@ -27,6 +27,7 @@ import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP (NameDisp)
 
 import Control.Monad (guard)
+import qualified Control.Exception as X
 import Data.Foldable (fold)
 import Data.Function (on)
 import qualified Data.Map as Map
@@ -82,7 +83,11 @@ initialModuleEnv  = do
 #endif
   binDir <- takeDirectory `fmap` getExecutablePath
   let instDir = normalise . joinPath . init . splitPath $ binDir
-  userDir <- getAppUserDataDirectory "cryptol"
+  -- looking up this directory can fail if no HOME is set, as in some
+  -- CI settings
+  let handle :: X.IOException -> IO String
+      handle _e = return ""
+  userDir <- X.catch (getAppUserDataDirectory "cryptol") handle
   return ModuleEnv
     { meLoadedModules = mempty
     , meNameSeeds     = T.nameSeeds

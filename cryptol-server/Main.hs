@@ -58,6 +58,7 @@ data RCommand
   | RCExhaust Text
   | RCProve Text
   | RCSat Text
+  | RCLoadPrelude
   | RCLoadModule FilePath
   | RCDecls
   | RCUnknownCmd Text
@@ -67,18 +68,19 @@ instance FromJSON RCommand where
   parseJSON = withObject "RCommand" $ \o -> do
     tag <- o .: "tag"
     flip (withText "tag") tag $ \case
-      "evalExpr"   -> RCEvalExpr              <$> o .: "expr"
-      "applyFun"   -> RCApplyFun              <$> o .: "handle" <*> o .: "arg"
-      "typeOf"     -> RCTypeOf                <$> o .: "expr"
-      "setOpt"     -> RCSetOpt                <$> o .: "key" <*> o .: "value"
-      "check"      -> RCCheck                 <$> o .: "expr"
-      "exhaust"    -> RCExhaust               <$> o .: "expr"
-      "prove"      -> RCProve                 <$> o .: "expr"
-      "sat"        -> RCSat                   <$> o .: "expr"
-      "loadModule" -> RCLoadModule . T.unpack <$> o .: "filePath"
-      "browse"     -> return RCDecls
-      "exit"       -> return RCExit
-      unknown      -> return (RCUnknownCmd unknown)
+      "evalExpr"    -> RCEvalExpr              <$> o .: "expr"
+      "applyFun"    -> RCApplyFun              <$> o .: "handle" <*> o .: "arg"
+      "typeOf"      -> RCTypeOf                <$> o .: "expr"
+      "setOpt"      -> RCSetOpt                <$> o .: "key" <*> o .: "value"
+      "check"       -> RCCheck                 <$> o .: "expr"
+      "exhaust"     -> RCExhaust               <$> o .: "expr"
+      "prove"       -> RCProve                 <$> o .: "expr"
+      "sat"         -> RCSat                   <$> o .: "expr"
+      "loadPrelude" -> return RCLoadPrelude
+      "loadModule"  -> RCLoadModule . T.unpack <$> o .: "filePath"
+      "browse"      -> return RCDecls
+      "exit"        -> return RCExit
+      unknown       -> return (RCUnknownCmd unknown)
 
 newtype FunHandle = FH Int
   deriving (Eq, Ord, Enum, Bounded, Show)
@@ -214,7 +216,6 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
 #else
       where path' = splitSearchPath path
 #endif
-  loadPrelude
   funHandles <- io $ newIORef (Map.empty, minBound :: FunHandle)
   let handle err = reply rep (RRInteractiveError err (show (pp err)))
       loop = do
@@ -241,7 +242,16 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
               (m, _) <- io $ readIORef funHandles
               case Map.lookup fh m of
                 Nothing -> reply rep (RRBadMessage "invalid function handle" (show fh))
-                Just f -> reply rep (RRValue (f arg))
+                Just f -> do
+                  case f arg of
+                    E.VFun g -> do
+                      gh <- io $ atomicModifyIORef' funHandles $ \(m', gh) ->
+                        let m'' = Map.insert gh g m'
+                            gh' = succ gh
+                        in ((m'', gh'), gh)
+                      -- TODO: bookkeeping to track the type of this value
+                      reply rep (RRFunValue gh T.tZero)
+                    val -> reply rep (RRValue val)
             RCTypeOf txt -> do
               expr <- replParseExpr (T.unpack txt)
               (_expr, _def, sch) <- replCheckExpr expr
@@ -277,6 +287,9 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
                   reply rep (RRProverError err)
                 _ ->
                   reply rep (RRProverError "unexpected prover result")
+            RCLoadPrelude -> do
+              loadPrelude
+              reply rep RROk
             RCLoadModule fp -> do
               loadCmd fp
               reply rep RROk
