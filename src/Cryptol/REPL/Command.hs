@@ -189,9 +189,9 @@ commandList  =
     "set the current working directory"
   , CommandDescr [ ":m", ":module" ] (FilenameArg moduleCmd)
     "load a module"
-  , CommandDescr [ ":w", ":write" ] (FileExprArg writeFileCmd)
+  , CommandDescr [ ":w", ":writeByteArray" ] (FileExprArg writeFileCmd)
     "write data of type `fin n => [n][8]` to a file"
-  , CommandDescr [ ":read" ] (FilenameArg readFileCmd)
+  , CommandDescr [ ":readByteArray" ] (FilenameArg readFileCmd)
     "read data from a file as type `fin n => [n][8]`, binding the value to variable `it`"
   ]
 
