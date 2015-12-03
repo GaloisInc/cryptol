@@ -20,6 +20,8 @@ module Main where
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Control
+import qualified Control.Exception as X
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import qualified Data.ByteString.Char8 as BS
@@ -27,6 +29,8 @@ import qualified Data.ByteString.Lazy.Char8 as BSL
 import Data.Char
 import Data.IORef
 import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Word
@@ -108,6 +112,7 @@ data RResult
   | RRUnknownCmd Text
   | RRBadMessage BS.ByteString String
   | RROk
+  | RRInterrupted
 
 instance ToJSON RResult where
   toJSON = \case
@@ -135,31 +140,48 @@ instance ToJSON RResult where
       [ "tag" .= "unknownCommand", "command" .= txt ]
     RRBadMessage msg err -> object
       [ "tag" .= "badMessage", "message" .= BS.unpack msg, "error" .= err ]
-    RROk -> object [ "tag" .= "ok" ]
+    RROk -> object
+      [ "tag" .= "ok" ]
+    RRInterrupted -> object
+      [ "tag" .= "interrupted" ]
 
 data ControlMsg
   = CMConnect
+    -- ^ Request a new Cryptol context and connection
+  | CMInterrupt
+    -- ^ Request an interrupt of all current Cryptol contexts
   | CMExit
+    -- ^ Request that the entire server shut down
   | CMUnknown Text
+    -- ^ Unknown message
 
 instance FromJSON ControlMsg where
   parseJSON = withObject "ControlMsg" $ \o -> do
     tag <- o .: "tag"
     flip (withText "tag") tag $ \case
       "connect" -> return CMConnect
+      "interrupt" -> return CMInterrupt
       "exit" -> return CMExit
       other -> return $ CMUnknown other
 
 data ControlReply
   = CRConnect Word16
-  | CROk
+    -- ^ Return the port for a new connection
+  | CRInterrupted
+    -- ^ Acknowledge receipt of an interrupt command
+  | CRExiting
+    -- ^ Acknowledge receipt of an exit command
   | CRBadMessage BS.ByteString String
+    -- ^ Acknowledge receipt of an ill-formed control message
 
 instance ToJSON ControlReply where
   toJSON = \case
     CRConnect port -> object
       [ "tag" .= "connect", "port" .= port ]
-    CROk -> object [ "tag" .= "ok" ]
+    CRInterrupted -> object
+      [ "tag" .= "interrupted" ]
+    CRExiting -> object
+      [ "tag" .= "exiting" ]
     CRBadMessage msg err -> object
       [ "tag" .= "badMessage", "message" .= BS.unpack msg, "error" .= err ]
 
@@ -170,6 +192,7 @@ server port =
   let addr = "tcp://127.0.0.1:" ++ show port
   putStrLn ("[cryptol-server] coming online at " ++ addr)
   bind rep addr
+  workers <- newIORef Set.empty
   let loop = do
         msg <- receive rep
         putStrLn "[cryptol-server] received message:"
@@ -185,11 +208,18 @@ server port =
             newAddr <- lastEndpoint newRep
             let portStr = reverse . takeWhile isDigit . reverse $ newAddr
             putStrLn ("[cryptol-server] starting worker on interface " ++ newAddr)
-            void . forkIO $ runRepl newRep
+            tid <- forkFinally (runRepl newRep) (removeCurrentWorker workers)
+            addNewWorker workers tid
             reply rep $ CRConnect (read portStr)
+          Right CMInterrupt -> do
+            s <- readIORef workers
+            -- TODO: only throw to the relevant worker; we'll need
+            -- port number from request
+            forM_ s $ \tid -> throwTo tid X.UserInterrupt
+            reply rep $ CRInterrupted
           Right CMExit -> do
             putStrLn "[cryptol-server] shutting down"
-            reply rep $ CROk
+            reply rep $ CRExiting
             exitSuccess
           Right (CMUnknown cmd) -> do
             putStrLn ("[cryptol-server] unknown control command: " ++ T.unpack cmd)
@@ -203,6 +233,15 @@ reply rep msg = liftIO $ do
   putStrLn "[cryptol-server] sending response:"
   BS.putStrLn bmsg
   send rep [] bmsg
+
+addNewWorker :: IORef (Set ThreadId) -> ThreadId -> IO ()
+addNewWorker workers tid =
+  atomicModifyIORef workers $ \s -> (Set.insert tid s, ())
+
+removeCurrentWorker :: IORef (Set ThreadId) -> a -> IO ()
+removeCurrentWorker workers _result = do
+  tid <- myThreadId
+  atomicModifyIORef workers $ \s -> (Set.delete tid s, ())
 
 runRepl :: Socket Rep -> IO ()
 runRepl rep = runREPL False $ do -- TODO: batch mode?
@@ -218,7 +257,9 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
 #endif
   funHandles <- io $ newIORef (Map.empty, minBound :: FunHandle)
   let handle err = reply rep (RRInteractiveError err (show (pp err)))
-      loop = do
+      handleAsync :: X.AsyncException -> IO ()
+      handleAsync _int = reply rep RROk
+      loop = liftBaseWith $ \run -> X.handle handleAsync $ run $ do
         msg <- io $ receive rep
         io $ putStrLn "[cryptol-worker] received message:"
         case decodeStrict msg of
