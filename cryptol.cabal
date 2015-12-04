@@ -216,22 +216,24 @@ executable cryptol-server
   ghc-prof-options:    -auto-all -prof -rtsopts
   if os(linux) && flag(static)
       ld-options:      -static -pthread
---  if flag(server)
-  build-depends:   aeson >= 0.10
-                 , aeson-pretty >= 0.7
-                 , base
-                 , base-compat
-                 , bytestring >= 0.10
-                 , containers
-                 , cryptol
-                 , filepath
-                 , monad-control
-                 , text
-                 , transformers
-                 , unordered-containers >= 0.2
-                 , zeromq4-haskell >= 0.6
---  else
---      buildable: False
+  if flag(server)
+     build-depends: aeson >= 0.10
+                  , aeson-pretty >= 0.7
+                  , base
+                  , base-compat
+                  , bytestring >= 0.10
+                  , containers
+                  , cryptol
+                  , filepath
+                  , monad-control
+                  , optparse-applicative
+                  , text
+                  , transformers
+                  , unix
+                  , unordered-containers >= 0.2
+                  , zeromq4-haskell >= 0.6
+  else
+      buildable: False
 
 benchmark cryptol-bench
   type:                exitcode-stdio-1.0

@@ -14,6 +14,7 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wall -fno-warn-type-defaults #-}
 module Main where
 
@@ -28,15 +29,16 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL
 import Data.Char
 import Data.IORef
+import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Set (Set)
-import qualified Data.Set as Set
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Word
+import Options.Applicative
 import System.Environment
 import System.Exit
 import System.FilePath
+import System.Posix.Signals
 import System.ZMQ4
 import Text.Read
 
@@ -148,7 +150,7 @@ instance ToJSON RResult where
 data ControlMsg
   = CMConnect
     -- ^ Request a new Cryptol context and connection
-  | CMInterrupt
+  | CMInterrupt Word16
     -- ^ Request an interrupt of all current Cryptol contexts
   | CMExit
     -- ^ Request that the entire server shut down
@@ -160,7 +162,7 @@ instance FromJSON ControlMsg where
     tag <- o .: "tag"
     flip (withText "tag") tag $ \case
       "connect" -> return CMConnect
-      "interrupt" -> return CMInterrupt
+      "interrupt" -> CMInterrupt <$> o .: "port"
       "exit" -> return CMExit
       other -> return $ CMUnknown other
 
@@ -192,7 +194,7 @@ server port =
   let addr = "tcp://127.0.0.1:" ++ show port
   putStrLn ("[cryptol-server] coming online at " ++ addr)
   bind rep addr
-  workers <- newIORef Set.empty
+  workers <- newIORef Map.empty
   let loop = do
         msg <- receive rep
         putStrLn "[cryptol-server] received message:"
@@ -207,16 +209,18 @@ server port =
             bind newRep "tcp://127.0.0.1:*"
             newAddr <- lastEndpoint newRep
             let portStr = reverse . takeWhile isDigit . reverse $ newAddr
+                workerPort = read portStr
             putStrLn ("[cryptol-server] starting worker on interface " ++ newAddr)
-            tid <- forkFinally (runRepl newRep) (removeCurrentWorker workers)
-            addNewWorker workers tid
-            reply rep $ CRConnect (read portStr)
-          Right CMInterrupt -> do
+            tid <- forkFinally (runRepl newRep) (removeWorker workers port)
+            addNewWorker workers workerPort tid
+            reply rep $ CRConnect workerPort
+          Right (CMInterrupt port') -> do
             s <- readIORef workers
-            -- TODO: only throw to the relevant worker; we'll need
-            -- port number from request
-            forM_ s $ \tid -> throwTo tid X.UserInterrupt
-            reply rep $ CRInterrupted
+            case Map.lookup port' s of
+              Nothing -> reply rep $ CRBadMessage msg "invalid worker port"
+              Just tid -> do
+                throwTo tid X.UserInterrupt
+                reply rep $ CRInterrupted
           Right CMExit -> do
             putStrLn "[cryptol-server] shutting down"
             reply rep $ CRExiting
@@ -234,14 +238,13 @@ reply rep msg = liftIO $ do
   BS.putStrLn bmsg
   send rep [] bmsg
 
-addNewWorker :: IORef (Set ThreadId) -> ThreadId -> IO ()
-addNewWorker workers tid =
-  atomicModifyIORef workers $ \s -> (Set.insert tid s, ())
+addNewWorker :: IORef (Map Word16 ThreadId) -> Word16 -> ThreadId -> IO ()
+addNewWorker workers port tid =
+  atomicModifyIORef workers $ \s -> (Map.insert port tid s, ())
 
-removeCurrentWorker :: IORef (Set ThreadId) -> a -> IO ()
-removeCurrentWorker workers _result = do
-  tid <- myThreadId
-  atomicModifyIORef workers $ \s -> (Set.delete tid s, ())
+removeWorker :: IORef (Map Word16 ThreadId) -> Word16 -> a -> IO ()
+removeWorker workers port _result =
+  atomicModifyIORef workers $ \s -> (Map.delete port s, ())
 
 runRepl :: Socket Rep -> IO ()
 runRepl rep = runREPL False $ do -- TODO: batch mode?
@@ -258,7 +261,7 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
   funHandles <- io $ newIORef (Map.empty, minBound :: FunHandle)
   let handle err = reply rep (RRInteractiveError err (show (pp err)))
       handleAsync :: X.AsyncException -> IO ()
-      handleAsync _int = reply rep RROk
+      handleAsync _int = reply rep RRInterrupted
       loop = liftBaseWith $ \run -> X.handle handleAsync $ run $ do
         msg <- io $ receive rep
         io $ putStrLn "[cryptol-worker] received message:"
@@ -354,13 +357,29 @@ withCapturedOutput m = do
   setPutStr old
   return (x, s)
 
+data Server = Server { serverPort :: Word16
+                     , serverMaskSIGINT :: Bool }
+  deriving Show
+
 main :: IO ()
-main = do
-  args <- getArgs
-  case args of
-    [] -> server 5555
-    [portStr] ->
-       case readMaybe portStr of
-         Just port -> server port
-         Nothing -> server 5555
-    _ -> error "port is the only allowed argument"
+main = execParser opts >>= mainWith
+  where
+    opts =
+      info (helper <*> serverOpts)
+           ( fullDesc
+          <> progDesc "Run Cryptol as a server via ZeroMQ and JSON"
+          <> header "cryptol-server" )
+    serverOpts =
+      Server
+      <$> option auto
+         ( long "port"
+        <> short 'p'
+        <> metavar "PORT"
+        <> value 5555
+        <> help "TCP port to bind" )
+      <*> switch
+         ( long "mask-interrupts"
+        <> help "Suppress interrupt signals" )
+    mainWith Server {..} = do
+      when serverMaskSIGINT $ void $ installHandler sigINT Ignore Nothing
+      server serverPort
