@@ -31,6 +31,9 @@ import           System.Directory ( doesFileExist
                                   , getCurrentDirectory)
 import           System.FilePath ((</>))
 
+import           Prelude ()
+import           Prelude.Compat
+
 -- | Haskeline-specific repl implementation.
 repl :: Cryptolrc -> Maybe FilePath -> REPL () -> IO ()
 repl cryrc mbBatch begin =
