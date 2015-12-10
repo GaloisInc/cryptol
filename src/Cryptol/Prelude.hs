@@ -31,5 +31,4 @@ writePreludeContents = io $ do
   (path, h) <- openTempFile tmpdir "Cryptol.cry"
   hPutStr h preludeContents
   hClose h
-  putStrLn $ "Wrote Prelude to " ++ path
   return path
