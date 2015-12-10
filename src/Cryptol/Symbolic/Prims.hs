@@ -25,9 +25,8 @@ import Cryptol.Utils.Panic
 
 import qualified Data.SBV.Dynamic as SBV
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-#endif
+import Prelude ()
+import Prelude.Compat
 
 traverseSnd :: Functor f => (a -> f b) -> (t, a) -> f (t, b)
 traverseSnd f (x, y) = (,) x <$> f y
@@ -317,7 +316,7 @@ nthV err v n =
   case v of
     VStream xs -> nth err xs (fromInteger n)
     VSeq _ xs  -> nth err xs (fromInteger n)
-    VWord x                 -> let i = SBV.svBitSize x - 1 - fromInteger n
+    VWord x                 -> let i = SBV.intSizeOf x - 1 - fromInteger n
                                in if i < 0 then err else
                                     VBit (SBV.svTestBit x i)
     _                       -> err
@@ -342,13 +341,13 @@ dropV n xs =
   case xs of
     VSeq b xs'  -> VSeq b (genericDrop n xs')
     VStream xs' -> VStream (genericDrop n xs')
-    VWord w     -> VWord $ SBV.svExtract (SBV.svBitSize w - 1 - fromInteger n) 0 w
+    VWord w     -> VWord $ SBV.svExtract (SBV.intSizeOf w - 1 - fromInteger n) 0 w
     _           -> panic "Cryptol.Symbolic.Prims.dropV" [ "non-droppable value" ]
 
 takeV :: Integer -> Value -> Value
 takeV n xs =
   case xs of
-    VWord w     -> VWord $ SBV.svExtract (SBV.svBitSize w - 1) (SBV.svBitSize w - fromInteger n) w
+    VWord w     -> VWord $ SBV.svExtract (SBV.intSizeOf w - 1) (SBV.intSizeOf w - fromInteger n) w
     VSeq b xs'  -> VSeq b (genericTake n xs')
     VStream xs' -> VSeq b (genericTake n xs')
                      where b = case xs' of VBit _ : _ -> True
@@ -425,7 +424,7 @@ arithUnary op = loop . toTypeVal
 
 sExp :: SWord -> SWord -> SWord
 sExp x y = go (reverse (unpackWord y)) -- bits in little-endian order
-  where go []       = literalSWord (SBV.svBitSize x) 1
+  where go []       = literalSWord (SBV.intSizeOf x) 1
         go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
             where a = go bs
                   s = SBV.svTimes a a
@@ -434,8 +433,8 @@ sExp x y = go (reverse (unpackWord y)) -- bits in little-endian order
 sLg2 :: SWord -> SWord
 sLg2 x = go 0
   where
-    lit n = literalSWord (SBV.svBitSize x) n
-    go i | i < SBV.svBitSize x = SBV.svIte (SBV.svLessEq x (lit (2^i))) (lit (toInteger i)) (go (i + 1))
+    lit n = literalSWord (SBV.intSizeOf x) n
+    go i | i < SBV.intSizeOf x = SBV.svIte (SBV.svLessEq x (lit (2^i))) (lit (toInteger i)) (go (i + 1))
          | otherwise           = lit (toInteger i)
 
 -- Cmp -------------------------------------------------------------------------

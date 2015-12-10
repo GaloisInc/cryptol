@@ -57,7 +57,7 @@ library
                        process         >= 1.2,
                        QuickCheck      >= 2.7,
                        random          >= 1.0.1,
-                       sbv             >= 5.3 && < 5.4,
+                       sbv             >= 5.7,
                        smtLib          >= 1.0.7,
                        syb             >= 0.4,
                        text            >= 1.1,
