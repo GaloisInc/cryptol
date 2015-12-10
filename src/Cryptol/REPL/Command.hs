@@ -1016,10 +1016,10 @@ parseCommand findCmd line = do
       OptionArg   body -> Just (Command (body args'))
       ShellArg    body -> Just (Command (body args'))
       NoArg       body -> Just (Command  body)
-      FileExprArg body -> case words args' of
-                            (fp:_:_)  -> let expr = drop (length fp + 1) args'
-                                         in Just (Command (body fp expr))
-                            _         -> Nothing
+      FileExprArg body ->
+        case extractFilePath args' of
+           Just (fp,expr) -> Just (Command (expandHome fp >>= flip body expr))
+           Nothing        -> Nothing
     [] -> case uncons cmd of
       Just (':',_) -> Just (Unknown cmd)
       Just _       -> Just (Command (evalCmd line))
@@ -1034,3 +1034,10 @@ parseCommand findCmd line = do
                                                return (dir </> more)
       _ -> return path
 
+  extractFilePath ipt =
+    let quoted q = (\(a,b) -> (a, drop 1 b)) . break (== q)
+    in case ipt of
+        ""        -> Nothing
+        '\'':rest -> Just $ quoted '\'' rest
+        '"':rest  -> Just $ quoted '"' rest
+        _         -> Just $ break isSpace ipt
