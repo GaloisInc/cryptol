@@ -19,6 +19,7 @@ import Data.List (transpose, intercalate)
 import qualified Data.Map as Map
 import qualified Control.Exception as X
 
+import           Data.SBV (intSizeOf)
 import qualified Data.SBV.Dynamic as SBV
 
 import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
@@ -404,7 +405,7 @@ evalSel sel v =
 
     ListSel n _   -> case v of
                        VWord s -> VBit (SBV.svTestBit s i)
-                                    where i = SBV.svBitSize s - 1 - n
+                                    where i = intSizeOf s - 1 - n
                        _       -> fromSeq v !! n  -- 0-based indexing
 
 -- Declarations ----------------------------------------------------------------
