@@ -18,8 +18,9 @@ import           Cryptol.REPL.Trie
 import           Cryptol.Utils.PP
 
 import qualified Control.Exception as X
-import           Control.Monad (guard, when)
+import           Control.Monad (guard, join, when)
 import qualified Control.Monad.Trans.Class as MTL
+import           Control.Monad.Trans.Control
 import           Data.Char (isAlphaNum, isSpace)
 import           Data.Function (on)
 import           Data.List (isPrefixOf,nub,sortBy)
@@ -29,6 +30,9 @@ import           System.Directory ( doesFileExist
                                   , getHomeDirectory
                                   , getCurrentDirectory)
 import           System.FilePath ((</>))
+
+import           Prelude ()
+import           Prelude.Compat
 
 -- | Haskeline-specific repl implementation.
 repl :: Cryptolrc -> Maybe FilePath -> REPL () -> IO ()
@@ -133,11 +137,8 @@ data Cryptolrc =
 -- Utilities -------------------------------------------------------------------
 
 instance MonadException REPL where
-  controlIO branchIO = REPL $ \ ref -> do
-    runBody <- branchIO $ RunIO $ \ m -> do
-      a <- unREPL m ref
-      return (return a)
-    unREPL runBody ref
+  controlIO f = join $ liftBaseWith $ \f' ->
+    f $ RunIO $ \m -> restoreM <$> (f' m)
 
 -- Titles ----------------------------------------------------------------------
 

@@ -14,25 +14,31 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wall -fno-warn-type-defaults #-}
 module Main where
 
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Control
+import qualified Control.Exception as X
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL
 import Data.Char
 import Data.IORef
+import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Word
+import Options.Applicative
 import System.Environment
 import System.Exit
 import System.FilePath
+import System.Posix.Signals
 import System.ZMQ4
 import Text.Read
 
@@ -108,6 +114,7 @@ data RResult
   | RRUnknownCmd Text
   | RRBadMessage BS.ByteString String
   | RROk
+  | RRInterrupted
 
 instance ToJSON RResult where
   toJSON = \case
@@ -135,31 +142,48 @@ instance ToJSON RResult where
       [ "tag" .= "unknownCommand", "command" .= txt ]
     RRBadMessage msg err -> object
       [ "tag" .= "badMessage", "message" .= BS.unpack msg, "error" .= err ]
-    RROk -> object [ "tag" .= "ok" ]
+    RROk -> object
+      [ "tag" .= "ok" ]
+    RRInterrupted -> object
+      [ "tag" .= "interrupted" ]
 
 data ControlMsg
   = CMConnect
+    -- ^ Request a new Cryptol context and connection
+  | CMInterrupt Word16
+    -- ^ Request an interrupt of all current Cryptol contexts
   | CMExit
+    -- ^ Request that the entire server shut down
   | CMUnknown Text
+    -- ^ Unknown message
 
 instance FromJSON ControlMsg where
   parseJSON = withObject "ControlMsg" $ \o -> do
     tag <- o .: "tag"
     flip (withText "tag") tag $ \case
       "connect" -> return CMConnect
+      "interrupt" -> CMInterrupt <$> o .: "port"
       "exit" -> return CMExit
       other -> return $ CMUnknown other
 
 data ControlReply
   = CRConnect Word16
-  | CROk
+    -- ^ Return the port for a new connection
+  | CRInterrupted
+    -- ^ Acknowledge receipt of an interrupt command
+  | CRExiting
+    -- ^ Acknowledge receipt of an exit command
   | CRBadMessage BS.ByteString String
+    -- ^ Acknowledge receipt of an ill-formed control message
 
 instance ToJSON ControlReply where
   toJSON = \case
     CRConnect port -> object
       [ "tag" .= "connect", "port" .= port ]
-    CROk -> object [ "tag" .= "ok" ]
+    CRInterrupted -> object
+      [ "tag" .= "interrupted" ]
+    CRExiting -> object
+      [ "tag" .= "exiting" ]
     CRBadMessage msg err -> object
       [ "tag" .= "badMessage", "message" .= BS.unpack msg, "error" .= err ]
 
@@ -170,6 +194,7 @@ server port =
   let addr = "tcp://127.0.0.1:" ++ show port
   putStrLn ("[cryptol-server] coming online at " ++ addr)
   bind rep addr
+  workers <- newIORef Map.empty
   let loop = do
         msg <- receive rep
         putStrLn "[cryptol-server] received message:"
@@ -184,12 +209,21 @@ server port =
             bind newRep "tcp://127.0.0.1:*"
             newAddr <- lastEndpoint newRep
             let portStr = reverse . takeWhile isDigit . reverse $ newAddr
+                workerPort = read portStr
             putStrLn ("[cryptol-server] starting worker on interface " ++ newAddr)
-            void . forkIO $ runRepl newRep
-            reply rep $ CRConnect (read portStr)
+            tid <- forkFinally (runRepl newRep) (removeWorker workers port)
+            addNewWorker workers workerPort tid
+            reply rep $ CRConnect workerPort
+          Right (CMInterrupt port') -> do
+            s <- readIORef workers
+            case Map.lookup port' s of
+              Nothing -> reply rep $ CRBadMessage msg "invalid worker port"
+              Just tid -> do
+                throwTo tid X.UserInterrupt
+                reply rep $ CRInterrupted
           Right CMExit -> do
             putStrLn "[cryptol-server] shutting down"
-            reply rep $ CROk
+            reply rep $ CRExiting
             exitSuccess
           Right (CMUnknown cmd) -> do
             putStrLn ("[cryptol-server] unknown control command: " ++ T.unpack cmd)
@@ -203,6 +237,14 @@ reply rep msg = liftIO $ do
   putStrLn "[cryptol-server] sending response:"
   BS.putStrLn bmsg
   send rep [] bmsg
+
+addNewWorker :: IORef (Map Word16 ThreadId) -> Word16 -> ThreadId -> IO ()
+addNewWorker workers port tid =
+  atomicModifyIORef workers $ \s -> (Map.insert port tid s, ())
+
+removeWorker :: IORef (Map Word16 ThreadId) -> Word16 -> a -> IO ()
+removeWorker workers port _result =
+  atomicModifyIORef workers $ \s -> (Map.delete port s, ())
 
 runRepl :: Socket Rep -> IO ()
 runRepl rep = runREPL False $ do -- TODO: batch mode?
@@ -218,7 +260,9 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
 #endif
   funHandles <- io $ newIORef (Map.empty, minBound :: FunHandle)
   let handle err = reply rep (RRInteractiveError err (show (pp err)))
-      loop = do
+      handleAsync :: X.AsyncException -> IO ()
+      handleAsync _int = reply rep RRInterrupted
+      loop = liftBaseWith $ \run -> X.handle handleAsync $ run $ do
         msg <- io $ receive rep
         io $ putStrLn "[cryptol-worker] received message:"
         case decodeStrict msg of
@@ -313,13 +357,29 @@ withCapturedOutput m = do
   setPutStr old
   return (x, s)
 
+data Server = Server { serverPort :: Word16
+                     , serverMaskSIGINT :: Bool }
+  deriving Show
+
 main :: IO ()
-main = do
-  args <- getArgs
-  case args of
-    [] -> server 5555
-    [portStr] ->
-       case readMaybe portStr of
-         Just port -> server port
-         Nothing -> server 5555
-    _ -> error "port is the only allowed argument"
+main = execParser opts >>= mainWith
+  where
+    opts =
+      info (helper <*> serverOpts)
+           ( fullDesc
+          <> progDesc "Run Cryptol as a server via ZeroMQ and JSON"
+          <> header "cryptol-server" )
+    serverOpts =
+      Server
+      <$> option auto
+         ( long "port"
+        <> short 'p'
+        <> metavar "PORT"
+        <> value 5555
+        <> help "TCP port to bind" )
+      <*> switch
+         ( long "mask-interrupts"
+        <> help "Suppress interrupt signals" )
+    mainWith Server {..} = do
+      when serverMaskSIGINT $ void $ installHandler sigINT Ignore Nothing
+      server serverPort

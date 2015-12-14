@@ -6,10 +6,12 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Cryptol.REPL.Monad (
@@ -86,7 +88,9 @@ import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (proverNames, lookupProver, SatNum(..))
 
 import Control.Monad (ap,unless,when)
+import Control.Monad.Base
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Control
 import Data.Char (isSpace)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef,atomicModifyIORef)
@@ -176,11 +180,19 @@ instance Monad REPL where
 instance MonadIO REPL where
   liftIO = io
 
+instance MonadBase IO REPL where
+  liftBase = liftIO
+
+instance MonadBaseControl IO REPL where
+  type StM REPL a = a
+  liftBaseWith f = REPL $ \ref ->
+    f $ \m -> unREPL m ref
+  restoreM x = return x
+
 instance M.FreshM REPL where
   liftSupply f = modifyRW $ \ RW { .. } ->
     let (a,s') = f (M.meSupply eModuleEnv)
      in (RW { eModuleEnv = eModuleEnv { M.meSupply = s' }, .. },a)
-
 
 -- Exceptions ------------------------------------------------------------------
 
