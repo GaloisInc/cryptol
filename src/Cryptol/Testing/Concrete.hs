@@ -6,16 +6,55 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-module Cryptol.Testing.Exhaust where
+{-# LANGUAGE RecordWildCards #-}
+module Cryptol.Testing.Concrete where
 
-import qualified Cryptol.Testing.Eval as Eval
 import Cryptol.TypeCheck.AST
+import Cryptol.Eval.Error
 import Cryptol.Eval.Value
+import Cryptol.Utils.Panic (panic)
 
+import qualified Control.Exception as X
 import Data.List(genericReplicate)
 
 import Prelude ()
 import Prelude.Compat
+
+-- | A test result is either a pass, a failure due to evaluating to
+-- @False@, or a failure due to an exception raised during evaluation
+data TestResult
+  = Pass
+  | FailFalse [Value]
+  | FailError EvalError [Value]
+
+isPass :: TestResult -> Bool
+isPass Pass = True
+isPass _    = False
+
+-- | Apply a testable value to some arguments.
+-- Note that this function assumes that the values come from a call to
+-- `testableType` (i.e., things are type-correct). We run in the IO
+-- monad in order to catch any @EvalError@s.
+runOneTest :: Value -> [Value] -> IO TestResult
+runOneTest v0 vs0 = run `X.catch` handle
+  where
+    run = do
+      result <- X.evaluate (go v0 vs0)
+      if result
+        then return Pass
+        else return (FailFalse vs0)
+    handle e = return (FailError e vs0)
+
+    go :: Value -> [Value] -> Bool
+    go (VFun f) (v : vs) = go (f v) vs
+    go (VFun _) []       = panic "Not enough arguments while applying function"
+                           []
+    go (VBit b) []       = b
+    go v vs              = panic "Type error while running test" $
+                           [ "Function:"
+                           , show $ ppValue defaultPPOpts v
+                           , "Arguments:"
+                           ] ++ map (show . ppValue defaultPPOpts) vs
 
 {- | Given a (function) type, compute all possible inputs for it.
 We also return the total number of test (i.e., the length of the outer list. -}
@@ -28,13 +67,6 @@ testableType ty =
          return (sz * tot, [ v : vs | v <- typeValues t1, vs <- vss ])
     TCon (TC TCBit) [] -> return (1, [[]])
     _ -> Nothing
-
-{- | Apply a testable value to some arguments.
-    Please note that this function assumes that the values come from
-    a call to `testableType` (i.e., things are type-correct)
- -}
-runOneTest :: Value -> [Value] -> IO Eval.TestResult
-runOneTest = Eval.runOneTest
 
 {- | Given a fully-evaluated type, try to compute the number of values in it.
 Returns `Nothing` for infinite types, user-defined types, polymorhic types,
@@ -95,4 +127,36 @@ typeValues ty =
 
     TCon _ _ -> []
 
+--------------------------------------------------------------------------------
+-- Driver function
 
+data TestSpec m s = TestSpec {
+    testFn :: Integer -> s -> m (TestResult, s)
+  , testTotal :: Integer
+  , testRptProgress :: Integer -> Integer -> m ()
+  , testClrProgress :: m ()
+  , testRptFailure :: TestResult -> m ()
+  , testRptSuccess :: m ()
+  }
+
+data TestReport = TestReport {
+    reportResult :: TestResult
+  , reportTestTotal :: Integer
+  }
+
+runTests :: Monad m => TestSpec m s -> s -> m TestReport
+runTests TestSpec {..} st0 = go 0 st0
+  where
+  go testNum _ | testNum >= testTotal = do
+    testRptSuccess
+    return $ TestReport Pass testTotal
+  go testNum st =
+   do testRptProgress testNum testTotal
+      res <- testFn (div (100 * (1 + testNum)) testTotal) st
+      testClrProgress
+      case res of
+        (Pass, st') -> do -- delProgress -- unnecessary?
+          go (testNum + 1) st'
+        (failure, _st') -> do
+          testRptFailure failure
+          return $ TestReport failure testTotal

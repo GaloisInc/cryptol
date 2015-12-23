@@ -149,8 +149,7 @@ library
                        Cryptol.Eval.Type,
                        Cryptol.Eval.Value,
 
-                       Cryptol.Testing.Eval,
-                       Cryptol.Testing.Exhaust,
+                       Cryptol.Testing.Concrete,
                        Cryptol.Testing.Random,
 
                        Cryptol.Symbolic,

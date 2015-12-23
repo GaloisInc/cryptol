@@ -9,18 +9,20 @@
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DeriveGeneric #-}
-module Cryptol.Utils.PP (module Cryptol.Utils.PP, (<>)) where
+module Cryptol.Utils.PP where
 
 import           Cryptol.Utils.Ident
 
 import           Control.DeepSeq.Generics
 import           Control.Monad (mplus)
 import           Data.Maybe (fromMaybe)
-import           Data.Monoid
 import           Data.String (IsString(..))
 import qualified Data.Text as T
 import           GHC.Generics (Generic)
 import qualified Text.PrettyPrint as PJ
+
+import Prelude ()
+import Prelude.Compat
 
 -- Name Displaying -------------------------------------------------------------
 
@@ -201,8 +203,15 @@ liftPJ2 f (Doc a) (Doc b) = Doc (\e -> f (a e) (b e))
 liftSep :: ([PJ.Doc] -> PJ.Doc) -> ([Doc] -> Doc)
 liftSep f ds = Doc (\e -> f [ d e | Doc d <- ds ])
 
+infixl 6 <>, <+>
+
+(<>) :: Doc -> Doc -> Doc
+(<>)  = liftPJ2 (PJ.<>)
+
 (<+>) :: Doc -> Doc -> Doc
 (<+>)  = liftPJ2 (PJ.<+>)
+
+infixl 5 $$
 
 ($$) :: Doc -> Doc -> Doc
 ($$)  = liftPJ2 (PJ.$$)
