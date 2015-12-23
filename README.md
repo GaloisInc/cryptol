@@ -37,17 +37,17 @@ On Mac OS X, Cryptol is also available via
 [Homebrew](http://brew.sh/). Simply run `brew update && brew install
 cryptol` to get the latest stable version.
 
-## Getting CVC4
+## Getting Z3
 
-Cryptol currently depends on the
-[CVC4 SMT solver](http://cvc4.cs.nyu.edu/) to solve constraints during
-type checking, and as the default solver for the `:sat` and `:prove`
-commands. You can download CVC4 binaries for a variety of platforms
-from their [download page](http://cvc4.cs.nyu.edu/downloads/). Note
-that if you install Cryptol using Homebrew, CVC4 will be installed
-automatically.
+Cryptol currently uses Microsoft Research's
+[Z3 SMT solver](https://github.com/Z3Prover/z3) by default to solve
+constraints during type checking, and as the default solver for the
+`:sat` and `:prove` commands. You can download Z3 binaries for a
+variety of platforms from their
+[releases page](https://github.com/Z3Prover/z3/releases). Note that if you
+install Cryptol using Homebrew, Z3 will be installed automatically.
 
-After installation, make sure that `cvc4` (or `cvc4.exe` on Windows)
+After installation, make sure that `z3` (or `z3.exe` on Windows)
 is on your PATH.
 
 # Building Cryptol From Source
@@ -64,9 +64,9 @@ Windows. We regularly build and test it in the following environments:
 
 ## Prerequisites
 
-Cryptol is developed using GHC 7.8.4 and cabal-install 1.22. The
-easiest way to get the correct versions is to follow the instructions
-on the
+Cryptol is developed using GHC 7.10.2 and cabal-install 1.22, though
+it is still tested with the previous major version of GHC. The easiest
+way to get the correct versions is to follow the instructions on the
 [haskell.org downloads page](https://www.haskell.org/downloads).
 
 Some supporting non-Haskell libraries are required to build
@@ -76,7 +76,7 @@ you may need to install the following:
 - [The GNU Multiple Precision Arithmetic Library (GMP)](https://gmplib.org/)
 - [ncurses](https://www.gnu.org/software/ncurses/)
 
-You'll also need [CVC4](#getting-cvc4) installed when running Cryptol.
+You'll also need [Z3](#getting-z3) installed when running Cryptol.
 
 ## Building Cryptol
 
