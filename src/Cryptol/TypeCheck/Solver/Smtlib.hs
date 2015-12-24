@@ -45,7 +45,7 @@ simpDelayed _qvars ordAsmp origAsmps goals =
   asmps = mapMaybe toPred (ordFactsToProps ordAsmp ++ origAsmps)
 
   tryGoal g = case toPred (goal g) of
-                Just q -> do res <- cvc4 (toScript vs asmps q)
+                Just q -> do res <- z3 (toScript vs asmps q)
                              return (g, res == Unsat)
                               -- i.e., solved for Nats, anyway
                 Nothing -> return (g, False)
@@ -124,35 +124,35 @@ toScript vs pes q =
 data SMTResult = Sat | Unsat | Unknown
                   deriving (Eq,Show)
 
--- | First look for @cvc4@ in the path, but failing that, assume that it's 
+-- | First look for @z3@ in the path, but failing that, assume that it's 
 -- installed side-by-side with Cryptol.
-findCvc4 :: IO FilePath
-findCvc4 = do
-  mfp <- findExecutable "cvc4"
+findZ3 :: IO FilePath
+findZ3 = do
+  mfp <- findExecutable "z3"
   case mfp of
     Just fp -> return fp
     Nothing -> do
      bindir <- takeDirectory `fmap` getExecutablePath
-     return (bindir </> "cvc4")
+     return (bindir </> "z3")
 
-cvc4 :: SMT.Script -> IO SMTResult
-cvc4 script =
+z3 :: SMT.Script -> IO SMTResult
+z3 script =
   X.handle (\(_::X.IOException) -> return Unknown) $
   do let txt = show (SMT.pp script)
-     cvc4path <- findCvc4
-     (ex,out,err) <- readProcessWithExitCode cvc4path ["--lang=smtlib2","--rewrite-divk","-"] txt
+     z3path <- findZ3
+     (ex,out,err) <- readProcessWithExitCode z3path ["-smt2","-in"] txt
      case ex of
        ExitFailure 10  -> return Sat
        ExitFailure 20  -> return Unsat
-       ExitFailure 127 -> return Unknown -- cvc4 program not found
+       ExitFailure 127 -> return Unknown -- z3 program not found
        ExitSuccess
          | out == "sat\n"     -> return Sat
          | out == "unsat\n"   -> return Unsat
-         | out == "unknwon\n" -> return Unknown
+         | out == "unknown\n" -> return Unknown
 
        -- XXX: We should not print to STDOUT here.
        -- Report to a separate logger.
-       x -> do putStrLn "Called to CVC4 failed!!!"
+       x -> do putStrLn "Called to Z3 failed!!!"
                putStrLn ("Exit code: " ++ show x)
                putStrLn "Script"
                putStrLn txt

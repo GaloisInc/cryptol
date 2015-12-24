@@ -54,6 +54,7 @@ import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Prims.Doc(helpDoc)
 import qualified Cryptol.Transform.Specialize as S
+import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..))
 import qualified Cryptol.Symbolic as Symbolic
 
 import Control.DeepSeq
@@ -336,9 +337,10 @@ satCmd, proveCmd :: String -> REPL ()
 satCmd = cmdProveSat True
 proveCmd = cmdProveSat False
 
--- | Run a SAT solver on the given expression. Binds the @it@ variable
--- to a record whose form depends on the expression given. See ticket
--- #66 for a discussion of this design.
+-- | Console-specific version of 'proveSat'. Prints output to the
+-- console, and binds the @it@ variable to a record whose form depends
+-- on the expression given. See ticket #66 for a discussion of this
+-- design.
 cmdProveSat :: Bool -> String -> REPL ()
 cmdProveSat isSat "" =
   do xs <- getPropertyNames
@@ -349,81 +351,104 @@ cmdProveSat isSat "" =
                      then rPutStr $ ":sat "   ++ x ++ "\n\t"
                      else rPutStr $ ":prove " ++ x ++ "\n\t"
                   cmdProveSat isSat x
-cmdProveSat isSat str = do
+cmdProveSat isSat expr = do
+  let cexStr | isSat = "satisfying assignment"
+             | otherwise = "counterexample"
   EnvString proverName <- getUser "prover"
   EnvString fileName <- getUser "smtfile"
   let mfile = if fileName == "-" then Nothing else Just fileName
   case proverName of
-    "offline" -> offlineProveSat isSat str mfile
-    _ -> onlineProveSat isSat str proverName mfile
+    "offline" -> do
+      result <- offlineProveSat isSat expr mfile
+      case result of
+        Left msg -> rPutStrLn msg
+        Right smtlib -> do
+          let filename = fromMaybe "standard output" mfile
+          let satWord | isSat = "satisfiability"
+                      | otherwise = "validity"
+          rPutStrLn $
+              "Writing to SMT-Lib file " ++ filename ++ "..."
+          rPutStrLn $
+            "To determine the " ++ satWord ++
+            " of the expression, use an external SMT solver."
+          case mfile of
+            Just path -> io $ writeFile path smtlib
+            Nothing -> rPutStr smtlib
+    _ -> do
+      result <- onlineProveSat isSat expr proverName mfile
+      ppOpts <- getPPValOpts
+      case result of
+        Symbolic.EmptyResult         ->
+          panic "REPL.Command" [ "got EmptyResult for online prover query" ]
+        Symbolic.ProverError msg     -> rPutStrLn msg
+        Symbolic.ThmResult ts        -> do
+          rPutStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
+          let (t, e) = mkSolverResult cexStr (not isSat) (Left ts)
+          bindItVariable t e
+        Symbolic.AllSatResult tevss -> do
+          let tess = map (map $ \(t,e,_) -> (t,e)) tevss
+              vss  = map (map $ \(_,_,v) -> v)     tevss
+              ppvs vs = do
+                parseExpr <- replParseExpr expr
+                let docs = map (pp . E.WithBase ppOpts) vs
+                    -- function application has precedence 3
+                    doc = ppPrec 3 parseExpr
+                rPrint $ hsep (doc : docs) <+>
+                  text (if isSat then "= True" else "= False")
+              resultRecs = map (mkSolverResult cexStr isSat . Right) tess
+              collectTes tes = (t, es)
+                where
+                  (ts, es) = unzip tes
+                  t = case nub ts of
+                        [t'] -> t'
+                        _ -> panic "REPL.Command.onlineProveSat"
+                               [ "satisfying assignments with different types" ]
+              (ty, exprs) =
+                case resultRecs of
+                  [] -> panic "REPL.Command.onlineProveSat"
+                          [ "no satisfying assignments after mkSovlerResult" ]
+                  [(t, e)] -> (t, [e])
+                  _        -> collectTes resultRecs
+          forM_ vss ppvs
+          case (ty, exprs) of
+            (t, [e]) -> bindItVariable t e
+            (t, es ) -> bindItVariables t es
 
 onlineProveSat :: Bool
-               -> String -> String -> Maybe FilePath -> REPL ()
+               -> String -> String -> Maybe FilePath -> REPL Symbolic.ProverResult
 onlineProveSat isSat str proverName mfile = do
   EnvBool verbose <- getUser "debug"
-  mSatNum <- getUserSatNum
-  let cexStr | isSat = "satisfying assignment"
-             | otherwise = "counterexample"
+  satNum <- getUserSatNum
   parseExpr <- replParseExpr str
   (expr, schema) <- replCheckExpr parseExpr
-  denv <- getDynEnv
-  result <- liftModuleCmd $
-    Symbolic.satProve
-      isSat
-      mSatNum
-      (proverName, verbose)
-      (M.deDecls denv)
-      mfile
-      (expr, schema)
-  ppOpts <- getPPValOpts
-  case result of
-    Symbolic.EmptyResult         ->
-      panic "REPL.Command" [ "got EmptyResult for online prover query" ]
-    Symbolic.ProverError msg     -> rPutStrLn msg
-    Symbolic.ThmResult ts        -> do
-      rPutStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
-      let (t, e) = mkSolverResult cexStr (not isSat) (Left ts)
-      bindItVariable t e
-    Symbolic.AllSatResult tevss -> do
-      let tess = map (map $ \(t,e,_) -> (t,e)) tevss
-          vss  = map (map $ \(_,_,v) -> v)     tevss
-          ppvs vs = do
-            let docs = map (pp . E.WithBase ppOpts) vs
-                -- function application has precedence 3
-                doc = ppPrec 3 parseExpr
-            rPrint $ hsep (doc : docs) <+>
-              text (if isSat then "= True" else "= False")
-          resultRecs = map (mkSolverResult cexStr isSat . Right) tess
-          collectTes tes = (t, es)
-            where
-              (ts, es) = unzip tes
-              t = case nub ts of
-                    [t'] -> t'
-                    _ -> panic "REPL.Command.onlineProveSat"
-                           [ "satisfying assignments with different types" ]
-          (ty, exprs) =
-            case resultRecs of
-              [] -> panic "REPL.Command.onlineProveSat"
-                      [ "no satisfying assignments after mkSovlerResult" ]
-              [(t, e)] -> (t, [e])
-              _        -> collectTes resultRecs
-      forM_ vss ppvs
-      case (ty, exprs) of
-        (t, [e]) -> bindItVariable t e
-        (t, es ) -> bindItVariables t es
-
-offlineProveSat :: Bool -> String -> Maybe FilePath -> REPL ()
-offlineProveSat isSat str mfile = do
-  EnvBool vrb <- getUser "debug"
-  parseExpr <- replParseExpr str
-  exsch <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
-  result <- liftModuleCmd $
-    Symbolic.satProveOffline isSat vrb decls mfile exsch
-  case result of
-    Symbolic.ProverError msg -> rPutStrLn msg
-    Symbolic.EmptyResult -> return ()
-    _ -> panic "REPL.Command" [ "unexpected prover result for offline prover" ]
+  let cmd = Symbolic.ProverCommand {
+          pcQueryType    = if isSat then SatQuery satNum else ProveQuery
+        , pcProverName   = proverName
+        , pcVerbose      = verbose
+        , pcExtraDecls   = decls
+        , pcSmtFile      = mfile
+        , pcExpr         = expr
+        , pcSchema       = schema
+        }
+  liftModuleCmd $ Symbolic.satProve cmd
+
+offlineProveSat :: Bool -> String -> Maybe FilePath -> REPL (Either String String)
+offlineProveSat isSat str mfile = do
+  EnvBool verbose <- getUser "debug"
+  parseExpr <- replParseExpr str
+  (expr, schema) <- replCheckExpr parseExpr
+  decls <- fmap M.deDecls getDynEnv
+  let cmd = Symbolic.ProverCommand {
+          pcQueryType    = if isSat then SatQuery (SomeSat 0) else ProveQuery
+        , pcProverName   = "offline"
+        , pcVerbose      = verbose
+        , pcExtraDecls   = decls
+        , pcSmtFile      = mfile
+        , pcExpr         = expr
+        , pcSchema       = schema
+        }
+  liftModuleCmd $ Symbolic.satProveOffline cmd
 
 -- | Make a type/expression pair that is suitable for binding to @it@
 -- after running @:sat@ or @:prove@

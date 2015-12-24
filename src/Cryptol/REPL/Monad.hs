@@ -80,7 +80,7 @@ import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.AST as P
-import Cryptol.Symbolic (proverNames, lookupProver)
+import Cryptol.Symbolic (proverNames, lookupProver, SatNum(..))
 
 import Control.Monad (ap,unless,when)
 import Data.IORef
@@ -527,7 +527,7 @@ userOptions  = mkOptionMap
     "The number of random tests to try."
   , simpleOpt "satNum" (EnvString "1") checkSatNum
     "The maximum number of :sat solutions to display (\"all\" for no limit)."
-  , simpleOpt "prover" (EnvString "cvc4") checkProver $
+  , simpleOpt "prover" (EnvString "z3") checkProver $
     "The external SMT solver for :prove and :sat (" ++ proverListString ++ ")."
   , simpleOpt "warnDefaulting" (EnvBool True) (const $ return Nothing)
     "Choose if we should display warnings when defaulting."
@@ -582,12 +582,12 @@ checkSatNum val = case val of
       _               -> return $ Just "must be an integer > 0 or \"all\""
   _ -> return $ Just "unable to parse a value for satNum"
 
-getUserSatNum :: REPL (Maybe Int)
+getUserSatNum :: REPL SatNum
 getUserSatNum = do
   EnvString s <- getUser "satNum"
   case s of
-    "all"                     -> return Nothing
-    _ | Just n <- readMaybe s -> return (Just n)
+    "all"                     -> return AllSat
+    _ | Just n <- readMaybe s -> return (SomeSat n)
     _                         -> panic "REPL.Monad.getUserSatNum"
                                    [ "invalid satNum option" ]
 
@@ -603,25 +603,25 @@ whenDebug m = do
 smokeTest :: REPL [Smoke]
 smokeTest = catMaybes <$> sequence tests
   where
-    tests = [ cvc4exists ]
+    tests = [ z3exists ]
 
 type SmokeTest = REPL (Maybe Smoke)
 
 data Smoke
-  = CVC4NotFound
+  = Z3NotFound
   deriving (Show, Eq)
 
 instance PP Smoke where
   ppPrec _ smoke =
     case smoke of
-      CVC4NotFound -> text . intercalate " " $ [
-          "[error] cvc4 is required to run Cryptol, but was not found in the"
-        , "system path. See the Cryptol README for more on how to install cvc4."
+      Z3NotFound -> text . intercalate " " $ [
+          "[error] z3 is required to run Cryptol, but was not found in the"
+        , "system path. See the Cryptol README for more on how to install z3."
         ]
 
-cvc4exists :: SmokeTest
-cvc4exists = do
-  mPath <- io $ findExecutable "cvc4"
+z3exists :: SmokeTest
+z3exists = do
+  mPath <- io $ findExecutable "z3"
   case mPath of
-    Nothing -> return (Just CVC4NotFound)
+    Nothing -> return (Just Z3NotFound)
     Just _  -> return Nothing
