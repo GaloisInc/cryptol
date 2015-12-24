@@ -116,8 +116,8 @@ initialModuleEnv  = do
     , meDynEnv        = mempty
     , meMonoBinds     = True
     , meSolverConfig  = T.SolverConfig
-                          { T.solverPath = "cvc4"
-                          , T.solverArgs = [ "--lang=smt2", "--incremental", "--rewrite-divk" ]
+                          { T.solverPath = "z3"
+                          , T.solverArgs = [ "-smt2", "-in" ]
                           , T.solverVerbose = 0
                           }
     , meCoreLint      = NoCoreLint
