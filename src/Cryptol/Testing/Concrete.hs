@@ -9,9 +9,9 @@
 {-# LANGUAGE RecordWildCards #-}
 module Cryptol.Testing.Concrete where
 
-import Cryptol.TypeCheck.AST
 import Cryptol.Eval.Error
 import Cryptol.Eval.Value
+import Cryptol.TypeCheck.AST
 import Cryptol.Utils.Panic (panic)
 
 import qualified Control.Exception as X
@@ -132,7 +132,9 @@ typeValues ty =
 
 data TestSpec m s = TestSpec {
     testFn :: Integer -> s -> m (TestResult, s)
+  , testProp :: String -- ^ The property as entered by the user
   , testTotal :: Integer
+  , testPossible :: Integer
   , testRptProgress :: Integer -> Integer -> m ()
   , testClrProgress :: m ()
   , testRptFailure :: TestResult -> m ()
@@ -141,7 +143,9 @@ data TestSpec m s = TestSpec {
 
 data TestReport = TestReport {
     reportResult :: TestResult
-  , reportTestTotal :: Integer
+  , reportProp :: String -- ^ The property as entered by the user
+  , reportTestsRun :: Integer
+  , reportTestsPossible :: Integer
   }
 
 runTests :: Monad m => TestSpec m s -> s -> m TestReport
@@ -149,7 +153,7 @@ runTests TestSpec {..} st0 = go 0 st0
   where
   go testNum _ | testNum >= testTotal = do
     testRptSuccess
-    return $ TestReport Pass testTotal
+    return $ TestReport Pass testProp testNum testPossible
   go testNum st =
    do testRptProgress testNum testTotal
       res <- testFn (div (100 * (1 + testNum)) testTotal) st
@@ -159,4 +163,4 @@ runTests TestSpec {..} st0 = go 0 st0
           go (testNum + 1) st'
         (failure, _st') -> do
           testRptFailure failure
-          return $ TestReport failure testTotal
+          return $ TestReport failure testProp testNum testPossible

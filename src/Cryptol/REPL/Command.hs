@@ -73,7 +73,7 @@ import qualified Cryptol.Symbolic as Symbolic
 
 import Control.DeepSeq
 import qualified Control.Exception as X
-import Control.Monad (guard,unless,forM_,when)
+import Control.Monad
 import Data.Char (isSpace,isPunctuation,isSymbol)
 import Data.Function (on)
 import Data.List (intercalate,nub,sortBy,partition)
@@ -156,9 +156,9 @@ nbCommandList  =
     "display a brief description about a function"
   , CommandDescr [ ":s", ":set" ] (OptionArg setOptionCmd)
     "set an environmental option (:set on its own displays current values)"
-  , CommandDescr [ ":check" ] (ExprArg (qcCmd QCRandom))
+  , CommandDescr [ ":check" ] (ExprArg (void . qcCmd QCRandom))
     "use random testing to check that the argument always returns true (if no argument, check all properties)"
-  , CommandDescr [ ":exhaust" ] (ExprArg (qcCmd QCExhaust))
+  , CommandDescr [ ":exhaust" ] (ExprArg (void . qcCmd QCExhaust))
     "use exhaustive testing to prove that the argument always returns true (if no argument, check all properties)"
   , CommandDescr [ ":prove" ] (ExprArg proveCmd)
     "use an external solver to prove that the argument always returns true (if no argument, check all properties)"
@@ -251,16 +251,16 @@ data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 -- | Randomly test a property, or exhaustively check it if the number
 -- of values in the type under test is smaller than the @tests@
 -- environment variable, or we specify exhaustive testing.
-qcCmd :: QCMode -> String -> REPL ()
+qcCmd :: QCMode -> String -> REPL [TestReport]
 qcCmd qcMode "" =
   do (xs,disp) <- getPropertyNames
      let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
-        then rPutStrLn "There are no properties in scope."
-        else forM_ xs $ \x ->
+        then rPutStrLn "There are no properties in scope." *> return []
+        else concat <$> (forM xs $ \x ->
                do let str = nameStr x
                   rPutStr $ "property " ++ str ++ " "
-                  qcCmd qcMode str
+                  qcCmd qcMode str)
 
 qcCmd qcMode str =
   do expr <- replParseExpr str
@@ -276,7 +276,9 @@ qcCmd qcMode str =
                   return (result, vss1)
                 testSpec = TestSpec {
                     testFn = f
+                  , testProp = str
                   , testTotal = sz
+                  , testPossible = sz
                   , testRptProgress = ppProgress
                   , testClrProgress = delProgress
                   , testRptFailure = ppFailure
@@ -286,16 +288,18 @@ qcCmd qcMode str =
                       rPutStrLn "Q.E.D."
                   }
             prt testingMsg
-            _report <- runTests testSpec vss
-            return ()
+            report <- runTests testSpec vss
+            return [report]
 
-       n -> case TestR.testableType ty of
+       Just (sz,_) -> case TestR.testableType ty of
               Nothing   -> raise (TypeNotTestable ty)
               Just gens -> do
                 rPutStrLn "Using random testing."
                 let testSpec = TestSpec {
-                        testFn = \sz g -> io $ TestR.runOneTest val gens sz g
+                        testFn = \sz' g -> io $ TestR.runOneTest val gens sz' g
+                      , testProp = str
                       , testTotal = toInteger testNum
+                      , testPossible = sz
                       , testRptProgress = ppProgress
                       , testClrProgress = delProgress
                       , testRptFailure = ppFailure
@@ -306,21 +310,19 @@ qcCmd qcMode str =
                 prt testingMsg
                 g <- io newTFGen
                 report <- runTests testSpec g
-                when (isPass (reportResult report)) $
-                  case n of
-                    Just (valNum,_) ->
-                      do let valNumD = fromIntegral valNum :: Double
-                             percent = fromIntegral (testNum * 100)
-                                     / valNumD
-                             showValNum
-                                | valNum > 2 ^ (20::Integer) =
-                                    "2^^" ++ show (lg2 valNum)
-                                | otherwise = show valNum
-                         rPutStrLn $ "Coverage: "
-                                      ++ showFFloat (Just 2) percent "% ("
-                                      ++ show testNum ++ " of "
-                                      ++ showValNum ++ " values)"
-                    Nothing -> return ()
+                when (isPass (reportResult report)) $ do
+                  let szD = fromIntegral sz :: Double
+                      percent = fromIntegral (testNum * 100) / szD
+                      showValNum
+                        | sz > 2 ^ (20::Integer) =
+                          "2^^" ++ show (lg2 sz)
+                        | otherwise = show sz
+                  rPutStrLn $ "Coverage: "
+                    ++ showFFloat (Just 2) percent "% ("
+                    ++ show testNum ++ " of "
+                    ++ showValNum ++ " values)"
+                return [report]
+       Nothing -> return []
 
   where
   testingMsg = "testing..."

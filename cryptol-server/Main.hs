@@ -46,9 +46,10 @@ import qualified Cryptol.Eval.Value as E
 import Cryptol.REPL.Command
 import Cryptol.REPL.Monad
 import Cryptol.Symbolic (ProverResult(..))
+import qualified Cryptol.Testing.Concrete as Test
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.ModuleSystem as M
-import Cryptol.Utils.PP
+import Cryptol.Utils.PP hiding ((<>))
 
 import Cryptol.Aeson ()
 
@@ -102,8 +103,8 @@ data RResult
   | RRFunValue FunHandle T.Type
   | RRType T.Schema String -- pretty-printed type
   | RRDecls M.IfaceDecls
-  | RRCheck String
-  | RRExhaust String
+  | RRCheck [Test.TestReport]
+  | RRExhaust [Test.TestReport]
   | RRSat [[E.Value]]
     -- ^ A list of satisfying assignments. Empty list means unsat, max
     -- length determined by @satNum@ interpreter option
@@ -127,9 +128,9 @@ instance ToJSON RResult where
     RRDecls ifds -> object
       [ "tag" .= "decls", "decls" .= ifds ]
     RRCheck out -> object
-      [ "tag" .= "check", "out" .= out ]
+      [ "tag" .= "check", "testReport" .= out ]
     RRExhaust out -> object
-      [ "tag" .= "exhaust", "out" .= out ]
+      [ "tag" .= "exhaust", "testReport" .= out ]
     RRSat out -> object
       [ "tag" .= "sat", "assignments" .= out ]
     RRProve out -> object
@@ -304,11 +305,11 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
               setOptionCmd (T.unpack key ++ "=" ++ T.unpack val)
               reply rep RROk
             RCCheck expr -> do
-              (_, out) <- withCapturedOutput (qcCmd QCRandom (T.unpack expr))
-              reply rep (RRCheck out)
+              reports <- qcCmd QCRandom (T.unpack expr)
+              reply rep (RRCheck reports)
             RCExhaust expr -> do
-              (_, out) <- withCapturedOutput (qcCmd QCExhaust (T.unpack expr))
-              reply rep (RRExhaust out)
+              reports <- qcCmd QCExhaust (T.unpack expr)
+              reply rep (RRExhaust reports)
             RCProve expr -> do
               result <- onlineProveSat False (T.unpack expr) Nothing
               case result of

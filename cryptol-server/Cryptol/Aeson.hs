@@ -30,6 +30,7 @@ import qualified Cryptol.Parser.NoInclude as P
 import qualified Cryptol.Parser.NoPat as NoPat
 import qualified Cryptol.Parser.Position as P
 import Cryptol.REPL.Monad
+import qualified Cryptol.Testing.Concrete as Test
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.InferTypes as T
 import Cryptol.Utils.PP hiding (empty)
@@ -112,6 +113,13 @@ instance FromJSON E.BV where
     bv <- o .: "bitvector"
     E.BV <$> bv .: "width" <*> bv .: "value"
 
+instance ToJSON Test.TestResult where
+  toJSON = \case
+    Test.Pass -> object [ "Pass" .= Null ]
+    Test.FailFalse args -> object [ "FailFalse" .= args ]
+    Test.FailError err args -> object
+      [ "FailError" .= show (pp err), "args" .= args ]
+
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''NameInfo)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''E.EvalError)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''P.ParseError)
@@ -153,3 +161,4 @@ $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''P.Ident)
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''P.Range)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''P.PName)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''P.Pass)
+$(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''Test.TestReport)
