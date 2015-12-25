@@ -73,7 +73,7 @@ import qualified Cryptol.Symbolic as Symbolic
 
 import Control.DeepSeq
 import qualified Control.Exception as X
-import Control.Monad
+import Control.Monad hiding (mapM, mapM_)
 import Data.Char (isSpace,isPunctuation,isSymbol)
 import Data.Function (on)
 import Data.List (intercalate,nub,sortBy,partition)
