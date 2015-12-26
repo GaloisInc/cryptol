@@ -12,7 +12,7 @@
 module Cryptol.Testing.Random where
 
 import Cryptol.Eval.Value     (BV(..),Value,GenValue(..))
-import qualified Cryptol.Testing.Eval as Eval
+import qualified Cryptol.Testing.Concrete as Conc
 import Cryptol.TypeCheck.AST  (Type(..),TCon(..),TC(..),tNoUser)
 import Cryptol.Utils.Ident    (Ident)
 
@@ -20,7 +20,7 @@ import Control.Monad          (forM)
 import Data.List              (unfoldr, genericTake)
 import System.Random          (RandomGen, split, random, randomR)
 
-type Gen g = Int -> g -> (Value, g)
+type Gen g = Integer -> g -> (Value, g)
 
 
 {- | Apply a testable value to some randomly-generated arguments.
@@ -33,13 +33,13 @@ type Gen g = Int -> g -> (Value, g)
 runOneTest :: RandomGen g
         => Value   -- ^ Function under test
         -> [Gen g] -- ^ Argument generators
-        -> Int     -- ^ Size
+        -> Integer -- ^ Size
         -> g
-        -> IO (Eval.TestResult, g)
+        -> IO (Conc.TestResult, g)
 runOneTest fun argGens sz g0 = do
   let (args, g1) = foldr mkArg ([], g0) argGens
       mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
-  result <- Eval.runOneTest fun args
+  result <- Conc.runOneTest fun args
   return (result, g1)
 
 {- | Given a (function) type, compute generators for

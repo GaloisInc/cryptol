@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 --
--- Include the prelude when building with -fself-contained
+-- Compile the prelude into the executable as a last resort
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE QuasiQuotes #-}
@@ -15,8 +15,6 @@
 module Cryptol.Prelude (writePreludeContents) where
 
 import Cryptol.ModuleSystem.Monad
-
-#ifdef SELF_CONTAINED
 
 import System.Directory (getTemporaryDirectory)
 import System.IO (hClose, hPutStr, openTempFile)
@@ -34,13 +32,3 @@ writePreludeContents = io $ do
   hPutStr h preludeContents
   hClose h
   return path
-
-#else
-
-import Cryptol.Utils.Ident (preludeName)
-
--- | If we're not self-contained, the Prelude is just missing
-writePreludeContents :: ModuleM FilePath
-writePreludeContents = moduleNotFound preludeName =<< getSearchPath
-
-#endif

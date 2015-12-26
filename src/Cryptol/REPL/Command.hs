@@ -54,9 +54,8 @@ import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowe
 import qualified Cryptol.Utils.Ident as M
 
 import qualified Cryptol.Eval.Value as E
-import qualified Cryptol.Testing.Eval    as Test
+import Cryptol.Testing.Concrete
 import qualified Cryptol.Testing.Random  as TestR
-import qualified Cryptol.Testing.Exhaust as TestX
 import Cryptol.Parser
     (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
     ,parseModName,parseHelpName)
@@ -74,7 +73,7 @@ import qualified Cryptol.Symbolic as Symbolic
 
 import Control.DeepSeq
 import qualified Control.Exception as X
-import Control.Monad (guard,unless,forM_,when)
+import Control.Monad hiding (mapM, mapM_)
 import qualified Data.ByteString as BS
 import Data.Bits ((.&.))
 import Data.Char (isSpace,isPunctuation,isSymbol)
@@ -160,9 +159,9 @@ nbCommandList  =
     "display a brief description about a function"
   , CommandDescr [ ":s", ":set" ] (OptionArg setOptionCmd)
     "set an environmental option (:set on its own displays current values)"
-  , CommandDescr [ ":check" ] (ExprArg (qcCmd QCRandom))
+  , CommandDescr [ ":check" ] (ExprArg (void . qcCmd QCRandom))
     "use random testing to check that the argument always returns true (if no argument, check all properties)"
-  , CommandDescr [ ":exhaust" ] (ExprArg (qcCmd QCExhaust))
+  , CommandDescr [ ":exhaust" ] (ExprArg (void . qcCmd QCExhaust))
     "use exhaustive testing to prove that the argument always returns true (if no argument, check all properties)"
   , CommandDescr [ ":prove" ] (ExprArg proveCmd)
     "use an external solver to prove that the argument always returns true (if no argument, check all properties)"
@@ -259,54 +258,78 @@ data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 -- | Randomly test a property, or exhaustively check it if the number
 -- of values in the type under test is smaller than the @tests@
 -- environment variable, or we specify exhaustive testing.
-qcCmd :: QCMode -> String -> REPL ()
+qcCmd :: QCMode -> String -> REPL [TestReport]
 qcCmd qcMode "" =
   do (xs,disp) <- getPropertyNames
      let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
-        then rPutStrLn "There are no properties in scope."
-        else forM_ xs $ \x ->
+        then rPutStrLn "There are no properties in scope." *> return []
+        else concat <$> (forM xs $ \x ->
                do let str = nameStr x
                   rPutStr $ "property " ++ str ++ " "
-                  qcCmd qcMode str
+                  qcCmd qcMode str)
 
 qcCmd qcMode str =
   do expr <- replParseExpr str
      (val,ty) <- replEvalExpr expr
      EnvNum testNum  <- getUser "tests"
-     case TestX.testableType ty of
-       Just (sz,vss) | qcMode == QCExhaust || sz <= toInteger testNum ->
-         do rPutStrLn "Using exhaustive testing."
-            let doTest _ [] = panic "We've unexpectedly run out of test cases"
-                                    []
-                doTest _ (vs : vss1) = do
-                  result <- TestX.runOneTest val vs
+     case testableType ty of
+       Just (sz,vss) | qcMode == QCExhaust || sz <= toInteger testNum -> do
+            rPutStrLn "Using exhaustive testing."
+            let f _ [] = panic "Cryptol.REPL.Command"
+                                    ["Exhaustive testing ran out of test cases"]
+                f _ (vs : vss1) = do
+                  result <- io $ runOneTest val vs
                   return (result, vss1)
-            ok <- go doTest sz 0 vss
-            when ok $ rPutStrLn "Q.E.D."
+                testSpec = TestSpec {
+                    testFn = f
+                  , testProp = str
+                  , testTotal = sz
+                  , testPossible = sz
+                  , testRptProgress = ppProgress
+                  , testClrProgress = delProgress
+                  , testRptFailure = ppFailure
+                  , testRptSuccess = do
+                      delTesting
+                      prtLn $ "passed " ++ show sz ++ " tests."
+                      rPutStrLn "Q.E.D."
+                  }
+            prt testingMsg
+            report <- runTests testSpec vss
+            return [report]
 
-       n -> case TestR.testableType ty of
+       Just (sz,_) -> case TestR.testableType ty of
               Nothing   -> raise (TypeNotTestable ty)
-              Just gens ->
-                do rPutStrLn "Using random testing."
-                   prt testingMsg
-                   g <- io newTFGen
-                   ok <- go (TestR.runOneTest val gens) testNum 0 g
-                   when ok $
-                     case n of
-                       Just (valNum,_) ->
-                         do let valNumD = fromIntegral valNum :: Double
-                                percent = fromIntegral (testNum * 100)
-                                        / valNumD
-                                showValNum
-                                   | valNum > 2 ^ (20::Integer) =
-                                       "2^^" ++ show (lg2 valNum)
-                                   | otherwise = show valNum
-                            rPutStrLn $ "Coverage: "
-                                         ++ showFFloat (Just 2) percent "% ("
-                                         ++ show testNum ++ " of "
-                                         ++ showValNum ++ " values)"
-                       Nothing -> return ()
+              Just gens -> do
+                rPutStrLn "Using random testing."
+                let testSpec = TestSpec {
+                        testFn = \sz' g -> io $ TestR.runOneTest val gens sz' g
+                      , testProp = str
+                      , testTotal = toInteger testNum
+                      , testPossible = sz
+                      , testRptProgress = ppProgress
+                      , testClrProgress = delProgress
+                      , testRptFailure = ppFailure
+                      , testRptSuccess = do
+                          delTesting
+                          prtLn $ "passed " ++ show testNum ++ " tests."
+                      }
+                prt testingMsg
+                g <- io newTFGen
+                report <- runTests testSpec g
+                when (isPass (reportResult report)) $ do
+                  let szD = fromIntegral sz :: Double
+                      percent = fromIntegral (testNum * 100) / szD
+                      showValNum
+                        | sz > 2 ^ (20::Integer) =
+                          "2^^" ++ show (lg2 sz)
+                        | otherwise = show sz
+                  rPutStrLn $ "Coverage: "
+                    ++ showFFloat (Just 2) percent "% ("
+                    ++ show testNum ++ " of "
+                    ++ showValNum ++ " values)"
+                return [report]
+       Nothing -> return []
 
   where
   testingMsg = "testing..."
@@ -332,37 +355,23 @@ qcCmd qcMode str =
   delTesting  = del (length testingMsg)
   delProgress = del totProgressWidth
 
-  go _ totNum testNum _
-     | testNum >= totNum =
-         do delTesting
-            prtLn $ "passed " ++ show totNum ++ " tests."
-            return True
-
-  go doTest totNum testNum st =
-     do ppProgress testNum totNum
-        res <- io $ doTest (div (100 * (1 + testNum)) totNum) st
-        opts <- getPPValOpts
-        delProgress
-        case res of
-          (Test.Pass, st1) -> do delProgress
-                                 go doTest totNum (testNum + 1) st1
-          (failure, _g1) -> do
-            delTesting
-            case failure of
-              Test.FailFalse [] -> do
-                prtLn "FAILED"
-              Test.FailFalse vs -> do
-                prtLn "FAILED for the following inputs:"
-                mapM_ (rPrint . pp . E.WithBase opts) vs
-              Test.FailError err [] -> do
-                prtLn "ERROR"
-                rPrint (pp err)
-              Test.FailError err vs -> do
-                prtLn "ERROR for the following inputs:"
-                mapM_ (rPrint . pp . E.WithBase opts) vs
-                rPrint (pp err)
-              Test.Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
-            return False
+  ppFailure failure = do
+    delTesting
+    opts <- getPPValOpts
+    case failure of
+      FailFalse [] -> do
+        prtLn "FAILED"
+      FailFalse vs -> do
+        prtLn "FAILED for the following inputs:"
+        mapM_ (rPrint . pp . E.WithBase opts) vs
+      FailError err [] -> do
+        prtLn "ERROR"
+        rPrint (pp err)
+      FailError err vs -> do
+        prtLn "ERROR for the following inputs:"
+        mapM_ (rPrint . pp . E.WithBase opts) vs
+        rPrint (pp err)
+      Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
 
 satCmd, proveCmd :: String -> REPL ()
 satCmd = cmdProveSat True

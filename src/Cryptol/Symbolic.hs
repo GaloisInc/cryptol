@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -222,7 +223,7 @@ protectStack mkErr cmd modEnv =
   where isOverflow X.StackOverflow = Just ()
         isOverflow _               = Nothing
         msg = "Symbolic evaluation failed to terminate."
-        handler () = mkErr msg modEnv -- (Right (ProverError msg, modEnv), [])
+        handler () = mkErr msg modEnv
 
 parseValues :: [FinType] -> [SBV.CW] -> ([Eval.Value], [SBV.CW])
 parseValues [] cws = ([], cws)
@@ -404,7 +405,7 @@ evalSel sel v =
 
     ListSel n _   -> case v of
                        VWord s -> VBit (SBV.svTestBit s i)
-                                    where i = SBV.svBitSize s - 1 - n
+                                    where i = SBV.intSizeOf s - 1 - n
                        _       -> fromSeq v !! n  -- 0-based indexing
 
 -- Declarations ----------------------------------------------------------------

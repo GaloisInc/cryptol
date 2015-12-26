@@ -14,25 +14,31 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wall -fno-warn-type-defaults #-}
 module Main where
 
 import Control.Concurrent
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Control
+import qualified Control.Exception as X
 import Data.Aeson
 import Data.Aeson.Encode.Pretty
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as BSL
 import Data.Char
 import Data.IORef
+import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Word
+import Options.Applicative
 import System.Environment
 import System.Exit
 import System.FilePath
+import System.Posix.Signals
 import System.ZMQ4
 import Text.Read
 
@@ -40,9 +46,10 @@ import qualified Cryptol.Eval.Value as E
 import Cryptol.REPL.Command
 import Cryptol.REPL.Monad
 import Cryptol.Symbolic (ProverResult(..))
+import qualified Cryptol.Testing.Concrete as Test
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.ModuleSystem as M
-import Cryptol.Utils.PP
+import Cryptol.Utils.PP hiding ((<>))
 
 import Cryptol.Aeson ()
 
@@ -58,6 +65,7 @@ data RCommand
   | RCExhaust Text
   | RCProve Text
   | RCSat Text
+  | RCLoadPrelude
   | RCLoadModule FilePath
   | RCDecls
   | RCUnknownCmd Text
@@ -67,18 +75,19 @@ instance FromJSON RCommand where
   parseJSON = withObject "RCommand" $ \o -> do
     tag <- o .: "tag"
     flip (withText "tag") tag $ \case
-      "evalExpr"   -> RCEvalExpr              <$> o .: "expr"
-      "applyFun"   -> RCApplyFun              <$> o .: "handle" <*> o .: "arg"
-      "typeOf"     -> RCTypeOf                <$> o .: "expr"
-      "setOpt"     -> RCSetOpt                <$> o .: "key" <*> o .: "value"
-      "check"      -> RCCheck                 <$> o .: "expr"
-      "exhaust"    -> RCExhaust               <$> o .: "expr"
-      "prove"      -> RCProve                 <$> o .: "expr"
-      "sat"        -> RCSat                   <$> o .: "expr"
-      "loadModule" -> RCLoadModule . T.unpack <$> o .: "filePath"
-      "browse"     -> return RCDecls
-      "exit"       -> return RCExit
-      unknown      -> return (RCUnknownCmd unknown)
+      "evalExpr"    -> RCEvalExpr              <$> o .: "expr"
+      "applyFun"    -> RCApplyFun              <$> o .: "handle" <*> o .: "arg"
+      "typeOf"      -> RCTypeOf                <$> o .: "expr"
+      "setOpt"      -> RCSetOpt                <$> o .: "key" <*> o .: "value"
+      "check"       -> RCCheck                 <$> o .: "expr"
+      "exhaust"     -> RCExhaust               <$> o .: "expr"
+      "prove"       -> RCProve                 <$> o .: "expr"
+      "sat"         -> RCSat                   <$> o .: "expr"
+      "loadPrelude" -> return RCLoadPrelude
+      "loadModule"  -> RCLoadModule . T.unpack <$> o .: "filePath"
+      "browse"      -> return RCDecls
+      "exit"        -> return RCExit
+      unknown       -> return (RCUnknownCmd unknown)
 
 newtype FunHandle = FH Int
   deriving (Eq, Ord, Enum, Bounded, Show)
@@ -94,8 +103,8 @@ data RResult
   | RRFunValue FunHandle T.Type
   | RRType T.Schema String -- pretty-printed type
   | RRDecls M.IfaceDecls
-  | RRCheck String
-  | RRExhaust String
+  | RRCheck [Test.TestReport]
+  | RRExhaust [Test.TestReport]
   | RRSat [[E.Value]]
     -- ^ A list of satisfying assignments. Empty list means unsat, max
     -- length determined by @satNum@ interpreter option
@@ -106,6 +115,7 @@ data RResult
   | RRUnknownCmd Text
   | RRBadMessage BS.ByteString String
   | RROk
+  | RRInterrupted
 
 instance ToJSON RResult where
   toJSON = \case
@@ -118,9 +128,9 @@ instance ToJSON RResult where
     RRDecls ifds -> object
       [ "tag" .= "decls", "decls" .= ifds ]
     RRCheck out -> object
-      [ "tag" .= "check", "out" .= out ]
+      [ "tag" .= "check", "testReport" .= out ]
     RRExhaust out -> object
-      [ "tag" .= "exhaust", "out" .= out ]
+      [ "tag" .= "exhaust", "testReport" .= out ]
     RRSat out -> object
       [ "tag" .= "sat", "assignments" .= out ]
     RRProve out -> object
@@ -133,31 +143,48 @@ instance ToJSON RResult where
       [ "tag" .= "unknownCommand", "command" .= txt ]
     RRBadMessage msg err -> object
       [ "tag" .= "badMessage", "message" .= BS.unpack msg, "error" .= err ]
-    RROk -> object [ "tag" .= "ok" ]
+    RROk -> object
+      [ "tag" .= "ok" ]
+    RRInterrupted -> object
+      [ "tag" .= "interrupted" ]
 
 data ControlMsg
   = CMConnect
+    -- ^ Request a new Cryptol context and connection
+  | CMInterrupt Word16
+    -- ^ Request an interrupt of all current Cryptol contexts
   | CMExit
+    -- ^ Request that the entire server shut down
   | CMUnknown Text
+    -- ^ Unknown message
 
 instance FromJSON ControlMsg where
   parseJSON = withObject "ControlMsg" $ \o -> do
     tag <- o .: "tag"
     flip (withText "tag") tag $ \case
       "connect" -> return CMConnect
+      "interrupt" -> CMInterrupt <$> o .: "port"
       "exit" -> return CMExit
       other -> return $ CMUnknown other
 
 data ControlReply
   = CRConnect Word16
-  | CROk
+    -- ^ Return the port for a new connection
+  | CRInterrupted
+    -- ^ Acknowledge receipt of an interrupt command
+  | CRExiting
+    -- ^ Acknowledge receipt of an exit command
   | CRBadMessage BS.ByteString String
+    -- ^ Acknowledge receipt of an ill-formed control message
 
 instance ToJSON ControlReply where
   toJSON = \case
     CRConnect port -> object
       [ "tag" .= "connect", "port" .= port ]
-    CROk -> object [ "tag" .= "ok" ]
+    CRInterrupted -> object
+      [ "tag" .= "interrupted" ]
+    CRExiting -> object
+      [ "tag" .= "exiting" ]
     CRBadMessage msg err -> object
       [ "tag" .= "badMessage", "message" .= BS.unpack msg, "error" .= err ]
 
@@ -168,6 +195,7 @@ server port =
   let addr = "tcp://127.0.0.1:" ++ show port
   putStrLn ("[cryptol-server] coming online at " ++ addr)
   bind rep addr
+  workers <- newIORef Map.empty
   let loop = do
         msg <- receive rep
         putStrLn "[cryptol-server] received message:"
@@ -182,12 +210,21 @@ server port =
             bind newRep "tcp://127.0.0.1:*"
             newAddr <- lastEndpoint newRep
             let portStr = reverse . takeWhile isDigit . reverse $ newAddr
+                workerPort = read portStr
             putStrLn ("[cryptol-server] starting worker on interface " ++ newAddr)
-            void . forkIO $ runRepl newRep
-            reply rep $ CRConnect (read portStr)
+            tid <- forkFinally (runRepl newRep) (removeWorker workers port)
+            addNewWorker workers workerPort tid
+            reply rep $ CRConnect workerPort
+          Right (CMInterrupt port') -> do
+            s <- readIORef workers
+            case Map.lookup port' s of
+              Nothing -> reply rep $ CRBadMessage msg "invalid worker port"
+              Just tid -> do
+                throwTo tid X.UserInterrupt
+                reply rep $ CRInterrupted
           Right CMExit -> do
             putStrLn "[cryptol-server] shutting down"
-            reply rep $ CROk
+            reply rep $ CRExiting
             exitSuccess
           Right (CMUnknown cmd) -> do
             putStrLn ("[cryptol-server] unknown control command: " ++ T.unpack cmd)
@@ -202,6 +239,14 @@ reply rep msg = liftIO $ do
   BS.putStrLn bmsg
   send rep [] bmsg
 
+addNewWorker :: IORef (Map Word16 ThreadId) -> Word16 -> ThreadId -> IO ()
+addNewWorker workers port tid =
+  atomicModifyIORef workers $ \s -> (Map.insert port tid s, ())
+
+removeWorker :: IORef (Map Word16 ThreadId) -> Word16 -> a -> IO ()
+removeWorker workers port _result =
+  atomicModifyIORef workers $ \s -> (Map.delete port s, ())
+
 runRepl :: Socket Rep -> IO ()
 runRepl rep = runREPL False $ do -- TODO: batch mode?
   mCryptolPath <- io $ lookupEnv "CRYPTOLPATH"
@@ -214,10 +259,11 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
 #else
       where path' = splitSearchPath path
 #endif
-  loadPrelude
   funHandles <- io $ newIORef (Map.empty, minBound :: FunHandle)
   let handle err = reply rep (RRInteractiveError err (show (pp err)))
-      loop = do
+      handleAsync :: X.AsyncException -> IO ()
+      handleAsync _int = reply rep RRInterrupted
+      loop = liftBaseWith $ \run -> X.handle handleAsync $ run $ do
         msg <- io $ receive rep
         io $ putStrLn "[cryptol-worker] received message:"
         case decodeStrict msg of
@@ -241,7 +287,16 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
               (m, _) <- io $ readIORef funHandles
               case Map.lookup fh m of
                 Nothing -> reply rep (RRBadMessage "invalid function handle" (show fh))
-                Just f -> reply rep (RRValue (f arg))
+                Just f -> do
+                  case f arg of
+                    E.VFun g -> do
+                      gh <- io $ atomicModifyIORef' funHandles $ \(m', gh) ->
+                        let m'' = Map.insert gh g m'
+                            gh' = succ gh
+                        in ((m'', gh'), gh)
+                      -- TODO: bookkeeping to track the type of this value
+                      reply rep (RRFunValue gh T.tZero)
+                    val -> reply rep (RRValue val)
             RCTypeOf txt -> do
               expr <- replParseExpr (T.unpack txt)
               (_expr, _def, sch) <- replCheckExpr expr
@@ -250,11 +305,11 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
               setOptionCmd (T.unpack key ++ "=" ++ T.unpack val)
               reply rep RROk
             RCCheck expr -> do
-              (_, out) <- withCapturedOutput (qcCmd QCRandom (T.unpack expr))
-              reply rep (RRCheck out)
+              reports <- qcCmd QCRandom (T.unpack expr)
+              reply rep (RRCheck reports)
             RCExhaust expr -> do
-              (_, out) <- withCapturedOutput (qcCmd QCExhaust (T.unpack expr))
-              reply rep (RRExhaust out)
+              reports <- qcCmd QCExhaust (T.unpack expr)
+              reply rep (RRExhaust reports)
             RCProve expr -> do
               result <- onlineProveSat False (T.unpack expr) Nothing
               case result of
@@ -277,6 +332,9 @@ runRepl rep = runREPL False $ do -- TODO: batch mode?
                   reply rep (RRProverError err)
                 _ ->
                   reply rep (RRProverError "unexpected prover result")
+            RCLoadPrelude -> do
+              loadPrelude
+              reply rep RROk
             RCLoadModule fp -> do
               loadCmd fp
               reply rep RROk
@@ -300,13 +358,29 @@ withCapturedOutput m = do
   setPutStr old
   return (x, s)
 
+data Server = Server { serverPort :: Word16
+                     , serverMaskSIGINT :: Bool }
+  deriving Show
+
 main :: IO ()
-main = do
-  args <- getArgs
-  case args of
-    [] -> server 5555
-    [portStr] ->
-       case readMaybe portStr of
-         Just port -> server port
-         Nothing -> server 5555
-    _ -> error "port is the only allowed argument"
+main = execParser opts >>= mainWith
+  where
+    opts =
+      info (helper <*> serverOpts)
+           ( fullDesc
+          <> progDesc "Run Cryptol as a server via ZeroMQ and JSON"
+          <> header "cryptol-server" )
+    serverOpts =
+      Server
+      <$> option auto
+         ( long "port"
+        <> short 'p'
+        <> metavar "PORT"
+        <> value 5555
+        <> help "TCP port to bind" )
+      <*> switch
+         ( long "mask-interrupts"
+        <> help "Suppress interrupt signals" )
+    mainWith Server {..} = do
+      when serverMaskSIGINT $ void $ installHandler sigINT Ignore Nothing
+      server serverPort

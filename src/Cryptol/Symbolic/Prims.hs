@@ -24,6 +24,7 @@ import Cryptol.Utils.Panic
 import Cryptol.ModuleSystem.Name (asPrim)
 import Cryptol.Utils.Ident (Ident,mkIdent)
 
+import qualified Data.SBV         as SBV
 import qualified Data.SBV.Dynamic as SBV
 import qualified Data.Map as Map
 import qualified Data.Text as T
@@ -286,9 +287,9 @@ atV def vs i =
       case foldr weave vs bits of
         [] -> def
         y : _ -> y
-    VWord x -> foldr f def (zip [0 .. 2 ^ SBV.svBitSize x - 1] vs)
+    VWord x -> foldr f def (zip [0 .. 2 ^ SBV.intSizeOf x - 1] vs)
       where
-        k = SBV.svKind x
+        k = SBV.kindOf x
         f (n, v) y = iteValue (SBV.svEqual x (SBV.svInteger k n)) v y
     _ -> evalPanic "Cryptol.Symbolic.Prims.selectV" ["Invalid index argument"]
   where
@@ -315,7 +316,7 @@ nthV err v n =
   case v of
     VStream xs -> nth err xs (fromInteger n)
     VSeq _ xs  -> nth err xs (fromInteger n)
-    VWord x                 -> let i = SBV.svBitSize x - 1 - fromInteger n
+    VWord x                 -> let i = SBV.intSizeOf x - 1 - fromInteger n
                                in if i < 0 then err else
                                     VBit (SBV.svTestBit x i)
     _                       -> err
@@ -340,13 +341,13 @@ dropV n xs =
   case xs of
     VSeq b xs'  -> VSeq b (genericDrop n xs')
     VStream xs' -> VStream (genericDrop n xs')
-    VWord w     -> VWord $ SBV.svExtract (SBV.svBitSize w - 1 - fromInteger n) 0 w
+    VWord w     -> VWord $ SBV.svExtract (SBV.intSizeOf w - 1 - fromInteger n) 0 w
     _           -> panic "Cryptol.Symbolic.Prims.dropV" [ "non-droppable value" ]
 
 takeV :: Integer -> Value -> Value
 takeV n xs =
   case xs of
-    VWord w     -> VWord $ SBV.svExtract (SBV.svBitSize w - 1) (SBV.svBitSize w - fromInteger n) w
+    VWord w     -> VWord $ SBV.svExtract (SBV.intSizeOf w - 1) (SBV.intSizeOf w - fromInteger n) w
     VSeq b xs'  -> VSeq b (genericTake n xs')
     VStream xs' -> VSeq b (genericTake n xs')
                      where b = case xs' of VBit _ : _ -> True
@@ -423,7 +424,7 @@ arithUnary op = loop . toTypeVal
 
 sExp :: SWord -> SWord -> SWord
 sExp x y = go (reverse (unpackWord y)) -- bits in little-endian order
-  where go []       = literalSWord (SBV.svBitSize x) 1
+  where go []       = literalSWord (SBV.intSizeOf x) 1
         go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
             where a = go bs
                   s = SBV.svTimes a a
@@ -432,8 +433,8 @@ sExp x y = go (reverse (unpackWord y)) -- bits in little-endian order
 sLg2 :: SWord -> SWord
 sLg2 x = go 0
   where
-    lit n = literalSWord (SBV.svBitSize x) n
-    go i | i < SBV.svBitSize x = SBV.svIte (SBV.svLessEq x (lit (2^i))) (lit (toInteger i)) (go (i + 1))
+    lit n = literalSWord (SBV.intSizeOf x) n
+    go i | i < SBV.intSizeOf x = SBV.svIte (SBV.svLessEq x (lit (2^i))) (lit (toInteger i)) (go (i + 1))
          | otherwise           = lit (toInteger i)
 
 -- Cmp -------------------------------------------------------------------------

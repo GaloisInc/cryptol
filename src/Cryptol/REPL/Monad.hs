@@ -6,10 +6,12 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
 module Cryptol.REPL.Monad (
@@ -86,7 +88,9 @@ import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (proverNames, lookupProver, SatNum(..))
 
 import Control.Monad (ap,unless,when)
+import Control.Monad.Base
 import Control.Monad.IO.Class
+import Control.Monad.Trans.Control
 import Data.Char (isSpace)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef,atomicModifyIORef)
@@ -176,11 +180,19 @@ instance Monad REPL where
 instance MonadIO REPL where
   liftIO = io
 
+instance MonadBase IO REPL where
+  liftBase = liftIO
+
+instance MonadBaseControl IO REPL where
+  type StM REPL a = a
+  liftBaseWith f = REPL $ \ref ->
+    f $ \m -> unREPL m ref
+  restoreM x = return x
+
 instance M.FreshM REPL where
   liftSupply f = modifyRW $ \ RW { .. } ->
     let (a,s') = f (M.meSupply eModuleEnv)
      in (RW { eModuleEnv = eModuleEnv { M.meSupply = s' }, .. },a)
-
 
 -- Exceptions ------------------------------------------------------------------
 
@@ -593,7 +605,7 @@ userOptions  = mkOptionMap
     "The number of random tests to try."
   , simpleOpt "satNum" (EnvString "1") checkSatNum
     "The maximum number of :sat solutions to display (\"all\" for no limit)."
-  , simpleOpt "prover" (EnvString "cvc4") checkProver $
+  , simpleOpt "prover" (EnvString "z3") checkProver $
     "The external SMT solver for :prove and :sat (" ++ proverListString ++ ")."
   , simpleOpt "warnDefaulting" (EnvBool True) (const $ return Nothing)
     "Choose if we should display warnings when defaulting."
@@ -607,9 +619,7 @@ userOptions  = mkOptionMap
                           setModuleEnv me { M.meMonoBinds = b }
           _         -> return ()
 
-  , OptionDescr "tc-solver" (EnvProg "cvc4" [ "--lang=smt2"
-                                            , "--incremental"
-                                            , "--rewrite-divk" ])
+  , OptionDescr "tc-solver" (EnvProg "z3" [ "-smt2", "-in" ])
     (const (return Nothing)) -- TODO: check for the program in the path
     "The solver that will be used by the type checker" $
     \case EnvProg prog args -> do me <- getModuleEnv
@@ -697,27 +707,27 @@ whenDebug m = do
 smokeTest :: REPL [Smoke]
 smokeTest = catMaybes <$> sequence tests
   where
-    tests = [ cvc4exists ]
+    tests = [ z3exists ]
 
 type SmokeTest = REPL (Maybe Smoke)
 
 data Smoke
-  = CVC4NotFound
+  = Z3NotFound
   deriving (Show, Eq)
 
 instance PP Smoke where
   ppPrec _ smoke =
     case smoke of
-      CVC4NotFound -> text . intercalate " " $ [
-          "[error] cvc4 is required to run Cryptol, but was not found in the"
-        , "system path. See the Cryptol README for more on how to install cvc4."
+      Z3NotFound -> text . intercalate " " $ [
+          "[error] z3 is required to run Cryptol, but was not found in the"
+        , "system path. See the Cryptol README for more on how to install z3."
         ]
 
-cvc4exists :: SmokeTest
-cvc4exists = do
-  mPath <- io $ findExecutable "cvc4"
+z3exists :: SmokeTest
+z3exists = do
+  mPath <- io $ findExecutable "z3"
   case mPath of
-    Nothing -> return (Just CVC4NotFound)
+    Nothing -> return (Just Z3NotFound)
     Just _  -> return Nothing
 
 

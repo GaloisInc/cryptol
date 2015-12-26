@@ -717,7 +717,7 @@ instance (Show name, PPName name) => PP (Expr name) where
       ESel    e l   -> ppPrec 4 e <> text "." <> pp l
 
       -- low prec
-      EFun xs e     -> wrap n 0 (text "\\" <> hsep (map (ppPrec 3) xs) <+>
+      EFun xs e     -> wrap n 0 ((text "\\" <> hsep (map (ppPrec 3) xs)) <+>
                                  text "->" <+> pp e)
 
       EIf e1 e2 e3  -> wrap n 0 $ sep [ text "if"   <+> pp e1

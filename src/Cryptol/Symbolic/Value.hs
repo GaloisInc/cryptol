@@ -29,6 +29,7 @@ module Cryptol.Symbolic.Value
 
 import Data.List (foldl')
 
+import Data.SBV (HasKind(..))
 import Data.SBV.Dynamic
 
 import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit,
@@ -92,7 +93,7 @@ mergeValue f c v1 v2 =
                                   [ "mergeValue: incompatible values" ]
   where
     mergeBit b1 b2 = svSymbolicMerge KBool f c b1 b2
-    mergeWord w1 w2 = svSymbolicMerge (svKind w1) f c w1 w2
+    mergeWord w1 w2 = svSymbolicMerge (kindOf w1) f c w1 w2
     mergeField (n1, x1) (n2, x2)
       | n1 == n2  = (n1, mergeValue f c x1 x2)
       | otherwise = panic "Cryptol.Symbolic.Value"
@@ -104,7 +105,7 @@ mergeValue f c v1 v2 =
 
 instance BitWord SBool SWord where
   packWord bs = fromBitsLE (reverse bs)
-  unpackWord x = [ svTestBit x i | i <- reverse [0 .. svBitSize x - 1] ]
+  unpackWord x = [ svTestBit x i | i <- reverse [0 .. intSizeOf x - 1] ]
 
 -- Errors ----------------------------------------------------------------------
 

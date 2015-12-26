@@ -640,8 +640,8 @@ _testSimpGoals = Num.withSolver cfg $ \s ->
        Right _  -> debugLog s "End of test"
        Left _   -> debugLog s "Impossible"
   where
-  cfg = SolverConfig { solverPath = "cvc4"
-                     , solverArgs = [ "--lang=smt2", "--incremental", "--rewrite-divk" ]
+  cfg = SolverConfig { solverPath = "z3"
+                     , solverArgs = [ "-smt2", "-in" ]
                      , solverVerbose = 1
                      }
 

@@ -33,10 +33,6 @@ flag relocatable
   default: True
   description: Don't use the Cabal-provided data directory for looking up Cryptol libraries. This is useful when the data directory can't be known ahead of time, like for a relocatable distribution.
 
-flag self-contained
-  default: True
-  description: Compile the text of the Cryptol Prelude into the library
-
 flag server
   default: False
   description: Build with the ZeroMQ/JSON cryptol-server executable
@@ -44,36 +40,38 @@ flag server
 library
   Default-language:
     Haskell98
-
-  Build-depends:       base             >= 4.7 && < 5,
-                       base-compat      >= 0.6,
-                       array            >= 0.4,
-                       async            >= 2.0,
-                       bytestring       >= 0.10,
-                       containers       >= 0.5,
-                       deepseq          >= 1.3,
-                       deepseq-generics >= 0.1,
-                       directory        >= 1.2,
-                       filepath         >= 1.3,
-                       gitrev           >= 1.0,
-                       generic-trie     >= 0.3.0.1,
-                       GraphSCC         >= 1.0.4,
-                       monadLib         >= 3.7.2,
-                       old-time         >= 1.1,
-                       presburger       >= 1.3,
-                       pretty           >= 1.1,
-                       process          >= 1.2,
-                       QuickCheck       >= 2.7,
-                       random           >= 1.0.1,
-                       sbv              >= 5.3,
-                       smtLib           >= 1.0.7,
-                       simple-smt       >= 0.6.0,
-                       syb              >= 0.4,
-                       text             >= 1.1,
+  Build-depends:       base              >= 4.7 && < 5,
+                       base-compat       >= 0.6,
+                       bytestring        >= 0.10,
+                       array             >= 0.4,
+                       async             >= 2.0,
+                       containers        >= 0.5,
+                       deepseq           >= 1.3,
+                       deepseq-generics  >= 0.1,
+                       directory         >= 1.2,
+                       filepath          >= 1.3,
+                       gitrev            >= 1.0,
+                       generic-trie      >= 0.3.0.1,
+                       GraphSCC          >= 1.0.4,
+                       heredoc           >= 0.2,
+                       monad-control     >= 1.0,
+                       monadLib          >= 3.7.2,
+                       old-time          >= 1.1,
+                       presburger        >= 1.3,
+                       pretty            >= 1.1,
+                       process           >= 1.2,
+                       QuickCheck        >= 2.7,
+                       random            >= 1.0.1,
+                       sbv               >= 5.7,
+                       smtLib            >= 1.0.7,
+                       simple-smt        >= 0.6.0,
+                       syb               >= 0.4,
+                       text              >= 1.1,
                        template-haskell,
-                       tf-random        >= 0.5,
-                       transformers     >= 0.3,
-                       utf8-string      >= 0.3
+                       tf-random         >= 0.5,
+                       transformers      >= 0.3,
+                       transformers-base >= 0.4,
+                       utf8-string       >= 0.3
 
   Build-tools:         alex, happy
   hs-source-dirs:      src
@@ -152,8 +150,7 @@ library
                        Cryptol.Eval.Type,
                        Cryptol.Eval.Value,
 
-                       Cryptol.Testing.Eval,
-                       Cryptol.Testing.Exhaust,
+                       Cryptol.Testing.Concrete,
                        Cryptol.Testing.Random,
 
                        Cryptol.Symbolic,
@@ -178,10 +175,6 @@ library
   if flag(relocatable)
       cpp-options: -DRELOCATABLE
 
-  if flag(self-contained)
-    build-depends:     heredoc >= 0.2
-    cpp-options:       -DSELF_CONTAINED
-
 executable cryptol
   Default-language:
     Haskell98
@@ -201,6 +194,7 @@ executable cryptol
                      , filepath
                      , haskeline
                      , monadLib
+                     , monad-control
                      , process
                      , random
                      , sbv
@@ -223,18 +217,21 @@ executable cryptol-server
   if os(linux) && flag(static)
       ld-options:      -static -pthread
   if flag(server)
-      build-depends:   aeson >= 0.10
-                     , aeson-pretty >= 0.7
-                     , base
-                     , base-compat
-                     , bytestring >= 0.10
-                     , containers
-                     , cryptol
-                     , filepath
-                     , text
-                     , transformers
-                     , unordered-containers >= 0.2
-                     , zeromq4-haskell >= 0.6
+     build-depends: aeson >= 0.10
+                  , aeson-pretty >= 0.7
+                  , base
+                  , base-compat
+                  , bytestring >= 0.10
+                  , containers
+                  , cryptol
+                  , filepath
+                  , monad-control
+                  , optparse-applicative
+                  , text
+                  , transformers
+                  , unix
+                  , unordered-containers >= 0.2
+                  , zeromq4-haskell >= 0.6
   else
       buildable: False
 

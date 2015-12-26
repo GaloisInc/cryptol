@@ -131,7 +131,7 @@ endif
 ifneq (,${PREFIX})
   PREFIX_ARG      := --prefix=$(call adjust-path,${PREFIX_ABS})
   DESTDIR_ARG     := --destdir=${PKG}
-  CONFIGURE_ARGS  := -f-relocatable -f-self-contained \
+  CONFIGURE_ARGS  := -f-relocatable \
                      --docdir=$(call adjust-path,${PREFIX}/${PREFIX_SHARE}/${PREFIX_DOC}) \
                      ${SERVER_FLAG}
 else
@@ -141,8 +141,7 @@ else
   # `cabal copy` will make a mess in the PKG directory.
   PREFIX_ARG      := --prefix=$(call adjust-path,${ROOT_PATH})
   DESTDIR_ARG     := --destdir=${PKG}
-  CONFIGURE_ARGS  := -f-self-contained \
-                     --docdir=$(call adjust-path,${PREFIX_SHARE}/${PREFIX_DOC}) \
+  CONFIGURE_ARGS  := --docdir=$(call adjust-path,${PREFIX_SHARE}/${PREFIX_DOC}) \
                      ${SERVER_FLAG}
 endif
 
