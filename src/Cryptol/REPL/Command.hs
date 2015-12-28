@@ -6,7 +6,10 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE PatternGuards, FlexibleContexts, RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
 module Cryptol.REPL.Command (
     -- * Commands
     Command(..), CommandDescr(..), CommandBody(..)
@@ -565,15 +568,23 @@ writeFileCmd file str = do
   expr         <- replParseExpr str
   (val,ty)     <- replEvalExpr expr
   if not (tIsByteSeq ty)
-   then rPrint $ text "Can not write expression of types other than [n][8].  Type was: " <+> pp ty
+   then rPrint $  "Cannot write expression of types other than [n][8]."
+              <+> "Type was: " <+> pp ty
    else wf file =<< serializeValue val
  where
-  wf fp bytes   = replWriteFile fp bytes (rPutStrLn . show)
-  tIsByteSeq    = maybe False (tIsByte . snd) . T.tIsSeq
-  tIsByte   x   = maybe False (\(n,b) -> T.tIsBit b && T.tIsNum n == Just 8) (T.tIsSeq x)
-  serializeValue (E.VSeq _ vs) = return $ BS.pack $ map (serializeByte . E.fromVWord) vs
-  serializeValue _             = panic "REPL write" ["Impossible: Non-VSeq value of type [n][8]."]
-  serializeByte  (E.BV _ v)    = fromIntegral (v .&. 0xFF)
+  wf fp bytes = replWriteFile fp bytes (rPutStrLn . show)
+  tIsByteSeq x = maybe False
+                       (tIsByte . snd)
+                       (T.tIsSeq x)
+  tIsByte    x = maybe False
+                       (\(n,b) -> T.tIsBit b && T.tIsNum n == Just 8)
+                       (T.tIsSeq x)
+  serializeValue (E.VSeq _ vs) =
+    return $ BS.pack $ map (serializeByte . E.fromVWord) vs
+  serializeValue _             =
+    panic "Cryptol.REPL.Command.writeFileCmd"
+      ["Impossible: Non-VSeq value of type [n][8]."]
+  serializeByte (E.BV _ v) = fromIntegral (v .&. 0xFF)
 
 reloadCmd :: REPL ()
 reloadCmd  = do
