@@ -276,17 +276,17 @@ primitive error : {at, len} (fin len) => [len][8] -> at
 
 
 /**
- * Performs multiplication of GF2^^8 polynomials.
+ * Performs multiplication of polynomials over GF(2).
  */
 primitive pmult : {a, b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
 
 /**
- * Performs division of GF2^^8 polynomials.
+ * Performs division of polynomials over GF(2).
  */
 primitive pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
 
 /**
- * Performs modulus of GF2^^8 polynomials.
+ * Performs modulus of polynomials over GF(2).
  */
 primitive pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
 
