@@ -10,7 +10,9 @@
 
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
-
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.TypeCheck.InferTypes where
 
 import           Cryptol.TypeCheck.AST
@@ -18,24 +20,26 @@ import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.TypeMap
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
-import           Cryptol.Parser.AST(LQName)
-import           Cryptol.Prims.Syntax(ECon(..))
 import           Cryptol.Utils.PP
+import           Cryptol.ModuleSystem.Name (asPrim,nameLoc)
 import           Cryptol.TypeCheck.PP
+import           Cryptol.Utils.Ident (Ident,identText)
 import           Cryptol.Utils.Panic(panic)
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 
-
+import GHC.Generics (Generic)
+import Control.DeepSeq.Generics
 
 data SolverConfig = SolverConfig
   { solverPath    :: FilePath   -- ^ The SMT solver to invoke
   , solverArgs    :: [String]   -- ^ Additional arguments to pass to the solver
   , solverVerbose :: Int        -- ^ How verbose to be when type-checking
-  } deriving Show
+  } deriving (Show, Generic)
 
+instance NFData SolverConfig where rnf = genericRnf
 
 -- | The types of variables in the environment.
 data VarType = ExtVar Schema      -- ^ Known type
@@ -61,7 +65,9 @@ data Goal = Goal
   { goalSource :: ConstraintSource  -- ^ With it is about
   , goalRange  :: Range             -- ^ Part of source code that caused goal
   , goal       :: Prop              -- ^ What needs to be proved
-  } deriving Show
+  } deriving (Show,Generic)
+
+instance NFData Goal where rnf = genericRnf
 
 data HasGoal = HasGoal
   { hasName :: !Int
@@ -70,21 +76,25 @@ data HasGoal = HasGoal
 
 -- | Delayed implication constraints, arising from user-specified type sigs.
 data DelayedCt = DelayedCt
-  { dctSource :: LQName   -- ^ Signature that gave rise to this constraint
+  { dctSource :: Name   -- ^ Signature that gave rise to this constraint
   , dctForall :: [TParam]
   , dctAsmps  :: [Prop]
   , dctGoals  :: [Goal]
-  } deriving Show
+  } deriving (Show,Generic)
+
+instance NFData DelayedCt where rnf = genericRnf
 
 data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assuming the sub-goals.
             | Unsolved                    -- ^ We could not solved the goal.
             | Unsolvable                  -- ^ The goal can never be solved
               deriving (Show)
 
-data Warning  = DefaultingKind P.TParam P.Kind
+data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingWildType P.Kind
               | DefaultingTo Doc Type
-                deriving Show
+                deriving (Show,Generic)
+
+instance NFData Warning where rnf = genericRnf
 
 -- | Various errors that might happen during type checking/inference
 data Error    = ErrorMsg Doc
@@ -97,31 +107,31 @@ data Error    = ErrorMsg Doc
                 -- ^ Number of extra parameters, kind of resut
                 -- (which should not be of the form @_ -> _@)
 
-              | TooManyTySynParams QName Int
+              | TooManyTySynParams Name Int
                 -- ^ Type-synonym, number of extra params
 
-              | TooFewTySynParams QName Int
+              | TooFewTySynParams Name Int
                 -- ^ Type-synonym, number of missing params
 
-              | RepeatedTyParams [P.TParam]
+              | RepeatedTyParams [P.TParam Name]
                 -- ^ Type parameters with the same name (in definition)
 
-              | RepeatedDefinitions QName [Range]
+              | RepeatedDefinitions Name [Range]
                 -- ^ Multiple definitions for the same name
 
-              | RecursiveTypeDecls [LQName]
+              | RecursiveTypeDecls [Name]
                 -- ^ The type synonym declarations are recursive
 
-              | UndefinedTypeSynonym QName
+              | UndefinedTypeSynonym Name
                 -- ^ Use of a type synonym that was not defined
 
-              | UndefinedVariable QName
+              | UndefinedVariable Name
                 -- ^ Use of a variable that was not defined
 
-              | UndefinedTypeParam QName
+              | UndefinedTypeParam (Located Ident)
                 -- ^ Attempt to explicitly instantiate a non-existent param.
 
-              | MultipleTypeParamDefs QName [Range]
+              | MultipleTypeParamDefs Ident [Range]
                 -- ^ Multiple definitions for the same type parameter
 
               | TypeMismatch Type Type
@@ -130,8 +140,10 @@ data Error    = ErrorMsg Doc
               | RecursiveType Type Type
                 -- ^ Unification results in a recursive type
 
-              | UnsolvedGoal Goal
+              | UnsolvedGoal Bool Goal
                 -- ^ A constraint that we could not solve
+                -- The boolean indicates if we know that this constraint
+                -- is impossible.
 
               | UnsolvedDelcayedCt DelayedCt
                 -- ^ A constraint (with context) that we could not solve
@@ -148,7 +160,7 @@ data Error    = ErrorMsg Doc
                 -- ^ Quantified type variables (of kind *) needs to
                 -- match the given type, so it does not work for all types.
 
-              | UnusableFunction QName [Prop]
+              | UnusableFunction Name [Prop]
                 -- ^ The given constraints causes the signature of the
                 -- function to be not-satisfiable.
 
@@ -158,27 +170,33 @@ data Error    = ErrorMsg Doc
 
               | CannotMixPositionalAndNamedTypeParams
 
-              | AmbiguousType [QName]
+              | AmbiguousType [Name]
 
 
-                deriving Show
+                deriving (Show,Generic)
+
+instance NFData Error where rnf = genericRnf
 
 -- | Information about how a constraint came to be, used in error reporting.
 data ConstraintSource
   = CtComprehension       -- ^ Computing shape of list comprehension
   | CtSplitPat            -- ^ Use of a split pattern
   | CtTypeSig             -- ^ A type signature in a pattern or expression
-  | CtInst Expr           -- ^ Instantiation of this expreesion
+  | CtInst Expr           -- ^ Instantiation of this expression
   | CtSelector
   | CtExactType
   | CtEnumeration
   | CtDefaulting          -- ^ Just defaulting on the command line
   | CtPartialTypeFun TyFunName -- ^ Use of a partial type function.
   | CtImprovement
-    deriving Show
+    deriving (Show,Generic)
 
-data TyFunName = UserTyFun QName | BuiltInTyFun TFun
-                deriving Show
+instance NFData ConstraintSource where rnf = genericRnf
+
+data TyFunName = UserTyFun Name | BuiltInTyFun TFun
+                deriving (Show,Generic)
+
+instance NFData TyFunName where rnf = genericRnf
 
 instance PP TyFunName where
   ppPrec c (UserTyFun x)    = ppPrec c x
@@ -231,7 +249,7 @@ instance TVars Error where
       MultipleTypeParamDefs {}  -> err
       TypeMismatch t1 t2        -> TypeMismatch (apSubst su t1) (apSubst su t2)
       RecursiveType t1 t2       -> RecursiveType (apSubst su t1) (apSubst su t2)
-      UnsolvedGoal g            -> UnsolvedGoal (apSubst su g)
+      UnsolvedGoal x g          -> UnsolvedGoal x (apSubst su g)
       UnsolvedDelcayedCt g      -> UnsolvedDelcayedCt (apSubst su g)
       UnexpectedTypeWildCard    -> err
       TypeVariableEscaped t xs  -> TypeVariableEscaped (apSubst su t) xs
@@ -258,7 +276,7 @@ instance FVS Error where
       MultipleTypeParamDefs {}  -> Set.empty
       TypeMismatch t1 t2        -> fvs (t1,t2)
       RecursiveType t1 t2       -> fvs (t1,t2)
-      UnsolvedGoal g            -> fvs g
+      UnsolvedGoal _ g          -> fvs g
       UnsolvedDelcayedCt g      -> fvs g
       UnexpectedTypeWildCard    -> Set.empty
       TypeVariableEscaped t _   -> fvs t
@@ -435,8 +453,9 @@ instance PP (WithNames Error) where
           (text "Expected type:" <+> ppWithNames names t1 $$
            text "Inferred type:" <+> ppWithNames names t2)
 
-      UnsolvedGoal g ->
-        nested (text "Unsolved constraint:") (ppWithNames names g)
+      UnsolvedGoal imp g ->
+        nested (word <+> text "constraint:") (ppWithNames names g)
+        where word = if imp then text "Unsolvable" else text "Unsolved"
 
       UnsolvedDelcayedCt g ->
         nested (text "Failed to validate user-specified signature.")
@@ -503,13 +522,14 @@ instance PP ConstraintSource where
 ppUse :: Expr -> Doc
 ppUse expr =
   case expr of
-    ECon ECDemote       -> text "literal or demoted expression"
-    ECon ECInfFrom      -> text "infinite enumeration"
-    ECon ECInfFromThen  -> text "infinite enumeration (with step)"
-    ECon ECFromThen     -> text "finite enumeration"
-    ECon ECFromTo       -> text "finite enumeration"
-    ECon ECFromThenTo   -> text "finite enumeration"
-    _                   -> text "expression" <+> pp expr
+    EVar (asPrim -> Just prim)
+      | identText prim == "demote"       -> text "literal or demoted expression"
+      | identText prim == "infFrom"      -> text "infinite enumeration"
+      | identText prim == "infFromThen"  -> text "infinite enumeration (with step)"
+      | identText prim == "fromThen"     -> text "finite enumeration"
+      | identText prim == "fromTo"       -> text "finite enumeration"
+      | identText prim == "fromThenTo"   -> text "finite enumeration"
+    _                          -> text "expression" <+> pp expr
 
 instance PP (WithNames Goal) where
   ppPrec _ (WithNames g names) =
@@ -522,8 +542,8 @@ instance PP (WithNames DelayedCt) where
   ppPrec _ (WithNames d names) =
     sig $$ nest 2 (vars $$ asmps $$ vcat (map (ppWithNames ns1) (dctGoals d)))
     where
-    sig = text "In the definition of" <+> quotes (pp (thing name)) <>
-          comma <+> text "at" <+> pp (srcRange name) <> colon
+    sig = text "In the definition of" <+> quotes (pp name) <>
+          comma <+> text "at" <+> pp (nameLoc name) <> colon
 
     name  = dctSource d
     vars = case dctForall d of

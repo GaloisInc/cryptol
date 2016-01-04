@@ -31,12 +31,32 @@ fromNat n' =
     Nat i -> Just i
     _     -> Nothing
 
+--------------------------------------------------------------------------------
+
+nEq :: Maybe Nat' -> Maybe Nat' -> Bool
+nEq (Just x) (Just y) = x == y
+nEq _ _               = False
+
+nGt :: Maybe Nat' -> Maybe Nat' -> Bool
+nGt (Just x) (Just y) = x > y
+nGt _ _               = False
+
+nFin :: Maybe Nat' -> Bool
+nFin (Just x)         = x /= Inf
+nFin _                = False
+
+
+
+
+--------------------------------------------------------------------------------
+
+
 nAdd :: Nat' -> Nat' -> Nat'
 nAdd Inf _           = Inf
 nAdd _ Inf           = Inf
 nAdd (Nat x) (Nat y) = Nat (x + y)
 
-{-| Some algerbaic properties of interest:
+{-| Some algebraic properties of interest:
 
 > 1 * x = x
 > x * (y * z) = (x * y) * z
@@ -53,7 +73,7 @@ nMul _ Inf           = Inf
 nMul (Nat x) (Nat y) = Nat (x * y)
 
 
-{-| Some algeibraic properties of interest:
+{-| Some algebraic properties of interest:
 
 > x ^ 0        = 1
 > x ^ (n + 1)  = x * (x ^ n)
@@ -134,19 +154,19 @@ nWidth (Nat n)  = Nat (widthInteger n)
 
 
 {- | @length ([ x, y .. ] : [_][w])@
-We don't check that the second element fits in `w` many bits as the 
+We don't check that the second element fits in `w` many bits as the
 second element may not be part of the list.
 For example, the length of @[ 0 .. ] : [_][0]@ is @nLenFromThen 0 1 0@,
 which should evaluate to 1. -}
 
 
-{- XXX: It would appear that the actual notaion also requires `y` to fit in...
+{- XXX: It would appear that the actual notation also requires `y` to fit in...
 It is not clear if that's a good idea.  Consider, for example,
 
     [ 1, 4 .., 2 ]
 
-Crytpol infers that this list has one element, but it insists that the
-width of the elements be at least 3, to accomodate the 4.
+Cryptol infers that this list has one element, but it insists that the
+width of the elements be at least 3, to accommodate the 4.
 -}
 nLenFromThen :: Nat' -> Nat' -> Nat' -> Maybe Nat'
 nLenFromThen a@(Nat x) b@(Nat y) wi@(Nat w)
@@ -265,3 +285,34 @@ widthInteger x = go' 0 (if x < 0 then complement x else x)
     go' s n
       | n < bit 32 = go s n
       | otherwise  = let s' = s + 32 in s' `seq` go' s' (n `shiftR` 32)
+
+
+-- | Compute the exact root of a natural number.
+-- The second argument specifies which root we are computing.
+rootExact :: Integer -> Integer -> Maybe Integer
+rootExact x y = do (z,True) <- genRoot x y
+                   return z
+
+
+
+{- | Compute the the n-th root of a natural number, rounded down to
+the closest natural number.  The boolean indicates if the result
+is exact (i.e., True means no rounding was done, False means rounded down).
+The second argument specifies which root we are computing. -}
+genRoot :: Integer -> Integer -> Maybe (Integer, Bool)
+genRoot _  0    = Nothing
+genRoot x0 1    = Just (x0, True)
+genRoot x0 root = Just (search 0 (x0+1))
+  where
+  search from to = let x = from + div (to - from) 2
+                       a = x ^ root
+                   in case compare a x0 of
+                        EQ              -> (x, True)
+                        LT | x /= from  -> search x to
+                           | otherwise  -> (from, False)
+                        GT | x /= to    -> search from x
+                           | otherwise  -> (from, False)
+
+
+
+

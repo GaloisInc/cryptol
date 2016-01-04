@@ -1,0 +1,6 @@
+module specialize where
+
+top (x, y) = f`{Bit,Bit} (x, y)
+
+f : {a, b} (a, b) -> (a, b)
+f (x, y) = (x, y)

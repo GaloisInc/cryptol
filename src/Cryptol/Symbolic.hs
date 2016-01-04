@@ -6,23 +6,26 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Cryptol.Symbolic where
 
 import Control.Monad (replicateM, when, zipWithM)
-import Control.Monad.IO.Class
 import Data.List (transpose, intercalate)
 import qualified Data.Map as Map
-import Data.Maybe
 import qualified Control.Exception as X
 
 import qualified Data.SBV.Dynamic as SBV
 
-import qualified Cryptol.ModuleSystem as M
+import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
+import qualified Cryptol.ModuleSystem.Base as M
+import qualified Cryptol.ModuleSystem.Monad as M
 
 import Cryptol.Symbolic.Prims
 import Cryptol.Symbolic.Value
@@ -32,14 +35,12 @@ import qualified Cryptol.Eval.Type (evalType)
 import qualified Cryptol.Eval.Env (EvalEnv(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
+import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-import Data.Monoid (Monoid(..))
-import Data.Traversable (traverse)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- External interface ----------------------------------------------------------
 
@@ -67,6 +68,30 @@ lookupProver s =
 
 type SatResult = [(Type, Expr, Eval.Value)]
 
+data SatNum = AllSat | SomeSat Int
+  deriving (Show)
+
+data QueryType = SatQuery SatNum | ProveQuery
+  deriving (Show)
+
+data ProverCommand = ProverCommand {
+    pcQueryType :: QueryType
+    -- ^ The type of query to run
+  , pcProverName :: String
+    -- ^ Which prover to use (one of the strings in 'proverConfigs')
+  , pcVerbose :: Bool
+    -- ^ Verbosity flag passed to SBV
+  , pcExtraDecls :: [DeclGroup]
+    -- ^ Extra declarations to bring into scope for symbolic
+    -- simulation
+  , pcSmtFile :: Maybe FilePath
+    -- ^ Optionally output the SMTLIB query to a file
+  , pcExpr :: Expr
+    -- ^ The typechecked expression to evaluate
+  , pcSchema :: Schema
+    -- ^ The 'Schema' of @pcExpr@
+  }
+
 -- | A prover result is either an error message, an empty result (eg
 -- for the offline prover), a counterexample or a lazy list of
 -- satisfying assignments.
@@ -75,42 +100,66 @@ data ProverResult = AllSatResult [SatResult] -- LAZY
                   | EmptyResult
                   | ProverError  String
 
+satSMTResults :: SBV.SatResult -> [SBV.SMTResult]
+satSMTResults (SBV.SatResult r) = [r]
+
 allSatSMTResults :: SBV.AllSatResult -> [SBV.SMTResult]
 allSatSMTResults (SBV.AllSatResult (_, rs)) = rs
 
 thmSMTResults :: SBV.ThmResult -> [SBV.SMTResult]
 thmSMTResults (SBV.ThmResult r) = [r]
 
-satProve :: Bool
-         -> Maybe Int -- ^ satNum
-         -> (String, Bool, Bool)
-         -> [DeclGroup]
-         -> Maybe FilePath
-         -> (Expr, Schema)
-         -> M.ModuleCmd ProverResult
-satProve isSat mSatNum (proverName, useSolverIte, verbose) edecls mfile (expr, schema) = protectStack useSolverIte $ \modEnv -> do
-  let extDgs = allDeclGroups modEnv ++ edecls
+proverError :: String -> M.ModuleCmd ProverResult
+proverError msg modEnv = return (Right (ProverError msg, modEnv), [])
+
+satProve :: ProverCommand -> M.ModuleCmd ProverResult
+satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
+  M.runModuleM modEnv $ do
+  let (isSat, mSatNum) = case pcQueryType of
+        ProveQuery -> (False, Nothing)
+        SatQuery sn -> case sn of
+          SomeSat n -> (True, Just n)
+          AllSat    -> (True, Nothing)
+  let extDgs = allDeclGroups modEnv ++ pcExtraDecls
   provers <-
-    case proverName of
-      "any" -> SBV.sbvAvailableSolvers
-      _ -> return [(lookupProver proverName) { SBV.smtFile = mfile }]
-  let provers' = [ p { SBV.timing = verbose, SBV.verbose = verbose } | p <- provers ]
+    case pcProverName of
+      "any" -> M.io SBV.sbvAvailableSolvers
+      _ -> return [(lookupProver pcProverName) { SBV.smtFile = pcSmtFile }]
+  let provers' = [ p { SBV.timing = pcVerbose, SBV.verbose = pcVerbose } | p <- provers ]
   let tyFn = if isSat then existsFinType else forallFinType
   let runProver fn tag e = do
-        when verbose $ liftIO $
+        case provers of
+          [prover] -> do
+            when pcVerbose $ M.io $
+              putStrLn $ "Trying proof with " ++ show prover
+            res <- M.io (fn prover e)
+            when pcVerbose $ M.io $
+              putStrLn $ "Got result from " ++ show prover
+            return (tag res)
+          _ ->
+            return [ SBV.ProofError
+                       prover
+                       [":sat with option prover=any requires option satNum=1"]
+                   | prover <- provers ]
+      runProvers fn tag e = do
+        when pcVerbose $ M.io $
           putStrLn $ "Trying proof with " ++
                      intercalate ", " (map show provers)
-        (firstProver, res) <- fn provers' e
-        when verbose $ liftIO $
+        (firstProver, res) <- M.io (fn provers' e)
+        when pcVerbose $ M.io $
           putStrLn $ "Got result from " ++ show firstProver
         return (tag res)
-  let runFn | isSat     = runProver SBV.allSatWithAny allSatSMTResults
-            | otherwise = runProver SBV.proveWithAny  thmSMTResults
-  case predArgTypes schema of
-    Left msg -> return (Right (ProverError msg, modEnv), [])
-    Right ts -> do when verbose $ putStrLn "Simulating..."
-                   let env = evalDecls (emptyEnv useSolverIte) extDgs
-                   let v = evalExpr env expr
+  let runFn = case pcQueryType of
+        ProveQuery -> runProvers SBV.proveWithAny thmSMTResults
+        SatQuery sn -> case sn of
+          SomeSat 1 -> runProvers SBV.satWithAny satSMTResults
+          _         -> runProver SBV.allSatWith allSatSMTResults
+  case predArgTypes pcSchema of
+    Left msg -> return (ProverError msg)
+    Right ts -> do when pcVerbose $ M.io $ putStrLn "Simulating..."
+                   let env = evalDecls mempty extDgs
+                   let v = evalExpr env pcExpr
+                   prims <- M.getPrimMap
                    results' <- runFn $ do
                                  args <- mapM tyFn ts
                                  b <- return $! fromVBit (foldl fromVFun v args)
@@ -127,7 +176,7 @@ satProve isSat mSatNum (proverName, useSolverIte, verbose) edecls mfile (expr, s
                            let Right (_, cws) = SBV.getModel result
                                (vs, _) = parseValues ts cws
                                sattys = unFinType <$> ts
-                               satexprs = zipWithM Eval.toExpr sattys vs
+                               satexprs = zipWithM (Eval.toExpr prims) sattys vs
                            in case zip3 sattys <$> satexprs <*> pure vs of
                              Nothing ->
                                panic "Cryptol.Symbolic.sat"
@@ -144,53 +193,37 @@ satProve isSat mSatNum (proverName, useSolverIte, verbose) edecls mfile (expr, s
                                         | otherwise = show . SBV.ThmResult . head
                                   boom = panic "Cryptol.Symbolic.sat"
                                            [ "attempted to evaluate bogus boolean for pretty-printing" ]
-                   return (Right (esatexprs, modEnv), [])
+                   return esatexprs
 
-satProveOffline :: Bool
-                -> Bool
-                -> Bool
-                -> [DeclGroup]
-                -> Maybe FilePath
-                -> (Expr, Schema)
-                -> M.ModuleCmd ProverResult
-satProveOffline isSat useIte vrb edecls mfile (expr, schema) =
-  protectStack useIte $ \modEnv -> do
-    let extDgs = allDeclGroups modEnv ++ edecls
+satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
+satProveOffline ProverCommand {..} =
+  protectStack (\msg modEnv -> return (Right (Left msg, modEnv), [])) $ \modEnv -> do
+    let isSat = case pcQueryType of
+          ProveQuery -> False
+          SatQuery _ -> True
+    let extDgs = allDeclGroups modEnv ++ pcExtraDecls
     let tyFn = if isSat then existsFinType else forallFinType
-    let filename = fromMaybe "standard output" mfile
-    case predArgTypes schema of
-      Left msg -> return (Right (ProverError msg, modEnv), [])
+    case predArgTypes pcSchema of
+      Left msg -> return (Right (Left msg, modEnv), [])
       Right ts ->
-        do when vrb $ putStrLn "Simulating..."
-           let env = evalDecls (emptyEnv useIte) extDgs
-           let v = evalExpr env expr
-           let satWord | isSat = "satisfiability"
-                       | otherwise = "validity"
-           txt <- SBV.compileToSMTLib True isSat $ do
-                    args <- mapM tyFn ts
-                    b <- return $! fromVBit (foldl fromVFun v args)
-                    liftIO $ putStrLn $
-                      "Writing to SMT-Lib file " ++ filename ++ "..."
-                    return b
-           liftIO $ putStrLn $
-             "To determine the " ++ satWord ++
-             " of the expression, use an external SMT solver."
-           case mfile of
-             Just path -> writeFile path txt
-             Nothing -> putStr txt
-           return (Right (EmptyResult, modEnv), [])
+        do when pcVerbose $ putStrLn "Simulating..."
+           let env = evalDecls mempty extDgs
+           let v = evalExpr env pcExpr
+           smtlib <- SBV.compileToSMTLib SBV.SMTLib2 isSat $ do
+             args <- mapM tyFn ts
+             b <- return $! fromVBit (foldl fromVFun v args)
+             return b
+           return (Right (Right smtlib, modEnv), [])
 
-protectStack :: Bool
-             -> M.ModuleCmd ProverResult
-             -> M.ModuleCmd ProverResult
-protectStack usingITE cmd modEnv = X.catchJust isOverflow (cmd modEnv) handler
+protectStack :: (String -> M.ModuleCmd a)
+             -> M.ModuleCmd a
+             -> M.ModuleCmd a
+protectStack mkErr cmd modEnv =
+  X.catchJust isOverflow (cmd modEnv) handler
   where isOverflow X.StackOverflow = Just ()
         isOverflow _               = Nothing
-        msg | usingITE  = msgBase
-            | otherwise = msgBase ++ "\n" ++
-                          "Using ':set iteSolver=on' might help."
-        msgBase = "Symbolic evaluation failed to terminate."
-        handler () = return (Right (ProverError msg, modEnv), [])
+        msg = "Symbolic evaluation failed to terminate."
+        handler () = mkErr msg modEnv
 
 parseValues :: [FinType] -> [SBV.CW] -> ([Eval.Value], [SBV.CW])
 parseValues [] cws = ([], cws)
@@ -222,7 +255,7 @@ data FinType
     = FTBit
     | FTSeq Int FinType
     | FTTuple [FinType]
-    | FTRecord [(Name, FinType)]
+    | FTRecord [(Ident, FinType)]
 
 numType :: Type -> Maybe Int
 numType (TCon (TC (TCNum n)) [])
@@ -287,33 +320,27 @@ existsFinType ty =
 -- Simulation environment ------------------------------------------------------
 
 data Env = Env
-  { envVars :: Map.Map QName Value
+  { envVars :: Map.Map Name Value
   , envTypes :: Map.Map TVar TValue
-  , envIteSolver :: Bool
   }
 
 instance Monoid Env where
   mempty = Env
     { envVars  = Map.empty
     , envTypes = Map.empty
-    , envIteSolver = False
     }
 
   mappend l r = Env
     { envVars  = Map.union (envVars  l) (envVars  r)
     , envTypes = Map.union (envTypes l) (envTypes r)
-    , envIteSolver = envIteSolver l || envIteSolver r
     }
 
-emptyEnv :: Bool -> Env
-emptyEnv useIteSolver = Env Map.empty Map.empty useIteSolver
-
 -- | Bind a variable in the evaluation environment.
-bindVar :: (QName, Value) -> Env -> Env
+bindVar :: (Name, Value) -> Env -> Env
 bindVar (n, thunk) env = env { envVars = Map.insert n thunk (envVars env) }
 
 -- | Lookup a variable in the environment.
-lookupVar :: QName -> Env -> Maybe Value
+lookupVar :: Name -> Env -> Maybe Value
 lookupVar n env = Map.lookup n (envVars env)
 
 -- | Bind a type variable of kind *.
@@ -329,13 +356,11 @@ lookupType p env = Map.lookup p (envTypes env)
 evalExpr :: Env -> Expr -> Value
 evalExpr env expr =
   case expr of
-    ECon econ         -> evalECon econ
     EList es ty       -> VSeq (tIsBit ty) (map eval es)
     ETuple es         -> VTuple (map eval es)
     ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
     ESel e sel        -> evalSel sel (eval e)
-    EIf b e1 e2       -> evalIf (fromVBit (eval b)) (eval e1) (eval e2)
-                           where evalIf = if envIteSolver env then sBranchValue else iteValue
+    EIf b e1 e2       -> iteValue (fromVBit (eval b)) (eval e1) (eval e2)
     EComp ty e mss    -> evalComp env (evalType env ty) e mss
     EVar n            -> case lookupVar n env of
                            Just x -> x
@@ -379,7 +404,8 @@ evalSel sel v =
         _ -> panic "Cryptol.Symbolic.evalSel" [ "Record selector applied to non-record" ]
 
     ListSel n _   -> case v of
-                       VWord s -> VBit (SBV.svTestBit s n)
+                       VWord s -> VBit (SBV.svTestBit s i)
+                                    where i = SBV.intSizeOf s - 1 - n
                        _       -> fromSeq v !! n  -- 0-based indexing
 
 -- Declarations ----------------------------------------------------------------
@@ -397,8 +423,12 @@ evalDeclGroup env dg =
                                          | (d, (qname, v)) <- zip ds bindings ]
                       in env'
 
-evalDecl :: Env -> Decl -> (QName, Value)
-evalDecl env d = (dName d, evalExpr env (dDefinition d))
+evalDecl :: Env -> Decl -> (Name, Value)
+evalDecl env d = (dName d, body)
+  where
+  body = case dDefinition d of
+           DExpr e -> evalExpr env e
+           DPrim   -> evalPrim d
 
 -- | Make a copy of the given value, building the spine based only on
 -- the type without forcing the value argument. This lets us avoid

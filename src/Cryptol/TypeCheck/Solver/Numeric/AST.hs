@@ -18,10 +18,14 @@ module Cryptol.TypeCheck.Solver.Numeric.AST
 
   , IfExpr, IfExpr'(..), ppIf, ppIfExpr
 
-  , Subst, HasVars(..), cryLet, composeSubst
+  , Subst, HasVars(..), cryLet, composeSubst, doAppSubst
   ) where
 
+import          Cryptol.TypeCheck.AST(TVar)
+import          Cryptol.TypeCheck.PP(pp)
 import          Cryptol.TypeCheck.Solver.InfNat ( Nat'(..) )
+import          Cryptol.Utils.PP ( Doc, text, (<+>), hang, ($$), char, (<>)
+                                 , parens, integer, sep )
 import          Cryptol.Utils.Panic ( panic )
 import          Cryptol.Utils.Misc ( anyJust )
 
@@ -34,8 +38,6 @@ import           Data.Set ( Set )
 import qualified Data.Set as Set
 import qualified Control.Applicative as A
 import           Control.Monad ( liftM, ap )
-import           Text.PrettyPrint ( Doc, text, (<+>), hang, ($$), char, (<>)
-                                  , parens, integer, sep )
 
 
 infixr 2 :||
@@ -47,7 +49,7 @@ infixr 8 :^^
 
 
 
-data Name = UserName Int | SysName Int
+data Name = UserName TVar | SysName Int
             deriving (Show,Eq,Ord,Generic)
 
 
@@ -76,18 +78,17 @@ data Prop =
 -- | Expressions, representing Cryptol's numeric types.
 data Expr = K Nat'
           | Var Name
-          | Expr :+ Expr
-          | Expr :- Expr
-          | Expr :* Expr
-          | Div Expr Expr
-          | Mod Expr Expr
-          | Expr :^^ Expr
-          | Min Expr Expr
-          | Max Expr Expr
-          | Lg2 Expr
-          | Width Expr
-          | LenFromThen   Expr Expr Expr
-          | LenFromThenTo Expr Expr Expr
+          | Expr :+ Expr                  -- total
+          | Expr :- Expr                  -- partial: x >= y, fin y
+          | Expr :* Expr                  -- total
+          | Div Expr Expr                 -- partial: fin x, y >= 1
+          | Mod Expr Expr                 -- partial: fin x, y >= 1
+          | Expr :^^ Expr                 -- total
+          | Min Expr Expr                 -- total
+          | Max Expr Expr                 -- total
+          | Width Expr                    -- total
+          | LenFromThen   Expr Expr Expr  -- partial: x /= y, w >= width x
+          | LenFromThenTo Expr Expr Expr  -- partial: x /= y
             deriving (Eq,Show,Generic,Ord)
 
 
@@ -157,7 +158,6 @@ cryExprExprs expr =
     x :^^ y             -> [x,y]
     Min x y             -> [x,y]
     Max x y             -> [x,y]
-    Lg2 x               -> [x]
     Width x             -> [x]
     LenFromThen   x y z -> [x,y,z]
     LenFromThenTo x y z -> [x,y,z]
@@ -177,7 +177,6 @@ cryRebuildExpr expr args =
     (_ :^^ _, [x,y])                -> x :^^ y
     (Min _ _, [x,y])                -> Min x y
     (Max _ _, [x,y])                -> Max x y
-    (Lg2 _  , [x])                  -> Lg2 x
     (Width _, [x])                  -> Width x
     (LenFromThen   _ _ _ , [x,y,z]) -> LenFromThen x y z
     (LenFromThenTo _ _ _ , [x,y,z]) -> LenFromThenTo x y z
@@ -236,10 +235,17 @@ composeSubst g f = Map.union f' g
 cryLet :: HasVars e => Name -> Expr -> e -> Maybe e
 cryLet x e = apSubst (Map.singleton x e)
 
+doAppSubst :: HasVars a => Subst -> a -> a
+doAppSubst su a = fromMaybe a (apSubst su a)
+
 -- | Replaces occurances of the name with the expression.
 -- Returns 'Nothing' if there were no occurances of the name.
 class HasVars ast where
   apSubst :: Subst -> ast -> Maybe ast
+
+-- | This is used in the simplification to "apply" substitutions to Props.
+instance HasVars Bool where
+  apSubst _ _ = Nothing
 
 instance HasVars Expr where
   apSubst su = go
@@ -256,7 +262,6 @@ instance HasVars Expr where
         Mod x y             -> bin Mod x y
         Min x y             -> bin Min x y
         Max x y             -> bin Max x y
-        Lg2 x               -> Lg2 `fmap` go x
         Width x             -> Width `fmap` go x
         LenFromThen x y w   -> three LenFromThen x y w
         LenFromThenTo x y z -> three LenFromThen x y z
@@ -310,7 +315,7 @@ instance HasVars Prop where
 ppName :: Name -> Doc
 ppName name =
   case name of
-    UserName x -> text (names !! x)
+    UserName x -> pp x
     SysName  x -> char '_' <> text (names !! x)
 
 -- | An infinite list of names, for pretty prinitng.
@@ -372,10 +377,9 @@ ppExprPrec prec expr =
     x :* y              -> bin "*" 7 0 1 x y
     Div x y             -> fun "div" [x,y]
     Mod x y             -> fun "mod" [x,y]
-    x :^^ y             -> bin "*" 8 1 0 x y
+    x :^^ y             -> bin "^^" 8 1 0 x y
     Min x y             -> fun "min" [x,y]
     Max x y             -> fun "max" [x,y]
-    Lg2 x               -> fun "lg2" [x]
     Width x             -> fun "width" [x]
     LenFromThen x y w   -> fun "lenFromThen" [x,y,w]
     LenFromThenTo x y z -> fun "lenFromThenTo" [x,y,z]

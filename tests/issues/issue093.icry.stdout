@@ -2,9 +2,9 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 property f0 Using exhaustive testing.
-FAILED
+testing...FAILED
 property t0 Using exhaustive testing.
-passed 1 tests.
+testing...passed 1 tests.
 Q.E.D.
 property t1 Using random testing.
 testing...passed 100 tests.
@@ -27,4 +27,4 @@ Coverage: 0.00% (100 of 2^^64 values)
 :sat t1
 	t1 0x00000000 = True
 :sat t2
-	t2 0x00000000 0x00000000 = True
+	t2 0xfffffffe 0xffffffff = True

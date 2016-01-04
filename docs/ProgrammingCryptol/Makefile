@@ -54,18 +54,12 @@ ${TARGET}.pdf: ${SRCS} ${TMP}
 quick: ${SRCS}
 	${LATEX}     ${MAINTARGET}
 
-# load into Cryptol
-cry:
-	cryptol-2 ${MAINTARGET}.tex
-# TODO see ticket #276
-#	cryptol -n ${MAINTARGET}
-
-.PHONY: spellClean superClean clean quickSpell
+.PHONY: squeaky superClean clean quickSpell
 
 clean:
 	rm -f ${AUX}
 
-superClean: clean
+squeaky: clean
 	rm -f ${TARGET}.pdf 
 	make -C tools clean
 

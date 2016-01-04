@@ -5,6 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
+{-# LANGUAGE PatternGuards #-}
 
 module Cryptol.TypeCheck
   ( tcModule
@@ -21,8 +22,9 @@ module Cryptol.TypeCheck
   , ppError
   ) where
 
+import           Cryptol.ModuleSystem.Name (liftSupply,mkDeclared)
 import qualified Cryptol.Parser.AST as P
-import           Cryptol.Parser.Position(Range)
+import           Cryptol.Parser.Position(Range,emptyRange)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Depends (FromDecl)
 import           Cryptol.TypeCheck.Monad
@@ -33,30 +35,29 @@ import           Cryptol.TypeCheck.Monad
                    , nameSeeds
                    , lookupVar
                    )
-import           Cryptol.Prims.Types(typeOf)
 import           Cryptol.TypeCheck.Infer (inferModule, inferBinds, inferDs)
 import           Cryptol.TypeCheck.InferTypes(Error(..),Warning(..),VarType(..), SolverConfig(..))
 import           Cryptol.TypeCheck.Solve(simplifyAllConstraints)
+import           Cryptol.Utils.Ident (packModName,packIdent)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
 
-tcModule :: P.Module -> InferInput -> IO (InferOutput Module)
+tcModule :: P.Module Name -> InferInput -> IO (InferOutput Module)
 tcModule m inp = runInferM inp
                $ do x <- inferModule m
                     simplifyAllConstraints
                     return x
 
-tcExpr :: P.Expr -> InferInput -> IO (InferOutput (Expr,Schema))
+tcExpr :: P.Expr Name -> InferInput -> IO (InferOutput (Expr,Schema))
 tcExpr e0 inp = runInferM inp
-                $ do x <- go e0
+                $ do x <- go emptyRange e0
                      simplifyAllConstraints
                      return x
 
   where
-  go expr =
+  go loc expr =
     case expr of
-      P.ELocated e _ -> go e
-      P.ECon ec -> return (ECon ec, typeOf ec)
+      P.ELocated e loc' -> go loc' e
       P.EVar x  ->
         do res <- lookupVar x
            case res of
@@ -66,19 +67,27 @@ tcExpr e0 inp = runInferM inp
                              , show e'
                              , show t
                              ]
-      _ -> do res <- inferBinds True False
+      _ -> do fresh <- liftSupply (mkDeclared (packModName ["<expr>"]) (packIdent "(expression)") loc)
+              res   <- inferBinds True False
                 [ P.Bind
-                    { P.bName      = P.Located (inpRange inp)
-                                   $ mkUnqual (P.Name "(expression)")
+                    { P.bName      = P.Located { P.srcRange = loc, P.thing = fresh }
                     , P.bParams    = []
-                    , P.bDef       = expr
+                    , P.bDef       = P.Located (inpRange inp) (P.DExpr expr)
                     , P.bPragmas   = []
                     , P.bSignature = Nothing
                     , P.bMono      = False
+                    , P.bInfix     = False
+                    , P.bFixity    = Nothing
+                    , P.bDoc       = Nothing
                     } ]
 
               case res of
-                [d] -> return (dDefinition d, dSignature d)
+                [d] | DExpr e <- dDefinition d -> return (e, dSignature d)
+                    | otherwise                ->
+                       panic "Cryptol.TypeCheck.tcExpr"
+                          [ "Expected an expression in definition"
+                          , show d ]
+
                 _   -> panic "Cryptol.TypeCheck.tcExpr"
                           ( "Multiple declarations when check expression:"
                           : map show res

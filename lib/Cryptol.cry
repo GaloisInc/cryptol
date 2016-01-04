@@ -5,7 +5,297 @@
 
 module Cryptol where
 
+/**
+ * The value corresponding to a numeric type.
+ */
+primitive demote : {val, bits} (fin val, fin bits, bits >= width val) => [bits]
+
+infixr 10 ||
+infixr 20 &&
+infix  30 ==, ===, !=, !==
+infix  40 >, >=, <, <=
+infixl 50 ^
+infixr 60 #
+infixl 70 <<, <<<, >>, >>>
+infixl 80 +, -
+infixl 90 *, /
+infixr 95 ^^
+infixl 100 @, @@, !, !!
+
+/**
+ * Add two values.
+ *  * For words, addition uses modulo arithmetic.
+ *  * Structured values are added element-wise.
+ */
+primitive (+) : {a} (Arith a) => a -> a -> a
+
+/**
+ * For words, subtraction uses modulo arithmetic.
+ * Structured values are subtracted element-wise. Defined as:
+ * a - b = a + negate b
+ * See also: `negate'.
+ */
+primitive (-) : {a} (Arith a) => a -> a -> a
+
+/**
+ * For words, multiplies two words, modulus 2^^a.
+ * Structured values are multiplied element-wise.
+ */
+primitive (*) : {a} (Arith a) => a -> a -> a
+
+/**
+ * For words, divides two words, modulus 2^^a.
+ * Structured values are divided element-wise.
+ */
+primitive (/) : {a} (Arith a) => a -> a -> a
+
+/**
+ * For words, takes the modulus of two words, modulus 2^^a.
+ * Over structured values, operates element-wise.
+ * Be careful, as this will often give unexpected results due to interaction of
+ * the two moduli.
+ */
+primitive (%) : {a} (Arith a) => a -> a -> a
+
+/**
+ * For words, takes the exponent of two words, modulus 2^^a.
+ * Over structured values, operates element-wise.
+ * Be careful, due to its fast-growing nature, exponentiation is prone to
+ * interacting poorly with defaulting.
+ */
+primitive (^^) : {a} (Arith a) => a -> a -> a
+
+/**
+ * Log base two.
+ * 
+ * For words, computes the ceiling of log, base 2, of a number.
+ * Over structured values, operates element-wise.
+ */
+primitive lg2 : {a} (Arith a) => a -> a
+
+
 type Bool = Bit
+
+/**
+ * The constant True. Corresponds to the bit value 1.
+ */
+primitive True  : Bit
+
+/**
+ * The constant False. Corresponds to the bit value 0.
+ */
+primitive False : Bit
+
+/**
+ * Returns the twos complement of its argument.
+ * Over structured values, operates element-wise.
+ * negate a = ~a + 1
+ */
+primitive negate : {a} (Arith a) => a -> a
+
+/**
+ * Binary complement
+ */
+primitive complement : {a} a -> a
+
+/**
+ * Less-than. Only works on comparable arguments.
+ */
+primitive (<) : {a} (Cmp a) => a -> a -> Bit
+
+/**
+ * Greater-than of two comparable arguments.
+ */
+primitive (>) : {a} (Cmp a) => a -> a -> Bit
+
+/**
+ * Less-than or equal of two comparable arguments.
+ */
+primitive (<=) : {a} (Cmp a) => a -> a -> Bit
+
+/**
+ * Greater-than or equal of two comparable arguments.
+ */
+primitive (>=) : {a} (Cmp a) => a -> a -> Bit
+
+/**
+ * Compares any two values of the same type for equality.
+ */
+primitive (==) : {a} (Cmp a) => a -> a -> Bit
+
+/**
+ * Compares any two values of the same type for inequality.
+ */
+primitive (!=) : {a} (Cmp a) => a -> a -> Bit
+
+/**
+ * Compare the outputs of two functions for equality
+ */
+(===) : {a,b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
+f === g = \ x -> f x == g x
+
+/**
+ * Compare the outputs of two functions for inequality
+ */
+(!==) : {a,b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
+f !== g = \x -> f x != g x
+
+/**
+ * Returns the smaller of two comparable arguments.
+ */
+min : {a} (Cmp a) => a -> a -> a
+min x y = if x < y then x else y
+
+/**
+ * Returns the greater of two comparable arguments.
+ */
+max : {a} (Cmp a) => a -> a -> a
+max x y = if x > y then x else y
+
+/**
+ * Logical `and' over bits. Extends element-wise over sequences, tuples.
+ */
+primitive (&&) : {a} a -> a -> a
+
+/**
+ * Logical `or' over bits. Extends element-wise over sequences, tuples.
+ */
+primitive (||) : {a} a -> a -> a
+
+/**
+ * Logical `exclusive or' over bits. Extends element-wise over sequences, tuples.
+ */
+primitive (^) : {a} a -> a -> a
+
+/**
+ * Gives an arbitrary shaped value whose bits are all False.
+ * ~zero likewise gives an arbitrary shaped value whose bits are all True.
+ */
+primitive zero : {a} a
+
+/**
+ * Left shift.  The first argument is the sequence to shift, the second is the
+ * number of positions to shift by.
+*/
+primitive (<<) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
+
+/**
+ * Right shift.  The first argument is the sequence to shift, the second is the
+ * number of positions to shift by.
+ */
+primitive (>>) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
+
+/**
+ * Left rotate.  The first argument is the sequence to rotate, the second is the
+ * number of positions to rotate by.
+ */
+primitive (<<<) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
+
+/**
+ * Right rotate.  The first argument is the sequence to rotate, the second is
+ * the number of positions to rotate by.
+ */
+primitive (>>>) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
+
+primitive (#) : {front, back, a} (fin front) => [front]a -> [back]a
+                                             -> [front + back] a
+
+
+/**
+ * Split a sequence into a tuple of sequences.
+ */
+primitive splitAt : {front, back, a} (fin front) => [front + back]a
+                                                 -> ([front]a, [back]a)
+
+/**
+ * Joins sequences.
+ */
+primitive join : {parts, each, a} (fin each) => [parts][each]a
+                                             -> [parts * each]a
+
+/**
+ * Splits a sequence into 'parts' groups with 'each' elements.
+ */
+primitive split : {parts, each, a} (fin each) => [parts * each]a
+                                              -> [parts][each]a
+
+/**
+ * Reverses the elements in a sequence.
+ */
+primitive reverse : {a, b} (fin a) => [a]b -> [a]b
+
+/**
+ * Transposes an [a][b] matrix into a [b][a] matrix.
+ */
+primitive transpose : {a, b, c} [a][b]c -> [b][a]c
+
+/**
+ * Index operator.  The first argument is a sequence.  The second argument is
+ * the zero-based index of the element to select from the sequence.
+ */
+primitive (@) : {a, b, c} (fin c) => [a]b -> [c] -> b
+
+/**
+ * Bulk index operator.  The first argument is a sequence.  The second argument
+ * is a sequence of the zero-based indices of the elements to select.
+ */
+primitive (@@) : {a, b, c, d} (fin d) => [a]b -> [c][d] -> [c]b
+
+/**
+ * Reverse index operator.  The first argument is a finite sequence.  The second
+ * argument is the zero-based index of the element to select, starting from the
+ * end of the sequence.
+ */
+primitive (!) : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b
+
+/**
+ * Bulk reverse index operator.  The first argument is a finite sequence.  The
+ * second argument is a sequence of the zero-based indices of the elements to
+ z select, starting from the end of the sequence.
+ */
+primitive (!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
+
+primitive fromThen : {first, next, bits, len}
+                     ( fin first, fin next, fin bits
+                     , bits >= width first, bits >= width next
+                     , lengthFromThen first next bits == len) => [len][bits]
+
+primitive fromTo : {first, last, bits} (fin last, fin bits, last >= first,
+                              bits >= width last) => [1 + (last - first)][bits]
+
+primitive fromThenTo : {first, next, last, bits, len} (fin first, fin next,
+                        fin last, fin bits, bits >= width first,
+                        bits >= width next, bits >= width last,
+                        lengthFromThenTo first next last == len) => [len][bits]
+
+primitive infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
+
+primitive infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
+
+primitive error : {at, len} (fin len) => [len][8] -> at
+
+
+/**
+ * Performs multiplication of polynomials over GF(2).
+ */
+primitive pmult : {a, b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
+
+/**
+ * Performs division of polynomials over GF(2).
+ */
+primitive pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
+
+/**
+ * Performs modulus of polynomials over GF(2).
+ */
+primitive pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
+
+/**
+ * Generates random values from a seed.  When called with a function, currently
+ * generates a function that always returns zero.
+ */
+primitive random : {a} [32] -> a
+
 type String n = [n][8]
 type Word n = [n]
 type Char   = [8]

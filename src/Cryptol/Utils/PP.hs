@@ -8,24 +8,118 @@
 
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE PatternGuards #-}
-module Cryptol.Utils.PP
-  ( PP(..)
-  , pp
-  , pretty
-  , optParens
-  , ppInfix
-  , Assoc(..)
-  , Infix(..)
-  , module Text.PrettyPrint
-  , ordinal
-  , ordSuffix
-  , commaSep
-  ) where
+{-# LANGUAGE DeriveGeneric #-}
+module Cryptol.Utils.PP where
 
-import Text.PrettyPrint
+import           Cryptol.Utils.Ident
+
+import           Control.DeepSeq.Generics
+import           Control.Monad (mplus)
+import           Data.Maybe (fromMaybe)
+import           Data.String (IsString(..))
+import qualified Data.Text as T
+import           GHC.Generics (Generic)
+import qualified Text.PrettyPrint as PJ
+
+import Prelude ()
+import Prelude.Compat
+
+-- Name Displaying -------------------------------------------------------------
+
+-- | How to display names, inspired by the GHC `Outputable` module. Getting a
+-- value of 'Nothing' from the NameDisp function indicates that the name is not
+-- in scope.
+data NameDisp = EmptyNameDisp
+              | NameDisp (ModName -> Ident -> Maybe NameFormat)
+                deriving (Generic)
+
+instance NFData NameDisp where rnf = genericRnf
+
+instance Show NameDisp where
+  show _ = "<NameDisp>"
+
+instance Monoid NameDisp where
+  mempty = EmptyNameDisp
+
+  mappend (NameDisp f)  (NameDisp g)  = NameDisp (\m n -> f m n `mplus` g m n)
+  mappend EmptyNameDisp EmptyNameDisp = EmptyNameDisp
+  mappend EmptyNameDisp x             = x
+  mappend x             _             = x
+
+
+data NameFormat = UnQualified
+                | Qualified !ModName
+                | NotInScope
+                  deriving (Show)
+
+-- | Never qualify names from this module.
+neverQualifyMod :: ModName -> NameDisp
+neverQualifyMod mn = NameDisp $ \ mn' _ ->
+  if mn == mn' then Just UnQualified
+               else Nothing
+
+alwaysQualify :: NameDisp
+alwaysQualify  = NameDisp $ \ mn _ -> Just (Qualified mn)
+
+neverQualify :: NameDisp
+neverQualify  = NameDisp $ \ _ _ -> Just UnQualified
+
+fmtModName :: ModName -> NameFormat -> ModName
+fmtModName _  UnQualified    = T.empty
+fmtModName _  (Qualified mn) = mn
+fmtModName mn NotInScope     = mn
+
+-- | Compose two naming environments, preferring names from the left
+-- environment.
+extend :: NameDisp -> NameDisp -> NameDisp
+extend  = mappend
+
+-- | Get the format for a name. When 'Nothing' is returned, the name is not
+-- currently in scope.
+getNameFormat :: ModName -> Ident -> NameDisp -> NameFormat
+getNameFormat m i (NameDisp f)  = fromMaybe NotInScope (f m i)
+getNameFormat _ _ EmptyNameDisp = NotInScope
+
+-- | Produce a document in the context of the current 'NameDisp'.
+withNameDisp :: (NameDisp -> Doc) -> Doc
+withNameDisp k = Doc (\disp -> runDoc disp (k disp))
+
+-- | Fix the way that names are displayed inside of a doc.
+fixNameDisp :: NameDisp -> Doc -> Doc
+fixNameDisp disp (Doc f) = Doc (\ _ -> f disp)
+
+
+-- Documents -------------------------------------------------------------------
+
+newtype Doc = Doc (NameDisp -> PJ.Doc) deriving (Generic)
+
+instance Monoid Doc where
+  mempty = liftPJ PJ.empty
+  mappend = liftPJ2 (PJ.<>)
+
+instance NFData Doc where rnf = genericRnf
+
+runDoc :: NameDisp -> Doc -> PJ.Doc
+runDoc names (Doc f) = f names
+
+instance Show Doc where
+  show d = show (runDoc mempty d)
+
+instance IsString Doc where
+  fromString = text
+
+render :: Doc -> String
+render d = PJ.render (runDoc mempty d)
 
 class PP a where
   ppPrec :: Int -> a -> Doc
+
+class PP a => PPName a where
+  -- | Print a name in prefix: @f a b@ or @(+) a b)@
+  ppPrefixName :: a -> Doc
+
+  -- | Print a name as an infix operator: @a + b@
+  ppInfixName  :: a -> Doc
 
 pp :: PP a => a -> Doc
 pp = ppPrec 0
@@ -40,7 +134,9 @@ optParens b body | b         = parens body
 
 -- | Information about associativity.
 data Assoc = LeftAssoc | RightAssoc | NonAssoc
-              deriving (Show,Eq)
+              deriving (Show,Eq,Generic)
+
+instance NFData Assoc where rnf = genericRnf
 
 -- | Information about an infix expression of some sort.
 data Infix op thing = Infix
@@ -93,3 +189,96 @@ ordSuffix n0 =
   notTeen = m < 11 || m > 19
 
 
+-- Wrapped Combinators ---------------------------------------------------------
+
+liftPJ :: PJ.Doc -> Doc
+liftPJ d = Doc (const d)
+
+liftPJ1 :: (PJ.Doc -> PJ.Doc) -> Doc -> Doc
+liftPJ1 f (Doc d) = Doc (\env -> f (d env))
+
+liftPJ2 :: (PJ.Doc -> PJ.Doc -> PJ.Doc) -> (Doc -> Doc -> Doc)
+liftPJ2 f (Doc a) (Doc b) = Doc (\e -> f (a e) (b e))
+
+liftSep :: ([PJ.Doc] -> PJ.Doc) -> ([Doc] -> Doc)
+liftSep f ds = Doc (\e -> f [ d e | Doc d <- ds ])
+
+infixl 6 <>, <+>
+
+(<>) :: Doc -> Doc -> Doc
+(<>)  = liftPJ2 (PJ.<>)
+
+(<+>) :: Doc -> Doc -> Doc
+(<+>)  = liftPJ2 (PJ.<+>)
+
+infixl 5 $$
+
+($$) :: Doc -> Doc -> Doc
+($$)  = liftPJ2 (PJ.$$)
+
+sep :: [Doc] -> Doc
+sep  = liftSep PJ.sep
+
+fsep :: [Doc] -> Doc
+fsep  = liftSep PJ.fsep
+
+hsep :: [Doc] -> Doc
+hsep  = liftSep PJ.hsep
+
+hcat :: [Doc] -> Doc
+hcat  = liftSep PJ.hcat
+
+vcat :: [Doc] -> Doc
+vcat  = liftSep PJ.vcat
+
+hang :: Doc -> Int -> Doc -> Doc
+hang (Doc p) i (Doc q) = Doc (\e -> PJ.hang (p e) i (q e))
+
+nest :: Int -> Doc -> Doc
+nest n = liftPJ1 (PJ.nest n)
+
+parens :: Doc -> Doc
+parens  = liftPJ1 PJ.parens
+
+braces :: Doc -> Doc
+braces  = liftPJ1 PJ.braces
+
+brackets :: Doc -> Doc
+brackets  = liftPJ1 PJ.brackets
+
+quotes :: Doc -> Doc
+quotes  = liftPJ1 PJ.quotes
+
+punctuate :: Doc -> [Doc] -> [Doc]
+punctuate p = go
+  where
+  go (d:ds) | null ds   = [d]
+            | otherwise = d <> p : go ds
+  go []                 = []
+
+text :: String -> Doc
+text s = liftPJ (PJ.text s)
+
+char :: Char -> Doc
+char c = liftPJ (PJ.char c)
+
+integer :: Integer -> Doc
+integer i = liftPJ (PJ.integer i)
+
+int :: Int -> Doc
+int i = liftPJ (PJ.int i)
+
+comma :: Doc
+comma  = liftPJ PJ.comma
+
+empty :: Doc
+empty  = liftPJ PJ.empty
+
+colon :: Doc
+colon  = liftPJ PJ.colon
+
+instance PP T.Text where
+  ppPrec _ str = text (T.unpack str)
+
+instance PP Ident where
+  ppPrec _ i = text (T.unpack (identText i))

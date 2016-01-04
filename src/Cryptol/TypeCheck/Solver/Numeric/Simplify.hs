@@ -1,4 +1,5 @@
 {-# LANGUAGE Safe, PatternGuards, BangPatterns #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 -- | Simplification.
 -- TODO:
 --  - Putting in a normal form to spot "prove by assumption"
@@ -12,25 +13,17 @@ module Cryptol.TypeCheck.Solver.Numeric.Simplify
 
   -- * Simplify expressions in a prop
   , crySimpPropExpr, crySimpPropExprMaybe
-
-  -- * Simplify an expression
-  , crySimpExpr, crySimpExprMaybe
-
-  , propToProp', ppProp'
   ) where
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST
-import qualified Cryptol.TypeCheck.Solver.InfNat as IN
-import           Cryptol.Utils.Panic( panic )
+import           Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr
+import           Cryptol.TypeCheck.Solver.InfNat(genLog,genRoot,rootExact)
 import           Cryptol.Utils.Misc ( anyJust )
 
-import           Control.Monad ( mplus, guard, liftM2 )
+import           Control.Monad ( mplus )
 import           Data.List ( sortBy )
-import           Data.Maybe ( fromMaybe, maybeToList )
+import           Data.Maybe ( fromMaybe )
 import qualified Data.Set as Set
-import qualified Data.Map as Map
-import           Text.PrettyPrint
-
 
 
 -- | Simplify a property, if possible.
@@ -77,23 +70,23 @@ crySimpStep prop =
 
     x :>= y   ->
       case (x,y) of
-        (K (Nat 0), _) -> Just (y :== zero)
+        -- XXX: DUPLICTION
+        (K (Nat 0), _)       -> Just (y :== zero)
         (K (Nat a), Width b) -> Just (K (Nat (2 ^ a)) :>= b)
 
         (_,       K (Nat 0)) -> Just PTrue
         (Width e, K (Nat b)) -> Just (e :>= K (Nat (2^(b-1))))
+
+
         (K Inf, _)     -> Just PTrue
         (_, K Inf)     -> Just (x :== inf)
-        _              -> Just (x :== inf :|| x :+ one :> y)
+        _              -> Just (x :== inf :|| one :+ x :> y)
 
     x :==: y ->
       case (x,y) of
         (K a, K b)     -> Just (if a == b then PTrue else PFalse)
-
-        (K (Nat 0), _) -> cryIs0 True y
-        (K (Nat 1), _) -> cryIs1 True y
-        (_, K (Nat 0)) -> cryIs0 True x
-        (_, K (Nat 1)) -> cryIs1 True x
+        (K (Nat n), _) | Just p <- cryIsNat True n y -> Just p
+        (_, K (Nat n)) | Just p <- cryIsNat True n x -> Just p
 
         _ | x == y    -> Just PTrue
           | otherwise -> case (x,y) of
@@ -103,9 +96,8 @@ crySimpStep prop =
 
     x :>: y ->
       case (x,y) of
-        (K (Nat 0),_)   -> Just PFalse
-        (K (Nat 1),_)   -> cryIs0 True y
-        (_, K (Nat 0))  -> cryGt0 True x
+        (K (Nat n),_)  | Just p <- cryNatGt True n y -> Just p
+        (_, K (Nat n)) | Just p <- cryGtNat True n x -> Just p
 
         _ | x == y      -> Just PFalse
           | otherwise   -> Nothing
@@ -376,26 +368,16 @@ cryIsEq x y =
   case (x,y) of
     (K m, K n)      -> if m == n then PTrue else PFalse
 
-    (K (Nat 0),_)   -> cryIs0' y
-    (K (Nat 1),_)   -> cryIs1' y
-    (_, K (Nat 0))  -> cryIs0' x
-    (_, K (Nat 1))  -> cryIs1' x
-
     (K Inf, _)      -> Not (Fin y)
     (_, K Inf)      -> Not (Fin x)
 
+    (Div x y, z)    -> x :>= z :* y :&& (one :+ z) :* y :> x
+
+    (K (Nat n),_) | Just p <- cryIsNat False n y -> p
+    (_,K (Nat n)) | Just p <- cryIsNat False n x -> p
+
     _               -> Not (Fin x) :&& Not (Fin y)
                    :|| Fin x :&& Fin y :&& cryNatOp (:==:) x y
-  where
-  cryIs0' e = case cryIs0 False e of
-                Just e' -> e'
-                Nothing -> panic "cryIsEq"
-                                 ["`cryIs0 False` returned `Nothing`."]
-
-  cryIs1' e = case cryIs1 False e of
-                Just e' -> e'
-                Nothing -> panic "cryIsEq"
-                                 ["`cryIs0 False` returned `Nothing`."]
 
 
 
@@ -403,15 +385,9 @@ cryIsEq x y =
 -- | Simplificatoin for @:>@
 cryIsGt :: Expr -> Expr -> Prop
 cryIsGt (K m) (K n)   = if m > n then PTrue else PFalse
-cryIsGt (K (Nat 0)) _ = PFalse
-cryIsGt (K (Nat 1)) e = case cryIs0 False e of
-                          Just e' -> e'
-                          Nothing -> panic "cryIsGt (1)"
-                                           ["`cryGt0 False` return `Nothing`"]
-cryIsGt e (K (Nat 0)) = case cryGt0 False e of
-                          Just e' -> e'
-                          Nothing -> panic "cryIsGt (2)"
-                                           ["`cryGt0 False` return `Nothing`"]
+cryIsGt (K (Nat n)) e | Just p <- cryNatGt False n e = p
+cryIsGt e (K (Nat n)) | Just p <- cryGtNat False n e = p
+
 cryIsGt x y           = Fin y :&& (x :== inf :||
                                    Fin x :&& cryNatOp (:>:) x y)
 
@@ -445,411 +421,237 @@ cryIsFin expr =
 
     Min t1 t2            -> Just (Fin t1 :|| Fin t2)
     Max t1 t2            -> Just (Fin t1 :&& Fin t2)
-    Lg2 t1               -> Just (Fin t1)
     Width t1             -> Just (Fin t1)
     LenFromThen  _ _ _   -> Just PTrue
     LenFromThenTo  _ _ _ -> Just PTrue
 
 
-
---------------------------------------------------------------------------------
--- An alternative representation
-
-data Atom = AFin Name | AGt Expr Expr | AEq Expr Expr
-            deriving Eq
-
-type Prop' = IfExpr' Atom Bool
-
--- tmp
-propToProp' :: Prop -> Prop'
-propToProp' prop =
-  case prop of
-    Fin e     -> pFin e
-    x :== y   -> pEq x y
-    x :>= y   -> pGeq x y
-    x :>  y   -> pGt  x y
-    x :>: y   -> pAnd (pFin x) (pAnd (pFin y) (pGt x y))
-    x :==: y  -> pAnd (pFin x) (pAnd (pFin y) (pEq x y))
-    p :&& q   -> pAnd (propToProp' p) (propToProp' q)
-    p :|| q   -> pOr  (propToProp' p) (propToProp' q)
-    Not p     -> pNot (propToProp' p)
-    PFalse    -> pFalse
-    PTrue     -> pTrue
-
-
-
-ppAtom :: Atom -> Doc
-ppAtom atom =
-  case atom of
-    AFin x  -> text "fin" <+> ppName x
-    AGt x y -> ppExpr x <+> text ">" <+> ppExpr y
-    AEq x y -> ppExpr x <+> text "=" <+> ppExpr y
-
-ppProp' :: Prop' -> Doc
-ppProp' = ppIf ppAtom (text . show)
-
-pEq :: Expr -> Expr -> Prop'
-pEq x (K (Nat 0)) = pEq0 x
-pEq x (K (Nat 1)) = pEq1 x
-pEq (K (Nat 0)) y = pEq0 y
-pEq (K (Nat 1)) y = pEq1 y
-pEq x y = pIf (pInf x) (pInf y)
-        $ pAnd (pFin y) (pAtom (AEq x y))
-
-pGeq :: Expr -> Expr -> Prop'
-pGeq x y = pIf (pInf x) pTrue
-         $ pIf (pFin y) (pAtom (AGt (x :+ one) y))
-           pFalse
-
-pFin :: Expr -> Prop'
-pFin expr =
+cryIsNat :: Bool -> Integer -> Expr -> Maybe Prop
+cryIsNat useFinite n expr =
   case expr of
-    K Inf                -> pFalse
-    K (Nat _)            -> pTrue
-    Var x                -> pAtom (AFin x)
-    t1 :+ t2             -> pAnd (pFin t1) (pFin t2)
-    t1 :- _              -> pFin t1
-    t1 :* t2             -> pIf (pInf t1) (pEq t2 zero)
-                          $ pIf (pInf t2) (pEq t1 zero)
-                          $ pTrue
+    K Inf     -> Just PFalse
 
-    Div t1 _             -> pFin t1
-    Mod _ _              -> pTrue
+    K (Nat m) -> Just (if m == n then PTrue else PFalse)
 
-    t1 :^^ t2            -> pIf (pInf t1) (pEq t2 zero)
-                          $ pIf (pInf t2) (pOr (pEq t1 zero) (pEq t1 one))
-                          $ pTrue
-
-
-    Min t1 t2            -> pOr (pFin t1) (pFin t2)
-    Max t1 t2            -> pAnd (pFin t1) (pFin t2)
-    Lg2 t1               -> pFin t1
-    Width t1             -> pFin t1
-    LenFromThen  _ _ _   -> pTrue
-    LenFromThenTo  _ _ _ -> pTrue
-
-
-
-pFalse :: Prop'
-pFalse = Return False
-
-pTrue :: Prop'
-pTrue = Return True
-
-pNot :: Prop' -> Prop'
-pNot p =
-  case p of
-    Impossible -> Impossible
-    Return a   -> Return (not a)
-    If c t e   -> If c (pNot t) (pNot e)
-
-pAnd :: Prop' -> Prop' -> Prop'
-pAnd p q = pIf p q pFalse
-
-pOr :: Prop' -> Prop' -> Prop'
-pOr p q = pIf p pTrue q
-
-pIf :: (Eq a, Eq p) =>
-        IfExpr' p Bool -> IfExpr' p a -> IfExpr' p a -> IfExpr' p a
-pIf c t e =
-  case c of
-    Impossible    -> Impossible
-    Return True   -> t
-    Return False  -> e
-    _ | t == e    -> t
-    If p t1 e1    -> If p (pIf t1 t e) (pIf e1 t e) -- duplicates
-
-pAtom :: Atom -> Prop'
-pAtom p = do a <- case p of
-                    AFin _  -> return p
-                    AEq x y -> liftM2 AEq (eNoInf x) (eNoInf y)
-                    AGt x y -> liftM2 AGt (eNoInf x) (eNoInf y)
-             If a pTrue pFalse
-
-pGt :: Expr -> Expr -> Prop'
-pGt x y = pIf (pFin y) (pIf (pFin x) (pAtom (AGt x y)) pTrue) pFalse
-
-pEq0 :: Expr -> Prop'
-pEq0 expr =
-  case expr of
-    K Inf               -> pFalse
-    K (Nat n)           -> if n == 0 then pTrue else pFalse
-    Var _               -> pAnd (pFin expr) (pAtom (AEq expr zero))
-    t1 :+ t2            -> pAnd (pEq t1 zero) (pEq t2 zero)
-    t1 :- t2            -> pEq t1 t2
-    t1 :* t2            -> pOr (pEq t1 zero) (pEq t2 zero)
-    Div t1 t2           -> pGt t2 t1
-    Mod _ _             -> pAtom (AEq expr zero)  -- or divides
-    t1 :^^ t2           -> pIf (pEq t2 zero) pFalse (pEq t1 zero)
-    Min t1 t2           -> pOr  (pEq t1 zero) (pEq t2 zero)
-    Max t1 t2           -> pAnd (pEq t1 zero) (pEq t2 zero)
-    Lg2 t1              -> pOr  (pEq t1 zero) (pEq t1 one)
-    Width t1            -> pEq t1 zero
-    LenFromThen _ _ _   -> pFalse
-    LenFromThenTo x y z -> pIf (pGt x y) (pGt z x) (pGt x z)
-
-pEq1 :: Expr -> Prop'
-pEq1 expr =
-  case expr of
-    K Inf               -> pFalse
-    K (Nat n)           -> if n == 1 then pTrue else pFalse
-    Var _               -> pAnd (pFin expr) (pAtom (AEq expr one))
-    t1 :+ t2            -> pIf (pEq t1 zero) (pEq t2 one)
-                         $ pIf (pEq t2 zero) (pEq t1 one) pFalse
-    t1 :- t2            -> pEq t1 (t2 :+ one)
-    t1 :* t2            -> pAnd (pEq t1 one) (pEq t2 one)
-    Div t1 t2           -> pAnd (pGt (two :* t2) t1) (pGeq t1 t2)
-    Mod _ _             -> pAtom (AEq expr one)
-    t1 :^^ t2           -> pOr (pEq t1 one) (pEq t2 zero)
-
-    Min t1 t2           -> pIf (pEq t1 one) (pGt t2 zero)
-                         $ pIf (pEq t2 one) (pGt t1 zero)
-                           pFalse
-    Max t1 t2           -> pIf (pEq t1 one) (pGt two t2)
-                         $ pIf (pEq t2 one) (pGt two t1)
-                           pFalse
-
-    Lg2 t1              -> pEq t1 two
-    Width t1            -> pEq t1 one
-
-    -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
-    LenFromThen x y w   -> pAnd (pGt y x) (pGeq y (two :^^ w))
-    LenFromThenTo x y z -> pIf (pGt z y) (pGeq x z) (pGeq z x)
-
-
-pInf :: Expr -> Prop'
-pInf = pNot . pFin
-
-
-
-type IExpr = IfExpr' Atom Expr
-
--- | Our goal is to bubble @inf@ terms to the top of @Return@.
-eNoInf :: Expr -> IExpr
-eNoInf expr =
-  case expr of
-
-    -- These are the interesting cases where we have to branch
-
-    x :* y ->
-      do x' <- eNoInf x
-         y' <- eNoInf y
-         case (x', y') of
-           (K Inf, K Inf) -> return inf
-           (K Inf, _)     -> pIf (pEq y' zero) (return zero) (return inf)
-           (_, K Inf)     -> pIf (pEq x' zero) (return zero) (return inf)
-           _              -> return (x' :* y')
-
-    x :^^ y ->
-      do x' <- eNoInf x
-         y' <- eNoInf y
-         case (x', y') of
-           (K Inf, K Inf) -> return inf
-           (K Inf, _)     -> pIf (pEq y' zero) (return one) (return inf)
-           (_, K Inf)     -> pIf (pEq x' zero) (return zero)
-                           $ pIf (pEq x' one)  (return one)
-                           $ return inf
-           _              -> return (x' :^^ y')
-
-
-    -- The rest just propagates
-
-    K _     -> return expr
-    Var _   -> return expr
-
-    x :+ y  ->
-      do x' <- eNoInf x
-         y' <- eNoInf y
-         case (x', y') of
-           (K Inf, _)  -> return inf
-           (_, K Inf)  -> return inf
-           _           -> return (x' :+ y')
-
-    x :- y  ->
-      do x' <- eNoInf x
-         y' <- eNoInf y
-         case (x', y') of
-           (_, K Inf)  -> Impossible
-           (K Inf, _)  -> return inf
-           _           -> return (x' :- y')
-
-    Div x y ->
-      do x' <- eNoInf x
-         y' <- eNoInf y
-         case (x', y') of
-           (K Inf, _) -> Impossible
-           (_, K Inf) -> return zero
-           _          -> return (Div x' y')
-
-    Mod x y ->
-      do x' <- eNoInf x
-         -- `Mod x y` is finite, even if `y` is `inf`, so first check
-         -- for finiteness.
-         pIf (pFin y)
-              (do y' <- eNoInf y
-                  case (x',y') of
-                    (K Inf, _) -> Impossible
-                    (_, K Inf) -> Impossible
-                    _          -> return (Mod x' y')
-              )
-              (return x')
-
-    Min x y ->
-      do x' <- eNoInf x
-         y' <- eNoInf y
-         case (x',y') of
-           (K Inf, _) -> return y'
-           (_, K Inf) -> return x'
-           _          -> return (Min x' y')
-
-    Max x y ->
-      do x' <- eNoInf x
-         y' <- eNoInf y
-         case (x', y') of
-           (K Inf, _) -> return inf
-           (_, K Inf) -> return inf
-           _          -> return (Max x' y')
-
-    Lg2 x ->
-      do x' <- eNoInf x
-         case x' of
-           K Inf     -> return inf
-           _         -> return (Lg2 x')
-
-    Width x ->
-      do x' <- eNoInf x
-         case x' of
-           K Inf      -> return inf
-           _          -> return (Width x')
-
-    LenFromThen x y w   -> fun3 LenFromThen x y w
-    LenFromThenTo x y z -> fun3 LenFromThenTo x y z
-
-
-  where
-  fun3 f x y z =
-    do x' <- eNoInf x
-       y' <- eNoInf y
-       z' <- eNoInf z
-       case (x',y',z') of
-         (K Inf, _, _) -> Impossible
-         (_, K Inf, _) -> Impossible
-         (_, _, K Inf) -> Impossible
-         _             -> return (f x' y' z')
-
-
---------------------------------------------------------------------------------
-
-
-
-
--- | Simplify @t :== 0@ or @t :==: 0@.
--- Assumes defined input.
-cryIs0 :: Bool -> Expr -> Maybe Prop
-cryIs0 useFinite expr =
-  case expr of
-    K Inf               -> Just PFalse
-    K (Nat n)           -> Just (if n == 0 then PTrue else PFalse)
     Var _ | useFinite   -> Nothing
-          | otherwise   -> Just (Fin expr :&& expr :==: zero)
-    t1 :+ t2            -> Just (eq t1 zero :&& eq t2 zero)
-    t1 :- t2            -> Just (eq t1 t2)
-    t1 :* t2            -> Just (eq t1 zero :|| eq t2 zero)
-    Div t1 t2           -> Just (gt t2 t1)
+          | otherwise   -> Just (Fin expr :&& expr :==: K (Nat n))
+
+    K (Nat m) :+ e2     -> Just $ if m > n then PFalse
+                                           else eq e2 $ K $ Nat $ n - m
+
+    x :+ y
+      | n == 0          -> Just (eq x zero :&& eq y zero)
+      | n == 1          -> Just (eq x zero :&& eq y one :||
+                                 eq x one  :&& eq y zero)
+      | otherwise       -> Nothing
+
+    e1 :- e2            -> Just $ eq (K (Nat n) :+ e1) e2
+
+    K (Nat m) :* e2     ->
+      Just $ if m == 0
+                then if n == 0 then PTrue else PFalse
+                else case divMod n m of
+                       (q,r) -> if r == 0 then eq e2 (K (Nat q))
+                                          else PFalse
+    e1 :* e2
+      | n == 0          -> Just (eq e1 zero :|| eq e2 zero)
+      | n == 1          -> Just (eq e1 one :&& eq e2 one)
+      | otherwise       -> Nothing
+
+    -- (x >= n * y) /\ ((n+1) * y > x)
+    Div x y             -> Just (gt (one :+ x) (K (Nat n) :* y) :&&
+                                 gt (K (Nat (n + 1)) :* y) x)
+
     Mod _ _ | useFinite -> Nothing
-            | otherwise -> Just (cryNatOp (:==:) expr zero)
-            -- or: Just (t2 `Divides` t1)
-    t1 :^^ t2           -> Just (eq t1 zero :&& gt t2 zero)
-    Min t1 t2           -> Just (eq t1 zero :|| eq t2 zero)
-    Max t1 t2           -> Just (eq t1 zero :&& eq t2 zero)
-    Lg2 t1              -> Just (eq t1 zero :|| eq t1 one)
-    Width t1            -> Just (eq t1 zero)
-    LenFromThen _ _ _   -> Just PFalse
+            | otherwise -> Just (cryNatOp (:==:) expr (K (Nat n)))
+
+
+    K (Nat m) :^^ y     -> Just $ case genLog n m of
+                                    Just (a, exact)
+                                      | exact -> eq y (K (Nat a))
+                                    _ -> PFalse
+    x :^^ K (Nat m)     -> Just $ case rootExact n m of
+                                    Just a  -> eq x (K (Nat a))
+                                    Nothing -> PFalse
+    x :^^ y
+      | n == 0          -> Just (eq x zero :&& gt y zero)
+      | n == 1          -> Just (eq x one  :|| eq y zero)
+      | otherwise       -> Nothing
+
+    Min x y
+      | n == 0          -> Just (eq x zero :|| eq y zero)
+      | otherwise       -> Just ( eq x (K (Nat n)) :&& gt y (K (Nat (n - 1)))
+                              :|| eq y (K (Nat n)) :&& gt x (K (Nat (n - 1)))
+                                )
+
+    Max x y             -> Just ( eq x (K (Nat n)) :&& gt (K (Nat (n + 1))) y
+                              :|| eq y (K (Nat n)) :&& gt (K (Nat (n + 1))) y
+                                )
+
+    Width x
+      | n == 0          -> Just (eq x zero)
+      | otherwise       -> Just (gt x (K (Nat (2^(n-1) - 1))) :&&
+                                 gt (K (Nat (2 ^ n))) x)
+
+    LenFromThen x y w
+      | n == 0          -> Just PFalse
+
+      -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
+      | n == 1          -> Just (gt y x :&& gt (y :+ one) (two :^^ w))
+      | otherwise       -> Nothing -- XXX: maybe some more?
+
 
     -- See `nLenFromThenTo` in 'Cryptol.TypeCheck.Solver.InfNat'
-    LenFromThenTo x y z -> Just ( gt x y :&& gt z x
+    LenFromThenTo x y z
+      | n == 0          -> Just ( gt x y :&& gt z x
                               :|| gt y x :&& gt x z
                                 )
 
-  where
-  eq x y = if useFinite then x :==: y else x :== y
-  gt x y = if useFinite then x :>: y  else x :>  y
-
-
-cryIs1 :: Bool -> Expr -> Maybe Prop
-cryIs1 useFinite expr =
-  case expr of
-    K Inf               -> Just PFalse
-    K (Nat n)           -> Just (if n == 1 then PTrue else PFalse)
-    Var _ | useFinite   -> Nothing
-          | otherwise   -> Just (Fin expr :&& expr :==: one)
-    t1 :+ t2            -> Just (eq t1 zero :&& eq t2 one :||
-                                 eq t1 one  :&& eq t1 zero)
-    t1 :- t2            -> Just (eq t1 (t2 :+ one))
-    t1 :* t2            -> Just (eq t1 one :&& eq t2 one)
-
-    Div t1 t2           -> Just (gt (two :* t2) t1 :&& gt (t1 :+ one) t2)
-
-    Mod _ _ | useFinite -> Nothing
-            | otherwise -> Just (cryNatOp (:==:) expr one)
-
-
-    t1 :^^ t2           -> Just (eq t1 one :|| eq t2 zero)
-
-    Min t1 t2           -> Just (eq t1 one :&& gt t2 zero :||
-                                 eq t2 one :&& gt t1 zero)
-
-    Max t1 t2           -> Just (eq t1 one :&& gt two t2 :||
-                                 eq t2 one :&& gt two t1)
-
-    Lg2 t1              -> Just (eq t1 two)
-    Width t1            -> Just (eq t1 one)
-
-    -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
-    LenFromThen x y w   -> Just (gt y x :&& gt (y :+ one) (two :^^ w))
-
-    -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
-    LenFromThenTo x y z -> Just (gt z y :&& gt (x :+ one) z     :||
+      -- See Note [Sequences of Length 1] in 'Cryptol.TypeCheck.Solver.InfNat'
+      | n == 1          -> Just (gt z y :&& gt (x :+ one) z     :||
                                  gt y z :&& gt (z :+ one) x)
+      | otherwise       -> Nothing -- XXX: maybe some more?
+
+
   where
+  eq x y = if useFinite then x :==: y else x :== y
+  gt x y = if useFinite then x :>: y  else x :>  y
+
+-- | Constant > expression
+cryNatGt :: Bool -> Integer -> Expr -> Maybe Prop
+cryNatGt useFinite n expr
+  | n == 0    = Just PFalse
+  | n == 1    = Just (eq expr zero)
+  | otherwise =
+    case expr of
+      K x   -> Just $ if Nat n > x then PTrue else PFalse
+
+      Var _ -> Nothing
+
+      K (Nat m) :+ y -> Just $ if n >= m then gt (k (n - m)) y else PFalse
+      _ :+ _         -> Nothing
+
+      x :- y         -> Just $ gt (k n :+ y) x
+
+      K (Nat m) :* y
+        | m == 0    -> Just PTrue   -- because we know that n > 1
+        | otherwise -> Just $ case divMod n m of
+                                (q,0) -> gt (k q) y
+                                (0,_) -> eq y zero
+                                (q,_) -> gt (k (q + 1)) y
+      _ :* _          -> Nothing
+
+      Div x y         -> Just $ gt (k n :* y) x
+
+      Mod _ (K (Nat m))
+        | m <= n      -> Just PTrue
+
+      Mod (K (Nat m)) _
+        | m < n       -> Just PTrue
+      Mod _ _         -> Nothing
+
+
+      K (Nat m) :^^ y
+        | m == 0      -> Just PTrue   -- because n > 1
+        | m == 1      -> Just PTrue   -- ditto
+        | otherwise   -> do (a,exact) <- genLog n m
+                            return $ if exact
+                                        then gt (k a) y
+                                        else gt (k (a + 1)) y
+      x :^^ K (Nat m)
+        | m == 0      -> Just PTrue
+        | m == 1      -> Just (gt (k n) x)
+        | otherwise   -> do (a,exact) <- genRoot n m
+                            return $ if exact
+                                        then gt (k a) x
+                                        else gt (k (a + 1)) x
+      _ :^^ _         -> Nothing
+
+      Min x y         -> Just $ gt (k n) x :|| gt (k n) y
+      Max x y         -> Just $ gt (k n) x :&& gt (k n) y
+
+      Width x         -> Just $ gt (k (2 ^ n)) x
+
+      LenFromThen _ _ _   -> Nothing -- Are there some rules?
+
+      LenFromThenTo _ _ _ -> Nothing -- Are there some rulesj
+
+  where
+  k x    = K (Nat x)
   eq x y = if useFinite then x :==: y else x :== y
   gt x y = if useFinite then x :>: y  else x :>  y
 
 
 
-
-
-
-
-
-
-
--- | Simplify @t :> 0@ or @t :>: 0@.
-cryGt0 :: Bool -> Expr -> Maybe Prop
-cryGt0 useFinite expr =
+-- | Expression > constant
+cryGtNat :: Bool -> Integer -> Expr -> Maybe Prop
+cryGtNat useFinite n expr =
   case expr of
-    K x                 -> Just (if x > Nat 0 then PTrue else PFalse)
-    Var _ | useFinite   -> Nothing
-          | otherwise   -> Just (Not (Fin expr) :||
-                                 Fin expr :&& cryNatOp (:>:) expr zero)
-    x :+ y              -> Just (gt x zero :|| gt y zero)
-    x :- y              -> Just (gt x y)
-    x :* y              -> Just (gt x zero :&& gt y zero)
-    Div x y             -> Just (gt x y)
-    Mod _ _ | useFinite -> Nothing
-            | otherwise -> Just (cryNatOp (:>:) expr zero)
-            -- or: Just (Not (y `Divides` x))
-    x :^^ y             -> Just (eq x zero :&& gt y zero)
-    Min x y             -> Just (gt x zero :&& gt y zero)
-    Max x y             -> Just (gt x zero :|| gt y zero)
-    Lg2 x               -> Just (gt x one)
-    Width x             -> Just (gt x zero)
-    LenFromThen _ _ _   -> Just PTrue
-    LenFromThenTo x y z -> Just (gt x y :&& gt z x :|| gt y x :&& gt x z)
+    K x                 -> Just $ if x > Nat n then PTrue else PFalse
+    Var _               -> Nothing
+
+    K (Nat m) :+ y
+      | m > n           -> Just PTrue
+      | otherwise       -> Just (gt y (K (Nat (n - m))))
+
+    x :+ y
+      | n == 0          -> Just (gt x zero :|| gt y zero)
+      | otherwise       -> Nothing
+
+    x :- y              -> Just $ gt x (K (Nat n) :+ y)
+
+
+    K (Nat m) :* y
+      | m > 0           -> Just $ case divMod n m of
+                                    (a,_) -> gt y $ K $ Nat a
+
+    x :* y
+      | n == 0          -> Just (gt x zero :&& gt y zero)
+      | otherwise       -> Nothing
+
+    Div x y             -> Just $ gt (one :+ x) (K (Nat (n+1)) :* y)
+
+    Mod _ (K (Nat m))
+      | m <= n          -> Just PFalse
+    Mod (K (Nat m)) _
+      | m < n           -> Just PFalse
+    Mod _ _             -> Nothing
+
+    K (Nat m) :^^ y
+      | m == 0          -> Just $ if n == 0 then eq y zero else PFalse
+      | m == 1          -> Just $ if n == 0 then PTrue else PFalse
+      | otherwise       -> do (a,_exact) <- genLog n m
+                              Just (gt y (K (Nat a)))
+
+    x :^^ K (Nat m)
+      | m == 0          -> Just $ if n == 0 then PTrue else PFalse
+      | m == 1          -> Just $ gt x (K (Nat n))
+      | otherwise       -> do (a,exact) <- genRoot n m
+                              Just $ if exact
+                                        then gt x (K (Nat a))
+                                        else gt (one :+ x) (K (Nat (a+1)))
+
+    x :^^ y
+      | n == 0          -> Just (gt x zero :|| eq y zero)
+      | otherwise       -> Nothing
+
+    Min x y             -> Just $ gt x (K (Nat n)) :&& gt y (K (Nat n))
+    Max x y             -> Just $ gt x (K (Nat n)) :|| gt y (K (Nat n))
+
+    Width x             -> Just $ gt (one :+ x) (K (Nat (2 ^ n)))
+
+    LenFromThen _ _ _
+      | n == 0          -> Just PTrue
+      | otherwise       -> Nothing -- Are there some rules?
+
+    LenFromThenTo x y z
+      | n == 0          -> Just (gt x y :&& gt z x :|| gt y x :&& gt x z)
+      | otherwise       -> Nothing
 
   where
   eq x y = if useFinite then x :==: y else x :== y
   gt x y = if useFinite then x :>: y  else x :>  y
+
 
 
 -- | Simplify only the Expr parts of a Prop.
@@ -886,196 +688,6 @@ crySimpPropExprMaybe prop =
       (l',r')           -> Just (f (fromMaybe l l') (fromMaybe r r'))
 
 
-
--- | Simplify an expression, if possible.
-crySimpExpr :: Expr -> Expr
-crySimpExpr expr = fromMaybe expr (crySimpExprMaybe expr)
-
--- | Perform simplification from the leaves up.
--- Returns `Nothing` if there were no changes.
-crySimpExprMaybe :: Expr -> Maybe Expr
-crySimpExprMaybe expr =
-  case crySimpExprStep (fromMaybe expr mbE1) of
-    Nothing -> mbE1
-    Just e2 -> Just (fromMaybe e2 (crySimpExprMaybe e2))
-  where
-  mbE1 = cryRebuildExpr expr `fmap` anyJust crySimpExprMaybe (cryExprExprs expr)
-
-
-
--- XXX: Add rules to group together occurances of variables
-
-
-data Sign = Pos | Neg deriving Show
-
-otherSign :: Sign -> Sign
-otherSign s = case s of
-                Pos -> Neg
-                Neg -> Pos
-
-signed :: Sign -> Integer -> Integer
-signed s = case s of
-             Pos -> id
-             Neg -> negate
-
-
-splitSum :: Expr -> [(Sign,Expr)]
-splitSum e0 = go Pos e0 []
-  where go s (e1 :+ e2) es = go s e1 (go s e2 es)
-        go s (e1 :- e2) es = go s e1 (go (otherSign s) e2 es)
-        go s e es          = (s,e) : es
-
-normSum :: Expr -> Expr
-normSum = posTerm . go 0 Map.empty Nothing . splitSum
-  where
-
-  -- constants, variables, other terms
-  go !_ !_  !_ ((Pos,K Inf) : _) = (Pos, K Inf)
-
-  go k xs t ((s, K (Nat n)) : es) = go (k + signed s n) xs t es
-
-  go k xs t ((s, Var x) : es) = go k (Map.insertWith (+) x (signed s 1) xs) t es
-
-  go k xs t ((s, K (Nat n) :* Var x) : es)
-    | n == 0     = go k xs t es
-    | otherwise  = go k (Map.insertWith (+) x (signed s n) xs) t es
-
-  go k xs Nothing (e : es) = go k xs (Just e) es
-
-  go k xs (Just e1) (e2 : es) = go k xs (Just (add e1 e2)) es
-
-  go k xs t [] =
-    let terms     = constTerm k
-                 ++ concatMap varTerm (Map.toList xs)
-                 ++ maybeToList t
-
-    in case terms of
-         [] -> (Pos, K (Nat 0))
-         ts -> foldr1 add ts
-
-  constTerm k
-    | k == 0    = []
-    | k >  0    = [ (Pos, K (Nat k)) ]
-    | otherwise = [ (Neg, K (Nat (negate k))) ]
-
-  varTerm (x,k)
-    | k == 0    = []
-    | k == 1    = [ (Pos, Var x) ]
-    | k > 0     = [ (Pos, K (Nat k) :* Var x) ]
-    | k == (-1) = [ (Neg, Var x) ]
-    | otherwise = [ (Neg, K (Nat (negate k)) :* Var x) ]
-
-  add (s1,t1) (s2,t2) =
-    case (s1,s2) of
-      (Pos,Pos) -> (Pos, t1 :+ t2)
-      (Pos,Neg) -> (Pos, t1 :- t2)
-      (Neg,Pos) -> (Pos, t2 :- t1)
-      (Neg,Neg) -> (Neg, t1 :+ t2)
-
-  posTerm (Pos,x) = x
-  posTerm (Neg,x) = K (Nat 0) :- x
-
-
-crySimpExprStep :: Expr -> Maybe Expr
-crySimpExprStep e =
-  case crySimpExprStep1 e of
-    Just e1 -> Just e1
-    Nothing -> do let e1 = normSum e
-                  guard (e /= e1)
-                  return e1
-
--- | Make a simplification step, assuming the expression is well-formed.
-crySimpExprStep1 :: Expr -> Maybe Expr
-crySimpExprStep1 expr =
-  case expr of
-    K _                   -> Nothing
-    Var _                 -> Nothing
-
-    _ :+ _                -> Nothing
-    _ :- _                -> Nothing
-
-    x :* y ->
-      case (x,y) of
-        (K (Nat 0), _)    -> Just zero
-        (K (Nat 1), _)    -> Just y
-        (K a, K b)        -> Just (K (IN.nMul a b))
-        (_,   K _)        -> Just (y :* x)
-
-        (K a, K b :* z)   -> Just (K (IN.nMul a b) :* z)
-
-        -- Normalize, somewhat
-        (a :* b, _)       -> Just (a :* (b :* y))
-        (Var a, Var b)
-          | b > a         -> Just (y :* x)
-
-        _                 -> Nothing
-
-    Div x y ->
-      case (x,y) of
-        (K (Nat 0), _)    -> Just zero
-        (_, K (Nat 1))    -> Just x
-        (_, K Inf)        -> Just zero
-        (K a, K b)        -> K `fmap` IN.nDiv a b
-        _ | x == y        -> Just one
-        _                 -> Nothing
-
-    Mod x y ->
-      case (x,y) of
-        (K (Nat 0), _)    -> Just zero
-        (_, K Inf)        -> Just x
-        (_, K (Nat 1))    -> Just zero
-        (K a, K b)        -> K `fmap` IN.nMod a b
-        _                 -> Nothing
-
-    x :^^ y ->
-      case (x,y) of
-        (_, K (Nat 0))    -> Just one
-        (_, K (Nat 1))    -> Just x
-        (K (Nat 1), _)    -> Just one
-        (K a, K b)        -> Just (K (IN.nExp a b))
-        _                 -> Nothing
-
-    Min x y ->
-      case (x,y) of
-        (K (Nat 0), _)    -> Just zero
-        (K Inf, _)        -> Just y
-        (_, K (Nat 0))    -> Just zero
-        (_, K Inf)        -> Just x
-        (K a, K b)        -> Just (K (IN.nMin a b))
-        _ | x == y        -> Just x
-        _                 -> Nothing
-
-    Max x y ->
-      case (x,y) of
-        (K (Nat 0), _)    -> Just y
-        (K Inf, _)        -> Just inf
-        (_, K (Nat 0))    -> Just x
-        (_, K Inf)        -> Just inf
-        _ | x == y        -> Just x
-        _                 -> Nothing
-
-    Lg2 x ->
-      case x of
-        K a               -> Just (K (IN.nLg2 a))
-        K (Nat 2) :^^ e   -> Just e
-        _                 -> Nothing
-
-    -- Width x               -> Just (Lg2 (x :+ one))
-    Width x ->
-      case x of
-        K a              -> Just (K (IN.nWidth a))
-        K (Nat 2) :^^ e  -> Just (one :+ e)
-        _                -> Nothing
-
-    LenFromThen x y w ->
-      case (x,y,w) of
-        (K a, K b, K c)   -> K `fmap` IN.nLenFromThen a b c
-        _                 -> Nothing
-
-    LenFromThenTo x y z ->
-      case (x,y,z) of
-        (K a, K b, K c)   -> K `fmap` IN.nLenFromThenTo a b c
-        _                 -> Nothing
 
 
 
@@ -1169,12 +781,6 @@ cryNoInf expr =
            (K Inf, _) -> return inf
            (_, K Inf) -> return inf
            _          -> return (Max x' y')
-
-    Lg2 x ->
-      do x' <- cryNoInf x
-         case x' of
-           K Inf     -> return inf
-           _         -> return (Lg2 x')
 
     Width x ->
       do x' <- cryNoInf x

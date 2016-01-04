@@ -74,26 +74,29 @@
 
 {-# LANGUAGE PatternGuards, FlexibleInstances, MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Transform.MonoValues (rewModule) where
 
-import Cryptol.Parser.AST (Pass(MonoValues))
+import Cryptol.ModuleSystem.Name (SupplyM,liftSupply,Supply,mkDeclared)
+import Cryptol.Parser.Position (emptyRange)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.TypeMap
+import Cryptol.Utils.Ident (ModName)
 import Data.List(sortBy,groupBy)
 import Data.Either(partitionEithers)
 import Data.Map (Map)
-import MonadLib
+import MonadLib hiding (mapM)
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-#endif
+import Prelude ()
+import Prelude.Compat
 
 {- (f,t,n) |--> x  means that when we spot instantiations of `f` with `ts` and
 `n` proof argument, we should replace them with `Var x` -}
-newtype RewMap' a = RM (Map QName (TypesMap (Map Int a)))
-type RewMap = RewMap' QName
+newtype RewMap' a = RM (Map Name (TypesMap (Map Int a)))
+type RewMap = RewMap' Name
 
-instance TrieMap RewMap' (QName,[Type],Int) where
+instance TrieMap RewMap' (Name,[Type],Int) where
   emptyTM  = RM emptyTM
 
   nullTM (RM m) = nullTM m
@@ -127,34 +130,30 @@ instance TrieMap RewMap' (QName,[Type],Int) where
 
 -- | Note that this assumes that this pass will be run only once for each
 -- module, otherwise we will get name collisions.
-rewModule :: Module -> Module
-rewModule m = fst
-            $ runId
-            $ runStateT 0
-            $ runReaderT (Just (mName m))
-            $ do ds <- mapM (rewDeclGroup emptyTM) (mDecls m)
-                 return m { mDecls = ds }
+rewModule :: Supply -> Module -> (Module,Supply)
+rewModule s m = runM body (mName m) s
+  where
+  body = do ds <- mapM (rewDeclGroup emptyTM) (mDecls m)
+            return m { mDecls = ds }
 
 --------------------------------------------------------------------------------
 
-type M      = ReaderT RO (StateT RW Id)
+type M  = ReaderT RO SupplyM
+type RO = ModName
 
-type RO = Maybe ModName   -- are we at the top level?
-type RW = Int             -- to generate names
+-- | Produce a fresh top-level name.
+newName :: M Name
+newName  =
+  do ns <- ask
+     liftSupply (mkDeclared ns "$mono" emptyRange)
 
-newName :: M QName
-newName =
-  do n  <- sets $ \s -> (s, s + 1)
-     seq n $ return (QName Nothing (NewName MonoValues n))
+newTopOrLocalName :: M Name
+newTopOrLocalName  = newName
 
-newTopOrLocalName :: M QName
-newTopOrLocalName =
-  do mb <- ask
-     n  <- sets $ \s -> (s, s + 1)
-     seq n $ return (QName mb (NewName MonoValues n))
-
+-- | Not really any distinction between global and local, all names get the
+-- module prefix added, and a unique id.
 inLocal :: M a -> M a
-inLocal = local Nothing
+inLocal  = id
 
 
 
@@ -179,7 +178,6 @@ rewE rews = go
                           Nothing  -> EProofApp <$> go e
                           Just yes -> return yes
 
-      ECon {}         -> return expr
       EList es t      -> EList   <$> mapM go es <*> return t
       ETuple es       -> ETuple  <$> mapM go es
       ERec fs         -> ERec    <$> (forM fs $ \(f,e) -> do e1 <- go e
@@ -212,8 +210,12 @@ rewM rews ma =
 
 
 rewD :: RewMap -> Decl -> M Decl
-rewD rews d = do e <- rewE rews (dDefinition d)
+rewD rews d = do e <- rewDef rews (dDefinition d)
                  return d { dDefinition = e }
+
+rewDef :: RewMap -> DeclDef -> M DeclDef
+rewDef rews (DExpr e) = DExpr <$> rewE rews e
+rewDef _    DPrim     = return DPrim
 
 rewDeclGroup :: RewMap -> DeclGroup -> M DeclGroup
 rewDeclGroup rews dg =
@@ -231,9 +233,12 @@ rewDeclGroup rews dg =
   sameTParams    (_,tps1,x,_) (_,tps2,y,_) = tps1 == tps2 && x == y
   compareTParams (_,tps1,x,_) (_,tps2,y,_) = compare (x,tps1) (y,tps2)
 
-  consider d   = let (tps,props,e) = splitTParams (dDefinition d)
-                 in if not (null tps) && notFun e
-                     then Right (d, tps, props, e)
+  consider d   =
+    case dDefinition d of
+      DPrim   -> Left d
+      DExpr e -> let (tps,props,e') = splitTParams e
+                 in if not (null tps) && notFun e'
+                     then Right (d, tps, props, e')
                      else Left d
 
   rewSame ds =
@@ -252,7 +257,7 @@ rewDeclGroup rews dg =
                              , d { dName        = newN
                                  , dSignature   = (dSignature d)
                                          { sVars = [], sProps = [] }
-                                 , dDefinition  = e1
+                                 , dDefinition  = DExpr e1
                                  }
                              )
 
@@ -262,7 +267,7 @@ rewDeclGroup rews dg =
                                 let newBody = EVar (dName f')
                                     newE = EWhere newBody
                                               [ Recursive [f'] ]
-                                in foldr ETAbs
+                                in DExpr $ foldr ETAbs
                                    (foldr EProofAbs newE props) tps
                             }
                       ]
@@ -285,11 +290,16 @@ rewDeclGroup rews dg =
                                     (map (sType . dSignature) monoDs)
 
                         , dDefinition =
+                            DExpr  $
                             addTPs $
                             EWhere (ETuple [ EVar (dName d) | d <- monoDs ])
                                    [ Recursive monoDs ]
 
                         , dPragmas    = [] -- ?
+
+                        , dInfix = False
+                        , dFixity = Nothing
+                        , dDoc = Nothing
                         }
 
                       mkProof e _ = EProofApp e
@@ -298,6 +308,7 @@ rewDeclGroup rews dg =
 
                       mkFunDef n f =
                         f { dDefinition =
+                              DExpr  $
                               addTPs $ ESel ( flip (foldl mkProof) props
                                             $ flip (foldl ETApp) tys
                                             $ EVar tupName

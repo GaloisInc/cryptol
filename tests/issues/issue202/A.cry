@@ -1,0 +1,2 @@
+module A where
+include "B.cry"

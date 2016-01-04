@@ -5,18 +5,15 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-
-{-# LANGUAGE RecordWildCards, CPP, Safe #-}
-#if __GLASGOW_HASKELL__ >= 706
+{-# LANGUAGE RecordWildCards, Safe #-}
 {-# LANGUAGE RecursiveDo #-}
-#else
-{-# LANGUAGE DoRec #-}
-#endif
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.TypeCheck.Monad
   ( module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
   ) where
 
+import           Cryptol.ModuleSystem.Name (SupplyT,runSupplyT,FreshM(..),Supply)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
@@ -33,25 +30,34 @@ import           Data.Set (Set)
 import           Data.List(find, minimumBy, groupBy, sortBy)
 import           Data.Maybe(mapMaybe)
 import           Data.Function(on)
-import           MonadLib
+import           MonadLib hiding (mapM)
 import qualified Control.Applicative as A
 import           Control.Monad.Fix(MonadFix(..))
 
-#if __GLASGOW_HASKELL__ < 710
-import           Data.Functor
-#endif
+import GHC.Generics (Generic)
+import Control.DeepSeq.Generics
+
+import Prelude ()
+import Prelude.Compat
+
 
 -- | Information needed for type inference.
 data InferInput = InferInput
   { inpRange     :: Range             -- ^ Location of program source
-  , inpVars      :: Map QName Schema  -- ^ Variables that are in scope
-  , inpTSyns     :: Map QName TySyn   -- ^ Type synonyms that are in scope
-  , inpNewtypes  :: Map QName Newtype -- ^ Newtypes in scope
+  , inpVars      :: Map Name Schema   -- ^ Variables that are in scope
+  , inpTSyns     :: Map Name TySyn    -- ^ Type synonyms that are in scope
+  , inpNewtypes  :: Map Name Newtype  -- ^ Newtypes in scope
   , inpNameSeeds :: NameSeeds         -- ^ Private state of type-checker
   , inpMonoBinds :: Bool              -- ^ Should local bindings without
                                       --   signatures be monomorphized?
 
   , inpSolverConfig :: SolverConfig   -- ^ Options for the constraint solver
+
+  , inpPrimNames :: !PrimMap          -- ^ The mapping from 'Ident' to 'Name',
+                                      -- for names that the typechecker
+                                      -- needs to refer to.
+
+  , inpSupply :: !Supply              -- ^ The supply for fresh name generation
   } deriving Show
 
 
@@ -59,7 +65,9 @@ data InferInput = InferInput
 data NameSeeds = NameSeeds
   { seedTVar    :: !Int
   , seedGoal    :: !Int
-  } deriving Show
+  } deriving (Show, Generic)
+
+instance NFData NameSeeds where rnf = genericRnf
 
 -- | The initial seeds, used when checking a fresh program.
 nameSeeds :: NameSeeds
@@ -71,7 +79,7 @@ data InferOutput a
   = InferFailed [(Range,Warning)] [(Range,Error)]
     -- ^ We found some errors
 
-  | InferOK [(Range,Warning)] NameSeeds a
+  | InferOK [(Range,Warning)] NameSeeds Supply a
     -- ^ Type inference was successful.
 
 
@@ -87,9 +95,12 @@ runInferM info (IM m) =
                      , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
                      , iMonoBinds     = inpMonoBinds info
                      , iSolverConfig  = inpSolverConfig info
+                     , iPrimNames     = inpPrimNames info
                      }
 
-         (result, finalRW) <- runStateT rw $ runReaderT ro m  -- RECURSION
+         ((result, finalRW),supply') <-
+             runSupplyT (inpSupply info) $ runStateT rw
+                                         $ runReaderT ro m  -- RECURSION
 
      let theSu    = iSubst finalRW
          defSu    = defaultingSubst theSu
@@ -102,11 +113,12 @@ runInferM info (IM m) =
              | nullGoals cts
                    -> return $ InferOK warns
                                   (iNameSeeds finalRW)
+                                  supply'
                                   (apSubst defSu result)
            (cts,has) -> return $ InferFailed warns
                 $ dropErrorsFromSameLoc
                 [ ( goalRange g
-                  , UnsolvedGoal (apSubst theSu g)
+                  , UnsolvedGoal False (apSubst theSu g)
                   ) | g <- fromGoals cts ++ map hasGoal has
                 ]
        errs -> return $ InferFailed warns
@@ -139,22 +151,22 @@ runInferM info (IM m) =
 
 
 
-newtype InferM a = IM { unIM :: ReaderT RO (StateT RW IO) a }
+newtype InferM a = IM { unIM :: ReaderT RO (StateT RW (SupplyT IO)) a }
 
 data DefLoc = IsLocal | IsExternal
 
 -- | Read-only component of the monad.
 data RO = RO
   { iRange    :: Range                  -- ^ Source code being analysed
-  , iVars     :: Map QName VarType      -- ^ Type of variable that are in scope
+  , iVars     :: Map Name VarType      -- ^ Type of variable that are in scope
 
   {- NOTE: We assume no shadowing between these two, so it does not matter
   where we look first. Similarly, we assume no shadowing with
   the existential type variable (in RW).  See `checkTShadowing`. -}
 
   , iTVars    :: [TParam]                  -- ^ Type variable that are in scope
-  , iTSyns    :: Map QName (DefLoc, TySyn) -- ^ Type synonyms that are in scope
-  , iNewtypes :: Map QName (DefLoc, Newtype)
+  , iTSyns    :: Map Name (DefLoc, TySyn) -- ^ Type synonyms that are in scope
+  , iNewtypes :: Map Name (DefLoc, Newtype)
    -- ^ Newtype declarations in scope
    --
    -- NOTE: type synonyms take precedence over newtype.  The reason is
@@ -176,6 +188,8 @@ data RO = RO
     -- signatures, and all bindings at top level are unaffected.
 
   , iSolverConfig :: SolverConfig
+
+  , iPrimNames :: !PrimMap
   }
 
 -- | Read-write component of the monad.
@@ -184,7 +198,7 @@ data RW = RW
   , iWarnings :: ![(Range,Warning)]     -- ^ Collected warnings
   , iSubst    :: !Subst                 -- ^ Accumulated substitution
 
-  , iExistTVars  :: [Map QName Type]
+  , iExistTVars  :: [Map Name Type]
     -- ^ These keeps track of what existential type variables are available.
     -- When we start checking a function, we push a new scope for
     -- its arguments, and we pop it when we are done checking the function
@@ -225,6 +239,9 @@ instance Monad InferM where
 instance MonadFix InferM where
   mfix f        = IM (mfix (unIM . f))
 
+instance FreshM InferM where
+  liftSupply f = IM (liftSupply f)
+
 
 io :: IO a -> InferM a
 io m = IM $ inBase m
@@ -258,7 +275,11 @@ getSolverConfig =
   do RO { .. } <- IM ask
      return iSolverConfig
 
-
+-- | Retrieve the mapping between identifiers and declarations in the prelude.
+getPrimMap :: InferM PrimMap
+getPrimMap  =
+  do RO { .. } <- IM ask
+     return iPrimNames
 
 
 --------------------------------------------------------------------------------
@@ -365,7 +386,7 @@ newTVar' src extraBound k =
 
 
 -- | Generate a new free type variable.
-newTParam :: Maybe QName -> Kind -> InferM TParam
+newTParam :: Maybe Name -> Kind -> InferM TParam
 newTParam nm k = newName $ \s -> let x = seedTVar s
                                  in (TParam { tpUnique = x
                                             , tpKind   = k
@@ -440,7 +461,7 @@ varsWithAsmps =
 
 
 -- | Lookup the type of a variable.
-lookupVar :: QName -> InferM VarType
+lookupVar :: Name -> InferM VarType
 lookupVar x =
   do mb <- IM $ asks $ Map.lookup x . iVars
      case mb of
@@ -455,23 +476,23 @@ lookupVar x =
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
 -- in scope, in which case we must be dealing with a type constant.
-lookupTVar :: QName -> InferM (Maybe Type)
+lookupTVar :: Name -> InferM (Maybe Type)
 lookupTVar x = IM $ asks $ fmap (TVar . tpVar) . find this . iTVars
   where this tp = tpName tp == Just x
 
 -- | Lookup the definition of a type synonym.
-lookupTSyn :: QName -> InferM (Maybe TySyn)
+lookupTSyn :: Name -> InferM (Maybe TySyn)
 lookupTSyn x = fmap (fmap snd . Map.lookup x) getTSyns
 
 -- | Lookup the definition of a newtype
-lookupNewtype :: QName -> InferM (Maybe Newtype)
+lookupNewtype :: Name -> InferM (Maybe Newtype)
 lookupNewtype x = fmap (fmap snd . Map.lookup x) getNewtypes
 
 -- | Check if we already have a name for this existential type variable and,
 -- if so, return the definition.  If not, try to create a new definition,
 -- if this is allowed.  If not, returns nothing.
 
-existVar :: QName -> Kind -> InferM Type
+existVar :: Name -> Kind -> InferM Type
 existVar x k =
   do scopes <- iExistTVars <$> IM get
      case msum (map (Map.lookup x) scopes) of
@@ -492,15 +513,15 @@ existVar x k =
 
 
 -- | Returns the type synonyms that are currently in scope.
-getTSyns :: InferM (Map QName (DefLoc,TySyn))
+getTSyns :: InferM (Map Name (DefLoc,TySyn))
 getTSyns = IM $ asks iTSyns
 
 -- | Returns the newtype declarations that are in scope.
-getNewtypes :: InferM (Map QName (DefLoc,Newtype))
+getNewtypes :: InferM (Map Name (DefLoc,Newtype))
 getNewtypes = IM $ asks iNewtypes
 
 -- | Get the set of bound type variables that are in scope.
-getTVars :: InferM (Set QName)
+getTVars :: InferM (Set Name)
 getTVars = IM $ asks $ Set.fromList . mapMaybe tpName . iTVars
 
 -- | Return the keys of the bound variables that are in scope.
@@ -516,7 +537,7 @@ because it is confusing.  As a bonus, in the implementation we don't
 need to worry about where we lookup things (i.e., in the variable or
 type synonym environment. -}
 
-checkTShadowing :: String -> QName -> InferM ()
+checkTShadowing :: String -> Name -> InferM ()
 checkTShadowing this new =
   do ro <- IM ask
      rw <- IM get
@@ -565,28 +586,28 @@ withNewtype t (IM m) =
                                                      (iNewtypes r) }) m
 
 -- | The sub-computation is performed with the given variable in scope.
-withVarType :: QName -> VarType -> InferM a -> InferM a
+withVarType :: Name -> VarType -> InferM a -> InferM a
 withVarType x s (IM m) =
   IM $ mapReader (\r -> r { iVars = Map.insert x s (iVars r) }) m
 
-withVarTypes :: [(QName,VarType)] -> InferM a -> InferM a
+withVarTypes :: [(Name,VarType)] -> InferM a -> InferM a
 withVarTypes xs m = foldr (uncurry withVarType) m xs
 
-withVar :: QName -> Schema -> InferM a -> InferM a
+withVar :: Name -> Schema -> InferM a -> InferM a
 withVar x s = withVarType x (ExtVar s)
 
 
 -- | The sub-computation is performed with the given variables in scope.
-withMonoType :: (QName,Located Type) -> InferM a -> InferM a
+withMonoType :: (Name,Located Type) -> InferM a -> InferM a
 withMonoType (x,lt) = withVar x (Forall [] [] (thing lt))
 
 -- | The sub-computation is performed with the given variables in scope.
-withMonoTypes :: Map QName (Located Type) -> InferM a -> InferM a
+withMonoTypes :: Map Name (Located Type) -> InferM a -> InferM a
 withMonoTypes xs m = foldr withMonoType m (Map.toList xs)
 
 -- | The sub-computation is performed with the given type synonyms
 -- and variables in scope.
-withDecls :: ([TySyn], Map QName Schema) -> InferM a -> InferM a
+withDecls :: ([TySyn], Map Name Schema) -> InferM a -> InferM a
 withDecls (ts,vs) m = foldr withTySyn (foldr add m (Map.toList vs)) ts
   where
   add (x,t) = withVar x t
@@ -609,11 +630,11 @@ inNewScope m =
 
 newtype KindM a = KM { unKM :: ReaderT KRO (StateT KRW InferM)  a }
 
-data KRO = KRO { lazyTVars  :: Map QName Type -- ^ lazy map, with tyvars.
+data KRO = KRO { lazyTVars  :: Map Name Type -- ^ lazy map, with tyvars.
                , allowWild  :: Bool           -- ^ are type-wild cards allowed?
                }
 
-data KRW = KRW { typeParams :: Map QName Kind -- ^ kinds of (known) vars.
+data KRW = KRW { typeParams :: Map Name Kind -- ^ kinds of (known) vars.
                }
 
 instance Functor KindM where
@@ -639,8 +660,8 @@ in the process of computing.
 As a result we return the value of the sub-computation and the computed
 kinds of the type parameters. -}
 runKindM :: Bool                          -- Are type-wild cards allowed?
-         -> [(QName, Maybe Kind, Type)]   -- ^ See comment
-         -> KindM a -> InferM (a, Map QName Kind)
+         -> [(Name, Maybe Kind, Type)]   -- ^ See comment
+         -> KindM a -> InferM (a, Map Name Kind)
 runKindM wildOK vs (KM m) =
   do (a,kw) <- runStateT krw (runReaderT kro m)
      return (a, typeParams kw)
@@ -654,7 +675,7 @@ data LkpTyVar = TLocalVar Type (Maybe Kind) -- ^ Locally bound variable.
               | TOuterVar Type              -- ^ An outer binding.
 
 -- | Check if a name refers to a type variable.
-kLookupTyVar :: QName -> KindM (Maybe LkpTyVar)
+kLookupTyVar :: Name -> KindM (Maybe LkpTyVar)
 kLookupTyVar x = KM $
   do vs <- lazyTVars `fmap` ask
      ss <- get
@@ -682,14 +703,14 @@ kNewType src k =
      kInInferM $ TVar `fmap` newTVar' src tps k
 
 -- | Lookup the definition of a type synonym.
-kLookupTSyn :: QName -> KindM (Maybe TySyn)
+kLookupTSyn :: Name -> KindM (Maybe TySyn)
 kLookupTSyn x = kInInferM $ lookupTSyn x
 
 -- | Lookup the definition of a newtype.
-kLookupNewtype :: QName -> KindM (Maybe Newtype)
+kLookupNewtype :: Name -> KindM (Maybe Newtype)
 kLookupNewtype x = kInInferM $ lookupNewtype x
 
-kExistTVar :: QName -> Kind -> KindM Type
+kExistTVar :: Name -> Kind -> KindM Type
 kExistTVar x k = kInInferM $ existVar x k
 
 -- | Replace the given bound variables with concrete types.
@@ -700,7 +721,7 @@ kInstantiateT t as = return (apSubst su t)
 {- | Record the kind for a local type variable.
 This assumes that we already checked that there was no other valid
 kind for the variable (if there was one, it gets over-written). -}
-kSetKind :: QName -> Kind -> KindM ()
+kSetKind :: Name -> Kind -> KindM ()
 kSetKind v k = KM $ sets_ $ \s -> s{ typeParams = Map.insert v k (typeParams s)}
 
 -- | The sub-computation is about the given range of the source code.

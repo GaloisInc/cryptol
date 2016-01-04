@@ -12,13 +12,6 @@ import Cryptol.TypeCheck.AST
 import Control.Monad(mplus,guard)
 import Data.Maybe(listToMaybe)
 
--- min (a,min(b,c)) -> [a,b,c]
-splitMins :: Type -> [Type]
-splitMins ty =
-  case tNoUser ty of
-    TCon (TF TCMin) [t1,t2] -> splitMins t1 ++ splitMins t2
-    _ -> [ty]
-
 
 
 -- | All ways to split a type in the form: `a + t1`, where `a` is a variable.

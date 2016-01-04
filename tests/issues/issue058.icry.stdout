@@ -9,7 +9,7 @@ Loading module Main
       fin n
         arising from
         use of expression (!=)
-        at ./issue058.cry:4:12--4:14
+        at ./issue058.cry:4:10--4:16
 [error] at ./issue058.cry:7:1--7:17:
   Failed to validate user-specified signature.
     In the definition of 'Main::last', at ./issue058.cry:7:1--7:5:
@@ -19,7 +19,7 @@ Loading module Main
       fin n
         arising from
         use of expression (!)
-        at ./issue058.cry:7:14--7:15
+        at ./issue058.cry:7:11--7:17
 [error] at ./issue058.cry:10:1--10:17:
   Failed to validate user-specified signature.
     In the definition of 'Main::pad', at ./issue058.cry:10:1--10:4:
@@ -27,4 +27,4 @@ Loading module Main
       fin n
         arising from
         use of expression (#)
-        at ./issue058.cry:10:11--10:12
+        at ./issue058.cry:10:9--10:17

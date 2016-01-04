@@ -8,6 +8,7 @@
 
 {-# LANGUAGE Safe                                #-}
 {-# LANGUAGE ViewPatterns                        #-}
+{-# LANGUAGE PatternGuards                       #-}
 module Cryptol.TypeCheck.TypeOf
   ( fastTypeOf
   , fastSchemaOf
@@ -15,18 +16,16 @@ module Cryptol.TypeCheck.TypeOf
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst
-import Cryptol.Prims.Types (typeOf)
 import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
 
 import           Data.Map    (Map)
 import qualified Data.Map as Map
-import           Data.Maybe (fromJust)
 
 -- | Given a typing environment and an expression, compute the type of
 -- the expression as quickly as possible, assuming that the expression
 -- is well formed with correct type annotations.
-fastTypeOf :: Map QName Schema -> Expr -> Type
+fastTypeOf :: Map Name Schema -> Expr -> Type
 fastTypeOf tyenv expr =
   case expr of
     -- Monomorphic fragment
@@ -43,7 +42,6 @@ fastTypeOf tyenv expr =
                                          [ "EApp with non-function operator" ]
     ECast _ t     -> t
     -- Polymorphic fragment
-    ECon      {}  -> polymorphic
     EVar      {}  -> polymorphic
     ETAbs     {}  -> polymorphic
     ETApp     {}  -> polymorphic
@@ -57,12 +55,14 @@ fastTypeOf tyenv expr =
         _ -> panic "Cryptol.TypeCheck.TypeOf.fastTypeOf"
                [ "unexpected polymorphic type" ]
 
-fastSchemaOf :: Map QName Schema -> Expr -> Schema
+fastSchemaOf :: Map Name Schema -> Expr -> Schema
 fastSchemaOf tyenv expr =
   case expr of
     -- Polymorphic fragment
-    ECon econ      -> typeOf econ
-    EVar x         -> fromJust (Map.lookup x tyenv)
+    EVar x         -> case Map.lookup x tyenv of
+                         Just ty -> ty
+                         Nothing -> panic "Cryptol.TypeCheck.TypeOf.fastSchemaOf"
+                               [ "EVar failed to find type variable:", show x ]
     ETAbs tparam e -> case fastSchemaOf tyenv e of
                         Forall tparams props ty -> Forall (tparam : tparams) props ty
     ETApp e t      -> case fastSchemaOf tyenv e of
@@ -101,7 +101,8 @@ fastSchemaOf tyenv expr =
 typeSelect :: Type -> Selector -> Type
 typeSelect (TUser _ _ ty) sel = typeSelect ty sel
 typeSelect (TCon _tctuple ts) (TupleSel i _) = ts !! i
-typeSelect (TRec fields) (RecordSel n _) = fromJust (lookup n fields)
+typeSelect (TRec fields) (RecordSel n _)
+     | Just ty <- lookup n fields = ty
 typeSelect (TCon _tcseq [_, a]) (ListSel _ _) = a
 typeSelect ty _ = panic "Cryptol.TypeCheck.TypeOf.typeSelect"
                     [ "cannot apply selector to value of type", render (pp ty) ]

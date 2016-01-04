@@ -21,5 +21,6 @@ Summary of Changes
 `[0 ...]:[inf][8]`            |`[0 ..]:[inf][8]`                 | Both produce `[0 .. 255]`(repeated)
 `[9, 8 .. 0]`                 |`[9 -- 0]`                        | Step defines decreasing sequences
 `&&, ||, ^`                   |`&, |, ^`                         | Boolean operator syntax
+`(1,2,3).0 (== 1)`            |`project(1,3,(1,2,3)) (==1)`      | Tuple projection syntax (and 0-based)
 `property foo xs=...`         |`theorem foo: {xs}. xs==`...      | Properties replace theorems (see below)
 

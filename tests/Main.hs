@@ -1,4 +1,3 @@
-{-# LANGUAGE CPP #-}
 -- |
 -- Module      :  $Header$
 -- Copyright   :  (c) 2013-2015 Galois, Inc.
@@ -7,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE CPP #-}
 module Main where
 
 import Control.Monad (when,foldM)
@@ -33,10 +33,8 @@ import Test.HUnit (assertFailure)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative ((<$>))
-import Data.Monoid (Monoid(..))
-#endif
+import Prelude ()
+import Prelude.Compat
 
 #if defined(mingw32_HOST_OS) || defined(__MINGW32__)
 import Text.Regex

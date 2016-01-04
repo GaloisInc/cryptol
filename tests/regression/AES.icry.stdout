@@ -11,7 +11,7 @@ Loading module AES
              of literal or demoted expression
              at ./AES.cry:147:60--147:63
   to 4
-[warning] at ./AES.cry:124:1--124:9:
+[warning] at ./AES.cry:124:1--129:31:
   Defaulting type parameter 'bits'
              of literal or demoted expression
              at ./AES.cry:127:32--127:33

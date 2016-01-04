@@ -9,7 +9,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
-
 module Main where
 
 import OptParser
@@ -34,9 +33,8 @@ import System.Environment (getArgs, getProgName, lookupEnv)
 import System.Exit (exitFailure)
 import System.FilePath (searchPathSeparator, splitSearchPath, takeDirectory)
 
-#if __GLASGOW_HASKELL__ < 710
-import Data.Monoid (mconcat)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 data Options = Options
   { optLoad            :: [FilePath]

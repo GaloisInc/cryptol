@@ -10,26 +10,34 @@
 {-# LANGUAGE RecordWildCards                     #-}
 {-# LANGUAGE PatternGuards                       #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
+{-# LANGUAGE DeriveGeneric                       #-}
 module Cryptol.TypeCheck.AST
   ( module Cryptol.TypeCheck.AST
+  , Name()
   , TFun(..)
-  , Name(..), QName(..), mkUnqual, unqual
-  , ModName(..)
   , Selector(..)
   , Import(..)
   , ImportSpec(..)
   , ExportType(..)
   , ExportSpec(..), isExportedBind, isExportedType
   , Pragma(..)
+  , Fixity(..)
+  , PrimMap(..)
   ) where
 
+import Cryptol.ModuleSystem.Name
 import Cryptol.Prims.Syntax
-import Cryptol.Parser.AST ( Name(..), Selector(..),Pragma(..), ppSelector
+import Cryptol.Parser.AST ( Selector(..),Pragma(..), ppSelector
                           , Import(..), ImportSpec(..), ExportType(..)
-                          , ExportSpec(..), ModName(..), isExportedBind
-                          , isExportedType, QName(..), mkUnqual, unqual )
+                          , ExportSpec(..), isExportedBind
+                          , isExportedType, Fixity(..) )
+import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,packIdent)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.TypeCheck.PP
+import Cryptol.TypeCheck.Solver.InfNat
+
+import GHC.Generics (Generic)
+import Control.DeepSeq.Generics
 
 import           Data.Map    (Map)
 import qualified Data.Map as Map
@@ -38,49 +46,60 @@ import           Data.Set (Set)
 
 {- | A Cryptol module.
 -}
-data Module = Module { mName     :: ModName
-                     , mExports  :: ExportSpec
+data Module = Module { mName     :: !ModName
+                     , mExports  :: ExportSpec Name
                      , mImports  :: [Import]
-                     , mTySyns   :: Map QName TySyn
-                     , mNewtypes :: Map QName Newtype
+                     , mTySyns   :: Map Name TySyn
+                     , mNewtypes :: Map Name Newtype
                      , mDecls    :: [DeclGroup]
-                     } deriving Show
+                     } deriving (Show, Generic)
 
+instance NFData Module where rnf = genericRnf
 
 -- | Kinds, classify types.
 data Kind   = KType
             | KNum
             | KProp
             | Kind :-> Kind
-              deriving (Eq,Show)
+              deriving (Eq, Show, Generic)
 infixr 5 :->
+
+instance NFData Kind where rnf = genericRnf
 
 
 -- | The types of polymorphic values.
 data Schema = Forall { sVars :: [TParam], sProps :: [Prop], sType :: Type }
-              deriving (Eq, Show)
+              deriving (Eq, Show, Generic)
+
+instance NFData Schema where rnf = genericRnf
 
 -- | Type synonym.
-data TySyn  = TySyn { tsName        :: QName      -- ^ Name
+data TySyn  = TySyn { tsName        :: Name       -- ^ Name
                     , tsParams      :: [TParam]   -- ^ Parameters
                     , tsConstraints :: [Prop]     -- ^ Ensure body is OK
                     , tsDef         :: Type       -- ^ Definition
                     }
-              deriving (Eq, Show)
+              deriving (Eq, Show, Generic)
+
+instance NFData TySyn where rnf = genericRnf
 
 -- | Named records
-data Newtype  = Newtype { ntName   :: QName
+data Newtype  = Newtype { ntName   :: Name
                         , ntParams :: [TParam]
                         , ntConstraints :: [Prop]
-                        , ntFields :: [(Name,Type)]
-                        } deriving (Show)
+                        , ntFields :: [(Ident,Type)]
+                        } deriving (Show, Generic)
+
+instance NFData Newtype where rnf = genericRnf
 
 -- | Type parameters.
 data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
                      , tpKind   :: Kind       -- ^ Kind of parameter
-                     , tpName   :: Maybe QName-- ^ Name from source, if any.
+                     , tpName   :: Maybe Name -- ^ Name from source, if any.
                      }
-              deriving (Show)
+              deriving (Show, Generic)
+
+instance NFData TParam where rnf = genericRnf
 
 instance Eq TParam where
   x == y = tpUnique x == tpUnique y
@@ -99,17 +118,19 @@ data Type   = TCon TCon [Type]
             | TVar TVar
               -- ^ Type variable (free or bound)
 
-            | TUser QName [Type] Type
+            | TUser Name [Type] Type
               {- ^ This is just a type annotation, for a type that
               was written as a type synonym.  It is useful so that we
               can use it to report nicer errors.
               Example: `TUser T ts t` is really just the type `t` that
               was written as `T ts` by the user. -}
 
-            | TRec [(Name,Type)]
+            | TRec [(Ident,Type)]
               -- ^ Record type
 
-              deriving (Show,Eq,Ord)
+              deriving (Show,Eq,Ord,Generic)
+
+instance NFData Type where rnf = genericRnf
 
 -- | The type is supposed to be of kind `KProp`
 type Prop   = Type
@@ -125,11 +146,15 @@ data TVar   = TVFree !Int Kind (Set TVar) Doc
 
 
             | TVBound !Int Kind
-              deriving Show
+              deriving (Show,Generic)
+
+instance NFData TVar where rnf = genericRnf
 
 -- | Type constants.
 data TCon   = TC TC | PC PC | TF TFun
-              deriving (Show,Eq,Ord)
+              deriving (Show,Eq,Ord,Generic)
+
+instance NFData TCon where rnf = genericRnf
 
 -- | Built-in type constants.
 
@@ -143,7 +168,9 @@ data PC     = PEqual        -- ^ @_ == _@
             | PHas Selector -- ^ @Has sel type field@ does not appear in schemas
             | PArith        -- ^ @Arith _@
             | PCmp          -- ^ @Cmp _@
-              deriving (Show,Eq,Ord)
+              deriving (Show,Eq,Ord,Generic)
+
+instance NFData PC where rnf = genericRnf
 
 -- | 1-1 constants.
 data TC     = TCNum Integer            -- ^ Numbers
@@ -153,10 +180,14 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCFun                    -- ^ @_ -> _@
             | TCTuple Int              -- ^ @(_, _, _)@
             | TCNewtype UserTC         -- ^ user-defined, @T@
-              deriving (Show,Eq,Ord)
+              deriving (Show,Eq,Ord,Generic)
 
-data UserTC = UserTC QName Kind
-                deriving Show
+instance NFData TC where rnf = genericRnf
+
+data UserTC = UserTC Name Kind
+              deriving (Show,Generic)
+
+instance NFData UserTC where rnf = genericRnf
 
 instance Eq UserTC where
   UserTC x _ == UserTC y _ = x == y
@@ -178,11 +209,9 @@ instance Ord TVar where
 
 
 
-data Expr   = ECon ECon                 -- ^ Built-in constant
-
-            | EList [Expr] Type         -- ^ List value (with type of elements)
+data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | ETuple [Expr]             -- ^ Tuple value
-            | ERec [(Name,Expr)]        -- ^ Record value
+            | ERec [(Ident,Expr)]       -- ^ Record value
             | ESel Expr Selector        -- ^ Elimination for tuple/record/list
 
             | EIf Expr Expr Expr        -- ^ If-then-else
@@ -190,13 +219,13 @@ data Expr   = ECon ECon                 -- ^ Built-in constant
                                         --   The type caches the type of the
                                         --   expr.
 
-            | EVar QName                -- ^ Use of a bound variable
+            | EVar Name                 -- ^ Use of a bound variable
 
             | ETAbs TParam Expr         -- ^ Function Value
             | ETApp Expr Type           -- ^ Type application
 
             | EApp Expr Expr            -- ^ Function application
-            | EAbs QName Type Expr      -- ^ Function value
+            | EAbs Name Type Expr       -- ^ Function value
 
 
             {- | Proof abstraction.  Because we don't keep proofs around
@@ -235,32 +264,45 @@ data Expr   = ECon ECon                 -- ^ Built-in constant
 
             | EWhere Expr [DeclGroup]
 
-              deriving Show
+              deriving (Show, Generic)
+
+instance NFData Expr where rnf = genericRnf
 
 
-data Match  = From QName Type Expr-- ^ do we need this type?  it seems like it
+data Match  = From Name Type Expr -- ^ do we need this type?  it seems like it
                                   --   can be computed from the expr
             | Let Decl
-              deriving Show
+              deriving (Show, Generic)
 
-
+instance NFData Match where rnf = genericRnf
 
 data DeclGroup  = Recursive   [Decl]    -- ^ Mutually recursive declarations
                 | NonRecursive Decl     -- ^ Non-recursive declaration
-                  deriving Show
+                  deriving (Show,Generic)
+
+instance NFData DeclGroup where rnf = genericRnf
 
 groupDecls :: DeclGroup -> [Decl]
 groupDecls dg = case dg of
   Recursive ds   -> ds
   NonRecursive d -> [d]
 
-data Decl       = Decl { dName        :: QName
+data Decl       = Decl { dName        :: !Name
                        , dSignature   :: Schema
-                       , dDefinition  :: Expr
+                       , dDefinition  :: DeclDef
                        , dPragmas     :: [Pragma]
-                       } deriving (Show)
+                       , dInfix       :: !Bool
+                       , dFixity      :: Maybe Fixity
+                       , dDoc         :: Maybe String
+                       } deriving (Show,Generic)
 
+instance NFData Decl where rnf = genericRnf
 
+data DeclDef    = DPrim
+                | DExpr Expr
+                  deriving (Show,Generic)
+
+instance NFData DeclDef where rnf = genericRnf
 
 --------------------------------------------------------------------------------
 
@@ -275,15 +317,20 @@ isBoundTV _             = False
 
 
 --------------------------------------------------------------------------------
+
+tIsNat' :: Type -> Maybe Nat'
+tIsNat' ty =
+  case tNoUser ty of
+    TCon (TC (TCNum x)) [] -> Just (Nat x)
+    TCon (TC TCInf)     [] -> Just Inf
+    _                      -> Nothing
+
 tIsNum :: Type -> Maybe Integer
-tIsNum ty = case tNoUser ty of
-              TCon (TC (TCNum x)) [] -> Just x
-              _                      -> Nothing
+tIsNum ty = do Nat x <- tIsNat' ty
+               return x
 
 tIsInf :: Type -> Bool
-tIsInf ty = case tNoUser ty of
-              TCon (TC TCInf) [] -> True
-              _                  -> False
+tIsInf ty = tIsNat' ty == Just Inf
 
 tIsVar :: Type -> Maybe TVar
 tIsVar ty = case tNoUser ty of
@@ -309,6 +356,19 @@ tIsTuple :: Type -> Maybe [Type]
 tIsTuple ty = case tNoUser ty of
                 TCon (TC (TCTuple _)) ts -> Just ts
                 _                        -> Nothing
+
+tIsBinFun :: TFun -> Type -> Maybe (Type,Type)
+tIsBinFun f ty = case tNoUser ty of
+                   TCon (TF g) [a,b] | f == g -> Just (a,b)
+                   _                          -> Nothing
+
+-- | Split up repeated occurances of the given binary type-level function.
+tSplitFun :: TFun -> Type -> [Type]
+tSplitFun f t0 = go t0 []
+  where go ty xs = case tIsBinFun f ty of
+                     Just (a,b) -> go a (go b xs)
+                     Nothing    -> ty : xs
+
 
 pIsFin :: Prop -> Maybe Type
 pIsFin ty = case tNoUser ty of
@@ -365,14 +425,13 @@ tTwo      = tNum (2 :: Int)
 tInf     :: Type
 tInf      = TCon (TC TCInf) []
 
+tNat'    :: Nat' -> Type
+tNat' n'  = case n' of
+              Inf   -> tInf
+              Nat n -> tNum n
+
 tBit     :: Type
 tBit      = TCon (TC TCBit) []
-
-eTrue    :: Expr
-eTrue     = ECon ECTrue
-
-eFalse   :: Expr
-eFalse    = ECon ECFalse
 
 tWord    :: Type -> Type
 tWord a   = tSeq a tBit
@@ -383,24 +442,10 @@ tSeq a b  = TCon (TC TCSeq) [a,b]
 tChar :: Type
 tChar = tWord (tNum (8 :: Int))
 
-eChar :: Char -> Expr
-eChar c = ETApp (ETApp (ECon ECDemote) (tNum v)) (tNum w)
-  where v = fromEnum c
-        w = 8 :: Int
-
 tString :: Int -> Type
 tString len = tSeq (tNum len) tChar
 
-eString :: String -> Expr
-eString str = EList (map eChar str) tChar
-
--- | Make an expression that is `error` pre-applied to a type and a
--- message.
-eError :: Type -> String -> Expr
-eError t str =
-  EApp (ETApp (ETApp (ECon ECError) t) (tNum (length str))) (eString str)
-
-tRec     :: [(Name,Type)] -> Type
+tRec     :: [(Ident,Type)] -> Type
 tRec      = TRec
 
 tTuple   :: [Type] -> Type
@@ -413,7 +458,7 @@ infixr 5 `tFun`
 tFun     :: Type -> Type -> Type
 tFun a b  = TCon (TC TCFun) [a,b]
 
--- | Eliminate type synonyms.
+-- | Eliminate outermost type synonyms.
 tNoUser  :: Type -> Type
 tNoUser t = case t of
               TUser _ _ a -> tNoUser a
@@ -496,6 +541,28 @@ newtypeConType nt =
   where
   as = ntParams nt
 
+
+
+-- | Construct a primitive, given a map to the unique names of the Cryptol
+-- module.
+ePrim :: PrimMap -> Ident -> Expr
+ePrim pm n = EVar (lookupPrimDecl n pm)
+
+-- | Make an expression that is `error` pre-applied to a type and a message.
+eError :: PrimMap -> Type -> String -> Expr
+eError prims t str =
+  EApp (ETApp (ETApp (ePrim prims (packIdent "error")) t)
+              (tNum (length str))) (eString prims str)
+
+eString :: PrimMap -> String -> Expr
+eString prims str = EList (map (eChar prims) str) tChar
+
+eChar :: PrimMap -> Char -> Expr
+eChar prims c = ETApp (ETApp (ePrim prims (packIdent "demote")) (tNum v)) (tNum w)
+  where v = fromEnum c
+        w = 8 :: Int
+
+
 --------------------------------------------------------------------------------
 
 class HasKind t where
@@ -539,7 +606,6 @@ instance HasKind TFun where
   kindOf tfun =
     case tfun of
       TCWidth  -> KNum :-> KNum
-      TCLg2    -> KNum :-> KNum
 
       TCAdd    -> KNum :-> KNum :-> KNum
       TCSub    -> KNum :-> KNum :-> KNum
@@ -594,6 +660,9 @@ instance PP (WithNames TVar) where
 
   ppPrec _ (WithNames (TVFree x _ _ _) _) =
     char '?' <> text (intToName x)
+
+instance PP TVar where
+  ppPrec = ppWithNamesPrec IntMap.empty
 
 instance PP TParam where
   ppPrec = ppWithNamesPrec IntMap.empty
@@ -739,8 +808,6 @@ instance PP UserTC where
 instance PP (WithNames Expr) where
   ppPrec prec (WithNames expr nm) =
     case expr of
-      ECon c        -> ppPrefix c
-
       EList [] t    -> optParens (prec > 0)
                     $ text "[]" <+> colon <+> ppWP prec t
 
@@ -761,7 +828,7 @@ instance PP (WithNames Expr) where
       EComp _ e mss -> let arm ms = text "|" <+> commaSep (map ppW ms)
                        in brackets $ ppW e <+> vcat (map arm mss)
 
-      EVar x        -> pp x
+      EVar x        -> ppPrefixName x
 
       EAbs {}       -> let (xs,e) = splitWhile splitAbs expr
                        in ppLam nm prec [] [] xs e
@@ -774,6 +841,14 @@ instance PP (WithNames Expr) where
                            (ps,e2) = splitWhile splitProofAbs e1
                            (xs,e3) = splitWhile splitAbs      e2
                        in ppLam nm prec ts ps xs e3
+
+      -- infix applications
+      EApp (EApp (EVar o) a) b
+        | isInfixIdent (nameIdent o) ->
+          ppPrec 3 a <+> ppInfixName o <+> ppPrec 3 b
+
+        | otherwise ->
+          ppPrefixName o <+> ppPrec 3 a <+> ppPrec 3 b
 
       EApp e1 e2    -> optParens (prec > 3)
                     $  ppWP 3 e1 <+> ppWP 4 e2
@@ -796,7 +871,7 @@ instance PP (WithNames Expr) where
     ppW x   = ppWithNames nm x
     ppWP x  = ppWithNamesPrec nm x
 
-ppLam :: NameMap -> Int -> [TParam] -> [Prop] -> [(QName,Type)] -> Expr -> Doc
+ppLam :: NameMap -> Int -> [TParam] -> [Prop] -> [(Name,Type)] -> Expr -> Doc
 ppLam nm prec [] [] [] e = ppWithNamesPrec nm prec e
 ppLam nm prec ts ps xs e =
   optParens (prec > 0) $
@@ -821,7 +896,7 @@ splitWhile f e = case f e of
                    Just (x,e1) -> let (xs,e2) = splitWhile f e1
                                   in (x:xs,e2)
 
-splitAbs :: Expr -> Maybe ((QName,Type), Expr)
+splitAbs :: Expr -> Maybe ((Name,Type), Expr)
 splitAbs (EAbs x t e)         = Just ((x,t), e)
 splitAbs _                    = Nothing
 
@@ -867,6 +942,10 @@ instance PP (WithNames Decl) where
         else text "pragmas" <+> pp dName <+> sep (map pp dPragmas)
     ) $$
     pp dName <+> text "=" <+> ppWithNames nm dDefinition
+
+instance PP (WithNames DeclDef) where
+  ppPrec _ (WithNames DPrim _)      = text "<primitive>"
+  ppPrec _ (WithNames (DExpr e) nm) = ppWithNames nm e
 
 instance PP Decl where
   ppPrec = ppWithNamesPrec IntMap.empty

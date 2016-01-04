@@ -7,22 +7,35 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module Cryptol.Parser.Position where
 
-import Data.List(foldl')
+import           Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy as T
+
+import GHC.Generics (Generic)
+import Control.DeepSeq.Generics
 
 import Cryptol.Utils.PP
 
 data Located a  = Located { srcRange :: !Range, thing :: a }
-                  deriving (Eq,Show)
+                  deriving (Eq,Show,Generic)
+
+instance NFData a => NFData (Located a) where rnf = genericRnf
 
 data Position   = Position { line :: !Int, col :: !Int }
-                  deriving (Eq,Ord,Show)
+                  deriving (Eq,Ord,Show,Generic)
+
+instance NFData Position where rnf = genericRnf
 
 data Range      = Range { from   :: !Position
                         , to     :: !Position
                         , source :: FilePath }
-                  deriving (Eq,Show)
+                  deriving (Eq,Show,Generic)
+
+instance NFData Range where rnf = genericRnf
 
 -- | An empty range.
 --
@@ -40,8 +53,8 @@ move p c = case c of
             '\n' -> p { col = 1, line = 1 + line p }
             _    -> p { col = 1 + col p }
 
-moves :: Position -> String -> Position
-moves p cs = foldl' move p cs
+moves :: Position -> Text -> Position
+moves p cs = T.foldl' move p cs
 
 rComb :: Range -> Range -> Range
 rComb r1 r2  = Range { from = rFrom, to = rTo, source = source r1 }
@@ -65,6 +78,10 @@ instance PP Range where
 
 instance PP a => PP (Located a) where
   ppPrec _ l = parens (text "at" <+> pp (srcRange l) <> comma <+> pp (thing l))
+
+instance PPName a => PPName (Located a) where
+  ppPrefixName Located { .. } = ppPrefixName thing
+  ppInfixName  Located { .. } = ppInfixName  thing
 
 
 

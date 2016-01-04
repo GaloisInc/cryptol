@@ -8,6 +8,8 @@
 
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Cryptol.ModuleSystem.Env where
 
@@ -17,12 +19,15 @@ import Paths_cryptol (getDataDir)
 
 import Cryptol.Eval (EvalEnv)
 import Cryptol.ModuleSystem.Interface
+import Cryptol.ModuleSystem.Name (Supply,emptySupply)
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
+import Cryptol.Utils.PP (NameDisp)
 
 import Control.Monad (guard)
+import qualified Control.Exception as X
 import Data.Foldable (fold)
 import Data.Function (on)
 import qualified Data.Map as Map
@@ -32,9 +37,11 @@ import System.Environment(getExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
 import qualified Data.List as List
 
-#if __GLASGOW_HASKELL__ < 710
-import Data.Monoid (Monoid(..))
-#endif
+import GHC.Generics (Generic)
+import Control.DeepSeq.Generics
+
+import Prelude ()
+import Prelude.Compat
 
 -- Module Environment ----------------------------------------------------------
 
@@ -47,7 +54,17 @@ data ModuleEnv = ModuleEnv
   , meDynEnv        :: DynamicEnv
   , meMonoBinds     :: !Bool
   , meSolverConfig  :: T.SolverConfig
-  }
+  , meCoreLint      :: CoreLint
+  , meSupply        :: !Supply
+  } deriving (Generic)
+
+instance NFData ModuleEnv where rnf = genericRnf
+
+data CoreLint = NoCoreLint        -- ^ Don't run core lint
+              | CoreLint          -- ^ Run core lint
+  deriving (Generic)
+
+instance NFData CoreLint where rnf = genericRnf
 
 resetModuleEnv :: ModuleEnv -> ModuleEnv
 resetModuleEnv env = env
@@ -66,7 +83,11 @@ initialModuleEnv  = do
 #endif
   binDir <- takeDirectory `fmap` getExecutablePath
   let instDir = normalise . joinPath . init . splitPath $ binDir
-  userDir <- getAppUserDataDirectory "cryptol"
+  -- looking up this directory can fail if no HOME is set, as in some
+  -- CI settings
+  let handle :: X.IOException -> IO String
+      handle _e = return ""
+  userDir <- X.catch (getAppUserDataDirectory "cryptol") handle
   return ModuleEnv
     { meLoadedModules = mempty
     , meNameSeeds     = T.nameSeeds
@@ -95,10 +116,12 @@ initialModuleEnv  = do
     , meDynEnv        = mempty
     , meMonoBinds     = True
     , meSolverConfig  = T.SolverConfig
-                          { T.solverPath = "cvc4"
-                          , T.solverArgs = [ "--lang=smt2", "--incremental", "--rewrite-divk" ]
+                          { T.solverPath = "z3"
+                          , T.solverArgs = [ "-smt2", "-in" ]
                           , T.solverVerbose = 0
                           }
+    , meCoreLint      = NoCoreLint
+    , meSupply        = emptySupply
     }
 
 -- | Try to focus a loaded module in the module environment.
@@ -113,42 +136,60 @@ loadedModules :: ModuleEnv -> [T.Module]
 loadedModules = map lmModule . getLoadedModules . meLoadedModules
 
 -- | Produce an ifaceDecls that represents the focused environment of the module
--- system.
+-- system, as well as a 'NameDisp' for pretty-printing names according to the
+-- imports.
 --
--- This could really do with some better error handling, just returning mempty
--- when one of the imports fails isn't really desirable.
-focusedEnv :: ModuleEnv -> IfaceDecls
-focusedEnv me = fold $ do
-  (iface,imports) <- loadModuleEnv interpImport me
-  let local = unqualified (ifPublic iface `mappend` ifPrivate iface)
-  return (local `shadowing` imports)
+-- XXX This could really do with some better error handling, just returning
+-- mempty when one of the imports fails isn't really desirable.
+focusedEnv :: ModuleEnv -> (IfaceDecls,R.NamingEnv,NameDisp)
+focusedEnv me = fold $
+  do fm   <- meFocusedModule me
+     lm   <- lookupModule fm me
+     deps <- mapM loadImport (T.mImports (lmModule lm))
+     let (ifaces,names) = unzip deps
+         Iface { .. }   = lmInterface lm
+         localDecls     = ifPublic `mappend` ifPrivate
+         localNames     = R.unqualifiedEnv localDecls
+         namingEnv      = localNames `R.shadowing` mconcat names
 
--- | Produce an ifaceDecls that represents the internal environment of the
--- module, used for typechecking.
-qualifiedEnv :: ModuleEnv -> IfaceDecls
-qualifiedEnv me = fold $ do
-  (iface,imports) <- loadModuleEnv (\ _ iface -> iface) me
-  return (mconcat [ ifPublic iface, ifPrivate iface, imports ])
-
-loadModuleEnv :: (Import -> Iface -> Iface) -> ModuleEnv
-              -> Maybe (Iface,IfaceDecls)
-loadModuleEnv processIface me = do
-  fm      <- meFocusedModule me
-  lm      <- lookupModule fm me
-  imports <- mapM loadImport (T.mImports (lmModule lm))
-  return (lmInterface lm, mconcat imports)
+     return (mconcat (localDecls:ifaces), namingEnv, R.toNameDisp namingEnv)
   where
-  loadImport i = do
-    lm <- lookupModule (iModule i) me
-    return (ifPublic (processIface i (lmInterface lm)))
+  loadImport imp =
+    do lm <- lookupModule (iModule imp) me
+       let decls = ifPublic (lmInterface lm)
+       return (decls,R.interpImport imp decls)
+
+-- | The unqualified declarations and name environment for the dynamic
+-- environment.
+dynamicEnv :: ModuleEnv -> (IfaceDecls,R.NamingEnv,NameDisp)
+dynamicEnv me = (decls,names,R.toNameDisp names)
+  where
+  decls = deIfaceDecls (meDynEnv me)
+  names = R.unqualifiedEnv decls
+
+-- | Retrieve all 'IfaceDecls' referenced by a module, as well as all of its
+-- public and private declarations, checking expressions
+qualifiedEnv :: ModuleEnv -> IfaceDecls
+qualifiedEnv me = fold $
+  do fm   <- meFocusedModule me
+     lm   <- lookupModule fm me
+     deps <- mapM loadImport (T.mImports (lmModule lm))
+     let Iface { .. } = lmInterface lm
+     return (mconcat (ifPublic : ifPrivate : deps))
+  where
+  loadImport imp =
+    do lm <- lookupModule (iModule imp) me
+       return (ifPublic (lmInterface lm))
 
 
 -- Loaded Modules --------------------------------------------------------------
 
 newtype LoadedModules = LoadedModules
   { getLoadedModules :: [LoadedModule]
-  } deriving (Show)
+  } deriving (Show, Generic)
 -- ^ Invariant: All the dependencies of any module `m` must precede `m` in the list.
+
+instance NFData LoadedModules where rnf = genericRnf
 
 instance Monoid LoadedModules where
   mempty        = LoadedModules []
@@ -160,7 +201,9 @@ data LoadedModule = LoadedModule
   , lmFilePath  :: FilePath
   , lmInterface :: Iface
   , lmModule    :: T.Module
-  } deriving (Show)
+  } deriving (Show, Generic)
+
+instance NFData LoadedModule where rnf = genericRnf
 
 isLoaded :: ModName -> LoadedModules -> Bool
 isLoaded mn lm = any ((mn ==) . lmName) (getLoadedModules lm)
@@ -201,7 +244,9 @@ data DynamicEnv = DEnv
   { deNames :: R.NamingEnv
   , deDecls :: [T.DeclGroup]
   , deEnv   :: EvalEnv
-  }
+  } deriving (Generic)
+
+instance NFData DynamicEnv where rnf = genericRnf
 
 instance Monoid DynamicEnv where
   mempty = DEnv
@@ -225,7 +270,7 @@ deIfaceDecls DEnv { deDecls = dgs } =
   mconcat [ IfaceDecls
             { ifTySyns   = Map.empty
             , ifNewtypes = Map.empty
-            , ifDecls    = Map.singleton (ifDeclName ifd) [ifd]
+            , ifDecls    = Map.singleton (ifDeclName ifd) ifd
             }
           | decl <- concatMap T.groupDecls dgs
           , let ifd = mkIfaceDecl decl

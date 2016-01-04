@@ -19,7 +19,7 @@ This release is an interpreter for version 2 of the Cryptol
 language. The interpreter includes a `:check` command, which tests
 predicates written in Cryptol against randomly-generated test vectors
 (in the style of
-[QuickCheck](http://hackage.haskell.org/package/QuickCheck). There is
+[QuickCheck](http://hackage.haskell.org/package/QuickCheck)). There is
 also a `:prove` command, which calls out to SMT solvers, such as
 Yices, Z3, or CVC4, to prove predicates for all possible inputs.
 
@@ -37,17 +37,17 @@ On Mac OS X, Cryptol is also available via
 [Homebrew](http://brew.sh/). Simply run `brew update && brew install
 cryptol` to get the latest stable version.
 
-## Getting CVC4
+## Getting Z3
 
-Cryptol currently depends on the
-[CVC4 SMT solver](http://cvc4.cs.nyu.edu/) to solve constraints during
-type checking, and as the default solver for the `:sat` and `:prove`
-commands. You can download CVC4 binaries for a variety of platforms
-from their [download page](http://cvc4.cs.nyu.edu/downloads/). Note
-that if you install Cryptol using Homebrew, CVC4 will be installed
-automatically.
+Cryptol currently uses Microsoft Research's
+[Z3 SMT solver](https://github.com/Z3Prover/z3) by default to solve
+constraints during type checking, and as the default solver for the
+`:sat` and `:prove` commands. You can download Z3 binaries for a
+variety of platforms from their
+[releases page](https://github.com/Z3Prover/z3/releases). Note that if you
+install Cryptol using Homebrew, Z3 will be installed automatically.
 
-After installation, make sure that `cvc4` (or `cvc4.exe` on Windows)
+After installation, make sure that `z3` (or `z3.exe` on Windows)
 is on your PATH.
 
 # Building Cryptol From Source
@@ -64,9 +64,9 @@ Windows. We regularly build and test it in the following environments:
 
 ## Prerequisites
 
-Cryptol is developed using GHC 7.8.4 and cabal-install 1.22. The
-easiest way to get the correct versions is to follow the instructions
-on the
+Cryptol is developed using GHC 7.10.2 and cabal-install 1.22, though
+it is still tested with the previous major version of GHC. The easiest
+way to get the correct versions is to follow the instructions on the
 [haskell.org downloads page](https://www.haskell.org/downloads).
 
 Some supporting non-Haskell libraries are required to build
@@ -76,7 +76,7 @@ you may need to install the following:
 - [The GNU Multiple Precision Arithmetic Library (GMP)](https://gmplib.org/)
 - [ncurses](https://www.gnu.org/software/ncurses/)
 
-You'll also need [CVC4](#getting-cvc4) installed when running Cryptol.
+You'll also need [Z3](#getting-z3) installed when running Cryptol.
 
 ## Building Cryptol
 
@@ -129,11 +129,10 @@ send email to <cryptol@galois.com>.
 
 ## Developers
 
-If you'd like to get involved with Cryptol development, see the list
-of
+If you'd like to get involved with Cryptol development, see the list of
 [low-hanging fruit](https://github.com/GaloisInc/cryptol/labels/low-hanging%20fruit). These
 are tasks which should be straightforward to implement. Make a
-fork of this GitHub repository and send along pull requests, and we'll
+fork of this GitHub repository, send along pull requests and we'll
 be happy to incorporate your changes.
 
 ### Repository Structure
@@ -154,6 +153,19 @@ be happy to incorporate your changes.
 
 The ICryptol notebook interface is now a
 [standalone project](https://github.com/GaloisInc/ICryptol).
+
+### Cryptol Server and pycryptol (Experimental)
+
+This package includes an executable in `/cryptol-server` that provides
+an interface to the Cryptol interpreter via JSON over
+ZeroMQ. Currently this is used to support the
+[`pycryptol`](http://pycryptol.readthedocs.org/en/latest/) library. It
+is part of this package because we intend to eventually make the
+console REPL a client of that server as well. The `cryptol-server`
+executable is included in any builds if the `CRYPTOL_SERVER`
+environment variable is non-empty when running `make`, for example:
+
+    CRYPTOL_SERVER=1 make dist
 
 # Where to Look Next
 

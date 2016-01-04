@@ -11,6 +11,7 @@ cryDefinedProp prop =
     Fin x   -> cryDefined x
     x :== y -> cryDefined x :&& cryDefined y
     x :>= y -> cryDefined x :&& cryDefined y
+    Not p   -> cryDefinedProp p
     _ -> panic "cryDefinedProp" [ "Not a simple property:"
                                 , show (ppProp prop)
                                 ]
@@ -37,7 +38,6 @@ cryDefined expr =
     x :^^ y   -> cryDefined x :&& cryDefined y
     Min x y   -> cryDefined x :&& cryDefined y
     Max x y   -> cryDefined x :&& cryDefined y
-    Lg2 x     -> cryDefined x
     Width x   -> cryDefined x
     LenFromThen x y w ->
       cryDefined x :&& cryDefined y :&& cryDefined w :&&

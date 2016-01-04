@@ -6,7 +6,9 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Parser.LexerUtils where
 
 import Cryptol.Parser.Position
@@ -14,11 +16,15 @@ import Cryptol.Parser.Unlit(PreProc(None))
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
-import Data.Char(toLower)
-import Data.List(foldl')
-import Data.Word(Word8)
-import Codec.Binary.UTF8.String(encodeChar)
+import           Data.Char(toLower,generalCategory,isAscii,ord,isSpace)
+import qualified Data.Char as Char
+import           Data.List(foldl')
+import           Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy as T
+import           Data.Word(Word8)
 
+import GHC.Generics (Generic)
+import Control.DeepSeq.Generics
 
 data Config = Config
   { cfgSource      :: !FilePath     -- ^ File that we are working on
@@ -40,41 +46,57 @@ defaultConfig  = Config
   }
 
 
-type Action = Config -> Position -> String -> LexS
+type Action = Config -> Position -> Text -> LexS
            -> (Maybe (Located Token), LexS)
 
 data LexS   = Normal
-            | InComment Position ![Position] [String]
-            | InString Position String
-            | InChar   Position String
+            | InComment Bool Position ![Position] [Text]
+            | InString Position Text
+            | InChar   Position Text
 
 
-startComment :: Action
-startComment _ p txt s = (Nothing, InComment p stack chunks)
-  where (stack,chunks) = case s of
-                           Normal            -> ([], [txt])
-                           InComment q qs cs -> (q : qs, txt : cs)
-                           _                 -> panic "[Lexer] startComment" ["in a string"]
+startComment :: Bool -> Action
+startComment isDoc _ p txt s = (Nothing, InComment d p stack chunks)
+  where (d,stack,chunks) = case s of
+                           Normal                -> (isDoc, [], [txt])
+                           InComment doc q qs cs -> (doc, q : qs, txt : cs)
+                           _                     -> panic "[Lexer] startComment" ["in a string"]
 
 endComent :: Action
 endComent cfg p txt s =
   case s of
-    InComment f [] cs     -> (Just (mkToken f cs), Normal)
-    InComment _ (q:qs) cs -> (Nothing, InComment q qs (txt : cs))
-    _                     -> panic "[Lexer] endComment" ["outside commend"]
+    InComment d f [] cs     -> (Just (mkToken d f cs), Normal)
+    InComment d _ (q:qs) cs -> (Nothing, InComment d q qs (txt : cs))
+    _                     -> panic "[Lexer] endComment" ["outside comment"]
   where
-  mkToken f cs =
+  mkToken isDoc f cs =
     let r   = Range { from = f, to = moves p txt, source = cfgSource cfg }
-        str = concat $ reverse $ txt : cs
-    in Located { srcRange = r, thing = Token (White BlockComment) str }
+        str = T.concat $ reverse $ txt : cs
+
+        tok = if isDoc then DocStr else BlockComment
+    in Located { srcRange = r, thing = Token (White tok) str }
 
 addToComment :: Action
-addToComment _ _ txt s = (Nothing, InComment p stack (txt : chunks))
+addToComment _ _ txt s = (Nothing, InComment doc p stack (txt : chunks))
   where
-  (p, stack, chunks) =
+  (doc, p, stack, chunks) =
      case s of
-       InComment q qs cs -> (q,qs,cs)
-       _                 -> panic "[Lexer] addToComment" ["outside comment"]
+       InComment d q qs cs -> (d,q,qs,cs)
+       _                   -> panic "[Lexer] addToComment" ["outside comment"]
+
+startEndComment :: Action
+startEndComment cfg p txt s =
+  case s of
+    Normal -> (Just tok, Normal)
+      where tok = Located
+                    { srcRange = Range { from   = p
+                                       , to     = moves p txt
+                                       , source = cfgSource cfg
+                                       }
+                    , thing = Token (White BlockComment) txt
+                    }
+    InComment d p1 ps cs -> (Nothing, InComment d p1 ps (txt : cs))
+    _ -> panic "[Lexer] startEndComment" ["in string or char?"]
 
 startString :: Action
 startString _ p txt _ = (Nothing,InString p txt)
@@ -87,20 +109,24 @@ endString cfg pe txt s = case s of
   parseStr s1 = case reads s1 of
                   [(cs, "")] -> StrLit cs
                   _          -> Err InvalidString
+
   mkToken ps str = Located { srcRange = Range
                                { from   = ps
                                , to     = moves pe txt
                                , source = cfgSource cfg
                                }
                            , thing    = Token
-                               { tokenType = parseStr (str ++ txt)
-                               , tokenText = str ++ txt
+                               { tokenType = parseStr (T.unpack tokStr)
+                               , tokenText = tokStr
                                }
                            }
+    where
+    tokStr = str `T.append` txt
+
 
 addToString :: Action
 addToString _ _ txt s = case s of
-  InString p str -> (Nothing,InString p (str ++ txt))
+  InString p str -> (Nothing,InString p (str `T.append` txt))
   _              -> panic "[Lexer] addToString" ["outside string"]
 
 
@@ -124,16 +150,18 @@ endChar cfg pe txt s =
                                , source = cfgSource cfg
                                }
                            , thing    = Token
-                               { tokenType = parseChar (str ++ txt)
-                               , tokenText = str ++ txt
+                               { tokenType = parseChar (T.unpack tokStr)
+                               , tokenText = tokStr
                                }
                            }
+    where
+    tokStr = str `T.append` txt
 
 
 
 addToChar :: Action
 addToChar _ _ txt s = case s of
-  InChar p str -> (Nothing,InChar p (str ++ txt))
+  InChar p str -> (Nothing,InChar p (str `T.append` txt))
   _              -> panic "[Lexer] addToChar" ["outside character"]
 
 
@@ -141,7 +169,21 @@ mkIdent :: Action
 mkIdent cfg p s z = (Just Located { srcRange = r, thing = Token t s }, z)
   where
   r = Range { from = p, to = moves p s, source = cfgSource cfg }
-  t = Ident s
+  t = Ident [] (T.unpack s)
+
+mkQualIdent :: Action
+mkQualIdent cfg p s z = (Just Located { srcRange = r, thing = Token t s}, z)
+  where
+  r = Range { from = p, to = moves p s, source = cfgSource cfg }
+  t = Ident (map T.unpack ns) (T.unpack i)
+  (ns,i) = splitQual s
+
+mkQualOp :: Action
+mkQualOp cfg p s z = (Just Located { srcRange = r, thing = Token t s}, z)
+  where
+  r = Range { from = p, to = moves p s, source = cfgSource cfg }
+  t = Op (Other (map T.unpack ns) (T.unpack i))
+  (ns,i) = splitQual s
 
 emit :: TokenT -> Action
 emit t cfg p s z  = (Just Located { srcRange = r, thing = Token t s }, z)
@@ -149,7 +191,24 @@ emit t cfg p s z  = (Just Located { srcRange = r, thing = Token t s }, z)
 
 
 emitS :: (String -> TokenT) -> Action
-emitS t cfg p s z  = emit (t s) cfg p s z
+emitS t cfg p s z  = emit (t (T.unpack s)) cfg p s z
+
+
+-- | Split out the prefix and name part of an identifier/operator.
+splitQual :: T.Text -> ([T.Text], T.Text)
+splitQual t =
+  case splitNS (T.filter (not . isSpace) t) of
+    []  -> panic "[Lexer] mkQualIdent" ["invalid qualified name", show t]
+    [i] -> ([], i)
+    xs  -> (init xs, last xs)
+
+  where
+
+  -- split on the namespace separator, `::`
+  splitNS s =
+    case T.breakOn "::" s of
+      (l,r) | T.null r  -> [l]
+            | otherwise -> l : splitNS (T.drop 2 r)
 
 
 
@@ -175,22 +234,15 @@ fromHexDigit x'
 
 data AlexInput            = Inp { alexPos           :: !Position
                                 , alexInputPrevChar :: !Char
-                                , input             :: !String
-                                , moreBytes         :: ![Word8]
+                                , input             :: !Text
                                 } deriving Show
 
 alexGetByte :: AlexInput -> Maybe (Word8, AlexInput)
 alexGetByte i =
-  case moreBytes i of
-    b : bs -> Just (b, i { moreBytes = bs })
-    [] ->
-      case input i of
-        c:cs -> alexGetByte Inp { alexPos = move (alexPos i) c
-                                , alexInputPrevChar = c
-                                , input             = cs
-                                , moreBytes         = encodeChar c
-                                }
-        []   -> Nothing
+  do (c,rest) <- T.uncons (input i)
+     let i' = i { alexPos = move (alexPos i) c, input = rest }
+         b  = byteForChar c
+     return (b,i')
 
 data Layout = Layout | NoLayout
 
@@ -200,7 +252,7 @@ data Layout = Layout | NoLayout
 -- | Drop white-space tokens from the input.
 dropWhite :: [Located Token] -> [Located Token]
 dropWhite = filter (notWhite . tokenType . thing)
-  where notWhite (White _) = False
+  where notWhite (White w) = w == DocStr
         notWhite _         = True
 
 
@@ -220,7 +272,7 @@ startsLayout _               = False
 
 -- Add separators computed from layout
 layout :: Config -> [Located Token] -> [Located Token]
-layout cfg ts0 = loop implicitScope [] ts0
+layout cfg ts0 = loop False implicitScope [] ts0
   where
 
   (_pos0,implicitScope) = case ts0 of
@@ -228,20 +280,23 @@ layout cfg ts0 = loop implicitScope [] ts0
     _     -> (start,False)
 
 
-  loop :: Bool -> [Block] -> [Located Token] -> [Located Token]
-  loop startBlock stack (t : ts)
-    | startsLayout ty    = toks ++ loop True                             stack'  ts
-    | Sym ParenL   <- ty = toks ++ loop False (Explicit (Sym ParenR)   : stack') ts
-    | Sym CurlyL   <- ty = toks ++ loop False (Explicit (Sym CurlyR)   : stack') ts
-    | Sym BracketL <- ty = toks ++ loop False (Explicit (Sym BracketR) : stack') ts
+  loop :: Bool -> Bool -> [Block] -> [Located Token] -> [Located Token]
+  loop afterDoc startBlock stack (t : ts)
+    | startsLayout ty    = toks ++ loop False True                             stack'  ts
+    | Sym ParenL   <- ty = toks ++ loop False False (Explicit (Sym ParenR)   : stack') ts
+    | Sym CurlyL   <- ty = toks ++ loop False False (Explicit (Sym CurlyR)   : stack') ts
+    | Sym BracketL <- ty = toks ++ loop False False (Explicit (Sym BracketR) : stack') ts
     | EOF          <- ty = toks
-    | otherwise          = toks ++ loop False                            stack'  ts
+    | White DocStr <- ty = toks ++ loop True  False                            stack'  ts
+    | otherwise          = toks ++ loop False False                            stack'  ts
 
     where
     ty  = tokenType (thing t)
     pos = srcRange t
 
-    (toks,offStack) = offsides startToks t stack
+    (toks,offStack)
+      | afterDoc  = ([t], stack)
+      | otherwise = offsides startToks t stack
 
     -- add any block start tokens, and push a level on the stack
     (startToks,stack')
@@ -251,7 +306,7 @@ layout cfg ts0 = loop implicitScope [] ts0
       | startBlock = ( [ virt cfg (to pos) VCurlyL ], Virtual (col (from pos)) : offStack )
       | otherwise  = ( [], offStack )
 
-  loop _ _ [] = panic "[Lexer] layout" ["Missing EOF token"]
+  loop _ _ _ [] = panic "[Lexer] layout" ["Missing EOF token"]
 
 
   offsides :: [Located Token] -> Located Token -> [Block] -> ([Located Token], [Block])
@@ -299,31 +354,33 @@ virt cfg pos x = Located { srcRange = Range
 
 --------------------------------------------------------------------------------
 
-data Token    = Token { tokenType :: TokenT, tokenText :: String }
-                deriving Show
+data Token    = Token { tokenType :: TokenT, tokenText :: Text }
+                deriving (Show, Generic)
+
+instance NFData Token where rnf = genericRnf
 
 -- | Virtual tokens, inserted by layout processing.
 data TokenV   = VCurlyL| VCurlyR | VSemi
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic)
 
-data TokenW   = BlockComment | LineComment | Space
-                deriving (Eq,Show)
+instance NFData TokenV where rnf = genericRnf
+
+data TokenW   = BlockComment | LineComment | Space | DocStr
+                deriving (Eq,Show,Generic)
+
+instance NFData TokenW where rnf = genericRnf
 
 data TokenKW  = KW_Arith
               | KW_Bit
               | KW_Cmp
-              | KW_False
-              | KW_True
               | KW_else
               | KW_Eq
-              | KW_error
               | KW_extern
               | KW_fin
               | KW_if
               | KW_private
               | KW_include
               | KW_inf
-              | KW_join
               | KW_lg2
               | KW_lengthFromThen
               | KW_lengthFromThenTo
@@ -332,34 +389,32 @@ data TokenKW  = KW_Arith
               | KW_module
               | KW_newtype
               | KW_pragma
-              | KW_pmult
-              | KW_pdiv
-              | KW_pmod
               | KW_property
-              | KW_random
-              | KW_reverse
-              | KW_split
-              | KW_splitAt
               | KW_then
-              | KW_transpose
               | KW_type
               | KW_where
               | KW_let
               | KW_x
-              | KW_zero
               | KW_import
               | KW_as
               | KW_hiding
-                deriving (Eq,Show)
+              | KW_infixl
+              | KW_infixr
+              | KW_infix
+              | KW_primitive
+                deriving (Eq,Show,Generic)
 
+instance NFData TokenKW where rnf = genericRnf
+
+-- | The named operators are a special case for parsing types, and 'Other' is
+-- used for all other cases that lexed as an operator.
 data TokenOp  = Plus | Minus | Mul | Div | Exp | Mod
-              | NotEqual | Equal | LessThan | GreaterThan | LEQ | GEQ
-              | EqualFun | NotEqualFun
-              | ShiftL | ShiftR | RotL | RotR
-              | Conj | Disj | Xor
-              | Complement
-              | Bang | BangBang | At | AtAt | Hash
-                deriving (Eq,Show)
+              | Equal | LEQ | GEQ
+              | Complement | Hash
+              | Other [String] String
+                deriving (Eq,Show,Generic)
+
+instance NFData TokenOp where rnf = genericRnf
 
 data TokenSym = Bar
               | ArrL | ArrR | FatArrR
@@ -371,14 +426,15 @@ data TokenSym = Bar
               | DotDot
               | DotDotDot
               | Colon
-              | ColonColon
               | BackTick
               | ParenL   | ParenR
               | BracketL | BracketR
               | CurlyL   | CurlyR
               | TriL     | TriR
               | Underscore
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic)
+
+instance NFData TokenSym where rnf = genericRnf
 
 data TokenErr = UnterminatedComment
               | UnterminatedString
@@ -386,11 +442,13 @@ data TokenErr = UnterminatedComment
               | InvalidString
               | InvalidChar
               | LexicalError
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic)
+
+instance NFData TokenErr where rnf = genericRnf
 
 data TokenT   = Num Integer Int Int   -- ^ value, base, number of digits
               | ChrLit  Char          -- ^ character literal
-              | Ident String          -- ^ identifier
+              | Ident [String] String -- ^ (qualified) identifier
               | StrLit String         -- ^ string literal
               | KW    TokenKW         -- ^ keyword
               | Op    TokenOp         -- ^ operator
@@ -399,9 +457,57 @@ data TokenT   = Num Integer Int Int   -- ^ value, base, number of digits
               | White TokenW          -- ^ white space token
               | Err   TokenErr        -- ^ error token
               | EOF
-                deriving (Eq,Show)
+                deriving (Eq,Show,Generic)
+
+instance NFData TokenT where rnf = genericRnf
 
 instance PP Token where
-  ppPrec _ (Token _ s) = text s
+  ppPrec _ (Token _ s) = text (T.unpack s)
 
 
+-- | Collapse characters into a single Word8, identifying ASCII, and classes of
+-- unicode.  This came from:
+--
+-- https://github.com/glguy/config-value/blob/master/src/Config/LexerUtils.hs
+--
+-- Which adapted:
+--
+-- https://github.com/ghc/ghc/blob/master/compiler/parser/Lexer.x
+byteForChar :: Char -> Word8
+byteForChar c
+  | c <= '\6' = non_graphic
+  | isAscii c = fromIntegral (ord c)
+  | otherwise = case generalCategory c of
+                  Char.LowercaseLetter       -> lower
+                  Char.OtherLetter           -> lower
+                  Char.UppercaseLetter       -> upper
+                  Char.TitlecaseLetter       -> upper
+                  Char.DecimalNumber         -> digit
+                  Char.OtherNumber           -> digit
+                  Char.ConnectorPunctuation  -> symbol
+                  Char.DashPunctuation       -> symbol
+                  Char.OtherPunctuation      -> symbol
+                  Char.MathSymbol            -> symbol
+                  Char.CurrencySymbol        -> symbol
+                  Char.ModifierSymbol        -> symbol
+                  Char.OtherSymbol           -> symbol
+                  Char.Space                 -> sp
+                  Char.ModifierLetter        -> other
+                  Char.NonSpacingMark        -> other
+                  Char.SpacingCombiningMark  -> other
+                  Char.EnclosingMark         -> other
+                  Char.LetterNumber          -> other
+                  Char.OpenPunctuation       -> other
+                  Char.ClosePunctuation      -> other
+                  Char.InitialQuote          -> other
+                  Char.FinalQuote            -> tick
+                  _                          -> non_graphic
+  where
+  non_graphic     = 0
+  upper           = 1
+  lower           = 2
+  digit           = 3
+  symbol          = 4
+  sp              = 5
+  other           = 6
+  tick            = 7
