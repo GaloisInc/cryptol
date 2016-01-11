@@ -232,7 +232,7 @@ ${CS_BIN}/cryptol-test-runner: \
 test: ${CS_BIN}/cryptol-test-runner
 	( cd tests &&                                                      \
 	echo "Testing on $(UNAME)-$(ARCH)" &&                              \
-	$(realpath $(CS_BIN)/cryptol-test-runner)                          \
+	time $(realpath $(CS_BIN)/cryptol-test-runner)                     \
 	  $(TESTS)                                                         \
 	  -c $(call adjust-path,${CURDIR}/${PKG_BIN}/cryptol${EXE_EXT})    \
 	  -r output                                                        \
