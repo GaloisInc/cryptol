@@ -16,4 +16,4 @@ Loading module Main
              of finite enumeration
              at <interactive>:1:19--1:26
   to 5
-(\(e : [64]) -> (e @@ [8 .. 24]) != zero) 0x0000008000000000 = True
+(\(e : [64]) -> (e @@ [8 .. 24]) != zero) 0x00feff8000000000 = True
