@@ -5,7 +5,8 @@
 
 // Description of SHA1 at http://www.itl.nist.gov/fipspubs/fip180-4.htm
 
-sha1 msg = sha1' pmsg 
+sha1 : {n} (width (8*n) <= 64) => [n][8] -> [160]
+sha1 msg = sha1' pmsg
     where
         pmsg = pad(join(msg))
 
@@ -26,16 +27,15 @@ As a summary, a "1" followed by m "0"s followed by a 64-
    SHA-1 as n 512-bit blocks.
 */
 
-pad : {msgLen,contentLen,chunks,padding}
+pad : {msgLen,chunks}
      ( fin msgLen
      , 64 >= width msgLen                             // message width fits in a word
-     , contentLen == msgLen + 65                      // message + header
-     , chunks     == (contentLen+511) / 512
-     , padding    == (512 - contentLen % 512) % 512   // prettier if type #'s could be < 0
-     , msgLen     == 512 * chunks - (65 + padding)    // redundant, but Cryptol can't yet do the math
+     , chunks     == (msgLen + 65 + 511) / 512
      )
      => [msgLen] -> [chunks][512]
 pad msg = split (msg # [True] # (zero:[padding]) # (`msgLen:[64]))
+    where type contentLen = msgLen + 65                      // message + header
+          type padding    = (512 - contentLen % 512) % 512   // prettier if type #'s could be < 0
 
 f : ([8], [32], [32], [32]) -> [32]
 f (t, x, y, z) = 
