@@ -53,7 +53,7 @@ completeState b = (b.left ^ b.right) == 0xf
 
 // both banks are "carnage-free"
 validState : BankState -> Bit
-validState bs = completeState bs && validBank bs.left 
+validState bs = completeState bs && validBank bs.left
                 && validBank bs.right && completeState bs
 
 validBank : OneBank -> Bit
@@ -73,7 +73,7 @@ all : {n} (fin n) => [n] -> Bit
 all xs = xs == ~zero
 
 // "population count" - how many bits are on
-popCount : {a,b} (fin a, b >= 1, b == (width a)) => [a] -> [b]
+popCount : {a} (fin a, a >= 1) => [a] -> [width a]
 popCount bs = ic ! 0 where
     ic = [0] # [ if elt then prev + 1 else prev | elt <- bs | prev <- ic]
 
@@ -89,14 +89,14 @@ noString      = "       "
 ppArray = [farmerString, chickenString, cornString, foxString]
 
 ppBits : [4] -> [4]StringRep
-ppBits s =  [ if b then ppArray!i else noString 
+ppBits s =  [ if b then ppArray!i else noString
             | b <- s
             | i <- [0 .. ]:[_][4] ]
 
 // takes a sequence of states and derives what moved, and in which direction for each transition
 extractMoves : {a} [a+1]BankState -> [a](DirRep, [4]StringRep)
 extractMoves bankStates = [ getMove b b' | b <- bankStates | b' <- drop`{1} bankStates ] where
-    getMove start end = ( dirString, thingsString thingsMoved ) where 
+    getMove start end = ( dirString, thingsString thingsMoved ) where
         dirString = if farmerHere start.left then " --> " else " <-- "
         thingsMoved = if farmerHere start.left
                       then end.right - start.right
@@ -117,4 +117,3 @@ extractMoves bankStates = [ getMove b b' | b <- bankStates | b' <- drop`{1} bank
 //  (" --> ", ["       ", "corn   ", "       ", "farmer "]), // takes the corn over
 //  (" <-- ", ["       ", "       ", "       ", "farmer "]), // goes back alone
 //  (" --> ", ["       ", "       ", "chicken", "farmer "])] // brings the chicken over, all done
-
