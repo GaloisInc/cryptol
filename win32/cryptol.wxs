@@ -69,7 +69,8 @@
     <Icon Id="crypto.ico" SourceFile="win32/crypto.ico" />
 
     <UI>
-      <UIRef Id="WixUI_Minimal" />
+      <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
+      <UIRef Id="WixUI_InstallDir" />
     </UI>
 
     <WixVariable Id="WixUILicenseRtf" Value="LICENSE.rtf" />
