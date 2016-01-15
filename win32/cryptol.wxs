@@ -22,7 +22,7 @@
       <Directory Id='ProgramFilesFolder' Name='PFiles'>
         <Directory Id='Galois' Name='Galois'>
           <Directory Id='INSTALLDIR' Name='Cryptol $(var.version)'>
-	  </Directory>
+          </Directory>
         </Directory>
       </Directory>
 
@@ -52,12 +52,18 @@
           </Component>
         </Directory>
       </Directory>
-
     </Directory>
+
+    <DirectoryRef Id="TARGETDIR">
+      <Component Id="Path" Guid="4D7F78E6-DA16-4C1B-96C4-B33C87502C81">
+        <Environment Id="PATH" Name="PATH" Value="[INSTALLDIR]\bin" Permanent="no" Part="last" Action="set" System="no" />
+      </Component>
+    </DirectoryRef>
 
     <Feature Id='Complete' Level='1'>
       <ComponentGroupRef Id='ALLFILES' />
       <ComponentRef Id='Shortcuts' />
+      <ComponentRef Id='Path' />
     </Feature>
 
     <Icon Id="crypto.ico" SourceFile="win32/crypto.ico" />

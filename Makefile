@@ -19,8 +19,8 @@ CS_BIN        := $(CS)/bin
 
 # Used only for windows, to find the right Program Files.
 PROGRAM_FILES = Program\ Files\ \(x86\)
-# Windows installer tools; assumes running on Cygwin and using WiX 3.8
-WiX      := /cygdrive/c/${PROGRAM_FILES}/WiX\ Toolset\ v3.8
+# Windows installer tools; assumes running on Cygwin and using WiX 3.10
+WiX      := /cygdrive/c/${PROGRAM_FILES}/WiX\ Toolset\ v3.10
 CANDLE   := ${WiX}/bin/candle.exe
 HEAT     := ${WiX}/bin/heat.exe
 LIGHT    := ${WiX}/bin/light.exe
