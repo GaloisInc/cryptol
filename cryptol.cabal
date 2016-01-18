@@ -226,7 +226,7 @@ executable cryptol-server
                   , cryptol
                   , filepath
                   , monad-control
-                  , optparse-applicative
+                  , optparse-applicative >= 0.12
                   , text
                   , transformers
                   , unix
