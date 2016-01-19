@@ -1,0 +1,42 @@
+/*
+ * Copyright (c) 2013-2016 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+module bv where
+
+/* Unsigned word extension. */
+uext : {a, b} (fin b,fin a) => [a] -> [a+b]
+uext(x) = zero # x
+
+iext : {a, b} (fin b,fin a) => [a] -> [a+b]
+iext(x) = (if x@0 then ~zero else zero) # x
+
+/* Returns the (n+1)-bit sum of two n-bit numbers. */
+safe_add : {n} (fin n) => ([n],[n]) -> [n+1]
+safe_add(x,y) = uext(x) + uext(y)
+
+/* returns the (n+1)-bit subtraction of two n-bit numbers. */
+safe_sub : {n} (fin n) => ([n],[n]) -> [n+1]
+safe_sub(x,y) = uext(x) - uext(y)
+
+/* Is x in normalized form (relative to prime p)? */
+is_normal : {a} (fin a) => [a] -> [a] -> Bit
+is_normal p x = (x < p)
+
+/* Returns the product of two inputs. */
+safe_product : {a} (fin a) => ([a],[a]) -> [2*a]
+safe_product(x,y) = uext(x) * uext(y)
+
+/* Returns module reduction on input. */
+safe_mod : {a, b} (fin a, fin b) => ([b],[a+b]) -> [b]
+safe_mod(p,x) = drop `{a} (x % uext(p))
+
+/* Add two n-bit numbers and input carry to obtain a n bit number and output carry. */
+adc : {n} (fin n) => ([n],[n]) -> ([n],Bit)
+adc(x,y) = (drop(sm), sm@0)
+  where sm = safe_add(x,y)
+
+/* sbb(x,y) subtracts y from x, and returns result along with output borrow bit. */
+sbb : {n} (fin n) => ([n],[n]) -> ([n],Bit)
+sbb(x,y) = (drop(r), r@0)
+  where r = ([False] # x) - ([False] # y)
