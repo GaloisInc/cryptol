@@ -1,10 +1,18 @@
-{-# LANGUAGE Safe, PatternGuards, BangPatterns #-}
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
--- | Simplification.
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2014-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+-- 
 -- TODO:
 --  - Putting in a normal form to spot "prove by assumption"
 --  - Additional simplification rules, namely various cancelation.
 --  - Things like:  lg2 e(x) = x, where we know thate is increasing.
+
+{-# LANGUAGE Safe, PatternGuards, BangPatterns #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Simplify
   (

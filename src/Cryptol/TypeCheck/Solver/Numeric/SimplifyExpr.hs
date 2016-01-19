@@ -1,11 +1,19 @@
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2015-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- Simplification of expressions.
+-- The result of simplifying an expression `e`, is a new expression `e'`,
+-- which satisfies the property:
+-- 
+--    if e is well-defined then e and e' will evaluate to the same type.
+-- 
+
 {-# LANGUAGE Safe, BangPatterns #-}
-{- | Simplification of expressions.
-The result of simplifying an expression `e`, is a new expression `e'`,
-which satisfies the property:
-
-    if e is well-defined then e and e' will evaluate to the same type.
-
--}
 module Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr where
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST

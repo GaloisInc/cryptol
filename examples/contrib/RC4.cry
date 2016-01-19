@@ -1,3 +1,5 @@
+// Contributed by GitHub user orchid-hybrid
+
 swap : [256][8] -> [8] -> [8] -> [256][8]
 swap s i j = [ s @ (if n == i then j else
                     if n == j then i else

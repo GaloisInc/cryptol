@@ -1,17 +1,25 @@
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2015-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+-- 
+-- Simplification.
+-- The rules in this module are all conditional on the expressions being
+-- well-defined.
+-- 
+-- So, for example, consider the formula `P`, which corresponds to `fin e`.
+-- `P` says the following:
+-- 
+--     if e is well-formed, then will evaluate to a finite natural number.
+-- 
+-- More concretely, consider `fin (3 - 5)`.  This will be simplified to `True`,
+-- which does not mean that `3 - 5` is actually finite.
+
 {-# LANGUAGE Safe, PatternGuards, BangPatterns #-}
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
-{- | Simplification.
-The rules in this module are all conditional on the expressions being
-well-defined.
-
-So, for example, consider the formula `P`, which corresponds to `fin e`.
-`P` says the following:
-
-    if e is well-formed, then will evaluate to a finite natural number.
-
-More concretely, consider `fin (3 - 5)`.  This will be simplified to `True`,
-which does not mean that `3 - 5` is actually finite.
--}
 
 module Cryptol.TypeCheck.Solver.Numeric.Simplify1 (propToProp', ppProp') where
 

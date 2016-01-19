@@ -1,12 +1,20 @@
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2014-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+-- 
+-- Separate Non-Linear Constraints
+-- When we spot a non-linear expression, we name it and add it to a map.
+-- 
+-- If we see the same expression multiple times, then we give it the same name.
+-- 
+-- The body of the non-linear expression is not processed further,
+-- so the resulting map should not contain any of the newly minted names.
+
 {-# LANGUAGE Safe, RecordWildCards #-}
-{- | Separate Non-Linear Constraints
-When we spot a non-linear expression, we name it and add it to a map.
-
-If we see the same expression multiple times, then we give it the same name.
-
-The body of the non-linear expression is not processed further,
-so the resulting map should not contain any of the newly minted names.
--}
 
 module Cryptol.TypeCheck.Solver.Numeric.NonLin
   ( nonLinProp

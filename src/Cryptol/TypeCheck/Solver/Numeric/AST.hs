@@ -1,8 +1,17 @@
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2014-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- The sytnax of numeric propositions.
+
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DeriveGeneric #-}
--- | The sytnax of numeric propositions.
 module Cryptol.TypeCheck.Solver.Numeric.AST
   ( Name(..), ppName
 

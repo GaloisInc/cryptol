@@ -1,3 +1,11 @@
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2014-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Solver.Numeric.Defined where
 
@@ -45,6 +53,3 @@ cryDefined expr =
     LenFromThenTo x y z ->
       cryDefined x :&& cryDefined y :&& cryDefined z :&&
       Fin x :&& Fin y :&& Fin z :&& Not (x :== y)
-
-
-

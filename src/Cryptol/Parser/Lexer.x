@@ -1,4 +1,12 @@
 {
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+-- 
 -- At present Alex generates code with too many warnings.
 {-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE OverloadedStrings #-}
