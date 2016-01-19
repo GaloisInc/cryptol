@@ -20,9 +20,12 @@ import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.Unify(mgu, Result(..), UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
+import qualified Cryptol.TypeCheck.Solver.CrySAT as CrySAT
 import           Cryptol.Utils.PP(pp, (<+>), Doc, text, quotes)
 import           Cryptol.Utils.Panic(panic)
 
+import qualified Control.Applicative as A
+import           Control.Monad.Fix(MonadFix(..))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Map (Map)
@@ -31,8 +34,6 @@ import           Data.List(find, minimumBy, groupBy, sortBy)
 import           Data.Maybe(mapMaybe)
 import           Data.Function(on)
 import           MonadLib hiding (mapM)
-import qualified Control.Applicative as A
-import           Control.Monad.Fix(MonadFix(..))
 
 import GHC.Generics (Generic)
 import Control.DeepSeq.Generics
@@ -86,7 +87,7 @@ data InferOutput a
     deriving Show
 
 runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
-runInferM info (IM m) =
+runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
   do rec ro <- return RO { iRange     = inpRange info
                      , iVars          = Map.map ExtVar (inpVars info)
                      , iTVars         = []
@@ -94,7 +95,7 @@ runInferM info (IM m) =
                      , iNewtypes      = fmap mkExternal (inpNewtypes info)
                      , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
                      , iMonoBinds     = inpMonoBinds info
-                     , iSolverConfig  = inpSolverConfig info
+                     , iSolver        = solver
                      , iPrimNames     = inpPrimNames info
                      }
 
@@ -187,7 +188,7 @@ data RO = RO
     -- in where-blocks will never be generalized. Bindings with type
     -- signatures, and all bindings at top level are unaffected.
 
-  , iSolverConfig :: SolverConfig
+  , iSolver :: CrySAT.Solver
 
   , iPrimNames :: !PrimMap
   }
@@ -270,10 +271,10 @@ recordWarning w =
   do r <- curRange
      IM $ sets_ $ \s -> s { iWarnings = (r,w) : iWarnings s }
 
-getSolverConfig :: InferM SolverConfig
-getSolverConfig =
+getSolver :: InferM CrySAT.Solver
+getSolver =
   do RO { .. } <- IM ask
-     return iSolverConfig
+     return iSolver
 
 -- | Retrieve the mapping between identifiers and declarations in the prelude.
 getPrimMap :: InferM PrimMap

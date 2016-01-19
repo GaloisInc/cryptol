@@ -13,7 +13,7 @@ module Cryptol.TypeCheck.Solve
   , proveImplication
   , wfType
   , wfTypeFunction
-  , improveByDefaulting
+  , improveByDefaultingWith
   , defaultReplExpr
   , simpType
   , simpTypeMaybe
@@ -86,8 +86,8 @@ simplifyAllConstraints :: InferM ()
 simplifyAllConstraints =
   do mapM_  tryHasGoal =<< getHasGoals
      gs <- getGoals
-     cfg <- getSolverConfig
-     (mb,su) <- io (Num.withSolver cfg (`simpGoals'` gs))
+     solver <- getSolver
+     (mb,su) <- io (simpGoals' solver gs)
      extendSubst su
      case mb of
        Right gs1  -> addGoals gs1
@@ -97,15 +97,15 @@ simplifyAllConstraints =
 proveImplication :: Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
-     cfg <- getSolverConfig
-     (mbErr,su) <- io (proveImplicationIO cfg lnam evars as ps gs)
+     solver <- getSolver
+     (mbErr,su) <- io (proveImplicationIO solver lnam evars as ps gs)
      case mbErr of
        Right ws -> mapM_ recordWarning ws
        Left err -> recordError err
      return su
 
 
-proveImplicationIO :: SolverConfig
+proveImplicationIO :: Num.Solver
                    -> Name     -- ^ Checking this function
                    -> Set TVar -- ^ These appear in the env., and we should
                                -- not try to default the
@@ -114,8 +114,7 @@ proveImplicationIO :: SolverConfig
                    -> [Goal]   -- ^ Collected constraints
                    -> IO (Either Error [Warning], Subst)
 proveImplicationIO _   _     _         _  [] [] = return (Right [], emptySubst)
-proveImplicationIO cfg lname varsInEnv as ps gs =
-  Num.withSolver cfg $ \s ->
+proveImplicationIO s lname varsInEnv as ps gs =
   debugBlock s "proveImplicationIO" $
 
   do debugBlock s "assumes" (debugLog s ps)
@@ -419,18 +418,6 @@ importSideConds = go [] []
       3. a substitution which indicates what got defaulted.
 -}
 
-improveByDefaulting ::
-  SolverConfig ->
-  [TVar] ->   -- candidates for defaulting
-  [Goal] ->   -- constraints
-    IO  ( [TVar]    -- non-defaulted
-        , [Goal]    -- new constraints
-        , Subst     -- improvements from defaulting
-        , [Warning] -- warnings about defaulting
-        )
-improveByDefaulting cfg xs gs =
-  Num.withSolver cfg $ \s -> improveByDefaultingWith s xs gs
-
 improveByDefaultingWith ::
   Num.Solver ->
   [TVar] ->   -- candidates for defaulting
@@ -543,16 +530,15 @@ improveByDefaultingWith s as ps =
 -- | Try to pick a reasonable instantiation for an expression, with
 -- the given type.  This is useful when we do evaluation at the REPL.
 -- The resulting types should satisfy the constraints of the schema.
-defaultReplExpr :: SolverConfig -> Expr -> Schema
+defaultReplExpr :: Num.Solver -> Expr -> Schema
              -> IO (Maybe ([(TParam,Type)], Expr))
-defaultReplExpr cfg e s =
+defaultReplExpr so e s =
   if all (\v -> kindOf v == KNum) (sVars s)
      then do let params = map tpVar (sVars s)
-             mbSubst <- tryGetModel cfg params (sProps s)
+             mbSubst <- tryGetModel so params (sProps s)
              case mbSubst of
                Just su ->
-                 do (res,su1) <- Num.withSolver cfg $ \so ->
-                              simpGoals' so (map (makeGoal su) (sProps s))
+                 do (res,su1) <- simpGoals' so (map (makeGoal su) (sProps s))
                     return $
                       case res of
                         Right [] | isEmptySubst su1 ->
@@ -581,14 +567,13 @@ defaultReplExpr cfg e s =
 -- | Attempt to default the given constraints by asserting them in the SMT
 -- solver, and asking it for a model.
 tryGetModel ::
-  SolverConfig ->
+  Num.Solver ->
   [TVar] ->   -- variables to try defaulting
   [Prop] ->   -- constraints
     IO (Maybe Subst)
-tryGetModel cfg xs ps =
-  Num.withSolver cfg $ \ s ->
-    -- We are only interested in finite instantiations
-    Num.getModel s (map (pFin . TVar) xs ++ ps)
+tryGetModel s xs ps =
+  -- We are only interested in finite instantiations
+  Num.getModel s (map (pFin . TVar) xs ++ ps)
 
 --------------------------------------------------------------------------------
 

@@ -277,17 +277,17 @@ primitive error : {at, len} (fin len) => [len][8] -> at
 
 
 /**
- * Performs multiplication of GF2^^8 polynomials.
+ * Performs multiplication of polynomials over GF(2).
  */
 primitive pmult : {a, b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
 
 /**
- * Performs division of GF2^^8 polynomials.
+ * Performs division of polynomials over GF(2).
  */
 primitive pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
 
 /**
- * Performs modulus of GF2^^8 polynomials.
+ * Performs modulus of polynomials over GF(2).
  */
 primitive pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
 
@@ -295,7 +295,7 @@ primitive pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
  * Generates random values from a seed.  When called with a function, currently
  * generates a function that always returns zero.
  */
-primitive random : {a} [32] -> a
+primitive random : {a} [256] -> a
 
 type String n = [n][8]
 type Word n = [n]
@@ -437,8 +437,8 @@ zip : {a,b,n} [n]a -> [n]b -> [n](a,b)
 zip xs ys = [(x,y) | x <- xs | y <- ys]
 
 /**
- * Create a list by applying the function to each pair of elements in the input.
- * lists
+ * Create a list by applying the function to each pair of elements in the input
+ * lists.
  */
 zipWith : {a,b,c,n} (a -> b -> c) -> [n]a -> [n]b -> [n]c
 zipWith f xs ys = [f x y | x <- xs | y <- ys]

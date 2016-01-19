@@ -19,8 +19,8 @@ CS_BIN        := $(CS)/bin
 
 # Used only for windows, to find the right Program Files.
 PROGRAM_FILES = Program\ Files\ \(x86\)
-# Windows installer tools; assumes running on Cygwin and using WiX 3.8
-WiX      := /cygdrive/c/${PROGRAM_FILES}/WiX\ Toolset\ v3.8
+# Windows installer tools; assumes running on Cygwin and using WiX 3.10
+WiX      := /cygdrive/c/${PROGRAM_FILES}/WiX\ Toolset\ v3.10
 CANDLE   := ${WiX}/bin/candle.exe
 HEAT     := ${WiX}/bin/heat.exe
 LIGHT    := ${WiX}/bin/light.exe
@@ -232,7 +232,7 @@ ${CS_BIN}/cryptol-test-runner: \
 test: ${CS_BIN}/cryptol-test-runner
 	( cd tests &&                                                      \
 	echo "Testing on $(UNAME)-$(ARCH)" &&                              \
-	$(realpath $(CS_BIN)/cryptol-test-runner)                          \
+	time $(realpath $(CS_BIN)/cryptol-test-runner)                     \
 	  $(TESTS)                                                         \
 	  -c $(call adjust-path,${CURDIR}/${PKG_BIN}/cryptol${EXE_EXT})    \
 	  -r output                                                        \

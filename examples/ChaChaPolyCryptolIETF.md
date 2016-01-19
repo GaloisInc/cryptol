@@ -680,7 +680,7 @@ The inputs to Poly1305 are:
 The output is a 128-bit tag.
 
 ```cryptol
-Poly1305 : {m, floorBlocks, rem} (fin m, floorBlocks == m/16, rem == m - floorBlocks*16) 
+Poly1305 : {m} (fin m)
            => [256] -> [m][8] -> [16][8]
 ```
 
@@ -695,6 +695,8 @@ First, the "r" value should be clamped.
 
 ```cryptol
 Poly1305 key msg = result where
+    type floorBlocks = m / 16
+    type rem = m - floorBlocks*16
     [ru, su] = split key
     r : [136] // internal arithmetic on (128+8)-bit numbers
     r = littleendian ((Poly1305_clamp (split ru)) # [0x00])

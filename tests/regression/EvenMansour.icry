@@ -1,0 +1,4 @@
+:l ../../examples/contrib/EvenMansour.cry
+:check is_a_permutation (F:[10][4])
+:check is_inverse_permutation ([0..9]:[_][4]) (F:[10]_) (F':[10]_)
+:check E_and_D_are_inverses : ([10],[10]) -> [10] -> Bit

@@ -195,6 +195,7 @@ cmdArgument ct cursor@(l,_) = case ct of
   ShellArg _    -> completeFilename cursor
   OptionArg _   -> completeOption cursor
   NoArg       _ -> return (l,[])
+  FileExprArg _ -> completeExpr cursor
 
 -- | Complete a name from the expression environment.
 completeExpr :: CompletionFunc REPL

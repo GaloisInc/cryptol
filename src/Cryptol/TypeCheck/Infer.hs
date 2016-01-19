@@ -706,8 +706,8 @@ generalize bs0 gs0 =
      when (not (null ambig)) $ recordError $ AmbiguousType $ map dName bs
 
 
-     cfg <- getSolverConfig
-     (as0,here1,defSu,ws) <- io $ improveByDefaulting cfg maybeAmbig here0
+     solver <- getSolver
+     (as0,here1,defSu,ws) <- io $ improveByDefaultingWith solver maybeAmbig here0
      mapM_ recordWarning ws
      let here = map goal here1
 
@@ -810,8 +810,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
         when (not (null ambig)) $ recordError
                                 $ AmbiguousType [ thing (P.bName b) ]
 
-        cfg <- getSolverConfig
-        (_,_,defSu2,ws) <- io $ improveByDefaulting cfg maybeAmbig later
+        solver <- getSolver
+        (_,_,defSu2,ws) <- io $ improveByDefaultingWith solver maybeAmbig later
         mapM_ recordWarning ws
         extendSubst defSu2
 
