@@ -1,0 +1,10 @@
+module TestHMAC where
+
+import HMAC
+import SHA256
+
+property pass =
+    ~zero ==
+    [ hmacSHA256 [0x0b | _ <- [1..20] : [_][6]] "Hi There" == 0xb0344c61d8db38535ca8afceaf0bf12b881dc200c9833da726e9376c2e32cff7
+    , hmacSHA256 "Jefe" "what do ya want for nothing?" == 0x5bdcc146bf60754e6a042426089575c75a003f089d2739839dec58b964ec3843
+    ]

@@ -1,0 +1,53 @@
+/*
+ * Copyright (c) 2013-2016 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+module Base64 where
+
+type Enc64 n = 4*(((3-(n%3))%3) + n)/3 
+
+base64enc : {n,m,padZ} (4*(padZ + n)/3 == m, fin n, fin m, padZ == (3-(n%3))%3, 2>=padZ)
+          => [n][8] -> [Enc64 n][8]
+base64enc ns = take `{m} (chunks # padEq)
+ where
+  chunks      = take `{(4*n+2)/3} (base64chunks `{(n+2)/3} (ns # padZero))
+  padZero     = take `{padZ} [zero | _ <- [1..2] : [_][2]]
+  padEq       = "=="
+
+alphabet = ['A'..'Z'] # ['a'..'z'] # ['0'..'9'] # "+/"
+
+
+base64chunks : {n} (fin n) => [n*3][8] -> [n*4][8]
+base64chunks m = [basify x |  x <- ns]
+ where
+  ns = split (join m) : [_][6]
+  basify : [6] -> [8]
+  basify x = alphabet @ x
+
+// Base64 strings are always in 4n byte chunks, the final chunk might be
+// padded. We can not give a proper cryptol implementation that strips the
+// padding because that would require the type, n, to depend on the value
+// (dependant types). Instead we return possibly excess bytes and, separetely,
+// the number of pad bytes (0,1 or 2) as a value.
+base64dec : {n,m} (fin m, 4*n == 3*m, fin n) => [m][8] -> ([n][8],[2])
+base64dec ms = (split (join [debase x | x <- ms]), nrEq)
+ where
+ nrEq : [2]
+ nrEq = sum [ zero # [x == '='] | x <- take `{2} (reverse ms # [zero,zero]) ]
+
+ debase : [8] -> [6]
+ debase x = drop `{2} (debase' x)
+
+ debase' : [8] -> [8]
+ debase' x =
+    if x >= 'A' && x <= 'Z'
+        then x - 'A'
+        else if x >= 'a' && x <= 'z'
+              then x - 'a' + 26
+              else if x >= '0' && x <= '9'
+                    then x - '0' + 52
+                    else if x == '+'
+                        then 62
+                        else if x == '/'
+                                then 63
+                                else zero // Pad bytes are decoded as NUL
