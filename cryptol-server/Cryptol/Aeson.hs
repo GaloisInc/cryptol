@@ -1,13 +1,22 @@
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2015-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+-- 
+-- Orphan 'FromJSON' and 'ToJSON' instances for certain Cryptol
+-- types. Since these are meant to be consumed over a wire, they are
+-- mostly focused on base values and interfaces rather than a full
+-- serialization of internal ASTs and such.
+
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wall -fno-warn-orphans -fno-warn-type-defaults #-}
--- | Orphan 'FromJSON' and 'ToJSON' instances for certain Cryptol
--- types. Since these are meant to be consumed over a wire, they are
--- mostly focused on base values and interfaces rather than a full
--- serialization of internal ASTs and such.
 module Cryptol.Aeson where
 
 import Control.Applicative

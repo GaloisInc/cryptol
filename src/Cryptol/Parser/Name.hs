@@ -1,3 +1,11 @@
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2015-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+
 {-# LANGUAGE DeriveGeneric #-}
 
 module Cryptol.Parser.Name where

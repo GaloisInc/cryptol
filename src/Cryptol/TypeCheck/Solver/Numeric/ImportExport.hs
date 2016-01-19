@@ -1,3 +1,11 @@
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2014-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Solver.Numeric.ImportExport
   ( ExportM
