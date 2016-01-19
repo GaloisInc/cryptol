@@ -29,7 +29,6 @@ module Cryptol.Symbolic.Value
 
 import Data.List (foldl')
 
-import Data.SBV (HasKind(..))
 import Data.SBV.Dynamic
 
 import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit,

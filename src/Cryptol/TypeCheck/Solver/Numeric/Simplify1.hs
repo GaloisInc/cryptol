@@ -28,6 +28,7 @@ import           Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.TypeCheck.Solver.InfNat(genLog,rootExact)
 import           Cryptol.Utils.Misc ( anyJust )
+import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
 
 import           Control.Monad ( liftM2 )
@@ -309,6 +310,9 @@ pIsNat n expr =
       | otherwise       -> pAnd (pGt x (K (Nat (2^(n-1) - 1))))
                                 (pGt (K (Nat (2 ^ n))) x)
 
+    x                   ->
+      panic "Cryptol.TypeCheck.Solver.Numeric.Simplify1.pIsNat"
+        [ "unexpected expression ", show x ]
 {-
     LenFromThen x y w
       | n == 0          -> Just PFalse
@@ -335,11 +339,11 @@ pIsNat n expr =
   nothing = pAnd (pFin expr) (pAtom (AEq expr (K (Nat n))))
 
 
-pIsGtThanNat :: Integer -> Expr -> I Bool
-pIsGtThanNat = undefined
+_pIsGtThanNat :: Integer -> Expr -> I Bool
+_pIsGtThanNat = undefined
 
-pNatIsGtThan :: Integer -> Expr -> I Bool
-pNatIsGtThan = undefined
+_pNatIsGtThan :: Integer -> Expr -> I Bool
+_pNatIsGtThan = undefined
 
 --------------------------------------------------------------------------------
 
