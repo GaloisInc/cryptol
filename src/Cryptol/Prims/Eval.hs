@@ -727,8 +727,8 @@ randomV ty seed =
     Nothing -> zeroV ty
     Just gen ->
       -- unpack the seed into four Word64s
-      let mask = 0xFFFFFFFFFFFFFFFF
-          unpack s = fromIntegral (s .&. mask) : unpack (s `shiftR` 64)
+      let mask64 = 0xFFFFFFFFFFFFFFFF
+          unpack s = fromIntegral (s .&. mask64) : unpack (s `shiftR` 64)
           [a, b, c, d] = take 4 (unpack seed)
       in fst $ gen 100 $ seedTFGen (a, b, c, d)
 

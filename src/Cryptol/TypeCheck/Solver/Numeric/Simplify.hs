@@ -372,20 +372,20 @@ cryNot prop =
 
 -- | Simplificaiton for @:==@
 cryIsEq :: Expr -> Expr -> Prop
-cryIsEq x y =
-  case (x,y) of
+cryIsEq l r =
+  case (l,r) of
     (K m, K n)      -> if m == n then PTrue else PFalse
 
-    (K Inf, _)      -> Not (Fin y)
-    (_, K Inf)      -> Not (Fin x)
+    (K Inf, _)      -> Not (Fin r)
+    (_, K Inf)      -> Not (Fin l)
 
     (Div x y, z)    -> x :>= z :* y :&& (one :+ z) :* y :> x
 
-    (K (Nat n),_) | Just p <- cryIsNat False n y -> p
-    (_,K (Nat n)) | Just p <- cryIsNat False n x -> p
+    (K (Nat n),_) | Just p <- cryIsNat False n r -> p
+    (_,K (Nat n)) | Just p <- cryIsNat False n l -> p
 
-    _               -> Not (Fin x) :&& Not (Fin y)
-                   :|| Fin x :&& Fin y :&& cryNatOp (:==:) x y
+    _               -> Not (Fin l) :&& Not (Fin r)
+                   :|| Fin l :&& Fin r :&& cryNatOp (:==:) l r
 
 
 
