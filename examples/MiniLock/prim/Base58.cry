@@ -1,0 +1,40 @@
+/*
+ * Copyright (c) 2013-2016 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+module Base58 where
+
+// Base 58 is a dependent format - the length of the encoded value depends on
+// the value being encoded This does not play well with Cryptol, which expects
+// a static type.   Thus we must consume the worst-case number of bytes and
+// produce a length value which we return to the callee.
+
+// Convert an N bit number (33 bytes for minilock) into a big endian base 58 representation (46 byte max for minilock).
+base58enc : {n,m} (fin n, fin m, n >= 6 ) => [n] -> [m][8]
+base58enc ns = [ x.1 | x <- reverse (take `{m} (drop `{1} enc))]
+ where
+  enc      = [(ns,zero)] # [ (n/58,charOf (n%58)) | (n,_) <- enc ]
+  charOf x = charMap @ x
+
+charMap : [58][8]
+charMap = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+base58dec : {n,m} (fin n, fin m, n >= 1, n >= width m, n >= 8) => [m][8] -> [n]
+base58dec ms = sum [ (dec m) * 58 ^^ i | m <- reverse ms | i <- [0..m] ]
+ where
+  dec : [8] -> [n]
+  dec x = zero # dec' x
+
+  dec' : [8] -> [8]
+  dec' x =
+    if x >= 'm'
+     then x - 'm' + 44
+     else if x >= 'a'
+            then x - 'a' + 33
+            else if x >= 'P'
+                  then x - 'P' + 22
+                  else if x > 'I'
+                        then x - 'J' + 17
+                        else if x >= 'A'
+                              then x - 'A' + 9
+                              else x - '1'
