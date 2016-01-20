@@ -36,3 +36,8 @@ miniLock [(theirID, nonceA)] filename contents (myPrivKey, myPubKey) key nonceF 
 Note SCrypt, and thus miniLock ID and key derivation from user passwords, is too
 expensive for the Cryptol interpreter to compute on all but todays more powerful
 computers.  The ID generation can be done using `mkID` from `Keys.cry`.
+
+# License
+
+Copyright (c) 2013-2016 Galois, Inc.
+Distributed under the terms of the BSD3 license (see LICENSE file)

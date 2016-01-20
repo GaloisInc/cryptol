@@ -1,3 +1,6 @@
+Copyright (c) 2013-2016 Galois, Inc.
+Distributed under the terms of the BSD3 license (see LICENSE file)
+
 Define the minilock file format, encoding only.
 
 ```cryptol

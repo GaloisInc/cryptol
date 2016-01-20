@@ -188,9 +188,12 @@ PKG_EXFUNSTUFF_FILES := examples/funstuff/Coins.cry \
                         examples/funstuff/NQueens.cry \
                         examples/funstuff/marble.cry \
 
+PKG_MINILOCK_FILES := $(shell find examples/MiniLock)
+
 ${PKG}: ${CRYPTOL_EXE} \
         docs/*.md docs/*.pdf LICENSE LICENSE.rtf \
-        ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES} ${PKG_EXFUNSTUFF_FILES}
+        ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES} ${PKG_EXFUNSTUFF_FILES} \
+        ${PKG_MINILOCK_FILES}
 	$(CABAL) copy ${DESTDIR_ARG}
 	mkdir -p ${PKG_CRY}
 	mkdir -p ${PKG_DOC}
@@ -204,6 +207,8 @@ ${PKG}: ${CRYPTOL_EXE} \
           cp $$EXAMPLE ${PKG_EXCONTRIB}; done
 	for EXAMPLE in ${PKG_EXFUNSTUFF_FILES}; do \
           cp $$EXAMPLE ${PKG_EXFUNSTUFF}; done
+	cp -r examples/MiniLock ${PKG_EXAMPLES}
+
 # cleanup unwanted files
 # don't want to bundle the cryptol library in the binary distribution
 	rm -rf ${PKG_PREFIX}/lib; rm -rf ${PKG_PREFIX}/*windows-ghc*
