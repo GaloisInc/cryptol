@@ -3,8 +3,10 @@ HERE := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 UNAME   := $(shell uname -s)
 ARCH    := $(shell uname -m)
 
-TESTS ?= issues regression renamer mono-binds
+TESTS ?= parser issues regression renamer mono-binds
 TEST_DIFF ?= meld
+
+IGNORE_EXPECTED ?= --ignore-expected
 
 CABAL_BUILD_FLAGS   ?= -j
 CABAL_INSTALL_FLAGS ?= $(CABAL_BUILD_FLAGS)
@@ -17,8 +19,8 @@ CS_BIN        := $(CS)/bin
 
 # Used only for windows, to find the right Program Files.
 PROGRAM_FILES = Program\ Files\ \(x86\)
-# Windows installer tools; assumes running on Cygwin and using WiX 3.8
-WiX      := /cygdrive/c/${PROGRAM_FILES}/WiX\ Toolset\ v3.8
+# Windows installer tools; assumes running on Cygwin and using WiX 3.10
+WiX      := /cygdrive/c/${PROGRAM_FILES}/WiX\ Toolset\ v3.10
 CANDLE   := ${WiX}/bin/candle.exe
 HEAT     := ${WiX}/bin/heat.exe
 LIGHT    := ${WiX}/bin/light.exe
@@ -108,7 +110,7 @@ GIT_INFO_FILES := ${GIT_INFO_FILES} .git/packed-refs
 endif
 
 CRYPTOL_SRC := \
-  $(shell find src cryptol \
+  $(shell find src cryptol cryptol-server bench \
             \( -name \*.hs -or -name \*.x -or -name \*.y \) \
             -and \( -not -name \*\#\* \) -print) \
   $(shell find lib -name \*.cry) \
@@ -117,6 +119,11 @@ CRYPTOL_SRC := \
 print-%:
 	@echo $* = $($*)
 
+# If CRYPTOL_SERVER is nonempty, build the cryptol-server executable
+ifneq (,${CRYPTOL_SERVER})
+  SERVER_FLAG := -fserver
+endif
+
 # We do things differently based on whether we have a PREFIX set by
 # the user. If we do, then we know the eventual path it'll wind up in
 # (useful for stuff like RPMs or Homebrew). If not, we try to be as
@@ -124,8 +131,9 @@ print-%:
 ifneq (,${PREFIX})
   PREFIX_ARG      := --prefix=$(call adjust-path,${PREFIX_ABS})
   DESTDIR_ARG     := --destdir=${PKG}
-  CONFIGURE_ARGS  := -f-relocatable -f-self-contained \
-                     --docdir=$(call adjust-path,${PREFIX}/${PREFIX_SHARE}/${PREFIX_DOC})
+  CONFIGURE_ARGS  := -f-relocatable \
+                     --docdir=$(call adjust-path,${PREFIX}/${PREFIX_SHARE}/${PREFIX_DOC}) \
+                     ${SERVER_FLAG}
 else
   # This is kind of weird: 1. Prefix argument must be absolute; Cabal
   # doesn't yet fully support relocatable packages. 2. We have to
@@ -133,12 +141,12 @@ else
   # `cabal copy` will make a mess in the PKG directory.
   PREFIX_ARG      := --prefix=$(call adjust-path,${ROOT_PATH})
   DESTDIR_ARG     := --destdir=${PKG}
-  CONFIGURE_ARGS  := -f-self-contained \
-                     --docdir=$(call adjust-path,${PREFIX_SHARE}/${PREFIX_DOC})
+  CONFIGURE_ARGS  := --docdir=$(call adjust-path,${PREFIX_SHARE}/${PREFIX_DOC}) \
+                     ${SERVER_FLAG}
 endif
 
 dist/setup-config: cryptol.cabal Makefile | ${CS_BIN}/alex ${CS_BIN}/happy
-	$(CABAL_INSTALL) --only-dependencies
+	$(CABAL_INSTALL) --only-dependencies ${SERVER_FLAG}
 	$(CABAL) configure ${PREFIX_ARG} --datasubdir=cryptol \
           ${CONFIGURE_ARGS}
 
@@ -146,29 +154,46 @@ ${CRYPTOL_EXE}: $(CRYPTOL_SRC) dist/setup-config
 	$(CABAL_BUILD)
 
 
-PKG_BIN       := ${PKG_PREFIX}/bin
-PKG_SHARE     := ${PKG_PREFIX}${PREFIX_SHARE}
-PKG_CRY       := ${PKG_SHARE}/cryptol
-PKG_DOC       := ${PKG_SHARE}${PREFIX_DOC}
-PKG_EXAMPLES  := ${PKG_DOC}/examples
-PKG_EXCONTRIB := ${PKG_EXAMPLES}/contrib
+PKG_BIN        := ${PKG_PREFIX}/bin
+PKG_SHARE      := ${PKG_PREFIX}${PREFIX_SHARE}
+PKG_CRY        := ${PKG_SHARE}/cryptol
+PKG_DOC        := ${PKG_SHARE}${PREFIX_DOC}
+PKG_EXAMPLES   := ${PKG_DOC}/examples
+PKG_EXCONTRIB  := ${PKG_EXAMPLES}/contrib
+PKG_EXFUNSTUFF := ${PKG_EXAMPLES}/funstuff
 
-PKG_EXAMPLE_FILES := docs/ProgrammingCryptol/aes/AES.cry       \
+PKG_EXAMPLE_FILES := docs/ProgrammingCryptol/aes/AES.cry \
                      docs/ProgrammingCryptol/enigma/Enigma.cry \
-                     examples/DES.cry                          \
-                     examples/Cipher.cry                       \
-                     examples/DEStest.cry                      \
-                     examples/Test.cry                         \
-                     examples/SHA1.cry                         \
+                     examples/ChaChaPolyCryptolIETF.md \
+                     examples/Cipher.cry \
+                     examples/DES.cry \
+                     examples/DEStest.cry \
+                     examples/FNV-a1.cry \
+                     examples/SHA1.cry \
+                     examples/SIV-rfc5297.md \
+                     examples/Salsa20.cry \
+                     examples/Test.cry \
+                     examples/TripleDES.cry \
+                     examples/ZUC.cry \
 
-PKG_EXCONTRIB_FILES := examples/contrib/mkrand.cry \
-                       examples/contrib/RC4.cry    \
-                       examples/contrib/simon.cry  \
-                       examples/contrib/speck.cry
+PKG_EXCONTRIB_FILES := examples/contrib/EvenMansour.cry \
+                       examples/contrib/RC4.cry \
+                       examples/contrib/README.md \
+                       examples/contrib/mkrand.cry \
+                       examples/contrib/simon.cry \
+                       examples/contrib/speck.cry \
+
+PKG_EXFUNSTUFF_FILES := examples/funstuff/Coins.cry \
+                        examples/funstuff/FoxChickenCorn.cry \
+                        examples/funstuff/NQueens.cry \
+                        examples/funstuff/marble.cry \
+
+PKG_MINILOCK_FILES := $(shell find examples/MiniLock)
 
 ${PKG}: ${CRYPTOL_EXE} \
         docs/*.md docs/*.pdf LICENSE LICENSE.rtf \
-        ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES}
+        ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES} ${PKG_EXFUNSTUFF_FILES} \
+        ${PKG_MINILOCK_FILES}
 	$(CABAL) copy ${DESTDIR_ARG}
 	mkdir -p ${PKG_CRY}
 	mkdir -p ${PKG_DOC}
@@ -180,6 +205,10 @@ ${PKG}: ${CRYPTOL_EXE} \
           cp $$EXAMPLE ${PKG_EXAMPLES}; done
 	for EXAMPLE in ${PKG_EXCONTRIB_FILES}; do \
           cp $$EXAMPLE ${PKG_EXCONTRIB}; done
+	for EXAMPLE in ${PKG_EXFUNSTUFF_FILES}; do \
+          cp $$EXAMPLE ${PKG_EXFUNSTUFF}; done
+	cp -r examples/MiniLock ${PKG_EXAMPLES}
+
 # cleanup unwanted files
 # don't want to bundle the cryptol library in the binary distribution
 	rm -rf ${PKG_PREFIX}/lib; rm -rf ${PKG_PREFIX}/*windows-ghc*
@@ -224,14 +253,26 @@ ${CS_BIN}/cryptol-test-runner: \
 test: ${CS_BIN}/cryptol-test-runner
 	( cd tests &&                                                      \
 	echo "Testing on $(UNAME)-$(ARCH)" &&                              \
-	$(realpath $(CS_BIN)/cryptol-test-runner)                          \
+	time $(realpath $(CS_BIN)/cryptol-test-runner)                     \
 	  $(TESTS)                                                         \
 	  -c $(call adjust-path,${CURDIR}/${PKG_BIN}/cryptol${EXE_EXT})    \
 	  -r output                                                        \
 	  -T --hide-successes                                              \
 	  -T --jxml=$(call adjust-path,$(CURDIR)/results.xml)              \
+	  $(IGNORE_EXPECTED)                                               \
 	  $(if $(TEST_DIFF),-p $(TEST_DIFF),)                              \
 	)
+
+# Since this is meant for development rather than end-user builds,
+# this tries to stay out of the way of the other targets by
+# reconfiguring, then removing dist/setup-config so that other targets
+# aren't left in a weird state
+.PHONY: bench
+bench: cryptol.cabal Makefile | ${CS_BIN}/alex ${CS_BIN}/happy
+	$(CABAL_INSTALL) --only-dependencies --enable-benchmarks
+	$(CABAL) configure --enable-benchmarks
+	$(CABAL) bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench.xml)
+	rm -rf dist/setup-config
 
 .PHONY: clean
 clean:

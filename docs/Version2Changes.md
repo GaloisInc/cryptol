@@ -199,6 +199,23 @@ that can be compared to each other:
     Cryptol> :t (==)
     == : {a} (Cmp a) => a -> a -> Bit
 
+Tuple Projection Syntax
+-----------------------
+
+In Cryptol version 1, we used the `project` function to extract items out of a tuple.
+In Cryptol version 2, we use the same `.` notation as is used to extract items out
+of records. Further, the `project` function was 1-based (the first element is at index 1
+of the tuple), but the `.` version of project is now 0-based (so the first element is
+at index 0 of the tuple). So, in Cryptol version 1:
+
+    Cryptol> project(1,3,(1,2,3))
+    1
+
+in Cryptol version 2, becomes:
+
+    Cryptol> (1,2,3).0
+    1
+
 Properties (theorems in version 1)
 ----------------------------------
 
@@ -226,7 +243,7 @@ version 2, the `:modernize` command can help a lot. However it doesn't do the
 whole job for you. This section describes some limitations and suggests
 effective ways of translating your code.
 
-Syntatic limitations
+Syntactic limitations
 --------------------
 
 Currently, `:modernize`:
@@ -235,6 +252,7 @@ Currently, `:modernize`:
 * doesn't automatically translate `take(3,xs)` to ``take`{3}xs``,
 * doesn't translate `**` to `^^`,
 * doesn't turn `theorem` declarations into `property`'s.
+* doesn't convert tuple `project` to the new `.` syntax
 
 Feature requests have been filed for these limitations.
 

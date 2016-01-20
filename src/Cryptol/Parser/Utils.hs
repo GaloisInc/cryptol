@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -9,24 +9,37 @@
 -- Utility functions that are also useful for translating programs
 -- from previous Cryptol versions.
 
+{-# LANGUAGE OverloadedStrings #-}
+
 module Cryptol.Parser.Utils
   ( translateExprToNumT
+  , widthIdent
   ) where
 
 import Cryptol.Parser.AST
 import Cryptol.Prims.Syntax
 
-translateExprToNumT :: Expr -> Maybe Type
+
+widthIdent :: Ident
+widthIdent  = mkIdent "width"
+
+translateExprToNumT :: Expr PName -> Maybe (Type PName)
 translateExprToNumT expr =
   case expr of
     ELocated e r -> (`TLocated` r) `fmap` translateExprToNumT e
-    EVar (QName Nothing (Name "width")) -> mkFun TCWidth
+    EVar n | getIdent n == widthIdent -> mkFun TCWidth
     EVar x       -> return (TUser x [])
-    ECon x       -> cvtCon x
     ELit x       -> cvtLit x
     EApp e1 e2   -> do t1 <- translateExprToNumT e1
                        t2 <- translateExprToNumT e2
                        tApp t1 t2
+
+    EInfix a o f b -> do e1 <- translateExprToNumT a
+                         e2 <- translateExprToNumT b
+                         return (TInfix e1 o f e2)
+
+    EParens e    -> translateExprToNumT e
+
     _            -> Nothing
 
   where
@@ -42,16 +55,3 @@ translateExprToNumT expr =
   cvtLit (ECNum n CharLit)  = return (TChar $ toEnum $ fromInteger n)
   cvtLit (ECNum n _)        = return (TNum n)
   cvtLit (ECString _)       = Nothing
-
-  cvtCon c =
-    case c of
-      ECPlus        -> mkFun TCAdd
-      ECMinus       -> mkFun TCSub
-      ECMul         -> mkFun TCMul
-      ECDiv         -> mkFun TCDiv
-      ECMod         -> mkFun TCMod
-      ECExp         -> mkFun TCExp
-      ECLg2         -> mkFun TCLg2
-      ECMin         -> mkFun TCMin
-      ECMax         -> mkFun TCMax
-      _             -> Nothing

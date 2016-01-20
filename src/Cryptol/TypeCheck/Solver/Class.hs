@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -9,13 +9,17 @@
 -- Solving class constraints.
 
 {-# LANGUAGE PatternGuards #-}
-module Cryptol.TypeCheck.Solver.Class (classStep, expandProp) where
+module Cryptol.TypeCheck.Solver.Class
+  ( classStep
+  , expandProp
+  ) where
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.InferTypes(Goal(..), Solved(..))
 
-
 -- | Solve class constraints.
+-- If not, then we return 'Nothing'.
+-- If solved, ther we return 'Just' a list of sub-goals.
 classStep :: Goal -> Solved
 classStep g = case goal g of
   TCon (PC PArith) [ty] -> solveArithInst g (tNoUser ty)
@@ -38,6 +42,9 @@ solveArithInst g ty = case ty of
 
   -- (Arith a, Arith b) => Arith (a,b)
   TCon (TC (TCTuple _)) es -> solved g [ pArith e | e <- es ]
+
+  -- Arith Bit fails
+  TCon (TC TCBit) [] -> Unsolvable
 
   -- (Arith a, Arith b) => Arith { x1 : a, x2 : b }
   TRec fs -> solved g [ pArith ety | (_,ety) <- fs ]
@@ -71,6 +78,9 @@ solveCmpInst g ty = case ty of
 
   -- (Cmp a, Cmp b) => Cmp (a,b)
   TCon (TC (TCTuple _)) es -> solved g (map pCmp es)
+
+  -- Cmp (a -> b) fails
+  TCon (TC TCFun) [_,_] -> Unsolvable
 
   -- (Cmp a, Cmp b) => Cmp { x:a, y:b }
   TRec fs -> solved g [ pCmp e | (_,e) <- fs ]

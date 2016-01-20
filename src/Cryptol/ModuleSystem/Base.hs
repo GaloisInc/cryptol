@@ -1,19 +1,25 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
+
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Cryptol.ModuleSystem.Base where
 
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), deIfaceDecls)
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
-import Cryptol.ModuleSystem.Env (lookupModule, LoadedModule(..))
+import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap)
+import Cryptol.ModuleSystem.Env (lookupModule, LoadedModule(..)
+                                , meCoreLint, CoreLint(..))
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Value           as E
+import qualified Cryptol.ModuleSystem.NamingEnv as R
 import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.Parser               as P
 import qualified Cryptol.Parser.Unlit         as P
@@ -23,20 +29,25 @@ import Cryptol.Parser.NoInclude (removeIncludesModule)
 import Cryptol.Parser.Position (HasLoc(..), Range, emptyRange)
 import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
-import qualified Cryptol.TypeCheck.Depends as T
+import qualified Cryptol.TypeCheck.PP as T
+import qualified Cryptol.TypeCheck.Sanity as TcSanity
+import Cryptol.Utils.Ident (preludeName,interactiveName,unpackModName)
 import Cryptol.Utils.PP (pretty)
+import Cryptol.Utils.Panic (panic)
 
 import Cryptol.Prelude (writePreludeContents)
 
-import Cryptol.Transform.MonoValues
+import Cryptol.Transform.MonoValues (rewModule)
 
 import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad (unless)
 import Data.Function (on)
 import Data.List (nubBy)
-import Data.Maybe (mapMaybe,fromMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
+import           Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy.IO as T
 import System.Directory (doesFileExist)
 import System.FilePath ( addExtension
                        , isAbsolute
@@ -48,48 +59,37 @@ import System.FilePath ( addExtension
 import qualified System.IO.Error as IOE
 import qualified Data.Map as Map
 
-#if __GLASGOW_HASKELL__ < 710
-import Data.Foldable (foldMap)
-#endif
+import Prelude ()
+import Prelude.Compat
+
 
 -- Renaming --------------------------------------------------------------------
 
-rename :: R.Rename a => R.NamingEnv -> a -> ModuleM a
-rename env a = do
+rename :: ModName -> R.NamingEnv -> R.RenameM a -> ModuleM a
+rename modName env m = do
+  (res,ws) <- liftSupply $ \ supply ->
+    case R.runRenamer supply modName env m of
+      (Right (a,supply'),ws) -> ((Right a,ws),supply')
+      (Left errs,ws)         -> ((Left errs,ws),supply)
+
   renamerWarnings ws
   case res of
     Right r   -> return r
     Left errs -> renamerErrors errs
-  where
-  (res,ws) = R.runRenamer env (R.rename a)
 
 -- | Rename a module in the context of its imported modules.
-renameModule :: P.Module -> ModuleM P.Module
+renameModule :: P.Module PName
+             -> ModuleM (IfaceDecls,R.NamingEnv,P.Module Name)
 renameModule m = do
-  iface <- importIfaces (map thing (P.mImports m))
-
-  let menv    = R.namingEnv m
-      (es,ws) = R.checkNamingEnv menv
+  (decls,menv) <- importIfaces (map thing (P.mImports m))
+  let (es,ws) = R.checkNamingEnv menv
 
   renamerWarnings ws
   unless (null es) (renamerErrors es)
 
-  -- explicitly shadow the imported environment with the local environment
-  rename (menv `R.shadowing` R.namingEnv iface) m
+  (declsEnv,rm) <- rename (thing (mName m)) menv (R.renameModule m)
+  return (decls,declsEnv,rm)
 
--- | Rename an expression in the context of the focused module.
-renameExpr :: P.Expr -> ModuleM P.Expr
-renameExpr e = do
-  env <- getFocusedEnv
-  denv <- getDynEnv
-  rename (deNames denv `R.shadowing` R.namingEnv env) e
-
--- | Rename declarations in the context of the focused module.
-renameDecls :: (R.Rename d, T.FromDecl d) => [d] -> ModuleM [d]
-renameDecls ds = do
-  env <- getFocusedEnv
-  denv <- getDynEnv
-  rename (deNames denv `R.shadowing` R.namingEnv env) ds
 
 -- NoPat -----------------------------------------------------------------------
 
@@ -103,13 +103,13 @@ noPat a = do
 
 -- Parsing ---------------------------------------------------------------------
 
-parseModule :: FilePath -> ModuleM P.Module
+parseModule :: FilePath -> ModuleM (P.Module PName)
 parseModule path = do
 
   e <- io $ X.try $ do
-    bytes <- readFile path
+    bytes <- T.readFile path
     return $!! bytes
-  bytes <- case (e :: Either X.IOException String) of
+  bytes <- case (e :: Either X.IOException Text) of
     Right bytes -> return bytes
     Left exn | IOE.isDoesNotExistError exn -> cantFindFile path
              | otherwise                   -> otherIOError path exn
@@ -164,7 +164,7 @@ loadImport li = do
          return ()
 
 -- | Load dependencies, typecheck, and add to the eval environment.
-loadModule :: FilePath -> P.Module -> ModuleM T.Module
+loadModule :: FilePath -> P.Module PName -> ModuleM T.Module
 loadModule path pm = do
 
   let pm' = addPrelude pm
@@ -173,7 +173,7 @@ loadModule path pm = do
   -- XXX make it possible to configure output
   io (putStrLn ("Loading module " ++ pretty (P.thing (P.mName pm'))))
 
-  tcm <- checkModule pm'
+  tcm <- checkModule path pm'
 
   -- extend the eval env
   modifyEvalEnv (E.moduleEnv tcm)
@@ -189,16 +189,19 @@ loadModule path pm = do
 fullyQualified :: P.Import -> P.Import
 fullyQualified i = i { iAs = Just (iModule i) }
 
--- | Process the interface specified by an import.
-importIface :: P.Import -> ModuleM Iface
-importIface i = interpImport i `fmap` getIface (T.iModule i)
+-- | Find the interface referenced by an import, and generate the naming
+-- environment that it describes.
+importIface :: P.Import -> ModuleM (IfaceDecls,R.NamingEnv)
+importIface imp =
+  do Iface { .. } <- getIface (T.iModule imp)
+     return (ifPublic, R.interpImport imp ifPublic)
 
 -- | Load a series of interfaces, merging their public interfaces.
-importIfaces :: [P.Import] -> ModuleM IfaceDecls
-importIfaces is = foldMap ifPublic `fmap` mapM importIface is
+importIfaces :: [P.Import] -> ModuleM (IfaceDecls,R.NamingEnv)
+importIfaces is = mconcat `fmap` mapM importIface is
 
 moduleFile :: ModName -> String -> FilePath
-moduleFile (ModName ns) = addExtension (joinPath ns)
+moduleFile n = addExtension (joinPath (unpackModName n))
 
 -- | Discover a module.
 findModule :: ModName -> ModuleM FilePath
@@ -243,11 +246,8 @@ findFile path = do
     [] -> cantFindFile path
   possibleFiles paths = map (</> path) paths
 
-preludeName :: P.ModName
-preludeName  = P.ModName ["Cryptol"]
-
 -- | Add the prelude to the import list if it's not already mentioned.
-addPrelude :: P.Module -> P.Module
+addPrelude :: P.Module PName -> P.Module PName
 addPrelude m
   | preludeName == P.thing (P.mName m) = m
   | preludeName `elem` importedMods    = m
@@ -264,7 +264,7 @@ addPrelude m
     }
 
 -- | Load the dependencies of a module into the environment.
-loadDeps :: Module -> ModuleM ()
+loadDeps :: P.Module name -> ModuleM ()
 loadDeps m
   | null needed = return ()
   | otherwise   = mapM_ load needed
@@ -275,31 +275,70 @@ loadDeps m
 
 -- Type Checking ---------------------------------------------------------------
 
--- | Typecheck a single expression.
-checkExpr :: P.Expr -> ModuleM (T.Expr,T.Schema)
+-- | Load the local environment, which consists of the environment for the
+-- currently opened module, shadowed by the dynamic environment.
+getLocalEnv :: ModuleM (IfaceDecls,R.NamingEnv)
+getLocalEnv  =
+  do (decls,fNames,_) <- getFocusedEnv
+     denv             <- getDynEnv
+     let dynDecls = deIfaceDecls denv
+     return (dynDecls `mappend` decls, deNames denv `R.shadowing` fNames)
+
+-- | Typecheck a single expression, yielding a renamed parsed expression,
+-- typechecked core expression, and a type schema.
+checkExpr :: P.Expr PName -> ModuleM (P.Expr Name,T.Expr,T.Schema)
 checkExpr e = do
+
+  (decls,names) <- getLocalEnv
+
+  -- run NoPat
   npe <- noPat e
-  denv <- getDynEnv
-  re  <- renameExpr npe
-  env <- getQualifiedEnv
-  let env' = env <> deIfaceDecls denv
-  typecheck T.tcExpr re env'
+
+  -- rename the expression with dynamic names shadowing the opened environment
+  re  <- rename interactiveName names (R.rename npe)
+
+  -- merge the dynamic and opened environments for typechecking
+  prims <- getPrimMap
+  let act  = TCAction { tcAction = T.tcExpr, tcLinter = exprLinter
+                      , tcPrims = prims }
+  (te,s) <- typecheck act re decls
+
+  return (re,te,s)
 
 -- | Typecheck a group of declarations.
-checkDecls :: (HasLoc d, R.Rename d, T.FromDecl d) => [d] -> ModuleM [T.DeclGroup]
+--
+-- INVARIANT: This assumes that NoPat has already been run on the declarations.
+checkDecls :: [P.TopDecl PName] -> ModuleM (R.NamingEnv,[T.DeclGroup])
 checkDecls ds = do
-  -- nopat must already be run
-  rds <- renameDecls ds
-  denv <- getDynEnv
-  env <- getQualifiedEnv
-  let env' = env <> deIfaceDecls denv
-  typecheck T.tcDecls rds env'
+  (decls,names) <- getLocalEnv
+
+  -- introduce names for the declarations before renaming them
+  declsEnv <- liftSupply (R.namingEnv' (map (R.InModule interactiveName) ds))
+  rds <- rename interactiveName (declsEnv `R.shadowing` names)
+             (traverse R.rename ds)
+
+  prims <- getPrimMap
+  let act  = TCAction { tcAction = T.tcDecls, tcLinter = declsLinter
+                      , tcPrims = prims }
+  ds' <- typecheck act rds decls
+  return (declsEnv,ds')
+
+-- | Generate the primitive map. If the prelude is currently being loaded, this
+-- should be generated directly from the naming environment given to the renamer
+-- instead.
+getPrimMap :: ModuleM PrimMap
+getPrimMap  =
+  do env <- getModuleEnv
+     case lookupModule preludeName env of
+       Just lm -> return (ifacePrimMap (lmInterface lm))
+       Nothing -> panic "Cryptol.ModuleSystem.Base.getPrimMap"
+                  [ "Unable to find the prelude" ]
 
 -- | Typecheck a module.
-checkModule :: P.Module -> ModuleM T.Module
-checkModule m = do
+checkModule :: FilePath -> P.Module PName -> ModuleM T.Module
+checkModule path m = do
   -- remove includes first
-  e   <- io (removeIncludesModule m)
+  e   <- io (removeIncludesModule path m)
   nim <- case e of
            Right nim  -> return nim
            Left ierrs -> noIncludeErrors ierrs
@@ -308,68 +347,110 @@ checkModule m = do
   npm <- noPat nim
 
   -- rename everything
-  scm <- renameModule npm
+  (tcEnv,declsEnv,scm) <- renameModule npm
+
+  -- when generating the prim map for the typechecker, if we're checking the
+  -- prelude, we have to generate the map from the renaming environment, as we
+  -- don't have the interface yet.
+  prims <- if thing (mName m) == preludeName
+              then return (R.toPrimMap declsEnv)
+              else getPrimMap
 
   -- typecheck
-  tcm <- typecheck T.tcModule scm =<< importIfacesTc (map thing (P.mImports scm))
+  let act = TCAction { tcAction = T.tcModule
+                     , tcLinter = moduleLinter (P.thing (P.mName m))
+                     , tcPrims  = prims }
+  tcm <- typecheck act scm tcEnv
 
-  return (Cryptol.Transform.MonoValues.rewModule tcm)
+  liftSupply (`rewModule` tcm)
+
+data TCLinter o = TCLinter
+  { lintCheck ::
+      o -> T.InferInput -> Either TcSanity.Error [TcSanity.ProofObligation]
+  , lintModule :: Maybe P.ModName
+  }
 
 
-type TCAction i o = i -> T.InferInput -> IO (T.InferOutput o)
+exprLinter :: TCLinter (T.Expr, T.Schema)
+exprLinter = TCLinter
+  { lintCheck = \(e',s) i ->
+      case TcSanity.tcExpr (T.inpVars i) e' of
+        Left err     -> Left err
+        Right (s1,os)
+          | TcSanity.same s s1  -> Right os
+          | otherwise -> Left (TcSanity.TypeMismatch s s1)
+  , lintModule = Nothing
+  }
 
-typecheck :: HasLoc i => TCAction i o -> i -> IfaceDecls -> ModuleM o
-typecheck action i env = do
+declsLinter :: TCLinter [ T.DeclGroup ]
+declsLinter = TCLinter
+  { lintCheck = \ds' i -> case TcSanity.tcDecls (T.inpVars i) ds' of
+                            Left err -> Left err
+                            Right os -> Right os
+
+  , lintModule = Nothing
+  }
+
+moduleLinter :: P.ModName -> TCLinter T.Module
+moduleLinter m = TCLinter
+  { lintCheck   = \m' i -> case TcSanity.tcModule (T.inpVars i) m' of
+                            Left err -> Left err
+                            Right os -> Right os
+  , lintModule  = Just m
+  }
+
+
+data TCAction i o = TCAction
+  { tcAction :: i -> T.InferInput -> IO (T.InferOutput o)
+  , tcLinter :: TCLinter o
+  , tcPrims  :: PrimMap
+  }
+
+typecheck :: (Show i, Show o, HasLoc i) => TCAction i o -> i -> IfaceDecls -> ModuleM o
+typecheck act i env = do
 
   let range = fromMaybe emptyRange (getLoc i)
-  input <- genInferInput range env
-  out   <- io (action i input)
+  input <- genInferInput range (tcPrims act) env
+  out   <- io (tcAction act i input)
 
   case out of
 
-    T.InferOK warns seeds o ->
+    T.InferOK warns seeds supply' o ->
       do setNameSeeds seeds
+         setSupply supply'
          typeCheckWarnings warns
+         menv <- getModuleEnv
+         case meCoreLint menv of
+           NoCoreLint -> return ()
+           CoreLint   -> case lintCheck (tcLinter act) o input of
+                           Right as -> io $ mapM_ (print . T.pp) as
+                           Left err -> panic "Core lint failed:" [show err]
          return o
 
     T.InferFailed warns errs ->
       do typeCheckWarnings warns
          typeCheckingFailed errs
 
--- | Process a list of imports, producing an aggregate interface suitable for use
--- when typechecking.
-importIfacesTc :: [P.Import] -> ModuleM IfaceDecls
-importIfacesTc is =
-  mergePublic `fmap` mapM (importIface . fullyQualified) is
-  where
-  mergePublic = foldMap ifPublic
-
 -- | Generate input for the typechecker.
-genInferInput :: Range -> IfaceDecls -> ModuleM T.InferInput
-genInferInput r env = do
+genInferInput :: Range -> PrimMap -> IfaceDecls -> ModuleM T.InferInput
+genInferInput r prims env = do
   seeds <- getNameSeeds
   monoBinds <- getMonoBinds
+  cfg <- getSolverConfig
+  supply <- getSupply
 
   -- TODO: include the environment needed by the module
   return T.InferInput
     { T.inpRange     = r
-    , T.inpVars      = Map.map ifDeclSig (filterEnv ifDecls)
-    , T.inpTSyns     =                    filterEnv ifTySyns
-    , T.inpNewtypes  =                    filterEnv ifNewtypes
+    , T.inpVars      = Map.map ifDeclSig (ifDecls env)
+    , T.inpTSyns     = ifTySyns env
+    , T.inpNewtypes  = ifNewtypes env
     , T.inpNameSeeds = seeds
     , T.inpMonoBinds = monoBinds
+    , T.inpSolverConfig = cfg
+    , T.inpSupply    = supply
+    , T.inpPrimNames = prims
     }
-  where
-  -- at this point, the names used in the aggregate interface should be
-  -- unique
-  keepOne :: (QName,[a]) -> Maybe (QName,a)
-  keepOne (qn,syns) = case syns of
-    [syn] -> Just (qn,syn)
-    _     -> Nothing
-
-  -- keep symbols without duplicates.  the renamer would have caught
-  -- duplication already, so this is safe.
-  filterEnv p = Map.fromList (mapMaybe keepOne (Map.toList (p env)))
 
 
 -- Evaluation ------------------------------------------------------------------

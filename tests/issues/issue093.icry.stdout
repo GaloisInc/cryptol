@@ -2,9 +2,9 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 property f0 Using exhaustive testing.
-FAILED
+testing...FAILED
 property t0 Using exhaustive testing.
-passed 1 tests.
+testing...passed 1 tests.
 Q.E.D.
 property t1 Using random testing.
 testing...passed 100 tests.

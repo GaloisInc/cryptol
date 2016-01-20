@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -8,8 +8,15 @@
 
 {-# LANGUAGE Safe #-}
 
-module Cryptol.Version where
+module Cryptol.Version (
+    commitHash
+  , commitShortHash
+  , commitBranch
+  , commitDirty
+  , version
+  ) where
 
+import Paths_cryptol
 import qualified GitRev
 
 commitHash :: String

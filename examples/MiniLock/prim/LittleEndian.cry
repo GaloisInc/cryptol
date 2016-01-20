@@ -1,0 +1,21 @@
+/*
+ * Copyright (c) 2013-2016 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+module LittleEndian where
+
+
+// Takes a finite sequence of bytes, and turns them into a word via
+// a little-endian interpretation
+littleendian : {a}(fin a) => [a][8] -> [a*8]
+littleendian b = join(reverse b)
+
+property littleendian_passes_tests =
+  (littleendian [  0,   0,   0,   0] == 0x00000000) &&
+  (littleendian [ 86,  75,  30,   9] == 0x091e4b56) &&
+  (littleendian [255, 255, 255, 250] == 0xfaffffff)
+
+littleendian_inverse : [32] -> [4][8]
+littleendian_inverse b = reverse(split b)
+
+property littleendian_is_invertable b = littleendian_inverse(littleendian b) == b

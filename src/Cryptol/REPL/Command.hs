@@ -1,12 +1,15 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE CPP, PatternGuards, FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
 module Cryptol.REPL.Command (
     -- * Commands
     Command(..), CommandDescr(..), CommandBody(..)
@@ -17,7 +20,22 @@ module Cryptol.REPL.Command (
   , findCommandExact
   , findNbCommand
 
-  , moduleCmd, loadCmd, loadPrelude
+  , moduleCmd, loadCmd, loadPrelude, setOptionCmd
+
+    -- Parsing
+  , interactiveConfig
+  , replParseExpr
+
+    -- Evaluation and Typechecking
+  , replEvalExpr
+  , replCheckExpr
+
+    -- Check, SAT, and prove
+  , qcCmd, QCMode(..)
+  , satCmd
+  , proveCmd
+  , onlineProveSat
+  , offlineProveSat
 
     -- Misc utilities
   , handleCtrlC
@@ -33,36 +51,38 @@ import Cryptol.REPL.Monad
 import Cryptol.REPL.Trie
 
 import qualified Cryptol.ModuleSystem as M
-import qualified Cryptol.ModuleSystem.Base as M (preludeName)
+import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowed))
+import qualified Cryptol.Utils.Ident as M
 
 import qualified Cryptol.Eval.Value as E
-import qualified Cryptol.Testing.Eval    as Test
+import Cryptol.Testing.Concrete
 import qualified Cryptol.Testing.Random  as TestR
-import qualified Cryptol.Testing.Exhaust as TestX
 import Cryptol.Parser
-    (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig,parseModName)
-import Cryptol.Parser.Position (emptyRange,getLoc)
+    (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
+    ,parseModName,parseHelpName)
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Subst as T
 import qualified Cryptol.TypeCheck.InferTypes as T
+import           Cryptol.TypeCheck.Solve(defaultReplExpr)
+import qualified Cryptol.TypeCheck.Solver.CrySAT as CrySAT
 import Cryptol.TypeCheck.PP (dump,ppWithNames)
-import Cryptol.TypeCheck.Defaulting(defaultExpr)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
-import Cryptol.Prims.Doc(helpDoc)
 import qualified Cryptol.Transform.Specialize as S
 import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..))
 import qualified Cryptol.Symbolic as Symbolic
 
 import Control.DeepSeq
 import qualified Control.Exception as X
-import Control.Monad (guard,unless,forM_,when)
+import Control.Monad hiding (mapM, mapM_)
+import qualified Data.ByteString as BS
+import Data.Bits ((.&.))
 import Data.Char (isSpace,isPunctuation,isSymbol)
 import Data.Function (on)
-import Data.List (intercalate,isPrefixOf,nub)
+import Data.List (intercalate,nub,sortBy,partition)
 import Data.Maybe (fromMaybe,mapMaybe)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
@@ -71,15 +91,16 @@ import qualified System.Process as Process(runCommand)
 import System.FilePath((</>), isPathSeparator)
 import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import qualified Data.IntMap as IntMap
 import System.IO(hFlush,stdout)
 import System.Random.TF(newTFGen)
 import Numeric (showFFloat)
+import qualified Data.Text as ST
+import qualified Data.Text.Lazy as T
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative ((<$>))
-import Data.Monoid (mempty)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- Commands --------------------------------------------------------------------
 
@@ -108,6 +129,7 @@ instance Ord CommandDescr where
 
 data CommandBody
   = ExprArg     (String   -> REPL ())
+  | FileExprArg (FilePath -> String -> REPL ())
   | DeclsArg    (String   -> REPL ())
   | ExprTypeArg (String   -> REPL ())
   | FilenameArg (FilePath -> REPL ())
@@ -138,12 +160,12 @@ nbCommandList  =
   , CommandDescr [ ":b", ":browse" ] (ExprTypeArg browseCmd)
     "display the current environment"
   , CommandDescr [ ":?", ":help" ] (ExprArg helpCmd)
-    "display a brief description about a built-in operator"
+    "display a brief description about a function"
   , CommandDescr [ ":s", ":set" ] (OptionArg setOptionCmd)
     "set an environmental option (:set on its own displays current values)"
-  , CommandDescr [ ":check" ] (ExprArg (qcCmd QCRandom))
+  , CommandDescr [ ":check" ] (ExprArg (void . qcCmd QCRandom))
     "use random testing to check that the argument always returns true (if no argument, check all properties)"
-  , CommandDescr [ ":exhaust" ] (ExprArg (qcCmd QCExhaust))
+  , CommandDescr [ ":exhaust" ] (ExprArg (void . qcCmd QCExhaust))
     "use exhaustive testing to prove that the argument always returns true (if no argument, check all properties)"
   , CommandDescr [ ":prove" ] (ExprArg proveCmd)
     "use an external solver to prove that the argument always returns true (if no argument, check all properties)"
@@ -170,6 +192,10 @@ commandList  =
     "set the current working directory"
   , CommandDescr [ ":m", ":module" ] (FilenameArg moduleCmd)
     "load a module"
+  , CommandDescr [ ":w", ":writeByteArray" ] (FileExprArg writeFileCmd)
+    "write data of type `fin n => [n][8]` to a file"
+  , CommandDescr [ ":readByteArray" ] (FilenameArg readFileCmd)
+    "read data from a file as type `fin n => [n][8]`, binding the value to variable `it`"
   ]
 
 genHelp :: [CommandDescr] -> [String]
@@ -236,57 +262,89 @@ data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 -- | Randomly test a property, or exhaustively check it if the number
 -- of values in the type under test is smaller than the @tests@
 -- environment variable, or we specify exhaustive testing.
-qcCmd :: QCMode -> String -> REPL ()
+qcCmd :: QCMode -> String -> REPL [TestReport]
 qcCmd qcMode "" =
-  do xs <- getPropertyNames
+  do (xs,disp) <- getPropertyNames
+     let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
-        then rPutStrLn "There are no properties in scope."
-        else forM_ xs $ \x ->
-               do rPutStr $ "property " ++ x ++ " "
-                  qcCmd qcMode x
+        then rPutStrLn "There are no properties in scope." *> return []
+        else concat <$> (forM xs $ \x ->
+               do let str = nameStr x
+                  rPutStr $ "property " ++ str ++ " "
+                  qcCmd qcMode str)
 
 qcCmd qcMode str =
   do expr <- replParseExpr str
      (val,ty) <- replEvalExpr expr
      EnvNum testNum  <- getUser "tests"
-     case TestX.testableType ty of
-       Just (sz,vss) | qcMode == QCExhaust || sz <= toInteger testNum ->
-         do rPutStrLn "Using exhaustive testing."
-            let doTest _ [] = panic "We've unexpectedly run out of test cases"
-                                    []
-                doTest _ (vs : vss1) = do
-                  result <- TestX.runOneTest val vs
+     case testableType ty of
+       Just (sz,vss) | qcMode == QCExhaust || sz <= toInteger testNum -> do
+            rPutStrLn "Using exhaustive testing."
+            let f _ [] = panic "Cryptol.REPL.Command"
+                                    ["Exhaustive testing ran out of test cases"]
+                f _ (vs : vss1) = do
+                  result <- io $ runOneTest val vs
                   return (result, vss1)
-            ok <- go doTest sz 0 vss
-            when ok $ rPutStrLn "Q.E.D."
+                testSpec = TestSpec {
+                    testFn = f
+                  , testProp = str
+                  , testTotal = sz
+                  , testPossible = sz
+                  , testRptProgress = ppProgress
+                  , testClrProgress = delProgress
+                  , testRptFailure = ppFailure
+                  , testRptSuccess = do
+                      delTesting
+                      prtLn $ "passed " ++ show sz ++ " tests."
+                      rPutStrLn "Q.E.D."
+                  }
+            prt testingMsg
+            report <- runTests testSpec vss
+            return [report]
 
-       n -> case TestR.testableType ty of
+       Just (sz,_) -> case TestR.testableType ty of
               Nothing   -> raise (TypeNotTestable ty)
-              Just gens ->
-                do rPutStrLn "Using random testing."
-                   prt testingMsg
-                   g <- io newTFGen
-                   ok <- go (TestR.runOneTest val gens) testNum 0 g
-                   when ok $
-                     case n of
-                       Just (valNum,_) ->
-                         do let valNumD = fromIntegral valNum :: Double
-                                percent = fromIntegral (testNum * 100)
-                                        / valNumD
-                                showValNum
-                                   | valNum > 2 ^ (20::Integer) =
-                                       "2^^" ++ show (round $ logBase 2 valNumD :: Integer)
-                                   | otherwise = show valNum
-                            rPutStrLn $ "Coverage: "
-                                         ++ showFFloat (Just 2) percent "% ("
-                                         ++ show testNum ++ " of "
-                                         ++ showValNum ++ " values)"
-                       Nothing -> return ()
+              Just gens -> do
+                rPutStrLn "Using random testing."
+                let testSpec = TestSpec {
+                        testFn = \sz' g -> io $ TestR.runOneTest val gens sz' g
+                      , testProp = str
+                      , testTotal = toInteger testNum
+                      , testPossible = sz
+                      , testRptProgress = ppProgress
+                      , testClrProgress = delProgress
+                      , testRptFailure = ppFailure
+                      , testRptSuccess = do
+                          delTesting
+                          prtLn $ "passed " ++ show testNum ++ " tests."
+                      }
+                prt testingMsg
+                g <- io newTFGen
+                report <- runTests testSpec g
+                when (isPass (reportResult report)) $ do
+                  let szD = fromIntegral sz :: Double
+                      percent = fromIntegral (testNum * 100) / szD
+                      showValNum
+                        | sz > 2 ^ (20::Integer) =
+                          "2^^" ++ show (lg2 sz)
+                        | otherwise = show sz
+                  rPutStrLn $ "Coverage: "
+                    ++ showFFloat (Just 2) percent "% ("
+                    ++ show testNum ++ " of "
+                    ++ showValNum ++ " values)"
+                return [report]
+       Nothing -> return []
 
   where
   testingMsg = "testing..."
 
   totProgressWidth = 4    -- 100%
+
+  lg2 :: Integer -> Integer
+  lg2 x | x >= 2^(1024::Int) = 1024 + lg2 (x `div` 2^(1024::Int))
+        | x == 0       = 0
+        | otherwise    = let valNumD = fromIntegral x :: Double
+                         in round $ logBase 2 valNumD :: Integer
 
   prt msg   = rPutStr msg >> io (hFlush stdout)
   prtLn msg = rPutStrLn msg >> io (hFlush stdout)
@@ -301,37 +359,23 @@ qcCmd qcMode str =
   delTesting  = del (length testingMsg)
   delProgress = del totProgressWidth
 
-  go _ totNum testNum _
-     | testNum >= totNum =
-         do delTesting
-            prtLn $ "passed " ++ show totNum ++ " tests."
-            return True
-
-  go doTest totNum testNum st =
-     do ppProgress testNum totNum
-        res <- io $ doTest (div (100 * (1 + testNum)) totNum) st
-        opts <- getPPValOpts
-        delProgress
-        case res of
-          (Test.Pass, st1) -> do delProgress
-                                 go doTest totNum (testNum + 1) st1
-          (failure, _g1) -> do
-            delTesting
-            case failure of
-              Test.FailFalse [] -> do
-                prtLn "FAILED"
-              Test.FailFalse vs -> do
-                prtLn "FAILED for the following inputs:"
-                mapM_ (rPrint . pp . E.WithBase opts) vs
-              Test.FailError err [] -> do
-                prtLn "ERROR"
-                rPrint (pp err)
-              Test.FailError err vs -> do
-                prtLn "ERROR for the following inputs:"
-                mapM_ (rPrint . pp . E.WithBase opts) vs
-                rPrint (pp err)
-              Test.Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
-            return False
+  ppFailure failure = do
+    delTesting
+    opts <- getPPValOpts
+    case failure of
+      FailFalse [] -> do
+        prtLn "FAILED"
+      FailFalse vs -> do
+        prtLn "FAILED for the following inputs:"
+        mapM_ (rPrint . pp . E.WithBase opts) vs
+      FailError err [] -> do
+        prtLn "ERROR"
+        rPrint (pp err)
+      FailError err vs -> do
+        prtLn "ERROR for the following inputs:"
+        mapM_ (rPrint . pp . E.WithBase opts) vs
+        rPrint (pp err)
+      Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
 
 satCmd, proveCmd :: String -> REPL ()
 satCmd = cmdProveSat True
@@ -343,14 +387,16 @@ proveCmd = cmdProveSat False
 -- design.
 cmdProveSat :: Bool -> String -> REPL ()
 cmdProveSat isSat "" =
-  do xs <- getPropertyNames
+  do (xs,disp) <- getPropertyNames
+     let nameStr x = show (fixNameDisp disp (pp x))
      if null xs
         then rPutStrLn "There are no properties in scope."
         else forM_ xs $ \x ->
-               do if isSat
-                     then rPutStr $ ":sat "   ++ x ++ "\n\t"
-                     else rPutStr $ ":prove " ++ x ++ "\n\t"
-                  cmdProveSat isSat x
+               do let str = nameStr x
+                  if isSat
+                     then rPutStr $ ":sat "   ++ str ++ "\n\t"
+                     else rPutStr $ ":prove " ++ str ++ "\n\t"
+                  cmdProveSat isSat str
 cmdProveSat isSat expr = do
   let cexStr | isSat = "satisfying assignment"
              | otherwise = "counterexample"
@@ -375,7 +421,7 @@ cmdProveSat isSat expr = do
             Just path -> io $ writeFile path smtlib
             Nothing -> rPutStr smtlib
     _ -> do
-      result <- onlineProveSat isSat expr proverName mfile
+      result <- onlineProveSat isSat expr mfile
       ppOpts <- getPPValOpts
       case result of
         Symbolic.EmptyResult         ->
@@ -383,7 +429,7 @@ cmdProveSat isSat expr = do
         Symbolic.ProverError msg     -> rPutStrLn msg
         Symbolic.ThmResult ts        -> do
           rPutStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
-          let (t, e) = mkSolverResult cexStr (not isSat) (Left ts)
+          (t, e) <- mkSolverResult cexStr (not isSat) (Left ts)
           bindItVariable t e
         Symbolic.AllSatResult tevss -> do
           let tess = map (map $ \(t,e,_) -> (t,e)) tevss
@@ -395,8 +441,8 @@ cmdProveSat isSat expr = do
                     doc = ppPrec 3 parseExpr
                 rPrint $ hsep (doc : docs) <+>
                   text (if isSat then "= True" else "= False")
-              resultRecs = map (mkSolverResult cexStr isSat . Right) tess
-              collectTes tes = (t, es)
+          resultRecs <- mapM (mkSolverResult cexStr isSat . Right) tess
+          let collectTes tes = (t, es)
                 where
                   (ts, es) = unzip tes
                   t = case nub ts of
@@ -415,12 +461,13 @@ cmdProveSat isSat expr = do
             (t, es ) -> bindItVariables t es
 
 onlineProveSat :: Bool
-               -> String -> String -> Maybe FilePath -> REPL Symbolic.ProverResult
-onlineProveSat isSat str proverName mfile = do
+               -> String -> Maybe FilePath -> REPL Symbolic.ProverResult
+onlineProveSat isSat str mfile = do
+  EnvString proverName <- getUser "prover"
   EnvBool verbose <- getUser "debug"
   satNum <- getUserSatNum
   parseExpr <- replParseExpr str
-  (expr, schema) <- replCheckExpr parseExpr
+  (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
   let cmd = Symbolic.ProverCommand {
           pcQueryType    = if isSat then SatQuery satNum else ProveQuery
@@ -437,7 +484,7 @@ offlineProveSat :: Bool -> String -> Maybe FilePath -> REPL (Either String Strin
 offlineProveSat isSat str mfile = do
   EnvBool verbose <- getUser "debug"
   parseExpr <- replParseExpr str
-  (expr, schema) <- replCheckExpr parseExpr
+  (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
   let cmd = Symbolic.ProverCommand {
           pcQueryType    = if isSat then SatQuery (SomeSat 0) else ProveQuery
@@ -450,32 +497,42 @@ offlineProveSat isSat str mfile = do
         }
   liftModuleCmd $ Symbolic.satProveOffline cmd
 
+rIdent :: M.Ident
+rIdent  = M.packIdent "result"
+
 -- | Make a type/expression pair that is suitable for binding to @it@
 -- after running @:sat@ or @:prove@
 mkSolverResult :: String
                -> Bool
                -> Either [T.Type] [(T.Type, T.Expr)]
-               -> (T.Type, T.Expr)
-mkSolverResult thing result earg = (rty, re)
+               -> REPL (T.Type, T.Expr)
+mkSolverResult thing result earg =
+  do prims <- getPrimMap
+     let addError t = (t, T.eError prims t ("no " ++ thing ++ " available"))
+
+         argF = case earg of
+                  Left ts   -> mkArgs (map addError ts)
+                  Right tes -> mkArgs tes
+
+         eTrue  = T.ePrim prims (M.packIdent "True")
+         eFalse = T.ePrim prims (M.packIdent "False")
+         resultE = if result then eTrue else eFalse
+
+         rty = T.TRec $ [(rIdent, T.tBit )] ++ map fst argF
+         re  = T.ERec $ [(rIdent, resultE)] ++ map snd argF
+
+     return (rty, re)
   where
-    rName = T.Name "result"
-    rty = T.TRec $ [(rName, T.tBit )] ++ map fst argF
-    re  = T.ERec $ [(rName, resultE)] ++ map snd argF
-    resultE = if result then T.eTrue else T.eFalse
-    mkArgs tes = reverse (go tes [] (1 :: Int))
-      where
-        go [] fs _ = fs
-        go ((t, e):tes') fs n = go tes' (((argName, t), (argName, e)):fs) (n+1)
-          where argName = T.Name ("arg" ++ show n)
-    argF = case earg of
-      Left ts -> mkArgs $ (map addError) ts
-        where addError t = (t, T.eError t ("no " ++ thing ++ " available"))
-      Right tes -> mkArgs tes
+  mkArgs tes = zipWith mkArg [1 :: Int ..] tes
+    where
+    mkArg n (t,e) =
+      let argName = M.packIdent ("arg" ++ show n)
+       in ((argName,t),(argName,e))
 
 specializeCmd :: String -> REPL ()
 specializeCmd str = do
   parseExpr <- replParseExpr str
-  (expr, schema) <- replCheckExpr parseExpr
+  (_, expr, schema) <- replCheckExpr parseExpr
   spexpr <- replSpecExpr expr
   rPutStrLn  "Expression type:"
   rPrint    $ pp schema
@@ -486,13 +543,49 @@ specializeCmd str = do
 
 typeOfCmd :: String -> REPL ()
 typeOfCmd str = do
-  expr      <- replParseExpr str
-  (def,sig) <- replCheckExpr expr
+
+  expr         <- replParseExpr str
+  (re,def,sig) <- replCheckExpr expr
 
   -- XXX need more warnings from the module system
   --io (mapM_ printWarning ws)
   whenDebug (rPutStrLn (dump def))
-  rPrint $ pp expr <+> text ":" <+> pp sig
+  (_,_,names) <- getFocusedEnv
+  rPrint $ runDoc names $ pp re <+> text ":" <+> pp sig
+
+readFileCmd :: FilePath -> REPL ()
+readFileCmd fp = do
+  bytes <- replReadFile fp (\err -> rPutStrLn (show err) >> return Nothing)
+  case bytes of
+      Nothing -> return ()
+      Just bs ->
+        do pm <- getPrimMap
+           let expr = T.eString pm (map (toEnum . fromIntegral) (BS.unpack bs))
+               ty   = T.tString (BS.length bs)
+           bindItVariable ty expr
+
+writeFileCmd :: FilePath -> String -> REPL ()
+writeFileCmd file str = do
+  expr         <- replParseExpr str
+  (val,ty)     <- replEvalExpr expr
+  if not (tIsByteSeq ty)
+   then rPrint $  "Cannot write expression of types other than [n][8]."
+              <+> "Type was: " <+> pp ty
+   else wf file =<< serializeValue val
+ where
+  wf fp bytes = replWriteFile fp bytes (rPutStrLn . show)
+  tIsByteSeq x = maybe False
+                       (tIsByte . snd)
+                       (T.tIsSeq x)
+  tIsByte    x = maybe False
+                       (\(n,b) -> T.tIsBit b && T.tIsNum n == Just 8)
+                       (T.tIsSeq x)
+  serializeValue (E.VSeq _ vs) =
+    return $ BS.pack $ map (serializeByte . E.fromVWord) vs
+  serializeValue _             =
+    panic "Cryptol.REPL.Command.writeFileCmd"
+      ["Impossible: Non-VSeq value of type [n][8]."]
+  serializeByte (E.BV _ v) = fromIntegral (v .&. 0xFF)
 
 reloadCmd :: REPL ()
 reloadCmd  = do
@@ -559,56 +652,61 @@ quitCmd  = stop
 
 browseCmd :: String -> REPL ()
 browseCmd pfx = do
-  browseTSyns pfx
-  browseNewtypes pfx
-  browseVars pfx
+  (iface,names,disp) <- getFocusedEnv
+  let (visibleTypes,visibleDecls) = M.visibleNames names
 
-browseTSyns :: String -> REPL ()
-browseTSyns pfx = do
-  tsyns <- getTSyns
-  let tsyns' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) tsyns
-  unless (Map.null tsyns') $ do
+      (visibleType,visibleDecl)
+        | null pfx  =
+          ((`Set.member` visibleTypes)
+          ,(`Set.member` visibleDecls))
+
+        | otherwise =
+          (\n -> n `Set.member` visibleTypes && pfx `isNamePrefix` n
+          ,\n -> n `Set.member` visibleDecls && pfx `isNamePrefix` n)
+
+  browseTSyns    visibleType iface disp
+  browseNewtypes visibleType iface disp
+  browseVars     visibleDecl iface disp
+
+browseTSyns :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
+browseTSyns isVisible M.IfaceDecls { .. } names = do
+  let tsyns = sortBy (M.cmpNameDisplay names `on` T.tsName)
+              [ ts | ts <- Map.elems ifTySyns, isVisible (T.tsName ts) ]
+  unless (null tsyns) $ do
     rPutStrLn "Type Synonyms"
     rPutStrLn "============="
-    let ppSyn (qn,T.TySyn _ ps cs ty) = pp (T.TySyn qn ps cs ty)
-    rPrint (nest 4 (vcat (map ppSyn (Map.toList tsyns'))))
+    rPrint (runDoc names (nest 4 (vcat (map pp tsyns))))
     rPutStrLn ""
 
-browseNewtypes :: String -> REPL ()
-browseNewtypes pfx = do
-  nts <- getNewtypes
-  let nts' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) nts
-  unless (Map.null nts') $ do
+browseNewtypes :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
+browseNewtypes isVisible M.IfaceDecls { .. } names = do
+  let nts = sortBy (M.cmpNameDisplay names `on` T.ntName)
+            [ nt | nt <- Map.elems ifNewtypes, isVisible (T.ntName nt) ]
+  unless (null nts) $ do
     rPutStrLn "Newtypes"
     rPutStrLn "========"
-    let ppNT (qn,nt) = T.ppNewtypeShort (nt { T.ntName = qn })
-    rPrint (nest 4 (vcat (map ppNT (Map.toList nts'))))
+    rPrint (runDoc names (nest 4 (vcat (map T.ppNewtypeShort nts))))
     rPutStrLn ""
 
-browseVars :: String -> REPL ()
-browseVars pfx = do
-  vars <- getVars
-  let allNames = vars
-          {- This shows the built-ins as well:
-             Map.union vars
-                  (Map.fromList [ (Name x,t) | (x,(_,t)) <- builtIns ]) -}
-      vars' = Map.filterWithKey (\k _ -> pfx `isNamePrefix` k) allNames
+browseVars :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
+browseVars isVisible M.IfaceDecls { .. } names = do
+  let vars = sortBy (M.cmpNameDisplay names `on` M.ifDeclName)
+             [ d | d <- Map.elems ifDecls, isVisible (M.ifDeclName d) ]
 
-      isProp p     = T.PragmaProperty `elem` (M.ifDeclPragmas p)
-      (props,syms) = Map.partition isProp vars'
+
+  let isProp p     = T.PragmaProperty `elem` (M.ifDeclPragmas p)
+      (props,syms) = partition isProp vars
 
   ppBlock "Properties" props
-  ppBlock "Symbols" syms
+  ppBlock "Symbols"    syms
 
   where
-  ppBlock name xs =
-    unless (Map.null xs) $ do
-      rPutStrLn name
-      rPutStrLn (replicate (length name) '=')
-      let step k d acc =
-              pp k <+> char ':' <+> pp (M.ifDeclSig d) : acc
-      rPrint (nest 4 (vcat (Map.foldrWithKey step [] xs)))
-      rPutStrLn ""
+  ppBlock name xs = unless (null xs) $
+    do rPutStrLn name
+       rPutStrLn (replicate (length name) '=')
+       let ppVar M.IfaceDecl { .. } = pp ifDeclName <+> char ':' <+> pp ifDeclSig
+       rPrint (runDoc names (nest 4 (vcat (map ppVar xs))))
+       rPutStrLn ""
 
 
 
@@ -628,6 +726,7 @@ setOptionCmd str
     ev <- tryGetUser k
     case ev of
       Just (EnvString s)   -> rPutStrLn (k ++ " = " ++ s)
+      Just (EnvProg p as)  -> rPutStrLn (k ++ " = " ++ intercalate " " (p:as))
       Just (EnvNum n)      -> rPutStrLn (k ++ " = " ++ show n)
       Just (EnvBool True)  -> rPutStrLn (k ++ " = on")
       Just (EnvBool False) -> rPutStrLn (k ++ " = off")
@@ -637,13 +736,37 @@ setOptionCmd str
                                    rPutStrLn ("Did you mean: `:set " ++ k1 ++ " =" ++ k2 ++ "`?")
 
 
+-- XXX at the moment, this can only look at declarations.
 helpCmd :: String -> REPL ()
 helpCmd cmd
-  | null cmd = mapM_ rPutStrLn (genHelp commandList)
-  | Just (ec,_) <- lookup cmd builtIns =
-                rPrint $ helpDoc ec
-  | otherwise = do rPutStrLn $ "// No documentation is available."
-                   typeOfCmd cmd
+  | null cmd  = mapM_ rPutStrLn (genHelp commandList)
+  | otherwise =
+    case parseHelpName cmd of
+      Just qname ->
+        do (env,rnEnv,nameEnv) <- getFocusedEnv
+           name <- liftModuleCmd (M.renameVar rnEnv qname)
+           case Map.lookup name (M.ifDecls env) of
+             Just M.IfaceDecl { .. } ->
+               do rPutStrLn ""
+
+                  let property
+                        | P.PragmaProperty `elem` ifDeclPragmas = text "property"
+                        | otherwise                             = empty
+                  rPrint $ runDoc nameEnv
+                         $ nest 4
+                         $ property
+                           <+> pp qname
+                           <+> colon
+                           <+> pp (ifDeclSig)
+
+                  case ifDeclDoc of
+                    Just str -> rPutStrLn ('\n' : str)
+                    Nothing  -> return ()
+
+             Nothing -> rPutStrLn "// No documentation is available."
+
+      Nothing ->
+           rPutStrLn ("Unable to parse name: " ++ cmd)
 
 
 runShellCmd :: String -> REPL ()
@@ -669,10 +792,13 @@ handleCtrlC  = rPutStrLn "Ctrl-C"
 
 -- Utilities -------------------------------------------------------------------
 
-isNamePrefix :: String -> P.QName -> Bool
-isNamePrefix pfx n = case n of
-  P.QName _ (P.Name _) -> pfx `isPrefixOf` pretty n
-  _                    -> False
+isNamePrefix :: String -> M.Name -> Bool
+isNamePrefix pfx =
+  let pfx' = ST.pack pfx
+   in \n -> case M.nameInfo n of
+              M.Declared _ -> pfx' `ST.isPrefixOf` M.identText (M.nameIdent n)
+              M.Parameter  -> False
+
 
 {-
 printWarning :: (Range,Warning) -> IO ()
@@ -688,14 +814,17 @@ replParse parse str = case parse str of
   Right a -> return a
   Left e  -> raise (ParseError e)
 
-replParseInput :: String -> REPL P.ReplInput
-replParseInput = replParse $ parseReplWith interactiveConfig
+replParseInput :: String -> REPL (P.ReplInput P.PName)
+replParseInput = replParse (parseReplWith interactiveConfig . T.pack)
 
-replParseExpr :: String -> REPL P.Expr
-replParseExpr = replParse $ parseExprWith interactiveConfig
+replParseExpr :: String -> REPL (P.Expr P.PName)
+replParseExpr = replParse (parseExprWith interactiveConfig . T.pack)
 
 interactiveConfig :: Config
 interactiveConfig = defaultConfig { cfgSource = "<interactive>" }
+
+getPrimMap :: REPL M.PrimMap
+getPrimMap  = liftModuleCmd M.getPrimMap
 
 liftModuleCmd :: M.ModuleCmd a -> REPL a
 liftModuleCmd cmd = moduleCmdResult =<< io . cmd =<< getModuleEnv
@@ -715,7 +844,7 @@ moduleCmdResult (res,ws0) = do
           ys -> Just (M.TypeCheckWarnings ys)
       filterDefaults w = Just w
 
-      isShadowWarn (M.SymbolShadowed _ _) = True
+      isShadowWarn (M.SymbolShadowed _ _ _) = True
 
       filterShadowing w | warnShadowing = Just w
       filterShadowing (M.RenamerWarnings xs) =
@@ -725,41 +854,46 @@ moduleCmdResult (res,ws0) = do
       filterShadowing w = Just w
 
   let ws = mapMaybe filterDefaults . mapMaybe filterShadowing $ ws0
-  mapM_ (rPrint . pp) ws
+  (_,_,names) <- getFocusedEnv
+  mapM_ (rPrint . runDoc names . pp) ws
   case res of
     Right (a,me') -> setModuleEnv me' >> return a
-    Left err      -> raise (ModuleSystemError err)
+    Left err      -> raise (ModuleSystemError names err)
 
-replCheckExpr :: P.Expr -> REPL (T.Expr,T.Schema)
+replCheckExpr :: P.Expr P.PName -> REPL (P.Expr M.Name,T.Expr,T.Schema)
 replCheckExpr e = liftModuleCmd $ M.checkExpr e
 
 -- | Check declarations as though they were defined at the top-level.
-replCheckDecls :: [P.Decl] -> REPL [T.DeclGroup]
+replCheckDecls :: [P.Decl P.PName] -> REPL [T.DeclGroup]
 replCheckDecls ds = do
-  npds <- liftModuleCmd $ M.noPat ds
-  denv <- getDynEnv
-  let dnames = M.namingEnv npds
-  ne' <- M.travNamingEnv uniqify dnames
-  let denv' = denv { M.deNames = ne' `M.shadowing` M.deNames denv }
-      undo exn = do
-        -- if typechecking fails, we want to revert changes to the
-        -- dynamic environment and reraise
-        setDynEnv denv
-        raise exn
-  setDynEnv denv'
-  let topDecls = [ P.Decl (P.TopLevel P.Public d) | d <- npds ]
-  catch (liftModuleCmd $ M.checkDecls topDecls) undo
+
+  -- check the decls
+  npds        <- liftModuleCmd (M.noPat ds)
+
+  let mkTop d = P.Decl P.TopLevel { P.tlExport = P.Public
+                                  , P.tlDoc    = Nothing
+                                  , P.tlValue  = d }
+  (names,ds') <- liftModuleCmd (M.checkDecls (map mkTop npds))
+
+  -- extend the naming env
+  denv        <- getDynEnv
+  setDynEnv denv { M.deNames = names `M.shadowing` M.deNames denv }
+
+  return ds'
 
 replSpecExpr :: T.Expr -> REPL T.Expr
 replSpecExpr e = liftModuleCmd $ S.specialize e
 
-replEvalExpr :: P.Expr -> REPL (E.Value, T.Type)
+replEvalExpr :: P.Expr P.PName -> REPL (E.Value, T.Type)
 replEvalExpr expr =
-  do (def,sig) <- replCheckExpr expr
+  do (_,def,sig) <- replCheckExpr expr
 
-     let range = fromMaybe emptyRange (getLoc expr)
+     me <- getModuleEnv
+     let cfg = M.meSolverConfig me
+     mbDef <- io $ CrySAT.withSolver cfg (\s -> defaultReplExpr s def sig)
+
      (def1,ty) <-
-        case defaultExpr range def sig of
+        case mbDef of
           Nothing -> raise (EvalPolyError sig)
           Just (tys,def1) ->
             do let nms = T.addTNames (T.sVars sig) IntMap.empty
@@ -777,26 +911,40 @@ replEvalExpr expr =
   warnDefault ns (x,t) =
         rPrint $ text "Assuming" <+> ppWithNames ns x <+> text "=" <+> pp t
 
+itIdent :: M.Ident
+itIdent  = M.packIdent "it"
+
+replWriteFile :: FilePath -> BS.ByteString -> (X.SomeException -> REPL ()) -> REPL ()
+replWriteFile fp bytes handler =
+ do x <- io $ X.catch (BS.writeFile fp bytes >> return Nothing) (return . Just)
+    maybe (return ()) handler x
+
+replReadFile :: FilePath -> (X.SomeException -> REPL (Maybe BS.ByteString)) -> REPL (Maybe BS.ByteString)
+replReadFile fp handler =
+ do x <- io $ X.catch (Right `fmap` BS.readFile fp) (\e -> return $ Left e)
+    either handler (return . Just) x
+
 -- | Creates a fresh binding of "it" to the expression given, and adds
 -- it to the current dynamic environment
 bindItVariable :: T.Type -> T.Expr -> REPL ()
 bindItVariable ty expr = do
-  let it = T.QName Nothing (P.Name "it")
-  freshIt <- uniqify it
-  let dg = T.NonRecursive decl
-      schema = T.Forall { T.sVars  = []
+  freshIt <- freshName itIdent
+  let schema = T.Forall { T.sVars  = []
                         , T.sProps = []
                         , T.sType  = ty
                         }
       decl = T.Decl { T.dName       = freshIt
                     , T.dSignature  = schema
-                    , T.dDefinition = expr
+                    , T.dDefinition = T.DExpr expr
                     , T.dPragmas    = []
+                    , T.dInfix      = False
+                    , T.dFixity     = Nothing
+                    , T.dDoc        = Nothing
                     }
-  liftModuleCmd (M.evalDecls [dg])
+  liftModuleCmd (M.evalDecls [T.NonRecursive decl])
   denv <- getDynEnv
-  let en = M.EFromBind (P.Located emptyRange freshIt)
-      nenv' = M.singletonE it en `M.shadowing` M.deNames denv
+  let nenv' = M.singletonE (P.UnQual itIdent) freshIt
+                           `M.shadowing` M.deNames denv
   setDynEnv $ denv { M.deNames = nenv' }
 
 -- | Creates a fresh binding of "it" to a finite sequence of
@@ -809,7 +957,7 @@ bindItVariables ty exprs = bindItVariable seqTy seqExpr
     seqTy = T.tSeq (T.tNum len) ty
     seqExpr = T.EList exprs ty
 
-replEvalDecl :: P.Decl -> REPL ()
+replEvalDecl :: P.Decl P.PName -> REPL ()
 replEvalDecl decl = do
   dgs <- replCheckDecls [decl]
   whenDebug (mapM_ (\dg -> (rPutStrLn (dump dg))) dgs)
@@ -889,7 +1037,10 @@ parseCommand findCmd line = do
       OptionArg   body -> Just (Command (body args'))
       ShellArg    body -> Just (Command (body args'))
       NoArg       body -> Just (Command  body)
-
+      FileExprArg body ->
+        case extractFilePath args' of
+           Just (fp,expr) -> Just (Command (expandHome fp >>= flip body expr))
+           Nothing        -> Nothing
     [] -> case uncons cmd of
       Just (':',_) -> Just (Unknown cmd)
       Just _       -> Just (Command (evalCmd line))
@@ -903,3 +1054,11 @@ parseCommand findCmd line = do
       '~' : c : more | isPathSeparator c -> do dir <- io getHomeDirectory
                                                return (dir </> more)
       _ -> return path
+
+  extractFilePath ipt =
+    let quoted q = (\(a,b) -> (a, drop 1 b)) . break (== q)
+    in case ipt of
+        ""        -> Nothing
+        '\'':rest -> Just $ quoted '\'' rest
+        '"':rest  -> Just $ quoted '"' rest
+        _         -> Just $ break isSpace ipt

@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -11,13 +11,6 @@ module Cryptol.TypeCheck.Solver.Utils where
 import Cryptol.TypeCheck.AST
 import Control.Monad(mplus,guard)
 import Data.Maybe(listToMaybe)
-
--- min (a,min(b,c)) -> [a,b,c]
-splitMins :: Type -> [Type]
-splitMins ty =
-  case tNoUser ty of
-    TCon (TF TCMin) [t1,t2] -> splitMins t1 ++ splitMins t2
-    _ -> [ty]
 
 
 

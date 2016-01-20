@@ -1,0 +1,4 @@
+
+// test that the unary operators parse correctly
+test1 = (~ (5 : [8]) + 2) == (~ (5 : [8])) + 2
+test2 = (- (5 : [8]) + 2) == (- (5 : [8])) + 2

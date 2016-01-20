@@ -1,0 +1,61 @@
+/*
+ * Copyright (c) 2013-2016 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+
+
+module CryptoBox where
+
+import Salsa20
+import Poly1305
+import CfrgCurves
+
+crypto_box : {msgBytes} (fin msgBytes, 2^^64 >= msgBytes + 32) => [msgBytes][8] -> [24][8] -> Public25519 -> Private25519 -> [msgBytes + 16][8]
+crypto_box m n pub priv = crypto_secretbox m k n
+ where
+  s          = Curve25519 priv pub
+  k          = HSalsa20_bytes `{r=20} s zero
+
+crypto_box_open : {msgBytes} (fin msgBytes, 2^^64 >= msgBytes + 32) => [msgBytes+16][8] -> [24][8] -> Public25519 -> Private25519 -> (Bit,[msgBytes][8])
+crypto_box_open box n pub priv = crypto_secretbox_open box k n
+ where
+  (tag,ct)  = splitAt `{16} box
+  s         = Curve25519 priv pub
+  k         = HSalsa20_bytes `{r=20} s zero
+
+crypto_secretbox : {msgBytes} (fin msgBytes, 2^^64 >= msgBytes + 32)
+                => [msgBytes][8] -> [32][8] -> [24][8] -> [msgBytes + 16][8]
+crypto_secretbox m k n = box
+ where
+  blob       = XSalsa20_encrypt `{r=20} k n ((zero : [32][8]) # m)
+  authKey    = join (take `{32} blob)
+  ciphertext = drop `{32} blob
+  authTag    = Poly1305 authKey ciphertext
+  box        = authTag # ciphertext
+
+crypto_secretbox_open : {msgBytes} (fin msgBytes, 2^^64 >= msgBytes + 32)
+                     => [msgBytes + 16][8] -> [32][8] -> [24][8] -> (Bit,[msgBytes][8])
+crypto_secretbox_open box k n = (valid,pt)
+ where
+  (tag,ct)  = splitAt `{16} box
+  blob      = XSalsa20_encrypt `{r=20} k n ((zero : [32][8]) # ct)
+  authKey   = join (take `{32} blob)
+  plaintext = drop blob                  : [msgBytes][8]
+  cTag      = Poly1305 authKey ct
+  valid     = cTag == tag
+  pt        = if valid then plaintext else zero
+
+property cat_in_a_box priv1 priv2 msg nonce = open == msg
+  where pub1 = Curve25519 priv1 basePoint25519
+        pub2 = Curve25519 priv2 basePoint25519
+        box  = crypto_box (msg : [100][8]) nonce pub2 priv1
+        open = (crypto_box_open box nonce pub1 priv2).1
+
+property hat_in_a_box k msg nonce = open == msg
+  where box  = crypto_secretbox (msg : [88][8]) k nonce
+        open = (crypto_secretbox_open box k nonce).1
+
+property crypto_box_kats = zero != [ katTest1 ]
+
+// KAT generated from sodium
+katTest1 = crypto_secretbox "hello" zero zero == split 0xc769f9d535dc338e99ac93440502c7ceae5bd79391

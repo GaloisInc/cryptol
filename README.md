@@ -1,6 +1,6 @@
 # Cryptol, version 2
 
-    This version of Cryptol is (C) 2013-2015 Galois, Inc., and
+    This version of Cryptol is (C) 2013-2016 Galois, Inc., and
     distributed under a standard, three-clause BSD license. Please see
     the file LICENSE, distributed with this software, for specific
     terms and conditions.
@@ -19,7 +19,7 @@ This release is an interpreter for version 2 of the Cryptol
 language. The interpreter includes a `:check` command, which tests
 predicates written in Cryptol against randomly-generated test vectors
 (in the style of
-[QuickCheck](http://hackage.haskell.org/package/QuickCheck). There is
+[QuickCheck](http://hackage.haskell.org/package/QuickCheck)). There is
 also a `:prove` command, which calls out to SMT solvers, such as
 Yices, Z3, or CVC4, to prove predicates for all possible inputs.
 
@@ -129,11 +129,10 @@ send email to <cryptol@galois.com>.
 
 ## Developers
 
-If you'd like to get involved with Cryptol development, see the list
-of
+If you'd like to get involved with Cryptol development, see the list of
 [low-hanging fruit](https://github.com/GaloisInc/cryptol/labels/low-hanging%20fruit). These
 are tasks which should be straightforward to implement. Make a
-fork of this GitHub repository and send along pull requests, and we'll
+fork of this GitHub repository, send along pull requests and we'll
 be happy to incorporate your changes.
 
 ### Repository Structure
@@ -154,6 +153,19 @@ be happy to incorporate your changes.
 
 The ICryptol notebook interface is now a
 [standalone project](https://github.com/GaloisInc/ICryptol).
+
+### Cryptol Server and pycryptol (Experimental)
+
+This package includes an executable in `/cryptol-server` that provides
+an interface to the Cryptol interpreter via JSON over
+ZeroMQ. Currently this is used to support the
+[`pycryptol`](http://pycryptol.readthedocs.org/en/latest/) library. It
+is part of this package because we intend to eventually make the
+console REPL a client of that server as well. The `cryptol-server`
+executable is included in any builds if the `CRYPTOL_SERVER`
+environment variable is non-empty when running `make`, for example:
+
+    CRYPTOL_SERVER=1 make dist
 
 # Where to Look Next
 

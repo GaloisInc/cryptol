@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -19,9 +19,8 @@ import Data.Ord(comparing)
 import Data.List(sortBy)
 import qualified Data.Set as Set
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative (Applicative(..))
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- | The most general unifier is a substitution and a set of constraints
 -- on bound variables.

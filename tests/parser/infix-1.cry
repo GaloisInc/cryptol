@@ -1,0 +1,9 @@
+
+infixl 4 ++
+infixl 5 **
+
+(++) : [8] -> [8] -> [8]
+x ++ y = x + y
+
+(**) : {a} (Arith a) => a -> a -> a
+x ** y = x * y

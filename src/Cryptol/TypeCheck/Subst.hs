@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -23,6 +23,7 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.TypeMap
 import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.Misc(anyJust)
 
 data Subst = S { suMap :: Map.Map TVar Type, suDefaulting :: !Bool }
                   deriving Show
@@ -57,9 +58,11 @@ substToList su | suDefaulting su = Nothing
 
 
 instance PP (WithNames Subst) where
-  ppPrec _ (WithNames s mp) = text "Substitution:" $$ nest 2
-                                (vcat $ map pp1 $ Map.toList $ suMap s)
+  ppPrec _ (WithNames s mp)
+    | null els  = text "(empty substitution)"
+    | otherwise = text "Substitution:" $$ nest 2 (vcat (map pp1 els))
     where pp1 (x,t) = ppWithNames mp x <+> text "=" <+> ppWithNames mp t
+          els       = Map.toList (suMap s)
 
 instance PP Subst where
   ppPrec n = ppWithNamesPrec IntMap.empty n
@@ -90,6 +93,27 @@ instance FVS Schema where
   fvs (Forall as ps t) =
       Set.difference (Set.union (fvs ps) (fvs t)) bound
     where bound = Set.fromList (map tpVar as)
+
+
+-- | Apply a substitution.  Returns `Nothing` if nothing changed.
+apSubstMaybe :: Subst -> Type -> Maybe Type
+apSubstMaybe su ty =
+  case ty of
+    TCon t ts     -> TCon t `fmap` anyJust (apSubstMaybe su) ts
+    TUser f ts t  -> do t1 <- apSubstMaybe su t
+                        return (TUser f (map (apSubst su) ts) t1)
+    TRec fs       -> TRec `fmap` anyJust fld fs
+      where fld (x,t) = do t1 <- apSubstMaybe su t
+                           return (x,t1)
+    TVar x ->
+      case Map.lookup x (suMap su) of
+        Just t -> Just $ if suDefaulting su
+                            then apSubst (defaultingSubst emptySubst) t
+                            else t
+        Nothing -> if suDefaulting su
+                    then Just (defaultFreeVar x)
+                    else Nothing
+
 
 
 
@@ -210,7 +234,6 @@ instance TVars Expr where
         ECast e t     -> ECast (go e) (apSubst su t)
 
         EVar {}       -> expr
-        ECon {}       -> expr
 
         ETuple es     -> ETuple (map go es)
         ERec fs       -> ERec [ (f, go e) | (f,e) <- fs ]
@@ -233,6 +256,10 @@ instance TVars Decl where
   apSubst su d          = d { dSignature  = apSubst su (dSignature d)
                             , dDefinition = apSubst su (dDefinition d)
                             }
+
+instance TVars DeclDef where
+  apSubst su (DExpr e) = DExpr (apSubst su e)
+  apSubst _  DPrim     = DPrim
 
 instance TVars Module where
   apSubst su m = m { mDecls = apSubst su (mDecls m) }

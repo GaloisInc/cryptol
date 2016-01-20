@@ -1,21 +1,24 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE DeriveGeneric #-}
+
 module Cryptol.Prims.Syntax
-  ( TFun(..)
-  , ECon(..)
-  , eBinOpPrec
-  , tBinOpPrec
-  , ppPrefix
+  ( TFun(..), tBinOpPrec, tfunNames
   ) where
 
+import           Cryptol.Parser.Name (PName,mkUnqual)
+import           Cryptol.Utils.Ident (packIdent,packInfix)
 import           Cryptol.Utils.PP
 import qualified Data.Map as Map
+
+import GHC.Generics (Generic)
+import Control.DeepSeq.Generics
 
 -- | Built-in types.
 data TFun
@@ -25,7 +28,6 @@ data TFun
   | TCMul                 -- ^ @ : Num -> Num -> Num @
   | TCDiv                 -- ^ @ : Num -> Num -> Num @
   | TCMod                 -- ^ @ : Num -> Num -> Num @
-  | TCLg2                 -- ^ @ : Num -> Num @
   | TCExp                 -- ^ @ : Num -> Num -> Num @
   | TCWidth               -- ^ @ : Num -> Num @
   | TCMin                 -- ^ @ : Num -> Num -> Num @
@@ -38,87 +40,40 @@ data TFun
   | TCLenFromThenTo       -- ^ @ : Num -> Num -> Num -> Num@
     -- Example: @[ 1, 5 .. 9 ] :: [lengthFromThenTo 1 5 9][b]@
 
-    deriving (Show, Eq, Ord, Bounded, Enum)
+    deriving (Show, Eq, Ord, Bounded, Enum, Generic)
 
+instance NFData TFun where rnf = genericRnf
 
-
--- | Built-in constants.
-data ECon
-
-  = ECTrue
-  | ECFalse
-
-  | ECDemote -- ^ Converts a numeric type into its corresponding value.
-
-  -- Arith
-  | ECPlus | ECMinus | ECMul | ECDiv | ECMod
-  | ECExp | ECLg2 | ECNeg
-
-  -- Cmp
-  | ECLt | ECGt | ECLtEq | ECGtEq | ECEq | ECNotEq
-  | ECFunEq | ECFunNotEq
-  | ECMin | ECMax
-
-  -- Logic
-  | ECAnd | ECOr | ECXor | ECCompl | ECZero
-  | ECShiftL | ECShiftR | ECRotL | ECRotR
-
-  -- Sequences
-  | ECCat  | ECSplitAt
-  | ECJoin | ECSplit
-  | ECReverse | ECTranspose
-
-  | ECAt | ECAtRange | ECAtBack | ECAtRangeBack
-
-  -- Static word sequences
-  | ECFromThen | ECFromTo | ECFromThenTo
-
-  -- Infinite word sequences
-  | ECInfFrom | ECInfFromThen
-
-  -- Run-time error
-  | ECError
-
-  -- Polynomials
-  | ECPMul | ECPDiv | ECPMod
-
-  -- Random values
-  | ECRandom
-    deriving (Eq,Ord,Show,Bounded,Enum)
-
-
-eBinOpPrec :: Map.Map ECon  (Assoc,Int)
-tBinOpPrec :: Map.Map TFun  (Assoc,Int)
-
-(eBinOpPrec, tBinOpPrec) = (mkMap e_table, mkMap t_table)
+tBinOpPrec :: Map.Map TFun (Assoc,Int)
+tBinOpPrec  = mkMap t_table
   where
-  mkMap t = Map.fromList [ (op,(a,n)) | ((a,ops),n) <- zip t [0..] , op <- ops ]
+  mkMap t = Map.fromList [ (op,(a,n)) | ((a,ops),n) <- zip t [1..] , op <- ops ]
 
   -- lowest to highest
-  e_table =
-    [ (LeftAssoc,  [ ECOr  ])
-    , (LeftAssoc,  [ ECXor ])
-    , (LeftAssoc,  [ ECAnd ])
-
-    , (NonAssoc,   [ ECEq, ECNotEq, ECFunEq, ECFunNotEq ])
-    , (NonAssoc,   [ ECLt, ECGt, ECLtEq, ECGtEq ])
-
-    , (RightAssoc, [ ECCat ])
-    , (LeftAssoc,  [ ECShiftL, ECShiftR, ECRotL, ECRotR ])
-
-    , (LeftAssoc,  [ ECPlus, ECMinus ])
-    , (LeftAssoc,  [ ECMul, ECDiv, ECMod ])
-    , (RightAssoc, [ ECExp ])
-
-    , (LeftAssoc,  [ ECAt, ECAtRange, ECAtBack, ECAtRangeBack ])
-    ]
-
   t_table =
     [ (LeftAssoc,   [ TCAdd, TCSub ])
     , (LeftAssoc,   [ TCMul, TCDiv, TCMod ])
     , (RightAssoc,  [ TCExp ])
     ]
 
+tfunNames :: Map.Map PName TFun
+tfunNames  = Map.fromList
+  [ tinfix  "+"                TCAdd
+  , tinfix  "-"                TCSub
+  , tinfix  "*"                TCMul
+  , tinfix  "/"                TCDiv
+  , tinfix  "%"                TCMod
+  , tinfix  "^^"               TCExp
+  , tprefix "width"            TCWidth
+  , tprefix "min"              TCMin
+  , tprefix "max"              TCMax
+  , tprefix "lengthFromThen"   TCLenFromThen
+  , tprefix "lengthFromThenTo" TCLenFromThenTo
+  ]
+  where
+
+  tprefix n p = (mkUnqual (packIdent n), p)
+  tinfix  n p = (mkUnqual (packInfix n), p)
 
 instance PP TFun where
   ppPrec _ tcon =
@@ -128,7 +83,6 @@ instance PP TFun where
       TCMul             -> text "*"
       TCDiv             -> text "/"
       TCMod             -> text "%"
-      TCLg2             -> text "lg2"
       TCExp             -> text "^^"
       TCWidth           -> text "width"
       TCMin             -> text "min"
@@ -136,71 +90,3 @@ instance PP TFun where
 
       TCLenFromThen     -> text "lengthFromThen"
       TCLenFromThenTo   -> text "lengthFromThenTo"
-
-
-
-instance PP ECon where
-  ppPrec _ con =
-    case con of
-      ECTrue        -> text "True"
-      ECFalse       -> text "False"
-      ECPlus        -> text "+"
-      ECMinus       -> text "-"
-      ECMul         -> text "*"
-      ECDiv         -> text "/"
-      ECMod         -> text "%"
-      ECExp         -> text "^^"
-      ECLg2         -> text "lg2"
-      ECNeg         -> text "-"
-      ECLt          -> text "<"
-      ECGt          -> text ">"
-      ECLtEq        -> text "<="
-      ECGtEq        -> text ">="
-      ECEq          -> text "=="
-      ECNotEq       -> text "!="
-      ECFunEq       -> text "==="
-      ECFunNotEq    -> text "!=="
-      ECAnd         -> text "&&"
-      ECOr          -> text "||"
-      ECXor         -> text "^"
-      ECCompl       -> text "~"
-      ECShiftL      -> text "<<"
-      ECShiftR      -> text ">>"
-      ECRotL        -> text "<<<"
-      ECRotR        -> text ">>>"
-      ECCat         -> text "#"
-      ECAt          -> text "@"
-      ECAtRange     -> text "@@"
-      ECAtBack      -> text "!"
-      ECAtRangeBack -> text "!!"
-      ECMin         -> text "min"
-      ECMax         -> text "max"
-
-      ECSplitAt     -> text "splitAt"
-      ECZero        -> text "zero"
-      ECJoin        -> text "join"
-      ECSplit       -> text "split"
-      ECReverse     -> text "reverse"
-      ECTranspose   -> text "transpose"
-
-      ECDemote      -> text "demote"
-
-      ECFromThen    -> text "fromThen"
-      ECFromTo      -> text "fromTo"
-      ECFromThenTo  -> text "fromThenTo"
-
-      ECInfFrom     -> text "infFrom"
-      ECInfFromThen -> text "infFromThen"
-
-      ECError       -> text "error"
-
-      ECPMul        -> text "pmult"
-      ECPDiv        -> text "pdiv"
-      ECPMod        -> text "pmod"
-
-      ECRandom      -> text "random"
-
-ppPrefix :: ECon -> Doc
-ppPrefix con = optParens (Map.member con eBinOpPrec) (pp con)
-
-

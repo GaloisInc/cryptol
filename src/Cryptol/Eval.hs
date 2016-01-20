@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -23,17 +23,16 @@ import Cryptol.Eval.Error
 import Cryptol.Eval.Env
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
+import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 import Cryptol.Prims.Eval
 
-import Data.List (transpose)
 import qualified Data.Map as Map
 
-#if __GLASGOW_HASKELL__ < 710
-import Data.Monoid (Monoid(..),mconcat)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- Expression Evaluation -------------------------------------------------------
 
@@ -42,8 +41,6 @@ moduleEnv m env = evalDecls (mDecls m) (evalNewtypes (mNewtypes m) env)
 
 evalExpr :: EvalEnv -> Expr -> Value
 evalExpr env expr = case expr of
-
-  ECon con -> evalECon con
 
   EList es ty -> VSeq (isTBit (evalType env ty)) (map (evalExpr env) es)
 
@@ -97,7 +94,7 @@ evalExpr env expr = case expr of
 
 -- Newtypes --------------------------------------------------------------------
 
-evalNewtypes :: Map.Map QName Newtype -> EvalEnv -> EvalEnv
+evalNewtypes :: Map.Map Name Newtype -> EvalEnv -> EvalEnv
 evalNewtypes nts env = Map.foldl (flip evalNewtype) env nts
 
 -- | Introduce the constructor function for a newtype.
@@ -123,7 +120,11 @@ evalDeclGroup dg env = env'
     NonRecursive d -> evalDecl env d env
 
 evalDecl :: ReadEnv -> Decl -> EvalEnv -> EvalEnv
-evalDecl renv d = bindVar (dName d) (evalExpr renv (dDefinition d))
+evalDecl renv d =
+  bindVar (dName d) $
+    case dDefinition d of
+      DPrim   -> evalPrim d
+      DExpr e -> evalExpr renv e
 
 
 -- Selectors -------------------------------------------------------------------
@@ -163,6 +164,71 @@ evalSel env e sel = case sel of
 
 
 
+-- List Comprehension Environments ---------------------------------------------
+
+-- | A variation of the ZipList type from Control.Applicative, with a
+-- separate constructor for pure values. This datatype is used to
+-- represent the list of values that each variable takes on within a
+-- list comprehension. The @Zip@ constructor is for bindings that take
+-- different values at different positions in the list, while the
+-- @Pure@ constructor is for bindings originating outside the list
+-- comprehension, which have the same value for all list positions.
+data ZList a = Pure a | Zip [a]
+
+getZList :: ZList a -> [a]
+getZList (Pure x) = repeat x
+getZList (Zip xs) = xs
+
+instance Functor ZList where
+  fmap f (Pure x) = Pure (f x)
+  fmap f (Zip xs) = Zip (map f xs)
+
+instance Applicative ZList where
+  pure x = Pure x
+  Pure f <*> Pure x = Pure (f x)
+  Pure f <*> Zip xs = Zip (map f xs)
+  Zip fs <*> Pure x = Zip (map ($ x) fs)
+  Zip fs <*> Zip xs = Zip (zipWith ($) fs xs)
+
+-- | Evaluation environments for list comprehensions: Each variable
+-- name is bound to a list of values, one for each element in the list
+-- comprehension.
+data ListEnv = ListEnv
+  { leVars :: Map.Map Name (ZList Value)
+  , leTypes :: Map.Map TVar TValue
+  }
+
+instance Monoid ListEnv where
+  mempty = ListEnv
+    { leVars  = Map.empty
+    , leTypes = Map.empty
+    }
+
+  mappend l r = ListEnv
+    { leVars  = Map.union (leVars  l) (leVars  r)
+    , leTypes = Map.union (leTypes l) (leTypes r)
+    }
+
+toListEnv :: EvalEnv -> ListEnv
+toListEnv e =
+  ListEnv
+  { leVars = fmap Pure (envVars e)
+  , leTypes = envTypes e
+  }
+
+-- | Take parallel slices of the list environment. If some names are
+-- bound to longer lists of values (e.g. if they come from a different
+-- parallel branch of a comprehension) then the last elements will be
+-- dropped as the lists are zipped together.
+zipListEnv :: ListEnv -> [EvalEnv]
+zipListEnv (ListEnv vm tm) =
+  [ EvalEnv { envVars = v, envTypes = tm }
+  | v <- getZList (sequenceA vm) ]
+
+bindVarList :: Name -> [Value] -> ListEnv -> ListEnv
+bindVarList n vs lenv = lenv { leVars = Map.insert n (Zip vs) (leVars lenv) }
+
+
 -- List Comprehensions ---------------------------------------------------------
 
 -- | Evaluate a comprehension.
@@ -176,37 +242,35 @@ evalComp env seqty body ms
   -- XXX we could potentially print this as a number if the type was available.
   where
   -- generate a new environment for each iteration of each parallel branch
-  benvs = map (branchEnvs env) ms
-
-  -- take parallel slices of each environment.  when the length of the list
-  -- drops below the number of branches, one branch has terminated.
-  allBranches es = length es == length ms
-  slices         = takeWhile allBranches (transpose benvs)
+  benvs :: [ListEnv]
+  benvs = map (branchEnvs (toListEnv env)) ms
 
   -- join environments to produce environments at each step through the process.
-  envs = map mconcat slices
+  envs :: [EvalEnv]
+  envs = zipListEnv (mconcat benvs)
 
 -- | Turn a list of matches into the final environments for each iteration of
 -- the branch.
-branchEnvs :: ReadEnv -> [Match] -> [EvalEnv]
-branchEnvs env matches = case matches of
-
-  m:ms -> do
-    env' <- evalMatch env m
-    branchEnvs env' ms
-
-  [] -> return env
+branchEnvs :: ListEnv -> [Match] -> ListEnv
+branchEnvs env matches = foldl evalMatch env matches
 
 -- | Turn a match into the list of environments it represents.
-evalMatch :: EvalEnv -> Match -> [EvalEnv]
-evalMatch env m = case m of
+evalMatch :: ListEnv -> Match -> ListEnv
+evalMatch lenv m = case m of
 
   -- many envs
-  From n _ty expr -> do
-    e <- fromSeq (evalExpr env expr)
-    return (bindVar n e env)
+  From n _ty expr -> bindVarList n (concat vss) lenv'
+    where
+      vss = [ fromSeq (evalExpr env expr) | env <- zipListEnv lenv ]
+      stutter (Pure x) = Pure x
+      stutter (Zip xs) = Zip [ x | (x, vs) <- zip xs vss, _ <- vs ]
+      lenv' = lenv { leVars = fmap stutter (leVars lenv) }
 
   -- XXX we don't currently evaluate these as though they could be recursive, as
-  -- they are typechecked that way; the read environment to evalDecl is the same
+  -- they are typechecked that way; the read environment to evalExpr is the same
   -- as the environment to bind a new name in.
-  Let d -> [evalDecl env d env]
+  Let d -> bindVarList (dName d) (map f (zipListEnv lenv)) lenv
+    where f env =
+            case dDefinition d of
+              DPrim   -> evalPrim d
+              DExpr e -> evalExpr env e

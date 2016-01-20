@@ -197,7 +197,7 @@ sign.  Examples:
     ()                // A tuple with no components
 
     { x = 1, y = 2 }  // A record with two fields, `x` and `y`
-    {}                // A record with no fileds
+    {}                // A record with no fields
 
 The components of tuples are identified by position, while the
 components of records are identified by their label, and so the
@@ -224,16 +224,16 @@ record.  For example:
 
     type T = { sign :: Bit, number :: [15] }
 
-    // Valid defintion:
+    // Valid definition:
     // the type of the record is known.
     isPositive : T -> Bit
     isPositive x = x.sign
 
-    // Invalid defintion:
+    // Invalid definition:
     // insufficient type information.
     badDef x = x.f
 
-The components of a tuple or a record may also be access by using
+The components of a tuple or a record may also be accessed using
 pattern matching.  Patterns for tuples and records mirror the syntax
 for constructing values: tuple patterns use parenthesis, while record
 patterns use braces.  Examples:
@@ -242,12 +242,13 @@ patterns use braces.  Examples:
 
     distance2 { x = xPos, y = yPos } = xPos ^^ 2 + yPos ^^ 2
 
-    f x = fst + snd where
+    f p = x + y where
+        (x, y) = p
 
 Sequences
 =========
 
-A sequence is a fixed-length collection of element of the same type.
+A sequence is a fixed-length collection of elements of the same type.
 The type of a finite sequence of length `n`, with elements of type `a`
 is `[n] a`.  Often, a finite sequence of bits, `[n] Bit`, is called a
 _word_.  We may abbreviate the type `[n] Bit` as `[n]`.  An infinite
@@ -306,8 +307,11 @@ Explicit Type Instantiation
 If `f` is a polymorphic value with type:
 
     f : { tyParam }
+    f = zero
 
-    f `{ tyParam = t }
+you can evaluate `f`, passing it a type parameter:
+
+    f `{ tyParam = 13 }
 
 
 Demoting Numeric Types to Values
@@ -319,7 +323,7 @@ following notation:
     `{t}
 
 Here `t` should be a type expression with numeric kind.  The resulting
-expression is a finite word, which is sufficiently large to accomodate
+expression is a finite word, which is sufficiently large to accommodate
 the value of the type:
 
     `{t} :: {w >= width t}. [w]

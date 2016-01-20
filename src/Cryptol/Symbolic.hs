@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -11,6 +11,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Cryptol.Symbolic where
 
@@ -21,8 +22,9 @@ import qualified Control.Exception as X
 
 import qualified Data.SBV.Dynamic as SBV
 
-import qualified Cryptol.ModuleSystem as M
+import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
+import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
 
 import Cryptol.Symbolic.Prims
@@ -33,22 +35,12 @@ import qualified Cryptol.Eval.Type (evalType)
 import qualified Cryptol.Eval.Env (EvalEnv(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
+import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-import Data.Monoid (Monoid(..))
-import Data.Traversable (traverse)
-#endif
-
-#if MIN_VERSION_sbv(5,1,0)
-smtMode :: SBV.SMTLibVersion
-smtMode = SBV.SMTLib2
-#else
-smtMode :: Bool
-smtMode = True
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- External interface ----------------------------------------------------------
 
@@ -153,7 +145,7 @@ satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
         when pcVerbose $ M.io $
           putStrLn $ "Trying proof with " ++
                      intercalate ", " (map show provers)
-        (firstProver, res) <- M.io $ fn provers' e
+        (firstProver, res) <- M.io (fn provers' e)
         when pcVerbose $ M.io $
           putStrLn $ "Got result from " ++ show firstProver
         return (tag res)
@@ -167,6 +159,7 @@ satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
     Right ts -> do when pcVerbose $ M.io $ putStrLn "Simulating..."
                    let env = evalDecls mempty extDgs
                    let v = evalExpr env pcExpr
+                   prims <- M.getPrimMap
                    results' <- runFn $ do
                                  args <- mapM tyFn ts
                                  b <- return $! fromVBit (foldl fromVFun v args)
@@ -183,7 +176,7 @@ satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
                            let Right (_, cws) = SBV.getModel result
                                (vs, _) = parseValues ts cws
                                sattys = unFinType <$> ts
-                               satexprs = zipWithM Eval.toExpr sattys vs
+                               satexprs = zipWithM (Eval.toExpr prims) sattys vs
                            in case zip3 sattys <$> satexprs <*> pure vs of
                              Nothing ->
                                panic "Cryptol.Symbolic.sat"
@@ -262,7 +255,7 @@ data FinType
     = FTBit
     | FTSeq Int FinType
     | FTTuple [FinType]
-    | FTRecord [(Name, FinType)]
+    | FTRecord [(Ident, FinType)]
 
 numType :: Type -> Maybe Int
 numType (TCon (TC (TCNum n)) [])
@@ -327,7 +320,7 @@ existsFinType ty =
 -- Simulation environment ------------------------------------------------------
 
 data Env = Env
-  { envVars :: Map.Map QName Value
+  { envVars :: Map.Map Name Value
   , envTypes :: Map.Map TVar TValue
   }
 
@@ -342,15 +335,12 @@ instance Monoid Env where
     , envTypes = Map.union (envTypes l) (envTypes r)
     }
 
-emptyEnv :: Env
-emptyEnv = mempty
-
 -- | Bind a variable in the evaluation environment.
-bindVar :: (QName, Value) -> Env -> Env
+bindVar :: (Name, Value) -> Env -> Env
 bindVar (n, thunk) env = env { envVars = Map.insert n thunk (envVars env) }
 
 -- | Lookup a variable in the environment.
-lookupVar :: QName -> Env -> Maybe Value
+lookupVar :: Name -> Env -> Maybe Value
 lookupVar n env = Map.lookup n (envVars env)
 
 -- | Bind a type variable of kind *.
@@ -366,7 +356,6 @@ lookupType p env = Map.lookup p (envTypes env)
 evalExpr :: Env -> Expr -> Value
 evalExpr env expr =
   case expr of
-    ECon econ         -> evalECon econ
     EList es ty       -> VSeq (tIsBit ty) (map eval es)
     ETuple es         -> VTuple (map eval es)
     ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
@@ -434,8 +423,12 @@ evalDeclGroup env dg =
                                          | (d, (qname, v)) <- zip ds bindings ]
                       in env'
 
-evalDecl :: Env -> Decl -> (QName, Value)
-evalDecl env d = (dName d, evalExpr env (dDefinition d))
+evalDecl :: Env -> Decl -> (Name, Value)
+evalDecl env d = (dName d, body)
+  where
+  body = case dDefinition d of
+           DExpr e -> evalExpr env e
+           DPrim   -> evalPrim d
 
 -- | Make a copy of the given value, building the spine based only on
 -- the type without forcing the value argument. This lets us avoid

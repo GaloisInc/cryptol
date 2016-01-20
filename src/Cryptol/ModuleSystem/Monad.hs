@@ -1,19 +1,21 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
 
 {-# LANGUAGE FlexibleContexts #-}
-
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.ModuleSystem.Monad where
 
 import           Cryptol.Eval.Env (EvalEnv)
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
-import           Cryptol.ModuleSystem.Renamer (RenamerError(),RenamerWarning())
+import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
+import           Cryptol.ModuleSystem.Renamer
+                     (RenamerError(),RenamerWarning(),NamingEnv)
 import qualified Cryptol.Parser     as Parser
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position (Located)
@@ -23,6 +25,7 @@ import qualified Cryptol.Parser.NoInclude as NoInc
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
 import           Cryptol.Parser.Position (Range)
+import           Cryptol.Utils.Ident (interactiveName)
 import           Cryptol.Utils.PP
 
 import Control.Exception (IOException)
@@ -30,16 +33,20 @@ import Data.Function (on)
 import Data.Maybe (isJust)
 import MonadLib
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative (Applicative(..))
-#endif
+import GHC.Generics (Generic)
+import Control.DeepSeq.Generics
+
+import Prelude ()
+import Prelude.Compat
 
 -- Errors ----------------------------------------------------------------------
 
 data ImportSource
   = FromModule P.ModName
   | FromImport (Located P.Import)
-    deriving (Show)
+    deriving (Show,Generic)
+
+instance NFData ImportSource where rnf = genericRnf
 
 instance Eq ImportSource where
   (==) = (==) `on` importedModule
@@ -81,6 +88,23 @@ data ModuleError
   | DuplicateModuleName P.ModName FilePath FilePath
     -- ^ Two modules loaded from different files have the same module name
     deriving (Show)
+
+instance NFData ModuleError where
+  rnf e = case e of
+    ModuleNotFound src path              -> src `deepseq` path `deepseq` ()
+    CantFindFile path                    -> path `deepseq` ()
+    OtherIOError path exn                -> path `deepseq` exn `seq` ()
+    ModuleParseError source err          -> source `deepseq` err `deepseq` ()
+    RecursiveModules mods                -> mods `deepseq` ()
+    RenamerErrors src errs               -> src `deepseq` errs `deepseq` ()
+    NoPatErrors src errs                 -> src `deepseq` errs `deepseq` ()
+    NoIncludeErrors src errs             -> src `deepseq` errs `deepseq` ()
+    TypeCheckingFailed src errs          -> src `deepseq` errs `deepseq` ()
+    ModuleNameMismatch expected found    ->
+      expected `deepseq` found `deepseq` ()
+    DuplicateModuleName name path1 path2 ->
+      name `deepseq` path1 `deepseq` path2 `deepseq` ()
+    OtherFailure x                       -> x `deepseq` ()
 
 instance PP ModuleError where
   ppPrec _ e = case e of
@@ -184,7 +208,9 @@ duplicateModuleName name path1 path2 =
 data ModuleWarning
   = TypeCheckWarnings [(Range,T.Warning)]
   | RenamerWarnings [RenamerWarning]
-    deriving (Show)
+    deriving (Show,Generic)
+
+instance NFData ModuleWarning where rnf = genericRnf
 
 instance PP ModuleWarning where
   ppPrec _ w = case w of
@@ -243,6 +269,13 @@ instance MonadT ModuleT where
   {-# INLINE lift #-}
   lift = ModuleT . lift . lift . lift . lift
 
+instance Monad m => FreshM (ModuleT m) where
+  liftSupply f = ModuleT $
+    do me <- get
+       let (a,s') = f (meSupply me)
+       set $! me { meSupply = s' }
+       return a
+
 runModuleT :: Monad m
            => ModuleEnv
            -> ModuleT m a
@@ -292,7 +325,7 @@ loadingModule  = loading . FromModule
 -- | Push an "interactive" context onto the loading stack.  A bit of a hack, as
 -- it uses a faked module name
 interactive :: ModuleM a -> ModuleM a
-interactive  = loadingModule (P.ModName ["<interactive>"])
+interactive  = loadingModule interactiveName
 
 loading :: ImportSource -> ModuleM a -> ModuleM a
 loading src m = ModuleT $ do
@@ -323,6 +356,9 @@ getIface mn = ModuleT $ do
 getNameSeeds :: ModuleM T.NameSeeds
 getNameSeeds  = ModuleT (meNameSeeds `fmap` get)
 
+getSupply :: ModuleM Supply
+getSupply  = ModuleT (meSupply `fmap` get)
+
 getMonoBinds :: ModuleM Bool
 getMonoBinds  = ModuleT (meMonoBinds `fmap` get)
 
@@ -335,6 +371,11 @@ setNameSeeds :: T.NameSeeds -> ModuleM ()
 setNameSeeds seeds = ModuleT $ do
   env <- get
   set $! env { meNameSeeds = seeds }
+
+setSupply :: Supply -> ModuleM ()
+setSupply supply = ModuleT $
+  do env <- get
+     set $! env { meSupply = supply }
 
 -- | Remove a module from the set of loaded module, by its path.
 unloadModule :: FilePath -> ModuleM ()
@@ -380,7 +421,7 @@ withPrependedSearchPath fps m = ModuleT $ do
   return x
 
 -- XXX improve error handling here
-getFocusedEnv :: ModuleM IfaceDecls
+getFocusedEnv :: ModuleM (IfaceDecls,NamingEnv,NameDisp)
 getFocusedEnv  = ModuleT (focusedEnv `fmap` get)
 
 getQualifiedEnv :: ModuleM IfaceDecls
@@ -393,3 +434,15 @@ setDynEnv :: DynamicEnv -> ModuleM ()
 setDynEnv denv = ModuleT $ do
   me <- get
   set $! me { meDynEnv = denv }
+
+setSolver :: T.SolverConfig -> ModuleM ()
+setSolver cfg = ModuleT $ do
+  me <- get
+  set $! me { meSolverConfig = cfg }
+
+getSolverConfig :: ModuleM T.SolverConfig
+getSolverConfig  = ModuleT $ do
+  me <- get
+  return (meSolverConfig me)
+
+

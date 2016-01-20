@@ -1,23 +1,20 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 module Cryptol.Prims.Eval where
 
-import Cryptol.Prims.Syntax (ECon(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),fromNat,genLog, nMul)
 import qualified Cryptol.Eval.Arch as Arch
@@ -26,182 +23,135 @@ import Cryptol.Eval.Type(evalTF)
 import Cryptol.Eval.Value
 import Cryptol.Testing.Random (randomValue)
 import Cryptol.Utils.Panic (panic)
+import Cryptol.ModuleSystem.Name (asPrim)
+import Cryptol.Utils.Ident (Ident,mkIdent)
 
 import Data.List (sortBy,transpose,genericTake,genericReplicate,genericSplitAt,genericIndex)
 import Data.Ord (comparing)
 import Data.Bits (Bits(..))
 
-import System.Random.TF (mkTFGen)
+import qualified Data.Map.Strict as Map
+import qualified Data.Text as T
 
-
--- Utilities -------------------------------------------------------------------
-
-#if __GLASGOW_HASKELL__ < 706
-noNum = panic "Cryptol.Prims.Eval"
-          [ "Num instance for Bool shouldn't be used." ]
-instance Num Bool where
-  _ + _         = noNum
-  _ * _         = noNum
-  _ - _         = noNum
-  negate _      = noNum
-  abs _         = noNum
-  signum _      = noNum
-  fromInteger _ = noNum
-#endif
-
-#if __GLASGOW_HASKELL__ < 708
-instance Bits Bool where
-  (.&.) = (&&)
-
-  (.|.) = (||)
-
-  xor = (/=)
-
-  complement = not
-
-  shift a 0 = a
-  shift _ _ = False
-
-  rotate a _ = a
-
-  bitSize _ = 1
-
-  isSigned _ = False
-
-  testBit a 1 = a
-  testBit _ _ = False
-
-  bit 0 = True
-  bit _ = False
-
-  popCount a = if a then 1 else 0
-#endif
-
+import System.Random.TF.Gen (seedTFGen)
 
 -- Primitives ------------------------------------------------------------------
 
-evalECon :: ECon -> Value
-evalECon ec = case ec of
+evalPrim :: Decl -> Value
+evalPrim Decl { dName = n, .. }
+  | Just prim <- asPrim n, Just val <- Map.lookup prim primTable = val
 
-  ECFalse       -> VBit False
-  ECTrue        -> VBit True
-  ECPlus        -> binary (arithBinary (liftBinArith (+)))
-  ECMinus       -> binary (arithBinary (liftBinArith (-)))
-  ECMul         -> binary (arithBinary (liftBinArith (*)))
-  ECDiv         -> binary (arithBinary (liftBinArith divWrap))
-  ECMod         -> binary (arithBinary (liftBinArith modWrap))
-  ECExp         -> binary (arithBinary modExp)
-  ECLg2         -> unary  (arithUnary lg2)
-  ECNeg         -> unary  (arithUnary negate)
-  ECLt          -> binary (cmpOrder (\o -> o == LT           ))
-  ECGt          -> binary (cmpOrder (\o -> o == GT           ))
-  ECLtEq        -> binary (cmpOrder (\o -> o == LT || o == EQ))
-  ECGtEq        -> binary (cmpOrder (\o -> o == GT || o == EQ))
-  ECEq          -> binary (cmpOrder (\o ->            o == EQ))
-  ECNotEq       -> binary (cmpOrder (\o ->            o /= EQ))
-  ECMin         -> binary (withOrder minV)
-  ECMax         -> binary (withOrder maxV)
-  ECAnd         -> binary (logicBinary (.&.))
-  ECOr          -> binary (logicBinary (.|.))
-  ECXor         -> binary (logicBinary xor)
-  ECCompl       -> unary  (logicUnary complement)
-  ECShiftL      -> logicShift shiftLW shiftLS
-  ECShiftR      -> logicShift shiftRW shiftRS
-  ECRotL        -> logicShift rotateLW rotateLS
-  ECRotR        -> logicShift rotateRW rotateRS
+evalPrim Decl { .. } =
+    panic "Eval" [ "Unimplemented primitive", show dName ]
 
-  ECDemote -> ecDemoteV
+primTable :: Map.Map Ident Value
+primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
+  [ ("+"          , binary (arithBinary (liftBinArith (+))))
+  , ("-"          , binary (arithBinary (liftBinArith (-))))
+  , ("*"          , binary (arithBinary (liftBinArith (*))))
+  , ("/"          , binary (arithBinary (liftBinArith divWrap)))
+  , ("%"          , binary (arithBinary (liftBinArith modWrap)))
+  , ("^^"         , binary (arithBinary modExp))
+  , ("lg2"        , unary  (arithUnary lg2))
+  , ("negate"     , unary  (arithUnary negate))
+  , ("<"          , binary (cmpOrder (\o -> o == LT           )))
+  , (">"          , binary (cmpOrder (\o -> o == GT           )))
+  , ("<="         , binary (cmpOrder (\o -> o == LT || o == EQ)))
+  , (">="         , binary (cmpOrder (\o -> o == GT || o == EQ)))
+  , ("=="         , binary (cmpOrder (\o ->            o == EQ)))
+  , ("!="         , binary (cmpOrder (\o ->            o /= EQ)))
+  , ("&&"         , binary (logicBinary (.&.)))
+  , ("||"         , binary (logicBinary (.|.)))
+  , ("^"          , binary (logicBinary xor))
+  , ("complement" , unary  (logicUnary complement))
+  , ("<<"         , logicShift shiftLW shiftLS)
+  , (">>"         , logicShift shiftRW shiftRS)
+  , ("<<<"        , logicShift rotateLW rotateLS)
+  , (">>>"        , logicShift rotateRW rotateRS)
+  , ("True"       , VBit True)
+  , ("False"      , VBit False)
 
-  ECCat -> tlam $ \ front ->
-           tlam $ \ back  ->
-           tlam $ \ elty  ->
-            lam  $ \ l     ->
-            lam  $ \ r     -> ccatV front back elty l r
+  , ("demote"     , ecDemoteV)
 
-  ECAt          -> indexPrimOne  indexFront
-  ECAtRange     -> indexPrimMany indexFrontRange
-  ECAtBack      -> indexPrimOne  indexBack
-  ECAtRangeBack -> indexPrimMany indexBackRange
+  , ("#"          , tlam $ \ front ->
+                    tlam $ \ back  ->
+                    tlam $ \ elty  ->
+                    lam  $ \ l     ->
+                    lam  $ \ r     -> ccatV front back elty l r)
 
-  ECFunEq    -> funCmp (== EQ)
-  ECFunNotEq -> funCmp (/= EQ)
+  , ("@"          , indexPrimOne  indexFront)
+  , ("@@"         , indexPrimMany indexFrontRange)
+  , ("!"          , indexPrimOne  indexBack)
+  , ("!!"         , indexPrimMany indexBackRange)
 
-  ECZero        -> tlam zeroV
+  , ("zero"       , tlam zeroV)
 
-  ECJoin -> tlam $ \ parts ->
-            tlam $ \ each  ->
-            tlam $ \ a     -> lam (joinV parts each a)
+  , ("join"       , tlam $ \ parts ->
+                    tlam $ \ each  ->
+                    tlam $ \ a     -> lam (joinV parts each a))
 
-  ECSplit -> ecSplitV
-  ECSplitAt -> tlam $ \ front ->
-               tlam $ \ back  ->
-               tlam $ \ a     -> lam (splitAtV front back a)
+  , ("split"      , ecSplitV)
 
-  ECFromThen   -> fromThenV
-  ECFromTo     -> fromToV
-  ECFromThenTo -> fromThenToV
+  , ("splitAt"    , tlam $ \ front ->
+                    tlam $ \ back  ->
+                    tlam $ \ a     -> lam (splitAtV front back a))
 
-  ECInfFrom    ->
-    tlam $ \(finTValue -> bits)  ->
-     lam $ \(fromWord  -> first) ->
-    toStream (map (word bits) [ first .. ])
+  , ("fromThen"   , fromThenV)
+  , ("fromTo"     , fromToV)
+  , ("fromThenTo" , fromThenToV)
 
-  ECInfFromThen ->
-    tlam $ \(finTValue -> bits)  ->
-     lam $ \(fromWord  -> first) ->
-     lam $ \(fromWord  -> next)  ->
-    toStream [ word bits n | n <- [ first, next .. ] ]
+  , ("infFrom"    , tlam $ \(finTValue -> bits)  ->
+                     lam $ \(fromWord  -> first) ->
+                    toStream (map (word bits) [ first .. ]))
 
-  ECError ->
-    tlam $ \_              ->
-    tlam $ \_              ->
-     lam $ \(fromStr -> s) -> cryUserError s
+  , ("infFromThen", tlam $ \(finTValue -> bits)  ->
+                     lam $ \(fromWord  -> first) ->
+                     lam $ \(fromWord  -> next)  ->
+                    toStream [ word bits n | n <- [ first, next .. ] ])
 
-  ECReverse ->
-    tlam $ \a ->
-    tlam $ \b ->
-     lam $ \(fromSeq -> xs) -> toSeq a b (reverse xs)
+  , ("error"      , tlam $ \_              ->
+                    tlam $ \_              ->
+                     lam $ \(fromStr -> s) -> cryUserError s)
 
-  ECTranspose ->
-    tlam $ \a ->
-    tlam $ \b ->
-    tlam $ \c ->
-     lam $ \((map fromSeq . fromSeq) -> xs) ->
-        case numTValue a of
-           Nat 0 ->
-             let val = toSeq a c []
-             in case numTValue b of
-                  Nat n -> toSeq b (tvSeq a c) $ genericReplicate n val
-                  Inf   -> VStream $ repeat val
-           _ -> toSeq b (tvSeq a c) $ map (toSeq a c) $ transpose xs
+  , ("reverse"    , tlam $ \a ->
+                    tlam $ \b ->
+                     lam $ \(fromSeq -> xs) -> toSeq a b (reverse xs))
 
-  ECPMul ->
-    tlam $ \(finTValue -> a) ->
-    tlam $ \(finTValue -> b) ->
-     lam $ \(fromWord  -> x) ->
-     lam $ \(fromWord  -> y) -> word (max 1 (a + b) - 1) (mul 0 x y b)
-     where
-     mul !res !_ !_ 0 = res
-     mul  res bs as n = mul (if even as then res else xor res bs)
-                            (bs `shiftL` 1) (as `shiftR` 1) (n-1)
+  , ("transpose"  , tlam $ \a ->
+                    tlam $ \b ->
+                    tlam $ \c ->
+                     lam $ \((map fromSeq . fromSeq) -> xs) ->
+                        case numTValue a of
+                           Nat 0 ->
+                             let val = toSeq a c []
+                             in case numTValue b of
+                                  Nat n -> toSeq b (tvSeq a c) $ genericReplicate n val
+                                  Inf   -> VStream $ repeat val
+                           _ -> toSeq b (tvSeq a c) $ map (toSeq a c) $ transpose xs)
 
-  ECPDiv ->
-    tlam $ \(fromInteger . finTValue -> a) ->
-    tlam $ \(fromInteger . finTValue -> b) ->
-     lam $ \(fromWord  -> x) ->
-     lam $ \(fromWord  -> y) -> word (toInteger a)
-                                     (fst (divModPoly x a y b))
+  , ("pmult"       ,
+    let mul !res !_ !_ 0 = res
+        mul  res bs as n = mul (if even as then res else xor res bs)
+                               (bs `shiftL` 1) (as `shiftR` 1) (n-1)
+     in tlam $ \(finTValue -> a) ->
+        tlam $ \(finTValue -> b) ->
+         lam $ \(fromWord  -> x) ->
+         lam $ \(fromWord  -> y) -> word (max 1 (a + b) - 1) (mul 0 x y b))
 
-  ECPMod ->
-    tlam $ \(fromInteger . finTValue -> a) ->
-    tlam $ \(fromInteger . finTValue -> b) ->
-     lam $ \(fromWord  -> x) ->
-     lam $ \(fromWord  -> y) -> word (toInteger b)
-                                     (snd (divModPoly x a y (b+1)))
+  , ("pdiv"        , tlam $ \(fromInteger . finTValue -> a) ->
+                     tlam $ \(fromInteger . finTValue -> b) ->
+                      lam $ \(fromWord  -> x) ->
+                      lam $ \(fromWord  -> y) -> word (toInteger a)
+                                                      (fst (divModPoly x a y b)))
 
-  ECRandom ->
-    tlam $ \a ->
-     lam $ \(fromWord -> x) -> randomV a x
+  , ("pmod"        , tlam $ \(fromInteger . finTValue -> a) ->
+                     tlam $ \(fromInteger . finTValue -> b) ->
+                      lam $ \(fromWord  -> x) ->
+                      lam $ \(fromWord  -> y) -> word (toInteger b)
+                                                      (snd (divModPoly x a y (b+1))))
+  , ("random"      , tlam $ \a ->
+                      lam $ \(fromWord -> x) -> randomV a x)
+  ]
 
 
 -- | Make a numeric constant.
@@ -481,15 +431,14 @@ splitAtV :: TValue -> TValue -> TValue -> Value -> Value
 splitAtV front back a val =
   case numTValue back of
 
-    -- remember that words are big-endian in cryptol, so the masked portion
-    -- needs to be first, assuming that we're on a little-endian machine.
-    Nat rightWidth | aBit ->
-      let i          = fromWord val
-       in VTuple [ word leftWidth (i `shiftR` fromInteger rightWidth)
-                 , word rightWidth i ]
+    -- Remember that words are big-endian in cryptol, so the first component
+    -- needs to be shifted, and the second component just needs to be masked.
+    Nat rightWidth | aBit, VWord (BV _ i) <- val ->
+          VTuple [ VWord (BV leftWidth (i `shiftR` fromInteger rightWidth))
+                 , VWord (mkBv rightWidth i) ]
 
     _ ->
-      let (ls,rs) = splitAt (fromInteger leftWidth) (fromSeq val)
+      let (ls,rs) = genericSplitAt leftWidth (fromSeq val)
        in VTuple [VSeq aBit ls, toSeq back a rs]
 
   where
@@ -527,6 +476,8 @@ finChunksOf parts each xs = let (as,bs) = genericSplitAt each xs
 
 
 ccatV :: TValue -> TValue -> TValue -> Value -> Value -> Value
+ccatV _front _back (isTBit -> True) (VWord (BV i x)) (VWord (BV j y)) =
+  VWord (BV (i + j) (shiftL x (fromInteger j) + y))
 ccatV front back elty l r =
   toSeq (evalTF TCAdd [front,back]) elty (fromSeq l ++ fromSeq r)
 
@@ -541,7 +492,8 @@ logicBinary op = loop
       case numTValue len of
 
          -- words or finite sequences
-         Nat w | isTBit aty -> VWord (mkBv w (op (fromWord l) (fromWord r)))
+         Nat w | isTBit aty -> VWord (BV w (op (fromWord l) (fromWord r)))
+                               -- We assume that bitwise ops do not need re-masking
                | otherwise -> VSeq False (zipWith (loop aty) (fromSeq l)
                                                              (fromSeq r))
 
@@ -595,8 +547,8 @@ logicUnary op = loop
 
 
 logicShift :: (Integer -> Integer -> Int -> Integer)
-              -- ^ the Integer value (argument 2) may contain junk bits, but the
-              -- Int (argument 3) will always be clean
+              -- ^ The function may assume its arguments are masked.
+              -- It is responsible for masking its result if needed.
            -> (TValue -> TValue -> [Value] -> Int -> [Value])
            -> Value
 logicShift opW opS
@@ -616,7 +568,7 @@ logicShift opW opS
 shiftLW :: Integer -> Integer -> Int -> Integer
 shiftLW w ival by
   | toInteger by >= w = 0
-  | otherwise         = shiftL ival by
+  | otherwise         = mask w (shiftL ival by)
 
 shiftLS :: TValue -> TValue -> [Value] -> Int -> [Value]
 shiftLS w ety vs by =
@@ -629,7 +581,7 @@ shiftLS w ety vs by =
 shiftRW :: Integer -> Integer -> Int -> Integer
 shiftRW w i by
   | toInteger by >= w = 0
-  | otherwise         = shiftR (mask w i) by
+  | otherwise         = shiftR i by
 
 shiftRS :: TValue -> TValue -> [Value] -> Int -> [Value]
 shiftRS w ety vs by =
@@ -642,7 +594,7 @@ shiftRS w ety vs by =
 -- XXX integer doesn't implement rotateL, as there's no bit bound
 rotateLW :: Integer -> Integer -> Int -> Integer
 rotateLW 0 i _  = i
-rotateLW w i by = (i `shiftL` b) .|. (mask w i `shiftR` (fromInteger w - b))
+rotateLW w i by = mask w $ (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
   where b = by `mod` fromInteger w
 
 
@@ -657,7 +609,7 @@ rotateLS w _ vs at =
 -- XXX integer doesn't implement rotateR, as there's no bit bound
 rotateRW :: Integer -> Integer -> Int -> Integer
 rotateRW 0 i _  = i
-rotateRW w i by = (mask w i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
+rotateRW w i by = mask w $ (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
   where b = by `mod` fromInteger w
 
 rotateRS :: TValue -> TValue -> [Value] -> Int -> [Value]
@@ -773,8 +725,12 @@ randomV :: TValue -> Integer -> Value
 randomV ty seed =
   case randomValue (tValTy ty) of
     Nothing -> zeroV ty
-    Just gen -> fst $ gen 100 $ mkTFGen (fromIntegral seed)
-
+    Just gen ->
+      -- unpack the seed into four Word64s
+      let mask64 = 0xFFFFFFFFFFFFFFFF
+          unpack s = fromIntegral (s .&. mask64) : unpack (s `shiftR` 64)
+          [a, b, c, d] = take 4 (unpack seed)
+      in fst $ gen 100 $ seedTFGen (a, b, c, d)
 
 -- Miscellaneous ---------------------------------------------------------------
 

@@ -1,0 +1,40 @@
+
+/**
+ * Test that doc strings work on signatures
+ */
+test1 : Bit
+test1 = True
+
+/**
+ * Test that doc strings work on value bindings
+ */
+test2 = True
+
+/**
+ * Test that doc strings work on function bindings
+ */
+test3 x = x
+
+/**
+ * Test that doc strings work on property declarations
+ */
+property test4 x = x
+
+/**
+ * Test that doc strings work on fixity declarations
+ */
+infixl 5 ++
+
+(++) : {a} a -> a -> a
+x ++ _ = x
+
+/**
+ * Test that doc strings are ignored on private declarations
+ */
+private test5 = ()
+
+
+/**
+ * Test that doc strings are ignored on type synonyms
+ */
+type Foo = ()

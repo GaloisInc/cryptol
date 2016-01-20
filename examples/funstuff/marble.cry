@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 Galois, Inc.
+ * Copyright (c) 2013-2016 Galois, Inc.
  * Distributed under the terms of the BSD3 license (see LICENSE file)
  */
 
@@ -12,7 +12,7 @@ type Board = [7][7]Bit
 all : {n} (fin n) => [n] -> Bit
 all xs = xs == ~zero
 
-popCount : {a,b} (fin a, b >= 1, b == (lg2 a)) => [a] -> [b]
+popCount : {a} (fin a, a >= 1) => [a] -> [width a]
 popCount bs = ic ! 0 where
     ic = [0] # [ if elt then prev + 1 else prev | elt <- bs | prev <- ic]
 

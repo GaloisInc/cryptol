@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -8,27 +8,33 @@
 
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Safe #-}
-
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE CPP #-}
 module Cryptol.Eval.Env where
 
 import Cryptol.Eval.Value
+import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.Utils.PP
 
 import qualified Data.Map as Map
 
-#if __GLASGOW_HASKELL__ < 710
-import           Data.Monoid (Monoid(..))
-#endif
+import GHC.Generics (Generic)
+import Control.DeepSeq.Generics
+
+import Prelude ()
+import Prelude.Compat
 
 -- Evaluation Environment ------------------------------------------------------
 
 type ReadEnv = EvalEnv
 
 data EvalEnv = EvalEnv
-  { envVars       :: Map.Map QName Value
+  { envVars       :: Map.Map Name Value
   , envTypes      :: Map.Map TVar TValue
-  }
+  } deriving (Generic)
+
+instance NFData EvalEnv where rnf = genericRnf
 
 instance Monoid EvalEnv where
   mempty = EvalEnv
@@ -50,11 +56,11 @@ emptyEnv :: EvalEnv
 emptyEnv  = mempty
 
 -- | Bind a variable in the evaluation environment.
-bindVar :: QName -> Value -> EvalEnv -> EvalEnv
+bindVar :: Name -> Value -> EvalEnv -> EvalEnv
 bindVar n val env = env { envVars = Map.insert n val (envVars env) }
 
 -- | Lookup a variable in the environment.
-lookupVar :: QName -> EvalEnv -> Maybe Value
+lookupVar :: Name -> EvalEnv -> Maybe Value
 lookupVar n env = Map.lookup n (envVars env)
 
 -- | Bind a type variable of kind *.

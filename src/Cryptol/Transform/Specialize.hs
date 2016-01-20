@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -15,24 +15,22 @@ import Cryptol.TypeCheck.Subst
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Monad as M
+import Cryptol.ModuleSystem.Name
 
-import Data.List (intercalate)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
 
-import MonadLib
+import MonadLib hiding (mapM)
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-import Data.Traversable (traverse)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- Specializer Monad -----------------------------------------------------------
 
--- | A QName should have an entry in the SpecCache iff it is
--- specializable. Each QName starts out with an empty TypesMap.
-type SpecCache = Map QName (Decl, TypesMap (QName, Maybe Decl))
+-- | A Name should have an entry in the SpecCache iff it is
+-- specializable. Each Name starts out with an empty TypesMap.
+type SpecCache = Map Name (Decl, TypesMap (Name, Maybe Decl))
 
 -- | The specializer monad.
 type SpecT m a = StateT SpecCache (M.ModuleT m) a
@@ -75,7 +73,6 @@ specialize expr modEnv = run $ do
 specializeExpr :: Expr -> SpecM Expr
 specializeExpr expr =
   case expr of
-    ECon _econ    -> pure expr
     EList es t    -> EList <$> traverse specializeExpr es <*> pure t
     ETuple es     -> ETuple <$> traverse specializeExpr es
     ERec fs       -> ERec <$> traverse (traverseSnd specializeExpr) fs
@@ -119,12 +116,14 @@ specializeMatch (Let decl)
 -- SpecCache state. Return the result along with the declarations and
 -- a table of names of specialized bindings.
 withDeclGroups :: [DeclGroup] -> SpecM a
-                  -> SpecM (a, [DeclGroup], Map QName (TypesMap QName))
+                  -> SpecM (a, [DeclGroup], Map Name (TypesMap Name))
 withDeclGroups dgs action = do
+  origCache <- getSpecCache
   let decls = concatMap groupDecls dgs
   let newCache = Map.fromList [ (dName d, (d, emptyTM)) | d <- decls ]
+  let savedCache = Map.intersection origCache newCache
   -- We assume that the names bound in dgs are disjoint from the other names in scope.
-  modifySpecCache (Map.union newCache)
+  setSpecCache (Map.union newCache origCache)
   result <- action
   -- Then reassemble the DeclGroups.
   let splitDecl :: Decl -> SpecM [Decl]
@@ -143,7 +142,7 @@ withDeclGroups dgs action = do
   newCache' <- flip Map.intersection newCache <$> getSpecCache
   let nameTable = fmap (fmap fst . snd) newCache'
   -- Remove local definitions from the cache.
-  modifySpecCache (flip Map.difference newCache)
+  modifySpecCache (Map.union savedCache . flip Map.difference newCache)
   return (result, dgs', nameTable)
 
 -- | Compute the specialization of `EWhere e dgs`. A decl within `dgs`
@@ -163,7 +162,7 @@ specializeEWhere e dgs = do
 -- versions of polymorphic decls that are referenced by the
 -- monomorphic bindings. We also return a map relating generated names
 -- to the names from the original declarations.
-specializeDeclGroups :: [DeclGroup] -> SpecM ([DeclGroup], Map QName (TypesMap QName))
+specializeDeclGroups :: [DeclGroup] -> SpecM ([DeclGroup], Map Name (TypesMap Name))
 specializeDeclGroups dgs = do
   let decls = concatMap groupDecls dgs
   let isMono s = null (sVars s) && null (sProps s)
@@ -187,7 +186,10 @@ specializeConst e0 = do
                  qname' <- freshName qname ts -- New type instance, record new name
                  sig' <- instantiateSchema ts n (dSignature decl)
                  modifySpecCache (Map.adjust (fmap (insertTM ts (qname', Nothing))) qname)
-                 rhs' <- specializeExpr =<< instantiateExpr ts n (dDefinition decl)
+                 rhs' <- case dDefinition decl of
+                           DExpr e -> do e' <- specializeExpr =<< instantiateExpr ts n e
+                                         return (DExpr e')
+                           DPrim   -> return DPrim
                  let decl' = decl { dName = qname', dSignature = sig', dDefinition = rhs' }
                  modifySpecCache (Map.adjust (fmap (insertTM ts (qname', Just decl'))) qname)
                  return (EVar qname')
@@ -220,88 +222,97 @@ destETAbs = go []
     go ts (ETAbs t e) = go (t : ts) e
     go ts e           = (ts, e)
 
--- Any top-level declarations in the current module can be found in the 
---  ModuleEnv's LoadedModules, and so we can count of freshName to avoid collisions with them.
--- Additionally, decls in 'where' clauses can only (currently) be parsed with unqualified names.
---  Any generated name for a specialized function will be qualified with the current @ModName@,
---  so genned names will not collide with local decls either.
-freshName :: QName -> [Type] -> SpecM QName
-freshName qn [] = return qn
-freshName (QName m name) tys = do
-  let name' = reifyName name tys
-  bNames <- matchingBoundNames m
-  let loop i = let nm = name' ++ "_" ++ show i
-                 in if nm `elem` bNames
-                      then loop $ i + 1
-                      else nm
-  let go = if name' `elem` bNames
-               then loop (1 :: Integer)
-               else name'
-  return $ QName m (Name go)
+-- Any top-level declarations in the current module can be found in the
+-- ModuleEnv's LoadedModules, and so we can count of freshName to avoid
+-- collisions with them.  Any generated name for a
+-- specialized function will be qualified with the current @ModName@, so genned
+-- names will not collide with local decls either.
+-- freshName :: Name -> [Type] -> SpecM Name
+-- freshName n [] = return n
+-- freshName (QName m name) tys = do
+--   let name' = reifyName name tys
+--   bNames <- matchingBoundNames m
+--   let loop i = let nm = name' ++ "_" ++ show i
+--                  in if nm `elem` bNames
+--                       then loop $ i + 1
+--                       else nm
+--   let go = if name' `elem` bNames
+--                then loop (1 :: Integer)
+--                else name'
+--   return $ QName m (mkName go)
 
-matchingBoundNames :: (Maybe ModName) -> SpecM [String]
-matchingBoundNames m = do
-  qns <- allPublicQNames <$> liftSpecT M.getModuleEnv
-  return [ n | QName m' (Name n) <- qns , m == m' ]
-
-reifyName :: Name -> [Type] -> String
-reifyName name tys = intercalate "_" (showName name : concatMap showT tys)
+-- | Freshen a name by giving it a new unique.
+freshName :: Name -> [Type] -> SpecM Name
+freshName n _ =
+  case nameInfo n of
+    Declared ns -> liftSupply (mkDeclared ns ident loc)
+    Parameter   -> liftSupply (mkParameter ident loc)
   where
-    tvInt (TVFree i _ _ _) = i
-    tvInt (TVBound i _) = i
-    showT typ =
-      case typ of
-        TCon tc ts  -> showTCon tc : concatMap showT ts
-        TUser _ _ t -> showT t
-        TVar tv     -> [ "a" ++ show (tvInt tv) ]
-        TRec tr     -> "rec" : concatMap showRecFld tr
-    showTCon tCon =
-      case tCon of
-        TC tc -> showTC tc
-        PC pc -> showPC pc
-        TF tf -> showTF tf
-    showPC pc =
-      case pc of
-        PEqual   -> "eq"
-        PNeq     -> "neq"
-        PGeq     -> "geq"
-        PFin     -> "fin"
-        PHas sel -> "sel_" ++ showSel sel
-        PArith   -> "arith"
-        PCmp     -> "cmp"
-    showTC tc =
-      case tc of
-        TCNum n     -> show n
-        TCInf       -> "inf"
-        TCBit       -> "bit"
-        TCSeq       -> "seq"
-        TCFun       -> "fun"
-        TCTuple n   -> "t" ++ show n
-        TCNewtype _ -> "user"
-    showSel sel = intercalate "_" $
-      case sel of
-        TupleSel  _ sig -> "tup"  : maybe [] ((:[]) . show) sig
-        RecordSel x sig -> "rec"  : showName x : map showName (maybe [] id sig)
-        ListSel   _ sig -> "list" : maybe [] ((:[]) . show) sig
-    showName nm = 
-      case nm of
-        Name s       -> s
-        NewName _ n -> "x" ++ show n
-    showTF tf =
-      case tf of
-        TCAdd           -> "add"
-        TCSub           -> "sub"
-        TCMul           -> "mul"
-        TCDiv           -> "div"
-        TCMod           -> "mod"
-        TCLg2           -> "lg2"
-        TCExp           -> "exp"
-        TCWidth         -> "width"
-        TCMin           -> "min"
-        TCMax           -> "max"
-        TCLenFromThen   -> "len_from_then"
-        TCLenFromThenTo -> "len_from_then_to"
-    showRecFld (nm,t) = showName nm : showT t
+  ident = nameIdent n
+  loc   = nameLoc n
+
+-- matchingBoundNames :: (Maybe ModName) -> SpecM [String]
+-- matchingBoundNames m = do
+--   qns <- allPublicNames <$> liftSpecT M.getModuleEnv
+--   return [ unpack n | QName m' (Name n) <- qns , m == m' ]
+
+-- reifyName :: Name -> [Type] -> String
+-- reifyName name tys = intercalate "_" (showName name : concatMap showT tys)
+--   where
+--     tvInt (TVFree i _ _ _) = i
+--     tvInt (TVBound i _) = i
+--     showT typ =
+--       case typ of
+--         TCon tc ts  -> showTCon tc : concatMap showT ts
+--         TUser _ _ t -> showT t
+--         TVar tv     -> [ "a" ++ show (tvInt tv) ]
+--         TRec tr     -> "rec" : concatMap showRecFld tr
+--     showTCon tCon =
+--       case tCon of
+--         TC tc -> showTC tc
+--         PC pc -> showPC pc
+--         TF tf -> showTF tf
+--     showPC pc =
+--       case pc of
+--         PEqual   -> "eq"
+--         PNeq     -> "neq"
+--         PGeq     -> "geq"
+--         PFin     -> "fin"
+--         PHas sel -> "sel_" ++ showSel sel
+--         PArith   -> "arith"
+--         PCmp     -> "cmp"
+--     showTC tc =
+--       case tc of
+--         TCNum n     -> show n
+--         TCInf       -> "inf"
+--         TCBit       -> "bit"
+--         TCSeq       -> "seq"
+--         TCFun       -> "fun"
+--         TCTuple n   -> "t" ++ show n
+--         TCNewtype _ -> "user"
+--     showSel sel = intercalate "_" $
+--       case sel of
+--         TupleSel  _ sig -> "tup"  : maybe [] ((:[]) . show) sig
+--         RecordSel x sig -> "rec"  : showName x : map showName (maybe [] id sig)
+--         ListSel   _ sig -> "list" : maybe [] ((:[]) . show) sig
+--     showName nm =
+--       case nm of
+--         Name s       -> unpack s
+--         NewName _ n -> "x" ++ show n
+--     showTF tf =
+--       case tf of
+--         TCAdd           -> "add"
+--         TCSub           -> "sub"
+--         TCMul           -> "mul"
+--         TCDiv           -> "div"
+--         TCMod           -> "mod"
+--         TCExp           -> "exp"
+--         TCWidth         -> "width"
+--         TCMin           -> "min"
+--         TCMax           -> "max"
+--         TCLenFromThen   -> "len_from_then"
+--         TCLenFromThenTo -> "len_from_then_to"
+--     showRecFld (nm,t) = showName nm : showT t
 
 
 
@@ -332,8 +343,8 @@ allLoadedModules =
     M.getLoadedModules
   . M.meLoadedModules
 
-allPublicQNames :: M.ModuleEnv -> [QName]
-allPublicQNames =
+allPublicNames :: M.ModuleEnv -> [Name]
+allPublicNames =
     concatMap
       ( Map.keys
       . M.ifDecls

@@ -1,0 +1,4 @@
+// fails for both b == a*a and b == width a, but works for exponential
+// constraints
+f : {a,b} (fin a, b >= 1, b == a*a) => [a] -> [b]
+f x = 1

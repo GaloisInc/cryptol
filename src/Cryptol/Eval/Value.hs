@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -11,22 +11,25 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Safe #-}
-
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Value where
 
 import qualified Cryptol.Eval.Arch as Arch
 import Cryptol.Eval.Error
-import Cryptol.Prims.Syntax (ECon(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
+import Cryptol.Utils.Ident (Ident,mkIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
 import Control.Monad (guard, zipWithM)
 import Data.List(genericTake)
 import Data.Bits (setBit,testBit,(.&.),shiftL)
+import qualified Data.Text as T
 import Numeric (showIntAtBase)
 
+import GHC.Generics (Generic)
+import Control.DeepSeq.Generics
 
 -- Utilities -------------------------------------------------------------------
 
@@ -47,7 +50,7 @@ isTTuple :: TValue -> Maybe (Int,[TValue])
 isTTuple (TValue (TCon (TC (TCTuple n)) ts)) = Just (n, map TValue ts)
 isTTuple _ = Nothing
 
-isTRec :: TValue -> Maybe [(Name, TValue)]
+isTRec :: TValue -> Maybe [(Ident, TValue)]
 isTRec (TValue (TRec fs)) = Just [ (x, TValue t) | (x,t) <- fs ]
 isTRec _ = Nothing
 
@@ -76,17 +79,19 @@ finTValue tval =
 
 -- Values ----------------------------------------------------------------------
 
-data BV = BV !Integer !Integer -- ^ width, value
-                               -- The value may contain junk bits
+-- | width, value
+-- Invariant: The value must be within the range 0 .. 2^width-1
+data BV = BV !Integer !Integer deriving (Generic)
+
+instance NFData BV where rnf = genericRnf
 
 -- | Smart constructor for 'BV's that checks for the width limit
 mkBv :: Integer -> Integer -> BV
-mkBv w i | w >= Arch.maxBigIntWidth = wordTooWide w
-         | otherwise = BV w i
+mkBv w i = BV w (mask w i)
 
 -- | Generic value type, parameterized by bit and word types.
 data GenValue b w
-  = VRecord [(Name, GenValue b w)]      -- @ { .. } @
+  = VRecord [(Ident, GenValue b w)]     -- @ { .. } @
   | VTuple [GenValue b w]               -- @ ( .. ) @
   | VBit b                              -- @ Bit    @
   | VSeq Bool [GenValue b w]            -- @ [n]a   @
@@ -96,12 +101,17 @@ data GenValue b w
   | VStream [GenValue b w]              -- @ [inf]a @
   | VFun (GenValue b w -> GenValue b w) -- functions
   | VPoly (TValue -> GenValue b w)      -- polymorphic values (kind *)
+  deriving (Generic)
+
+instance (NFData b, NFData w) => NFData (GenValue b w) where rnf = genericRnf
 
 type Value = GenValue Bool BV
 
 -- | An evaluated type.
 -- These types do not contain type variables, type synonyms, or type functions.
-newtype TValue = TValue { tValTy :: Type }
+newtype TValue = TValue { tValTy :: Type } deriving (Generic)
+
+instance NFData TValue where rnf = genericRnf
 
 instance Show TValue where
   showsPrec p (TValue v) = showsPrec p v
@@ -131,7 +141,7 @@ ppValue opts = loop
     VSeq isWord vals
        | isWord        -> ppWord opts (fromVWord val)
        | otherwise     -> ppWordSeq vals
-    VWord (BV w i)     -> ppWord opts (BV w (mask w i))
+    VWord (BV w i)     -> ppWord opts (BV w i)
     VStream vals       -> brackets $ fsep
                                    $ punctuate comma
                                    ( take (useInfLength opts) (map loop vals)
@@ -227,7 +237,7 @@ instance BitWord Bool BV where
 
 -- | Create a packed word of n bits.
 word :: Integer -> Integer -> Value
-word n i = VWord (mkBv n (mask n i))
+word n i = VWord (mkBv n i)
 
 lam :: (GenValue b w -> GenValue b w) -> GenValue b w
 lam  = VFun
@@ -292,7 +302,6 @@ fromStr :: Value -> String
 fromStr = map (toEnum . fromInteger . fromWord) . fromSeq
 
 -- | Extract a packed word.
--- Note that this does not clean-up any junk bits in the word.
 fromVWord :: BitWord b w => GenValue b w -> w
 fromVWord val = case val of
   VWord bv                -> bv -- this should always mask
@@ -308,9 +317,8 @@ vWordLen val = case val of
 
 -- | Turn a value into an integer represented by w bits.
 fromWord :: Value -> Integer
-fromWord val = mask w a
-  where
-  BV w a = fromVWord val
+fromWord val = a
+  where BV _ a = fromVWord val
 
 -- | Extract a function from a value.
 fromVFun :: GenValue b w -> (GenValue b w -> GenValue b w)
@@ -331,13 +339,13 @@ fromVTuple val = case val of
   _         -> evalPanic "fromVTuple" ["not a tuple"]
 
 -- | Extract a record from a value.
-fromVRecord :: GenValue b w -> [(Name, GenValue b w)]
+fromVRecord :: GenValue b w -> [(Ident, GenValue b w)]
 fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record"]
 
 -- | Lookup a field in a record.
-lookupRecord :: Name -> GenValue b w -> GenValue b w
+lookupRecord :: Ident -> GenValue b w -> GenValue b w
 lookupRecord f rec = case lookup f (fromVRecord rec) of
   Just val -> val
   Nothing  -> evalPanic "lookupRecord" ["malformed record"]
@@ -348,33 +356,38 @@ lookupRecord f rec = case lookup f (fromVRecord rec) of
 -- this value, if we can determine it.
 --
 -- XXX: View patterns would probably clean up this definition a lot.
-toExpr :: Type -> Value -> Maybe Expr
-toExpr ty val = case (ty, val) of
-  (TRec tfs, VRecord vfs) -> do
-    let fns = map fst vfs
-    guard (map fst tfs == fns)
-    fes <- zipWithM toExpr (map snd tfs) (map snd vfs)
-    return $ ERec (zip fns fes)
-  (TCon (TC (TCTuple tl)) ts, VTuple tvs) -> do
-    guard (tl == (length tvs))
-    ETuple `fmap` zipWithM toExpr ts tvs
-  (TCon (TC TCBit) [], VBit True ) -> return $ ECon ECTrue
-  (TCon (TC TCBit) [], VBit False) -> return $ ECon ECFalse
-  (TCon (TC TCSeq) [a,b], VSeq _ []) -> do
-    guard (a == tZero)
-    return $ EList [] b
-  (TCon (TC TCSeq) [a,b], VSeq _ svs) -> do
-    guard (a == tNum (length svs))
-    ses <- mapM (toExpr b) svs
-    return $ EList ses b
-  (TCon (TC TCSeq) [a,(TCon (TC TCBit) [])], VWord (BV w v)) -> do
-    guard (a == tNum w)
-    return $ ETApp (ETApp (ECon ECDemote) (tNum v)) (tNum w)
-  (_, VStream _) -> fail "cannot construct infinite expressions"
-  (_, VFun    _) -> fail "cannot convert function values to expressions"
-  (_, VPoly   _) -> fail "cannot convert polymorphic values to expressions"
-  _ -> panic "Cryptol.Eval.Value.toExpr"
-         ["type mismatch:"
-         , pretty ty
-         , render (ppValue defaultPPOpts val)
-         ]
+toExpr :: PrimMap -> Type -> Value -> Maybe Expr
+toExpr prims = go
+  where
+
+  prim n = ePrim prims (mkIdent (T.pack n))
+
+  go ty val = case (ty, val) of
+    (TRec tfs, VRecord vfs) -> do
+      let fns = map fst vfs
+      guard (map fst tfs == fns)
+      fes <- zipWithM go (map snd tfs) (map snd vfs)
+      return $ ERec (zip fns fes)
+    (TCon (TC (TCTuple tl)) ts, VTuple tvs) -> do
+      guard (tl == (length tvs))
+      ETuple `fmap` zipWithM go ts tvs
+    (TCon (TC TCBit) [], VBit True ) -> return (prim "True")
+    (TCon (TC TCBit) [], VBit False) -> return (prim "False")
+    (TCon (TC TCSeq) [a,b], VSeq _ []) -> do
+      guard (a == tZero)
+      return $ EList [] b
+    (TCon (TC TCSeq) [a,b], VSeq _ svs) -> do
+      guard (a == tNum (length svs))
+      ses <- mapM (go b) svs
+      return $ EList ses b
+    (TCon (TC TCSeq) [a,(TCon (TC TCBit) [])], VWord (BV w v)) -> do
+      guard (a == tNum w)
+      return $ ETApp (ETApp (prim "demote") (tNum v)) (tNum w)
+    (_, VStream _) -> fail "cannot construct infinite expressions"
+    (_, VFun    _) -> fail "cannot convert function values to expressions"
+    (_, VPoly   _) -> fail "cannot convert polymorphic values to expressions"
+    _ -> panic "Cryptol.Eval.Value.toExpr"
+           ["type mismatch:"
+           , pretty ty
+           , render (ppValue defaultPPOpts val)
+           ]

@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -9,7 +9,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
-
 module Main where
 
 import OptParser
@@ -34,9 +33,8 @@ import System.Environment (getArgs, getProgName, lookupEnv)
 import System.Exit (exitFailure)
 import System.FilePath (searchPathSeparator, splitSearchPath, takeDirectory)
 
-#if __GLASGOW_HASKELL__ < 710
-import Data.Monoid (mconcat)
-#endif
+import Prelude ()
+import Prelude.Compat
 
 data Options = Options
   { optLoad            :: [FilePath]

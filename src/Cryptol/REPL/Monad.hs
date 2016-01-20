@@ -1,15 +1,18 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cryptol.REPL.Monad (
     -- * REPL Monad
@@ -27,9 +30,10 @@ module Cryptol.REPL.Monad (
   , rethrowEvalError
 
     -- ** Environment
+  , getFocusedEnv
   , getModuleEnv, setModuleEnv
   , getDynEnv, setDynEnv
-  , uniqify
+  , uniqify, freshName
   , getTSyns, getNewtypes, getVars
   , whenDebug
   , getExprNames
@@ -37,7 +41,6 @@ module Cryptol.REPL.Monad (
   , getPropertyNames
   , LoadedModule(..), getLoadedMod, setLoadedMod
   , setSearchPath, prependSearchPath
-  , builtIns
   , getPrompt
   , shouldContinue
   , unlessBatch
@@ -67,25 +70,31 @@ module Cryptol.REPL.Monad (
 
 import Cryptol.REPL.Trie
 
-import Cryptol.Prims.Types(typeOf)
-import Cryptol.Prims.Syntax(ECon(..),ppPrefix)
 import Cryptol.Eval (EvalError)
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
+import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import Cryptol.Parser (ParseError,ppError)
 import Cryptol.Parser.NoInclude (IncludeError,ppIncludeError)
 import Cryptol.Parser.NoPat (Error)
+import Cryptol.Parser.Position (emptyRange)
 import qualified Cryptol.TypeCheck.AST as T
+import qualified Cryptol.TypeCheck as T
+import qualified Cryptol.Utils.Ident as I
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (proverNames, lookupProver, SatNum(..))
 
 import Control.Monad (ap,unless,when)
+import Control.Monad.Base
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Control
+import Data.Char (isSpace)
 import Data.IORef
-    (IORef,newIORef,readIORef,modifyIORef)
-import Data.List (intercalate, isPrefixOf)
+    (IORef,newIORef,readIORef,modifyIORef,atomicModifyIORef)
+import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
 import Data.Maybe (catMaybes)
 import Data.Typeable (Typeable)
 import System.Directory (findExecutable)
@@ -95,10 +104,8 @@ import Text.Read (readMaybe)
 
 import Data.SBV.Dynamic (sbvCheckSolverInstallation)
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative ((<$>), Applicative(..))
-import Data.Monoid (Monoid(..))
-#endif
+import Prelude ()
+import Prelude.Compat
 
 -- REPL Environment ------------------------------------------------------------
 
@@ -113,7 +120,6 @@ data RW = RW
   , eContinue    :: Bool
   , eIsBatch     :: Bool
   , eModuleEnv   :: M.ModuleEnv
-  , eNameSupply  :: Int
   , eUserEnv     :: UserEnv
   , ePutStr      :: String -> IO ()
   , eLetEnabled  :: Bool
@@ -129,7 +135,6 @@ defaultRW isBatch = do
     , eContinue    = True
     , eIsBatch     = isBatch
     , eModuleEnv   = env
-    , eNameSupply  = 0
     , eUserEnv     = mkUserEnv userOptions
     , ePutStr      = putStr
     , eLetEnabled  = True
@@ -172,6 +177,22 @@ instance Monad REPL where
     x <- unREPL m ref
     unREPL (f x) ref
 
+instance MonadIO REPL where
+  liftIO = io
+
+instance MonadBase IO REPL where
+  liftBase = liftIO
+
+instance MonadBaseControl IO REPL where
+  type StM REPL a = a
+  liftBaseWith f = REPL $ \ref ->
+    f $ \m -> unREPL m ref
+  restoreM x = return x
+
+instance M.FreshM REPL where
+  liftSupply f = modifyRW $ \ RW { .. } ->
+    let (a,s') = f (M.meSupply eModuleEnv)
+     in (RW { eModuleEnv = eModuleEnv { M.meSupply = s' }, .. },a)
 
 -- Exceptions ------------------------------------------------------------------
 
@@ -183,7 +204,7 @@ data REPLException
   | NoPatError [Error]
   | NoIncludeError [IncludeError]
   | EvalError EvalError
-  | ModuleSystemError M.ModuleError
+  | ModuleSystemError NameDisp M.ModuleError
   | EvalPolyError T.Schema
   | TypeNotTestable T.Type
     deriving (Show,Typeable)
@@ -203,7 +224,7 @@ instance PP REPLException where
                                   ]
     NoPatError es        -> vcat (map pp es)
     NoIncludeError es    -> vcat (map ppIncludeError es)
-    ModuleSystemError me -> pp me
+    ModuleSystemError ns me -> fixNameDisp ns (pp me)
     EvalError e          -> pp e
     EvalPolyError s      -> text "Cannot evaluate polymorphic value."
                          $$ text "Type:" <+> pp s
@@ -238,6 +259,9 @@ io m = REPL (\ _ -> m)
 
 getRW :: REPL RW
 getRW  = REPL readIORef
+
+modifyRW :: (RW -> (RW,a)) -> REPL a
+modifyRW f = REPL (\ ref -> atomicModifyIORef ref f)
 
 modifyRW_ :: (RW -> RW) -> REPL ()
 modifyRW_ f = REPL (\ ref -> modifyIORef ref f)
@@ -329,57 +353,56 @@ rPutStrLn str = rPutStr $ str ++ "\n"
 rPrint :: Show a => a -> REPL ()
 rPrint x = rPutStrLn (show x)
 
-builtIns :: [(String,(ECon,T.Schema))]
-builtIns = map mk [ minBound .. maxBound :: ECon ]
-  where mk x = (show (ppPrefix x), (x, typeOf x))
+getFocusedEnv :: REPL (M.IfaceDecls,M.NamingEnv,NameDisp)
+getFocusedEnv  = do
+  me <- getModuleEnv
+  -- dyNames is a NameEnv that removes the #Uniq prefix from interactively-bound
+  -- variables.
+  let (dyDecls,dyNames,dyDisp) = M.dynamicEnv me
+  let (fDecls,fNames,fDisp) = M.focusedEnv me
+  return ( dyDecls `mappend` fDecls
+         , dyNames `M.shadowing` fNames
+         , dyDisp `mappend` fDisp)
 
--- | Only meant for use with one of getVars or getTSyns.
-keepOne :: String -> [a] -> a
-keepOne src as = case as of
-  [a] -> a
-  _   -> panic ("REPL: " ++ src) ["name clash in interface file"]
+  -- -- the subtle part here is removing the #Uniq prefix from
+  -- -- interactively-bound variables, and also excluding any that are
+  -- -- shadowed and thus can no longer be referenced
+  -- let (fDecls,fNames,fDisp) = M.focusedEnv me
+  --     edecls = M.ifDecls dyDecls
+  --     -- is this QName something the user might actually type?
+  --     isShadowed (qn@(P.QName (Just (P.unModName -> ['#':_])) name), _) =
+  --         case Map.lookup localName neExprs of
+  --           Nothing -> False
+  --           Just uniqueNames -> isNamed uniqueNames
+  --       where localName = P.QName Nothing name
+  --             isNamed us = any (== qn) (map M.qname us)
+  --             neExprs = M.neExprs (M.deNames (M.meDynEnv me))
+  --     isShadowed _ = False
+  --     unqual ((P.QName _ name), ifds) = (P.QName Nothing name, ifds)
+  --     edecls' = Map.fromList
+  --             . map unqual
+  --             . filter isShadowed
+  --             $ Map.toList edecls
+  -- return (decls `mappend` mempty { M.ifDecls = edecls' }, names `mappend` dyNames)
 
-getVars :: REPL (Map.Map P.QName M.IfaceDecl)
+getVars :: REPL (Map.Map M.Name M.IfaceDecl)
 getVars  = do
-  me <- getModuleEnv
-  denv <- getDynEnv
-  -- the subtle part here is removing the #Uniq prefix from
-  -- interactively-bound variables, and also excluding any that are
-  -- shadowed and thus can no longer be referenced
-  let decls = M.focusedEnv me
-      edecls = M.ifDecls (M.deIfaceDecls denv)
-      -- is this QName something the user might actually type?
-      isShadowed (qn@(P.QName (Just (P.ModName ['#':_])) name), _) =
-          case Map.lookup localName neExprs of
-            Nothing -> False
-            Just uniqueNames -> isNamed uniqueNames
-        where localName = P.QName Nothing name
-              isNamed us = any (== qn) (map M.qname us)
-              neExprs = M.neExprs (M.deNames denv)
-      isShadowed _ = False
-      unqual ((P.QName _ name), ifds) = (P.QName Nothing name, ifds)
-      edecls' = Map.fromList
-              . map unqual
-              . filter isShadowed
-              $ Map.toList edecls
-  return (keepOne "getVars" `fmap` (M.ifDecls decls `mappend` edecls'))
+  (decls,_,_) <- getFocusedEnv
+  return (M.ifDecls decls)
 
-getTSyns :: REPL (Map.Map P.QName T.TySyn)
+getTSyns :: REPL (Map.Map M.Name T.TySyn)
 getTSyns  = do
-  me <- getModuleEnv
-  let decls = M.focusedEnv me
-  return (keepOne "getTSyns" `fmap` M.ifTySyns decls)
+  (decls,_,_) <- getFocusedEnv
+  return (M.ifTySyns decls)
 
-getNewtypes :: REPL (Map.Map P.QName T.Newtype)
+getNewtypes :: REPL (Map.Map M.Name T.Newtype)
 getNewtypes = do
-  me <- getModuleEnv
-  let decls = M.focusedEnv me
-  return (keepOne "getNewtypes" `fmap` M.ifNewtypes decls)
+  (decls,_,_) <- getFocusedEnv
+  return (M.ifNewtypes decls)
 
 -- | Get visible variable names.
 getExprNames :: REPL [String]
-getExprNames  = do as <- (map getName . Map.keys) `fmap` getVars
-                   return (map fst builtIns ++ as)
+getExprNames  = (map getName . Map.keys) `fmap` getVars
 
 -- | Get visible type signature names.
 getTypeNames :: REPL [String]
@@ -388,13 +411,20 @@ getTypeNames  =
      nts <- getNewtypes
      return $ map getName $ Map.keys tss ++ Map.keys nts
 
-getPropertyNames :: REPL [String]
+-- | Return a list of property names.
+--
+-- NOTE: we sort by displayed name here, but it would be just as easy to sort by
+-- the position in the file, using nameLoc.
+getPropertyNames :: REPL ([M.Name],NameDisp)
 getPropertyNames =
-  do xs <- getVars
-     return [ getName x | (x,d) <- Map.toList xs,
-                T.PragmaProperty `elem` M.ifDeclPragmas d ]
+  do (decls,_,names) <- getFocusedEnv
+     let xs = M.ifDecls decls
+         ps = sortBy (M.cmpNameDisplay names)
+            $ [ x | (x,d) <- Map.toList xs, T.PragmaProperty `elem` M.ifDeclPragmas d ]
 
-getName :: P.QName -> String
+     return (ps, names)
+
+getName :: M.Name -> String
 getName  = show . pp
 
 getModuleEnv :: REPL M.ModuleEnv
@@ -414,14 +444,32 @@ setDynEnv denv = do
 -- | Given an existing qualified name, prefix it with a
 -- relatively-unique string. We make it unique by prefixing with a
 -- character @#@ that is not lexically valid in a module name.
-uniqify :: P.QName -> REPL P.QName
-uniqify (P.QName Nothing name) = do
-  i <- eNameSupply `fmap` getRW
-  modifyRW_ (\rw -> rw { eNameSupply = i+1 })
-  let modname' = P.ModName [ '#' : ("Uniq_" ++ show i) ]
-  return (P.QName (Just modname') name)
-uniqify qn =
-  panic "[REPL] uniqify" ["tried to uniqify a qualified name: " ++ pretty qn]
+uniqify :: M.Name -> REPL M.Name
+
+uniqify name =
+  case M.nameInfo name of
+    M.Declared ns ->
+      M.liftSupply (M.mkDeclared ns (M.nameIdent name) (M.nameLoc name))
+
+    M.Parameter ->
+      panic "[REPL] uniqify" ["tried to uniqify a parameter: " ++ pretty name]
+
+
+-- uniqify (P.QName Nothing name) = do
+--   i <- eNameSupply `fmap` getRW
+--   modifyRW_ (\rw -> rw { eNameSupply = i+1 })
+--   let modname' = P.mkModName [ '#' : ("Uniq_" ++ show i) ]
+--   return (P.QName (Just modname') name)
+
+-- uniqify qn =
+--   panic "[REPL] uniqify" ["tried to uniqify a qualified name: " ++ pretty qn]
+
+
+-- | Generate a fresh name using the given index. The name will reside within
+-- the "<interactive>" namespace.
+freshName :: I.Ident -> REPL M.Name
+freshName i = M.liftSupply (M.mkDeclared I.interactiveName i emptyRange)
+
 
 -- User Environment Interaction ------------------------------------------------
 
@@ -430,6 +478,7 @@ type UserEnv = Map.Map String EnvVal
 
 data EnvVal
   = EnvString String
+  | EnvProg   String [String]
   | EnvNum    !Int
   | EnvBool   Bool
     deriving (Show)
@@ -455,6 +504,14 @@ setUser name val = case lookupTrie name userOptions of
                         Just err -> io (putStrLn err)
                         Nothing  -> writeEnv (EnvString val)
 
+    EnvProg _ _ ->
+      case splitOptArgs val of
+        prog:args -> do r <- io (optCheck opt (EnvProg prog args))
+                        case r of
+                          Just err -> io (putStrLn err)
+                          Nothing  -> writeEnv (EnvProg prog args)
+        []        -> io (putStrLn ("Failed to parse command for field, `" ++ name ++ "`"))
+
     EnvNum _ -> case reads val of
       [(x,_)] -> do r <- io (optCheck opt (EnvNum x))
                     case r of
@@ -475,6 +532,27 @@ setUser name val = case lookupTrie name userOptions of
     writeEnv ev =
       do optEff opt ev
          modifyRW_ (\rw -> rw { eUserEnv = Map.insert name ev (eUserEnv rw) })
+
+splitOptArgs :: String -> [String]
+splitOptArgs  = unfoldr (parse "")
+  where
+
+  parse acc (c:cs) | isQuote c       = quoted (c:acc) cs
+                   | not (isSpace c) = parse (c:acc) cs
+                   | otherwise       = result acc cs
+  parse acc []                       = result acc []
+
+  quoted acc (c:cs) | isQuote c      = parse  (c:acc) cs
+                    | otherwise      = quoted (c:acc) cs
+  quoted acc []                      = result acc []
+
+  result []  [] = Nothing
+  result []  cs = parse [] (dropWhile isSpace cs)
+  result acc cs = Just (reverse acc, dropWhile isSpace cs)
+
+  isQuote :: Char -> Bool
+  isQuote c = c `elem` ("'\"" :: String)
+
 
 -- | Get a user option, using Maybe for failure.
 tryGetUser :: String -> REPL (Maybe EnvVal)
@@ -540,6 +618,32 @@ userOptions  = mkOptionMap
     \case EnvBool b -> do me <- getModuleEnv
                           setModuleEnv me { M.meMonoBinds = b }
           _         -> return ()
+
+  , OptionDescr "tc-solver" (EnvProg "z3" [ "-smt2", "-in" ])
+    (const (return Nothing)) -- TODO: check for the program in the path
+    "The solver that will be used by the type checker" $
+    \case EnvProg prog args -> do me <- getModuleEnv
+                                  let cfg = M.meSolverConfig me
+                                  setModuleEnv me { M.meSolverConfig =
+                                                      cfg { T.solverPath = prog
+                                                          , T.solverArgs = args } }
+          _                 -> return ()
+
+  , OptionDescr "tc-debug" (EnvNum 0)
+    (const (return Nothing))
+    "Enable type-checker debugging output" $
+    \case EnvNum n -> do me <- getModuleEnv
+                         let cfg = M.meSolverConfig me
+                         setModuleEnv me { M.meSolverConfig = cfg{ T.solverVerbose = fromIntegral n } }
+          _        -> return ()
+  , OptionDescr "core-lint" (EnvBool False)
+    (const (return Nothing))
+    "Enable sanity checking of type-checker" $
+      let setIt x = do me <- getModuleEnv
+                       setModuleEnv me { M.meCoreLint = x }
+      in \case EnvBool True  -> setIt M.CoreLint
+               EnvBool False -> setIt M.NoCoreLint
+               _             -> return ()
   ]
 
 -- | Check the value to the `base` option.
@@ -625,3 +729,6 @@ z3exists = do
   case mPath of
     Nothing -> return (Just Z3NotFound)
     Just _  -> return Nothing
+
+
+

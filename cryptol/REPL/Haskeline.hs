@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -18,9 +18,9 @@ import           Cryptol.REPL.Trie
 import           Cryptol.Utils.PP
 
 import qualified Control.Exception as X
-import           Control.Monad (guard, when)
-import qualified Control.Monad.IO.Class as MTL
+import           Control.Monad (guard, join, when)
 import qualified Control.Monad.Trans.Class as MTL
+import           Control.Monad.Trans.Control
 import           Data.Char (isAlphaNum, isSpace)
 import           Data.Function (on)
 import           Data.List (isPrefixOf,nub,sortBy)
@@ -30,6 +30,9 @@ import           System.Directory ( doesFileExist
                                   , getHomeDirectory
                                   , getCurrentDirectory)
 import           System.FilePath ((</>))
+
+import           Prelude ()
+import           Prelude.Compat
 
 -- | Haskeline-specific repl implementation.
 repl :: Cryptolrc -> Maybe FilePath -> REPL () -> IO ()
@@ -133,15 +136,9 @@ data Cryptolrc =
 
 -- Utilities -------------------------------------------------------------------
 
-instance MTL.MonadIO REPL where
-  liftIO = io
-
 instance MonadException REPL where
-  controlIO branchIO = REPL $ \ ref -> do
-    runBody <- branchIO $ RunIO $ \ m -> do
-      a <- unREPL m ref
-      return (return a)
-    unREPL runBody ref
+  controlIO f = join $ liftBaseWith $ \f' ->
+    f $ RunIO $ \m -> restoreM <$> (f' m)
 
 -- Titles ----------------------------------------------------------------------
 
@@ -198,6 +195,7 @@ cmdArgument ct cursor@(l,_) = case ct of
   ShellArg _    -> completeFilename cursor
   OptionArg _   -> completeOption cursor
   NoArg       _ -> return (l,[])
+  FileExprArg _ -> completeExpr cursor
 
 -- | Complete a name from the expression environment.
 completeExpr :: CompletionFunc REPL

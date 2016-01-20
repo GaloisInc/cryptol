@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -10,14 +10,20 @@
 -- element, and various arithmetic operators on them.
 
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.TypeCheck.Solver.InfNat where
 
 import Data.Bits
 import Cryptol.Utils.Panic
 
+import Data.GenericTrie(TrieKey)
+import GHC.Generics(Generic)
+
 -- | Natural numbers with an infinity element
 data Nat' = Nat Integer | Inf
-            deriving (Show,Eq,Ord)
+            deriving (Show,Eq,Ord,Generic)
+
+instance TrieKey Nat'
 
 fromNat :: Nat' -> Maybe Integer
 fromNat n' =
@@ -25,12 +31,32 @@ fromNat n' =
     Nat i -> Just i
     _     -> Nothing
 
+--------------------------------------------------------------------------------
+
+nEq :: Maybe Nat' -> Maybe Nat' -> Bool
+nEq (Just x) (Just y) = x == y
+nEq _ _               = False
+
+nGt :: Maybe Nat' -> Maybe Nat' -> Bool
+nGt (Just x) (Just y) = x > y
+nGt _ _               = False
+
+nFin :: Maybe Nat' -> Bool
+nFin (Just x)         = x /= Inf
+nFin _                = False
+
+
+
+
+--------------------------------------------------------------------------------
+
+
 nAdd :: Nat' -> Nat' -> Nat'
 nAdd Inf _           = Inf
 nAdd _ Inf           = Inf
 nAdd (Nat x) (Nat y) = Nat (x + y)
 
-{-| Some algerbaic properties of interest:
+{-| Some algebraic properties of interest:
 
 > 1 * x = x
 > x * (y * z) = (x * y) * z
@@ -47,7 +73,7 @@ nMul _ Inf           = Inf
 nMul (Nat x) (Nat y) = Nat (x * y)
 
 
-{-| Some algeibraic properties of interest:
+{-| Some algebraic properties of interest:
 
 > x ^ 0        = 1
 > x ^ (n + 1)  = x * (x ^ n)
@@ -81,6 +107,11 @@ nSub (Nat x) (Nat y)
   | x >= y                    = Just (Nat (x - y))
 nSub _ _                      = Nothing
 
+
+-- XXX:
+-- Does it make sense to define:
+--   nDiv Inf (Nat x)  = Inf
+--   nMod Inf (Nat x)  = Nat 0
 
 {- | Rounds down.
 
@@ -122,23 +153,99 @@ nWidth Inf      = Inf
 nWidth (Nat n)  = Nat (widthInteger n)
 
 
+{- | @length ([ x, y .. ] : [_][w])@
+We don't check that the second element fits in `w` many bits as the
+second element may not be part of the list.
+For example, the length of @[ 0 .. ] : [_][0]@ is @nLenFromThen 0 1 0@,
+which should evaluate to 1. -}
+
+
+{- XXX: It would appear that the actual notation also requires `y` to fit in...
+It is not clear if that's a good idea.  Consider, for example,
+
+    [ 1, 4 .., 2 ]
+
+Cryptol infers that this list has one element, but it insists that the
+width of the elements be at least 3, to accommodate the 4.
+-}
 nLenFromThen :: Nat' -> Nat' -> Nat' -> Maybe Nat'
-nLenFromThen a@(Nat x) b@(Nat y) (Nat w)
-  | y > x = nLenFromThenTo a b (Nat (2^w - 1))
-  | y < x = nLenFromThenTo a b (Nat 0)
+nLenFromThen a@(Nat x) b@(Nat y) wi@(Nat w)
+  | wi < nWidth a = Nothing
+  | y > x         = nLenFromThenTo a b (Nat (2^w - 1))
+  | y < x         = nLenFromThenTo a b (Nat 0)
 
 nLenFromThen _ _ _ = Nothing
 
+-- | @length [ x, y .. z ]@
 nLenFromThenTo :: Nat' -> Nat' -> Nat' -> Maybe Nat'
 nLenFromThenTo (Nat x) (Nat y) (Nat z)
-  | step /= 0 = let len   = div dist step + 1
-                in Just $ Nat $ max 0 (if x > y then if z > x then 0 else len
-                                         else if z < x then 0 else len)
+  | step /= 0 = let len = div dist step + 1
+                in Just $ Nat $ if x > y
+                                  -- decreasing
+                                  then (if z > x then 0 else len)
+                                  -- increasing
+                                  else (if z < x then 0 else len)
   where
   step = abs (x - y)
   dist = abs (x - z)
 
 nLenFromThenTo _ _ _ = Nothing
+
+{- Note [Sequences of Length 0]
+
+  nLenFromThenTo x y z == 0
+    case 1: x > y  && z > x
+    case 2: x <= y && z < x
+
+  nLenFromThen x y w == 0
+    impossible
+-}
+
+{- Note [Sequences of Length 1]
+
+  `nLenFromThenTo x y z == 1`
+
+  dist < step && (x > y && z <= x   ||   y >= x && z >= x)
+
+  case 1: dist < step && x > y && z <= x
+  case 2: dist < step && y >= x && z >= x
+
+  case 1: if    `z <= x`,
+          then  `x - z >= 0`,
+          hence `dist = x - z`    (a)
+
+          if    `x > y`
+          then  `x - y` > 0
+          hence `step = x - y`    (b)
+
+          from (a) and (b):
+            `dist < step`
+            `x - z < x - y`
+            `-z < -y`
+            `z > y`
+
+  case 1 summary:  x >= z && z > y
+
+
+
+  case 2: if y >= x, then step = y - x   (a)
+          if z >= x, then dist = z - x   (b)
+
+          dist < step =
+          (z - x) < (y - x) =
+          (z < y)
+
+  case 2 summary: y > z, z >= x
+
+------------------------
+
+  `nLenFromThen x y w == 1`
+    | y > x         = nLenFromThenTo x y (Nat (2^w - 1))
+    | y < x         = nLenFromThenTo x y (Nat 0)
+
+    y >= 2^w, y > x
+
+-}
 
 
 --------------------------------------------------------------------------------
@@ -178,3 +285,34 @@ widthInteger x = go' 0 (if x < 0 then complement x else x)
     go' s n
       | n < bit 32 = go s n
       | otherwise  = let s' = s + 32 in s' `seq` go' s' (n `shiftR` 32)
+
+
+-- | Compute the exact root of a natural number.
+-- The second argument specifies which root we are computing.
+rootExact :: Integer -> Integer -> Maybe Integer
+rootExact x y = do (z,True) <- genRoot x y
+                   return z
+
+
+
+{- | Compute the the n-th root of a natural number, rounded down to
+the closest natural number.  The boolean indicates if the result
+is exact (i.e., True means no rounding was done, False means rounded down).
+The second argument specifies which root we are computing. -}
+genRoot :: Integer -> Integer -> Maybe (Integer, Bool)
+genRoot _  0    = Nothing
+genRoot x0 1    = Just (x0, True)
+genRoot x0 root = Just (search 0 (x0+1))
+  where
+  search from to = let x = from + div (to - from) 2
+                       a = x ^ root
+                   in case compare a x0 of
+                        EQ              -> (x, True)
+                        LT | x /= from  -> search x to
+                           | otherwise  -> (from, False)
+                        GT | x /= to    -> search from x
+                           | otherwise  -> (from, False)
+
+
+
+

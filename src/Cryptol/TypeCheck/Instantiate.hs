@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -8,10 +8,12 @@
 
 module Cryptol.TypeCheck.Instantiate (instantiateWith) where
 
+import Cryptol.ModuleSystem.Name (nameIdent)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Monad
 import Cryptol.TypeCheck.Subst (listSubst,apSubst)
 import Cryptol.Parser.Position (Located(..))
+import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
 
 import Data.Function (on)
@@ -21,7 +23,7 @@ import Data.Either(partitionEithers)
 import MonadLib
 
 
-instantiateWith :: Expr -> Schema -> [Located (Maybe QName,Type)]
+instantiateWith :: Expr -> Schema -> [Located (Maybe Ident,Type)]
                 -> InferM (Expr,Type)
 instantiateWith e s ts
   | null named      = instantiateWithPos e s positional
@@ -83,7 +85,7 @@ ECast (EProofApp (ETApp e t)) t1
   - there will be one `EProofApp` for each constraint on the schema;
   - there will be `ECast` if we had equality constraints from normalization.
 -}
-instantiateWithNames :: Expr -> Schema -> [Located (QName,Type)]
+instantiateWithNames :: Expr -> Schema -> [Located (Ident,Type)]
                      -> InferM (Expr,Type)
 instantiateWithNames e (Forall as ps t) xs =
   do sequence_ repeatedParams
@@ -95,7 +97,10 @@ instantiateWithNames e (Forall as ps t) xs =
   paramInst x     =
     do let v = tpVar x
            k = kindOf v
-           lkp name = find (\th -> fst (thing th) == name) xs
+
+           -- We just use nameIdent for comparison here, as all parameter names
+           -- should have a NameInfo of Parameter.
+           lkp name = find (\th -> fst (thing th) == nameIdent name) xs
            src r = text "type parameter" <+> (case tpName x of
                                                Just n -> quotes (pp n)
                                                Nothing -> empty)
@@ -124,12 +129,15 @@ instantiateWithNames e (Forall as ps t) xs =
   isRepeated _               = Nothing
 
 
+  paramIdents = [ nameIdent n | Just n <- map tpName as ]
+
   -- Errors from parameters that are defined, but do not exist in the schema.
   undefParams     = do x <- xs
                        let name = pName x
-                       guard (name `notElem` mapMaybe tpName as)
+                       guard (name `notElem` paramIdents)
                        return $ inRange (srcRange x)
-                              $ recordError $ UndefinedTypeParam name
+                              $ recordError
+                              $ UndefinedTypeParam x { thing = name }
 
   pName = fst . thing
 

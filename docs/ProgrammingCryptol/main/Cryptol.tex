@@ -77,7 +77,7 @@ without loss of continuity.}\end{minipage}}\end{center}}
 
 \newcommand{\sectionWithAnswers}[2]{%
 \AnswerBoxSectionMark{Section \arabic{chapter}.\arabic{section} #1 (p.\pageref{#2})}%
-\AnswerBoxExecute{\addcontentsline{toc}{section}{\texorpdfstring{\parbox{2.3em}{\arabic{chapter}.\arabic{section}\ }}{(\arabic{chapter}.\arabic{section})\ }#1}}%
+\AnswerBoxExecute{\addcontentsline{toc}{section}{\protect\texorpdfstring{\protect\parbox{2.3em}{\protect\arabic{chapter}.\arabic{section}\ }}{(\arabic{chapter}.\arabic{section})\ }#1}}%
 }
 
 \theoremstyle{definition}
@@ -109,7 +109,7 @@ without loss of continuity.}\end{minipage}}\end{center}}
 }
 \cfoot{}
 \fancyfoot[LE,RO]{\changefont{\textsf{\thepage}}}
-\fancyfoot[LO,RE]{\changefont{\textsf{\copyright\ 2010--2015, Galois, Inc.}}}
+\fancyfoot[LO,RE]{\changefont{\textsf{\copyright\ 2010--2016, Galois, Inc.}}}
 %% \fancyhead[LE]{\fancyplain{}{\textsf{\draftdate}}}
 %% \fancyhead[RO]{\fancyplain{}{\textsf{DO NOT DISTRIBUTE!}}}
 \fancyhead[RO,LE]{\fancyplain{}{}} %% outer

@@ -17,16 +17,19 @@ flag static
 executable cryptol-test-runner
   Main-is:             Main.hs
   build-depends:       base,
+                       base-compat,
                        containers,
                        process,
                        filepath,
                        directory,
                        HUnit,
                        test-framework,
-                       test-framework-hunit,
-                       regex-compat
+                       test-framework-hunit
   GHC-options:         -Wall -O2
   Default-language:    Haskell2010
+
+  if os(windows)
+     build-depends:    regex-compat
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread

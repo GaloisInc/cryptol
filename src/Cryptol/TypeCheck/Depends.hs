@@ -1,17 +1,18 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
 
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Cryptol.TypeCheck.Depends where
 
+import           Cryptol.ModuleSystem.Name (Name)
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position(Range, Located(..), thing)
-import           Cryptol.TypeCheck.AST(QName)
 import           Cryptol.Parser.Names (namesB, namesT)
 import           Cryptol.TypeCheck.Monad( InferM, recordError, getTVars
                                         , Error(..))
@@ -25,7 +26,7 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-data TyDecl = TS P.TySyn | NT P.Newtype
+data TyDecl = TS (P.TySyn Name) | NT (P.Newtype Name)
 
 -- | Check for duplicate and recursive type synonyms.
 -- Returns the type-synonyms in dependecy order.
@@ -43,7 +44,7 @@ orderTyDecls ts =
     , x { thing = (ty, Set.toList $
                        Set.difference
                          (Set.unions (map (namesT vs . P.value) fs))
-                         (Set.fromList (map P.tpQName as))
+                         (Set.fromList (map P.tpName as))
                   )
         }
     )
@@ -52,12 +53,12 @@ orderTyDecls ts =
         (thing x
         , x { thing = (ty, Set.toList $
                            Set.difference (namesT vs t)
-                                          (Set.fromList (map P.tpQName as)))
+                                          (Set.fromList (map P.tpName as)))
              }
         )
 
-  getN (TS (P.TySyn x _ _)) = x
-  getN (NT x)               = P.nName x
+  getN (TS (P.TySyn x _ _)) = thing x
+  getN (NT x)               = thing (P.nName x)
 
   check (AcyclicSCC x) = return [x]
 
@@ -72,18 +73,18 @@ orderTyDecls ts =
 
 
 -- | Associate type signatures with bindings and order bindings by dependency.
-orderBinds :: [P.Bind] -> [SCC P.Bind]
+orderBinds :: [P.Bind Name] -> [SCC (P.Bind Name)]
 orderBinds bs = mkScc [ (b, map thing defs, Set.toList uses)
                       | b <- bs
                       , let (defs,uses) = namesB b
                       ]
 
 class FromDecl d where
-  toBind    :: d -> Maybe P.Bind
+  toBind    :: d -> Maybe (P.Bind Name)
   toTyDecl  :: d -> Maybe TyDecl
   isTopDecl :: d -> Bool
 
-instance FromDecl P.TopDecl where
+instance FromDecl (P.TopDecl Name) where
   toBind (P.Decl x)         = toBind (P.tlValue x)
   toBind _                  = Nothing
 
@@ -93,7 +94,7 @@ instance FromDecl P.TopDecl where
 
   isTopDecl _               = True
 
-instance FromDecl P.Decl where
+instance FromDecl (P.Decl Name) where
   toBind (P.DLocated d _) = toBind d
   toBind (P.DBind b)      = return b
   toBind _                = Nothing
@@ -107,7 +108,7 @@ instance FromDecl P.Decl where
 {- | Given a list of declarations, annoted with (i) the names that they
 define, and (ii) the names that they use, we compute a list of strongly
 connected components of the declarations.  The SCCs are in dependency order. -}
-mkScc :: [(a,[QName],[QName])] -> [SCC a]
+mkScc :: [(a,[Name],[Name])] -> [SCC a]
 mkScc ents = stronglyConnComp $ zipWith mkGr keys ents
   where
   keys                    = [ 0 :: Integer .. ]
@@ -120,7 +121,7 @@ mkScc ents = stronglyConnComp $ zipWith mkGr keys ents
 
 {- | Combine a bunch of definitions into a single map.  Here we check
 that each name is defined only onces. -}
-combineMaps :: [Map QName (Located a)] -> InferM (Map QName (Located a))
+combineMaps :: [Map Name (Located a)] -> InferM (Map Name (Located a))
 combineMaps ms  =
    do mapM_ recordError $
         do m <- ms
@@ -130,7 +131,7 @@ combineMaps ms  =
 
 {- | Combine a bunch of definitions into a single map.  Here we check
 that each name is defined only onces. -}
-combine :: [(QName, Located a)] -> InferM (Map QName (Located a))
+combine :: [(Name, Located a)] -> InferM (Map Name (Located a))
 combine m =
   do mapM_ recordError $
       do (x,rs) <- duplicates [ a { thing = x } | (x,a) <- m ]

@@ -1,15 +1,21 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE CPP #-}
+
+#ifndef MIN_VERSION_directory
+#define MIN_VERSION_directory(a,b,c) 0
+#endif
 
 module Cryptol.Parser.NoInclude
-  ( removeIncludes
-  , removeIncludesModule
+  ( removeIncludesModule
   , IncludeError(..), ppIncludeError
   ) where
 
@@ -18,25 +24,41 @@ import Cryptol.Parser.AST
 import Cryptol.Parser.LexerUtils (Config(..),defaultConfig)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Utils.PP
+import Cryptol.Parser.Unlit (guessPreProc)
 import qualified Control.Applicative as A
+import           Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy.IO as T
 
 import Data.Either (partitionEithers)
 import MonadLib
 import qualified Control.Exception as X
+import           System.FilePath (takeDirectory,(</>),isAbsolute)
 
+import GHC.Generics (Generic)
+import Control.DeepSeq.Generics
 
-removeIncludes :: Program -> IO (Either [IncludeError] Program)
-removeIncludes prog = runNoIncM (noIncludeProgram prog)
+import System.Directory (getCurrentDirectory)
+import System.FilePath (isRelative, normalise)
 
-removeIncludesModule :: Module -> IO (Either [IncludeError] Module)
-removeIncludesModule m = runNoIncM (noIncludeModule m)
+-- from the source of directory-1.2.2.1; included to maintain
+-- backwards compatibility
+makeAbsolute :: FilePath -> IO FilePath
+makeAbsolute = fmap normalise . absolutize
+  where absolutize path
+          | isRelative path = fmap (</> path) getCurrentDirectory
+          | otherwise       = return path
+
+removeIncludesModule :: FilePath -> Module PName -> IO (Either [IncludeError] (Module PName))
+removeIncludesModule modPath m = runNoIncM modPath (noIncludeModule m)
 
 
 data IncludeError
   = IncludeFailed (Located FilePath)
   | IncludeParseError ParseError
   | IncludeCycle [Located FilePath]
-    deriving (Show)
+    deriving (Show,Generic)
+
+instance NFData IncludeError where rnf = genericRnf
 
 ppIncludeError :: IncludeError -> Doc
 ppIncludeError ie = case ie of
@@ -53,13 +75,43 @@ ppIncludeError ie = case ie of
 
 
 newtype NoIncM a = M
-  { unM :: ReaderT [Located FilePath] (ExceptionT [IncludeError] IO) a }
+  { unM :: ReaderT Env (ExceptionT [IncludeError] IO) a }
 
-runNoIncM :: NoIncM a -> IO (Either [IncludeError] a)
-runNoIncM m = runM (unM m) []
+data Env = Env { envSeen    :: [Located FilePath]
+                 -- ^ Files that have been loaded
+               , envIncPath :: FilePath
+                 -- ^ The path that includes are relative to
+               }
+
+runNoIncM :: FilePath -> NoIncM a -> IO (Either [IncludeError] a)
+runNoIncM sourcePath m =
+  do incPath <- getIncPath sourcePath
+     runM (unM m) Env { envSeen = [], envIncPath = incPath }
 
 tryNoIncM :: NoIncM a -> NoIncM (Either [IncludeError] a)
 tryNoIncM m = M (try (unM m))
+
+-- | Get the absolute directory name of a file that contains cryptol source.
+getIncPath :: FilePath -> IO FilePath
+getIncPath file = makeAbsolute (takeDirectory file)
+
+-- | Run a 'NoIncM' action with a different include path.  The argument is
+-- expected to be the path of a file that contains cryptol source, and will be
+-- adjusted with getIncPath.
+withIncPath :: FilePath -> NoIncM a -> NoIncM a
+withIncPath path (M body) = M $
+  do incPath <- inBase (getIncPath path)
+     env     <- ask
+     local env { envIncPath = incPath } body
+
+-- | Adjust an included file with the current include path.
+fromIncPath :: FilePath -> NoIncM FilePath
+fromIncPath path
+  | isAbsolute path = return path
+  | otherwise       = M $
+    do Env { .. } <- ask
+       return (envIncPath </> path)
+
 
 instance Functor NoIncM where
   fmap = liftM
@@ -82,10 +134,10 @@ includeFailed path = M (raise [IncludeFailed path])
 -- raised.
 pushPath :: Located FilePath -> NoIncM a -> NoIncM a
 pushPath path m = M $ do
-  seen <- ask
+  Env { .. } <- ask
   let alreadyIncluded l = thing path == thing l
-  when (any alreadyIncluded seen) (raise [IncludeCycle seen])
-  local (path:seen) (unM m)
+  when (any alreadyIncluded envSeen) (raise [IncludeCycle envSeen])
+  local Env { envSeen = path:envSeen, .. } (unM m)
 
 -- | Lift an IO operation, with a way to handle the exception that it might
 -- throw.
@@ -107,19 +159,19 @@ collectErrors f ts = do
   return rs
 
 -- | Remove includes from a module.
-noIncludeModule :: Module -> NoIncM Module
+noIncludeModule :: Module PName -> NoIncM (Module PName)
 noIncludeModule m = update `fmap` collectErrors noIncTopDecl (mDecls m)
   where
   update tds = m { mDecls = concat tds }
 
 -- | Remove includes from a program.
-noIncludeProgram :: Program -> NoIncM Program
+noIncludeProgram :: Program PName -> NoIncM (Program PName)
 noIncludeProgram (Program tds) =
   (Program . concat) `fmap` collectErrors noIncTopDecl tds
 
 -- | Substitute top-level includes with the declarations from the files they
 -- reference.
-noIncTopDecl :: TopDecl -> NoIncM [TopDecl]
+noIncTopDecl :: TopDecl PName -> NoIncM [TopDecl PName]
 noIncTopDecl td = case td of
   Decl _     -> return [td]
   TDNewtype _-> return [td]
@@ -127,21 +179,22 @@ noIncTopDecl td = case td of
 
 -- | Resolve the file referenced by a include into a list of top-level
 -- declarations.
-resolveInclude :: Located FilePath -> NoIncM [TopDecl]
+resolveInclude :: Located FilePath -> NoIncM [TopDecl PName]
 resolveInclude lf = pushPath lf $ do
   source <- readInclude lf
-  case parseProgramWith (defaultConfig { cfgSource = thing lf }) source of
+  case parseProgramWith (defaultConfig { cfgSource = thing lf, cfgPreProc = guessPreProc (thing lf) }) source of
 
     Right prog -> do
-      Program ds <- noIncludeProgram prog
+      Program ds <- withIncPath (thing lf) (noIncludeProgram prog)
       return ds
 
     Left err -> M (raise [IncludeParseError err])
 
 -- | Read a file referenced by an include.
-readInclude :: Located FilePath -> NoIncM String
+readInclude :: Located FilePath -> NoIncM Text
 readInclude path = do
-  source <- readFile (thing path) `failsWith` handler
+  file   <- fromIncPath (thing path)
+  source <- T.readFile file `failsWith` handler
   return source
   where
   handler :: X.IOException -> NoIncM a

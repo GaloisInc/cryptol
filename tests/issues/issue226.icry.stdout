@@ -11,17 +11,79 @@ Type Synonyms
 
 Symbols
 =======
+    (!) : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b
+    (!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
+    (!=) : {a} (Cmp a) => a -> a -> Bit
+    (!==) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
+    (#) : {front, back,
+           a} (fin front) => [front]a -> [back]a -> [front + back]a
+    (%) : {a} (Arith a) => a -> a -> a
+    (&&) : {a} a -> a -> a
+    (*) : {a} (Arith a) => a -> a -> a
+    (+) : {a} (Arith a) => a -> a -> a
+    (-) : {a} (Arith a) => a -> a -> a
+    (/) : {a} (Arith a) => a -> a -> a
+    (<) : {a} (Cmp a) => a -> a -> Bit
+    (<<) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
+    (<<<) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
+    (<=) : {a} (Cmp a) => a -> a -> Bit
+    (==) : {a} (Cmp a) => a -> a -> Bit
+    (===) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
+    (>) : {a} (Cmp a) => a -> a -> Bit
+    (>=) : {a} (Cmp a) => a -> a -> Bit
+    (>>) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
+    (>>>) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
+    (@) : {a, b, c} (fin c) => [a]b -> [c] -> b
+    (@@) : {a, b, c, d} (fin d) => [a]b -> [c][d] -> [c]b
+    False : Bit
+    True : Bit
+    (^) : {a} a -> a -> a
+    (^^) : {a} (Arith a) => a -> a -> a
+    complement : {a} a -> a
+    demote : {val, bits} (fin val, fin bits,
+                          bits >= width val) => [bits]
     drop : {front, back, elem} (fin front) => [front +
                                                back]elem -> [back]elem
+    error : {at, len} (fin len) => [len][8] -> at
     foo : {a} a -> a
+    fromThen : {first, next, bits, len} (fin first, fin next, fin bits,
+                                         bits >= width first, bits >= width next,
+                                         lengthFromThen first next bits == len) => [len][bits]
+    fromThenTo : {first, next, last, bits, len} (fin first, fin next,
+                                                 fin last, fin bits, bits >= width first,
+                                                 bits >= width next, bits >= width last,
+                                                 lengthFromThenTo first next
+                                                                  last == len) => [len][bits]
+    fromTo : {first, last, bits} (fin last, fin bits, last >= first,
+                                  bits >= width last) => [1 + (last - first)][bits]
     groupBy : {each, parts, elem} (fin each) => [parts *
                                                  each]elem -> [parts][each]elem
+    infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
+    infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
+    join : {parts, each, a} (fin each) => [parts][each]a -> [parts *
+                                                             each]a
+    lg2 : {a} (Arith a) => a -> a
+    max : {a} (Cmp a) => a -> a -> a
+    min : {a} (Cmp a) => a -> a -> a
+    negate : {a} (Arith a) => a -> a
+    pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
+    pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
+    pmult : {a, b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
+    random : {a} [256] -> a
+    reverse : {a, b} (fin a) => [a]b -> [a]b
+    split : {parts, each, a} (fin each) => [parts *
+                                            each]a -> [parts][each]a
+    splitAt : {front, back, a} (fin front) => [front +
+                                               back]a -> ([front]a, [back]a)
     splitBy : {parts, each, elem} (fin each) => [parts *
                                                  each]elem -> [parts][each]elem
     tail : {a, b} [1 + a]b -> [a]b
     take : {front, back, elem} (fin front) => [front +
                                                back]elem -> [front]elem
+    transpose : {a, b, c} [a][b]c -> [b][a]c
     undefined : {a} a
     width : {bits, len, elem} (fin len, fin bits,
                                bits >= width len) => [len]elem -> [bits]
+    zero : {a} a
+    (||) : {a} a -> a -> a
 

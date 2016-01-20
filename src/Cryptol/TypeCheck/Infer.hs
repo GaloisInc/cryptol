@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -8,20 +8,14 @@
 --
 -- Assumes that the `NoPat` pass has been run.
 
-{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
-#if __GLASGOW_HASKELL__ >= 706
 {-# LANGUAGE RecursiveDo #-}
-#else
-{-# LANGUAGE DoRec, RecursiveDo #-}
-#endif
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Infer where
 
-import           Cryptol.Prims.Syntax(ECon(..))
-import           Cryptol.Prims.Types(typeOf)
+import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Parser.Names as P
@@ -33,10 +27,8 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,fvs,(@@))
-import           Cryptol.TypeCheck.Solver.FinOrd(noFacts,OrdFacts)
-import           Cryptol.TypeCheck.Solver.Eval(simpType)
 import           Cryptol.TypeCheck.Solver.InfNat(genLog)
-import           Cryptol.TypeCheck.Defaulting(tryDefault)
+import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.PP
 
@@ -52,7 +44,7 @@ import           Control.Monad(when,zipWithM)
 
 -- import Cryptol.Utils.Debug
 
-inferModule :: P.Module -> InferM Module
+inferModule :: P.Module Name -> InferM Module
 inferModule m =
   inferDs (P.mDecls m) $ \ds1 ->
     do simplifyAllConstraints
@@ -69,12 +61,20 @@ inferModule m =
   onlyLocal (IsLocal, x)    = Just x
   onlyLocal (IsExternal, _) = Nothing
 
-desugarLiteral :: Bool -> P.Literal -> InferM P.Expr
+
+-- | Construct a primitive in the parsed AST.
+mkPrim :: String -> InferM (P.Expr Name)
+mkPrim str =
+  do prims <- getPrimMap
+     return (P.EVar (lookupPrimDecl (packIdent str) prims))
+
+desugarLiteral :: Bool -> P.Literal -> InferM (P.Expr Name)
 desugarLiteral fixDec lit =
   do l <- curRange
+     demotePrim <- mkPrim "demote"
      let named (x,y)  = P.NamedInst
-                        P.Named { name = Located l (Name x), value = P.TNum y }
-         demote fs    = P.EAppT (P.ECon ECDemote) (map named fs)
+                        P.Named { name = Located l (packIdent x), value = P.TNum y }
+         demote fs    = P.EAppT demotePrim (map named fs)
 
      return $ case lit of
 
@@ -100,7 +100,7 @@ desugarLiteral fixDec lit =
 
 
 -- | Infer the type of an expression with an explicit instantiation.
-appTys :: P.Expr -> [Located (Maybe QName,Type)] -> Type -> InferM Expr
+appTys :: P.Expr Name -> [Located (Maybe Ident,Type)] -> Type -> InferM Expr
 appTys expr ts tGoal =
   case expr of
     P.EVar x ->
@@ -113,10 +113,6 @@ appTys expr ts tGoal =
 
     P.ELit l -> do e <- desugarLiteral False l
                    appTys e ts tGoal
-
-    P.ECon ec -> do let s1 = typeOf ec
-                    (e',t) <- instantiateWith (ECon ec) s1 ts
-                    checkHasType e' t tGoal
 
     P.EAppT e fs ->
       do ps <- mapM inferTyParam fs
@@ -144,6 +140,8 @@ appTys expr ts tGoal =
     P.ETyped    {} -> mono
     P.ETypeVal  {} -> mono
     P.EFun      {} -> mono
+    P.EParens   {} -> tcPanic "appTys" [ "Unexpected EParens" ]
+    P.EInfix    {} -> tcPanic "appTys" [ "Unexpected EInfix" ]
 
   where mono = do e'     <- checkE expr tGoal
                   (ie,t) <- instantiateWith e' (Forall [] [] tGoal) ts
@@ -152,11 +150,11 @@ appTys expr ts tGoal =
                   checkHasType ie t tGoal
 
 
-inferTyParam :: P.TypeInst -> InferM (Located (Maybe QName, Type))
+inferTyParam :: P.TypeInst Name -> InferM (Located (Maybe Ident, Type))
 inferTyParam (P.NamedInst param) =
   do let loc = srcRange (P.name param)
      t <- inRange loc $ checkType (P.value param) Nothing
-     return $ Located loc (Just (mkUnqual (thing (P.name param))), t)
+     return $ Located loc (Just (thing (P.name param)), t)
 
 inferTyParam (P.PosInst param) =
   do t   <- checkType param Nothing
@@ -165,13 +163,13 @@ inferTyParam (P.PosInst param) =
               Just r  -> return r
      return Located { srcRange = rng, thing = (Nothing, t) }
 
-checkTypeOfKind :: P.Type -> Kind -> InferM Type
+checkTypeOfKind :: P.Type Name -> Kind -> InferM Type
 checkTypeOfKind ty k = checkType ty (Just k)
 
 
 -- | We use this when we want to ensure that the expr has exactly
 -- (syntactically) the given type.
-inferE :: Doc -> P.Expr -> InferM (Expr, Type)
+inferE :: Doc -> P.Expr Name -> InferM (Expr, Type)
 inferE desc expr =
   do t  <- newType desc KType
      e1 <- checkE expr t
@@ -179,7 +177,7 @@ inferE desc expr =
 
 -- | Infer the type of an expression, and translate it to a fully elaborated
 -- core term.
-checkE :: P.Expr -> Type -> InferM Expr
+checkE :: P.Expr Name -> Type -> InferM Expr
 checkE expr tGoal =
   case expr of
     P.EVar x ->
@@ -191,11 +189,6 @@ checkE expr tGoal =
          checkHasType e' t tGoal
 
     P.ELit l -> (`checkE` tGoal) =<< desugarLiteral False l
-
-    P.ECon ec ->
-      do let s1 = typeOf ec
-         (e',t) <- instantiateWith (ECon ec) s1 []
-         checkHasType e' t tGoal
 
     P.ETuple es ->
       do etys <- expectTuple (length es) tGoal
@@ -234,8 +227,9 @@ checkE expr tGoal =
          let totLen = tNum (2::Int) .^. bit
              lstT   = totLen .-. tNum (1::Int)
 
-         appTys (P.ECon ECFromTo)
-           [ Located rng (Just (mkUnqual (Name x)), y)
+         fromToPrim <- mkPrim "fromTo"
+         appTys fromToPrim
+           [ Located rng (Just (packIdent x), y)
            | (x,y) <- [ ("first",fstT), ("last", lstT), ("bits", bit) ]
            ] tGoal
 
@@ -247,26 +241,29 @@ checkE expr tGoal =
                  (Nothing, Nothing) -> tcPanic "checkE"
                                         [ "EFromTo _ Nothing Nothing" ]
                  (Just t2, Nothing) ->
-                    (ECFromThen, [ ("next", t2) ])
+                    ("fromThen", [ ("next", t2) ])
 
                  (Nothing, Just t3) ->
-                    (ECFromTo, [ ("last", t3) ])
+                    ("fromTo", [ ("last", t3) ])
 
                  (Just t2, Just t3) ->
-                    (ECFromThenTo, [ ("next",t2), ("last",t3) ])
+                    ("fromThenTo", [ ("next",t2), ("last",t3) ])
 
-         let e' = P.EAppT (P.ECon c)
-                  [ P.NamedInst P.Named { name = Located l (Name x), value = y }
+         prim <- mkPrim c
+         let e' = P.EAppT prim
+                  [ P.NamedInst P.Named { name = Located l (packIdent x), value = y }
                   | (x,y) <- ("first",t1) : fs
                   ]
 
          checkE e' tGoal
 
     P.EInfFrom e1 Nothing ->
-      checkE (P.EApp (P.ECon ECInfFrom) e1) tGoal
+      do prim <- mkPrim "infFrom"
+         checkE (P.EApp prim e1) tGoal
 
     P.EInfFrom e1 (Just e2) ->
-      checkE (P.EApp (P.EApp (P.ECon ECInfFromThen) e1) e2) tGoal
+      do prim <- mkPrim "infFromThen"
+         checkE (P.EApp (P.EApp prim e1) e2) tGoal
 
     P.EComp e mss ->
       do (mss', dss, ts) <- unzip3 `fmap` zipWithM inferCArm [ 1 .. ] mss
@@ -282,9 +279,10 @@ checkE expr tGoal =
       do ts <- mapM inferTyParam fs
          appTys e ts tGoal
 
-    P.EApp fun@(dropLoc -> P.EApp (dropLoc -> P.ECon c) _)
+    P.EApp fun@(dropLoc -> P.EApp (dropLoc -> P.EVar c) _)
            arg@(dropLoc -> P.ELit l)
-      | c `elem` [ ECShiftL, ECShiftR, ECRotL, ECRotR, ECAt, ECAtBack ] ->
+      | Just n <- asPrim c
+      , n `elem` map packIdent [ "<<", ">>", "<<<", ">>>" , "@", "!" ] ->
         do newArg <- do l1 <- desugarLiteral True l
                         return $ case arg of
                                    P.ELocated _ pos -> P.ELocated l1 pos
@@ -314,13 +312,18 @@ checkE expr tGoal =
 
     P.ETypeVal t ->
       do l <- curRange
-         checkE (P.EAppT (P.ECon ECDemote)
+         prim <- mkPrim "demote"
+         checkE (P.EAppT prim
                   [P.NamedInst
-                   P.Named { name = Located l (Name "val"), value = t }]) tGoal
+                   P.Named { name = Located l (packIdent "val"), value = t }]) tGoal
 
     P.EFun ps e -> checkFun (text "anonymous function") ps e tGoal
 
     P.ELocated e r  -> inRange r (checkE e tGoal)
+
+    P.EInfix a op _ b -> checkE (P.EVar (thing op) `P.EApp` a `P.EApp` b) tGoal
+
+    P.EParens e -> checkE e tGoal
 
 
 expectSeq :: Type -> InferM (Type,Type)
@@ -376,7 +379,7 @@ expectTuple n ty =
                      <+> text "tuple field"
                in newType desc KType
 
-expectRec :: [P.Named a] -> Type -> InferM [(Name,a,Type)]
+expectRec :: [P.Named a] -> Type -> InferM [(Ident,a,Type)]
 expectRec fs ty =
   case ty of
 
@@ -463,7 +466,7 @@ checkHasType e inferredType givenType =
        _  -> newGoals CtExactType ps >> return (ECast e givenType)
 
 
-checkFun :: Doc -> [P.Pattern] -> P.Expr -> Type -> InferM Expr
+checkFun :: Doc -> [P.Pattern Name] -> P.Expr Name -> Type -> InferM Expr
 checkFun _    [] e tGoal = checkE e tGoal
 checkFun desc ps e tGoal =
   inNewScope $
@@ -488,7 +491,7 @@ smallest ts   = do a <- newType (text "length of list comprehension") KNum
                    return a
 
 
-checkP :: Doc -> P.Pattern -> Type -> InferM (Located QName)
+checkP :: Doc -> P.Pattern Name -> Type -> InferM (Located Name)
 checkP desc p tGoal =
   do (x, t) <- inferP desc p
      ps <- unify tGoal (thing t)
@@ -498,14 +501,13 @@ checkP desc p tGoal =
 
 {-| Infer the type of a pattern.  Assumes that the pattern will be just
 a variable. -}
-inferP :: Doc -> P.Pattern -> InferM (QName, Located Type)
+inferP :: Doc -> P.Pattern Name -> InferM (Name, Located Type)
 inferP desc pat =
   case pat of
 
     P.PVar x0 ->
       do a   <- newType desc KType
-         let x = thing x0
-         return (mkUnqual x, x0 { thing = a })
+         return (thing x0, x0 { thing = a })
 
     P.PTyped p t ->
       do tSig <- checkTypeOfKind t KType
@@ -517,7 +519,7 @@ inferP desc pat =
 
 
 -- | Infer the type of one match in a list comprehension.
-inferMatch :: P.Match -> InferM (Match, QName, Located Type, Type)
+inferMatch :: P.Match Name -> InferM (Match, Name, Located Type, Type)
 inferMatch (P.Match p e) =
   do (x,t) <- inferP (text "XXX:MATCH") p
      n     <- newType (text "sequence length of comprehension match") KNum
@@ -534,10 +536,10 @@ inferMatch (P.MatchLet b)
                       [ "Unexpected polymorphic match let:", show b ]
 
 -- | Infer the type of one arm of a list comprehension.
-inferCArm :: Int -> [P.Match] -> InferM
+inferCArm :: Int -> [P.Match Name] -> InferM
               ( [Match]
-              , Map QName (Located Type)-- defined vars
-              , Type                    -- length of sequence
+              , Map Name (Located Type)-- defined vars
+              , Type                   -- length of sequence
               )
 
 inferCArm _ [] = do n <- newType (text "lenght of empty comprehension") KNum
@@ -563,9 +565,12 @@ inferCArm armNum (m : ms) =
 -- false, and the mono-binds flag is enabled, no bindings without type
 -- signatures will be generalized, but bindings with signatures will
 -- be unaffected.
-inferBinds :: Bool -> Bool -> [P.Bind] -> InferM [Decl]
+inferBinds :: Bool -> Bool -> [P.Bind Name] -> InferM [Decl]
 inferBinds isTopLevel isRec binds =
-  mdo let exprMap = Map.fromList [ (x,inst (EVar x) (dDefinition b))
+  mdo let dExpr (DExpr e) = e
+          dExpr DPrim     = panic "[TypeCheck]" [ "primitive in a recursive group" ]
+  
+          exprMap = Map.fromList [ (x,inst (EVar x) (dExpr (dDefinition b)))
                                  | b <- genBs, let x = dName b ] -- REC.
 
           inst e (ETAbs x e1)     = inst (ETApp e (TVar (tpVar x))) e1
@@ -608,8 +613,8 @@ inferBinds isTopLevel isRec binds =
      The `exprMap` is a thunk where we can lookup the final expressions
      and we should be careful not to force it.
 -}
-guessType :: Map QName Expr -> P.Bind ->
-              InferM ( (QName, VarType)
+guessType :: Map Name Expr -> P.Bind Name ->
+              InferM ( (Name, VarType)
                      , Either (InferM Decl)    -- no generalization
                               (InferM Decl)    -- generalize these
                      )
@@ -637,17 +642,26 @@ guessType exprMap b@(P.Bind { .. }) =
   where
   name = thing bName
 
-
--- | Try to evaluate the inferred type of a mono-binding
-simpMonoBind :: OrdFacts -> Decl -> Decl
-simpMonoBind m d =
+-- | Try to evaluate the inferred type in a binding.
+simpBind :: Decl -> Decl
+simpBind d =
   case dSignature d of
-    Forall [] [] t ->
-      let t1 = simpType m t
-      in if t == t1 then d else d { dSignature  = Forall [] [] t1
-                                  , dDefinition = ECast (dDefinition d) t1
-                                  }
-    _ -> d
+    Forall as qs t ->
+      case simpTypeMaybe t of
+        Nothing -> d
+        Just t1 -> d { dSignature  = Forall as qs t1
+                     , dDefinition = case dDefinition d of
+                                       DPrim   -> DPrim
+                                       DExpr e -> DExpr (castUnder t1 e)
+                     }
+  where
+  -- Assumes the quantifiers match
+  castUnder t (ETAbs a e)     = ETAbs a (castUnder t e)
+  castUnder t (EProofAbs p e) = EProofAbs p (castUnder t e)
+  castUnder t e               = ECast e t
+
+
+
 
 
 -- | The inputs should be declarations with monomorphic types
@@ -669,20 +683,12 @@ generalize bs0 gs0 =
      bs1 <- forM bs0 $ \b -> do s <- applySubst (dSignature b)
                                 return b { dSignature = s }
 
-     ordM <- case assumedOrderModel noFacts (map goal gs) of
-                Left (ordModel,p) ->
-                  do mapM_ recordError
-                            [ UnusableFunction n p | n <- map dName bs1]
-                     return ordModel
-                Right (ordModel,_) -> return ordModel
-
-     let bs = map (simpMonoBind ordM) bs1
+     let bs = map simpBind bs1
 
      let goalFVS g  = Set.filter isFreeTV $ fvs $ goal g
          inGoals    = Set.unions $ map goalFVS gs
          inSigs     = Set.filter isFreeTV $ fvs $ map dSignature bs
          candidates = Set.union inGoals inSigs
-
 
      asmpVs <- varsWithAsmps
 
@@ -692,19 +698,21 @@ generalize bs0 gs0 =
          stays g       = any (`Set.member` gen0) $ Set.toList $ goalFVS g
          (here0,later) = partition stays gs
 
-     -- Figure our what might be ambigious
+     -- Figure out what might be ambigious
      let (maybeAmbig, ambig) = partition ((KNum ==) . kindOf)
                              $ Set.toList
                              $ Set.difference gen0 inSigs
 
      when (not (null ambig)) $ recordError $ AmbiguousType $ map dName bs
 
-     let (as0,here1,defSu,ws) = tryDefault maybeAmbig here0
+
+     solver <- getSolver
+     (as0,here1,defSu,ws) <- io $ improveByDefaultingWith solver maybeAmbig here0
      mapM_ recordWarning ws
      let here = map goal here1
 
-     let as     = as0 ++ Set.toList (Set.difference inSigs asmpVs)
-         asPs   = [ TParam { tpUnique = x, tpKind = k, tpName = Nothing }
+     let as   = as0 ++ Set.toList (Set.difference inSigs asmpVs)
+         asPs = [ TParam { tpUnique = x, tpKind = k, tpName = Nothing }
                                                    | TVFree x k _ _ <- as ]
      totSu <- getSubst
      let
@@ -712,35 +720,65 @@ generalize bs0 gs0 =
          qs     = map (apSubst su) here
 
          genE e = foldr ETAbs (foldr EProofAbs (apSubst su e) qs) asPs
-         genB d = d { dDefinition = genE (dDefinition d)
+         genB d = d { dDefinition = case dDefinition d of
+                                      DExpr e -> DExpr (genE e)
+                                      DPrim   -> DPrim
                     , dSignature  = Forall asPs qs
                                   $ apSubst su $ sType $ dSignature d
                     }
 
      addGoals later
-     return (map genB bs)
+     return (map (simpBind . genB) bs)
 
 
 
-
-checkMonoB :: P.Bind -> Type -> InferM Decl
+checkMonoB :: P.Bind Name -> Type -> InferM Decl
 checkMonoB b t =
   inRangeMb (getLoc b) $
-  do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) (P.bDef b) t
-     let f = thing (P.bName b)
-     return Decl { dName = f
-                 , dSignature = Forall [] [] t
-                 , dDefinition = e1
-                 , dPragmas = P.bPragmas b
-                 }
+  case thing (P.bDef b) of
+
+    P.DPrim ->
+         return Decl { dName = thing (P.bName b)
+                     , dSignature = Forall [] [] t
+                     , dDefinition = DPrim
+                     , dPragmas = P.bPragmas b
+                     , dInfix = P.bInfix b
+                     , dFixity = P.bFixity b
+                     , dDoc = P.bDoc b
+                     }
+
+    P.DExpr e ->
+      do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) e t
+         let f = thing (P.bName b)
+         return Decl { dName = f
+                     , dSignature = Forall [] [] t
+                     , dDefinition = DExpr e1
+                     , dPragmas = P.bPragmas b
+                     , dInfix = P.bInfix b
+                     , dFixity = P.bFixity b
+                     , dDoc = P.bDoc b
+                     }
 
 -- XXX: Do we really need to do the defaulting business in two different places?
-checkSigB :: P.Bind -> (Schema,[Goal]) -> InferM Decl
-checkSigB b (Forall as asmps0 t0, validSchema) =
+checkSigB :: P.Bind Name -> (Schema,[Goal]) -> InferM Decl
+checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
+
+ -- XXX what should we do with validSchema in this case?
+ P.DPrim ->
+   do return Decl { dName       = thing (P.bName b)
+                  , dSignature  = Forall as asmps0 t0
+                  , dDefinition = DPrim
+                  , dPragmas    = P.bPragmas b
+                  , dInfix      = P.bInfix b
+                  , dFixity     = P.bFixity b
+                  , dDoc        = P.bDoc b
+                  }
+
+ P.DExpr e0 ->
   inRangeMb (getLoc b) $
   withTParams as $
   do (e1,cs0) <- collectGoals $
-                do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) (P.bDef b) t0
+                do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) e0 t0
                    () <- simplifyAllConstraints  -- XXX: using `asmps` also...
                    return e1
      cs <- applySubst cs0
@@ -757,7 +795,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
 
      asmps1 <- applySubst asmps0
 
-     defSu1 <- proveImplication (P.bName b) as asmps1 (validSchema ++ now)
+     defSu1 <- proveImplication (thing (P.bName b)) as asmps1 (validSchema ++ now)
      let later = apSubst defSu1 later0
          asmps = apSubst defSu1 asmps1
 
@@ -772,7 +810,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
         when (not (null ambig)) $ recordError
                                 $ AmbiguousType [ thing (P.bName b) ]
 
-        let (_,_,defSu2,ws) = tryDefault maybeAmbig later
+        solver <- getSolver
+        (_,_,defSu2,ws) <- io $ improveByDefaultingWith solver maybeAmbig later
         mapM_ recordWarning ws
         extendSubst defSu2
 
@@ -786,8 +825,11 @@ checkSigB b (Forall as asmps0 t0, validSchema) =
      return Decl
         { dName       = thing (P.bName b)
         , dSignature  = Forall as asmps t
-        , dDefinition = foldr ETAbs (foldr EProofAbs e2 asmps) as
+        , dDefinition = DExpr (foldr ETAbs (foldr EProofAbs e2 asmps) as)
         , dPragmas    = P.bPragmas b
+        , dInfix      = P.bInfix b
+        , dFixity     = P.bFixity b
+        , dDoc        = P.bDoc b
         }
 
 inferDs :: FromDecl d => [d] -> ([DeclGroup] -> InferM a) -> InferM a
