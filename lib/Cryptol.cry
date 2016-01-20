@@ -295,7 +295,7 @@ primitive pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
  * Generates random values from a seed.  When called with a function, currently
  * generates a function that always returns zero.
  */
-primitive random : {a} [32] -> a
+primitive random : {a} [256] -> a
 
 type String n = [n][8]
 type Word n = [n]

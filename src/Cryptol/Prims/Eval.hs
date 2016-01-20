@@ -33,7 +33,7 @@ import Data.Bits (Bits(..))
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 
-import System.Random.TF (mkTFGen)
+import System.Random.TF.Gen (seedTFGen)
 
 -- Primitives ------------------------------------------------------------------
 
@@ -725,8 +725,12 @@ randomV :: TValue -> Integer -> Value
 randomV ty seed =
   case randomValue (tValTy ty) of
     Nothing -> zeroV ty
-    Just gen -> fst $ gen 100 $ mkTFGen (fromIntegral seed)
-
+    Just gen ->
+      -- unpack the seed into four Word64s
+      let mask = 0xFFFFFFFFFFFFFFFF
+          unpack s = fromIntegral (s .&. mask) : unpack (s `shiftR` 64)
+          [a, b, c, d] = take 4 (unpack seed)
+      in fst $ gen 100 $ seedTFGen (a, b, c, d)
 
 -- Miscellaneous ---------------------------------------------------------------
 

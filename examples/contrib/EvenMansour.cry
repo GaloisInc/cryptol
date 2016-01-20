@@ -49,7 +49,7 @@ swap xs a b = [ if(i == a) then xs@b
                 else xs@i
               | i <- [0 .. a-1] ]
 
-generate_random_permutation : {a} (fin a, a >= 1, width a >= width(a-1)) => [32] -> [a][width(a-1)]
+generate_random_permutation : {a} (fin a, a >= 1, width a >= width(a-1)) => [256] -> [a][width(a-1)]
 generate_random_permutation seed = pss!0
   where
     indices = [ take `{width(a-1)} (b % `a) | b <- (random seed) : [a][width a] ]
