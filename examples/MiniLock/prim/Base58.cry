@@ -4,6 +4,8 @@
  */
 module Base58 where
 
+import Cryptol::Extras
+
 // Base 58 is a dependent format - the length of the encoded value depends on
 // the value being encoded This does not play well with Cryptol, which expects
 // a static type.   Thus we must consume the worst-case number of bytes and

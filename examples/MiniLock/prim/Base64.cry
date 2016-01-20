@@ -4,6 +4,8 @@
  */
 module Base64 where
 
+import Cryptol::Extras
+
 type Enc64 n = 4*(((3-(n%3))%3) + n)/3 
 
 base64enc : {n,m,padZ} (4*(padZ + n)/3 == m, fin n, fin m, padZ == (3-(n%3))%3, 2>=padZ)

@@ -4,6 +4,8 @@
  */
 module Blake2s where
 
+import Cryptol::Extras
+
 type Block   = [16][32]
 type State   = [8][32]
 type LocalState = [16][32]
