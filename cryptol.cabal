@@ -13,7 +13,7 @@ Category:            Language
 Build-type:          Simple
 Cabal-version:       >= 1.18
 
-data-files:          *.cry
+data-files:          *.cry Cryptol/*.cry
 data-dir:            lib
 
 source-repository head
