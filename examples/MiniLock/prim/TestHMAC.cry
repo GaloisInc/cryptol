@@ -1,3 +1,7 @@
+/*
+ * Copyright (c) 2013-2016 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
 module TestHMAC where
 
 import HMAC
