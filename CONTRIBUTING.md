@@ -32,12 +32,12 @@ by Jenkins and other CI systems.
 
 ## Stackage
 
-On the Jenkins machines, we `cp stackage.config cabal.config` before
-building in order to build against a Stackage LTS snapshot (updated
-periodically). This is to ensure compatibility with downstream
-dependencies that rely on Stackage for their stability. We do not have
-`cabal.config` in place by default, though, so developers can use
-different versions of the compiler.
+On the Jenkins machines, we `cp cabal.GHCNNN.config cabal.config`
+before building in order to build against a Stackage LTS snapshot
+(updated periodically). This is to ensure compatibility with
+downstream dependencies that rely on Stackage for their stability. We
+do not have `cabal.config` in place by default, though, so developers
+can use different versions of the compiler.
 
 ## Running tests
 
@@ -53,6 +53,14 @@ location of the `cryptol` executable, an output directory, and
 standard `test-framework` command line arguments. The `test` target in
 the `Makefile` provides a template for how to invoke it if you need to
 use advanced parameters.
+
+## Running benchmarks
+
+To run the benchmark suite, run `make bench` from the root of the
+repository. By default, you'll get Criterion output on the console
+from the benchmarking executable in `/bench`. The easiest way to pass
+custom arguments to this executable is to run the suite subsequently
+with `cabal bench --benchmark-options="..."`.
 
 ## Creaing a new test
 
@@ -171,21 +179,22 @@ the let-binding feature breaks.
 
 The top-level repository directories are:
 
+- `/bench`: Benchmarking executable and suite
 - `/cryptol`: Haskell sources for the front-end `cryptol` executable
   and read-eval-print loop
+- `/cryptol-server`: Experimental Cryptol JSON-over-ZeroMQ server,
+  currently built to support
+  [pycryptol](http://pycryptol.readthedocs.org/en/latest/)
 - `/docs`: LaTeX and Markdown sources for the Cryptol documentation
 - `/examples`: Cryptol sources implementing several interesting
   algorithms
 - `/lib`: Cryptol standard library sources
-- `/notebook`: Experimental Cryptol IPython Notebook implementation
-- `/sbv`: Haskell sources for the `sbv` library, derived from Levent
-  Erkok's [`sbv` library](http://leventerkok.github.io/sbv/) (see
-  `/sbv/LICENSE`)
 - `/src`: Haskell sources for the `cryptol` library (the bulk of the
   implementation)
 - `/tests`: Haskell sources for the Cryptol regression test suite, as
   well as the Cryptol sources and expected outputs that comprise that
   suite
+- `/win32`: Support files for building the Windows installer
 
 ## Branching and merging
 
@@ -224,8 +233,7 @@ In short:
 
 We take the stability and reliability of our releases very
 seriously. To that end, our release process is based on principles of
-_automation_, _reproducibility_, and _assurance_ (**TODO**: assurance
-the right word here?).
+_automation_, _reproducibility_, and _assurance_.
 
 Automation is essential for reducing the possibility of human
 error. The checklist for a successful release is fairly lengthy, and
@@ -245,8 +253,7 @@ Cryptol. When people use Cryptol to develop the next generations of
 trustworthy systems, we want them to be sure the software was built by
 the Cryptol developers, and was not corrupted during download or
 replaced by a malicious third party. To this end, we sign our releases
-with a [GPG key](http://www.cryptol.net/files/Galois.asc). (**TODO**:
-OMG is this really not https?!)
+with a [GPG key](http://www.cryptol.net/files/Galois.asc).
 
 ## Cutting releases
 
@@ -269,7 +276,7 @@ The release process is:
    the textual version tag (e.g., "2.1.0"), whether it's a prerelease
    (e.g., an alpha), and keep the `DRAFT` option checked.
 1. On the Github page for the draft release and add a changelog
-   (**TODO**: how do we generate changelogs?).
+   (**TODO**: automate changelogs?).
 1. (**TODO**: this part of the process needs to be better and
    automated) Download the successfully-built artifacts _from
    Jenkins_, and in the same directory run the script
@@ -277,7 +284,7 @@ The release process is:
    repository. You must have the correct GPG key (D3103D7E) for this
    to work.
 1. Upload the `.sig` files to the draft release on Github.
-1. Publish the release and announce it (**TODO**: compile mailing
+1. Publish the release and announce it (**TODO**: compile mailing lists)
 
     - <http://www.cryptol.net> (in the `cryptol2-web.git` repo)
     - <cryptol-team@lists.galois.com>
