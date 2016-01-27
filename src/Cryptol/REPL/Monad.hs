@@ -402,14 +402,15 @@ getNewtypes = do
 
 -- | Get visible variable names.
 getExprNames :: REPL [String]
-getExprNames  = (map getName . Map.keys) `fmap` getVars
+getExprNames =
+  do (_, fNames, _) <- getFocusedEnv
+     return (map (show . pp) (Map.keys (M.neExprs fNames)))
 
 -- | Get visible type signature names.
 getTypeNames :: REPL [String]
 getTypeNames  =
-  do tss <- getTSyns
-     nts <- getNewtypes
-     return $ map getName $ Map.keys tss ++ Map.keys nts
+  do (_, fNames, _) <- getFocusedEnv
+     return (map (show . pp) (Map.keys (M.neTypes fNames)))
 
 -- | Return a list of property names.
 --
