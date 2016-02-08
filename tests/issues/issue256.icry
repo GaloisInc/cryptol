@@ -1,0 +1,3 @@
+:t [True] == [False]
+:t \x -> True != x
+:t \x -> True && x
