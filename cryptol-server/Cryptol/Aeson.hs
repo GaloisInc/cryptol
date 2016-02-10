@@ -23,6 +23,7 @@ import Control.Applicative
 import Control.Exception
 import Data.Aeson
 import Data.Aeson.TH
+import qualified Data.Map as M
 import qualified Data.Text as T
 
 import qualified Cryptol.Eval.Error as E
@@ -42,6 +43,7 @@ import Cryptol.REPL.Monad
 import qualified Cryptol.Testing.Concrete as Test
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.InferTypes as T
+import Cryptol.Utils.Ident
 import Cryptol.Utils.PP hiding (empty)
 
 instance ToJSON Doc where
@@ -128,6 +130,10 @@ instance ToJSON Test.TestResult where
     Test.FailFalse args -> object [ "FailFalse" .= args ]
     Test.FailError err args -> object
       [ "FailError" .= show (pp err), "args" .= args ]
+
+instance (ToJSON v) => ToJSON (M.Map Name v) where
+    toJSON = toJSON . M.mapKeys (unpackIdent . nameIdent)
+    {-# INLINE toJSON #-}
 
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''NameInfo)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''E.EvalError)
