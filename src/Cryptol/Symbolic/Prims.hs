@@ -176,39 +176,43 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
-      VFun $ \(fromSeq -> xs) ->
+      VFun $ \xs ->
       VFun $ \y ->
-        let err = zeroV a -- default for out-of-bounds accesses
-        in atV err xs y)
+        let isInf = case xs of VStream _ -> True; _ -> False
+            err = zeroV a -- default for out-of-bounds accesses
+        in atV isInf err (fromSeq xs) y)
 
   , ("@@"          , -- {n,a,m,i} (fin i) => [n]a -> [m][i] -> [m]a
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
       tlam $ \_ ->
-      VFun $ \(fromSeq -> xs) ->
+      VFun $ \xs ->
       VFun $ \ys ->
-        let err = zeroV a -- default for out-of-bounds accesses
-        in mapV (isTBit a) (atV err xs) ys)
+        let isInf = case xs of VStream _ -> True; _ -> False
+            err = zeroV a -- default for out-of-bounds accesses
+        in atV_list (isTBit a) isInf err (fromSeq xs) ys)
 
   , ("!"           , -- {n,a,i} (fin n, fin i) => [n]a -> [i] -> a
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
-      VFun $ \(fromSeq -> xs) ->
+      VFun $ \xs ->
       VFun $ \y ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in atV err (reverse xs) y)
+            isInf = False -- type of (!) guarantess finite sequences
+        in atV isInf err (reverse $ fromSeq xs) y)
 
   , ("!!"          , -- {n,a,m,i} (fin n, fin i) => [n]a -> [m][i] -> [m]a
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
       tlam $ \_ ->
-      VFun $ \(fromSeq -> xs) ->
+      VFun $ \xs ->
       VFun $ \ys ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in mapV (isTBit a) (atV err (reverse xs)) ys)
+            isInf = False -- type of (!!) guarantess finite sequences
+        in atV_list (isTBit a) isInf err (reverse $ fromSeq xs) ys)
 
   , ("fromThen"    , fromThenV)
   , ("fromTo"      , fromToV)
@@ -280,8 +284,58 @@ selectV f v = sel 0 bits
       where m1 = sel (offset + 2 ^ length bs) bs
             m2 = sel offset bs
 
-atV :: Value -> [Value] -> Value -> Value
-atV def vs i =
+asWordList :: [Value] -> Maybe [SWord]
+asWordList = go id
+ where go :: ([SWord] -> [SWord]) -> [Value] -> Maybe [SWord]
+       go f [] = Just (f [])
+       go f (VWord x:vs)      = go (f . (x:)) vs
+       go f (VSeq True bs:vs) = go (f . (x:)) vs
+              where x = packWord $ map fromVBit bs
+       go _ _ = Nothing
+
+atV_list :: Bool -- Are the elements of the resulting sequence bits?
+         -> Bool -- Is this an infinite sequence?
+         -> Value -- default value
+         -> [Value] -- values to select
+         -> Value   -- index
+         -> Value
+
+-- Use SBV selection primitives if possible
+-- NB: only examine the list if it is finite
+atV_list isBit False def (asWordList -> Just ws) v =
+  case v of
+    VSeq _ ys ->
+      VSeq isBit $ map (VWord . SBV.svSelect ws (fromVWord def) . fromVWord) ys
+    VStream ys ->
+      VStream $ map (VWord . SBV.svSelect ws (fromVWord def) . fromVWord) ys
+    _ -> panic "Cryptol.Symbolic.Prims.atV_list" [ "non-mappable value" ]
+
+atV_list isBit _ def xs v =
+  case v of
+    VSeq _  ys ->
+      VSeq isBit $ map (iteAtV def xs) ys
+    VStream ys ->
+      VStream $ map (iteAtV def xs) ys
+    _ -> panic "Cryptol.Symbolic.Prims.atV_list" [ "non-mappable value" ]
+
+
+atV :: Bool -- Is this an infinite sequence?
+    -> Value -- default value
+    -> [Value] -- values to select
+    -> Value   -- index
+    -> Value
+
+-- When applicable, use the SBV selection operation
+-- NB: only examine the list if it is finite
+atV False def (asWordList -> Just ws) i =
+  VWord $ SBV.svSelect ws (fromVWord def) (fromVWord i)
+
+-- Otherwise, decompose into a sequence of if/then/else operations
+atV _ def vs i = iteAtV def vs i
+
+-- Select a value at an index by building a sequence of if/then/else operations
+iteAtV :: Value -> [Value] -> Value -> Value
+iteAtV def vs i =
   case i of
     VSeq True (map fromVBit -> bits) -> -- index bits in big-endian order
       case foldr weave vs bits of
@@ -297,6 +351,8 @@ atV def vs i =
     weave _ [] = []
     weave b [x1] = [iteValue b def x1]
     weave b (x1 : x2 : xs) = iteValue b x2 x1 : weave b xs
+
+
 
 replicateV :: Integer -- ^ number of elements
            -> TValue  -- ^ type of element
