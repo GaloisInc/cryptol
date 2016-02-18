@@ -1,0 +1,57 @@
+/* Source:
+Alexander Semenov
+Institute for System Dynamics and Control Theory
+Russian Academy of Sciences
+*/
+
+Trivium_stream : [93] -> [84] -> [111] -> [inf]
+Trivium_stream R1 R2 R3 = stream
+	where
+	(stream, ra, rb, rc) = shift_regs R1 R2 R3
+
+type N = 300
+Trivium : ([93], [84], [111]) -> [N]Bit
+Trivium (reg1, reg2, reg3) = keystream
+  where
+    keystream =  take`{N} (Trivium_stream reg1 reg2 reg3)
+
+shift : {d} (fin d, d >=1) => [d] -> Bit -> [d]
+shift fill bit = fills
+	where
+		fills = [bit]#(drop`{1} (fill >> 1))
+
+
+shift_regs : {d,e,f} (fin d, fin e, fin f, d >=1, e >=1, f>=1) => [d] -> [e] -> [f] -> ([inf],[inf][d],[inf][e],[inf][f])
+shift_regs r1 r2 r3 = (stream, regA, regB, regC)
+	where
+		
+		s1 = [(f1 @ 65) ^ (f1 @ 92)  | f1 <- regA]
+		s2 = [(f2 @ 68) ^ (f2 @ 83)  | f2 <- regB]
+		s3 = [(f3 @ 65) ^ (f3 @ 110) | f3 <- regC]
+
+		stream = s1 ^ s2 ^ s3
+		t1 = [(f1 @ 65) ^ ((f1 @ 90) && (f1 @ 91)) ^ (f1 @ 92) ^ (f2 @ 77) | 
+				f2 <- regB |
+				f1 <- regA ]
+		t2 = [(f2 @ 68) ^ ((f2 @ 81) && (f2 @ 82)) ^ (f2 @ 83) ^ (f3 @ 86) | 
+				f2 <- regB |
+				f3 <- regC ]
+		t3 = [(f3 @ 65) ^ ((f3 @ 108) && (f3 @ 109)) ^ (f3 @ 110) ^ (f1 @ 68)|
+				f1 <- regA |
+				f3 <- regC ]
+
+		regA = [r1] # [shift f b| f <- regA | b <- t3]
+		regB = [r2] # [shift f b| f <- regB | b <- t2]
+		regC = [r3] # [shift f b| f <- regC | b <- t1]
+
+/*********************************************************/
+
+iv1 = 0b111111111111111111101111111111111111111011111111111111111110111111111111111111101111111111111
+iv2 = 0b000000000000000000001000000000000000000001000000000000000000001000000000000000000001
+iv3 = 0b111111111111111110111111111111111111101111111111111111111011111111111111111110111111111111100000000000000000000
+
+test_keystream = 0b011111110111101111110100001110000000000000100010000000000000000100111100101001010100001111110011101001000100000001110010010001100000101001010110001000110101111111001010010011011100011110111100101100000101110001111111110100000100001110110000110101001010100001110001111010000000000100010001000000100001
+
+property Trivium_correct = (Trivium(iv1, iv2, iv3)) == test_keystream
+property Trivium_search (x, y, z) = (Trivium(x, y, z)) == test_keystream
+
