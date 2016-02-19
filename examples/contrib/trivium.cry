@@ -24,16 +24,16 @@ shift fill bit = fills
 shift_regs : {d,e,f} (fin d, fin e, fin f, d >=1, e >=1, f>=1) => [d] -> [e] -> [f] -> ([inf],[inf][d],[inf][e],[inf][f])
 shift_regs r1 r2 r3 = (stream, regA, regB, regC)
 	where
-		
+
 		s1 = [(f1 @ 65) ^ (f1 @ 92)  | f1 <- regA]
 		s2 = [(f2 @ 68) ^ (f2 @ 83)  | f2 <- regB]
 		s3 = [(f3 @ 65) ^ (f3 @ 110) | f3 <- regC]
 
 		stream = s1 ^ s2 ^ s3
-		t1 = [(f1 @ 65) ^ ((f1 @ 90) && (f1 @ 91)) ^ (f1 @ 92) ^ (f2 @ 77) | 
+		t1 = [(f1 @ 65) ^ ((f1 @ 90) && (f1 @ 91)) ^ (f1 @ 92) ^ (f2 @ 77) |
 				f2 <- regB |
 				f1 <- regA ]
-		t2 = [(f2 @ 68) ^ ((f2 @ 81) && (f2 @ 82)) ^ (f2 @ 83) ^ (f3 @ 86) | 
+		t2 = [(f2 @ 68) ^ ((f2 @ 81) && (f2 @ 82)) ^ (f2 @ 83) ^ (f3 @ 86) |
 				f2 <- regB |
 				f3 <- regC ]
 		t3 = [(f3 @ 65) ^ ((f3 @ 108) && (f3 @ 109)) ^ (f3 @ 110) ^ (f1 @ 68)|
@@ -54,4 +54,3 @@ test_keystream = 0b0111111101111011111101000011100000000000001000100000000000000
 
 property Trivium_correct = (Trivium(iv1, iv2, iv3)) == test_keystream
 property Trivium_search (x, y, z) = (Trivium(x, y, z)) == test_keystream
-

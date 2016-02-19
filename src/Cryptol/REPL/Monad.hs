@@ -343,7 +343,7 @@ getPutStr = fmap ePutStr getRW
 rPutStr :: String -> REPL ()
 rPutStr str = do
   rw <- getRW
-  io $ ePutStr rw str 
+  io $ ePutStr rw str
 
 -- | Use the configured output action to print a string with a trailing newline
 rPutStrLn :: String -> REPL ()
@@ -730,6 +730,3 @@ z3exists = do
   case mPath of
     Nothing -> return (Just Z3NotFound)
     Just _  -> return Nothing
-
-
-

@@ -67,7 +67,7 @@ primitive (^^) : {a} (Arith a) => a -> a -> a
 
 /**
  * Log base two.
- * 
+ *
  * For words, computes the ceiling of log, base 2, of a number.
  * Over structured values, operates element-wise.
  */

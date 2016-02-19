@@ -5,12 +5,12 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
--- 
+--
 -- Separate Non-Linear Constraints
 -- When we spot a non-linear expression, we name it and add it to a map.
--- 
+--
 -- If we see the same expression multiple times, then we give it the same name.
--- 
+--
 -- The body of the non-linear expression is not processed further,
 -- so the resulting map should not contain any of the newly minted names.
 
@@ -78,7 +78,7 @@ lookupNL x NonLinS { .. } = Map.lookup x nonLinExprs
 
 runNL :: NonLinS -> NonLinM a -> ((a, [Prop]), NonLinS)
 runNL s m = runId
-          $ runStateT s 
+          $ runStateT s
           $ do a  <- m
                ps <- finishTodos
                return (a,ps)
@@ -279,7 +279,3 @@ finishTodos =
            p'  <- nonLinPropM p
            ps' <- finishTodos
            return (p' : ps')
-
-
-
-

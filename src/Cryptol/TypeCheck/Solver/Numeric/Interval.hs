@@ -5,7 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
--- 
+--
 -- An interval interpretation of types.
 
 {-# LANGUAGE PatternGuards #-}
@@ -337,8 +337,3 @@ iLenFromThenTo i j k
   | Just x <- iIsExact i, Just y <- iIsExact j, Just z <- iIsExact k
   , Just r <- nLenFromThenTo x y z = iConst r
   | otherwise = iAnyFin
-
-
-
-
-

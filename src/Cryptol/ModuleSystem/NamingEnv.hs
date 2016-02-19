@@ -243,7 +243,7 @@ instance BindsNames ImportIface where
   namingEnv (ImportIface imp Iface { .. }) =
     return (interpImport imp ifPublic)
 
--- | Introduce the name 
+-- | Introduce the name
 instance BindsNames (InModule (Bind PName)) where
   namingEnv (InModule ns b) =
     do let Located { .. } = bName b

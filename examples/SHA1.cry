@@ -12,7 +12,7 @@ sha1 msg = sha1' pmsg
 
 sha1' : {chunks} (fin chunks) => [chunks][512] -> [160]
 sha1' pmsg = join (Hs!0)
-  where 
+  where
     Hs = [[0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0]] #
          [ block(H, split(M))
          | H <- Hs
@@ -38,7 +38,7 @@ pad msg = split (msg # [True] # (zero:[padding]) # (`msgLen:[64]))
           type padding    = (512 - contentLen % 512) % 512   // prettier if type #'s could be < 0
 
 f : ([8], [32], [32], [32]) -> [32]
-f (t, x, y, z) = 
+f (t, x, y, z) =
        if (0 <= t)  && (t <= 19) then (x && y) ^ (~x && z)
         | (20 <= t) && (t <= 39) then x ^ y ^ z
         | (40 <= t) && (t <= 59) then (x && y) ^ (x && z) ^ (y && z)
@@ -54,7 +54,7 @@ Ks = [ 0x5a827999 | t <- [0..19]  ]
 block : ([5][32], [16][32]) -> [5][32]
 block ([H0, H1, H2, H3, H4], M) =
  [(H0+As@80), (H1+Bs@80), (H2+Cs@80), (H3+Ds@80), (H4+Es@80)]
-  where 
+  where
     Ws : [80][32]
     Ws = M # [ (W3 ^ W8 ^ W14 ^ W16) <<< 1
              | W16 <- drop`{16 - 16} Ws

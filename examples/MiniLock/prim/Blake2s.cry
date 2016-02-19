@@ -162,7 +162,7 @@ updateVector orig idxNew = vs
  vs = [if i == idx then new else orig@i | i <- [0..a-1]]
 
 
-property katsPass = ~zero == 
+property katsPass = ~zero ==
                         [ nthKat `{0}
                         , nthKat `{1}
                         , nthKat `{2}
@@ -685,4 +685,3 @@ kats = [ 0x69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9
        , 0xc08aa1c286d709fdc7473744977188c895ba011014247e4efa8d07e78fec695c
        , 0xf03f5789d3336b80d002d59fdf918bdb775b00956ed5528e86aa994acb38fe2d
        ]
-

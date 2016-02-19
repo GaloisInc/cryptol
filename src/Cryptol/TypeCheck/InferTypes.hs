@@ -486,7 +486,7 @@ instance PP (WithNames Error) where
 
       AmbiguousType xs ->
         text "The inferred type for" <+> commaSep (map pp xs)
-          <+> text "is ambiguous." 
+          <+> text "is ambiguous."
 
     where
     nested x y = x $$ nest 2 y
@@ -564,4 +564,3 @@ instance PP Solved where
         where suDoc = maybe empty pp mb
       Unsolved      -> text "unsolved"
       Unsolvable    -> text "unsolvable"
-

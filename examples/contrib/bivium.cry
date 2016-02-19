@@ -7,11 +7,11 @@ Russian Academy of Sciences
 Bivium_stream : [93] -> [84] -> [inf]
 Bivium_stream R1 R2 = stream
 	where
-	(stream, ra, rb) = shift_regs R1 R2 
+	(stream, ra, rb) = shift_regs R1 R2
 
 type N = 200
 Bivium : ([93], [84]) -> [N]Bit
-Bivium (reg1, reg2) = keystream 
+Bivium (reg1, reg2) = keystream
   where
     keystream =  take`{N} (Bivium_stream reg1 reg2)
 
@@ -29,10 +29,10 @@ shift_regs r1 r2 = (stream, regA, regB)
 		s2 = [(f2 @ 68) ^ (f2 @ 83) | f2 <- regB]
 
 		stream = s1 ^ s2
-		t1 = [(f1 @ 65) ^ ((f1 @ 90) && (f1 @ 91)) ^ (f1 @ 92) ^ (f2 @ 77) | 
+		t1 = [(f1 @ 65) ^ ((f1 @ 90) && (f1 @ 91)) ^ (f1 @ 92) ^ (f2 @ 77) |
 				f2 <- regB |
 				f1 <- regA ]
-		t2 = [(f2 @ 68) ^ ((f2 @ 81) && (f2 @ 82)) ^ (f2 @ 83) ^ (f1 @ 68) | 
+		t2 = [(f2 @ 68) ^ ((f2 @ 81) && (f2 @ 82)) ^ (f2 @ 83) ^ (f1 @ 68) |
 				f1 <- regA |
 				f2 <- regB ]
 
@@ -51,4 +51,3 @@ suffix = 0b000000001000000000000000000001
 property Bivium_correct = (Bivium(iv1, iv2)) == test_keystream
 property Bivium_search (x, y) = (Bivium(x, y)) == test_keystream
 property Bivium_search_with_suffix (x, y) = (Bivium(x, y#suffix)) == test_keystream
-

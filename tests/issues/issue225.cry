@@ -1,4 +1,4 @@
-module EnigmaBroke where 
+module EnigmaBroke where
 
 type Rotor       = [26](Char, Bit)
 
@@ -20,4 +20,3 @@ joinRotors (rotors, inputChar) = (rotors', outputChar)
                  ]
     rotors' = tail [ r | (_, _, r) <- ncrs ]
     (_, outputChar, _) = ncrs ! 0
-

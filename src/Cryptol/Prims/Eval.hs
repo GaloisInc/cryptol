@@ -192,7 +192,7 @@ divModPoly xs xsLen ys ysLen
   todoBits  = map (testBit xs) (downIxes (xsLen - degree))
 
 
--- | Create a packed word 
+-- | Create a packed word
 modExp :: Integer -- ^ bit size of the resulting word
        -> Integer -- ^ base
        -> Integer -- ^ exponent

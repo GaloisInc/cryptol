@@ -6,7 +6,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
--- 
+--
 -- At present Alex generates code with too many warnings.
 {-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -246,6 +246,3 @@ primLexer cfg cs = run inp Normal
 
 -- vim: ft=haskell
 }
-
-
-

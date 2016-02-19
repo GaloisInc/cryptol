@@ -9,9 +9,9 @@
 -- Simplification of expressions.
 -- The result of simplifying an expression `e`, is a new expression `e'`,
 -- which satisfies the property:
--- 
+--
 --    if e is well-defined then e and e' will evaluate to the same type.
--- 
+--
 
 {-# LANGUAGE Safe, BangPatterns #-}
 module Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr where
@@ -211,6 +211,3 @@ crySimpExprStep1 expr =
       case (x,y,z) of
         (K a, K b, K c)   -> K `fmap` IN.nLenFromThenTo a b c
         _                 -> Nothing
-
-
-

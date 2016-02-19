@@ -5,7 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
--- 
+--
 -- TODO:
 --  - Putting in a normal form to spot "prove by assumption"
 --  - Additional simplification rules, namely various cancelation.
@@ -841,6 +841,3 @@ cryNatOp op x y =
       Impossible -> PFalse -- It doesn't matter, but @false@ might anihilate.
       Return p   -> p
       If p t e   -> p :&& toProp t :|| Not p :&& toProp e
-
-
-

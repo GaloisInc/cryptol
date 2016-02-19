@@ -280,7 +280,7 @@ runModuleT :: Monad m
            => ModuleEnv
            -> ModuleT m a
            -> m (Either ModuleError (a, ModuleEnv), [ModuleWarning])
-runModuleT env m = 
+runModuleT env m =
     runWriterT
   $ runExceptionT
   $ runStateT env
@@ -444,5 +444,3 @@ getSolverConfig :: ModuleM T.SolverConfig
 getSolverConfig  = ModuleT $ do
   me <- get
   return (meSolverConfig me)
-
-

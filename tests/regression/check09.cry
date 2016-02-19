@@ -5,7 +5,7 @@ initL = [0]
 ss = [ (s + a + b) <<< 3   | s <- initS # ss
 	                       | a <- [1] # ss
 	                       | b <- [0] # ls ]
-ls = [ (l + a + b) <<< (a + b) 
+ls = [ (l + a + b) <<< (a + b)
                         | l <- initL # ls
 		                | a <- ss
 		                | b <- [0] # ls ]
@@ -30,7 +30,7 @@ keyX key = ss @@ [ 0 .. 6 ]
 				    | b <- [0] # ls ]
 
 // NOTE different endianness from Cryptol 1 test
-check9b = keyX (reverse "abcd") == 
+check9b = keyX (reverse "abcd") ==
 	    [0x00000008, 0x1b134ba3, 0x11ae69b1, 0xb7b3f42f,
              0xc9eb1fdc, 0x008b5f36, 0x8991bc8c]
 

@@ -569,7 +569,7 @@ inferBinds :: Bool -> Bool -> [P.Bind Name] -> InferM [Decl]
 inferBinds isTopLevel isRec binds =
   mdo let dExpr (DExpr e) = e
           dExpr DPrim     = panic "[TypeCheck]" [ "primitive in a recursive group" ]
-  
+
           exprMap = Map.fromList [ (x,inst (EVar x) (dExpr (dDefinition b)))
                                  | b <- genBs, let x = dName b ] -- REC.
 
