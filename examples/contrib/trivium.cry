@@ -44,6 +44,35 @@ shift_regs r1 r2 r3 = (stream, regA, regB, regC)
 		regB = [r2] # [shift f b| f <- regB | b <- t1]
 		regC = [r3] # [shift f b| f <- regC | b <- t2]
 
+Trivium_alt : ([93], [84], [111]) -> [N]Bit
+Trivium_alt (r1, r2, r3) = take`{N} (s1 ^ s2 ^ s3)
+  where
+    a_65 = drop`{27} a_92
+    a_68 = drop`{24} a_92
+    a_90 = drop`{2} a_92
+    a_91 = drop`{1} a_92
+    a_92 = reverse r1 # t3
+
+    b_68 = drop`{15} b_83
+    b_77 = drop`{6} b_83
+    b_81 = drop`{2} b_83
+    b_82 = drop`{1} b_83
+    b_83 = reverse r2 # t1
+
+    c_65 = drop`{45} c_110
+    c_86 = drop`{24} c_110
+    c_108 = drop`{2} c_110
+    c_109 = drop`{1} c_110
+    c_110 = reverse r3 # t2
+
+    s1 = a_65 ^ a_92
+    s2 = b_68 ^ b_83
+    s3 = c_65 ^ c_110
+
+    t1 = s1 ^ (a_90 && a_91) ^ b_77
+    t2 = s2 ^ (b_81 && b_82) ^ c_86
+    t3 = s3 ^ (c_108 && c_109) ^ a_68
+
 /*********************************************************/
 
 iv1 = 0b111111111111111111101111111111111111111011111111111111111110111111111111111111101111111111111
@@ -54,3 +83,5 @@ test_keystream = 0b0111111101111011111101000011100000000000001000100000000000000
 
 property Trivium_correct = (Trivium(iv1, iv2, iv3)) == test_keystream
 property Trivium_search (x, y, z) = (Trivium(x, y, z)) == test_keystream
+property Trivium_alt_correct = (Trivium_alt(iv1, iv2, iv3)) == test_keystream
+property Trivium_alt_equivalent x = take`{200}(Trivium_alt x) == take (Trivium x)
