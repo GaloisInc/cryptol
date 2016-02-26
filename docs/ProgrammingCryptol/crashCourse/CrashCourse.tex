@@ -3066,6 +3066,36 @@ that include it by using the \verb+private+ keyword, like this:
 
 As you can tell, by default definitions are exported to including modules.
 
+For large project it can be convenient to place modules in a directory
+structure.  In this case, the directory structure becomes part of the modules'
+names.  For example, when placing \verb+SHA3.cry+ in the \verb+Hash+ directory and
+accessing it from \verb+HMAC.cry+ you would need to name the modules
+accordingly:
+
+\begin{code}
+module Hash::SHA3 where
+
+sha3 : {n} (fin n) => [n] -> [512]
+sha3 = error "Stubbed, for demonstration only: sha3-512"
+
+blocksize : {n} (fin n, n >= 10) => [n]
+blocksize = 576
+\end{code}
+
+\begin{code}
+import Hash::SHA3
+import Cryptol::Extras
+
+hmac : {keySize, msgSize} (fin keySize, fin msgSize) => [keySize] -> [msgSize]
+-> [512]
+hmac k m = sha3 (ko # sha3 (ki # m))
+ where ko    = zipWith (^) kFull (join (repeat 0x5c))
+       ki    = zipWith (^) kFull (join (repeat 0x36))
+       kFull = if `keySize == blocksize
+                 then take (k#zero)
+                 else sha3 k
+\end{code}
+
 Finally, if you're importing a module that defines something with
 a name that you would like to define in your code, you can do a
 {\it qualified} import of that module like this:
