@@ -2,3 +2,8 @@ Test suites:
 
 regression: tests from Cryptol-1's regression test suite.
 issues: tests related to issues in the bug tracker.
+
+To manually run the test suite over all issues/* tests simply cabal build the
+test suite runner then run:
+
+./dist/build/cryptol-test-runner/cryptol-test-runner -c `which cryptol` ./issues/*.icry
