@@ -170,7 +170,7 @@ instance Monoid Out where
                     (oErrors   l `mappend` oErrors   r)
 
 newtype RenameM a = RenameM
-  { unRenameM :: ReaderT RO (WriterT Out SupplyM) a }
+  { unRenameM :: ReaderT RO (WriterT Out (SupplyT Id)) a }
 
 instance Monoid a => Monoid (RenameM a) where
   {-# INLINE mempty #-}
@@ -199,6 +199,9 @@ instance Monad RenameM where
 
   {-# INLINE (>>=) #-}
   m >>= k       = RenameM (unRenameM m >>= unRenameM . k)
+
+instance FreshM RenameM where
+  liftSupply f = RenameM (liftSupply f)
 
 runRenamer :: Supply -> ModName -> NamingEnv -> RenameM a
            -> (Either [RenamerError] (a,Supply),[RenamerWarning])
@@ -254,7 +257,7 @@ data EnvCheck = CheckAll     -- ^ Check for overlap and shadowing
 -- parameter indicates whether or not to check for shadowing.
 shadowNames' :: BindsNames env => EnvCheck -> env -> RenameM a -> RenameM a
 shadowNames' check names m = RenameM $ do
-  env <- inBase (namingEnv names)
+  env <- liftSupply (namingEnv' names)
   ro  <- ask
   put (checkEnv (roDisp ro) check env (roNames ro))
   let ro' = ro { roNames = env `shadowing` roNames ro }
@@ -304,9 +307,6 @@ checkNamingEnv env = (out, [])
 
   check ns acc = containsOverlap disp ns ++ acc
 
-supply :: SupplyM a -> RenameM a
-supply m = RenameM (inBase m)
-
 
 -- Renaming --------------------------------------------------------------------
 
@@ -315,7 +315,7 @@ class Rename f where
 
 renameModule :: Module PName -> RenameM (NamingEnv,Module Name)
 renameModule m =
-  do env    <- supply (namingEnv m)
+  do env    <- liftSupply (namingEnv' m)
      -- NOTE: we explicitly hide shadowing errors here, by using shadowNames'
      decls' <-  shadowNames' CheckOverlap env (traverse rename (mDecls m))
      return (env,m { mDecls = decls' })
@@ -425,7 +425,7 @@ renameType pn =
 mkFakeName :: PName -> RenameM Name
 mkFakeName pn = RenameM $
   do ro <- ask
-     inBase (liftSupply (mkParameter (getIdent pn) (roLoc ro)))
+     liftSupply (mkParameter (getIdent pn) (roLoc ro))
 
 -- | Rename a schema, assuming that none of its type variables are already in
 -- scope.
@@ -436,7 +436,7 @@ instance Rename Schema where
 -- into scope.
 renameSchema :: Schema PName -> RenameM (NamingEnv,Schema Name)
 renameSchema (Forall ps p ty loc) =
-  do env <- supply (namingEnv ps)
+  do env <- liftSupply (namingEnv' ps)
      s'  <- shadowNames env $ Forall <$> traverse rename ps
                                      <*> traverse rename p
                                      <*> rename ty
@@ -744,7 +744,7 @@ renameMatch (Match p e) =
 
 renameMatch (MatchLet b) =
   do ns <- getNS
-     be <- supply (namingEnv (InModule ns b))
+     be <- liftSupply (namingEnv' (InModule ns b))
      b' <- shadowNames be (rename b)
      return (be,MatchLet b')
 
@@ -767,7 +767,7 @@ patternEnv :: Pattern PName -> RenameM NamingEnv
 patternEnv p0 = go p0
   where
   go (PVar Located { .. }) =
-    do n <- supply (liftSupply (mkParameter (getIdent thing) srcRange))
+    do n <- liftSupply (mkParameter (getIdent thing) srcRange)
        return (singletonE thing n)
 
   go PWild            = return mempty
@@ -798,7 +798,7 @@ patternEnv p0 = go p0
            -- of the type of the pattern.
            | null ps ->
              do loc <- curLoc
-                n   <- supply (liftSupply (mkParameter (getIdent pn) loc))
+                n   <- liftSupply (mkParameter (getIdent pn) loc)
                 return (singletonT pn n)
 
            -- This references a type synonym that's not in scope. Record an
@@ -806,7 +806,7 @@ patternEnv p0 = go p0
            | otherwise ->
              do loc <- curLoc
                 record (UnboundType (Located loc pn))
-                n   <- supply (liftSupply (mkParameter (getIdent pn) loc))
+                n   <- liftSupply (mkParameter (getIdent pn) loc)
                 return (singletonT pn n)
 
   typeEnv (TApp _ ts)       = foldMap typeEnv ts

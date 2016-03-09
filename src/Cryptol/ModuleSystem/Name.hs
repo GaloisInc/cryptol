@@ -34,7 +34,6 @@ module Cryptol.ModuleSystem.Name (
     -- ** Unique Supply
   , FreshM(..), nextUniqueM
   , SupplyT(), runSupplyT
-  , SupplyM(), runSupplyM
   , Supply(), emptySupply, nextUnique
 
     -- ** PrimMap
@@ -201,9 +200,6 @@ instance FreshM m => FreshM (ReaderT i m) where
 instance FreshM m => FreshM (StateT i m) where
   liftSupply f = lift (liftSupply f)
 
-instance FreshM SupplyM where
-  liftSupply f = SupplyM (liftSupply f)
-
 instance Monad m => FreshM (SupplyT m) where
   liftSupply f = SupplyT $
     do s <- get
@@ -248,27 +244,6 @@ instance RunM m (a,Supply) r => RunM (SupplyT m) a (Supply -> r) where
 
 instance MonadFix m => MonadFix (SupplyT m) where
   mfix f = SupplyT (mfix (unSupply . f))
-
-
-newtype SupplyM a = SupplyM (SupplyT Id a)
-                    deriving (Functor,Applicative,Monad,MonadFix)
-
-runSupplyM :: Supply -> SupplyM a -> (a,Supply)
-runSupplyM s m = runM m s
-
-instance RunM SupplyM a (Supply -> (a,Supply)) where
-  runM (SupplyM m) s = runM m s
-  {-# INLINE runM #-}
-
-instance BaseM SupplyM SupplyM where
-  inBase = id
-  {-# INLINE inBase #-}
-
-instance M.Monoid a => M.Monoid (SupplyM a) where
-  mempty      = return mempty
-  mappend a b = do x <- a
-                   y <- b
-                   return (mappend x y)
 
 -- | Retrieve the next unique from the supply.
 nextUniqueM :: FreshM m => m Int

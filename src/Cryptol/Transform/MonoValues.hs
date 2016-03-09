@@ -78,7 +78,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Transform.MonoValues (rewModule) where
 
-import Cryptol.ModuleSystem.Name (SupplyM,liftSupply,Supply,mkDeclared)
+import Cryptol.ModuleSystem.Name (SupplyT,liftSupply,Supply,mkDeclared)
 import Cryptol.Parser.Position (emptyRange)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.TypeMap
@@ -138,7 +138,7 @@ rewModule s m = runM body (mName m) s
 
 --------------------------------------------------------------------------------
 
-type M  = ReaderT RO SupplyM
+type M  = ReaderT RO (SupplyT Id)
 type RO = ModName
 
 -- | Produce a fresh top-level name.
