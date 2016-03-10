@@ -78,7 +78,7 @@ import qualified Cryptol.ModuleSystem.NamingEnv as M
 import Cryptol.Parser (ParseError,ppError)
 import Cryptol.Parser.NoInclude (IncludeError,ppIncludeError)
 import Cryptol.Parser.NoPat (Error)
-import Cryptol.Parser.Position (emptyRange)
+import Cryptol.Parser.Position (emptyRange, Range(from))
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.Utils.Ident as I
@@ -96,6 +96,7 @@ import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef,atomicModifyIORef)
 import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
 import Data.Maybe (catMaybes)
+import Data.Ord (comparing)
 import Data.Typeable (Typeable)
 import System.Directory (findExecutable)
 import qualified Control.Exception as X
@@ -412,15 +413,12 @@ getTypeNames  =
   do (_, fNames, _) <- getFocusedEnv
      return (map (show . pp) (Map.keys (M.neTypes fNames)))
 
--- | Return a list of property names.
---
--- NOTE: we sort by displayed name here, but it would be just as easy to sort by
--- the position in the file, using nameLoc.
+-- | Return a list of property names, sorted by position in the file.
 getPropertyNames :: REPL ([M.Name],NameDisp)
 getPropertyNames =
   do (decls,_,names) <- getFocusedEnv
      let xs = M.ifDecls decls
-         ps = sortBy (M.cmpNameDisplay names)
+         ps = sortBy (comparing (from . M.nameLoc))
             $ [ x | (x,d) <- Map.toList xs, T.PragmaProperty `elem` M.ifDeclPragmas d ]
 
      return (ps, names)
