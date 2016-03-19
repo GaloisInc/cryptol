@@ -36,8 +36,10 @@ import Cryptol.Utils.Ident (packIdent,packInfix)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
-import MonadLib hiding (mapM)
-import qualified Data.Map as Map
+import qualified Data.Foldable as F
+import qualified Data.Map.Strict as Map
+import qualified Data.Sequence as Seq
+import           MonadLib hiding (mapM)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq.Generics
@@ -159,18 +161,14 @@ data RO = RO
   , roDisp  :: !NameDisp
   }
 
-data Out = Out
-  { oWarnings :: [RenamerWarning]
-  , oErrors   :: [RenamerError]
-  } deriving (Show)
-
-instance Monoid Out where
-  mempty      = Out [] []
-  mappend l r = Out (oWarnings l `mappend` oWarnings r)
-                    (oErrors   l `mappend` oErrors   r)
+data RW = RW
+  { rwWarnings :: !(Seq.Seq RenamerWarning)
+  , rwErrors   :: !(Seq.Seq RenamerError)
+  , rwSupply   :: !Supply
+  }
 
 newtype RenameM a = RenameM
-  { unRenameM :: ReaderT RO (WriterT Out (SupplyT Id)) a }
+  { unRenameM :: ReaderT RO (StateT RW Lift) a }
 
 instance Monoid a => Monoid (RenameM a) where
   {-# INLINE mempty #-}
@@ -201,27 +199,35 @@ instance Monad RenameM where
   m >>= k       = RenameM (unRenameM m >>= unRenameM . k)
 
 instance FreshM RenameM where
-  liftSupply f = RenameM (liftSupply f)
+  liftSupply f = RenameM $ sets $ \ RW { .. } ->
+    let (a,s') = f rwSupply
+        rw'    = RW { rwSupply = s', .. }
+     in a `seq` rw' `seq` (a, rw')
 
 runRenamer :: Supply -> ModName -> NamingEnv -> RenameM a
            -> (Either [RenamerError] (a,Supply),[RenamerWarning])
-runRenamer s ns env m = (res,oWarnings out)
+runRenamer s ns env m = (res,F.toList (rwWarnings rw))
   where
 
-  ((a,out),s') = runM (unRenameM m) RO { roLoc = emptyRange
-                                       , roNames = env
-                                       , roMod = ns
-                                       , roDisp = neverQualifyMod ns
-                                           `mappend` toNameDisp env
-                                       } s
+  (a,rw) = runM (unRenameM m) RO { roLoc = emptyRange
+                                 , roNames = env
+                                 , roMod = ns
+                                 , roDisp = neverQualifyMod ns
+                                            `mappend` toNameDisp env
+                                 }
+                              RW { rwErrors   = Seq.empty
+                                 , rwWarnings = Seq.empty
+                                 , rwSupply   = s
+                                 }
 
-  res | null (oErrors out) = Right (a,s')
-      | otherwise          = Left (oErrors out)
+  res | Seq.null (rwErrors rw) = Right (a,rwSupply rw)
+      | otherwise              = Left (F.toList (rwErrors rw))
 
 record :: (NameDisp -> RenamerError) -> RenameM ()
 record f = RenameM $
   do RO { .. } <- ask
-     put mempty { oErrors = [f roDisp] }
+     RW { .. } <- get
+     set RW { rwErrors = rwErrors Seq.|> f roDisp, .. }
 
 curLoc :: RenameM Range
 curLoc  = RenameM (roLoc `fmap` ask)
@@ -256,12 +262,13 @@ data EnvCheck = CheckAll     -- ^ Check for overlap and shadowing
 -- | Shadow the current naming environment with some more names. The boolean
 -- parameter indicates whether or not to check for shadowing.
 shadowNames' :: BindsNames env => EnvCheck -> env -> RenameM a -> RenameM a
-shadowNames' check names m = RenameM $ do
-  env <- liftSupply (namingEnv' names)
-  ro  <- ask
-  put (checkEnv (roDisp ro) check env (roNames ro))
-  let ro' = ro { roNames = env `shadowing` roNames ro }
-  local ro' (unRenameM m)
+shadowNames' check names m = do
+  do env <- liftSupply (namingEnv' names)
+     RenameM $
+       do ro  <- ask
+          sets_ (checkEnv (roDisp ro) check env (roNames ro))
+          let ro' = ro { roNames = env `shadowing` roNames ro }
+          local ro' (unRenameM m)
 
 shadowNamesNS :: BindsNames (InModule env) => env -> RenameM a -> RenameM a
 shadowNamesNS names m =
@@ -272,40 +279,42 @@ shadowNamesNS names m =
 -- | Generate warnings when the left environment shadows things defined in
 -- the right.  Additionally, generate errors when two names overlap in the
 -- left environment.
-checkEnv :: NameDisp -> EnvCheck -> NamingEnv -> NamingEnv -> Out
-checkEnv _    CheckNone _ _ = mempty
-checkEnv disp check     l r = Map.foldlWithKey (step neExprs) mempty (neExprs l)
-                    `mappend` Map.foldlWithKey (step neTypes) mempty (neTypes l)
+checkEnv :: NameDisp -> EnvCheck -> NamingEnv -> NamingEnv -> RW -> RW
+checkEnv _    CheckNone _ _ rw = rw
+checkEnv disp check     l r rw = rw''
 
   where
 
-  step prj acc k ns = acc `mappend` mempty
-    { oWarnings =
+  rw'  = Map.foldlWithKey (step neExprs) rw (neExprs l)
+  rw'' = Map.foldlWithKey (step neTypes) rw' (neTypes l)
+
+  step prj acc k ns = acc
+    { rwWarnings =
         if check == CheckAll
            then case Map.lookup k (prj r) of
-                  Nothing -> []
-                  Just os -> [SymbolShadowed (head ns) os disp]
+                  Nothing -> rwWarnings acc
+                  Just os -> rwWarnings acc Seq.|> SymbolShadowed (head ns) os disp
 
-           else []
-    , oErrors   = containsOverlap disp ns
+           else rwWarnings acc
+    , rwErrors   = rwErrors acc Seq.>< containsOverlap disp ns
     }
 
 -- | Check the RHS of a single name rewrite for conflicting sources.
-containsOverlap :: NameDisp -> [Name] -> [RenamerError]
-containsOverlap _    [_] = []
+containsOverlap :: NameDisp -> [Name] -> Seq.Seq RenamerError
+containsOverlap _    [_] = Seq.empty
 containsOverlap _    []  = panic "Renamer" ["Invalid naming environment"]
-containsOverlap disp ns  = [OverlappingSyms ns disp]
+containsOverlap disp ns  = Seq.singleton (OverlappingSyms ns disp)
 
 -- | Throw errors for any names that overlap in a rewrite environment.
 checkNamingEnv :: NamingEnv -> ([RenamerError],[RenamerWarning])
-checkNamingEnv env = (out, [])
+checkNamingEnv env = (F.toList out, [])
   where
   out    = Map.foldr check outTys (neExprs env)
   outTys = Map.foldr check mempty (neTypes env)
 
   disp   = toNameDisp env
 
-  check ns acc = containsOverlap disp ns ++ acc
+  check ns acc = containsOverlap disp ns Seq.>< acc
 
 
 -- Renaming --------------------------------------------------------------------
@@ -423,8 +432,8 @@ renameType pn =
 -- | Assuming an error has been recorded already, construct a fake name that's
 -- not expected to make it out of the renamer.
 mkFakeName :: PName -> RenameM Name
-mkFakeName pn = RenameM $
-  do ro <- ask
+mkFakeName pn =
+  do ro <- RenameM ask
      liftSupply (mkParameter (getIdent pn) (roLoc ro))
 
 -- | Rename a schema, assuming that none of its type variables are already in

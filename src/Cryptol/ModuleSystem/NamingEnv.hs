@@ -26,7 +26,7 @@ import Cryptol.Utils.Panic (panic)
 
 import Data.List (nub)
 import Data.Maybe (catMaybes,fromMaybe)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import MonadLib (runId,Id)
 
@@ -41,11 +41,11 @@ import Prelude.Compat
 
 -- XXX The fixity environment should be removed, and Name should include fixity
 -- information.
-data NamingEnv = NamingEnv { neExprs :: Map.Map PName [Name]
+data NamingEnv = NamingEnv { neExprs :: !(Map.Map PName [Name])
                              -- ^ Expr renaming environment
-                           , neTypes :: Map.Map PName [Name]
+                           , neTypes :: !(Map.Map PName [Name])
                              -- ^ Type renaming environment
-                           , neFixity:: Map.Map Name Fixity
+                           , neFixity:: !(Map.Map Name Fixity)
                              -- ^ Expression-level fixity environment
                            } deriving (Show, Generic)
 
@@ -68,6 +68,11 @@ instance Monoid NamingEnv where
     NamingEnv { neExprs  = Map.unionsWith merge (map neExprs  envs)
               , neTypes  = Map.unionsWith merge (map neTypes  envs)
               , neFixity = Map.unions           (map neFixity envs) }
+
+  {-# INLINE mempty #-}
+  {-# INLINE mappend #-}
+  {-# INLINE mconcat #-}
+
 
 -- | Merge two name maps, collapsing cases where the entries are the same, and
 -- producing conflicts otherwise.
