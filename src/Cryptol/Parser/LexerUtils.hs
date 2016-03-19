@@ -18,7 +18,6 @@ import Cryptol.Utils.Panic
 
 import           Data.Char(toLower,generalCategory,isAscii,ord,isSpace)
 import qualified Data.Char as Char
-import           Data.List(foldl')
 import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
 import           Data.Word(Word8)
@@ -169,20 +168,20 @@ mkIdent :: Action
 mkIdent cfg p s z = (Just Located { srcRange = r, thing = Token t s }, z)
   where
   r = Range { from = p, to = moves p s, source = cfgSource cfg }
-  t = Ident [] (T.unpack s)
+  t = Ident [] s
 
 mkQualIdent :: Action
 mkQualIdent cfg p s z = (Just Located { srcRange = r, thing = Token t s}, z)
   where
   r = Range { from = p, to = moves p s, source = cfgSource cfg }
-  t = Ident (map T.unpack ns) (T.unpack i)
+  t = Ident ns i
   (ns,i) = splitQual s
 
 mkQualOp :: Action
 mkQualOp cfg p s z = (Just Located { srcRange = r, thing = Token t s}, z)
   where
   r = Range { from = p, to = moves p s, source = cfgSource cfg }
-  t = Op (Other (map T.unpack ns) (T.unpack i))
+  t = Op (Other ns i)
   (ns,i) = splitQual s
 
 emit :: TokenT -> Action
@@ -190,8 +189,8 @@ emit t cfg p s z  = (Just Located { srcRange = r, thing = Token t s }, z)
   where r = Range { from = p, to = moves p s, source = cfgSource cfg }
 
 
-emitS :: (String -> TokenT) -> Action
-emitS t cfg p s z  = emit (t (T.unpack s)) cfg p s z
+emitS :: (Text -> TokenT) -> Action
+emitS t cfg p s z  = emit (t s) cfg p s z
 
 
 -- | Split out the prefix and name part of an identifier/operator.
@@ -213,10 +212,10 @@ splitQual t =
 
 
 --------------------------------------------------------------------------------
-numToken :: Integer -> String -> TokenT
-numToken rad ds = Num (toVal ds) (fromInteger rad) (length ds)
+numToken :: Integer -> Text -> TokenT
+numToken rad ds = Num (toVal ds) (fromInteger rad) (fromIntegral (T.length ds))
   where
-  toVal = foldl' (\x c -> rad * x + toDig c) 0
+  toVal = T.foldl' (\x c -> rad * x + toDig c) 0
   toDig = if rad == 16 then fromHexDigit else fromDecDigit
 
 fromDecDigit   :: Char -> Integer
@@ -411,7 +410,7 @@ instance NFData TokenKW where rnf = genericRnf
 data TokenOp  = Plus | Minus | Mul | Div | Exp | Mod
               | Equal | LEQ | GEQ
               | Complement | Hash
-              | Other [String] String
+              | Other [T.Text] T.Text
                 deriving (Eq,Show,Generic)
 
 instance NFData TokenOp where rnf = genericRnf
@@ -448,7 +447,7 @@ instance NFData TokenErr where rnf = genericRnf
 
 data TokenT   = Num Integer Int Int   -- ^ value, base, number of digits
               | ChrLit  Char          -- ^ character literal
-              | Ident [String] String -- ^ (qualified) identifier
+              | Ident [T.Text] T.Text -- ^ (qualified) identifier
               | StrLit String         -- ^ string literal
               | KW    TokenKW         -- ^ keyword
               | Op    TokenOp         -- ^ operator

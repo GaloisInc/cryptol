@@ -118,10 +118,10 @@ $white+                   { emit $ White Space }
 
 "primitive"               { emit $ KW KW_primitive }
 
-@num2                     { emitS (numToken 2  . drop 2) }
-@num8                     { emitS (numToken 8  . drop 2) }
-@num10                    { emitS (numToken 10 . drop 0) }
-@num16                    { emitS (numToken 16 . drop 2) }
+@num2                     { emitS (numToken 2  . Text.drop 2) }
+@num8                     { emitS (numToken 8  . Text.drop 2) }
+@num10                    { emitS (numToken 10 . Text.drop 0) }
+@num16                    { emitS (numToken 16 . Text.drop 2) }
 
 "_"                       { emit $ Sym Underscore }
 @id                       { mkIdent }
