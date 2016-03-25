@@ -18,6 +18,7 @@ import           Cryptol.Utils.PP
 import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 -- | Built-in types.

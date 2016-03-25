@@ -28,6 +28,7 @@ import           Cryptol.Utils.Ident (ModName)
 import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 import Prelude ()

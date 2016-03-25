@@ -27,6 +27,7 @@ import qualified Data.Text.Lazy as T
 
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 import Prelude ()

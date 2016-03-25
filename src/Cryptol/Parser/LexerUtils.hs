@@ -23,6 +23,7 @@ import qualified Data.Text.Lazy as T
 import           Data.Word(Word8)
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 data Config = Config

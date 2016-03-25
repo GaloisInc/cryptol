@@ -47,6 +47,7 @@ import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
 
+import           Control.DeepSeq
 import           Control.DeepSeq.Generics
 import           Control.Monad.Fix (MonadFix(mfix))
 import qualified Data.Map as Map

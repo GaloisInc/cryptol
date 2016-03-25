@@ -31,6 +31,7 @@ import qualified Data.Set as Set
 import MonadLib (runId,Id)
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 import Prelude ()

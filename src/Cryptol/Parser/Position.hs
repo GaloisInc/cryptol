@@ -16,6 +16,7 @@ import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 import Cryptol.Utils.PP

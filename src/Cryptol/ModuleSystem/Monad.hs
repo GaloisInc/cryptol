@@ -34,6 +34,7 @@ import Data.Maybe (isJust)
 import MonadLib
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 import Prelude ()

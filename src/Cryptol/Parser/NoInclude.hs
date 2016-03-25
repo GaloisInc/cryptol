@@ -35,6 +35,7 @@ import qualified Control.Exception as X
 import           System.FilePath (takeDirectory,(</>),isAbsolute)
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 import System.Directory (getCurrentDirectory)

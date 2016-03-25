@@ -31,6 +31,7 @@ import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 data SolverConfig = SolverConfig

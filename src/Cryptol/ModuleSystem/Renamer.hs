@@ -42,6 +42,7 @@ import qualified Data.Sequence as Seq
 import           MonadLib hiding (mapM)
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 import Prelude ()

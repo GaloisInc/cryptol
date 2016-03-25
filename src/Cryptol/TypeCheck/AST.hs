@@ -37,6 +37,7 @@ import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 import           Data.Map    (Map)

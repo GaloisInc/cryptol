@@ -29,6 +29,7 @@ import qualified Data.Text as T
 import Numeric (showIntAtBase)
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 -- Utilities -------------------------------------------------------------------

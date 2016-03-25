@@ -12,7 +12,7 @@
 module Cryptol.Utils.PP where
 
 import           Cryptol.Utils.Ident
-
+import           Control.DeepSeq
 import           Control.DeepSeq.Generics
 import           Control.Monad (mplus)
 import           Data.Maybe (fromMaybe)
