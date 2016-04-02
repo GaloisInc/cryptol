@@ -14,7 +14,7 @@
 module Cryptol.TypeCheck.Subst where
 
 import           Data.Either (partitionEithers)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
 import qualified Data.Set as Set
@@ -25,7 +25,9 @@ import Cryptol.TypeCheck.TypeMap
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Misc(anyJust)
 
-data Subst = S { suMap :: Map.Map TVar Type, suDefaulting :: !Bool }
+data Subst = S { suMap :: !(Map.Map TVar Type)
+               , suDefaulting :: !Bool
+               }
                   deriving Show
 
 emptySubst :: Subst
@@ -35,6 +37,12 @@ singleSubst :: TVar -> Type -> Subst
 singleSubst x t = S { suMap = Map.singleton x t, suDefaulting = False }
 
 (@@) :: Subst -> Subst -> Subst
+s2 @@ s1 | Map.null (suMap s2) =
+  if (suDefaulting s1 || not (suDefaulting s2)) then
+    s1
+  else
+    s1{ suDefaulting = True }
+
 s2 @@ s1 = S { suMap = Map.map (apSubst s2) (suMap s1) `Map.union` suMap s2
              , suDefaulting = suDefaulting s1 || suDefaulting s2
              }
