@@ -63,7 +63,7 @@ insertGoal g (Goals tm) = Goals (insertTM (goal g) g tm)
 
 -- | Something that we need to find evidence for.
 data Goal = Goal
-  { goalSource :: ConstraintSource  -- ^ With it is about
+  { goalSource :: ConstraintSource  -- ^ What it is about
   , goalRange  :: Range             -- ^ Part of source code that caused goal
   , goal       :: Prop              -- ^ What needs to be proved
   } deriving (Show,Generic)
@@ -86,8 +86,8 @@ data DelayedCt = DelayedCt
 instance NFData DelayedCt where rnf = genericRnf
 
 data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assuming the sub-goals.
-            | Unsolved                    -- ^ We could not solved the goal.
-            | Unsolvable                  -- ^ The goal can never be solved
+            | Unsolved                    -- ^ We could not solve the goal.
+            | Unsolvable                  -- ^ The goal can never be solved.
               deriving (Show)
 
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
@@ -105,7 +105,7 @@ data Error    = ErrorMsg Doc
                 -- ^ Expected kind, inferred kind
 
               | TooManyTypeParams Int Kind
-                -- ^ Number of extra parameters, kind of resut
+                -- ^ Number of extra parameters, kind of result
                 -- (which should not be of the form @_ -> _@)
 
               | TooManyTySynParams Name Int
@@ -158,7 +158,7 @@ data Error    = ErrorMsg Doc
                 -- that are not in scope.
 
               | NotForAll TVar Type
-                -- ^ Quantified type variables (of kind *) needs to
+                -- ^ Quantified type variables (of kind *) need to
                 -- match the given type, so it does not work for all types.
 
               | UnusableFunction Name [Prop]
