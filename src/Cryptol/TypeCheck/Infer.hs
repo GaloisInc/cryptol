@@ -140,8 +140,9 @@ appTys expr ts tGoal =
     P.ETyped    {} -> mono
     P.ETypeVal  {} -> mono
     P.EFun      {} -> mono
-    P.EParens   {} -> tcPanic "appTys" [ "Unexpected EParens" ]
-    P.EInfix    {} -> tcPanic "appTys" [ "Unexpected EInfix" ]
+
+    P.EParens e       -> appTys e ts tGoal
+    P.EInfix a op _ b -> appTys (P.EVar (thing op) `P.EApp` a `P.EApp` b) ts tGoal
 
   where mono = do e'     <- checkE expr tGoal
                   (ie,t) <- instantiateWith e' (Forall [] [] tGoal) ts
