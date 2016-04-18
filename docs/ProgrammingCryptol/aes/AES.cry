@@ -88,7 +88,7 @@ InvSubByte : GF28 -> GF28
 InvSubByte b = gf28Inverse (xformByte' b)
 
 InvSubBytes : State -> State
-InvSubBytes state =[ [ InvSubByte b | b <- row ] | row <- state ]
+InvSubBytes state = [ [ InvSubByte b | b <- row ] | row <- state ]
 
 // The ShiftRows transform and its inverse
 ShiftRows : State -> State
