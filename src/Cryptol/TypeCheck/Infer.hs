@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -140,8 +140,9 @@ appTys expr ts tGoal =
     P.ETyped    {} -> mono
     P.ETypeVal  {} -> mono
     P.EFun      {} -> mono
-    P.EParens   {} -> tcPanic "appTys" [ "Unexpected EParens" ]
-    P.EInfix    {} -> tcPanic "appTys" [ "Unexpected EInfix" ]
+
+    P.EParens e       -> appTys e ts tGoal
+    P.EInfix a op _ b -> appTys (P.EVar (thing op) `P.EApp` a `P.EApp` b) ts tGoal
 
   where mono = do e'     <- checkE expr tGoal
                   (ie,t) <- instantiateWith e' (Forall [] [] tGoal) ts
@@ -569,7 +570,7 @@ inferBinds :: Bool -> Bool -> [P.Bind Name] -> InferM [Decl]
 inferBinds isTopLevel isRec binds =
   mdo let dExpr (DExpr e) = e
           dExpr DPrim     = panic "[TypeCheck]" [ "primitive in a recursive group" ]
-  
+
           exprMap = Map.fromList [ (x,inst (EVar x) (dExpr (dDefinition b)))
                                  | b <- genBs, let x = dName b ] -- REC.
 
@@ -706,8 +707,8 @@ generalize bs0 gs0 =
      when (not (null ambig)) $ recordError $ AmbiguousType $ map dName bs
 
 
-     cfg <- getSolverConfig
-     (as0,here1,defSu,ws) <- io $ improveByDefaulting cfg maybeAmbig here0
+     solver <- getSolver
+     (as0,here1,defSu,ws) <- io $ improveByDefaultingWith solver maybeAmbig here0
      mapM_ recordWarning ws
      let here = map goal here1
 
@@ -810,8 +811,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
         when (not (null ambig)) $ recordError
                                 $ AmbiguousType [ thing (P.bName b) ]
 
-        cfg <- getSolverConfig
-        (_,_,defSu2,ws) <- io $ improveByDefaulting cfg maybeAmbig later
+        solver <- getSolver
+        (_,_,defSu2,ws) <- io $ improveByDefaultingWith solver maybeAmbig later
         mapM_ recordWarning ws
         extendSubst defSu2
 

@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -107,12 +107,12 @@ solveSelector sel outerT =
 
   where
   liftSeq len el =
-    do mb <- solveSelector sel el
+    do mb <- solveSelector sel (tNoUser el)
        return $ do el' <- mb
                    return (TCon (TC TCSeq) [len,el'])
 
   liftFun t1 t2 =
-    do mb <- solveSelector sel t2
+    do mb <- solveSelector sel (tNoUser t2)
        return $ do t2' <- mb
                    return (TCon (TC TCFun) [t1,t2'])
 

@@ -1,6 +1,14 @@
-{-# LANGUAGE PatternGuards #-}
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2015-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- Simplification of `fin` constraints.
 
--- | Simplification of `fin` constraints.
+{-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Solver.Numeric.Fin where
 
 import Data.Map (Map)
@@ -81,5 +89,3 @@ cryIsFinType varInfo g ty =
 
   where
   solved ps = Solved Nothing [ g { goal = p } | p <- ps ]
-
-

@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -34,6 +34,7 @@ import Data.Maybe (isJust)
 import MonadLib
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 import Prelude ()
@@ -280,7 +281,7 @@ runModuleT :: Monad m
            => ModuleEnv
            -> ModuleT m a
            -> m (Either ModuleError (a, ModuleEnv), [ModuleWarning])
-runModuleT env m = 
+runModuleT env m =
     runWriterT
   $ runExceptionT
   $ runStateT env
@@ -444,5 +445,3 @@ getSolverConfig :: ModuleM T.SolverConfig
 getSolverConfig  = ModuleT $ do
   me <- get
   return (meSolverConfig me)
-
-

@@ -100,11 +100,10 @@ New types:
 Random Values
 -------------
 
-    random    : {a} => [32] -> a
+    random    : {a} => [256] -> a
 
 Debugging
 ---------
 
      undefined   : {a} a
      error       : {n a} [n][8] -> a
-

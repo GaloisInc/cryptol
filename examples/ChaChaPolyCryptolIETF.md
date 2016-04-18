@@ -1,4 +1,4 @@
-% ChaCha20 and Poly1305 for IETF protocols 
+% ChaCha20 and Poly1305 for IETF protocols
 % Y. Nir (Check Point),  A. Langley (Google Inc),  D. McNamee (Galois, Inc)
 % July 28, 2014
 
@@ -178,7 +178,7 @@ leaving the others alone:
 ```
 
 Note that this run of quarter round is part of what is called a
-"column round". 
+"column round".
 
 ### Test Vector for the Quarter Round on the ChaCha state
 
@@ -208,8 +208,8 @@ After applying QUARTERROUND(2,7,8,13)
 
 Note that only the numbers in positions 2, 7, 8, and 13 changed.
 
-In the Cryptol implementation of ChaCha20, the ChaChaQuarterround is called on four elements at a time, 
-and there is no destructive state modification, so it would be artificial to reproduce the 
+In the Cryptol implementation of ChaCha20, the ChaChaQuarterround is called on four elements at a time,
+and there is no destructive state modification, so it would be artificial to reproduce the
 above example of the partially-destructively modified matrix. Instead, we show the output of
 calling ChaChaQuarterround on the diagonal elements identified above:
 
@@ -680,7 +680,7 @@ The inputs to Poly1305 are:
 The output is a 128-bit tag.
 
 ```cryptol
-Poly1305 : {m, floorBlocks, rem} (fin m, floorBlocks == m/16, rem == m - floorBlocks*16) 
+Poly1305 : {m} (fin m)
            => [256] -> [m][8] -> [16][8]
 ```
 
@@ -695,6 +695,8 @@ First, the "r" value should be clamped.
 
 ```cryptol
 Poly1305 key msg = result where
+    type floorBlocks = m / 16
+    type rem = m - floorBlocks*16
     [ru, su] = split key
     r : [136] // internal arithmetic on (128+8)-bit numbers
     r = littleendian ((Poly1305_clamp (split ru)) # [0x00])
@@ -724,7 +726,7 @@ Next, divide the message into 16-byte blocks. The last block might be shorter:
 
  *  Add the current block to the accumulator.
  *  Multiply by "r"
- *  Set the accumulator to the result modulo p.  To summarize: 
+ *  Set the accumulator to the result modulo p.  To summarize:
     ``accum[i+1] = ((accum[i]+block)*r) % p``.
 
 ```cryptol
@@ -771,7 +773,7 @@ using AES, and assume that we got the following keying material:
    03:80:8a:fb:0d:b2:fd:4a:bf:f6:af:41:49:f5:1b
 
 ```cryptol
-Poly1305TestKey = join (parseHexString 
+Poly1305TestKey = join (parseHexString
     ( "85:d6:be:78:57:55:6d:33:7f:44:52:fe:42:d5:06:a8:01:"
     # "03:80:8a:fb:0d:b2:fd:4a:bf:f6:af:41:49:f5:1b."
     ) )
@@ -806,7 +808,7 @@ values of the accumulator:
 ```cryptol
 // TODO: refactor the Poly function in terms of this AccumBlocks
 // challenge: doing so while maintaining the clean literate correspondence with the spec
-AccumBlocks : {m, floorBlocks, rem} (fin m, floorBlocks == m/16, rem == m - floorBlocks*16) 
+AccumBlocks : {m, floorBlocks, rem} (fin m, floorBlocks == m/16, rem == m - floorBlocks*16)
               => [256] -> [m][8] -> ([_][136], [136])
 
 AccumBlocks key msg = (accum, lastAccum) where
@@ -862,7 +864,7 @@ Acc + block = 2d8adaf23b0337fa7cccfb4ea344ca153
 ```
 
 ```cryptol
-property polyBlocksOK = 
+property polyBlocksOK =
     (blocks @ 1 == 0x02c88c77849d64ae9147ddeb88e69c83fc) &&
     (blocks @ 2 == 0x02d8adaf23b0337fa7cccfb4ea344b30de) &&
     (lastBlock  == 0x028d31b7caff946c77c8844335369d03a7) where
@@ -874,7 +876,7 @@ Adding s we get this number, and serialize if to get the tag:
 Acc + s = 2a927010caf8b2bc2c6365130c11d06a8
 
 Tag: a8:06:1d:c1:30:51:36:c6:c2:2b:8b:af:0c:01:27:a9
-   
+
 ```cryptol
 // Putting it all together and testing:
 
@@ -902,7 +904,7 @@ SK_a* or *_write_MAC_key is only for stand-alone Poly1305.
 
 The method is to call the block function with the following
 parameters:
-   
+
  * The 256-bit session integrity key is used as the ChaCha20 key.
  * The block counter is set to zero.
  * The protocol will specify a 96-bit or 64-bit nonce.  This MUST be
@@ -927,7 +929,7 @@ encryption algorithms (often called Initialization Vectors, or IVs),
 they usually don't have such a provision for the MAC function.  In
 that case the per-invocation nonce will have to come from somewhere
 else, such as a message counter.
-   
+
 ### Poly1305 Key Generation Test Vector
 
 For this example, we'll set:
@@ -964,7 +966,7 @@ PolyChaChaState_testVector = [
      0x37b633a8,  0xa50dfde3,  0xe2b8db08,  0x46a6d1fd,
      0x7da03782,  0x9183a233,  0x148ad271,  0xb46773d1,
      0x3cc1875a,  0x8607def1,  0xca5c3086,  0x7085eb87 ]
- 
+
 property PolyChaCha_correct = ChaCha20Block PolyKeyTest PolyNonceTest 0 ==
     PolyChaChaState_testVector
 ```
@@ -976,7 +978,7 @@ PolyOutput = join (parseHexString (
     "8a d5 a0 8b 90 5f 81 cc 81 50 40 27 4a b2 94 71 " #
     "a8 33 b6 37 e3 fd 0d a5 08 db b8 e2 fd d1 a6 46 "))
 
-GeneratePolyKeyUsingChaCha k n i = join [littleendian (groupBy`{8}b) 
+GeneratePolyKeyUsingChaCha k n i = join [littleendian (groupBy`{8}b)
                                         | b <- take `{8}(ChaCha20Block k n i) ]
 
 property Poly_passes_test = GeneratePolyKeyUsingChaCha PolyKeyTest PolyNonceTest 0 == PolyOutput
@@ -1046,7 +1048,7 @@ takes a 256-bit key and 96-bit nonce as follows:
     counter set to 1.
 
 ```cryptol
-    ct = ChaCha20EncryptBytes p k nonce 1 
+    ct = ChaCha20EncryptBytes p k nonce 1
 ```
 
  *  Finally, the Poly1305 function is called with the Poly1305 key
@@ -1069,12 +1071,12 @@ takes a 256-bit key and 96-bit nonce as follows:
 
 ```cryptol
     ptlen : [8][8]
-    ptlen = groupBy`{8}(littleendian (groupBy`{8}(`m:[64]))) 
+    ptlen = groupBy`{8}(littleendian (groupBy`{8}(`m:[64])))
     adlen : [8][8]
     adlen = groupBy`{8}(littleendian (groupBy`{8}(`n:[64])))
     // compute padding
     tag = Poly1305 PolyKey (AeadConstruction aad ct)
-	
+
 //ct in this function has tag removed
 AeadConstruction (AAD : [n][8]) (CT : [m][8]) = (AAD # padding1 # CT # padding2 # adlen # ptlen) where
 	padding1 = (zero:[(16-n%16)%16][8])
@@ -1098,7 +1100,7 @@ AEAD_CHACHA20_POLY1305_DECRYPT : {m, n} (fin m, fin n
                                  ,64 >= width m, 64 >= width n)
                                  => [256] -> [96]
                                     -> [m+16][8] -> [n][8]
-                                    -> ([m][8], Bit)								
+                                    -> ([m][8], Bit)
 AEAD_CHACHA20_POLY1305_DECRYPT k nonce ct ad = (pt, valid) where
     inTag = drop`{m}ct
     inCt = take`{m}ct
@@ -1183,7 +1185,7 @@ AeadPolyOneTimeKey_testVector = [
     0x93929190,  0x97969594,  0x9b9a9998,  0x9f9e9d9c,
     0x00000000,  0x00000007,  0x43424140,  0x47464544 ]
 
-property AeadPolyKeyBuildState_correct = 
+property AeadPolyKeyBuildState_correct =
     BuildState AeadKey AeadNonce 0 == AeadPolyOneTimeKey_testVector
 ```
 
@@ -1196,7 +1198,7 @@ AeadPolyOneTimeKeyState = [
     0xdecc7ea2,  0xb44ddbad,  0xe49c17d1,  0xd8430bc9,
     0x8c94b7bc,  0x8b7d4b4b,  0x3927f67d,  0x1669a432]
 
-property AeadPolyChaCha_correct = 
+property AeadPolyChaCha_correct =
     ChaCha20Block AeadKey AeadNonce 0 == AeadPolyOneTimeKeyState
 ```
 
@@ -1260,7 +1262,7 @@ AeadTagTestVector = parseHexString "1a:e1:0b:59:4f:09:e2:6a:7e:90:2e:cb:d0:60:06
 ```
 
 ```cryptol
-property AeadTag_correct = AeadTag == AeadTagTestVector 
+property AeadTag_correct = AeadTag == AeadTagTestVector
 
 property AeadConstruction_correct = (AeadConstruction AeadAAD AeadCT) == AeadConstructionTestVector
 
@@ -1456,12 +1458,12 @@ Email: dylan@galois.com
 ```cryptol
 // helper macros for higher-up properties
 TV_block_correct key nonce blockcounter result = ChaCha20Block key nonce blockcounter == result
-	
+
 TV_block_Keystream_correct key nonce blockcounter keystream =
 	take`{0x40} (groupBy`{8} (join (join (ChaCha20ExpandKey key nonce blockcounter)))) == keystream
 
-ChaCha20_block_correct key nonce blockcounter result keystream = 
-	TV_block_correct key nonce blockcounter result && 
+ChaCha20_block_correct key nonce blockcounter result keystream =
+	TV_block_correct key nonce blockcounter result &&
 	TV_block_Keystream_correct key nonce blockcounter keystream
 ```
 
@@ -1487,7 +1489,7 @@ TV1_block_KeyStream = [
 property TV1_block_correct = ChaCha20_block_correct TV1_block_Key TV1_block_Nonce TV1_block_BlockCounter TV1_block_After20 TV1_block_KeyStream
 
 ```
-	
+
 ### Test Vector #2
 
 ```cryptol
@@ -1509,7 +1511,7 @@ TV2_block_KeyStream = [
 
 property TV2_block_correct = ChaCha20_block_correct TV2_block_Key TV2_block_Nonce TV2_block_BlockCounter TV2_block_After20 TV2_block_KeyStream
 
-	
+
 ```
 
 ### Test Vector #3
@@ -1524,11 +1526,11 @@ TV3_block_After20 = [
 	0xe8252083, 0x60818b01, 0xf38422b8, 0x5aaa49c9,
 	0xbb00ca8e, 0xda3ba7b4, 0xc4b592d1, 0xfdf2732f,
 	0x4436274e, 0x2561b3c8, 0xebdd4aa6, 0xa0136c00]
-	
+
 TV3_block_KeyStream = [
-	0x3a, 0xeb, 0x52, 0x24, 0xec, 0xf8, 0x49, 0x92, 0x9b, 0x9d, 0x82, 0x8d, 0xb1, 0xce, 0xd4, 0xdd, 
-	0x83, 0x20, 0x25, 0xe8, 0x01, 0x8b, 0x81, 0x60, 0xb8, 0x22, 0x84, 0xf3, 0xc9, 0x49, 0xaa, 0x5a, 
-	0x8e, 0xca, 0x00, 0xbb, 0xb4, 0xa7, 0x3b, 0xda, 0xd1, 0x92, 0xb5, 0xc4, 0x2f, 0x73, 0xf2, 0xfd, 
+	0x3a, 0xeb, 0x52, 0x24, 0xec, 0xf8, 0x49, 0x92, 0x9b, 0x9d, 0x82, 0x8d, 0xb1, 0xce, 0xd4, 0xdd,
+	0x83, 0x20, 0x25, 0xe8, 0x01, 0x8b, 0x81, 0x60, 0xb8, 0x22, 0x84, 0xf3, 0xc9, 0x49, 0xaa, 0x5a,
+	0x8e, 0xca, 0x00, 0xbb, 0xb4, 0xa7, 0x3b, 0xda, 0xd1, 0x92, 0xb5, 0xc4, 0x2f, 0x73, 0xf2, 0xfd,
 	0x4e, 0x27, 0x36, 0x44, 0xc8, 0xb3, 0x61, 0x25, 0xa6, 0x4a, 0xdd, 0xeb, 0x00, 0x6c, 0x13, 0xa0]
 
 property TV3_block_correct = ChaCha20_block_correct TV3_block_Key TV3_block_Nonce TV3_block_BlockCounter TV3_block_After20 TV3_block_KeyStream
@@ -1547,11 +1549,11 @@ TV4_block_After20 = [
 	0xa78dea8f, 0x5e269039, 0xa1bebbc1, 0xcaf09aae,
 	0xa25ab213, 0x48a6b46c, 0x1b9d9bcb, 0x092c5be6,
 	0x546ca624, 0x1bec45d5, 0x87f47473, 0x96f0992e]
-	
+
 TV4_block_KeyStream = [
-	0x72, 0xd5, 0x4d, 0xfb, 0xf1, 0x2e, 0xc4, 0x4b, 0x36, 0x26, 0x92, 0xdf, 0x94, 0x13, 0x7f, 0x32, 
-	0x8f, 0xea, 0x8d, 0xa7, 0x39, 0x90, 0x26, 0x5e, 0xc1, 0xbb, 0xbe, 0xa1, 0xae, 0x9a, 0xf0, 0xca, 
-	0x13, 0xb2, 0x5a, 0xa2, 0x6c, 0xb4, 0xa6, 0x48, 0xcb, 0x9b, 0x9d, 0x1b, 0xe6, 0x5b, 0x2c, 0x09, 
+	0x72, 0xd5, 0x4d, 0xfb, 0xf1, 0x2e, 0xc4, 0x4b, 0x36, 0x26, 0x92, 0xdf, 0x94, 0x13, 0x7f, 0x32,
+	0x8f, 0xea, 0x8d, 0xa7, 0x39, 0x90, 0x26, 0x5e, 0xc1, 0xbb, 0xbe, 0xa1, 0xae, 0x9a, 0xf0, 0xca,
+	0x13, 0xb2, 0x5a, 0xa2, 0x6c, 0xb4, 0xa6, 0x48, 0xcb, 0x9b, 0x9d, 0x1b, 0xe6, 0x5b, 0x2c, 0x09,
 	0x24, 0xa6, 0x6c, 0x54, 0xd5, 0x45, 0xec, 0x1b, 0x73, 0x74, 0xf4, 0x87, 0x2e, 0x99, 0xf0, 0x96]
 
 property TV4_block_correct = ChaCha20_block_correct TV4_block_Key TV4_block_Nonce TV4_block_BlockCounter TV4_block_After20 TV4_block_KeyStream
@@ -1570,7 +1572,7 @@ TV5_block_After20 = [
 	0x88228b1a, 0x96a4dfb3, 0x5b76ab72, 0xc727ee54,
 	0x0e0e978a, 0xf3145c95, 0x1b748ea8, 0xf786c297,
 	0x99c28f5f, 0x628314e8, 0x398a19fa, 0x6ded1b53]
-	
+
 TV5_block_KeyStream = [
 	0xc2, 0xc6, 0x4d, 0x37, 0x8c, 0xd5, 0x36, 0x37, 0x4a, 0xe2, 0x04, 0xb9, 0xef, 0x93, 0x3f, 0xcd,
 	0x1a, 0x8b, 0x22, 0x88, 0xb3, 0xdf, 0xa4, 0x96, 0x72, 0xab, 0x76, 0x5b, 0x54, 0xee, 0x27, 0xc7,
@@ -1584,8 +1586,8 @@ property all_block_tests_correct =
 	TV2_block_correct &&
 	TV3_block_correct &&
 	TV4_block_correct &&
-	TV5_block_correct 
-	
+	TV5_block_correct
+
 ```
 
 ## ChaCha20 Encryption
@@ -1608,7 +1610,7 @@ TV1_enc_cyphertext = [
 	0xbd, 0xd2, 0x19, 0xb8, 0xa0, 0x8d, 0xed, 0x1a, 0xa8, 0x36, 0xef, 0xcc, 0x8b, 0x77, 0x0d, 0xc7,
 	0xda, 0x41, 0x59, 0x7c, 0x51, 0x57, 0x48, 0x8d, 0x77, 0x24, 0xe0, 0x3f, 0xb8, 0xd8, 0x4a, 0x37,
 	0x6a, 0x43, 0xb8, 0xf4, 0x15, 0x18, 0xa1, 0x1c, 0xc3, 0x87, 0xb6, 0x69, 0xb2, 0xee, 0x65, 0x86]
-	
+
 property TV1_enc_correct = ChaCha20_enc_correct TV1_enc_Key TV1_enc_Nonce TV1_enc_BlockCounter TV1_enc_plaintext TV1_enc_cyphertext
 
 ```
@@ -1645,7 +1647,7 @@ IETF_submission_text = [
 	0x79, 0x20, 0x74, 0x69, 0x6d, 0x65, 0x20, 0x6f, 0x72, 0x20, 0x70, 0x6c, 0x61, 0x63, 0x65, 0x2c,
 	0x20, 0x77, 0x68, 0x69, 0x63, 0x68, 0x20, 0x61, 0x72, 0x65, 0x20, 0x61, 0x64, 0x64, 0x72, 0x65,
 	0x73, 0x73, 0x65, 0x64, 0x20, 0x74, 0x6f ]
-	
+
 TV2_enc_plaintext = IETF_submission_text
 
 
@@ -1674,7 +1676,7 @@ TV2_enc_cyphertext = [
 	0x14, 0xea, 0x99, 0x82, 0xcc, 0xaf, 0xb3, 0x41, 0xb2, 0x38, 0x4d, 0xd9, 0x02, 0xf3, 0xd1, 0xab,
 	0x7a, 0xc6, 0x1d, 0xd2, 0x9c, 0x6f, 0x21, 0xba, 0x5b, 0x86, 0x2f, 0x37, 0x30, 0xe3, 0x7c, 0xfd,
 	0xc4, 0xfd, 0x80, 0x6c, 0x22, 0xf2, 0x21]
-	
+
 property TV2_enc_correct = ChaCha20_enc_correct TV2_enc_Key TV2_enc_Nonce TV2_enc_BlockCounter TV2_enc_plaintext TV2_enc_cyphertext
 
 ```
@@ -1697,7 +1699,7 @@ jabberwock_text = [
 	0x65, 0x72, 0x65, 0x20, 0x74, 0x68, 0x65, 0x20, 0x62, 0x6f, 0x72, 0x6f, 0x67, 0x6f, 0x76, 0x65,
 	0x73, 0x2c, 0x0a, 0x41, 0x6e, 0x64, 0x20, 0x74, 0x68, 0x65, 0x20, 0x6d, 0x6f, 0x6d, 0x65, 0x20,
 	0x72, 0x61, 0x74, 0x68, 0x73, 0x20, 0x6f, 0x75, 0x74, 0x67, 0x72, 0x61, 0x62, 0x65, 0x2e]
-	
+
 TV3_enc_plaintext = jabberwock_text
 
 
@@ -1710,13 +1712,13 @@ TV3_enc_cyphertext = [
 	0x1a, 0x55, 0x32, 0x05, 0x57, 0x16, 0xea, 0xd6, 0x96, 0x25, 0x68, 0xf8, 0x7d, 0x3f, 0x3f, 0x77,
 	0x04, 0xc6, 0xa8, 0xd1, 0xbc, 0xd1, 0xbf, 0x4d, 0x50, 0xd6, 0x15, 0x4b, 0x6d, 0xa7, 0x31, 0xb1,
 	0x87, 0xb5, 0x8d, 0xfd, 0x72, 0x8a, 0xfa, 0x36, 0x75, 0x7a, 0x79, 0x7a, 0xc1, 0x88, 0xd1]
-	
+
 property TV3_enc_correct = ChaCha20_enc_correct TV3_enc_Key TV3_enc_Nonce TV3_enc_BlockCounter TV3_enc_plaintext TV3_enc_cyphertext
 
 property all_enc_tests_correct =
 	TV1_enc_correct &&
 	TV2_enc_correct &&
-	TV3_enc_correct 
+	TV3_enc_correct
 ```
 
 ## Poly1305 Message Authentication Code
@@ -1855,7 +1857,7 @@ exactly 2^130-6?
 
 TV9_MAC_Key =  0x02 # zero:[256]
 
-TV9_MAC_text = 
+TV9_MAC_text =
 	[0xFD, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]
 
 TV9_MAC_tag = [0xFA, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]: [16][8]
@@ -1896,7 +1898,7 @@ TV11_MAC_text = [
 	0xE3, 0x35, 0x94, 0xD7, 0x50, 0x5E, 0x43, 0xB9, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x33, 0x94, 0xD7, 0x50, 0x5E, 0x43, 0x79, 0xCD, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-	
+
 TV11_MAC_tag = split(0x13 # 0): [16][8]
 
 property TV11_MAC_correct = poly1305_MAC_correct TV11_MAC_Key TV11_MAC_text TV11_MAC_tag
@@ -1912,7 +1914,7 @@ property all_MAC_tests_correct =
 	TV8_MAC_correct &&
 	TV9_MAC_correct &&
 	TV10_MAC_correct &&
-	TV11_MAC_correct 
+	TV11_MAC_correct
 
 ```
 
@@ -1965,7 +1967,7 @@ property TV3_key_correct = Poly1305_key_correct TV3_key_Key TV3_key_Nonce TV3_ke
 property all_key_tests_correct =
 	TV1_key_correct &&
 	TV2_key_correct &&
-	TV3_key_correct 
+	TV3_key_correct
 ```
 
 ## ChaCha20-Poly1305 AEAD Decryption
@@ -2002,7 +2004,7 @@ TV1_AEAD_known_otk = join([
 
 //sent
 TV1_AEAD_tag = [0xee, 0xad, 0x9d, 0x67, 0x89, 0x0c, 0xbb, 0x22, 0x39, 0x23, 0x36, 0xfe, 0xa1, 0x85, 0x1f, 0x38]
-	
+
 TV1_AEAD_cypherText = [
 	0x64, 0xa0, 0x86, 0x15, 0x75, 0x86, 0x1a, 0xf4, 0x60, 0xf0, 0x62, 0xc7, 0x9b, 0xe6, 0x43, 0xbd,
 	0x5e, 0x80, 0x5c, 0xfd, 0x34, 0x5c, 0xf3, 0x89, 0xf1, 0x08, 0x67, 0x0a, 0xc7, 0x6c, 0x8c, 0xb2,
@@ -2047,7 +2049,7 @@ TV1_AEAD_Poly_input = [
 First, we calculate the one-time Poly1305 key
 
 ```cryptol
-	
+
 //generate and check the one time key (leaving out the given states from the document, they will be correct if this is correct)
 property TV1_otk_correct = Poly1305_key_correct TV1_AEAD_key TV1_AEAD_nonce TV1_AEAD_known_otk
 
@@ -2067,7 +2069,7 @@ We calculate the Poly1305 tag and find that it matches
 ```cryptol
 property TV1_tag_correct = poly1305_MAC_correct TV1_AEAD_known_otk (AeadConstruction TV1_AEAD_AAD TV1_AEAD_cypherText) TV1_AEAD_tag
 ```
-	
+
 ```cryptol
 TV1_plaintext = [
 	0x49, 0x6e, 0x74, 0x65, 0x72, 0x6e, 0x65, 0x74, 0x2d, 0x44, 0x72, 0x61, 0x66, 0x74, 0x73, 0x20,
@@ -2087,14 +2089,14 @@ TV1_plaintext = [
 	0x6d, 0x20, 0x6f, 0x74, 0x68, 0x65, 0x72, 0x20, 0x74, 0x68, 0x61, 0x6e, 0x20, 0x61, 0x73, 0x20,
 	0x2f, 0xe2, 0x80, 0x9c, 0x77, 0x6f, 0x72, 0x6b, 0x20, 0x69, 0x6e, 0x20, 0x70, 0x72, 0x6f, 0x67,
 	0x72, 0x65, 0x73, 0x73, 0x2e, 0x2f, 0xe2, 0x80, 0x9d]
-		
+
 
 TV1_calculate_plaintext = AEAD_CHACHA20_POLY1305_DECRYPT TV1_AEAD_key TV1_AEAD_nonce (TV1_AEAD_cypherText # TV1_AEAD_tag) TV1_AEAD_AAD
-	
+
 property TV1_plaintext_correct = isValid && pt == TV1_plaintext where
 	(pt,isValid) = TV1_calculate_plaintext
-	
-property decryption_vector_correct = 
+
+property decryption_vector_correct =
 	TV1_plaintext_correct &&
 	TV1_tag_correct &&
 	TV1_otk_correct
@@ -2144,7 +2146,7 @@ property parseHexString_check =
          "14:15:16:17:18:19:1a:1b:1c:1d:1e:1f.")) ==
     0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 
-property AllPropertiesPass = 
+property AllPropertiesPass =
     ChaChaQuarterround_passes_test &&
     ChaChaQuarterround_passes_column_test &&
     FirstRow_correct &&
@@ -2180,7 +2182,7 @@ by loading it into a Cryptol interpreter, and running the AllPropertiesPass
 function, like this:
 
 ```example
-$ cryptol ChaChaPolyCryptolIETF.md 
+$ cryptol ChaChaPolyCryptolIETF.md
                         _        _
    ___ _ __ _   _ _ __ | |_ ___ | |
   / __| '__| | | | '_ \| __/ _ \| |
@@ -2191,10 +2193,8 @@ $ cryptol ChaChaPolyCryptolIETF.md
 Loading module Cryptol
 Loading module ChaCha20
 ... a bunch of warnings about the use of ambiguous-width constants
-ChaCha20> AllPropertiesPass 
+ChaCha20> AllPropertiesPass
 True
 ```
 This check verifies the implementation of `ChaCha`, `Poly1305` and the `AEAD`
 construction all work with the provided test vectors.
-
-

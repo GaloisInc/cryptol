@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -66,6 +66,7 @@ import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Subst as T
 import qualified Cryptol.TypeCheck.InferTypes as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
+import qualified Cryptol.TypeCheck.Solver.CrySAT as CrySAT
 import Cryptol.TypeCheck.PP (dump,ppWithNames)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
@@ -889,7 +890,7 @@ replEvalExpr expr =
 
      me <- getModuleEnv
      let cfg = M.meSolverConfig me
-     mbDef <- io (defaultReplExpr cfg def sig)
+     mbDef <- io $ CrySAT.withSolver cfg (\s -> defaultReplExpr s def sig)
 
      (def1,ty) <-
         case mbDef of

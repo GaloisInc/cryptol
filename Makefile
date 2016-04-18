@@ -19,8 +19,8 @@ CS_BIN        := $(CS)/bin
 
 # Used only for windows, to find the right Program Files.
 PROGRAM_FILES = Program\ Files\ \(x86\)
-# Windows installer tools; assumes running on Cygwin and using WiX 3.8
-WiX      := /cygdrive/c/${PROGRAM_FILES}/WiX\ Toolset\ v3.8
+# Windows installer tools; assumes running on Cygwin and using WiX 3.10
+WiX      := /cygdrive/c/${PROGRAM_FILES}/WiX\ Toolset\ v3.10
 CANDLE   := ${WiX}/bin/candle.exe
 HEAT     := ${WiX}/bin/heat.exe
 LIGHT    := ${WiX}/bin/light.exe
@@ -154,29 +154,46 @@ ${CRYPTOL_EXE}: $(CRYPTOL_SRC) dist/setup-config
 	$(CABAL_BUILD)
 
 
-PKG_BIN       := ${PKG_PREFIX}/bin
-PKG_SHARE     := ${PKG_PREFIX}${PREFIX_SHARE}
-PKG_CRY       := ${PKG_SHARE}/cryptol
-PKG_DOC       := ${PKG_SHARE}${PREFIX_DOC}
-PKG_EXAMPLES  := ${PKG_DOC}/examples
-PKG_EXCONTRIB := ${PKG_EXAMPLES}/contrib
+PKG_BIN        := ${PKG_PREFIX}/bin
+PKG_SHARE      := ${PKG_PREFIX}${PREFIX_SHARE}
+PKG_CRY        := ${PKG_SHARE}/cryptol
+PKG_DOC        := ${PKG_SHARE}${PREFIX_DOC}
+PKG_EXAMPLES   := ${PKG_DOC}/examples
+PKG_EXCONTRIB  := ${PKG_EXAMPLES}/contrib
+PKG_EXFUNSTUFF := ${PKG_EXAMPLES}/funstuff
 
-PKG_EXAMPLE_FILES := docs/ProgrammingCryptol/aes/AES.cry       \
+PKG_EXAMPLE_FILES := docs/ProgrammingCryptol/aes/AES.cry \
                      docs/ProgrammingCryptol/enigma/Enigma.cry \
-                     examples/DES.cry                          \
-                     examples/Cipher.cry                       \
-                     examples/DEStest.cry                      \
-                     examples/Test.cry                         \
-                     examples/SHA1.cry                         \
+                     examples/ChaChaPolyCryptolIETF.md \
+                     examples/Cipher.cry \
+                     examples/DES.cry \
+                     examples/DEStest.cry \
+                     examples/FNV-a1.cry \
+                     examples/SHA1.cry \
+                     examples/SIV-rfc5297.md \
+                     examples/Salsa20.cry \
+                     examples/Test.cry \
+                     examples/TripleDES.cry \
+                     examples/ZUC.cry \
 
-PKG_EXCONTRIB_FILES := examples/contrib/mkrand.cry \
-                       examples/contrib/RC4.cry    \
-                       examples/contrib/simon.cry  \
-                       examples/contrib/speck.cry
+PKG_EXCONTRIB_FILES := examples/contrib/EvenMansour.cry \
+                       examples/contrib/RC4.cry \
+                       examples/contrib/README.md \
+                       examples/contrib/mkrand.cry \
+                       examples/contrib/simon.cry \
+                       examples/contrib/speck.cry \
+
+PKG_EXFUNSTUFF_FILES := examples/funstuff/Coins.cry \
+                        examples/funstuff/FoxChickenCorn.cry \
+                        examples/funstuff/NQueens.cry \
+                        examples/funstuff/marble.cry \
+
+PKG_MINILOCK_FILES := $(shell find examples/MiniLock)
 
 ${PKG}: ${CRYPTOL_EXE} \
         docs/*.md docs/*.pdf LICENSE LICENSE.rtf \
-        ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES}
+        ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES} ${PKG_EXFUNSTUFF_FILES} \
+        ${PKG_MINILOCK_FILES}
 	$(CABAL) copy ${DESTDIR_ARG}
 	mkdir -p ${PKG_CRY}
 	mkdir -p ${PKG_DOC}
@@ -188,6 +205,10 @@ ${PKG}: ${CRYPTOL_EXE} \
           cp $$EXAMPLE ${PKG_EXAMPLES}; done
 	for EXAMPLE in ${PKG_EXCONTRIB_FILES}; do \
           cp $$EXAMPLE ${PKG_EXCONTRIB}; done
+	for EXAMPLE in ${PKG_EXFUNSTUFF_FILES}; do \
+          cp $$EXAMPLE ${PKG_EXFUNSTUFF}; done
+	cp -r examples/MiniLock ${PKG_EXAMPLES}
+
 # cleanup unwanted files
 # don't want to bundle the cryptol library in the binary distribution
 	rm -rf ${PKG_PREFIX}/lib; rm -rf ${PKG_PREFIX}/*windows-ghc*
@@ -232,7 +253,7 @@ ${CS_BIN}/cryptol-test-runner: \
 test: ${CS_BIN}/cryptol-test-runner
 	( cd tests &&                                                      \
 	echo "Testing on $(UNAME)-$(ARCH)" &&                              \
-	$(realpath $(CS_BIN)/cryptol-test-runner)                          \
+	time $(realpath $(CS_BIN)/cryptol-test-runner)                     \
 	  $(TESTS)                                                         \
 	  -c $(call adjust-path,${CURDIR}/${PKG_BIN}/cryptol${EXE_EXT})    \
 	  -r output                                                        \

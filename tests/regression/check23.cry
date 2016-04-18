@@ -1,4 +1,4 @@
-pad : {msgLen, padding, contentLen, chunks} 
+pad : {msgLen, padding, contentLen, chunks}
     ( fin msgLen
     , fin padding
     , contentLen == msgLen + 65

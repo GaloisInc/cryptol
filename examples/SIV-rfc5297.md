@@ -321,7 +321,7 @@ E(K,X) = aesEncrypt (X,K)
 // 8. Return T.
 
 aesCMAC : {m} (fin m) => Key -> [m] -> [128]
-aesCMAC K m = 
+aesCMAC K m =
     cmacBlocks K ((`m%128) == 0 && `m > 0) (split `{each=128,parts=blocks} full)
  where
  pd   = [True] # zero : [128]
@@ -501,7 +501,7 @@ S2V K S1 S2 = res
         else aesCMAC K (dbl D1 ^ pad S2)
 
 private
-    // The length of 'p' is >= 128, but Cryptol lacks 
+    // The length of 'p' is >= 128, but Cryptol lacks
     // dependent types and can not infer this fact. We
     // Provide a no-op computation that results in a
     // new type for 'p' that is at least 128 bits

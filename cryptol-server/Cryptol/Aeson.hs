@@ -1,19 +1,29 @@
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2015-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- Orphan 'FromJSON' and 'ToJSON' instances for certain Cryptol
+-- types. Since these are meant to be consumed over a wire, they are
+-- mostly focused on base values and interfaces rather than a full
+-- serialization of internal ASTs and such.
+
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# OPTIONS_GHC -Wall -fno-warn-orphans -fno-warn-type-defaults #-}
--- | Orphan 'FromJSON' and 'ToJSON' instances for certain Cryptol
--- types. Since these are meant to be consumed over a wire, they are
--- mostly focused on base values and interfaces rather than a full
--- serialization of internal ASTs and such.
 module Cryptol.Aeson where
 
 import Control.Applicative
 import Control.Exception
 import Data.Aeson
 import Data.Aeson.TH
+import qualified Data.Map as M
 import qualified Data.Text as T
 
 import qualified Cryptol.Eval.Error as E
@@ -33,6 +43,7 @@ import Cryptol.REPL.Monad
 import qualified Cryptol.Testing.Concrete as Test
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.InferTypes as T
+import Cryptol.Utils.Ident
 import Cryptol.Utils.PP hiding (empty)
 
 instance ToJSON Doc where
@@ -119,6 +130,10 @@ instance ToJSON Test.TestResult where
     Test.FailFalse args -> object [ "FailFalse" .= args ]
     Test.FailError err args -> object
       [ "FailError" .= show (pp err), "args" .= args ]
+
+instance (ToJSON v) => ToJSON (M.Map Name v) where
+    toJSON = toJSON . M.mapKeys (unpackIdent . nameIdent)
+    {-# INLINE toJSON #-}
 
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''NameInfo)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''E.EvalError)

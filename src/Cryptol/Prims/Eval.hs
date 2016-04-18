@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -26,14 +26,15 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.ModuleSystem.Name (asPrim)
 import Cryptol.Utils.Ident (Ident,mkIdent)
 
-import Data.List (sortBy,transpose,genericTake,genericReplicate,genericSplitAt,genericIndex)
+import Data.List (sortBy, transpose, genericTake, genericDrop,
+                  genericReplicate, genericSplitAt, genericIndex)
 import Data.Ord (comparing)
 import Data.Bits (Bits(..))
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 
-import System.Random.TF (mkTFGen)
+import System.Random.TF.Gen (seedTFGen)
 
 -- Primitives ------------------------------------------------------------------
 
@@ -191,7 +192,7 @@ divModPoly xs xsLen ys ysLen
   todoBits  = map (testBit xs) (downIxes (xsLen - degree))
 
 
--- | Create a packed word 
+-- | Create a packed word
 modExp :: Integer -- ^ bit size of the resulting word
        -> Integer -- ^ base
        -> Integer -- ^ exponent
@@ -546,10 +547,10 @@ logicUnary op = loop
     | otherwise = evalPanic "logicUnary" ["invalid logic type"]
 
 
-logicShift :: (Integer -> Integer -> Int -> Integer)
+logicShift :: (Integer -> Integer -> Integer -> Integer)
               -- ^ The function may assume its arguments are masked.
               -- It is responsible for masking its result if needed.
-           -> (TValue -> TValue -> [Value] -> Int -> [Value])
+           -> (TValue -> TValue -> [Value] -> Integer -> [Value])
            -> Value
 logicShift opW opS
   = tlam $ \ a ->
@@ -560,62 +561,61 @@ logicShift opW opS
         if isTBit c
           then -- words
             let BV w i  = fromVWord l
-            in VWord (BV w (opW w i (fromInteger (fromWord r))))
+            in VWord (BV w (opW w i (fromWord r)))
 
-          else toSeq a c (opS a c (fromSeq l) (fromInteger (fromWord r)))
+          else toSeq a c (opS a c (fromSeq l) (fromWord r))
 
 -- Left shift for words.
-shiftLW :: Integer -> Integer -> Int -> Integer
+shiftLW :: Integer -> Integer -> Integer -> Integer
 shiftLW w ival by
-  | toInteger by >= w = 0
-  | otherwise         = mask w (shiftL ival by)
+  | by >= w   = 0
+  | otherwise = mask w (shiftL ival (fromInteger by))
 
-shiftLS :: TValue -> TValue -> [Value] -> Int -> [Value]
+shiftLS :: TValue -> TValue -> [Value] -> Integer -> [Value]
 shiftLS w ety vs by =
   case numTValue w of
     Nat len
-      | toInteger by < len -> genericTake len (drop by vs ++ repeat (zeroV ety))
-      | otherwise          -> genericReplicate len (zeroV ety)
-    Inf                    -> drop by vs
+      | by < len  -> genericTake len (genericDrop by vs ++ repeat (zeroV ety))
+      | otherwise -> genericReplicate len (zeroV ety)
+    Inf           -> genericDrop by vs
 
-shiftRW :: Integer -> Integer -> Int -> Integer
+shiftRW :: Integer -> Integer -> Integer -> Integer
 shiftRW w i by
-  | toInteger by >= w = 0
-  | otherwise         = shiftR i by
+  | by >= w   = 0
+  | otherwise = shiftR i (fromInteger by)
 
-shiftRS :: TValue -> TValue -> [Value] -> Int -> [Value]
+shiftRS :: TValue -> TValue -> [Value] -> Integer -> [Value]
 shiftRS w ety vs by =
   case numTValue w of
     Nat len
-      | toInteger by < len -> genericTake len (replicate by (zeroV ety) ++ vs)
-      | otherwise          -> genericReplicate len (zeroV ety)
-    Inf                    -> replicate by (zeroV ety) ++ vs
+      | by < len  -> genericTake len (genericReplicate by (zeroV ety) ++ vs)
+      | otherwise -> genericReplicate len (zeroV ety)
+    Inf           -> genericReplicate by (zeroV ety) ++ vs
 
 -- XXX integer doesn't implement rotateL, as there's no bit bound
-rotateLW :: Integer -> Integer -> Int -> Integer
+rotateLW :: Integer -> Integer -> Integer -> Integer
 rotateLW 0 i _  = i
 rotateLW w i by = mask w $ (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
-  where b = by `mod` fromInteger w
+  where b = fromInteger (by `mod` w)
 
-
-rotateLS :: TValue -> TValue -> [Value] -> Int -> [Value]
+rotateLS :: TValue -> TValue -> [Value] -> Integer -> [Value]
 rotateLS w _ vs at =
   case numTValue w of
-    Nat len -> let at'     = toInteger at `mod` len
+    Nat len -> let at'     = at `mod` len
                    (ls,rs) = genericSplitAt at' vs
                 in rs ++ ls
     _ -> panic "Cryptol.Eval.Prim.rotateLS" [ "unexpected infinite sequence" ]
 
 -- XXX integer doesn't implement rotateR, as there's no bit bound
-rotateRW :: Integer -> Integer -> Int -> Integer
+rotateRW :: Integer -> Integer -> Integer -> Integer
 rotateRW 0 i _  = i
 rotateRW w i by = mask w $ (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
-  where b = by `mod` fromInteger w
+  where b = fromInteger (by `mod` w)
 
-rotateRS :: TValue -> TValue -> [Value] -> Int -> [Value]
+rotateRS :: TValue -> TValue -> [Value] -> Integer -> [Value]
 rotateRS w _ vs at =
   case numTValue w of
-    Nat len -> let at'     = toInteger at `mod` len
+    Nat len -> let at'     = at `mod` len
                    (ls,rs) = genericSplitAt (len - at') vs
                 in rs ++ ls
     _ -> panic "Cryptol.Eval.Prim.rotateRS" [ "unexpected infinite sequence" ]
@@ -725,8 +725,12 @@ randomV :: TValue -> Integer -> Value
 randomV ty seed =
   case randomValue (tValTy ty) of
     Nothing -> zeroV ty
-    Just gen -> fst $ gen 100 $ mkTFGen (fromIntegral seed)
-
+    Just gen ->
+      -- unpack the seed into four Word64s
+      let mask64 = 0xFFFFFFFFFFFFFFFF
+          unpack s = fromIntegral (s .&. mask64) : unpack (s `shiftR` 64)
+          [a, b, c, d] = take 4 (unpack seed)
+      in fst $ gen 100 $ seedTFGen (a, b, c, d)
 
 -- Miscellaneous ---------------------------------------------------------------
 

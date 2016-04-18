@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2015 Galois, Inc.
+ * Copyright (c) 2013-2016 Galois, Inc.
  * Distributed under the terms of the BSD3 license (see LICENSE file)
  */
 
@@ -12,7 +12,7 @@ type Board = [7][7]Bit
 all : {n} (fin n) => [n] -> Bit
 all xs = xs == ~zero
 
-popCount : {a,b} (fin a, b >= 1, b == (width a)) => [a] -> [b]
+popCount : {a} (fin a, a >= 1) => [a] -> [width a]
 popCount bs = ic ! 0 where
     ic = [0] # [ if elt then prev + 1 else prev | elt <- bs | prev <- ic]
 
@@ -66,8 +66,8 @@ validBoard : Board -> Bit
 validBoard b = join (b && ~posns) == zero
 
 validRowJump : Board -> Board -> Bit
-validRowJump a a' = validBoard a 
-                 && validBoard a' 
+validRowJump a a' = validBoard a
+                 && validBoard a'
                  && validRowMove (differentRow a a')
 
 differentRow : Board -> Board -> ([7], [7])
@@ -83,7 +83,7 @@ validRowMove (r, r') = (xors == 0b0000111 ||
                        xors == 0b0001110 ||
                        xors == 0b0011100 ||
                        xors == 0b0111000 ||
-                       xors == 0b1110000) 
+                       xors == 0b1110000)
                       && (
                        rxors == 0b0000011 ||
                        rxors == 0b0000110 ||
@@ -105,4 +105,3 @@ validMoveSequence moves = all [validMove a b | a <- moves | b <- drop`{1} moves]
 
 solutionInNmoves : {n} (fin n) => [n] Board -> Bit
 property solutionInNmoves ms = validMoveSequence ([start] # ms # [second])
-

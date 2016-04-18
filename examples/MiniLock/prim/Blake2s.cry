@@ -1,0 +1,687 @@
+/*
+ * Copyright (c) 2013-2016 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+module Blake2s where
+
+import Cryptol::Extras
+
+type Block   = [16][32]
+type State   = [8][32]
+type LocalState = [16][32]
+type BCounter = [64]
+
+type Context = { state : State, counter : BCounter }
+
+// Block size
+bbVal : [64]
+bbVal = 64
+
+
+IV : [8][32]
+IV = [ 0x6A09E667, 0xBB67AE85, 0x3C6EF372, 0xA54FF53A,
+       0x510E527F, 0x9B05688C, 0x1F83D9AB, 0x5BE0CD19
+     ]
+
+SIGMA_TABLE : [10][16][4]
+SIGMA_TABLE =
+    [  [  0, 1,   2, 3,   4, 5,   6, 7,   8, 9,  10, 11, 12, 13, 14, 15 ]
+    ,  [ 14, 10,  4, 8,   9, 15, 13, 6,   1, 12,  0, 2,  11, 7,   5, 3  ]
+    ,  [ 11, 8,  12, 0,   5, 2,  15, 13, 10, 14,  3, 6,   7, 1,   9, 4  ]
+    ,  [  7, 9,   3, 1,  13, 12, 11, 14,  2, 6,   5, 10,  4, 0,  15, 8  ]
+    ,  [  9, 0,   5, 7,   2, 4,  10, 15, 14, 1,  11, 12,  6, 8,   3, 13 ]
+    ,  [  2, 12,  6, 10,  0, 11,  8, 3,   4, 13,  7, 5,  15, 14,  1, 9  ]
+    ,  [ 12, 5,   1, 15, 14, 13,  4, 10,  0, 7,   6, 3,   9, 2,   8, 11 ]
+    ,  [ 13, 11,  7, 14, 12, 1,   3, 9,   5, 0,  15, 4,   8, 6,   2, 10 ]
+    ,  [  6, 15, 14, 9,  11, 3,   0, 8,  12, 2,  13, 7,   1, 4,  10, 5  ]
+    ,  [ 10, 2,   8, 4,   7, 6,   1, 5,  15, 11,  9, 14,  3, 12, 13, 0  ]
+    ]
+
+// Section 2.1 constants
+R1,R2,R3,R4 : [6]
+R1 = 16
+R2 = 12
+R3 = 08
+R4 = 07
+
+// Section 3.1: Mixing function 'G'
+G : [4] -> [4] -> LocalState -> [4][6] -> Block -> [16][32]
+G r i vec abcd ms = foldl updateVector vec (zip abcd new)
+  where
+  new  = G' r i (vec @@ abcd) ms
+
+G' : [4] -> [4] -> [4][32] -> Block -> [4][32]
+G' r i vals ms = [a2, b2, c2, d2]
+  where
+  x = ms @ (SIGMA_TABLE @ r @ (2*i))
+  y = ms @ (SIGMA_TABLE @ r @ (2*i+1))
+  [a,b,c,d] = vals
+  a1 =  a + b + x
+  d1 = (d ^ a1) >>> R1
+  c1 =  c + d1
+  b1 = (b ^ c1) >>> R2
+  a2 =  a1 + b1 + y
+  d2 = (d1 ^ a2) >>> R3
+  c2 =  c1 + d2
+  b2 = (b1 ^ c2) >>> R4
+
+// Section 3.2: Compression function
+F : State -> Block -> BCounter -> Bit -> State
+F h ms t f =  h ^ (take (vs!0)) ^ (drop (vs!0))
+ where
+  v   = h # IV ^ (zero # [t0,t1,f0,zero])
+  [t1,t0] = split t      : [2][32]
+  f0 = [f | _ <- [0..31] : [_][6]]
+  vs = [v] # [ round i ms v' | v' <- vs | i <- [0..9] ]
+
+// Sub-function of F (first for loop)
+round : [4] -> Block -> LocalState -> LocalState
+round r ms v = vs ! 0
+  where
+  vs = [v] # [ G r i v' ix ms
+                | v'   <- vs
+                | i    <- [0..7]
+                | ix   <- [ [0,4,8,12],  [1,5,9,13]
+                          , [2,6,10,14], [3,7,11,15]
+                          , [0,5,10,15], [1,6,11,12]
+                          , [2,7,8,13],  [3,4,9,14] ]
+              ]
+
+// Section 3.3: Padding
+// Recall kk == key bytes  (0)
+//        nn == hash bytes (32)
+//        ll == input bytes (ceiling $ len / 8)
+//        bb == block bytes (64, 1024 bits)
+//        dd == nr Blocks
+
+blake2s : {ll,nn} (fin ll, 32 >= nn, 64 >= width ll)
+      => [ll][8] -> [nn*8]
+blake2s m = blake2s' `{ll=ll,nn=nn} m
+
+blake2s' : {ll,dd,nn}
+         (fin ll
+         , 32  >= nn
+         , dd  == (max 1 ((ll+63)/64)) - 1
+         , 64 >= width ll
+         )
+          => [ll][8]
+          -> [nn*8]
+blake2s' m = take `{nn*8} (blake2sFinish ({ state = (hs!0).state, counter = `ll}) lastBlock)
+ where
+
+ fullBlocks : [dd]Block
+ fullBlocks = [mkBlock b | b <- split (join (take  `{front=64*dd,back=ll-64*dd} m))]
+
+ partialBlock = drop `{front=64*dd,back=ll-64*dd} m
+
+ lastBlock : Block
+ lastBlock  =
+    if (`ll == (zero:[64]))
+        then zero // Special case full zero block for empty messages
+        else mkBlock ((split (join (partialBlock # (zero : [inf][8]))))@0)
+
+ h : Context
+ h  = { state = [IV@0 ^ `0x01010000 ^ `nn] # drop `{1} IV, counter = 0 }
+
+ hs : [dd+1]Context
+ hs = [h] # [blake2Update h' dX |  h' <- hs | dX <- fullBlocks]
+
+blake2Update : Context -> Block -> Context
+blake2Update ctx d = { state = newState, counter = newCount }
+  where newState = F ctx.state d newCount False
+        newCount = ctx.counter + (64 : [64])
+
+postprocess : {ll} (64 >= ll, 64 >= width ll) => BCounter -> [ll][8] -> Block
+postprocess c m =
+    if c == 0 && `ll == (zero:[64])
+        then zero
+        else split (join m # zero)
+
+// The final round of blake
+blake2sFinish : Context -> Block -> [256]
+blake2sFinish ctx b = join [ reverseBytes w | w <- F ctx.state b ctx.counter True ]
+
+
+////////////////////////////////////////////////////////////////////////////////
+//  Utilities
+////////////////////////////////////////////////////////////////////////////////
+
+mkBlock x = reverse (split (reverseBytes x))
+
+reverseBytes x = join (reverse (bytes x))
+
+bytes x = split x : [_] [8]
+
+
+// XXX can probably do a cleaner merge-sort style update.
+updateVector : {a, b, c} (c >= width (a-1), a >= 1, fin a, fin c) => [a]b -> ([c], b) -> [a]b
+updateVector orig idxNew = vs
+ where
+ idx = idxNew.0
+ new = idxNew.1
+ vs = [if i == idx then new else orig@i | i <- [0..a-1]]
+
+
+property katsPass = ~zero ==
+                        [ nthKat `{0}
+                        , nthKat `{1}
+                        , nthKat `{2}
+                        , nthKat `{3}
+                        , nthKat `{4}
+                        , nthKat `{5}
+                        , nthKat `{6}
+                        , nthKat `{7}
+                        , nthKat `{8}
+                        , nthKat `{9}
+                        , nthKat `{10}
+                        , nthKat `{11}
+                        , nthKat `{12}
+                        , nthKat `{13}
+                        , nthKat `{14}
+                        , nthKat `{15}
+                        , nthKat `{16}
+                        , nthKat `{17}
+                        , nthKat `{18}
+                        , nthKat `{19}
+                        , nthKat `{20}
+                        , nthKat `{21}
+                        , nthKat `{22}
+                        , nthKat `{23}
+                        , nthKat `{24}
+                        , nthKat `{25}
+                        , nthKat `{26}
+                        , nthKat `{27}
+                        , nthKat `{28}
+                        , nthKat `{29}
+                        , nthKat `{30}
+                        , nthKat `{31}
+                        , nthKat `{32}
+                        , nthKat `{33}
+                        , nthKat `{34}
+                        , nthKat `{35}
+                        , nthKat `{36}
+                        , nthKat `{37}
+                        , nthKat `{38}
+                        , nthKat `{39}
+                        , nthKat `{40}
+                        , nthKat `{41}
+                        , nthKat `{42}
+                        , nthKat `{43}
+                        , nthKat `{44}
+                        , nthKat `{45}
+                        , nthKat `{46}
+                        , nthKat `{47}
+                        , nthKat `{48}
+                        , nthKat `{49}
+                        , nthKat `{50}
+                        , nthKat `{51}
+                        , nthKat `{52}
+                        , nthKat `{53}
+                        , nthKat `{54}
+                        , nthKat `{55}
+                        , nthKat `{56}
+                        , nthKat `{57}
+                        , nthKat `{58}
+                        , nthKat `{59}
+                        , nthKat `{60}
+                        , nthKat `{61}
+                        , nthKat `{62}
+                        , nthKat `{63}
+                        , nthKat `{64}
+                        , nthKat `{65}
+                        , nthKat `{66}
+                        , nthKat `{67}
+                        , nthKat `{68}
+                        , nthKat `{69}
+                        , nthKat `{70}
+                        , nthKat `{71}
+                        , nthKat `{72}
+                        , nthKat `{73}
+                        , nthKat `{74}
+                        , nthKat `{75}
+                        , nthKat `{76}
+                        , nthKat `{77}
+                        , nthKat `{78}
+                        , nthKat `{79}
+                        , nthKat `{80}
+                        , nthKat `{81}
+                        , nthKat `{82}
+                        , nthKat `{83}
+                        , nthKat `{84}
+                        , nthKat `{85}
+                        , nthKat `{86}
+                        , nthKat `{87}
+                        , nthKat `{88}
+                        , nthKat `{89}
+                        , nthKat `{90}
+                        , nthKat `{91}
+                        , nthKat `{92}
+                        , nthKat `{93}
+                        , nthKat `{94}
+                        , nthKat `{95}
+                        , nthKat `{96}
+                        , nthKat `{97}
+                        , nthKat `{98}
+                        , nthKat `{99}
+                        , nthKat `{100}
+                        , nthKat `{101}
+                        , nthKat `{102}
+                        , nthKat `{103}
+                        , nthKat `{104}
+                        , nthKat `{105}
+                        , nthKat `{106}
+                        , nthKat `{107}
+                        , nthKat `{108}
+                        , nthKat `{109}
+                        , nthKat `{110}
+                        , nthKat `{111}
+                        , nthKat `{112}
+                        , nthKat `{113}
+                        , nthKat `{114}
+                        , nthKat `{115}
+                        , nthKat `{116}
+                        , nthKat `{117}
+                        , nthKat `{118}
+                        , nthKat `{119}
+                        , nthKat `{120}
+                        , nthKat `{121}
+                        , nthKat `{122}
+                        , nthKat `{123}
+                        , nthKat `{124}
+                        , nthKat `{125}
+                        , nthKat `{126}
+                        , nthKat `{127}
+                        , nthKat `{128}
+                        , nthKat `{129}
+                        , nthKat `{130}
+                        , nthKat `{131}
+                        , nthKat `{132}
+                        , nthKat `{133}
+                        , nthKat `{134}
+                        , nthKat `{135}
+                        , nthKat `{136}
+                        , nthKat `{137}
+                        , nthKat `{138}
+                        , nthKat `{139}
+                        , nthKat `{140}
+                        , nthKat `{141}
+                        , nthKat `{142}
+                        , nthKat `{143}
+                        , nthKat `{144}
+                        , nthKat `{145}
+                        , nthKat `{146}
+                        , nthKat `{147}
+                        , nthKat `{148}
+                        , nthKat `{149}
+                        , nthKat `{150}
+                        , nthKat `{151}
+                        , nthKat `{152}
+                        , nthKat `{153}
+                        , nthKat `{154}
+                        , nthKat `{155}
+                        , nthKat `{156}
+                        , nthKat `{157}
+                        , nthKat `{158}
+                        , nthKat `{159}
+                        , nthKat `{160}
+                        , nthKat `{161}
+                        , nthKat `{162}
+                        , nthKat `{163}
+                        , nthKat `{164}
+                        , nthKat `{165}
+                        , nthKat `{166}
+                        , nthKat `{167}
+                        , nthKat `{168}
+                        , nthKat `{169}
+                        , nthKat `{170}
+                        , nthKat `{171}
+                        , nthKat `{172}
+                        , nthKat `{173}
+                        , nthKat `{174}
+                        , nthKat `{175}
+                        , nthKat `{176}
+                        , nthKat `{177}
+                        , nthKat `{178}
+                        , nthKat `{179}
+                        , nthKat `{180}
+                        , nthKat `{181}
+                        , nthKat `{182}
+                        , nthKat `{183}
+                        , nthKat `{184}
+                        , nthKat `{185}
+                        , nthKat `{186}
+                        , nthKat `{187}
+                        , nthKat `{188}
+                        , nthKat `{189}
+                        , nthKat `{190}
+                        , nthKat `{191}
+                        , nthKat `{192}
+                        , nthKat `{193}
+                        , nthKat `{194}
+                        , nthKat `{195}
+                        , nthKat `{196}
+                        , nthKat `{197}
+                        , nthKat `{198}
+                        , nthKat `{199}
+                        , nthKat `{200}
+                        , nthKat `{201}
+                        , nthKat `{202}
+                        , nthKat `{203}
+                        , nthKat `{204}
+                        , nthKat `{205}
+                        , nthKat `{206}
+                        , nthKat `{207}
+                        , nthKat `{208}
+                        , nthKat `{209}
+                        , nthKat `{210}
+                        , nthKat `{211}
+                        , nthKat `{212}
+                        , nthKat `{213}
+                        , nthKat `{214}
+                        , nthKat `{215}
+                        , nthKat `{216}
+                        , nthKat `{217}
+                        , nthKat `{218}
+                        , nthKat `{219}
+                        , nthKat `{220}
+                        , nthKat `{221}
+                        , nthKat `{222}
+                        , nthKat `{223}
+                        , nthKat `{224}
+                        , nthKat `{225}
+                        , nthKat `{226}
+                        , nthKat `{227}
+                        , nthKat `{228}
+                        , nthKat `{229}
+                        , nthKat `{230}
+                        , nthKat `{231}
+                        , nthKat `{232}
+                        , nthKat `{233}
+                        , nthKat `{234}
+                        , nthKat `{235}
+                        , nthKat `{236}
+                        , nthKat `{237}
+                        , nthKat `{238}
+                        , nthKat `{239}
+                        , nthKat `{240}
+                        , nthKat `{241}
+                        , nthKat `{242}
+                        , nthKat `{243}
+                        , nthKat `{244}
+                        , nthKat `{245}
+                        , nthKat `{246}
+                        , nthKat `{247}
+                        , nthKat `{248}
+                        , nthKat `{249}
+                        , nthKat `{250}
+                        , nthKat `{251}
+                        , nthKat `{252}
+                        , nthKat `{253}
+                        , nthKat `{254}
+                        , nthKat `{255}
+                        ]
+
+
+nthKat : {n} (fin n, 8 >= width n) => Bit
+nthKat = blake2s (nthKatInput `{n}) == kats @ (`n : [8])
+
+nthKatInput : {n} (fin n) => [n][8]
+nthKatInput = take ([0 ... ] : [inf][8])
+
+kats = [ 0x69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9
+       , 0xe34d74dbaf4ff4c6abd871cc220451d2ea2648846c7757fbaac82fe51ad64bea
+       , 0xddad9ab15dac4549ba42f49d262496bef6c0bae1dd342a8808f8ea267c6e210c
+       , 0xe8f91c6ef232a041452ab0e149070cdd7dd1769e75b3a5921be37876c45c9900
+       , 0x0cc70e00348b86ba2944d0c32038b25c55584f90df2304f55fa332af5fb01e20
+       , 0xec1964191087a4fe9df1c795342a02ffc191a5b251764856ae5b8b5769f0c6cd
+       , 0xe1fa51618d7df4eb70cf0d5a9e906f806e9d19f7f4f01e3b621288e4120405d6
+       , 0x598001fafbe8f94ec66dc827d012cfcbba2228569f448e89ea2208c8bf769293
+       , 0xc7e887b546623635e93e0495598f1726821996c2377705b93a1f636f872bfa2d
+       , 0xc315a437dd28062a770d481967136b1b5eb88b21ee53d0329c5897126e9db02c
+       , 0xbb473deddc055fea6228f207da575347bb00404cd349d38c18026307a224cbff
+       , 0x687e1873a8277591bb33d9adf9a13912efefe557cafc39a7952623e47255f16d
+       , 0x1ac7ba754d6e2f94e0e86c46bfb262abbb74f450ef456d6b4d97aa80ce6da767
+       , 0x012c97809614816b5d9494477d4b687d15b96eb69c0e8074a8516f31224b5c98
+       , 0x91ffd26cfa4da5134c7ea262f7889c329f61f6a657225cc212f40056d986b3f4
+       , 0xd97c828d8182a72180a06a78268330673f7c4e0635947c04c02323fd45c0a52d
+       , 0xefc04cdc391c7e9119bd38668a534e65fe31036d6a62112e44ebeb11f9c57080
+       , 0x992cf5c053442a5fbc4faf583e04e50bb70d2f39fbb6a503f89e56a63e18578a
+       , 0x38640e9f21983e67b539caccae5ecf615ae2764f75a09c9c59b76483c1fbc735
+       , 0x213dd34c7efe4fb27a6b35f6b4000d1fe03281af3c723e5c9f94747a5f31cd3b
+       , 0xec246eeeb9ced3f7ad33ed28660dd9bb0732513db4e2fa278b60cde3682a4ccd
+       , 0xac9b61d446648c3005d7892bf3a8719f4c8181cfdcbc2b79fef10a279b911095
+       , 0x7bf8b22959e34e3a43f7079223e83a9754617d391e213dfd808e41b9bead4ce7
+       , 0x68d4b5d4fa0e302b64ccc5af792913ac4c88ec95c07ddf40694256eb88ce9f3d
+       , 0xb2c2420f05f9abe36315919336b37e4e0fa33ff7e76a492767006fdb5d935462
+       , 0x134f61bbd0bbb69aed5343904551a3e6c1aa7dcdd77e903e7023eb7c60320aa7
+       , 0x4693f9bff7d4f3986a7d176e6e06f72ad1490d805c99e25347b8de77b4db6d9b
+       , 0x853e26f741953b0fd5bdb424e8ab9e8b3750eaa8ef61e47902c91e554e9c73b9
+       , 0xf7de536361abaa0e158156cf0ea4f63a99b5e4054f8fa4c9d45f6285cad55694
+       , 0x4c230608860a99ae8d7bd5c2cc17fa52096b9a61bedb17cb7617864ad29ca7a6
+       , 0xaeb920ea87952dadb1fb759291e3388139a872865001886ed84752e93c250c2a
+       , 0xaba4ad9b480b9df3d08ca5e87b0c2440d4e4ea21224c2eb42cbae469d089b931
+       , 0x05825607d7fdf2d82ef4c3c8c2aea961ad98d60edff7d018983e21204c0d93d1
+       , 0xa742f8b6af82d8a6ca2357c5f1cf91defbd066267d75c048b352366585025962
+       , 0x2bcac89599000b42c95ae23835a713704ed79789c84fef149a874ff733f017a2
+       , 0xac1ed07d048f105a9e5b7ab85b09a492d5baff14b8bfb0e9fd789486eea2b974
+       , 0xe48d0ecfaf497d5b27c25d99e156cb0579d440d6e31fb62473696dbf95e010e4
+       , 0x12a91fadf8b21644fd0f934f3c4a8f62ba862ffd20e8e961154c15c13884ed3d
+       , 0x7cbee96e139897dc98fbef3be81ad4d964d235cb12141fb66727e6e5df73a878
+       , 0xebf66abb597ae572a7297cb0871e355accafad8377b8e78bf164ce2a18de4baf
+       , 0x71b933b07e4ff7818ce059d008829e453c6ff02ec0a7db393fc2d870f37a7286
+       , 0x7cf7c51331220b8d3ebaed9c29398a16d98156e2613cb088f2b0e08a1be4cf4f
+       , 0x3e41a108e0f64ad276b979e1ce068279e16f7bc7e4aa1d211e17b81161df1602
+       , 0x886502a82ab47ba8d86710aa9de3d46ea65c47af6ee8de450cceb8b11b045f50
+       , 0xc021bc5f0954fee94f46ea09487e10a84840d02f64810bc08d9e551f7d416814
+       , 0x2030516e8a5fe19ae79c336fce26382a749d3fd0ec91e537d4bd2358c12dfb22
+       , 0x556698dac8317fd36dfbdf25a79cb112d5425860605cbaf507f23bf7e9f42afe
+       , 0x2f867ba67773fdc3e92fced99a6409ad39d0b880fde8f109a81730c4451d0178
+       , 0x172ec218f119dfae98896dff29dd9876c94af87417f9ae4c7014bb4e4b96afc7
+       , 0x3f85814a18195f879aa962f95d26bd82a278f2b82320218f6b3bd6f7f667a6d9
+       , 0x1b618fbaa566b3d498c12e982c9ec52e4da85a8c54f38f34c090394f23c184c1
+       , 0x0c758fb5692ffd41a3575d0af00cc7fbf2cbe5905a58323a88ae4244f6e4c993
+       , 0xa931360cad628c7f12a6c1c4b753b0f4062aef3ce65a1ae3f19369dadf3ae23d
+       , 0xcbac7d773b1e3b3c6691d7abb7e9df045c8ba19268ded153207f5e804352ec5d
+       , 0x23a196d3802ed3c1b384019a82325840d32f71950c4580b03445e0898e14053c
+       , 0xf4495470f226c8c214be08fdfad4bc4a2a9dbea9136a210df0d4b64929e6fc14
+       , 0xe290dd270b467f34ab1c002d340fa016257ff19e5833fdbbf2cb401c3b2817de
+       , 0x9fc7b5ded3c15042b2a6582dc39be016d24a682d5e61ad1eff9c63309848f706
+       , 0x8cca67a36d17d5e6341cb592fd7bef9926c9e3aa1027ea11a7d8bd260b576e04
+       , 0x409392f560f86831da4373ee5e0074260595d7bc24183b60ed700d4583d3f6f0
+       , 0x2802165de090915546f3398cd849164a19f92adbc361adc99b0f20c8ea071054
+       , 0xad839168d9f8a4be95ba9ef9a692f07256ae43fe6f9864e290691b0256ce50a9
+       , 0x75fdaa5038c284b86d6e8affe8b2807e467b86600e79af3689fbc06328cbf894
+       , 0xe57cb79487dd57902432b250733813bd96a84efce59f650fac26e6696aefafc3
+       , 0x56f34e8b96557e90c1f24b52d0c89d51086acf1b00f634cf1dde9233b8eaaa3e
+       , 0x1b53ee94aaf34e4b159d48de352c7f0661d0a40edff95a0b1639b4090e974472
+       , 0x05705e2a81757c14bd383ea98dda544eb10e6bc07bae435e2518dbe133525375
+       , 0xd8b2866e8a309db53e529ec32911d82f5ca16cff76216891a9676aa31aaa6c42
+       , 0xf5041c241270eb04c71ec2c95d4c38d803b1237b0f29fd4db3eb397669e88699
+       , 0x9a4ce077c349322f595e0ee79ed0da5fab66752cbfef8f87d0e9d0723c7530dd
+       , 0x657b09f3d0f52b5b8f2f97163a0edf0c04f075408a07bbeb3a4101a891990d62
+       , 0x1e3f7bd5a58fa533344aa8ed3ac122bb9e70d4ef50d004530821948f5fe6315a
+       , 0x80dccf3fd83dfd0d35aa28585922ab89d5313997673eaf905cea9c0b225c7b5f
+       , 0x8a0d0fbf6377d83bb08b514b4b1c43acc95d751714f8925645cb6bc856ca150a
+       , 0x9fa5b487738ad2844cc6348a901918f659a3b89e9c0dfeead30dd94bcf42ef8e
+       , 0x80832c4a1677f5ea2560f668e9354dd36997f03728cfa55e1b38337c0c9ef818
+       , 0xab37ddb683137e74080d026b590b96ae9bb447722f305a5ac570ec1df9b1743c
+       , 0x3ee735a694c2559b693aa68629361e15d12265ad6a3dedf488b0b00fac9754ba
+       , 0xd6fcd23219b647e4cbd5eb2d0ad01ec8838a4b2901fc325cc3701981ca6c888b
+       , 0x0520ec2f5bf7a755dacb50c6bf233e3515434763db0139ccd9faefbb8207612d
+       , 0xaff3b75f3f581264d7661662b92f5ad37c1d32bd45ff81a4ed8adc9ef30dd989
+       , 0xd0dd650befd3ba63dc25102c627c921b9cbeb0b130686935b5c927cb7ccd5e3b
+       , 0xe1149816b10a8514fb3e2cab2c08bee9f73ce76221701246a589bbb67302d8a9
+       , 0x7da3f441de9054317e72b5dbf979da01e6bceebb8478eae6a22849d90292635c
+       , 0x1230b1fc8a7d9215edc2d4a2decbdd0a6e216c924278c91fc5d10e7d60192d94
+       , 0x5750d716b4808f751febc38806ba170bf6d5199a7816be514e3f932fbe0cb871
+       , 0x6fc59b2f10feba954aa6820b3ca987ee81d5cc1da3c63ce827301c569dfb39ce
+       , 0xc7c3fe1eebdc7b5a939326e8ddb83e8bf2b780b65678cb62f208b040abdd35e2
+       , 0x0c75c1a15cf34a314ee478f4a5ce0b8a6b36528ef7a820696c3e4246c5a15864
+       , 0x216dc12a108569a3c7cdde4aed43a6c330139dda3ccc4a108905db3861899050
+       , 0xa57be6ae6756f28b02f59dadf7e0d7d8807f10fa15ced1ad3585521a1d995a89
+       , 0x816aef875953716cd7a581f732f53dd435dab66d09c361d2d6592de17755d8a8
+       , 0x9a76893226693b6ea97e6a738f9d10fb3d0b43ae0e8b7d8123ea76ce97989c7e
+       , 0x8daedb9a271529dbb7dc3b607fe5eb2d3211770758dd3b0a3593d2d7954e2d5b
+       , 0x16dbc0aa5dd2c774f505100f733786d8a175fcbbb59c43e1fbff3e1eaf31cb4a
+       , 0x8606cb899c6aeaf51b9db0fe4924a9fd5dabc19f8826f2bc1c1d7da14d2c2c99
+       , 0x8479731aeda57bd37eadb51a507e307f3bd95e69dbca94f3bc21726066ad6dfd
+       , 0x58473a9ea82efa3f3b3d8fc83ed8863127b33ae8deae6307201edb6dde61de29
+       , 0x9a9255d53af116de8ba27ce35b4c7e15640657a0fcb888c70d95431dacd8f830
+       , 0x9eb05ffba39fd8596a45493e18d2510bf3ef065c51d6e13abe66aa57e05cfdb7
+       , 0x81dcc3a505eace3f879d8f702776770f9df50e521d1428a85daf04f9ad2150e0
+       , 0xe3e3c4aa3acbbc85332af9d564bc24165e1687f6b1adcbfae77a8f03c72ac28c
+       , 0x6746c80b4eb56aea45e64e7289bba3edbf45ecf8206481ff6302122984cd526a
+       , 0x2b628e52764d7d62c0868b212357cdd12d9149822f4e9845d918a08d1ae990c0
+       , 0xe4bfe80d58c91994613909dc4b1a12496896c004af7b5701483de45d2823d78e
+       , 0xebb4ba150cef2734345b5d641bbed03a21eafae933c99e009212ef04574a8530
+       , 0x3966ec73b154acc697ac5cf5b24b40bdb0db9e398836d76d4b880e3b2af1aa27
+       , 0xef7e4831b3a84636518d6e4bfce64a43db2a5dda9cca2b44f39033bdc40d6243
+       , 0x7abf6acf5c8e549ddbb15ae8d8b388c1c197e698737c9785501ed1f94930b7d9
+       , 0x88018ded66813f0ca95def474c630692019967b9e36888dadd94124719b682f6
+       , 0x3930876b9fc7529036b008b1b8bb997522a441635a0c25ec02fb6d9026e55a97
+       , 0x0a4049d57e833b5695fac93dd1fbef3166b44b12ad11248662383ae051e15827
+       , 0x81dcc0678bb6a765e48c3209654fe90089ce44ff5618477e39ab286476df052b
+       , 0xe69b3a36a4461912dc08346b11ddcb9db796f885fd01936e662fe29297b099a4
+       , 0x5ac6503b0d8da6917646e6dcc87edc58e94245324cc204f4dd4af01563acd427
+       , 0xdf6dda21359a30bc271780971c1abd56a6ef167e480887888e73a86d3bf605e9
+       , 0xe8e6e47071e7b7df2580f225cfbbedf84ce67746626628d33097e4b7dc571107
+       , 0x53e40ead62051e19cb9ba8133e3e5c1ce00ddcad8acf342a224360b0acc14777
+       , 0x9ccd53fe80be786aa984638462fb28afdf122b34d78f4687ec632bb19de2371a
+       , 0xcbd48052c48d788466a3e8118c56c97fe146e5546faaf93e2bc3c47e45939753
+       , 0x256883b14e2af44dadb28e1b34b2ac0f0f4c91c34ec9169e29036158acaa95b9
+       , 0x4471b91ab42db7c4dd8490ab95a2ee8d04e3ef5c3d6fc71ac74b2b26914d1641
+       , 0xa5eb08038f8f1155ed86e631906fc13095f6bba41de5d4e795758ec8c8df8af1
+       , 0xdc1db64ed8b48a910e060a6b866374c578784e9ac49ab2774092ac71501934ac
+       , 0x285413b2f2ee873d34319ee0bbfbb90f32da434cc87e3db5ed121bb398ed964b
+       , 0x0216e0f81f750f26f1998bc3934e3e124c9945e685a60b25e8fbd9625ab6b599
+       , 0x38c410f5b9d4072050755b31dca89fd5395c6785eeb3d790f320ff941c5a93bf
+       , 0xf18417b39d617ab1c18fdf91ebd0fc6d5516bb34cf39364037bce81fa04cecb1
+       , 0x1fa877de67259d19863a2a34bcc6962a2b25fcbf5cbecd7ede8f1fa36688a796
+       , 0x5bd169e67c82c2c2e98ef7008bdf261f2ddf30b1c00f9e7f275bb3e8a28dc9a2
+       , 0xc80abeebb669ad5deeb5f5ec8ea6b7a05ddf7d31ec4c0a2ee20b0b98caec6746
+       , 0xe76d3fbda5ba374e6bf8e50fadc3bbb9ba5c206ebdec89a3a54cf3dd84a07016
+       , 0x7bba9dc5b5db2071d17752b1044c1eced96aaf2dd46e9b433750e8ea0dcc1870
+       , 0xf29b1b1ab9bab163018ee3da15232cca78ec52dbc34eda5b822ec1d80fc21bd0
+       , 0x9ee3e3e7e900f1e11d308c4b2b3076d272cf70124f9f51e1da60f37846cdd2f4
+       , 0x70ea3b0176927d9096a18508cd123a290325920a9d00a89b5de04273fbc76b85
+       , 0x67de25c02a4aaba23bdc973c8bb0b5796d47cc0659d43dff1f97de174963b68e
+       , 0xb2168e4e0f18b0e64100b517ed95257d73f0620df885c13d2ecf79367b384cee
+       , 0x2e7dec2428853b2c71760745541f7afe9825b5dd77df06511d8441a94bacc927
+       , 0xca9ffac4c43f0b48461dc5c263bea3f6f00611ceacabf6f895ba2b0101dbb68d
+       , 0x7410d42d8fd1d5e9d2f5815cb93417998828ef3c4230bfbd412df0a4a7a2507a
+       , 0x5010f684516dccd0b6ee0852c2512b4dc0066cf0d56f35302978db8ae32c6a81
+       , 0xacaab585f7b79b719935ceb89523ddc54827f75c56883856154a56cdcd5ee988
+       , 0x666de5d1440fee7331aaf0123a62ef2d8ba57453a0769635ac6cd01e633f7712
+       , 0xa6f98658f6eabaf902d8b3871a4b101d16196e8a4b241e1558fe29966e103e8d
+       , 0x891546a8b29f3047ddcfe5b00e45fd55756373105ea8637dfcff547b6ea9535f
+       , 0x18dfbc1ac5d25b0761137dbd22c17c829d0f0ef1d82344e9c89c286694da24e8
+       , 0xb54b9b67f8fed54bbf5a2666dbdf4b23cff1d1b6f4afc985b2e6d3305a9ff80f
+       , 0x7db442e132ba59bc1289aa98b0d3e806004f8ec12811af1e2e33c69bfde729e1
+       , 0x250f37cdc15e817d2f160d9956c71fe3eb5db74556e4adf9a4ffafba74010396
+       , 0x4ab8a3dd1ddf8ad43dab13a27f66a6544f290597fa96040e0e1db9263aa479f8
+       , 0xee61727a0766df939ccdc860334044c79a3c9b156200bc3aa32973483d8341ae
+       , 0x3f68c7ec63ac11ebb98f94b339b05c104984fda50103060144e5a2bfccc9da95
+       , 0x056f29816b8af8f56682bc4d7cf094111da7733e726cd13d6b3e8ea03e92a0d5
+       , 0xf5ec43a28acbeff1f3318a5bcac7c66ddb5230b79db2d105bcbe15f3c1148d69
+       , 0x2a6960ad1d8dd547555cfbd5e4600f1eaa1c8eda34de0374ec4a26eaaaa33b4e
+       , 0xdcc1ea7baab93384f76b796866199754742f7b96d6b4c120165c04a6c4f5ce10
+       , 0x13d5df179221379c6a78c07c793ff53487cae6bf9fe882541ab0e735e3eada3b
+       , 0x8c59e4407641a01e8ff91f9980dc236f4ecd6fcf52589a099a961633967714e1
+       , 0x833b1ac6a251fd08fd6d908fea2a4ee1e040bca93fc1a38ec3820e0c10bd82ea
+       , 0xa244f927f3b40b8f6c391570c765418f2f6e708eac9006c51a7feff4af3b2b9e
+       , 0x3d99ed9550cf1196e6c4d20c259620f858c3d703374c128ce7b590310c83046d
+       , 0x2b35c47d7b87761f0ae43ac56ac27b9f25830367b595be8c240e94600c6e3312
+       , 0x5d11ed37d24dc767305cb7e1467d87c065ac4bc8a426de38991ff59aa8735d02
+       , 0xb836478e1ca0640dce6fd910a5096272c8330990cd97864ac2bf14ef6b23914a
+       , 0x9100f946d6ccde3a597f90d39fc1215baddc7413643d85c21c3eee5d2dd32894
+       , 0xda70eedd23e663aa1a74b9766935b479222a72afba5c795158dad41a3bd77e40
+       , 0xf067ed6a0dbd43aa0a9254e69fd66bdd8acb87de936c258cfb02285f2c11fa79
+       , 0x715c99c7d57580cf9753b4c1d795e45a83fbb228c0d36fbe20faf39bdd6d4e85
+       , 0xe457d6ad1e67cb9bbd17cbd698fa6d7dae0c9b7ad6cbd6539634e32a719c8492
+       , 0xece3ea8103e02483c64a70a4bdcee8ceb6278f2533f3f48dbeedfba94531d4ae
+       , 0x388aa5d3667a97c68d3d56f8f3ee8d3d36091f17fe5d1b0d5d84c93b2ffe40bd
+       , 0x8b6b31b9ad7c3d5cd84bf98947b9cdb59df8a25ff738101013be4fd65e1dd1a3
+       , 0x066291f6bbd25f3c853db7d8b95c9a1cfb9bf1c1c99fb95a9b7869d90f1c2903
+       , 0xa707efbccdceed42967a66f5539b93ed7560d467304016c4780d7755a565d4c4
+       , 0x38c53dfb70be7e792b07a6a35b8a6a0aba02c5c5f38baf5c823fdfd9e42d657e
+       , 0xf2911386501d9ab9d720cf8ad10503d5634bf4b7d12b56dfb74fecc6e4093f68
+       , 0xc6f2bdd52b81e6e4f6595abd4d7fb31f651169d00ff326926b34947b28a83959
+       , 0x293d94b18c98bb3223366b8ce74c28fbdf28e1f84a3350b0eb2d1804a577579b
+       , 0x2c2fa5c0b51533165bc375c22e2781768270a383985d13bd6b67b6fd67f889eb
+       , 0xcaa09b82b72562e43f4b2275c091918e624d911661cc811bb5faec51f6088ef7
+       , 0x24761e45e674395379fb17729c78cb939e6f74c5dffb9c961f495982c3ed1fe3
+       , 0x55b70a82131ec94888d7ab54a7c515255c3938bb10bc784dc9b67f076e341a73
+       , 0x6ab9057b977ebc3ca4d4ce74506c25cccdc566497c450b5415a39486f8657a03
+       , 0x24066deee0ecee15a45f0a326d0f8dbc79761ebb93cf8c0377af440978fcf994
+       , 0x20000d3f66ba76860d5a950688b9aa0d76cfea59b005d859914b1a46653a939b
+       , 0xb92daa79603e3bdbc3bfe0f419e409b2ea10dc435beefe2959da16895d5dca1c
+       , 0xe947948705b206d572b0e8f62f66a6551cbd6bc305d26ce7539a12f9aadf7571
+       , 0x3d67c1b3f9b23910e3d35e6b0f2ccf44a0b540a45c18ba3c36264dd48e96af6a
+       , 0xc7558babda04bccb764d0bbf3358425141902d22391d9f8c59159fec9e49b151
+       , 0x0b732bb035675a50ff58f2c242e4710aece64670079c13044c79c9b7491f7000
+       , 0xd120b5ef6d57ebf06eaf96bc933c967b16cbe6e2bf00741c30aa1c54ba64801f
+       , 0x58d212ad6f58aef0f80116b441e57f6195bfef26b61463edec1183cdb04fe76d
+       , 0xb8836f51d1e29bdfdba325565360268b8fad627473edecef7eaefee837c74003
+       , 0xc547a3c124ae5685ffa7b8edaf96ec86f8b2d0d50cee8be3b1f0c76763069d9c
+       , 0x5d168b769a2f67853d6295f7568be40bb7a16b8d65ba87635d1978d2ab11ba2a
+       , 0xa2f675dc7302638cb60201064ca55077714d71fe096a315f2fe7401277caa5af
+       , 0xc8aab5cd0160ae78cd2e8ac5fb0e093cdb5c4b6052a0a97bb04216826fa7a437
+       , 0xff68ca4035bfeb43fbf145fddd5e43f1cea54f11f7bee13058f027329a4a5fa4
+       , 0x1d4e5487ae3c740f2ba6e541ac91bc2bfcd2999c518d807b426748803a350fd4
+       , 0x6d244e1a06ce4ef578dd0f63aff0936706735119ca9c8d22d86c801414ab9741
+       , 0xdecf7329dbcc827b8fc524c9431e8998029ece12ce93b7b2f3e769a941fb8cea
+       , 0x2fafcc0f2e63cbd07755be7b75ecea0adff9aa5ede2a52fdab4dfd0374cd483f
+       , 0xaa85010dd46a546b535ef4cf5f07d65161e89828f3a77db7b9b56f0df59aae45
+       , 0x07e8e1ee732cb0d356c9c0d1069c89d17adf6a9a334f745ec7867332548ca8e9
+       , 0x0e01e81cada8162bfd5f8a8c818a6c69fedf02ceb5208523cbe5313b89ca1053
+       , 0x6bb6c6472655084399852e00249f8cb247896d392b02d73b7f0dd818e1e29b07
+       , 0x42d4636e2060f08f41c882e76b396b112ef627cc24c43dd5f83a1d1a7ead711a
+       , 0x4858c9a188b0234fb9a8d47d0b4133650a030bd0611b87c3892e94951f8df852
+       , 0x3fab3e36988d445a51c8783e531be3a02be40cd04796cfb61d40347442d3f794
+       , 0xebabc49636bd433d2ec8f0e518732ef8fa21d4d071cc3bc46cd79fa38a28b810
+       , 0xa1d0343523b893fca84f47feb4a64d350a17d8eef5497ece697d02d79178b591
+       , 0x262ebfd9130b7d28760d08ef8bfd3b86cdd3b2113d2caef7ea951a303dfa3846
+       , 0xf76158edd50a154fa78203ed2362932fcb8253aae378903eded1e03f7021a257
+       , 0x26178e950ac722f67ae56e571b284c0207684a6334a17748a94d260bc5f55274
+       , 0xc378d1e493b40ef11fe6a15d9c2737a37809634c5abad5b33d7e393b4ae05d03
+       , 0x984bd8379101be8fd80612d8ea2959a7865ec9718523550107ae3938df32011b
+       , 0xc6f25a812a144858ac5ced37a93a9f4759ba0b1c0fdc431dce35f9ec1f1f4a99
+       , 0x924c75c94424ff75e74b8b4e94358958b027b171df5e57899ad0d4dac37353b6
+       , 0x0af35892a63f45931f6846ed190361cd073089e077165714b50b81a2e3dd9ba1
+       , 0xcc80cefb26c3b2b0daef233e606d5ffc80fa17427d18e30489673e06ef4b87f7
+       , 0xc2f8c8117447f3978b0818dcf6f70116ac56fd184dd1278494e103fc6d74a887
+       , 0xbdecf6bfc1ba0df6e862c831992207796acc797968358828c06e7a51e090098f
+       , 0x24d1a26e3dab02fe4572d2aa7dbd3ec30f0693db26f273d0ab2cb0c13b5e6451
+       , 0xec56f58b09299a300b140565d7d3e68782b6e2fbeb4b7ea97ac057989061dd3f
+       , 0x11a437c1aba3c119ddfab31b3e8c841deeeb913ef57f7e48f2c9cf5a28fa42bc
+       , 0x53c7e6114b850a2cb496c9b3c69a623eaea2cb1d33dd817e4765edaa6823c228
+       , 0x154c3e96fee5db14f8773e18af14857913509da999b46cdd3d4c169760c83ad2
+       , 0x40b9916f093e027a8786641818920620472fbcf68f701d1b680632e6996bded3
+       , 0x24c4cbba07119831a726b05305d96da02ff8b148f0da440fe233bcaa32c72f6f
+       , 0x5d201510250020b783689688abbf8ecf2594a96a08f2bfec6ce0574465dded71
+       , 0x043b97e336ee6fdbbe2b50f22af83275a4084805d2d5645962454b6c9b8053a0
+       , 0x564835cbaea774948568be36cf52fcdd83934eb0a27512dbe3e2db47b9e6635a
+       , 0xf21c33f47bde40a2a101c9cde8027aaf61a3137de2422b30035a04c270894183
+       , 0x9db0ef74e66cbb842eb0e07343a03c5c567e372b3f23b943c788a4f250f67891
+       , 0xab8d08655ff1d3fe8758d562235fd23e7cf9dcaad658872a49e5d3183b6ccebd
+       , 0x6f27f77e7bcf46a1e963ade0309733543031dccdd47caac174d7d27ce8077e8b
+       , 0xe3cd54da7e444caa6207569525a670ebae1278de4e3fe2684b3e33f5ef90cc1b
+       , 0xb2c3e33a51d22c4c08fc0989c873c9cc4150579b1e6163fa694ad51d53d712dc
+       , 0xbe7fda983e13189b4c77e0a80920b6e0e0ea80c3b84dbe7e7117d253f48112f4
+       , 0xb6008c28fae08aa427e5bd3aad36f10021f16c77cfeabed07f97cc7dc1f1284a
+       , 0x6e4e6760c538f2e97b3adbfbbcde57f8966b7ea8fcb5bf7efec913fd2a2b0c55
+       , 0x4ae51fd1834aa5bd9a6f7ec39fc663338dc5d2e20761566d90cc68b1cb875ed8
+       , 0xb673aad75ab1fdb5401abfa1bf89f3add2ebc468df3624a478f4fe859d8d55e2
+       , 0x13c9471a9855913539836660398da0f3f99ada08479c69d1b7fcaa3461dd7e59
+       , 0x2c11f4a7f99a1d23a58bb636350fe849f29cbac1b2a1112d9f1ed5bc5b313ccd
+       , 0xc7d3c0706b11ae741c05a1ef150dd65b5494d6d54c9a86e2617854e6aeeebbd9
+       , 0x194e10c93893afa064c3ac04c0dd808d791c3d4b7556e89d8d9cb225c4b33339
+       , 0x6fc4988b8f78546b1688991845908f134b6a482e6994b3d48317bf08db292185
+       , 0x5665beb8b0955525813b5981cd142ed4d03fba38a6f3e5ad268e0cc270d1cd11
+       , 0xb883d68f5fe51936431ba4256738053b1d0426d4cb64b16e83badc5e9fbe3b81
+       , 0x53e7b27ea59c2f6dbb50769e43554df35af89f4822d0466b007dd6f6deafff02
+       , 0x1f1a0229d4640f01901588d9dec22d13fc3eb34a61b32938efbf5334b2800afa
+       , 0xc2b405afa0fa6668852aee4d88040853fab800e72b57581418e5506f214c7d1f
+       , 0xc08aa1c286d709fdc7473744977188c895ba011014247e4efa8d07e78fec695c
+       , 0xf03f5789d3336b80d002d59fdf918bdb775b00956ed5528e86aa994acb38fe2d
+       ]

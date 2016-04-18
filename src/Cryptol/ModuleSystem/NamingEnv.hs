@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -26,10 +26,12 @@ import Cryptol.Utils.Panic (panic)
 
 import Data.List (nub)
 import Data.Maybe (catMaybes,fromMaybe)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import MonadLib (runId,Id)
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 import Prelude ()
@@ -40,11 +42,11 @@ import Prelude.Compat
 
 -- XXX The fixity environment should be removed, and Name should include fixity
 -- information.
-data NamingEnv = NamingEnv { neExprs :: Map.Map PName [Name]
+data NamingEnv = NamingEnv { neExprs :: !(Map.Map PName [Name])
                              -- ^ Expr renaming environment
-                           , neTypes :: Map.Map PName [Name]
+                           , neTypes :: !(Map.Map PName [Name])
                              -- ^ Type renaming environment
-                           , neFixity:: Map.Map Name Fixity
+                           , neFixity:: !(Map.Map Name Fixity)
                              -- ^ Expression-level fixity environment
                            } deriving (Show, Generic)
 
@@ -67,6 +69,11 @@ instance Monoid NamingEnv where
     NamingEnv { neExprs  = Map.unionsWith merge (map neExprs  envs)
               , neTypes  = Map.unionsWith merge (map neTypes  envs)
               , neFixity = Map.unions           (map neFixity envs) }
+
+  {-# INLINE mempty #-}
+  {-# INLINE mappend #-}
+  {-# INLINE mconcat #-}
+
 
 -- | Merge two name maps, collapsing cases where the entries are the same, and
 -- producing conflicts otherwise.
@@ -170,25 +177,44 @@ data InModule a = InModule !ModName a
 
 -- | Generate a 'NamingEnv' using an explicit supply.
 namingEnv' :: BindsNames a => a -> Supply -> (NamingEnv,Supply)
-namingEnv' a supply = runSupplyM supply (namingEnv a)
+namingEnv' a supply = runId (runSupplyT supply (runBuild (namingEnv a)))
+
+
+newtype BuildNamingEnv = BuildNamingEnv { runBuild :: SupplyT Id NamingEnv }
+
+instance Monoid BuildNamingEnv where
+  mempty = BuildNamingEnv (pure mempty)
+
+  mappend (BuildNamingEnv a) (BuildNamingEnv b) = BuildNamingEnv $
+    do x <- a
+       y <- b
+       return (mappend x y)
+
+  mconcat bs = BuildNamingEnv $
+    do ns <- sequence (map runBuild bs)
+       return (mconcat ns)
 
 -- | Things that define exported names.
 class BindsNames a where
-  namingEnv :: a -> SupplyM NamingEnv
+  namingEnv :: a -> BuildNamingEnv
 
 instance BindsNames NamingEnv where
-  namingEnv = return
+  namingEnv env = BuildNamingEnv (return env)
+  {-# INLINE namingEnv #-}
 
 instance BindsNames a => BindsNames (Maybe a) where
   namingEnv = foldMap namingEnv
+  {-# INLINE namingEnv #-}
 
 instance BindsNames a => BindsNames [a] where
   namingEnv = foldMap namingEnv
+  {-# INLINE namingEnv #-}
 
 -- | Generate a type renaming environment from the parameters that are bound by
 -- this schema.
 instance BindsNames (Schema PName) where
   namingEnv (Forall ps _ _ _) = foldMap namingEnv ps
+  {-# INLINE namingEnv #-}
 
 
 -- | Interpret an import in the context of an interface, to produce a name
@@ -240,12 +266,13 @@ data ImportIface = ImportIface Import Iface
 -- | Produce a naming environment from an interface file, that contains a
 -- mapping only from unqualified names to qualified ones.
 instance BindsNames ImportIface where
-  namingEnv (ImportIface imp Iface { .. }) =
+  namingEnv (ImportIface imp Iface { .. }) = BuildNamingEnv $
     return (interpImport imp ifPublic)
+  {-# INLINE namingEnv #-}
 
--- | Introduce the name 
+-- | Introduce the name
 instance BindsNames (InModule (Bind PName)) where
-  namingEnv (InModule ns b) =
+  namingEnv (InModule ns b) = BuildNamingEnv $
     do let Located { .. } = bName b
        n <- liftSupply (mkDeclared ns (getIdent thing) srcRange)
 
@@ -257,7 +284,7 @@ instance BindsNames (InModule (Bind PName)) where
 
 -- | Generate the naming environment for a type parameter.
 instance BindsNames (TParam PName) where
-  namingEnv TParam { .. } =
+  namingEnv TParam { .. } = BuildNamingEnv $
     do let range = fromMaybe emptyRange tpRange
        n <- liftSupply (mkParameter (getIdent tpName) range)
        return (singletonT tpName n)
@@ -274,10 +301,10 @@ instance BindsNames (InModule (TopDecl PName)) where
     case td of
       Decl d      -> namingEnv (InModule ns (tlValue d))
       TDNewtype d -> namingEnv (InModule ns (tlValue d))
-      Include _   -> return mempty
+      Include _   -> mempty
 
 instance BindsNames (InModule (Newtype PName)) where
-  namingEnv (InModule ns Newtype { .. }) =
+  namingEnv (InModule ns Newtype { .. }) = BuildNamingEnv $
     do let Located { .. } = nName
        tyName <- liftSupply (mkDeclared ns (getIdent thing) srcRange)
        eName  <- liftSupply (mkDeclared ns (getIdent thing) srcRange)
@@ -286,7 +313,7 @@ instance BindsNames (InModule (Newtype PName)) where
 -- | The naming environment for a single declaration.
 instance BindsNames (InModule (Decl PName)) where
   namingEnv (InModule pfx d) = case d of
-    DBind b ->
+    DBind b -> BuildNamingEnv $
       do n <- mkName (bName b)
          return (singletonE (thing (bName b)) n `mappend` fixity n b)
 
@@ -302,11 +329,11 @@ instance BindsNames (InModule (Decl PName)) where
     mkName ln =
       liftSupply (mkDeclared pfx (getIdent (thing ln)) (srcRange ln))
 
-    qualBind ln =
+    qualBind ln = BuildNamingEnv $
       do n <- mkName ln
          return (singletonE (thing ln) n)
 
-    qualType ln =
+    qualType ln = BuildNamingEnv $
       do n <- mkName ln
          return (singletonT (thing ln) n)
 

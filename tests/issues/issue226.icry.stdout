@@ -69,7 +69,7 @@ Symbols
     pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
     pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
     pmult : {a, b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
-    random : {a} [32] -> a
+    random : {a} [256] -> a
     reverse : {a, b} (fin a) => [a]b -> [a]b
     split : {parts, each, a} (fin each) => [parts *
                                             each]a -> [parts][each]a

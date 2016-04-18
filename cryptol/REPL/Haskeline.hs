@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -201,7 +201,7 @@ cmdArgument ct cursor@(l,_) = case ct of
 completeExpr :: CompletionFunc REPL
 completeExpr (l,_) = do
   ns <- getExprNames
-  let n    = reverse (takeWhile isIdentChar l)
+  let n    = reverse (takeIdent l)
       vars = filter (n `isPrefixOf`) ns
   return (l,map (nameComp n) vars)
 
@@ -209,7 +209,7 @@ completeExpr (l,_) = do
 completeType :: CompletionFunc REPL
 completeType (l,_) = do
   ns <- getTypeNames
-  let n    = reverse (takeWhile isIdentChar l)
+  let n    = reverse (takeIdent l)
       vars = filter (n `isPrefixOf`) ns
   return (l,map (nameComp n) vars)
 
@@ -220,6 +220,13 @@ nameComp prefix c = Completion
   , display     = c
   , isFinished  = True
   }
+
+-- | Return longest identifier (possibly a qualified name) that is a
+-- prefix of the given string
+takeIdent :: String -> String
+takeIdent (c : cs) | isIdentChar c = c : takeIdent cs
+takeIdent (':' : ':' : cs) = ':' : ':' : takeIdent cs
+takeIdent _ = []
 
 isIdentChar :: Char -> Bool
 isIdentChar c = isAlphaNum c || c `elem` "_\'"

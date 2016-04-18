@@ -7,7 +7,7 @@
 width_eq_geq : {n} (32 == width n, n >= 1) => [n]Bit
 width_eq_geq = [True | _ <- [1..n] : [_][32] ]
 
-// Want: const >= width (x+1) ==> const > width x 
+// Want: const >= width (x+1) ==> const > width x
 // or any monotonic function, not just addition.
 //
 // Also Want: const >= width n     ==> fin n
@@ -19,7 +19,7 @@ can_not_width = zero # (`n : [width n])
 
 // Want: Honestly, I don't know what's going on here.  It seems to relate to some of our regressions though.
 // Tell me if there should be another ticket - probably one that already exists. -TMD
-// Issue: Cryptol 2.3 wants 'n == 4 + (?a3 - n % 4)'  
+// Issue: Cryptol 2.3 wants 'n == 4 + (?a3 - n % 4)'
 take_knows_no_bounds : {n} (fin n, n >= 4) => [n][8] -> [4 - (n%4)][8]
 take_knows_no_bounds ns = foo
  where

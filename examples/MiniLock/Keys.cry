@@ -1,0 +1,75 @@
+/*
+ * Copyright (c) 2013-2016 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+module Keys where
+
+import CfrgCurves
+import Blake2s
+import SCrypt
+import Base58
+
+type MinilockID = [46][8]
+
+// Given a public key compute the ASCII ID
+encodeID : Public25519 -> MinilockID
+encodeID pub = base58enc (join (pub # [h]))
+  where
+  h = blake2s `{nn=1} pub : [8]
+
+decodeID : MinilockID -> (Bit,Public25519)
+decodeID ident = (hComp == hRecv, key)
+ where
+  bs    = split (base58dec ident)  : [33][8]
+  hRecv = bs ! 0
+  hComp = blake2s `{nn=1} key      : [8]
+  key   = take bs                  : [32][8]
+
+// Accept a possibly-short key (base58 is value dependent encoding)
+// and expand it to the full, fixed, size.
+mkFullLengthID : {n} (46 >= n, n>= 1) => [n][8] -> MinilockID
+mkFullLengthID n = drop (['1' | _ <- [0..45] : [_][8]]  # n)
+
+mkID : {passBytes, saltBytes}
+       ( fin passBytes, fin saltBytes
+       , 64 >= width passBytes
+       , 32 >= width (4*saltBytes)
+       )
+    => [passBytes][8] -> [saltBytes][8] -> (MinilockID,Private25519)
+mkID pw email = (encodeID pub,priv)
+  where
+  // XXX wait for cryptol 2.3: priv = SCrypt `{N=2^^17,r=8} (split (blake2s `{nn=32} pw)) email
+  priv : Private25519
+  priv = SCrypt `{N=2^^1,r=8} (split (blake2s `{nn=32} pw)) email
+  // XXX we can't interpret N=2^^17 so this N value is a place holder...
+  pub  = Curve25519 priv basePoint25519
+
+// XXX we can not run these tests in the cryptol interpreter, SCrypt is too expensive.
+testPass = "some bears eat all the honey in the jar"
+testEmail = "example@example.com"
+
+testID : MinilockID
+testID = mkFullLengthID "28ZvW9rqRqvqpFTtHnusUntRqrxb4qqZAaNAd3QsqjSsXq"
+
+testID_computed = "28ZvW9rqRqvqpFTtHnusUntRqrxb4qqZAaNAd3QsqjSsXq"  // Computed on deathstar
+testPriv_computed =
+  [0x12, 0x86, 0xe0, 0x18, 0xc6, 0x68, 0x34, 0x96, 0x09, 0x2e, 0x53,
+   0x32, 0x37, 0x76, 0x80, 0x3c, 0x30, 0xb4, 0x75, 0x2d, 0xd7, 0x70,
+   0xea, 0xa9, 0x6f, 0x0d, 0xda, 0x25, 0xc7, 0xfe, 0x28, 0x1f]
+
+// Deathstar results:
+// ([0x32, 0x38, 0x5a, 0x76, 0x57, 0x39, 0x72, 0x71, 0x52, 0x71, 0x76,
+//   0x71, 0x70, 0x46, 0x54, 0x74, 0x48, 0x6e, 0x75, 0x73, 0x55, 0x6e,
+//   0x74, 0x52, 0x71, 0x72, 0x78, 0x62, 0x34, 0x71, 0x71, 0x5a, 0x41,
+//   0x61, 0x4e, 0x41, 0x64, 0x33, 0x51, 0x73, 0x71, 0x6a, 0x53, 0x73,
+//   0x58, 0x71],
+//  [0x12, 0x86, 0xe0, 0x18, 0xc6, 0x68, 0x34, 0x96, 0x09, 0x2e, 0x53,
+//   0x32, 0x37, 0x76, 0x80, 0x3c, 0x30, 0xb4, 0x75, 0x2d, 0xd7, 0x70,
+//   0xea, 0xa9, 0x6f, 0x0d, 0xda, 0x25, 0xc7, 0xfe, 0x28, 0x1f])
+
+
+// testPriv : Private25519
+testPriv = [0x12, 0x86, 0xe0, 0x18, 0xc6, 0x68, 0x34, 0x96, 0x09, 0x2e, 0x53, 0x32, 0x37, 0x76, 0x80, 0x3c, 0x30, 0xb4, 0x75, 0x2d, 0xd7, 0x70,0xea, 0xa9, 0x6f, 0x0d, 0xda, 0x25, 0xc7, 0xfe, 0x28, 0x1f]
+
+testPub = Curve25519 testPriv basePoint25519
+property kat_pub_id_eq = testPub == (decodeID testID).1 && encodeID testPub == testID && testID == testID_computed && testPriv == testPriv_computed

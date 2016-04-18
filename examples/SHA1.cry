@@ -1,17 +1,18 @@
 /*
- * Copyright (c) 2004, 2013-2015 Galois, Inc.
+ * Copyright (c) 2004, 2013-2016 Galois, Inc.
  * Distributed under the terms of the BSD3 license (see LICENSE file)
  */
 
 // Description of SHA1 at http://www.itl.nist.gov/fipspubs/fip180-4.htm
 
-sha1 msg = sha1' pmsg 
+sha1 : {n} (width (8*n) <= 64) => [n][8] -> [160]
+sha1 msg = sha1' pmsg
     where
         pmsg = pad(join(msg))
 
 sha1' : {chunks} (fin chunks) => [chunks][512] -> [160]
 sha1' pmsg = join (Hs!0)
-  where 
+  where
     Hs = [[0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0]] #
          [ block(H, split(M))
          | H <- Hs
@@ -26,19 +27,18 @@ As a summary, a "1" followed by m "0"s followed by a 64-
    SHA-1 as n 512-bit blocks.
 */
 
-pad : {msgLen,contentLen,chunks,padding}
+pad : {msgLen,chunks}
      ( fin msgLen
      , 64 >= width msgLen                             // message width fits in a word
-     , contentLen == msgLen + 65                      // message + header
-     , chunks     == (contentLen+511) / 512
-     , padding    == (512 - contentLen % 512) % 512   // prettier if type #'s could be < 0
-     , msgLen     == 512 * chunks - (65 + padding)    // redundant, but Cryptol can't yet do the math
+     , chunks     == (msgLen + 65 + 511) / 512
      )
      => [msgLen] -> [chunks][512]
 pad msg = split (msg # [True] # (zero:[padding]) # (`msgLen:[64]))
+    where type contentLen = msgLen + 65                      // message + header
+          type padding    = (512 - contentLen % 512) % 512   // prettier if type #'s could be < 0
 
 f : ([8], [32], [32], [32]) -> [32]
-f (t, x, y, z) = 
+f (t, x, y, z) =
        if (0 <= t)  && (t <= 19) then (x && y) ^ (~x && z)
         | (20 <= t) && (t <= 39) then x ^ y ^ z
         | (40 <= t) && (t <= 59) then (x && y) ^ (x && z) ^ (y && z)
@@ -54,7 +54,7 @@ Ks = [ 0x5a827999 | t <- [0..19]  ]
 block : ([5][32], [16][32]) -> [5][32]
 block ([H0, H1, H2, H3, H4], M) =
  [(H0+As@80), (H1+Bs@80), (H2+Cs@80), (H3+Ds@80), (H4+Es@80)]
-  where 
+  where
     Ws : [80][32]
     Ws = M # [ (W3 ^ W8 ^ W14 ^ W16) <<< 1
              | W16 <- drop`{16 - 16} Ws

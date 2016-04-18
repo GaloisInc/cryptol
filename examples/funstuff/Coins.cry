@@ -1,3 +1,5 @@
+// Copyright (c) 2015-2016 Galois, Inc.
+
 // The puzzle goes like this:
 // You've got 30 coins that add up to $1.09 - what are they?
 coinPuzzle : [10] -> [10] -> [10] -> [10] -> Bit

@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -29,7 +29,6 @@ module Cryptol.Symbolic.Value
 
 import Data.List (foldl')
 
-import Data.SBV (HasKind(..))
 import Data.SBV.Dynamic
 
 import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit,

@@ -1,0 +1,5 @@
+f : {a} (fin a, a>=2) => [a][8] -> [8]
+f xs = ys!0
+ where
+  ys : [a/2][8]
+  ys = zero

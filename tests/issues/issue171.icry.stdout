@@ -1,0 +1,11 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+:prove b
+	Q.E.D.
+:prove a
+	Q.E.D.
+:prove d
+	Q.E.D.
+:prove c
+	Q.E.D.

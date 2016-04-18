@@ -1,10 +1,18 @@
-{-# LANGUAGE Safe, PatternGuards, BangPatterns #-}
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
--- | Simplification.
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2014-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+--
 -- TODO:
 --  - Putting in a normal form to spot "prove by assumption"
 --  - Additional simplification rules, namely various cancelation.
 --  - Things like:  lg2 e(x) = x, where we know thate is increasing.
+
+{-# LANGUAGE Safe, PatternGuards, BangPatterns #-}
+{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 
 module Cryptol.TypeCheck.Solver.Numeric.Simplify
   (
@@ -364,20 +372,20 @@ cryNot prop =
 
 -- | Simplificaiton for @:==@
 cryIsEq :: Expr -> Expr -> Prop
-cryIsEq x y =
-  case (x,y) of
+cryIsEq l r =
+  case (l,r) of
     (K m, K n)      -> if m == n then PTrue else PFalse
 
-    (K Inf, _)      -> Not (Fin y)
-    (_, K Inf)      -> Not (Fin x)
+    (K Inf, _)      -> Not (Fin r)
+    (_, K Inf)      -> Not (Fin l)
 
     (Div x y, z)    -> x :>= z :* y :&& (one :+ z) :* y :> x
 
-    (K (Nat n),_) | Just p <- cryIsNat False n y -> p
-    (_,K (Nat n)) | Just p <- cryIsNat False n x -> p
+    (K (Nat n),_) | Just p <- cryIsNat False n r -> p
+    (_,K (Nat n)) | Just p <- cryIsNat False n l -> p
 
-    _               -> Not (Fin x) :&& Not (Fin y)
-                   :|| Fin x :&& Fin y :&& cryNatOp (:==:) x y
+    _               -> Not (Fin l) :&& Not (Fin r)
+                   :|| Fin l :&& Fin r :&& cryNatOp (:==:) l r
 
 
 
@@ -833,6 +841,3 @@ cryNatOp op x y =
       Impossible -> PFalse -- It doesn't matter, but @false@ might anihilate.
       Return p   -> p
       If p t e   -> p :&& toProp t :|| Not p :&& toProp e
-
-
-

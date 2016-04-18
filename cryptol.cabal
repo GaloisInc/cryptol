@@ -1,5 +1,5 @@
 Name:                cryptol
-Version:             2.3.0
+Version:             2.4.0
 Synopsis:            Cryptol: The Language of Cryptography
 Description: Cryptol is a domain-specific language for specifying cryptographic algorithms. A Cryptol implementation of an algorithm resembles its mathematical specification more closely than an implementation in a general purpose language. For more, see <http://www.cryptol.net/>.
 License:             BSD3
@@ -8,12 +8,12 @@ Author:              Galois, Inc.
 Maintainer:          cryptol@galois.com
 Homepage:            http://www.cryptol.net/
 Bug-reports:         https://github.com/GaloisInc/cryptol/issues
-Copyright:           2013-2015 Galois Inc.
+Copyright:           2013-2016 Galois Inc.
 Category:            Language
 Build-type:          Simple
 Cabal-version:       >= 1.18
 
-data-files:          *.cry
+data-files:          *.cry Cryptol/*.cry
 data-dir:            lib
 
 source-repository head
@@ -23,7 +23,7 @@ source-repository head
 source-repository this
   type:     git
   location: https://github.com/GaloisInc/cryptol.git
-  tag:      v2.3.0
+  tag:      2.4.0
 
 flag static
   default: False
@@ -47,7 +47,7 @@ library
                        async             >= 2.0,
                        containers        >= 0.5,
                        deepseq           >= 1.3,
-                       deepseq-generics  >= 0.1,
+                       deepseq-generics  >= 0.1 && < 0.3,
                        directory         >= 1.2,
                        filepath          >= 1.3,
                        gitrev            >= 1.0,
@@ -226,7 +226,7 @@ executable cryptol-server
                   , cryptol
                   , filepath
                   , monad-control
-                  , optparse-applicative
+                  , optparse-applicative >= 0.12
                   , text
                   , transformers
                   , unix

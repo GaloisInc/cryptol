@@ -1,6 +1,6 @@
 -- |
 -- Module      :  $Header$
--- Copyright   :  (c) 2013-2015 Galois, Inc.
+-- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -13,16 +13,19 @@ module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
   ) where
 
-import           Cryptol.ModuleSystem.Name (SupplyT,runSupplyT,FreshM(..),Supply)
+import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.Unify(mgu, Result(..), UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
+import qualified Cryptol.TypeCheck.Solver.CrySAT as CrySAT
 import           Cryptol.Utils.PP(pp, (<+>), Doc, text, quotes)
 import           Cryptol.Utils.Panic(panic)
 
+import qualified Control.Applicative as A
+import           Control.Monad.Fix(MonadFix(..))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Map (Map)
@@ -31,10 +34,9 @@ import           Data.List(find, minimumBy, groupBy, sortBy)
 import           Data.Maybe(mapMaybe)
 import           Data.Function(on)
 import           MonadLib hiding (mapM)
-import qualified Control.Applicative as A
-import           Control.Monad.Fix(MonadFix(..))
 
 import GHC.Generics (Generic)
+import Control.DeepSeq
 import Control.DeepSeq.Generics
 
 import Prelude ()
@@ -86,7 +88,7 @@ data InferOutput a
     deriving Show
 
 runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
-runInferM info (IM m) =
+runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
   do rec ro <- return RO { iRange     = inpRange info
                      , iVars          = Map.map ExtVar (inpVars info)
                      , iTVars         = []
@@ -94,13 +96,12 @@ runInferM info (IM m) =
                      , iNewtypes      = fmap mkExternal (inpNewtypes info)
                      , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
                      , iMonoBinds     = inpMonoBinds info
-                     , iSolverConfig  = inpSolverConfig info
+                     , iSolver        = solver
                      , iPrimNames     = inpPrimNames info
                      }
 
-         ((result, finalRW),supply') <-
-             runSupplyT (inpSupply info) $ runStateT rw
-                                         $ runReaderT ro m  -- RECURSION
+         (result, finalRW) <- runStateT rw
+                            $ runReaderT ro m  -- RECURSION
 
      let theSu    = iSubst finalRW
          defSu    = defaultingSubst theSu
@@ -113,7 +114,7 @@ runInferM info (IM m) =
              | nullGoals cts
                    -> return $ InferOK warns
                                   (iNameSeeds finalRW)
-                                  supply'
+                                  (iSupply finalRW)
                                   (apSubst defSu result)
            (cts,has) -> return $ InferFailed warns
                 $ dropErrorsFromSameLoc
@@ -137,6 +138,8 @@ runInferM info (IM m) =
           , iCts        = emptyGoals
           , iHasCts     = []
           , iSolvedHas  = Map.empty
+
+          , iSupply     = inpSupply info
           }
 
   dropErrorsFromSameLoc = map chooseBestError . groupBy ((==)    `on` fst)
@@ -151,7 +154,7 @@ runInferM info (IM m) =
 
 
 
-newtype InferM a = IM { unIM :: ReaderT RO (StateT RW (SupplyT IO)) a }
+newtype InferM a = IM { unIM :: ReaderT RO (StateT RW IO) a }
 
 data DefLoc = IsLocal | IsExternal
 
@@ -187,7 +190,7 @@ data RO = RO
     -- in where-blocks will never be generalized. Bindings with type
     -- signatures, and all bindings at top level are unaffected.
 
-  , iSolverConfig :: SolverConfig
+  , iSolver :: CrySAT.Solver
 
   , iPrimNames :: !PrimMap
   }
@@ -222,6 +225,8 @@ data RW = RW
   , iHasCts   :: ![HasGoal]
     {- ^ Tuple/record projection constraints.  The `Int` is the "name"
          of the constraint, used so that we can name it solution properly. -}
+
+  , iSupply :: !Supply
   }
 
 instance Functor InferM where
@@ -240,7 +245,11 @@ instance MonadFix InferM where
   mfix f        = IM (mfix (unIM . f))
 
 instance FreshM InferM where
-  liftSupply f = IM (liftSupply f)
+  liftSupply f = IM $
+    do rw <- get
+       let (a,s') = f (iSupply rw)
+       set rw { iSupply = s' }
+       return a
 
 
 io :: IO a -> InferM a
@@ -270,10 +279,10 @@ recordWarning w =
   do r <- curRange
      IM $ sets_ $ \s -> s { iWarnings = (r,w) : iWarnings s }
 
-getSolverConfig :: InferM SolverConfig
-getSolverConfig =
+getSolver :: InferM CrySAT.Solver
+getSolver =
   do RO { .. } <- IM ask
-     return iSolverConfig
+     return iSolver
 
 -- | Retrieve the mapping between identifiers and declarations in the prelude.
 getPrimMap :: InferM PrimMap

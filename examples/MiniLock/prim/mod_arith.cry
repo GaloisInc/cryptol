@@ -1,0 +1,55 @@
+/*
+ * Copyright (c) 2013-2016 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+module mod_arith where
+
+import bv
+
+/* Add two numbers in normalized form. */
+mod_add : {n} (fin n) => ([n],[n],[n]) -> [n]
+mod_add(p,x,y) = if c1 || ~c2 then r2 else r1
+  where
+    (r1,c1) = adc( x, y)
+    (r2,c2) = sbb(r1, p)
+
+/* Subtract two numbers in normalized form. */
+mod_sub : {n} (fin n) => ([n],[n],[n]) -> [n]
+mod_sub(p,x,y) = if b then r2 else r1
+  where
+    (r1,b) = sbb( x, y)
+    (r2,_) = adc(r1, p)
+
+mod_neg : {n} (fin n) => ([n],[n]) -> [n]
+mod_neg(p,x) = if x == 0 then 0 else (p - x)
+
+mod_half : {n} (fin n, n >= 1) => ([n],[n]) -> [n]
+mod_half(p, x) = if even(x) then x >> 1
+                 else take(safe_add(x, p))
+  where even y = (y && 1) == 0
+
+/* Definition of modular multiplication. */
+mod_mul : {n} (fin n) => ([n],[n],[n]) -> [n]
+mod_mul(p,x,y) = safe_mod(p, safe_product(x, y))
+
+/* Returns x/y in F_p using Euler's binary gcd algorithm. */
+/* Taken from [HMV] */
+mod_div : {a} (fin a, a >= 1) => ([a],[a],[a]) -> [a]
+mod_div(p,x,y) = egcd(p,0,y,x)
+  where
+    /* In code below, a is always odd. */
+    egcd(a,ra,b,rb) =
+      if b == 0 then
+        ra
+      else if (b && 1) == 0 then /* b is even. */
+        egcd(a, ra, b >> 1, mod_half(p, rb))
+      else if a < b then
+        egcd(a, ra, (b - a) >> 1, mod_half(p, mod_sub(p, rb, ra)))
+      else
+        egcd(b, rb, (a - b) >> 1, mod_half(p, mod_sub(p, ra, rb)))
+
+mod_pow : {a} (fin a, a >= 1) => ([a] , [a] , [a]) -> [a]
+mod_pow (p,x0,e0) = (results ! 0).2
+ where
+ results = [(x0,e0,1)] # [ (mod_mul (p,x,x), e>>1, if(e!0) then mod_mul(p,result,x) else result)
+                                | (x,e,result) <- results | _ <- [0..a] :[_][width a] ]

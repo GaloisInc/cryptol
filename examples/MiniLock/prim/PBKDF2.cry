@@ -1,0 +1,46 @@
+/*
+ * Copyright (c) 2013-2016 Galois, Inc.
+ * Distributed under the terms of the BSD3 license (see LICENSE file)
+ */
+module PBKDF2 where
+
+import SHA256
+import HMAC
+
+// PBKDF2 specialized to HMAC_SHA256 to avoid monomorphic type issues.
+pbkdf2 : {pwBytes, saltBytes, dkLenBits, C}
+         ( 32 >= width (pwBytes*8)
+         , dkLenBits >= 1
+         , fin dkLenBits
+         , 32 >= width (dkLenBits - 1)
+         , C >= 1
+         , 16 >= width C
+         , 32 >= width (4 + saltBytes)
+         )
+      => [pwBytes][8] -> [saltBytes][8] -> [dkLenBits]
+pbkdf2 P S = take `{dkLenBits} (join Ts)
+ where
+ Ts : [_][256]
+ Ts = [ inner `{C=C} P (split (hmacSHA256 P (S # split i))) | i <- [1..len] : [_][32] ]
+ type len = (dkLenBits + 255)/256
+
+inner : {pwBytes, C}
+         ( 64 >= width (8 * (pwBytes + 32))
+         , C >= 1, 16 >= width C
+         )
+     =>  [pwBytes][8] -> [32][8] -> [256]
+inner P U0 = (Ts @ 0).0 // XXX should be ! 0
+ where
+  // Ts : [_][([256],[32][8])]
+  Ts = [(join U0, U0)] # [ F P t u  | _ <- [1..C] : [_][16] | (t,u) <- Ts ]
+
+F : {pwBytes} ( 64 >= width (8*(32+pwBytes))
+              ) => [pwBytes][8] -> [256] -> [32][8] -> ([256],[32][8])
+F P Tprev Uprev = (Tnext,Unext)
+  where
+  Unext = split (hmacSHA256 P Uprev)
+  Tnext = Tprev ^ join Unext
+
+
+test1 : Bit
+property test1 = pbkdf2 `{C=1,dkLenBits=64*8} "passwd" "salt" == 0x55ac046e56e3089fec1691c22544b605f94185216dde0465e68b9d57c20dacbc49ca9cccf179b645991664b39d77ef317c71b845b1e30bd509112041d3a19783

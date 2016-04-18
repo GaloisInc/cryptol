@@ -1,7 +1,16 @@
+-- |
+-- Module      :  $Header$
+-- Copyright   :  (c) 2015-2016 Galois, Inc.
+-- License     :  BSD3
+-- Maintainer  :  cryptol@galois.com
+-- Stability   :  provisional
+-- Portability :  portable
+--
+-- An interval interpretation of types.
+
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE BangPatterns #-}
 
--- | An interval interpretation of types.
 module Cryptol.TypeCheck.Solver.Numeric.Interval where
 
 import Cryptol.TypeCheck.AST
@@ -328,8 +337,3 @@ iLenFromThenTo i j k
   | Just x <- iIsExact i, Just y <- iIsExact j, Just z <- iIsExact k
   , Just r <- nLenFromThenTo x y z = iConst r
   | otherwise = iAnyFin
-
-
-
-
-
