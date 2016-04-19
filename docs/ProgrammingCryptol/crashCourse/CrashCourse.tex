@@ -26,8 +26,8 @@ time.
 % \todo[inline]{2.1: Add list here of language features not yet
 %   covered.}
 
-The full grammar for Cryptol is included
-in~\autoref{cha:cryptol-grammar}.
+% TODO The full grammar for Cryptol is included
+% in~\autoref{cha:cryptol-grammar}.
 
 %=====================================================================
 \section{Basic data types}
@@ -463,11 +463,11 @@ generator). The pattern looks like this:
 
 \begin{minipage}{\textwidth}  %% trying to avoid splitting this across pages
 \begin{Verbatim}
-  [  [ <expr with x & y>  //                   \
-       | y <- [1 .. 5]    // inner generator    -- outer elements
-     ]                                         /
-     | x <- [1 .. 5]      // outer generator
-  ]
+[  [ <expr with x & y>  //                   \
+     | y <- [1 .. 5]    // inner generator    -- outer
+   ]                                         /  elements
+   | x <- [1 .. 5]      // outer generator
+]
 \end{Verbatim}
 \end{minipage}
 
@@ -630,7 +630,7 @@ Try the following infinite enumerations:
   [100, 102, 104, 106, 108, ...]
 \end{Verbatim}
 \end{Answer}
-\note{Note that we are explicitly telling Cryptol to use 32-bit words
+\note{We are explicitly telling Cryptol to use 32-bit words
   as the elements. The reason for doing so will become clear when we
   study arithmetic shortly.}
 \begin{Exercise}\label{ex:seq:10}
@@ -1541,8 +1541,8 @@ element is at least $4$-bits wide.
 Cryptol's type system is one of its key features\footnote{The Cryptol
   type system is based on the traditional Hindley-Milner style,
   extended with size types and arithmetic
-  predicates~\cite{erkok-carlsson-wick-cryptolCoverification-09,
-    erkok-matthews-cryptolEqChecking-09, Hin97}}.  You have seen that
+  predicates (for details, see~\cite{erkok-carlsson-wick-cryptolCoverification-09,
+    erkok-matthews-cryptolEqChecking-09, Hin97})}.  You have seen that
 types can be used to specify the exact width of values, or shapes of
 sequences using a rich yet concise notation.  In some cases, it may
 make sense to omit a type signature and let Cryptol {\em infer} the
@@ -2679,10 +2679,11 @@ The Cryptol code corresponding to this stream equation is:
 
 \begin{Answer}\ansref{ex:streamEq}
 \begin{code}
-  xs input = [0x89, 0xAB, 0xCD, 0xEF] # new
-     where new = [ a ^ b ^ c | a <- as
-                             | b <- drop`{2} as
-                             | c <- input ]
+  xs input = as where
+     as = [0x89, 0xAB, 0xCD, 0xEF] # new 
+     new = [ a ^ b ^ c | a <- as
+                       | b <- drop`{2} as
+                       | c <- input ]
 \end{code}
 \end{Answer}
 
@@ -3032,7 +3033,8 @@ Here is a more interesting example:
 \section{Program structure with modules}
 
 When a cryptographic specification gets very large it can make sense
-to decompose its functions into modules. Doing this well encourages
+to decompose its functions into modules.\indModuleSystem\indImport
+Doing this well encourages
 code re-use, so it's a generally good thing to do. Cryptol's module
 system is simple and easy to use. Here's a quick overview:
 
@@ -3057,12 +3059,12 @@ Cryptol will look for the file \verb+utilities.cry+ in the current directory. On
 
 If you're writing a module that has both {\it private} and {\it public}
 definitions, you can hide the ones that shouldn't be exported to modules
-that include it by using the \verb+private+ keyword, like this:
+that include it by using the \verb+private+ keyword, like this:\indPrivate
 
-\begin{code}
+\begin{verbatim}
   private internalDouble x = x + x
   exportedDouble = x * 2
-\end{code}
+\end{verbatim}
 
 As you can tell, by default definitions are exported to including modules.
 
@@ -3072,17 +3074,17 @@ names.  For example, when placing \verb+SHA3.cry+ in the \verb+Hash+ directory a
 accessing it from \verb+HMAC.cry+ you would need to name the modules
 accordingly:
 
-\begin{code}
-module Hash::SHA3 where
+\begin{verbatim}
 
 sha3 : {n} (fin n) => [n] -> [512]
 sha3 = error "Stubbed, for demonstration only: sha3-512"
 
 blocksize : {n} (fin n, n >= 10) => [n]
 blocksize = 576
-\end{code}
+\end{verbatim}
 
-\begin{code}
+\begin{verbatim}
+module Hash::SHA3 where
 import Hash::SHA3
 import Cryptol::Extras
 
@@ -3094,7 +3096,7 @@ hmac k m = sha3 (ko # sha3 (ki # m))
        kFull = if `keySize == blocksize
                  then take (k#zero)
                  else sha3 k
-\end{code}
+\end{verbatim}
 
 Finally, if you're importing a module that defines something with
 a name that you would like to define in your code, you can do a
