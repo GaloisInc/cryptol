@@ -384,8 +384,12 @@ summation, product, maximum, or minimum), though such comprehensions
 can certainly be defined using Cryptol comprehensions.
 
 \begin{Exercise}\label{ex:seq:4}
+  The components of a Cryptol sequence comprehension are
+  an expression of one or more variables (which defines each element of
+  the sequence), followed by one or more {\em arms}, each preceded by
+  a vertical bar, which define how the variables' values are generated.
   A comprehension with a single arm is called a {\em cartesian
-    comprehension}. We can have one or more components in a cartesian
+  comprehension}. We can have one or more components in a cartesian
   comprehension.  Experiment with the following
   expressions:\indComp\indCartesian
 \begin{Verbatim}
@@ -1477,11 +1481,11 @@ precisely 1-bits, and hence the arithmetic is done modulo $2^1 = 2$,
 giving us the sequence $1$-$0$-$1$-$0$ \ldots. In particular, an
 enumeration of the form:
 \begin{Verbatim}
-  [k ..]
+  [k ...]
 \end{Verbatim}
 will be treated as if the user has written:
 \begin{Verbatim}
-  [k, (k+1) ..]
+  [k, (k+1) ...]
 \end{Verbatim}
 and type inference will assign the smallest bit-size possible to
 represent {\tt k}.  \note{if the user evaluates the value of {\tt
