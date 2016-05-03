@@ -229,5 +229,9 @@ setupREPL opts = do
     Just file -> prependSearchPath [ takeDirectory file ]
   case optLoad opts of
     []  -> loadPrelude `REPL.catch` \x -> io $ print $ pp x
-    [l] -> loadCmd l `REPL.catch` \x -> io $ print $ pp x
+    [l] -> loadCmd l `REPL.catch` \x -> do
+           io $ print $ pp x
+           -- If the requested file fails to load, load the prelude instead
+           loadPrelude `REPL.catch` \y ->
+           io $ print $ pp y
     _   -> io $ putStrLn "Only one file may be loaded at the command line."
