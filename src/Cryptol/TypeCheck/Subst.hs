@@ -162,7 +162,7 @@ defaultFreeVar (TVFree _ k _ d) =
     _     -> panic "Cryptol.TypeCheck.Subst.defaultFreeVar"
                   [ "Free variable of unexpected kind."
                   , "Source: " ++ show d
-                  , "Kind: " ++ show k ]
+                  , "Kind: " ++ show (pp k) ]
 
 instance (Functor m, TVars a) => TVars (List m a) where
   apSubst su = fmap (apSubst su)
@@ -215,11 +215,12 @@ instance TVars Schema where
     | Set.null captured = Forall xs (apSubst su1 ps) (apSubst su1 t)
     | otherwise = panic "Cryptol.TypeCheck.Subst.apSubst (Schema)"
                     [ "Captured quantified variables:"
-                    , "Substitution: " ++ show m1
-                    , "Schema:       " ++ show sch
-                    , "Variables:    " ++ show captured
+                    , "Substitution: " ++ show (brackets (commaSep (map ppBinding $ Map.toList m1)))
+                    , "Schema:       " ++ show (pp sch)
+                    , "Variables:    " ++ show (commaSep (map pp (Set.toList captured)))
                     ]
     where
+    ppBinding (v,x) = pp v <+> text ":=" <+> pp x
     used = fvs sch
     m1   = Map.filterWithKey (\k _ -> k `Set.member` used) (suMap su)
     su1  = S { suMap = m1, suDefaulting = suDefaulting su }
