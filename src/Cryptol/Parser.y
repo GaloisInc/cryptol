@@ -266,7 +266,7 @@ mbDoc                   :: { Maybe (Located String) }
 
 decl                    :: { Decl PName }
   : vars_comma ':' schema  { at (head $1,$3) $ DSignature (reverse $1) $3   }
-  | apat '=' expr          { at ($1,$3) $ DPatBind $1 $3                    }
+  | ipat '=' expr          { at ($1,$3) $ DPatBind $1 $3                    }
   | name apats '=' expr    { at ($1,$4) $
                              DBind $ Bind { bName      = $1
                                           , bParams    = reverse $2
@@ -279,7 +279,8 @@ decl                    :: { Decl PName }
                                           , bDoc       = Nothing
                                           } }
 
-  | apat op apat '=' expr  { at ($1,$5) $
+  | apat other_op apat '=' expr
+                           { at ($1,$5) $
                              DBind $ Bind { bName      = $2
                                           , bParams    = [$1,$3]
                                           , bDef       = at $5 (Located emptyRange (DExpr $5))
@@ -300,7 +301,7 @@ decl                    :: { Decl PName }
   | 'infix'  NUM ops       {% mkFixity NonAssoc   $2 (reverse $3) }
 
 let_decl                :: { Decl PName }
-  : 'let' apat '=' expr          { at ($2,$4) $ DPatBind $2 $4                    }
+  : 'let' ipat '=' expr          { at ($2,$4) $ DPatBind $2 $4                    }
   | 'let' name apats '=' expr    { at ($2,$5) $
                                    DBind $ Bind { bName      = $2
                                                 , bParams    = reverse $3
@@ -331,9 +332,13 @@ var                        :: { LPName }
   : name                      { $1 }
   | '(' op ')'                { $2 }
 
-apats                   :: { [Pattern PName]  }
-  : apat                   { [$1]       }
-  | apats apat             { $2 : $1    }
+apats                     :: { [Pattern PName] }
+  : ipat                   { [$1] }
+  | apats1 apat            { $2 : $1 }
+
+apats1                   :: { [Pattern PName]  }
+  : apat                    { [$1]       }
+  | apats1 apat             { $2 : $1    }
 
 decls                   :: { [Decl PName] }
   : decl ';'               { [$1] }
@@ -395,8 +400,7 @@ qop                              :: { LPName }
                                        in mkQual (mkModName ns) (mkInfix (T.toStrict i)) A.<$ $1 }
 
 op                               :: { LPName }
-  : OP                              { let Token (Op (Other [] str)) _ = thing $1
-                                       in mkUnqual (mkInfix (T.toStrict str)) A.<$ $1 }
+  : other_op                        { $1 }
 
     -- special cases for operators that are re-used elsewhere
   | '*'                             { Located $1 $ mkUnqual $ mkInfix "*" }
@@ -405,6 +409,12 @@ op                               :: { LPName }
   | '~'                             { Located $1 $ mkUnqual $ mkInfix "~" }
   | '^^'                            { Located $1 $ mkUnqual $ mkInfix "^^" }
   | '#'                             { Located $1 $ mkUnqual $ mkInfix "#" }
+
+
+other_op                            :: { LPName }
+  : OP                              { let Token (Op (Other [] str)) _ = thing $1
+                                       in mkUnqual (mkInfix (T.toStrict str)) A.<$ $1 }
+
 
 ops                     :: { [LPName] }
   : op                     { [$1] }
