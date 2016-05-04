@@ -232,6 +232,6 @@ setupREPL opts = do
     [l] -> loadCmd l `REPL.catch` \x -> do
            io $ print $ pp x
            -- If the requested file fails to load, load the prelude instead
-           loadPrelude `REPL.catch` \y ->
+           loadPrelude `REPL.catch` \y -> do
            io $ print $ pp y
     _   -> io $ putStrLn "Only one file may be loaded at the command line."
