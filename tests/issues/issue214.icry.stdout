@@ -5,9 +5,9 @@ Loading module Main
   Defaulting type parameter 'bits'
              of finite enumeration
              at ./issue214.cry:2:14--2:26
-  to max 2 (width (2 * a`193 - 2))
+  to max 2 (width (2 * a`195 - 2))
 [warning] at ./issue214.cry:2:1--2:49:
   Defaulting type parameter 'bits'
              of finite enumeration
              at ./issue214.cry:2:36--2:48
-  to max 2 (width (2 * a`193 - 1))
+  to max 2 (width (2 * a`195 - 1))

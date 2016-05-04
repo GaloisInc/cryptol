@@ -267,7 +267,8 @@ mbDoc                   :: { Maybe (Located String) }
 decl                    :: { Decl PName }
   : vars_comma ':' schema  { at (head $1,$3) $ DSignature (reverse $1) $3   }
   | ipat '=' expr          { at ($1,$3) $ DPatBind $1 $3                    }
-  | name apats '=' expr    { at ($1,$4) $
+  | '(' op ')' '=' expr    { at ($1,$5) $ DPatBind (PVar $2) $5             }
+  | var apats '=' expr     { at ($1,$4) $
                              DBind $ Bind { bName      = $1
                                           , bParams    = reverse $2
                                           , bDef       = at $4 (Located emptyRange (DExpr $4))

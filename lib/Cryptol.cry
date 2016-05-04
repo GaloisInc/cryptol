@@ -94,9 +94,15 @@ primitive False : Bit
 primitive negate : {a} (Arith a) => a -> a
 
 /**
- * Binary complement
+ * Binary complement.
  */
 primitive complement : {a} a -> a
+
+/**
+ * Operator form of binary complement.
+ */
+(~) : {a} a -> a
+(~) = complement
 
 /**
  * Less-than. Only works on comparable arguments.

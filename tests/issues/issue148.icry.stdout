@@ -5,12 +5,12 @@ Loading module Main
   Defaulting type parameter 'bits'
              of literal or demoted expression
              at ./issue148.cry:4:34--4:35
-  to max 2 (width a`193)
+  to max 2 (width a`195)
 [warning] at ./issue148.cry:2:1--9:10:
   Defaulting 2nd type parameter
              of expression take
              at ./issue148.cry:6:10--6:14
-  to 16 * a`193
+  to 16 * a`195
 [warning] at <interactive>:1:1--1:36:
   Defaulting type parameter 'bits'
              of finite enumeration
