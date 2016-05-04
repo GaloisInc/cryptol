@@ -81,10 +81,9 @@ instance PP a => PP (Located a) where
   ppPrec _ l = parens (text "at" <+> pp (srcRange l) <> comma <+> pp (thing l))
 
 instance PPName a => PPName (Located a) where
-  ppPrefixName Located { .. } = ppPrefixName thing
-  ppInfixName  Located { .. } = ppInfixName  thing
-
-
+  ppNameFixity  Located { .. } = ppNameFixity thing
+  ppPrefixName  Located { .. } = ppPrefixName thing
+  ppInfixName   Located { .. } = ppInfixName  thing
 
 --------------------------------------------------------------------------------
 

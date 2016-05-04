@@ -61,6 +61,12 @@ instance PP PName where
   ppPrec _ = ppPrefixName
 
 instance PPName PName where
+  ppNameFixity n
+    | isInfixIdent i = Just (NonAssoc, 0) -- FIXME?
+    | otherwise      = Nothing
+    where
+    i   = getIdent n
+
   ppPrefixName n = optParens (isInfixIdent i) (pfx <> pp i)
     where
     i   = getIdent n

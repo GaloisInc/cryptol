@@ -448,7 +448,7 @@ uniqify :: M.Name -> REPL M.Name
 uniqify name =
   case M.nameInfo name of
     M.Declared ns ->
-      M.liftSupply (M.mkDeclared ns (M.nameIdent name) (M.nameLoc name))
+      M.liftSupply (M.mkDeclared ns (M.nameIdent name) (M.nameFixity name) (M.nameLoc name))
 
     M.Parameter ->
       panic "[REPL] uniqify" ["tried to uniqify a parameter: " ++ pretty name]
@@ -467,7 +467,7 @@ uniqify name =
 -- | Generate a fresh name using the given index. The name will reside within
 -- the "<interactive>" namespace.
 freshName :: I.Ident -> REPL M.Name
-freshName i = M.liftSupply (M.mkDeclared I.interactiveName i emptyRange)
+freshName i = M.liftSupply (M.mkDeclared I.interactiveName i Nothing emptyRange)
 
 
 -- User Environment Interaction ------------------------------------------------

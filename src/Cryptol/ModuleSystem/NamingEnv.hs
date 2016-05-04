@@ -274,7 +274,7 @@ instance BindsNames ImportIface where
 instance BindsNames (InModule (Bind PName)) where
   namingEnv (InModule ns b) = BuildNamingEnv $
     do let Located { .. } = bName b
-       n <- liftSupply (mkDeclared ns (getIdent thing) srcRange)
+       n <- liftSupply (mkDeclared ns (getIdent thing) (bFixity b) srcRange)
 
        let fixity = case bFixity b of
              Just f  -> mempty { neFixity = Map.singleton n f }
@@ -306,15 +306,15 @@ instance BindsNames (InModule (TopDecl PName)) where
 instance BindsNames (InModule (Newtype PName)) where
   namingEnv (InModule ns Newtype { .. }) = BuildNamingEnv $
     do let Located { .. } = nName
-       tyName <- liftSupply (mkDeclared ns (getIdent thing) srcRange)
-       eName  <- liftSupply (mkDeclared ns (getIdent thing) srcRange)
+       tyName <- liftSupply (mkDeclared ns (getIdent thing) Nothing srcRange)
+       eName  <- liftSupply (mkDeclared ns (getIdent thing) Nothing srcRange)
        return (singletonT thing tyName `mappend` singletonE thing eName)
 
 -- | The naming environment for a single declaration.
 instance BindsNames (InModule (Decl PName)) where
   namingEnv (InModule pfx d) = case d of
     DBind b -> BuildNamingEnv $
-      do n <- mkName (bName b)
+      do n <- mkName (bName b) (bFixity b)
          return (singletonE (thing (bName b)) n `mappend` fixity n b)
 
     DSignature ns _sig    -> foldMap qualBind ns
@@ -326,15 +326,15 @@ instance BindsNames (InModule (Decl PName)) where
 
     where
 
-    mkName ln =
-      liftSupply (mkDeclared pfx (getIdent (thing ln)) (srcRange ln))
+    mkName ln fx =
+      liftSupply (mkDeclared pfx (getIdent (thing ln)) fx (srcRange ln))
 
     qualBind ln = BuildNamingEnv $
-      do n <- mkName ln
+      do n <- mkName ln Nothing
          return (singletonE (thing ln) n)
 
     qualType ln = BuildNamingEnv $
-      do n <- mkName ln
+      do n <- mkName ln Nothing
          return (singletonT (thing ln) n)
 
     fixity n b =

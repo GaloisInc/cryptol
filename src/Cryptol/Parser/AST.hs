@@ -733,12 +733,9 @@ instance (Show name, PPName name) => PP (Expr name) where
                                 $$ text "")
 
       -- infix applications
-      -- XXX why did we need this case?
-      -- EApp (EApp (EVar f) x) y ->
-      --   wrap n 3 $ withNameEnv $ \ env ->
-      --     let NameInfo qn isInfix = getNameInfo f env
-      --      in if isInfix then ppPrec 3 x <+> ppQName qn <+> ppPrec 3 y
-      --                    else ppQName qn <+> ppPrec 3 x <+> ppPrec 3 y
+      _ | Just ifix <- isInfix expr ->
+              optParens (n > 2)
+              $ ppInfix 2 isInfix ifix
 
       EApp _ _      -> let (e, es) = asEApps expr in
                        wrap n 3 (ppPrec 3 e <+> fsep (map (ppPrec 4) es))
@@ -748,6 +745,11 @@ instance (Show name, PPName name) => PP (Expr name) where
       EParens e -> parens (pp e)
 
       EInfix e1 op _ e2 -> wrap n 0 (pp e1 <+> ppInfixName (thing op) <+> pp e2)
+   where
+   isInfix (EApp (EApp (EVar ieOp) ieLeft) ieRight) = do
+     (ieAssoc,iePrec) <- ppNameFixity ieOp
+     return Infix { .. }
+   isInfix _ = Nothing
 
 instance PP Selector where
   ppPrec _ sel =
@@ -831,10 +833,9 @@ instance PPName name => PP (Type name) where
       TSeq t1 t2     -> optParens (n > 3)
                       $ brackets (pp t1) <> ppPrec 3 t2
 
-      -- TApp _ [_,_]
-      --   | Just tinf <- isTInfix ty
-      --                -> optParens (n > 2)
-      --                 $ ppInfix 2 isTInfix tinf
+      _ | Just tinf <- isInfix ty ->
+              optParens (n > 2)
+              $ ppInfix 2 isInfix tinf
 
       TApp f ts      -> optParens (n > 2)
                       $ pp f <+> fsep (map (ppPrec 4) ts)
@@ -853,6 +854,12 @@ instance PPName name => PP (Type name) where
 
       TInfix t1 o _ t2 -> optParens (n > 0)
                         $ sep [ppPrec 2 t1 <+> pp o, ppPrec 1 t2]
+
+   where
+   isInfix (TApp ieOp [ieLeft, ieRight]) = do
+     (ieAssoc,iePrec) <- ppNameFixity ieOp
+     return Infix { .. }
+   isInfix _ = Nothing
 
 instance PPName name => PP (Prop name) where
   ppPrec n prop =

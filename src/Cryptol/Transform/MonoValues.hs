@@ -145,7 +145,7 @@ type RO = ModName
 newName :: M Name
 newName  =
   do ns <- ask
-     liftSupply (mkDeclared ns "$mono" emptyRange)
+     liftSupply (mkDeclared ns "$mono" Nothing emptyRange)
 
 newTopOrLocalName :: M Name
 newTopOrLocalName  = newName

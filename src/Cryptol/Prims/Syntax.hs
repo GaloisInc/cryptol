@@ -76,6 +76,25 @@ tfunNames  = Map.fromList
   tprefix n p = (mkUnqual (packIdent n), p)
   tinfix  n p = (mkUnqual (packInfix n), p)
 
+instance PPName TFun where
+  ppNameFixity f = Map.lookup f tBinOpPrec
+
+  ppPrefixName TCAdd = text "(+)"
+  ppPrefixName TCSub = text "(-)"
+  ppPrefixName TCMul = text "(*)"
+  ppPrefixName TCDiv = text "(/)"
+  ppPrefixName TCMod = text "(%)"
+  ppPrefixName TCExp = text "(^^)"
+  ppPrefixName f     = pp f
+
+  ppInfixName TCAdd = text "+"
+  ppInfixName TCSub = text "-"
+  ppInfixName TCMul = text "*"
+  ppInfixName TCDiv = text "/"
+  ppInfixName TCMod = text "%"
+  ppInfixName TCExp = text "^^"
+  ppInfixName f     = error $ "Not a prefix type function: " ++ show (pp f)
+
 instance PP TFun where
   ppPrec _ tcon =
     case tcon of

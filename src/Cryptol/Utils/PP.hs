@@ -115,6 +115,9 @@ class PP a where
   ppPrec :: Int -> a -> Doc
 
 class PP a => PPName a where
+  -- | Fixity information for infix operators
+  ppNameFixity :: a -> Maybe (Assoc, Int)
+
   -- | Print a name in prefix: @f a b@ or @(+) a b)@
   ppPrefixName :: a -> Doc
 

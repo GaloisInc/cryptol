@@ -22,6 +22,7 @@ module Cryptol.ModuleSystem.Name (
   , nameIdent
   , nameInfo
   , nameLoc
+  , nameFixity
   , asPrim
   , cmpNameLexical
   , cmpNameDisplay
@@ -42,6 +43,7 @@ module Cryptol.ModuleSystem.Name (
   , lookupPrimType
   ) where
 
+import           Cryptol.Parser.AST( Fixity(..) )
 import           Cryptol.Parser.Position (Range,Located(..))
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic
@@ -77,6 +79,11 @@ data Name = Name { nUnique :: {-# UNPACK #-} !Int
 
                  , nIdent :: !Ident
                    -- ^ The name of the identifier
+
+                 , nFixity :: !(Maybe Fixity)
+                   -- ^ The associativity and precedence level of
+                   --   infix operators.  'Nothing' indicates an
+                   --   ordinary prefix operator.
 
                  , nLoc :: !Range
                    -- ^ Where this name was defined
@@ -155,6 +162,8 @@ instance PP Name where
   ppPrec _ = ppPrefixName
 
 instance PPName Name where
+  ppNameFixity n = fmap (\(Fixity a i) -> (a,i)) $ nameFixity n
+
   ppInfixName n @ Name { .. }
     | isInfixIdent nIdent = ppName n
     | otherwise           = panic "Name" [ "Non-infix name used infix"
@@ -177,6 +186,9 @@ nameInfo  = nInfo
 
 nameLoc :: Name -> Range
 nameLoc  = nLoc
+
+nameFixity :: Name -> Maybe Fixity
+nameFixity = nFixity
 
 asPrim :: Name -> Maybe Ident
 asPrim Name { .. }
@@ -272,8 +284,8 @@ nextUnique (Supply n) = s' `seq` (n,s')
 -- Name Construction -----------------------------------------------------------
 
 -- | Make a new name for a declaration.
-mkDeclared :: ModName -> Ident -> Range -> Supply -> (Name,Supply)
-mkDeclared m nIdent nLoc s =
+mkDeclared :: ModName -> Ident -> Maybe Fixity -> Range -> Supply -> (Name,Supply)
+mkDeclared m nIdent nFixity nLoc s =
   let (nUnique,s') = nextUnique s
       nInfo        = Declared m
    in (Name { .. }, s')
@@ -282,6 +294,7 @@ mkDeclared m nIdent nLoc s =
 mkParameter :: Ident -> Range -> Supply -> (Name,Supply)
 mkParameter nIdent nLoc s =
   let (nUnique,s') = nextUnique s
+      nFixity      = Nothing
    in (Name { nInfo = Parameter, .. }, s')
 
 
