@@ -10,11 +10,13 @@ module Cryptol where
  */
 primitive demote : {val, bits} (fin val, fin bits, bits >= width val) => [bits]
 
-infixr 10 ||
-infixr 20 &&
-infix  30 ==, ===, !=, !==
-infix  40 >, >=, <, <=
-infixl 50 ^
+infixr  5 \/
+infixr 10 /\
+infix  20 ==, ===, !=, !==
+infix  30 >, >=, <, <=
+infixr 40 ||
+infixl 45 ^
+infixr 50 &&
 infixr 60 #
 infixl 70 <<, <<<, >>, >>>
 infixl 80 +, -
@@ -72,6 +74,24 @@ primitive (^^) : {a} (Arith a) => a -> a -> a
  * Over structured values, operates element-wise.
  */
 primitive lg2 : {a} (Arith a) => a -> a
+
+
+/**
+ * Short-cutting boolean conjuction function.
+ * If the first argument is false, the second argument
+ * is not evaluated.
+ */
+(/\) : Bit -> Bit -> Bit
+x /\ y = if x then y else False
+
+
+/**
+ * Short-cutting boolean disjuction function.
+ * If the first argument is true, the second argument
+ * is not evaluated.
+ */
+(\/) : Bit -> Bit -> Bit
+x \/ y = if x then True else y
 
 
 type Bool = Bit
