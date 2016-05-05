@@ -23,7 +23,7 @@ import qualified Control.Monad.Trans.Class as MTL
 import           Control.Monad.Trans.Control
 import           Data.Char (isAlphaNum, isSpace)
 import           Data.Function (on)
-import           Data.List (isPrefixOf,nub,sortBy)
+import           Data.List (isPrefixOf,nub,sortBy,sort)
 import           System.Console.ANSI (setTitle)
 import           System.Console.Haskeline
 import           System.Directory ( doesFileExist
@@ -197,12 +197,23 @@ cmdArgument ct cursor@(l,_) = case ct of
   NoArg       _ -> return (l,[])
   FileExprArg _ -> completeExpr cursor
 
+-- | Additional keywords to suggest in the REPL
+--   autocompletion list.
+keywords :: [String]
+keywords =
+  [ "else"
+  , "if"
+  , "let"
+  , "then"
+  , "where"
+  ]
+
 -- | Complete a name from the expression environment.
 completeExpr :: CompletionFunc REPL
 completeExpr (l,_) = do
-  ns <- getExprNames
+  ns <- (keywords++) <$> getExprNames
   let n    = reverse (takeIdent l)
-      vars = filter (n `isPrefixOf`) ns
+      vars = sort $ filter (n `isPrefixOf`) ns
   return (l,map (nameComp n) vars)
 
 -- | Complete a name from the type synonym environment.
