@@ -328,3 +328,8 @@ splitBy = split
 groupBy : {each,parts,elem} (fin each) =>
   [parts * each] elem -> [parts][each]elem
 groupBy = split`{parts=parts}
+
+/**
+ * Define the base 2 logarithm function in terms of width
+ */
+type lg2 n = width (max n 1 - 1)

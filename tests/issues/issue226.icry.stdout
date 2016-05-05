@@ -8,6 +8,7 @@ Type Synonyms
     type Char = [8]
     type String n = [n][8]
     type Word n = [n]
+    type lg2 n = width (max n 1 - 1)
 
 Symbols
 =======

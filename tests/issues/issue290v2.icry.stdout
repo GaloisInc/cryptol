@@ -4,7 +4,7 @@ Loading module Main
 
 [error] at ./issue290v2.cry:2:1--2:19:
   Unsolved constraint:
-    a`195 == 1
+    a`196 == 1
       arising from
       checking a pattern: type of 1st argument of Main::minMax
       at ./issue290v2.cry:2:8--2:11
