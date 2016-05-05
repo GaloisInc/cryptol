@@ -36,13 +36,11 @@ import qualified Data.Map as Map
 import           Data.Map (Map)
 import qualified Data.Set as Set
 import           Data.Either(partitionEithers)
-import           Data.Maybe(mapMaybe,isJust)
+import           Data.Maybe(mapMaybe,isJust, fromMaybe)
 import           Data.List(partition,find)
 import           Data.Graph(SCC(..))
 import           Data.Traversable(forM)
 import           Control.Monad(when,zipWithM)
-
--- import Cryptol.Utils.Debug
 
 inferModule :: P.Module Name -> InferM Module
 inferModule m =
@@ -491,14 +489,14 @@ smallest ts   = do a <- newType (text "length of list comprehension") KNum
                    newGoals CtComprehension [ a =#= foldr1 tMin ts ]
                    return a
 
-
 checkP :: Doc -> P.Pattern Name -> Type -> InferM (Located Name)
 checkP desc p tGoal =
   do (x, t) <- inferP desc p
      ps <- unify tGoal (thing t)
-     case ps of
-       [] -> return (Located (srcRange t) x)
-       _  -> tcPanic "checkP" [ "Unexpected constraints:", show ps ]
+     let rng   = fromMaybe emptyRange $ getLoc p
+     let mkErr = recordError . UnsolvedGoal False . Goal (CtPattern desc) rng
+     mapM_ mkErr ps
+     return (Located (srcRange t) x)
 
 {-| Infer the type of a pattern.  Assumes that the pattern will be just
 a variable. -}

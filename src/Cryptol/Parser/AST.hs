@@ -473,6 +473,8 @@ instance AddLoc (Pattern name) where
 
 instance HasLoc (Pattern name) where
   getLoc (PLocated _ r) = Just r
+  getLoc (PTyped r _)   = getLoc r
+  getLoc (PVar x)       = getLoc x
   getLoc _              = Nothing
 
 instance HasLoc (Bind name) where

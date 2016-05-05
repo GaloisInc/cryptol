@@ -190,6 +190,7 @@ data ConstraintSource
   | CtDefaulting          -- ^ Just defaulting on the command line
   | CtPartialTypeFun TyFunName -- ^ Use of a partial type function.
   | CtImprovement
+  | CtPattern Doc         -- ^ Constraints arising from type-checking patterns
     deriving (Show,Generic)
 
 instance NFData ConstraintSource where rnf = genericRnf
@@ -216,6 +217,7 @@ instance TVars ConstraintSource where
       CtDefaulting    -> src
       CtPartialTypeFun _ -> src
       CtImprovement    -> src
+      CtPattern _      -> src
 
 instance TVars Warning where
   apSubst su warn =
@@ -519,6 +521,7 @@ instance PP ConstraintSource where
       CtDefaulting    -> text "defaulting"
       CtPartialTypeFun f -> text "use of partial type function" <+> pp f
       CtImprovement   -> text "examination of collected goals"
+      CtPattern desc  -> text "checking a pattern:" <+> desc
 
 ppUse :: Expr -> Doc
 ppUse expr =
