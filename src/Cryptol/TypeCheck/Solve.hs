@@ -164,7 +164,7 @@ proveImplicationIO s lname varsInEnv as ps gs =
                        _  -> reportUnsolved us1 (su2 @@ su1 @@ su)
   where
   reportUnsolved us su =
-    return ( Left $ UnsolvedDelcayedCt
+    return ( Left $ UnsolvedDelayedCt
                   $ DelayedCt { dctSource = lname
                               , dctForall = as
                               , dctAsmps  = ps

@@ -146,7 +146,7 @@ data Error    = ErrorMsg Doc
                 -- The boolean indicates if we know that this constraint
                 -- is impossible.
 
-              | UnsolvedDelcayedCt DelayedCt
+              | UnsolvedDelayedCt DelayedCt
                 -- ^ A constraint (with context) that we could not solve
 
               | UnexpectedTypeWildCard
@@ -253,7 +253,7 @@ instance TVars Error where
       TypeMismatch t1 t2        -> TypeMismatch (apSubst su t1) (apSubst su t2)
       RecursiveType t1 t2       -> RecursiveType (apSubst su t1) (apSubst su t2)
       UnsolvedGoal x g          -> UnsolvedGoal x (apSubst su g)
-      UnsolvedDelcayedCt g      -> UnsolvedDelcayedCt (apSubst su g)
+      UnsolvedDelayedCt g       -> UnsolvedDelayedCt (apSubst su g)
       UnexpectedTypeWildCard    -> err
       TypeVariableEscaped t xs  -> TypeVariableEscaped (apSubst su t) xs
       NotForAll x t             -> NotForAll x (apSubst su t)
@@ -280,7 +280,7 @@ instance FVS Error where
       TypeMismatch t1 t2        -> fvs (t1,t2)
       RecursiveType t1 t2       -> fvs (t1,t2)
       UnsolvedGoal _ g          -> fvs g
-      UnsolvedDelcayedCt g      -> fvs g
+      UnsolvedDelayedCt g       -> fvs g
       UnexpectedTypeWildCard    -> Set.empty
       TypeVariableEscaped t _   -> fvs t
       NotForAll _ t             -> fvs t
@@ -460,7 +460,7 @@ instance PP (WithNames Error) where
         nested (word <+> text "constraint:") (ppWithNames names g)
         where word = if imp then text "Unsolvable" else text "Unsolved"
 
-      UnsolvedDelcayedCt g ->
+      UnsolvedDelayedCt g ->
         nested (text "Failed to validate user-specified signature.")
                (ppWithNames names g)
 
