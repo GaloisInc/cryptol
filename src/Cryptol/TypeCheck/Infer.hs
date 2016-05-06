@@ -421,11 +421,8 @@ expectFin n ty =
     TCon (TC (TCNum n')) [] | toInteger n == n' ->
          return ()
 
-    TVar TVFree{} ->
-      do newGoals CtExactType =<< unify (tNum n) ty
-
     _ ->
-         recordError (TypeMismatch (tNum n) ty)
+      do newGoals CtExactType =<< unify (tNum n) ty
 
 expectFun :: Int -> Type -> InferM ([Type],Type)
 expectFun  = go []
