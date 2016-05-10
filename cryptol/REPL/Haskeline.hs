@@ -24,7 +24,7 @@ import           Control.Monad.Trans.Control
 import           Data.Char (isAlphaNum, isSpace)
 import           Data.Function (on)
 import           Data.List (isPrefixOf,nub,sortBy,sort)
-import           System.Console.ANSI (setTitle)
+import           System.Console.ANSI
 import           System.Console.Haskeline
 import           System.Directory ( doesFileExist
                                   , getHomeDirectory
@@ -66,13 +66,19 @@ repl cryrc mbBatch begin =
       Nothing -> return ()
 
   getInputLines prompt ls =
-    do mb <- getInputLine prompt
+    do mb <- getInputLine $ colorPrompt prompt
        let newPropmpt = map (\_ -> ' ') prompt
        case mb of
           Nothing -> return Nothing
           Just l | not (null l) && last l == '\\' ->
                                       getInputLines newPropmpt (init l : ls)
                  | otherwise -> return $ Just $ unlines $ reverse $ l : ls
+
+  colorPrompt prompt = prefix ++ prompt ++ suffix where
+    sgr | isBatch   = const ""
+        | otherwise = setSGRCode
+    prefix = sgr [SetColor Foreground Vivid Blue] ++ sgr [SetConsoleIntensity BoldIntensity]
+    suffix = sgr [Reset]
 
   evalCryptolrc =
     case cryrc of
