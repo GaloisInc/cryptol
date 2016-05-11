@@ -89,6 +89,7 @@ library
                        Cryptol.Parser.Utils,
                        Cryptol.Parser.Unlit,
 
+                       Cryptol.Utils.Color,
                        Cryptol.Utils.Ident,
                        Cryptol.Utils.PP,
                        Cryptol.Utils.Panic,

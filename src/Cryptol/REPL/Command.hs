@@ -40,7 +40,6 @@ module Cryptol.REPL.Command (
     -- Misc utilities
   , handleCtrlC
   , sanitize
-  , colorizeString, OutputColor(..)
 
     -- To support Notebook interface (might need to refactor)
   , replParse
@@ -56,6 +55,8 @@ import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowed))
 import qualified Cryptol.Utils.Ident as M
+
+import Cryptol.Utils.Color
 
 import qualified Cryptol.Eval.Value as E
 import Cryptol.Testing.Concrete
@@ -96,7 +97,6 @@ import qualified Data.Set as Set
 import qualified Data.IntMap as IntMap
 import System.IO(hFlush,stdout)
 import System.Random.TF(newTFGen)
-import System.Console.ANSI
 import Numeric (showFFloat)
 import qualified Data.Text as ST
 import qualified Data.Text.Lazy as T
@@ -926,18 +926,6 @@ replReadFile :: FilePath -> (X.SomeException -> REPL (Maybe BS.ByteString)) -> R
 replReadFile fp handler =
  do x <- io $ X.catch (Right `fmap` BS.readFile fp) (\e -> return $ Left e)
     either handler (return . Just) x
-
-data OutputColor = Failed | Passed | Prompt deriving (Enum, Eq)
-colorizeString :: OutputColor -> String -> String
-colorizeString color msg = prefix ++ msg ++ suffix where
-    -- sgr | eIsBatch  = setSGRCode
-    --     | otherwise = const ""
-    sgr = setSGRCode
-    prefix = case color of
-                  Failed -> sgr [SetColor Foreground Vivid Red]
-                  Passed -> sgr [SetColor Foreground Vivid Green]
-                  Prompt -> sgr [SetColor Foreground Vivid Blue] ++ sgr [SetConsoleIntensity BoldIntensity]
-    suffix = sgr [Reset]
 
 -- | Creates a fresh binding of "it" to the expression given, and adds
 -- it to the current dynamic environment

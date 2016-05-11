@@ -16,6 +16,7 @@ import           Cryptol.REPL.Command
 import           Cryptol.REPL.Monad
 import           Cryptol.REPL.Trie
 import           Cryptol.Utils.PP
+import           Cryptol.Utils.Color
 
 import qualified Control.Exception as X
 import           Control.Monad (guard, join, when)
