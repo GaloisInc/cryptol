@@ -28,6 +28,7 @@ import qualified Cryptol.TypeCheck.AST as T
 import           Cryptol.Parser.Position (Range)
 import           Cryptol.Utils.Ident (interactiveName)
 import           Cryptol.Utils.PP
+import           Cryptol.Utils.Color (errorMsg)
 
 import Control.Exception (IOException)
 import Data.Function (on)
@@ -109,7 +110,7 @@ instance PP ModuleError where
   ppPrec _ e = case e of
 
     ModuleNotFound src path ->
-      text "[error]" <+>
+      text errorMsg <+>
       text "Could not find module" <+> pp src
       $$
       hang (text "Searched paths:")
@@ -118,18 +119,18 @@ instance PP ModuleError where
       text "Set the CRYPTOLPATH environment variable to search more directories"
 
     CantFindFile path ->
-      text "[error]" <+>
+      text errorMsg <+>
       text "can't find file:" <+> text path
 
     OtherIOError path exn ->
-      hang (text "[error]" <+>
+      hang (text errorMsg <+>
             text "IO error while loading file:" <+> text path <> colon)
          4 (text (show exn))
 
     ModuleParseError _source err -> Parser.ppError err
 
     RecursiveModules mods ->
-      hang (text "[error] module imports form a cycle:")
+      hang (text $ errorMsg ++ " module imports form a cycle:")
          4 (vcat (map pp (reverse mods)))
 
     RenamerErrors _src errs -> vcat (map pp errs)
@@ -141,14 +142,14 @@ instance PP ModuleError where
     TypeCheckingFailed _src errs -> vcat (map T.ppError errs)
 
     ModuleNameMismatch expected found ->
-      hang (text "[error]" <+> pp (P.srcRange found) <> char ':')
+      hang (text errorMsg <+> pp (P.srcRange found) <> char ':')
          4 (vcat [ text "File name does not match module name:"
                  , text "Saw:"      <+> pp (P.thing found)
                  , text "Expected:" <+> pp expected
                  ])
 
     DuplicateModuleName name path1 path2 ->
-      hang (text "[error] module" <+> pp name <+>
+      hang (text (errorMsg ++ " module") <+> pp name <+>
             text "is defined in multiple files:")
          4 (vcat [text path1, text path2])
 

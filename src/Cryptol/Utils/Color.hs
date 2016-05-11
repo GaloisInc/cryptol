@@ -1,4 +1,4 @@
-module Cryptol.Utils.Color (colorizeString, OutputColor(..)) where
+module Cryptol.Utils.Color (colorizeString, OutputColor(..), errorMsg, errorAtMsg) where
 
 import System.Console.ANSI
 
@@ -14,4 +14,8 @@ colorizeString color msg = prefix ++ msg ++ suffix where
                   Prompt -> sgr [SetColor Foreground Vivid Blue] ++ sgr [SetConsoleIntensity BoldIntensity]
     suffix = sgr [Reset]
 
+errorMsg :: String
+errorMsg = colorizeString Failed "[error]"
 
+errorAtMsg :: String
+errorAtMsg = errorMsg ++ " at"

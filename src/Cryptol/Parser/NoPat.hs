@@ -24,6 +24,7 @@ import Cryptol.Parser.Position(Range(..),emptyRange,start,at)
 import Cryptol.Parser.Names (namesP)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.Color(errorMsg,errorAtMsg)
 
 import           MonadLib hiding (mapM)
 import           Data.Maybe(maybeToList)
@@ -487,28 +488,28 @@ instance PP Error where
   ppPrec _ err =
     case err of
       MultipleSignatures x ss ->
-        text "Multiple type signatures for" <+> quotes (pp x)
+        text (errorMsg ++ "Multiple type signatures for") <+> quotes (pp x)
         $$ nest 2 (vcat (map pp ss))
 
       SignatureNoBind x s ->
-        text "At" <+> pp (srcRange x) <> colon <+>
+        text errorAtMsg <+> pp (srcRange x) <> colon <+>
         text "Type signature without a matching binding:"
          $$ nest 2 (pp s)
 
       PragmaNoBind x s ->
-        text "At" <+> pp (srcRange x) <> colon <+>
+        text errorAtMsg <+> pp (srcRange x) <> colon <+>
         text "Pragma without a matching binding:"
          $$ nest 2 (pp s)
 
       MultipleFixities n locs ->
-        text "Multiple fixity declarations for" <+> quotes (pp n)
+        text (errorMsg ++ "Multiple fixity declarations for") <+> quotes (pp n)
         $$ nest 2 (vcat (map pp locs))
 
       FixityNoBind n ->
-        text "At" <+> pp (srcRange n) <> colon <+>
+        text errorAtMsg <+> pp (srcRange n) <> colon <+>
         text "Fixity declaration without a matching binding for:" <+>
          pp (thing n)
 
       MultipleDocs n locs ->
-        text "Multiple documentation blocks given for:" <+> pp n
+        text (errorMsg ++ "Multiple documentation blocks given for:") <+> pp n
         $$ nest 2 (vcat (map pp locs))

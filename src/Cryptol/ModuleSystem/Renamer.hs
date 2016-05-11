@@ -34,6 +34,7 @@ import Cryptol.Parser.Position
 import Cryptol.Utils.Ident (packIdent,packInfix)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
+import Cryptol.Utils.Color (errorMsg,errorAtMsg)
 
 import qualified Data.Foldable as F
 import qualified Data.Map.Strict as Map
@@ -86,46 +87,46 @@ instance PP RenamerError where
   ppPrec _ e = case e of
 
     MultipleSyms lqn qns disp -> fixNameDisp disp $
-      hang (text "[error] at" <+> pp (srcRange lqn))
+      hang (text errorAtMsg <+> pp (srcRange lqn))
          4 $ (text "Multiple definitions for symbol:" <+> pp (thing lqn))
           $$ vcat (map ppLocName qns)
 
     UnboundExpr lqn disp -> fixNameDisp disp $
-      hang (text "[error] at" <+> pp (srcRange lqn))
+      hang (text errorAtMsg <+> pp (srcRange lqn))
          4 (text "Value not in scope:" <+> pp (thing lqn))
 
     UnboundType lqn disp -> fixNameDisp disp $
-      hang (text "[error] at" <+> pp (srcRange lqn))
+      hang (text errorAtMsg <+> pp (srcRange lqn))
          4 (text "Type not in scope:" <+> pp (thing lqn))
 
     OverlappingSyms qns disp -> fixNameDisp disp $
-      hang (text "[error]")
+      hang (text errorMsg)
          4 $ text "Overlapping symbols defined:"
           $$ vcat (map ppLocName qns)
 
     ExpectedValue lqn disp -> fixNameDisp disp $
-      hang (text "[error] at" <+> pp (srcRange lqn))
+      hang (text errorAtMsg <+> pp (srcRange lqn))
          4 (fsep [ text "Expected a value named", quotes (pp (thing lqn))
                  , text "but found a type instead"
                  , text "Did you mean `(" <> pp (thing lqn) <> text")?" ])
 
     ExpectedType lqn disp -> fixNameDisp disp $
-      hang (text "[error] at" <+> pp (srcRange lqn))
+      hang (text errorAtMsg <+> pp (srcRange lqn))
          4 (fsep [ text "Expected a type named", quotes (pp (thing lqn))
                  , text "but found a value instead" ])
 
     FixityError o1 o2 disp -> fixNameDisp disp $
-      hang (text "[error]")
+      hang (text errorMsg)
          4 (fsep [ text "The fixities of", pp o1, text "and", pp o2
                  , text "are not compatible.  "
                  , text "You may use explicit parenthesis to disambiguate" ])
 
     InvalidConstraint ty disp -> fixNameDisp disp $
-      hang (text "[error]" <+> maybe empty (\r -> text "at" <+> pp r) (getLoc ty))
+      hang (text errorMsg <+> maybe empty (\r -> text "at" <+> pp r) (getLoc ty))
          4 (fsep [ pp ty, text "is not a valid constraint" ])
 
     MalformedBuiltin ty pn disp -> fixNameDisp disp $
-      hang (text "[error]" <+> maybe empty (\r -> text "at" <+> pp r) (getLoc ty))
+      hang (text errorMsg <+> maybe empty (\r -> text "at" <+> pp r) (getLoc ty))
          4 (fsep [ text "invalid use of built-in type", pp pn
                  , text "in type", pp ty ])
 

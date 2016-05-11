@@ -20,6 +20,7 @@ import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
+import Cryptol.Utils.Color (errorMsg)
 
 import Data.Maybe(listToMaybe,fromMaybe)
 import Data.Bits(testBit,setBit)
@@ -80,14 +81,14 @@ instance PP ParseError where
 
 ppError :: ParseError -> Doc
 ppError (HappyError path pos (Just tok))
-  | Err _ <- tokenType tok = text "Parse error at" <+>
+  | Err _ <- tokenType tok = text (errorMsg ++ " Parsing failed at") <+>
                               text path <> char ':' <> pp pos <> comma <+>
                               pp tok
 ppError e@(HappyError path pos _) =
-                               text "Parse error at" <+>
+                               text (errorMsg ++ " Parsing failed at") <+>
                                text path <> char ':' <> pp pos <> comma <+>
                                text "unexpected" <+> pp e
-ppError (HappyErrorMsg p x)  = text "Parse error at" <+> pp p $$ nest 2 (text x)
+ppError (HappyErrorMsg p x)  = text (errorMsg ++ " Parsing failed at") <+> pp p $$ nest 2 (text x)
 
 instance Monad ParseM where
   return a  = P (\_ _ s -> Right (a,s))

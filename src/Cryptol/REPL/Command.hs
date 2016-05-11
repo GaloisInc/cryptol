@@ -779,7 +779,7 @@ runShellCmd cmd
             return ()
 
 cdCmd :: FilePath -> REPL ()
-cdCmd f | null f = rPutStrLn $ "[error] :cd requires a path argument"
+cdCmd f | null f = rPutStrLn $ errorMsg ++ " :cd requires a path argument"
         | otherwise = do
   exists <- io $ doesDirectoryExist f
   if exists
