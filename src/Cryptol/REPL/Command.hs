@@ -40,6 +40,7 @@ module Cryptol.REPL.Command (
     -- Misc utilities
   , handleCtrlC
   , sanitize
+  , colorizeString, OutputColor(..)
 
     -- To support Notebook interface (might need to refactor)
   , replParse
@@ -95,6 +96,7 @@ import qualified Data.Set as Set
 import qualified Data.IntMap as IntMap
 import System.IO(hFlush,stdout)
 import System.Random.TF(newTFGen)
+import System.Console.ANSI
 import Numeric (showFFloat)
 import qualified Data.Text as ST
 import qualified Data.Text.Lazy as T
@@ -295,7 +297,7 @@ qcCmd qcMode str =
                   , testRptFailure = ppFailure
                   , testRptSuccess = do
                       delTesting
-                      prtLn $ "passed " ++ show sz ++ " tests."
+                      prtLn $ colorizeString Passed "Passed " ++ show sz ++ " tests."
                       rPutStrLn "Q.E.D."
                   }
             prt testingMsg
@@ -316,7 +318,7 @@ qcCmd qcMode str =
                       , testRptFailure = ppFailure
                       , testRptSuccess = do
                           delTesting
-                          prtLn $ "passed " ++ show testNum ++ " tests."
+                          prtLn $ colorizeString Passed "Passed " ++ show testNum ++ " tests."
                       }
                 prt testingMsg
                 g <- io newTFGen
@@ -364,15 +366,15 @@ qcCmd qcMode str =
     opts <- getPPValOpts
     case failure of
       FailFalse [] -> do
-        prtLn "FAILED"
+        prtLn $ colorizeString Failed "FAILED"
       FailFalse vs -> do
-        prtLn "FAILED for the following inputs:"
+        prtLn $ colorizeString Failed "FAILED" ++ " for the following inputs:"
         mapM_ (rPrint . pp . E.WithBase opts) vs
       FailError err [] -> do
-        prtLn "ERROR"
+        prtLn $ colorizeString Failed "ERROR"
         rPrint (pp err)
       FailError err vs -> do
-        prtLn "ERROR for the following inputs:"
+        prtLn $ colorizeString Failed "ERROR" ++ " for the following inputs:"
         mapM_ (rPrint . pp . E.WithBase opts) vs
         rPrint (pp err)
       Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
@@ -924,6 +926,18 @@ replReadFile :: FilePath -> (X.SomeException -> REPL (Maybe BS.ByteString)) -> R
 replReadFile fp handler =
  do x <- io $ X.catch (Right `fmap` BS.readFile fp) (\e -> return $ Left e)
     either handler (return . Just) x
+
+data OutputColor = Failed | Passed | Prompt deriving (Enum, Eq)
+colorizeString :: OutputColor -> String -> String
+colorizeString color msg = prefix ++ msg ++ suffix where
+    -- sgr | eIsBatch  = setSGRCode
+    --     | otherwise = const ""
+    sgr = setSGRCode
+    prefix = case color of
+                  Failed -> sgr [SetColor Foreground Vivid Red]
+                  Passed -> sgr [SetColor Foreground Vivid Green]
+                  Prompt -> sgr [SetColor Foreground Vivid Blue] ++ sgr [SetConsoleIntensity BoldIntensity]
+    suffix = sgr [Reset]
 
 -- | Creates a fresh binding of "it" to the expression given, and adds
 -- it to the current dynamic environment
