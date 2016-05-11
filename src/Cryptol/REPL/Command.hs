@@ -439,7 +439,7 @@ cmdProveSat isSat expr = do
                 let docs = map (pp . E.WithBase ppOpts) vs
                     -- function application has precedence 3
                     doc = ppPrec 3 parseExpr
-                rPrint $ hsep (doc : docs) <+>
+                rPrint $ hang doc 2 (sep docs) <+>
                   text (if isSat then "= True" else "= False")
           resultRecs <- mapM (mkSolverResult cexStr isSat . Right) tess
           let collectTes tes = (t, es)
