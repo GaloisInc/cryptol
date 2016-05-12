@@ -453,7 +453,7 @@ cryIsNat useFinite n expr =
                                  eq x one  :&& eq y zero)
       | otherwise       -> Nothing
 
-    e1 :- e2            -> Just $ eq (K (Nat n) :+ e1) e2
+    e1 :- e2            -> Just $ eq (K (Nat n) :+ e2) e1
 
     K (Nat m) :* e2     ->
       Just $ if m == 0
