@@ -2,11 +2,11 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 Using exhaustive testing.
-testing...passed 1 tests.
+testing...Passed 1 tests.
 Q.E.D.
 Using exhaustive testing.
-testing...passed 1 tests.
+testing...Passed 1 tests.
 Q.E.D.
 Using random testing.
-testing...passed 100 tests.
+testing...Passed 100 tests.
 Coverage: 0.00% (100 of 2^^30 values)
