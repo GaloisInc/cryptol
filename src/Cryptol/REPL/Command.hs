@@ -56,7 +56,7 @@ import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowed))
 import qualified Cryptol.Utils.Ident as M
 
-import Cryptol.Utils.Color
+import Cryptol.Utils.Color (errorMsg, testPassedMsg, testFailedMsg, testErrorMsg)
 
 import qualified Cryptol.Eval.Value as E
 import Cryptol.Testing.Concrete
@@ -297,7 +297,7 @@ qcCmd qcMode str =
                   , testRptFailure = ppFailure
                   , testRptSuccess = do
                       delTesting
-                      prtLn $ colorizeString Passed "Passed " ++ show sz ++ " tests."
+                      prtLn $ testPassedMsg ++ " " ++ show sz ++ " tests."
                       rPutStrLn "Q.E.D."
                   }
             prt testingMsg
@@ -318,7 +318,7 @@ qcCmd qcMode str =
                       , testRptFailure = ppFailure
                       , testRptSuccess = do
                           delTesting
-                          prtLn $ colorizeString Passed "Passed " ++ show testNum ++ " tests."
+                          prtLn $ testPassedMsg ++ " " ++ show testNum ++ " tests."
                       }
                 prt testingMsg
                 g <- io newTFGen
@@ -366,15 +366,15 @@ qcCmd qcMode str =
     opts <- getPPValOpts
     case failure of
       FailFalse [] -> do
-        prtLn $ colorizeString Failed "FAILED"
+        prtLn testFailedMsg
       FailFalse vs -> do
-        prtLn $ colorizeString Failed "FAILED" ++ " for the following inputs:"
+        prtLn $ testFailedMsg ++ " for the following inputs:"
         mapM_ (rPrint . pp . E.WithBase opts) vs
       FailError err [] -> do
-        prtLn $ colorizeString Failed "ERROR"
+        prtLn testErrorMsg
         rPrint (pp err)
       FailError err vs -> do
-        prtLn $ colorizeString Failed "ERROR" ++ " for the following inputs:"
+        prtLn $ testErrorMsg ++ " for the following inputs:"
         mapM_ (rPrint . pp . E.WithBase opts) vs
         rPrint (pp err)
       Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]

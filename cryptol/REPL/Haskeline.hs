@@ -16,7 +16,7 @@ import           Cryptol.REPL.Command
 import           Cryptol.REPL.Monad
 import           Cryptol.REPL.Trie
 import           Cryptol.Utils.PP
-import           Cryptol.Utils.Color
+import           Cryptol.Utils.Color (colorPrompt)
 
 import qualified Control.Exception as X
 import           Control.Monad (guard, join, when)
@@ -67,7 +67,7 @@ repl cryrc mbBatch begin =
       Nothing -> return ()
 
   getInputLines prompt ls =
-    do mb <- getInputLine $ colorizeString Prompt prompt
+    do mb <- getInputLine $ colorPrompt prompt
        let newPropmpt = map (\_ -> ' ') prompt
        case mb of
           Nothing -> return Nothing
