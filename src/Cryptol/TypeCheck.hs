@@ -41,7 +41,7 @@ import           Cryptol.TypeCheck.Solve(simplifyAllConstraints)
 import           Cryptol.Utils.Ident (packModName,packIdent)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
-import           Cryptol.Utils.Color (errorAtMsg)
+import           Cryptol.Utils.Color (errorAtMsg, warningAtMsg)
 
 tcModule :: P.Module Name -> InferInput -> IO (InferOutput Module)
 tcModule m inp = runInferM inp
@@ -100,7 +100,7 @@ tcDecls ds inp = runInferM inp $ inferDs ds $ \dgs -> do
                    return dgs
 
 ppWarning :: (Range,Warning) -> Doc
-ppWarning (r,w) = text "[warning] at" <+> pp r <> colon $$ nest 2 (pp w)
+ppWarning (r,w) = text warningAtMsg <+> pp r <> colon $$ nest 2 (pp w)
 
 ppError :: (Range,Error) -> Doc
 ppError (r,w) = text errorAtMsg <+> pp r <> colon $$ nest 2 (pp w)

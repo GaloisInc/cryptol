@@ -22,6 +22,7 @@ import REPL.Haskeline
 import REPL.Logo
 
 import Cryptol.Utils.PP
+import Cryptol.Utils.Color (warningMsg)
 import Cryptol.Version (commitHash, commitBranch, commitDirty)
 import Paths_cryptol (version)
 
@@ -197,7 +198,7 @@ setupCmdScript opts =
       hPutStr h (unlines cmds)
       hClose h
       when (isJust (optBatch opts)) $
-        putStrLn "[warning] --command argument specified; ignoring batch file"
+        putStrLn $ warningMsg ++ " --command argument specified; ignoring batch file"
       return (opts { optBatch = Just path }, Just path)
 
 setupREPL :: Options -> REPL ()

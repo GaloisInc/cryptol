@@ -34,7 +34,7 @@ import Cryptol.Parser.Position
 import Cryptol.Utils.Ident (packIdent,packInfix)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
-import Cryptol.Utils.Color (errorMsg,errorAtMsg)
+import Cryptol.Utils.Color (errorMsg,errorAtMsg,warningAtMsg)
 
 import qualified Data.Foldable as F
 import qualified Data.Map.Strict as Map
@@ -143,7 +143,7 @@ data RenamerWarning
 
 instance PP RenamerWarning where
   ppPrec _ (SymbolShadowed new originals disp) = fixNameDisp disp $
-    hang (text "[warning] at" <+> loc)
+    hang (text warningAtMsg <+> loc)
        4 $ fsep [ text "This binding for" <+> sym
                 , (text "shadows the existing binding" <> plural) <+> text "from" ]
         $$ vcat (map ppLocName originals)

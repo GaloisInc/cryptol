@@ -1,4 +1,8 @@
-module Cryptol.Utils.Color (colorizeString, OutputColor(..), errorMsg, errorAtMsg) where
+module Cryptol.Utils.Color (
+    colorizeString, OutputColor(..)
+  , errorMsg, errorAtMsg
+  , warningMsg, warningAtMsg
+  ) where
 
 import System.Console.ANSI
 
@@ -19,3 +23,9 @@ errorMsg = colorizeString Failed "[error]"
 
 errorAtMsg :: String
 errorAtMsg = errorMsg ++ " at"
+
+warningMsg :: String
+warningMsg = colorizeString Failed "[warning]"
+
+warningAtMsg :: String
+warningAtMsg = warningMsg ++ " at"
