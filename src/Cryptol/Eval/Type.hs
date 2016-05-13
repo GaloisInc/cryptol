@@ -11,7 +11,7 @@
 module Cryptol.Eval.Type (evalType, evalTF) where
 
 import Cryptol.Eval.Env
-import Cryptol.Eval.Error
+import Cryptol.Eval.Monad
 import Cryptol.Eval.Value(TValue(..),numTValue)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat

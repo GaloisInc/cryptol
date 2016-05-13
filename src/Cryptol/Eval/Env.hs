@@ -12,6 +12,7 @@
 {-# LANGUAGE CPP #-}
 module Cryptol.Eval.Env where
 
+import Cryptol.Eval.Monad( Eval, delay )
 import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
@@ -31,7 +32,7 @@ import Prelude.Compat
 type ReadEnv = EvalEnv
 
 data EvalEnv = EvalEnv
-  { envVars       :: Map.Map Name Value
+  { envVars       :: Map.Map Name (Eval Value)
   , envTypes      :: Map.Map TVar TValue
   } deriving (Generic)
 
@@ -48,20 +49,28 @@ instance Monoid EvalEnv where
     , envTypes    = Map.union (envTypes    l) (envTypes    r)
     }
 
-instance PP (WithBase EvalEnv) where
-  ppPrec _ (WithBase opts env) = brackets (fsep (map bind (Map.toList (envVars env))))
-    where
-    bind (k,v) = pp k <+> text "->" <+> ppValue opts v
+ppEnv :: PPOpts -> EvalEnv -> Eval Doc
+ppEnv opts env = brackets . fsep <$> mapM bind (Map.toList (envVars env))
+  where
+   bind (k,v) = do vdoc <- ppValue opts =<< v
+                   return (pp k <+> text "->" <+> vdoc)
+
+--instance PP (WithBase EvalEnv) where
+--  ppPrec _ (WithBase opts env) = brackets (fsep (map bind (Map.toList (envVars env))))
+--    where
+--    bind (k,v) = pp k <+> text "->" <+> ppValue opts v
 
 emptyEnv :: EvalEnv
 emptyEnv  = mempty
 
 -- | Bind a variable in the evaluation environment.
-bindVar :: Name -> Value -> EvalEnv -> EvalEnv
-bindVar n val env = env { envVars = Map.insert n val (envVars env) }
+bindVar :: Name -> Eval Value -> EvalEnv -> Eval EvalEnv
+bindVar n val env = do
+  val' <- delay (Just (show (ppLocName n))) val
+  return $ env { envVars = Map.insert n val' (envVars env) }
 
 -- | Lookup a variable in the environment.
-lookupVar :: Name -> EvalEnv -> Maybe Value
+lookupVar :: Name -> EvalEnv -> Maybe (Eval Value)
 lookupVar n env = Map.lookup n (envVars env)
 
 -- | Bind a type variable of kind *.

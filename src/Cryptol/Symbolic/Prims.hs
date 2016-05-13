@@ -47,7 +47,10 @@ evalPrim Decl { .. } =
 -- See also Cryptol.Prims.Eval.primTable
 primTable :: Map.Map Ident Value
 primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
-  [ ("True"        , VBit SBV.svTrue)
+  [
+  ]
+{-
+("True"        , VBit SBV.svTrue)
   , ("False"       , VBit SBV.svFalse)
   , ("demote"      , ecDemoteV) -- Converts a numeric type into its corresponding value.
                                 -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
@@ -730,3 +733,4 @@ divx n i xs ys'        = (q:qs, rs)
   where q        = xs `idx` i
         xs'      = ites q (xs `addPoly` ys') xs
         (qs, rs) = divx (n-1) (i-1) xs' (tail ys')
+-}

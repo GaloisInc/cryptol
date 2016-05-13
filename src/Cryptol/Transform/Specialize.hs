@@ -78,7 +78,7 @@ specializeExpr expr =
     ERec fs       -> ERec <$> traverse (traverseSnd specializeExpr) fs
     ESel e s      -> ESel <$> specializeExpr e <*> pure s
     EIf e1 e2 e3  -> EIf <$> specializeExpr e1 <*> specializeExpr e2 <*> specializeExpr e3
-    EComp t e mss -> EComp t <$> specializeExpr e <*> traverse (traverse specializeMatch) mss
+    EComp len t e mss -> EComp len t <$> specializeExpr e <*> traverse (traverse specializeMatch) mss
     -- Bindings within list comprehensions always have monomorphic types.
     EVar {}       -> specializeConst expr
     ETAbs t e     -> do
@@ -104,7 +104,7 @@ specializeExpr expr =
     EWhere e dgs  -> specializeEWhere e dgs
 
 specializeMatch :: Match -> SpecM Match
-specializeMatch (From qn t e) = From qn t <$> specializeExpr e
+specializeMatch (From qn l t e) = From qn l t <$> specializeExpr e
 specializeMatch (Let decl)
   | null (sVars (dSignature decl)) = return (Let decl)
   | otherwise = fail "unimplemented: specializeMatch Let unimplemented"

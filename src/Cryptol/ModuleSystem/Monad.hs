@@ -11,6 +11,7 @@
 module Cryptol.ModuleSystem.Monad where
 
 import           Cryptol.Eval.Env (EvalEnv)
+import qualified Cryptol.Eval.Monad           as E
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
@@ -389,10 +390,12 @@ loadedModule path m = ModuleT $ do
   env <- get
   set $! env { meLoadedModules = addLoadedModule path m (meLoadedModules env) }
 
-modifyEvalEnv :: (EvalEnv -> EvalEnv) -> ModuleM ()
+modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
 modifyEvalEnv f = ModuleT $ do
   env <- get
-  set $! env { meEvalEnv = f (meEvalEnv env) }
+  let evalEnv = meEvalEnv env
+  evalEnv' <- inBase $ E.runEval (f evalEnv)
+  set $! env { meEvalEnv = evalEnv' }
 
 getEvalEnv :: ModuleM EvalEnv
 getEvalEnv  = ModuleT (meEvalEnv `fmap` get)

@@ -248,13 +248,13 @@ instance TVars Expr where
         ERec fs       -> ERec [ (f, go e) | (f,e) <- fs ]
         EList es t    -> EList (map go es) (apSubst su t)
         ESel e s      -> ESel (go e) s
-        EComp t e mss -> EComp (apSubst su t) (go e) (apSubst su mss)
+        EComp len t e mss -> EComp (apSubst su len) (apSubst su t) (go e) (apSubst su mss)
         EIf e1 e2 e3  -> EIf (go e1) (go e2) (go e3)
 
         EWhere e ds   -> EWhere (go e) (apSubst su ds)
 
 instance TVars Match where
-  apSubst su (From x t e) = From x (apSubst su t) (apSubst su e)
+  apSubst su (From x len t e) = From x (apSubst su t) (apSubst su len) (apSubst su e)
   apSubst su (Let b)      = Let (apSubst su b)
 
 instance TVars DeclGroup where

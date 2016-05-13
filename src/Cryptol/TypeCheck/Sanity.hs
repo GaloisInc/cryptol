@@ -229,8 +229,9 @@ exprSchema expr =
 
          return $ tMono t1
 
-    EComp t e mss ->
-      do checkTypeIs KType t
+    EComp len t e mss ->
+      do checkTypeIs KNum len
+         checkTypeIs KType t
 
          (xs,ls) <- unzip `fmap` mapM checkArm mss
          -- XXX: check no duplicates
@@ -238,7 +239,7 @@ exprSchema expr =
 
          case ls of
            [] -> return ()
-           _  -> convertible t (tSeq (foldr1 tMin ls) elT)
+           _  -> convertible (tSeq len t) (tSeq (foldr1 tMin ls) elT)
 
          return (tMono t)
 
@@ -390,8 +391,10 @@ checkDeclGroup dg =
 checkMatch :: Match -> TcM ((Name, Schema), Type)
 checkMatch ma =
   case ma of
-    From x t e ->
-      do checkTypeIs KType t
+    From x len elt e ->
+      do checkTypeIs KNum len
+         checkTypeIs KType elt
+         let t = tSeq len elt
          t1 <- exprType e
          case tNoUser t1 of
            TCon (TC TCSeq) [ l, el ]

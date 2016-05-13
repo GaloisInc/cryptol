@@ -212,7 +212,6 @@ primitive (#) : {front, back, a} (fin front) => [front]a -> [back]a
  */
 primitive splitAt : {front, back, a} (fin front) => [front + back]a
                                                  -> ([front]a, [back]a)
-
 /**
  * Joins sequences.
  */
@@ -333,3 +332,12 @@ groupBy = split`{parts=parts}
  * Define the base 2 logarithm function in terms of width
  */
 type lg2 n = width (max n 1 - 1)
+
+/**
+ * Debugging function for tracing values.  The value of the 
+ * first argument is printed before returning the second value.
+ */
+primitive trace : {n, a, b} [n][8] -> a -> b -> b
+
+traceVal : {n, a, b} [n][8] -> a -> a
+traceVal msg x = trace msg x x

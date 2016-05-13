@@ -113,6 +113,13 @@ proverError :: String -> M.ModuleCmd ProverResult
 proverError msg modEnv = return (Right (ProverError msg, modEnv), [])
 
 satProve :: ProverCommand -> M.ModuleCmd ProverResult
+satProve _ = fail "IMPLEMENT satProve"
+
+satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
+satProveOffline _ = fail "IMPLEMENT satProveOffline"
+
+{-
+
 satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
   M.runModuleM modEnv $ do
   let (isSat, mSatNum) = case pcQueryType of
@@ -489,3 +496,4 @@ evalMatch :: Env -> Match -> [Env]
 evalMatch env m = case m of
   From n _ty expr -> [ bindVar (n, v) env | v <- fromSeq (evalExpr env expr) ]
   Let d           -> [ bindVar (evalDecl env d) env ]
+-}

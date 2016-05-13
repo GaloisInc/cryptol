@@ -31,11 +31,12 @@ import Data.List (foldl')
 
 import Data.SBV.Dynamic
 
+--import Cryptol.Eval.Monad
 import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit,
                            isTFun, isTSeq, isTTuple, isTRec, tvSeq, GenValue(..),
                            BitWord(..), lam, tlam, toStream, toFinSeq, toSeq,
                            fromSeq, fromVBit, fromVWord, fromVFun, fromVPoly,
-                           fromVTuple, fromVRecord, lookupRecord)
+                           fromVTuple, fromVRecord, lookupRecord, SeqMap(..))
 import Cryptol.Utils.Panic (panic)
 
 -- SBool and SWord -------------------------------------------------------------
@@ -79,26 +80,27 @@ mergeValue :: Bool -> SBool -> Value -> Value -> Value
 mergeValue f c v1 v2 =
   case (v1, v2) of
     (VRecord fs1, VRecord fs2) -> VRecord $ zipWith mergeField fs1 fs2
-    (VTuple vs1 , VTuple vs2 ) -> VTuple $ zipWith (mergeValue f c) vs1 vs2
+    (VTuple vs1 , VTuple vs2 ) -> VTuple $ zipWith (\x y -> mergeValue f c <$> x <*> y) vs1 vs2
     (VBit b1    , VBit b2    ) -> VBit $ mergeBit b1 b2
     (VWord w1   , VWord w2   ) -> VWord $ mergeWord w1 w2
-    (VSeq b1 vs1, VSeq _ vs2 ) -> VSeq b1 $ zipWith (mergeValue f c) vs1 vs2
-    (VStream vs1, VStream vs2) -> VStream $ mergeStream vs1 vs2
-    (VFun f1    , VFun f2    ) -> VFun $ \x -> mergeValue f c (f1 x) (f2 x)
-    (VPoly f1   , VPoly f2   ) -> VPoly $ \x -> mergeValue f c (f1 x) (f2 x)
-    (VWord w1   , _          ) -> VWord $ mergeWord w1 (fromVWord v2)
-    (_          , VWord w2   ) -> VWord $ mergeWord (fromVWord v1) w2
+    (VSeq n1 b1 vs1, VSeq n2 _ vs2 ) | n1 == n2 -> VSeq n1 b1 $ mergeSeqMap vs1 vs2
+    (VStream vs1, VStream vs2) -> VStream $ mergeSeqMap vs1 vs2
+    (VFun f1    , VFun f2    ) -> VFun $ \x -> mergeValue f c <$> (f1 x) <*> (f2 x)
+    (VPoly f1   , VPoly f2   ) -> VPoly $ \x -> mergeValue f c <$> (f1 x) <*> (f2 x)
+-- FIXME!
+--    (VWord w1   , _          ) -> VWord $ mergeWord w1 (fromVWord v2)
+--    (_          , VWord   w2 ) -> VWord $ mergeWord (fromVWord v1) w2
     (_          , _          ) -> panic "Cryptol.Symbolic.Value"
                                   [ "mergeValue: incompatible values" ]
   where
     mergeBit b1 b2 = svSymbolicMerge KBool f c b1 b2
     mergeWord w1 w2 = svSymbolicMerge (kindOf w1) f c w1 w2
     mergeField (n1, x1) (n2, x2)
-      | n1 == n2  = (n1, mergeValue f c x1 x2)
+      | n1 == n2  = (n1, mergeValue f c <$> x1 <*> x2)
       | otherwise = panic "Cryptol.Symbolic.Value"
                     [ "mergeValue.mergeField: incompatible values" ]
-    mergeStream xs ys =
-      mergeValue f c (head xs) (head ys) : mergeStream (tail xs) (tail ys)
+    mergeSeqMap x y =
+      SeqMap $ \i -> mergeValue f c <$> lookupSeqMap x i <*> lookupSeqMap y i
 
 -- Big-endian Words ------------------------------------------------------------
 

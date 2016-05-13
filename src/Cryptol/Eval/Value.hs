@@ -8,23 +8,35 @@
 
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Safe #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE ViewPatterns #-}
+
 module Cryptol.Eval.Value where
 
+import Data.IORef
+--import           Data.Map (Map)
+import qualified Data.Map as Map
+
+import MonadLib
+
 import qualified Cryptol.Eval.Arch as Arch
-import Cryptol.Eval.Error
+import Cryptol.Eval.Monad
+
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident (Ident,mkIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
-import Control.Monad (guard, zipWithM)
-import Data.List(genericTake)
+--import Control.Monad (guard, zipWithM)
+import Data.List(genericLength, genericIndex)
 import Data.Bits (setBit,testBit,(.&.),shiftL)
+import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import Numeric (showIntAtBase)
 
@@ -84,25 +96,104 @@ finTValue tval =
 -- Invariant: The value must be within the range 0 .. 2^width-1
 data BV = BV !Integer !Integer deriving (Generic)
 
+instance Show BV where
+  show = show . bvVal
+
+bvVal :: BV -> Integer
+bvVal (BV _w x) = x
+
 instance NFData BV where rnf = genericRnf
 
 -- | Smart constructor for 'BV's that checks for the width limit
 mkBv :: Integer -> Integer -> BV
 mkBv w i = BV w (mask w i)
 
+newtype SeqMap b w = SeqMap { lookupSeqMap :: Integer -> Eval (GenValue b w) }
+type SeqValMap = SeqMap Bool BV
+
+instance NFData (SeqMap b w) where
+  rnf x = seq x ()
+
+finiteSeqMap :: [Eval (GenValue b w)] -> Eval (SeqMap b w)
+finiteSeqMap xs = do
+   v <- Seq.fromList <$> mapM (delay Nothing) xs
+   let len = Seq.length v
+       f (fromInteger -> i) | 0 <= i && i < len = Seq.index v i
+                            | otherwise = evalPanic "finiteSeqMap" ["Index out of bounds:", show i]
+   return $ SeqMap f
+
+infiniteSeqMap :: [Eval (GenValue b w)] -> Eval (SeqMap b w)
+infiniteSeqMap xs =
+   memoMap (SeqMap $ \i -> genericIndex xs i)
+
+enumerateSeqMap :: (Integral n) => n -> SeqMap b w -> [Eval (GenValue b w)]
+enumerateSeqMap n m = [ lookupSeqMap m i | i <- [0 .. (toInteger n)-1] ]
+
+streamSeqMap :: SeqMap b w -> [Eval (GenValue b w)]
+streamSeqMap m = [ lookupSeqMap m i | i <- [0..] ]
+
+reverseSeqMap :: Integer -> SeqMap b w -> SeqMap b w
+reverseSeqMap n vals = SeqMap $ \i -> lookupSeqMap vals (n - 1 - i)
+
+splitSeqMap :: Integer -> SeqMap b w -> (SeqMap b w, SeqMap b w)
+splitSeqMap n xs = (hd,tl)
+  where
+  hd = xs
+  tl = SeqMap $ \i -> lookupSeqMap xs (i+n)
+
+memoMap :: SeqMap b w -> Eval (SeqMap b w)
+memoMap x = do
+  r <- io $ newIORef Map.empty
+  return $ SeqMap $ \i -> do
+    m <- io $ readIORef r
+    case Map.lookup i m of
+      Just (Just z) -> return z
+      Just Nothing -> 
+        cryLoopError $ unwords ["memoMap location:", show i]
+      Nothing -> do
+        --io $ putStrLn $ unwords ["Forcing memo map location", show i]
+        io $ writeIORef r (Map.insert i Nothing m)
+        v <- lookupSeqMap x i
+        io $ writeIORef r (Map.insert i (Just v) m)
+        return v
+
+
+zipSeqMap :: (GenValue b w -> GenValue b w -> Eval (GenValue b w))
+          -> SeqMap b w
+          -> SeqMap b w
+          -> Eval (SeqMap b w)
+zipSeqMap f x y =
+  memoMap (SeqMap $ \i -> join (f <$> lookupSeqMap x i <*> lookupSeqMap y i))
+  
+mapSeqMap :: (GenValue b w -> Eval (GenValue b w))
+          -> SeqMap b w -> Eval (SeqMap b w)
+mapSeqMap f x =
+  memoMap (SeqMap $ \i -> f =<< lookupSeqMap x i)
+
 -- | Generic value type, parameterized by bit and word types.
 data GenValue b w
-  = VRecord [(Ident, GenValue b w)]     -- @ { .. } @
-  | VTuple [GenValue b w]               -- @ ( .. ) @
-  | VBit b                              -- @ Bit    @
-  | VSeq Bool [GenValue b w]            -- @ [n]a   @
-                                        -- The boolean parameter indicates whether or not
-                                        -- this is a sequence of bits.
-  | VWord w                             -- @ [n]Bit @
-  | VStream [GenValue b w]              -- @ [inf]a @
-  | VFun (GenValue b w -> GenValue b w) -- functions
-  | VPoly (TValue -> GenValue b w)      -- polymorphic values (kind *)
+  = VRecord [(Ident, Eval (GenValue b w))] -- @ { .. } @
+  | VTuple [Eval (GenValue b w)]           -- @ ( .. ) @
+  | VBit b                                 -- @ Bit    @
+  | VSeq !Integer !Bool (SeqMap b w)       -- @ [n]a   @
+                                           -- The boolean parameter indicates whether or not
+                                           -- this is a sequence of bits.
+  | VWord w                                -- @ [n]Bit @
+  | VStream (SeqMap b w)                   -- @ [inf]a @
+  | VFun (Eval (GenValue b w) -> Eval (GenValue b w)) -- functions
+  | VPoly (TValue -> Eval (GenValue b w))  -- polymorphic values (kind *)
   deriving (Generic)
+
+instance (Show b, Show w) => Show (GenValue b w) where
+  show v = case v of
+    VRecord fs -> "record:" ++ show (map fst fs)
+    VTuple xs  -> "tuple:" ++ show (length xs)
+    VBit b     -> show b
+    VSeq n w _ -> "seq:" ++ show n ++ " " ++ show w
+    VWord x    -> "word:"  ++ show x
+    VStream _  -> "stream"
+    VFun _     -> "fun"
+    VPoly _    -> "poly"
 
 instance (NFData b, NFData w) => NFData (GenValue b w) where rnf = genericRnf
 
@@ -129,35 +220,46 @@ data PPOpts = PPOpts
 defaultPPOpts :: PPOpts
 defaultPPOpts = PPOpts { useAscii = False, useBase = 10, useInfLength = 5 }
 
-ppValue :: PPOpts -> Value -> Doc
+atFst :: Functor f => (a -> f b) -> (a, c) -> f (b, c)
+atFst f (x,y) = fmap (,y) $ f x
+
+atSnd :: Functor f => (a -> f b) -> (c, a) -> f (c, b)
+atSnd f (x,y) = fmap (x,) $ f y
+
+ppValue :: PPOpts -> Value -> Eval Doc
 ppValue opts = loop
   where
+  loop :: Value -> Eval Doc
   loop val = case val of
-    VRecord fs         -> braces (sep (punctuate comma (map ppField fs)))
+    VRecord fs         -> do fs' <- traverse (atSnd (>>=loop)) $ fs
+                             return $ braces (sep (punctuate comma (map ppField fs')))
       where
-      ppField (f,r) = pp f <+> char '=' <+> loop r
-    VTuple vals        -> parens (sep (punctuate comma (map loop vals)))
-    VBit b | b         -> text "True"
-           | otherwise -> text "False"
-    VSeq isWord vals
-       | isWord        -> ppWord opts (fromVWord val)
-       | otherwise     -> ppWordSeq vals
-    VWord (BV w i)     -> ppWord opts (BV w i)
-    VStream vals       -> brackets $ fsep
+      ppField (f,r) = pp f <+> char '=' <+> r
+    VTuple vals        -> do vals' <- traverse (>>=loop) vals
+                             return $ parens (sep (punctuate comma vals'))
+    VBit b | b         -> return $ text "True"
+           | otherwise -> return $ text "False"
+    VSeq sz isWord vals
+       | isWord        -> ppWord opts <$> fromVWord "ppValue" val
+       | otherwise     -> ppWordSeq sz vals
+    VWord wd           -> return $ ppWord opts wd
+    VStream vals       -> do vals' <- traverse (>>=loop) $ enumerateSeqMap (useInfLength opts) vals
+                             return $ brackets $ fsep
                                    $ punctuate comma
-                                   ( take (useInfLength opts) (map loop vals)
-                                     ++ [text "..."]
+                                   ( vals' ++ [text "..."]
                                    )
-    VFun _             -> text "<function>"
-    VPoly _            -> text "<polymorphic value>"
+    VFun _             -> return $ text "<function>"
+    VPoly _            -> return $ text "<polymorphic value>"
 
-  ppWordSeq ws =
+  ppWordSeq :: Integer -> SeqValMap -> Eval Doc
+  ppWordSeq sz vals = do
+    ws <- sequence (enumerateSeqMap sz vals)
     case ws of
       w : _
         | Just l <- vWordLen w, asciiMode opts l ->
-                text $ show $ map (integerToChar . fromWord) ws
-      _ -> brackets (fsep (punctuate comma (map loop ws)))
-
+              text . show . map (integerToChar . bvVal) <$> traverse (fromVWord "ppWordSeq") ws
+      _ -> do ws' <- traverse loop ws
+              return $ brackets (fsep (punctuate comma ws'))
 
 asciiMode :: PPOpts -> Integer -> Bool
 asciiMode opts width = useAscii opts && (width == 7 || width == 8)
@@ -165,11 +267,11 @@ asciiMode opts width = useAscii opts && (width == 7 || width == 8)
 integerToChar :: Integer -> Char
 integerToChar = toEnum . fromInteger
 
-data WithBase a = WithBase PPOpts a
-    deriving (Functor)
+--data WithBase a = WithBase PPOpts a
+--    deriving (Functor)
 
-instance PP (WithBase Value) where
-  ppPrec _ (WithBase opts v) = ppValue opts v
+--instance PP (WithBase Value) where
+--  ppPrec _ (WithBase opts v) = ppValue opts v
 
 ppWord :: PPOpts -> BV -> Doc
 ppWord opts (BV width i)
@@ -238,32 +340,46 @@ instance BitWord Bool BV where
 
 -- | Create a packed word of n bits.
 word :: Integer -> Integer -> Value
-word n i = VWord (mkBv n i)
+word n i = VWord $ mkBv n i
 
-lam :: (GenValue b w -> GenValue b w) -> GenValue b w
+lam :: (Eval (GenValue b w) -> Eval (GenValue b w)) -> GenValue b w
 lam  = VFun
+
+-- | Functions that assume word inputs
+wlam :: (Integer -> Eval Value) -> Value
+wlam f = VFun (\x -> x >>= fromWord "wlam" >>= f)
 
 -- | A type lambda that expects a @Type@.
 tlam :: (TValue -> GenValue b w) -> GenValue b w
-tlam  = VPoly
+tlam f = VPoly (return . f)
 
 -- | Generate a stream.
-toStream :: [GenValue b w] -> GenValue b w
-toStream  = VStream
+toStream :: [GenValue b w] -> Eval (GenValue b w)
+toStream vs =
+   VStream <$> infiniteSeqMap (map ready vs)
 
-toFinSeq :: TValue -> [GenValue b w] -> GenValue b w
-toFinSeq elty = VSeq (isTBit elty)
+toFinSeq :: Integer -> TValue -> [GenValue b w] -> Eval (GenValue b w)
+toFinSeq len elty vs =
+   VSeq len (isTBit elty) <$> finiteSeqMap (map ready vs)
 
 -- | This is strict!
 boolToWord :: [Bool] -> Value
-boolToWord = VWord . packWord
+boolToWord bs = VWord (packWord bs)
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
-toSeq :: TValue -> TValue -> [GenValue b w] -> GenValue b w
+toSeq :: TValue -> TValue -> [GenValue b w] -> Eval (GenValue b w)
 toSeq len elty vals = case numTValue len of
-  Nat n -> toFinSeq elty (genericTake n vals)
+  Nat n -> toFinSeq n elty vals
   Inf   -> toStream vals
+
+
+-- | Construct either a finite sequence, or a stream.  In the finite case,
+-- record whether or not the elements were bits, to aid pretty-printing.
+mkSeq :: TValue -> TValue -> SeqMap b w -> GenValue b w
+mkSeq len elty vals = case numTValue len of
+  Nat n -> VSeq n (isTBit elty) vals
+  Inf   -> VStream vals
 
 -- | Construct one of:
 --   * a word, when the sequence is finite and the elements are bits
@@ -272,16 +388,15 @@ toSeq len elty vals = case numTValue len of
 --
 -- NOTE: do not use this constructor in the case where the thing may be a
 -- finite, but recursive, sequence.
-toPackedSeq :: TValue -> TValue -> [Value] -> Value
+toPackedSeq :: TValue -> TValue -> SeqValMap -> Eval Value
 toPackedSeq len elty vals = case numTValue len of
 
   -- finite sequence, pack a word if the elements are bits.
-  Nat _ | isTBit elty -> boolToWord (map fromVBit vals)
-        | otherwise  -> VSeq False vals
+  Nat n | isTBit elty -> boolToWord <$> (traverse (fromVBit <$>) [ lookupSeqMap vals i | i <- [0 .. n-1] ])
+        | otherwise   -> return $ VSeq n False vals
 
   -- infinite sequence, construct a stream
-  Inf -> VStream vals
-
+  Inf -> return $ VStream vals
 
 -- Value Destructors -----------------------------------------------------------
 
@@ -292,61 +407,69 @@ fromVBit val = case val of
   _      -> evalPanic "fromVBit" ["not a Bit"]
 
 -- | Extract a sequence.
-fromSeq :: BitWord b w => GenValue b w -> [GenValue b w]
+fromSeq :: forall b w. BitWord b w => GenValue b w -> Eval (SeqMap b w)
 fromSeq val = case val of
-  VSeq _ vs  -> vs
-  VWord bv   -> map VBit (unpackWord bv)
-  VStream vs -> vs
+  VSeq _ _ vs  -> return vs
+  VWord bv -> do let bs = unpackWord bv
+                 return $ SeqMap $ (\i -> return . VBit . flip genericIndex i $ bs)
+  VStream vs -> return vs
   _          -> evalPanic "fromSeq" ["not a sequence"]
 
-fromStr :: Value -> String
-fromStr = map (toEnum . fromInteger . fromWord) . fromSeq
+fromStr :: Value -> Eval String
+fromStr (VSeq n _ vals) =
+  traverse (\x -> toEnum . fromInteger <$> (fromWord "fromStr" =<< x)) (enumerateSeqMap n vals)
+fromStr _ = evalPanic "fromStr" ["Not a finite sequence"]
+  
 
 -- | Extract a packed word.
-fromVWord :: BitWord b w => GenValue b w -> w
-fromVWord val = case val of
-  VWord bv                -> bv -- this should always mask
-  VSeq isWord bs | isWord -> packWord (map fromVBit bs)
-  _                       -> evalPanic "fromVWord" ["not a word"]
+fromVWord :: BitWord b w => String -> GenValue b w -> Eval w
+fromVWord msg val = case val of
+  VWord bv                  -> return bv -- this should always mask
+  VSeq n isWord bs | isWord -> packWord <$> traverse (fromVBit<$>) (enumerateSeqMap n bs)
+  _                         -> evalPanic "fromVWord" ["not a word", msg]
 
 vWordLen :: Value -> Maybe Integer
 vWordLen val = case val of
-  VWord (BV w _)          -> Just w
-  VSeq isWord bs | isWord -> Just (toInteger (length bs))
-  _                       -> Nothing
-
+  VWord (BV n _)           -> Just n
+  VSeq n isWord _ | isWord -> Just n
+  _                        -> Nothing
 
 -- | Turn a value into an integer represented by w bits.
-fromWord :: Value -> Integer
-fromWord val = a
-  where BV _ a = fromVWord val
+
+fromWord :: String -> Value -> Eval Integer
+fromWord msg val =
+   case val of
+     VWord w                   -> return $ bvVal w
+     VSeq n isWord bs | isWord -> bvVal . packWord <$> traverse (fromVBit<$>) (enumerateSeqMap n bs)
+     _ -> do --vdoc <- ppValue defaultPPOpts val
+             evalPanic "fromWord" ["not a word", msg]
 
 -- | Extract a function from a value.
-fromVFun :: GenValue b w -> (GenValue b w -> GenValue b w)
+fromVFun :: GenValue b w -> (Eval (GenValue b w) -> Eval (GenValue b w))
 fromVFun val = case val of
   VFun f -> f
   _      -> evalPanic "fromVFun" ["not a function"]
 
 -- | Extract a polymorphic function from a value.
-fromVPoly :: GenValue b w -> (TValue -> GenValue b w)
+fromVPoly :: GenValue b w -> (TValue -> Eval (GenValue b w))
 fromVPoly val = case val of
   VPoly f -> f
   _       -> evalPanic "fromVPoly" ["not a polymorphic value"]
 
 -- | Extract a tuple from a value.
-fromVTuple :: GenValue b w -> [GenValue b w]
+fromVTuple :: GenValue b w -> [Eval (GenValue b w)]
 fromVTuple val = case val of
   VTuple vs -> vs
   _         -> evalPanic "fromVTuple" ["not a tuple"]
 
 -- | Extract a record from a value.
-fromVRecord :: GenValue b w -> [(Ident, GenValue b w)]
+fromVRecord :: GenValue b w -> [(Ident, Eval (GenValue b w))]
 fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record"]
 
 -- | Lookup a field in a record.
-lookupRecord :: Ident -> GenValue b w -> GenValue b w
+lookupRecord :: Ident -> GenValue b w -> Eval (GenValue b w)
 lookupRecord f rec = case lookup f (fromVRecord rec) of
   Just val -> val
   Nothing  -> evalPanic "lookupRecord" ["malformed record"]
@@ -357,29 +480,30 @@ lookupRecord f rec = case lookup f (fromVRecord rec) of
 -- this value, if we can determine it.
 --
 -- XXX: View patterns would probably clean up this definition a lot.
-toExpr :: PrimMap -> Type -> Value -> Maybe Expr
-toExpr prims = go
+toExpr :: PrimMap -> Type -> Value -> Eval (Maybe Expr)
+toExpr prims t0 v0 = findOne (go t0 v0)
   where
 
   prim n = ePrim prims (mkIdent (T.pack n))
 
+  go :: Type -> Value -> ChoiceT Eval Expr
   go ty val = case (ty, val) of
     (TRec tfs, VRecord vfs) -> do
       let fns = map fst vfs
       guard (map fst tfs == fns)
-      fes <- zipWithM go (map snd tfs) (map snd vfs)
+      fes <- zipWithM go (map snd tfs) =<< lift (traverse snd vfs)
       return $ ERec (zip fns fes)
     (TCon (TC (TCTuple tl)) ts, VTuple tvs) -> do
       guard (tl == (length tvs))
-      ETuple `fmap` zipWithM go ts tvs
+      ETuple `fmap` (zipWithM go ts =<< lift (sequence tvs))
     (TCon (TC TCBit) [], VBit True ) -> return (prim "True")
     (TCon (TC TCBit) [], VBit False) -> return (prim "False")
-    (TCon (TC TCSeq) [a,b], VSeq _ []) -> do
+    (TCon (TC TCSeq) [a,b], VSeq 0 _ _) -> do
       guard (a == tZero)
       return $ EList [] b
-    (TCon (TC TCSeq) [a,b], VSeq _ svs) -> do
-      guard (a == tNum (length svs))
-      ses <- mapM (go b) svs
+    (TCon (TC TCSeq) [a,b], VSeq n _ svs) -> do
+      guard (a == tNum n)
+      ses <- mapM (go b) =<< lift (sequence (enumerateSeqMap n svs))
       return $ EList ses b
     (TCon (TC TCSeq) [a,(TCon (TC TCBit) [])], VWord (BV w v)) -> do
       guard (a == tNum w)
@@ -387,8 +511,9 @@ toExpr prims = go
     (_, VStream _) -> fail "cannot construct infinite expressions"
     (_, VFun    _) -> fail "cannot convert function values to expressions"
     (_, VPoly   _) -> fail "cannot convert polymorphic values to expressions"
-    _ -> panic "Cryptol.Eval.Value.toExpr"
-           ["type mismatch:"
-           , pretty ty
-           , render (ppValue defaultPPOpts val)
-           ]
+    _ -> do doc <- lift (ppValue defaultPPOpts val)
+            panic "Cryptol.Eval.Value.toExpr"
+             ["type mismatch:"
+             , pretty ty
+             , render doc
+             ]

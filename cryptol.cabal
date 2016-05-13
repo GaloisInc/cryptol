@@ -146,7 +146,7 @@ library
                        Cryptol.Eval,
                        Cryptol.Eval.Arch,
                        Cryptol.Eval.Env,
-                       Cryptol.Eval.Error,
+                       Cryptol.Eval.Monad,
                        Cryptol.Eval.Type,
                        Cryptol.Eval.Value,
 
