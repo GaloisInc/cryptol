@@ -39,15 +39,15 @@ ready :: a -> Eval a
 ready a = Ready a
 
 data Eval a
-   = Ready a
+   = Ready !a
    | Thunk !(IO a)
- deriving (Functor)
 
 data ThunkState a
   = Unforced
   | BlackHole
-  | Forced a
+  | Forced !a
 
+{-# INLINE delay #-}
 delay :: Maybe String -> Eval a -> Eval (Eval a)
 delay _ (Ready a) = Ready (Ready a)
 delay msg (Thunk x) = Thunk $ do
@@ -79,18 +79,28 @@ runEval :: Eval a -> IO a
 runEval (Ready a) = return a
 runEval (Thunk x) = x
 
+{-# INLINE evalBind #-}
 evalBind :: Eval a -> (a -> Eval b) -> Eval b
 evalBind (Ready a) f  = f a
 evalBind (Thunk x) f  = Thunk (x >>= runEval . f)
 
+instance Functor Eval where
+  fmap f (Ready x) = Ready (f x)
+  fmap f (Thunk m) = Thunk (f <$> m) 
+  {-# INLINE fmap #-}
+
 instance Applicative Eval where
   pure  = return
   (<*>) = ap
+  {-# INLINE pure #-}
+  {-# INLINE (<*>) #-}
 
 instance Monad Eval where
   return = Ready
   fail   = Thunk . fail
   (>>=)  = evalBind
+  {-# INLINE return #-}
+  {-# INLINE (>>=) #-}
 
 instance MonadIO Eval where
   liftIO = io
@@ -104,6 +114,7 @@ instance MonadFix Eval where
 
 io :: IO a -> Eval a
 io = Thunk
+{-# INLINE io #-}
 
 
 -- Errors ----------------------------------------------------------------------

@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -163,11 +164,12 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                          msg <- fromStr =<< s
                          -- FIXME? get PPOPts from elsewhere?
                          doc <- ppValue defaultPPOpts =<< x
+                         yv <- y
                          io $ putStrLn $ show $ if null msg then
                                                   doc
                                                 else
                                                   text msg <+> doc
-                         y)
+                         return yv)
   ]
 
 
@@ -480,14 +482,26 @@ joinWords nParts nEach xs fallback =
   loop (mkBv 0 0) (enumerateSeqMap nParts xs)
 
  where
+ loop :: BV -> [Eval Value] -> Eval Value
  loop !bv [] = return $ VWord bv
- loop !bv (Ready (VWord w) : ws) = loop (joinWord bv w) ws
+ loop !bv (w : ws) = w >>= \case
+       VWord w' -> loop (joinWord bv w') ws
+       _        -> fallback
+
  loop _   _ = fallback
+
+
+-- loop !bv (Ready (VWord w) : ws) = loop (joinWord bv w) ws
+
+ -- loop !bv (w:ws) = do
+ --     w' <- fromVWord "joinWords" =<< w
+ --     loop (joinWord bv w') ws
+
 
 joinSeq :: TValue -> TValue -> TValue -> SeqValMap -> Eval Value
 joinSeq parts each a xs
   | Nat nEach <- numTValue each
-  = mkSeq <$> memoMap (SeqMap $ \i -> do
+  = return $ mkSeq $ (SeqMap $ \i -> do
       let (q,r) = divMod i nEach
       ys <- fromSeq =<< lookupSeqMap xs q
       lookupSeqMap ys r)
@@ -547,18 +561,25 @@ ecSplitV =
   tlam $ \ parts ->
   tlam $ \ each  ->
   tlam $ \ a     ->
-  lam  $ \ val -> do
-  val' <- delay Nothing (fromSeq =<< val)
-  case (numTValue parts, numTValue each) of
-     (Nat p, Nat e) -> return $ VSeq p False $ SeqMap $ \i ->
-                       return $ VSeq e (isTBit a) $ SeqMap $ \j -> do
-                         xs <- val'
-                         lookupSeqMap xs (e * i + j)
-     (Inf  , Nat e) -> return $ VStream $ SeqMap $ \i ->
-                       return $ VSeq e (isTBit a) $ SeqMap $ \j -> do
-                         xs <- val'
-                         lookupSeqMap xs (e * i + j)
-     _              -> evalPanic "splitV" ["invalid type arguments to split"]
+  lam  $ \ val ->
+    case (numTValue parts, numTValue each) of
+       (Nat p, Nat e) | isTBit a -> do
+          BV _ x <- fromVWord "split" =<< val
+          return $ VSeq p False $ SeqMap $ \i ->
+            return $ VWord $ mkBv e $ (x `shiftR` (fromInteger ((p-i-1)*e)))
+       (Nat p, Nat e) -> do
+          val' <- delay Nothing (fromSeq =<< val)
+          return $ VSeq p False $ SeqMap $ \i ->
+            return $ VSeq e (isTBit a) $ SeqMap $ \j -> do
+              xs <- val'
+              lookupSeqMap xs (e * i + j)
+       (Inf  , Nat e) -> do
+          val' <- delay Nothing (fromSeq =<< val)
+          return $ VStream $ SeqMap $ \i ->
+            return $ VSeq e (isTBit a) $ SeqMap $ \j -> do
+              xs <- val'
+              lookupSeqMap xs (e * i + j)
+       _              -> evalPanic "splitV" ["invalid type arguments to split"]
 
 -- | Split into infinitely many chunks
 infChunksOf :: Integer -> [a] -> [[a]]
@@ -604,6 +625,11 @@ ccatV :: TValue -> TValue -> TValue -> Eval Value -> Eval Value -> Eval Value
 ccatV _front _back (isTBit -> True) (Ready (VWord x)) (Ready (VWord y)) =
   return $ VWord $ joinWord x y
 
+-- ccatV _front (numTValue -> Nat _nBack) (isTBit -> True) x y = do
+--   xw <- fromVWord "ccatV" =<< x
+--   yw <- fromVWord "ccatV" =<< y
+--   return $ VWord $ joinWord xw yw
+
 ccatV front back elty l r = do
   l' <- delay Nothing (fromSeq =<< l)
   r' <- delay Nothing (fromSeq =<< r)
@@ -631,9 +657,14 @@ logicBinary op = loop
       case numTValue len of
 
          -- words or finite sequences
-         Nat w | isTBit aty, VWord (BV _ lw) <- l, VWord (BV _ rw) <- r
-              -> return $ VWord $ (BV w (op lw rw))
+--         Nat w | isTBit aty, VWord (BV _ lw) <- l, VWord (BV _ rw) <- r
+--              -> return $ VWord $ (BV w (op lw rw))
                    -- We assume that bitwise ops do not need re-masking
+         Nat w | isTBit aty -> do
+                  BV _ lw <- fromVWord "logicLeft" l
+                  BV _ rw <- fromVWord "logicRight" r
+                  return $ VWord $ mkBv w (op lw rw)
+
                | otherwise -> VSeq w (isTBit aty) <$> (join (zipSeqMap (loop aty) <$> (fromSeq l) <*> (fromSeq r)))
 
          -- streams
@@ -671,8 +702,12 @@ logicUnary op = loop
       case numTValue len of
 
          -- words or finite sequences
-         Nat w | isTBit ety, VWord (BV _ v) <- val
-              -> return $ VWord (mkBv w $ op v)
+         -- Nat w | isTBit ety, VWord (BV _ v) <- val
+         --      -> return $ VWord (mkBv w $ op v)
+         Nat w | isTBit ety
+              -> do v <- fromWord "logicUnary" val
+                    return $ VWord (mkBv w $ op v)
+
                | otherwise
               -> VSeq w (isTBit ety) <$> (mapSeqMap (loop ety) =<< fromSeq val)
 
@@ -705,11 +740,12 @@ logicShift opW opS
      lam  $ \ r -> do
         if isTBit c
           then do -- words
-            l' <- l
-            BV w i <- fromVWord ("logicShift " ++ show l') l'
-            VWord <$> (BV w <$> (opW w i <$> (fromWord "logic shift amount" =<< r)))
+            BV w x <- fromVWord "logicShift" =<< l
+            BV _ i <- fromVWord "logicShift amount" =<< r
+            return $ VWord $ BV w $ opW w x i
           else do
-            mkSeq a c <$> (opS a c <$> (fromSeq =<< l) <*> (fromWord "logic shift amount" =<< r))
+            BV _ i <- fromVWord "logicShift amount" =<< r
+            mkSeq a c <$> (opS a c <$> (fromSeq =<< l) <*> return i)
 
 -- Left shift for words.
 shiftLW :: Integer -> Integer -> Integer -> Integer

@@ -18,7 +18,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.Utils.PP
 
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -32,8 +32,8 @@ import Prelude.Compat
 type ReadEnv = EvalEnv
 
 data EvalEnv = EvalEnv
-  { envVars       :: Map.Map Name (Eval Value)
-  , envTypes      :: Map.Map TVar TValue
+  { envVars       :: !(Map.Map Name (Eval Value))
+  , envTypes      :: !(Map.Map TVar TValue)
   } deriving (Generic)
 
 instance NFData EvalEnv where rnf = genericRnf
@@ -66,17 +66,21 @@ emptyEnv  = mempty
 -- | Bind a variable in the evaluation environment.
 bindVar :: Name -> Eval Value -> EvalEnv -> Eval EvalEnv
 bindVar n val env = do
-  val' <- delay (Just (show (ppLocName n))) val
+  let nm = show $ ppLocName n
+  val' <- delay (Just nm) val
   return $ env { envVars = Map.insert n val' (envVars env) }
 
 -- | Lookup a variable in the environment.
+{-# INLINE lookupVar #-}
 lookupVar :: Name -> EvalEnv -> Maybe (Eval Value)
 lookupVar n env = Map.lookup n (envVars env)
 
 -- | Bind a type variable of kind *.
+{-# INLINE bindType #-}
 bindType :: TVar -> TValue -> EvalEnv -> EvalEnv
 bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
 
 -- | Lookup a type variable.
+{-# INLINE lookupType #-}
 lookupType :: TVar -> EvalEnv -> Maybe TValue
 lookupType p env = Map.lookup p (envTypes env)

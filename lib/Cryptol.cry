@@ -339,5 +339,5 @@ type lg2 n = width (max n 1 - 1)
  */
 primitive trace : {n, a, b} [n][8] -> a -> b -> b
 
-traceVal : {n, a, b} [n][8] -> a -> a
+traceVal : {n, a} [n][8] -> a -> a
 traceVal msg x = trace msg x x

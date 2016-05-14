@@ -20,7 +20,7 @@ module Cryptol.Eval.Value where
 
 import Data.IORef
 --import           Data.Map (Map)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 
 import MonadLib
 
@@ -141,6 +141,7 @@ splitSeqMap n xs = (hd,tl)
   hd = xs
   tl = SeqMap $ \i -> lookupSeqMap xs (i+n)
 
+{-# INLINE memoMap #-}
 memoMap :: SeqMap b w -> Eval (SeqMap b w)
 memoMap x = do
   r <- io $ newIORef Map.empty
@@ -172,14 +173,14 @@ mapSeqMap f x =
 
 -- | Generic value type, parameterized by bit and word types.
 data GenValue b w
-  = VRecord [(Ident, Eval (GenValue b w))] -- @ { .. } @
-  | VTuple [Eval (GenValue b w)]           -- @ ( .. ) @
-  | VBit b                                 -- @ Bit    @
-  | VSeq !Integer !Bool (SeqMap b w)       -- @ [n]a   @
+  = VRecord ![(Ident, Eval (GenValue b w))] -- @ { .. } @
+  | VTuple ![Eval (GenValue b w)]           -- @ ( .. ) @
+  | VBit !b                                -- @ Bit    @
+  | VSeq !Integer !Bool !(SeqMap b w)      -- @ [n]a   @
                                            -- The boolean parameter indicates whether or not
                                            -- this is a sequence of bits.
-  | VWord w                                -- @ [n]Bit @
-  | VStream (SeqMap b w)                   -- @ [inf]a @
+  | VWord !w                               -- @ [n]Bit @
+  | VStream !(SeqMap b w)                  -- @ [inf]a @
   | VFun (Eval (GenValue b w) -> Eval (GenValue b w)) -- functions
   | VPoly (TValue -> Eval (GenValue b w))  -- polymorphic values (kind *)
   deriving (Generic)
