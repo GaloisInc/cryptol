@@ -113,12 +113,15 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
 
   , ("infFrom"    , tlam $ \(finTValue -> bits)  ->
                     wlam $ \first ->
-                    toStream $ map (word bits) [ first .. ])
+                    return $ VStream $ SeqMap $ \i ->
+                       ready $ word bits (first+i))
 
   , ("infFromThen", tlam $ \(finTValue -> bits)  ->
                     wlam $ \first -> return $
-                    wlam $ \next  ->
-                    toStream [ word bits n | n <- [ first, next .. ] ])
+                    wlam $ \next  -> do
+                    let diff = next - first
+                    return $ VStream $ SeqMap $ \i ->
+                       ready $ word bits (first + diff*i))
 
   , ("error"      , tlam $ \_ ->
                     tlam $ \_ ->
@@ -634,7 +637,7 @@ ccatV front back elty l r = do
   l' <- delay Nothing (fromSeq =<< l)
   r' <- delay Nothing (fromSeq =<< r)
   let Nat n = numTValue front
-  mkSeq (evalTF TCAdd [front,back]) elty <$> memoMap (SeqMap $ \i ->
+  mkSeq (evalTF TCAdd [front,back]) elty <$> return (SeqMap $ \i ->
      if i < n then do
        ls <- l'
        lookupSeqMap ls i
@@ -847,12 +850,6 @@ indexPrimMany op =
        i' <- fromWord "index many" =<< lookupSeqMap ixs i
        op (fromNat (numTValue n)) vs i')
 
---indexFrontRange :: Maybe Integer -> [Value] -> [Integer] -> [Value]
---indexFrontRange mblen vs = map (indexFront mblen vs)
-
---indexBackRange :: Maybe Integer -> [Value] -> [Integer] -> [Value]
---indexBackRange mblen vs = map (indexBack mblen vs)
-
 -- @[ 0, 1 .. ]@
 fromThenV :: Value
 fromThenV  =
@@ -864,9 +861,9 @@ fromThenV  =
       (_         , _        , _       , Nat bits')
         | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
       (Nat first', Nat next', Nat len', Nat bits') ->
-        let nums = enumFromThen first' next'
-         in VSeq len' False $ SeqMap $ genericIndex $ genericTake len'
-              $ map (ready . VWord . BV bits') nums
+        let diff = next' - first'
+         in VSeq len' False $ SeqMap $ \i ->
+                ready $ VWord $ BV bits' $ (first' + i*diff)
       _ -> evalPanic "fromThenV" ["invalid arguments"]
 
 -- @[ 0 .. 10 ]@
@@ -879,12 +876,10 @@ fromToV  =
       (_         , _       , Nat bits')
         | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
       (Nat first', Nat lst', Nat bits') ->
-        let nums = enumFromThenTo first' (first' + 1) lst'
-            len  = 1 + (lst' - first')
-         in VSeq len False $ SeqMap $ genericIndex $ genericTake len
-              $ map (ready . VWord . BV bits') nums
-
-      _ -> evalPanic "fromThenV" ["invalid arguments"]
+        let len = 1 + (lst' - first')
+         in VSeq len False $ SeqMap $ \i ->
+               ready $ VWord $ BV bits' (first' + i)
+      _ -> evalPanic "fromToV" ["invalid arguments"]
 
 -- @[ 0, 1 .. 10 ]@
 fromThenToV :: Value
@@ -898,11 +893,10 @@ fromThenToV  =
       (_         , _        , _       , _       , Nat bits')
         | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
       (Nat first', Nat next', Nat lst', Nat len', Nat bits') ->
-        let nums = enumFromThenTo first' next' lst'
-         in VSeq len' False $ SeqMap $ genericIndex $ genericTake len' $
-            map (ready . VWord . BV bits') nums
-
-      _ -> evalPanic "fromThenV" ["invalid arguments"]
+        let diff = next' - first'
+         in VSeq len' False $ SeqMap $ \i ->
+               ready $ VWord $ BV bits' $ (first' + i*diff)
+      _ -> evalPanic "fromThenToV" ["invalid arguments"]
 
 -- Random Values ---------------------------------------------------------------
 
