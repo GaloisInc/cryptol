@@ -18,7 +18,6 @@ module Cryptol.Eval (
   , evalExpr
   , evalDecls
   , EvalError(..)
---  , WithBase(..)
   ) where
 
 import Cryptol.Eval.Env
@@ -110,7 +109,8 @@ evalExpr env expr = case expr of
                     panic "[Eval] evalExpr" ["not a function", show itdoc ]
 
   EAbs n _ty b ->
-    return $ VFun (\val -> bindVar n val env >>= \env' -> evalExpr env' b )
+    return $ VFun (\v -> do env' <- bindVar n v env
+                            evalExpr env' b)
 
   -- XXX these will likely change once there is an evidence value
   EProofAbs _ e -> evalExpr env e
@@ -144,25 +144,28 @@ evalNewtype nt = bindVar (ntName nt) (return (foldr tabs con (ntParams nt)))
 -- Declarations ----------------------------------------------------------------
 
 evalDecls :: [DeclGroup] -> EvalEnv -> Eval EvalEnv
-evalDecls dgs env = foldM (flip evalDeclGroup) env dgs
+evalDecls dgs env = foldM evalDeclGroup env dgs
 
-evalDeclGroup :: DeclGroup -> EvalEnv -> Eval EvalEnv
-evalDeclGroup dg env = do
-  --io $ putStrLn $ "evalDeclGroup"
+evalDeclGroup :: EvalEnv -> DeclGroup -> Eval EvalEnv
+evalDeclGroup env dg = do
   case dg of
-    Recursive ds   -> do
-      --io $ putStrLn "recursive decl group"
+    Recursive ds -> do
+      -- declare a "hole" for each declaration
       holes <- mapM declHole ds
       let holeEnv = Map.fromList $ [ (nm,h) | (nm,h,_) <- holes ]
       let env' = env `mappend` emptyEnv{ envVars = holeEnv }
-      --io $ putStrLn "evaluating defns"
-      env'' <- foldM (flip (evalDecl env')) env ds
+
+      -- evaluate the declaration bodies
+      env'' <- foldM (evalDecl env') env ds
+
+      -- now backfill the holes we declared earlier
       mapM_ (fillHole env'') holes
-      --io $ putStrLn $ "Finish recursive decl group"
+
+      -- return the map containing the holes
       return env'
 
     NonRecursive d -> do
-      evalDecl env d env
+      evalDecl env env d
 
 fillHole :: EvalEnv -> (Name, Eval Value, Eval Value -> Eval ()) -> Eval ()
 fillHole env (nm, _, fill) = do
@@ -173,21 +176,22 @@ fillHole env (nm, _, fill) = do
 declHole :: Decl -> Eval (Name, Eval Value, Eval Value -> Eval ())
 declHole d =
   case dDefinition d of
-    DPrim   -> evalPanic "Unexpected primitive declaration in recursive group" [show (ppLocName nm)]
+    DPrim   -> evalPanic "Unexpected primitive declaration in recursive group"
+                         [show (ppLocName nm)]
     DExpr e -> do
       (hole, fill) <- blackhole msg
       return (nm, hole, fill)
  where
  nm = dName d
  msg = unwords ["<<loop>> while evaluating", show (pp nm)]
-  
 
-evalDecl :: ReadEnv -> Decl -> EvalEnv -> Eval EvalEnv
-evalDecl renv d =
-  bindVar (dName d) $
-    case dDefinition d of
-      DPrim   -> return $ evalPrim d
-      DExpr e -> evalExpr renv e
+
+evalDecl :: ReadEnv -> EvalEnv -> Decl -> Eval EvalEnv
+evalDecl renv env d = bindVar (dName d) f env
+ where
+ f = case dDefinition d of
+       DPrim   -> return $ evalPrim d
+       DExpr e -> evalExpr renv e
 
 
 -- Selectors -------------------------------------------------------------------
@@ -237,7 +241,9 @@ evalSel val sel = case sel of
 -- comprehension.
 data ListEnv = ListEnv
   { leVars   :: !(Map.Map Name (Integer -> Eval Value))
+      -- ^ Bindings whose values vary by position
   , leStatic :: !(Map.Map Name (Eval Value))
+      -- ^ Bindings whose values are constant
   , leTypes  :: !(Map.Map TVar TValue)
   }
 
@@ -262,14 +268,15 @@ toListEnv e =
   , leTypes  = envTypes e
   }
 
--- | Take parallel slices of the list environment. If some names are
--- bound to longer lists of values (e.g. if they come from a different
--- parallel branch of a comprehension) then the last elements will be
--- dropped as the lists are zipped together.
-zipListEnv :: ListEnv -> Integer -> EvalEnv
-zipListEnv (ListEnv vm st tm) i =
+-- | Evaluate a list environment at a position.
+--   This choses a particular value for the varying
+--   locations.
+evalListEnv :: ListEnv -> Integer -> EvalEnv
+evalListEnv (ListEnv vm st tm) i =
     let v = fmap ($i) vm
-     in v `seq` EvalEnv{ envVars = Map.union v st, envTypes = tm }
+     in EvalEnv{ envVars = Map.union v st
+               , envTypes = tm
+               }
 
 bindVarList :: Name -> (Integer -> Eval Value) -> ListEnv -> ListEnv
 bindVarList n vs lenv = lenv { leVars = Map.insert n vs (leVars lenv) }
@@ -281,7 +288,7 @@ evalComp :: ReadEnv -> TValue -> TValue -> Expr -> [[Match]] -> Eval Value
 evalComp env len elty body ms =
        do lenv <- mconcat <$> mapM (branchEnvs (toListEnv env)) ms
           seq <- memoMap $ SeqMap $ \i -> do
-              evalExpr (zipListEnv lenv i) body
+              evalExpr (evalListEnv lenv i) body
           return $ mkSeq len elty $ seq
 
 -- | Turn a list of matches into the final environments for each iteration of
@@ -297,7 +304,7 @@ evalMatch lenv m = case m of
   From n l ty expr ->
     case numTValue len of
       Nat nLen -> do
-        vss <- memoMap $ SeqMap $ \i -> evalExpr (zipListEnv lenv i) expr
+        vss <- memoMap $ SeqMap $ \i -> evalExpr (evalListEnv lenv i) expr
         let stutter xs = \i -> xs (i `div` nLen)
         let lenv' = lenv { leVars = fmap stutter (leVars lenv) }
         let vs i = do let (q, r) = i `divMod` nLen
@@ -323,7 +330,7 @@ evalMatch lenv m = case m of
   -- XXX we don't currently evaluate these as though they could be recursive, as
   -- they are typechecked that way; the read environment to evalExpr is the same
   -- as the environment to bind a new name in.
-  Let d -> return $ bindVarList (dName d) (\i -> f (zipListEnv lenv i)) lenv
+  Let d -> return $ bindVarList (dName d) (\i -> f (evalListEnv lenv i)) lenv
     where
       f env =
           case dDefinition d of
