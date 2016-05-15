@@ -155,7 +155,7 @@ memoMap x = do
         --io $ putStrLn $ unwords ["Forcing memo map location", show i]
         io $ writeIORef r (Map.insert i Nothing m)
         v <- lookupSeqMap x i
-        io $ writeIORef r (Map.insert i (Just v) m)
+        io $ modifyIORef r (Map.insert i (Just v))
         return v
 
 
