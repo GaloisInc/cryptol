@@ -23,11 +23,12 @@ module Cryptol.TypeCheck.Subst
   , apSubstMaybe
   , TVars(..)
   , apSubstTypeMapKeys
-  , filterSubst
   , substVars
   , substBinds
+  , applySubstToVar
   ) where
 
+import           Data.Maybe
 import           Data.Either (partitionEithers)
 import qualified Data.Foldable as Fold
 import qualified Data.Map.Strict as Map
@@ -64,22 +65,11 @@ s2 @@ s1 = S { suMap = suMap s2 Seq.>< suMap s1
              , suDefaulting = suDefaulting s1 || suDefaulting s2
              }
 
---Map.map (apSubst s2) (suMap s1) `Map.union` suMap s2
-
-flattenSubst :: Subst -> Map.Map TVar Type
-flattenSubst su = foldr combine Map.empty $ Fold.toList $ suMap su
+flattenMaps :: Subst -> Map.Map TVar Type
+flattenMaps su = foldr combine Map.empty $ Fold.toList $ suMap su
  where
  mapsub m = su{ suMap = Seq.singleton m }
- combine :: Map.Map TVar Type
-         -> Map.Map TVar Type
-         -> Map.Map TVar Type
  combine m2 m1 = (Map.map (apSubst (mapsub m2)) m1) `Map.union` m2
-
-filterSubst :: Set TVar -> Subst -> Subst
-filterSubst used su = su1
- where
-  m1    = fmap (Map.filterWithKey (\k _ -> k `Set.member` used)) (suMap su)
-  su1   = S { suMap = m1, suDefaulting = suDefaulting su }
 
 substVars :: Subst -> Set TVar
 substVars su = Set.unions $ map (fvs . Map.elems) $ Fold.toList $ suMap su
@@ -91,28 +81,25 @@ defaultingSubst s = s { suDefaulting = True }
 -- WARNING: We do not validate the list in any way, so the caller should
 -- ensure that we end up with a valid (e.g., idempotent) substitution.
 listSubst :: [(TVar,Type)] -> Subst
-listSubst xs = S { suMap = Seq.singleton (Map.fromList xs), suDefaulting = False }
+listSubst xs
+  | null xs   = emptySubst
+  | otherwise = S { suMap = Seq.singleton (Map.fromList xs), suDefaulting = False }
 
 isEmptySubst :: Subst -> Bool
-isEmptySubst su = Set.null $ substVars su
-
--- Returns `Nothing` if this is a deaulting substitution
---substToList :: Subst -> Maybe [ (TVar, Type) ]
---substToList su | suDefaulting su = Nothing
---               | otherwise       = Just $ Map.toList $ suMap su
+isEmptySubst su = all Map.null $ Fold.toList $ suMap su
 
 -- Returns the empty set if this is a deaulting substitution
 substBinds :: Subst -> Set TVar
 substBinds su
   | suDefaulting su = Set.empty
-  | otherwise       = substVars su
+  | otherwise       = Set.unions $ map Map.keysSet $ Fold.toList $ suMap su
 
 instance PP (WithNames Subst) where
   ppPrec _ (WithNames s mp)
     | null els  = text "(empty substitution)"
     | otherwise = text "Substitution:" $$ nest 2 (vcat (map pp1 els))
     where pp1 (x,t) = ppWithNames mp x <+> text "=" <+> ppWithNames mp t
-          els       = Map.toList (flattenSubst s)
+          els       = Map.toList (flattenMaps s)
 
 instance PP Subst where
   ppPrec n = ppWithNamesPrec IntMap.empty n
@@ -132,6 +119,10 @@ instance FVS Type where
         TVar x      -> Set.singleton x
         TUser _ _ t -> go t
         TRec fs     -> Set.unions (map (go . snd) fs)
+
+instance FVS a => FVS (Maybe a) where
+  fvs Nothing  = Set.empty
+  fvs (Just x) = fvs x
 
 instance FVS a => FVS [a] where
   fvs xs    = Set.unions (map fvs xs)
@@ -155,24 +146,21 @@ apSubstMaybe su ty =
     TRec fs       -> TRec `fmap` anyJust fld fs
       where fld (x,t) = do t1 <- apSubstMaybe su t
                            return (x,t1)
-    TVar x ->
-      case applySubstToVar (suMap su) (suDefaulting su) x of
-        Just t -> Just $ if suDefaulting su
-                            then apSubst (defaultingSubst emptySubst) t
-                            else t
-        Nothing -> if suDefaulting su
-                    then Just (defaultFreeVar x)
-                    else Nothing
+    TVar x -> applySubstToVar su x
 
 
-applySubstToVar :: Seq.Seq (Map.Map TVar Type) -> Bool -> TVar -> Maybe Type
-applySubstToVar maps def x =
+applySubstToVar :: Subst -> TVar -> Maybe Type
+applySubstToVar su = go (suMap su) (suDefaulting su)
+ where
+ go maps defaulting x =
   case Seq.viewr maps of
     maps' Seq.:> m ->
       case Map.lookup x m of
-        Just t -> Just (apSubst (S maps' def) t)
-        Nothing -> applySubstToVar maps' def x
-    Seq.EmptyR -> Nothing
+        Just t  -> Just $! apSubst (S maps' defaulting) t
+        Nothing -> go maps' defaulting x
+    Seq.EmptyR
+      | defaulting -> Just $! defaultFreeVar x
+      | otherwise  -> Nothing
 
 class TVars t where
   apSubst :: Subst -> t -> t      -- ^ replaces free vars
@@ -192,13 +180,7 @@ instance TVars Type where
       TCon t ts     -> TCon t (apSubst su ts)
       TUser f ts t  -> TUser f (apSubst su ts) (apSubst su t)
       TRec fs       -> TRec [ (x,apSubst su s) | (x,s) <- fs ]
-      TVar x
-        | Just t    <- applySubstToVar (suMap su) (suDefaulting su) x ->
-                       if suDefaulting su
-                          then apSubst (defaultingSubst emptySubst) t
-                          else t
-        | suDefaulting su -> defaultFreeVar x
-        | otherwise -> ty
+      TVar x        -> fromMaybe ty $ applySubstToVar su x
 
 -- | Pick types for unconstrained unification variables.
 defaultFreeVar :: TVar -> Type
@@ -236,7 +218,7 @@ apSubstTypeMapKeys su = go (\_ x -> x) id
 
     -- partition out variables that have been replaced with more specific types
     (vars,tys) = partitionEithers
-                 [ case applySubstToVar (suMap su) (suDefaulting su) v of
+                 [ case applySubstToVar su v of
                      Just ty -> Right (ty,a')
                      Nothing -> Left  (v, a')
 
@@ -260,20 +242,24 @@ capture did occur. -}
 
 instance TVars Schema where
   apSubst su sch@(Forall xs ps t)
-    | Set.null captured = Forall xs (apSubst su1 ps) (apSubst su1 t)
+    | Set.null captured = Forall xs (apSubst su ps) (apSubst su t)
     | otherwise = panic "Cryptol.TypeCheck.Subst.apSubst (Schema)"
                     [ "Captured quantified variables:"
-                    , "Substitution: " ++ show (brackets (commaSep (map ppBinding su1_binds)))
+                    , "Substitution: " ++ show (brackets (commaSep (map ppBinding su_binds)))
                     , "Schema:       " ++ show (pp sch)
                     , "Variables:    " ++ show (commaSep (map pp (Set.toList captured)))
                     ]
     where
     ppBinding (v,x) = pp v <+> text ":=" <+> pp x
+    captured = Set.fromList (map tpVar xs)
+               `Set.intersection`
+               subVars
+    su_binds = Map.toList $ flattenMaps su
     used = fvs sch
-    su1  = filterSubst used su
-    su1_binds = Map.toList $ flattenSubst su1
-    captured = Set.fromList (map tpVar xs) `Set.intersection`
-                  (substBinds su1)
+    subVars = Set.unions
+                $ map (fvs . applySubstToVar su)
+                $ Set.toList used
+
 
 instance TVars Expr where
   apSubst su = go
