@@ -24,9 +24,9 @@ import           Cryptol.TypeCheck.PP(pp)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Subst
-                    (apSubst,fvs,singleSubst,substToList, isEmptySubst,
+                    (apSubst,fvs,singleSubst, isEmptySubst,
                           emptySubst,Subst,listSubst, (@@), Subst,
-                           apSubstMaybe)
+                           apSubstMaybe, substBinds)
 import           Cryptol.TypeCheck.Solver.Class
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
@@ -452,7 +452,7 @@ improveByDefaultingWith s as ps =
                      ]
 
                newSu = su1 @@ su     -- XXX: is that right?
-               names = Set.fromList $ map fst $ fromMaybe [] $ substToList newSu
+               names = substBinds newSu
 
             in return ( [ a | a <- as, not (a `Set.member` names) ]
                       , gs1

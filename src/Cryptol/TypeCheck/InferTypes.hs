@@ -330,7 +330,7 @@ instance TVars DelayedCt where
                  }
     | otherwise = panic "Cryptol.TypeCheck.Subst.apSubst (DelayedCt)"
                     [ "Captured quantified variables:"
-                    , "Substitution: " ++ show m1
+                    , "Substitution: " ++ show su1
                     , "Variables:    " ++ show captured
                     , "Constraint:   " ++ show g
                     ]
@@ -338,13 +338,10 @@ instance TVars DelayedCt where
     where
     used  = fvs (dctAsmps g, map goal (dctGoals g)) `Set.difference`
                                           Set.fromList (map tpVar (dctForall g))
-    m1    = Map.filterWithKey (\k _ -> k `Set.member` used) (suMap su)
-    su1   = S { suMap = m1, suDefaulting = suDefaulting su }
+    su1   = filterSubst used su
 
     captured = Set.fromList (map tpVar (dctForall g)) `Set.intersection`
-                                                          fvs (Map.elems m1)
-
-
+                                                          substVars su1
 
 -- | For use in error messages
 cppKind :: Kind -> Doc
