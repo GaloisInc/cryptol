@@ -75,7 +75,7 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("&&"         , binary (logicBinary (.&.) (binBV (.&.))))
   , ("||"         , binary (logicBinary (.|.) (binBV (.|.))))
   , ("^"          , binary (logicBinary xor (binBV xor)))
-  , ("complement" , unary  (logicUnary complement))
+  , ("complement" , unary  (logicUnary complement (unaryBV complement)))
   , ("<<"         , logicShift shiftLW shiftLS)
   , (">>"         , logicShift shiftRW shiftRS)
   , ("<<<"        , logicShift rotateLW rotateLS)
@@ -731,23 +731,27 @@ logicBinary opb opw  = loop
     | otherwise = evalPanic "logicBinary" ["invalid logic type"]
 
 
-logicUnary :: (forall a. Bits a => a -> a) -> Unary Bool BV
-logicUnary op = loop
+logicUnary :: forall b w
+            . BitWord b w
+           => (b -> b)
+           -> (w -> w)
+           -> Unary b w
+logicUnary opb opw = loop
   where
-  loop' :: TValue -> Eval Value -> Eval Value
+  loop' :: TValue -> Eval (GenValue b w) -> Eval (GenValue b w)
   loop' ty val = loop ty =<< val
 
-  loop :: TValue -> Value -> Eval Value
+  loop :: TValue -> GenValue b w -> Eval (GenValue b w)
   loop ty val
-    | isTBit ty = return . VBit . op $ fromVBit val
+    | isTBit ty = return . VBit . opb $ fromVBit val
 
     | Just (len,ety) <- isTSeq ty =
 
       case numTValue len of
 
          -- words or finite sequences
-         Nat w | isTBit ety, VWord (BV _ v) <- val
-              -> return $ VWord (mkBv w $ op v)
+         Nat w | isTBit ety, VWord v <- val
+              -> return $ VWord $ opw v
 
          -- Nat w | isTBit ety
          --      -> do v <- fromWord "logicUnary" val

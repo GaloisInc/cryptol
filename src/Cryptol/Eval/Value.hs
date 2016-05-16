@@ -101,15 +101,14 @@ instance Show BV where
   show = show . bvVal
 
 -- | Apply an integer function to the values of bitvectors.
---   This function assumes both bitvectors are the same width,
---   and the result of the function will not require masking.
+--   This function assumes both bitvectors are the same width.
 binBV :: (Integer -> Integer -> Integer) -> BV -> BV -> BV
-binBV f (BV w x) (BV _ y) = BV w (f x y)
+binBV f (BV w x) (BV _ y) = mkBv w (f x y)
 
 -- | Apply an integer function to the values of a bitvector.
 --   This function assumes the function will not require masking.
 unaryBV :: (Integer -> Integer) -> BV -> BV
-unaryBV f (BV w x) = BV w $ f x
+unaryBV f (BV w x) = mkBv w $ f x
 
 bvVal :: BV -> Integer
 bvVal (BV _w x) = x
