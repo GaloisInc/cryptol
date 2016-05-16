@@ -72,9 +72,9 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , (">="         , binary (cmpOrder ">=" (\o -> o == GT || o == EQ)))
   , ("=="         , binary (cmpOrder "==" (\o ->            o == EQ)))
   , ("!="         , binary (cmpOrder "!=" (\o ->            o /= EQ)))
-  , ("&&"         , binary (logicBinary (.&.)))
-  , ("||"         , binary (logicBinary (.|.)))
-  , ("^"          , binary (logicBinary xor))
+  , ("&&"         , binary (logicBinary (.&.) (binBV (.&.))))
+  , ("||"         , binary (logicBinary (.|.) (binBV (.|.))))
+  , ("^"          , binary (logicBinary xor (binBV xor)))
   , ("complement" , unary  (logicUnary complement))
   , ("<<"         , logicShift shiftLW shiftLS)
   , (">>"         , logicShift shiftRW shiftRS)
@@ -672,22 +672,33 @@ ccatV front back elty l r = do
        lookupSeqMap rs (i-n))
 
 -- | Merge two values given a binop.  This is used for and, or and xor.
-logicBinary :: (forall a. Bits a => a -> a -> a) -> Binary Bool BV
-logicBinary op = loop
+logicBinary :: forall b w
+             . BitWord b w
+            => (b -> b -> b)
+            -> (w -> w -> w)
+            -> Binary b w
+logicBinary opb opw  = loop
   where
-  loop' :: TValue -> Eval Value -> Eval Value -> Eval Value
+  loop' :: TValue
+        -> Eval (GenValue b w)
+        -> Eval (GenValue b w)
+        -> Eval (GenValue b w)
   loop' ty l r = join (loop ty <$> l <*> r)
 
-  loop :: TValue -> Value -> Value -> Eval Value
+  loop :: TValue
+        -> GenValue b w
+        -> GenValue b w
+        -> Eval (GenValue b w)
+
   loop ty l r
-    | isTBit ty = return $ VBit (op (fromVBit l) (fromVBit r))
+    | isTBit ty = return $ VBit (opb (fromVBit l) (fromVBit r))
     | Just (len,aty) <- isTSeq ty =
 
       case numTValue len of
 
          -- words or finite sequences
-         Nat w | isTBit aty, VWord (BV _ lw) <- l, VWord (BV _ rw) <- r
-              -> return $ VWord $ (BV w (op lw rw))
+         Nat w | isTBit aty, VWord lw <- l, VWord rw <- r
+              -> return $ VWord $ opw lw rw
                    -- We assume that bitwise ops do not need re-masking
 
          -- Nat w | isTBit aty -> do
@@ -718,6 +729,7 @@ logicBinary op = loop
                          ]
 
     | otherwise = evalPanic "logicBinary" ["invalid logic type"]
+
 
 logicUnary :: (forall a. Bits a => a -> a) -> Unary Bool BV
 logicUnary op = loop
