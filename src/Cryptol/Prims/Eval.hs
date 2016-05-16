@@ -473,17 +473,20 @@ funCmp op =
 
 -- Logic -----------------------------------------------------------------------
 
-zeroV :: TValue -> Value
+zeroV :: forall b w
+       . BitWord b w
+      => TValue
+      -> GenValue b w
 zeroV ty
 
   -- bits
   | isTBit ty =
-    VBit False
+    VBit (bitLit False)
 
   -- sequences
   | Just (n,ety) <- isTSeq ty =
     case numTValue n of
-      Nat w | isTBit ety -> word w 0
+      Nat w | isTBit ety -> VWord $ wordLit w 0
             | otherwise  -> mkSeq n ety (SeqMap $ \_ -> ready $ zeroV ety)
       Inf                -> mkSeq n ety (SeqMap $ \_ -> ready $ zeroV ety)
 
