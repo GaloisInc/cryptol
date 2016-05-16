@@ -32,7 +32,6 @@ import           Data.Maybe
 import           Data.Either (partitionEithers)
 import qualified Data.Foldable as Fold
 import qualified Data.Map.Strict as Map
-import qualified Data.Sequence as Seq
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
 import qualified Data.Set as Set
@@ -43,36 +42,29 @@ import Cryptol.TypeCheck.TypeMap
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Misc(anyJust)
 
-data Subst = S { suMap :: !(Seq.Seq (Map.Map TVar Type))
+data Subst = S { suMap :: !(Map.Map TVar Type)
                , suDefaulting :: !Bool
                }
                   deriving Show
 
 emptySubst :: Subst
-emptySubst = S { suMap = Seq.empty, suDefaulting = False }
+emptySubst = S { suMap = Map.empty, suDefaulting = False }
 
 singleSubst :: TVar -> Type -> Subst
-singleSubst x t = S { suMap = Seq.singleton (Map.singleton x t), suDefaulting = False }
+singleSubst x t = S { suMap = Map.singleton x t, suDefaulting = False }
 
 (@@) :: Subst -> Subst -> Subst
-s2 @@ s1 | Seq.null (suMap s2) =
+s2 @@ s1 | Map.null (suMap s2) =
   if (suDefaulting s1 || not (suDefaulting s2)) then
     s1
   else
     s1{ suDefaulting = True }
-
-s2 @@ s1 = S { suMap = suMap s2 Seq.>< suMap s1
+s2 @@ s1 = S { suMap = Map.map (apSubst s2) (suMap s1) `Map.union` (suMap s2)
              , suDefaulting = suDefaulting s1 || suDefaulting s2
              }
 
-flattenMaps :: Subst -> Map.Map TVar Type
-flattenMaps su = foldr combine Map.empty $ Fold.toList $ suMap su
- where
- mapsub m = su{ suMap = Seq.singleton m }
- combine m2 m1 = (Map.map (apSubst (mapsub m2)) m1) `Map.union` m2
-
 substVars :: Subst -> Set TVar
-substVars su = Set.unions $ map (fvs . Map.elems) $ Fold.toList $ suMap su
+substVars su = fvs . Map.elems $ suMap su
 
 defaultingSubst :: Subst -> Subst
 defaultingSubst s = s { suDefaulting = True }
@@ -83,23 +75,23 @@ defaultingSubst s = s { suDefaulting = True }
 listSubst :: [(TVar,Type)] -> Subst
 listSubst xs
   | null xs   = emptySubst
-  | otherwise = S { suMap = Seq.singleton (Map.fromList xs), suDefaulting = False }
+  | otherwise = S { suMap = Map.fromList xs, suDefaulting = False }
 
 isEmptySubst :: Subst -> Bool
-isEmptySubst su = all Map.null $ Fold.toList $ suMap su
+isEmptySubst su = Map.null $ suMap su
 
 -- Returns the empty set if this is a deaulting substitution
 substBinds :: Subst -> Set TVar
 substBinds su
   | suDefaulting su = Set.empty
-  | otherwise       = Set.unions $ map Map.keysSet $ Fold.toList $ suMap su
+  | otherwise       = Map.keysSet $ suMap su
 
 instance PP (WithNames Subst) where
   ppPrec _ (WithNames s mp)
     | null els  = text "(empty substitution)"
     | otherwise = text "Substitution:" $$ nest 2 (vcat (map pp1 els))
     where pp1 (x,t) = ppWithNames mp x <+> text "=" <+> ppWithNames mp t
-          els       = Map.toList (flattenMaps s)
+          els       = Map.toList (suMap s)
 
 instance PP Subst where
   ppPrec n = ppWithNamesPrec IntMap.empty n
@@ -150,17 +142,12 @@ apSubstMaybe su ty =
 
 
 applySubstToVar :: Subst -> TVar -> Maybe Type
-applySubstToVar su = go (suMap su) (suDefaulting su)
- where
- go maps defaulting x =
-  case Seq.viewr maps of
-    maps' Seq.:> m ->
-      case Map.lookup x m of
-        Just t  -> Just $! apSubst (S maps' defaulting) t
-        Nothing -> go maps' defaulting x
-    Seq.EmptyR
-      | defaulting -> Just $! defaultFreeVar x
-      | otherwise  -> Nothing
+applySubstToVar su x =
+  case Map.lookup x (suMap su) of
+    Just t  -> Just t
+    Nothing
+      | suDefaulting su -> Just $! defaultFreeVar x
+      | otherwise       -> Nothing
 
 class TVars t where
   apSubst :: Subst -> t -> t      -- ^ replaces free vars
@@ -254,7 +241,7 @@ instance TVars Schema where
     captured = Set.fromList (map tpVar xs)
                `Set.intersection`
                subVars
-    su_binds = Map.toList $ flattenMaps su
+    su_binds = Map.toList $ suMap su
     used = fvs sch
     subVars = Set.unions
                 $ map (fvs . applySubstToVar su)
