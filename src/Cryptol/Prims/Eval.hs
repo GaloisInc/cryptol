@@ -64,8 +64,8 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("/"          , binary (arithBinary (liftBinArith divWrap)))
   , ("%"          , binary (arithBinary (liftBinArith modWrap)))
   , ("^^"         , binary (arithBinary modExp))
-  , ("lg2"        , unary  (arithUnary lg2))
-  , ("negate"     , unary  (arithUnary negate))
+  , ("lg2"        , unary  (arithUnary (liftUnaryArith lg2)))
+  , ("negate"     , unary  (arithUnary (liftUnaryArith negate)))
   , ("<"          , binary (cmpOrder "<"  (\o -> o == LT           )))
   , (">"          , binary (cmpOrder ">"  (\o -> o == GT           )))
   , ("<="         , binary (cmpOrder "<=" (\o -> o == LT || o == EQ)))
@@ -266,10 +266,9 @@ binary f = tlam $ \ ty ->
                --io $ putStrLn "Entering a binary function"
                join (f ty <$> a <*> b)
 
-type GenUnary b w = TValue -> GenValue b w -> Eval (GenValue b w)
-type Unary = GenUnary Bool BV
+type Unary b w = TValue -> GenValue b w -> Eval (GenValue b w)
 
-unary :: GenUnary b w -> GenValue b w
+unary :: Unary b w -> GenValue b w
 unary f = tlam $ \ ty ->
            lam $ \ a  -> f ty =<< a
 
@@ -333,21 +332,29 @@ arithBinary op = loop
                                  , show ldoc, show rdoc]
 
 
-arithUnary :: (Integer -> Integer) -> Unary
+type UnaryArith w = Integer -> w -> w
+
+liftUnaryArith :: (Integer -> Integer) -> UnaryArith BV
+liftUnaryArith op w (BV _ x) = mkBv w $ op x
+
+arithUnary :: forall b w
+            . BitWord b w
+           => UnaryArith w
+           -> Unary b w
 arithUnary op = loop
   where
-  loop' :: TValue -> Eval Value -> Eval Value
+  loop' :: TValue -> Eval (GenValue b w) -> Eval (GenValue b w)
   loop' ty x = loop ty =<< x
 
-  loop :: TValue -> Value -> Eval Value
+  loop :: TValue -> GenValue b w -> Eval (GenValue b w)
   loop ty x
 
     | Just (len,a) <- isTSeq ty = case numTValue len of
 
       -- words and finite sequences
       Nat w | isTBit a -> do
-                   BV _ wx <- fromVWord "arithUnary" x
-                   return $ VWord $ mkBv w $ op wx
+                   wx <- fromVWord "arithUnary" x
+                   return $ VWord $ op w wx
             | otherwise -> VSeq w (isTBit a) <$> (mapSeqMap (loop a) =<< fromSeq x)
 
       Inf -> VStream <$> (mapSeqMap (loop a) =<< fromSeq x)
@@ -366,6 +373,7 @@ arithUnary op = loop
       return $ VRecord [ (f, loop' fty (lookupRecord f x)) | (f,fty) <- fs ]
 
     | otherwise = evalPanic "arithUnary" ["Invalid arguments"]
+
 
 lg2 :: Integer -> Integer
 lg2 i = case genLog i 2 of
@@ -711,7 +719,7 @@ logicBinary op = loop
 
     | otherwise = evalPanic "logicBinary" ["invalid logic type"]
 
-logicUnary :: (forall a. Bits a => a -> a) -> Unary
+logicUnary :: (forall a. Bits a => a -> a) -> Unary Bool BV
 logicUnary op = loop
   where
   loop' :: TValue -> Eval Value -> Eval Value
