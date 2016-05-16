@@ -8,12 +8,14 @@
 
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE PatternGuards #-}
 
 module Cryptol.Eval (
     moduleEnv
-  , EvalEnv()
+  , EvalEnv
   , emptyEnv
   , evalExpr
   , evalDecls
@@ -23,14 +25,14 @@ module Cryptol.Eval (
 import Cryptol.Eval.Env
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
-import Cryptol.Eval.Value hiding (evalPrim)
+import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
-import Cryptol.Prims.Eval
+--import Cryptol.Prims.Eval
 
 import           Control.Monad
 import           Control.Monad.Fix
@@ -46,10 +48,16 @@ type ReadEnv = EvalEnv
 
 -- Expression Evaluation -------------------------------------------------------
 
-moduleEnv :: Module -> EvalEnv -> Eval EvalEnv
+moduleEnv :: EvalPrims b w
+          => Module
+          -> GenEvalEnv b w
+          -> Eval (GenEvalEnv b w)
 moduleEnv m env = evalDecls (mDecls m) =<< evalNewtypes (mNewtypes m) env
 
-evalExpr :: EvalEnv -> Expr -> Eval Value
+evalExpr :: EvalPrims b w
+         => GenEvalEnv b w
+         -> Expr
+         -> Eval (GenValue b w)
 evalExpr env expr = case expr of
 
   EList es ty ->
@@ -73,10 +81,7 @@ evalExpr env expr = case expr of
 
   EIf c t f -> do
      b <- fromVBit <$> eval c
-     if b then
-       eval t
-     else
-       eval f
+     iteValue b (eval t) (eval f)
 
   EComp n t h gs -> do
       let len  = evalType env n
@@ -133,11 +138,17 @@ evalExpr env expr = case expr of
 
 -- Newtypes --------------------------------------------------------------------
 
-evalNewtypes :: Map.Map Name Newtype -> EvalEnv -> Eval EvalEnv
+evalNewtypes :: EvalPrims b w
+             => Map.Map Name Newtype
+             -> GenEvalEnv b w
+             -> Eval (GenEvalEnv b w)
 evalNewtypes nts env = foldM (flip evalNewtype) env $ Map.elems nts
 
 -- | Introduce the constructor function for a newtype.
-evalNewtype :: Newtype -> EvalEnv -> Eval EvalEnv
+evalNewtype :: EvalPrims b w
+            => Newtype
+            -> GenEvalEnv b w
+            -> Eval (GenEvalEnv b w)
 evalNewtype nt = bindVar (ntName nt) (return (foldr tabs con (ntParams nt)))
   where
   tabs _tp body = tlam (\ _ -> body)
@@ -146,10 +157,16 @@ evalNewtype nt = bindVar (ntName nt) (return (foldr tabs con (ntParams nt)))
 
 -- Declarations ----------------------------------------------------------------
 
-evalDecls :: [DeclGroup] -> EvalEnv -> Eval EvalEnv
+evalDecls :: EvalPrims b w
+          => [DeclGroup]
+          -> GenEvalEnv b w
+          -> Eval (GenEvalEnv b w)
 evalDecls dgs env = foldM evalDeclGroup env dgs
 
-evalDeclGroup :: EvalEnv -> DeclGroup -> Eval EvalEnv
+evalDeclGroup :: EvalPrims b w
+              => GenEvalEnv b w
+              -> DeclGroup
+              -> Eval (GenEvalEnv b w)
 evalDeclGroup env dg = do
   case dg of
     Recursive ds -> do
@@ -170,13 +187,16 @@ evalDeclGroup env dg = do
     NonRecursive d -> do
       evalDecl env env d
 
-fillHole :: EvalEnv -> (Name, Eval Value, Eval Value -> Eval ()) -> Eval ()
+fillHole :: GenEvalEnv b w
+         -> (Name, Eval (GenValue b w), Eval (GenValue b w) -> Eval ())
+         -> Eval ()
 fillHole env (nm, _, fill) = do
   case lookupVar nm env of
     Nothing -> evalPanic "fillHole" ["Recursive definition not completed", show (ppLocName nm)]
     Just x  -> fill =<< delay (Just (show (ppLocName nm))) x
 
-declHole :: Decl -> Eval (Name, Eval Value, Eval Value -> Eval ())
+declHole :: Decl
+         -> Eval (Name, Eval (GenValue b w), Eval (GenValue b w) -> Eval ())
 declHole d =
   case dDefinition d of
     DPrim   -> evalPanic "Unexpected primitive declaration in recursive group"
@@ -189,7 +209,11 @@ declHole d =
  msg = unwords ["<<loop>> while evaluating", show (pp nm)]
 
 
-evalDecl :: ReadEnv -> EvalEnv -> Decl -> Eval EvalEnv
+evalDecl :: EvalPrims b w
+         => GenEvalEnv b w
+         -> GenEvalEnv b w
+         -> Decl
+         -> Eval (GenEvalEnv b w)
 evalDecl renv env d = bindVar (dName d) f env
  where
  f = case dDefinition d of
@@ -199,7 +223,11 @@ evalDecl renv env d = bindVar (dName d) f env
 
 -- Selectors -------------------------------------------------------------------
 
-evalSel :: Value -> Selector -> Eval Value
+evalSel :: forall b w
+         . EvalPrims b w
+        => GenValue b w
+        -> Selector
+        -> Eval (GenValue b w)
 evalSel val sel = case sel of
 
   TupleSel n _  -> tupleSel n val
@@ -209,7 +237,6 @@ evalSel val sel = case sel of
 
   where
 
-  tupleSel :: Int -> Value -> Eval Value
   tupleSel n v =
     case v of
       VTuple vs       -> vs !! n
@@ -221,7 +248,6 @@ evalSel val sel = case sel of
                              [ "Unexpected value in tuple selection"
                              , show vdoc ]
 
-  recordSel :: Ident -> Value -> Eval Value
   recordSel n v =
     case v of
       VRecord {}      -> lookupRecord n v
@@ -242,15 +268,15 @@ evalSel val sel = case sel of
 -- | Evaluation environments for list comprehensions: Each variable
 -- name is bound to a list of values, one for each element in the list
 -- comprehension.
-data ListEnv = ListEnv
-  { leVars   :: !(Map.Map Name (Integer -> Eval Value))
+data ListEnv b w = ListEnv
+  { leVars   :: !(Map.Map Name (Integer -> Eval (GenValue b w)))
       -- ^ Bindings whose values vary by position
-  , leStatic :: !(Map.Map Name (Eval Value))
+  , leStatic :: !(Map.Map Name (Eval (GenValue b w)))
       -- ^ Bindings whose values are constant
   , leTypes  :: !(Map.Map TVar TValue)
   }
 
-instance Monoid ListEnv where
+instance Monoid (ListEnv b w) where
   mempty = ListEnv
     { leVars   = Map.empty
     , leStatic = Map.empty
@@ -263,7 +289,7 @@ instance Monoid ListEnv where
     , leTypes  = Map.union (leTypes l)  (leTypes r)
     }
 
-toListEnv :: EvalEnv -> ListEnv
+toListEnv :: GenEvalEnv b w -> ListEnv b w
 toListEnv e =
   ListEnv
   { leVars   = mempty
@@ -274,33 +300,47 @@ toListEnv e =
 -- | Evaluate a list environment at a position.
 --   This choses a particular value for the varying
 --   locations.
-evalListEnv :: ListEnv -> Integer -> EvalEnv
+evalListEnv :: ListEnv b w -> Integer -> GenEvalEnv b w
 evalListEnv (ListEnv vm st tm) i =
     let v = fmap ($i) vm
      in EvalEnv{ envVars = Map.union v st
                , envTypes = tm
                }
 
-bindVarList :: Name -> (Integer -> Eval Value) -> ListEnv -> ListEnv
+bindVarList :: Name
+            -> (Integer -> Eval (GenValue b w))
+            -> ListEnv b w
+            -> ListEnv b w
 bindVarList n vs lenv = lenv { leVars = Map.insert n vs (leVars lenv) }
 
 -- List Comprehensions ---------------------------------------------------------
 
 -- | Evaluate a comprehension.
-evalComp :: ReadEnv -> TValue -> TValue -> Expr -> [[Match]] -> Eval Value
+evalComp :: EvalPrims b w
+         => GenEvalEnv b w
+         -> TValue
+         -> TValue
+         -> Expr
+         -> [[Match]]
+         -> Eval (GenValue b w)
 evalComp env len elty body ms =
        do lenv <- mconcat <$> mapM (branchEnvs (toListEnv env)) ms
-          seq <- memoMap $ SeqMap $ \i -> do
-              evalExpr (evalListEnv lenv i) body
-          return $ mkSeq len elty $ seq
+          mkSeq len elty <$> memoMap (SeqMap $ \i -> do
+              evalExpr (evalListEnv lenv i) body)
 
 -- | Turn a list of matches into the final environments for each iteration of
 -- the branch.
-branchEnvs :: ListEnv -> [Match] -> Eval ListEnv
+branchEnvs :: EvalPrims b w
+           => ListEnv b w
+           -> [Match]
+           -> Eval (ListEnv b w)
 branchEnvs env matches = foldM evalMatch env matches
 
 -- | Turn a match into the list of environments it represents.
-evalMatch :: ListEnv -> Match -> Eval ListEnv
+evalMatch :: EvalPrims b w
+          => ListEnv b w
+          -> Match
+          -> Eval (ListEnv b w)
 evalMatch lenv m = case m of
 
   -- many envs

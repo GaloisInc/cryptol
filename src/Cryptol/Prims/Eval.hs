@@ -9,6 +9,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE PatternGuards #-}
@@ -22,6 +23,7 @@ import Control.Monad (join)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),fromNat,genLog, nMul)
 import qualified Cryptol.Eval.Arch as Arch
+import Cryptol.Eval.Env
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type(evalTF)
 import Cryptol.Eval.Value
@@ -44,12 +46,15 @@ import System.Random.TF.Gen (seedTFGen)
 
 -- Primitives ------------------------------------------------------------------
 
-evalPrim :: Decl -> Value
-evalPrim Decl { dName = n, .. }
-  | Just prim <- asPrim n, Just val <- Map.lookup prim primTable = val
+instance EvalPrims Bool BV where
+  evalPrim Decl { dName = n, .. }
+    | Just prim <- asPrim n, Just val <- Map.lookup prim primTable = val
 
-evalPrim Decl { .. } =
-    panic "Eval" [ "Unimplemented primitive", show dName ]
+  evalPrim Decl { .. } =
+      panic "Eval" [ "Unimplemented primitive", show dName ]
+
+  iteValue b t f = if b then t else f
+
 
 primTable :: Map.Map Ident Value
 primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
