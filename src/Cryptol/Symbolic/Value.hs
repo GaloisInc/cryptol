@@ -9,6 +9,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Cryptol.Symbolic.Value
@@ -23,7 +24,7 @@ module Cryptol.Symbolic.Value
   , fromVBit, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord
   , fromSeq, fromVWord
   , evalPanic
-  , iteValue, mergeValue
+  , iteSValue, mergeValue
   )
   where
 
@@ -36,8 +37,10 @@ import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit,
                            isTFun, isTSeq, isTTuple, isTRec, tvSeq, GenValue(..),
                            BitWord(..), lam, tlam, toStream, toFinSeq, toSeq,
                            fromSeq, fromVBit, fromVWord, fromVFun, fromVPoly,
-                           fromVTuple, fromVRecord, lookupRecord, SeqMap(..))
+                           fromVTuple, fromVRecord, lookupRecord, SeqMap(..),
+                           ppBV,BV(..),integerToChar)
 import Cryptol.Utils.Panic (panic)
+import Cryptol.Utils.PP
 
 -- SBool and SWord -------------------------------------------------------------
 
@@ -69,8 +72,8 @@ type Value = GenValue SBool SWord
 
 -- Symbolic Conditionals -------------------------------------------------------
 
-iteValue :: SBool -> Value -> Value -> Value
-iteValue c x y =
+iteSValue :: SBool -> Value -> Value -> Value
+iteSValue c x y =
   case svAsBool c of
     Just True  -> x
     Just False -> y
@@ -105,6 +108,16 @@ mergeValue f c v1 v2 =
 -- Big-endian Words ------------------------------------------------------------
 
 instance BitWord SBool SWord where
+  wordLen v = toInteger (intSizeOf v)
+  wordAsChar v = integerToChar <$> svAsInteger v
+
+  ppBit v
+     | Just b <- svAsBool v = text $! if b then "True" else "False"
+     | otherwise            = text "?"
+  ppWord opts v
+     | Just x <- svAsInteger v = ppBV opts (BV (wordLen v) x)
+     | otherwise               = text "[?]"
+
   packWord bs = fromBitsLE (reverse bs)
   unpackWord x = [ svTestBit x i | i <- reverse [0 .. intSizeOf x - 1] ]
 

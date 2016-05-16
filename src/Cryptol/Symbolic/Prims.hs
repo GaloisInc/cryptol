@@ -8,15 +8,21 @@
 
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+
 module Cryptol.Symbolic.Prims where
 
 import Data.List (genericDrop, genericReplicate, genericSplitAt, genericTake, sortBy, transpose)
 import Data.Ord (comparing)
 
-import Cryptol.Eval.Value (BitWord(..))
-import Cryptol.Prims.Eval (binary, unary, tlamN)
+import Cryptol.Eval.Monad (Eval)
+import Cryptol.Eval.Value (BitWord(..), EvalPrims(..), enumerateSeqMap)
+import Cryptol.Prims.Eval (binary, unary, tlamN, arithUnary,
+                           arithBinary, Binary, BinArith,
+                           logicBinary, logicUnary, zeroV)
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Decl(..))
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)
@@ -31,51 +37,50 @@ import qualified Data.Text as T
 
 import Prelude ()
 import Prelude.Compat
+import Control.Monad (join)
 
 traverseSnd :: Functor f => (a -> f b) -> (t, a) -> f (t, b)
 traverseSnd f (x, y) = (,) x <$> f y
 
 -- Primitives ------------------------------------------------------------------
 
-evalPrim :: Decl -> Value
-evalPrim Decl { dName = n, .. }
-  | Just prim <- asPrim n, Just val <- Map.lookup prim primTable = val
+instance EvalPrims SBool SWord where
+  evalPrim Decl { dName = n, .. }
+    | Just prim <- asPrim n, Just val <- Map.lookup prim primTable = val
 
-evalPrim Decl { .. } =
-    panic "Eval" [ "Unimplemented primitive", show dName ]
+  evalPrim Decl { .. } =
+      panic "Eval" [ "Unimplemented primitive", show dName ]
+
+  iteValue b x y = iteSValue b <$> x <*> y
 
 -- See also Cryptol.Prims.Eval.primTable
 primTable :: Map.Map Ident Value
 primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
-  [
-  ]
-{-
-("True"        , VBit SBV.svTrue)
+  [ ("True"        , VBit SBV.svTrue)
   , ("False"       , VBit SBV.svFalse)
   , ("demote"      , ecDemoteV) -- Converts a numeric type into its corresponding value.
                                 -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
-  , ("+"           , binary (arithBinary SBV.svPlus)) -- {a} (Arith a) => a -> a -> a
-  , ("-"           , binary (arithBinary SBV.svMinus)) -- {a} (Arith a) => a -> a -> a
-  , ("*"           , binary (arithBinary SBV.svTimes)) -- {a} (Arith a) => a -> a -> a
-  , ("/"           , binary (arithBinary SBV.svQuot)) -- {a} (Arith a) => a -> a -> a
-  , ("%"           , binary (arithBinary SBV.svRem)) -- {a} (Arith a) => a -> a -> a
+  , ("+"           , binary (arithBinary (liftBinArith SBV.svPlus))) -- {a} (Arith a) => a -> a -> a
+  , ("-"           , binary (arithBinary (liftBinArith  SBV.svMinus))) -- {a} (Arith a) => a -> a -> a
+  , ("*"           , binary (arithBinary (liftBinArith SBV.svTimes))) -- {a} (Arith a) => a -> a -> a
+  , ("/"           , binary (arithBinary (liftBinArith SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
+  , ("%"           , binary (arithBinary (liftBinArith SBV.svRem))) -- {a} (Arith a) => a -> a -> a
   , ("^^"          , binary (arithBinary sExp)) -- {a} (Arith a) => a -> a -> a
   , ("lg2"         , unary (arithUnary sLg2)) -- {a} (Arith a) => a -> a
-  , ("negate"      , unary (arithUnary SBV.svUNeg))
-
+  , ("negate"      , unary (arithUnary (\_ -> SBV.svUNeg)))
   , ("<"           , binary (cmpBinary cmpLt cmpLt SBV.svFalse))
   , (">"           , binary (cmpBinary cmpGt cmpGt SBV.svFalse))
   , ("<="          , binary (cmpBinary cmpLtEq cmpLtEq SBV.svTrue))
   , (">="          , binary (cmpBinary cmpGtEq cmpGtEq SBV.svTrue))
   , ("=="          , binary (cmpBinary cmpEq cmpEq SBV.svTrue))
   , ("!="          , binary (cmpBinary cmpNotEq cmpNotEq SBV.svFalse))
-
   , ("&&"          , binary (logicBinary SBV.svAnd SBV.svAnd))
   , ("||"          , binary (logicBinary SBV.svOr SBV.svOr))
   , ("^"           , binary (logicBinary SBV.svXOr SBV.svXOr))
   , ("complement"  , unary (logicUnary SBV.svNot SBV.svNot))
-  , ("zero"        , VPoly zeroV)
-
+  , ("zero"        , tlam zeroV)
+  ]
+{-
   , ("<<"          ,  -- {m,n,a} (fin n) => [m] a -> [n] -> [m] a
       tlam $ \m ->
       tlam $ \_ ->
@@ -412,6 +417,7 @@ takeV n xs =
                      where b = case xs' of VBit _ : _ -> True
                                            _          -> False
     _           -> panic "Cryptol.Symbolic.Prims.takeV" [ "non-takeable value" ]
+-}
 
 -- | Make a numeric constant.
 -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
@@ -426,6 +432,7 @@ ecDemoteV = tlam $ \valT ->
                        , show bitT
                        ]
 
+{-
 -- Type Values -----------------------------------------------------------------
 
 -- | An easy-to-use alternative representation for type `TValue`.
@@ -450,8 +457,8 @@ toTypeVal ty
 
 -- Arith -----------------------------------------------------------------------
 
-type Binary = TValue -> Value -> Value -> Value
-type Unary = TValue -> Value -> Value
+type Binary = TValue -> Value -> Value -> Eval Value
+type Unary = TValue -> Value -> Eval Value
 
 -- | Models functions of type `{a} (Arith a) => a -> a -> a`
 arithBinary :: (SWord -> SWord -> SWord) -> Binary
@@ -480,17 +487,21 @@ arithUnary op = loop . toTypeVal
         TVTuple ts    -> VTuple (zipWith loop ts (fromVTuple v))
         TVRecord fs   -> VRecord [ (f, loop t (lookupRecord f v)) | (f, t) <- fs ]
         TVFun _ t     -> VFun (\x -> loop t (fromVFun v x))
+-}
 
-sExp :: SWord -> SWord -> SWord
-sExp x y = go (reverse (unpackWord y)) -- bits in little-endian order
+liftBinArith :: (SWord -> SWord -> SWord) -> BinArith SWord
+liftBinArith op _ = op
+
+sExp :: Integer -> SWord -> SWord -> SWord
+sExp _w x y = go (reverse (unpackWord y)) -- bits in little-endian order
   where go []       = literalSWord (SBV.intSizeOf x) 1
         go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
             where a = go bs
                   s = SBV.svTimes a a
 
 -- | Ceiling (log_2 x)
-sLg2 :: SWord -> SWord
-sLg2 x = go 0
+sLg2 :: Integer -> SWord -> SWord
+sLg2 _w x = go 0
   where
     lit n = literalSWord (SBV.intSizeOf x) n
     go i | i < SBV.intSizeOf x = SBV.svIte (SBV.svLessEq x (lit (2^i))) (lit (toInteger i)) (go (i + 1))
@@ -498,9 +509,9 @@ sLg2 x = go 0
 
 -- Cmp -------------------------------------------------------------------------
 
-cmpValue :: (SBool -> SBool -> a -> a)
-         -> (SWord -> SWord -> a -> a)
-         -> (Value -> Value -> a -> a)
+cmpValue :: (SBool -> SBool -> Eval a -> Eval a)
+         -> (SWord -> SWord -> Eval a -> Eval a)
+         -> (Value -> Value -> Eval a -> Eval a)
 cmpValue fb fw = cmp
   where
     cmp v1 v2 k =
@@ -510,41 +521,47 @@ cmpValue fb fw = cmp
         (VTuple vs1 , VTuple vs2 ) -> cmpValues vs1 vs2 k
         (VBit b1    , VBit b2    ) -> fb b1 b2 k
         (VWord w1   , VWord w2   ) -> fw w1 w2 k
-        (VSeq _ vs1 , VSeq _ vs2 ) -> cmpValues vs1 vs2 k
+        (VSeq n _ vs1 , VSeq _ _ vs2 ) -> cmpValues (enumerateSeqMap n vs1)
+                                                    (enumerateSeqMap n vs2) k
         (VStream {} , VStream {} ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
                                         [ "Infinite streams are not comparable" ]
         (VFun {}    , VFun {}    ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
                                         [ "Functions are not comparable" ]
         (VPoly {}   , VPoly {}   ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
                                         [ "Polymorphic values are not comparable" ]
-        (VWord w1   , _          ) -> fw w1 (fromVWord v2) k
-        (_          , VWord w2   ) -> fw (fromVWord v1) w2 k
+        (VWord w1   , _          ) -> do w2 <- fromVWord "cmpValue right" v2
+                                         fw w1 w2 k
+        (_          , VWord w2   ) -> do w1 <- fromVWord "cmpValue left" v1
+                                         fw w1 w2 k
         (_          , _          ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
                                         [ "type mismatch" ]
 
-    cmpValues (x1 : xs1) (x2 : xs2) k = cmp x1 x2 (cmpValues xs1 xs2 k)
+    cmpValues (x1 : xs1) (x2 : xs2) k = do
+          x1' <- x1
+          x2' <- x2
+          cmp x1' x2' (cmpValues xs1 xs2 k)
     cmpValues _ _ k = k
 
-cmpEq :: SWord -> SWord -> SBool -> SBool
-cmpEq x y k = SBV.svAnd (SBV.svEqual x y) k
+cmpEq :: SWord -> SWord -> Eval SBool -> Eval SBool
+cmpEq x y k = SBV.svAnd (SBV.svEqual x y) <$> k
 
-cmpNotEq :: SWord -> SWord -> SBool -> SBool
-cmpNotEq x y k = SBV.svOr (SBV.svNotEqual x y) k
+cmpNotEq :: SWord -> SWord -> Eval SBool -> Eval SBool
+cmpNotEq x y k = SBV.svOr (SBV.svNotEqual x y) <$> k
 
-cmpLt, cmpGt :: SWord -> SWord -> SBool -> SBool
-cmpLt x y k = SBV.svOr (SBV.svLessThan x y) (cmpEq x y k)
-cmpGt x y k = SBV.svOr (SBV.svGreaterThan x y) (cmpEq x y k)
+cmpLt, cmpGt :: SWord -> SWord -> Eval SBool -> Eval SBool
+cmpLt x y k = SBV.svOr (SBV.svLessThan x y) <$> (cmpEq x y k)
+cmpGt x y k = SBV.svOr (SBV.svGreaterThan x y) <$> (cmpEq x y k)
 
-cmpLtEq, cmpGtEq :: SWord -> SWord -> SBool -> SBool
-cmpLtEq x y k = SBV.svAnd (SBV.svLessEq x y) (cmpNotEq x y k)
-cmpGtEq x y k = SBV.svAnd (SBV.svGreaterEq x y) (cmpNotEq x y k)
+cmpLtEq, cmpGtEq :: SWord -> SWord -> Eval SBool -> Eval SBool
+cmpLtEq x y k = SBV.svAnd (SBV.svLessEq x y) <$> (cmpNotEq x y k)
+cmpGtEq x y k = SBV.svAnd (SBV.svGreaterEq x y) <$> (cmpNotEq x y k)
 
-cmpBinary :: (SBool -> SBool -> SBool -> SBool)
-          -> (SWord -> SWord -> SBool -> SBool)
-          -> SBool -> Binary
-cmpBinary fb fw b _ty v1 v2 = VBit (cmpValue fb fw v1 v2 b)
+cmpBinary :: (SBool -> SBool -> Eval SBool -> Eval SBool)
+          -> (SWord -> SWord -> Eval SBool -> Eval SBool)
+          -> SBool -> Binary SBool SWord
+cmpBinary fb fw b _ty v1 v2 = VBit <$> cmpValue fb fw v1 v2 (return b)
 
-
+{-
 -- Logic -----------------------------------------------------------------------
 
 errorV :: String -> TValue -> Value

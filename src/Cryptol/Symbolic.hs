@@ -15,8 +15,9 @@
 
 module Cryptol.Symbolic where
 
-import Control.Monad (replicateM, when, zipWithM)
-import Data.List (transpose, intercalate)
+import Control.Monad.IO.Class
+import Control.Monad (replicateM, when, zipWithM, foldM)
+import Data.List (transpose, intercalate, genericLength, genericIndex)
 import qualified Data.Map as Map
 import qualified Control.Exception as X
 
@@ -30,9 +31,11 @@ import qualified Cryptol.ModuleSystem.Monad as M
 import Cryptol.Symbolic.Prims
 import Cryptol.Symbolic.Value
 
+import qualified Cryptol.Eval as Eval
+import qualified Cryptol.Eval.Monad as Eval
 import qualified Cryptol.Eval.Value as Eval
 import qualified Cryptol.Eval.Type (evalType)
-import qualified Cryptol.Eval.Env (GenEvalEnv(..))
+import           Cryptol.Eval.Env (GenEvalEnv(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Utils.Ident (Ident)
@@ -41,6 +44,9 @@ import Cryptol.Utils.Panic(panic)
 
 import Prelude ()
 import Prelude.Compat
+
+type EvalEnv = GenEvalEnv SBool SWord
+
 
 -- External interface ----------------------------------------------------------
 
@@ -112,14 +118,8 @@ thmSMTResults (SBV.ThmResult r) = [r]
 proverError :: String -> M.ModuleCmd ProverResult
 proverError msg modEnv = return (Right (ProverError msg, modEnv), [])
 
+
 satProve :: ProverCommand -> M.ModuleCmd ProverResult
-satProve _ = fail "IMPLEMENT satProve"
-
-satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
-satProveOffline _ = fail "IMPLEMENT satProveOffline"
-
-{-
-
 satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
   M.runModuleM modEnv $ do
   let (isSat, mSatNum) = case pcQueryType of
@@ -164,12 +164,14 @@ satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
   case predArgTypes pcSchema of
     Left msg -> return (ProverError msg)
     Right ts -> do when pcVerbose $ M.io $ putStrLn "Simulating..."
-                   let env = evalDecls mempty extDgs
-                   let v = evalExpr env pcExpr
+                   v <- M.io $ Eval.runEval $ do
+                               env <- Eval.evalDecls extDgs mempty
+                               Eval.evalExpr env pcExpr
                    prims <- M.getPrimMap
                    results' <- runFn $ do
                                  args <- mapM tyFn ts
-                                 b <- return $! fromVBit (foldl fromVFun v args)
+                                 b <- liftIO $ Eval.runEval
+                                        (fromVBit <$> foldM fromVFun v (map Eval.ready args))
                                  return b
                    let results = maybe results' (\n -> take n results') mSatNum
                    esatexprs <- case results of
@@ -179,12 +181,13 @@ satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
                        tevss <- mapM mkTevs results
                        return $ AllSatResult tevss
                        where
-                         mkTevs result =
+                         mkTevs result = do
                            let Right (_, cws) = SBV.getModel result
                                (vs, _) = parseValues ts cws
                                sattys = unFinType <$> ts
-                               satexprs = zipWithM (Eval.toExpr prims) sattys vs
-                           in case zip3 sattys <$> satexprs <*> pure vs of
+                           satexprs <- liftIO $ Eval.runEval
+                                           (zipWithM (Eval.toExpr prims) sattys vs)
+                           case zip3 sattys <$> (sequence satexprs) <*> pure vs of
                              Nothing ->
                                panic "Cryptol.Symbolic.sat"
                                  [ "unable to make assignment into expression" ]
@@ -214,12 +217,13 @@ satProveOffline ProverCommand {..} =
       Left msg -> return (Right (Left msg, modEnv), [])
       Right ts ->
         do when pcVerbose $ putStrLn "Simulating..."
-           let env = evalDecls mempty extDgs
-           let v = evalExpr env pcExpr
+           v <- liftIO $ Eval.runEval $
+                   do env <- Eval.evalDecls extDgs mempty
+                      Eval.evalExpr env pcExpr
            smtlib <- SBV.compileToSMTLib SBV.SMTLib2 isSat $ do
              args <- mapM tyFn ts
-             b <- return $! fromVBit (foldl fromVFun v args)
-             return b
+             liftIO $ Eval.runEval
+                    (fromVBit <$> foldM fromVFun v (map Eval.ready args))
            return (Right (Right smtlib, modEnv), [])
 
 protectStack :: (String -> M.ModuleCmd a)
@@ -245,13 +249,20 @@ parseValue (FTSeq 0 FTBit) cws = (Eval.VWord (Eval.BV 0 0), cws)
 parseValue (FTSeq n FTBit) cws =
   case SBV.genParse (SBV.KBounded False n) cws of
     Just (x, cws') -> (Eval.VWord (Eval.BV (toInteger n) x), cws')
-    Nothing        -> (Eval.VSeq True vs, cws')
+    Nothing        -> (Eval.VSeq (genericLength vs) True $ Eval.SeqMap $ \i ->
+                           return $ genericIndex vs i
+                      , cws'
+                      )
       where (vs, cws') = parseValues (replicate n FTBit) cws
-parseValue (FTSeq n t) cws = (Eval.VSeq False vs, cws')
+parseValue (FTSeq n t) cws =
+                      (Eval.VSeq (toInteger n) False $ Eval.SeqMap $ \i ->
+                           return $ genericIndex vs i
+                      , cws'
+                      )
   where (vs, cws') = parseValues (replicate n t) cws
-parseValue (FTTuple ts) cws = (Eval.VTuple vs, cws')
+parseValue (FTTuple ts) cws = (Eval.VTuple (map Eval.ready vs), cws')
   where (vs, cws') = parseValues ts cws
-parseValue (FTRecord fs) cws = (Eval.VRecord (zip ns vs), cws')
+parseValue (FTRecord fs) cws = (Eval.VRecord (zip ns (map Eval.ready vs)), cws')
   where (ns, ts) = unzip fs
         (vs, cws') = parseValues ts cws
 
@@ -310,9 +321,11 @@ forallFinType ty =
     FTBit         -> VBit <$> forallSBool_
     FTSeq 0 FTBit -> return $ VWord (literalSWord 0 0)
     FTSeq n FTBit -> VWord <$> (forallBV_ n)
-    FTSeq n t     -> VSeq False <$> replicateM n (forallFinType t)
-    FTTuple ts    -> VTuple <$> mapM forallFinType ts
-    FTRecord fs   -> VRecord <$> mapM (traverseSnd forallFinType) fs
+    FTSeq n t     -> do vs <- replicateM n (forallFinType t)
+                        return $ VSeq (toInteger n) False $ Eval.SeqMap $ \i ->
+                           return $ genericIndex vs i
+    FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . forallFinType) ts
+    FTRecord fs   -> VRecord <$> mapM (traverseSnd (fmap Eval.ready . forallFinType)) fs
 
 existsFinType :: FinType -> SBV.Symbolic Value
 existsFinType ty =
@@ -320,10 +333,13 @@ existsFinType ty =
     FTBit         -> VBit <$> existsSBool_
     FTSeq 0 FTBit -> return $ VWord (literalSWord 0 0)
     FTSeq n FTBit -> VWord <$> existsBV_ n
-    FTSeq n t     -> VSeq False <$> replicateM n (existsFinType t)
-    FTTuple ts    -> VTuple <$> mapM existsFinType ts
-    FTRecord fs   -> VRecord <$> mapM (traverseSnd existsFinType) fs
+    FTSeq n t     -> do vs <- replicateM n (existsFinType t)
+                        return $ VSeq (toInteger n) False $ Eval.SeqMap $ \i ->
+                           return $ genericIndex vs i
+    FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . existsFinType) ts
+    FTRecord fs   -> VRecord <$> mapM (traverseSnd (fmap Eval.ready . existsFinType)) fs
 
+{-
 -- Simulation environment ------------------------------------------------------
 
 data Env = Env
