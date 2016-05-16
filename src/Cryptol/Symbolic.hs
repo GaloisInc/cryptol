@@ -32,7 +32,7 @@ import Cryptol.Symbolic.Value
 
 import qualified Cryptol.Eval.Value as Eval
 import qualified Cryptol.Eval.Type (evalType)
-import qualified Cryptol.Eval.Env (EvalEnv(..))
+import qualified Cryptol.Eval.Env (GenEvalEnv(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Utils.Ident (Ident)

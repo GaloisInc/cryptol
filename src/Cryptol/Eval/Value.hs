@@ -9,6 +9,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE Safe #-}
@@ -99,6 +100,17 @@ data BV = BV !Integer !Integer deriving (Generic)
 instance Show BV where
   show = show . bvVal
 
+-- | Apply an integer function to the values of bitvectors.
+--   This function assumes both bitvectors are the same width,
+--   and the result of the function will not require masking.
+binBV :: (Integer -> Integer -> Integer) -> BV -> BV -> BV
+binBV f (BV w x) (BV _ y) = BV w (f x y)
+
+-- | Apply an integer function to the values of a bitvector.
+--   This function assumes the function will not require masking.
+unaryBV :: (Integer -> Integer) -> BV -> BV
+unaryBV f (BV w x) = BV w $ f x
+
 bvVal :: BV -> Integer
 bvVal (BV _w x) = x
 
@@ -149,7 +161,7 @@ memoMap x = do
     m <- io $ readIORef r
     case Map.lookup i m of
       Just (Just z) -> return z
-      Just Nothing -> 
+      Just Nothing ->
         cryLoopError $ unwords ["memoMap location:", show i]
       Nothing -> do
         --io $ putStrLn $ unwords ["Forcing memo map location", show i]
@@ -165,7 +177,7 @@ zipSeqMap :: (GenValue b w -> GenValue b w -> Eval (GenValue b w))
           -> Eval (SeqMap b w)
 zipSeqMap f x y =
   memoMap (SeqMap $ \i -> join (f <$> lookupSeqMap x i <*> lookupSeqMap y i))
-  
+
 mapSeqMap :: (GenValue b w -> Eval (GenValue b w))
           -> SeqMap b w -> Eval (SeqMap b w)
 mapSeqMap f x =
@@ -227,10 +239,14 @@ atFst f (x,y) = fmap (,y) $ f x
 atSnd :: Functor f => (a -> f b) -> (c, a) -> f (c, b)
 atSnd f (x,y) = fmap (x,) $ f y
 
-ppValue :: PPOpts -> Value -> Eval Doc
+ppValue :: forall b w
+         . BitWord b w
+        => PPOpts
+        -> GenValue b w
+        -> Eval Doc
 ppValue opts = loop
   where
-  loop :: Value -> Eval Doc
+  loop :: GenValue b w -> Eval Doc
   loop val = case val of
     VRecord fs         -> do fs' <- traverse (atSnd (>>=loop)) $ fs
                              return $ braces (sep (punctuate comma (map ppField fs')))
@@ -238,8 +254,7 @@ ppValue opts = loop
       ppField (f,r) = pp f <+> char '=' <+> r
     VTuple vals        -> do vals' <- traverse (>>=loop) vals
                              return $ parens (sep (punctuate comma vals'))
-    VBit b | b         -> return $ text "True"
-           | otherwise -> return $ text "False"
+    VBit b             -> return $ ppBit b
     VSeq sz isWord vals
        | isWord        -> ppWord opts <$> fromVWord "ppValue" val
        | otherwise     -> ppWordSeq sz vals
@@ -252,13 +267,17 @@ ppValue opts = loop
     VFun _             -> return $ text "<function>"
     VPoly _            -> return $ text "<polymorphic value>"
 
-  ppWordSeq :: Integer -> SeqValMap -> Eval Doc
+  ppWordSeq :: Integer -> SeqMap b w -> Eval Doc
   ppWordSeq sz vals = do
     ws <- sequence (enumerateSeqMap sz vals)
     case ws of
       w : _
-        | Just l <- vWordLen w, asciiMode opts l ->
-              text . show . map (integerToChar . bvVal) <$> traverse (fromVWord "ppWordSeq") ws
+        | Just l <- vWordLen w
+        , asciiMode opts l
+        -> do vs <- traverse (fromVWord "ppWordSeq") ws
+              case traverse wordAsChar vs of
+                Just str -> return $ text str
+                _ -> return $ brackets (fsep (punctuate comma $ map (ppWord opts) vs))
       _ -> do ws' <- traverse loop ws
               return $ brackets (fsep (punctuate comma ws'))
 
@@ -268,14 +287,9 @@ asciiMode opts width = useAscii opts && (width == 7 || width == 8)
 integerToChar :: Integer -> Char
 integerToChar = toEnum . fromInteger
 
---data WithBase a = WithBase PPOpts a
---    deriving (Functor)
 
---instance PP (WithBase Value) where
---  ppPrec _ (WithBase opts v) = ppValue opts v
-
-ppWord :: PPOpts -> BV -> Doc
-ppWord opts (BV width i)
+ppBV :: PPOpts -> BV -> Doc
+ppBV opts (BV width i)
   | base > 36 = integer i -- not sure how to rule this out
   | asciiMode opts width = text (show (toEnum (fromInteger i) :: Char))
   | otherwise = prefix <> text value
@@ -303,7 +317,17 @@ ppWord opts (BV width i)
 
 -- Big-endian Words ------------------------------------------------------------
 
-class BitWord b w where
+class BitWord b w | b -> w, w -> b where
+  ppBit :: b -> Doc
+
+  ppWord :: PPOpts -> w -> Doc
+
+  wordAsChar :: w -> Maybe Char
+
+  wordLen :: w -> Integer
+
+  bitLit :: Bool -> b
+  wordLit :: Integer -> Integer -> w
 
   -- | NOTE this assumes that the sequence of bits is big-endian and finite, so the
   -- first element of the list will be the most significant bit.
@@ -313,6 +337,12 @@ class BitWord b w where
   -- most significant bit is the first element of the list.
   unpackWord :: w -> [b]
 
+class BitWord b w => EvalPrims b w where
+  evalPrim :: Decl -> GenValue b w
+  iteValue :: b
+           -> Eval (GenValue b w)
+           -> Eval (GenValue b w)
+           -> Eval (GenValue b w)
 
 mask :: Integer  -- ^ Bit-width
      -> Integer  -- ^ Value
@@ -322,6 +352,16 @@ mask w i | w >= Arch.maxBigIntWidth = wordTooWide w
 
 
 instance BitWord Bool BV where
+  wordLen (BV w _) = w
+  wordAsChar (BV _ x) = Just $ integerToChar x
+
+  ppBit b | b         = text "True"
+          | otherwise = text "False"
+
+  ppWord = ppBV
+
+  bitLit b = b
+  wordLit = mkBv
 
   packWord bits = BV (toInteger w) a
     where
@@ -420,7 +460,7 @@ fromStr :: Value -> Eval String
 fromStr (VSeq n _ vals) =
   traverse (\x -> toEnum . fromInteger <$> (fromWord "fromStr" =<< x)) (enumerateSeqMap n vals)
 fromStr _ = evalPanic "fromStr" ["Not a finite sequence"]
-  
+
 
 -- | Extract a packed word.
 fromVWord :: BitWord b w => String -> GenValue b w -> Eval w
@@ -429,9 +469,9 @@ fromVWord msg val = case val of
   VSeq n isWord bs | isWord -> packWord <$> traverse (fromVBit<$>) (enumerateSeqMap n bs)
   _                         -> evalPanic "fromVWord" ["not a word", msg]
 
-vWordLen :: Value -> Maybe Integer
+vWordLen :: BitWord b w => GenValue b w -> Maybe Integer
 vWordLen val = case val of
-  VWord (BV n _)           -> Just n
+  VWord w                  -> Just (wordLen w)
   VSeq n isWord _ | isWord -> Just n
   _                        -> Nothing
 

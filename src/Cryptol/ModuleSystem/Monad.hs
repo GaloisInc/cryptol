@@ -10,7 +10,9 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.ModuleSystem.Monad where
 
-import           Cryptol.Eval.Env (EvalEnv)
+import           Cryptol.Eval (EvalEnv)
+import           Cryptol.Eval.Value (BV)
+
 import qualified Cryptol.Eval.Monad           as E
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
@@ -29,6 +31,7 @@ import           Cryptol.Parser.Position (Range)
 import           Cryptol.Utils.Ident (interactiveName)
 import           Cryptol.Utils.PP
 
+import Control.Monad.IO.Class
 import Control.Exception (IOException)
 import Data.Function (on)
 import Data.Maybe (isJust)
@@ -277,6 +280,9 @@ instance Monad m => FreshM (ModuleT m) where
        let (a,s') = f (meSupply me)
        set $! me { meSupply = s' }
        return a
+
+instance MonadIO m => MonadIO (ModuleT m) where
+  liftIO m = lift $ liftIO m
 
 runModuleT :: Monad m
            => ModuleEnv

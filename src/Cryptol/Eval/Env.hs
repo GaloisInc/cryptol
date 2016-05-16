@@ -29,16 +29,15 @@ import Prelude.Compat
 
 -- Evaluation Environment ------------------------------------------------------
 
-type ReadEnv = EvalEnv
-
-data EvalEnv = EvalEnv
-  { envVars       :: !(Map.Map Name (Eval Value))
+data GenEvalEnv b w = EvalEnv
+  { envVars       :: !(Map.Map Name (Eval (GenValue b w)))
   , envTypes      :: !(Map.Map TVar TValue)
   } deriving (Generic)
 
-instance NFData EvalEnv where rnf = genericRnf
+instance (NFData b, NFData w) => NFData (GenEvalEnv b w)
+  where rnf = genericRnf
 
-instance Monoid EvalEnv where
+instance Monoid (GenEvalEnv b w) where
   mempty = EvalEnv
     { envVars       = Map.empty
     , envTypes      = Map.empty
@@ -49,22 +48,20 @@ instance Monoid EvalEnv where
     , envTypes    = Map.union (envTypes    l) (envTypes    r)
     }
 
-ppEnv :: PPOpts -> EvalEnv -> Eval Doc
+ppEnv :: BitWord b w => PPOpts -> GenEvalEnv b w -> Eval Doc
 ppEnv opts env = brackets . fsep <$> mapM bind (Map.toList (envVars env))
   where
    bind (k,v) = do vdoc <- ppValue opts =<< v
                    return (pp k <+> text "->" <+> vdoc)
 
---instance PP (WithBase EvalEnv) where
---  ppPrec _ (WithBase opts env) = brackets (fsep (map bind (Map.toList (envVars env))))
---    where
---    bind (k,v) = pp k <+> text "->" <+> ppValue opts v
-
-emptyEnv :: EvalEnv
+emptyEnv :: GenEvalEnv b w
 emptyEnv  = mempty
 
 -- | Bind a variable in the evaluation environment.
-bindVar :: Name -> Eval Value -> EvalEnv -> Eval EvalEnv
+bindVar :: Name
+        -> Eval (GenValue b w)
+        -> GenEvalEnv b w
+        -> Eval (GenEvalEnv b w)
 bindVar n val env = do
   let nm = show $ ppLocName n
   val' <- delay (Just nm) val
@@ -72,15 +69,15 @@ bindVar n val env = do
 
 -- | Lookup a variable in the environment.
 {-# INLINE lookupVar #-}
-lookupVar :: Name -> EvalEnv -> Maybe (Eval Value)
+lookupVar :: Name -> GenEvalEnv b w -> Maybe (Eval (GenValue b w))
 lookupVar n env = Map.lookup n (envVars env)
 
 -- | Bind a type variable of kind *.
 {-# INLINE bindType #-}
-bindType :: TVar -> TValue -> EvalEnv -> EvalEnv
+bindType :: TVar -> TValue -> GenEvalEnv b w -> GenEvalEnv b w
 bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
 
 -- | Lookup a type variable.
 {-# INLINE lookupType #-}
-lookupType :: TVar -> EvalEnv -> Maybe TValue
+lookupType :: TVar -> GenEvalEnv b w -> Maybe TValue
 lookupType p env = Map.lookup p (envTypes env)

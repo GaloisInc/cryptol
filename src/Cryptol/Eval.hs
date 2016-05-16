@@ -23,7 +23,7 @@ module Cryptol.Eval (
 import Cryptol.Eval.Env
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
-import Cryptol.Eval.Value
+import Cryptol.Eval.Value hiding (evalPrim)
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
@@ -40,6 +40,9 @@ import qualified Data.Map.Strict as Map
 
 import Prelude ()
 import Prelude.Compat
+
+type EvalEnv = GenEvalEnv Bool BV
+type ReadEnv = EvalEnv
 
 -- Expression Evaluation -------------------------------------------------------
 

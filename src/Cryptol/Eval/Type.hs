@@ -22,7 +22,7 @@ import Data.Maybe(fromMaybe)
 -- Type Evaluation -------------------------------------------------------------
 
 -- | Evaluation for types.
-evalType :: EvalEnv -> Type -> TValue
+evalType :: GenEvalEnv b w -> Type -> TValue
 evalType env = TValue . go
   where
   go ty =
