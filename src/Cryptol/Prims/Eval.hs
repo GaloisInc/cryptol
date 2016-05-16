@@ -220,20 +220,21 @@ divModPoly xs xsLen ys ysLen
 
 -- | Create a packed word
 modExp :: Integer -- ^ bit size of the resulting word
-       -> Integer -- ^ base
-       -> Integer -- ^ exponent
-       -> Integer
-modExp bits base e
-  | bits == 0            = 0
+       -> BV      -- ^ base
+       -> BV      -- ^ exponent
+       -> BV
+modExp bits (BV _ base) (BV _ e)
+  | bits == 0            = BV bits 0
   | base < 0 || bits < 0 = evalPanic "modExp"
                              [ "bad args: "
                              , "  base = " ++ show base
                              , "  e    = " ++ show e
                              , "  bits = " ++ show modulus
                              ]
-  | otherwise            = doubleAndAdd base e modulus
+  | otherwise            = mkBv bits $ doubleAndAdd base e modulus
   where
   modulus = 0 `setBit` fromInteger bits
+
 
 doubleAndAdd :: Integer -- ^ base
              -> Integer -- ^ exponent mask
@@ -256,10 +257,9 @@ doubleAndAdd base0 expMask modulus = go 1 base0 expMask
 
 -- Operation Lifting -----------------------------------------------------------
 
-type GenBinary b w = TValue -> GenValue b w -> GenValue b w -> Eval (GenValue b w)
-type Binary = GenBinary Bool BV
+type Binary b w = TValue -> GenValue b w -> GenValue b w -> Eval (GenValue b w)
 
-binary :: GenBinary b w -> GenValue b w
+binary :: Binary b w -> GenValue b w
 binary f = tlam $ \ ty ->
             lam $ \ a  -> return $
             lam $ \ b  -> do
@@ -277,28 +277,36 @@ unary f = tlam $ \ ty ->
 -- Arith -----------------------------------------------------------------------
 
 -- | Turn a normal binop on Integers into one that can also deal with a bitsize.
-liftBinArith :: (Integer -> Integer -> Integer) -> BinArith
-liftBinArith op _ = op
+liftBinArith :: (Integer -> Integer -> Integer) -> BinArith BV
+liftBinArith op w (BV _ x) (BV _ y) = mkBv w $ op x y
 
-type BinArith = Integer -> Integer -> Integer -> Integer
+type BinArith w = Integer -> w -> w -> w
 
-arithBinary :: BinArith -> Binary
+arithBinary :: forall b w
+             . BitWord b w
+            => BinArith w
+            -> Binary b w
 arithBinary op = loop
---arithBinary op ty0 l0 r0 = io (putStrLn "Entering arithBinary") >> loop ty0 l0 r0
   where
-  loop' :: TValue -> Eval Value -> Eval Value -> Eval Value
+  loop' :: TValue
+        -> Eval (GenValue b w)
+        -> Eval (GenValue b w)
+        -> Eval (GenValue b w)
   loop' ty l r = join (loop ty <$> l <*> r)
 
-  loop :: TValue -> Value -> Value -> Eval Value
+  loop :: TValue
+       -> GenValue b w
+       -> GenValue b w
+       -> Eval (GenValue b w)
   loop ty l r
 
     | Just (len,a) <- isTSeq ty = case numTValue len of
 
       -- words and finite sequences
       Nat w | isTBit a -> do
-                  BV _ lw <- fromVWord "arithLeft" l
-                  BV _ rw <- fromVWord "arithRight" r
-                  return $ VWord $ mkBv w (op w lw rw)
+                  lw <- fromVWord "arithLeft" l
+                  rw <- fromVWord "arithRight" r
+                  return $ VWord (op w lw rw)
             | otherwise -> VSeq w (isTBit a) <$> (join (zipSeqMap (loop a) <$> (fromSeq l) <*> (fromSeq r)))
       -- streams
       Inf -> VStream <$> (join (zipSeqMap (loop a) <$> (fromSeq l) <*> (fromSeq r)))
@@ -318,7 +326,12 @@ arithBinary op = loop
       return $ VRecord [ (f, loop' fty (lookupRecord f l) (lookupRecord f r))
                        | (f,fty) <- fs ]
 
-    | otherwise = evalPanic "arithBinop" ["Invalid arguments", show ty, show l, show r]
+    | otherwise = do
+          ldoc <- ppValue defaultPPOpts l
+          rdoc <- ppValue defaultPPOpts r
+          evalPanic "arithBinop" ["Invalid arguments", show ty
+                                 , show ldoc, show rdoc]
+
 
 arithUnary :: (Integer -> Integer) -> Unary
 arithUnary op = loop
@@ -416,10 +429,10 @@ zipLexCompare nm tys ls rs = foldr choose (return EQ) (zipWith3 lexCompare' tys 
     _  -> return c'
 
 -- | Process two elements based on their lexicographic ordering.
-cmpOrder :: String -> (Ordering -> Bool) -> Binary
+cmpOrder :: String -> (Ordering -> Bool) -> Binary Bool BV
 cmpOrder nm op ty l r = VBit . op <$> lexCompare nm ty l r
 
-withOrder :: String -> (Ordering -> TValue -> Value -> Value -> Value) -> Binary
+withOrder :: String -> (Ordering -> TValue -> Value -> Value -> Value) -> Binary Bool BV
 withOrder nm choose ty l r =
   do ord <- lexCompare nm ty l r
      return $ choose ord ty l r
@@ -651,7 +664,7 @@ ccatV front back elty l r = do
        lookupSeqMap rs (i-n))
 
 -- | Merge two values given a binop.  This is used for and, or and xor.
-logicBinary :: (forall a. Bits a => a -> a -> a) -> Binary
+logicBinary :: (forall a. Bits a => a -> a -> a) -> Binary Bool BV
 logicBinary op = loop
   where
   loop' :: TValue -> Eval Value -> Eval Value -> Eval Value
