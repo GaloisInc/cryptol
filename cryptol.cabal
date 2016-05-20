@@ -12,6 +12,7 @@ Copyright:           2013-2016 Galois Inc.
 Category:            Language
 Build-type:          Simple
 Cabal-version:       >= 1.18
+extra-source-files:  bench/data/*.cry
 
 data-files:          *.cry Cryptol/*.cry
 data-dir:            lib
