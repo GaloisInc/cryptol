@@ -77,8 +77,11 @@ data RenamerError
   | InvalidConstraint (Type PName) NameDisp
     -- ^ When it's not possible to produce a Prop from a Type.
 
-  | MalformedConstraint (Located (Type PName)) NameDisp
-    -- ^ When a constraint appears within another constraint
+  | MalformedBuiltin (Type PName) PName NameDisp
+    -- ^ When a builtin type/type-function is used incorrectly.
+
+  | BoundReservedType PName (Maybe Range) Doc NameDisp
+    -- ^ When a builtin type is named in a binder.
     deriving (Show,Generic)
 
 instance NFData RenamerError where rnf = genericRnf
@@ -125,10 +128,15 @@ instance PP RenamerError where
       hang (text "[error]" <+> maybe empty (\r -> text "at" <+> pp r) (getLoc ty))
          4 (fsep [ pp ty, text "is not a valid constraint" ])
 
-    MalformedConstraint t disp -> fixNameDisp disp $
-      hang (text "[error] at" <+> pp (srcRange t))
-         4 (sep [ quotes (pp (thing t))
-                , text "is not a valid argument to a constraint" ])
+    MalformedBuiltin ty pn disp -> fixNameDisp disp $
+      hang (text "[error]" <+> maybe empty (\r -> text "at" <+> pp r) (getLoc ty))
+         4 (fsep [ text "invalid use of built-in type", pp pn
+                 , text "in type", pp ty ])
+
+    BoundReservedType n loc src disp -> fixNameDisp disp $
+      hang (text "[error]" <+> maybe empty (\r -> text "at" <+> pp r) loc)
+         4 (fsep [ text "built-in type", quotes (pp n), text "shadowed in", src ])
+
 
 -- Warnings --------------------------------------------------------------------
 
@@ -446,7 +454,12 @@ instance Rename Schema where
 -- into scope.
 renameSchema :: Schema PName -> RenameM (NamingEnv,Schema Name)
 renameSchema (Forall ps p ty loc) =
-  do env <- liftSupply (namingEnv' ps)
+  do -- check that the parameters don't shadow any built-in types
+     let reserved = filter (isReserved . getIdent . tpName) ps
+         mkErr tp = BoundReservedType (tpName tp) (tpRange tp) (text "schema")
+     unless (null reserved) (mapM_ (record . mkErr) reserved)
+
+     env <- liftSupply (namingEnv' ps)
      s'  <- shadowNames env $ Forall <$> traverse rename ps
                                      <*> traverse rename p
                                      <*> rename ty
@@ -494,6 +507,33 @@ translateProp ty = go ty
          CType <$> rename t
 
 
+
+-- | Fixed names for type functions and built-in types.
+reservedTypeNames :: Map.Map Ident ([Type Name] -> Maybe (Type Name))
+reservedTypeNames  = Map.fromList
+  [ (packIdent "inf", typeConst TInf)
+  , (packIdent "Bit", typeConst TBit)
+
+  , (packIdent "min",              arity 2 TCMin)
+  , (packIdent "max",              arity 2 TCMax)
+  , (packIdent "lengthFromThen",   arity 3 TCLenFromThen)
+  , (packIdent "lengthFromThenTo", arity 3 TCLenFromThenTo)
+  , (packIdent "width",            arity 1 TCWidth)
+  ]
+
+  where
+  typeConst c ps =
+    do guard (null ps)
+       return c
+
+  arity n op ps =
+    do guard (length ps == n)
+       return (TApp op ps)
+
+-- | Check to see if this identifier is a reserved type/type-function.
+isReserved :: Ident -> Bool
+isReserved k = Map.member k reservedTypeNames
+
 -- | Resolve fixity, then rename the resulting type.
 instance Rename Type where
   rename ty0 = go =<< resolveTypeFixity ty0
@@ -507,17 +547,12 @@ instance Rename Type where
     go  TInf         = return TInf
 
     go (TUser pn ps)
-      | i == packIdent "inf", null ps     = return TInf
-      | i == packIdent "Bit", null ps     = return TBit
-
-      | i == packIdent "min"              = TApp TCMin           <$> traverse go ps
-      | i == packIdent "max"              = TApp TCMax           <$> traverse go ps
-      | i == packIdent "lengthFromThen"   = TApp TCLenFromThen   <$> traverse go ps
-      | i == packIdent "lengthFromThenTo" = TApp TCLenFromThenTo <$> traverse go ps
-      | i == packIdent "width"            = TApp TCWidth         <$> traverse go ps
-
-      where
-      i = getIdent pn
+      | Just mk <- Map.lookup (getIdent pn) reservedTypeNames =
+        do ps' <- traverse go ps
+           case mk ps' of
+             Just ty -> return ty
+             Nothing -> do record (MalformedBuiltin ty0 pn)
+                           TUser <$> renameType pn <*> pure ps'
 
     go (TUser qn ps)   = TUser    <$> renameType qn <*> traverse go ps
     go (TApp f xs)     = TApp f   <$> traverse go xs
@@ -774,22 +809,30 @@ renamePats  = loop
     [] -> return (mempty, [])
 
 patternEnv :: Pattern PName -> RenameM NamingEnv
-patternEnv p0 = go p0
+patternEnv  = go
   where
   go (PVar Located { .. }) =
     do n <- liftSupply (mkParameter (getIdent thing) srcRange)
        return (singletonE thing n)
 
   go PWild            = return mempty
-  go (PTuple ps)      = foldMap go ps
-  go (PRecord fs)     = foldMap (foldMap go) fs
+  go (PTuple ps)      = bindVars ps
+  go (PRecord fs)     = bindVars (map value fs)
   go (PList ps)       = foldMap go ps
   go (PTyped p ty)    = go p `mappend` typeEnv ty
   go (PSplit a b)     = go a `mappend` go b
   go (PLocated p loc) = withLoc loc (go p)
 
-  typeEnv (TFun a b) = typeEnv a `mappend` typeEnv b
-  typeEnv (TSeq a b) = typeEnv a `mappend` typeEnv b
+  bindVars []     = return mempty
+  bindVars (p:ps) =
+    do env <- go p
+       shadowNames env $
+         do rest <- bindVars ps
+            return (env `mappend` rest)
+
+
+  typeEnv (TFun a b) = bindTypes [a,b]
+  typeEnv (TSeq a b) = bindTypes [a,b]
 
   typeEnv TBit       = return mempty
   typeEnv TNum{}     = return mempty
@@ -801,7 +844,7 @@ patternEnv p0 = go p0
        case mb of
 
          -- The type is already bound, don't introduce anything.
-         Just _ -> foldMap typeEnv ps
+         Just _ -> bindTypes ps
 
          Nothing
            -- The type isn't bound, and has no parameters, so it names a portion
@@ -819,13 +862,21 @@ patternEnv p0 = go p0
                 n   <- liftSupply (mkParameter (getIdent pn) loc)
                 return (singletonT pn n)
 
-  typeEnv (TApp _ ts)       = foldMap typeEnv ts
-  typeEnv (TRecord fs)      = foldMap (foldMap typeEnv) fs
-  typeEnv (TTuple ts)       = foldMap typeEnv ts
+  typeEnv (TApp _ ts)       = bindTypes ts
+  typeEnv (TRecord fs)      = bindTypes (map value fs)
+  typeEnv (TTuple ts)       = bindTypes ts
   typeEnv TWild             = return mempty
   typeEnv (TLocated ty loc) = withLoc loc (typeEnv ty)
   typeEnv (TParens ty)      = typeEnv ty
-  typeEnv (TInfix a _ _ b)  = typeEnv a `mappend` typeEnv b
+  typeEnv (TInfix a _ _ b)  = bindTypes [a,b]
+
+  bindTypes [] = return mempty
+  bindTypes (t:ts) =
+    do env' <- typeEnv t
+       shadowNames env' $
+         do res <- bindTypes ts
+            return (env' `mappend` res)
+
 
 instance Rename Match where
   rename m = case m of
@@ -834,9 +885,12 @@ instance Rename Match where
 
 instance Rename TySyn where
   rename (TySyn n ps ty) =
-     shadowNames ps $ TySyn <$> rnLocated renameType n
-                            <*> traverse rename ps
-                            <*> rename ty
+    do when (isReserved (getIdent (thing n)))
+            (record (BoundReservedType (thing n) (getLoc n) (text "type synonym")))
+
+       shadowNames ps $ TySyn <$> rnLocated renameType n
+                              <*> traverse rename ps
+                              <*> rename ty
 
 
 -- Utilities -------------------------------------------------------------------

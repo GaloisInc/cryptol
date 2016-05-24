@@ -1,0 +1,3 @@
+Loading module Cryptol
+\(x : (Bit, Bit)) -> x.0 : (Bit, Bit) -> Bit
+\(x : a) (y : a) -> x : {a} a -> a -> a
