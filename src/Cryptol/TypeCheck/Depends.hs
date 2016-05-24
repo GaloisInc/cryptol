@@ -29,7 +29,7 @@ import qualified Data.Set as Set
 data TyDecl = TS (P.TySyn Name) | NT (P.Newtype Name)
 
 -- | Check for duplicate and recursive type synonyms.
--- Returns the type-synonyms in dependecy order.
+-- Returns the type-synonyms in dependency order.
 orderTyDecls :: [TyDecl] -> InferM [TyDecl]
 orderTyDecls ts =
   do vs <- getTVars
