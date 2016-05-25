@@ -39,7 +39,7 @@ import Cryptol.Utils.PP
 import qualified Data.Foldable as F
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
-import           MonadLib hiding (mapM)
+import           MonadLib hiding (mapM, mapM_)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
