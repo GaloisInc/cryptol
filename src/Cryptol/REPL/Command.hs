@@ -545,13 +545,14 @@ typeOfCmd :: String -> REPL ()
 typeOfCmd str = do
 
   expr         <- replParseExpr str
-  (re,def,sig) <- replCheckExpr expr
+  (_re,def,sig) <- replCheckExpr expr
 
   -- XXX need more warnings from the module system
   --io (mapM_ printWarning ws)
   whenDebug (rPutStrLn (dump def))
   (_,_,names) <- getFocusedEnv
-  rPrint $ runDoc names $ pp re <+> text ":" <+> pp sig
+  -- type annotation ':' has precedence 2
+  rPrint $ runDoc names $ ppPrec 2 expr <+> text ":" <+> pp sig
 
 readFileCmd :: FilePath -> REPL ()
 readFileCmd fp = do
