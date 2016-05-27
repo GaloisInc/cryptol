@@ -705,7 +705,9 @@ instance Rename Expr where
     EInfFrom a b  -> EInfFrom<$> rename a  <*> traverse rename b
     EComp e' bs   -> do arms' <- traverse renameArm bs
                         let (envs,bs') = unzip arms'
-                        shadowNames envs (EComp <$> rename e' <*> pure bs')
+                        -- NOTE: renameArm will generate shadowing warnings; we only
+                        -- need to check for repeated names across multiple arms
+                        shadowNames' CheckOverlap envs (EComp <$> rename e' <*> pure bs')
     EApp f x      -> EApp    <$> rename f  <*> rename x
     EAppT f ti    -> EAppT   <$> rename f  <*> traverse rename ti
     EIf b t f     -> EIf     <$> rename b  <*> rename t  <*> rename f
@@ -767,7 +769,9 @@ renameArm :: [Match PName] -> RenameM (NamingEnv,[Match Name])
 
 renameArm (m:ms) =
   do (me,m') <- renameMatch m
-     shadowNames me $
+     -- NOTE: renameMatch will generate warnings, so we don't
+     -- need to duplicate them here
+     shadowNames' CheckNone me $
        do (env,rest) <- renameArm ms
 
           -- NOTE: the inner environment shadows the outer one, for examples
