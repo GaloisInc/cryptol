@@ -82,11 +82,6 @@ renameModule :: P.Module PName
              -> ModuleM (IfaceDecls,R.NamingEnv,P.Module Name)
 renameModule m = do
   (decls,menv) <- importIfaces (map thing (P.mImports m))
-  let (es,ws) = R.checkNamingEnv menv
-
-  renamerWarnings ws
-  unless (null es) (renamerErrors es)
-
   (declsEnv,rm) <- rename (thing (mName m)) menv (R.renameModule m)
   return (decls,declsEnv,rm)
 

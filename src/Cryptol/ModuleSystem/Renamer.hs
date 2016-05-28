@@ -275,8 +275,8 @@ shadowNames' check names m = do
   do env <- liftSupply (namingEnv' names)
      RenameM $
        do ro  <- ask
-          sets_ (checkEnv (roDisp ro) check env (roNames ro))
-          let ro' = ro { roNames = env `shadowing` roNames ro }
+          env' <- sets (checkEnv (roDisp ro) check env (roNames ro))
+          let ro' = ro { roNames = env' `shadowing` roNames ro }
           local ro' (unRenameM m)
 
 shadowNamesNS :: BindsNames (InModule env) => env -> RenameM a -> RenameM a
@@ -288,25 +288,30 @@ shadowNamesNS names m =
 -- | Generate warnings when the left environment shadows things defined in
 -- the right.  Additionally, generate errors when two names overlap in the
 -- left environment.
-checkEnv :: NameDisp -> EnvCheck -> NamingEnv -> NamingEnv -> RW -> RW
-checkEnv _    CheckNone _ _ rw = rw
-checkEnv disp check     l r rw = rw''
+checkEnv :: NameDisp -> EnvCheck -> NamingEnv -> NamingEnv -> RW -> (NamingEnv,RW)
+checkEnv disp check l r rw
+  | check == CheckNone = (l',rw)
+  | otherwise          = (l',rw'')
 
   where
 
-  rw'  = Map.foldlWithKey (step neExprs) rw (neExprs l)
-  rw'' = Map.foldlWithKey (step neTypes) rw' (neTypes l)
+  l' = l { neExprs = es, neTypes = ts }
 
-  step prj acc k ns = acc
-    { rwWarnings =
-        if check == CheckAll
-           then case Map.lookup k (prj r) of
-                  Nothing -> rwWarnings acc
-                  Just os -> rwWarnings acc Seq.|> SymbolShadowed (head ns) os disp
+  (rw',es)  = Map.mapAccumWithKey (step neExprs) rw  (neExprs l)
+  (rw'',ts) = Map.mapAccumWithKey (step neTypes) rw' (neTypes l)
 
-           else rwWarnings acc
-    , rwErrors   = rwErrors acc Seq.>< containsOverlap disp ns
-    }
+  step prj acc k ns = (acc', [head ns])
+    where
+    acc' = acc
+      { rwWarnings =
+          if check == CheckAll
+             then case Map.lookup k (prj r) of
+                    Nothing -> rwWarnings acc
+                    Just os -> rwWarnings acc Seq.|> SymbolShadowed (head ns) os disp
+
+             else rwWarnings acc
+      , rwErrors   = rwErrors acc Seq.>< containsOverlap disp ns
+      }
 
 -- | Check the RHS of a single name rewrite for conflicting sources.
 containsOverlap :: NameDisp -> [Name] -> Seq.Seq RenamerError
