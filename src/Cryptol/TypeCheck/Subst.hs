@@ -273,7 +273,7 @@ instance TVars Expr where
         EWhere e ds   -> EWhere (go e) (apSubst su ds)
 
 instance TVars Match where
-  apSubst su (From x len t e) = From x (apSubst su t) (apSubst su len) (apSubst su e)
+  apSubst su (From x len t e) = From x (apSubst su len) (apSubst su t) (apSubst su e)
   apSubst su (Let b)      = Let (apSubst su b)
 
 instance TVars DeclGroup where
