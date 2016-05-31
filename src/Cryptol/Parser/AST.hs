@@ -26,7 +26,7 @@ module Cryptol.Parser.AST
   , Schema(..)
   , TParam(..)
   , Kind(..)
-  , Type(..)
+  , Type(..), tconNames
   , Prop(..)
 
     -- * Declarations
@@ -78,6 +78,7 @@ import qualified Data.Set as Set
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
+import qualified Data.Map as Map
 import           Numeric(showIntAtBase)
 
 import GHC.Generics (Generic)
@@ -408,6 +409,12 @@ data Type n   = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
               | TParens (Type n)        -- ^ @ (ty) @
               | TInfix (Type n) (Located n) Fixity (Type n) -- ^ @ ty + ty @
                 deriving (Eq,Show,Generic)
+
+tconNames :: Map.Map PName (Type PName)
+tconNames  = Map.fromList
+  [ (mkUnqual (packIdent "Bit"), TBit)
+  , (mkUnqual (packIdent "inf"), TInf)
+  ]
 
 instance NFData name => NFData (Type name) where rnf = genericRnf
 
