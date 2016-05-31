@@ -849,10 +849,10 @@ instance PPName name => PP (Type name) where
       TApp f ts      -> optParens (n > 2)
                       $ pp f <+> fsep (map (ppPrec 4) ts)
 
-      TUser f []     -> pp f
+      TUser f []     -> ppPrefixName f
 
       TUser f ts     -> optParens (n > 2)
-                      $ pp f <+> fsep (map (ppPrec 4) ts)
+                      $ ppPrefixName f <+> fsep (map (ppPrec 4) ts)
 
       TFun t1 t2     -> optParens (n > 1)
                       $ sep [ppPrec 2 t1 <+> text "->", ppPrec 1 t2]
@@ -862,7 +862,7 @@ instance PPName name => PP (Type name) where
       TParens t      -> parens (pp t)
 
       TInfix t1 o _ t2 -> optParens (n > 0)
-                        $ sep [ppPrec 2 t1 <+> pp o, ppPrec 1 t2]
+                        $ sep [ppPrec 2 t1 <+> ppInfixName o, ppPrec 1 t2]
 
    where
    isInfix (TApp ieOp [ieLeft, ieRight]) = do
