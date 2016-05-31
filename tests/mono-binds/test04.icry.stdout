@@ -25,8 +25,8 @@ Loading module test04
 [error] at ./test04.cry:3:19--3:21:
   Type mismatch:
     Expected type: ()
-    Inferred type: [?z7]
+    Inferred type: [?c8]
   where
-  ?z7 is type parameter 'bits'
+  ?c8 is type parameter 'bits'
          of literal or demoted expression
          at ./test04.cry:3:19--3:21
