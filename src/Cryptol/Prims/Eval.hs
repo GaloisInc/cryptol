@@ -91,10 +91,10 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     lam  $ \ l     -> return $
                     lam  $ \ r     -> ccatV front back elty l r)
 
-  , ("@"          , indexPrimOne  indexFront)
-  , ("@@"         , indexPrimMany indexFront)
-  , ("!"          , indexPrimOne  indexBack)
-  , ("!!"         , indexPrimMany indexBack)
+  , ("@"          , indexPrimOne  indexFront_bits indexFront)
+  , ("@@"         , indexPrimMany indexFront_bits indexFront)
+  , ("!"          , indexPrimOne  indexBack_bits indexBack)
+  , ("!!"         , indexPrimMany indexBack_bits indexBack)
 
   , ("zero"       , tlam zeroV)
 
@@ -115,18 +115,8 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("fromThen"   , fromThenV)
   , ("fromTo"     , fromToV)
   , ("fromThenTo" , fromThenToV)
-
-  , ("infFrom"    , tlam $ \(finTValue -> bits)  ->
-                    wlam $ \first ->
-                    return $ VStream $ SeqMap $ \i ->
-                       ready $ word bits (first+i))
-
-  , ("infFromThen", tlam $ \(finTValue -> bits)  ->
-                    wlam $ \first -> return $
-                    wlam $ \next  -> do
-                    let diff = next - first
-                    return $ VStream $ SeqMap $ \i ->
-                       ready $ word bits (first + diff*i))
+  , ("infFrom"    , infFromV)
+  , ("infFromThen", infFromThenV)
 
   , ("error"      , tlam $ \_ ->
                     tlam $ \_ ->
@@ -147,22 +137,22 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                                (bs `shiftL` 1) (as `shiftR` 1) (n-1)
      in tlam $ \(finTValue -> a) ->
         tlam $ \(finTValue -> b) ->
-        wlam $ \x -> return $
-        wlam $ \y -> return $ word (max 1 (a + b) - 1) (mul 0 x y b))
+        wlam $ \(bvVal -> x) -> return $
+        wlam $ \(bvVal -> y) -> return $ word (max 1 (a + b) - 1) (mul 0 x y b))
 
   , ("pdiv"        , tlam $ \(fromInteger . finTValue -> a) ->
                      tlam $ \(fromInteger . finTValue -> b) ->
-                     wlam $ \x -> return $
-                     wlam $ \y -> return $ word (toInteger a)
+                     wlam $ \(bvVal -> x) -> return $
+                     wlam $ \(bvVal -> y) -> return $ word (toInteger a)
                                                 (fst (divModPoly x a y b)))
 
   , ("pmod"        , tlam $ \(fromInteger . finTValue -> a) ->
                      tlam $ \(fromInteger . finTValue -> b) ->
-                     wlam $ \x -> return $
-                     wlam $ \y -> return $ word (toInteger b)
+                     wlam $ \(bvVal -> x) -> return $
+                     wlam $ \(bvVal -> y) -> return $ word (toInteger b)
                                                 (snd (divModPoly x a y (b+1))))
   , ("random"      , tlam $ \a ->
-                     wlam $ \x -> return $ randomV a x)
+                     wlam $ \(bvVal -> x) -> return $ randomV a x)
   , ("trace"       , tlam $ \_n ->
                      tlam $ \_a ->
                      tlam $ \_b ->
@@ -505,16 +495,18 @@ zeroV ty
   | otherwise = evalPanic "zeroV" ["invalid type for zero"]
 
 
-joinWord :: BV -> BV -> BV
-joinWord (BV i x) (BV j y) =
-  BV (i + j) (shiftL x (fromInteger j) + y)
-
-joinWords :: Integer -> Integer -> SeqValMap -> Eval Value -> Eval Value
+joinWords :: forall b w
+           . BitWord b w
+          => Integer
+          -> Integer
+          -> SeqMap b w
+          -> Eval (GenValue b w)
+          -> Eval (GenValue b w)
 joinWords nParts nEach xs fallback =
-  loop (mkBv 0 0) (enumerateSeqMap nParts xs)
+  loop (wordLit 0 0) (enumerateSeqMap nParts xs)
 
  where
- loop :: BV -> [Eval Value] -> Eval Value
+ loop :: w -> [Eval (GenValue b w)] -> Eval (GenValue b w)
  loop !bv [] = return $ VWord bv
  loop !bv (Ready (VWord w) : ws) = loop (joinWord bv w) ws
 
@@ -529,7 +521,12 @@ joinWords nParts nEach xs fallback =
  --     loop (joinWord bv w') ws
 
 
-joinSeq :: TValue -> TValue -> TValue -> SeqValMap -> Eval Value
+joinSeq :: BitWord b w
+        => TValue
+        -> TValue
+        -> TValue
+        -> SeqMap b w
+        -> Eval (GenValue b w)
 joinSeq parts each a xs
   | Nat nEach <- numTValue each
   = return $ mkSeq $ (SeqMap $ \i -> do
@@ -544,7 +541,12 @@ joinSeq parts each a xs
             Nat n  -> VSeq n (isTBit a)
 
 -- | Join a sequence of sequences into a single sequence.
-joinV :: TValue -> TValue -> TValue -> Value -> Eval Value
+joinV :: BitWord b w
+      => TValue
+      -> TValue
+      -> TValue
+      -> (GenValue b w)
+      -> Eval (GenValue b w)
 joinV parts each a val
   -- Try to join a sequence of words, if we can determine that
   -- each element is actually a word.  Fall back on sequence
@@ -559,16 +561,21 @@ joinV parts each a val =
        joinSeq parts each a =<< fromSeq val
 
 
-splitAtV :: TValue -> TValue -> TValue -> Value -> Eval Value
+splitAtV :: BitWord b w
+         => TValue
+         -> TValue
+         -> TValue
+         -> (GenValue b w)
+         -> Eval (GenValue b w)
 splitAtV front back a val =
   case numTValue back of
 
-    -- Remember that words are big-endian in cryptol, so the first component
-    -- needs to be shifted, and the second component just needs to be masked.
-    Nat rightWidth | aBit, VWord (BV _ i) <- val -> do
+    Nat rightWidth | aBit, VWord w <- val -> do
+          let (lw, rw) = splitWord leftWidth rightWidth w
           return $ VTuple
-                   [ ready $ VWord (BV leftWidth (i `shiftR` fromInteger rightWidth))
-                   , ready $ VWord (mkBv rightWidth i) ]
+                   [ ready $ VWord lw
+                   , ready $ VWord rw
+                   ]
 
     _ -> do
        seq <- delay Nothing (fromSeq val)
@@ -587,7 +594,8 @@ splitAtV front back a val =
 
 
 -- | Split implementation.
-ecSplitV :: Value
+ecSplitV :: BitWord b w
+         => GenValue b w
 ecSplitV =
   tlam $ \ parts ->
   tlam $ \ each  ->
@@ -597,8 +605,7 @@ ecSplitV =
        (Nat p, Nat e) | isTBit a -> do
           val' <- delay Nothing (fromVWord "split" =<< val)
           return $ VSeq p False $ SeqMap $ \i -> do
-            BV _ x <- val'
-            return $ VWord $ mkBv e $ (x `shiftR` (fromInteger ((p-i-1)*e)))
+            VWord . extractWord e ((p-i-1)*e) <$> val'
        (Nat p, Nat e) -> do
           val' <- delay Nothing (fromSeq =<< val)
           return $ VSeq p False $ SeqMap $ \i ->
@@ -625,21 +632,29 @@ finChunksOf parts each xs = let (as,bs) = genericSplitAt each xs
                             in as : finChunksOf (parts - 1) each bs
 
 
-reverseV :: Value -> Eval Value
+reverseV :: forall b w
+          . BitWord b w
+         => GenValue b w
+         -> Eval (GenValue b w)
 reverseV (VSeq n isWord xs) =
   return $ VSeq n isWord $ reverseSeqMap n xs
 reverseV (VWord w) = return (VWord revword)
  where
  revword = do
-   let bs = unpackWord w :: [Bool]
+   let bs = unpackWord w :: [b]
     in packWord $ reverse bs
 reverseV _ =
   evalPanic "reverseV" ["Not a finite sequence"]
 
 
-transposeV :: TValue -> TValue -> TValue -> Value -> Eval Value
+transposeV :: BitWord b w
+           => TValue
+           -> TValue
+           -> TValue
+           -> GenValue b w
+           -> Eval (GenValue b w)
 transposeV a b c xs = do
-  let bseq = 
+  let bseq =
         case numTValue b of
           Nat nb -> VSeq nb (isTBit b)
           Inf    -> VStream
@@ -650,10 +665,17 @@ transposeV a b c xs = do
   return $ bseq $ SeqMap $ \bi ->
     return $ aseq $ SeqMap $ \ai -> do
       ys  <- flip lookupSeqMap ai =<< fromSeq xs
-      z   <- flip lookupSeqMap bi =<< fromSeq ys  
+      z   <- flip lookupSeqMap bi =<< fromSeq ys
       return z
 
-ccatV :: TValue -> TValue -> TValue -> Eval Value -> Eval Value -> Eval Value
+
+ccatV :: BitWord b w
+      => TValue
+      -> TValue
+      -> TValue
+      -> Eval (GenValue b w)
+      -> Eval (GenValue b w)
+      -> Eval (GenValue b w)
 ccatV _front _back (isTBit -> True) (Ready (VWord x)) (Ready (VWord y)) =
   return $ VWord $ joinWord x y
 
@@ -726,9 +748,9 @@ logicBinary opb opw  = loop
 
     | Just fields <- isTRec ty =
         return $ VRecord [ (f,loop' fty a b)
-                         | (f,fty) <- fields 
+                         | (f,fty) <- fields
                          , let a = lookupRecord f l
-                               b = lookupRecord f r 
+                               b = lookupRecord f r
                          ]
 
     | otherwise = evalPanic "logicBinary" ["invalid logic type"]
@@ -858,34 +880,51 @@ rotateRS w _ vs by = SeqMap $ \i ->
 -- Sequence Primitives ---------------------------------------------------------
 
 -- | Indexing operations that return one element.
-indexPrimOne :: (Maybe Integer -> SeqValMap -> Integer -> Eval Value) -> Value
-indexPrimOne op =
+indexPrimOne :: BitWord b w
+             => (Maybe Integer -> TValue -> SeqMap b w -> [b] -> Eval (GenValue b w))
+             -> (Maybe Integer -> TValue -> SeqMap b w -> w -> Eval (GenValue b w))
+             -> GenValue b w
+indexPrimOne bits_op word_op =
   tlam $ \ n  ->
-  tlam $ \ _a ->
+  tlam $ \ a ->
   tlam $ \ _i ->
    lam $ \ l  -> return $
    lam $ \ r  -> do
       vs <- fromSeq =<< l
-      ix <- fromWord "index one" =<< r
-      op (fromNat (numTValue n)) vs ix
+      r >>= \case
+         VWord w ->
+           word_op (fromNat (numTValue n)) a vs w
+         VSeq m True xs -> do
+           bs <- traverse (fromVBit<$>) (enumerateSeqMap m xs)
+           bits_op (fromNat (numTValue n)) a vs bs
+         x -> evalPanic "Expected word value" ["indexPrimOne"]
 
-indexFront :: Maybe Integer -> SeqValMap -> Integer -> Eval Value
-indexFront mblen vs ix =
+indexFront :: Maybe Integer -> TValue -> SeqValMap -> BV -> Eval Value
+indexFront mblen _a vs (bvVal -> ix) =
   case mblen of
     Just len | len <= ix -> invalidIndex ix
     _                    -> lookupSeqMap vs ix
 
-indexBack :: Maybe Integer -> SeqValMap -> Integer -> Eval Value
-indexBack mblen vs ix =
+indexFront_bits :: Maybe Integer -> TValue -> SeqValMap -> [Bool] -> Eval Value
+indexFront_bits mblen a vs = indexFront mblen a vs . packWord
+
+indexBack :: Maybe Integer -> TValue -> SeqValMap -> BV -> Eval Value
+indexBack mblen _a vs (bvVal -> ix) =
   case mblen of
     Just len | len > ix  -> lookupSeqMap vs (len - ix - 1)
              | otherwise -> invalidIndex ix
     Nothing              -> evalPanic "indexBack"
                             ["unexpected infinite sequence"]
 
+indexBack_bits :: Maybe Integer -> TValue -> SeqValMap -> [Bool] -> Eval Value
+indexBack_bits mblen a vs = indexBack mblen a vs . packWord
+
 -- | Indexing operations that return many elements.
-indexPrimMany :: (Maybe Integer -> SeqValMap -> Integer -> Eval Value) -> Value
-indexPrimMany op =
+indexPrimMany :: BitWord b w
+              => (Maybe Integer -> TValue -> SeqMap b w -> [b] -> Eval (GenValue b w))
+              -> (Maybe Integer -> TValue -> SeqMap b w -> w -> Eval (GenValue b w))
+              -> GenValue b w
+indexPrimMany bits_op word_op =
   tlam $ \ n  ->
   tlam $ \ a  ->
   tlam $ \ m  ->
@@ -895,11 +934,17 @@ indexPrimMany op =
      vs  <- fromSeq =<< l
      ixs <- fromSeq =<< r
      mkSeq m a <$> memoMap (SeqMap $ \i -> do
-       i' <- fromWord "index many" =<< lookupSeqMap ixs i
-       op (fromNat (numTValue n)) vs i')
+       lookupSeqMap ixs i >>= \case
+         VWord w ->
+           word_op (fromNat (numTValue n)) a vs w
+         VSeq m True xs -> do
+           bs <- traverse (fromVBit<$>) (enumerateSeqMap m xs)
+           bits_op (fromNat (numTValue n)) a vs bs
+         x -> evalPanic "Expected word value" ["indexPrimMany"])
 
 -- @[ 0, 1 .. ]@
-fromThenV :: Value
+fromThenV :: BitWord b w
+          => GenValue b w
 fromThenV  =
   tlamN $ \ first ->
   tlamN $ \ next  ->
@@ -911,11 +956,12 @@ fromThenV  =
       (Nat first', Nat next', Nat len', Nat bits') ->
         let diff = next' - first'
          in VSeq len' False $ SeqMap $ \i ->
-                ready $ VWord $ BV bits' $ (first' + i*diff)
+                ready $ VWord $ wordLit bits' (first' + i*diff)
       _ -> evalPanic "fromThenV" ["invalid arguments"]
 
 -- @[ 0 .. 10 ]@
-fromToV :: Value
+fromToV :: BitWord b w
+        => GenValue b w
 fromToV  =
   tlamN $ \ first ->
   tlamN $ \ lst   ->
@@ -926,11 +972,12 @@ fromToV  =
       (Nat first', Nat lst', Nat bits') ->
         let len = 1 + (lst' - first')
          in VSeq len False $ SeqMap $ \i ->
-               ready $ VWord $ BV bits' (first' + i)
+               ready $ VWord $ wordLit bits' (first' + i)
       _ -> evalPanic "fromToV" ["invalid arguments"]
 
 -- @[ 0, 1 .. 10 ]@
-fromThenToV :: Value
+fromThenToV :: BitWord b w
+            => GenValue b w
 fromThenToV  =
   tlamN $ \ first ->
   tlamN $ \ next  ->
@@ -943,8 +990,27 @@ fromThenToV  =
       (Nat first', Nat next', Nat lst', Nat len', Nat bits') ->
         let diff = next' - first'
          in VSeq len' False $ SeqMap $ \i ->
-               ready $ VWord $ BV bits' $ (first' + i*diff)
+               ready $ VWord $ wordLit bits' (first' + i*diff)
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
+
+
+infFromV :: BitWord b w
+         => GenValue b w
+infFromV =
+     tlam $ \(finTValue -> bits)  ->
+     wlam $ \first ->
+     return $ VStream $ SeqMap $ \i ->
+       ready $ VWord $ wordPlus first (wordLit bits i)
+
+infFromThenV :: BitWord b w
+             => GenValue b w
+infFromThenV =
+     tlam $ \(finTValue -> bits)  ->
+     wlam $ \first -> return $
+     wlam $ \next  -> do
+       let diff = wordMinus next first
+       return $ VStream $ SeqMap $ \i ->
+         ready $ VWord $ wordPlus first (wordMult diff (wordLit bits i))
 
 -- Random Values ---------------------------------------------------------------
 

@@ -118,8 +118,25 @@ instance BitWord SBool SWord where
      | Just x <- svAsInteger v = ppBV opts (BV (wordLen v) x)
      | otherwise               = text "[?]"
 
+  bitLit b    = svBool b
+  wordLit n x = svInteger (KBounded False (fromInteger n)) x
+
   packWord bs = fromBitsLE (reverse bs)
   unpackWord x = [ svTestBit x i | i <- reverse [0 .. intSizeOf x - 1] ]
+
+  joinWord x y = svJoin x y
+
+  splitWord leftW rightW w =
+    ( svExtract (intSizeOf w - 1) (fromInteger rightW) w
+    , svExtract (fromInteger rightW - 1) 0 w
+    )
+
+  extractWord len start w =
+    svExtract (fromInteger start + fromInteger len) (fromInteger start) w
+
+  wordPlus  = svPlus
+  wordMinus = svMinus
+  wordMult  = svTimes
 
 -- Errors ----------------------------------------------------------------------
 

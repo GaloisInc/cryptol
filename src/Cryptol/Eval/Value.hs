@@ -19,6 +19,7 @@
 
 module Cryptol.Eval.Value where
 
+import Data.Bits
 import Data.IORef
 --import           Data.Map (Map)
 import qualified Data.Map.Strict as Map
@@ -336,6 +337,27 @@ class BitWord b w | b -> w, w -> b where
   -- most significant bit is the first element of the list.
   unpackWord :: w -> [b]
 
+  -- | NOTE first argument represents the more-significant bits
+  joinWord :: w -> w -> w
+
+  -- | Take the most-significant bits, and return
+  --   those bits and the remainder.  The first element
+  --   of the pair is the most significant bits.
+  splitWord :: Integer -- ^ left width
+            -> Integer -- ^ right width
+            -> w
+            -> (w, w)
+
+  extractWord :: Integer -- ^ Number of bits to take
+              -> Integer -- ^ starting bit
+              -> w
+              -> w
+
+  wordPlus :: w -> w -> w
+  wordMinus :: w -> w -> w
+  wordMult :: w -> w -> w
+
+
 class BitWord b w => EvalPrims b w where
   evalPrim :: Decl -> GenValue b w
   iteValue :: b
@@ -375,19 +397,39 @@ instance BitWord Bool BV where
     where
       w' = fromInteger w
 
+  joinWord (BV i x) (BV j y) =
+    BV (i + j) (shiftL x (fromInteger j) + y)
+
+  splitWord leftW rightW (BV _ x) =
+     ( BV leftW (x `shiftR` (fromInteger rightW)), mkBv rightW x )
+
+  extractWord n i (BV _ x) = mkBv n (x `shiftR` (fromInteger i))
+
+  wordPlus (BV i x) (BV j y)
+    | i == j = mkBv i (x+y)
+    | otherwise = panic "Attempt to add words of different sizes: wordPlus" []
+
+  wordMinus (BV i x) (BV j y)
+    | i == j = mkBv i (x-y)
+    | otherwise = panic "Attempt to subtract words of different sizes: wordMinus" []
+
+  wordMult (BV i x) (BV j y)
+    | i == j = mkBv i (x*y)
+    | otherwise = panic "Attempt to multiply words of different sizes: wordMult" []
+
 
 -- Value Constructors ----------------------------------------------------------
 
 -- | Create a packed word of n bits.
-word :: Integer -> Integer -> Value
-word n i = VWord $ mkBv n i
+word :: BitWord b w => Integer -> Integer -> GenValue b w
+word n i = VWord $ wordLit n i
 
 lam :: (Eval (GenValue b w) -> Eval (GenValue b w)) -> GenValue b w
 lam  = VFun
 
 -- | Functions that assume word inputs
-wlam :: (Integer -> Eval Value) -> Value
-wlam f = VFun (\x -> x >>= fromWord "wlam" >>= f)
+wlam :: BitWord b w => (w -> Eval (GenValue b w)) -> GenValue b w
+wlam f = VFun (\x -> x >>= fromVWord "wlam" >>= f)
 
 -- | A type lambda that expects a @Type@.
 tlam :: (TValue -> GenValue b w) -> GenValue b w
