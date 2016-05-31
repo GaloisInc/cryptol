@@ -132,7 +132,7 @@ instance BitWord SBool SWord where
     )
 
   extractWord len start w =
-    svExtract (fromInteger start + fromInteger len) (fromInteger start) w
+    svExtract (fromInteger start + fromInteger len - 1) (fromInteger start) w
 
   wordPlus  = svPlus
   wordMinus = svMinus
