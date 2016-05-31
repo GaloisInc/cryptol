@@ -197,6 +197,19 @@ data GenValue b w
   | VPoly (TValue -> Eval (GenValue b w))  -- polymorphic values (kind *)
   deriving (Generic)
 
+
+forceValue :: GenValue b w -> Eval ()
+forceValue v = case v of
+  VRecord fs  -> mapM_ (\x -> forceValue =<< snd x) fs
+  VTuple xs   -> mapM_ (forceValue =<<) xs
+  VSeq n _ xs -> mapM_ (forceValue =<<) (enumerateSeqMap n xs)
+  VBit b      -> b `seq` return ()
+  VWord w     -> w `seq` return ()
+  VStream _   -> return ()
+  VFun _      -> return ()
+  VPoly _     -> return ()
+
+
 instance (Show b, Show w) => Show (GenValue b w) where
   show v = case v of
     VRecord fs -> "record:" ++ show (map fst fs)

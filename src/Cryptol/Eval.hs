@@ -15,11 +15,14 @@
 
 module Cryptol.Eval (
     moduleEnv
+  , runEval
+  , Eval
   , EvalEnv
   , emptyEnv
   , evalExpr
   , evalDecls
   , EvalError(..)
+  , forceValue
   ) where
 
 import Cryptol.Eval.Env
