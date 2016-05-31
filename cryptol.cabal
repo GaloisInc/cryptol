@@ -245,4 +245,5 @@ benchmark cryptol-bench
                      , criterion
                      , cryptol
                      , deepseq
+                     , sbv
                      , text
