@@ -397,7 +397,7 @@ cmdProveSat isSat "" =
                      then rPutStr $ ":sat "   ++ str ++ "\n\t"
                      else rPutStr $ ":prove " ++ str ++ "\n\t"
                   cmdProveSat isSat str
-cmdProveSat isSat expr = do
+cmdProveSat isSat str = do
   let cexStr | isSat = "satisfying assignment"
              | otherwise = "counterexample"
   EnvString proverName <- getUser "prover"
@@ -405,7 +405,7 @@ cmdProveSat isSat expr = do
   let mfile = if fileName == "-" then Nothing else Just fileName
   case proverName of
     "offline" -> do
-      result <- offlineProveSat isSat expr mfile
+      result <- offlineProveSat isSat str mfile
       case result of
         Left msg -> rPutStrLn msg
         Right smtlib -> do
@@ -421,7 +421,7 @@ cmdProveSat isSat expr = do
             Just path -> io $ writeFile path smtlib
             Nothing -> rPutStr smtlib
     _ -> do
-      result <- onlineProveSat isSat expr mfile
+      result <- onlineProveSat isSat str mfile
       ppOpts <- getPPValOpts
       case result of
         Symbolic.EmptyResult         ->
@@ -435,7 +435,7 @@ cmdProveSat isSat expr = do
           let tess = map (map $ \(t,e,_) -> (t,e)) tevss
               vss  = map (map $ \(_,_,v) -> v)     tevss
               ppvs vs = do
-                parseExpr <- replParseExpr expr
+                parseExpr <- replParseExpr str
                 let docs = map (pp . E.WithBase ppOpts) vs
                     -- function application has precedence 3
                     doc = ppPrec 3 parseExpr
@@ -545,13 +545,14 @@ typeOfCmd :: String -> REPL ()
 typeOfCmd str = do
 
   expr         <- replParseExpr str
-  (re,def,sig) <- replCheckExpr expr
+  (_re,def,sig) <- replCheckExpr expr
 
   -- XXX need more warnings from the module system
   --io (mapM_ printWarning ws)
   whenDebug (rPutStrLn (dump def))
   (_,_,names) <- getFocusedEnv
-  rPrint $ runDoc names $ pp re <+> text ":" <+> pp sig
+  -- type annotation ':' has precedence 2
+  rPrint $ runDoc names $ ppPrec 2 expr <+> text ":" <+> pp sig
 
 readFileCmd :: FilePath -> REPL ()
 readFileCmd fp = do
@@ -844,7 +845,7 @@ moduleCmdResult (res,ws0) = do
           ys -> Just (M.TypeCheckWarnings ys)
       filterDefaults w = Just w
 
-      isShadowWarn (M.SymbolShadowed _ _ _) = True
+      isShadowWarn (M.SymbolShadowed {}) = True
 
       filterShadowing w | warnShadowing = Just w
       filterShadowing (M.RenamerWarnings xs) =

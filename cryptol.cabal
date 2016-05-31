@@ -51,7 +51,6 @@ library
                        directory         >= 1.2,
                        filepath          >= 1.3,
                        gitrev            >= 1.0,
-                       generic-trie      >= 0.3.0.1,
                        GraphSCC          >= 1.0.4,
                        heredoc           >= 0.2,
                        monad-control     >= 1.0,
@@ -168,8 +167,6 @@ library
                        GitRev
 
   GHC-options:         -Wall -O2 -fsimpl-tick-factor=140
-  -- the `fsimpl-tick-factor` is needed to finish optimizing the
-  -- generic trie.
   ghc-prof-options:    -fprof-auto -prof
 
   if flag(relocatable)
