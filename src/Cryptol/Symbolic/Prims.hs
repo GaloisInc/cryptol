@@ -261,6 +261,19 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
        lam $ \_x -> return $
          panic "Cryptol.Symbolic.Prims.evalECon"
                [ "can't symbolically evaluae ECRandom" ])
+
+     -- The trace function simply forces its first two
+     -- values before returing the third in the symbolic
+     -- evaluator.
+  , ("trace",
+      tlam $ \_a ->
+      tlam $ \_b ->
+       lam $ \s -> return $
+       lam $ \x -> return $
+       lam $ \y -> do
+         _ <- s
+         _ <- x
+         y)
   ]
 
 
