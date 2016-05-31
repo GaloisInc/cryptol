@@ -12,6 +12,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cryptol.Symbolic where
 
@@ -257,21 +258,19 @@ data FinType
     | FTTuple [FinType]
     | FTRecord [(Ident, FinType)]
 
-numType :: Type -> Maybe Int
-numType (TCon (TC (TCNum n)) [])
+numType :: TValue -> Maybe Int
+numType (Eval.numTValue -> Nat n)
   | 0 <= n && n <= toInteger (maxBound :: Int) = Just (fromInteger n)
-numType (TUser _ _ t) = numType t
 numType _ = Nothing
 
-finType :: Type -> Maybe FinType
+finType :: TValue -> Maybe FinType
 finType ty =
   case ty of
-    TCon (TC TCBit) []       -> Just FTBit
-    TCon (TC TCSeq) [n, t]   -> FTSeq <$> numType n <*> finType t
-    TCon (TC (TCTuple _)) ts -> FTTuple <$> traverse finType ts
-    TRec fields              -> FTRecord <$> traverse (traverseSnd finType) fields
-    TUser _ _ t              -> finType t
-    _                        -> Nothing
+    (Eval.isTBit -> True)           -> Just FTBit
+    (Eval.isTSeq -> Just (n, t))    -> FTSeq <$> numType n <*> finType t
+    (Eval.isTTuple -> Just (_, ts)) -> FTTuple <$> traverse finType ts
+    (Eval.isTRec -> Just fields)    -> FTRecord <$> traverse (traverseSnd finType) fields
+    _                               -> Nothing
 
 unFinType :: FinType -> Type
 unFinType fty =
@@ -287,15 +286,15 @@ unFinType fty =
 predArgTypes :: Schema -> Either String [FinType]
 predArgTypes schema@(Forall ts ps ty)
   | null ts && null ps =
-      case go ty of
+      case go (Cryptol.Eval.Type.evalType mempty ty) of
         Just fts -> Right fts
         Nothing  -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
   | otherwise = Left $ "Not a monomorphic type:\n" ++ show (pp schema)
   where
-    go (TCon (TC TCBit) []) = Just []
-    go (TCon (TC TCFun) [ty1, ty2]) = (:) <$> finType ty1 <*> go ty2
-    go (TUser _ _ t) = go t
-    go _ = Nothing
+    go :: TValue -> Maybe [FinType]
+    go (Eval.isTBit -> True)            = Just []
+    go (Eval.isTFun -> Just (ty1, ty2)) = (:) <$> finType ty1 <*> go ty2
+    go _                                = Nothing
 
 forallFinType :: FinType -> SBV.Symbolic Value
 forallFinType ty =
