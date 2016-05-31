@@ -197,7 +197,7 @@ executable cryptol
                      , sbv
                      , tf-random
                      , transformers
-  GHC-options:         -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
+  GHC-options:         -Wall -O2 -threaded -rtsopts -with-rtsopts=-N1
   ghc-prof-options:    -auto-all -prof -rtsopts
 
   if os(linux) && flag(static)
@@ -209,7 +209,7 @@ executable cryptol-server
   other-modules:       Cryptol.Aeson
   default-language:    Haskell2010
   default-extensions:  OverloadedStrings
-  GHC-options:         -Wall -O2 -threaded -rtsopts -with-rtsopts=-N
+  GHC-options:         -Wall -O2 -threaded -rtsopts -with-rtsopts=-N1
   ghc-prof-options:    -auto-all -prof -rtsopts
   if os(linux) && flag(static)
       ld-options:      -static -pthread
