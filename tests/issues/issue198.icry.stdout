@@ -5,15 +5,15 @@ Loading module Main
   Defaulting type parameter 'bits'
              of literal or demoted expression
              at ./simon.cry2:87:34--87:35
-  to max 3 (width a`572)
+  to max 3 (width a`585)
 [warning] at ./simon.cry2:83:1--92:15:
   Defaulting type parameter 'bits'
              of literal or demoted expression
              at ./simon.cry2:90:29--90:31
-  to width a`574
+  to width a`587
 [warning] at ./simon.cry2:83:1--92:15:
   Defaulting type parameter 'bits'
              of literal or demoted expression
              at ./simon.cry2:89:36--89:38
-  to max 6 (max (width a`572) (width (a`573 - 1)))
+  to max 6 (max (width a`585) (width (a`586 - 1)))
 True
