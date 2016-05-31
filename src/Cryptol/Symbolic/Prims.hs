@@ -22,7 +22,7 @@ import Data.Ord (comparing)
 
 import Cryptol.Eval.Monad (Eval(..), ready)
 import Cryptol.Eval.Value (BitWord(..), EvalPrims(..), enumerateSeqMap, SeqMap(..),
-                          finiteSeqMap, reverseSeqMap)
+                          finiteSeqMap, reverseSeqMap, wlam)
 import Cryptol.Prims.Eval (binary, unary, tlamN, arithUnary,
                            arithBinary, Binary, BinArith,
                            logicBinary, logicUnary, zeroV,
@@ -70,7 +70,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("demote"      , ecDemoteV) -- Converts a numeric type into its corresponding value.
                                 -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
   , ("+"           , binary (arithBinary (liftBinArith SBV.svPlus))) -- {a} (Arith a) => a -> a -> a
-  , ("-"           , binary (arithBinary (liftBinArith  SBV.svMinus))) -- {a} (Arith a) => a -> a -> a
+  , ("-"           , binary (arithBinary (liftBinArith SBV.svMinus))) -- {a} (Arith a) => a -> a -> a
   , ("*"           , binary (arithBinary (liftBinArith SBV.svTimes))) -- {a} (Arith a) => a -> a -> a
   , ("/"           , binary (arithBinary (liftBinArith SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
   , ("%"           , binary (arithBinary (liftBinArith SBV.svRem))) -- {a} (Arith a) => a -> a -> a
@@ -258,9 +258,10 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
 
   , ("random"      ,
       tlam $ \_a ->
-       lam $ \_x -> return $
-         panic "Cryptol.Symbolic.Prims.evalECon"
-               [ "can't symbolically evaluae ECRandom" ])
+      wlam $ \_x ->
+         Thunk $ return $ panic
+            "Cryptol.Symbolic.Prims.evalECon"
+            [ "can't symbolically evaluate ECRandom" ])
 
      -- The trace function simply forces its first two
      -- values before returing the third in the symbolic
