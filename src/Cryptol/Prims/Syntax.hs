@@ -57,24 +57,25 @@ tBinOpPrec  = mkMap t_table
     , (RightAssoc,  [ TCExp ])
     ]
 
-tfunNames :: Map.Map PName TFun
+-- | Type functions, with their arity and function constructor.
+tfunNames :: Map.Map PName (Int,TFun)
 tfunNames  = Map.fromList
-  [ tinfix  "+"                TCAdd
-  , tinfix  "-"                TCSub
-  , tinfix  "*"                TCMul
-  , tinfix  "/"                TCDiv
-  , tinfix  "%"                TCMod
-  , tinfix  "^^"               TCExp
-  , tprefix "width"            TCWidth
-  , tprefix "min"              TCMin
-  , tprefix "max"              TCMax
-  , tprefix "lengthFromThen"   TCLenFromThen
-  , tprefix "lengthFromThenTo" TCLenFromThenTo
+  [ tinfix  "+"                2 TCAdd
+  , tinfix  "-"                2 TCSub
+  , tinfix  "*"                2 TCMul
+  , tinfix  "/"                2 TCDiv
+  , tinfix  "%"                2 TCMod
+  , tinfix  "^^"               2 TCExp
+  , tprefix "width"            1 TCWidth
+  , tprefix "min"              2 TCMin
+  , tprefix "max"              2 TCMax
+  , tprefix "lengthFromThen"   3 TCLenFromThen
+  , tprefix "lengthFromThenTo" 3 TCLenFromThenTo
   ]
   where
 
-  tprefix n p = (mkUnqual (packIdent n), p)
-  tinfix  n p = (mkUnqual (packInfix n), p)
+  tprefix n a p = (mkUnqual (packIdent n), (a,p))
+  tinfix  n a p = (mkUnqual (packInfix n), (a,p))
 
 instance PPName TFun where
   ppNameFixity f = Map.lookup f tBinOpPrec

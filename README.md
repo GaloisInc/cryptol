@@ -50,6 +50,14 @@ install Cryptol using Homebrew, Z3 will be installed automatically.
 After installation, make sure that `z3` (or `z3.exe` on Windows)
 is on your PATH.
 
+### Note for 64-bit Linux Users
+
+On some 64-bit Linux configurations, 32-bit binaries do not work. This
+can lead to unhelpful error messages like `z3: no such file or
+directory`, even when `z3` is clearly present. To fix this, either
+install 32-bit compatibility packages for your distribution, or
+download the `x64` version of Z3.
+
 # Building Cryptol From Source
 
 In addition to the binaries, the Cryptol source is available publicly

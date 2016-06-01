@@ -460,7 +460,7 @@ instance Rename Schema where
 renameSchema :: Schema PName -> RenameM (NamingEnv,Schema Name)
 renameSchema (Forall ps p ty loc) =
   do -- check that the parameters don't shadow any built-in types
-     let reserved = filter (isReserved . getIdent . tpName) ps
+     let reserved = filter (isReserved . tpName) ps
          mkErr tp = BoundReservedType (tpName tp) (tpRange tp) (text "schema")
      unless (null reserved) (mapM_ (record . mkErr) reserved)
 
@@ -512,32 +512,12 @@ translateProp ty = go ty
          CType <$> rename t
 
 
-
--- | Fixed names for type functions and built-in types.
-reservedTypeNames :: Map.Map Ident ([Type Name] -> Maybe (Type Name))
-reservedTypeNames  = Map.fromList
-  [ (packIdent "inf", typeConst TInf)
-  , (packIdent "Bit", typeConst TBit)
-
-  , (packIdent "min",              arity 2 TCMin)
-  , (packIdent "max",              arity 2 TCMax)
-  , (packIdent "lengthFromThen",   arity 3 TCLenFromThen)
-  , (packIdent "lengthFromThenTo", arity 3 TCLenFromThenTo)
-  , (packIdent "width",            arity 1 TCWidth)
-  ]
-
-  where
-  typeConst c ps =
-    do guard (null ps)
-       return c
-
-  arity n op ps =
-    do guard (length ps == n)
-       return (TApp op ps)
-
 -- | Check to see if this identifier is a reserved type/type-function.
-isReserved :: Ident -> Bool
-isReserved k = Map.member k reservedTypeNames
+isReserved :: PName -> Bool
+isReserved pn = Map.member pn tfunNames || isReservedTyCon pn
+
+isReservedTyCon :: PName -> Bool
+isReservedTyCon pn = Map.member pn tconNames
 
 -- | Resolve fixity, then rename the resulting type.
 instance Rename Type where
@@ -552,12 +532,16 @@ instance Rename Type where
     go  TInf         = return TInf
 
     go (TUser pn ps)
-      | Just mk <- Map.lookup (getIdent pn) reservedTypeNames =
-        do ps' <- traverse go ps
-           case mk ps' of
-             Just ty -> return ty
-             Nothing -> do record (MalformedBuiltin ty0 pn)
-                           TUser <$> renameType pn <*> pure ps'
+
+      -- all type functions
+      | Just (arity,fun) <- Map.lookup pn tfunNames =
+        do when (arity /= length ps) (record (MalformedBuiltin ty0 pn))
+           ps' <- traverse go ps
+           return (TApp fun ps')
+
+      -- built-in types like Bit and inf
+      | Just ty <- Map.lookup pn tconNames =
+        rename ty
 
     go (TUser qn ps)   = TUser    <$> renameType qn <*> traverse go ps
     go (TApp f xs)     = TApp f   <$> traverse go xs
@@ -658,7 +642,7 @@ lookupFixity op =
 
   where
   sym = thing op
-  lkp = do n               <- Map.lookup (thing op) tfunNames
+  lkp = do (_,n)           <- Map.lookup (thing op) tfunNames
            (fAssoc,fLevel) <- Map.lookup n tBinOpPrec
            return (n,Fixity { .. })
 
@@ -856,6 +840,10 @@ patternEnv  = go
          Just _ -> bindTypes ps
 
          Nothing
+           -- Just ignore reserved names, as they'll be resolved when renaming.
+           | isReserved pn ->
+             bindTypes ps
+
            -- The type isn't bound, and has no parameters, so it names a portion
            -- of the type of the pattern.
            | null ps ->
@@ -894,7 +882,7 @@ instance Rename Match where
 
 instance Rename TySyn where
   rename (TySyn n ps ty) =
-    do when (isReserved (getIdent (thing n)))
+    do when (isReserved (thing n))
             (record (BoundReservedType (thing n) (getLoc n) (text "type synonym")))
 
        shadowNames ps $ TySyn <$> rnLocated renameType n

@@ -166,7 +166,7 @@ $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''T.Select
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } { fieldLabelModifier = drop 1 } ''T.Fixity)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''T.Pragma)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''Assoc)
-$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''Name)
+$(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''Name)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''IfaceDecl)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''T.Newtype)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''T.TySyn)
