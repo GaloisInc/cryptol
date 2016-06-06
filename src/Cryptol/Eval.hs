@@ -43,7 +43,7 @@ moduleEnv m env = evalDecls (mDecls m) (evalNewtypes (mNewtypes m) env)
 evalExpr :: EvalEnv -> Expr -> Value
 evalExpr env expr = case expr of
 
-  EList es ty -> VSeq (isTBit (evalType env ty)) (map (evalExpr env) es)
+  EList es ty -> VSeq (isTBit (evalValType env ty)) (map (evalExpr env) es)
 
   ETuple es -> VTuple (map eval es)
 
@@ -54,7 +54,7 @@ evalExpr env expr = case expr of
   EIf c t f | fromVBit (eval c) -> eval t
             | otherwise         -> eval f
 
-  EComp l h gs -> evalComp env (evalType env l) h gs
+  EComp l h gs -> evalComp env (evalValType env l) h gs
 
   EVar n -> case lookupVar n env of
     Just val -> val
@@ -69,7 +69,7 @@ evalExpr env expr = case expr of
     k     -> panic "[Eval] evalExpr" ["invalid kind on type abstraction", show k]
 
   ETApp e ty -> case eval e of
-    VPoly f    -> f (evalType env ty)
+    VPoly f    -> f (evalValType env ty)
     VNumPoly f -> f (evalNumType env ty)
     val        -> panic "[Eval] evalExpr"
                        ["expected a polymorphic value"

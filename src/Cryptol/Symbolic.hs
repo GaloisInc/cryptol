@@ -32,7 +32,7 @@ import Cryptol.Symbolic.Prims
 import Cryptol.Symbolic.Value
 
 import qualified Cryptol.Eval.Value as Eval
-import qualified Cryptol.Eval.Type (evalType, evalNumType)
+import qualified Cryptol.Eval.Type (evalValType, evalNumType)
 import qualified Cryptol.Eval.Env (EvalEnv(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
@@ -286,7 +286,7 @@ unFinType fty =
 predArgTypes :: Schema -> Either String [FinType]
 predArgTypes schema@(Forall ts ps ty)
   | null ts && null ps =
-      case go (Cryptol.Eval.Type.evalType mempty ty) of
+      case go (Cryptol.Eval.Type.evalValType mempty ty) of
         Just fts -> Right fts
         Nothing  -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
   | otherwise = Left $ "Not a monomorphic type:\n" ++ show (pp schema)
@@ -360,7 +360,7 @@ evalExpr env expr =
     ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
     ESel e sel        -> evalSel sel (eval e)
     EIf b e1 e2       -> iteValue (fromVBit (eval b)) (eval e1) (eval e2)
-    EComp ty e mss    -> evalComp env (evalType env ty) e mss
+    EComp ty e mss    -> evalComp env (evalValType env ty) e mss
     EVar n            -> case lookupVar n env of
                            Just x -> x
                            _ -> panic "Cryptol.Symbolic.evalExpr" [ "Variable " ++ show n ++ " not found" ]
@@ -370,7 +370,7 @@ evalExpr env expr =
       KNum  -> VNumPoly $ \n -> evalExpr (bindType (tpVar tv) (Left n) env) e
       k     -> panic "[Symbolic] evalExpr" ["invalid kind on type abstraction", show k]
     ETApp e ty        -> case eval e of
-      VPoly f    -> f (evalType env ty)
+      VPoly f    -> f (evalValType env ty)
       VNumPoly f -> f (evalNumType env ty)
       _          -> panic "[Symbolic] evalExpr"
                          [ "expected a polymorphic value"
@@ -385,8 +385,8 @@ evalExpr env expr =
     where
       eval e = evalExpr env e
 
-evalType :: Env -> Type -> TValue
-evalType env ty = Cryptol.Eval.Type.evalType env' ty
+evalValType :: Env -> Type -> TValue
+evalValType env ty = Cryptol.Eval.Type.evalValType env' ty
   where env' = Cryptol.Eval.Env.EvalEnv Map.empty (envTypes env)
 
 evalNumType :: Env -> Type -> Nat'
@@ -447,7 +447,7 @@ evalDecl env d = (dName d, body)
 copyBySchema :: Env -> Schema -> Value -> Value
 copyBySchema env0 (Forall params _props ty) = go params env0
   where
-    go [] env v = copyByType env (evalType env ty) v
+    go [] env v = copyByType env (evalValType env ty) v
     go (p : ps) env v =
       case tpKind p of
         KType -> VPoly (\t -> go ps (bindType (tpVar p) (Right t) env) (fromVPoly v t))
@@ -463,7 +463,7 @@ copyByType env ty v =
     TVFun _ bty -> VFun (\x -> copyByType env bty (fromVFun v x))
     TVTuple tys -> VTuple (zipWith (copyByType env) tys (fromVTuple v))
     TVRec fs    -> VRecord [ (f, copyByType env t (lookupRecord f v)) | (f, t) <- fs ]
--- copyByType env ty v = logicUnary id id (evalType env ty) v
+-- copyByType env ty v = logicUnary id id (evalValType env ty) v
 
 -- List Comprehensions ---------------------------------------------------------
 
