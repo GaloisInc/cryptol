@@ -12,7 +12,7 @@ module Cryptol.Eval.Type (evalType, evalTF) where
 
 import Cryptol.Eval.Env
 import Cryptol.Eval.Error
-import Cryptol.Eval.Value(TValue(..),numTValue)
+import Cryptol.Eval.Value (TValue(..), numTValue, toNumTValue)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat
 
@@ -23,25 +23,38 @@ import Data.Maybe(fromMaybe)
 
 -- | Evaluation for types.
 evalType :: EvalEnv -> Type -> TValue
-evalType env = TValue . go
+evalType env = go
   where
   go ty =
     case ty of
       TVar tv ->
         case lookupType tv env of
-          Just (TValue v)   -> v
+          Just v   -> v
           Nothing  -> evalPanic "evalType" ["type variable not bound", show tv]
 
-      TCon (TF f) ts -> tValTy $ evalTF f $ map (evalType env) ts
-      TCon tc ts     -> TCon tc (map go ts)
+      TCon (TF f) ts -> evalTF f $ map (evalType env) ts
+      TCon (TC c) ts -> evalTC c (map go ts)
+      TCon (PC p) _  -> evalPanic "evalType" ["invalid predicate symbol", show p]
       TUser _ _ ty'  -> go ty'
-      TRec fields    -> TRec [ (f,go t) | (f,t) <- fields ]
+      TRec fields    -> TVRec [ (f,go t) | (f,t) <- fields ]
 
--- | Reduce type functions, rising an exception for undefined values.
+evalTC :: TC -> [TValue] -> TValue
+evalTC tc ts =
+  case (tc, ts) of
+    (TCNum n, [])   -> TVNat n
+    (TCInf, [])     -> TVInf
+    (TCBit, [])     -> TVBit
+    (TCSeq, [n, t]) -> TVSeq n t
+    (TCFun, [a, b]) -> TVFun a b
+    (TCTuple _, _)  -> TVTuple ts
+    -- FIXME: What about TCNewtype?
+    _               -> evalPanic "evalType" ["invalid type constructor arguments", show tc]
+
+-- | Reduce type functions, raising an exception for undefined values.
 evalTF :: TFun -> [TValue] -> TValue
-evalTF tf vs = TValue $ cvt $ evalTF' tf $ map numTValue vs
+evalTF tf vs = toNumTValue $ evalTF' tf $ map numTValue vs
 
--- | Reduce type functions, rising an exception for undefined values.
+-- | Reduce type functions, raising an exception for undefined values.
 evalTF' :: TFun -> [Nat'] -> Nat'
 evalTF' f vs
   | TCAdd           <- f, [x,y]   <- vs  =      nAdd x y
@@ -59,13 +72,4 @@ evalTF' f vs
                         ["Unexpected type function:", show ty]
 
   where mb = fromMaybe (typeCannotBeDemoted ty)
-        ty = TCon (TF f) (map cvt vs)
-
-
-cvt :: Nat' -> Type
-cvt (Nat n) = tNum n
-cvt Inf     = tInf
-
-
-
-
+        ty = TCon (TF f) (map tNat' vs)

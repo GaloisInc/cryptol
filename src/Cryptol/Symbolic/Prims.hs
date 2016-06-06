@@ -358,8 +358,8 @@ replicateV :: Integer -- ^ number of elements
            -> TValue  -- ^ type of element
            -> Value   -- ^ element
            -> Value
-replicateV n (toTypeVal -> TVBit) x = VSeq True  (genericReplicate n x)
-replicateV n _                    x = VSeq False (genericReplicate n x)
+replicateV n TVBit x = VSeq True  (genericReplicate n x)
+replicateV n _     x = VSeq False (genericReplicate n x)
 
 nth :: a -> [a] -> Int -> a
 nth def [] _ = def
@@ -423,27 +423,6 @@ ecDemoteV = tlam $ \valT ->
                        , show bitT
                        ]
 
--- Type Values -----------------------------------------------------------------
-
--- | An easy-to-use alternative representation for type `TValue`.
-data TypeVal
-  = TVBit
-  | TVSeq Int TypeVal
-  | TVStream TypeVal
-  | TVTuple [TypeVal]
-  | TVRecord [(Ident, TypeVal)]
-  | TVFun TypeVal TypeVal
-
-toTypeVal :: TValue -> TypeVal
-toTypeVal ty
-  | isTBit ty                    = TVBit
-  | Just (n, ety) <- isTSeq ty   = case numTValue n of
-                                     Nat w -> TVSeq (fromInteger w) (toTypeVal ety)
-                                     Inf   -> TVStream (toTypeVal ety)
-  | Just (aty, bty) <- isTFun ty = TVFun (toTypeVal aty) (toTypeVal bty)
-  | Just (_, tys) <- isTTuple ty = TVTuple (map toTypeVal tys)
-  | Just fields <- isTRec ty     = TVRecord [ (n, toTypeVal aty) | (n, aty) <- fields ]
-  | otherwise                    = panic "Cryptol.Symbolic.Prims.toTypeVal" [ "bad TValue" ]
 
 -- Arith -----------------------------------------------------------------------
 
@@ -452,30 +431,30 @@ type Unary = TValue -> Value -> Value
 
 -- | Models functions of type `{a} (Arith a) => a -> a -> a`
 arithBinary :: (SWord -> SWord -> SWord) -> Binary
-arithBinary op = loop . toTypeVal
+arithBinary op = loop
   where
     loop ty l r =
       case ty of
         TVBit         -> evalPanic "arithBinop" ["Invalid arguments"]
+        TVSeq TVInf t -> VStream (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVSeq _ TVBit -> VWord (op (fromVWord l) (fromVWord r))
         TVSeq _ t     -> VSeq False (zipWith (loop t) (fromSeq l) (fromSeq r))
-        TVStream t    -> VStream (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVTuple ts    -> VTuple (zipWith3 loop ts (fromVTuple l) (fromVTuple r))
-        TVRecord fs   -> VRecord [ (f, loop t (lookupRecord f l) (lookupRecord f r)) | (f, t) <- fs ]
+        TVRec fs      -> VRecord [ (f, loop t (lookupRecord f l) (lookupRecord f r)) | (f, t) <- fs ]
         TVFun _ t     -> VFun (\x -> loop t (fromVFun l x) (fromVFun r x))
 
 -- | Models functions of type `{a} (Arith a) => a -> a`
 arithUnary :: (SWord -> SWord) -> Unary
-arithUnary op = loop . toTypeVal
+arithUnary op = loop
   where
     loop ty v =
       case ty of
         TVBit         -> evalPanic "arithUnary" ["Invalid arguments"]
+        TVSeq TVInf t -> VStream (map (loop t) (fromSeq v))
         TVSeq _ TVBit -> VWord (op (fromVWord v))
         TVSeq _ t     -> VSeq False (map (loop t) (fromSeq v))
-        TVStream t    -> VStream (map (loop t) (fromSeq v))
         TVTuple ts    -> VTuple (zipWith loop ts (fromVTuple v))
-        TVRecord fs   -> VRecord [ (f, loop t (lookupRecord f v)) | (f, t) <- fs ]
+        TVRec fs      -> VRecord [ (f, loop t (lookupRecord f v)) | (f, t) <- fs ]
         TVFun _ t     -> VFun (\x -> loop t (fromVFun v x))
 
 sExp :: SWord -> SWord -> SWord
@@ -545,28 +524,28 @@ cmpBinary fb fw b _ty v1 v2 = VBit (cmpValue fb fw v1 v2 b)
 -- Logic -----------------------------------------------------------------------
 
 errorV :: String -> TValue -> Value
-errorV msg = go . toTypeVal
+errorV msg = go
   where
     go ty =
       case ty of
         TVBit         -> VBit (error msg)
-        TVSeq n t     -> VSeq False (replicate n (go t))
-        TVStream t    -> VStream (repeat (go t))
+        TVSeq (TVNat n) t -> VSeq False (replicate (fromInteger n) (go t))
+        TVSeq TVInf t -> VStream (repeat (go t))
         TVTuple ts    -> VTuple [ go t | t <- ts ]
-        TVRecord fs   -> VRecord [ (n, go t) | (n, t) <- fs ]
+        TVRec fs      -> VRecord [ (n, go t) | (n, t) <- fs ]
         TVFun _ t     -> VFun (const (go t))
 
 zeroV :: TValue -> Value
-zeroV = go . toTypeVal
+zeroV = go
   where
     go ty =
       case ty of
         TVBit         -> VBit SBV.svFalse
-        TVSeq n TVBit -> VWord (literalSWord n 0)
-        TVSeq n t     -> VSeq False (replicate n (go t))
-        TVStream t    -> VStream (repeat (go t))
+        TVSeq (TVNat n) TVBit -> VWord (literalSWord (fromInteger n) 0)
+        TVSeq (TVNat n) t     -> VSeq False (replicate (fromInteger n) (go t))
+        TVSeq TVInf t -> VStream (repeat (go t))
         TVTuple ts    -> VTuple [ go t | t <- ts ]
-        TVRecord fs   -> VRecord [ (n, go t) | (n, t) <- fs ]
+        TVRec fs      -> VRecord [ (n, go t) | (n, t) <- fs ]
         TVFun _ t     -> VFun (const (go t))
 
 -- | Join a sequence of sequences into a single sequence.
@@ -601,29 +580,29 @@ finChunksOf parts each xs = let (as,bs) = genericSplitAt each xs
 
 -- | Merge two values given a binop.  This is used for and, or and xor.
 logicBinary :: (SBool -> SBool -> SBool) -> (SWord -> SWord -> SWord) -> Binary
-logicBinary bop op = loop . toTypeVal
+logicBinary bop op = loop
   where
     loop ty l r =
       case ty of
         TVBit         -> VBit (bop (fromVBit l) (fromVBit r))
+        TVSeq TVInf t -> VStream (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVSeq _ TVBit -> VWord (op (fromVWord l) (fromVWord r))
         TVSeq _ t     -> VSeq False (zipWith (loop t) (fromSeq l) (fromSeq r))
-        TVStream t    -> VStream (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVTuple ts    -> VTuple (zipWith3 loop ts (fromVTuple l) (fromVTuple r))
-        TVRecord fs   -> VRecord [ (f, loop t (lookupRecord f l) (lookupRecord f r)) | (f, t) <- fs ]
+        TVRec fs      -> VRecord [ (f, loop t (lookupRecord f l) (lookupRecord f r)) | (f, t) <- fs ]
         TVFun _ t     -> VFun (\x -> loop t (fromVFun l x) (fromVFun r x))
 
 logicUnary :: (SBool -> SBool) -> (SWord -> SWord) -> Unary
-logicUnary bop op = loop . toTypeVal
+logicUnary bop op = loop
   where
     loop ty v =
       case ty of
         TVBit         -> VBit (bop (fromVBit v))
+        TVSeq TVInf t -> VStream (map (loop t) (fromSeq v))
         TVSeq _ TVBit -> VWord (op (fromVWord v))
         TVSeq _ t     -> VSeq False (map (loop t) (fromSeq v))
-        TVStream t    -> VStream (map (loop t) (fromSeq v))
         TVTuple ts    -> VTuple (zipWith loop ts (fromVTuple v))
-        TVRecord fs   -> VRecord [ (f, loop t (lookupRecord f v)) | (f, t) <- fs ]
+        TVRec fs      -> VRecord [ (f, loop t (lookupRecord f v)) | (f, t) <- fs ]
         TVFun _ t     -> VFun (\x -> loop t (fromVFun v x))
 
 -- @[ 0, 1 .. ]@

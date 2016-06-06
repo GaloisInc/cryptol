@@ -35,48 +35,44 @@ import Control.DeepSeq.Generics
 -- Utilities -------------------------------------------------------------------
 
 isTBit :: TValue -> Bool
-isTBit (TValue ty) = case ty of
-  TCon (TC TCBit) [] -> True
-  _                  -> False
+isTBit TVBit = True
+isTBit _ = False
 
 isTSeq :: TValue -> Maybe (TValue, TValue)
-isTSeq (TValue (TCon (TC TCSeq) [t1,t2])) = Just (TValue t1, TValue t2)
+isTSeq (TVSeq n t) = Just (n, t)
 isTSeq _ = Nothing
 
 isTFun :: TValue -> Maybe (TValue, TValue)
-isTFun (TValue (TCon (TC TCFun) [t1,t2])) = Just (TValue t1, TValue t2)
+isTFun (TVFun t1 t2) = Just (t1, t2)
 isTFun _ = Nothing
 
 isTTuple :: TValue -> Maybe (Int,[TValue])
-isTTuple (TValue (TCon (TC (TCTuple n)) ts)) = Just (n, map TValue ts)
+isTTuple (TVTuple ts) = Just (length ts, ts)
 isTTuple _ = Nothing
 
 isTRec :: TValue -> Maybe [(Ident, TValue)]
-isTRec (TValue (TRec fs)) = Just [ (x, TValue t) | (x,t) <- fs ]
+isTRec (TVRec fs) = Just fs
 isTRec _ = Nothing
 
 tvSeq :: TValue -> TValue -> TValue
-tvSeq (TValue x) (TValue y) = TValue (tSeq x y)
-
-
+tvSeq x y = TVSeq x y
 
 numTValue :: TValue -> Nat'
-numTValue (TValue ty) =
+numTValue ty =
   case ty of
-    TCon (TC (TCNum x)) _ -> Nat x
-    TCon (TC TCInf) _     -> Inf
+    TVNat n -> Nat n
+    TVInf   -> Inf
     _ -> panic "Cryptol.Eval.Value.numTValue" [ "Not a numeric type:", show ty ]
 
 toNumTValue :: Nat' -> TValue
-toNumTValue (Nat n) = TValue (TCon (TC (TCNum n)) [])
-toNumTValue Inf     = TValue (TCon (TC TCInf) [])
+toNumTValue (Nat n) = TVNat n
+toNumTValue Inf     = TVInf
 
 finTValue :: TValue -> Integer
 finTValue tval =
   case numTValue tval of
     Nat x -> x
     Inf   -> panic "Cryptol.Eval.Value.finTValue" [ "Unexpected `inf`" ]
-
 
 -- Values ----------------------------------------------------------------------
 
@@ -110,12 +106,31 @@ type Value = GenValue Bool BV
 
 -- | An evaluated type.
 -- These types do not contain type variables, type synonyms, or type functions.
-newtype TValue = TValue { tValTy :: Type } deriving (Generic)
+data TValue
+  = TVBit
+  | TVSeq TValue TValue -- ^ length, element
+  | TVTuple [TValue]
+  | TVRec [(Ident, TValue)]
+  | TVFun TValue TValue
+  | TVNat Integer
+  | TVInf
+    deriving (Generic)
 
 instance NFData TValue where rnf = genericRnf
 
+tValTy :: TValue -> Type
+tValTy tv =
+  case tv of
+    TVBit       -> tBit
+    TVSeq n t   -> tSeq (tValTy n) (tValTy t)
+    TVTuple ts  -> tTuple (map tValTy ts)
+    TVRec fs    -> tRec [ (f, tValTy t) | (f, t) <- fs ]
+    TVFun t1 t2 -> tFun (tValTy t1) (tValTy t2)
+    TVNat n     -> tNum n
+    TVInf       -> tInf
+
 instance Show TValue where
-  showsPrec p (TValue v) = showsPrec p v
+  showsPrec p v = showsPrec p (tValTy v)
 
 
 -- Pretty Printing -------------------------------------------------------------

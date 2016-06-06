@@ -440,26 +440,26 @@ copyBySchema env0 (Forall params _props ty) = go params env0
       VPoly (\t -> go ps (bindType (tpVar p) t env) (fromVPoly v t))
 
 copyByType :: Env -> TValue -> Value -> Value
-copyByType env ty v
-  | isTBit ty                    = VBit (fromVBit v)
-  | Just (n, ety) <- isTSeq ty   = case numTValue n of
-                                     Nat _ -> VSeq (isTBit ety) (fromSeq v)
-                                     Inf   -> VStream (fromSeq v)
-  | Just (_, bty) <- isTFun ty   = VFun (\x -> copyByType env bty (fromVFun v x))
-  | Just (_, tys) <- isTTuple ty = VTuple (zipWith (copyByType env) tys (fromVTuple v))
-  | Just fs <- isTRec ty         = VRecord [ (f, copyByType env t (lookupRecord f v)) | (f, t) <- fs ]
-  | otherwise                    = v
+copyByType env ty v =
+  case ty of
+    TVBit       -> VBit (fromVBit v)
+    TVSeq n ety -> case numTValue n of
+                     Nat _ -> VSeq (isTBit ety) (fromSeq v)
+                     Inf   -> VStream (fromSeq v)
+    TVFun _ bty -> VFun (\x -> copyByType env bty (fromVFun v x))
+    TVTuple tys -> VTuple (zipWith (copyByType env) tys (fromVTuple v))
+    TVRec fs    -> VRecord [ (f, copyByType env t (lookupRecord f v)) | (f, t) <- fs ]
+    _           -> v
 -- copyByType env ty v = logicUnary id id (evalType env ty) v
 
 -- List Comprehensions ---------------------------------------------------------
 
 -- | Evaluate a comprehension.
 evalComp :: Env -> TValue -> Expr -> [[Match]] -> Value
-evalComp env seqty body ms
-  | Just (len,el) <- isTSeq seqty = toSeq len el [ evalExpr e body | e <- envs ]
-  | otherwise = evalPanic "Cryptol.Eval" [ "evalComp given a non sequence"
-                                         , show seqty
-                                         ]
+evalComp env seqty body ms =
+  case seqty of
+    TVSeq len el -> toSeq len el [ evalExpr e body | e <- envs ]
+    _ -> evalPanic "Cryptol.Eval" ["evalComp given a non sequence", show seqty]
 
   -- XXX we could potentially print this as a number if the type was available.
   where
