@@ -17,10 +17,13 @@ import Data.Bits
 import Cryptol.Utils.Panic
 
 import GHC.Generics(Generic)
+import Control.DeepSeq.Generics
 
 -- | Natural numbers with an infinity element
 data Nat' = Nat Integer | Inf
             deriving (Show,Eq,Ord,Generic)
+
+instance NFData Nat' where rnf = genericRnf
 
 fromNat :: Nat' -> Maybe Integer
 fromNat n' =
