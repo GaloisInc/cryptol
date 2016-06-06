@@ -233,11 +233,10 @@ bindVarList n vs lenv = lenv { leVars = Map.insert n (Zip vs) (leVars lenv) }
 
 -- | Evaluate a comprehension.
 evalComp :: ReadEnv -> TValue -> Expr -> [[Match]] -> Value
-evalComp env seqty body ms
-  | Just (len,el) <- isTSeq seqty = toSeq len el [ evalExpr e body | e <- envs ]
-  | otherwise = evalPanic "Cryptol.Eval" [ "evalComp given a non sequence"
-                                         , show seqty
-                                         ]
+evalComp env seqty body ms =
+  case seqty of
+    TVSeq len el -> toSeq len el [ evalExpr e body | e <- envs ]
+    _ -> evalPanic "Cryptol.Eval" ["evalComp given a non sequence", show seqty]
 
   -- XXX we could potentially print this as a number if the type was available.
   where

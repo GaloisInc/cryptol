@@ -257,9 +257,9 @@ type BinArith = Integer -> Integer -> Integer -> Integer
 arithBinary :: BinArith -> Binary
 arithBinary op = loop
   where
-  loop ty l r
+  loop ty l r = case ty of
 
-    | Just (len,a) <- isTSeq ty = case numTValue len of
+    TVSeq len a -> case numTValue len of
 
       -- words and finite sequences
       Nat w | isTBit a  -> VWord (mkBv w (op w (fromWord l) (fromWord r)))
@@ -269,28 +269,28 @@ arithBinary op = loop
       Inf -> toStream (zipWith (loop a) (fromSeq l) (fromSeq r))
 
     -- functions
-    | Just (_,ety) <- isTFun ty =
+    TVFun _ ety ->
       lam $ \ x -> loop ety (fromVFun l x) (fromVFun r x)
 
     -- tuples
-    | Just (_,tys) <- isTTuple ty =
+    TVTuple tys ->
       let ls = fromVTuple l
           rs = fromVTuple r
        in VTuple (zipWith3 loop tys ls rs)
 
     -- records
-    | Just fs <- isTRec ty =
+    TVRec fs ->
       VRecord [ (f, loop fty (lookupRecord f l) (lookupRecord f r))
               | (f,fty) <- fs ]
 
-    | otherwise = evalPanic "arithBinop" ["Invalid arguments"]
+    _ -> evalPanic "arithBinop" ["Invalid arguments"]
 
 arithUnary :: (Integer -> Integer) -> Unary
 arithUnary op = loop
   where
-  loop ty x
+  loop ty x = case ty of
 
-    | Just (len,a) <- isTSeq ty = case numTValue len of
+    TVSeq len a -> case numTValue len of
 
       -- words and finite sequences
       Nat w | isTBit a  -> VWord (mkBv w (op (fromWord x)))
@@ -299,19 +299,19 @@ arithUnary op = loop
       Inf -> toStream (map (loop a) (fromSeq x))
 
     -- functions
-    | Just (_,ety) <- isTFun ty =
+    TVFun _ ety ->
       lam $ \ y -> loop ety (fromVFun x y)
 
     -- tuples
-    | Just (_,tys) <- isTTuple ty =
+    TVTuple tys ->
       let as = fromVTuple x
        in VTuple (zipWith loop tys as)
 
     -- records
-    | Just fs <- isTRec ty =
+    TVRec fs ->
       VRecord [ (f, loop fty (lookupRecord f x)) | (f,fty) <- fs ]
 
-    | otherwise = evalPanic "arithUnary" ["Invalid arguments"]
+    _ -> evalPanic "arithUnary" ["Invalid arguments"]
 
 lg2 :: Integer -> Integer
 lg2 i = case genLog i 2 of
@@ -331,29 +331,18 @@ modWrap x y = x `mod` y
 
 -- | Lexicographic ordering on two values.
 lexCompare :: TValue -> Value -> Value -> Ordering
-lexCompare ty l r
-
-  | isTBit ty =
-    compare (fromVBit l) (fromVBit r)
-
-  | Just (_,b) <- isTSeq ty, isTBit b =
-    compare (fromWord l) (fromWord r)
-
-  | Just (_,e) <- isTSeq ty =
-    zipLexCompare (repeat e) (fromSeq l) (fromSeq r)
-
-  -- tuples
-  | Just (_,etys) <- isTTuple ty =
-    zipLexCompare etys (fromVTuple l) (fromVTuple r)
-
-  -- records
-  | Just fields <- isTRec ty =
-    let tys    = map snd (sortBy (comparing fst) fields)
-        ls     = map snd (sortBy (comparing fst) (fromVRecord l))
-        rs     = map snd (sortBy (comparing fst) (fromVRecord r))
-     in zipLexCompare tys ls rs
-
-  | otherwise = evalPanic "lexCompare" ["invalid type"]
+lexCompare ty l r =
+  case ty of
+    TVBit         -> compare (fromVBit l) (fromVBit r)
+    TVSeq _ TVBit -> compare (fromWord l) (fromWord r)
+    TVSeq _ e     -> zipLexCompare (repeat e) (fromSeq l) (fromSeq r)
+    TVTuple etys  -> zipLexCompare etys (fromVTuple l) (fromVTuple r)
+    TVRec fields  ->
+      let tys    = map snd (sortBy (comparing fst) fields)
+          ls     = map snd (sortBy (comparing fst) (fromVRecord l))
+          rs     = map snd (sortBy (comparing fst) (fromVRecord r))
+       in zipLexCompare tys ls rs
+    _ -> evalPanic "lexCompare" ["invalid type"]
 
 
 -- XXX the lists are expected to be of the same length, as this should only be
@@ -395,32 +384,32 @@ funCmp op =
 -- Logic -----------------------------------------------------------------------
 
 zeroV :: TValue -> Value
-zeroV ty
+zeroV ty = case ty of
 
   -- bits
-  | isTBit ty =
+  TVBit ->
     VBit False
 
   -- sequences
-  | Just (n,ety) <- isTSeq ty =
+  TVSeq n ety ->
     case numTValue n of
       Nat w | isTBit ety -> word w 0
             | otherwise  -> toSeq n ety (replicate (fromInteger w) (zeroV ety))
       Inf                -> toSeq n ety (repeat                    (zeroV ety))
 
   -- functions
-  | Just (_,bty) <- isTFun ty =
+  TVFun _ bty ->
     lam (\ _ -> zeroV bty)
 
   -- tuples
-  | Just (_,tys) <- isTTuple ty =
+  TVTuple tys ->
     VTuple (map zeroV tys)
 
   -- records
-  | Just fields <- isTRec ty =
+  TVRec fields ->
     VRecord [ (f,zeroV fty) | (f,fty) <- fields ]
 
-  | otherwise = evalPanic "zeroV" ["invalid type for zero"]
+  _ -> evalPanic "zeroV" ["invalid type for zero"]
 
 -- | Join a sequence of sequences into a single sequence.
 joinV :: TValue -> TValue -> TValue -> Value -> Value
@@ -486,10 +475,9 @@ ccatV front back elty l r =
 logicBinary :: (forall a. Bits a => a -> a -> a) -> Binary
 logicBinary op = loop
   where
-  loop ty l r
-    | isTBit ty = VBit (op (fromVBit l) (fromVBit r))
-    | Just (len,aty) <- isTSeq ty =
-
+  loop ty l r = case ty of
+    TVBit -> VBit (op (fromVBit l) (fromVBit r))
+    TVSeq len aty ->
       case numTValue len of
 
          -- words or finite sequences
@@ -501,30 +489,29 @@ logicBinary op = loop
          -- streams
          Inf -> toStream (zipWith (loop aty) (fromSeq l) (fromSeq r))
 
-    | Just (_,etys) <- isTTuple ty =
+    TVTuple etys ->
       let ls = fromVTuple l
           rs = fromVTuple r
        in VTuple (zipWith3 loop etys ls rs)
 
-    | Just (_,bty) <- isTFun ty =
+    TVFun _ bty ->
       lam $ \ a -> loop bty (fromVFun l a) (fromVFun r a)
 
-    | Just fields <- isTRec ty =
+    TVRec fields ->
       VRecord [ (f,loop fty a b) | (f,fty) <- fields
                                  , let a = lookupRecord f l
                                        b = lookupRecord f r
                                  ]
 
-    | otherwise = evalPanic "logicBinary" ["invalid logic type"]
+    _ -> evalPanic "logicBinary" ["invalid logic type"]
 
 logicUnary :: (forall a. Bits a => a -> a) -> Unary
 logicUnary op = loop
   where
-  loop ty val
-    | isTBit ty = VBit (op (fromVBit val))
+  loop ty val = case ty of
+    TVBit -> VBit (op (fromVBit val))
 
-    | Just (len,ety) <- isTSeq ty =
-
+    TVSeq len ety ->
       case numTValue len of
 
          -- words or finite sequences
@@ -534,17 +521,17 @@ logicUnary op = loop
          -- streams
          Inf -> toStream (map (loop ety) (fromSeq val))
 
-    | Just (_,etys) <- isTTuple ty =
+    TVTuple etys ->
       let as = fromVTuple val
        in VTuple (zipWith loop etys as)
 
-    | Just (_,bty) <- isTFun ty =
+    TVFun _ bty ->
       lam $ \ a -> loop bty (fromVFun val a)
 
-    | Just fields <- isTRec ty =
+    TVRec fields ->
       VRecord [ (f,loop fty a) | (f,fty) <- fields, let a = lookupRecord f val ]
 
-    | otherwise = evalPanic "logicUnary" ["invalid logic type"]
+    _ -> evalPanic "logicUnary" ["invalid logic type"]
 
 
 logicShift :: (Integer -> Integer -> Integer -> Integer)

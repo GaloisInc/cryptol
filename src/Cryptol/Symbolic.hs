@@ -266,11 +266,11 @@ numType _ = Nothing
 finType :: TValue -> Maybe FinType
 finType ty =
   case ty of
-    (Eval.isTBit -> True)           -> Just FTBit
-    (Eval.isTSeq -> Just (n, t))    -> FTSeq <$> numType n <*> finType t
-    (Eval.isTTuple -> Just (_, ts)) -> FTTuple <$> traverse finType ts
-    (Eval.isTRec -> Just fields)    -> FTRecord <$> traverse (traverseSnd finType) fields
-    _                               -> Nothing
+    TVBit        -> Just FTBit
+    TVSeq n t    -> FTSeq <$> numType n <*> finType t
+    TVTuple ts   -> FTTuple <$> traverse finType ts
+    TVRec fields -> FTRecord <$> traverse (traverseSnd finType) fields
+    _            -> Nothing
 
 unFinType :: FinType -> Type
 unFinType fty =
@@ -292,9 +292,9 @@ predArgTypes schema@(Forall ts ps ty)
   | otherwise = Left $ "Not a monomorphic type:\n" ++ show (pp schema)
   where
     go :: TValue -> Maybe [FinType]
-    go (Eval.isTBit -> True)            = Just []
-    go (Eval.isTFun -> Just (ty1, ty2)) = (:) <$> finType ty1 <*> go ty2
-    go _                                = Nothing
+    go TVBit           = Just []
+    go (TVFun ty1 ty2) = (:) <$> finType ty1 <*> go ty2
+    go _               = Nothing
 
 forallFinType :: FinType -> SBV.Symbolic Value
 forallFinType ty =
