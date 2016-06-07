@@ -9,10 +9,13 @@
 -- This module contains types used during type inference.
 
 {-# LANGUAGE Safe #-}
-{-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
+
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 module Cryptol.TypeCheck.InferTypes where
 
 import           Cryptol.TypeCheck.AST
@@ -32,15 +35,12 @@ import qualified Data.IntMap as IntMap
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Control.DeepSeq.Generics
 
 data SolverConfig = SolverConfig
   { solverPath    :: FilePath   -- ^ The SMT solver to invoke
   , solverArgs    :: [String]   -- ^ Additional arguments to pass to the solver
   , solverVerbose :: Int        -- ^ How verbose to be when type-checking
-  } deriving (Show, Generic)
-
-instance NFData SolverConfig where rnf = genericRnf
+  } deriving (Show, Generic, NFData)
 
 -- | The types of variables in the environment.
 data VarType = ExtVar Schema      -- ^ Known type
@@ -66,9 +66,7 @@ data Goal = Goal
   { goalSource :: ConstraintSource  -- ^ What it is about
   , goalRange  :: Range             -- ^ Part of source code that caused goal
   , goal       :: Prop              -- ^ What needs to be proved
-  } deriving (Show,Generic)
-
-instance NFData Goal where rnf = genericRnf
+  } deriving (Show, Generic, NFData)
 
 data HasGoal = HasGoal
   { hasName :: !Int
@@ -81,9 +79,7 @@ data DelayedCt = DelayedCt
   , dctForall :: [TParam]
   , dctAsmps  :: [Prop]
   , dctGoals  :: [Goal]
-  } deriving (Show,Generic)
-
-instance NFData DelayedCt where rnf = genericRnf
+  } deriving (Show, Generic, NFData)
 
 data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assuming the sub-goals.
             | Unsolved                    -- ^ We could not solve the goal.
@@ -93,9 +89,7 @@ data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assuming the sub-goals.
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingWildType P.Kind
               | DefaultingTo Doc Type
-                deriving (Show,Generic)
-
-instance NFData Warning where rnf = genericRnf
+                deriving (Show, Generic, NFData)
 
 -- | Various errors that might happen during type checking/inference
 data Error    = ErrorMsg Doc
@@ -174,9 +168,7 @@ data Error    = ErrorMsg Doc
               | AmbiguousType [Name]
 
 
-                deriving (Show,Generic)
-
-instance NFData Error where rnf = genericRnf
+                deriving (Show, Generic, NFData)
 
 -- | Information about how a constraint came to be, used in error reporting.
 data ConstraintSource
@@ -191,14 +183,10 @@ data ConstraintSource
   | CtPartialTypeFun TyFunName -- ^ Use of a partial type function.
   | CtImprovement
   | CtPattern Doc         -- ^ Constraints arising from type-checking patterns
-    deriving (Show,Generic)
-
-instance NFData ConstraintSource where rnf = genericRnf
+    deriving (Show, Generic, NFData)
 
 data TyFunName = UserTyFun Name | BuiltInTyFun TFun
-                deriving (Show,Generic)
-
-instance NFData TyFunName where rnf = genericRnf
+                deriving (Show, Generic, NFData)
 
 instance PP TyFunName where
   ppPrec c (UserTyFun x)    = ppPrec c x

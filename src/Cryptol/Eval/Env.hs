@@ -6,10 +6,12 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Safe #-}
-{-# LANGUAGE DeriveGeneric #-}
+
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Env where
 
 import Cryptol.Eval.Value
@@ -22,7 +24,6 @@ import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -34,9 +35,7 @@ type ReadEnv = EvalEnv
 data EvalEnv = EvalEnv
   { envVars       :: Map.Map Name Value
   , envTypes      :: Map.Map TVar (Either Nat' TValue)
-  } deriving (Generic)
-
-instance NFData EvalEnv where rnf = genericRnf
+  } deriving (Generic, NFData)
 
 instance Monoid EvalEnv where
   mempty = EvalEnv

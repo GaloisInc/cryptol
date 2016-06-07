@@ -6,14 +6,13 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiWayIf #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE CPP #-}
-
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
 module Cryptol.ModuleSystem.Renamer (
     NamingEnv(), shadowing
   , BindsNames(..), InModule(..), namingEnv'
@@ -43,7 +42,6 @@ import           MonadLib hiding (mapM, mapM_)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -82,9 +80,7 @@ data RenamerError
 
   | BoundReservedType PName (Maybe Range) Doc NameDisp
     -- ^ When a builtin type is named in a binder.
-    deriving (Show,Generic)
-
-instance NFData RenamerError where rnf = genericRnf
+    deriving (Show, Generic, NFData)
 
 instance PP RenamerError where
   ppPrec _ e = case e of
@@ -142,9 +138,7 @@ instance PP RenamerError where
 
 data RenamerWarning
   = SymbolShadowed Name [Name] NameDisp
-    deriving (Show,Generic)
-
-instance NFData RenamerWarning where rnf = genericRnf
+    deriving (Show, Generic, NFData)
 
 instance PP RenamerWarning where
   ppPrec _ (SymbolShadowed new originals disp) = fixNameDisp disp $

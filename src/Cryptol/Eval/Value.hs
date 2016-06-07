@@ -6,12 +6,14 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE Safe #-}
+
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE Safe #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE PatternGuards #-}
 module Cryptol.Eval.Value where
 
 import qualified Cryptol.Eval.Arch as Arch
@@ -30,7 +32,6 @@ import Numeric (showIntAtBase)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Control.DeepSeq.Generics
 
 -- Utilities -------------------------------------------------------------------
 
@@ -69,9 +70,7 @@ finNat' n' =
 
 -- | width, value
 -- Invariant: The value must be within the range 0 .. 2^width-1
-data BV = BV !Integer !Integer deriving (Generic)
-
-instance NFData BV where rnf = genericRnf
+data BV = BV !Integer !Integer deriving (Generic, NFData)
 
 -- | Smart constructor for 'BV's that checks for the width limit
 mkBv :: Integer -> Integer -> BV
@@ -90,9 +89,7 @@ data GenValue b w
   | VFun (GenValue b w -> GenValue b w) -- functions
   | VPoly (TValue -> GenValue b w)      -- polymorphic values (kind *)
   | VNumPoly (Nat' -> GenValue b w)     -- polymorphic values (kind #)
-  deriving (Generic)
-
-instance (NFData b, NFData w) => NFData (GenValue b w) where rnf = genericRnf
+  deriving (Generic, NFData)
 
 type Value = GenValue Bool BV
 
@@ -105,9 +102,7 @@ data TValue
   | TVTuple [TValue]
   | TVRec [(Ident, TValue)]
   | TVFun TValue TValue
-    deriving (Generic)
-
-instance NFData TValue where rnf = genericRnf
+    deriving (Generic, NFData)
 
 tValTy :: TValue -> Type
 tValTy tv =

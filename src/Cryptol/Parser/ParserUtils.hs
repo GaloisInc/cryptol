@@ -6,9 +6,12 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Safe, PatternGuards #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE Safe #-}
+
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE PatternGuards #-}
 module Cryptol.Parser.ParserUtils where
 
 import Cryptol.Parser.AST
@@ -28,7 +31,6 @@ import qualified Data.Text.Lazy as T
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -66,9 +68,7 @@ lexerP k = P $ \cfg p (S ts) ->
 
 data ParseError = HappyError FilePath Position (Maybe Token)
                 | HappyErrorMsg Range String
-                  deriving (Show, Generic)
-
-instance NFData ParseError where rnf = genericRnf
+                  deriving (Show, Generic, NFData)
 
 newtype S = S [Located Token]
 

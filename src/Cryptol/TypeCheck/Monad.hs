@@ -5,9 +5,12 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-{-# LANGUAGE RecordWildCards, Safe #-}
-{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE Safe #-}
+
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecursiveDo #-}
 module Cryptol.TypeCheck.Monad
   ( module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
@@ -37,7 +40,6 @@ import           MonadLib hiding (mapM)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -67,9 +69,7 @@ data InferInput = InferInput
 data NameSeeds = NameSeeds
   { seedTVar    :: !Int
   , seedGoal    :: !Int
-  } deriving (Show, Generic)
-
-instance NFData NameSeeds where rnf = genericRnf
+  } deriving (Show, Generic, NFData)
 
 -- | The initial seeds, used when checking a fresh program.
 nameSeeds :: NameSeeds

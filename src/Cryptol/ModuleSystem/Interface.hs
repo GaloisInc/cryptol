@@ -6,9 +6,10 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 module Cryptol.ModuleSystem.Interface (
     Iface(..)
@@ -29,7 +30,6 @@ import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -40,17 +40,13 @@ data Iface = Iface
   { ifModName :: !ModName
   , ifPublic  :: IfaceDecls
   , ifPrivate :: IfaceDecls
-  } deriving (Show, Generic)
-
-instance NFData Iface where rnf = genericRnf
+  } deriving (Show, Generic, NFData)
 
 data IfaceDecls = IfaceDecls
   { ifTySyns   :: Map.Map Name IfaceTySyn
   , ifNewtypes :: Map.Map Name IfaceNewtype
   , ifDecls    :: Map.Map Name IfaceDecl
-  } deriving (Show, Generic)
-
-instance NFData IfaceDecls where rnf = genericRnf
+  } deriving (Show, Generic, NFData)
 
 instance Monoid IfaceDecls where
   mempty      = IfaceDecls Map.empty Map.empty Map.empty
@@ -79,9 +75,7 @@ data IfaceDecl = IfaceDecl
   , ifDeclInfix   :: Bool
   , ifDeclFixity  :: Maybe Fixity
   , ifDeclDoc     :: Maybe String
-  } deriving (Show, Generic)
-
-instance NFData IfaceDecl where rnf = genericRnf
+  } deriving (Show, Generic, NFData)
 
 mkIfaceDecl :: Decl -> IfaceDecl
 mkIfaceDecl d = IfaceDecl

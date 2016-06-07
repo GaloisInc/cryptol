@@ -7,11 +7,13 @@
 -- Portability :  portable
 
 {-# LANGUAGE Trustworthy #-}
-{-# LANGUAGE RecordWildCards #-}
+
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RecordWildCards #-}
 -- for the instances of RunM and BaseM
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -50,7 +52,6 @@ import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
 
 import           Control.DeepSeq
-import           Control.DeepSeq.Generics
 import           Control.Monad.Fix (MonadFix(mfix))
 import qualified Data.Map as Map
 import qualified Data.Monoid as M
@@ -67,7 +68,7 @@ data NameInfo = Declared !ModName
                 -- ^ This name refers to a declaration from this module
               | Parameter
                 -- ^ This name is a parameter (function or type)
-                deriving (Eq,Show,Generic)
+                deriving (Eq, Show, Generic, NFData)
 
 data Name = Name { nUnique :: {-# UNPACK #-} !Int
                    -- ^ INVARIANT: this field uniquely identifies a name for one
@@ -87,7 +88,7 @@ data Name = Name { nUnique :: {-# UNPACK #-} !Int
 
                  , nLoc :: !Range
                    -- ^ Where this name was defined
-                 } deriving (Show,Generic)
+                 } deriving (Show, Generic, NFData)
 
 instance Eq Name where
   a == b = compare a b == EQ
@@ -95,9 +96,6 @@ instance Eq Name where
 
 instance Ord Name where
   compare a b = compare (nUnique a) (nUnique b)
-
-instance NFData NameInfo where rnf = genericRnf
-instance NFData Name where rnf = genericRnf
 
 -- | Compare two names lexically.
 cmpNameLexical :: Name -> Name -> Ordering
@@ -264,9 +262,7 @@ nextUniqueM  = liftSupply nextUnique
 
 
 data Supply = Supply !Int
-              deriving (Show,Generic)
-
-instance NFData Supply where rnf = genericRnf
+              deriving (Show, Generic, NFData)
 
 -- | This should only be used once at library initialization, and threaded
 -- through the rest of the session.  The supply is started at 0x1000 to leave us
@@ -303,9 +299,7 @@ mkParameter nIdent nLoc s =
 -- | A mapping from an identifier defined in some module to its real name.
 data PrimMap = PrimMap { primDecls :: Map.Map Ident Name
                        , primTypes :: Map.Map Ident Name
-                       } deriving (Show, Generic)
-
-instance NFData PrimMap where rnf = genericRnf
+                       } deriving (Show, Generic, NFData)
 
 lookupPrimDecl, lookupPrimType :: Ident -> PrimMap -> Name
 

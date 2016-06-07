@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.ModuleSystem.Monad where
 
@@ -35,7 +36,6 @@ import MonadLib
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -45,9 +45,7 @@ import Prelude.Compat
 data ImportSource
   = FromModule P.ModName
   | FromImport (Located P.Import)
-    deriving (Show,Generic)
-
-instance NFData ImportSource where rnf = genericRnf
+    deriving (Show, Generic, NFData)
 
 instance Eq ImportSource where
   (==) = (==) `on` importedModule
@@ -209,9 +207,7 @@ duplicateModuleName name path1 path2 =
 data ModuleWarning
   = TypeCheckWarnings [(Range,T.Warning)]
   | RenamerWarnings [RenamerWarning]
-    deriving (Show,Generic)
-
-instance NFData ModuleWarning where rnf = genericRnf
+    deriving (Show, Generic, NFData)
 
 instance PP ModuleWarning where
   ppPrec _ w = case w of
