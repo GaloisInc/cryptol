@@ -34,7 +34,7 @@ PKG         := cryptol-${VERSION}-${SYSTEM_DESC}
 ifneq (,$(findstring _NT,${UNAME}))
   DIST := ${PKG}.msi
   EXE_EXT := .exe
-  adjust-path = '$(shell cygpath -w $1)'
+  adjust-path = '$(shell /usr/bin/cygpath -w $1)'
   PREFIX ?=
   # For a systemwide distribution .msi, use:
   # PREFIX ?= ${PROGRAM_FILES}/Galois/Cryptol\ ${VERSION}
