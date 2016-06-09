@@ -53,6 +53,7 @@ library
                        gitrev            >= 1.0,
                        GraphSCC          >= 1.0.4,
                        heredoc           >= 0.2,
+                       lrucache          >= 1.2,
                        monad-control     >= 1.0,
                        monadLib          >= 3.7.2,
                        old-time          >= 1.1,

@@ -20,6 +20,7 @@ import Control.Monad.IO.Class
 import Control.Monad (replicateM, when, zipWithM, foldM)
 import Data.List (transpose, intercalate, genericLength, genericIndex)
 import qualified Data.Map as Map
+import qualified Data.Sequence as Seq
 import qualified Control.Exception as X
 
 import qualified Data.SBV.Dynamic as SBV
@@ -34,9 +35,9 @@ import Cryptol.Symbolic.Value
 
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Monad as Eval
+import qualified Cryptol.Eval.Type as Eval
 import qualified Cryptol.Eval.Value as Eval
-import qualified Cryptol.Eval.Type (evalType)
-import           Cryptol.Eval.Env (GenEvalEnv(..))
+import           Cryptol.Eval.Env (GenEvalEnv(..), evalType)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Utils.Ident (Ident)
@@ -246,17 +247,15 @@ parseValues (t : ts) cws = (v : vs, cws'')
 parseValue :: FinType -> [SBV.CW] -> (Eval.Value, [SBV.CW])
 parseValue FTBit [] = panic "Cryptol.Symbolic.parseValue" [ "empty FTBit" ]
 parseValue FTBit (cw : cws) = (Eval.VBit (SBV.cwToBool cw), cws)
-parseValue (FTSeq 0 FTBit) cws = (Eval.VWord (Eval.BV 0 0), cws)
+parseValue (FTSeq 0 FTBit) cws = (Eval.word 0 0, cws)
 parseValue (FTSeq n FTBit) cws =
   case SBV.genParse (SBV.KBounded False n) cws of
-    Just (x, cws') -> (Eval.VWord (Eval.BV (toInteger n) x), cws')
-    Nothing        -> (Eval.VSeq (genericLength vs) True $ Eval.SeqMap $ \i ->
-                           return $ genericIndex vs i
-                      , cws'
-                      )
+    Just (x, cws') -> (Eval.word (toInteger n) x, cws')
+    Nothing        -> (VWord (genericLength vs) $ return $ Eval.WordVal $
+                         Eval.packWord (map fromVBit vs), cws')
       where (vs, cws') = parseValues (replicate n FTBit) cws
 parseValue (FTSeq n t) cws =
-                      (Eval.VSeq (toInteger n) False $ Eval.SeqMap $ \i ->
+                      (Eval.VSeq (toInteger n) $ Eval.SeqMap $ \i ->
                            return $ genericIndex vs i
                       , cws'
                       )
@@ -304,7 +303,7 @@ unFinType fty =
 predArgTypes :: Schema -> Either String [FinType]
 predArgTypes schema@(Forall ts ps ty)
   | null ts && null ps =
-      case go (Cryptol.Eval.Type.evalType mempty ty) of
+      case go (evalType mempty ty) of
         Just fts -> Right fts
         Nothing  -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
   | otherwise = Left $ "Not a monomorphic type:\n" ++ show (pp schema)
@@ -318,10 +317,10 @@ forallFinType :: FinType -> SBV.Symbolic Value
 forallFinType ty =
   case ty of
     FTBit         -> VBit <$> forallSBool_
-    FTSeq 0 FTBit -> return $ VWord (literalSWord 0 0)
-    FTSeq n FTBit -> VWord <$> (forallBV_ n)
+    FTSeq 0 FTBit -> return $ Eval.word 0 0
+    FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> (forallBV_ n)
     FTSeq n t     -> do vs <- replicateM n (forallFinType t)
-                        return $ VSeq (toInteger n) False $ Eval.SeqMap $ \i ->
+                        return $ VSeq (toInteger n) $ Eval.SeqMap $ \i ->
                            return $ genericIndex vs i
     FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . forallFinType) ts
     FTRecord fs   -> VRecord <$> mapM (traverseSnd (fmap Eval.ready . forallFinType)) fs
@@ -330,10 +329,10 @@ existsFinType :: FinType -> SBV.Symbolic Value
 existsFinType ty =
   case ty of
     FTBit         -> VBit <$> existsSBool_
-    FTSeq 0 FTBit -> return $ VWord (literalSWord 0 0)
-    FTSeq n FTBit -> VWord <$> existsBV_ n
+    FTSeq 0 FTBit -> return $ Eval.word 0 0
+    FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> (existsBV_ n)
     FTSeq n t     -> do vs <- replicateM n (existsFinType t)
-                        return $ VSeq (toInteger n) False $ Eval.SeqMap $ \i ->
+                        return $ VSeq (toInteger n) $ Eval.SeqMap $ \i ->
                            return $ genericIndex vs i
     FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . existsFinType) ts
     FTRecord fs   -> VRecord <$> mapM (traverseSnd (fmap Eval.ready . existsFinType)) fs

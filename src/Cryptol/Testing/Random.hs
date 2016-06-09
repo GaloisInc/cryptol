@@ -12,7 +12,7 @@
 module Cryptol.Testing.Random where
 
 import Cryptol.Eval.Monad     (ready)
-import Cryptol.Eval.Value     (BV(..),Value,GenValue(..),SeqMap(..))
+import Cryptol.Eval.Value     (BV(..),Value,GenValue(..),SeqMap(..), WordValue(..))
 import qualified Cryptol.Testing.Concrete as Conc
 import Cryptol.TypeCheck.AST  (Type(..),TCon(..),TC(..),tNoUser)
 import Cryptol.Utils.Ident    (Ident)
@@ -101,7 +101,7 @@ randomBit _ g =
 randomWord :: RandomGen g => Integer -> Gen g
 randomWord w _sz g =
    let (val, g1) = randomR (0,2^w-1) g
-   in (VWord (BV w val), g1)
+   in (VWord w (ready (WordVal (BV w val))), g1)
 
 -- | Generate a random infinite stream value.
 randomStream :: RandomGen g => Gen g -> Gen g
@@ -115,7 +115,7 @@ is mostly about how the results will be displayed. -}
 randomSequence :: RandomGen g => Integer -> Gen g -> Gen g
 randomSequence w mkElem sz g =
   let (g1,g2) = split g
-  in (VSeq w False $ SeqMap $ genericIndex (map ready (genericTake w $ unfoldr (Just . mkElem sz) g1)), g2)
+  in (VSeq w $ SeqMap $ genericIndex (map ready (genericTake w $ unfoldr (Just . mkElem sz) g1)), g2)
 
 -- | Generate a random tuple value.
 randomTuple :: RandomGen g => [Gen g] -> Gen g

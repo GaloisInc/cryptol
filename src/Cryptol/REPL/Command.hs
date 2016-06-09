@@ -585,7 +585,7 @@ writeFileCmd file str = do
   tIsByte    x = maybe False
                        (\(n,b) -> T.tIsBit b && T.tIsNum n == Just 8)
                        (T.tIsSeq x)
-  serializeValue (E.VSeq n _ vs) = do
+  serializeValue (E.VSeq n vs) = do
     ws <- io $ E.runEval (mapM (>>=E.fromVWord "serializeValue") $ E.enumerateSeqMap n vs)
     return $ BS.pack $ map serializeByte ws
   serializeValue _             =

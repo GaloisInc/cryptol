@@ -12,7 +12,8 @@
 {-# LANGUAGE CPP #-}
 module Cryptol.Eval.Env where
 
-import Cryptol.Eval.Monad( Eval, delay )
+import Cryptol.Eval.Monad( Eval, delay, ready )
+import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
@@ -65,7 +66,16 @@ bindVar :: Name
 bindVar n val env = do
   let nm = show $ ppLocName n
   val' <- delay (Just nm) val
-  return $ env { envVars = Map.insert n val' (envVars env) }
+  return $ env{ envVars = Map.insert n val' (envVars env) }
+
+-- | Bind a variable to a value in the evaluation environment, without
+--   creating a thunk.
+bindVarDirect :: Name
+              -> GenValue b w
+              -> GenEvalEnv b w
+              -> Eval (GenEvalEnv b w)
+bindVarDirect n val env = do
+  return $ env{ envVars = Map.insert n (ready val) (envVars env) }
 
 -- | Lookup a variable in the environment.
 {-# INLINE lookupVar #-}
@@ -81,3 +91,7 @@ bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
 {-# INLINE lookupType #-}
 lookupType :: TVar -> GenEvalEnv b w -> Maybe TValue
 lookupType p env = Map.lookup p (envTypes env)
+
+{-# INLINE evalType #-}
+evalType :: GenEvalEnv b w -> Type -> TValue
+evalType env = evalType' (envTypes env)
