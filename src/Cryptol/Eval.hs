@@ -77,7 +77,7 @@ evalExpr env expr = case expr of
     | otherwise -> {-# SCC "evalExpr->EList" #-}
         VSeq len <$> finiteSeqMap vs
    where
-    tyv = evalType env ty
+    tyv = evalValType (envTypes env) ty
     vs  = map (evalExpr env) es
     len = genericLength es
 
@@ -101,8 +101,8 @@ evalExpr env expr = case expr of
      iteValue b (eval t) (eval f)
 
   EComp n t h gs -> {-# SCC "evalExpr->EComp" #-} do
-      let len  = evalType env n
-      let elty = evalType env t
+      let len  = evalNumType (envTypes env) n
+      let elty = evalValType (envTypes env) t
       evalComp env len elty h gs
 
   EVar n -> {-# SCC "evalExpr->EVar" #-} do
@@ -116,11 +116,15 @@ evalExpr env expr = case expr of
                      ]
 
   ETAbs tv b -> {-# SCC "evalExpr->ETAbs" #-}
-     return $ VPoly $ \ty -> evalExpr (bindType (tpVar tv) ty env) b
+    case tpKind tv of
+      KType -> return $ VPoly    $ \ty -> evalExpr (bindType (tpVar tv) (Right ty) env) b
+      KNum  -> return $ VNumPoly $ \n  -> evalExpr (bindType (tpVar tv) (Left n) env) b
+      k     -> panic "[Eval] evalExpr" ["invalid kind on type abstraction", show k]
 
   ETApp e ty -> {-# SCC "evalExpr->ETApp" #-} do
     eval e >>= \case
-      VPoly f -> f $! (evalType env ty)
+      VPoly f     -> f $! (evalValType (envTypes env) ty)
+      VNumPoly f  -> f $! (evalNumType (envTypes env) ty)
       val     -> do vdoc <- ppV val
                     panic "[Eval] evalExpr"
                       ["expected a polymorphic value"
@@ -222,10 +226,14 @@ etaDelay :: BitWord b w
          -> Eval (GenValue b w)
 etaDelay msg env0 Forall{ sVars = vs, sType = tp0 } = goTpVars env0 vs
  where
- goTpVars env []     x = go (evalType env tp0) x
+ goTpVars env []     x = go (evalValType (envTypes env) tp0) x
  goTpVars env (v:vs) x =
-    return $ VPoly $ \t ->
-      goTpVars (bindType (tpVar v) t env) vs ( ($t) . fromVPoly =<< x )
+   case tpKind v of
+     KType -> return $ VPoly $ \t ->
+                 goTpVars (bindType (tpVar v) (Right t) env) vs ( ($t) . fromVPoly =<< x )
+     KNum  -> return $ VNumPoly $ \n ->
+                 goTpVars (bindType (tpVar v) (Left n) env) vs ( ($n) . fromVNumPoly =<< x )
+     k     -> panic "[Eval] etaDelay" ["invalid kind on type abstraction", show k]
 
  go tp (Ready x) =
    case x of
@@ -260,7 +268,7 @@ etaDelay msg env0 Forall{ sVars = vs, sType = tp0 } = goTpVars env0 vs
     = x
 
     | Just (n, el) <- isTSeq tp
-    , Nat n' <- numTValue n
+    , Nat n' <- n
     , isTBit el
     -- TODO! I think we need the alternate blackhole strategy here, where
     --  entering the blackhole eta-exapnds to a list of bits
@@ -269,7 +277,7 @@ etaDelay msg env0 Forall{ sVars = vs, sType = tp0 } = goTpVars env0 vs
 
     | Just (n, el) <- isTSeq tp
     = do x' <- delay (Just msg) (fromSeq "during eta-expansion" =<< x)
-         case numTValue n of
+         case n of
            Inf -> return $ VStream $ SeqMap $ \i ->
                       go el (flip lookupSeqMap i =<< x')
            Nat n' -> return $ VSeq n' $ SeqMap $ \i -> do
@@ -374,7 +382,7 @@ data ListEnv b w = ListEnv
       -- ^ Bindings whose values vary by position
   , leStatic :: !(Map.Map Name (Eval (GenValue b w)))
       -- ^ Bindings whose values are constant
-  , leTypes  :: !(Map.Map TVar TValue)
+  , leTypes  :: !TypeEnv
   }
 
 instance Monoid (ListEnv b w) where
@@ -419,7 +427,7 @@ bindVarList n vs lenv = lenv { leVars = Map.insert n vs (leVars lenv) }
 -- | Evaluate a comprehension.
 evalComp :: EvalPrims b w
          => GenEvalEnv b w
-         -> TValue
+         -> Nat'
          -> TValue
          -> Expr
          -> [[Match]]
@@ -446,7 +454,7 @@ evalMatch lenv m = case m of
 
   -- many envs
   From n l ty expr ->
-    case numTValue len of
+    case len of
       Nat nLen -> do
         vss <- memoMap $ SeqMap $ \i -> evalExpr (evalListEnv lenv i) expr
         let stutter xs = \i -> xs (i `div` nLen)
@@ -472,8 +480,7 @@ evalMatch lenv m = case m of
         return $ bindVarList n vs lenv'
 
     where
-      tyenv = emptyEnv{ envTypes = leTypes lenv }
-      len  = evalType tyenv l
+      len  = evalNumType (leTypes lenv) l
 
   -- XXX we don't currently evaluate these as though they could be recursive, as
   -- they are typechecked that way; the read environment to evalExpr is the same

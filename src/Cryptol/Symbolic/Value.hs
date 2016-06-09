@@ -19,7 +19,7 @@ module Cryptol.Symbolic.Value
   , forallBV_, existsBV_
   , forallSBool_, existsSBool_
   , Value
-  , TValue, numTValue, toNumTValue, finTValue, isTBit, isTFun, isTSeq, isTTuple, isTRec, tvSeq
+  , TValue, isTBit, isTFun, isTSeq, isTTuple, isTRec, tvSeq
   , GenValue(..), lam, tlam, toStream, toFinSeq, toSeq
   , fromVBit, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord
   , fromSeq, fromVWord
@@ -34,7 +34,7 @@ import qualified Data.Sequence as Seq
 import Data.SBV.Dynamic
 
 --import Cryptol.Eval.Monad
-import Cryptol.Eval.Type   (TValue, numTValue, toNumTValue, finTValue, isTBit,
+import Cryptol.Eval.Type   (TValue, isTBit,
                            isTFun, isTSeq, isTTuple, isTRec, tvSeq)
 import Cryptol.Eval.Value  ( GenValue(..), BitWord(..), lam, tlam, toStream,
                            toFinSeq, toSeq, WordValue(..), asWordVal, asBitsVal,

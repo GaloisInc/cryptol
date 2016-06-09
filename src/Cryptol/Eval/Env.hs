@@ -17,7 +17,9 @@ import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
+import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.Utils.PP
+
 
 import qualified Data.Map.Strict as Map
 
@@ -32,7 +34,7 @@ import Prelude.Compat
 
 data GenEvalEnv b w = EvalEnv
   { envVars       :: !(Map.Map Name (Eval (GenValue b w)))
-  , envTypes      :: !(Map.Map TVar TValue)
+  , envTypes      :: !TypeEnv
   } deriving (Generic)
 
 instance (NFData b, NFData w) => NFData (GenEvalEnv b w)
@@ -84,14 +86,11 @@ lookupVar n env = Map.lookup n (envVars env)
 
 -- | Bind a type variable of kind *.
 {-# INLINE bindType #-}
-bindType :: TVar -> TValue -> GenEvalEnv b w -> GenEvalEnv b w
+bindType :: TVar -> Either Nat' TValue -> GenEvalEnv b w -> GenEvalEnv b w
 bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
 
 -- | Lookup a type variable.
 {-# INLINE lookupType #-}
-lookupType :: TVar -> GenEvalEnv b w -> Maybe TValue
+lookupType :: TVar -> GenEvalEnv b w -> Maybe (Either Nat' TValue)
 lookupType p env = Map.lookup p (envTypes env)
 
-{-# INLINE evalType #-}
-evalType :: GenEvalEnv b w -> Type -> TValue
-evalType env = evalType' (envTypes env)

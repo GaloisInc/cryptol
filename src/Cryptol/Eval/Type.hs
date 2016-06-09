@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe, PatternGuards #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Type where
 
@@ -22,110 +23,114 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 import Control.DeepSeq.Generics
 
--- | An evaluated type.
+-- | An evaluated type of kind *.
 -- These types do not contain type variables, type synonyms, or type functions.
-newtype TValue = TValue { tValTy :: Type } deriving (Generic)
+data TValue
+  = TVBit
+  | TVSeq Integer TValue
+  | TVStream TValue -- ^ [inf]t
+  | TVTuple [TValue]
+  | TVRec [(Ident, TValue)]
+  | TVFun TValue TValue
+    deriving (Generic, NFData)
 
-instance NFData TValue where rnf = genericRnf
+tValTy :: TValue -> Type
+tValTy tv =
+  case tv of
+    TVBit       -> tBit
+    TVSeq n t   -> tSeq (tNum n) (tValTy t)
+    TVStream t  -> tSeq tInf (tValTy t)
+    TVTuple ts  -> tTuple (map tValTy ts)
+    TVRec fs    -> tRec [ (f, tValTy t) | (f, t) <- fs ]
+    TVFun t1 t2 -> tFun (tValTy t1) (tValTy t2)
 
 instance Show TValue where
-  showsPrec p (TValue v) = showsPrec p v
+  showsPrec p v = showsPrec p (tValTy v)
 
-{-
--- TODO? use these instead?
--- Type Values -----------------------------------------------------------------
 
--- | An easy-to-use alternative representation for type `TValue`.
-data TypeVal
-  = TVBit
-  | TVSeq Int TypeVal
-  | TVStream TypeVal
-  | TVTuple [TypeVal]
-  | TVRecord [(Ident, TypeVal)]
-  | TVFun TypeVal TypeVal
-
-toTypeVal :: TValue -> TypeVal
-toTypeVal ty
-  | isTBit ty                    = TVBit
-  | Just (n, ety) <- isTSeq ty   = case numTValue n of
-                                     Nat w -> TVSeq (fromInteger w) (toTypeVal ety)
-                                     Inf   -> TVStream (toTypeVal ety)
-  | Just (aty, bty) <- isTFun ty = TVFun (toTypeVal aty) (toTypeVal bty)
-  | Just (_, tys) <- isTTuple ty = TVTuple (map toTypeVal tys)
-  | Just fields <- isTRec ty     = TVRecord [ (n, toTypeVal aty) | (n, aty) <- fields ]
-  | otherwise                    = panic "Cryptol.Symbolic.Prims.toTypeVal" [ "bad TValue" ]
-
--}
-
+-- Utilities -------------------------------------------------------------------
 
 isTBit :: TValue -> Bool
-isTBit (TValue ty) = case ty of
-  TCon (TC TCBit) [] -> True
-  _                  -> False
+isTBit TVBit = True
+isTBit _ = False
 
-isTSeq :: TValue -> Maybe (TValue, TValue)
-isTSeq (TValue (TCon (TC TCSeq) [t1,t2])) = Just (TValue t1, TValue t2)
+isTSeq :: TValue -> Maybe (Nat', TValue)
+isTSeq (TVSeq n t) = Just (Nat n, t)
+isTSeq (TVStream t) = Just (Inf, t)
 isTSeq _ = Nothing
 
 isTFun :: TValue -> Maybe (TValue, TValue)
-isTFun (TValue (TCon (TC TCFun) [t1,t2])) = Just (TValue t1, TValue t2)
+isTFun (TVFun t1 t2) = Just (t1, t2)
 isTFun _ = Nothing
 
 isTTuple :: TValue -> Maybe (Int,[TValue])
-isTTuple (TValue (TCon (TC (TCTuple n)) ts)) = Just (n, map TValue ts)
+isTTuple (TVTuple ts) = Just (length ts, ts)
 isTTuple _ = Nothing
 
 isTRec :: TValue -> Maybe [(Ident, TValue)]
-isTRec (TValue (TRec fs)) = Just [ (x, TValue t) | (x,t) <- fs ]
+isTRec (TVRec fs) = Just fs
 isTRec _ = Nothing
 
-tvSeq :: TValue -> TValue -> TValue
-tvSeq (TValue x) (TValue y) = TValue (tSeq x y)
+tvSeq :: Nat' -> TValue -> TValue
+tvSeq (Nat n) t = TVSeq n t
+tvSeq Inf     t = TVStream t
 
-
-
-numTValue :: TValue -> Nat'
-numTValue (TValue ty) =
-  case ty of
-    TCon (TC (TCNum x)) _ -> Nat x
-    TCon (TC TCInf) _     -> Inf
-    _ -> panic "Cryptol.Eval.Value.numTValue" [ "Not a numeric type:", show ty ]
-
-toNumTValue :: Nat' -> TValue
-toNumTValue (Nat n) = TValue (TCon (TC (TCNum n)) [])
-toNumTValue Inf     = TValue (TCon (TC TCInf) [])
-
-finTValue :: TValue -> Integer
-finTValue tval =
-  case numTValue tval of
+finNat' :: Nat' -> Integer
+finNat' n' =
+  case n' of
     Nat x -> x
-    Inf   -> panic "Cryptol.Eval.Value.finTValue" [ "Unexpected `inf`" ]
+    Inf   -> panic "Cryptol.Eval.Value.finNat'" [ "Unexpected `inf`" ]
+
 
 -- Type Evaluation -------------------------------------------------------------
 
--- | Evaluation for types.
-evalType' :: Map.Map TVar TValue -> Type -> TValue
-evalType' env = TValue . go
+type TypeEnv = Map.Map TVar (Either Nat' TValue)
+
+
+-- | Evaluation for types (kind * or #).
+evalType :: TypeEnv -> Type -> Either Nat' TValue
+evalType env ty =
+  case ty of
+    TVar tv ->
+      case Map.lookup tv env of
+        Just v -> v
+        Nothing -> evalPanic "evalType" ["type variable not bound", show tv]
+
+    TUser _ _ ty'  -> evalType env ty'
+    TRec fields    -> Right $ TVRec [ (f, val t) | (f, t) <- fields ]
+    TCon (TC c) ts ->
+      case (c, ts) of
+        (TCBit, [])     -> Right $ TVBit
+        (TCSeq, [n, t]) -> Right $ tvSeq (num n) (val t)
+        (TCFun, [a, b]) -> Right $ TVFun (val a) (val b)
+        (TCTuple _, _)  -> Right $ TVTuple (map val ts)
+        (TCNum n, [])   -> Left $ Nat n
+        (TCInf, [])     -> Left $ Inf
+        -- FIXME: What about TCNewtype?
+        _ -> evalPanic "evalType" ["not a value type", show ty]
+    TCon (TF f) ts      -> Left $ evalTF f (map num ts)
+    TCon (PC p) _       -> evalPanic "evalType" ["invalid predicate symbol", show p]
   where
-  go ty =
-    case ty of
-      TVar tv ->
-        case Map.lookup tv env of
-          Just (TValue v)   -> v
-          Nothing  -> evalPanic "evalType" ["type variable not bound", show tv]
+    val = evalValType env
+    num = evalNumType env
 
-      TCon (TF f) ts -> tValTy $ evalTF f $ map (evalType' env) ts
-      TCon tc ts     -> TCon tc (map go ts)
-      TUser _ _ ty'  -> go ty'
-      TRec fields    -> TRec [ (f,go t) | (f,t) <- fields ]
+-- | Evaluation for value types (kind *).
+evalValType :: TypeEnv -> Type -> TValue
+evalValType env ty =
+  case evalType env ty of
+    Left _ -> evalPanic "evalValType" ["expected value type, found numeric type"]
+    Right t -> t
 
--- | Reduce type functions, rising an exception for undefined values.
-evalTF :: TFun -> [TValue] -> TValue
-evalTF tf vs = TValue $ cvt $ evalTF' tf $ map numTValue vs
+evalNumType :: TypeEnv -> Type -> Nat'
+evalNumType env ty =
+  case evalType env ty of
+    Left n -> n
+    Right _ -> evalPanic "evalValType" ["expected numeric type, found value type"]
 
--- | Reduce type functions, rising an exception for undefined values.
-evalTF' :: TFun -> [Nat'] -> Nat'
-evalTF' f vs
+
+-- | Reduce type functions, raising an exception for undefined values.
+evalTF :: TFun -> [Nat'] -> Nat'
+evalTF f vs
   | TCAdd           <- f, [x,y]   <- vs  =      nAdd x y
   | TCSub           <- f, [x,y]   <- vs  = mb $ nSub x y
   | TCMul           <- f, [x,y]   <- vs  =      nMul x y
@@ -141,12 +146,11 @@ evalTF' f vs
                         ["Unexpected type function:", show ty]
 
   where mb = fromMaybe (typeCannotBeDemoted ty)
-        ty = TCon (TF f) (map cvt vs)
+        ty = TCon (TF f) (map tNat' vs)
 
-
-cvt :: Nat' -> Type
-cvt (Nat n) = tNum n
-cvt Inf     = tInf
+--cvt :: Nat' -> Type
+--cvt (Nat n) = tNum n
+--cvt Inf     = tInf
 
 
 

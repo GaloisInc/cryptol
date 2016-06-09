@@ -37,7 +37,7 @@ import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Monad as Eval
 import qualified Cryptol.Eval.Type as Eval
 import qualified Cryptol.Eval.Value as Eval
-import           Cryptol.Eval.Env (GenEvalEnv(..), evalType)
+import           Cryptol.Eval.Env (GenEvalEnv(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Utils.Ident (Ident)
@@ -275,8 +275,8 @@ data FinType
     | FTTuple [FinType]
     | FTRecord [(Ident, FinType)]
 
-numType :: TValue -> Maybe Int
-numType (Eval.numTValue -> Nat n)
+numType :: Nat' -> Maybe Int
+numType (Nat n)
   | 0 <= n && n <= toInteger (maxBound :: Int) = Just (fromInteger n)
 numType _ = Nothing
 
@@ -303,9 +303,9 @@ unFinType fty =
 predArgTypes :: Schema -> Either String [FinType]
 predArgTypes schema@(Forall ts ps ty)
   | null ts && null ps =
-      case go (evalType mempty ty) of
-        Just fts -> Right fts
-        Nothing  -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
+      case go <$> (Eval.evalType mempty ty) of
+        Right (Just fts) -> Right fts
+        _                -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
   | otherwise = Left $ "Not a monomorphic type:\n" ++ show (pp schema)
   where
     go :: TValue -> Maybe [FinType]

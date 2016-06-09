@@ -177,6 +177,7 @@ data GenValue b w
   | VStream !(SeqMap b w)                  -- @ [inf]a @
   | VFun (Eval (GenValue b w) -> Eval (GenValue b w)) -- functions
   | VPoly (TValue -> Eval (GenValue b w))  -- polymorphic values (kind *)
+  | VNumPoly (Nat' -> Eval (GenValue b w)) -- polymorphic values (kind #)
   deriving (Generic)
 
 
@@ -427,6 +428,10 @@ wlam f = VFun (\x -> x >>= fromVWord "wlam" >>= f)
 tlam :: (TValue -> GenValue b w) -> GenValue b w
 tlam f = VPoly (return . f)
 
+-- | A type lambda that expects a @Type@ of kind #.
+nlam :: (Nat' -> GenValue b w) -> GenValue b w
+nlam f = VNumPoly (return . f)
+
 -- | Generate a stream.
 toStream :: [GenValue b w] -> Eval (GenValue b w)
 toStream vs =
@@ -445,16 +450,16 @@ boolToWord bs = VWord (genericLength bs) $ ready $ WordVal $ packWord bs
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
 toSeq :: BitWord b w
-      => TValue -> TValue -> [GenValue b w] -> Eval (GenValue b w)
-toSeq len elty vals = case numTValue len of
+      => Nat' -> TValue -> [GenValue b w] -> Eval (GenValue b w)
+toSeq len elty vals = case len of
   Nat n -> toFinSeq n elty vals
   Inf   -> toStream vals
 
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
-mkSeq :: TValue -> TValue -> SeqMap b w -> GenValue b w
-mkSeq len elty vals = case numTValue len of
+mkSeq :: Nat' -> TValue -> SeqMap b w -> GenValue b w
+mkSeq len elty vals = case len of
   Nat n
     | isTBit elty -> VWord n $ return $ BitsVal $ Seq.fromFunction (fromInteger n) $ \i ->
                         fromVBit <$> lookupSeqMap vals (toInteger i)
@@ -525,6 +530,12 @@ fromVPoly :: GenValue b w -> (TValue -> Eval (GenValue b w))
 fromVPoly val = case val of
   VPoly f -> f
   _       -> evalPanic "fromVPoly" ["not a polymorphic value"]
+
+-- | Extract a polymorphic function from a value.
+fromVNumPoly :: GenValue b w -> (Nat' -> Eval (GenValue b w))
+fromVNumPoly val = case val of
+  VNumPoly f -> f
+  _          -> evalPanic "fromVNumPoly" ["not a polymorphic value"]
 
 -- | Extract a tuple from a value.
 fromVTuple :: GenValue b w -> [Eval (GenValue b w)]

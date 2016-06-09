@@ -24,16 +24,18 @@ import qualified Data.Sequence as Seq
 import qualified Data.Foldable as Fold
 
 import Cryptol.Eval.Monad (Eval(..), ready)
+import Cryptol.Eval.Type  (finNat')
 import Cryptol.Eval.Value (BitWord(..), EvalPrims(..), enumerateSeqMap, SeqMap(..),
-                          finiteSeqMap, reverseSeqMap, wlam, WordValue(..),
+                          finiteSeqMap, reverseSeqMap, wlam, nlam, WordValue(..),
                           asWordVal, asBitsVal, fromWordVal )
-import Cryptol.Prims.Eval (binary, unary, tlamN, arithUnary,
+import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            arithBinary, Binary, BinArith,
                            logicBinary, logicUnary, zeroV,
                            ccatV, splitAtV, joinV, ecSplitV,
                            reverseV, infFromV, infFromThenV,
                            fromThenV, fromToV, fromThenToV,
-                           transposeV, indexPrimOne, indexPrimMany)
+                           transposeV, indexPrimOne, indexPrimMany,
+                           ecDemoteV)
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Decl(..))
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)
@@ -118,34 +120,34 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                             Nat n -> Just ((i+n-shft) `mod` n)))
 
   , ("#"          , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
-     tlam $ \ front ->
-     tlam $ \ back  ->
+     nlam $ \ front ->
+     nlam $ \ back  ->
      tlam $ \ elty  ->
      lam  $ \ l     -> return $
      lam  $ \ r     -> join (ccatV front back elty <$> l <*> r))
 
   , ("splitAt"    ,
-     tlam $ \ front ->
-     tlam $ \ back  ->
+     nlam $ \ front ->
+     nlam $ \ back  ->
      tlam $ \ a     ->
      lam  $ \ x     ->
        splitAtV front back a =<< x)
 
   , ("join"       ,
-     tlam $ \ parts ->
-     tlam $ \ each  ->
+     nlam $ \ parts ->
+     nlam $ \ each  ->
      tlam $ \ a     ->
      lam  $ \ x     ->
        joinV parts each a =<< x)
 
   , ("split"       , ecSplitV)
 
-  , ("reverse"    , tlam $ \a ->
+  , ("reverse"    , nlam $ \a ->
                     tlam $ \b ->
                      lam $ \xs -> reverseV =<< xs)
 
-  , ("transpose"  , tlam $ \a ->
-                    tlam $ \b ->
+  , ("transpose"  , nlam $ \a ->
+                    nlam $ \b ->
                     tlam $ \c ->
                      lam $ \xs -> transposeV a b c =<< xs)
 
@@ -161,8 +163,8 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("!!"          , indexPrimMany indexBack_bits indexBack)
 
   , ("pmult"       , -- {a,b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
-      tlam $ \(finTValue -> i) ->
-      tlam $ \(finTValue -> j) ->
+      nlam $ \(finNat' -> i) ->
+      nlam $ \(finNat' -> j) ->
       VFun $ \v1 -> return $
       VFun $ \v2 -> do
         let k = max 1 (i + j) - 1
@@ -174,8 +176,8 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
         return $ VWord k $ return $ BitsVal $ Seq.fromList $ map ready zs)
 
   , ("pdiv"        , -- {a,b} (fin a, fin b) => [a] -> [b] -> [a]
-      tlam $ \(finTValue -> i) ->
-      tlam $ \(finTValue -> j) ->
+      nlam $ \(finNat' -> i) ->
+      nlam $ \(finNat' -> j) ->
       VFun $ \v1 -> return $
       VFun $ \v2 -> do
         xs <- sequence . Fold.toList . Seq.reverse . asBitsVal =<< fromWordVal "pdiv 1" =<< v1
@@ -184,8 +186,8 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
         return $ VWord i $ return $ BitsVal $ Seq.reverse $ Seq.fromList $ map ready zs)
 
   , ("pmod"        , -- {a,b} (fin a, fin b) => [a] -> [b+1] -> [b]
-      tlam $ \(finTValue -> i) ->
-      tlam $ \(finTValue -> j) ->
+      nlam $ \(finNat' -> i) ->
+      nlam $ \(finNat' -> j) ->
       VFun $ \v1 -> return $
       VFun $ \v2 -> do
         xs <- sequence . Fold.toList . Seq.reverse . asBitsVal =<< fromWordVal "pmod 1" =<< v1
@@ -196,7 +198,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,
       tlam $ \at ->
-      tlam $ \(finTValue -> _len) ->
+      nlam $ \(finNat' -> _len) ->
       VFun $ \_msg ->
         return $ zeroV at) -- error/undefined, is arbitrarily translated to 0
 
@@ -211,6 +213,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
      -- values before returing the third in the symbolic
      -- evaluator.
   , ("trace",
+      nlam $ \_n ->
       tlam $ \_a ->
       tlam $ \_b ->
        lam $ \s -> return $
@@ -233,12 +236,12 @@ logicShift :: String
            -> (Nat' -> Integer -> Integer -> Maybe Integer)
            -> Value
 logicShift nm wop reindex =
-      tlam $ \m ->
-      tlam $ \n ->
+      nlam $ \m ->
+      nlam $ \n ->
       tlam $ \a ->
       VFun $ \xs -> return $
       VFun $ \y -> do
-        let Nat len = numTValue n
+        let Nat len = n
         idx <- fromWordVal "<<" =<< y
 
         xs >>= \case
@@ -298,7 +301,7 @@ indexFront mblen a xs idx
   = lookupSeqMap xs i
 
   | Just n <- mblen
-  , Just (finTValue -> wlen, a') <- isTSeq a
+  , Just (finNat' -> wlen, a') <- isTSeq a
   , isTBit a'
   = do wvs <- traverse (fromWordVal "indexFront" =<<) (enumerateSeqMap n xs)
        case asWordList wvs of
@@ -377,18 +380,6 @@ asWordList = go id
        go _ _ = Nothing
 
 
--- | Make a numeric constant.
--- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
-ecDemoteV :: Value
-ecDemoteV = tlam $ \valT ->
-            tlam $ \bitT ->
-            case (numTValue valT, numTValue bitT) of
-              (Nat v, Nat bs) -> VWord bs $ ready $ WordVal $ literalSWord (fromInteger bs) v
-              _ -> evalPanic "Cryptol.Prove.evalECon"
-                       ["Unexpected Inf in constant."
-                       , show valT
-                       , show bitT
-                       ]
 
 liftBinArith :: (SWord -> SWord -> SWord) -> BinArith SWord
 liftBinArith op _ = op
