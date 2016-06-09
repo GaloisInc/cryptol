@@ -240,19 +240,19 @@ etaDelay msg env0 Forall{ sVars = vs, sType = tp0 } = goTpVars env0 vs
      VBit _    -> return x
      VWord _ _ -> return x
      VSeq n xs
-       | Just (nt, el) <- isTSeq tp
+       | TVSeq nt el <- tp
       -> return $ VSeq n $ SeqMap $ \i -> go el (lookupSeqMap xs i)
 
      VStream xs
-       | Just (nt, el) <- isTSeq tp
+       | TVSeq nt el <- tp
       -> return $ VStream $ SeqMap $ \i -> go el (lookupSeqMap xs i)
 
      VTuple xs
-       | Just (_n, ts) <- isTTuple tp
+       | TVTuple ts <- tp
       -> return $ VTuple (zipWith go ts xs)
 
      VRecord fs
-       | Just fts <- isTRec tp
+       | TVRec fts <- tp
       -> return $ VRecord $
            let err f = evalPanic "expected record value with field" [show f] in
            [ (f, go (fromMaybe (err f) (lookup f fts)) x)
@@ -260,43 +260,45 @@ etaDelay msg env0 Forall{ sVars = vs, sType = tp0 } = goTpVars env0 vs
            ]
 
      VFun f
-       | Just (_t1,t2) <- isTFun tp
+       | TVFun _t1 t2 <- tp
       -> return $ VFun $ \a -> go t2 (f a)
 
- go tp x
-    | isTBit tp
-    = x
+     _ -> evalPanic "type mismatch during eta-expansion" []
 
-    | Just (n, el) <- isTSeq tp
-    , Nat n' <- n
-    , isTBit el
+ go tp x = case tp of
+  TVBit -> x
+
+  TVSeq n TVBit ->
     -- TODO! I think we need the alternate blackhole strategy here, where
     --  entering the blackhole eta-exapnds to a list of bits
-    = do w <- delay (Just msg) (fromWordVal "during eta-expansion" =<< x)
-         return $ VWord n' w
+      do w <- delay (Just msg) (fromWordVal "during eta-expansion" =<< x)
+         return $ VWord n w
 
-    | Just (n, el) <- isTSeq tp
-    = do x' <- delay (Just msg) (fromSeq "during eta-expansion" =<< x)
-         case n of
-           Inf -> return $ VStream $ SeqMap $ \i ->
-                      go el (flip lookupSeqMap i =<< x')
-           Nat n' -> return $ VSeq n' $ SeqMap $ \i -> do
-                      go el (flip lookupSeqMap i =<< x')
+  TVSeq n el ->
+      do x' <- delay (Just msg) (fromSeq "during eta-expansion" =<< x)
+         return $ VSeq n $ SeqMap $ \i -> do
+           go el (flip lookupSeqMap i =<< x')
 
-    | Just (_t1,t2) <- isTFun tp
-    = do x' <- delay (Just msg) (fromVFun <$> x)
+  TVStream el ->
+      do x' <- delay (Just msg) (fromSeq "during eta-expansion" =<< x)
+         return $ VStream $ SeqMap $ \i ->
+           go el (flip lookupSeqMap i =<< x')
+
+  TVFun _t1 t2 ->
+      do x' <- delay (Just msg) (fromVFun <$> x)
          return $ VFun $ \a -> go t2 ( ($a) =<< x' )
 
-    | Just (n,ts) <- isTTuple tp
-    = do x' <- delay (Just msg) (fromVTuple <$> x)
+  TVTuple ts ->
+      do let n = length ts
+         x' <- delay (Just msg) (fromVTuple <$> x)
          return $ VTuple $
             [ go t =<< (flip genericIndex i <$> x')
             | i <- [0..(n-1)]
             | t <- ts
             ]
 
-    | Just fs <- isTRec tp
-    = do x' <- delay (Just msg) (fromVRecord <$> x)
+  TVRec fs ->
+      do x' <- delay (Just msg) (fromVRecord <$> x)
          let err f = evalPanic "expected record value with field" [show f]
          return $ VRecord $
             [ (f, go t =<< (fromMaybe (err f) . lookup f <$> x'))
@@ -342,8 +344,9 @@ evalSel val sel = case sel of
   TupleSel n _  -> tupleSel n val
   RecordSel n _ -> recordSel n val
   ListSel ix _  -> case val of
-                     VSeq _ xs' -> lookupSeqMap xs' (toInteger ix)
-                     VWord _ wv -> VBit <$> (flip indexWordValue (toInteger ix) =<< wv)
+                     VSeq _ xs'  -> lookupSeqMap xs' (toInteger ix)
+                     VStream xs' -> lookupSeqMap xs' (toInteger ix)
+                     VWord _ wv  -> VBit <$> (flip indexWordValue (toInteger ix) =<< wv)
   where
 
   tupleSel n v =

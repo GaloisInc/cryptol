@@ -275,19 +275,19 @@ data FinType
     | FTTuple [FinType]
     | FTRecord [(Ident, FinType)]
 
-numType :: Nat' -> Maybe Int
-numType (Nat n)
+numType :: Integer -> Maybe Int
+numType n
   | 0 <= n && n <= toInteger (maxBound :: Int) = Just (fromInteger n)
 numType _ = Nothing
 
 finType :: TValue -> Maybe FinType
 finType ty =
   case ty of
-    (Eval.isTBit -> True)           -> Just FTBit
-    (Eval.isTSeq -> Just (n, t))    -> FTSeq <$> numType n <*> finType t
-    (Eval.isTTuple -> Just (_, ts)) -> FTTuple <$> traverse finType ts
-    (Eval.isTRec -> Just fields)    -> FTRecord <$> traverse (traverseSnd finType) fields
-    _                               -> Nothing
+    Eval.TVBit            -> Just FTBit
+    Eval.TVSeq n t        -> FTSeq <$> numType n <*> finType t
+    Eval.TVTuple ts       -> FTTuple <$> traverse finType ts
+    Eval.TVRec fields     -> FTRecord <$> traverse (traverseSnd finType) fields
+    _                     -> Nothing
 
 unFinType :: FinType -> Type
 unFinType fty =
@@ -309,9 +309,9 @@ predArgTypes schema@(Forall ts ps ty)
   | otherwise = Left $ "Not a monomorphic type:\n" ++ show (pp schema)
   where
     go :: TValue -> Maybe [FinType]
-    go (Eval.isTBit -> True)            = Just []
-    go (Eval.isTFun -> Just (ty1, ty2)) = (:) <$> finType ty1 <*> go ty2
-    go _                                = Nothing
+    go Eval.TVBit             = Just []
+    go (Eval.TVFun ty1 ty2)   = (:) <$> finType ty1 <*> go ty2
+    go _                      = Nothing
 
 forallFinType :: FinType -> SBV.Symbolic Value
 forallFinType ty =
@@ -336,178 +336,3 @@ existsFinType ty =
                            return $ genericIndex vs i
     FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . existsFinType) ts
     FTRecord fs   -> VRecord <$> mapM (traverseSnd (fmap Eval.ready . existsFinType)) fs
-
-{-
--- Simulation environment ------------------------------------------------------
-
-data Env = Env
-  { envVars :: Map.Map Name Value
-  , envTypes :: Map.Map TVar TValue
-  }
-
-instance Monoid Env where
-  mempty = Env
-    { envVars  = Map.empty
-    , envTypes = Map.empty
-    }
-
-  mappend l r = Env
-    { envVars  = Map.union (envVars  l) (envVars  r)
-    , envTypes = Map.union (envTypes l) (envTypes r)
-    }
-
--- | Bind a variable in the evaluation environment.
-bindVar :: (Name, Value) -> Env -> Env
-bindVar (n, thunk) env = env { envVars = Map.insert n thunk (envVars env) }
-
--- | Lookup a variable in the environment.
-lookupVar :: Name -> Env -> Maybe Value
-lookupVar n env = Map.lookup n (envVars env)
-
--- | Bind a type variable of kind *.
-bindType :: TVar -> TValue -> Env -> Env
-bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
-
--- | Lookup a type variable.
-lookupType :: TVar -> Env -> Maybe TValue
-lookupType p env = Map.lookup p (envTypes env)
-
--- Expressions -----------------------------------------------------------------
-
-evalExpr :: Env -> Expr -> Value
-evalExpr env expr =
-  case expr of
-    EList es ty       -> VSeq (tIsBit ty) (map eval es)
-    ETuple es         -> VTuple (map eval es)
-    ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
-    ESel e sel        -> evalSel sel (eval e)
-    EIf b e1 e2       -> iteValue (fromVBit (eval b)) (eval e1) (eval e2)
-    EComp ty e mss    -> evalComp env (evalType env ty) e mss
-    EVar n            -> case lookupVar n env of
-                           Just x -> x
-                           _ -> panic "Cryptol.Symbolic.evalExpr" [ "Variable " ++ show n ++ " not found" ]
-    -- TODO: how to deal with uninterpreted functions?
-    ETAbs tv e        -> VPoly $ \ty -> evalExpr (bindType (tpVar tv) ty env) e
-    ETApp e ty        -> fromVPoly (eval e) (evalType env ty)
-    EApp e1 e2        -> fromVFun (eval e1) (eval e2)
-    EAbs n _ty e      -> VFun $ \x -> evalExpr (bindVar (n, x) env) e
-    EProofAbs _prop e -> eval e
-    EProofApp e       -> eval e
-    ECast e _ty       -> eval e
-    EWhere e ds       -> evalExpr (evalDecls env ds) e
-    where
-      eval e = evalExpr env e
-
-evalType :: Env -> Type -> TValue
-evalType env ty = Cryptol.Eval.Type.evalType env' ty
-  where env' = Cryptol.Eval.Env.EvalEnv Map.empty (envTypes env)
-
-
-evalSel :: Selector -> Value -> Value
-evalSel sel v =
-  case sel of
-    TupleSel n _  ->
-      case v of
-        VTuple xs  -> xs !! n -- 0-based indexing
-        VSeq b xs  -> VSeq b (map (evalSel sel) xs)
-        VStream xs -> VStream (map (evalSel sel) xs)
-        VFun f     -> VFun (\x -> evalSel sel (f x))
-        _ -> panic "Cryptol.Symbolic.evalSel" [ "Tuple selector applied to incompatible type" ]
-
-    RecordSel n _ ->
-      case v of
-        VRecord bs  -> case lookup n bs of
-                         Just x -> x
-                         _ -> panic "Cryptol.Symbolic.evalSel" [ "Selector " ++ show n ++ " not found" ]
-        VSeq b xs   -> VSeq b (map (evalSel sel) xs)
-        VStream xs  -> VStream (map (evalSel sel) xs)
-        VFun f      -> VFun (\x -> evalSel sel (f x))
-        _ -> panic "Cryptol.Symbolic.evalSel" [ "Record selector applied to non-record" ]
-
-    ListSel n _   -> case v of
-                       VWord s -> VBit (SBV.svTestBit s i)
-                                    where i = SBV.intSizeOf s - 1 - n
-                       _       -> fromSeq v !! n  -- 0-based indexing
-
--- Declarations ----------------------------------------------------------------
-
-evalDecls :: Env -> [DeclGroup] -> Env
-evalDecls = foldl evalDeclGroup
-
-evalDeclGroup :: Env -> DeclGroup -> Env
-evalDeclGroup env dg =
-  case dg of
-    NonRecursive d -> bindVar (evalDecl env d) env
-    Recursive ds   -> let env' = foldr bindVar env lazyBindings
-                          bindings = map (evalDecl env') ds
-                          lazyBindings = [ (qname, copyBySchema env (dSignature d) v)
-                                         | (d, (qname, v)) <- zip ds bindings ]
-                      in env'
-
-evalDecl :: Env -> Decl -> (Name, Value)
-evalDecl env d = (dName d, body)
-  where
-  body = case dDefinition d of
-           DExpr e -> evalExpr env e
-           DPrim   -> evalPrim d
-
--- | Make a copy of the given value, building the spine based only on
--- the type without forcing the value argument. This lets us avoid
--- strictness problems when evaluating recursive definitions.
-copyBySchema :: Env -> Schema -> Value -> Value
-copyBySchema env0 (Forall params _props ty) = go params env0
-  where
-    go [] env v = copyByType env (evalType env ty) v
-    go (p : ps) env v =
-      VPoly (\t -> go ps (bindType (tpVar p) t env) (fromVPoly v t))
-
-copyByType :: Env -> TValue -> Value -> Value
-copyByType env ty v
-  | isTBit ty                    = VBit (fromVBit v)
-  | Just (n, ety) <- isTSeq ty   = case numTValue n of
-                                     Nat _ -> VSeq (isTBit ety) (fromSeq v)
-                                     Inf   -> VStream (fromSeq v)
-  | Just (_, bty) <- isTFun ty   = VFun (\x -> copyByType env bty (fromVFun v x))
-  | Just (_, tys) <- isTTuple ty = VTuple (zipWith (copyByType env) tys (fromVTuple v))
-  | Just fs <- isTRec ty         = VRecord [ (f, copyByType env t (lookupRecord f v)) | (f, t) <- fs ]
-  | otherwise                    = v
--- copyByType env ty v = logicUnary id id (evalType env ty) v
-
--- List Comprehensions ---------------------------------------------------------
-
--- | Evaluate a comprehension.
-evalComp :: Env -> TValue -> Expr -> [[Match]] -> Value
-evalComp env seqty body ms
-  | Just (len,el) <- isTSeq seqty = toSeq len el [ evalExpr e body | e <- envs ]
-  | otherwise = evalPanic "Cryptol.Eval" [ "evalComp given a non sequence"
-                                         , show seqty
-                                         ]
-
-  -- XXX we could potentially print this as a number if the type was available.
-  where
-  -- generate a new environment for each iteration of each parallel branch
-  benvs = map (branchEnvs env) ms
-
-  -- take parallel slices of each environment.  when the length of the list
-  -- drops below the number of branches, one branch has terminated.
-  allBranches es = length es == length ms
-  slices         = takeWhile allBranches (transpose benvs)
-
-  -- join environments to produce environments at each step through the process.
-  envs = map mconcat slices
-
--- | Turn a list of matches into the final environments for each iteration of
--- the branch.
-branchEnvs :: Env -> [Match] -> [Env]
-branchEnvs env matches =
-  case matches of
-    []     -> [env]
-    m : ms -> do env' <- evalMatch env m
-                 branchEnvs env' ms
-
--- | Turn a match into the list of environments it represents.
-evalMatch :: Env -> Match -> [Env]
-evalMatch env m = case m of
-  From n _ty expr -> [ bindVar (n, v) env | v <- fromSeq (evalExpr env expr) ]
-  Let d           -> [ bindVar (evalDecl env d) env ]
--}

@@ -24,7 +24,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Foldable as Fold
 
 import Cryptol.Eval.Monad (Eval(..), ready)
-import Cryptol.Eval.Type  (finNat')
+import Cryptol.Eval.Type  (finNat', TValue(..))
 import Cryptol.Eval.Value (BitWord(..), EvalPrims(..), enumerateSeqMap, SeqMap(..),
                           finiteSeqMap, reverseSeqMap, wlam, nlam, WordValue(..),
                           asWordVal, asBitsVal, fromWordVal )
@@ -135,7 +135,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
 
   , ("join"       ,
      nlam $ \ parts ->
-     nlam $ \ each  ->
+     nlam $ \ (finNat' -> each)  ->
      tlam $ \ a     ->
      lam  $ \ x     ->
        joinV parts each a =<< x)
@@ -301,8 +301,7 @@ indexFront mblen a xs idx
   = lookupSeqMap xs i
 
   | Just n <- mblen
-  , Just (finNat' -> wlen, a') <- isTSeq a
-  , isTBit a'
+  , TVSeq wlen TVBit <- a
   = do wvs <- traverse (fromWordVal "indexFront" =<<) (enumerateSeqMap n xs)
        case asWordList wvs of
          Just ws ->
@@ -311,11 +310,13 @@ indexFront mblen a xs idx
 
   | otherwise
   = foldr f def [0 .. 2^w  - 1]
+
  where
     k = SBV.kindOf idx
     w = SBV.intSizeOf idx
     def = ready $ VWord (toInteger w) $ ready $ WordVal $ SBV.svInteger k 0
     f n y = iteValue (SBV.svEqual idx (SBV.svInteger k n)) (lookupSeqMap xs n) y
+
 
 indexBack :: Maybe Integer
           -> TValue
@@ -377,7 +378,6 @@ asWordList = go id
               case asBitList (Fold.toList bs) of
                   Just xs -> go (f . (packWord xs:)) vs
                   Nothing -> Nothing
-       go _ _ = Nothing
 
 
 

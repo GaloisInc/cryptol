@@ -54,23 +54,6 @@ isTBit :: TValue -> Bool
 isTBit TVBit = True
 isTBit _ = False
 
-isTSeq :: TValue -> Maybe (Nat', TValue)
-isTSeq (TVSeq n t) = Just (Nat n, t)
-isTSeq (TVStream t) = Just (Inf, t)
-isTSeq _ = Nothing
-
-isTFun :: TValue -> Maybe (TValue, TValue)
-isTFun (TVFun t1 t2) = Just (t1, t2)
-isTFun _ = Nothing
-
-isTTuple :: TValue -> Maybe (Int,[TValue])
-isTTuple (TVTuple ts) = Just (length ts, ts)
-isTTuple _ = Nothing
-
-isTRec :: TValue -> Maybe [(Ident, TValue)]
-isTRec (TVRec fs) = Just fs
-isTRec _ = Nothing
-
 tvSeq :: Nat' -> TValue -> TValue
 tvSeq (Nat n) t = TVSeq n t
 tvSeq Inf     t = TVStream t
