@@ -130,11 +130,3 @@ evalTF f vs
 
   where mb = fromMaybe (typeCannotBeDemoted ty)
         ty = TCon (TF f) (map tNat' vs)
-
---cvt :: Nat' -> Type
---cvt (Nat n) = tNum n
---cvt Inf     = tInf
-
-
-
-
