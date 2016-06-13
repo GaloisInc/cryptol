@@ -20,6 +20,7 @@ import Cryptol.Utils.Ident    (Ident)
 import Control.Monad          (forM)
 import Data.List              (unfoldr, genericTake, genericIndex)
 import System.Random          (RandomGen, split, random, randomR)
+import qualified Data.Sequence as Seq
 
 type Gen g = Integer -> g -> (Value, g)
 
@@ -113,9 +114,12 @@ randomStream mkElem sz g =
 other than bits.  For sequences of bits use "randomWord".  The difference
 is mostly about how the results will be displayed. -}
 randomSequence :: RandomGen g => Integer -> Gen g -> Gen g
-randomSequence w mkElem sz g =
+randomSequence w mkElem sz g = do
   let (g1,g2) = split g
-  in (VSeq w $ SeqMap $ genericIndex (map ready (genericTake w $ unfoldr (Just . mkElem sz) g1)), g2)
+  let f g = let (x,g') = mkElem sz g
+             in seq x (Just (ready x, g'))
+  let xs = Seq.fromList $ genericTake w $ unfoldr f g1
+  seq xs (VSeq w $ SeqMap $ (Seq.index xs . fromInteger), g2)
 
 -- | Generate a random tuple value.
 randomTuple :: RandomGen g => [Gen g] -> Gen g
@@ -124,7 +128,7 @@ randomTuple gens sz = go [] gens
   go els [] g = (VTuple (reverse els), g)
   go els (mkElem : more) g =
     let (v, g1) = mkElem sz g
-    in go (ready v : els) more g1
+    in seq v (go (ready v : els) more g1)
 
 -- | Generate a random record value.
 randomRecord :: RandomGen g => [(Ident, Gen g)] -> Gen g
@@ -133,7 +137,7 @@ randomRecord gens sz = go [] gens
   go els [] g = (VRecord (reverse els), g)
   go els ((l,mkElem) : more) g =
     let (v, g1) = mkElem sz g
-    in go ((l,ready v) : els) more g1
+    in seq v (go ((l,ready v) : els) more g1)
 
 {-
 test = do
