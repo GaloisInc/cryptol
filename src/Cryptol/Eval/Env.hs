@@ -36,10 +36,7 @@ import Prelude.Compat
 data GenEvalEnv b w = EvalEnv
   { envVars       :: !(Map.Map Name (Eval (GenValue b w)))
   , envTypes      :: !TypeEnv
-  } deriving (Generic)
-
-instance (NFData b, NFData w) => NFData (GenEvalEnv b w)
-  where rnf = genericRnf
+  } deriving (Generic, NFData)
 
 instance Monoid (GenEvalEnv b w) where
   mempty = EvalEnv

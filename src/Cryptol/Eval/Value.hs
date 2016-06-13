@@ -59,7 +59,7 @@ import qualified Data.Cache.LRU.IO as LRU
 
 -- | width, value
 -- Invariant: The value must be within the range 0 .. 2^width-1
-data BV = BV !Integer !Integer deriving (Generic)
+data BV = BV !Integer !Integer deriving (Generic, NFData)
 
 instance Show BV where
   show = show . bvVal
@@ -76,8 +76,6 @@ unaryBV f (BV w x) = mkBv w $ f x
 
 bvVal :: BV -> Integer
 bvVal (BV _w x) = x
-
-instance NFData BV where rnf = genericRnf
 
 -- | Smart constructor for 'BV's that checks for the width limit
 mkBv :: Integer -> Integer -> BV
@@ -152,7 +150,7 @@ mapSeqMap f x =
 data WordValue b w
   = WordVal !w
   | BitsVal !(Seq.Seq (Eval b))
- deriving (Generic)
+ deriving (Generic, NFData)
 
 asWordVal :: BitWord b w => WordValue b w -> Eval w
 asWordVal (WordVal w)  = return w
@@ -179,7 +177,7 @@ data GenValue b w
   | VFun (Eval (GenValue b w) -> Eval (GenValue b w)) -- functions
   | VPoly (TValue -> Eval (GenValue b w))  -- polymorphic values (kind *)
   | VNumPoly (Nat' -> Eval (GenValue b w)) -- polymorphic values (kind #)
-  deriving (Generic)
+  deriving (Generic, NFData)
 
 
 forceWordValue :: WordValue b w -> Eval ()
@@ -208,9 +206,6 @@ instance (Show b, Show w) => Show (GenValue b w) where
     VStream _  -> "stream"
     VFun _     -> "fun"
     VPoly _    -> "poly"
-
-instance (NFData b, NFData w) => NFData (WordValue b w) where rnf = genericRnf
-instance (NFData b, NFData w) => NFData (GenValue b w) where rnf = genericRnf
 
 type Value = GenValue Bool BV
 

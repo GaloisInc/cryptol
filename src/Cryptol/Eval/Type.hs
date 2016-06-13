@@ -21,7 +21,6 @@ import Data.Maybe(fromMaybe)
 import qualified Data.Map.Strict as Map
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Control.DeepSeq.Generics
 
 -- | An evaluated type of kind *.
 -- These types do not contain type variables, type synonyms, or type functions.
