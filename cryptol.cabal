@@ -40,15 +40,14 @@ flag server
 library
   Default-language:
     Haskell98
-  Build-depends:       base              >= 4.7 && < 5,
+  Build-depends:       base              >= 4.8 && < 5,
                        base-compat       >= 0.6,
                        bytestring        >= 0.10,
                        array             >= 0.4,
                        async             >= 2.0,
                        containers        >= 0.5,
                        deepseq           >= 1.3,
-                       deepseq-generics  >= 0.1 && < 0.3,
-                       directory         >= 1.2,
+                       directory         >= 1.2.2.0,
                        filepath          >= 1.3,
                        gitrev            >= 1.0,
                        GraphSCC          >= 1.0.4,
@@ -62,7 +61,7 @@ library
                        process           >= 1.2,
                        QuickCheck        >= 2.7,
                        random            >= 1.0.1,
-                       sbv               >= 5.7,
+                       sbv               >= 5.12,
                        smtLib            >= 1.0.7,
                        simple-smt        >= 0.6.0,
                        syb               >= 0.4,

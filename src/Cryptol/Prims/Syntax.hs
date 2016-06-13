@@ -6,8 +6,8 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-
 module Cryptol.Prims.Syntax
   ( TFun(..), tBinOpPrec, tfunNames
   ) where
@@ -19,7 +19,6 @@ import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Control.DeepSeq.Generics
 
 -- | Built-in types.
 data TFun
@@ -41,9 +40,7 @@ data TFun
   | TCLenFromThenTo       -- ^ @ : Num -> Num -> Num -> Num@
     -- Example: @[ 1, 5 .. 9 ] :: [lengthFromThenTo 1 5 9][b]@
 
-    deriving (Show, Eq, Ord, Bounded, Enum, Generic)
-
-instance NFData TFun where rnf = genericRnf
+    deriving (Show, Eq, Ord, Bounded, Enum, Generic, NFData)
 
 tBinOpPrec :: Map.Map TFun (Assoc,Int)
 tBinOpPrec  = mkMap t_table

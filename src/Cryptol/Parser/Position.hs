@@ -7,9 +7,10 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe #-}
+
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
-
 module Cryptol.Parser.Position where
 
 import           Data.Text.Lazy (Text)
@@ -17,26 +18,19 @@ import qualified Data.Text.Lazy as T
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Control.DeepSeq.Generics
 
 import Cryptol.Utils.PP
 
 data Located a  = Located { srcRange :: !Range, thing :: a }
-                  deriving (Eq,Show,Generic)
-
-instance NFData a => NFData (Located a) where rnf = genericRnf
+                  deriving (Eq, Show, Generic, NFData)
 
 data Position   = Position { line :: !Int, col :: !Int }
-                  deriving (Eq,Ord,Show,Generic)
-
-instance NFData Position where rnf = genericRnf
+                  deriving (Eq, Ord, Show, Generic, NFData)
 
 data Range      = Range { from   :: !Position
                         , to     :: !Position
                         , source :: FilePath }
-                  deriving (Eq,Show,Generic)
-
-instance NFData Range where rnf = genericRnf
+                  deriving (Eq, Show, Generic, NFData)
 
 -- | An empty range.
 --

@@ -6,10 +6,12 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Safe #-}
-{-# LANGUAGE DeriveGeneric #-}
+
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Env where
 
 import Cryptol.Eval.Monad( Eval, delay, ready )
@@ -25,7 +27,6 @@ import qualified Data.Map.Strict as Map
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat

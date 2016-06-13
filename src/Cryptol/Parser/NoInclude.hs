@@ -6,60 +6,40 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE CPP #-}
-
-#ifndef MIN_VERSION_directory
-#define MIN_VERSION_directory(a,b,c) 0
-#endif
-
+{-# LANGUAGE RecordWildCards #-}
 module Cryptol.Parser.NoInclude
   ( removeIncludesModule
   , IncludeError(..), ppIncludeError
   ) where
 
+import qualified Control.Applicative as A
+import Control.DeepSeq
+import qualified Control.Exception as X
+import Data.Either (partitionEithers)
+import Data.Text.Lazy (Text)
+import qualified Data.Text.Lazy.IO as T
+import GHC.Generics (Generic)
+import MonadLib
+import System.Directory (makeAbsolute)
+import System.FilePath (takeDirectory,(</>),isAbsolute)
+
 import Cryptol.Parser (parseProgramWith)
 import Cryptol.Parser.AST
 import Cryptol.Parser.LexerUtils (Config(..),defaultConfig)
 import Cryptol.Parser.ParserUtils
-import Cryptol.Utils.PP
 import Cryptol.Parser.Unlit (guessPreProc)
-import qualified Control.Applicative as A
-import           Data.Text.Lazy (Text)
-import qualified Data.Text.Lazy.IO as T
-
-import Data.Either (partitionEithers)
-import MonadLib
-import qualified Control.Exception as X
-import           System.FilePath (takeDirectory,(</>),isAbsolute)
-
-import GHC.Generics (Generic)
-import Control.DeepSeq
-import Control.DeepSeq.Generics
-
-import System.Directory (getCurrentDirectory)
-import System.FilePath (isRelative, normalise)
-
--- from the source of directory-1.2.2.1; included to maintain
--- backwards compatibility
-makeAbsolute :: FilePath -> IO FilePath
-makeAbsolute = fmap normalise . absolutize
-  where absolutize path
-          | isRelative path = fmap (</> path) getCurrentDirectory
-          | otherwise       = return path
+import Cryptol.Utils.PP
 
 removeIncludesModule :: FilePath -> Module PName -> IO (Either [IncludeError] (Module PName))
 removeIncludesModule modPath m = runNoIncM modPath (noIncludeModule m)
-
 
 data IncludeError
   = IncludeFailed (Located FilePath)
   | IncludeParseError ParseError
   | IncludeCycle [Located FilePath]
-    deriving (Show,Generic)
-
-instance NFData IncludeError where rnf = genericRnf
+    deriving (Show, Generic, NFData)
 
 ppIncludeError :: IncludeError -> Doc
 ppIncludeError ie = case ie of

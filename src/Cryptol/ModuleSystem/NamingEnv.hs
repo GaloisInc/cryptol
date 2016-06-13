@@ -6,15 +6,15 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE PatternGuards #-}
-
+{-# LANGUAGE RecordWildCards #-}
 module Cryptol.ModuleSystem.NamingEnv where
 
 import Cryptol.ModuleSystem.Interface
@@ -32,7 +32,6 @@ import MonadLib (runId,Id)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Control.DeepSeq.Generics
 
 import Prelude ()
 import Prelude.Compat
@@ -48,9 +47,7 @@ data NamingEnv = NamingEnv { neExprs :: !(Map.Map PName [Name])
                              -- ^ Type renaming environment
                            , neFixity:: !(Map.Map Name Fixity)
                              -- ^ Expression-level fixity environment
-                           } deriving (Show, Generic)
-
-instance NFData NamingEnv where rnf = genericRnf
+                           } deriving (Show, Generic, NFData)
 
 instance Monoid NamingEnv where
   mempty        =

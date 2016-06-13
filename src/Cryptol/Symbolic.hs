@@ -278,7 +278,7 @@ data FinType
 numType :: Integer -> Maybe Int
 numType n
   | 0 <= n && n <= toInteger (maxBound :: Int) = Just (fromInteger n)
-numType _ = Nothing
+  | otherwise = Nothing
 
 finType :: TValue -> Maybe FinType
 finType ty =
