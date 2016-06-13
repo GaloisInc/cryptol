@@ -448,11 +448,6 @@ lexCompare nm ty l r = case ty of
                (enumerateSeqMap w <$> fromSeq "lexCompare left" l) <*>
                (enumerateSeqMap w <$> fromSeq "lexCompare right" r))
 
-  TVStream e ->
-      join (zipLexCompare nm (repeat e) <$>
-               (streamSeqMap <$> fromSeq "lexCompare left" l) <*>
-               (streamSeqMap <$> fromSeq "lexCompare right" r))
-
   -- tuples
   TVTuple etys ->
     zipLexCompare nm etys (fromVTuple l) (fromVTuple r)
@@ -464,7 +459,7 @@ lexCompare nm ty l r = case ty of
         rs     = map snd (sortBy (comparing fst) (fromVRecord r))
      in zipLexCompare nm tys ls rs
 
---  | otherwise = evalPanic "lexCompare" ["invalid type"]
+  _ -> evalPanic "lexCompare" ["invalid type"]
 
 
 -- XXX the lists are expected to be of the same length, as this should only be
