@@ -51,8 +51,17 @@ data ThunkState a
 delay :: Maybe String -> Eval a -> Eval (Eval a)
 delay _ (Ready a) = Ready (Ready a)
 delay msg (Thunk x) = Thunk $ do
+  let msg' = maybe "" ("while evaluating "++) msg
+  let retry = cryLoopError msg'
   r <- newIORef Unforced
-  return $ unDelay msg r x
+  return $ unDelay retry r x
+
+{-# INLINE delayFill #-}
+delayFill :: Eval a -> Eval a -> Eval (Eval a)
+delayFill (Ready x) _ = Ready (Ready x)
+delayFill (Thunk x) retry = Thunk $ do
+  r <- newIORef Unforced
+  return $ unDelay retry r x
 
 blackhole :: String -> Eval (Eval a, Eval a -> Eval ())
 blackhole msg = do
@@ -61,14 +70,13 @@ blackhole msg = do
   let set = io . writeIORef r
   return (get, set)
 
-unDelay :: Maybe String -> IORef (ThunkState a) -> IO a -> Eval a
-unDelay msg r x = do
+unDelay :: Eval a -> IORef (ThunkState a) -> IO a -> Eval a
+unDelay retry r x = do
   rval <- io $ readIORef r
   case rval of
     Forced val -> return val
-    BlackHole  -> do
-      let msg' = maybe "" ("while evaluating "++) msg
-      cryLoopError msg'
+    BlackHole  ->
+      retry
     Unforced -> io $ do
       writeIORef r BlackHole
       val <- x

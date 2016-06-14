@@ -114,26 +114,19 @@ memoMap :: SeqMap b w -> Eval (SeqMap b w)
 memoMap x = do
   -- TODO: make the size of the LRU cache a tuneable parameter...
   lru <- io $ LRU.newAtomicLRU (Just 64)
-  holes <- io $ newIORef Set.empty
-  return $ SeqMap $ memo holes lru
+  return $ SeqMap $ memo lru
 
  where
- memo holes lru i =  do
+ memo lru i =  do
     mz <- io $ LRU.lookup i lru
     case mz of
       Just z  -> return z
-      Nothing -> doEval holes lru i
+      Nothing -> doEval lru i
 
- doEval holes lru i = do
-    hs <- io $ readIORef holes
-    if Set.member i hs then
-      cryLoopError ("memo map position" ++ show i)
-    else do
-      io $ writeIORef holes (Set.insert i hs)
-      v <- lookupSeqMap x i
-      io $ LRU.insert i v lru
-      io $ modifyIORef' holes (Set.delete i)
-      return v
+ doEval lru i = do
+    v <- lookupSeqMap x i
+    io $ LRU.insert i v lru
+    return v
 
 zipSeqMap :: (GenValue b w -> GenValue b w -> Eval (GenValue b w))
           -> SeqMap b w
@@ -169,14 +162,14 @@ indexWordValue (BitsVal bs) idx = Seq.index bs (fromInteger idx)
 data GenValue b w
   = VRecord ![(Ident, Eval (GenValue b w))] -- @ { .. } @
   | VTuple ![Eval (GenValue b w)]           -- @ ( .. ) @
-  | VBit !b                                -- @ Bit    @
-  | VSeq !Integer !(SeqMap b w)            -- @ [n]a   @
-                                           -- Invariant: VSeq is never a sequence of bits
-  | VWord !Integer !(Eval (WordValue b w)) -- @ [n]Bit @
-  | VStream !(SeqMap b w)                  -- @ [inf]a @
+  | VBit !b                                 -- @ Bit    @
+  | VSeq !Integer !(SeqMap b w)             -- @ [n]a   @
+                                            -- Invariant: VSeq is never a sequence of bits
+  | VWord !Integer !(Eval (WordValue b w))  -- @ [n]Bit @
+  | VStream !(SeqMap b w)                   -- @ [inf]a @
   | VFun (Eval (GenValue b w) -> Eval (GenValue b w)) -- functions
-  | VPoly (TValue -> Eval (GenValue b w))  -- polymorphic values (kind *)
-  | VNumPoly (Nat' -> Eval (GenValue b w)) -- polymorphic values (kind #)
+  | VPoly (TValue -> Eval (GenValue b w))   -- polymorphic values (kind *)
+  | VNumPoly (Nat' -> Eval (GenValue b w))  -- polymorphic values (kind #)
   deriving (Generic, NFData)
 
 
