@@ -334,7 +334,7 @@ var                        :: { LPName }
   | '(' op ')'                { $2 }
 
 apats                     :: { [Pattern PName] }
-  : ipat                   { [$1] }
+  : apat                   { [$1] }
   | apats1 apat            { $2 : $1 }
 
 apats1                   :: { [Pattern PName]  }
