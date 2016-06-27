@@ -423,9 +423,6 @@ getPropertyNames =
 
      return (ps, names)
 
-getName :: M.Name -> String
-getName  = show . pp
-
 getModuleEnv :: REPL M.ModuleEnv
 getModuleEnv  = eModuleEnv `fmap` getRW
 
