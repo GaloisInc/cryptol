@@ -25,7 +25,7 @@ PlainText = "The qufck brown fox jump"
 // Yes, that's the correct phrase.. (see the 7th letter of the phrase).
 // It's supposed to be "the quick..." but they made a mistake in transcribing
 // the ASCII into hex.
-[P1, P2, P3] = splitBy`{3} (join PlainText)
+[P1, P2, P3] = split`{3} (join PlainText)
 
 // B.1
 

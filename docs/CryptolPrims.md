@@ -74,7 +74,6 @@ Sequences
 
 
     // Abbreviations
-    splitBy n = split`{parts = n}
     groupBy n = split`{each  = n}
     tail n    = splitAt`{front = 1}.1
     take n    = splitAt`{front = n}.0

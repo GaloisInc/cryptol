@@ -672,11 +672,11 @@ worthwhile to try the following exercises to gain basic familiarity
 with the basic operations.
 
 \begin{Exercise}\label{ex:seq:11}
-Try the following expressions:\indTake\indDrop\indSplitBy\indGroup\indJoin\indTranspose
+Try the following expressions:\indTake\indDrop\indSplit\indGroup\indJoin\indTranspose
 \begin{Verbatim}
   take`{3} [1 .. 12]
   drop`{3} [1 .. 12]
-  splitBy`{3} [1 .. 12]
+  split`{3} [1 .. 12]
   groupBy`{3} [1 .. 12]
   join [[1 .. 4], [5 .. 8], [9 .. 12]]
   join [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]
@@ -696,7 +696,7 @@ Here are Cryptol's responses:
   [1, 2, 3]
   Cryptol> drop`{3} [1 .. 12]
   [4, 5, 6, 7, 8, 9, 10, 11, 12]
-  Cryptol> splitBy`{3}[1 .. 12]
+  Cryptol> split`{3}[1 .. 12]
   [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]
   Cryptol> groupBy`{3} [1 .. 12]
   [[1, 2, 3], [4, 5, 6], [7, 8, 9], [10, 11, 12]]
@@ -716,10 +716,10 @@ Here are Cryptol's responses:
 \begin{Exercise}\label{ex:seq:12}
   Based on your intuitions from the previous exercise, derive laws
   between the following pairs of functions: {\tt take} and {\tt drop};
-  {\tt join} and {\tt splitBy}; {\tt join} and {\tt groupBy}; {\tt
-    splitBy} and {\tt groupBy} and {\tt transpose} and itself.  For
+  {\tt join} and {\tt split}; {\tt join} and {\tt groupBy}; {\tt
+    split} and {\tt groupBy} and {\tt transpose} and itself.  For
   instance, {\tt take} and {\tt drop} satisfy the following
-  equality:\indTake\indDrop\indJoin\indSplitBy\indGroup\indTranspose
+  equality:\indTake\indDrop\indJoin\indSplit\indGroup\indTranspose
 \begin{Verbatim}
    (take`{n} xs) # (drop`{n} xs) == xs
 \end{Verbatim}
@@ -729,11 +729,11 @@ satisfy.
 \end{Exercise}
 \begin{Answer}\ansref{ex:seq:12}
   The following equalities are the simplest
-  candidates:\indJoin\indSplitBy\indGroup\indTranspose
+  candidates:\indJoin\indSplit\indGroup\indTranspose
 \begin{Verbatim}
-  join (splitBy`{parts=n} xs) == xs
+  join (split`{parts=n} xs) == xs
   join (groupBy`{each=n} xs) == xs
-  splitBy`{parts=n} xs == groupBy`{each=m} xs
+  split`{parts=n} xs == groupBy`{each=m} xs
   transpose (transpose xs) == xs
 \end{Verbatim}
 In the first two equalities {\tt n} must be a divisor of the length of
@@ -757,13 +757,12 @@ holds for all equal length sequences {\tt xs0}, {\tt xs1}, $\ldots$,
 {\tt xsN}.
 \end{Answer}
 
-\paragraph*{Type-directed splits} We have studied the functions {\tt
-  groupBy}\indGroup and {\tt splitBy}\indSplitBy above.  Cryptol also
-provides a function {\tt split}\indSplit that can split a sequence
-into any number of equal-length segments.  A common way to use {\tt
-  split} is to be explicit about the type of its result, instead of
-passing arguments as we did above with {\tt splitBy} and {\tt
-  groupBy}.
+\paragraph*{Type-directed splits} The Cryptol primitive function {\tt
+  split}\indSplit splits a sequence into any number of equal-length
+parts. An explicit result type is often used with {\tt split}, since
+the number of parts and the number of elements in each part are not
+given as arguments, but are determined by the type of the argument
+sequence and the result context.
 \begin{Verbatim}
   Cryptol> split [1..12] : [1][12][8]
   [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]]
@@ -776,10 +775,11 @@ Here is what happens if we do {\em not} give an explicit signature on
 the result:\indSignature
 \begin{Verbatim}
   Cryptol> split [1..12]
-  <polymorphic value>
+  Cannot evaluate polymorphic value.
+  Type: {a, b, c} (fin b, fin c, b * a == 12, c >= 4) => [a][b][c]
   Cryptol> :t split [1..12]
-  split [1 .. 12] : {a, b, c} (a >= 4, fin a, fin c,
-                              12 == b * c) => [b][c][a]
+  split [1 .. 12] : {a, b, c} (fin b, fin c, b * a == 12,
+                               c >= 4) => [a][b][c]
 \end{Verbatim}
 %% cryptol 1 said: : {a b c} (fin c,c >= 4,a*b == 12) => [a][b][c]
 
@@ -1057,7 +1057,7 @@ remaining expressions.
   [0, 0, 1, 4]
 \end{Verbatim}
 We will show the evaluation steps for {\tt groupBy} here, and urge the
-reader to do the same for {\tt splitBy}:
+reader to do the same for {\tt split}:
 \begin{Verbatim}
   groupBy`{3} (12:[12])
     = groupBy`{3} [False, False, False, False, False, False, 
@@ -1801,21 +1801,6 @@ Cryptol divides {\tt 10} (the size of the second argument) by {\tt 3}
 does not match what we told it to use for {\tt parts}, i.e., {\tt
   2}. It is not hard to see that there is no instantiation to make this
 work, since {\tt 10} is not divisible by {\tt 3}.
-
-The message we get for the last equation is truly interesting:\indFin
-\begin{Verbatim}
-  Cryptol> groupBy`{3} [1..10]
-  <polymorphic value>
-  Cryptol> :t groupBy`{3} [1..10]
-  {a, b} (a >= 4, fin a, 10 == 3 * b) => [b][3][a]
-\end{Verbatim}
-Cryptol is telling us that the result is a polymorphic value, for all
-values of {\tt a} such that {\tt 3*a} is {\tt 10}.  Type inference in
-the presence of arbitrary expressions is undecidable,\indUndecidable
-and hence Cryptol tells us that this value will be instantiated to a
-concrete type as soon as we tell it what that {\tt a} must be. Since
-there is no such {\tt a}, we will never be able to use this value in a
-monomorphic context.
 \end{Answer}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
