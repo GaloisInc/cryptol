@@ -704,7 +704,7 @@ has {\tt diameter} characters in it.  Here is Cryptol in action,
 encrypting the message {\tt ATTACKATDAWN}:
 \begin{Verbatim}
   Cryptol> :set ascii=on
-  Cryptol> scytale "ATTACKATDAWN"
+  Cryptol> scytale `{diameter=3} "ATTACKATDAWN"
   "ACDTKATAWATN"
 \end{Verbatim}
 Decryption is essentially the same process, except we have to {\tt
@@ -724,7 +724,7 @@ precisely the same, except for the signature on {\tt msg'}! When
 viewed as a matrix, the types precisely tell which transposition we
 want at each step.  We have:
 \begin{Verbatim}
-  Cryptol> dScytale "ACDTKATAWATN"
+  Cryptol> dScytale `{diameter=3} "ACDTKATAWATN"
   "ATTACKATDAWN"
 \end{Verbatim}
 
