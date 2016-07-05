@@ -78,7 +78,7 @@ malicious_k1 = [0x5a827999, 0x88e8ea68, 0x578059de, 0x54324a39]
 
 bad_sha_eve1 = malicious_sha1 eve1 malicious_k1
 bad_sha_eve2 = malicious_sha1 eve2 malicious_k1
-property malicious_sha1_collision1 = eve1 != eve2 && bad_sha_eve1 == bad_sha_eve2
+property malicious_sha1_collision1 = eve1 != eve2 /\ bad_sha_eve1 == bad_sha_eve2
 
 //hexdump malicious/eve1.sh
 eve1_galois = [
@@ -111,9 +111,9 @@ eve2_galois = [
 bad_sha_eve_galois1 = malicious_sha1 eve1_galois malicious_k1
 bad_sha_eve_galois2 = malicious_sha1 eve2_galois malicious_k1
 
-property malicious_sha1_collision2 = eve1_galois != eve2_galois && bad_sha_eve_galois1 == bad_sha_eve_galois2
+property malicious_sha1_collision2 = eve1_galois != eve2_galois /\ bad_sha_eve_galois1 == bad_sha_eve_galois2
 
-property all_same_hashes = bad_sha_eve_galois1 == bad_sha_eve1 && malicious_sha1_collision1 && malicious_sha1_collision2
+property all_same_hashes = bad_sha_eve_galois1 == bad_sha_eve1 /\ malicious_sha1_collision1 /\ malicious_sha1_collision2
 
 /*
 As a summary, a "1" followed by m "0"s followed by a 64-
@@ -136,10 +136,10 @@ pad msg = split (msg # [True] # (zero:[padding]) # (`msgLen:[64]))
 
 f : ([8], [32], [32], [32]) -> [32]
 f (t, x, y, z) =
-       if (0 <= t)  && (t <= 19) then (x && y) ^ (~x && z)
-        | (20 <= t) && (t <= 39) then x ^ y ^ z
-        | (40 <= t) && (t <= 59) then (x && y) ^ (x && z) ^ (y && z)
-        | (60 <= t) && (t <= 79) then x ^ y ^ z
+       if (0 <= t)  /\ (t <= 19) then (x && y) ^ (~x && z)
+        | (20 <= t) /\ (t <= 39) then x ^ y ^ z
+        | (40 <= t) /\ (t <= 59) then (x && y) ^ (x && z) ^ (y && z)
+        | (60 <= t) /\ (t <= 79) then x ^ y ^ z
         else error "f: t out of range"
 
 

@@ -155,7 +155,7 @@ property Salsa20_passes_tests =
              27, 111, 114, 114, 118,  40, 152, 157, 180,  57,  27,  94, 107,  42, 236,  35])
 
 property Salsa20_has_no_collisions x1 x2 =
-    x1 == x2 || doubleround x1 != doubleround x2
+    x1 == x2 \/ doubleround x1 != doubleround x2
 //   if(x1 != x2) then (doubleround x1) != (doubleround x2) else True
 
 property Salsa20_passes_scrypt_tests =
@@ -265,7 +265,7 @@ property theorem4 a = doubleround val == val
                    ,a,-a,a,-a
                    ,-a,a,-a,a]
 property theorem7 a b =
-    a ^ b != diff || Salsa20Words a == Salsa20Words b
+    a ^ b != diff \/ Salsa20Words a == Salsa20Words b
  where
   diff = [ 0x80000000 | _ <- [0..15]]
 

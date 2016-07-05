@@ -1,2 +1,2 @@
 :sat \(x : Bit) (y : Bit) -> x < y
-:prove \(x : Bit) (y : Bit) -> x <= y || y <= x
+:prove \(x : Bit) (y : Bit) -> x <= y \/ y <= x

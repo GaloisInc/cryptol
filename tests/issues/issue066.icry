@@ -12,7 +12,7 @@ it.result
 :t it
 it
 it.result
-let f x = (x : [4]) == 3 && x == 2
+let f x = (x : [4]) == 3 /\ x == 2
 :sat f
 :t it
 it

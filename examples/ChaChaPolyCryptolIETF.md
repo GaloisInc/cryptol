@@ -2093,7 +2093,7 @@ TV1_plaintext = [
 
 TV1_calculate_plaintext = AEAD_CHACHA20_POLY1305_DECRYPT TV1_AEAD_key TV1_AEAD_nonce (TV1_AEAD_cypherText # TV1_AEAD_tag) TV1_AEAD_AAD
 
-property TV1_plaintext_correct = isValid && pt == TV1_plaintext where
+property TV1_plaintext_correct = isValid /\ pt == TV1_plaintext where
 	(pt,isValid) = TV1_calculate_plaintext
 
 property decryption_vector_correct =
@@ -2136,8 +2136,8 @@ parseHexString : {n} (fin n) => [3*n][8] -> [n][8]
 parseHexString hexString = [ charsToByte (take`{2} cs) | cs <- groupBy`{3} hexString ] where
     charsToByte : [2][8] -> [8]
     charsToByte [ ub, lb ] = (charToByte ub) << 4 || (charToByte lb)
-    charToByte c = if c >= '0' && c <= '9' then c-'0'
-                   | c >= 'a' && c <= 'f' then 10+(c-'a')
+    charToByte c = if c >= '0' /\ c <= '9' then c-'0'
+                   | c >= 'a' /\ c <= 'f' then 10+(c-'a')
                    else 0     // error case
 
 property parseHexString_check =

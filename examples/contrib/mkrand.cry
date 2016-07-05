@@ -107,7 +107,7 @@ randXOR seed src = [s ^ r | s <- src
 
 property otp_encdec =
      randXOR seedUnit "Deus Ex Machina" == c
-  && randXOR seedUnit c == "Deus Ex Machina"
+  /\ randXOR seedUnit c == "Deus Ex Machina"
   where c = [ 0x28, 0x2b, 0x2c, 0xfa
             , 0x92, 0xca, 0xb3, 0xcb
             , 0xed, 0x50, 0xc2, 0x1b

@@ -79,17 +79,17 @@ differentRow a a' = rows ! 0
                  | old <- rows ]
 
 validRowMove : ([7], [7]) -> Bit
-validRowMove (r, r') = (xors == 0b0000111 ||
-                       xors == 0b0001110 ||
-                       xors == 0b0011100 ||
-                       xors == 0b0111000 ||
+validRowMove (r, r') = (xors == 0b0000111 \/
+                       xors == 0b0001110 \/
+                       xors == 0b0011100 \/
+                       xors == 0b0111000 \/
                        xors == 0b1110000)
                       && (
-                       rxors == 0b0000011 ||
-                       rxors == 0b0000110 ||
-                       rxors == 0b0001100 ||
-                       rxors == 0b0011000 ||
-                       rxors == 0b0110000 ||
+                       rxors == 0b0000011 \/
+                       rxors == 0b0000110 \/
+                       rxors == 0b0001100 \/
+                       rxors == 0b0011000 \/
+                       rxors == 0b0110000 \/
                        rxors == 0b1100000)
     where xors = r ^ r'
           rxors = r && rxors
@@ -98,7 +98,7 @@ validColJump : Board -> Board -> Bit
 validColJump a a' = validRowJump (transpose a) (transpose a')
 
 validMove : Board -> Board -> Bit
-validMove a a' = validRowJump a a' || validColJump a a'
+validMove a a' = validRowJump a a' \/ validColJump a a'
 
 validMoveSequence : {n} (fin n, n >= 1) => [n] Board -> Bit
 validMoveSequence moves = all [validMove a b | a <- moves | b <- drop`{1} moves]
