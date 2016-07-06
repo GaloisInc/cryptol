@@ -97,7 +97,8 @@ modules like this:
             anotherInternalConstant = 0x66
     externalConstant=0x77
 
-Whenever names might be ambiguous, they can be disambiguated with the `::` syntax (using a qualified import using "as"):
+Whenever names might be ambiguous, they can be disambiguated with the
+`::` syntax (using a qualified import using "as"):
 
     import ExternalModule as eModule
     ...
@@ -171,6 +172,13 @@ the function's arguments, like this:
 This can help break the Catch-22 situation that sometimes arises when you're
 writing a function that needs access to type variables, but you're not yet sure
 about the whole function's type signature.
+
+Type Aliases
+------------
+
+Type aliases are only permitted to be defined on curried primitive
+types in Cryptol version 2.  In Cryptol version 1, for example, tuples
+were permitted in type declaration contexts.
 
 Type Classes
 ------------
@@ -286,3 +294,5 @@ within version 1 lets you use the `:prove` and `:check` operations to verify
 the correctness of your logic, then it becomes a simple syntax modernization
 task. Doing both at once has proven to be very difficult, and leaves you
 without tool support.
+
+% creation of function bindings in where clauses

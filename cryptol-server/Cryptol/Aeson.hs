@@ -5,7 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
--- 
+--
 -- Orphan 'FromJSON' and 'ToJSON' instances for certain Cryptol
 -- types. Since these are meant to be consumed over a wire, they are
 -- mostly focused on base values and interfaces rather than a full
@@ -23,6 +23,7 @@ import Control.Applicative
 import Control.Exception
 import Data.Aeson
 import Data.Aeson.TH
+import qualified Data.Map as M
 import qualified Data.Text as T
 
 import qualified Cryptol.Eval.Error as E
@@ -42,6 +43,7 @@ import Cryptol.REPL.Monad
 import qualified Cryptol.Testing.Concrete as Test
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.InferTypes as T
+import Cryptol.Utils.Ident
 import Cryptol.Utils.PP hiding (empty)
 
 instance ToJSON Doc where
@@ -129,6 +131,10 @@ instance ToJSON Test.TestResult where
     Test.FailError err args -> object
       [ "FailError" .= show (pp err), "args" .= args ]
 
+instance (ToJSON v) => ToJSON (M.Map Name v) where
+    toJSON = toJSON . M.mapKeys (unpackIdent . nameIdent)
+    {-# INLINE toJSON #-}
+
 $(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''NameInfo)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''E.EvalError)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''P.ParseError)
@@ -160,7 +166,7 @@ $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''T.Select
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } { fieldLabelModifier = drop 1 } ''T.Fixity)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''T.Pragma)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''Assoc)
-$(deriveJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''Name)
+$(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''Name)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''IfaceDecl)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''T.Newtype)
 $(deriveToJSON defaultOptions { sumEncoding = ObjectWithSingleField } ''T.TySyn)

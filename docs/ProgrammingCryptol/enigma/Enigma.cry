@@ -27,13 +27,14 @@ elem (x, xs) = matches ! 0
                                              | m <- matches
                             ]
 // Inverting a permutation lookup:
-invSubst : (Permutation, Char) -> Char
-invSubst (key, c) = candidates ! 0
-  where candidates = [0] # [ if c == k then a else p
-                           | k <- key
-                           | a <- ['A' .. 'Z']
-                           | p <- candidates
-                           ]
+private
+  invSubst : (Permutation, Char) -> Char
+  invSubst (key, c) = candidates ! 0
+    where candidates = [0] # [ if c == k then a else p
+                             | k <- key
+                             | a <- ['A' .. 'Z']
+                             | p <- candidates
+                             ]
 
 // Constructing a rotor
 mkRotor : {n} (fin n) => (Permutation, String n) -> Rotor
@@ -68,6 +69,7 @@ joinRotors (rotors, inputChar) = (rotors', outputChar)
 substFwd, substBwd : (Permutation, Char) -> Char
 substFwd (perm, c) = perm @ (c - 'A')
 substBwd (perm, c) = invSubst (perm, c)
+
 // Route the signal back from the reflector, chase through rotors
 backSignal : {n} (fin n) => ([n]Rotor, Char) -> Char
 backSignal (rotors, inputChar) = cs ! 0

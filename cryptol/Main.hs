@@ -25,13 +25,18 @@ import Cryptol.Utils.PP
 import Cryptol.Version (commitHash, commitBranch, commitDirty)
 import Paths_cryptol (version)
 
+import Control.Monad (when)
+import Data.Maybe (isJust)
 import Data.Version (showVersion)
 import GHC.IO.Encoding (setLocaleEncoding, utf8)
 import System.Console.GetOpt
     (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
+import System.Directory (getTemporaryDirectory, removeFile)
 import System.Environment (getArgs, getProgName, lookupEnv)
 import System.Exit (exitFailure)
 import System.FilePath (searchPathSeparator, splitSearchPath, takeDirectory)
+import System.IO (hClose, hPutStr, openTempFile)
+
 
 import Prelude ()
 import Prelude.Compat
@@ -41,6 +46,7 @@ data Options = Options
   , optVersion         :: Bool
   , optHelp            :: Bool
   , optBatch           :: Maybe FilePath
+  , optCommands        :: [String]
   , optCryptolrc       :: Cryptolrc
   , optCryptolPathOnly :: Bool
   } deriving (Show)
@@ -51,6 +57,7 @@ defaultOptions  = Options
   , optVersion         = False
   , optHelp            = False
   , optBatch           = Nothing
+  , optCommands        = []
   , optCryptolrc       = CryrcDefault
   , optCryptolPathOnly = False
   }
@@ -59,6 +66,12 @@ options :: [OptDescr (OptParser Options)]
 options  =
   [ Option "b" ["batch"] (ReqArg setBatchScript "FILE")
     "run the script provided and exit"
+
+  , Option "c" ["command"] (ReqArg addCommand "COMMAND")
+    (concat [ "run the given command and then exit; if multiple --command "
+            , "arguments are given, run them in the order they appear "
+            , "on the command line (overrides --batch)"
+            ])
 
   , Option "v" ["version"] (NoArg setVersion)
     "display version number"
@@ -80,6 +93,11 @@ options  =
 -- we ever plan to allow multiple files to be loaded at the same time.
 addFile :: String -> OptParser Options
 addFile path = modify $ \ opts -> opts { optLoad = [ path ] }
+
+-- | Add a command to be run on interpreter startup.
+addCommand :: String -> OptParser Options
+addCommand cmd =
+  modify $ \ opts -> opts { optCommands = cmd : optCommands opts }
 
 -- | Set a batch script to be run.
 setBatchScript :: String -> OptParser Options
@@ -160,9 +178,27 @@ main  = do
     Right opts
       | optHelp opts    -> displayHelp []
       | optVersion opts -> displayVersion
-      | otherwise       -> repl (optCryptolrc opts)
-                                (optBatch opts)
-                                (setupREPL opts)
+      | otherwise       -> do
+          (opts', mCleanup) <- setupCmdScript opts
+          repl (optCryptolrc opts')
+               (optBatch opts')
+               (setupREPL opts')
+          case mCleanup of
+            Nothing -> return ()
+            Just cmdFile -> removeFile cmdFile
+
+setupCmdScript :: Options -> IO (Options, Maybe FilePath)
+setupCmdScript opts =
+  case optCommands opts of
+    [] -> return (opts, Nothing)
+    cmds -> do
+      tmpdir <- getTemporaryDirectory
+      (path, h) <- openTempFile tmpdir "cmds.icry"
+      hPutStr h (unlines cmds)
+      hClose h
+      when (isJust (optBatch opts)) $
+        putStrLn "[warning] --command argument specified; ignoring batch file"
+      return (opts { optBatch = Just path }, Just path)
 
 setupREPL :: Options -> REPL ()
 setupREPL opts = do
@@ -193,5 +229,9 @@ setupREPL opts = do
     Just file -> prependSearchPath [ takeDirectory file ]
   case optLoad opts of
     []  -> loadPrelude `REPL.catch` \x -> io $ print $ pp x
-    [l] -> loadCmd l `REPL.catch` \x -> io $ print $ pp x
+    [l] -> loadCmd l `REPL.catch` \x -> do
+           io $ print $ pp x
+           -- If the requested file fails to load, load the prelude instead
+           loadPrelude `REPL.catch` \y -> do
+           io $ print $ pp y
     _   -> io $ putStrLn "Only one file may be loaded at the command line."

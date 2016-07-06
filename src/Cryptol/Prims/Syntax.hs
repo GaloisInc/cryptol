@@ -6,8 +6,8 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-
 module Cryptol.Prims.Syntax
   ( TFun(..), tBinOpPrec, tfunNames
   ) where
@@ -18,7 +18,7 @@ import           Cryptol.Utils.PP
 import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
-import Control.DeepSeq.Generics
+import Control.DeepSeq
 
 -- | Built-in types.
 data TFun
@@ -40,9 +40,7 @@ data TFun
   | TCLenFromThenTo       -- ^ @ : Num -> Num -> Num -> Num@
     -- Example: @[ 1, 5 .. 9 ] :: [lengthFromThenTo 1 5 9][b]@
 
-    deriving (Show, Eq, Ord, Bounded, Enum, Generic)
-
-instance NFData TFun where rnf = genericRnf
+    deriving (Show, Eq, Ord, Bounded, Enum, Generic, NFData)
 
 tBinOpPrec :: Map.Map TFun (Assoc,Int)
 tBinOpPrec  = mkMap t_table
@@ -56,24 +54,44 @@ tBinOpPrec  = mkMap t_table
     , (RightAssoc,  [ TCExp ])
     ]
 
-tfunNames :: Map.Map PName TFun
+-- | Type functions, with their arity and function constructor.
+tfunNames :: Map.Map PName (Int,TFun)
 tfunNames  = Map.fromList
-  [ tinfix  "+"                TCAdd
-  , tinfix  "-"                TCSub
-  , tinfix  "*"                TCMul
-  , tinfix  "/"                TCDiv
-  , tinfix  "%"                TCMod
-  , tinfix  "^^"               TCExp
-  , tprefix "width"            TCWidth
-  , tprefix "min"              TCMin
-  , tprefix "max"              TCMax
-  , tprefix "lengthFromThen"   TCLenFromThen
-  , tprefix "lengthFromThenTo" TCLenFromThenTo
+  [ tinfix  "+"                2 TCAdd
+  , tinfix  "-"                2 TCSub
+  , tinfix  "*"                2 TCMul
+  , tinfix  "/"                2 TCDiv
+  , tinfix  "%"                2 TCMod
+  , tinfix  "^^"               2 TCExp
+  , tprefix "width"            1 TCWidth
+  , tprefix "min"              2 TCMin
+  , tprefix "max"              2 TCMax
+  , tprefix "lengthFromThen"   3 TCLenFromThen
+  , tprefix "lengthFromThenTo" 3 TCLenFromThenTo
   ]
   where
 
-  tprefix n p = (mkUnqual (packIdent n), p)
-  tinfix  n p = (mkUnqual (packInfix n), p)
+  tprefix n a p = (mkUnqual (packIdent n), (a,p))
+  tinfix  n a p = (mkUnqual (packInfix n), (a,p))
+
+instance PPName TFun where
+  ppNameFixity f = Map.lookup f tBinOpPrec
+
+  ppPrefixName TCAdd = text "(+)"
+  ppPrefixName TCSub = text "(-)"
+  ppPrefixName TCMul = text "(*)"
+  ppPrefixName TCDiv = text "(/)"
+  ppPrefixName TCMod = text "(%)"
+  ppPrefixName TCExp = text "(^^)"
+  ppPrefixName f     = pp f
+
+  ppInfixName TCAdd = text "+"
+  ppInfixName TCSub = text "-"
+  ppInfixName TCMul = text "*"
+  ppInfixName TCDiv = text "/"
+  ppInfixName TCMod = text "%"
+  ppInfixName TCExp = text "^^"
+  ppInfixName f     = error $ "Not a prefix type function: " ++ show (pp f)
 
 instance PP TFun where
   ppPrec _ tcon =

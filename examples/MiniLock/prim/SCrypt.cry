@@ -16,7 +16,12 @@ BlockMix B = ys @@ ([0,2..2*r-2] # [1,3..2*r-1])
 
 // SMix with the ROMix algorithm (section 5) inlined (specialized to BlockMix)
 // N = 2^^17
-SMix : {N,r} (fin N, fin r, r >= 1, N >= 1, 512 >= width N, 1 + width N >= width (N-1)) => [128 * 8 * r] -> [128 * 8 * r]
+SMix : {N,r} ( fin r
+             , r >= 1
+             , N >= 1
+             , 512 >= width N
+             , 1 + width N >= width (N-1)
+             ) => [128 * 8 * r] -> [128 * 8 * r]
 SMix B = join (Xs ! 0)
  where
   Vs = [split B] # [ BlockMix x | x <- Vs | _ <- [0..N-1] : [_][width N + 1]]
@@ -34,31 +39,29 @@ SMix B = join (Xs ! 0)
 // SCrypt paper, page 11: MFCrypt specialized to sha256 (see the 'pbkdf2' function)
 // p = 1
 MFcrypt : { pwBytes, saltBytes, dkLen, r, N }
-          ( fin pwBytes, fin saltBytes, fin r
-          , 4*r >= 1, 16 >= width (4*r)
+          ( 4*r >= 1
+          , 16 >= width (4*r)
           , ((dkLen*8 + 255) / 256) >= 1
           , 32 >= width (8*pwBytes)
           , 32 >= width (4 + saltBytes)
           , 16 >= width ((255 + 8 * dkLen) / 256)
-          , 8 * dkLen == 256 * ((255 + 8 * dkLen) / 256) // seriously cryptol?
-          , fin N, N >= 1, 512 >= width N, 1+width N >= width (N-1)
+          , N >= 1, 512 >= width N, 1+width N >= width (N-1)
           )
         => [pwBytes][8] -> [saltBytes][8] -> [dkLen][8]
 MFcrypt P S = split DK
  where
   B  = pbkdf2 `{C=1} P S
   B' = SMix `{N=N,r=r} B
-  DK = pbkdf2 `{len=((dkLen*8)+255)/256,C=1} P (split B')
+  DK = pbkdf2 `{dkLenBits=dkLen*8, C=1} P (split B')
 
 SCrypt : {pwBytes, saltBytes, dkBytes, r, N}
-         ( fin pwBytes, fin saltBytes, fin r
-         , 4*r >= 1, 16 >= width (4*r)
+         ( 4*r >= 1, 16 >= width (4*r)
          , (dkBytes * 8 + 255) / 256 >= 1
          , 16 >= width ((255 + 8 * dkBytes) / 256)
          , 8 * dkBytes == 256 * ((255 + 8 * dkBytes) / 256)
          , 32 >= width (8 * pwBytes)
          , 32 >= width (4 * saltBytes)
-         , fin N, N >= 1, 512 >= width N, 1+width N >= width (N-1)
+         , N >= 1, 512 >= width N, 1+width N >= width (N-1)
          )
       => [pwBytes][8] -> [saltBytes][8] -> [dkBytes][8]
 SCrypt P S = MFcrypt `{r=r,N=N} P S

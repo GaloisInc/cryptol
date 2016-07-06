@@ -90,8 +90,8 @@ The following derived type is helpful in signatures:
 \end{code}
 
 %=====================================================================
-\section{Polynomials in \texorpdfstring{GF($2^8$)}{GF(2,8)}}
-\label{sec:polynomials}
+% \section{Polynomials in \texorpdfstring{GF($2^8$)}{GF(2,8)}}
+% \label{sec:polynomials}
 \sectionWithAnswers{Polynomials in \texorpdfstring{GF($2^8$)}{GF(2,8)}}{sec:polynomials}
 
 AES\indAES works on a two-dimensional representation of the input
@@ -345,8 +345,8 @@ Cryptol run long enough to complete the {\tt :prove
 \end{Answer}
 
 %=====================================================================
-\section{The {\ttfamily{\textbf SubBytes}} transformation}
-\label{aes:subbytes}
+% \section{The {\ttfamily{\textbf SubBytes}} transformation}
+% \label{aes:subbytes}
 \sectionWithAnswers{The {\ttfamily{\textbf SubBytes}} transformation}{aes:subbytes}
 
 \todo[inline]{Introduce a figure here, perhaps lifted from the
@@ -554,8 +554,8 @@ us~\cite[Section 5.1.1]{aes}. We capture this table below in Cryptol:
 \end{code}
 
 \begin{Exercise}\label{ex:sbox}
-  Write and prove a property stating that {\tt SubByte} and {\tt
-    SubByte'} are equivalent.
+  Write and prove a property stating that {\tt SubByte} and 
+    {\tt SubByte'} are equivalent.
 \end{Exercise}
 \begin{Answer}\ansref{ex:sbox}
 \begin{code}
@@ -568,7 +568,7 @@ We have:
 \end{Verbatim}
 \end{Answer}
 
-\nb{The {\tt SubByte'} and {\tt SubBytes'} versions are going to be
+\note{The {\tt SubByte'} and {\tt SubBytes'} versions are going to be
   more efficient for execution, naturally. We should emphasize that
   this mode of development is quite common in modern cryptography.
   Ciphers are typically designed using ideas from mathematics, often
@@ -603,8 +603,8 @@ We have:
 % \end{Answer}
 
 %=====================================================================
-\section{The {\ttfamily{\textbf ShiftRows}} transformation}
-\label{aes:shiftrows}
+% \section{The {\ttfamily{\textbf ShiftRows}} transformation}
+% \label{aes:shiftrows}
 \sectionWithAnswers{The {\ttfamily{\textbf ShiftRows}} transformation}{aes:shiftrows}
 
 \todo[inline]{Need a figure here to get reader in the right frame of
@@ -652,8 +652,8 @@ Of course, any multiple of 4 would have the same effect.
 \end{Answer}
 
 %=====================================================================
-\section{The {\ttfamily{\textbf MixColumns}} transformation}
-\label{sec:aesmixcolumns}
+% \section{The {\ttfamily{\textbf MixColumns}} transformation}
+% \label{sec:aesmixcolumns}
 \sectionWithAnswers{The {\ttfamily{\textbf MixColumns}} transformation}{sec:aesmixcolumns}
 
 The third major transformation AES\indAES performs is the {\tt
@@ -797,8 +797,8 @@ Cryptol's concrete syntax, it makes little sense to do anything but
 row-based ordering.
 
 %=====================================================================
-\section{Key expansion}
-\label{aes:keyexpansion}
+% \section{Key expansion}
+% \label{aes:keyexpansion}
 \sectionWithAnswers{Key expansion}{aes:keyexpansion}
 
 \todo[inline]{Will we push the pipeline of verification all the way
@@ -975,7 +975,7 @@ above, written in a functional style to compute the mask:
                        then SubWord(prev)
                        else prev
 \end{code}
-\nb{It is well worth studying the pseudo-code above and the Cryptol
+\note{It is well worth studying the pseudo-code above and the Cryptol
   equivalent to convince yourself they are expressing the same idea!}
 
 To compute the key schedule we start with the initial key as the
@@ -1090,8 +1090,8 @@ Notice that Cryptol's {\tt \Verb|^|} operator applies structurally to
 arbitrary shapes, computing the exclusive-or element-wise.
 
 %=====================================================================
-\section{AES encryption}
-\label{sec:aes:encryption}
+% \section{AES encryption}
+% \label{sec:aes:encryption}
 \sectionWithAnswers{AES encryption}{sec:aes:encryption}
 
 We now have all the necessary machinery to perform AES\indAES
@@ -1219,8 +1219,8 @@ merely need to set {\tt Nk} to be 8 for AES256.
 \end{Exercise}
 
 %=====================================================================
-\section{Decryption}
-\label{sec:aesdecryption}
+% \section{Decryption}
+% \label{sec:aesdecryption}
 \sectionWithAnswers{Decryption}{sec:aesdecryption}
 
 AES decryption is fairly similar to encryption, except it uses inverse

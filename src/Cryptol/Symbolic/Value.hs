@@ -18,9 +18,10 @@ module Cryptol.Symbolic.Value
   , forallBV_, existsBV_
   , forallSBool_, existsSBool_
   , Value
-  , TValue, numTValue, toNumTValue, finTValue, isTBit, isTFun, isTSeq, isTTuple, isTRec, tvSeq
-  , GenValue(..), lam, tlam, toStream, toFinSeq, toSeq
-  , fromVBit, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord
+  , TValue(..), isTBit, tvSeq
+  , GenValue(..), lam, tlam, nlam, toStream, toFinSeq, toSeq, finNat'
+  , fromVBit, fromVFun, fromVPoly, fromVNumPoly, fromVTuple, fromVRecord
+  , lookupRecord
   , fromSeq, fromVWord
   , evalPanic
   , iteValue, mergeValue
@@ -31,11 +32,10 @@ import Data.List (foldl')
 
 import Data.SBV.Dynamic
 
-import Cryptol.Eval.Value (TValue, numTValue, toNumTValue, finTValue, isTBit,
-                           isTFun, isTSeq, isTTuple, isTRec, tvSeq, GenValue(..),
-                           BitWord(..), lam, tlam, toStream, toFinSeq, toSeq,
+import Cryptol.Eval.Value (TValue(..), isTBit, tvSeq, finNat', GenValue(..),
+                           BitWord(..), lam, tlam, nlam, toStream, toFinSeq, toSeq,
                            fromSeq, fromVBit, fromVWord, fromVFun, fromVPoly,
-                           fromVTuple, fromVRecord, lookupRecord)
+                           fromVNumPoly, fromVTuple, fromVRecord, lookupRecord)
 import Cryptol.Utils.Panic (panic)
 
 -- SBool and SWord -------------------------------------------------------------

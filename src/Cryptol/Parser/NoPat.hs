@@ -10,12 +10,13 @@
 -- patterns.  It also eliminates pattern bindings by de-sugaring them
 -- into `Bind`.  Furthermore, here we associate signatures and pragmas
 -- with the names to which they belong.
-{-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE RecordWildCards #-}
+
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RecordWildCards #-}
 module Cryptol.Parser.NoPat (RemovePatterns(..),Error(..)) where
 
 import Cryptol.Parser.AST
@@ -30,7 +31,7 @@ import           Data.Either(partitionEithers)
 import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
-import Control.DeepSeq.Generics
+import Control.DeepSeq
 
 import Prelude ()
 import Prelude.Compat
@@ -445,9 +446,7 @@ data Error  = MultipleSignatures PName [Located (Schema PName)]
             | MultipleFixities PName [Range]
             | FixityNoBind (Located PName)
             | MultipleDocs PName [Range]
-              deriving (Show,Generic)
-
-instance NFData Error where rnf = genericRnf
+              deriving (Show,Generic, NFData)
 
 instance Functor NoPatM where fmap = liftM
 instance Applicative NoPatM where pure = return; (<*>) = ap
@@ -513,4 +512,3 @@ instance PP Error where
       MultipleDocs n locs ->
         text "Multiple documentation blocks given for:" <+> pp n
         $$ nest 2 (vcat (map pp locs))
-

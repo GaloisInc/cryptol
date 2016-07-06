@@ -7,6 +7,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Trustworthy #-}
 module Cryptol.Parser
   ( parseModule
@@ -34,10 +35,9 @@ import           Control.Monad(liftM2,msum)
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
-import Cryptol.Parser.LexerUtils
+import Cryptol.Parser.LexerUtils hiding (mkIdent)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit(PreProc(..), guessPreProc)
-import Cryptol.Utils.Ident (packIdent,packInfix)
 
 import Paths_cryptol
 }
@@ -266,8 +266,9 @@ mbDoc                   :: { Maybe (Located String) }
 
 decl                    :: { Decl PName }
   : vars_comma ':' schema  { at (head $1,$3) $ DSignature (reverse $1) $3   }
-  | apat '=' expr          { at ($1,$3) $ DPatBind $1 $3                    }
-  | name apats '=' expr    { at ($1,$4) $
+  | ipat '=' expr          { at ($1,$3) $ DPatBind $1 $3                    }
+  | '(' op ')' '=' expr    { at ($1,$5) $ DPatBind (PVar $2) $5             }
+  | var apats '=' expr     { at ($1,$4) $
                              DBind $ Bind { bName      = $1
                                           , bParams    = reverse $2
                                           , bDef       = at $4 (Located emptyRange (DExpr $4))
@@ -279,7 +280,8 @@ decl                    :: { Decl PName }
                                           , bDoc       = Nothing
                                           } }
 
-  | apat op apat '=' expr  { at ($1,$5) $
+  | apat other_op apat '=' expr
+                           { at ($1,$5) $
                              DBind $ Bind { bName      = $2
                                           , bParams    = [$1,$3]
                                           , bDef       = at $5 (Located emptyRange (DExpr $5))
@@ -300,7 +302,7 @@ decl                    :: { Decl PName }
   | 'infix'  NUM ops       {% mkFixity NonAssoc   $2 (reverse $3) }
 
 let_decl                :: { Decl PName }
-  : 'let' apat '=' expr          { at ($2,$4) $ DPatBind $2 $4                    }
+  : 'let' ipat '=' expr          { at ($2,$4) $ DPatBind $2 $4                    }
   | 'let' name apats '=' expr    { at ($2,$5) $
                                    DBind $ Bind { bName      = $2
                                                 , bParams    = reverse $3
@@ -331,9 +333,13 @@ var                        :: { LPName }
   : name                      { $1 }
   | '(' op ')'                { $2 }
 
-apats                   :: { [Pattern PName]  }
-  : apat                   { [$1]       }
-  | apats apat             { $2 : $1    }
+apats                     :: { [Pattern PName] }
+  : apat                   { [$1] }
+  | apats1 apat            { $2 : $1 }
+
+apats1                   :: { [Pattern PName]  }
+  : apat                    { [$1]       }
+  | apats1 apat             { $2 : $1    }
 
 decls                   :: { [Decl PName] }
   : decl ';'               { [$1] }
@@ -386,25 +392,30 @@ iexpr                            :: { Expr PName }
 expr10                           :: { Expr PName }
   : aexprs                          { mkEApp $1 }
 
-  | '-' expr10 %prec NEG            { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual (packIdent "negate")))) $2 }
-  | '~' expr10                      { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual (packIdent "complement")))) $2 }
+  | '-' expr10 %prec NEG            { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual "negate"))) $2 }
+  | '~' expr10                      { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual "complement"))) $2 }
 
 qop                              :: { LPName }
   : op                              { $1 }
   | QOP                             { let Token (Op (Other ns i)) _ = thing $1
-                                       in mkQual (mkModName ns) (packInfix i) A.<$ $1 }
+                                       in mkQual (mkModName ns) (mkInfix (T.toStrict i)) A.<$ $1 }
 
 op                               :: { LPName }
-  : OP                              { let Token (Op (Other [] str)) _ = thing $1
-                                       in mkUnqual (packInfix str) A.<$ $1 }
+  : other_op                        { $1 }
 
     -- special cases for operators that are re-used elsewhere
-  | '*'                             { Located $1 $ mkUnqual $ packInfix "*" }
-  | '+'                             { Located $1 $ mkUnqual $ packInfix "+" }
-  | '-'                             { Located $1 $ mkUnqual $ packInfix "-" }
-  | '~'                             { Located $1 $ mkUnqual $ packInfix "~" }
-  | '^^'                            { Located $1 $ mkUnqual $ packInfix "^^" }
-  | '#'                             { Located $1 $ mkUnqual $ packInfix "#" }
+  | '*'                             { Located $1 $ mkUnqual $ mkInfix "*" }
+  | '+'                             { Located $1 $ mkUnqual $ mkInfix "+" }
+  | '-'                             { Located $1 $ mkUnqual $ mkInfix "-" }
+  | '~'                             { Located $1 $ mkUnqual $ mkInfix "~" }
+  | '^^'                            { Located $1 $ mkUnqual $ mkInfix "^^" }
+  | '#'                             { Located $1 $ mkUnqual $ mkInfix "#" }
+
+
+other_op                            :: { LPName }
+  : OP                              { let Token (Op (Other [] str)) _ = thing $1
+                                       in mkUnqual (mkInfix (T.toStrict str)) A.<$ $1 }
+
 
 ops                     :: { [LPName] }
   : op                     { [$1] }
@@ -618,11 +629,11 @@ field_types                    :: { [Named (Type PName)] }
 
 ident              :: { Located Ident }
   : IDENT             { let Token (Ident _ str) _ = thing $1
-                         in $1 { thing = packIdent str } }
-  | 'x'               { Located { srcRange = $1, thing = packIdent "x" }}
-  | 'private'         { Located { srcRange = $1, thing = packIdent "private" } }
-  | 'as'              { Located { srcRange = $1, thing = packIdent "as" } }
-  | 'hiding'          { Located { srcRange = $1, thing = packIdent "hiding" } }
+                         in $1 { thing = mkIdent (T.toStrict str) } }
+  | 'x'               { Located { srcRange = $1, thing = mkIdent "x" }}
+  | 'private'         { Located { srcRange = $1, thing = mkIdent "private" } }
+  | 'as'              { Located { srcRange = $1, thing = mkIdent "as" } }
+  | 'hiding'          { Located { srcRange = $1, thing = mkIdent "hiding" } }
 
 
 name               :: { LPName }
@@ -638,7 +649,7 @@ modName                        :: { Located ModName }
 qname                          :: { Located PName }
   : name                          { $1 }
   | QIDENT                        { let Token (Ident ns i) _ = thing $1
-                                     in mkQual (mkModName ns) (packIdent i) A.<$ $1 }
+                                     in mkQual (mkModName ns) (mkIdent (T.toStrict i)) A.<$ $1 }
 
 help_name                      :: { Located PName    }
   : qname                         { $1               }

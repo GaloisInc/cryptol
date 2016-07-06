@@ -1,6 +1,6 @@
 average33 : [32] -> [32] -> [32]
 average33 x y = drop`{1}(z'/2)
-    where 
+    where
           z' : [33]
           z' = (0b0 # x) + (0b0 # y)
 

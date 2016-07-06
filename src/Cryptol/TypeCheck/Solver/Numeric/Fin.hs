@@ -5,7 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
--- 
+--
 -- Simplification of `fin` constraints.
 
 {-# LANGUAGE PatternGuards #-}
@@ -89,5 +89,3 @@ cryIsFinType varInfo g ty =
 
   where
   solved ps = Solved Nothing [ g { goal = p } | p <- ps ]
-
-

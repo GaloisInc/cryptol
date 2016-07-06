@@ -8,6 +8,7 @@ Type Synonyms
     type Char = [8]
     type String n = [n][8]
     type Word n = [n]
+    type lg2 n = width (max n 1 - 1)
 
 Symbols
 =======
@@ -75,8 +76,6 @@ Symbols
                                             each]a -> [parts][each]a
     splitAt : {front, back, a} (fin front) => [front +
                                                back]a -> ([front]a, [back]a)
-    splitBy : {parts, each, elem} (fin each) => [parts *
-                                                 each]elem -> [parts][each]elem
     tail : {a, b} [1 + a]b -> [a]b
     take : {front, back, elem} (fin front) => [front +
                                                back]elem -> [front]elem
@@ -86,4 +85,5 @@ Symbols
                                bits >= width len) => [len]elem -> [bits]
     zero : {a} a
     (||) : {a} a -> a -> a
+    (~) : {a} a -> a
 

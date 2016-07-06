@@ -94,9 +94,15 @@ primitive False : Bit
 primitive negate : {a} (Arith a) => a -> a
 
 /**
- * Binary complement
+ * Binary complement.
  */
 primitive complement : {a} a -> a
+
+/**
+ * Operator form of binary complement.
+ */
+(~) : {a} a -> a
+(~) = complement
 
 /**
  * Less-than. Only works on comparable arguments.
@@ -251,7 +257,7 @@ primitive (!) : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b
 /**
  * Bulk reverse index operator.  The first argument is a finite sequence.  The
  * second argument is a sequence of the zero-based indices of the elements to
- * select, starting from the end of the sequence.
+ z select, starting from the end of the sequence.
  */
 primitive (!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
 
@@ -273,6 +279,7 @@ primitive infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
 primitive infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
 
 primitive error : {at, len} (fin len) => [len][8] -> at
+
 
 /**
  * Performs multiplication of polynomials over GF(2).
@@ -314,10 +321,11 @@ width _ = `len
 undefined : {a} a
 undefined = error "undefined"
 
-splitBy : {parts,each,elem} (fin each) =>
-  [parts * each] elem -> [parts][each]elem
-splitBy = split
-
 groupBy : {each,parts,elem} (fin each) =>
   [parts * each] elem -> [parts][each]elem
 groupBy = split`{parts=parts}
+
+/**
+ * Define the base 2 logarithm function in terms of width
+ */
+type lg2 n = width (max n 1 - 1)

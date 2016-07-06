@@ -23,7 +23,7 @@ import qualified Control.Monad.Trans.Class as MTL
 import           Control.Monad.Trans.Control
 import           Data.Char (isAlphaNum, isSpace)
 import           Data.Function (on)
-import           Data.List (isPrefixOf,nub,sortBy)
+import           Data.List (isPrefixOf,nub,sortBy,sort)
 import           System.Console.ANSI (setTitle)
 import           System.Console.Haskeline
 import           System.Directory ( doesFileExist
@@ -197,19 +197,30 @@ cmdArgument ct cursor@(l,_) = case ct of
   NoArg       _ -> return (l,[])
   FileExprArg _ -> completeExpr cursor
 
+-- | Additional keywords to suggest in the REPL
+--   autocompletion list.
+keywords :: [String]
+keywords =
+  [ "else"
+  , "if"
+  , "let"
+  , "then"
+  , "where"
+  ]
+
 -- | Complete a name from the expression environment.
 completeExpr :: CompletionFunc REPL
 completeExpr (l,_) = do
-  ns <- getExprNames
-  let n    = reverse (takeWhile isIdentChar l)
-      vars = filter (n `isPrefixOf`) ns
+  ns <- (keywords++) <$> getExprNames
+  let n    = reverse (takeIdent l)
+      vars = sort $ filter (n `isPrefixOf`) ns
   return (l,map (nameComp n) vars)
 
 -- | Complete a name from the type synonym environment.
 completeType :: CompletionFunc REPL
 completeType (l,_) = do
   ns <- getTypeNames
-  let n    = reverse (takeWhile isIdentChar l)
+  let n    = reverse (takeIdent l)
       vars = filter (n `isPrefixOf`) ns
   return (l,map (nameComp n) vars)
 
@@ -220,6 +231,13 @@ nameComp prefix c = Completion
   , display     = c
   , isFinished  = True
   }
+
+-- | Return longest identifier (possibly a qualified name) that is a
+-- prefix of the given string
+takeIdent :: String -> String
+takeIdent (c : cs) | isIdentChar c = c : takeIdent cs
+takeIdent (':' : ':' : cs) = ':' : ':' : takeIdent cs
+takeIdent _ = []
 
 isIdentChar :: Char -> Bool
 isIdentChar c = isAlphaNum c || c `elem` "_\'"

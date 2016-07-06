@@ -173,7 +173,7 @@ smtName a = case a of
   name p n = case divMod n 26 of
                (q,r) -> p ++ toEnum (fromEnum 'a' + r) :
                               (if q == 0 then "" else show q)
-  
+
 
 -- | The name of a boolean variable, representing `fin x`.
 smtFinName :: Name -> String
@@ -515,5 +515,3 @@ linRel (x1,y1) (x2,y2) =
      let b = y1 - a * x1
      guard $ not $ a < 0 && b < 0   -- No way this will give a natural number.
      return (a,b)
-
-

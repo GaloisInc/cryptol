@@ -5,7 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
--- 
+--
 -- TODO:
 --  - Putting in a normal form to spot "prove by assumption"
 --  - Additional simplification rules, namely various cancelation.
@@ -453,7 +453,7 @@ cryIsNat useFinite n expr =
                                  eq x one  :&& eq y zero)
       | otherwise       -> Nothing
 
-    e1 :- e2            -> Just $ eq (K (Nat n) :+ e1) e2
+    e1 :- e2            -> Just $ eq (K (Nat n) :+ e2) e1
 
     K (Nat m) :* e2     ->
       Just $ if m == 0
@@ -841,6 +841,3 @@ cryNatOp op x y =
       Impossible -> PFalse -- It doesn't matter, but @false@ might anihilate.
       Return p   -> p
       If p t e   -> p :&& toProp t :|| Not p :&& toProp e
-
-
-

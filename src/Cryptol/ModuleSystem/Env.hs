@@ -7,10 +7,10 @@
 -- Portability :  portable
 
 {-# LANGUAGE CPP #-}
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
-
 module Cryptol.ModuleSystem.Env where
 
 #ifndef RELOCATABLE
@@ -38,7 +38,7 @@ import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
 import qualified Data.List as List
 
 import GHC.Generics (Generic)
-import Control.DeepSeq.Generics
+import Control.DeepSeq
 
 import Prelude ()
 import Prelude.Compat
@@ -56,15 +56,11 @@ data ModuleEnv = ModuleEnv
   , meSolverConfig  :: T.SolverConfig
   , meCoreLint      :: CoreLint
   , meSupply        :: !Supply
-  } deriving (Generic)
-
-instance NFData ModuleEnv where rnf = genericRnf
+  } deriving (Generic, NFData)
 
 data CoreLint = NoCoreLint        -- ^ Don't run core lint
               | CoreLint          -- ^ Run core lint
-  deriving (Generic)
-
-instance NFData CoreLint where rnf = genericRnf
+  deriving (Generic, NFData)
 
 resetModuleEnv :: ModuleEnv -> ModuleEnv
 resetModuleEnv env = env
@@ -186,10 +182,8 @@ qualifiedEnv me = fold $
 
 newtype LoadedModules = LoadedModules
   { getLoadedModules :: [LoadedModule]
-  } deriving (Show, Generic)
+  } deriving (Show, Generic, NFData)
 -- ^ Invariant: All the dependencies of any module `m` must precede `m` in the list.
-
-instance NFData LoadedModules where rnf = genericRnf
 
 instance Monoid LoadedModules where
   mempty        = LoadedModules []
@@ -201,9 +195,7 @@ data LoadedModule = LoadedModule
   , lmFilePath  :: FilePath
   , lmInterface :: Iface
   , lmModule    :: T.Module
-  } deriving (Show, Generic)
-
-instance NFData LoadedModule where rnf = genericRnf
+  } deriving (Show, Generic, NFData)
 
 isLoaded :: ModName -> LoadedModules -> Bool
 isLoaded mn lm = any ((mn ==) . lmName) (getLoadedModules lm)
@@ -244,9 +236,7 @@ data DynamicEnv = DEnv
   { deNames :: R.NamingEnv
   , deDecls :: [T.DeclGroup]
   , deEnv   :: EvalEnv
-  } deriving (Generic)
-
-instance NFData DynamicEnv where rnf = genericRnf
+  } deriving (Generic, NFData)
 
 instance Monoid DynamicEnv where
   mempty = DEnv

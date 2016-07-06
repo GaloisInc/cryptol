@@ -24,24 +24,24 @@ primsPlaceHolder=1;
 %    negate            : {a b} (a >= 1) => [a]b -> [a]b
 \paragraph*{Polynomial arithmetic}
 \begin{Verbatim}
-    pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
-    pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
+    pdiv  : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
+    pmod  : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
     pmult : {a, b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
 \end{Verbatim}
 \paragraph*{Sequences}
 \begin{Verbatim}
-    take : {front, back, elem} (fin front) 
-        => [front + back]elem -> [front]elem
-    drop : {front, back, elem} (fin front) 
-        => [front + back]elem -> [front]elem
-    tail : {a, b} [a+1]b -> [a]b
-    #    : {a, b, c} (fin a) => ([a]b,[c]b) -> [a+c]b
-    join : {parts, each, a} (fin each) 
-        => [parts][each]a -> [parts * each]a
+    take  : {front, back, elem} (fin front) 
+         => [front + back]elem -> [front]elem
+    drop  : {front, back, elem} (fin front) 
+         => [front + back]elem -> [front]elem
+    tail  : {a, b} [a+1]b -> [a]b
+    #     : {a, b, c} (fin a) => ([a]b,[c]b) -> [a+c]b
+    join  : {parts, each, a} (fin each) 
+         => [parts][each]a -> [parts * each]a
+    split : {parts, each, a} (fin a)
+         => [parts * each]a -> [parts][each]a
 
     groupBy : {each, parts, elem} (fin each) 
-           => [parts * each]elem -> [parts][each]elem
-    splitBy : {parts, each, elem} 
            => [parts * each]elem -> [parts][each]elem
     reverse : {a, b} (fin a) => [a]b -> [a]b
     @       : {a, b, c} ([a]b,[c]) -> b

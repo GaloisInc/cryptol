@@ -78,7 +78,7 @@ import qualified Cryptol.ModuleSystem.NamingEnv as M
 import Cryptol.Parser (ParseError,ppError)
 import Cryptol.Parser.NoInclude (IncludeError,ppIncludeError)
 import Cryptol.Parser.NoPat (Error)
-import Cryptol.Parser.Position (emptyRange)
+import Cryptol.Parser.Position (emptyRange, Range(from))
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.Utils.Ident as I
@@ -96,6 +96,7 @@ import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef,atomicModifyIORef)
 import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
 import Data.Maybe (catMaybes)
+import Data.Ord (comparing)
 import Data.Typeable (Typeable)
 import System.Directory (findExecutable)
 import qualified Control.Exception as X
@@ -343,7 +344,7 @@ getPutStr = fmap ePutStr getRW
 rPutStr :: String -> REPL ()
 rPutStr str = do
   rw <- getRW
-  io $ ePutStr rw str 
+  io $ ePutStr rw str
 
 -- | Use the configured output action to print a string with a trailing newline
 rPutStrLn :: String -> REPL ()
@@ -402,30 +403,25 @@ getNewtypes = do
 
 -- | Get visible variable names.
 getExprNames :: REPL [String]
-getExprNames  = (map getName . Map.keys) `fmap` getVars
+getExprNames =
+  do (_, fNames, _) <- getFocusedEnv
+     return (map (show . pp) (Map.keys (M.neExprs fNames)))
 
 -- | Get visible type signature names.
 getTypeNames :: REPL [String]
 getTypeNames  =
-  do tss <- getTSyns
-     nts <- getNewtypes
-     return $ map getName $ Map.keys tss ++ Map.keys nts
+  do (_, fNames, _) <- getFocusedEnv
+     return (map (show . pp) (Map.keys (M.neTypes fNames)))
 
--- | Return a list of property names.
---
--- NOTE: we sort by displayed name here, but it would be just as easy to sort by
--- the position in the file, using nameLoc.
+-- | Return a list of property names, sorted by position in the file.
 getPropertyNames :: REPL ([M.Name],NameDisp)
 getPropertyNames =
   do (decls,_,names) <- getFocusedEnv
      let xs = M.ifDecls decls
-         ps = sortBy (M.cmpNameDisplay names)
+         ps = sortBy (comparing (from . M.nameLoc))
             $ [ x | (x,d) <- Map.toList xs, T.PragmaProperty `elem` M.ifDeclPragmas d ]
 
      return (ps, names)
-
-getName :: M.Name -> String
-getName  = show . pp
 
 getModuleEnv :: REPL M.ModuleEnv
 getModuleEnv  = eModuleEnv `fmap` getRW
@@ -449,7 +445,7 @@ uniqify :: M.Name -> REPL M.Name
 uniqify name =
   case M.nameInfo name of
     M.Declared ns ->
-      M.liftSupply (M.mkDeclared ns (M.nameIdent name) (M.nameLoc name))
+      M.liftSupply (M.mkDeclared ns (M.nameIdent name) (M.nameFixity name) (M.nameLoc name))
 
     M.Parameter ->
       panic "[REPL] uniqify" ["tried to uniqify a parameter: " ++ pretty name]
@@ -468,7 +464,7 @@ uniqify name =
 -- | Generate a fresh name using the given index. The name will reside within
 -- the "<interactive>" namespace.
 freshName :: I.Ident -> REPL M.Name
-freshName i = M.liftSupply (M.mkDeclared I.interactiveName i emptyRange)
+freshName i = M.liftSupply (M.mkDeclared I.interactiveName i Nothing emptyRange)
 
 
 -- User Environment Interaction ------------------------------------------------
@@ -729,6 +725,3 @@ z3exists = do
   case mPath of
     Nothing -> return (Just Z3NotFound)
     Just _  -> return Nothing
-
-
-

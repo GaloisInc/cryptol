@@ -25,6 +25,7 @@ import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
+import Cryptol.TypeCheck.Solver.InfNat (Nat')
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 import Cryptol.Prims.Eval
@@ -42,7 +43,7 @@ moduleEnv m env = evalDecls (mDecls m) (evalNewtypes (mNewtypes m) env)
 evalExpr :: EvalEnv -> Expr -> Value
 evalExpr env expr = case expr of
 
-  EList es ty -> VSeq (isTBit (evalType env ty)) (map (evalExpr env) es)
+  EList es ty -> VSeq (isTBit (evalValType env ty)) (map (evalExpr env) es)
 
   ETuple es -> VTuple (map eval es)
 
@@ -53,7 +54,7 @@ evalExpr env expr = case expr of
   EIf c t f | fromVBit (eval c) -> eval t
             | otherwise         -> eval f
 
-  EComp l h gs -> evalComp env (evalType env l) h gs
+  EComp l h gs -> evalComp env (evalValType env l) h gs
 
   EVar n -> case lookupVar n env of
     Just val -> val
@@ -62,14 +63,18 @@ evalExpr env expr = case expr of
                      , pretty (WithBase defaultPPOpts env)
                      ]
 
-  ETAbs tv b -> VPoly $ \ty -> evalExpr (bindType (tpVar tv) ty env) b
+  ETAbs tv b -> case tpKind tv of
+    KType -> VPoly $ \ty -> evalExpr (bindType (tpVar tv) (Right ty) env) b
+    KNum  -> VNumPoly $ \n -> evalExpr (bindType (tpVar tv) (Left n) env) b
+    k     -> panic "[Eval] evalExpr" ["invalid kind on type abstraction", show k]
 
   ETApp e ty -> case eval e of
-    VPoly f -> f (evalType env ty)
-    val     -> panic "[Eval] evalExpr"
-                    ["expected a polymorphic value"
-                    , show (ppV val), show e, show ty
-                    ]
+    VPoly f    -> f (evalValType env ty)
+    VNumPoly f -> f (evalNumType env ty)
+    val        -> panic "[Eval] evalExpr"
+                       ["expected a polymorphic value"
+                       , show (ppV val), show e, show ty
+                       ]
 
   EApp f x -> case eval f of
     VFun f' -> f' (eval x)
@@ -195,7 +200,7 @@ instance Applicative ZList where
 -- comprehension.
 data ListEnv = ListEnv
   { leVars :: Map.Map Name (ZList Value)
-  , leTypes :: Map.Map TVar TValue
+  , leTypes :: Map.Map TVar (Either Nat' TValue)
   }
 
 instance Monoid ListEnv where
@@ -233,11 +238,10 @@ bindVarList n vs lenv = lenv { leVars = Map.insert n (Zip vs) (leVars lenv) }
 
 -- | Evaluate a comprehension.
 evalComp :: ReadEnv -> TValue -> Expr -> [[Match]] -> Value
-evalComp env seqty body ms
-  | Just (len,el) <- isTSeq seqty = toSeq len el [ evalExpr e body | e <- envs ]
-  | otherwise = evalPanic "Cryptol.Eval" [ "evalComp given a non sequence"
-                                         , show seqty
-                                         ]
+evalComp env seqty body ms =
+  case isTSeq seqty of
+    Just (len, el) -> toSeq len el [ evalExpr e body | e <- envs ]
+    _ -> evalPanic "Cryptol.Eval" ["evalComp given a non sequence", show seqty]
 
   -- XXX we could potentially print this as a number if the type was available.
   where

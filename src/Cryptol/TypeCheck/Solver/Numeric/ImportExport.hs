@@ -125,7 +125,7 @@ importProp prop =
       _ :>= _  -> Nothing
       a :>  b  -> Just (b :>= a)
       _ :==: _ -> Nothing
-      a :>: b  -> Just (b :>= a) 
+      a :>: b  -> Just (b :>= a)
       -- XXX: Do we need to add Fin on `a` and 'b'?
 
 
@@ -168,4 +168,3 @@ importType = go
        t2 <- go y
        t3 <- go z
        return (app f [t1,t2,t3])
-

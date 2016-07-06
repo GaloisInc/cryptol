@@ -9,10 +9,13 @@
 -- This module contains types used during type inference.
 
 {-# LANGUAGE Safe #-}
-{-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
+
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 module Cryptol.TypeCheck.InferTypes where
 
 import           Cryptol.TypeCheck.AST
@@ -31,15 +34,13 @@ import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 
 import GHC.Generics (Generic)
-import Control.DeepSeq.Generics
+import Control.DeepSeq
 
 data SolverConfig = SolverConfig
   { solverPath    :: FilePath   -- ^ The SMT solver to invoke
   , solverArgs    :: [String]   -- ^ Additional arguments to pass to the solver
   , solverVerbose :: Int        -- ^ How verbose to be when type-checking
-  } deriving (Show, Generic)
-
-instance NFData SolverConfig where rnf = genericRnf
+  } deriving (Show, Generic, NFData)
 
 -- | The types of variables in the environment.
 data VarType = ExtVar Schema      -- ^ Known type
@@ -62,12 +63,10 @@ insertGoal g (Goals tm) = Goals (insertTM (goal g) g tm)
 
 -- | Something that we need to find evidence for.
 data Goal = Goal
-  { goalSource :: ConstraintSource  -- ^ With it is about
+  { goalSource :: ConstraintSource  -- ^ What it is about
   , goalRange  :: Range             -- ^ Part of source code that caused goal
   , goal       :: Prop              -- ^ What needs to be proved
-  } deriving (Show,Generic)
-
-instance NFData Goal where rnf = genericRnf
+  } deriving (Show, Generic, NFData)
 
 data HasGoal = HasGoal
   { hasName :: !Int
@@ -80,21 +79,17 @@ data DelayedCt = DelayedCt
   , dctForall :: [TParam]
   , dctAsmps  :: [Prop]
   , dctGoals  :: [Goal]
-  } deriving (Show,Generic)
-
-instance NFData DelayedCt where rnf = genericRnf
+  } deriving (Show, Generic, NFData)
 
 data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assuming the sub-goals.
-            | Unsolved                    -- ^ We could not solved the goal.
-            | Unsolvable                  -- ^ The goal can never be solved
+            | Unsolved                    -- ^ We could not solve the goal.
+            | Unsolvable                  -- ^ The goal can never be solved.
               deriving (Show)
 
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingWildType P.Kind
               | DefaultingTo Doc Type
-                deriving (Show,Generic)
-
-instance NFData Warning where rnf = genericRnf
+                deriving (Show, Generic, NFData)
 
 -- | Various errors that might happen during type checking/inference
 data Error    = ErrorMsg Doc
@@ -104,7 +99,7 @@ data Error    = ErrorMsg Doc
                 -- ^ Expected kind, inferred kind
 
               | TooManyTypeParams Int Kind
-                -- ^ Number of extra parameters, kind of resut
+                -- ^ Number of extra parameters, kind of result
                 -- (which should not be of the form @_ -> _@)
 
               | TooManyTySynParams Name Int
@@ -145,7 +140,7 @@ data Error    = ErrorMsg Doc
                 -- The boolean indicates if we know that this constraint
                 -- is impossible.
 
-              | UnsolvedDelcayedCt DelayedCt
+              | UnsolvedDelayedCt DelayedCt
                 -- ^ A constraint (with context) that we could not solve
 
               | UnexpectedTypeWildCard
@@ -157,7 +152,7 @@ data Error    = ErrorMsg Doc
                 -- that are not in scope.
 
               | NotForAll TVar Type
-                -- ^ Quantified type variables (of kind *) needs to
+                -- ^ Quantified type variables (of kind *) need to
                 -- match the given type, so it does not work for all types.
 
               | UnusableFunction Name [Prop]
@@ -173,9 +168,7 @@ data Error    = ErrorMsg Doc
               | AmbiguousType [Name]
 
 
-                deriving (Show,Generic)
-
-instance NFData Error where rnf = genericRnf
+                deriving (Show, Generic, NFData)
 
 -- | Information about how a constraint came to be, used in error reporting.
 data ConstraintSource
@@ -189,14 +182,11 @@ data ConstraintSource
   | CtDefaulting          -- ^ Just defaulting on the command line
   | CtPartialTypeFun TyFunName -- ^ Use of a partial type function.
   | CtImprovement
-    deriving (Show,Generic)
-
-instance NFData ConstraintSource where rnf = genericRnf
+  | CtPattern Doc         -- ^ Constraints arising from type-checking patterns
+    deriving (Show, Generic, NFData)
 
 data TyFunName = UserTyFun Name | BuiltInTyFun TFun
-                deriving (Show,Generic)
-
-instance NFData TyFunName where rnf = genericRnf
+                deriving (Show, Generic, NFData)
 
 instance PP TyFunName where
   ppPrec c (UserTyFun x)    = ppPrec c x
@@ -215,6 +205,7 @@ instance TVars ConstraintSource where
       CtDefaulting    -> src
       CtPartialTypeFun _ -> src
       CtImprovement    -> src
+      CtPattern _      -> src
 
 instance TVars Warning where
   apSubst su warn =
@@ -250,7 +241,7 @@ instance TVars Error where
       TypeMismatch t1 t2        -> TypeMismatch (apSubst su t1) (apSubst su t2)
       RecursiveType t1 t2       -> RecursiveType (apSubst su t1) (apSubst su t2)
       UnsolvedGoal x g          -> UnsolvedGoal x (apSubst su g)
-      UnsolvedDelcayedCt g      -> UnsolvedDelcayedCt (apSubst su g)
+      UnsolvedDelayedCt g       -> UnsolvedDelayedCt (apSubst su g)
       UnexpectedTypeWildCard    -> err
       TypeVariableEscaped t xs  -> TypeVariableEscaped (apSubst su t) xs
       NotForAll x t             -> NotForAll x (apSubst su t)
@@ -277,7 +268,7 @@ instance FVS Error where
       TypeMismatch t1 t2        -> fvs (t1,t2)
       RecursiveType t1 t2       -> fvs (t1,t2)
       UnsolvedGoal _ g          -> fvs g
-      UnsolvedDelcayedCt g      -> fvs g
+      UnsolvedDelayedCt g       -> fvs g
       UnexpectedTypeWildCard    -> Set.empty
       TypeVariableEscaped t _   -> fvs t
       NotForAll _ t             -> fvs t
@@ -457,7 +448,7 @@ instance PP (WithNames Error) where
         nested (word <+> text "constraint:") (ppWithNames names g)
         where word = if imp then text "Unsolvable" else text "Unsolved"
 
-      UnsolvedDelcayedCt g ->
+      UnsolvedDelayedCt g ->
         nested (text "Failed to validate user-specified signature.")
                (ppWithNames names g)
 
@@ -486,7 +477,7 @@ instance PP (WithNames Error) where
 
       AmbiguousType xs ->
         text "The inferred type for" <+> commaSep (map pp xs)
-          <+> text "is ambiguous." 
+          <+> text "is ambiguous."
 
     where
     nested x y = x $$ nest 2 y
@@ -518,6 +509,7 @@ instance PP ConstraintSource where
       CtDefaulting    -> text "defaulting"
       CtPartialTypeFun f -> text "use of partial type function" <+> pp f
       CtImprovement   -> text "examination of collected goals"
+      CtPattern desc  -> text "checking a pattern:" <+> desc
 
 ppUse :: Expr -> Doc
 ppUse expr =
@@ -564,4 +556,3 @@ instance PP Solved where
         where suDoc = maybe empty pp mb
       Unsolved      -> text "unsolved"
       Unsolvable    -> text "unsolvable"
-

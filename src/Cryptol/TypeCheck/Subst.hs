@@ -14,7 +14,7 @@
 module Cryptol.TypeCheck.Subst where
 
 import           Data.Either (partitionEithers)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
 import qualified Data.Set as Set
@@ -25,7 +25,9 @@ import Cryptol.TypeCheck.TypeMap
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Misc(anyJust)
 
-data Subst = S { suMap :: Map.Map TVar Type, suDefaulting :: !Bool }
+data Subst = S { suMap :: !(Map.Map TVar Type)
+               , suDefaulting :: !Bool
+               }
                   deriving Show
 
 emptySubst :: Subst
@@ -35,6 +37,12 @@ singleSubst :: TVar -> Type -> Subst
 singleSubst x t = S { suMap = Map.singleton x t, suDefaulting = False }
 
 (@@) :: Subst -> Subst -> Subst
+s2 @@ s1 | Map.null (suMap s2) =
+  if (suDefaulting s1 || not (suDefaulting s2)) then
+    s1
+  else
+    s1{ suDefaulting = True }
+
 s2 @@ s1 = S { suMap = Map.map (apSubst s2) (suMap s1) `Map.union` suMap s2
              , suDefaulting = suDefaulting s1 || suDefaulting s2
              }
@@ -154,7 +162,7 @@ defaultFreeVar (TVFree _ k _ d) =
     _     -> panic "Cryptol.TypeCheck.Subst.defaultFreeVar"
                   [ "Free variable of unexpected kind."
                   , "Source: " ++ show d
-                  , "Kind: " ++ show k ]
+                  , "Kind: " ++ show (pp k) ]
 
 instance (Functor m, TVars a) => TVars (List m a) where
   apSubst su = fmap (apSubst su)
@@ -207,11 +215,12 @@ instance TVars Schema where
     | Set.null captured = Forall xs (apSubst su1 ps) (apSubst su1 t)
     | otherwise = panic "Cryptol.TypeCheck.Subst.apSubst (Schema)"
                     [ "Captured quantified variables:"
-                    , "Substitution: " ++ show m1
-                    , "Schema:       " ++ show sch
-                    , "Variables:    " ++ show captured
+                    , "Substitution: " ++ show (brackets (commaSep (map ppBinding $ Map.toList m1)))
+                    , "Schema:       " ++ show (pp sch)
+                    , "Variables:    " ++ show (commaSep (map pp (Set.toList captured)))
                     ]
     where
+    ppBinding (v,x) = pp v <+> text ":=" <+> pp x
     used = fvs sch
     m1   = Map.filterWithKey (\k _ -> k `Set.member` used) (suMap su)
     su1  = S { suMap = m1, suDefaulting = suDefaulting su }

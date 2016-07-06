@@ -16,7 +16,7 @@ import Data.List (genericDrop, genericReplicate, genericSplitAt, genericTake, so
 import Data.Ord (comparing)
 
 import Cryptol.Eval.Value (BitWord(..))
-import Cryptol.Prims.Eval (binary, unary, tlamN)
+import Cryptol.Prims.Eval (binary, unary)
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Decl(..))
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..), nMul)
@@ -74,7 +74,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("zero"        , VPoly zeroV)
 
   , ("<<"          ,  -- {m,n,a} (fin n) => [m] a -> [n] -> [m] a
-      tlam $ \m ->
+      nlam $ \m ->
       tlam $ \_ ->
       tlam $ \a ->
       VFun $ \xs ->
@@ -84,7 +84,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
           _ ->
             let shl :: Integer -> Value
                 shl i =
-                  case numTValue m of
+                  case m of
                     Inf               -> dropV i xs
                     Nat j | i >= j    -> replicateV j a (zeroV a)
                           | otherwise -> catV (dropV i xs) (replicateV i a (zeroV a))
@@ -92,7 +92,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
              in selectV shl y)
 
   , (">>"          , -- {m,n,a} (fin n) => [m] a -> [n] -> [m] a
-      tlam $ \m ->
+      nlam $ \m ->
       tlam $ \_ ->
       tlam $ \a ->
       VFun $ \xs ->
@@ -102,14 +102,14 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
           _ ->
            let shr :: Integer -> Value
                shr i =
-                 case numTValue m of
+                 case m of
                    Inf               -> catV (replicateV i a (zeroV a)) xs
                    Nat j | i >= j    -> replicateV j a (zeroV a)
                          | otherwise -> catV (replicateV i a (zeroV a)) (takeV (j - i) xs)
              in selectV shr y)
 
   , ("<<<"         , -- {m,n,a} (fin m, fin n) => [m] a -> [n] -> [m] a
-      tlam $ \m ->
+      nlam $ \m ->
       tlam $ \_ ->
       tlam $ \_ ->
       VFun $ \xs ->
@@ -118,11 +118,11 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
           VWord x -> VWord (SBV.svRotateLeft x (fromVWord y))
           _ -> let rol :: Integer -> Value
                    rol i = catV (dropV k xs) (takeV k xs)
-                     where k = i `mod` finTValue m
+                     where k = i `mod` finNat' m
                 in selectV rol y)
 
   , (">>>"         , -- {m,n,a} (fin m, fin n) => [m] a -> [n] -> [m] a
-      tlam $ \m ->
+      nlam $ \m ->
       tlam $ \_ ->
       tlam $ \_ ->
       VFun $ \xs ->
@@ -132,7 +132,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
           _ ->
             let ror :: Integer -> Value
                 ror i = catV (dropV k xs) (takeV k xs)
-                  where k = (- i) `mod` finTValue m
+                  where k = (- i) `mod` finNat' m
              in selectV ror y)
 
   , ("#"           , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
@@ -143,31 +143,31 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
       VFun $ \v2 -> catV v1 v2)
 
   , ("splitAt"     , -- {a,b,c} (fin a) => [a+b] c -> ([a]c,[b]c)
-      tlam $ \(finTValue -> a) ->
-      tlam $ \_ ->
+      nlam $ \(finNat' -> a) ->
+      nlam $ \_ ->
       tlam $ \_ ->
       VFun $ \v -> VTuple [takeV a v, dropV a v])
 
-  , ("join"        , tlam $ \ parts ->
-                     tlam $ \ each  ->
+  , ("join"        , nlam $ \ parts ->
+                     nlam $ \ each  ->
                      tlam $ \ a     -> lam (joinV parts each a))
 
   , ("split"       , ecSplitV)
 
   , ("reverse"     ,
-      tlam $ \a ->
+      nlam $ \a ->
       tlam $ \b ->
        lam $ \(fromSeq -> xs) -> toSeq a b (reverse xs))
 
   , ("transpose"    ,
-      tlam $ \a ->
-      tlam $ \b ->
+      nlam $ \a ->
+      nlam $ \b ->
       tlam $ \c ->
        lam $ \((map fromSeq . fromSeq) -> xs) ->
-          case numTValue a of
+          case a of
              Nat 0 ->
                let v = toSeq a c []
-               in case numTValue b of
+               in case b of
                     Nat n -> toSeq b (tvSeq a c) $ genericReplicate n v
                     Inf   -> VStream $ repeat v
              _ -> toSeq b (tvSeq a c) $ map (toSeq a c) $ transpose xs)
@@ -176,46 +176,50 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
-      VFun $ \(fromSeq -> xs) ->
+      VFun $ \xs ->
       VFun $ \y ->
-        let err = zeroV a -- default for out-of-bounds accesses
-        in atV err xs y)
+        let isInf = case xs of VStream _ -> True; _ -> False
+            err = zeroV a -- default for out-of-bounds accesses
+        in atV isInf err (fromSeq xs) y)
 
   , ("@@"          , -- {n,a,m,i} (fin i) => [n]a -> [m][i] -> [m]a
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
       tlam $ \_ ->
-      VFun $ \(fromSeq -> xs) ->
+      VFun $ \xs ->
       VFun $ \ys ->
-        let err = zeroV a -- default for out-of-bounds accesses
-        in mapV (isTBit a) (atV err xs) ys)
+        let isInf = case xs of VStream _ -> True; _ -> False
+            err = zeroV a -- default for out-of-bounds accesses
+        in atV_list (isTBit a) isInf err (fromSeq xs) ys)
 
   , ("!"           , -- {n,a,i} (fin n, fin i) => [n]a -> [i] -> a
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
-      VFun $ \(fromSeq -> xs) ->
+      VFun $ \xs ->
       VFun $ \y ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in atV err (reverse xs) y)
+            isInf = False -- type of (!) guarantess finite sequences
+        in atV isInf err (reverse $ fromSeq xs) y)
 
   , ("!!"          , -- {n,a,m,i} (fin n, fin i) => [n]a -> [m][i] -> [m]a
       tlam $ \_ ->
       tlam $ \a ->
       tlam $ \_ ->
       tlam $ \_ ->
-      VFun $ \(fromSeq -> xs) ->
+      VFun $ \xs ->
       VFun $ \ys ->
         let err = zeroV a -- default for out-of-bounds accesses
-        in mapV (isTBit a) (atV err (reverse xs)) ys)
+            isInf = False -- type of (!!) guarantess finite sequences
+        in atV_list (isTBit a) isInf err (reverse $ fromSeq xs) ys)
 
   , ("fromThen"    , fromThenV)
   , ("fromTo"      , fromToV)
   , ("fromThenTo"  , fromThenToV)
 
   , ("infFrom"     ,
-      tlam $ \(finTValue -> bits)  ->
+      nlam $ \(finNat' -> bits)  ->
        lam $ \(fromVWord  -> first) ->
       toStream [ VWord (SBV.svPlus first (literalSWord (fromInteger bits) i)) | i <- [0 ..] ])
 
@@ -228,12 +232,12 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,
       tlam $ \at ->
-      tlam $ \(finTValue -> _len) ->
+      nlam $ \(finNat' -> _len) ->
       VFun $ \_msg -> zeroV at) -- error/undefined, is arbitrarily translated to 0
 
   , ("pmult"       , -- {a,b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
-      tlam $ \(finTValue -> i) ->
-      tlam $ \(finTValue -> j) ->
+      nlam $ \(finNat' -> i) ->
+      nlam $ \(finNat' -> j) ->
       VFun $ \v1 ->
       VFun $ \v2 ->
         let k = max 1 (i + j) - 1
@@ -245,7 +249,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
         in VSeq True (map VBit zs))
 
   , ("pdiv"        , -- {a,b} (fin a, fin b) => [a] -> [b] -> [a]
-      tlam $ \(finTValue -> i) ->
+      nlam $ \(finNat' -> i) ->
       tlam $ \_ ->
       VFun $ \v1 ->
       VFun $ \v2 ->
@@ -255,8 +259,8 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
         in VSeq True (map VBit (reverse zs)))
 
   , ("pmod"        , -- {a,b} (fin a, fin b) => [a] -> [b+1] -> [b]
-      tlam $ \_ ->
-      tlam $ \(finTValue -> j) ->
+      nlam $ \_ ->
+      nlam $ \(finNat' -> j) ->
       VFun $ \v1 ->
       VFun $ \v2 ->
         let xs = map fromVBit (fromSeq v1)
@@ -280,8 +284,58 @@ selectV f v = sel 0 bits
       where m1 = sel (offset + 2 ^ length bs) bs
             m2 = sel offset bs
 
-atV :: Value -> [Value] -> Value -> Value
-atV def vs i =
+asWordList :: [Value] -> Maybe [SWord]
+asWordList = go id
+ where go :: ([SWord] -> [SWord]) -> [Value] -> Maybe [SWord]
+       go f [] = Just (f [])
+       go f (VWord x:vs)      = go (f . (x:)) vs
+       go f (VSeq True bs:vs) = go (f . (x:)) vs
+              where x = packWord $ map fromVBit bs
+       go _ _ = Nothing
+
+atV_list :: Bool -- Are the elements of the resulting sequence bits?
+         -> Bool -- Is this an infinite sequence?
+         -> Value -- default value
+         -> [Value] -- values to select
+         -> Value   -- index
+         -> Value
+
+-- Use SBV selection primitives if possible
+-- NB: only examine the list if it is finite
+atV_list isBit False def (asWordList -> Just ws) v =
+  case v of
+    VSeq _ ys ->
+      VSeq isBit $ map (VWord . SBV.svSelect ws (fromVWord def) . fromVWord) ys
+    VStream ys ->
+      VStream $ map (VWord . SBV.svSelect ws (fromVWord def) . fromVWord) ys
+    _ -> panic "Cryptol.Symbolic.Prims.atV_list" [ "non-mappable value" ]
+
+atV_list isBit _ def xs v =
+  case v of
+    VSeq _  ys ->
+      VSeq isBit $ map (iteAtV def xs) ys
+    VStream ys ->
+      VStream $ map (iteAtV def xs) ys
+    _ -> panic "Cryptol.Symbolic.Prims.atV_list" [ "non-mappable value" ]
+
+
+atV :: Bool -- Is this an infinite sequence?
+    -> Value -- default value
+    -> [Value] -- values to select
+    -> Value   -- index
+    -> Value
+
+-- When applicable, use the SBV selection operation
+-- NB: only examine the list if it is finite
+atV False def (asWordList -> Just ws) i =
+  VWord $ SBV.svSelect ws (fromVWord def) (fromVWord i)
+
+-- Otherwise, decompose into a sequence of if/then/else operations
+atV _ def vs i = iteAtV def vs i
+
+-- Select a value at an index by building a sequence of if/then/else operations
+iteAtV :: Value -> [Value] -> Value -> Value
+iteAtV def vs i =
   case i of
     VSeq True (map fromVBit -> bits) -> -- index bits in big-endian order
       case foldr weave vs bits of
@@ -298,12 +352,14 @@ atV def vs i =
     weave b [x1] = [iteValue b def x1]
     weave b (x1 : x2 : xs) = iteValue b x2 x1 : weave b xs
 
+
+
 replicateV :: Integer -- ^ number of elements
            -> TValue  -- ^ type of element
            -> Value   -- ^ element
            -> Value
-replicateV n (toTypeVal -> TVBit) x = VSeq True  (genericReplicate n x)
-replicateV n _                    x = VSeq False (genericReplicate n x)
+replicateV n TVBit x = VSeq True  (genericReplicate n x)
+replicateV n _     x = VSeq False (genericReplicate n x)
 
 nth :: a -> [a] -> Int -> a
 nth def [] _ = def
@@ -357,9 +413,9 @@ takeV n xs =
 -- | Make a numeric constant.
 -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
 ecDemoteV :: Value
-ecDemoteV = tlam $ \valT ->
-            tlam $ \bitT ->
-            case (numTValue valT, numTValue bitT) of
+ecDemoteV = nlam $ \valT ->
+            nlam $ \bitT ->
+            case (valT, bitT) of
               (Nat v, Nat bs) -> VWord (literalSWord (fromInteger bs) v)
               _ -> evalPanic "Cryptol.Prove.evalECon"
                        ["Unexpected Inf in constant."
@@ -367,27 +423,6 @@ ecDemoteV = tlam $ \valT ->
                        , show bitT
                        ]
 
--- Type Values -----------------------------------------------------------------
-
--- | An easy-to-use alternative representation for type `TValue`.
-data TypeVal
-  = TVBit
-  | TVSeq Int TypeVal
-  | TVStream TypeVal
-  | TVTuple [TypeVal]
-  | TVRecord [(Ident, TypeVal)]
-  | TVFun TypeVal TypeVal
-
-toTypeVal :: TValue -> TypeVal
-toTypeVal ty
-  | isTBit ty                    = TVBit
-  | Just (n, ety) <- isTSeq ty   = case numTValue n of
-                                     Nat w -> TVSeq (fromInteger w) (toTypeVal ety)
-                                     Inf   -> TVStream (toTypeVal ety)
-  | Just (aty, bty) <- isTFun ty = TVFun (toTypeVal aty) (toTypeVal bty)
-  | Just (_, tys) <- isTTuple ty = TVTuple (map toTypeVal tys)
-  | Just fields <- isTRec ty     = TVRecord [ (n, toTypeVal aty) | (n, aty) <- fields ]
-  | otherwise                    = panic "Cryptol.Symbolic.Prims.toTypeVal" [ "bad TValue" ]
 
 -- Arith -----------------------------------------------------------------------
 
@@ -396,7 +431,7 @@ type Unary = TValue -> Value -> Value
 
 -- | Models functions of type `{a} (Arith a) => a -> a -> a`
 arithBinary :: (SWord -> SWord -> SWord) -> Binary
-arithBinary op = loop . toTypeVal
+arithBinary op = loop
   where
     loop ty l r =
       case ty of
@@ -405,12 +440,12 @@ arithBinary op = loop . toTypeVal
         TVSeq _ t     -> VSeq False (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVStream t    -> VStream (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVTuple ts    -> VTuple (zipWith3 loop ts (fromVTuple l) (fromVTuple r))
-        TVRecord fs   -> VRecord [ (f, loop t (lookupRecord f l) (lookupRecord f r)) | (f, t) <- fs ]
+        TVRec fs      -> VRecord [ (f, loop t (lookupRecord f l) (lookupRecord f r)) | (f, t) <- fs ]
         TVFun _ t     -> VFun (\x -> loop t (fromVFun l x) (fromVFun r x))
 
 -- | Models functions of type `{a} (Arith a) => a -> a`
 arithUnary :: (SWord -> SWord) -> Unary
-arithUnary op = loop . toTypeVal
+arithUnary op = loop
   where
     loop ty v =
       case ty of
@@ -419,7 +454,7 @@ arithUnary op = loop . toTypeVal
         TVSeq _ t     -> VSeq False (map (loop t) (fromSeq v))
         TVStream t    -> VStream (map (loop t) (fromSeq v))
         TVTuple ts    -> VTuple (zipWith loop ts (fromVTuple v))
-        TVRecord fs   -> VRecord [ (f, loop t (lookupRecord f v)) | (f, t) <- fs ]
+        TVRec fs      -> VRecord [ (f, loop t (lookupRecord f v)) | (f, t) <- fs ]
         TVFun _ t     -> VFun (\x -> loop t (fromVFun v x))
 
 sExp :: SWord -> SWord -> SWord
@@ -489,45 +524,45 @@ cmpBinary fb fw b _ty v1 v2 = VBit (cmpValue fb fw v1 v2 b)
 -- Logic -----------------------------------------------------------------------
 
 errorV :: String -> TValue -> Value
-errorV msg = go . toTypeVal
+errorV msg = go
   where
     go ty =
       case ty of
         TVBit         -> VBit (error msg)
-        TVSeq n t     -> VSeq False (replicate n (go t))
+        TVSeq n t     -> VSeq False (replicate (fromInteger n) (go t))
         TVStream t    -> VStream (repeat (go t))
         TVTuple ts    -> VTuple [ go t | t <- ts ]
-        TVRecord fs   -> VRecord [ (n, go t) | (n, t) <- fs ]
+        TVRec fs      -> VRecord [ (n, go t) | (n, t) <- fs ]
         TVFun _ t     -> VFun (const (go t))
 
 zeroV :: TValue -> Value
-zeroV = go . toTypeVal
+zeroV = go
   where
     go ty =
       case ty of
         TVBit         -> VBit SBV.svFalse
-        TVSeq n TVBit -> VWord (literalSWord n 0)
-        TVSeq n t     -> VSeq False (replicate n (go t))
+        TVSeq n TVBit -> VWord (literalSWord (fromInteger n) 0)
+        TVSeq n t     -> VSeq False (replicate (fromInteger n) (go t))
         TVStream t    -> VStream (repeat (go t))
         TVTuple ts    -> VTuple [ go t | t <- ts ]
-        TVRecord fs   -> VRecord [ (n, go t) | (n, t) <- fs ]
+        TVRec fs      -> VRecord [ (n, go t) | (n, t) <- fs ]
         TVFun _ t     -> VFun (const (go t))
 
 -- | Join a sequence of sequences into a single sequence.
-joinV :: TValue -> TValue -> TValue -> Value -> Value
+joinV :: Nat' -> Nat' -> TValue -> Value -> Value
 joinV parts each a v =
-  let len = toNumTValue (numTValue parts `nMul` numTValue each)
+  let len = parts `nMul` each
   in toSeq len a (concatMap fromSeq (fromSeq v))
 
 -- | Split implementation.
 ecSplitV :: Value
 ecSplitV =
-  tlam $ \ parts ->
-  tlam $ \ each  ->
+  nlam $ \ parts ->
+  nlam $ \ each  ->
   tlam $ \ a     ->
   lam  $ \ v     ->
   let mkChunks f = map (toFinSeq a) $ f $ fromSeq v
-  in case (numTValue parts, numTValue each) of
+  in case (parts, each) of
        (Nat p, Nat e) -> VSeq False $ mkChunks (finChunksOf p e)
        (Inf  , Nat e) -> toStream   $ mkChunks (infChunksOf e)
        _              -> evalPanic "splitV" ["invalid type arguments to split"]
@@ -545,7 +580,7 @@ finChunksOf parts each xs = let (as,bs) = genericSplitAt each xs
 
 -- | Merge two values given a binop.  This is used for and, or and xor.
 logicBinary :: (SBool -> SBool -> SBool) -> (SWord -> SWord -> SWord) -> Binary
-logicBinary bop op = loop . toTypeVal
+logicBinary bop op = loop
   where
     loop ty l r =
       case ty of
@@ -554,11 +589,11 @@ logicBinary bop op = loop . toTypeVal
         TVSeq _ t     -> VSeq False (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVStream t    -> VStream (zipWith (loop t) (fromSeq l) (fromSeq r))
         TVTuple ts    -> VTuple (zipWith3 loop ts (fromVTuple l) (fromVTuple r))
-        TVRecord fs   -> VRecord [ (f, loop t (lookupRecord f l) (lookupRecord f r)) | (f, t) <- fs ]
+        TVRec fs      -> VRecord [ (f, loop t (lookupRecord f l) (lookupRecord f r)) | (f, t) <- fs ]
         TVFun _ t     -> VFun (\x -> loop t (fromVFun l x) (fromVFun r x))
 
 logicUnary :: (SBool -> SBool) -> (SWord -> SWord) -> Unary
-logicUnary bop op = loop . toTypeVal
+logicUnary bop op = loop
   where
     loop ty v =
       case ty of
@@ -567,16 +602,16 @@ logicUnary bop op = loop . toTypeVal
         TVSeq _ t     -> VSeq False (map (loop t) (fromSeq v))
         TVStream t    -> VStream (map (loop t) (fromSeq v))
         TVTuple ts    -> VTuple (zipWith loop ts (fromVTuple v))
-        TVRecord fs   -> VRecord [ (f, loop t (lookupRecord f v)) | (f, t) <- fs ]
+        TVRec fs      -> VRecord [ (f, loop t (lookupRecord f v)) | (f, t) <- fs ]
         TVFun _ t     -> VFun (\x -> loop t (fromVFun v x))
 
 -- @[ 0, 1 .. ]@
 fromThenV :: Value
 fromThenV  =
-  tlamN $ \ first ->
-  tlamN $ \ next  ->
-  tlamN $ \ bits  ->
-  tlamN $ \ len   ->
+  nlam $ \ first ->
+  nlam $ \ next  ->
+  nlam $ \ bits  ->
+  nlam $ \ len   ->
     case (first, next, len, bits) of
       (Nat first', Nat next', Nat len', Nat bits') ->
         let nums = enumFromThen first' next'
@@ -587,9 +622,9 @@ fromThenV  =
 -- @[ 0 .. 10 ]@
 fromToV :: Value
 fromToV  =
-  tlamN $ \ first ->
-  tlamN $ \ lst   ->
-  tlamN $ \ bits  ->
+  nlam $ \ first ->
+  nlam $ \ lst   ->
+  nlam $ \ bits  ->
     case (first, lst, bits) of
 
       (Nat first', Nat lst', Nat bits') ->
@@ -603,11 +638,11 @@ fromToV  =
 -- @[ 0, 1 .. 10 ]@
 fromThenToV :: Value
 fromThenToV  =
-  tlamN $ \ first ->
-  tlamN $ \ next  ->
-  tlamN $ \ lst   ->
-  tlamN $ \ bits  ->
-  tlamN $ \ len   ->
+  nlam $ \ first ->
+  nlam $ \ next  ->
+  nlam $ \ lst   ->
+  nlam $ \ bits  ->
+  nlam $ \ len   ->
     case (first, next, lst, len, bits) of
 
       (Nat first', Nat next', Nat lst', Nat len', Nat bits') ->

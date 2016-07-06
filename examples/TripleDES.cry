@@ -8,7 +8,7 @@ module TripleDES where
 import DES
 
 blockEncrypt : ([64],[64],[64],[64]) -> [64]
-blockEncrypt (k1,k2,k3,data) = result where 
+blockEncrypt (k1,k2,k3,data) = result where
     ex     = DES.encrypt k1 data
     dx     = DES.decrypt k2 ex
     result = DES.encrypt k3 dx
@@ -25,7 +25,7 @@ PlainText = "The qufck brown fox jump"
 // Yes, that's the correct phrase.. (see the 7th letter of the phrase).
 // It's supposed to be "the quick..." but they made a mistake in transcribing
 // the ASCII into hex.
-[P1, P2, P3] = splitBy`{3} (join PlainText)
+[P1, P2, P3] = split`{3} (join PlainText)
 
 // B.1
 

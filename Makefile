@@ -4,7 +4,7 @@ UNAME   := $(shell uname -s)
 ARCH    := $(shell uname -m)
 
 TESTS ?= parser issues regression renamer mono-binds
-TEST_DIFF ?= meld
+DIFF ?= meld
 
 IGNORE_EXPECTED ?= --ignore-expected
 
@@ -34,7 +34,7 @@ PKG         := cryptol-${VERSION}-${SYSTEM_DESC}
 ifneq (,$(findstring _NT,${UNAME}))
   DIST := ${PKG}.msi
   EXE_EXT := .exe
-  adjust-path = '$(shell cygpath -w $1)'
+  adjust-path = '$(shell /usr/bin/cygpath -w $1)'
   PREFIX ?=
   # For a systemwide distribution .msi, use:
   # PREFIX ?= ${PROGRAM_FILES}/Galois/Cryptol\ ${VERSION}
@@ -260,7 +260,7 @@ test: ${CS_BIN}/cryptol-test-runner
 	  -T --hide-successes                                              \
 	  -T --jxml=$(call adjust-path,$(CURDIR)/results.xml)              \
 	  $(IGNORE_EXPECTED)                                               \
-	  $(if $(TEST_DIFF),-p $(TEST_DIFF),)                              \
+	  $(if $(DIFF),-p $(DIFF),)                              \
 	)
 
 # Since this is meant for development rather than end-user builds,

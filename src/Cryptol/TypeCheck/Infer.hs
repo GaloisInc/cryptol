@@ -36,13 +36,11 @@ import qualified Data.Map as Map
 import           Data.Map (Map)
 import qualified Data.Set as Set
 import           Data.Either(partitionEithers)
-import           Data.Maybe(mapMaybe,isJust)
+import           Data.Maybe(mapMaybe,isJust, fromMaybe)
 import           Data.List(partition,find)
 import           Data.Graph(SCC(..))
 import           Data.Traversable(forM)
 import           Control.Monad(when,zipWithM)
-
--- import Cryptol.Utils.Debug
 
 inferModule :: P.Module Name -> InferM Module
 inferModule m =
@@ -140,8 +138,9 @@ appTys expr ts tGoal =
     P.ETyped    {} -> mono
     P.ETypeVal  {} -> mono
     P.EFun      {} -> mono
-    P.EParens   {} -> tcPanic "appTys" [ "Unexpected EParens" ]
-    P.EInfix    {} -> tcPanic "appTys" [ "Unexpected EInfix" ]
+
+    P.EParens e       -> appTys e ts tGoal
+    P.EInfix a op _ b -> appTys (P.EVar (thing op) `P.EApp` a `P.EApp` b) ts tGoal
 
   where mono = do e'     <- checkE expr tGoal
                   (ie,t) <- instantiateWith e' (Forall [] [] tGoal) ts
@@ -422,11 +421,8 @@ expectFin n ty =
     TCon (TC (TCNum n')) [] | toInteger n == n' ->
          return ()
 
-    TVar TVFree{} ->
-      do newGoals CtExactType =<< unify (tNum n) ty
-
     _ ->
-         recordError (TypeMismatch (tNum n) ty)
+      do newGoals CtExactType =<< unify (tNum n) ty
 
 expectFun :: Int -> Type -> InferM ([Type],Type)
 expectFun  = go []
@@ -490,14 +486,14 @@ smallest ts   = do a <- newType (text "length of list comprehension") KNum
                    newGoals CtComprehension [ a =#= foldr1 tMin ts ]
                    return a
 
-
 checkP :: Doc -> P.Pattern Name -> Type -> InferM (Located Name)
 checkP desc p tGoal =
   do (x, t) <- inferP desc p
      ps <- unify tGoal (thing t)
-     case ps of
-       [] -> return (Located (srcRange t) x)
-       _  -> tcPanic "checkP" [ "Unexpected constraints:", show ps ]
+     let rng   = fromMaybe emptyRange $ getLoc p
+     let mkErr = recordError . UnsolvedGoal False . Goal (CtPattern desc) rng
+     mapM_ mkErr ps
+     return (Located (srcRange t) x)
 
 {-| Infer the type of a pattern.  Assumes that the pattern will be just
 a variable. -}
@@ -569,7 +565,7 @@ inferBinds :: Bool -> Bool -> [P.Bind Name] -> InferM [Decl]
 inferBinds isTopLevel isRec binds =
   mdo let dExpr (DExpr e) = e
           dExpr DPrim     = panic "[TypeCheck]" [ "primitive in a recursive group" ]
-  
+
           exprMap = Map.fromList [ (x,inst (EVar x) (dExpr (dDefinition b)))
                                  | b <- genBs, let x = dName b ] -- REC.
 

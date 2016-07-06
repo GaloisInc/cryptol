@@ -1,0 +1,4 @@
+Loading module Cryptol
+([True] == [False]) : Bit
+(\x -> True != x) : Bit -> Bit
+(\x -> True && x) : Bit -> Bit

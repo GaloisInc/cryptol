@@ -6,21 +6,24 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE Safe #-}
-{-# LANGUAGE DeriveGeneric #-}
+
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Env where
 
 import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
+import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Utils.PP
 
 import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
-import Control.DeepSeq.Generics
+import Control.DeepSeq
 
 import Prelude ()
 import Prelude.Compat
@@ -31,10 +34,8 @@ type ReadEnv = EvalEnv
 
 data EvalEnv = EvalEnv
   { envVars       :: Map.Map Name Value
-  , envTypes      :: Map.Map TVar TValue
-  } deriving (Generic)
-
-instance NFData EvalEnv where rnf = genericRnf
+  , envTypes      :: Map.Map TVar (Either Nat' TValue)
+  } deriving (Generic, NFData)
 
 instance Monoid EvalEnv where
   mempty = EvalEnv
@@ -63,10 +64,10 @@ bindVar n val env = env { envVars = Map.insert n val (envVars env) }
 lookupVar :: Name -> EvalEnv -> Maybe Value
 lookupVar n env = Map.lookup n (envVars env)
 
--- | Bind a type variable of kind *.
-bindType :: TVar -> TValue -> EvalEnv -> EvalEnv
+-- | Bind a type variable of kind # or *.
+bindType :: TVar -> Either Nat' TValue -> EvalEnv -> EvalEnv
 bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
 
 -- | Lookup a type variable.
-lookupType :: TVar -> EvalEnv -> Maybe TValue
+lookupType :: TVar -> EvalEnv -> Maybe (Either Nat' TValue)
 lookupType p env = Map.lookup p (envTypes env)

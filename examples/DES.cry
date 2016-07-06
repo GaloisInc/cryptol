@@ -9,12 +9,12 @@ import Cipher
 
 // DES API
 DES : Cipher 64 64
-DES = 
+DES =
     { encrypt key pt = des pt (expandKey key)
     , decrypt key ct = des ct (reverse (expandKey key))
     }
 
-// Encryption 
+// Encryption
 
 des pt keys = (swap (split last)) @@ FPz
   where
@@ -169,4 +169,3 @@ sbox8 = [[13, 2, 8, 4, 6, 15, 11, 1, 10, 9, 3, 14, 5, 0, 12, 7],
          [7, 11, 4, 1, 9, 12, 14, 2, 0, 6, 10, 13, 15, 3, 5, 8],
          [2, 1, 14, 7, 4, 10, 8, 13, 15, 12, 9, 0, 3, 5, 6, 11]
         ]
-

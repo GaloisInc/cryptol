@@ -2,8 +2,8 @@
 \begin{code}
   module HighAssurance where
 
-  import Enigma
   import Classic
+  import Enigma
 \end{code}
 }
 
@@ -26,8 +26,8 @@ these tools, and to the notion of high-assurance programming in
 Cryptol via examples.
 
 %=====================================================================
-\section{Writing properties}
-\label{sec:writingproperties}
+% \section{Writing properties}
+% \label{sec:writingproperties}
 \sectionWithAnswers{Writing properties}{sec:writingproperties}
 
 Consider the equality:
@@ -117,7 +117,7 @@ What do you see?\indCmdInfo
 \end{Exercise}
 \begin{Answer}\ansref{ex:thm:2}\indReverse\indAppend
 \begin{code}
-  property revApp (xs, ys) = reverse (xs # ys) 
+  property revApp (xs, ys) = reverse (xs # ys)
                              == reverse ys # reverse xs
 \end{code}
 \end{Answer}
@@ -132,7 +132,7 @@ What do you see?\indCmdInfo
 \end{code}
 \end{Answer}
 
-\nb{A {\tt property} declaration simply introduces a property about
+\note{A {\tt property} declaration simply introduces a property about
   your program, which may or may {\em not} actually hold. It is an
   assertion about your program, without any claim of correctness. In
   particular, you can clearly write properties that simply do not
@@ -259,7 +259,7 @@ certain monomorphic types, but not at all types.\indMonomorphism
 \end{Verbatim}
 \end{Answer}
 
-\nb{The moral of this discussion is that the notion of polymorphic
+\note{The moral of this discussion is that the notion of polymorphic
   validity\indThmPolyvalid (i.e., that a given polymorphic property
   will either hold at all of its monomorphic instances or none) does
   not hold in Cryptol. A polymorphic property can be valid at some,
@@ -313,8 +313,8 @@ remembering that the 0'th bit of an even number is always {\tt
 \end{Answer}
 
 %=====================================================================
-\section{Establishing correctness}
-\label{sec:establishcorrectness}
+% \section{Establishing correctness}
+% \label{sec:establishcorrectness}
 \sectionWithAnswers{Establishing correctness}{sec:establishcorrectness}
 
 Our focus so far has been using Cryptol to {\em state} properties of
@@ -346,7 +346,7 @@ is being produced behind the scenes.  Once Cryptol formally
 establishes the property holds, it prints ``{\tt Q.E.D.}'' to tell the
 user the proof is complete.\indQED\indProve
 
-\nb{Cryptol uses off-the-shelf SAT\glosSAT and SMT\glosSMT solvers to
+\note{Cryptol uses off-the-shelf SAT\glosSAT and SMT\glosSMT solvers to
   perform these formal
   proofs~\cite{erkok-matthews-cryptolEqChecking-09}.  By default,
   Cryptol will use Microsoft Research's Z3 SMT solver under the hood,
@@ -568,7 +568,7 @@ We have:
 \end{Answer}
 
 %% TODO: Pedagogy here without exceptions
-%% \nb{It is tempting to write a function:}
+%% \note{It is tempting to write a function:}
 %% \begin{code}
 %%  implies (a, b) = if a then b else True
 %%\end{code}
@@ -673,8 +673,8 @@ This may take a long time to prove, depending on the speed of your
 machine, and the prover you choose.
 
 %=====================================================================
-\section{Automated random testing}
-\label{sec:quickcheck}
+% \section{Automated random testing}
+% \label{sec:quickcheck}
 \sectionWithAnswers{Automated random testing}{sec:quickcheck}
 
 Cryptol's {\tt :prove} command\indCmdProve constructs rigorous formal
@@ -799,8 +799,8 @@ simple means of exercising all your properties automatically.
 %% Ctrl-C}.\indCmdAutoCheck
 
 %=====================================================================
-\section{Checking satisfiability}
-\label{sec:sat}
+% \section{Checking satisfiability}
+% \label{sec:sat}
 \sectionWithAnswers{Checking satisfiability}{sec:sat}
 
 Closely related to proving properties is the notion of checking
@@ -861,7 +861,7 @@ solution. When we change it to {\tt 4}, the satisfiability checker
 will try to find {\em up to} 4 solutions. We can also set it to {\tt
   all}, which will try to find as many solutions as possible.
 \begin{Verbatim}
-  Cryptol> :set satNum = 4
+  Cryptol> :set satNum = all
   Cryptol> :sat isSqrtOf9
   isSqrtOf9 3 = True
   isSqrtOf9 131 = True
@@ -873,7 +873,7 @@ of 9; namely 3, 131, 125, and 253. (Note that Cryptol can return the
 satisfying solutions in any order depending on the backend-solver and
 other configurations. What is guaranteed is that you will get
 precisely the same set of solutions at the end.)
- 
+
 The whole point of the satisfiability checker is to be able to quickly
 search for particular values that are solutions to potentially
 complicated bit-valued functions. In this sense, satisfiability

@@ -10,14 +10,6 @@ hmacSHA256 : {pwBytes, msgBytes}
              (fin pwBytes, fin msgBytes
              , 32 >= width msgBytes
              , 64 >= width (8*pwBytes)
-             , 64 >= width (8 * (64 + msgBytes))
-             // Keeping cryptol <2.3 happy
-             , max 6 (width pwBytes) >= 6
-             , max 6 (width pwBytes) >= width pwBytes
-             , max 7 (width pwBytes) >= 7
-             , max 7 (width pwBytes) >= width pwBytes
-             , max (width pwBytes) 7 >= 7
-             , max (width pwBytes) 7 >= width pwBytes
              ) => [pwBytes][8] -> [msgBytes][8] -> [256]
 hmacSHA256 = hmac `{blockLength=64} SHA256 SHA256 SHA256
 
@@ -26,13 +18,6 @@ hmacSHA256 = hmac `{blockLength=64} SHA256 SHA256 SHA256
 // separate length inputs.
 hmac : { msgBytes, pwBytes, digest, blockLength }
        ( fin pwBytes, fin digest, fin blockLength
-       // Keeping cryptol <2.3 happy
-       , max (width digest) (width pwBytes) >= width pwBytes // XXX cryptol! width digest == width pwBytes
-       , max (width digest) (width pwBytes) >= width digest
-       , max (width blockLength) (width pwBytes) >= width blockLength
-       , max (width blockLength) (width pwBytes) >= width pwBytes
-       , max (width pwBytes) (width blockLength) >= width blockLength
-       , max (width pwBytes) (width blockLength) >= width pwBytes
        )
     => ([blockLength + msgBytes][8] -> [8*digest])
     -> ([blockLength + digest][8] -> [8*digest])

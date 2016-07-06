@@ -5,15 +5,18 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-{-# LANGUAGE RecordWildCards, Safe #-}
-{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE Safe #-}
+
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE RecursiveDo #-}
 module Cryptol.TypeCheck.Monad
   ( module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
   ) where
 
-import           Cryptol.ModuleSystem.Name (SupplyT,runSupplyT,FreshM(..),Supply)
+import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
@@ -36,7 +39,7 @@ import           Data.Function(on)
 import           MonadLib hiding (mapM)
 
 import GHC.Generics (Generic)
-import Control.DeepSeq.Generics
+import Control.DeepSeq
 
 import Prelude ()
 import Prelude.Compat
@@ -66,9 +69,7 @@ data InferInput = InferInput
 data NameSeeds = NameSeeds
   { seedTVar    :: !Int
   , seedGoal    :: !Int
-  } deriving (Show, Generic)
-
-instance NFData NameSeeds where rnf = genericRnf
+  } deriving (Show, Generic, NFData)
 
 -- | The initial seeds, used when checking a fresh program.
 nameSeeds :: NameSeeds
@@ -99,9 +100,8 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
                      , iPrimNames     = inpPrimNames info
                      }
 
-         ((result, finalRW),supply') <-
-             runSupplyT (inpSupply info) $ runStateT rw
-                                         $ runReaderT ro m  -- RECURSION
+         (result, finalRW) <- runStateT rw
+                            $ runReaderT ro m  -- RECURSION
 
      let theSu    = iSubst finalRW
          defSu    = defaultingSubst theSu
@@ -114,7 +114,7 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
              | nullGoals cts
                    -> return $ InferOK warns
                                   (iNameSeeds finalRW)
-                                  supply'
+                                  (iSupply finalRW)
                                   (apSubst defSu result)
            (cts,has) -> return $ InferFailed warns
                 $ dropErrorsFromSameLoc
@@ -138,6 +138,8 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
           , iCts        = emptyGoals
           , iHasCts     = []
           , iSolvedHas  = Map.empty
+
+          , iSupply     = inpSupply info
           }
 
   dropErrorsFromSameLoc = map chooseBestError . groupBy ((==)    `on` fst)
@@ -152,7 +154,7 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
 
 
 
-newtype InferM a = IM { unIM :: ReaderT RO (StateT RW (SupplyT IO)) a }
+newtype InferM a = IM { unIM :: ReaderT RO (StateT RW IO) a }
 
 data DefLoc = IsLocal | IsExternal
 
@@ -223,6 +225,8 @@ data RW = RW
   , iHasCts   :: ![HasGoal]
     {- ^ Tuple/record projection constraints.  The `Int` is the "name"
          of the constraint, used so that we can name it solution properly. -}
+
+  , iSupply :: !Supply
   }
 
 instance Functor InferM where
@@ -241,7 +245,11 @@ instance MonadFix InferM where
   mfix f        = IM (mfix (unIM . f))
 
 instance FreshM InferM where
-  liftSupply f = IM (liftSupply f)
+  liftSupply f = IM $
+    do rw <- get
+       let (a,s') = f (iSupply rw)
+       set rw { iSupply = s' }
+       return a
 
 
 io :: IO a -> InferM a

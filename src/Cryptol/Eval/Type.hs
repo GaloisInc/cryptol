@@ -8,11 +8,11 @@
 
 {-# LANGUAGE Safe, PatternGuards #-}
 
-module Cryptol.Eval.Type (evalType, evalTF) where
+module Cryptol.Eval.Type (evalType, evalValType, evalNumType, evalTF) where
 
 import Cryptol.Eval.Env
 import Cryptol.Eval.Error
-import Cryptol.Eval.Value(TValue(..),numTValue)
+import Cryptol.Eval.Value (TValue(..), tvSeq)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat
 
@@ -21,29 +21,49 @@ import Data.Maybe(fromMaybe)
 
 -- Type Evaluation -------------------------------------------------------------
 
--- | Evaluation for types.
-evalType :: EvalEnv -> Type -> TValue
-evalType env = TValue . go
+-- | Evaluation for types (kind * or #).
+evalType :: EvalEnv -> Type -> Either Nat' TValue
+evalType env ty =
+  case ty of
+    TVar tv ->
+      case lookupType tv env of
+        Just v -> v
+        Nothing -> evalPanic "evalType" ["type variable not bound", show tv]
+
+    TUser _ _ ty'  -> evalType env ty'
+    TRec fields    -> Right $ TVRec [ (f, val t) | (f, t) <- fields ]
+    TCon (TC c) ts ->
+      case (c, ts) of
+        (TCBit, [])     -> Right $ TVBit
+        (TCSeq, [n, t]) -> Right $ tvSeq (num n) (val t)
+        (TCFun, [a, b]) -> Right $ TVFun (val a) (val b)
+        (TCTuple _, _)  -> Right $ TVTuple (map val ts)
+        (TCNum n, [])   -> Left $ Nat n
+        (TCInf, [])     -> Left $ Inf
+        -- FIXME: What about TCNewtype?
+        _ -> evalPanic "evalType" ["not a value type", show ty]
+    TCon (TF f) ts      -> Left $ evalTF f (map num ts)
+    TCon (PC p) _       -> evalPanic "evalType" ["invalid predicate symbol", show p]
   where
-  go ty =
-    case ty of
-      TVar tv ->
-        case lookupType tv env of
-          Just (TValue v)   -> v
-          Nothing  -> evalPanic "evalType" ["type variable not bound", show tv]
+    val = evalValType env
+    num = evalNumType env
 
-      TCon (TF f) ts -> tValTy $ evalTF f $ map (evalType env) ts
-      TCon tc ts     -> TCon tc (map go ts)
-      TUser _ _ ty'  -> go ty'
-      TRec fields    -> TRec [ (f,go t) | (f,t) <- fields ]
+-- | Evaluation for value types (kind *).
+evalValType :: EvalEnv -> Type -> TValue
+evalValType env ty =
+  case evalType env ty of
+    Left _ -> evalPanic "evalValType" ["expected value type, found numeric type"]
+    Right t -> t
 
--- | Reduce type functions, rising an exception for undefined values.
-evalTF :: TFun -> [TValue] -> TValue
-evalTF tf vs = TValue $ cvt $ evalTF' tf $ map numTValue vs
+evalNumType :: EvalEnv -> Type -> Nat'
+evalNumType env ty =
+  case evalType env ty of
+    Left n -> n
+    Right _ -> evalPanic "evalValType" ["expected numeric type, found value type"]
 
--- | Reduce type functions, rising an exception for undefined values.
-evalTF' :: TFun -> [Nat'] -> Nat'
-evalTF' f vs
+-- | Reduce type functions, raising an exception for undefined values.
+evalTF :: TFun -> [Nat'] -> Nat'
+evalTF f vs
   | TCAdd           <- f, [x,y]   <- vs  =      nAdd x y
   | TCSub           <- f, [x,y]   <- vs  = mb $ nSub x y
   | TCMul           <- f, [x,y]   <- vs  =      nMul x y
@@ -59,13 +79,4 @@ evalTF' f vs
                         ["Unexpected type function:", show ty]
 
   where mb = fromMaybe (typeCannotBeDemoted ty)
-        ty = TCon (TF f) (map cvt vs)
-
-
-cvt :: Nat' -> Type
-cvt (Nat n) = tNum n
-cvt Inf     = tInf
-
-
-
-
+        ty = TCon (TF f) (map tNat' vs)

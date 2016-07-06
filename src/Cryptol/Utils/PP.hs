@@ -7,13 +7,14 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe #-}
-{-# LANGUAGE PatternGuards #-}
+
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE PatternGuards #-}
 module Cryptol.Utils.PP where
 
 import           Cryptol.Utils.Ident
-
-import           Control.DeepSeq.Generics
+import           Control.DeepSeq
 import           Control.Monad (mplus)
 import           Data.Maybe (fromMaybe)
 import           Data.String (IsString(..))
@@ -31,9 +32,7 @@ import Prelude.Compat
 -- in scope.
 data NameDisp = EmptyNameDisp
               | NameDisp (ModName -> Ident -> Maybe NameFormat)
-                deriving (Generic)
-
-instance NFData NameDisp where rnf = genericRnf
+                deriving (Generic, NFData)
 
 instance Show NameDisp where
   show _ = "<NameDisp>"
@@ -91,13 +90,11 @@ fixNameDisp disp (Doc f) = Doc (\ _ -> f disp)
 
 -- Documents -------------------------------------------------------------------
 
-newtype Doc = Doc (NameDisp -> PJ.Doc) deriving (Generic)
+newtype Doc = Doc (NameDisp -> PJ.Doc) deriving (Generic, NFData)
 
 instance Monoid Doc where
   mempty = liftPJ PJ.empty
   mappend = liftPJ2 (PJ.<>)
-
-instance NFData Doc where rnf = genericRnf
 
 runDoc :: NameDisp -> Doc -> PJ.Doc
 runDoc names (Doc f) = f names
@@ -115,6 +112,9 @@ class PP a where
   ppPrec :: Int -> a -> Doc
 
 class PP a => PPName a where
+  -- | Fixity information for infix operators
+  ppNameFixity :: a -> Maybe (Assoc, Int)
+
   -- | Print a name in prefix: @f a b@ or @(+) a b)@
   ppPrefixName :: a -> Doc
 
@@ -134,9 +134,7 @@ optParens b body | b         = parens body
 
 -- | Information about associativity.
 data Assoc = LeftAssoc | RightAssoc | NonAssoc
-              deriving (Show,Eq,Generic)
-
-instance NFData Assoc where rnf = genericRnf
+              deriving (Show, Eq, Generic, NFData)
 
 -- | Information about an infix expression of some sort.
 data Infix op thing = Infix

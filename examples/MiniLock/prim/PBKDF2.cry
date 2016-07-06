@@ -8,23 +8,13 @@ import SHA256
 import HMAC
 
 // PBKDF2 specialized to HMAC_SHA256 to avoid monomorphic type issues.
-pbkdf2 : {pwBytes, saltBytes, dkLenBits, len, C}
-         ( 32 >= width (pwBytes*8), len == (dkLenBits + 255)/256
-         , len >= 1, 32 >= width len, fin saltBytes, fin dkLenBits, fin pwBytes
-         , 64 >= width (8 * (pwBytes + (4 + saltBytes)))
-         , 64 >= width (8 * (pwBytes + 32))
-         , C >= 1, fin C, 64 >= width (8*(pwBytes + (2 + saltBytes))), 16 >= width C
-         , 16 >= width len
-         // cryptol < 2.3 can't math!
-         , dkLenBits == 256 * len // Cryptol 2.3 doesn't understand 'take'?
-         , max 6 (width pwBytes) >= width pwBytes
-         , max 6 (width pwBytes) >= 6
-         , max 7 (width pwBytes) >= 7
-         , max 7 (width pwBytes) >= width pwBytes
-         , max (width pwBytes) 7 >= 7
-         , max (width pwBytes) 7 >= width pwBytes
-         , 64 >= width (8 * pwBytes)
-         , 64 >= width (8 * (68 + saltBytes))
+pbkdf2 : {pwBytes, saltBytes, dkLenBits, C}
+         ( 32 >= width (pwBytes*8)
+         , dkLenBits >= 1
+         , fin dkLenBits
+         , 32 >= width (dkLenBits - 1)
+         , C >= 1
+         , 16 >= width C
          , 32 >= width (4 + saltBytes)
          )
       => [pwBytes][8] -> [saltBytes][8] -> [dkLenBits]
@@ -32,19 +22,11 @@ pbkdf2 P S = take `{dkLenBits} (join Ts)
  where
  Ts : [_][256]
  Ts = [ inner `{C=C} P (split (hmacSHA256 P (S # split i))) | i <- [1..len] : [_][32] ]
+ type len = (dkLenBits + 255)/256
 
 inner : {pwBytes, C}
-         ( fin pwBytes
-         , 64 >= width (8 * (pwBytes + 32))
-         , fin C, C >= 1, 16 >= width C
-         // Cryptol < 2.3 can't math
-              , 64 >= width (8 * pwBytes)
-              , max 7 (width pwBytes) >= width pwBytes
-              , max 7 (width pwBytes) >= 7
-              , max (width pwBytes) 7 >= width pwBytes
-              , max (width pwBytes) 7 >= 7
-              , max 6 (width pwBytes) >= width pwBytes
-              , max 6 (width pwBytes) >= 6
+         ( 64 >= width (8 * (pwBytes + 32))
+         , C >= 1, 16 >= width C
          )
      =>  [pwBytes][8] -> [32][8] -> [256]
 inner P U0 = (Ts @ 0).0 // XXX should be ! 0
@@ -52,16 +34,7 @@ inner P U0 = (Ts @ 0).0 // XXX should be ! 0
   // Ts : [_][([256],[32][8])]
   Ts = [(join U0, U0)] # [ F P t u  | _ <- [1..C] : [_][16] | (t,u) <- Ts ]
 
-F : {pwBytes} (fin pwBytes
-              , 64 >= width (8*(32+pwBytes))
-              // cryptol < 2.3 can't math
-              , 64 >= width (8 * pwBytes)
-              , max 7 (width pwBytes) >= width pwBytes
-              , max 7 (width pwBytes) >= 7
-              , max (width pwBytes) 7 >= width pwBytes
-              , max (width pwBytes) 7 >= 7
-              , max 6 (width pwBytes) >= width pwBytes
-              , max 6 (width pwBytes) >= 6
+F : {pwBytes} ( 64 >= width (8*(32+pwBytes))
               ) => [pwBytes][8] -> [256] -> [32][8] -> ([256],[32][8])
 F P Tprev Uprev = (Tnext,Unext)
   where

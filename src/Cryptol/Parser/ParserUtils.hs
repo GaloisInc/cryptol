@@ -6,9 +6,12 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Safe, PatternGuards #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE Safe #-}
+
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE PatternGuards #-}
 module Cryptol.Parser.ParserUtils where
 
 import Cryptol.Parser.AST
@@ -20,7 +23,6 @@ import Cryptol.Utils.Panic
 
 import Data.Maybe(listToMaybe,fromMaybe)
 import Data.Bits(testBit,setBit)
-import Data.List (intercalate)
 import Control.Monad(liftM,ap,unless)
 import qualified Data.Text as S
 import           Data.Text.Lazy (Text)
@@ -28,7 +30,7 @@ import qualified Data.Text.Lazy as T
 
 
 import GHC.Generics (Generic)
-import Control.DeepSeq.Generics
+import Control.DeepSeq
 
 import Prelude ()
 import Prelude.Compat
@@ -66,9 +68,7 @@ lexerP k = P $ \cfg p (S ts) ->
 
 data ParseError = HappyError FilePath Position (Maybe Token)
                 | HappyErrorMsg Range String
-                  deriving (Show, Generic)
-
-instance NFData ParseError where rnf = genericRnf
+                  deriving (Show, Generic, NFData)
 
 newtype S = S [Located Token]
 
@@ -115,8 +115,8 @@ errorMessage r x = P $ \_ _ _ -> Left (HappyErrorMsg r x)
 customError :: String -> Located Token -> ParseM a
 customError x t = P $ \_ _ _ -> Left (HappyErrorMsg (srcRange t) x)
 
-mkModName :: [String] -> ModName
-mkModName strs = S.pack (intercalate "::" strs)
+mkModName :: [T.Text] -> ModName
+mkModName strs = T.toStrict (T.intercalate (T.pack "::") strs)
 
 -- Note that type variables are not resolved at this point: they are tcons.
 mkSchema :: [TParam PName] -> [Prop PName] -> Type PName -> Schema PName
@@ -124,7 +124,7 @@ mkSchema xs ps t = Forall xs ps t Nothing
 
 getName :: Located Token -> PName
 getName l = case thing l of
-              Token (Ident [] x) _ -> mkUnqual (mkIdent (S.pack x))
+              Token (Ident [] x) _ -> mkUnqual (mkIdent (T.toStrict x))
               _ -> panic "[Parser] getName" ["not an Ident:", show l]
 
 getNum :: Located Token -> Integer

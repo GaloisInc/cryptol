@@ -1,3 +1,9 @@
+\commentout{
+\begin{code}
+  module Classic where
+\end{code}
+}
+
 \chapter{Classic ciphers}
 \label{chapter:classic}
 
@@ -41,7 +47,7 @@ inverses of each other.
 To check the correctness of an \emph{implementation} $I$ of a
 cryptographic function $C$ means that one must show that the
 implementation $I$ behaves as the specification ($C$) stipulates.  In
-the context of cryptography, the minimal conformance necesssary is
+the context of cryptography, the minimal conformance necessary is
 that $I$'s output \emph{exactly} conforms to the output characterized
 by $C$.  But just because a cryptographic implementation is
 \emph{functionally correct} does not mean it is \emph{secure}.  The
@@ -57,8 +63,8 @@ an interesting and useful feature, it is not part of Cryptol's current
 capabilities.
 
 %=====================================================================
-\section{Caesar's cipher}
-\label{sec:caesar}
+% \section{Caesar's cipher}
+% \label{sec:caesar}
 \sectionWithAnswers{Caesar's cipher}{sec:caesar}
 
 Caesar's cipher (a.k.a. Caesar's shift) is one of the simplest
@@ -256,8 +262,8 @@ $255$.)  The change in {\tt dCaesar'} is analogous:\indRotRight
 \end{Answer}
 
 %=====================================================================
-\section{\texorpdfstring{Vigen\`{e}re}{Vigenere} cipher}
-\label{sec:vigenere}
+% \section{\texorpdfstring{Vigen\`{e}re}{Vigenere} cipher}
+% \label{sec:vigenere}
 \sectionWithAnswers{\texorpdfstring{Vigen\`{e}re}{Vigenere} cipher}{sec:vigenere}
 
 The Vigen\`{e}re cipher is a variation on the Caesar's cipher, where
@@ -441,8 +447,8 @@ where we would only need one character to crack it.\indCaesarscipher
 %% \end{Answer}
 
 %=====================================================================
-\section{The atbash}
-\label{sec:atbash}
+% \section{The atbash}
+% \label{sec:atbash}
 \sectionWithAnswers{The atbash}{sec:atbash}
 
 The atbash cipher is a form of a shift cipher, where each letter is
@@ -490,8 +496,8 @@ We have:
 \end{Answer}
 
 %=====================================================================
-\section{Substitution ciphers}
-\label{section:subst}
+% \section{Substitution ciphers}
+% \label{section:subst}
 \sectionWithAnswers{Substitution ciphers}{section:subst}
 
 Substitution ciphers\indSubstitutioncipher generalize all the ciphers
@@ -639,8 +645,8 @@ choices.
 \end{Answer}
 
 %=====================================================================
-\section{The scytale}
-\label{sec:scytale}
+% \section{The scytale}
+% \label{sec:scytale}
 \sectionWithAnswers{The scytale}{sec:scytale}
 
 The scytale is one of the oldest cryptographic devices ever, dating
@@ -695,10 +701,11 @@ The signature\indSignature on {\tt msg'} is revealing: We are taking a
 string that has {\tt diameter * row} characters in it, and chopping it
 up so that it has {\tt row} elements, each of which is a string that
 has {\tt diameter} characters in it.  Here is Cryptol in action,
-encrypting the message {\tt ATTACKATDAWN}:
+encrypting the message {\tt ATTACKATDAWN}, with {\tt diameter} set to
+{\tt 3}:
 \begin{Verbatim}
   Cryptol> :set ascii=on
-  Cryptol> scytale "ATTACKATDAWN"
+  Cryptol> scytale `{diameter=3} "ATTACKATDAWN"
   "ACDTKATAWATN"
 \end{Verbatim}
 Decryption is essentially the same process, except we have to {\tt
@@ -718,7 +725,7 @@ precisely the same, except for the signature on {\tt msg'}! When
 viewed as a matrix, the types precisely tell which transposition we
 want at each step.  We have:
 \begin{Verbatim}
-  Cryptol> dScytale "ACDTKATAWATN"
+  Cryptol> dScytale `{diameter=3} "ACDTKATAWATN"
   "ATTACKATDAWN"
 \end{Verbatim}
 

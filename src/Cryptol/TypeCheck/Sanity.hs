@@ -326,7 +326,7 @@ convertible t1 t2
 convertible t1 t2 = go t1 t2
   where
   go ty1 ty2 =
-    let err   = reportError $ TypeMismatch (tMono ty1) (tMono ty2)  
+    let err   = reportError $ TypeMismatch (tMono ty1) (tMono ty2)
         other = tNoUser ty2
 
         goMany [] []             = return ()
@@ -533,5 +533,3 @@ lookupVar x =
      case Map.lookup x (roVars ro) of
        Just s -> return s
        Nothing -> reportError $ UndefinedVariable x
-
-

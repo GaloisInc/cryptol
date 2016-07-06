@@ -7,11 +7,13 @@
 -- Portability :  portable
 
 {-# LANGUAGE Trustworthy #-}
-{-# LANGUAGE RecordWildCards #-}
+
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE RecordWildCards #-}
 -- for the instances of RunM and BaseM
 {-# LANGUAGE UndecidableInstances #-}
 
@@ -22,6 +24,7 @@ module Cryptol.ModuleSystem.Name (
   , nameIdent
   , nameInfo
   , nameLoc
+  , nameFixity
   , asPrim
   , cmpNameLexical
   , cmpNameDisplay
@@ -34,7 +37,6 @@ module Cryptol.ModuleSystem.Name (
     -- ** Unique Supply
   , FreshM(..), nextUniqueM
   , SupplyT(), runSupplyT
-  , SupplyM(), runSupplyM
   , Supply(), emptySupply, nextUnique
 
     -- ** PrimMap
@@ -43,12 +45,13 @@ module Cryptol.ModuleSystem.Name (
   , lookupPrimType
   ) where
 
+import           Cryptol.Parser.AST( Fixity(..) )
 import           Cryptol.Parser.Position (Range,Located(..))
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
 
-import           Control.DeepSeq.Generics
+import           Control.DeepSeq
 import           Control.Monad.Fix (MonadFix(mfix))
 import qualified Data.Map as Map
 import qualified Data.Monoid as M
@@ -65,7 +68,7 @@ data NameInfo = Declared !ModName
                 -- ^ This name refers to a declaration from this module
               | Parameter
                 -- ^ This name is a parameter (function or type)
-                deriving (Eq,Show,Generic)
+                deriving (Eq, Show, Generic, NFData)
 
 data Name = Name { nUnique :: {-# UNPACK #-} !Int
                    -- ^ INVARIANT: this field uniquely identifies a name for one
@@ -78,9 +81,14 @@ data Name = Name { nUnique :: {-# UNPACK #-} !Int
                  , nIdent :: !Ident
                    -- ^ The name of the identifier
 
+                 , nFixity :: !(Maybe Fixity)
+                   -- ^ The associativity and precedence level of
+                   --   infix operators.  'Nothing' indicates an
+                   --   ordinary prefix operator.
+
                  , nLoc :: !Range
                    -- ^ Where this name was defined
-                 } deriving (Show,Generic)
+                 } deriving (Show, Generic, NFData)
 
 instance Eq Name where
   a == b = compare a b == EQ
@@ -88,9 +96,6 @@ instance Eq Name where
 
 instance Ord Name where
   compare a b = compare (nUnique a) (nUnique b)
-
-instance NFData NameInfo where rnf = genericRnf
-instance NFData Name where rnf = genericRnf
 
 -- | Compare two names lexically.
 cmpNameLexical :: Name -> Name -> Ordering
@@ -155,6 +160,8 @@ instance PP Name where
   ppPrec _ = ppPrefixName
 
 instance PPName Name where
+  ppNameFixity n = fmap (\(Fixity a i) -> (a,i)) $ nameFixity n
+
   ppInfixName n @ Name { .. }
     | isInfixIdent nIdent = ppName n
     | otherwise           = panic "Name" [ "Non-infix name used infix"
@@ -178,6 +185,9 @@ nameInfo  = nInfo
 nameLoc :: Name -> Range
 nameLoc  = nLoc
 
+nameFixity :: Name -> Maybe Fixity
+nameFixity = nFixity
+
 asPrim :: Name -> Maybe Ident
 asPrim Name { .. }
   | nInfo == Declared preludeName = Just nIdent
@@ -200,9 +210,6 @@ instance FreshM m => FreshM (ReaderT i m) where
 
 instance FreshM m => FreshM (StateT i m) where
   liftSupply f = lift (liftSupply f)
-
-instance FreshM SupplyM where
-  liftSupply f = SupplyM (liftSupply f)
 
 instance Monad m => FreshM (SupplyT m) where
   liftSupply f = SupplyT $
@@ -249,36 +256,13 @@ instance RunM m (a,Supply) r => RunM (SupplyT m) a (Supply -> r) where
 instance MonadFix m => MonadFix (SupplyT m) where
   mfix f = SupplyT (mfix (unSupply . f))
 
-
-newtype SupplyM a = SupplyM (SupplyT Id a)
-                    deriving (Functor,Applicative,Monad,MonadFix)
-
-runSupplyM :: Supply -> SupplyM a -> (a,Supply)
-runSupplyM s m = runM m s
-
-instance RunM SupplyM a (Supply -> (a,Supply)) where
-  runM (SupplyM m) s = runM m s
-  {-# INLINE runM #-}
-
-instance BaseM SupplyM SupplyM where
-  inBase = id
-  {-# INLINE inBase #-}
-
-instance M.Monoid a => M.Monoid (SupplyM a) where
-  mempty      = return mempty
-  mappend a b = do x <- a
-                   y <- b
-                   return (mappend x y)
-
 -- | Retrieve the next unique from the supply.
 nextUniqueM :: FreshM m => m Int
 nextUniqueM  = liftSupply nextUnique
 
 
 data Supply = Supply !Int
-              deriving (Show,Generic)
-
-instance NFData Supply where rnf = genericRnf
+              deriving (Show, Generic, NFData)
 
 -- | This should only be used once at library initialization, and threaded
 -- through the rest of the session.  The supply is started at 0x1000 to leave us
@@ -296,8 +280,8 @@ nextUnique (Supply n) = s' `seq` (n,s')
 -- Name Construction -----------------------------------------------------------
 
 -- | Make a new name for a declaration.
-mkDeclared :: ModName -> Ident -> Range -> Supply -> (Name,Supply)
-mkDeclared m nIdent nLoc s =
+mkDeclared :: ModName -> Ident -> Maybe Fixity -> Range -> Supply -> (Name,Supply)
+mkDeclared m nIdent nFixity nLoc s =
   let (nUnique,s') = nextUnique s
       nInfo        = Declared m
    in (Name { .. }, s')
@@ -306,6 +290,7 @@ mkDeclared m nIdent nLoc s =
 mkParameter :: Ident -> Range -> Supply -> (Name,Supply)
 mkParameter nIdent nLoc s =
   let (nUnique,s') = nextUnique s
+      nFixity      = Nothing
    in (Name { nInfo = Parameter, .. }, s')
 
 
@@ -314,9 +299,7 @@ mkParameter nIdent nLoc s =
 -- | A mapping from an identifier defined in some module to its real name.
 data PrimMap = PrimMap { primDecls :: Map.Map Ident Name
                        , primTypes :: Map.Map Ident Name
-                       } deriving (Show, Generic)
-
-instance NFData PrimMap where rnf = genericRnf
+                       } deriving (Show, Generic, NFData)
 
 lookupPrimDecl, lookupPrimType :: Ident -> PrimMap -> Name
 

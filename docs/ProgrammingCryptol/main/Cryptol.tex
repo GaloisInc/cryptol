@@ -5,8 +5,6 @@
 %
 
 \documentclass[twoside]{book}
-% \usepackage{layout}
-% \usepackage{diagrams}
 \usepackage{amsfonts}
 \usepackage{xspace}
 \usepackage{url}
@@ -14,102 +12,100 @@
 \usepackage{graphicx}
 \usepackage{lastpage}
 \usepackage{makeidx}
-\usepackage{longtable}
-\usepackage{booktabs}
-\usepackage[disable]{todonotes}
 \usepackage[myheadings]{fullpage}
 \usepackage{verbatim}
-%% \usepackage[lighttt]{lmodern}
-%% \usepackage[ttscale=1.15]{lmodern}
 \usepackage{fancyvrb}
+\usepackage{booktabs}
 \usepackage{amsmath, amsthm, amssymb}
 \usepackage{fancyhdr}
 \usepackage{xcolor}
 \usepackage{pdfpages}
 \usepackage[answerdelayed,lastexercise]{utils/exercise}
-\usepackage[bookmarks=true,pagebackref=true,linktocpage=true]{hyperref}
+\usepackage[xetex,bookmarks=true,pagebackref=true,linktocpage=true]{hyperref}
 \usepackage[style=list]{utils/glossary}
 \usepackage{adjustbox}
-%\usepackage[paperwidth=5.5in,paperheight=8.5in]{geometry}
-\usepackage{geometry}
 
-% for bound books:
-%\setlength{\textwidth}{340pt}
+%% choose output pagesize. Here are two options:
+%%  Half of a US Letter sheet, (or A5 paper)
+%% intended to be folded in half and bound in a book
+% for half-letter:
+%\usepackage[paperwidth=5.5in,paperheight=8.5in,inner=62pt,outer=34pt]{geometry}
 %\setlength{\textheight}{502pt}
+
+% for full-letter
+\usepackage[paperwidth=8.5in,paperheight=11in,inner=62pt,outer=34pt]{geometry}
+\setlength{\textheight}{652pt}
 
 \newcommand{\titleline}{Programming in Cryptol}
 
 \hypersetup{%
-   pdftitle     = \titleline,
-   pdfkeywords  = {Cryptol, Cryptography, Programming},
-   pdfauthor    = {Galois, Inc.},
-   pdfpagemode  = UseOutlines,
-   pdfborder    = 0 0 0
+    pdftitle     = \titleline,
+    pdfkeywords  = {Cryptol, Cryptography, Programming},
+    pdfauthor    = {Levent Erk\"{o}k and others at Galois},
+    pdfpagemode  = UseOutlines
 }
 
+\RequirePackage[12tabu,orthodox]{nag}
 \input{utils/Indexes.tex}
 \input{utils/GlossaryItems.tex}
 \input{utils/trickery.tex}
 
 % fonts
+\usepackage[TS1,T1]{fontenc}
+\usepackage{microtype}
+\usepackage[osf]{mathpazo}
 \usepackage{fontspec}
 \usepackage{xunicode}
 \usepackage{xltxtra}
 \defaultfontfeatures{Mapping=tex-text}
-\setmainfont[]{Times}
-\setsansfont[]{Helvetica}
-\setmonofont[Scale=0.85]{Courier}
+%\setmainfont[]{Times}
+%\setsansfont[]{Helvetica}
+%\setmonofont[Scale=0.85]{Courier}
 \usepackage{sectsty}
+\usepackage[disable]{todonotes}
 \allsectionsfont{\sffamily}
 
+% \newcommand{\todo}[1]{\begin{center}\framebox{\begin{minipage}{0.8\textwidth}{{\bf TODO:} #1}\end{minipage}}\end{center}}
 \newcommand{\lamex}{\ensuremath{\lambda}-expression\indLamExp}
 \newcommand{\lamexs}{\ensuremath{\lambda}-expressions\indLamExp}
 \makeatletter
-\def\imod#1{\allowbreak\mkern3mu({\operator@font mod}\,\,#1)}
+\def\imod#1{\allowbreak\mkern10mu({\operator@font mod}\,\,#1)}
 \makeatother
+\newcommand{\advanced}{\begin{center}\framebox{\begin{minipage}{0.95\textwidth}{{\bf Note:} The material in this section
+    is aimed for the more advanced reader. It can be skipped on a first reading without loss of continuity.}\end{minipage}}\end{center}}
 
-\newcommand{\ticket}[1]{\href{https://www.galois.com/cryptol/ticket/#1}{ticket \##1}}
+    \newcommand{\sectionWithAnswers}[2]{%
+        \section{#1}\label{#2}%
+            \AnswerBoxSectionMark{Section \arabic{chapter}.\arabic{section} #1 (p.\pageref{#2})}%
+            \AnswerBoxExecute{\addcontentsline{toc}{section}{\texorpdfstring{\parbox{2.3em}{\arabic{chapter}.\arabic{section}\ }}{(\arabic{chapter}.\arabic{section})\ }#1}}%
+    }
 
-\newcommand{\advanced}{\begin{center}\framebox{\begin{minipage}{0.95\textwidth}{{\bf
-Note:} The material in this section is aimed for the more
-advanced reader. It can be skipped on a first reading
-without loss of continuity.}\end{minipage}}\end{center}}
-
-\newcommand{\sectionWithAnswers}[2]{%
-\AnswerBoxSectionMark{Section \arabic{chapter}.\arabic{section} #1 (p.\pageref{#2})}%
-\AnswerBoxExecute{\addcontentsline{toc}{section}{\protect\texorpdfstring{\protect\parbox{2.3em}{\protect\arabic{chapter}.\arabic{section}\ }}{(\arabic{chapter}.\arabic{section})\ }#1}}%
-}
-
-\theoremstyle{definition}
 \newcommand{\commentout}[1]{}
 \DefineVerbatimEnvironment{code}{Verbatim}{}
 \renewcommand{\ExerciseHeaderTitle}{\ExerciseTitle}
 \renewcommand{\ExerciseHeader}{\textbf{\hspace*{-\parindent}\ExerciseName\ \theExercise.\ }}
 \renewcommand{\AnswerHeader}{\textbf{\hspace*{-\parindent}\ExerciseName\ \theExercise.\ }}
-\renewcounter{Exercise}[chapter]
+% \renewcounter{Exercise}[section]
 \newcommand{\unparagraph}{\paragraph{$\,\,\,$\hspace*{-\parindent}}}
 
 % various little text sections:
-\newtheorem*{tip}{Tip}
 \newtheorem*{hint}{Hint}
-\newtheorem*{nb}{NB}
-\newtheorem*{notesThm}{Note}
-\newcommand{\note}[1]{\begin{notesThm}{#1}\end{notesThm}}
-\newcommand{\lhint}[1]{({\bf Hint:}\ #1)}
+\newcommand{\note}[1]{\vspace{5mm}{\setlength{\parindent}{0pt}{\bf Note:~}{#1}}}
+\newcommand{\tip}[1]{\vspace{5mm}{\setlength{\parindent}{0pt}{\bf Tip:~}{#1}}}
+\newcommand{\lhint}[1]{({\bf Hint}\ #1)}
 \newcommand{\ansref}[1]{{\bf (p.~\pageref{#1})}}
-%% \newcommand{\draftdate}{DRAFT of \today}
+%% not needed:?
+\setlength{\voffset}{-1cm}
+
 \setlength{\headsep}{2cm}
 \setlength{\headheight}{15.2pt}
 \renewcommand{\headrulewidth}{0pt} % no line on top
 \renewcommand{\footrulewidth}{.5pt} % line on bottom
 \renewcommand{\chaptermark}[1]{\markboth{#1}{}}
 \renewcommand{\sectionmark}[1]{\markright{#1}{}}
-\newcommand{\changefont}{%
-    \fontsize{9}{10}\selectfont
-}
 \cfoot{}
-\fancyfoot[LE,RO]{\changefont{\textsf{\thepage}}}
-\fancyfoot[LO,RE]{\changefont{\textsf{\copyright\ 2010--2016, Galois, Inc.}}}
+\fancyfoot[LE,RO]{\fancyplain{}{\textsf{\thepage}}}
+\fancyfoot[LO,RE]{\fancyplain{}{\textsf{\copyright\ 2010--2016, Galois, Inc.}}}
 %% \fancyhead[LE]{\fancyplain{}{\textsf{\draftdate}}}
 %% \fancyhead[RO]{\fancyplain{}{\textsf{DO NOT DISTRIBUTE!}}}
 \fancyhead[RO,LE]{\fancyplain{}{}} %% outer
@@ -124,27 +120,27 @@ without loss of continuity.}\end{minipage}}\end{center}}
 
 \title{\Huge{\bf \titleline}}
 \author{\\$ $\\$ $\\
+    Levent Erk\"{o}k\\
+        %\url{levent.erkok@galois.com}
+    \\$ $\\
         Galois, Inc.\\
         421 SW 6th Ave., Suite 300\\Portland, OR 97204}
-\date{
-\vspace*{2cm}$ $\\
-\includegraphics{utils/galois.jpg}
-}
+        \date{
+            \vspace*{2cm}$ $\\
+                \includegraphics{utils/galois.jpg}
+        }
 
 \pagenumbering{roman}
 
-%% \includepdf[pages={1},scale=1.0]{cover/CryptolSmallCover.pdf}
-\includepdf[pages={1},scale=1.0]{cover/ProgrammingCryptolCover.pdf}
+%% for full-size papersize:
+\includepdf[offset=0 -28]{cover/CryptolCover.pdf}
 
-%\advance\voffset by -26pt
-%\setlength{\hoffset}{-26pt}
+%% for A5 / half-letter papersize:
+% \includepdf[offset=0 -28]{cover/CryptolSmallCover.pdf}
 
-% for bound-books
-% \setlength{\oddsidemargin}{36pt}
-% \setlength{\evensidemargin}{-36pt}
 
 % \maketitle
-%%
+
 \index{inference|see{type, inference}}
 \index{signature|see{type, signature}}
 \index{polymorphism|see{type, polymorphism}}
@@ -165,38 +161,18 @@ without loss of continuity.}\end{minipage}}\end{center}}
 \setlength{\headsep}{24pt}
 % \layout
 
-\input{title/Title.tex}
-\newpage
-
+%%%%%% PREFACE
+%\input{preface/Preface.tex}
 \input{preface/Notice.tex}
-\newpage
 
 %%%%%% TOC
 \tableofcontents
 
-% \includepdf[pages={1}]{cover/Blank.pdf}
-\vfill
-\eject
-
-\listoftodos
+\includepdf[pages={1}]{cover/Blank.pdf}
 \newpage
-
-%%%%%% Preface
-\input{preface/Preface.tex}
 
 \setcounter{page}{1}
 \pagenumbering{arabic}
-
-\input{main/todo.tex}
-
-%%%%%% Installation and Tool Use
-\input{installation/Install.tex}
-\commentout{
-\begin{code}
-include "../installation/Install.tex";
-\end{code}
-}
-
 %%%%%% Crash Course
 \input{crashCourse/CrashCourse.tex}
 \commentout{
@@ -204,14 +180,6 @@ include "../installation/Install.tex";
 include "../crashCourse/CrashCourse.tex";
 \end{code}
 }
-
-%%%%%% Basic programming (milestone 2.1)
-% \input{basic/Basic.tex}
-% \commentout{
-% \begin{code}
-% include "../basic/Basic.tex";
-% \end{code}
-% }
 
 %%%%%% Transposition ciphers
 \input{classic/Classic.tex}
@@ -229,7 +197,7 @@ include "../enigma/Enigma.tex";
 \end{code}
 }
 
-%%%%%% High-assurance
+%%%%%% High assurance
 \input{highAssurance/HighAssurance.tex}
 \commentout{
 \begin{code}
@@ -237,13 +205,8 @@ include "../highAssurance/HighAssurance.tex";
 \end{code}
 }
 
-%%%%%% DES (milestone 2.1)
-% \input{des/DES.tex}
-% \commentout{
-% \begin{code}
-% include "../des/DES.tex";
-% \end{code}
-% }
+%%%%%% DES
+% \chapter{DES: The Data Encryption Standard}
 
 %%%%%% AES
 \input{aes/AES.tex}
@@ -253,35 +216,23 @@ include "../aes/AES.tex";
 \end{code}
 }
 
-%%%%%% SHA (milestone 2.1)
-% \input{sha/SHA.tex}
-% \commentout{
-% \begin{code}
-% include "../sha/SHA.tex";
-% \end{code}
-% }
+%%%%%% SHA
+% \chapter{SHA: The Secure Hash Algorithm}
 
-%%%%%% Advanced Verification Techniques
 %\chapter{Advanced proof techniques}
 %\section{Assumed equality}
 %\section{Uninterpreted functions}
 %\section{Proving AES correct}\label{sec:proveaes}
-%In Section~\ref{sec:aescorrectattempt}, we wrote down the below
-% Cryptol theorem stating that our AES\indAES encryption/decryption
-% functions work correctly:
+%In Section~\ref{sec:aescorrectattempt}, we wrote down the below Cryptol theorem stating that our AES\indAES encryption/decryption functions work correctly:
 %\begin{Verbatim}
 %  theorem AESCorrect: {msg key}. aesDecrypt (aesEncrypt (msg, key), key) == msg;
 %\end{Verbatim}
 
-% However, we were not able to do an automated proof of this fact, as
-% it is beyond the scope of what SAT-based equivalence checkers can
-% handle. In this section we will use our new tools to attack this
-% problem and actually complete the proof in a reasonable amount of
-% time.
+% However, we were not able to do an automated proof of this fact, as it is beyond the scope of what SAT-based equivalence checkers can handle. In this
+% section we will use our new tools to attack this problem and actually complete the proof in a reasonable amount of time.
 
 %%%%%% SAT solving
-% \chapter{Using satisfiability solvers: Solving Sudoku and N-Queens
-% in Cryptol}\label{chap:usingsat}
+% \chapter{Using satisfiability solvers: Solving Sudoku and N-Queens in Cryptol}\label{chap:usingsat}
 
 %%%%%% Hardware
 % \chapter{Generating and proving hardware correct}
@@ -291,12 +242,10 @@ include "../aes/AES.tex";
 % \section{Defaulting}\label{sec:pitfall:defaulting}
 % \todo{Talk about defaulting gotchas}
 % \section{Evaluation order}\label{sec:pitfall:evorder}
-% \todo{Talk about there's no short-circuit except for if-then-else,
-% although models might differ.}
+% \todo{Talk about there's no short-circuit except for if-then-else, although models might differ.}
 % \section{Theorems and safety checking}\label{sec:pitfall:thmexceptions}
 % \todo{Talk about safety failures and theorems}
-% \todo{Talk about why {\tt implies (x, y) = if x then y else False}
-% is not a substitute for {\tt if-then-else}}
+% \todo{Talk about why {\tt implies (x, y) = if x then y else False} is not a substitute for {\tt if-then-else}}
 % \todo{Talk about assumeSafe}
 
 %%%%%% Toolbox
@@ -312,28 +261,19 @@ include "../aes/AES.tex";
 % \end{code}
 % }
 
-%%%%%% Conclusion (milestone 2.1)
-% \input{conclusion/Conclusion.tex}
-% \commentout{
-% \begin{code}
-% include "../conclusion/Conclusion.tex";
-% \end{code}
-% }
-
 \appendix
 % \fancyhead[LO,RE]{\fancyplain{}{\textsf{\nouppercase{\leftmark}}}}
 \fancyhead[LO,RE]{\fancyplain{}{}}
 
 %%%% Solutions
 \chapter{Solutions to selected exercises}
-\label{cha:solut-select-exerc}
-
-As with any language, there are usually multiple ways to write the
-same function in Cryptol. We have tried to use the most idiomatic
+As with any language, there are usually multiple ways to write the same
+function in Cryptol. We have tried to use the most idiomatic
 Cryptol code segments in our solutions. Note that Cryptol prints
-numbers out in hexadecimal by default. In most of the answers below,
-we have implicitly used the command {\tt :set base=10} to print
-numbers out in decimal for readability.\indSettingBase \shipoutAnswer
+numbers out in hexadecimal by default. In most of the answers below, we 
+have implicitly used the command {\tt :set base=10} to print numbers
+out in decimal for readability.\indSettingBase
+\shipoutAnswer
 
 %%%% Cryptol primitives
 \input{prims/Primitives.tex}
@@ -359,8 +299,10 @@ include "../aes/AESCode.tex";
 \end{code}
 }
 
-%%%% Grammar
-%% TODO: make this not empty
+%%%% Language description & REPL commands
+\input{technicalities/TechAppendix.tex}
+
+%%%% Syntax (& Grammar someday)
 \input{appendices/grammar.tex}
 
 %%%% Glossary

@@ -5,16 +5,16 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
--- 
+--
 -- Simplification.
 -- The rules in this module are all conditional on the expressions being
 -- well-defined.
--- 
+--
 -- So, for example, consider the formula `P`, which corresponds to `fin e`.
 -- `P` says the following:
--- 
+--
 --     if e is well-formed, then will evaluate to a finite natural number.
--- 
+--
 -- More concretely, consider `fin (3 - 5)`.  This will be simplified to `True`,
 -- which does not mean that `3 - 5` is actually finite.
 
@@ -509,5 +509,3 @@ eNoInf expr =
          (_, K Inf, _) -> Impossible
          (_, _, K Inf) -> Impossible
          _             -> return (f x' y' z')
-
-

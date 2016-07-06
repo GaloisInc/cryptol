@@ -91,7 +91,7 @@ checkType t k =
   do (_, t1) <- withTParams True [] $ doCheckType t k
      return t1
 
-{- | Check someting with type parameters.
+{- | Check something with type parameters.
 
 When we check things with type parameters (i.e., type schemas, and type
 synonym declarations) we do kind inference based only on the immediately
@@ -113,7 +113,7 @@ To use such a function, we'd have to provide an explicit type application:
 There are two reasons for this choice:
 
   1. It makes it possible to figure if something is correct without
-     having to look trough arbitrary amounts of code.
+     having to look through arbitrary amounts of code.
 
   2. It is a bit easier to implement, and it covers the large majority
      of use cases, with a very small inconvenience (an explicit kind

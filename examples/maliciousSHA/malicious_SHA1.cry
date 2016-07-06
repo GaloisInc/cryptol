@@ -24,7 +24,7 @@ malicious_sha1 msg k = malicious_sha1' rmsg k
 
 malicious_sha1' : {chunks} (fin chunks) => [chunks][512] -> [4][32] -> [160]
 malicious_sha1' pmsg k = join (Hs!0)
-  where 
+  where
     Hs = [[0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0]] #
          [ malicious_block (H, split(M)) k
          | H <- Hs
@@ -53,7 +53,7 @@ eve1 = [
 
 //hexdump of file available at http://malicioussha1.github.io/pocs/eve2.sh
 //when executed will print "hello world"
-//The ascii cow and hello world can be switched out in both files 
+//The ascii cow and hello world can be switched out in both files
 //and the hashes will still collide. The next example shows this
 eve2 = [
 	0x1d23, 0x921b, 0x4014, 0xac09, 0x4d98, 0xd3a6, 0xe1bc, 0x4910,
@@ -94,7 +94,7 @@ eve1_galois = [
 	0x6365, 0x6f68, 0x2220, 0x6147, 0x6f6c, 0x7369, 0x3b22, 0x660a,
 	0x0a69]
 
-//hexdump malicious/eve1.sh	
+//hexdump malicious/eve1.sh
 eve2_galois = [
 	0x1d23, 0x921b, 0x4014, 0xac09, 0x4d98, 0xd3a6, 0xe1bc, 0x4910,
 	0x8570, 0x1812, 0x786f, 0xb926, 0x37bd, 0xac2b, 0x50ae, 0x6a08,
@@ -135,15 +135,15 @@ pad : {msgLen,contentLen,chunks,padding}
 pad msg = split (msg # [True] # (zero:[padding]) # (`msgLen:[64]))
 
 f : ([8], [32], [32], [32]) -> [32]
-f (t, x, y, z) = 
+f (t, x, y, z) =
        if (0 <= t)  && (t <= 19) then (x && y) ^ (~x && z)
         | (20 <= t) && (t <= 39) then x ^ y ^ z
         | (40 <= t) && (t <= 59) then (x && y) ^ (x && z) ^ (y && z)
         | (60 <= t) && (t <= 79) then x ^ y ^ z
         else error "f: t out of range"
 
-		
-Ks : [4][32] -> [80][32] 
+
+Ks : [4][32] -> [80][32]
 Ks k = [ k@0 | t <- [0..19]  ]
    # [ k@1 | t <- [20..39] ]
    # [ k@2 | t <- [40..59] ]
@@ -152,7 +152,7 @@ Ks k = [ k@0 | t <- [0..19]  ]
 malicious_block : ([5][32], [16][32]) -> [4][32]-> [5][32]
 malicious_block ([H0, H1, H2, H3, H4], M) k =
  [(H0+As@80), (H1+Bs@80), (H2+Cs@80), (H3+Ds@80), (H4+Es@80)]
-  where 
+  where
     Ws : [80][32]
     Ws = M # [ (W3 ^ W8 ^ W14 ^ W16) <<< 1
              | W16 <- drop`{16 - 16} Ws
@@ -172,4 +172,3 @@ malicious_block ([H0, H1, H2, H3, H4], M) k =
            | W <- Ws | K <- (Ks k)
            | t <- [0..79]
            ]
-   

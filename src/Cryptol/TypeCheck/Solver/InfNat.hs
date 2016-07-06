@@ -10,20 +10,20 @@
 -- element, and various arithmetic operators on them.
 
 {-# LANGUAGE Safe #-}
+
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.TypeCheck.Solver.InfNat where
 
 import Data.Bits
 import Cryptol.Utils.Panic
 
-import Data.GenericTrie(TrieKey)
-import GHC.Generics(Generic)
+import GHC.Generics (Generic)
+import Control.DeepSeq
 
 -- | Natural numbers with an infinity element
 data Nat' = Nat Integer | Inf
-            deriving (Show,Eq,Ord,Generic)
-
-instance TrieKey Nat'
+            deriving (Show, Eq, Ord, Generic, NFData)
 
 fromNat :: Nat' -> Maybe Integer
 fromNat n' =

@@ -14,7 +14,7 @@ let {} in a : [10]
 
 case a : [10] of { }
 
-// f (a :# b :: Int) = 
+// f (a :# b :: Int) =
 
 
 (fa,fb) = f6

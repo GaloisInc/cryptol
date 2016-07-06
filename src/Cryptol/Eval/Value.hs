@@ -6,12 +6,14 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE Safe #-}
+
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE Safe #-}
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE PatternGuards #-}
 module Cryptol.Eval.Value where
 
 import qualified Cryptol.Eval.Arch as Arch
@@ -29,61 +31,46 @@ import qualified Data.Text as T
 import Numeric (showIntAtBase)
 
 import GHC.Generics (Generic)
-import Control.DeepSeq.Generics
+import Control.DeepSeq
 
 -- Utilities -------------------------------------------------------------------
 
 isTBit :: TValue -> Bool
-isTBit (TValue ty) = case ty of
-  TCon (TC TCBit) [] -> True
-  _                  -> False
+isTBit TVBit = True
+isTBit _ = False
 
-isTSeq :: TValue -> Maybe (TValue, TValue)
-isTSeq (TValue (TCon (TC TCSeq) [t1,t2])) = Just (TValue t1, TValue t2)
+isTSeq :: TValue -> Maybe (Nat', TValue)
+isTSeq (TVSeq n t) = Just (Nat n, t)
+isTSeq (TVStream t) = Just (Inf, t)
 isTSeq _ = Nothing
 
 isTFun :: TValue -> Maybe (TValue, TValue)
-isTFun (TValue (TCon (TC TCFun) [t1,t2])) = Just (TValue t1, TValue t2)
+isTFun (TVFun t1 t2) = Just (t1, t2)
 isTFun _ = Nothing
 
 isTTuple :: TValue -> Maybe (Int,[TValue])
-isTTuple (TValue (TCon (TC (TCTuple n)) ts)) = Just (n, map TValue ts)
+isTTuple (TVTuple ts) = Just (length ts, ts)
 isTTuple _ = Nothing
 
 isTRec :: TValue -> Maybe [(Ident, TValue)]
-isTRec (TValue (TRec fs)) = Just [ (x, TValue t) | (x,t) <- fs ]
+isTRec (TVRec fs) = Just fs
 isTRec _ = Nothing
 
-tvSeq :: TValue -> TValue -> TValue
-tvSeq (TValue x) (TValue y) = TValue (tSeq x y)
+tvSeq :: Nat' -> TValue -> TValue
+tvSeq (Nat n) t = TVSeq n t
+tvSeq Inf     t = TVStream t
 
-
-
-numTValue :: TValue -> Nat'
-numTValue (TValue ty) =
-  case ty of
-    TCon (TC (TCNum x)) _ -> Nat x
-    TCon (TC TCInf) _     -> Inf
-    _ -> panic "Cryptol.Eval.Value.numTValue" [ "Not a numeric type:", show ty ]
-
-toNumTValue :: Nat' -> TValue
-toNumTValue (Nat n) = TValue (TCon (TC (TCNum n)) [])
-toNumTValue Inf     = TValue (TCon (TC TCInf) [])
-
-finTValue :: TValue -> Integer
-finTValue tval =
-  case numTValue tval of
+finNat' :: Nat' -> Integer
+finNat' n' =
+  case n' of
     Nat x -> x
-    Inf   -> panic "Cryptol.Eval.Value.finTValue" [ "Unexpected `inf`" ]
-
+    Inf   -> panic "Cryptol.Eval.Value.finNat'" [ "Unexpected `inf`" ]
 
 -- Values ----------------------------------------------------------------------
 
 -- | width, value
 -- Invariant: The value must be within the range 0 .. 2^width-1
-data BV = BV !Integer !Integer deriving (Generic)
-
-instance NFData BV where rnf = genericRnf
+data BV = BV !Integer !Integer deriving (Generic, NFData)
 
 -- | Smart constructor for 'BV's that checks for the width limit
 mkBv :: Integer -> Integer -> BV
@@ -101,20 +88,34 @@ data GenValue b w
   | VStream [GenValue b w]              -- @ [inf]a @
   | VFun (GenValue b w -> GenValue b w) -- functions
   | VPoly (TValue -> GenValue b w)      -- polymorphic values (kind *)
-  deriving (Generic)
-
-instance (NFData b, NFData w) => NFData (GenValue b w) where rnf = genericRnf
+  | VNumPoly (Nat' -> GenValue b w)     -- polymorphic values (kind #)
+  deriving (Generic, NFData)
 
 type Value = GenValue Bool BV
 
--- | An evaluated type.
+-- | An evaluated type of kind *.
 -- These types do not contain type variables, type synonyms, or type functions.
-newtype TValue = TValue { tValTy :: Type } deriving (Generic)
+data TValue
+  = TVBit
+  | TVSeq Integer TValue
+  | TVStream TValue -- ^ [inf]t
+  | TVTuple [TValue]
+  | TVRec [(Ident, TValue)]
+  | TVFun TValue TValue
+    deriving (Generic, NFData)
 
-instance NFData TValue where rnf = genericRnf
+tValTy :: TValue -> Type
+tValTy tv =
+  case tv of
+    TVBit       -> tBit
+    TVSeq n t   -> tSeq (tNum n) (tValTy t)
+    TVStream t  -> tSeq tInf (tValTy t)
+    TVTuple ts  -> tTuple (map tValTy ts)
+    TVRec fs    -> tRec [ (f, tValTy t) | (f, t) <- fs ]
+    TVFun t1 t2 -> tFun (tValTy t1) (tValTy t2)
 
 instance Show TValue where
-  showsPrec p (TValue v) = showsPrec p v
+  showsPrec p v = showsPrec p (tValTy v)
 
 
 -- Pretty Printing -------------------------------------------------------------
@@ -149,6 +150,7 @@ ppValue opts = loop
                                    )
     VFun _             -> text "<function>"
     VPoly _            -> text "<polymorphic value>"
+    VNumPoly _         -> text "<polymorphic value>"
 
   ppWordSeq ws =
     case ws of
@@ -242,9 +244,13 @@ word n i = VWord (mkBv n i)
 lam :: (GenValue b w -> GenValue b w) -> GenValue b w
 lam  = VFun
 
--- | A type lambda that expects a @Type@.
+-- | A type lambda that expects a @Type@ of kind *.
 tlam :: (TValue -> GenValue b w) -> GenValue b w
-tlam  = VPoly
+tlam = VPoly
+
+-- | A type lambda that expects a @Type@ of kind #.
+nlam :: (Nat' -> GenValue b w) -> GenValue b w
+nlam = VNumPoly
 
 -- | Generate a stream.
 toStream :: [GenValue b w] -> GenValue b w
@@ -259,8 +265,8 @@ boolToWord = VWord . packWord
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
-toSeq :: TValue -> TValue -> [GenValue b w] -> GenValue b w
-toSeq len elty vals = case numTValue len of
+toSeq :: Nat' -> TValue -> [GenValue b w] -> GenValue b w
+toSeq len elty vals = case len of
   Nat n -> toFinSeq elty (genericTake n vals)
   Inf   -> toStream vals
 
@@ -271,8 +277,8 @@ toSeq len elty vals = case numTValue len of
 --
 -- NOTE: do not use this constructor in the case where the thing may be a
 -- finite, but recursive, sequence.
-toPackedSeq :: TValue -> TValue -> [Value] -> Value
-toPackedSeq len elty vals = case numTValue len of
+toPackedSeq :: Nat' -> TValue -> [Value] -> Value
+toPackedSeq len elty vals = case len of
 
   -- finite sequence, pack a word if the elements are bits.
   Nat _ | isTBit elty -> boolToWord (map fromVBit vals)
@@ -331,6 +337,12 @@ fromVPoly :: GenValue b w -> (TValue -> GenValue b w)
 fromVPoly val = case val of
   VPoly f -> f
   _       -> evalPanic "fromVPoly" ["not a polymorphic value"]
+
+-- | Extract a polymorphic function from a value.
+fromVNumPoly :: GenValue b w -> (Nat' -> GenValue b w)
+fromVNumPoly val = case val of
+  VNumPoly f -> f
+  _          -> evalPanic "fromVNumPoly" ["not a polymorphic value"]
 
 -- | Extract a tuple from a value.
 fromVTuple :: GenValue b w -> [GenValue b w]

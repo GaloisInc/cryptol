@@ -12,6 +12,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ViewPatterns #-}
 
 module Cryptol.Symbolic where
 
@@ -31,7 +32,7 @@ import Cryptol.Symbolic.Prims
 import Cryptol.Symbolic.Value
 
 import qualified Cryptol.Eval.Value as Eval
-import qualified Cryptol.Eval.Type (evalType)
+import qualified Cryptol.Eval.Type (evalValType, evalNumType)
 import qualified Cryptol.Eval.Env (EvalEnv(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
@@ -257,21 +258,19 @@ data FinType
     | FTTuple [FinType]
     | FTRecord [(Ident, FinType)]
 
-numType :: Type -> Maybe Int
-numType (TCon (TC (TCNum n)) [])
+numType :: Integer -> Maybe Int
+numType n
   | 0 <= n && n <= toInteger (maxBound :: Int) = Just (fromInteger n)
-numType (TUser _ _ t) = numType t
-numType _ = Nothing
+  | otherwise = Nothing
 
-finType :: Type -> Maybe FinType
+finType :: TValue -> Maybe FinType
 finType ty =
   case ty of
-    TCon (TC TCBit) []       -> Just FTBit
-    TCon (TC TCSeq) [n, t]   -> FTSeq <$> numType n <*> finType t
-    TCon (TC (TCTuple _)) ts -> FTTuple <$> traverse finType ts
-    TRec fields              -> FTRecord <$> traverse (traverseSnd finType) fields
-    TUser _ _ t              -> finType t
-    _                        -> Nothing
+    TVBit        -> Just FTBit
+    TVSeq n t    -> FTSeq <$> numType n <*> finType t
+    TVTuple ts   -> FTTuple <$> traverse finType ts
+    TVRec fields -> FTRecord <$> traverse (traverseSnd finType) fields
+    _            -> Nothing
 
 unFinType :: FinType -> Type
 unFinType fty =
@@ -287,15 +286,15 @@ unFinType fty =
 predArgTypes :: Schema -> Either String [FinType]
 predArgTypes schema@(Forall ts ps ty)
   | null ts && null ps =
-      case go ty of
+      case go (Cryptol.Eval.Type.evalValType mempty ty) of
         Just fts -> Right fts
         Nothing  -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
   | otherwise = Left $ "Not a monomorphic type:\n" ++ show (pp schema)
   where
-    go (TCon (TC TCBit) []) = Just []
-    go (TCon (TC TCFun) [ty1, ty2]) = (:) <$> finType ty1 <*> go ty2
-    go (TUser _ _ t) = go t
-    go _ = Nothing
+    go :: TValue -> Maybe [FinType]
+    go TVBit           = Just []
+    go (TVFun ty1 ty2) = (:) <$> finType ty1 <*> go ty2
+    go _               = Nothing
 
 forallFinType :: FinType -> SBV.Symbolic Value
 forallFinType ty =
@@ -321,7 +320,7 @@ existsFinType ty =
 
 data Env = Env
   { envVars :: Map.Map Name Value
-  , envTypes :: Map.Map TVar TValue
+  , envTypes :: Map.Map TVar (Either Nat' TValue)
   }
 
 instance Monoid Env where
@@ -344,11 +343,11 @@ lookupVar :: Name -> Env -> Maybe Value
 lookupVar n env = Map.lookup n (envVars env)
 
 -- | Bind a type variable of kind *.
-bindType :: TVar -> TValue -> Env -> Env
+bindType :: TVar -> (Either Nat' TValue) -> Env -> Env
 bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
 
 -- | Lookup a type variable.
-lookupType :: TVar -> Env -> Maybe TValue
+lookupType :: TVar -> Env -> Maybe (Either Nat' TValue)
 lookupType p env = Map.lookup p (envTypes env)
 
 -- Expressions -----------------------------------------------------------------
@@ -361,13 +360,22 @@ evalExpr env expr =
     ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
     ESel e sel        -> evalSel sel (eval e)
     EIf b e1 e2       -> iteValue (fromVBit (eval b)) (eval e1) (eval e2)
-    EComp ty e mss    -> evalComp env (evalType env ty) e mss
+    EComp ty e mss    -> evalComp env (evalValType env ty) e mss
     EVar n            -> case lookupVar n env of
                            Just x -> x
                            _ -> panic "Cryptol.Symbolic.evalExpr" [ "Variable " ++ show n ++ " not found" ]
     -- TODO: how to deal with uninterpreted functions?
-    ETAbs tv e        -> VPoly $ \ty -> evalExpr (bindType (tpVar tv) ty env) e
-    ETApp e ty        -> fromVPoly (eval e) (evalType env ty)
+    ETAbs tv e -> case tpKind tv of
+      KType -> VPoly $ \ty -> evalExpr (bindType (tpVar tv) (Right ty) env) e
+      KNum  -> VNumPoly $ \n -> evalExpr (bindType (tpVar tv) (Left n) env) e
+      k     -> panic "[Symbolic] evalExpr" ["invalid kind on type abstraction", show k]
+    ETApp e ty        -> case eval e of
+      VPoly f    -> f (evalValType env ty)
+      VNumPoly f -> f (evalNumType env ty)
+      _          -> panic "[Symbolic] evalExpr"
+                         [ "expected a polymorphic value"
+                         , show e, show ty
+                         ]
     EApp e1 e2        -> fromVFun (eval e1) (eval e2)
     EAbs n _ty e      -> VFun $ \x -> evalExpr (bindVar (n, x) env) e
     EProofAbs _prop e -> eval e
@@ -377,10 +385,13 @@ evalExpr env expr =
     where
       eval e = evalExpr env e
 
-evalType :: Env -> Type -> TValue
-evalType env ty = Cryptol.Eval.Type.evalType env' ty
+evalValType :: Env -> Type -> TValue
+evalValType env ty = Cryptol.Eval.Type.evalValType env' ty
   where env' = Cryptol.Eval.Env.EvalEnv Map.empty (envTypes env)
 
+evalNumType :: Env -> Type -> Nat'
+evalNumType env ty = Cryptol.Eval.Type.evalNumType env' ty
+  where env' = Cryptol.Eval.Env.EvalEnv Map.empty (envTypes env)
 
 evalSel :: Selector -> Value -> Value
 evalSel sel v =
@@ -436,31 +447,32 @@ evalDecl env d = (dName d, body)
 copyBySchema :: Env -> Schema -> Value -> Value
 copyBySchema env0 (Forall params _props ty) = go params env0
   where
-    go [] env v = copyByType env (evalType env ty) v
+    go [] env v = copyByType env (evalValType env ty) v
     go (p : ps) env v =
-      VPoly (\t -> go ps (bindType (tpVar p) t env) (fromVPoly v t))
+      case tpKind p of
+        KType -> VPoly (\t -> go ps (bindType (tpVar p) (Right t) env) (fromVPoly v t))
+        KNum -> VNumPoly (\t -> go ps (bindType (tpVar p) (Left t) env) (fromVNumPoly v t))
+        k -> panic "[Eval] copyBySchema" ["invalid kind on type abstraction", show k]
 
 copyByType :: Env -> TValue -> Value -> Value
-copyByType env ty v
-  | isTBit ty                    = VBit (fromVBit v)
-  | Just (n, ety) <- isTSeq ty   = case numTValue n of
-                                     Nat _ -> VSeq (isTBit ety) (fromSeq v)
-                                     Inf   -> VStream (fromSeq v)
-  | Just (_, bty) <- isTFun ty   = VFun (\x -> copyByType env bty (fromVFun v x))
-  | Just (_, tys) <- isTTuple ty = VTuple (zipWith (copyByType env) tys (fromVTuple v))
-  | Just fs <- isTRec ty         = VRecord [ (f, copyByType env t (lookupRecord f v)) | (f, t) <- fs ]
-  | otherwise                    = v
--- copyByType env ty v = logicUnary id id (evalType env ty) v
+copyByType env ty v =
+  case ty of
+    TVBit       -> VBit (fromVBit v)
+    TVSeq _ ety -> VSeq (isTBit ety) (fromSeq v)
+    TVStream _  -> VStream (fromSeq v)
+    TVFun _ bty -> VFun (\x -> copyByType env bty (fromVFun v x))
+    TVTuple tys -> VTuple (zipWith (copyByType env) tys (fromVTuple v))
+    TVRec fs    -> VRecord [ (f, copyByType env t (lookupRecord f v)) | (f, t) <- fs ]
+-- copyByType env ty v = logicUnary id id (evalValType env ty) v
 
 -- List Comprehensions ---------------------------------------------------------
 
 -- | Evaluate a comprehension.
 evalComp :: Env -> TValue -> Expr -> [[Match]] -> Value
-evalComp env seqty body ms
-  | Just (len,el) <- isTSeq seqty = toSeq len el [ evalExpr e body | e <- envs ]
-  | otherwise = evalPanic "Cryptol.Eval" [ "evalComp given a non sequence"
-                                         , show seqty
-                                         ]
+evalComp env seqty body ms =
+  case Eval.isTSeq seqty of
+    Just (len, el) -> toSeq len el [ evalExpr e body | e <- envs ]
+    Nothing -> evalPanic "Cryptol.Eval" ["evalComp given a non sequence", show seqty]
 
   -- XXX we could potentially print this as a number if the type was available.
   where

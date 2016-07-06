@@ -1,4 +1,18 @@
 :set warnDefaulting=off
-:set prover=yices
 :l HighAssurance.tex
-:prove caesarCorrect : ([8], String(8)) -> Bit
+:prove caesarCorrect : ([8], String 12) -> Bit
+:prove sqDiffsCorrect
+:prove revRev : ([16] -> Bit)
+:prove appAssoc : ([16], [12], [28]) -> Bit
+:prove revApp : ([10][8], [5][8]) -> Bit
+:prove lshMul : ([32], [32]) -> Bit
+:prove inctest
+:prove multShift : ([32] -> Bit)
+:prove flipNeverIdentity : ([32] -> Bit)
+:prove widthPoly : ([15] -> Bit)
+:prove widthPoly : ([16] -> Bit)
+:prove evenWidth : ([16] -> Bit)
+:prove evenWidth : ([15] -> Bit)
+:prove divModMul : ([12], [12]) -> Bit
+:prove modelEnigmaCorrect : (String 12 -> Bit)
+:prove easyBug

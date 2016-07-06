@@ -6,9 +6,10 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Parser.LexerUtils where
 
 import Cryptol.Parser.Position
@@ -18,13 +19,12 @@ import Cryptol.Utils.Panic
 
 import           Data.Char(toLower,generalCategory,isAscii,ord,isSpace)
 import qualified Data.Char as Char
-import           Data.List(foldl')
 import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy as T
 import           Data.Word(Word8)
 
 import GHC.Generics (Generic)
-import Control.DeepSeq.Generics
+import Control.DeepSeq
 
 data Config = Config
   { cfgSource      :: !FilePath     -- ^ File that we are working on
@@ -169,20 +169,20 @@ mkIdent :: Action
 mkIdent cfg p s z = (Just Located { srcRange = r, thing = Token t s }, z)
   where
   r = Range { from = p, to = moves p s, source = cfgSource cfg }
-  t = Ident [] (T.unpack s)
+  t = Ident [] s
 
 mkQualIdent :: Action
 mkQualIdent cfg p s z = (Just Located { srcRange = r, thing = Token t s}, z)
   where
   r = Range { from = p, to = moves p s, source = cfgSource cfg }
-  t = Ident (map T.unpack ns) (T.unpack i)
+  t = Ident ns i
   (ns,i) = splitQual s
 
 mkQualOp :: Action
 mkQualOp cfg p s z = (Just Located { srcRange = r, thing = Token t s}, z)
   where
   r = Range { from = p, to = moves p s, source = cfgSource cfg }
-  t = Op (Other (map T.unpack ns) (T.unpack i))
+  t = Op (Other ns i)
   (ns,i) = splitQual s
 
 emit :: TokenT -> Action
@@ -190,8 +190,8 @@ emit t cfg p s z  = (Just Located { srcRange = r, thing = Token t s }, z)
   where r = Range { from = p, to = moves p s, source = cfgSource cfg }
 
 
-emitS :: (String -> TokenT) -> Action
-emitS t cfg p s z  = emit (t (T.unpack s)) cfg p s z
+emitS :: (Text -> TokenT) -> Action
+emitS t cfg p s z  = emit (t s) cfg p s z
 
 
 -- | Split out the prefix and name part of an identifier/operator.
@@ -213,10 +213,10 @@ splitQual t =
 
 
 --------------------------------------------------------------------------------
-numToken :: Integer -> String -> TokenT
-numToken rad ds = Num (toVal ds) (fromInteger rad) (length ds)
+numToken :: Integer -> Text -> TokenT
+numToken rad ds = Num (toVal ds) (fromInteger rad) (fromIntegral (T.length ds))
   where
-  toVal = foldl' (\x c -> rad * x + toDig c) 0
+  toVal = T.foldl' (\x c -> rad * x + toDig c) 0
   toDig = if rad == 16 then fromHexDigit else fromDecDigit
 
 fromDecDigit   :: Char -> Integer
@@ -355,20 +355,14 @@ virt cfg pos x = Located { srcRange = Range
 --------------------------------------------------------------------------------
 
 data Token    = Token { tokenType :: TokenT, tokenText :: Text }
-                deriving (Show, Generic)
-
-instance NFData Token where rnf = genericRnf
+                deriving (Show, Generic, NFData)
 
 -- | Virtual tokens, inserted by layout processing.
 data TokenV   = VCurlyL| VCurlyR | VSemi
-                deriving (Eq,Show,Generic)
-
-instance NFData TokenV where rnf = genericRnf
+                deriving (Eq, Show, Generic, NFData)
 
 data TokenW   = BlockComment | LineComment | Space | DocStr
-                deriving (Eq,Show,Generic)
-
-instance NFData TokenW where rnf = genericRnf
+                deriving (Eq, Show, Generic, NFData)
 
 data TokenKW  = KW_Arith
               | KW_Bit
@@ -402,19 +396,15 @@ data TokenKW  = KW_Arith
               | KW_infixr
               | KW_infix
               | KW_primitive
-                deriving (Eq,Show,Generic)
-
-instance NFData TokenKW where rnf = genericRnf
+                deriving (Eq, Show, Generic, NFData)
 
 -- | The named operators are a special case for parsing types, and 'Other' is
 -- used for all other cases that lexed as an operator.
 data TokenOp  = Plus | Minus | Mul | Div | Exp | Mod
               | Equal | LEQ | GEQ
               | Complement | Hash
-              | Other [String] String
-                deriving (Eq,Show,Generic)
-
-instance NFData TokenOp where rnf = genericRnf
+              | Other [T.Text] T.Text
+                deriving (Eq, Show, Generic, NFData)
 
 data TokenSym = Bar
               | ArrL | ArrR | FatArrR
@@ -432,9 +422,7 @@ data TokenSym = Bar
               | CurlyL   | CurlyR
               | TriL     | TriR
               | Underscore
-                deriving (Eq,Show,Generic)
-
-instance NFData TokenSym where rnf = genericRnf
+                deriving (Eq, Show, Generic, NFData)
 
 data TokenErr = UnterminatedComment
               | UnterminatedString
@@ -442,13 +430,11 @@ data TokenErr = UnterminatedComment
               | InvalidString
               | InvalidChar
               | LexicalError
-                deriving (Eq,Show,Generic)
-
-instance NFData TokenErr where rnf = genericRnf
+                deriving (Eq, Show, Generic, NFData)
 
 data TokenT   = Num Integer Int Int   -- ^ value, base, number of digits
               | ChrLit  Char          -- ^ character literal
-              | Ident [String] String -- ^ (qualified) identifier
+              | Ident [T.Text] T.Text -- ^ (qualified) identifier
               | StrLit String         -- ^ string literal
               | KW    TokenKW         -- ^ keyword
               | Op    TokenOp         -- ^ operator
@@ -457,13 +443,10 @@ data TokenT   = Num Integer Int Int   -- ^ value, base, number of digits
               | White TokenW          -- ^ white space token
               | Err   TokenErr        -- ^ error token
               | EOF
-                deriving (Eq,Show,Generic)
-
-instance NFData TokenT where rnf = genericRnf
+                deriving (Eq, Show, Generic, NFData)
 
 instance PP Token where
   ppPrec _ (Token _ s) = text (T.unpack s)
-
 
 -- | Collapse characters into a single Word8, identifying ASCII, and classes of
 -- unicode.  This came from:

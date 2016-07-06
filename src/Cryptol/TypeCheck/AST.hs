@@ -7,10 +7,11 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe                                #-}
+
 {-# LANGUAGE RecordWildCards                     #-}
 {-# LANGUAGE PatternGuards                       #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
-{-# LANGUAGE DeriveGeneric                       #-}
+{-# LANGUAGE DeriveAnyClass, DeriveGeneric       #-}
 module Cryptol.TypeCheck.AST
   ( module Cryptol.TypeCheck.AST
   , Name()
@@ -37,7 +38,7 @@ import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
 
 import GHC.Generics (Generic)
-import Control.DeepSeq.Generics
+import Control.DeepSeq
 
 import           Data.Map    (Map)
 import qualified Data.Map as Map
@@ -52,26 +53,20 @@ data Module = Module { mName     :: !ModName
                      , mTySyns   :: Map Name TySyn
                      , mNewtypes :: Map Name Newtype
                      , mDecls    :: [DeclGroup]
-                     } deriving (Show, Generic)
-
-instance NFData Module where rnf = genericRnf
+                     } deriving (Show, Generic, NFData)
 
 -- | Kinds, classify types.
 data Kind   = KType
             | KNum
             | KProp
             | Kind :-> Kind
-              deriving (Eq, Show, Generic)
+              deriving (Eq, Show, Generic, NFData)
 infixr 5 :->
-
-instance NFData Kind where rnf = genericRnf
 
 
 -- | The types of polymorphic values.
 data Schema = Forall { sVars :: [TParam], sProps :: [Prop], sType :: Type }
-              deriving (Eq, Show, Generic)
-
-instance NFData Schema where rnf = genericRnf
+              deriving (Eq, Show, Generic, NFData)
 
 -- | Type synonym.
 data TySyn  = TySyn { tsName        :: Name       -- ^ Name
@@ -79,27 +74,21 @@ data TySyn  = TySyn { tsName        :: Name       -- ^ Name
                     , tsConstraints :: [Prop]     -- ^ Ensure body is OK
                     , tsDef         :: Type       -- ^ Definition
                     }
-              deriving (Eq, Show, Generic)
-
-instance NFData TySyn where rnf = genericRnf
+              deriving (Eq, Show, Generic, NFData)
 
 -- | Named records
 data Newtype  = Newtype { ntName   :: Name
                         , ntParams :: [TParam]
                         , ntConstraints :: [Prop]
                         , ntFields :: [(Ident,Type)]
-                        } deriving (Show, Generic)
-
-instance NFData Newtype where rnf = genericRnf
+                        } deriving (Show, Generic, NFData)
 
 -- | Type parameters.
 data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
                      , tpKind   :: Kind       -- ^ Kind of parameter
                      , tpName   :: Maybe Name -- ^ Name from source, if any.
                      }
-              deriving (Show, Generic)
-
-instance NFData TParam where rnf = genericRnf
+              deriving (Show, Generic, NFData)
 
 instance Eq TParam where
   x == y = tpUnique x == tpUnique y
@@ -128,9 +117,7 @@ data Type   = TCon TCon [Type]
             | TRec [(Ident,Type)]
               -- ^ Record type
 
-              deriving (Show,Eq,Ord,Generic)
-
-instance NFData Type where rnf = genericRnf
+              deriving (Show, Eq, Ord, Generic, NFData)
 
 -- | The type is supposed to be of kind `KProp`
 type Prop   = Type
@@ -146,15 +133,11 @@ data TVar   = TVFree !Int Kind (Set TVar) Doc
 
 
             | TVBound !Int Kind
-              deriving (Show,Generic)
-
-instance NFData TVar where rnf = genericRnf
+              deriving (Show, Generic, NFData)
 
 -- | Type constants.
 data TCon   = TC TC | PC PC | TF TFun
-              deriving (Show,Eq,Ord,Generic)
-
-instance NFData TCon where rnf = genericRnf
+              deriving (Show, Eq, Ord, Generic, NFData)
 
 -- | Built-in type constants.
 
@@ -168,9 +151,7 @@ data PC     = PEqual        -- ^ @_ == _@
             | PHas Selector -- ^ @Has sel type field@ does not appear in schemas
             | PArith        -- ^ @Arith _@
             | PCmp          -- ^ @Cmp _@
-              deriving (Show,Eq,Ord,Generic)
-
-instance NFData PC where rnf = genericRnf
+              deriving (Show, Eq, Ord, Generic, NFData)
 
 -- | 1-1 constants.
 data TC     = TCNum Integer            -- ^ Numbers
@@ -180,14 +161,10 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCFun                    -- ^ @_ -> _@
             | TCTuple Int              -- ^ @(_, _, _)@
             | TCNewtype UserTC         -- ^ user-defined, @T@
-              deriving (Show,Eq,Ord,Generic)
-
-instance NFData TC where rnf = genericRnf
+              deriving (Show, Eq, Ord, Generic, NFData)
 
 data UserTC = UserTC Name Kind
-              deriving (Show,Generic)
-
-instance NFData UserTC where rnf = genericRnf
+              deriving (Show, Generic, NFData)
 
 instance Eq UserTC where
   UserTC x _ == UserTC y _ = x == y
@@ -264,23 +241,17 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
 
             | EWhere Expr [DeclGroup]
 
-              deriving (Show, Generic)
-
-instance NFData Expr where rnf = genericRnf
+              deriving (Show, Generic, NFData)
 
 
 data Match  = From Name Type Expr -- ^ do we need this type?  it seems like it
                                   --   can be computed from the expr
             | Let Decl
-              deriving (Show, Generic)
-
-instance NFData Match where rnf = genericRnf
+              deriving (Show, Generic, NFData)
 
 data DeclGroup  = Recursive   [Decl]    -- ^ Mutually recursive declarations
                 | NonRecursive Decl     -- ^ Non-recursive declaration
-                  deriving (Show,Generic)
-
-instance NFData DeclGroup where rnf = genericRnf
+                  deriving (Show, Generic, NFData)
 
 groupDecls :: DeclGroup -> [Decl]
 groupDecls dg = case dg of
@@ -294,15 +265,11 @@ data Decl       = Decl { dName        :: !Name
                        , dInfix       :: !Bool
                        , dFixity      :: Maybe Fixity
                        , dDoc         :: Maybe String
-                       } deriving (Show,Generic)
-
-instance NFData Decl where rnf = genericRnf
+                       } deriving (Show, Generic, NFData)
 
 data DeclDef    = DPrim
                 | DExpr Expr
-                  deriving (Show,Generic)
-
-instance NFData DeclDef where rnf = genericRnf
+                  deriving (Show, Generic, NFData)
 
 --------------------------------------------------------------------------------
 

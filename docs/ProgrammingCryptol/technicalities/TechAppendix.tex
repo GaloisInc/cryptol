@@ -1,0 +1,251 @@
+%=====================================================================
+\chapter{Technicalities}
+\label{sec:technicalities}
+
+The summary below describes language
+features, as well as commands that are available at the {\tt Cryptol>}
+prompt. Commands all begin with the {\tt :} character.
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\section{Language features}
+\label{sec:language-features}
+
+The Cryptol language is a size-polymorphic dependently-typed
+programming language with support for polymorphic recursive functions.
+It has a small syntax tuned for applied cryptography, a lightweight
+module system, a pseudo-Real/Eval/Print/Loop (REPL) top-level, and a
+rich set of built-in tools for performing high-assurance (literate)
+programming.  Cryptol performs fairly advanced type inference, though
+as with most mainstream strongly typed functional languages, types can
+be manually specified as well.  What follows is a brief tour of
+Cryptol's most salient language features.
+
+\paragraph*{Case sensitivity} 
+Cryptol identifiers are case sensitive. {\tt A} and {\tt a} are two
+different things.\indCaseSensitive
+
+\paragraph*{Indentation and whitespace} 
+Cryptol uses indentation-level (instead of \{\}'s) to denote blocks.
+Whitespace within a line is immaterial, as is the specific amount of
+indentation.  However, consistent indentation will save you tons of
+trouble down the road!  Do not mix tabs and spaces for your
+indentation.  Spaces are generally preferred.
+
+\paragraph*{Escape characters}
+Long lines can be continued with the end-of-line escape character
+\texttt{$\backslash$}, as in many programming languages.\indLineCont
+There are no built-in character escape characters, as Cryptol performs
+no interpretation on bytes beyond printing byte streams out in ASCII,
+as discussed above.
+
+\paragraph*{Comments}\indComments
+Block comments are enclosed in {\tt /*} and {\tt */}, and they can be
+nested. Line comments start with {\tt //} and run to the end of the
+line.
+
+\paragraph*{Order of definitions}
+The order of definitions is immaterial. You can write your definitions
+in any order, and earlier entries can refer to latter ones.
+
+\paragraph*{Typing}
+Cryptol is strongly typed. This means that the interpreter will catch
+most common mistakes in programming during the type-checking phase,
+before runtime.
+
+\paragraph*{Type inference}
+Cryptol has type inference. This means that the user can omit type
+signatures because the inference engine will supply
+them.\indTypeInference
+
+\paragraph*{Type signatures}
+While writing type signatures are optional, writing them down is
+considered good practice.\indSignature
+
+\paragraph*{Polymorphism}
+Cryptol functions can be polymorphic, which means they can operate on
+many different types.  Beware that the type which Cryptol infers might
+be too polymorphic, so it is good practice to write your signatures,
+or at least check what Cryptol inferred is what you had in
+mind.\indPolymorphism\indSignature
+
+\paragraph*{Module system} 
+Each Cryptol file defines a {\it module}. Modules allow Cryptol
+developers to manage which definitions are exported (the default
+behavior) and which definitions are internal-only ({\it private}). At
+the beginning of each Cryptol file, you specify its name and use {\tt
+  import}\indImport to specify the modules on which it
+relies.\indModuleSystem  Definitions are {\tt public} by default, but
+you can hide them from modules that import your code via the {\tt
+  private} keyword at the start of each private definition,\indPrivate
+like this:
+\begin{Verbatim}
+  module test where
+  private
+    hiddenConst = 0x5      // hidden from importing modules
+  // end of indented block indicates symbols are available to importing modules
+  revealedConst = 0x15
+\end{Verbatim}
+Note that the filename should correspond to the module name, so {\tt
+  module test} must be defined in a file called {\tt test.cry}.
+
+\todo[inline]{Say what happens if you try to put multiple modules into a
+  single file.}
+
+\todo[inline]{Check with Trevor about module hierarchy and module visibility;
+  lambda or default modules; what modules are visible in the top level
+  - talk about Cryptol prelude here?}
+
+\paragraph*{Literate programming} 
+You can feed \LaTeX~files to Cryptol (i.e., files with extension {\tt
+  .tex}).  Cryptol will look for \verb|\begin{code}| and
+  \verb|\end{code}| marks to extract Cryptol code.  Everything else
+will be comments as far as Cryptol is concerned.  In fact, the book
+you are reading is a Literate Cryptol program.\indLiterateProgramming
+
+\todo[inline]{Discuss Cryptol support for literate Markdown. Use ticks to
+  delimit code blocks in Markdown layout.  Talk with Trevor.}
+
+\paragraph*{Completion}
+On UNIX-based machines, you can press tab at any time and Cryptol will
+suggests completions based on the context.  You can retrieve your
+prior commands using the usual means (arrow keys or Emacs
+keybindings).\indCompletion
+
+\todo[inline]{Ask Adam F about the best way to describe what can be tab-completed.}
+\todo[inline]{Is readline on windows still broken / worse than Unix?}
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\section{Commands}
+\label{sec:commands}
+
+\paragraph*{Querying types}
+You can ask Cryptol to tell you the type of an expression by typing
+{\tt :type <expr>} (or {\tt :t} for short). If {\tt foo} is the name
+of a definition (function or otherwise), you can ask its type by
+issuing {\tt :type foo}.\indCmdType It is common practice to define a
+function, ask Cryptol its type, and copy the response back to your
+source code.  While this is somewhat contrived, it is usually better
+than not writing signatures at all.\indSignature In order to query the
+type of an infix operator (e.g., {\tt +}, {\tt ==}, etc.)  you will need
+to surround the operator with {\tt ()}'s, like this:
+\begin{Verbatim}
+  Cryptol> :t (+)
+  + : {a} (Arith a) => a -> a -> a
+\end{Verbatim}
+
+\paragraph*{Browsing definitions}
+The command {\tt :browse} (or {\tt :b} for short) will display all the
+names you have defined, along with their types.\indCmdBrowse
+
+\paragraph*{Getting help} 
+The command {\tt :help} will show you all the available
+commands.\indCmdHelp Other useful implicit help invocations are:
+(a)~to type tab at the {\tt Cryptol>} prompt, which will list all of
+the operators available in Cryptol code, (b)~typing {\tt :set} with no
+argument, which shows you the parameters that can be set, and (c), as
+noted elsewhere, {\tt :browse} to see the names of functions and type
+aliases you have defined, along with their types.
+
+\todo[inline]{What should \texttt{:help symbolname} do, especially for
+  prelude functions and types?  How about for commands?}
+
+\begin{center}
+  \begin{tabular*}{0.75\textwidth}[h]{c|c|l}
+    \hline
+     \textbf{Option}     & \textbf{Default value} & \textbf{Meaning}  \\
+    \hline
+     \texttt{ascii}           & \texttt{off}   & print sequences of bytes as a string  \\
+     \texttt{base}            & \texttt{10}    & numeric base for printing words  \\
+     \texttt{debug}           & \texttt{off}   & whether to print verbose debugging information \\
+     \texttt{infLength}       & \texttt{5}     & number of elements to show from an infinite sequence \\
+     \texttt{prover}          & \texttt{z3}    & which SMT solver to use for \texttt{:prove}  \\
+     \texttt{tests}           & \texttt{100}   & number of tests to run for \texttt{:check} \\
+     \texttt{warnDefaulting}  & \texttt{on}    & \todo[inline]{talk to Iavor} \\
+    \hline
+  \end{tabular*}
+  \label{tab:set_options}
+\end{center}
+\paragraph*{Environment options}
+A variety of environment options are set through the use of the
+\texttt{:set} command.  These options may change over time and some
+options may be available only on specific platforms.  The current
+options are summarized in~\autoref{tab:set_options}.
+
+\todo[inline]{Ensure index references exist for all commands.}
+
+\paragraph*{Quitting}
+You can quit Cryptol by using the command {\tt :quit} (aka
+\texttt{:q}).  On Mac/Linux you can press Ctrl-D, and on Windows use
+Ctrl-Z, for the same effect.\indCmdQuit
+
+\paragraph*{Loading and reloading files}
+You load your program in Cryptol using {\tt :load <filename>} (or
+\texttt{:l} for short).  However, it is customary to use the extension
+{\tt .cry} for Cryptol programs.\indCmdLoad If you edit the source
+file loaded into Cryptol from a separate context, you can reload it
+into Cryptol using the command {\tt :reload} (abbreviated {\tt
+  :r}).\indCmdReload
+
+\paragraph*{Invoking your editor}
+You can invoke your editor using the command {\tt :edit} (abbreviated
+\texttt{:e}).\indCmdEdit The default editor invoked is
+\texttt{vi}.  You override the default using the standard
+\texttt{EDITOR} environmental variable in your shell.\indSettingEditor
+
+\todo[inline]{I have filed a feature enhancement for missing \texttt{editor}
+  environment variable as 
+\href{https://www.galois.com/cryptol/ticket/273}{ticket \#273}.
+We want to write: ``You set your favorite editor by :set
+  editor=/path/to/editor.''}
+
+\paragraph*{Running shell commands}
+You can run Unix shell commands from within Cryptol like this: {\tt :!
+  cat test.cry}.\indCmdShell
+
+\paragraph*{Changing working directory}
+You can change the current working directory of Cryptol like this:
+\texttt{:cd some/path}.  Note that the path syntax is
+platform-dependent.
+% indeed it is, but both \'s and /'s are supported on windows.
+% currently directories with spaces break things...issue 291 has been filed
+% dylan - 2014-03-27
+
+\paragraph*{Loading a module}
+At the Cryptol prompt you can load a module by name with the {\tt
+  :module} command.\indCmdLoadModule
+
+The next three commands all operate on \emph{properties}.  All take
+either one or zero arguments.  If one argument is provided, then that
+property is the focus of the command; otherwise all properties in the
+current context are checked.  All three commands are covered in detail
+in~\autoref{cha:high-assur-progr}.
+
+\paragraph*{Checking a property through random testing}
+The \texttt{:check} command performs random value testing on a
+property to increase one's confidence that the property is valid.
+See~\autoref{sec:quickcheck} for more detailed information.
+
+\paragraph*{Verifying a property through automated theorem proving}
+The \texttt{:prove} command uses an external SMT solver to attempt to
+automatically formally prove that a given property is valid.
+See~\autoref{sec:formal-proofs} for more detailed information.
+
+\paragraph*{Finding a satisfying assignment for a property}
+The \texttt{:sat} command uses an external SAT solver to attempt to
+find a satisfying assignment to a property.  See~\autoref{sec:sat} for
+more detailed information.
+
+\paragraph*{Type specialization}
+Discuss \texttt{:debug\_specialize}.  \todo[inline]{Dylan?}
+
+%=====================================================================
+%\section{Using Cryptol: The Big Picture}
+%\label{sec:using-cryptol}
+
+\todo[inline]{2.1: Add some big picture on process and use of the tools.
+  Put it on the website now and then migrate it to the book later.}
+
+%%% Local Variables: 
+%%% mode: latex
+%%% TeX-master: "../main/Cryptol"
+%%% End: 

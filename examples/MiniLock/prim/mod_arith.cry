@@ -45,7 +45,7 @@ mod_div(p,x,y) = egcd(p,0,y,x)
         egcd(a, ra, b >> 1, mod_half(p, rb))
       else if a < b then
         egcd(a, ra, (b - a) >> 1, mod_half(p, mod_sub(p, rb, ra)))
-      else 
+      else
         egcd(b, rb, (a - b) >> 1, mod_half(p, mod_sub(p, ra, rb)))
 
 mod_pow : {a} (fin a, a >= 1) => ([a] , [a] , [a]) -> [a]

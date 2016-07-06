@@ -222,7 +222,7 @@ Explicit record selectors may be used only if the program contains
 sufficient type information to determine the shape of the tuple or
 record.  For example:
 
-    type T = { sign :: Bit, number :: [15] }
+    type T = { sign : Bit, number : [15] }
 
     // Valid definition:
     // the type of the record is known.
@@ -326,7 +326,7 @@ Here `t` should be a type expression with numeric kind.  The resulting
 expression is a finite word, which is sufficiently large to accommodate
 the value of the type:
 
-    `{t} :: {w >= width t}. [w]
+    `{t} : {w >= width t}. [w]
 
 Explicit Type Annotations
 =========================
