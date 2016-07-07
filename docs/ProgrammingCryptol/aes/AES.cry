@@ -149,9 +149,6 @@ keyWS seed    = xs
                        | old  <- xs
                        ]
 
-checkKey = take`{16} (drop`{8} (keyWS ["abcd", "defg", "1234", "5678"]))
-checkKey2 = [transpose g | g <- groupBy`{4}checkKey]
-
 ExpandKey : [AESKeySize] -> KeySchedule
 ExpandKey key = (keys @ 0, keys @@ [1 .. (Nr - 1)], keys @ `Nr)
   where   seed : [Nk][4][8]
