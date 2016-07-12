@@ -15,6 +15,8 @@ import Cryptol.Eval.Monad     (ready)
 import Cryptol.Eval.Value     (BV(..),Value,GenValue(..),SeqMap(..), WordValue(..))
 import qualified Cryptol.Testing.Concrete as Conc
 import Cryptol.TypeCheck.AST  (Type(..),TCon(..),TC(..),tNoUser)
+import Cryptol.TypeCheck.Solve(simpType)
+
 import Cryptol.Utils.Ident    (Ident)
 
 import Control.Monad          (forM)
@@ -64,7 +66,7 @@ randomValue :: RandomGen g => Type -> Maybe (Gen g)
 randomValue ty =
   case ty of
     TCon tc ts  ->
-      case (tc, map tNoUser ts) of
+      case (tc, map (simpType . tNoUser) ts) of
         (TC TCBit, [])                        -> Just randomBit
 
         (TC TCSeq, [TCon (TC TCInf) [], el])  ->

@@ -4,7 +4,7 @@ UNAME   := $(shell uname -s)
 ARCH    := $(shell uname -m)
 
 TESTS ?= parser issues regression renamer mono-binds
-TEST_DIFF ?= meld
+DIFF ?= meld
 
 IGNORE_EXPECTED ?= --ignore-expected
 
@@ -260,7 +260,7 @@ test: ${CS_BIN}/cryptol-test-runner
 	  -T --hide-successes                                              \
 	  -T --jxml=$(call adjust-path,$(CURDIR)/results.xml)              \
 	  $(IGNORE_EXPECTED)                                               \
-	  $(if $(TEST_DIFF),-p $(TEST_DIFF),)                              \
+	  $(if $(DIFF),-p $(DIFF),)                              \
 	)
 
 # Since this is meant for development rather than end-user builds,
