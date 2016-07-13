@@ -367,13 +367,6 @@ arithBinary op = loop
       return $ VRecord [ (f, loop' fty (lookupRecord f l) (lookupRecord f r))
                        | (f,fty) <- fs ]
 
-    -- | otherwise = do
-    --       ldoc <- ppValue defaultPPOpts l
-    --       rdoc <- ppValue defaultPPOpts r
-    --       evalPanic "arithBinop" ["Invalid arguments", show ty
-    --                              , show ldoc, show rdoc]
-
-
 type UnaryArith w = Integer -> w -> w
 
 liftUnaryArith :: (Integer -> Integer) -> UnaryArith BV

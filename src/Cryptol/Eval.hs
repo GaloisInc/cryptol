@@ -53,9 +53,11 @@ type ReadEnv = EvalEnv
 
 -- Expression Evaluation -------------------------------------------------------
 
+-- | Extend the given evaluation environment with all the declarations
+--   contained in the given module.
 moduleEnv :: EvalPrims b w
-          => Module
-          -> GenEvalEnv b w
+          => Module         -- ^ Module containing declarations to evaluate
+          -> GenEvalEnv b w -- ^ Environment to extend
           -> Eval (GenEvalEnv b w)
 moduleEnv m env = evalDecls (mDecls m) =<< evalNewtypes (mNewtypes m) env
 
@@ -63,8 +65,8 @@ moduleEnv m env = evalDecls (mDecls m) =<< evalNewtypes (mNewtypes m) env
 --   by the `EvalPrims` class, which defines the behavior of bits and words, in
 --   addition to providing implementations for all the primitives.
 evalExpr :: EvalPrims b w
-         => GenEvalEnv b w
-         -> Expr
+         => GenEvalEnv b w     -- ^ Evaluation environment
+         -> Expr               -- ^ Expression to evaluate
          -> Eval (GenValue b w)
 evalExpr env expr = case expr of
 
@@ -182,9 +184,11 @@ evalNewtype nt = bindVar (ntName nt) (return (foldr tabs con (ntParams nt)))
 
 -- Declarations ----------------------------------------------------------------
 
+-- | Extend the given evaluation environment with the result of evaluating the
+--   given collection of declaration groups.
 evalDecls :: EvalPrims b w
-          => [DeclGroup]
-          -> GenEvalEnv b w
+          => [DeclGroup]         -- ^ Declaration groups to evaluate
+          -> GenEvalEnv b w      -- ^ Environment to extend
           -> Eval (GenEvalEnv b w)
 evalDecls dgs env = foldM evalDeclGroup env dgs
 

@@ -195,17 +195,17 @@ indexWordValue (BitsVal bs) idx = Seq.index bs (fromInteger idx)
 --   Always use the `VWord` constructor instead!  Infinite sequences of bits
 --   are handled by the `VStream` constructor, just as for other types.
 data GenValue b w
-  = VRecord ![(Ident, Eval (GenValue b w))] -- @ { .. } @
-  | VTuple ![Eval (GenValue b w)]           -- @ ( .. ) @
-  | VBit !b                                 -- @ Bit    @
-  | VSeq !Integer !(SeqMap b w)             -- @ [n]a   @
-                                            -- Invariant: VSeq is never a sequence of bits
-  | VWord !Integer !(Eval (WordValue b w))  -- @ [n]Bit @
-  | VStream !(SeqMap b w)                   -- @ [inf]a @
-  | VFun (Eval (GenValue b w) -> Eval (GenValue b w)) -- functions
-  | VPoly (TValue -> Eval (GenValue b w))   -- polymorphic values (kind *)
-  | VNumPoly (Nat' -> Eval (GenValue b w))  -- polymorphic values (kind #)
-  deriving (Generic, NFData)
+  = VRecord ![(Ident, Eval (GenValue b w))] -- ^ @ { .. } @
+  | VTuple ![Eval (GenValue b w)]           -- ^ @ ( .. ) @
+  | VBit !b                                 -- ^ @ Bit    @
+  | VSeq !Integer !(SeqMap b w)             -- ^ @ [n]a   @
+                                            --   Invariant: VSeq is never a sequence of bits
+  | VWord !Integer !(Eval (WordValue b w))  -- ^ @ [n]Bit @
+  | VStream !(SeqMap b w)                   -- ^ @ [inf]a @
+  | VFun (Eval (GenValue b w) -> Eval (GenValue b w)) -- ^ functions
+  | VPoly (TValue -> Eval (GenValue b w))   -- ^ polymorphic values (kind *)
+  | VNumPoly (Nat' -> Eval (GenValue b w))  -- ^ polymorphic values (kind #)
+ deriving (Generic, NFData)
 
 
 -- | Force the evaluation of a word value

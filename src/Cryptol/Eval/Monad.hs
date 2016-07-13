@@ -110,6 +110,7 @@ unDelay retry r x = do
       writeIORef r (Forced val)
       return val
 
+-- | Execute the given evaluation action.
 runEval :: Eval a -> IO a
 runEval (Ready a) = return a
 runEval (Thunk x) = x
@@ -121,7 +122,7 @@ evalBind (Thunk x) f  = Thunk (x >>= runEval . f)
 
 instance Functor Eval where
   fmap f (Ready x) = Ready (f x)
-  fmap f (Thunk m) = Thunk (f <$> m) 
+  fmap f (Thunk m) = Thunk (f <$> m)
   {-# INLINE fmap #-}
 
 instance Applicative Eval where
@@ -159,13 +160,14 @@ evalPanic :: String -> [String] -> a
 evalPanic cxt = panic ("[Eval] " ++ cxt)
 
 
+-- | Data type describing errors that can occur during evaluation
 data EvalError
-  = InvalidIndex Integer
-  | TypeCannotBeDemoted Type
-  | DivideByZero
-  | WordTooWide Integer
-  | UserError String
-  | LoopError String
+  = InvalidIndex Integer          -- ^ Out-of-bounds index
+  | TypeCannotBeDemoted Type      -- ^ Non-numeric type passed to demote function
+  | DivideByZero                  -- ^ Division or modulus by 0
+  | WordTooWide Integer           -- ^ Bitvector too large
+  | UserError String              -- ^ Call to the Cryptol 'error' primitive
+  | LoopError String              -- ^ Detectable nontermination
     deriving (Typeable,Show)
 
 instance PP EvalError where

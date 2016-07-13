@@ -55,6 +55,7 @@ ppEnv opts env = brackets . fsep <$> mapM bind (Map.toList (envVars env))
    bind (k,v) = do vdoc <- ppValue opts =<< v
                    return (pp k <+> text "->" <+> vdoc)
 
+-- | Evaluation environment with no bindings
 emptyEnv :: GenEvalEnv b w
 emptyEnv  = mempty
 

@@ -25,14 +25,15 @@ import Control.DeepSeq
 -- | An evaluated type of kind *.
 -- These types do not contain type variables, type synonyms, or type functions.
 data TValue
-  = TVBit
-  | TVSeq Integer TValue
-  | TVStream TValue -- ^ [inf]t
-  | TVTuple [TValue]
-  | TVRec [(Ident, TValue)]
-  | TVFun TValue TValue
+  = TVBit                    -- ^ @ Bit @
+  | TVSeq Integer TValue     -- ^ @ [n]a @
+  | TVStream TValue          -- ^ @ [inf]t @
+  | TVTuple [TValue]         -- ^ @ (a, b, c )@
+  | TVRec [(Ident, TValue)]  -- ^ @ { x : a, y : b, z : c } @
+  | TVFun TValue TValue      -- ^ @ a -> b @
     deriving (Generic, NFData)
 
+-- | Convert a type value back into a regular type
 tValTy :: TValue -> Type
 tValTy tv =
   case tv of
@@ -49,14 +50,18 @@ instance Show TValue where
 
 -- Utilities -------------------------------------------------------------------
 
+-- | True if the evaluated value is @Bit@
 isTBit :: TValue -> Bool
 isTBit TVBit = True
 isTBit _ = False
 
+-- | Produce a sequence type value
 tvSeq :: Nat' -> TValue -> TValue
 tvSeq (Nat n) t = TVSeq n t
 tvSeq Inf     t = TVStream t
 
+-- | Coerce an extended natural into an integer,
+--   for values known to be finite
 finNat' :: Nat' -> Integer
 finNat' n' =
   case n' of
@@ -103,6 +108,7 @@ evalValType env ty =
     Left _ -> evalPanic "evalValType" ["expected value type, found numeric type"]
     Right t -> t
 
+-- | Evaluation for number types (kind #).
 evalNumType :: TypeEnv -> Type -> Nat'
 evalNumType env ty =
   case evalType env ty of
