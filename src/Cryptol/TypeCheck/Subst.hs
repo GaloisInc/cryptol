@@ -11,9 +11,26 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Safe #-}
-module Cryptol.TypeCheck.Subst where
+module Cryptol.TypeCheck.Subst
+  ( Subst
+  , emptySubst
+  , singleSubst
+  , (@@)
+  , defaultingSubst
+  , listSubst
+  , isEmptySubst
+  , FVS(..)
+  , apSubstMaybe
+  , TVars(..)
+  , apSubstTypeMapKeys
+  , substVars
+  , substBinds
+  , applySubstToVar
+  ) where
 
+import           Data.Maybe
 import           Data.Either (partitionEithers)
+import qualified Data.Foldable as Fold
 import qualified Data.Map.Strict as Map
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
@@ -42,10 +59,12 @@ s2 @@ s1 | Map.null (suMap s2) =
     s1
   else
     s1{ suDefaulting = True }
-
-s2 @@ s1 = S { suMap = Map.map (apSubst s2) (suMap s1) `Map.union` suMap s2
+s2 @@ s1 = S { suMap = Map.map (apSubst s2) (suMap s1) `Map.union` (suMap s2)
              , suDefaulting = suDefaulting s1 || suDefaulting s2
              }
+
+substVars :: Subst -> Set TVar
+substVars su = fvs . Map.elems $ suMap su
 
 defaultingSubst :: Subst -> Subst
 defaultingSubst s = s { suDefaulting = True }
@@ -54,16 +73,18 @@ defaultingSubst s = s { suDefaulting = True }
 -- WARNING: We do not validate the list in any way, so the caller should
 -- ensure that we end up with a valid (e.g., idempotent) substitution.
 listSubst :: [(TVar,Type)] -> Subst
-listSubst xs = S { suMap = Map.fromList xs, suDefaulting = False }
+listSubst xs
+  | null xs   = emptySubst
+  | otherwise = S { suMap = Map.fromList xs, suDefaulting = False }
 
 isEmptySubst :: Subst -> Bool
-isEmptySubst su = Map.null (suMap su)
+isEmptySubst su = Map.null $ suMap su
 
--- Returns `Nothing` if this is a deaulting substitution
-substToList :: Subst -> Maybe [ (TVar, Type) ]
-substToList su | suDefaulting su = Nothing
-               | otherwise       = Just $ Map.toList $ suMap su
-
+-- Returns the empty set if this is a deaulting substitution
+substBinds :: Subst -> Set TVar
+substBinds su
+  | suDefaulting su = Set.empty
+  | otherwise       = Map.keysSet $ suMap su
 
 instance PP (WithNames Subst) where
   ppPrec _ (WithNames s mp)
@@ -91,6 +112,10 @@ instance FVS Type where
         TUser _ _ t -> go t
         TRec fs     -> Set.unions (map (go . snd) fs)
 
+instance FVS a => FVS (Maybe a) where
+  fvs Nothing  = Set.empty
+  fvs (Just x) = fvs x
+
 instance FVS a => FVS [a] where
   fvs xs    = Set.unions (map fvs xs)
 
@@ -113,18 +138,16 @@ apSubstMaybe su ty =
     TRec fs       -> TRec `fmap` anyJust fld fs
       where fld (x,t) = do t1 <- apSubstMaybe su t
                            return (x,t1)
-    TVar x ->
-      case Map.lookup x (suMap su) of
-        Just t -> Just $ if suDefaulting su
-                            then apSubst (defaultingSubst emptySubst) t
-                            else t
-        Nothing -> if suDefaulting su
-                    then Just (defaultFreeVar x)
-                    else Nothing
+    TVar x -> applySubstToVar su x
 
 
-
-
+applySubstToVar :: Subst -> TVar -> Maybe Type
+applySubstToVar su x =
+  case Map.lookup x (suMap su) of
+    Just t  -> Just t
+    Nothing
+      | suDefaulting su -> Just $! defaultFreeVar x
+      | otherwise       -> Nothing
 
 class TVars t where
   apSubst :: Subst -> t -> t      -- ^ replaces free vars
@@ -144,13 +167,7 @@ instance TVars Type where
       TCon t ts     -> TCon t (apSubst su ts)
       TUser f ts t  -> TUser f (apSubst su ts) (apSubst su t)
       TRec fs       -> TRec [ (x,apSubst su s) | (x,s) <- fs ]
-      TVar x
-        | Just t    <- Map.lookup x (suMap su) ->
-                       if suDefaulting su
-                          then apSubst (defaultingSubst emptySubst) t
-                          else t
-        | suDefaulting su -> defaultFreeVar x
-        | otherwise -> ty
+      TVar x        -> fromMaybe ty $ applySubstToVar su x
 
 -- | Pick types for unconstrained unification variables.
 defaultFreeVar :: TVar -> Type
@@ -188,7 +205,7 @@ apSubstTypeMapKeys su = go (\_ x -> x) id
 
     -- partition out variables that have been replaced with more specific types
     (vars,tys) = partitionEithers
-                 [ case Map.lookup v (suMap su) of
+                 [ case applySubstToVar su v of
                      Just ty -> Right (ty,a')
                      Nothing -> Left  (v, a')
 
@@ -212,21 +229,23 @@ capture did occur. -}
 
 instance TVars Schema where
   apSubst su sch@(Forall xs ps t)
-    | Set.null captured = Forall xs (apSubst su1 ps) (apSubst su1 t)
+    | Set.null captured = Forall xs (apSubst su ps) (apSubst su t)
     | otherwise = panic "Cryptol.TypeCheck.Subst.apSubst (Schema)"
                     [ "Captured quantified variables:"
-                    , "Substitution: " ++ show (brackets (commaSep (map ppBinding $ Map.toList m1)))
+                    , "Substitution: " ++ show (brackets (commaSep (map ppBinding su_binds)))
                     , "Schema:       " ++ show (pp sch)
                     , "Variables:    " ++ show (commaSep (map pp (Set.toList captured)))
                     ]
     where
     ppBinding (v,x) = pp v <+> text ":=" <+> pp x
+    captured = Set.fromList (map tpVar xs)
+               `Set.intersection`
+               subVars
+    su_binds = Map.toList $ suMap su
     used = fvs sch
-    m1   = Map.filterWithKey (\k _ -> k `Set.member` used) (suMap su)
-    su1  = S { suMap = m1, suDefaulting = suDefaulting su }
-
-    captured = Set.fromList (map tpVar xs) `Set.intersection`
-               fvs (Map.elems m1)
+    subVars = Set.unions
+                $ map (fvs . applySubstToVar su)
+                $ Set.toList used
 
 
 instance TVars Expr where
@@ -248,13 +267,13 @@ instance TVars Expr where
         ERec fs       -> ERec [ (f, go e) | (f,e) <- fs ]
         EList es t    -> EList (map go es) (apSubst su t)
         ESel e s      -> ESel (go e) s
-        EComp t e mss -> EComp (apSubst su t) (go e) (apSubst su mss)
+        EComp len t e mss -> EComp (apSubst su len) (apSubst su t) (go e) (apSubst su mss)
         EIf e1 e2 e3  -> EIf (go e1) (go e2) (go e3)
 
         EWhere e ds   -> EWhere (go e) (apSubst su ds)
 
 instance TVars Match where
-  apSubst su (From x t e) = From x (apSubst su t) (apSubst su e)
+  apSubst su (From x len t e) = From x (apSubst su len) (apSubst su t) (apSubst su e)
   apSubst su (Let b)      = Let (apSubst su b)
 
 instance TVars DeclGroup where

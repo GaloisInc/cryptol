@@ -106,3 +106,5 @@ Debugging
 
      undefined   : {a} a
      error       : {n a} [n][8] -> a
+     trace : {n, a, b} [n][8] -> a -> b -> b
+     traceVal : {n, a} [n][8] -> a -> a

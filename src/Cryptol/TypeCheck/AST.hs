@@ -192,9 +192,10 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | ESel Expr Selector        -- ^ Elimination for tuple/record/list
 
             | EIf Expr Expr Expr        -- ^ If-then-else
-            | EComp Type Expr [[Match]] -- ^ List comprehensions
-                                        --   The type caches the type of the
-                                        --   expr.
+            | EComp Type Type Expr [[Match]]
+                                        -- ^ List comprehensions
+                                        --   The types caches the length of the
+                                        --   sequence and type of the expr.
 
             | EVar Name                 -- ^ Use of a bound variable
 
@@ -244,8 +245,9 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
               deriving (Show, Generic, NFData)
 
 
-data Match  = From Name Type Expr -- ^ do we need this type?  it seems like it
-                                  --   can be computed from the expr
+data Match  = From Name Type Type Expr
+                                  -- ^ Type arguments are the length and element
+                                  --   type of the sequence expression
             | Let Decl
               deriving (Show, Generic, NFData)
 
@@ -792,8 +794,8 @@ instance PP (WithNames Expr) where
                           , text "then" <+> ppW e2
                           , text "else" <+> ppW e3 ]
 
-      EComp _ e mss -> let arm ms = text "|" <+> commaSep (map ppW ms)
-                       in brackets $ ppW e <+> vcat (map arm mss)
+      EComp _ _ e mss -> let arm ms = text "|" <+> commaSep (map ppW ms)
+                          in brackets $ ppW e <+> vcat (map arm mss)
 
       EVar x        -> ppPrefixName x
 
@@ -882,7 +884,7 @@ instance PP Expr where
 instance PP (WithNames Match) where
   ppPrec _ (WithNames mat nm) =
     case mat of
-      From x _ e -> pp x <+> text "<-" <+> ppWithNames nm e
+      From x _ _ e -> pp x <+> text "<-" <+> ppWithNames nm e
       Let d      -> text "let" <+> ppWithNames nm d
 
 instance PP Match where

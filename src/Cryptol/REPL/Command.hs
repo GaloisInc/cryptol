@@ -56,6 +56,7 @@ import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowed))
 import qualified Cryptol.Utils.Ident as M
 
+import qualified Cryptol.Eval.Monad as E
 import qualified Cryptol.Eval.Value as E
 import Cryptol.Testing.Concrete
 import qualified Cryptol.Testing.Random  as TestR
@@ -245,13 +246,16 @@ evalCmd str = do
     P.ExprInput expr -> do
       (val,_ty) <- replEvalExpr expr
       ppOpts <- getPPValOpts
+      valDoc <- io $ rethrowEvalError $ E.runEval $ E.ppValue ppOpts val
+
       -- This is the point where the value gets forced. We deepseq the
       -- pretty-printed representation of it, rather than the value
       -- itself, leaving it up to the pretty-printer to determine how
       -- much of the value to force
-      out <- io $ rethrowEvalError
-                $ return $!! show $ pp $ E.WithBase ppOpts val
-      rPutStrLn out
+      --out <- io $ rethrowEvalError
+      --          $ return $!! show $ pp $ E.WithBase ppOpts val
+
+      rPutStrLn (show valDoc)
     P.LetInput decl -> do
       -- explicitly make this a top-level declaration, so that it will
       -- be generalized if mono-binds is enabled
@@ -367,13 +371,13 @@ qcCmd qcMode str =
         prtLn "FAILED"
       FailFalse vs -> do
         prtLn "FAILED for the following inputs:"
-        mapM_ (rPrint . pp . E.WithBase opts) vs
+        mapM_ (\v -> rPrint =<< (io $ E.runEval $ E.ppValue opts v)) vs
       FailError err [] -> do
         prtLn "ERROR"
         rPrint (pp err)
       FailError err vs -> do
         prtLn "ERROR for the following inputs:"
-        mapM_ (rPrint . pp . E.WithBase opts) vs
+        mapM_ (\v -> rPrint =<< (io $ E.runEval $ E.ppValue opts v)) vs
         rPrint (pp err)
       Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
 
@@ -436,8 +440,8 @@ cmdProveSat isSat str = do
               vss  = map (map $ \(_,_,v) -> v)     tevss
               ppvs vs = do
                 parseExpr <- replParseExpr str
-                let docs = map (pp . E.WithBase ppOpts) vs
-                    -- function application has precedence 3
+                docs <- mapM (io . E.runEval . E.ppValue ppOpts) vs
+                let -- function application has precedence 3
                     doc = ppPrec 3 parseExpr
                 rPrint $ hang doc 2 (sep docs) <+>
                   text (if isSat then "= True" else "= False")
@@ -581,8 +585,9 @@ writeFileCmd file str = do
   tIsByte    x = maybe False
                        (\(n,b) -> T.tIsBit b && T.tIsNum n == Just 8)
                        (T.tIsSeq x)
-  serializeValue (E.VSeq _ vs) =
-    return $ BS.pack $ map (serializeByte . E.fromVWord) vs
+  serializeValue (E.VSeq n vs) = do
+    ws <- io $ E.runEval (mapM (>>=E.fromVWord "serializeValue") $ E.enumerateSeqMap n vs)
+    return $ BS.pack $ map serializeByte ws
   serializeValue _             =
     panic "Cryptol.REPL.Command.writeFileCmd"
       ["Impossible: Non-VSeq value of type [n][8]."]
@@ -902,8 +907,7 @@ replEvalExpr expr =
                let su = T.listSubst [ (T.tpVar a, t) | (a,t) <- tys ]
                return (def1, T.apSubst su (T.sType sig))
 
-     val <- liftModuleCmd (M.evalExpr def1)
-     _ <- io $ rethrowEvalError $ X.evaluate val
+     val <- liftModuleCmd (rethrowEvalError . M.evalExpr def1)
      whenDebug (rPutStrLn (dump def1))
      -- add "it" to the namespace
      bindItVariable ty def1

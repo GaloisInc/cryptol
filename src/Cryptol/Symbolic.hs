@@ -16,9 +16,11 @@
 
 module Cryptol.Symbolic where
 
-import Control.Monad (replicateM, when, zipWithM)
-import Data.List (transpose, intercalate)
+import Control.Monad.IO.Class
+import Control.Monad (replicateM, when, zipWithM, foldM)
+import Data.List (transpose, intercalate, genericLength, genericIndex)
 import qualified Data.Map as Map
+import qualified Data.Sequence as Seq
 import qualified Control.Exception as X
 
 import qualified Data.SBV.Dynamic as SBV
@@ -31,9 +33,11 @@ import qualified Cryptol.ModuleSystem.Monad as M
 import Cryptol.Symbolic.Prims
 import Cryptol.Symbolic.Value
 
+import qualified Cryptol.Eval as Eval
+import qualified Cryptol.Eval.Monad as Eval
+import qualified Cryptol.Eval.Type as Eval
 import qualified Cryptol.Eval.Value as Eval
-import qualified Cryptol.Eval.Type (evalValType, evalNumType)
-import qualified Cryptol.Eval.Env (EvalEnv(..))
+import           Cryptol.Eval.Env (GenEvalEnv(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Utils.Ident (Ident)
@@ -42,6 +46,9 @@ import Cryptol.Utils.Panic(panic)
 
 import Prelude ()
 import Prelude.Compat
+
+type EvalEnv = GenEvalEnv SBool SWord
+
 
 -- External interface ----------------------------------------------------------
 
@@ -113,6 +120,7 @@ thmSMTResults (SBV.ThmResult r) = [r]
 proverError :: String -> M.ModuleCmd ProverResult
 proverError msg modEnv = return (Right (ProverError msg, modEnv), [])
 
+
 satProve :: ProverCommand -> M.ModuleCmd ProverResult
 satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
   M.runModuleM modEnv $ do
@@ -158,12 +166,14 @@ satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
   case predArgTypes pcSchema of
     Left msg -> return (ProverError msg)
     Right ts -> do when pcVerbose $ M.io $ putStrLn "Simulating..."
-                   let env = evalDecls mempty extDgs
-                   let v = evalExpr env pcExpr
+                   v <- M.io $ Eval.runEval $ do
+                               env <- Eval.evalDecls extDgs mempty
+                               Eval.evalExpr env pcExpr
                    prims <- M.getPrimMap
                    results' <- runFn $ do
                                  args <- mapM tyFn ts
-                                 b <- return $! fromVBit (foldl fromVFun v args)
+                                 b <- liftIO $ Eval.runEval
+                                        (fromVBit <$> foldM fromVFun v (map Eval.ready args))
                                  return b
                    let results = maybe results' (\n -> take n results') mSatNum
                    esatexprs <- case results of
@@ -173,12 +183,13 @@ satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
                        tevss <- mapM mkTevs results
                        return $ AllSatResult tevss
                        where
-                         mkTevs result =
+                         mkTevs result = do
                            let Right (_, cws) = SBV.getModel result
                                (vs, _) = parseValues ts cws
                                sattys = unFinType <$> ts
-                               satexprs = zipWithM (Eval.toExpr prims) sattys vs
-                           in case zip3 sattys <$> satexprs <*> pure vs of
+                           satexprs <- liftIO $ Eval.runEval
+                                           (zipWithM (Eval.toExpr prims) sattys vs)
+                           case zip3 sattys <$> (sequence satexprs) <*> pure vs of
                              Nothing ->
                                panic "Cryptol.Symbolic.sat"
                                  [ "unable to make assignment into expression" ]
@@ -208,12 +219,13 @@ satProveOffline ProverCommand {..} =
       Left msg -> return (Right (Left msg, modEnv), [])
       Right ts ->
         do when pcVerbose $ putStrLn "Simulating..."
-           let env = evalDecls mempty extDgs
-           let v = evalExpr env pcExpr
+           v <- liftIO $ Eval.runEval $
+                   do env <- Eval.evalDecls extDgs mempty
+                      Eval.evalExpr env pcExpr
            smtlib <- SBV.compileToSMTLib SBV.SMTLib2 isSat $ do
              args <- mapM tyFn ts
-             b <- return $! fromVBit (foldl fromVFun v args)
-             return b
+             liftIO $ Eval.runEval
+                    (fromVBit <$> foldM fromVFun v (map Eval.ready args))
            return (Right (Right smtlib, modEnv), [])
 
 protectStack :: (String -> M.ModuleCmd a)
@@ -235,17 +247,22 @@ parseValues (t : ts) cws = (v : vs, cws'')
 parseValue :: FinType -> [SBV.CW] -> (Eval.Value, [SBV.CW])
 parseValue FTBit [] = panic "Cryptol.Symbolic.parseValue" [ "empty FTBit" ]
 parseValue FTBit (cw : cws) = (Eval.VBit (SBV.cwToBool cw), cws)
-parseValue (FTSeq 0 FTBit) cws = (Eval.VWord (Eval.BV 0 0), cws)
+parseValue (FTSeq 0 FTBit) cws = (Eval.word 0 0, cws)
 parseValue (FTSeq n FTBit) cws =
   case SBV.genParse (SBV.KBounded False n) cws of
-    Just (x, cws') -> (Eval.VWord (Eval.BV (toInteger n) x), cws')
-    Nothing        -> (Eval.VSeq True vs, cws')
+    Just (x, cws') -> (Eval.word (toInteger n) x, cws')
+    Nothing        -> (VWord (genericLength vs) $ return $ Eval.WordVal $
+                         Eval.packWord (map fromVBit vs), cws')
       where (vs, cws') = parseValues (replicate n FTBit) cws
-parseValue (FTSeq n t) cws = (Eval.VSeq False vs, cws')
+parseValue (FTSeq n t) cws =
+                      (Eval.VSeq (toInteger n) $ Eval.SeqMap $ \i ->
+                           return $ genericIndex vs i
+                      , cws'
+                      )
   where (vs, cws') = parseValues (replicate n t) cws
-parseValue (FTTuple ts) cws = (Eval.VTuple vs, cws')
+parseValue (FTTuple ts) cws = (Eval.VTuple (map Eval.ready vs), cws')
   where (vs, cws') = parseValues ts cws
-parseValue (FTRecord fs) cws = (Eval.VRecord (zip ns vs), cws')
+parseValue (FTRecord fs) cws = (Eval.VRecord (zip ns (map Eval.ready vs)), cws')
   where (ns, ts) = unzip fs
         (vs, cws') = parseValues ts cws
 
@@ -266,11 +283,11 @@ numType n
 finType :: TValue -> Maybe FinType
 finType ty =
   case ty of
-    TVBit        -> Just FTBit
-    TVSeq n t    -> FTSeq <$> numType n <*> finType t
-    TVTuple ts   -> FTTuple <$> traverse finType ts
-    TVRec fields -> FTRecord <$> traverse (traverseSnd finType) fields
-    _            -> Nothing
+    Eval.TVBit            -> Just FTBit
+    Eval.TVSeq n t        -> FTSeq <$> numType n <*> finType t
+    Eval.TVTuple ts       -> FTTuple <$> traverse finType ts
+    Eval.TVRec fields     -> FTRecord <$> traverse (traverseSnd finType) fields
+    _                     -> Nothing
 
 unFinType :: FinType -> Type
 unFinType fty =
@@ -286,218 +303,36 @@ unFinType fty =
 predArgTypes :: Schema -> Either String [FinType]
 predArgTypes schema@(Forall ts ps ty)
   | null ts && null ps =
-      case go (Cryptol.Eval.Type.evalValType mempty ty) of
-        Just fts -> Right fts
-        Nothing  -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
+      case go <$> (Eval.evalType mempty ty) of
+        Right (Just fts) -> Right fts
+        _                -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
   | otherwise = Left $ "Not a monomorphic type:\n" ++ show (pp schema)
   where
     go :: TValue -> Maybe [FinType]
-    go TVBit           = Just []
-    go (TVFun ty1 ty2) = (:) <$> finType ty1 <*> go ty2
-    go _               = Nothing
+    go Eval.TVBit             = Just []
+    go (Eval.TVFun ty1 ty2)   = (:) <$> finType ty1 <*> go ty2
+    go _                      = Nothing
 
 forallFinType :: FinType -> SBV.Symbolic Value
 forallFinType ty =
   case ty of
     FTBit         -> VBit <$> forallSBool_
-    FTSeq 0 FTBit -> return $ VWord (literalSWord 0 0)
-    FTSeq n FTBit -> VWord <$> (forallBV_ n)
-    FTSeq n t     -> VSeq False <$> replicateM n (forallFinType t)
-    FTTuple ts    -> VTuple <$> mapM forallFinType ts
-    FTRecord fs   -> VRecord <$> mapM (traverseSnd forallFinType) fs
+    FTSeq 0 FTBit -> return $ Eval.word 0 0
+    FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> (forallBV_ n)
+    FTSeq n t     -> do vs <- replicateM n (forallFinType t)
+                        return $ VSeq (toInteger n) $ Eval.SeqMap $ \i ->
+                           return $ genericIndex vs i
+    FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . forallFinType) ts
+    FTRecord fs   -> VRecord <$> mapM (traverseSnd (fmap Eval.ready . forallFinType)) fs
 
 existsFinType :: FinType -> SBV.Symbolic Value
 existsFinType ty =
   case ty of
     FTBit         -> VBit <$> existsSBool_
-    FTSeq 0 FTBit -> return $ VWord (literalSWord 0 0)
-    FTSeq n FTBit -> VWord <$> existsBV_ n
-    FTSeq n t     -> VSeq False <$> replicateM n (existsFinType t)
-    FTTuple ts    -> VTuple <$> mapM existsFinType ts
-    FTRecord fs   -> VRecord <$> mapM (traverseSnd existsFinType) fs
-
--- Simulation environment ------------------------------------------------------
-
-data Env = Env
-  { envVars :: Map.Map Name Value
-  , envTypes :: Map.Map TVar (Either Nat' TValue)
-  }
-
-instance Monoid Env where
-  mempty = Env
-    { envVars  = Map.empty
-    , envTypes = Map.empty
-    }
-
-  mappend l r = Env
-    { envVars  = Map.union (envVars  l) (envVars  r)
-    , envTypes = Map.union (envTypes l) (envTypes r)
-    }
-
--- | Bind a variable in the evaluation environment.
-bindVar :: (Name, Value) -> Env -> Env
-bindVar (n, thunk) env = env { envVars = Map.insert n thunk (envVars env) }
-
--- | Lookup a variable in the environment.
-lookupVar :: Name -> Env -> Maybe Value
-lookupVar n env = Map.lookup n (envVars env)
-
--- | Bind a type variable of kind *.
-bindType :: TVar -> (Either Nat' TValue) -> Env -> Env
-bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
-
--- | Lookup a type variable.
-lookupType :: TVar -> Env -> Maybe (Either Nat' TValue)
-lookupType p env = Map.lookup p (envTypes env)
-
--- Expressions -----------------------------------------------------------------
-
-evalExpr :: Env -> Expr -> Value
-evalExpr env expr =
-  case expr of
-    EList es ty       -> VSeq (tIsBit ty) (map eval es)
-    ETuple es         -> VTuple (map eval es)
-    ERec fields       -> VRecord [ (f, eval e) | (f, e) <- fields ]
-    ESel e sel        -> evalSel sel (eval e)
-    EIf b e1 e2       -> iteValue (fromVBit (eval b)) (eval e1) (eval e2)
-    EComp ty e mss    -> evalComp env (evalValType env ty) e mss
-    EVar n            -> case lookupVar n env of
-                           Just x -> x
-                           _ -> panic "Cryptol.Symbolic.evalExpr" [ "Variable " ++ show n ++ " not found" ]
-    -- TODO: how to deal with uninterpreted functions?
-    ETAbs tv e -> case tpKind tv of
-      KType -> VPoly $ \ty -> evalExpr (bindType (tpVar tv) (Right ty) env) e
-      KNum  -> VNumPoly $ \n -> evalExpr (bindType (tpVar tv) (Left n) env) e
-      k     -> panic "[Symbolic] evalExpr" ["invalid kind on type abstraction", show k]
-    ETApp e ty        -> case eval e of
-      VPoly f    -> f (evalValType env ty)
-      VNumPoly f -> f (evalNumType env ty)
-      _          -> panic "[Symbolic] evalExpr"
-                         [ "expected a polymorphic value"
-                         , show e, show ty
-                         ]
-    EApp e1 e2        -> fromVFun (eval e1) (eval e2)
-    EAbs n _ty e      -> VFun $ \x -> evalExpr (bindVar (n, x) env) e
-    EProofAbs _prop e -> eval e
-    EProofApp e       -> eval e
-    ECast e _ty       -> eval e
-    EWhere e ds       -> evalExpr (evalDecls env ds) e
-    where
-      eval e = evalExpr env e
-
-evalValType :: Env -> Type -> TValue
-evalValType env ty = Cryptol.Eval.Type.evalValType env' ty
-  where env' = Cryptol.Eval.Env.EvalEnv Map.empty (envTypes env)
-
-evalNumType :: Env -> Type -> Nat'
-evalNumType env ty = Cryptol.Eval.Type.evalNumType env' ty
-  where env' = Cryptol.Eval.Env.EvalEnv Map.empty (envTypes env)
-
-evalSel :: Selector -> Value -> Value
-evalSel sel v =
-  case sel of
-    TupleSel n _  ->
-      case v of
-        VTuple xs  -> xs !! n -- 0-based indexing
-        VSeq b xs  -> VSeq b (map (evalSel sel) xs)
-        VStream xs -> VStream (map (evalSel sel) xs)
-        VFun f     -> VFun (\x -> evalSel sel (f x))
-        _ -> panic "Cryptol.Symbolic.evalSel" [ "Tuple selector applied to incompatible type" ]
-
-    RecordSel n _ ->
-      case v of
-        VRecord bs  -> case lookup n bs of
-                         Just x -> x
-                         _ -> panic "Cryptol.Symbolic.evalSel" [ "Selector " ++ show n ++ " not found" ]
-        VSeq b xs   -> VSeq b (map (evalSel sel) xs)
-        VStream xs  -> VStream (map (evalSel sel) xs)
-        VFun f      -> VFun (\x -> evalSel sel (f x))
-        _ -> panic "Cryptol.Symbolic.evalSel" [ "Record selector applied to non-record" ]
-
-    ListSel n _   -> case v of
-                       VWord s -> VBit (SBV.svTestBit s i)
-                                    where i = SBV.intSizeOf s - 1 - n
-                       _       -> fromSeq v !! n  -- 0-based indexing
-
--- Declarations ----------------------------------------------------------------
-
-evalDecls :: Env -> [DeclGroup] -> Env
-evalDecls = foldl evalDeclGroup
-
-evalDeclGroup :: Env -> DeclGroup -> Env
-evalDeclGroup env dg =
-  case dg of
-    NonRecursive d -> bindVar (evalDecl env d) env
-    Recursive ds   -> let env' = foldr bindVar env lazyBindings
-                          bindings = map (evalDecl env') ds
-                          lazyBindings = [ (qname, copyBySchema env (dSignature d) v)
-                                         | (d, (qname, v)) <- zip ds bindings ]
-                      in env'
-
-evalDecl :: Env -> Decl -> (Name, Value)
-evalDecl env d = (dName d, body)
-  where
-  body = case dDefinition d of
-           DExpr e -> evalExpr env e
-           DPrim   -> evalPrim d
-
--- | Make a copy of the given value, building the spine based only on
--- the type without forcing the value argument. This lets us avoid
--- strictness problems when evaluating recursive definitions.
-copyBySchema :: Env -> Schema -> Value -> Value
-copyBySchema env0 (Forall params _props ty) = go params env0
-  where
-    go [] env v = copyByType env (evalValType env ty) v
-    go (p : ps) env v =
-      case tpKind p of
-        KType -> VPoly (\t -> go ps (bindType (tpVar p) (Right t) env) (fromVPoly v t))
-        KNum -> VNumPoly (\t -> go ps (bindType (tpVar p) (Left t) env) (fromVNumPoly v t))
-        k -> panic "[Eval] copyBySchema" ["invalid kind on type abstraction", show k]
-
-copyByType :: Env -> TValue -> Value -> Value
-copyByType env ty v =
-  case ty of
-    TVBit       -> VBit (fromVBit v)
-    TVSeq _ ety -> VSeq (isTBit ety) (fromSeq v)
-    TVStream _  -> VStream (fromSeq v)
-    TVFun _ bty -> VFun (\x -> copyByType env bty (fromVFun v x))
-    TVTuple tys -> VTuple (zipWith (copyByType env) tys (fromVTuple v))
-    TVRec fs    -> VRecord [ (f, copyByType env t (lookupRecord f v)) | (f, t) <- fs ]
--- copyByType env ty v = logicUnary id id (evalValType env ty) v
-
--- List Comprehensions ---------------------------------------------------------
-
--- | Evaluate a comprehension.
-evalComp :: Env -> TValue -> Expr -> [[Match]] -> Value
-evalComp env seqty body ms =
-  case Eval.isTSeq seqty of
-    Just (len, el) -> toSeq len el [ evalExpr e body | e <- envs ]
-    Nothing -> evalPanic "Cryptol.Eval" ["evalComp given a non sequence", show seqty]
-
-  -- XXX we could potentially print this as a number if the type was available.
-  where
-  -- generate a new environment for each iteration of each parallel branch
-  benvs = map (branchEnvs env) ms
-
-  -- take parallel slices of each environment.  when the length of the list
-  -- drops below the number of branches, one branch has terminated.
-  allBranches es = length es == length ms
-  slices         = takeWhile allBranches (transpose benvs)
-
-  -- join environments to produce environments at each step through the process.
-  envs = map mconcat slices
-
--- | Turn a list of matches into the final environments for each iteration of
--- the branch.
-branchEnvs :: Env -> [Match] -> [Env]
-branchEnvs env matches =
-  case matches of
-    []     -> [env]
-    m : ms -> do env' <- evalMatch env m
-                 branchEnvs env' ms
-
--- | Turn a match into the list of environments it represents.
-evalMatch :: Env -> Match -> [Env]
-evalMatch env m = case m of
-  From n _ty expr -> [ bindVar (n, v) env | v <- fromSeq (evalExpr env expr) ]
-  Let d           -> [ bindVar (evalDecl env d) env ]
+    FTSeq 0 FTBit -> return $ Eval.word 0 0
+    FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> (existsBV_ n)
+    FTSeq n t     -> do vs <- replicateM n (existsFinType t)
+                        return $ VSeq (toInteger n) $ Eval.SeqMap $ \i ->
+                           return $ genericIndex vs i
+    FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . existsFinType) ts
+    FTRecord fs   -> VRecord <$> mapM (traverseSnd (fmap Eval.ready . existsFinType)) fs

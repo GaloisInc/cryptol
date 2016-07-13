@@ -7,26 +7,79 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe, PatternGuards #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+module Cryptol.Eval.Type where
 
-module Cryptol.Eval.Type (evalType, evalValType, evalNumType, evalTF) where
-
-import Cryptol.Eval.Env
-import Cryptol.Eval.Error
-import Cryptol.Eval.Value (TValue(..), tvSeq)
+import Cryptol.Eval.Monad
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat
+import Cryptol.Utils.Panic (panic)
+import Cryptol.Utils.Ident (Ident)
 
 import Data.Maybe(fromMaybe)
+import qualified Data.Map.Strict as Map
+import GHC.Generics (Generic)
+import Control.DeepSeq
+
+-- | An evaluated type of kind *.
+-- These types do not contain type variables, type synonyms, or type functions.
+data TValue
+  = TVBit                    -- ^ @ Bit @
+  | TVSeq Integer TValue     -- ^ @ [n]a @
+  | TVStream TValue          -- ^ @ [inf]t @
+  | TVTuple [TValue]         -- ^ @ (a, b, c )@
+  | TVRec [(Ident, TValue)]  -- ^ @ { x : a, y : b, z : c } @
+  | TVFun TValue TValue      -- ^ @ a -> b @
+    deriving (Generic, NFData)
+
+-- | Convert a type value back into a regular type
+tValTy :: TValue -> Type
+tValTy tv =
+  case tv of
+    TVBit       -> tBit
+    TVSeq n t   -> tSeq (tNum n) (tValTy t)
+    TVStream t  -> tSeq tInf (tValTy t)
+    TVTuple ts  -> tTuple (map tValTy ts)
+    TVRec fs    -> tRec [ (f, tValTy t) | (f, t) <- fs ]
+    TVFun t1 t2 -> tFun (tValTy t1) (tValTy t2)
+
+instance Show TValue where
+  showsPrec p v = showsPrec p (tValTy v)
+
+
+-- Utilities -------------------------------------------------------------------
+
+-- | True if the evaluated value is @Bit@
+isTBit :: TValue -> Bool
+isTBit TVBit = True
+isTBit _ = False
+
+-- | Produce a sequence type value
+tvSeq :: Nat' -> TValue -> TValue
+tvSeq (Nat n) t = TVSeq n t
+tvSeq Inf     t = TVStream t
+
+-- | Coerce an extended natural into an integer,
+--   for values known to be finite
+finNat' :: Nat' -> Integer
+finNat' n' =
+  case n' of
+    Nat x -> x
+    Inf   -> panic "Cryptol.Eval.Value.finNat'" [ "Unexpected `inf`" ]
 
 
 -- Type Evaluation -------------------------------------------------------------
 
+type TypeEnv = Map.Map TVar (Either Nat' TValue)
+
+
 -- | Evaluation for types (kind * or #).
-evalType :: EvalEnv -> Type -> Either Nat' TValue
+evalType :: TypeEnv -> Type -> Either Nat' TValue
 evalType env ty =
   case ty of
     TVar tv ->
-      case lookupType tv env of
+      case Map.lookup tv env of
         Just v -> v
         Nothing -> evalPanic "evalType" ["type variable not bound", show tv]
 
@@ -49,17 +102,19 @@ evalType env ty =
     num = evalNumType env
 
 -- | Evaluation for value types (kind *).
-evalValType :: EvalEnv -> Type -> TValue
+evalValType :: TypeEnv -> Type -> TValue
 evalValType env ty =
   case evalType env ty of
     Left _ -> evalPanic "evalValType" ["expected value type, found numeric type"]
     Right t -> t
 
-evalNumType :: EvalEnv -> Type -> Nat'
+-- | Evaluation for number types (kind #).
+evalNumType :: TypeEnv -> Type -> Nat'
 evalNumType env ty =
   case evalType env ty of
     Left n -> n
     Right _ -> evalPanic "evalValType" ["expected numeric type, found value type"]
+
 
 -- | Reduce type functions, raising an exception for undefined values.
 evalTF :: TFun -> [Nat'] -> Nat'

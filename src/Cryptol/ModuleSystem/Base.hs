@@ -18,7 +18,9 @@ import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap)
 import Cryptol.ModuleSystem.Env (lookupModule, LoadedModule(..)
                                 , meCoreLint, CoreLint(..))
 import qualified Cryptol.Eval                 as E
+import qualified Cryptol.Eval.Monad           as E
 import qualified Cryptol.Eval.Value           as E
+import           Cryptol.Prims.Eval ()
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.Parser               as P
@@ -454,14 +456,15 @@ evalExpr :: T.Expr -> ModuleM E.Value
 evalExpr e = do
   env <- getEvalEnv
   denv <- getDynEnv
-  return (E.evalExpr (env <> deEnv denv) e)
+  io $ E.runEval $ (E.evalExpr (env <> deEnv denv) e)
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do
   env <- getEvalEnv
   denv <- getDynEnv
   let env' = env <> deEnv denv
-      denv' = denv { deDecls = deDecls denv ++ dgs
-                   , deEnv = E.evalDecls dgs env'
+  deEnv' <- io $ E.runEval $ E.evalDecls dgs env'
+  let denv' = denv { deDecls = deDecls denv ++ dgs
+                   , deEnv = deEnv'
                    }
   setDynEnv denv'

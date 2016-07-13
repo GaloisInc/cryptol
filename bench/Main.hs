@@ -7,10 +7,15 @@
 -- Portability :  portable
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Main where
 
 import qualified Data.Text.Lazy     as T
 import qualified Data.Text.Lazy.IO  as T
+
+import qualified Cryptol.Eval as E
+import qualified Cryptol.Eval.Monad as E
+import qualified Cryptol.Eval.Value as E
 
 import qualified Cryptol.ModuleSystem.Base      as M
 import qualified Cryptol.ModuleSystem.Env       as M
@@ -22,11 +27,14 @@ import qualified Cryptol.Parser.AST       as P
 import qualified Cryptol.Parser.NoInclude as P
 
 import qualified Cryptol.Symbolic as S
+import qualified Cryptol.Symbolic.Value as S
 
 import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
 
 import qualified Cryptol.Utils.Ident as I
+
+import qualified Data.SBV.Dynamic as SBV
 
 import Criterion.Main
 
@@ -47,13 +55,13 @@ main = defaultMain [
       , tc "SHA512" "bench/data/SHA512.cry"
       ]
   , bgroup "conc_eval" [
-        ceval "AES" "bench/data/AES.cry" "bench bench_data"
+        ceval "AES" "bench/data/AES.cry" "bench_correct"
+      , ceval "ZUC" "bench/data/ZUC.cry" "ZUC_TestVectors"
       , ceval "SHA512" "bench/data/SHA512.cry" "testVector1 ()"
       ]
   , bgroup "sym_eval" [
-        seval "AES" "bench/data/AES.cry" "aesEncrypt (zero, zero)"
-      , seval "ZUC" "bench/data/ZUC.cry"
-          "ZUC_isResistantToCollisionAttack"
+        seval "AES" "bench/data/AES.cry" "bench_correct"
+      , seval "ZUC" "bench/data/ZUC.cry" "ZUC_TestVectors"
       , seval "SHA512" "bench/data/SHA512.cry" "testVector1 ()"
       ]
   ]
@@ -116,7 +124,11 @@ ceval name path expr =
           return texpr
         return (texpr, menv')
   in env setup $ \ ~(texpr, menv) ->
-    bench name $ nfIO $ M.runModuleM menv $ M.evalExpr texpr
+    bench name $ nfIO $ E.runEval $ do
+      env <- E.evalDecls (S.allDeclGroups menv) mempty
+      (e :: E.Value) <- E.evalExpr env texpr
+      E.forceValue e
+
 
 seval :: String -> FilePath -> T.Text -> Benchmark
 seval name path expr =
@@ -130,6 +142,8 @@ seval name path expr =
           return texpr
         return (texpr, menv')
   in env setup $ \ ~(texpr, menv) ->
-    bench name $ flip nf texpr $ \texpr' ->
-      let senv = S.evalDecls mempty (S.allDeclGroups menv)
-      in S.evalExpr senv texpr'
+    bench name $ nfIO $ E.runEval $ do
+      env <- E.evalDecls (S.allDeclGroups menv) mempty
+      (e :: S.Value) <- E.evalExpr env texpr
+      E.io $ SBV.compileToSMTLib SBV.SMTLib2 False $
+         return (S.fromVBit e)

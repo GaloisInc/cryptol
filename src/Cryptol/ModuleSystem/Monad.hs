@@ -11,7 +11,10 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.ModuleSystem.Monad where
 
-import           Cryptol.Eval.Env (EvalEnv)
+import           Cryptol.Eval (EvalEnv)
+import           Cryptol.Eval.Value (BV)
+
+import qualified Cryptol.Eval.Monad           as E
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
@@ -29,6 +32,7 @@ import           Cryptol.Parser.Position (Range)
 import           Cryptol.Utils.Ident (interactiveName)
 import           Cryptol.Utils.PP
 
+import Control.Monad.IO.Class
 import Control.Exception (IOException)
 import Data.Function (on)
 import Data.Maybe (isJust)
@@ -273,6 +277,9 @@ instance Monad m => FreshM (ModuleT m) where
        set $! me { meSupply = s' }
        return a
 
+instance MonadIO m => MonadIO (ModuleT m) where
+  liftIO m = lift $ liftIO m
+
 runModuleT :: Monad m
            => ModuleEnv
            -> ModuleT m a
@@ -385,10 +392,12 @@ loadedModule path m = ModuleT $ do
   env <- get
   set $! env { meLoadedModules = addLoadedModule path m (meLoadedModules env) }
 
-modifyEvalEnv :: (EvalEnv -> EvalEnv) -> ModuleM ()
+modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
 modifyEvalEnv f = ModuleT $ do
   env <- get
-  set $! env { meEvalEnv = f (meEvalEnv env) }
+  let evalEnv = meEvalEnv env
+  evalEnv' <- inBase $ E.runEval (f evalEnv)
+  set $! env { meEvalEnv = evalEnv' }
 
 getEvalEnv :: ModuleM EvalEnv
 getEvalEnv  = ModuleT (meEvalEnv `fmap` get)

@@ -14,13 +14,16 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Env where
 
+import Cryptol.Eval.Monad( Eval, delay, ready )
+import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
+import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.Utils.PP
 
-import qualified Data.Map as Map
+
+import qualified Data.Map.Strict as Map
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -30,14 +33,12 @@ import Prelude.Compat
 
 -- Evaluation Environment ------------------------------------------------------
 
-type ReadEnv = EvalEnv
-
-data EvalEnv = EvalEnv
-  { envVars       :: Map.Map Name Value
-  , envTypes      :: Map.Map TVar (Either Nat' TValue)
+data GenEvalEnv b w = EvalEnv
+  { envVars       :: !(Map.Map Name (Eval (GenValue b w)))
+  , envTypes      :: !TypeEnv
   } deriving (Generic, NFData)
 
-instance Monoid EvalEnv where
+instance Monoid (GenEvalEnv b w) where
   mempty = EvalEnv
     { envVars       = Map.empty
     , envTypes      = Map.empty
@@ -48,26 +49,47 @@ instance Monoid EvalEnv where
     , envTypes    = Map.union (envTypes    l) (envTypes    r)
     }
 
-instance PP (WithBase EvalEnv) where
-  ppPrec _ (WithBase opts env) = brackets (fsep (map bind (Map.toList (envVars env))))
-    where
-    bind (k,v) = pp k <+> text "->" <+> ppValue opts v
+ppEnv :: BitWord b w => PPOpts -> GenEvalEnv b w -> Eval Doc
+ppEnv opts env = brackets . fsep <$> mapM bind (Map.toList (envVars env))
+  where
+   bind (k,v) = do vdoc <- ppValue opts =<< v
+                   return (pp k <+> text "->" <+> vdoc)
 
-emptyEnv :: EvalEnv
+-- | Evaluation environment with no bindings
+emptyEnv :: GenEvalEnv b w
 emptyEnv  = mempty
 
 -- | Bind a variable in the evaluation environment.
-bindVar :: Name -> Value -> EvalEnv -> EvalEnv
-bindVar n val env = env { envVars = Map.insert n val (envVars env) }
+bindVar :: Name
+        -> Eval (GenValue b w)
+        -> GenEvalEnv b w
+        -> Eval (GenEvalEnv b w)
+bindVar n val env = do
+  let nm = show $ ppLocName n
+  val' <- delay (Just nm) val
+  return $ env{ envVars = Map.insert n val' (envVars env) }
+
+-- | Bind a variable to a value in the evaluation environment, without
+--   creating a thunk.
+bindVarDirect :: Name
+              -> GenValue b w
+              -> GenEvalEnv b w
+              -> Eval (GenEvalEnv b w)
+bindVarDirect n val env = do
+  return $ env{ envVars = Map.insert n (ready val) (envVars env) }
 
 -- | Lookup a variable in the environment.
-lookupVar :: Name -> EvalEnv -> Maybe Value
+{-# INLINE lookupVar #-}
+lookupVar :: Name -> GenEvalEnv b w -> Maybe (Eval (GenValue b w))
 lookupVar n env = Map.lookup n (envVars env)
 
--- | Bind a type variable of kind # or *.
-bindType :: TVar -> Either Nat' TValue -> EvalEnv -> EvalEnv
+-- | Bind a type variable of kind *.
+{-# INLINE bindType #-}
+bindType :: TVar -> Either Nat' TValue -> GenEvalEnv b w -> GenEvalEnv b w
 bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
 
 -- | Lookup a type variable.
-lookupType :: TVar -> EvalEnv -> Maybe (Either Nat' TValue)
+{-# INLINE lookupType #-}
+lookupType :: TVar -> GenEvalEnv b w -> Maybe (Either Nat' TValue)
 lookupType p env = Map.lookup p (envTypes env)
+

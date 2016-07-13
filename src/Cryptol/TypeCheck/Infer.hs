@@ -272,7 +272,7 @@ checkE expr tGoal =
 
          ds     <- combineMaps dss
          e'     <- withMonoTypes ds (checkE e a)
-         return (EComp tGoal e' mss')
+         return (EComp len a e' mss')
 
     P.EAppT e fs ->
       do ts <- mapM inferTyParam fs
@@ -520,7 +520,7 @@ inferMatch (P.Match p e) =
   do (x,t) <- inferP (text "XXX:MATCH") p
      n     <- newType (text "sequence length of comprehension match") KNum
      e'    <- checkE e (tSeq n (thing t))
-     return (From x (thing t) e', x, t, n)
+     return (From x n (thing t) e', x, t, n)
 
 inferMatch (P.MatchLet b)
   | P.bMono b =

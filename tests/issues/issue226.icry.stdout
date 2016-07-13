@@ -79,6 +79,8 @@ Symbols
     tail : {a, b} [1 + a]b -> [a]b
     take : {front, back, elem} (fin front) => [front +
                                                back]elem -> [front]elem
+    trace : {n, a, b} [n][8] -> a -> b -> b
+    traceVal : {n, a} [n][8] -> a -> a
     transpose : {a, b, c} [a][b]c -> [b][a]c
     undefined : {a} a
     width : {bits, len, elem} (fin len, fin bits,
