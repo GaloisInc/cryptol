@@ -196,14 +196,16 @@ evalDeclGroup env dg = do
   case dg of
     Recursive ds -> do
       -- declare a "hole" for each declaration
+      -- and extend the evaluation environment
       holes <- mapM declHole ds
       let holeEnv = Map.fromList $ [ (nm,h) | (nm,_,h,_) <- holes ]
       let env' = env `mappend` emptyEnv{ envVars = holeEnv }
 
-      -- evaluate the declaration bodies
+      -- evaluate the declaration bodies, building a new evaluation environment
       env'' <- foldM (evalDecl env') env ds
 
-      -- now backfill the holes we declared earlier
+      -- now backfill the holes we declared earlier using the definitions
+      -- calculcated in the previous step
       mapM_ (fillHole env'') holes
 
       -- return the map containing the holes
@@ -371,10 +373,17 @@ declHole d =
  msg = unwords ["<<loop>> while evaluating", show (pp nm)]
 
 
+-- | Evaluate a declaration, extending the evaluation environment.
+--   Two input environments are given: the first is an environment
+--   to use when evaluating the body of the declaration; the second
+--   is the environment to extend.  There are two environments to
+--   handle the subtle name-binding issues that arise from recurisve
+--   definitions.  The 'read only' environment is used to bring recursive
+--   names into scope while we are still defining them.
 evalDecl :: EvalPrims b w
-         => GenEvalEnv b w
-         -> GenEvalEnv b w
-         -> Decl
+         => GenEvalEnv b w  -- ^ A 'read only' environment for use in declaration bodies
+         -> GenEvalEnv b w  -- ^ An evalaution environment to extend with the given declaration
+         -> Decl            -- ^ The declaration to evaluate
          -> Eval (GenEvalEnv b w)
 evalDecl renv env d =
   case dDefinition d of
@@ -384,6 +393,9 @@ evalDecl renv env d =
 
 -- Selectors -------------------------------------------------------------------
 
+-- | Apply the the given "selector" form to the given value.  This function pushes
+--   tuple and record selections pointwise down into other value constructs
+--   (e.g., streams and functions).
 evalSel :: forall b w
          . EvalPrims b w
         => GenValue b w
@@ -479,11 +491,11 @@ bindVarList n vs lenv = lenv { leVars = Map.insert n vs (leVars lenv) }
 
 -- | Evaluate a comprehension.
 evalComp :: EvalPrims b w
-         => GenEvalEnv b w
-         -> Nat'
-         -> TValue
-         -> Expr
-         -> [[Match]]
+         => GenEvalEnv b w  -- ^ Starting evaluation environment
+         -> Nat'            -- ^ Length of the comprehension
+         -> TValue          -- ^ Type of the comprehension elements
+         -> Expr            -- ^ Head expression of the comprehension
+         -> [[Match]]       -- ^ List of parallel comprehension branches
          -> Eval (GenValue b w)
 evalComp env len elty body ms =
        do lenv <- mconcat <$> mapM (branchEnvs (toListEnv env)) ms
@@ -508,6 +520,8 @@ evalMatch lenv m = case m of
   -- many envs
   From n l ty expr ->
     case len of
+      -- Select from a sequence of finite length.  This causes us to 'stutter'
+      -- through our previous choices `nLen` times.
       Nat nLen -> do
         vss <- memoMap $ SeqMap $ \i -> evalExpr (evalListEnv lenv i) expr
         let stutter xs = \i -> xs (i `div` nLen)
@@ -519,6 +533,10 @@ evalMatch lenv m = case m of
                         VStream xs' -> lookupSeqMap xs' r
         return $ bindVarList n vs lenv'
 
+      -- Select from a sequence of infinite length.  Note that this means we
+      -- will never need to backtrack into previous branches.  Thus, we can convert
+      -- `leVars` elements of the comprehension environment into `leStatic` elements
+      -- by selecting out the 0th element.
       Inf -> do
         let allvars = Map.union (fmap ($0) (leVars lenv)) (leStatic lenv)
         let lenv' = lenv { leVars   = Map.empty

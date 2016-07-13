@@ -119,7 +119,7 @@ mergeValue f c v1 v2 =
     mergeSeqMap x y =
       SeqMap $ \i -> mergeValue f c <$> lookupSeqMap x i <*> lookupSeqMap y i
 
--- Big-endian Words ------------------------------------------------------------
+-- Symbolic Big-endian Words -------------------------------------------------------
 
 instance BitWord SBool SWord where
   wordLen v = toInteger (intSizeOf v)
