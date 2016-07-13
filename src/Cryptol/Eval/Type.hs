@@ -15,7 +15,7 @@ import Cryptol.Eval.Monad
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.Utils.Panic (panic)
-import Cryptol.Utils.Ident (Ident,mkIdent)
+import Cryptol.Utils.Ident (Ident)
 
 import Data.Maybe(fromMaybe)
 import qualified Data.Map.Strict as Map

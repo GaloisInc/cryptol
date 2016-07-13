@@ -36,7 +36,6 @@ import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
---import Cryptol.Prims.Eval
 
 import           Control.Monad
 import           Control.Monad.Fix
@@ -60,6 +59,9 @@ moduleEnv :: EvalPrims b w
           -> Eval (GenEvalEnv b w)
 moduleEnv m env = evalDecls (mDecls m) =<< evalNewtypes (mNewtypes m) env
 
+-- | Evaluate a Cryptol expression to a value.  This evaluator is parameterized
+--   by the `EvalPrims` class, which defines the behavior of bits and words, in
+--   addition to providing implementations for all the primitives.
 evalExpr :: EvalPrims b w
          => GenEvalEnv b w
          -> Expr
@@ -69,6 +71,8 @@ evalExpr env expr = case expr of
   -- Try to detect when the user has directly written a finite sequence of
   -- literal bit values and pack these into a word.
   EList es ty
+    -- NB, even if the list cannot be packed, we must use `VWord`
+    -- when the element type is `Bit`.
     | isTBit tyv -> {-# SCC "evalExpr->Elist/bit" #-}
         return $ VWord len $ return $
           case tryFromBits vs of
@@ -209,6 +213,16 @@ evalDeclGroup env dg = do
       evalDecl env env d
 
 
+-- | This operation is used to complete the process of setting up recursive declaration
+--   groups.  It 'backfills' previously-allocated thunk values with the actual evaluation
+--   procedure for the body of recursive definitions.
+--
+--   In order to faithfully evaluate the nonstrict semantics of Cryptol, we have to take some
+--   care in this process.  In particular, we need to ensure that every recursive definition
+--   binding is indistinguishable from it's eta-expanded form.  The straightforward solution
+--   to this is to force an eta-expansion procedure on all recursive definitions.
+--   However, for the so-called 'Value' types we can instead optimisticly use the 'delayFill'
+--   operation and only fall back on full eta expansion if the thunk is double-forced.
 fillHole :: BitWord b w
          => GenEvalEnv b w
          -> (Name, Schema, Eval (GenValue b w), Eval (GenValue b w) -> Eval ())
@@ -221,6 +235,11 @@ fillHole env (nm, sch, _, fill) = do
      | otherwise           -> fill (etaDelay (show (ppLocName nm)) env sch x)
 
 
+-- | 'Value' types are non-polymorphic types recursive constructed from
+--   bits, finite sequences, tuples and records.  Types of this form can
+--   be implemented rather more efficently than general types because we can
+--   rely on the 'delayFill' operation to build a thunk that falls back on performing
+--   eta-expansion rather than doing it eagerly.
 isValueType :: GenEvalEnv b w -> Schema -> Bool
 isValueType env Forall{ sVars = [], sProps = [], sType = t0 }
    = go (evalValType (envTypes env) t0)
@@ -234,6 +253,7 @@ isValueType env Forall{ sVars = [], sProps = [], sType = t0 }
 isValueType _ _ = False
 
 
+-- | Eta-expand a word value.  This forces an unpacked word representation.
 etaWord  :: BitWord b w
          => Integer
          -> Eval (GenValue b w)
@@ -244,6 +264,12 @@ etaWord n x = do
     do w' <- w; indexWordValue w' (toInteger i)
 
 
+-- | Given a simulator value and it's type, fully eta-expand the value.  This
+--   is a type-directed pass that always produces a canonical value of the
+--   expected shape.  Eta expansion of values is sometimes necessary to ensure
+--   the correct evaluation semantics of recursive definitions.  Otherwise,
+--   expressions that should be expected to produce well-defined values in the
+--   denotational semantics will fail to terminate instead.
 etaDelay :: BitWord b w
          => String
          -> GenEvalEnv b w
@@ -517,5 +543,6 @@ evalMatch lenv m = case m of
       f env =
           case dDefinition d of
             -- Primitives here should never happen, I think...
+            --    perhaps this should be converted to an error.
             DPrim   -> return $ evalPrim d
             DExpr e -> evalExpr env e

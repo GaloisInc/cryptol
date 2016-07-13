@@ -15,6 +15,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
@@ -23,12 +24,8 @@
 module Cryptol.Eval.Value where
 
 import Data.Bits
-import Data.IORef
---import           Data.Map (Map)
 import qualified Data.Sequence as Seq
-import qualified Data.Map.Strict as Map
 import qualified Data.Foldable as Fold
-import qualified Data.Set as Set
 
 import MonadLib
 
@@ -42,10 +39,7 @@ import Cryptol.Utils.Ident (Ident,mkIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
---import Control.Monad (guard, zipWithM)
 import Data.List(genericLength, genericIndex)
-import Data.Bits (setBit,testBit,(.&.),shiftL)
-import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 import Numeric (showIntAtBase)
 
@@ -57,7 +51,7 @@ import qualified Data.Cache.LRU.IO as LRU
 
 -- Values ----------------------------------------------------------------------
 
--- | width, value
+-- | Concrete bitvector values: width, value
 -- Invariant: The value must be within the range 0 .. 2^width-1
 data BV = BV !Integer !Integer deriving (Generic, NFData)
 
@@ -81,39 +75,60 @@ bvVal (BV _w x) = x
 mkBv :: Integer -> Integer -> BV
 mkBv w i = BV w (mask w i)
 
+-- | A sequence map represents a mapping from nonnegative integer indices
+--   to values.  These are used to represent both finite and infinite sequences.
 newtype SeqMap b w = SeqMap { lookupSeqMap :: Integer -> Eval (GenValue b w) }
 type SeqValMap = SeqMap Bool BV
 
 instance NFData (SeqMap b w) where
   rnf x = seq x ()
 
+-- | Generate a finite sequence map from a list of values
 finiteSeqMap :: [Eval (GenValue b w)] -> Eval (SeqMap b w)
 finiteSeqMap xs = do
    memoMap (SeqMap $ \i -> genericIndex xs i)
 
+-- | Generate an infinite sequence map from a stream of values
 infiniteSeqMap :: [Eval (GenValue b w)] -> Eval (SeqMap b w)
 infiniteSeqMap xs =
    memoMap (SeqMap $ \i -> genericIndex xs i)
 
+-- | Create a finite list of length `n` of the values from [0..n-1] in
+--   the given the sequence emap.
 enumerateSeqMap :: (Integral n) => n -> SeqMap b w -> [Eval (GenValue b w)]
 enumerateSeqMap n m = [ lookupSeqMap m i | i <- [0 .. (toInteger n)-1] ]
 
+-- | Create an infinite stream of all the values in a sequence map
 streamSeqMap :: SeqMap b w -> [Eval (GenValue b w)]
 streamSeqMap m = [ lookupSeqMap m i | i <- [0..] ]
 
-reverseSeqMap :: Integer -> SeqMap b w -> SeqMap b w
+-- | Reverse the order of a finite sequence map
+reverseSeqMap :: Integer     -- ^ Size of the sequence map
+              -> SeqMap b w
+              -> SeqMap b w
 reverseSeqMap n vals = SeqMap $ \i -> lookupSeqMap vals (n - 1 - i)
 
+-- | Given a number `n` and a sequence map, return two new sequence maps:
+--   the first containing the values from `[0..n-1]` and the next containing
+--   the values from `n` onward.
 splitSeqMap :: Integer -> SeqMap b w -> (SeqMap b w, SeqMap b w)
 splitSeqMap n xs = (hd,tl)
   where
   hd = xs
   tl = SeqMap $ \i -> lookupSeqMap xs (i+n)
 
+-- | Given a sequence map, return a new sequence map that is memoized using
+--   fixed sized memo table.  The memo table is managed using a Least-Recently-Used
+--   (LRU) cache eviction policy.
+--
+--   Currently, the cache size is fixed at 64 elements.
+--   This seems to provide a good compromize between memory useage and effective
+--   memoization.
 memoMap :: SeqMap b w -> Eval (SeqMap b w)
 memoMap x = do
   -- TODO: make the size of the LRU cache a tuneable parameter...
-  lru <- io $ LRU.newAtomicLRU (Just 64)
+  let lruSize = 64
+  lru <- io $ LRU.newAtomicLRU (Just lruSize)
   return $ SeqMap $ memo lru
 
  where
@@ -128,6 +143,8 @@ memoMap x = do
     io $ LRU.insert i v lru
     return v
 
+-- | Apply the given evaluation function pointwise to the two given
+--   sequence maps.
 zipSeqMap :: (GenValue b w -> GenValue b w -> Eval (GenValue b w))
           -> SeqMap b w
           -> SeqMap b w
@@ -135,30 +152,48 @@ zipSeqMap :: (GenValue b w -> GenValue b w -> Eval (GenValue b w))
 zipSeqMap f x y =
   memoMap (SeqMap $ \i -> join (f <$> lookupSeqMap x i <*> lookupSeqMap y i))
 
+-- | Apply the given function to each value in the given sequence map
 mapSeqMap :: (GenValue b w -> Eval (GenValue b w))
           -> SeqMap b w -> Eval (SeqMap b w)
 mapSeqMap f x =
   memoMap (SeqMap $ \i -> f =<< lookupSeqMap x i)
 
+-- | For efficency reasons, we handle finite sequences of bits as special cases
+--   in the evaluator.  In cases where we know it is safe to do so, we prefer to
+--   used a "packed word" representation of bit sequences.  This allows us to rely
+--   directly on Integer types (in the concrete evalautor) and SBV's Word types (in
+--   the symbolic simulator).
+--
+--   However, if we cannot be sure all the bits of the sequence
+--   will eventually be forced, we must instead rely on an explicit sequence of bits
+--   representation.
 data WordValue b w
-  = WordVal !w
-  | BitsVal !(Seq.Seq (Eval b))
+  = WordVal !w                    -- ^ Packed word representation for bit sequences.
+  | BitsVal !(Seq.Seq (Eval b))   -- ^ Sequence of thunks representing bits.
  deriving (Generic, NFData)
 
+-- | Force a word value into packed word form
 asWordVal :: BitWord b w => WordValue b w -> Eval w
 asWordVal (WordVal w)  = return w
 asWordVal (BitsVal bs) = packWord <$> sequence (Fold.toList bs)
 
+-- | Force a word value into a sequence of bits
 asBitsVal :: BitWord b w => WordValue b w -> Seq.Seq (Eval b)
 asBitsVal (WordVal w)  = Seq.fromList $ map ready $ unpackWord w
 asBitsVal (BitsVal bs) = bs
 
+-- | Select an individual bit from a word value
 indexWordValue :: BitWord b w => WordValue b w -> Integer -> Eval b
 indexWordValue (WordVal w)  idx = return $ genericIndex (unpackWord w) idx
 indexWordValue (BitsVal bs) idx = Seq.index bs (fromInteger idx)
 
 
 -- | Generic value type, parameterized by bit and word types.
+--
+--   NOTE: we maintain an important invariant regarding sequence types.
+--   `VSeq` must never be used for finite sequences of bits.
+--   Always use the `VWord` constructor instead!  Infinite sequences of bits
+--   are handled by the `VStream` constructor, just as for other types.
 data GenValue b w
   = VRecord ![(Ident, Eval (GenValue b w))] -- @ { .. } @
   | VTuple ![Eval (GenValue b w)]           -- @ ( .. ) @
@@ -173,16 +208,18 @@ data GenValue b w
   deriving (Generic, NFData)
 
 
+-- | Force the evaluation of a word value
 forceWordValue :: WordValue b w -> Eval ()
-forceWordValue (WordVal w)  = return ()
+forceWordValue (WordVal _w)  = return ()
 forceWordValue (BitsVal bs) = mapM_ (\b -> const () <$> b) bs
 
+-- | Force the evaluation of a value
 forceValue :: GenValue b w -> Eval ()
 forceValue v = case v of
   VRecord fs  -> mapM_ (\x -> forceValue =<< snd x) fs
   VTuple xs   -> mapM_ (forceValue =<<) xs
   VSeq n xs   -> mapM_ (forceValue =<<) (enumerateSeqMap n xs)
-  VBit b      -> return ()
+  VBit _b     -> return ()
   VWord _ wv  -> forceWordValue =<< wv
   VStream _   -> return ()
   VFun _      -> return ()
@@ -297,62 +334,103 @@ ppBV opts (BV width i)
   digits = "0123456789abcdefghijklmnopqrstuvwxyz"
 
 
--- Big-endian Words ------------------------------------------------------------
-
+-- | This type class defines a collection of operations on bits and words that
+--   are necessary to define generic evaluator primitives that operate on both concrete
+--   and symbolic values uniformly.
 class BitWord b w | b -> w, w -> b where
+  -- | Pretty-print an individual bit
   ppBit :: b -> Doc
 
+  -- | Pretty-print a word value
   ppWord :: PPOpts -> w -> Doc
 
+  -- | Attempt to render a word value as an ASCII character.  Return `Nothing`
+  --   if the character value is unknown (e.g., for symbolic values).
   wordAsChar :: w -> Maybe Char
 
+  -- | The number of bits in a word value.
   wordLen :: w -> Integer
 
+  -- | Construct a literal bit value from a boolean.
   bitLit :: Bool -> b
-  wordLit :: Integer -> Integer -> w
 
-  -- | NOTE this assumes that the sequence of bits is big-endian and finite, so the
-  -- first element of the list will be the most significant bit.
+  -- | Construct a literal word value given a bit width and a value.
+  wordLit :: Integer -- ^ Width
+          -> Integer -- ^ Value
+          -> w
+
+  -- | Construct a word value from a finite sequence of bits.
+  --   NOTE: this assumes that the sequence of bits is big-endian and finite, so the
+  --   first element of the list will be the most significant bit.
   packWord :: [b] -> w
 
-  -- | NOTE this produces a list of bits that represent a big-endian word, so the
-  -- most significant bit is the first element of the list.
+  -- | Deconstruct a packed word value in to a finite sequence of bits.
+  --   NOTE: this produces a list of bits that represent a big-endian word, so
+  --   the most significant bit is the first element of the list.
   unpackWord :: w -> [b]
 
-  -- | NOTE first argument represents the more-significant bits
+  -- | Concatenate the two given word values.
+  --   NOTE: the first argument represents the more-significant bits
   joinWord :: w -> w -> w
 
   -- | Take the most-significant bits, and return
   --   those bits and the remainder.  The first element
   --   of the pair is the most significant bits.
+  --   The two integer sizes must sum to the length of the given word value.
   splitWord :: Integer -- ^ left width
             -> Integer -- ^ right width
             -> w
             -> (w, w)
 
+  -- | Extract a subsequence of bits from a packed word value.
+  --   The first integer argument is the number of bits in the
+  --   resulting word.  The second integer argument is the
+  --   number of less-significant digits to discard.  Stated another
+  --   way, the operation `extractWord n i w` is equivelant to
+  --   first shifting `w` right by `i` bits, and then truncating to
+  --   `n` bits.
   extractWord :: Integer -- ^ Number of bits to take
               -> Integer -- ^ starting bit
               -> w
               -> w
 
+  -- | 2's complement addition of packed words.  The arguments must have
+  --   equal bit width, and the result is of the same width. Overflow is silently
+  --   discarded.
   wordPlus :: w -> w -> w
+
+  -- | 2's complement subtraction of packed words.  The arguments must have
+  --   equal bit width, and the result is of the same width. Overflow is silently
+  --   discarded.
   wordMinus :: w -> w -> w
+
+  -- | 2's complement multiplication of packed words.  The arguments must have
+  --   equal bit width, and the result is of the same width. The high bits of the
+  --   multiplication are silently discarded.
   wordMult :: w -> w -> w
 
 
+-- | This class defines additional operations necessary to define generic evaluation
+--   functions.
 class BitWord b w => EvalPrims b w where
+  -- | Eval prim binds primitive declarations to the primitive values that implement them.
   evalPrim :: Decl -> GenValue b w
-  iteValue :: b
+
+  -- | if/then/else operation.  Choose either the 'then' value or the 'else' value depending
+  --   on the value of the test bit.
+  iteValue :: b                    -- ^ Test bit
+           -> Eval (GenValue b w)  -- ^ 'then' value
+           -> Eval (GenValue b w)  -- ^ 'else' value
            -> Eval (GenValue b w)
-           -> Eval (GenValue b w)
-           -> Eval (GenValue b w)
+
+
+-- Concrete Big-endian Words ------------------------------------------------------------
 
 mask :: Integer  -- ^ Bit-width
      -> Integer  -- ^ Value
      -> Integer  -- ^ Masked result
 mask w i | w >= Arch.maxBigIntWidth = wordTooWide w
          | otherwise                = i .&. ((1 `shiftL` fromInteger w) - 1)
-
 
 instance BitWord Bool BV where
   wordLen (BV w _) = w
@@ -371,9 +449,9 @@ instance BitWord Bool BV where
       w = case length bits of
             len | toInteger len >= Arch.maxBigIntWidth -> wordTooWide (toInteger len)
                 | otherwise                  -> len
-      a = foldl set 0 (zip [w - 1, w - 2 .. 0] bits)
-      set acc (n,b) | b         = setBit acc n
-                    | otherwise = acc
+      a = foldl setb 0 (zip [w - 1, w - 2 .. 0] bits)
+      setb acc (n,b) | b         = setBit acc n
+                     | otherwise = acc
 
   unpackWord (BV w a) = [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
     where
@@ -496,6 +574,9 @@ vWordLen val = case val of
   VWord n _wv              -> Just n
   _                        -> Nothing
 
+-- | If the given list of values are all fully-evaluated thunks
+--   containing bits, return a packed word built from the same bits.
+--   However, if any value is not a fully-evaluated bit, return `Nothing`.
 tryFromBits :: BitWord b w => [Eval (GenValue b w)] -> Maybe w
 tryFromBits = go id
  where

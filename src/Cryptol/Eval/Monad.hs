@@ -10,16 +10,25 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor #-}
 
-module Cryptol.Eval.Monad where
-
-  --   Eval(..)
-  -- , runEval
-  -- , io
-  -- , delay
-  -- , ready
-  -- , blackhole
-  -- ) where
-
+module Cryptol.Eval.Monad
+( -- * Evaluation monad
+  Eval(..)
+, runEval
+, io
+, delay
+, delayFill
+, ready
+, blackhole
+  -- * Error repoprting
+, EvalError(..)
+, evalPanic
+, typeCannotBeDemoted
+, divideByZero
+, wordTooWide
+, cryUserError
+, cryLoopError
+, invalidIndex
+) where
 
 import           Control.DeepSeq
 import           Control.Monad
@@ -38,17 +47,23 @@ import Cryptol.TypeCheck.AST(Type)
 ready :: a -> Eval a
 ready a = Ready a
 
+-- | The monad for Cryptol evaluation.
 data Eval a
    = Ready !a
    | Thunk !(IO a)
 
 data ThunkState a
-  = Unforced
-  | BlackHole
-  | Forced !a
+  = Unforced        -- ^ This thunk has not yet been forced
+  | BlackHole       -- ^ This thunk is currently being evaluated
+  | Forced !a       -- ^ This thunk has previously been forced, and has the given value
 
 {-# INLINE delay #-}
-delay :: Maybe String -> Eval a -> Eval (Eval a)
+-- | Delay the given evaluation computation, returning a thunk
+--   which will run the computation when forced.  Raise a loop
+--   error if the resulting thunk is forced during it's own evaluation.
+delay :: Maybe String     -- ^ Optional name to print if a loop is detected
+      -> Eval a           -- ^ Computation to delay
+      -> Eval (Eval a)
 delay _ (Ready a) = Ready (Ready a)
 delay msg (Thunk x) = Thunk $ do
   let msg' = maybe "" ("while evaluating "++) msg
@@ -57,13 +72,25 @@ delay msg (Thunk x) = Thunk $ do
   return $ unDelay retry r x
 
 {-# INLINE delayFill #-}
-delayFill :: Eval a -> Eval a -> Eval (Eval a)
+
+-- | Delay the given evaluation computation, returning a thunk
+--   which will run the computation when forced.  Run the 'retry'
+--   computation instead if the resulting thunk is forced during
+--   it's own evaluation.
+delayFill :: Eval a        -- ^ Computation to delay
+          -> Eval a        -- ^ Backup computation to run if a tight loop is detected
+          -> Eval (Eval a)
 delayFill (Ready x) _ = Ready (Ready x)
 delayFill (Thunk x) retry = Thunk $ do
   r <- newIORef Unforced
   return $ unDelay retry r x
 
-blackhole :: String -> Eval (Eval a, Eval a -> Eval ())
+-- | Produce a thunk value which can be filled with its associcated computation
+--   after the fact.  A preallocated thunk is returned, along with an operation to
+--   fill the thunk with the associated computation.
+--   This is used to implement recursive declaration groups.
+blackhole :: String -- ^ A name to associated with this thunk.
+          -> Eval (Eval a, Eval a -> Eval ())
 blackhole msg = do
   r <- io $ newIORef (fail msg)
   let get = join (io $ readIORef r)
