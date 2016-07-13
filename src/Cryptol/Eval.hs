@@ -82,14 +82,13 @@ evalExpr env expr = case expr of
     len = genericLength es
 
   ETuple es -> {-# SCC "evalExpr->ETuple" #-} do
-     xs <- mapM (delay Nothing . eval) es
+     let xs = map eval es
      return $ VTuple xs
 
   ERec fields -> {-# SCC "evalExpr->ERec" #-} do
-     xs <- sequence [ do thk <- delay Nothing (eval e)
-                         return (f,thk)
-                    | (f,e) <- fields
-                    ]
+     let xs = [ (f, eval e)
+              | (f,e) <- fields
+              ]
      return $ VRecord xs
 
   ESel e sel -> {-# SCC "evalExpr->ESel" #-} do
@@ -209,6 +208,7 @@ evalDeclGroup env dg = do
     NonRecursive d -> do
       evalDecl env env d
 
+
 fillHole :: BitWord b w
          => GenEvalEnv b w
          -> (Name, Schema, Eval (GenValue b w), Eval (GenValue b w) -> Eval ())
@@ -216,7 +216,33 @@ fillHole :: BitWord b w
 fillHole env (nm, sch, _, fill) = do
   case lookupVar nm env of
     Nothing -> evalPanic "fillHole" ["Recursive definition not completed", show (ppLocName nm)]
-    Just x  -> fill (etaDelay (show (ppLocName nm)) env sch x)
+    Just x
+     | isValueType env sch -> fill =<< delayFill x (etaDelay (show (ppLocName nm)) env sch x)
+     | otherwise           -> fill (etaDelay (show (ppLocName nm)) env sch x)
+
+
+isValueType :: GenEvalEnv b w -> Schema -> Bool
+isValueType env Forall{ sVars = [], sProps = [], sType = t0 }
+   = go (evalValType (envTypes env) t0)
+ where
+  go TVBit = True
+  go (TVSeq _ x)  = go x
+  go (TVTuple xs) = and (map go xs)
+  go (TVRec xs)   = and (map (go . snd) xs)
+  go _            = False
+
+isValueType _ _ = False
+
+
+etaWord  :: BitWord b w
+         => Integer
+         -> Eval (GenValue b w)
+         -> Eval (WordValue b w)
+etaWord n x = do
+  w <- delay Nothing (fromWordVal "during eta-expansion" =<< x)
+  return $ BitsVal $ Seq.fromFunction (fromInteger n) $ \i ->
+    do w' <- w; indexWordValue w' (toInteger i)
+
 
 etaDelay :: BitWord b w
          => String
@@ -269,9 +295,7 @@ etaDelay msg env0 Forall{ sVars = vs, sType = tp0 } = goTpVars env0 vs
   TVBit -> x
 
   TVSeq n TVBit ->
-    -- TODO! I think we need the alternate blackhole strategy here, where
-    --  entering the blackhole eta-exapnds to a list of bits
-      do w <- delay (Just msg) (fromWordVal "during eta-expansion" =<< x)
+      do w <- delayFill (fromWordVal "during eta-expansion" =<< x) (etaWord n x)
          return $ VWord n w
 
   TVSeq n el ->

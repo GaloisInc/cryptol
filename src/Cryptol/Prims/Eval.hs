@@ -732,6 +732,7 @@ transposeV a b c xs
             case ys of
               VStream ys' -> fromVBit <$> lookupSeqMap ys' bi
               VWord _ wv  -> flip bitsSeq bi =<< wv
+              _ -> evalPanic "transpose" ["expected sequence of bits"]
 
   | otherwise = do
       return $ bseq $ SeqMap $ \bi ->
@@ -1020,6 +1021,7 @@ indexPrimOne bits_op word_op =
                VWord _ w  -> w >>= \w' -> return $ SeqMap (\i -> VBit <$> indexWordValue w' i)
                VSeq _ vs  -> return vs
                VStream vs -> return vs
+               _ -> evalPanic "Expected sequence value" ["indexPrimOne"]
       r >>= \case
          VWord _ w -> w >>= \case
            WordVal w' -> word_op (fromNat n) a vs w'
@@ -1062,6 +1064,7 @@ indexPrimMany bits_op word_op =
                VWord _ w  -> w >>= \w' -> return $ SeqMap (\i -> VBit <$> indexWordValue w' i)
                VSeq _ vs  -> return vs
                VStream vs -> return vs
+               _ -> evalPanic "Expected sequence value" ["indexPrimMany"]
      ixs <- fromSeq "indexPrimMany idx" =<< r
      mkSeq m a <$> memoMap (SeqMap $ \i -> do
        lookupSeqMap ixs i >>= \case
