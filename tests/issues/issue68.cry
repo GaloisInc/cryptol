@@ -1,0 +1,7 @@
+f : [8] -> [8]
+f x = 20 + x
+
+// Note! This test case may be a bit fragile, as it
+// tests the output of tracing, which depends on evaluation
+// order.
+traceTest = [ trace "Hi!" i (f i) | i <- [0 .. 10 ] ]
