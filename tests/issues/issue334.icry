@@ -1,0 +1,3 @@
+let foo (x:[8]) = xs where xs = [x, xs@0]
+:prove foo 3 == [3,3]
+:prove \x -> foo x == [x,x]
