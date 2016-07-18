@@ -141,3 +141,10 @@ uncurry f = \(a,b) -> f a b
  */
 curry : {a,b,c} ((a, b) -> c) -> a -> b -> c
 curry f = \a b -> f (a,b)
+
+/**
+ * Map a function iteratively over a seed value, producing an infinite
+ * list of successive function applications.
+ */
+iterate : { a } (a -> a) -> a -> [inf]a
+iterate f x = [x] # [ f v | v <- iterate f x ]
