@@ -665,7 +665,7 @@ extractWordVal len start (WordVal w) =
    WordVal $ extractWord len start w
 extractWordVal len start (BitsVal bs) =
    BitsVal $ Seq.take (fromInteger len) $
-     Seq.drop (Seq.length bs - fromInteger start - fromInteger len - 1) bs
+     Seq.drop (Seq.length bs - fromInteger start - fromInteger len) bs
 
 
 -- | Split implementation.
