@@ -558,11 +558,6 @@ joinWords nParts nEach xs =
       VWord _ w' -> loop (joinWordVal <$> wv <*> w') ws
       _ -> evalPanic "joinWords: expected word value" []
 
--- loop !bv (Ready (VWord w) : ws) = loop (joinWord bv w) ws
- -- loop !bv (w:ws) = do
- --     w' <- fromVWord "joinWords" =<< w
- --     loop (joinWord bv w') ws
-
 
 joinSeq :: BitWord b w
         => Nat'
@@ -853,8 +848,6 @@ logicBinary opb opw  = loop
                                b = lookupRecord f r
                          ]
 
---    | otherwise = evalPanic "logicBinary" ["invalid logic type"]
-
 
 wordValUnaryOp :: BitWord b w
                => (b -> b)
@@ -900,8 +893,6 @@ logicUnary opb opw = loop
 
     TVRec fields ->
       return $ VRecord [ (f,loop' fty a) | (f,fty) <- fields, let a = lookupRecord f val ]
-
---    | otherwise = evalPanic "logicUnary" ["invalid logic type"]
 
 
 logicShift :: (Integer -> Integer -> Integer -> Integer)
@@ -1195,4 +1186,3 @@ errorV ty msg = case ty of
   TVRec fields ->
     return $ VRecord [ (f,errorV fty msg) | (f,fty) <- fields ]
 
---  | otherwise = evalPanic "errorV" ["invalid type for error"]

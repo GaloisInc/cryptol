@@ -112,9 +112,8 @@ randomStream mkElem sz g =
   let (g1,g2) = split g
   in (VStream $ SeqMap $ genericIndex (map ready (unfoldr (Just . mkElem sz) g1)), g2)
 
-{- | Generate a random sequence.  Generally, this should be used for sequences
-other than bits.  For sequences of bits use "randomWord".  The difference
-is mostly about how the results will be displayed. -}
+{- | Generate a random sequence.  This should be used for sequences
+other than bits.  For sequences of bits use "randomWord". -}
 randomSequence :: RandomGen g => Integer -> Gen g -> Gen g
 randomSequence w mkElem sz g = do
   let (g1,g2) = split g
