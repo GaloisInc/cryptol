@@ -570,36 +570,39 @@ joinSeq :: BitWord b w
         -> TValue
         -> SeqMap b w
         -> Eval (GenValue b w)
-joinSeq parts each a xs
-  = return $ mkSeq $ (SeqMap $ \i -> do
+
+-- finite sequence of words
+joinSeq (Nat parts) each TVBit xs
+  = joinWords parts each xs
+
+-- infinite sequence of words
+joinSeq Inf each TVBit xs
+  = return $ VStream $ SeqMap $ \i -> do
+      let (q,r) = divMod i each
+      ys <- fromWordVal "join seq" =<< lookupSeqMap xs q
+      VBit <$> (asBitsVal ys `Seq.index` fromInteger r)
+
+-- finite or infinite sequence of non-words
+joinSeq parts each _a xs
+  = return $ mkSeq $ SeqMap $ \i -> do
       let (q,r) = divMod i each
       ys <- fromSeq "join seq" =<< lookupSeqMap xs q
-      lookupSeqMap ys r)
-
+      lookupSeqMap ys r
   where
   len = parts `nMul` (Nat each)
   mkSeq = case len of
             Inf    -> VStream
             Nat n  -> VSeq n
 
+
 -- | Join a sequence of sequences into a single sequence.
 joinV :: BitWord b w
       => Nat'
       -> Integer
       -> TValue
-      -> (GenValue b w)
+      -> GenValue b w
       -> Eval (GenValue b w)
-joinV parts each a val
-  -- Try to join a sequence of words, if we can determine that
-  -- each element is actually a word.  Fall back on sequence
-  -- join otherwise.
-  | Nat nParts  <- parts
-  , isTBit a
-  = do xs <- fromSeq "joinV" val
-       joinWords nParts each xs
-
-joinV parts each a val =
-       joinSeq parts each a =<< fromSeq "joinV" val
+joinV parts each a val = joinSeq parts each a =<< fromSeq "joinV" val
 
 
 splitWordVal :: BitWord b w
@@ -618,26 +621,26 @@ splitAtV :: BitWord b w
          => Nat'
          -> Nat'
          -> TValue
-         -> (GenValue b w)
+         -> GenValue b w
          -> Eval (GenValue b w)
 splitAtV front back a val =
   case back of
 
-    Nat rightWidth | aBit, VWord _ w <- val -> do
-          ws <- delay Nothing (splitWordVal leftWidth rightWidth <$> w)
+    Nat rightWidth | aBit -> do
+          ws <- delay Nothing (splitWordVal leftWidth rightWidth <$> fromWordVal "splitAtV" val)
           return $ VTuple
                    [ VWord leftWidth  . ready . fst <$> ws
                    , VWord rightWidth . ready . snd <$> ws
                    ]
 
-    Inf | aBit, VStream seq <- val -> do
+    Inf | aBit -> do
        seq <- delay Nothing (fromSeq "splitAtV" val)
        ls  <- delay Nothing (do m  <- fst . splitSeqMap leftWidth <$> seq
                                 let ms = map (fromVBit <$>) (enumerateSeqMap leftWidth m)
                                 return $ Seq.fromList $ ms)
        rs  <- delay Nothing (snd . splitSeqMap leftWidth <$> seq)
        return $ VTuple [ return $ VWord leftWidth (BitsVal <$> ls)
-                       , mkSeq back a <$> rs
+                       , VStream <$> rs
                        ]
 
     _ -> do
@@ -681,6 +684,14 @@ ecSplitV =
           VWord _ val' <- val
           return $ VSeq p $ SeqMap $ \i -> do
             return $ VWord e (extractWordVal e ((p-i-1)*e) <$> val')
+       (Inf, Nat e) | isTBit a -> do
+          val' <- delay Nothing (fromSeq "ecSplitV" =<< val)
+          return $ VStream $ SeqMap $ \i ->
+            return $ VWord e $ return $ BitsVal $ Seq.fromFunction (fromInteger e) $ \j ->
+              let idx = i*e + toInteger j
+               in idx `seq` do
+                      xs <- val'
+                      fromVBit <$> lookupSeqMap xs idx
        (Nat p, Nat e) -> do
           val' <- delay Nothing (fromSeq "ecSplitV" =<< val)
           return $ VSeq p $ SeqMap $ \i ->
@@ -758,10 +769,11 @@ ccatV :: (Show b, Show w, BitWord b w)
 ccatV front back elty (VWord m l) (VWord n r) =
   return $ VWord (m+n) (joinWordVal <$> l <*> r)
 
-ccatV front back elty (VWord m l) (VStream r) =
+ccatV front back elty (VWord m l) (VStream r) = do
+  l' <- delay Nothing l
   return $ VStream $ SeqMap $ \i ->
     if i < m then
-      VBit <$> (flip indexWordValue i =<< l)
+      VBit <$> (flip indexWordValue i =<< l')
     else
       lookupSeqMap r (i-m)
 
@@ -809,16 +821,13 @@ logicBinary opb opw  = loop
   loop ty l r = case ty of
     TVBit -> return $ VBit (opb (fromVBit l) (fromVBit r))
     TVSeq w aty
-         -- words or finite sequences
-         | isTBit aty, VWord _ lw <- l, VWord _ rw <- r
-              -> return $ VWord w (wordValLogicOp opb opw <$> lw <*> rw)
-                   -- We assume that bitwise ops do not need re-masking
+         -- words
+         | isTBit aty
+              -> return $ VWord w (wordValLogicOp opb opw <$>
+                                    fromWordVal "logicBinary l" l <*>
+                                    fromWordVal "logicBinary r" r)
 
-         -- Nat w | isTBit aty -> do
-         --          BV _ lw <- fromVWord "logicLeft" l
-         --          BV _ rw <- fromVWord "logicRight" r
-         --          return $ VWord $ mkBv w (op lw rw)
-
+         -- finite sequences
          | otherwise -> VSeq w <$>
                            (join (zipSeqMap (loop aty) <$>
                                     (fromSeq "logicBinary left" l)
@@ -870,14 +879,11 @@ logicUnary opb opw = loop
     TVBit -> return . VBit . opb $ fromVBit val
 
     TVSeq w ety
-         -- words or finite sequences
-         | isTBit ety, VWord _ wv <- val
-              -> return $ VWord w (wordValUnaryOp opb opw <$> wv)
+         -- words
+         | isTBit ety
+              -> do return $ VWord w (wordValUnaryOp opb opw <$> fromWordVal "logicUnary" val)
 
-         -- Nat w | isTBit ety
-         --      -> do v <- fromWord "logicUnary" val
-         --            return $ VWord (mkBv w $ op v)
-
+         -- finite sequences
          | otherwise
               -> VSeq w <$> (mapSeqMap (loop ety) =<< fromSeq "logicUnary" val)
 
