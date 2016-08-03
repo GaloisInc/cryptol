@@ -42,7 +42,7 @@ Enigma essentially implements a polyalphabetic substitution cipher
 of rotating units that jumble up the alphabet.  The first component is
 the so called plugboard ({\em steckerbrett} in
 German)\indEnigmaPlugboard. In the original Enigma, the plugboard
-provided a means of interchanging 6-pairs or letters. For instance,
+provided a means of interchanging 6 pairs of letters. For instance,
 the plugboard could be set-up so that pressing the {\tt B} key would
 actually engage the {\tt Q} key, etc.  We will slightly generalize and
 allow any number of pairings, as we are not limited by the
@@ -88,7 +88,7 @@ Why do we subtract the {\tt 'A'} when indexing?
 \sectionWithAnswers{Scrambler rotors}{sec:enigma:scramblerrotors}
 
 The next component of the Enigma are the rotors that scramble the
-letters.  Rotors ({\em walzen} in German)\indEnigmaRotor are
+letters.  Rotors (\textit{walzen} in German)\indEnigmaRotor are
 essentially permutations, with one little twist: as their name
 implies, they rotate. This rotation ensures that the next character
 the rotor will process will be encrypted using a different alphabet,
@@ -104,15 +104,15 @@ fact, more advanced models of Enigma allowed for two notches per
 rotor, i.e., two distinct positions on the rotor that will allow the
 next rotor in sequence to rotate itself. We will allow ourselves to
 have any number of notches, by simply pairing each substituted letter
-with a bit value saying whether it has an associated notch:
-\footnote{The type definition for {\tt Char} was given in
+with a bit value saying whether it has an associated
+notch:\footnote{The type definition for {\tt Char} was given in
   Example~\ref{section:subst}-\ref{ex:subst:1}.}
 
 \begin{code}
   type Rotor = [26](Char, Bit)
 \end{code}
 The function {\tt mkRotor} will create a rotor for us from a given permutation of the letters and the notch
-locations:~\footnote{The function {\tt elem} was defined in Exercise~\ref{sec:recandrec}-\ref{ex:recfun:4:1}.\indElem}
+locations:\footnote{The function {\tt elem} was defined in Exercise~\ref{sec:recandrec}-\ref{ex:recfun:4:1}.\indElem}
 \begin{code}
   mkRotor : {n} (fin n) => (Permutation, String n) -> Rotor
   mkRotor (perm, notchLocations) = [ (p, elem (p, notchLocations))
@@ -223,7 +223,7 @@ determine if we have our notch engaged, all we need to do is to look
 at the first elements notch value, using Cryptol's selection operator
 ({\tt @ 0}\indIndex), and we ignore the permutation value there this
 time, again using pattern matching.  Finally, to determine {\tt
-  rotor'} we merely rotate-left by 1\indRotLeft if the {\tt rotate}
+  rotor'} we merely rotate left by 1\indRotLeft if the {\tt rotate}
 signal was received. Otherwise, we leave the {\tt rotor} unchanged.
 
 \begin{Exercise}\label{ex:enigma:3}
@@ -607,7 +607,7 @@ of the Enigma machine as a Cryptol record\indTheRecordType, which will
 simplify our final construction. At any stage, the state of an Enigma
 machine is given by the status of its rotors. We will use the
 following record to represent this state, for an Enigma machine
-containing $n$ rotors:
+containing \texttt{n} rotors:
 \begin{code}
   type Enigma n = { plugboard : Plugboard,
                     rotors    : [n]Rotor,

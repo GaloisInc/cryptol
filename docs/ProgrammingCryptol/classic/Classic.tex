@@ -14,13 +14,13 @@ That's some 2500 years ago, and surely we do not use those methods
 anymore in modern day cryptography. However, the basic techniques are
 still relevant for appreciating the art of secret writing.
 
-Shift ciphers\indShiftcipher construct the \glosCiphertext
-ciphertext\indCiphertext from the \glosPlaintext
-plaintext\indPlaintext\ by means of a predefined {\em shifting}
+Shift ciphers\indShiftcipher construct the
+ciphertext\glosCiphertext\indCiphertext from the
+plaintext\glosPlaintext\indPlaintext\ by means of a predefined \emph{shifting}
 operation,\glosCipherkey where the cipherkey of a particular shift
 algorithm defines the shift amount of the cipher.\indCipherkey
-Transposition ciphers work by keeping the plaintext the same, but {\em
-  rearrange} the order of the characters according to a certain rule.
+Transposition ciphers work by keeping the plaintext the same, but
+\emph{rearrange} the order of the characters according to a certain rule.
 The cipherkey is essentially the description of how this transposition
 is done.\indTranspositioncipher Substitution
 ciphers\indSubstitutioncipher generalize shifts and transpositions,
@@ -82,15 +82,15 @@ Section~\ref{sec:tsyn} that a {\tt String n} is simply a sequence of n
         where map     = ['A' .. 'Z'] <<< s
               shift c = map @ (c - 'A')
 \end{code}
-In this definition, we simply get a message {\tt msg} of type {\tt
-  String n}, and perform a {\tt shift} operation on each one of the
-elements.  The {\tt shift} function is defined locally in the {\tt
-  where}-clause.\indWhere To compute the shift, we first find the
-distance of the letter from the character {\tt 'A'} (via {\tt c -
-  'A'}), and look it up in the mapping imposed by the shift. The {\tt
-  map} is simply the alphabet rotated to the left by the shift amount,
-{\tt s}. Note how we use the enumeration {\tt ['A' .. 'Z']} to get all
-the letters in the alphabet.\indEnum
+In this definition, we simply get a message \texttt{msg} of type
+\texttt{String n}, and perform a \texttt{shift} operation on each one
+of the elements. The \texttt{shift} function is defined locally in the
+\texttt{where} clause.\indWhere To compute the shift, we first find
+the distance of the letter from the character \texttt{'A'} (via
+\texttt{c - 'A'}), and look it up in the mapping imposed by the shift.
+The {\tt map} is simply the alphabet rotated to the left by the shift
+amount, \texttt{s}. Note how we use the enumeration
+\texttt{['A' ..\ 'Z']} to get all the letters in the alphabet.\indEnum
 
 \begin{Exercise}\label{ex:caesar:0}
   What is the map corresponding to a shift of 2? Use Cryptol's
@@ -107,13 +107,13 @@ Why do we use a left-rotate, instead of a right-rotate?
 \begin{Answer}\ansref{ex:caesar:0}
 Here is the alphabet and the corresponding shift-2 Caesar's alphabet:
 \begin{verbatim}
-  Cryptol> ['A'..'Z'] 
+  Cryptol> ['A'..'Z']
   "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
   Cryptol> ['A'..'Z'] <<< 2
   "CDEFGHIJKLMNOPQRSTUVWXYZAB"
 \end{verbatim}
 We use a left rotate to get the characters lined up correctly, as
-illustrated above.  \indRotLeft\indRotRight
+illustrated above.\indRotLeft\indRotRight
 \end{Answer}
 
 \begin{Exercise}\label{ex:caesar:1}
