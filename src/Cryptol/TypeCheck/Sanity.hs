@@ -160,8 +160,11 @@ exprSchema expr =
                                        return (f,t)
          return $ tMono $ TRec fs1
 
-    ESel e sel ->
-      do t <- exprType e
+    ESel e sel -> do ty <- exprType e
+                     ty1 <- check ty
+                     return (tMono ty1)
+      where
+      check t =
          case sel of
 
            TupleSel n mb ->
@@ -176,7 +179,13 @@ exprSchema expr =
                       unless (n < sz) $
                         reportError (TupleSelectorOutOfRange n sz)
 
-                      return $ tMono $ ts !! n
+                      return $ ts !! n
+
+                TCon (TC TCSeq) [s,elT] -> do res <- check elT
+                                              return (TCon (TC TCSeq) [s,res])
+
+                TCon (TC TCFun) [a,b]   -> do res <- check b
+                                              return (TCon (TC TCFun) [a,res])
 
                 _ -> reportError $ BadSelector sel t
 
@@ -195,11 +204,19 @@ exprSchema expr =
 
                     case lookup f fs of
                       Nothing -> reportError $ MissingField f $ map fst fs
-                      Just ft -> return $ tMono ft
+                      Just ft -> return ft
+
+               TCon (TC TCSeq) [s,elT] -> do res <- check elT
+                                             return (TCon (TC TCSeq) [s,res])
+
+               TCon (TC TCFun) [a,b]   -> do res <- check b
+                                             return (TCon (TC TCFun) [a,res])
+
 
                _ -> reportError $ BadSelector sel t
 
 
+           -- XXX: Remove this?
            ListSel _ mb ->
              case tNoUser t of
                TCon (TC TCSeq) [ n, elT ] ->
@@ -212,7 +229,7 @@ exprSchema expr =
                             | m == fromIntegral len -> return ()
                           _ -> reportError $ UnexpectedSequenceShape len n
 
-                    return $ tMono elT
+                    return elT
 
                _ -> reportError $ BadSelector sel t
 
