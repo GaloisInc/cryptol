@@ -13,19 +13,19 @@ prompt. Commands all begin with the {\tt :} character.
 The Cryptol language is a size-polymorphic dependently-typed
 programming language with support for polymorphic recursive functions.
 It has a small syntax tuned for applied cryptography, a lightweight
-module system, a pseudo-Real/Eval/Print/Loop (REPL) top-level, and a
+module system, a Read--Eval--Print loop (REPL) top-level, and a
 rich set of built-in tools for performing high-assurance (literate)
 programming.  Cryptol performs fairly advanced type inference, though
 as with most mainstream strongly typed functional languages, types can
 be manually specified as well.  What follows is a brief tour of
 Cryptol's most salient language features.
 
-\paragraph*{Case sensitivity} 
+\paragraph*{Case sensitivity}
 Cryptol identifiers are case sensitive. {\tt A} and {\tt a} are two
 different things.\indCaseSensitive
 
-\paragraph*{Indentation and whitespace} 
-Cryptol uses indentation-level (instead of \{\}'s) to denote blocks.
+\paragraph*{Indentation and whitespace}
+Cryptol uses indentation level (instead of \texttt{\{\}}) to denote blocks.
 Whitespace within a line is immaterial, as is the specific amount of
 indentation.  However, consistent indentation will save you tons of
 trouble down the road!  Do not mix tabs and spaces for your
@@ -33,7 +33,7 @@ indentation.  Spaces are generally preferred.
 
 \paragraph*{Escape characters}
 Long lines can be continued with the end-of-line escape character
-\texttt{$\backslash$}, as in many programming languages.\indLineCont
+\texttt{\textbackslash}, as in many programming languages.\indLineCont
 There are no built-in character escape characters, as Cryptol performs
 no interpretation on bytes beyond printing byte streams out in ASCII,
 as discussed above.
@@ -45,7 +45,7 @@ line.
 
 \paragraph*{Order of definitions}
 The order of definitions is immaterial. You can write your definitions
-in any order, and earlier entries can refer to latter ones.
+in any order, and earlier entries can refer to later ones.
 
 \paragraph*{Typing}
 Cryptol is strongly typed. This means that the interpreter will catch
@@ -58,25 +58,25 @@ signatures because the inference engine will supply
 them.\indTypeInference
 
 \paragraph*{Type signatures}
-While writing type signatures are optional, writing them down is
+While explicit type signatures are optional, writing them down is
 considered good practice.\indSignature
 
 \paragraph*{Polymorphism}
 Cryptol functions can be polymorphic, which means they can operate on
-many different types.  Beware that the type which Cryptol infers might
+many different types.  Be aware that the type which Cryptol infers might
 be too polymorphic, so it is good practice to write your signatures,
 or at least check what Cryptol inferred is what you had in
 mind.\indPolymorphism\indSignature
 
-\paragraph*{Module system} 
-Each Cryptol file defines a {\it module}. Modules allow Cryptol
+\paragraph*{Module system}
+Each Cryptol file defines a \textit{module}. Modules allow Cryptol
 developers to manage which definitions are exported (the default
-behavior) and which definitions are internal-only ({\it private}). At
-the beginning of each Cryptol file, you specify its name and use {\tt
-  import}\indImport to specify the modules on which it
-relies.\indModuleSystem  Definitions are {\tt public} by default, but
-you can hide them from modules that import your code via the {\tt
-  private} keyword at the start of each private definition,\indPrivate
+behavior) and which definitions are internal-only (\textit{private}). At
+the beginning of each Cryptol file, you specify its name and use
+\texttt{import}\indImport to specify the modules on which it
+relies.\indModuleSystem  Definitions are \texttt{public} by default, but
+you can hide them from modules that import your code via the
+\texttt{private} keyword at the start of each private definition,\indPrivate
 like this:
 \begin{Verbatim}
   module test where
@@ -85,8 +85,8 @@ like this:
   // end of indented block indicates symbols are available to importing modules
   revealedConst = 0x15
 \end{Verbatim}
-Note that the filename should correspond to the module name, so {\tt
-  module test} must be defined in a file called {\tt test.cry}.
+Note that the filename should correspond to the module name, so
+\texttt{module test} must be defined in a file called \texttt{test.cry}.
 
 \todo[inline]{Say what happens if you try to put multiple modules into a
   single file.}
@@ -95,10 +95,10 @@ Note that the filename should correspond to the module name, so {\tt
   lambda or default modules; what modules are visible in the top level
   - talk about Cryptol prelude here?}
 
-\paragraph*{Literate programming} 
-You can feed \LaTeX~files to Cryptol (i.e., files with extension {\tt
-  .tex}).  Cryptol will look for \verb|\begin{code}| and
-  \verb|\end{code}| marks to extract Cryptol code.  Everything else
+\paragraph*{Literate programming}
+You can feed \LaTeX~files to Cryptol (i.e., files with extension
+\texttt{.tex}).  Cryptol will look for \verb|\begin{code}| and
+\verb|\end{code}| marks to extract Cryptol code.  Everything else
 will be comments as far as Cryptol is concerned.  In fact, the book
 you are reading is a Literate Cryptol program.\indLiterateProgramming
 
@@ -107,7 +107,7 @@ you are reading is a Literate Cryptol program.\indLiterateProgramming
 
 \paragraph*{Completion}
 On UNIX-based machines, you can press tab at any time and Cryptol will
-suggests completions based on the context.  You can retrieve your
+suggest completions based on the context.  You can retrieve your
 prior commands using the usual means (arrow keys or Emacs
 keybindings).\indCompletion
 
@@ -127,17 +127,17 @@ function, ask Cryptol its type, and copy the response back to your
 source code.  While this is somewhat contrived, it is usually better
 than not writing signatures at all.\indSignature In order to query the
 type of an infix operator (e.g., {\tt +}, {\tt ==}, etc.)  you will need
-to surround the operator with {\tt ()}'s, like this:
+to surround the operator with {\tt ()}, like this:
 \begin{Verbatim}
   Cryptol> :t (+)
-  + : {a} (Arith a) => a -> a -> a
+  (+) : {a} (Arith a) => a -> a -> a
 \end{Verbatim}
 
 \paragraph*{Browsing definitions}
 The command {\tt :browse} (or {\tt :b} for short) will display all the
 names you have defined, along with their types.\indCmdBrowse
 
-\paragraph*{Getting help} 
+\paragraph*{Getting help}
 The command {\tt :help} will show you all the available
 commands.\indCmdHelp Other useful implicit help invocations are:
 (a)~to type tab at the {\tt Cryptol>} prompt, which will list all of
