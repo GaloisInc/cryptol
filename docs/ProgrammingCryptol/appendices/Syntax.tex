@@ -335,7 +335,7 @@ explicit type signature.
 If \texttt{f} is a polymorphic value with type:
 
 \begin{verbatim}
-f : { tyParam }
+f : { tyParam } tyParam
 f = zero
 \end{verbatim}
 
@@ -352,7 +352,7 @@ The value corresponding to a numeric type may be accessed using the
 following notation:
 
 \begin{verbatim}
-`{t}
+`t
 \end{verbatim}
 
 Here \texttt{t} should be a type expression with numeric kind. The
@@ -360,7 +360,7 @@ resulting expression is a finite word, which is sufficiently large to
 accommodate the value of the type:
 
 \begin{verbatim}
-`{t} : {w >= width t}. [w]
+`t : {a} (fin a, a >= width t} => [a]
 \end{verbatim}
 
 \section{Explicit Type Annotations}\label{explicit-type-annotations}
