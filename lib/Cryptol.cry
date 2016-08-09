@@ -260,6 +260,57 @@ primitive (!) : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b
  */
 primitive (!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
 
+/**
+ * Update the given sequence with new value at the given index position.
+ * The first argument is a sequence. The second argument is the zero-based
+ * index of the element to update, starting from the front of the sequence.
+ * The third argument is the new element.  The return value is the
+ * initial sequence updated so that the indicated index has the given value.
+ */
+primitive update : {a, b, c} (fin c) => [a]b -> [c] -> b -> [a]b
+
+/**
+ * Update the given sequence with new value at the given index position.
+ * The first argument is a sequence. The second argument is the zero-based
+ * index of the element to update, starting from the end of the sequence.
+ * The third argument is the new element.  The return value is the
+ * initial sequence updated so that the indicated index has the given value.
+ */
+primitive updateEnd : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b -> [a]b
+
+/**
+ * Perform a series of updates to a sequence.  The first argument is
+ * the initial sequence to update.  The second argument is a sequence
+ * of index/element pairs with which to update the sequence.
+ * This function applies the 'update' function in sequence with the
+ * given update pairs.
+ */
+updates : {a,b,c,d} (fin c, fin d) => [a]b -> [d]([c], b) -> [a]b
+updates xs0 upds = xss!0
+ where
+   xss = [ xs0 ] #
+         [ update xs i b
+	 | xs    <- xss
+	 | (i,b) <- upds
+	 ]
+
+/**
+ * Perform a series of updates to a sequence.  The first argument is
+ * the initial sequence to update.  The second argument is a sequence
+ * of index/element pairs with which to update the sequence.
+ * This function applies the 'updateEnd' function in sequence with the
+ * given update pairs.
+ */
+updatesEnd : {a,b,c,d} (fin a, fin c, fin d) => [a]b -> [d]([c], b) -> [a]b
+updatesEnd xs0 upds = xss!0
+ where
+   xss = [ xs0 ] #
+         [ updateEnd xs i b
+	 | xs    <- xss
+	 | (i,b) <- upds
+	 ]
+
+
 primitive fromThen : {first, next, bits, len}
                      ( fin first, fin next, fin bits
                      , bits >= width first, bits >= width next

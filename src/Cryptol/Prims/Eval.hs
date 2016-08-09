@@ -18,7 +18,7 @@
 {-# LANGUAGE BangPatterns #-}
 module Cryptol.Prims.Eval where
 
-import Control.Monad (join, when)
+import Control.Monad (join, when, unless)
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),fromNat,genLog, nMul)
@@ -127,6 +127,12 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     indexPrimOne  indexBack_bits indexBack)
   , ("!!"         , {-# SCC "Prelude::(!!)" #-}
                     indexPrimMany indexBack_bits indexBack)
+
+  , ("update"     , {-# SCC "Prelude::update" #-}
+                    updatePrim updateFront_bits updateFront)
+
+  , ("updateEnd"  , {-# SCC "Prelude::updateEnd" #-}
+                    updatePrim updateBack_bits updateBack)
 
   , ("zero"       , {-# SCC "Prelude::zero" #-}
                     tlam zeroV)
@@ -1050,11 +1056,11 @@ indexPrimMany bits_op word_op =
   nlam $ \ _i ->
    lam $ \ l  -> return $
    lam $ \ r  -> do
-     vs <- l >>= \case
+     vs <- (l >>= \case
                VWord _ w  -> w >>= \w' -> return $ SeqMap (\i -> VBit <$> indexWordValue w' i)
                VSeq _ vs  -> return vs
                VStream vs -> return vs
-               _ -> evalPanic "Expected sequence value" ["indexPrimMany"]
+               _ -> evalPanic "Expected sequence value" ["indexPrimMany"])
      ixs <- fromSeq "indexPrimMany idx" =<< r
      mkSeq m a <$> memoMap (SeqMap $ \i -> do
        lookupSeqMap ixs i >>= \case
@@ -1062,6 +1068,92 @@ indexPrimMany bits_op word_op =
             WordVal w' -> word_op (fromNat n) a vs w'
             BitsVal bs -> bits_op (fromNat n) a vs =<< sequence bs
          _ -> evalPanic "Expected word value" ["indexPrimMany"])
+
+
+updateFront
+  :: Nat'
+  -> TValue
+  -> SeqMap Bool BV
+  -> WordValue Bool BV
+  -> Eval (GenValue Bool BV)
+  -> Eval (SeqMap Bool BV)
+updateFront len _eltTy vs w val = do
+  idx <- bvVal <$> asWordVal w
+  case len of
+    Inf -> return ()
+    Nat n -> unless (idx < n) (invalidIndex idx)
+  return $ SeqMap $ \i ->
+     if i == idx then val else lookupSeqMap vs i
+
+updateFront_bits
+ :: Nat'
+ -> TValue
+ -> Seq.Seq (Eval Bool)
+ -> WordValue Bool BV
+ -> Eval (GenValue Bool BV)
+ -> Eval (Seq.Seq (Eval Bool))
+updateFront_bits len _eltTy bs w val = do
+  idx <- bvVal <$> asWordVal w
+  case len of
+    Inf -> return ()
+    Nat n -> unless (idx < n) (invalidIndex idx)
+  return $! Seq.update (fromInteger idx) (fromVBit <$> val) bs
+
+
+updateBack
+  :: Nat'
+  -> TValue
+  -> SeqMap Bool BV
+  -> WordValue Bool BV
+  -> Eval (GenValue Bool BV)
+  -> Eval (SeqMap Bool BV)
+updateBack Inf _eltTy _vs _w _val =
+  evalPanic "Unexpected infinite sequence in updateEnd" []
+updateBack (Nat n) _eltTy vs w val = do
+  idx <- bvVal <$> asWordVal w
+  unless (idx < n) (invalidIndex idx)
+  let idx' = n - idx - 1
+  return $ SeqMap $ \i ->
+     if i == idx' then val else lookupSeqMap vs i
+
+updateBack_bits
+ :: Nat'
+ -> TValue
+ -> Seq.Seq (Eval Bool)
+ -> WordValue Bool BV
+ -> Eval (GenValue Bool BV)
+ -> Eval (Seq.Seq (Eval Bool))
+updateBack_bits Inf _eltTy _bs _w _val =
+  evalPanic "Unexpected infinite sequence in updateEnd" []
+updateBack_bits (Nat n) _eltTy bs w val = do
+  idx <- bvVal <$> asWordVal w
+  unless (idx < n) (invalidIndex idx)
+  let idx' = n - idx - 1
+  return $! Seq.update (fromInteger idx') (fromVBit <$> val) bs
+
+
+updatePrim
+     :: BitWord b w
+     => (Nat' -> TValue -> Seq.Seq (Eval b) -> WordValue b w -> Eval (GenValue b w) -> Eval (Seq.Seq (Eval b)))
+     -> (Nat' -> TValue -> SeqMap b w -> WordValue b w -> Eval (GenValue b w) -> Eval (SeqMap b w))
+     -> GenValue b w
+updatePrim updateBits updateWord =
+  nlam $ \len ->
+  tlam $ \eltTy ->
+  nlam $ \_idxLen ->
+  lam $ \xs  -> return $
+  lam $ \idx -> return $
+  lam $ \val -> do
+    idx' <- fromWordVal "update" =<< idx
+    xs >>= \case
+      VWord l w -> do
+         w' <- asBitsVal <$> w
+         return $ VWord l (BitsVal <$> updateBits len eltTy w' idx' val)
+      VSeq l vs -> VSeq l <$> updateWord len eltTy vs idx' val
+      VStream vs -> VStream <$> updateWord len eltTy vs idx' val
+      _ -> evalPanic "Expected sequence value" ["updatePrim"]
+
+
 
 -- @[ 0, 1 .. ]@
 fromThenV :: BitWord b w
@@ -1185,4 +1277,3 @@ errorV ty msg = case ty of
   -- records
   TVRec fields ->
     return $ VRecord [ (f,errorV fty msg) | (f,fty) <- fields ]
-
