@@ -42,6 +42,8 @@ main :: IO ()
 main = defaultMain [
     bgroup "parser" [
         parser "Prelude" "lib/Cryptol.cry"
+      , parser "Extras"  "lib/Cryptol/Extras.cry"
+      , parser "PreludeWithExtras" "bench/data/PreludeWithExtras.cry"
       , parser "BigSequence" "bench/data/BigSequence.cry"
       , parser "BigSequenceHex" "bench/data/BigSequenceHex.cry"
       , parser "AES" "bench/data/AES.cry"
@@ -49,6 +51,8 @@ main = defaultMain [
       ]
   , bgroup "typechecker" [
         tc "Prelude" "lib/Cryptol.cry"
+      , tc "Extras"  "lib/Cryptol/Extras.cry"
+      , tc "PreludeWithExtras" "bench/data/PreludeWithExtras.cry"
       , tc "BigSequence" "bench/data/BigSequence.cry"
       , tc "BigSequenceHex" "bench/data/BigSequenceHex.cry"
       , tc "AES" "bench/data/AES.cry"
