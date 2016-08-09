@@ -20,3 +20,4 @@ cryptol-2.*
 /ICryptol/profile.tar
 /ICryptol/profile_cryptol/security/
 /ICryptol/profile_cryptol/startup/
+/bench*.xml
