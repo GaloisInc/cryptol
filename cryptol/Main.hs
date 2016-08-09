@@ -230,8 +230,14 @@ setupREPL opts = do
   case optLoad opts of
     []  -> loadPrelude `REPL.catch` \x -> io $ print $ pp x
     [l] -> loadCmd l `REPL.catch` \x -> do
-           io $ print $ pp x
-           -- If the requested file fails to load, load the prelude instead
-           loadPrelude `REPL.catch` \y -> do
-           io $ print $ pp y
+             io $ print $ pp x
+             -- If the requested file fails to load, load the prelude instead...
+             loadPrelude `REPL.catch` \y -> do
+               io $ print $ pp y
+             -- ... but make sure the loaded module is set to the file
+             -- we tried, instead of the Prelude
+             REPL.setLoadedMod REPL.LoadedModule
+               { REPL.lName = Nothing
+               , REPL.lPath = l
+               }
     _   -> io $ putStrLn "Only one file may be loaded at the command line."
