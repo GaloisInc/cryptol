@@ -295,7 +295,7 @@ ppValue opts = loop
         , asciiMode opts l
         -> do vs <- traverse (fromVWord "ppWordSeq") ws
               case traverse wordAsChar vs of
-                Just str -> return $ text str
+                Just str -> return $ text (show str)
                 _ -> return $ brackets (fsep (punctuate comma $ map (ppWord opts) vs))
       _ -> do ws' <- traverse loop ws
               return $ brackets (fsep (punctuate comma ws'))
