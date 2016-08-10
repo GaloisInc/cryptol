@@ -581,7 +581,7 @@ tryFromBits :: BitWord b w => [Eval (GenValue b w)] -> Maybe w
 tryFromBits = go id
  where
  go f [] = Just (packWord (f []))
- go f (Ready (VBit b):vs) = go ((b:) . f) vs
+ go f (Ready (VBit b):vs) = go (f . (b:)) vs
  go f (v:vs) = Nothing
 
 
