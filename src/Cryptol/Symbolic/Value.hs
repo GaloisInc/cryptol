@@ -24,7 +24,7 @@ module Cryptol.Symbolic.Value
   , fromVBit, fromVFun, fromVPoly, fromVTuple, fromVRecord, lookupRecord
   , fromSeq, fromVWord
   , evalPanic
-  , iteSValue, mergeValue, mergeWord
+  , iteSValue, mergeValue, mergeWord, mergeBit
   )
   where
 
@@ -36,10 +36,10 @@ import Data.SBV.Dynamic
 --import Cryptol.Eval.Monad
 import Cryptol.Eval.Type   (TValue(..), isTBit, tvSeq)
 import Cryptol.Eval.Value  ( GenValue(..), BitWord(..), lam, tlam, toStream,
-                           toFinSeq, toSeq, WordValue(..), asWordVal, asBitsVal,
+                           toFinSeq, toSeq, WordValue(..), asBitsVal,
                            fromSeq, fromVBit, fromVWord, fromVFun, fromVPoly,
                            fromVTuple, fromVRecord, lookupRecord, SeqMap(..),
-                           ppBV,BV(..),integerToChar)
+                           ppBV,BV(..),integerToChar, lookupSeqMap )
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -117,7 +117,7 @@ mergeValue f c v1 v2 =
       | otherwise = panic "Cryptol.Symbolic.Value"
                     [ "mergeValue.mergeField: incompatible values" ]
     mergeSeqMap x y =
-      SeqMap $ \i -> mergeValue f c <$> lookupSeqMap x i <*> lookupSeqMap y i
+      IndexSeqMap $ \i -> mergeValue f c <$> lookupSeqMap x i <*> lookupSeqMap y i
 
 -- Symbolic Big-endian Words -------------------------------------------------------
 

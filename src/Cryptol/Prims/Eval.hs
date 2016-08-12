@@ -18,12 +18,11 @@
 {-# LANGUAGE BangPatterns #-}
 module Cryptol.Prims.Eval where
 
-import Control.Monad (join, when, unless)
+import Control.Monad (join, unless)
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),fromNat,genLog, nMul)
 import qualified Cryptol.Eval.Arch as Arch
-import Cryptol.Eval.Env
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
@@ -34,9 +33,7 @@ import Cryptol.Utils.Ident (Ident,mkIdent)
 import Cryptol.Utils.PP
 
 import qualified Data.Foldable as Fold
-import Data.List (sortBy, transpose, genericTake, genericDrop,
-                  genericReplicate, genericSplitAt, genericIndex,
-                  foldl')
+import Data.List (sortBy)
 import qualified Data.Sequence as Seq
 import Data.Ord (comparing)
 import Data.Bits (Bits(..))
@@ -45,8 +42,6 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
 
 import System.Random.TF.Gen (seedTFGen)
-
-import Debug.Trace(trace)
 
 -- Primitives ------------------------------------------------------------------
 
@@ -522,10 +517,10 @@ zeroV ty = case ty of
   -- sequences
   TVSeq w ety
       | isTBit ety -> word w 0
-      | otherwise  -> VSeq w (SeqMap $ \_ -> ready $ zeroV ety)
+      | otherwise  -> VSeq w (IndexSeqMap $ \_ -> ready $ zeroV ety)
 
   TVStream ety ->
-    VStream (SeqMap $ \_ -> ready $ zeroV ety)
+    VStream (IndexSeqMap $ \_ -> ready $ zeroV ety)
 
   -- functions
   TVFun _ bty ->
@@ -578,14 +573,14 @@ joinSeq (Nat parts) each TVBit xs
 
 -- infinite sequence of words
 joinSeq Inf each TVBit xs
-  = return $ VStream $ SeqMap $ \i -> do
+  = return $ VStream $ IndexSeqMap $ \i -> do
       let (q,r) = divMod i each
       ys <- fromWordVal "join seq" =<< lookupSeqMap xs q
       VBit <$> (asBitsVal ys `Seq.index` fromInteger r)
 
 -- finite or infinite sequence of non-words
 joinSeq parts each _a xs
-  = return $ mkSeq $ SeqMap $ \i -> do
+  = return $ mkSeq $ IndexSeqMap $ \i -> do
       let (q,r) = divMod i each
       ys <- fromSeq "join seq" =<< lookupSeqMap xs q
       lookupSeqMap ys r
@@ -683,11 +678,11 @@ ecSplitV =
     case (parts, each) of
        (Nat p, Nat e) | isTBit a -> do
           VWord _ val' <- val
-          return $ VSeq p $ SeqMap $ \i -> do
+          return $ VSeq p $ IndexSeqMap $ \i -> do
             return $ VWord e (extractWordVal e ((p-i-1)*e) <$> val')
        (Inf, Nat e) | isTBit a -> do
           val' <- delay Nothing (fromSeq "ecSplitV" =<< val)
-          return $ VStream $ SeqMap $ \i ->
+          return $ VStream $ IndexSeqMap $ \i ->
             return $ VWord e $ return $ BitsVal $ Seq.fromFunction (fromInteger e) $ \j ->
               let idx = i*e + toInteger j
                in idx `seq` do
@@ -695,14 +690,14 @@ ecSplitV =
                       fromVBit <$> lookupSeqMap xs idx
        (Nat p, Nat e) -> do
           val' <- delay Nothing (fromSeq "ecSplitV" =<< val)
-          return $ VSeq p $ SeqMap $ \i ->
-            return $ VSeq e $ SeqMap $ \j -> do
+          return $ VSeq p $ IndexSeqMap $ \i ->
+            return $ VSeq e $ IndexSeqMap $ \j -> do
               xs <- val'
               lookupSeqMap xs (e * i + j)
        (Inf  , Nat e) -> do
           val' <- delay Nothing (fromSeq "ecSplitV" =<< val)
-          return $ VStream $ SeqMap $ \i ->
-            return $ VSeq e $ SeqMap $ \j -> do
+          return $ VStream $ IndexSeqMap $ \i ->
+            return $ VSeq e $ IndexSeqMap $ \j -> do
               xs <- val'
               lookupSeqMap xs (e * i + j)
        _              -> evalPanic "splitV" ["invalid type arguments to split"]
@@ -730,7 +725,7 @@ transposeV :: BitWord b w
            -> Eval (GenValue b w)
 transposeV a b c xs
   | isTBit c, Nat na <- a =
-      return $ bseq $ SeqMap $ \bi ->
+      return $ bseq $ IndexSeqMap $ \bi ->
         return $ VWord na $ return $ BitsVal $
           Seq.fromFunction (fromInteger na) $ \ai -> do
             ys <- flip lookupSeqMap (toInteger ai) =<< fromSeq "transposeV" xs
@@ -740,8 +735,8 @@ transposeV a b c xs
               _ -> evalPanic "transpose" ["expected sequence of bits"]
 
   | otherwise = do
-      return $ bseq $ SeqMap $ \bi ->
-        return $ aseq $ SeqMap $ \ai -> do
+      return $ bseq $ IndexSeqMap $ \bi ->
+        return $ aseq $ IndexSeqMap $ \ai -> do
           ys  <- flip lookupSeqMap ai =<< fromSeq "transposeV 1" xs
           z   <- flip lookupSeqMap bi =<< fromSeq "transposeV 2" ys
           return z
@@ -772,7 +767,7 @@ ccatV front back elty (VWord m l) (VWord n r) =
 
 ccatV front back elty (VWord m l) (VStream r) = do
   l' <- delay Nothing l
-  return $ VStream $ SeqMap $ \i ->
+  return $ VStream $ IndexSeqMap $ \i ->
     if i < m then
       VBit <$> (flip indexWordValue i =<< l')
     else
@@ -782,7 +777,7 @@ ccatV front back elty l r = do
        l'' <- delay Nothing (fromSeq "ccatV left" l)
        r'' <- delay Nothing (fromSeq "ccatV right" r)
        let Nat n = front
-       mkSeq (evalTF TCAdd [front,back]) elty <$> return (SeqMap $ \i ->
+       mkSeq (evalTF TCAdd [front,back]) elty <$> return (IndexSeqMap $ \i ->
         if i < n then do
          ls <- l''
          lookupSeqMap ls i
@@ -934,7 +929,7 @@ shiftLB w bs by =
   Seq.replicate (fromInteger (min w by)) (ready False)
 
 shiftLS :: Nat' -> TValue -> SeqValMap -> Integer -> SeqValMap
-shiftLS w ety vs by = SeqMap $ \i ->
+shiftLS w ety vs by = IndexSeqMap $ \i ->
   case w of
     Nat len
       | i+by < len -> lookupSeqMap vs (i+by)
@@ -954,7 +949,7 @@ shiftRB w bs by =
   Seq.take (fromInteger (w - min w by)) bs
 
 shiftRS :: Nat' -> TValue -> SeqValMap -> Integer -> SeqValMap
-shiftRS w ety vs by = SeqMap $ \i ->
+shiftRS w ety vs by = IndexSeqMap $ \i ->
   case w of
     Nat len
       | i >= by   -> lookupSeqMap vs (i-by)
@@ -977,7 +972,7 @@ rotateLB w bs by =
    in tl Seq.>< hd
 
 rotateLS :: Nat' -> TValue -> SeqValMap -> Integer -> SeqValMap
-rotateLS w _ vs by = SeqMap $ \i ->
+rotateLS w _ vs by = IndexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((by + i) `mod` len)
     _ -> panic "Cryptol.Eval.Prim.rotateLS" [ "unexpected infinite sequence" ]
@@ -994,7 +989,7 @@ rotateRB w bs by =
    in tl Seq.>< hd
 
 rotateRS :: Nat' -> TValue -> SeqValMap -> Integer -> SeqValMap
-rotateRS w _ vs by = SeqMap $ \i ->
+rotateRS w _ vs by = IndexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((len - by + i) `mod` len)
     _ -> panic "Cryptol.Eval.Prim.rotateRS" [ "unexpected infinite sequence" ]
@@ -1014,7 +1009,7 @@ indexPrimOne bits_op word_op =
    lam $ \ l  -> return $
    lam $ \ r  -> do
       vs <- l >>= \case
-               VWord _ w  -> w >>= \w' -> return $ SeqMap (\i -> VBit <$> indexWordValue w' i)
+               VWord _ w  -> w >>= \w' -> return $ IndexSeqMap (\i -> VBit <$> indexWordValue w' i)
                VSeq _ vs  -> return vs
                VStream vs -> return vs
                _ -> evalPanic "Expected sequence value" ["indexPrimOne"]
@@ -1057,12 +1052,12 @@ indexPrimMany bits_op word_op =
    lam $ \ l  -> return $
    lam $ \ r  -> do
      vs <- (l >>= \case
-               VWord _ w  -> w >>= \w' -> return $ SeqMap (\i -> VBit <$> indexWordValue w' i)
+               VWord _ w  -> w >>= \w' -> return $ IndexSeqMap (\i -> VBit <$> indexWordValue w' i)
                VSeq _ vs  -> return vs
                VStream vs -> return vs
                _ -> evalPanic "Expected sequence value" ["indexPrimMany"])
      ixs <- fromSeq "indexPrimMany idx" =<< r
-     mkSeq m a <$> memoMap (SeqMap $ \i -> do
+     mkSeq m a <$> memoMap (IndexSeqMap $ \i -> do
        lookupSeqMap ixs i >>= \case
          VWord _ w -> w >>= \case
             WordVal w' -> word_op (fromNat n) a vs w'
@@ -1082,8 +1077,7 @@ updateFront len _eltTy vs w val = do
   case len of
     Inf -> return ()
     Nat n -> unless (idx < n) (invalidIndex idx)
-  return $ SeqMap $ \i ->
-     if i == idx then val else lookupSeqMap vs i
+  return $ updateSeqMap vs idx val
 
 updateFront_bits
  :: Nat'
@@ -1112,9 +1106,7 @@ updateBack Inf _eltTy _vs _w _val =
 updateBack (Nat n) _eltTy vs w val = do
   idx <- bvVal <$> asWordVal w
   unless (idx < n) (invalidIndex idx)
-  let idx' = n - idx - 1
-  return $ SeqMap $ \i ->
-     if i == idx' then val else lookupSeqMap vs i
+  return $ updateSeqMap vs (n - idx - 1) val
 
 updateBack_bits
  :: Nat'
@@ -1168,7 +1160,7 @@ fromThenV  =
         | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
       (Nat first', Nat next', Nat len', Nat bits') ->
         let diff = next' - first'
-         in VSeq len' $ SeqMap $ \i ->
+         in VSeq len' $ IndexSeqMap $ \i ->
                 ready $ VWord bits' $ return $
                   WordVal $ wordLit bits' (first' + i*diff)
       _ -> evalPanic "fromThenV" ["invalid arguments"]
@@ -1185,7 +1177,7 @@ fromToV  =
         | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
       (Nat first', Nat lst', Nat bits') ->
         let len = 1 + (lst' - first')
-         in VSeq len $ SeqMap $ \i ->
+         in VSeq len $ IndexSeqMap $ \i ->
                ready $ VWord bits' $ return $
                  WordVal $ wordLit bits' (first' + i)
       _ -> evalPanic "fromToV" ["invalid arguments"]
@@ -1204,7 +1196,7 @@ fromThenToV  =
         | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
       (Nat first', Nat next', Nat lst', Nat len', Nat bits') ->
         let diff = next' - first'
-         in VSeq len' $ SeqMap $ \i ->
+         in VSeq len' $ IndexSeqMap $ \i ->
                ready $ VWord bits' $ return $
                  WordVal $ wordLit bits' (first' + i*diff)
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
@@ -1215,7 +1207,7 @@ infFromV :: BitWord b w
 infFromV =
      nlam $ \(finNat' -> bits)  ->
      wlam $ \first ->
-     return $ VStream $ SeqMap $ \i ->
+     return $ VStream $ IndexSeqMap $ \i ->
        ready $ VWord bits $ return $
          WordVal $ wordPlus first (wordLit bits i)
 
@@ -1226,7 +1218,7 @@ infFromThenV =
      wlam $ \first -> return $
      wlam $ \next  -> do
        let diff = wordMinus next first
-       return $ VStream $ SeqMap $ \i ->
+       return $ VStream $ IndexSeqMap $ \i ->
          ready $ VWord bits $ return $
            WordVal $ wordPlus first (wordMult diff (wordLit bits i))
 
@@ -1261,10 +1253,10 @@ errorV ty msg = case ty of
   TVSeq w ety
      | isTBit ety -> return $ VWord w $ return $ BitsVal $
                          Seq.replicate (fromInteger w) (cryUserError msg)
-     | otherwise  -> return $ VSeq w (SeqMap $ \_ -> errorV ety msg)
+     | otherwise  -> return $ VSeq w (IndexSeqMap $ \_ -> errorV ety msg)
 
   TVStream ety ->
-    return $ VStream (SeqMap $ \_ -> errorV ety msg)
+    return $ VStream (IndexSeqMap $ \_ -> errorV ety msg)
 
   -- functions
   TVFun _ bty ->

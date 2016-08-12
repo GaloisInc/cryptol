@@ -33,14 +33,11 @@ import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
-import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
 import           Control.Monad
-import           Control.Monad.Fix
 import qualified Data.Sequence as Seq
-import           Data.IORef
 import           Data.List
 import           Data.Maybe
 import qualified Data.Map.Strict as Map
@@ -49,7 +46,6 @@ import Prelude ()
 import Prelude.Compat
 
 type EvalEnv = GenEvalEnv Bool BV
-type ReadEnv = EvalEnv
 
 -- Expression Evaluation -------------------------------------------------------
 
@@ -81,7 +77,7 @@ evalExpr env expr = case expr of
             Just w  -> WordVal w
             Nothing -> BitsVal $ Seq.fromList $ map (fromVBit <$>) vs
     | otherwise -> {-# SCC "evalExpr->EList" #-}
-        VSeq len <$> finiteSeqMap vs
+        return $ VSeq len $ finiteSeqMap vs
    where
     tyv = evalValType (envTypes env) ty
     vs  = map (evalExpr env) es
@@ -299,11 +295,11 @@ etaDelay msg env0 Forall{ sVars = vs, sType = tp0 } = goTpVars env0 vs
      VWord _ _ -> return x
      VSeq n xs
        | TVSeq nt el <- tp
-      -> return $ VSeq n $ SeqMap $ \i -> go el (lookupSeqMap xs i)
+      -> return $ VSeq n $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
 
      VStream xs
        | TVSeq nt el <- tp
-      -> return $ VStream $ SeqMap $ \i -> go el (lookupSeqMap xs i)
+      -> return $ VStream $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
 
      VTuple xs
        | TVTuple ts <- tp
@@ -332,12 +328,12 @@ etaDelay msg env0 Forall{ sVars = vs, sType = tp0 } = goTpVars env0 vs
 
   TVSeq n el ->
       do x' <- delay (Just msg) (fromSeq "during eta-expansion" =<< x)
-         return $ VSeq n $ SeqMap $ \i -> do
+         return $ VSeq n $ IndexSeqMap $ \i -> do
            go el (flip lookupSeqMap i =<< x')
 
   TVStream el ->
       do x' <- delay (Just msg) (fromSeq "during eta-expansion" =<< x)
-         return $ VStream $ SeqMap $ \i ->
+         return $ VStream $ IndexSeqMap $ \i ->
            go el (flip lookupSeqMap i =<< x')
 
   TVFun _t1 t2 ->
@@ -503,7 +499,7 @@ evalComp :: EvalPrims b w
          -> Eval (GenValue b w)
 evalComp env len elty body ms =
        do lenv <- mconcat <$> mapM (branchEnvs (toListEnv env)) ms
-          mkSeq len elty <$> memoMap (SeqMap $ \i -> do
+          mkSeq len elty <$> memoMap (IndexSeqMap $ \i -> do
               evalExpr (evalListEnv lenv i) body)
 
 -- | Turn a list of matches into the final environments for each iteration of
@@ -527,7 +523,7 @@ evalMatch lenv m = case m of
       -- Select from a sequence of finite length.  This causes us to 'stutter'
       -- through our previous choices `nLen` times.
       Nat nLen -> do
-        vss <- memoMap $ SeqMap $ \i -> evalExpr (evalListEnv lenv i) expr
+        vss <- memoMap $ IndexSeqMap $ \i -> evalExpr (evalListEnv lenv i) expr
         let stutter xs = \i -> xs (i `div` nLen)
         let lenv' = lenv { leVars = fmap stutter (leVars lenv) }
         let vs i = do let (q, r) = i `divMod` nLen

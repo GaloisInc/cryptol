@@ -21,7 +21,6 @@ import Data.List(genericReplicate)
 
 import Prelude ()
 import Prelude.Compat
-import Data.List (genericIndex)
 
 -- | A test result is either a pass, a failure due to evaluating to
 -- @False@, or a failure due to an exception raised during evaluation
@@ -121,7 +120,7 @@ typeValues ty =
                   [ VWord n (ready (WordVal (BV n x))) | x <- [ 0 .. 2^n - 1 ] ]
 
               [ TCon (TC (TCNum n)) _, t ] ->
-                  [ VSeq n (SeqMap $ \i -> return $ genericIndex xs i)
+                  [ VSeq n (finiteSeqMap (map ready xs))
                   | xs <- sequence $ genericReplicate n
                                    $ typeValues t ]
               _ -> []

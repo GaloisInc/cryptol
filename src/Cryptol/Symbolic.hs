@@ -255,8 +255,7 @@ parseValue (FTSeq n FTBit) cws =
                          Eval.packWord (map fromVBit vs), cws')
       where (vs, cws') = parseValues (replicate n FTBit) cws
 parseValue (FTSeq n t) cws =
-                      (Eval.VSeq (toInteger n) $ Eval.SeqMap $ \i ->
-                           return $ genericIndex vs i
+                      (Eval.VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
                       , cws'
                       )
   where (vs, cws') = parseValues (replicate n t) cws
@@ -320,8 +319,7 @@ forallFinType ty =
     FTSeq 0 FTBit -> return $ Eval.word 0 0
     FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> (forallBV_ n)
     FTSeq n t     -> do vs <- replicateM n (forallFinType t)
-                        return $ VSeq (toInteger n) $ Eval.SeqMap $ \i ->
-                           return $ genericIndex vs i
+                        return $ VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
     FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . forallFinType) ts
     FTRecord fs   -> VRecord <$> mapM (traverseSnd (fmap Eval.ready . forallFinType)) fs
 
@@ -332,7 +330,6 @@ existsFinType ty =
     FTSeq 0 FTBit -> return $ Eval.word 0 0
     FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> (existsBV_ n)
     FTSeq n t     -> do vs <- replicateM n (existsFinType t)
-                        return $ VSeq (toInteger n) $ Eval.SeqMap $ \i ->
-                           return $ genericIndex vs i
+                        return $ VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
     FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . existsFinType) ts
     FTRecord fs   -> VRecord <$> mapM (traverseSnd (fmap Eval.ready . existsFinType)) fs

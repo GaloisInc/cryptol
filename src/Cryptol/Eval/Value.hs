@@ -6,14 +6,13 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Safe #-}
-
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE Safe #-}
@@ -24,9 +23,11 @@
 module Cryptol.Eval.Value where
 
 import Data.Bits
+import Data.IORef
 import qualified Data.Sequence as Seq
 import qualified Data.Foldable as Fold
-
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
 import MonadLib
 
 import qualified Cryptol.Eval.Arch as Arch
@@ -45,9 +46,6 @@ import Numeric (showIntAtBase)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-
-import qualified Data.Cache.LRU.IO as LRU
-
 
 -- Values ----------------------------------------------------------------------
 
@@ -77,21 +75,35 @@ mkBv w i = BV w (mask w i)
 
 -- | A sequence map represents a mapping from nonnegative integer indices
 --   to values.  These are used to represent both finite and infinite sequences.
-newtype SeqMap b w = SeqMap { lookupSeqMap :: Integer -> Eval (GenValue b w) }
+data SeqMap b w
+  = IndexSeqMap  !(Integer -> Eval (GenValue b w))
+  | UpdateSeqMap !(Map Integer (Eval (GenValue b w)))
+                 !(Integer -> Eval (GenValue b w))
+
+lookupSeqMap :: SeqMap b w -> Integer -> Eval (GenValue b w)
+lookupSeqMap (IndexSeqMap f) i = f i
+lookupSeqMap (UpdateSeqMap m f) i =
+  case Map.lookup i m of
+    Just x  -> x
+    Nothing -> f i
+
 type SeqValMap = SeqMap Bool BV
 
 instance NFData (SeqMap b w) where
   rnf x = seq x ()
 
 -- | Generate a finite sequence map from a list of values
-finiteSeqMap :: [Eval (GenValue b w)] -> Eval (SeqMap b w)
-finiteSeqMap xs = do
-   memoMap (SeqMap $ \i -> genericIndex xs i)
+finiteSeqMap :: [Eval (GenValue b w)] -> SeqMap b w
+finiteSeqMap xs =
+   UpdateSeqMap
+      (Map.fromList (zip [0..] xs))
+      invalidIndex
 
 -- | Generate an infinite sequence map from a stream of values
 infiniteSeqMap :: [Eval (GenValue b w)] -> Eval (SeqMap b w)
 infiniteSeqMap xs =
-   memoMap (SeqMap $ \i -> genericIndex xs i)
+   -- TODO: use an int-trie?
+   memoMap (IndexSeqMap $ \i -> genericIndex xs i)
 
 -- | Create a finite list of length `n` of the values from [0..n-1] in
 --   the given the sequence emap.
@@ -106,7 +118,11 @@ streamSeqMap m = [ lookupSeqMap m i | i <- [0..] ]
 reverseSeqMap :: Integer     -- ^ Size of the sequence map
               -> SeqMap b w
               -> SeqMap b w
-reverseSeqMap n vals = SeqMap $ \i -> lookupSeqMap vals (n - 1 - i)
+reverseSeqMap n vals = IndexSeqMap $ \i -> lookupSeqMap vals (n - 1 - i)
+
+updateSeqMap :: SeqMap b w -> Integer -> Eval (GenValue b w) -> SeqMap b w
+updateSeqMap (UpdateSeqMap m sm) i x = UpdateSeqMap (Map.insert i x m) sm
+updateSeqMap (IndexSeqMap f) i x = UpdateSeqMap (Map.singleton i x) f
 
 -- | Given a number `n` and a sequence map, return two new sequence maps:
 --   the first containing the values from `[0..n-1]` and the next containing
@@ -115,33 +131,25 @@ splitSeqMap :: Integer -> SeqMap b w -> (SeqMap b w, SeqMap b w)
 splitSeqMap n xs = (hd,tl)
   where
   hd = xs
-  tl = SeqMap $ \i -> lookupSeqMap xs (i+n)
+  tl = IndexSeqMap $ \i -> lookupSeqMap xs (i+n)
 
 -- | Given a sequence map, return a new sequence map that is memoized using
---   fixed sized memo table.  The memo table is managed using a Least-Recently-Used
---   (LRU) cache eviction policy.
---
---   Currently, the cache size is fixed at 64 elements.
---   This seems to provide a good compromize between memory useage and effective
---   memoization.
-memoMap :: SeqMap b w -> Eval (SeqMap b w)
+--   a finite map memo table.
 memoMap x = do
-  -- TODO: make the size of the LRU cache a tuneable parameter...
-  let lruSize = 64
-  lru <- io $ LRU.newAtomicLRU (Just lruSize)
-  return $ SeqMap $ memo lru
+  cache <- io $ newIORef $ Map.empty
+  return $ IndexSeqMap (memo cache)
 
  where
- memo lru i =  do
-    mz <- io $ LRU.lookup i lru
-    case mz of
-      Just z  -> return z
-      Nothing -> doEval lru i
+ memo cache i = do
+   mz <- io (Map.lookup i <$> readIORef cache)
+   case mz of
+     Just z  -> return z
+     Nothing -> doEval cache i
 
- doEval lru i = do
-    v <- lookupSeqMap x i
-    io $ LRU.insert i v lru
-    return v
+ doEval cache i = do
+   v <- lookupSeqMap x i
+   io $ modifyIORef' cache (Map.insert i v)
+   return v
 
 -- | Apply the given evaluation function pointwise to the two given
 --   sequence maps.
@@ -150,13 +158,13 @@ zipSeqMap :: (GenValue b w -> GenValue b w -> Eval (GenValue b w))
           -> SeqMap b w
           -> Eval (SeqMap b w)
 zipSeqMap f x y =
-  memoMap (SeqMap $ \i -> join (f <$> lookupSeqMap x i <*> lookupSeqMap y i))
+  memoMap (IndexSeqMap $ \i -> join (f <$> lookupSeqMap x i <*> lookupSeqMap y i))
 
 -- | Apply the given function to each value in the given sequence map
 mapSeqMap :: (GenValue b w -> Eval (GenValue b w))
           -> SeqMap b w -> Eval (SeqMap b w)
 mapSeqMap f x =
-  memoMap (SeqMap $ \i -> f =<< lookupSeqMap x i)
+  memoMap (IndexSeqMap $ \i -> f =<< lookupSeqMap x i)
 
 -- | For efficency reasons, we handle finite sequences of bits as special cases
 --   in the evaluator.  In cases where we know it is safe to do so, we prefer to
@@ -224,6 +232,7 @@ forceValue v = case v of
   VStream _   -> return ()
   VFun _      -> return ()
   VPoly _     -> return ()
+  VNumPoly _  -> return ()
 
 
 instance (Show b, Show w) => Show (GenValue b w) where
@@ -236,6 +245,7 @@ instance (Show b, Show w) => Show (GenValue b w) where
     VStream _  -> "stream"
     VFun _     -> "fun"
     VPoly _    -> "poly"
+    VNumPoly _ -> "numpoly"
 
 type Value = GenValue Bool BV
 
@@ -282,6 +292,7 @@ ppValue opts = loop
                                    )
     VFun _             -> return $ text "<function>"
     VPoly _            -> return $ text "<polymorphic value>"
+    VNumPoly _         -> return $ text "<polymorphic value>"
 
   ppWordVal :: WordValue b w -> Eval Doc
   ppWordVal w = ppWord opts <$> asWordVal w
@@ -505,10 +516,10 @@ toStream vs =
    VStream <$> infiniteSeqMap (map ready vs)
 
 toFinSeq :: BitWord b w
-         => Integer -> TValue -> [GenValue b w] -> Eval (GenValue b w)
+         => Integer -> TValue -> [GenValue b w] -> GenValue b w
 toFinSeq len elty vs
-   | isTBit elty = return $ VWord len $ ready $ WordVal $ packWord $ map fromVBit vs
-   | otherwise   = VSeq len <$> finiteSeqMap (map ready vs)
+   | isTBit elty = VWord len $ ready $ WordVal $ packWord $ map fromVBit vs
+   | otherwise   = VSeq len $ finiteSeqMap (map ready vs)
 
 -- | This is strict!
 boolToWord :: [Bool] -> Value
@@ -519,7 +530,7 @@ boolToWord bs = VWord (genericLength bs) $ ready $ WordVal $ packWord bs
 toSeq :: BitWord b w
       => Nat' -> TValue -> [GenValue b w] -> Eval (GenValue b w)
 toSeq len elty vals = case len of
-  Nat n -> toFinSeq n elty vals
+  Nat n -> return $ toFinSeq n elty vals
   Inf   -> toStream vals
 
 

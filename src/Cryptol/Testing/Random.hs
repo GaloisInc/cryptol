@@ -110,7 +110,7 @@ randomWord w _sz g =
 randomStream :: RandomGen g => Gen g -> Gen g
 randomStream mkElem sz g =
   let (g1,g2) = split g
-  in (VStream $ SeqMap $ genericIndex (map ready (unfoldr (Just . mkElem sz) g1)), g2)
+  in (VStream $ IndexSeqMap $ genericIndex (map ready (unfoldr (Just . mkElem sz) g1)), g2)
 
 {- | Generate a random sequence.  This should be used for sequences
 other than bits.  For sequences of bits use "randomWord". -}
@@ -120,7 +120,7 @@ randomSequence w mkElem sz g = do
   let f g = let (x,g') = mkElem sz g
              in seq x (Just (ready x, g'))
   let xs = Seq.fromList $ genericTake w $ unfoldr f g1
-  seq xs (VSeq w $ SeqMap $ (Seq.index xs . fromInteger), g2)
+  seq xs (VSeq w $ IndexSeqMap $ (Seq.index xs . fromInteger), g2)
 
 -- | Generate a random tuple value.
 randomTuple :: RandomGen g => [Gen g] -> Gen g
