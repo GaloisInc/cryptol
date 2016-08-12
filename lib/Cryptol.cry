@@ -256,7 +256,7 @@ primitive (!) : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b
 /**
  * Bulk reverse index operator.  The first argument is a finite sequence.  The
  * second argument is a sequence of the zero-based indices of the elements to
- z select, starting from the end of the sequence.
+ * select, starting from the end of the sequence.
  */
 primitive (!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
 
