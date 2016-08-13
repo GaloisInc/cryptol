@@ -10,8 +10,11 @@ module Cryptol where
  */
 primitive demote : {val, bits} (fin val, fin bits, bits >= width val) => [bits]
 
-infixr 10 ||
-infixr 20 &&
+infixr  5 ==>
+infixr 10 \/
+infixr 15 /\
+infixr 20 ||
+infixr 25 &&
 infix  30 ==, ===, !=, !==
 infix  40 >, >=, <, <=
 infixl 50 ^
@@ -99,7 +102,7 @@ primitive negate : {a} (Arith a) => a -> a
 primitive complement : {a} a -> a
 
 /**
- * Operator form of binary complement.
+ * Operator form of 'complement'.
  */
 (~) : {a} a -> a
 (~) = complement
@@ -157,6 +160,30 @@ min x y = if x < y then x else y
  */
 max : {a} (Cmp a) => a -> a -> a
 max x y = if x > y then x else y
+
+/**
+ * Short-cutting boolean conjuction function.
+ * If the first argument is False, the second argument
+ * is not evaluated.
+ */
+(/\) : Bit -> Bit -> Bit
+x /\ y = if x then y else False
+
+/**
+ * Short-cutting boolean disjuction function.
+ * If the first argument is True, the second argument
+ * is not evaluated.
+ */
+(\/) : Bit -> Bit -> Bit
+x \/ y = if x then True else y
+
+/**
+ * Short-cutting logical implication.
+ * If the first argument is False, the second argument is
+ * not evaluated.
+ */
+(==>) : Bit -> Bit -> Bit
+a ==> b = if a then b else True
 
 /**
  * Logical `and' over bits. Extends element-wise over sequences, tuples.

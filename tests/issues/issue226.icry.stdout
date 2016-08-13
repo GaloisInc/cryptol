@@ -24,12 +24,14 @@ Symbols
     (+) : {a} (Arith a) => a -> a -> a
     (-) : {a} (Arith a) => a -> a -> a
     (/) : {a} (Arith a) => a -> a -> a
+    (/\) : Bit -> Bit -> Bit
     (<) : {a} (Cmp a) => a -> a -> Bit
     (<<) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
     (<<<) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
     (<=) : {a} (Cmp a) => a -> a -> Bit
     (==) : {a} (Cmp a) => a -> a -> Bit
     (===) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
+    (==>) : Bit -> Bit -> Bit
     (>) : {a} (Cmp a) => a -> a -> Bit
     (>=) : {a} (Cmp a) => a -> a -> Bit
     (>>) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
@@ -38,6 +40,7 @@ Symbols
     (@@) : {a, b, c, d} (fin d) => [a]b -> [c][d] -> [c]b
     False : Bit
     True : Bit
+    (\/) : Bit -> Bit -> Bit
     (^) : {a} a -> a -> a
     (^^) : {a} (Arith a) => a -> a -> a
     complement : {a} a -> a

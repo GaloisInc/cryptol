@@ -9,14 +9,6 @@
 
 module Cryptol::Extras where
 
-infixr 5 ==>
-
-/**
- * Logical implication
- */
-(==>) : Bit -> Bit -> Bit
-a ==> b = if a then b else True
-
 /**
  * Logical negation
  */
