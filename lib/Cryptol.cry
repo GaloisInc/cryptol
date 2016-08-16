@@ -308,34 +308,36 @@ primitive updateEnd : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b -> [a]b
 /**
  * Perform a series of updates to a sequence.  The first argument is
  * the initial sequence to update.  The second argument is a sequence
- * of index/element pairs with which to update the sequence.
+ * of indices, and the third argument is a sequence of values.
  * This function applies the 'update' function in sequence with the
  * given update pairs.
  */
-updates : {a,b,c,d} (fin c, fin d) => [a]b -> [d]([c], b) -> [a]b
-updates xs0 upds = xss!0
+updates : {a,b,c,d} (fin c, fin d) => [a]b -> [d][c] -> [d]b -> [a]b
+updates xs0 idxs vals = xss!0
  where
    xss = [ xs0 ] #
          [ update xs i b
-	 | xs    <- xss
-	 | (i,b) <- upds
-	 ]
+         | xs <- xss
+         | i  <- idxs
+         | b  <- vals
+         ]
 
 /**
  * Perform a series of updates to a sequence.  The first argument is
  * the initial sequence to update.  The second argument is a sequence
- * of index/element pairs with which to update the sequence.
+ * of indices, and the third argument is a sequence of values.
  * This function applies the 'updateEnd' function in sequence with the
  * given update pairs.
  */
-updatesEnd : {a,b,c,d} (fin a, fin c, fin d) => [a]b -> [d]([c], b) -> [a]b
-updatesEnd xs0 upds = xss!0
+updatesEnd : {a,b,c,d} (fin a, fin c, fin d) => [a]b -> [d][c] -> [d]b -> [a]b
+updatesEnd xs0 idxs vals = xss!0
  where
    xss = [ xs0 ] #
          [ updateEnd xs i b
-	 | xs    <- xss
-	 | (i,b) <- upds
-	 ]
+         | xs  <- xss
+         | i   <- idxs
+         | b   <- vals
+         ]
 
 
 primitive fromThen : {first, next, bits, len}

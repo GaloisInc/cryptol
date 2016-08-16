@@ -73,8 +73,8 @@ Sequences
     (!!)       : {n,a,m,i} (fin n) => [n]a -> [m][i] -> [m]a
     update     : {n,a,m} (fin m) => [n]a -> [m] -> a -> [n]a
     updateEnd  : {n,a,m} (fin n, fin m) => [n]a -> [m] -> a -> [n]a
-    updates    : {n,a,m,d} (fin m, fin d) => [n]a -> [d]([m], a) -> [n]a
-    updatesEnd : {n,a,m,d} (fin n, fin m, fin d) => [n]a -> [d]([m], a) -> [n]a
+    updates    : {n,a,m,d} (fin m, fin d) => [n]a -> [d][m] -> [d]a -> [n]a
+    updatesEnd : {n,a,m,d} (fin n, fin m, fin d) => [n]a -> [d][m] -> [d]a -> [n]a
 
     // Abbreviations
     groupBy n = split`{each  = n}
