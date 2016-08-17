@@ -13,7 +13,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Cryptol.Symbolic.Value
-  ( SBool, SWord
+  ( SBool, SWord, SInteger
   , literalSWord
   , fromBitsLE
   , forallBV_, existsBV_
@@ -39,7 +39,7 @@ import Cryptol.Eval.Value  ( GenValue(..), BitWord(..), lam, tlam, toStream,
                            toFinSeq, toSeq, WordValue(..), asBitsVal,
                            fromSeq, fromVBit, fromVWord, fromVFun, fromVPoly,
                            fromVTuple, fromVRecord, lookupRecord, SeqMap(..),
-                           ppBV,BV(..),integerToChar, lookupSeqMap )
+                           ppBV, BV(..), integerToChar, lookupSeqMap )
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -47,6 +47,7 @@ import Cryptol.Utils.PP
 
 type SBool = SVal
 type SWord = SVal
+type SInteger = SVal
 
 fromBitsLE :: [SBool] -> SWord
 fromBitsLE bs = foldl' f (literalSWord 0 0) bs
@@ -69,7 +70,7 @@ existsSBool_ = svMkSymVar (Just EX) KBool Nothing
 
 -- Values ----------------------------------------------------------------------
 
-type Value = GenValue SBool SWord
+type Value = GenValue SBool SWord SInteger
 
 -- Symbolic Conditionals -------------------------------------------------------
 
@@ -121,7 +122,7 @@ mergeValue f c v1 v2 =
 
 -- Symbolic Big-endian Words -------------------------------------------------------
 
-instance BitWord SBool SWord where
+instance BitWord SBool SWord SInteger where
   wordLen v = toInteger (intSizeOf v)
   wordAsChar v = integerToChar <$> svAsInteger v
 
@@ -131,9 +132,13 @@ instance BitWord SBool SWord where
   ppWord opts v
      | Just x <- svAsInteger v = ppBV opts (BV (wordLen v) x)
      | otherwise               = text "[?]"
+  ppInteger _opts v
+     | Just x <- svAsInteger v = integer x
+     | otherwise               = text "[?]"
 
   bitLit b    = svBool b
   wordLit n x = svInteger (KBounded False (fromInteger n)) x
+  integerLit x = svInteger KUnbounded x
 
   packWord bs = fromBitsLE (reverse bs)
   unpackWord x = [ svTestBit x i | i <- reverse [0 .. intSizeOf x - 1] ]

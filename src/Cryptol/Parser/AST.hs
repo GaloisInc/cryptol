@@ -350,6 +350,7 @@ data TParam n = TParam { tpName  :: n
 data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TSeq (Type n) (Type n)  -- ^ @[8] a@
             | TBit                    -- ^ @Bit@
+            | TInteger                -- ^ @Integer@
             | TNum Integer            -- ^ @10@
             | TChar Char              -- ^ @'a'@
             | TInf                    -- ^ @inf@
@@ -366,6 +367,7 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
 tconNames :: Map.Map PName (Type PName)
 tconNames  = Map.fromList
   [ (mkUnqual (packIdent "Bit"), TBit)
+  , (mkUnqual (packIdent "Integer"), TInteger)
   , (mkUnqual (packIdent "inf"), TInf)
   ]
 
@@ -783,6 +785,7 @@ instance PPName name => PP (Type name) where
       TTuple ts      -> parens $ commaSep $ map pp ts
       TRecord fs     -> braces $ commaSep $ map (ppNamed ":") fs
       TBit           -> text "Bit"
+      TInteger       -> text "Integer"
       TInf           -> text "inf"
       TNum x         -> integer x
       TChar x        -> text (show x)
@@ -967,6 +970,7 @@ instance NoPos (Type name) where
       TFun x y      -> TFun     (noPos x) (noPos y)
       TSeq x y      -> TSeq     (noPos x) (noPos y)
       TBit          -> TBit
+      TInteger      -> TInteger
       TInf          -> TInf
       TNum n        -> TNum n
       TChar n       -> TChar n

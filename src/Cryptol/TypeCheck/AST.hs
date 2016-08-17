@@ -157,6 +157,7 @@ data PC     = PEqual        -- ^ @_ == _@
 data TC     = TCNum Integer            -- ^ Numbers
             | TCInf                    -- ^ Inf
             | TCBit                    -- ^ Bit
+            | TCInteger                -- ^ Integer
             | TCSeq                    -- ^ @[_] _@
             | TCFun                    -- ^ @_ -> _@
             | TCTuple Int              -- ^ @(_, _, _)@
@@ -321,6 +322,11 @@ tIsBit ty = case tNoUser ty of
               TCon (TC TCBit) [] -> True
               _                  -> False
 
+tIsInteger :: Type -> Bool
+tIsInteger ty = case tNoUser ty of
+                  TCon (TC TCInteger) [] -> True
+                  _                      -> False
+
 tIsTuple :: Type -> Maybe [Type]
 tIsTuple ty = case tNoUser ty of
                 TCon (TC (TCTuple _)) ts -> Just ts
@@ -401,6 +407,9 @@ tNat' n'  = case n' of
 
 tBit     :: Type
 tBit      = TCon (TC TCBit) []
+
+tInteger :: Type
+tInteger  = TCon (TC TCInteger) []
 
 tWord    :: Type -> Type
 tWord a   = tSeq a tBit
@@ -555,6 +564,7 @@ instance HasKind TC where
       TCNum _   -> KNum
       TCInf     -> KNum
       TCBit     -> KType
+      TCInteger -> KType
       TCSeq     -> KNum :-> KType :-> KType
       TCFun     -> KType :-> KType :-> KType
       TCTuple n -> foldr (:->) KType (replicate n KType)
@@ -652,6 +662,7 @@ instance PP (WithNames Type) where
           (TCNum n, [])       -> integer n
           (TCInf,   [])       -> text "inf"
           (TCBit,   [])       -> text "Bit"
+          (TCInteger, [])     -> text "Integer"
 
           (TCSeq,   [t1,TCon (TC TCBit) []]) -> brackets (go 0 t1)
           (TCSeq,   [t1,t2])  -> optParens (prec > 3)
@@ -764,6 +775,7 @@ instance PP TC where
       TCNum n   -> integer n
       TCInf     -> text "inf"
       TCBit     -> text "Bit"
+      TCInteger -> text "Integer"
       TCSeq     -> text "[]"
       TCFun     -> text "(->)"
       TCTuple 0 -> text "()"
