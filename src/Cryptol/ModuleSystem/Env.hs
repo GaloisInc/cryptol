@@ -18,7 +18,6 @@ import Paths_cryptol (getDataDir)
 #endif
 
 import Cryptol.Eval (EvalEnv)
-import Cryptol.Eval.Value (BV)
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Name (Supply,emptySupply)
 import qualified Cryptol.ModuleSystem.NamingEnv as R

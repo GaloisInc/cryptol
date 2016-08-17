@@ -278,84 +278,85 @@ etaDelay :: BitWord b w
          -> Schema
          -> Eval (GenValue b w)
          -> Eval (GenValue b w)
-etaDelay msg env0 Forall{ sVars = vs, sType = tp0 } = goTpVars env0 vs
- where
- goTpVars env []     x = go (evalValType (envTypes env) tp0) x
- goTpVars env (v:vs) x =
-   case tpKind v of
-     KType -> return $ VPoly $ \t ->
-                 goTpVars (bindType (tpVar v) (Right t) env) vs ( ($t) . fromVPoly =<< x )
-     KNum  -> return $ VNumPoly $ \n ->
-                 goTpVars (bindType (tpVar v) (Left n) env) vs ( ($n) . fromVNumPoly =<< x )
-     k     -> panic "[Eval] etaDelay" ["invalid kind on type abstraction", show k]
+etaDelay msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
+  where
+  goTpVars env []     x = go (evalValType (envTypes env) tp0) x
+  goTpVars env (v:vs) x =
+    case tpKind v of
+      KType -> return $ VPoly $ \t ->
+                  goTpVars (bindType (tpVar v) (Right t) env) vs ( ($t) . fromVPoly =<< x )
+      KNum  -> return $ VNumPoly $ \n ->
+                  goTpVars (bindType (tpVar v) (Left n) env) vs ( ($n) . fromVNumPoly =<< x )
+      k     -> panic "[Eval] etaDelay" ["invalid kind on type abstraction", show k]
 
- go tp (Ready x) =
-   case x of
-     VBit _    -> return x
-     VWord _ _ -> return x
-     VSeq n xs
-       | TVSeq nt el <- tp
-      -> return $ VSeq n $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
+  go tp (Ready x) =
+    case x of
+      VBit _    -> return x
+      VWord _ _ -> return x
+      VSeq n xs
+        | TVSeq _nt el <- tp
+        -> return $ VSeq n $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
 
-     VStream xs
-       | TVSeq nt el <- tp
-      -> return $ VStream $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
+      VStream xs
+        | TVSeq _nt el <- tp
+        -> return $ VStream $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
 
-     VTuple xs
-       | TVTuple ts <- tp
-      -> return $ VTuple (zipWith go ts xs)
+      VTuple xs
+        | TVTuple ts <- tp
+        -> return $ VTuple (zipWith go ts xs)
 
-     VRecord fs
-       | TVRec fts <- tp
-      -> return $ VRecord $
-           let err f = evalPanic "expected record value with field" [show f] in
-           [ (f, go (fromMaybe (err f) (lookup f fts)) x)
-           | (f,x) <- fs
-           ]
+      VRecord fs
+        | TVRec fts <- tp
+        -> return $ VRecord $
+             let err f = evalPanic "expected record value with field" [show f] in
+             [ (f, go (fromMaybe (err f) (lookup f fts)) y)
+             | (f, y) <- fs
+             ]
 
-     VFun f
-       | TVFun _t1 t2 <- tp
-      -> return $ VFun $ \a -> go t2 (f a)
+      VFun f
+        | TVFun _t1 t2 <- tp
+        -> return $ VFun $ \a -> go t2 (f a)
 
-     _ -> evalPanic "type mismatch during eta-expansion" []
+      _ -> evalPanic "type mismatch during eta-expansion" []
 
- go tp x = case tp of
-  TVBit -> x
+  go tp x =
+    case tp of
+      TVBit -> x
 
-  TVSeq n TVBit ->
-      do w <- delayFill (fromWordVal "during eta-expansion" =<< x) (etaWord n x)
-         return $ VWord n w
+      TVSeq n TVBit ->
+          do w <- delayFill (fromWordVal "during eta-expansion" =<< x) (etaWord n x)
+             return $ VWord n w
 
-  TVSeq n el ->
-      do x' <- delay (Just msg) (fromSeq "during eta-expansion" =<< x)
-         return $ VSeq n $ IndexSeqMap $ \i -> do
-           go el (flip lookupSeqMap i =<< x')
+      TVSeq n el ->
+          do x' <- delay (Just msg) (fromSeq "during eta-expansion" =<< x)
+             return $ VSeq n $ IndexSeqMap $ \i -> do
+               go el (flip lookupSeqMap i =<< x')
 
-  TVStream el ->
-      do x' <- delay (Just msg) (fromSeq "during eta-expansion" =<< x)
-         return $ VStream $ IndexSeqMap $ \i ->
-           go el (flip lookupSeqMap i =<< x')
+      TVStream el ->
+          do x' <- delay (Just msg) (fromSeq "during eta-expansion" =<< x)
+             return $ VStream $ IndexSeqMap $ \i ->
+               go el (flip lookupSeqMap i =<< x')
 
-  TVFun _t1 t2 ->
-      do x' <- delay (Just msg) (fromVFun <$> x)
-         return $ VFun $ \a -> go t2 ( ($a) =<< x' )
+      TVFun _t1 t2 ->
+          do x' <- delay (Just msg) (fromVFun <$> x)
+             return $ VFun $ \a -> go t2 ( ($a) =<< x' )
 
-  TVTuple ts ->
-      do let n = length ts
-         x' <- delay (Just msg) (fromVTuple <$> x)
-         return $ VTuple $
-            [ go t =<< (flip genericIndex i <$> x')
-            | i <- [0..(n-1)]
-            | t <- ts
-            ]
+      TVTuple ts ->
+          do let n = length ts
+             x' <- delay (Just msg) (fromVTuple <$> x)
+             return $ VTuple $
+                [ go t =<< (flip genericIndex i <$> x')
+                | i <- [0..(n-1)]
+                | t <- ts
+                ]
 
-  TVRec fs ->
-      do x' <- delay (Just msg) (fromVRecord <$> x)
-         let err f = evalPanic "expected record value with field" [show f]
-         return $ VRecord $
-            [ (f, go t =<< (fromMaybe (err f) . lookup f <$> x'))
-            | (f,t) <- fs
-            ]
+      TVRec fs ->
+          do x' <- delay (Just msg) (fromVRecord <$> x)
+             let err f = evalPanic "expected record value with field" [show f]
+             return $ VRecord $
+                [ (f, go t =<< (fromMaybe (err f) . lookup f <$> x'))
+                | (f,t) <- fs
+                ]
 
 
 declHole :: Decl
@@ -364,13 +365,13 @@ declHole d =
   case dDefinition d of
     DPrim   -> evalPanic "Unexpected primitive declaration in recursive group"
                          [show (ppLocName nm)]
-    DExpr e -> do
+    DExpr _ -> do
       (hole, fill) <- blackhole msg
       return (nm, sch, hole, fill)
- where
- nm = dName d
- sch = dSignature d
- msg = unwords ["<<loop>> while evaluating", show (pp nm)]
+  where
+  nm = dName d
+  sch = dSignature d
+  msg = unwords ["<<loop>> while evaluating", show (pp nm)]
 
 
 -- | Evaluate a declaration, extending the evaluation environment.
@@ -405,10 +406,7 @@ evalSel val sel = case sel of
 
   TupleSel n _  -> tupleSel n val
   RecordSel n _ -> recordSel n val
-  ListSel ix _  -> case val of
-                     VSeq _ xs'  -> lookupSeqMap xs' (toInteger ix)
-                     VStream xs' -> lookupSeqMap xs' (toInteger ix)
-                     VWord _ wv  -> VBit <$> (flip indexWordValue (toInteger ix) =<< wv)
+  ListSel ix _  -> listSel ix val
   where
 
   tupleSel n v =
@@ -419,8 +417,8 @@ evalSel val sel = case sel of
       VFun f          -> return $ VFun (\x -> tupleSel n =<< f x)
       _               -> do vdoc <- ppValue defaultPPOpts v
                             evalPanic "Cryptol.Eval.evalSel"
-                             [ "Unexpected value in tuple selection"
-                             , show vdoc ]
+                              [ "Unexpected value in tuple selection"
+                              , show vdoc ]
 
   recordSel n v =
     case v of
@@ -430,9 +428,18 @@ evalSel val sel = case sel of
       VFun f          -> return $ VFun (\x -> recordSel n =<< f x)
       _               -> do vdoc <- ppValue defaultPPOpts v
                             evalPanic "Cryptol.Eval.evalSel"
-                             [ "Unexpected value in record selection"
-                             , show vdoc ]
+                              [ "Unexpected value in record selection"
+                              , show vdoc ]
 
+  listSel n v =
+    case v of
+      VSeq _ vs       -> lookupSeqMap vs (toInteger n)
+      VStream vs      -> lookupSeqMap vs (toInteger n)
+      VWord _ wv      -> VBit <$> (flip indexWordValue (toInteger n) =<< wv)
+      _               -> do vdoc <- ppValue defaultPPOpts val
+                            evalPanic "Cryptol.Eval.evalSel"
+                              [ "Unexpected value in list selection"
+                              , show vdoc ]
 
 
 
@@ -518,7 +525,7 @@ evalMatch :: EvalPrims b w
 evalMatch lenv m = case m of
 
   -- many envs
-  From n l ty expr ->
+  From n l _ty expr ->
     case len of
       -- Select from a sequence of finite length.  This causes us to 'stutter'
       -- through our previous choices `nLen` times.
@@ -531,6 +538,7 @@ evalMatch lenv m = case m of
                         VWord _ w   -> VBit <$> (flip indexWordValue r =<< w)
                         VSeq _ xs'  -> lookupSeqMap xs' r
                         VStream xs' -> lookupSeqMap xs' r
+                        _           -> evalPanic "evalMatch" ["Not a list value"]
         return $ bindVarList n vs lenv'
 
       -- Select from a sequence of infinite length.  Note that this means we
@@ -548,6 +556,7 @@ evalMatch lenv m = case m of
                      VWord _ w   -> VBit <$> (flip indexWordValue i =<< w)
                      VSeq _ xs'  -> lookupSeqMap xs' i
                      VStream xs' -> lookupSeqMap xs' i
+                     _           -> evalPanic "evalMatch" ["Not a list value"]
         return $ bindVarList n vs lenv'
 
     where

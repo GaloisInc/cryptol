@@ -18,9 +18,7 @@ module Cryptol.Symbolic where
 
 import Control.Monad.IO.Class
 import Control.Monad (replicateM, when, zipWithM, foldM)
-import Data.List (transpose, intercalate, genericLength, genericIndex)
-import qualified Data.Map as Map
-import qualified Data.Sequence as Seq
+import Data.List (intercalate, genericLength)
 import qualified Control.Exception as X
 
 import qualified Data.SBV.Dynamic as SBV
@@ -39,7 +37,6 @@ import qualified Cryptol.Eval.Type as Eval
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.Env (GenEvalEnv(..))
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)

@@ -12,7 +12,6 @@
 module Cryptol.ModuleSystem.Monad where
 
 import           Cryptol.Eval (EvalEnv)
-import           Cryptol.Eval.Value (BV)
 
 import qualified Cryptol.Eval.Monad           as E
 import           Cryptol.ModuleSystem.Env

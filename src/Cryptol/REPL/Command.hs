@@ -76,7 +76,6 @@ import qualified Cryptol.Transform.Specialize as S
 import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..))
 import qualified Cryptol.Symbolic as Symbolic
 
-import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad hiding (mapM, mapM_)
 import qualified Data.ByteString as BS
@@ -851,6 +850,7 @@ moduleCmdResult (res,ws0) = do
       filterDefaults w = Just w
 
       isShadowWarn (M.SymbolShadowed {}) = True
+      isShadowWarn _                     = False
 
       filterShadowing w | warnShadowing = Just w
       filterShadowing (M.RenamerWarnings xs) =

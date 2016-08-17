@@ -30,7 +30,6 @@ module Cryptol.TypeCheck.Subst
 
 import           Data.Maybe
 import           Data.Either (partitionEithers)
-import qualified Data.Foldable as Fold
 import qualified Data.Map.Strict as Map
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)

@@ -16,6 +16,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 module Cryptol.Prims.Eval where
 
 import Control.Monad (join, unless)
@@ -166,8 +167,8 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                        lam $ \s -> errorV a =<< (fromStr =<< s))
 
   , ("reverse"    , {-# SCC "Prelude::reverse" #-}
-                    nlam $ \a ->
-                    tlam $ \b ->
+                    nlam $ \_a ->
+                    tlam $ \_b ->
                      lam $ \xs -> reverseV =<< xs)
 
   , ("transpose"  , {-# SCC "Prelude::transpose" #-}
@@ -337,6 +338,9 @@ arithBinary op = loop
        -> GenValue b w
        -> Eval (GenValue b w)
   loop ty l r = case ty of
+    TVBit ->
+      evalPanic "arithBinary" ["Bit not in class Arith"]
+
     TVSeq w a
       -- words and finite sequences
       | isTBit a -> do
@@ -384,6 +388,9 @@ arithUnary op = loop
 
   loop :: TValue -> GenValue b w -> Eval (GenValue b w)
   loop ty x = case ty of
+
+    TVBit ->
+      evalPanic "arithUnary" ["Bit not in class Arith"]
 
     TVSeq w a
       -- words and finite sequences
@@ -580,15 +587,15 @@ joinSeq Inf each TVBit xs
 
 -- finite or infinite sequence of non-words
 joinSeq parts each _a xs
-  = return $ mkSeq $ IndexSeqMap $ \i -> do
+  = return $ vSeq $ IndexSeqMap $ \i -> do
       let (q,r) = divMod i each
       ys <- fromSeq "join seq" =<< lookupSeqMap xs q
       lookupSeqMap ys r
   where
   len = parts `nMul` (Nat each)
-  mkSeq = case len of
-            Inf    -> VStream
-            Nat n  -> VSeq n
+  vSeq = case len of
+           Inf    -> VStream
+           Nat n  -> VSeq n
 
 
 -- | Join a sequence of sequences into a single sequence.
@@ -609,7 +616,7 @@ splitWordVal :: BitWord b w
 splitWordVal leftWidth rightWidth (WordVal w) =
   let (lw, rw) = splitWord leftWidth rightWidth w
    in (WordVal lw, WordVal rw)
-splitWordVal leftWidth rightWidth (BitsVal bs) =
+splitWordVal leftWidth _rightWidth (BitsVal bs) =
   let (lbs, rbs) = Seq.splitAt (fromInteger leftWidth) bs
    in (BitsVal lbs, BitsVal rbs)
 
@@ -630,19 +637,19 @@ splitAtV front back a val =
                    ]
 
     Inf | aBit -> do
-       seq <- delay Nothing (fromSeq "splitAtV" val)
-       ls  <- delay Nothing (do m  <- fst . splitSeqMap leftWidth <$> seq
-                                let ms = map (fromVBit <$>) (enumerateSeqMap leftWidth m)
-                                return $ Seq.fromList $ ms)
-       rs  <- delay Nothing (snd . splitSeqMap leftWidth <$> seq)
+       vs <- delay Nothing (fromSeq "splitAtV" val)
+       ls <- delay Nothing (do m <- fst . splitSeqMap leftWidth <$> vs
+                               let ms = map (fromVBit <$>) (enumerateSeqMap leftWidth m)
+                               return $ Seq.fromList $ ms)
+       rs <- delay Nothing (snd . splitSeqMap leftWidth <$> vs)
        return $ VTuple [ return $ VWord leftWidth (BitsVal <$> ls)
                        , VStream <$> rs
                        ]
 
     _ -> do
-       seq <- delay Nothing (fromSeq "splitAtV" val)
-       ls  <- delay Nothing (fst . splitSeqMap leftWidth <$> seq)
-       rs  <- delay Nothing (snd . splitSeqMap leftWidth <$> seq)
+       vs <- delay Nothing (fromSeq "splitAtV" val)
+       ls <- delay Nothing (fst . splitSeqMap leftWidth <$> vs)
+       rs <- delay Nothing (snd . splitSeqMap leftWidth <$> vs)
        return $ VTuple [ VSeq leftWidth <$> ls
                        , mkSeq back a <$> rs
                        ]
@@ -762,10 +769,10 @@ ccatV :: (Show b, Show w, BitWord b w)
       -> (GenValue b w)
       -> Eval (GenValue b w)
 
-ccatV front back elty (VWord m l) (VWord n r) =
+ccatV _front _back _elty (VWord m l) (VWord n r) =
   return $ VWord (m+n) (joinWordVal <$> l <*> r)
 
-ccatV front back elty (VWord m l) (VStream r) = do
+ccatV _front _back _elty (VWord m l) (VStream r) = do
   l' <- delay Nothing l
   return $ VStream $ IndexSeqMap $ \i ->
     if i < m then
@@ -914,7 +921,7 @@ logicShift opW obB opS
                           BitsVal bs -> return $ BitsVal (obB w bs i)
                           WordVal (BV _ x) -> return $ WordVal (BV w (opW w x i))
 
-          l' -> mkSeq a c <$> (opS a c <$> (fromSeq "logicShift" =<< l) <*> return i)
+          _ -> mkSeq a c <$> (opS a c <$> (fromSeq "logicShift" =<< l) <*> return i)
 
 -- Left shift for words.
 shiftLW :: Integer -> Integer -> Integer -> Integer
@@ -1194,7 +1201,7 @@ fromThenToV  =
     case (first, next, lst, len, bits) of
       (_         , _        , _       , _       , Nat bits')
         | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
-      (Nat first', Nat next', Nat lst', Nat len', Nat bits') ->
+      (Nat first', Nat next', Nat _lst', Nat len', Nat bits') ->
         let diff = next' - first'
          in VSeq len' $ IndexSeqMap $ \i ->
                ready $ VWord bits' $ return $

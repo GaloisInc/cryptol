@@ -30,7 +30,6 @@ import           Cryptol.Utils.Ident (Ident,identText)
 import           Cryptol.Utils.Panic(panic)
 
 import qualified Data.Set as Set
-import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 
 import GHC.Generics (Generic)

@@ -115,8 +115,8 @@ randomStream mkElem sz g =
 {- | Generate a random sequence.  This should be used for sequences
 other than bits.  For sequences of bits use "randomWord". -}
 randomSequence :: RandomGen g => Integer -> Gen g -> Gen g
-randomSequence w mkElem sz g = do
-  let (g1,g2) = split g
+randomSequence w mkElem sz g0 = do
+  let (g1,g2) = split g0
   let f g = let (x,g') = mkElem sz g
              in seq x (Just (ready x, g'))
   let xs = Seq.fromList $ genericTake w $ unfoldr f g1

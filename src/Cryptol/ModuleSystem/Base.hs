@@ -18,7 +18,6 @@ import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap)
 import Cryptol.ModuleSystem.Env (lookupModule, LoadedModule(..)
                                 , meCoreLint, CoreLint(..))
 import qualified Cryptol.Eval                 as E
-import qualified Cryptol.Eval.Monad           as E
 import qualified Cryptol.Eval.Value           as E
 import           Cryptol.Prims.Eval ()
 import qualified Cryptol.ModuleSystem.NamingEnv as R

@@ -135,21 +135,22 @@ splitSeqMap n xs = (hd,tl)
 
 -- | Given a sequence map, return a new sequence map that is memoized using
 --   a finite map memo table.
+memoMap :: SeqMap b w -> Eval (SeqMap b w)
 memoMap x = do
   cache <- io $ newIORef $ Map.empty
   return $ IndexSeqMap (memo cache)
 
- where
- memo cache i = do
-   mz <- io (Map.lookup i <$> readIORef cache)
-   case mz of
-     Just z  -> return z
-     Nothing -> doEval cache i
+  where
+  memo cache i = do
+    mz <- io (Map.lookup i <$> readIORef cache)
+    case mz of
+      Just z  -> return z
+      Nothing -> doEval cache i
 
- doEval cache i = do
-   v <- lookupSeqMap x i
-   io $ modifyIORef' cache (Map.insert i v)
-   return v
+  doEval cache i = do
+    v <- lookupSeqMap x i
+    io $ modifyIORef' cache (Map.insert i v)
+    return v
 
 -- | Apply the given evaluation function pointwise to the two given
 --   sequence maps.
@@ -590,11 +591,10 @@ vWordLen val = case val of
 --   However, if any value is not a fully-evaluated bit, return `Nothing`.
 tryFromBits :: BitWord b w => [Eval (GenValue b w)] -> Maybe w
 tryFromBits = go id
- where
- go f [] = Just (packWord (f []))
- go f (Ready (VBit b):vs) = go (f . (b:)) vs
- go f (v:vs) = Nothing
-
+  where
+  go f [] = Just (packWord (f []))
+  go f (Ready (VBit b) : vs) = go (f . (b :)) vs
+  go _ (_ : _) = Nothing
 
 -- | Turn a value into an integer represented by w bits.
 fromWord :: String -> Value -> Eval Integer

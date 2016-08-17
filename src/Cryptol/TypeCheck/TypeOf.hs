@@ -104,7 +104,7 @@ typeSelect (tIsTuple -> Just ts) (TupleSel i _)
   | i < length ts = ts !! i
 typeSelect (TRec fields) (RecordSel n _)
   | Just ty <- lookup n fields = ty
-typeSelect (tIsSeq -> Just (n, a)) ListSel{} = a
+typeSelect (tIsSeq -> Just (_, a)) ListSel{} = a
 typeSelect (tIsSeq -> Just (n, a)) sel@TupleSel{} = tSeq n (typeSelect a sel)
 typeSelect (tIsSeq -> Just (n, a)) sel@RecordSel{} = tSeq n (typeSelect a sel)
 typeSelect ty _ = panic "Cryptol.TypeCheck.TypeOf.typeSelect"
