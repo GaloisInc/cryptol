@@ -107,6 +107,8 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
 
   , ("demote"     , {-# SCC "Prelude::demote" #-}
                     ecDemoteV)
+  , ("integer"    , {-# SCC "Prelude::integer" #-}
+                    ecIntegerV)
 
   , ("#"          , {-# SCC "Prelude::(#)" #-}
                     nlam $ \ front ->
@@ -232,6 +234,16 @@ ecDemoteV = nlam $ \valT ->
                        , show valT
                        , show bitT
                        ]
+
+-- | Make an integer constant.
+ecIntegerV :: BitWord b w i => GenValue b w i
+ecIntegerV = nlam $ \valT ->
+             case valT of
+               Nat v -> VInteger (integerLit v)
+               _ -> evalPanic "Cryptol.Eval.Prim.evalConst"
+                        [ "Unexpected Inf in constant."
+                        , show valT
+                        ]
 
 --------------------------------------------------------------------------------
 divModPoly :: Integer -> Int -> Integer -> Int -> (Integer, Integer)

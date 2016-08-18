@@ -10,6 +10,11 @@ module Cryptol where
  */
 primitive demote : {val, bits} (fin val, fin bits, bits >= width val) => [bits]
 
+/**
+ * The integer value corresponding to a numeric type.
+ */
+primitive integer : {val} (fin val) => Integer
+
 infixr  5 ==>
 infixr 10 \/
 infixr 15 /\

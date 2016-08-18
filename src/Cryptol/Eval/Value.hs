@@ -681,7 +681,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
     (TCon (TC TCBit) [], VBit True ) -> return (prim "True")
     (TCon (TC TCBit) [], VBit False) -> return (prim "False")
     (TCon (TC TCInteger) [], VInteger i) ->
-      return $ ETApp (ETApp (prim "demote") (tNum i)) (tNum i) -- FIXME
+      return $ ETApp (prim "integer") (tNum i)
     (TCon (TC TCSeq) [a,b], VSeq 0 _) -> do
       guard (a == tZero)
       return $ EList [] b
