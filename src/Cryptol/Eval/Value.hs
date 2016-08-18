@@ -680,6 +680,8 @@ toExpr prims t0 v0 = findOne (go t0 v0)
       ETuple `fmap` (zipWithM go ts =<< lift (sequence tvs))
     (TCon (TC TCBit) [], VBit True ) -> return (prim "True")
     (TCon (TC TCBit) [], VBit False) -> return (prim "False")
+    (TCon (TC TCInteger) [], VInteger i) ->
+      return $ ETApp (ETApp (prim "demote") (tNum i)) (tNum i) -- FIXME
     (TCon (TC TCSeq) [a,b], VSeq 0 _) -> do
       guard (a == tZero)
       return $ EList [] b

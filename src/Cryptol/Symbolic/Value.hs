@@ -18,6 +18,7 @@ module Cryptol.Symbolic.Value
   , fromBitsLE
   , forallBV_, existsBV_
   , forallSBool_, existsSBool_
+  , forallSInteger_, existsSInteger_
   , Value
   , TValue, isTBit, tvSeq
   , GenValue(..), lam, tlam, toStream, toFinSeq, toSeq
@@ -67,6 +68,12 @@ forallSBool_ = svMkSymVar (Just ALL) KBool Nothing
 
 existsSBool_ :: Symbolic SBool
 existsSBool_ = svMkSymVar (Just EX) KBool Nothing
+
+forallSInteger_ :: Symbolic SBool
+forallSInteger_ = svMkSymVar (Just ALL) KUnbounded Nothing
+
+existsSInteger_ :: Symbolic SBool
+existsSInteger_ = svMkSymVar (Just EX) KUnbounded Nothing
 
 -- Values ----------------------------------------------------------------------
 
