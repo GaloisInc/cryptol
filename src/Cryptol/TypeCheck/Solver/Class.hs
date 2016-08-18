@@ -46,6 +46,9 @@ solveArithInst g ty = case ty of
   -- Arith Bit fails
   TCon (TC TCBit) [] -> Unsolvable
 
+  -- Arith Integer
+  TCon (TC TCInteger) [] -> solved g []
+
   -- (Arith a, Arith b) => Arith { x1 : a, x2 : b }
   TRec fs -> solved g [ pArith ety | (_,ety) <- fs ]
 
@@ -72,6 +75,9 @@ solveCmpInst g ty = case ty of
 
   -- Cmp Bit
   TCon (TC TCBit) [] -> solved g []
+
+  -- Cmp Integer
+  TCon (TC TCInteger) [] -> solved g []
 
   -- (fin n, Cmp a) => Cmp [n]a
   TCon (TC TCSeq) [n,a] -> solved g [ pFin n, pCmp a ]
