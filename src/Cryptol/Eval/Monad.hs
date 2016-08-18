@@ -24,6 +24,7 @@ module Cryptol.Eval.Monad
 , evalPanic
 , typeCannotBeDemoted
 , divideByZero
+, negativeExponent
 , wordTooWide
 , cryUserError
 , cryLoopError
@@ -165,6 +166,7 @@ data EvalError
   = InvalidIndex Integer          -- ^ Out-of-bounds index
   | TypeCannotBeDemoted Type      -- ^ Non-numeric type passed to demote function
   | DivideByZero                  -- ^ Division or modulus by 0
+  | NegativeExponent              -- ^ Exponentiation by negative integer
   | WordTooWide Integer           -- ^ Bitvector too large
   | UserError String              -- ^ Call to the Cryptol 'error' primitive
   | LoopError String              -- ^ Detectable nontermination
@@ -175,6 +177,7 @@ instance PP EvalError where
     InvalidIndex i -> text "invalid sequence index:" <+> integer i
     TypeCannotBeDemoted t -> text "type cannot be demoted:" <+> pp t
     DivideByZero -> text "division by 0"
+    NegativeExponent -> text "negative exponent"
     WordTooWide w ->
       text "word too wide for memory:" <+> integer w <+> text "bits"
     UserError x -> text "Run-time error:" <+> text x
@@ -189,6 +192,10 @@ typeCannotBeDemoted t = X.throw (TypeCannotBeDemoted t)
 -- | For division by 0.
 divideByZero :: a
 divideByZero = X.throw DivideByZero
+
+-- | For exponentiation by a negative integer.
+negativeExponent :: a
+negativeExponent = X.throw NegativeExponent
 
 -- | For when we know that a word is too wide and will exceed gmp's
 -- limits (though words approaching this size will probably cause the

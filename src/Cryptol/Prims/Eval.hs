@@ -69,7 +69,7 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("%"          , {-# SCC "Prelude::(%)" #-}
                     binary (arithBinary (liftBinArith modWrap) modWrap))
   , ("^^"         , {-# SCC "Prelude::(^^)" #-}
-                    binary (arithBinary modExp (^)))
+                    binary (arithBinary modExp integerExp))
   , ("lg2"        , {-# SCC "Prelude::lg2" #-}
                     unary  (arithUnary (liftUnaryArith lg2) lg2))
   , ("negate"     , {-# SCC "Prelude::negate" #-}
@@ -275,6 +275,10 @@ modExp bits (BV _ base) (BV _ e)
   where
   modulus = 0 `setBit` fromInteger bits
 
+integerExp :: Integer -> Integer -> Integer
+integerExp x y
+  | y < 0     = negativeExponent
+  | otherwise = x ^ y
 
 doubleAndAdd :: Integer -- ^ base
              -> Integer -- ^ exponent mask
