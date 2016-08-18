@@ -85,12 +85,12 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("^^"          , binary (arithBinary sExp SBV.svExp)) -- {a} (Arith a) => a -> a -> a
   , ("lg2"         , unary (arithUnary sLg2 svLg2)) -- {a} (Arith a) => a -> a
   , ("negate"      , unary (arithUnary (\_ -> SBV.svUNeg) SBV.svUNeg))
-  , ("<"           , binary (cmpBinary cmpLt cmpLt SBV.svFalse))
-  , (">"           , binary (cmpBinary cmpGt cmpGt SBV.svFalse))
-  , ("<="          , binary (cmpBinary cmpLtEq cmpLtEq SBV.svTrue))
-  , (">="          , binary (cmpBinary cmpGtEq cmpGtEq SBV.svTrue))
-  , ("=="          , binary (cmpBinary cmpEq cmpEq SBV.svTrue))
-  , ("!="          , binary (cmpBinary cmpNotEq cmpNotEq SBV.svFalse))
+  , ("<"           , binary (cmpBinary cmpLt cmpLt cmpLt SBV.svFalse))
+  , (">"           , binary (cmpBinary cmpGt cmpGt cmpGt SBV.svFalse))
+  , ("<="          , binary (cmpBinary cmpLtEq cmpLtEq cmpLtEq SBV.svTrue))
+  , (">="          , binary (cmpBinary cmpGtEq cmpGtEq cmpGtEq SBV.svTrue))
+  , ("=="          , binary (cmpBinary cmpEq cmpEq cmpEq SBV.svTrue))
+  , ("!="          , binary (cmpBinary cmpNotEq cmpNotEq cmpNotEq SBV.svFalse))
   , ("&&"          , binary (logicBinary SBV.svAnd SBV.svAnd SBV.svAnd))
   , ("||"          , binary (logicBinary SBV.svOr SBV.svOr SBV.svOr))
   , ("^"           , binary (logicBinary SBV.svXOr SBV.svXOr SBV.svXOr))
@@ -491,8 +491,9 @@ svLg2 x =
 
 cmpValue :: (SBool -> SBool -> Eval a -> Eval a)
          -> (SWord -> SWord -> Eval a -> Eval a)
+         -> (SInteger -> SInteger -> Eval a -> Eval a)
          -> (Value -> Value -> Eval a -> Eval a)
-cmpValue fb fw = cmp
+cmpValue fb fw fi = cmp
   where
     cmp v1 v2 k =
       case (v1, v2) of
@@ -500,6 +501,7 @@ cmpValue fb fw = cmp
                                       in  cmpValues (vals fs1) (vals fs2) k
         (VTuple vs1 , VTuple vs2 ) -> cmpValues vs1 vs2 k
         (VBit b1    , VBit b2    ) -> fb b1 b2 k
+        (VInteger i1, VInteger i2) -> fi i1 i2 k
         (VWord _ w1 , VWord _ w2 ) -> join (fw <$> (asWordVal =<< w1)
                                                <*> (asWordVal =<< w2)
                                                <*> return k)
@@ -536,8 +538,9 @@ cmpGtEq x y k = SBV.svAnd (SBV.svGreaterEq x y) <$> (cmpNotEq x y k)
 
 cmpBinary :: (SBool -> SBool -> Eval SBool -> Eval SBool)
           -> (SWord -> SWord -> Eval SBool -> Eval SBool)
+          -> (SInteger -> SInteger -> Eval SBool -> Eval SBool)
           -> SBool -> Binary SBool SWord SInteger
-cmpBinary fb fw b _ty v1 v2 = VBit <$> cmpValue fb fw v1 v2 (return b)
+cmpBinary fb fw fi b _ty v1 v2 = VBit <$> cmpValue fb fw fi v1 v2 (return b)
 
 -- Polynomials -----------------------------------------------------------------
 

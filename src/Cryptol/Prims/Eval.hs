@@ -468,6 +468,9 @@ lexCompare nm ty l r = case ty of
         rs     = map snd (sortBy (comparing fst) (fromVRecord r))
      in zipLexCompare nm tys ls rs
 
+  TVInteger ->
+    return $ compare (fromVInteger l) (fromVInteger r)
+
   _ -> evalPanic "lexCompare" ["invalid type"]
 
 
