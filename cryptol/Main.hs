@@ -210,7 +210,7 @@ setupREPL opts = do
                 4 (vcat (map pp smoke)))
       exitFailure
   displayLogo True
-  setUpdateREPLTitle setREPLTitle
+  setUpdateREPLTitle (shouldSetREPLTitle >>= \b -> when b setREPLTitle)
   updateREPLTitle
   mCryptolPath <- io $ lookupEnv "CRYPTOLPATH"
   case mCryptolPath of
