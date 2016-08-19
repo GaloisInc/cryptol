@@ -153,12 +153,20 @@ setREPLTitle = do
   io (setTitle (mkTitle lm))
 
 -- | In certain environments like Emacs, we shouldn't set the terminal
--- title.  Note: this does not imply we can't use color output. We can
+-- title. Note: this does not imply we can't use color output. We can
 -- use ANSI color sequences in places like Emacs, but not terminal
--- codes. Rather, the lack of color output would imply this option, not the
--- other way around.
+-- codes.
+--
+-- This checks that @'stdout'@ is a proper terminal handle, and that the
+-- terminal mode is not @dumb@, which is set by Emacs and others.
 shouldSetREPLTitle :: REPL Bool
 shouldSetREPLTitle = io (hSupportsANSI stdout)
+
+-- | Whether we can display color titles. This checks that @'stdout'@
+-- is a proper terminal handle, and that the terminal mode is not
+-- @dumb@, which is set by Emacs and others.
+canDisplayColor :: REPL Bool
+canDisplayColor = io (hSupportsANSI stdout)
 
 -- Completion ------------------------------------------------------------------
 

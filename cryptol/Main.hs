@@ -41,12 +41,16 @@ import System.IO (hClose, hPutStr, openTempFile)
 import Prelude ()
 import Prelude.Compat
 
+data ColorMode = AutoColor | NoColor | AlwaysColor
+  deriving (Show, Eq)
+
 data Options = Options
   { optLoad            :: [FilePath]
   , optVersion         :: Bool
   , optHelp            :: Bool
   , optBatch           :: Maybe FilePath
   , optCommands        :: [String]
+  , optColorMode       :: ColorMode
   , optCryptolrc       :: Cryptolrc
   , optCryptolPathOnly :: Bool
   } deriving (Show)
@@ -58,6 +62,7 @@ defaultOptions  = Options
   , optHelp            = False
   , optBatch           = Nothing
   , optCommands        = []
+  , optColorMode       = AutoColor
   , optCryptolrc       = CryrcDefault
   , optCryptolPathOnly = False
   }
@@ -71,6 +76,11 @@ options  =
     (concat [ "run the given command and then exit; if multiple --command "
             , "arguments are given, run them in the order they appear "
             , "on the command line (overrides --batch)"
+            ])
+
+  , Option "" ["color"] (ReqArg setColorMode "MODE")
+    (concat [ "control the color output for the terminal, which may be "
+            , "'auto', 'none' or 'always' (default: 'auto')"
             ])
 
   , Option "v" ["version"] (NoArg setVersion)
@@ -102,6 +112,13 @@ addCommand cmd =
 -- | Set a batch script to be run.
 setBatchScript :: String -> OptParser Options
 setBatchScript path = modify $ \ opts -> opts { optBatch = Just path }
+
+-- | Set the color mode of the terminal output.
+setColorMode :: String -> OptParser Options
+setColorMode "auto"   = modify $ \ opts -> opts { optColorMode = AutoColor }
+setColorMode "none"   = modify $ \ opts -> opts { optColorMode = NoColor }
+setColorMode "always" = modify $ \ opts -> opts { optColorMode = AlwaysColor }
+setColorMode x        = OptFailure ["invalid color mode: " ++ x ++ "\n"]
 
 -- | Signal that version should be displayed.
 setVersion :: OptParser Options
@@ -209,7 +226,13 @@ setupREPL opts = do
       print (hang "Errors encountered on startup; exiting:"
                 4 (vcat (map pp smoke)))
       exitFailure
-  displayLogo True
+
+  color <- case optColorMode opts of
+    AlwaysColor -> return True
+    NoColor     -> return False
+    AutoColor   -> canDisplayColor
+  displayLogo color
+
   setUpdateREPLTitle (shouldSetREPLTitle >>= \b -> when b setREPLTitle)
   updateREPLTitle
   mCryptolPath <- io $ lookupEnv "CRYPTOLPATH"
