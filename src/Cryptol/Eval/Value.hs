@@ -432,6 +432,11 @@ class BitWord b w i | b -> w, w -> i, i -> b where
   --   multiplication are silently discarded.
   wordMult :: w -> w -> w
 
+  -- | Construct an integer value from the given packed word.
+  wordToInt :: w -> i
+
+  -- | Construct a packed word of the specified width from an integer value.
+  wordFromInt :: Integer -> i -> w
 
 -- | This class defines additional operations necessary to define generic evaluation
 --   functions.
@@ -503,6 +508,8 @@ instance BitWord Bool BV Integer where
     | i == j = mkBv i (x*y)
     | otherwise = panic "Attempt to multiply words of different sizes: wordMult" []
 
+  wordToInt (BV _ x) = x
+  wordFromInt w x = mkBv w x
 
 -- Value Constructors ----------------------------------------------------------
 

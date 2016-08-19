@@ -212,6 +212,16 @@ primitive (^) : {a} a -> a -> a
 primitive zero : {a} a
 
 /**
+ * Converts a bitvector to a non-negative integer in the range 0 to 2^^n-1.
+ */
+primitive toInteger : {a} (fin a) => [a] -> Integer
+
+/**
+ * Converts an unbounded integer to a finite bitvector, reducing modulo 2^^n.
+ */
+primitive fromInteger : {a} (fin a) => Integer -> [a]
+
+/**
  * Left shift.  The first argument is the sequence to shift, the second is the
  * number of positions to shift by.
 */

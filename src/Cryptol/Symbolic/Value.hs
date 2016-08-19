@@ -164,6 +164,23 @@ instance BitWord SBool SWord SInteger where
   wordMinus = svMinus
   wordMult  = svTimes
 
+  wordToInt = svToInteger
+  wordFromInt = svFromInteger
+
+-- TODO: implement this properly in SBV using "bv2int"
+svToInteger :: SWord -> SInteger
+svToInteger w =
+  case svAsInteger w of
+    Nothing -> evalPanic "toInteger" ["unsupported symbolic argument"]
+    Just x  -> svInteger KUnbounded x
+
+-- TODO: implement this properly in SBV using "int2bv"
+svFromInteger :: Integer -> SInteger -> SWord
+svFromInteger n i =
+  case svAsInteger i of
+    Nothing -> evalPanic "fromInteger" ["unsupported symbolic argument"]
+    Just x  -> literalSWord (fromInteger n) x
+
 -- Errors ----------------------------------------------------------------------
 
 evalPanic :: String -> [String] -> a

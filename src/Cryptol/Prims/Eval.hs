@@ -94,6 +94,8 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     binary (logicBinary xor (binBV xor) xor))
   , ("complement" , {-# SCC "Prelude::complement" #-}
                     unary  (logicUnary complement (unaryBV complement) complement))
+  , ("toInteger"  , ecToIntegerV)
+  , ("fromInteger", ecFromIntegerV)
   , ("<<"         , {-# SCC "Prelude::(<<)" #-}
                     logicShift shiftLW shiftLB shiftLS)
   , (">>"         , {-# SCC "Prelude::(>>)" #-}
@@ -244,6 +246,22 @@ ecIntegerV = nlam $ \valT ->
                         [ "Unexpected Inf in constant."
                         , show valT
                         ]
+
+-- | Convert a word to a non-negative integer.
+ecToIntegerV :: BitWord b w i => GenValue b w i
+ecToIntegerV =
+  nlam $ \ _ ->
+  wlam $ \ w -> return $ VInteger (wordToInt w)
+
+-- | Convert an unbounded integer to a packed bitvector.
+ecFromIntegerV :: BitWord b w i => GenValue b w i
+ecFromIntegerV =
+  nlam $ \ a ->
+  lam  $ \ x -> do
+    val <- x
+    case (a, val) of
+      (Nat n, VInteger i) -> return $ VWord n $ ready $ WordVal $ wordFromInt n i
+      _                   -> evalPanic "fromInteger" ["Invalid arguments"]
 
 --------------------------------------------------------------------------------
 divModPoly :: Integer -> Int -> Integer -> Int -> (Integer, Integer)

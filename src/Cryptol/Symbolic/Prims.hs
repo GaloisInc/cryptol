@@ -37,7 +37,8 @@ import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            reverseV, infFromV, infFromThenV,
                            fromThenV, fromToV, fromThenToV,
                            transposeV, indexPrimOne, indexPrimMany,
-                           ecDemoteV, ecIntegerV, updatePrim, lg2)
+                           ecIntegerV, ecToIntegerV, ecFromIntegerV,
+                           ecDemoteV, updatePrim, lg2)
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Decl(..))
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
@@ -98,6 +99,8 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("^"           , binary (logicBinary SBV.svXOr SBV.svXOr SBV.svXOr))
   , ("complement"  , unary (logicUnary SBV.svNot SBV.svNot SBV.svNot))
   , ("zero"        , tlam zeroV)
+  , ("toInteger"   , ecToIntegerV)
+  , ("fromInteger" , ecFromIntegerV)
   , ("<<"          , logicShift "<<"
                        SBV.svShiftLeft
                        (\sz i shft ->
