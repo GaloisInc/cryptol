@@ -97,7 +97,7 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("<<"         , {-# SCC "Prelude::(<<)" #-}
                     logicShift shiftLW shiftLB shiftLS)
   , (">>"         , {-# SCC "Prelude::(>>)" #-}
-                    logicShift shiftRW shiftLB shiftRS)
+                    logicShift shiftRW shiftRB shiftRS)
   , ("<<<"        , {-# SCC "Prelude::(<<<)" #-}
                     logicShift rotateLW rotateLB rotateLS)
   , (">>>"        , {-# SCC "Prelude::(>>>)" #-}
