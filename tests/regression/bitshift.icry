@@ -1,0 +1,4 @@
+:set tests=10000
+:l bitshift.cry
+:check shift_eq
+:prove shift_eq

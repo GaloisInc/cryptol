@@ -1,0 +1,15 @@
+shift : {d} (fin d, d >=1) => [d] -> Bit -> [d]
+shift fill bit = fills
+	where
+          fills = [bit]#(take fill)
+
+shift_alt : {d} (fin d, d >=1) => [d] -> Bit -> [d]
+shift_alt fill bit = fills
+	where
+	  fills = [bit]#(drop`{1} (fill >> 1))
+
+infZero : [inf]Bit
+infZero = [False] # infZero
+
+property shift_eq a b c d e = shift (take`{10} ([a,b,c,d]#infZero)) e
+                           == shift_alt (take`{10} ([a,b,c,d]#infZero)) e
