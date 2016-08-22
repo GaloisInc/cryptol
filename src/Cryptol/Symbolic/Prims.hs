@@ -246,8 +246,7 @@ logicShift nm wop reindex =
       tlam $ \a ->
       VFun $ \xs -> return $
       VFun $ \y -> do
-        let Nat _len = n
-        idx <- fromWordVal "<<" =<< y
+        idx <- fromWordVal "logicShift" =<< y
 
         xs >>= \case
           VWord w x -> return $ VWord w $ do
@@ -257,7 +256,7 @@ logicShift nm wop reindex =
                                            BitsVal $ Seq.fromFunction (Seq.length bs) $ \i ->
                                              case reindex (Nat w) (toInteger i) shft of
                                                Nothing -> return $ bitLit False
-                                               Just _  -> Seq.index bs i
+                                               Just i' -> Seq.index bs (fromInteger i')
 
           VSeq w vs  -> selectV iteValue idx $ \shft -> return $
                           VSeq w $ IndexSeqMap $ \i ->
@@ -288,7 +287,7 @@ selectV mux val f =
  where
     sel offset []       = f offset
     sel offset (b : bs) = mux b m1 m2
-      where m1 = sel (offset + 2 ^ length bs) bs
+      where m1 = sel (offset + (2 ^ length bs)) bs
             m2 = sel offset bs
 
 
