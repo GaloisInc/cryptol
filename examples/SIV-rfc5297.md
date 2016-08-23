@@ -322,7 +322,7 @@ E(K,X) = aesEncrypt (X,K)
 
 aesCMAC : {m} (fin m) => Key -> [m] -> [128]
 aesCMAC K m =
-    cmacBlocks K ((`m%128) == 0 && `m > 0) (split `{each=128,parts=blocks} full)
+    cmacBlocks K ((`m%128) == 0 /\ `m > 0) (split `{each=128,parts=blocks} full)
  where
  pd   = [True] # zero : [128]
  full = take `{front=128 * blocks, back = (m + 128) - 128*blocks} (m # pd)

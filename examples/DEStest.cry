@@ -17,15 +17,15 @@ des_evttest cipher = evttest (cipher, 0x0101010101010101 : [64], vt)
 des_ekatest cipher = ekatest (cipher, ka)
 
 vktest cipher
-  = [ (a, b, e && d)
+  = [ (a, b, e /\ d)
     | (a, e) <- evktest (cipher, vk, zero : [64])
     | (b, d) <- dvktest (cipher, vk, zero : [64]) ]
 vttest cipher
-  = [ (a, b, e && d)
+  = [ (a, b, e /\ d)
     | (a, e) <- evttest (cipher, 0x0101010101010101 : [64], vt)
     | (b, d) <- dvttest (cipher, 0x0101010101010101 : [64], vt) ]
 katest cipher
-  = [ (a, b, e && d)
+  = [ (a, b, e /\ d)
     | (a, e) <- ekatest (cipher, ka)
     | (b, d) <- dkatest (cipher, ka) ]
 

@@ -6,13 +6,13 @@ Define the minilock file format, encoding only.
 ```cryptol
 module File where
 
-import Keys
 import CfrgCurves
 import Blake2s
 import Base64
 import Poly1305
 import Salsa20
 import CryptoBox
+import Keys
 ```
 
 

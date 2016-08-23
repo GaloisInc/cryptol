@@ -39,10 +39,10 @@ pad msg = split (msg # [True] # (zero:[padding]) # (`msgLen:[64]))
 
 f : ([8], [32], [32], [32]) -> [32]
 f (t, x, y, z) =
-       if (0 <= t)  && (t <= 19) then (x && y) ^ (~x && z)
-        | (20 <= t) && (t <= 39) then x ^ y ^ z
-        | (40 <= t) && (t <= 59) then (x && y) ^ (x && z) ^ (y && z)
-        | (60 <= t) && (t <= 79) then x ^ y ^ z
+       if (0 <= t)  /\ (t <= 19) then (x && y) ^ (~x && z)
+        | (20 <= t) /\ (t <= 39) then x ^ y ^ z
+        | (40 <= t) /\ (t <= 59) then (x && y) ^ (x && z) ^ (y && z)
+        | (60 <= t) /\ (t <= 79) then x ^ y ^ z
         else error "f: t out of range"
 
 Ks : [80][32]
