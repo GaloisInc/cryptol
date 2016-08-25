@@ -29,7 +29,8 @@ import Cryptol.Eval.Monad (Eval(..), ready, invalidIndex)
 import Cryptol.Eval.Type  (finNat', TValue(..))
 import Cryptol.Eval.Value (BitWord(..), EvalPrims(..), enumerateSeqMap, SeqMap(..),
                           reverseSeqMap, wlam, nlam, WordValue(..),
-                          asWordVal, asBitsVal, fromWordVal, updateSeqMap, lookupSeqMap )
+                          asWordVal, asBitsVal, fromWordVal,
+                          updateSeqMap, lookupSeqMap, memoMap )
 import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            arithBinary, Binary, BinArith,
                            logicBinary, logicUnary, zeroV,
@@ -236,6 +237,17 @@ iteWord :: SBool
         -> Eval (WordValue SBool SWord)
 iteWord c x y = mergeWord True c <$> x <*> y
 
+
+-- | Barrel-shifter algorithm. Takes a list of bits in big-endian order.
+shifter :: Monad m => (SBool -> a -> a -> m a) -> (a -> Integer -> m a) -> a -> [SBool] -> m a
+shifter mux op = go
+  where
+    go x [] = return x
+    go x (b : bs) = do
+      x' <- op x (2 ^ length bs)
+      y <- mux b x' x
+      go y bs
+
 logicShift :: String
            -> (SWord -> SWord -> SWord)
            -> (Nat' -> Integer -> Integer -> Maybe Integer)
@@ -249,26 +261,33 @@ logicShift nm wop reindex =
         idx <- fromWordVal "logicShift" =<< y
 
         xs >>= \case
-          VWord w x -> return $ VWord w $ do
-                         x >>= \case
-                           WordVal x' -> WordVal . wop x' <$> asWordVal idx
-                           BitsVal bs -> selectV iteWord idx $ \shft -> return $
-                                           BitsVal $ Seq.fromFunction (Seq.length bs) $ \i ->
+          VWord w x ->
+             return $ VWord w $ do
+               x >>= \case
+                 WordVal x' -> WordVal . wop x' <$> asWordVal idx
+                 wv ->
+                   do idx_bits <- sequence $ Fold.toList $ asBitsVal idx
+                      let op bs shft = return $ Seq.fromFunction (Seq.length bs) $ \i ->
                                              case reindex (Nat w) (toInteger i) shft of
                                                Nothing -> return $ bitLit False
                                                Just i' -> Seq.index bs (fromInteger i')
+                      BitsVal <$> shifter (\c x y -> return $ mergeBits True c x y) op (asBitsVal wv) idx_bits
 
-          VSeq w vs  -> selectV iteValue idx $ \shft -> return $
-                          VSeq w $ IndexSeqMap $ \i ->
-                            case reindex (Nat w) i shft of
-                              Nothing -> return $ zeroV a
-                              Just i' -> lookupSeqMap vs i'
+          VSeq w vs0  ->
+             do idx_bits <- sequence $ Fold.toList $ asBitsVal idx
+                let op vs shft = memoMap $ IndexSeqMap $ \i ->
+                                   case reindex (Nat w) i shft of
+                                     Nothing -> return $ zeroV a
+                                     Just i' -> lookupSeqMap vs i'
+                VSeq w <$> shifter (\c x y -> return $ mergeSeqMap True c x y) op vs0 idx_bits
 
-          VStream vs -> selectV iteValue idx $ \shft -> return $
-                          VStream $ IndexSeqMap $ \i ->
-                            case reindex Inf i shft of
-                              Nothing -> return $ zeroV a
-                              Just i' -> lookupSeqMap vs i'
+          VStream vs0 ->
+             do idx_bits <- sequence $ Fold.toList $ asBitsVal idx
+                let op vs shft = memoMap $ IndexSeqMap $ \i ->
+                                   case reindex Inf i shft of
+                                     Nothing -> return $ zeroV a
+                                     Just i' -> lookupSeqMap vs i'
+                VStream <$> shifter (\c x y -> return $ mergeSeqMap True c x y) op vs0 idx_bits
 
           _ -> evalPanic "expected sequence value in shift operation" [nm]
 
