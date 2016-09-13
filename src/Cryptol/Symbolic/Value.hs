@@ -106,12 +106,20 @@ mergeWord f c w1 w2 =
     BitsVal $ Seq.zipWith mergeBit' (asBitsVal w1) (asBitsVal w2)
  where mergeBit' b1 b2 = mergeBit f c <$> b1 <*> b2
 
+mergeInteger :: Bool
+             -> SBool
+             -> SInteger
+             -> SInteger
+             -> SInteger
+mergeInteger f c x y = svSymbolicMerge KUnbounded f c x y
+
 mergeValue :: Bool -> SBool -> Value -> Value -> Value
 mergeValue f c v1 v2 =
   case (v1, v2) of
     (VRecord fs1, VRecord fs2) -> VRecord $ zipWith mergeField fs1 fs2
     (VTuple vs1 , VTuple vs2 ) -> VTuple $ zipWith (\x y -> mergeValue f c <$> x <*> y) vs1 vs2
     (VBit b1    , VBit b2    ) -> VBit $ mergeBit f c b1 b2
+    (VInteger i1, VInteger i2) -> VInteger $ mergeInteger f c i1 i2
     (VWord n1 w1, VWord n2 w2 ) | n1 == n2 -> VWord n1 (mergeWord f c <$> w1 <*> w2)
     (VSeq n1 vs1, VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 $ mergeSeqMap vs1 vs2
     (VStream vs1, VStream vs2) -> VStream $ mergeSeqMap vs1 vs2
