@@ -49,4 +49,4 @@ logo useColor =
   lineLen   = length (head ls)
 
 displayLogo :: Bool -> REPL ()
-displayLogo useColor =unlessBatch (io (mapM_ putStrLn (logo useColor)))
+displayLogo useColor = unlessBatch (io (mapM_ putStrLn (logo useColor)))
