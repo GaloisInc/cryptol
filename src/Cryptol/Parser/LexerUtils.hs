@@ -62,8 +62,8 @@ startComment isDoc _ p txt s = (Nothing, InComment d p stack chunks)
                            InComment doc q qs cs -> (doc, q : qs, txt : cs)
                            _                     -> panic "[Lexer] startComment" ["in a string"]
 
-endComent :: Action
-endComent cfg p txt s =
+endComment :: Action
+endComment cfg p txt s =
   case s of
     InComment d f [] cs     -> (Just (mkToken d f cs), Normal)
     InComment d _ (q:qs) cs -> (Nothing, InComment d q qs (txt : cs))
