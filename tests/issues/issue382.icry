@@ -1,0 +1,11 @@
+0b01 : Bit
+(True, False, True) : (Bit, Bit)
+0b01010 : [4]
+(True, False) : Bit
+{a = True} : {a : Bit, b : Bit}
+True : [2]
+[] : [inf]
+0b010 + {}
+0b010 + (True, False)
+(\(x:Bit) -> x) : [2]
+True True : Bit
