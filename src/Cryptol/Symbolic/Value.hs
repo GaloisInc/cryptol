@@ -141,7 +141,7 @@ mergeValue f c v1 v2 =
                     [ "mergeValue.mergeField: incompatible values" ]
 
 
-mergeSeqMap :: Bool -> SBool -> SeqMap SBool SWord -> SeqMap SBool SWord -> SeqMap SBool SWord
+mergeSeqMap :: Bool -> SBool -> SeqMap SBool SWord SInteger -> SeqMap SBool SWord SInteger -> SeqMap SBool SWord SInteger
 mergeSeqMap f c x y =
   IndexSeqMap $ \i -> mergeValue f c <$> lookupSeqMap x i <*> lookupSeqMap y i
 
