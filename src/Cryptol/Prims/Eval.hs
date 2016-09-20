@@ -184,7 +184,7 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
      in nlam $ \(finNat' -> a) ->
         nlam $ \(finNat' -> b) ->
         wlam $ \(bvVal -> x) -> return $
-        wlam $ \(bvVal -> y) -> return $ word (max 1 (a + b) - 1) (mul 0 x y b))
+        wlam $ \(bvVal -> y) -> return $ word (1 + a + b) (mul 0 x y (1+b)))
 
   , ("pdiv"        , {-# SCC "Prelude::pdiv" #-}
                      nlam $ \(fromInteger . finNat' -> a) ->

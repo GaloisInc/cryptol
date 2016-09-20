@@ -168,12 +168,12 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("update"      , updatePrim updateFrontSym_bits updateFrontSym)
   , ("updateEnd"   , updatePrim updateBackSym_bits updateBackSym)
 
-  , ("pmult"       , -- {a,b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
+  , ("pmult"       , -- {a,b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 + a + b]
       nlam $ \(finNat' -> i) ->
       nlam $ \(finNat' -> j) ->
       VFun $ \v1 -> return $
       VFun $ \v2 -> do
-        let k = max 1 (i + j) - 1
+        let k = 1 + i + j
             mul _  []     ps = ps
             mul as (b:bs) ps = mul (SBV.svFalse : as) bs (ites b (as `addPoly` ps) ps)
         xs <- sequence . Fold.toList . asBitsVal =<< fromWordVal "pmult 1" =<< v1
