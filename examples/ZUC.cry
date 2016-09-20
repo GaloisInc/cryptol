@@ -232,7 +232,7 @@ ZUC key iv =
 
 // Test vectors
 property ZUC_TestVectors =
-    t1 && t2 && t3 && t4
+    t1 /\ t2 /\ t3 /\ t4
     where
       t1 = take (ZUC zero    zero   ) == [0x27BEDE74, 0x018082DA]
       t2 = take (ZUC (~zero) (~zero)) == [0x0657CFA0, 0x7096398B]

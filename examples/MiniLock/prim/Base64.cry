@@ -42,11 +42,11 @@ base64dec ms = (split (join [debase x | x <- ms]), nrEq)
 
  debase' : [8] -> [8]
  debase' x =
-    if x >= 'A' && x <= 'Z'
+    if x >= 'A' /\ x <= 'Z'
         then x - 'A'
-        else if x >= 'a' && x <= 'z'
+        else if x >= 'a' /\ x <= 'z'
               then x - 'a' + 26
-              else if x >= '0' && x <= '9'
+              else if x >= '0' /\ x <= '9'
                     then x - '0' + 52
                     else if x == '+'
                         then 62

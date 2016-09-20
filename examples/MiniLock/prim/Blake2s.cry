@@ -133,7 +133,7 @@ blake2Update ctx d = { state = newState, counter = newCount }
 
 postprocess : {ll} (64 >= ll, 64 >= width ll) => BCounter -> [ll][8] -> Block
 postprocess c m =
-    if c == 0 && `ll == (zero:[64])
+    if c == 0 /\ `ll == (zero:[64])
         then zero
         else split (join m # zero)
 

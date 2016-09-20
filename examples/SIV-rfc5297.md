@@ -322,7 +322,7 @@ E(K,X) = aesEncrypt (X,K)
 
 aesCMAC : {m} (fin m) => Key -> [m] -> [128]
 aesCMAC K m =
-    cmacBlocks K ((`m%128) == 0 && `m > 0) (split `{each=128,parts=blocks} full)
+    cmacBlocks K ((`m%128) == 0 /\ `m > 0) (split `{each=128,parts=blocks} full)
  where
  pd   = [True] # zero : [128]
  full = take `{front=128 * blocks, back = (m + 128) - 128*blocks} (m # pd)
@@ -554,14 +554,14 @@ ctr32 : {n} (2^^39 - 128 >= n) => Key -> [128] -> [n] -> [n]
 ctr32 k iv pt = pt ^ take stream
  where
  stream = join [E(k,v) | v <- ivs]
- ivs    = [take `{96} iv # cnt + i | i <- [0,1..]]
+ ivs    = [take `{96} iv # cnt + i | i <- [0...]]
  cnt    = drop `{back=32} iv
 
 ctr64 : {n} (2^^71 - 128 >= n) => Key -> [128] -> [n] -> [n]
 ctr64 k iv pt = pt ^ take stream
  where
  stream = join [E(k,v) | v <- ivs]
- ivs    = [take `{64} iv # cnt + i | i <- [0,1..]]
+ ivs    = [take `{64} iv # cnt + i | i <- [0...]]
  cnt    = drop `{back=64} iv
 ```
 

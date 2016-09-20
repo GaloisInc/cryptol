@@ -29,7 +29,8 @@ import Cryptol.Eval.Monad (Eval(..), ready, invalidIndex)
 import Cryptol.Eval.Type  (finNat', TValue(..))
 import Cryptol.Eval.Value (BitWord(..), EvalPrims(..), enumerateSeqMap, SeqMap(..),
                           reverseSeqMap, wlam, nlam, WordValue(..),
-                          asWordVal, asBitsVal, fromWordVal, updateSeqMap, lookupSeqMap )
+                          asWordVal, asBitsVal, fromWordVal,
+                          updateSeqMap, lookupSeqMap, memoMap )
 import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            arithBinary, Binary, BinArith,
                            logicBinary, logicUnary, zeroV,
@@ -172,12 +173,12 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("update"      , updatePrim updateFrontSym_bits updateFrontSym)
   , ("updateEnd"   , updatePrim updateBackSym_bits updateBackSym)
 
-  , ("pmult"       , -- {a,b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
+  , ("pmult"       , -- {a,b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 + a + b]
       nlam $ \(finNat' -> i) ->
       nlam $ \(finNat' -> j) ->
       VFun $ \v1 -> return $
       VFun $ \v2 -> do
-        let k = max 1 (i + j) - 1
+        let k = 1 + i + j
             mul _  []     ps = ps
             mul as (b:bs) ps = mul (SBV.svFalse : as) bs (ites b (as `addPoly` ps) ps)
         xs <- sequence . Fold.toList . asBitsVal =<< fromWordVal "pmult 1" =<< v1
@@ -241,6 +242,17 @@ iteWord :: SBool
         -> Eval (WordValue SBool SWord)
 iteWord c x y = mergeWord True c <$> x <*> y
 
+
+-- | Barrel-shifter algorithm. Takes a list of bits in big-endian order.
+shifter :: Monad m => (SBool -> a -> a -> m a) -> (a -> Integer -> m a) -> a -> [SBool] -> m a
+shifter mux op = go
+  where
+    go x [] = return x
+    go x (b : bs) = do
+      x' <- op x (2 ^ length bs)
+      y <- mux b x' x
+      go y bs
+
 logicShift :: String
            -> (SWord -> SWord -> SWord)
            -> (Nat' -> Integer -> Integer -> Maybe Integer)
@@ -251,30 +263,36 @@ logicShift nm wop reindex =
       tlam $ \a ->
       VFun $ \xs -> return $
       VFun $ \y -> do
-        let Nat _len = n
-        idx <- fromWordVal "<<" =<< y
+        idx <- fromWordVal "logicShift" =<< y
 
         xs >>= \case
-          VWord w x -> return $ VWord w $ do
-                         x >>= \case
-                           WordVal x' -> WordVal . wop x' <$> asWordVal idx
-                           BitsVal bs -> selectV iteWord idx $ \shft -> return $
-                                           BitsVal $ Seq.fromFunction (Seq.length bs) $ \i ->
+          VWord w x ->
+             return $ VWord w $ do
+               x >>= \case
+                 WordVal x' -> WordVal . wop x' <$> asWordVal idx
+                 wv ->
+                   do idx_bits <- sequence $ Fold.toList $ asBitsVal idx
+                      let op bs shft = return $ Seq.fromFunction (Seq.length bs) $ \i ->
                                              case reindex (Nat w) (toInteger i) shft of
                                                Nothing -> return $ bitLit False
-                                               Just _  -> Seq.index bs i
+                                               Just i' -> Seq.index bs (fromInteger i')
+                      BitsVal <$> shifter (\c x y -> return $ mergeBits True c x y) op (asBitsVal wv) idx_bits
 
-          VSeq w vs  -> selectV iteValue idx $ \shft -> return $
-                          VSeq w $ IndexSeqMap $ \i ->
-                            case reindex (Nat w) i shft of
-                              Nothing -> return $ zeroV a
-                              Just i' -> lookupSeqMap vs i'
+          VSeq w vs0  ->
+             do idx_bits <- sequence $ Fold.toList $ asBitsVal idx
+                let op vs shft = memoMap $ IndexSeqMap $ \i ->
+                                   case reindex (Nat w) i shft of
+                                     Nothing -> return $ zeroV a
+                                     Just i' -> lookupSeqMap vs i'
+                VSeq w <$> shifter (\c x y -> return $ mergeSeqMap True c x y) op vs0 idx_bits
 
-          VStream vs -> selectV iteValue idx $ \shft -> return $
-                          VStream $ IndexSeqMap $ \i ->
-                            case reindex Inf i shft of
-                              Nothing -> return $ zeroV a
-                              Just i' -> lookupSeqMap vs i'
+          VStream vs0 ->
+             do idx_bits <- sequence $ Fold.toList $ asBitsVal idx
+                let op vs shft = memoMap $ IndexSeqMap $ \i ->
+                                   case reindex Inf i shft of
+                                     Nothing -> return $ zeroV a
+                                     Just i' -> lookupSeqMap vs i'
+                VStream <$> shifter (\c x y -> return $ mergeSeqMap True c x y) op vs0 idx_bits
 
           _ -> evalPanic "expected sequence value in shift operation" [nm]
 
@@ -293,7 +311,7 @@ selectV mux val f =
  where
     sel offset []       = f offset
     sel offset (b : bs) = mux b m1 m2
-      where m1 = sel (offset + 2 ^ length bs) bs
+      where m1 = sel (offset + (2 ^ length bs)) bs
             m2 = sel offset bs
 
 

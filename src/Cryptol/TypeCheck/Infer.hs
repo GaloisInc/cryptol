@@ -266,7 +266,7 @@ checkE expr tGoal =
 
     P.EComp e mss ->
       do (mss', dss, ts) <- unzip3 `fmap` zipWithM inferCArm [ 1 .. ] mss
-         (len,a)<- expectSeq tGoal
+         (len,a) <- expectSeq tGoal
 
          newGoals CtComprehension =<< unify len =<< smallest ts
 
@@ -337,12 +337,12 @@ expectSeq ty =
 
     TVar _ ->
       do tys@(a,b) <- genTys
-         newGoals CtExactType =<< unify (tSeq a b) ty
+         newGoals CtExactType =<< unify ty (tSeq a b)
          return tys
 
     _ ->
       do tys@(a,b) <- genTys
-         recordError (TypeMismatch (tSeq a b) ty)
+         recordError (TypeMismatch ty (tSeq a b))
          return tys
   where
   genTys =
@@ -363,12 +363,12 @@ expectTuple n ty =
 
     TVar _ ->
       do tys <- genTys
-         newGoals CtExactType =<< unify (tTuple tys) ty
+         newGoals CtExactType =<< unify ty (tTuple tys)
          return tys
 
     _ ->
       do tys <- genTys
-         recordError (TypeMismatch (tTuple tys) ty)
+         recordError (TypeMismatch ty (tTuple tys))
          return tys
 
   where
@@ -391,9 +391,9 @@ expectRec fs ty =
     _ ->
       do (tys,res) <- genTys
          case ty of
-           TVar TVFree{} -> do ps <- unify (TRec tys) ty
+           TVar TVFree{} -> do ps <- unify ty (TRec tys)
                                newGoals CtExactType ps
-           _ -> recordError (TypeMismatch (TRec tys) ty)
+           _ -> recordError (TypeMismatch ty (TRec tys))
          return res
 
   where
@@ -422,7 +422,7 @@ expectFin n ty =
          return ()
 
     _ ->
-      do newGoals CtExactType =<< unify (tNum n) ty
+      do newGoals CtExactType =<< unify ty (tNum n)
 
 expectFun :: Int -> Type -> InferM ([Type],Type)
 expectFun  = go []
@@ -442,9 +442,9 @@ expectFun  = go []
           do args <- genArgs arity
              res  <- newType (text "result of function") KType
              case ty of
-               TVar TVFree{} -> do ps <- unify (foldr tFun res args) ty
+               TVar TVFree{} -> do ps <- unify ty (foldr tFun res args)
                                    newGoals CtExactType  ps
-               _             -> recordError (TypeMismatch (foldr tFun res args) ty)
+               _             -> recordError (TypeMismatch ty (foldr tFun res args))
              return (reverse tys ++ args, res)
 
     | otherwise =
@@ -623,7 +623,7 @@ guessType exprMap b@(P.Bind { .. }) =
 
     Nothing
       | bMono ->
-         do t <- newType (text "defintion of" <+> quotes (pp name)) KType
+         do t <- newType (text "definition of" <+> quotes (pp name)) KType
             let schema = Forall [] [] t
             return ((name, ExtVar schema), Left (checkMonoB b t))
 

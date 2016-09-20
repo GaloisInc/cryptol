@@ -24,7 +24,8 @@ import           Control.Monad.Trans.Control
 import           Data.Char (isAlphaNum, isSpace)
 import           Data.Function (on)
 import           Data.List (isPrefixOf,nub,sortBy,sort)
-import           System.Console.ANSI (setTitle)
+import           System.IO (stdout)
+import           System.Console.ANSI (setTitle, hSupportsANSI)
 import           System.Console.Haskeline
 import           System.Directory ( doesFileExist
                                   , getHomeDirectory
@@ -150,6 +151,22 @@ setREPLTitle :: REPL ()
 setREPLTitle = do
   lm <- getLoadedMod
   io (setTitle (mkTitle lm))
+
+-- | In certain environments like Emacs, we shouldn't set the terminal
+-- title. Note: this does not imply we can't use color output. We can
+-- use ANSI color sequences in places like Emacs, but not terminal
+-- codes.
+--
+-- This checks that @'stdout'@ is a proper terminal handle, and that the
+-- terminal mode is not @dumb@, which is set by Emacs and others.
+shouldSetREPLTitle :: REPL Bool
+shouldSetREPLTitle = io (hSupportsANSI stdout)
+
+-- | Whether we can display color titles. This checks that @'stdout'@
+-- is a proper terminal handle, and that the terminal mode is not
+-- @dumb@, which is set by Emacs and others.
+canDisplayColor :: REPL Bool
+canDisplayColor = io (hSupportsANSI stdout)
 
 -- Completion ------------------------------------------------------------------
 

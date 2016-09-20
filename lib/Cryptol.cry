@@ -378,7 +378,7 @@ primitive error : {at, len} (fin len) => [len][8] -> at
 /**
  * Performs multiplication of polynomials over GF(2).
  */
-primitive pmult : {a, b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
+primitive pmult : {a, b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 + a + b]
 
 /**
  * Performs division of polynomials over GF(2).

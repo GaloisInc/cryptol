@@ -280,7 +280,7 @@ decl                    :: { Decl PName }
                                           , bDoc       = Nothing
                                           } }
 
-  | apat other_op apat '=' expr
+  | apat pat_op apat '=' expr
                            { at ($1,$5) $
                              DBind $ Bind { bName      = $2
                                           , bParams    = [$1,$3]
@@ -401,6 +401,10 @@ qop                              :: { LPName }
                                        in mkQual (mkModName ns) (mkInfix (T.toStrict i)) A.<$ $1 }
 
 op                               :: { LPName }
+  : pat_op                          { $1 }
+  | '#'                             { Located $1 $ mkUnqual $ mkInfix "#" }
+
+pat_op                           :: { LPName }
   : other_op                        { $1 }
 
     -- special cases for operators that are re-used elsewhere
@@ -409,10 +413,9 @@ op                               :: { LPName }
   | '-'                             { Located $1 $ mkUnqual $ mkInfix "-" }
   | '~'                             { Located $1 $ mkUnqual $ mkInfix "~" }
   | '^^'                            { Located $1 $ mkUnqual $ mkInfix "^^" }
-  | '#'                             { Located $1 $ mkUnqual $ mkInfix "#" }
 
 
-other_op                            :: { LPName }
+other_op                         :: { LPName }
   : OP                              { let Token (Op (Other [] str)) _ = thing $1
                                        in mkUnqual (mkInfix (T.toStrict str)) A.<$ $1 }
 

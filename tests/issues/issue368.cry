@@ -1,0 +1,23 @@
+myFun : [8] -> [8] -> [8]
+myFun a b = 0
+
+x + y = myFun x y
+x * y = myFun x y
+x - y = myFun x y
+x ~ y = myFun x y
+x ^^ y = myFun x y
+x ++ y = myFun x y
+x .+ y = myFun x y
+x +. y = myFun x y
+x !+ y = myFun x y
+x +! y = myFun x y
+x .! y = myFun x y
+x :+ y = myFun x y
+x =+ y = myFun x y
+x .: y = myFun x y
+x :+: y = myFun x y
+x +:: y = myFun x y
+x ^^^ y = myFun x y
+x .... y = myFun x y
+x +//+ y = myFun x y
+x .//. y = myFun x y
