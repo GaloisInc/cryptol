@@ -210,7 +210,7 @@ cmpAnd (k1,prop1) (k2,prop2) =
     (Not (Fin (Var _)), _)                 -> LT
     (_, Not (Fin (Var _)))                 -> GT
 
-    -- Next come defintions: `x = e` (with `x` not in `fvs e`)
+    -- Next come definitions: `x = e` (with `x` not in `fvs e`)
     -- XXX: Inefficient, because we keep recomputing free variables
     -- (here, and then when actually applying the substitution)
     _ | Just (x,_) <- mbL

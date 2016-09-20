@@ -623,7 +623,7 @@ guessType exprMap b@(P.Bind { .. }) =
 
     Nothing
       | bMono ->
-         do t <- newType (text "defintion of" <+> quotes (pp name)) KType
+         do t <- newType (text "definition of" <+> quotes (pp name)) KType
             let schema = Forall [] [] t
             return ((name, ExtVar schema), Left (checkMonoB b t))
 
