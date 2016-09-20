@@ -34,6 +34,7 @@ import qualified Data.IntMap as IntMap
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
+import Data.List ((\\))
 
 data SolverConfig = SolverConfig
   { solverPath    :: FilePath   -- ^ The SMT solver to invoke
@@ -441,7 +442,8 @@ instance PP (WithNames Error) where
       TypeMismatch t1 t2 ->
         nested (text "Type mismatch:")
           (text "Expected type:" <+> ppWithNames names t1 $$
-           text "Inferred type:" <+> ppWithNames names t2)
+           text "Inferred type:" <+> ppWithNames names t2 $$
+           mismatchHint t1 t2)
 
       UnsolvedGoal imp g ->
         nested (word <+> text "constraint:") (ppWithNames names g)
@@ -493,6 +495,15 @@ instance PP (WithNames Error) where
     multi [x,y]     = [x <> text ", and", y <> text "." ]
     multi (x : xs)  = x <> text "," : multi xs
 
+    mismatchHint (TRec fs1) (TRec fs2) =
+      hint "Missing" missing $$ hint "Unexpected" extra
+      where
+        missing = map fst fs1 \\ map fst fs2
+        extra   = map fst fs2 \\ map fst fs1
+        hint _ []  = mempty
+        hint s [x] = text s <+> text "field" <+> pp x
+        hint s xs  = text s <+> text "fields" <+> commaSep (map pp xs)
+    mismatchHint _ _ = mempty
 
 
 instance PP ConstraintSource where
