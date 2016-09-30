@@ -291,8 +291,9 @@ etaDelay msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
 
   go tp (Ready x) =
     case x of
-      VBit _    -> return x
-      VWord _ _ -> return x
+      VBit _     -> return x
+      VInteger _ -> return x
+      VWord _ _  -> return x
       VSeq n xs
         | TVSeq _nt el <- tp
         -> return $ VSeq n $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
