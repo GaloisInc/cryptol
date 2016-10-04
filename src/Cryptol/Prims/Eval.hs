@@ -236,8 +236,9 @@ ecDemoteV = nlam $ \valT ->
 --------------------------------------------------------------------------------
 divModPoly :: Integer -> Int -> Integer -> Int -> (Integer, Integer)
 divModPoly xs xsLen ys ysLen
-  | ys == 0   = divideByZero
-  | otherwise = go 0 initR (xsLen - degree) todoBits
+  | ys == 0         = divideByZero
+  | degree <= xsLen = go 0 initR (xsLen - degree) todoBits
+  | otherwise       = (0, xs) -- xs is already a residue, just return it
 
   where
   downIxes n  = [ n - 1, n - 2 .. 0 ]
