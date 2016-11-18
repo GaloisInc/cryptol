@@ -298,7 +298,7 @@ etaDelay msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
         -> return $ VSeq n $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
 
       VStream xs
-        | TVSeq _nt el <- tp
+        | TVStream el <- tp
         -> return $ VStream $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
 
       VTuple xs
