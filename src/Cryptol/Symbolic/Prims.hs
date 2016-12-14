@@ -333,7 +333,7 @@ indexFront mblen a xs idx
  where
     k = SBV.kindOf idx
     w = SBV.intSizeOf idx
-    def = ready $ VWord (toInteger w) $ ready $ WordVal $ SBV.svInteger k 0
+    def = ready $ zeroV a
     f n y = iteValue (SBV.svEqual idx (SBV.svInteger k n)) (lookupSeqMap xs n) y
 
 
