@@ -13,7 +13,7 @@ module Main where
 
 import OptParser
 
-import Cryptol.REPL.Command (loadCmd,loadPrelude)
+import Cryptol.REPL.Command (loadCmd,loadPrelude,CommandExitCode(..))
 import Cryptol.REPL.Monad (REPL,updateREPLTitle,setUpdateREPLTitle,
                    io,prependSearchPath,setSearchPath)
 import qualified Cryptol.REPL.Monad as REPL
@@ -33,7 +33,7 @@ import System.Console.GetOpt
     (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
 import System.Directory (getTemporaryDirectory, removeFile)
 import System.Environment (getArgs, getProgName, lookupEnv)
-import System.Exit (exitFailure)
+import System.Exit (exitFailure,exitSuccess)
 import System.FilePath (searchPathSeparator, splitSearchPath, takeDirectory)
 import System.IO (hClose, hPutStr, openTempFile)
 
@@ -197,12 +197,16 @@ main  = do
       | optVersion opts -> displayVersion
       | otherwise       -> do
           (opts', mCleanup) <- setupCmdScript opts
-          repl (optCryptolrc opts')
-               (optBatch opts')
-               (setupREPL opts')
+          status <- repl (optCryptolrc opts')
+                      (optBatch opts')
+                      (setupREPL opts')
           case mCleanup of
             Nothing -> return ()
             Just cmdFile -> removeFile cmdFile
+
+          case status of
+            CommandError -> exitFailure
+            CommandOk    -> exitSuccess
 
 setupCmdScript :: Options -> IO (Options, Maybe FilePath)
 setupCmdScript opts =

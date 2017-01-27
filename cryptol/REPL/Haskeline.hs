@@ -18,10 +18,11 @@ import           Cryptol.REPL.Trie
 import           Cryptol.Utils.PP
 
 import qualified Control.Exception as X
-import           Control.Monad (guard, join, when)
+import           Control.Monad (guard, join)
 import qualified Control.Monad.Trans.Class as MTL
 import           Control.Monad.Trans.Control
 import           Data.Char (isAlphaNum, isSpace)
+import           Data.Maybe(isJust)
 import           Data.Function (on)
 import           Data.List (isPrefixOf,nub,sortBy,sort)
 import           System.IO (stdout)
@@ -35,70 +36,87 @@ import           System.FilePath ((</>))
 import           Prelude ()
 import           Prelude.Compat
 
--- | Haskeline-specific repl implementation.
-repl :: Cryptolrc -> Maybe FilePath -> REPL () -> IO ()
-repl cryrc mbBatch begin =
-  do settings <- setHistoryFile (replSettings isBatch)
-     runREPL isBatch (runInputTBehavior behavior settings body)
-  where
-  body = withInterrupt $ do
-    MTL.lift evalCryptolrc
-    MTL.lift begin
-    loop
 
+-- | One REPL invocation, either form a file or from the terminal.
+crySession :: Maybe FilePath -> REPL CommandExitCode
+crySession mbBatch =
+  do settings <- io (setHistoryFile (replSettings isBatch))
+     let act = runInputTBehavior behavior settings (withInterrupt loop)
+     if isBatch then asBatch act else act
+  where
   (isBatch,behavior) = case mbBatch of
     Nothing   -> (False,defaultBehavior)
     Just path -> (True,useFile path)
 
-  loop = do
-    prompt <- MTL.lift getPrompt
-    mb     <- handleInterrupt (return (Just "")) (getInputLines prompt [])
-    case mb of
+  loop :: InputT REPL CommandExitCode
+  loop =
+    do ln <- getInputLines =<< MTL.lift getPrompt
+       case ln of
+         NoMoreLines -> return CommandOk
+         Interrupted
+           | isBatch   -> return CommandError
+           | otherwise -> loop
+         NextLine line
+           | all isSpace line -> loop
+           | otherwise        -> doCommand line
 
-      Just line
-        | Just cmd <- parseCommand findCommandExact line -> do
-          continue <- MTL.lift $ do
-            handleInterrupt handleCtrlC (runCommand cmd)
-            shouldContinue
-          when continue loop
+  doCommand txt =
+    case parseCommand findCommandExact txt of
+      Nothing | isBatch   -> return CommandError
+              | otherwise -> loop -- say somtething?
+      Just cmd -> join $ MTL.lift $
+        do status <- handleInterrupt (handleCtrlC CommandError) (runCommand cmd)
+           case status of
+             CommandError | isBatch -> return (return status)
+             _ -> do goOn <- shouldContinue
+                     return (if goOn then loop else return status)
 
-        | otherwise -> loop
 
-      Nothing -> return ()
+data NextLine = NextLine String | NoMoreLines | Interrupted
 
-  getInputLines prompt ls =
+getInputLines :: String -> InputT REPL NextLine
+getInputLines = handleInterrupt (MTL.lift (handleCtrlC Interrupted)) . loop []
+  where
+  loop ls prompt =
     do mb <- getInputLine prompt
        let newPropmpt = map (\_ -> ' ') prompt
        case mb of
-          Nothing -> return Nothing
-          Just l | not (null l) && last l == '\\' ->
-                                      getInputLines newPropmpt (init l : ls)
-                 | otherwise -> return $ Just $ unlines $ reverse $ l : ls
+         Nothing -> return NoMoreLines
+         Just l
+           | not (null l) && last l == '\\' -> loop (init l : ls) newPropmpt
+           | otherwise -> return $ NextLine $ unlines $ reverse $ l : ls
 
-  evalCryptolrc =
-    case cryrc of
-      CryrcDefault -> do
-        here <- io $ getCurrentDirectory
-        home <- io $ getHomeDirectory
-        let dcHere = here </> ".cryptolrc"
-            dcHome = home </> ".cryptolrc"
-        isHere <- io $ doesFileExist dcHere
-        isHome <- io $ doesFileExist dcHome
-        if | isHere    -> slurp dcHere
-           | isHome    -> slurp dcHome
-           | otherwise -> whenDebug $ io $ putStrLn "no .cryptolrc found"
-      CryrcFiles paths -> mapM_ slurp paths
-      CryrcDisabled -> return ()
+loadCryRC :: Cryptolrc -> REPL CommandExitCode
+loadCryRC cryrc =
+  case cryrc of
+    CryrcDisabled   -> return CommandOk
+    CryrcDefault    -> check [ getCurrentDirectory, getHomeDirectory ]
+    CryrcFiles opts -> loadMany opts
+  where
+  check [] = return CommandOk
+  check (place : others) =
+    do dir <- io place
+       let file = dir </> ".cryptolrc"
+       present <- io (doesFileExist file)
+       if present
+         then crySession (Just file)
+         else check others
 
-  -- | Actually read the contents of a file, but don't save the
-  -- history
-  --
-  -- XXX: friendlier error message would be nice if the file can't be
-  -- found, but since these will be specified on the command line it
-  -- should be obvious what's going wrong
-  slurp path = do
-    let settings' = defaultSettings { autoAddHistory = False }
-    runInputTBehavior (useFile path) settings' (withInterrupt loop)
+  loadMany []       = return CommandOk
+  loadMany (f : fs) = do status <- crySession (Just f)
+                         case status of
+                           CommandOk -> loadMany fs
+                           _         -> return status
+
+-- | Haskeline-specific repl implementation.
+repl :: Cryptolrc -> Maybe FilePath -> REPL () -> IO CommandExitCode
+repl cryrc mbBatch begin =
+  runREPL (isJust mbBatch) $
+  do status <- loadCryRC cryrc
+     case status of
+       CommandOk -> begin >> crySession mbBatch
+       _         -> return status
+
 
 
 -- | Try to set the history file.

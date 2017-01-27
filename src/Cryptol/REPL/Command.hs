@@ -12,7 +12,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Cryptol.REPL.Command (
     -- * Commands
-    Command(..), CommandDescr(..), CommandBody(..)
+    Command(..), CommandDescr(..), CommandBody(..), CommandExitCode(..)
   , parseCommand
   , runCommand
   , splitCommand
@@ -138,6 +138,10 @@ data CommandBody
   | NoArg       (REPL ())
 
 
+data CommandExitCode = CommandOk
+                     | CommandError -- XXX: More?
+
+
 -- | REPL command parsing.
 commands :: CommandMap
 commands  = foldl insert emptyTrie commandList
@@ -210,18 +214,20 @@ genHelp cs = map cmdHelp cs
 -- Command Evaluation ----------------------------------------------------------
 
 -- | Run a command.
-runCommand :: Command -> REPL ()
+runCommand :: Command -> REPL CommandExitCode
 runCommand c = case c of
 
-  Command cmd -> cmd `Cryptol.REPL.Monad.catch` handler
+  Command cmd -> (cmd >> return CommandOk) `Cryptol.REPL.Monad.catch` handler
     where
-    handler re = rPutStrLn "" >> rPrint (pp re)
+    handler re = rPutStrLn "" >> rPrint (pp re) >> return CommandError
 
-  Unknown cmd -> rPutStrLn ("Unknown command: " ++ cmd)
+  Unknown cmd -> do rPutStrLn ("Unknown command: " ++ cmd)
+                    return CommandError
 
   Ambiguous cmd cmds -> do
     rPutStrLn (cmd ++ " is ambiguous, it could mean one of:")
     rPutStrLn ("\t" ++ intercalate ", " cmds)
+    return CommandError
 
 
 -- Get the setting we should use for displaying values.
@@ -791,8 +797,9 @@ cdCmd f | null f = rPutStrLn $ "[error] :cd requires a path argument"
 -- C-c Handlings ---------------------------------------------------------------
 
 -- XXX this should probably do something a bit more specific.
-handleCtrlC :: REPL ()
-handleCtrlC  = rPutStrLn "Ctrl-C"
+handleCtrlC :: a -> REPL a
+handleCtrlC a = do rPutStrLn "Ctrl-C"
+                   return a
 
 
 -- Utilities -------------------------------------------------------------------

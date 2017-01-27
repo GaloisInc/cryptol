@@ -304,12 +304,13 @@ unlessBatch body = do
 
 -- | Run a computation in batch mode, restoring the previous isBatch
 -- flag afterwards
-asBatch :: REPL () -> REPL ()
+asBatch :: REPL a -> REPL a
 asBatch body = do
   wasBatch <- eIsBatch `fmap` getRW
   modifyRW_ $ (\ rw -> rw { eIsBatch = True })
-  body
+  a <- body
   modifyRW_ $ (\ rw -> rw { eIsBatch = wasBatch })
+  return a
 
 disableLet :: REPL ()
 disableLet  = modifyRW_ (\ rw -> rw { eLetEnabled = False })
