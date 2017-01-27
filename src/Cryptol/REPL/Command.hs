@@ -113,9 +113,9 @@ data Command
 
 -- | Command builder.
 data CommandDescr = CommandDescr
-  { cNames :: [String]
-  , cBody :: CommandBody
-  , cHelp :: String
+  { cNames  :: [String]
+  , cBody   :: CommandBody
+  , cHelp   :: String
   }
 
 instance Show CommandDescr where
@@ -769,6 +769,19 @@ helpCmd cmd
                            <+> pp qname
                            <+> colon
                            <+> pp (ifDeclSig)
+
+                  let mbFix = ifDeclFixity `mplus`
+                              (guard ifDeclInfix >> return P.defaultFixity)
+                  case mbFix of
+                    Just f  ->
+                      let msg = "Precedence " ++ show (P.fLevel f) ++ ", " ++
+                                 (case P.fAssoc f of
+                                    P.LeftAssoc   -> "associates to the left."
+                                    P.RightAssoc  -> "associates to the right."
+                                    P.NonAssoc    -> "does not associate.")
+
+                      in rPutStrLn ('\n' : msg)
+                    Nothing -> return ()
 
                   case ifDeclDoc of
                     Just str -> rPutStrLn ('\n' : str)
