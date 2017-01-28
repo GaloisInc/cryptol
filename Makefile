@@ -91,6 +91,7 @@ msi: ${PKG}.msi
 # during initial setup, you have to invoke this target again manually
 ${CS}:
 	$(CABAL) sandbox init
+	$(CABAL) sandbox add-source external-libs/sbv
 
 ${CS_BIN}/alex: | ${CS}
 	$(CABAL_INSTALL) alex

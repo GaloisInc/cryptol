@@ -73,7 +73,7 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Transform.Specialize as S
-import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..))
+import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..),ProverStats)
 import qualified Cryptol.Symbolic as Symbolic
 
 import qualified Control.Exception as X
@@ -98,9 +98,12 @@ import System.Random.TF(newTFGen)
 import Numeric (showFFloat)
 import qualified Data.Text as ST
 import qualified Data.Text.Lazy as T
+import Data.IORef(newIORef,readIORef)
 
 import Prelude ()
 import Prelude.Compat
+
+import Data.SBV(TimedStep(..),showTDiff)
 
 -- Commands --------------------------------------------------------------------
 
@@ -390,6 +393,20 @@ satCmd, proveCmd :: String -> REPL ()
 satCmd = cmdProveSat True
 proveCmd = cmdProveSat False
 
+showProverStats :: ProverStats -> REPL ()
+showProverStats = rPutStrLn
+                . ('\n':) . parns
+                . intercalate ", " . map sh . Map.toList
+  where
+  lab ProblemConstruction = "simulation"
+  lab Translation         = "export"
+  lab (WorkByProver x)    = x
+
+  sh (x, y) = lab x ++ ":" ++ showTDiff y
+
+  parns x = '(' : x ++ ")"
+
+
 -- | Console-specific version of 'proveSat'. Prints output to the
 -- console, and binds the @it@ variable to a record whose form depends
 -- on the expression given. See ticket #66 for a discussion of this
@@ -430,7 +447,7 @@ cmdProveSat isSat str = do
             Just path -> io $ writeFile path smtlib
             Nothing -> rPutStr smtlib
     _ -> do
-      result <- onlineProveSat isSat str mfile
+      (result,stats) <- onlineProveSat isSat str mfile
       ppOpts <- getPPValOpts
       case result of
         Symbolic.EmptyResult         ->
@@ -468,9 +485,10 @@ cmdProveSat isSat str = do
           case (ty, exprs) of
             (t, [e]) -> bindItVariable t e
             (t, es ) -> bindItVariables t es
+      showProverStats stats
 
 onlineProveSat :: Bool
-               -> String -> Maybe FilePath -> REPL Symbolic.ProverResult
+               -> String -> Maybe FilePath -> REPL (Symbolic.ProverResult,ProverStats)
 onlineProveSat isSat str mfile = do
   EnvString proverName <- getUser "prover"
   EnvBool verbose <- getUser "debug"
@@ -478,16 +496,20 @@ onlineProveSat isSat str mfile = do
   parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
+  timing <- io (newIORef Map.empty)
   let cmd = Symbolic.ProverCommand {
           pcQueryType    = if isSat then SatQuery satNum else ProveQuery
         , pcProverName   = proverName
         , pcVerbose      = verbose
+        , pcProverStats  = timing
         , pcExtraDecls   = decls
         , pcSmtFile      = mfile
         , pcExpr         = expr
         , pcSchema       = schema
         }
-  liftModuleCmd $ Symbolic.satProve cmd
+  res <- liftModuleCmd $ Symbolic.satProve cmd
+  stas <- io (readIORef timing)
+  return (res,stas)
 
 offlineProveSat :: Bool -> String -> Maybe FilePath -> REPL (Either String String)
 offlineProveSat isSat str mfile = do
@@ -495,10 +517,12 @@ offlineProveSat isSat str mfile = do
   parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
+  timing <- io (newIORef Map.empty)
   let cmd = Symbolic.ProverCommand {
           pcQueryType    = if isSat then SatQuery (SomeSat 0) else ProveQuery
         , pcProverName   = "offline"
         , pcVerbose      = verbose
+        , pcProverStats  = timing
         , pcExtraDecls   = decls
         , pcSmtFile      = mfile
         , pcExpr         = expr
