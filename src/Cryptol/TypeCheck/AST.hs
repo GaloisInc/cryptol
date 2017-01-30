@@ -24,6 +24,7 @@ module Cryptol.TypeCheck.AST
   , Pragma(..)
   , Fixity(..)
   , PrimMap(..)
+  , TCErrorMessage(..)
   ) where
 
 import Cryptol.ModuleSystem.Name
@@ -60,7 +61,7 @@ data Kind   = KType
             | KNum
             | KProp
             | Kind :-> Kind
-              deriving (Eq, Show, Generic, NFData)
+              deriving (Eq, Ord, Show, Generic, NFData)
 infixr 5 :->
 
 
@@ -136,7 +137,7 @@ data TVar   = TVFree !Int Kind (Set TVar) Doc
               deriving (Show, Generic, NFData)
 
 -- | Type constants.
-data TCon   = TC TC | PC PC | TF TFun
+data TCon   = TC TC | PC PC | TF TFun | TError Kind TCErrorMessage
               deriving (Show, Eq, Ord, Generic, NFData)
 
 -- | Built-in type constants.
@@ -151,6 +152,8 @@ data PC     = PEqual        -- ^ @_ == _@
             | PHas Selector -- ^ @Has sel type field@ does not appear in schemas
             | PArith        -- ^ @Arith _@
             | PCmp          -- ^ @Cmp _@
+
+            | PTrue         -- ^ This is useful when simplifying things in place
               deriving (Show, Eq, Ord, Generic, NFData)
 
 -- | 1-1 constants.
@@ -162,6 +165,11 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCTuple Int              -- ^ @(_, _, _)@
             | TCNewtype UserTC         -- ^ user-defined, @T@
               deriving (Show, Eq, Ord, Generic, NFData)
+
+data TCErrorMessage = TCErrorMessage
+  { tcErrorMessage :: !String
+    -- XXX: Add location?
+  } deriving (Show, Eq, Ord, Generic, NFData)
 
 data UserTC = UserTC Name Kind
               deriving (Show, Generic, NFData)
@@ -470,10 +478,19 @@ x >== y = TCon (PC PGeq) [x,y]
 pHas :: Selector -> Type -> Type -> Prop
 pHas l ty fi = TCon (PC (PHas l)) [ty,fi]
 
+pTrue :: Prop
+pTrue = TCon (PC PTrue) []
+
 pFin :: Type -> Prop
 pFin ty = TCon (PC PFin) [ty]
 
+-- | Make a malformed property.
+pError :: TCErrorMessage -> Prop
+pError msg = TCon (TError KProp msg) []
 
+-- | Make a malformed numeric type.
+tBadNumber :: TCErrorMessage -> Type
+tBadNumber msg = TCon (TError KNum msg) []
 
 -- | Make multiplication type.
 (.*.) :: Type -> Type -> Type
@@ -542,9 +559,10 @@ instance HasKind TVar where
   kindOf (TVBound _ k) = k
 
 instance HasKind TCon where
-  kindOf (TC tc) = kindOf tc
-  kindOf (PC pc) = kindOf pc
-  kindOf (TF tf) = kindOf tf
+  kindOf (TC tc)      = kindOf tc
+  kindOf (PC pc)      = kindOf pc
+  kindOf (TF tf)      = kindOf tf
+  kindOf (TError k _) = k
 
 instance HasKind UserTC where
   kindOf (UserTC _ k) = k
@@ -570,6 +588,7 @@ instance HasKind PC where
       PHas _    -> KType :-> KType :-> KProp
       PArith    -> KType :-> KProp
       PCmp      -> KType :-> KProp
+      PTrue     -> KProp
 
 instance HasKind TFun where
   kindOf tfun =
@@ -743,9 +762,13 @@ instance PP Type where
 
 
 instance PP TCon where
-  ppPrec _ (TC tc) = pp tc
-  ppPrec _ (PC tc) = pp tc
-  ppPrec _ (TF tc) = pp tc
+  ppPrec _ (TC tc)        = pp tc
+  ppPrec _ (PC tc)        = pp tc
+  ppPrec _ (TF tc)        = pp tc
+  ppPrec _ (TError _ msg) = pp msg
+
+instance PP TCErrorMessage where
+  ppPrec _ tc = parens (text "error:" <+> text (tcErrorMessage tc))
 
 instance PP PC where
   ppPrec _ x =
@@ -757,6 +780,7 @@ instance PP PC where
       PHas sel  -> parens (ppSelector sel)
       PArith    -> text "Arith"
       PCmp      -> text "Cmp"
+      PTrue     -> text "True"
 
 instance PP TC where
   ppPrec _ x =

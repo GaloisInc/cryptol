@@ -38,6 +38,8 @@ import           Data.Maybe(mapMaybe)
 import           Data.Function(on)
 import           MonadLib hiding (mapM)
 
+import           Data.IORef
+
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
@@ -87,9 +89,14 @@ data InferOutput a
 
     deriving Show
 
+bumpCounter :: InferM ()
+bumpCounter = do RO { .. } <- IM ask
+                 io $ modifyIORef' iSolveCounter (+1)
+
 runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
 runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
-  do rec ro <- return RO { iRange     = inpRange info
+  do coutner <- newIORef 0
+     rec ro <- return RO { iRange     = inpRange info
                      , iVars          = Map.map ExtVar (inpVars info)
                      , iTVars         = []
                      , iTSyns         = fmap mkExternal (inpTSyns info)
@@ -98,6 +105,7 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
                      , iMonoBinds     = inpMonoBinds info
                      , iSolver        = solver
                      , iPrimNames     = inpPrimNames info
+                     , iSolveCounter  = coutner
                      }
 
          (result, finalRW) <- runStateT rw
@@ -193,6 +201,8 @@ data RO = RO
   , iSolver :: CrySAT.Solver
 
   , iPrimNames :: !PrimMap
+
+  , iSolveCounter :: !(IORef Int)
   }
 
 -- | Read-write component of the monad.
@@ -311,7 +321,9 @@ getGoals =
 
 -- | Add a bunch of goals that need solving.
 addGoals :: [Goal] -> InferM ()
-addGoals gs = IM $ sets_ $ \s -> s { iCts = foldl (flip insertGoal) (iCts s) gs }
+addGoals [] = return ()
+addGoals gs =
+  IM $ sets_ $ \s -> s { iCts = foldl (flip insertGoal) (iCts s) gs }
 
 -- | Collect the goals emitted by the given sub-computation.
 -- Does not emit any new goals.

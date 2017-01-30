@@ -59,6 +59,8 @@ exportTypeM ty =
     Cry.TVar x      -> return $ Var $ UserName x
     Cry.TCon tc ts  ->
       case tc of
+        Cry.TError {} -> raise ()
+
         Cry.TC Cry.TCInf     -> return (K Inf)
         Cry.TC (Cry.TCNum x) -> return (K (Nat x))
         Cry.TC _             -> raise ()

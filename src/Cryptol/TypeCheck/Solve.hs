@@ -32,7 +32,6 @@ import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
 import           Cryptol.TypeCheck.Solver.Numeric.Interval (Interval)
-import qualified Cryptol.TypeCheck.Solver.Numeric.Simplify1 as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
@@ -86,12 +85,19 @@ simplifyAllConstraints :: InferM ()
 simplifyAllConstraints =
   do mapM_  tryHasGoal =<< getHasGoals
      gs <- getGoals
-     solver <- getSolver
-     (mb,su) <- io (simpGoals' solver gs)
-     extendSubst su
-     case mb of
-       Right gs1  -> addGoals gs1
-       Left badGs -> mapM_ (recordError . UnsolvedGoal True) badGs
+     case gs of
+       [] -> return ()
+       _ ->
+         do r <- curRange
+            let n = length gs
+            io $ putStrLn $ "simplifyAllConstraints " ++ show (length gs) ++ " goals." ++ show r
+            if (n > 400) then io $ writeFile "GS" $ unlines $ map (show.pp.goal) gs else return ()
+            solver <- getSolver
+            (mb,su) <- io (simpGoals' solver gs)
+            extendSubst su
+            case mb of
+              Right gs1  -> addGoals gs1
+              Left badGs -> mapM_ (recordError . UnsolvedGoal True) badGs
 
 
 proveImplication :: Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
@@ -613,10 +619,7 @@ simpTypeMaybe ty =
 --------------------------------------------------------------------------------
 _testSimpGoals :: IO ()
 _testSimpGoals = Num.withSolver cfg $ \s ->
-  do mapM_ dump asmps
-     mapM_ (dump .goal) gs
-
-     _ <- Num.assumeProps s asmps
+  do _ <- Num.assumeProps s asmps
      _mbImps <- Num.check s
 
 
@@ -642,11 +645,6 @@ _testSimpGoals = Num.withSolver cfg $ \s ->
   _btv n = TVar (TVBound n KNum)
   num x = tNum (x :: Int)
 
-  dump a = do putStrLn "-------------------_"
-              case Num.exportProp a of
-                Just b     -> do print $ Num.ppProp' $ Num.propToProp' b
-                                 putStrLn "-------------------"
-                Nothing    -> print "can't export"
 
 
 
