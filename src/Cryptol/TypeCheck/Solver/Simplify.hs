@@ -14,8 +14,8 @@ module Cryptol.TypeCheck.Solver.Simplify (
   ) where
 
 
-import Cryptol.Prims.Syntax (TFun(..))
-import Cryptol.TypeCheck.AST (Type(..),Prop,TVar,pIsEq,isFreeTV,TCon(..))
+import Cryptol.TypeCheck.Type(Type(..),Prop,TVar,TCon(..),TFun(..)
+                             ,pIsEq,isFreeTV,tAdd,tSub)
 import Cryptol.TypeCheck.Solver.Numeric.Interval (Interval,iIsFin,typeInterval)
 import Cryptol.TypeCheck.Subst (fvs)
 
@@ -144,16 +144,16 @@ rewriteLHS fins uvar = go
   -- invert the type function to balance the equation, when the variable occurs
   -- on the LHS of the expression `x tf y`
   balanceR x TCAdd y rhs = do guardFin y
-                              go x (TCon (TF TCSub) [rhs,y])
-  balanceR x TCSub y rhs = go x (TCon (TF TCAdd) [rhs,y])
+                              go x (tSub rhs y)
+  balanceR x TCSub y rhs = go x (tAdd rhs y)
   balanceR _ _     _ _   = mzero
 
 
   -- invert the type function to balance the equation, when the variable occurs
   -- on the RHS of the expression `x tf y`
   balanceL x TCAdd y rhs = do guardFin y
-                              go y (TCon (TF TCSub) [rhs,x])
-  balanceL x TCSub y rhs = go (TCon (TF TCAdd) [rhs,y]) x
+                              go y (tSub rhs x)
+  balanceL x TCSub y rhs = go (tAdd rhs y) x
   balanceL _ _     _ _   = mzero
 
 

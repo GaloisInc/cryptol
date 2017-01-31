@@ -24,9 +24,10 @@ module Cryptol.TypeCheck.Solver.CrySAT
   ) where
 
 import qualified Cryptol.TypeCheck.AST as Cry
-import           Cryptol.TypeCheck.InferTypes(Goal(..), SolverConfig(..), Solved(..))
+import           Cryptol.TypeCheck.InferTypes(Goal(..), SolverConfig(..))
 import qualified Cryptol.TypeCheck.Subst as Cry
 
+import           Cryptol.TypeCheck.Solver.Types
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.TypeCheck.Solver.Numeric.Fin
 import           Cryptol.TypeCheck.Solver.Numeric.ImportExport

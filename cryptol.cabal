@@ -123,6 +123,7 @@ library
                        Cryptol.TypeCheck.TypeOf,
                        Cryptol.TypeCheck.Sanity,
 
+                       Cryptol.TypeCheck.Solver.Types,
                        Cryptol.TypeCheck.Solver.InfNat,
                        Cryptol.TypeCheck.Solver.Class,
                        Cryptol.TypeCheck.Solver.Selector,

@@ -5,18 +5,16 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-{-# LANGUAGE Trustworthy #-}
-
+{-# LANGUAGE Safe #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Monad
   ( module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
   ) where
-
-import Debug.Trace
 
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
 import           Cryptol.Parser.Position
@@ -310,10 +308,13 @@ newGoal goalSource goal =
   do goalRange <- curRange
      return Goal { .. }
 
+newGoals :: ConstraintSource -> [Prop] -> InferM ()
+newGoals = newGoals' True
+
 -- | Record some constraints that need to be solved.
 -- The string explains where the constraints came from.
-newGoals :: ConstraintSource -> [Prop] -> InferM ()
-newGoals src ps = addGoals =<< mapM (newGoal src) ps
+newGoals' :: Bool -> ConstraintSource -> [Prop] -> InferM ()
+newGoals' simp src ps = addGoals' simp =<< mapM (newGoal src) ps
 
 {- | The constraints are removed, and returned to the caller.
 The substitution IS applied to them. -}
@@ -322,17 +323,14 @@ getGoals =
   do goals <- applySubst =<< IM (sets $ \s -> (iCts s, s { iCts = emptyGoals }))
      return (fromGoals goals)
 
--- | Add a bunch of goals that need solving.
-
--- XXX: FOR SOME REASON WE CAN'T BE STRICT IN THE GOALS HERE. WHY IS THAT?
 addGoals :: [Goal] -> InferM ()
-addGoals = doAdd {- mapM_ simpG
-  where
-  simpG g = trace (show (pp (goal g)))
-          $ case Simple.simplify Map.empty [goal g] of
-              Left e   -> recordError $ ErrorMsg $ text $ tcErrorMessage e
-              Right ps -> doAdd [ g { goal = p } | p <- ps ] -}
+addGoals = addGoals' True
 
+-- | Add a bunch of goals that need solving.
+addGoals' :: Bool -> [Goal] -> InferM ()
+addGoals' simp gs0
+  | simp      = doAdd =<< simpGoals gs0
+  | otherwise = doAdd gs0
   where
   doAdd [] = return ()
   doAdd gs = IM $ sets_ $ \s -> s { iCts = foldl (flip insertGoal) (iCts s) gs }
@@ -354,6 +352,17 @@ collectGoals m =
 
   -- set the type map directly
   setGoals' gs = IM $ sets $ \ RW { .. } -> ((),   RW { iCts = gs, .. })
+
+simpGoal :: Goal -> InferM [Goal]
+simpGoal g =
+  case Simple.simplify Map.empty (goal g) of
+    p | Just e <- tIsError p ->
+        do recordError $ ErrorMsg $ text $ tcErrorMessage e
+           return []
+      | ps <- pSplitAnd p -> return [ g { goal = pr } | pr <- ps ]
+
+simpGoals :: [Goal] -> InferM [Goal]
+simpGoals gs = concat <$> mapM simpGoal gs
 
 
 
@@ -729,6 +738,9 @@ kRecordWarning :: Warning -> KindM ()
 kRecordWarning w = kInInferM $ recordWarning w
 
 -- | Generate a fresh unification variable of the given kind.
+-- NOTE:  We do not simplify these, because we end up with bottom.
+-- See `Kind.hs`
+-- XXX: Perhaps we can avoid the recursion?
 kNewType :: Doc -> Kind -> KindM Type
 kNewType src k =
   do tps <- KM $ do vs <- asks lazyTVars
@@ -767,7 +779,7 @@ kInRange r (KM m) = KM $
      return a
 
 kNewGoals :: ConstraintSource -> [Prop] -> KindM ()
-kNewGoals c ps = kInInferM $ newGoals c ps
+kNewGoals c ps = kInInferM $ newGoals' False c ps
 
 kInInferM :: InferM a -> KindM a
 kInInferM m = KM $ lift $ lift m

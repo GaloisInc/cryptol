@@ -5,9 +5,9 @@ module Cryptol.TypeCheck.Solver.Numeric
 
 import Data.Map(Map)
 
-import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.PP
-import Cryptol.TypeCheck.InferTypes
+import Cryptol.TypeCheck.Type
+import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.TypeCheck.Solver.Numeric.Interval
 

@@ -1,7 +1,8 @@
 {-# Language Safe, DeriveGeneric, DeriveAnyClass, RecordWildCards #-}
 {-# Language FlexibleInstances, FlexibleContexts #-}
 {-# Language PatternGuards #-}
-module Cryptol.TypeCheck.Type where
+module Cryptol.TypeCheck.Type
+  (module Cryptol.TypeCheck.Type, TFun(..)) where
 
 
 import GHC.Generics (Generic)
@@ -45,8 +46,6 @@ data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
                      , tpName   :: Maybe Name -- ^ Name from source, if any.
                      }
               deriving (Show, Generic, NFData)
-
-
 
 
 -- | The internal representation of types.
@@ -101,7 +100,8 @@ data PC     = PEqual        -- ^ @_ == _@
             | PArith        -- ^ @Arith _@
             | PCmp          -- ^ @Cmp _@
 
-            | PTrue         -- ^ This is useful when simplifying things in place
+            | PAnd          -- ^ This is useful when simplifying things in place
+            | PTrue         -- ^ Ditto
               deriving (Show, Eq, Ord, Generic, NFData)
 
 -- | 1-1 constants.
@@ -189,6 +189,7 @@ instance HasKind PC where
       PHas _    -> KType :-> KType :-> KProp
       PArith    -> KType :-> KProp
       PCmp      -> KType :-> KProp
+      PAnd      -> KProp :-> KProp :-> KProp
       PTrue     -> KProp
 
 instance HasKind TFun where
@@ -380,8 +381,10 @@ pIsCmp ty = case tNoUser ty of
               TCon (PC PCmp) [t1] -> Just t1
               _                   -> Nothing
 
-
-
+pIsTrue :: Prop -> Bool
+pIsTrue ty  = case tNoUser ty of
+                TCon (PC PTrue) _ -> True
+                _                 -> False
 
 --------------------------------------------------------------------------------
 
@@ -554,8 +557,33 @@ pHas l ty fi = TCon (PC (PHas l)) [ty,fi]
 pTrue :: Prop
 pTrue = TCon (PC PTrue) []
 
+pAnd :: [Prop] -> Prop
+pAnd []       = pTrue
+pAnd [x]      = x
+pAnd (x : xs)
+  | Just _ <- tIsError x    = x
+  | pIsTrue x               = rest
+  | Just _ <- tIsError rest = rest
+  | pIsTrue rest            = x
+  | otherwise               = TCon (PC PAnd) [x, rest]
+  where rest = pAnd xs
+
+pSplitAnd :: Prop -> [Prop]
+pSplitAnd p0 = go [p0]
+  where
+  go [] = []
+  go (q : qs) =
+    case tNoUser q of
+      TCon (PC PAnd) [l,r] -> go (l : r : qs)
+      TCon (PC PTrue) _    -> go qs
+      _                    -> q : go qs
+
 pFin :: Type -> Prop
-pFin ty = TCon (PC PFin) [ty]
+pFin ty =
+  case tNoUser ty of
+    TCon (TC (TCNum _)) _ -> pTrue
+    TCon (TC TCInf)     _ -> pError (TCErrorMessage "`inf` is not finite.")
+    _                     -> TCon (PC PFin) [ty]
 
 -- | Make a malformed property.
 pError :: TCErrorMessage -> Prop
@@ -718,6 +746,7 @@ instance PP PC where
       PArith    -> text "Arith"
       PCmp      -> text "Cmp"
       PTrue     -> text "True"
+      PAnd      -> text "(&&)"
 
 instance PP TC where
   ppPrec _ x =

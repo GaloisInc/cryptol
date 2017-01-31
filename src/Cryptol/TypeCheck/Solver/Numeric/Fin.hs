@@ -13,8 +13,8 @@ module Cryptol.TypeCheck.Solver.Numeric.Fin where
 
 import Data.Map (Map)
 
-import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.InferTypes
+import Cryptol.TypeCheck.Type
+import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.Solver.Numeric.Interval
 import Cryptol.TypeCheck.Solver.InfNat
 

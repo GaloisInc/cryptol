@@ -16,8 +16,8 @@ module Cryptol.TypeCheck.Solver.Class
   , expandProp
   ) where
 
-import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.InferTypes(Solved(..))
+import Cryptol.TypeCheck.Type
+import Cryptol.TypeCheck.Solver.Types
 
 -- | Solve class constraints.
 -- If not, then we return 'Nothing'.

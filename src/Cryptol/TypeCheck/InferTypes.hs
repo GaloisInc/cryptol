@@ -28,6 +28,7 @@ import           Cryptol.ModuleSystem.Name (asPrim,nameLoc)
 import           Cryptol.TypeCheck.PP
 import           Cryptol.Utils.Ident (Ident,identText)
 import           Cryptol.Utils.Panic(panic)
+import           Cryptol.Utils.Misc(anyJust)
 
 import qualified Data.Set as Set
 import qualified Data.IntMap as IntMap
@@ -46,20 +47,24 @@ data SolverConfig = SolverConfig
 data VarType = ExtVar Schema      -- ^ Known type
              | CurSCC Expr Type   -- ^ Part of current SCC
 
-newtype Goals = Goals (TypeMap Goal)
+-- XXX: Temporary, until we figure out:
+--    1. How to apply substitutions with normalization to the type Map
+--    2. What are the strictness requirements
+--        (e.g., using Set results in a black hole)
+newtype Goals = Goals [Goal] -- Goals (TypeMap Goal)
                 deriving (Show)
 
 emptyGoals :: Goals
-emptyGoals  = Goals emptyTM
+emptyGoals  = Goals [] -- emptyTM
 
 nullGoals :: Goals -> Bool
-nullGoals (Goals tm) = nullTM tm
+nullGoals (Goals tm) = null tm -- nullTM tm
 
 fromGoals :: Goals -> [Goal]
-fromGoals (Goals tm) = membersTM tm
+fromGoals (Goals tm) = tm -- membersTM tm
 
 insertGoal :: Goal -> Goals -> Goals
-insertGoal g (Goals tm) = Goals (insertTM (goal g) g tm)
+insertGoal g (Goals tm) = Goals (g : tm) -- (insertTM (goal g) g tm)
 
 -- | Something that we need to find evidence for.
 data Goal = Goal
@@ -67,6 +72,12 @@ data Goal = Goal
   , goalRange  :: Range             -- ^ Part of source code that caused goal
   , goal       :: Prop              -- ^ What needs to be proved
   } deriving (Show, Generic, NFData)
+
+instance Eq Goal where
+  x == y = goal x == goal y
+
+instance Ord Goal where
+  compare x y = compare (goal x) (goal y)
 
 data HasGoal = HasGoal
   { hasName :: !Int
@@ -80,11 +91,6 @@ data DelayedCt = DelayedCt
   , dctAsmps  :: [Prop]
   , dctGoals  :: [Goal]
   } deriving (Show, Generic, NFData)
-
-data Solved = SolvedIf [Prop]           -- ^ Solved, assuming the sub-goals.
-            | Unsolved                  -- ^ We could not solve the goal.
-            | Unsolvable TCErrorMessage -- ^ The goal can never be solved.
-              deriving (Show)
 
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingWildType P.Kind
@@ -289,6 +295,17 @@ instance FVS DelayedCt where
 -- values that remain, as applying the substitution to the keys will only ever
 -- reduce the number of values that remain.
 instance TVars Goals where
+  apSubst su (Goals gs) = case anyJust apG gs of
+                            Nothing -> Goals gs
+                            Just gs1 -> Goals $ concatMap norm gs1
+    where
+    norm g = [ g { goal = p } | p <- pSplitAnd (goal g) ]
+    apG g  = mk g <$> apSubstMaybe su (goal g)
+    mk g p = g { goal = p }
+
+{-
+  apSubst su (Goals gs) = Goals (Set.fromList . mapAp
+
   apSubst su (Goals goals) =
     Goals (mapWithKeyTM setGoal (apSubstTypeMapKeys su goals))
     where
@@ -298,6 +315,7 @@ instance TVars Goals where
     setGoal key g = g { goalSource = apSubst su (goalSource g)
                       , goal       = key
                       }
+-}
 
 instance TVars Goal where
   apSubst su g = Goal { goalSource = apSubst su (goalSource g)
@@ -559,9 +577,4 @@ instance PP (WithNames DelayedCt) where
     ns1 = addTNames (dctForall d) names
 
 
-instance PP Solved where
-  ppPrec _ res =
-    case res of
-      SolvedIf ps  -> text "solved" $$ nest 2 (vcat (map pp ps))
-      Unsolved     -> text "unsolved"
-      Unsolvable e -> text "unsolvable" <> colon <+> text (tcErrorMessage e)
+

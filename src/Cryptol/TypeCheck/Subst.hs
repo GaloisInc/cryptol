@@ -38,6 +38,7 @@ import qualified Data.Set as Set
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.TypeMap
+import Cryptol.TypeCheck.SimpleSolver
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Misc(anyJust)
 
@@ -58,7 +59,7 @@ s2 @@ s1 | Map.null (suMap s2) =
     s1
   else
     s1{ suDefaulting = True }
-s2 @@ s1 = S { suMap = Map.map (apSubst s2) (suMap s1) `Map.union` (suMap s2)
+s2 @@ s1 = S { suMap = Map.map (apSubst s2) (suMap s1) `Map.union` suMap s2
              , suDefaulting = suDefaulting s1 || suDefaulting s2
              }
 
@@ -134,6 +135,7 @@ apSubstMaybe su ty =
     TCon t ts ->
       do ss <- anyJust (apSubstMaybe su) ts
          case t of
+
            TF f ->
              Just $!
              case (f,ss) of
@@ -150,7 +152,10 @@ apSubstMaybe su ty =
                (TCLenFromThenTo,[t1,t2,t3])  -> tLenFromThenTo t1 t2 t3
                _ -> panic "apSubstMaybe" ["Unexpected type function", show t]
 
+           PC _ -> Just $! simplify Map.empty (TCon t ss)
+
            _ -> return (TCon t ss)
+
     TUser f ts t  -> do t1 <- apSubstMaybe su t
                         return (TUser f (map (apSubst su) ts) t1)
     TRec fs       -> TRec `fmap` anyJust fld fs

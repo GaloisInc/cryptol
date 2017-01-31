@@ -27,8 +27,11 @@ import           Cryptol.TypeCheck.Subst
                     (apSubst,fvs,singleSubst, isEmptySubst,
                           emptySubst,Subst,listSubst, (@@), Subst,
                            apSubstMaybe, substBinds)
-import           Cryptol.TypeCheck.Solver.Class
+import qualified Cryptol.TypeCheck.SimpleSolver as Simplify
+import           Cryptol.TypeCheck.Solver.Types
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
+
+
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
 import           Cryptol.TypeCheck.Solver.Numeric.Interval (Interval)
@@ -88,10 +91,9 @@ simplifyAllConstraints =
      case gs of
        [] -> return ()
        _ ->
-         do r <- curRange
-            let n = length gs
-            io $ putStrLn $ "simplifyAllConstraints " ++ show (length gs) ++ " goals." ++ show r
-            if (n > 100) then io $ writeFile "GS" $ unlines $ map (show.pp.goal) gs else return ()
+         do -- r <- curRange
+            io $ putStrLn $ "simplifyAllConstraints " ++ show (length gs)
+            io $ putStrLn $ unlines [ "  " ++ show (pp (goal g), pp (goalSource g)) | g <- gs ]
             solver <- getSolver
             (mb,su) <- io (simpGoals' solver gs)
             extendSubst su
@@ -292,7 +294,7 @@ solveConstraints s otherGs gs0 =
     case Num.numericRight g of
       Right n -> solveClassCts unsolved (n : numerics) gs
       Left c  ->
-        case classStep (goal c) of
+        case Simplify.simplifyStep Map.empty (goal c) of
           Unsolvable _        -> return (Left [g])
           Unsolved            -> solveClassCts (g : unsolved) numerics gs
           SolvedIf subs       ->
