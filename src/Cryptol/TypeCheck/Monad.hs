@@ -5,7 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-{-# LANGUAGE Safe #-}
+{-# LANGUAGE Trustworthy #-}
 
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -16,6 +16,8 @@ module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
   ) where
 
+import Debug.Trace
+
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
@@ -23,6 +25,7 @@ import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.Unify(mgu, Result(..), UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
+import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.CrySAT as CrySAT
 import           Cryptol.Utils.PP(pp, (<+>), Doc, text, quotes)
 import           Cryptol.Utils.Panic(panic)
@@ -320,10 +323,19 @@ getGoals =
      return (fromGoals goals)
 
 -- | Add a bunch of goals that need solving.
+
+-- XXX: FOR SOME REASON WE CAN'T BE STRICT IN THE GOALS HERE. WHY IS THAT?
 addGoals :: [Goal] -> InferM ()
-addGoals [] = return ()
-addGoals gs =
-  IM $ sets_ $ \s -> s { iCts = foldl (flip insertGoal) (iCts s) gs }
+addGoals = doAdd {- mapM_ simpG
+  where
+  simpG g = trace (show (pp (goal g)))
+          $ case Simple.simplify Map.empty [goal g] of
+              Left e   -> recordError $ ErrorMsg $ text $ tcErrorMessage e
+              Right ps -> doAdd [ g { goal = p } | p <- ps ] -}
+
+  where
+  doAdd [] = return ()
+  doAdd gs = IM $ sets_ $ \s -> s { iCts = foldl (flip insertGoal) (iCts s) gs }
 
 -- | Collect the goals emitted by the given sub-computation.
 -- Does not emit any new goals.

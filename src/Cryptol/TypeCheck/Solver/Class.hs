@@ -11,79 +11,85 @@
 {-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Solver.Class
   ( classStep
+  , solveArithInst
+  , solveCmpInst
   , expandProp
   ) where
 
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.InferTypes(Goal(..), Solved(..))
+import Cryptol.TypeCheck.InferTypes(Solved(..))
 
 -- | Solve class constraints.
 -- If not, then we return 'Nothing'.
 -- If solved, ther we return 'Just' a list of sub-goals.
-classStep :: Goal -> Solved
-classStep g = case goal g of
-  TCon (PC PArith) [ty] -> solveArithInst g (tNoUser ty)
-  TCon (PC PCmp) [ty]   -> solveCmpInst g   (tNoUser ty)
+classStep :: Prop -> Solved
+classStep p = case tNoUser p of
+  TCon (PC PArith) [ty] -> solveArithInst (tNoUser ty)
+  TCon (PC PCmp) [ty]   -> solveCmpInst   (tNoUser ty)
   _                     -> Unsolved
 
--- | Solve an original goal in terms of the give sub-goals.
-solved :: Goal -> [Prop] -> Solved
-solved g ps = Solved Nothing [ g { goal = p } | p <- ps ]
-
 -- | Solve an Arith constraint by instance, if possible.
-solveArithInst :: Goal -> Type -> Solved
-solveArithInst g ty = case ty of
+solveArithInst :: Type -> Solved
+solveArithInst ty = case tNoUser ty of
+
+  -- Arith Error -> fails
+  TCon (TError _ e) _ -> Unsolvable e
 
   -- Arith [n]e
-  TCon (TC TCSeq) [n, e] -> solveArithSeq g n e
+  TCon (TC TCSeq) [n, e] -> solveArithSeq n e
 
   -- Arith b => Arith (a -> b)
-  TCon (TC TCFun) [_,b] -> solved g [ pArith b ]
+  TCon (TC TCFun) [_,b] -> SolvedIf [ pArith b ]
 
   -- (Arith a, Arith b) => Arith (a,b)
-  TCon (TC (TCTuple _)) es -> solved g [ pArith e | e <- es ]
+  TCon (TC (TCTuple _)) es -> SolvedIf [ pArith e | e <- es ]
 
   -- Arith Bit fails
-  TCon (TC TCBit) [] -> Unsolvable
+  TCon (TC TCBit) [] ->
+    Unsolvable $ TCErrorMessage "Arithmetic cannot be done on individual bits."
 
   -- (Arith a, Arith b) => Arith { x1 : a, x2 : b }
-  TRec fs -> solved g [ pArith ety | (_,ety) <- fs ]
+  TRec fs -> SolvedIf [ pArith ety | (_,ety) <- fs ]
 
   _ -> Unsolved
 
 -- | Solve an Arith constraint for a sequence.  The type passed here is the
 -- element type of the sequence.
-solveArithSeq :: Goal -> Type -> Type -> Solved
-solveArithSeq g n ty = case ty of
+solveArithSeq :: Type -> Type -> Solved
+solveArithSeq n ty = case tNoUser ty of
 
   -- fin n => Arith [n]Bit
-  TCon (TC TCBit) [] -> solved g [ pFin n ]
+  TCon (TC TCBit) [] -> SolvedIf [ pFin n ]
 
   -- variables are not solvable.
   TVar {} -> Unsolved
 
   -- Arith ty => Arith [n]ty
-  _ -> solved g [ pArith ty ]
+  _ -> SolvedIf [ pArith ty ]
 
 
 -- | Solve Cmp constraints.
-solveCmpInst :: Goal -> Type -> Solved
-solveCmpInst g ty = case ty of
+solveCmpInst :: Type -> Solved
+solveCmpInst ty = case tNoUser ty of
+
+  -- Cmp Error -> fails
+  TCon (TError _ e) _ -> Unsolvable e
 
   -- Cmp Bit
-  TCon (TC TCBit) [] -> solved g []
+  TCon (TC TCBit) [] -> SolvedIf []
 
   -- (fin n, Cmp a) => Cmp [n]a
-  TCon (TC TCSeq) [n,a] -> solved g [ pFin n, pCmp a ]
+  TCon (TC TCSeq) [n,a] -> SolvedIf [ pFin n, pCmp a ]
 
   -- (Cmp a, Cmp b) => Cmp (a,b)
-  TCon (TC (TCTuple _)) es -> solved g (map pCmp es)
+  TCon (TC (TCTuple _)) es -> SolvedIf (map pCmp es)
 
   -- Cmp (a -> b) fails
-  TCon (TC TCFun) [_,_] -> Unsolvable
+  TCon (TC TCFun) [_,_] ->
+    Unsolvable $ TCErrorMessage "Comparisons may not be performed on functions."
 
   -- (Cmp a, Cmp b) => Cmp { x:a, y:b }
-  TRec fs -> solved g [ pCmp e | (_,e) <- fs ]
+  TRec fs -> SolvedIf [ pCmp e | (_,e) <- fs ]
 
   _ -> Unsolved
 

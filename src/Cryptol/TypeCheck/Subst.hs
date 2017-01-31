@@ -131,7 +131,26 @@ instance FVS Schema where
 apSubstMaybe :: Subst -> Type -> Maybe Type
 apSubstMaybe su ty =
   case ty of
-    TCon t ts     -> TCon t `fmap` anyJust (apSubstMaybe su) ts
+    TCon t ts ->
+      do ss <- anyJust (apSubstMaybe su) ts
+         case t of
+           TF f ->
+             Just $!
+             case (f,ss) of
+               (TCAdd,[t1,t2])               -> tAdd t1 t2
+               (TCSub,[t1,t2])               -> tSub t1 t2
+               (TCMul,[t1,t2])               -> tMul t1 t2
+               (TCDiv,[t1,t2])               -> tDiv t1 t2
+               (TCMod,[t1,t2])               -> tMod t1 t2
+               (TCExp,[t1,t2])               -> tExp t1 t2
+               (TCMin,[t1,t2])               -> tMin t1 t2
+               (TCMax,[t1,t2])               -> tMax t1 t2
+               (TCWidth,[t1])                -> tWidth t1
+               (TCLenFromThen,[t1,t2,t3])    -> tLenFromThen t1 t2 t3
+               (TCLenFromThenTo,[t1,t2,t3])  -> tLenFromThenTo t1 t2 t3
+               _ -> panic "apSubstMaybe" ["Unexpected type function", show t]
+
+           _ -> return (TCon t ss)
     TUser f ts t  -> do t1 <- apSubstMaybe su t
                         return (TUser f (map (apSubst su) ts) t1)
     TRec fs       -> TRec `fmap` anyJust fld fs
@@ -161,12 +180,7 @@ instance (TVars s, TVars t) => TVars (s,t) where
   apSubst s (x,y)       = (apSubst s x, apSubst s y)
 
 instance TVars Type where
-  apSubst su ty =
-    case ty of
-      TCon t ts     -> TCon t (apSubst su ts)
-      TUser f ts t  -> TUser f (apSubst su ts) (apSubst su t)
-      TRec fs       -> TRec [ (x,apSubst su s) | (x,s) <- fs ]
-      TVar x        -> fromMaybe ty $ applySubstToVar su x
+  apSubst su ty = fromMaybe ty (apSubstMaybe su ty)
 
 -- | Pick types for unconstrained unification variables.
 defaultFreeVar :: TVar -> Type

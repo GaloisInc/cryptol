@@ -142,31 +142,29 @@ importType = go
       K n                 -> case n of
                                Nat x -> Just (Cry.tNum x)
                                Inf   -> Just (Cry.tInf)
-      x :+ y              -> op2 Cry.TCAdd x y
-      x :- y              -> op2 Cry.TCSub x y
-      x :* y              -> op2 Cry.TCMul x y
-      Div x y             -> op2 Cry.TCDiv x y
-      Mod x y             -> op2 Cry.TCMod x y
-      x :^^ y             -> op2 Cry.TCExp x y
-      Min x y             -> op2 Cry.TCMin x y
-      Max x y             -> op2 Cry.TCMax x y
-      Width x             -> op1 Cry.TCWidth x
-      LenFromThen   x y z -> op3 Cry.TCLenFromThen x y z
-      LenFromThenTo x y z -> op3 Cry.TCLenFromThenTo x y z
-
-  app f xs = Cry.TCon (Cry.TF f) xs
+      x :+ y              -> op2 Cry.tAdd x y
+      x :- y              -> op2 Cry.tSub x y
+      x :* y              -> op2 Cry.tMul x y
+      Div x y             -> op2 Cry.tDiv x y
+      Mod x y             -> op2 Cry.tMod x y
+      x :^^ y             -> op2 Cry.tExp x y
+      Min x y             -> op2 Cry.tMin x y
+      Max x y             -> op2 Cry.tMax x y
+      Width x             -> op1 Cry.tWidth x
+      LenFromThen   x y z -> op3 Cry.tLenFromThen x y z
+      LenFromThenTo x y z -> op3 Cry.tLenFromThenTo x y z
 
   op1 f x =
     do t <- go x
-       return (app f [t])
+       return (f t)
 
   op2 f x y =
     do t1 <- go x
        t2 <- go y
-       return (app f [t1,t2])
+       return (f t1 t2)
 
   op3 f x y z =
     do t1 <- go x
        t2 <- go y
        t3 <- go z
-       return (app f [t1,t2,t3])
+       return (f t1 t2 t3)

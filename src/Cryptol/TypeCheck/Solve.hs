@@ -91,7 +91,7 @@ simplifyAllConstraints =
          do r <- curRange
             let n = length gs
             io $ putStrLn $ "simplifyAllConstraints " ++ show (length gs) ++ " goals." ++ show r
-            if (n > 400) then io $ writeFile "GS" $ unlines $ map (show.pp.goal) gs else return ()
+            if (n > 100) then io $ writeFile "GS" $ unlines $ map (show.pp.goal) gs else return ()
             solver <- getSolver
             (mb,su) <- io (simpGoals' solver gs)
             extendSubst su
@@ -292,12 +292,12 @@ solveConstraints s otherGs gs0 =
     case Num.numericRight g of
       Right n -> solveClassCts unsolved (n : numerics) gs
       Left c  ->
-        case classStep c of
-          Unsolvable          -> return (Left [g])
+        case classStep (goal c) of
+          Unsolvable _        -> return (Left [g])
           Unsolved            -> solveClassCts (g : unsolved) numerics gs
-          Solved Nothing subs -> solveClassCts unsolved numerics (subs ++ gs)
-          Solved (Just su) _  -> panic "solveClassCts"
-                                          [ "Unexpected substituion", show su ]
+          SolvedIf subs       ->
+            let cvt x = c { goal = x }
+            in  solveClassCts unsolved numerics (map cvt subs ++ gs)
 
 
 solveNumerics :: Num.Solver ->

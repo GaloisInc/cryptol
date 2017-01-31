@@ -81,9 +81,9 @@ data DelayedCt = DelayedCt
   , dctGoals  :: [Goal]
   } deriving (Show, Generic, NFData)
 
-data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assuming the sub-goals.
-            | Unsolved                    -- ^ We could not solve the goal.
-            | Unsolvable                  -- ^ The goal can never be solved.
+data Solved = SolvedIf [Prop]           -- ^ Solved, assuming the sub-goals.
+            | Unsolved                  -- ^ We could not solve the goal.
+            | Unsolvable TCErrorMessage -- ^ The goal can never be solved.
               deriving (Show)
 
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
@@ -562,7 +562,6 @@ instance PP (WithNames DelayedCt) where
 instance PP Solved where
   ppPrec _ res =
     case res of
-      Solved mb gs  -> text "solved" $$ nest 2 (suDoc $$ vcat (map (pp . goal) gs))
-        where suDoc = maybe empty pp mb
-      Unsolved      -> text "unsolved"
-      Unsolvable    -> text "unsolvable"
+      SolvedIf ps  -> text "solved" $$ nest 2 (vcat (map pp ps))
+      Unsolved     -> text "unsolved"
+      Unsolvable e -> text "unsolvable" <> colon <+> text (tcErrorMessage e)

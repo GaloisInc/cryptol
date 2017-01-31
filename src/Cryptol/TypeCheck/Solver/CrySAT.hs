@@ -124,9 +124,11 @@ simplifyProps s props =
 
              Just (ints,False) ->
                debugLog s ("Using the fin solver:" ++ show (pp (goal (dpData p)))) >>
-               case cryIsFin ints (dpData p) of
-                 Solved _ gs' ->
+               case cryIsFin ints (goal (dpData p)) of
+                 SolvedIf ps' ->
                    do debugLog s "solved"
+                      let gg = dpData p
+                          gs' = [ gg { goal = pr } | pr <- ps' ]
                       let more' = [ knownDefined g | Right g <- map numericRight gs' ]
                       go survived (more' ++ more)
                  Unsolved ->
@@ -134,8 +136,8 @@ simplifyProps s props =
                       assert s p
                       go (dpData p : survived) more
 
-                 Unsolvable ->
-                   do debugLog s "unsolvable"
+                 x@(Unsolvable {}) ->
+                   do debugLog s (show (pp x))
                       go (dpData p:survived) more
 
              Nothing -> go (dpData p:survived) more

@@ -106,6 +106,7 @@ library
                        Cryptol.ModuleSystem.Renamer,
 
                        Cryptol.TypeCheck,
+                       Cryptol.TypeCheck.Type,
                        Cryptol.TypeCheck.AST,
                        Cryptol.TypeCheck.Monad,
                        Cryptol.TypeCheck.Infer,
@@ -117,6 +118,7 @@ library
                        Cryptol.TypeCheck.Depends,
                        Cryptol.TypeCheck.PP,
                        Cryptol.TypeCheck.Solve,
+                       Cryptol.TypeCheck.SimpleSolver,
                        Cryptol.TypeCheck.TypeMap,
                        Cryptol.TypeCheck.TypeOf,
                        Cryptol.TypeCheck.Sanity,
@@ -127,6 +129,7 @@ library
                        Cryptol.TypeCheck.Solver.Utils,
                        Cryptol.TypeCheck.Solver.Simplify,
 
+                       Cryptol.TypeCheck.Solver.Numeric,
                        Cryptol.TypeCheck.Solver.CrySAT,
                        Cryptol.TypeCheck.Solver.Numeric.AST,
                        Cryptol.TypeCheck.Solver.Numeric.ImportExport,
