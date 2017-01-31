@@ -19,9 +19,11 @@ module Cryptol.Symbolic where
 import Control.Monad.IO.Class
 import Control.Monad (replicateM, when, zipWithM, foldM)
 import Data.List (intercalate, genericLength)
+import Data.IORef(IORef)
 import qualified Control.Exception as X
 
 import qualified Data.SBV.Dynamic as SBV
+import           Data.SBV (Timing(SaveTiming),TimingInfo)
 
 import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
@@ -86,6 +88,8 @@ data ProverCommand = ProverCommand {
     -- ^ Which prover to use (one of the strings in 'proverConfigs')
   , pcVerbose :: Bool
     -- ^ Verbosity flag passed to SBV
+  , pcProverStats :: !(IORef ProverStats)
+    -- ^ Record timing information here
   , pcExtraDecls :: [DeclGroup]
     -- ^ Extra declarations to bring into scope for symbolic
     -- simulation
@@ -96,6 +100,8 @@ data ProverCommand = ProverCommand {
   , pcSchema :: Schema
     -- ^ The 'Schema' of @pcExpr@
   }
+
+type ProverStats = TimingInfo
 
 -- | A prover result is either an error message, an empty result (eg
 -- for the offline prover), a counterexample or a lazy list of
@@ -117,9 +123,9 @@ thmSMTResults (SBV.ThmResult r) = [r]
 proverError :: String -> M.ModuleCmd ProverResult
 proverError msg modEnv = return (Right (ProverError msg, modEnv), [])
 
-
 satProve :: ProverCommand -> M.ModuleCmd ProverResult
-satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
+satProve ProverCommand {..} =
+  protectStack proverError $ \modEnv ->
   M.runModuleM modEnv $ do
   let (isSat, mSatNum) = case pcQueryType of
         ProveQuery -> (False, Nothing)
@@ -131,7 +137,9 @@ satProve ProverCommand {..} = protectStack proverError $ \modEnv ->
     case pcProverName of
       "any" -> M.io SBV.sbvAvailableSolvers
       _ -> return [(lookupProver pcProverName) { SBV.smtFile = pcSmtFile }]
-  let provers' = [ p { SBV.timing = pcVerbose, SBV.verbose = pcVerbose } | p <- provers ]
+
+
+  let provers' = [ p { SBV.timing = SaveTiming pcProverStats, SBV.verbose = pcVerbose } | p <- provers ]
   let tyFn = if isSat then existsFinType else forallFinType
   let runProver fn tag e = do
         case provers of
