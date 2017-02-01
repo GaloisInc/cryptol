@@ -76,8 +76,6 @@ data Goal = Goal
 instance Eq Goal where
   x == y = goal x == goal y
 
-instance Ord Goal where
-  compare x y = compare (goal x) (goal y)
 
 data HasGoal = HasGoal
   { hasName :: !Int

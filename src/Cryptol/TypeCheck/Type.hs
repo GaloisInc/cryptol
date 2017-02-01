@@ -12,6 +12,8 @@ import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
 import qualified Data.Set as Set
+import           Data.List(sortBy)
+import           Data.Ord(comparing)
 import Control.Monad(msum)
 
 import Cryptol.Parser.AST ( Selector(..), ppSelector )
@@ -39,7 +41,7 @@ data Kind   = KType
 
 -- | The types of polymorphic values.
 data Schema = Forall { sVars :: [TParam], sProps :: [Prop], sType :: Type }
-              deriving (Eq, Show, Generic, NFData)
+              deriving (Show, Generic, NFData)
 
 -- | Type parameters.
 data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
@@ -67,7 +69,7 @@ data Type   = TCon TCon [Type]
             | TRec [(Ident,Type)]
               -- ^ Record type
 
-              deriving (Show, Eq, Ord, Generic, NFData)
+              deriving (Show, Generic, NFData)
 
 
 
@@ -134,7 +136,7 @@ data TySyn  = TySyn { tsName        :: Name       -- ^ Name
                     , tsConstraints :: [Prop]     -- ^ Ensure body is OK
                     , tsDef         :: Type       -- ^ Definition
                     }
-              deriving (Eq, Show, Generic, NFData)
+              deriving (Show, Generic, NFData)
 
 
 
@@ -239,10 +241,35 @@ kindResult k         = k
 
 --------------------------------------------------------------------------------
 
+-- Syntactic equality, ignoring type synonyms and record order
+instance Eq Type where
+  TUser _ _ x == y        = x == y
+  x == TUser _ _ y        = y == x
 
+  TCon x xs == TCon y ys  = x == y && xs == ys
+  TVar x    == TVar y     = x == y
 
+  TRec xs   == TRec ys    = norm xs == norm ys
+    where norm = sortBy (comparing fst)
 
+  _         == _          = False
 
+instance Ord Type where
+  compare x0 y0 =
+    case (x0,y0) of
+      (TUser _ _ t, _)        -> compare t y0
+      (_, TUser _ _ t)        -> compare x0 t
+
+      (TVar x, TVar y)        -> compare x y
+      (TVar {}, _)            -> LT
+      (_, TVar {})            -> GT
+
+      (TCon x xs, TCon y ys)  -> compare (x,xs) (y,ys)
+      (TCon {}, _)            -> LT
+      (_,TCon {})             -> GT
+
+      (TRec xs, TRec ys)      -> compare (norm xs) (norm ys)
+        where norm = sortBy (comparing fst)
 
 
 

@@ -23,7 +23,6 @@ module Cryptol.TypeCheck.Subst
   , apSubstMaybe
   , TVars(..)
   , apSubstTypeMapKeys
-  , substVars
   , substBinds
   , applySubstToVar
   ) where
@@ -54,17 +53,17 @@ singleSubst :: TVar -> Type -> Subst
 singleSubst x t = S { suMap = Map.singleton x t, suDefaulting = False }
 
 (@@) :: Subst -> Subst -> Subst
-s2 @@ s1 | Map.null (suMap s2) =
-  if (suDefaulting s1 || not (suDefaulting s2)) then
-    s1
-  else
-    s1{ suDefaulting = True }
+s2 @@ s1
+  | Map.null (suMap s2) =
+    if suDefaulting s1 || not (suDefaulting s2) then
+      s1
+    else
+      s1{ suDefaulting = True }
+
 s2 @@ s1 = S { suMap = Map.map (apSubst s2) (suMap s1) `Map.union` suMap s2
              , suDefaulting = suDefaulting s1 || suDefaulting s2
              }
 
-substVars :: Subst -> Set TVar
-substVars su = fvs . Map.elems $ suMap su
 
 defaultingSubst :: Subst -> Subst
 defaultingSubst s = s { suDefaulting = True }
