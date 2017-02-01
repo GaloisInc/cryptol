@@ -38,7 +38,6 @@ import           Cryptol.TypeCheck.Solver.Numeric.Interval (Interval)
 import qualified Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
-import           Cryptol.TypeCheck.Solver.Simplify (tryRewritePropAsSubst)
 import           Cryptol.Utils.PP (text)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
@@ -328,14 +327,15 @@ computeImprovements s gs =
                   Right ints <- Num.getIntervals s
                   return (Just (ints,su))
      case res of
-       Just (ints,su)
+       Just (ints,su) -> return (Right su) -- ?
+{-
          | isEmptySubst su
          , (x,t) : _ <- mapMaybe (improveByDefn ints) gs ->
            do let su' = singleSubst x t
               debugLog s ("Improve by definition: " ++ show (pp su'))
-              return (Right su')
+              return (Right su') -}
 
-         | otherwise -> return (Right su)
+         -- | otherwise -> return (Right su)
 
        Nothing ->
          do bad <- Num.minimizeContradictionSimpDef s
@@ -343,10 +343,6 @@ computeImprovements s gs =
             return (Left bad)
 
 
-improveByDefn :: Map TVar Interval -> Goal -> Maybe (TVar,Type)
-improveByDefn ints Goal { .. } =
-  do (var,ty) <- tryRewritePropAsSubst ints goal
-     return (var,simpType ty)
 
 
 

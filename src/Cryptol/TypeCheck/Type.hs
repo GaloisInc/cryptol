@@ -10,7 +10,8 @@ import Control.DeepSeq
 
 import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
-import Data.Set (Set)
+import           Data.Set (Set)
+import qualified Data.Set as Set
 import Control.Monad(msum)
 
 import Cryptol.Parser.AST ( Selector(..), ppSelector )
@@ -588,6 +589,37 @@ pFin ty =
 -- | Make a malformed property.
 pError :: TCErrorMessage -> Prop
 pError msg = TCon (TError KProp msg) []
+
+--------------------------------------------------------------------------------
+
+
+class FVS t where
+  fvs :: t -> Set TVar
+
+instance FVS Type where
+  fvs = go
+    where
+    go ty =
+      case ty of
+        TCon _ ts   -> Set.unions (map go ts)
+        TVar x      -> Set.singleton x
+        TUser _ _ t -> go t
+        TRec fs     -> Set.unions (map (go . snd) fs)
+
+instance FVS a => FVS (Maybe a) where
+  fvs Nothing  = Set.empty
+  fvs (Just x) = fvs x
+
+instance FVS a => FVS [a] where
+  fvs xs    = Set.unions (map fvs xs)
+
+instance (FVS a, FVS b) => FVS (a,b) where
+  fvs (x,y) = Set.union (fvs x) (fvs y)
+
+instance FVS Schema where
+  fvs (Forall as ps t) =
+      Set.difference (Set.union (fvs ps) (fvs t)) bound
+    where bound = Set.fromList (map tpVar as)
 
 
 

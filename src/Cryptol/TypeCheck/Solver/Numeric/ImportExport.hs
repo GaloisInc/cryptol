@@ -20,6 +20,7 @@ module Cryptol.TypeCheck.Solver.Numeric.ImportExport
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import qualified Cryptol.TypeCheck.AST as Cry
+import qualified Cryptol.TypeCheck.Solver.Numeric as Cry
 import           MonadLib
 
 exportProp :: Cry.Prop -> Maybe Prop

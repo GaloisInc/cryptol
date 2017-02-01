@@ -99,34 +99,6 @@ instance PP Subst where
 
 
 
-class FVS t where
-  fvs :: t -> Set TVar
-
-instance FVS Type where
-  fvs = go
-    where
-    go ty =
-      case ty of
-        TCon _ ts   -> Set.unions (map go ts)
-        TVar x      -> Set.singleton x
-        TUser _ _ t -> go t
-        TRec fs     -> Set.unions (map (go . snd) fs)
-
-instance FVS a => FVS (Maybe a) where
-  fvs Nothing  = Set.empty
-  fvs (Just x) = fvs x
-
-instance FVS a => FVS [a] where
-  fvs xs    = Set.unions (map fvs xs)
-
-instance (FVS a, FVS b) => FVS (a,b) where
-  fvs (x,y) = Set.union (fvs x) (fvs y)
-
-instance FVS Schema where
-  fvs (Forall as ps t) =
-      Set.difference (Set.union (fvs ps) (fvs t)) bound
-    where bound = Set.fromList (map tpVar as)
-
 
 -- | Apply a substitution.  Returns `Nothing` if nothing changed.
 apSubstMaybe :: Subst -> Type -> Maybe Type
