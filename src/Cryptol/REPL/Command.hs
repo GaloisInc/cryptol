@@ -58,6 +58,7 @@ import qualified Cryptol.Utils.Ident as M
 
 import qualified Cryptol.Eval.Monad as E
 import qualified Cryptol.Eval.Value as E
+import qualified Cryptol.Eval.Reference as R
 import Cryptol.Testing.Concrete
 import qualified Cryptol.Testing.Random  as TestR
 import Cryptol.Parser
@@ -180,6 +181,8 @@ nbCommandList  =
     "use a solver to find a satisfying assignment for which the argument returns true (if no argument, find an assignment for all properties)"
   , CommandDescr [ ":debug_specialize" ] (ExprArg specializeCmd)
     "do type specialization on a closed expression"
+  , CommandDescr [ ":eval" ] (ExprArg refEvalCmd)
+    "evaluate an expression with the reference evaluator"
   ]
 
 commandList :: [CommandDescr]
@@ -573,6 +576,13 @@ specializeCmd str = do
   rPutStrLn $ dump expr
   rPutStrLn  "Specialized expression:"
   rPutStrLn $ dump spexpr
+
+refEvalCmd :: String -> REPL ()
+refEvalCmd str = do
+  parseExpr <- replParseExpr str
+  (_, expr, _schema) <- replCheckExpr parseExpr
+  val <- liftModuleCmd (rethrowEvalError . R.evaluate expr)
+  rPrint $ R.ppValue val
 
 typeOfCmd :: String -> REPL ()
 typeOfCmd str = do
