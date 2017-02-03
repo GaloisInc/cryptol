@@ -26,8 +26,6 @@ import Cryptol.Utils.Panic(panic)
 infix  4 =#=, >==
 infixr 5 `tFun`
 infixr 5 :->
-infixl 6 .+.
-infixl 7 .*.
 
 
 
@@ -488,23 +486,12 @@ tf2 f x y = TCon (TF f) [x,y]
 tf3 :: TFun -> Type -> Type -> Type -> Type
 tf3 f x y z = TCon (TF f) [x,y,z]
 
-(.*.) :: Type -> Type -> Type
-(.*.) = tMul
-
--- | Make addition type.
-(.+.) :: Type -> Type -> Type
-(.+.) = tAdd
-
-(.-.) :: Type -> Type -> Type
-(.-.) = tSub
-
-(.^.) :: Type -> Type -> Type
-(.^.) = tExp
-
-
 
 tAdd :: Type -> Type -> Type
-tAdd = tf2 TCAdd
+tAdd x y
+  | Just x' <- tIsNum x
+  , Just y' <- tIsNum y = error (show x' ++ " + " ++ show y')
+  | otherwise = tf2 TCAdd x y
 
 tSub :: Type -> Type -> Type
 tSub = tf2 TCSub

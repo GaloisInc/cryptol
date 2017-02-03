@@ -96,11 +96,10 @@ solveSelector sel outerT =
         _ -> return Nothing
 
 
-
-
-
-    (ListSel n _, TCon (TC TCSeq) [l,t])  ->
-       do newGoals CtSelector [ (l .+. tNum (1::Int)) >== tNum n ]
+    (ListSel n _, TCon (TC TCSeq) [l,t])
+      | n < 2 -> return (Just t)
+      | otherwise ->
+       do newGoals CtSelector [ l >== tNum (n - 1) ]
           return (Just t)
 
     _ -> return Nothing

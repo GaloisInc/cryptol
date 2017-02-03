@@ -19,9 +19,10 @@ import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Parser.Names as P
-import           Cryptol.TypeCheck.AST
+import           Cryptol.TypeCheck.AST hiding (tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Solve
+import           Cryptol.TypeCheck.SimpleSolver(tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                           checkNewtype)
 import           Cryptol.TypeCheck.Instantiate
@@ -223,8 +224,8 @@ checkE expr tGoal =
       do rng <- curRange
          bit <- newType (text "bit-width of enumeration sequnce") KNum
          fstT <- checkTypeOfKind t1 KNum
-         let totLen = tNum (2::Int) .^. bit
-             lstT   = totLen .-. tNum (1::Int)
+         let totLen = tExp (tNum (2::Int)) bit
+             lstT   = tSub totLen (tNum (1::Int))
 
          fromToPrim <- mkPrim "fromTo"
          appTys fromToPrim
@@ -552,7 +553,7 @@ inferCArm armNum (m : ms) =
      let src = text "length of" <+> ordinal armNum <+>
                                   text "arm of list comprehension"
      sz <- newType src KNum
-     newGoals CtComprehension [ sz =#= (n .*. n') ]
+     newGoals CtComprehension [ sz =#= tMul n n' ]
      return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, sz)
 
 -- | @inferBinds isTopLevel isRec binds@ performs inference for a

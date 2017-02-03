@@ -20,7 +20,7 @@ module Cryptol.TypeCheck.Solver.Numeric.ImportExport
 
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import qualified Cryptol.TypeCheck.AST as Cry
-import qualified Cryptol.TypeCheck.Solver.Numeric as Cry
+import qualified Cryptol.TypeCheck.SimpleSolver as SCry
 import           MonadLib
 
 exportProp :: Cry.Prop -> Maybe Prop
@@ -143,17 +143,17 @@ importType = go
       K n                 -> case n of
                                Nat x -> Just (Cry.tNum x)
                                Inf   -> Just (Cry.tInf)
-      x :+ y              -> op2 Cry.tAdd x y
-      x :- y              -> op2 Cry.tSub x y
-      x :* y              -> op2 Cry.tMul x y
-      Div x y             -> op2 Cry.tDiv x y
-      Mod x y             -> op2 Cry.tMod x y
-      x :^^ y             -> op2 Cry.tExp x y
-      Min x y             -> op2 Cry.tMin x y
-      Max x y             -> op2 Cry.tMax x y
-      Width x             -> op1 Cry.tWidth x
-      LenFromThen   x y z -> op3 Cry.tLenFromThen x y z
-      LenFromThenTo x y z -> op3 Cry.tLenFromThenTo x y z
+      x :+ y              -> op2 SCry.tAdd x y
+      x :- y              -> op2 SCry.tSub x y
+      x :* y              -> op2 SCry.tMul x y
+      Div x y             -> op2 SCry.tDiv x y
+      Mod x y             -> op2 SCry.tMod x y
+      x :^^ y             -> op2 SCry.tExp x y
+      Min x y             -> op2 SCry.tMin x y
+      Max x y             -> op2 SCry.tMax x y
+      Width x             -> op1 SCry.tWidth x
+      LenFromThen   x y z -> op3 SCry.tLenFromThen x y z
+      LenFromThenTo x y z -> op3 SCry.tLenFromThenTo x y z
 
   op1 f x =
     do t <- go x

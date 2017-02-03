@@ -431,7 +431,7 @@ checkArm [m]  = do (x,l) <- checkMatch m
 checkArm (m : ms) =
   do (x, l)   <- checkMatch m
      (xs, l1) <- withVars [x] $ checkArm ms
-     let newLen = l .*. l1
+     let newLen = tMul l l1
      return $ if fst x `elem` map fst xs
                  then (xs, newLen)
                  else (x : xs, newLen)

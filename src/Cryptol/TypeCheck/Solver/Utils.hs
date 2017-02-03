@@ -8,7 +8,8 @@
 
 module Cryptol.TypeCheck.Solver.Utils where
 
-import Cryptol.TypeCheck.AST
+import Cryptol.TypeCheck.AST hiding (tAdd,tMul)
+import Cryptol.TypeCheck.SimpleSolver(tAdd,tMul)
 import Control.Monad(mplus,guard)
 import Data.Maybe(listToMaybe)
 
@@ -24,10 +25,10 @@ splitVarSummands ty0 = [ (x,t1) | (x,t1) <- go ty0, tNum (0::Int) /= t1 ]
             TUser _ _ t -> go t
             TCon (TF TCAdd) [t1,t2] ->
               do (a,yes) <- go t1
-                 return (a, yes .+. t2)
+                 return (a, tAdd yes t2)
               `mplus`
               do (a,yes) <- go t2
-                 return (a, t1 .+. yes)
+                 return (a, tAdd t1 yes)
             TCon _ _    -> [] -- XXX: we could do some distributivity etc
 
 
@@ -49,7 +50,7 @@ splitConstSummand ty =
       do (k,t1') <- splitConstSummand t1
          case t1' of
            TCon (TC (TCNum 0)) [] -> return (k, t2)
-           _                      -> return (k, t1' .+. t2)
+           _                      -> return (k, tAdd t1' t2)
     TCon (TC (TCNum k)) [] -> guard (k > 0) >> return (k, tNum (0::Int))
     TCon {}     -> Nothing
 
@@ -65,7 +66,7 @@ splitConstFactor ty =
     TUser _ _ t -> splitConstFactor t
     TCon (TF TCMul) [t1,t2] ->
       do (k,t1') <- splitConstFactor t1
-         return (k, t1' .*. t2)
+         return (k, tMul t1' t2)
     TCon (TC (TCNum k)) [] -> guard (k > 1) >> return (k, tNum (1::Int))
     TCon {}     -> Nothing
 
