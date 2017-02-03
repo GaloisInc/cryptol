@@ -50,20 +50,20 @@ data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
 
 -- | The internal representation of types.
 -- These are assumed to be kind correct.
-data Type   = TCon TCon [Type]
+data Type   = TCon !TCon ![Type]
               -- ^ Type constant with args
 
             | TVar TVar
               -- ^ Type variable (free or bound)
 
-            | TUser Name [Type] Type
+            | TUser !Name ![Type] !Type
               {- ^ This is just a type annotation, for a type that
               was written as a type synonym.  It is useful so that we
               can use it to report nicer errors.
               Example: `TUser T ts t` is really just the type `t` that
               was written as `T ts` by the user. -}
 
-            | TRec [(Ident,Type)]
+            | TRec ![(Ident,Type)]
               -- ^ Record type
 
               deriving (Show, Generic, NFData)

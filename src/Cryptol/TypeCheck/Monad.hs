@@ -308,13 +308,10 @@ newGoal goalSource goal =
   do goalRange <- curRange
      return Goal { .. }
 
-newGoals :: ConstraintSource -> [Prop] -> InferM ()
-newGoals = newGoals' True
-
 -- | Record some constraints that need to be solved.
 -- The string explains where the constraints came from.
-newGoals' :: Bool -> ConstraintSource -> [Prop] -> InferM ()
-newGoals' simp src ps = addGoals' simp =<< mapM (newGoal src) ps
+newGoals :: ConstraintSource -> [Prop] -> InferM ()
+newGoals src ps = addGoals =<< mapM (newGoal src) ps
 
 {- | The constraints are removed, and returned to the caller.
 The substitution IS applied to them. -}
@@ -323,14 +320,9 @@ getGoals =
   do goals <- applySubst =<< IM (sets $ \s -> (iCts s, s { iCts = emptyGoals }))
      return (fromGoals goals)
 
-addGoals :: [Goal] -> InferM ()
-addGoals = addGoals' True
-
 -- | Add a bunch of goals that need solving.
-addGoals' :: Bool -> [Goal] -> InferM ()
-addGoals' simp gs0
-  | simp      = doAdd =<< simpGoals gs0
-  | otherwise = doAdd gs0
+addGoals :: [Goal] -> InferM ()
+addGoals gs0 = doAdd =<< simpGoals gs0
   where
   doAdd [] = return ()
   doAdd gs = IM $ sets_ $ \s -> s { iCts = foldl (flip insertGoal) (iCts s) gs }
@@ -677,6 +669,7 @@ data KRO = KRO { lazyTVars  :: Map Name Type -- ^ lazy map, with tyvars.
                }
 
 data KRW = KRW { typeParams :: Map Name Kind -- ^ kinds of (known) vars.
+               , kCtrs      :: [(ConstraintSource,[Prop])]
                }
 
 instance Functor KindM where
@@ -703,14 +696,16 @@ As a result we return the value of the sub-computation and the computed
 kinds of the type parameters. -}
 runKindM :: Bool                          -- Are type-wild cards allowed?
          -> [(Name, Maybe Kind, Type)]   -- ^ See comment
-         -> KindM a -> InferM (a, Map Name Kind)
+         -> KindM a -> InferM (a, Map Name Kind, [(ConstraintSource,[Prop])])
 runKindM wildOK vs (KM m) =
   do (a,kw) <- runStateT krw (runReaderT kro m)
-     return (a, typeParams kw)
+     return (a, typeParams kw, kCtrs kw)
   where
   tys  = Map.fromList [ (x,t) | (x,_,t)      <- vs ]
   kro  = KRO { allowWild = wildOK, lazyTVars = tys }
-  krw  = KRW { typeParams = Map.fromList [ (x,k) | (x,Just k,_) <- vs ] }
+  krw  = KRW { typeParams = Map.fromList [ (x,k) | (x,Just k,_) <- vs ]
+             , kCtrs = []
+             }
 
 -- | This is what's returned when we lookup variables during kind checking.
 data LkpTyVar = TLocalVar Type (Maybe Kind) -- ^ Locally bound variable.
@@ -779,7 +774,8 @@ kInRange r (KM m) = KM $
      return a
 
 kNewGoals :: ConstraintSource -> [Prop] -> KindM ()
-kNewGoals c ps = kInInferM $ newGoals' False c ps
+kNewGoals _ [] = return ()
+kNewGoals c ps = KM $ sets_ $ \s -> s { kCtrs = (c,ps) : kCtrs s }
 
 kInInferM :: InferM a -> KindM a
 kInInferM m = KM $ lift $ lift m

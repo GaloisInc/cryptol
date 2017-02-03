@@ -122,10 +122,14 @@ There are two reasons for this choice:
 
 withTParams :: Bool -> [P.TParam Name] -> KindM a -> InferM ([TParam], a)
 withTParams allowWildCards xs m =
-  mdo mapM_ recordError duplicates
-      (a, vars) <- runKindM allowWildCards (zip' xs ts) m
-      (as, ts)  <- unzip `fmap` mapM (newTP vars) xs
-      return (as,a)
+  do (as,a,ctrs) <-
+        mdo mapM_ recordError duplicates
+            (a, vars,ctrs) <- runKindM allowWildCards (zip' xs ts) m
+            (as, ts)  <- unzip `fmap` mapM (newTP vars) xs
+            return (as,a,ctrs)
+     mapM_ (uncurry newGoals) ctrs
+     return (as,a)
+
   where
   getKind vs tp =
     case Map.lookup (P.tpName tp) vs of
