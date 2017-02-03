@@ -21,7 +21,19 @@ import Debug.Trace
 
 cryIsEqual :: Map TVar Interval -> Type -> Type -> Solved
 cryIsEqual fin t1 t2 =
-  case pBin PEqual (==) fin t1 t2 of
+  solveOpts
+    [ pBin PEqual (==) fin t1 t2
+    , tIsNat' t1 `matchThen` \n -> tryEqK n t2
+    , tIsNat' t2 `matchThen` \n -> tryEqK n t1
+    , tIsVar t1 `matchThen` \tv -> tryEqInf tv t2
+    , tIsVar t2 `matchThen` \tv -> tryEqInf tv t1
+    , guarded (t1 == t2) $ SolvedIf []
+
+    -- x = min (K + x) y --> x = y
+    ]
+
+{-
+  case 
     Unsolved
       | Just x <- tIsVar t1, isFreeTV x -> Unsolved
 
@@ -39,7 +51,7 @@ cryIsEqual fin t1 t2 =
     x -> x
   where
   sh = show (pp t1) ++ " == " ++ show (pp t2)
-
+-}
 
 
 
@@ -48,6 +60,8 @@ cryIsNotEqual = pBin PNeq (/=)
 
 cryIsGeq :: Map TVar Interval -> Type -> Type -> Solved
 cryIsGeq = pBin PGeq (>=)
+  -- XXX: max a 10 >= 2 --> True
+  -- XXX: max a 2 >= 10 --> a >= 10
 
 
 pBin :: PC -> (Nat' -> Nat' -> Bool) -> Map TVar Interval ->
@@ -67,6 +81,13 @@ pBin _ _ _ _ _ = Unsolved
 --------------------------------------------------------------------------------
 
 
+tryEqInf :: TVar -> Type -> Solved
+tryEqInf tv ty =
+  case tNoUser ty of
+    TCon (TF TCAdd) [a,b]
+      | Just n <- tIsNum a, n >= 1
+      , Just v <- tIsVar b, tv == v -> SolvedIf [ TVar tv =#= tInf ]
+    _ -> Unsolved
 
 tryEqK :: Nat' -> Type -> Solved
 tryEqK lk ty =
@@ -77,9 +98,9 @@ tryEqK lk ty =
         TCAdd ->
           case (lk,rk) of
             (_,Inf) -> Unsolved -- shouldn't happen, as `inf + x ` inf`
-            (Inf, Nat _) -> SolvedIf [ tInf =#= b ]
+            (Inf, Nat _) -> SolvedIf [ b =#= tInf ]
             (Nat lk', Nat rk')
-              | lk' >= rk'  -> SolvedIf [ tNum (lk' - rk') =#= b ]
+              | lk' >= rk'  -> SolvedIf [ b =#= tNum (lk' - rk') ]
               | otherwise -> Unsolvable
                 $ TCErrorMessage
                 $ "Adding " ++ show rk' ++ " will always exceed "
@@ -88,13 +109,13 @@ tryEqK lk ty =
         TCMul ->
           case (lk,rk) of
             (Inf,Inf)    -> SolvedIf [ b >== tOne ]
-            (Inf,Nat _)  -> SolvedIf [ tInf =#= b ]
-            (Nat 0, Inf) -> SolvedIf [ tZero =#= b ]
+            (Inf,Nat _)  -> SolvedIf [ b =#= tInf ]
+            (Nat 0, Inf) -> SolvedIf [ b =#= tZero ]
             (Nat k, Inf) -> Unsolvable
                           $ TCErrorMessage $ show k ++ " /= inf * anything"
             (Nat lk', Nat rk')
               | rk' == 0 -> Unsolved --- shouldn't happen, as `0 * x = x`
-              | (q,0) <- divMod lk' rk' -> SolvedIf [ tNum q =#= b ]
+              | (q,0) <- divMod lk' rk' -> SolvedIf [ b =#= tNum q ]
               | otherwise -> Unsolvable
                 $ TCErrorMessage
                 $ show lk ++ " /= " ++ show rk ++ " * anything"

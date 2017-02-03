@@ -62,12 +62,19 @@ tAdd x y
   | tIsInf y            = tInf
   | Just n <- tIsNum x  = addK n y
   | Just n <- tIsNum y  = addK n x
+  | Just (n,x1) <- isSumK x = addK n (tAdd x1 y)
+  | Just (n,y1) <- isSumK y = addK n (tAdd x y1)
   | otherwise           = tf2 TCAdd x y
   where
+  isSumK t = case tNoUser t of
+               TCon (TF TCAdd) [ l, r ] ->
+                 do n <- tIsNum l
+                    return (n, r)
+               _ -> Nothing
+
   addK 0 t = t
-  addK n t | TCon (TF TCAdd) [a,b] <- tNoUser t
-           , Just m <- tIsNum a = tf2 TCAdd (tNum (n + m)) b
-           | otherwise          = tf2 TCAdd (tNum n) t
+  addK n t | Just (m,b) <- isSumK t = tf2 TCAdd (tNum (n + m)) b
+           | otherwise              = tf2 TCAdd (tNum n) t
 
 tSub :: Type -> Type -> Type
 tSub x y
@@ -96,11 +103,18 @@ tMul x y
   where
   mulK 0 _ = tNum (0 :: Int)
   mulK 1 t = t
-  mulK n t | TCon (TF TCMul) [a,b] <- tNoUser t
+  mulK n t | TCon (TF TCMul) [a,b] <- t'
            , Just a' <- tIsNat' a = case a' of
                                      Inf   -> t
                                      Nat m -> tf2 TCMul (tNum (n * m)) b
+           | TCon (TF TCDiv) [a,b] <- t'
+           , Just b' <- tIsNum b
+           -- XXX: similar for a = b * k?
+           , n == b' = tSub a (tMod a b)
+
+
            | otherwise = tf2 TCMul (tNum n) t
+    where t' = tNoUser t
 
 tDiv :: Type -> Type -> Type
 tDiv x y
@@ -131,7 +145,8 @@ tMin x y
   | Just t <- tOp TCMin (total (op2 nMin)) [x,y] = t
   | Just n <- tIsNat' x = minK n y
   | Just n <- tIsNat' y = minK n x
-  -- XXX: min (k + t) t
+  | x == y              = x
+  -- XXX: min (k + t) t -> t
   | otherwise           = tf2 TCMin x y
   where
   minK Inf t      = t
