@@ -24,13 +24,24 @@ cryIsEqual fin t1 t2 =
   case pBin PEqual (==) fin t1 t2 of
     Unsolved
       | Just x <- tIsVar t1, isFreeTV x -> Unsolved
+
+      | Just n <- tIsNat' t1 -> tryEqK n t2
+      | Just n <- tIsNat' t2 -> tryEqK n t1
+
       | Just (x,t) <- tryRewrteEqAsSubst fin t1 t2 ->
-        let old = show (pp t1) ++ " == " ++ show (pp t2)
-            new = show (pp x) ++ " == " ++ show (pp t)
+        let new = show (pp x) ++ " == " ++ show (pp t)
         in
-          trace ("Rewrote: " ++ old ++ " -> " ++ new)
+          trace ("Rewrote: " ++ sh ++ " -> " ++ new)
          $ SolvedIf [ TCon (PC PEqual) [TVar x,t] ]
+
+    Unsolved -> trace ("Failed to rewrite eq: " ++ sh) Unsolved
+
     x -> x
+  where
+  sh = show (pp t1) ++ " == " ++ show (pp t2)
+
+
+
 
 cryIsNotEqual :: Map TVar Interval -> Type -> Type -> Solved
 cryIsNotEqual = pBin PNeq (/=)
@@ -54,6 +65,48 @@ pBin tf p _i t1 t2
 pBin _ _ _ _ _ = Unsolved
 
 --------------------------------------------------------------------------------
+
+
+
+tryEqK :: Nat' -> Type -> Solved
+tryEqK lk ty =
+  case tNoUser ty of
+    TCon (TF f) [ a, b ] | Just rk <- tIsNat' a ->
+      case f of
+
+        TCAdd ->
+          case (lk,rk) of
+            (_,Inf) -> Unsolved -- shouldn't happen, as `inf + x ` inf`
+            (Inf, Nat _) -> SolvedIf [ tInf =#= b ]
+            (Nat lk', Nat rk')
+              | lk' >= rk'  -> SolvedIf [ tNum (lk' - rk') =#= b ]
+              | otherwise -> Unsolvable
+                $ TCErrorMessage
+                $ "Adding " ++ show rk' ++ " will always exceed "
+                            ++ show lk'
+
+        TCMul ->
+          case (lk,rk) of
+            (Inf,Inf)    -> SolvedIf [ b >== tOne ]
+            (Inf,Nat _)  -> SolvedIf [ tInf =#= b ]
+            (Nat 0, Inf) -> SolvedIf [ tZero =#= b ]
+            (Nat k, Inf) -> Unsolvable
+                          $ TCErrorMessage $ show k ++ " /= inf * anything"
+            (Nat lk', Nat rk')
+              | rk' == 0 -> Unsolved --- shouldn't happen, as `0 * x = x`
+              | (q,0) <- divMod lk' rk' -> SolvedIf [ tNum q =#= b ]
+              | otherwise -> Unsolvable
+                $ TCErrorMessage
+                $ show lk ++ " /= " ++ show rk ++ " * anything"
+
+        -- XXX: Min, Max, etx
+        -- 2  = min (10,y)  --> y = 2
+        -- 2  = min (2,y)   --> y >= 2
+        -- 10 = min (2,y)   --> impossible
+        _ -> Unsolved
+
+
+    _ -> Unsolved
 
 
 

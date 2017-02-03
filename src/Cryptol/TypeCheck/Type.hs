@@ -14,7 +14,6 @@ import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.List(sortBy)
 import           Data.Ord(comparing)
-import Control.Monad(msum)
 
 import Cryptol.Parser.AST ( Selector(..), ppSelector )
 import Cryptol.ModuleSystem.Name
@@ -480,6 +479,15 @@ tNoUser t = case t of
 tBadNumber :: TCErrorMessage -> Type
 tBadNumber msg = TCon (TError KNum msg) []
 
+tf1 :: TFun -> Type -> Type
+tf1 f x = TCon (TF f) [x]
+
+tf2 :: TFun -> Type -> Type -> Type
+tf2 f x y = TCon (TF f) [x,y]
+
+tf3 :: TFun -> Type -> Type -> Type -> Type
+tf3 f x y z = TCon (TF f) [x,y,z]
+
 (.*.) :: Type -> Type -> Type
 (.*.) = tMul
 
@@ -496,60 +504,37 @@ tBadNumber msg = TCon (TError KNum msg) []
 
 
 tAdd :: Type -> Type -> Type
-tAdd x y = tOp TCAdd (total (op2 nAdd)) [x,y]
+tAdd = tf2 TCAdd
 
 tSub :: Type -> Type -> Type
-tSub x y = tOp TCSub (op2 nSub) [x,y]
+tSub = tf2 TCSub
 
 tMul :: Type -> Type -> Type
-tMul x y = tOp TCMul (total (op2 nMul)) [x,y]
+tMul = tf2 TCMul
 
 tDiv :: Type -> Type -> Type
-tDiv x y = tOp TCDiv (op2 nDiv) [x,y]
+tDiv = tf2 TCDiv
 
 tMod :: Type -> Type -> Type
-tMod x y = tOp TCMod (op2 nMod) [x,y]
+tMod = tf2 TCMod
 
 tExp :: Type -> Type -> Type
-tExp x y = tOp TCExp (total (op2 nExp)) [x,y]
+tExp = tf2 TCExp
 
 tMin :: Type -> Type -> Type
-tMin x y = tOp TCMin (total (op2 nMin)) [x,y]
+tMin = tf2 TCMin
 
 tMax :: Type -> Type -> Type
-tMax x y = tOp TCMax (total (op2 nMax)) [x,y]
+tMax = tf2 TCMax
 
 tWidth :: Type -> Type
-tWidth x = tOp TCWidth (total (op1 nWidth)) [x]
+tWidth = tf1 TCWidth
 
 tLenFromThen :: Type -> Type -> Type -> Type
-tLenFromThen x y z = tOp TCLenFromThen (op3 nLenFromThen) [x,y,z]
+tLenFromThen = tf3 TCLenFromThen
 
 tLenFromThenTo :: Type -> Type -> Type -> Type
-tLenFromThenTo x y z = tOp TCLenFromThen (op3 nLenFromThen) [x,y,z]
-
-total :: ([Nat'] -> Nat') -> ([Nat'] -> Maybe Nat')
-total f xs = Just (f xs)
-
-op1 :: (a -> b) -> [a] -> b
-op1 f ~[x] = f x
-
-op2 :: (a -> a -> b) -> [a] -> b
-op2 f ~[x,y] = f x y
-
-op3 :: (a -> a -> a -> b) -> [a] -> b
-op3 f ~[x,y,z] = f x y z
-
-tOp :: TFun -> ([Nat'] -> Maybe Nat') -> [Type] -> Type
-tOp tf f ts
-  | Just e  <- msum (map tIsError ts) = tBadNumber e
-  | Just xs <- mapM tIsNat' ts = case f xs of
-                                   Nothing -> tBadNumber err
-                                   Just n  -> tNat' n
-  | otherwise             = TCon (TF tf) ts
-  where
-  err = TCErrorMessage ("Invalid applicatoin of " ++ show (pp tf))
-
+tLenFromThenTo = tf3 TCLenFromThenTo
 
 
 

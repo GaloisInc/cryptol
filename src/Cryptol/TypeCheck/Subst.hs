@@ -37,7 +37,7 @@ import qualified Data.Set as Set
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.TypeMap
-import Cryptol.TypeCheck.SimpleSolver
+import qualified Cryptol.TypeCheck.SimpleSolver as Simp
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Misc(anyJust)
 
@@ -110,20 +110,20 @@ apSubstMaybe su ty =
            TF f ->
              Just $!
              case (f,ss) of
-               (TCAdd,[t1,t2])               -> tAdd t1 t2
-               (TCSub,[t1,t2])               -> tSub t1 t2
-               (TCMul,[t1,t2])               -> tMul t1 t2
-               (TCDiv,[t1,t2])               -> tDiv t1 t2
-               (TCMod,[t1,t2])               -> tMod t1 t2
-               (TCExp,[t1,t2])               -> tExp t1 t2
-               (TCMin,[t1,t2])               -> tMin t1 t2
-               (TCMax,[t1,t2])               -> tMax t1 t2
-               (TCWidth,[t1])                -> tWidth t1
-               (TCLenFromThen,[t1,t2,t3])    -> tLenFromThen t1 t2 t3
-               (TCLenFromThenTo,[t1,t2,t3])  -> tLenFromThenTo t1 t2 t3
+               (TCAdd,[t1,t2])               -> Simp.tAdd t1 t2
+               (TCSub,[t1,t2])               -> Simp.tSub t1 t2
+               (TCMul,[t1,t2])               -> Simp.tMul t1 t2
+               (TCDiv,[t1,t2])               -> Simp.tDiv t1 t2
+               (TCMod,[t1,t2])               -> Simp.tMod t1 t2
+               (TCExp,[t1,t2])               -> Simp.tExp t1 t2
+               (TCMin,[t1,t2])               -> Simp.tMin t1 t2
+               (TCMax,[t1,t2])               -> Simp.tMax t1 t2
+               (TCWidth,[t1])                -> Simp.tWidth t1
+               (TCLenFromThen,[t1,t2,t3])    -> Simp.tLenFromThen t1 t2 t3
+               (TCLenFromThenTo,[t1,t2,t3])  -> Simp.tLenFromThenTo t1 t2 t3
                _ -> panic "apSubstMaybe" ["Unexpected type function", show t]
 
-           PC _ -> Just $! simplify Map.empty (TCon t ss)
+           PC _ -> Just $! Simp.simplify Map.empty (TCon t ss)
 
            _ -> return (TCon t ss)
 
