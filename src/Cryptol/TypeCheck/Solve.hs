@@ -34,7 +34,6 @@ import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
-import           Cryptol.TypeCheck.Solver.Numeric.Interval (Interval)
 import qualified Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
@@ -44,7 +43,7 @@ import           Cryptol.Utils.Misc(anyJust)
 
 import           Control.Monad (unless, guard)
 import           Data.Either(partitionEithers)
-import           Data.Maybe(catMaybes, fromMaybe, mapMaybe)
+import           Data.Maybe(catMaybes, fromMaybe)
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Set ( Set )
@@ -228,8 +227,7 @@ simpGoals' s gs0 = go emptySubst [] (wellFormed gs0 ++ gs0)
 
   go su old [] = return (Right old, su)
   go su old gs =
-    do gs1  <- simplifyConstraintTerms s gs
-       res  <- solveConstraints s old gs1
+    do res  <- solveConstraints s old gs
        case res of
          Left err -> return (Left err, su)
          Right gs2 ->
@@ -264,11 +262,6 @@ However, we should be careful to avoid circular reasoning, as we wouldn't
 want to use the fact that `x >= 1` to simplify `x >= 1` to true.
 -}
 
--- XXX: currently simplify individually
-simplifyConstraintTerms :: Num.Solver -> [Goal] -> IO [Goal]
-simplifyConstraintTerms s gs =
-  debugBlock s "Simplifying terms" $ return (map simpGoal gs)
-  where simpGoal g = g { goal = simpProp (goal g) }
 
 
 solveConstraints :: Num.Solver ->
@@ -280,25 +273,26 @@ solveConstraints :: Num.Solver ->
                     --   Right: goals that were not solved, or sub-goals
                     --          for solved goals.  Does not include "old"
 solveConstraints s otherGs gs0 =
-  debugBlock s "Solving constraints" $ solveClassCts [] [] gs0
+  debugBlock s "Solving constraints" $ go [] gs0
 
   where
+  go unsolved [] =
+    do let (cs,nums) = partitionEithers (map Num.numericRight unsolved)
+       nums' <- solveNumerics s otherNumerics nums
+       return (Right (cs ++ nums'))
+
+  go unsolved (g : gs) =
+    case Simplify.simplifyStep Map.empty (goal g) of
+      Unsolvable _        -> return (Left [g])
+      Unsolved            -> go (g : unsolved) gs
+      SolvedIf subs       ->
+        let cvt x = g { goal = x }
+        in  go unsolved (map cvt subs ++ gs)
+
+
   otherNumerics = [ g | Right g <- map Num.numericRight otherGs ]
 
-  solveClassCts unsolvedClass numerics [] =
-    do unsolvedNum <- solveNumerics s otherNumerics numerics
-       return (Right (unsolvedClass ++ unsolvedNum))
 
-  solveClassCts unsolved numerics (g : gs) =
-    case Num.numericRight g of
-      Right n -> solveClassCts unsolved (n : numerics) gs
-      Left c  ->
-        case Simplify.simplifyStep Map.empty (goal c) of
-          Unsolvable _        -> return (Left [g])
-          Unsolved            -> solveClassCts (g : unsolved) numerics gs
-          SolvedIf subs       ->
-            let cvt x = c { goal = x }
-            in  solveClassCts unsolved numerics (map cvt subs ++ gs)
 
 
 solveNumerics :: Num.Solver ->
@@ -583,14 +577,6 @@ tryGetModel s xs ps =
 
 simpType :: Type -> Type
 simpType ty = fromMaybe ty (simpTypeMaybe ty)
-
-simpProp :: Prop -> Prop
-simpProp p = case p of
-              TUser f ts q -> TUser f (map simpType ts) (simpProp q)
-              TCon c ts    -> TCon c (map simpType ts)
-              TVar {}      -> panic "simpProp" ["variable", show p]
-              TRec {}      -> panic "simpProp" ["record", show p]
-
 
 
 

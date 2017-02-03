@@ -638,26 +638,6 @@ guessType exprMap b@(P.Bind { .. }) =
   where
   name = thing bName
 
--- | Try to evaluate the inferred type in a binding.
-simpBind :: Decl -> Decl
-simpBind d =
-  case dSignature d of
-    Forall as qs t ->
-      case simpTypeMaybe t of
-        Nothing -> d
-        Just t1 -> d { dSignature  = Forall as qs t1
-                     , dDefinition = case dDefinition d of
-                                       DPrim   -> DPrim
-                                       DExpr e -> DExpr (castUnder t1 e)
-                     }
-  where
-  -- Assumes the quantifiers match
-  castUnder t (ETAbs a e)     = ETAbs a (castUnder t e)
-  castUnder t (EProofAbs p e) = EProofAbs p (castUnder t e)
-  castUnder t e               = ECast e t
-
-
-
 
 
 -- | The inputs should be declarations with monomorphic types
@@ -676,10 +656,8 @@ generalize bs0 gs0 =
   do gs <- forM gs0 $ \g -> applySubst g
 
      -- XXX: Why would these bindings have signatures??
-     bs1 <- forM bs0 $ \b -> do s <- applySubst (dSignature b)
+     bs  <- forM bs0 $ \b -> do s <- applySubst (dSignature b)
                                 return b { dSignature = s }
-
-     let bs = map simpBind bs1
 
      let goalFVS g  = Set.filter isFreeTV $ fvs $ goal g
          inGoals    = Set.unions $ map goalFVS gs
@@ -724,7 +702,7 @@ generalize bs0 gs0 =
                     }
 
      addGoals later
-     return (map (simpBind . genB) bs)
+     return (map genB bs)
 
 
 
