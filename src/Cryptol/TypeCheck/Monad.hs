@@ -34,7 +34,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Map (Map)
 import           Data.Set (Set)
-import           Data.List(find, minimumBy, groupBy, sortBy)
+import           Data.List(find, minimumBy, groupBy, sortBy, foldl')
 import           Data.Maybe(mapMaybe)
 import           Data.Function(on)
 import           MonadLib hiding (mapM)
@@ -325,7 +325,11 @@ addGoals :: [Goal] -> InferM ()
 addGoals gs0 = doAdd =<< simpGoals gs0
   where
   doAdd [] = return ()
-  doAdd gs = IM $ sets_ $ \s -> s { iCts = foldl (flip insertGoal) (iCts s) gs }
+  doAdd gs =
+    do io $ putStrLn "Adding goals:"
+       io $ mapM_ putStrLn [ "  " ++ show (pp (goal g)) | g <- gs ]
+       IM $ sets_ $ \s -> s { iCts = foldl' (flip insertGoal) (iCts s) gs }
+
 
 -- | Collect the goals emitted by the given sub-computation.
 -- Does not emit any new goals.

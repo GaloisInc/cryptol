@@ -30,6 +30,7 @@ import           Cryptol.Utils.Ident (Ident,identText)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
 
+import           Data.Set ( Set )
 import qualified Data.Set as Set
 import qualified Data.IntMap as IntMap
 
@@ -51,20 +52,20 @@ data VarType = ExtVar Schema      -- ^ Known type
 --    1. How to apply substitutions with normalization to the type Map
 --    2. What are the strictness requirements
 --        (e.g., using Set results in a black hole)
-newtype Goals = Goals [Goal] -- Goals (TypeMap Goal)
+newtype Goals = Goals (Set Goal) -- Goals (TypeMap Goal)
                 deriving (Show)
 
 emptyGoals :: Goals
-emptyGoals  = Goals [] -- emptyTM
+emptyGoals  = Goals Set.empty -- emptyTM
 
 nullGoals :: Goals -> Bool
-nullGoals (Goals tm) = null tm -- nullTM tm
+nullGoals (Goals tm) = Set.null tm -- nullTM tm
 
 fromGoals :: Goals -> [Goal]
-fromGoals (Goals tm) = tm -- membersTM tm
+fromGoals (Goals tm) = Set.toList tm -- membersTM tm
 
 insertGoal :: Goal -> Goals -> Goals
-insertGoal g (Goals tm) = Goals (g : tm) -- (insertTM (goal g) g tm)
+insertGoal g (Goals tm) = Goals (Set.insert g tm) -- (insertTM (goal g) g tm)
 
 -- | Something that we need to find evidence for.
 data Goal = Goal
@@ -76,6 +77,8 @@ data Goal = Goal
 instance Eq Goal where
   x == y = goal x == goal y
 
+instance Ord Goal where
+  compare x y = compare (goal x) (goal y)
 
 data HasGoal = HasGoal
   { hasName :: !Int
@@ -293,9 +296,10 @@ instance FVS DelayedCt where
 -- values that remain, as applying the substitution to the keys will only ever
 -- reduce the number of values that remain.
 instance TVars Goals where
-  apSubst su (Goals gs) = case anyJust apG gs of
+  apSubst su (Goals gs) = case anyJust apG (Set.toList gs) of
                             Nothing -> Goals gs
-                            Just gs1 -> Goals $ concatMap norm gs1
+                            Just gs1 -> Goals $ Set.fromList
+                                              $ concatMap norm gs1
     where
     norm g = [ g { goal = p } | p <- pSplitAnd (goal g) ]
     apG g  = mk g <$> apSubstMaybe su (goal g)
