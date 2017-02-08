@@ -22,7 +22,7 @@ import qualified Cryptol.Parser.Names as P
 import           Cryptol.TypeCheck.AST hiding (tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Solve
-import           Cryptol.TypeCheck.SimpleSolver(tSub,tMul,tExp)
+import           Cryptol.TypeCheck.SimpType(tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                           checkNewtype)
 import           Cryptol.TypeCheck.Instantiate

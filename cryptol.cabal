@@ -94,6 +94,7 @@ library
                        Cryptol.Utils.Panic,
                        Cryptol.Utils.Debug,
                        Cryptol.Utils.Misc,
+                       Cryptol.Utils.Patterns,
                        Cryptol.Version,
 
                        Cryptol.ModuleSystem,
@@ -107,6 +108,8 @@ library
 
                        Cryptol.TypeCheck,
                        Cryptol.TypeCheck.Type,
+                       Cryptol.TypeCheck.TypePat,
+                       Cryptol.TypeCheck.SimpType,
                        Cryptol.TypeCheck.AST,
                        Cryptol.TypeCheck.Monad,
                        Cryptol.TypeCheck.Infer,
@@ -130,6 +133,7 @@ library
                        Cryptol.TypeCheck.Solver.Utils,
 
                        Cryptol.TypeCheck.Solver.Numeric,
+                       Cryptol.TypeCheck.Solver.Improve,
                        Cryptol.TypeCheck.Solver.CrySAT,
                        Cryptol.TypeCheck.Solver.Numeric.AST,
                        Cryptol.TypeCheck.Solver.Numeric.ImportExport,

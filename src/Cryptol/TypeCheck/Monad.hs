@@ -325,10 +325,7 @@ addGoals :: [Goal] -> InferM ()
 addGoals gs0 = doAdd =<< simpGoals gs0
   where
   doAdd [] = return ()
-  doAdd gs =
-    do io $ putStrLn "Adding goals:"
-       io $ mapM_ putStrLn [ "  " ++ show (pp (goal g)) | g <- gs ]
-       IM $ sets_ $ \s -> s { iCts = foldl' (flip insertGoal) (iCts s) gs }
+  doAdd gs = IM $ sets_ $ \s -> s { iCts = foldl' (flip insertGoal) (iCts s) gs }
 
 
 -- | Collect the goals emitted by the given sub-computation.

@@ -486,12 +486,13 @@ tf2 f x y = TCon (TF f) [x,y]
 tf3 :: TFun -> Type -> Type -> Type -> Type
 tf3 f x y z = TCon (TF f) [x,y,z]
 
-
+{-
 tAdd :: Type -> Type -> Type
 tAdd x y
   | Just x' <- tIsNum x
   , Just y' <- tIsNum y = error (show x' ++ " + " ++ show y')
   | otherwise = tf2 TCAdd x y
+-}
 
 tSub :: Type -> Type -> Type
 tSub = tf2 TCSub
@@ -510,9 +511,6 @@ tExp = tf2 TCExp
 
 tMin :: Type -> Type -> Type
 tMin = tf2 TCMin
-
-tMax :: Type -> Type -> Type
-tMax = tf2 TCMax
 
 tWidth :: Type -> Type
 tWidth = tf1 TCWidth
@@ -682,6 +680,7 @@ instance PP (WithNames Type) where
       TRec fs -> braces $ fsep $ punctuate comma
                     [ pp l <+> text ":" <+> go 0 t | (l,t) <- fs ]
       TUser c ts _ -> optParens (prec > 3) $ pp c <+> fsep (map (go 4) ts)
+      -- TUser _ _ t -> ppPrec prec t -- optParens (prec > 3) $ pp c <+> fsep (map (go 4) ts)
 
       TCon (TC tc) ts ->
         case (tc,ts) of

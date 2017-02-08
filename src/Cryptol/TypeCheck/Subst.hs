@@ -25,6 +25,7 @@ module Cryptol.TypeCheck.Subst
   , apSubstTypeMapKeys
   , substBinds
   , applySubstToVar
+  , substToList
   ) where
 
 import           Data.Maybe
@@ -37,6 +38,7 @@ import qualified Data.Set as Set
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.TypeMap
+import qualified Cryptol.TypeCheck.SimpType as Simp
 import qualified Cryptol.TypeCheck.SimpleSolver as Simp
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Misc(anyJust)
@@ -85,6 +87,11 @@ substBinds su
   | suDefaulting su = Set.empty
   | otherwise       = Map.keysSet $ suMap su
 
+substToList :: Subst -> [(TVar,Type)]
+substToList s
+  | suDefaulting s = panic "substToList" ["Defaulting substitution."]
+  | otherwise = Map.toList (suMap s)
+
 instance PP (WithNames Subst) where
   ppPrec _ (WithNames s mp)
     | null els  = text "(empty substitution)"
@@ -123,7 +130,7 @@ apSubstMaybe su ty =
                (TCLenFromThenTo,[t1,t2,t3])  -> Simp.tLenFromThenTo t1 t2 t3
                _ -> panic "apSubstMaybe" ["Unexpected type function", show t]
 
-           PC _ -> Just $! Simp.simplify Map.empty (TCon t ss)
+           PC _ ->Just $! Simp.simplify Map.empty (TCon t ss)
 
            _ -> return (TCon t ss)
 

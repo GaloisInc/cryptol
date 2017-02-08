@@ -8,8 +8,8 @@
 
 module Cryptol.TypeCheck.Solver.Utils where
 
-import Cryptol.TypeCheck.AST hiding (tAdd,tMul)
-import Cryptol.TypeCheck.SimpleSolver(tAdd,tMul)
+import Cryptol.TypeCheck.AST hiding (tMul)
+import Cryptol.TypeCheck.SimpType(tAdd,tMul)
 import Control.Monad(mplus,guard)
 import Data.Maybe(listToMaybe)
 

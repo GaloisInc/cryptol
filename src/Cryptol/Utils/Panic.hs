@@ -10,7 +10,7 @@
 {-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
 module Cryptol.Utils.Panic (panic) where
 
-import Cryptol.Version
+-- import Cryptol.Version
 
 import Control.Exception as X
 import Data.Typeable(Typeable)
@@ -29,7 +29,7 @@ instance Show CryptolPanic where
     , "*** Please create an issue at https://github.com/galoisinc/cryptol/issues"
     , ""
     , "%< --------------------------------------------------- "
-    ] ++ rev ++
+    ]{- ++ rev ++
     [ locLab ++ panicLoc p
     , msgLab ++ fromMaybe "" (listToMaybe msgLines)
     ]
@@ -47,7 +47,7 @@ instance Show CryptolPanic where
 
           rev | null commitHash = []
               | otherwise   = [ revLab ++ commitHash
-                              , branchLab ++ commitBranch ++ dirtyLab ]
+                              , branchLab ++ commitBranch ++ dirtyLab ] -}
 
 instance Exception CryptolPanic
 
