@@ -485,7 +485,9 @@ cmdProveSat isSat str = do
           case (ty, exprs) of
             (t, [e]) -> bindItVariable t e
             (t, es ) -> bindItVariables t es
-      showProverStats stats
+
+      seeStats <- getUserShowProverStats
+      when seeStats (showProverStats stats)
 
 onlineProveSat :: Bool
                -> String -> Maybe FilePath -> REPL (Symbolic.ProverResult,ProverStats)

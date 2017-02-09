@@ -57,6 +57,7 @@ module Cryptol.REPL.Monad (
   , setUser, getUser, tryGetUser
   , userOptions
   , getUserSatNum
+  , getUserShowProverStats
 
     -- ** Configurable Output
   , getPutStr
@@ -566,6 +567,11 @@ getUser name = do
     Just ev -> return ev
     Nothing -> panic "[REPL] getUser" ["option `" ++ name ++ "` does not exist"]
 
+getUserShowProverStats :: REPL Bool
+getUserShowProverStats =
+  do EnvBool yes <- getUser "prover-stats"
+     return yes
+
 -- Environment Options ---------------------------------------------------------
 
 type OptionMap = Trie OptionDescr
@@ -641,7 +647,11 @@ userOptions  = mkOptionMap
       in \case EnvBool True  -> setIt M.CoreLint
                EnvBool False -> setIt M.NoCoreLint
                _             -> return ()
+
+  , simpleOpt "prover-stats" (EnvBool True) (const (return Nothing))
+    "Enable prover timing statistics."
   ]
+
 
 -- | Check the value to the `base` option.
 checkBase :: EnvVal -> IO (Maybe String)
