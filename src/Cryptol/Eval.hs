@@ -205,7 +205,7 @@ evalDeclGroup env dg = do
       env'' <- foldM (evalDecl env') env ds
 
       -- now backfill the holes we declared earlier using the definitions
-      -- calculcated in the previous step
+      -- calculated in the previous step
       mapM_ (fillHole env'') holes
 
       -- return the map containing the holes
@@ -378,12 +378,12 @@ declHole d =
 --   Two input environments are given: the first is an environment
 --   to use when evaluating the body of the declaration; the second
 --   is the environment to extend.  There are two environments to
---   handle the subtle name-binding issues that arise from recurisve
+--   handle the subtle name-binding issues that arise from recursive
 --   definitions.  The 'read only' environment is used to bring recursive
 --   names into scope while we are still defining them.
 evalDecl :: EvalPrims b w
          => GenEvalEnv b w  -- ^ A 'read only' environment for use in declaration bodies
-         -> GenEvalEnv b w  -- ^ An evalaution environment to extend with the given declaration
+         -> GenEvalEnv b w  -- ^ An evaluation environment to extend with the given declaration
          -> Decl            -- ^ The declaration to evaluate
          -> Eval (GenEvalEnv b w)
 evalDecl renv env d =
