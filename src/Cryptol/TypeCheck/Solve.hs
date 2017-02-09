@@ -103,13 +103,14 @@ quickSolverIO ctxt gs =
                (x,i) <- Map.toList ctxt ] of
               [] -> text ""
               xs -> text "ASMPS:" $$ nest 2 (vcat xs $$ text "===")
-  msg d = return () {-putStrLn $ show (
+  msg _ = return ()
+  {- msg d = putStrLn $ show (
              text "quickSolver:" $$ nest 2 (vcat
                 [ shAsmps
                 , vcat (map (pp.goal) gs)
                 , text "==>"
                 , d
-                ]))-}
+                ])) -- -}
 
 quickSolver :: Ctxt  -> {- ^ Facts we can know -}
               [Goal] -> {- ^ Need to solve these -}
@@ -181,13 +182,41 @@ proveImplicationIO :: Num.Solver
                    -> [Goal]   -- ^ Collected constraints
                    -> IO (Either Error [Warning], Subst)
 proveImplicationIO _   _     _         _  [] [] = return (Right [], emptySubst)
-proveImplicationIO s f vs ps asmps0 gs0 =
+proveImplicationIO s f varsInEnv ps asmps0 gs0 =
   do let ctxt = assumptionIntervals Map.empty asmps
      res <- quickSolverIO ctxt gs
      case res of
        Left err -> return (Left (UnsolvedGoal True err), emptySubst)
        Right (su,[]) -> return (Right [], su)
-       Right (su,gs1) -> proveImplicationIO' s f vs ps asmps gs1
+       Right (su,gs1) ->
+         do (res3,su1) <- proveImplicationIO' s f varsInEnv ps asmps gs1
+            case res3 of
+              Left err -> return (Left err, emptySubst)
+              Right ws -> return (Right ws, su1 @@ su)
+
+
+{-
+
+          -- try to default
+          do let vs    = Set.filter isFreeTV $ fvs $ map goal gs1
+                 dVars = Set.toList (vs `Set.difference` varsInEnv)
+                 (_,gs2,su2,ws) = improveByDefaultingWithPure dVars gs1
+             res2 <- quickSolverIO ctxt gs2
+             case res of
+               Left err -> return (Left (UnsolvedGoal True err), emptySubst)
+               Right (su3,[]) -> return (Right ws, su3 @@ su2)
+
+               -- Fall back to clunky solver
+               Right (su3,g:_) ->
+                 return (Left (UnsolvedGoal False g), emptySubst)
+
+               Right (su3,gs3) ->
+                 do (res3,su4) <- proveImplicationIO' s f varsInEnv ps asmps0 gs3
+                    case res3 of
+                      Left err -> return (Left err, su4 @@ su3)
+                      Right ws' -> return (Right (ws ++ ws'), su4 @@ su3)
+
+-}
   where
   (asmps,gs) =
     case matchMaybe (improveProps True Map.empty asmps0) of
@@ -195,9 +224,9 @@ proveImplicationIO s f vs ps asmps0 gs0 =
      Just (newSu,newAsmps) ->
         ( [ TVar x =#= t | (x,t) <- substToList newSu ]
           ++ newAsmps
-        , [ g { goal = apSubst newSu (goal g) } | g <- gs0 ]
+        , [ g { goal = apSubst newSu (goal g) } | g <- gs0
+          , not (goal g `elem` asmps0) ]
         )
-
 
 
 
@@ -254,10 +283,14 @@ proveImplicationIO' s lname varsInEnv as ps gs =
                  -- Last hope: try to default stuff
                  do let vs    = Set.filter isFreeTV $ fvs $ map goal us
                         dVars = Set.toList (vs `Set.difference` varsInEnv)
-                    (_,us1,su2,ws) <- improveByDefaultingWith s dVars us
-                    case us1 of
-                       [] -> return (Right ws, su2 @@ su1 @@ su)
-                       _  -> reportUnsolved us1 (su2 @@ su1 @@ su)
+                    -- (_,us1,su2,ws) <- improveByDefaultingWith s dVars us
+                        (_,us1,su2,ws) = improveByDefaultingWithPure dVars us
+
+                    Right (su3,us2) <- quickSolverIO ctxt us1
+
+                    case us2 of
+                       [] -> return (Right ws, su3 @@ su2 @@ su1 @@ su)
+                       _  -> reportUnsolved us1 (su3 @@ su2 @@ su1 @@ su)
   where
   reportUnsolved us su =
     return ( Left $ UnsolvedDelayedCt
@@ -537,7 +570,32 @@ improveByDefaultingWith ::
         , Subst     -- improvements from defaulting
         , [Warning] -- warnings about defaulting
         )
-improveByDefaultingWith s as ps =
+-- XXX: Remove this
+improveByDefaultingWith s as gs =
+  case improveByDefaultingWithPure as gs of
+    (xs,gs',su,ws) ->
+      do (res,su1) <- simpGoals' s Map.empty gs'
+         case res of
+           Left err ->
+             panic "improveByDefaultingWith"
+                    [ "Defaulting resulted in unsolvable constraints." ]
+           Right gs'' ->
+             do let su2 = su1 @@ su
+                    isDef x = x `Set.member` substBinds su2
+                return ( filter (not . isDef) xs
+                       , gs''
+                       , su2
+                       , ws
+                       )
+
+
+improveByDefaultingWithPure :: [TVar] -> [Goal] ->
+    ( [TVar]    -- non-defaulted
+    , [Goal]    -- new constraints
+    , Subst     -- improvements from defaulting
+    , [Warning] -- warnings about defaulting
+    )
+improveByDefaultingWithPure as ps =
   classify (Map.fromList [ (a,([],Set.empty)) | a <- as ]) [] [] ps
 
   where
@@ -546,10 +604,27 @@ improveByDefaultingWith s as ps =
   -- fins: all `fin` constraints
   -- others: any other constraints
   classify leqs fins others [] =
-    do let -- First, we use the `leqs` to choose some definitions.
-           (defs, newOthers)  = select [] [] (fvs others) (Map.toList leqs)
-           su                 = listSubst defs
+    let -- First, we use the `leqs` to choose some definitions.
+        (defs, newOthers)  = select [] [] (fvs others) (Map.toList leqs)
+        su                 = listSubst defs
+        warn (x,t) =
+          case x of
+            TVFree _ _ _ d -> DefaultingTo d t
+            TVBound {} -> panic "Crypto.TypeCheck.Infer"
+                 [ "tryDefault attempted to default a quantified variable."
+                 ]
 
+        names = substBinds su
+
+    in ( [ a | a <- as, not (a `Set.member` names) ]
+       , newOthers ++ others ++ apSubst su fins
+       , su
+       , map warn defs
+       )
+
+
+
+{-
        -- Do this to simplify the instantiated "fin" constraints.
        (mb,su1) <- simpGoals' s Map.empty (newOthers ++ others ++ apSubst su fins)
        case mb of
@@ -574,7 +649,7 @@ improveByDefaultingWith s as ps =
 
          -- Something went wrong, don't default.
          Left _ -> return (as,ps,su1 @@ su,[])
-
+-}
 
   classify leqs fins others (prop : more) =
       case tNoUser (goal prop) of
