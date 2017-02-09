@@ -12,6 +12,7 @@
 module Cryptol.TypeCheck.Solver.Numeric.Fin where
 
 import Data.Map (Map)
+import qualified Data.Map as Map
 
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.Solver.Types
@@ -28,6 +29,9 @@ cryIsFin varInfo p =
 cryIsFinType :: Map TVar Interval -> Type -> Solved
 cryIsFinType varInfo ty =
   case tNoUser ty of
+
+    TVar x | Just i <- Map.lookup x varInfo
+           , iIsFin i -> SolvedIf []
 
     TCon (TC tc) [] | TCNum _ <- tc -> SolvedIf []
 
