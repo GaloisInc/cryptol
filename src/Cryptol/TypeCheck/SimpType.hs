@@ -53,6 +53,8 @@ tAdd x y
                              guard (b == y)
                              return a) = v
 
+  | Just v <- matchMaybe (factor <|> same <|> swapVars) = v
+
   | otherwise           = tf2 TCAdd x y
   where
   isSumK t = case tNoUser t of
@@ -63,7 +65,31 @@ tAdd x y
 
   addK 0 t = t
   addK n t | Just (m,b) <- isSumK t = tf2 TCAdd (tNum (n + m)) b
+           | Just v <- matchMaybe
+                     $ do (a,b) <- (|-|) t
+                          (do m <- aNat b
+                              return $ case compare n m of
+                                         GT -> tAdd (tNum (n-m)) a
+                                         EQ -> a
+                                         LT -> tSub a (tNum (m-n)))
+                            <|>
+                            (do m <- aNat a
+                                return (tSub (tNum (m+n)) b))
+                      = v
            | otherwise              = tf2 TCAdd (tNum n) t
+
+  factor = do (a,b1)  <- aMul x
+              (a',b2) <- aMul y
+              guard (a == a')
+              return (tMul a (tAdd b1 b2))
+
+  same = do guard (x == y)
+            return (tMul (tNum (2 :: Int)) x)
+
+  swapVars = do a <- aTVar x
+                b <- aTVar y
+                guard (b < a)
+                return (tf2 TCAdd y x)
 
 tSub :: Type -> Type -> Type
 tSub x y
@@ -97,6 +123,7 @@ tMul x y
   | Just t <- tOp TCMul (total (op2 nMul)) [x,y] = t
   | Just n <- tIsNum x  = mulK n y
   | Just n <- tIsNum y  = mulK n x
+  | Just v <- matchMaybe swapVars = v
   | otherwise           = tf2 TCMul x y
   where
   mulK 0 _ = tNum (0 :: Int)
@@ -113,6 +140,13 @@ tMul x y
 
            | otherwise = tf2 TCMul (tNum n) t
     where t' = tNoUser t
+
+  swapVars = do a <- aTVar x
+                b <- aTVar y
+                guard (b < a)
+                return (tf2 TCMul y x)
+
+
 
 tDiv :: Type -> Type -> Type
 tDiv x y
@@ -143,10 +177,17 @@ tMin x y
   | Just t <- tOp TCMin (total (op2 nMin)) [x,y] = t
   | Just n <- tIsNat' x = minK n y
   | Just n <- tIsNat' y = minK n x
+  | Just n <- matchMaybe (minPlusK x y <|> minPlusK y x) = n
   | x == y              = x
   -- XXX: min (k + t) t -> t
   | otherwise           = tf2 TCMin x y
   where
+  minPlusK a b = do (l,r) <- anAdd a
+                    k     <- aNat l
+                    guard (k >= 1 && b == r)
+                    return b
+
+
   minK Inf t      = t
   minK (Nat 0) _  = tNum (0 :: Int)
   minK (Nat k) t
@@ -234,8 +275,10 @@ tOp tf f ts
   where
   err xs = TCErrorMessage $
               "Invalid applicatoin of " ++ show (pp tf) ++ " to " ++
-                  unwords (map show xs)
+                  unwords (map ppIN xs)
 
+  ppIN Inf = "inf"
+  ppIN (Nat x) = show x
 
 
 

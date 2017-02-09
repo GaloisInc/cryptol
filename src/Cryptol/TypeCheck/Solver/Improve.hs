@@ -54,6 +54,7 @@ improveEq impSkol fins prop =
        guard (v `Set.notMember` fvs other)
        return (singleSubst v (Mk.tSub other s), [ other >== s ])
 
+
   isSum t = do (v,s) <- matches t (anAdd, aTVar, __)
                valid v s
         <|> do (s,v) <- matches t (anAdd, __, aTVar)

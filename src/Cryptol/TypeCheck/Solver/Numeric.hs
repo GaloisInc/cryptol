@@ -17,14 +17,16 @@ import Cryptol.TypeCheck.SimpType
 
 
 cryIsEqual :: Ctxt -> Type -> Type -> Solved
-cryIsEqual _ t1 t2 =
+cryIsEqual ctxt t1 t2 =
   matchDefault Unsolved $
         (pBin PEqual (==) t1 t2)
-    <|> (aNat' t1 >>= tryEqK t2)
-    <|> (aNat' t2 >>= tryEqK t1)
+    <|> (aNat' t1 >>= tryEqK ctxt t2)
+    <|> (aNat' t2 >>= tryEqK ctxt t1)
     <|> (aTVar t1 >>= tryEqVar t2)
     <|> (aTVar t2 >>= tryEqVar t1)
     <|> ( guard (t1 == t2) >> return (SolvedIf []))
+    <|> tryEqMin t1 t2
+    <|> tryEqMin t2 t1
 
 
 
@@ -36,6 +38,7 @@ cryIsGeq i t1 t2 =
   matchDefault Unsolved $
         (pBin PGeq (>=) t1 t2)
     <|> (aNat' t1 >>= tryGeqKThan i t2)
+    <|> (aNat' t2 >>= tryGeqThanK i t1)
     <|> (aTVar t2 >>= tryGeqThanVar i t1)
     <|> tryGeqThanSub i t1 t2
     <|> (geqByInterval i t1 t2)
@@ -73,6 +76,17 @@ tryGeqKThan _ ty (Nat n) =
                 Nat 0 -> []
                 Nat k -> [ tNum (div n k) >== b ]
 
+tryGeqThanK :: Ctxt -> Type -> Nat' -> Match Solved
+tryGeqThanK _ t Inf = return (SolvedIf [ t =#= tInf ])
+tryGeqThanK _ t (Nat k) =
+  do (a,b) <- anAdd t
+     n     <- aNat a
+     return $ SolvedIf $ if n >= k
+                            then []
+                            else [ b >== tNum (k - n) ]
+
+
+
 tryGeqThanSub :: Ctxt -> Type -> Type -> Match Solved
 tryGeqThanSub _ x y =
   do (a,_) <- (|-|) y
@@ -97,6 +111,13 @@ geqByInterval ctxt x y =
 
 --------------------------------------------------------------------------------
 
+
+tryEqMin :: Type -> Type -> Match Solved
+tryEqMin x y =
+  do (a,b) <- aMin x
+     let check m1 m2 = do guard (m1 == y)
+                          return $ SolvedIf [ m2 >== m1 ]
+     check a b <|> check b a
 
 
 tryEqVar :: Type -> TVar -> Match Solved
@@ -135,9 +156,14 @@ tryEqVar ty x =
 
 
 -- e.g., 10 = t
-tryEqK :: Type -> Nat' -> Match Solved
-tryEqK ty lk =
-
+tryEqK :: Ctxt -> Type -> Nat' -> Match Solved
+tryEqK ctxt ty lk =
+  do guard (lk == Inf)
+     (a,b) <- anAdd ty
+     let check x y = do guard (iIsFin (typeInterval ctxt x))
+                        return $ SolvedIf [ y =#= tInf ]
+     check a b <|> check b a
+  <|>
   do (rk, b) <- matches ty (anAdd, aNat', __)
      return $
        case nSub lk rk of

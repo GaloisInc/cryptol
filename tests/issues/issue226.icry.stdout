@@ -8,7 +8,7 @@ Type Synonyms
     type Char = [8]
     type String n = [n][8]
     type Word n = [n]
-    type lg2 n = width (max n 1 - 1)
+    type lg2 n = width (max 1 n - 1)
 
 Symbols
 =======
@@ -60,8 +60,8 @@ Symbols
                                                                   last == len) => [len][bits]
     fromTo : {first, last, bits} (fin last, fin bits, last >= first,
                                   bits >= width last) => [1 + (last - first)][bits]
-    groupBy : {each, parts, elem} (fin each) => [parts *
-                                                 each]elem -> [parts][each]elem
+    groupBy : {each, parts, elem} (fin each) => [each *
+                                                 parts]elem -> [parts][each]elem
     infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
     infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
     join : {parts, each, a} (fin each) => [parts][each]a -> [parts *
@@ -72,7 +72,8 @@ Symbols
     negate : {a} (Arith a) => a -> a
     pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
     pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
-    pmult : {a, b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 + a + b]
+    pmult : {a, b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 +
+                                                            (a + b)]
     random : {a} [256] -> a
     reverse : {a, b} (fin a) => [a]b -> [a]b
     split : {parts, each, a} (fin each) => [parts *
