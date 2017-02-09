@@ -239,14 +239,13 @@ iteWord c x y = mergeWord True c <$> x <*> y
 
 
 -- | Barrel-shifter algorithm. Takes a list of bits in big-endian order.
-shifter :: Monad m => (SBool -> a -> a -> m a) -> (a -> Integer -> m a) -> a -> [SBool] -> m a
+shifter :: Monad m => (SBool -> a -> a -> a) -> (a -> Integer -> m a) -> a -> [SBool] -> m a
 shifter mux op = go
   where
     go x [] = return x
     go x (b : bs) = do
       x' <- op x (2 ^ length bs)
-      y <- mux b x' x
-      go y bs
+      go (mux b x' x) bs
 
 logicShift :: String
            -> (SWord -> SWord -> SWord)
@@ -254,7 +253,7 @@ logicShift :: String
            -> Value
 logicShift nm wop reindex =
       nlam $ \_m ->
-      nlam $ \n ->
+      nlam $ \_n ->
       tlam $ \a ->
       VFun $ \xs -> return $
       VFun $ \y -> do
@@ -271,7 +270,7 @@ logicShift nm wop reindex =
                                              case reindex (Nat w) (toInteger i) shft of
                                                Nothing -> return $ bitLit False
                                                Just i' -> Seq.index bs (fromInteger i')
-                      BitsVal <$> shifter (\c x y -> return $ mergeBits True c x y) op (asBitsVal wv) idx_bits
+                      BitsVal <$> shifter (mergeBits True) op (asBitsVal wv) idx_bits
 
           VSeq w vs0  ->
              do idx_bits <- sequence $ Fold.toList $ asBitsVal idx
@@ -279,7 +278,7 @@ logicShift nm wop reindex =
                                    case reindex (Nat w) i shft of
                                      Nothing -> return $ zeroV a
                                      Just i' -> lookupSeqMap vs i'
-                VSeq w <$> shifter (\c x y -> return $ mergeSeqMap True c x y) op vs0 idx_bits
+                VSeq w <$> shifter (mergeSeqMap True) op vs0 idx_bits
 
           VStream vs0 ->
              do idx_bits <- sequence $ Fold.toList $ asBitsVal idx
@@ -287,7 +286,7 @@ logicShift nm wop reindex =
                                    case reindex Inf i shft of
                                      Nothing -> return $ zeroV a
                                      Just i' -> lookupSeqMap vs i'
-                VStream <$> shifter (\c x y -> return $ mergeSeqMap True c x y) op vs0 idx_bits
+                VStream <$> shifter (mergeSeqMap True) op vs0 idx_bits
 
           _ -> evalPanic "expected sequence value in shift operation" [nm]
 

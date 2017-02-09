@@ -38,8 +38,8 @@ import           Prelude.Compat
 
 
 -- | One REPL invocation, either form a file or from the terminal.
-crySession :: Maybe FilePath -> REPL CommandExitCode
-crySession mbBatch =
+crySession :: Maybe FilePath -> Bool -> REPL CommandExitCode
+crySession mbBatch stopOnError =
   do settings <- io (setHistoryFile (replSettings isBatch))
      let act = runInputTBehavior behavior settings (withInterrupt loop)
      if isBatch then asBatch act else act
@@ -54,7 +54,7 @@ crySession mbBatch =
        case ln of
          NoMoreLines -> return CommandOk
          Interrupted
-           | isBatch   -> return CommandError
+           | isBatch && stopOnError -> return CommandError
            | otherwise -> loop
          NextLine line
            | all isSpace line -> loop
@@ -62,12 +62,12 @@ crySession mbBatch =
 
   doCommand txt =
     case parseCommand findCommandExact txt of
-      Nothing | isBatch   -> return CommandError
+      Nothing | isBatch && stopOnError  -> return CommandError
               | otherwise -> loop -- say somtething?
       Just cmd -> join $ MTL.lift $
         do status <- handleInterrupt (handleCtrlC CommandError) (runCommand cmd)
            case status of
-             CommandError | isBatch -> return (return status)
+             CommandError | isBatch && stopOnError -> return (return status)
              _ -> do goOn <- shouldContinue
                      return (if goOn then loop else return status)
 
@@ -99,22 +99,22 @@ loadCryRC cryrc =
        let file = dir </> ".cryptolrc"
        present <- io (doesFileExist file)
        if present
-         then crySession (Just file)
+         then crySession (Just file) True
          else check others
 
   loadMany []       = return CommandOk
-  loadMany (f : fs) = do status <- crySession (Just f)
+  loadMany (f : fs) = do status <- crySession (Just f) True
                          case status of
                            CommandOk -> loadMany fs
                            _         -> return status
 
 -- | Haskeline-specific repl implementation.
-repl :: Cryptolrc -> Maybe FilePath -> REPL () -> IO CommandExitCode
-repl cryrc mbBatch begin =
+repl :: Cryptolrc -> Maybe FilePath -> Bool -> REPL () -> IO CommandExitCode
+repl cryrc mbBatch stopOnError begin =
   runREPL (isJust mbBatch) $
   do status <- loadCryRC cryrc
      case status of
-       CommandOk -> begin >> crySession mbBatch
+       CommandOk -> begin >> crySession mbBatch stopOnError
        _         -> return status
 
 

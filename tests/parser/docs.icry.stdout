@@ -24,5 +24,7 @@ Test that doc strings work on property declarations
 
     (++) : {a} a -> a -> a
 
+Precedence 5, associates to the left.
+
 Test that doc strings work on fixity declarations
 

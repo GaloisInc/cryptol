@@ -1,3 +1,0 @@
-[submodule "external-libs/sbv"]
-	path = external-libs/sbv
-	url = https://github.com/yav/sbv.git
