@@ -207,7 +207,7 @@ tLenFromThen x y z
 
 tLenFromThenTo :: Type -> Type -> Type -> Type
 tLenFromThenTo x y z
-  | Just t <- tOp TCLenFromThen (op3 nLenFromThen) [x,y,z] = t
+  | Just t <- tOp TCLenFromThenTo (op3 nLenFromThenTo) [x,y,z] = t
   | otherwise = tf3 TCLenFromThenTo x y z
 
 total :: ([Nat'] -> Nat') -> ([Nat'] -> Maybe Nat')
