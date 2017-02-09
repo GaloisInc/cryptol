@@ -53,6 +53,7 @@ data Options = Options
   , optColorMode       :: ColorMode
   , optCryptolrc       :: Cryptolrc
   , optCryptolPathOnly :: Bool
+  , optStopOnError     :: Bool
   } deriving (Show)
 
 defaultOptions :: Options
@@ -65,12 +66,16 @@ defaultOptions  = Options
   , optColorMode       = AutoColor
   , optCryptolrc       = CryrcDefault
   , optCryptolPathOnly = False
+  , optStopOnError     = False
   }
 
 options :: [OptDescr (OptParser Options)]
 options  =
   [ Option "b" ["batch"] (ReqArg setBatchScript "FILE")
     "run the script provided and exit"
+
+  , Option "e" ["stop-on-error"] (NoArg setStopOnError)
+    "stop script execution as soon as an error occurs."
 
   , Option "c" ["command"] (ReqArg addCommand "COMMAND")
     (concat [ "run the given command and then exit; if multiple --command "
@@ -108,6 +113,10 @@ addFile path = modify $ \ opts -> opts { optLoad = [ path ] }
 addCommand :: String -> OptParser Options
 addCommand cmd =
   modify $ \ opts -> opts { optCommands = cmd : optCommands opts }
+
+-- | Stop script (batch mode) execution on first error.
+setStopOnError :: OptParser Options
+setStopOnError = modify $ \opts -> opts { optStopOnError = True }
 
 -- | Set a batch script to be run.
 setBatchScript :: String -> OptParser Options
@@ -198,8 +207,9 @@ main  = do
       | otherwise       -> do
           (opts', mCleanup) <- setupCmdScript opts
           status <- repl (optCryptolrc opts')
-                      (optBatch opts')
-                      (setupREPL opts')
+                         (optBatch opts')
+                         (optStopOnError opts')
+                         (setupREPL opts')
           case mCleanup of
             Nothing -> return ()
             Just cmdFile -> removeFile cmdFile
