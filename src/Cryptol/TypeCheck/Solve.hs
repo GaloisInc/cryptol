@@ -198,13 +198,13 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
   where
   (asmps,gs) =
     case matchMaybe (improveProps True Map.empty asmps0) of
-     Nothing -> (asmps0,gs0)
-     Just (newSu,newAsmps) ->
-        ( [ TVar x =#= t | (x,t) <- substToList newSu ]
-          ++ newAsmps
-        , [ g { goal = apSubst newSu (goal g) } | g <- gs0
-          , not (goal g `elem` asmps0) ]
-        )
+      Nothing -> (asmps0,gs0)
+      Just (newSu,newAsmps) ->
+         ( [ TVar x =#= t | (x,t) <- substToList newSu ]
+           ++ newAsmps
+         , [ g { goal = apSubst newSu (goal g) } | g <- gs0
+           , not (goal g `elem` asmps0) ]
+         )
 
 
 cleanupError :: Error -> Error
