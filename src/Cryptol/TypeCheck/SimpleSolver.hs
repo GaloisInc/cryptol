@@ -1,17 +1,11 @@
 {-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.SimpleSolver ( simplify , simplifyStep) where
 
-import Data.Map(Map)
-import Control.Monad(msum)
-
 import Cryptol.TypeCheck.Type hiding
   ( tAdd, tSub, tMul, tDiv, tMod, tExp, tMin, tMax, tWidth
   , tLenFromThen, tLenFromThenTo)
-import Cryptol.TypeCheck.PP(pp)
 import Cryptol.TypeCheck.Solver.Types
-import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.TypeCheck.Solver.Numeric.Fin(cryIsFinType)
-import Cryptol.TypeCheck.Solver.Numeric.Interval(Interval)
 import Cryptol.TypeCheck.Solver.Numeric(cryIsEqual, cryIsNotEqual, cryIsGeq)
 import Cryptol.TypeCheck.Solver.Class(solveArithInst,solveCmpInst)
 

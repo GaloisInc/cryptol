@@ -15,8 +15,6 @@ module Cryptol.TypeCheck.Solve
   , wfTypeFunction
   , improveByDefaultingWith
   , defaultReplExpr
-  , simpType
-  , simpTypeMaybe
   ) where
 
 import           Cryptol.Parser.Position (emptyRange)
@@ -42,13 +40,12 @@ import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
 import           Cryptol.Utils.PP (text,vcat,nest, ($$), (<+>))
 import           Cryptol.Utils.Panic(panic)
-import           Cryptol.Utils.Misc(anyJust)
 import           Cryptol.Utils.Patterns(matchMaybe)
 
 import           Control.Monad (unless, guard, mzero)
 import           Control.Applicative ((<|>))
 import           Data.Either(partitionEithers)
-import           Data.Maybe(catMaybes, fromMaybe)
+import           Data.Maybe(catMaybes)
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Set ( Set )
@@ -89,7 +86,7 @@ wfType t =
 
 
 quickSolverIO :: Ctxt -> [Goal] -> IO (Either Goal (Subst,[Goal]))
-quickSolverIO ctxt [] = return (Right (emptySubst, []))
+quickSolverIO _ [] = return (Right (emptySubst, []))
 quickSolverIO ctxt gs =
   case quickSolver ctxt gs of
     Left err ->
@@ -99,12 +96,13 @@ quickSolverIO ctxt gs =
       do msg (vcat (map (pp . goal) gs' ++ [pp su]))
          return (Right (su,gs'))
   where
+  msg _ = return ()
+{-
   shAsmps = case [ pp x <+> text "in" <+> ppInterval i |
                (x,i) <- Map.toList ctxt ] of
               [] -> text ""
               xs -> text "ASMPS:" $$ nest 2 (vcat xs $$ text "===")
-  msg _ = return ()
-  {- msg d = putStrLn $ show (
+  msg d = putStrLn $ show (
              text "quickSolver:" $$ nest 2 (vcat
                 [ shAsmps
                 , vcat (map (pp.goal) gs)
@@ -154,12 +152,9 @@ simplifyAllConstraints =
      case gs of
        [] -> return ()
        _ ->
-         do solver <- getSolver
-            (mb,su) <- io (simpGoals' solver Map.empty gs)
-            extendSubst su
-            case mb of
-              Right gs1  -> addGoals gs1
-              Left badGs -> mapM_ (recordError . UnsolvedGoal True) badGs
+        case quickSolver Map.empty gs of
+          Left badG      -> recordError (UnsolvedGoal True badG)
+          Right (su,gs1) -> extendSubst su >> addGoals gs1
 
 
 proveImplication :: Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
@@ -189,7 +184,8 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
        Left err -> return (Left (UnsolvedGoal True err), emptySubst)
        Right (su,[]) -> return (Right [], su)
        Right (su,gs1) ->
-         do (res3,su1) <- proveImplicationIO' s f varsInEnv ps asmps gs1
+         do (res3,su1) <- proveImplicationWithExtSolver
+                                              s f varsInEnv ps asmps gs1
             case res3 of
               Left err -> return (Left (cleanupError err), emptySubst)
               Right ws -> return (Right ws, su1 @@ su)
@@ -221,15 +217,16 @@ cleanupError err =
 
 
 
-proveImplicationIO' :: Num.Solver
-                   -> Name     -- ^ Checking this function
-                   -> Set TVar -- ^ These appear in the env., and we should
-                               -- not try to default the
-                   -> [TParam] -- ^ Type parameters
-                   -> [Prop]   -- ^ Assumed constraint
-                   -> [Goal]   -- ^ Collected constraints
-                   -> IO (Either Error [Warning], Subst)
-proveImplicationIO' s lname varsInEnv as ps gs =
+proveImplicationWithExtSolver
+  :: Num.Solver
+  -> Name     -- ^ Checking this function
+  -> Set TVar -- ^ These appear in the environment, and we should
+              -- not try to default the
+  -> [TParam] -- ^ Type parameters
+  -> [Prop]   -- ^ Assumed constraint
+  -> [Goal]   -- ^ Collected constraints
+  -> IO (Either Error [Warning], Subst)
+proveImplicationWithExtSolver s lname varsInEnv as ps gs =
   debugBlock s "proveImplicationIO" $
 
   do debugBlock s "assumes" (debugLog s ps)
@@ -334,13 +331,6 @@ The plan:
 -}
 
 simpGoals' :: Num.Solver -> Ctxt -> [Goal] -> IO (Either [Goal] [Goal], Subst)
-simpGoals' s asmps gs =
-  do res <- quickSolverIO asmps gs
-     case res of
-       Left err      -> return (Left [err], emptySubst)
-       Right (su,gs) -> return (Right gs, su)
-
-
 simpGoals' s asmps gs0 = go emptySubst [] (wellFormed gs0 ++ gs0)
   where
   -- Assumes that the well-formed constraints are themselves well-formed.
@@ -614,34 +604,6 @@ improveByDefaultingWithPure as ps =
        )
 
 
-
-{-
-       -- Do this to simplify the instantiated "fin" constraints.
-       (mb,su1) <- simpGoals' s Map.empty (newOthers ++ others ++ apSubst su fins)
-       case mb of
-         Right gs1 ->
-           let warn (x,t) =
-                 case x of
-                   TVFree _ _ _ d -> DefaultingTo d t
-                   TVBound {} -> panic "Crypto.TypeCheck.Infer"
-                     [ "tryDefault attempted to default a quantified variable."
-                     ]
-
-               newSu = su1 @@ su     -- XXX: is that right?
-               names = substBinds newSu
-
-            in return ( [ a | a <- as, not (a `Set.member` names) ]
-                      , gs1
-                      , newSu
-                      , map warn defs
-                      )
-
-
-
-         -- Something went wrong, don't default.
-         Left _ -> return (as,ps,su1 @@ su,[])
--}
-
   classify leqs fins others (prop : more) =
       case tNoUser (goal prop) of
 
@@ -750,31 +712,5 @@ tryGetModel ::
 tryGetModel s xs ps =
   -- We are only interested in finite instantiations
   Num.getModel s (map (pFin . TVar) xs ++ ps)
-
---------------------------------------------------------------------------------
-
-simpType :: Type -> Type
-simpType ty = fromMaybe ty (simpTypeMaybe ty)
-
-
-
-simpTypeMaybe :: Type -> Maybe Type
-simpTypeMaybe ty =
-  case ty of
-    TCon c ts ->
-      case c of
-        TF {}    -> do e  <- Num.exportType ty
-                       e1 <- Num.crySimpExprMaybe e
-                       Num.importType e1
-
-        _        -> TCon c `fmap` anyJust simpTypeMaybe ts
-
-    TVar _       -> Nothing
-    TUser x ts t -> TUser x ts `fmap` simpTypeMaybe t
-    TRec fs      ->
-      do let (ls,ts) = unzip fs
-         ts' <- anyJust simpTypeMaybe ts
-         return (TRec (zip ls ts'))
-
 
 

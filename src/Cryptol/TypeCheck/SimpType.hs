@@ -10,12 +10,14 @@ import Control.Monad(msum,guard)
 import Cryptol.TypeCheck.PP(pp)
 
 
-tRebuild :: Type -> Type
-tRebuild = go
+tRebuild' :: Bool -> Type -> Type
+tRebuild' withUser = go
   where
   go ty =
     case ty of
-      TUser x xs t -> TUser x xs (go t)
+      TUser x xs t
+        | withUser  -> TUser x xs (go t)
+        | otherwise -> go t
       TVar _       -> ty
       TRec xs      -> TRec [ (x,go y) | (x,y) <- xs ]
       TCon tc ts ->
@@ -35,6 +37,9 @@ tRebuild = go
               (TCLenFromThenTo,[x,y,z]) -> tLenFromThenTo x y z
               _ -> TCon tc ts
           (_,ts') -> TCon tc ts'
+
+tRebuild :: Type -> Type
+tRebuild = tRebuild' True
 
 -- Normal: constants to the left
 tAdd :: Type -> Type -> Type
