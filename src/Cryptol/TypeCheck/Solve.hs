@@ -191,32 +191,10 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
        Right (su,gs1) ->
          do (res3,su1) <- proveImplicationIO' s f varsInEnv ps asmps gs1
             case res3 of
-              Left err -> return (Left err, emptySubst)
+              Left err -> return (Left (cleanupError err), emptySubst)
               Right ws -> return (Right ws, su1 @@ su)
 
 
-{-
-
-          -- try to default
-          do let vs    = Set.filter isFreeTV $ fvs $ map goal gs1
-                 dVars = Set.toList (vs `Set.difference` varsInEnv)
-                 (_,gs2,su2,ws) = improveByDefaultingWithPure dVars gs1
-             res2 <- quickSolverIO ctxt gs2
-             case res of
-               Left err -> return (Left (UnsolvedGoal True err), emptySubst)
-               Right (su3,[]) -> return (Right ws, su3 @@ su2)
-
-               -- Fall back to clunky solver
-               Right (su3,g:_) ->
-                 return (Left (UnsolvedGoal False g), emptySubst)
-
-               Right (su3,gs3) ->
-                 do (res3,su4) <- proveImplicationIO' s f varsInEnv ps asmps0 gs3
-                    case res3 of
-                      Left err -> return (Left err, su4 @@ su3)
-                      Right ws' -> return (Right (ws ++ ws'), su4 @@ su3)
-
--}
   where
   (asmps,gs) =
     case matchMaybe (improveProps True Map.empty asmps0) of
@@ -227,6 +205,19 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
         , [ g { goal = apSubst newSu (goal g) } | g <- gs0
           , not (goal g `elem` asmps0) ]
         )
+
+
+cleanupError :: Error -> Error
+cleanupError err =
+  case err of
+    UnsolvedDelayedCt d ->
+      let noInferVars = Set.null . Set.filter isFreeTV . fvs . goal
+          without = filter noInferVars (dctGoals d)
+      in UnsolvedDelayedCt $
+            if not (null without) then d { dctGoals = without } else d
+
+    _ -> err
+
 
 
 
