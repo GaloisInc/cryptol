@@ -35,10 +35,9 @@ import           Cryptol.TypeCheck.Solver.Improve(improveProp,improveProps)
 import           Cryptol.TypeCheck.Solver.Numeric.Interval
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
-import qualified Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
 import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
-import           Cryptol.Utils.PP (text,vcat,nest, ($$), (<+>))
+import           Cryptol.Utils.PP (text,vcat,(<+>))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Patterns(matchMaybe)
 
@@ -401,7 +400,7 @@ solveConstraints s asmps otherGs gs0 =
   ctxt0 = assumptionIntervals asmps (map goal otherGs)
 
 
-  go ctxt unsolved [] =
+  go _ unsolved [] =
     do let (cs,nums) = partitionEithers (map Num.numericRight unsolved)
        nums' <- solveNumerics s otherNumerics nums
        return (Right (cs ++ nums'))
@@ -559,7 +558,8 @@ improveByDefaultingWith s as gs =
          case res of
            Left err ->
              panic "improveByDefaultingWith"
-                    [ "Defaulting resulted in unsolvable constraints." ]
+                    [ "Defaulting resulted in unsolvable constraints."
+                    , show err ]
            Right gs'' ->
              do let su2 = su1 @@ su
                     isDef x = x `Set.member` substBinds su2
