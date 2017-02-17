@@ -14,7 +14,7 @@ Build-type:          Simple
 Cabal-version:       >= 1.18
 extra-source-files:  bench/data/*.cry
 
-data-files:          *.cry Cryptol/*.cry
+data-files:          *.cry Cryptol/*.cry *.z3
 data-dir:            lib
 
 source-repository head
@@ -63,7 +63,7 @@ library
                        random            >= 1.0.1,
                        sbv               >= 5.15,
                        smtLib            >= 1.0.7,
-                       simple-smt        >= 0.6.0,
+                       simple-smt        >= 0.7.0,
                        syb               >= 0.4,
                        text              >= 1.1,
                        template-haskell,
@@ -127,6 +127,7 @@ library
                        Cryptol.TypeCheck.Sanity,
 
                        Cryptol.TypeCheck.Solver.Types,
+                       Cryptol.TypeCheck.Solver.SMT,
                        Cryptol.TypeCheck.Solver.InfNat,
                        Cryptol.TypeCheck.Solver.Class,
                        Cryptol.TypeCheck.Solver.Selector,

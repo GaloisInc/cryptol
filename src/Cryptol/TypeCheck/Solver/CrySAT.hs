@@ -21,6 +21,8 @@ module Cryptol.TypeCheck.Solver.CrySAT
   , DebugLog(..)
   , knownDefined, numericRight
   , minimizeContradictionSimpDef
+  , loadFile
+  , rawSolver
   ) where
 
 import qualified Cryptol.TypeCheck.AST as Cry
@@ -282,6 +284,19 @@ data Solver = Solver
     -- ^ For debugging
   }
 
+loadFile :: Solver -> FilePath -> IO ()
+loadFile s file = do -- txt <- readFile file
+                     -- mapM_ putStrLn (lines txt)
+                     go =<< readFile file
+  where
+  go txt = case SMT.readSExpr txt of
+             Just (e,rest) -> SMT.command (solver s) e >> go rest
+             Nothing       -> return ()
+
+rawSolver :: Solver -> SMT.Solver
+rawSolver = solver
+
+
 
 -- | Keeps track of declared variables and non-linear terms.
 data VarInfo = VarInfo
@@ -418,7 +433,7 @@ withSolver SolverConfig { .. } k =
      let smtDbg = if solverVerbose > 1 then Just logger else Nothing
      solver <- SMT.newSolver solverPath solverArgs smtDbg
      _ <- SMT.setOptionMaybe solver ":global-decls" "false"
-     SMT.setLogic solver "QF_LIA"
+     -- SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty
      a <- k Solver { .. }
      _ <- SMT.stop solver

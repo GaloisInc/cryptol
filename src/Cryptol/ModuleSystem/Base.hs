@@ -434,6 +434,7 @@ genInferInput r prims env = do
   monoBinds <- getMonoBinds
   cfg <- getSolverConfig
   supply <- getSupply
+  searchPath <- getSearchPath
 
   -- TODO: include the environment needed by the module
   return T.InferInput
@@ -444,6 +445,7 @@ genInferInput r prims env = do
     , T.inpNameSeeds = seeds
     , T.inpMonoBinds = monoBinds
     , T.inpSolverConfig = cfg
+    , T.inpSearchPath = searchPath
     , T.inpSupply    = supply
     , T.inpPrimNames = prims
     }

@@ -17,7 +17,6 @@ module Cryptol.TypeCheck.Solve
   , defaultReplExpr
   ) where
 
-import           Cryptol.Parser.Position (emptyRange)
 import           Cryptol.TypeCheck.PP(pp)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
@@ -31,17 +30,18 @@ import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import           Cryptol.TypeCheck.SimpType(tMax)
 
 
+import           Cryptol.TypeCheck.Solver.SMT(proveImp)
 import           Cryptol.TypeCheck.Solver.Improve(improveProp,improveProps)
 import           Cryptol.TypeCheck.Solver.Numeric.Interval
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
 import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
 import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
-import           Cryptol.TypeCheck.Solver.CrySAT (debugBlock, DebugLog(..))
+import           Cryptol.TypeCheck.Solver.CrySAT
 import           Cryptol.Utils.PP (text,vcat,(<+>))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Patterns(matchMaybe)
 
-import           Control.Monad (unless, guard, mzero)
+import           Control.Monad (guard, mzero)
 import           Control.Applicative ((<|>))
 import           Data.Either(partitionEithers)
 import           Data.Maybe(catMaybes)
@@ -180,26 +180,49 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
   do let ctxt = assumptionIntervals Map.empty asmps
      res <- quickSolverIO ctxt gs
      case res of
-       Left err -> return (Left (UnsolvedGoal True err), emptySubst)
+       Left bad -> return (Left (UnsolvedGoal True bad), emptySubst)
        Right (su,[]) -> return (Right [], su)
        Right (su,gs1) ->
-         do (res3,su1) <- proveImplicationWithExtSolver
-                                              s f varsInEnv ps asmps gs1
-            case res3 of
-              Left err -> return (Left (cleanupError err), emptySubst)
-              Right ws -> return (Right ws, su1 @@ su)
-
-
+         do gs2 <- proveImp s asmps gs1
+            case gs2 of
+              [] -> return (Right [], su)
+              gs3 ->
+                do let free = Set.toList
+                            $ Set.difference (fvs (map goal gs3)) varsInEnv
+                   case improveByDefaultingWithPure free gs3 of
+                     (_,_,newSu,_)
+                        | isEmptySubst newSu -> return (err gs3, su) -- XXX: Old?
+                     (_,newGs,newSu,ws) ->
+                       do let su1 = newSu @@ su
+                          (res1,su2) <- proveImplicationIO s f varsInEnv ps
+                                                 (apSubst su1 asmps0) newGs
+                          let su3 = su2 @@ su1
+                          case res1 of
+                            Left bad -> return (Left bad, su3)
+                            Right ws1 -> return (Right (ws++ws1),su3)
   where
+  err us =  Left $ cleanupError
+                 $ UnsolvedDelayedCt
+                 $ DelayedCt { dctSource = f
+                              , dctForall = ps
+                              , dctAsmps  = asmps0
+                              , dctGoals  = us
+                              }
+
+
+
   (asmps,gs) =
-    case matchMaybe (improveProps True Map.empty asmps0) of
-      Nothing -> (asmps0,gs0)
-      Just (newSu,newAsmps) ->
-         ( [ TVar x =#= t | (x,t) <- substToList newSu ]
-           ++ newAsmps
-         , [ g { goal = apSubst newSu (goal g) } | g <- gs0
-           , not (goal g `elem` asmps0) ]
-         )
+     let gs1 = [ g { goal = p } | g <- gs0, p <- pSplitAnd (goal g)
+                                , notElem p asmps0 ]
+     in case matchMaybe (improveProps True Map.empty asmps0) of
+          Nothing -> (asmps0,gs1)
+          Just (newSu,newAsmps) ->
+             ( [ TVar x =#= t | (x,t) <- substToList newSu ]
+               ++ newAsmps
+             , [ g { goal = apSubst newSu (goal g) } | g <- gs1 ]
+             )
+
+
 
 
 cleanupError :: Error -> Error
@@ -216,118 +239,7 @@ cleanupError err =
 
 
 
-proveImplicationWithExtSolver
-  :: Num.Solver
-  -> Name     -- ^ Checking this function
-  -> Set TVar -- ^ These appear in the environment, and we should
-              -- not try to default the
-  -> [TParam] -- ^ Type parameters
-  -> [Prop]   -- ^ Assumed constraint
-  -> [Goal]   -- ^ Collected constraints
-  -> IO (Either Error [Warning], Subst)
-proveImplicationWithExtSolver s lname varsInEnv as ps gs =
-  debugBlock s "proveImplicationIO" $
 
-  do debugBlock s "assumes" (debugLog s ps)
-     debugBlock s "shows"   (debugLog s gs)
-     debugLog s "1. ------------------"
-
-
-     _simpPs <- Num.assumeProps s ps
-
-     mbImps <- Num.check s
-     debugLog s "2. ------------------"
-
-
-     case mbImps of
-
-       Nothing ->
-         do debugLog s "(contradiction in assumptions)"
-            return (Left $ UnusableFunction lname ps, emptySubst)
-
-       Just (imps,extra) ->
-         do let su  = importImps imps
-                gs0 = apSubst su gs
-
-            debugBlock s "improvement from assumptions:" $ debugLog s su
-
-            let (scs,invalid) = importSideConds extra
-            unless (null invalid) $
-              panic "proveImplicationIO" ( "Unable to import all side conditions:"
-                                              : map (show . Num.ppProp) invalid )
-
-            let gs1 = filter ((`notElem` ps) . goal) gs0
-
-            debugLog s "3. ---------------------"
-            let ctxt = assumptionIntervals Map.empty ps
-            (mb,su1) <- simpGoals' s ctxt (scs ++ gs1)
-
-            case mb of
-              Left badGs  -> reportUnsolved badGs (su1 @@ su)
-              Right []    -> return (Right [], su1 @@ su)
-
-              Right us ->
-                 -- Last hope: try to default stuff
-                 do let vs    = Set.filter isFreeTV $ fvs $ map goal us
-                        dVars = Set.toList (vs `Set.difference` varsInEnv)
-                    -- (_,us1,su2,ws) <- improveByDefaultingWith s dVars us
-                        (_,us1,su2,ws) = improveByDefaultingWithPure dVars us
-
-                    Right (su3,us2) <- quickSolverIO ctxt us1
-
-                    case us2 of
-                       [] -> return (Right ws, su3 @@ su2 @@ su1 @@ su)
-                       _  -> reportUnsolved us1 (su3 @@ su2 @@ su1 @@ su)
-  where
-  reportUnsolved us su =
-    return ( Left $ UnsolvedDelayedCt
-                  $ DelayedCt { dctSource = lname
-                              , dctForall = as
-                              , dctAsmps  = ps
-                              , dctGoals  = us
-                              }, su)
-
-
-
-
-
-{- Constraints and satisfiability:
-
-  1. [Satisfiable] A collection of constraints is _satisfiable_, if there is an
-     assignment for the variables that make all constraints true.
-
-  2. [Valid] If a constraint is satisfiable for any assignment of its free
-     variables, then it is _valid_, and may be ommited.
-
-  3. [Partial] A constraint may _partial_, which means that under some
-     assignment it is neither true nor false.  For example:
-     `x - y > 5` is true for `{ x = 15, y = 3 }`, it is false for
-     `{ x = 5, y = 4 }`, and it is neither for `{ x = 1, y = 2 }`.
-
-     Note that constraints that are always true or undefined are NOT
-     valid, as there are assignemntes for which they are not true.
-     An example of such constraint is `x - y >= 0`.
-
-  4. [Provability] Instead of thinking of three possible values for
-     satisfiability (i.e., true, false, and unknown), we could instead
-     think of asking: "Is constraint C provable".  This essentailly
-     maps "true" to "true", and "false,unknown" to "false", if we
-     treat constraints with malformed parameters as unprovable.
--}
-
-
-{-
-The plan:
-  1. Start with a set of constraints, CS
-  2. Compute its well-defined closure, DS.
-  3. Simplify constraints: evaluate terms in constraints as much as possible
-  4. Solve: eliminate constraints that are true
-  5. Check for consistency
-  6. Compute improvements
-  7. For each type in the improvements, add well-defined constraints
-  8. Instantiate constraints with substitution
-  9. Goto 3
--}
 
 simpGoals' :: Num.Solver -> Ctxt -> [Goal] -> IO (Either [Goal] [Goal], Subst)
 simpGoals' s asmps gs0 = go emptySubst [] (wellFormed gs0 ++ gs0)
@@ -487,29 +399,6 @@ importSplitImps = mk . partitionEithers . map imp . Map.toList
                 time to "improve" them. -}
 
                 _ -> Left Nothing
-
-
-
--- | Import an improving substitution into a Cryptol substitution.
--- The substitution will contain both unification and skolem variables,
--- so this should be used when processing *givens*.
-importImps :: Map Num.Name Num.Expr -> Subst
-importImps = listSubst . map imp . Map.toList
-  where
-  imp (x,e) = case (x, Num.importType e) of
-                (Num.UserName tv, Just ty) -> (tv,ty)
-                _ -> panic "importImps" [ "Failed to import:", show x, show e ]
-
-
-
-importSideConds :: [Num.Prop] -> ([Goal],[Num.Prop])
-importSideConds = go [] []
-  where
-  go ok bad []     = ([ Goal CtImprovement emptyRange g | g <- ok], bad)
-  go ok bad (p:ps) = case Num.importProp p of
-                       Just p' -> go (p' ++ ok)    bad  ps
-                       Nothing -> go        ok  (p:bad) ps
-
 
 
 

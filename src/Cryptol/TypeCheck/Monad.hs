@@ -41,6 +41,10 @@ import           MonadLib hiding (mapM)
 
 import           Data.IORef
 
+import           System.FilePath((</>))
+import           System.Directory(doesFileExist)
+
+
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
@@ -59,6 +63,8 @@ data InferInput = InferInput
                                       --   signatures be monomorphized?
 
   , inpSolverConfig :: SolverConfig   -- ^ Options for the constraint solver
+  , inpSearchPath :: [FilePath]
+    -- ^ Where to look for Cryptol theory file.
 
   , inpPrimNames :: !PrimMap          -- ^ The mapping from 'Ident' to 'Name',
                                       -- for names that the typechecker
@@ -96,7 +102,8 @@ bumpCounter = do RO { .. } <- IM ask
 
 runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
 runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
-  do coutner <- newIORef 0
+  do loadCryTCPrel solver (inpSearchPath info)
+     coutner <- newIORef 0
      rec ro <- return RO { iRange     = inpRange info
                      , iVars          = Map.map ExtVar (inpVars info)
                      , iTVars         = []
@@ -159,6 +166,14 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
 
   -- The actual order does not matter
   cmpRange (Range x y z) (Range a b c) = compare (x,y,z) (a,b,c)
+
+  loadCryTCPrel _ [] = panic "Failed to find file" [] -- return ()
+  loadCryTCPrel s (p : ps) =
+    do let file = p </> "CryptolTC.z3"
+       yes <- doesFileExist file
+       if yes then CrySAT.loadFile s file
+              else loadCryTCPrel s ps
+
 
 
 
