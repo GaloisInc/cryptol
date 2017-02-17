@@ -38,7 +38,7 @@ data Kind   = KType
 
 -- | The types of polymorphic values.
 data Schema = Forall { sVars :: [TParam], sProps :: [Prop], sType :: Type }
-              deriving (Show, Generic, NFData)
+              deriving (Eq, Show, Generic, NFData)
 
 -- | Type parameters.
 data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
