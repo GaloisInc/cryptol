@@ -92,23 +92,6 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
 
             | EProofApp Expr {- proof -}
 
-            {- | if e : t1, then cast e : t2
-                 as long as we can prove that 't1 = t2'.
-                 We could express this in terms of a built-in constant.
-                 `cast :: {a,b} (a =*= b) => a -> b`
-
-                 Using the constant is a bit verbose though, because we
-                 end up with both the source and target type. So, instead
-                 we use this language construct, which only stores the
-                 target type, and the source type can be reconstructed
-                 from the expression.
-
-                 Another way to think of this is simply as an expression
-                 with an explicit type annotation.
-              -}
-            | ECast Expr Type
-
-
             | EWhere Expr [DeclGroup]
 
               deriving (Show, Generic, NFData)
@@ -219,9 +202,6 @@ instance PP (WithNames Expr) where
 
       ETApp e t     -> optParens (prec > 3)
                     $ ppWP 3 e <+> ppWP 4 t
-
-      ECast e t     -> optParens (prec > 0)
-                     ( ppWP 2 e <+> text ":" <+> ppW t )
 
       EWhere e ds   -> optParens (prec > 0)
                      ( ppW e $$ text "where"

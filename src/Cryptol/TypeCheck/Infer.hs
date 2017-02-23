@@ -108,7 +108,8 @@ appTys expr ts tGoal =
            ExtVar s   -> instantiateWith (EVar x) s ts
            CurSCC e t -> instantiateWith e (Forall [] [] t) ts
 
-         checkHasType e' t tGoal
+         checkHasType t tGoal
+         return e'
 
     P.ELit l -> do e <- desugarLiteral False l
                    appTys e ts tGoal
@@ -147,7 +148,8 @@ appTys expr ts tGoal =
                   (ie,t) <- instantiateWith e' (Forall [] [] tGoal) ts
                   -- XXX seems weird to need to do this, as t should be the same
                   -- as tGoal
-                  checkHasType ie t tGoal
+                  checkHasType t tGoal
+                  return ie
 
 
 inferTyParam :: P.TypeInst Name -> InferM (Located (Maybe Ident, Type))
@@ -186,7 +188,8 @@ checkE expr tGoal =
            ExtVar s   -> instantiateWith (EVar x) s []
            CurSCC e t -> return (e, t)
 
-         checkHasType e' t tGoal
+         checkHasType t tGoal
+         return e'
 
     P.ELit l -> (`checkE` tGoal) =<< desugarLiteral False l
 
@@ -308,7 +311,8 @@ checkE expr tGoal =
     P.ETyped e t ->
       do tSig <- checkTypeOfKind t KType
          e'   <- checkE e tSig
-         checkHasType e' tSig tGoal
+         checkHasType tSig tGoal
+         return e'
 
     P.ETypeVal t ->
       do l <- curRange
@@ -455,12 +459,12 @@ expectFun  = go []
                       newType (text "argument" <+> ordinal ix) KType
 
 
-checkHasType :: Expr -> Type -> Type -> InferM Expr
-checkHasType e inferredType givenType =
+checkHasType :: Type -> Type -> InferM ()
+checkHasType inferredType givenType =
   do ps <- unify givenType inferredType
      case ps of
-       [] -> return e
-       _  -> newGoals CtExactType ps >> return (ECast e givenType)
+       [] -> return ()
+       _  -> newGoals CtExactType ps
 
 
 checkFun :: Doc -> [P.Pattern Name] -> P.Expr Name -> Type -> InferM Expr

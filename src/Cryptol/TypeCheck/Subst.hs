@@ -255,7 +255,6 @@ instance TVars Expr where
         ETApp e t     -> ETApp (go e) (apSubst su t)
         EProofAbs p e -> EProofAbs (apSubst su p) (go e)
         EProofApp e   -> EProofApp (go e)
-        ECast e t     -> ECast (go e) (apSubst su t)
 
         EVar {}       -> expr
 

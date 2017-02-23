@@ -318,12 +318,6 @@ exprSchema expr =
            (_,_)      -> reportError (BadProofTyVars as)
 
 
-    ECast e t ->
-      do checkTypeIs KType t
-         t1 <- exprType e
-         convertible t t1
-         return (tMono t)
-
     -- XXX: Check that defined things are disitnct?
     EWhere e dgs ->
       let go []       = exprSchema e

@@ -40,20 +40,20 @@ listType n =
      return (tSeq (tNum n) elems)
 
 
-improveSelector :: Selector -> Type -> InferM (Expr -> Expr)
+improveSelector :: Selector -> Type -> InferM ()
 improveSelector sel outerT =
   case sel of
     RecordSel _ mb -> cvt recordType mb
     TupleSel  _ mb -> cvt tupleType  mb
     ListSel   _ mb -> cvt listType   mb
   where
-  cvt _ Nothing   = return id
+  cvt _ Nothing   = return ()
   cvt f (Just a)  = do ty <- f a
                        cs <- unify ty outerT
                        case cs of
-                         [] -> return id
+                         [] -> return ()
                          _  -> do newGoals CtExactType cs
-                                  return (`ECast` ty)
+                                  return ()
 
 
 {- | Compute the type of a field based on the selector.
@@ -120,18 +120,17 @@ solveSelector sel outerT =
 tryHasGoal :: HasGoal -> InferM ()
 tryHasGoal has
   | TCon (PC (PHas sel)) [ th, ft ] <- goal (hasGoal has) =
-    do outerCast <- improveSelector sel th
+    do improveSelector sel th
        outerT    <- tNoUser `fmap` applySubst th
        mbInnerT  <- solveSelector sel outerT
        case mbInnerT of
          Nothing -> addHasGoal has
          Just innerT ->
            do cs <- unify innerT ft
-              innerCast <- case cs of
-                             [] -> return id
-                             _  -> do newGoals CtExactType cs
-                                      return (`ECast` ft)
-              solveHasGoal (hasName has) (innerCast . (`ESel` sel) . outerCast)
+              case cs of
+                [] -> return ()
+                _  -> newGoals CtExactType cs
+              solveHasGoal (hasName has) (`ESel` sel)
 
   | otherwise = panic "hasGoalSolved"
                   [ "Unexpected selector proposition:"

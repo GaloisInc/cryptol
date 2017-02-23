@@ -188,7 +188,6 @@ evalExpr env expr =
     EAbs n _ty b   -> VFun (\v -> evalExpr (bindVar (n, v) env) b)
     EProofAbs _ e  -> evalExpr env e
     EProofApp e    -> evalExpr env e
-    ECast e _ty    -> evalExpr env e
     EWhere e dgs   -> evalExpr (foldl evalDeclGroup env dgs) e
 
 

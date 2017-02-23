@@ -146,8 +146,6 @@ evalExpr env expr = case expr of
   EProofAbs _ e -> evalExpr env e
   EProofApp e   -> evalExpr env e
 
-  ECast e _ty -> evalExpr env e
-
   EWhere e ds -> {-# SCC "evalExpr->EWhere" #-} do
      env' <- evalDecls ds env
      evalExpr env' e

@@ -75,15 +75,11 @@ instantiateWithPos e (Forall as ps t) ts =
 The arguments that are provided will be instantiated as requested,
 the rest will be instantiated with fresh type variables.
 
-Note that we assume that type parameters are not normalized.
-Generally, the resulting expression will look something like this:
-
-ECast (EProofApp (ETApp e t)) t1
+EProofApp (ETApp e t)
 
   where
   - There will be one `ETApp t` for each insantiated type parameter;
   - there will be one `EProofApp` for each constraint on the schema;
-  - there will be `ECast` if we had equality constraints from normalization.
 -}
 instantiateWithNames :: Expr -> Schema -> [Located (Ident,Type)]
                      -> InferM (Expr,Type)

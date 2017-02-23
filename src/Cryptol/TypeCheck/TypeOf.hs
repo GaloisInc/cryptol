@@ -40,7 +40,6 @@ fastTypeOf tyenv expr =
                         Just (_, t) -> t
                         Nothing     -> panic "Cryptol.TypeCheck.TypeOf.fastTypeOf"
                                          [ "EApp with non-function operator" ]
-    ECast _ t     -> t
     -- Polymorphic fragment
     EVar      {}  -> polymorphic
     ETAbs     {}  -> polymorphic
@@ -93,7 +92,6 @@ fastSchemaOf tyenv expr =
     EComp  {}      -> monomorphic
     EApp   {}      -> monomorphic
     EAbs   {}      -> monomorphic
-    ECast  {}      -> monomorphic
   where
     monomorphic = Forall [] [] (fastTypeOf tyenv expr)
 
