@@ -109,11 +109,11 @@ quickSolverIO ctxt gs =
                 , d
                 ])) -- -}
 
-quickSolver :: Ctxt  -> {- ^ Facts we can know -}
-              [Goal] -> {- ^ Need to solve these -}
-              Either Goal (Subst,[Goal])
-              -- ^ Left: contradiciting goals,
-              --   Right: inferred types, unsolved goals.
+quickSolver :: Ctxt   -- ^ Facts we can know
+            -> [Goal] -- ^ Need to solve these
+            -> Either Goal (Subst,[Goal])
+            -- ^ Left: contradicting goals,
+            --   Right: inferred types, unsolved goals.
 quickSolver ctxt gs0 = go emptySubst [] gs0
   where
   go su [] [] = Right (su,[])
@@ -364,10 +364,9 @@ computeImprovements s gs =
          , (x,t) : _ <- mapMaybe (improveByDefn ints) gs ->
            do let su' = singleSubst x t
               debugLog s ("Improve by definition: " ++ show (pp su'))
-              return (Right su') -}
-
-         -- | otherwise -> return (Right su)
-
+              return (Right su')
+         | otherwise -> return (Right su)
+ -}
        Nothing ->
          do bad <- Num.minimizeContradictionSimpDef s
                                                 (map Num.knownDefined nums)

@@ -1,5 +1,6 @@
 -- |
 -- Module      :  $Header$
+-- Description :  The reference implementation of the Cryptol evaluation semantics.
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -7,8 +8,6 @@
 -- Portability :  portable
 
 {-# LANGUAGE PatternGuards #-}
-
--- | The reference implementation of the Cryptol evaluation semantics.
 
 module Cryptol.Eval.Reference where
 
