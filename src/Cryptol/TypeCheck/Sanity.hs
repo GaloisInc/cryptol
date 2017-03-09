@@ -16,11 +16,11 @@ module Cryptol.TypeCheck.Sanity
 
 
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Subst(apSubst, fvs, singleSubst)
+import Cryptol.TypeCheck.Subst (apSubst, singleSubst)
 import Cryptol.Utils.Ident
 
 import qualified Data.Set as Set
-import Data.List(sort, sortBy)
+import Data.List (sort, sortBy)
 import Data.Function (on)
 import MonadLib
 import qualified Control.Applicative as A

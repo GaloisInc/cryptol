@@ -21,7 +21,7 @@ import           Cryptol.TypeCheck.PP(pp)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Subst
-                    (apSubst,fvs,singleSubst, isEmptySubst, substToList,
+                    (apSubst, singleSubst, isEmptySubst, substToList,
                           emptySubst,Subst,listSubst, (@@), Subst,
                            apSubstMaybe, substBinds)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simplify
@@ -358,7 +358,7 @@ computeImprovements s gs =
                   Right ints <- Num.getIntervals s
                   return (Just (ints,su))
      case res of
-       Just (ints,su) -> return (Right su) -- ?
+       Just (_ints, su) -> return (Right su) -- ?
 {-
          | isEmptySubst su
          , (x,t) : _ <- mapMaybe (improveByDefn ints) gs ->

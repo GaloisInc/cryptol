@@ -20,7 +20,6 @@ module Cryptol.TypeCheck.InferTypes where
 
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
-import           Cryptol.TypeCheck.TypeMap
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Utils.PP

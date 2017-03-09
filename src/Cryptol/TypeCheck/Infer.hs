@@ -27,7 +27,7 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                           checkNewtype)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
-import           Cryptol.TypeCheck.Subst (listSubst,apSubst,fvs,(@@))
+import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@))
 import           Cryptol.TypeCheck.Solver.InfNat(genLog)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
