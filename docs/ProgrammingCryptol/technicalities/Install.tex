@@ -278,9 +278,12 @@ options are summarized in~\autoref{tab:set_options}.
 \todo[inline]{Ensure index references exist for all commands.}
 
 \paragraph*{Quitting}
-You can quit Cryptol by using the command {\tt :quit} (aka
-\texttt{:q}).  On Mac/Linux you can press Ctrl-D, and on Windows use
-Ctrl-Z, for the same effect.\indCmdQuit
+You can quit Cryptol by using the command {\tt :quit} (aka \texttt{:q}).
+On Mac/Linux you can press Ctrl-D, and on Windows use Ctrl-Z, for the
+same effect. Quitting normally in this way sets the exit code of the
+\texttt{cryptol} process to zero. If the interpreter quits early due to
+any error of some sort, it sets the exit code to a non-zero
+value.\indCmdQuit
 
 \paragraph*{Loading and reloading files}
 You load your program in Cryptol using {\tt :load <filename>} (or
