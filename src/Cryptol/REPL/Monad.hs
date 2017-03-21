@@ -489,7 +489,7 @@ mkUserEnv opts = Map.fromList $ do
 
 -- | Set a user option.
 setUser :: String -> String -> REPL ()
-setUser name val = case lookupTrie name userOptions of
+setUser name val = case lookupTrieExact name userOptions of
 
   [opt] -> setUserOpt opt
   []    -> io (putStrLn ("Unknown env value `" ++ name ++ "`"))
