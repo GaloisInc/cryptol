@@ -233,6 +233,17 @@ setupCmdScript opts =
 
 setupREPL :: Options -> REPL ()
 setupREPL opts = do
+  mCryptolPath <- io $ lookupEnv "CRYPTOLPATH"
+  case mCryptolPath of
+    Nothing -> return ()
+    Just path | optCryptolPathOnly opts -> setSearchPath path'
+              | otherwise               -> prependSearchPath path'
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+      -- Windows paths search from end to beginning
+      where path' = reverse (splitSearchPath path)
+#else
+      where path' = splitSearchPath path
+#endif
   smoke <- REPL.smokeTest
   case smoke of
     [] -> return ()
@@ -249,17 +260,6 @@ setupREPL opts = do
 
   setUpdateREPLTitle (shouldSetREPLTitle >>= \b -> when b setREPLTitle)
   updateREPLTitle
-  mCryptolPath <- io $ lookupEnv "CRYPTOLPATH"
-  case mCryptolPath of
-    Nothing -> return ()
-    Just path | optCryptolPathOnly opts -> setSearchPath path'
-              | otherwise               -> prependSearchPath path'
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-      -- Windows paths search from end to beginning
-      where path' = reverse (splitSearchPath path)
-#else
-      where path' = splitSearchPath path
-#endif
   case optBatch opts of
     Nothing -> return ()
     -- add the directory containing the batch file to the module search path
