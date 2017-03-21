@@ -34,7 +34,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Map (Map)
 import           Data.Set (Set)
-import           Data.List(find, minimumBy, groupBy, sortBy, foldl')
+import           Data.List(find, minimumBy, groupBy, sortBy, foldl',
+                           intercalate)
 import           Data.Maybe(mapMaybe)
 import           Data.Function(on)
 import           MonadLib hiding (mapM)
@@ -167,7 +168,11 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
   -- The actual order does not matter
   cmpRange (Range x y z) (Range a b c) = compare (x,y,z) (a,b,c)
 
-  loadCryTCPrel _ [] = panic "Failed to find file" [] -- return ()
+  loadCryTCPrel _ [] =
+    panic "runInferM" [ "Failed to find file: CryptolTC.z3"
+                      , "Searched paths: " ++
+                        intercalate ":" (inpSearchPath info)
+                      ]
   loadCryTCPrel s (p : ps) =
     do let file = p </> "CryptolTC.z3"
        yes <- doesFileExist file
