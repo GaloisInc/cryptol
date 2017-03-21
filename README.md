@@ -114,6 +114,20 @@ of these `make` targets, you will end up with a binary in
 or use the results of `tarball` or `dist` to install Cryptol in a
 location of your choice.
 
+## Configuring Cryptol
+
+Cryptol depends on several external files for complete operation. These
+files are contained in the `lib` directory of the Cryptol repository. If
+you install with `cabal install`, these files will be automaticall
+copied into a directory that the `cryptol` executable can find. If you
+install in other ways, you will have to do more manual configuration.
+There are two options:
+
+* Copy the contents of the `lib` directory into `$HOME/.cryptol`.
+
+* Set the `CRYPTOLPATH` environment variable to name some other
+  directory that contains those files.
+
 # Contributing
 
 We believe that anyone who uses Cryptol is making an important
