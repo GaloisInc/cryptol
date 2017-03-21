@@ -28,7 +28,7 @@ import qualified Cryptol.Parser.NoInclude as NoInc
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
 import           Cryptol.Parser.Position (Range)
-import           Cryptol.Utils.Ident (interactiveName)
+import           Cryptol.Utils.Ident (interactiveName, packModName)
 import           Cryptol.Utils.PP
 
 import Control.Monad.IO.Class
@@ -346,8 +346,7 @@ getImportSource  = ModuleT $ do
   ro <- ask
   case roLoading ro of
     is : _ -> return is
-    _      -> panic "ModuleSystem: getImportSource" ["Import stack is empty"]
-
+    _      -> return (FromModule (packModName ["<none>"])) -- panic "ModuleSystem: getImportSource" ["Import stack is empty"]
 
 getIface :: P.ModName -> ModuleM Iface
 getIface mn = ModuleT $ do

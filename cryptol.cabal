@@ -261,5 +261,7 @@ benchmark cryptol-bench
                      , criterion
                      , cryptol
                      , deepseq
+                     , directory
+                     , filepath
                      , sbv
                      , text
