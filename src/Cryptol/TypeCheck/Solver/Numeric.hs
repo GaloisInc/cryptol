@@ -5,10 +5,11 @@ module Cryptol.TypeCheck.Solver.Numeric
 
 import           Control.Applicative(Alternative(..))
 import           Control.Monad (guard,mzero)
+import           Data.Foldable (asum)
 
 import Cryptol.Utils.Patterns
 import Cryptol.TypeCheck.PP
-import Cryptol.TypeCheck.Type
+import Cryptol.TypeCheck.Type hiding (tMul)
 import Cryptol.TypeCheck.TypePat
 import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.Solver.InfNat
@@ -27,6 +28,7 @@ cryIsEqual ctxt t1 t2 =
     <|> ( guard (t1 == t2) >> return (SolvedIf []))
     <|> tryEqMin t1 t2
     <|> tryEqMin t2 t1
+    <|> tryEqMulConst t1 t2
 
 
 
@@ -200,4 +202,35 @@ tryEqK ctxt ty lk =
 
 
 
+tryEqMulConst :: Type -> Type -> Match Solved
+tryEqMulConst l r =
+  do (l1,l2) <- aMul l
+     (r1,r2) <- aMul r
 
+     asum [ do l1' <- aNat l1
+               r1' <- aNat r1
+               return (build l1' l2 r1' r2)
+
+          , do l2' <- aNat l2
+               r1' <- aNat r1
+               return (build l2' l1 r1' r2)
+
+          , do l1' <- aNat l1
+               r2' <- aNat r2
+               return (build l1' l2 r2' r1)
+
+          , do l2' <- aNat l2
+               r2' <- aNat r2
+               return (build l2' l1 r2' r1)
+
+          ]
+
+  where
+
+  build lk l' rk r' =
+    let d   = gcd lk rk
+        lk' = lk `div` d
+        rk' = rk `div` d
+    in if d == 1
+          then Unsolved
+          else (SolvedIf [ tMul (tNum lk') l' =#= tMul (tNum rk') r' ])
