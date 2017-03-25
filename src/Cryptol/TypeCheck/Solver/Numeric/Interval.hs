@@ -130,7 +130,7 @@ propInterval varInts prop = catMaybes
            -- record the exact upper bound when it produces values within 128
            -- bits
            ub = case iUpper int of
-                  Just (Nat val) | val < 128 -> Just (Nat (2 ^ val))
+                  Just (Nat val) | val < 128 -> Just (Nat (2 ^ val - 1))
                                  | otherwise -> Nothing
                   _                          -> iUpper int
 
