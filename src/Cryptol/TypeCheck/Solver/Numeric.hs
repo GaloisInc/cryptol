@@ -29,6 +29,7 @@ cryIsEqual ctxt t1 t2 =
     <|> tryEqMin t1 t2
     <|> tryEqMin t2 t1
     <|> tryEqMulConst t1 t2
+    <|> tryEqAddInf ctxt t1 t2
 
 
 
@@ -234,3 +235,26 @@ tryEqMulConst l r =
     in if d == 1
           then Unsolved
           else (SolvedIf [ tMul (tNum lk') l' =#= tMul (tNum rk') r' ])
+
+
+tryEqAddInf :: Ctxt -> Type -> Type -> Match Solved
+tryEqAddInf ctxt l r = check l r <|> check r l
+  where
+
+  -- check for x = a + b /\ x = inf
+  check x y =
+    do (x1,x2) <- anAdd x
+       aInf y
+
+       let x1Fin = iIsFin (typeInterval ctxt x1)
+       let x2Fin = iIsFin (typeInterval ctxt x2)
+
+       return $!
+         if | x1Fin ->
+              SolvedIf [ x2 =#= y ]
+
+            | x2Fin ->
+              SolvedIf [ x1 =#= y ]
+
+            | otherwise ->
+              Unsolved
