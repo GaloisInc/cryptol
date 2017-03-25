@@ -411,6 +411,11 @@ pIsTrue ty  = case tNoUser ty of
                 TCon (PC PTrue) _ -> True
                 _                 -> False
 
+pIsWidth :: Prop -> Maybe Type
+pIsWidth ty = case tNoUser ty of
+                TCon (TF TCWidth) [t1] -> Just t1
+                _                      -> Nothing
+
 --------------------------------------------------------------------------------
 
 
