@@ -129,7 +129,6 @@ pad : {msgLen,contentLen,chunks,padding}
      , contentLen == msgLen + 65                      // message + header
      , chunks     == (contentLen+511) / 512
      , padding    == (512 - contentLen % 512) % 512   // prettier if type #'s could be < 0
-     , msgLen     == 512 * chunks - (65 + padding)    // redundant, but Cryptol can't yet do the math
      )
      => [msgLen] -> [chunks][512]
 pad msg = split (msg # [True] # (zero:[padding]) # (`msgLen:[64]))
