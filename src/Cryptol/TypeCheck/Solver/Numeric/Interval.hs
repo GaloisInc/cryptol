@@ -125,17 +125,17 @@ propInterval varInts prop = catMaybes
     -- k >= width x
   , do (l,r) <- pIsGeq prop
        x     <- tIsVar =<< pIsWidth r
-       let int = typeInterval varInts l
-
            -- record the exact upper bound when it produces values within 128
            -- bits
-           ub = case iUpper int of
+       let ub = case iIsExact (typeInterval varInts l) of
                   Just (Nat val) | val < 128 -> Just (Nat (2 ^ val - 1))
                                  | otherwise -> Nothing
-                  _                          -> iUpper int
+                  upper                      -> upper
 
        return (x, Interval { iLower = Nat 0, iUpper = ub })
+
   ]
+
 
 --------------------------------------------------------------------------------
 
