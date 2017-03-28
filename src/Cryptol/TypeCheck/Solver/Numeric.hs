@@ -30,6 +30,7 @@ cryIsEqual ctxt t1 t2 =
     <|> tryEqMin t2 t1
     <|> tryEqMulConst t1 t2
     <|> tryEqAddInf ctxt t1 t2
+    <|> tryAddConst (=#=) t1 t2
 
 
 
@@ -46,6 +47,9 @@ cryIsGeq i t1 t2 =
     <|> tryGeqThanSub i t1 t2
     <|> (geqByInterval i t1 t2)
     <|> (guard (t1 == t2) >> return (SolvedIf []))
+    <|> tryAddConst (>==) t1 t2
+    -- XXX: k >= width e
+    -- XXX: width e >= k
 
 
   -- XXX: max a 10 >= 2 --> True
@@ -258,3 +262,21 @@ tryEqAddInf ctxt l r = check l r <|> check r l
 
             | otherwise ->
               Unsolved
+
+
+
+-- | Check for addition of constants to both sides of a relation.
+--
+-- This relies on the fact that constants are floated left during
+-- simplification.
+tryAddConst :: (Type -> Type -> Prop) -> Type -> Type -> Match Solved
+tryAddConst rel l r =
+  do (x1,x2) <- anAdd l
+     (y1,y2) <- anAdd r
+
+     k1 <- aNat x1
+     k2 <- aNat y1
+
+     if k1 > k2
+        then return (SolvedIf [ tAdd (tNum (k1 - k2)) x2 `rel` y2 ])
+        else return (SolvedIf [ x2 `rel` tAdd (tNum (k2 - k1)) y2 ])
