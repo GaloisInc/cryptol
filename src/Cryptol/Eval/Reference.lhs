@@ -70,9 +70,9 @@ are as follows:
 | `a -> b`          | functions      | `TVFun a b`                 |
 
 We model each Cryptol value type `t` as a complete partial order (cpo)
-$M$(`t`). To each Cryptol expression `e : t` we assign a meaning
-$M$(`e`) in $M$(`t`); in particular, recursive Cryptol programs of
-type $t$ are modeled as least fixed points in $M(t)$. In other words,
+*M*(`t`). To each Cryptol expression `e : t` we assign a meaning
+*M*(`e`) in *M*(`t`); in particular, recursive Cryptol programs of
+type `t` are modeled as least fixed points in *M*(`t`). In other words,
 this is a domain-theoretic denotational semantics.
 
 Evaluating a Cryptol expression of type `Bit` may result in:
@@ -83,7 +83,7 @@ Evaluating a Cryptol expression of type `Bit` may result in:
 
 - non-termination.
 
-Accordingly, $M$(`Bit`) is a flat cpo with values for `True`,
+Accordingly, *M*(`Bit`) is a flat cpo with values for `True`,
 `False`, run-time errors of type `EvalError`, and $\bot$; we
 represent it with the Haskell type `Either EvalError Bool`.
 
@@ -91,15 +91,15 @@ The cpos for lists, tuples, and records are cartesian products. The
 cpo ordering is pointwise, and the bottom element $\bot$ is the
 list/tuple/record whose elements are all $\bot$. Trivial types `[0]t`,
 `()` and `{}` denote single-element cpos where the unique value
-`[]`/`()`/`{}` *is* the bottom element $\bot$. $M$(`a -> b`) is the
-continuous function space $M$(`a`) $\to$ $M$(`b`).
+`[]`/`()`/`{}` *is* the bottom element $\bot$. *M*(`a -> b`) is the
+continuous function space *M*(`a`) $\to$ *M*(`b`).
 
-Type schemas of the form `{a1, a2 ... an} (p1, p2 ... pn) => t`
-classify polymorphic values in Cryptol. These are represented with the
-Haskell type `Schema`. The meaning of a schema is cpo of functions:
-For each valid instantiation `t1 ... tn` of the type parameters `a1
-... an` that satisfies the constraints `p1 ... pn`, the function
-returns a value in $M$(`t[t1/a1 ... tn/an]`).
+Type schemas of the form `{a1 ... an} (p1 ... pk) => t` classify
+polymorphic values in Cryptol. These are represented with the Haskell
+type `Schema`. The meaning of a schema is cpo whose elements are
+functions: For each valid instantiation `t1 ... tn` of the type
+parameters `a1 ... an` that satisfies the constraints `p1 ... pk`, the
+function returns a value in *M*(`t[t1/a1 ... tn/an]`).
 
 Values
 ------
@@ -137,7 +137,7 @@ turn, this gives the appropriate semantics to recursive definitions:
 The bottom value for a compound type is equal to a value of the same
 type where every individual bit is bottom.
 
-For each Cryptol type `t`, the cpo $M$(`t`) can be represented as a
+For each Cryptol type `t`, the cpo *M*(`t`) can be represented as a
 subset of values of type `Value` that satisfy the datatype invariant.
 This subset consists precisely of the output range of `copyByTValue
 t`. Similarly, the range of output values of `copyBySchema` yields the
@@ -260,21 +260,27 @@ and type variables that are in scope at any point.
 Evaluation
 ==========
 
-> -- | Evaluate a Cryptol expression to a value.
+The meaning *M*(`expr`) of a Cryptol expression `expr` is defined by
+recursion over its structure. For an expression that contains free
+variables, the meaning also depends on the environment `env`, which
+assigns values to those variables.
+
 > evalExpr :: Env     -- ^ Evaluation environment
 >          -> Expr    -- ^ Expression to evaluate
 >          -> Value
 > evalExpr env expr =
 >   case expr of
 >
->     EList es _ty   -> VList [ evalExpr env e | e <- es ]
->     ETuple es      -> VTuple [ evalExpr env e | e <- es ]
->     ERec fields    -> VRecord [ (f, evalExpr env e) | (f, e) <- fields ]
->     ESel e sel     -> evalSel (evalExpr env e) sel
->     EIf c t f      -> condValue (fromVBit (evalExpr env c)) (evalExpr env t) (evalExpr env f)
+>     EList es _ty  -> VList [ evalExpr env e | e <- es ]
+>     ETuple es     -> VTuple [ evalExpr env e | e <- es ]
+>     ERec fields   -> VRecord [ (f, evalExpr env e) | (f, e) <- fields ]
+>     ESel e sel    -> evalSel (evalExpr env e) sel
 >
->     EComp _n _ty h gs ->
->       evalComp env h gs
+>     EIf c t f ->
+>       condValue (fromVBit (evalExpr env c)) (evalExpr env t) (evalExpr env f)
+>
+>     EComp _n _ty e branches ->
+>       evalComp env e branches
 >
 >     EVar n ->
 >       case Map.lookup n (envVars env) of
@@ -314,7 +320,6 @@ functions.
 >     RecordSel n _ -> recordSel n val
 >     ListSel n _  -> listSel n val
 >   where
->
 >     tupleSel n v =
 >       case v of
 >         VTuple vs   -> vs !! n
@@ -322,7 +327,6 @@ functions.
 >         VFun f      -> VFun (\x -> tupleSel n (f x))
 >         _           -> evalPanic "evalSel"
 >                        ["Unexpected value in tuple selection."]
->
 >     recordSel n v =
 >       case v of
 >         VRecord _   -> lookupRecord n v
@@ -330,7 +334,6 @@ functions.
 >         VFun f      -> VFun (\x -> recordSel n (f x))
 >         _           -> evalPanic "evalSel"
 >                        ["Unexpected value in record selection."]
->
 >     listSel n v =
 >       case v of
 >         VList vs    -> vs !! n
@@ -420,8 +423,11 @@ list is equal to the mininum length over all parallel branches.
 Declarations
 ------------
 
-Extend the given evaluation environment with the result of evaluating
-the given declaration group.
+Function `evalDeclGroup` extends the given evaluation environment with
+the result of evaluating the given declaration group. In the case of a
+recursive declaration group, we tie the recursive knot by evaluating
+each declaration in the extended environment `env'` that includes all
+the new bindings.
 
 > evalDeclGroup :: Env -> DeclGroup -> Env
 > evalDeclGroup env dg = do
@@ -502,7 +508,7 @@ Cryptol primitives fall into several groups:
 >   , ("*"          , binary (arithBinary (\_ x y -> Right (x * y))))
 >   , ("/"          , binary (arithBinary (const divWrap)))
 >   , ("%"          , binary (arithBinary (const modWrap)))
->   -- , ("^^"         , binary (arithBinary modExp))
+>   , ("^^"         , binary (arithBinary (\_ x y -> Right (x ^ y))))
 >   , ("lg2"        , unary  (arithUnary (const lg2)))
 >   , ("negate"     , unary  (arithUnary (const negate)))
 >   , ("demote"     , vFinPoly $ \val ->
@@ -628,7 +634,8 @@ Cryptol primitives fall into several groups:
 >                       Right i ->
 >                         case fromVWord y of
 >                           Left e -> vWordError a e
->                           Right j -> vWordValue a (fst (divModPoly i (fromInteger a) j (fromInteger b))))
+>                           Right j -> vWordValue a
+>                                      (fst (divModPoly i (fromInteger a) j (fromInteger b))))
 >
 >   , ("pmod"       , vFinPoly $ \a ->
 >                     vFinPoly $ \b ->
@@ -639,16 +646,18 @@ Cryptol primitives fall into several groups:
 >                       Right i ->
 >                         case fromVWord y of
 >                           Left e -> vWordError b e
->                           Right j -> vWordValue b (snd (divModPoly i (fromInteger a) j (fromInteger b + 1))))
+>                           Right j -> vWordValue b
+>                                      (snd (divModPoly i (fromInteger a) j (fromInteger b + 1))))
 >
->   -- Miscellaneous
+>   -- Miscellaneous:
 >   , ("error"      , VPoly $ \a ->
 >                     VNumPoly $ \_ ->
 >                     VFun $ \_s -> logicNullary (Left (UserError "error")) a)
 >                     -- TODO: obtain error string from argument s
 >
 >   , ("random"     , VPoly $ \a ->
->                     VFun $ \_seed -> logicNullary (Left (UserError "random: unimplemented")) a)
+>                     VFun $ \_seed ->
+>                     logicNullary (Left (UserError "random: unimplemented")) a)
 >
 >   , ("trace"      , VNumPoly $ \_n ->
 >                     VPoly $ \_a ->
@@ -663,6 +672,48 @@ Cryptol primitives fall into several groups:
 >
 > binary :: (TValue -> Value -> Value -> Value) -> Value
 > binary f = VPoly $ \ty -> VFun $ \x -> VFun $ \y -> f ty x y
+
+
+Word operations
+---------------
+
+Many Cryptol primitives take numeric arguments in the form of
+bitvectors. For such operations, any output bit that depends on the
+numeric value is strict in *all* bits of the numeric argument. This is
+implemented in function `fromVWord`, which converts a value from a
+big-endian binary format to an integer. The result is an evaluation
+error if any of the input bits contain an evaluation error.
+
+> fromVWord :: Value -> Either EvalError Integer
+> fromVWord v = fmap bitsToInteger (mapM fromVBit (fromVList v))
+>
+> -- | Convert a list of booleans in big-endian format to an integer.
+> bitsToInteger :: [Bool] -> Integer
+> bitsToInteger bs = foldl f 0 bs
+>   where f x b = if b then 2 * x + 1 else 2 * x
+
+Functions `vWord`, `vWordValue`, and `vWordError` convert from
+integers back to the big-endian bitvector representation. If an
+integer-producing function raises a run-time exception, then the
+output bitvector will contain the exception in all bit positions.
+
+> -- | Convert an integer to big-endian binary value of the specified width.
+> vWordValue :: Integer -> Integer -> Value
+> vWordValue w x = VList (map (VBit . Right) (integerToBits w x))
+>
+> -- | Convert an integer to a big-endian format of the specified width.
+> integerToBits :: Integer -> Integer -> [Bool]
+> integerToBits w x = go [] w x
+>   where go bs 0 _ = bs
+>         go bs n a = go (odd a : bs) (n - 1) $! (a `div` 2)
+>
+> -- | Create a run-time error value of bitvector type.
+> vWordError :: Integer -> EvalError -> Value
+> vWordError w e = VList (genericReplicate w (VBit (Left e)))
+>
+> vWord :: Integer -> Either EvalError Integer -> Value
+> vWord w (Left e) = vWordError w e
+> vWord w (Right x) = vWordValue w x
 
 
 Logic
@@ -722,35 +773,6 @@ all input bits, as indicated by the definition of `fromVWord`. For
 example, `[error "foo", True] * 2` does not evaluate to `[True,
 False]`, but to `[error "foo", error "foo"]`.
 
-> -- | Convert a value from a big-endian binary format to an integer.
-> -- Result is an evaluation error if any of the input bits contain an
-> -- evaluation error.
-> fromVWord :: Value -> Either EvalError Integer
-> fromVWord v = fmap bitsToInteger (mapM fromVBit (fromVList v))
->
-> -- | Convert a list of booleans in big-endian format to an integer.
-> bitsToInteger :: [Bool] -> Integer
-> bitsToInteger bs = foldl f 0 bs
->   where f x b = if b then 2 * x + 1 else 2 * x
->
-> -- | Convert an integer to big-endian binary value of the specified width.
-> vWordValue :: Integer -> Integer -> Value
-> vWordValue w x = VList (map (VBit . Right) (integerToBits w x))
->
-> -- | Convert an integer to a big-endian format of the specified width.
-> integerToBits :: Integer -> Integer -> [Bool]
-> integerToBits w x = go [] w x
->   where go bs 0 _ = bs
->         go bs n a = go (odd a : bs) (n - 1) $! (a `div` 2)
->
-> -- | Create a run-time error value of bitvector type.
-> vWordError :: Integer -> EvalError -> Value
-> vWordError w e = VList (genericReplicate w (VBit (Left e)))
->
-> vWord :: Integer -> Either EvalError Integer -> Value
-> vWord w (Left e) = vWordError w e
-> vWord w (Right x) = vWordValue w x
->
 > arithUnary :: (Integer -> Integer -> Integer)
 >            -> TValue -> Value -> Value
 > arithUnary op = go
@@ -819,7 +841,7 @@ alphabetical order.
 Comparisons on type `Bit` are strict in both arguments. Comparisons on
 larger types have short-circuiting behavior: A comparison involving an
 error/undefined element will only yield an error if all corresponding
-values to the *left* of that position are equal.
+bits to the *left* of that position are equal.
 
 > -- | Process two elements based on their lexicographic ordering.
 > cmpOrder :: (Ordering -> Bool) -> TValue -> Value -> Value -> Value
