@@ -215,7 +215,7 @@ findModule n = do
 
   handleNotFound =
     case n of
-      m | m == preludeName -> writePreludeContents
+      m | m == preludeName -> io writePreludeContents
       _ -> moduleNotFound n =<< getSearchPath
 
   -- generate all possible search paths

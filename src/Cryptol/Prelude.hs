@@ -8,13 +8,16 @@
 --
 -- Compile the prelude into the executable as a last resort
 
+{-# LANGUAGE Trustworthy #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Cryptol.Prelude (writePreludeContents) where
+module Cryptol.Prelude (
+  writePreludeContents,
+  writeTcPreludeContents,
+  ) where
 
-import Cryptol.ModuleSystem.Monad
 
 import System.Directory (getTemporaryDirectory)
 import System.IO (hClose, hPutStr, openTempFile)
@@ -25,10 +28,24 @@ preludeContents = [there|lib/Cryptol.cry|]
 
 -- | Write the contents of the Prelude to a temporary file so that
 -- Cryptol can load the module.
-writePreludeContents :: ModuleM FilePath
-writePreludeContents = io $ do
+writePreludeContents :: IO FilePath
+writePreludeContents = do
   tmpdir <- getTemporaryDirectory
   (path, h) <- openTempFile tmpdir "Cryptol.cry"
   hPutStr h preludeContents
+  hClose h
+  return path
+
+
+cryptolTcContents :: String
+cryptolTcContents = [there|lib/CryptolTC.z3|]
+
+-- | Write the contents of the Prelude to a temporary file so that
+-- Cryptol can load the module.
+writeTcPreludeContents :: IO FilePath
+writeTcPreludeContents = do
+  tmpdir <- getTemporaryDirectory
+  (path, h) <- openTempFile tmpdir "CryptolTC.z3"
+  hPutStr h cryptolTcContents
   hClose h
   return path
