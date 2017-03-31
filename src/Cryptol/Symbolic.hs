@@ -120,10 +120,11 @@ allSatSMTResults (SBV.AllSatResult (_, rs)) = rs
 thmSMTResults :: SBV.ThmResult -> [SBV.SMTResult]
 thmSMTResults (SBV.ThmResult r) = [r]
 
-proverError :: String -> M.ModuleCmd ProverResult
-proverError msg modEnv = return (Right (ProverError msg, modEnv), [])
+proverError :: String -> M.ModuleCmd (Maybe SBV.Solver, ProverResult)
+proverError msg modEnv =
+  return (Right ((Nothing, ProverError msg), modEnv), [])
 
-satProve :: ProverCommand -> M.ModuleCmd ProverResult
+satProve :: ProverCommand -> M.ModuleCmd (Maybe SBV.Solver, ProverResult)
 satProve ProverCommand {..} =
   protectStack proverError $ \modEnv ->
   M.runModuleM modEnv $ do
@@ -149,12 +150,14 @@ satProve ProverCommand {..} =
             res <- M.io (fn prover e)
             when pcVerbose $ M.io $
               putStrLn $ "Got result from " ++ show prover
-            return (tag res)
+            return (Nothing, tag res) -- TODO: can identify prover here
           _ ->
-            return [ SBV.ProofError
-                       prover
-                       [":sat with option prover=any requires option satNum=1"]
-                   | prover <- provers ]
+            return ( Nothing
+                   , [ SBV.ProofError
+                         prover
+                         [":sat with option prover=any requires option satNum=1"]
+                     | prover <- provers ]
+                   )
       runProvers fn tag e = do
         when pcVerbose $ M.io $
           putStrLn $ "Trying proof with " ++
@@ -162,25 +165,26 @@ satProve ProverCommand {..} =
         (firstProver, res) <- M.io (fn provers' e)
         when pcVerbose $ M.io $
           putStrLn $ "Got result from " ++ show firstProver
-        return (tag res)
+        return (Just firstProver, tag res)
   let runFn = case pcQueryType of
         ProveQuery -> runProvers SBV.proveWithAny thmSMTResults
         SatQuery sn -> case sn of
           SomeSat 1 -> runProvers SBV.satWithAny satSMTResults
           _         -> runProver SBV.allSatWith allSatSMTResults
   case predArgTypes pcSchema of
-    Left msg -> return (ProverError msg)
+    Left msg -> return (Nothing, ProverError msg)
     Right ts -> do when pcVerbose $ M.io $ putStrLn "Simulating..."
                    v <- M.io $ Eval.runEval $ do
                                env <- Eval.evalDecls extDgs mempty
                                Eval.evalExpr env pcExpr
                    prims <- M.getPrimMap
-                   results' <- runFn $ do
-                                 args <- mapM tyFn ts
-                                 b <- liftIO $ Eval.runEval
-                                        (fromVBit <$> foldM fromVFun v (map Eval.ready args))
-                                 return b
-                   let results = maybe results' (\n -> take n results') mSatNum
+                   runRes <- runFn $ do
+                               args <- mapM tyFn ts
+                               b <- liftIO $ Eval.runEval
+                                      (fromVBit <$> foldM fromVFun v (map Eval.ready args))
+                               return b
+                   let (firstProver, results') = runRes
+                       results = maybe results' (\n -> take n results') mSatNum
                    esatexprs <- case results of
                      -- allSat can return more than one as long as
                      -- they're satisfiable
@@ -210,7 +214,7 @@ satProve ProverCommand {..} =
                                         | otherwise = show . SBV.ThmResult . head
                                   boom = panic "Cryptol.Symbolic.sat"
                                            [ "attempted to evaluate bogus boolean for pretty-printing" ]
-                   return esatexprs
+                   return (firstProver, esatexprs)
 
 satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
 satProveOffline ProverCommand {..} =

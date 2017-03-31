@@ -104,7 +104,7 @@ import Data.IORef(newIORef,readIORef)
 import Prelude ()
 import Prelude.Compat
 
-import Data.SBV(TimedStep(..),showTDiff)
+import Data.SBV(TimedStep(..),showTDiff,Solver)
 
 -- Commands --------------------------------------------------------------------
 
@@ -396,14 +396,16 @@ satCmd, proveCmd :: String -> REPL ()
 satCmd = cmdProveSat True
 proveCmd = cmdProveSat False
 
-showProverStats :: ProverStats -> REPL ()
-showProverStats = rPutStrLn
-                . ('\n':) . parns
-                . intercalate ", " . map sh . Map.toList
+showProverStats :: Maybe Solver -> ProverStats -> REPL ()
+showProverStats mprover = rPutStrLn
+                          . ('\n':) . parns
+                          . intercalate ", " . map sh . Map.toList
   where
   lab ProblemConstruction = "simulation"
   lab Translation         = "export"
-  lab (WorkByProver x)    = x
+  lab (WorkByProver x)    = case mprover of
+                              Just prover | x == show prover -> '*' : x
+                              _ -> x
 
   sh (x, y) = lab x ++ ":" ++ showTDiff y
 
@@ -450,7 +452,7 @@ cmdProveSat isSat str = do
             Just path -> io $ writeFile path smtlib
             Nothing -> rPutStr smtlib
     _ -> do
-      (result,stats) <- onlineProveSat isSat str mfile
+      (firstProver,result,stats) <- onlineProveSat isSat str mfile
       ppOpts <- getPPValOpts
       case result of
         Symbolic.EmptyResult         ->
@@ -490,10 +492,11 @@ cmdProveSat isSat str = do
             (t, es ) -> bindItVariables t es
 
       seeStats <- getUserShowProverStats
-      when seeStats (showProverStats stats)
+      when seeStats (showProverStats firstProver stats)
 
 onlineProveSat :: Bool
-               -> String -> Maybe FilePath -> REPL (Symbolic.ProverResult,ProverStats)
+               -> String -> Maybe FilePath
+               -> REPL (Maybe Solver,Symbolic.ProverResult,ProverStats)
 onlineProveSat isSat str mfile = do
   EnvString proverName <- getUser "prover"
   EnvBool verbose <- getUser "debug"
@@ -512,9 +515,9 @@ onlineProveSat isSat str mfile = do
         , pcExpr         = expr
         , pcSchema       = schema
         }
-  res <- liftModuleCmd $ Symbolic.satProve cmd
+  (firstProver, res) <- liftModuleCmd $ Symbolic.satProve cmd
   stas <- io (readIORef timing)
-  return (res,stas)
+  return (firstProver,res,stas)
 
 offlineProveSat :: Bool -> String -> Maybe FilePath -> REPL (Either String String)
 offlineProveSat isSat str mfile = do
