@@ -619,35 +619,36 @@ Cryptol primitives fall into several groups:
 >                        vFinPoly $ \b ->
 >                        VFun $ \x ->
 >                        VFun $ \y ->
+>                        vWord (1 + a + b) $
 >                        case fromVWord x of
->                          Left e -> vWordError (1 + a + b) e
+>                          Left e -> Left e
 >                          Right i ->
 >                            case fromVWord y of
->                              Left e -> vWordError (1 + a + b) e
->                              Right j -> vWordValue (1 + a + b) (mul 0 i j (1+b)))
+>                              Left e -> Left e
+>                              Right j -> Right (mul 0 i j (1+b)))
 >   , ("pdiv"       , vFinPoly $ \a ->
 >                     vFinPoly $ \b ->
 >                     VFun $ \x ->
 >                     VFun $ \y ->
+>                     vWord a $
 >                     case fromVWord x of
->                       Left e -> vWordError a e
+>                       Left e -> Left e
 >                       Right i ->
 >                         case fromVWord y of
->                           Left e -> vWordError a e
->                           Right j -> vWordValue a
->                                      (fst (divModPoly i (fromInteger a) j (fromInteger b))))
+>                           Left e -> Left e
+>                           Right j -> Right (fst (divModPoly i (fromInteger a) j (fromInteger b))))
 >
 >   , ("pmod"       , vFinPoly $ \a ->
 >                     vFinPoly $ \b ->
 >                     VFun $ \x ->
 >                     VFun $ \y ->
+>                     vWord b $
 >                     case fromVWord x of
->                       Left e -> vWordError b e
+>                       Left e -> Left e
 >                       Right i ->
 >                         case fromVWord y of
->                           Left e -> vWordError b e
->                           Right j -> vWordValue b
->                                      (snd (divModPoly i (fromInteger a) j (fromInteger b + 1))))
+>                           Left e -> Left e
+>                           Right j -> Right (snd (divModPoly i (fromInteger a) j (fromInteger b + 1))))
 >
 >   -- Miscellaneous:
 >   , ("error"      , VPoly $ \a ->
@@ -712,8 +713,8 @@ output bitvector will contain the exception in all bit positions.
 > vWordError w e = VList (genericReplicate w (VBit (Left e)))
 >
 > vWord :: Integer -> Either EvalError Integer -> Value
-> vWord w (Left e) = vWordError w e
-> vWord w (Right x) = vWordValue w x
+> vWord w e = VList [ VBit (fmap (bit i) e) | i <- [w-1, w-2 .. 0] ]
+>   where bit i x = testBit x (fromInteger i)
 
 
 Logic
@@ -804,12 +805,13 @@ False]`, but to `[error "foo", error "foo"]`.
 >         TVBit ->
 >           evalPanic "arithBinary" ["Bit not in class Arith"]
 >         TVSeq w a
->           | isTBit a  -> case fromVWord l of
->                            Left e -> vWordError w e
+>           | isTBit a  -> vWord w $
+>                          case fromVWord l of
+>                            Left e -> Left e
 >                            Right i ->
 >                              case fromVWord r of
->                                Left e -> vWordError w e
->                                Right j -> vWord w (op w i j)
+>                                Left e -> Left e
+>                                Right j -> op w i j
 >           | otherwise -> VList (zipWith (go a) (fromVList l) (fromVList r))
 >         TVStream a ->
 >           VList (zipWith (go a) (fromVList l) (fromVList r))
