@@ -1,0 +1,6 @@
+f 0 where f x = if x == 0 then 0x0 else x ^ f 0
+f 0 where f x = if x == 0 then 0x0 else x + f 0
+f 0 where f x = if x == 0 then 0x0 else x << f 0
+f 0 where f x = if x == 0 then 0x0 else x <<< f 0
+f 0 where f x = if x == 0 then 0x0 else [x] @ f 0
+f 0 where f x = if x == 0 then 0x0 else [x ...] @ f 0
