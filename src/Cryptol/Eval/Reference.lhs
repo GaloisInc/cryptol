@@ -597,6 +597,7 @@ Cryptol primitives fall into several groups:
 >
 >   , ("infFrom"    , vFinPoly $ \bits ->
 >                     VFun $ \first ->
+>                     copyByTValue (TVStream (TVSeq bits TVBit)) $
 >                     case fromVWord first of
 >                       Left e -> VList (repeat (vWordError bits e))
 >                       Right i -> VList (map (vWordValue bits) [i ..]))
@@ -604,6 +605,7 @@ Cryptol primitives fall into several groups:
 >   , ("infFromThen", vFinPoly $ \bits ->
 >                     VFun $ \first ->
 >                     VFun $ \next ->
+>                     copyByTValue (TVStream (TVSeq bits TVBit)) $
 >                     case fromVWord first of
 >                       Left e -> VList (repeat (vWordError bits e))
 >                       Right i ->
@@ -713,8 +715,8 @@ output bitvector will contain the exception in all bit positions.
 > vWordError w e = VList (genericReplicate w (VBit (Left e)))
 >
 > vWord :: Integer -> Either EvalError Integer -> Value
-> vWord w e = VList [ VBit (fmap (bit i) e) | i <- [w-1, w-2 .. 0] ]
->   where bit i x = testBit x (fromInteger i)
+> vWord w e = VList [ VBit (fmap (test i) e) | i <- [w-1, w-2 .. 0] ]
+>   where test i x = testBit x (fromInteger i)
 
 
 Logic
@@ -924,6 +926,7 @@ amount, but as lazy as possible in the list values.
 >   VPoly $ \c ->
 >   VFun $ \v ->
 >   VFun $ \x ->
+>   copyByTValue (tvSeq a c) $
 >   case fromVWord x of
 >     Left e -> logicNullary (Left e) (tvSeq a c)
 >     Right i -> VList (op a (logicNullary (Right False) c) (fromVList v) i)
@@ -947,6 +950,7 @@ amount, but as lazy as possible in the list values.
 >   VPoly $ \c ->
 >   VFun $ \v ->
 >   VFun $ \x ->
+>   copyByTValue (TVSeq a c) $
 >   case fromVWord x of
 >     Left e -> VList (genericReplicate a (logicNullary (Left e) c))
 >     Right i -> VList (op a (fromVList v) i)
@@ -976,6 +980,7 @@ possible in the list values.
 >   VNumPoly $ \_w ->
 >   VFun $ \l ->
 >   VFun $ \r ->
+>   copyByTValue a $
 >   case fromVWord r of
 >     Left e -> logicNullary (Left e) a
 >     Right i -> op n a (fromVList l) i
@@ -988,10 +993,12 @@ possible in the list values.
 >   VNumPoly $ \_m ->
 >   VNumPoly $ \_w ->
 >   VFun $ \l ->
->   VFun $ \r -> VList [ case fromVWord y of
->                          Left e -> logicNullary (Left e) a
->                          Right i -> op n a xs i
->                      | let xs = fromVList l, y <- fromVList r ]
+>   VFun $ \r ->
+>   copyByTValue (tvSeq n a) $
+>   VList [ case fromVWord y of
+>              Left e -> logicNullary (Left e) a
+>              Right i -> op n a xs i
+>         | let xs = fromVList l, y <- fromVList r ]
 >
 > indexFront :: Nat' -> TValue -> [Value] -> Integer -> Value
 > indexFront w a vs ix =
@@ -1014,6 +1021,7 @@ possible in the list values.
 >   VFun $ \xs ->
 >   VFun $ \idx ->
 >   VFun $ \val ->
+>   copyByTValue (tvSeq len eltTy) $
 >   case fromVWord idx of
 >     Left e -> logicNullary (Left e) (tvSeq len eltTy)
 >     Right i -> VList (op len (fromVList xs) i val)
