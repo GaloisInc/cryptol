@@ -63,8 +63,8 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | EIf Expr Expr Expr        -- ^ If-then-else
             | EComp Type Type Expr [[Match]]
                                         -- ^ List comprehensions
-                                        --   The types caches the length of the
-                                        --   sequence and type of the expr.
+                                        --   The types cache the length of the
+                                        --   sequence and its element type.
 
             | EVar Name                 -- ^ Use of a bound variable
 

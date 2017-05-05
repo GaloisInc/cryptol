@@ -258,7 +258,7 @@ exprSchema expr =
            [] -> return ()
            _  -> convertible (tSeq len t) (tSeq (foldr1 tMin ls) elT)
 
-         return (tMono t)
+         return (tMono (tSeq len t))
 
 
     EVar x -> lookupVar x
@@ -405,12 +405,11 @@ checkMatch ma =
     From x len elt e ->
       do checkTypeIs KNum len
          checkTypeIs KType elt
-         let t = tSeq len elt
          t1 <- exprType e
          case tNoUser t1 of
            TCon (TC TCSeq) [ l, el ]
-             | same t el -> return ((x, tMono t), l)
-             | otherwise -> reportError $ TypeMismatch (tMono t) (tMono el)
+             | same elt el -> return ((x, tMono elt), l)
+             | otherwise -> reportError $ TypeMismatch (tMono elt) (tMono el)
 
 
            _ -> reportError $ BadMatch t1
