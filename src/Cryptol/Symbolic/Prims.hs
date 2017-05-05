@@ -85,7 +85,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("%"           , binary (arithBinary (liftBinArith SBV.svRem))) -- {a} (Arith a) => a -> a -> a
   , ("^^"          , binary (arithBinary sExp)) -- {a} (Arith a) => a -> a -> a
   , ("lg2"         , unary (arithUnary sLg2)) -- {a} (Arith a) => a -> a
-  , ("negate"      , unary (arithUnary (\_ -> SBV.svUNeg)))
+  , ("negate"      , unary (arithUnary (\_ -> ready . SBV.svUNeg)))
   , ("<"           , binary (cmpBinary cmpLt cmpLt SBV.svFalse))
   , (">"           , binary (cmpBinary cmpGt cmpGt SBV.svFalse))
   , ("<="          , binary (cmpBinary cmpLtEq cmpLtEq SBV.svTrue))
@@ -478,20 +478,19 @@ asWordList = go id
                   Nothing -> Nothing
 
 
-
 liftBinArith :: (SWord -> SWord -> SWord) -> BinArith SWord
-liftBinArith op _ = op
+liftBinArith op _ x y = ready $ op x y
 
-sExp :: Integer -> SWord -> SWord -> SWord
-sExp _w x y = go (reverse (unpackWord y)) -- bits in little-endian order
+sExp :: Integer -> SWord -> SWord -> Eval SWord
+sExp _w x y = ready $ go (reverse (unpackWord y)) -- bits in little-endian order
   where go []       = literalSWord (SBV.intSizeOf x) 1
         go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
             where a = go bs
                   s = SBV.svTimes a a
 
 -- | Ceiling (log_2 x)
-sLg2 :: Integer -> SWord -> SWord
-sLg2 _w x = go 0
+sLg2 :: Integer -> SWord -> Eval SWord
+sLg2 _w x = ready $ go 0
   where
     lit n = literalSWord (SBV.intSizeOf x) n
     go i | i < SBV.intSizeOf x = SBV.svIte (SBV.svLessEq x (lit (2^i))) (lit (toInteger i)) (go (i + 1))

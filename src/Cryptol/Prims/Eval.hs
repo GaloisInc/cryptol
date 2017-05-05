@@ -65,9 +65,9 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("*"          , {-# SCC "Prelude::(*)" #-}
                     binary (arithBinary (liftBinArith (*))))
   , ("/"          , {-# SCC "Prelude::(/)" #-}
-                    binary (arithBinary (liftBinArith divWrap)))
+                    binary (arithBinary (liftDivArith div)))
   , ("%"          , {-# SCC "Prelude::(%)" #-}
-                    binary (arithBinary (liftBinArith modWrap)))
+                    binary (arithBinary (liftDivArith mod)))
   , ("^^"         , {-# SCC "Prelude::(^^)" #-}
                     binary (arithBinary modExp))
   , ("lg2"        , {-# SCC "Prelude::lg2" #-}
@@ -190,15 +190,22 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                      nlam $ \(fromInteger . finNat' -> a) ->
                      nlam $ \(fromInteger . finNat' -> b) ->
                      wlam $ \(bvVal -> x) -> return $
-                     wlam $ \(bvVal -> y) -> return $ word (toInteger a)
-                                                (fst (divModPoly x a y b)))
+                     wlam $ \(bvVal -> y) ->
+                       if y == 0
+                        then divideByZero
+                        else return . word (toInteger a) . fst
+                               $ divModPoly x a y b)
 
   , ("pmod"        , {-# SCC "Prelude::pmod" #-}
                      nlam $ \(fromInteger . finNat' -> a) ->
                      nlam $ \(fromInteger . finNat' -> b) ->
                      wlam $ \(bvVal -> x) -> return $
-                     wlam $ \(bvVal -> y) -> return $ word (toInteger b)
-                                                (snd (divModPoly x a y (b+1))))
+                     wlam $ \(bvVal -> y) ->
+                       if y == 0
+                         then divideByZero
+                         else return . word (toInteger b) . snd
+                                $ divModPoly x a y (b+1))
+
   , ("random"      , {-# SCC "Prelude::random" #-}
                      tlam $ \a ->
                      wlam $ \(bvVal -> x) -> return $ randomV a x)
@@ -236,7 +243,8 @@ ecDemoteV = nlam $ \valT ->
 --------------------------------------------------------------------------------
 divModPoly :: Integer -> Int -> Integer -> Int -> (Integer, Integer)
 divModPoly xs xsLen ys ysLen
-  | ys == 0         = divideByZero
+  | ys == 0         = panic "divModPoly"
+                             [ "Uncaught divide-by-zero condition" ]
   | degree <= xsLen = go 0 initR (xsLen - degree) todoBits
   | otherwise       = (0, xs) -- xs is already a residue, just return it
 
@@ -263,16 +271,16 @@ divModPoly xs xsLen ys ysLen
 modExp :: Integer -- ^ bit size of the resulting word
        -> BV      -- ^ base
        -> BV      -- ^ exponent
-       -> BV
+       -> Eval BV
 modExp bits (BV _ base) (BV _ e)
-  | bits == 0            = BV bits 0
+  | bits == 0            = ready $ BV bits 0
   | base < 0 || bits < 0 = evalPanic "modExp"
                              [ "bad args: "
                              , "  base = " ++ show base
                              , "  e    = " ++ show e
                              , "  bits = " ++ show modulus
                              ]
-  | otherwise            = mkBv bits $ doubleAndAdd base e modulus
+  | otherwise            = ready $ mkBv bits $ doubleAndAdd base e modulus
   where
   modulus = 0 `setBit` fromInteger bits
 
@@ -318,9 +326,16 @@ unary f = tlam $ \ ty ->
 
 -- | Turn a normal binop on Integers into one that can also deal with a bitsize.
 liftBinArith :: (Integer -> Integer -> Integer) -> BinArith BV
-liftBinArith op w (BV _ x) (BV _ y) = mkBv w $ op x y
+liftBinArith op w (BV _ x) (BV _ y) = ready $ mkBv w $ op x y
 
-type BinArith w = Integer -> w -> w -> w
+-- | Turn a normal binop on Integers into one that can also deal with a bitsize.
+--   Generate a thunk that throws a divide by 0 error when forced if the second
+--   argument is 0.
+liftDivArith :: (Integer -> Integer -> Integer) -> BinArith BV
+liftDivArith _  _ _        (BV _ 0) = divideByZero
+liftDivArith op w (BV _ x) (BV _ y) = ready $ mkBv w $ op x y
+
+type BinArith w = Integer -> w -> w -> Eval w
 
 arithBinary :: forall b w
              . BitWord b w
@@ -347,7 +362,7 @@ arithBinary op = loop
       | isTBit a -> do
                   lw <- fromVWord "arithLeft" l
                   rw <- fromVWord "arithRight" r
-                  return $ VWord w $ ready $ WordVal $ op w lw rw
+                  return $ VWord w (WordVal <$> op w lw rw)
       | otherwise -> VSeq w <$> (join (zipSeqMap (loop a) <$>
                                       (fromSeq "arithBinary left" l) <*>
                                       (fromSeq "arithBinary right" r)))
@@ -373,10 +388,10 @@ arithBinary op = loop
       return $ VRecord [ (f, loop' fty (lookupRecord f l) (lookupRecord f r))
                        | (f,fty) <- fs ]
 
-type UnaryArith w = Integer -> w -> w
+type UnaryArith w = Integer -> w -> Eval w
 
 liftUnaryArith :: (Integer -> Integer) -> UnaryArith BV
-liftUnaryArith op w (BV _ x) = mkBv w $ op x
+liftUnaryArith op w (BV _ x) = ready $ mkBv w $ op x
 
 arithUnary :: forall b w
             . BitWord b w
@@ -397,7 +412,7 @@ arithUnary op = loop
       -- words and finite sequences
       | isTBit a -> do
               wx <- fromVWord "arithUnary" x
-              return $ VWord w $ ready $ WordVal $ op w wx
+              return $ VWord w (WordVal <$> op w wx)
       | otherwise -> VSeq w <$> (mapSeqMap (loop a) =<< fromSeq "arithUnary" x)
 
     TVStream a ->
@@ -424,14 +439,6 @@ lg2 i = case genLog i 2 of
   Just (i',isExact) | isExact   -> i'
                     | otherwise -> i' + 1
   Nothing                       -> 0
-
-divWrap :: Integral a => a -> a -> a
-divWrap _ 0 = divideByZero
-divWrap x y = x `div` y
-
-modWrap :: Integral a => a -> a -> a
-modWrap _ 0 = divideByZero
-modWrap x y = x `mod` y
 
 -- Cmp -------------------------------------------------------------------------
 
