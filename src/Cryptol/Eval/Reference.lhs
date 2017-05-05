@@ -864,7 +864,7 @@ bits to the *left* of that position are equal.
 >     TVFun _ _ ->
 >       evalPanic "lexCompare" ["invalid type"]
 >     TVTuple etys ->
->       lexList (zipWith3 lexCompare etys (fromVList l) (fromVList r))
+>       lexList (zipWith3 lexCompare etys (fromVTuple l) (fromVTuple r))
 >     TVRec fields ->
 >       let tys    = map snd (sortBy (comparing fst) fields)
 >           ls     = map snd (sortBy (comparing fst) (fromVRecord l))
