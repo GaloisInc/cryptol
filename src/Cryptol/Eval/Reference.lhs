@@ -638,7 +638,10 @@ Cryptol primitives fall into several groups:
 >                       Right i ->
 >                         case fromVWord y of
 >                           Left e -> Left e
->                           Right j -> Right (fst (divModPoly i (fromInteger a) j (fromInteger b))))
+>                           Right j
+>                             | j == 0 -> Left DivideByZero
+>                             | otherwise ->
+>                               Right (fst (divModPoly i (fromInteger a) j (fromInteger b))))
 >
 >   , ("pmod"       , vFinPoly $ \a ->
 >                     vFinPoly $ \b ->
@@ -650,7 +653,10 @@ Cryptol primitives fall into several groups:
 >                       Right i ->
 >                         case fromVWord y of
 >                           Left e -> Left e
->                           Right j -> Right (snd (divModPoly i (fromInteger a) j (fromInteger b + 1))))
+>                           Right j
+>                             | j == 0 -> Left DivideByZero
+>                             | otherwise ->
+>                               Right (snd (divModPoly i (fromInteger a) j (fromInteger b + 1))))
 >
 >   -- Miscellaneous:
 >   , ("error"      , VPoly $ \a ->
