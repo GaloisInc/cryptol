@@ -188,8 +188,8 @@ typeCannotBeDemoted :: Type -> a
 typeCannotBeDemoted t = X.throw (TypeCannotBeDemoted t)
 
 -- | For division by 0.
-divideByZero :: a
-divideByZero = X.throw DivideByZero
+divideByZero :: Eval a
+divideByZero = Thunk (X.throwIO DivideByZero)
 
 -- | For when we know that a word is too wide and will exceed gmp's
 -- limits (though words approaching this size will probably cause the
