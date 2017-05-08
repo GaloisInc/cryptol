@@ -976,7 +976,8 @@ Indexing
 --------
 
 Indexing operations are strict in all index bits, but as lazy as
-possible in the list values.
+possible in the list values. An index greater than or equal to the
+length of the list produces a run-time error.
 
 > -- | Indexing operations that return one element.
 > indexPrimOne :: (Nat' -> TValue -> [Value] -> Integer -> Value) -> Value
@@ -1030,7 +1031,9 @@ possible in the list values.
 >   copyByTValue (tvSeq len eltTy) $
 >   case fromVWord idx of
 >     Left e -> logicNullary (Left e) (tvSeq len eltTy)
->     Right i -> VList (op len (fromVList xs) i val)
+>     Right i
+>       | Nat i < len -> VList (op len (fromVList xs) i val)
+>       | otherwise   -> logicNullary (Left (InvalidIndex i)) (tvSeq len eltTy)
 >
 > updateFront :: Nat' -> [Value] -> Integer -> Value -> [Value]
 > updateFront _ vs i x = updateAt vs i x
