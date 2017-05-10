@@ -739,7 +739,7 @@ transposeV :: BitWord b w
            -> GenValue b w
            -> Eval (GenValue b w)
 transposeV a b c xs
-  | isTBit c, Nat na <- a =
+  | isTBit c, Nat na <- a = -- Fin a => [a][b]Bit -> [b][a]Bit
       return $ bseq $ IndexSeqMap $ \bi ->
         return $ VWord na $ return $ BitsVal $
           Seq.fromFunction (fromInteger na) $ \ai -> do
@@ -749,7 +749,16 @@ transposeV a b c xs
               VWord _ wv  -> flip bitsSeq bi =<< wv
               _ -> evalPanic "transpose" ["expected sequence of bits"]
 
-  | otherwise = do
+  | isTBit c, Inf <- a = -- [inf][b]Bit -> [b][inf]Bit
+      return $ bseq $ IndexSeqMap $ \bi ->
+        return $ VStream $ IndexSeqMap $ \ai ->
+         do ys <- flip lookupSeqMap ai =<< fromSeq "transposeV" xs
+            case ys of
+              VStream ys' -> VBit . fromVBit <$> lookupSeqMap ys' bi
+              VWord _ wv  -> VBit <$> (flip bitsSeq bi =<< wv)
+              _ -> evalPanic "transpose" ["expected sequence of bits"]
+
+  | otherwise = -- [a][b]c -> [b][a]c
       return $ bseq $ IndexSeqMap $ \bi ->
         return $ aseq $ IndexSeqMap $ \ai -> do
           ys  <- flip lookupSeqMap ai =<< fromSeq "transposeV 1" xs
