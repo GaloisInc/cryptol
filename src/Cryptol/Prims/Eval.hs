@@ -582,6 +582,10 @@ joinSeq :: BitWord b w
         -> SeqMap b w
         -> Eval (GenValue b w)
 
+-- Special case for 0 length inner sequences.
+joinSeq _parts 0 a _xs
+  = return $ zeroV (TVSeq 0 a)
+
 -- finite sequence of words
 joinSeq (Nat parts) each TVBit xs
   = joinWords parts each xs

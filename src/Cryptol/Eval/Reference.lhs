@@ -532,11 +532,13 @@ Cryptol primitives fall into several groups:
 >                     VList (fromVList l ++ fromVList r))
 >
 >   , ("join"       , VNumPoly $ \_parts ->
->                     VNumPoly $ \_each  ->
+>                     VNumPoly $ \each  ->
 >                     VPoly $ \_a ->
 >                     VFun $ \xss ->
->                     VList (concat (map fromVList (fromVList xss))))
->     -- FIXME: this doesn't handle the case [inf][0] -> [0]
+>                       case each of
+>                         -- special case when the inner sequences are of length 0
+>                         Nat 0 -> VList []
+>                         _ -> VList (concat (map fromVList (fromVList xss))))
 >
 >   , ("split"      , VNumPoly $ \parts ->
 >                     vFinPoly $ \each  ->
