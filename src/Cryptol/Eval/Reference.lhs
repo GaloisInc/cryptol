@@ -1003,8 +1003,8 @@ length of the list produces a run-time error.
 >   VNumPoly $ \_w ->
 >   VFun $ \l ->
 >   VFun $ \r ->
->   copyByTValue (tvSeq n a) $
->   VList [ case fromVWord y of
+>   VList [ copyByTValue a $
+>           case fromVWord y of
 >              Left e -> logicNullary (Left e) a
 >              Right i -> op n a xs i
 >         | let xs = fromVList l, y <- fromVList r ]
