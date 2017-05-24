@@ -97,7 +97,8 @@ primitive False : Bit
 primitive negate : {a} (Arith a) => a -> a
 
 /**
- * Binary complement.
+ * Bitwise complement. The prefix notation '~ x'
+ * is syntactic sugar for 'complement x'.
  */
 primitive complement : {a} a -> a
 
@@ -138,13 +139,13 @@ primitive (==) : {a} (Cmp a) => a -> a -> Bit
 primitive (!=) : {a} (Cmp a) => a -> a -> Bit
 
 /**
- * Compare the outputs of two functions for equality
+ * Compare the outputs of two functions for equality.
  */
 (===) : {a,b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
 f === g = \ x -> f x == g x
 
 /**
- * Compare the outputs of two functions for inequality
+ * Compare the outputs of two functions for inequality.
  */
 (!==) : {a,b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
 f !== g = \x -> f x != g x
@@ -339,22 +340,47 @@ updatesEnd xs0 idxs vals = xss!0
          | b   <- vals
          ]
 
-
+/**
+ * A finite arithmetic sequence starting with 'first' and 'next',
+ * stopping when the values would wrap around modulo '2^^bits'.
+ *
+ * '[a,b..]' is syntactic sugar for 'fromThen`{first=a,next=b}'.
+ */
 primitive fromThen : {first, next, bits, len}
                      ( fin first, fin next, fin bits
                      , bits >= width first, bits >= width next
                      , lengthFromThen first next bits == len) => [len][bits]
 
+/**
+ * A finite sequence counting up from 'first' to 'last'.
+ *
+ * '[a..b]' is syntactic sugar for 'fromTo`{first=a,last=b}'.
+ * '[a..]' is syntactic sugar for 'fromTo`{first=a,last=(2^^bits)-1}'.
+ */
 primitive fromTo : {first, last, bits} (fin last, fin bits, last >= first,
                               bits >= width last) => [1 + (last - first)][bits]
 
+/**
+ * A finite arithmetic sequence starting with 'first' and 'next',
+ * stopping when the values reach or would skip over 'last'.
+ *
+ * '[a,b..c]' is syntactic sugar for 'fromThenTo`{first=a,next=b,last=c}'.
+ */
 primitive fromThenTo : {first, next, last, bits, len} (fin first, fin next,
                         fin last, fin bits, bits >= width first,
                         bits >= width next, bits >= width last,
                         lengthFromThenTo first next last == len) => [len][bits]
 
+/**
+ * An infinite sequence counting up from the given starting value.
+ * '[x...]' is syntactic sugar for 'infFrom x'.
+ */
 primitive infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
 
+/**
+ * An infinite arithmetic sequence starting with the given two values.
+ * '[x,y...]' is syntactic sugar for 'infFromThen x y'.
+ */
 primitive infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
 
 primitive error : {at, len} (fin len) => [len][8] -> at
