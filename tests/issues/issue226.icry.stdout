@@ -97,5 +97,4 @@ Symbols
                                bits >= width len) => [len]elem -> [bits]
     zero : {a} a
     (||) : {a} a -> a -> a
-    (~) : {a} a -> a
 

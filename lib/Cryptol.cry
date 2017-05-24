@@ -103,12 +103,6 @@ primitive negate : {a} (Arith a) => a -> a
 primitive complement : {a} a -> a
 
 /**
- * Operator form of 'complement'.
- */
-(~) : {a} a -> a
-(~) = complement
-
-/**
  * Less-than. Only works on comparable arguments.
  */
 primitive (<) : {a} (Cmp a) => a -> a -> Bit
