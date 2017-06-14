@@ -119,7 +119,10 @@ data Decl       = Decl { dName        :: !Name
                        , dInfix       :: !Bool
                        , dFixity      :: Maybe Fixity
                        , dDoc         :: Maybe String
-                       } deriving (Show, Generic, NFData)
+                       } deriving (Generic, NFData)
+
+instance Show Decl where
+  show d = "(Decl (" ++ show (dName d) ++ ") (" ++ show (dDefinition d) ++ ")"
 
 data DeclDef    = DPrim
                 | DExpr Expr

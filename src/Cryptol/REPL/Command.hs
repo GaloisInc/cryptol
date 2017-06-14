@@ -56,7 +56,6 @@ import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowed))
 import qualified Cryptol.Utils.Ident as M
 import qualified Cryptol.ModuleSystem.Env as M
-import qualified Cryptol.ModuleSystem.Monad as M
 
 import qualified Cryptol.Eval.Monad as E
 import qualified Cryptol.Eval.Value as E
@@ -187,6 +186,8 @@ nbCommandList  =
     "evaluate an expression with the reference evaluator"
   , CommandDescr [ ":ast" ] (ExprArg astOfCmd)
     "print out an AST of a given term"
+  , CommandDescr [ ":all" ] (ExprArg allTerms)
+    "print out the AST of all defined terms"
   ]
 
 commandList :: [CommandDescr]
@@ -598,12 +599,14 @@ nameToNumber n = M.nameUnique n
 
 astOfCmd :: String -> REPL ()
 astOfCmd str = do
---  expr <- replParseExpr str
---  (re,_,_) <- replCheckExpr (P.coqAst expr)
---  rPrint (fmap nameToNumber re)
+ expr <- replParseExpr str
+ (re,_,_) <- replCheckExpr (P.coqAst expr)
+ rPrint (fmap nameToNumber re)
+
+allTerms :: String -> REPL ()
+allTerms _ = do
   me <- getModuleEnv
-  let decls = (concatMap T.mDecls (M.loadedModules me)) in
-    rPrint decls
+  rPrint (T.mDecls (last (M.loadedModules me)))
 
 typeOfCmd :: String -> REPL ()
 typeOfCmd str = do

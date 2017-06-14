@@ -88,7 +88,10 @@ data Name = Name { nUnique :: {-# UNPACK #-} !Int
 
                  , nLoc :: !Range
                    -- ^ Where this name was defined
-                 } deriving (Show, Generic, NFData)
+                 } deriving (Generic, NFData)
+
+instance Show Name where
+  show n = show (nUnique n)
 
 instance Eq Name where
   a == b = compare a b == EQ
