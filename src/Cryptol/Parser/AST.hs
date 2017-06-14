@@ -64,6 +64,7 @@ module Cryptol.Parser.AST
   , Located(..)
   , LPName, LString, LIdent
   , NoPos(..)
+  , CoqAst(..)
 
     -- * Pretty-printing
   , cppKind, ppSelector
@@ -131,7 +132,7 @@ data Decl name = DSignature [Located name] (Schema name)
                | DPatBind (Pattern name) (Expr name)
                | DType (TySyn name)
                | DLocated (Decl name) Range
-                 deriving (Eq, Show, Generic, NFData)
+                 deriving (Eq, Show, Generic, NFData, Functor)
 
 -- | An import declaration.
 data Import = Import { iModule    :: !ModName
@@ -149,7 +150,7 @@ data ImportSpec = Hiding [Ident]
                   deriving (Eq, Show, Generic, NFData)
 
 data TySyn n  = TySyn (Located n) [TParam n] (Type n)
-                deriving (Eq, Show, Generic, NFData)
+                deriving (Eq, Show, Generic, NFData, Functor)
 
 {- | Bindings.  Notes:
 
@@ -172,17 +173,23 @@ data Bind name = Bind { bName      :: Located name -- ^ Defined thing
                       , bPragmas   :: [Pragma]     -- ^ Optional pragmas
                       , bMono      :: Bool         -- ^ Is this a monomorphic binding
                       , bDoc       :: Maybe String -- ^ Optional doc string
-                      } deriving (Eq, Show, Generic, NFData)
+                      } deriving (Eq, Generic, NFData, Functor)
+
+instance (Show name) => Show (Bind name) where
+  show b = "(Bind (" ++ show (bName b) ++ ") (" ++ show (bDef b) ++ "))"
 
 type LBindDef = Located (BindDef PName)
 
 data BindDef name = DPrim
                   | DExpr (Expr name)
-                    deriving (Eq, Show, Generic, NFData)
+                    deriving (Eq, Show, Generic, NFData, Functor)
 
 data Fixity   = Fixity { fAssoc :: !Assoc
                        , fLevel :: !Int
-                       } deriving (Eq, Show, Generic, NFData)
+                       } deriving (Eq, Generic, NFData)
+
+instance Show Fixity where
+  show _ = ""
 
 data FixityCmp = FCError
                | FCLeft
@@ -293,11 +300,11 @@ data Expr n   = EVar n                          -- ^ @ x @
 
               | EParens (Expr n)                -- ^ @ (e)   @ (Removed by Fixity)
               | EInfix (Expr n) (Located n) Fixity (Expr n)-- ^ @ a + b @ (Removed by Fixity)
-                deriving (Eq, Show, Generic, NFData)
+                deriving (Eq, Show, Generic, NFData, Functor)
 
 data TypeInst name = NamedInst (Named (Type name))
                    | PosInst (Type name)
-                     deriving (Eq, Show, Generic, NFData)
+                     deriving (Eq, Show, Generic, NFData, Functor)
 
 {- | Selectors are used for projecting from various components.
 Each selector has an option spec to specify the shape of the thing
@@ -320,7 +327,7 @@ data Selector = TupleSel Int   (Maybe Int)
 
 data Match name = Match (Pattern name) (Expr name)              -- ^ p <- e
                 | MatchLet (Bind name)
-                  deriving (Eq, Show, Generic, NFData)
+                  deriving (Eq, Show, Generic, NFData, Functor)
 
 data Pattern n = PVar (Located n)              -- ^ @ x @
                | PWild                         -- ^ @ _ @
@@ -330,13 +337,13 @@ data Pattern n = PVar (Located n)              -- ^ @ x @
                | PTyped (Pattern n) (Type n)   -- ^ @ x : [8] @
                | PSplit (Pattern n) (Pattern n)-- ^ @ (x # y) @
                | PLocated (Pattern n) Range    -- ^ Location information
-                 deriving (Eq, Show, Generic, NFData)
+                 deriving (Eq, Show, Generic, NFData, Functor)
 
 data Named a = Named { name :: Located Ident, value :: a }
   deriving (Eq, Show, Foldable, Traversable, Generic, NFData, Functor)
 
 data Schema n = Forall [TParam n] [Prop n] (Type n) (Maybe Range)
-  deriving (Eq, Show, Generic, NFData)
+  deriving (Eq, Show, Generic, NFData, Functor)
 
 data Kind = KNum | KType
   deriving (Eq, Show, Generic, NFData)
@@ -345,7 +352,7 @@ data TParam n = TParam { tpName  :: n
                        , tpKind  :: Maybe Kind
                        , tpRange :: Maybe Range
                        }
-  deriving (Eq, Show, Generic, NFData)
+  deriving (Eq, Show, Generic, NFData, Functor)
 
 data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TSeq (Type n) (Type n)  -- ^ @[8] a@
@@ -361,7 +368,7 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TLocated (Type n) Range -- ^ Location information
             | TParens (Type n)        -- ^ @ (ty) @
             | TInfix (Type n) (Located n) Fixity (Type n) -- ^ @ ty + ty @
-              deriving (Eq, Show, Generic, NFData)
+              deriving (Eq, Show, Generic, NFData, Functor)
 
 tconNames :: Map.Map PName (Type PName)
 tconNames  = Map.fromList
@@ -376,7 +383,7 @@ data Prop n   = CFin (Type n)             -- ^ @ fin x   @
               | CCmp (Type n)             -- ^ @ Cmp a @
               | CLocated (Prop n) Range   -- ^ Location information
               | CType (Type n)            -- ^ After parsing
-                deriving (Eq, Show, Generic, NFData)
+                deriving (Eq, Show, Generic, NFData, Functor)
 
 --------------------------------------------------------------------------------
 -- Note: When an explicit location is missing, we could use the sub-components
@@ -902,7 +909,6 @@ instance NoPos Pragma where
 
 
 
-
 instance NoPos (TySyn name) where
   noPos (TySyn x y z) = TySyn (noPos x) (noPos y) (noPos z)
 
@@ -984,5 +990,157 @@ instance NoPos (Prop name) where
       CCmp x        -> CCmp   (noPos x)
       CLocated c _  -> noPos c
       CType t       -> CType (noPos t)
+
+--Typeclass for prettying up the AST for exporting to Coq
+--Similar to NoPos above
+class CoqAst t where
+  coqAst :: t -> t
+
+-- WARNING: This does not call `coqAst` on the `thing` inside
+instance CoqAst (Located t) where
+  coqAst x = x { srcRange = rng }
+    where rng = Range { from = Position 0 0, to = Position 0 0, source = "" }
+
+instance CoqAst t => CoqAst (Named t) where
+  coqAst t = Named { name = coqAst (name t), value = coqAst (value t) }
+
+instance CoqAst t => CoqAst [t]       where coqAst = fmap coqAst
+instance CoqAst t => CoqAst (Maybe t) where coqAst = fmap coqAst
+
+instance CoqAst (Program name) where
+  coqAst (Program x) = Program (coqAst x)
+
+instance CoqAst (Module name) where
+  coqAst m = Module { mName    = mName m
+                   , mImports = coqAst (mImports m)
+                   , mDecls   = coqAst (mDecls m)
+                   }
+
+instance CoqAst (TopDecl name) where
+  coqAst decl =
+    case decl of
+      Decl    x   -> Decl     (coqAst x)
+      TDNewtype n -> TDNewtype(coqAst n)
+      Include x   -> Include  (coqAst x)
+
+instance CoqAst a => CoqAst (TopLevel a) where
+  coqAst tl = tl { tlValue = coqAst (tlValue tl) }
+
+instance CoqAst (Decl name) where
+  coqAst decl =
+    case decl of
+      DSignature x y   -> DSignature (coqAst x) (coqAst y)
+      DPragma    x y   -> DPragma    (coqAst x) (coqAst y)
+      DPatBind   x y   -> DPatBind   (coqAst x) (coqAst y)
+      DFixity f ns     -> DFixity f (coqAst ns)
+      DBind      x     -> DBind      (coqAst x)
+      DType      x     -> DType      (coqAst x)
+      DLocated   x _   -> coqAst x
+
+instance CoqAst (Newtype name) where
+  coqAst n = Newtype { nName   = coqAst (nName n)
+                    , nParams = nParams n
+                    , nBody   = coqAst (nBody n)
+                    }
+
+instance CoqAst (Bind name) where
+  coqAst x = Bind { bName      = coqAst (bName      x)
+                 , bParams    = coqAst (bParams    x)
+                 , bDef       = coqAst (bDef       x)
+                 , bSignature = coqAst (bSignature x)
+                 , bInfix     = bInfix x
+                 , bFixity    = bFixity x
+                 , bPragmas   = coqAst (bPragmas   x)
+                 , bMono      = bMono x
+                 , bDoc       = bDoc x
+                 }
+
+instance CoqAst Pragma where
+  coqAst p@(PragmaNote {})   = p
+  coqAst p@(PragmaProperty)  = p
+
+
+
+instance CoqAst (TySyn name) where
+  coqAst (TySyn x y z) = TySyn (coqAst x) (coqAst y) (coqAst z)
+
+instance CoqAst (Expr name) where
+  coqAst expr =
+    case expr of
+      EVar x        -> EVar     x
+      ELit x        -> ELit     x
+      ETuple x      -> ETuple   (coqAst x)
+      ERecord x     -> ERecord  (coqAst x)
+      ESel x y      -> ESel     (coqAst x) y
+      EList x       -> EList    (coqAst x)
+      EFromTo x y z -> EFromTo  (coqAst x) (coqAst y) (coqAst z)
+      EInfFrom x y  -> EInfFrom (coqAst x) (coqAst y)
+      EComp x y     -> EComp    (coqAst x) (coqAst y)
+      EApp  x y     -> EApp     (coqAst x) (coqAst y)
+      EAppT x y     -> EAppT    (coqAst x) (coqAst y)
+      EIf   x y z   -> EIf      (coqAst x) (coqAst y) (coqAst z)
+      EWhere x y    -> EWhere   (coqAst x) (coqAst y)
+      ETyped x y    -> ETyped   (coqAst x) (coqAst y)
+      ETypeVal x    -> ETypeVal (coqAst x)
+      EFun x y      -> EFun     (coqAst x) (coqAst y)
+      ELocated x _  -> coqAst x
+
+      EParens e     -> EParens (coqAst e)
+      EInfix x y f z-> EInfix (coqAst x) y f (coqAst z)
+
+instance CoqAst (TypeInst name) where
+  coqAst (PosInst ts)   = PosInst (coqAst ts)
+  coqAst (NamedInst fs) = NamedInst (coqAst fs)
+
+instance CoqAst (Match name) where
+  coqAst (Match x y)  = Match (coqAst x) (coqAst y)
+  coqAst (MatchLet b) = MatchLet (coqAst b)
+
+instance CoqAst (Pattern name) where
+  coqAst pat =
+    case pat of
+      PVar x       -> PVar    (coqAst x)
+      PWild        -> PWild
+      PTuple x     -> PTuple  (coqAst x)
+      PRecord x    -> PRecord (coqAst x)
+      PList x      -> PList   (coqAst x)
+      PTyped x y   -> PTyped  (coqAst x) (coqAst y)
+      PSplit x y   -> PSplit  (coqAst x) (coqAst y)
+      PLocated x _ -> coqAst x
+  
+instance CoqAst (Schema name) where
+  coqAst (Forall x y z _) = Forall (coqAst x) (coqAst y) (coqAst z) Nothing
+
+instance CoqAst (TParam name) where
+  coqAst (TParam x y _)  = TParam x y Nothing
+
+instance CoqAst (Type name) where
+  coqAst ty =
+    case ty of
+      TWild         -> TWild
+      TApp x y      -> TApp     x         (coqAst y)
+      TUser x y     -> TUser    x         (coqAst y)
+      TRecord x     -> TRecord  (coqAst x)
+      TTuple x      -> TTuple   (coqAst x)
+      TFun x y      -> TFun     (coqAst x) (coqAst y)
+      TSeq x y      -> TSeq     (coqAst x) (coqAst y)
+      TBit          -> TBit
+      TInf          -> TInf
+      TNum n        -> TNum n
+      TChar n       -> TChar n
+      TLocated x _  -> coqAst x
+      TParens x     -> TParens (coqAst x)
+      TInfix x y f z-> TInfix (coqAst x) y f (coqAst z)
+
+instance CoqAst (Prop name) where
+  coqAst prop =
+    case prop of
+      CEqual  x y   -> CEqual  (coqAst x) (coqAst y)
+      CGeq x y      -> CGeq (coqAst x) (coqAst y)
+      CFin x        -> CFin (coqAst x)
+      CArith x      -> CArith (coqAst x)
+      CCmp x        -> CCmp   (coqAst x)
+      CLocated c _  -> coqAst c
+      CType t       -> CType (coqAst t)
 
 

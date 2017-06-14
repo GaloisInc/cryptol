@@ -22,7 +22,10 @@ import Control.DeepSeq
 import Cryptol.Utils.PP
 
 data Located a  = Located { srcRange :: !Range, thing :: !a }
-                  deriving (Eq, Show, Generic, NFData)
+                  deriving (Eq, Generic, NFData)
+
+instance (Show a) => Show (Located a) where
+  show l = show (thing l)
 
 data Position   = Position { line :: !Int, col :: !Int }
                   deriving (Eq, Ord, Show, Generic, NFData)

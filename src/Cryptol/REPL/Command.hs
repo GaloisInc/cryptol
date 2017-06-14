@@ -55,6 +55,8 @@ import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowed))
 import qualified Cryptol.Utils.Ident as M
+import qualified Cryptol.ModuleSystem.Env as M
+import qualified Cryptol.ModuleSystem.Monad as M
 
 import qualified Cryptol.Eval.Monad as E
 import qualified Cryptol.Eval.Value as E
@@ -183,6 +185,8 @@ nbCommandList  =
     "do type specialization on a closed expression"
   , CommandDescr [ ":eval" ] (ExprArg refEvalCmd)
     "evaluate an expression with the reference evaluator"
+  , CommandDescr [ ":ast" ] (ExprArg astOfCmd)
+    "print out an AST of a given term"
   ]
 
 commandList :: [CommandDescr]
@@ -588,6 +592,18 @@ refEvalCmd str = do
   (_, expr, _schema) <- replCheckExpr parseExpr
   val <- liftModuleCmd (rethrowEvalError . R.evaluate expr)
   rPrint $ R.ppValue val
+
+nameToNumber :: M.Name -> Int
+nameToNumber n = M.nameUnique n
+
+astOfCmd :: String -> REPL ()
+astOfCmd str = do
+--  expr <- replParseExpr str
+--  (re,_,_) <- replCheckExpr (P.coqAst expr)
+--  rPrint (fmap nameToNumber re)
+  me <- getModuleEnv
+  let decls = (concatMap T.mDecls (M.loadedModules me)) in
+    rPrint decls
 
 typeOfCmd :: String -> REPL ()
 typeOfCmd str = do
