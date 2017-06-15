@@ -48,6 +48,7 @@ cryIsGeq i t1 t2 =
     <|> (geqByInterval i t1 t2)
     <|> (guard (t1 == t2) >> return (SolvedIf []))
     <|> tryAddConst (>==) t1 t2
+    <|> tryMinIsGeq t1 t2
     -- XXX: k >= width e
     -- XXX: width e >= k
 
@@ -116,9 +117,21 @@ geqByInterval ctxt x y =
        (l,Just n) | l >= n -> return (SolvedIf [])
        _                   -> mzero
 
+
+tryMinIsGeq :: Type -> Type -> Match Solved
+tryMinIsGeq t1 t2 =
+  do (a,b) <- aMin t1
+     k1    <- aNat a
+     k2    <- aNat t2
+     return $ if k1 >= k2
+               then SolvedIf [ b >== t2 ]
+               else Unsolvable $ TCErrorMessage $
+                      show k1 ++ " can't be greater than " ++ show k2
+
 --------------------------------------------------------------------------------
 
 
+-- min a b = a ~> a <= b
 tryEqMin :: Type -> Type -> Match Solved
 tryEqMin x y =
   do (a,b) <- aMin x
