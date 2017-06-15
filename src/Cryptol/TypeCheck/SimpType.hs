@@ -81,6 +81,12 @@ tAdd x y
                             (do m <- aNat a
                                 return (tSub (tNum (m+n)) b))
                       = v
+           -- K + min a b ~> min (K + a) (K + b)
+           | Just v <- matchMaybe
+                    $ do (a,b) <- aMin t
+                         return $ tMin (tAdd (tNum n) a) (tAdd (tNum n) b)
+              = v
+
            | otherwise              = tf2 TCAdd (tNum n) t
 
   factor = do (a,b1)  <- aMul x
@@ -183,12 +189,32 @@ tMin x y
   | Just n <- tIsNat' x = minK n y
   | Just n <- tIsNat' y = minK n x
   | Just n <- matchMaybe (minPlusK x y <|> minPlusK y x) = n
+  | Just n <- matchMaybe $ do (k,a) <- isMinK x
+                              return $ minK k (tMin a y)
+                          <|>
+                          do (k,a) <- isMinK y
+                             return $ minK k (tMin x a)
+    = n
+
+  | Just n <- matchMaybe $ do (k1,a) <- isAddK x
+                              (k2,b) <- isAddK y
+                              guard (a == b)
+                              return $ tAdd (tNum (min k1 k2)) a
+    = n
+
   | x == y              = x
   -- XXX: min (k + t) t -> t
   | otherwise           = tf2 TCMin x y
   where
-  minPlusK a b = do (l,r) <- anAdd a
-                    k     <- aNat l
+  isAddK ty = do (a,b) <- anAdd ty
+                 k     <- aNat a
+                 return (k,b)
+
+  isMinK ty = do (a,b) <- aMin ty
+                 k     <- aNat' a
+                 return (k,b)
+
+  minPlusK a b = do (k,r) <- isAddK a
                     guard (k >= 1 && b == r)
                     return b
 
@@ -196,14 +222,6 @@ tMin x y
   minK Inf t      = t
   minK (Nat 0) _  = tNum (0 :: Int)
   minK (Nat k) t
-    | TCon (TF TCAdd) [a,b] <- t'
-    , Just n <- tIsNum a   = if k <= n then tNum k
-                                       else tAdd a (tMin (tNum (k - n)) b)
-
-    | TCon (TF TCSub) [a,b] <- t'
-    , Just n <- tIsNum a =
-      if k >= n then t else tSub a (tMax (tNum (n - k)) b)
-
     | TCon (TF TCMin) [a,b] <- t'
     , Just n <- tIsNum a   = tf2 TCMin (tNum (min k n)) b
 
