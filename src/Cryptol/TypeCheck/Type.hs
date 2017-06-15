@@ -45,10 +45,8 @@ data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
                      , tpKind   :: Kind       -- ^ Kind of parameter
                      , tpName   :: Maybe Name -- ^ Name from source, if any.
                      }
-              deriving (Generic, NFData)
+              deriving (Generic, NFData, Show)
 
-instance Show TParam where
-  show tp = show (tpUnique tp)
 
 -- | The internal representation of types.
 -- These are assumed to be kind correct.

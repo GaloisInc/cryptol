@@ -600,13 +600,13 @@ nameToNumber n = M.nameUnique n
 astOfCmd :: String -> REPL ()
 astOfCmd str = do
  expr <- replParseExpr str
- (re,_,_) <- replCheckExpr (P.coqAst expr)
+ (re,_,_) <- replCheckExpr (P.noPos expr)
  rPrint (fmap nameToNumber re)
 
 allTerms :: String -> REPL ()
 allTerms _ = do
   me <- getModuleEnv
-  rPrint (T.mDecls (last (M.loadedModules me)))
+  rPutStrLn (T.showAst (T.mDecls (last (M.loadedModules me))))
 
 typeOfCmd :: String -> REPL ()
 typeOfCmd str = do

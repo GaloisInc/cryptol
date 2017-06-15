@@ -44,6 +44,9 @@ import Control.DeepSeq
 import           Data.Map    (Map)
 import qualified Data.IntMap as IntMap
 
+
+
+
 -- | A Cryptol module.
 data Module = Module { mName     :: !ModName
                      , mExports  :: ExportSpec Name
@@ -52,7 +55,6 @@ data Module = Module { mName     :: !ModName
                      , mNewtypes :: Map Name Newtype
                      , mDecls    :: [DeclGroup]
                      } deriving (Show, Generic, NFData)
-
 
 
 data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
@@ -112,6 +114,7 @@ groupDecls dg = case dg of
   Recursive ds   -> ds
   NonRecursive d -> [d]
 
+
 data Decl       = Decl { dName        :: !Name
                        , dSignature   :: Schema
                        , dDefinition  :: DeclDef
@@ -119,14 +122,79 @@ data Decl       = Decl { dName        :: !Name
                        , dInfix       :: !Bool
                        , dFixity      :: Maybe Fixity
                        , dDoc         :: Maybe String
-                       } deriving (Generic, NFData)
-
-instance Show Decl where
-  show d = "(Decl (" ++ show (dName d) ++ ") (" ++ show (dDefinition d) ++ ")"
+                       } deriving (Generic, NFData, Show)
 
 data DeclDef    = DPrim
                 | DExpr Expr
                   deriving (Show, Generic, NFData)
+
+-- ShowAST prints out just enough information to model the program in Coq
+class ShowAST t where
+  showAst :: t -> String
+
+instance ShowAST Expr where
+  showAst (EList es _) = "(EList " ++ showAst es ++ ")"
+  showAst (ETuple es) = "(ETuple " ++ showAst es ++ ")"
+  showAst (ERec ides) = "(ERec " ++ showAst ides ++ ")"
+  showAst (ESel e s) = "(ESel " ++ showAst e ++ " " ++ showAst s ++ ")"
+  showAst (EIf c t f) = "(EIf " ++ showAst c ++ " " ++ showAst t ++ " " ++ showAst f ++ ")"
+  showAst (EComp _ _ e mss) = "(EComp " ++ showAst e ++ " " ++ showAst mss ++ ")"
+  showAst (EVar n) = "(EVar " ++ showAst n ++ ")"
+  showAst (EApp fe ae) = "(EApp " ++ showAst fe ++ " " ++ showAst ae ++ ")"
+  showAst (EAbs n _ e) = "(EAbs " ++ showAst n ++ " " ++ showAst e ++ ")"
+  showAst (EProofAbs p e) = "(EProofAbs " ++ show p ++ showAst e ++ ")"
+  showAst (EProofApp e) = "(EProofApp " ++ showAst e ++ ")"
+  showAst (EWhere e dclg) = "(EWhere " ++ showAst e ++ " " ++ showAst dclg ++ ")"
+  --NOTE: erase all types for now, so these don't matter
+  showAst (ETAbs {-tp-}_ e) = showAst e --"(ETAbs " ++ showAst tp ++ " " ++ showAst e ++ ")"
+  showAst (ETApp e {-t-}_) = showAst e -- "(ETapp " ++ showAst e ++ " " ++ showAst t ++ ")"
+
+
+instance (ShowAST a, ShowAST b) => ShowAST (a,b) where
+  showAst (x,y) = "(" ++ showAst x ++ "," ++ showAst y ++ ")"
+  
+instance ShowAST Ident where
+  showAst i = show i
+
+instance ShowAST Type where
+  showAst t = show t
+
+instance ShowAST Selector where
+  showAst s = show s
+
+instance ShowAST Match where
+  showAst (From n _ _ e) = "(From " ++ showAst n ++ " " ++ showAst e ++ ")"
+  showAst (Let d) = "(Let " ++ showAst d ++ ")"
+
+instance ShowAST Decl where
+  showAst d = "(Decl " ++ showAst (dName d) ++ " " ++ showAst (dDefinition d) ++ ")"
+
+instance ShowAST DeclDef where
+  showAst DPrim = show DPrim
+  showAst (DExpr e) = "(DExpr " ++ (showAst e) ++ ")"
+
+instance ShowAST DeclGroup where
+  showAst (Recursive ds) = showAst ds
+  showAst (NonRecursive d) = showAst d
+
+showASTList :: (ShowAST a) => [a] -> String
+showASTList [] = ""
+showASTList [x] = showAst x
+showASTList (x : y) = (showAst x) ++ "," ++ showASTList y
+
+instance (ShowAST a) => ShowAST [a] where
+  showAst a = "[" ++ showASTList a ++ "]"
+
+instance ShowAST TParam where
+  showAst tp = show (tpUnique tp)
+
+instance ShowAST Name where
+  showAst n = show (nameUnique n)
+
+-- instance ShowAST Expr where
+--   showAst (ETAbs tp e) = "(ETAbs " ++ showAst tp ++ showAst e ++ ")"
+--   showAst e = show e
+
 
 --------------------------------------------------------------------------------
 
