@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PatternGuards, Trustworthy #-}
 module Cryptol.TypeCheck.SimpleSolver ( simplify , simplifyStep) where
 
 import Cryptol.TypeCheck.Type hiding
@@ -9,12 +9,25 @@ import Cryptol.TypeCheck.Solver.Numeric.Fin(cryIsFinType)
 import Cryptol.TypeCheck.Solver.Numeric(cryIsEqual, cryIsNotEqual, cryIsGeq)
 import Cryptol.TypeCheck.Solver.Class(solveArithInst,solveCmpInst)
 
+import Cryptol.Utils.Debug(ppTrace)
+import Cryptol.TypeCheck.PP
+
 simplify :: Ctxt -> Prop -> Prop
 simplify ctxt p =
   case simplifyStep ctxt p of
     Unsolvable e -> pError e
-    Unsolved     -> p
-    SolvedIf ps  -> pAnd (map (simplify ctxt) ps)
+    Unsolved     -> dbg msg p
+      where msg = text "unsolved:" <+> pp p
+    SolvedIf ps -> dbg msg $ pAnd (map (simplify ctxt) ps)
+     where msg = case ps of
+                    [] -> text "solved:" <+> pp p
+                    _  -> pp p <+> text "~~~>" <+>
+                          vcat (punctuate comma (map pp ps))
+
+  where
+  dbg msg x
+    | False     = ppTrace msg x
+    | otherwise = x
 
 
 simplifyStep :: Ctxt -> Prop -> Solved
