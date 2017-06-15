@@ -439,6 +439,7 @@ improveByDefaultingWith ::
         , [Warning] -- warnings about defaulting
         )
 -- XXX: Remove this
+-- improveByDefaultingWith s as gs = return (as,gs,emptySubst,[])
 improveByDefaultingWith s as gs =
   case improveByDefaultingWithPure as gs of
     (xs,gs',su,ws) ->
@@ -558,6 +559,7 @@ improveByDefaultingWithPure as ps =
 -- The resulting types should satisfy the constraints of the schema.
 defaultReplExpr :: Num.Solver -> Expr -> Schema
              -> IO (Maybe ([(TParam,Type)], Expr))
+-- defaultReplExpr _ _ _ = return Nothing
 defaultReplExpr so e s =
   if all (\v -> kindOf v == KNum) (sVars s)
      then do let params = map tpVar (sVars s)
