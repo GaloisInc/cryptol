@@ -121,7 +121,7 @@ quickSolver ctxt gs0 = go emptySubst [] gs0
   go su unsolved [] =
     case matchMaybe (findImprovement unsolved) of
       Nothing            -> Right (su,unsolved)
-      Just (newSu, subs) -> go (newSu @@ su) [] (subs ++ apSubst su unsolved)
+      Just (newSu, subs) -> go (newSu @@ su) [] (subs ++ apSubst newSu unsolved)
 
   go su unsolved (g : gs) =
     case Simplify.simplifyStep ctxt (goal g) of
@@ -146,14 +146,32 @@ quickSolver ctxt gs0 = go emptySubst [] gs0
 
 simplifyAllConstraints :: InferM ()
 simplifyAllConstraints =
-  do mapM_  tryHasGoal =<< getHasGoals
+  do simpHasGoals
      gs <- getGoals
      case gs of
        [] -> return ()
        _ ->
         case quickSolver Map.empty gs of
           Left badG      -> recordError (UnsolvedGoal True badG)
-          Right (su,gs1) -> extendSubst su >> addGoals gs1
+          Right (su,gs1) ->
+            do extendSubst su
+               addGoals gs1
+
+-- | Simplify @Has@ constraints as much as possible.
+simpHasGoals :: InferM ()
+simpHasGoals = go False [] =<< getHasGoals
+  where
+  go _     []       []  = return ()
+  go True  unsolved []  = go False [] unsolved
+  go False unsolved []  = mapM_ addHasGoal unsolved
+
+  go changes unsolved (g : todo) =
+    do (ch,solved) <- tryHasGoal g
+       let changes'  = ch || changes
+           unsolved' = if solved then unsolved else g : unsolved
+       changes' `seq` unsolved `seq` go changes' unsolved' todo
+
+
 
 
 proveImplication :: Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
