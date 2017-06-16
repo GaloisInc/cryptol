@@ -142,10 +142,10 @@ instance ShowAST Expr where
   showAst (EVar n) = "(EVar " ++ showAst n ++ ")"
   showAst (EApp fe ae) = "(EApp " ++ showAst fe ++ " " ++ showAst ae ++ ")"
   showAst (EAbs n _ e) = "(EAbs " ++ showAst n ++ " " ++ showAst e ++ ")"
-  showAst (EProofAbs p e) = "(EProofAbs " ++ show p ++ showAst e ++ ")"
-  showAst (EProofApp e) = "(EProofApp " ++ showAst e ++ ")"
   showAst (EWhere e dclg) = "(EWhere " ++ showAst e ++ " " ++ showAst dclg ++ ")"
   --NOTE: erase all types for now, so these don't matter
+  showAst (EProofAbs {-p-}_ e) = showAst e --"(EProofAbs " ++ show p ++ showAst e ++ ")"
+  showAst (EProofApp e) = showAst e --"(EProofApp " ++ showAst e ++ ")"
   showAst (ETAbs {-tp-}_ e) = showAst e --"(ETAbs " ++ showAst tp ++ " " ++ showAst e ++ ")"
   showAst (ETApp e {-t-}_) = showAst e -- "(ETapp " ++ showAst e ++ " " ++ showAst t ++ ")"
 
