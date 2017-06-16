@@ -16,6 +16,9 @@ import Cryptol.TypeCheck.Subst
 
 
 
+-- | Improvements from a bunch of propositions.
+-- Invariant:
+-- the substitions should be already applied to the new sub-goals, if any.
 improveProps :: Bool -> Ctxt -> [Prop] -> Match (Subst,[Prop])
 improveProps impSkol ctxt ps0 = loop emptySubst ps0
   where
@@ -29,9 +32,13 @@ improveProps impSkol ctxt ps0 = loop emptySubst ps0
   go su subs (p : ps) =
     case matchMaybe (improveProp impSkol ctxt p) of
       Nothing            -> go su (p:subs) ps
-      Just (suNew,psNew) -> go (suNew @@ su) (psNew ++ subs) ps
+      Just (suNew,psNew) -> go (suNew @@ su) (psNew ++ apSubst suNew subs)
+                                             (apSubst su ps)
 
 
+-- | Improvements from a proposition.
+-- Invariant:
+-- the substitions should be already applied to the new sub-goals, if any.
 improveProp :: Bool -> Ctxt -> Prop -> Match (Subst,[Prop])
 improveProp impSkol ctxt prop =
   improveEq impSkol ctxt prop
@@ -39,7 +46,9 @@ improveProp impSkol ctxt prop =
 
 
 
-
+-- | Improvements from euqality constraints.
+-- Invariant:
+-- the substitions should be already applied to the new sub-goals, if any.
 improveEq :: Bool -> Ctxt -> Prop -> Match (Subst,[Prop])
 improveEq impSkol fins prop =
   do (lhs,rhs) <- (|=|) prop
