@@ -440,7 +440,7 @@ type lg2 n = width (max n 1 - 1)
  * which are unspecified.  Thus, the output produced by this
  * operation may be difficult to predict.
  */
-primitive trace : {n, a, b} [n][8] -> a -> b -> b
+primitive trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
 
 /**
  * Debugging function for tracing values.  The first argument is a string,
@@ -453,5 +453,5 @@ primitive trace : {n, a, b} [n][8] -> a -> b -> b
  * which are unspecified.  Thus, the output produced by this
  * operation may be difficult to predict.
  */
-traceVal : {n, a} [n][8] -> a -> a
+traceVal : {n, a} (fin n) => [n][8] -> a -> a
 traceVal msg x = trace msg x x
