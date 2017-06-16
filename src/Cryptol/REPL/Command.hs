@@ -606,7 +606,7 @@ astOfCmd str = do
 allTerms :: String -> REPL ()
 allTerms _ = do
   me <- getModuleEnv
-  rPutStrLn (T.showAst (T.mDecls (last (M.loadedModules me))))
+  rPutStrLn (T.showAst (concatMap T.mDecls (M.loadedModules me)))
 
 typeOfCmd :: String -> REPL ()
 typeOfCmd str = do
