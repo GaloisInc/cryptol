@@ -174,8 +174,8 @@ instance ShowAST DeclDef where
   showAst (DExpr e) = "(DExpr " ++ (showAst e) ++ ")"
 
 instance ShowAST DeclGroup where
-  showAst (Recursive ds) = showAst ds
-  showAst (NonRecursive d) = showAst d
+  showAst (Recursive ds) = "(Recursive " ++ showAst ds ++ ")"
+  showAst (NonRecursive d) = "(NonRecursive " ++ showAst d ++ ")"
 
 showASTList :: (ShowAST a) => [a] -> String
 showASTList [] = ""
