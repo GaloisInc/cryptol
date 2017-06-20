@@ -72,8 +72,7 @@ Symbols
     negate : {a} (Arith a) => a -> a
     pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
     pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
-    pmult : {a, b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 +
-                                                            (a + b)]
+    pmult : {a, b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
     random : {a} [256] -> a
     reverse : {a, b} (fin a) => [a]b -> [a]b
     split : {parts, each, a} (fin each) => [parts *
@@ -97,4 +96,5 @@ Symbols
                                bits >= width len) => [len]elem -> [bits]
     zero : {a} a
     (||) : {a} a -> a -> a
+    (~) : {a} a -> a
 
