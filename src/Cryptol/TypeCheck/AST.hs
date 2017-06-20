@@ -143,11 +143,11 @@ instance ShowAST Expr where
   showAst (EApp fe ae) = "(EApp " ++ showAst fe ++ " " ++ showAst ae ++ ")"
   showAst (EAbs n _ e) = "(EAbs " ++ showAst n ++ " " ++ showAst e ++ ")"
   showAst (EWhere e dclg) = "(EWhere " ++ showAst e ++ " " ++ showAst dclg ++ ")"
-  --NOTE: erase all types for now, so these don't matter
+  showAst (ETAbs tp e) = "(ETAbs " ++ showAst tp ++ " " ++ showAst e ++ ")"
+  showAst (ETApp e t) = "(ETApp " ++ showAst e ++ " " ++ showAst t ++ ")"
+  --NOTE: erase all proofs for now, so these don't matter
   showAst (EProofAbs {-p-}_ e) = showAst e --"(EProofAbs " ++ show p ++ showAst e ++ ")"
   showAst (EProofApp e) = showAst e --"(EProofApp " ++ showAst e ++ ")"
-  showAst (ETAbs {-tp-}_ e) = showAst e --"(ETAbs " ++ showAst tp ++ " " ++ showAst e ++ ")"
-  showAst (ETApp e {-t-}_) = showAst e -- "(ETapp " ++ showAst e ++ " " ++ showAst t ++ ")"
 
 
 instance (ShowAST a, ShowAST b) => ShowAST (a,b) where
@@ -157,7 +157,7 @@ instance ShowAST Ident where
   showAst i = show i
 
 instance ShowAST Type where
-  showAst t = show t
+  showAst t = "(" ++ show t ++ ")"
 
 instance ShowAST Selector where
   showAst s = show s
