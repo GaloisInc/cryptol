@@ -9,13 +9,13 @@ import HMAC
 
 // PBKDF2 specialized to HMAC_SHA256 to avoid monomorphic type issues.
 pbkdf2 : {pwBytes, saltBytes, dkLenBits, C}
-         ( 32 >= width (pwBytes*8)
+         ( 64 >= width (8 * pwBytes)
          , dkLenBits >= 1
          , fin dkLenBits
-         , 32 >= width (dkLenBits - 1)
          , C >= 1
          , 16 >= width C
          , 32 >= width (4 + saltBytes)
+         , 32 >= width ((dkLenBits + 255)/256)
          )
       => [pwBytes][8] -> [saltBytes][8] -> [dkLenBits]
 pbkdf2 P S = take `{dkLenBits} (join Ts)
@@ -25,7 +25,7 @@ pbkdf2 P S = take `{dkLenBits} (join Ts)
  type len = (dkLenBits + 255)/256
 
 inner : {pwBytes, C}
-         ( 64 >= width (8 * (pwBytes + 32))
+         ( 64 >= width (8 * pwBytes)
          , C >= 1, 16 >= width C
          )
      =>  [pwBytes][8] -> [32][8] -> [256]
@@ -34,7 +34,7 @@ inner P U0 = (Ts @ 0).0 // XXX should be ! 0
   // Ts : [_][([256],[32][8])]
   Ts = [(join U0, U0)] # [ F P t u  | _ <- [1..C] : [_][16] | (t,u) <- Ts ]
 
-F : {pwBytes} ( 64 >= width (8*(32+pwBytes))
+F : {pwBytes} ( 64 >= width (8 * pwBytes)
               ) => [pwBytes][8] -> [256] -> [32][8] -> ([256],[32][8])
 F P Tprev Uprev = (Tnext,Unext)
   where
