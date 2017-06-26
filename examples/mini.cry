@@ -1,0 +1,28 @@
+id : [32] -> [32]
+id x = rec x
+  where rec k = if (k == 0) then 0 else 1 + rec (k + (-1))
+
+
+inflist = [1 ... ] : [_][8]
+
+rc = {x = 3 : [8], y = 5 : [8]}
+
+my_true = rc.x
+
+tup = (1 : [8], 2 : [8], 3 : [8], 4 : [8])
+
+my_3 = tup.2
+
+sup = y where y = 3 : [8]
+
+
+gf28Add : {n} (fin n) => [n][8] -> [8]
+gf28Add ps = sums ! 0
+  where sums = [zero] # [  p ^ s | p <- ps | s <- sums ]
+
+gex = gf28Add [1,2]
+
+sum : [_][8] -> [_][8]
+sum x = rec
+  where rec = [ p + q | p <- x | q <- [1,2,3,4] ]
+  
