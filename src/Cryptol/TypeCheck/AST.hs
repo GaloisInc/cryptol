@@ -34,7 +34,7 @@ import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Import(..), ImportSpec(..), ExportType(..)
                           , ExportSpec(..), isExportedBind
                           , isExportedType, Fixity(..) )
-import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,packIdent)
+import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,packIdent,unpackIdent)
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
 
@@ -145,22 +145,27 @@ instance ShowAST Expr where
   showAst (EWhere e dclg) = "(EWhere " ++ showAst e ++ " " ++ showAst dclg ++ ")"
   showAst (ETAbs tp e) = "(ETAbs " ++ showAst tp ++ " " ++ showAst e ++ ")"
   showAst (ETApp e t) = "(ETApp " ++ showAst e ++ " " ++ showAst t ++ ")"
-  --NOTE: erase all proofs for now, so these don't matter
+  --NOTE: erase all proofs for now (change the following two lines to change that)
   showAst (EProofAbs {-p-}_ e) = showAst e --"(EProofAbs " ++ show p ++ showAst e ++ ")"
   showAst (EProofApp e) = showAst e --"(EProofApp " ++ showAst e ++ ")"
-
 
 instance (ShowAST a, ShowAST b) => ShowAST (a,b) where
   showAst (x,y) = "(" ++ showAst x ++ "," ++ showAst y ++ ")"
   
-instance ShowAST Ident where
+instance ShowAST Int where
   showAst i = show i
 
+instance ShowAST Ident where
+  showAst i = show (unpackIdent i)
+
 instance ShowAST Type where
+  showAst (TUser n lt t) = "(TUser " ++ showAst n ++ " " ++ showAst lt ++ " " ++ showAst t ++ ")"
   showAst t = "(" ++ show t ++ ")"
 
 instance ShowAST Selector where
-  showAst s = show s
+  showAst (TupleSel n _) = "(TupleSel " ++ showAst n ++ ")"
+  showAst (RecordSel n _) = "(RecordSel " ++ showAst n ++ ")"
+  showAst (ListSel n _) = "(ListSel " ++ showAst n ++ ")"
 
 instance ShowAST Match where
   showAst (From n _ _ e) = "(From " ++ showAst n ++ " " ++ showAst e ++ ")"
@@ -185,20 +190,17 @@ showASTList (x : y) = (showAst x) ++ "," ++ showASTList y
 instance (ShowAST a) => ShowAST [a] where
   showAst a = "[" ++ showASTList a ++ "]"
 
+instance (ShowAST a) => ShowAST (Maybe a) where
+  showAst Nothing = ""
+  showAst (Just x) = showAst x
+
 instance ShowAST TParam where
-  showAst tp = show (tpUnique tp)
+  showAst tp = showAst (tpName tp)
 
 instance ShowAST Name where
-  showAst n = show (nameUnique n)
-
--- instance ShowAST Expr where
---   showAst (ETAbs tp e) = "(ETAbs " ++ showAst tp ++ showAst e ++ ")"
---   showAst e = show e
-
+  showAst n = "(" ++ show (nameUnique n) ++ "," ++ showAst (nameIdent n) ++ ")"
 
 --------------------------------------------------------------------------------
-
-
 
 -- | Construct a primitive, given a map to the unique names of the Cryptol
 -- module.
