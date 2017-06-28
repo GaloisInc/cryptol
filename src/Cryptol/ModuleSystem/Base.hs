@@ -49,7 +49,7 @@ import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy.IO as T
-import System.Directory (doesFileExist)
+import System.Directory (doesFileExist, canonicalizePath)
 import System.FilePath ( addExtension
                        , isAbsolute
                        , joinPath
@@ -134,11 +134,13 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
   env <- getModuleEnv
   case lookupModule n env of
     Nothing -> loadingModule n (loadModule path' pm)
-    Just lm
-      | path' == loaded -> return (lmModule lm)
-      | otherwise       -> duplicateModuleName n path' loaded
-      where loaded = lmFilePath lm
-
+    Just lm -> do
+      let loaded = lmFilePath lm
+      path'' <- io $ canonicalizePath path'
+      loaded' <- io $ canonicalizePath loaded
+      case path'' == loaded' of
+        True -> return (lmModule lm)
+        False -> duplicateModuleName n path' loaded
 
 -- | Load the module specified by an import.
 loadImport :: Located P.Import -> ModuleM ()
