@@ -126,7 +126,7 @@ loadModuleByPath :: FilePath -> ModuleM T.Module
 loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
   let fileName = takeFileName path
   -- path' is the resolved, absolute path
-  path' <- findFile fileName
+  path' <- findFile fileName >>= io . canonicalizePath
   pm <- parseModule path'
   let n = thing (P.mName pm)
 
@@ -134,13 +134,10 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
   env <- getModuleEnv
   case lookupModule n env of
     Nothing -> loadingModule n (loadModule path' pm)
-    Just lm -> do
-      let loaded = lmFilePath lm
-      path'' <- io $ canonicalizePath path'
-      loaded' <- io $ canonicalizePath loaded
-      case path'' == loaded' of
-        True -> return (lmModule lm)
-        False -> duplicateModuleName n path' loaded
+    Just lm
+     | path' == loaded -> return (lmModule lm)
+     | otherwise       -> duplicateModuleName n path' loaded
+     where loaded = lmFilePath lm
 
 -- | Load the module specified by an import.
 loadImport :: Located P.Import -> ModuleM ()
