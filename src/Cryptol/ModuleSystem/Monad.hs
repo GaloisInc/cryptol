@@ -385,10 +385,10 @@ unloadModule path = ModuleT $ do
   env <- get
   set $! env { meLoadedModules = removeLoadedModule path (meLoadedModules env) }
 
-loadedModule :: FilePath -> T.Module -> ModuleM ()
-loadedModule path m = ModuleT $ do
+loadedModule :: FilePath -> FilePath -> T.Module -> ModuleM ()
+loadedModule path canonicalPath m = ModuleT $ do
   env <- get
-  set $! env { meLoadedModules = addLoadedModule path m (meLoadedModules env) }
+  set $! env { meLoadedModules = addLoadedModule path canonicalPath m (meLoadedModules env) }
 
 modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
 modifyEvalEnv f = ModuleT $ do

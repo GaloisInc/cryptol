@@ -125,19 +125,22 @@ parseModule path = do
 loadModuleByPath :: FilePath -> ModuleM T.Module
 loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
   let fileName = takeFileName path
-  -- path' is the resolved, absolute path
-  path' <- findFile fileName >>= io . canonicalizePath
-  pm <- parseModule path'
+  foundPath <- findFile fileName
+  pm <- parseModule foundPath
   let n = thing (P.mName pm)
 
   -- Check whether this module name has already been loaded from a different file
   env <- getModuleEnv
+  -- path' is the resolved, absolute path, used only for checking
+  -- whether it's already been loaded
+  path' <- io $ canonicalizePath foundPath
   case lookupModule n env of
-    Nothing -> loadingModule n (loadModule path' pm)
+    -- loadModule will calculate the canonical path again
+    Nothing -> loadingModule n (loadModule foundPath pm)
     Just lm
      | path' == loaded -> return (lmModule lm)
      | otherwise       -> duplicateModuleName n path' loaded
-     where loaded = lmFilePath lm
+     where loaded = lmCanonicalPath lm
 
 -- | Load the module specified by an import.
 loadImport :: Located P.Import -> ModuleM ()
@@ -173,7 +176,9 @@ loadModule path pm = do
   -- extend the eval env
   modifyEvalEnv (E.moduleEnv tcm)
 
-  loadedModule path tcm
+  canonicalPath <- io (canonicalizePath path)
+
+  loadedModule path canonicalPath tcm
 
   return tcm
 
