@@ -13,6 +13,7 @@ before_install:
   - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.cabal/bin:$PATH
 
 install:
+  - cabal update
   - cabal sandbox init
   - cabal install Cabal
   - make
