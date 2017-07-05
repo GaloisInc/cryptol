@@ -1,5 +1,5 @@
 language: haskell
-ghc: 7.6
+ghc: 8.0
 install:
   - cabal sandbox init
   - cabal install Cabal
