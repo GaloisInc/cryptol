@@ -1,0 +1,17 @@
+install:
+  # Using '-y' and 'refreshenv' as a workaround to:
+  # https://github.com/haskell/cabal/issues/3687
+  - choco install -y ghc --version 8.0.2
+  - refreshenv
+  # See http://help.appveyor.com/discussions/problems/6312-curl-command-not-found#comment_42195491
+  # NB: Do this after refreshenv, otherwise it will be clobbered!
+  - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%
+  - curl -o cabal.zip --progress-bar https://www.haskell.org/cabal/release/cabal-install-1.24.0.0/cabal-install-1.24.0.0-x86_64-unknown-mingw32.zip
+  - 7z x -bd cabal.zip
+  - cabal --version
+  - cabal update
+
+build_script:
+  - cabal sandbox init
+  - cabal install Cabal
+  - make
