@@ -19,7 +19,7 @@ before_install:
     fi
   - if [[ $TRAVIS_OS_NAME == 'osx' ]];
     then
-        brew install ghc cabal-install
+        brew install ghc cabal-install;
         export PATH=$HOME/.cabal/bin:$PATH;
     fi
   - env
