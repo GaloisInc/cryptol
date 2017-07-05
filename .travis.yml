@@ -5,11 +5,11 @@ language: c
 
 matrix:
   include:
-    - env: CABALVER="1.24" GHCVER="8.0.2"
+    - env: CABALVER="1.24" GHCVER="8.0.2" DIFF="diff"
       compiler: ": #GHC 8.0.2"
       addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2], sources: [hvr-ghc]}}
     - os: osx
-      env: CABALVER="1.24" GHCVER="8.0.2"
+      env: CABALVER="1.24" GHCVER="8.0.2" DIFF="diff"
       compiler: ": #GHC 8.0.2"
 
 before_install:
