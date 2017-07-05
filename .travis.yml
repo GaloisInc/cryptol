@@ -15,8 +15,7 @@ matrix:
 before_install:
   - if [[ $TRAVIS_OS_NAME == 'linux' ]];
     then
-        export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.cabal/b
-in:$PATH;
+        export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.cabal/bin:$PATH;
     fi
   - if [[ $TRAVIS_OS_NAME == 'osx' ]];
     then
