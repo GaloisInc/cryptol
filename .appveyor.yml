@@ -5,7 +5,7 @@ install:
   - refreshenv
   # See http://help.appveyor.com/discussions/problems/6312-curl-command-not-found#comment_42195491
   # NB: Do this after refreshenv, otherwise it will be clobbered!
-  - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%
+  - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%;C:\msys64\usr\bin
   - curl -o cabal.zip --progress-bar https://www.haskell.org/cabal/release/cabal-install-1.24.0.0/cabal-install-1.24.0.0-x86_64-unknown-mingw32.zip
   - 7z x -bd cabal.zip
   - cabal --version
@@ -14,4 +14,4 @@ install:
 build_script:
   - cabal sandbox init
   - cabal install Cabal
-  - cabal install
+  - make
