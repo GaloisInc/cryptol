@@ -14,4 +14,4 @@ install:
 build_script:
   - cabal sandbox init
   - cabal install Cabal
-  - make
+  - cabal build
