@@ -8,9 +8,22 @@ matrix:
     - env: CABALVER="1.24" GHCVER="8.0.2"
       compiler: ": #GHC 8.0.2"
       addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2], sources: [hvr-ghc]}}
+    - os: osx
+      env: CABALVER="1.24" GHCVER="8.0.2"
+      compiler: ": #GHC 8.0.2"
 
 before_install:
-  - export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.cabal/bin:$PATH
+  - if [[ $TRAVIS_OS_NAME == 'linux' ]];
+    then
+        export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.cabal/b
+in:$PATH;
+    fi
+  - if [[ $TRAVIS_OS_NAME == 'osx' ]];
+    then
+        brew install ghc cabal-install
+        export PATH=$HOME/.cabal/bin:$PATH;
+    fi
+  - env
 
 install:
   - cabal update
