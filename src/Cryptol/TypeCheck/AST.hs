@@ -144,7 +144,7 @@ instance ShowAST Expr where
   showAst (EAbs n _ e) = "(EAbs " ++ showAst n ++ " " ++ showAst e ++ ")"
   showAst (EWhere e dclg) = "(EWhere " ++ showAst e ++ " " ++ showAst dclg ++ ")"
   showAst (ETAbs tp e) = "(ETAbs " ++ showAst tp ++ " " ++ showAst e ++ ")"
-  showAst (ETApp e t) = "(ETApp " ++ showAst e ++ " " ++ showAst t ++ ")"
+  showAst (ETApp e t) = "(ETApp " ++ showAst e ++ " (ETyp " ++ showAst t ++ "))"
   --NOTE: erase all proofs for now (change the following two lines to change that)
   showAst (EProofAbs {-p-}_ e) = showAst e --"(EProofAbs " ++ show p ++ showAst e ++ ")"
   showAst (EProofApp e) = showAst e --"(EProofApp " ++ showAst e ++ ")"
@@ -160,6 +160,7 @@ instance ShowAST Ident where
 
 instance ShowAST Type where
   showAst (TUser n lt t) = "(TUser " ++ showAst n ++ " " ++ showAst lt ++ " " ++ showAst t ++ ")"
+  showAst (TRec lidt) = "(TRec " ++ showAst lidt ++ ")"
   showAst t = "(" ++ show t ++ ")"
 
 instance ShowAST Selector where
@@ -169,7 +170,7 @@ instance ShowAST Selector where
 
 instance ShowAST Match where
   showAst (From n _ _ e) = "(From " ++ showAst n ++ " " ++ showAst e ++ ")"
-  showAst (Let d) = "(Let " ++ showAst d ++ ")"
+  showAst (Let d) = "(MLet " ++ showAst d ++ ")"
 
 instance ShowAST Decl where
   showAst d = "(Decl " ++ showAst (dName d) ++ " " ++ showAst (dDefinition d) ++ ")"
@@ -191,12 +192,16 @@ instance (ShowAST a) => ShowAST [a] where
   showAst a = "[" ++ showASTList a ++ "]"
 
 instance (ShowAST a) => ShowAST (Maybe a) where
-  showAst Nothing = ""
+  showAst Nothing = "(0,\"\")" --empty ident, won't shadow demote
   showAst (Just x) = showAst x
 
 instance ShowAST TParam where
-  showAst tp = showAst (tpName tp)
+  showAst tp = "(" ++ show (tpUnique tp) ++ "," ++ maybeNameStr (tpName tp) ++ ")"
 
+maybeNameStr :: Maybe Name -> String
+maybeNameStr Nothing = show ""
+maybeNameStr (Just n) = showAst (nameIdent n)
+    
 instance ShowAST Name where
   showAst n = "(" ++ show (nameUnique n) ++ "," ++ showAst (nameIdent n) ++ ")"
 
