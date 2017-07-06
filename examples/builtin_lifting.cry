@@ -1,0 +1,48 @@
+//builtins lift over tuples, seqs, and records
+
+//this file uses addition to model a builtin
+//but this should work for any builtin operators
+
+x = [True,False]
+y = [False,True]
+
+//make sure bitvectors are numbers
+property p1 = x == (2 : [2])
+
+//same thing written 2 different ways
+property p2 = x + y == 3
+property p3 = x + y == [True,True]
+
+
+xx = [[True,False]]
+yy = [[False,True]]
+
+//addition lifts pointwise over sequences
+property p4 = xx + yy == [3]
+
+//negation is a unary operator that also lifts over sequences
+property p5 = ~ xx == yy
+
+
+xinf = [2 ... ]
+yinf = [3 ... ]
+
+//addition lifts pointwise over infinite lists
+property p6 = (xinf + yinf) @ (0 : [0]) == (1 : [2])
+
+//negation lifts pointwise over an infinite list
+property p7 = (~ xinf) @ (0 : [0]) == (1 : [2])
+
+xrec = { x = 2 : [2], y = 2 : [2] } : {x : [2], y : [2]}
+
+property p8 = xrec + xrec + xrec == xrec
+
+//lift over tuples and records at the same time
+property p9 = (2,2,xrec) + (2,2,xrec) + (2,2,xrec) == (2:[2],2:[2],xrec) 
+
+//lift unary over tuples and lists
+property p10 = (~ { x = (1,2), y = [3,4,5] }) == {x = (0:[1],1:[2]), y = [4, 3, 2] : [3][3] }
+
+
+
+
