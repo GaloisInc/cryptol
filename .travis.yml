@@ -15,10 +15,11 @@ matrix:
 before_install:
   - if [[ $TRAVIS_OS_NAME == 'linux' ]];
     then
-        export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/.cabal/bin:$PATH;
+        mkdir -p HOME/bin;
+        export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/bin:$HOME/.cabal/bin:$PATH;
         curl https://saw.galois.com/builds/z3/z3 > z3;
         chmod +x z3;
-        mv z3 $HOME/.cabal/bin/z3;
+        mv z3 $HOME/bin/z3;
         z3 --version;
     fi
   - if [[ $TRAVIS_OS_NAME == 'osx' ]];
