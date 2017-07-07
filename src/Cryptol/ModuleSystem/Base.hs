@@ -32,11 +32,11 @@ import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
-import Cryptol.Utils.Ident (preludeName,interactiveName,unpackModName)
+import Cryptol.Utils.Ident (preludeName, preludeExtrasName, interactiveName,unpackModName)
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 
-import Cryptol.Prelude (writePreludeContents)
+import Cryptol.Prelude (writePreludeContents, writePreludeExtrasContents)
 
 import Cryptol.Transform.MonoValues (rewModule)
 
@@ -220,6 +220,7 @@ findModule n = do
   handleNotFound =
     case n of
       m | m == preludeName -> io writePreludeContents
+      m | m == preludeExtrasName -> io writePreludeExtrasContents
       _ -> moduleNotFound n =<< getSearchPath
 
   -- generate all possible search paths

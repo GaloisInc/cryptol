@@ -86,5 +86,8 @@ identText (Ident _ t) = t
 preludeName :: ModName
 preludeName  = packModName ["Cryptol"]
 
+preludeExtrasName :: ModName
+preludeExtrasName = packModName ["Cryptol", "Extras"]
+
 interactiveName :: ModName
 interactiveName  = packModName ["<interactive>"]
