@@ -45,6 +45,7 @@ import           MonadLib
 import           Data.Maybe ( fromMaybe )
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Char(isSpace)
 import           Data.Foldable ( any, all )
 import qualified Data.Set as Set
 import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef',
@@ -287,11 +288,20 @@ data Solver = Solver
 loadFile :: Solver -> FilePath -> IO ()
 loadFile s file = do -- txt <- readFile file
                      -- mapM_ putStrLn (lines txt)
-                     go =<< readFile file
+                     go . dropComments =<< readFile file
   where
-  go txt = case SMT.readSExpr txt of
-             Just (e,rest) -> SMT.command (solver s) e >> go rest
-             Nothing       -> return ()
+  go txt
+    | all isSpace txt = return ()
+    | otherwise = case SMT.readSExpr txt of
+                    Just (e,rest) -> SMT.command (solver s) e >> go rest
+                    Nothing       -> panic "loadFile" [ "Failed to parse SMT file."
+                                                      , txt
+                                                      ]
+
+  dropComments = unlines . map dropComment . lines
+  dropComment xs = case break (== ';') xs of
+                     (as,_:_) -> as
+                     _ -> xs
 
 rawSolver :: Solver -> SMT.Solver
 rawSolver = solver
