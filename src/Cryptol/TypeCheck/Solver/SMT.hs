@@ -1,5 +1,5 @@
 {-# Language FlexibleInstances #-}
-module Cryptol.TypeCheck.Solver.SMT (proveImp) where
+module Cryptol.TypeCheck.Solver.SMT (proveImp,checkUnsolvable) where
 
 import           SimpleSMT (SExpr)
 import qualified SimpleSMT as SMT
@@ -34,6 +34,19 @@ proveImp sol ps gs0 =
      SMT.pop s
      return (catMaybes gs' ++ rest)
 
+-- | Check if the given goals are known to be unsolvable.
+checkUnsolvable :: Solver -> [Goal] -> IO Bool
+checkUnsolvable sol gs0 =
+  debugBlock sol "CHECK UNSOLVABLE" $
+  do let s  = rawSolver sol
+         ps = filter isNumeric (map goal gs0)
+         vs = Set.toList (fvs ps)
+     tvs <- debugBlock sol "VARIABLES" $
+       do SMT.push s
+          Map.fromList <$> zipWithM (declareVar s) [ 0 .. ] vs
+     unsolvable sol tvs ps
+
+--------------------------------------------------------------------------------
 
 declareVar :: SMT.Solver -> Int -> TVar -> IO (TVar, SExpr)
 declareVar s x v = do let name = (if isFreeTV v then "fv" else "kv") ++ show x
@@ -55,6 +68,21 @@ prove sol tvs g =
      case res of
        SMT.Unsat -> return Nothing
        _         -> return (Just g)
+
+
+-- | Check if some numeric goals are known to be unsolvable.
+unsolvable :: Solver -> TVars -> [Prop] -> IO Bool
+unsolvable sol tvs ps =
+  debugBlock sol "UNSOLVABLE" $
+  do let s = rawSolver sol
+     SMT.push s
+     mapM_ (assume s tvs) ps
+     res <- SMT.check s
+     SMT.pop s
+     case res of
+       SMT.Unsat -> return True
+       _         -> return False
+
 
 
 --------------------------------------------------------------------------------
