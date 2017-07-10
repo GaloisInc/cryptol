@@ -1,3 +1,5 @@
+; ------------------------------------------------------------------------------
+; Basic datatypes
 
 (declare-datatypes ()
   ( (InfNat (mk-infnat (value Int) (isFin Bool) (isErr Bool)))
@@ -29,7 +31,9 @@
   (mk-infnat 0 false true)
 )
 
-; ------------------------------------------------------------
+; ------------------------------------------------------------------------------
+; Cryptol version of logic
+
 
 (define-fun cryEq ((x InfNat) (y InfNat)) MaybeBool
   (ite (or (isErr x) (isErr y)) cryErrProp (cryBool
@@ -58,11 +62,14 @@
   )
 )
 
+
 (define-fun cryTrue () MaybeBool
   (cryBool true)
 )
 
-; -----------------------------------------------------
+; ------------------------------------------------------------------------------
+; Basic Cryptol assume/assert
+
 
 (define-fun cryVar ((x InfNat)) Bool
   (and (not (isErr x)) (>= (value x) 0))
@@ -78,7 +85,11 @@
   (ite (isErrorProp x) cryUnknown (not (prop x)))
 )
 
-; ------------------------------------------------------------
+
+
+; ------------------------------------------------------------------------------
+; Arithmetic
+
 
 (define-fun cryAdd ((x InfNat) (y InfNat)) InfNat
   (ite (or (isErr x) (isErr y)) cryErr
@@ -143,7 +154,18 @@
   ))
 )
 
+
 (declare-fun cryWidthUnknown (Int) Int)
+
+; Some axioms about cryWidthUnknown
+
+(assert (forall ((x Int)) (> (cryWidthUnknown x) 64)))
+(assert (forall ((x Int)) (or (> x (cryWidthUnknown x))
+                              (< x 18446744073709551616))))
+(assert (forall ((x Int) (y Int))
+  (=> (and (>= x y) (> y 64))
+      (>= (cryWidthUnknown x) (cryWidthUnknown y)))))
+
 
 (define-fun cryWidthTable ((x Int)) Int
   (ite (< x 1) 0
@@ -221,6 +243,8 @@
   ))
 )
 
+
+
 (declare-fun cryExpUnknown (Int Int) Int)
 
 (define-fun cryExpTable ((x Int) (y Int)) Int
@@ -265,7 +289,5 @@
        (cryLenFromThenTo x y (cryNat (- (cryExpTable 2 (value z)) 1))))
   )
 )
-
-; -------------------
 
 
