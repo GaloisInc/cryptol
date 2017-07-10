@@ -141,7 +141,7 @@ data Error    = ErrorMsg Doc
               | RecursiveType Type Type
                 -- ^ Unification results in a recursive type
 
-              | UnsolvedGoal Bool Goal
+              | UnsolvedGoals Bool [Goal]
                 -- ^ A constraint that we could not solve
                 -- The boolean indicates if we know that this constraint
                 -- is impossible.
@@ -246,7 +246,7 @@ instance TVars Error where
       MultipleTypeParamDefs {}  -> err
       TypeMismatch t1 t2        -> TypeMismatch (apSubst su t1) (apSubst su t2)
       RecursiveType t1 t2       -> RecursiveType (apSubst su t1) (apSubst su t2)
-      UnsolvedGoal x g          -> UnsolvedGoal x (apSubst su g)
+      UnsolvedGoals x gs        -> UnsolvedGoals x (apSubst su gs)
       UnsolvedDelayedCt g       -> UnsolvedDelayedCt (apSubst su g)
       UnexpectedTypeWildCard    -> err
       TypeVariableEscaped t xs  -> TypeVariableEscaped (apSubst su t) xs
@@ -273,7 +273,7 @@ instance FVS Error where
       MultipleTypeParamDefs {}  -> Set.empty
       TypeMismatch t1 t2        -> fvs (t1,t2)
       RecursiveType t1 t2       -> fvs (t1,t2)
-      UnsolvedGoal _ g          -> fvs g
+      UnsolvedGoals _ gs        -> fvs gs
       UnsolvedDelayedCt g       -> fvs g
       UnexpectedTypeWildCard    -> Set.empty
       TypeVariableEscaped t _   -> fvs t
@@ -464,8 +464,9 @@ instance PP (WithNames Error) where
            text "Inferred type:" <+> ppWithNames names t2 $$
            mismatchHint t1 t2)
 
-      UnsolvedGoal imp g ->
-        nested (word <+> text "constraint:") (ppWithNames names g)
+      UnsolvedGoals imp gs ->
+        nested (word <+> text "constraints:")
+               $ vcat $ map (ppWithNames names) gs
         where word = if imp then text "Unsolvable" else text "Unsolved"
 
       UnsolvedDelayedCt g ->

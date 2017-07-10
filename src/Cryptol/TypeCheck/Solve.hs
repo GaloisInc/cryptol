@@ -152,7 +152,7 @@ simplifyAllConstraints =
        [] -> return ()
        _ ->
         case quickSolver Map.empty gs of
-          Left badG      -> recordError (UnsolvedGoal True badG)
+          Left badG      -> recordError (UnsolvedGoals True [badG])
           Right (su,gs1) ->
             do extendSubst su
                addGoals gs1
@@ -198,7 +198,7 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
   do let ctxt = assumptionIntervals Map.empty asmps
      res <- quickSolverIO ctxt gs
      case res of
-       Left bad -> return (Left (UnsolvedGoal True bad), emptySubst)
+       Left bad -> return (Left (UnsolvedGoals True [bad]), emptySubst)
        Right (su,[]) -> return (Right [], su)
        Right (su,gs1) ->
          do gs2 <- proveImp s asmps gs1
@@ -337,7 +337,7 @@ solveConstraints s asmps otherGs gs0 =
 
   go ctxt unsolved (g : gs) =
     case Simplify.simplifyStep ctxt (goal g) of
-      Unsolvable _        -> return (Left [g])
+      Unsolvable x        -> return (Left [g])
       Unsolved            -> go ctxt (g : unsolved) gs
       SolvedIf subs       ->
         let cvt x = g { goal = x }

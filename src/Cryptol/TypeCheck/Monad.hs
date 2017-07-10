@@ -136,7 +136,7 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
            (cts,has) -> return $ InferFailed warns
                 $ dropErrorsFromSameLoc
                 [ ( goalRange g
-                  , UnsolvedGoal False (apSubst theSu g)
+                  , UnsolvedGoals False [apSubst theSu g]
                   ) | g <- fromGoals cts ++ map hasGoal has
                 ]
        errs -> return $ InferFailed warns
