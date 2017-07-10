@@ -163,9 +163,10 @@ aTrue :: Pat Prop ()
 aTrue = tp PTrue ar0
 
 --------------------------------------------------------------------------------
-anError :: Pat Type TCErrorMessage
-anError = \a -> case tNoUser a of
-                  TCon (TError _ err) _ -> return err
-                  _                     -> mzero
+anError :: Kind -> Pat Type TCErrorMessage
+anError k = \a -> case tNoUser a of
+                    TCon (TError k1 err) _ | k == k1 -> return err
+                    _                     -> mzero
+
 
 

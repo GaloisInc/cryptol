@@ -128,6 +128,9 @@ toSMT tvs ty = matchDefault (panic "toSMT" [ "Unexpected type", show ty ])
   , aLenFromThen    ~> "cryLenFromThen"
   , aLenFromThenTo  ~> "cryLenFromThenTo"
 
+  , anError KNum    ~> "cryErr"
+  , anError KProp   ~> "cryErrProp"
+
   , aTVar           ~> "(unused)"
   ]
 
@@ -150,6 +153,9 @@ instance Mk TVar where
 
 instance Mk Type where
   mk tvs f x = SMT.fun f [toSMT tvs x]
+
+instance Mk TCErrorMessage where
+  mk _ f _ = SMT.fun f []
 
 instance Mk (Type,Type) where
   mk tvs f (x,y) = SMT.fun f [ toSMT tvs x, toSMT tvs y]

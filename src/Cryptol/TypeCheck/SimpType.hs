@@ -297,11 +297,7 @@ tOp tf f ts
   | otherwise = Nothing
   where
   err xs = TCErrorMessage $
-              "Invalid applicatoin of " ++ show (pp tf) ++ " to " ++
-                  unwords (map ppIN xs)
-
-  ppIN Inf = "inf"
-  ppIN (Nat x) = show x
+              "Invalid type: " ++ show (pp (TCon (TF tf) (map tNat' xs)))
 
 
 

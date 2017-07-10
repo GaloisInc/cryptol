@@ -337,7 +337,7 @@ solveConstraints s asmps otherGs gs0 =
 
   go ctxt unsolved (g : gs) =
     case Simplify.simplifyStep ctxt (goal g) of
-      Unsolvable x        -> return (Left [g])
+      Unsolvable _x       -> return (Left [g])  -- maybe give error?
       Unsolved            -> go ctxt (g : unsolved) gs
       SolvedIf subs       ->
         let cvt x = g { goal = x }

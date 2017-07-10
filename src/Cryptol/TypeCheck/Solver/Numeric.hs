@@ -59,15 +59,15 @@ cryIsGeq i t1 t2 =
 
 pBin :: PC -> (Nat' -> Nat' -> Bool) -> Type -> Type -> Match Solved
 pBin tf p t1 t2 =
-      Unsolvable <$> anError t1
-  <|> Unsolvable <$> anError t2
+      Unsolvable <$> anError KNum t1
+  <|> Unsolvable <$> anError KNum t2
   <|> (do x <- aNat' t1
           y <- aNat' t2
           return $ if p x y
                       then SolvedIf []
                       else Unsolvable $ TCErrorMessage
-                        $ "Predicate " ++ show (pp tf) ++ " does not hold for "
-                              ++ show x ++ " and " ++ show y)
+                        $ "Unsolvable constraint: " ++
+                              show (pp (TCon (PC tf) [ tNat' x, tNat' y ])))
 
 
 --------------------------------------------------------------------------------
