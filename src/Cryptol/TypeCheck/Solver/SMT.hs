@@ -44,7 +44,9 @@ checkUnsolvable sol gs0 =
      tvs <- debugBlock sol "VARIABLES" $
        do SMT.push s
           Map.fromList <$> zipWithM (declareVar s) [ 0 .. ] vs
-     unsolvable sol tvs ps
+     ans <- unsolvable sol tvs ps
+     SMT.pop s
+     return ans
 
 --------------------------------------------------------------------------------
 
