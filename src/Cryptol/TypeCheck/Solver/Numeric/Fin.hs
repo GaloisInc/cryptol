@@ -33,7 +33,10 @@ cryIsFinType varInfo ty =
     TVar x | Just i <- Map.lookup x varInfo
            , iIsFin i -> SolvedIf []
 
-    TCon (TC tc) [] | TCNum _ <- tc -> SolvedIf []
+    TCon (TC tc) []
+      | TCNum _ <- tc -> SolvedIf []
+      | TCInf   <- tc ->
+        Unsolvable $ TCErrorMessage "Expected a finite type, but found `inf`."
 
     TCon (TF f) ts ->
       case (f,ts) of
