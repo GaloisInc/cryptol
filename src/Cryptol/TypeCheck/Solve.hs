@@ -30,7 +30,7 @@ import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import           Cryptol.TypeCheck.SimpType(tMax)
 
 
-import           Cryptol.TypeCheck.Solver.SMT(proveImp)
+import           Cryptol.TypeCheck.Solver.SMT(proveImp,checkUnsolvable)
 import           Cryptol.TypeCheck.Solver.Improve(improveProp,improveProps)
 import           Cryptol.TypeCheck.Solver.Numeric.Interval
 import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
@@ -453,28 +453,41 @@ improveByDefaultingWith ::
   [Goal] ->   -- constraints
     IO  ( [TVar]    -- non-defaulted
         , [Goal]    -- new constraints
-        , Subst     -- improvements from defaulting
+        , Maybe Subst   -- Nothing: improve to False
+                        -- Just:    improvements from defaulting
         , [Warning] -- warnings about defaulting
         )
 -- XXX: Remove this
 -- improveByDefaultingWith s as gs = return (as,gs,emptySubst,[])
 improveByDefaultingWith s as gs =
-  case improveByDefaultingWithPure as gs of
-    (xs,gs',su,ws) ->
-      do (res,su1) <- simpGoals' s Map.empty gs'
-         case res of
-           Left err ->
-             panic "improveByDefaultingWith"
-                    [ "Defaulting resulted in unsolvable constraints."
-                    , show err ]
-           Right gs'' ->
-             do let su2 = su1 @@ su
-                    isDef x = x `Set.member` substBinds su2
-                return ( filter (not . isDef) xs
-                       , gs''
-                       , su2
-                       , ws
-                       )
+  do bad <- checkUnsolvable s gs
+     if bad
+       then return (as, gs, Nothing, [])
+       else tryImp
+
+  where
+  tryImp =
+    case improveByDefaultingWithPure as gs of
+      (xs,gs',su,ws) ->
+        do (res,su1) <- simpGoals' s Map.empty gs'
+           case res of
+             Left err ->
+               panic "improveByDefaultingWith"
+                    $ [ "Defaulting resulted in unsolvable constraints."
+                      , "Before:"
+                      ] ++ [ "  " ++ show (pp (goal g)) | g <- gs ] ++
+                      [ "After:"
+                      ] ++ [ "  " ++ show (pp (goal g)) | g <- gs' ] ++
+                      [ "Contradiction:" ] ++
+                      [ "  " ++ show (pp (goal g)) | g <- err ]
+             Right gs'' ->
+               do let su2 = su1 @@ su
+                      isDef x = x `Set.member` substBinds su2
+                  return ( filter (not . isDef) xs
+                         , gs''
+                         , Just su2
+                         , ws
+                         )
 
 
 improveByDefaultingWithPure :: [TVar] -> [Goal] ->
