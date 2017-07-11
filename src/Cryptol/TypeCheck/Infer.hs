@@ -523,8 +523,8 @@ inferP desc pat =
 -- | Infer the type of one match in a list comprehension.
 inferMatch :: P.Match Name -> InferM (Match, Name, Located Type, Type)
 inferMatch (P.Match p e) =
-  do (x,t) <- inferP (text "XXX:MATCH") p
-     n     <- newType (text "sequence length of comprehension match") KNum
+  do (x,t) <- inferP (text "a value bound by a generator in a comprehension") p
+     n     <- newType (text "the length of a generator in a comprehension") KNum
      e'    <- checkE e (tSeq n (thing t))
      return (From x n (thing t) e', x, t, n)
 
