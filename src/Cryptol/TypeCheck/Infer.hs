@@ -766,7 +766,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
   withTParams as $
   do (e1,cs0) <- collectGoals $
                 do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) e0 t0
-                   () <- simplifyAllConstraints  -- XXX: using `asmps` also...
+                   addGoals validSchema
+                   () <- simplifyAllConstraints  -- XXX: using `asmps` also?
                    return e1
      cs <- applySubst cs0
 
@@ -782,7 +783,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
 
      asmps1 <- applySubst asmps0
 
-     defSu1 <- proveImplication (thing (P.bName b)) as asmps1 (validSchema ++ now)
+     defSu1 <- proveImplication (thing (P.bName b)) as asmps1 now
      let later = apSubst defSu1 later0
          asmps = apSubst defSu1 asmps1
 
