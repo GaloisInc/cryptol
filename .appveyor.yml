@@ -10,8 +10,11 @@ install:
   - 7z x -bd cabal.zip
   - cabal --version
   - cabal update
+  - curl -o z3.zip --progress-bar https://github.com/Z3Prover/z3/releases/download/z3-4.5.0/z3-4.5.0-x64-win.zip
+  - 7z x -bd z3.zip
+  - cp z3-4.5.0-x64-win/bin/z3.exe .
 
 build_script:
   - cabal sandbox init
   - cabal install Cabal
-  - make
+  - make test DIFF=""
