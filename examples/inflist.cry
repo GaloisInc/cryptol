@@ -1,0 +1,10 @@
+a = [1 ... ]
+b = [1,2 ... ]
+c = [1 .. 5]
+d = [1,3 .. 9]
+
+property t1 = a @ 3 == 1
+property t2 = b @ 3 == 1
+property t3 = c @ 3 == 4
+property t4 = d @ 3 == 4
+
