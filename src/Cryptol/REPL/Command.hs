@@ -104,7 +104,8 @@ import Data.IORef(newIORef,readIORef)
 import Prelude ()
 import Prelude.Compat
 
-import Data.SBV(TimedStep(..),showTDiff,Solver)
+import qualified Data.SBV           as SBV (Solver)
+import qualified Data.SBV.Internals as SBV (showTDiff)
 
 -- Commands --------------------------------------------------------------------
 
@@ -396,18 +397,13 @@ satCmd, proveCmd :: String -> REPL ()
 satCmd = cmdProveSat True
 proveCmd = cmdProveSat False
 
-showProverStats :: Maybe Solver -> ProverStats -> REPL ()
-showProverStats mprover = rPutStrLn
-                          . ('\n':) . parns
-                          . intercalate ", " . map sh . Map.toList
+showProverStats :: Maybe SBV.Solver -> ProverStats -> REPL ()
+showProverStats mprover stat = rPutStrLn
+                             . ('\n':) . parns
+                             . intercalate ", " . map sh $ [("Total Elapsed Time", stat)]
   where
-  lab ProblemConstruction = "simulation"
-  lab Translation         = "export"
-  lab (WorkByProver x)    = case mprover of
-                              Just prover | x == show prover -> '*' : x
-                              _ -> x
 
-  sh (x, y) = lab x ++ ":" ++ showTDiff y
+  sh (x, y) = x ++ ": " ++ SBV.showTDiff y
 
   parns x = '(' : x ++ ")"
 
@@ -496,7 +492,7 @@ cmdProveSat isSat str = do
 
 onlineProveSat :: Bool
                -> String -> Maybe FilePath
-               -> REPL (Maybe Solver,Symbolic.ProverResult,ProverStats)
+               -> REPL (Maybe SBV.Solver,Symbolic.ProverResult,ProverStats)
 onlineProveSat isSat str mfile = do
   EnvString proverName <- getUser "prover"
   EnvBool verbose <- getUser "debug"
@@ -504,7 +500,7 @@ onlineProveSat isSat str mfile = do
   parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
-  timing <- io (newIORef Map.empty)
+  timing <- io (newIORef 0)
   let cmd = Symbolic.ProverCommand {
           pcQueryType    = if isSat then SatQuery satNum else ProveQuery
         , pcProverName   = proverName
@@ -525,7 +521,7 @@ offlineProveSat isSat str mfile = do
   parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
-  timing <- io (newIORef Map.empty)
+  timing <- io (newIORef 0)
   let cmd = Symbolic.ProverCommand {
           pcQueryType    = if isSat then SatQuery (SomeSat 0) else ProveQuery
         , pcProverName   = "offline"

@@ -44,6 +44,9 @@ import Cryptol.Eval.Value  ( GenValue(..), BitWord(..), lam, tlam, toStream,
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
+import Control.Monad.Reader (ask)
+import Control.Monad.Trans  (liftIO)
+
 -- SBool and SWord -------------------------------------------------------------
 
 type SBool = SVal
@@ -57,16 +60,16 @@ literalSWord :: Int -> Integer -> SWord
 literalSWord w i = svInteger (KBounded False w) i
 
 forallBV_ :: Int -> Symbolic SWord
-forallBV_ w = svMkSymVar (Just ALL) (KBounded False w) Nothing
+forallBV_ w = ask >>= liftIO . svMkSymVar (Just ALL) (KBounded False w) Nothing
 
 existsBV_ :: Int -> Symbolic SWord
-existsBV_ w = svMkSymVar (Just EX) (KBounded False w) Nothing
+existsBV_ w = ask >>= liftIO . svMkSymVar (Just EX) (KBounded False w) Nothing
 
 forallSBool_ :: Symbolic SBool
-forallSBool_ = svMkSymVar (Just ALL) KBool Nothing
+forallSBool_ = ask >>= liftIO . svMkSymVar (Just ALL) KBool Nothing
 
 existsSBool_ :: Symbolic SBool
-existsSBool_ = svMkSymVar (Just EX) KBool Nothing
+existsSBool_ = ask >>= liftIO . svMkSymVar (Just EX) KBool Nothing
 
 -- Values ----------------------------------------------------------------------
 
