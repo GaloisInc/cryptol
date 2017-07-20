@@ -23,7 +23,8 @@ import Data.IORef(IORef)
 import qualified Control.Exception as X
 
 import qualified Data.SBV.Dynamic as SBV
-import           Data.SBV (Timing(SaveTiming),TimingInfo)
+import           Data.SBV (Timing(SaveTiming))
+import           Data.SBV.Internals (showTDiff)
 
 import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
@@ -45,6 +46,8 @@ import Cryptol.Utils.Panic(panic)
 
 import Prelude ()
 import Prelude.Compat
+
+import Data.Time (NominalDiffTime)
 
 type EvalEnv = GenEvalEnv SBool SWord
 
@@ -101,7 +104,7 @@ data ProverCommand = ProverCommand {
     -- ^ The 'Schema' of @pcExpr@
   }
 
-type ProverStats = TimingInfo
+type ProverStats = NominalDiffTime
 
 -- | A prover result is either an error message, an empty result (eg
 -- for the offline prover), a counterexample or a lazy list of
@@ -115,7 +118,7 @@ satSMTResults :: SBV.SatResult -> [SBV.SMTResult]
 satSMTResults (SBV.SatResult r) = [r]
 
 allSatSMTResults :: SBV.AllSatResult -> [SBV.SMTResult]
-allSatSMTResults (SBV.AllSatResult (_, rs)) = rs
+allSatSMTResults (SBV.AllSatResult (_, _, rs)) = rs
 
 thmSMTResults :: SBV.ThmResult -> [SBV.SMTResult]
 thmSMTResults (SBV.ThmResult r) = [r]
@@ -137,7 +140,7 @@ satProve ProverCommand {..} =
   provers <-
     case pcProverName of
       "any" -> M.io SBV.sbvAvailableSolvers
-      _ -> return [(lookupProver pcProverName) { SBV.smtFile = pcSmtFile }]
+      _ -> return [(lookupProver pcProverName) { SBV.transcript = pcSmtFile }]
 
 
   let provers' = [ p { SBV.timing = SaveTiming pcProverStats, SBV.verbose = pcVerbose } | p <- provers ]
@@ -146,10 +149,10 @@ satProve ProverCommand {..} =
         case provers of
           [prover] -> do
             when pcVerbose $ M.io $
-              putStrLn $ "Trying proof with " ++ show prover
+              putStrLn $ "Trying proof with " ++ show (SBV.name (SBV.solver prover))
             res <- M.io (fn prover e)
             when pcVerbose $ M.io $
-              putStrLn $ "Got result from " ++ show prover
+              putStrLn $ "Got result from " ++ show (SBV.name (SBV.solver prover))
             return (Nothing, tag res) -- TODO: can identify prover here
           _ ->
             return ( Nothing
@@ -161,10 +164,10 @@ satProve ProverCommand {..} =
       runProvers fn tag e = do
         when pcVerbose $ M.io $
           putStrLn $ "Trying proof with " ++
-                     intercalate ", " (map show provers)
-        (firstProver, res) <- M.io (fn provers' e)
+                     intercalate ", " (map (show . SBV.name . SBV.solver) provers)
+        (firstProver, timeElapsed, res) <- M.io (fn provers' e)
         when pcVerbose $ M.io $
-          putStrLn $ "Got result from " ++ show firstProver
+          putStrLn $ "Got result from " ++ show firstProver ++ ", time: " ++ showTDiff timeElapsed
         return (Just firstProver, tag res)
   let runFn = case pcQueryType of
         ProveQuery -> runProvers SBV.proveWithAny thmSMTResults
@@ -193,7 +196,7 @@ satProve ProverCommand {..} =
                        return $ AllSatResult tevss
                        where
                          mkTevs result = do
-                           let Right (_, cws) = SBV.getModel result
+                           let Right (_, cws) = SBV.getModelAssignment result
                                (vs, _) = parseValues ts cws
                                sattys = unFinType <$> ts
                            satexprs <- liftIO $ Eval.runEval
@@ -210,7 +213,7 @@ satProve ProverCommand {..} =
                      [] -> return $ ThmResult (unFinType <$> ts)
                      -- otherwise something is wrong
                      _ -> return $ ProverError (rshow results)
-                            where rshow | isSat = show . SBV.AllSatResult . (boom,)
+                            where rshow | isSat = show . SBV.AllSatResult . (boom,boom,)
                                         | otherwise = show . SBV.ThmResult . head
                                   boom = panic "Cryptol.Symbolic.sat"
                                            [ "attempted to evaluate bogus boolean for pretty-printing" ]
@@ -231,7 +234,7 @@ satProveOffline ProverCommand {..} =
            v <- liftIO $ Eval.runEval $
                    do env <- Eval.evalDecls extDgs mempty
                       Eval.evalExpr env pcExpr
-           smtlib <- SBV.compileToSMTLib SBV.SMTLib2 isSat $ do
+           smtlib <- SBV.generateSMTBenchmark isSat $ do
              args <- mapM tyFn ts
              liftIO $ Eval.runEval
                     (fromVBit <$> foldM fromVFun v (map Eval.ready args))

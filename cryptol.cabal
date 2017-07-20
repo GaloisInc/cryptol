@@ -1,5 +1,5 @@
 Name:                cryptol
-Version:             2.4.0
+Version:             2.4.1
 Synopsis:            Cryptol: The Language of Cryptography
 Description: Cryptol is a domain-specific language for specifying cryptographic algorithms. A Cryptol implementation of an algorithm resembles its mathematical specification more closely than an implementation in a general purpose language. For more, see <http://www.cryptol.net/>.
 License:             BSD3
@@ -61,7 +61,7 @@ library
                        process           >= 1.2,
                        QuickCheck        >= 2.7,
                        random            >= 1.0.1,
-                       sbv               >= 5.15,
+                       sbv               >= 7.0,
                        smtLib            >= 1.0.7,
                        simple-smt        >= 0.7.0,
                        syb               >= 0.4,
@@ -70,7 +70,9 @@ library
                        tf-random         >= 0.5,
                        transformers      >= 0.3,
                        transformers-base >= 0.4,
-                       utf8-string       >= 0.3
+                       utf8-string       >= 0.3,
+                       mtl               >= 2.2.1,
+                       time >= 1.6.0.1
 
   Build-tools:         alex, happy
   hs-source-dirs:      src
@@ -204,7 +206,7 @@ executable cryptol
                      , monad-control
                      , process
                      , random
-                     , sbv
+                     , sbv >= 7.0
                      , tf-random
                      , transformers
   GHC-options:         -Wall -O2 -threaded -rtsopts "-with-rtsopts=-N1 -A64m"
@@ -263,5 +265,5 @@ benchmark cryptol-bench
                      , deepseq
                      , directory
                      , filepath
-                     , sbv
+                     , sbv >= 7.0
                      , text
