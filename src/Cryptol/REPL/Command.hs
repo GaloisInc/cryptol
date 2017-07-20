@@ -398,15 +398,11 @@ satCmd = cmdProveSat True
 proveCmd = cmdProveSat False
 
 showProverStats :: Maybe SBV.Solver -> ProverStats -> REPL ()
-showProverStats mprover stat = rPutStrLn
-                             . ('\n':) . parns
-                             . intercalate ", " . map sh $ [("Total Elapsed Time", stat)]
+showProverStats mprover stat = rPutStrLn msg
   where
 
-  sh (x, y) = x ++ ": " ++ SBV.showTDiff y
-
-  parns x = '(' : x ++ ")"
-
+  msg = "(Total Elapsed Time: " ++ SBV.showTDiff stat ++
+        maybe "" (\p -> ", using " ++ show p) mprover ++ ")"
 
 -- | Console-specific version of 'proveSat'. Prints output to the
 -- console, and binds the @it@ variable to a record whose form depends

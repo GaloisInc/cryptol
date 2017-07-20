@@ -153,7 +153,7 @@ satProve ProverCommand {..} =
             res <- M.io (fn prover e)
             when pcVerbose $ M.io $
               putStrLn $ "Got result from " ++ show (SBV.name (SBV.solver prover))
-            return (Nothing, tag res) -- TODO: can identify prover here
+            return (Just (SBV.name (SBV.solver prover)), tag res)
           _ ->
             return ( Nothing
                    , [ SBV.ProofError
