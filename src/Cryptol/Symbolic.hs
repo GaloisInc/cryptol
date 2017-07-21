@@ -213,7 +213,7 @@ satProve ProverCommand {..} =
                      [] -> return $ ThmResult (unFinType <$> ts)
                      -- otherwise something is wrong
                      _ -> return $ ProverError (rshow results)
-                            where rshow | isSat = show . SBV.AllSatResult . (boom,boom,)
+                            where rshow | isSat = show .  SBV.AllSatResult . (False,boom,)
                                         | otherwise = show . SBV.ThmResult . head
                                   boom = panic "Cryptol.Symbolic.sat"
                                            [ "attempted to evaluate bogus boolean for pretty-printing" ]
