@@ -156,5 +156,5 @@ seval cd name path expr =
     bench name $ nfIO $ E.runEval $ do
       env' <- E.evalDecls (S.allDeclGroups menv) mempty
       (e :: S.Value) <- E.evalExpr env' texpr
-      E.io $ SBV.compileToSMTLib SBV.SMTLib2 False $
+      E.io $ SBV.generateSMTBenchmark False $
          return (S.fromVBit e)
