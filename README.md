@@ -1,3 +1,6 @@
+[![Build
+Status](https://travis-ci.org/GaloisInc/cryptol.svg?branch=master)](https://travis-ci.org/GaloisInc/cryptol)
+
 # Cryptol, version 2
 
     This version of Cryptol is (C) 2013-2016 Galois, Inc., and
