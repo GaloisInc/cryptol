@@ -177,24 +177,6 @@ be happy to incorporate your changes.
   well as the Cryptol sources and expected outputs that comprise that
   suite
 
-### Cryptol Notebook (Experimental)
-
-The ICryptol notebook interface is now a
-[standalone project](https://github.com/GaloisInc/ICryptol).
-
-### Cryptol Server and pycryptol (Experimental)
-
-This package includes an executable in `/cryptol-server` that provides
-an interface to the Cryptol interpreter via JSON over
-ZeroMQ. Currently this is used to support the
-[`pycryptol`](http://pycryptol.readthedocs.org/en/latest/) library. It
-is part of this package because we intend to eventually make the
-console REPL a client of that server as well. The `cryptol-server`
-executable is included in any builds if the `CRYPTOL_SERVER`
-environment variable is non-empty when running `make`, for example:
-
-    CRYPTOL_SERVER=1 make dist
-
 # Where to Look Next
 
 The `docs` directory of the installation package contains an
