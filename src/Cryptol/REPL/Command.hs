@@ -12,7 +12,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Cryptol.REPL.Command (
     -- * Commands
-    Command(..), CommandDescr(..), CommandBody(..)
+    Command(..), CommandDescr(..), CommandBody(..), CommandExitCode(..)
   , parseCommand
   , runCommand
   , splitCommand
@@ -56,7 +56,9 @@ import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowed))
 import qualified Cryptol.Utils.Ident as M
 
+import qualified Cryptol.Eval.Monad as E
 import qualified Cryptol.Eval.Value as E
+import qualified Cryptol.Eval.Reference as R
 import Cryptol.Testing.Concrete
 import qualified Cryptol.Testing.Random  as TestR
 import Cryptol.Parser
@@ -72,10 +74,9 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Transform.Specialize as S
-import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..))
+import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..),ProverStats)
 import qualified Cryptol.Symbolic as Symbolic
 
-import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad hiding (mapM, mapM_)
 import qualified Data.ByteString as BS
@@ -98,9 +99,13 @@ import System.Random.TF(newTFGen)
 import Numeric (showFFloat)
 import qualified Data.Text as ST
 import qualified Data.Text.Lazy as T
+import Data.IORef(newIORef,readIORef)
 
 import Prelude ()
 import Prelude.Compat
+
+import qualified Data.SBV           as SBV (Solver)
+import qualified Data.SBV.Internals as SBV (showTDiff)
 
 -- Commands --------------------------------------------------------------------
 
@@ -113,9 +118,9 @@ data Command
 
 -- | Command builder.
 data CommandDescr = CommandDescr
-  { cNames :: [String]
-  , cBody :: CommandBody
-  , cHelp :: String
+  { cNames  :: [String]
+  , cBody   :: CommandBody
+  , cHelp   :: String
   }
 
 instance Show CommandDescr where
@@ -136,6 +141,10 @@ data CommandBody
   | OptionArg   (String   -> REPL ())
   | ShellArg    (String   -> REPL ())
   | NoArg       (REPL ())
+
+
+data CommandExitCode = CommandOk
+                     | CommandError -- XXX: More?
 
 
 -- | REPL command parsing.
@@ -173,6 +182,8 @@ nbCommandList  =
     "use a solver to find a satisfying assignment for which the argument returns true (if no argument, find an assignment for all properties)"
   , CommandDescr [ ":debug_specialize" ] (ExprArg specializeCmd)
     "do type specialization on a closed expression"
+  , CommandDescr [ ":eval" ] (ExprArg refEvalCmd)
+    "evaluate an expression with the reference evaluator"
   ]
 
 commandList :: [CommandDescr]
@@ -210,18 +221,20 @@ genHelp cs = map cmdHelp cs
 -- Command Evaluation ----------------------------------------------------------
 
 -- | Run a command.
-runCommand :: Command -> REPL ()
+runCommand :: Command -> REPL CommandExitCode
 runCommand c = case c of
 
-  Command cmd -> cmd `Cryptol.REPL.Monad.catch` handler
+  Command cmd -> (cmd >> return CommandOk) `Cryptol.REPL.Monad.catch` handler
     where
-    handler re = rPutStrLn "" >> rPrint (pp re)
+    handler re = rPutStrLn "" >> rPrint (pp re) >> return CommandError
 
-  Unknown cmd -> rPutStrLn ("Unknown command: " ++ cmd)
+  Unknown cmd -> do rPutStrLn ("Unknown command: " ++ cmd)
+                    return CommandError
 
   Ambiguous cmd cmds -> do
     rPutStrLn (cmd ++ " is ambiguous, it could mean one of:")
     rPutStrLn ("\t" ++ intercalate ", " cmds)
+    return CommandError
 
 
 -- Get the setting we should use for displaying values.
@@ -245,13 +258,16 @@ evalCmd str = do
     P.ExprInput expr -> do
       (val,_ty) <- replEvalExpr expr
       ppOpts <- getPPValOpts
+      valDoc <- io $ rethrowEvalError $ E.runEval $ E.ppValue ppOpts val
+
       -- This is the point where the value gets forced. We deepseq the
       -- pretty-printed representation of it, rather than the value
       -- itself, leaving it up to the pretty-printer to determine how
       -- much of the value to force
-      out <- io $ rethrowEvalError
-                $ return $!! show $ pp $ E.WithBase ppOpts val
-      rPutStrLn out
+      --out <- io $ rethrowEvalError
+      --          $ return $!! show $ pp $ E.WithBase ppOpts val
+
+      rPutStrLn (show valDoc)
     P.LetInput decl -> do
       -- explicitly make this a top-level declaration, so that it will
       -- be generalized if mono-binds is enabled
@@ -367,19 +383,26 @@ qcCmd qcMode str =
         prtLn "FAILED"
       FailFalse vs -> do
         prtLn "FAILED for the following inputs:"
-        mapM_ (rPrint . pp . E.WithBase opts) vs
+        mapM_ (\v -> rPrint =<< (io $ E.runEval $ E.ppValue opts v)) vs
       FailError err [] -> do
         prtLn "ERROR"
         rPrint (pp err)
       FailError err vs -> do
         prtLn "ERROR for the following inputs:"
-        mapM_ (rPrint . pp . E.WithBase opts) vs
+        mapM_ (\v -> rPrint =<< (io $ E.runEval $ E.ppValue opts v)) vs
         rPrint (pp err)
       Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
 
 satCmd, proveCmd :: String -> REPL ()
 satCmd = cmdProveSat True
 proveCmd = cmdProveSat False
+
+showProverStats :: Maybe SBV.Solver -> ProverStats -> REPL ()
+showProverStats mprover stat = rPutStrLn msg
+  where
+
+  msg = "(Total Elapsed Time: " ++ SBV.showTDiff stat ++
+        maybe "" (\p -> ", using " ++ show p) mprover ++ ")"
 
 -- | Console-specific version of 'proveSat'. Prints output to the
 -- console, and binds the @it@ variable to a record whose form depends
@@ -421,7 +444,7 @@ cmdProveSat isSat str = do
             Just path -> io $ writeFile path smtlib
             Nothing -> rPutStr smtlib
     _ -> do
-      result <- onlineProveSat isSat str mfile
+      (firstProver,result,stats) <- onlineProveSat isSat str mfile
       ppOpts <- getPPValOpts
       case result of
         Symbolic.EmptyResult         ->
@@ -436,8 +459,8 @@ cmdProveSat isSat str = do
               vss  = map (map $ \(_,_,v) -> v)     tevss
               ppvs vs = do
                 parseExpr <- replParseExpr str
-                let docs = map (pp . E.WithBase ppOpts) vs
-                    -- function application has precedence 3
+                docs <- mapM (io . E.runEval . E.ppValue ppOpts) vs
+                let -- function application has precedence 3
                     doc = ppPrec 3 parseExpr
                 rPrint $ hang doc 2 (sep docs) <+>
                   text (if isSat then "= True" else "= False")
@@ -460,8 +483,12 @@ cmdProveSat isSat str = do
             (t, [e]) -> bindItVariable t e
             (t, es ) -> bindItVariables t es
 
+      seeStats <- getUserShowProverStats
+      when seeStats (showProverStats firstProver stats)
+
 onlineProveSat :: Bool
-               -> String -> Maybe FilePath -> REPL Symbolic.ProverResult
+               -> String -> Maybe FilePath
+               -> REPL (Maybe SBV.Solver,Symbolic.ProverResult,ProverStats)
 onlineProveSat isSat str mfile = do
   EnvString proverName <- getUser "prover"
   EnvBool verbose <- getUser "debug"
@@ -469,16 +496,20 @@ onlineProveSat isSat str mfile = do
   parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
+  timing <- io (newIORef 0)
   let cmd = Symbolic.ProverCommand {
           pcQueryType    = if isSat then SatQuery satNum else ProveQuery
         , pcProverName   = proverName
         , pcVerbose      = verbose
+        , pcProverStats  = timing
         , pcExtraDecls   = decls
         , pcSmtFile      = mfile
         , pcExpr         = expr
         , pcSchema       = schema
         }
-  liftModuleCmd $ Symbolic.satProve cmd
+  (firstProver, res) <- liftModuleCmd $ Symbolic.satProve cmd
+  stas <- io (readIORef timing)
+  return (firstProver,res,stas)
 
 offlineProveSat :: Bool -> String -> Maybe FilePath -> REPL (Either String String)
 offlineProveSat isSat str mfile = do
@@ -486,10 +517,12 @@ offlineProveSat isSat str mfile = do
   parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
+  timing <- io (newIORef 0)
   let cmd = Symbolic.ProverCommand {
           pcQueryType    = if isSat then SatQuery (SomeSat 0) else ProveQuery
         , pcProverName   = "offline"
         , pcVerbose      = verbose
+        , pcProverStats  = timing
         , pcExtraDecls   = decls
         , pcSmtFile      = mfile
         , pcExpr         = expr
@@ -541,6 +574,13 @@ specializeCmd str = do
   rPutStrLn  "Specialized expression:"
   rPutStrLn $ dump spexpr
 
+refEvalCmd :: String -> REPL ()
+refEvalCmd str = do
+  parseExpr <- replParseExpr str
+  (_, expr, _schema) <- replCheckExpr parseExpr
+  val <- liftModuleCmd (rethrowEvalError . R.evaluate expr)
+  rPrint $ R.ppValue val
+
 typeOfCmd :: String -> REPL ()
 typeOfCmd str = do
 
@@ -581,8 +621,9 @@ writeFileCmd file str = do
   tIsByte    x = maybe False
                        (\(n,b) -> T.tIsBit b && T.tIsNum n == Just 8)
                        (T.tIsSeq x)
-  serializeValue (E.VSeq _ vs) =
-    return $ BS.pack $ map (serializeByte . E.fromVWord) vs
+  serializeValue (E.VSeq n vs) = do
+    ws <- io $ E.runEval (mapM (>>=E.fromVWord "serializeValue") $ E.enumerateSeqMap n vs)
+    return $ BS.pack $ map serializeByte ws
   serializeValue _             =
     panic "Cryptol.REPL.Command.writeFileCmd"
       ["Impossible: Non-VSeq value of type [n][8]."]
@@ -760,6 +801,19 @@ helpCmd cmd
                            <+> colon
                            <+> pp (ifDeclSig)
 
+                  let mbFix = ifDeclFixity `mplus`
+                              (guard ifDeclInfix >> return P.defaultFixity)
+                  case mbFix of
+                    Just f  ->
+                      let msg = "Precedence " ++ show (P.fLevel f) ++ ", " ++
+                                 (case P.fAssoc f of
+                                    P.LeftAssoc   -> "associates to the left."
+                                    P.RightAssoc  -> "associates to the right."
+                                    P.NonAssoc    -> "does not associate.")
+
+                      in rPutStrLn ('\n' : msg)
+                    Nothing -> return ()
+
                   case ifDeclDoc of
                     Just str -> rPutStrLn ('\n' : str)
                     Nothing  -> return ()
@@ -787,8 +841,9 @@ cdCmd f | null f = rPutStrLn $ "[error] :cd requires a path argument"
 -- C-c Handlings ---------------------------------------------------------------
 
 -- XXX this should probably do something a bit more specific.
-handleCtrlC :: REPL ()
-handleCtrlC  = rPutStrLn "Ctrl-C"
+handleCtrlC :: a -> REPL a
+handleCtrlC a = do rPutStrLn "Ctrl-C"
+                   return a
 
 
 -- Utilities -------------------------------------------------------------------
@@ -846,6 +901,7 @@ moduleCmdResult (res,ws0) = do
       filterDefaults w = Just w
 
       isShadowWarn (M.SymbolShadowed {}) = True
+      isShadowWarn _                     = False
 
       filterShadowing w | warnShadowing = Just w
       filterShadowing (M.RenamerWarnings xs) =
@@ -902,8 +958,7 @@ replEvalExpr expr =
                let su = T.listSubst [ (T.tpVar a, t) | (a,t) <- tys ]
                return (def1, T.apSubst su (T.sType sig))
 
-     val <- liftModuleCmd (M.evalExpr def1)
-     _ <- io $ rethrowEvalError $ X.evaluate val
+     val <- liftModuleCmd (rethrowEvalError . M.evalExpr def1)
      whenDebug (rPutStrLn (dump def1))
      -- add "it" to the namespace
      bindItVariable ty def1

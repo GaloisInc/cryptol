@@ -16,11 +16,11 @@ module Cryptol.TypeCheck.Sanity
 
 
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Subst(apSubst, fvs, singleSubst)
+import Cryptol.TypeCheck.Subst (apSubst, singleSubst)
 import Cryptol.Utils.Ident
 
 import qualified Data.Set as Set
-import Data.List(sort, sortBy)
+import Data.List (sort, sortBy)
 import Data.Function (on)
 import MonadLib
 import qualified Control.Applicative as A
@@ -160,8 +160,11 @@ exprSchema expr =
                                        return (f,t)
          return $ tMono $ TRec fs1
 
-    ESel e sel ->
-      do t <- exprType e
+    ESel e sel -> do ty <- exprType e
+                     ty1 <- check ty
+                     return (tMono ty1)
+      where
+      check t =
          case sel of
 
            TupleSel n mb ->
@@ -176,7 +179,13 @@ exprSchema expr =
                       unless (n < sz) $
                         reportError (TupleSelectorOutOfRange n sz)
 
-                      return $ tMono $ ts !! n
+                      return $ ts !! n
+
+                TCon (TC TCSeq) [s,elT] -> do res <- check elT
+                                              return (TCon (TC TCSeq) [s,res])
+
+                TCon (TC TCFun) [a,b]   -> do res <- check b
+                                              return (TCon (TC TCFun) [a,res])
 
                 _ -> reportError $ BadSelector sel t
 
@@ -195,11 +204,19 @@ exprSchema expr =
 
                     case lookup f fs of
                       Nothing -> reportError $ MissingField f $ map fst fs
-                      Just ft -> return $ tMono ft
+                      Just ft -> return ft
+
+               TCon (TC TCSeq) [s,elT] -> do res <- check elT
+                                             return (TCon (TC TCSeq) [s,res])
+
+               TCon (TC TCFun) [a,b]   -> do res <- check b
+                                             return (TCon (TC TCFun) [a,res])
+
 
                _ -> reportError $ BadSelector sel t
 
 
+           -- XXX: Remove this?
            ListSel _ mb ->
              case tNoUser t of
                TCon (TC TCSeq) [ n, elT ] ->
@@ -212,7 +229,7 @@ exprSchema expr =
                             | m == fromIntegral len -> return ()
                           _ -> reportError $ UnexpectedSequenceShape len n
 
-                    return $ tMono elT
+                    return elT
 
                _ -> reportError $ BadSelector sel t
 
@@ -229,8 +246,9 @@ exprSchema expr =
 
          return $ tMono t1
 
-    EComp t e mss ->
-      do checkTypeIs KType t
+    EComp len t e mss ->
+      do checkTypeIs KNum len
+         checkTypeIs KType t
 
          (xs,ls) <- unzip `fmap` mapM checkArm mss
          -- XXX: check no duplicates
@@ -238,9 +256,9 @@ exprSchema expr =
 
          case ls of
            [] -> return ()
-           _  -> convertible t (tSeq (foldr1 tMin ls) elT)
+           _  -> convertible (tSeq len t) (tSeq (foldr1 tMin ls) elT)
 
-         return (tMono t)
+         return (tMono (tSeq len t))
 
 
     EVar x -> lookupVar x
@@ -299,12 +317,6 @@ exprSchema expr =
            ([], _)    -> reportError BadProofNoAbs
            (_,_)      -> reportError (BadProofTyVars as)
 
-
-    ECast e t ->
-      do checkTypeIs KType t
-         t1 <- exprType e
-         convertible t t1
-         return (tMono t)
 
     -- XXX: Check that defined things are disitnct?
     EWhere e dgs ->
@@ -390,13 +402,14 @@ checkDeclGroup dg =
 checkMatch :: Match -> TcM ((Name, Schema), Type)
 checkMatch ma =
   case ma of
-    From x t e ->
-      do checkTypeIs KType t
+    From x len elt e ->
+      do checkTypeIs KNum len
+         checkTypeIs KType elt
          t1 <- exprType e
          case tNoUser t1 of
            TCon (TC TCSeq) [ l, el ]
-             | same t el -> return ((x, tMono t), l)
-             | otherwise -> reportError $ TypeMismatch (tMono t) (tMono el)
+             | same elt el -> return ((x, tMono elt), l)
+             | otherwise -> reportError $ TypeMismatch (tMono elt) (tMono el)
 
 
            _ -> reportError $ BadMatch t1
@@ -411,7 +424,7 @@ checkArm [m]  = do (x,l) <- checkMatch m
 checkArm (m : ms) =
   do (x, l)   <- checkMatch m
      (xs, l1) <- withVars [x] $ checkArm ms
-     let newLen = l .*. l1
+     let newLen = tMul l l1
      return $ if fst x `elem` map fst xs
                  then (xs, newLen)
                  else (x : xs, newLen)

@@ -865,8 +865,8 @@ Acc + block = 2d8adaf23b0337fa7cccfb4ea344ca153
 
 ```cryptol
 property polyBlocksOK =
-    (blocks @ 1 == 0x02c88c77849d64ae9147ddeb88e69c83fc) &&
-    (blocks @ 2 == 0x02d8adaf23b0337fa7cccfb4ea344b30de) &&
+    (blocks @ 1 == 0x02c88c77849d64ae9147ddeb88e69c83fc) /\
+    (blocks @ 2 == 0x02d8adaf23b0337fa7cccfb4ea344b30de) /\
     (lastBlock  == 0x028d31b7caff946c77c8844335369d03a7) where
         (blocks, lastBlock) = AccumBlocks Poly1305TestKey Poly1305TestMessage
 ```
@@ -1266,7 +1266,7 @@ property AeadTag_correct = AeadTag == AeadTagTestVector
 
 property AeadConstruction_correct = (AeadConstruction AeadAAD AeadCT) == AeadConstructionTestVector
 
-property AeadDecrypt_correct = ptMatches && isValid where
+property AeadDecrypt_correct = ptMatches /\ isValid where
     (pt,isValid) = AEAD_CHACHA20_POLY1305_DECRYPT AeadKey (AeadIV # AeadC) cypherText AeadAAD
     cypherText   = (AEAD_CHACHA20_POLY1305 AeadKey (AeadIV # AeadC) AeadPt AeadAAD)
     ptMatches    = AeadPt == pt
@@ -1463,7 +1463,7 @@ TV_block_Keystream_correct key nonce blockcounter keystream =
 	take`{0x40} (groupBy`{8} (join (join (ChaCha20ExpandKey key nonce blockcounter)))) == keystream
 
 ChaCha20_block_correct key nonce blockcounter result keystream =
-	TV_block_correct key nonce blockcounter result &&
+	TV_block_correct key nonce blockcounter result /\
 	TV_block_Keystream_correct key nonce blockcounter keystream
 ```
 
@@ -1582,10 +1582,10 @@ TV5_block_KeyStream = [
 property TV5_block_correct = ChaCha20_block_correct TV5_block_Key TV5_block_Nonce TV5_block_BlockCounter TV5_block_After20 TV5_block_KeyStream
 
 property all_block_tests_correct =
-	TV1_block_correct &&
-	TV2_block_correct &&
-	TV3_block_correct &&
-	TV4_block_correct &&
+	TV1_block_correct /\
+	TV2_block_correct /\
+	TV3_block_correct /\
+	TV4_block_correct /\
 	TV5_block_correct
 
 ```
@@ -1716,8 +1716,8 @@ TV3_enc_cyphertext = [
 property TV3_enc_correct = ChaCha20_enc_correct TV3_enc_Key TV3_enc_Nonce TV3_enc_BlockCounter TV3_enc_plaintext TV3_enc_cyphertext
 
 property all_enc_tests_correct =
-	TV1_enc_correct &&
-	TV2_enc_correct &&
+	TV1_enc_correct /\
+	TV2_enc_correct /\
 	TV3_enc_correct
 ```
 
@@ -1904,16 +1904,16 @@ TV11_MAC_tag = split(0x13 # 0): [16][8]
 property TV11_MAC_correct = poly1305_MAC_correct TV11_MAC_Key TV11_MAC_text TV11_MAC_tag
 
 property all_MAC_tests_correct =
-	TV1_MAC_correct &&
-	TV2_MAC_correct &&
-	TV3_MAC_correct &&
-	TV4_MAC_correct &&
-	TV5_MAC_correct &&
-	TV6_MAC_correct &&
-	TV7_MAC_correct &&
-	TV8_MAC_correct &&
-	TV9_MAC_correct &&
-	TV10_MAC_correct &&
+	TV1_MAC_correct /\
+	TV2_MAC_correct /\
+	TV3_MAC_correct /\
+	TV4_MAC_correct /\
+	TV5_MAC_correct /\
+	TV6_MAC_correct /\
+	TV7_MAC_correct /\
+	TV8_MAC_correct /\
+	TV9_MAC_correct /\
+	TV10_MAC_correct /\
 	TV11_MAC_correct
 
 ```
@@ -1965,8 +1965,8 @@ TV3_key_OneTimeKey = join([
 property TV3_key_correct = Poly1305_key_correct TV3_key_Key TV3_key_Nonce TV3_key_OneTimeKey
 
 property all_key_tests_correct =
-	TV1_key_correct &&
-	TV2_key_correct &&
+	TV1_key_correct /\
+	TV2_key_correct /\
 	TV3_key_correct
 ```
 
@@ -1979,7 +1979,7 @@ particular protocol, we’ll assume that there is no padding of the
 plaintext.
 
 ```cryptol
-AEAD_correct key nonce cypherText tag AAD = ptMatches && isValid where
+AEAD_correct key nonce cypherText tag AAD = ptMatches /\ isValid where
     (pt,isValid) = AEAD_CHACHA20_POLY1305_DECRYPT key nonce cypherText AAD
     cypherText   = (AEAD_CHACHA20_POLY1305 key nonce AeadPt AAD)
     ptMatches    = tag == pt
@@ -2093,20 +2093,20 @@ TV1_plaintext = [
 
 TV1_calculate_plaintext = AEAD_CHACHA20_POLY1305_DECRYPT TV1_AEAD_key TV1_AEAD_nonce (TV1_AEAD_cypherText # TV1_AEAD_tag) TV1_AEAD_AAD
 
-property TV1_plaintext_correct = isValid && pt == TV1_plaintext where
+property TV1_plaintext_correct = isValid /\ pt == TV1_plaintext where
 	(pt,isValid) = TV1_calculate_plaintext
 
 property decryption_vector_correct =
-	TV1_plaintext_correct &&
-	TV1_tag_correct &&
+	TV1_plaintext_correct /\
+	TV1_tag_correct /\
 	TV1_otk_correct
 
 
 property all_test_vectors_correct =
-  all_block_tests_correct &&
-  all_enc_tests_correct &&
-  all_MAC_tests_correct &&
-  all_key_tests_correct &&
+  all_block_tests_correct /\
+  all_enc_tests_correct /\
+  all_MAC_tests_correct /\
+  all_key_tests_correct /\
   decryption_vector_correct
 ```
 
@@ -2136,8 +2136,8 @@ parseHexString : {n} (fin n) => [3*n][8] -> [n][8]
 parseHexString hexString = [ charsToByte (take`{2} cs) | cs <- groupBy`{3} hexString ] where
     charsToByte : [2][8] -> [8]
     charsToByte [ ub, lb ] = (charToByte ub) << 4 || (charToByte lb)
-    charToByte c = if c >= '0' && c <= '9' then c-'0'
-                   | c >= 'a' && c <= 'f' then 10+(c-'a')
+    charToByte c = if c >= '0' /\ c <= '9' then c-'0'
+                   | c >= 'a' /\ c <= 'f' then 10+(c-'a')
                    else 0     // error case
 
 property parseHexString_check =
@@ -2147,32 +2147,32 @@ property parseHexString_check =
     0x000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f
 
 property AllPropertiesPass =
-    ChaChaQuarterround_passes_test &&
-    ChaChaQuarterround_passes_column_test &&
-    FirstRow_correct &&
-    BuildState_correct &&
-    ChaChaStateAfter20_correct &&
-    ChaCha20_test1 &&
-    SunscreenBuildState_correct &&
-    SunscreenBuildState2_correct &&
-    SunscreenBlock1_correct &&
-    SunscreenBlock2_correct &&
-    SunscreenKeystream_correct SunscreenKeystream &&
-    ChaCha_encrypt_sunscreen_correct &&
-    Sunscreen_decrypt_correct &&
-    poly1306Sokay &&
-    polyBlocksOK &&
-    Poly1305_passes_test &&
-    PolyBuildState_correct &&
-    PolyChaCha_correct &&
-    Poly_passes_test &&
-    AeadPolyKeyBuildState_correct &&
-    AeadPolyChaCha_correct &&
-    poly1305Test_correct &&
-    AeadTag_correct &&
-    AeadConstruction_correct &&
-    AeadDecrypt_correct &&
-    parseHexString_check &&
+    ChaChaQuarterround_passes_test /\
+    ChaChaQuarterround_passes_column_test /\
+    FirstRow_correct /\
+    BuildState_correct /\
+    ChaChaStateAfter20_correct /\
+    ChaCha20_test1 /\
+    SunscreenBuildState_correct /\
+    SunscreenBuildState2_correct /\
+    SunscreenBlock1_correct /\
+    SunscreenBlock2_correct /\
+    SunscreenKeystream_correct SunscreenKeystream /\
+    ChaCha_encrypt_sunscreen_correct /\
+    Sunscreen_decrypt_correct /\
+    poly1306Sokay /\
+    polyBlocksOK /\
+    Poly1305_passes_test /\
+    PolyBuildState_correct /\
+    PolyChaCha_correct /\
+    Poly_passes_test /\
+    AeadPolyKeyBuildState_correct /\
+    AeadPolyChaCha_correct /\
+    poly1305Test_correct /\
+    AeadTag_correct /\
+    AeadConstruction_correct /\
+    AeadDecrypt_correct /\
+    parseHexString_check /\
     all_test_vectors_correct
 
 ```

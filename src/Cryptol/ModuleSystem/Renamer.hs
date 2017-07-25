@@ -13,6 +13,7 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ViewPatterns #-}
 module Cryptol.ModuleSystem.Renamer (
     NamingEnv(), shadowing
   , BindsNames(..), InModule(..), namingEnv'
@@ -38,6 +39,7 @@ import Cryptol.Utils.PP
 import qualified Data.Foldable as F
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
+import           Data.String (IsString(..))
 import           MonadLib hiding (mapM, mapM_)
 
 import GHC.Generics (Generic)
@@ -138,6 +140,10 @@ instance PP RenamerError where
 
 data RenamerWarning
   = SymbolShadowed Name [Name] NameDisp
+
+    -- Warn when fixity is used to resolve parses, and the relative
+    -- fixity is planned to change.  See https://github.com/GaloisInc/cryptol/issues/241
+  | DangerousFixity (Located Name) (Located Name) NameDisp
     deriving (Show, Generic, NFData)
 
 instance PP RenamerWarning where
@@ -154,6 +160,12 @@ instance PP RenamerWarning where
     loc = pp (nameLoc new)
     sym = pp new
 
+  ppPrec _ (DangerousFixity o1 o2 disp) = fixNameDisp disp $
+    hang (text "[warning] at" <+> pp (srcRange o1))
+       4 $ fsep [ text "Using fixity to resolve the parsing of operators" <+> pp (thing o1) <+> text "and" <+> pp (thing o2) <> text ";"
+                , text "the relative fixity of these operators is planned to change in a future Cryptol release."
+                , text "Use parentheses to disambiguate this parse, or consider replacing (&&) with (/\\), or (||) with (\\/)."
+                ]
 
 -- Renaming Monad --------------------------------------------------------------
 
@@ -231,6 +243,12 @@ record f = RenameM $
   do RO { .. } <- ask
      RW { .. } <- get
      set RW { rwErrors = rwErrors Seq.|> f roDisp, .. }
+
+recordW :: (NameDisp -> RenamerWarning) -> RenameM ()
+recordW f = RenameM $
+  do RO { .. } <- ask
+     RW { .. } <- get
+     set RW { rwWarnings = rwWarnings Seq.|> f roDisp, .. }
 
 curLoc :: RenameM Range
 curLoc  = RenameM (roLoc `fmap` ask)
@@ -712,20 +730,61 @@ instance Rename Expr where
                         z' <- rename z
                         mkEInfix x' op z'
 
+-- | Check if we are resolving operators whose precedence will change in the
+--   future, and issue a warning in that event.
+--
+--   (&&) is scheduled to have higher precedence than the comparisons and (^)
+--   (||) is scheduled to have higher precedence than the comparisons
+--
+--   See https://github.com/GaloisInc/cryptol/issues/241
+isDangerousFixity :: Name -> Name -> Bool
+isDangerousFixity (asPrim -> Just x) (asPrim -> Just y) = test x y || test y x
+ where
+ test n m
+   | n == mkInfix (fromString "&&")
+   , (m `elem` comparisons) || (m == mkInfix (fromString "^"))
+   = True
+
+   | n == mkInfix (fromString "||")
+   , m `elem` comparisons
+   = True
+
+   | otherwise
+   = False
+
+ comparisons =
+   [ mkInfix $ fromString "=="
+   , mkInfix $ fromString "==="
+   , mkInfix $ fromString "!="
+   , mkInfix $ fromString "!=="
+   , mkInfix $ fromString ">"
+   , mkInfix $ fromString ">="
+   , mkInfix $ fromString "<"
+   , mkInfix $ fromString "<="
+   ]
+isDangerousFixity _ _ = False
+
+
+
 mkEInfix :: Expr Name             -- ^ May contain infix expressions
          -> (Located Name,Fixity) -- ^ The operator to use
          -> Expr Name             -- ^ Will not contain infix expressions
          -> RenameM (Expr Name)
 
 mkEInfix e@(EInfix x o1 f1 y) op@(o2,f2) z =
-  case compareFixity f1 f2 of
-    FCLeft  -> return (EInfix e o2 f2 z)
+  -- Temporary warning while we transition the fixity of && and || relative
+  -- to comparisons and xor.  See https://github.com/GaloisInc/cryptol/issues/241
+  do when (isDangerousFixity (thing o1) (thing o2))
+          (recordW (DangerousFixity o1 o2))
 
-    FCRight -> do r <- mkEInfix y op z
-                  return (EInfix x o1 f1 r)
+     case compareFixity f1 f2 of
+       FCLeft  -> return (EInfix e o2 f2 z)
 
-    FCError -> do record (FixityError o1 o2)
-                  return (EInfix e o2 f2 z)
+       FCRight -> do r <- mkEInfix y op z
+                     return (EInfix x o1 f1 r)
+
+       FCError -> do record (FixityError o1 o2)
+                     return (EInfix e o2 f2 z)
 
 mkEInfix (ELocated e' _) op z =
      mkEInfix e' op z

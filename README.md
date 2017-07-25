@@ -1,3 +1,6 @@
+[![Build
+Status](https://travis-ci.org/GaloisInc/cryptol.svg?branch=master)](https://travis-ci.org/GaloisInc/cryptol)
+
 # Cryptol, version 2
 
     This version of Cryptol is (C) 2013-2016 Galois, Inc., and
@@ -39,13 +42,16 @@ cryptol` to get the latest stable version.
 
 ## Getting Z3
 
-Cryptol currently uses Microsoft Research's
-[Z3 SMT solver](https://github.com/Z3Prover/z3) by default to solve
-constraints during type checking, and as the default solver for the
-`:sat` and `:prove` commands. You can download Z3 binaries for a
-variety of platforms from their
-[releases page](https://github.com/Z3Prover/z3/releases). Note that if you
-install Cryptol using Homebrew, Z3 will be installed automatically.
+Cryptol currently uses Microsoft Research's [Z3 SMT
+solver](https://github.com/Z3Prover/z3) by default to solve constraints
+during type checking, and as the default solver for the `:sat` and
+`:prove` commands. You can download Z3 binaries for a variety of
+platforms from their [releases page](https://github.com/Z3Prover/z3/releases).
+
+Cryptol generally requires the most recent version of Z3, which at the
+time of writing this file is 4.5.0. Note that if you install Cryptol
+using Homebrew, the appropriate version of Z3 will be installed
+automatically.
 
 After installation, make sure that `z3` (or `z3.exe` on Windows)
 is on your PATH.
@@ -114,6 +120,20 @@ of these `make` targets, you will end up with a binary in
 or use the results of `tarball` or `dist` to install Cryptol in a
 location of your choice.
 
+## Configuring Cryptol
+
+Cryptol depends on several external files for complete operation. These
+files are contained in the `lib` directory of the Cryptol repository. If
+you install with `cabal install`, these files will be automaticall
+copied into a directory that the `cryptol` executable can find. If you
+install in other ways, you will have to do more manual configuration.
+There are two options:
+
+* Copy the contents of the `lib` directory into `$HOME/.cryptol`.
+
+* Set the `CRYPTOLPATH` environment variable to name some other
+  directory that contains those files.
+
 # Contributing
 
 We believe that anyone who uses Cryptol is making an important
@@ -156,24 +176,6 @@ be happy to incorporate your changes.
 - `/tests`: Haskell sources for the Cryptol regression test suite, as
   well as the Cryptol sources and expected outputs that comprise that
   suite
-
-### Cryptol Notebook (Experimental)
-
-The ICryptol notebook interface is now a
-[standalone project](https://github.com/GaloisInc/ICryptol).
-
-### Cryptol Server and pycryptol (Experimental)
-
-This package includes an executable in `/cryptol-server` that provides
-an interface to the Cryptol interpreter via JSON over
-ZeroMQ. Currently this is used to support the
-[`pycryptol`](http://pycryptol.readthedocs.org/en/latest/) library. It
-is part of this package because we intend to eventually make the
-console REPL a client of that server as well. The `cryptol-server`
-executable is included in any builds if the `CRYPTOL_SERVER`
-environment variable is non-empty when running `make`, for example:
-
-    CRYPTOL_SERVER=1 make dist
 
 # Where to Look Next
 

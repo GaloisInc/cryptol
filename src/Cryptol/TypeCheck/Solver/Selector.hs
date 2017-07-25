@@ -11,7 +11,7 @@ module Cryptol.TypeCheck.Solver.Selector (tryHasGoal) where
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Monad( InferM, unify, newGoals, lookupNewtype
-                              , newType, applySubst, addHasGoal, solveHasGoal
+                              , newType, applySubst, solveHasGoal
                               )
 import Cryptol.TypeCheck.Subst(listSubst,apSubst)
 import Cryptol.Utils.Ident (Ident)
@@ -40,20 +40,17 @@ listType n =
      return (tSeq (tNum n) elems)
 
 
-improveSelector :: Selector -> Type -> InferM (Expr -> Expr)
+improveSelector :: Selector -> Type -> InferM Bool
 improveSelector sel outerT =
   case sel of
     RecordSel _ mb -> cvt recordType mb
     TupleSel  _ mb -> cvt tupleType  mb
     ListSel   _ mb -> cvt listType   mb
   where
-  cvt _ Nothing   = return id
+  cvt _ Nothing   = return False
   cvt f (Just a)  = do ty <- f a
-                       cs <- unify ty outerT
-                       case cs of
-                         [] -> return id
-                         _  -> do newGoals CtExactType cs
-                                  return (`ECast` ty)
+                       newGoals CtExactType =<< unify ty outerT
+                       return True
 
 
 {- | Compute the type of a field based on the selector.
@@ -96,11 +93,10 @@ solveSelector sel outerT =
         _ -> return Nothing
 
 
-
-
-
-    (ListSel n _, TCon (TC TCSeq) [l,t])  ->
-       do newGoals CtSelector [ (l .+. tNum (1::Int)) >== tNum n ]
+    (ListSel n _, TCon (TC TCSeq) [l,t])
+      | n < 2 -> return (Just t)
+      | otherwise ->
+       do newGoals CtSelector [ l >== tNum (n - 1) ]
           return (Just t)
 
     _ -> return Nothing
@@ -118,26 +114,26 @@ solveSelector sel outerT =
 
 
 -- | Solve has-constraints.
-tryHasGoal :: HasGoal -> InferM ()
+tryHasGoal :: HasGoal -> InferM (Bool, Bool) -- ^ changes, solved
 tryHasGoal has
   | TCon (PC (PHas sel)) [ th, ft ] <- goal (hasGoal has) =
-    do outerCast <- improveSelector sel th
+    do imped     <- improveSelector sel th
        outerT    <- tNoUser `fmap` applySubst th
        mbInnerT  <- solveSelector sel outerT
        case mbInnerT of
-         Nothing -> addHasGoal has
+         Nothing -> return (imped, False)
          Just innerT ->
-           do cs <- unify innerT ft
-              innerCast <- case cs of
-                             [] -> return id
-                             _  -> do newGoals CtExactType cs
-                                      return (`ECast` ft)
-              solveHasGoal (hasName has) (innerCast . (`ESel` sel) . outerCast)
+           do newGoals CtExactType =<< unify innerT ft
+              solveHasGoal (hasName has) (`ESel` sel)
+              return (True, True)
 
   | otherwise = panic "hasGoalSolved"
                   [ "Unexpected selector proposition:"
                   , show (hasGoal has)
                   ]
+
+
+
 
 
 

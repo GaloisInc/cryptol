@@ -1,44 +1,96 @@
--- |
--- Module      :  $Header$
--- Copyright   :  (c) 2015-2016 Galois, Inc.
--- License     :  BSD3
--- Maintainer  :  cryptol@galois.com
--- Stability   :  provisional
--- Portability :  portable
+-- | Look for opportunity to solve goals by instantiating variables.
+module Cryptol.TypeCheck.Solver.Improve where
 
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE MultiWayIf #-}
-
-module Cryptol.TypeCheck.Solver.Simplify (
-    tryRewritePropAsSubst
-  ) where
-
-
-import Cryptol.Prims.Syntax (TFun(..))
-import Cryptol.TypeCheck.AST (Type(..),Prop,TVar,pIsEq,isFreeTV,TCon(..))
-import Cryptol.TypeCheck.Solver.Numeric.Interval (Interval,iIsFin,typeInterval)
-import Cryptol.TypeCheck.Subst (fvs)
-
-import           Control.Monad (msum,guard,mzero)
-import           Data.Function (on)
-import           Data.List (sortBy)
-import           Data.Maybe (catMaybes,listToMaybe)
-import           Data.Map (Map)
 import qualified Data.Set as Set
+import Control.Applicative
+import Control.Monad
+
+import Cryptol.Utils.Patterns
+
+import Cryptol.TypeCheck.Type
+import Cryptol.TypeCheck.SimpType as Mk
+import Cryptol.TypeCheck.Solver.Types
+import Cryptol.TypeCheck.Solver.Numeric.Interval
+import Cryptol.TypeCheck.TypePat
+import Cryptol.TypeCheck.Subst
 
 
+
+-- | Improvements from a bunch of propositions.
+-- Invariant:
+-- the substitions should be already applied to the new sub-goals, if any.
+improveProps :: Bool -> Ctxt -> [Prop] -> Match (Subst,[Prop])
+improveProps impSkol ctxt ps0 = loop emptySubst ps0
+  where
+  loop su props = case go emptySubst [] props of
+                    (newSu,newProps)
+                      | isEmptySubst newSu ->
+                        if isEmptySubst su then mzero else return (su,props)
+                      | otherwise -> loop (newSu @@ su) newProps
+
+  go su subs [] = (su,subs)
+  go su subs (p : ps) =
+    case matchMaybe (improveProp impSkol ctxt p) of
+      Nothing            -> go su (p:subs) ps
+      Just (suNew,psNew) -> go (suNew @@ su) (psNew ++ apSubst suNew subs)
+                                             (apSubst su ps)
+
+
+-- | Improvements from a proposition.
+-- Invariant:
+-- the substitions should be already applied to the new sub-goals, if any.
+improveProp :: Bool -> Ctxt -> Prop -> Match (Subst,[Prop])
+improveProp impSkol ctxt prop =
+  improveEq impSkol ctxt prop
+  -- XXX: others
+
+
+
+-- | Improvements from euqality constraints.
+-- Invariant:
+-- the substitions should be already applied to the new sub-goals, if any.
+improveEq :: Bool -> Ctxt -> Prop -> Match (Subst,[Prop])
+improveEq impSkol fins prop =
+  do (lhs,rhs) <- (|=|) prop
+     rewrite lhs rhs <|> rewrite rhs lhs
+  where
+  rewrite this other =
+    do x <- aTVar this
+       guard (considerVar x && x `Set.notMember` fvs other)
+       return (singleSubst x other, [])
+    <|>
+    do (v,s) <- isSum this
+       guard (v `Set.notMember` fvs other)
+       return (singleSubst v (Mk.tSub other s), [ other >== s ])
+
+
+  isSum t = do (v,s) <- matches t (anAdd, aTVar, __)
+               valid v s
+        <|> do (s,v) <- matches t (anAdd, __, aTVar)
+               valid v s
+
+  valid v s = do let i = typeInterval fins s
+                 guard (considerVar v && v `Set.notMember` fvs s && iIsFin i)
+                 return (v,s)
+
+  considerVar x = impSkol || isFreeTV x
+
+
+--------------------------------------------------------------------------------
+
+-- XXX
+
+{-
 -- | When given an equality constraint, attempt to rewrite it to the form `?x =
 -- ...`, by moving all occurrences of `?x` to the LHS, and any other variables
 -- to the RHS.  This will only work when there's only one unification variable
 -- present in the prop.
-tryRewritePropAsSubst :: Map TVar Interval -> Prop -> Maybe (TVar,Type)
-tryRewritePropAsSubst fins p =
-  do (x,y) <- pIsEq p
 
-     let vars = Set.toList (Set.filter isFreeTV (fvs p))
-
+tryRewrteEqAsSubst :: Ctxt -> Type -> Type -> Maybe (TVar,Type)
+tryRewrteEqAsSubst fins t1 t2 =
+  do let vars = Set.toList (Set.filter isFreeTV (fvs (t1,t2)))
      listToMaybe $ sortBy (flip compare `on` rank)
-                 $ catMaybes [ tryRewriteEq fins var x y | var <- vars ]
+                 $ catMaybes [ tryRewriteEq fins var t1 t2 | var <- vars ]
 
 
 -- | Rank a rewrite, favoring expressions that have fewer subtractions than
@@ -144,16 +196,16 @@ rewriteLHS fins uvar = go
   -- invert the type function to balance the equation, when the variable occurs
   -- on the LHS of the expression `x tf y`
   balanceR x TCAdd y rhs = do guardFin y
-                              go x (TCon (TF TCSub) [rhs,y])
-  balanceR x TCSub y rhs = go x (TCon (TF TCAdd) [rhs,y])
+                              go x (tSub rhs y)
+  balanceR x TCSub y rhs = go x (tAdd rhs y)
   balanceR _ _     _ _   = mzero
 
 
   -- invert the type function to balance the equation, when the variable occurs
   -- on the RHS of the expression `x tf y`
   balanceL x TCAdd y rhs = do guardFin y
-                              go y (TCon (TF TCSub) [rhs,x])
-  balanceL x TCSub y rhs = go (TCon (TF TCAdd) [rhs,y]) x
+                              go y (tSub rhs x)
+  balanceL x TCSub y rhs = go (tAdd rhs y) x
   balanceL _ _     _ _   = mzero
 
 
@@ -162,3 +214,4 @@ rewriteLHS fins uvar = go
   -- XXX this ignores things like `min x inf` where x is finite, and just
   -- assumes that it won't work.
   guardFin ty = guard (allFin fins ty)
+-}

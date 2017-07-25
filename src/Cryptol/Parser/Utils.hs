@@ -38,7 +38,8 @@ translateExprToNumT expr =
                          e2 <- translateExprToNumT b
                          return (TInfix e1 o f e2)
 
-    EParens e    -> translateExprToNumT e
+    EParens e    -> do t <- translateExprToNumT e
+                       return (TParens t)
 
     _            -> Nothing
 

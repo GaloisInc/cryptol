@@ -6,11 +6,11 @@
 -- Stability   :  provisional
 -- Portability :  portable
 {-# LANGUAGE Safe #-}
-
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Monad
   ( module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
@@ -19,10 +19,12 @@ module Cryptol.TypeCheck.Monad
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
+import           Cryptol.Prelude (writeTcPreludeContents)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.Unify(mgu, Result(..), UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
+import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.CrySAT as CrySAT
 import           Cryptol.Utils.PP(pp, (<+>), Doc, text, quotes)
 import           Cryptol.Utils.Panic(panic)
@@ -33,10 +35,16 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Map (Map)
 import           Data.Set (Set)
-import           Data.List(find, minimumBy, groupBy, sortBy)
+import           Data.List(find, minimumBy, groupBy, sortBy, foldl')
 import           Data.Maybe(mapMaybe)
 import           Data.Function(on)
 import           MonadLib hiding (mapM)
+
+import           Data.IORef
+
+import           System.FilePath((</>))
+import           System.Directory(doesFileExist)
+
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -56,6 +64,8 @@ data InferInput = InferInput
                                       --   signatures be monomorphized?
 
   , inpSolverConfig :: SolverConfig   -- ^ Options for the constraint solver
+  , inpSearchPath :: [FilePath]
+    -- ^ Where to look for Cryptol theory file.
 
   , inpPrimNames :: !PrimMap          -- ^ The mapping from 'Ident' to 'Name',
                                       -- for names that the typechecker
@@ -87,9 +97,15 @@ data InferOutput a
 
     deriving Show
 
+bumpCounter :: InferM ()
+bumpCounter = do RO { .. } <- IM ask
+                 io $ modifyIORef' iSolveCounter (+1)
+
 runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
 runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
-  do rec ro <- return RO { iRange     = inpRange info
+  do loadCryTCPrel solver (inpSearchPath info)
+     coutner <- newIORef 0
+     rec ro <- return RO { iRange     = inpRange info
                      , iVars          = Map.map ExtVar (inpVars info)
                      , iTVars         = []
                      , iTSyns         = fmap mkExternal (inpTSyns info)
@@ -98,6 +114,7 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
                      , iMonoBinds     = inpMonoBinds info
                      , iSolver        = solver
                      , iPrimNames     = inpPrimNames info
+                     , iSolveCounter  = coutner
                      }
 
          (result, finalRW) <- runStateT rw
@@ -119,7 +136,7 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
            (cts,has) -> return $ InferFailed warns
                 $ dropErrorsFromSameLoc
                 [ ( goalRange g
-                  , UnsolvedGoal False (apSubst theSu g)
+                  , UnsolvedGoals False [apSubst theSu g]
                   ) | g <- fromGoals cts ++ map hasGoal has
                 ]
        errs -> return $ InferFailed warns
@@ -150,6 +167,17 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
 
   -- The actual order does not matter
   cmpRange (Range x y z) (Range a b c) = compare (x,y,z) (a,b,c)
+
+  loadCryTCPrel s [] =
+    do file <- writeTcPreludeContents
+       CrySAT.loadFile s file
+
+  loadCryTCPrel s (p : ps) =
+    do let file = p </> "CryptolTC.z3"
+       yes <- doesFileExist file
+       if yes then CrySAT.loadFile s file
+              else loadCryTCPrel s ps
+
 
 
 
@@ -193,6 +221,8 @@ data RO = RO
   , iSolver :: CrySAT.Solver
 
   , iPrimNames :: !PrimMap
+
+  , iSolveCounter :: !(IORef Int)
   }
 
 -- | Read-write component of the monad.
@@ -311,7 +341,11 @@ getGoals =
 
 -- | Add a bunch of goals that need solving.
 addGoals :: [Goal] -> InferM ()
-addGoals gs = IM $ sets_ $ \s -> s { iCts = foldl (flip insertGoal) (iCts s) gs }
+addGoals gs0 = doAdd =<< simpGoals gs0
+  where
+  doAdd [] = return ()
+  doAdd gs = IM $ sets_ $ \s -> s { iCts = foldl' (flip insertGoal) (iCts s) gs }
+
 
 -- | Collect the goals emitted by the given sub-computation.
 -- Does not emit any new goals.
@@ -330,6 +364,17 @@ collectGoals m =
 
   -- set the type map directly
   setGoals' gs = IM $ sets $ \ RW { .. } -> ((),   RW { iCts = gs, .. })
+
+simpGoal :: Goal -> InferM [Goal]
+simpGoal g =
+  case Simple.simplify Map.empty (goal g) of
+    p | Just e <- tIsError p ->
+        do recordError $ ErrorMsg $ text $ tcErrorMessage e
+           return []
+      | ps <- pSplitAnd p -> return [ g { goal = pr } | pr <- ps ]
+
+simpGoals :: [Goal] -> InferM [Goal]
+simpGoals gs = concat <$> mapM simpGoal gs
 
 
 
@@ -644,6 +689,7 @@ data KRO = KRO { lazyTVars  :: Map Name Type -- ^ lazy map, with tyvars.
                }
 
 data KRW = KRW { typeParams :: Map Name Kind -- ^ kinds of (known) vars.
+               , kCtrs      :: [(ConstraintSource,[Prop])]
                }
 
 instance Functor KindM where
@@ -670,14 +716,16 @@ As a result we return the value of the sub-computation and the computed
 kinds of the type parameters. -}
 runKindM :: Bool                          -- Are type-wild cards allowed?
          -> [(Name, Maybe Kind, Type)]   -- ^ See comment
-         -> KindM a -> InferM (a, Map Name Kind)
+         -> KindM a -> InferM (a, Map Name Kind, [(ConstraintSource,[Prop])])
 runKindM wildOK vs (KM m) =
   do (a,kw) <- runStateT krw (runReaderT kro m)
-     return (a, typeParams kw)
+     return (a, typeParams kw, kCtrs kw)
   where
   tys  = Map.fromList [ (x,t) | (x,_,t)      <- vs ]
   kro  = KRO { allowWild = wildOK, lazyTVars = tys }
-  krw  = KRW { typeParams = Map.fromList [ (x,k) | (x,Just k,_) <- vs ] }
+  krw  = KRW { typeParams = Map.fromList [ (x,k) | (x,Just k,_) <- vs ]
+             , kCtrs = []
+             }
 
 -- | This is what's returned when we lookup variables during kind checking.
 data LkpTyVar = TLocalVar Type (Maybe Kind) -- ^ Locally bound variable.
@@ -705,6 +753,9 @@ kRecordWarning :: Warning -> KindM ()
 kRecordWarning w = kInInferM $ recordWarning w
 
 -- | Generate a fresh unification variable of the given kind.
+-- NOTE:  We do not simplify these, because we end up with bottom.
+-- See `Kind.hs`
+-- XXX: Perhaps we can avoid the recursion?
 kNewType :: Doc -> Kind -> KindM Type
 kNewType src k =
   do tps <- KM $ do vs <- asks lazyTVars
@@ -743,7 +794,8 @@ kInRange r (KM m) = KM $
      return a
 
 kNewGoals :: ConstraintSource -> [Prop] -> KindM ()
-kNewGoals c ps = kInInferM $ newGoals c ps
+kNewGoals _ [] = return ()
+kNewGoals c ps = KM $ sets_ $ \s -> s { kCtrs = (c,ps) : kCtrs s }
 
 kInInferM :: InferM a -> KindM a
 kInInferM m = KM $ lift $ lift m

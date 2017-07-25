@@ -10,20 +10,20 @@ import Salsa20
 import Poly1305
 import CfrgCurves
 
-crypto_box : {msgBytes} (fin msgBytes, 2^^64 >= msgBytes + 32) => [msgBytes][8] -> [24][8] -> Public25519 -> Private25519 -> [msgBytes + 16][8]
+crypto_box : {msgBytes} (fin msgBytes, 64 >= width (32 + msgBytes)) => [msgBytes][8] -> [24][8] -> Public25519 -> Private25519 -> [msgBytes + 16][8]
 crypto_box m n pub priv = crypto_secretbox m k n
  where
   s          = Curve25519 priv pub
   k          = HSalsa20_bytes `{r=20} s zero
 
-crypto_box_open : {msgBytes} (fin msgBytes, 2^^64 >= msgBytes + 32) => [msgBytes+16][8] -> [24][8] -> Public25519 -> Private25519 -> (Bit,[msgBytes][8])
+crypto_box_open : {msgBytes} (fin msgBytes, 64 >= width (32 + msgBytes)) => [msgBytes+16][8] -> [24][8] -> Public25519 -> Private25519 -> (Bit,[msgBytes][8])
 crypto_box_open box n pub priv = crypto_secretbox_open box k n
  where
   (tag,ct)  = splitAt `{16} box
   s         = Curve25519 priv pub
   k         = HSalsa20_bytes `{r=20} s zero
 
-crypto_secretbox : {msgBytes} (fin msgBytes, 2^^64 >= msgBytes + 32)
+crypto_secretbox : {msgBytes} (fin msgBytes, 64 >= width (32 + msgBytes))
                 => [msgBytes][8] -> [32][8] -> [24][8] -> [msgBytes + 16][8]
 crypto_secretbox m k n = box
  where
@@ -33,7 +33,7 @@ crypto_secretbox m k n = box
   authTag    = Poly1305 authKey ciphertext
   box        = authTag # ciphertext
 
-crypto_secretbox_open : {msgBytes} (fin msgBytes, 2^^64 >= msgBytes + 32)
+crypto_secretbox_open : {msgBytes} (fin msgBytes, 64 >= width (32 + msgBytes))
                      => [msgBytes + 16][8] -> [32][8] -> [24][8] -> (Bit,[msgBytes][8])
 crypto_secretbox_open box k n = (valid,pt)
  where

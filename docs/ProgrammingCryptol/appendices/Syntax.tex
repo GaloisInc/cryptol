@@ -17,7 +17,7 @@ f x = x + y + z
 g y = y
 \end{verbatim}
 
-This group has two declaration, one for \texttt{f} and one for
+This group has two declarations, one for \texttt{f} and one for
 \texttt{g}. All the lines between \texttt{f} and \texttt{g} that are
 indented more then \texttt{f} belong to \texttt{f}.
 
@@ -91,14 +91,14 @@ Operator & Associativity\tabularnewline
 Operator & Associativity\tabularnewline
 \midrule
 \endhead
-\texttt{\textbar{}\textbar{}} & left\tabularnewline
-\texttt{\^{}} & left\tabularnewline
-\texttt{\&\&} & left\tabularnewline
 \texttt{-\textgreater{}} (types) & right\tabularnewline
+\texttt{\textbar{}\textbar{}} & right\tabularnewline
+\texttt{\&\&} & right\tabularnewline
 \texttt{!=} \texttt{==} & not associative\tabularnewline
 \texttt{\textgreater{}} \texttt{\textless{}} \texttt{\textless{}=}
 \texttt{\textgreater{}=} & not associative\tabularnewline
-\texttt{\#} & right\tabularnewline
+\texttt{\^{}} & left\tabularnewline
+\texttt{\#} & left\tabularnewline
 \texttt{\textgreater{}\textgreater{}} \texttt{\textless{}\textless{}}
 \texttt{\textgreater{}\textgreater{}\textgreater{}}
 \texttt{\textless{}\textless{}\textless{}} & left\tabularnewline
@@ -162,12 +162,12 @@ Operator & Associativity & Description\tabularnewline
 Operator & Associativity & Description\tabularnewline
 \midrule
 \endhead
-\texttt{\textbar{}\textbar{}} & left & Logical or\tabularnewline
-\texttt{\^{}} & left & Exclusive-or\tabularnewline
-\texttt{\&\&} & left & Logical and\tabularnewline
+\texttt{\textbar{}\textbar{}} & right & Logical or\tabularnewline
+\texttt{\&\&} & right & Logical and\tabularnewline
 \texttt{!=} \texttt{==} & none & Not equals, equals\tabularnewline
 \texttt{\textgreater{}} \texttt{\textless{}} \texttt{\textless{}=}
 \texttt{\textgreater{}=} & none & Comparisons\tabularnewline
+\texttt{\^{}} & left & Exclusive-or\tabularnewline
 \texttt{\textasciitilde{}} & right & Logical negation\tabularnewline
 \bottomrule
 \end{longtable}
@@ -188,9 +188,9 @@ x = if y % 2 == 0 then 1
 
 \section{Tuples and Records}\label{tuples-and-records}
 
-Tuples and records are used for packaging multiples values together.
-Tuples are enclosed in parenthesis, while records are enclosed in
-braces. The components of both tuples and records are separated by
+Tuples and records are used for packaging multiple values together.
+Tuples are enclosed in parentheses, while records are enclosed in
+curly braces. The components of both tuples and records are separated by
 commas. The components of tuples are expressions, while the components
 of records are a label and a value separated by an equal sign. Examples:
 
@@ -335,7 +335,7 @@ explicit type signature.
 If \texttt{f} is a polymorphic value with type:
 
 \begin{verbatim}
-f : { tyParam }
+f : { tyParam } tyParam
 f = zero
 \end{verbatim}
 
@@ -352,7 +352,7 @@ The value corresponding to a numeric type may be accessed using the
 following notation:
 
 \begin{verbatim}
-`{t}
+`t
 \end{verbatim}
 
 Here \texttt{t} should be a type expression with numeric kind. The
@@ -360,7 +360,7 @@ resulting expression is a finite word, which is sufficiently large to
 accommodate the value of the type:
 
 \begin{verbatim}
-`{t} : {w >= width t}. [w]
+`t : {a} (fin a, a >= width t} => [a]
 \end{verbatim}
 
 \section{Explicit Type Annotations}\label{explicit-type-annotations}

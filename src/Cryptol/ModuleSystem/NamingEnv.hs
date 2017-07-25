@@ -300,12 +300,14 @@ instance BindsNames (InModule (TopDecl PName)) where
       TDNewtype d -> namingEnv (InModule ns (tlValue d))
       Include _   -> mempty
 
+-- NOTE: we use the same name at the type and expression level, as there's only
+-- ever one name introduced in the declaration. The names are only ever used in
+-- different namespaces, so there's no ambiguity.
 instance BindsNames (InModule (Newtype PName)) where
   namingEnv (InModule ns Newtype { .. }) = BuildNamingEnv $
     do let Located { .. } = nName
-       tyName <- liftSupply (mkDeclared ns (getIdent thing) Nothing srcRange)
-       eName  <- liftSupply (mkDeclared ns (getIdent thing) Nothing srcRange)
-       return (singletonT thing tyName `mappend` singletonE thing eName)
+       ntName <- liftSupply (mkDeclared ns (getIdent thing) Nothing srcRange)
+       return (singletonT thing ntName `mappend` singletonE thing ntName)
 
 -- | The naming environment for a single declaration.
 instance BindsNames (InModule (Decl PName)) where

@@ -81,18 +81,20 @@ computePropIntervals ints ps0 = go (3 :: Int) False ints ps0
     | otherwise = NewIntervals is
 
   go !n new   is (p:ps) =
-    case foldr (update is) NoChange (propInterval is p) of
+    case add False (propInterval is p) is of
       InvalidInterval i -> InvalidInterval i
       NewIntervals is'  -> go n True is' ps
       NoChange          -> go n new  is  ps
 
+  add ch [] int = if ch then NewIntervals int else NoChange
+  add ch (i:is) int = case updateInterval i int of
+                        InvalidInterval j -> InvalidInterval j
+                        NoChange          -> add ch is int
+                        NewIntervals is'  -> add True is is'
+
   changed a x = case x of
                   NoChange -> NewIntervals a
                   r        -> r
-
-  update is0 int NoChange            = updateInterval int is0
-  update _   _   (InvalidInterval i) = InvalidInterval i
-  update _   int (NewIntervals is)   = changed is (updateInterval int is)
 
 
 -- | What we learn about variables from a single prop.
@@ -119,7 +121,21 @@ propInterval varInts prop = catMaybes
        x     <- tIsVar r
        let int = typeInterval varInts l
        return (x,int { iLower = Nat 0 })
+
+    -- k >= width x
+  , do (l,r) <- pIsGeq prop
+       x     <- tIsVar =<< pIsWidth r
+           -- record the exact upper bound when it produces values within 128
+           -- bits
+       let ub = case iIsExact (typeInterval varInts l) of
+                  Just (Nat val) | val < 128 -> Just (Nat (2 ^ val - 1))
+                                 | otherwise -> Nothing
+                  upper                      -> upper
+
+       return (x, Interval { iLower = Nat 0, iUpper = ub })
+
   ]
+
 
 --------------------------------------------------------------------------------
 

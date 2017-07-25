@@ -14,7 +14,7 @@
 Writing correct software is the holy grail of programming. Bugs
 inevitably exist, however, even in thoroughly tested projects.  One
 fundamental issue is the lack of support in typical programming
-languages to let the programmer {\em state} what it means to be
+languages to let the programmer \emph{state} what it means to be
 correct, let alone formally establish any notion of correctness.  To
 address this shortcoming, Cryptol advocates the high-assurance
 programming approach: programmers explicitly state correctness
@@ -53,7 +53,7 @@ The above declaration reads as follows: {\tt sqDiffsCorrect} is a
 property stating that for all {\tt x} and {\tt y}, the expression {\tt
   sqDiff1 (x, y) == sqDiff2(x, y)} evaluates to {\tt
   True}. Furthermore, the type signature restricts the type of the
-property to apply to only 8-bit values. As usual, the type-signature
+property to apply to only 8-bit values. As usual, the type signature
 is optional.\indSignature If not given, Cryptol will infer one for
 you.
 
@@ -73,7 +73,7 @@ What do you see?\indCmdInfo
 \end{Answer}
 
 \note{It is important to emphasize that the mathematical equality
-  above and the Cryptol property are {\em not} stating precisely the
+  above and the Cryptol property are \emph{not} stating precisely the
   same property.  Remember that all Cryptol arithmetic is
   modular,\indModular while the mathematical equation is over
   arbitrary numbers, including negative, real, or even complex
@@ -132,21 +132,21 @@ What do you see?\indCmdInfo
 \end{code}
 \end{Answer}
 
-\note{A {\tt property} declaration simply introduces a property about
-  your program, which may or may {\em not} actually hold. It is an
+\note{A \texttt{property} declaration simply introduces a property about
+  your program, which may or may \emph{not} actually hold. It is an
   assertion about your program, without any claim of correctness. In
   particular, you can clearly write properties that simply do not
   hold:}
 \begin{code}
   property bogus x = x != x
 \end{code}
-It is important to distinguish between {\em stating} a property and
-actually {\em proving} it. So far, our focus is purely on
+It is important to distinguish between \emph{stating} a property and
+actually \emph{proving} it. So far, our focus is purely on
 specification. We will focus on actual proofs in
 Section~\ref{sec:establishcorrectness}.
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-\subsection{Property-function correspondence}\indThmFuncCorr
+\subsection{Property--function correspondence}\indThmFuncCorr
 \label{sec:prop-funct-corr}
 
 In Cryptol, properties can be used just like ordinary definitions:
@@ -157,7 +157,7 @@ In Cryptol, properties can be used just like ordinary definitions:
   sqDiffsCorrect : ([8],[8]) -> Bit
 \end{Verbatim}
 That is, a property over {\tt$(x, y)$} is the same as a function over
-the tuple {\tt (x, y)}. We call this the property-function
+the tuple {\tt (x, y)}. We call this the property--function
 correspondence. Property declarations, aside from the slightly
 different syntax, are \emph{precisely} the same as Cryptol functions
 whose return type is \texttt{Bit}. There is no separate language for
@@ -175,8 +175,8 @@ vectors:\indZero
     where  f x = x + 1
            testVector = [(3, 4), (4, 5), (12, 13), (78, 79)]
 \end{code}
-Notice that the property {\tt inctest} does not have any parameters
-(no {\em forall} section), and thus acts as a simple {\tt Bit} value
+Notice that the property \texttt{inctest} does not have any parameters
+(no \emph{forall} section), and thus acts as a simple \texttt{Bit} value
 that will be true precisely when the given test case succeeds.
 
 \todo[inline]{Figure out how to re-run Cryptol in this chapter to make
@@ -202,7 +202,7 @@ If we ask Cryptol the type of {\tt multShift}, we get:
 That is, it is a property about all words of size at least two. The
 question is whether this property does indeed hold? In the particular
 case of {\tt multShift} that is indeed the case, below are some
-examples using the property-function correspondence:\indThmFuncCorr
+examples using the property--function correspondence:\indThmFuncCorr
 \begin{Verbatim}
   Cryptol> multShift (5 : [8])
   True
@@ -211,7 +211,7 @@ examples using the property-function correspondence:\indThmFuncCorr
   Cryptol> multShift (5 : [16])
   True
 \end{Verbatim}
-However, this is {\em not} always the case for all polymorphic Cryptol
+However, this is \emph{not} always the case for all polymorphic Cryptol
 properties! The following example demonstrates:
 \begin{code}
   property flipNeverIdentity x = x != ~x
@@ -246,7 +246,7 @@ certain monomorphic types, but not at all types.\indMonomorphism
 
 \begin{Exercise}\label{ex:polythm:1}
   Demonstrate another monomorphic type where {\tt flipNeverIdentity}
-  does {\em not} hold.
+  does \emph{not} hold.
 \end{Exercise}
 \begin{Answer}\ansref{ex:polythm:1}
   There are many such types, all sharing the property that they do not
@@ -317,7 +317,7 @@ remembering that the 0'th bit of an even number is always {\tt
 % \label{sec:establishcorrectness}
 \sectionWithAnswers{Establishing correctness}{sec:establishcorrectness}
 
-Our focus so far has been using Cryptol to {\em state} properties of
+Our focus so far has been using Cryptol to \emph{state} properties of
 our programs, without actually trying to prove them correct. This
 separation of concerns is essential for a pragmatic development
 approach.  Properties act as contracts that programmers state along
@@ -396,7 +396,7 @@ purposes.\indCounterExample
 
 If you try to prove an invalid property that encodes a test vector
 (Section~\ref{sec:thmvec}), then you will get a mere indication that
-you have a contradiction, since there is no universally quantified
+you have a contradiction, since there are no universally quantified
 variables to instantiate to show you a
 counterexample.\indContradiction  If the expression evaluates to {\tt
   True}, then it will be a trivial proof, as expected:
@@ -406,9 +406,9 @@ counterexample.\indContradiction  If the expression evaluates to {\tt
   Cryptol> :prove True
   Q.E.D.
   Cryptol> :prove 2 == 3
-  2==3 = False
+  (2 == 3) = False
   Cryptol> :prove reverse [1, 2] == [1, 2]
-  reverse [1, 2] == [1,2] = False
+  (reverse [1, 2] == [1,2]) = False
   Cryptol> :prove 1+1 == 0
   Q.E.D.
 \end{Verbatim}
@@ -423,8 +423,8 @@ As we mentioned before, Cryptol properties can be polymorphic. As we
 explored before, we cannot directly prove polymorphic properties as
 they may hold for certain monomorphic instances while not for others.
 In this cases, we must tell Cryptol what particular monomorphic
-instance we would like it to prove the property at.  Let us
-demonstrate this with the {\tt multShift} property from
+instance of the property we would like it to prove.  Let us
+demonstrate this with the \texttt{multShift} property from
 Section~\ref{sec:polythm}:
 \begin{Verbatim}
   Cryptol> :prove multShift
@@ -542,9 +542,9 @@ case. Depending on how natural it is to express the side-condition or
 its negation, you can use one of the following two patterns:
 % the following looks ODDLY laid out in the source but comes out OK when latex'ed
 \begin{Verbatim}[commandchars=\\\{\}]
-   if  {\em side-condition-holds}         if   {\em side-condition-fails}      
-   then{\em property-expression}          then  True
-   else True                         else {\em property-expression}
+   if   \emph{side-condition-holds}         if    \emph{side-condition-fails}
+   then \emph{property-expression}          then  True
+   else True                         else  \emph{property-expression}
 \end{Verbatim}
 
 \begin{Exercise}\label{ex:cond:1}
@@ -680,7 +680,7 @@ machine, and the prover you choose.
 Cryptol's {\tt :prove} command\indCmdProve constructs rigorous formal
 proofs using push-button tools.\footnote{While some of the solvers
   that Cryptol uses are capable of \emph{emitting} proofs, such
-  functionality is not exposes as a Cryptol feature.}  The underlying
+  functionality is not exposed as a Cryptol feature.}  The underlying
 technique used by Cryptol (SAT-\glosSAT and SMT-based\glosSMT
 equivalence checking) is complete\indProofCompleteness, i.e., it will
 always either prove the property or find a
@@ -742,7 +742,7 @@ the size of the message.
 \end{Answer}
 
 \begin{Exercise}\label{ex:quick:1}
-  If the property is {\em small} in size, {\tt :check} might as well
+  If the property is \emph{small} in size, {\tt :check} might as well
   prove/disprove it. Try the following commands:
 \begin{Verbatim}
   :check True
@@ -808,7 +808,7 @@ satisfiability. In satisfiability checking,\indCmdSat we would like to find
 arguments to a bit-valued function such that it will evaluate to {\tt True},
 i.e., it will be satisfied.\indSat
 
-One way to think about satisfiability checking is {\em intelligently}
+One way to think about satisfiability checking is \emph{intelligently}
 searching for a solution. Here is a simple example. Let us assume we
 would like to compute the modular square-root of 9 as an 8-bit
 value. The obvious solution is {\tt 3}, of course, but we are
@@ -820,7 +820,7 @@ return {\tt True} if its argument is a square-root of 9:
   isSqrtOf9 x = x*x == 9
 \end{code}
 Any square-root of 9 will make the function {\tt isSqrtOf9} return
-{\tt True}, i.e., it will {\em satisfy} it.  Thus, we can use
+{\tt True}, i.e., it will \emph{satisfy} it.  Thus, we can use
 Cryptol's satisfiability checker to find those values of {\tt x}
 automatically:
 \begin{Verbatim}
@@ -858,7 +858,7 @@ more solutions using the {\tt satNum} setting:
 \end{Verbatim}
 By default, {\tt satNum} is set to {\tt 1}, so we only see one
 solution. When we change it to {\tt 4}, the satisfiability checker
-will try to find {\em up to} 4 solutions. We can also set it to {\tt
+will try to find \emph{up to} 4 solutions. We can also set it to {\tt
   all}, which will try to find as many solutions as possible.
 \begin{Verbatim}
   Cryptol> :set satNum = all
@@ -951,7 +951,7 @@ instance as you increase the bit-size.
 %% safety violations, such as trying to put in the number 1000 in a
 %% buffer that is only 8-bits wide, or trying to multiply a string
 %% with an integer; but certain run-time exceptions are still
-%% possible. The goal of {\em safety checking} is to ensure that these
+%% possible. The goal of \emph{safety checking} is to ensure that these
 %% exceptions cannot happen at run-time.\indSafe\indCmdSafe
 
 %% Here is a simple example to demonstrate:
@@ -965,7 +965,7 @@ instance as you increase the bit-size.
 %% *** 1 problem found.
 %%\end{Verbatim}
 %%Cryptol is telling us that the function {\tt $\backslash$(x, y) ->
-%% x/y} is {\em not} safe. When given the argument {\tt (0, 0)} it
+%% x/y} is \emph{not} safe. When given the argument {\tt (0, 0)} it
 %% will cause a division by zero exception. If we properly guard for
 %% the condition, then the safety check will indeed pass:
 %%\begin{Verbatim}
@@ -1066,11 +1066,11 @@ instance as you increase the bit-size.
 %%
 %%\paragraph*{Over-conservative safety checking}
 %% Cryptol's safety checker is very conservative: If it says that a
-%% function is {\em safe to execute}, you are guaranteed that the
+%% function is \emph{safe to execute}, you are guaranteed that the
 %% execution can not raise any run-time exception. However, the
 %% converse is not always true: In certain cases, Cryptol can signal a
 %% potential safety violation which will actually not cause an error
-%% when {\em run in the normal interpreter}.
+%% when \emph{run in the normal interpreter}.
 %%
 %% Here is an example to illustrate the idea. (The example is somewhat
 %% contrived, but similar patterns of coding does arise in Cryptol
@@ -1082,7 +1082,7 @@ instance as you increase the bit-size.
 %%\end{Verbatim}
 %%
 %%Cryptol's {\tt undefined}\indUndefined is useful when representing
-%% values that should {\em not} be needed during execution, as
+%% values that should \emph{not} be needed during execution, as
 %% illustrated below:
 %%\begin{code}
 %%  choose : [8] -> [8]
@@ -1113,7 +1113,7 @@ instance as you increase the bit-size.
 %% mode, this program will indeed not produce any exceptions. However,
 %% Cryptol programs can also be compiled to other targets, such as C
 %% or Java, or other hardware platforms. What Cryptol is telling us is
-%% that these translations are {\em not} guaranteed to be exception
+%% that these translations are \emph{not} guaranteed to be exception
 %% free, and hence it is worth making sure the generated code will
 %% behave properly.
 %%

@@ -5,6 +5,8 @@
 cabal.sandbox.config
 dist
 results.xml
+dist-newstyle
+.stack-work
 
 # don't check in generated documentation
 #docs/CryptolPrims.pdf
@@ -20,3 +22,4 @@ cryptol-2.*
 /ICryptol/profile.tar
 /ICryptol/profile_cryptol/security/
 /ICryptol/profile_cryptol/startup/
+/bench*.xml

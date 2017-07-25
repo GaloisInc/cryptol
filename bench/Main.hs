@@ -7,10 +7,17 @@
 -- Portability :  portable
 
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Main where
 
 import qualified Data.Text.Lazy     as T
 import qualified Data.Text.Lazy.IO  as T
+import           System.FilePath ((</>))
+import qualified System.Directory   as Dir
+
+import qualified Cryptol.Eval as E
+import qualified Cryptol.Eval.Monad as E
+import qualified Cryptol.Eval.Value as E
 
 import qualified Cryptol.ModuleSystem.Base      as M
 import qualified Cryptol.ModuleSystem.Env       as M
@@ -22,41 +29,50 @@ import qualified Cryptol.Parser.AST       as P
 import qualified Cryptol.Parser.NoInclude as P
 
 import qualified Cryptol.Symbolic as S
+import qualified Cryptol.Symbolic.Value as S
 
 import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
 
 import qualified Cryptol.Utils.Ident as I
 
+import qualified Data.SBV.Dynamic as SBV
+
 import Criterion.Main
 
 main :: IO ()
-main = defaultMain [
+main = do
+  cd <- Dir.getCurrentDirectory
+  defaultMain [
     bgroup "parser" [
         parser "Prelude" "lib/Cryptol.cry"
+      , parser "Extras"  "lib/Cryptol/Extras.cry"
+      , parser "PreludeWithExtras" "bench/data/PreludeWithExtras.cry"
       , parser "BigSequence" "bench/data/BigSequence.cry"
       , parser "BigSequenceHex" "bench/data/BigSequenceHex.cry"
       , parser "AES" "bench/data/AES.cry"
       , parser "SHA512" "bench/data/SHA512.cry"
       ]
-  , bgroup "typechecker" [
-        tc "Prelude" "lib/Cryptol.cry"
-      , tc "BigSequence" "bench/data/BigSequence.cry"
-      , tc "BigSequenceHex" "bench/data/BigSequenceHex.cry"
-      , tc "AES" "bench/data/AES.cry"
-      , tc "SHA512" "bench/data/SHA512.cry"
+   , bgroup "typechecker" [
+        tc cd "Prelude" "lib/Cryptol.cry"
+      , tc cd "Extras"  "lib/Cryptol/Extras.cry"
+      , tc cd "PreludeWithExtras" "bench/data/PreludeWithExtras.cry"
+      , tc cd "BigSequence" "bench/data/BigSequence.cry"
+      , tc cd "BigSequenceHex" "bench/data/BigSequenceHex.cry"
+      , tc cd "AES" "bench/data/AES.cry"
+      , tc cd "SHA512" "bench/data/SHA512.cry"
       ]
-  , bgroup "conc_eval" [
-        ceval "AES" "bench/data/AES.cry" "bench bench_data"
-      , ceval "SHA512" "bench/data/SHA512.cry" "testVector1 ()"
+   , bgroup "conc_eval" [
+        ceval cd "AES" "bench/data/AES.cry" "bench_correct"
+      , ceval cd "ZUC" "bench/data/ZUC.cry" "ZUC_TestVectors"
+      , ceval cd "SHA512" "bench/data/SHA512.cry" "testVector1 ()"
       ]
-  , bgroup "sym_eval" [
-        seval "AES" "bench/data/AES.cry" "aesEncrypt (zero, zero)"
-      , seval "ZUC" "bench/data/ZUC.cry"
-          "ZUC_isResistantToCollisionAttack"
-      , seval "SHA512" "bench/data/SHA512.cry" "testVector1 ()"
+   , bgroup "sym_eval" [
+        seval cd "AES" "bench/data/AES.cry" "bench_correct"
+      , seval cd "ZUC" "bench/data/ZUC.cry" "ZUC_TestVectors"
+      , seval cd "SHA512" "bench/data/SHA512.cry" "testVector1 ()"
       ]
-  ]
+   ]
 
 -- | Make a benchmark for parsing a Cryptol module
 parser :: String -> FilePath -> Benchmark
@@ -73,8 +89,9 @@ parser name path =
 
 -- | Make a benchmark for typechecking a Cryptol module. Does parsing
 -- in the setup phase in order to isolate typechecking
-tc :: String -> FilePath -> Benchmark
-tc name path =
+tc :: String -> String -> FilePath -> Benchmark
+tc cd name path =
+  let withLib = M.withPrependedSearchPath [cd </> "lib"] in
   let setup = do
         bytes <- T.readFile path
         let cfg = P.defaultConfig
@@ -83,7 +100,7 @@ tc name path =
                 }
             Right pm = P.parseModule cfg bytes
         menv <- M.initialModuleEnv
-        (Right ((prims, scm, tcEnv), menv'), _) <- M.runModuleM menv $ do
+        (Right ((prims, scm, tcEnv), menv'), _) <- M.runModuleM menv $ withLib $ do
           -- code from `loadModule` and `checkModule` in
           -- `Cryptol.ModuleSystem.Base`
           let pm' = M.addPrelude pm
@@ -97,18 +114,19 @@ tc name path =
           return (prims, scm, tcEnv)
         return (prims, scm, tcEnv, menv')
   in env setup $ \ ~(prims, scm, tcEnv, menv) ->
-    bench name $ nfIO $ M.runModuleM menv $ do
+    bench name $ nfIO $ M.runModuleM menv $ withLib $ do
       let act = M.TCAction { M.tcAction = T.tcModule
                            , M.tcLinter = M.moduleLinter (P.thing (P.mName scm))
                            , M.tcPrims  = prims
                            }
       M.typecheck act scm tcEnv
 
-ceval :: String -> FilePath -> T.Text -> Benchmark
-ceval name path expr =
+ceval :: String -> String -> FilePath -> T.Text -> Benchmark
+ceval cd name path expr =
+  let withLib = M.withPrependedSearchPath [cd </> "lib"] in
   let setup = do
         menv <- M.initialModuleEnv
-        (Right (texpr, menv'), _) <- M.runModuleM menv $ do
+        (Right (texpr, menv'), _) <- M.runModuleM menv $ withLib $ do
           m <- M.loadModuleByPath path
           M.setFocusedModule (T.mName m)
           let Right pexpr = P.parseExpr expr
@@ -116,13 +134,18 @@ ceval name path expr =
           return texpr
         return (texpr, menv')
   in env setup $ \ ~(texpr, menv) ->
-    bench name $ nfIO $ M.runModuleM menv $ M.evalExpr texpr
+    bench name $ nfIO $ E.runEval $ do
+      env' <- E.evalDecls (S.allDeclGroups menv) mempty
+      (e :: E.Value) <- E.evalExpr env' texpr
+      E.forceValue e
 
-seval :: String -> FilePath -> T.Text -> Benchmark
-seval name path expr =
+
+seval :: String -> String -> FilePath -> T.Text -> Benchmark
+seval cd name path expr =
+  let withLib = M.withPrependedSearchPath [cd </> "lib"] in
   let setup = do
         menv <- M.initialModuleEnv
-        (Right (texpr, menv'), _) <- M.runModuleM menv $ do
+        (Right (texpr, menv'), _) <- M.runModuleM menv $ withLib $ do
           m <- M.loadModuleByPath path
           M.setFocusedModule (T.mName m)
           let Right pexpr = P.parseExpr expr
@@ -130,6 +153,8 @@ seval name path expr =
           return texpr
         return (texpr, menv')
   in env setup $ \ ~(texpr, menv) ->
-    bench name $ flip nf texpr $ \texpr' ->
-      let senv = S.evalDecls mempty (S.allDeclGroups menv)
-      in S.evalExpr senv texpr'
+    bench name $ nfIO $ E.runEval $ do
+      env' <- E.evalDecls (S.allDeclGroups menv) mempty
+      (e :: S.Value) <- E.evalExpr env' texpr
+      E.io $ SBV.generateSMTBenchmark False $
+         return (S.fromVBit e)

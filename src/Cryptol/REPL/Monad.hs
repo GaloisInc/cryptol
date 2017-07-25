@@ -57,6 +57,7 @@ module Cryptol.REPL.Monad (
   , setUser, getUser, tryGetUser
   , userOptions
   , getUserSatNum
+  , getUserShowProverStats
 
     -- ** Configurable Output
   , getPutStr
@@ -304,12 +305,13 @@ unlessBatch body = do
 
 -- | Run a computation in batch mode, restoring the previous isBatch
 -- flag afterwards
-asBatch :: REPL () -> REPL ()
+asBatch :: REPL a -> REPL a
 asBatch body = do
   wasBatch <- eIsBatch `fmap` getRW
   modifyRW_ $ (\ rw -> rw { eIsBatch = True })
-  body
+  a <- body
   modifyRW_ $ (\ rw -> rw { eIsBatch = wasBatch })
+  return a
 
 disableLet :: REPL ()
 disableLet  = modifyRW_ (\ rw -> rw { eLetEnabled = False })
@@ -487,7 +489,7 @@ mkUserEnv opts = Map.fromList $ do
 
 -- | Set a user option.
 setUser :: String -> String -> REPL ()
-setUser name val = case lookupTrie name userOptions of
+setUser name val = case lookupTrieExact name userOptions of
 
   [opt] -> setUserOpt opt
   []    -> io (putStrLn ("Unknown env value `" ++ name ++ "`"))
@@ -565,6 +567,11 @@ getUser name = do
     Just ev -> return ev
     Nothing -> panic "[REPL] getUser" ["option `" ++ name ++ "` does not exist"]
 
+getUserShowProverStats :: REPL Bool
+getUserShowProverStats =
+  do EnvBool yes <- getUser "prover-stats"
+     return yes
+
 -- Environment Options ---------------------------------------------------------
 
 type OptionMap = Trie OptionDescr
@@ -640,7 +647,11 @@ userOptions  = mkOptionMap
       in \case EnvBool True  -> setIt M.CoreLint
                EnvBool False -> setIt M.NoCoreLint
                _             -> return ()
+
+  , simpleOpt "prover-stats" (EnvBool True) (const (return Nothing))
+    "Enable prover timing statistics."
   ]
+
 
 -- | Check the value to the `base` option.
 checkBase :: EnvVal -> IO (Maybe String)

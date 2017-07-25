@@ -111,7 +111,7 @@ endif
 
 CRYPTOL_SRC := \
   $(shell find src cryptol cryptol-server bench \
-            \( -name \*.hs -or -name \*.x -or -name \*.y \) \
+            \( -name \*.hs -or -name \*.lhs -or -name \*.x -or -name \*.y \) \
             -and \( -not -name \*\#\* \) -print) \
   $(shell find lib -name \*.cry) \
   ${GIT_INFO_FILES}
@@ -271,7 +271,10 @@ test: ${CS_BIN}/cryptol-test-runner
 bench: cryptol.cabal Makefile | ${CS_BIN}/alex ${CS_BIN}/happy
 	$(CABAL_INSTALL) --only-dependencies --enable-benchmarks
 	$(CABAL) configure --enable-benchmarks
-	$(CABAL) bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench.xml)
+	$(CABAL) bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench-parser.xml) --benchmark-option='parser/'
+	$(CABAL) bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench-typechecker.xml) --benchmark-option='typechecker/'
+	$(CABAL) bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench-conc_eval.xml) --benchmark-option='conc_eval/'
+	$(CABAL) bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench-sym_eval.xml) --benchmark-option='sym_eval/'
 	rm -rf dist/setup-config
 
 .PHONY: clean

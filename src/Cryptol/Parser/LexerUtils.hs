@@ -62,8 +62,8 @@ startComment isDoc _ p txt s = (Nothing, InComment d p stack chunks)
                            InComment doc q qs cs -> (doc, q : qs, txt : cs)
                            _                     -> panic "[Lexer] startComment" ["in a string"]
 
-endComent :: Action
-endComent cfg p txt s =
+endComment :: Action
+endComment cfg p txt s =
   case s of
     InComment d f [] cs     -> (Just (mkToken d f cs), Normal)
     InComment d _ (q:qs) cs -> (Nothing, InComment d q qs (txt : cs))
@@ -216,19 +216,13 @@ splitQual t =
 numToken :: Integer -> Text -> TokenT
 numToken rad ds = Num (toVal ds) (fromInteger rad) (fromIntegral (T.length ds))
   where
-  toVal = T.foldl' (\x c -> rad * x + toDig c) 0
-  toDig = if rad == 16 then fromHexDigit else fromDecDigit
+  toVal = T.foldl' (\x c -> rad * x + fromDigit c) 0
 
-fromDecDigit   :: Char -> Integer
-fromDecDigit x  = read [x]
-
-fromHexDigit :: Char -> Integer
-fromHexDigit x'
-  | 'a' <= x && x <= 'f'  = fromIntegral (10 + fromEnum x - fromEnum 'a')
-  | otherwise             = fromDecDigit x
+fromDigit :: Char -> Integer
+fromDigit x'
+  | 'a' <= x && x <= 'z'  = fromIntegral (10 + fromEnum x - fromEnum 'a')
+  | otherwise             = fromIntegral (fromEnum x - fromEnum '0')
   where x                 = toLower x'
-
-
 
 -------------------------------------------------------------------------------
 
@@ -354,7 +348,7 @@ virt cfg pos x = Located { srcRange = Range
 
 --------------------------------------------------------------------------------
 
-data Token    = Token { tokenType :: TokenT, tokenText :: Text }
+data Token    = Token { tokenType :: !TokenT, tokenText :: !Text }
                 deriving (Show, Generic, NFData)
 
 -- | Virtual tokens, inserted by layout processing.
@@ -432,16 +426,16 @@ data TokenErr = UnterminatedComment
               | LexicalError
                 deriving (Eq, Show, Generic, NFData)
 
-data TokenT   = Num Integer Int Int   -- ^ value, base, number of digits
-              | ChrLit  Char          -- ^ character literal
-              | Ident [T.Text] T.Text -- ^ (qualified) identifier
-              | StrLit String         -- ^ string literal
-              | KW    TokenKW         -- ^ keyword
-              | Op    TokenOp         -- ^ operator
-              | Sym   TokenSym        -- ^ symbol
-              | Virt  TokenV          -- ^ virtual token (for layout)
-              | White TokenW          -- ^ white space token
-              | Err   TokenErr        -- ^ error token
+data TokenT   = Num !Integer !Int !Int   -- ^ value, base, number of digits
+              | ChrLit  !Char         -- ^ character literal
+              | Ident ![T.Text] !T.Text -- ^ (qualified) identifier
+              | StrLit !String         -- ^ string literal
+              | KW    !TokenKW         -- ^ keyword
+              | Op    !TokenOp         -- ^ operator
+              | Sym   !TokenSym        -- ^ symbol
+              | Virt  !TokenV          -- ^ virtual token (for layout)
+              | White !TokenW          -- ^ white space token
+              | Err   !TokenErr        -- ^ error token
               | EOF
                 deriving (Eq, Show, Generic, NFData)
 

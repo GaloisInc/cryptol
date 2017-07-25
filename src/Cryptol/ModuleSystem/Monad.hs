@@ -11,7 +11,9 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.ModuleSystem.Monad where
 
-import           Cryptol.Eval.Env (EvalEnv)
+import           Cryptol.Eval (EvalEnv)
+
+import qualified Cryptol.Eval.Monad           as E
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
@@ -26,9 +28,10 @@ import qualified Cryptol.Parser.NoInclude as NoInc
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
 import           Cryptol.Parser.Position (Range)
-import           Cryptol.Utils.Ident (interactiveName)
+import           Cryptol.Utils.Ident (interactiveName, packModName)
 import           Cryptol.Utils.PP
 
+import Control.Monad.IO.Class
 import Control.Exception (IOException)
 import Data.Function (on)
 import Data.Maybe (isJust)
@@ -273,6 +276,9 @@ instance Monad m => FreshM (ModuleT m) where
        set $! me { meSupply = s' }
        return a
 
+instance MonadIO m => MonadIO (ModuleT m) where
+  liftIO m = lift $ liftIO m
+
 runModuleT :: Monad m
            => ModuleEnv
            -> ModuleT m a
@@ -340,8 +346,7 @@ getImportSource  = ModuleT $ do
   ro <- ask
   case roLoading ro of
     is : _ -> return is
-    _      -> panic "ModuleSystem: getImportSource" ["Import stack is empty"]
-
+    _      -> return (FromModule (packModName ["<none>"])) -- panic "ModuleSystem: getImportSource" ["Import stack is empty"]
 
 getIface :: P.ModName -> ModuleM Iface
 getIface mn = ModuleT $ do
@@ -380,15 +385,17 @@ unloadModule path = ModuleT $ do
   env <- get
   set $! env { meLoadedModules = removeLoadedModule path (meLoadedModules env) }
 
-loadedModule :: FilePath -> T.Module -> ModuleM ()
-loadedModule path m = ModuleT $ do
+loadedModule :: FilePath -> FilePath -> T.Module -> ModuleM ()
+loadedModule path canonicalPath m = ModuleT $ do
   env <- get
-  set $! env { meLoadedModules = addLoadedModule path m (meLoadedModules env) }
+  set $! env { meLoadedModules = addLoadedModule path canonicalPath m (meLoadedModules env) }
 
-modifyEvalEnv :: (EvalEnv -> EvalEnv) -> ModuleM ()
+modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
 modifyEvalEnv f = ModuleT $ do
   env <- get
-  set $! env { meEvalEnv = f (meEvalEnv env) }
+  let evalEnv = meEvalEnv env
+  evalEnv' <- inBase $ E.runEval (f evalEnv)
+  set $! env { meEvalEnv = evalEnv' }
 
 getEvalEnv :: ModuleM EvalEnv
 getEvalEnv  = ModuleT (meEvalEnv `fmap` get)

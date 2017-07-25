@@ -21,12 +21,15 @@ module Cryptol.TypeCheck.Solver.CrySAT
   , DebugLog(..)
   , knownDefined, numericRight
   , minimizeContradictionSimpDef
+  , loadFile
+  , rawSolver
   ) where
 
 import qualified Cryptol.TypeCheck.AST as Cry
-import           Cryptol.TypeCheck.InferTypes(Goal(..), SolverConfig(..), Solved(..))
+import           Cryptol.TypeCheck.InferTypes(Goal(..), SolverConfig(..))
 import qualified Cryptol.TypeCheck.Subst as Cry
 
+import           Cryptol.TypeCheck.Solver.Types
 import           Cryptol.TypeCheck.Solver.Numeric.AST
 import           Cryptol.TypeCheck.Solver.Numeric.Fin
 import           Cryptol.TypeCheck.Solver.Numeric.ImportExport
@@ -42,6 +45,7 @@ import           MonadLib
 import           Data.Maybe ( fromMaybe )
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Char(isSpace)
 import           Data.Foldable ( any, all )
 import qualified Data.Set as Set
 import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef',
@@ -124,9 +128,11 @@ simplifyProps s props =
 
              Just (ints,False) ->
                debugLog s ("Using the fin solver:" ++ show (pp (goal (dpData p)))) >>
-               case cryIsFin ints (dpData p) of
-                 Solved _ gs' ->
+               case cryIsFin ints (goal (dpData p)) of
+                 SolvedIf ps' ->
                    do debugLog s "solved"
+                      let gg = dpData p
+                          gs' = [ gg { goal = pr } | pr <- ps' ]
                       let more' = [ knownDefined g | Right g <- map numericRight gs' ]
                       go survived (more' ++ more)
                  Unsolved ->
@@ -134,8 +140,8 @@ simplifyProps s props =
                       assert s p
                       go (dpData p : survived) more
 
-                 Unsolvable ->
-                   do debugLog s "unsolvable"
+                 x@(Unsolvable {}) ->
+                   do debugLog s (show (pp x))
                       go (dpData p:survived) more
 
              Nothing -> go (dpData p:survived) more
@@ -279,6 +285,28 @@ data Solver = Solver
     -- ^ For debugging
   }
 
+loadFile :: Solver -> FilePath -> IO ()
+loadFile s file = do -- txt <- readFile file
+                     -- mapM_ putStrLn (lines txt)
+                     go . dropComments =<< readFile file
+  where
+  go txt
+    | all isSpace txt = return ()
+    | otherwise = case SMT.readSExpr txt of
+                    Just (e,rest) -> SMT.command (solver s) e >> go rest
+                    Nothing       -> panic "loadFile" [ "Failed to parse SMT file."
+                                                      , txt
+                                                      ]
+
+  dropComments = unlines . map dropComment . lines
+  dropComment xs = case break (== ';') xs of
+                     (as,_:_) -> as
+                     _ -> xs
+
+rawSolver :: Solver -> SMT.Solver
+rawSolver = solver
+
+
 
 -- | Keeps track of declared variables and non-linear terms.
 data VarInfo = VarInfo
@@ -415,7 +443,7 @@ withSolver SolverConfig { .. } k =
      let smtDbg = if solverVerbose > 1 then Just logger else Nothing
      solver <- SMT.newSolver solverPath solverArgs smtDbg
      _ <- SMT.setOptionMaybe solver ":global-decls" "false"
-     SMT.setLogic solver "QF_LIA"
+     -- SMT.setLogic solver "QF_LIA"
      declared <- newIORef viEmpty
      a <- k Solver { .. }
      _ <- SMT.stop solver

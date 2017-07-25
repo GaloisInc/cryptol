@@ -185,7 +185,7 @@ rewE rews = go
       ESel e s        -> ESel    <$> go e  <*> return s
       EIf e1 e2 e3    -> EIf     <$> go e1 <*> go e2 <*> go e3
 
-      EComp t e mss   -> EComp t <$> go e  <*> mapM (mapM (rewM rews)) mss
+      EComp len t e mss -> EComp len t <$> go e  <*> mapM (mapM (rewM rews)) mss
       EVar _          -> return expr
 
       ETAbs x e       -> ETAbs x  <$> go e
@@ -195,7 +195,6 @@ rewE rews = go
 
       EProofAbs x e   -> EProofAbs x <$> go e
 
-      ECast e t       -> ECast       <$> go e <*> return t
       EWhere e dgs    -> EWhere      <$> go e <*> inLocal
                                                   (mapM (rewDeclGroup rews) dgs)
 
@@ -203,7 +202,7 @@ rewE rews = go
 rewM :: RewMap -> Match -> M Match
 rewM rews ma =
   case ma of
-    From x t e -> From x t <$> rewE rews e
+    From x len t e -> From x len t <$> rewE rews e
 
     -- These are not recursive.
     Let d      -> Let <$> rewD rews d

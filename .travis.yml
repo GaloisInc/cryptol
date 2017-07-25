@@ -1,10 +1,42 @@
-language: haskell
-ghc: 7.6
+dist: trusty
+sudo: false
+
+language: c
+
+matrix:
+  include:
+    - env: CABALVER="1.24" GHCVER="8.0.2"
+      compiler: ": #GHC 8.0.2"
+      addons: {apt: {packages: [cabal-install-1.24,ghc-8.0.2], sources: [hvr-ghc]}}
+    - os: osx
+      env: CABALVER="1.24" GHCVER="8.0.2"
+      compiler: ": #GHC 8.0.2"
+
+before_install:
+  - if [[ $TRAVIS_OS_NAME == 'linux' ]];
+    then
+        mkdir -p $HOME/bin;
+        export PATH=/opt/ghc/$GHCVER/bin:/opt/cabal/$CABALVER/bin:$HOME/bin:$HOME/.cabal/bin:$PATH;
+        curl https://saw.galois.com/builds/z3/z3 > z3;
+        chmod +x z3;
+        mv z3 $HOME/bin/z3;
+        z3 --version;
+    fi
+  - if [[ $TRAVIS_OS_NAME == 'osx' ]];
+    then
+        brew install ghc cabal-install z3;
+        export PATH=$HOME/.cabal/bin:$PATH;
+    fi
+  - env
+
 install:
+  - cabal update
   - cabal sandbox init
   - cabal install Cabal
   - make
+
 script:
-  - make test
+  - make test DIFF=""
+
 notifications:
   email: false

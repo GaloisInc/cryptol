@@ -157,7 +157,7 @@ mkFixity :: Assoc -> Located Token -> [LPName] -> ParseM (Decl PName)
 mkFixity assoc tok qns =
   do l <- intVal tok
      unless (l >= 1 && l <= 100)
-          (errorMessage (srcRange tok) "Fixity levels must be between 0 and 20")
+          (errorMessage (srcRange tok) "Fixity levels must be between 1 and 100")
      return (DFixity (Fixity assoc (fromInteger l)) qns)
 
 mkTupleSel :: Range -> Integer -> ParseM (Located Selector)

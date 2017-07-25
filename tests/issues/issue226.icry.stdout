@@ -8,7 +8,7 @@ Type Synonyms
     type Char = [8]
     type String n = [n][8]
     type Word n = [n]
-    type lg2 n = width (max n 1 - 1)
+    type lg2 n = width (max 1 n - 1)
 
 Symbols
 =======
@@ -24,12 +24,14 @@ Symbols
     (+) : {a} (Arith a) => a -> a -> a
     (-) : {a} (Arith a) => a -> a -> a
     (/) : {a} (Arith a) => a -> a -> a
+    (/\) : Bit -> Bit -> Bit
     (<) : {a} (Cmp a) => a -> a -> Bit
     (<<) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
     (<<<) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
     (<=) : {a} (Cmp a) => a -> a -> Bit
     (==) : {a} (Cmp a) => a -> a -> Bit
     (===) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
+    (==>) : Bit -> Bit -> Bit
     (>) : {a} (Cmp a) => a -> a -> Bit
     (>=) : {a} (Cmp a) => a -> a -> Bit
     (>>) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
@@ -38,6 +40,7 @@ Symbols
     (@@) : {a, b, c, d} (fin d) => [a]b -> [c][d] -> [c]b
     False : Bit
     True : Bit
+    (\/) : Bit -> Bit -> Bit
     (^) : {a} a -> a -> a
     (^^) : {a} (Arith a) => a -> a -> a
     complement : {a} a -> a
@@ -57,8 +60,8 @@ Symbols
                                                                   last == len) => [len][bits]
     fromTo : {first, last, bits} (fin last, fin bits, last >= first,
                                   bits >= width last) => [1 + (last - first)][bits]
-    groupBy : {each, parts, elem} (fin each) => [parts *
-                                                 each]elem -> [parts][each]elem
+    groupBy : {each, parts, elem} (fin each) => [each *
+                                                 parts]elem -> [parts][each]elem
     infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
     infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
     join : {parts, each, a} (fin each) => [parts][each]a -> [parts *
@@ -69,7 +72,8 @@ Symbols
     negate : {a} (Arith a) => a -> a
     pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
     pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
-    pmult : {a, b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
+    pmult : {a, b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 +
+                                                            (a + b)]
     random : {a} [256] -> a
     reverse : {a, b} (fin a) => [a]b -> [a]b
     split : {parts, each, a} (fin each) => [parts *
@@ -79,11 +83,18 @@ Symbols
     tail : {a, b} [1 + a]b -> [a]b
     take : {front, back, elem} (fin front) => [front +
                                                back]elem -> [front]elem
+    trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
+    traceVal : {n, a} (fin n) => [n][8] -> a -> a
     transpose : {a, b, c} [a][b]c -> [b][a]c
     undefined : {a} a
+    update : {a, b, c} (fin c) => [a]b -> [c] -> b -> [a]b
+    updateEnd : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b -> [a]b
+    updates : {a, b, c, d} (fin c,
+                            fin d) => [a]b -> [d][c] -> [d]b -> [a]b
+    updatesEnd : {a, b, c, d} (fin a, fin c,
+                               fin d) => [a]b -> [d][c] -> [d]b -> [a]b
     width : {bits, len, elem} (fin len, fin bits,
                                bits >= width len) => [len]elem -> [bits]
     zero : {a} a
     (||) : {a} a -> a -> a
-    (~) : {a} a -> a
 

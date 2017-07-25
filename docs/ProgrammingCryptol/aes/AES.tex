@@ -28,7 +28,7 @@ Referring to the standard as you work your way through this chapter is
 recommended.
 
 Some surprises may be at hand for the reader who has never deeply
-examined a modern cryptography algorithm before.  
+examined a modern cryptography algorithm before.
 
 First, algorithms like AES are typically composed of many smaller
 units of varying kinds.  Consequently, the entire algorithm is
@@ -61,8 +61,8 @@ community of cryptographers.
 \section{Parameters}
 \label{sec:aesparams}
 
-The AES algorithm always takes 128-bits of input, and always produces
-128-bits of output, regardless of the key size.  The key-size can be
+The AES algorithm always takes 128 bits of input, and always produces
+128 bits of output, regardless of the key size.  The key-size can be
 one of 128 (AES128), 192 (AES192), or 256 (AES256).  Following the
 standard, we define the following three parameters~\cite[Section
 2.2]{aes}:
@@ -95,9 +95,9 @@ The following derived type is helpful in signatures:
 \sectionWithAnswers{Polynomials in \texorpdfstring{GF($2^8$)}{GF(2,8)}}{sec:polynomials}
 
 AES\indAES works on a two-dimensional representation of the input
-arranged into bytes, called the {\em state}.\indAESState For an
+arranged into bytes, called the {\em state}.\indAESState For a
 128-bit input, we have precisely 4 rows, each containing {\tt Nb}
-(i.e., 4) bytes, each of which is 8-bits wide, totaling
+(i.e., 4) bytes, each of which is 8 bits wide, totaling
 $4\times4\times8 = 128$ bits. The bytes themselves are treated as
 finite field elements in the Galois field
 GF($2^8$)~\cite{wiki:galoisfield}\indGF, giving rise to the following
@@ -111,7 +111,7 @@ The hard-encoding of \texttt{GF28} in this specification is completely
 appropriate because the construction of AES depends entirely upon the
 Galois field GF($2^8$).  It is conceivable that other algorithms might
 be parameterized across GF($2^k$) for some $k$, in which case the
-underyling type declaration would also be parameterized.
+underlying type declaration would also be parameterized.
 
 While a basic understanding Galois field operations is helpful, the
 details are not essential for our modeling purposes.  It suffices to
@@ -153,13 +153,11 @@ cancel each other out. When interpreted as a word, both addition and
 subtraction amount to a simple exclusive-or operation.  Cryptol's
 \Verb|^|\indXOr operator captures this idiom concisely:
 \begin{Verbatim}
-  Cryptol> (<| x^^4 + x^^2 |> ^ <| x^^5 + x^^2 + 1 |>) == \
-            <| x^^5 + x^^4 + 1 |>
+  Cryptol> <| x^^4 + x^^2 |> ^ <| x^^5 + x^^2 + 1 |> == \
+           <| x^^5 + x^^4 + 1 |>
   True
 \end{Verbatim}
-Note that the term $x^2$ cancels since it appears in both
-polynomials. Also note the parentheses are required due to the
-precedence of {\tt ==} vs. {\tt \Verb|^|}.
+Note that the term $x^2$ cancels since it appears in both polynomials.
 \begin{Exercise}\label{ex:gf:0}
   Adding a polynomial to itself in GF($2^n$) will always yield {\tt 0}
   since all the terms will cancel each other.  Write and prove a
@@ -198,7 +196,7 @@ that adds all the elements given.
 \end{code}
 \end{Answer}
 
-\paragraph*{Multiplication} Multiplication GF($2^n$) follows the usual
+\paragraph*{Multiplication} Multiplication in GF($2^n$) follows the usual
 polynomial multiplication algorithm, where we multiply the first
 polynomial with each term of the second, and add all the partial sums
 (i.e., compute their exclusive-or). While this operation can be
@@ -508,6 +506,7 @@ can make a table containing the precomputed values for all possible
 these values each time we need it.  In fact, Figure~7 on page 16 of
 the AES\indAES standard lists these precomputed values for
 us~\cite[Section 5.1.1]{aes}. We capture this table below in Cryptol:
+\todo[inline]{We should consistently use either ``look-up'' or ``lookup''.}
 
 \vspace{0.25cm}
 \begin{minipage}{\textwidth}
@@ -542,8 +541,9 @@ us~\cite[Section 5.1.1]{aes}. We capture this table below in Cryptol:
 \end{code}
 }
 \end{minipage}
+\vspace{0.25cm}
 
-\noindent With this definition of {\tt sbox}, the look up variants of
+\noindent With this definition of {\tt sbox}, the look-up variants of
 {\tt SubByte} and {\tt SubBytes} becomes:\label{aes:subbytetl}
 \begin{code}
   SubByte' : GF28 -> GF28
@@ -666,8 +666,8 @@ $$
 $$
 
 As you might recall from linear algebra, given two \emph{compatible}
-matrices $A$ and $B$, the $ij$'th element of $A\times B$ is the
-dot-product of the $i$'th row of $A$ and the $j$'th column of $B$.
+matrices $A$ and $B$, the $ij$th element of $A\times B$ is the
+dot-product of the $i$th row of $A$ and the $j$th column of $B$.
 (By \emph{compatible} we mean the number of columns of $A$ must be the
 same as the number of rows of $B$.  All our matrices are $4\times 4$,
 so they are always compatible.)  The dot-product is defined as
@@ -695,8 +695,8 @@ such that {\tt gf28DotProduct} returns the dot-product of two length $n$ vectors
 \todo[inline]{Check correct with theorem support.}
 
 \begin{Exercise}\label{ex:aesmc:1}
-  Write properties stating that the dot-matrix operation {\tt
-    gf28DotProduct} is commutative and distributive over vector
+  Write properties stating that the vector operation
+  \texttt{gf28DotProduct} is commutative and distributive over vector
   addition:
 \begin{eqnarray*}
 a \cdot b &=& b \cdot a \\
@@ -704,7 +704,7 @@ a \cdot (b + c) &=& a\cdot b + a\cdot b
 \end{eqnarray*}
 Addition over vectors is defined element-wise. Prove the commutativity
 property for vectors of length 10.  Distributivity will take much
-longer, so you might want to do a {\tt :check} on it.\indCmdCheck
+longer, so you might want to do a \texttt{:check} on it.\indCmdCheck
 \todo[inline]{Explain why distributivity is so much harder to prove.}
 \end{Exercise}
 \begin{Answer}\ansref{ex:aesmc:1}
@@ -807,12 +807,12 @@ row-based ordering.
   their composition.}
 
 Recall from Section~\ref{sec:aesparams} that AES takes 128, 192, or
-256 bit keys. The key is not used as-is, however. Instead, AES\indAES
+256-bit keys. The key is not used as-is, however. Instead, AES\indAES
 expands the key into a number of round keys, called the {\em key
   schedule}. Construction of the key schedule relies on a number of
 auxiliary definitions, as we shall see shortly.
 
-\paragraph*{Round constants} AES\indAES standard refers to the constant
+\paragraph*{Round constants} The AES\indAES standard refers to the constant
 array {\tt Rcon} used during key expansion. For each {\tt i}, {\tt
   Rcon[i]} contains 4 words, the last three being 0~\cite[Section
 5.2]{aes}.  The first element is given by $x^{i-1}$, where
@@ -896,7 +896,7 @@ We have:
 % explore in Exercise~\ref{aes:keyexpansion}~\ref{ex:rconsafety}.
 % \end{Answer}
 
-\paragraph*{The {\ttfamily{\textbf SubWord}} function} AES\indAES
+\paragraph*{The {\ttfamily{\textbf SubWord}} function} The AES\indAES
 specification refers to a function named {\tt SubWord}~\cite[Section
 5.2]{aes}, that takes a 32-bit word and applies the {\tt SubByte}
 transformation from Section~\ref{aes:subbytes}. This function is
@@ -909,7 +909,7 @@ Note that we have used the table-lookup version ({\tt SubByte'},
 Pg~\pageref{aes:subbytetl}) above.
 
 \paragraph*{The {\ttfamily{\textbf RotWord}} function} The last
-function we need for key-expansion is named {\tt RotWord} by the
+function we need for key expansion is named {\tt RotWord} by the
 AES\indAES standard~\cite[Section 5.2]{aes}. This function merely
 rotates a given word cyclically to the left:
 \begin{code}
@@ -926,18 +926,18 @@ purposes of clarity.
 
 \paragraph*{The key schedule} Recall that AES\indAES operates on 128,
 192, or 256 bit keys.  These keys are used to construct a sequence of
-so called {\em round-keys}, each of which is 128-bits wide, and is
+so-called \emph{round keys}, each of which is 128 bits wide, and is
 viewed the same way as the {\tt State}:\todo[inline]{\emph{Viewed} or
   \emph{used}?  Isn't this type abuse?}
 \begin{code}
   type RoundKey = State
 \end{code}
-The expanded key schedule, contains {\tt Nr}+1 round-keys.  (Recall
+The expanded key schedule contains {\tt Nr}+1 round-keys.  (Recall
 from Section~\ref{sec:aesparams} that {\tt Nr} is the number of
 rounds.)  It also helps to separate out the first and the last keys,
 as they are used in a slightly different fashion.  Based on this
 discussion, we use the following Cryptol type to capture the
-key-schedule:
+key schedule:
 \begin{code}
   type KeySchedule = (RoundKey, [Nr-1]RoundKey, RoundKey) 
 \end{code}
@@ -992,9 +992,9 @@ infinite regression of elements:\indDrop\indTranspose
                           | old  <- keyWS
                          ]
 \end{code}
-Note how {\tt prev} tracks the previous 32-bits of the expanded key
+Note how {\tt prev} tracks the previous 32 bits of the expanded key
 (by dropping the first {\tt Nk-1} elements), while {\tt old} tracks
-the {\tt i-Nk}'th recurrence for {\tt keyWS}. Once we have the
+the {\tt i-Nk}th recurrence for {\tt keyWS}. Once we have the
 infinite expansion, it is easy to extract just the amount we need by
 using number of rounds ({\tt Nr}) as our guide:\indIndex\indIndexs
 \begin{code}
@@ -1011,7 +1011,7 @@ elements.
 \paragraph*{Testing {\ttfamily{\textbf ExpandKey}}} The completion of
 {\tt ExpandKey} is an important milestone in our AES\indAES
 development, and it is worth testing it before we proceed. The AES
-specification has example key-expansions that we can use. The
+specification has example key expansions that we can use. The
 following function will be handy in viewing the output correctly
 aligned:
 \begin{code}
@@ -1119,7 +1119,7 @@ transformation:
 \end{code}
 
 \paragraph*{Forming the input/output blocks} Recall that AES processes
-input in blocks of 128-bits, producing 128-bits of output, regardless
+input in blocks of 128 bits, producing 128 bits of output, regardless
 of the key size.  We will need two helper functions to convert 128-bit
 messages to and from AES states.  Conversion from a message to a state
 is easy to define:
@@ -1127,11 +1127,11 @@ is easy to define:
   msgToState : [128] -> State
   msgToState msg = transpose (split (split msg))
 \end{code}
-The first call to {\tt split} gives us 4 32-bit words, which we again
+The first call to \texttt{split} gives us four 32-bit words, which we again
 split into bytes.  We then form the AES state by transposing the
 resulting matrix.  In the other direction, we simply transpose the
-state and perform the necessary {\tt
-  join}'s:\indTranspose\indJoin\indReverse\indSplit
+state and perform the necessary
+\texttt{join}s:\indTranspose\indJoin\indReverse\indSplit
 \begin{code}
   stateToMsg : State -> [128]
   stateToMsg st = join (join (transpose st))
@@ -1156,8 +1156,8 @@ We have:
 \end{Answer}
 
 \paragraph*{Putting it together} To encrypt, AES merely expands the
-given key and calls the round-functions. The starting state ({\tt
-  state0} below) is constructed by adding the first round key to the
+given key and calls the round functions. The starting state (\texttt{state0}
+below) is constructed by adding the first round key to the
 input. We then run all the middle rounds using a simple comprehension,
 and finish up by applying the last round~\cite[Figure 5, Section
 5.1]{aes}:\indRIndex
@@ -1173,10 +1173,10 @@ and finish up by applying the last round~\cite[Figure 5, Section
 
 \paragraph*{Testing} We can now run some test vectors. Note that, just
 because a handful of test vectors pass, we cannot claim that our
-implementation of AES is correct.  
+implementation of AES is correct.
 
 The first example comes from Appendix~B of the AES\indAES
-standard:~\cite{aes}:
+standard~\cite{aes}:
 \begin{Verbatim}
   Cryptol> aesEncrypt (0x3243f6a8885a308d313198a2e0370734,   \
                        0x2b7e151628aed2a6abf7158809cf4f3c)
@@ -1207,13 +1207,13 @@ aesEncrypt(0x00112233445566778899aabbccddeeff, 0x000102030405060708090a0b0c0d0e0
 }
 
 \paragraph*{Other key sizes} Our development of AES has been key-size
-agnostic, relying on the definition of the parameter {\tt Nk} (See
+agnostic, relying on the definition of the parameter \texttt{Nk}.  (See
 Section~\ref{sec:aesparams}.)  To obtain AES192, all we need is to set
-{\tt Nk} to be 6, no additional code change is needed.  Similarly, we
-merely need to set {\tt Nk} to be 8 for AES256.
+\texttt{Nk} to be 6, no additional code change is needed.  Similarly, we
+merely need to set \texttt{Nk} to be 8 for AES256.
 
 \begin{Exercise}\label{ex:aes192}
-  By setting {\tt Nk} to be 6 and 8 respectively, try the test vectors
+  By setting \texttt{Nk} to be 6 and 8 respectively, try the test vectors
   given in Appendices C.2 and C.3 of the AES\indAES
   standard~\cite{aes}.
 \end{Exercise}
@@ -1225,7 +1225,7 @@ merely need to set {\tt Nk} to be 8 for AES256.
 
 AES decryption is fairly similar to encryption, except it uses inverse
 transformations~\cite[Figure 12, Section 5.3]{aes}. Armed with all the
-machinery we have built so far, the inverse transformations is
+machinery we have built so far, the inverse transformations are
 relatively easy to define.
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1272,7 +1272,7 @@ We have:
 \end{Verbatim}
 \end{Answer}
 
-\unparagraph We can now define the inverse s-box
+\unparagraph We can now define the inverse S-box
 transform,\indAESInvSbox using the multiplicative inverse function
 {\tt gf28Inverse} you have defined in
 Exercise~\ref{aes:subbytes}~\ref{ex:gfmi:01}:
@@ -1281,9 +1281,9 @@ Exercise~\ref{aes:subbytes}~\ref{ex:gfmi:01}:
   InvSubByte b = gf28Inverse (xformByte' b)
 
   InvSubBytes : State -> State
-  InvSubBytes state =[ [ InvSubByte b | b <- row ] 
-                     | row <- state
-                     ]
+  InvSubBytes state = [ [ InvSubByte b | b <- row ] 
+                      | row <- state
+                      ]
 \end{code}
 
 \begin{Exercise}\label{ex:invsb:2}
@@ -1302,7 +1302,7 @@ We have:
 \end{Answer}
 
 \begin{Exercise}\label{ex:invsb:3}
-  The AES specification provides an inverse s-box table~\cite[Figure
+  The AES specification provides an inverse S-box table~\cite[Figure
   14, Section 5.3.2]{aes}. Write a Cryptol function {\tt InvSubBytes'}
   using the table lookup technique. Make sure your implementation is
   correct (i.e., equivalent to {\tt InvSubBytes}) by writing and
@@ -1382,7 +1382,7 @@ take much longer. Below we show the {\tt :check} results instead:
 \section{The inverse cipher}
 \label{sec:inverse-cipher}
 
-We now also have all the ingrediants to encode AES decryption.
+We now also have all the ingredients to encode AES decryption.
 Following Figure~12 (Section 5.3) of the AES\indAES
 standard~\cite{aes}: {\small
 \begin{code}
@@ -1395,7 +1395,7 @@ standard~\cite{aes}: {\small
 
   aesDecrypt : ([128], [AESKeySize]) -> [128]
   aesDecrypt (ct, key) = stateToMsg (AESFinalInvRound (kFinal, rounds ! 0))
-    where  
+    where
       (kFinal, ks, kInit) = ExpandKey key
       state0 = AddRoundKey(kInit, msgToState ct)
       rounds = [state0] # [ AESInvRound (rk, s) 
@@ -1406,7 +1406,7 @@ standard~\cite{aes}: {\small
 }
 
 Note how we use the results of {\tt ExpandedKey}, by carefully naming
-the first and last round keys and using the middle-keys in reverse.
+the first and last round keys and using the middle keys in reverse.
 
 \paragraph*{Testing} Let us repeat the tests for AES encryption. Again,
 the first example comes from Appendix~B of the AES\indAES
@@ -1453,13 +1453,13 @@ Appendix~\ref{app:aes}.
 
 While test vectors do provide good evidence of AES\indAES working
 correctly, they do not provide a proof that we have implemented the
-standard faithfully. In fact, for a block-cipher like AES, it is not
+standard faithfully. In fact, for a block cipher like AES, it is not
 possible to state what correctness would mean.  Tweaking some
-parameters, or changing the s-box appropriately can give us a brand
+parameters, or changing the S-box appropriately can give us a brand
 new cipher.  And it would be impossible to tell this new cipher apart
 from AES aside from running it against published test vectors.
 
-\todo[inline]{Is this claim about correctness really true?!}  
+\todo[inline]{Is this claim about correctness really true?!}
 
 What we can do, however, is gain assurance that our implementation
 demonstrably has the desired properties. We have done this throughout
@@ -1488,6 +1488,7 @@ assurance by running it through the {\tt :check} command:\indCmdCheck
   Checking case 1000 of 1000 (100.00%) 
   1000 tests passed OK
 \end{Verbatim}
+\todo[inline]{The \texttt{:check} output here is out of date.}
 %  [Coverage: 0.00%. (1000/11579208923731619542357098500868790785326998466564
 %                                          ...0564039457584007913129639936)]
 You will notice that even running quick-check will take a while for

@@ -11,16 +11,18 @@
 {-# LANGUAGE BangPatterns #-}
 module Cryptol.Testing.Random where
 
-import Cryptol.Eval.Value     (BV(..),Value,GenValue(..))
+import Cryptol.Eval.Monad     (ready)
+import Cryptol.Eval.Value     (BV(..),Value,GenValue(..),SeqMap(..), WordValue(..))
 import qualified Cryptol.Testing.Concrete as Conc
 import Cryptol.TypeCheck.AST  (Type(..),TCon(..),TC(..),tNoUser)
-import Cryptol.TypeCheck.Solve(simpType)
+import Cryptol.TypeCheck.SimpType(tRebuild')
 
 import Cryptol.Utils.Ident    (Ident)
 
 import Control.Monad          (forM)
-import Data.List              (unfoldr, genericTake)
+import Data.List              (unfoldr, genericTake, genericIndex)
 import System.Random          (RandomGen, split, random, randomR)
+import qualified Data.Sequence as Seq
 
 type Gen g = Integer -> g -> (Value, g)
 
@@ -64,7 +66,7 @@ randomValue :: RandomGen g => Type -> Maybe (Gen g)
 randomValue ty =
   case ty of
     TCon tc ts  ->
-      case (tc, map (simpType . tNoUser) ts) of
+      case (tc, map (tRebuild' False) ts) of
         (TC TCBit, [])                        -> Just randomBit
 
         (TC TCSeq, [TCon (TC TCInf) [], el])  ->
@@ -102,21 +104,23 @@ randomBit _ g =
 randomWord :: RandomGen g => Integer -> Gen g
 randomWord w _sz g =
    let (val, g1) = randomR (0,2^w-1) g
-   in (VWord (BV w val), g1)
+   in (VWord w (ready (WordVal (BV w val))), g1)
 
 -- | Generate a random infinite stream value.
 randomStream :: RandomGen g => Gen g -> Gen g
 randomStream mkElem sz g =
   let (g1,g2) = split g
-  in (VStream (unfoldr (Just . mkElem sz) g1), g2)
+  in (VStream $ IndexSeqMap $ genericIndex (map ready (unfoldr (Just . mkElem sz) g1)), g2)
 
-{- | Generate a random sequence.  Generally, this should be used for sequences
-other than bits.  For sequences of bits use "randomWord".  The difference
-is mostly about how the results will be displayed. -}
+{- | Generate a random sequence.  This should be used for sequences
+other than bits.  For sequences of bits use "randomWord". -}
 randomSequence :: RandomGen g => Integer -> Gen g -> Gen g
-randomSequence w mkElem sz g =
-  let (g1,g2) = split g
-  in (VSeq False $ genericTake w $ unfoldr (Just . mkElem sz) g1 , g2)
+randomSequence w mkElem sz g0 = do
+  let (g1,g2) = split g0
+  let f g = let (x,g') = mkElem sz g
+             in seq x (Just (ready x, g'))
+  let xs = Seq.fromList $ genericTake w $ unfoldr f g1
+  seq xs (VSeq w $ IndexSeqMap $ (Seq.index xs . fromInteger), g2)
 
 -- | Generate a random tuple value.
 randomTuple :: RandomGen g => [Gen g] -> Gen g
@@ -125,7 +129,7 @@ randomTuple gens sz = go [] gens
   go els [] g = (VTuple (reverse els), g)
   go els (mkElem : more) g =
     let (v, g1) = mkElem sz g
-    in go (v : els) more g1
+    in seq v (go (ready v : els) more g1)
 
 -- | Generate a random record value.
 randomRecord :: RandomGen g => [(Ident, Gen g)] -> Gen g
@@ -134,7 +138,7 @@ randomRecord gens sz = go [] gens
   go els [] g = (VRecord (reverse els), g)
   go els ((l,mkElem) : more) g =
     let (v, g1) = mkElem sz g
-    in go ((l,v) : els) more g1
+    in seq v (go ((l,ready v) : els) more g1)
 
 {-
 test = do

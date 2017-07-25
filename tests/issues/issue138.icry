@@ -1,0 +1,5 @@
+:s warnDefaulting=off
+:l issue138.cry
+down
+down'
+take_some`{4,3} "abcd"

@@ -271,13 +271,15 @@ Note: the bounds in finite unbounded (those with ..) sequences are
 type expressions, while the bounds in bounded-finite and infinite
 sequences are value expressions.
 
-Operator        Description
---------        -----------
-  `#`           Sequence concatenation
-  `>>`  `<<`    Shift (right,left)
-  `>>>` `<<<`   Rotate (right,left)
-  `@` `!`       Access elements (front,back)
-  `@@` `!!`     Access sub-sequence (front,back)
+Operator                       Description
+---------------------------    -----------
+  `#`                          Sequence concatenation
+  `>>`  `<<`                   Shift (right,left)
+  `>>>` `<<<`                  Rotate (right,left)
+  `@` `!`                      Access elements (front,back)
+  `@@` `!!`                    Access sub-sequence (front,back)
+  `update` `updateEnd`         Update the value of a sequence at a location (front,back)
+  `updates` `updatesEnd`       Update multiple values of a sequence (front,back)
 
 Table: Sequence operations.
 

@@ -1,0 +1,4 @@
+:set core-lint=on
+:t s where s x = (bs where bs = [~ b | b <- [~x] # bs | _ <- bs])
+:t bs where bs = [b | b <- bs]
+:t [ b | b <- [True] ]

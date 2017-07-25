@@ -45,7 +45,7 @@ checkDiag qs (i, j) = (i >= j) || (diffR != diffC)
           diffC = j - i                   // we know i < j
 
 nQueens : {n} (fin n, n >= 1) => Solution n
-nQueens qs = all (inRange qs, qs) && all (checkDiag qs, ijs `{n}) && distinct qs
+nQueens qs = all (inRange qs, qs) /\ all (checkDiag qs, ijs `{n}) /\ distinct qs
 
 ijs : {n}(fin n, n>= 1)=> [_](Position n, Position n)
 ijs = [ (i, j) | i <- [0 .. (n-1)], j <- [0 .. (n-1)]]
