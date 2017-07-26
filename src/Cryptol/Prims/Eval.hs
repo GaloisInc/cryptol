@@ -379,14 +379,17 @@ arithBinary op = loop
 
     -- tuples
     TVTuple tys ->
-      let ls = fromVTuple l
-          rs = fromVTuple r
-       in return $ VTuple (zipWith3 loop' tys ls rs)
+      do ls <- mapM (delay Nothing) (fromVTuple l)
+         rs <- mapM (delay Nothing) (fromVTuple r)
+         return $ VTuple (zipWith3 loop' tys ls rs)
 
     -- records
     TVRec fs ->
-      return $ VRecord [ (f, loop' fty (lookupRecord f l) (lookupRecord f r))
-                       | (f,fty) <- fs ]
+      do fs' <- sequence
+                 [ (f,) <$> delay Nothing (loop' fty (lookupRecord f l) (lookupRecord f r))
+                 | (f,fty) <- fs
+                 ]
+         return $ VRecord fs'
 
 type UnaryArith w = Integer -> w -> Eval w
 
@@ -424,12 +427,16 @@ arithUnary op = loop
 
     -- tuples
     TVTuple tys ->
-      let as = fromVTuple x
-       in return $ VTuple (zipWith loop' tys as)
+      do as <- mapM (delay Nothing) (fromVTuple x)
+         return $ VTuple (zipWith loop' tys as)
 
     -- records
     TVRec fs ->
-      return $ VRecord [ (f, loop' fty (lookupRecord f x)) | (f,fty) <- fs ]
+      do fs' <- sequence
+                 [ (f,) <$> delay Nothing (loop' fty (lookupRecord f x))
+                 | (f,fty) <- fs
+                 ]
+         return $ VRecord fs'
 
 --    | otherwise = evalPanic "arithUnary" ["Invalid arguments"]
 
@@ -847,9 +854,11 @@ logicBinary opb opw  = loop
     TVSeq w aty
          -- words
          | isTBit aty
-              -> return $ VWord w (wordValLogicOp opb opw <$>
+              -> do v <- delay Nothing
+                            (wordValLogicOp opb opw <$>
                                     fromWordVal "logicBinary l" l <*>
                                     fromWordVal "logicBinary r" r)
+                    return $ VWord w v
 
          -- finite sequences
          | otherwise -> VSeq w <$>
@@ -863,19 +872,21 @@ logicBinary opb opw  = loop
                           (fromSeq "logicBinary right" r)))
 
     TVTuple etys -> do
-        let ls = fromVTuple l
-        let rs = fromVTuple r
-        return $ VTuple $ (zipWith3 loop' etys ls rs)
+        ls <- mapM (delay Nothing) (fromVTuple l)
+        rs <- mapM (delay Nothing) (fromVTuple r)
+        return $ VTuple $ zipWith3 loop' etys ls rs
 
     TVFun _ bty ->
         return $ lam $ \ a -> loop' bty (fromVFun l a) (fromVFun r a)
 
     TVRec fields ->
-        return $ VRecord [ (f,loop' fty a b)
-                         | (f,fty) <- fields
-                         , let a = lookupRecord f l
-                               b = lookupRecord f r
-                         ]
+        do fs <- sequence
+                   [ (f,) <$> delay Nothing (loop' fty a b)
+                   | (f,fty) <- fields
+                   , let a = lookupRecord f l
+                         b = lookupRecord f r
+                   ]
+           return $ VRecord fs
 
 
 wordValUnaryOp :: BitWord b w
@@ -903,7 +914,8 @@ logicUnary opb opw = loop
     TVSeq w ety
          -- words
          | isTBit ety
-              -> do return $ VWord w (wordValUnaryOp opb opw <$> fromWordVal "logicUnary" val)
+              -> do v <- delay Nothing (wordValUnaryOp opb opw <$> fromWordVal "logicUnary" val)
+                    return $ VWord w v
 
          -- finite sequences
          | otherwise
@@ -914,14 +926,18 @@ logicUnary opb opw = loop
          VStream <$> (mapSeqMap (loop ety) =<< fromSeq "logicUnary" val)
 
     TVTuple etys ->
-      let as = fromVTuple val
-       in return $ VTuple (zipWith loop' etys as)
+      do as <- mapM (delay Nothing) (fromVTuple val)
+         return $ VTuple (zipWith loop' etys as)
 
     TVFun _ bty ->
       return $ lam $ \ a -> loop' bty (fromVFun val a)
 
     TVRec fields ->
-      return $ VRecord [ (f,loop' fty a) | (f,fty) <- fields, let a = lookupRecord f val ]
+      do fs <- sequence
+                 [ (f,) <$> delay Nothing (loop' fty a)
+                 | (f,fty) <- fields, let a = lookupRecord f val
+                 ]
+         return $ VRecord fs
 
 
 logicShift :: (Integer -> Integer -> Integer -> Integer)
