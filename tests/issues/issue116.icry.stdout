@@ -1,6 +1,4 @@
-Should be
-
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
 True
-True 
-
-(and warnings) instead of a bunch of constraint errors
