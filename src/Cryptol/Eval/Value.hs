@@ -40,7 +40,7 @@ import Cryptol.Utils.Ident (Ident,mkIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
-import Data.List(genericLength, genericIndex)
+import Data.List(genericLength, genericIndex, genericDrop)
 import qualified Data.Text as T
 import Numeric (showIntAtBase)
 
@@ -191,10 +191,22 @@ asBitsVal :: BitWord b w => WordValue b w -> Seq.Seq (Eval b)
 asBitsVal (WordVal w)  = Seq.fromList $ map ready $ unpackWord w
 asBitsVal (BitsVal bs) = bs
 
+checkedSeqIndex :: Seq.Seq a -> Integer -> Eval a
+checkedSeqIndex xs i =
+  case Seq.viewl (Seq.drop (fromInteger i) xs) of
+    x Seq.:< _ -> return x
+    Seq.EmptyL -> invalidIndex i
+
+checkedIndex :: [a] -> Integer -> Eval a
+checkedIndex xs i =
+  case genericDrop i xs of
+    (x:_) -> return x
+    _     -> invalidIndex i
+
 -- | Select an individual bit from a word value
 indexWordValue :: BitWord b w => WordValue b w -> Integer -> Eval b
-indexWordValue (WordVal w)  idx = return $ genericIndex (unpackWord w) idx
-indexWordValue (BitsVal bs) idx = Seq.index bs (fromInteger idx)
+indexWordValue (WordVal w)  idx = checkedIndex (unpackWord w) idx
+indexWordValue (BitsVal bs) idx = join (checkedSeqIndex bs idx)
 
 
 -- | Generic value type, parameterized by bit and word types.
@@ -555,10 +567,8 @@ fromVBit val = case val of
   _      -> evalPanic "fromVBit" ["not a Bit"]
 
 bitsSeq :: BitWord b w => WordValue b w -> Integer -> Eval b
-bitsSeq (WordVal w) =
-  let bs = unpackWord w
-   in \i -> return $ genericIndex bs i
-bitsSeq (BitsVal bs) = \i -> Seq.index bs (fromInteger i)
+bitsSeq (WordVal w)  idx = checkedIndex (unpackWord w) idx
+bitsSeq (BitsVal bs) idx = join (checkedSeqIndex bs idx)
 
 -- | Extract a sequence.
 fromSeq :: forall b w. BitWord b w => String -> GenValue b w -> Eval (SeqMap b w)
