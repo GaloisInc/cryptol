@@ -239,7 +239,8 @@ raise exn = io (X.throwIO exn)
 
 
 catch :: REPL a -> (REPLException -> REPL a) -> REPL a
-catch m k = REPL (\ ref -> unREPL m ref `X.catch` \ e -> unREPL (k e) ref)
+catch m k = REPL (\ ref -> rethrowEvalError (unREPL m ref) `X.catch` \ e -> unREPL (k e) ref)
+
 
 rethrowEvalError :: IO a -> IO a
 rethrowEvalError m = run `X.catch` rethrow
