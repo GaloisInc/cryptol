@@ -25,7 +25,7 @@ import Data.Ord (comparing)
 import qualified Data.Sequence as Seq
 import qualified Data.Foldable as Fold
 
-import Cryptol.Eval.Monad (Eval(..), ready, invalidIndex)
+import Cryptol.Eval.Monad (Eval(..), ready, invalidIndex, cryUserError)
 import Cryptol.Eval.Type  (finNat', TValue(..))
 import Cryptol.Eval.Value (BitWord(..), EvalPrims(..), enumerateSeqMap, SeqMap(..),
                           reverseSeqMap, wlam, nlam, WordValue(..),
@@ -38,7 +38,7 @@ import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            reverseV, infFromV, infFromThenV,
                            fromThenV, fromToV, fromThenToV,
                            transposeV, indexPrimOne, indexPrimMany,
-                           ecDemoteV, updatePrim)
+                           ecDemoteV, updatePrim, randomV)
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Decl(..))
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
@@ -209,11 +209,11 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
         return $ zeroV at) -- error/undefined, is arbitrarily translated to 0
 
   , ("random"      ,
-      tlam $ \_a ->
-      wlam $ \_x ->
-         Thunk $ return $ panic
-            "Cryptol.Symbolic.Prims.evalECon"
-            [ "can't symbolically evaluate ECRandom" ])
+      tlam $ \a ->
+      wlam $ \x ->
+         case SBV.svAsInteger x of
+           Just i  -> return $ randomV a i
+           Nothing -> cryUserError "cannot evaluatate 'random' with symbolic inputs")
 
      -- The trace function simply forces its first two
      -- values before returing the third in the symbolic

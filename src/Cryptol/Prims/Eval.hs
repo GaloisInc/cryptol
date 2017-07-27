@@ -1271,7 +1271,7 @@ infFromThenV =
 -- | Produce a random value with the given seed. If we do not support
 -- making values of the given type, return zero of that type.
 -- TODO: do better than returning zero
-randomV :: TValue -> Integer -> Value
+randomV :: BitWord b w => TValue -> Integer -> GenValue b w
 randomV ty seed =
   case randomValue (tValTy ty) of
     Nothing -> zeroV ty
