@@ -213,7 +213,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
       wlam $ \x ->
          case SBV.svAsInteger x of
            Just i  -> return $ randomV a i
-           Nothing -> cryUserError "cannot evaluatate 'random' with symbolic inputs")
+           Nothing -> cryUserError "cannot evaluate 'random' with symbolic inputs")
 
      -- The trace function simply forces its first two
      -- values before returing the third in the symbolic
