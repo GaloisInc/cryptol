@@ -25,9 +25,11 @@ module Cryptol.Symbolic.Value
   , fromSeq, fromVWord
   , evalPanic
   , iteSValue, mergeValue, mergeWord, mergeBit, mergeBits, mergeSeqMap
+  , mergeWord'
   )
   where
 
+import Data.Bits (bit, complement)
 import Data.List (foldl')
 import qualified Data.Sequence as Seq
 
@@ -35,12 +37,13 @@ import Data.SBV.Dynamic
 
 --import Cryptol.Eval.Monad
 import Cryptol.Eval.Type   (TValue(..), isTBit, tvSeq)
-import Cryptol.Eval.Monad  (Eval)
+import Cryptol.Eval.Monad  (Eval, ready)
 import Cryptol.Eval.Value  ( GenValue(..), BitWord(..), lam, tlam, toStream,
-                           toFinSeq, toSeq, WordValue(..), asBitsVal,
+                           toFinSeq, toSeq, WordValue(..),
                            fromSeq, fromVBit, fromVWord, fromVFun, fromVPoly,
                            fromVTuple, fromVRecord, lookupRecord, SeqMap(..),
-                           ppBV,BV(..),integerToChar, lookupSeqMap )
+                           ppBV,BV(..),integerToChar, lookupSeqMap,
+                           wordValueSize, asBitsMap)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -98,7 +101,21 @@ mergeWord :: Bool
           -> WordValue SBool SWord
 mergeWord f c (WordVal w1) (WordVal w2) =
     WordVal $ svSymbolicMerge (kindOf w1) f c w1 w2
-mergeWord f c w1 w2 = BitsVal $ mergeBits f c (asBitsVal w1) (asBitsVal w2)
+mergeWord f c (WordVal w1) (BitsVal ys) =
+    BitsVal $ mergeBits f c (Seq.fromList $ map ready $ unpackWord w1) ys
+mergeWord f c (BitsVal xs) (WordVal w2) =
+    BitsVal $ mergeBits f c xs (Seq.fromList $ map ready $ unpackWord w2)
+mergeWord f c (BitsVal xs) (BitsVal ys) =
+    BitsVal $ mergeBits f c xs ys
+mergeWord f c w1 w2 =
+    LargeBitsVal (wordValueSize w1) (mergeSeqMap f c (asBitsMap w1) (asBitsMap w2))
+
+mergeWord' :: Bool
+           -> SBool
+           -> Eval (WordValue SBool SWord)
+           -> Eval (WordValue SBool SWord)
+           -> Eval (WordValue SBool SWord)
+mergeWord' f c x y = mergeWord f c <$> x <*> y
 
 mergeBits :: Bool
           -> SBool
@@ -147,6 +164,14 @@ instance BitWord SBool SWord where
 
   bitLit b    = svBool b
   wordLit n x = svInteger (KBounded False (fromInteger n)) x
+
+  wordBit x idx = svTestBit x (intSizeOf x - 1 - fromIntegral idx)
+
+  wordUpdate x idx b = svSymbolicMerge (kindOf x) False b wtrue wfalse
+    where
+     i' = intSizeOf x - 1 - fromInteger idx
+     wtrue  = x `svOr`  svInteger (kindOf x) (bit i' :: Integer)
+     wfalse = x `svAnd` svInteger (kindOf x) (complement (bit i' :: Integer))
 
   packWord bs = fromBitsLE (reverse bs)
   unpackWord x = [ svTestBit x i | i <- reverse [0 .. intSizeOf x - 1] ]

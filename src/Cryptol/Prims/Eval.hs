@@ -125,10 +125,10 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     indexPrimMany indexBack_bits indexBack)
 
   , ("update"     , {-# SCC "Prelude::update" #-}
-                    updatePrim updateFront_bits updateFront)
+                    updatePrim updateFront_word updateFront)
 
   , ("updateEnd"  , {-# SCC "Prelude::updateEnd" #-}
-                    updatePrim updateBack_bits updateBack)
+                    updatePrim updateBack_word updateBack)
 
   , ("zero"       , {-# SCC "Prelude::zero" #-}
                     tlam zeroV)
@@ -561,8 +561,23 @@ zeroV ty = case ty of
 
 joinWordVal :: BitWord b w =>
             WordValue b w -> WordValue b w -> WordValue b w
-joinWordVal (WordVal w1) (WordVal w2) = WordVal $ joinWord w1 w2
-joinWordVal w1 w2 = BitsVal $ (asBitsVal w1) Seq.>< (asBitsVal w2)
+joinWordVal (WordVal w1) (WordVal w2)
+  | wordLen w1 + wordLen w2 < largeBitSize
+  = WordVal $ joinWord w1 w2
+joinWordVal (BitsVal xs) (WordVal w2)
+  | toInteger (Seq.length xs) + wordLen w2 < largeBitSize
+  = BitsVal (xs Seq.>< Seq.fromList (map ready $ unpackWord w2))
+joinWordVal (WordVal w1) (BitsVal ys)
+  | wordLen w1 + toInteger (Seq.length ys) < largeBitSize
+  = BitsVal (Seq.fromList (map ready $ unpackWord w1) Seq.>< ys)
+joinWordVal (BitsVal xs) (BitsVal ys)
+  | toInteger (Seq.length xs) + toInteger (Seq.length ys) < largeBitSize
+  = BitsVal (xs Seq.>< ys)
+joinWordVal w1 w2
+  = LargeBitsVal (n1+n2) (concatSeqMap n1 (asBitsMap w1) (asBitsMap w2))
+ where n1 = wordValueSize w1
+       n2 = wordValueSize w2
+
 
 joinWords :: forall b w
            . BitWord b w
@@ -595,14 +610,21 @@ joinSeq _parts 0 a _xs
 
 -- finite sequence of words
 joinSeq (Nat parts) each TVBit xs
+  | parts * each < largeBitSize
   = joinWords parts each xs
+  | otherwise
+  = do let zs = IndexSeqMap $ \i ->
+                  do let (q,r) = divMod i each
+                     ys <- fromWordVal "join seq" =<< lookupSeqMap xs q
+                     VBit <$> indexWordValue ys (fromInteger r)
+       return $ VWord (parts * each) $ ready $ LargeBitsVal (parts * each) zs
 
 -- infinite sequence of words
 joinSeq Inf each TVBit xs
-  = return $ VStream $ IndexSeqMap $ \i -> do
-      let (q,r) = divMod i each
-      ys <- fromWordVal "join seq" =<< lookupSeqMap xs q
-      VBit <$> (asBitsVal ys `Seq.index` fromInteger r)
+  = return $ VStream $ IndexSeqMap $ \i ->
+      do let (q,r) = divMod i each
+         ys <- fromWordVal "join seq" =<< lookupSeqMap xs q
+         VBit <$> indexWordValue ys (fromInteger r)
 
 -- finite or infinite sequence of non-words
 joinSeq parts each _a xs
@@ -638,6 +660,9 @@ splitWordVal leftWidth rightWidth (WordVal w) =
 splitWordVal leftWidth _rightWidth (BitsVal bs) =
   let (lbs, rbs) = Seq.splitAt (fromInteger leftWidth) bs
    in (BitsVal lbs, BitsVal rbs)
+splitWordVal leftWidth rightWidth (LargeBitsVal _n xs) =
+  let (lxs, rxs) = splitSeqMap leftWidth xs
+   in (LargeBitsVal leftWidth lxs, LargeBitsVal rightWidth rxs)
 
 splitAtV :: BitWord b w
          => Nat'
@@ -681,6 +706,13 @@ splitAtV front back a val =
     _     -> evalPanic "splitAtV" ["invalid `front` len"]
 
 
+  -- | Extract a subsequence of bits from a @WordValue@.
+  --   The first integer argument is the number of bits in the
+  --   resulting word.  The second integer argument is the
+  --   number of less-significant digits to discard.  Stated another
+  --   way, the operation `extractWordVal n i w` is equivelant to
+  --   first shifting `w` right by `i` bits, and then truncating to
+  --   `n` bits.
 extractWordVal :: BitWord b w
                => Integer
                -> Integer
@@ -691,6 +723,9 @@ extractWordVal len start (WordVal w) =
 extractWordVal len start (BitsVal bs) =
    BitsVal $ Seq.take (fromInteger len) $
      Seq.drop (Seq.length bs - fromInteger start - fromInteger len) bs
+extractWordVal len start (LargeBitsVal n xs) =
+   let xs' = dropSeqMap (n - start - len) xs
+    in LargeBitsVal len xs'
 
 
 -- | Split implementation.
@@ -737,8 +772,9 @@ reverseV (VSeq n xs) =
   return $ VSeq n $ reverseSeqMap n xs
 reverseV (VWord n wv) = return (VWord n (revword <$> wv))
  where
- revword (WordVal w)  = BitsVal $ Seq.reverse $ Seq.fromList $ map ready $ unpackWord w
- revword (BitsVal bs) = BitsVal $ Seq.reverse bs
+ revword (WordVal w)         = BitsVal $ Seq.reverse $ Seq.fromList $ map ready $ unpackWord w
+ revword (BitsVal bs)        = BitsVal $ Seq.reverse bs
+ revword (LargeBitsVal m xs) = LargeBitsVal m $ reverseSeqMap m xs
 reverseV _ =
   evalPanic "reverseV" ["Not a finite sequence"]
 
@@ -757,7 +793,7 @@ transposeV a b c xs
             ys <- flip lookupSeqMap (toInteger ai) =<< fromSeq "transposeV" xs
             case ys of
               VStream ys' -> fromVBit <$> lookupSeqMap ys' bi
-              VWord _ wv  -> flip bitsSeq bi =<< wv
+              VWord _ wv  -> flip indexWordValue bi =<< wv
               _ -> evalPanic "transpose" ["expected sequence of bits"]
 
   | isTBit c, Inf <- a = -- [inf][b]Bit -> [b][inf]Bit
@@ -766,7 +802,7 @@ transposeV a b c xs
          do ys <- flip lookupSeqMap ai =<< fromSeq "transposeV" xs
             case ys of
               VStream ys' -> VBit . fromVBit <$> lookupSeqMap ys' bi
-              VWord _ wv  -> VBit <$> (flip bitsSeq bi =<< wv)
+              VWord _ wv  -> VBit <$> (flip indexWordValue bi =<< wv)
               _ -> evalPanic "transpose" ["expected sequence of bits"]
 
   | otherwise = -- [a][b]c -> [b][a]c
@@ -827,8 +863,16 @@ wordValLogicOp :: BitWord b w
                -> WordValue b w
                -> WordValue b w
 wordValLogicOp _ wop (WordVal w1) (WordVal w2) = WordVal (wop w1 w2)
-wordValLogicOp bop _ w1 w2 =
-  BitsVal $ Seq.zipWith (\x y -> bop <$> x <*> y) (asBitsVal w1) (asBitsVal w2)
+wordValLogicOp bop _ (BitsVal xs) (BitsVal ys) =
+  BitsVal $ Seq.zipWith (\x y -> bop <$> x <*> y) xs ys
+wordValLogicOp bop _ (WordVal w1) (BitsVal ys) =
+  BitsVal $ Seq.zipWith (\x y -> bop <$> x <*> y) (Seq.fromList $ map ready $ unpackWord w1) ys
+wordValLogicOp bop _ (BitsVal xs) (WordVal w2) =
+  BitsVal $ Seq.zipWith (\x y -> bop <$> x <*> y) xs (Seq.fromList $ map ready $ unpackWord w2)
+wordValLogicOp bop _ w1 w2 = LargeBitsVal (wordValueSize w1) zs
+     where zs = IndexSeqMap $ \i -> VBit <$> (bop <$> (fromBit =<< lookupSeqMap xs i) <*> (fromBit =<< lookupSeqMap ys i))
+           xs = asBitsMap w1
+           ys = asBitsMap w2
 
 -- | Merge two values given a binop.  This is used for and, or and xor.
 logicBinary :: forall b w
@@ -893,9 +937,11 @@ wordValUnaryOp :: BitWord b w
                => (b -> b)
                -> (w -> w)
                -> WordValue b w
-               -> WordValue b w
-wordValUnaryOp _ wop (WordVal w)  = WordVal (wop w)
-wordValUnaryOp bop _ (BitsVal bs) = BitsVal (fmap (bop <$>) bs)
+               -> Eval (WordValue b w)
+wordValUnaryOp _ wop (WordVal w)  = return $ WordVal (wop w)
+wordValUnaryOp bop _ (BitsVal bs) = return $ BitsVal (fmap (bop <$>) bs)
+wordValUnaryOp bop _ (LargeBitsVal n xs) = LargeBitsVal n <$> mapSeqMap f xs
+  where f x = VBit . bop <$> fromBit x
 
 logicUnary :: forall b w
             . BitWord b w
@@ -914,7 +960,7 @@ logicUnary opb opw = loop
     TVSeq w ety
          -- words
          | isTBit ety
-              -> do v <- delay Nothing (wordValUnaryOp opb opw <$> fromWordVal "logicUnary" val)
+              -> do v <- delay Nothing (wordValUnaryOp opb opw =<< fromWordVal "logicUnary" val)
                     return $ VWord w v
 
          -- finite sequences
@@ -955,8 +1001,9 @@ logicShift opW obB opS
         BV _ i <- fromVWord "logicShift amount" =<< r
         l >>= \case
           VWord w wv -> return $ VWord w $ wv >>= \case
-                          BitsVal bs -> return $ BitsVal (obB w bs i)
                           WordVal (BV _ x) -> return $ WordVal (BV w (opW w x i))
+                          BitsVal bs -> return $ BitsVal (obB w bs i)
+                          LargeBitsVal n xs -> return $ LargeBitsVal n $ opS (Nat n) c xs i
 
           _ -> mkSeq a c <$> (opS a c <$> (fromSeq "logicShift" =<< l) <*> return i)
 
@@ -1061,6 +1108,7 @@ indexPrimOne bits_op word_op =
          VWord _ w -> w >>= \case
            WordVal w' -> word_op (fromNat n) a vs w'
            BitsVal bs -> bits_op (fromNat n) a vs =<< sequence bs
+           LargeBitsVal m xs -> bits_op (fromNat n) a vs . Seq.fromList =<< traverse (fromBit =<<) (enumerateSeqMap m xs)
          _ -> evalPanic "Expected word value" ["indexPrimOne"]
 
 indexFront :: Maybe Integer -> TValue -> SeqValMap -> BV -> Eval Value
@@ -1106,6 +1154,7 @@ indexPrimMany bits_op word_op =
          VWord _ w -> w >>= \case
             WordVal w' -> word_op (fromNat n) a vs w'
             BitsVal bs -> bits_op (fromNat n) a vs =<< sequence bs
+            LargeBitsVal o xs -> bits_op (fromNat n) a vs . Seq.fromList =<< traverse (fromBit =<<) (enumerateSeqMap o xs)
          _ -> evalPanic "Expected word value" ["indexPrimMany"])
 
 
@@ -1123,20 +1172,16 @@ updateFront len _eltTy vs w val = do
     Nat n -> unless (idx < n) (invalidIndex idx)
   return $ updateSeqMap vs idx val
 
-updateFront_bits
+updateFront_word
  :: Nat'
  -> TValue
- -> Seq.Seq (Eval Bool)
+ -> WordValue Bool BV
  -> WordValue Bool BV
  -> Eval (GenValue Bool BV)
- -> Eval (Seq.Seq (Eval Bool))
-updateFront_bits len _eltTy bs w val = do
+ -> Eval (WordValue Bool BV)
+updateFront_word _len _eltTy bs w val = do
   idx <- bvVal <$> asWordVal w
-  case len of
-    Inf -> return ()
-    Nat n -> unless (idx < n) (invalidIndex idx)
-  return $! Seq.update (fromInteger idx) (fromVBit <$> val) bs
-
+  updateWordValue bs idx (fromBit =<< val)
 
 updateBack
   :: Nat'
@@ -1152,28 +1197,33 @@ updateBack (Nat n) _eltTy vs w val = do
   unless (idx < n) (invalidIndex idx)
   return $ updateSeqMap vs (n - idx - 1) val
 
-updateBack_bits
+updateBack_word
  :: Nat'
  -> TValue
- -> Seq.Seq (Eval Bool)
+ -> WordValue Bool BV
  -> WordValue Bool BV
  -> Eval (GenValue Bool BV)
- -> Eval (Seq.Seq (Eval Bool))
-updateBack_bits Inf _eltTy _bs _w _val =
+ -> Eval (WordValue Bool BV)
+updateBack_word Inf _eltTy _bs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
-updateBack_bits (Nat n) _eltTy bs w val = do
+updateBack_word (Nat n) _eltTy bs w val = do
+  idx <- bvVal <$> asWordVal w
+  updateWordValue bs (n - idx - 1) (fromBit =<< val)
+
+{-
   idx <- bvVal <$> asWordVal w
   unless (idx < n) (invalidIndex idx)
   let idx' = n - idx - 1
   return $! Seq.update (fromInteger idx') (fromVBit <$> val) bs
+-}
 
 
 updatePrim
      :: BitWord b w
-     => (Nat' -> TValue -> Seq.Seq (Eval b) -> WordValue b w -> Eval (GenValue b w) -> Eval (Seq.Seq (Eval b)))
-     -> (Nat' -> TValue -> SeqMap b w -> WordValue b w -> Eval (GenValue b w) -> Eval (SeqMap b w))
+     => (Nat' -> TValue -> WordValue b w -> WordValue b w -> Eval (GenValue b w) -> Eval (WordValue b w))
+     -> (Nat' -> TValue -> SeqMap b w    -> WordValue b w -> Eval (GenValue b w) -> Eval (SeqMap b w))
      -> GenValue b w
-updatePrim updateBits updateWord =
+updatePrim updateWord updateSeq =
   nlam $ \len ->
   tlam $ \eltTy ->
   nlam $ \_idxLen ->
@@ -1182,14 +1232,11 @@ updatePrim updateBits updateWord =
   lam $ \val -> do
     idx' <- fromWordVal "update" =<< idx
     xs >>= \case
-      VWord l w -> do
-         w' <- asBitsVal <$> w
-         return $ VWord l (BitsVal <$> updateBits len eltTy w' idx' val)
-      VSeq l vs -> VSeq l <$> updateWord len eltTy vs idx' val
-      VStream vs -> VStream <$> updateWord len eltTy vs idx' val
+      VWord l w  -> do w' <- delay Nothing w
+                       return $ VWord l (w' >>= \w'' -> updateWord len eltTy w'' idx' val)
+      VSeq l vs  -> VSeq l  <$> updateSeq len eltTy vs idx' val
+      VStream vs -> VStream <$> updateSeq len eltTy vs idx' val
       _ -> evalPanic "Expected sequence value" ["updatePrim"]
-
-
 
 -- @[ 0, 1 .. ]@
 fromThenV :: BitWord b w

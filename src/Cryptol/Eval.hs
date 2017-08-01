@@ -75,7 +75,9 @@ evalExpr env expr = case expr of
         return $ VWord len $ return $
           case tryFromBits vs of
             Just w  -> WordVal w
-            Nothing -> BitsVal $ Seq.fromList $ map (fromVBit <$>) vs
+            Nothing
+              | len < largeBitSize -> BitsVal $ Seq.fromList $ map (fromVBit <$>) vs
+              | otherwise          -> LargeBitsVal len $ IndexSeqMap $ \i -> genericIndex vs i
     | otherwise -> {-# SCC "evalExpr->EList" #-}
         return $ VSeq len $ finiteSeqMap vs
    where
