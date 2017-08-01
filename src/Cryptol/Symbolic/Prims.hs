@@ -23,7 +23,6 @@ import Data.Bits
 import Data.List (genericTake, sortBy)
 import Data.Ord (comparing)
 import qualified Data.Sequence as Seq
-import qualified Data.Foldable as Fold
 
 import Cryptol.Eval.Monad (Eval(..), ready, invalidIndex, cryUserError)
 import Cryptol.Eval.Type  (finNat', TValue(..))
@@ -180,8 +179,8 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
             mul as (b:bs) ps = mul (SBV.svFalse : as) bs (ites b (as `addPoly` ps) ps)
         xs <- enumerateWordValue =<< fromWordVal "pmult 1" =<< v1
         ys <- enumerateWordValue =<< fromWordVal "pmult 2" =<< v2
-        let zs = genericTake k (mul xs ys [] ++ repeat SBV.svFalse)
-        return $ VWord k $ return $ BitsVal $ Seq.fromList $ map ready zs)
+        let zs = Seq.fromList $ genericTake k (mul xs ys [] ++ repeat SBV.svFalse)
+        return $ VWord k $ return $ LargeBitsVal k $ IndexSeqMap (return . VBit . Seq.index zs . fromInteger))
 
   , ("pdiv"        , -- {a,b} (fin a, fin b) => [a] -> [b] -> [a]
       nlam $ \(finNat' -> i) ->
@@ -190,8 +189,8 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
       VFun $ \v2 -> do
         xs <- enumerateWordValueRev =<< fromWordVal "pdiv 1" =<< v1
         ys <- enumerateWordValueRev =<< fromWordVal "pdiv 2" =<< v2
-        let zs = genericTake i (fst (mdp xs ys) ++ repeat SBV.svFalse)
-        return $ VWord i $ return $ BitsVal $ Seq.reverse $ Seq.fromList $ map ready zs)
+        let zs = Seq.reverse $ Seq.fromList $ genericTake i (fst (mdp xs ys) ++ repeat SBV.svFalse)
+        return $ VWord i $ return $ LargeBitsVal i $ IndexSeqMap (return . VBit . Seq.index zs . fromInteger))
 
   , ("pmod"        , -- {a,b} (fin a, fin b) => [a] -> [b+1] -> [b]
       nlam $ \(finNat' -> _i) ->
@@ -200,8 +199,8 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
       VFun $ \v2 -> do
         xs <- enumerateWordValueRev =<< fromWordVal "pmod 1" =<< v1
         ys <- enumerateWordValueRev =<< fromWordVal "pmod 2" =<< v2
-        let zs = genericTake j (snd (mdp xs ys) ++ repeat SBV.svFalse)
-        return $ VWord j $ return $ BitsVal $ Seq.reverse $ Seq.fromList $ map ready zs)
+        let zs = Seq.reverse $ Seq.fromList $ genericTake j (snd (mdp xs ys) ++ repeat SBV.svFalse)
+        return $ VWord j $ return $ LargeBitsVal j $ IndexSeqMap (return . VBit . Seq.index zs . fromInteger))
 
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,
@@ -259,13 +258,6 @@ logicShift nm wop reindex =
              return $ VWord w $ do
                x >>= \case
                  WordVal x' -> WordVal . wop x' <$> asWordVal idx
-                 BitsVal bs0 ->
-                   do idx_bits <- enumerateWordValue idx
-                      let op bs shft = return $ Seq.fromFunction (Seq.length bs) $ \i ->
-                                             case reindex (Nat w) (toInteger i) shft of
-                                               Nothing -> return $ bitLit False
-                                               Just i' -> Seq.index bs (fromInteger i')
-                      BitsVal <$> shifter (mergeBits True) op bs0 idx_bits
                  LargeBitsVal n bs0 ->
                    do idx_bits <- enumerateWordValue idx
                       let op bs shft = memoMap $ IndexSeqMap $ \i ->
@@ -302,7 +294,6 @@ selectV mux val f =
    case val of
      WordVal x | Just idx <- SBV.svAsInteger x -> f idx
                | otherwise -> sel 0 (unpackWord x)
-     BitsVal bs -> sel 0 =<< sequence (Fold.toList bs)
      LargeBitsVal n xs -> sel 0 . map fromVBit =<< sequence (enumerateSeqMap n xs)
 
  where
@@ -350,9 +341,9 @@ indexBack Nothing _ _ _ = evalPanic "Expected finite sequence" ["indexBack"]
 indexFront_bits :: Maybe Integer
                 -> TValue
                 -> SeqMap SBool SWord
-                -> Seq.Seq SBool
+                -> [SBool]
                 -> Eval Value
-indexFront_bits mblen a xs bits0 = go 0 (length bits0) (Fold.toList bits0)
+indexFront_bits mblen a xs bits0 = go 0 (length bits0) bits0
  where
   go :: Integer -> Int -> [SBool] -> Eval Value
   go i _k []
@@ -376,7 +367,7 @@ indexFront_bits mblen a xs bits0 = go 0 (length bits0) (Fold.toList bits0)
 indexBack_bits :: Maybe Integer
                -> TValue
                -> SeqMap SBool SWord
-               -> Seq.Seq SBool
+               -> [SBool]
                -> Eval Value
 indexBack_bits (Just n) a xs idx = indexFront_bits (Just n) a (reverseSeqMap n xs) idx
 indexBack_bits Nothing _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
@@ -456,10 +447,6 @@ asWordList = go id
  where go :: ([SWord] -> [SWord]) -> [WordValue SBool SWord] -> Maybe [SWord]
        go f [] = Just (f [])
        go f (WordVal x :vs) = go (f . (x:)) vs
-       go f (BitsVal bs:vs) =
-              case asBitList (Fold.toList bs) of
-                  Just xs -> go (f . (packWord xs:)) vs
-                  Nothing -> Nothing
        go _f (LargeBitsVal _ _ : _) = Nothing
 
 liftBinArith :: (SWord -> SWord -> SWord) -> BinArith SWord
