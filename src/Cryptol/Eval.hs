@@ -74,7 +74,7 @@ evalExpr env expr = case expr of
         return $ VWord len $ return $
           case tryFromBits vs of
             Just w | len < largeBitSize -> WordVal w
-            _ -> LargeBitsVal len $ IndexSeqMap $ \i -> genericIndex vs i
+            _ -> BitsVal len $ IndexSeqMap $ \i -> genericIndex vs i
     | otherwise -> {-# SCC "evalExpr->EList" #-}
         return $ VSeq len $ finiteSeqMap vs
    where
@@ -259,7 +259,7 @@ etaWord  :: BitWord b w
          -> Eval (WordValue b w)
 etaWord n x = do
   w <- delay Nothing (fromWordVal "during eta-expansion" =<< x)
-  return $ LargeBitsVal n $ IndexSeqMap $ \i ->
+  return $ BitsVal n $ IndexSeqMap $ \i ->
     do w' <- w
        VBit <$> indexWordValue w' (toInteger i)
 

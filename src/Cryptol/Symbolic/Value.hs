@@ -102,7 +102,7 @@ mergeWord :: Bool
 mergeWord f c (WordVal w1) (WordVal w2) =
     WordVal $ svSymbolicMerge (kindOf w1) f c w1 w2
 mergeWord f c w1 w2 =
-    LargeBitsVal (wordValueSize w1) (mergeSeqMap f c (asBitsMap w1) (asBitsMap w2))
+    BitsVal (wordValueSize w1) (mergeSeqMap f c (asBitsMap w1) (asBitsMap w2))
 
 mergeWord' :: Bool
            -> SBool

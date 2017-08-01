@@ -180,7 +180,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
         xs <- enumerateWordValue =<< fromWordVal "pmult 1" =<< v1
         ys <- enumerateWordValue =<< fromWordVal "pmult 2" =<< v2
         let zs = Seq.fromList $ genericTake k (mul xs ys [] ++ repeat SBV.svFalse)
-        return $ VWord k $ return $ LargeBitsVal k $ IndexSeqMap (return . VBit . Seq.index zs . fromInteger))
+        return $ VWord k $ return $ BitsVal k $ IndexSeqMap (return . VBit . Seq.index zs . fromInteger))
 
   , ("pdiv"        , -- {a,b} (fin a, fin b) => [a] -> [b] -> [a]
       nlam $ \(finNat' -> i) ->
@@ -190,7 +190,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
         xs <- enumerateWordValueRev =<< fromWordVal "pdiv 1" =<< v1
         ys <- enumerateWordValueRev =<< fromWordVal "pdiv 2" =<< v2
         let zs = Seq.reverse $ Seq.fromList $ genericTake i (fst (mdp xs ys) ++ repeat SBV.svFalse)
-        return $ VWord i $ return $ LargeBitsVal i $ IndexSeqMap (return . VBit . Seq.index zs . fromInteger))
+        return $ VWord i $ return $ BitsVal i $ IndexSeqMap (return . VBit . Seq.index zs . fromInteger))
 
   , ("pmod"        , -- {a,b} (fin a, fin b) => [a] -> [b+1] -> [b]
       nlam $ \(finNat' -> _i) ->
@@ -200,7 +200,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
         xs <- enumerateWordValueRev =<< fromWordVal "pmod 1" =<< v1
         ys <- enumerateWordValueRev =<< fromWordVal "pmod 2" =<< v2
         let zs = Seq.reverse $ Seq.fromList $ genericTake j (snd (mdp xs ys) ++ repeat SBV.svFalse)
-        return $ VWord j $ return $ LargeBitsVal j $ IndexSeqMap (return . VBit . Seq.index zs . fromInteger))
+        return $ VWord j $ return $ BitsVal j $ IndexSeqMap (return . VBit . Seq.index zs . fromInteger))
 
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,
@@ -258,13 +258,13 @@ logicShift nm wop reindex =
              return $ VWord w $ do
                x >>= \case
                  WordVal x' -> WordVal . wop x' <$> asWordVal idx
-                 LargeBitsVal n bs0 ->
+                 BitsVal n bs0 ->
                    do idx_bits <- enumerateWordValue idx
                       let op bs shft = memoMap $ IndexSeqMap $ \i ->
                                          case reindex (Nat w) i shft of
                                            Nothing -> return $ VBit $ bitLit False
                                            Just i' -> lookupSeqMap bs i'
-                      LargeBitsVal n <$> shifter (mergeSeqMap True) op bs0 idx_bits
+                      BitsVal n <$> shifter (mergeSeqMap True) op bs0 idx_bits
 
           VSeq w vs0 ->
              do idx_bits <- enumerateWordValue idx
@@ -294,7 +294,7 @@ selectV mux val f =
    case val of
      WordVal x | Just idx <- SBV.svAsInteger x -> f idx
                | otherwise -> sel 0 (unpackWord x)
-     LargeBitsVal n xs -> sel 0 . map fromVBit =<< sequence (enumerateSeqMap n xs)
+     BitsVal n xs -> sel 0 . map fromVBit =<< sequence (enumerateSeqMap n xs)
 
  where
     sel offset []       = f offset
@@ -447,7 +447,7 @@ asWordList = go id
  where go :: ([SWord] -> [SWord]) -> [WordValue SBool SWord] -> Maybe [SWord]
        go f [] = Just (f [])
        go f (WordVal x :vs) = go (f . (x:)) vs
-       go _f (LargeBitsVal _ _ : _) = Nothing
+       go _f (BitsVal _ _ : _) = Nothing
 
 liftBinArith :: (SWord -> SWord -> SWord) -> BinArith SWord
 liftBinArith op _ x y = ready $ op x y
