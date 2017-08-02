@@ -84,6 +84,14 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     binary (cmpOrder "==" (\o ->            o == EQ)))
   , ("!="         , {-# SCC "Prelude::(!=)" #-}
                     binary (cmpOrder "!=" (\o ->            o /= EQ)))
+  , ("$<"         , {-# SCC "Prelude::($<)" #-}
+                    liftSigned bvSlt)
+  , ("$/"         , {-# SCC "Prelude::($/)" #-}
+                    liftSigned bvSdiv)
+  , ("$%"         , {-# SCC "Prelude::($%)" #-}
+                    liftSigned bvSrem)
+  , ("$>>"        , {-# SCC "Prelude::($>>)" #-}
+                    liftWord bvSshr)
   , ("&&"         , {-# SCC "Prelude::(&&)" #-}
                     binary (logicBinary (.&.) (binBV (.&.))))
   , ("||"         , {-# SCC "Prelude::(||)" #-}
@@ -103,6 +111,10 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("True"       , VBit True)
   , ("False"      , VBit False)
 
+  , ("carry"      , {-# SCC "Prelude::carry" #-}
+                    carryV)
+  , ("scarry"     , {-# SCC "Prelude::scarry" #-}
+                    scarryV)
   , ("demote"     , {-# SCC "Prelude::demote" #-}
                     ecDemoteV)
 
@@ -521,6 +533,69 @@ funCmp op =
       fr <- fromVFun r' (ready x')
       cmpOrder "funCmp" op b fl fr
 
+
+-- Signed arithmetic -----------------------------------------------------------
+
+-- | Lifted operation on finite bitsequences.  Used
+--   for signed comparisons and arithemtic.
+liftWord :: BitWord b w
+         => (w -> w -> Eval (GenValue b w))
+         -> GenValue b w
+liftWord op =
+  nlam $ \_n ->
+  wlam $ \w1 -> return $
+  wlam $ \w2 -> op w1 w2
+
+liftSigned :: (Integer -> Integer -> Integer -> Eval Value)
+           -> Value
+liftSigned op = liftWord f
+ where
+ f (BV i x) (BV j y)
+   | i == j = op i sx sy
+   | otherwise = evalPanic "liftSigned" ["Attempt to compute with words of different sizes"]
+   where sx = if testBit x (fromIntegral (i-1)) then negate x else x
+         sy = if testBit y (fromIntegral (j-1)) then negate y else y
+
+bvSlt :: Integer -> Integer -> Integer -> Eval Value
+bvSlt _sz x y = return . VBit $! (x < y)
+
+bvSdiv :: Integer -> Integer -> Integer -> Eval Value
+bvSdiv  _ _ 0 = divideByZero
+bvSdiv sz x y = return . VWord sz . ready . WordVal $ mkBv sz (x `quot` y)
+
+bvSrem :: Integer -> Integer -> Integer -> Eval Value
+bvSrem  _ _ 0 = divideByZero
+bvSrem sz x y = return . VWord sz . ready . WordVal $ mkBv sz (x `rem` y)
+
+bvSshr :: BV -> BV -> Eval Value
+bvSshr (BV i x) y = return . VWord i . ready $ WordVal z
+   where sx = if testBit x (fromIntegral (i-1)) then negate x else x
+         z  = mkBv i (sx `shiftR` (fromInteger (bvVal y)))
+
+-- | Signed carry bit.
+scarryV :: Value
+scarryV =
+  nlam $ \_n ->
+  wlam $ \(BV i x) -> return $
+  wlam $ \(BV j y) ->
+    if i == j
+      then let z     = x + y
+               xsign = testBit x (fromInteger i - 1)
+               ysign = testBit y (fromInteger i - 1)
+               zsign = testBit z (fromInteger i - 1)
+               sc    = (xsign == ysign) && (xsign /= zsign)
+            in return $ VBit sc
+      else evalPanic "scarryV" ["Attempted to compute with words of different sizes"]
+
+-- | Unsigned carry bit.
+carryV :: Value
+carryV =
+  nlam $ \_n ->
+  wlam $ \(BV i x) -> return $
+  wlam $ \(BV j y) ->
+    if i == j
+      then return . VBit $! testBit (x + y) (fromInteger i)
+      else evalPanic "carryV" ["Attempted to compute with words of different sizes"]
 
 -- Logic -----------------------------------------------------------------------
 

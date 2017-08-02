@@ -38,7 +38,7 @@ import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            reverseV, infFromV, infFromThenV,
                            fromThenV, fromToV, fromThenToV,
                            transposeV, indexPrimOne, indexPrimMany,
-                           ecDemoteV, updatePrim, randomV)
+                           ecDemoteV, updatePrim, randomV, liftWord)
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Decl(..))
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
@@ -92,6 +92,10 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , (">="          , binary (cmpBinary cmpGtEq cmpGtEq SBV.svTrue))
   , ("=="          , binary (cmpBinary cmpEq cmpEq SBV.svTrue))
   , ("!="          , binary (cmpBinary cmpNotEq cmpNotEq SBV.svFalse))
+  , ("$<"          , liftWord swordSlt)
+  , ("$/"          , liftWord swordSdiv)
+  , ("$%"          , liftWord swordSrem)
+  , ("$>>"         , liftWord swordSshr)
   , ("&&"          , binary (logicBinary SBV.svAnd SBV.svAnd))
   , ("||"          , binary (logicBinary SBV.svOr SBV.svOr))
   , ("^"           , binary (logicBinary SBV.svXOr SBV.svXOr))
@@ -121,6 +125,9 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                           case sz of
                             Inf -> evalPanic "cannot rotate infinite sequence" []
                             Nat n -> Just ((i+n-shft) `mod` n)))
+
+  , ("carry"      , liftWord carry)
+  , ("scarry"     , liftWord scarry)
 
   , ("#"          , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
      nlam $ \ front ->
@@ -518,6 +525,39 @@ cmpBinary :: (SBool -> SBool -> Eval SBool -> Eval SBool)
           -> (SWord -> SWord -> Eval SBool -> Eval SBool)
           -> SBool -> Binary SBool SWord
 cmpBinary fb fw b _ty v1 v2 = VBit <$> cmpValue fb fw v1 v2 (return b)
+
+-- Signed arithmetic -----------------------------------------------------------
+
+swordSlt :: SWord -> SWord -> Eval Value
+swordSlt x y = return $ VBit lt
+  where lt = SBV.svLessThan (SBV.svSign x) (SBV.svSign y)
+
+swordSshr :: SWord -> SWord -> Eval Value
+swordSshr x y = return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
+  where z = SBV.svShiftRight (SBV.svSign x) y
+
+swordSdiv :: SWord -> SWord -> Eval Value
+swordSdiv x y = return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
+  where z = SBV.svQuot (SBV.svSign x) (SBV.svSign y)
+
+swordSrem :: SWord -> SWord -> Eval Value
+swordSrem x y = return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
+  where z = SBV.svRem (SBV.svSign x) (SBV.svSign y)
+
+carry :: SWord -> SWord -> Eval Value
+carry x y = return $ VBit c
+ where
+  c = SBV.svLessThan (SBV.svPlus x y) x
+
+scarry :: SWord -> SWord -> Eval Value
+scarry x y = return $ VBit sc
+ where
+  n = SBV.intSizeOf x
+  z = SBV.svPlus (SBV.svSign x) (SBV.svSign y)
+  xsign = SBV.svTestBit x (n-1)
+  ysign = SBV.svTestBit y (n-1)
+  zsign = SBV.svTestBit z (n-1)
+  sc = SBV.svAnd (SBV.svEqual xsign ysign) (SBV.svNotEqual xsign zsign)
 
 -- Polynomials -----------------------------------------------------------------
 

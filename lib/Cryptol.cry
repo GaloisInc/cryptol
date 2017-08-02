@@ -16,12 +16,12 @@ infixr 15 /\
 infixr 20 ||
 infixr 25 &&
 infix  30 ==, ===, !=, !==
-infix  40 >, >=, <, <=
+infix  40 >, >=, <, <=, $<, $>, $<=, $>=
 infixl 50 ^
 infixr 60 #
-infixl 70 <<, <<<, >>, >>>
+infixl 70 <<, <<<, >>, >>>, $>>
 infixl 80 +, -
-infixl 90 *, /, %
+infixl 90 *, /, %, $/, $%
 infixr 95 ^^
 infixl 100 @, @@, !, !!
 
@@ -104,21 +104,29 @@ primitive complement : {a} a -> a
 
 /**
  * Less-than. Only works on comparable arguments.
+ *
+ * Bitvectors are compared using unsigned arithmetic.
  */
 primitive (<) : {a} (Cmp a) => a -> a -> Bit
 
 /**
  * Greater-than of two comparable arguments.
+ *
+ * Bitvectors are compared using unsigned arithmetic.
  */
 primitive (>) : {a} (Cmp a) => a -> a -> Bit
 
 /**
  * Less-than or equal of two comparable arguments.
+ *
+ * Bitvectors are compared using unsigned arithmetic.
  */
 primitive (<=) : {a} (Cmp a) => a -> a -> Bit
 
 /**
  * Greater-than or equal of two comparable arguments.
+ *
+ * Bitvectors are compared using unsigned arithmetic.
  */
 primitive (>=) : {a} (Cmp a) => a -> a -> Bit
 
@@ -146,15 +154,70 @@ f !== g = \x -> f x != g x
 
 /**
  * Returns the smaller of two comparable arguments.
+ * Bitvectors are compared using unsigned arithmetic.
  */
 min : {a} (Cmp a) => a -> a -> a
 min x y = if x < y then x else y
 
 /**
  * Returns the greater of two comparable arguments.
+ * Bitvectors are compared using unsigned arithmetic.
  */
 max : {a} (Cmp a) => a -> a -> a
 max x y = if x > y then x else y
+
+
+/**
+ * 2's complement signed less-than on bitvectors.
+ */
+primitive ($<) : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+
+/**
+ * 2's complement signed greater-than on bitvectors.
+ */
+($>) : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+x $> y = y $< x
+
+/**
+ * 2's complement signed less-than-or-equal on bitvectors.
+ */
+($<=) : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+x $<= y = ~(y $< x)
+
+/**
+ * 2's complement signed greater-than-or-equal on bitvectors.
+ */
+($>=) : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+x $>= y = ~(x $< y)
+
+/**
+ * 2's complement signed division on bitvectors.
+ */
+primitive ($/) : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
+
+/**
+ * 2's complement signed modulus on bitvectors.
+ */
+primitive ($%) : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
+
+/**
+ * Unsigned carry.  Returns true if the unsigned addition of the given
+ * bitvector arguments would result in an unsigned overflow.
+ */
+primitive carry : {n} (fin n) => [n] -> [n] -> Bit
+
+/**
+ * Signed carry.  Returns true if the 2's complement signed addition of the
+ * given bitvector arguments would result in a signed overflow.
+ */
+primitive scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+
+/**
+ * Signed borrow.  Returns true if the 2's complement signed subtraction of the
+ * given bitvector arguments would result in a signed overflow.
+ */
+sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+sborrow x y = scarry x (negate y)
 
 /**
  * Short-cutting boolean conjuction function.
@@ -224,6 +287,16 @@ primitive (<<<) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
  * the number of positions to rotate by.
  */
 primitive (>>>) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
+
+/**
+ * 2's complement signed (arithmetic) right shift.  The first argument
+ * is the sequence to shift (considered as a signed value),
+ * the second argument is the number of positions to shift
+ * by (considered as an unsigned value).
+ */
+primitive ($>>) : {n, k} (fin n, n >= 1, fin k) => [n] -> [k] -> [n]
+
+
 
 primitive (#) : {front, back, a} (fin front) => [front]a -> [back]a
                                              -> [front + back] a
