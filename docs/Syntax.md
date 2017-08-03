@@ -235,7 +235,7 @@ record.  For example:
 
 The components of a tuple or a record may also be accessed using
 pattern matching.  Patterns for tuples and records mirror the syntax
-for constructing values: tuple patterns use parenthesis, while record
+for constructing values: tuple patterns use parentheses, while record
 patterns use braces.  Examples:
 
     getFst (x,_) = x
