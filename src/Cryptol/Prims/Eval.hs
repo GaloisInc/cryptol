@@ -91,7 +91,7 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("$%"         , {-# SCC "Prelude::($%)" #-}
                     liftSigned bvSrem)
   , ("$>>"        , {-# SCC "Prelude::($>>)" #-}
-                    liftWord bvSshr)
+                    sshrV)
   , ("&&"         , {-# SCC "Prelude::(&&)" #-}
                     binary (logicBinary (.&.) (binBV (.&.))))
   , ("||"         , {-# SCC "Prelude::(||)" #-}
@@ -567,10 +567,17 @@ bvSrem :: Integer -> Integer -> Integer -> Eval Value
 bvSrem  _ _ 0 = divideByZero
 bvSrem sz x y = return . VWord sz . ready . WordVal $ mkBv sz (x `rem` y)
 
-bvSshr :: BV -> BV -> Eval Value
-bvSshr (BV i x) y = return . VWord i . ready $ WordVal z
-   where sx = if testBit x (fromIntegral (i-1)) then negate x else x
-         z  = mkBv i (sx `shiftR` (fromInteger (bvVal y)))
+sshrV :: Value
+sshrV =
+  nlam $ \_n ->
+  nlam $ \_k ->
+  wlam $ \(BV i x) -> return $
+  wlam $ \y ->
+   let signx = testBit x (fromIntegral (i-1))
+       amt   = fromInteger (bvVal y)
+       negv  = (((-1) `shiftL` amt) .|. x) `shiftR` amt
+       posv  = x `shiftR` amt
+    in return . VWord i . ready . WordVal . mkBv i $! if signx then negv else posv
 
 -- | Signed carry bit.
 scarryV :: Value

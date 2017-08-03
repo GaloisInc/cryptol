@@ -95,7 +95,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("$<"          , liftWord swordSlt)
   , ("$/"          , liftWord swordSdiv)
   , ("$%"          , liftWord swordSrem)
-  , ("$>>"         , liftWord swordSshr)
+  , ("$>>"         , sshrV)
   , ("&&"          , binary (logicBinary SBV.svAnd SBV.svAnd))
   , ("||"          , binary (logicBinary SBV.svOr SBV.svOr))
   , ("^"           , binary (logicBinary SBV.svXOr SBV.svXOr))
@@ -532,10 +532,6 @@ swordSlt :: SWord -> SWord -> Eval Value
 swordSlt x y = return $ VBit lt
   where lt = SBV.svLessThan (SBV.svSign x) (SBV.svSign y)
 
-swordSshr :: SWord -> SWord -> Eval Value
-swordSshr x y = return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
-  where z = SBV.svShiftRight (SBV.svSign x) y
-
 swordSdiv :: SWord -> SWord -> Eval Value
 swordSdiv x y = return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
   where z = SBV.svQuot (SBV.svSign x) (SBV.svSign y)
@@ -543,6 +539,20 @@ swordSdiv x y = return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $
 swordSrem :: SWord -> SWord -> Eval Value
 swordSrem x y = return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
   where z = SBV.svRem (SBV.svSign x) (SBV.svSign y)
+
+sshrV :: Value
+sshrV =
+  nlam $ \_n ->
+  nlam $ \_k ->
+  wlam $ \x -> return $
+  wlam $ \y ->
+   case SBV.svAsInteger y of
+     Just i ->
+       let z = SBV.svUnsign (SBV.svShr (SBV.svSign x) (fromInteger i))
+        in return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
+     Nothing ->
+       let z = SBV.svUnsign (SBV.svShiftRight (SBV.svSign x) y)
+        in return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
 
 carry :: SWord -> SWord -> Eval Value
 carry x y = return $ VBit c
