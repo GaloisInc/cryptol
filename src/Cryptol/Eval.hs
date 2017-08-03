@@ -218,10 +218,10 @@ evalDeclGroup env dg = do
 --
 --   In order to faithfully evaluate the nonstrict semantics of Cryptol, we have to take some
 --   care in this process.  In particular, we need to ensure that every recursive definition
---   binding is indistinguishable from it's eta-expanded form.  The straightforward solution
+--   binding is indistinguishable from its eta-expanded form.  The straightforward solution
 --   to this is to force an eta-expansion procedure on all recursive definitions.
---   However, for the so-called 'Value' types we can instead optimisticly use the 'delayFill'
---   operation and only fall back on full eta expansion if the thunk is double-forced.
+--   However, for the so-called 'Value' types we can instead optimistically use the 'delayFill'
+--   operation and only fall back on full eta-expansion if the thunk is double-forced.
 fillHole :: BitWord b w
          => GenEvalEnv b w
          -> (Name, Schema, Eval (GenValue b w), Eval (GenValue b w) -> Eval ())
@@ -264,7 +264,7 @@ etaWord n x = do
        VBit <$> indexWordValue w' (toInteger i)
 
 
--- | Given a simulator value and it's type, fully eta-expand the value.  This
+-- | Given a simulator value and its type, fully eta-expand the value.  This
 --   is a type-directed pass that always produces a canonical value of the
 --   expected shape.  Eta expansion of values is sometimes necessary to ensure
 --   the correct evaluation semantics of recursive definitions.  Otherwise,
