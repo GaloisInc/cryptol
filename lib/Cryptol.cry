@@ -217,7 +217,7 @@ primitive scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
  * given bitvector arguments would result in a signed overflow.
  */
 sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
-sborrow x y = scarry x (negate y)
+sborrow x y = ( x <$ (x-y) ) ^ y@0
 
 /**
  * Short-cutting boolean conjuction function.
