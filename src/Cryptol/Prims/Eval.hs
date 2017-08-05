@@ -84,13 +84,13 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     binary (cmpOrder "==" (\o ->            o == EQ)))
   , ("!="         , {-# SCC "Prelude::(!=)" #-}
                     binary (cmpOrder "!=" (\o ->            o /= EQ)))
-  , ("$<"         , {-# SCC "Prelude::($<)" #-}
+  , ("<$"         , {-# SCC "Prelude::(<$)" #-}
                     liftSigned bvSlt)
-  , ("$/"         , {-# SCC "Prelude::($/)" #-}
+  , ("/$"         , {-# SCC "Prelude::(/$)" #-}
                     liftSigned bvSdiv)
-  , ("$%"         , {-# SCC "Prelude::($%)" #-}
+  , ("%$"         , {-# SCC "Prelude::(%$)" #-}
                     liftSigned bvSrem)
-  , ("$>>"        , {-# SCC "Prelude::($>>)" #-}
+  , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
                     sshrV)
   , ("&&"         , {-# SCC "Prelude::(&&)" #-}
                     binary (logicBinary (.&.) (binBV (.&.))))
@@ -553,8 +553,11 @@ liftSigned op = liftWord f
  f (BV i x) (BV j y)
    | i == j = op i sx sy
    | otherwise = evalPanic "liftSigned" ["Attempt to compute with words of different sizes"]
-   where sx = if testBit x (fromIntegral (i-1)) then negate x else x
-         sy = if testBit y (fromIntegral (j-1)) then negate y else y
+   where sx = signedValue i x
+         sy = signedValue j y
+
+signedValue :: Integer -> Integer -> Integer
+signedValue i x = if testBit x (fromIntegral (i-1)) then x - (1 `shiftL` (fromIntegral i)) else x
 
 bvSlt :: Integer -> Integer -> Integer -> Eval Value
 bvSlt _sz x y = return . VBit $! (x < y)
