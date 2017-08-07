@@ -47,6 +47,7 @@ MFcrypt : { pwBytes, saltBytes, dkLen, r, N }
           ,  512 >= width N, 1+width N >= width (N-1)
           , 32 >= width ((255 + 8 * dkLen) / 256)
           , 32 >= width (4 + 128 * r)
+          , N >= 1
           )
         => [pwBytes][8] -> [saltBytes][8] -> [dkLen][8]
 MFcrypt P S = split DK
@@ -63,6 +64,7 @@ SCrypt : {pwBytes, saltBytes, dkBytes, r, N}
          , 512 >= width N, 1+width N >= width (N-1)
          , 32 >= width (4 + saltBytes)
          , 32 >= width (4 + 128 * r)
+         , N >= 1
          )
       => [pwBytes][8] -> [saltBytes][8] -> [dkBytes][8]
 SCrypt P S = MFcrypt `{r=r,N=N} P S
