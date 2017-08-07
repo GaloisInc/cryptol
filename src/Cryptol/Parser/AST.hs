@@ -374,6 +374,7 @@ data Prop n   = CFin (Type n)             -- ^ @ fin x   @
               | CGeq (Type n) (Type n)    -- ^ @ x >= 10 @
               | CArith (Type n)           -- ^ @ Arith a @
               | CCmp (Type n)             -- ^ @ Cmp a @
+              | CSignedCmp (Type n)       -- ^ @ SignedCmp a @
               | CLocated (Prop n) Range   -- ^ Location information
               | CType (Type n)            -- ^ After parsing
                 deriving (Eq, Show, Generic, NFData)
@@ -824,6 +825,7 @@ instance PPName name => PP (Prop name) where
       CFin t       -> text "fin"   <+> ppPrec 4 t
       CArith t     -> text "Arith" <+> ppPrec 4 t
       CCmp t       -> text "Cmp"   <+> ppPrec 4 t
+      CSignedCmp t -> text "SignedCmp" <+> ppPrec 4 t
       CEqual t1 t2 -> ppPrec 2 t1 <+> text "==" <+> ppPrec 2 t2
       CGeq t1 t2   -> ppPrec 2 t1 <+> text ">=" <+> ppPrec 2 t2
       CLocated c _ -> ppPrec n c
@@ -982,7 +984,6 @@ instance NoPos (Prop name) where
       CFin x        -> CFin (noPos x)
       CArith x      -> CArith (noPos x)
       CCmp x        -> CCmp   (noPos x)
+      CSignedCmp x  -> CSignedCmp (noPos x)
       CLocated c _  -> noPos c
       CType t       -> CType (noPos t)
-
-

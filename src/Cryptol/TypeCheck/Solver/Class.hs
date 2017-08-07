@@ -13,6 +13,7 @@ module Cryptol.TypeCheck.Solver.Class
   ( classStep
   , solveArithInst
   , solveCmpInst
+  , solveSignedCmpInst
   , expandProp
   ) where
 
@@ -90,6 +91,47 @@ solveCmpInst ty = case tNoUser ty of
 
   -- (Cmp a, Cmp b) => Cmp { x:a, y:b }
   TRec fs -> SolvedIf [ pCmp e | (_,e) <- fs ]
+
+  _ -> Unsolved
+
+
+-- | Solve a SignedCmp constraint for a sequence.  The type passed here is the
+-- element type of the sequence.
+solveSignedCmpSeq :: Type -> Type -> Solved
+solveSignedCmpSeq n ty = case tNoUser ty of
+
+  -- (fin n, n >=1 ) => SignedCmp [n]Bit
+  TCon (TC TCBit) [] -> SolvedIf [ pFin n, n >== tNum (1 :: Integer) ]
+
+  -- variables are not solvable.
+  TVar {} -> Unsolved
+
+  -- (fin n, SignedCmp ty) => SignedCmp [n]ty, when ty != Bit
+  _ -> SolvedIf [ pFin n, pSignedCmp ty ]
+
+
+-- | Solve SignedCmp constraints.
+solveSignedCmpInst :: Type -> Solved
+solveSignedCmpInst ty = case tNoUser ty of
+
+  -- SignedCmp Error -> fails
+  TCon (TError _ e) _ -> Unsolvable e
+
+  -- SignedCmp Bit
+  TCon (TC TCBit) [] -> Unsolvable $ TCErrorMessage "Signed comparisons may not be performed on bits"
+
+  -- SignedCmp for sequences
+  TCon (TC TCSeq) [n,a] -> solveSignedCmpSeq n a
+
+  -- (SignedCmp a, SignedCmp b) => SignedCmp (a,b)
+  TCon (TC (TCTuple _)) es -> SolvedIf (map pSignedCmp es)
+
+  -- SignedCmp (a -> b) fails
+  TCon (TC TCFun) [_,_] ->
+    Unsolvable $ TCErrorMessage "Signed comparisons may not be performed on functions."
+
+  -- (SignedCmp a, SignedCmp b) => SignedCmp { x:a, y:b }
+  TRec fs -> SolvedIf [ pSignedCmp e | (_,e) <- fs ]
 
   _ -> Unsolved
 

@@ -317,6 +317,7 @@ checkProp prop =
     P.CGeq t1 t2    -> tcon (PC PGeq)           [t1,t2] (Just KProp)
     P.CArith t1     -> tcon (PC PArith)         [t1]    (Just KProp)
     P.CCmp t1       -> tcon (PC PCmp)           [t1]    (Just KProp)
+    P.CSignedCmp t1 -> tcon (PC PSignedCmp)     [t1]    (Just KProp)
     P.CLocated p r1 -> kInRange r1 (checkProp p)
     P.CType _       -> panic "checkProp" [ "Unexpected CType", show prop ]
 

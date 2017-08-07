@@ -7,7 +7,7 @@ import Cryptol.TypeCheck.Type hiding
 import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.Solver.Numeric.Fin(cryIsFinType)
 import Cryptol.TypeCheck.Solver.Numeric(cryIsEqual, cryIsNotEqual, cryIsGeq)
-import Cryptol.TypeCheck.Solver.Class(solveArithInst,solveCmpInst)
+import Cryptol.TypeCheck.Solver.Class(solveArithInst,solveCmpInst, solveSignedCmpInst)
 
 import Cryptol.Utils.Debug(ppTrace)
 import Cryptol.TypeCheck.PP
@@ -38,6 +38,7 @@ simplifyStep ctxt prop =
 
     TCon (PC PArith) [ty]     -> solveArithInst ty
     TCon (PC PCmp)   [ty]     -> solveCmpInst   ty
+    TCon (PC PSignedCmp) [ty] -> solveSignedCmpInst ty
 
     TCon (PC PFin)   [ty]     -> cryIsFinType ctxt ty
 
