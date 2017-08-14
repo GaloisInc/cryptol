@@ -33,7 +33,7 @@ import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Import(..), ImportSpec(..), ExportType(..)
                           , ExportSpec(..), isExportedBind
-                          , isExportedType, Fixity(..) )
+                          , isExportedType, Fixity(..), Located(..) )
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,packIdent,unpackIdent)
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
@@ -194,6 +194,9 @@ instance (ShowAST a) => ShowAST [a] where
 instance (ShowAST a) => ShowAST (Maybe a) where
   showAst Nothing = "(0,\"\")" --empty ident, won't shadow demote
   showAst (Just x) = showAst x
+
+instance (ShowAST a) => ShowAST (Located a) where
+  showAst l = showAst (thing l)
 
 instance ShowAST TParam where
   showAst tp = "(" ++ show (tpUnique tp) ++ "," ++ maybeNameStr (tpName tp) ++ ")"

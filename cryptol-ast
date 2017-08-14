@@ -1,6 +1,0 @@
-#!/bin/bash
-CRYPTOL=/Users/emullen/cryptol/dist/build/Cryptol/cryptol
-IN="$1"
-
-echo ":all" | "$CRYPTOL" "$IN" | cut -c 7- | tail -n 1
-

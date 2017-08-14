@@ -185,9 +185,9 @@ nbCommandList  =
   , CommandDescr [ ":eval" ] (ExprArg refEvalCmd)
     "evaluate an expression with the reference evaluator"
   , CommandDescr [ ":ast" ] (ExprArg astOfCmd)
-    "print out an AST of a given term"
-  , CommandDescr [ ":all" ] (ExprArg allTerms)
-    "print out the AST of all defined terms"
+    "print out the pre-typechecked AST of a given term"
+  , CommandDescr [ ":extract-coq" ] (NoArg allTerms)
+    "print out the post-typechecked AST of all currently defined terms, in a Coq parseable format"
   ]
 
 commandList :: [CommandDescr]
@@ -594,17 +594,14 @@ refEvalCmd str = do
   val <- liftModuleCmd (rethrowEvalError . R.evaluate expr)
   rPrint $ R.ppValue val
 
-nameToNumber :: M.Name -> Int
-nameToNumber n = M.nameUnique n
-
 astOfCmd :: String -> REPL ()
 astOfCmd str = do
  expr <- replParseExpr str
  (re,_,_) <- replCheckExpr (P.noPos expr)
- rPrint (fmap nameToNumber re)
+ rPrint (fmap M.nameUnique re)
 
-allTerms :: String -> REPL ()
-allTerms _ = do
+allTerms :: REPL ()
+allTerms = do
   me <- getModuleEnv
   rPutStrLn (T.showAst (concatMap T.mDecls (M.loadedModules me)))
 

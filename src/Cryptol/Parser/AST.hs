@@ -174,9 +174,6 @@ data Bind name = Bind { bName      :: Located name -- ^ Defined thing
                       , bDoc       :: Maybe String -- ^ Optional doc string
                       } deriving (Eq, Generic, NFData, Functor, Show)
 
--- instance (Show name) => Show (Bind name) where
---   show b = "(Bind (" ++ show (bName b) ++ ") (" ++ show (bDef b) ++ "))"
-
 type LBindDef = Located (BindDef PName)
 
 data BindDef name = DPrim
@@ -186,9 +183,6 @@ data BindDef name = DPrim
 data Fixity   = Fixity { fAssoc :: !Assoc
                        , fLevel :: !Int
                        } deriving (Eq, Generic, NFData, Show)
-
--- instance Show Fixity where
---   show _ = ""
 
 data FixityCmp = FCError
                | FCLeft
