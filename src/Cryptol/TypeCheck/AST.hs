@@ -33,8 +33,8 @@ import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Import(..), ImportSpec(..), ExportType(..)
                           , ExportSpec(..), isExportedBind
-                          , isExportedType, Fixity(..), Located(..) )
-import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,packIdent,unpackIdent)
+                          , isExportedType, Fixity(..))
+import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,packIdent)
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
 
@@ -128,85 +128,6 @@ data DeclDef    = DPrim
                 | DExpr Expr
                   deriving (Show, Generic, NFData)
 
--- ShowAST prints out just enough information to model the program in Coq
-class ShowAST t where
-  showAst :: t -> String
-
-instance ShowAST Expr where
-  showAst (EList es _) = "(EList " ++ showAst es ++ ")"
-  showAst (ETuple es) = "(ETuple " ++ showAst es ++ ")"
-  showAst (ERec ides) = "(ERec " ++ showAst ides ++ ")"
-  showAst (ESel e s) = "(ESel " ++ showAst e ++ " " ++ showAst s ++ ")"
-  showAst (EIf c t f) = "(EIf " ++ showAst c ++ " " ++ showAst t ++ " " ++ showAst f ++ ")"
-  showAst (EComp _ _ e mss) = "(EComp " ++ showAst e ++ " " ++ showAst mss ++ ")"
-  showAst (EVar n) = "(EVar " ++ showAst n ++ ")"
-  showAst (EApp fe ae) = "(EApp " ++ showAst fe ++ " " ++ showAst ae ++ ")"
-  showAst (EAbs n _ e) = "(EAbs " ++ showAst n ++ " " ++ showAst e ++ ")"
-  showAst (EWhere e dclg) = "(EWhere " ++ showAst e ++ " " ++ showAst dclg ++ ")"
-  showAst (ETAbs tp e) = "(ETAbs " ++ showAst tp ++ " " ++ showAst e ++ ")"
-  showAst (ETApp e t) = "(ETApp " ++ showAst e ++ " (ETyp " ++ showAst t ++ "))"
-  --NOTE: erase all proofs for now (change the following two lines to change that)
-  showAst (EProofAbs {-p-}_ e) = showAst e --"(EProofAbs " ++ show p ++ showAst e ++ ")"
-  showAst (EProofApp e) = showAst e --"(EProofApp " ++ showAst e ++ ")"
-
-instance (ShowAST a, ShowAST b) => ShowAST (a,b) where
-  showAst (x,y) = "(" ++ showAst x ++ "," ++ showAst y ++ ")"
-  
-instance ShowAST Int where
-  showAst i = show i
-
-instance ShowAST Ident where
-  showAst i = show (unpackIdent i)
-
-instance ShowAST Type where
-  showAst (TUser n lt t) = "(TUser " ++ showAst n ++ " " ++ showAst lt ++ " " ++ showAst t ++ ")"
-  showAst (TRec lidt) = "(TRec " ++ showAst lidt ++ ")"
-  showAst t = "(" ++ show t ++ ")"
-
-instance ShowAST Selector where
-  showAst (TupleSel n _) = "(TupleSel " ++ showAst n ++ ")"
-  showAst (RecordSel n _) = "(RecordSel " ++ showAst n ++ ")"
-  showAst (ListSel n _) = "(ListSel " ++ showAst n ++ ")"
-
-instance ShowAST Match where
-  showAst (From n _ _ e) = "(From " ++ showAst n ++ " " ++ showAst e ++ ")"
-  showAst (Let d) = "(MLet " ++ showAst d ++ ")"
-
-instance ShowAST Decl where
-  showAst d = "(Decl " ++ showAst (dName d) ++ " " ++ showAst (dDefinition d) ++ ")"
-
-instance ShowAST DeclDef where
-  showAst DPrim = show DPrim
-  showAst (DExpr e) = "(DExpr " ++ (showAst e) ++ ")"
-
-instance ShowAST DeclGroup where
-  showAst (Recursive ds) = "(Recursive " ++ showAst ds ++ ")"
-  showAst (NonRecursive d) = "(NonRecursive " ++ showAst d ++ ")"
-
-showASTList :: (ShowAST a) => [a] -> String
-showASTList [] = ""
-showASTList [x] = showAst x
-showASTList (x : y) = (showAst x) ++ "," ++ showASTList y
-
-instance (ShowAST a) => ShowAST [a] where
-  showAst a = "[" ++ showASTList a ++ "]"
-
-instance (ShowAST a) => ShowAST (Maybe a) where
-  showAst Nothing = "(0,\"\")" --empty ident, won't shadow demote
-  showAst (Just x) = showAst x
-
-instance (ShowAST a) => ShowAST (Located a) where
-  showAst l = showAst (thing l)
-
-instance ShowAST TParam where
-  showAst tp = "(" ++ show (tpUnique tp) ++ "," ++ maybeNameStr (tpName tp) ++ ")"
-
-maybeNameStr :: Maybe Name -> String
-maybeNameStr Nothing = show ""
-maybeNameStr (Just n) = showAst (nameIdent n)
-    
-instance ShowAST Name where
-  showAst n = "(" ++ show (nameUnique n) ++ "," ++ showAst (nameIdent n) ++ ")"
 
 --------------------------------------------------------------------------------
 

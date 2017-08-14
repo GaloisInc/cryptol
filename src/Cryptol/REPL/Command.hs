@@ -66,6 +66,7 @@ import Cryptol.Parser
     (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
     ,parseModName,parseHelpName)
 import qualified Cryptol.TypeCheck.AST as T
+import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import qualified Cryptol.TypeCheck.InferTypes as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
@@ -603,7 +604,7 @@ astOfCmd str = do
 allTerms :: REPL ()
 allTerms = do
   me <- getModuleEnv
-  rPutStrLn (T.showAst (concatMap T.mDecls (M.loadedModules me)))
+  rPrint $ T.showParseable $ concatMap T.mDecls $ M.loadedModules me
 
 typeOfCmd :: String -> REPL ()
 typeOfCmd str = do
