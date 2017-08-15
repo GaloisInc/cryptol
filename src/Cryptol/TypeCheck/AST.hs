@@ -33,7 +33,7 @@ import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Import(..), ImportSpec(..), ExportType(..)
                           , ExportSpec(..), isExportedBind
-                          , isExportedType, Fixity(..) )
+                          , isExportedType, Fixity(..))
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,packIdent)
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
@@ -44,6 +44,9 @@ import Control.DeepSeq
 import           Data.Map    (Map)
 import qualified Data.IntMap as IntMap
 
+
+
+
 -- | A Cryptol module.
 data Module = Module { mName     :: !ModName
                      , mExports  :: ExportSpec Name
@@ -52,7 +55,6 @@ data Module = Module { mName     :: !ModName
                      , mNewtypes :: Map Name Newtype
                      , mDecls    :: [DeclGroup]
                      } deriving (Show, Generic, NFData)
-
 
 
 data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
@@ -112,6 +114,7 @@ groupDecls dg = case dg of
   Recursive ds   -> ds
   NonRecursive d -> [d]
 
+
 data Decl       = Decl { dName        :: !Name
                        , dSignature   :: Schema
                        , dDefinition  :: DeclDef
@@ -119,15 +122,14 @@ data Decl       = Decl { dName        :: !Name
                        , dInfix       :: !Bool
                        , dFixity      :: Maybe Fixity
                        , dDoc         :: Maybe String
-                       } deriving (Show, Generic, NFData)
+                       } deriving (Generic, NFData, Show)
 
 data DeclDef    = DPrim
                 | DExpr Expr
                   deriving (Show, Generic, NFData)
 
+
 --------------------------------------------------------------------------------
-
-
 
 -- | Construct a primitive, given a map to the unique names of the Cryptol
 -- module.

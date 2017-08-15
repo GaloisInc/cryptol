@@ -55,6 +55,7 @@ import qualified Cryptol.ModuleSystem.Name as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
 import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowed))
 import qualified Cryptol.Utils.Ident as M
+import qualified Cryptol.ModuleSystem.Env as M
 
 import qualified Cryptol.Eval.Monad as E
 import qualified Cryptol.Eval.Value as E
@@ -65,6 +66,7 @@ import Cryptol.Parser
     (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
     ,parseModName,parseHelpName)
 import qualified Cryptol.TypeCheck.AST as T
+import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import qualified Cryptol.TypeCheck.InferTypes as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
@@ -184,6 +186,10 @@ nbCommandList  =
     "do type specialization on a closed expression"
   , CommandDescr [ ":eval" ] (ExprArg refEvalCmd)
     "evaluate an expression with the reference evaluator"
+  , CommandDescr [ ":ast" ] (ExprArg astOfCmd)
+    "print out the pre-typechecked AST of a given term"
+  , CommandDescr [ ":extract-coq" ] (NoArg allTerms)
+    "print out the post-typechecked AST of all currently defined terms, in a Coq parseable format"
   ]
 
 commandList :: [CommandDescr]
@@ -580,6 +586,17 @@ refEvalCmd str = do
   (_, expr, _schema) <- replCheckExpr parseExpr
   val <- liftModuleCmd (rethrowEvalError . R.evaluate expr)
   rPrint $ R.ppValue val
+
+astOfCmd :: String -> REPL ()
+astOfCmd str = do
+ expr <- replParseExpr str
+ (re,_,_) <- replCheckExpr (P.noPos expr)
+ rPrint (fmap M.nameUnique re)
+
+allTerms :: REPL ()
+allTerms = do
+  me <- getModuleEnv
+  rPrint $ T.showParseable $ concatMap T.mDecls $ M.loadedModules me
 
 typeOfCmd :: String -> REPL ()
 typeOfCmd str = do
