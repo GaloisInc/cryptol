@@ -33,14 +33,15 @@ instance ShowParseable Expr where
   showParseable (ETuple es) = parens (text "ETuple" <+> showParseable es)
   showParseable (ERec ides) = parens (text "ERec" <+> showParseable ides)
   showParseable (ESel e s) = parens (text "ESel" <+> showParseable e <+> showParseable s)
-  showParseable (EIf c t f) = parens (text "EIf" <+> showParseable c <+> showParseable t <+> showParseable f)
-  showParseable (EComp _ _ e mss) = parens (text "EComp" <+> showParseable e <+> showParseable mss)
+  showParseable (EIf c t f) = parens (text "EIf" <+> showParseable c $$ showParseable t $$ showParseable f)
+  showParseable (EComp _ _ e mss) = parens (text "EComp" $$ showParseable e $$ showParseable mss)
   showParseable (EVar n) = parens (text "EVar" <+> showParseable n)
-  showParseable (EApp fe ae) = parens (text "EApp" <+> showParseable fe <+> showParseable ae)
-  showParseable (EAbs n _ e) = parens (text "EAbs" <+> showParseable n <+> showParseable e)
-  showParseable (EWhere e dclg) = parens (text "EWhere" <+> showParseable e <+> showParseable dclg)
-  showParseable (ETAbs tp e) = parens (text "ETAbs" <+> showParseable tp <+> showParseable e)
-  showParseable (ETApp e t) = parens (text "ETApp" <+> showParseable e <+> parens (text "ETyp" <+> showParseable t))
+  showParseable (EApp fe ae) = parens (text "EApp" $$ showParseable fe $$ showParseable ae)
+  showParseable (EAbs n _ e) = parens (text "EAbs" <+> showParseable n $$ showParseable e)
+  showParseable (EWhere e dclg) = parens (text "EWhere" $$ showParseable e $$ showParseable dclg)
+  showParseable (ETAbs tp e) = parens (text "ETAbs" <+> showParseable tp
+                                        $$ showParseable e)
+  showParseable (ETApp e t) = parens (text "ETApp" $$ showParseable e $$ parens (text "ETyp" <+> showParseable t))
   --NOTE: erase all "proofs" for now (change the following two lines to change that)
   showParseable (EProofAbs {-p-}_ e) = showParseable e --"(EProofAbs " ++ show p ++ showParseable e ++ ")"
   showParseable (EProofApp e) = showParseable e --"(EProofApp " ++ showParseable e ++ ")"
@@ -69,23 +70,26 @@ instance ShowParseable Match where
   showParseable (Let d) = parens (text "MLet" <+> showParseable d)
 
 instance ShowParseable Decl where
-  showParseable d = parens (text "Decl" <+> showParseable (dName d) <+> showParseable (dDefinition d))
+  showParseable d = parens (text "Decl" <+> showParseable (dName d)
+                              $$ showParseable (dDefinition d))
 
 instance ShowParseable DeclDef where
   showParseable DPrim = text (show DPrim)
-  showParseable (DExpr e) = parens (text "DExpr" <+> showParseable e)
+  showParseable (DExpr e) = parens (text "DExpr" $$ showParseable e)
 
 instance ShowParseable DeclGroup where
-  showParseable (Recursive ds) = parens (text "Recursive" <+> showParseable ds)
-  showParseable (NonRecursive d) = parens (text "NonRecursive" <+> showParseable d)
-
-showParseableList :: (ShowParseable a) => [a] -> Doc
-showParseableList [] = empty
-showParseableList [x] = showParseable x
-showParseableList (x : y) = (showParseable x) <> comma <> showParseableList y
+  showParseable (Recursive ds) =
+    parens (text "Recursive" $$ showParseable ds)
+  showParseable (NonRecursive d) =
+    parens (text "NonRecursive" $$ showParseable d)
 
 instance (ShowParseable a) => ShowParseable [a] where
-  showParseable a = brackets $ showParseableList a
+  showParseable a = case a of
+                      [] -> text "[]"
+                      [x] -> brackets (showParseable x)
+                      x : xs -> text "[" <+> showParseable x $$
+                                vcat [ comma <+> showParseable y | y <- xs ] $$
+                                text "]"
 
 instance (ShowParseable a) => ShowParseable (Maybe a) where
   showParseable Nothing = text "(0,\"\")" --empty ident, won't shadow demote
