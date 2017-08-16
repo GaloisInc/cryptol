@@ -20,8 +20,7 @@ module Cryptol.Symbolic.Prims where
 
 import Control.Monad (unless)
 import Data.Bits
-import Data.List (genericTake, sortBy)
-import Data.Ord (comparing)
+import Data.List (genericTake)
 import qualified Data.Sequence as Seq
 
 import Cryptol.Eval.Monad (Eval(..), ready, invalidIndex, cryUserError)
@@ -38,7 +37,8 @@ import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            reverseV, infFromV, infFromThenV,
                            fromThenV, fromToV, fromThenToV,
                            transposeV, indexPrimOne, indexPrimMany,
-                           ecDemoteV, updatePrim, randomV, liftWord)
+                           ecDemoteV, updatePrim, randomV, liftWord,
+                           cmpValue)
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Decl(..))
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
@@ -92,7 +92,8 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , (">="          , binary (cmpBinary cmpGtEq cmpGtEq SBV.svTrue))
   , ("=="          , binary (cmpBinary cmpEq cmpEq SBV.svTrue))
   , ("!="          , binary (cmpBinary cmpNotEq cmpNotEq SBV.svFalse))
-  , ("<$"          , liftWord swordSlt)
+  , ("<$"          , let boolFail = evalPanic "<$" ["Attempted signed comparison on bare Bit values"]
+                      in binary (cmpBinary boolFail cmpSignedLt SBV.svFalse))
   , ("/$"          , liftWord swordSdiv)
   , ("%$"          , liftWord swordSrem)
   , (">>$"         , sshrV)
@@ -476,42 +477,16 @@ sLg2 _w x = ready $ go 0
 
 -- Cmp -------------------------------------------------------------------------
 
-cmpValue :: (SBool -> SBool -> Eval a -> Eval a)
-         -> (SWord -> SWord -> Eval a -> Eval a)
-         -> (Value -> Value -> Eval a -> Eval a)
-cmpValue fb fw = cmp
-  where
-    cmp v1 v2 k =
-      case (v1, v2) of
-        (VRecord fs1, VRecord fs2) -> let vals = map snd . sortBy (comparing fst)
-                                      in  cmpValues (vals fs1) (vals fs2) k
-        (VTuple vs1 , VTuple vs2 ) -> cmpValues vs1 vs2 k
-        (VBit b1    , VBit b2    ) -> fb b1 b2 k
-        (VWord _ w1 , VWord _ w2 ) -> join (fw <$> (asWordVal =<< w1)
-                                               <*> (asWordVal =<< w2)
-                                               <*> return k)
-        (VSeq n vs1 , VSeq _ vs2 ) -> cmpValues (enumerateSeqMap n vs1)
-                                                (enumerateSeqMap n vs2) k
-        (VStream {} , VStream {} ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
-                                        [ "Infinite streams are not comparable" ]
-        (VFun {}    , VFun {}    ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
-                                        [ "Functions are not comparable" ]
-        (VPoly {}   , VPoly {}   ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
-                                        [ "Polymorphic values are not comparable" ]
-        (_          , _          ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
-                                        [ "type mismatch" ]
-
-    cmpValues (x1 : xs1) (x2 : xs2) k = do
-          x1' <- x1
-          x2' <- x2
-          cmp x1' x2' (cmpValues xs1 xs2 k)
-    cmpValues _ _ k = k
-
 cmpEq :: SWord -> SWord -> Eval SBool -> Eval SBool
 cmpEq x y k = SBV.svAnd (SBV.svEqual x y) <$> k
 
 cmpNotEq :: SWord -> SWord -> Eval SBool -> Eval SBool
 cmpNotEq x y k = SBV.svOr (SBV.svNotEqual x y) <$> k
+
+cmpSignedLt :: SWord -> SWord -> Eval SBool -> Eval SBool
+cmpSignedLt x y k = SBV.svOr (SBV.svLessThan sx sy) <$> (cmpEq sx sy k)
+  where sx = SBV.svSign x
+        sy = SBV.svSign y
 
 cmpLt, cmpGt :: SWord -> SWord -> Eval SBool -> Eval SBool
 cmpLt x y k = SBV.svOr (SBV.svLessThan x y) <$> (cmpEq x y k)

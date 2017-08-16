@@ -85,7 +85,7 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("!="         , {-# SCC "Prelude::(!=)" #-}
                     binary (cmpOrder "!=" (\o ->            o /= EQ)))
   , ("<$"         , {-# SCC "Prelude::(<$)" #-}
-                    liftSigned bvSlt)
+                    binary (signedCmpOrder "<$" (\o -> o == LT)))
   , ("/$"         , {-# SCC "Prelude::(/$)" #-}
                     liftSigned bvSdiv)
   , ("%$"         , {-# SCC "Prelude::(%$)" #-}
@@ -459,79 +459,69 @@ lg2 i = case genLog i 2 of
 
 -- Cmp -------------------------------------------------------------------------
 
--- | Lexicographic ordering on two values.
-lexCompare :: String -> TValue -> Value -> Value -> Eval Ordering
-lexCompare nm ty l r = case ty of
-
-  TVBit ->
-    return $ compare (fromVBit l) (fromVBit r)
-
-  TVSeq _ TVBit ->
-    compare <$> (fromWord "compareLeft" l) <*> (fromWord "compareRight" r)
-
-  TVSeq w e ->
-      join (zipLexCompare nm (repeat e) <$>
-               (enumerateSeqMap w <$> fromSeq "lexCompare left" l) <*>
-               (enumerateSeqMap w <$> fromSeq "lexCompare right" r))
-
-  -- tuples
-  TVTuple etys ->
-    zipLexCompare nm etys (fromVTuple l) (fromVTuple r)
-
-  -- records
-  TVRec fields ->
-    let tys    = map snd (sortBy (comparing fst) fields)
-        ls     = map snd (sortBy (comparing fst) (fromVRecord l))
-        rs     = map snd (sortBy (comparing fst) (fromVRecord r))
-     in zipLexCompare nm tys ls rs
-
-  _ -> evalPanic "lexCompare" ["invalid type"]
-
-
--- XXX the lists are expected to be of the same length, as this should only be
--- used with values that come from type-correct expressions.
-zipLexCompare :: String -> [TValue] -> [Eval Value] -> [Eval Value] -> Eval Ordering
-zipLexCompare nm tys ls rs = foldr choose (return EQ) (zipWith3 lexCompare' tys ls rs)
+cmpValue :: BitWord b w
+         => (b -> b -> Eval a -> Eval a)
+         -> (w -> w -> Eval a -> Eval a)
+         -> (GenValue b w -> GenValue b w -> Eval a -> Eval a)
+cmpValue fb fw = cmp
   where
-  lexCompare' t l r = join (lexCompare nm t <$> l <*> r)
+    cmp v1 v2 k =
+      case (v1, v2) of
+        (VRecord fs1, VRecord fs2) -> let vals = map snd . sortBy (comparing fst)
+                                      in  cmpValues (vals fs1) (vals fs2) k
+        (VTuple vs1 , VTuple vs2 ) -> cmpValues vs1 vs2 k
+        (VBit b1    , VBit b2    ) -> fb b1 b2 k
+        (VWord _ w1 , VWord _ w2 ) -> join (fw <$> (asWordVal =<< w1)
+                                               <*> (asWordVal =<< w2)
+                                               <*> return k)
+        (VSeq n vs1 , VSeq _ vs2 ) -> cmpValues (enumerateSeqMap n vs1)
+                                                (enumerateSeqMap n vs2) k
+        (VStream {} , VStream {} ) -> panic "Cryptol.Prims.Value.cmpValue"
+                                        [ "Infinite streams are not comparable" ]
+        (VFun {}    , VFun {}    ) -> panic "Cryptol.Prims.Value.cmpValue"
+                                        [ "Functions are not comparable" ]
+        (VPoly {}   , VPoly {}   ) -> panic "Cryptol.Prims.Value.cmpValue"
+                                        [ "Polymorphic values are not comparable" ]
+        (_          , _          ) -> panic "Cryptol.Prims.Value.cmpValue"
+                                        [ "type mismatch" ]
 
-  choose c acc = c >>= \c' -> case c' of
-    EQ -> acc
-    _  -> return c'
+    cmpValues (x1 : xs1) (x2 : xs2) k = do
+          x1' <- x1
+          x2' <- x2
+          cmp x1' x2' (cmpValues xs1 xs2 k)
+    cmpValues _ _ k = k
+
+
+lexCompare :: Value -> Value -> Eval Ordering
+lexCompare a b = cmpValue op opw a b (return EQ)
+ where
+   opw :: BV -> BV -> Eval Ordering -> Eval Ordering
+   opw x y k = op (bvVal x) (bvVal y) k
+
+   op :: Ord a => a -> a -> Eval Ordering -> Eval Ordering
+   op x y k = case compare x y of
+                     EQ  -> k
+                     cmp -> return cmp
+
+signedLexCompare :: Value -> Value -> Eval Ordering
+signedLexCompare a b = cmpValue opb opw a b (return EQ)
+ where
+   opb :: Bool -> Bool -> Eval Ordering -> Eval Ordering
+   opb _x _y _k = panic "signedLexCompare"
+                    ["Attempted to perform signed comparisons on bare Bit type"]
+
+   opw :: BV -> BV -> Eval Ordering -> Eval Ordering
+   opw x y k = case compare (signedBV x) (signedBV y) of
+                     EQ  -> k
+                     cmp -> return cmp
 
 -- | Process two elements based on their lexicographic ordering.
 cmpOrder :: String -> (Ordering -> Bool) -> Binary Bool BV
-cmpOrder nm op ty l r = VBit . op <$> lexCompare nm ty l r
+cmpOrder _nm op _ty l r = VBit . op <$> lexCompare l r
 
-withOrder :: String -> (Ordering -> TValue -> Value -> Value -> Value) -> Binary Bool BV
-withOrder nm choose ty l r =
-  do ord <- lexCompare nm ty l r
-     return $ choose ord ty l r
-
-maxV :: Ordering -> TValue -> Value -> Value -> Value
-maxV o _ l r = case o of
-  LT -> r
-  _  -> l
-
-minV :: Ordering -> TValue -> Value -> Value -> Value
-minV o _ l r = case o of
-  GT -> r
-  _  -> l
-
-
-funCmp :: (Ordering -> Bool) -> Value
-funCmp op =
-  tlam $ \ _a ->
-  tlam $ \  b ->
-   lam $ \  l -> return $
-   lam $ \  r -> return $
-   lam $ \  x -> do
-      l' <- l
-      r' <- r
-      x' <- x
-      fl <- fromVFun l' (ready x')
-      fr <- fromVFun r' (ready x')
-      cmpOrder "funCmp" op b fl fr
+-- | Process two elements based on their lexicographic ordering, using signed comparisons
+signedCmpOrder :: String -> (Ordering -> Bool) -> Binary Bool BV
+signedCmpOrder _nm op _ty l r = VBit . op <$> signedLexCompare l r
 
 
 -- Signed arithmetic -----------------------------------------------------------
@@ -555,6 +545,9 @@ liftSigned op = liftWord f
    | otherwise = evalPanic "liftSigned" ["Attempt to compute with words of different sizes"]
    where sx = signedValue i x
          sy = signedValue j y
+
+signedBV :: BV -> Integer
+signedBV (BV i x) = signedValue i x
 
 signedValue :: Integer -> Integer -> Integer
 signedValue i x = if testBit x (fromIntegral (i-1)) then x - (1 `shiftL` (fromIntegral i)) else x
