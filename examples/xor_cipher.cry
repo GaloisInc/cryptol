@@ -1,0 +1,7 @@
+encrypt : {a}(fin a) => [8] -> [a][8] -> [a][8]
+encrypt key plaintext = [pt ^ key | pt <- plaintext ]
+
+decrypt : {a}(fin a) => [8] -> [a][8] -> [a][8]
+decrypt key ciphertext = [ct ^ key | ct <- ciphertext ]
+
+property roundtrip k ip = decrypt k (encrypt k ip) == ip

@@ -24,6 +24,7 @@ import Cryptol.Utils.PP
 data Located a  = Located { srcRange :: !Range, thing :: !a }
                   deriving (Eq, Show, Generic, NFData)
 
+
 data Position   = Position { line :: !Int, col :: !Int }
                   deriving (Eq, Ord, Show, Generic, NFData)
 

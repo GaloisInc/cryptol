@@ -1,0 +1,12 @@
+x : {a}() => a -> [16]
+x v = zero v 
+
+property xprop v = x v == 0
+
+y : [12] -> [4] -> [17]
+y a b = zero a b
+
+property yprop v w = y v w == 0
+
+t1 = x 13
+t2 = y 2 3

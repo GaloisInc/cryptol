@@ -1,0 +1,27 @@
+x = [True, False]
+y = [False, True]
+z = x + y
+
+property p1 = z == 3
+
+xx = [[True,False]]
+yy = [[False, True]]
+zz = xx + yy
+
+
+
+t : {a} [a*3] -> [a*3][a*3]
+t d = zero
+/*
+
+
+t1 : [8] -> [2][2][2]
+t1 x = split (split x)
+
+t2 : [8] -> ([4],[4])
+t2 x = splitAt x
+
+t3 : [8] ->[8] -> [16]
+t3 x y = x # y
+
+*/
