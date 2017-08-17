@@ -87,9 +87,9 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("<$"         , {-# SCC "Prelude::(<$)" #-}
                     binary (signedCmpOrder "<$" (\o -> o == LT)))
   , ("/$"         , {-# SCC "Prelude::(/$)" #-}
-                    liftSigned bvSdiv)
+                    binary (arithBinary (liftSigned bvSdiv)))
   , ("%$"         , {-# SCC "Prelude::(%$)" #-}
-                    liftSigned bvSrem)
+                    binary (arithBinary (liftSigned bvSrem)))
   , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
                     sshrV)
   , ("&&"         , {-# SCC "Prelude::(&&)" #-}
@@ -335,13 +335,18 @@ unary f = tlam $ \ ty ->
 -- Arith -----------------------------------------------------------------------
 
 -- | Turn a normal binop on Integers into one that can also deal with a bitsize.
+--   However, if the bitvector size is 0, always return the 0
+--   bitvector.
 liftBinArith :: (Integer -> Integer -> Integer) -> BinArith BV
+liftBinArith _  0 _        _        = ready $ mkBv 0 0
 liftBinArith op w (BV _ x) (BV _ y) = ready $ mkBv w $ op x y
 
 -- | Turn a normal binop on Integers into one that can also deal with a bitsize.
 --   Generate a thunk that throws a divide by 0 error when forced if the second
---   argument is 0.
+--   argument is 0.  However, if the bitvector size is 0, always return the 0
+--   bitvector.
 liftDivArith :: (Integer -> Integer -> Integer) -> BinArith BV
+liftDivArith _  0 _        _        = ready $ mkBv 0 0
 liftDivArith _  _ _        (BV _ 0) = divideByZero
 liftDivArith op w (BV _ x) (BV _ y) = ready $ mkBv w $ op x y
 
@@ -536,12 +541,14 @@ liftWord op =
   wlam $ \w1 -> return $
   wlam $ \w2 -> op w1 w2
 
-liftSigned :: (Integer -> Integer -> Integer -> Eval Value)
-           -> Value
-liftSigned op = liftWord f
+
+liftSigned :: (Integer -> Integer -> Integer -> Eval BV)
+           -> BinArith BV
+liftSigned _  0    = \_ _ -> return $ mkBv 0 0
+liftSigned op size = f
  where
  f (BV i x) (BV j y)
-   | i == j = op i sx sy
+   | i == j && size == i = op size sx sy
    | otherwise = evalPanic "liftSigned" ["Attempt to compute with words of different sizes"]
    where sx = signedValue i x
          sy = signedValue j y
@@ -555,13 +562,13 @@ signedValue i x = if testBit x (fromIntegral (i-1)) then x - (1 `shiftL` (fromIn
 bvSlt :: Integer -> Integer -> Integer -> Eval Value
 bvSlt _sz x y = return . VBit $! (x < y)
 
-bvSdiv :: Integer -> Integer -> Integer -> Eval Value
+bvSdiv :: Integer -> Integer -> Integer -> Eval BV
 bvSdiv  _ _ 0 = divideByZero
-bvSdiv sz x y = return . VWord sz . ready . WordVal $ mkBv sz (x `quot` y)
+bvSdiv sz x y = return $! mkBv sz (x `quot` y)
 
-bvSrem :: Integer -> Integer -> Integer -> Eval Value
+bvSrem :: Integer -> Integer -> Integer -> Eval BV
 bvSrem  _ _ 0 = divideByZero
-bvSrem sz x y = return . VWord sz . ready . WordVal $ mkBv sz (x `rem` y)
+bvSrem sz x y = return $! mkBv sz (x `rem` y)
 
 sshrV :: Value
 sshrV =

@@ -94,8 +94,8 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("!="          , binary (cmpBinary cmpNotEq cmpNotEq SBV.svFalse))
   , ("<$"          , let boolFail = evalPanic "<$" ["Attempted signed comparison on bare Bit values"]
                       in binary (cmpBinary boolFail cmpSignedLt SBV.svFalse))
-  , ("/$"          , liftWord swordSdiv)
-  , ("%$"          , liftWord swordSrem)
+  , ("/$"          , binary (arithBinary (liftBinArith signedQuot)))
+  , ("%$"          , binary (arithBinary (liftBinArith signedRem)))
   , (">>$"         , sshrV)
   , ("&&"          , binary (logicBinary SBV.svAnd SBV.svAnd))
   , ("||"          , binary (logicBinary SBV.svOr SBV.svOr))
@@ -503,17 +503,12 @@ cmpBinary fb fw b _ty v1 v2 = VBit <$> cmpValue fb fw v1 v2 (return b)
 
 -- Signed arithmetic -----------------------------------------------------------
 
-swordSlt :: SWord -> SWord -> Eval Value
-swordSlt x y = return $ VBit lt
-  where lt = SBV.svLessThan (SBV.svSign x) (SBV.svSign y)
+signedQuot :: SWord -> SWord -> SWord
+signedQuot x y = SBV.svUnsign (SBV.svQuot (SBV.svSign x) (SBV.svSign y))
 
-swordSdiv :: SWord -> SWord -> Eval Value
-swordSdiv x y = return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
-  where z = SBV.svQuot (SBV.svSign x) (SBV.svSign y)
+signedRem :: SWord -> SWord -> SWord
+signedRem x y = SBV.svUnsign (SBV.svRem (SBV.svSign x) (SBV.svSign y))
 
-swordSrem :: SWord -> SWord -> Eval Value
-swordSrem x y = return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
-  where z = SBV.svRem (SBV.svSign x) (SBV.svSign y)
 
 sshrV :: Value
 sshrV =
