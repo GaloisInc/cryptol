@@ -428,14 +428,16 @@ mkProp ty =
 
   -- these can be translated right away
   prefixProp r f xs
-    | i == arithIdent, [x] <- xs = return [CLocated (CArith x) r]
-    | i == finIdent,   [x] <- xs = return [CLocated (CFin x) r]
-    | i == cmpIdent,   [x] <- xs = return [CLocated (CCmp x) r]
-    | otherwise                  = errorMessage r "Invalid constraint"
+    | i == arithIdent,     [x] <- xs = return [CLocated (CArith x) r]
+    | i == finIdent,       [x] <- xs = return [CLocated (CFin x) r]
+    | i == cmpIdent,       [x] <- xs = return [CLocated (CCmp x) r]
+    | i == signedCmpIdent, [x] <- xs = return [CLocated (CSignedCmp x) r]
+    | otherwise                      = errorMessage r "Invalid constraint"
     where
     i = getIdent f
 
-arithIdent, finIdent, cmpIdent :: Ident
-arithIdent = mkIdent (S.pack "Arith")
-finIdent   = mkIdent (S.pack "fin")
-cmpIdent   = mkIdent (S.pack "Cmp")
+arithIdent, finIdent, cmpIdent, signedCmpIdent :: Ident
+arithIdent     = mkIdent (S.pack "Arith")
+finIdent       = mkIdent (S.pack "fin")
+cmpIdent       = mkIdent (S.pack "Cmp")
+signedCmpIdent = mkIdent (S.pack "SignedCmp")

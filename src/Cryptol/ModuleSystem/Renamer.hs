@@ -491,11 +491,12 @@ instance Rename TParam where
 
 instance Rename Prop where
   rename p      = case p of
-    CFin t        -> CFin     <$> rename t
-    CEqual l r    -> CEqual   <$> rename l  <*> rename r
-    CGeq l r      -> CGeq     <$> rename l  <*> rename r
-    CArith t      -> CArith   <$> rename t
-    CCmp t        -> CCmp     <$> rename t
+    CFin t        -> CFin       <$> rename t
+    CEqual l r    -> CEqual     <$> rename l  <*> rename r
+    CGeq l r      -> CGeq       <$> rename l  <*> rename r
+    CArith t      -> CArith     <$> rename t
+    CCmp t        -> CCmp       <$> rename t
+    CSignedCmp t  -> CSignedCmp <$> rename t
     CLocated p' r -> withLoc r
                    $ CLocated <$> rename p' <*> pure r
 

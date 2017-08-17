@@ -361,6 +361,7 @@ data TokenW   = BlockComment | LineComment | Space | DocStr
 data TokenKW  = KW_Arith
               | KW_Bit
               | KW_Cmp
+              | KW_SignedCmp
               | KW_else
               | KW_Eq
               | KW_extern

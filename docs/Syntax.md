@@ -71,6 +71,7 @@ Bit
 Cmp
 False
 Inf
+SignedCmp
 True
 else
 export
@@ -92,30 +93,33 @@ where
 width
 --->
 
-    Arith   Inf       extern    inf    module      then     
-    Bit     True      fin       lg2    newtype     type     
-    Cmp     else      if        max    pragma      where    
-    False   export    import    min    property    width    
+	Arith    Inf          export    import    min        property    width
+	Bit      SignedCmp    extern    inf       module     then
+	Cmp      True         fin       lg2       newtype    type
+	False    else         if        max       pragma     where
 
 The following table contains Cryptol's operators and their
 associativity with lowest precedence operators first, and highest
 precedence last.
 
-Operator                Associativity
----------------         -------------
-  `||`                  left
-  `^`                   left
-  `&&`                  left
-  `->` (types)          right
-  `!=` `==`             not associative
-  `>` `<` `<=` `>=`     not associative
-  `#`                   right
-  `>>` `<<` `>>>` `<<<` left
-  `+` `-`               left
-  `*` `/` `%`           left
-  `^^`                  right
-  `!`  `!!`  `@` `@@`   left
-  (unary) `-` `~`       right
+Operator                                   Associativity
+---------------                            -------------
+  `==>`                                    right
+  `\/`                                     right
+  `/\`                                     right
+  `||`                                     right
+  `&&`                                     right
+  `->` (types)                             right
+  `!=` `==`                                not associative
+  `>` `<` `<=` `>=` `<$` `>$` `<=$` `>=$`  not associative
+  `^`                                      left
+  `#`                                      right
+  `>>` `<<` `>>>` `<<<` `>>$`              left
+  `+` `-`                                  left
+  `*` `/` `%` `/$` `%$`                    left
+  `^^`                                     right
+  `!`  `!!`  `@` `@@`                      left
+  (unary) `-` `~`                          right
 
 Table: Operator precedences.
 
@@ -159,14 +163,17 @@ The type `Bit` has two inhabitants: `True` and `False`.  These values
 may be combined using various logical operators, or constructed as
 results of comparisons.
 
-Operator              Associativity       Description
---------------------- -------------       -----------
-  `||`                left                Logical or
-  `^`                 left                Exclusive-or
-  `&&`                left                Logical and
-  `!=` `==`           none                Not equals, equals
-  `>` `<` `<=` `>=`   none                Comparisons
-  `~`                 right               Logical negation
+Operator                                   Associativity       Description
+---------------------                      -------------       -----------
+ `==>`                                     right               Short-cut implication
+ `\/`                                      right               Short-cut or
+ `/\`                                      right               Short-cut and
+  `||`                                     right               Logical or
+  `&&`                                     right               Logical and
+  `!=` `==`                                none                Not equals, equals
+  `>` `<` `<=` `>=` `<$` `>$` `<=$` `>=$`  none                Comparisons
+  `^`                                      left                Exclusive-or
+  `~`                                      right               Logical negation
 
 Table: Bit operations.
 
@@ -276,6 +283,7 @@ Operator                       Description
   `#`                          Sequence concatenation
   `>>`  `<<`                   Shift (right,left)
   `>>>` `<<<`                  Rotate (right,left)
+  `>>$`                        Arithmetic right shift (on bitvectors only)
   `@` `!`                      Access elements (front,back)
   `@@` `!!`                    Access sub-sequence (front,back)
   `update` `updateEnd`         Update the value of a sequence at a location (front,back)
@@ -351,4 +359,3 @@ Type Synonym Declarations
 =========================
 
     type T a b = [a] b
-

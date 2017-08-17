@@ -99,6 +99,7 @@ data PC     = PEqual        -- ^ @_ == _@
             | PHas Selector -- ^ @Has sel type field@ does not appear in schemas
             | PArith        -- ^ @Arith _@
             | PCmp          -- ^ @Cmp _@
+            | PSignedCmp    -- ^ @SignedCmp _@
 
             | PAnd          -- ^ This is useful when simplifying things in place
             | PTrue         -- ^ Ditto
@@ -182,15 +183,16 @@ instance HasKind TC where
 instance HasKind PC where
   kindOf pc =
     case pc of
-      PEqual    -> KNum :-> KNum :-> KProp
-      PNeq      -> KNum :-> KNum :-> KProp
-      PGeq      -> KNum :-> KNum :-> KProp
-      PFin      -> KNum :-> KProp
-      PHas _    -> KType :-> KType :-> KProp
-      PArith    -> KType :-> KProp
-      PCmp      -> KType :-> KProp
-      PAnd      -> KProp :-> KProp :-> KProp
-      PTrue     -> KProp
+      PEqual     -> KNum :-> KNum :-> KProp
+      PNeq       -> KNum :-> KNum :-> KProp
+      PGeq       -> KNum :-> KNum :-> KProp
+      PFin       -> KNum :-> KProp
+      PHas _     -> KType :-> KType :-> KProp
+      PArith     -> KType :-> KProp
+      PCmp       -> KType :-> KProp
+      PSignedCmp -> KType :-> KProp
+      PAnd       -> KProp :-> KProp :-> KProp
+      PTrue      -> KProp
 
 instance HasKind TFun where
   kindOf tfun =
@@ -406,6 +408,11 @@ pIsCmp ty = case tNoUser ty of
               TCon (PC PCmp) [t1] -> Just t1
               _                   -> Nothing
 
+pIsSignedCmp :: Prop -> Maybe Type
+pIsSignedCmp ty = case tNoUser ty of
+                    TCon (PC PSignedCmp) [t1] -> Just t1
+                    _                         -> Nothing
+
 pIsTrue :: Prop -> Bool
 pIsTrue ty  = case tNoUser ty of
                 TCon (PC PTrue) _ -> True
@@ -548,6 +555,9 @@ pArith t = TCon (PC PArith) [t]
 
 pCmp :: Type -> Prop
 pCmp t = TCon (PC PCmp) [t]
+
+pSignedCmp :: Type -> Prop
+pSignedCmp t = TCon (PC PSignedCmp) [t]
 
 -- | Make a greater-than-or-equal-to constraint.
 (>==) :: Type -> Type -> Prop
@@ -715,6 +725,7 @@ instance PP (WithNames Type) where
 
           (PArith, [t1])      -> pp pc <+> go 4 t1
           (PCmp, [t1])        -> pp pc <+> go 4 t1
+          (PSignedCmp, [t1])  -> pp pc <+> go 4 t1
 
           (_, _)              -> pp pc <+> fsep (map (go 4) ts)
 
@@ -773,15 +784,16 @@ instance PP TCErrorMessage where
 instance PP PC where
   ppPrec _ x =
     case x of
-      PEqual    -> text "(==)"
-      PNeq      -> text "(/=)"
-      PGeq      -> text "(>=)"
-      PFin      -> text "fin"
-      PHas sel  -> parens (ppSelector sel)
-      PArith    -> text "Arith"
-      PCmp      -> text "Cmp"
-      PTrue     -> text "True"
-      PAnd      -> text "(&&)"
+      PEqual     -> text "(==)"
+      PNeq       -> text "(/=)"
+      PGeq       -> text "(>=)"
+      PFin       -> text "fin"
+      PHas sel   -> parens (ppSelector sel)
+      PArith     -> text "Arith"
+      PCmp       -> text "Cmp"
+      PSignedCmp -> text "SignedCmp"
+      PTrue      -> text "True"
+      PAnd       -> text "(&&)"
 
 instance PP TC where
   ppPrec _ x =
