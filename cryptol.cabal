@@ -75,7 +75,7 @@ library
                        mtl               >= 2.2.1,
                        time >= 1.6.0.1
 
-  Build-tools:         alex, happy
+  Build-tools:         alex, happy < 1.19.6
   hs-source-dirs:      src
 
   Exposed-modules:     Cryptol.Prims.Syntax,
