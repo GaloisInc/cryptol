@@ -13,7 +13,7 @@ module Main where
 
 import OptParser
 
-import Cryptol.REPL.Command (loadCmd,loadPrelude)
+import Cryptol.REPL.Command (loadCmd,loadPrelude,CommandExitCode(..))
 import Cryptol.REPL.Monad (REPL,updateREPLTitle,setUpdateREPLTitle,
                    io,prependSearchPath,setSearchPath)
 import qualified Cryptol.REPL.Monad as REPL
@@ -33,7 +33,7 @@ import System.Console.GetOpt
     (OptDescr(..),ArgOrder(..),ArgDescr(..),getOpt,usageInfo)
 import System.Directory (getTemporaryDirectory, removeFile)
 import System.Environment (getArgs, getProgName, lookupEnv)
-import System.Exit (exitFailure)
+import System.Exit (exitFailure,exitSuccess)
 import System.FilePath (searchPathSeparator, splitSearchPath, takeDirectory)
 import System.IO (hClose, hPutStr, openTempFile)
 
@@ -53,6 +53,7 @@ data Options = Options
   , optColorMode       :: ColorMode
   , optCryptolrc       :: Cryptolrc
   , optCryptolPathOnly :: Bool
+  , optStopOnError     :: Bool
   } deriving (Show)
 
 defaultOptions :: Options
@@ -65,12 +66,16 @@ defaultOptions  = Options
   , optColorMode       = AutoColor
   , optCryptolrc       = CryrcDefault
   , optCryptolPathOnly = False
+  , optStopOnError     = False
   }
 
 options :: [OptDescr (OptParser Options)]
 options  =
   [ Option "b" ["batch"] (ReqArg setBatchScript "FILE")
     "run the script provided and exit"
+
+  , Option "e" ["stop-on-error"] (NoArg setStopOnError)
+    "stop script execution as soon as an error occurs."
 
   , Option "c" ["command"] (ReqArg addCommand "COMMAND")
     (concat [ "run the given command and then exit; if multiple --command "
@@ -108,6 +113,10 @@ addFile path = modify $ \ opts -> opts { optLoad = [ path ] }
 addCommand :: String -> OptParser Options
 addCommand cmd =
   modify $ \ opts -> opts { optCommands = cmd : optCommands opts }
+
+-- | Stop script (batch mode) execution on first error.
+setStopOnError :: OptParser Options
+setStopOnError = modify $ \opts -> opts { optStopOnError = True }
 
 -- | Set a batch script to be run.
 setBatchScript :: String -> OptParser Options
@@ -197,12 +206,17 @@ main  = do
       | optVersion opts -> displayVersion
       | otherwise       -> do
           (opts', mCleanup) <- setupCmdScript opts
-          repl (optCryptolrc opts')
-               (optBatch opts')
-               (setupREPL opts')
+          status <- repl (optCryptolrc opts')
+                         (optBatch opts')
+                         (optStopOnError opts')
+                         (setupREPL opts')
           case mCleanup of
             Nothing -> return ()
             Just cmdFile -> removeFile cmdFile
+
+          case status of
+            CommandError -> exitFailure
+            CommandOk    -> exitSuccess
 
 setupCmdScript :: Options -> IO (Options, Maybe FilePath)
 setupCmdScript opts =
@@ -219,6 +233,17 @@ setupCmdScript opts =
 
 setupREPL :: Options -> REPL ()
 setupREPL opts = do
+  mCryptolPath <- io $ lookupEnv "CRYPTOLPATH"
+  case mCryptolPath of
+    Nothing -> return ()
+    Just path | optCryptolPathOnly opts -> setSearchPath path'
+              | otherwise               -> prependSearchPath path'
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+      -- Windows paths search from end to beginning
+      where path' = reverse (splitSearchPath path)
+#else
+      where path' = splitSearchPath path
+#endif
   smoke <- REPL.smokeTest
   case smoke of
     [] -> return ()
@@ -235,17 +260,6 @@ setupREPL opts = do
 
   setUpdateREPLTitle (shouldSetREPLTitle >>= \b -> when b setREPLTitle)
   updateREPLTitle
-  mCryptolPath <- io $ lookupEnv "CRYPTOLPATH"
-  case mCryptolPath of
-    Nothing -> return ()
-    Just path | optCryptolPathOnly opts -> setSearchPath path'
-              | otherwise               -> prependSearchPath path'
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-      -- Windows paths search from end to beginning
-      where path' = reverse (splitSearchPath path)
-#else
-      where path' = splitSearchPath path
-#endif
   case optBatch opts of
     Nothing -> return ()
     -- add the directory containing the batch file to the module search path

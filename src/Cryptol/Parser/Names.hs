@@ -264,6 +264,7 @@ tnamesC prop =
     CGeq t1 t2   -> Set.union (tnamesT t1) (tnamesT t2)
     CArith t     -> tnamesT t
     CCmp t       -> tnamesT t
+    CSignedCmp t -> tnamesT t
     CLocated p _ -> tnamesC p
     CType t      -> tnamesT t
 

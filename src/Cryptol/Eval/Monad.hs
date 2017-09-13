@@ -19,7 +19,7 @@ module Cryptol.Eval.Monad
 , delayFill
 , ready
 , blackhole
-  -- * Error repoprting
+  -- * Error reporting
 , EvalError(..)
 , evalPanic
 , typeCannotBeDemoted
@@ -44,7 +44,7 @@ import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
 import Cryptol.TypeCheck.AST(Type)
 
-
+-- | A computation that returns an already-evaluated value.
 ready :: a -> Eval a
 ready a = Ready a
 
@@ -61,7 +61,7 @@ data ThunkState a
 {-# INLINE delay #-}
 -- | Delay the given evaluation computation, returning a thunk
 --   which will run the computation when forced.  Raise a loop
---   error if the resulting thunk is forced during it's own evaluation.
+--   error if the resulting thunk is forced during its own evaluation.
 delay :: Maybe String     -- ^ Optional name to print if a loop is detected
       -> Eval a           -- ^ Computation to delay
       -> Eval (Eval a)
@@ -77,7 +77,7 @@ delay msg (Thunk x) = Thunk $ do
 -- | Delay the given evaluation computation, returning a thunk
 --   which will run the computation when forced.  Run the 'retry'
 --   computation instead if the resulting thunk is forced during
---   it's own evaluation.
+--   its own evaluation.
 delayFill :: Eval a        -- ^ Computation to delay
           -> Eval a        -- ^ Backup computation to run if a tight loop is detected
           -> Eval (Eval a)
@@ -86,11 +86,11 @@ delayFill (Thunk x) retry = Thunk $ do
   r <- newIORef Unforced
   return $ unDelay retry r x
 
--- | Produce a thunk value which can be filled with its associcated computation
+-- | Produce a thunk value which can be filled with its associated computation
 --   after the fact.  A preallocated thunk is returned, along with an operation to
 --   fill the thunk with the associated computation.
 --   This is used to implement recursive declaration groups.
-blackhole :: String -- ^ A name to associated with this thunk.
+blackhole :: String -- ^ A name to associate with this thunk.
           -> Eval (Eval a, Eval a -> Eval ())
 blackhole msg = do
   r <- io $ newIORef (fail msg)
@@ -149,6 +149,7 @@ instance NFData a => NFData (Eval a) where
 instance MonadFix Eval where
   mfix f = Thunk $ mfix (\x -> runEval (f x))
 
+-- | Lift an 'IO' computation into the 'Eval' monad.
 io :: IO a -> Eval a
 io = Thunk
 {-# INLINE io #-}
@@ -156,19 +157,19 @@ io = Thunk
 
 -- Errors ----------------------------------------------------------------------
 
--- | Panic from an Eval context.
+-- | Panic from an @Eval@ context.
 evalPanic :: String -> [String] -> a
 evalPanic cxt = panic ("[Eval] " ++ cxt)
 
 
--- | Data type describing errors that can occur during evaluation
+-- | Data type describing errors that can occur during evaluation.
 data EvalError
   = InvalidIndex Integer          -- ^ Out-of-bounds index
   | TypeCannotBeDemoted Type      -- ^ Non-numeric type passed to demote function
   | DivideByZero                  -- ^ Division or modulus by 0
   | NegativeExponent              -- ^ Exponentiation by negative integer
   | WordTooWide Integer           -- ^ Bitvector too large
-  | UserError String              -- ^ Call to the Cryptol 'error' primitive
+  | UserError String              -- ^ Call to the Cryptol @error@ primitive
   | LoopError String              -- ^ Detectable nontermination
     deriving (Typeable,Show)
 
@@ -185,29 +186,29 @@ instance PP EvalError where
 
 instance X.Exception EvalError
 
--- | For things like `(inf) or `(0-1)
+-- | For things like @`(inf)@ or @`(0-1)@.
 typeCannotBeDemoted :: Type -> a
 typeCannotBeDemoted t = X.throw (TypeCannotBeDemoted t)
 
 -- | For division by 0.
-divideByZero :: a
-divideByZero = X.throw DivideByZero
+divideByZero :: Eval a
+divideByZero = Thunk (X.throwIO DivideByZero)
 
 -- | For exponentiation by a negative integer.
-negativeExponent :: a
-negativeExponent = X.throw NegativeExponent
+negativeExponent :: Eval a
+negativeExponent = Thunk (X.throwIO NegativeExponent)
 
 -- | For when we know that a word is too wide and will exceed gmp's
 -- limits (though words approaching this size will probably cause the
--- system to crash anyway due to lack of memory)
+-- system to crash anyway due to lack of memory).
 wordTooWide :: Integer -> a
 wordTooWide w = X.throw (WordTooWide w)
 
--- | For `error`
+-- | For the Cryptol @error@ function.
 cryUserError :: String -> Eval a
 cryUserError msg = Thunk (X.throwIO (UserError msg))
 
--- | For cases where we can detect tight loops
+-- | For cases where we can detect tight loops.
 cryLoopError :: String -> Eval a
 cryLoopError msg = Thunk (X.throwIO (LoopError msg))
 

@@ -16,11 +16,11 @@ module Cryptol.TypeCheck.Sanity
 
 
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Subst(apSubst, fvs, singleSubst)
+import Cryptol.TypeCheck.Subst (apSubst, singleSubst)
 import Cryptol.Utils.Ident
 
 import qualified Data.Set as Set
-import Data.List(sort, sortBy)
+import Data.List (sort, sortBy)
 import Data.Function (on)
 import MonadLib
 import qualified Control.Applicative as A
@@ -258,7 +258,7 @@ exprSchema expr =
            [] -> return ()
            _  -> convertible (tSeq len t) (tSeq (foldr1 tMin ls) elT)
 
-         return (tMono t)
+         return (tMono (tSeq len t))
 
 
     EVar x -> lookupVar x
@@ -317,12 +317,6 @@ exprSchema expr =
            ([], _)    -> reportError BadProofNoAbs
            (_,_)      -> reportError (BadProofTyVars as)
 
-
-    ECast e t ->
-      do checkTypeIs KType t
-         t1 <- exprType e
-         convertible t t1
-         return (tMono t)
 
     -- XXX: Check that defined things are disitnct?
     EWhere e dgs ->
@@ -411,12 +405,11 @@ checkMatch ma =
     From x len elt e ->
       do checkTypeIs KNum len
          checkTypeIs KType elt
-         let t = tSeq len elt
          t1 <- exprType e
          case tNoUser t1 of
            TCon (TC TCSeq) [ l, el ]
-             | same t el -> return ((x, tMono t), l)
-             | otherwise -> reportError $ TypeMismatch (tMono t) (tMono el)
+             | same elt el -> return ((x, tMono elt), l)
+             | otherwise -> reportError $ TypeMismatch (tMono elt) (tMono el)
 
 
            _ -> reportError $ BadMatch t1
@@ -431,7 +424,7 @@ checkArm [m]  = do (x,l) <- checkMatch m
 checkArm (m : ms) =
   do (x, l)   <- checkMatch m
      (xs, l1) <- withVars [x] $ checkArm ms
-     let newLen = l .*. l1
+     let newLen = tMul l l1
      return $ if fst x `elem` map fst xs
                  then (xs, newLen)
                  else (x : xs, newLen)

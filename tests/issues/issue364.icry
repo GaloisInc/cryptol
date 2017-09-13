@@ -1,0 +1,5 @@
+:set prover-stats=off
+:l issue364.cry
+:check
+:exhaust
+:prove

@@ -131,7 +131,7 @@ data Decl name = DSignature [Located name] (Schema name)
                | DPatBind (Pattern name) (Expr name)
                | DType (TySyn name)
                | DLocated (Decl name) Range
-                 deriving (Eq, Show, Generic, NFData)
+                 deriving (Eq, Show, Generic, NFData, Functor)
 
 -- | An import declaration.
 data Import = Import { iModule    :: !ModName
@@ -149,7 +149,7 @@ data ImportSpec = Hiding [Ident]
                   deriving (Eq, Show, Generic, NFData)
 
 data TySyn n  = TySyn (Located n) [TParam n] (Type n)
-                deriving (Eq, Show, Generic, NFData)
+                deriving (Eq, Show, Generic, NFData, Functor)
 
 {- | Bindings.  Notes:
 
@@ -172,17 +172,17 @@ data Bind name = Bind { bName      :: Located name -- ^ Defined thing
                       , bPragmas   :: [Pragma]     -- ^ Optional pragmas
                       , bMono      :: Bool         -- ^ Is this a monomorphic binding
                       , bDoc       :: Maybe String -- ^ Optional doc string
-                      } deriving (Eq, Show, Generic, NFData)
+                      } deriving (Eq, Generic, NFData, Functor, Show)
 
 type LBindDef = Located (BindDef PName)
 
 data BindDef name = DPrim
                   | DExpr (Expr name)
-                    deriving (Eq, Show, Generic, NFData)
+                    deriving (Eq, Show, Generic, NFData, Functor)
 
 data Fixity   = Fixity { fAssoc :: !Assoc
                        , fLevel :: !Int
-                       } deriving (Eq, Show, Generic, NFData)
+                       } deriving (Eq, Generic, NFData, Show)
 
 data FixityCmp = FCError
                | FCLeft
@@ -293,11 +293,11 @@ data Expr n   = EVar n                          -- ^ @ x @
 
               | EParens (Expr n)                -- ^ @ (e)   @ (Removed by Fixity)
               | EInfix (Expr n) (Located n) Fixity (Expr n)-- ^ @ a + b @ (Removed by Fixity)
-                deriving (Eq, Show, Generic, NFData)
+                deriving (Eq, Show, Generic, NFData, Functor)
 
 data TypeInst name = NamedInst (Named (Type name))
                    | PosInst (Type name)
-                     deriving (Eq, Show, Generic, NFData)
+                     deriving (Eq, Show, Generic, NFData, Functor)
 
 {- | Selectors are used for projecting from various components.
 Each selector has an option spec to specify the shape of the thing
@@ -320,7 +320,7 @@ data Selector = TupleSel Int   (Maybe Int)
 
 data Match name = Match (Pattern name) (Expr name)              -- ^ p <- e
                 | MatchLet (Bind name)
-                  deriving (Eq, Show, Generic, NFData)
+                  deriving (Eq, Show, Generic, NFData, Functor)
 
 data Pattern n = PVar (Located n)              -- ^ @ x @
                | PWild                         -- ^ @ _ @
@@ -330,13 +330,13 @@ data Pattern n = PVar (Located n)              -- ^ @ x @
                | PTyped (Pattern n) (Type n)   -- ^ @ x : [8] @
                | PSplit (Pattern n) (Pattern n)-- ^ @ (x # y) @
                | PLocated (Pattern n) Range    -- ^ Location information
-                 deriving (Eq, Show, Generic, NFData)
+                 deriving (Eq, Show, Generic, NFData, Functor)
 
 data Named a = Named { name :: Located Ident, value :: a }
   deriving (Eq, Show, Foldable, Traversable, Generic, NFData, Functor)
 
 data Schema n = Forall [TParam n] [Prop n] (Type n) (Maybe Range)
-  deriving (Eq, Show, Generic, NFData)
+  deriving (Eq, Show, Generic, NFData, Functor)
 
 data Kind = KNum | KType
   deriving (Eq, Show, Generic, NFData)
@@ -345,7 +345,7 @@ data TParam n = TParam { tpName  :: n
                        , tpKind  :: Maybe Kind
                        , tpRange :: Maybe Range
                        }
-  deriving (Eq, Show, Generic, NFData)
+  deriving (Eq, Show, Generic, NFData, Functor)
 
 data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TSeq (Type n) (Type n)  -- ^ @[8] a@
@@ -362,7 +362,7 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TLocated (Type n) Range -- ^ Location information
             | TParens (Type n)        -- ^ @ (ty) @
             | TInfix (Type n) (Located n) Fixity (Type n) -- ^ @ ty + ty @
-              deriving (Eq, Show, Generic, NFData)
+              deriving (Eq, Show, Generic, NFData, Functor)
 
 tconNames :: Map.Map PName (Type PName)
 tconNames  = Map.fromList
@@ -376,9 +376,10 @@ data Prop n   = CFin (Type n)             -- ^ @ fin x   @
               | CGeq (Type n) (Type n)    -- ^ @ x >= 10 @
               | CArith (Type n)           -- ^ @ Arith a @
               | CCmp (Type n)             -- ^ @ Cmp a @
+              | CSignedCmp (Type n)       -- ^ @ SignedCmp a @
               | CLocated (Prop n) Range   -- ^ Location information
               | CType (Type n)            -- ^ After parsing
-                deriving (Eq, Show, Generic, NFData)
+                deriving (Eq, Show, Generic, NFData, Functor)
 
 --------------------------------------------------------------------------------
 -- Note: When an explicit location is missing, we could use the sub-components
@@ -827,6 +828,7 @@ instance PPName name => PP (Prop name) where
       CFin t       -> text "fin"   <+> ppPrec 4 t
       CArith t     -> text "Arith" <+> ppPrec 4 t
       CCmp t       -> text "Cmp"   <+> ppPrec 4 t
+      CSignedCmp t -> text "SignedCmp" <+> ppPrec 4 t
       CEqual t1 t2 -> ppPrec 2 t1 <+> text "==" <+> ppPrec 2 t2
       CGeq t1 t2   -> ppPrec 2 t1 <+> text ">=" <+> ppPrec 2 t2
       CLocated c _ -> ppPrec n c
@@ -902,7 +904,6 @@ instance NoPos (Bind name) where
 instance NoPos Pragma where
   noPos p@(PragmaNote {})   = p
   noPos p@(PragmaProperty)  = p
-
 
 
 
@@ -986,7 +987,6 @@ instance NoPos (Prop name) where
       CFin x        -> CFin (noPos x)
       CArith x      -> CArith (noPos x)
       CCmp x        -> CCmp   (noPos x)
+      CSignedCmp x  -> CSignedCmp (noPos x)
       CLocated c _  -> noPos c
       CType t       -> CType (noPos t)
-
-

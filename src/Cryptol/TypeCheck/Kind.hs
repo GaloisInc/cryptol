@@ -20,6 +20,7 @@ import           Cryptol.Parser.AST (Named(..))
 import           Cryptol.Parser.Position
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad hiding (withTParams)
+import           Cryptol.TypeCheck.SimpType(tRebuild)
 import           Cryptol.TypeCheck.Solve (simplifyAllConstraints
                                          ,wfTypeFunction)
 import           Cryptol.Utils.PP
@@ -42,7 +43,9 @@ checkSchema (P.Forall xs ps t mb) =
         do ps1 <- mapM checkProp ps
            t1  <- doCheckType t (Just KType)
            return (ps1,t1)
-     return (Forall xs1 ps1 t1, gs)
+     return ( Forall xs1 (map tRebuild ps1) (tRebuild t1)
+            , [ g { goal = tRebuild (goal g) } | g <- gs ]
+            )
 
   where
   rng = case mb of
@@ -59,8 +62,8 @@ checkTySyn (P.TySyn x as t) =
                          return r
      return TySyn { tsName   = thing x
                   , tsParams = as1
-                  , tsConstraints = map goal gs
-                  , tsDef = t1
+                  , tsConstraints = map (tRebuild . goal) gs
+                  , tsDef = tRebuild t1
                   }
 
 -- | Check a newtype declaration.
@@ -89,7 +92,7 @@ checkNewtype (P.Newtype x as fs) =
 checkType :: P.Type Name -> Maybe Kind -> InferM Type
 checkType t k =
   do (_, t1) <- withTParams True [] $ doCheckType t k
-     return t1
+     return (tRebuild t1)
 
 {- | Check something with type parameters.
 
@@ -122,10 +125,14 @@ There are two reasons for this choice:
 
 withTParams :: Bool -> [P.TParam Name] -> KindM a -> InferM ([TParam], a)
 withTParams allowWildCards xs m =
-  mdo mapM_ recordError duplicates
-      (a, vars) <- runKindM allowWildCards (zip' xs ts) m
-      (as, ts)  <- unzip `fmap` mapM (newTP vars) xs
-      return (as,a)
+  do (as,a,ctrs) <-
+        mdo mapM_ recordError duplicates
+            (a, vars,ctrs) <- runKindM allowWildCards (zip' xs ts) m
+            (as, ts)  <- unzip `fmap` mapM (newTP vars) xs
+            return (as,a,ctrs)
+     mapM_ (uncurry newGoals) ctrs
+     return (as,a)
+
   where
   getKind vs tp =
     case Map.lookup (P.tpName tp) vs of
@@ -311,6 +318,7 @@ checkProp prop =
     P.CGeq t1 t2    -> tcon (PC PGeq)           [t1,t2] (Just KProp)
     P.CArith t1     -> tcon (PC PArith)         [t1]    (Just KProp)
     P.CCmp t1       -> tcon (PC PCmp)           [t1]    (Just KProp)
+    P.CSignedCmp t1 -> tcon (PC PSignedCmp)     [t1]    (Just KProp)
     P.CLocated p r1 -> kInRange r1 (checkProp p)
     P.CType _       -> panic "checkProp" [ "Unexpected CType", show prop ]
 

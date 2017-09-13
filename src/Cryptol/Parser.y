@@ -516,7 +516,7 @@ pat                            :: { Pattern PName }
   : ipat ':' type                 { at ($1,$3) $ PTyped $1 $3 }
   | ipat                          { $1                        }
 
-ipat
+ipat                           :: { Pattern PName }
   : ipat '#' ipat                 { at ($1,$3) $ PSplit $1 $3 }
   | apat                          { $1                        }
 

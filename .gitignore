@@ -5,6 +5,8 @@
 cabal.sandbox.config
 dist
 results.xml
+dist-newstyle
+.stack-work
 
 # don't check in generated documentation
 #docs/CryptolPrims.pdf

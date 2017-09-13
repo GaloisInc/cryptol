@@ -25,7 +25,6 @@ module Cryptol.Eval.Value where
 import Data.Bits
 import Data.IORef
 import qualified Data.Sequence as Seq
-import qualified Data.Foldable as Fold
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import MonadLib
@@ -40,7 +39,7 @@ import Cryptol.Utils.Ident (Ident,mkIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 
-import Data.List(genericLength, genericIndex)
+import Data.List(genericLength, genericIndex, genericDrop)
 import qualified Data.Text as T
 import Numeric (showIntAtBase)
 
@@ -124,6 +123,15 @@ updateSeqMap :: SeqMap b w i -> Integer -> Eval (GenValue b w i) -> SeqMap b w i
 updateSeqMap (UpdateSeqMap m sm) i x = UpdateSeqMap (Map.insert i x m) sm
 updateSeqMap (IndexSeqMap f) i x = UpdateSeqMap (Map.singleton i x) f
 
+-- | Concatenate the first `n` values of the first sequence map onto the
+--   beginning of the second sequence map.
+concatSeqMap :: Integer -> SeqMap b w i -> SeqMap b w i -> SeqMap b w i
+concatSeqMap n x y =
+    IndexSeqMap $ \i ->
+       if i < n
+         then lookupSeqMap x i
+         else lookupSeqMap y (i-n)
+
 -- | Given a number `n` and a sequence map, return two new sequence maps:
 --   the first containing the values from `[0..n-1]` and the next containing
 --   the values from `n` onward.
@@ -132,6 +140,11 @@ splitSeqMap n xs = (hd,tl)
   where
   hd = xs
   tl = IndexSeqMap $ \i -> lookupSeqMap xs (i+n)
+
+-- | Drop the first @n@ elements of the given @SeqMap@.
+dropSeqMap :: Integer -> SeqMap b w i -> SeqMap b w i
+dropSeqMap 0 xs = xs
+dropSeqMap n xs = IndexSeqMap $ \i -> lookupSeqMap xs (i+n)
 
 -- | Given a sequence map, return a new sequence map that is memoized using
 --   a finite map memo table.
@@ -176,26 +189,79 @@ mapSeqMap f x =
 --   However, if we cannot be sure all the bits of the sequence
 --   will eventually be forced, we must instead rely on an explicit sequence of bits
 --   representation.
-data WordValue b w
-  = WordVal !w                    -- ^ Packed word representation for bit sequences.
-  | BitsVal !(Seq.Seq (Eval b))   -- ^ Sequence of thunks representing bits.
+data WordValue b w i
+  = WordVal !w                       -- ^ Packed word representation for bit sequences.
+  | BitsVal !Integer !(SeqMap b w i) -- ^ A bitvector sequence, represented as a
+                                     --   @SeqMap@ of bits.
  deriving (Generic, NFData)
 
+-- | An arbitrarily-chosen number of elements where we switch from a dense
+--   sequence representation of bit-level words to @SeqMap@ representation.
+largeBitSize :: Integer
+largeBitSize = 1 `shiftL` 16
+
 -- | Force a word value into packed word form
-asWordVal :: BitWord b w i => WordValue b w -> Eval w
-asWordVal (WordVal w)  = return w
-asWordVal (BitsVal bs) = packWord <$> sequence (Fold.toList bs)
+asWordVal :: BitWord b w i => WordValue b w i -> Eval w
+asWordVal (WordVal w)    = return w
+asWordVal (BitsVal n xs) = packWord <$> traverse (fromBit =<<) (enumerateSeqMap n xs)
 
 -- | Force a word value into a sequence of bits
-asBitsVal :: BitWord b w i => WordValue b w -> Seq.Seq (Eval b)
-asBitsVal (WordVal w)  = Seq.fromList $ map ready $ unpackWord w
-asBitsVal (BitsVal bs) = bs
+asBitsMap :: BitWord b w i => WordValue b w i -> SeqMap b w i
+asBitsMap (WordVal w)    = IndexSeqMap $ \i -> ready $ VBit $ wordBit w i
+asBitsMap (BitsVal _ xs) = xs
+
+-- | Turn a word value into a sequence of bits, forcing each bit.
+--   The sequence is returned in big-endian order.
+enumerateWordValue :: BitWord b w i => WordValue b w i -> Eval [b]
+enumerateWordValue (WordVal w)    = return $ unpackWord w
+enumerateWordValue (BitsVal n xs) = traverse (fromBit =<<) (enumerateSeqMap n xs)
+
+-- | Turn a word value into a sequence of bits, forcing each bit.
+--   The sequence is returned in reverse of the usual order, which is little-endian order.
+enumerateWordValueRev :: BitWord b w i => WordValue b w i -> Eval [b]
+enumerateWordValueRev (WordVal w)    = return $ reverse $ unpackWord w
+enumerateWordValueRev (BitsVal n xs) = traverse (fromBit =<<) (enumerateSeqMap n (reverseSeqMap n xs))
+
+-- | Compute the size of a word value
+wordValueSize :: BitWord b w i => WordValue b w i -> Integer
+wordValueSize (WordVal w)   = wordLen w
+wordValueSize (BitsVal n _) = n
+
+checkedSeqIndex :: Seq.Seq a -> Integer -> Eval a
+checkedSeqIndex xs i =
+  case Seq.viewl (Seq.drop (fromInteger i) xs) of
+    x Seq.:< _ -> return x
+    Seq.EmptyL -> invalidIndex i
+
+checkedIndex :: [a] -> Integer -> Eval a
+checkedIndex xs i =
+  case genericDrop i xs of
+    (x:_) -> return x
+    _     -> invalidIndex i
 
 -- | Select an individual bit from a word value
-indexWordValue :: BitWord b w i => WordValue b w -> Integer -> Eval b
-indexWordValue (WordVal w)  idx = return $ genericIndex (unpackWord w) idx
-indexWordValue (BitsVal bs) idx = Seq.index bs (fromInteger idx)
+indexWordValue :: BitWord b w i => WordValue b w i -> Integer -> Eval b
+indexWordValue (WordVal w) idx
+   | idx < wordLen w = return $ wordBit w idx
+   | otherwise = invalidIndex idx
+indexWordValue (BitsVal n xs) idx
+   | idx < n   = fromBit =<< lookupSeqMap xs idx
+   | otherwise = invalidIndex idx
 
+-- | Produce a new @WordValue@ from the one given by updating the @i@th bit with the
+--   given bit value.
+updateWordValue :: BitWord b w i => WordValue b w i -> Integer -> Eval b -> Eval (WordValue b w i)
+updateWordValue (WordVal w) idx (Ready b)
+   | idx < wordLen w = return $ WordVal $ wordUpdate w idx b
+   | otherwise = invalidIndex idx
+updateWordValue (WordVal w) idx b
+   | idx < wordLen w =
+        let bs = Seq.update (fromInteger idx) b $ Seq.fromList $ map ready $ unpackWord w
+         in return $ BitsVal (wordLen w) $ IndexSeqMap $ \i -> VBit <$> Seq.index bs (fromInteger i)
+   | otherwise = invalidIndex idx
+updateWordValue (BitsVal n xs) idx b
+   | idx < n = return $ BitsVal n $ updateSeqMap xs idx (VBit <$> b)
+   | otherwise = invalidIndex idx
 
 -- | Generic value type, parameterized by bit and word types.
 --
@@ -210,7 +276,7 @@ data GenValue b w i
   | VInteger !i                               -- ^ @ Integer @
   | VSeq !Integer !(SeqMap b w i)             -- ^ @ [n]a   @
                                               --   Invariant: VSeq is never a sequence of bits
-  | VWord !Integer !(Eval (WordValue b w))    -- ^ @ [n]Bit @
+  | VWord !Integer !(Eval (WordValue b w i))  -- ^ @ [n]Bit @
   | VStream !(SeqMap b w i)                   -- ^ @ [inf]a @
   | VFun (Eval (GenValue b w i) -> Eval (GenValue b w i)) -- ^ functions
   | VPoly (TValue -> Eval (GenValue b w i))   -- ^ polymorphic values (kind *)
@@ -219,9 +285,9 @@ data GenValue b w i
 
 
 -- | Force the evaluation of a word value
-forceWordValue :: WordValue b w -> Eval ()
-forceWordValue (WordVal _w)  = return ()
-forceWordValue (BitsVal bs) = mapM_ (\b -> const () <$> b) bs
+forceWordValue :: WordValue b w i -> Eval ()
+forceWordValue (WordVal _w)   = return ()
+forceWordValue (BitsVal n xs) = mapM_ (\x -> const () <$> x) (enumerateSeqMap n xs)
 
 -- | Force the evaluation of a value
 forceValue :: GenValue b w i -> Eval ()
@@ -299,7 +365,7 @@ ppValue opts = loop
     VPoly _            -> return $ text "<polymorphic value>"
     VNumPoly _         -> return $ text "<polymorphic value>"
 
-  ppWordVal :: WordValue b w -> Eval Doc
+  ppWordVal :: WordValue b w i -> Eval Doc
   ppWordVal w = ppWord opts <$> asWordVal w
 
   ppWordSeq :: Integer -> SeqMap b w i -> Eval Doc
@@ -382,6 +448,18 @@ class BitWord b w i | b -> w, w -> i, i -> b where
   integerLit :: Integer -- ^ Value
              -> i
 
+  -- | Extract the numbered bit from the word.
+  --
+  --   NOTE: this assumes that the sequence of bits is big-endian and finite, so the
+  --   bit numbered 0 is the most significant bit.
+  wordBit :: w -> Integer -> b
+
+  -- | Update the numbered bit in the word.
+  --
+  --   NOTE: this assumes that the sequence of bits is big-endian and finite, so the
+  --   bit numbered 0 is the most significant bit.
+  wordUpdate :: w -> Integer -> b -> w
+
   -- | Construct a word value from a finite sequence of bits.
   --   NOTE: this assumes that the sequence of bits is big-endian and finite, so the
   --   first element of the list will be the most significant bit.
@@ -463,6 +541,11 @@ mask w i | w >= Arch.maxBigIntWidth = wordTooWide w
 instance BitWord Bool BV Integer where
   wordLen (BV w _) = w
   wordAsChar (BV _ x) = Just $ integerToChar x
+
+  wordBit (BV w x) idx = testBit x (fromInteger (w - 1 - idx))
+
+  wordUpdate (BV w x) idx True  = BV w (setBit   x (fromInteger (w - 1 - idx)))
+  wordUpdate (BV w x) idx False = BV w (clearBit x (fromInteger (w - 1 - idx)))
 
   ppBit b | b         = text "True"
           | otherwise = text "False"
@@ -561,8 +644,7 @@ toSeq len elty vals = case len of
 mkSeq :: Nat' -> TValue -> SeqMap b w i -> GenValue b w i
 mkSeq len elty vals = case len of
   Nat n
-    | isTBit elty -> VWord n $ return $ BitsVal $ Seq.fromFunction (fromInteger n) $ \i ->
-                        fromVBit <$> lookupSeqMap vals (toInteger i)
+    | isTBit elty -> VWord n $ return $ BitsVal n vals
     | otherwise   -> VSeq n vals
   Inf             -> VStream vals
 
@@ -581,12 +663,6 @@ fromVInteger val = case val of
   VInteger i -> i
   _      -> evalPanic "fromVInteger" ["not an Integer"]
 
-bitsSeq :: BitWord b w i => WordValue b w -> Integer -> Eval b
-bitsSeq (WordVal w) =
-  let bs = unpackWord w
-   in \i -> return $ genericIndex bs i
-bitsSeq (BitsVal bs) = \i -> Seq.index bs (fromInteger i)
-
 -- | Extract a sequence.
 fromSeq :: forall b w i. BitWord b w i => String -> GenValue b w i -> Eval (SeqMap b w i)
 fromSeq msg val = case val of
@@ -599,7 +675,11 @@ fromStr (VSeq n vals) =
   traverse (\x -> toEnum . fromInteger <$> (fromWord "fromStr" =<< x)) (enumerateSeqMap n vals)
 fromStr _ = evalPanic "fromStr" ["Not a finite sequence"]
 
-fromWordVal :: String -> GenValue b w i -> Eval (WordValue b w)
+fromBit :: GenValue b w i -> Eval b
+fromBit (VBit b) = return b
+fromBit _ = evalPanic "fromBit" ["Not a bit value"]
+
+fromWordVal :: String -> GenValue b w i -> Eval (WordValue b w i)
 fromWordVal _msg (VWord _ wval) = wval
 fromWordVal msg _ = evalPanic "fromWordVal" ["not a word value", msg]
 

@@ -20,7 +20,6 @@ module Cryptol.TypeCheck.InferTypes where
 
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
-import           Cryptol.TypeCheck.TypeMap
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Utils.PP
@@ -28,7 +27,9 @@ import           Cryptol.ModuleSystem.Name (asPrim,nameLoc)
 import           Cryptol.TypeCheck.PP
 import           Cryptol.Utils.Ident (Ident,identText)
 import           Cryptol.Utils.Panic(panic)
+import           Cryptol.Utils.Misc(anyJust)
 
+import           Data.Set ( Set )
 import qualified Data.Set as Set
 import qualified Data.IntMap as IntMap
 
@@ -46,20 +47,24 @@ data SolverConfig = SolverConfig
 data VarType = ExtVar Schema      -- ^ Known type
              | CurSCC Expr Type   -- ^ Part of current SCC
 
-newtype Goals = Goals (TypeMap Goal)
+-- XXX: Temporary, until we figure out:
+--    1. How to apply substitutions with normalization to the type Map
+--    2. What are the strictness requirements
+--        (e.g., using Set results in a black hole)
+newtype Goals = Goals (Set Goal) -- Goals (TypeMap Goal)
                 deriving (Show)
 
 emptyGoals :: Goals
-emptyGoals  = Goals emptyTM
+emptyGoals  = Goals Set.empty -- emptyTM
 
 nullGoals :: Goals -> Bool
-nullGoals (Goals tm) = nullTM tm
+nullGoals (Goals tm) = Set.null tm -- nullTM tm
 
 fromGoals :: Goals -> [Goal]
-fromGoals (Goals tm) = membersTM tm
+fromGoals (Goals tm) = Set.toList tm -- membersTM tm
 
 insertGoal :: Goal -> Goals -> Goals
-insertGoal g (Goals tm) = Goals (insertTM (goal g) g tm)
+insertGoal g (Goals tm) = Goals (Set.insert g tm) -- (insertTM (goal g) g tm)
 
 -- | Something that we need to find evidence for.
 data Goal = Goal
@@ -67,6 +72,12 @@ data Goal = Goal
   , goalRange  :: Range             -- ^ Part of source code that caused goal
   , goal       :: Prop              -- ^ What needs to be proved
   } deriving (Show, Generic, NFData)
+
+instance Eq Goal where
+  x == y = goal x == goal y
+
+instance Ord Goal where
+  compare x y = compare (goal x) (goal y)
 
 data HasGoal = HasGoal
   { hasName :: !Int
@@ -80,11 +91,6 @@ data DelayedCt = DelayedCt
   , dctAsmps  :: [Prop]
   , dctGoals  :: [Goal]
   } deriving (Show, Generic, NFData)
-
-data Solved = Solved (Maybe Subst) [Goal] -- ^ Solved, assuming the sub-goals.
-            | Unsolved                    -- ^ We could not solve the goal.
-            | Unsolvable                  -- ^ The goal can never be solved.
-              deriving (Show)
 
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingWildType P.Kind
@@ -135,7 +141,7 @@ data Error    = ErrorMsg Doc
               | RecursiveType Type Type
                 -- ^ Unification results in a recursive type
 
-              | UnsolvedGoal Bool Goal
+              | UnsolvedGoals Bool [Goal]
                 -- ^ A constraint that we could not solve
                 -- The boolean indicates if we know that this constraint
                 -- is impossible.
@@ -240,7 +246,7 @@ instance TVars Error where
       MultipleTypeParamDefs {}  -> err
       TypeMismatch t1 t2        -> TypeMismatch (apSubst su t1) (apSubst su t2)
       RecursiveType t1 t2       -> RecursiveType (apSubst su t1) (apSubst su t2)
-      UnsolvedGoal x g          -> UnsolvedGoal x (apSubst su g)
+      UnsolvedGoals x gs        -> UnsolvedGoals x (apSubst su gs)
       UnsolvedDelayedCt g       -> UnsolvedDelayedCt (apSubst su g)
       UnexpectedTypeWildCard    -> err
       TypeVariableEscaped t xs  -> TypeVariableEscaped (apSubst su t) xs
@@ -267,7 +273,7 @@ instance FVS Error where
       MultipleTypeParamDefs {}  -> Set.empty
       TypeMismatch t1 t2        -> fvs (t1,t2)
       RecursiveType t1 t2       -> fvs (t1,t2)
-      UnsolvedGoal _ g          -> fvs g
+      UnsolvedGoals _ gs        -> fvs gs
       UnsolvedDelayedCt g       -> fvs g
       UnexpectedTypeWildCard    -> Set.empty
       TypeVariableEscaped t _   -> fvs t
@@ -289,6 +295,18 @@ instance FVS DelayedCt where
 -- values that remain, as applying the substitution to the keys will only ever
 -- reduce the number of values that remain.
 instance TVars Goals where
+  apSubst su (Goals gs) = case anyJust apG (Set.toList gs) of
+                            Nothing -> Goals gs
+                            Just gs1 -> Goals $ Set.fromList
+                                              $ concatMap norm gs1
+    where
+    norm g = [ g { goal = p } | p <- pSplitAnd (goal g) ]
+    apG g  = mk g <$> apSubstMaybe su (goal g)
+    mk g p = g { goal = p }
+
+{-
+  apSubst su (Goals gs) = Goals (Set.fromList . mapAp
+
   apSubst su (Goals goals) =
     Goals (mapWithKeyTM setGoal (apSubstTypeMapKeys su goals))
     where
@@ -298,6 +316,7 @@ instance TVars Goals where
     setGoal key g = g { goalSource = apSubst su (goalSource g)
                       , goal       = key
                       }
+-}
 
 instance TVars Goal where
   apSubst su g = Goal { goalSource = apSubst su (goalSource g)
@@ -445,8 +464,9 @@ instance PP (WithNames Error) where
            text "Inferred type:" <+> ppWithNames names t2 $$
            mismatchHint t1 t2)
 
-      UnsolvedGoal imp g ->
-        nested (word <+> text "constraint:") (ppWithNames names g)
+      UnsolvedGoals imp gs ->
+        nested (word <+> text "constraints:")
+               $ vcat $ map (ppWithNames names) gs
         where word = if imp then text "Unsolvable" else text "Unsolved"
 
       UnsolvedDelayedCt g ->
@@ -559,10 +579,4 @@ instance PP (WithNames DelayedCt) where
     ns1 = addTNames (dctForall d) names
 
 
-instance PP Solved where
-  ppPrec _ res =
-    case res of
-      Solved mb gs  -> text "solved" $$ nest 2 (suDoc $$ vcat (map (pp . goal) gs))
-        where suDoc = maybe empty pp mb
-      Unsolved      -> text "unsolved"
-      Unsolvable    -> text "unsolvable"
+

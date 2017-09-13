@@ -99,8 +99,6 @@ specializeExpr expr =
     EAbs qn t e   -> EAbs qn t <$> specializeExpr e
     EProofAbs p e -> EProofAbs p <$> specializeExpr e
     EProofApp {}  -> specializeConst expr
-    ECast e t     -> ECast <$> specializeExpr e <*> pure t
-    -- TODO: if typeOf e == t, then drop the coercion.
     EWhere e dgs  -> specializeEWhere e dgs
 
 specializeMatch :: Match -> SpecM Match

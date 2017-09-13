@@ -21,12 +21,12 @@ infixr 15 /\
 infixr 20 ||
 infixr 25 &&
 infix  30 ==, ===, !=, !==
-infix  40 >, >=, <, <=
+infix  40 >, >=, <, <=, <$, >$, <=$, >=$
 infixl 50 ^
 infixr 60 #
-infixl 70 <<, <<<, >>, >>>
+infixl 70 <<, <<<, >>, >>>, >>$
 infixl 80 +, -
-infixl 90 *, /, %
+infixl 90 *, /, %, /$, %$
 infixr 95 ^^
 infixl 100 @, @@, !, !!
 
@@ -102,33 +102,36 @@ primitive False : Bit
 primitive negate : {a} (Arith a) => a -> a
 
 /**
- * Binary complement.
+ * Bitwise complement. The prefix notation '~ x'
+ * is syntactic sugar for 'complement x'.
  */
 primitive complement : {a} a -> a
 
 /**
- * Operator form of 'complement'.
- */
-(~) : {a} a -> a
-(~) = complement
-
-/**
  * Less-than. Only works on comparable arguments.
+ *
+ * Bitvectors are compared using unsigned arithmetic.
  */
 primitive (<) : {a} (Cmp a) => a -> a -> Bit
 
 /**
  * Greater-than of two comparable arguments.
+ *
+ * Bitvectors are compared using unsigned arithmetic.
  */
 primitive (>) : {a} (Cmp a) => a -> a -> Bit
 
 /**
  * Less-than or equal of two comparable arguments.
+ *
+ * Bitvectors are compared using unsigned arithmetic.
  */
 primitive (<=) : {a} (Cmp a) => a -> a -> Bit
 
 /**
  * Greater-than or equal of two comparable arguments.
+ *
+ * Bitvectors are compared using unsigned arithmetic.
  */
 primitive (>=) : {a} (Cmp a) => a -> a -> Bit
 
@@ -143,28 +146,96 @@ primitive (==) : {a} (Cmp a) => a -> a -> Bit
 primitive (!=) : {a} (Cmp a) => a -> a -> Bit
 
 /**
- * Compare the outputs of two functions for equality
+ * Compare the outputs of two functions for equality.
  */
 (===) : {a,b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
 f === g = \ x -> f x == g x
 
 /**
- * Compare the outputs of two functions for inequality
+ * Compare the outputs of two functions for inequality.
  */
 (!==) : {a,b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
 f !== g = \x -> f x != g x
 
 /**
  * Returns the smaller of two comparable arguments.
+ * Bitvectors are compared using unsigned arithmetic.
  */
 min : {a} (Cmp a) => a -> a -> a
 min x y = if x < y then x else y
 
 /**
  * Returns the greater of two comparable arguments.
+ * Bitvectors are compared using unsigned arithmetic.
  */
 max : {a} (Cmp a) => a -> a -> a
 max x y = if x > y then x else y
+
+
+/**
+ * 2's complement signed less-than.
+ */
+primitive (<$) : {a} (SignedCmp a) => a -> a -> Bit
+
+/**
+ * 2's complement signed greater-than.
+ */
+(>$) : {a} (SignedCmp a) => a -> a -> Bit
+x >$ y = y <$ x
+
+/**
+ * 2's complement signed less-than-or-equal.
+ */
+(<=$) : {a} (SignedCmp a) => a -> a -> Bit
+x <=$ y = ~(y <$ x)
+
+/**
+ * 2's complement signed greater-than-or-equal.
+ */
+(>=$) : {a} (SignedCmp a) => a -> a -> Bit
+x >=$ y = ~(x <$ y)
+
+/**
+ * 2's complement signed division.  Division rounds toward 0.
+ */
+primitive (/$) : {a} (Arith a) => a -> a -> a
+
+/**
+ * 2's complement signed remainder.  Division rounds toward 0.
+ */
+primitive (%$) : {a} (Arith a) => a -> a -> a
+
+/**
+ * Unsigned carry.  Returns true if the unsigned addition of the given
+ * bitvector arguments would result in an unsigned overflow.
+ */
+primitive carry : {n} (fin n) => [n] -> [n] -> Bit
+
+/**
+ * Signed carry.  Returns true if the 2's complement signed addition of the
+ * given bitvector arguments would result in a signed overflow.
+ */
+primitive scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+
+/**
+ * Signed borrow.  Returns true if the 2's complement signed subtraction of the
+ * given bitvector arguments would result in a signed overflow.
+ */
+sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+sborrow x y = ( x <$ (x-y) ) ^ y@0
+
+/**
+ * Zero extension of a bitvector.
+ */
+zext : {n, m} (fin m, m >= n) => [n] -> [m]
+zext x = zero # x
+
+/**
+ * Sign extension of a bitvector.
+ */
+sext : {n, m} (fin m, m >= n, n >= 1) => [n] -> [m]
+sext x = newbits # x
+  where newbits = if x@0 then ~zero else zero
 
 /**
  * Short-cutting boolean conjuction function.
@@ -244,6 +315,16 @@ primitive (<<<) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
  * the number of positions to rotate by.
  */
 primitive (>>>) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
+
+/**
+ * 2's complement signed (arithmetic) right shift.  The first argument
+ * is the sequence to shift (considered as a signed value),
+ * the second argument is the number of positions to shift
+ * by (considered as an unsigned value).
+ */
+primitive (>>$) : {n, k} (fin n, n >= 1, fin k) => [n] -> [k] -> [n]
+
+
 
 primitive (#) : {front, back, a} (fin front) => [front]a -> [back]a
                                              -> [front + back] a
@@ -354,22 +435,47 @@ updatesEnd xs0 idxs vals = xss!0
          | b   <- vals
          ]
 
-
+/**
+ * A finite arithmetic sequence starting with 'first' and 'next',
+ * stopping when the values would wrap around modulo '2^^bits'.
+ *
+ * '[a,b..]' is syntactic sugar for 'fromThen`{first=a,next=b}'.
+ */
 primitive fromThen : {first, next, bits, len}
                      ( fin first, fin next, fin bits
                      , bits >= width first, bits >= width next
                      , lengthFromThen first next bits == len) => [len][bits]
 
+/**
+ * A finite sequence counting up from 'first' to 'last'.
+ *
+ * '[a..b]' is syntactic sugar for 'fromTo`{first=a,last=b}'.
+ * '[a..]' is syntactic sugar for 'fromTo`{first=a,last=(2^^bits)-1}'.
+ */
 primitive fromTo : {first, last, bits} (fin last, fin bits, last >= first,
                               bits >= width last) => [1 + (last - first)][bits]
 
+/**
+ * A finite arithmetic sequence starting with 'first' and 'next',
+ * stopping when the values reach or would skip over 'last'.
+ *
+ * '[a,b..c]' is syntactic sugar for 'fromThenTo`{first=a,next=b,last=c}'.
+ */
 primitive fromThenTo : {first, next, last, bits, len} (fin first, fin next,
                         fin last, fin bits, bits >= width first,
                         bits >= width next, bits >= width last,
                         lengthFromThenTo first next last == len) => [len][bits]
 
+/**
+ * An infinite sequence counting up from the given starting value.
+ * '[x...]' is syntactic sugar for 'infFrom x'.
+ */
 primitive infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
 
+/**
+ * An infinite arithmetic sequence starting with the given two values.
+ * '[x,y...]' is syntactic sugar for 'infFromThen x y'.
+ */
 primitive infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
 
 primitive error : {at, len} (fin len) => [len][8] -> at
@@ -435,7 +541,7 @@ type lg2 n = width (max n 1 - 1)
  * which are unspecified.  Thus, the output produced by this
  * operation may be difficult to predict.
  */
-primitive trace : {n, a, b} [n][8] -> a -> b -> b
+primitive trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
 
 /**
  * Debugging function for tracing values.  The first argument is a string,
@@ -448,5 +554,5 @@ primitive trace : {n, a, b} [n][8] -> a -> b -> b
  * which are unspecified.  Thus, the output produced by this
  * operation may be difficult to predict.
  */
-traceVal : {n, a} [n][8] -> a -> a
+traceVal : {n, a} (fin n) => [n][8] -> a -> a
 traceVal msg x = trace msg x x

@@ -1,0 +1,6 @@
+:eval [True, 0b0 == 1/0] @ 0b0
+[True, 0b0 == 1/0] @ 0b0
+:eval [True, 0b0 == pdiv 0b1 0b0] @ 0b0
+[True, 0b0 == pdiv 0b1 0b0] @ 0b0
+:eval [True, 0b0 == pmod 0b1 0b00] @ 0b0
+[True, 0b0 == pmod 0b1 0b00] @ 0b0

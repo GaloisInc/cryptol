@@ -39,13 +39,15 @@ SMix B = join (Xs ! 0)
 // SCrypt paper, page 11: MFCrypt specialized to sha256 (see the 'pbkdf2' function)
 // p = 1
 MFcrypt : { pwBytes, saltBytes, dkLen, r, N }
-          ( 4*r >= 1
-          , 16 >= width (4*r)
-          , ((dkLen*8 + 255) / 256) >= 1
-          , 32 >= width (8*pwBytes)
+          ( fin dkLen
+          , 4*r >= 1
+          , 8 * dkLen >= 1
+          , 64 >= width (8 * pwBytes)
           , 32 >= width (4 + saltBytes)
-          , 16 >= width ((255 + 8 * dkLen) / 256)
-          , N >= 1, 512 >= width N, 1+width N >= width (N-1)
+          ,  512 >= width N, 1+width N >= width (N-1)
+          , 32 >= width ((255 + 8 * dkLen) / 256)
+          , 32 >= width (4 + 128 * r)
+          , N >= 1
           )
         => [pwBytes][8] -> [saltBytes][8] -> [dkLen][8]
 MFcrypt P S = split DK
@@ -55,13 +57,14 @@ MFcrypt P S = split DK
   DK = pbkdf2 `{dkLenBits=dkLen*8, C=1} P (split B')
 
 SCrypt : {pwBytes, saltBytes, dkBytes, r, N}
-         ( 4*r >= 1, 16 >= width (4*r)
-         , (dkBytes * 8 + 255) / 256 >= 1
-         , 16 >= width ((255 + 8 * dkBytes) / 256)
-         , 8 * dkBytes == 256 * ((255 + 8 * dkBytes) / 256)
-         , 32 >= width (8 * pwBytes)
-         , 32 >= width (4 * saltBytes)
-         , N >= 1, 512 >= width N, 1+width N >= width (N-1)
+         ( fin dkBytes, 4*r >= 1
+         , 8 * dkBytes >= 1
+         , 32 >= width ((255 + 8 * dkBytes) / 256)
+         , 64 >= width (8 * pwBytes)
+         , 512 >= width N, 1+width N >= width (N-1)
+         , 32 >= width (4 + saltBytes)
+         , 32 >= width (4 + 128 * r)
+         , N >= 1
          )
       => [pwBytes][8] -> [saltBytes][8] -> [dkBytes][8]
 SCrypt P S = MFcrypt `{r=r,N=N} P S

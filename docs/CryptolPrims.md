@@ -16,9 +16,25 @@ Comparisons and Ordering
 
     instance Cmp Bit
     // No instance for functions.
-    instance (Cmp a, fin n) => Cmp [n] a
+    instance (Cmp a, fin n) => Cmp [n]a
     instance (Cmp a, Cmp b) => Cmp (a,b)
     instance (Cmp a, Cmp b) => Cmp { x : a, y : b }
+
+Signed Comparisons
+---------------------
+
+    (<$) : {a} (SignedCmp a) => a -> a -> Bit
+    (>$) : {a} (SignedCmp a) => a -> a -> Bit
+    (<=$) : {a} (SignedCmp a) => a -> a -> Bit
+    (>=$) : {a} (SignedCmp a) => a -> a -> Bit
+
+    // No instance for Bit
+    // No instance for functions.
+    instance (fin n, n >= 1)            => SignedCmp [n]
+    instance (SignedCmp a, fin n)       => SignedCmp [n]a
+            // (for [n]a, where a is other than Bit)
+    instance (SignedCmp a, SignedCmp b) => SignedCmp (a,b)
+    instance (SignedCmp a, SignedCmp b) => SignedCmp { x : a, y : b }
 
 
 Arithmetic
@@ -30,6 +46,8 @@ Arithmetic
     (/)    : {a} (Arith a) => a -> a -> a
     (%)    : {a} (Arith a) => a -> a -> a
     (^^)   : {a} (Arith a) => a -> a -> a
+    (/$)   : {a} (Arith a) => a -> a -> a
+    (%$)   : {a} (Arith a) => a -> a -> a
 
     // No instance for `Bit`.
     instance (fin n)            => Arith ( [n] Bit)
@@ -52,6 +70,10 @@ Boolean
     (||)  : a -> a -> a
     (^)   : a -> a -> a
     (~)   : a -> a
+
+    (==>) : Bit -> Bit -> Bit
+    (/\)  : Bit -> Bit -> Bit
+    (\/)  : Bit -> Bit -> Bit
 
 Sequences
 ---------
@@ -98,6 +120,8 @@ New types:
     (<<<)  : {n,a,m} (fin n) => [n]a -> [m] -> [n]a
     (>>>)  : {n,a,m} (fin n) => [n]a -> [m] -> [n]a
 
+    // Arithmetic shift only for bitvectors
+    (>>$)  : {n, k} (fin n, n >= 1, fin k) => [n] -> [k] -> [n]
 
 Random Values
 -------------
@@ -109,5 +133,6 @@ Debugging
 
      undefined   : {a} a
      error       : {n a} [n][8] -> a
-     trace : {n, a, b} [n][8] -> a -> b -> b
-     traceVal : {n, a} [n][8] -> a -> a
+     trace       : {n, a, b} (fin n) => [n][8] -> a -> b -> b
+     traceVal    : {n, a} (fin n) => [n][8] -> a -> a
+ 

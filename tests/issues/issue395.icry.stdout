@@ -1,0 +1,19 @@
+Loading module Cryptol
+(join (zero : [inf][0])) : [0]
+0x0
+True
+[]
+(join (zero : [1000][0])) : [0]
+0x0
+True
+[]
+Q.E.D.
+(join (zero : [inf][0][32])) : [0][32]
+[]
+True
+[]
+(join (zero : [1000][0][32])) : [0][32]
+[]
+True
+[]
+Q.E.D.

@@ -111,7 +111,7 @@ endif
 
 CRYPTOL_SRC := \
   $(shell find src cryptol cryptol-server bench \
-            \( -name \*.hs -or -name \*.x -or -name \*.y \) \
+            \( -name \*.hs -or -name \*.lhs -or -name \*.x -or -name \*.y \) \
             -and \( -not -name \*\#\* \) -print) \
   $(shell find lib -name \*.cry) \
   ${GIT_INFO_FILES}

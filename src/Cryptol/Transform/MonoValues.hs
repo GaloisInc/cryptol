@@ -195,7 +195,6 @@ rewE rews = go
 
       EProofAbs x e   -> EProofAbs x <$> go e
 
-      ECast e t       -> ECast       <$> go e <*> return t
       EWhere e dgs    -> EWhere      <$> go e <*> inLocal
                                                   (mapM (rewDeclGroup rews) dgs)
 

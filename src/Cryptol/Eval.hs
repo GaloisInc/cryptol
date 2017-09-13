@@ -37,7 +37,6 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
 import           Control.Monad
-import qualified Data.Sequence as Seq
 import           Data.List
 import           Data.Maybe
 import qualified Data.Map.Strict as Map
@@ -74,8 +73,8 @@ evalExpr env expr = case expr of
     | isTBit tyv -> {-# SCC "evalExpr->Elist/bit" #-}
         return $ VWord len $ return $
           case tryFromBits vs of
-            Just w  -> WordVal w
-            Nothing -> BitsVal $ Seq.fromList $ map (fromVBit <$>) vs
+            Just w | len < largeBitSize -> WordVal w
+            _ -> BitsVal len $ IndexSeqMap $ \i -> genericIndex vs i
     | otherwise -> {-# SCC "evalExpr->EList" #-}
         return $ VSeq len $ finiteSeqMap vs
    where
@@ -146,8 +145,6 @@ evalExpr env expr = case expr of
   EProofAbs _ e -> evalExpr env e
   EProofApp e   -> evalExpr env e
 
-  ECast e _ty -> evalExpr env e
-
   EWhere e ds -> {-# SCC "evalExpr->EWhere" #-} do
      env' <- evalDecls ds env
      evalExpr env' e
@@ -205,7 +202,7 @@ evalDeclGroup env dg = do
       env'' <- foldM (evalDecl env') env ds
 
       -- now backfill the holes we declared earlier using the definitions
-      -- calculcated in the previous step
+      -- calculated in the previous step
       mapM_ (fillHole env'') holes
 
       -- return the map containing the holes
@@ -221,9 +218,9 @@ evalDeclGroup env dg = do
 --
 --   In order to faithfully evaluate the nonstrict semantics of Cryptol, we have to take some
 --   care in this process.  In particular, we need to ensure that every recursive definition
---   binding is indistinguishable from it's eta-expanded form.  The straightforward solution
+--   binding is indistinguishable from its eta-expanded form.  The straightforward solution
 --   to this is to force an eta-expansion procedure on all recursive definitions.
---   However, for the so-called 'Value' types we can instead optimisticly use the 'delayFill'
+--   However, for the so-called 'Value' types we can instead optimistically use the 'delayFill'
 --   operation and only fall back on full eta expansion if the thunk is double-forced.
 fillHole :: BitWord b w i
          => GenEvalEnv b w i
@@ -259,14 +256,15 @@ isValueType _ _ = False
 etaWord  :: BitWord b w i
          => Integer
          -> Eval (GenValue b w i)
-         -> Eval (WordValue b w)
+         -> Eval (WordValue b w i)
 etaWord n x = do
   w <- delay Nothing (fromWordVal "during eta-expansion" =<< x)
-  return $ BitsVal $ Seq.fromFunction (fromInteger n) $ \i ->
-    do w' <- w; indexWordValue w' (toInteger i)
+  return $ BitsVal n $ IndexSeqMap $ \i ->
+    do w' <- w
+       VBit <$> indexWordValue w' (toInteger i)
 
 
--- | Given a simulator value and it's type, fully eta-expand the value.  This
+-- | Given a simulator value and its type, fully eta-expand the value.  This
 --   is a type-directed pass that always produces a canonical value of the
 --   expected shape.  Eta expansion of values is sometimes necessary to ensure
 --   the correct evaluation semantics of recursive definitions.  Otherwise,
@@ -299,7 +297,7 @@ etaDelay msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
         -> return $ VSeq n $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
 
       VStream xs
-        | TVSeq _nt el <- tp
+        | TVStream el <- tp
         -> return $ VStream $ IndexSeqMap $ \i -> go el (lookupSeqMap xs i)
 
       VTuple xs
@@ -380,7 +378,7 @@ declHole d =
 --   Two input environments are given: the first is an environment
 --   to use when evaluating the body of the declaration; the second
 --   is the environment to extend.  There are two environments to
---   handle the subtle name-binding issues that arise from recurisve
+--   handle the subtle name-binding issues that arise from recursive
 --   definitions.  The 'read only' environment is used to bring recursive
 --   names into scope while we are still defining them.
 evalDecl :: EvalPrims b w i

@@ -1,0 +1,28 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+property x_eval Using exhaustive testing.
+testing...passed 1 tests.
+Q.E.D.
+property x_distinct Using exhaustive testing.
+testing...passed 1 tests.
+Q.E.D.
+property moderately_bogus_property Using random testing.
+testing...passed 100 tests.
+Coverage: 39.06% (100 of 256 values)
+property x_eval Using exhaustive testing.
+testing...passed 1 tests.
+Q.E.D.
+property x_distinct Using exhaustive testing.
+testing...passed 1 tests.
+Q.E.D.
+property moderately_bogus_property Using exhaustive testing.
+testing...passed 256 tests.
+Q.E.D.
+:prove x_eval
+	Q.E.D.
+:prove x_distinct
+	Q.E.D.
+:prove moderately_bogus_property
+	
+Run-time error: cannot evaluate 'random' with symbolic inputs

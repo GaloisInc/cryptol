@@ -19,14 +19,15 @@ import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Parser.Names as P
-import           Cryptol.TypeCheck.AST
+import           Cryptol.TypeCheck.AST hiding (tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Solve
+import           Cryptol.TypeCheck.SimpType(tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                           checkNewtype)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
-import           Cryptol.TypeCheck.Subst (listSubst,apSubst,fvs,(@@))
+import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),emptySubst)
 import           Cryptol.TypeCheck.Solver.InfNat(genLog)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
@@ -107,7 +108,8 @@ appTys expr ts tGoal =
            ExtVar s   -> instantiateWith (EVar x) s ts
            CurSCC e t -> instantiateWith e (Forall [] [] t) ts
 
-         checkHasType e' t tGoal
+         checkHasType t tGoal
+         return e'
 
     P.ELit l -> do e <- desugarLiteral False l
                    appTys e ts tGoal
@@ -146,7 +148,8 @@ appTys expr ts tGoal =
                   (ie,t) <- instantiateWith e' (Forall [] [] tGoal) ts
                   -- XXX seems weird to need to do this, as t should be the same
                   -- as tGoal
-                  checkHasType ie t tGoal
+                  checkHasType t tGoal
+                  return ie
 
 
 inferTyParam :: P.TypeInst Name -> InferM (Located (Maybe Ident, Type))
@@ -185,7 +188,8 @@ checkE expr tGoal =
            ExtVar s   -> instantiateWith (EVar x) s []
            CurSCC e t -> return (e, t)
 
-         checkHasType e' t tGoal
+         checkHasType t tGoal
+         return e'
 
     P.ELit l -> (`checkE` tGoal) =<< desugarLiteral False l
 
@@ -223,8 +227,8 @@ checkE expr tGoal =
       do rng <- curRange
          bit <- newType (text "bit-width of enumeration sequnce") KNum
          fstT <- checkTypeOfKind t1 KNum
-         let totLen = tNum (2::Int) .^. bit
-             lstT   = totLen .-. tNum (1::Int)
+         let totLen = tExp (tNum (2::Int)) bit
+             lstT   = tSub totLen (tNum (1::Int))
 
          fromToPrim <- mkPrim "fromTo"
          appTys fromToPrim
@@ -307,7 +311,8 @@ checkE expr tGoal =
     P.ETyped e t ->
       do tSig <- checkTypeOfKind t KType
          e'   <- checkE e tSig
-         checkHasType e' tSig tGoal
+         checkHasType tSig tGoal
+         return e'
 
     P.ETypeVal t ->
       do l <- curRange
@@ -454,12 +459,12 @@ expectFun  = go []
                       newType (text "argument" <+> ordinal ix) KType
 
 
-checkHasType :: Expr -> Type -> Type -> InferM Expr
-checkHasType e inferredType givenType =
+checkHasType :: Type -> Type -> InferM ()
+checkHasType inferredType givenType =
   do ps <- unify givenType inferredType
      case ps of
-       [] -> return e
-       _  -> newGoals CtExactType ps >> return (ECast e givenType)
+       [] -> return ()
+       _  -> newGoals CtExactType ps
 
 
 checkFun :: Doc -> [P.Pattern Name] -> P.Expr Name -> Type -> InferM Expr
@@ -491,7 +496,8 @@ checkP desc p tGoal =
   do (x, t) <- inferP desc p
      ps <- unify tGoal (thing t)
      let rng   = fromMaybe emptyRange $ getLoc p
-     let mkErr = recordError . UnsolvedGoal False . Goal (CtPattern desc) rng
+     let mkErr = recordError . UnsolvedGoals False . (:[])
+                                                   . Goal (CtPattern desc) rng
      mapM_ mkErr ps
      return (Located (srcRange t) x)
 
@@ -517,8 +523,8 @@ inferP desc pat =
 -- | Infer the type of one match in a list comprehension.
 inferMatch :: P.Match Name -> InferM (Match, Name, Located Type, Type)
 inferMatch (P.Match p e) =
-  do (x,t) <- inferP (text "XXX:MATCH") p
-     n     <- newType (text "sequence length of comprehension match") KNum
+  do (x,t) <- inferP (text "a value bound by a generator in a comprehension") p
+     n     <- newType (text "the length of a generator in a comprehension") KNum
      e'    <- checkE e (tSeq n (thing t))
      return (From x n (thing t) e', x, t, n)
 
@@ -552,7 +558,7 @@ inferCArm armNum (m : ms) =
      let src = text "length of" <+> ordinal armNum <+>
                                   text "arm of list comprehension"
      sz <- newType src KNum
-     newGoals CtComprehension [ sz =#= (n .*. n') ]
+     newGoals CtComprehension [ sz =#= tMul n n' ]
      return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, sz)
 
 -- | @inferBinds isTopLevel isRec binds@ performs inference for a
@@ -638,26 +644,6 @@ guessType exprMap b@(P.Bind { .. }) =
   where
   name = thing bName
 
--- | Try to evaluate the inferred type in a binding.
-simpBind :: Decl -> Decl
-simpBind d =
-  case dSignature d of
-    Forall as qs t ->
-      case simpTypeMaybe t of
-        Nothing -> d
-        Just t1 -> d { dSignature  = Forall as qs t1
-                     , dDefinition = case dDefinition d of
-                                       DPrim   -> DPrim
-                                       DExpr e -> DExpr (castUnder t1 e)
-                     }
-  where
-  -- Assumes the quantifiers match
-  castUnder t (ETAbs a e)     = ETAbs a (castUnder t e)
-  castUnder t (EProofAbs p e) = EProofAbs p (castUnder t e)
-  castUnder t e               = ECast e t
-
-
-
 
 
 -- | The inputs should be declarations with monomorphic types
@@ -676,10 +662,8 @@ generalize bs0 gs0 =
   do gs <- forM gs0 $ \g -> applySubst g
 
      -- XXX: Why would these bindings have signatures??
-     bs1 <- forM bs0 $ \b -> do s <- applySubst (dSignature b)
+     bs  <- forM bs0 $ \b -> do s <- applySubst (dSignature b)
                                 return b { dSignature = s }
-
-     let bs = map simpBind bs1
 
      let goalFVS g  = Set.filter isFreeTV $ fvs $ goal g
          inGoals    = Set.unions $ map goalFVS gs
@@ -703,7 +687,14 @@ generalize bs0 gs0 =
 
 
      solver <- getSolver
-     (as0,here1,defSu,ws) <- io $ improveByDefaultingWith solver maybeAmbig here0
+     (as0,here1,mb_defSu,ws) <- io $ improveByDefaultingWith solver maybeAmbig here0
+     defSu <- case mb_defSu of
+               Nothing -> do recordError $ UnsolvedGoals True here0
+                             return emptySubst
+               Just s  -> return s
+
+
+
      mapM_ recordWarning ws
      let here = map goal here1
 
@@ -724,7 +715,7 @@ generalize bs0 gs0 =
                     }
 
      addGoals later
-     return (map (simpBind . genB) bs)
+     return (map genB bs)
 
 
 
@@ -775,7 +766,8 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
   withTParams as $
   do (e1,cs0) <- collectGoals $
                 do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) e0 t0
-                   () <- simplifyAllConstraints  -- XXX: using `asmps` also...
+                   addGoals validSchema
+                   () <- simplifyAllConstraints  -- XXX: using `asmps` also?
                    return e1
      cs <- applySubst cs0
 
@@ -791,7 +783,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
 
      asmps1 <- applySubst asmps0
 
-     defSu1 <- proveImplication (thing (P.bName b)) as asmps1 (validSchema ++ now)
+     defSu1 <- proveImplication (thing (P.bName b)) as asmps1 now
      let later = apSubst defSu1 later0
          asmps = apSubst defSu1 asmps1
 
@@ -807,7 +799,12 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
                                 $ AmbiguousType [ thing (P.bName b) ]
 
         solver <- getSolver
-        (_,_,defSu2,ws) <- io $ improveByDefaultingWith solver maybeAmbig later
+        (_,_,mb_defSu2,ws) <-
+            io $ improveByDefaultingWith solver maybeAmbig later
+        defSu2 <- case mb_defSu2 of
+                   Nothing -> do recordError $ UnsolvedGoals True later
+                                 return emptySubst
+                   Just s -> return s
         mapM_ recordWarning ws
         extendSubst defSu2
 

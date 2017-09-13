@@ -13,6 +13,7 @@ module Cryptol.Eval.Type where
 
 import Cryptol.Eval.Monad
 import Cryptol.TypeCheck.AST
+import Cryptol.TypeCheck.PP(pp)
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Ident (Ident)
@@ -100,6 +101,8 @@ evalType env ty =
         _ -> evalPanic "evalType" ["not a value type", show ty]
     TCon (TF f) ts      -> Left $ evalTF f (map num ts)
     TCon (PC p) _       -> evalPanic "evalType" ["invalid predicate symbol", show p]
+    TCon (TError _ x) _ -> evalPanic "evalType"
+                                ["Lingering typer error", show (pp x)]
   where
     val = evalValType env
     num = evalNumType env

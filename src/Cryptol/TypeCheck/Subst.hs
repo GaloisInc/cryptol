@@ -23,9 +23,9 @@ module Cryptol.TypeCheck.Subst
   , apSubstMaybe
   , TVars(..)
   , apSubstTypeMapKeys
-  , substVars
   , substBinds
   , applySubstToVar
+  , substToList
   ) where
 
 import           Data.Maybe
@@ -38,6 +38,8 @@ import qualified Data.Set as Set
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.TypeMap
+import qualified Cryptol.TypeCheck.SimpType as Simp
+import qualified Cryptol.TypeCheck.SimpleSolver as Simp
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Misc(anyJust)
 
@@ -53,17 +55,17 @@ singleSubst :: TVar -> Type -> Subst
 singleSubst x t = S { suMap = Map.singleton x t, suDefaulting = False }
 
 (@@) :: Subst -> Subst -> Subst
-s2 @@ s1 | Map.null (suMap s2) =
-  if (suDefaulting s1 || not (suDefaulting s2)) then
-    s1
-  else
-    s1{ suDefaulting = True }
-s2 @@ s1 = S { suMap = Map.map (apSubst s2) (suMap s1) `Map.union` (suMap s2)
+s2 @@ s1
+  | Map.null (suMap s2) =
+    if suDefaulting s1 || not (suDefaulting s2) then
+      s1
+    else
+      s1{ suDefaulting = True }
+
+s2 @@ s1 = S { suMap = Map.map (apSubst s2) (suMap s1) `Map.union` suMap s2
              , suDefaulting = suDefaulting s1 || suDefaulting s2
              }
 
-substVars :: Subst -> Set TVar
-substVars su = fvs . Map.elems $ suMap su
 
 defaultingSubst :: Subst -> Subst
 defaultingSubst s = s { suDefaulting = True }
@@ -85,6 +87,11 @@ substBinds su
   | suDefaulting su = Set.empty
   | otherwise       = Map.keysSet $ suMap su
 
+substToList :: Subst -> [(TVar,Type)]
+substToList s
+  | suDefaulting s = panic "substToList" ["Defaulting substitution."]
+  | otherwise = Map.toList (suMap s)
+
 instance PP (WithNames Subst) where
   ppPrec _ (WithNames s mp)
     | null els  = text "(empty substitution)"
@@ -98,40 +105,35 @@ instance PP Subst where
 
 
 
-class FVS t where
-  fvs :: t -> Set TVar
-
-instance FVS Type where
-  fvs = go
-    where
-    go ty =
-      case ty of
-        TCon _ ts   -> Set.unions (map go ts)
-        TVar x      -> Set.singleton x
-        TUser _ _ t -> go t
-        TRec fs     -> Set.unions (map (go . snd) fs)
-
-instance FVS a => FVS (Maybe a) where
-  fvs Nothing  = Set.empty
-  fvs (Just x) = fvs x
-
-instance FVS a => FVS [a] where
-  fvs xs    = Set.unions (map fvs xs)
-
-instance (FVS a, FVS b) => FVS (a,b) where
-  fvs (x,y) = Set.union (fvs x) (fvs y)
-
-instance FVS Schema where
-  fvs (Forall as ps t) =
-      Set.difference (Set.union (fvs ps) (fvs t)) bound
-    where bound = Set.fromList (map tpVar as)
-
 
 -- | Apply a substitution.  Returns `Nothing` if nothing changed.
 apSubstMaybe :: Subst -> Type -> Maybe Type
 apSubstMaybe su ty =
   case ty of
-    TCon t ts     -> TCon t `fmap` anyJust (apSubstMaybe su) ts
+    TCon t ts ->
+      do ss <- anyJust (apSubstMaybe su) ts
+         case t of
+
+           TF f ->
+             Just $!
+             case (f,ss) of
+               (TCAdd,[t1,t2])               -> Simp.tAdd t1 t2
+               (TCSub,[t1,t2])               -> Simp.tSub t1 t2
+               (TCMul,[t1,t2])               -> Simp.tMul t1 t2
+               (TCDiv,[t1,t2])               -> Simp.tDiv t1 t2
+               (TCMod,[t1,t2])               -> Simp.tMod t1 t2
+               (TCExp,[t1,t2])               -> Simp.tExp t1 t2
+               (TCMin,[t1,t2])               -> Simp.tMin t1 t2
+               (TCMax,[t1,t2])               -> Simp.tMax t1 t2
+               (TCWidth,[t1])                -> Simp.tWidth t1
+               (TCLenFromThen,[t1,t2,t3])    -> Simp.tLenFromThen t1 t2 t3
+               (TCLenFromThenTo,[t1,t2,t3])  -> Simp.tLenFromThenTo t1 t2 t3
+               _ -> panic "apSubstMaybe" ["Unexpected type function", show t]
+
+           PC _ ->Just $! Simp.simplify Map.empty (TCon t ss)
+
+           _ -> return (TCon t ss)
+
     TUser f ts t  -> do t1 <- apSubstMaybe su t
                         return (TUser f (map (apSubst su) ts) t1)
     TRec fs       -> TRec `fmap` anyJust fld fs
@@ -161,12 +163,7 @@ instance (TVars s, TVars t) => TVars (s,t) where
   apSubst s (x,y)       = (apSubst s x, apSubst s y)
 
 instance TVars Type where
-  apSubst su ty =
-    case ty of
-      TCon t ts     -> TCon t (apSubst su ts)
-      TUser f ts t  -> TUser f (apSubst su ts) (apSubst su t)
-      TRec fs       -> TRec [ (x,apSubst su s) | (x,s) <- fs ]
-      TVar x        -> fromMaybe ty $ applySubstToVar su x
+  apSubst su ty = fromMaybe ty (apSubstMaybe su ty)
 
 -- | Pick types for unconstrained unification variables.
 defaultFreeVar :: TVar -> Type
@@ -258,7 +255,6 @@ instance TVars Expr where
         ETApp e t     -> ETApp (go e) (apSubst su t)
         EProofAbs p e -> EProofAbs (apSubst su p) (go e)
         EProofApp e   -> EProofApp (go e)
-        ECast e t     -> ECast (go e) (apSubst su t)
 
         EVar {}       -> expr
 

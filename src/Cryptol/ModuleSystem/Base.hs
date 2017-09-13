@@ -32,11 +32,11 @@ import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
-import Cryptol.Utils.Ident (preludeName,interactiveName,unpackModName)
+import Cryptol.Utils.Ident (preludeName, preludeExtrasName, interactiveName,unpackModName)
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 
-import Cryptol.Prelude (writePreludeContents)
+import Cryptol.Prelude (writePreludeContents, writePreludeExtrasContents)
 
 import Cryptol.Transform.MonoValues (rewModule)
 
@@ -49,7 +49,7 @@ import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import           Data.Text.Lazy (Text)
 import qualified Data.Text.Lazy.IO as T
-import System.Directory (doesFileExist)
+import System.Directory (doesFileExist, canonicalizePath)
 import System.FilePath ( addExtension
                        , isAbsolute
                        , joinPath
@@ -125,20 +125,22 @@ parseModule path = do
 loadModuleByPath :: FilePath -> ModuleM T.Module
 loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
   let fileName = takeFileName path
-  -- path' is the resolved, absolute path
-  path' <- findFile fileName
-  pm <- parseModule path'
+  foundPath <- findFile fileName
+  pm <- parseModule foundPath
   let n = thing (P.mName pm)
 
   -- Check whether this module name has already been loaded from a different file
   env <- getModuleEnv
+  -- path' is the resolved, absolute path, used only for checking
+  -- whether it's already been loaded
+  path' <- io $ canonicalizePath foundPath
   case lookupModule n env of
-    Nothing -> loadingModule n (loadModule path' pm)
+    -- loadModule will calculate the canonical path again
+    Nothing -> loadingModule n (loadModule foundPath pm)
     Just lm
-      | path' == loaded -> return (lmModule lm)
-      | otherwise       -> duplicateModuleName n path' loaded
-      where loaded = lmFilePath lm
-
+     | path' == loaded -> return (lmModule lm)
+     | otherwise       -> duplicateModuleName n path' loaded
+     where loaded = lmCanonicalPath lm
 
 -- | Load the module specified by an import.
 loadImport :: Located P.Import -> ModuleM ()
@@ -174,7 +176,9 @@ loadModule path pm = do
   -- extend the eval env
   modifyEvalEnv (E.moduleEnv tcm)
 
-  loadedModule path tcm
+  canonicalPath <- io (canonicalizePath path)
+
+  loadedModule path canonicalPath tcm
 
   return tcm
 
@@ -215,7 +219,8 @@ findModule n = do
 
   handleNotFound =
     case n of
-      m | m == preludeName -> writePreludeContents
+      m | m == preludeName -> io writePreludeContents
+      m | m == preludeExtrasName -> io writePreludeExtrasContents
       _ -> moduleNotFound n =<< getSearchPath
 
   -- generate all possible search paths
@@ -434,6 +439,7 @@ genInferInput r prims env = do
   monoBinds <- getMonoBinds
   cfg <- getSolverConfig
   supply <- getSupply
+  searchPath <- getSearchPath
 
   -- TODO: include the environment needed by the module
   return T.InferInput
@@ -444,6 +450,7 @@ genInferInput r prims env = do
     , T.inpNameSeeds = seeds
     , T.inpMonoBinds = monoBinds
     , T.inpSolverConfig = cfg
+    , T.inpSearchPath = searchPath
     , T.inpSupply    = supply
     , T.inpPrimNames = prims
     }

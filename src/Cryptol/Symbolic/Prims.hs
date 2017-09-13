@@ -20,16 +20,15 @@ module Cryptol.Symbolic.Prims where
 
 import Control.Monad (unless)
 import Data.Bits
-import Data.List (genericTake, sortBy)
-import Data.Ord (comparing)
+import Data.List (genericTake)
 import qualified Data.Sequence as Seq
-import qualified Data.Foldable as Fold
 
-import Cryptol.Eval.Monad (Eval(..), ready, invalidIndex)
+import Cryptol.Eval.Monad (Eval(..), ready, invalidIndex, cryUserError)
 import Cryptol.Eval.Type  (finNat', TValue(..))
 import Cryptol.Eval.Value (BitWord(..), EvalPrims(..), enumerateSeqMap, SeqMap(..),
                           reverseSeqMap, wlam, nlam, WordValue(..),
-                          asWordVal, asBitsVal, fromWordVal,
+                          asWordVal, fromWordVal, enumerateWordValue,
+                          enumerateWordValueRev, updateWordValue,
                           updateSeqMap, lookupSeqMap, memoMap )
 import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            arithBinary, Binary, BinArith,
@@ -39,7 +38,8 @@ import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            fromThenV, fromToV, fromThenToV,
                            transposeV, indexPrimOne, indexPrimMany,
                            ecIntegerV, ecToIntegerV, ecFromIntegerV,
-                           ecDemoteV, updatePrim, lg2)
+                           ecDemoteV, updatePrim, randomV, liftWord,
+                           cmpValue, lg2)
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Decl(..))
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
@@ -81,20 +81,26 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                                 -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
   , ("integer"     , ecIntegerV) -- Converts a numeric type into its corresponding value.
                                  -- { val } (fin val) => Integer
-  , ("+"           , binary (arithBinary (liftBinArith SBV.svPlus) SBV.svPlus)) -- {a} (Arith a) => a -> a -> a
-  , ("-"           , binary (arithBinary (liftBinArith SBV.svMinus) SBV.svMinus)) -- {a} (Arith a) => a -> a -> a
-  , ("*"           , binary (arithBinary (liftBinArith SBV.svTimes) SBV.svTimes)) -- {a} (Arith a) => a -> a -> a
-  , ("/"           , binary (arithBinary (liftBinArith SBV.svQuot) SBV.svQuot)) -- {a} (Arith a) => a -> a -> a
-  , ("%"           , binary (arithBinary (liftBinArith SBV.svRem) SBV.svRem)) -- {a} (Arith a) => a -> a -> a
-  , ("^^"          , binary (arithBinary sExp SBV.svExp)) -- {a} (Arith a) => a -> a -> a
+  , ("+"           , binary (arithBinary (liftBinArith SBV.svPlus) (liftBin SBV.svPlus))) -- {a} (Arith a) => a -> a -> a
+  , ("-"           , binary (arithBinary (liftBinArith SBV.svMinus) (liftBin SBV.svMinus))) -- {a} (Arith a) => a -> a -> a
+  , ("*"           , binary (arithBinary (liftBinArith SBV.svTimes) (liftBin SBV.svTimes))) -- {a} (Arith a) => a -> a -> a
+  , ("/"           , binary (arithBinary (liftBinArith SBV.svQuot) (liftBin SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
+  , ("%"           , binary (arithBinary (liftBinArith SBV.svRem) (liftBin SBV.svRem))) -- {a} (Arith a) => a -> a -> a
+  , ("^^"          , binary (arithBinary sExp (liftBin SBV.svExp))) -- {a} (Arith a) => a -> a -> a
   , ("lg2"         , unary (arithUnary sLg2 svLg2)) -- {a} (Arith a) => a -> a
-  , ("negate"      , unary (arithUnary (\_ -> SBV.svUNeg) SBV.svUNeg))
+  , ("negate"      , unary (arithUnary (\_ -> ready . SBV.svUNeg) SBV.svUNeg))
   , ("<"           , binary (cmpBinary cmpLt cmpLt cmpLt SBV.svFalse))
   , (">"           , binary (cmpBinary cmpGt cmpGt cmpGt SBV.svFalse))
   , ("<="          , binary (cmpBinary cmpLtEq cmpLtEq cmpLtEq SBV.svTrue))
   , (">="          , binary (cmpBinary cmpGtEq cmpGtEq cmpGtEq SBV.svTrue))
   , ("=="          , binary (cmpBinary cmpEq cmpEq cmpEq SBV.svTrue))
   , ("!="          , binary (cmpBinary cmpNotEq cmpNotEq cmpNotEq SBV.svFalse))
+  , ("<$"          , let boolFail = evalPanic "<$" ["Attempted signed comparison on bare Bit values"]
+                         intFail = evalPanic "<$" ["Attempted signed comparison on Integer values"]
+                      in binary (cmpBinary boolFail cmpSignedLt intFail SBV.svFalse))
+  , ("/$"          , binary (arithBinary (liftBinArith signedQuot) (liftBin SBV.svQuot)))
+  , ("%$"          , binary (arithBinary (liftBinArith signedRem) (liftBin SBV.svRem)))
+  , (">>$"         , sshrV)
   , ("&&"          , binary (logicBinary SBV.svAnd SBV.svAnd SBV.svAnd))
   , ("||"          , binary (logicBinary SBV.svOr SBV.svOr SBV.svOr))
   , ("^"           , binary (logicBinary SBV.svXOr SBV.svXOr SBV.svXOr))
@@ -126,6 +132,9 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                           case sz of
                             Inf -> evalPanic "cannot rotate infinite sequence" []
                             Nat n -> Just ((i+n-shft) `mod` n)))
+
+  , ("carry"      , liftWord carry)
+  , ("scarry"     , liftWord scarry)
 
   , ("#"          , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
      nlam $ \ front ->
@@ -170,8 +179,9 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("!"           , indexPrimOne  indexBack_bits indexBack)
   , ("!!"          , indexPrimMany indexBack_bits indexBack)
 
-  , ("update"      , updatePrim updateFrontSym_bits updateFrontSym)
-  , ("updateEnd"   , updatePrim updateBackSym_bits updateBackSym)
+  , ("update"      , updatePrim updateFrontSym_word updateFrontSym)
+  , ("updateEnd"   , updatePrim updateBackSym_word updateBackSym)
+
 
   , ("pmult"       , -- {a,b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 + a + b]
       nlam $ \(finNat' -> i) ->
@@ -181,30 +191,30 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
         let k = 1 + i + j
             mul _  []     ps = ps
             mul as (b:bs) ps = mul (SBV.svFalse : as) bs (ites b (as `addPoly` ps) ps)
-        xs <- sequence . Fold.toList . asBitsVal =<< fromWordVal "pmult 1" =<< v1
-        ys <- sequence . Fold.toList . asBitsVal =<< fromWordVal "pmult 2" =<< v2
-        let zs = genericTake k (mul xs ys [] ++ repeat SBV.svFalse)
-        return $ VWord k $ return $ BitsVal $ Seq.fromList $ map ready zs)
+        xs <- enumerateWordValue =<< fromWordVal "pmult 1" =<< v1
+        ys <- enumerateWordValue =<< fromWordVal "pmult 2" =<< v2
+        let zs = Seq.fromList $ genericTake k (mul xs ys [] ++ repeat SBV.svFalse)
+        return $ VWord k $ return $ BitsVal k $ IndexSeqMap (return . VBit . Seq.index zs . fromInteger))
 
   , ("pdiv"        , -- {a,b} (fin a, fin b) => [a] -> [b] -> [a]
       nlam $ \(finNat' -> i) ->
       nlam $ \(finNat' -> _j) ->
       VFun $ \v1 -> return $
       VFun $ \v2 -> do
-        xs <- sequence . Fold.toList . Seq.reverse . asBitsVal =<< fromWordVal "pdiv 1" =<< v1
-        ys <- sequence . Fold.toList . Seq.reverse . asBitsVal =<< fromWordVal "pdiv 2" =<< v2
-        let zs = genericTake i (fst (mdp xs ys) ++ repeat SBV.svFalse)
-        return $ VWord i $ return $ BitsVal $ Seq.reverse $ Seq.fromList $ map ready zs)
+        xs <- enumerateWordValueRev =<< fromWordVal "pdiv 1" =<< v1
+        ys <- enumerateWordValueRev =<< fromWordVal "pdiv 2" =<< v2
+        let zs = Seq.reverse $ Seq.fromList $ genericTake i (fst (mdp xs ys) ++ repeat SBV.svFalse)
+        return $ VWord i $ return $ BitsVal i $ IndexSeqMap (return . VBit . Seq.index zs . fromInteger))
 
   , ("pmod"        , -- {a,b} (fin a, fin b) => [a] -> [b+1] -> [b]
       nlam $ \(finNat' -> _i) ->
       nlam $ \(finNat' -> j) ->
       VFun $ \v1 -> return $
       VFun $ \v2 -> do
-        xs <- sequence . Fold.toList . Seq.reverse . asBitsVal =<< fromWordVal "pmod 1" =<< v1
-        ys <- sequence . Fold.toList . Seq.reverse . asBitsVal =<< fromWordVal "pmod 2" =<< v2
-        let zs = genericTake j (snd (mdp xs ys) ++ repeat SBV.svFalse)
-        return $ VWord j $ return $ BitsVal $ Seq.reverse $ Seq.fromList $ map ready zs)
+        xs <- enumerateWordValueRev =<< fromWordVal "pmod 1" =<< v1
+        ys <- enumerateWordValueRev =<< fromWordVal "pmod 2" =<< v2
+        let zs = Seq.reverse $ Seq.fromList $ genericTake j (snd (mdp xs ys) ++ repeat SBV.svFalse)
+        return $ VWord j $ return $ BitsVal j $ IndexSeqMap (return . VBit . Seq.index zs . fromInteger))
 
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,
@@ -214,11 +224,11 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
         return $ zeroV at) -- error/undefined, is arbitrarily translated to 0
 
   , ("random"      ,
-      tlam $ \_a ->
-      wlam $ \_x ->
-         Thunk $ return $ panic
-            "Cryptol.Symbolic.Prims.evalECon"
-            [ "can't symbolically evaluate ECRandom" ])
+      tlam $ \a ->
+      wlam $ \x ->
+         case SBV.svAsInteger x of
+           Just i  -> return $ randomV a i
+           Nothing -> cryUserError "cannot evaluate 'random' with symbolic inputs")
 
      -- The trace function simply forces its first two
      -- values before returing the third in the symbolic
@@ -236,22 +246,14 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   ]
 
 
-iteWord :: SBool
-        -> Eval (WordValue SBool SWord)
-        -> Eval (WordValue SBool SWord)
-        -> Eval (WordValue SBool SWord)
-iteWord c x y = mergeWord True c <$> x <*> y
-
-
 -- | Barrel-shifter algorithm. Takes a list of bits in big-endian order.
-shifter :: Monad m => (SBool -> a -> a -> m a) -> (a -> Integer -> m a) -> a -> [SBool] -> m a
+shifter :: Monad m => (SBool -> a -> a -> a) -> (a -> Integer -> m a) -> a -> [SBool] -> m a
 shifter mux op = go
   where
     go x [] = return x
     go x (b : bs) = do
       x' <- op x (2 ^ length bs)
-      y <- mux b x' x
-      go y bs
+      go (mux b x' x) bs
 
 logicShift :: String
            -> (SWord -> SWord -> SWord)
@@ -259,7 +261,7 @@ logicShift :: String
            -> Value
 logicShift nm wop reindex =
       nlam $ \_m ->
-      nlam $ \n ->
+      nlam $ \_n ->
       tlam $ \a ->
       VFun $ \xs -> return $
       VFun $ \y -> do
@@ -270,43 +272,43 @@ logicShift nm wop reindex =
              return $ VWord w $ do
                x >>= \case
                  WordVal x' -> WordVal . wop x' <$> asWordVal idx
-                 wv ->
-                   do idx_bits <- sequence $ Fold.toList $ asBitsVal idx
-                      let op bs shft = return $ Seq.fromFunction (Seq.length bs) $ \i ->
-                                             case reindex (Nat w) (toInteger i) shft of
-                                               Nothing -> return $ bitLit False
-                                               Just i' -> Seq.index bs (fromInteger i')
-                      BitsVal <$> shifter (\c x y -> return $ mergeBits True c x y) op (asBitsVal wv) idx_bits
+                 BitsVal n bs0 ->
+                   do idx_bits <- enumerateWordValue idx
+                      let op bs shft = memoMap $ IndexSeqMap $ \i ->
+                                         case reindex (Nat w) i shft of
+                                           Nothing -> return $ VBit $ bitLit False
+                                           Just i' -> lookupSeqMap bs i'
+                      BitsVal n <$> shifter (mergeSeqMap True) op bs0 idx_bits
 
-          VSeq w vs0  ->
-             do idx_bits <- sequence $ Fold.toList $ asBitsVal idx
+          VSeq w vs0 ->
+             do idx_bits <- enumerateWordValue idx
                 let op vs shft = memoMap $ IndexSeqMap $ \i ->
                                    case reindex (Nat w) i shft of
                                      Nothing -> return $ zeroV a
                                      Just i' -> lookupSeqMap vs i'
-                VSeq w <$> shifter (\c x y -> return $ mergeSeqMap True c x y) op vs0 idx_bits
+                VSeq w <$> shifter (mergeSeqMap True) op vs0 idx_bits
 
           VStream vs0 ->
-             do idx_bits <- sequence $ Fold.toList $ asBitsVal idx
+             do idx_bits <- enumerateWordValue idx
                 let op vs shft = memoMap $ IndexSeqMap $ \i ->
                                    case reindex Inf i shft of
                                      Nothing -> return $ zeroV a
                                      Just i' -> lookupSeqMap vs i'
-                VStream <$> shifter (\c x y -> return $ mergeSeqMap True c x y) op vs0 idx_bits
+                VStream <$> shifter (mergeSeqMap True) op vs0 idx_bits
 
           _ -> evalPanic "expected sequence value in shift operation" [nm]
 
 
 selectV :: forall a
-         . (SBool -> Eval a -> Eval a -> Eval a)
-        -> WordValue SBool SWord
-        -> (Integer -> Eval a)
-        -> Eval a
+         . (SBool -> Eval a -> Eval a -> Eval a) -- ^ Mux function on @a@s
+        -> WordValue SBool SWord SInteger        -- ^ Symbolic index value
+        -> (Integer -> Eval a)                   -- ^ Function from concrete indices to answers
+        -> Eval a                                -- ^ overall answer
 selectV mux val f =
    case val of
      WordVal x | Just idx <- SBV.svAsInteger x -> f idx
                | otherwise -> sel 0 (unpackWord x)
-     BitsVal bs -> sel 0 =<< sequence (Fold.toList bs)
+     BitsVal n xs -> sel 0 . map fromVBit =<< sequence (enumerateSeqMap n xs)
 
  where
     sel offset []       = f offset
@@ -338,7 +340,7 @@ indexFront mblen a xs idx
  where
     k = SBV.kindOf idx
     w = SBV.intSizeOf idx
-    def = ready $ VWord (toInteger w) $ ready $ WordVal $ SBV.svInteger k 0
+    def = ready $ zeroV a
     f n y = iteValue (SBV.svEqual idx (SBV.svInteger k n)) (lookupSeqMap xs n) y
 
 
@@ -353,9 +355,9 @@ indexBack Nothing _ _ _ = evalPanic "Expected finite sequence" ["indexBack"]
 indexFront_bits :: Maybe Integer
                 -> TValue
                 -> SeqMap SBool SWord SInteger
-                -> Seq.Seq SBool
+                -> [SBool]
                 -> Eval Value
-indexFront_bits mblen a xs bits0 = go 0 (length bits0) (Fold.toList bits0)
+indexFront_bits mblen a xs bits0 = go 0 (length bits0) bits0
  where
   go :: Integer -> Int -> [SBool] -> Eval Value
   go i _k []
@@ -379,7 +381,7 @@ indexFront_bits mblen a xs bits0 = go 0 (length bits0) (Fold.toList bits0)
 indexBack_bits :: Maybe Integer
                -> TValue
                -> SeqMap SBool SWord SInteger
-               -> Seq.Seq SBool
+               -> [SBool]
                -> Eval Value
 indexBack_bits (Just n) a xs idx = indexFront_bits (Just n) a (reverseSeqMap n xs) idx
 indexBack_bits Nothing _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
@@ -389,7 +391,7 @@ updateFrontSym
   :: Nat'
   -> TValue
   -> SeqMap SBool SWord SInteger
-  -> WordValue SBool SWord
+  -> WordValue SBool SWord SInteger
   -> Eval (GenValue SBool SWord SInteger)
   -> Eval (SeqMap SBool SWord SInteger)
 updateFrontSym len _eltTy vs w val = do
@@ -405,31 +407,22 @@ updateFrontSym len _eltTy vs w val = do
           selectV iteValue w $ \j ->
             if i == j then val else lookupSeqMap vs i
 
-updateFrontSym_bits
+updateFrontSym_word
   :: Nat'
   -> TValue
-  -> Seq.Seq (Eval SBool)
-  -> WordValue SBool SWord
+  -> WordValue SBool SWord SInteger
+  -> WordValue SBool SWord SInteger
   -> Eval (GenValue SBool SWord SInteger)
-  -> Eval (Seq.Seq (Eval SBool))
-updateFrontSym_bits Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateFrontSym_bits"]
-updateFrontSym_bits (Nat n) _eltTy bs w val = do
-  -- TODO? alternate handling if w is a list of bits...
-  case w of
-    WordVal wv | Just j <- SBV.svAsInteger wv -> do
-      unless (j < n) (invalidIndex j)
-      return $! Seq.update (fromInteger j) (fromVBit <$> val) bs
-    _ -> do
-      let mergeBit' c x y = mergeBit True c <$> x <*> y
-      return $ Seq.fromFunction (fromInteger n) $ \i ->
-        selectV mergeBit' w $ \j ->
-          if toInteger i == j then (fromVBit <$> val) else Seq.index bs i
+  -> Eval (WordValue SBool SWord SInteger)
+updateFrontSym_word Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateFrontSym_bits"]
+updateFrontSym_word (Nat _) _eltTy bs w val =
+  selectV (mergeWord' True) w $ \j -> updateWordValue bs j (fromVBit <$> val)
 
 updateBackSym
   :: Nat'
   -> TValue
   -> SeqMap SBool SWord SInteger
-  -> WordValue SBool SWord
+  -> WordValue SBool SWord SInteger
   -> Eval (GenValue SBool SWord SInteger)
   -> Eval (SeqMap SBool SWord SInteger)
 updateBackSym Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym"]
@@ -444,26 +437,16 @@ updateBackSym (Nat n) _eltTy vs w val = do
           selectV iteValue w $ \j ->
             if i == (n - j - 1) then val else lookupSeqMap vs i
 
-updateBackSym_bits
+updateBackSym_word
   :: Nat'
   -> TValue
-  -> Seq.Seq (Eval SBool)
-  -> WordValue SBool SWord
+  -> WordValue SBool SWord SInteger
+  -> WordValue SBool SWord SInteger
   -> Eval (GenValue SBool SWord SInteger)
-  -> Eval (Seq.Seq (Eval SBool))
-updateBackSym_bits Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym_bits"]
-updateBackSym_bits (Nat n) _eltTy bs w val = do
-  -- TODO? alternate handling if w is a list of bits...
-  case w of
-    WordVal wv | Just j <- SBV.svAsInteger wv -> do
-      unless (j < n) (invalidIndex j)
-      return $! Seq.update (fromInteger (n - j - 1)) (fromVBit <$> val) bs
-    _ -> do
-      let mergeBit' c x y = mergeBit True c <$> x <*> y
-      return $ Seq.fromFunction (fromInteger n) $ \i ->
-        selectV mergeBit' w $ \j ->
-          if toInteger i == (n - j - 1) then (fromVBit <$> val) else Seq.index bs i
-
+  -> Eval (WordValue SBool SWord SInteger)
+updateBackSym_word Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym_bits"]
+updateBackSym_word (Nat n) _eltTy bs w val = do
+  selectV (mergeWord' True) w $ \j -> updateWordValue bs (n - j - 1) (fromVBit <$> val)
 
 asBitList :: [Eval SBool] -> Maybe [SBool]
 asBitList = go id
@@ -473,31 +456,29 @@ asBitList = go id
        go _ _ = Nothing
 
 
-asWordList :: [WordValue SBool SWord] -> Maybe [SWord]
+asWordList :: [WordValue SBool SWord SInteger] -> Maybe [SWord]
 asWordList = go id
- where go :: ([SWord] -> [SWord]) -> [WordValue SBool SWord] -> Maybe [SWord]
+ where go :: ([SWord] -> [SWord]) -> [WordValue SBool SWord SInteger] -> Maybe [SWord]
        go f [] = Just (f [])
        go f (WordVal x :vs) = go (f . (x:)) vs
-       go f (BitsVal bs:vs) =
-              case asBitList (Fold.toList bs) of
-                  Just xs -> go (f . (packWord xs:)) vs
-                  Nothing -> Nothing
-
-
+       go _f (BitsVal _ _ : _) = Nothing
 
 liftBinArith :: (SWord -> SWord -> SWord) -> BinArith SWord
-liftBinArith op _ = op
+liftBinArith op _ x y = ready $ op x y
 
-sExp :: Integer -> SWord -> SWord -> SWord
-sExp _w x y = go (reverse (unpackWord y)) -- bits in little-endian order
+liftBin :: (a -> b -> c) -> a -> b -> Eval c
+liftBin op x y = ready $ op x y
+
+sExp :: Integer -> SWord -> SWord -> Eval SWord
+sExp _w x y = ready $ go (reverse (unpackWord y)) -- bits in little-endian order
   where go []       = literalSWord (SBV.intSizeOf x) 1
         go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
             where a = go bs
                   s = SBV.svTimes a a
 
 -- | Ceiling (log_2 x)
-sLg2 :: Integer -> SWord -> SWord
-sLg2 _w x = go 0
+sLg2 :: Integer -> SWord -> Eval SWord
+sLg2 _w x = ready $ go 0
   where
     lit n = literalSWord (SBV.intSizeOf x) n
     go i | i < SBV.intSizeOf x = SBV.svIte (SBV.svLessEq x (lit (2^i))) (lit (toInteger i)) (go (i + 1))
@@ -512,44 +493,16 @@ svLg2 x =
 
 -- Cmp -------------------------------------------------------------------------
 
-cmpValue :: (SBool -> SBool -> Eval a -> Eval a)
-         -> (SWord -> SWord -> Eval a -> Eval a)
-         -> (SInteger -> SInteger -> Eval a -> Eval a)
-         -> (Value -> Value -> Eval a -> Eval a)
-cmpValue fb fw fi = cmp
-  where
-    cmp v1 v2 k =
-      case (v1, v2) of
-        (VRecord fs1, VRecord fs2) -> let vals = map snd . sortBy (comparing fst)
-                                      in  cmpValues (vals fs1) (vals fs2) k
-        (VTuple vs1 , VTuple vs2 ) -> cmpValues vs1 vs2 k
-        (VBit b1    , VBit b2    ) -> fb b1 b2 k
-        (VInteger i1, VInteger i2) -> fi i1 i2 k
-        (VWord _ w1 , VWord _ w2 ) -> join (fw <$> (asWordVal =<< w1)
-                                               <*> (asWordVal =<< w2)
-                                               <*> return k)
-        (VSeq n vs1 , VSeq _ vs2 ) -> cmpValues (enumerateSeqMap n vs1)
-                                                (enumerateSeqMap n vs2) k
-        (VStream {} , VStream {} ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
-                                        [ "Infinite streams are not comparable" ]
-        (VFun {}    , VFun {}    ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
-                                        [ "Functions are not comparable" ]
-        (VPoly {}   , VPoly {}   ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
-                                        [ "Polymorphic values are not comparable" ]
-        (_          , _          ) -> panic "Cryptol.Symbolic.Prims.cmpValue"
-                                        [ "type mismatch" ]
-
-    cmpValues (x1 : xs1) (x2 : xs2) k = do
-          x1' <- x1
-          x2' <- x2
-          cmp x1' x2' (cmpValues xs1 xs2 k)
-    cmpValues _ _ k = k
-
 cmpEq :: SWord -> SWord -> Eval SBool -> Eval SBool
 cmpEq x y k = SBV.svAnd (SBV.svEqual x y) <$> k
 
 cmpNotEq :: SWord -> SWord -> Eval SBool -> Eval SBool
 cmpNotEq x y k = SBV.svOr (SBV.svNotEqual x y) <$> k
+
+cmpSignedLt :: SWord -> SWord -> Eval SBool -> Eval SBool
+cmpSignedLt x y k = SBV.svOr (SBV.svLessThan sx sy) <$> (cmpEq sx sy k)
+  where sx = SBV.svSign x
+        sy = SBV.svSign y
 
 cmpLt, cmpGt :: SWord -> SWord -> Eval SBool -> Eval SBool
 cmpLt x y k = SBV.svOr (SBV.svLessThan x y) <$> (cmpEq x y k)
@@ -564,6 +517,44 @@ cmpBinary :: (SBool -> SBool -> Eval SBool -> Eval SBool)
           -> (SInteger -> SInteger -> Eval SBool -> Eval SBool)
           -> SBool -> Binary SBool SWord SInteger
 cmpBinary fb fw fi b _ty v1 v2 = VBit <$> cmpValue fb fw fi v1 v2 (return b)
+
+-- Signed arithmetic -----------------------------------------------------------
+
+signedQuot :: SWord -> SWord -> SWord
+signedQuot x y = SBV.svUnsign (SBV.svQuot (SBV.svSign x) (SBV.svSign y))
+
+signedRem :: SWord -> SWord -> SWord
+signedRem x y = SBV.svUnsign (SBV.svRem (SBV.svSign x) (SBV.svSign y))
+
+
+sshrV :: Value
+sshrV =
+  nlam $ \_n ->
+  nlam $ \_k ->
+  wlam $ \x -> return $
+  wlam $ \y ->
+   case SBV.svAsInteger y of
+     Just i ->
+       let z = SBV.svUnsign (SBV.svShr (SBV.svSign x) (fromInteger i))
+        in return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
+     Nothing ->
+       let z = SBV.svUnsign (SBV.svShiftRight (SBV.svSign x) y)
+        in return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
+
+carry :: SWord -> SWord -> Eval Value
+carry x y = return $ VBit c
+ where
+  c = SBV.svLessThan (SBV.svPlus x y) x
+
+scarry :: SWord -> SWord -> Eval Value
+scarry x y = return $ VBit sc
+ where
+  n = SBV.intSizeOf x
+  z = SBV.svPlus (SBV.svSign x) (SBV.svSign y)
+  xsign = SBV.svTestBit x (n-1)
+  ysign = SBV.svTestBit y (n-1)
+  zsign = SBV.svTestBit z (n-1)
+  sc = SBV.svAnd (SBV.svEqual xsign ysign) (SBV.svNotEqual xsign zsign)
 
 -- Polynomials -----------------------------------------------------------------
 

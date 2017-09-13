@@ -26,9 +26,11 @@ module Cryptol.Symbolic.Value
   , fromSeq, fromVWord
   , evalPanic
   , iteSValue, mergeValue, mergeWord, mergeBit, mergeBits, mergeSeqMap
+  , mergeWord'
   )
   where
 
+import Data.Bits (bit, complement)
 import Data.List (foldl')
 import qualified Data.Sequence as Seq
 
@@ -38,12 +40,16 @@ import Data.SBV.Dynamic
 import Cryptol.Eval.Type   (TValue(..), isTBit, tvSeq)
 import Cryptol.Eval.Monad  (Eval)
 import Cryptol.Eval.Value  ( GenValue(..), BitWord(..), lam, tlam, toStream,
-                           toFinSeq, toSeq, WordValue(..), asBitsVal,
+                           toFinSeq, toSeq, WordValue(..),
                            fromSeq, fromVBit, fromVWord, fromVFun, fromVPoly,
                            fromVTuple, fromVRecord, lookupRecord, SeqMap(..),
-                           ppBV, BV(..), integerToChar, lookupSeqMap )
+                           ppBV, BV(..), integerToChar, lookupSeqMap,
+                           wordValueSize, asBitsMap)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
+
+import Control.Monad.Reader (ask)
+import Control.Monad.Trans  (liftIO)
 
 -- SBool and SWord -------------------------------------------------------------
 
@@ -59,22 +65,22 @@ literalSWord :: Int -> Integer -> SWord
 literalSWord w i = svInteger (KBounded False w) i
 
 forallBV_ :: Int -> Symbolic SWord
-forallBV_ w = svMkSymVar (Just ALL) (KBounded False w) Nothing
+forallBV_ w = ask >>= liftIO . svMkSymVar (Just ALL) (KBounded False w) Nothing
 
 existsBV_ :: Int -> Symbolic SWord
-existsBV_ w = svMkSymVar (Just EX) (KBounded False w) Nothing
+existsBV_ w = ask >>= liftIO . svMkSymVar (Just EX) (KBounded False w) Nothing
 
 forallSBool_ :: Symbolic SBool
-forallSBool_ = svMkSymVar (Just ALL) KBool Nothing
+forallSBool_ = ask >>= liftIO . svMkSymVar (Just ALL) KBool Nothing
 
 existsSBool_ :: Symbolic SBool
-existsSBool_ = svMkSymVar (Just EX) KBool Nothing
+existsSBool_ = ask >>= liftIO . svMkSymVar (Just EX) KBool Nothing
 
 forallSInteger_ :: Symbolic SBool
-forallSInteger_ = svMkSymVar (Just ALL) KUnbounded Nothing
+forallSInteger_ = ask >>= liftIO . svMkSymVar (Just ALL) KUnbounded Nothing
 
 existsSInteger_ :: Symbolic SBool
-existsSInteger_ = svMkSymVar (Just EX) KUnbounded Nothing
+existsSInteger_ = ask >>= liftIO . svMkSymVar (Just EX) KUnbounded Nothing
 
 -- Values ----------------------------------------------------------------------
 
@@ -98,12 +104,20 @@ mergeBit f c b1 b2 = svSymbolicMerge KBool f c b1 b2
 
 mergeWord :: Bool
           -> SBool
-          -> WordValue SBool SWord
-          -> WordValue SBool SWord
-          -> WordValue SBool SWord
+          -> WordValue SBool SWord SInteger
+          -> WordValue SBool SWord SInteger
+          -> WordValue SBool SWord SInteger
 mergeWord f c (WordVal w1) (WordVal w2) =
     WordVal $ svSymbolicMerge (kindOf w1) f c w1 w2
-mergeWord f c w1 w2 = BitsVal $ mergeBits f c (asBitsVal w1) (asBitsVal w2)
+mergeWord f c w1 w2 =
+    BitsVal (wordValueSize w1) (mergeSeqMap f c (asBitsMap w1) (asBitsMap w2))
+
+mergeWord' :: Bool
+           -> SBool
+           -> Eval (WordValue SBool SWord SInteger)
+           -> Eval (WordValue SBool SWord SInteger)
+           -> Eval (WordValue SBool SWord SInteger)
+mergeWord' f c x y = mergeWord f c <$> x <*> y
 
 mergeBits :: Bool
           -> SBool
@@ -164,6 +178,14 @@ instance BitWord SBool SWord SInteger where
   bitLit b    = svBool b
   wordLit n x = svInteger (KBounded False (fromInteger n)) x
   integerLit x = svInteger KUnbounded x
+
+  wordBit x idx = svTestBit x (intSizeOf x - 1 - fromIntegral idx)
+
+  wordUpdate x idx b = svSymbolicMerge (kindOf x) False b wtrue wfalse
+    where
+     i' = intSizeOf x - 1 - fromInteger idx
+     wtrue  = x `svOr`  svInteger (kindOf x) (bit i' :: Integer)
+     wfalse = x `svAnd` svInteger (kindOf x) (complement (bit i' :: Integer))
 
   packWord bs = fromBitsLE (reverse bs)
   unpackWord x = [ svTestBit x i | i <- reverse [0 .. intSizeOf x - 1] ]
