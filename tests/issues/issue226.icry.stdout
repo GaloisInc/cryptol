@@ -58,6 +58,7 @@ Symbols
                                                back]elem -> [back]elem
     error : {at, len} (fin len) => [len][8] -> at
     foo : {a} a -> a
+    fromInteger : {a} (fin a) => Integer -> [a]
     fromThen : {first, next, bits, len} (fin first, fin next, fin bits,
                                          bits >= width first, bits >= width next,
                                          lengthFromThen first next bits == len) => [len][bits]
@@ -72,6 +73,7 @@ Symbols
                                                  parts]elem -> [parts][each]elem
     infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
     infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
+    integer : {val} (fin val) => Integer
     join : {parts, each, a} (fin each) => [parts][each]a -> [parts *
                                                              each]a
     lg2 : {a} (Arith a) => a -> a
@@ -94,6 +96,7 @@ Symbols
     tail : {a, b} [1 + a]b -> [a]b
     take : {front, back, elem} (fin front) => [front +
                                                back]elem -> [front]elem
+    toInteger : {a} (fin a) => [a] -> Integer
     trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
     traceVal : {n, a} (fin n) => [n][8] -> a -> a
     transpose : {a, b, c} [a][b]c -> [b][a]c
