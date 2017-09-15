@@ -45,16 +45,17 @@ import           Data.Map    (Map)
 import qualified Data.IntMap as IntMap
 
 
-
-
 -- | A Cryptol module.
 data Module = Module { mName     :: !ModName
                      , mExports  :: ExportSpec Name
                      , mImports  :: [Import]
                      , mTySyns   :: Map Name TySyn
                      , mNewtypes :: Map Name Newtype
+                     , mAbsTypes :: Map Name TParam
+                     , mAbsFuns  :: Map Name Schema
                      , mDecls    :: [DeclGroup]
                      } deriving (Show, Generic, NFData)
+
 
 
 data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
@@ -302,5 +303,6 @@ instance PP (WithNames Module) where
     -- XXX: Print exports?
     vcat (map pp mImports) $$
     -- XXX: Print tysyns
+    -- XXX: Print abstarct types/functions
     vcat (map (ppWithNames nm) mDecls)
 

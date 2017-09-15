@@ -43,7 +43,10 @@ data Schema = Forall { sVars :: [TParam], sProps :: [Prop], sType :: Type }
 -- | Type parameters.
 data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
                      , tpKind   :: Kind       -- ^ Kind of parameter
-                     , tpName   :: Maybe Name -- ^ Name from source, if any.
+                     , tpName   :: Maybe Name
+                       -- ^ Name from source, if any.
+                       -- INVARIANT: if this arouse from an abstract type
+                       -- then the name will alwyas be defined.
                      }
               deriving (Generic, NFData, Show)
 
@@ -118,6 +121,15 @@ data TC     = TCNum Integer            -- ^ Numbers
 
 data UserTC = UserTC Name Kind
               deriving (Show, Generic, NFData)
+
+
+abstractTypeTCon :: TParam -> TCon
+abstractTypeTCon tp = TC $ TCNewtype $ UserTC nm k
+  where
+  nm = case tpName tp of
+         Just n  -> n
+         Nothing -> panic "abstractTypeTCon" ["Missing name"]
+  k = tpKind tp
 
 
 data TCErrorMessage = TCErrorMessage

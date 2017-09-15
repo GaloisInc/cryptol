@@ -270,11 +270,39 @@ exportNewtype e n = TDNewtype TopLevel { tlExport = e
                                        , tlDoc    = Nothing
                                        , tlValue  = n }
 
+mkAbsFun :: Maybe (Located String) ->
+            Located PName ->
+            Schema PName ->
+            TopDecl PName
+mkAbsFun mbDoc n s =
+  DAbstractFun
+  TopLevel { tlExport = Public
+           , tlDoc = mbDoc
+           , tlValue = AbstractFun { afName = n, afSchema = s }
+           }
+
+mkAbsType :: Maybe (Located String) ->
+             Located PName ->
+             ([Located Kind],Located Kind) ->
+             TopDecl PName
+mkAbsType mbDoc n (ks,k) =
+  DAbstractType
+  TopLevel { tlExport = Public
+           , tlDoc = mbDoc
+           , tlValue = AbstractType { atName = n
+                                    , atParams = map thing ks
+                                    , atResult = thing k }
+           }
+
+
+
 changeExport :: ExportType -> [TopDecl PName] -> [TopDecl PName]
 changeExport e = map change
   where
   change (Decl d)      = Decl      d { tlExport = e }
   change (TDNewtype n) = TDNewtype n { tlExport = e }
+  change (DAbstractType a) = DAbstractType a { tlExport = e }
+  change (DAbstractFun a)  = DAbstractFun a { tlExport = e }
   change td@Include{}  = td
 
 mkTypeInst :: Named (Type PName) -> TypeInst PName

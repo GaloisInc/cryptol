@@ -13,11 +13,13 @@ module Cryptol.TypeCheck.Kind
   , checkSchema
   , checkNewtype
   , checkTySyn
+  , checkAbsType
   ) where
 
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.AST (Named(..))
 import           Cryptol.Parser.Position
+import           Cryptol.ModuleSystem.Name(nameUnique)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad hiding (withTParams)
 import           Cryptol.TypeCheck.SimpType(tRebuild)
@@ -51,6 +53,16 @@ checkSchema (P.Forall xs ps t mb) =
   rng = case mb of
           Nothing -> id
           Just r  -> inRange r
+
+checkAbsType :: P.AbstractType Name -> InferM TParam
+checkAbsType a =
+  do let k = foldr (:->) (cvtK (P.atResult a)) (map cvtK (P.atParams a))
+         n = thing (P.atName a)
+     return TParam { tpUnique = nameUnique n -- XXX: ok to reuse?
+                   , tpKind = k
+                   , tpName = Just n
+                   }
+
 
 -- | Check a type-synonym declaration.
 checkTySyn :: P.TySyn Name -> InferM TySyn
@@ -151,12 +163,15 @@ withTParams allowWildCards xs m =
   zip' [] _           = []
   zip' (a:as) ~(t:ts) = (P.tpName a, fmap cvtK (P.tpKind a), t) : zip' as ts
 
-  cvtK P.KNum  = KNum
-  cvtK P.KType = KType
-
   duplicates = [ RepeatedTyParams ds
                     | ds@(_ : _ : _) <- groupBy ((==) `on` P.tpName)
                                       $ sortBy (compare `on` P.tpName) xs ]
+
+cvtK :: P.Kind -> Kind
+cvtK P.KNum  = KNum
+cvtK P.KType = KType
+
+
 
 -- | Check an application of a type constant.
 tcon :: TCon            -- ^ Type constant being applied
@@ -167,7 +182,7 @@ tcon tc ts0 k =
   do (ts1,k1) <- appTy ts0 (kindOf tc)
      checkKind (TCon tc ts1) k k1
 
--- | Check a use of a type-synonym, newtype, or scoped-type variable.
+-- | Check a use of a type-synonym, newtype, abs type, or scoped-type variable.
 tySyn :: Bool         -- ^ Should we check for scoped type vars.
       -> Name         -- ^ Name of type sysnonym
       -> [P.Type Name]-- ^ Type synonym parameters
@@ -195,12 +210,26 @@ tySyn scoped x ts k =
                    ts2 <- checkParams (ntParams nt) ts1
                    return (TCon tc ts2)
 
-              -- Maybe it is a scoped type variable?
-              Nothing
-                | scoped -> kExistTVar x $ fromMaybe KNum k
-                | otherwise ->
-                  do kRecordError $ UndefinedTypeSynonym x
-                     kNewType (text "type synonym" <+> pp x) $ fromMaybe KNum k
+              -- Maybe it is an abstract type?
+              Nothing ->
+                do mbA <- kLookupAbsType x
+                   case mbA of
+                     Just a ->
+                       do let tc = abstractTypeTCon a
+                          (ts1,k1) <- appTy ts (kindOf tc)
+                          case k of
+                            Just ks
+                              | ks /= k1 -> kRecordError $ KindMismatch ks k1
+                            _ -> return ()
+                          return (TCon tc ts1)
+
+                     -- Maybe it is a scoped type variable?
+                     Nothing
+                       | scoped -> kExistTVar x $ fromMaybe KNum k
+                       | otherwise ->
+                          do kRecordError $ UndefinedTypeSynonym x
+                             kNewType (text "type synonym" <+> pp x) $
+                                                            fromMaybe KNum k
   where
   checkParams as ts1
     | paramHave == paramNeed = return ts1

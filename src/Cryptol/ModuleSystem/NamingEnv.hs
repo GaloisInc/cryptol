@@ -298,7 +298,21 @@ instance BindsNames (InModule (TopDecl PName)) where
     case td of
       Decl d      -> namingEnv (InModule ns (tlValue d))
       TDNewtype d -> namingEnv (InModule ns (tlValue d))
+      DAbstractType d -> namingEnv (InModule ns (tlValue d))
+      DAbstractFun d -> namingEnv (InModule ns (tlValue d))
       Include _   -> mempty
+
+instance BindsNames (InModule (AbstractFun PName)) where
+  namingEnv (InModule ns AbstractFun { .. }) = BuildNamingEnv $
+    do let Located { .. } = afName
+       ntName <- liftSupply (mkDeclared ns (getIdent thing) Nothing srcRange)
+       return (singletonE thing ntName)
+
+instance BindsNames (InModule (AbstractType PName)) where
+  namingEnv (InModule ns AbstractType { .. }) = BuildNamingEnv $
+    do let Located { .. } = atName
+       ntName <- liftSupply (mkDeclared ns (getIdent thing) Nothing srcRange)
+       return (singletonT thing ntName)
 
 -- NOTE: we use the same name at the type and expression level, as there's only
 -- ever one name introduced in the declaration. The names are only ever used in

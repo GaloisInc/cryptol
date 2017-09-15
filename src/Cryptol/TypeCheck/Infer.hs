@@ -24,7 +24,7 @@ import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Solve
 import           Cryptol.TypeCheck.SimpType(tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
-                                          checkNewtype)
+                                          checkNewtype, checkAbsType)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),emptySubst)
@@ -49,12 +49,16 @@ inferModule m =
     do simplifyAllConstraints
        ts <- getTSyns
        nts <- getNewtypes
-       return Module { mName    = thing (P.mName m)
-                     , mExports = P.modExports m
-                     , mImports = map thing (P.mImports m)
-                     , mTySyns  = Map.mapMaybe onlyLocal ts
-                     , mNewtypes = Map.mapMaybe onlyLocal nts
-                     , mDecls   = ds1
+       absTs <- getAbsTypes
+       absFuns <- getAbsFuns
+       return Module { mName      = thing (P.mName m)
+                     , mExports   = P.modExports m
+                     , mImports   = map thing (P.mImports m)
+                     , mTySyns    = Map.mapMaybe onlyLocal ts
+                     , mNewtypes  = Map.mapMaybe onlyLocal nts
+                     , mAbsTypes  = absTs
+                     , mAbsFuns   = absFuns
+                     , mDecls     = ds1
                      }
   where
   onlyLocal (IsLocal, x)    = Just x
@@ -830,6 +834,10 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
   where
   isTopLevel = isTopDecl (head ds)
 
+  checkTyDecls (AT t : ts) =
+    do t1 <- checkAbsType t
+       withAbsType t1 (checkTyDecls ts)
+
   checkTyDecls (TS t : ts) =
     do t1 <- checkTySyn t
        withTySyn t1 (checkTyDecls ts)
@@ -839,8 +847,19 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
        withNewtype t1 (checkTyDecls ts)
 
   -- We checked all type synonyms, now continue with value-level definitions:
-  checkTyDecls [] = checkBinds [] $ orderBinds $ mapMaybe toBind ds
+  checkTyDecls [] =
+    do xs <- mapM checkAbsFun (mapMaybe toAbsFun ds)
+       withAbsFuns xs $ checkBinds [] $ orderBinds $ mapMaybe toBind ds
 
+  checkAbsFun x =
+    do (s,gs) <- checkSchema (P.afSchema x)
+       case gs of
+         [] -> return ()
+         _  ->
+           recordError $ ErrorMsg $ text $
+                            "XXX: Left-over goals while validating schema"
+       let n = thing (P.afName x)
+       return (n,s)
 
   checkBinds decls (CyclicSCC bs : more) =
      do bs1 <- inferBinds isTopLevel True bs

@@ -26,7 +26,9 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-data TyDecl = TS (P.TySyn Name) | NT (P.Newtype Name)
+data TyDecl = TS (P.TySyn Name)               -- ^ Type synonym
+            | NT (P.Newtype Name)             -- ^ Newtype
+            | AT (P.AbstractType Name)        -- ^ Abstract type
 
 -- | Check for duplicate and recursive type synonyms.
 -- Returns the type-synonyms in dependency order.
@@ -39,6 +41,10 @@ orderTyDecls ts =
      concat `fmap` mapM check ordered
 
   where
+  toMap _ ty@(AT a) =
+    let x = P.atName a
+    in ( thing x, x { thing = (ty, []) } )
+
   toMap vs ty@(NT (P.Newtype x as fs)) =
     ( thing x
     , x { thing = (ty, Set.toList $
@@ -59,6 +65,7 @@ orderTyDecls ts =
 
   getN (TS (P.TySyn x _ _)) = thing x
   getN (NT x)               = thing (P.nName x)
+  getN (AT x)               = thing (P.atName x)
 
   check (AcyclicSCC x) = return [x]
 
@@ -81,6 +88,7 @@ orderBinds bs = mkScc [ (b, map thing defs, Set.toList uses)
 
 class FromDecl d where
   toBind    :: d -> Maybe (P.Bind Name)
+  toAbsFun  :: d -> Maybe (P.AbstractFun Name)
   toTyDecl  :: d -> Maybe TyDecl
   isTopDecl :: d -> Bool
 
@@ -88,7 +96,11 @@ instance FromDecl (P.TopDecl Name) where
   toBind (P.Decl x)         = toBind (P.tlValue x)
   toBind _                  = Nothing
 
+  toAbsFun (P.DAbstractFun d) = Just (P.tlValue d)
+  toAbsFun _                  = Nothing
+
   toTyDecl (P.TDNewtype d)  = Just (NT (P.tlValue d))
+  toTyDecl (P.DAbstractType d) = Just (AT (P.tlValue d))
   toTyDecl (P.Decl x)       = toTyDecl (P.tlValue x)
   toTyDecl _                = Nothing
 
@@ -98,6 +110,8 @@ instance FromDecl (P.Decl Name) where
   toBind (P.DLocated d _) = toBind d
   toBind (P.DBind b)      = return b
   toBind _                = Nothing
+
+  toAbsFun _ = Nothing
 
   toTyDecl (P.DLocated d _) = toTyDecl d
   toTyDecl (P.DType x)      = Just (TS x)

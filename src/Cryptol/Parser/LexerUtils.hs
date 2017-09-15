@@ -391,8 +391,10 @@ data TokenKW  = KW_Arith
               | KW_infixr
               | KW_infix
               | KW_primitive
+              | KW_abstract
                 deriving (Eq, Show, Generic, NFData)
 
+-- | The named operators are a special case for parsing types, and 'Other' is
 -- | The named operators are a special case for parsing types, and 'Other' is
 -- used for all other cases that lexed as an operator.
 data TokenOp  = Plus | Minus | Mul | Div | Exp | Mod

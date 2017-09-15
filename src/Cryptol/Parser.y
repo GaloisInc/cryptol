@@ -56,6 +56,7 @@ import Paths_cryptol
   'as'        { Located $$ (Token (KW KW_as)        _)}
   'hiding'    { Located $$ (Token (KW KW_hiding)    _)}
   'private'   { Located $$ (Token (KW KW_private)   _)}
+  'abstract'  { Located $$ (Token (KW KW_abstract) _)}
   'property'  { Located $$ (Token (KW KW_property)  _)}
   'infix'     { Located $$ (Token (KW KW_infix)     _)}
   'infixl'    { Located $$ (Token (KW KW_infixl)    _)}
@@ -240,6 +241,8 @@ vtop_decl               :: { [TopDecl PName] }
   | mbDoc newtype          { [exportNewtype Public $2]                        }
   | prim_bind              { $1                                               }
   | private_decls          { $1                                               }
+  | abs_fun_decl           { $1 }
+  | abs_type_decl          { $1 }
 
 top_decl                :: { [TopDecl PName] }
   : decl                   { [Decl (TopLevel {tlExport = Public, tlValue = $1 })] }
@@ -255,6 +258,12 @@ private_decls           :: { [TopDecl PName] }
 prim_bind               :: { [TopDecl PName] }
   : mbDoc 'primitive' name  ':' schema       { mkPrimDecl $1 $3 $5 }
   | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrimDecl $1 $4 $7 }
+
+abs_type_decl           :: { [TopDecl PName] }
+  : mbDoc 'abstract' 'type' name ':' kind_fun { [ mkAbsType $1 $4 $6 ] }
+
+abs_fun_decl           :: { [TopDecl PName] }
+  : mbDoc 'abstract' name ':' schema { [mkAbsFun $1 $3 $5] }
 
 doc                     :: { Located String }
   : DOC                    { mkDoc (fmap tokenText $1) }
@@ -562,6 +571,11 @@ schema_quals                   :: { Located [Prop PName] }
 kind                             :: { Located Kind      }
   : '#'                             { Located $1 KNum   }
   | '*'                             { Located $1 KType  }
+
+kind_fun                        :: { ([Located Kind], Located Kind) }
+  : kind                          { ([], $1) }
+  | kind '->' kind_fun            { let { (xs,x) = $3 } in ($1 : xs, x) }
+  
 
 schema_param                   :: { TParam PName }
   : ident                         {% mkTParam $1 Nothing           }
