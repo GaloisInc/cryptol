@@ -4,8 +4,8 @@ Loading module test06
 module test06
 import Cryptol
 /* Not recursive */
-test06::test : {a} (Logic a) => a -> a
-test06::test = \{a} (Logic a) (a : a) ->
+test06::test : {a} (Zero a) => a -> a
+test06::test = \{a} (Zero a) (a : a) ->
                test06::bar
                where
                  /* Not recursive */
@@ -23,8 +23,8 @@ Loading module test06
 module test06
 import Cryptol
 /* Not recursive */
-test06::test : {a} (Logic a) => a -> a
-test06::test = \{a} (Logic a) (a : a) ->
+test06::test : {a} (Zero a) => a -> a
+test06::test = \{a} (Zero a) (a : a) ->
                test06::bar
                where
                  /* Not recursive */
