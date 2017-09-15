@@ -494,6 +494,7 @@ instance Rename Prop where
     CFin t        -> CFin       <$> rename t
     CEqual l r    -> CEqual     <$> rename l  <*> rename r
     CGeq l r      -> CGeq       <$> rename l  <*> rename r
+    CZero t       -> CZero      <$> rename t
     CLogic t      -> CLogic     <$> rename t
     CArith t      -> CArith     <$> rename t
     CCmp t        -> CCmp       <$> rename t

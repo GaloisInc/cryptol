@@ -275,19 +275,19 @@ primitive (^) : {a} (Logic a) => a -> a -> a
  * Gives an arbitrary shaped value whose bits are all False.
  * ~zero likewise gives an arbitrary shaped value whose bits are all True.
  */
-primitive zero : {a} (Logic a) => a
+primitive zero : {a} (Zero a) => a
 
 /**
  * Left shift.  The first argument is the sequence to shift, the second is the
  * number of positions to shift by.
 */
-primitive (<<) : {a, b, c} (fin b, Logic c) => [a]c -> [b] -> [a]c
+primitive (<<) : {a, b, c} (fin b, Zero c) => [a]c -> [b] -> [a]c
 
 /**
  * Right shift.  The first argument is the sequence to shift, the second is the
  * number of positions to shift by.
  */
-primitive (>>) : {a, b, c} (fin b, Logic c) => [a]c -> [b] -> [a]c
+primitive (>>) : {a, b, c} (fin b, Zero c) => [a]c -> [b] -> [a]c
 
 /**
  * Left rotate.  The first argument is the sequence to rotate, the second is the
