@@ -261,6 +261,7 @@ tnamesC prop =
     CFin t       -> tnamesT t
     CEqual t1 t2 -> Set.union (tnamesT t1) (tnamesT t2)
     CGeq t1 t2   -> Set.union (tnamesT t1) (tnamesT t2)
+    CLogic t     -> tnamesT t
     CArith t     -> tnamesT t
     CCmp t       -> tnamesT t
     CSignedCmp t -> tnamesT t

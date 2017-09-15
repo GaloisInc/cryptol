@@ -97,6 +97,7 @@ data PC     = PEqual        -- ^ @_ == _@
 
             -- classes
             | PHas Selector -- ^ @Has sel type field@ does not appear in schemas
+            | PLogic        -- ^ @Logic _@
             | PArith        -- ^ @Arith _@
             | PCmp          -- ^ @Cmp _@
             | PSignedCmp    -- ^ @SignedCmp _@
@@ -188,6 +189,7 @@ instance HasKind PC where
       PGeq       -> KNum :-> KNum :-> KProp
       PFin       -> KNum :-> KProp
       PHas _     -> KType :-> KType :-> KProp
+      PLogic     -> KType :-> KProp
       PArith     -> KType :-> KProp
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
@@ -550,6 +552,9 @@ x =#= y = TCon (PC PEqual) [x,y]
 (=/=) :: Type -> Type -> Prop
 x =/= y = TCon (PC PNeq) [x,y]
 
+pLogic :: Type -> Prop
+pLogic t = TCon (PC PLogic) [t]
+
 pArith :: Type -> Prop
 pArith t = TCon (PC PArith) [t]
 
@@ -789,6 +794,7 @@ instance PP PC where
       PGeq       -> text "(>=)"
       PFin       -> text "fin"
       PHas sel   -> parens (ppSelector sel)
+      PLogic     -> text "Logic"
       PArith     -> text "Arith"
       PCmp       -> text "Cmp"
       PSignedCmp -> text "SignedCmp"
