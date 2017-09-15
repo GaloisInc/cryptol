@@ -1,2 +1,2 @@
 Loading module Cryptol
-(&&) : {a} a -> a -> a
+(&&) : {a} (Logic a) => a -> a -> a
