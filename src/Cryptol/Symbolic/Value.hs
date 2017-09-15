@@ -211,14 +211,14 @@ instance BitWord SBool SWord SInteger where
 svToInteger :: SWord -> SInteger
 svToInteger w =
   case svAsInteger w of
-    Nothing -> evalPanic "toInteger" ["unsupported symbolic argument"]
+    Nothing -> svFromIntegral KUnbounded w
     Just x  -> svInteger KUnbounded x
 
 -- TODO: implement this properly in SBV using "int2bv"
 svFromInteger :: Integer -> SInteger -> SWord
 svFromInteger n i =
   case svAsInteger i of
-    Nothing -> evalPanic "fromInteger" ["unsupported symbolic argument"]
+    Nothing -> svFromIntegral (KBounded False (fromInteger n)) i
     Just x  -> literalSWord (fromInteger n) x
 
 -- Errors ----------------------------------------------------------------------
