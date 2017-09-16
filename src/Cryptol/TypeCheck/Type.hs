@@ -402,6 +402,16 @@ pIsEq ty = case tNoUser ty of
              TCon (PC PEqual) [t1,t2] -> Just (t1,t2)
              _                        -> Nothing
 
+pIsZero :: Prop -> Maybe Type
+pIsZero ty = case tNoUser ty of
+               TCon (PC PZero) [t1] -> Just t1
+               _                    -> Nothing
+
+pIsLogic :: Prop -> Maybe Type
+pIsLogic ty = case tNoUser ty of
+                TCon (PC PLogic) [t1] -> Just t1
+                _                     -> Nothing
+
 pIsArith :: Prop -> Maybe Type
 pIsArith ty = case tNoUser ty of
                 TCon (PC PArith) [t1] -> Just t1
