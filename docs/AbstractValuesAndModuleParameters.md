@@ -152,6 +152,50 @@ avoid having to evalute while checking, but more importantly it allows us
 to deal with parameters that are functions, which are can't be easily compared
 for equality.
 
+Naming Instantiations
+---------------------
+
+If a module has quite a few paramters, it might be nice to allow to
+name a specific instantiation which can then be used in many places.
+For example, we could have a module implementing some parametrized algorithm,
+but in a speicific application we would always use a specific instance of
+the algorithm.  One way to do this might be allow module like this:
+
+    module SpecificAlg = GeneralAlg where
+
+    import SomeModule(tweak_cipher)
+
+    type A    = [128]   // State type
+    type K    = [128]   // Key type
+    type n    = [16]    // Block size
+    type p    = 2       // Process 2 blocks at once
+    tagAmount = 8     // Add this much tag at the end
+
+    Cost = 8
+
+    // tweak_cipher parameter is imported from another module
+
+    Enc k t = ...   // This argument is defined locally
+
+
+The idea here is that module `SpecificAlg` is a concrete instance
+of `GeneralAlg`.  The declarations following the `where` keyword are
+similar to an ordinary module, but in this form they are just there
+to specify the instantiation of `GeneralAlg`.  In particular, the
+body should have a name in scope for each parameter of `GeneralAlg`.
+The body may contain other auxilliary declaratoins that are used
+to define the instance but are not exported directly.
+
+XXX: Deisgn choice: we may want to insist that this kind of named instantiation
+is the only way to instantiate modules.  If we do that, then the generativity
+issues from the previous section become less important: each named instances
+generates a fresh instance of everything, and one has to import the same module
+if one wants to get the same types.  It is unclear if this kind of named
+instantiation is too heavy-weight for modules that have only a couple of
+simple parameters...
+
+
+
 
 
 
