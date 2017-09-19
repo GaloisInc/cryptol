@@ -56,7 +56,7 @@ the abstract declarations are used as usual:
     add x y = if isZ x then y else S (add (pred x) y)
 
 If we provide a mechanism to provide concrete implementations for `Nat`,
-then the same implementation would be used in all modules importing `Nat.
+then the same implementation would be used in all modules importing `Nat`.
 This is similar to how Backpack works in Haskell.
 
 Here is how we'd define a parametrized module:
@@ -75,9 +75,9 @@ Here is how we'd define a parametrized module:
         key = prepKeyEncrypt rawKey
 
 When checking this module we would use the declared types for the the
-value parameters, and we would treat 'KeyWidth` as an abstract type.
+value parameters, and we would treat `KeyWidth` as an abstract type.
 
-Question: perhaps we want to provide a mechanism to constraint the type
+Question: perhaps we want to provide a mechanism to constrain the type
 parameter?   For example, maybe we want to say that `KeyWidth` would be
 at least `128`?
 
@@ -125,11 +125,11 @@ As long as the parameters are always types, we should be able to figure out
 if the instantiations are the same an thus figure out which imported
 types are the same.  It is a little trickier to do so in the presence of
 value parameters.   To work around this we propose the following restriction:
-
-  Values parameters may be instantiated only be names, optionally applied to
-  some type arguments.  So, for example `zero `{2}`` may be used to instantiate
-  a module, but `0x10 + 0x20` would not.  Note that literals are a special case
-  of this schema becuase they are just sugar for `demote`.
+*parameters may be instantiated only be names, optionally applied to some
+type arguments*.  So, for example `zero` instantiated with `2` may
+be used as a module parameter, but `0x10 + 0x20` would not.
+Note that literals are a special case of this schema becuase they
+are just sugar for `demote`.
 
 With this restriction, the rule is that two module instantiations are the
 same if the havey the same parameters, where types are compared as usual,
@@ -147,8 +147,7 @@ and values are compared by name.  Here are some examples:
 
 In module `Examples` all instantiations of `X` are different because `val`
 uses different names.  In particular, `E2` and `E3` are different even though
-`val` is essentially given the same value.  We are, however, comparing the
-names of the values, and not the values themselves.  This allows us to
+`val` is essentially given the same value.  Comparing names allows us to
 avoid having to evalute while checking, but more importantly it allows us
 to deal with parameters that are functions, which are can't be easily compared
 for equality.
