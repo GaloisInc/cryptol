@@ -1,0 +1,71 @@
+// WORK IN PROGRESS
+
+/*
+Implementation of the algorithms from the paper
+  "Automated Analysis and Synthesis of Authenticated Encryption Schemes"
+  by Viet Tung Hoang, Jonathan Katz, and Alex J. Malozemoff
+*/
+
+abstract
+  type A : *          // State type
+  type K : *          // Key type
+  type n : #          // Block size
+  type p : #          // Number of blocks to process at once
+  type tagAmount : #
+
+  // Given a keay and a tweak process a block
+  tweak_cipher : K -> Tweak -> [n] -> [n]
+
+  // Cost for using the tweak
+  Cost : Integer
+
+  Enc : K -> Tweak -> Node -> Node
+  Dec : K -> Tweak -> Node -> Node
+  Tag : K -> Tweak -> State -> [n]
+
+// The unit at which `Enc` operates
+type Node       = { message : WorkBlock, state : State }
+
+type WorkBlock  = [p*n]  // A work block, concatenation of `p` single blocks
+type State      = [p*n]  // The state for `p` blocks
+
+type Tweak      = { nonce : Nonce, state : A, z : Integer }
+type Nonce      = [n]
+
+property
+  // The tweak in the `i`th query to the tweak_cipher
+  tweak_prop i { nonce = n, state = a, z = v } =
+               { nonce = n, state = a, z = v + i - 1 }
+
+
+  // Property of decrypt
+/*
+  Dec_prop : Tweak -> Node -> Bit
+  Dec_prop t { message = m, state = x } =
+       Dec t { message = c, state = x } == { message = m, state = y }
+       where { message = c, state = y } = Enc t x m
+*/
+
+type Integer = [64]
+
+encrypt : {m} (fin m) =>
+              K -> Nonce -> A -> [p * m * n] -> [p * m * n + tagAmount]
+encrypt key nonce state inputMsg = join ((drop`{1} go).0.message) # tag
+
+  where
+  tag = take (Tag key (tweak (1 - final.1)) (final.0.state))
+
+  final = go ! 0
+
+  go = [ ({ message = undefined, state = zero }, 1) ] #
+       [ (Enc key (tweak v) { message = m, state = prev.state }, v + Cost)
+       | (prev,v) <- go
+       | m        <- chunks
+       ]
+
+  chunks : [m] [p * n]
+  chunks = split inputMsg
+
+  tweak : Integer -> Tweak
+  tweak v = { nonce = nonce, state = state, z = v }
+
