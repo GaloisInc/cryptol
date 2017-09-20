@@ -358,12 +358,7 @@ data TokenV   = VCurlyL| VCurlyR | VSemi
 data TokenW   = BlockComment | LineComment | Space | DocStr
                 deriving (Eq, Show, Generic, NFData)
 
-data TokenKW  = KW_Arith
-              | KW_Bit
-              | KW_Cmp
-              | KW_SignedCmp
-              | KW_else
-              | KW_Eq
+data TokenKW  = KW_else
               | KW_extern
               | KW_fin
               | KW_if
