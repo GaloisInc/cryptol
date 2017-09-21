@@ -32,14 +32,15 @@ type State      = [p*n]  // The state for `p` blocks
 type Tweak      = { nonce : Nonce, state : A, z : Integer }
 type Nonce      = [n]
 
+/*
 property
+
   // The tweak in the `i`th query to the tweak_cipher
   tweak_prop i { nonce = n, state = a, z = v } =
                { nonce = n, state = a, z = v + i - 1 }
 
 
   // Property of decrypt
-/*
   Dec_prop : Tweak -> Node -> Bit
   Dec_prop t { message = m, state = x } =
        Dec t { message = c, state = x } == { message = m, state = y }
@@ -48,11 +49,12 @@ property
 
 type Integer = [64]
 
-encrypt : {m} (fin m) =>
-              K -> Nonce -> A -> [p * m * n] -> [p * m * n + tagAmount]
+encrypt : {m} (fin m, fin p, fin n, fin tagAmount) =>
+              K -> Nonce -> A -> [m * (p * n)] -> [m * (p * n) + tagAmount]
 encrypt key nonce state inputMsg = join ((drop`{1} go).0.message) # tag
 
   where
+  tag : [tagAmount]
   tag = take (Tag key (tweak (1 - final.1)) (final.0.state))
 
   final = go ! 0

@@ -24,7 +24,12 @@ proveImp sol ps gs0 =
   do let s = rawSolver sol
      let (gs,rest) = partition (isNumeric . goal) gs0
          numAsmp   = filter isNumeric ps
-         vs        = Set.toList (fvs (numAsmp, map goal gs))
+         vs        = Set.toList $ Set.union
+                                    ( fvs (numAsmp, map goal gs) )
+                                    ( Set.map tpVar
+                                        (numTypeParams (numAsmp, map goal gs))
+                                    )
+
      tvs <- debugBlock sol "VARIABLES" $
        do SMT.push s
           Map.fromList <$> zipWithM (declareVar s) [ 0 .. ] vs
@@ -40,9 +45,11 @@ checkUnsolvable sol gs0 =
   debugBlock sol "CHECK UNSOLVABLE" $
   do let s  = rawSolver sol
          ps = filter isNumeric (map goal gs0)
-         vs = Set.toList (fvs ps)
+         vs = Set.toList $ Set.union (fvs ps)
+                                     (Set.map tpVar (numTypeParams ps))
      tvs <- debugBlock sol "VARIABLES" $
        do SMT.push s
+          mapM_ (debugLog sol) (map show vs)
           Map.fromList <$> zipWithM (declareVar s) [ 0 .. ] vs
      ans <- unsolvable sol tvs ps
      SMT.pop s
@@ -89,6 +96,8 @@ unsolvable sol tvs ps =
 
 --------------------------------------------------------------------------------
 
+-- XXX: This is not quite right for 'AND': it could be that one part
+-- of an And os numeric, and the other is not.
 isNumeric :: Prop -> Bool
 isNumeric ty = matchDefault False
              $ msum [ is (|=|), is (|>=|), is aFin, is aTrue, andNum ty ]
@@ -128,6 +137,8 @@ toSMT tvs ty = matchDefault (panic "toSMT" [ "Unexpected type", show ty ])
   , aLenFromThen    ~> "cryLenFromThen"
   , aLenFromThenTo  ~> "cryLenFromThenTo"
 
+  , aNumTypeParam   ~> "(unused)"
+
   , anError KNum    ~> "cryErr"
   , anError KProp   ~> "cryErrProp"
 
@@ -150,6 +161,9 @@ instance Mk Integer where
 
 instance Mk TVar where
   mk tvs _ x = tvs Map.! x
+
+instance Mk TParam where
+  mk tvs f x = mk tvs f (tpVar x)
 
 instance Mk Type where
   mk tvs f x = SMT.fun f [toSMT tvs x]

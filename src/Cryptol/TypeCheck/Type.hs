@@ -616,31 +616,50 @@ pError msg = TCon (TError KProp msg) []
 
 class FVS t where
   fvs :: t -> Set TVar
+  numTypeParams :: t -> Set TParam
 
 instance FVS Type where
   fvs = go
     where
     go ty =
       case ty of
-        TCon _ ts   -> Set.unions (map go ts)
+        TCon _ ts   -> fvs ts
         TVar x      -> Set.singleton x
         TUser _ _ t -> go t
-        TRec fs     -> Set.unions (map (go . snd) fs)
+        TRec fs     -> fvs (map snd fs)
+
+  numTypeParams = go
+    where
+    go ty =
+      case ty of
+        TVar {}                   -> Set.empty
+        TUser _ _ t               -> numTypeParams t
+        TCon (TC (TCParam tp)) [] -> Set.singleton tp
+        TCon _ ts                 -> numTypeParams ts
+        TRec fs                   -> numTypeParams (map snd fs)
 
 instance FVS a => FVS (Maybe a) where
   fvs Nothing  = Set.empty
   fvs (Just x) = fvs x
 
+  numTypeParams = maybe Set.empty numTypeParams
+
 instance FVS a => FVS [a] where
-  fvs xs    = Set.unions (map fvs xs)
+  fvs xs        = Set.unions (map fvs xs)
+  numTypeParams = Set.unions . map numTypeParams
 
 instance (FVS a, FVS b) => FVS (a,b) where
   fvs (x,y) = Set.union (fvs x) (fvs y)
+  numTypeParams (x,y) = Set.union (numTypeParams x) (numTypeParams y)
 
 instance FVS Schema where
   fvs (Forall as ps t) =
       Set.difference (Set.union (fvs ps) (fvs t)) bound
     where bound = Set.fromList (map tpVar as)
+
+  numTypeParams (Forall _ ps t) = numTypeParams (ps,t)
+
+
 
 
 

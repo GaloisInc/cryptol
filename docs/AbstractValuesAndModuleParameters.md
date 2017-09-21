@@ -63,7 +63,7 @@ Here is how we'd define a parametrized module:
 
     module BlockCrypto where
 
-    parameters
+    parameter
       type KeyWidth  : #
       prepKeyEncrypt : [KeyWidth] -> [KeyWidth]
       prepKeyDecrypt : [KeyWidth] -> [KeyWidth]
@@ -77,9 +77,23 @@ Here is how we'd define a parametrized module:
 When checking this module we would use the declared types for the the
 value parameters, and we would treat `KeyWidth` as an abstract type.
 
-Question: perhaps we want to provide a mechanism to constrain the type
-parameter?   For example, maybe we want to say that `KeyWidth` would be
-at least `128`?
+We also need a mechanism to constrain the type parameter.  For example,
+it is quite common to need a numeric type parameter, but require that
+it is finite:
+
+    module BlockCrypto where
+
+    parameter
+      type KeyWidth : #
+      type constraint (fin KeyWidth, KeyWidth >= 64)
+
+In this example we add two constraints: the key width will be finite
+and at least 64.   These constraints will be assumed while
+type checking the module, and validated when the module is instantiated.
+
+
+
+
 
 When importing a parametrized module one would have to provide concrete
 values for the parameters:
@@ -105,7 +119,7 @@ advertised form, namely `newtype`.  Consider, for example:
 
     module Word where
 
-    parameters
+    parameter
       type Size : #
 
     newtype Word = Word [Size]
@@ -136,7 +150,7 @@ same if the havey the same parameters, where types are compared as usual,
 and values are compared by name.  Here are some examples:
 
       moudle X where
-      parameters
+      parameter
         type T : #
         val : [T]
 
