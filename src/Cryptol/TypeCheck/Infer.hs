@@ -24,7 +24,7 @@ import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Solve
 import           Cryptol.TypeCheck.SimpType(tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
-                                          checkNewtype)
+                                        checkPropSyn,checkNewtype)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),emptySubst)
@@ -832,6 +832,10 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
 
   checkTyDecls (TS t : ts) =
     do t1 <- checkTySyn t
+       withTySyn t1 (checkTyDecls ts)
+
+  checkTyDecls (PS t : ts) =
+    do t1 <- checkPropSyn t
        withTySyn t1 (checkTyDecls ts)
 
   checkTyDecls (NT t : ts) =

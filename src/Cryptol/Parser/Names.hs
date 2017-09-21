@@ -49,6 +49,7 @@ namesD decl =
     DFixity{}     -> ([],Set.empty)
     DPragma {}    -> ([],Set.empty)
     DType {}      -> ([],Set.empty)
+    DProp {}      -> ([],Set.empty)
     DLocated d _  -> namesD d
 
 -- | The names defined and used by a single declarations in such a way
@@ -64,10 +65,14 @@ allNamesD decl =
     DFixity _ ns    -> ns
     DPragma ns _    -> ns
     DType ts        -> [tsName ts]
+    DProp ps        -> [psName ps]
     DLocated d _    -> allNamesD d
 
 tsName :: TySyn name -> Located name
 tsName (TySyn lqn _ _) = lqn
+
+psName :: PropSyn name -> Located name
+psName (PropSyn lqn _ _) = lqn
 
 -- | The names defined and used by a single binding.
 namesB :: Ord name => Bind name -> ([Located name], Set name)
@@ -167,6 +172,20 @@ namesT vs = go
       TParens t     -> namesT vs t
       TInfix a _ _ b-> Set.union (namesT vs a) (namesT vs b)
 
+-- | Given the set of type variables that are in scope,
+-- compute the type/constraint synonyms used by a prop.
+namesC :: Ord name => Set name -> Prop name -> Set name
+namesC vs prop =
+  case prop of
+    CFin t        -> namesT vs t
+    CEqual t1 t2  -> Set.union (namesT vs t1) (namesT vs t2)
+    CGeq t1 t2    -> Set.union (namesT vs t1) (namesT vs t2)
+    CArith t      -> namesT vs t
+    CCmp t        -> namesT vs t
+    CSignedCmp t  -> namesT vs t
+    CUser x ts    -> Set.insert x (Set.unions (map (namesT vs) ts))
+    CLocated p _  -> namesC vs p
+    CType t       -> namesT vs t
 
 -- | The type names defined and used by a group of mutually recursive declarations.
 tnamesDs :: Ord name => [Decl name] -> ([Located name], Set name)
@@ -186,6 +205,9 @@ tnamesD decl =
     DPatBind _ e         -> ([], tnamesE e)
     DLocated d _         -> tnamesD d
     DType (TySyn n ps t) -> ([n], Set.difference (tnamesT t) (Set.fromList (map tpName ps)))
+    DProp (PropSyn n ps cs)
+                         -> ([n], Set.difference (Set.unions (map tnamesC cs))
+                                  (Set.fromList (map tpName ps)))
 
 -- | The type names used by a single binding.
 tnamesB :: Ord name => Bind name -> Set name
@@ -266,6 +288,7 @@ tnamesC prop =
     CArith t     -> tnamesT t
     CCmp t       -> tnamesT t
     CSignedCmp t -> tnamesT t
+    CUser x ts   -> Set.insert x (Set.unions (map tnamesT ts))
     CLocated p _ -> tnamesC p
     CType t      -> tnamesT t
 

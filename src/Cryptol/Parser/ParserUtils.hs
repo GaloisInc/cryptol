@@ -295,6 +295,14 @@ mkTySyn ln ps b
   | otherwise =
     return $ DType $ TySyn ln ps b
 
+mkPropSyn :: Located PName -> [TParam PName] -> Type PName -> ParseM (Decl PName)
+mkPropSyn ln ps b
+  | getIdent (thing ln) == widthIdent =
+    errorMessage (srcRange ln) "`width` is not a valid constraint synonym name."
+
+  | otherwise =
+    DProp . PropSyn ln ps . thing <$> mkProp b
+
 polyTerm :: Range -> Integer -> Integer -> ParseM (Bool, Integer)
 polyTerm rng k p
   | k == 0          = return (False, p)
@@ -434,7 +442,7 @@ mkProp ty =
     | i == finIdent,       [x] <- xs = return [CLocated (CFin x) r]
     | i == cmpIdent,       [x] <- xs = return [CLocated (CCmp x) r]
     | i == signedCmpIdent, [x] <- xs = return [CLocated (CSignedCmp x) r]
-    | otherwise                      = errorMessage r "Invalid constraint"
+    | otherwise                      = return [CLocated (CType (TUser f xs)) r]
     where
     i = getIdent f
 

@@ -228,12 +228,12 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
                               }
 
 
-
+  asmps1 = concatMap pSplitAnd asmps0
   (asmps,gs) =
      let gs1 = [ g { goal = p } | g <- gs0, p <- pSplitAnd (goal g)
-                                , notElem p asmps0 ]
-     in case matchMaybe (improveProps True Map.empty asmps0) of
-          Nothing -> (asmps0,gs1)
+                                , notElem p asmps1 ]
+     in case matchMaybe (improveProps True Map.empty asmps1) of
+          Nothing -> (asmps1,gs1)
           Just (newSu,newAsmps) ->
              ( [ TVar x =#= t | (x,t) <- substToList newSu ]
                ++ newAsmps
