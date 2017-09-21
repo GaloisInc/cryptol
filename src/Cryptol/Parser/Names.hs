@@ -180,6 +180,8 @@ namesC vs prop =
     CFin t        -> namesT vs t
     CEqual t1 t2  -> Set.union (namesT vs t1) (namesT vs t2)
     CGeq t1 t2    -> Set.union (namesT vs t1) (namesT vs t2)
+    CZero t       -> namesT vs t
+    CLogic t      -> namesT vs t
     CArith t      -> namesT vs t
     CCmp t        -> namesT vs t
     CSignedCmp t  -> namesT vs t
