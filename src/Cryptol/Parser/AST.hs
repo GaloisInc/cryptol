@@ -39,6 +39,7 @@ module Cryptol.Parser.AST
   , Fixity(..), defaultFixity
   , FixityCmp(..), compareFixity
   , TySyn(..)
+  , PropSyn(..)
   , Bind(..)
   , BindDef(..), LBindDef
   , Pragma(..)
@@ -130,6 +131,7 @@ data Decl name = DSignature [Located name] (Schema name)
                | DBind (Bind name)
                | DPatBind (Pattern name) (Expr name)
                | DType (TySyn name)
+               | DProp (PropSyn name)
                | DLocated (Decl name) Range
                  deriving (Eq, Show, Generic, NFData, Functor)
 
@@ -150,6 +152,9 @@ data ImportSpec = Hiding [Ident]
 
 data TySyn n  = TySyn (Located n) [TParam n] (Type n)
                 deriving (Eq, Show, Generic, NFData, Functor)
+
+data PropSyn n = PropSyn (Located n) [TParam n] [Prop n]
+                 deriving (Eq, Show, Generic, NFData, Functor)
 
 {- | Bindings.  Notes:
 
@@ -375,6 +380,7 @@ data Prop n   = CFin (Type n)             -- ^ @ fin x   @
               | CArith (Type n)           -- ^ @ Arith a @
               | CCmp (Type n)             -- ^ @ Cmp a @
               | CSignedCmp (Type n)       -- ^ @ SignedCmp a @
+              | CUser n [Type n]          -- ^ Constraint synonym
               | CLocated (Prop n) Range   -- ^ Location information
               | CType (Type n)            -- ^ After parsing
                 deriving (Eq, Show, Generic, NFData, Functor)
@@ -528,6 +534,7 @@ instance (Show name, PPName name) => PP (Decl name) where
       DFixity f ns    -> ppFixity f ns
       DPragma xs p    -> ppPragma xs p
       DType ts        -> ppPrec n ts
+      DProp ps        -> ppPrec n ps
       DLocated d _    -> ppPrec n d
 
 ppFixity :: PPName name => Fixity -> [Located name] -> Doc
@@ -591,6 +598,12 @@ instance (Show name, PPName name) => PP (BindDef name) where
 instance PPName name => PP (TySyn name) where
   ppPrec _ (TySyn x xs t) = text "type" <+> ppL x <+> fsep (map (ppPrec 1) xs)
                                         <+> text "=" <+> pp t
+
+instance PPName name => PP (PropSyn name) where
+  ppPrec _ (PropSyn x xs ps) =
+    text "constraint" <+> ppL x <+> fsep (map (ppPrec 1) xs)
+                      <+> text "=" <+> parens (commaSep (map pp ps))
+
 instance PP Literal where
   ppPrec _ lit =
     case lit of
@@ -828,6 +841,8 @@ instance PPName name => PP (Prop name) where
       CSignedCmp t -> text "SignedCmp" <+> ppPrec 4 t
       CEqual t1 t2 -> ppPrec 2 t1 <+> text "==" <+> ppPrec 2 t2
       CGeq t1 t2   -> ppPrec 2 t1 <+> text ">=" <+> ppPrec 2 t2
+      CUser f ts   -> optParens (n > 2)
+                    $ ppPrefixName f <+> fsep (map (ppPrec 4) ts)
       CLocated c _ -> ppPrec n c
 
       CType t      -> ppPrec n t
@@ -878,6 +893,7 @@ instance NoPos (Decl name) where
       DFixity f ns     -> DFixity f (noPos ns)
       DBind      x     -> DBind      (noPos x)
       DType      x     -> DType      (noPos x)
+      DProp      x     -> DProp      (noPos x)
       DLocated   x _   -> noPos x
 
 instance NoPos (Newtype name) where
@@ -906,6 +922,9 @@ instance NoPos Pragma where
 
 instance NoPos (TySyn name) where
   noPos (TySyn x y z) = TySyn (noPos x) (noPos y) (noPos z)
+
+instance NoPos (PropSyn name) where
+  noPos (PropSyn x y z) = PropSyn (noPos x) (noPos y) (noPos z)
 
 instance NoPos (Expr name) where
   noPos expr =
@@ -984,5 +1003,6 @@ instance NoPos (Prop name) where
       CArith x      -> CArith (noPos x)
       CCmp x        -> CCmp   (noPos x)
       CSignedCmp x  -> CSignedCmp (noPos x)
+      CUser x y     -> CUser x (noPos y)
       CLocated c _  -> noPos c
       CType t       -> CType (noPos t)

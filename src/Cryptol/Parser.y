@@ -72,6 +72,7 @@ import Paths_cryptol
   'x'         { Located $$ (Token (KW KW_x)       _)}
 
   'primitive' { Located $$ (Token (KW KW_primitive) _)}
+  'constraint'{ Located $$ (Token (KW KW_constraint) _)}
 
   '['         { Located $$ (Token (Sym BracketL) _)}
   ']'         { Located $$ (Token (Sym BracketR) _)}
@@ -296,6 +297,11 @@ decl                    :: { Decl PName }
   | 'type' name '=' type   {% at ($1,$4) `fmap` mkTySyn $2 [] $4 }
   | 'type' name tysyn_params '=' type
                            {% at ($1,$5) `fmap` mkTySyn $2 (reverse $3) $5  }
+
+  | 'constraint' name '=' type
+                           {% at ($1,$4) `fmap` mkPropSyn $2 [] $4 }
+  | 'constraint' name tysyn_params '=' type
+                           {% at ($1,$5) `fmap` mkPropSyn $2 (reverse $3) $5 }
 
   | 'infixl' NUM ops       {% mkFixity LeftAssoc  $2 (reverse $3) }
   | 'infixr' NUM ops       {% mkFixity RightAssoc $2 (reverse $3) }

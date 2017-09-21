@@ -386,6 +386,7 @@ data TokenKW  = KW_else
               | KW_infixr
               | KW_infix
               | KW_primitive
+              | KW_constraint
                 deriving (Eq, Show, Generic, NFData)
 
 -- | The named operators are a special case for parsing types, and 'Other' is
