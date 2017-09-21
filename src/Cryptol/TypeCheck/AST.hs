@@ -46,14 +46,14 @@ import qualified Data.IntMap as IntMap
 
 
 -- | A Cryptol module.
-data Module = Module { mName     :: !ModName
-                     , mExports  :: ExportSpec Name
-                     , mImports  :: [Import]
-                     , mTySyns   :: Map Name TySyn
-                     , mNewtypes :: Map Name Newtype
-                     , mAbsTypes :: Map Name TParam
-                     , mAbsFuns  :: Map Name Schema
-                     , mDecls    :: [DeclGroup]
+data Module = Module { mName        :: !ModName
+                     , mExports     :: ExportSpec Name
+                     , mImports     :: [Import]
+                     , mTySyns      :: Map Name TySyn
+                     , mNewtypes    :: Map Name Newtype
+                     , mParamTypes  :: Map Name TParam
+                     , mParamFuns   :: Map Name Schema
+                     , mDecls       :: [DeclGroup]
                      } deriving (Show, Generic, NFData)
 
 

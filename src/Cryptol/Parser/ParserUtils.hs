@@ -270,29 +270,27 @@ exportNewtype e n = TDNewtype TopLevel { tlExport = e
                                        , tlDoc    = Nothing
                                        , tlValue  = n }
 
-mkAbsFun :: Maybe (Located String) ->
+mkParFun :: Maybe (Located String) ->
             Located PName ->
             Schema PName ->
             TopDecl PName
-mkAbsFun mbDoc n s =
-  DAbstractFun
-  TopLevel { tlExport = Public
-           , tlDoc = mbDoc
-           , tlValue = AbstractFun { afName = n, afSchema = s }
-           }
+mkParFun mbDoc n s = DParameterFun ParameterFun { pfName = n
+                                                , pfSchema = s
+                                                , pfDoc = thing <$> mbDoc
+                                                , pfFixity = Nothing
+                                                }
 
-mkAbsType :: Maybe (Located String) ->
+mkParType :: Maybe (Located String) ->
              Located PName ->
              ([Located Kind],Located Kind) ->
              TopDecl PName
-mkAbsType mbDoc n (ks,k) =
-  DAbstractType
-  TopLevel { tlExport = Public
-           , tlDoc = mbDoc
-           , tlValue = AbstractType { atName = n
-                                    , atParams = map thing ks
-                                    , atResult = thing k }
-           }
+mkParType mbDoc n (ks,k) = DParameterType
+                           ParameterType { ptName = n
+                                         , ptParams = map thing ks
+                                         , ptResult = thing k
+                                         , ptDoc = thing <$> mbDoc
+                                         , ptFixity = Nothing
+                                         }
 
 
 
@@ -301,9 +299,9 @@ changeExport e = map change
   where
   change (Decl d)      = Decl      d { tlExport = e }
   change (TDNewtype n) = TDNewtype n { tlExport = e }
-  change (DAbstractType a) = DAbstractType a { tlExport = e }
-  change (DAbstractFun a)  = DAbstractFun a { tlExport = e }
   change td@Include{}  = td
+  change (DParameterType {}) = panic "changeExport" ["private type parameter?"]
+  change (DParameterFun {})  = panic "changeExport" ["private value parameter?"]
 
 mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)

@@ -56,7 +56,7 @@ import Paths_cryptol
   'as'        { Located $$ (Token (KW KW_as)        _)}
   'hiding'    { Located $$ (Token (KW KW_hiding)    _)}
   'private'   { Located $$ (Token (KW KW_private)   _)}
-  'abstract'  { Located $$ (Token (KW KW_abstract) _)}
+  'parameter' { Located $$ (Token (KW KW_parameter) _)}
   'property'  { Located $$ (Token (KW KW_property)  _)}
   'infix'     { Located $$ (Token (KW KW_infix)     _)}
   'infixl'    { Located $$ (Token (KW KW_infixl)    _)}
@@ -241,8 +241,7 @@ vtop_decl               :: { [TopDecl PName] }
   | mbDoc newtype          { [exportNewtype Public $2]                        }
   | prim_bind              { $1                                               }
   | private_decls          { $1                                               }
-  | abs_fun_decl           { $1 }
-  | abs_type_decl          { $1 }
+  | parameter_decls        { $1                                               }
 
 top_decl                :: { [TopDecl PName] }
   : decl                   { [Decl (TopLevel {tlExport = Public, tlValue = $1 })] }
@@ -259,11 +258,23 @@ prim_bind               :: { [TopDecl PName] }
   : mbDoc 'primitive' name  ':' schema       { mkPrimDecl $1 $3 $5 }
   | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrimDecl $1 $4 $7 }
 
-abs_type_decl           :: { [TopDecl PName] }
-  : mbDoc 'abstract' 'type' name ':' kind_fun { [ mkAbsType $1 $4 $6 ] }
 
-abs_fun_decl           :: { [TopDecl PName] }
-  : mbDoc 'abstract' name ':' schema { [mkAbsFun $1 $3 $5] }
+
+parameter_decls                      :: { [TopDecl PName] }
+  :     'parameter' 'v{' par_decls 'v}' { reverse $3 }
+  | doc 'parameter' 'v{' par_decls 'v}' { reverse $4 }
+
+-- Reversed
+par_decls                            :: { [TopDecl PName] }
+  : par_decl                            { [$1] }
+  | par_decls ';'  par_decl             { $3 : $1 }
+  | par_decls 'v;' par_decl             { $3 : $1 }
+
+par_decl                             :: { TopDecl PName }
+  : mbDoc        name ':' schema        { mkParFun $1 $2 $4 }
+  | mbDoc 'type' name ':' kind_fun      { mkParType $1 $3 $5 }
+
+
 
 doc                     :: { Located String }
   : DOC                    { mkDoc (fmap tokenText $1) }

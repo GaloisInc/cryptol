@@ -48,8 +48,8 @@ module Cryptol.Parser.AST
   , TopLevel(..)
   , Import(..), ImportSpec(..)
   , Newtype(..)
-  , AbstractType(..)
-  , AbstractFun(..)
+  , ParameterType(..)
+  , ParameterFun(..)
 
     -- * Interactive
   , ReplInput(..)
@@ -124,8 +124,8 @@ modRange m = rCombs $ catMaybes
 data TopDecl name = Decl (TopLevel (Decl name))
                   | TDNewtype (TopLevel (Newtype name))
                   | Include (Located FilePath)
-                  | DAbstractType (TopLevel (AbstractType name))
-                  | DAbstractFun  (TopLevel (AbstractFun name))
+                  | DParameterType (ParameterType name)
+                  | DParameterFun  (ParameterFun name)
                     deriving (Show, Generic, NFData)
 
 data Decl name = DSignature [Located name] (Schema name)
@@ -138,17 +138,21 @@ data Decl name = DSignature [Located name] (Schema name)
                  deriving (Eq, Show, Generic, NFData, Functor)
 
 
--- XXX Infix ops
-data AbstractType name = AbstractType
-  { atName    :: Located name
-  , atParams  :: [Kind]
-  , atResult  :: Kind
+-- | A type parameter
+data ParameterType name = ParameterType
+  { ptName    :: Located name     -- ^ name of type parameter
+  , ptParams  :: [Kind]           -- ^ parameter kinds
+  , ptResult  :: Kind             -- ^ result kind
+  , ptDoc     :: Maybe String     -- ^ optional documentation
+  , ptFixity  :: Maybe Fixity     -- ^ info for infix use
   } deriving (Eq,Show,Generic,NFData)
 
--- XXX Infix ops
-data AbstractFun name = AbstractFun
-  { afName   :: Located name
-  , afSchema :: Schema name
+-- | A value parameter
+data ParameterFun name = ParameterFun
+  { pfName   :: Located name      -- ^ name of value parameter
+  , pfSchema :: Schema name       -- ^ schema for parameter
+  , pfDoc    :: Maybe String      -- ^ optional documentation
+  , pfFixity :: Maybe Fixity      -- ^ info for infix use
   } deriving (Eq,Show,Generic,NFData)
 
 
@@ -398,6 +402,7 @@ data Prop n   = CFin (Type n)             -- ^ @ fin x   @
               | CType (Type n)            -- ^ After parsing
                 deriving (Eq, Show, Generic, NFData, Functor)
 
+
 --------------------------------------------------------------------------------
 -- Note: When an explicit location is missing, we could use the sub-components
 -- to try to estimate a location...
@@ -487,14 +492,14 @@ instance HasLoc (TopDecl name) where
     Decl tld    -> getLoc tld
     TDNewtype n -> getLoc n
     Include lfp -> getLoc lfp
-    DAbstractType d -> getLoc d
-    DAbstractFun d  -> getLoc d
+    DParameterType d -> getLoc d
+    DParameterFun d  -> getLoc d
 
-instance HasLoc (AbstractType name) where
-  getLoc a = getLoc (atName a)
+instance HasLoc (ParameterType name) where
+  getLoc a = getLoc (ptName a)
 
-instance HasLoc (AbstractFun name) where
-  getLoc a = getLoc (afName a)
+instance HasLoc (ParameterFun name) where
+  getLoc a = getLoc (pfName a)
 
 instance HasLoc (Module name) where
   getLoc m
@@ -545,18 +550,18 @@ instance (Show name, PPName name) => PP (TopDecl name) where
       Decl    d   -> pp d
       TDNewtype n -> pp n
       Include l   -> text "include" <+> text (show (thing l))
-      DAbstractFun d -> pp d
-      DAbstractType d -> pp d
+      DParameterFun d -> pp d
+      DParameterType d -> pp d
 
-instance (Show name, PPName name) => PP (AbstractType name) where
-  ppPrec _ a = text "abstract" <+> text "type" <+>
-               ppPrefixName (atName a) <+> text ":" <+>
-               foldr ppKFun (pp (atResult a)) (atParams a)
+instance (Show name, PPName name) => PP (ParameterType name) where
+  ppPrec _ a = text "parameter" <+> text "type" <+>
+               ppPrefixName (ptName a) <+> text ":" <+>
+               foldr ppKFun (pp (ptResult a)) (ptParams a)
     where ppKFun x y = pp x <+> text "->" <+> y
 
-instance (Show name, PPName name) => PP (AbstractFun name) where
-  ppPrec _ a = text "abstract" <+> ppPrefixName (afName a) <+> text ":"
-                  <+> pp (afSchema a)
+instance (Show name, PPName name) => PP (ParameterFun name) where
+  ppPrec _ a = text "parameter" <+> ppPrefixName (pfName a) <+> text ":"
+                  <+> pp (pfSchema a)
 
 
 instance (Show name, PPName name) => PP (Decl name) where
@@ -905,14 +910,14 @@ instance NoPos (TopDecl name) where
       Decl    x   -> Decl     (noPos x)
       TDNewtype n -> TDNewtype(noPos n)
       Include x   -> Include  (noPos x)
-      DAbstractFun d -> DAbstractFun (noPos d)
-      DAbstractType d -> DAbstractType (noPos d)
+      DParameterFun d  -> DParameterFun (noPos d)
+      DParameterType d -> DParameterType (noPos d)
 
-instance NoPos (AbstractType name) where
+instance NoPos (ParameterType name) where
   noPos a = a
 
-instance NoPos (AbstractFun x) where
-  noPos x = x { afSchema = noPos (afSchema x) }
+instance NoPos (ParameterFun x) where
+  noPos x = x { pfSchema = noPos (pfSchema x) }
 
 instance NoPos a => NoPos (TopLevel a) where
   noPos tl = tl { tlValue = noPos (tlValue tl) }

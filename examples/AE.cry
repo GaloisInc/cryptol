@@ -6,7 +6,7 @@ Implementation of the algorithms from the paper
   by Viet Tung Hoang, Jonathan Katz, and Alex J. Malozemoff
 */
 
-abstract
+parameter
   type A : *          // State type
   type K : *          // Key type
   type n : #          // Block size

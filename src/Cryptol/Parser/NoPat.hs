@@ -27,7 +27,6 @@ import Cryptol.Utils.Panic(panic)
 
 import           MonadLib hiding (mapM)
 import           Data.Maybe(maybeToList)
-import           Data.Either(partitionEithers)
 import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
@@ -254,19 +253,20 @@ noPatDs ds =
 
      return ds2
 
-noPatTopDs :: [TopLevel (Decl PName)] -> NoPatM [TopLevel (Decl PName)]
-noPatTopDs tds =
-  do noPatGroups <- mapM (noMatchD . tlValue) tds
 
-     let allDecls  = concat noPatGroups
+
+noPatTopDs :: [TopDecl PName] -> NoPatM [TopDecl PName]
+noPatTopDs tds =
+  do desugared <- concat <$> mapM desugar tds
+
+     let allDecls  = map tlValue (decls desugared)
          pragmaMap = Map.fromListWith (++) $ concatMap toPragma allDecls
          sigMap    = Map.fromListWith (++) $ concatMap toSig    allDecls
          fixMap    = Map.fromListWith (++) $ concatMap toFixity allDecls
-         docMap    = Map.fromListWith (++) $ concatMap toDocs   tds
+         docMap    = Map.fromListWith (++) $ concatMap toDocs   (decls tds)
 
-     let exportGroups = zipWith (\ td ds -> td { tlValue = ds }) tds noPatGroups
      (tds', (pMap,sMap,fMap,_)) <- runStateT (pragmaMap,sigMap,fixMap,docMap)
-                                             (annotTopDs exportGroups)
+                                             (annotTopDs desugared)
 
      forM_ (Map.toList pMap) $ \(n,ps) ->
        forM_ ps $ \p -> recordError $ PragmaNoBind (p { thing = n }) (thing p)
@@ -281,27 +281,23 @@ noPatTopDs tds =
 
      return tds'
 
+  where
+  decls xs = [ d | Decl d <- xs ]
+
+  desugar d =
+    case d of
+      Decl tl -> do ds <- noMatchD (tlValue tl)
+                    return [ Decl tl { tlValue = d1 } | d1 <- ds ]
+      x      -> return [x]
+
 
 noPatProg :: Program PName -> NoPatM (Program PName)
-noPatProg (Program topDs) =
-  do let (ds, others) = partitionEithers (map isDecl topDs)
-     ds1 <- noPatTopDs ds
-     return $ Program $ others ++ map Decl ds1
-
-  where
-  isDecl (Decl d) = Left d
-  isDecl d        = Right d
+noPatProg (Program topDs) = Program <$> noPatTopDs topDs
 
 noPatModule :: Module PName -> NoPatM (Module PName)
 noPatModule m =
-  do let (ds, others) = partitionEithers (map isDecl (mDecls m))
-     ds1 <- noPatTopDs ds
-     return m { mDecls = others ++ map Decl ds1 }
-
-  where
-  isDecl (Decl d) = Left d
-  isDecl d        = Right d
-
+  do ds1 <- noPatTopDs (mDecls m)
+     return m { mDecls = ds1 }
 
 --------------------------------------------------------------------------------
 
@@ -317,17 +313,35 @@ type AnnotMap = ( Map.Map PName [Located  Pragma       ]
 -- export specifications, this will favor the specification of the binding.
 -- This is most likely the intended behavior, so it's probably fine, but it does
 -- smell a bit.
-annotTopDs :: [TopLevel [Decl PName]]
-           -> StateT AnnotMap NoPatM [TopLevel (Decl PName)]
+annotTopDs :: [TopDecl PName] -> StateT AnnotMap NoPatM [TopDecl PName]
 annotTopDs tds =
   case tds of
 
-    (ds:dss) ->
-      do ds'  <- annotDs (tlValue ds)
-         rest <- annotTopDs dss
-         if null ds'
-            then return rest
-            else return ([ ds { tlValue = d } | d <- ds' ] ++ rest)
+    d : ds ->
+      case d of
+        Decl d1 ->
+          do ignore <- runExceptionT (annotD (tlValue d1))
+             case ignore of
+               Left _   -> annotTopDs ds
+               Right d2 -> (Decl (d1 { tlValue = d2 }) :) <$> annotTopDs ds
+
+        -- XXX: Add fixity once we support type-level fixities
+        DParameterType {} -> (d :) <$> annotTopDs ds
+        DParameterFun p ->
+          do (ps,ss,fs,ds') <- get
+             let rm _ _ = Nothing
+                 name = thing (pfName p)
+             case Map.updateLookupWithKey rm name fs of
+               (Nothing,_)  -> (d :) <$> annotTopDs ds
+               (Just f,fs1) ->
+                 do mbF <- lift (checkFixs name f)
+                    set (ps,ss,fs1,ds')
+                    let p1 = p { pfFixity = mbF }
+                    (DParameterFun p1 :) <$> annotTopDs ds
+
+        -- XXX: we may want to add pragmas to newtypes?
+        TDNewtype {} -> (d :) <$> annotTopDs ds
+        Include {}   -> (d :) <$> annotTopDs ds
 
     [] -> return []
 

@@ -24,7 +24,7 @@ import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Solve
 import           Cryptol.TypeCheck.SimpType(tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
-                                          checkNewtype, checkAbsType)
+                                          checkNewtype, checkParameterType)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),emptySubst)
@@ -49,15 +49,15 @@ inferModule m =
     do simplifyAllConstraints
        ts <- getTSyns
        nts <- getNewtypes
-       absTs <- getAbsTypes
-       absFuns <- getAbsFuns
+       pTs <- getParamTypes
+       pFuns <- getParamFuns
        return Module { mName      = thing (P.mName m)
                      , mExports   = P.modExports m
                      , mImports   = map thing (P.mImports m)
                      , mTySyns    = Map.mapMaybe onlyLocal ts
                      , mNewtypes  = Map.mapMaybe onlyLocal nts
-                     , mAbsTypes  = absTs
-                     , mAbsFuns   = absFuns
+                     , mParamTypes= pTs
+                     , mParamFuns = pFuns
                      , mDecls     = ds1
                      }
   where
@@ -835,8 +835,8 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
   isTopLevel = isTopDecl (head ds)
 
   checkTyDecls (AT t : ts) =
-    do t1 <- checkAbsType t
-       withAbsType t1 (checkTyDecls ts)
+    do t1 <- checkParameterType t
+       withParamType t1 (checkTyDecls ts)
 
   checkTyDecls (TS t : ts) =
     do t1 <- checkTySyn t
@@ -848,17 +848,17 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
 
   -- We checked all type synonyms, now continue with value-level definitions:
   checkTyDecls [] =
-    do xs <- mapM checkAbsFun (mapMaybe toAbsFun ds)
-       withAbsFuns xs $ checkBinds [] $ orderBinds $ mapMaybe toBind ds
+    do xs <- mapM checkParameterFun (mapMaybe toAbsFun ds)
+       withParamFuns xs $ checkBinds [] $ orderBinds $ mapMaybe toBind ds
 
-  checkAbsFun x =
-    do (s,gs) <- checkSchema (P.afSchema x)
+  checkParameterFun x =
+    do (s,gs) <- checkSchema (P.pfSchema x)
        case gs of
          [] -> return ()
          _  ->
            recordError $ ErrorMsg $ text $
                             "XXX: Left-over goals while validating schema"
-       let n = thing (P.afName x)
+       let n = thing (P.pfName x)
        return (n,s)
 
   checkBinds decls (CyclicSCC bs : more) =

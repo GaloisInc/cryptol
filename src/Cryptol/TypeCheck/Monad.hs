@@ -111,8 +111,8 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
                      , iTVars         = []
                      , iTSyns         = fmap mkExternal (inpTSyns info)
                      , iNewtypes      = fmap mkExternal (inpNewtypes info)
-                     , iAbsTypes      = Map.empty
-                     , iAbsFuns       = Map.empty
+                     , iParamTypes    = Map.empty
+                     , iParamFuns     = Map.empty
 
                      , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
                      , iMonoBinds     = inpMonoBinds info
@@ -210,11 +210,11 @@ data RO = RO
    -- at the top-level, but then there can't be a newtype with the
    -- same name (this should be caught by the renamer).
 
-  , iAbsTypes :: Map Name TParam
-    -- ^ Abstract types
+  , iParamTypes :: Map Name TParam
+    -- ^ Parameter types
 
-  , iAbsFuns :: Map Name Schema
-    -- ^ Abstract functions
+  , iParamFuns :: Map Name Schema
+    -- ^ Parameter functions
 
   , iSolvedHasLazy :: Map Int (Expr -> Expr)
     -- ^ NOTE: This field is lazy in an important way!  It is the
@@ -535,11 +535,11 @@ lookupVar x =
             case mbNT of
               Just nt -> return (ExtVar (newtypeConType nt))
               Nothing ->
-                do mbAbsFun <- lookupAbsFun x
-                   case mbAbsFun of
-                     Just af -> return (ExtVar af)
+                do mbParamFun <- lookupParamFun x
+                   case mbParamFun of
+                     Just pf -> return (ExtVar pf)
                      Nothing ->
-                       do recordError $ UndefinedVariable x
+                       do recordError (UndefinedVariable x)
                           a <- newType (text "type of" <+> pp x) KType
                           return $ ExtVar $ Forall [] [] a
 
@@ -557,13 +557,13 @@ lookupTSyn x = fmap (fmap snd . Map.lookup x) getTSyns
 lookupNewtype :: Name -> InferM (Maybe Newtype)
 lookupNewtype x = fmap (fmap snd . Map.lookup x) getNewtypes
 
--- | Lookup the kind of an abstract type
-lookupAbsType :: Name -> InferM (Maybe TParam)
-lookupAbsType x = Map.lookup x <$> getAbsTypes
+-- | Lookup the kind of a parameter type
+lookupParamType :: Name -> InferM (Maybe TParam)
+lookupParamType x = Map.lookup x <$> getParamTypes
 
--- | Lookup the schema for an abstract function.
-lookupAbsFun :: Name -> InferM (Maybe Schema)
-lookupAbsFun x = Map.lookup x <$> getAbsFuns
+-- | Lookup the schema for a parameter function.
+lookupParamFun :: Name -> InferM (Maybe Schema)
+lookupParamFun x = Map.lookup x <$> getParamFuns
 
 -- | Check if we already have a name for this existential type variable and,
 -- if so, return the definition.  If not, try to create a new definition,
@@ -597,13 +597,13 @@ getTSyns = IM $ asks iTSyns
 getNewtypes :: InferM (Map Name (DefLoc,Newtype))
 getNewtypes = IM $ asks iNewtypes
 
--- | Returns the abstract type declarations
-getAbsFuns :: InferM (Map Name Schema)
-getAbsFuns = IM $ asks iAbsFuns
+-- | Returns the parameter functions declarations
+getParamFuns :: InferM (Map Name Schema)
+getParamFuns = IM $ asks iParamFuns
 
 -- | Returns the abstract function declarations
-getAbsTypes :: InferM (Map Name TParam)
-getAbsTypes = IM $ asks iAbsTypes
+getParamTypes :: InferM (Map Name TParam)
+getParamTypes = IM $ asks iParamTypes
 
 -- | Get the set of bound type variables that are in scope.
 getTVars :: InferM (Set Name)
@@ -669,13 +669,13 @@ withNewtype t (IM m) =
   IM $ mapReader
         (\r -> r { iNewtypes = Map.insert (ntName t) (IsLocal,t)
                                                      (iNewtypes r) }) m
-withAbsType :: TParam -> InferM a -> InferM a
-withAbsType a (IM m) =
+withParamType :: TParam -> InferM a -> InferM a
+withParamType a (IM m) =
   case tpName a of
-    Nothing -> panic "withAbsType" ["Abstract type without a name"]
+    Nothing -> panic "withParamType" ["Param type without a name"]
     Just n  ->
       IM $ mapReader
-             (\r -> r { iAbsTypes = Map.insert n a (iAbsTypes r) })
+             (\r -> r { iParamTypes = Map.insert n a (iParamTypes r) })
              m
 
 -- | The sub-computation is performed with the given variable in scope.
@@ -690,9 +690,9 @@ withVar :: Name -> Schema -> InferM a -> InferM a
 withVar x s = withVarType x (ExtVar s)
 
 -- | The sub-computation is performed with the given abstract function in scope.
-withAbsFuns :: [(Name, Schema)] -> InferM a -> InferM a
-withAbsFuns xs (IM m) =
-  IM $ mapReader (\r -> r { iAbsFuns = foldr add (iAbsFuns r) xs }) m
+withParamFuns :: [(Name, Schema)] -> InferM a -> InferM a
+withParamFuns xs (IM m) =
+  IM $ mapReader (\r -> r { iParamFuns = foldr add (iParamFuns r) xs }) m
   where
   add (x,s) = Map.insert x s
 
@@ -816,8 +816,8 @@ kLookupTSyn x = kInInferM $ lookupTSyn x
 kLookupNewtype :: Name -> KindM (Maybe Newtype)
 kLookupNewtype x = kInInferM $ lookupNewtype x
 
-kLookupAbsType :: Name -> KindM (Maybe TParam)
-kLookupAbsType x = kInInferM $ lookupAbsType x
+kLookupParamType :: Name -> KindM (Maybe TParam)
+kLookupParamType x = kInInferM (lookupParamType x)
 
 kExistTVar :: Name -> Kind -> KindM Type
 kExistTVar x k = kInInferM $ existVar x k

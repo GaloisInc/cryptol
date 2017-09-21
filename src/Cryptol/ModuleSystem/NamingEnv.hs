@@ -296,21 +296,22 @@ instance BindsNames (Module PName) where
 instance BindsNames (InModule (TopDecl PName)) where
   namingEnv (InModule ns td) =
     case td of
-      Decl d      -> namingEnv (InModule ns (tlValue d))
-      TDNewtype d -> namingEnv (InModule ns (tlValue d))
-      DAbstractType d -> namingEnv (InModule ns (tlValue d))
-      DAbstractFun d -> namingEnv (InModule ns (tlValue d))
+      Decl d           -> namingEnv (InModule ns (tlValue d))
+      TDNewtype d      -> namingEnv (InModule ns (tlValue d))
+      DParameterType d -> namingEnv (InModule ns d)
+      DParameterFun  d -> namingEnv (InModule ns d)
       Include _   -> mempty
 
-instance BindsNames (InModule (AbstractFun PName)) where
-  namingEnv (InModule ns AbstractFun { .. }) = BuildNamingEnv $
-    do let Located { .. } = afName
-       ntName <- liftSupply (mkDeclared ns (getIdent thing) Nothing srcRange)
+instance BindsNames (InModule (ParameterFun PName)) where
+  namingEnv (InModule ns ParameterFun { .. }) = BuildNamingEnv $
+    do let Located { .. } = pfName
+       ntName <- liftSupply (mkDeclared ns (getIdent thing) pfFixity srcRange)
        return (singletonE thing ntName)
 
-instance BindsNames (InModule (AbstractType PName)) where
-  namingEnv (InModule ns AbstractType { .. }) = BuildNamingEnv $
-    do let Located { .. } = atName
+instance BindsNames (InModule (ParameterType PName)) where
+  namingEnv (InModule ns ParameterType { .. }) = BuildNamingEnv $
+    -- XXX: we don't seem to have a fixity environment at the type level
+    do let Located { .. } = ptName
        ntName <- liftSupply (mkDeclared ns (getIdent thing) Nothing srcRange)
        return (singletonT thing ntName)
 

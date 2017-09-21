@@ -13,6 +13,7 @@ module Cryptol.TypeCheck.TypePat
   , aChar
   , aTuple
   , (|->|)
+  , aNumTypeParam
 
   , aFin, (|=|), (|/=|), (|>=|)
   , aCmp, aArith
@@ -111,6 +112,12 @@ aTVar :: Pat Type TVar
 aTVar = \a -> case tNoUser a of
                 TVar x -> return x
                 _      -> mzero
+
+aNumTypeParam :: Pat Type TParam
+aNumTypeParam = \a -> case tNoUser a of
+                        TCon (TC (TCParam p)) []
+                          | kindOf p == KNum -> return p
+                        _ -> mzero
 
 aBit :: Pat Type ()
 aBit = tc TCBit ar0

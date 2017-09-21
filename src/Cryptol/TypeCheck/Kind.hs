@@ -13,7 +13,7 @@ module Cryptol.TypeCheck.Kind
   , checkSchema
   , checkNewtype
   , checkTySyn
-  , checkAbsType
+  , checkParameterType
   ) where
 
 import qualified Cryptol.Parser.AST as P
@@ -54,10 +54,10 @@ checkSchema (P.Forall xs ps t mb) =
           Nothing -> id
           Just r  -> inRange r
 
-checkAbsType :: P.AbstractType Name -> InferM TParam
-checkAbsType a =
-  do let k = foldr (:->) (cvtK (P.atResult a)) (map cvtK (P.atParams a))
-         n = thing (P.atName a)
+checkParameterType :: P.ParameterType Name -> InferM TParam
+checkParameterType a =
+  do let k = foldr (:->) (cvtK (P.ptResult a)) (map cvtK (P.ptParams a))
+         n = thing (P.ptName a)
      return TParam { tpUnique = nameUnique n -- XXX: ok to reuse?
                    , tpKind = k
                    , tpName = Just n
@@ -210,12 +210,12 @@ tySyn scoped x ts k =
                    ts2 <- checkParams (ntParams nt) ts1
                    return (TCon tc ts2)
 
-              -- Maybe it is an abstract type?
+              -- Maybe it is a parameter type?
               Nothing ->
-                do mbA <- kLookupAbsType x
+                do mbA <- kLookupParamType x
                    case mbA of
                      Just a ->
-                       do let tc = abstractTypeTCon a
+                       do let tc = paramTypeTCon a
                           (ts1,k1) <- appTy ts (kindOf tc)
                           case k of
                             Just ks

@@ -41,12 +41,12 @@ data Iface = Iface
   { ifModName   :: !ModName     -- ^ Module name
   , ifPublic    :: IfaceDecls   -- ^ Exported definitions
   , ifPrivate   :: IfaceDecls   -- ^ Private defintiions
-  , ifAbstract  :: IfaceParams  -- ^ Uninterpreted constants (aka module params)
+  , ifParams    :: IfaceParams  -- ^ Uninterpreted constants (aka module params)
   } deriving (Show, Generic, NFData)
 
 data IfaceParams = IfaceParams
-  { ifAbsTypes :: Map.Map Name TParam     -- ^ Uninterpreted types
-  , ifAbsFuns  :: Map.Map Name IfaceDecl  -- ^ Uninterpreted value constants
+  { ifParamTypes :: Map.Map Name TParam     -- ^ Uninterpreted types
+  , ifParamFuns  :: Map.Map Name IfaceDecl  -- ^ Uninterpreted value constants
   } deriving (Show, Generic, NFData)
 
 data IfaceDecls = IfaceDecls
@@ -111,14 +111,14 @@ genIface m = Iface
     , ifDecls     = dPriv
     }
 
-  , ifAbstract = IfaceParams
-    { ifAbsTypes = mAbsTypes m
-    , ifAbsFuns  = valParams
+  , ifParams = IfaceParams
+    { ifParamTypes = mParamTypes m
+    , ifParamFuns  = valParams
     }
   }
   where
 
-  valParams = Map.mapWithKey xxxDecl (mAbsFuns m)
+  valParams = Map.mapWithKey xxxDecl (mParamFuns m)
 
   xxxDecl qn s = IfaceDecl
     { ifDeclName    = qn

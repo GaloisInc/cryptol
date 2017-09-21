@@ -360,19 +360,19 @@ instance Rename TopDecl where
     Decl d      -> Decl      <$> traverse rename d
     TDNewtype n -> TDNewtype <$> traverse rename n
     Include n   -> return (Include n)
-    DAbstractFun f -> DAbstractFun <$> traverse rename f
-    DAbstractType f -> DAbstractType <$> traverse rename f
+    DParameterFun f  -> DParameterFun  <$> rename f
+    DParameterType f -> DParameterType <$> rename f
 
-instance Rename AbstractType where
+instance Rename ParameterType where
   rename a =
-    do n' <- rnLocated renameType (atName a)
-       return a { atName = n' }
+    do n' <- rnLocated renameType (ptName a)
+       return a { ptName = n' }
 
-instance Rename AbstractFun where
+instance Rename ParameterFun where
   rename a =
-    do n'   <- rnLocated renameVar (afName a)
-       sig' <- renameSchema (afSchema a)
-       return a { afName = n', afSchema = snd sig' }
+    do n'   <- rnLocated renameVar (pfName a)
+       sig' <- renameSchema (pfSchema a)
+       return a { pfName = n', pfSchema = snd sig' }
 
 rnLocated :: (a -> RenameM b) -> Located a -> RenameM (Located b)
 rnLocated f loc = withLoc loc $

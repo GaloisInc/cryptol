@@ -94,6 +94,7 @@ typeSize ty =
         (TCFun, _)       -> Nothing
         (TCTuple _, els) -> product <$> mapM typeSize els
         (TCNewtype _, _) -> Nothing
+        (TCParam _, _)   -> Nothing
 
     TCon _ _ -> Nothing
 
@@ -131,6 +132,7 @@ typeValues ty =
                             | xs <- sequence (map typeValues els)
                             ]
         (TCNewtype _, _) -> []
+        (TCParam _, _)   -> []
 
     TCon _ _ -> []
 

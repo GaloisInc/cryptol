@@ -260,9 +260,10 @@ isExplicit Explicit{} = True
 isExplicit Virtual{}  = False
 
 startsLayout :: TokenT -> Bool
-startsLayout (KW KW_where)   = True
-startsLayout (KW KW_private) = True
-startsLayout _               = False
+startsLayout (KW KW_where)    = True
+startsLayout (KW KW_private)  = True
+startsLayout (KW KW_parameter) = True
+startsLayout _                = False
 
 -- Add separators computed from layout
 layout :: Config -> [Located Token] -> [Located Token]
@@ -391,7 +392,7 @@ data TokenKW  = KW_Arith
               | KW_infixr
               | KW_infix
               | KW_primitive
-              | KW_abstract
+              | KW_parameter
                 deriving (Eq, Show, Generic, NFData)
 
 -- | The named operators are a special case for parsing types, and 'Other' is

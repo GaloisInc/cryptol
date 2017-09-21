@@ -116,6 +116,7 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCFun                    -- ^ @_ -> _@
             | TCTuple Int              -- ^ @(_, _, _)@
             | TCNewtype UserTC         -- ^ user-defined, @T@
+            | TCParam TParam           -- ^ module type parameter
               deriving (Show, Eq, Ord, Generic, NFData)
 
 
@@ -123,13 +124,8 @@ data UserTC = UserTC Name Kind
               deriving (Show, Generic, NFData)
 
 
-abstractTypeTCon :: TParam -> TCon
-abstractTypeTCon tp = TC $ TCNewtype $ UserTC nm k
-  where
-  nm = case tpName tp of
-         Just n  -> n
-         Nothing -> panic "abstractTypeTCon" ["Missing name"]
-  k = tpKind tp
+paramTypeTCon :: TParam -> TCon
+paramTypeTCon tp = TC (TCParam tp)
 
 
 data TCErrorMessage = TCErrorMessage
@@ -191,6 +187,7 @@ instance HasKind TC where
       TCFun     -> KType :-> KType :-> KType
       TCTuple n -> foldr (:->) KType (replicate n KType)
       TCNewtype x -> kindOf x
+      TCParam x   -> kindOf x
 
 instance HasKind PC where
   kindOf pc =
@@ -819,6 +816,7 @@ instance PP TC where
       TCTuple 1 -> text "(one tuple?)"
       TCTuple n -> parens $ hcat $ replicate (n-1) comma
       TCNewtype u -> pp u
+      TCParam p   -> pp p
 
 instance PP UserTC where
   ppPrec p (UserTC x _) = ppPrec p x

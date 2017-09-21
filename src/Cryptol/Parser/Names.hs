@@ -27,8 +27,8 @@ modExports m = fold (concat [ exportedNames d | d <- mDecls m ])
                          ++ map exportType (names tnamesD td)
   exportedNames (TDNewtype nt) = map exportType (names tnamesNT nt)
   exportedNames (Include {})  = []
-  exportedNames (DAbstractFun f) = [ exportBind ((thing . afName) <$> f) ]
-  exportedNames (DAbstractType f) = [ exportType ((thing . atName) <$> f) ]
+  exportedNames (DParameterFun {}) = []
+  exportedNames (DParameterType {}) = []
 
 -- | The names defined by a newtype.
 tnamesNT :: Newtype name -> ([Located name], ())
