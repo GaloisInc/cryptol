@@ -298,10 +298,10 @@ decl                    :: { Decl PName }
   | 'type' name tysyn_params '=' type
                            {% at ($1,$5) `fmap` mkTySyn $2 (reverse $3) $5  }
 
-  | 'constraint' name '=' type
-                           {% at ($1,$4) `fmap` mkPropSyn $2 [] $4 }
-  | 'constraint' name tysyn_params '=' type
-                           {% at ($1,$5) `fmap` mkPropSyn $2 (reverse $3) $5 }
+  | 'type' 'constraint' name '=' type
+                           {% at ($2,$5) `fmap` mkPropSyn $3 [] $5 }
+  | 'type' 'constraint' name tysyn_params '=' type
+                           {% at ($2,$6) `fmap` mkPropSyn $3 (reverse $4) $6 }
 
   | 'infixl' NUM ops       {% mkFixity LeftAssoc  $2 (reverse $3) }
   | 'infixr' NUM ops       {% mkFixity RightAssoc $2 (reverse $3) }
