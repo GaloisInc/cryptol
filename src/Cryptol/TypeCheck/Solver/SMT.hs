@@ -22,8 +22,9 @@ proveImp :: Solver -> [Prop] -> [Goal] -> IO [Goal]
 proveImp sol ps gs0 =
   debugBlock sol "PROVE IMP" $
   do let s = rawSolver sol
-     let (gs,rest) = partition (isNumeric . goal) gs0
-         numAsmp   = filter isNumeric ps
+     let gs1       = concatMap flatGoal gs0
+         (gs,rest) = partition (isNumeric . goal) gs1
+         numAsmp   = filter isNumeric (concatMap pSplitAnd ps)
          vs        = Set.toList $ Set.union
                                     ( fvs (numAsmp, map goal gs) )
                                     ( Set.map tpVar
@@ -44,7 +45,9 @@ checkUnsolvable :: Solver -> [Goal] -> IO Bool
 checkUnsolvable sol gs0 =
   debugBlock sol "CHECK UNSOLVABLE" $
   do let s  = rawSolver sol
-         ps = filter isNumeric (map goal gs0)
+         ps = filter isNumeric
+            $ map goal
+            $ concatMap flatGoal gs0
          vs = Set.toList $ Set.union (fvs ps)
                                      (Set.map tpVar (numTypeParams ps))
      tvs <- debugBlock sol "VARIABLES" $
@@ -96,14 +99,17 @@ unsolvable sol tvs ps =
 
 --------------------------------------------------------------------------------
 
--- XXX: This is not quite right for 'AND': it could be that one part
--- of an And os numeric, and the other is not.
+-- | Split up the 'And' in a goal
+flatGoal :: Goal -> [Goal]
+flatGoal g = [ g { goal = p } | p <- pSplitAnd (goal g) ]
+
+
+-- | Assumes no 'And'
 isNumeric :: Prop -> Bool
-isNumeric ty = matchDefault False
-             $ msum [ is (|=|), is (|>=|), is aFin, is aTrue, andNum ty ]
+isNumeric ty = matchDefault False $ msum [ is (|=|), is (|>=|), is aFin ]
   where
-  andNum t = anAdd t >>= \(x,y) -> return (isNumeric x && isNumeric y)
   is f = f ty >> return True
+
 
 --------------------------------------------------------------------------------
 

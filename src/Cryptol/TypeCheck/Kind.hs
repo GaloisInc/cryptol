@@ -13,6 +13,7 @@ module Cryptol.TypeCheck.Kind
   , checkSchema
   , checkNewtype
   , checkTySyn
+  , checkPropSyn
   , checkParameterType
   ) where
 
@@ -76,6 +77,20 @@ checkTySyn (P.TySyn x as t) =
                   , tsParams = as1
                   , tsConstraints = map (tRebuild . goal) gs
                   , tsDef = tRebuild t1
+                  }
+
+-- | Check a constraint-synonym declaration.
+checkPropSyn :: P.PropSyn Name -> InferM TySyn
+checkPropSyn (P.PropSyn x as ps) =
+  do ((as1,t1),gs) <- collectGoals
+                    $ inRange (srcRange x)
+                    $ do r <- withTParams False as (traverse checkProp ps)
+                         simplifyAllConstraints
+                         return r
+     return TySyn { tsName   = thing x
+                  , tsParams = as1
+                  , tsConstraints = map (tRebuild . goal) gs
+                  , tsDef = tRebuild (pAnd t1)
                   }
 
 -- | Check a newtype declaration.
@@ -162,6 +177,9 @@ withTParams allowWildCards xs m =
   because the data dependency is only on the part that is known. -}
   zip' [] _           = []
   zip' (a:as) ~(t:ts) = (P.tpName a, fmap cvtK (P.tpKind a), t) : zip' as ts
+
+  cvtK P.KNum  = KNum
+  cvtK P.KType = KType
 
   duplicates = [ RepeatedTyParams ds
                     | ds@(_ : _ : _) <- groupBy ((==) `on` P.tpName)
@@ -347,6 +365,8 @@ checkProp prop =
     P.CArith t1     -> tcon (PC PArith)         [t1]    (Just KProp)
     P.CCmp t1       -> tcon (PC PCmp)           [t1]    (Just KProp)
     P.CSignedCmp t1 -> tcon (PC PSignedCmp)     [t1]    (Just KProp)
+    P.CUser x []    -> checkTyThing x (Just KProp)
+    P.CUser x ts    -> tySyn False x ts (Just KProp)
     P.CLocated p r1 -> kInRange r1 (checkProp p)
     P.CType _       -> panic "checkProp" [ "Unexpected CType", show prop ]
 

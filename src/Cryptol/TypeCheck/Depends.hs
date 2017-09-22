@@ -13,7 +13,7 @@ module Cryptol.TypeCheck.Depends where
 import           Cryptol.ModuleSystem.Name (Name)
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position(Range, Located(..), thing)
-import           Cryptol.Parser.Names (namesB, namesT)
+import           Cryptol.Parser.Names (namesB, namesT, namesC)
 import           Cryptol.TypeCheck.Monad( InferM, recordError, getTVars
                                         , Error(..))
 
@@ -29,6 +29,7 @@ import qualified Data.Set as Set
 data TyDecl = TS (P.TySyn Name)               -- ^ Type synonym
             | NT (P.Newtype Name)             -- ^ Newtype
             | AT (P.ParameterType Name)       -- ^ Parameter type
+            | PS (P.PropSyn Name)             -- ^ Property synonym
 
 -- | Check for duplicate and recursive type synonyms.
 -- Returns the type-synonyms in dependency order.
@@ -63,8 +64,16 @@ orderTyDecls ts =
              }
         )
 
-  getN (TS (P.TySyn x _ _)) = thing x
-  getN (NT x)               = thing (P.nName x)
+  toMap vs ty@(PS (P.PropSyn x as ps)) =
+        (thing x
+        , x { thing = (ty, Set.toList $
+                           Set.difference (Set.unions (map (namesC vs) ps))
+                                          (Set.fromList (map P.tpName as)))
+             }
+        )
+  getN (TS (P.TySyn x _ _))   = thing x
+  getN (PS (P.PropSyn x _ _)) = thing x
+  getN (NT x)                 = thing (P.nName x)
   getN (AT x)               = thing (P.ptName x)
 
   check (AcyclicSCC x) = return [x]
@@ -115,6 +124,7 @@ instance FromDecl (P.Decl Name) where
 
   toTyDecl (P.DLocated d _) = toTyDecl d
   toTyDecl (P.DType x)      = Just (TS x)
+  toTyDecl (P.DProp x)      = Just (PS x)
   toTyDecl _                = Nothing
 
   isTopDecl _               = False

@@ -227,6 +227,7 @@ noMatchD decl =
                                               , bDoc = Nothing
                                               } : map DBind bs
     DType {}        -> return [decl]
+    DProp {}        -> return [decl]
 
     DLocated d r1   -> do bs <- inRange r1 $ noMatchD d
                           return $ map (`DLocated` r1) bs
@@ -366,6 +367,7 @@ annotD decl =
     DPragma {}    -> raise ()
     DPatBind {}   -> raise ()
     DType {}      -> return decl
+    DProp {}      -> return decl
     DLocated d r  -> (`DLocated` r) <$> annotD d
 
 -- | Add pragma/signature annotations to a binding.
@@ -447,6 +449,7 @@ toDocs TopLevel { .. }
       -- XXX revisit these
       DPragma _ _     -> []
       DType _         -> []
+      DProp _         -> []
 
 
 --------------------------------------------------------------------------------
