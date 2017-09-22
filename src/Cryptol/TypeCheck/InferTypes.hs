@@ -227,6 +227,11 @@ instance FVS Warning where
       DefaultingWildType {} -> Set.empty
       DefaultingTo _ ty     -> fvs ty
 
+  numTypeParams warn =
+    case warn of
+      DefaultingKind {}     -> Set.empty
+      DefaultingWildType {} -> Set.empty
+      DefaultingTo _ ty     -> numTypeParams ty
 
 
 instance TVars Error where
@@ -256,6 +261,7 @@ instance TVars Error where
       CannotMixPositionalAndNamedTypeParams -> err
       AmbiguousType _           -> err
 
+
 instance FVS Error where
   fvs err =
     case err of
@@ -283,12 +289,17 @@ instance FVS Error where
       CannotMixPositionalAndNamedTypeParams -> Set.empty
       AmbiguousType _           ->  Set.empty
 
+  numTypeParams _ = Set.empty -- XXX: this is incorrect, but it shouldn't
+                                  -- matter...
+
 instance FVS Goal where
   fvs g = fvs (goal g)
+  numTypeParams g = numTypeParams (goal g)
 
 instance FVS DelayedCt where
   fvs d = fvs (dctAsmps d, dctGoals d) `Set.difference`
                             Set.fromList (map tpVar (dctForall d))
+  numTypeParams d = numTypeParams (dctAsmps d, dctGoals d)
 
 
 -- This first applies the substitution to the keys of the goal map, then to the
