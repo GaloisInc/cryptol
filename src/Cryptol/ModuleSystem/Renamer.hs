@@ -379,6 +379,7 @@ instance Rename Decl where
                             shadowNames pe (DPatBind pat' <$> rename e)
 
     DType syn         -> DType         <$> rename syn
+    DProp syn         -> DProp         <$> rename syn
     DLocated d' r     -> withLoc r
                        $ DLocated      <$> rename d'  <*> pure r
     DFixity{}         -> panic "Renamer" ["Unexpected fixity declaration"
@@ -497,6 +498,7 @@ instance Rename Prop where
     CArith t      -> CArith     <$> rename t
     CCmp t        -> CCmp       <$> rename t
     CSignedCmp t  -> CSignedCmp <$> rename t
+    CUser qn ps   -> CUser      <$> renameType qn <*> traverse rename ps
     CLocated p' r -> withLoc r
                    $ CLocated <$> rename p' <*> pure r
 
@@ -511,13 +513,14 @@ translateProp ty = go ty
 
     TLocated t' r -> (`CLocated` r) <$> go t'
 
-    -- these are the only cases that will produce valid props.
     TUser n [l,r]
       | i == packIdent "==" -> CEqual <$> rename l <*> rename r
       | i == packIdent ">=" -> CGeq   <$> rename l <*> rename r
       | i == packIdent "<=" -> CGeq   <$> rename r <*> rename l
       where
       i = getIdent n
+
+    TUser n ts -> CUser <$> renameType n <*> traverse rename ts
 
     -- record an error, but continue renaming to gather any other errors
     _ ->
@@ -945,6 +948,15 @@ instance Rename TySyn where
        shadowNames ps $ TySyn <$> rnLocated renameType n
                               <*> traverse rename ps
                               <*> rename ty
+
+instance Rename PropSyn where
+  rename (PropSyn n ps cs) =
+    do when (isReserved (thing n))
+            (record (BoundReservedType (thing n) (getLoc n) (text "constraint synonym")))
+
+       shadowNames ps $ PropSyn <$> rnLocated renameType n
+                                <*> traverse rename ps
+                                <*> traverse rename cs
 
 
 -- Utilities -------------------------------------------------------------------

@@ -51,6 +51,7 @@ import qualified Data.Set as Set
 import           Data.IORef ( IORef, newIORef, readIORef, modifyIORef',
                               atomicModifyIORef' )
 import           Prelude hiding (any,all)
+import qualified System.IO.Strict as StrictIO
 
 import qualified SimpleSMT as SMT
 
@@ -286,9 +287,7 @@ data Solver = Solver
   }
 
 loadFile :: Solver -> FilePath -> IO ()
-loadFile s file = do -- txt <- readFile file
-                     -- mapM_ putStrLn (lines txt)
-                     go . dropComments =<< readFile file
+loadFile s file = go . dropComments =<< StrictIO.readFile file
   where
   go txt
     | all isSpace txt = return ()

@@ -316,12 +316,13 @@ instance BindsNames (InModule (Decl PName)) where
       do n <- mkName (bName b) (bFixity b)
          return (singletonE (thing (bName b)) n `mappend` fixity n b)
 
-    DSignature ns _sig    -> foldMap qualBind ns
-    DPragma ns _p         -> foldMap qualBind ns
-    DType (TySyn lqn _ _) -> qualType lqn
-    DLocated d' _         -> namingEnv (InModule pfx d')
-    DPatBind _pat _e      -> panic "ModuleSystem" ["Unexpected pattern binding"]
-    DFixity{}             -> panic "ModuleSystem" ["Unexpected fixity declaration"]
+    DSignature ns _sig      -> foldMap qualBind ns
+    DPragma ns _p           -> foldMap qualBind ns
+    DType (TySyn lqn _ _)   -> qualType lqn
+    DProp (PropSyn lqn _ _) -> qualType lqn
+    DLocated d' _           -> namingEnv (InModule pfx d')
+    DPatBind _pat _e        -> panic "ModuleSystem" ["Unexpected pattern binding"]
+    DFixity{}               -> panic "ModuleSystem" ["Unexpected fixity declaration"]
 
     where
 
