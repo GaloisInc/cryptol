@@ -143,8 +143,7 @@ data Decl name = DSignature [Located name] (Schema name)
 -- | A type parameter
 data ParameterType name = ParameterType
   { ptName    :: Located name     -- ^ name of type parameter
-  , ptParams  :: [Kind]           -- ^ parameter kinds
-  , ptResult  :: Kind             -- ^ result kind
+  , ptKind    :: Kind             -- ^ kind of parameter
   , ptDoc     :: Maybe String     -- ^ optional documentation
   , ptFixity  :: Maybe Fixity     -- ^ info for infix use
   } deriving (Eq,Show,Generic,NFData)
@@ -561,9 +560,7 @@ instance (Show name, PPName name) => PP (TopDecl name) where
 
 instance (Show name, PPName name) => PP (ParameterType name) where
   ppPrec _ a = text "parameter" <+> text "type" <+>
-               ppPrefixName (ptName a) <+> text ":" <+>
-               foldr ppKFun (pp (ptResult a)) (ptParams a)
-    where ppKFun x y = pp x <+> text "->" <+> y
+               ppPrefixName (ptName a) <+> text ":" <+> pp (ptKind a)
 
 instance (Show name, PPName name) => PP (ParameterFun name) where
   ppPrec _ a = text "parameter" <+> ppPrefixName (pfName a) <+> text ":"

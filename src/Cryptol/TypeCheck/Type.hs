@@ -116,16 +116,11 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCFun                    -- ^ @_ -> _@
             | TCTuple Int              -- ^ @(_, _, _)@
             | TCNewtype UserTC         -- ^ user-defined, @T@
-            | TCParam TParam           -- ^ module type parameter
               deriving (Show, Eq, Ord, Generic, NFData)
 
 
 data UserTC = UserTC Name Kind
               deriving (Show, Generic, NFData)
-
-
-paramTypeTCon :: TParam -> TCon
-paramTypeTCon tp = TC (TCParam tp)
 
 
 data TCErrorMessage = TCErrorMessage
@@ -187,7 +182,6 @@ instance HasKind TC where
       TCFun     -> KType :-> KType :-> KType
       TCTuple n -> foldr (:->) KType (replicate n KType)
       TCNewtype x -> kindOf x
-      TCParam x   -> kindOf x
 
 instance HasKind PC where
   kindOf pc =
@@ -616,7 +610,6 @@ pError msg = TCon (TError KProp msg) []
 
 class FVS t where
   fvs :: t -> Set TVar
-  numTypeParams :: t -> Set TParam
 
 instance FVS Type where
   fvs = go
@@ -628,36 +621,20 @@ instance FVS Type where
         TUser _ _ t -> go t
         TRec fs     -> fvs (map snd fs)
 
-  numTypeParams = go
-    where
-    go ty =
-      case ty of
-        TVar {}                   -> Set.empty
-        TUser _ _ t               -> numTypeParams t
-        TCon (TC (TCParam tp)) [] -> Set.singleton tp
-        TCon _ ts                 -> numTypeParams ts
-        TRec fs                   -> numTypeParams (map snd fs)
-
 instance FVS a => FVS (Maybe a) where
   fvs Nothing  = Set.empty
   fvs (Just x) = fvs x
 
-  numTypeParams = maybe Set.empty numTypeParams
-
 instance FVS a => FVS [a] where
   fvs xs        = Set.unions (map fvs xs)
-  numTypeParams = Set.unions . map numTypeParams
 
 instance (FVS a, FVS b) => FVS (a,b) where
   fvs (x,y) = Set.union (fvs x) (fvs y)
-  numTypeParams (x,y) = Set.union (numTypeParams x) (numTypeParams y)
 
 instance FVS Schema where
   fvs (Forall as ps t) =
       Set.difference (Set.union (fvs ps) (fvs t)) bound
     where bound = Set.fromList (map tpVar as)
-
-  numTypeParams (Forall _ ps t) = numTypeParams (ps,t)
 
 
 
@@ -835,7 +812,6 @@ instance PP TC where
       TCTuple 1 -> text "(one tuple?)"
       TCTuple n -> parens $ hcat $ replicate (n-1) comma
       TCNewtype u -> pp u
-      TCParam p   -> pp p
 
 instance PP UserTC where
   ppPrec p (UserTC x _) = ppPrec p x

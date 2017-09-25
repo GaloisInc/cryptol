@@ -273,7 +273,7 @@ par_decls                            :: { [TopDecl PName] }
 
 par_decl                             :: { TopDecl PName }
   : mbDoc        name ':' schema        { mkParFun $1 $2 $4 }
-  | mbDoc 'type' name ':' kind_fun      { mkParType $1 $3 $5 }
+  | mbDoc 'type' name ':' kind          { mkParType $1 $3 $5 }
 
 
 
@@ -588,11 +588,6 @@ schema_quals                   :: { Located [Prop PName] }
 kind                             :: { Located Kind      }
   : '#'                             { Located $1 KNum   }
   | '*'                             { Located $1 KType  }
-
-kind_fun                        :: { ([Located Kind], Located Kind) }
-  : kind                          { ([], $1) }
-  | kind '->' kind_fun            { let { (xs,x) = $3 } in ($1 : xs, x) }
-  
 
 schema_param                   :: { TParam PName }
   : ident                         {% mkTParam $1 Nothing           }

@@ -57,7 +57,7 @@ checkSchema (P.Forall xs ps t mb) =
 
 checkParameterType :: P.ParameterType Name -> InferM TParam
 checkParameterType a =
-  do let k = foldr (:->) (cvtK (P.ptResult a)) (map cvtK (P.ptParams a))
+  do let k = cvtK (P.ptKind a)
          n = thing (P.ptName a)
      return TParam { tpUnique = nameUnique n -- XXX: ok to reuse?
                    , tpKind = k
@@ -178,9 +178,6 @@ withTParams allowWildCards xs m =
   zip' [] _           = []
   zip' (a:as) ~(t:ts) = (P.tpName a, fmap cvtK (P.tpKind a), t) : zip' as ts
 
-  cvtK P.KNum  = KNum
-  cvtK P.KType = KType
-
   duplicates = [ RepeatedTyParams ds
                     | ds@(_ : _ : _) <- groupBy ((==) `on` P.tpName)
                                       $ sortBy (compare `on` P.tpName) xs ]
@@ -233,13 +230,17 @@ tySyn scoped x ts k =
                 do mbA <- kLookupParamType x
                    case mbA of
                      Just a ->
-                       do let tc = paramTypeTCon a
-                          (ts1,k1) <- appTy ts (kindOf tc)
+                       do let ty = tpVar a
+                          (ts1,k1) <- appTy ts (kindOf ty)
                           case k of
                             Just ks
                               | ks /= k1 -> kRecordError $ KindMismatch ks k1
                             _ -> return ()
-                          return (TCon tc ts1)
+
+                          unless (null ts1)
+                            $ panic "Kind.tySyn" [ "Unexpected parameters" ]
+
+                          return (TVar ty)
 
                      -- Maybe it is a scoped type variable?
                      Nothing

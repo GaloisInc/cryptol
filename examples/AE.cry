@@ -49,12 +49,11 @@ property
 
 type Integer = [64]
 
-encrypt : {m} (fin m, fin p, fin n, fin tagAmount) =>
+encrypt : {m} (fin m, fin p, fin n, fin tagAmount, n >= tagAmount) =>
               K -> Nonce -> A -> [m * (p * n)] -> [m * (p * n) + tagAmount]
 encrypt key nonce state inputMsg = join ((drop`{1} go).0.message) # tag
 
   where
-  tag : [tagAmount]
   tag = take (Tag key (tweak (1 - final.1)) (final.0.state))
 
   final = go ! 0

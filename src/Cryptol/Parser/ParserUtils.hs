@@ -282,15 +282,14 @@ mkParFun mbDoc n s = DParameterFun ParameterFun { pfName = n
 
 mkParType :: Maybe (Located String) ->
              Located PName ->
-             ([Located Kind],Located Kind) ->
+             Located Kind ->
              TopDecl PName
-mkParType mbDoc n (ks,k) = DParameterType
-                           ParameterType { ptName = n
-                                         , ptParams = map thing ks
-                                         , ptResult = thing k
-                                         , ptDoc = thing <$> mbDoc
-                                         , ptFixity = Nothing
-                                         }
+mkParType mbDoc n k = DParameterType
+                      ParameterType { ptName    = n
+                                    , ptKind    = thing k
+                                    , ptDoc     = thing <$> mbDoc
+                                    , ptFixity  = Nothing
+                                    }
 
 
 

@@ -611,7 +611,11 @@ getTVars = IM $ asks $ Set.fromList . mapMaybe tpName . iTVars
 
 -- | Return the keys of the bound variables that are in scope.
 getBoundInScope :: InferM (Set TVar)
-getBoundInScope = IM $ asks $ Set.fromList . map tpVar . iTVars
+getBoundInScope =
+  do ro <- IM ask
+     let params = Set.fromList (map tpVar (Map.elems (iParamTypes ro)))
+         bound  = Set.fromList (map tpVar (iTVars ro))
+     return $! Set.union params bound
 
 -- | Retrieve the value of the `mono-binds` option.
 getMonoBinds :: InferM Bool

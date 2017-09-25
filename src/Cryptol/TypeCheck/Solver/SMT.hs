@@ -25,11 +25,7 @@ proveImp sol ps gs0 =
      let gs1       = concatMap flatGoal gs0
          (gs,rest) = partition (isNumeric . goal) gs1
          numAsmp   = filter isNumeric (concatMap pSplitAnd ps)
-         vs        = Set.toList $ Set.union
-                                    ( fvs (numAsmp, map goal gs) )
-                                    ( Set.map tpVar
-                                        (numTypeParams (numAsmp, map goal gs))
-                                    )
+         vs        = Set.toList $ fvs (numAsmp, map goal gs)
 
      tvs <- debugBlock sol "VARIABLES" $
        do SMT.push s
@@ -48,8 +44,7 @@ checkUnsolvable sol gs0 =
          ps = filter isNumeric
             $ map goal
             $ concatMap flatGoal gs0
-         vs = Set.toList $ Set.union (fvs ps)
-                                     (Set.map tpVar (numTypeParams ps))
+         vs = Set.toList $ fvs ps
      tvs <- debugBlock sol "VARIABLES" $
        do SMT.push s
           mapM_ (debugLog sol) (map show vs)
@@ -142,8 +137,6 @@ toSMT tvs ty = matchDefault (panic "toSMT" [ "Unexpected type", show ty ])
   , aWidth          ~> "cryWidth"
   , aLenFromThen    ~> "cryLenFromThen"
   , aLenFromThenTo  ~> "cryLenFromThenTo"
-
-  , aNumTypeParam   ~> "(unused)"
 
   , anError KNum    ~> "cryErr"
   , anError KProp   ~> "cryErrProp"
