@@ -7,20 +7,23 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe #-}
-{-# LANGUAGE DeriveDataTypeable, RecordWildCards #-}
-module Cryptol.Utils.Panic (panic) where
+{-# LANGUAGE DeriveDataTypeable, RecordWildCards, ImplicitParams #-}
+module Cryptol.Utils.Panic (HasCallStack, panic) where
 
 import Cryptol.Version
 
 import Control.Exception as X
 import Data.Typeable(Typeable)
 import Data.Maybe(fromMaybe,listToMaybe)
+import GHC.Stack
 
-panic :: String -> [String] -> a
-panic panicLoc panicMsg = throw CryptolPanic { .. }
+panic :: HasCallStack => String -> [String] -> a
+panic panicLoc panicMsg =
+  throw CryptolPanic { panicStack = freezeCallStack ?callStack, .. }
 
 data CryptolPanic = CryptolPanic { panicLoc :: String
                                  , panicMsg :: [String]
+                                 , panicStack :: CallStack
                                  } deriving Typeable
 
 instance Show CryptolPanic where
@@ -33,7 +36,8 @@ instance Show CryptolPanic where
     [ locLab ++ panicLoc p
     , msgLab ++ fromMaybe "" (listToMaybe msgLines)
     ]
-    ++ map (tabs ++) (drop 1 msgLines) ++
+    ++ map (tabs ++) (drop 1 msgLines)
+    ++ [ prettyCallStack (panicStack p) ] ++
     [ "%< --------------------------------------------------- "
     ]
     where msgLab    = "  Message:   "
