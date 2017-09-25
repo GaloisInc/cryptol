@@ -623,7 +623,7 @@ userOptions  = mkOptionMap
                           setModuleEnv me { M.meMonoBinds = b }
           _         -> return ()
 
-  , OptionDescr "tc-solver" (EnvProg "z3" [ "-smt2", "-in" ])
+  , OptionDescr "tc-solver" (EnvProg "z3" [ "-smt2", "-t:5000", "-in" ])
     (const (return Nothing)) -- TODO: check for the program in the path
     "The solver that will be used by the type checker" $
     \case EnvProg prog args -> do me <- getModuleEnv
