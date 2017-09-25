@@ -24,7 +24,9 @@ import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Solve
 import           Cryptol.TypeCheck.SimpType(tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
-                                        checkPropSyn,checkNewtype,checkParameterType)
+                                        checkPropSyn,checkNewtype,
+                                        checkParameterType,
+                                        checkParameterConstraints)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
 import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),emptySubst)
@@ -50,6 +52,7 @@ inferModule m =
        ts <- getTSyns
        nts <- getNewtypes
        pTs <- getParamTypes
+       pCs <- getParamConstraints
        pFuns <- getParamFuns
        return Module { mName      = thing (P.mName m)
                      , mExports   = P.modExports m
@@ -57,6 +60,7 @@ inferModule m =
                      , mTySyns    = Map.mapMaybe onlyLocal ts
                      , mNewtypes  = Map.mapMaybe onlyLocal nts
                      , mParamTypes= pTs
+                     , mParamConstraints = pCs
                      , mParamFuns = pFuns
                      , mDecls     = ds1
                      }
@@ -852,8 +856,11 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
 
   -- We checked all type synonyms, now continue with value-level definitions:
   checkTyDecls [] =
-    do xs <- mapM checkParameterFun (mapMaybe toAbsFun ds)
-       withParamFuns xs $ checkBinds [] $ orderBinds $ mapMaybe toBind ds
+    do cs <- checkParameterConstraints (concatMap toParamConstraints ds)
+       withParameterConstraints cs $
+         do xs <- mapM checkParameterFun (mapMaybe toParamFun ds)
+            withParamFuns xs $ checkBinds [] $ orderBinds $ mapMaybe toBind ds
+
 
   checkParameterFun x =
     do (s,gs) <- checkSchema (P.pfSchema x)

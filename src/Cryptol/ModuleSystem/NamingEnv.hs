@@ -299,6 +299,7 @@ instance BindsNames (InModule (TopDecl PName)) where
       Decl d           -> namingEnv (InModule ns (tlValue d))
       TDNewtype d      -> namingEnv (InModule ns (tlValue d))
       DParameterType d -> namingEnv (InModule ns d)
+      DParameterConstraint {} -> mempty
       DParameterFun  d -> namingEnv (InModule ns d)
       Include _   -> mempty
 

@@ -15,6 +15,7 @@ module Cryptol.TypeCheck.Kind
   , checkTySyn
   , checkPropSyn
   , checkParameterType
+  , checkParameterConstraints
   ) where
 
 import qualified Cryptol.Parser.AST as P
@@ -120,6 +121,12 @@ checkType :: P.Type Name -> Maybe Kind -> InferM Type
 checkType t k =
   do (_, t1) <- withTParams True [] $ doCheckType t k
      return (tRebuild t1)
+
+checkParameterConstraints :: [P.Prop Name] -> InferM [Prop]
+checkParameterConstraints ps =
+  do (_, cs) <- withTParams False [] (mapM checkProp ps)
+     return (map tRebuild cs)
+
 
 {- | Check something with type parameters.
 

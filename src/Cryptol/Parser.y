@@ -271,10 +271,11 @@ par_decls                            :: { [TopDecl PName] }
   | par_decls ';'  par_decl             { $3 : $1 }
   | par_decls 'v;' par_decl             { $3 : $1 }
 
-par_decl                             :: { TopDecl PName }
-  : mbDoc        name ':' schema        { mkParFun $1 $2 $4 }
-  | mbDoc 'type' name ':' kind          { mkParType $1 $3 $5 }
-
+par_decl                         :: { TopDecl PName }
+  : mbDoc        name ':' schema    { mkParFun $1 $2 $4 }
+  | mbDoc 'type' name ':' kind      { mkParType $1 $3 $5 }
+  | mbDoc 'type' 'constraint' type  {% fmap (DParameterConstraint . thing)
+                                            (mkProp $4) }
 
 
 doc                     :: { Located String }

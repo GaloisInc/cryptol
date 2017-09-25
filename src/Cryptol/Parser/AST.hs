@@ -15,6 +15,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Parser.AST
   ( -- * Names
     Ident, mkIdent, mkInfix, isInfixIdent, nullIdent, identText
@@ -122,11 +123,13 @@ modRange m = rCombs $ catMaybes
     ]
 
 
-data TopDecl name = Decl (TopLevel (Decl name))
-                  | TDNewtype (TopLevel (Newtype name))
-                  | Include (Located FilePath)
-                  | DParameterType (ParameterType name)
-                  | DParameterFun  (ParameterFun name)
+data TopDecl name =
+    Decl (TopLevel (Decl name))
+  | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
+  | Include (Located FilePath)          -- ^ @include File@
+  | DParameterType (ParameterType name) -- ^ @parameter type T : #@
+  | DParameterConstraint [Prop name]    -- ^ @parameter type constraint (fin T)@
+  | DParameterFun  (ParameterFun name)  -- ^ @parameter someVal : [256]@
                     deriving (Show, Generic, NFData)
 
 data Decl name = DSignature [Located name] (Schema name)
@@ -250,11 +253,13 @@ data ExportType = Public
                 | Private
                   deriving (Eq, Show, Ord, Generic, NFData)
 
+-- | A top-level module declaration.
 data TopLevel a = TopLevel { tlExport :: ExportType
                            , tlDoc    :: Maybe (Located String)
                            , tlValue  :: a
                            }
   deriving (Show, Generic, NFData, Functor, Foldable, Traversable)
+
 
 data ExportSpec name = ExportSpec { eTypes  :: Set.Set name
                                   , eBinds  :: Set.Set name
@@ -499,6 +504,7 @@ instance HasLoc (TopDecl name) where
     Include lfp -> getLoc lfp
     DParameterType d -> getLoc d
     DParameterFun d  -> getLoc d
+    DParameterConstraint d -> getLoc d
 
 instance HasLoc (ParameterType name) where
   getLoc a = getLoc (ptName a)
@@ -557,6 +563,12 @@ instance (Show name, PPName name) => PP (TopDecl name) where
       Include l   -> text "include" <+> text (show (thing l))
       DParameterFun d -> pp d
       DParameterType d -> pp d
+      DParameterConstraint d ->
+        "parameter" <+> "type" <+> "constraint" <+> prop
+        where prop = case map pp d of
+                       [x] -> x
+                       []  -> "()"
+                       xs  -> parens (hsep (punctuate comma xs))
 
 instance (Show name, PPName name) => PP (ParameterType name) where
   ppPrec _ a = text "parameter" <+> text "type" <+>
@@ -924,6 +936,7 @@ instance NoPos (TopDecl name) where
       Include x   -> Include  (noPos x)
       DParameterFun d  -> DParameterFun (noPos d)
       DParameterType d -> DParameterType (noPos d)
+      DParameterConstraint d -> DParameterConstraint (noPos d)
 
 instance NoPos (ParameterType name) where
   noPos a = a

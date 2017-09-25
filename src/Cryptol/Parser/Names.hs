@@ -29,6 +29,7 @@ modExports m = fold (concat [ exportedNames d | d <- mDecls m ])
   exportedNames (Include {})  = []
   exportedNames (DParameterFun {}) = []
   exportedNames (DParameterType {}) = []
+  exportedNames (DParameterConstraint {}) = []
 
 -- | The names defined by a newtype.
 tnamesNT :: Newtype name -> ([Located name], ())

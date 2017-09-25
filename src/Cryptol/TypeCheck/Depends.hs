@@ -96,17 +96,21 @@ orderBinds bs = mkScc [ (b, map thing defs, Set.toList uses)
                       ]
 
 class FromDecl d where
-  toBind    :: d -> Maybe (P.Bind Name)
-  toAbsFun  :: d -> Maybe (P.ParameterFun Name)
-  toTyDecl  :: d -> Maybe TyDecl
-  isTopDecl :: d -> Bool
+  toBind             :: d -> Maybe (P.Bind Name)
+  toParamFun         :: d -> Maybe (P.ParameterFun Name)
+  toParamConstraints :: d -> [P.Prop Name]
+  toTyDecl           :: d -> Maybe TyDecl
+  isTopDecl          :: d -> Bool
 
 instance FromDecl (P.TopDecl Name) where
   toBind (P.Decl x)         = toBind (P.tlValue x)
   toBind _                  = Nothing
 
-  toAbsFun (P.DParameterFun d)  = Just d
-  toAbsFun _                    = Nothing
+  toParamFun (P.DParameterFun d)  = Just d
+  toParamFun _                    = Nothing
+
+  toParamConstraints (P.DParameterConstraint xs) = xs
+  toParamConstraints _                           = []
 
   toTyDecl (P.TDNewtype d)      = Just (NT (P.tlValue d))
   toTyDecl (P.DParameterType d) = Just (AT d)
@@ -120,7 +124,8 @@ instance FromDecl (P.Decl Name) where
   toBind (P.DBind b)      = return b
   toBind _                = Nothing
 
-  toAbsFun _ = Nothing
+  toParamFun _ = Nothing
+  toParamConstraints _ = []
 
   toTyDecl (P.DLocated d _) = toTyDecl d
   toTyDecl (P.DType x)      = Just (TS x)

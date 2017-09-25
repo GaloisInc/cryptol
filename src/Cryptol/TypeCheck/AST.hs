@@ -52,6 +52,7 @@ data Module = Module { mName        :: !ModName
                      , mTySyns      :: Map Name TySyn
                      , mNewtypes    :: Map Name Newtype
                      , mParamTypes  :: Map Name TParam
+                     , mParamConstraints :: [Prop]
                      , mParamFuns   :: Map Name Schema
                      , mDecls       :: [DeclGroup]
                      } deriving (Show, Generic, NFData)

@@ -316,7 +316,7 @@ predArgTypes schema@(Forall ts ps ty)
   | null ts && null ps =
       case go <$> (Eval.evalType mempty ty) of
         Right (Just fts) -> Right fts
-        _                -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
+        _ -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
   | otherwise = Left $ "Not a monomorphic type:\n" ++ show (pp schema)
   where
     go :: TValue -> Maybe [FinType]

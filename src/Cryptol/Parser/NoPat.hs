@@ -328,6 +328,7 @@ annotTopDs tds =
 
         -- XXX: Add fixity once we support type-level fixities
         DParameterType {} -> (d :) <$> annotTopDs ds
+        DParameterConstraint {} -> (d :) <$> annotTopDs ds
         DParameterFun p ->
           do (ps,ss,fs,ds') <- get
              let rm _ _ = Nothing

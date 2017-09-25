@@ -291,8 +291,6 @@ mkParType mbDoc n k = DParameterType
                                     , ptFixity  = Nothing
                                     }
 
-
-
 changeExport :: ExportType -> [TopDecl PName] -> [TopDecl PName]
 changeExport e = map change
   where
@@ -301,6 +299,8 @@ changeExport e = map change
   change td@Include{}  = td
   change (DParameterType {}) = panic "changeExport" ["private type parameter?"]
   change (DParameterFun {})  = panic "changeExport" ["private value parameter?"]
+  change (DParameterConstraint {}) =
+    panic "changeExport" ["private type constraint parameter?"]
 
 mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)

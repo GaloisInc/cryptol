@@ -157,6 +157,7 @@ noIncTopDecl td = case td of
   Decl _     -> return [td]
   TDNewtype _-> return [td]
   DParameterType {} -> return [td]
+  DParameterConstraint {} -> return [td]
   DParameterFun {} -> return [td]
   Include lf -> resolveInclude lf
 

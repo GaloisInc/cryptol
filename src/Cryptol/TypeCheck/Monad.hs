@@ -113,6 +113,7 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
                      , iNewtypes      = fmap mkExternal (inpNewtypes info)
                      , iParamTypes    = Map.empty
                      , iParamFuns     = Map.empty
+                     , iParamConstraints = []
 
                      , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
                      , iMonoBinds     = inpMonoBinds info
@@ -213,8 +214,12 @@ data RO = RO
   , iParamTypes :: Map Name TParam
     -- ^ Parameter types
 
+  , iParamConstraints :: [Prop]
+    -- ^ Constraints on the type parameters
+
   , iParamFuns :: Map Name Schema
     -- ^ Parameter functions
+
 
   , iSolvedHasLazy :: Map Int (Expr -> Expr)
     -- ^ NOTE: This field is lazy in an important way!  It is the
@@ -605,6 +610,9 @@ getParamFuns = IM $ asks iParamFuns
 getParamTypes :: InferM (Map Name TParam)
 getParamTypes = IM $ asks iParamTypes
 
+getParamConstraints :: InferM [Prop]
+getParamConstraints = IM $ asks iParamConstraints
+
 -- | Get the set of bound type variables that are in scope.
 getTVars :: InferM (Set Name)
 getTVars = IM $ asks $ Set.fromList . mapMaybe tpName . iTVars
@@ -699,6 +707,11 @@ withParamFuns xs (IM m) =
   IM $ mapReader (\r -> r { iParamFuns = foldr add (iParamFuns r) xs }) m
   where
   add (x,s) = Map.insert x s
+
+-- | Add some assumptions for an entire module
+withParameterConstraints :: [Prop] -> InferM a -> InferM a
+withParameterConstraints ps (IM m) =
+  IM $ mapReader (\r -> r { iParamConstraints = ps ++ iParamConstraints r }) m
 
 
 -- | The sub-computation is performed with the given variables in scope.
