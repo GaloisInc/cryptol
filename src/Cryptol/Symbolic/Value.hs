@@ -38,7 +38,7 @@ import Data.SBV.Dynamic
 
 --import Cryptol.Eval.Monad
 import Cryptol.Eval.Type   (TValue(..), isTBit, tvSeq)
-import Cryptol.Eval.Monad  (Eval)
+import Cryptol.Eval.Monad  (Eval, ready)
 import Cryptol.Eval.Value  ( GenValue(..), BitWord(..), lam, tlam, toStream,
                            toFinSeq, toSeq, WordValue(..),
                            fromSeq, fromVBit, fromVWord, fromVFun, fromVPoly,
@@ -109,8 +109,14 @@ mergeWord :: Bool
           -> WordValue SBool SWord SInteger
 mergeWord f c (WordVal w1) (WordVal w2) =
     WordVal $ svSymbolicMerge (kindOf w1) f c w1 w2
+mergeWord f c (WordVal w1) (BitsVal ys) =
+    BitsVal $ mergeBits f c (Seq.fromList $ map ready $ unpackWord w1) ys
+mergeWord f c (BitsVal xs) (WordVal w2) =
+    BitsVal $ mergeBits f c xs (Seq.fromList $ map ready $ unpackWord w2)
+mergeWord f c (BitsVal xs) (BitsVal ys) =
+    BitsVal $ mergeBits f c xs ys
 mergeWord f c w1 w2 =
-    BitsVal (wordValueSize w1) (mergeSeqMap f c (asBitsMap w1) (asBitsMap w2))
+    LargeBitsVal (wordValueSize w1) (mergeSeqMap f c (asBitsMap w1) (asBitsMap w2))
 
 mergeWord' :: Bool
            -> SBool

@@ -37,6 +37,7 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
 import           Control.Monad
+import qualified Data.Sequence as Seq
 import           Data.List
 import           Data.Maybe
 import qualified Data.Map.Strict as Map
@@ -73,8 +74,10 @@ evalExpr env expr = case expr of
     | isTBit tyv -> {-# SCC "evalExpr->Elist/bit" #-}
         return $ VWord len $ return $
           case tryFromBits vs of
-            Just w | len < largeBitSize -> WordVal w
-            _ -> BitsVal len $ IndexSeqMap $ \i -> genericIndex vs i
+            Just w  -> WordVal w
+            Nothing
+              | len < largeBitSize -> BitsVal $ Seq.fromList $ map (fromVBit <$>) vs
+              | otherwise          -> LargeBitsVal len $ IndexSeqMap $ \i -> genericIndex vs i
     | otherwise -> {-# SCC "evalExpr->EList" #-}
         return $ VSeq len $ finiteSeqMap vs
    where
@@ -259,9 +262,8 @@ etaWord  :: BitWord b w i
          -> Eval (WordValue b w i)
 etaWord n x = do
   w <- delay Nothing (fromWordVal "during eta-expansion" =<< x)
-  return $ BitsVal n $ IndexSeqMap $ \i ->
-    do w' <- w
-       VBit <$> indexWordValue w' (toInteger i)
+  return $ BitsVal $ Seq.fromFunction (fromInteger n) $ \i ->
+    do w' <- w; indexWordValue w' (toInteger i)
 
 
 -- | Given a simulator value and its type, fully eta-expand the value.  This
