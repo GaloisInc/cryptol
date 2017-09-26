@@ -14,7 +14,7 @@ module Cryptol.TypeCheck.Solve
   , proveModuleTopLevel
   , wfType
   , wfTypeFunction
-  , improveByDefaultingWith
+  , improveByDefaultingWithPure
   , defaultReplExpr
   ) where
 
@@ -24,32 +24,26 @@ import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Subst
                     (apSubst, singleSubst, isEmptySubst, substToList,
                           emptySubst,Subst,listSubst, (@@), Subst,
-                           apSubstMaybe, substBinds)
+                           substBinds)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simplify
 import           Cryptol.TypeCheck.Solver.Types
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import           Cryptol.TypeCheck.SimpType(tMax)
 
 
-import           Cryptol.TypeCheck.Solver.SMT(proveImp,checkUnsolvable)
+import           Cryptol.TypeCheck.Solver.SMT(Solver,proveImp,tryGetModel)
 import           Cryptol.TypeCheck.Solver.Improve(improveProp,improveProps)
 import           Cryptol.TypeCheck.Solver.Numeric.Interval
-import qualified Cryptol.TypeCheck.Solver.Numeric.AST as Num
-import qualified Cryptol.TypeCheck.Solver.Numeric.ImportExport as Num
-import qualified Cryptol.TypeCheck.Solver.CrySAT as Num
-import           Cryptol.TypeCheck.Solver.CrySAT
 import           Cryptol.Utils.PP (text,vcat,(<+>))
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Patterns(matchMaybe)
 
-import           Control.Monad (guard, mzero)
 import           Control.Applicative ((<|>))
-import           Data.Either(partitionEithers)
-import           Data.Maybe(catMaybes)
-import           Data.Map ( Map )
+import           Control.Monad(mzero,guard)
 import qualified Data.Map as Map
 import           Data.Set ( Set )
 import qualified Data.Set as Set
+
 
 
 {- | Add additional constraints that ensure validity of type function.
@@ -199,8 +193,8 @@ proveImplication lnam as ps gs =
      return su
 
 
-proveImplicationIO :: Num.Solver
-                   -> Name     -- ^ Checking this function
+proveImplicationIO :: Solver
+                   -> Maybe Name     -- ^ Checking this function
                    -> Set TVar -- ^ These appear in the env., and we should
                                -- not try to default the
                    -> [TParam] -- ^ Type parameters
@@ -273,49 +267,6 @@ cleanupError err =
 
 
 
-simpGoals' :: Num.Solver -> Ctxt -> [Goal] -> IO (Either [Goal] [Goal], Subst)
-simpGoals' s asmps gs0 = go emptySubst [] (wellFormed gs0 ++ gs0)
-  where
-  -- Assumes that the well-formed constraints are themselves well-formed.
-  wellFormed gs = [ g { goal = p } | g <- gs, p <- wfType (goal g) ]
-
-  go su old [] = return (Right old, su)
-  go su old gs =
-    do res  <- solveConstraints s asmps old gs
-       case res of
-         Left err -> return (Left err, su)
-         Right gs2 ->
-           do let gs3 = gs2 ++ old
-              mb <- computeImprovements s gs3
-              case mb of
-                Left err -> return (Left err, su)
-                Right impSu ->
-                  let (unchanged,changed) =
-                                    partitionEithers (map (applyImp impSu) gs3)
-                      new = wellFormed changed
-                  in go (impSu @@ su) unchanged (new ++ changed)
-
-  applyImp su g = case apSubstMaybe su (goal g) of
-                    Nothing -> Left g
-                    Just p  -> Right g { goal = p }
-
-
-{- Note:
-It is good to consider the other goals when evaluating terms.
-For example, consider the constraints:
-
-    P (x * inf), x >= 1
-
-We cannot simplify `x * inf` on its own, because we do not know if `x`
-might be 0.  However, in the contxt of `x >= 1`, we know that this is
-impossible, and we can simplify the constraints to:
-
-    P inf, x >= 1
-
-However, we should be careful to avoid circular reasoning, as we wouldn't
-want to use the fact that `x >= 1` to simplify `x >= 1` to true.
--}
-
 
 
 
@@ -326,110 +277,6 @@ assumptionIntervals as ps =
     InvalidInterval {} -> as -- XXX: say something
     NewIntervals bs -> Map.union bs as
 
-
-
-solveConstraints :: Num.Solver ->
-                    Ctxt ->
-                    [Goal] {- We may use these, but don't try to solve,
-                              we already tried and failed. -} ->
-                    [Goal] {- Need to solve these -} ->
-                    IO (Either [Goal] [Goal])
-                    -- ^ Left: contradiciting goals,
-                    --   Right: goals that were not solved, or sub-goals
-                    --          for solved goals.  Does not include "old"
-solveConstraints s asmps otherGs gs0 =
-  debugBlock s "Solving constraints" $ go ctxt0 [] gs0
-
-  where
-  ctxt0 = assumptionIntervals asmps (map goal otherGs)
-
-
-  go _ unsolved [] =
-    do let (cs,nums) = partitionEithers (map Num.numericRight unsolved)
-       nums' <- solveNumerics s otherNumerics nums
-       return (Right (cs ++ nums'))
-
-  go ctxt unsolved (g : gs) =
-    case Simplify.simplifyStep ctxt (goal g) of
-      Unsolvable _x       -> return (Left [g])  -- maybe give error?
-      Unsolved            -> go ctxt (g : unsolved) gs
-      SolvedIf subs       ->
-        let cvt x = g { goal = x }
-        in  go ctxt unsolved (map cvt subs ++ gs)
-
-
-  otherNumerics = [ g | Right g <- map Num.numericRight otherGs ]
-
-
-
-
-solveNumerics :: Num.Solver ->
-                 [(Goal,Num.Prop)] {- ^ Consult these -} ->
-                 [(Goal,Num.Prop)] {- ^ Solve these -}   ->
-                 IO [Goal]
-solveNumerics _ _ [] = return []
-solveNumerics s consultGs solveGs =
-  Num.withScope s $
-    do _   <- Num.assumeProps s (map (goal . fst) consultGs)
-       Num.simplifyProps s (map Num.knownDefined solveGs)
-
-
-computeImprovements :: Num.Solver -> [Goal] -> IO (Either [Goal] Subst)
-computeImprovements s gs =
-  debugBlock s "Computing improvements" $
-  do let nums = [ g | Right g <- map Num.numericRight gs ]
-     res <- Num.withScope s $
-        do _  <- Num.assumeProps s (map (goal . fst) nums)
-           mb <- Num.check s
-           case mb of
-             Nothing       -> return Nothing
-             Just (suish,_ps1) ->
-               do let (su,_ps2) = importSplitImps suish
-                  -- Num.check has already checked that the intervals are sane,
-                  -- so we don't need to check for a broken interval here
-                  Right ints <- Num.getIntervals s
-                  return (Just (ints,su))
-     case res of
-       Just (_ints, su) -> return (Right su) -- ?
-{-
-         | isEmptySubst su
-         , (x,t) : _ <- mapMaybe (improveByDefn ints) gs ->
-           do let su' = singleSubst x t
-              debugLog s ("Improve by definition: " ++ show (pp su'))
-              return (Right su')
-         | otherwise -> return (Right su)
- -}
-       Nothing ->
-         do bad <- Num.minimizeContradictionSimpDef s
-                                                (map Num.knownDefined nums)
-            return (Left bad)
-
-
-
-
-
--- | Import an improving substitutin (i.e., a bunch of equations)
--- into a Cryptol substitution (which is idempotent).
--- The substitution will contain only unification variables.
--- "Improvements" on skolem variables become additional constraints.
-importSplitImps :: Map Num.Name Num.Expr -> (Subst, [Prop])
-importSplitImps = mk . partitionEithers . map imp . Map.toList
-  where
-  mk (uni,props) = (listSubst (catMaybes uni), props)
-
-  imp (x,e) = case (x, Num.importType e) of
-                (Num.UserName tv, Just ty) ->
-                  case tv of
-                    TVFree {}  -> Left (Just (tv,ty))
-                    TVBound {} -> Right (TVar tv =#= ty)
-
-                {- This may happen if we are working on an implication,
-                and we have an improvement about a variable in the
-                assumptions that is not in any og the goals.
-                XXX: Perhaps, we should mark these variable, so we don't waste
-                time to "improve" them. -}
-
-                _ -> Left Nothing
 
 
 
@@ -461,47 +308,6 @@ importSplitImps = mk . partitionEithers . map imp . Map.toList
       3. a substitution which indicates what got defaulted.
 -}
 
-improveByDefaultingWith ::
-  Num.Solver ->
-  [TVar] ->   -- candidates for defaulting
-  [Goal] ->   -- constraints
-    IO  ( [TVar]    -- non-defaulted
-        , [Goal]    -- new constraints
-        , Maybe Subst   -- Nothing: improve to False
-                        -- Just:    improvements from defaulting
-        , [Warning] -- warnings about defaulting
-        )
--- XXX: Remove this
--- improveByDefaultingWith s as gs = return (as,gs,emptySubst,[])
-improveByDefaultingWith s as gs =
-  do bad <- checkUnsolvable s gs
-     if bad
-       then return (as, gs, Nothing, [])
-       else tryImp
-
-  where
-  tryImp =
-    case improveByDefaultingWithPure as gs of
-      (xs,gs',su,ws) ->
-        do (res,su1) <- simpGoals' s Map.empty gs'
-           case res of
-             Left err ->
-               panic "improveByDefaultingWith"
-                    $ [ "Defaulting resulted in unsolvable constraints."
-                      , "Before:"
-                      ] ++ [ "  " ++ show (pp (goal g)) | g <- gs ] ++
-                      [ "After:"
-                      ] ++ [ "  " ++ show (pp (goal g)) | g <- gs' ] ++
-                      [ "Contradiction:" ] ++
-                      [ "  " ++ show (pp (goal g)) | g <- err ]
-             Right gs'' ->
-               do let su2 = su1 @@ su
-                      isDef x = x `Set.member` substBinds su2
-                  return ( filter (not . isDef) xs
-                         , gs''
-                         , Just su2
-                         , ws
-                         )
 
 
 improveByDefaultingWithPure :: [TVar] -> [Goal] ->
@@ -602,31 +408,19 @@ improveByDefaultingWithPure as ps =
 -- | Try to pick a reasonable instantiation for an expression, with
 -- the given type.  This is useful when we do evaluation at the REPL.
 -- The resulting types should satisfy the constraints of the schema.
-defaultReplExpr :: Num.Solver -> Expr -> Schema
+defaultReplExpr :: Solver -> Expr -> Schema
              -> IO (Maybe ([(TParam,Type)], Expr))
--- defaultReplExpr _ _ _ = return Nothing
-defaultReplExpr so e s =
+defaultReplExpr sol e s =
   if all (\v -> kindOf v == KNum) (sVars s)
      then do let params = map tpVar (sVars s)
-             mbSubst <- tryGetModel so params (sProps s)
-             case mbSubst of
-               Just su ->
-                 do (res,su1) <- simpGoals' so Map.empty (map (makeGoal su) (sProps s))
-                    return $
-                      case res of
-                        Right [] | isEmptySubst su1 ->
-                         do tys <- mapM (bindParam su) params
-                            return (zip (sVars s) tys, appExpr tys)
-                        _ -> Nothing
-               _ -> return Nothing
-
+                 props  = sProps s
+             mbSubst <- tryGetModel sol params props
+             return $ do su <- mbSubst
+                         guard (null (concatMap pSplitAnd (apSubst su props)))
+                         tys <- mapM (bindParam su) params
+                         return (zip (sVars s) tys, appExpr tys)
      else return Nothing
   where
-  makeGoal su p = Goal { goalSource = error "goal source"
-                       , goalRange  = error "goal range"
-                       , goal       = apSubst su p
-                       }
-
   bindParam su tp =
     do let ty  = TVar tp
            ty' = apSubst su ty
@@ -637,15 +431,5 @@ defaultReplExpr so e s =
 
 
 
--- | Attempt to default the given constraints by asserting them in the SMT
--- solver, and asking it for a model.
-tryGetModel ::
-  Num.Solver ->
-  [TVar] ->   -- variables to try defaulting
-  [Prop] ->   -- constraints
-    IO (Maybe Subst)
-tryGetModel s xs ps =
-  -- We are only interested in finite instantiations
-  Num.getModel s (map (pFin . TVar) xs ++ ps)
 
 

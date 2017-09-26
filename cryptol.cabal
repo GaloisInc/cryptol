@@ -76,6 +76,7 @@ library
                        mtl               >= 2.2.1,
                        time >= 1.6.0.1
 
+
   Build-tools:         alex, happy
   hs-source-dirs:      src
 
@@ -140,16 +141,8 @@ library
 
                        Cryptol.TypeCheck.Solver.Numeric,
                        Cryptol.TypeCheck.Solver.Improve,
-                       Cryptol.TypeCheck.Solver.CrySAT,
-                       Cryptol.TypeCheck.Solver.Numeric.AST,
-                       Cryptol.TypeCheck.Solver.Numeric.ImportExport,
-                       Cryptol.TypeCheck.Solver.Numeric.Defined,
                        Cryptol.TypeCheck.Solver.Numeric.Fin,
                        Cryptol.TypeCheck.Solver.Numeric.Interval,
-                       Cryptol.TypeCheck.Solver.Numeric.Simplify,
-                       Cryptol.TypeCheck.Solver.Numeric.SimplifyExpr,
-                       Cryptol.TypeCheck.Solver.Numeric.NonLin,
-                       Cryptol.TypeCheck.Solver.Numeric.SMT,
 
                        Cryptol.Transform.MonoValues,
                        Cryptol.Transform.Specialize,

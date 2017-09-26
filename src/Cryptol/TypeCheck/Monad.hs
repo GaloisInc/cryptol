@@ -19,13 +19,12 @@ module Cryptol.TypeCheck.Monad
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
-import           Cryptol.Prelude (writeTcPreludeContents)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.Unify(mgu, Result(..), UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
-import qualified Cryptol.TypeCheck.Solver.CrySAT as CrySAT
+import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import           Cryptol.Utils.PP(pp, (<+>), Doc, text, quotes)
 import           Cryptol.Utils.Panic(panic)
 
@@ -42,8 +41,6 @@ import           MonadLib hiding (mapM)
 
 import           Data.IORef
 
-import           System.FilePath((</>))
-import           System.Directory(doesFileExist)
 
 
 import GHC.Generics (Generic)
@@ -103,9 +100,8 @@ bumpCounter = do RO { .. } <- IM ask
                  io $ modifyIORef' iSolveCounter (+1)
 
 runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
-runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
-  do loadCryTCPrel solver (inpSearchPath info)
-     coutner <- newIORef 0
+runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
+  do coutner <- newIORef 0
      rec ro <- return RO { iRange     = inpRange info
                      , iVars          = Map.map ExtVar (inpVars info)
                      , iTVars         = []
@@ -173,15 +169,6 @@ runInferM info (IM m) = CrySAT.withSolver (inpSolverConfig info) $ \solver ->
   -- The actual order does not matter
   cmpRange (Range x y z) (Range a b c) = compare (x,y,z) (a,b,c)
 
-  loadCryTCPrel s [] =
-    do file <- writeTcPreludeContents
-       CrySAT.loadFile s file
-
-  loadCryTCPrel s (p : ps) =
-    do let file = p </> "CryptolTC.z3"
-       yes <- doesFileExist file
-       if yes then CrySAT.loadFile s file
-              else loadCryTCPrel s ps
 
 
 
@@ -233,7 +220,7 @@ data RO = RO
     -- in where-blocks will never be generalized. Bindings with type
     -- signatures, and all bindings at top level are unaffected.
 
-  , iSolver :: CrySAT.Solver
+  , iSolver :: SMT.Solver
 
   , iPrimNames :: !PrimMap
 
@@ -324,7 +311,7 @@ recordWarning w =
   do r <- curRange
      IM $ sets_ $ \s -> s { iWarnings = (r,w) : iWarnings s }
 
-getSolver :: InferM CrySAT.Solver
+getSolver :: InferM SMT.Solver
 getSolver =
   do RO { .. } <- IM ask
      return iSolver

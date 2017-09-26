@@ -41,6 +41,8 @@ data SolverConfig = SolverConfig
   { solverPath    :: FilePath   -- ^ The SMT solver to invoke
   , solverArgs    :: [String]   -- ^ Additional arguments to pass to the solver
   , solverVerbose :: Int        -- ^ How verbose to be when type-checking
+  , solverPreludePath :: [FilePath]
+    -- ^ Look for the solver prelude in these locations.
   } deriving (Show, Generic, NFData)
 
 -- | The types of variables in the environment.

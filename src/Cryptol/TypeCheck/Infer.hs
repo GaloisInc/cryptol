@@ -29,7 +29,7 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                         checkParameterConstraints)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
-import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),emptySubst)
+import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@))
 import           Cryptol.TypeCheck.Solver.InfNat(genLog)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
@@ -694,15 +694,7 @@ generalize bs0 gs0 =
      when (not (null ambig)) $ recordError $ AmbiguousType $ map dName bs
 
 
-     solver <- getSolver
-     (as0,here1,mb_defSu,ws) <- io $ improveByDefaultingWith solver maybeAmbig here0
-     defSu <- case mb_defSu of
-               Nothing -> do recordError $ UnsolvedGoals True here0
-                             return emptySubst
-               Just s  -> return s
-
-
-
+     let (as0,here1,defSu,ws) = improveByDefaultingWithPure maybeAmbig here0
      mapM_ recordWarning ws
      let here = map goal here1
 
@@ -712,7 +704,7 @@ generalize bs0 gs0 =
      totSu <- getSubst
      let
          su     = listSubst (zip as (map (TVar . tpVar) asPs)) @@ defSu @@ totSu
-         qs     = map (apSubst su) here
+         qs     = concatMap (pSplitAnd . apSubst su) here
 
          genE e = foldr ETAbs (foldr EProofAbs (apSubst su e) qs) asPs
          genB d = d { dDefinition = case dDefinition d of
@@ -806,17 +798,12 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
         when (not (null ambig)) $ recordError
                                 $ AmbiguousType [ thing (P.bName b) ]
 
-        solver <- getSolver
-        (_,_,mb_defSu2,ws) <-
-            io $ improveByDefaultingWith solver maybeAmbig later
-        defSu2 <- case mb_defSu2 of
-                   Nothing -> do recordError $ UnsolvedGoals True later
-                                 return emptySubst
-                   Just s -> return s
+        -- XXX: Uhm, why are we defaulting that 'later' things here?
+        -- Surely this should be done later, when we solve them?
+        let (_,newGs,defSu2,ws) = improveByDefaultingWithPure maybeAmbig later
         mapM_ recordWarning ws
         extendSubst defSu2
-
-     addGoals later
+        addGoals newGs
 
      su <- getSubst
      let su' = defSu1 @@ su
