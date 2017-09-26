@@ -86,7 +86,8 @@ data HasGoal = HasGoal
 
 -- | Delayed implication constraints, arising from user-specified type sigs.
 data DelayedCt = DelayedCt
-  { dctSource :: Name   -- ^ Signature that gave rise to this constraint
+  { dctSource :: Maybe Name   -- ^ Signature that gave rise to this constraint
+                              -- Nothing means module top-level
   , dctForall :: [TParam]
   , dctAsmps  :: [Prop]
   , dctGoals  :: [Goal]
@@ -564,8 +565,10 @@ instance PP (WithNames DelayedCt) where
   ppPrec _ (WithNames d names) =
     sig $$ nest 2 (vars $$ asmps $$ vcat (map (ppWithNames ns1) (dctGoals d)))
     where
-    sig = text "In the definition of" <+> quotes (pp name) <>
-          comma <+> text "at" <+> pp (nameLoc name) <> colon
+    sig = case name of
+            Just n -> text "In the definition of" <+> quotes (pp n) <>
+                          comma <+> text "at" <+> pp (nameLoc n) <> colon
+            Nothing -> text "When checking the module's parameters."
 
     name  = dctSource d
     vars = case dctForall d of

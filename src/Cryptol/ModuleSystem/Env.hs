@@ -145,7 +145,8 @@ focusedEnv me = fold $
      let (ifaces,names) = unzip deps
          Iface { .. }   = lmInterface lm
          localDecls     = ifPublic `mappend` ifPrivate
-         localNames     = R.unqualifiedEnv localDecls
+         localNames     = R.unqualifiedEnv localDecls `mappend`
+                          R.modParamsNamingEnv ifParams
          namingEnv      = localNames `R.shadowing` mconcat names
 
      return (mconcat (localDecls:ifaces), namingEnv, R.toNameDisp namingEnv)

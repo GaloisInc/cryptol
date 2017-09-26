@@ -45,7 +45,7 @@ data Iface = Iface
   } deriving (Show, Generic, NFData)
 
 data IfaceParams = IfaceParams
-  { ifParamTypes :: Map.Map Name TParam     -- ^ Uninterpreted types
+  { ifParamTypes :: [TParam]     -- ^ Uninterpreted types
   , ifParamConstraints :: [Prop]            -- ^ Constraints on param. types
   , ifParamFuns  :: Map.Map Name IfaceDecl  -- ^ Uninterpreted value constants
   } deriving (Show, Generic, NFData)

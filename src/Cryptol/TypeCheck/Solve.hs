@@ -11,6 +11,7 @@
 module Cryptol.TypeCheck.Solve
   ( simplifyAllConstraints
   , proveImplication
+  , proveModuleTopLevel
   , wfType
   , wfTypeFunction
   , improveByDefaultingWith
@@ -172,9 +173,22 @@ simpHasGoals = go False [] =<< getHasGoals
        changes' `seq` unsolved `seq` go changes' unsolved' todo
 
 
+-- | Try to clean-up any left-over constraints after we've checked everything
+-- in a module.  Typically these are either trivial things, or constraints
+-- on the module's type parameters.
+proveModuleTopLevel :: InferM ()
+proveModuleTopLevel =
+  do simplifyAllConstraints
+     cs <- getParamConstraints
+     case cs of
+       [] -> return ()
+       _  -> do as <- Map.elems <$> getParamTypes
+                gs <- getGoals
+                su <- proveImplication Nothing as cs gs
+                extendSubst su
 
 
-proveImplication :: Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
+proveImplication :: Maybe Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
      solver <- getSolver
@@ -222,10 +236,10 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
   err us =  Left $ cleanupError
                  $ UnsolvedDelayedCt
                  $ DelayedCt { dctSource = f
-                              , dctForall = ps
-                              , dctAsmps  = asmps0
-                              , dctGoals  = us
-                              }
+                             , dctForall = ps
+                             , dctAsmps  = asmps0
+                             , dctGoals  = us
+                             }
 
 
   asmps1 = concatMap pSplitAnd asmps0

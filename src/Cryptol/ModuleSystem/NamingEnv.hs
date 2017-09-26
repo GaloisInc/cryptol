@@ -21,11 +21,12 @@ import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
+import qualified Cryptol.TypeCheck.Type as T
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
 import Data.List (nub)
-import Data.Maybe (catMaybes,fromMaybe)
+import Data.Maybe (catMaybes,fromMaybe,mapMaybe)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import MonadLib (runId,Id)
@@ -256,6 +257,27 @@ unqualifiedEnv IfaceDecls { .. } =
   fixity =
     catMaybes [ do f <- ifDeclFixity d; return (ifDeclName d,f)
               | d    <- Map.elems ifDecls ]
+
+
+-- | Compute an unqualified naming environment from the parameters of a module
+modParamsNamingEnv :: IfaceParams -> NamingEnv
+modParamsNamingEnv IfaceParams { .. } =
+  NamingEnv { neExprs = Map.fromList $ map fromFu $ Map.keys ifParamFuns
+            , neTypes = Map.fromList $ mapMaybe fromTy ifParamTypes
+            , neFixity = Map.fromList $ mapMaybe toFix $ Map.toList ifParamFuns
+            }
+
+  where
+  toPName n = mkUnqual (nameIdent n)
+
+  fromTy tp = do nm <- T.tpName tp
+                 return (toPName nm, [nm])
+
+  fromFu f  = (toPName f, [f])
+
+  toFix (f,x) = do d <- ifDeclFixity x
+                   return (f, d)
+
 
 
 data ImportIface = ImportIface Import Iface

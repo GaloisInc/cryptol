@@ -51,7 +51,7 @@ data Module = Module { mName        :: !ModName
                      , mImports     :: [Import]
                      , mTySyns      :: Map Name TySyn
                      , mNewtypes    :: Map Name Newtype
-                     , mParamTypes  :: Map Name TParam
+                     , mParamTypes  :: [ TParam ]
                      , mParamConstraints :: [Prop]
                      , mParamFuns   :: Map Name Schema
                      , mDecls       :: [DeclGroup]
@@ -305,5 +305,5 @@ instance PP (WithNames Module) where
     vcat (map pp mImports) $$
     -- XXX: Print tysyns
     -- XXX: Print abstarct types/functions
-    vcat (map (ppWithNames nm) mDecls)
+    vcat (map (ppWithNames (addTNames mParamTypes nm)) mDecls)
 

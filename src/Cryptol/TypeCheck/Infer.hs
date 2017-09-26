@@ -48,7 +48,7 @@ import           Control.Monad(when,zipWithM)
 inferModule :: P.Module Name -> InferM Module
 inferModule m =
   inferDs (P.mDecls m) $ \ds1 ->
-    do simplifyAllConstraints
+    do proveModuleTopLevel
        ts <- getTSyns
        nts <- getNewtypes
        pTs <- getParamTypes
@@ -59,7 +59,7 @@ inferModule m =
                      , mImports   = map thing (P.mImports m)
                      , mTySyns    = Map.mapMaybe onlyLocal ts
                      , mNewtypes  = Map.mapMaybe onlyLocal nts
-                     , mParamTypes= pTs
+                     , mParamTypes= Map.elems pTs
                      , mParamConstraints = pCs
                      , mParamFuns = pFuns
                      , mDecls     = ds1
@@ -791,7 +791,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
 
      asmps1 <- applySubst asmps0
 
-     defSu1 <- proveImplication (thing (P.bName b)) as asmps1 now
+     defSu1 <- proveImplication (Just (thing (P.bName b))) as asmps1 now
      let later = apSubst defSu1 later0
          asmps = apSubst defSu1 asmps1
 
