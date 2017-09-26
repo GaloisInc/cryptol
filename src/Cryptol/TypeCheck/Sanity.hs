@@ -532,8 +532,10 @@ lookupTVar :: TVar -> TcM Kind
 lookupTVar x =
   case x of
     TVFree {} -> reportError (FreeTypeVariable x)
-    TVBound u k ->
-       do ro <- TcM ask
+    TVBound tpv ->
+       do let u = tpUnique tpv
+              k = tpKind tpv
+          ro <- TcM ask
           case Map.lookup u (roTVars ro) of
             Just tp
               | kindOf tp == k  -> return k

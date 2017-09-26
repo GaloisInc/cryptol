@@ -442,11 +442,11 @@ newTVar' src extraBound k =
 
 
 -- | Generate a new free type variable.
-newTParam :: Maybe Name -> Kind -> InferM TParam
+newTParam :: TPFlavor -> Kind -> InferM TParam
 newTParam nm k = newName $ \s -> let x = seedTVar s
                                  in (TParam { tpUnique = x
                                             , tpKind   = k
-                                            , tpName   = nm
+                                            , tpFlav   = nm
                                             }
                                  , s { seedTVar = x + 1 })
 

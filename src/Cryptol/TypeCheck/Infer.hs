@@ -699,7 +699,7 @@ generalize bs0 gs0 =
      let here = map goal here1
 
      let as   = as0 ++ Set.toList (Set.difference inSigs asmpVs)
-         asPs = [ TParam { tpUnique = x, tpKind = k, tpName = Nothing }
+         asPs = [ TParam { tpUnique = x, tpKind = k, tpFlav = TPOther Nothing }
                                                    | TVFree x k _ _ <- as ]
      totSu <- getSubst
      let

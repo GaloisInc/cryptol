@@ -116,11 +116,12 @@ bindVar x (tNoUser -> TVar y)
 
 bindVar v@(TVBound {}) (tNoUser -> TVar v1@(TVFree {})) = bindVar v1 (TVar v)
 
-bindVar v@(TVBound _ k) t
+bindVar v@(TVBound {}) t
   | k == kindOf t = if k == KNum
                        then return (emptySubst, [TVar v =#= t])
                        else uniError $ UniNonPoly v t
   | otherwise     = uniError $ UniKindMismatch k (kindOf t)
+  where k = kindOf v
 
 
 bindVar x@(TVFree _ k inScope _d) t

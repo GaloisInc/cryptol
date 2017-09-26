@@ -43,7 +43,7 @@ checkSchema :: P.Schema Name -> InferM (Schema, [Goal])
 checkSchema (P.Forall xs ps t mb) =
   do ((xs1,(ps1,t1)), gs) <-
         collectGoals $
-        rng $ withTParams True xs $
+        rng $ withTParams True schemaParam xs $
         do ps1 <- mapM checkProp ps
            t1  <- doCheckType t (Just KType)
            return (ps1,t1)
@@ -62,7 +62,7 @@ checkParameterType a =
          n = thing (P.ptName a)
      return TParam { tpUnique = nameUnique n -- XXX: ok to reuse?
                    , tpKind = k
-                   , tpName = Just n
+                   , tpFlav = TPModParam n
                    }
 
 
@@ -71,7 +71,8 @@ checkTySyn :: P.TySyn Name -> InferM TySyn
 checkTySyn (P.TySyn x as t) =
   do ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
-                    $ do r <- withTParams False as (doCheckType t Nothing)
+                    $ do r <- withTParams False tySynParam as
+                                                      (doCheckType t Nothing)
                          simplifyAllConstraints
                          return r
      return TySyn { tsName   = thing x
@@ -85,7 +86,8 @@ checkPropSyn :: P.PropSyn Name -> InferM TySyn
 checkPropSyn (P.PropSyn x as ps) =
   do ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
-                    $ do r <- withTParams False as (traverse checkProp ps)
+                    $ do r <- withTParams False propSynParam as
+                                                      (traverse checkProp ps)
                          simplifyAllConstraints
                          return r
      return TySyn { tsName   = thing x
@@ -100,7 +102,7 @@ checkNewtype :: P.Newtype Name -> InferM Newtype
 checkNewtype (P.Newtype x as fs) =
   do ((as1,fs1),gs) <- collectGoals $
        inRange (srcRange x) $
-       do r <- withTParams False as $
+       do r <- withTParams False newtypeParam as $
                forM fs $ \field ->
                  let n = name field
                  in kInRange (srcRange n) $
@@ -119,12 +121,13 @@ checkNewtype (P.Newtype x as fs) =
 
 checkType :: P.Type Name -> Maybe Kind -> InferM Type
 checkType t k =
-  do (_, t1) <- withTParams True [] $ doCheckType t k
+  do (_, t1) <- withTParams True schemaParam {-no params-} [] $ doCheckType t k
      return (tRebuild t1)
 
 checkParameterConstraints :: [P.Prop Name] -> InferM [Prop]
 checkParameterConstraints ps =
-  do (_, cs) <- withTParams False [] (mapM checkProp ps)
+  do (_, cs) <- withTParams False schemaParam {-no params-}[]
+                                                        (mapM checkProp ps)
      return (map tRebuild cs)
 
 
@@ -157,8 +160,12 @@ There are two reasons for this choice:
      annotation) in the rest.
 -}
 
-withTParams :: Bool -> [P.TParam Name] -> KindM a -> InferM ([TParam], a)
-withTParams allowWildCards xs m =
+withTParams :: Bool              {- ^ Do we allow wild cards -} ->
+              (Name -> TPFlavor) {- ^ What sort of params are these? -} ->
+              [P.TParam Name]    {- ^ The params -} ->
+              KindM a            {- ^ do this using the params -} ->
+              InferM ([TParam], a)
+withTParams allowWildCards flav xs m =
   do (as,a,ctrs) <-
         mdo mapM_ recordError duplicates
             (a, vars,ctrs) <- runKindM allowWildCards (zip' xs ts) m
@@ -175,7 +182,7 @@ withTParams allowWildCards xs m =
                     return KNum
 
   newTP vs tp = do k <- getKind vs tp
-                   n <- newTParam (Just (P.tpName tp)) k
+                   n <- newTParam (flav (P.tpName tp)) k
                    return (n, TVar (tpVar n))
 
 

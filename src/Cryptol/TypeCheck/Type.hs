@@ -43,13 +43,39 @@ data Schema = Forall { sVars :: [TParam], sProps :: [Prop], sType :: Type }
 -- | Type parameters.
 data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
                      , tpKind   :: Kind       -- ^ Kind of parameter
-                     , tpName   :: Maybe Name
-                       -- ^ Name from source, if any.
-                       -- INVARIANT: if this arouse from an abstract type
-                       -- then the name will alwyas be defined.
+                     , tpFlav   :: TPFlavor
+                        -- ^ What sort of type parameter is this
                      }
               deriving (Generic, NFData, Show)
 
+data TPFlavor = TPModParam Name
+              | TPOther (Maybe Name)
+              deriving (Generic, NFData, Show)
+
+schemaParam :: Name -> TPFlavor
+schemaParam x = TPOther (Just x)
+
+tySynParam :: Name -> TPFlavor
+tySynParam x = TPOther (Just x)
+
+propSynParam :: Name -> TPFlavor
+propSynParam x = TPOther (Just x)
+
+newtypeParam :: Name -> TPFlavor
+newtypeParam x = TPOther (Just x)
+
+modTyParam :: Name -> TPFlavor
+modTyParam = TPModParam
+
+
+tpfName :: TPFlavor -> Maybe Name
+tpfName f =
+  case f of
+    TPModParam x -> Just x
+    TPOther x -> x
+
+tpName :: TParam -> Maybe Name
+tpName = tpfName . tpFlav
 
 -- | The internal representation of types.
 -- These are assumed to be kind correct.
@@ -79,7 +105,7 @@ data TVar   = TVFree !Int Kind (Set TVar) Doc
               -- The `Doc` is a description of how this type came to be.
 
 
-            | TVBound !Int Kind
+            | TVBound {-# UNPACK #-} !TParam
               deriving (Show, Generic, NFData)
 
 
@@ -161,7 +187,7 @@ class HasKind t where
 
 instance HasKind TVar where
   kindOf (TVFree  _ k _ _) = k
-  kindOf (TVBound _ k) = k
+  kindOf (TVBound tp) = kindOf tp
 
 instance HasKind TCon where
   kindOf (TC tc)      = kindOf tc
@@ -282,7 +308,7 @@ instance Ord TParam where
   compare x y = compare (tpUnique x) (tpUnique y)
 
 tpVar :: TParam -> TVar
-tpVar p = TVBound (tpUnique p) (tpKind p)
+tpVar p = TVBound p
 
 -- | The type is "simple" (i.e., it contains no type functions).
 type SType  = Type
@@ -306,7 +332,7 @@ instance Ord UserTC where
   compare (UserTC x _) (UserTC y _) = compare x y
 
 instance Eq TVar where
-  TVBound x _     == TVBound y _     = x == y
+  TVBound x       == TVBound y       = x == y
   TVFree  x _ _ _ == TVFree  y _ _ _ = x == y
   _             == _              = False
 
@@ -315,7 +341,7 @@ instance Ord TVar where
   compare (TVFree _ _ _ _) _                = LT
   compare _            (TVFree _ _ _ _)     = GT
 
-  compare (TVBound x _) (TVBound y _)       = compare x y
+  compare (TVBound x) (TVBound y) = compare x y
 
 --------------------------------------------------------------------------------
 -- Queries
@@ -653,9 +679,11 @@ addTNames as ns = foldr (uncurry IntMap.insert) ns
                 $ named ++ zip unnamed avail
 
   where avail   = filter (`notElem` used) (nameList [])
-        named   = [ (u,show (pp n))
-                          | TParam { tpUnique = u, tpName = Just n } <- as ]
-        unnamed = [ u     | TParam { tpUnique = u, tpName = Nothing } <- as ]
+
+        nm x = (tpUnique x, tpName x)
+
+        named   = [ (u,show (pp n)) | (u,Just n)  <- map nm as ]
+        unnamed = [ u               | (u,Nothing) <- map nm as ]
 
         used    = map snd named ++ IntMap.elems ns
 
@@ -761,10 +789,13 @@ instance PP Kind where
 
 instance PP (WithNames TVar) where
 
-  ppPrec _ (WithNames (TVBound x _) mp) =
-    case IntMap.lookup x mp of
+  ppPrec _ (WithNames (TVBound x) mp) =
+    case IntMap.lookup (tpUnique x) mp of
       Just a  -> text a
-      Nothing -> text ("a`" ++ show x)
+      Nothing ->
+        case tpFlav x of
+          TPModParam n -> ppPrefixName n
+          _ -> text ("a`" ++ show (tpUnique x))
 
   ppPrec _ (WithNames (TVFree x _ _ _) _) =
     char '?' <> text (intToName x)
