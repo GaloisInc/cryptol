@@ -51,8 +51,8 @@ property
 
 type Integer = [64]
 
-encrypt : {m} fin m =>
-              K -> Nonce -> A -> [m * (p * n)] -> [m * (p * n) + tagAmount]
+encrypt :
+  {m} fin m => K -> Nonce -> A -> [m * (p * n)] -> [m * (p * n) + tagAmount]
 encrypt key nonce state inputMsg = join ((drop`{1} go).0.message) # tag
 
   where
