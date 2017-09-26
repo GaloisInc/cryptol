@@ -186,7 +186,8 @@ proveImplication :: Maybe Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
      solver <- getSolver
-     (mbErr,su) <- io (proveImplicationIO solver lnam evars as ps gs)
+     extra <- getParamConstraints
+     (mbErr,su) <- io (proveImplicationIO solver lnam evars as (extra ++ ps) gs)
      case mbErr of
        Right ws -> mapM_ recordWarning ws
        Left err -> recordError err

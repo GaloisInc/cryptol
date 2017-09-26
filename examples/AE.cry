@@ -13,6 +13,8 @@ parameter
   type p : #          // Number of blocks to process at once
   type tagAmount : #
 
+  type constraint (fin p, fin n, n >= tagAmount)
+
   // Given a keay and a tweak process a block
   tweak_cipher : K -> Tweak -> [n] -> [n]
 
@@ -49,7 +51,7 @@ property
 
 type Integer = [64]
 
-encrypt : {m} (fin m, fin p, fin n, fin tagAmount, n >= tagAmount) =>
+encrypt : {m} fin m =>
               K -> Nonce -> A -> [m * (p * n)] -> [m * (p * n) + tagAmount]
 encrypt key nonce state inputMsg = join ((drop`{1} go).0.message) # tag
 
