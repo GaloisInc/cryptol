@@ -84,37 +84,40 @@ initialModuleEnv  = do
   let handle :: X.IOException -> IO String
       handle _e = return ""
   userDir <- X.catch (getAppUserDataDirectory "cryptol") handle
+  let searchPath = [ curDir
+                   -- something like $HOME/.cryptol
+                   , userDir
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+                   -- ../cryptol on win32
+                   , instDir </> "cryptol"
+#else
+                   -- ../share/cryptol on others
+                   , instDir </> "share" </> "cryptol"
+#endif
+
+#ifndef RELOCATABLE
+                   -- Cabal-defined data directory. Since this
+                   -- is usually a global location like
+                   -- /usr/local, search this one last in case
+                   -- someone has multiple Cryptols
+                   , dataDir
+#endif
+                   ]
+
   return ModuleEnv
     { meLoadedModules = mempty
     , meNameSeeds     = T.nameSeeds
     , meEvalEnv       = mempty
     , meFocusedModule = Nothing
       -- we search these in order, taking the first match
-    , meSearchPath    = [ curDir
-                          -- something like $HOME/.cryptol
-                        , userDir
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-                          -- ../cryptol on win32
-                        , instDir </> "cryptol"
-#else
-                          -- ../share/cryptol on others
-                        , instDir </> "share" </> "cryptol"
-#endif
-
-#ifndef RELOCATABLE
-                          -- Cabal-defined data directory. Since this
-                          -- is usually a global location like
-                          -- /usr/local, search this one last in case
-                          -- someone has multiple Cryptols
-                        , dataDir
-#endif
-                        ]
+    , meSearchPath    = searchPath
     , meDynEnv        = mempty
     , meMonoBinds     = True
     , meSolverConfig  = T.SolverConfig
                           { T.solverPath = "z3"
                           , T.solverArgs = [ "-smt2", "-in" ]
                           , T.solverVerbose = 0
+                          , T.solverPreludePath = searchPath
                           }
     , meCoreLint      = NoCoreLint
     , meSupply        = emptySupply
