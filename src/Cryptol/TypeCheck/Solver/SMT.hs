@@ -320,6 +320,8 @@ toSMT tvs ty = matchDefault (panic "toSMT" [ "Unexpected type", show ty ])
   , aMin            ~> "cryMin"
   , aMax            ~> "cryMax"
   , aWidth          ~> "cryWidth"
+  , aBlocks         ~> "cryBlocks"
+  , aPadding        ~> "cryPadding"
   , aLenFromThen    ~> "cryLenFromThen"
   , aLenFromThenTo  ~> "cryLenFromThenTo"
 

@@ -32,6 +32,8 @@ data TFun
   | TCWidth               -- ^ @ : Num -> Num @
   | TCMin                 -- ^ @ : Num -> Num -> Num @
   | TCMax                 -- ^ @ : Num -> Num -> Num @
+  | TCBlocks              -- ^ @ : Num -> Num -> Num @
+  | TCPadding             -- ^ @ : Num -> Num -> Num @
 
   -- Computing the lengths of explicit enumerations
   | TCLenFromThen         -- ^ @ : Num -> Num -> Num -> Num@
@@ -66,6 +68,8 @@ tfunNames  = Map.fromList
   , tprefix "width"            1 TCWidth
   , tprefix "min"              2 TCMin
   , tprefix "max"              2 TCMax
+  , tprefix "blocks"           2 TCBlocks
+  , tprefix "padding"          2 TCPadding
   , tprefix "lengthFromThen"   3 TCLenFromThen
   , tprefix "lengthFromThenTo" 3 TCLenFromThenTo
   ]
@@ -105,6 +109,8 @@ instance PP TFun where
       TCWidth           -> text "width"
       TCMin             -> text "min"
       TCMax             -> text "max"
+      TCBlocks          -> text "blocks"
+      TCPadding         -> text "padding"
 
       TCLenFromThen     -> text "lengthFromThen"
       TCLenFromThenTo   -> text "lengthFromThenTo"

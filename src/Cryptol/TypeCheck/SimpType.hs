@@ -3,7 +3,7 @@ module Cryptol.TypeCheck.SimpType where
 
 import Control.Applicative((<|>))
 import Cryptol.TypeCheck.Type hiding
-  (tSub,tMul,tDiv,tMod,tExp,tMin,tWidth,tLenFromThen,tLenFromThenTo)
+  (tSub,tMul,tDiv,tMod,tExp,tMin,tWidth,tBlocks,tPadding,tLenFromThen,tLenFromThenTo)
 import Cryptol.TypeCheck.TypePat
 import Cryptol.TypeCheck.Solver.InfNat
 import Control.Monad(msum,guard)
@@ -33,6 +33,8 @@ tRebuild' withUser = go
               (TCMin,[x,y]) -> tMin x y
               (TCMax,[x,y]) -> tMax x y
               (TCWidth,[x]) -> tWidth x
+              (TCBlocks,[x,y]) -> tBlocks x y
+              (TCPadding,[x,y]) -> tPadding x y
               (TCLenFromThen,[x,y,z]) -> tLenFromThen x y z
               (TCLenFromThenTo,[x,y,z]) -> tLenFromThenTo x y z
               _ -> TCon tc ts
@@ -166,13 +168,28 @@ tDiv x y
   | Just 0 <- tIsNum y = tBadNumber $ TCErrorMessage "Division by 0."
   | otherwise = tf2 TCDiv x y
 
-
 tMod :: Type -> Type -> Type
 tMod x y
   | Just t <- tOp TCMod (op2 nMod) [x,y] = t
   | tIsInf x = tBadNumber $ TCErrorMessage "Modulus of `inf`."
   | Just 0 <- tIsNum x = tBadNumber $ TCErrorMessage "Modulus by 0."
   | otherwise = tf2 TCMod x y
+
+tBlocks :: Type -> Type -> Type
+tBlocks x y
+  | Just t <- tOp TCBlocks (op2 nBlocks) [x,y] = t
+  | tIsInf x = tBadNumber $ TCErrorMessage "Blocks of `inf`."
+  | tIsInf y = tBadNumber $ TCErrorMessage "Blocks by size `inf`."
+  | Just 0 <- tIsNum y = tBadNumber $ TCErrorMessage "Blocks by 0."
+  | otherwise = tf2 TCBlocks x y
+
+tPadding :: Type -> Type -> Type
+tPadding x y
+  | Just t <- tOp TCPadding (op2 nPadding) [x,y] = t
+  | tIsInf x = tBadNumber $ TCErrorMessage "Padding of `inf`."
+  | tIsInf y = tBadNumber $ TCErrorMessage "Padding to size `inf`."
+  | Just 0 <- tIsNum x = tBadNumber $ TCErrorMessage "Padding to size 0."
+  | otherwise = tf2 TCPadding x y
 
 tExp :: Type -> Type -> Type
 tExp x y

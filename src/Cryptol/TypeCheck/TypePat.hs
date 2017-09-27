@@ -4,6 +4,7 @@ module Cryptol.TypeCheck.TypePat
   , anAdd, (|-|), aMul, (|^|), (|/|), (|%|)
   , aMin, aMax
   , aWidth
+  , aBlocks, aPadding
   , aLenFromThen, aLenFromThenTo
 
   , aTVar
@@ -99,6 +100,12 @@ aMax = tf TCMax ar2
 
 aWidth :: Pat Type Type
 aWidth = tf TCWidth ar1
+
+aBlocks :: Pat Type (Type,Type)
+aBlocks = tf TCBlocks ar2
+
+aPadding :: Pat Type (Type,Type)
+aPadding = tf TCPadding ar2
 
 aLenFromThen :: Pat Type (Type,Type,Type)
 aLenFromThen = tf TCLenFromThen ar3

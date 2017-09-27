@@ -126,6 +126,8 @@ apSubstMaybe su ty =
                (TCMin,[t1,t2])               -> Simp.tMin t1 t2
                (TCMax,[t1,t2])               -> Simp.tMax t1 t2
                (TCWidth,[t1])                -> Simp.tWidth t1
+               (TCBlocks,[t1,t2])            -> Simp.tBlocks t1 t2
+               (TCPadding,[t1,t2])           -> Simp.tPadding t1 t2
                (TCLenFromThen,[t1,t2,t3])    -> Simp.tLenFromThen t1 t2 t3
                (TCLenFromThenTo,[t1,t2,t3])  -> Simp.tLenFromThenTo t1 t2 t3
                _ -> panic "apSubstMaybe" ["Unexpected type function", show t]

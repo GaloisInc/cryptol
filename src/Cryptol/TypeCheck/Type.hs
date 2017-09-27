@@ -201,16 +201,18 @@ instance HasKind PC where
 instance HasKind TFun where
   kindOf tfun =
     case tfun of
-      TCWidth  -> KNum :-> KNum
+      TCWidth   -> KNum :-> KNum
 
-      TCAdd    -> KNum :-> KNum :-> KNum
-      TCSub    -> KNum :-> KNum :-> KNum
-      TCMul    -> KNum :-> KNum :-> KNum
-      TCDiv    -> KNum :-> KNum :-> KNum
-      TCMod    -> KNum :-> KNum :-> KNum
-      TCExp    -> KNum :-> KNum :-> KNum
-      TCMin    -> KNum :-> KNum :-> KNum
-      TCMax    -> KNum :-> KNum :-> KNum
+      TCAdd     -> KNum :-> KNum :-> KNum
+      TCSub     -> KNum :-> KNum :-> KNum
+      TCMul     -> KNum :-> KNum :-> KNum
+      TCDiv     -> KNum :-> KNum :-> KNum
+      TCMod     -> KNum :-> KNum :-> KNum
+      TCExp     -> KNum :-> KNum :-> KNum
+      TCMin     -> KNum :-> KNum :-> KNum
+      TCMax     -> KNum :-> KNum :-> KNum
+      TCBlocks  -> KNum :-> KNum :-> KNum
+      TCPadding -> KNum :-> KNum :-> KNum
 
       TCLenFromThen   -> KNum :-> KNum :-> KNum :-> KNum
       TCLenFromThenTo -> KNum :-> KNum :-> KNum :-> KNum
@@ -540,6 +542,12 @@ tMin = tf2 TCMin
 
 tWidth :: Type -> Type
 tWidth = tf1 TCWidth
+
+tBlocks :: Type -> Type -> Type
+tBlocks = tf2 TCBlocks
+
+tPadding :: Type -> Type -> Type
+tPadding = tf2 TCPadding
 
 tLenFromThen :: Type -> Type -> Type -> Type
 tLenFromThen = tf3 TCLenFromThen
