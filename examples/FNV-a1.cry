@@ -6,13 +6,8 @@
 fnv1a : {n} (fin n) => [n] -> [64]
 fnv1a ws = fnv1a' (pad ws)
 
-pad : {msgLen,chunks,padding}
-     ( fin msgLen
-     , chunks     == (msgLen+7) / 8
-     , padding    == (8 - msgLen % 8) % 8
-     )
-     => [msgLen] -> [chunks][8]
-pad msg = split (msg # (zero:[padding]))
+pad : {msgLen} (fin msgLen) => [msgLen] -> [blocks msgLen 8][8]
+pad msg = split (msg # (zero:[padding msgLen 8]))
 
 fnv1a' : {chunks} (fin chunks) => [chunks][8] -> [64]
 fnv1a' msg = Ss ! 0
@@ -23,8 +18,8 @@ fnv1a' msg = Ss ! 0
            | m <- msg
            ]
 
-block : {padding} ( padding == 64 - 8) => [64] -> [8] -> [64]
-block state val = (state ^ ((zero : [padding]) # val)) * fnv1a_prime
+block : {padLen} ( padLen == 64 - 8) => [64] -> [8] -> [64]
+block state val = (state ^ ((zero : [padLen]) # val)) * fnv1a_prime
 
 fnv1a_offset_basis : [64]
 fnv1a_offset_basis = 14695981039346656037
