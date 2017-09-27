@@ -330,6 +330,8 @@ checkProp prop =
     P.CFin t1       -> tcon (PC PFin)           [t1]    (Just KProp)
     P.CEqual t1 t2  -> tcon (PC PEqual)         [t1,t2] (Just KProp)
     P.CGeq t1 t2    -> tcon (PC PGeq)           [t1,t2] (Just KProp)
+    P.CZero t1      -> tcon (PC PZero)          [t1]    (Just KProp)
+    P.CLogic t1     -> tcon (PC PLogic)         [t1]    (Just KProp)
     P.CArith t1     -> tcon (PC PArith)         [t1]    (Just KProp)
     P.CCmp t1       -> tcon (PC PCmp)           [t1]    (Just KProp)
     P.CSignedCmp t1 -> tcon (PC PSignedCmp)     [t1]    (Just KProp)

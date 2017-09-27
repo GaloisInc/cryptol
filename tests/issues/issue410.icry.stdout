@@ -1,6 +1,8 @@
 Loading module Cryptol
-{a, b} a == min (1 + a) a
-{a, b} True
+{a, b} (Logic b) => a == min (1 + a) a
+{a, b} (Logic b) => Logic b
+{a, b} (Logic b) => Logic b
+{a, b} (Logic b) => True
 (s
  where
    s x =
@@ -9,7 +11,7 @@ Loading module Cryptol
           bs = [complement b | b <- [complement x] # bs
                              | _ <- bs]
         )
- ) : {a, b} b -> [a]b
+ ) : {a, b} (Logic b) => b -> [a]b
 {a, b} a == a
 (bs
  where
