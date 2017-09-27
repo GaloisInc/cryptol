@@ -9,6 +9,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 
+-- | This is the main driver---it provides entry points for the
+-- various passes.
 module Cryptol.ModuleSystem.Base where
 
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), deIfaceDecls)
@@ -407,7 +409,8 @@ data TCAction i o = TCAction
   , tcPrims  :: PrimMap
   }
 
-typecheck :: (Show i, Show o, HasLoc i) => TCAction i o -> i -> IfaceDecls -> ModuleM o
+typecheck ::
+  (Show i, Show o, HasLoc i) => TCAction i o -> i -> IfaceDecls -> ModuleM o
 typecheck act i env = do
 
   let range = fromMaybe emptyRange (getLoc i)
