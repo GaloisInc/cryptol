@@ -15,7 +15,7 @@ parameter
 
   type constraint (fin p, fin n, n >= tagAmount)
 
-  // Given a keay and a tweak process a block
+  // Process a single block using this key and tweak
   tweak_cipher : K -> Tweak -> [n] -> [n]
 
   // Cost for using the tweak
@@ -28,7 +28,9 @@ parameter
 // The unit at which `Enc` operates
 type Node       = { message : WorkBlock, state : State }
 
-type WorkBlock  = [p*n]  // A work block, concatenation of `p` single blocks
+// Some encryption schemes process multiple blocks at once
+type WorkBlock  = [p*n]
+
 type State      = [p*n]  // The state for `p` blocks
 
 type Tweak      = { nonce : Nonce, state : A, z : Integer }
@@ -53,18 +55,22 @@ type Integer = [64]
 
 encrypt :
   {m} fin m => K -> Nonce -> A -> [m * (p * n)] -> [m * (p * n) + tagAmount]
-encrypt key nonce state inputMsg = join ((drop`{1} go).0.message) # tag
+encrypt key nonce state inputMsg = encMsg # tag
 
   where
-  tag = take (Tag key (tweak (1 - final.1)) (final.0.state))
+  encMsg = join rest.0.message
 
-  final = go ! 0
+  tag = take (Tag key (tweak (1 - final.1)) final.0.state)
 
-  go = [ ({ message = undefined, state = zero }, 1) ] #
-       [ (Enc key (tweak v) { message = m, state = prev.state }, v + Cost)
-       | (prev,v) <- go
-       | m        <- chunks
-       ]
+  final = steps ! 0
+
+  steps = [ ({ message = undefined, state = zero }, 1) ] # rest
+  rest  = [ (Enc key (tweak v) { message = m, state = prev.state }, v + Cost)
+          | (prev,v) <- steps
+          | m        <- chunks
+          ]
+
+  // XXX: isn't v i  just 1 + i * Cost
 
   chunks : [m] [p * n]
   chunks = split inputMsg
