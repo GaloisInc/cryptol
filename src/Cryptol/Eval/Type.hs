@@ -131,8 +131,8 @@ evalTF f vs
   | TCExp           <- f, [x,y]   <- vs  =      nExp x y
   | TCMin           <- f, [x,y]   <- vs  =      nMin x y
   | TCMax           <- f, [x,y]   <- vs  =      nMax x y
-  | TCBlocks        <- f, [x,y]   <- vs  = mb $ nDiv x y
-  | TCPadding       <- f, [x,y]   <- vs  = mb $ nMod x y
+  | TCBlocks        <- f, [x,y]   <- vs  = mb $ nBlocks x y
+  | TCPadding       <- f, [x,y]   <- vs  = mb $ nPadding x y
   | TCLenFromThen   <- f, [x,y,z] <- vs  = mb $ nLenFromThen x y z
   | TCLenFromThenTo <- f, [x,y,z] <- vs  = mb $ nLenFromThenTo x y z
   | otherwise  = evalPanic "evalTF"
