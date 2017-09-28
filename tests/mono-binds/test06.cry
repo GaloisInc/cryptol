@@ -1,6 +1,6 @@
 module test06 where
 
-test : {a} a -> a
+test : {a} (Zero a) => a -> a
 test a = bar
   where
   foo : a

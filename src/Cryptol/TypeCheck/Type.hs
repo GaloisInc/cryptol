@@ -97,6 +97,8 @@ data PC     = PEqual        -- ^ @_ == _@
 
             -- classes
             | PHas Selector -- ^ @Has sel type field@ does not appear in schemas
+            | PZero         -- ^ @Zero _@
+            | PLogic        -- ^ @Logic _@
             | PArith        -- ^ @Arith _@
             | PCmp          -- ^ @Cmp _@
             | PSignedCmp    -- ^ @SignedCmp _@
@@ -190,6 +192,8 @@ instance HasKind PC where
       PGeq       -> KNum :-> KNum :-> KProp
       PFin       -> KNum :-> KProp
       PHas _     -> KType :-> KType :-> KProp
+      PZero      -> KType :-> KProp
+      PLogic     -> KType :-> KProp
       PArith     -> KType :-> KProp
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
@@ -405,6 +409,16 @@ pIsEq ty = case tNoUser ty of
              TCon (PC PEqual) [t1,t2] -> Just (t1,t2)
              _                        -> Nothing
 
+pIsZero :: Prop -> Maybe Type
+pIsZero ty = case tNoUser ty of
+               TCon (PC PZero) [t1] -> Just t1
+               _                    -> Nothing
+
+pIsLogic :: Prop -> Maybe Type
+pIsLogic ty = case tNoUser ty of
+                TCon (PC PLogic) [t1] -> Just t1
+                _                     -> Nothing
+
 pIsArith :: Prop -> Maybe Type
 pIsArith ty = case tNoUser ty of
                 TCon (PC PArith) [t1] -> Just t1
@@ -559,6 +573,12 @@ x =#= y = TCon (PC PEqual) [x,y]
 
 (=/=) :: Type -> Type -> Prop
 x =/= y = TCon (PC PNeq) [x,y]
+
+pZero :: Type -> Prop
+pZero t = TCon (PC PZero) [t]
+
+pLogic :: Type -> Prop
+pLogic t = TCon (PC PLogic) [t]
 
 pArith :: Type -> Prop
 pArith t = TCon (PC PArith) [t]
@@ -800,6 +820,8 @@ instance PP PC where
       PGeq       -> text "(>=)"
       PFin       -> text "fin"
       PHas sel   -> parens (ppSelector sel)
+      PZero      -> text "Zero"
+      PLogic     -> text "Logic"
       PArith     -> text "Arith"
       PCmp       -> text "Cmp"
       PSignedCmp -> text "SignedCmp"

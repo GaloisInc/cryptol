@@ -16,7 +16,7 @@
 module Cryptol.Prelude (
   writePreludeContents,
   writePreludeExtrasContents,
-  writeTcPreludeContents,
+  cryptolTcContents
   ) where
 
 
@@ -51,12 +51,4 @@ writePreludeExtrasContents = do
 cryptolTcContents :: String
 cryptolTcContents = [there|lib/CryptolTC.z3|]
 
--- | Write the contents of the Prelude to a temporary file so that
--- Cryptol can load the module.
-writeTcPreludeContents :: IO FilePath
-writeTcPreludeContents = do
-  tmpdir <- getTemporaryDirectory
-  (path, h) <- openTempFile tmpdir "CryptolTC.z3"
-  hPutStr h cryptolTcContents
-  hClose h
-  return path
+

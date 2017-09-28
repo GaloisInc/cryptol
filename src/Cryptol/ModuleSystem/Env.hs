@@ -45,19 +45,49 @@ import Prelude.Compat
 
 -- Module Environment ----------------------------------------------------------
 
+-- | This is the current state of the interpreter.
 data ModuleEnv = ModuleEnv
   { meLoadedModules :: LoadedModules
+    -- ^ Information about all loaded modules.  See 'LoadedModule'.
+    -- Contains information such as the file where the module was loaded
+    -- from, as well as the module's interface, used for type checking.
+
   , meNameSeeds     :: T.NameSeeds
-  , meEvalEnv       :: EvalEnv
-  , meFocusedModule :: Maybe ModName
-  , meSearchPath    :: [FilePath]
-  , meDynEnv        :: DynamicEnv
-  , meMonoBinds     :: !Bool
+    -- ^ A source of new names for the type checker.
+
   , meSolverConfig  :: T.SolverConfig
+    -- ^ Configuration settings for the SMT solver used for type-checking.
+
+  , meEvalEnv       :: EvalEnv
+    -- ^ The evaluation environment.  Contains the values for all loaded
+    -- modules, both public and private.
+
+
   , meCoreLint      :: CoreLint
+    -- ^ Should we run the linter to ensure snaity.
+
+  , meMonoBinds     :: !Bool
+    -- ^ Are we assuming that local bindings are monomorphic.
+    -- XXX: We should probably remove this flag, and set it to 'True'.
+
+
+
+  , meFocusedModule :: Maybe ModName
+    -- ^ The "current" module.  Used to decide how to print names, for example.
+
+  , meSearchPath    :: [FilePath]
+    -- ^ Where we look for things.
+
+  , meDynEnv        :: DynamicEnv
+    -- ^ This contains additional definitions that were made at the command
+    -- line, and so they don't reside in any module.
+
   , meSupply        :: !Supply
+    -- ^ Name source for the renamer
+
   } deriving (Generic, NFData)
 
+-- | Should we run the linter?
 data CoreLint = NoCoreLint        -- ^ Don't run core lint
               | CoreLint          -- ^ Run core lint
   deriving (Generic, NFData)
@@ -84,37 +114,40 @@ initialModuleEnv  = do
   let handle :: X.IOException -> IO String
       handle _e = return ""
   userDir <- X.catch (getAppUserDataDirectory "cryptol") handle
+  let searchPath = [ curDir
+                   -- something like $HOME/.cryptol
+                   , userDir
+#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
+                   -- ../cryptol on win32
+                   , instDir </> "cryptol"
+#else
+                   -- ../share/cryptol on others
+                   , instDir </> "share" </> "cryptol"
+#endif
+
+#ifndef RELOCATABLE
+                   -- Cabal-defined data directory. Since this
+                   -- is usually a global location like
+                   -- /usr/local, search this one last in case
+                   -- someone has multiple Cryptols
+                   , dataDir
+#endif
+                   ]
+
   return ModuleEnv
     { meLoadedModules = mempty
     , meNameSeeds     = T.nameSeeds
     , meEvalEnv       = mempty
     , meFocusedModule = Nothing
       -- we search these in order, taking the first match
-    , meSearchPath    = [ curDir
-                          -- something like $HOME/.cryptol
-                        , userDir
-#if defined(mingw32_HOST_OS) || defined(__MINGW32__)
-                          -- ../cryptol on win32
-                        , instDir </> "cryptol"
-#else
-                          -- ../share/cryptol on others
-                        , instDir </> "share" </> "cryptol"
-#endif
-
-#ifndef RELOCATABLE
-                          -- Cabal-defined data directory. Since this
-                          -- is usually a global location like
-                          -- /usr/local, search this one last in case
-                          -- someone has multiple Cryptols
-                        , dataDir
-#endif
-                        ]
+    , meSearchPath    = searchPath
     , meDynEnv        = mempty
     , meMonoBinds     = True
     , meSolverConfig  = T.SolverConfig
                           { T.solverPath = "z3"
                           , T.solverArgs = [ "-smt2", "-in" ]
                           , T.solverVerbose = 0
+                          , T.solverPreludePath = searchPath
                           }
     , meCoreLint      = NoCoreLint
     , meSupply        = emptySupply

@@ -20,7 +20,7 @@ Symbols
            a} (fin front) => [front]a -> [back]a -> [front + back]a
     (%) : {a} (Arith a) => a -> a -> a
     (%$) : {a} (Arith a) => a -> a -> a
-    (&&) : {a} a -> a -> a
+    (&&) : {a} (Logic a) => a -> a -> a
     (*) : {a} (Arith a) => a -> a -> a
     (+) : {a} (Arith a) => a -> a -> a
     (-) : {a} (Arith a) => a -> a -> a
@@ -29,7 +29,7 @@ Symbols
     (/\) : Bit -> Bit -> Bit
     (<) : {a} (Cmp a) => a -> a -> Bit
     (<$) : {a} (SignedCmp a) => a -> a -> Bit
-    (<<) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
+    (<<) : {a, b, c} (fin b, Zero c) => [a]c -> [b] -> [a]c
     (<<<) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
     (<=) : {a} (Cmp a) => a -> a -> Bit
     (<=$) : {a} (SignedCmp a) => a -> a -> Bit
@@ -40,7 +40,7 @@ Symbols
     (>$) : {a} (SignedCmp a) => a -> a -> Bit
     (>=) : {a} (Cmp a) => a -> a -> Bit
     (>=$) : {a} (SignedCmp a) => a -> a -> Bit
-    (>>) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
+    (>>) : {a, b, c} (fin b, Zero c) => [a]c -> [b] -> [a]c
     (>>$) : {n, k} (fin n, n >= 1, fin k) => [n] -> [k] -> [n]
     (>>>) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
     (@) : {a, b, c} (fin c) => [a]b -> [c] -> b
@@ -48,10 +48,10 @@ Symbols
     False : Bit
     True : Bit
     (\/) : Bit -> Bit -> Bit
-    (^) : {a} a -> a -> a
+    (^) : {a} (Logic a) => a -> a -> a
     (^^) : {a} (Arith a) => a -> a -> a
     carry : {n} (fin n) => [n] -> [n] -> Bit
-    complement : {a} a -> a
+    complement : {a} (Logic a) => a -> a
     demote : {val, bits} (fin val, fin bits,
                           bits >= width val) => [bits]
     drop : {front, back, elem} (fin front) => [front +
@@ -109,7 +109,7 @@ Symbols
                                fin d) => [a]b -> [d][c] -> [d]b -> [a]b
     width : {bits, len, elem} (fin len, fin bits,
                                bits >= width len) => [len]elem -> [bits]
-    zero : {a} a
+    zero : {a} (Zero a) => a
     zext : {n, m} (fin m, m >= n) => [n] -> [m]
-    (||) : {a} a -> a -> a
+    (||) : {a} (Logic a) => a -> a -> a
 

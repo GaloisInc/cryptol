@@ -12,7 +12,7 @@ module Cryptol::Extras where
 /**
  * Logical negation
  */
-not : {a} a -> a
+not : {a} (Logic a) => a -> a
 not a = ~ a
 
 /**
@@ -66,7 +66,7 @@ foldr f acc xs = ys ! 0
 /**
  * Compute the sum of the words in the array.
  */
-sum : {a,n} (fin n, Arith a) => [n]a -> a
+sum : {a,n} (fin n, Zero a, Arith a) => [n]a -> a
 sum xs = foldl (+) zero xs
 
 /**
@@ -101,7 +101,7 @@ extendSigned  xs = repeat (xs @ 0) # xs
  * Repeat a value.
  */
 repeat : {n, a} a -> [n]a
-repeat x = [ x | _ <- zero ]
+repeat x = [ x | _ <- zero : [n] ]
 
 /**
  * `elem x xs` Returns true if x is equal to a value in xs.

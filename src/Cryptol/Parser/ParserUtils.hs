@@ -438,6 +438,8 @@ mkProp ty =
 
   -- these can be translated right away
   prefixProp r f xs
+    | i == zeroIdent,      [x] <- xs = return [CLocated (CZero x) r]
+    | i == logicIdent,     [x] <- xs = return [CLocated (CLogic x) r]
     | i == arithIdent,     [x] <- xs = return [CLocated (CArith x) r]
     | i == finIdent,       [x] <- xs = return [CLocated (CFin x) r]
     | i == cmpIdent,       [x] <- xs = return [CLocated (CCmp x) r]
@@ -446,7 +448,9 @@ mkProp ty =
     where
     i = getIdent f
 
-arithIdent, finIdent, cmpIdent, signedCmpIdent :: Ident
+zeroIdent, logicIdent, arithIdent, finIdent, cmpIdent, signedCmpIdent :: Ident
+zeroIdent      = mkIdent (S.pack "Zero")
+logicIdent     = mkIdent (S.pack "Logic")
 arithIdent     = mkIdent (S.pack "Arith")
 finIdent       = mkIdent (S.pack "fin")
 cmpIdent       = mkIdent (S.pack "Cmp")

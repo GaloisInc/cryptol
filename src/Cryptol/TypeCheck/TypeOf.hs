@@ -65,10 +65,19 @@ fastSchemaOf tyenv expr =
     ETAbs tparam e -> case fastSchemaOf tyenv e of
                         Forall tparams props ty -> Forall (tparam : tparams) props ty
     ETApp e t      -> case fastSchemaOf tyenv e of
-                        Forall (tparam : tparams) props ty -> Forall tparams (apSubst s props) (apSubst s ty)
-                                                                where s = singleSubst (tpVar tparam) t
+                        Forall (tparam : tparams) props ty
+                          -> Forall tparams (map (plainSubst s) props) (apSubst s ty)
+                          where s = singleSubst (tpVar tparam) t
                         _ -> panic "Cryptol.TypeCheck.TypeOf.fastSchemaOf"
                                [ "ETApp body with no type parameters" ]
+                        -- When calling 'fastSchemaOf' on a
+                        -- polymorphic function with instantiated type
+                        -- variables but undischarged type
+                        -- constraints, we would prefer to see the
+                        -- instantiated constraints in an
+                        -- un-simplified form. Thus we use
+                        -- 'plainSubst' instead of 'apSubst' on the
+                        -- type constraints.
     EProofAbs p e  -> case fastSchemaOf tyenv e of
                         Forall [] props ty -> Forall [] (p : props) ty
                         _ -> panic "Cryptol.TypeCheck.TypeOf.fastSchemaOf"
@@ -94,6 +103,17 @@ fastSchemaOf tyenv expr =
     EAbs   {}      -> monomorphic
   where
     monomorphic = Forall [] [] (fastTypeOf tyenv expr)
+
+-- | Apply a substitution to a type *without* simplifying
+-- constraints like @Arith [n]a@ to @Arith a@. (This is in contrast to
+-- 'apSubst', which performs simplifications wherever possible.)
+plainSubst :: Subst -> Type -> Type
+plainSubst s ty =
+  case ty of
+    TCon tc ts   -> TCon tc (map (plainSubst s) ts)
+    TUser f ts t -> TUser f (map (plainSubst s) ts) (plainSubst s t)
+    TRec fs      -> TRec [ (x, plainSubst s t) | (x, t) <- fs ]
+    TVar x       -> apSubst s (TVar x)
 
 -- | Yields the return type of the selector on the given argument type.
 typeSelect :: Type -> Selector -> Type
