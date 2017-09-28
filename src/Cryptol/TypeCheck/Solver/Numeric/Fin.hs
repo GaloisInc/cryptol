@@ -86,6 +86,8 @@ cryIsFinType varInfo ty =
 
         (TCMax, [t1,t2])          -> SolvedIf [ pFin t1, pFin t2 ]
         (TCWidth, [t1])           -> SolvedIf [ pFin t1 ]
+        (TCBlocks, [_,_])         -> SolvedIf []
+        (TCPadding, [_,_])        -> SolvedIf []
         (TCLenFromThen,[_,_,_])   -> SolvedIf []
         (TCLenFromThenTo,[_,_,_]) -> SolvedIf []
 
