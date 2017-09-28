@@ -42,6 +42,9 @@ solveZeroInst ty = case tNoUser ty of
   -- Zero Bit
   TCon (TC TCBit) [] -> SolvedIf []
 
+  -- Zero Integer
+  TCon (TC TCInteger) [] -> SolvedIf []
+
   -- Zero a => Zero [n]a
   TCon (TC TCSeq) [_, a] -> SolvedIf [ pZero a ]
 
