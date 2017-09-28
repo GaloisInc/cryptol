@@ -238,7 +238,7 @@ vtop_decl               :: { [TopDecl PName] }
                            { [exportDecl $1 Public (mkProperty $3 $4 $6)]     }
   | mbDoc 'property' name       '=' expr
                            { [exportDecl $1 Public (mkProperty $3 [] $5)]     }
-  | mbDoc newtype          { [exportNewtype Public $2]                        }
+  | mbDoc newtype          { [exportNewtype Public $1 $2]                     }
   | prim_bind              { $1                                               }
   | private_decls          { $1                                               }
 

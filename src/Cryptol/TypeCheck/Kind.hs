@@ -54,8 +54,8 @@ checkSchema (P.Forall xs ps t mb) =
           Just r  -> inRange r
 
 -- | Check a type-synonym declaration.
-checkTySyn :: P.TySyn Name -> InferM TySyn
-checkTySyn (P.TySyn x as t) =
+checkTySyn :: P.TySyn Name -> Maybe String -> InferM TySyn
+checkTySyn (P.TySyn x as t) mbD =
   do ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
                     $ do r <- withTParams False as (doCheckType t Nothing)
@@ -65,11 +65,12 @@ checkTySyn (P.TySyn x as t) =
                   , tsParams = as1
                   , tsConstraints = map (tRebuild . goal) gs
                   , tsDef = tRebuild t1
+                  , tsDoc = mbD
                   }
 
 -- | Check a constraint-synonym declaration.
-checkPropSyn :: P.PropSyn Name -> InferM TySyn
-checkPropSyn (P.PropSyn x as ps) =
+checkPropSyn :: P.PropSyn Name -> Maybe String -> InferM TySyn
+checkPropSyn (P.PropSyn x as ps) mbD =
   do ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
                     $ do r <- withTParams False as (traverse checkProp ps)
@@ -79,12 +80,13 @@ checkPropSyn (P.PropSyn x as ps) =
                   , tsParams = as1
                   , tsConstraints = map (tRebuild . goal) gs
                   , tsDef = tRebuild (pAnd t1)
+                  , tsDoc = mbD
                   }
 
 -- | Check a newtype declaration.
 -- XXX: Do something with constraints.
-checkNewtype :: P.Newtype Name -> InferM Newtype
-checkNewtype (P.Newtype x as fs) =
+checkNewtype :: P.Newtype Name -> Maybe String -> InferM Newtype
+checkNewtype (P.Newtype x as fs) mbD =
   do ((as1,fs1),gs) <- collectGoals $
        inRange (srcRange x) $
        do r <- withTParams False as $
@@ -100,6 +102,7 @@ checkNewtype (P.Newtype x as fs) =
                     , ntParams = as1
                     , ntConstraints = map goal gs
                     , ntFields = fs1
+                    , ntDoc = mbD
                     }
 
 
@@ -191,7 +194,8 @@ tySyn :: Bool         -- ^ Should we check for scoped type vars.
 tySyn scoped x ts k =
   do mb <- kLookupTSyn x
      case mb of
-       Just (tysyn@(TySyn f as ps def)) ->
+       Just (tysyn@(TySyn { tsName = f, tsParams = as
+                          , tsConstraints = ps, tsDef = def })) ->
           do (ts1,k1) <- appTy ts (kindOf tysyn)
              ts2 <- checkParams as ts1
              let su = zip as ts2

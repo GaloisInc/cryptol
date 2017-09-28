@@ -135,6 +135,7 @@ data TySyn  = TySyn { tsName        :: Name       -- ^ Name
                     , tsParams      :: [TParam]   -- ^ Parameters
                     , tsConstraints :: [Prop]     -- ^ Ensure body is OK
                     , tsDef         :: Type       -- ^ Definition
+                    , tsDoc         :: !(Maybe String) -- ^ Documentation
                     }
               deriving (Show, Generic, NFData)
 
@@ -147,6 +148,7 @@ data Newtype  = Newtype { ntName   :: Name
                         , ntParams :: [TParam]
                         , ntConstraints :: [Prop]
                         , ntFields :: [(Ident,Type)]
+                        , ntDoc :: Maybe String
                         } deriving (Show, Generic, NFData)
 
 
@@ -224,7 +226,7 @@ instance HasKind Type where
       TRec {}     -> KType
 
 instance HasKind TySyn where
-  kindOf (TySyn _ as _ t) = foldr (:->) (kindOf t) (map kindOf as)
+  kindOf ts = foldr (:->) (kindOf (tsDef ts)) (map kindOf (tsParams ts))
 
 instance HasKind Newtype where
   kindOf nt = foldr (:->) KType (map kindOf (ntParams nt))
@@ -702,10 +704,22 @@ instance PP TySyn where
   ppPrec = ppWithNamesPrec IntMap.empty
 
 instance PP (WithNames TySyn) where
-  ppPrec _ (WithNames (TySyn n ps _ ty) ns) =
-    text "type" <+> pp n <+> sep (map (ppWithNames ns1) ps) <+> char '='
-                <+> ppWithNames ns1 ty
-    where ns1 = addTNames ps ns
+  ppPrec _ (WithNames ts ns) =
+    text "type" <+> ctr <+> pp (tsName ts) <+>
+      sep (map (ppWithNames ns1) (tsParams ts)) <+> char '='
+                <+> ppWithNames ns1 (tsDef ts)
+    where ns1 = addTNames (tsParams ts) ns
+          ctr = case kindResult (kindOf ts) of
+                  KProp -> text "constraint"
+                  _     -> empty
+
+instance PP Newtype where
+  ppPrec = ppWithNamesPrec IntMap.empty
+
+instance PP (WithNames Newtype) where
+  ppPrec _  (WithNames nt _) = ppNewtypeShort nt -- XXX: do the full thing?
+
+
 
 
 instance PP (WithNames Type) where
