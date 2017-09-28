@@ -171,7 +171,7 @@ nbCommandList  =
   , CommandDescr [ ":b", ":browse" ] (ExprTypeArg browseCmd)
     "display the current environment"
   , CommandDescr [ ":?", ":help" ] (ExprArg helpCmd)
-    "display a brief description about a function"
+    "display a brief description of a function or a type"
   , CommandDescr [ ":s", ":set" ] (OptionArg setOptionCmd)
     "set an environmental option (:set on its own displays current values)"
   , CommandDescr [ ":check" ] (ExprArg (void . qcCmd QCRandom))
@@ -808,6 +808,9 @@ helpCmd cmd
 
            mapM_ (showTypeHelp env nameEnv) tNames
            mapM_ (showValHelp env nameEnv qname) vNames
+
+           when (null (vNames ++ tNames)) $
+             rPrint $ "Undefined name:" <+> pp qname
       Nothing ->
            rPutStrLn ("Unable to parse name: " ++ cmd)
 
