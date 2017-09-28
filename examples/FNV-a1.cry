@@ -6,8 +6,8 @@
 fnv1a : {n} (fin n) => [n] -> [64]
 fnv1a ws = fnv1a' (pad ws)
 
-pad : {msgLen} (fin msgLen) => [msgLen] -> [blocks msgLen 8][8]
-pad msg = split (msg # (zero:[padding msgLen 8]))
+pad : {msgLen} (fin msgLen) => [msgLen] -> [msgLen /^ 8][8]
+pad msg = split (msg # (zero:[msgLen %^ 8]))
 
 fnv1a' : {chunks} (fin chunks) => [chunks][8] -> [64]
 fnv1a' msg = Ss ! 0

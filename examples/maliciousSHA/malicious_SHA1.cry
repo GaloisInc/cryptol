@@ -123,13 +123,12 @@ As a summary, a "1" followed by m "0"s followed by a 64-
    SHA-1 as n 512-bit blocks.
 */
 
-pad : {msgLen,contentLen}
+pad : {msgLen}
      ( fin msgLen
      , 64 >= width msgLen                             // message width fits in a word
-     , contentLen == msgLen + 65                      // message + header
      )
-     => [msgLen] -> [blocks contentLen 512][512]
-pad msg = split (msg # [True] # (zero:[padding contentLen 512]) # (`msgLen:[64]))
+     => [msgLen] -> [(msgLen + 65) /^ 512][512]
+pad msg = split (msg # [True] # (zero:[(msgLen + 65) %^ 512]) # (`msgLen:[64]))
 
 f : ([8], [32], [32], [32]) -> [32]
 f (t, x, y, z) =

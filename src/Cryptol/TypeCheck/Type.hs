@@ -211,8 +211,8 @@ instance HasKind TFun where
       TCExp     -> KNum :-> KNum :-> KNum
       TCMin     -> KNum :-> KNum :-> KNum
       TCMax     -> KNum :-> KNum :-> KNum
-      TCBlocks  -> KNum :-> KNum :-> KNum
-      TCPadding -> KNum :-> KNum :-> KNum
+      TCCeilDiv -> KNum :-> KNum :-> KNum
+      TCCeilMod -> KNum :-> KNum :-> KNum
 
       TCLenFromThen   -> KNum :-> KNum :-> KNum :-> KNum
       TCLenFromThenTo -> KNum :-> KNum :-> KNum :-> KNum
@@ -543,11 +543,11 @@ tMin = tf2 TCMin
 tWidth :: Type -> Type
 tWidth = tf1 TCWidth
 
-tBlocks :: Type -> Type -> Type
-tBlocks = tf2 TCBlocks
+tCeilDiv :: Type -> Type -> Type
+tCeilDiv = tf2 TCCeilDiv
 
-tPadding :: Type -> Type -> Type
-tPadding = tf2 TCPadding
+tCeilMod :: Type -> Type -> Type
+tCeilMod = tf2 TCCeilMod
 
 tLenFromThen :: Type -> Type -> Type -> Type
 tLenFromThen = tf3 TCLenFromThen

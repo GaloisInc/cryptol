@@ -53,13 +53,12 @@ K = [ 0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x
 /*
  * Preprocessing (padding and parsing) for SHA256 : Section 5.1.1 and 5.2.1
  */
-preprocess : {msgLen,contentLen}
+preprocess : {msgLen}
      ( fin msgLen
      , 64 >= width msgLen                              // message width fits in a word
-     , contentLen == msgLen + 65                       // message + header
      )
-     => [msgLen] -> [blocks contentLen 512][512]
-preprocess msg = split (msg # [True] # (zero:[padding contentLen 512]) # (`msgLen:[64]))
+     => [msgLen] -> [(msgLen + 65) /^ 512][512]
+preprocess msg = split (msg # [True] # (zero:[(msgLen + 65) %^ 512]) # (`msgLen:[64]))
 
 /*
  * SHA256 Initial Hash Value :  Section 5.3.3
