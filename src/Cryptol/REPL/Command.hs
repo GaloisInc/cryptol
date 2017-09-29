@@ -171,7 +171,7 @@ nbCommandList  =
   , CommandDescr [ ":b", ":browse" ] (ExprTypeArg browseCmd)
     "display the current environment"
   , CommandDescr [ ":?", ":help" ] (ExprArg helpCmd)
-    "display a brief description about a function"
+    "display a brief description of a function or a type"
   , CommandDescr [ ":s", ":set" ] (OptionArg setOptionCmd)
     "set an environmental option (:set on its own displays current values)"
   , CommandDescr [ ":check" ] (ExprArg (void . qcCmd QCRandom))
@@ -481,7 +481,7 @@ cmdProveSat isSat str = do
               (ty, exprs) =
                 case resultRecs of
                   [] -> panic "REPL.Command.onlineProveSat"
-                          [ "no satisfying assignments after mkSovlerResult" ]
+                          [ "no satisfying assignments after mkSolverResult" ]
                   [(t, e)] -> (t, [e])
                   _        -> collectTes resultRecs
           forM_ vss ppvs
@@ -803,42 +803,78 @@ helpCmd cmd
     case parseHelpName cmd of
       Just qname ->
         do (env,rnEnv,nameEnv) <- getFocusedEnv
-           name <- liftModuleCmd (M.renameVar rnEnv qname)
-           case Map.lookup name (M.ifDecls env) of
-             Just M.IfaceDecl { .. } ->
-               do rPutStrLn ""
+           let vNames = M.lookupValNames  qname rnEnv
+               tNames = M.lookupTypeNames qname rnEnv
 
-                  let property
-                        | P.PragmaProperty `elem` ifDeclPragmas = text "property"
-                        | otherwise                             = empty
-                  rPrint $ runDoc nameEnv
-                         $ nest 4
-                         $ property
-                           <+> pp qname
-                           <+> colon
-                           <+> pp (ifDeclSig)
+           mapM_ (showTypeHelp env nameEnv) tNames
+           mapM_ (showValHelp env nameEnv qname) vNames
 
-                  let mbFix = ifDeclFixity `mplus`
-                              (guard ifDeclInfix >> return P.defaultFixity)
-                  case mbFix of
-                    Just f  ->
-                      let msg = "Precedence " ++ show (P.fLevel f) ++ ", " ++
-                                 (case P.fAssoc f of
-                                    P.LeftAssoc   -> "associates to the left."
-                                    P.RightAssoc  -> "associates to the right."
-                                    P.NonAssoc    -> "does not associate.")
-
-                      in rPutStrLn ('\n' : msg)
-                    Nothing -> return ()
-
-                  case ifDeclDoc of
-                    Just str -> rPutStrLn ('\n' : str)
-                    Nothing  -> return ()
-
-             Nothing -> rPutStrLn "// No documentation is available."
-
+           when (null (vNames ++ tNames)) $
+             rPrint $ "Undefined name:" <+> pp qname
       Nothing ->
            rPutStrLn ("Unable to parse name: " ++ cmd)
+
+  where
+  noInfo nameEnv name =
+    case M.nameInfo name of
+      M.Declared m -> rPrint $runDoc nameEnv ("Name defined in module" <+> pp m)
+      M.Parameter  -> rPutStrLn "// No documentation is available."
+
+  showTypeHelp env nameEnv name =
+    case Map.lookup name (M.ifTySyns env) of
+      Nothing ->
+        case Map.lookup name (M.ifNewtypes env) of
+          Nothing -> noInfo nameEnv name
+          Just nt -> doShowTyHelp nameEnv decl (T.ntDoc nt)
+            where
+            decl = pp nt $$ (pp name <+> text ":" <+> pp (T.newtypeConType nt))
+      Just ts -> doShowTyHelp nameEnv (pp ts) (T.tsDoc ts)
+
+  doShowTyHelp nameEnv decl doc =
+    do rPutStrLn ""
+       rPrint (runDoc nameEnv (nest 4 decl))
+       case doc of
+         Nothing -> return ()
+         Just d  -> rPutStrLn "" >> rPutStrLn d
+
+  showValHelp env nameEnv qname name =
+    case Map.lookup name (M.ifDecls env) of
+      Just M.IfaceDecl { .. } ->
+        do rPutStrLn ""
+
+           let property
+                 | P.PragmaProperty `elem` ifDeclPragmas = text "property"
+                 | otherwise                             = empty
+           rPrint $ runDoc nameEnv
+                  $ nest 4
+                  $ property
+                    <+> pp qname
+                    <+> colon
+                    <+> pp (ifDeclSig)
+
+           let mbFix = ifDeclFixity `mplus`
+                       (guard ifDeclInfix >> return P.defaultFixity)
+           case mbFix of
+             Just f  ->
+               let msg = "Precedence " ++ show (P.fLevel f) ++ ", " ++
+                          (case P.fAssoc f of
+                             P.LeftAssoc   -> "associates to the left."
+                             P.RightAssoc  -> "associates to the right."
+                             P.NonAssoc    -> "does not associate.")
+
+               in rPutStrLn ('\n' : msg)
+             Nothing -> return ()
+
+           case ifDeclDoc of
+             Just str -> rPutStrLn ('\n' : str)
+             Nothing  -> return ()
+
+      _ -> case Map.lookup name (M.ifNewtypes env) of
+             Just _ -> return ()
+             Nothing -> noInfo nameEnv name
+
+
+
 
 
 runShellCmd :: String -> REPL ()
