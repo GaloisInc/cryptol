@@ -404,6 +404,8 @@ tconNames  = Map.fromList
 data Prop n   = CFin (Type n)             -- ^ @ fin x   @
               | CEqual (Type n) (Type n)  -- ^ @ x == 10 @
               | CGeq (Type n) (Type n)    -- ^ @ x >= 10 @
+              | CZero (Type n)            -- ^ @ Zero a  @
+              | CLogic (Type n)           -- ^ @ Logic a @
               | CArith (Type n)           -- ^ @ Arith a @
               | CCmp (Type n)             -- ^ @ Cmp a @
               | CSignedCmp (Type n)       -- ^ @ SignedCmp a @
@@ -890,6 +892,8 @@ instance PPName name => PP (Prop name) where
   ppPrec n prop =
     case prop of
       CFin t       -> text "fin"   <+> ppPrec 4 t
+      CZero t      -> text "Zero"  <+> ppPrec 4 t
+      CLogic t     -> text "Logic" <+> ppPrec 4 t
       CArith t     -> text "Arith" <+> ppPrec 4 t
       CCmp t       -> text "Cmp"   <+> ppPrec 4 t
       CSignedCmp t -> text "SignedCmp" <+> ppPrec 4 t
@@ -1063,6 +1067,8 @@ instance NoPos (Prop name) where
       CEqual  x y   -> CEqual  (noPos x) (noPos y)
       CGeq x y      -> CGeq (noPos x) (noPos y)
       CFin x        -> CFin (noPos x)
+      CZero x       -> CZero  (noPos x)
+      CLogic x      -> CLogic (noPos x)
       CArith x      -> CArith (noPos x)
       CCmp x        -> CCmp   (noPos x)
       CSignedCmp x  -> CSignedCmp (noPos x)

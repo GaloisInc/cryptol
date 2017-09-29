@@ -825,20 +825,20 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
   where
   isTopLevel = isTopDecl (head ds)
 
-  checkTyDecls (AT t : ts) =
-    do t1 <- checkParameterType t
+  checkTyDecls (AT t mbD : ts) =
+    do t1 <- checkParameterType t mbD
        withParamType t1 (checkTyDecls ts)
 
-  checkTyDecls (TS t : ts) =
-    do t1 <- checkTySyn t
+  checkTyDecls (TS t mbD : ts) =
+    do t1 <- checkTySyn t mbD
        withTySyn t1 (checkTyDecls ts)
 
-  checkTyDecls (PS t : ts) =
-    do t1 <- checkPropSyn t
+  checkTyDecls (PS t mbD : ts) =
+    do t1 <- checkPropSyn t mbD
        withTySyn t1 (checkTyDecls ts)
 
-  checkTyDecls (NT t : ts) =
-    do t1 <- checkNewtype t
+  checkTyDecls (NT t mbD : ts) =
+    do t1 <- checkNewtype t mbD
        withNewtype t1 (checkTyDecls ts)
 
   -- We checked all type synonyms, now continue with value-level definitions:

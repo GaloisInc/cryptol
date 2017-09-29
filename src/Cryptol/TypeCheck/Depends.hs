@@ -26,10 +26,18 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-data TyDecl = TS (P.TySyn Name)               -- ^ Type synonym
-            | NT (P.Newtype Name)             -- ^ Newtype
-            | AT (P.ParameterType Name)       -- ^ Parameter type
-            | PS (P.PropSyn Name)             -- ^ Property synonym
+data TyDecl = TS (P.TySyn Name) (Maybe String)              -- ^ Type synonym
+            | NT (P.Newtype Name) (Maybe String)            -- ^ Newtype
+            | AT (P.ParameterType Name) (Maybe String)      -- ^ Parameter type
+            | PS (P.PropSyn Name) (Maybe String)            -- ^ Property synonym
+
+setDocString :: Maybe String -> TyDecl -> TyDecl
+setDocString x d =
+  case d of
+    TS a _ -> TS a x
+    PS a _ -> PS a x
+    NT a _ -> NT a x
+    AT a _  -> AT a x
 
 -- | Check for duplicate and recursive type synonyms.
 -- Returns the type-synonyms in dependency order.
@@ -42,11 +50,11 @@ orderTyDecls ts =
      concat `fmap` mapM check ordered
 
   where
-  toMap _ ty@(AT a) =
+  toMap _ ty@(AT a _) =
     let x = P.ptName a
     in ( thing x, x { thing = (ty, []) } )
 
-  toMap vs ty@(NT (P.Newtype x as fs)) =
+  toMap vs ty@(NT (P.Newtype x as fs) _) =
     ( thing x
     , x { thing = (ty, Set.toList $
                        Set.difference
@@ -56,7 +64,7 @@ orderTyDecls ts =
         }
     )
 
-  toMap vs ty@(TS (P.TySyn x as t)) =
+  toMap vs ty@(TS (P.TySyn x as t) _) =
         (thing x
         , x { thing = (ty, Set.toList $
                            Set.difference (namesT vs t)
@@ -64,17 +72,17 @@ orderTyDecls ts =
              }
         )
 
-  toMap vs ty@(PS (P.PropSyn x as ps)) =
+  toMap vs ty@(PS (P.PropSyn x as ps) _) =
         (thing x
         , x { thing = (ty, Set.toList $
                            Set.difference (Set.unions (map (namesC vs) ps))
                                           (Set.fromList (map P.tpName as)))
              }
         )
-  getN (TS (P.TySyn x _ _))   = thing x
-  getN (PS (P.PropSyn x _ _)) = thing x
-  getN (NT x)                 = thing (P.nName x)
-  getN (AT x)               = thing (P.ptName x)
+  getN (TS (P.TySyn x _ _) _)   = thing x
+  getN (PS (P.PropSyn x _ _) _) = thing x
+  getN (NT x _)                 = thing (P.nName x)
+  getN (AT x _)                 = thing (P.ptName x)
 
   check (AcyclicSCC x) = return [x]
 
@@ -112,9 +120,10 @@ instance FromDecl (P.TopDecl Name) where
   toParamConstraints (P.DParameterConstraint xs) = xs
   toParamConstraints _                           = []
 
-  toTyDecl (P.TDNewtype d)      = Just (NT (P.tlValue d))
-  toTyDecl (P.DParameterType d) = Just (AT d)
-  toTyDecl (P.Decl x)           = toTyDecl (P.tlValue x)
+  toTyDecl (P.DParameterType d) = Just (AT d (P.ptDoc d))
+  toTyDecl (P.TDNewtype d)      = Just (NT (P.tlValue d) (thing <$> P.tlDoc d))
+  toTyDecl (P.Decl x)           = setDocString (thing <$> P.tlDoc x)
+                                  <$> toTyDecl (P.tlValue x)
   toTyDecl _                    = Nothing
 
   isTopDecl _               = True
@@ -128,8 +137,8 @@ instance FromDecl (P.Decl Name) where
   toParamConstraints _ = []
 
   toTyDecl (P.DLocated d _) = toTyDecl d
-  toTyDecl (P.DType x)      = Just (TS x)
-  toTyDecl (P.DProp x)      = Just (PS x)
+  toTyDecl (P.DType x)      = Just (TS x Nothing)
+  toTyDecl (P.DProp x)      = Just (PS x Nothing)
   toTyDecl _                = Nothing
 
   isTopDecl _               = False

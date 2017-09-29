@@ -126,6 +126,8 @@ data PC     = PEqual        -- ^ @_ == _@
 
             -- classes
             | PHas Selector -- ^ @Has sel type field@ does not appear in schemas
+            | PZero         -- ^ @Zero _@
+            | PLogic        -- ^ @Logic _@
             | PArith        -- ^ @Arith _@
             | PCmp          -- ^ @Cmp _@
             | PSignedCmp    -- ^ @SignedCmp _@
@@ -162,6 +164,7 @@ data TySyn  = TySyn { tsName        :: Name       -- ^ Name
                     , tsParams      :: [TParam]   -- ^ Parameters
                     , tsConstraints :: [Prop]     -- ^ Ensure body is OK
                     , tsDef         :: Type       -- ^ Definition
+                    , tsDoc         :: !(Maybe String) -- ^ Documentation
                     }
               deriving (Show, Generic, NFData)
 
@@ -174,6 +177,7 @@ data Newtype  = Newtype { ntName   :: Name
                         , ntParams :: [TParam]
                         , ntConstraints :: [Prop]
                         , ntFields :: [(Ident,Type)]
+                        , ntDoc :: Maybe String
                         } deriving (Show, Generic, NFData)
 
 
@@ -217,6 +221,8 @@ instance HasKind PC where
       PGeq       -> KNum :-> KNum :-> KProp
       PFin       -> KNum :-> KProp
       PHas _     -> KType :-> KType :-> KProp
+      PZero      -> KType :-> KProp
+      PLogic     -> KType :-> KProp
       PArith     -> KType :-> KProp
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
@@ -249,7 +255,7 @@ instance HasKind Type where
       TRec {}     -> KType
 
 instance HasKind TySyn where
-  kindOf (TySyn _ as _ t) = foldr (:->) (kindOf t) (map kindOf as)
+  kindOf ts = foldr (:->) (kindOf (tsDef ts)) (map kindOf (tsParams ts))
 
 instance HasKind Newtype where
   kindOf nt = foldr (:->) KType (map kindOf (ntParams nt))
@@ -427,6 +433,16 @@ pIsEq ty = case tNoUser ty of
              TCon (PC PEqual) [t1,t2] -> Just (t1,t2)
              _                        -> Nothing
 
+pIsZero :: Prop -> Maybe Type
+pIsZero ty = case tNoUser ty of
+               TCon (PC PZero) [t1] -> Just t1
+               _                    -> Nothing
+
+pIsLogic :: Prop -> Maybe Type
+pIsLogic ty = case tNoUser ty of
+                TCon (PC PLogic) [t1] -> Just t1
+                _                     -> Nothing
+
 pIsArith :: Prop -> Maybe Type
 pIsArith ty = case tNoUser ty of
                 TCon (PC PArith) [t1] -> Just t1
@@ -579,6 +595,12 @@ x =#= y = TCon (PC PEqual) [x,y]
 (=/=) :: Type -> Type -> Prop
 x =/= y = TCon (PC PNeq) [x,y]
 
+pZero :: Type -> Prop
+pZero t = TCon (PC PZero) [t]
+
+pLogic :: Type -> Prop
+pLogic t = TCon (PC PLogic) [t]
+
 pArith :: Type -> Prop
 pArith t = TCon (PC PArith) [t]
 
@@ -715,10 +737,22 @@ instance PP TySyn where
   ppPrec = ppWithNamesPrec IntMap.empty
 
 instance PP (WithNames TySyn) where
-  ppPrec _ (WithNames (TySyn n ps _ ty) ns) =
-    text "type" <+> pp n <+> sep (map (ppWithNames ns1) ps) <+> char '='
-                <+> ppWithNames ns1 ty
-    where ns1 = addTNames ps ns
+  ppPrec _ (WithNames ts ns) =
+    text "type" <+> ctr <+> pp (tsName ts) <+>
+      sep (map (ppWithNames ns1) (tsParams ts)) <+> char '='
+                <+> ppWithNames ns1 (tsDef ts)
+    where ns1 = addTNames (tsParams ts) ns
+          ctr = case kindResult (kindOf ts) of
+                  KProp -> text "constraint"
+                  _     -> empty
+
+instance PP Newtype where
+  ppPrec = ppWithNamesPrec IntMap.empty
+
+instance PP (WithNames Newtype) where
+  ppPrec _  (WithNames nt _) = ppNewtypeShort nt -- XXX: do the full thing?
+
+
 
 
 instance PP (WithNames Type) where
@@ -825,6 +859,8 @@ instance PP PC where
       PGeq       -> text "(>=)"
       PFin       -> text "fin"
       PHas sel   -> parens (ppSelector sel)
+      PZero      -> text "Zero"
+      PLogic     -> text "Logic"
       PArith     -> text "Arith"
       PCmp       -> text "Cmp"
       PSignedCmp -> text "SignedCmp"

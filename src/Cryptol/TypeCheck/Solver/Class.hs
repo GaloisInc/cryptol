@@ -11,6 +11,8 @@
 {-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Solver.Class
   ( classStep
+  , solveZeroInst
+  , solveLogicInst
   , solveArithInst
   , solveCmpInst
   , solveSignedCmpInst
@@ -22,12 +24,61 @@ import Cryptol.TypeCheck.Solver.Types
 
 -- | Solve class constraints.
 -- If not, then we return 'Nothing'.
--- If solved, ther we return 'Just' a list of sub-goals.
+-- If solved, then we return 'Just' a list of sub-goals.
 classStep :: Prop -> Solved
 classStep p = case tNoUser p of
+  TCon (PC PLogic) [ty] -> solveLogicInst (tNoUser ty)
   TCon (PC PArith) [ty] -> solveArithInst (tNoUser ty)
   TCon (PC PCmp) [ty]   -> solveCmpInst   (tNoUser ty)
   _                     -> Unsolved
+
+-- | Solve a Zero constraint by instance, if possible.
+solveZeroInst :: Type -> Solved
+solveZeroInst ty = case tNoUser ty of
+
+  -- Zero Error -> fails
+  TCon (TError _ e) _ -> Unsolvable e
+
+  -- Zero Bit
+  TCon (TC TCBit) [] -> SolvedIf []
+
+  -- Zero a => Zero [n]a
+  TCon (TC TCSeq) [_, a] -> SolvedIf [ pZero a ]
+
+  -- Zero b => Zero (a -> b)
+  TCon (TC TCFun) [_, b] -> SolvedIf [ pZero b ]
+
+  -- (Zero a, Zero b) => Zero (a,b)
+  TCon (TC (TCTuple _)) es -> SolvedIf [ pZero e | e <- es ]
+
+  -- (Zero a, Zero b) => Zero { x1 : a, x2 : b }
+  TRec fs -> SolvedIf [ pZero ety | (_,ety) <- fs ]
+
+  _ -> Unsolved
+
+-- | Solve a Logic constraint by instance, if possible.
+solveLogicInst :: Type -> Solved
+solveLogicInst ty = case tNoUser ty of
+
+  -- Logic Error -> fails
+  TCon (TError _ e) _ -> Unsolvable e
+
+  -- Logic Bit
+  TCon (TC TCBit) [] -> SolvedIf []
+
+  -- Logic a => Logic [n]a
+  TCon (TC TCSeq) [_, a] -> SolvedIf [ pLogic a ]
+
+  -- Logic b => Logic (a -> b)
+  TCon (TC TCFun) [_, b] -> SolvedIf [ pLogic b ]
+
+  -- (Logic a, Logic b) => Logic (a,b)
+  TCon (TC (TCTuple _)) es -> SolvedIf [ pLogic e | e <- es ]
+
+  -- (Logic a, Logic b) => Logic { x1 : a, x2 : b }
+  TRec fs -> SolvedIf [ pLogic ety | (_,ety) <- fs ]
+
+  _ -> Unsolved
 
 -- | Solve an Arith constraint by instance, if possible.
 solveArithInst :: Type -> Solved

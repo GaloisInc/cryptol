@@ -50,6 +50,16 @@ data NamingEnv = NamingEnv { neExprs :: !(Map.Map PName [Name])
                              -- ^ Expression-level fixity environment
                            } deriving (Show, Generic, NFData)
 
+-- | Return a list of value-level names to which this parsed name may refer.
+lookupValNames :: PName -> NamingEnv -> [Name]
+lookupValNames qn ro = Map.findWithDefault [] qn (neExprs ro)
+
+-- | Return a list of type-level names to which this parsed name may refer.
+lookupTypeNames :: PName -> NamingEnv -> [Name]
+lookupTypeNames qn ro = Map.findWithDefault [] qn (neTypes ro)
+
+
+
 instance Monoid NamingEnv where
   mempty        =
     NamingEnv { neExprs  = Map.empty

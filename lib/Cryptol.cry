@@ -100,7 +100,7 @@ primitive negate : {a} (Arith a) => a -> a
  * Bitwise complement. The prefix notation '~ x'
  * is syntactic sugar for 'complement x'.
  */
-primitive complement : {a} a -> a
+primitive complement : {a} (Logic a) => a -> a
 
 /**
  * Less-than. Only works on comparable arguments.
@@ -259,35 +259,35 @@ a ==> b = if a then b else True
 /**
  * Logical `and' over bits. Extends element-wise over sequences, tuples.
  */
-primitive (&&) : {a} a -> a -> a
+primitive (&&) : {a} (Logic a) => a -> a -> a
 
 /**
  * Logical `or' over bits. Extends element-wise over sequences, tuples.
  */
-primitive (||) : {a} a -> a -> a
+primitive (||) : {a} (Logic a) => a -> a -> a
 
 /**
  * Logical `exclusive or' over bits. Extends element-wise over sequences, tuples.
  */
-primitive (^) : {a} a -> a -> a
+primitive (^) : {a} (Logic a) => a -> a -> a
 
 /**
  * Gives an arbitrary shaped value whose bits are all False.
  * ~zero likewise gives an arbitrary shaped value whose bits are all True.
  */
-primitive zero : {a} a
+primitive zero : {a} (Zero a) => a
 
 /**
  * Left shift.  The first argument is the sequence to shift, the second is the
  * number of positions to shift by.
 */
-primitive (<<) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
+primitive (<<) : {a, b, c} (fin b, Zero c) => [a]c -> [b] -> [a]c
 
 /**
  * Right shift.  The first argument is the sequence to shift, the second is the
  * number of positions to shift by.
  */
-primitive (>>) : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
+primitive (>>) : {a, b, c} (fin b, Zero c) => [a]c -> [b] -> [a]c
 
 /**
  * Left rotate.  The first argument is the sequence to rotate, the second is the
