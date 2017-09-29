@@ -10,6 +10,11 @@ module Cryptol where
  */
 primitive demote : {val, bits} (fin val, fin bits, bits >= width val) => [bits]
 
+/**
+ * The integer value corresponding to a numeric type.
+ */
+primitive integer : {val} (fin val) => Integer
+
 infixr  5 ==>
 infixr 10 \/
 infixr 15 /\
@@ -276,6 +281,16 @@ primitive (^) : {a} (Logic a) => a -> a -> a
  * ~zero likewise gives an arbitrary shaped value whose bits are all True.
  */
 primitive zero : {a} (Zero a) => a
+
+/**
+ * Converts a bitvector to a non-negative integer in the range 0 to 2^^n-1.
+ */
+primitive toInteger : {a} (fin a) => [a] -> Integer
+
+/**
+ * Converts an unbounded integer to a finite bitvector, reducing modulo 2^^n.
+ */
+primitive fromInteger : {a} (fin a) => Integer -> [a]
 
 /**
  * Left shift.  The first argument is the sequence to shift, the second is the

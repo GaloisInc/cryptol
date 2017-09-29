@@ -27,6 +27,7 @@ import Control.DeepSeq
 -- These types do not contain type variables, type synonyms, or type functions.
 data TValue
   = TVBit                    -- ^ @ Bit @
+  | TVInteger                -- ^ @ Integer @
   | TVSeq Integer TValue     -- ^ @ [n]a @
   | TVStream TValue          -- ^ @ [inf]t @
   | TVTuple [TValue]         -- ^ @ (a, b, c )@
@@ -39,6 +40,7 @@ tValTy :: TValue -> Type
 tValTy tv =
   case tv of
     TVBit       -> tBit
+    TVInteger   -> tInteger
     TVSeq n t   -> tSeq (tNum n) (tValTy t)
     TVStream t  -> tSeq tInf (tValTy t)
     TVTuple ts  -> tTuple (map tValTy ts)
@@ -89,6 +91,7 @@ evalType env ty =
     TCon (TC c) ts ->
       case (c, ts) of
         (TCBit, [])     -> Right $ TVBit
+        (TCInteger, []) -> Right $ TVInteger
         (TCSeq, [n, t]) -> Right $ tvSeq (num n) (val t)
         (TCFun, [a, b]) -> Right $ TVFun (val a) (val b)
         (TCTuple _, _)  -> Right $ TVTuple (map val ts)
