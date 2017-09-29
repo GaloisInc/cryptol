@@ -110,6 +110,7 @@ library
                        Cryptol.ModuleSystem.Name,
                        Cryptol.ModuleSystem.NamingEnv,
                        Cryptol.ModuleSystem.Renamer,
+                       Cryptol.ModuleSystem.InstantiateModule,
 
                        Cryptol.TypeCheck,
                        Cryptol.TypeCheck.Type,
