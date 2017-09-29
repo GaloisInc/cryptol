@@ -481,7 +481,7 @@ cmdProveSat isSat str = do
               (ty, exprs) =
                 case resultRecs of
                   [] -> panic "REPL.Command.onlineProveSat"
-                          [ "no satisfying assignments after mkSovlerResult" ]
+                          [ "no satisfying assignments after mkSolverResult" ]
                   [(t, e)] -> (t, [e])
                   _        -> collectTes resultRecs
           forM_ vss ppvs
