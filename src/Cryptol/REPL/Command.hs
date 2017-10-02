@@ -279,6 +279,14 @@ evalCmd str = do
       -- be generalized if mono-binds is enabled
       replEvalDecl decl
 
+printCounterexample :: Bool -> P.Expr P.PName -> [E.Value] -> REPL ()
+printCounterexample isSat pexpr vs =
+  do ppOpts <- getPPValOpts
+     docs <- mapM (io . E.runEval . E.ppValue ppOpts) vs
+     let doc = ppPrec 3 pexpr -- function application has precedence 3
+     rPrint $ hang doc 2 (sep docs) <+>
+       text (if isSat then "= True" else "= False")
+
 data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 
 -- | Randomly test a property, or exhaustively check it if the number
@@ -314,7 +322,7 @@ qcCmd qcMode str =
                   , testPossible = sz
                   , testRptProgress = ppProgress
                   , testClrProgress = delProgress
-                  , testRptFailure = ppFailure
+                  , testRptFailure = ppFailure expr
                   , testRptSuccess = do
                       delTesting
                       prtLn $ "passed " ++ show sz ++ " tests."
@@ -335,7 +343,7 @@ qcCmd qcMode str =
                       , testPossible = sz
                       , testRptProgress = ppProgress
                       , testClrProgress = delProgress
-                      , testRptFailure = ppFailure
+                      , testRptFailure = ppFailure expr
                       , testRptSuccess = do
                           delTesting
                           prtLn $ "passed " ++ show testNum ++ " tests."
@@ -381,15 +389,13 @@ qcCmd qcMode str =
   delTesting  = del (length testingMsg)
   delProgress = del totProgressWidth
 
-  ppFailure failure = do
+  ppFailure pexpr failure = do
     delTesting
     opts <- getPPValOpts
     case failure of
-      FailFalse [] -> do
-        prtLn "FAILED"
       FailFalse vs -> do
-        prtLn "FAILED for the following inputs:"
-        mapM_ (\v -> rPrint =<< (io $ E.runEval $ E.ppValue opts v)) vs
+        let isSat = False
+        printCounterexample isSat pexpr vs
       FailError err [] -> do
         prtLn "ERROR"
         rPrint (pp err)
@@ -451,7 +457,6 @@ cmdProveSat isSat str = do
             Nothing -> rPutStr smtlib
     _ -> do
       (firstProver,result,stats) <- onlineProveSat isSat str mfile
-      ppOpts <- getPPValOpts
       case result of
         Symbolic.EmptyResult         ->
           panic "REPL.Command" [ "got EmptyResult for online prover query" ]
@@ -463,13 +468,6 @@ cmdProveSat isSat str = do
         Symbolic.AllSatResult tevss -> do
           let tess = map (map $ \(t,e,_) -> (t,e)) tevss
               vss  = map (map $ \(_,_,v) -> v)     tevss
-              ppvs vs = do
-                parseExpr <- replParseExpr str
-                docs <- mapM (io . E.runEval . E.ppValue ppOpts) vs
-                let -- function application has precedence 3
-                    doc = ppPrec 3 parseExpr
-                rPrint $ hang doc 2 (sep docs) <+>
-                  text (if isSat then "= True" else "= False")
           resultRecs <- mapM (mkSolverResult cexStr isSat . Right) tess
           let collectTes tes = (t, es)
                 where
@@ -484,7 +482,8 @@ cmdProveSat isSat str = do
                           [ "no satisfying assignments after mkSolverResult" ]
                   [(t, e)] -> (t, [e])
                   _        -> collectTes resultRecs
-          forM_ vss ppvs
+          pexpr <- replParseExpr str
+          forM_ vss (printCounterexample isSat pexpr)
           case (ty, exprs) of
             (t, [e]) -> bindItVariable t e
             (t, es ) -> bindItVariables t es

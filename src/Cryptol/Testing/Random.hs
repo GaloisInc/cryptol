@@ -24,7 +24,7 @@ import Data.List              (unfoldr, genericTake, genericIndex)
 import System.Random          (RandomGen, split, random, randomR)
 import qualified Data.Sequence as Seq
 
-type Gen g b w = Integer -> g -> (GenValue b w, g)
+type Gen g b w i = Integer -> g -> (GenValue b w i, g)
 
 
 {- | Apply a testable value to some randomly-generated arguments.
@@ -36,7 +36,7 @@ type Gen g b w = Integer -> g -> (GenValue b w, g)
  -}
 runOneTest :: RandomGen g
         => Value   -- ^ Function under test
-        -> [Gen g Bool BV] -- ^ Argument generators
+        -> [Gen g Bool BV Integer] -- ^ Argument generators
         -> Integer -- ^ Size
         -> g
         -> IO (Conc.TestResult, g)
@@ -49,7 +49,7 @@ runOneTest fun argGens sz g0 = do
 {- | Given a (function) type, compute generators for
 the function's arguments. Currently we do not support polymorphic functions.
 In principle, we could apply these to random types, and test the results. -}
-testableType :: RandomGen g => Type -> Maybe [Gen g Bool BV]
+testableType :: RandomGen g => Type -> Maybe [Gen g Bool BV Integer]
 testableType ty =
   case tNoUser ty of
     TCon (TC TCFun) [t1,t2] ->
@@ -62,7 +62,7 @@ testableType ty =
 
 {- | A generator for values of the given type.  This fails if we are
 given a type that lacks a suitable random value generator. -}
-randomValue :: (BitWord b w, RandomGen g) => Type -> Maybe (Gen g b w)
+randomValue :: (BitWord b w i, RandomGen g) => Type -> Maybe (Gen g b w i)
 randomValue ty =
   case ty of
     TCon tc ts  ->
@@ -93,7 +93,7 @@ randomValue ty =
                       return (randomRecord gs)
 
 -- | Generate a random bit value.
-randomBit :: (BitWord b w, RandomGen g) => Gen g b w
+randomBit :: (BitWord b w i, RandomGen g) => Gen g b w i
 randomBit _ g =
   let (b,g1) = random g
   in (VBit (bitLit b), g1)
@@ -101,20 +101,20 @@ randomBit _ g =
 -- | Generate a random word of the given length (i.e., a value of type @[w]@)
 -- The size parameter is assumed to vary between 1 and 100, and we use
 -- it to generate smaller numbers first.
-randomWord :: (BitWord b w, RandomGen g) => Integer -> Gen g b w
+randomWord :: (BitWord b w i, RandomGen g) => Integer -> Gen g b w i
 randomWord w _sz g =
    let (val, g1) = randomR (0,2^w-1) g
    in (VWord w (ready (WordVal (wordLit w val))), g1)
 
 -- | Generate a random infinite stream value.
-randomStream :: RandomGen g => Gen g b w -> Gen g b w
+randomStream :: RandomGen g => Gen g b w i -> Gen g b w i
 randomStream mkElem sz g =
   let (g1,g2) = split g
   in (VStream $ IndexSeqMap $ genericIndex (map ready (unfoldr (Just . mkElem sz) g1)), g2)
 
 {- | Generate a random sequence.  This should be used for sequences
 other than bits.  For sequences of bits use "randomWord". -}
-randomSequence :: RandomGen g => Integer -> Gen g b w -> Gen g b w
+randomSequence :: RandomGen g => Integer -> Gen g b w i -> Gen g b w i
 randomSequence w mkElem sz g0 = do
   let (g1,g2) = split g0
   let f g = let (x,g') = mkElem sz g
@@ -123,7 +123,7 @@ randomSequence w mkElem sz g0 = do
   seq xs (VSeq w $ IndexSeqMap $ (Seq.index xs . fromInteger), g2)
 
 -- | Generate a random tuple value.
-randomTuple :: RandomGen g => [Gen g b w] -> Gen g b w
+randomTuple :: RandomGen g => [Gen g b w i] -> Gen g b w i
 randomTuple gens sz = go [] gens
   where
   go els [] g = (VTuple (reverse els), g)
@@ -132,7 +132,7 @@ randomTuple gens sz = go [] gens
     in seq v (go (ready v : els) more g1)
 
 -- | Generate a random record value.
-randomRecord :: RandomGen g => [(Ident, Gen g b w)] -> Gen g b w
+randomRecord :: RandomGen g => [(Ident, Gen g b w i)] -> Gen g b w i
 randomRecord gens sz = go [] gens
   where
   go els [] g = (VRecord (reverse els), g)

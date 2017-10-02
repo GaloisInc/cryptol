@@ -3,7 +3,7 @@ Status](https://travis-ci.org/GaloisInc/cryptol.svg?branch=master)](https://trav
 
 # Cryptol, version 2
 
-    This version of Cryptol is (C) 2013-2016 Galois, Inc., and
+    This version of Cryptol is (C) 2013-2017 Galois, Inc., and
     distributed under a standard, three-clause BSD license. Please see
     the file LICENSE, distributed with this software, for specific
     terms and conditions.
