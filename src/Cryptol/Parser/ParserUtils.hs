@@ -479,3 +479,33 @@ arithIdent     = mkIdent (S.pack "Arith")
 finIdent       = mkIdent (S.pack "fin")
 cmpIdent       = mkIdent (S.pack "Cmp")
 signedCmpIdent = mkIdent (S.pack "SignedCmp")
+
+-- | Make an ordinary module
+mkModule :: Located ModName ->
+            ([Located Import], [TopDecl PName]) ->
+            Module PName
+mkModule nm (is,ds) = Module { mName = nm
+                             , mInstance = Nothing
+                             , mImports = is
+                             , mDecls = ds
+                             }
+
+-- | Make an unnamed module---gets the name @Main@.
+mkAnonymousModule :: ([Located Import], [TopDecl PName]) ->
+                     Module PName
+mkAnonymousModule = mkModule Located { srcRange = emptyRange
+                                     , thing    = mkModName [T.pack "Main"]
+                                     }
+
+-- | Make a module which defines a functor instance.
+mkModuleInstance :: Located ModName ->
+                    Located ModName ->
+                    ([Located Import], [TopDecl PName]) ->
+                    Module PName
+mkModuleInstance nm fun (is,ds) =
+  Module { mName     = nm
+         , mInstance = Just fun
+         , mImports  = is
+         , mDecls    = ds
+         }
+

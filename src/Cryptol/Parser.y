@@ -154,16 +154,10 @@ import Paths_cryptol
 
 
 vmodule                    :: { Module PName }
-  : 'module' modName 'where' 'v{' vmod_body 'v}'
-                              { let (is,ts) = $5 in Module $2 is ts }
-
-  | 'v{' vmod_body 'v}'
-    { let { (is,ts) = $2
-            -- XXX make a location from is and ts
-          ; modName = Located { srcRange = emptyRange
-                              , thing    = mkModName ["Main"]
-                              }
-          } in Module modName is ts }
+  : 'module' modName 'where' 'v{' vmod_body 'v}' { mkModule $2 $5 }
+  | 'module' modName '=' modName 'where' 'v{' vmod_body 'v}'
+                                                 { mkModuleInstance $2 $4 $7 }
+  | 'v{' vmod_body 'v}'                          { mkAnonymousModule $2 }
 
 vmod_body                  :: { ([Located Import], [TopDecl PName]) }
   : vimports 'v;' vtop_decls  { (reverse $1, reverse $3) }

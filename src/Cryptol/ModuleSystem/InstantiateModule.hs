@@ -12,7 +12,7 @@ import qualified Data.Map as Map
 import           MonadLib(Id,ReaderT,runReaderT,runId,ask)
 
 import Cryptol.ModuleSystem.Name
-import qualified Cryptol.Parser.AST as P
+import Cryptol.ModuleSystem.Exports(ExportSpec(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst(listSubst, apSubst)
 import Cryptol.Utils.Ident(ModName)
@@ -265,10 +265,10 @@ instance Inst UserTC where
   inst env (UserTC x t) = UserTC y t
     where y = Map.findWithDefault x x (tyNameMap env)
 
-instance Inst (P.ExportSpec Name) where
-  inst env es = P.ExportSpec { eTypes = Set.map instT (P.eTypes es)
-                             , eBinds = Set.map instV (P.eBinds es)
-                             }
+instance Inst (ExportSpec Name) where
+  inst env es = ExportSpec { eTypes = Set.map instT (eTypes es)
+                           , eBinds = Set.map instV (eBinds es)
+                           }
     where instT x = Map.findWithDefault x x (tyNameMap env)
           instV x = Map.findWithDefault x x (funNameMap env)
 

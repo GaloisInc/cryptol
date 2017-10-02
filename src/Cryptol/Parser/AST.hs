@@ -45,8 +45,6 @@ module Cryptol.Parser.AST
   , BindDef(..), LBindDef
   , Pragma(..)
   , ExportType(..)
-  , ExportSpec(..), exportBind, exportType
-  , isExportedBind, isExportedType
   , TopLevel(..)
   , Import(..), ImportSpec(..)
   , Newtype(..)
@@ -80,7 +78,6 @@ import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
-import qualified Data.Set as Set
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
@@ -108,10 +105,14 @@ type LString  = Located String
 newtype Program name = Program [TopDecl name]
                        deriving (Show)
 
-data Module name = Module { mName    :: Located ModName
-                          , mImports :: [Located Import]
-                          , mDecls   :: [TopDecl name]
-                          } deriving (Show, Generic, NFData)
+-- | A parsed module.
+data Module name = Module
+  { mName     :: Located ModName            -- ^ Name of the module
+  , mInstance :: !(Maybe (Located ModName)) -- ^ Functor to instantiate
+                                            -- (if this is a functor instnaces)
+  , mImports  :: [Located Import]           -- ^ Imports for the module
+  , mDecls    :: [TopDecl name]             -- ^ Declartions for the module
+  } deriving (Show, Generic, NFData)
 
 
 modRange :: Module name -> Range
@@ -260,36 +261,6 @@ data TopLevel a = TopLevel { tlExport :: ExportType
                            }
   deriving (Show, Generic, NFData, Functor, Foldable, Traversable)
 
-
-data ExportSpec name = ExportSpec { eTypes  :: Set.Set name
-                                  , eBinds  :: Set.Set name
-                                  } deriving (Show, Generic, NFData)
-
-instance Ord name => Monoid (ExportSpec name) where
-  mempty      = ExportSpec { eTypes = mempty, eBinds = mempty }
-  mappend l r = ExportSpec { eTypes = mappend (eTypes l) (eTypes r)
-                           , eBinds  = mappend (eBinds  l) (eBinds  r)
-                           }
-
--- | Add a binding name to the export list, if it should be exported.
-exportBind :: Ord name => TopLevel name -> ExportSpec name
-exportBind n
-  | tlExport n == Public = mempty { eBinds = Set.singleton (tlValue n) }
-  | otherwise            = mempty
-
--- | Check to see if a binding is exported.
-isExportedBind :: Ord name => name -> ExportSpec name -> Bool
-isExportedBind n = Set.member n . eBinds
-
--- | Add a type synonym name to the export list, if it should be exported.
-exportType :: Ord name => TopLevel name -> ExportSpec name
-exportType n
-  | tlExport n == Public = mempty { eTypes = Set.singleton (tlValue n) }
-  | otherwise            = mempty
-
--- | Check to see if a type synonym is exported.
-isExportedType :: Ord name => name -> ExportSpec name -> Bool
-isExportedType n = Set.member n . eTypes
 
 -- | Infromation about the representation of a numeric constant.
 data NumInfo  = BinLit Int                      -- ^ n-digit binary literal
@@ -927,9 +898,10 @@ instance NoPos (Program name) where
   noPos (Program x) = Program (noPos x)
 
 instance NoPos (Module name) where
-  noPos m = Module { mName    = mName m
-                   , mImports = noPos (mImports m)
-                   , mDecls   = noPos (mDecls m)
+  noPos m = Module { mName      = mName m
+                   , mInstance  = mInstance m
+                   , mImports   = noPos (mImports m)
+                   , mDecls     = noPos (mDecls m)
                    }
 
 instance NoPos (TopDecl name) where

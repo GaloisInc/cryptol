@@ -29,11 +29,12 @@ module Cryptol.TypeCheck.AST
   ) where
 
 import Cryptol.ModuleSystem.Name
+import Cryptol.ModuleSystem.Exports(ExportSpec(..)
+                                   , isExportedBind, isExportedType)
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Import(..), ImportSpec(..), ExportType(..)
-                          , ExportSpec(..), isExportedBind
-                          , isExportedType, Fixity(..))
+                          , Fixity(..))
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,packIdent)
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type

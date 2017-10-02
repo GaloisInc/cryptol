@@ -18,19 +18,6 @@ import qualified Data.Set as Set
 import           Data.Foldable (fold)
 
 
-modExports :: Ord name => Module name -> ExportSpec name
-modExports m = fold (concat [ exportedNames d | d <- mDecls m ])
-  where
-  names by td = [ td { tlValue = thing n } | n <- fst (by (tlValue td)) ]
-
-  exportedNames (Decl td) = map exportBind  (names  namesD td)
-                         ++ map exportType (names tnamesD td)
-  exportedNames (TDNewtype nt) = map exportType (names tnamesNT nt)
-  exportedNames (Include {})  = []
-  exportedNames (DParameterFun {}) = []
-  exportedNames (DParameterType {}) = []
-  exportedNames (DParameterConstraint {}) = []
-
 -- | The names defined by a newtype.
 tnamesNT :: Newtype name -> ([Located name], ())
 tnamesNT x = ([ nName x ], ())

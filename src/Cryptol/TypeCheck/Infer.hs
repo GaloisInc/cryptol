@@ -18,7 +18,7 @@ module Cryptol.TypeCheck.Infer where
 import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
-import qualified Cryptol.Parser.Names as P
+import qualified Cryptol.ModuleSystem.Exports as P
 import           Cryptol.TypeCheck.AST hiding (tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Solve
