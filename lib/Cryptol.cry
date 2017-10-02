@@ -18,11 +18,11 @@ primitive integer : {val} (fin val) => Integer
 infixr  5 ==>
 infixr 10 \/
 infixr 15 /\
-infixr 20 ||
-infixr 25 &&
-infix  30 ==, ===, !=, !==
-infix  40 >, >=, <, <=, <$, >$, <=$, >=$
-infixl 50 ^
+infix  20 ==, ===, !=, !==
+infix  30 >, >=, <, <=, <$, >$, <=$, >=$
+infixr 40 ||
+infixl 45 ^
+infixr 50 &&
 infixr 60 #
 infixl 70 <<, <<<, >>, >>>, >>$
 infixl 80 +, -

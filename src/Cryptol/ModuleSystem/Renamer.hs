@@ -163,8 +163,10 @@ instance PP RenamerWarning where
   ppPrec _ (DangerousFixity o1 o2 disp) = fixNameDisp disp $
     hang (text "[warning] at" <+> pp (srcRange o1))
        4 $ fsep [ text "Using fixity to resolve the parsing of operators" <+> pp (thing o1) <+> text "and" <+> pp (thing o2) <> text ";"
-                , text "the relative fixity of these operators is planned to change in a future Cryptol release."
+                , text "the relative fixity of these operators has recently changed!"
                 , text "Use parentheses to disambiguate this parse, or consider replacing (&&) with (/\\), or (||) with (\\/)."
+                , text "Ignore this message if you are confident this expression is parsing correctly; it will be removed"
+                , text "in a future release."
                 ]
 
 -- Renaming Monad --------------------------------------------------------------
