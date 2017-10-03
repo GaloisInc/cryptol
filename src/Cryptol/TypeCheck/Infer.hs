@@ -15,7 +15,7 @@
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Infer where
 
-import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl)
+import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl,nameIdent)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem.Exports as P
@@ -43,7 +43,7 @@ import           Data.Maybe(mapMaybe,isJust, fromMaybe)
 import           Data.List(partition,find)
 import           Data.Graph(SCC(..))
 import           Data.Traversable(forM)
-import           Control.Monad(when,zipWithM)
+import           Control.Monad(when,zipWithM,unless)
 
 inferModule :: P.Module Name -> InferM Module
 inferModule m =
@@ -67,6 +67,65 @@ inferModule m =
   where
   onlyLocal (IsLocal, x)    = Just x
   onlyLocal (IsExternal, _) = Nothing
+
+inferModuleInstance :: Module {- ^ functor -} ->
+                       Module {- ^ instance -} ->
+                       InferM Module -- ^ Instantiated module
+inferModuleInstance func inst = undefined
+  where
+  identMap f m = Map.fromList [ (f x, ts) | (x,ts) <- Map.toList m ]
+  tySyns       = identMap nameIdent (mTySyns inst)
+  newTys       = identMap nameIdent (mNewtypes inst)
+  tParams      = Map.fromList [ (tpId x, x) | x <- mParamTypes inst ]
+  tpId x       = case tpName x of
+                   Just n  -> nameIdent n
+                   Nothing -> panic "inferModuleInstance.tpId" ["Missing name"]
+
+
+  checkTParamDefined tp =
+    let x = tpId tp
+    in case Map.lookup x tySyns of
+         Just ts -> checkTySynDef tp ts
+         Nothing ->
+           case Map.lookup x newTys of
+             Just nt -> checkNewTyDef tp nt
+             Nothing ->
+               case Map.lookup x tParams of
+                 Just tp1 -> checkTP tp tp1
+                 Nothing ->
+                   do recordError $ ErrorMsg $
+                        text "Missing definition for type parameter:" <+> pp x
+                      return (tp, TVar (TVBound tp)) -- hm, maybe just stop!
+
+  checkTySynDef tp ts =
+    do let k1 = kindOf tp
+           k2 = kindOf ts
+       unless (k1 == k2) (recordError (KindMismatch k1 k2))
+
+       let nm  = tsName ts
+           src = CtPartialTypeFun (UserTyFun nm)
+       mapM_ (newGoal src) (tsConstraints ts)
+
+       return (tp, TUser nm [] (tsDef ts))
+
+  checkNewTyDef tp nt =
+    do let k1 = kindOf tp
+           k2 = kindOf nt
+       unless (k1 == k2) (recordError (KindMismatch k1 k2))
+
+       let nm = ntName nt
+           src = CtPartialTypeFun (UserTyFun nm)
+       mapM_ (newGoal src) (ntConstraints nt)
+
+       return (tp, TCon (TC (TCNewtype (UserTC nm k2))) [])
+
+  checkTP tp tp1 =
+    do let k1 = kindOf tp
+           k2 = kindOf tp1
+       unless (k1 == k2) (recordError (KindMismatch k1 k2))
+
+       return (tp, TVar (TVBound tp1))
+
 
 
 -- | Construct a primitive in the parsed AST.

@@ -2,7 +2,6 @@
 -- | Assumes that local names do not shadow top level names.
 module Cryptol.ModuleSystem.InstantiateModule
   ( instantiateModule
-  , ModInst(..)
   ) where
 
 import           Data.Set (Set)
@@ -19,81 +18,67 @@ import Cryptol.Utils.Ident(ModName)
 import Cryptol.Utils.Panic(panic)
 
 
--- | Instantiation of a module
-data ModInst = ModInst
-  { modInstName       :: ModName          -- ^ Name for the instance
-  , modInstFunctor    :: Module           -- ^ Instantiate this
-  , modInstImports    :: [Import]         -- ^ Imports used to define parameters
-  , modInstTyParams   :: Map TParam Type  -- ^ Values for type params
-  , modInstFunParams  :: Map Name Expr    -- ^ Values for function params
-  }
+
+{-
+XXX: Should we simplify constraints in the instantiated modules?
+
+If so, we also need to adjust the constraint parameters appropriately,
+especially when working with dictionaries.
+-}
+
 
 -- | Convert a module instantiation into an actual module.
-instantiateModule :: Supply -> ModInst -> ([Prop], Module, Supply)
-instantiateModule s mi = (ps, m, s1)
+instantiateModule :: Supply {- ^ To generate fresh names -} ->
+                      Module {- ^ Parametrized module -} ->
+                      Module {- ^ Instantiating module -} ->
+                      ([Prop], Module, Supply) -- XXX: errors
+instantiateModule = undefined {-
+instantiateModule s func mi = (ps, m, s1)
   where
-  ((ps,m),s1) = runInstM (modInstName mi) s $
+  ((ps,m),s1) = runInstM (mName mi) s $
     do env <- computeEnv mi
-       let func = modInstFunctor mi
-           renamedExports = inst env (mExports func)
-
-       let instImps = modInstImports mi
-          {- These are imports needed to define the instantiating parameters.
-             We add them, so that the instantiatied module knows all the
-             modules that it depends on.   Note that by doing so, we could
-             make some of the names ambiguous (i.e., they might be imported
-             from differently places), but at this stage we are working with
-             fully resolved names, so we don't do anything about it for now. -}
-
-       let renamedTySyns = fmap (inst env) (mTySyns func)
+       let renamedExports = inst env (mExports func)
+           renamedTySyns   = fmap (inst env) (mTySyns func)
            renamedNewtypes = fmap (inst env) (mNewtypes func)
+
            su = listSubst
                   [ (TVBound tp, t) | (tp,t) <- Map.toList (tyParamMap env) ]
 
-       let goals = apSubst su (mParamConstraints func)
-       -- Constraints to discharge about the type instances
+           goals = apSubst su (mParamConstraints func)
+           -- Constraints to discharge about the type instances
 
-       let instTySyns = Map.fromList $ map mkTySyn $ Map.elems $ tyParamMap env
-       -- Definitions for the type parameters
-
-
-       let instDecls = map (mkFunDef env) (Map.toList (modInstFunParams mi))
        let renamedDecls = inst env (mDecls func)
 
        return ( goals
               , Module
-                 { mName              = modInstName mi
+                 { mName              = mName mi
                  , mExports           = renamedExports
-                 , mImports           = instImps ++ mImports func
-                 , mTySyns            = Map.union instTySyns renamedTySyns
-                 , mNewtypes          = renamedNewtypes
-                 , mParamTypes        = []
-                 , mParamConstraints  = []
-                 , mParamFuns         = Map.empty
-                 , mDecls             = instDecls ++ renamedDecls
+
+                 , mImports           = mImports func ++ mImports mi
+                   -- There just record all the dependencies for the
+                   -- instantiated module.  Note that the resulting list
+                   -- of imports is not necessarily good for resolving names
+                   -- as things which were unambiguous separately may clash
+                   -- when merged.  Since things have already been renamed,
+                   -- we don't worry about this for the moment.
+
+
+                 , mTySyns            = Map.union (mTySyns mi) renamedTySyns
+                 , mNewtypes          = Map.union (mNewtypes mi) renamedNewtypes
+                 , mParamTypes        = mParamTypes mi
+                 , mParamConstraints  = mParamConstraints mi
+                 , mParamFuns         = mParamFuns mi
+                 , mDecls             = mDecls mi ++ renamedDecls
                  } )
 
-  mkTySyn ty =
-    case ty of
-      TUser x [] t -> (x, TySyn { tsName        = x
-                                , tsParams      = []
-                                , tsConstraints = [] -- XXX: ??
-                                , tsDef         = t
-                                , tsDoc         = Nothing -- XXX
-                                })
-      _ -> panic "instiateModule.mkTySyn" [ "Unexpected type shape" ]
 
-  mkFunDef env (x,e) = NonRecursive
-    Decl { dName        = funNameMap env Map.! x
-         , dSignature   = mParamFuns (modInstFunctor mi) Map.! x
-         , dDefinition  = DExpr e
-         , dPragmas     = []
-         , dInfix       = False -- XXX: ?
-         , dFixity      = nameFixity x
-         , dDoc         = Nothing -- XXX
-         }
+type Error = String
 
-
+findParams :: Module {- ^ Functor -} ->
+              Module {- ^ Instnace -} ->
+              Either Error (Map TParam Type, Map Name Expr)
+findParams = undefined
+-}
 
 --------------------------------------------------------------------------------
 -- Things that need to be renamed
@@ -128,9 +113,11 @@ freshenName x =
   do m <- ask
      liftSupply (mkDeclared m (nameIdent x) (nameFixity x) (nameLoc x))
 
+{-
 -- | Compute renaming environment from a module instantiation.
-computeEnv :: ModInst -> InstM Env
-computeEnv mi =
+-- computeEnv :: ModInst -> InstM Env
+computeEnv :: Module {- ^ Parametrized module -} ModInst -> InstM Env
+computeEnv m =
   do tss <- mapM freshTy (Map.toList (mTySyns m))
      nts <- mapM freshTy (Map.toList (mNewtypes m))
      let tnMap = Map.fromList (tss ++ nts)
@@ -147,8 +134,6 @@ computeEnv mi =
                 , tyParamMap  = tpMap
                 }
   where
-  m = modInstFunctor mi
-
   freshTy (x,_) = do y <- freshenName x
                      return (x,y)
 
@@ -165,7 +150,7 @@ computeEnv mi =
           Just t ->
             do y <- freshenName x
                return (tp, TUser y [] t)
-
+-}
 
 --------------------------------------------------------------------------------
 -- Do the renaming
