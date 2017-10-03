@@ -15,7 +15,6 @@ import Cryptol.Parser.AST
 
 import           Data.Set (Set)
 import qualified Data.Set as Set
-import           Data.Foldable (fold)
 
 
 -- | The names defined by a newtype.
