@@ -148,6 +148,7 @@ namesT vs = go
       TFun t1 t2    -> Set.union (go t1) (go t2)
       TSeq t1 t2    -> Set.union (go t1) (go t2)
       TBit          -> Set.empty
+      TInteger      -> Set.empty
       TNum _        -> Set.empty
       TChar _       -> Set.empty
       TInf          -> Set.empty
@@ -292,6 +293,7 @@ tnamesT ty =
     TFun t1 t2    -> Set.union (tnamesT t1) (tnamesT t2)
     TSeq t1 t2    -> Set.union (tnamesT t1) (tnamesT t2)
     TBit          -> Set.empty
+    TInteger      -> Set.empty
     TNum _        -> Set.empty
     TChar __      -> Set.empty
     TInf          -> Set.empty

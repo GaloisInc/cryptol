@@ -42,6 +42,9 @@ solveZeroInst ty = case tNoUser ty of
   -- Zero Bit
   TCon (TC TCBit) [] -> SolvedIf []
 
+  -- Zero Integer
+  TCon (TC TCInteger) [] -> SolvedIf []
+
   -- Zero a => Zero [n]a
   TCon (TC TCSeq) [_, a] -> SolvedIf [ pZero a ]
 
@@ -100,6 +103,9 @@ solveArithInst ty = case tNoUser ty of
   TCon (TC TCBit) [] ->
     Unsolvable $ TCErrorMessage "Arithmetic cannot be done on individual bits."
 
+  -- Arith Integer
+  TCon (TC TCInteger) [] -> SolvedIf []
+
   -- (Arith a, Arith b) => Arith { x1 : a, x2 : b }
   TRec fs -> SolvedIf [ pArith ety | (_,ety) <- fs ]
 
@@ -129,6 +135,9 @@ solveCmpInst ty = case tNoUser ty of
 
   -- Cmp Bit
   TCon (TC TCBit) [] -> SolvedIf []
+
+  -- Cmp Integer
+  TCon (TC TCInteger) [] -> SolvedIf []
 
   -- (fin n, Cmp a) => Cmp [n]a
   TCon (TC TCSeq) [n,a] -> SolvedIf [ pFin n, pCmp a ]

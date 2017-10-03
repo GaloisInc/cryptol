@@ -163,8 +163,10 @@ instance PP RenamerWarning where
   ppPrec _ (DangerousFixity o1 o2 disp) = fixNameDisp disp $
     hang (text "[warning] at" <+> pp (srcRange o1))
        4 $ fsep [ text "Using fixity to resolve the parsing of operators" <+> pp (thing o1) <+> text "and" <+> pp (thing o2) <> text ";"
-                , text "the relative fixity of these operators is planned to change in a future Cryptol release."
+                , text "the relative fixity of these operators has recently changed!"
                 , text "Use parentheses to disambiguate this parse, or consider replacing (&&) with (/\\), or (||) with (\\/)."
+                , text "Ignore this message if you are confident this expression is parsing correctly; it will be removed"
+                , text "in a future release."
                 ]
 
 -- Renaming Monad --------------------------------------------------------------
@@ -560,6 +562,7 @@ instance Rename Type where
     go (TFun a b)    = TFun     <$> go a  <*> go b
     go (TSeq n a)    = TSeq     <$> go n  <*> go a
     go  TBit         = return TBit
+    go  TInteger     = return TInteger
     go (TNum c)      = return (TNum c)
     go (TChar c)     = return (TChar c)
     go  TInf         = return TInf
@@ -615,6 +618,7 @@ resolveTypeFixity  = go
          mkTInfix a' op b'
 
     TBit         -> return t
+    TInteger     -> return t
     TNum _       -> return t
     TChar _      -> return t
     TInf         -> return t
@@ -902,6 +906,7 @@ patternEnv  = go
   typeEnv (TSeq a b) = bindTypes [a,b]
 
   typeEnv TBit       = return mempty
+  typeEnv TInteger   = return mempty
   typeEnv TNum{}     = return mempty
   typeEnv TChar{}    = return mempty
   typeEnv TInf       = return mempty

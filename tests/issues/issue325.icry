@@ -1,0 +1,3 @@
+:set tests=100
+:l Karatsuba.cry
+:check splitmult_correct_large

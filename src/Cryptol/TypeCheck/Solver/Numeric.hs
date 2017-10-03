@@ -14,9 +14,18 @@ import Cryptol.TypeCheck.TypePat
 import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.TypeCheck.Solver.Numeric.Interval
-import Cryptol.TypeCheck.SimpType
+import Cryptol.TypeCheck.SimpType as Simp
+
+{- Convention for comments:
+
+  K1, K2 ...          Concrete constants
+  s1, s2, t1, t2 ...  Arbitrary type expressions
+  a, b, c ...         Type variables
+
+-}
 
 
+-- | Try to solve @t1 = t2@
 cryIsEqual :: Ctxt -> Type -> Type -> Solved
 cryIsEqual ctxt t1 t2 =
   matchDefault Unsolved $
@@ -31,12 +40,14 @@ cryIsEqual ctxt t1 t2 =
     <|> tryEqMulConst t1 t2
     <|> tryEqAddInf ctxt t1 t2
     <|> tryAddConst (=#=) t1 t2
+    <|> tryLinearSolution t1 t2
+    <|> tryLinearSolution t2 t1
 
-
-
+-- | Try to solve @t1 /= t2@
 cryIsNotEqual :: Ctxt -> Type -> Type -> Solved
 cryIsNotEqual _i t1 t2 = matchDefault Unsolved (pBin PNeq (/=) t1 t2)
 
+-- | Try to solve @t1 >= t2@
 cryIsGeq :: Ctxt -> Type -> Type -> Solved
 cryIsGeq i t1 t2 =
   matchDefault Unsolved $
@@ -53,10 +64,10 @@ cryIsGeq i t1 t2 =
     -- XXX: width e >= k
 
 
-  -- XXX: max a 10 >= 2 --> True
-  -- XXX: max a 2 >= 10 --> a >= 10
+  -- XXX: max t 10 >= 2 --> True
+  -- XXX: max t 2 >= 10 --> a >= 10
 
-
+-- | Try to solve something by evalutaion.
 pBin :: PC -> (Nat' -> Nat' -> Bool) -> Type -> Type -> Match Solved
 pBin tf p t1 t2 =
       Unsolvable <$> anError KNum t1
@@ -73,9 +84,12 @@ pBin tf p t1 t2 =
 --------------------------------------------------------------------------------
 -- GEQ
 
+-- | Try to solve @K >= t@
 tryGeqKThan :: Ctxt -> Type -> Nat' -> Match Solved
 tryGeqKThan _ _ Inf = return (SolvedIf [])
 tryGeqKThan _ ty (Nat n) =
+
+  -- K1 >= K2 * t
   do (a,b) <- aMul ty
      m     <- aNat' a
      return $ SolvedIf
@@ -84,9 +98,12 @@ tryGeqKThan _ ty (Nat n) =
                 Nat 0 -> []
                 Nat k -> [ tNum (div n k) >== b ]
 
+-- | Try to solve @t >= K@
 tryGeqThanK :: Ctxt -> Type -> Nat' -> Match Solved
 tryGeqThanK _ t Inf = return (SolvedIf [ t =#= tInf ])
 tryGeqThanK _ t (Nat k) =
+
+  -- K1 + t >= K2
   do (a,b) <- anAdd t
      n     <- aNat a
      return $ SolvedIf $ if n >= k
@@ -94,21 +111,24 @@ tryGeqThanK _ t (Nat k) =
                             else [ b >== tNum (k - n) ]
 
 
-
 tryGeqThanSub :: Ctxt -> Type -> Type -> Match Solved
 tryGeqThanSub _ x y =
+
+  -- t1 >= t1 - t2
   do (a,_) <- (|-|) y
      guard (x == a)
      return (SolvedIf [])
 
 tryGeqThanVar :: Ctxt -> Type -> TVar -> Match Solved
 tryGeqThanVar _ctxt ty x =
+  -- (t + a) >= a
   do (a,b) <- anAdd ty
      let check y = do x' <- aTVar y
                       guard (x == x')
                       return (SolvedIf [])
      check a <|> check b
 
+-- | Try to prove GEQ by considering the known intervals for the given types.
 geqByInterval :: Ctxt -> Type -> Type -> Match Solved
 geqByInterval ctxt x y =
   let ix = typeInterval ctxt x
@@ -117,7 +137,7 @@ geqByInterval ctxt x y =
        (l,Just n) | l >= n -> return (SolvedIf [])
        _                   -> mzero
 
-
+-- min K1 t >= K2 ~~> t >= K2, if K1 >= K2;  Err otherwise
 tryMinIsGeq :: Type -> Type -> Match Solved
 tryMinIsGeq t1 t2 =
   do (a,b) <- aMin t1
@@ -131,7 +151,7 @@ tryMinIsGeq t1 t2 =
 --------------------------------------------------------------------------------
 
 
--- min a b = a ~> a <= b
+-- min t1 t2 = t1 ~> t1 <= t2
 tryEqMin :: Type -> Type -> Match Solved
 tryEqMin x y =
   do (a,b) <- aMin x
@@ -143,7 +163,7 @@ tryEqMin x y =
 tryEqVar :: Type -> TVar -> Match Solved
 tryEqVar ty x =
 
-  -- x = K + x --> x = inf
+  -- a = K + a --> x = inf
   (do (k,tv) <- matches ty (anAdd, aNat, aTVar)
       guard (tv == x && k >= 1)
 
@@ -151,7 +171,7 @@ tryEqVar ty x =
   )
   <|>
 
-  -- x = min (K + x) y --> x = y
+  -- a = min (K + a) t --> a = t
   (do (l,r) <- aMin ty
       let check this other =
             do (k,x') <- matches this (anAdd, aNat', aTVar)
@@ -160,7 +180,7 @@ tryEqVar ty x =
       check l r <|> check r l
   )
   <|>
-  -- x = K + min a x
+  -- a = K + min t a
   (do (k,(l,r)) <- matches ty (anAdd, aNat, aMin)
       guard (k >= 1)
       let check a b = do x' <- aTVar a
@@ -178,12 +198,16 @@ tryEqVar ty x =
 -- e.g., 10 = t
 tryEqK :: Ctxt -> Type -> Nat' -> Match Solved
 tryEqK ctxt ty lk =
+
+  -- (t1 + t2 = inf, fin t1) ~~~> t2 = inf
   do guard (lk == Inf)
      (a,b) <- anAdd ty
      let check x y = do guard (iIsFin (typeInterval ctxt x))
                         return $ SolvedIf [ y =#= tInf ]
      check a b <|> check b a
   <|>
+
+  -- (K1 + t = K2, K2 >= K1) ~~~> t = (K2 - K1)
   do (rk, b) <- matches ty (anAdd, aNat', __)
      return $
        case nSub lk rk of
@@ -195,18 +219,30 @@ tryEqK ctxt ty lk =
 
          Just r -> SolvedIf [ b =#= tNat' r ]
   <|>
+
   do (rk, b) <- matches ty (aMul, aNat', __)
      return $
        case (lk,rk) of
+         -- Inf * t = Inf ~~~>  t >= 1
          (Inf,Inf)    -> SolvedIf [ b >== tOne ]
+
+         -- K * t = Inf ~~~> t = Inf
          (Inf,Nat _)  -> SolvedIf [ b =#= tInf ]
+
+         -- Inf * t = 0 ~~~> t = 0
          (Nat 0, Inf) -> SolvedIf [ b =#= tZero ]
+
+         -- Inf * t = K ~~~> ERR      (K /= 0)
          (Nat k, Inf) -> Unsolvable
                        $ TCErrorMessage
                        $ show k ++ " /= inf * anything"
+
          (Nat lk', Nat rk')
+           -- 0 * t = K2 ~~> K2 = 0
            | rk' == 0 -> SolvedIf [ tNat' lk =#= tZero ]
-              -- shouldn't happen, as `0 * x = x`
+              -- shouldn't happen, as `0 * t = t` should have been simplified
+
+           -- K1 * t = K2 ~~> t = K2/K1
            | (q,0) <- divMod lk' rk' -> SolvedIf [ b =#= tNum q ]
            | otherwise ->
                Unsolvable
@@ -219,7 +255,7 @@ tryEqK ctxt ty lk =
   -- 10 = min (2,y)   --> impossible
 
 
-
+-- | K1 * t1 = K2 * t2
 tryEqMulConst :: Type -> Type -> Match Solved
 tryEqMulConst l r =
   do (l1,l2) <- aMul l
@@ -254,6 +290,7 @@ tryEqMulConst l r =
           else (SolvedIf [ tMul (tNum lk') l' =#= tMul (tNum rk') r' ])
 
 
+-- | @(t1 + t2 = Inf, fin t1)  ~~> t2 = Inf@
 tryEqAddInf :: Ctxt -> Type -> Type -> Match Solved
 tryEqAddInf ctxt l r = check l r <|> check r l
   where
@@ -279,6 +316,7 @@ tryEqAddInf ctxt l r = check l r <|> check r l
 
 
 -- | Check for addition of constants to both sides of a relation.
+--  @((K1 + K2) + t1) `R` (K1 + t2)  ~~>   (K2 + t1) `R` t2@
 --
 -- This relies on the fact that constants are floated left during
 -- simplification.
@@ -293,3 +331,46 @@ tryAddConst rel l r =
      if k1 > k2
         then return (SolvedIf [ tAdd (tNum (k1 - k2)) x2 `rel` y2 ])
         else return (SolvedIf [ x2 `rel` tAdd (tNum (k2 - k1)) y2 ])
+
+
+-- | Check for situations where a unification variable is involved in
+--   a sum of terms not containing additional unification variables,
+--   and replace it with a solution and an inequality.
+--   @s1 = ?a + s2 ~~> (?a = s1 - s2, s1 >= s2)@
+tryLinearSolution :: Type -> Type -> Match Solved
+tryLinearSolution s1 t =
+  do (a,xs) <- matchLinearUnifier t
+     guard (noFreeVariables s1)
+
+     -- NB: matchLinearUnifier only matches if xs is nonempty
+     let s2 = foldr1 Simp.tAdd xs
+     return (SolvedIf [ TVar a =#= (Simp.tSub s1 s2), s1 >== s2 ])
+
+
+-- | Match a sum of the form @(s1 + ... + ?a + ... sn)@ where
+--   @s1@ through @sn@ do not contain any free variables.
+--
+--   Note: a successful match should only occur if @s1 ... sn@ is
+--   not empty.
+matchLinearUnifier :: Pat Type (TVar,[Type])
+matchLinearUnifier = go []
+ where
+  go xs t =
+    -- Case where a free variable occurs at the end of a sequence of additions.
+    -- NB: match fails if @xs@ is empty
+    do v <- aFreeTVar t
+       guard (not . null $ xs)
+       return (v, xs)
+    <|>
+    -- Next symbol is an addition
+    do (x, y) <- anAdd t
+
+        -- Case where a free variable occurs in the middle of an expression
+       (do v <- aFreeTVar x
+           guard (noFreeVariables y)
+           return (v, reverse (y:xs))
+
+        <|>
+         -- Non-free-variable recursive case
+        do guard (noFreeVariables x)
+           go (x:xs) y)

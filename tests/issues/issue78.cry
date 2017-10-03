@@ -1,0 +1,6 @@
+unique : {a,b} (fin a, fin b, a>=1) => [a][b] -> Bit
+unique xs = [ exist x (i+1) | x <- xs | i <- [0..(a-1)] ] == 0
+  where exist : [b] -> [width a] -> Bit
+        exist x i = if(i>=`a) then False
+                    else if(x==(xs@i)) then True
+                    else exist x (i+1)
