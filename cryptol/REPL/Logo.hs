@@ -20,8 +20,8 @@ type Version = String
 
 type Logo = [String]
 
-logo :: Bool -> Logo
-logo useColor =
+logo :: Bool -> (String -> [String]) -> Logo
+logo useColor mk =
      [ sgr [SetColor Foreground Dull  White] ++ l | l <- ws ]
   ++ [ sgr [SetColor Foreground Vivid Blue ] ++ l | l <- vs ]
   ++ [ sgr [SetColor Foreground Dull  Blue ] ++ l | l <- ds ]
@@ -35,7 +35,17 @@ logo useColor =
   ver = sgr [SetColor Foreground Dull White]
         ++ replicate (lineLen - 20 - length versionText) ' '
         ++ versionText
-  ls =
+  ls        = mk ver
+  slen      = length ls `div` 3
+  (ws,rest) = splitAt slen ls
+  (vs,ds)   = splitAt slen rest
+  lineLen   = length (head ls)
+
+displayLogo :: Bool -> REPL ()
+displayLogo useColor = unlessBatch (io (mapM_ putStrLn (logo useColor logo2)))
+
+logo1 :: String -> [String]
+logo1 ver =
     [ "                        _        _"
     , "   ___ _ __ _   _ _ __ | |_ ___ | |"
     , "  / __| \'__| | | | \'_ \\| __/ _ \\| |"
@@ -43,10 +53,13 @@ logo useColor =
     , "  \\___|_|   \\__, | .__/ \\__\\___/|_|"
     , "            |___/|_| " ++ ver
     ]
-  slen      = length ls `div` 3
-  (ws,rest) = splitAt slen ls
-  (vs,ds)   = splitAt slen rest
-  lineLen   = length (head ls)
 
-displayLogo :: Bool -> REPL ()
-displayLogo useColor = unlessBatch (io (mapM_ putStrLn (logo useColor)))
+logo2 :: String -> [String]
+logo2 ver =
+    [ "┏━╸┏━┓╻ ╻┏━┓╺┳╸┏━┓╻  "
+    , "┃  ┣┳┛┗┳┛┣━┛ ┃ ┃ ┃┃  "
+    , "┗━╸╹┗╸ ╹ ╹   ╹ ┗━┛┗━╸"
+    , ver
+    ]
+
+
