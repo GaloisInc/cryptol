@@ -1,0 +1,3 @@
+:l issue389.cry
+pad (join "a") 
+test (join "a")

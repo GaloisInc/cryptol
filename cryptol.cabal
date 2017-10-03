@@ -64,7 +64,7 @@ library
                        random            >= 1.0.1,
                        sbv               >= 7.0,
                        smtLib            >= 1.0.7,
-                       simple-smt        >= 0.7.0,
+                       simple-smt        >= 0.7.1,
                        strict,
                        syb               >= 0.4,
                        text              >= 1.1,

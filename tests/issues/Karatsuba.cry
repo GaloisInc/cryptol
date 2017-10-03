@@ -1,0 +1,50 @@
+module Karatsuba where
+
+kmult : {limb,n} (fin n, fin limb, limb >= 6, n>=1) => [n] -> [n] -> [2*n]
+kmult x y =
+ if `n <= (demote`{limb, max (width limb) (width n)}) then
+   (zero#x)*(zero#y)
+ else
+   take (splitmult`{limb} (make_atleast`{limb} x) (make_atleast`{limb} y))
+
+make_atleast : {n, m, a} (fin n, fin m, Zero a) => [m]a -> [max n m]a
+make_atleast x = zero#x
+
+splitmult : {limb,n} (fin n, fin limb, limb >= 6, n>=6)
+         => [n] -> [n] -> [2*n]
+
+splitmult x y = (ac # bd) + (zero # ad_bc # (zero:[low]))
+  where
+   type hi  = n/2
+   type low = n - hi
+
+   (a,b) = splitAt`{hi} x
+   (c,d) = splitAt`{hi} y
+
+   ac : [2*hi]
+   ac = kmult`{limb,hi} a c
+
+   bd : [2*low]
+   bd = kmult`{limb,low} b d
+
+   a_b = (zext a) + (zext b)
+   c_d = (zext c) + (zext d)
+
+   ad_bc : [2*(low+1)]
+   ad_bc = (kmult`{limb,low+1} a_b c_d) - (zext ac) - (zext bd)
+
+
+property splitmult_correct_tiny (x:[9]) (y:[9]) =
+  zext x * zext y == splitmult`{limb=7} x y
+
+property splitmult_correct_small (x:[11]) (y:[11]) =
+  zext x * zext y == splitmult`{limb=7} x y
+
+property splitmult_correct_medium(x:[17]) (y:[17]) =
+  zext x * zext y == splitmult`{limb=7} x y
+
+property splitmult_correct_large (x:[59]) (y:[59]) =
+  zext x * zext y == splitmult`{limb=7} x y
+
+property splitmult_correct_huge (x:[511]) (y:[511]) =
+  zext x * zext y == splitmult`{limb=63} x y
