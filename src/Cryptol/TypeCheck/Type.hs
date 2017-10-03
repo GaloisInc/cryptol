@@ -636,6 +636,8 @@ pError msg = TCon (TError KProp msg) []
 
 --------------------------------------------------------------------------------
 
+noFreeVariables :: FVS t => t -> Bool
+noFreeVariables = all (not . isFreeTV) . Set.toList . fvs
 
 class FVS t where
   fvs :: t -> Set TVar
