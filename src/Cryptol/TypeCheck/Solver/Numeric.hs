@@ -14,7 +14,7 @@ import Cryptol.TypeCheck.TypePat
 import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.TypeCheck.Solver.Numeric.Interval
-import Cryptol.TypeCheck.SimpType
+import Cryptol.TypeCheck.SimpType as Simp
 
 {- Convention for comments:
 
@@ -40,8 +40,8 @@ cryIsEqual ctxt t1 t2 =
     <|> tryEqMulConst t1 t2
     <|> tryEqAddInf ctxt t1 t2
     <|> tryAddConst (=#=) t1 t2
-
-
+    <|> tryLinearSolution t1 t2
+    <|> tryLinearSolution t2 t1
 
 -- | Try to solve @t1 /= t2@
 cryIsNotEqual :: Ctxt -> Type -> Type -> Solved
@@ -331,3 +331,46 @@ tryAddConst rel l r =
      if k1 > k2
         then return (SolvedIf [ tAdd (tNum (k1 - k2)) x2 `rel` y2 ])
         else return (SolvedIf [ x2 `rel` tAdd (tNum (k2 - k1)) y2 ])
+
+
+-- | Check for situations where a unification variable is involved in
+--   a sum of terms not containing additional unification variables,
+--   and replace it with a solution and an inequality.
+--   @s1 = ?a + s2 ~~> (?a = s1 - s2, s1 >= s2)@
+tryLinearSolution :: Type -> Type -> Match Solved
+tryLinearSolution s1 t =
+  do (a,xs) <- matchLinearUnifier t
+     guard (noFreeVariables s1)
+
+     -- NB: matchLinearUnifier only matches if xs is nonempty
+     let s2 = foldr1 Simp.tAdd xs
+     return (SolvedIf [ TVar a =#= (Simp.tSub s1 s2), s1 >== s2 ])
+
+
+-- | Match a sum of the form @(s1 + ... + ?a + ... sn)@ where
+--   @s1@ through @sn@ do not contain any free variables.
+--
+--   Note: a successful match should only occur if @s1 ... sn@ is
+--   not empty.
+matchLinearUnifier :: Pat Type (TVar,[Type])
+matchLinearUnifier = go []
+ where
+  go xs t =
+    -- Case where a free variable occurs at the end of a sequence of additions.
+    -- NB: match fails if @xs@ is empty
+    do v <- aFreeTVar t
+       guard (not . null $ xs)
+       return (v, xs)
+    <|>
+    -- Next symbol is an addition
+    do (x, y) <- anAdd t
+
+        -- Case where a free variable occurs in the middle of an expression
+       (do v <- aFreeTVar x
+           guard (noFreeVariables y)
+           return (v, reverse (y:xs))
+
+        <|>
+         -- Non-free-variable recursive case
+        do guard (noFreeVariables x)
+           go (x:xs) y)
