@@ -73,7 +73,7 @@ testableType ty =
     _ -> Nothing
 
 {- | Given a fully-evaluated type, try to compute the number of values in it.
-Returns `Nothing` for infinite types, user-defined types, polymorhic types,
+Returns `Nothing` for infinite types, user-defined types, polymorphic types,
 and, currently, function spaces.  Of course, we can easily compute the
 sizes of function spaces, but we can't easily enumerate their inhabitants. -}
 typeSize :: Type -> Maybe Integer
@@ -87,6 +87,7 @@ typeSize ty =
         (TCNum _, _)     -> Nothing
         (TCInf, _)       -> Nothing
         (TCBit, _)       -> Just 2
+        (TCInteger, _)   -> Nothing
         (TCSeq, [sz,el]) -> case tNoUser sz of
                               TCon (TC (TCNum n)) _ -> (^ n) <$> typeSize el
                               _                     -> Nothing
@@ -114,6 +115,7 @@ typeValues ty =
         (TCNum _, _)     -> []
         (TCInf, _)       -> []
         (TCBit, _)       -> [ VBit False, VBit True ]
+        (TCInteger, _)   -> []
         (TCSeq, ts1)     ->
             case map tNoUser ts1 of
               [ TCon (TC (TCNum n)) _, TCon (TC TCBit) [] ] ->

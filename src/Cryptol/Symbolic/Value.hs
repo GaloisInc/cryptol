@@ -13,11 +13,12 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Cryptol.Symbolic.Value
-  ( SBool, SWord
+  ( SBool, SWord, SInteger
   , literalSWord
   , fromBitsLE
   , forallBV_, existsBV_
   , forallSBool_, existsSBool_
+  , forallSInteger_, existsSInteger_
   , Value
   , TValue, isTBit, tvSeq
   , GenValue(..), lam, tlam, toStream, toFinSeq, toSeq
@@ -37,12 +38,12 @@ import Data.SBV.Dynamic
 
 --import Cryptol.Eval.Monad
 import Cryptol.Eval.Type   (TValue(..), isTBit, tvSeq)
-import Cryptol.Eval.Monad  (Eval)
+import Cryptol.Eval.Monad  (Eval, ready)
 import Cryptol.Eval.Value  ( GenValue(..), BitWord(..), lam, tlam, toStream,
                            toFinSeq, toSeq, WordValue(..),
                            fromSeq, fromVBit, fromVWord, fromVFun, fromVPoly,
                            fromVTuple, fromVRecord, lookupRecord, SeqMap(..),
-                           ppBV,BV(..),integerToChar, lookupSeqMap,
+                           ppBV, BV(..), integerToChar, lookupSeqMap,
                            wordValueSize, asBitsMap)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
@@ -54,6 +55,7 @@ import Control.Monad.Trans  (liftIO)
 
 type SBool = SVal
 type SWord = SVal
+type SInteger = SVal
 
 fromBitsLE :: [SBool] -> SWord
 fromBitsLE bs = foldl' f (literalSWord 0 0) bs
@@ -74,9 +76,15 @@ forallSBool_ = ask >>= liftIO . svMkSymVar (Just ALL) KBool Nothing
 existsSBool_ :: Symbolic SBool
 existsSBool_ = ask >>= liftIO . svMkSymVar (Just EX) KBool Nothing
 
+forallSInteger_ :: Symbolic SBool
+forallSInteger_ = ask >>= liftIO . svMkSymVar (Just ALL) KUnbounded Nothing
+
+existsSInteger_ :: Symbolic SBool
+existsSInteger_ = ask >>= liftIO . svMkSymVar (Just EX) KUnbounded Nothing
+
 -- Values ----------------------------------------------------------------------
 
-type Value = GenValue SBool SWord
+type Value = GenValue SBool SWord SInteger
 
 -- Symbolic Conditionals -------------------------------------------------------
 
@@ -96,19 +104,25 @@ mergeBit f c b1 b2 = svSymbolicMerge KBool f c b1 b2
 
 mergeWord :: Bool
           -> SBool
-          -> WordValue SBool SWord
-          -> WordValue SBool SWord
-          -> WordValue SBool SWord
+          -> WordValue SBool SWord SInteger
+          -> WordValue SBool SWord SInteger
+          -> WordValue SBool SWord SInteger
 mergeWord f c (WordVal w1) (WordVal w2) =
     WordVal $ svSymbolicMerge (kindOf w1) f c w1 w2
+mergeWord f c (WordVal w1) (BitsVal ys) =
+    BitsVal $ mergeBits f c (Seq.fromList $ map ready $ unpackWord w1) ys
+mergeWord f c (BitsVal xs) (WordVal w2) =
+    BitsVal $ mergeBits f c xs (Seq.fromList $ map ready $ unpackWord w2)
+mergeWord f c (BitsVal xs) (BitsVal ys) =
+    BitsVal $ mergeBits f c xs ys
 mergeWord f c w1 w2 =
-    BitsVal (wordValueSize w1) (mergeSeqMap f c (asBitsMap w1) (asBitsMap w2))
+    LargeBitsVal (wordValueSize w1) (mergeSeqMap f c (asBitsMap w1) (asBitsMap w2))
 
 mergeWord' :: Bool
            -> SBool
-           -> Eval (WordValue SBool SWord)
-           -> Eval (WordValue SBool SWord)
-           -> Eval (WordValue SBool SWord)
+           -> Eval (WordValue SBool SWord SInteger)
+           -> Eval (WordValue SBool SWord SInteger)
+           -> Eval (WordValue SBool SWord SInteger)
 mergeWord' f c x y = mergeWord f c <$> x <*> y
 
 mergeBits :: Bool
@@ -119,12 +133,20 @@ mergeBits :: Bool
 mergeBits f c bs1 bs2 = Seq.zipWith mergeBit' bs1 bs2
  where mergeBit' b1 b2 = mergeBit f c <$> b1 <*> b2
 
+mergeInteger :: Bool
+             -> SBool
+             -> SInteger
+             -> SInteger
+             -> SInteger
+mergeInteger f c x y = svSymbolicMerge KUnbounded f c x y
+
 mergeValue :: Bool -> SBool -> Value -> Value -> Value
 mergeValue f c v1 v2 =
   case (v1, v2) of
     (VRecord fs1, VRecord fs2) -> VRecord $ zipWith mergeField fs1 fs2
     (VTuple vs1 , VTuple vs2 ) -> VTuple $ zipWith (\x y -> mergeValue f c <$> x <*> y) vs1 vs2
     (VBit b1    , VBit b2    ) -> VBit $ mergeBit f c b1 b2
+    (VInteger i1, VInteger i2) -> VInteger $ mergeInteger f c i1 i2
     (VWord n1 w1, VWord n2 w2 ) | n1 == n2 -> VWord n1 (mergeWord f c <$> w1 <*> w2)
     (VSeq n1 vs1, VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 $ mergeSeqMap f c vs1 vs2
     (VStream vs1, VStream vs2) -> VStream $ mergeSeqMap f c vs1 vs2
@@ -139,13 +161,13 @@ mergeValue f c v1 v2 =
                     [ "mergeValue.mergeField: incompatible values" ]
 
 
-mergeSeqMap :: Bool -> SBool -> SeqMap SBool SWord -> SeqMap SBool SWord -> SeqMap SBool SWord
+mergeSeqMap :: Bool -> SBool -> SeqMap SBool SWord SInteger -> SeqMap SBool SWord SInteger -> SeqMap SBool SWord SInteger
 mergeSeqMap f c x y =
   IndexSeqMap $ \i -> mergeValue f c <$> lookupSeqMap x i <*> lookupSeqMap y i
 
 -- Symbolic Big-endian Words -------------------------------------------------------
 
-instance BitWord SBool SWord where
+instance BitWord SBool SWord SInteger where
   wordLen v = toInteger (intSizeOf v)
   wordAsChar v = integerToChar <$> svAsInteger v
 
@@ -155,9 +177,13 @@ instance BitWord SBool SWord where
   ppWord opts v
      | Just x <- svAsInteger v = ppBV opts (BV (wordLen v) x)
      | otherwise               = text "[?]"
+  ppInteger _opts v
+     | Just x <- svAsInteger v = integer x
+     | otherwise               = text "[?]"
 
   bitLit b    = svBool b
   wordLit n x = svInteger (KBounded False (fromInteger n)) x
+  integerLit x = svInteger KUnbounded x
 
   wordBit x idx = svTestBit x (intSizeOf x - 1 - fromIntegral idx)
 
@@ -183,6 +209,23 @@ instance BitWord SBool SWord where
   wordPlus  = svPlus
   wordMinus = svMinus
   wordMult  = svTimes
+
+  wordToInt = svToInteger
+  wordFromInt = svFromInteger
+
+-- TODO: implement this properly in SBV using "bv2int"
+svToInteger :: SWord -> SInteger
+svToInteger w =
+  case svAsInteger w of
+    Nothing -> svFromIntegral KUnbounded w
+    Just x  -> svInteger KUnbounded x
+
+-- TODO: implement this properly in SBV using "int2bv"
+svFromInteger :: Integer -> SInteger -> SWord
+svFromInteger n i =
+  case svAsInteger i of
+    Nothing -> svFromIntegral (KBounded False (fromInteger n)) i
+    Just x  -> literalSWord (fromInteger n) x
 
 -- Errors ----------------------------------------------------------------------
 

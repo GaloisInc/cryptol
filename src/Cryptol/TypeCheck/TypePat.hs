@@ -8,6 +8,7 @@ module Cryptol.TypeCheck.TypePat
   , aLenFromThen, aLenFromThenTo
 
   , aTVar
+  , aFreeTVar
   , aBit
   , aSeq
   , aWord
@@ -118,6 +119,12 @@ aTVar :: Pat Type TVar
 aTVar = \a -> case tNoUser a of
                 TVar x -> return x
                 _      -> mzero
+
+aFreeTVar :: Pat Type TVar
+aFreeTVar t =
+  do v <- aTVar t
+     guard (isFreeTV v)
+     return v
 
 aBit :: Pat Type ()
 aBit = tc TCBit ar0

@@ -110,6 +110,7 @@ terms by providing an evaluator to an appropriate `Value` type.
 > -- | Value type for the reference evaluator.
 > data Value
 >   = VBit (Either EvalError Bool) -- ^ @ Bit    @ booleans
+>   | VInteger (Either EvalError Integer) -- ^ @ Integer @ integers
 >   | VList [Value]                -- ^ @ [n]a   @ finite or infinite lists
 >   | VTuple [Value]               -- ^ @ ( .. ) @ tuples
 >   | VRecord [(Ident, Value)]     -- ^ @ { .. } @ records
@@ -118,13 +119,13 @@ terms by providing an evaluator to an appropriate `Value` type.
 >   | VNumPoly (Nat' -> Value)     -- ^ polymorphic values (kind #)
 
 Invariant: Undefinedness and run-time exceptions are only allowed
-inside the argument of a `VBit` constructor. All other `Value` and
-list constructors should evaluate without error. For example, a
-non-terminating computation at type `(Bit,Bit)` must be represented as
-`VTuple [VBit undefined, VBit undefined]`, and not simply as
-`undefined`. Similarly, an expression like `1/0:[2]` that raises a
-run-time error must be encoded as `VList [VBit (Left e), VBit (Left
-e)]` where `e = DivideByZero`.
+inside the argument of a `VBit` or `VInteger` constructor. All other
+`Value` and list constructors should evaluate without error. For
+example, a non-terminating computation at type `(Bit,Bit)` must be
+represented as `VTuple [VBit undefined, VBit undefined]`, and not
+simply as `undefined`. Similarly, an expression like `1/0:[2]` that
+raises a run-time error must be encoded as `VList [VBit (Left e), VBit
+(Left e)]` where `e = DivideByZero`.
 
 Copy Functions
 --------------
@@ -161,6 +162,7 @@ cpo that represents any given schema.
 >     go ty val =
 >       case ty of
 >         TVBit        -> VBit (fromVBit val)
+>         TVInteger    -> VInteger (fromVInteger val)
 >         TVSeq w ety  -> VList (map (go ety) (copyList w (fromVList val)))
 >         TVStream ety -> VList (map (go ety) (copyStream (fromVList val)))
 >         TVTuple etys -> VTuple (zipWith go etys (copyList (genericLength etys) (fromVTuple val)))
@@ -181,6 +183,11 @@ Operations on Values
 > fromVBit :: Value -> Either EvalError Bool
 > fromVBit (VBit b) = b
 > fromVBit _        = evalPanic "fromVBit" ["Expected a bit"]
+>
+> -- | Destructor for @VInteger@.
+> fromVInteger :: Value -> Either EvalError Integer
+> fromVInteger (VInteger i) = i
+> fromVInteger _            = evalPanic "fromVInteger" ["Expected an integer"]
 >
 > -- | Destructor for @VList@.
 > fromVList :: Value -> [Value]
@@ -351,6 +358,7 @@ down to the individual bits.
 > condValue c l r =
 >   case l of
 >     VBit b     -> VBit (condBit c b (fromVBit r))
+>     VInteger i -> VInteger (condBit c i (fromVInteger r))
 >     VList vs   -> VList (zipWith (condValue c) vs (fromVList r))
 >     VTuple vs  -> VTuple (zipWith (condValue c) vs (fromVTuple r))
 >     VRecord fs -> VRecord [ (f, condValue c v (lookupRecord f r)) | (f, v) <- fs ]
@@ -361,7 +369,7 @@ down to the individual bits.
 Conditionals are explicitly lazy: Run-time errors in an untaken branch
 are ignored.
 
-> condBit :: Either e Bool -> Either e Bool -> Either e Bool -> Either e Bool
+> condBit :: Either e Bool -> Either e a -> Either e a -> Either e a
 > condBit (Left e)  _ _ = Left e
 > condBit (Right b) x y = if b then x else y
 
@@ -503,17 +511,25 @@ Cryptol primitives fall into several groups:
 >   , ("False"      , VBit (Right False))
 >
 >   -- Arithmetic:
->   , ("+"          , binary (arithBinary (\_ x y -> Right (x + y))))
->   , ("-"          , binary (arithBinary (\_ x y -> Right (x - y))))
->   , ("*"          , binary (arithBinary (\_ x y -> Right (x * y))))
->   , ("/"          , binary (arithBinary (const divWrap)))
->   , ("%"          , binary (arithBinary (const modWrap)))
->   , ("^^"         , binary (arithBinary (\_ x y -> Right (x ^ y))))
->   , ("lg2"        , unary  (arithUnary (const lg2)))
->   , ("negate"     , unary  (arithUnary (const negate)))
+>   , ("+"          , binary (arithBinary (\x y -> Right (x + y))))
+>   , ("-"          , binary (arithBinary (\x y -> Right (x - y))))
+>   , ("*"          , binary (arithBinary (\x y -> Right (x * y))))
+>   , ("/"          , binary (arithBinary divWrap))
+>   , ("%"          , binary (arithBinary modWrap))
+>   , ("^^"         , binary (arithBinary expWrap))
+>   , ("lg2"        , unary  (arithUnary lg2))
+>   , ("negate"     , unary  (arithUnary negate))
 >   , ("demote"     , vFinPoly $ \val ->
 >                     vFinPoly $ \bits ->
 >                     vWordValue bits val)
+>   , ("integer"    , vFinPoly $ \val ->
+>                     VInteger (Right val))
+>   , ("toInteger"  , vFinPoly $ \_bits ->
+>                     VFun $ \x ->
+>                     VInteger (fromVWord x))
+>   , ("fromInteger", vFinPoly $ \bits ->
+>                     VFun $ \x ->
+>                     vWord bits (fromVInteger x))
 >
 >   -- Comparison:
 >   , ("<"          , binary (cmpOrder (\o -> o == LT)))
@@ -741,6 +757,7 @@ at the same positions.
 > logicNullary b = go
 >   where
 >     go TVBit          = VBit b
+>     go TVInteger      = VInteger (fmap (\c -> if c then -1 else 0) b)
 >     go (TVSeq n ety)  = VList (genericReplicate n (go ety))
 >     go (TVStream ety) = VList (repeat (go ety))
 >     go (TVTuple tys)  = VTuple (map go tys)
@@ -754,6 +771,7 @@ at the same positions.
 >     go ty val =
 >       case ty of
 >         TVBit        -> VBit (fmap op (fromVBit val))
+>         TVInteger    -> VInteger (Left (UserError "FIXME: logicBinary Integer"))
 >         TVSeq _w ety -> VList (map (go ety) (fromVList val))
 >         TVStream ety -> VList (map (go ety) (fromVList val))
 >         TVTuple etys -> VTuple (zipWith go etys (fromVTuple val))
@@ -767,6 +785,7 @@ at the same positions.
 >     go ty l r =
 >       case ty of
 >         TVBit        -> VBit (liftA2 op (fromVBit l) (fromVBit r))
+>         TVInteger    -> VInteger (Left (UserError "FIXME: logicBinary Integer"))
 >         TVSeq _w ety -> VList (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVStream ety -> VList (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVTuple etys -> VTuple (zipWith3 go etys (fromVTuple l) (fromVTuple r))
@@ -784,7 +803,7 @@ all input bits, as indicated by the definition of `fromVWord`. For
 example, `[error "foo", True] * 2` does not evaluate to `[True,
 False]`, but to `[error "foo", error "foo"]`.
 
-> arithUnary :: (Integer -> Integer -> Integer)
+> arithUnary :: (Integer -> Integer)
 >            -> TValue -> Value -> Value
 > arithUnary op = go
 >   where
@@ -793,8 +812,10 @@ False]`, but to `[error "foo", error "foo"]`.
 >       case ty of
 >         TVBit ->
 >           evalPanic "arithUnary" ["Bit not in class Arith"]
+>         TVInteger ->
+>           VInteger (op <$> fromVInteger val)
 >         TVSeq w a
->           | isTBit a  -> vWord w (op w <$> fromVWord val)
+>           | isTBit a  -> vWord w (op <$> fromVWord val)
 >           | otherwise -> VList (map (go a) (fromVList val))
 >         TVStream a ->
 >           VList (map (go a) (fromVList val))
@@ -805,7 +826,7 @@ False]`, but to `[error "foo", error "foo"]`.
 >         TVRec fs ->
 >           VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- fs ]
 >
-> arithBinary :: (Integer -> Integer -> Integer -> Either EvalError Integer)
+> arithBinary :: (Integer -> Integer -> Either EvalError Integer)
 >             -> TValue -> Value -> Value -> Value
 > arithBinary op = go
 >   where
@@ -814,6 +835,14 @@ False]`, but to `[error "foo", error "foo"]`.
 >       case ty of
 >         TVBit ->
 >           evalPanic "arithBinary" ["Bit not in class Arith"]
+>         TVInteger ->
+>           VInteger $
+>           case fromVInteger l of
+>             Left e -> Left e
+>             Right i ->
+>               case fromVInteger r of
+>                 Left e -> Left e
+>                 Right j -> op i j
 >         TVSeq w a
 >           | isTBit a  -> vWord w $
 >                          case fromVWord l of
@@ -821,7 +850,7 @@ False]`, but to `[error "foo", error "foo"]`.
 >                            Right i ->
 >                              case fromVWord r of
 >                                Left e -> Left e
->                                Right j -> op w i j
+>                                Right j -> op i j
 >           | otherwise -> VList (zipWith (go a) (fromVList l) (fromVList r))
 >         TVStream a ->
 >           VList (zipWith (go a) (fromVList l) (fromVList r))
@@ -839,6 +868,9 @@ False]`, but to `[error "foo", error "foo"]`.
 > modWrap :: Integer -> Integer -> Either EvalError Integer
 > modWrap _ 0 = Left DivideByZero
 > modWrap x y = Right (x `mod` y)
+>
+> expWrap :: Integer -> Integer -> Either EvalError Integer
+> expWrap x y = if y < 0 then Left NegativeExponent else Right (x ^ y)
 
 
 Comparison
@@ -865,6 +897,8 @@ bits to the *left* of that position are equal.
 >   case ty of
 >     TVBit ->
 >       compare <$> fromVBit l <*> fromVBit r
+>     TVInteger ->
+>       compare <$> fromVInteger l <*> fromVInteger r
 >     TVSeq _w ety ->
 >       lexList (zipWith (lexCompare ety) (fromVList l) (fromVList r))
 >     TVStream _ ->
@@ -1068,6 +1102,7 @@ Pretty Printing
 > ppValue val =
 >   case val of
 >     VBit b     -> text (either show show b)
+>     VInteger i -> text (either show show i)
 >     VList vs   -> brackets (fsep (punctuate comma (map ppValue vs)))
 >     VTuple vs  -> parens (sep (punctuate comma (map ppValue vs)))
 >     VRecord fs -> braces (sep (punctuate comma (map ppField fs)))

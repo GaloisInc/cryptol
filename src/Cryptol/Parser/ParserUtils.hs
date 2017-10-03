@@ -183,6 +183,7 @@ validDemotedType rng ty =
     TFun {}      -> bad "Function types"
     TSeq {}      -> bad "Sequence types"
     TBit         -> bad "Type bit"
+    TInteger     -> bad "Type integer"
     TNum {}      -> ok
     TChar {}     -> ok
     TInf         -> bad "Infinity type"
@@ -265,10 +266,11 @@ exportDecl mbDoc e d = Decl TopLevel { tlExport = e
                                      , tlDoc    = mbDoc
                                      , tlValue  = d }
 
-exportNewtype :: ExportType -> Newtype PName -> TopDecl PName
-exportNewtype e n = TDNewtype TopLevel { tlExport = e
-                                       , tlDoc    = Nothing
-                                       , tlValue  = n }
+exportNewtype :: ExportType -> Maybe (Located String) -> Newtype PName ->
+                                                            TopDecl PName
+exportNewtype e d n = TDNewtype TopLevel { tlExport = e
+                                         , tlDoc    = d
+                                         , tlValue  = n }
 
 changeExport :: ExportType -> [TopDecl PName] -> [TopDecl PName]
 changeExport e = map change
@@ -421,6 +423,7 @@ mkProp ty =
       TFun{}    -> err
       TSeq{}    -> err
       TBit{}    -> err
+      TInteger  -> err
       TNum{}    -> err
       TChar{}   -> err
       TInf{}    -> err
