@@ -107,12 +107,12 @@ Operator                                   Associativity
   `==>`                                    right
   `\/`                                     right
   `/\`                                     right
-  `||`                                     right
-  `&&`                                     right
   `->` (types)                             right
   `!=` `==`                                not associative
   `>` `<` `<=` `>=` `<$` `>$` `<=$` `>=$`  not associative
+  `||`                                     right 
   `^`                                      left
+  `&&`                                     right 
   `#`                                      right
   `>>` `<<` `>>>` `<<<` `>>$`              left
   `+` `-`                                  left
@@ -168,11 +168,11 @@ Operator                                   Associativity       Description
  `==>`                                     right               Short-cut implication
  `\/`                                      right               Short-cut or
  `/\`                                      right               Short-cut and
-  `||`                                     right               Logical or
-  `&&`                                     right               Logical and
   `!=` `==`                                none                Not equals, equals
   `>` `<` `<=` `>=` `<$` `>$` `<=$` `>=$`  none                Comparisons
+  `||`                                     right               Logical or 
   `^`                                      left                Exclusive-or
+  `&&`                                     right               Logical and 
   `~`                                      right               Logical negation
 
 Table: Bit operations.
