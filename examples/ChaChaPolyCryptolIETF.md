@@ -1079,8 +1079,8 @@ takes a 256-bit key and 96-bit nonce as follows:
 
 //ct in this function has tag removed
 AeadConstruction (AAD : [n][8]) (CT : [m][8]) = (AAD # padding1 # CT # padding2 # adlen # ptlen) where
-	padding1 = (zero:[padding n 16][8])
-	padding2 = (zero:[padding m 16][8])
+	padding1 = (zero:[n %^ 16][8])
+	padding2 = (zero:[m %^ 16][8])
 	adlen : [8][8]
 	adlen = groupBy`{8}(littleendian (groupBy`{8}(`n:[64])))
 	ptlen : [8][8]
