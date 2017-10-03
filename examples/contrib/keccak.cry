@@ -28,14 +28,14 @@ SHA_3_256 M = take`{256} (Keccak `{r = 1088, c = 512} M)
 SHA_3_384 M = take`{384} (Keccak `{r = 832, c = 768} M)
 SHA_3_512 M = take`{512} (Keccak `{r = 576, c = 1024} M)
 
-Keccak : {r, c, m, n}
-  ( fin r, fin c, fin m, fin n
+Keccak : {r, c, m}
+  ( fin r, fin c, fin m
+  , r >= 1
   , (r + c) % 25 == 0
   , 64 >= (r + c) / 25
-  , r * n >= 2 + m
   ) => [m] -> [inf]
 Keccak M = squeeze `{r = r} (absorb `{w = (r + c) / 25} Ps)
-  where Ps = pad `{r = r, n = n} M
+  where Ps = pad `{r = r} M
 
 squeeze : {r, w} (fin r, fin w, 64 >= w, r >= 0, 25 * w >= r) => [5][5][w] -> [inf]
 squeeze A = take`{r} (flatten A) # squeeze`{r = r} (Keccak_f A)
@@ -45,11 +45,11 @@ absorb Ps = as ! 0
   where
     as = [zero] # [ Keccak_f `{w = w} (s ^ (unflatten p)) | s <- as | p <- Ps ]
 
-pad : {r, m, n}
-  ( fin r, fin m, fin n
-  , r * n >= 2 + m
-  ) => [m] -> [n][r]
-pad M = split (M # [True] # (zero : [r*n-2-m]) # [True])
+pad : {r, m}
+  ( fin r, fin m
+  , r >= 1
+  ) => [m] -> [(m + 2) /^ r][r]
+pad M = split (M # [True] # zero # [True])
 
 Keccak_f : {w} (fin w, 64 >= w) => [5][5][w] -> [5][5][w]
 Keccak_f A = rounds ! 0
