@@ -130,9 +130,10 @@ lfsr = [ p!0 | p <- ps ]
     ps = [0x01] # [ pmod (pmult p 0b10) m | p <- ps ]
     m = <| x^^8 + x^^6 + x^^5 + x^^4 + 1 |>
 
-property unflatten_correct i j k p =
-  i < 5 ==> j < 5 ==> k < (64:[12]) ==>
-  p@((5*i + j)*64 + k) == unflatten`{1600,64} p @ j @ i ! k
+/* See https://keccak.team/files/Keccak-reference-3.0.pdf, Section 1.2 */
+property unflatten_correct x y z p =
+  x < 5 ==> y < 5 ==> z < (64:[12]) ==>
+  p@((5*y + x)*64 + z) == unflatten`{1600,64} p @ x @ y ! z
 
 property flatten_correct s =
   unflatten`{1600,64} (flatten`{64} s) == s
