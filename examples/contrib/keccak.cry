@@ -27,6 +27,8 @@ SHA_3_224 M = take`{224} (Keccak `{r = 1152, c =  448} (M # 0b01))
 SHA_3_256 M = take`{256} (Keccak `{r = 1088, c =  512} (M # 0b01))
 SHA_3_384 M = take`{384} (Keccak `{r =  832, c =  768} (M # 0b01))
 SHA_3_512 M = take`{512} (Keccak `{r =  576, c = 1024} (M # 0b01))
+SHAKE128 M = Keccak`{r = 1344, c = 256} (M # 0b1111)
+SHAKE256 M = Keccak`{r = 1088, c = 512} (M # 0b1111)
 
 Keccak : {r, c, m}
   ( fin r, fin c, fin m
