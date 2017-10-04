@@ -11,6 +11,7 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -32,6 +33,7 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.ModuleSystem.Name (asPrim)
 import Cryptol.Utils.Ident (Ident,mkIdent)
 import Cryptol.Utils.PP
+import Cryptol.Utils.Logger(logPrint)
 
 import qualified Data.Foldable as Fold
 import Data.List (sortBy)
@@ -233,13 +235,11 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                       lam $ \x -> return $
                       lam $ \y -> do
                          msg <- fromStr =<< s
-                         -- FIXME? get PPOPts from elsewhere?
-                         doc <- ppValue defaultPPOpts =<< x
+                         EvalOpts { evalPPOpts, evalLogger } <- getEvalOpts
+                         doc <- ppValue evalPPOpts =<< x
                          yv <- y
-                         io $ putStrLn $ show $ if null msg then
-                                                  doc
-                                                else
-                                                  text msg <+> doc
+                         io $ logPrint evalLogger
+                             $ if null msg then doc else text msg <+> doc
                          return yv)
   ]
 

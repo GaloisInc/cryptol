@@ -11,7 +11,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.ModuleSystem.Monad where
 
-import           Cryptol.Eval (EvalEnv)
+import           Cryptol.Eval (EvalEnv,EvalOpts(..))
 
 import qualified Cryptol.Eval.Monad           as E
 import           Cryptol.ModuleSystem.Env
@@ -30,6 +30,7 @@ import qualified Cryptol.TypeCheck.AST as T
 import           Cryptol.Parser.Position (Range)
 import           Cryptol.Utils.Ident (interactiveName, packModName)
 import           Cryptol.Utils.PP
+import           Cryptol.Utils.Logger(Logger)
 
 import Control.Monad.IO.Class
 import Control.Exception (IOException)
@@ -233,12 +234,12 @@ renamerWarnings ws
 
 -- Module System Monad ---------------------------------------------------------
 
-data RO = RO
-  { roLoading :: [ImportSource]
-  }
+data RO = RO { roLoading  :: [ImportSource]
+             , roEvalOpts :: EvalOpts
+             }
 
-emptyRO :: RO
-emptyRO  = RO { roLoading = [] }
+emptyRO :: EvalOpts -> RO
+emptyRO ev = RO { roLoading = [], roEvalOpts = ev }
 
 newtype ModuleT m a = ModuleT
   { unModuleT :: ReaderT RO (StateT ModuleEnv
@@ -280,21 +281,19 @@ instance MonadIO m => MonadIO (ModuleT m) where
   liftIO m = lift $ liftIO m
 
 runModuleT :: Monad m
-           => ModuleEnv
+           => (EvalOpts,ModuleEnv)
            -> ModuleT m a
            -> m (Either ModuleError (a, ModuleEnv), [ModuleWarning])
-runModuleT env m =
+runModuleT (ev,env) m =
     runWriterT
   $ runExceptionT
   $ runStateT env
-  $ runReaderT emptyRO
+  $ runReaderT (emptyRO ev)
   $ unModuleT m
-
--- runM (unModuleT m) emptyRO env
 
 type ModuleM = ModuleT IO
 
-runModuleM :: ModuleEnv -> ModuleM a
+runModuleM :: (EvalOpts, ModuleEnv) -> ModuleM a
            -> IO (Either ModuleError (a,ModuleEnv),[ModuleWarning])
 runModuleM = runModuleT
 
@@ -394,11 +393,15 @@ modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
 modifyEvalEnv f = ModuleT $ do
   env <- get
   let evalEnv = meEvalEnv env
-  evalEnv' <- inBase $ E.runEval (f evalEnv)
+  evOpts <- unModuleT getEvalOpts
+  evalEnv' <- inBase $ E.runEval evOpts (f evalEnv)
   set $! env { meEvalEnv = evalEnv' }
 
 getEvalEnv :: ModuleM EvalEnv
 getEvalEnv  = ModuleT (meEvalEnv `fmap` get)
+
+getEvalOpts :: ModuleM EvalOpts
+getEvalOpts = ModuleT (roEvalOpts `fmap` ask)
 
 getFocusedModule :: ModuleM (Maybe P.ModName)
 getFocusedModule  = ModuleT (meFocusedModule `fmap` get)
@@ -448,3 +451,9 @@ getSolverConfig :: ModuleM T.SolverConfig
 getSolverConfig  = ModuleT $ do
   me <- get
   return (meSolverConfig me)
+
+-- | Usefule for logging.  For example: @withLogger logPutStrLn "Hello"@
+withLogger :: (Logger -> a -> IO b) -> a -> ModuleM b
+withLogger f a = do l <- getEvalOpts
+                    io (f (evalLogger l) a)
+

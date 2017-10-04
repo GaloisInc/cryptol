@@ -61,6 +61,7 @@ module Cryptol.REPL.Monad (
 
     -- ** Configurable Output
   , getPutStr
+  , getLogger
   , setPutStr
 
     -- ** Smoke Test
@@ -85,6 +86,7 @@ import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.Utils.Ident as I
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
+import Cryptol.Utils.Logger(Logger, logPutStr, funLogger)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (proverNames, lookupProver, SatNum(..))
 
@@ -123,14 +125,14 @@ data RW = RW
   , eIsBatch     :: Bool
   , eModuleEnv   :: M.ModuleEnv
   , eUserEnv     :: UserEnv
-  , ePutStr      :: String -> IO ()
+  , eLogger      :: Logger
   , eLetEnabled  :: Bool
   , eUpdateTitle :: REPL ()
   }
 
 -- | Initial, empty environment.
-defaultRW :: Bool -> IO RW
-defaultRW isBatch = do
+defaultRW :: Bool -> Logger -> IO RW
+defaultRW isBatch l = do
   env <- M.initialModuleEnv
   return RW
     { eLoadedMod   = Nothing
@@ -138,7 +140,7 @@ defaultRW isBatch = do
     , eIsBatch     = isBatch
     , eModuleEnv   = env
     , eUserEnv     = mkUserEnv userOptions
-    , ePutStr      = putStr
+    , eLogger      = l
     , eLetEnabled  = True
     , eUpdateTitle = return ()
     }
@@ -155,9 +157,9 @@ mkPrompt rw
 newtype REPL a = REPL { unREPL :: IORef RW -> IO a }
 
 -- | Run a REPL action with a fresh environment.
-runREPL :: Bool -> REPL a -> IO a
-runREPL isBatch m = do
-  ref <- newIORef =<< defaultRW isBatch
+runREPL :: Bool -> Logger -> REPL a -> IO a
+runREPL isBatch l m = do
+  ref <- newIORef =<< defaultRW isBatch l
   unREPL m ref
 
 instance Functor REPL where
@@ -336,18 +338,23 @@ setUpdateREPLTitle m = modifyRW_ (\rw -> rw { eUpdateTitle = m })
 
 -- | Set the REPL's string-printer
 setPutStr :: (String -> IO ()) -> REPL ()
-setPutStr fn = modifyRW_ (\rw -> rw { ePutStr = fn })
+setPutStr fn = modifyRW_ $ \rw -> rw { eLogger = funLogger fn }
 
 -- | Get the REPL's string-printer
 getPutStr :: REPL (String -> IO ())
-getPutStr = fmap ePutStr getRW
+getPutStr =
+  do rw <- getRW
+     return (logPutStr (eLogger rw))
+
+getLogger :: REPL Logger
+getLogger = eLogger <$> getRW
 
 
 -- | Use the configured output action to print a string
 rPutStr :: String -> REPL ()
 rPutStr str = do
-  rw <- getRW
-  io $ ePutStr rw str
+  f <- getPutStr
+  io (f str)
 
 -- | Use the configured output action to print a string with a trailing newline
 rPutStrLn :: String -> REPL ()
@@ -440,6 +447,7 @@ setDynEnv denv = do
   me <- getModuleEnv
   setModuleEnv (me { M.meDynEnv = denv })
 
+
 -- | Given an existing qualified name, prefix it with a
 -- relatively-unique string. We make it unique by prefixing with a
 -- character @#@ that is not lexically valid in a module name.
@@ -493,31 +501,21 @@ setUser :: String -> String -> REPL ()
 setUser name val = case lookupTrieExact name userOptions of
 
   [opt] -> setUserOpt opt
-  []    -> io (putStrLn ("Unknown env value `" ++ name ++ "`"))
-  _     -> io (putStrLn ("Ambiguous env value `" ++ name ++ "`"))
+  []    -> rPutStrLn ("Unknown env value `" ++ name ++ "`")
+  _     -> rPutStrLn ("Ambiguous env value `" ++ name ++ "`")
 
   where
   setUserOpt opt = case optDefault opt of
-    EnvString _ -> do r <- io (optCheck opt (EnvString val))
-                      case r of
-                        Just err -> io (putStrLn err)
-                        Nothing  -> writeEnv (EnvString val)
+    EnvString _ -> doCheck (EnvString val)
 
     EnvProg _ _ ->
       case splitOptArgs val of
-        prog:args -> do r <- io (optCheck opt (EnvProg prog args))
-                        case r of
-                          Just err -> io (putStrLn err)
-                          Nothing  -> writeEnv (EnvProg prog args)
-        []        -> io (putStrLn ("Failed to parse command for field, `" ++ name ++ "`"))
+        prog:args -> doCheck (EnvProg prog args)
+        [] -> rPutStrLn ("Failed to parse command for field, `" ++ name ++ "`")
 
     EnvNum _ -> case reads val of
-      [(x,_)] -> do r <- io (optCheck opt (EnvNum x))
-                    case r of
-                      Just err -> io (putStrLn err)
-                      Nothing  -> writeEnv (EnvNum x)
-
-      _       -> io (putStrLn ("Failed to parse number for field, `" ++ name ++ "`"))
+      [(x,_)] -> doCheck (EnvNum x)
+      _ -> rPutStrLn ("Failed to parse number for field, `" ++ name ++ "`")
 
     EnvBool _
       | any (`isPrefixOf` val) ["enable","on","yes"] ->
@@ -525,9 +523,13 @@ setUser name val = case lookupTrieExact name userOptions of
       | any (`isPrefixOf` val) ["disable","off","no"] ->
         writeEnv (EnvBool False)
       | otherwise ->
-        io (putStrLn ("Failed to parse boolean for field, `" ++ name ++ "`"))
+        rPutStrLn ("Failed to parse boolean for field, `" ++ name ++ "`")
     where
-
+    doCheck v = do (r,ws) <- io (optCheck opt v)
+                   case r of
+                     Just err -> rPutStrLn err
+                     Nothing  -> do mapM_ rPutStrLn ws
+                                    writeEnv v
     writeEnv ev =
       do optEff opt ev
          modifyRW_ (\rw -> rw { eUserEnv = Map.insert name ev (eUserEnv rw) })
@@ -582,16 +584,24 @@ mkOptionMap  = foldl insert emptyTrie
   where
   insert m d = insertTrie (optName d) d m
 
+-- | Returns maybe an error, and some warnings
+type Checker = EnvVal -> IO (Maybe String, [String])
+
+noCheck :: Checker
+noCheck _ = return (Nothing, [])
+
+noWarns :: Maybe String -> IO (Maybe String, [String])
+noWarns mb = return (mb, [])
+
 data OptionDescr = OptionDescr
   { optName    :: String
   , optDefault :: EnvVal
-  , optCheck   :: EnvVal -> IO (Maybe String)
+  , optCheck   :: Checker
   , optHelp    :: String
   , optEff     :: EnvVal -> REPL ()
   }
 
-simpleOpt :: String -> EnvVal -> (EnvVal -> IO (Maybe String)) -> String
-          -> OptionDescr
+simpleOpt :: String -> EnvVal -> Checker -> String -> OptionDescr
 simpleOpt optName optDefault optCheck optHelp =
   OptionDescr { optEff = \ _ -> return (), .. }
 
@@ -599,32 +609,32 @@ userOptions :: OptionMap
 userOptions  = mkOptionMap
   [ simpleOpt "base" (EnvNum 16) checkBase
     "the base to display words at"
-  , simpleOpt "debug" (EnvBool False) (const $ return Nothing)
+  , simpleOpt "debug" (EnvBool False) noCheck
     "enable debugging output"
-  , simpleOpt "ascii" (EnvBool False) (const $ return Nothing)
+  , simpleOpt "ascii" (EnvBool False) noCheck
     "display 7- or 8-bit words using ASCII notation."
   , simpleOpt "infLength" (EnvNum 5) checkInfLength
     "The number of elements to display for infinite sequences."
-  , simpleOpt "tests" (EnvNum 100) (const $ return Nothing)
+  , simpleOpt "tests" (EnvNum 100) noCheck
     "The number of random tests to try."
   , simpleOpt "satNum" (EnvString "1") checkSatNum
     "The maximum number of :sat solutions to display (\"all\" for no limit)."
   , simpleOpt "prover" (EnvString "z3") checkProver $
     "The external SMT solver for :prove and :sat (" ++ proverListString ++ ")."
-  , simpleOpt "warnDefaulting" (EnvBool True) (const $ return Nothing)
+  , simpleOpt "warnDefaulting" (EnvBool True) noCheck
     "Choose if we should display warnings when defaulting."
-  , simpleOpt "warnShadowing" (EnvBool True) (const $ return Nothing)
+  , simpleOpt "warnShadowing" (EnvBool True) noCheck
     "Choose if we should display warnings when shadowing symbols."
-  , simpleOpt "smtfile" (EnvString "-") (const $ return Nothing)
+  , simpleOpt "smtfile" (EnvString "-") noCheck
     "The file to use for SMT-Lib scripts (for debugging or offline proving)"
-  , OptionDescr "mono-binds" (EnvBool True) (const $ return Nothing)
+  , OptionDescr "mono-binds" (EnvBool True) noCheck
     "Whether or not to generalize bindings in a where-clause" $
     \case EnvBool b -> do me <- getModuleEnv
                           setModuleEnv me { M.meMonoBinds = b }
           _         -> return ()
 
   , OptionDescr "tc-solver" (EnvProg "z3" [ "-smt2", "-in" ])
-    (const (return Nothing)) -- TODO: check for the program in the path
+    noCheck  -- TODO: check for the program in the path
     "The solver that will be used by the type checker" $
     \case EnvProg prog args -> do me <- getModuleEnv
                                   let cfg = M.meSolverConfig me
@@ -634,14 +644,14 @@ userOptions  = mkOptionMap
           _                 -> return ()
 
   , OptionDescr "tc-debug" (EnvNum 0)
-    (const (return Nothing))
+    noCheck
     "Enable type-checker debugging output" $
     \case EnvNum n -> do me <- getModuleEnv
                          let cfg = M.meSolverConfig me
                          setModuleEnv me { M.meSolverConfig = cfg{ T.solverVerbose = fromIntegral n } }
           _        -> return ()
   , OptionDescr "core-lint" (EnvBool False)
-    (const (return Nothing))
+    noCheck
     "Enable sanity checking of type-checker" $
       let setIt x = do me <- getModuleEnv
                        setModuleEnv me { M.meCoreLint = x }
@@ -649,50 +659,53 @@ userOptions  = mkOptionMap
                EnvBool False -> setIt M.NoCoreLint
                _             -> return ()
 
-  , simpleOpt "prover-stats" (EnvBool True) (const (return Nothing))
+  , simpleOpt "prover-stats" (EnvBool True) noCheck
     "Enable prover timing statistics."
   ]
 
 
 -- | Check the value to the `base` option.
-checkBase :: EnvVal -> IO (Maybe String)
+checkBase :: Checker
 checkBase val = case val of
   EnvNum n
-    | n >= 2 && n <= 36 -> return Nothing
-    | otherwise         -> return $ Just "base must fall between 2 and 36"
-  _                     -> return $ Just "unable to parse a value for base"
+    | n >= 2 && n <= 36 -> noWarns Nothing
+    | otherwise         -> noWarns $ Just "base must fall between 2 and 36"
+  _                     -> noWarns $ Just "unable to parse a value for base"
 
-checkInfLength :: EnvVal -> IO (Maybe String)
+checkInfLength :: Checker
 checkInfLength val = case val of
   EnvNum n
-    | n >= 0    -> return Nothing
-    | otherwise -> return $ Just "the number of elements should be positive"
-  _ -> return $ Just "unable to parse a value for infLength"
+    | n >= 0    -> noWarns Nothing
+    | otherwise -> noWarns $ Just "the number of elements should be positive"
+  _ -> noWarns $ Just "unable to parse a value for infLength"
 
-checkProver :: EnvVal -> IO (Maybe String)
+checkProver :: Checker
 checkProver val = case val of
   EnvString s
-    | s `notElem` proverNames     -> return $ Just $ "Prover must be " ++ proverListString
-    | s `elem` ["offline", "any"] -> return Nothing
-    | otherwise                   -> do let prover = lookupProver s
-                                        available <- sbvCheckSolverInstallation prover
-                                        unless available $
-                                          putStrLn $ "Warning: " ++ s ++ " installation not found"
-                                        return Nothing
+    | s `notElem` proverNames ->
+      noWarns $ Just $ "Prover must be " ++ proverListString
+    | s `elem` ["offline", "any"] -> noWarns Nothing
+    | otherwise ->
+      do let prover = lookupProver s
+         available <- sbvCheckSolverInstallation prover
+         let ws = if available
+                     then []
+                     else ["Warning: " ++ s ++ " installation not found"]
+         return (Nothing, ws)
 
-  _ -> return $ Just "unable to parse a value for prover"
+  _ -> noWarns $ Just "unable to parse a value for prover"
 
 proverListString :: String
 proverListString = concatMap (++ ", ") (init proverNames) ++ "or " ++ last proverNames
 
-checkSatNum :: EnvVal -> IO (Maybe String)
+checkSatNum :: Checker
 checkSatNum val = case val of
-  EnvString "all" -> return Nothing
+  EnvString "all" -> noWarns Nothing
   EnvString s ->
     case readMaybe s :: Maybe Int of
-      Just n | n >= 1 -> return Nothing
-      _               -> return $ Just "must be an integer > 0 or \"all\""
-  _ -> return $ Just "unable to parse a value for satNum"
+      Just n | n >= 1 -> noWarns Nothing
+      _               -> noWarns $ Just "must be an integer > 0 or \"all\""
+  _ -> noWarns $ Just "unable to parse a value for satNum"
 
 getUserSatNum :: REPL SatNum
 getUserSatNum = do

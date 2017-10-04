@@ -16,6 +16,7 @@ import           Cryptol.REPL.Command
 import           Cryptol.REPL.Monad
 import           Cryptol.REPL.Trie
 import           Cryptol.Utils.PP
+import           Cryptol.Utils.Logger(stdoutLogger)
 
 import qualified Control.Exception as X
 import           Control.Monad (guard, join)
@@ -111,7 +112,7 @@ loadCryRC cryrc =
 -- | Haskeline-specific repl implementation.
 repl :: Cryptolrc -> Maybe FilePath -> Bool -> REPL () -> IO CommandExitCode
 repl cryrc mbBatch stopOnError begin =
-  runREPL (isJust mbBatch) $
+  runREPL (isJust mbBatch) stdoutLogger $
   do status <- loadCryRC cryrc
      case status of
        CommandOk -> begin >> crySession mbBatch stopOnError

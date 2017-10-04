@@ -39,6 +39,7 @@ import qualified Cryptol.TypeCheck.Sanity as TcSanity
 import Cryptol.Utils.Ident (preludeName, preludeExtrasName, interactiveName,unpackModName)
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
+import Cryptol.Utils.Logger(logPutStrLn, logPrint)
 
 import Cryptol.Prelude (writePreludeContents, writePreludeExtrasContents)
 
@@ -172,8 +173,7 @@ loadModule path pm = do
   let pm' = addPrelude pm
   loadDeps pm'
 
-  -- XXX make it possible to configure output
-  io (putStrLn ("Loading module " ++ pretty (P.thing (P.mName pm'))))
+  withLogger logPutStrLn ("Loading module " ++ pretty (P.thing (P.mName pm')))
 
   tcm <- checkModule path pm'
 
@@ -429,7 +429,9 @@ typecheck act i env = do
          case meCoreLint menv of
            NoCoreLint -> return ()
            CoreLint   -> case lintCheck (tcLinter act) o input of
-                           Right as -> io $ mapM_ (print . T.pp) as
+                           Right as ->
+                             let ppIt l = mapM_ (logPrint l . T.pp)
+                             in withLogger ppIt as
                            Left err -> panic "Core lint failed:" [show err]
          return o
 
@@ -467,14 +469,16 @@ evalExpr :: T.Expr -> ModuleM E.Value
 evalExpr e = do
   env <- getEvalEnv
   denv <- getDynEnv
-  io $ E.runEval $ (E.evalExpr (env <> deEnv denv) e)
+  evopts <- getEvalOpts
+  io $ E.runEval evopts $ (E.evalExpr (env <> deEnv denv) e)
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do
   env <- getEvalEnv
   denv <- getDynEnv
+  evOpts <- getEvalOpts
   let env' = env <> deEnv denv
-  deEnv' <- io $ E.runEval $ E.evalDecls dgs env'
+  deEnv' <- io $ E.runEval evOpts $ E.evalDecls dgs env'
   let denv' = denv { deDecls = deDecls denv ++ dgs
                    , deEnv = deEnv'
                    }

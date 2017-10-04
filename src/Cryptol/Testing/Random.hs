@@ -11,7 +11,7 @@
 {-# LANGUAGE BangPatterns #-}
 module Cryptol.Testing.Random where
 
-import Cryptol.Eval.Monad     (ready)
+import Cryptol.Eval.Monad     (ready,EvalOpts)
 import Cryptol.Eval.Value     (BV(..),Value,GenValue(..),SeqMap(..), WordValue(..), BitWord(..))
 import qualified Cryptol.Testing.Concrete as Conc
 import Cryptol.TypeCheck.AST  (Type(..),TCon(..),TC(..),tNoUser)
@@ -35,15 +35,16 @@ type Gen g b w i = Integer -> g -> (GenValue b w i, g)
     the supplied value, otherwise we'll panic.
  -}
 runOneTest :: RandomGen g
-        => Value   -- ^ Function under test
+        => EvalOpts   -- ^ how to evaluate things
+        -> Value   -- ^ Function under test
         -> [Gen g Bool BV Integer] -- ^ Argument generators
         -> Integer -- ^ Size
         -> g
         -> IO (Conc.TestResult, g)
-runOneTest fun argGens sz g0 = do
+runOneTest evOpts fun argGens sz g0 = do
   let (args, g1) = foldr mkArg ([], g0) argGens
       mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
-  result <- Conc.runOneTest fun args
+  result <- Conc.runOneTest evOpts fun args
   return (result, g1)
 
 {- | Given a (function) type, compute generators for
@@ -139,12 +140,5 @@ randomRecord gens sz = go [] gens
   go els ((l,mkElem) : more) g =
     let (v, g1) = mkElem sz g
     in seq v (go ((l,ready v) : els) more g1)
-
-{-
-test = do
-  g <- newStdGen
-  let (s,_) = randomSequence 100 (randomWord 256) 100 g
-  print $ ppValue defaultPPOpts { useBase = 16 } s
--}
 
 

@@ -17,7 +17,7 @@ module Cryptol.ModuleSystem.Env where
 import Paths_cryptol (getDataDir)
 #endif
 
-import Cryptol.Eval (EvalEnv)
+import Cryptol.Eval (EvalEnv,EvalOpts(..))
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Name (Supply,emptySupply)
 import qualified Cryptol.ModuleSystem.NamingEnv as R
@@ -25,6 +25,7 @@ import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP (NameDisp)
+import Cryptol.Utils.Logger(Logger)
 
 import Control.Monad (guard)
 import qualified Control.Exception as X
@@ -62,7 +63,6 @@ data ModuleEnv = ModuleEnv
     -- ^ The evaluation environment.  Contains the values for all loaded
     -- modules, both public and private.
 
-
   , meCoreLint      :: CoreLint
     -- ^ Should we run the linter to ensure snaity.
 
@@ -85,7 +85,8 @@ data ModuleEnv = ModuleEnv
   , meSupply        :: !Supply
     -- ^ Name source for the renamer
 
-  } deriving (Generic, NFData)
+  } deriving Generic
+
 
 -- | Should we run the linter?
 data CoreLint = NoCoreLint        -- ^ Don't run core lint
@@ -102,7 +103,7 @@ resetModuleEnv env = env
   }
 
 initialModuleEnv :: IO ModuleEnv
-initialModuleEnv  = do
+initialModuleEnv = do
   curDir <- getCurrentDirectory
 #ifndef RELOCATABLE
   dataDir <- getDataDir

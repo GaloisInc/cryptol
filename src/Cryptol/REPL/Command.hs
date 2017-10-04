@@ -256,6 +256,12 @@ getPPValOpts =
                      , E.useInfLength = infLength
                      }
 
+getEvalOpts :: REPL E.EvalOpts
+getEvalOpts =
+  do ppOpts <- getPPValOpts
+     l      <- getLogger
+     return E.EvalOpts { E.evalPPOpts = ppOpts, E.evalLogger = l }
+
 evalCmd :: String -> REPL ()
 evalCmd str = do
   letEnabled <- getLetEnabled
@@ -266,7 +272,7 @@ evalCmd str = do
     P.ExprInput expr -> do
       (val,_ty) <- replEvalExpr expr
       ppOpts <- getPPValOpts
-      valDoc <- io $ rethrowEvalError $ E.runEval $ E.ppValue ppOpts val
+      valDoc <- rEvalRethrow (E.ppValue ppOpts val)
 
       -- This is the point where the value gets forced. We deepseq the
       -- pretty-printed representation of it, rather than the value
@@ -284,7 +290,7 @@ evalCmd str = do
 printCounterexample :: Bool -> P.Expr P.PName -> [E.Value] -> REPL ()
 printCounterexample isSat pexpr vs =
   do ppOpts <- getPPValOpts
-     docs <- mapM (io . E.runEval . E.ppValue ppOpts) vs
+     docs <- mapM (rEval . E.ppValue ppOpts) vs
      let doc = ppPrec 3 pexpr -- function application has precedence 3
      rPrint $ hang doc 2 (sep docs) <+>
        text (if isSat then "= True" else "= False")
@@ -315,7 +321,8 @@ qcCmd qcMode str =
             let f _ [] = panic "Cryptol.REPL.Command"
                                     ["Exhaustive testing ran out of test cases"]
                 f _ (vs : vss1) = do
-                  result <- io $ runOneTest val vs
+                  evo <- getEvalOpts
+                  result <- io $ runOneTest evo val vs
                   return (result, vss1)
                 testSpec = TestSpec {
                     testFn = f
@@ -338,8 +345,10 @@ qcCmd qcMode str =
               Nothing   -> raise (TypeNotTestable ty)
               Just gens -> do
                 rPutStrLn "Using random testing."
+                evo <- getEvalOpts
                 let testSpec = TestSpec {
-                        testFn = \sz' g -> io $ TestR.runOneTest val gens sz' g
+                        testFn = \sz' g ->
+                                      io $ TestR.runOneTest evo val gens sz' g
                       , testProp = str
                       , testTotal = toInteger testNum
                       , testPossible = sz
@@ -407,7 +416,7 @@ qcCmd qcMode str =
         rPrint (pp err)
       FailError err vs -> do
         prtLn "ERROR for the following inputs:"
-        mapM_ (\v -> rPrint =<< (io $ E.runEval $ E.ppValue opts v)) vs
+        mapM_ (\v -> rPrint =<< (rEval $ E.ppValue opts v)) vs
         rPrint (pp err)
       Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
 
@@ -653,7 +662,6 @@ typeOfCmd str = do
   (_re,def,sig) <- replCheckExpr expr
 
   -- XXX need more warnings from the module system
-  --io (mapM_ printWarning ws)
   whenDebug (rPutStrLn (dump def))
   (_,_,names) <- getFocusedEnv
   -- type annotation ':' has precedence 2
@@ -687,12 +695,22 @@ writeFileCmd file str = do
                        (\(n,b) -> T.tIsBit b && T.tIsNum n == Just 8)
                        (T.tIsSeq x)
   serializeValue (E.VSeq n vs) = do
-    ws <- io $ E.runEval (mapM (>>=E.fromVWord "serializeValue") $ E.enumerateSeqMap n vs)
+    ws <- rEval
+            (mapM (>>=E.fromVWord "serializeValue") $ E.enumerateSeqMap n vs)
     return $ BS.pack $ map serializeByte ws
   serializeValue _             =
     panic "Cryptol.REPL.Command.writeFileCmd"
       ["Impossible: Non-VSeq value of type [n][8]."]
   serializeByte (E.BV _ v) = fromIntegral (v .&. 0xFF)
+
+
+rEval :: E.Eval a -> REPL a
+rEval m = do ev <- getEvalOpts
+             io (E.runEval ev m)
+
+rEvalRethrow :: E.Eval a -> REPL a
+rEvalRethrow m = do ev <- getEvalOpts
+                    io $ rethrowEvalError $ E.runEval ev m
 
 reloadCmd :: REPL ()
 reloadCmd  = do
@@ -957,14 +975,6 @@ isNamePrefix pfx =
               M.Parameter  -> False
 
 
-{-
-printWarning :: (Range,Warning) -> IO ()
-printWarning = print . ppWarning
-
-printError :: (Range,Error) -> IO ()
-printError = print . ppError
--}
-
 -- | Lift a parsing action into the REPL monad.
 replParse :: (String -> Either ParseError a) -> String -> REPL a
 replParse parse str = case parse str of
@@ -984,7 +994,10 @@ getPrimMap :: REPL M.PrimMap
 getPrimMap  = liftModuleCmd M.getPrimMap
 
 liftModuleCmd :: M.ModuleCmd a -> REPL a
-liftModuleCmd cmd = moduleCmdResult =<< io . cmd =<< getModuleEnv
+liftModuleCmd cmd =
+  do evo <- getEvalOpts
+     env <- getModuleEnv
+     moduleCmdResult =<< io (cmd (evo,env))
 
 moduleCmdResult :: M.ModuleRes a -> REPL a
 moduleCmdResult (res,ws0) = do
