@@ -27,15 +27,14 @@ As a summary, a "1" followed by m "0"s followed by a 64-
    SHA-1 as n 512-bit blocks.
 */
 
-pad : {msgLen,chunks}
+pad : {msgLen}
      ( fin msgLen
      , 64 >= width msgLen                             // message width fits in a word
-     , chunks     == (msgLen + 65 + 511) / 512
      )
-     => [msgLen] -> [chunks][512]
-pad msg = split (msg # [True] # (zero:[padding]) # (`msgLen:[64]))
+     => [msgLen] -> [(msgLen + 65) /^ 512][512]
+pad msg = split (msg # [True] # (zero:[padLen]) # (`msgLen:[64]))
     where type contentLen = msgLen + 65                      // message + header
-          type padding    = (512 - contentLen % 512) % 512   // prettier if type #'s could be < 0
+          type padLen     = (msgLen + 65) %^ 512
 
 f : ([8], [32], [32], [32]) -> [32]
 f (t, x, y, z) =

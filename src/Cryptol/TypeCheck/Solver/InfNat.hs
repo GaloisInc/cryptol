@@ -121,6 +121,26 @@ nMod Inf     _        = Nothing
 nMod (Nat x) (Nat y)  = Just (Nat (mod x y))
 nMod (Nat x) Inf      = Just (Nat x)          -- inf * 0 + x = 0 + x
 
+-- | @nCeilDiv msgLen blockSize@ computes the least @n@ such that
+-- @msgLen <= blockSize * n@. It is undefined when @blockSize = 0@.
+-- It is also undefined when either input is infinite; perhaps this
+-- could be relaxed later.
+nCeilDiv :: Nat' -> Nat' -> Maybe Nat'
+nCeilDiv _       (Nat 0)  = Nothing
+nCeilDiv Inf     _        = Nothing
+nCeilDiv (Nat _) Inf      = Nothing
+nCeilDiv (Nat x) (Nat y)  = Just (Nat (- div (- x) y))
+
+-- | @nCeilMod msgLen blockSize@ computes the least @k@ such that
+-- @blockSize@ divides @msgLen + k@. It is undefined when @blockSize = 0@.
+-- It is also undefined when either input is infinite; perhaps this
+-- could be relaxed later.
+nCeilMod :: Nat' -> Nat' -> Maybe Nat'
+nCeilMod _       (Nat 0)  = Nothing
+nCeilMod Inf     _        = Nothing
+nCeilMod (Nat _) Inf      = Nothing
+nCeilMod (Nat x) (Nat y)  = Just (Nat (mod (- x) y))
+
 -- | Rounds up.
 -- @lg2 x = y@, iff @y@ is the smallest number such that @x <= 2 ^ y@
 nLg2 :: Nat' -> Nat'

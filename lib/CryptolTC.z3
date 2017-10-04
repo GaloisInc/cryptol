@@ -266,6 +266,18 @@
   ))
 )
 
+(define-fun cryCeilDiv ((x InfNat) (y InfNat)) InfNat
+  (ite (or (isErr x) (isErr y) (not (isFin x)) (not (isFin y))) cryErr
+  (ite (= (value y) 0) cryErr (cryNat (- (div (- (value x)) (value y)))))
+  )
+)
+
+(define-fun cryCeilMod ((x InfNat) (y InfNat)) InfNat
+  (ite (or (isErr x) (isErr y) (not (isFin x)) (not (isFin y))) cryErr
+  (ite (= (value y) 0) cryErr (cryNat (mod (- (value x)) (value y))))
+  )
+)
+
 (define-fun cryLenFromThenTo ((x InfNat) (y InfNat) (z InfNat)) InfNat
   (ite (or (isErr x) (not (isFin x))
            (isErr y) (not (isFin y))

@@ -32,6 +32,8 @@ data TFun
   | TCWidth               -- ^ @ : Num -> Num @
   | TCMin                 -- ^ @ : Num -> Num -> Num @
   | TCMax                 -- ^ @ : Num -> Num -> Num @
+  | TCCeilDiv             -- ^ @ : Num -> Num -> Num @
+  | TCCeilMod             -- ^ @ : Num -> Num -> Num @
 
   -- Computing the lengths of explicit enumerations
   | TCLenFromThen         -- ^ @ : Num -> Num -> Num -> Num@
@@ -50,7 +52,7 @@ tBinOpPrec  = mkMap t_table
   -- lowest to highest
   t_table =
     [ (LeftAssoc,   [ TCAdd, TCSub ])
-    , (LeftAssoc,   [ TCMul, TCDiv, TCMod ])
+    , (LeftAssoc,   [ TCMul, TCDiv, TCMod, TCCeilDiv, TCCeilMod ])
     , (RightAssoc,  [ TCExp ])
     ]
 
@@ -66,6 +68,8 @@ tfunNames  = Map.fromList
   , tprefix "width"            1 TCWidth
   , tprefix "min"              2 TCMin
   , tprefix "max"              2 TCMax
+  , tprefix "/^"               2 TCCeilDiv
+  , tprefix "%^"               2 TCCeilMod
   , tprefix "lengthFromThen"   3 TCLenFromThen
   , tprefix "lengthFromThenTo" 3 TCLenFromThenTo
   ]
@@ -77,21 +81,25 @@ tfunNames  = Map.fromList
 instance PPName TFun where
   ppNameFixity f = Map.lookup f tBinOpPrec
 
-  ppPrefixName TCAdd = text "(+)"
-  ppPrefixName TCSub = text "(-)"
-  ppPrefixName TCMul = text "(*)"
-  ppPrefixName TCDiv = text "(/)"
-  ppPrefixName TCMod = text "(%)"
-  ppPrefixName TCExp = text "(^^)"
-  ppPrefixName f     = pp f
+  ppPrefixName TCAdd     = text "(+)"
+  ppPrefixName TCSub     = text "(-)"
+  ppPrefixName TCMul     = text "(*)"
+  ppPrefixName TCDiv     = text "(/)"
+  ppPrefixName TCMod     = text "(%)"
+  ppPrefixName TCExp     = text "(^^)"
+  ppPrefixName TCCeilDiv = text "(/^)"
+  ppPrefixName TCCeilMod = text "(%^)"
+  ppPrefixName f         = pp f
 
-  ppInfixName TCAdd = text "+"
-  ppInfixName TCSub = text "-"
-  ppInfixName TCMul = text "*"
-  ppInfixName TCDiv = text "/"
-  ppInfixName TCMod = text "%"
-  ppInfixName TCExp = text "^^"
-  ppInfixName f     = error $ "Not a prefix type function: " ++ show (pp f)
+  ppInfixName TCAdd     = text "+"
+  ppInfixName TCSub     = text "-"
+  ppInfixName TCMul     = text "*"
+  ppInfixName TCDiv     = text "/"
+  ppInfixName TCMod     = text "%"
+  ppInfixName TCExp     = text "^^"
+  ppInfixName TCCeilDiv = text "/^"
+  ppInfixName TCCeilMod = text "%^"
+  ppInfixName f         = error $ "Not a prefix type function: " ++ show (pp f)
 
 instance PP TFun where
   ppPrec _ tcon =
@@ -105,6 +113,8 @@ instance PP TFun where
       TCWidth           -> text "width"
       TCMin             -> text "min"
       TCMax             -> text "max"
+      TCCeilDiv         -> text "/^"
+      TCCeilMod         -> text "%^"
 
       TCLenFromThen     -> text "lengthFromThen"
       TCLenFromThenTo   -> text "lengthFromThenTo"
