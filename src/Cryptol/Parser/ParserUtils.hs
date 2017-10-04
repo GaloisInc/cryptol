@@ -331,7 +331,7 @@ mkPoly rng terms = mk 0 (map fromInteger bits)
 mkProperty :: LPName -> [Pattern PName] -> Expr PName -> Decl PName
 mkProperty f ps e = DBind Bind { bName       = f
                                , bParams     = reverse ps
-                               , bDef        = at e (Located emptyRange (DExpr (ETyped e TBit)))
+                               , bDef        = at e (Located emptyRange (DExpr e))
                                , bSignature  = Nothing
                                , bPragmas    = [PragmaProperty]
                                , bMono       = False

@@ -341,16 +341,19 @@ indexFront mblen a xs idx
        case asWordList wvs of
          Just ws ->
            return $ VWord n $ ready $ WordVal $ SBV.svSelect ws (wordLit wlen 0) idx
-         Nothing -> foldr f def [0 .. 2^w  - 1]
+         Nothing -> foldr f def idxs
 
   | otherwise
-  = foldr f def [0 .. 2^w  - 1]
+  = foldr f def idxs
 
  where
     k = SBV.kindOf idx
     w = SBV.intSizeOf idx
     def = ready $ zeroV a
     f n y = iteValue (SBV.svEqual idx (SBV.svInteger k n)) (lookupSeqMap xs n) y
+    idxs = case mblen of
+      Just n | n < 2^w -> [0 .. n-1]
+      _ -> [0 .. 2^w - 1]
 
 
 indexBack :: Maybe Integer
