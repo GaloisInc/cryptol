@@ -103,6 +103,8 @@ import qualified Data.Text as ST
 import qualified Data.Text.Lazy as T
 import Data.IORef(newIORef,readIORef)
 
+import GHC.Float (log1p, expm1)
+
 import Prelude ()
 import Prelude.Compat
 
@@ -351,22 +353,26 @@ qcCmd qcMode str =
                 prt testingMsg
                 g <- io newTFGen
                 report <- runTests testSpec g
-                when (isPass (reportResult report)) $ do
-                  let szD = fromIntegral sz :: Double
-                      percent = fromIntegral (testNum * 100) / szD
-                      showValNum
-                        | sz > 2 ^ (20::Integer) =
-                          "2^^" ++ show (lg2 sz)
-                        | otherwise = show sz
-                  rPutStrLn $ "Coverage: "
-                    ++ showFFloat (Just 2) percent "% ("
-                    ++ show testNum ++ " of "
-                    ++ showValNum ++ " values)"
+                when (isPass (reportResult report)) $
+                  rPutStrLn $ coverageString testNum sz
                 return [report]
        Nothing -> return []
 
   where
   testingMsg = "testing..."
+
+  coverageString testNum sz =
+                  let (percent, expectedUnique) = expectedCoverage testNum sz
+                      showValNum
+                        | sz > 2 ^ (20::Integer) =
+                          "2^^" ++ show (lg2 sz)
+                        | otherwise = show sz
+                  in "Expected test coverage: "
+                    ++ showFFloat (Just 2) percent "% ("
+                    ++ showFFloat (Just 0) expectedUnique " of "
+                    ++ showValNum
+                    ++ " values)"
+
 
   totProgressWidth = 4    -- 100%
 
@@ -404,6 +410,49 @@ qcCmd qcMode str =
         mapM_ (\v -> rPrint =<< (io $ E.runEval $ E.ppValue opts v)) vs
         rPrint (pp err)
       Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
+
+
+-- | This function computes the expected coverage percentage and
+-- expected number of unique test vectors when using random testing.
+--
+-- The expected test coverage proportion is:
+--  @1 - ((n-1)/n)^k@
+--
+-- This formula takes into account the fact that test vectors are chosen
+-- uniformly at random _with replacement_, and thus the same vectors
+-- may be generated multiple times.  If the test vectors were chosen
+-- randomly without replacement, the proportion would instead be @k/n@.
+--
+-- We compute raising to the @k@ power in the log domain to improve 
+-- numerical precision. The equivalant comptutation is:
+--   @-expm1( k * log1p (-1/n) )@
+--
+-- Where @expm1(x) = exp(x) - 1@ and @log1p(x) = log(1 + x)@.
+--
+-- However, if @sz@ is large enough, even carefully preserving
+-- precision may not be enough to get sensible results.  In such
+-- situations, we expect the naive approximation @k/n@ to be very
+-- close to accurate and the expected number of unique values is
+-- essentially equal to the number of tests.
+expectedCoverage :: Int -> Integer -> (Double, Double)
+expectedCoverage testNum sz =
+    -- If the Double computation has enough precision, use the
+    --  "with replacement" formula.
+    if testNum > 0 && proportion > 0 then
+       (100.0 * proportion, szD * proportion)
+    else
+       (100.0 * naiveProportion, numD)
+
+  where
+   szD :: Double
+   szD = fromInteger sz
+
+   numD :: Double
+   numD = fromIntegral testNum
+
+   naiveProportion = numD / szD
+
+   proportion = negate (expm1 (numD * log1p (negate (recip szD))))
 
 satCmd, proveCmd :: String -> REPL ()
 satCmd = cmdProveSat True
