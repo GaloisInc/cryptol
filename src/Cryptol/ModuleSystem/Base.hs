@@ -1,3 +1,4 @@
+
 -- |
 -- Module      :  $Header$
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
@@ -5,12 +6,13 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
+--
+-- This is the main driver---it provides entry points for the
+-- various passes.
 
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 
--- | This is the main driver---it provides entry points for the
--- various passes.
 module Cryptol.ModuleSystem.Base where
 
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), deIfaceDecls)
