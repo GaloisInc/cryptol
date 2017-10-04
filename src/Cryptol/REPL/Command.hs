@@ -953,7 +953,7 @@ isNamePrefix :: String -> M.Name -> Bool
 isNamePrefix pfx =
   let pfx' = ST.pack pfx
    in \n -> case M.nameInfo n of
-              M.Declared _ -> pfx' `ST.isPrefixOf` M.identText (M.nameIdent n)
+              M.Declared m -> pfx' `ST.isPrefixOf` m
               M.Parameter  -> False
 
 
