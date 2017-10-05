@@ -15,29 +15,38 @@ import Cryptol.ModuleSystem.Exports(ExportSpec(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst(listSubst, apSubst)
 import Cryptol.Utils.Ident(ModName)
-import Cryptol.Utils.Panic(panic)
 
 
 
 {-
 XXX: Should we simplify constraints in the instantiated modules?
 
-If so, we also need to adjust the constraint parameters appropriately,
+If so, we also need to adjust the constraint parameters on terms appropriately,
 especially when working with dictionaries.
 -}
 
 
--- | Convert a module instantiation into an actual module.
-instantiateModule :: Supply {- ^ To generate fresh names -} ->
-                      Module {- ^ Parametrized module -} ->
-                      Module {- ^ Instantiating module -} ->
-                      ([Prop], Module, Supply) -- XXX: errors
-instantiateModule = undefined {-
-instantiateModule s func mi = (ps, m, s1)
+-- | Convert a module instantiation into a partial module.
+-- The resulting module is incomplete because it is missing the definitions
+-- from the instantiation.
+instantiateModule :: Supply           {- ^ To generate fresh names -} ->
+                     Module           {- ^ Parametrized module -} ->
+                     ModName          {- ^ Name of the new module -} ->
+                     Map TParam Type  {- ^ Type params -} ->
+                     Map Name Expr    {- ^ Value parameters -} ->
+                     ([Prop], Module, Supply)
+                     -- ^ Instantiated constraints, fresh module, new supply
+instantiateModule s func newName tpMap vpMap = (ps, m, s1)
   where
-  ((ps,m),s1) = runInstM (mName mi) s $
-    do env <- computeEnv mi
-       let renamedExports = inst env (mExports func)
+  ((ps,m),s1) = runInstM newName s $
+    do let oldVpNames = Map.keys vpMap
+       -- XXX: If the defining Expr is already just a name, we should
+       -- just use that name directly.
+       newVpNames <- mapM freshenName (Map.keys vpMap)
+       let vpNames = Map.fromList (zip oldVpNames newVpNames)
+    
+       env <- computeEnv func tpMap vpNames
+       let renamedExports  = inst env (mExports func)
            renamedTySyns   = fmap (inst env) (mTySyns func)
            renamedNewtypes = fmap (inst env) (mNewtypes func)
 
@@ -48,37 +57,32 @@ instantiateModule s func mi = (ps, m, s1)
            -- Constraints to discharge about the type instances
 
        let renamedDecls = inst env (mDecls func)
+           paramDecls = map (mkParamDecl vpNames) (Map.toList vpMap)
 
        return ( goals
               , Module
-                 { mName              = mName mi
+                 { mName              = newName
                  , mExports           = renamedExports
-
-                 , mImports           = mImports func ++ mImports mi
-                   -- There just record all the dependencies for the
-                   -- instantiated module.  Note that the resulting list
-                   -- of imports is not necessarily good for resolving names
-                   -- as things which were unambiguous separately may clash
-                   -- when merged.  Since things have already been renamed,
-                   -- we don't worry about this for the moment.
-
-
-                 , mTySyns            = Map.union (mTySyns mi) renamedTySyns
-                 , mNewtypes          = Map.union (mNewtypes mi) renamedNewtypes
-                 , mParamTypes        = mParamTypes mi
-                 , mParamConstraints  = mParamConstraints mi
-                 , mParamFuns         = mParamFuns mi
-                 , mDecls             = mDecls mi ++ renamedDecls
+                 , mImports           = mImports func
+                 , mTySyns            = renamedTySyns
+                 , mNewtypes          = renamedNewtypes
+                 , mParamTypes        = []
+                 , mParamConstraints  = []
+                 , mParamFuns         = Map.empty
+                 , mDecls             = paramDecls ++ renamedDecls
                  } )
 
+  mkParamDecl vpNames (x,e) =
+      NonRecursive Decl
+        { dName        = vpNames Map.! x
+        , dSignature   = mParamFuns func Map.! x
+        , dDefinition  = DExpr e
+        , dPragmas     = []      -- XXX: which if any pragmas?
+        , dInfix       = False   -- XXX: get from parameter?
+        , dFixity      = Nothing -- XXX: get from parameter
+        , dDoc         = Nothing -- XXX: get from parametr(or instance?)
+        }
 
-type Error = String
-
-findParams :: Module {- ^ Functor -} ->
-              Module {- ^ Instnace -} ->
-              Either Error (Map TParam Type, Map Name Expr)
-findParams = undefined
--}
 
 --------------------------------------------------------------------------------
 -- Things that need to be renamed
@@ -113,21 +117,19 @@ freshenName x =
   do m <- ask
      liftSupply (mkDeclared m (nameIdent x) (nameFixity x) (nameLoc x))
 
-{-
 -- | Compute renaming environment from a module instantiation.
 -- computeEnv :: ModInst -> InstM Env
-computeEnv :: Module {- ^ Parametrized module -} ModInst -> InstM Env
-computeEnv m =
+computeEnv :: Module {- ^ Functor being instantiated -} ->
+              Map TParam Type {- replace type params by type -} ->
+              Map Name Name {- replace value parameters by other names -} ->
+              InstM Env
+computeEnv m tpMap vpMap =
   do tss <- mapM freshTy (Map.toList (mTySyns m))
      nts <- mapM freshTy (Map.toList (mNewtypes m))
      let tnMap = Map.fromList (tss ++ nts)
 
-     tps <- mapM mkTParam (mParamTypes m)
-     let tpMap = Map.fromList tps
-
      defHere <- mapM mkVParam (Set.toList (defines (mDecls m)))
-     vps     <- mapM mkVParam (Map.keys (mParamFuns m))
-     let fnMap = Map.fromList (vps ++ defHere)
+     let fnMap = Map.union vpMap (Map.fromList defHere)
 
      return Env { funNameMap  = fnMap
                 , tyNameMap   = tnMap
@@ -140,17 +142,7 @@ computeEnv m =
   mkVParam x = do y <- freshenName x
                   return (x,y)
 
-  mkTParam tp =
-    case tpName tp of
-      Nothing -> panic "computeEnv" ["Type param with no name"]
-      Just x ->
-        case Map.lookup tp (modInstTyParams mi) of
-          Nothing -> panic "computeEnv"
-                            ["Missing definition for type parameter"]
-          Just t ->
-            do y <- freshenName x
-               return (tp, TUser y [] t)
--}
+
 
 --------------------------------------------------------------------------------
 -- Do the renaming
