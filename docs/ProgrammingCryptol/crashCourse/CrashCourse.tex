@@ -2839,11 +2839,22 @@ This operator type is interpreted ``equality is an operator that takes
 two objects of any single type that can be compared and returns a
 Bit.''
 
-Cryptol defines exactly two basic type classes: {\tt Cmp} and {\tt
-  Arith}.  These appear in the type signature of operators and
-functions that require them.  If a function you define calls, for
-example, {\tt +}, on two arguments both of type {\tt a}, the type
-constraints for {\tt a} will include {\tt (Arith a)}.
+Cryptol defines a collection of basic type classes: \texttt{Logic},
+\texttt{Zero}, \texttt{Cmp}, \texttt{SignedCmp}, and \texttt{Arith}.
+These appear in the type signature of operators and functions that
+require them. If a function you define calls, for example, {\tt +}, on
+two arguments both of type {\tt a}, the type constraints for {\tt a}
+will include {\tt (Arith a)}.
+
+The \texttt{Logic} typeclass includes the binary logical operators
+\texttt{\&\&}, \texttt{||}, and \verb+^+, as well as the unary
+operator \verb+~+.
+
+The \texttt{Zero} typeclass includes the special constant
+\texttt{zero}. The shifting operators \texttt{<<} and \texttt{>>} are
+also in class \texttt{Zero}, because they can shift in zero values.
+All of the built-in types of Cryptol are instances of class
+\texttt{Zero}.
 
 The \texttt{Cmp} typeclass includes the binary relation operators
 \texttt{<}, \texttt{>}, \texttt{<=}, \texttt{>=}, \texttt{==}, and
@@ -2854,8 +2865,15 @@ and cannot be compared with \texttt{==}, but Cryptol does provide a
 special pointwise comparison operator for functions, \texttt{(===) :
   \{a b\} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit}.
 
-The \texttt{Arith} typeclass include the binary operators \texttt{+},
-\texttt{-}, \texttt{*}, \texttt{/}, \verb+%+, \verb+^^+, as well
+The \texttt{SignedCmp} typeclass includes the binary relation
+operators \texttt{<\$}, \texttt{>\$}, \texttt{<=\$}, and
+\texttt{>=\$}. These are like \texttt{<}, \texttt{>}, \texttt{<=}, and
+\texttt{>=}, except that they interpret bitvectors as \emph{signed}
+2's complement numbers, whereas the \texttt{Cmp} operations use the
+\emph{unsigned} ordering.
+
+The \texttt{Arith} typeclass includes the binary operators \texttt{+},
+\texttt{-}, \texttt{*}, \texttt{/}, \verb+%+, and \verb+^^+, as well
 as the unary operators \texttt{lg2} and \texttt{-}.
 
 \begin{Exercise}\label{ex:tvar:1}
