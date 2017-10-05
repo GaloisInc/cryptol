@@ -8,8 +8,9 @@ import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import           MonadLib(Id,ReaderT,runReaderT,runId,ask)
+import           MonadLib(ReaderT,runReaderT,ask)
 
+import Cryptol.Parser.Position(Located(..))
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Exports(ExportSpec(..))
 import Cryptol.TypeCheck.AST
@@ -29,16 +30,15 @@ especially when working with dictionaries.
 -- | Convert a module instantiation into a partial module.
 -- The resulting module is incomplete because it is missing the definitions
 -- from the instantiation.
-instantiateModule :: Supply           {- ^ To generate fresh names -} ->
+instantiateModule :: FreshM m =>
                      Module           {- ^ Parametrized module -} ->
                      ModName          {- ^ Name of the new module -} ->
                      Map TParam Type  {- ^ Type params -} ->
                      Map Name Expr    {- ^ Value parameters -} ->
-                     ([Prop], Module, Supply)
+                     m ([Located Prop], Module)
                      -- ^ Instantiated constraints, fresh module, new supply
-instantiateModule s func newName tpMap vpMap = (ps, m, s1)
-  where
-  ((ps,m),s1) = runInstM newName s $
+instantiateModule func newName tpMap vpMap =
+  runReaderT newName $
     do let oldVpNames = Map.keys vpMap
        -- XXX: If the defining Expr is already just a name, we should
        -- just use that name directly.
@@ -53,7 +53,7 @@ instantiateModule s func newName tpMap vpMap = (ps, m, s1)
            su = listSubst
                   [ (TVBound tp, t) | (tp,t) <- Map.toList (tyParamMap env) ]
 
-           goals = apSubst su (mParamConstraints func)
+           goals = map (fmap (apSubst su)) (mParamConstraints func)
            -- Constraints to discharge about the type instances
 
        let renamedDecls = inst env (mDecls func)
@@ -72,6 +72,7 @@ instantiateModule s func newName tpMap vpMap = (ps, m, s1)
                  , mDecls             = paramDecls ++ renamedDecls
                  } )
 
+  where
   mkParamDecl vpNames (x,e) =
       NonRecursive Decl
         { dName        = vpNames Map.! x
@@ -105,24 +106,21 @@ instance Defines DeclGroup where
 
 --------------------------------------------------------------------------------
 
-type InstM = ReaderT ModName (SupplyT Id)
-
-runInstM :: ModName -> Supply -> InstM a -> (a, Supply)
-runInstM mn s = runId . runSupplyT s . runReaderT mn
-
+type InstM = ReaderT ModName
 
 -- | Generate a new instance of a declared name.
-freshenName :: Name -> InstM Name
+freshenName :: FreshM m => Name -> InstM m Name
 freshenName x =
   do m <- ask
      liftSupply (mkDeclared m (nameIdent x) (nameFixity x) (nameLoc x))
 
 -- | Compute renaming environment from a module instantiation.
 -- computeEnv :: ModInst -> InstM Env
-computeEnv :: Module {- ^ Functor being instantiated -} ->
+computeEnv :: FreshM m =>
+              Module {- ^ Functor being instantiated -} ->
               Map TParam Type {- replace type params by type -} ->
               Map Name Name {- replace value parameters by other names -} ->
-              InstM Env
+              InstM m Env
 computeEnv m tpMap vpMap =
   do tss <- mapM freshTy (Map.toList (mTySyns m))
      nts <- mapM freshTy (Map.toList (mNewtypes m))

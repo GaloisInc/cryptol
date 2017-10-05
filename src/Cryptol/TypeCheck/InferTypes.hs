@@ -25,7 +25,7 @@ import qualified Cryptol.Parser.AST as P
 import           Cryptol.Utils.PP
 import           Cryptol.ModuleSystem.Name (asPrim,nameLoc)
 import           Cryptol.TypeCheck.PP
-import           Cryptol.Utils.Ident (Ident,identText)
+import           Cryptol.Utils.Ident (Ident,identText,ModName)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
 
@@ -192,6 +192,7 @@ data ConstraintSource
   | CtPartialTypeFun TyFunName -- ^ Use of a partial type function.
   | CtImprovement
   | CtPattern Doc         -- ^ Constraints arising from type-checking patterns
+  | CtModuleInstance ModName -- ^ Instantiating a parametrized module
     deriving (Show, Generic, NFData)
 
 data TyFunName = UserTyFun Name | BuiltInTyFun TFun
@@ -215,6 +216,7 @@ instance TVars ConstraintSource where
       CtPartialTypeFun _ -> src
       CtImprovement    -> src
       CtPattern _      -> src
+      CtModuleInstance _ -> src
 
 instance TVars Warning where
   apSubst su warn =
@@ -543,6 +545,7 @@ instance PP ConstraintSource where
       CtPartialTypeFun f -> text "use of partial type function" <+> pp f
       CtImprovement   -> text "examination of collected goals"
       CtPattern desc  -> text "checking a pattern:" <+> desc
+      CtModuleInstance n -> text "module instantiation" <+> pp n
 
 ppUse :: Expr -> Doc
 ppUse expr =

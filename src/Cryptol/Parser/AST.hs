@@ -129,7 +129,8 @@ data TopDecl name =
   | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
   | Include (Located FilePath)          -- ^ @include File@
   | DParameterType (ParameterType name) -- ^ @parameter type T : #@
-  | DParameterConstraint [Prop name]    -- ^ @parameter type constraint (fin T)@
+  | DParameterConstraint [Located (Prop name)]
+                                        -- ^ @parameter type constraint (fin T)@
   | DParameterFun  (ParameterFun name)  -- ^ @parameter someVal : [256]@
                     deriving (Show, Generic, NFData)
 

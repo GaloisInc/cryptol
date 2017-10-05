@@ -26,6 +26,7 @@ module Cryptol.ModuleSystem.Interface (
 import           Cryptol.ModuleSystem.Name
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Ident (ModName)
+import           Cryptol.Parser.Position(Located)
 
 import qualified Data.Map as Map
 
@@ -46,7 +47,7 @@ data Iface = Iface
 
 data IfaceParams = IfaceParams
   { ifParamTypes :: [TParam]     -- ^ Uninterpreted types
-  , ifParamConstraints :: [Prop]            -- ^ Constraints on param. types
+  , ifParamConstraints :: [Located Prop] -- ^ Constraints on param. types
   , ifParamFuns  :: Map.Map Name IfaceDecl  -- ^ Uninterpreted value constants
   } deriving (Show, Generic, NFData)
 

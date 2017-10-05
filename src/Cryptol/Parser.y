@@ -268,7 +268,7 @@ par_decls                            :: { [TopDecl PName] }
 par_decl                         :: { TopDecl PName }
   : mbDoc        name ':' schema    { mkParFun $1 $2 $4 }
   | mbDoc 'type' name ':' kind      { mkParType $1 $3 $5 }
-  | mbDoc 'type' 'constraint' type  {% fmap (DParameterConstraint . thing)
+  | mbDoc 'type' 'constraint' type  {% fmap (DParameterConstraint . distrLoc)
                                             (mkProp $4) }
 
 

@@ -28,6 +28,7 @@ module Cryptol.TypeCheck.AST
   , module Cryptol.TypeCheck.Type
   ) where
 
+import Cryptol.Parser.Position(Located)
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Exports(ExportSpec(..)
                                    , isExportedBind, isExportedType)
@@ -53,7 +54,7 @@ data Module = Module { mName        :: !ModName
                      , mTySyns      :: Map Name TySyn
                      , mNewtypes    :: Map Name Newtype
                      , mParamTypes  :: [ TParam ]
-                     , mParamConstraints :: [Prop]
+                     , mParamConstraints :: [Located Prop]
                      , mParamFuns   :: Map Name Schema
                      , mDecls       :: [DeclGroup]
                      } deriving (Show, Generic, NFData)

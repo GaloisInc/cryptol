@@ -426,6 +426,11 @@ mkDoc ltxt = ltxt { thing = docStr }
         Nothing     -> False
 
 
+distrLoc :: Located [a] -> [Located a]
+distrLoc x = [ Located { srcRange = r, thing = a } | a <- thing x ]
+  where r = srcRange x
+
+
 mkProp :: Type PName -> ParseM (Located [Prop PName])
 mkProp ty =
   case ty of

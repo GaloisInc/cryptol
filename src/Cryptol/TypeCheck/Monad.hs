@@ -201,7 +201,7 @@ data RO = RO
   , iParamTypes :: Map Name TParam
     -- ^ Parameter types
 
-  , iParamConstraints :: [Prop]
+  , iParamConstraints :: [Located Prop]
     -- ^ Constraints on the type parameters
 
   , iParamFuns :: Map Name Schema
@@ -597,7 +597,7 @@ getParamFuns = IM $ asks iParamFuns
 getParamTypes :: InferM (Map Name TParam)
 getParamTypes = IM $ asks iParamTypes
 
-getParamConstraints :: InferM [Prop]
+getParamConstraints :: InferM [Located Prop]
 getParamConstraints = IM $ asks iParamConstraints
 
 -- | Get the set of bound type variables that are in scope.
@@ -696,7 +696,7 @@ withParamFuns xs (IM m) =
   add (x,s) = Map.insert x s
 
 -- | Add some assumptions for an entire module
-withParameterConstraints :: [Prop] -> InferM a -> InferM a
+withParameterConstraints :: [Located Prop] -> InferM a -> InferM a
 withParameterConstraints ps (IM m) =
   IM $ mapReader (\r -> r { iParamConstraints = ps ++ iParamConstraints r }) m
 

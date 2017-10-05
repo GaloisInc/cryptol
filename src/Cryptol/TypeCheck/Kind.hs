@@ -127,11 +127,13 @@ checkType t k =
   do (_, t1) <- withTParams True schemaParam {-no params-} [] $ doCheckType t k
      return (tRebuild t1)
 
-checkParameterConstraints :: [P.Prop Name] -> InferM [Prop]
+checkParameterConstraints :: [Located (P.Prop Name)] -> InferM [Located Prop]
 checkParameterConstraints ps =
-  do (_, cs) <- withTParams False schemaParam {-no params-}[]
-                                                        (mapM checkProp ps)
-     return (map tRebuild cs)
+  do (_, cs) <- withTParams False schemaParam {-no params-}[] (mapM checkL ps)
+     return cs
+  where
+  checkL x = do p <- checkProp (thing x)
+                return x { thing = tRebuild p }
 
 
 {- | Check something with type parameters.

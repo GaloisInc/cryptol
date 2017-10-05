@@ -106,7 +106,7 @@ orderBinds bs = mkScc [ (b, map thing defs, Set.toList uses)
 class FromDecl d where
   toBind             :: d -> Maybe (P.Bind Name)
   toParamFun         :: d -> Maybe (P.ParameterFun Name)
-  toParamConstraints :: d -> [P.Prop Name]
+  toParamConstraints :: d -> [P.Located (P.Prop Name)]
   toTyDecl           :: d -> Maybe TyDecl
   isTopDecl          :: d -> Bool
 

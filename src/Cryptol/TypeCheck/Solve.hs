@@ -18,6 +18,7 @@ module Cryptol.TypeCheck.Solve
   , defaultReplExpr
   ) where
 
+import           Cryptol.Parser.Position(thing)
 import           Cryptol.TypeCheck.PP(pp)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
@@ -178,7 +179,7 @@ proveModuleTopLevel =
        [] -> return ()
        _  -> do as <- Map.elems <$> getParamTypes
                 gs <- getGoals
-                su <- proveImplication Nothing as cs gs
+                su <- proveImplication Nothing as (map thing cs) gs
                 extendSubst su
 
 
@@ -186,7 +187,7 @@ proveImplication :: Maybe Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
      solver <- getSolver
-     extra <- getParamConstraints
+     extra <- map thing <$> getParamConstraints
      (mbErr,su) <- io (proveImplicationIO solver lnam evars as (extra ++ ps) gs)
      case mbErr of
        Right ws -> mapM_ recordWarning ws

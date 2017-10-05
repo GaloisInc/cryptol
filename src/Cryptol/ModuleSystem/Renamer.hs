@@ -365,7 +365,12 @@ instance Rename TopDecl where
     DParameterFun f  -> DParameterFun  <$> rename f
     DParameterType f -> DParameterType <$> rename f
 
-    DParameterConstraint d -> DParameterConstraint <$> mapM rename d
+    DParameterConstraint d -> DParameterConstraint <$> mapM renameLocated d
+
+renameLocated :: Rename f => Located (f PName) -> RenameM (Located (f Name))
+renameLocated x =
+  do y <- rename (thing x)
+     return x { thing = y }
 
 instance Rename ParameterType where
   rename a =
