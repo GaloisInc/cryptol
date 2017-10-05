@@ -2848,12 +2848,11 @@ constraints for {\tt a} will include {\tt (Arith a)}.
 The \texttt{Cmp} typeclass includes the binary relation operators
 \texttt{<}, \texttt{>}, \texttt{<=}, \texttt{>=}, \texttt{==}, and
 \texttt{!=}, as well as the binary functions \texttt{min} and
-\texttt{max}.  Note that equality is defined on function types (i.e.,
-\texttt{\{a b\} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit}).  Unlike
-in many other languages, equality and comparison are bundled into a
-single typeclass.
-\todo[inline]{``many'' other languages? Like what?}
-\todo[inline]{``equality is defined on function types'' is misleading, can't use == for this.}
+\texttt{max}. Note that equality and other comparisons are bundled
+into a single typeclass. Function types are not in class \texttt{Cmp}
+and cannot be compared with \texttt{==}, but Cryptol does provide a
+special pointwise comparison operator for functions, \texttt{(===) :
+  \{a b\} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit}.
 
 The \texttt{Arith} typeclass include the binary operators \texttt{+},
 \texttt{-}, \texttt{*}, \texttt{/}, \verb+%+, \verb+^^+, as well
