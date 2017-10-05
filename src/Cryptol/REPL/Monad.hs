@@ -39,6 +39,7 @@ module Cryptol.REPL.Monad (
   , getExprNames
   , getTypeNames
   , getPropertyNames
+  , getModNames
   , LoadedModule(..), getLoadedMod, setLoadedMod
   , setSearchPath, prependSearchPath
   , getPrompt
@@ -432,6 +433,11 @@ getPropertyNames =
             $ [ x | (x,d) <- Map.toList xs, T.PragmaProperty `elem` M.ifDeclPragmas d ]
 
      return (ps, names)
+
+getModNames :: REPL [I.ModName]
+getModNames =
+  do me <- getModuleEnv
+     return $ map M.lmName $ M.getLoadedModules $ M.meLoadedModules me
 
 getModuleEnv :: REPL M.ModuleEnv
 getModuleEnv  = eModuleEnv `fmap` getRW

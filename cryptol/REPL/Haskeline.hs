@@ -26,6 +26,7 @@ import           Data.Char (isAlphaNum, isSpace)
 import           Data.Maybe(isJust)
 import           Data.Function (on)
 import           Data.List (isPrefixOf,nub,sortBy,sort)
+import qualified Data.Text as T (unpack)
 import           System.IO (stdout)
 import           System.Console.ANSI (setTitle, hSupportsANSI)
 import           System.Console.Haskeline
@@ -227,6 +228,7 @@ cmdArgument ct cursor@(l,_) = case ct of
   ExprArg     _ -> completeExpr cursor
   DeclsArg    _ -> (completeExpr +++ completeType) cursor
   ExprTypeArg _ -> (completeExpr +++ completeType) cursor
+  ModNameArg _  -> completeModName cursor
   FilenameArg _ -> completeFilename cursor
   ShellArg _    -> completeFilename cursor
   OptionArg _   -> completeOption cursor
@@ -259,6 +261,14 @@ completeType (l,_) = do
   let n    = reverse (takeIdent l)
       vars = filter (n `isPrefixOf`) ns
   return (l,map (nameComp n) vars)
+
+-- | Complete a name from the list of loaded modules.
+completeModName :: CompletionFunc REPL
+completeModName (l, _) = do
+  ns <- map T.unpack <$> getModNames
+  let n    = reverse (takeIdent l)
+      vars = filter (n `isPrefixOf`) ns
+  return (l, map (nameComp n) vars)
 
 -- | Generate a completion from a prefix and a name.
 nameComp :: String -> String -> Completion

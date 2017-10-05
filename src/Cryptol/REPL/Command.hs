@@ -141,6 +141,7 @@ data CommandBody
   | FileExprArg (FilePath -> String -> REPL ())
   | DeclsArg    (String   -> REPL ())
   | ExprTypeArg (String   -> REPL ())
+  | ModNameArg  (String   -> REPL ())
   | FilenameArg (FilePath -> REPL ())
   | OptionArg   (String   -> REPL ())
   | ShellArg    (String   -> REPL ())
@@ -170,7 +171,7 @@ nbCommandList :: [CommandDescr]
 nbCommandList  =
   [ CommandDescr [ ":t", ":type" ] (ExprArg typeOfCmd)
     "check the type of an expression"
-  , CommandDescr [ ":b", ":browse" ] (ExprTypeArg browseCmd)
+  , CommandDescr [ ":b", ":browse" ] (ModNameArg browseCmd)
     "display the current environment"
   , CommandDescr [ ":?", ":help" ] (ExprArg helpCmd)
     "display a brief description of a function or a type"
@@ -776,18 +777,26 @@ quitCmd  = stop
 
 
 browseCmd :: String -> REPL ()
-browseCmd pfx = do
+browseCmd input = do
   (iface,names,disp) <- getFocusedEnv
+
+  let mnames = map ST.pack (words input)
+  validModNames <- getModNames
+  let checkModName m =
+        unless (m `elem` validModNames) $
+        rPutStrLn ("error: " ++ show m ++ " is not a loaded module.")
+  mapM_ checkModName mnames
+
   let (visibleTypes,visibleDecls) = M.visibleNames names
 
       (visibleType,visibleDecl)
-        | null pfx  =
+        | null mnames =
           ((`Set.member` visibleTypes)
           ,(`Set.member` visibleDecls))
 
         | otherwise =
-          (\n -> n `Set.member` visibleTypes && pfx `isNamePrefix` n
-          ,\n -> n `Set.member` visibleDecls && pfx `isNamePrefix` n)
+          (\n -> n `Set.member` visibleTypes && hasAnyModName mnames n
+          ,\n -> n `Set.member` visibleDecls && hasAnyModName mnames n)
 
   browseTSyns    visibleType iface disp
   browseNewtypes visibleType iface disp
@@ -967,12 +976,11 @@ handleCtrlC a = do rPutStrLn "Ctrl-C"
 
 -- Utilities -------------------------------------------------------------------
 
-isNamePrefix :: String -> M.Name -> Bool
-isNamePrefix pfx =
-  let pfx' = ST.pack pfx
-   in \n -> case M.nameInfo n of
-              M.Declared m -> pfx' `ST.isPrefixOf` m
-              M.Parameter  -> False
+hasAnyModName :: [M.ModName] -> M.Name -> Bool
+hasAnyModName mnames n =
+  case M.nameInfo n of
+    M.Declared m -> m `elem` mnames
+    M.Parameter  -> False
 
 
 -- | Lift a parsing action into the REPL monad.
@@ -1203,6 +1211,7 @@ parseCommand findCmd line = do
       ExprArg     body -> Just (Command (body args'))
       DeclsArg    body -> Just (Command (body args'))
       ExprTypeArg body -> Just (Command (body args'))
+      ModNameArg  body -> Just (Command (body args'))
       FilenameArg body -> Just (Command (body =<< expandHome args'))
       OptionArg   body -> Just (Command (body args'))
       ShellArg    body -> Just (Command (body args'))
