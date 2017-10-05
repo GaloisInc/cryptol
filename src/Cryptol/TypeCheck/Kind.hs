@@ -39,11 +39,11 @@ import           Control.Monad(unless,forM)
 
 
 -- | Check a type signature.
-checkSchema :: P.Schema Name -> InferM (Schema, [Goal])
-checkSchema (P.Forall xs ps t mb) =
+checkSchema :: Bool -> P.Schema Name -> InferM (Schema, [Goal])
+checkSchema withWild (P.Forall xs ps t mb) =
   do ((xs1,(ps1,t1)), gs) <-
         collectGoals $
-        rng $ withTParams True schemaParam xs $
+        rng $ withTParams withWild schemaParam xs $
         do ps1 <- mapM checkProp ps
            t1  <- doCheckType t (Just KType)
            return (ps1,t1)
