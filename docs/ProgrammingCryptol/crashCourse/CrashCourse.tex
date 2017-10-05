@@ -1988,16 +1988,11 @@ for~\cite{lewis2003}.
 
 So far, we used Cryptol as a calculator: we typed in expressions and
 it gave us answers. This is great for experimenting, and exploring
-Cryptol itself.  The next fundamental Cryptol idiom is the notion of a
+Cryptol itself. The next fundamental Cryptol idiom is the notion of a
 function. You have already used built-in functions {\tt +}, {\tt
   take}, etc.\indPlus\indLg Of course, users can define their own
-functions as well.  Currently the Cryptol interpreter does not support
-defining functions, so you must define them in a file and load it, as
-in the next exercises.
-
-\todo[inline]{Is the inability to define top-level symbols at the REPL a
-  feature forever, will we allow this, or should we document it
-  above?}
+functions as well. The recommended method is to define them in a file
+and load it, as in the next exercises.
 
 \note{Reviewing the contents of Section~\ref{sec:technicalities} might
   help at this point. Especially the commands that will let you load
@@ -2041,6 +2036,45 @@ argument of the wrong size: 912 is too big to fit into 8 bits.
   parentheses if you want to, and you must use parentheses if you want
   to pass a negative argument, e.g. \texttt{increment(-2)} (recall
   Exercise~\autoref{ex:arith:5}).}\indFunApp
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\subsection{Definitions in the interpreter with \texttt{let}}
+\label{sec:interpreter-let}
+As an alternative to creating and loading files, the Cryptol
+interpreter also supports simple definitions with \texttt{let}. Unlike
+file-based definitions, \texttt{let}-definitions are not persistent:
+They exist only until the same name is redefined or the interpreter
+exits with \texttt{:q}.
+\begin{code}
+  Cryptol> let r = {a = True, b = False}
+  Cryptol> r.a
+  True
+\end{code}
+Simple functions can be defined in the interpreter with \texttt{let},
+with some restrictions: They must be entered on a single line, and
+they cannot have a separate type signature. If we want a function to
+have a more specific type than the inferred one, we must add type
+annotations to variables or other parts of the body of the definition.
+\begin{Exercise}\label{ex:fn:0b}
+  Enter the following definition into the Cryptol interpreter and check
+  its type with \texttt{:t}.
+\begin{code}
+  let increment x = x+1
+\end{code}
+Modify the \texttt{let}-definition of \texttt{increment} so that it
+will have type \texttt{[8] -> [8]}.
+\end{Exercise}
+\begin{Answer}\ansref{ex:fn:0b}
+Any of the following definitions will have the desired type:
+\begin{Verbatim}
+  Cryptol> let increment (x : [8]) = x + 1
+  Cryptol> let increment x = (x : [8]) + 1
+  Cryptol> let increment x = x + (1 : [8])
+  Cryptol> let increment x = x + 1 : [8]
+  Cryptol> :t increment
+  increment : [8] -> [8]
+\end{Verbatim}
+\end{Answer}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 \subsection{Local names: {\ttfamily{\textbf where}} clauses}
