@@ -538,7 +538,7 @@ setUser name val = case lookupTrieExact name userOptions of
                                     writeEnv v
     writeEnv ev =
       do optEff opt ev
-         modifyRW_ (\rw -> rw { eUserEnv = Map.insert name ev (eUserEnv rw) })
+         modifyRW_ (\rw -> rw { eUserEnv = Map.insert (optName opt) ev (eUserEnv rw) })
 
 splitOptArgs :: String -> [String]
 splitOptArgs  = unfoldr (parse "")
