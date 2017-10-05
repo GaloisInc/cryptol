@@ -1841,9 +1841,9 @@ In general, type predicates exclusively describe \textit{arithmetic
   constraints on type variables}.  Cryptol does not have a
 general-purpose dependent type system, but a \emph{size-polymorphic
   type system}.  Often type variables' values are of finite size,
-indicated with the constraint {\tt fin a}\indFin, otherwise no
-constraint is mentioned or an explicit \texttt{inf a} is
-denoted\indInf, and the variables' values are unbounded.  Arithmetic
+indicated with the constraint {\tt fin a}\indFin; otherwise no
+constraint is mentioned, and the variables' values are unbounded,
+possibly taking the value \texttt{inf}\indInf.  Arithmetic
 relations are arbitrary relations over all type variables, such as
 {\tt 2*a+b >= c}.  We shall see more examples as we work through
 programs later on.
