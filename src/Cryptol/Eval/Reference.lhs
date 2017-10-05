@@ -63,6 +63,7 @@ are as follows:
 | Cryptol type      | Description    | `TValue` representation     |
 |:----------------- |:-------------- |:--------------------------- |
 | `Bit`             | booleans       | `TVBit`                     |
+| `Integer`         | integers       | `TVInteger`                 |
 | `[n]a`            | finite lists   | `TVSeq n a`                 |
 | `[inf]a`          | infinite lists | `TVStream a`                |
 | `(a, b, c)`       | tuples         | `TVTuple [a,b,c]`           |
@@ -86,6 +87,10 @@ Evaluating a Cryptol expression of type `Bit` may result in:
 Accordingly, *M*(`Bit`) is a flat cpo with values for `True`,
 `False`, run-time errors of type `EvalError`, and $\bot$; we
 represent it with the Haskell type `Either EvalError Bool`.
+
+Similarly, *M*(`Integer`) is a flat cpo with values for integers,
+run-time errors, and $\bot$; we represent it with the Haskell type
+`Either EvalError Integer`.
 
 The cpos for lists, tuples, and records are cartesian products. The
 cpo ordering is pointwise, and the bottom element $\bot$ is the
@@ -133,10 +138,10 @@ Copy Functions
 Functions `copyBySchema` and `copyByTValue` make a copy of the given
 value, building the spine based only on the type without forcing the
 value argument. This ensures that undefinedness appears inside `VBit`
-values only, and never on any constructors of the `Value` type. In
-turn, this gives the appropriate semantics to recursive definitions:
-The bottom value for a compound type is equal to a value of the same
-type where every individual bit is bottom.
+and `VInteger` values only, and never on any constructors of the
+`Value` type. In turn, this gives the appropriate semantics to
+recursive definitions: The bottom value for a compound type is equal
+to a value of the same type where every individual bit is bottom.
 
 For each Cryptol type `t`, the cpo *M*(`t`) can be represented as a
 subset of values of type `Value` that satisfy the datatype invariant.
@@ -771,7 +776,7 @@ at the same positions.
 >     go ty val =
 >       case ty of
 >         TVBit        -> VBit (fmap op (fromVBit val))
->         TVInteger    -> VInteger (Left (UserError "FIXME: logicBinary Integer"))
+>         TVInteger    -> evalPanic "logicUnary" ["Integer not in class Logic"]
 >         TVSeq _w ety -> VList (map (go ety) (fromVList val))
 >         TVStream ety -> VList (map (go ety) (fromVList val))
 >         TVTuple etys -> VTuple (zipWith go etys (fromVTuple val))
@@ -785,7 +790,7 @@ at the same positions.
 >     go ty l r =
 >       case ty of
 >         TVBit        -> VBit (liftA2 op (fromVBit l) (fromVBit r))
->         TVInteger    -> VInteger (Left (UserError "FIXME: logicBinary Integer"))
+>         TVInteger    -> evalPanic "logicBinary" ["Integer not in class Logic"]
 >         TVSeq _w ety -> VList (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVStream ety -> VList (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVTuple etys -> VTuple (zipWith3 go etys (fromVTuple l) (fromVTuple r))
