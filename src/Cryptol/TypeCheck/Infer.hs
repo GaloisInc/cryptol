@@ -15,7 +15,7 @@
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Infer where
 
-import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl,nameIdent)
+import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem.Exports as P
@@ -29,7 +29,7 @@ import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                         checkParameterConstraints)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
-import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@))
+import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.TypeCheck.Solver.InfNat(genLog)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
@@ -852,11 +852,10 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
 
   checkParameterFun x =
     do (s,gs) <- checkSchema (P.pfSchema x)
-       case gs of
-         [] -> return ()
-         _  ->
-           recordError $ ErrorMsg $ text $
-                            "XXX: Left-over goals while validating schema"
+       su <- proveImplication (Just (thing (P.pfName x)))
+                              (sVars s) (sProps s) gs
+       unless (isEmptySubst su) $
+         panic "checkParameterFun" ["Subst not empty??"]
        let n = thing (P.pfName x)
        return (n,s)
 
