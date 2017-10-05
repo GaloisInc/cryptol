@@ -59,6 +59,12 @@ data Module = Module { mName        :: !ModName
                      , mDecls       :: [DeclGroup]
                      } deriving (Show, Generic, NFData)
 
+isParametrizedModule :: Module -> Bool
+isParametrizedModule m = not (null (mParamTypes m) &&
+                              null (mParamConstraints m) &&
+                              null (mParamFuns m))
+
+
 
 
 data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)

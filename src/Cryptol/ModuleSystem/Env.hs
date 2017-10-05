@@ -217,7 +217,8 @@ qualifiedEnv me = fold $
 newtype LoadedModules = LoadedModules
   { getLoadedModules :: [LoadedModule]
   } deriving (Show, Generic, NFData)
--- ^ Invariant: All the dependencies of any module `m` must precede `m` in the list.
+-- ^ Invariant: All the dependencies of any module `m` must precede `m`
+-- in the list.
 
 instance Monoid LoadedModules where
   mempty        = LoadedModules []
