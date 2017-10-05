@@ -190,12 +190,12 @@ the same value, so {\tt a} and {\tt A} both represent 10.
 
 A tuple is a simple collection of arbitrary ordered values of
 arbitrary types, written in parentheses.\indTheTupleType A tuple is at
-least a pair; it has at least two elements\footnote{Tuples with zero
+least a pair; it has at least two elements,\footnote{Tuples with zero
   and one element are part of the underlying mathematics of Cryptol's
   tuple theory but are not supported in its concrete syntax because
   doing so unnecessarily complicates the parser and program
-  comprehension.}, and can be arbitrarily nested with other types.
-Elements are comma separated.  
+  comprehension.} and can be arbitrarily nested with other types.
+Elements are comma separated.
 
 Two tuples are equal in the standard fashion: if they have the same
 arity, their types are pairwise comparable
@@ -622,10 +622,10 @@ Try the following infinite enumerations:
 \begin{Answer}\ansref{ex:seq:9}
   When you type in an infinite sequence, Cryptol will only print the
   first 5 elements of it and will indicate that it is an infinite value
-  by putting $\ldots$ at the end\footnote{You can change this behavior
+  by putting $\ldots$ at the end.\footnote{You can change this behavior
     by setting the {\tt infLength} variable, like so: {\tt Cryptol>
       :set infLength=10} will show the first 10 elements of infinite
-    sequences}. Here are the responses:
+    sequences} Here are the responses:
 \begin{Verbatim}
   [1, 2, 3, 4, 5, ...]
   [1, 3, 5, 7, 9, ...]
@@ -1079,12 +1079,12 @@ shift a word, say {\tt 12:[6]} by one to the right:
 \end{Verbatim}
 That is shifting right by one effectively divides the word by 2. This
 is due to Cryptol's ``big-endian'' representation of
-numbers\footnote{This is a significant change from Cryptol version 1,
+numbers.\footnote{This is a significant change from Cryptol version 1,
   which interpreted the leftmost element of a sequence as the
   lowest-ordered bit (and thus shifting right was multiplying by 2,
   and shifting left was dividing by 2). The way it is handled now
   matches the traditional
-  interpretation.}.\indRotLeft\indRotRight\indShiftLeft\indShiftRight
+  interpretation.}\indRotLeft\indRotRight\indShiftLeft\indShiftRight
 
 \begin{Exercise}\label{ex:words:6}
 Try the following examples of shifting/rotating words:
@@ -1160,10 +1160,10 @@ operations on them; including arithmetic:
 
 In Cryptol, records are simply collections of named fields. In this
 sense, they are very similar to tuples (Section~\ref{sec:tuple}),
-which can be thought of records without field names\footnote{In fact,
+which can be thought of records without field names.\footnote{In fact,
   the fields of a tuple {\it can} be accessed via the dot-notation,
   with their names being their 0-indexed position in the tuple. So
-  {\tt (1,2).1 == 2}.}. Like a tuple, the fields of a record can be of
+  {\tt (1,2).1 == 2}.} Like a tuple, the fields of a record can be of
 any type.  We construct records by listing the fields inside
 curly braces, separated by commas.  We project fields out of a record
 with the usual dot-notation.  Note that the order of fields in a
@@ -1510,9 +1510,9 @@ Here are Cryptol's responses:\indModular\indEnum\indInfSeq
   [0, 0, 0, 0, 0, ...]
 \end{Verbatim}
 as opposed to \texttt{[0, 1, 0, 1, 0, ...]}, as one might
-expect\footnote{This is one of the subtle changes from Cryptol 1. The
+expect.\footnote{This is one of the subtle changes from Cryptol 1. The
   previous behavior can be achieved by dropping the first element from
-  \texttt{[1 ...]}.}.  This behavior follows from the specification that
+  \texttt{[1 ...]}.}  This behavior follows from the specification that
 the width of the elements of the sequence are derived from the width of
 the elements in the seed, which in this case is 0.
 \end{Answer}
@@ -1542,11 +1542,11 @@ element is at least $4$ bits wide.
 % \label{sec:types}
 \sectionWithAnswers{Types}{sec:types}
 
-Cryptol's type system is one of its key features\footnote{The Cryptol
+Cryptol's type system is one of its key features.\footnote{The Cryptol
   type system is based on the traditional Hindley-Milner style,
   extended with size types and arithmetic
   predicates (for details, see~\cite{erkok-carlsson-wick-cryptolCoverification-09,
-    erkok-matthews-cryptolEqChecking-09, Hin97})}.  You have seen that
+    erkok-matthews-cryptolEqChecking-09, Hin97})}  You have seen that
 types can be used to specify the exact width of values, or shapes of
 sequences using a rich yet concise notation.  In some cases, it may
 make sense to omit a type signature and let Cryptol {\em infer} the
@@ -1964,10 +1964,10 @@ be very precisely specified and the programs can be statically
 guaranteed to respect these sizes.
 
 Opponents of type systems typically argue that the type system gets in
-the way\footnote{Another complaint is that ``strong types are for
+the way.\footnote{Another complaint is that ``strong types are for
   weak minds.'' We do not disagree here: Cryptol programmers want to
   use the type system so we do not have to think as hard about writing
-  correct code as we would without strong types.}.  It is true that
+  correct code as we would without strong types.}  It is true that
 the type system will reject some programs that makes perfect
 sense. But what is more important is that the type system will reject
 programs that will indeed go wrong at run-time. And the price you pay
@@ -2881,10 +2881,10 @@ A \emph{type variable}, on the other hand, allows you to express
 interesting (arithmetic) constraints on \emph{types}. These variables
 express things like lengths of sequences or relationships between
 lengths of sequences.  Type variable values are computed
-statically---they never change at runtime\footnote{In this way,
+statically---they never change at runtime.\footnote{In this way,
   they are similar (but more expressive than) templates in languages
   like C++ or Java. If you want to learn more about this area, look up
-  the term ``type-level naturals''.}.
+  the term ``type-level naturals''.}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 \subsection{Positional vs. named type
