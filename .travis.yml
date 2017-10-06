@@ -17,7 +17,7 @@ matrix:
       env: CABALVER="2.0" GHCVER="8.2.1"
       compiler: ": #GHC 8.2.1"
 
-install:
+before_install:
   - if [[ $TRAVIS_OS_NAME == 'linux' ]];
     then
         mkdir -p $HOME/bin;
@@ -34,7 +34,7 @@ install:
     fi
   - env
 
-build:
+script:
   - cabal update
   - cabal new-build -j
 
