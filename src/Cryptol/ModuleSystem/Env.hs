@@ -63,7 +63,7 @@ data ModuleEnv = ModuleEnv
     -- modules, both public and private.
 
   , meCoreLint      :: CoreLint
-    -- ^ Should we run the linter to ensure snaity.
+    -- ^ Should we run the linter to ensure sanity.
 
   , meMonoBinds     :: !Bool
     -- ^ Are we assuming that local bindings are monomorphic.
@@ -197,17 +197,19 @@ dynamicEnv me = (decls,names,R.toNameDisp names)
   decls = deIfaceDecls (meDynEnv me)
   names = R.unqualifiedEnv decls
 
--- | Retrieve all 'IfaceDecls' referenced by a module, as well as all of its
--- public and private declarations, checking expressions
+-- | Retrieve the combined 'IfaceDecls' needed by the the currently focused
+-- module.  This includes the declarations of the focused module and all
+-- of its imports.  This is the "view from within the module" used
+-- for type-checking expressions on the command line.
 qualifiedEnv :: ModuleEnv -> IfaceDecls
 qualifiedEnv me = fold $
-  do fm   <- meFocusedModule me
-     lm   <- lookupModule fm me
-     deps <- mapM loadImport (T.mImports (lmModule lm))
-     let Iface { .. } = lmInterface lm
+  do focusedName   <- meFocusedModule me
+     focusedModule <- lookupModule focusedName me
+     deps          <- mapM getImportIface (T.mImports (lmModule focusedModule))
+     let Iface { .. } = lmInterface focusedModule
      return (mconcat (ifPublic : ifPrivate : deps))
   where
-  loadImport imp =
+  getImportIface imp =
     do lm <- lookupModule (iModule imp) me
        return (ifPublic (lmInterface lm))
 
@@ -217,7 +219,8 @@ qualifiedEnv me = fold $
 newtype LoadedModules = LoadedModules
   { getLoadedModules :: [LoadedModule]
   } deriving (Show, Generic, NFData)
--- ^ Invariant: All the dependencies of any module `m` must precede `m` in the list.
+-- ^ Invariant: All the dependencies of any module `m` must precede `m`
+-- in the list.
 
 instance Monoid LoadedModules where
   mempty        = LoadedModules []
@@ -226,19 +229,27 @@ instance Monoid LoadedModules where
 
 data LoadedModule = LoadedModule
   { lmName      :: ModName
-  , lmFilePath  :: FilePath -- ^ The file path used to load this module (may not be canonical)
-  , lmCanonicalPath :: FilePath -- ^ The canonical version of the path of this module
+  , lmFilePath  :: FilePath
+    -- ^ The file path used to load this module (may not be canonical)
+  , lmCanonicalPath :: FilePath
+    -- ^ The canonical version of the path of this module
   , lmInterface :: Iface
   , lmModule    :: T.Module
   } deriving (Show, Generic, NFData)
 
+-- | Has this module been loaded already.
 isLoaded :: ModName -> LoadedModules -> Bool
 isLoaded mn lm = any ((mn ==) . lmName) (getLoadedModules lm)
 
+-- | Try to find a previously loaded module
 lookupModule :: ModName -> ModuleEnv -> Maybe LoadedModule
-lookupModule mn env = List.find ((mn ==) . lmName) (getLoadedModules (meLoadedModules env))
+lookupModule mn env = List.find ((mn ==) . lmName)
+                                (getLoadedModules (meLoadedModules env))
 
-addLoadedModule :: FilePath -> FilePath -> T.Module -> LoadedModules -> LoadedModules
+-- | Add a freshly loaded module.  If it was previously loaded, then
+-- the new version is ignored.
+addLoadedModule ::
+  FilePath -> FilePath -> T.Module -> LoadedModules -> LoadedModules
 addLoadedModule path canonicalPath tm lm
   | isLoaded (T.mName tm) lm = lm
   | otherwise                = LoadedModules (getLoadedModules lm ++ [loaded])
@@ -251,6 +262,7 @@ addLoadedModule path canonicalPath tm lm
     , lmModule    = tm
     }
 
+-- | Remove a previously loaded module.
 removeLoadedModule :: FilePath -> LoadedModules -> LoadedModules
 removeLoadedModule path (LoadedModules ms) = LoadedModules (remove ms)
   where
