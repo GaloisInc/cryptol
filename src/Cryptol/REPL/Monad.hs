@@ -114,6 +114,7 @@ import Prelude.Compat
 
 -- REPL Environment ------------------------------------------------------------
 
+-- | The currently focused module.
 data LoadedModule = LoadedModule
   { lName :: Maybe P.ModName -- ^ Focused module
   , lPath :: FilePath        -- ^ Focused file
@@ -122,13 +123,30 @@ data LoadedModule = LoadedModule
 -- | REPL RW Environment.
 data RW = RW
   { eLoadedMod   :: Maybe LoadedModule
+    -- ^ This is the name of the currently "focused" module.
+    -- This is what we edit (:e) or reload (:r)
+
   , eContinue    :: Bool
+    -- ^ Should we keep going when we encounter an error, or give up.
+
   , eIsBatch     :: Bool
+    -- ^ Are we in batch mode.
+
   , eModuleEnv   :: M.ModuleEnv
+    -- ^ The current environment of all things loaded.
+
   , eUserEnv     :: UserEnv
+    -- ^ User settings
+
   , eLogger      :: Logger
+    -- ^ Use this to send messages to the user
+
   , eLetEnabled  :: Bool
+    -- ^ Should we allow `let` on the command line
+
   , eUpdateTitle :: REPL ()
+    -- ^ Execute this every time we load a module.
+    -- This is used to change the title of terminal when loading a module.
   }
 
 -- | Initial, empty environment.
