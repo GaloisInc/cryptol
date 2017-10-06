@@ -17,7 +17,7 @@ module Cryptol.ModuleSystem.Env where
 import Paths_cryptol (getDataDir)
 #endif
 
-import Cryptol.Eval (EvalEnv,EvalOpts(..))
+import Cryptol.Eval (EvalEnv)
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Name (Supply,emptySupply)
 import qualified Cryptol.ModuleSystem.NamingEnv as R
@@ -25,7 +25,6 @@ import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP (NameDisp)
-import Cryptol.Utils.Logger(Logger)
 
 import Control.Monad (guard)
 import qualified Control.Exception as X
@@ -87,6 +86,7 @@ data ModuleEnv = ModuleEnv
 
   } deriving Generic
 
+instance NFData ModuleEnv
 
 -- | Should we run the linter?
 data CoreLint = NoCoreLint        -- ^ Don't run core lint
