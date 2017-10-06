@@ -1,20 +1,15 @@
 install:
   # Using '-y' and 'refreshenv' as a workaround to:
   # https://github.com/haskell/cabal/issues/3687
-  - choco install -y ghc --version 8.0.2
+  - choco install -y ghc --version 8.2.1
   - refreshenv
   # See http://help.appveyor.com/discussions/problems/6312-curl-command-not-found#comment_42195491
   # NB: Do this after refreshenv, otherwise it will be clobbered!
   - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%;C:\msys64\usr\bin
-  - curl -o cabal.zip --progress-bar https://www.haskell.org/cabal/release/cabal-install-1.24.0.0/cabal-install-1.24.0.0-x86_64-unknown-mingw32.zip
-  - 7z x -bd cabal.zip
-  - cabal --version
-  - cabal update
   - curl -o z3.zip -L https://github.com/Z3Prover/z3/releases/download/z3-4.5.0/z3-4.5.0-x64-win.zip
   - 7z x -bd z3.zip
   - cp z3-4.5.0-x64-win/bin/z3.exe .
 
 build_script:
-  - cabal sandbox init
-  - cabal install Cabal
-  - make
+  - cabal update
+  - cabal new-build -j
