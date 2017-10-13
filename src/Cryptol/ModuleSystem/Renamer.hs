@@ -240,26 +240,31 @@ runRenamer s ns env m = (res,F.toList (rwWarnings rw))
   res | Seq.null (rwErrors rw) = Right (a,rwSupply rw)
       | otherwise              = Left (F.toList (rwErrors rw))
 
+-- | Record an error.  XXX: use a better name
 record :: (NameDisp -> RenamerError) -> RenameM ()
 record f = RenameM $
   do RO { .. } <- ask
      RW { .. } <- get
      set RW { rwErrors = rwErrors Seq.|> f roDisp, .. }
 
+-- | Report a warning.
 recordW :: (NameDisp -> RenamerWarning) -> RenameM ()
 recordW f = RenameM $
   do RO { .. } <- ask
      RW { .. } <- get
      set RW { rwWarnings = rwWarnings Seq.|> f roDisp, .. }
 
+-- | Get the source range for wahtever we are currently renaming.
 curLoc :: RenameM Range
 curLoc  = RenameM (roLoc `fmap` ask)
 
+-- | Annotate something with the current range.
 located :: a -> RenameM (Located a)
 located thing =
   do srcRange <- curLoc
      return Located { .. }
 
+-- | Do the given computation using the source code range from `loc` if any.
 withLoc :: HasLoc loc => loc -> RenameM a -> RenameM a
 withLoc loc m = RenameM $ case getLoc loc of
 

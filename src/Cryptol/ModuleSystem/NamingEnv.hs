@@ -269,7 +269,8 @@ unqualifiedEnv IfaceDecls { .. } =
               | d    <- Map.elems ifDecls ]
 
 
--- | Compute an unqualified naming environment from the parameters of a module
+-- | Compute an unqualified naming environment, containing the various module
+-- parameters.
 modParamsNamingEnv :: IfaceParams -> NamingEnv
 modParamsNamingEnv IfaceParams { .. } =
   NamingEnv { neExprs = Map.fromList $ map fromFu $ Map.keys ifParamFuns

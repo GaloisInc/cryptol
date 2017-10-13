@@ -15,11 +15,11 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
 
-
-inferModuleInstance :: Module {- ^ type-checked functor -} ->
+-- | Check that the instance provides what the functor needs.
+checkModuleInstance :: Module {- ^ type-checked functor -} ->
                        Module {- ^ type-checked instance -} ->
                        InferM Module -- ^ Instantiated module
-inferModuleInstance func inst =
+checkModuleInstance func inst =
   do tMap <- checkTyParams func inst
      vMap <- checkValParams func inst
      (ctrs, m) <- instantiateModule func (mName inst) tMap vMap
