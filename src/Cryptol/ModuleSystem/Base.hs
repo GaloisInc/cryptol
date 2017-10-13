@@ -48,8 +48,6 @@ import Cryptol.Transform.MonoValues (rewModule)
 import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad (unless)
-import Data.Function (on)
-import Data.List (nubBy)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import           Data.Text.Lazy (Text)
@@ -147,24 +145,24 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
      | otherwise       -> duplicateModuleName n path' loaded
      where loaded = lmCanonicalPath lm
 
--- | Load the module specified by an import.
-loadImport :: Located P.Import -> ModuleM ()
-loadImport li = do
 
-  let i = thing li
-      n = P.iModule i
+-- | Load a module that arouse a dependnecy
+loadDep :: (ModuleM () -> ModuleM ()) -> P.ModName -> ModuleM ()
+loadDep what n = do
 
   alreadyLoaded <- isLoaded n
   unless alreadyLoaded $
     do path <- findModule n
        pm   <- parseModule path
-       loadingImport li $ do
+       what $ do
 
          -- make sure that this module is the one we expect
          unless (n == thing (P.mName pm)) (moduleNameMismatch n (mName pm))
 
          _ <- loadModule path pm
          return ()
+
+
 
 -- | Load dependencies, typecheck, and add to the eval environment.
 loadModule :: FilePath -> P.Module PName -> ModuleM T.Module
@@ -174,14 +172,10 @@ loadModule path pm = do
   loadDeps pm'
 
   withLogger logPutStrLn ("Loading module " ++ pretty (P.thing (P.mName pm')))
-
   tcm <- checkModule path pm'
-
   -- extend the eval env
   modifyEvalEnv (E.moduleEnv tcm)
-
   canonicalPath <- io (canonicalizePath path)
-
   loadedModule path canonicalPath tcm
 
   return tcm
@@ -270,12 +264,13 @@ addPrelude m
 
 -- | Load the dependencies of a module into the environment.
 loadDeps :: P.Module name -> ModuleM ()
-loadDeps m
-  | null needed = return ()
-  | otherwise   = mapM_ load needed
+loadDeps m =
+  do mapM_ loadI (P.mImports m)
+     mapM_ loadF (P.mInstance m)
   where
-  needed  = nubBy ((==) `on` P.iModule . thing) (P.mImports m)
-  load mn = loadImport mn
+  loadI i = loadDep (loadingImport i) (P.iModule (thing i))
+  loadF f = loadDep (loadingModInstance f) (thing f)
+
 
 
 -- Type Checking ---------------------------------------------------------------
@@ -339,9 +334,20 @@ getPrimMap  =
        Nothing -> panic "Cryptol.ModuleSystem.Base.getPrimMap"
                   [ "Unable to find the prelude" ]
 
--- | Typecheck a module.
+-- | Load a module, be it a normal module or a functor instantiation.
 checkModule :: FilePath -> P.Module PName -> ModuleM T.Module
-checkModule path m = do
+checkModule path m =
+  do tcm <- checkSingleModule path m
+     -- Is this a module instantitation?
+     case P.mInstance m of
+       Nothing -> return tcm
+       Just fmName -> error "XXX: instance"
+
+-- | Typecheck a single module.  If the module is an instantiation
+-- of a functor, then this just type-checks the instantiating parameters.
+-- See 'checkModule'
+checkSingleModule :: FilePath -> P.Module PName -> ModuleM T.Module
+checkSingleModule path m = do
   -- remove includes first
   e   <- io (removeIncludesModule path m)
   nim <- case e of
@@ -365,6 +371,8 @@ checkModule path m = do
   let act = TCAction { tcAction = T.tcModule
                      , tcLinter = moduleLinter (P.thing (P.mName m))
                      , tcPrims  = prims }
+
+
   tcm <- typecheck act scm noIfaceParams tcEnv
 
   liftSupply (`rewModule` tcm)

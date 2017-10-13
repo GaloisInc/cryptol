@@ -49,6 +49,7 @@ import Prelude.Compat
 data ImportSource
   = FromModule P.ModName
   | FromImport (Located P.Import)
+  | FromModuleInstance (Located P.ModName)
     deriving (Show, Generic, NFData)
 
 instance Eq ImportSource where
@@ -58,11 +59,15 @@ instance PP ImportSource where
   ppPrec _ is = case is of
     FromModule n  -> text "module name" <+> pp n
     FromImport li -> text "import of module" <+> pp (P.iModule (P.thing li))
+    FromModuleInstance l ->
+      text "instantiation of module" <+> pp (P.thing l)
 
 importedModule :: ImportSource -> P.ModName
-importedModule is = case is of
-  FromModule n  -> n
-  FromImport li -> P.iModule (P.thing li)
+importedModule is =
+  case is of
+    FromModule n          -> n
+    FromImport li         -> P.iModule (P.thing li)
+    FromModuleInstance l  -> P.thing l
 
 
 data ModuleError
@@ -323,6 +328,9 @@ loadingImport  = loading . FromImport
 
 loadingModule :: P.ModName -> ModuleM a -> ModuleM a
 loadingModule  = loading . FromModule
+
+loadingModInstance :: Located P.ModName -> ModuleM a -> ModuleM a
+loadingModInstance = loading . FromModuleInstance
 
 -- | Push an "interactive" context onto the loading stack.  A bit of a hack, as
 -- it uses a faked module name
