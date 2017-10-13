@@ -190,12 +190,12 @@ the same value, so {\tt a} and {\tt A} both represent 10.
 
 A tuple is a simple collection of arbitrary ordered values of
 arbitrary types, written in parentheses.\indTheTupleType A tuple is at
-least a pair; it has at least two elements\footnote{Tuples with zero
+least a pair; it has at least two elements,\footnote{Tuples with zero
   and one element are part of the underlying mathematics of Cryptol's
   tuple theory but are not supported in its concrete syntax because
   doing so unnecessarily complicates the parser and program
-  comprehension.}, and can be arbitrarily nested with other types.
-Elements are comma separated.  
+  comprehension.} and can be arbitrarily nested with other types.
+Elements are comma separated.
 
 Two tuples are equal in the standard fashion: if they have the same
 arity, their types are pairwise comparable
@@ -622,10 +622,10 @@ Try the following infinite enumerations:
 \begin{Answer}\ansref{ex:seq:9}
   When you type in an infinite sequence, Cryptol will only print the
   first 5 elements of it and will indicate that it is an infinite value
-  by putting $\ldots$ at the end\footnote{You can change this behavior
+  by putting $\ldots$ at the end.\footnote{You can change this behavior
     by setting the {\tt infLength} variable, like so: {\tt Cryptol>
       :set infLength=10} will show the first 10 elements of infinite
-    sequences}. Here are the responses:
+    sequences} Here are the responses:
 \begin{Verbatim}
   [1, 2, 3, 4, 5, ...]
   [1, 3, 5, 7, 9, ...]
@@ -1079,12 +1079,12 @@ shift a word, say {\tt 12:[6]} by one to the right:
 \end{Verbatim}
 That is shifting right by one effectively divides the word by 2. This
 is due to Cryptol's ``big-endian'' representation of
-numbers\footnote{This is a significant change from Cryptol version 1,
+numbers.\footnote{This is a significant change from Cryptol version 1,
   which interpreted the leftmost element of a sequence as the
   lowest-ordered bit (and thus shifting right was multiplying by 2,
   and shifting left was dividing by 2). The way it is handled now
   matches the traditional
-  interpretation.}.\indRotLeft\indRotRight\indShiftLeft\indShiftRight
+  interpretation.}\indRotLeft\indRotRight\indShiftLeft\indShiftRight
 
 \begin{Exercise}\label{ex:words:6}
 Try the following examples of shifting/rotating words:
@@ -1160,10 +1160,10 @@ operations on them; including arithmetic:
 
 In Cryptol, records are simply collections of named fields. In this
 sense, they are very similar to tuples (Section~\ref{sec:tuple}),
-which can be thought of records without field names\footnote{In fact,
+which can be thought of records without field names.\footnote{In fact,
   the fields of a tuple {\it can} be accessed via the dot-notation,
   with their names being their 0-indexed position in the tuple. So
-  {\tt (1,2).1 == 2}.}. Like a tuple, the fields of a record can be of
+  {\tt (1,2).1 == 2}.} Like a tuple, the fields of a record can be of
 any type.  We construct records by listing the fields inside
 curly braces, separated by commas.  We project fields out of a record
 with the usual dot-notation.  Note that the order of fields in a
@@ -1510,9 +1510,9 @@ Here are Cryptol's responses:\indModular\indEnum\indInfSeq
   [0, 0, 0, 0, 0, ...]
 \end{Verbatim}
 as opposed to \texttt{[0, 1, 0, 1, 0, ...]}, as one might
-expect\footnote{This is one of the subtle changes from Cryptol 1. The
+expect.\footnote{This is one of the subtle changes from Cryptol 1. The
   previous behavior can be achieved by dropping the first element from
-  \texttt{[1 ...]}.}.  This behavior follows from the specification that
+  \texttt{[1 ...]}.}  This behavior follows from the specification that
 the width of the elements of the sequence are derived from the width of
 the elements in the seed, which in this case is 0.
 \end{Answer}
@@ -1542,11 +1542,11 @@ element is at least $4$ bits wide.
 % \label{sec:types}
 \sectionWithAnswers{Types}{sec:types}
 
-Cryptol's type system is one of its key features\footnote{The Cryptol
+Cryptol's type system is one of its key features.\footnote{The Cryptol
   type system is based on the traditional Hindley-Milner style,
   extended with size types and arithmetic
   predicates (for details, see~\cite{erkok-carlsson-wick-cryptolCoverification-09,
-    erkok-matthews-cryptolEqChecking-09, Hin97})}.  You have seen that
+    erkok-matthews-cryptolEqChecking-09, Hin97})}  You have seen that
 types can be used to specify the exact width of values, or shapes of
 sequences using a rich yet concise notation.  In some cases, it may
 make sense to omit a type signature and let Cryptol {\em infer} the
@@ -1841,9 +1841,9 @@ In general, type predicates exclusively describe \textit{arithmetic
   constraints on type variables}.  Cryptol does not have a
 general-purpose dependent type system, but a \emph{size-polymorphic
   type system}.  Often type variables' values are of finite size,
-indicated with the constraint {\tt fin a}\indFin, otherwise no
-constraint is mentioned or an explicit \texttt{inf a} is
-denoted\indInf, and the variables' values are unbounded.  Arithmetic
+indicated with the constraint {\tt fin a}\indFin; otherwise no
+constraint is mentioned, and the variables' values are unbounded,
+possibly taking the value \texttt{inf}\indInf.  Arithmetic
 relations are arbitrary relations over all type variables, such as
 {\tt 2*a+b >= c}.  We shall see more examples as we work through
 programs later on.
@@ -1964,10 +1964,10 @@ be very precisely specified and the programs can be statically
 guaranteed to respect these sizes.
 
 Opponents of type systems typically argue that the type system gets in
-the way\footnote{Another complaint is that ``strong types are for
+the way.\footnote{Another complaint is that ``strong types are for
   weak minds.'' We do not disagree here: Cryptol programmers want to
   use the type system so we do not have to think as hard about writing
-  correct code as we would without strong types.}.  It is true that
+  correct code as we would without strong types.}  It is true that
 the type system will reject some programs that makes perfect
 sense. But what is more important is that the type system will reject
 programs that will indeed go wrong at run-time. And the price you pay
@@ -1988,16 +1988,11 @@ for~\cite{lewis2003}.
 
 So far, we used Cryptol as a calculator: we typed in expressions and
 it gave us answers. This is great for experimenting, and exploring
-Cryptol itself.  The next fundamental Cryptol idiom is the notion of a
+Cryptol itself. The next fundamental Cryptol idiom is the notion of a
 function. You have already used built-in functions {\tt +}, {\tt
   take}, etc.\indPlus\indLg Of course, users can define their own
-functions as well.  Currently the Cryptol interpreter does not support
-defining functions, so you must define them in a file and load it, as
-in the next exercises.
-
-\todo[inline]{Is the inability to define top-level symbols at the REPL a
-  feature forever, will we allow this, or should we document it
-  above?}
+functions as well. The recommended method is to define them in a file
+and load it, as in the next exercises.
 
 \note{Reviewing the contents of Section~\ref{sec:technicalities} might
   help at this point. Especially the commands that will let you load
@@ -2041,6 +2036,45 @@ argument of the wrong size: 912 is too big to fit into 8 bits.
   parentheses if you want to, and you must use parentheses if you want
   to pass a negative argument, e.g. \texttt{increment(-2)} (recall
   Exercise~\autoref{ex:arith:5}).}\indFunApp
+
+%~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+\subsection{Definitions in the interpreter with \texttt{let}}
+\label{sec:interpreter-let}
+As an alternative to creating and loading files, the Cryptol
+interpreter also supports simple definitions with \texttt{let}. Unlike
+file-based definitions, \texttt{let}-definitions are not persistent:
+They exist only until the same name is redefined or the interpreter
+exits with \texttt{:q}.
+\begin{code}
+  Cryptol> let r = {a = True, b = False}
+  Cryptol> r.a
+  True
+\end{code}
+Simple functions can be defined in the interpreter with \texttt{let},
+with some restrictions: They must be entered on a single line, and
+they cannot have a separate type signature. If we want a function to
+have a more specific type than the inferred one, we must add type
+annotations to variables or other parts of the body of the definition.
+\begin{Exercise}\label{ex:fn:0b}
+  Enter the following definition into the Cryptol interpreter and check
+  its type with \texttt{:t}.
+\begin{code}
+  let increment x = x+1
+\end{code}
+Modify the \texttt{let}-definition of \texttt{increment} so that it
+will have type \texttt{[8] -> [8]}.
+\end{Exercise}
+\begin{Answer}\ansref{ex:fn:0b}
+Any of the following definitions will have the desired type:
+\begin{Verbatim}
+  Cryptol> let increment (x : [8]) = x + 1
+  Cryptol> let increment x = (x : [8]) + 1
+  Cryptol> let increment x = x + (1 : [8])
+  Cryptol> let increment x = x + 1 : [8]
+  Cryptol> :t increment
+  increment : [8] -> [8]
+\end{Verbatim}
+\end{Answer}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 \subsection{Local names: {\ttfamily{\textbf where}} clauses}
@@ -2805,24 +2839,41 @@ This operator type is interpreted ``equality is an operator that takes
 two objects of any single type that can be compared and returns a
 Bit.''
 
-Cryptol defines exactly two basic type classes: {\tt Cmp} and {\tt
-  Arith}.  These appear in the type signature of operators and
-functions that require them.  If a function you define calls, for
-example, {\tt +}, on two arguments both of type {\tt a}, the type
-constraints for {\tt a} will include {\tt (Arith a)}.
+Cryptol defines a collection of basic type classes: \texttt{Logic},
+\texttt{Zero}, \texttt{Cmp}, \texttt{SignedCmp}, and \texttt{Arith}.
+These appear in the type signature of operators and functions that
+require them. If a function you define calls, for example, {\tt +}, on
+two arguments both of type {\tt a}, the type constraints for {\tt a}
+will include {\tt (Arith a)}.
+
+The \texttt{Logic} typeclass includes the binary logical operators
+\texttt{\&\&}, \texttt{||}, and \verb+^+, as well as the unary
+operator \verb+~+.
+
+The \texttt{Zero} typeclass includes the special constant
+\texttt{zero}. The shifting operators \texttt{<<} and \texttt{>>} are
+also in class \texttt{Zero}, because they can shift in zero values.
+All of the built-in types of Cryptol are instances of class
+\texttt{Zero}.
 
 The \texttt{Cmp} typeclass includes the binary relation operators
 \texttt{<}, \texttt{>}, \texttt{<=}, \texttt{>=}, \texttt{==}, and
 \texttt{!=}, as well as the binary functions \texttt{min} and
-\texttt{max}.  Note that equality is defined on function types (i.e.,
-\texttt{\{a b\} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit}).  Unlike
-in many other languages, equality and comparison are bundled into a
-single typeclass.
-\todo[inline]{``many'' other languages? Like what?}
-\todo[inline]{``equality is defined on function types'' is misleading, can't use == for this.}
+\texttt{max}. Note that equality and other comparisons are bundled
+into a single typeclass. Function types are not in class \texttt{Cmp}
+and cannot be compared with \texttt{==}, but Cryptol does provide a
+special pointwise comparison operator for functions, \texttt{(===) :
+  \{a b\} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit}.
 
-The \texttt{Arith} typeclass include the binary operators \texttt{+},
-\texttt{-}, \texttt{*}, \texttt{/}, \verb+%+, \verb+^^+, as well
+The \texttt{SignedCmp} typeclass includes the binary relation
+operators \texttt{<\$}, \texttt{>\$}, \texttt{<=\$}, and
+\texttt{>=\$}. These are like \texttt{<}, \texttt{>}, \texttt{<=}, and
+\texttt{>=}, except that they interpret bitvectors as \emph{signed}
+2's complement numbers, whereas the \texttt{Cmp} operations use the
+\emph{unsigned} ordering.
+
+The \texttt{Arith} typeclass includes the binary operators \texttt{+},
+\texttt{-}, \texttt{*}, \texttt{/}, \verb+%+, and \verb+^^+, as well
 as the unary operators \texttt{lg2} and \texttt{-}.
 
 \begin{Exercise}\label{ex:tvar:1}
@@ -2844,7 +2895,7 @@ yields the inferred type:
 \end{Answer}
 
 %=====================================================================
-\section{Type vs. value variables}\indTypeVariables
+\section{Type vs.\ value variables}\indTypeVariables
 \label{sec:type-vs.-value}
 
 \todo[inline]{Rewrite this whole section to better clarify object- vs. type
@@ -2881,13 +2932,13 @@ A \emph{type variable}, on the other hand, allows you to express
 interesting (arithmetic) constraints on \emph{types}. These variables
 express things like lengths of sequences or relationships between
 lengths of sequences.  Type variable values are computed
-statically---they never change at runtime\footnote{In this way,
+statically---they never change at runtime.\footnote{In this way,
   they are similar (but more expressive than) templates in languages
   like C++ or Java. If you want to learn more about this area, look up
-  the term ``type-level naturals''.}.
+  the term ``type-level naturals''.}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-\subsection{Positional vs. named type
+\subsection{Positional vs.\ named type
   arguments}\indTypePositionalArguments
 \label{sec:positional-vs.-named}
 
@@ -2935,7 +2986,7 @@ clear, as in:
   resolution, in the presence of positional arguments.}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-\subsection{Type context vs. variable context}\indTypeContext
+\subsection{Type context vs.\ variable context}\indTypeContext
 \label{sec:type-context-vs}
 
 You have seen, in the discussion of type variables above, that Cryptol

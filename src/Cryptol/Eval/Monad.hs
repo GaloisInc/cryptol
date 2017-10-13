@@ -14,6 +14,9 @@ module Cryptol.Eval.Monad
 ( -- * Evaluation monad
   Eval(..)
 , runEval
+, EvalOpts(..)
+, getEvalOpts
+, PPOpts(..)
 , io
 , delay
 , delayFill
@@ -42,21 +45,41 @@ import qualified Control.Exception as X
 
 import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
+import Cryptol.Utils.Logger(Logger)
 import Cryptol.TypeCheck.AST(Type)
 
 -- | A computation that returns an already-evaluated value.
 ready :: a -> Eval a
 ready a = Ready a
 
+-- | How to pretty print things when evaluating
+data PPOpts = PPOpts
+  { useAscii     :: Bool
+  , useBase      :: Int
+  , useInfLength :: Int
+  }
+
+-- | Some options for evalutaion
+data EvalOpts = EvalOpts
+  { evalLogger :: Logger    -- ^ Where to print stuff (e.g., for @trace@)
+  , evalPPOpts :: PPOpts    -- ^ How to pretty print things.
+  }
+
+
 -- | The monad for Cryptol evaluation.
 data Eval a
    = Ready !a
-   | Thunk !(IO a)
+   | Thunk !(EvalOpts -> IO a)
 
 data ThunkState a
   = Unforced        -- ^ This thunk has not yet been forced
   | BlackHole       -- ^ This thunk is currently being evaluated
   | Forced !a       -- ^ This thunk has previously been forced, and has the given value
+
+
+-- | Access the evaluation options.
+getEvalOpts :: Eval EvalOpts
+getEvalOpts = Thunk return
 
 {-# INLINE delay #-}
 -- | Delay the given evaluation computation, returning a thunk
@@ -66,11 +89,11 @@ delay :: Maybe String     -- ^ Optional name to print if a loop is detected
       -> Eval a           -- ^ Computation to delay
       -> Eval (Eval a)
 delay _ (Ready a) = Ready (Ready a)
-delay msg (Thunk x) = Thunk $ do
+delay msg (Thunk x) = Thunk $ \opts -> do
   let msg' = maybe "" ("while evaluating "++) msg
   let retry = cryLoopError msg'
   r <- newIORef Unforced
-  return $ unDelay retry r x
+  return $ unDelay retry r (x opts)
 
 {-# INLINE delayFill #-}
 
@@ -82,9 +105,9 @@ delayFill :: Eval a        -- ^ Computation to delay
           -> Eval a        -- ^ Backup computation to run if a tight loop is detected
           -> Eval (Eval a)
 delayFill (Ready x) _ = Ready (Ready x)
-delayFill (Thunk x) retry = Thunk $ do
+delayFill (Thunk x) retry = Thunk $ \opts -> do
   r <- newIORef Unforced
-  return $ unDelay retry r x
+  return $ unDelay retry r (x opts)
 
 -- | Produce a thunk value which can be filled with its associated computation
 --   after the fact.  A preallocated thunk is returned, along with an operation to
@@ -112,18 +135,18 @@ unDelay retry r x = do
       return val
 
 -- | Execute the given evaluation action.
-runEval :: Eval a -> IO a
-runEval (Ready a) = return a
-runEval (Thunk x) = x
+runEval :: EvalOpts -> Eval a -> IO a
+runEval _ (Ready a) = return a
+runEval opts (Thunk x) = x opts
 
 {-# INLINE evalBind #-}
 evalBind :: Eval a -> (a -> Eval b) -> Eval b
 evalBind (Ready a) f  = f a
-evalBind (Thunk x) f  = Thunk (x >>= runEval . f)
+evalBind (Thunk x) f  = Thunk $ \opts -> x opts >>= runEval opts . f
 
 instance Functor Eval where
   fmap f (Ready x) = Ready (f x)
-  fmap f (Thunk m) = Thunk (f <$> m)
+  fmap f (Thunk m) = Thunk $ \opts -> f <$> m opts
   {-# INLINE fmap #-}
 
 instance Applicative Eval where
@@ -134,7 +157,7 @@ instance Applicative Eval where
 
 instance Monad Eval where
   return = Ready
-  fail   = Thunk . fail
+  fail x = Thunk (\_ -> fail x)
   (>>=)  = evalBind
   {-# INLINE return #-}
   {-# INLINE (>>=) #-}
@@ -147,11 +170,11 @@ instance NFData a => NFData (Eval a) where
   rnf (Thunk _) = ()
 
 instance MonadFix Eval where
-  mfix f = Thunk $ mfix (\x -> runEval (f x))
+  mfix f = Thunk $ \opts -> mfix (\x -> runEval opts (f x))
 
 -- | Lift an 'IO' computation into the 'Eval' monad.
 io :: IO a -> Eval a
-io = Thunk
+io m = Thunk (\_ -> m)
 {-# INLINE io #-}
 
 
@@ -192,11 +215,11 @@ typeCannotBeDemoted t = X.throw (TypeCannotBeDemoted t)
 
 -- | For division by 0.
 divideByZero :: Eval a
-divideByZero = Thunk (X.throwIO DivideByZero)
+divideByZero = io (X.throwIO DivideByZero)
 
 -- | For exponentiation by a negative integer.
 negativeExponent :: Eval a
-negativeExponent = Thunk (X.throwIO NegativeExponent)
+negativeExponent = io (X.throwIO NegativeExponent)
 
 -- | For when we know that a word is too wide and will exceed gmp's
 -- limits (though words approaching this size will probably cause the
@@ -206,12 +229,12 @@ wordTooWide w = X.throw (WordTooWide w)
 
 -- | For the Cryptol @error@ function.
 cryUserError :: String -> Eval a
-cryUserError msg = Thunk (X.throwIO (UserError msg))
+cryUserError msg = io (X.throwIO (UserError msg))
 
 -- | For cases where we can detect tight loops.
 cryLoopError :: String -> Eval a
-cryLoopError msg = Thunk (X.throwIO (LoopError msg))
+cryLoopError msg = io (X.throwIO (LoopError msg))
 
 -- | A sequencing operation has gotten an invalid index.
 invalidIndex :: Integer -> Eval a
-invalidIndex i = Thunk (X.throwIO (InvalidIndex i))
+invalidIndex i = io (X.throwIO (InvalidIndex i))

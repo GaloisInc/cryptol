@@ -17,6 +17,9 @@
 module Cryptol.Eval (
     moduleEnv
   , runEval
+  , EvalOpts(..)
+  , PPOpts(..)
+  , defaultPPOpts
   , Eval
   , EvalEnv
   , emptyEnv

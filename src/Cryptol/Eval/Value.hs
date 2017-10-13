@@ -332,12 +332,6 @@ type Value = GenValue Bool BV Integer
 
 -- Pretty Printing -------------------------------------------------------------
 
-data PPOpts = PPOpts
-  { useAscii     :: Bool
-  , useBase      :: Int
-  , useInfLength :: Int
-  }
-
 defaultPPOpts :: PPOpts
 defaultPPOpts = PPOpts { useAscii = False, useBase = 10, useInfLength = 5 }
 

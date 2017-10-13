@@ -248,7 +248,7 @@ removeWorker workers port _result =
   atomicModifyIORef workers $ \s -> (Map.delete port s, ())
 
 runRepl :: Socket Rep -> IO ()
-runRepl rep = runREPL False $ do -- TODO: batch mode?
+runRepl rep = runREPL False stdoutLogger $ do -- TODO: batch mode?
   mCryptolPath <- io $ lookupEnv "CRYPTOLPATH"
   case mCryptolPath of
     Nothing -> return ()

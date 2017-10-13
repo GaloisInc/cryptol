@@ -9,4 +9,4 @@ testing...passed 1 tests.
 Q.E.D.
 Using random testing.
 testing...passed 100 tests.
-Coverage: 0.00% (100 of 2^^30 values)
+Expected test coverage: 0.00% (100 of 2^^30 values)

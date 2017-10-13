@@ -43,6 +43,7 @@ import Cryptol.TypeCheck.AST
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.Logger(logPutStrLn)
 
 import Prelude ()
 import Prelude.Compat
@@ -124,13 +125,14 @@ thmSMTResults :: SBV.ThmResult -> [SBV.SMTResult]
 thmSMTResults (SBV.ThmResult r) = [r]
 
 proverError :: String -> M.ModuleCmd (Maybe SBV.Solver, ProverResult)
-proverError msg modEnv =
+proverError msg (_,modEnv) =
   return (Right ((Nothing, ProverError msg), modEnv), [])
 
 satProve :: ProverCommand -> M.ModuleCmd (Maybe SBV.Solver, ProverResult)
 satProve ProverCommand {..} =
-  protectStack proverError $ \modEnv ->
-  M.runModuleM modEnv $ do
+  protectStack proverError $ \(evo,modEnv) ->
+
+  M.runModuleM (evo,modEnv) $ do
   let (isSat, mSatNum) = case pcQueryType of
         ProveQuery -> (False, Nothing)
         SatQuery sn -> case sn of
@@ -145,14 +147,19 @@ satProve ProverCommand {..} =
 
   let provers' = [ p { SBV.timing = SaveTiming pcProverStats, SBV.verbose = pcVerbose } | p <- provers ]
   let tyFn = if isSat then existsFinType else forallFinType
+  let lPutStrLn = M.withLogger logPutStrLn
+  let doEval :: MonadIO m => Eval.Eval a -> m a
+      doEval m  = liftIO $ Eval.runEval evo m
   let runProver fn tag e = do
         case provers of
           [prover] -> do
-            when pcVerbose $ M.io $
-              putStrLn $ "Trying proof with " ++ show (SBV.name (SBV.solver prover))
+            when pcVerbose $
+              lPutStrLn $ "Trying proof with " ++
+                                        show (SBV.name (SBV.solver prover))
             res <- M.io (fn prover e)
-            when pcVerbose $ M.io $
-              putStrLn $ "Got result from " ++ show (SBV.name (SBV.solver prover))
+            when pcVerbose $
+              lPutStrLn $ "Got result from " ++
+                                        show (SBV.name (SBV.solver prover))
             return (Just (SBV.name (SBV.solver prover)), tag res)
           _ ->
             return ( Nothing
@@ -162,12 +169,13 @@ satProve ProverCommand {..} =
                      | prover <- provers ]
                    )
       runProvers fn tag e = do
-        when pcVerbose $ M.io $
-          putStrLn $ "Trying proof with " ++
-                     intercalate ", " (map (show . SBV.name . SBV.solver) provers)
+        when pcVerbose $
+          lPutStrLn $ "Trying proof with " ++
+                  intercalate ", " (map (show . SBV.name . SBV.solver) provers)
         (firstProver, timeElapsed, res) <- M.io (fn provers' e)
-        when pcVerbose $ M.io $
-          putStrLn $ "Got result from " ++ show firstProver ++ ", time: " ++ showTDiff timeElapsed
+        when pcVerbose $
+          lPutStrLn $ "Got result from " ++ show firstProver ++
+                                            ", time: " ++ showTDiff timeElapsed
         return (Just firstProver, tag res)
   let runFn = case pcQueryType of
         ProveQuery -> runProvers SBV.proveWithAny thmSMTResults
@@ -176,15 +184,14 @@ satProve ProverCommand {..} =
           _         -> runProver SBV.allSatWith allSatSMTResults
   case predArgTypes pcSchema of
     Left msg -> return (Nothing, ProverError msg)
-    Right ts -> do when pcVerbose $ M.io $ putStrLn "Simulating..."
-                   v <- M.io $ Eval.runEval $ do
-                               env <- Eval.evalDecls extDgs mempty
-                               Eval.evalExpr env pcExpr
+    Right ts -> do when pcVerbose $ lPutStrLn "Simulating..."
+                   v <- doEval $ do env <- Eval.evalDecls extDgs mempty
+                                    Eval.evalExpr env pcExpr
                    prims <- M.getPrimMap
                    runRes <- runFn $ do
                                args <- mapM tyFn ts
-                               b <- liftIO $ Eval.runEval
-                                      (fromVBit <$> foldM fromVFun v (map Eval.ready args))
+                               b <- doEval (fromVBit <$>
+                                      foldM fromVFun v (map Eval.ready args))
                                return b
                    let (firstProver, results') = runRes
                        results = maybe results' (\n -> take n results') mSatNum
@@ -199,8 +206,8 @@ satProve ProverCommand {..} =
                            let Right (_, cws) = SBV.getModelAssignment result
                                (vs, _) = parseValues ts cws
                                sattys = unFinType <$> ts
-                           satexprs <- liftIO $ Eval.runEval
-                                           (zipWithM (Eval.toExpr prims) sattys vs)
+                           satexprs <-
+                             doEval (zipWithM (Eval.toExpr prims) sattys vs)
                            case zip3 sattys <$> (sequence satexprs) <*> pure vs of
                              Nothing ->
                                panic "Cryptol.Symbolic.sat"
@@ -221,7 +228,8 @@ satProve ProverCommand {..} =
 
 satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
 satProveOffline ProverCommand {..} =
-  protectStack (\msg modEnv -> return (Right (Left msg, modEnv), [])) $ \modEnv -> do
+  protectStack (\msg (_,modEnv) -> return (Right (Left msg, modEnv), [])) $
+  \(evOpts,modEnv) -> do
     let isSat = case pcQueryType of
           ProveQuery -> False
           SatQuery _ -> True
@@ -230,14 +238,14 @@ satProveOffline ProverCommand {..} =
     case predArgTypes pcSchema of
       Left msg -> return (Right (Left msg, modEnv), [])
       Right ts ->
-        do when pcVerbose $ putStrLn "Simulating..."
-           v <- liftIO $ Eval.runEval $
+        do when pcVerbose $ logPutStrLn (Eval.evalLogger evOpts) "Simulating..."
+           v <- liftIO $ Eval.runEval evOpts $
                    do env <- Eval.evalDecls extDgs mempty
                       Eval.evalExpr env pcExpr
            smtlib <- SBV.generateSMTBenchmark isSat $ do
              args <- mapM tyFn ts
-             liftIO $ Eval.runEval
-                    (fromVBit <$> foldM fromVFun v (map Eval.ready args))
+             liftIO $ Eval.runEval evOpts
+                        (fromVBit <$> foldM fromVFun v (map Eval.ready args))
            return (Right (Right smtlib, modEnv), [])
 
 protectStack :: (String -> M.ModuleCmd a)

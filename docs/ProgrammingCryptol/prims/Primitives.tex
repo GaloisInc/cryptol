@@ -8,13 +8,14 @@ primsPlaceHolder=1;
 
 \paragraph*{Bitwise operations}
 \begin{Verbatim}
-    &&, ||, ^ : {a} a -> a -> a
-    ~         : {a} a -> a
+    &&, ||, ^ : {a} (Logic a) => a -> a -> a
+    ~         : {a} (Logic a) => a -> a
 \end{Verbatim}
 \paragraph*{Comparisons}
 \begin{Verbatim}
     ==, !=        : {a} (Cmp a) => a -> a -> Bit
     <, >, <=, >=  : {a} (Cmp a) => a -> a -> Bit
+    <$            : {a} (SignedCmp a) => a -> a -> Bit
 \end{Verbatim}
 \paragraph*{Arithmetic}
 \begin{Verbatim}
@@ -26,7 +27,7 @@ primsPlaceHolder=1;
 \begin{Verbatim}
     pdiv  : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
     pmod  : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
-    pmult : {a, b} (fin a, fin b) => [a] -> [b] -> [max 1 (a + b) - 1]
+    pmult : {a, b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 + a + b]
 \end{Verbatim}
 \paragraph*{Sequences}
 \begin{Verbatim}
@@ -35,7 +36,7 @@ primsPlaceHolder=1;
     drop  : {front, back, elem} (fin front)
          => [front + back]elem -> [front]elem
     tail  : {a, b} [a+1]b -> [a]b
-    #     : {front, back, a} (fin front) =>
+    #     : {front, back, a} (fin front)
          => [front]a -> [back]a -> [front + back]a
     join  : {parts, each, a} (fin each)
          => [parts][each]a -> [parts * each]a
@@ -58,12 +59,12 @@ primsPlaceHolder=1;
 \end{Verbatim}
 \paragraph*{Shifting, rotating}
 \begin{Verbatim}
-    >>, <<   : {a, b, c} (fin b) => [a]c -> [b] -> [a]c
+    >>, <<   : {a, b, c} (fin b, Zero c) => [a]c -> [b] -> [a]c
     >>>, <<< : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
 \end{Verbatim}
 \paragraph*{Miscellaneous}
 \begin{Verbatim}
-    zero      : {a} a
+    zero      : {a} (Zero a) => a
     transpose : {a, b, c} [a][b]c -> [b][a]c
     min, max  : {a} (Cmp a) => a -> a -> a
 \end{Verbatim}

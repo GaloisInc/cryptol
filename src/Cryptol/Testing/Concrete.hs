@@ -37,11 +37,11 @@ isPass _    = False
 -- Note that this function assumes that the values come from a call to
 -- `testableType` (i.e., things are type-correct). We run in the IO
 -- monad in order to catch any @EvalError@s.
-runOneTest :: Value -> [Value] -> IO TestResult
-runOneTest v0 vs0 = run `X.catch` handle
+runOneTest :: EvalOpts -> Value -> [Value] -> IO TestResult
+runOneTest evOpts v0 vs0 = run `X.catch` handle
   where
     run = do
-      result <- runEval (go v0 vs0)
+      result <- runEval evOpts (go v0 vs0)
       if result
         then return Pass
         else return (FailFalse vs0)

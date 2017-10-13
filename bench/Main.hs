@@ -35,6 +35,7 @@ import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
 
 import qualified Cryptol.Utils.Ident as I
+import           Cryptol.Utils.Logger(quietLogger)
 
 import qualified Data.SBV.Dynamic as SBV
 
@@ -74,6 +75,13 @@ main = do
       ]
    ]
 
+-- | Evaluation options, mostly used by `trace`.
+-- Since the benchmarks likely do not use base, these don't matter very much
+evOpts :: E.EvalOpts
+evOpts = E.EvalOpts { E.evalLogger = quietLogger
+                    , E.evalPPOpts = E.defaultPPOpts
+                    }
+
 -- | Make a benchmark for parsing a Cryptol module
 parser :: String -> FilePath -> Benchmark
 parser name path =
@@ -100,7 +108,7 @@ tc cd name path =
                 }
             Right pm = P.parseModule cfg bytes
         menv <- M.initialModuleEnv
-        (Right ((prims, scm, tcEnv), menv'), _) <- M.runModuleM menv $ withLib $ do
+        (Right ((prims, scm, tcEnv), menv'), _) <- M.runModuleM (evOpts,menv) $ withLib $ do
           -- code from `loadModule` and `checkModule` in
           -- `Cryptol.ModuleSystem.Base`
           let pm' = M.addPrelude pm
@@ -114,7 +122,7 @@ tc cd name path =
           return (prims, scm, tcEnv)
         return (prims, scm, tcEnv, menv')
   in env setup $ \ ~(prims, scm, tcEnv, menv) ->
-    bench name $ nfIO $ M.runModuleM menv $ withLib $ do
+    bench name $ nfIO $ M.runModuleM (evOpts,menv) $ withLib $ do
       let act = M.TCAction { M.tcAction = T.tcModule
                            , M.tcLinter = M.moduleLinter (P.thing (P.mName scm))
                            , M.tcPrims  = prims
@@ -126,7 +134,7 @@ ceval cd name path expr =
   let withLib = M.withPrependedSearchPath [cd </> "lib"] in
   let setup = do
         menv <- M.initialModuleEnv
-        (Right (texpr, menv'), _) <- M.runModuleM menv $ withLib $ do
+        (Right (texpr, menv'), _) <- M.runModuleM (evOpts,menv) $ withLib $ do
           m <- M.loadModuleByPath path
           M.setFocusedModule (T.mName m)
           let Right pexpr = P.parseExpr expr
@@ -134,7 +142,7 @@ ceval cd name path expr =
           return texpr
         return (texpr, menv')
   in env setup $ \ ~(texpr, menv) ->
-    bench name $ nfIO $ E.runEval $ do
+    bench name $ nfIO $ E.runEval evOpts $ do
       env' <- E.evalDecls (S.allDeclGroups menv) mempty
       (e :: E.Value) <- E.evalExpr env' texpr
       E.forceValue e
@@ -145,7 +153,7 @@ seval cd name path expr =
   let withLib = M.withPrependedSearchPath [cd </> "lib"] in
   let setup = do
         menv <- M.initialModuleEnv
-        (Right (texpr, menv'), _) <- M.runModuleM menv $ withLib $ do
+        (Right (texpr, menv'), _) <- M.runModuleM (evOpts,menv) $ withLib $ do
           m <- M.loadModuleByPath path
           M.setFocusedModule (T.mName m)
           let Right pexpr = P.parseExpr expr
@@ -153,7 +161,7 @@ seval cd name path expr =
           return texpr
         return (texpr, menv')
   in env setup $ \ ~(texpr, menv) ->
-    bench name $ nfIO $ E.runEval $ do
+    bench name $ nfIO $ E.runEval evOpts $ do
       env' <- E.evalDecls (S.allDeclGroups menv) mempty
       (e :: S.Value) <- E.evalExpr env' texpr
       E.io $ SBV.generateSMTBenchmark False $

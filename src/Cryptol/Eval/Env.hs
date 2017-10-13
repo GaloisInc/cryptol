@@ -14,7 +14,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Env where
 
-import Cryptol.Eval.Monad( Eval, delay, ready )
+import Cryptol.Eval.Monad( Eval, delay, ready, PPOpts )
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name

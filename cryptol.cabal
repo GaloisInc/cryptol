@@ -100,6 +100,7 @@ library
                        Cryptol.Utils.Debug,
                        Cryptol.Utils.Misc,
                        Cryptol.Utils.Patterns,
+                       Cryptol.Utils.Logger,
                        Cryptol.Version,
 
                        Cryptol.ModuleSystem,
@@ -206,6 +207,7 @@ executable cryptol
                      , process
                      , random
                      , sbv >= 7.0
+                     , text
                      , tf-random
                      , transformers
   GHC-options:         -Wall -O2 -threaded -rtsopts "-with-rtsopts=-N1 -A64m"

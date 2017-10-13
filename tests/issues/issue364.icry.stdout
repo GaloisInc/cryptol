@@ -9,7 +9,7 @@ testing...passed 1 tests.
 Q.E.D.
 property moderately_bogus_property Using random testing.
 testing...passed 100 tests.
-Coverage: 39.06% (100 of 256 values)
+Expected test coverage: 32.39% (83 of 256 values)
 property x_eval Using exhaustive testing.
 testing...passed 1 tests.
 Q.E.D.

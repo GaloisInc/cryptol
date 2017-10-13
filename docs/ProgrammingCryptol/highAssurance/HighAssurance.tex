@@ -352,10 +352,10 @@ user the proof is complete.\indQED\indProve
   Cryptol will use Microsoft Research's Z3 SMT solver under the hood,
   but it can be configured to use other SAT/SMT solvers as well, such
   as SRI's Yices~\cite{YicesWWW}\indYices, or CVC4
-  ~\cite{cvc4WWW}\footnote{To do this, first install the package(s)
+  ~\cite{cvc4WWW}.\footnote{To do this, first install the package(s)
     from the URLs provided in the bibliography. Once a prover has been
     installed you can activate it with, for example, {\tt :set
-      prover=cvc4}.}. Note that the {\tt :prove} command is a
+      prover=cvc4}.} Note that the {\tt :prove} command is a
   push-button tool: once the proof starts there is no user
   involvement. Of course, the external tool used may not be able to
   complete all the proofs in a feasible amount of time, naturally.
@@ -532,11 +532,10 @@ $$
 $$
 Obviously, this relationship holds only when $y \not= 0$. The idea
 behind a conditional Cryptol property\indThmCond is that we would like
-to capture these side-conditions formally in our specifications. 
+to capture these side-conditions formally in our specifications.
 
-We simply use an ordinary {\tt if-then-else} expression in Cryptol to
-write conditional properties (at least until we add boolean logic
-operators to Cryptol).  If the condition is invalid, we simply return
+We can use ordinary {\tt if-then-else} expressions in Cryptol to
+write conditional properties.  If the condition is invalid, we simply return
 {\tt True}, indicating that we are not interested in that particular
 case. Depending on how natural it is to express the side-condition or
 its negation, you can use one of the following two patterns:
@@ -545,6 +544,17 @@ its negation, you can use one of the following two patterns:
    if   \emph{side-condition-holds}         if    \emph{side-condition-fails}
    then \emph{property-expression}          then  True
    else True                         else  \emph{property-expression}
+\end{Verbatim}
+
+Alternatively, Cryptol provides a few logical connectives
+(\texttt{==>}, \texttt{\textbackslash/}, and \texttt{/\textbackslash})
+that are useful for writing conditional properties. Each is defined in
+terms of \texttt{if-then-else} as follows:
+
+\begin{Verbatim}
+   a ==> b  =  if a then b else True
+   a \/ b   =  if a then True else b
+   a /\ b   =  if a then b else False
 \end{Verbatim}
 
 \begin{Exercise}\label{ex:cond:1}

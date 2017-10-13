@@ -32,6 +32,7 @@ module Cryptol.ModuleSystem (
   , IfaceTySyn, IfaceDecl(..)
   ) where
 
+import qualified Cryptol.Eval as E
 import qualified Cryptol.Eval.Value        as E
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
@@ -48,7 +49,7 @@ import qualified Cryptol.Utils.Ident as M
 
 -- Public Interface ------------------------------------------------------------
 
-type ModuleCmd a = ModuleEnv -> IO (ModuleRes a)
+type ModuleCmd a = (E.EvalOpts,ModuleEnv) -> IO (ModuleRes a)
 
 type ModuleRes a = (Either ModuleError (a,ModuleEnv), [ModuleWarning])
 
@@ -61,7 +62,7 @@ findModule n env = runModuleM env (Base.findModule n)
 
 -- | Load the module contained in the given file.
 loadModuleByPath :: FilePath -> ModuleCmd T.Module
-loadModuleByPath path env = runModuleM (resetModuleEnv env) $ do
+loadModuleByPath path (evo,env) = runModuleM (evo,resetModuleEnv env) $ do
   -- unload the module if it already exists
   unloadModule path
 

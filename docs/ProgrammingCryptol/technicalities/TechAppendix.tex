@@ -136,15 +136,19 @@ to surround the operator with {\tt ()}, like this:
 \paragraph*{Browsing definitions}
 The command {\tt :browse} (or {\tt :b} for short) will display all the
 names you have defined, along with their types.\indCmdBrowse
+Using \texttt{:browse} with the name of a loaded module will show
+the declarations from that module only.
 
 \paragraph*{Getting help}
 The command {\tt :help} will show you all the available
-commands.\indCmdHelp Other useful implicit help invocations are:
-(a)~to type tab at the {\tt Cryptol>} prompt, which will list all of
-the operators available in Cryptol code, (b)~typing {\tt :set} with no
-argument, which shows you the parameters that can be set, and (c), as
-noted elsewhere, {\tt :browse} to see the names of functions and type
-aliases you have defined, along with their types.
+commands.\indCmdHelp Using \texttt{:help} with the name of a defined
+function or type synonym will display its corresponding help text.
+Other useful implicit help invocations are: (a)~to type tab at the
+{\tt Cryptol>} prompt, which will list all of the operators available
+in Cryptol code, (b)~typing {\tt :set} with no argument, which shows
+you the parameters that can be set, and (c), as noted elsewhere,
+\texttt{:browse} to see the names of functions and type aliases you
+have defined, along with their types.
 
 \todo[inline]{What should \texttt{:help symbolname} do, especially for
   prelude functions and types?  How about for commands?}
@@ -214,6 +218,7 @@ platform-dependent.
 At the Cryptol prompt you can load a module by name with the {\tt
   :module} command.\indCmdLoadModule
 
+\paragraph*{}
 The next three commands all operate on \emph{properties}.  All take
 either one or zero arguments.  If one argument is provided, then that
 property is the focus of the command; otherwise all properties in the

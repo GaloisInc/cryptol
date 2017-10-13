@@ -1,4 +1,4 @@
-module Cryptol.TypeCheck.CheckModuleInstance (inferModuleInstance) where
+module Cryptol.TypeCheck.CheckModuleInstance (checkModuleInstance) where
 
 import           Data.Map ( Map )
 import qualified Data.Map as Map

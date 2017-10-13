@@ -103,6 +103,8 @@ import qualified Data.Text as ST
 import qualified Data.Text.Lazy as T
 import Data.IORef(newIORef,readIORef)
 
+import GHC.Float (log1p, expm1)
+
 import Prelude ()
 import Prelude.Compat
 
@@ -139,6 +141,7 @@ data CommandBody
   | FileExprArg (FilePath -> String -> REPL ())
   | DeclsArg    (String   -> REPL ())
   | ExprTypeArg (String   -> REPL ())
+  | ModNameArg  (String   -> REPL ())
   | FilenameArg (FilePath -> REPL ())
   | OptionArg   (String   -> REPL ())
   | ShellArg    (String   -> REPL ())
@@ -168,7 +171,7 @@ nbCommandList :: [CommandDescr]
 nbCommandList  =
   [ CommandDescr [ ":t", ":type" ] (ExprArg typeOfCmd)
     "check the type of an expression"
-  , CommandDescr [ ":b", ":browse" ] (ExprTypeArg browseCmd)
+  , CommandDescr [ ":b", ":browse" ] (ModNameArg browseCmd)
     "display the current environment"
   , CommandDescr [ ":?", ":help" ] (ExprArg helpCmd)
     "display a brief description of a function or a type"
@@ -254,6 +257,12 @@ getPPValOpts =
                      , E.useInfLength = infLength
                      }
 
+getEvalOpts :: REPL E.EvalOpts
+getEvalOpts =
+  do ppOpts <- getPPValOpts
+     l      <- getLogger
+     return E.EvalOpts { E.evalPPOpts = ppOpts, E.evalLogger = l }
+
 evalCmd :: String -> REPL ()
 evalCmd str = do
   letEnabled <- getLetEnabled
@@ -264,7 +273,7 @@ evalCmd str = do
     P.ExprInput expr -> do
       (val,_ty) <- replEvalExpr expr
       ppOpts <- getPPValOpts
-      valDoc <- io $ rethrowEvalError $ E.runEval $ E.ppValue ppOpts val
+      valDoc <- rEvalRethrow (E.ppValue ppOpts val)
 
       -- This is the point where the value gets forced. We deepseq the
       -- pretty-printed representation of it, rather than the value
@@ -282,7 +291,7 @@ evalCmd str = do
 printCounterexample :: Bool -> P.Expr P.PName -> [E.Value] -> REPL ()
 printCounterexample isSat pexpr vs =
   do ppOpts <- getPPValOpts
-     docs <- mapM (io . E.runEval . E.ppValue ppOpts) vs
+     docs <- mapM (rEval . E.ppValue ppOpts) vs
      let doc = ppPrec 3 pexpr -- function application has precedence 3
      rPrint $ hang doc 2 (sep docs) <+>
        text (if isSat then "= True" else "= False")
@@ -313,7 +322,8 @@ qcCmd qcMode str =
             let f _ [] = panic "Cryptol.REPL.Command"
                                     ["Exhaustive testing ran out of test cases"]
                 f _ (vs : vss1) = do
-                  result <- io $ runOneTest val vs
+                  evo <- getEvalOpts
+                  result <- io $ runOneTest evo val vs
                   return (result, vss1)
                 testSpec = TestSpec {
                     testFn = f
@@ -336,8 +346,10 @@ qcCmd qcMode str =
               Nothing   -> raise (TypeNotTestable ty)
               Just gens -> do
                 rPutStrLn "Using random testing."
+                evo <- getEvalOpts
                 let testSpec = TestSpec {
-                        testFn = \sz' g -> io $ TestR.runOneTest val gens sz' g
+                        testFn = \sz' g ->
+                                      io $ TestR.runOneTest evo val gens sz' g
                       , testProp = str
                       , testTotal = toInteger testNum
                       , testPossible = sz
@@ -351,22 +363,26 @@ qcCmd qcMode str =
                 prt testingMsg
                 g <- io newTFGen
                 report <- runTests testSpec g
-                when (isPass (reportResult report)) $ do
-                  let szD = fromIntegral sz :: Double
-                      percent = fromIntegral (testNum * 100) / szD
-                      showValNum
-                        | sz > 2 ^ (20::Integer) =
-                          "2^^" ++ show (lg2 sz)
-                        | otherwise = show sz
-                  rPutStrLn $ "Coverage: "
-                    ++ showFFloat (Just 2) percent "% ("
-                    ++ show testNum ++ " of "
-                    ++ showValNum ++ " values)"
+                when (isPass (reportResult report)) $
+                  rPutStrLn $ coverageString testNum sz
                 return [report]
        Nothing -> return []
 
   where
   testingMsg = "testing..."
+
+  coverageString testNum sz =
+                  let (percent, expectedUnique) = expectedCoverage testNum sz
+                      showValNum
+                        | sz > 2 ^ (20::Integer) =
+                          "2^^" ++ show (lg2 sz)
+                        | otherwise = show sz
+                  in "Expected test coverage: "
+                    ++ showFFloat (Just 2) percent "% ("
+                    ++ showFFloat (Just 0) expectedUnique " of "
+                    ++ showValNum
+                    ++ " values)"
+
 
   totProgressWidth = 4    -- 100%
 
@@ -401,9 +417,52 @@ qcCmd qcMode str =
         rPrint (pp err)
       FailError err vs -> do
         prtLn "ERROR for the following inputs:"
-        mapM_ (\v -> rPrint =<< (io $ E.runEval $ E.ppValue opts v)) vs
+        mapM_ (\v -> rPrint =<< (rEval $ E.ppValue opts v)) vs
         rPrint (pp err)
       Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
+
+
+-- | This function computes the expected coverage percentage and
+-- expected number of unique test vectors when using random testing.
+--
+-- The expected test coverage proportion is:
+--  @1 - ((n-1)/n)^k@
+--
+-- This formula takes into account the fact that test vectors are chosen
+-- uniformly at random _with replacement_, and thus the same vectors
+-- may be generated multiple times.  If the test vectors were chosen
+-- randomly without replacement, the proportion would instead be @k/n@.
+--
+-- We compute raising to the @k@ power in the log domain to improve 
+-- numerical precision. The equivalant comptutation is:
+--   @-expm1( k * log1p (-1/n) )@
+--
+-- Where @expm1(x) = exp(x) - 1@ and @log1p(x) = log(1 + x)@.
+--
+-- However, if @sz@ is large enough, even carefully preserving
+-- precision may not be enough to get sensible results.  In such
+-- situations, we expect the naive approximation @k/n@ to be very
+-- close to accurate and the expected number of unique values is
+-- essentially equal to the number of tests.
+expectedCoverage :: Int -> Integer -> (Double, Double)
+expectedCoverage testNum sz =
+    -- If the Double computation has enough precision, use the
+    --  "with replacement" formula.
+    if testNum > 0 && proportion > 0 then
+       (100.0 * proportion, szD * proportion)
+    else
+       (100.0 * naiveProportion, numD)
+
+  where
+   szD :: Double
+   szD = fromInteger sz
+
+   numD :: Double
+   numD = fromIntegral testNum
+
+   naiveProportion = numD / szD
+
+   proportion = negate (expm1 (numD * log1p (negate (recip szD))))
 
 satCmd, proveCmd :: String -> REPL ()
 satCmd = cmdProveSat True
@@ -604,7 +663,6 @@ typeOfCmd str = do
   (_re,def,sig) <- replCheckExpr expr
 
   -- XXX need more warnings from the module system
-  --io (mapM_ printWarning ws)
   whenDebug (rPutStrLn (dump def))
   (_,_,names) <- getFocusedEnv
   -- type annotation ':' has precedence 2
@@ -638,12 +696,22 @@ writeFileCmd file str = do
                        (\(n,b) -> T.tIsBit b && T.tIsNum n == Just 8)
                        (T.tIsSeq x)
   serializeValue (E.VSeq n vs) = do
-    ws <- io $ E.runEval (mapM (>>=E.fromVWord "serializeValue") $ E.enumerateSeqMap n vs)
+    ws <- rEval
+            (mapM (>>=E.fromVWord "serializeValue") $ E.enumerateSeqMap n vs)
     return $ BS.pack $ map serializeByte ws
   serializeValue _             =
     panic "Cryptol.REPL.Command.writeFileCmd"
       ["Impossible: Non-VSeq value of type [n][8]."]
   serializeByte (E.BV _ v) = fromIntegral (v .&. 0xFF)
+
+
+rEval :: E.Eval a -> REPL a
+rEval m = do ev <- getEvalOpts
+             io (E.runEval ev m)
+
+rEvalRethrow :: E.Eval a -> REPL a
+rEvalRethrow m = do ev <- getEvalOpts
+                    io $ rethrowEvalError $ E.runEval ev m
 
 reloadCmd :: REPL ()
 reloadCmd  = do
@@ -709,18 +777,26 @@ quitCmd  = stop
 
 
 browseCmd :: String -> REPL ()
-browseCmd pfx = do
+browseCmd input = do
   (iface,names,disp) <- getFocusedEnv
+
+  let mnames = map ST.pack (words input)
+  validModNames <- getModNames
+  let checkModName m =
+        unless (m `elem` validModNames) $
+        rPutStrLn ("error: " ++ show m ++ " is not a loaded module.")
+  mapM_ checkModName mnames
+
   let (visibleTypes,visibleDecls) = M.visibleNames names
 
       (visibleType,visibleDecl)
-        | null pfx  =
+        | null mnames =
           ((`Set.member` visibleTypes)
           ,(`Set.member` visibleDecls))
 
         | otherwise =
-          (\n -> n `Set.member` visibleTypes && pfx `isNamePrefix` n
-          ,\n -> n `Set.member` visibleDecls && pfx `isNamePrefix` n)
+          (\n -> n `Set.member` visibleTypes && hasAnyModName mnames n
+          ,\n -> n `Set.member` visibleDecls && hasAnyModName mnames n)
 
   browseTSyns    visibleType iface disp
   browseNewtypes visibleType iface disp
@@ -900,21 +976,12 @@ handleCtrlC a = do rPutStrLn "Ctrl-C"
 
 -- Utilities -------------------------------------------------------------------
 
-isNamePrefix :: String -> M.Name -> Bool
-isNamePrefix pfx =
-  let pfx' = ST.pack pfx
-   in \n -> case M.nameInfo n of
-              M.Declared _ -> pfx' `ST.isPrefixOf` M.identText (M.nameIdent n)
-              M.Parameter  -> False
+hasAnyModName :: [M.ModName] -> M.Name -> Bool
+hasAnyModName mnames n =
+  case M.nameInfo n of
+    M.Declared m -> m `elem` mnames
+    M.Parameter  -> False
 
-
-{-
-printWarning :: (Range,Warning) -> IO ()
-printWarning = print . ppWarning
-
-printError :: (Range,Error) -> IO ()
-printError = print . ppError
--}
 
 -- | Lift a parsing action into the REPL monad.
 replParse :: (String -> Either ParseError a) -> String -> REPL a
@@ -935,7 +1002,10 @@ getPrimMap :: REPL M.PrimMap
 getPrimMap  = liftModuleCmd M.getPrimMap
 
 liftModuleCmd :: M.ModuleCmd a -> REPL a
-liftModuleCmd cmd = moduleCmdResult =<< io . cmd =<< getModuleEnv
+liftModuleCmd cmd =
+  do evo <- getEvalOpts
+     env <- getModuleEnv
+     moduleCmdResult =<< io (cmd (evo,env))
 
 moduleCmdResult :: M.ModuleRes a -> REPL a
 moduleCmdResult (res,ws0) = do
@@ -1141,6 +1211,7 @@ parseCommand findCmd line = do
       ExprArg     body -> Just (Command (body args'))
       DeclsArg    body -> Just (Command (body args'))
       ExprTypeArg body -> Just (Command (body args'))
+      ModNameArg  body -> Just (Command (body args'))
       FilenameArg body -> Just (Command (body =<< expandHome args'))
       OptionArg   body -> Just (Command (body args'))
       ShellArg    body -> Just (Command (body args'))
