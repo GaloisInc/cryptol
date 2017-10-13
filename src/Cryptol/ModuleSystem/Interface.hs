@@ -21,6 +21,7 @@ module Cryptol.ModuleSystem.Interface (
 
   , genIface
   , ifacePrimMap
+  , noIfaceParams
   ) where
 
 import           Cryptol.ModuleSystem.Name
@@ -50,6 +51,13 @@ data IfaceParams = IfaceParams
   , ifParamConstraints :: [Located Prop] -- ^ Constraints on param. types
   , ifParamFuns  :: Map.Map Name IfaceDecl  -- ^ Uninterpreted value constants
   } deriving (Show, Generic, NFData)
+
+noIfaceParams :: IfaceParams
+noIfaceParams = IfaceParams
+  { ifParamTypes = []
+  , ifParamConstraints = []
+  , ifParamFuns = Map.empty
+  }
 
 data IfaceDecls = IfaceDecls
   { ifTySyns   :: Map.Map Name IfaceTySyn

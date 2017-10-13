@@ -428,7 +428,7 @@ withPrependedSearchPath fps m = ModuleT $ do
   return x
 
 -- XXX improve error handling here
-getFocusedEnv :: ModuleM (IfaceDecls,NamingEnv,NameDisp)
+getFocusedEnv :: ModuleM (IfaceParams,IfaceDecls,NamingEnv,NameDisp)
 getFocusedEnv  = ModuleT (focusedEnv `fmap` get)
 
 getQualifiedEnv :: ModuleM IfaceDecls

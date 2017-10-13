@@ -28,7 +28,7 @@ module Cryptol.ModuleSystem (
   , renameType
 
     -- * Interfaces
-  , Iface(..), IfaceDecls(..), genIface
+  , Iface(..), IfaceParams(..), IfaceDecls(..), genIface
   , IfaceTySyn, IfaceDecl(..)
   ) where
 

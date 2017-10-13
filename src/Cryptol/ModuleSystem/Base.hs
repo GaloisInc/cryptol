@@ -282,19 +282,19 @@ loadDeps m
 
 -- | Load the local environment, which consists of the environment for the
 -- currently opened module, shadowed by the dynamic environment.
-getLocalEnv :: ModuleM (IfaceDecls,R.NamingEnv)
+getLocalEnv :: ModuleM (IfaceParams,IfaceDecls,R.NamingEnv)
 getLocalEnv  =
-  do (decls,fNames,_) <- getFocusedEnv
+  do (params,decls,fNames,_) <- getFocusedEnv
      denv             <- getDynEnv
      let dynDecls = deIfaceDecls denv
-     return (dynDecls `mappend` decls, deNames denv `R.shadowing` fNames)
+     return (params,dynDecls `mappend` decls, deNames denv `R.shadowing` fNames)
 
 -- | Typecheck a single expression, yielding a renamed parsed expression,
 -- typechecked core expression, and a type schema.
 checkExpr :: P.Expr PName -> ModuleM (P.Expr Name,T.Expr,T.Schema)
 checkExpr e = do
 
-  (decls,names) <- getLocalEnv
+  (params,decls,names) <- getLocalEnv
 
   -- run NoPat
   npe <- noPat e
@@ -306,7 +306,7 @@ checkExpr e = do
   prims <- getPrimMap
   let act  = TCAction { tcAction = T.tcExpr, tcLinter = exprLinter
                       , tcPrims = prims }
-  (te,s) <- typecheck act re decls
+  (te,s) <- typecheck act re params decls
 
   return (re,te,s)
 
@@ -315,7 +315,7 @@ checkExpr e = do
 -- INVARIANT: This assumes that NoPat has already been run on the declarations.
 checkDecls :: [P.TopDecl PName] -> ModuleM (R.NamingEnv,[T.DeclGroup])
 checkDecls ds = do
-  (decls,names) <- getLocalEnv
+  (params,decls,names) <- getLocalEnv
 
   -- introduce names for the declarations before renaming them
   declsEnv <- liftSupply (R.namingEnv' (map (R.InModule interactiveName) ds))
@@ -325,7 +325,7 @@ checkDecls ds = do
   prims <- getPrimMap
   let act  = TCAction { tcAction = T.tcDecls, tcLinter = declsLinter
                       , tcPrims = prims }
-  ds' <- typecheck act rds decls
+  ds' <- typecheck act rds params decls
   return (declsEnv,ds')
 
 -- | Generate the primitive map. If the prelude is currently being loaded, this
@@ -365,7 +365,7 @@ checkModule path m = do
   let act = TCAction { tcAction = T.tcModule
                      , tcLinter = moduleLinter (P.thing (P.mName m))
                      , tcPrims  = prims }
-  tcm <- typecheck act scm tcEnv
+  tcm <- typecheck act scm noIfaceParams tcEnv
 
   liftSupply (`rewModule` tcm)
 
@@ -412,11 +412,12 @@ data TCAction i o = TCAction
   }
 
 typecheck ::
-  (Show i, Show o, HasLoc i) => TCAction i o -> i -> IfaceDecls -> ModuleM o
-typecheck act i env = do
+  (Show i, Show o, HasLoc i) => TCAction i o -> i ->
+                                  IfaceParams -> IfaceDecls -> ModuleM o
+typecheck act i params env = do
 
   let range = fromMaybe emptyRange (getLoc i)
-  input <- genInferInput range (tcPrims act) env
+  input <- genInferInput range (tcPrims act) params env
   out   <- io (tcAction act i input)
 
   case out of
@@ -440,8 +441,9 @@ typecheck act i env = do
          typeCheckingFailed errs
 
 -- | Generate input for the typechecker.
-genInferInput :: Range -> PrimMap -> IfaceDecls -> ModuleM T.InferInput
-genInferInput r prims env = do
+genInferInput :: Range -> PrimMap ->
+                          IfaceParams -> IfaceDecls -> ModuleM T.InferInput
+genInferInput r prims params env = do
   seeds <- getNameSeeds
   monoBinds <- getMonoBinds
   cfg <- getSolverConfig
@@ -460,7 +462,11 @@ genInferInput r prims env = do
     , T.inpSearchPath = searchPath
     , T.inpSupply    = supply
     , T.inpPrimNames = prims
+    , T.inpParamTypes       = ifParamTypes params
+    , T.inpParamConstraints = ifParamConstraints params
+    , T.inpParamFuns        = Map.map ifDeclSig (ifParamFuns params)
     }
+
 
 
 -- Evaluation ------------------------------------------------------------------

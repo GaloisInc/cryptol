@@ -32,6 +32,7 @@ import Data.Foldable (fold)
 import Data.Function (on)
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
+import Data.Maybe(fromMaybe)
 import System.Directory (getAppUserDataDirectory, getCurrentDirectory)
 import System.Environment(getExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
@@ -171,8 +172,9 @@ loadedModules = map lmModule . getLoadedModules . meLoadedModules
 --
 -- XXX This could really do with some better error handling, just returning
 -- mempty when one of the imports fails isn't really desirable.
-focusedEnv :: ModuleEnv -> (IfaceDecls,R.NamingEnv,NameDisp)
-focusedEnv me = fold $
+focusedEnv :: ModuleEnv -> (IfaceParams,IfaceDecls,R.NamingEnv,NameDisp)
+focusedEnv me =
+  fromMaybe (noIfaceParams, mempty, mempty, mempty) $
   do fm   <- meFocusedModule me
      lm   <- lookupModule fm me
      deps <- mapM loadImport (T.mImports (lmModule lm))
@@ -183,7 +185,10 @@ focusedEnv me = fold $
                           R.modParamsNamingEnv ifParams
          namingEnv      = localNames `R.shadowing` mconcat names
 
-     return (mconcat (localDecls:ifaces), namingEnv, R.toNameDisp namingEnv)
+     return ( ifParams
+            , mconcat (localDecls:ifaces)
+            , namingEnv
+            , R.toNameDisp namingEnv)
   where
   loadImport imp =
     do lm <- lookupModule (iModule imp) me

@@ -664,7 +664,7 @@ typeOfCmd str = do
 
   -- XXX need more warnings from the module system
   whenDebug (rPutStrLn (dump def))
-  (_,_,names) <- getFocusedEnv
+  (_,_,_,names) <- getFocusedEnv
   -- type annotation ':' has precedence 2
   rPrint $ runDoc names $ ppPrec 2 expr <+> text ":" <+> pp sig
 
@@ -778,7 +778,7 @@ quitCmd  = stop
 
 browseCmd :: String -> REPL ()
 browseCmd input = do
-  (iface,names,disp) <- getFocusedEnv
+  (_,iface,names,disp) <- getFocusedEnv
 
   let mnames = map ST.pack (words input)
   validModNames <- getModNames
@@ -877,7 +877,7 @@ helpCmd cmd
   | otherwise =
     case parseHelpName cmd of
       Just qname ->
-        do (env,rnEnv,nameEnv) <- getFocusedEnv
+        do (_,env,rnEnv,nameEnv) <- getFocusedEnv
            let vNames = M.lookupValNames  qname rnEnv
                tNames = M.lookupTypeNames qname rnEnv
 
@@ -1033,7 +1033,7 @@ moduleCmdResult (res,ws0) = do
       filterShadowing w = Just w
 
   let ws = mapMaybe filterDefaults . mapMaybe filterShadowing $ ws0
-  (_,_,names) <- getFocusedEnv
+  (_,_,_,names) <- getFocusedEnv
   mapM_ (rPrint . runDoc names . pp) ws
   case res of
     Right (a,me') -> setModuleEnv me' >> return a

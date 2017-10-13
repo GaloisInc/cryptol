@@ -57,6 +57,14 @@ data InferInput = InferInput
   , inpTSyns     :: Map Name TySyn    -- ^ Type synonyms that are in scope
   , inpNewtypes  :: Map Name Newtype  -- ^ Newtypes in scope
 
+    -- When typechecking a module these start off empty.
+    -- We need them when type-checking an expression at the command
+    -- line, for example.
+  , inpParamTypes       :: ![TParam]          -- ^ Type parameters
+  , inpParamConstraints :: !([Located Prop])  -- ^ Constraints on parameters
+  , inpParamFuns        :: !(Map Name Schema) -- ^ Value parameters
+
+
   , inpNameSeeds :: NameSeeds         -- ^ Private state of type-checker
   , inpMonoBinds :: Bool              -- ^ Should local bindings without
                                       --   signatures be monomorphized?
@@ -107,9 +115,10 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
                      , iTVars         = []
                      , iTSyns         = fmap mkExternal (inpTSyns info)
                      , iNewtypes      = fmap mkExternal (inpNewtypes info)
-                     , iParamTypes    = Map.empty
-                     , iParamFuns     = Map.empty
-                     , iParamConstraints = []
+                     , iParamTypes    = Map.fromList $ map mkTyParam
+                                                     $ inpParamTypes info
+                     , iParamFuns     = inpParamFuns info
+                     , iParamConstraints = inpParamConstraints info
 
                      , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
                      , iMonoBinds     = inpMonoBinds info
@@ -145,6 +154,12 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
                                   [(r,apSubst theSu e) | (r,e) <- errs]
 
   where
+  mkTyParam tp = case tpName tp of
+                   Nothing -> panic "TypeCheck.Monad.mkTyParam"
+                                [ "Module type parametr with no name"
+                                , show tp ]
+                   Just n -> (n, tp)
+
   mkExternal x = (IsExternal, x)
   rw = RW { iErrors     = []
           , iWarnings   = []

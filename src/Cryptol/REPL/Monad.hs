@@ -383,14 +383,15 @@ rPutStrLn str = rPutStr $ str ++ "\n"
 rPrint :: Show a => a -> REPL ()
 rPrint x = rPutStrLn (show x)
 
-getFocusedEnv :: REPL (M.IfaceDecls,M.NamingEnv,NameDisp)
+getFocusedEnv :: REPL (M.IfaceParams,M.IfaceDecls,M.NamingEnv,NameDisp)
 getFocusedEnv  = do
   me <- getModuleEnv
   -- dyNames is a NameEnv that removes the #Uniq prefix from interactively-bound
   -- variables.
   let (dyDecls,dyNames,dyDisp) = M.dynamicEnv me
-  let (fDecls,fNames,fDisp) = M.focusedEnv me
-  return ( dyDecls `mappend` fDecls
+  let (fParams,fDecls,fNames,fDisp) = M.focusedEnv me
+  return ( fParams
+         , dyDecls `mappend` fDecls
          , dyNames `M.shadowing` fNames
          , dyDisp `mappend` fDisp)
 
@@ -417,35 +418,35 @@ getFocusedEnv  = do
 
 getVars :: REPL (Map.Map M.Name M.IfaceDecl)
 getVars  = do
-  (decls,_,_) <- getFocusedEnv
+  (_,decls,_,_) <- getFocusedEnv
   return (M.ifDecls decls)
 
 getTSyns :: REPL (Map.Map M.Name T.TySyn)
 getTSyns  = do
-  (decls,_,_) <- getFocusedEnv
+  (_,decls,_,_) <- getFocusedEnv
   return (M.ifTySyns decls)
 
 getNewtypes :: REPL (Map.Map M.Name T.Newtype)
 getNewtypes = do
-  (decls,_,_) <- getFocusedEnv
+  (_,decls,_,_) <- getFocusedEnv
   return (M.ifNewtypes decls)
 
 -- | Get visible variable names.
 getExprNames :: REPL [String]
 getExprNames =
-  do (_, fNames, _) <- getFocusedEnv
+  do (_,_, fNames, _) <- getFocusedEnv
      return (map (show . pp) (Map.keys (M.neExprs fNames)))
 
 -- | Get visible type signature names.
 getTypeNames :: REPL [String]
 getTypeNames  =
-  do (_, fNames, _) <- getFocusedEnv
+  do (_,_, fNames, _) <- getFocusedEnv
      return (map (show . pp) (Map.keys (M.neTypes fNames)))
 
 -- | Return a list of property names, sorted by position in the file.
 getPropertyNames :: REPL ([M.Name],NameDisp)
 getPropertyNames =
-  do (decls,_,names) <- getFocusedEnv
+  do (_,decls,_,names) <- getFocusedEnv
      let xs = M.ifDecls decls
          ps = sortBy (comparing (from . M.nameLoc))
             $ [ x | (x,d) <- Map.toList xs, T.PragmaProperty `elem` M.ifDeclPragmas d ]
