@@ -64,7 +64,7 @@ data Options = Options
 
 defaultOptions :: Options
 defaultOptions  = Options
-  { optCryptol   = "cryptol-2"
+  { optCryptol   = "cryptol"
   , optOther     = []
   , optHelp      = False
   , optResultDir = "output"
