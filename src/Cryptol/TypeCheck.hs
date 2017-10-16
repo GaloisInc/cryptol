@@ -63,7 +63,7 @@ tcExpr e0 inp = runInferM inp
            case res of
              ExtVar s    -> return (EVar x, s)
              CurSCC e' t -> panic "Cryptol.TypeCheck.tcExpr"
-                             [ "CurSCC outside binder checkig:"
+                             [ "CurSCC outside binder checking:"
                              , show e'
                              , show t
                              ]
