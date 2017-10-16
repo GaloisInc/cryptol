@@ -88,6 +88,7 @@ data NameSeeds = NameSeeds
   } deriving (Show, Generic, NFData)
 
 -- | The initial seeds, used when checking a fresh program.
+-- XXX: why does this start at 10?
 nameSeeds :: NameSeeds
 nameSeeds = NameSeeds { seedTVar = 10, seedGoal = 0 }
 
@@ -111,21 +112,21 @@ runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
 runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
   do coutner <- newIORef 0
      rec ro <- return RO { iRange     = inpRange info
-                     , iVars          = Map.map ExtVar (inpVars info)
-                     , iTVars         = []
-                     , iTSyns         = fmap mkExternal (inpTSyns info)
-                     , iNewtypes      = fmap mkExternal (inpNewtypes info)
-                     , iParamTypes    = Map.fromList $ map mkTyParam
-                                                     $ inpParamTypes info
-                     , iParamFuns     = inpParamFuns info
-                     , iParamConstraints = inpParamConstraints info
+                         , iVars          = Map.map ExtVar (inpVars info)
+                         , iTVars         = []
+                         , iTSyns         = fmap mkExternal (inpTSyns info)
+                         , iNewtypes      = fmap mkExternal (inpNewtypes info)
+                         , iParamTypes    = Map.fromList $ map mkTyParam
+                                                         $ inpParamTypes info
+                         , iParamFuns     = inpParamFuns info
+                         , iParamConstraints = inpParamConstraints info
 
-                     , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
-                     , iMonoBinds     = inpMonoBinds info
-                     , iSolver        = solver
-                     , iPrimNames     = inpPrimNames info
-                     , iSolveCounter  = coutner
-                     }
+                         , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
+                         , iMonoBinds     = inpMonoBinds info
+                         , iSolver        = solver
+                         , iPrimNames     = inpPrimNames info
+                         , iSolveCounter  = coutner
+                         }
 
          (result, finalRW) <- runStateT rw
                             $ runReaderT ro m  -- RECURSION

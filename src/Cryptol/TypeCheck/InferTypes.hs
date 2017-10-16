@@ -46,13 +46,17 @@ data SolverConfig = SolverConfig
   } deriving (Show, Generic, NFData)
 
 -- | The types of variables in the environment.
-data VarType = ExtVar Schema      -- ^ Known type
-             | CurSCC Expr Type   -- ^ Part of current SCC
+data VarType = ExtVar Schema
+               -- ^ Known type
 
--- XXX: Temporary, until we figure out:
---    1. How to apply substitutions with normalization to the type Map
---    2. What are the strictness requirements
---        (e.g., using Set results in a black hole)
+             | CurSCC {- LAZY -} Expr Type
+               {- ^ Part of current SCC.  The expression will replace the
+               variable, after we are done with the SCC.  In this way a
+               variable that gets generalized is replaced with an approproate
+               instantiations of itslef. -}
+
+-- XXX: Temporary, until we figure out, how to apply substitutions
+-- with normalization to the type Map
 newtype Goals = Goals (Set Goal) -- Goals (TypeMap Goal)
                 deriving (Show)
 
