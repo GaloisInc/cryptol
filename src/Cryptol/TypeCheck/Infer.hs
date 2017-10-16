@@ -36,6 +36,7 @@ import           Cryptol.Utils.PP
 import qualified Data.Map as Map
 import           Data.Map (Map)
 import qualified Data.Set as Set
+import           Data.List(foldl')
 import           Data.Either(partitionEithers)
 import           Data.Maybe(mapMaybe,isJust, fromMaybe)
 import           Data.List(partition,find)
@@ -185,8 +186,8 @@ checkE expr tGoal =
     P.EVar x ->
       do res <- lookupVar x
          (e',t) <- case res of
-           ExtVar s   -> instantiateWith (EVar x) s []
-           CurSCC e t -> return (e, t)
+                     ExtVar s   -> instantiateWith (EVar x) s []
+                     CurSCC e t -> return (e, t)
 
          checkHasType t tGoal
          return e'
@@ -569,43 +570,50 @@ inferCArm armNum (m : ms) =
 -- be unaffected.
 inferBinds :: Bool -> Bool -> [P.Bind Name] -> InferM [Decl]
 inferBinds isTopLevel isRec binds =
-  mdo let dExpr (DExpr e) = e
-          dExpr DPrim     = panic "[TypeCheck]" [ "primitive in a recursive group" ]
+  do -- when mono-binds is enabled, and we're not checking top-level
+     -- declarations, mark all bindings lacking signatures as monomorphic
+     monoBinds <- getMonoBinds
+     let (sigs,noSigs) = partition (isJust . P.bSignature) binds
+         monos         = [ b { P.bMono = True } | b <- noSigs ]
+         binds' | monoBinds && not isTopLevel = sigs ++ monos
+                | otherwise                   = binds
 
-          exprMap = Map.fromList [ (x,inst (EVar x) (dExpr (dDefinition b)))
-                                 | b <- genBs, let x = dName b ] -- REC.
-
-          inst e (ETAbs x e1)     = inst (ETApp e (TVar (tpVar x))) e1
-          inst e (EProofAbs _ e1) = inst (EProofApp e) e1
-          inst e _                = e
-
-      -- when mono-binds is enabled, and we're not checking top-level
-      -- declarations, mark all bindings lacking signatures as monomorphic
-      monoBinds <- getMonoBinds
-      let binds' | monoBinds && not isTopLevel = sigs ++ monos
-                 | otherwise                   = binds
-
-          (sigs,noSigs) = partition (isJust . P.bSignature) binds
-          monos         = [ b { P.bMono = True } | b <- noSigs ]
-
-
-      ((doneBs, genCandidates), cs) <-
-        collectGoals $
-
+         check exprMap =
         {- Guess type is here, because while we check user supplied signatures
            we may generate additional constraints. For example, `x - y` would
            generate an additional constraint `x >= y`. -}
-        do (newEnv,todos) <- unzip `fmap` mapM (guessType exprMap) binds'
-           let extEnv = if isRec then withVarTypes newEnv else id
+           do (newEnv,todos) <- unzip `fmap` mapM (guessType exprMap) binds'
+              let extEnv = if isRec then withVarTypes newEnv else id
 
-           extEnv $
-             do let (sigsAndMonos,noSigGen) = partitionEithers todos
-                genCs <- sequence noSigGen
-                done  <- sequence sigsAndMonos
-                simplifyAllConstraints
-                return (done, genCs)
-      genBs <- generalize genCandidates cs -- RECURSION
-      return (doneBs ++ genBs)
+              extEnv $
+                do let (sigsAndMonos,noSigGen) = partitionEithers todos
+                   genCs <- sequence noSigGen
+                   done  <- sequence sigsAndMonos
+                   simplifyAllConstraints
+                   return (done, genCs)
+
+     rec
+       let exprMap = Map.fromList $ map monoUse genBs
+       ((doneBs, genCandidates), cs) <- collectGoals (check exprMap)
+       genBs <- generalize genCandidates cs
+
+     return (doneBs ++ genBs)
+
+  where
+  monoUse d = (x, withQs)
+    where
+    x  = dName d
+    as = sVars (dSignature d)
+    qs = sProps (dSignature d)
+
+    appT e a = ETApp e (TVar (tpVar a))
+    appP e _ = EProofApp e
+
+    withTys  = foldl' appT (EVar x) as
+    withQs   = foldl' appP withTys  qs
+
+
+
 
 
 {- | Come up with a type for recursive calls to a function, and decide
@@ -659,12 +667,14 @@ generalize [] gs0 =
 
 
 generalize bs0 gs0 =
-  do gs <- forM gs0 $ \g -> applySubst g
+  do {- First, we apply the accumulating substituion to the goals
+        and the inferred types, to ensure that we have the most up
+        to date information. -}
+     gs <- forM gs0 $ \g -> applySubst g
+     bs <- forM bs0 $ \b -> do s <- applySubst (dSignature b)
+                               return b { dSignature = s }
 
-     -- XXX: Why would these bindings have signatures??
-     bs  <- forM bs0 $ \b -> do s <- applySubst (dSignature b)
-                                return b { dSignature = s }
-
+     -- Next, we figure out which of the free variables need to be generalized
      let goalFVS g  = Set.filter isFreeTV $ fvs $ goal g
          inGoals    = Set.unions $ map goalFVS gs
          inSigs     = Set.filter isFreeTV $ fvs $ map dSignature bs
@@ -672,27 +682,49 @@ generalize bs0 gs0 =
 
      asmpVs <- varsWithAsmps
 
-
-
      let gen0          = Set.difference candidates asmpVs
          stays g       = any (`Set.member` gen0) $ Set.toList $ goalFVS g
          (here0,later) = partition stays gs
+     addGoals later   -- these ones we keep around for to solve later
 
-     -- Figure out what might be ambigious
+
+     {- Figure out what might be ambigious.  We count something as
+        ambiguous if it is to be generalized, but does not appear in
+        the any of the inferred types.  Things like that of kind `*`
+        are certainly ambiguous because we don't have any fancy type functions
+        on them.  However, things of kind `#` may not actually be mabiguos.
+     -}
      let (maybeAmbig, ambig) = partition ((KNum ==) . kindOf)
                              $ Set.toList
                              $ Set.difference gen0 inSigs
-
      when (not (null ambig)) $ recordError $ AmbiguousType $ map dName bs
 
 
+     {- See if we might be able to default some of the potentially ambiguous
+        numeric vairables using the constraints that will be part of the
+        newly generalized schema.  Note that we only use the `here0` constrains
+        as these should be the only ones that might mention the potentially
+        ambiguous variable.
+
+        XXX: It is not clear if we should do this, or simply leave the
+        variables as is.  After all, they might not actually be ambiugous...
+     -}
      let (as0,here1,defSu,ws) = improveByDefaultingWithPure maybeAmbig here0
      mapM_ recordWarning ws
      let here = map goal here1
 
+
+     {- This is the variables we'll be generalizing:
+          * any ones that survived the defaulting
+          * and vars in the inferred types that do not appear anywhere else. -}
      let as   = as0 ++ Set.toList (Set.difference inSigs asmpVs)
          asPs = [ TParam { tpUnique = x, tpKind = k, tpName = Nothing }
                                                    | TVFree x k _ _ <- as ]
+
+     {- Finally, we replace free variables with bound ones, and fix-up
+        the definitions as needed to reflect that we are now working
+        with polymorphic things. For example, apply each occurance to the
+        type parameters. -}
      totSu <- getSubst
      let
          su     = listSubst (zip as (map (TVar . tpVar) asPs)) @@ defSu @@ totSu
@@ -706,25 +738,16 @@ generalize bs0 gs0 =
                                   $ apSubst su $ sType $ dSignature d
                     }
 
-     addGoals later
      return (map genB bs)
 
 
-
+-- | Check a monomrphic binding.
 checkMonoB :: P.Bind Name -> Type -> InferM Decl
 checkMonoB b t =
   inRangeMb (getLoc b) $
   case thing (P.bDef b) of
 
-    P.DPrim ->
-         return Decl { dName = thing (P.bName b)
-                     , dSignature = Forall [] [] t
-                     , dDefinition = DPrim
-                     , dPragmas = P.bPragmas b
-                     , dInfix = P.bInfix b
-                     , dFixity = P.bFixity b
-                     , dDoc = P.bDoc b
-                     }
+    P.DPrim -> panic "checkMonoB" ["Primitive with no signature?"]
 
     P.DExpr e ->
       do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) e t
