@@ -128,7 +128,7 @@ checkValParams func inst =
   checkParam (x,sP) =
     case Map.lookup (nameIdent x) valMap of
       Just (n,sD) -> do e <- makeValParamDef n sD sP
-                        return (n,e)
+                        return (x,e)
       Nothing -> do recordError $ ErrorMsg
                                 $ text "Mising definition for value parameter"
                                     <+> pp x

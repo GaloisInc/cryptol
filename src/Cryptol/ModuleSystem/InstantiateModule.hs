@@ -17,6 +17,7 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst(listSubst, apSubst)
 import Cryptol.Utils.Ident(ModName)
 
+import Debug.Trace
 
 
 {-
@@ -44,7 +45,7 @@ instantiateModule func newName tpMap vpMap =
        -- just use that name directly.
        newVpNames <- mapM freshenName (Map.keys vpMap)
        let vpNames = Map.fromList (zip oldVpNames newVpNames)
-    
+
        env <- computeEnv func tpMap vpNames
        let renamedExports  = inst env (mExports func)
            renamedTySyns   = fmap (inst env) (mTySyns func)
@@ -75,8 +76,8 @@ instantiateModule func newName tpMap vpMap =
   where
   mkParamDecl vpNames (x,e) =
       NonRecursive Decl
-        { dName        = vpNames Map.! x
-        , dSignature   = mParamFuns func Map.! x
+        { dName        = Map.findWithDefault (error "OOPS") x vpNames
+        , dSignature   = Map.findWithDefault (error "UUPS") x (mParamFuns func)
         , dDefinition  = DExpr e
         , dPragmas     = []      -- XXX: which if any pragmas?
         , dInfix       = False   -- XXX: get from parameter?

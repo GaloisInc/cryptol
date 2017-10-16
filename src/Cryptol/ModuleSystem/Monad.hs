@@ -362,6 +362,13 @@ getIface mn = ModuleT $ do
     Just lm -> return (lmInterface lm)
     Nothing -> panic "ModuleSystem" ["Interface not available "]
 
+getLoaded :: P.ModName -> ModuleM T.Module
+getLoaded mn = ModuleT $
+  do env <- get
+     case lookupModule mn env of
+       Just lm -> return (lmModule lm)
+       Nothing -> panic "ModuleSystem" ["Module not available", show (pp mn) ]
+
 getNameSeeds :: ModuleM T.NameSeeds
 getNameSeeds  = ModuleT (meNameSeeds `fmap` get)
 

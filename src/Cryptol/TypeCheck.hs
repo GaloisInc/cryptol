@@ -9,6 +9,7 @@
 
 module Cryptol.TypeCheck
   ( tcModule
+  , tcModuleInst
   , tcExpr
   , tcDecls
   , InferInput(..)
@@ -38,6 +39,7 @@ import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Infer (inferModule, inferBinds, inferDs)
 import           Cryptol.TypeCheck.InferTypes(Error(..),Warning(..),VarType(..), SolverConfig(..))
 import           Cryptol.TypeCheck.Solve(simplifyAllConstraints)
+import           Cryptol.TypeCheck.CheckModuleInstance(checkModuleInstance)
 import           Cryptol.Utils.Ident (packModName,packIdent)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
@@ -47,6 +49,18 @@ tcModule m inp = runInferM inp
                $ do x <- inferModule m
                     simplifyAllConstraints
                     return x
+
+-- | Check a module instantiation, assuming that the functor has already
+-- been checked.
+tcModuleInst :: Module                  {- ^ functor -} ->
+                P.Module Name           {- params -} ->
+                InferInput              {- ^ TC settings -} ->
+                IO (InferOutput Module) {- ^ new version of instance -}
+tcModuleInst func m inp = runInferM inp
+                        $ do x <- inferModule m
+                             y <- checkModuleInstance func x
+                             simplifyAllConstraints
+                             return y
 
 tcExpr :: P.Expr Name -> InferInput -> IO (InferOutput (Expr,Schema))
 tcExpr e0 inp = runInferM inp

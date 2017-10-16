@@ -173,8 +173,9 @@ loadModule path pm = do
 
   withLogger logPutStrLn ("Loading module " ++ pretty (P.thing (P.mName pm')))
   tcm <- checkModule path pm'
+
   -- extend the eval env
-  modifyEvalEnv (E.moduleEnv tcm)
+  unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv tcm)
   canonicalPath <- io (canonicalizePath path)
   loadedModule path canonicalPath tcm
 
@@ -337,17 +338,23 @@ getPrimMap  =
 -- | Load a module, be it a normal module or a functor instantiation.
 checkModule :: FilePath -> P.Module PName -> ModuleM T.Module
 checkModule path m =
-  do tcm <- checkSingleModule path m
-     -- Is this a module instantitation?
-     case P.mInstance m of
-       Nothing -> return tcm
-       Just fmName -> error "XXX: instance"
+  case P.mInstance m of
+    Nothing -> checkSingleModule T.tcModule path m
+    Just fmName -> do tf <- getLoaded (thing fmName)
+                      checkSingleModule (T.tcModuleInst tf) path m
+
+
+
 
 -- | Typecheck a single module.  If the module is an instantiation
 -- of a functor, then this just type-checks the instantiating parameters.
 -- See 'checkModule'
-checkSingleModule :: FilePath -> P.Module PName -> ModuleM T.Module
-checkSingleModule path m = do
+checkSingleModule ::
+  Act (P.Module Name) T.Module {- ^ how to check -} ->
+  FilePath                     {- path -} ->
+  P.Module PName               {- ^ check this -} ->
+  ModuleM T.Module
+checkSingleModule how path m = do
   -- remove includes first
   e   <- io (removeIncludesModule path m)
   nim <- case e of
@@ -368,7 +375,7 @@ checkSingleModule path m = do
               else getPrimMap
 
   -- typecheck
-  let act = TCAction { tcAction = T.tcModule
+  let act = TCAction { tcAction = how
                      , tcLinter = moduleLinter (P.thing (P.mName m))
                      , tcPrims  = prims }
 
@@ -412,9 +419,10 @@ moduleLinter m = TCLinter
   , lintModule  = Just m
   }
 
+type Act i o = i -> T.InferInput -> IO (T.InferOutput o)
 
 data TCAction i o = TCAction
-  { tcAction :: i -> T.InferInput -> IO (T.InferOutput o)
+  { tcAction :: Act i o
   , tcLinter :: TCLinter o
   , tcPrims  :: PrimMap
   }
