@@ -80,6 +80,9 @@ nullIdent (Ident _ t) = T.null t
 identText :: Ident -> T.Text
 identText (Ident _ t) = t
 
+modParamIdent :: Ident -> Ident
+modParamIdent (Ident x t) = Ident x (T.append (T.pack "module parameter ") t)
+
 
 -- Frequently Used Names -------------------------------------------------------
 

@@ -19,7 +19,8 @@ import Cryptol.ModuleSystem.Env (DynamicEnv(..), deIfaceDecls)
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
 import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap)
-import Cryptol.ModuleSystem.Env (lookupModule, LoadedModule(..)
+import Cryptol.ModuleSystem.Env (lookupModule
+                                , LoadedModule(..)
                                 , meCoreLint, CoreLint(..))
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Value           as E
@@ -342,8 +343,6 @@ checkModule path m =
     Nothing -> checkSingleModule T.tcModule path m
     Just fmName -> do tf <- getLoaded (thing fmName)
                       checkSingleModule (T.tcModuleInst tf) path m
-
-
 
 
 -- | Typecheck a single module.  If the module is an instantiation

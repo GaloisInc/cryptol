@@ -15,10 +15,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Exports(ExportSpec(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst(listSubst, apSubst)
-import Cryptol.Utils.Ident(ModName)
-
-import Debug.Trace
-
+import Cryptol.Utils.Ident(ModName,modParamIdent)
 
 {-
 XXX: Should we simplify constraints in the instantiated modules?
@@ -41,12 +38,11 @@ instantiateModule :: FreshM m =>
 instantiateModule func newName tpMap vpMap =
   runReaderT newName $
     do let oldVpNames = Map.keys vpMap
-       -- XXX: If the defining Expr is already just a name, we should
-       -- just use that name directly.
-       newVpNames <- mapM freshenName (Map.keys vpMap)
+       newVpNames <- mapM freshParamName (Map.keys vpMap)
        let vpNames = Map.fromList (zip oldVpNames newVpNames)
 
        env <- computeEnv func tpMap vpNames
+
        let renamedExports  = inst env (mExports func)
            renamedTySyns   = fmap (inst env) (mTySyns func)
            renamedNewtypes = fmap (inst env) (mNewtypes func)
@@ -58,7 +54,7 @@ instantiateModule func newName tpMap vpMap =
            -- Constraints to discharge about the type instances
 
        let renamedDecls = inst env (mDecls func)
-           paramDecls = map (mkParamDecl vpNames) (Map.toList vpMap)
+           paramDecls = map (mkParamDecl su vpNames) (Map.toList vpMap)
 
        return ( goals
               , Module
@@ -74,10 +70,11 @@ instantiateModule func newName tpMap vpMap =
                  } )
 
   where
-  mkParamDecl vpNames (x,e) =
+  mkParamDecl su vpNames (x,e) =
       NonRecursive Decl
         { dName        = Map.findWithDefault (error "OOPS") x vpNames
-        , dSignature   = Map.findWithDefault (error "UUPS") x (mParamFuns func)
+        , dSignature   = apSubst su
+                       $ Map.findWithDefault (error "UUPS") x (mParamFuns func)
         , dDefinition  = DExpr e
         , dPragmas     = []      -- XXX: which if any pragmas?
         , dInfix       = False   -- XXX: get from parameter?
@@ -115,6 +112,13 @@ freshenName x =
   do m <- ask
      liftSupply (mkDeclared m (nameIdent x) (nameFixity x) (nameLoc x))
 
+freshParamName :: FreshM m => Name -> InstM m Name
+freshParamName x =
+  do m <- ask
+     let newName = modParamIdent (nameIdent x)
+     liftSupply (mkDeclared m newName (nameFixity x) (nameLoc x))
+
+
 -- | Compute renaming environment from a module instantiation.
 -- computeEnv :: ModInst -> InstM Env
 computeEnv :: FreshM m =>
@@ -150,7 +154,7 @@ data Env = Env
   { funNameMap  :: Map Name Name
   , tyNameMap   :: Map Name Name
   , tyParamMap  :: Map TParam Type
-  }
+  } deriving Show
 
 
 class Inst t where
@@ -200,6 +204,8 @@ instance Inst DeclDef where
 instance Inst Decl where
   inst env d = d { dSignature = inst env (dSignature d)
                  , dDefinition = inst env (dDefinition d)
+                 , dName = Map.findWithDefault (dName d) (dName d)
+                                                         (funNameMap env)
                  }
 
 instance Inst Match where

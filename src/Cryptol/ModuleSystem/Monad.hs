@@ -360,7 +360,7 @@ getIface mn = ModuleT $ do
   env <- get
   case lookupModule mn env of
     Just lm -> return (lmInterface lm)
-    Nothing -> panic "ModuleSystem" ["Interface not available "]
+    Nothing -> panic "ModuleSystem" ["Interface not available", show (pp mn)]
 
 getLoaded :: P.ModName -> ModuleM T.Module
 getLoaded mn = ModuleT $
@@ -445,9 +445,6 @@ withPrependedSearchPath fps m = ModuleT $ do
 -- XXX improve error handling here
 getFocusedEnv :: ModuleM (IfaceParams,IfaceDecls,NamingEnv,NameDisp)
 getFocusedEnv  = ModuleT (focusedEnv `fmap` get)
-
-getQualifiedEnv :: ModuleM IfaceDecls
-getQualifiedEnv  = ModuleT (qualifiedEnv `fmap` get)
 
 getDynEnv :: ModuleM DynamicEnv
 getDynEnv  = ModuleT (meDynEnv `fmap` get)

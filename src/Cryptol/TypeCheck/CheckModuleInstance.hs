@@ -11,6 +11,7 @@ import Cryptol.ModuleSystem.InstantiateModule(instantiateModule)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Monad
 import Cryptol.TypeCheck.Infer
+import Cryptol.TypeCheck.Subst
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
@@ -21,7 +22,7 @@ checkModuleInstance :: Module {- ^ type-checked functor -} ->
                        InferM Module -- ^ Instantiated module
 checkModuleInstance func inst =
   do tMap <- checkTyParams func inst
-     vMap <- checkValParams func inst
+     vMap <- checkValParams func tMap inst
      (ctrs, m) <- instantiateModule func (mName inst) tMap vMap
      let toG p = Goal { goal = thing p
                       , goalRange = srcRange p
@@ -118,16 +119,22 @@ checkTyParams func inst =
 
 
 
-checkValParams :: Module -> Module -> InferM (Map Name Expr)
-checkValParams func inst =
+checkValParams :: Module {- ^ Parameterized module -} ->
+                  Map TParam Type {- ^ Type instantiations -} ->
+                  Module {- ^ Instantiation module -} ->
+                  InferM (Map Name Expr)
+                  -- ^ Definitions for the parameters
+checkValParams func tMap inst =
   Map.fromList <$> mapM checkParam (Map.toList (mParamFuns func))
   where
   valMap = Map.fromList [ (nameIdent (dName d), (dName d, dSignature d))
                           | dg <- mDecls inst, d <- groupDecls dg ]
 
+  su = listSubst [ (TVBound x, t) | (x,t) <- Map.toList tMap ]
+
   checkParam (x,sP) =
     case Map.lookup (nameIdent x) valMap of
-      Just (n,sD) -> do e <- makeValParamDef n sD sP
+      Just (n,sD) -> do e <- makeValParamDef n sD (apSubst su sP)
                         return (x,e)
       Nothing -> do recordError $ ErrorMsg
                                 $ text "Mising definition for value parameter"
