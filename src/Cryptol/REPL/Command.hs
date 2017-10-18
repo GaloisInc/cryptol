@@ -640,6 +640,7 @@ specializeCmd str = do
 
 refEvalCmd :: String -> REPL ()
 refEvalCmd str = do
+  validEvalContext
   parseExpr <- replParseExpr str
   (_, expr, _schema) <- replCheckExpr parseExpr
   val <- liftModuleCmd (rethrowEvalError . R.evaluate expr)
@@ -1065,7 +1066,8 @@ replSpecExpr e = liftModuleCmd $ S.specialize e
 
 replEvalExpr :: P.Expr P.PName -> REPL (E.Value, T.Type)
 replEvalExpr expr =
-  do (_,def,sig) <- replCheckExpr expr
+  do validEvalContext
+     (_,def,sig) <- replCheckExpr expr
 
      me <- getModuleEnv
      let cfg = M.meSolverConfig me
@@ -1137,6 +1139,7 @@ bindItVariables ty exprs = bindItVariable seqTy seqExpr
 
 replEvalDecl :: P.Decl P.PName -> REPL ()
 replEvalDecl decl = do
+  validEvalContext
   dgs <- replCheckDecls [decl]
   whenDebug (mapM_ (\dg -> (rPutStrLn (dump dg))) dgs)
   liftModuleCmd (M.evalDecls dgs)

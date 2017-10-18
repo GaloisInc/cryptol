@@ -49,6 +49,7 @@ module Cryptol.REPL.Monad (
   , disableLet
   , enableLet
   , getLetEnabled
+  , validEvalContext
   , updateREPLTitle
   , setUpdateREPLTitle
 
@@ -230,6 +231,7 @@ data REPLException
   | ModuleSystemError NameDisp M.ModuleError
   | EvalPolyError T.Schema
   | TypeNotTestable T.Type
+  | EvalInParamModule P.ModName
     deriving (Show,Typeable)
 
 instance X.Exception REPLException
@@ -253,6 +255,9 @@ instance PP REPLException where
                          $$ text "Type:" <+> pp s
     TypeNotTestable t    -> text "The expression is not of a testable type."
                          $$ text "Type:" <+> pp t
+    EvalInParamModule m  -> text "The current module," <+> pp m <> comma <+>
+                            text "is parameterized, and does not support" <+>
+                            text "evaluation."
 
 -- | Raise an exception.
 raise :: REPLException -> REPL a
@@ -277,6 +282,7 @@ rethrowEvalError m = run `X.catch` rethrow
 
 
 -- Primitives ------------------------------------------------------------------
+
 
 io :: IO a -> REPL a
 io m = REPL (\ _ -> m)
@@ -344,6 +350,22 @@ enableLet  = modifyRW_ (\ rw -> rw { eLetEnabled = True })
 -- | Are let-bindings enabled in this REPL?
 getLetEnabled :: REPL Bool
 getLetEnabled = fmap eLetEnabled getRW
+
+-- | Is evaluation enabled.  If the currently focused module is
+-- parameterized, then we cannot evalute.
+validEvalContext :: REPL ()
+validEvalContext =
+  do me <- eModuleEnv <$> getRW
+     case M.meFocusedModule me of
+       Nothing -> return ()
+       Just fm ->
+         case M.lookupModule fm me of
+           Just m -> when (T.isParametrizedModule (M.lmModule m))
+                       $ raise $ EvalInParamModule fm
+           Nothing ->
+             panic "getEvalEnabled" ["The focused module is not loaded."
+                                    , show fm ]
+
 
 -- | Update the title
 updateREPLTitle :: REPL ()
@@ -456,7 +478,7 @@ getPropertyNames =
 getModNames :: REPL [I.ModName]
 getModNames =
   do me <- getModuleEnv
-     return $ map M.lmName $ M.getLoadedModules $ M.meLoadedModules me
+     return (map T.mName (M.loadedModules me))
 
 getModuleEnv :: REPL M.ModuleEnv
 getModuleEnv  = eModuleEnv `fmap` getRW

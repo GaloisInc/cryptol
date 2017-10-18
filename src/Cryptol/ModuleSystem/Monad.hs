@@ -95,6 +95,8 @@ data ModuleError
     -- ^ Module loaded by 'import' statement has the wrong module name
   | DuplicateModuleName P.ModName FilePath FilePath
     -- ^ Two modules loaded from different files have the same module name
+  | ImportedParamModule P.ModName
+    -- ^ Attempt to import a parametrized module that was not instantiated.
     deriving (Show)
 
 instance NFData ModuleError where
@@ -113,6 +115,7 @@ instance NFData ModuleError where
     DuplicateModuleName name path1 path2 ->
       name `deepseq` path1 `deepseq` path2 `deepseq` ()
     OtherFailure x                       -> x `deepseq` ()
+    ImportedParamModule x                -> x `deepseq` ()
 
 instance PP ModuleError where
   ppPrec _ e = case e of
@@ -163,6 +166,9 @@ instance PP ModuleError where
 
     OtherFailure x -> text x
 
+    ImportedParamModule p ->
+      text "Import of a non-instantiated parameterized module:" <+> pp p
+
 
 
 
@@ -209,6 +215,9 @@ moduleNameMismatch expected found =
 duplicateModuleName :: P.ModName -> FilePath -> FilePath -> ModuleM a
 duplicateModuleName name path1 path2 =
   ModuleT (raise (DuplicateModuleName name path1 path2))
+
+importParamModule :: P.ModName -> ModuleM a
+importParamModule x = ModuleT (raise (ImportedParamModule x))
 
 
 -- Warnings --------------------------------------------------------------------
@@ -318,10 +327,13 @@ modifyModuleEnv f = ModuleT $ do
   env <- get
   set $! f env
 
+getLoadedMaybe :: P.ModName -> ModuleM (Maybe LoadedModule)
+getLoadedMaybe mn = ModuleT $
+  do env <- get
+     return (lookupModule mn env)
+
 isLoaded :: P.ModName -> ModuleM Bool
-isLoaded mn = ModuleT $ do
-  env <- get
-  return (isJust (lookupModule mn env))
+isLoaded mn = isJust <$> getLoadedMaybe mn
 
 loadingImport :: Located P.Import -> ModuleM a -> ModuleM a
 loadingImport  = loading . FromImport

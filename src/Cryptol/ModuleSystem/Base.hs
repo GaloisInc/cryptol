@@ -48,7 +48,7 @@ import Cryptol.Transform.MonoValues (rewModule)
 
 import Control.DeepSeq
 import qualified Control.Exception as X
-import Control.Monad (unless)
+import Control.Monad (unless,when)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import           Data.Text.Lazy (Text)
@@ -148,20 +148,21 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
 
 
 -- | Load a module that arouse a dependnecy
-loadDep :: (ModuleM () -> ModuleM ()) -> P.ModName -> ModuleM ()
-loadDep what n = do
-
-  alreadyLoaded <- isLoaded n
-  unless alreadyLoaded $
-    do path <- findModule n
-       pm   <- parseModule path
-       what $ do
-
-         -- make sure that this module is the one we expect
-         unless (n == thing (P.mName pm)) (moduleNameMismatch n (mName pm))
-
-         _ <- loadModule path pm
-         return ()
+loadDep :: (ModuleM T.Module -> ModuleM T.Module) ->
+           P.ModName ->
+           ModuleM T.Module
+loadDep what n =
+  do mb <- getLoadedMaybe n
+     case mb of
+       Just m -> return (lmModule m)
+       Nothing ->
+         do path <- findModule n
+            pm   <- parseModule path
+            what $
+              do -- make sure that this module is the one we expect
+                 unless (n == thing (P.mName pm))
+                        (moduleNameMismatch n (mName pm))
+                 loadModule path pm
 
 
 
@@ -270,8 +271,10 @@ loadDeps m =
   do mapM_ loadI (P.mImports m)
      mapM_ loadF (P.mInstance m)
   where
-  loadI i = loadDep (loadingImport i) (P.iModule (thing i))
-  loadF f = loadDep (loadingModInstance f) (thing f)
+  loadI i = do md <- loadDep (loadingImport i) (P.iModule (thing i))
+               when (T.isParametrizedModule md) (importParamModule (T.mName md))
+  loadF f = do _ <- loadDep (loadingModInstance f) (thing f)
+               return ()
 
 
 

@@ -211,25 +211,27 @@ dynamicEnv me = (decls,names,R.toNameDisp names)
 -- Loaded Modules --------------------------------------------------------------
 
 data LoadedModules = LoadedModules
-  { getLoadedModules      :: [LoadedModule]
+  { lmLoadedModules      :: [LoadedModule]
     -- ^ Invariants:
     -- 1) All the dependencies of any module `m` must precede `m` in the list.
     -- 2) Does not contain any parameterized modules.
 
-  , getLoadedParamModules :: [LoadedModule]
+  , lmLoadedParamModules :: [LoadedModule]
     -- ^ Loaded parameterized modules.
 
   } deriving (Show, Generic, NFData)
 
+getLoadedModules :: LoadedModules -> [LoadedModule]
+getLoadedModules x = lmLoadedParamModules x ++ lmLoadedModules x
+
 instance Monoid LoadedModules where
-  mempty = LoadedModules { getLoadedModules = []
-                         , getLoadedParamModules = []
+  mempty = LoadedModules { lmLoadedModules = []
+                         , lmLoadedParamModules = []
                          }
   mappend l r = LoadedModules
-    { getLoadedModules = List.unionBy ((==) `on` lmName)
-                                      (getLoadedModules l) (getLoadedModules r)
-    , getLoadedParamModules = getLoadedParamModules l ++
-                              getLoadedParamModules r }
+    { lmLoadedModules = List.unionBy ((==) `on` lmName)
+                                      (lmLoadedModules l) (lmLoadedModules r)
+    , lmLoadedParamModules = lmLoadedParamModules l ++ lmLoadedParamModules r }
 
 data LoadedModule = LoadedModule
   { lmName      :: ModName
@@ -247,8 +249,8 @@ isLoaded mn lm = any ((mn ==) . lmName) (getLoadedModules lm)
 
 -- | Try to find a previously loaded module
 lookupModule :: ModName -> ModuleEnv -> Maybe LoadedModule
-lookupModule mn me = search getLoadedModules `mplus`
-                     search getLoadedParamModules
+lookupModule mn me = search lmLoadedModules `mplus`
+                     search lmLoadedParamModules
   where
   search how = List.find ((mn ==) . lmName) (how (meLoadedModules me))
 
@@ -259,10 +261,10 @@ addLoadedModule ::
   FilePath -> FilePath -> T.Module -> LoadedModules -> LoadedModules
 addLoadedModule path canonicalPath tm lm
   | isLoaded (T.mName tm) lm  = lm
-  | T.isParametrizedModule tm = lm { getLoadedParamModules = loaded :
-                                                getLoadedParamModules lm }
-  | otherwise                = lm { getLoadedModules =
-                                          getLoadedModules lm ++ [loaded] }
+  | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
+                                                lmLoadedParamModules lm }
+  | otherwise                = lm { lmLoadedModules =
+                                          lmLoadedModules lm ++ [loaded] }
   where
   loaded = LoadedModule
     { lmName      = T.mName tm
@@ -275,11 +277,11 @@ addLoadedModule path canonicalPath tm lm
 -- | Remove a previously loaded module.
 removeLoadedModule :: FilePath -> LoadedModules -> LoadedModules
 removeLoadedModule path lm =
-  case rm getLoadedModules of
-    Just newLms -> lm { getLoadedModules = newLms }
+  case rm lmLoadedModules of
+    Just newLms -> lm { lmLoadedModules = newLms }
     Nothing ->
-      case rm getLoadedParamModules of
-        Just newLms -> lm { getLoadedParamModules = newLms }
+      case rm lmLoadedParamModules of
+        Just newLms -> lm { lmLoadedParamModules = newLms }
         Nothing     -> lm
   where
   rm f = case break ((path ==) . lmFilePath) (f lm) of
