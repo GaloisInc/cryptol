@@ -1,0 +1,8 @@
+module T5::A where
+
+parameter
+  x : [8]
+  y : [8]
+
+main = x + y
+

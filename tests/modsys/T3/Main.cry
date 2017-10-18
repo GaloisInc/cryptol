@@ -1,0 +1,7 @@
+module T3::Main where
+
+import T3::A as X
+
+main = X::main
+
+

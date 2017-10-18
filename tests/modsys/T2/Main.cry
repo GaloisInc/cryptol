@@ -1,0 +1,4 @@
+module T2::Main = T2::A where
+
+type T = 8
+

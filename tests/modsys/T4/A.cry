@@ -1,0 +1,8 @@
+module T4::A where
+
+parameter
+  type T : *
+  x : T
+
+main = x
+
