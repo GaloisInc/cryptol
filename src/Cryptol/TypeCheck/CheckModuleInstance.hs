@@ -119,16 +119,20 @@ checkTyParams func inst =
 
 
 
-checkValParams :: Module {- ^ Parameterized module -} ->
+checkValParams :: Module          {- ^ Parameterized module -} ->
                   Map TParam Type {- ^ Type instantiations -} ->
-                  Module {- ^ Instantiation module -} ->
+                  Module          {- ^ Instantiation module -} ->
                   InferM (Map Name Expr)
                   -- ^ Definitions for the parameters
 checkValParams func tMap inst =
   Map.fromList <$> mapM checkParam (Map.toList (mParamFuns func))
   where
-  valMap = Map.fromList [ (nameIdent (dName d), (dName d, dSignature d))
+  valMap = Map.fromList (defByParam ++ defByDef)
+
+  defByDef = [ (nameIdent (dName d), (dName d, dSignature d))
                           | dg <- mDecls inst, d <- groupDecls dg ]
+
+  defByParam = [ (nameIdent x, (x, s)) | (x,s) <- Map.toList (mParamFuns inst) ]
 
   su = listSubst [ (TVBound x, t) | (x,t) <- Map.toList tMap ]
 
