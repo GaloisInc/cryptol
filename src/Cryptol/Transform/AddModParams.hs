@@ -1,5 +1,6 @@
 -- | Transformed a parametrized module into an ordinary module
 -- where everything is parameterized by the module's parameters.
+-- Note that this reuses the names from the original parameterized module.
 module Cryptol.Transform.AddModParams (addModParams) where
 
 import qualified Data.Map as Map
