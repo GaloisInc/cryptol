@@ -150,6 +150,7 @@ library
 
                        Cryptol.Transform.MonoValues,
                        Cryptol.Transform.Specialize,
+                       Cryptol.Transform.AddModParams,
 
                        Cryptol.Eval,
                        Cryptol.Eval.Arch,

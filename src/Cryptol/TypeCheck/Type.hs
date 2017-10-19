@@ -52,6 +52,17 @@ data TPFlavor = TPModParam Name
               | TPOther (Maybe Name)
               deriving (Generic, NFData, Show)
 
+tMono :: Type -> Schema
+tMono = Forall [] []
+
+isMono :: Schema -> Maybe Type
+isMono s =
+  case s of
+    Forall [] [] t -> Just t
+    _              -> Nothing
+
+
+
 schemaParam :: Name -> TPFlavor
 schemaParam x = TPOther (Just x)
 

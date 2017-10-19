@@ -46,17 +46,6 @@ tcModule env m = tcDecls env (mDecls m)
 
 
 --------------------------------------------------------------------------------
-tMono :: Type -> Schema
-tMono = Forall [] []
-
-isMono :: Schema -> Maybe Type
-isMono s =
-  case s of
-    Forall [] [] t -> Just t
-    _              -> Nothing
-
-
---------------------------------------------------------------------------------
 
 -- | Validate a type, returning its kind.
 checkType :: Type -> TcM Kind

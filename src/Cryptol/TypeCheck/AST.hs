@@ -51,7 +51,11 @@ import qualified Data.IntMap as IntMap
 data Module = Module { mName        :: !ModName
                      , mExports     :: ExportSpec Name
                      , mImports     :: [Import]
+
                      , mTySyns      :: Map Name TySyn
+                       -- ^ This is just the type-level type synonyms
+                       -- of a module.
+
                      , mNewtypes    :: Map Name Newtype
                      , mParamTypes  :: [ TParam ]
                      , mParamConstraints :: [Located Prop]

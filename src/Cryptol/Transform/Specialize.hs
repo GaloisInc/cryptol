@@ -163,8 +163,8 @@ specializeEWhere e dgs = do
 specializeDeclGroups :: [DeclGroup] -> SpecM ([DeclGroup], Map Name (TypesMap Name))
 specializeDeclGroups dgs = do
   let decls = concatMap groupDecls dgs
-  let isMono s = null (sVars s) && null (sProps s)
-  let monos = [ EVar (dName d) | d <- decls, isMono (dSignature d) ]
+  let isMonoType s = null (sVars s) && null (sProps s)
+  let monos = [ EVar (dName d) | d <- decls, isMonoType (dSignature d) ]
   (_, dgs', names) <- withDeclGroups dgs $ mapM specializeExpr monos
   return (dgs', names)
 

@@ -37,6 +37,7 @@ import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
+import Cryptol.Transform.AddModParams (addModParams)
 import Cryptol.Utils.Ident (preludeName, preludeExtrasName, interactiveName,unpackModName)
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
@@ -382,7 +383,9 @@ checkSingleModule how path m = do
                      , tcPrims  = prims }
 
 
-  tcm <- typecheck act scm noIfaceParams tcEnv
+  tcm0 <- typecheck act scm noIfaceParams tcEnv
+
+  let tcm = tcm0 -- fromMaybe tcm0 (addModParams tcm0)
 
   liftSupply (`rewModule` tcm)
 
