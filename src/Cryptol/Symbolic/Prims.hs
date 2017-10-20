@@ -340,7 +340,7 @@ indexFront mblen a xs idx
   = do wvs <- traverse (fromWordVal "indexFront" =<<) (enumerateSeqMap n xs)
        case asWordList wvs of
          Just ws ->
-           return $ VWord n $ ready $ WordVal $ SBV.svSelect ws (wordLit wlen 0) idx
+           return $ VWord wlen $ ready $ WordVal $ SBV.svSelect ws (wordLit wlen 0) idx
          Nothing -> foldr f def idxs
 
   | otherwise

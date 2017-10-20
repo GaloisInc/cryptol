@@ -110,8 +110,10 @@ cmpNameLexical l r =
 
     (Parameter,Parameter) -> comparing nameIdent l r
 
-    (Declared nsl,Parameter) -> compare nsl (identText (nameIdent r))
-    (Parameter,Declared nsr) -> compare (identText (nameIdent l)) nsr
+    (Declared nsl,Parameter) -> compare (modNameToText nsl)
+                                        (identText (nameIdent r))
+    (Parameter,Declared nsr) -> compare (identText (nameIdent l))
+                                        (modNameToText nsr)
 
 
 -- | Compare two names by the way they would be displayed.

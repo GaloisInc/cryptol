@@ -13,8 +13,8 @@
 {-# LANGUAGE RecordWildCards #-}
 module Cryptol.Parser.Position where
 
-import           Data.Text.Lazy (Text)
-import qualified Data.Text.Lazy as T
+import           Data.Text(Text)
+import qualified Data.Text as T
 
 import GHC.Generics (Generic)
 import Control.DeepSeq

@@ -1,0 +1,3 @@
+let mapping = ['A' .. 'Z'] <<< 13
+let mapped c = if (('A' <= c) && (c <= 'Z')) then (mapping @ (c - 'A')) else c
+:sat \x -> mapped x == 'N'

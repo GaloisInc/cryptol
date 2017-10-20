@@ -52,8 +52,8 @@ import qualified Control.Exception as X
 import Control.Monad (unless,when)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
-import           Data.Text.Lazy (Text)
-import qualified Data.Text.Lazy.IO as T
+import           Data.Text(Text)
+import qualified Data.Text.IO as T
 import System.Directory (doesFileExist, canonicalizePath)
 import System.FilePath ( addExtension
                        , isAbsolute

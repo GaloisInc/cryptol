@@ -99,8 +99,7 @@ import qualified Data.IntMap as IntMap
 import System.IO(hFlush,stdout)
 import System.Random.TF(newTFGen)
 import Numeric (showFFloat)
-import qualified Data.Text as ST
-import qualified Data.Text.Lazy as T
+import qualified Data.Text as T
 import Data.IORef(newIORef,readIORef)
 
 import GHC.Float (log1p, expm1)
@@ -781,7 +780,7 @@ browseCmd :: String -> REPL ()
 browseCmd input = do
   (_,iface,names,disp) <- getFocusedEnv
 
-  let mnames = map ST.pack (words input)
+  let mnames = map (M.textToModName . T.pack) (words input)
   validModNames <- getModNames
   let checkModName m =
         unless (m `elem` validModNames) $

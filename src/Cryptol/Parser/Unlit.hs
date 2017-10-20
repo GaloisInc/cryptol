@@ -13,8 +13,8 @@ module Cryptol.Parser.Unlit
   ( unLit, PreProc(..), guessPreProc, knownExts
   ) where
 
-import           Data.Text.Lazy (Text)
-import qualified Data.Text.Lazy as Text
+import           Data.Text(Text)
+import qualified Data.Text as Text
 import           Data.Char(isSpace)
 import           System.FilePath(takeExtension)
 

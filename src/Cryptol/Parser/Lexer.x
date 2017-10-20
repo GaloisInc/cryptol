@@ -23,8 +23,8 @@ module Cryptol.Parser.Lexer
 import Cryptol.Parser.Position
 import Cryptol.Parser.LexerUtils
 import Cryptol.Parser.Unlit(unLit)
-import Data.Text.Lazy (Text)
-import qualified Data.Text.Lazy as Text
+import Data.Text (Text)
+import qualified Data.Text as Text
 }
 
 $uniupper       = \x1

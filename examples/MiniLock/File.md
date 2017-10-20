@@ -195,7 +195,7 @@ fileinfo inside a decryptInfo field as such:
     fileInfoCT  = encryptWith nonce (senderKeys.0) theirPublic infoBlob
     (succ,theirPublic) = decodeID theirID
 
-  encryptWith : {n} (2^^64 >= 32 + n) => [24][8] -> Private25519 -> Public25519 -> [n][8] -> [Enc64 (n+16)][8]
+  encryptWith : {n} (64 >= width (32 + n)) => [24][8] -> Private25519 -> Public25519 -> [n][8] -> [Enc64 (n+16)][8]
   encryptWith nonce secret public pt = base64enc (crypto_box pt nonce public secret)
 
   type NrChunks ptBytes = ptBytes / (2^^20)
