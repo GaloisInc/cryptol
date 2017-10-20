@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 
 module Cryptol.Utils.Ident where
 
@@ -19,18 +19,27 @@ import           GHC.Generics (Generic)
 
 
 -- | Module names are just text.
-type ModName = T.Text
+newtype ModName = ModName T.Text
+  deriving (Eq,Ord,Show,Generic)
+
+instance NFData ModName
+
+modNameToText :: ModName -> T.Text
+modNameToText (ModName x) = x
+
+textToModName :: T.Text -> ModName
+textToModName = ModName
 
 unpackModName :: ModName -> [String]
-unpackModName  = unfoldr step
+unpackModName  = unfoldr step . modNameToText
   where
   step str
     | T.null str = Nothing
     | otherwise  = case T.breakOn modSep str of
                      (a,b) -> Just (T.unpack a,T.drop (T.length modSep) b)
 
-packModName :: [String] -> ModName
-packModName strs = T.intercalate modSep (map (trim . T.pack) strs)
+packModName :: [T.Text] -> ModName
+packModName strs = textToModName (T.intercalate modSep (map trim strs))
   where
   -- trim space off of the start and end of the string
   trim str = T.dropWhile isSpace (T.dropWhileEnd isSpace str)

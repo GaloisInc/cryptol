@@ -12,21 +12,22 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Parser.ParserUtils where
 
 import Cryptol.Parser.AST
 import Cryptol.Parser.Lexer
 import Cryptol.Parser.Position
 import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
+import Cryptol.Utils.Ident(packModName)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
 import Data.Maybe(listToMaybe,fromMaybe)
 import Data.Bits(testBit,setBit)
 import Control.Monad(liftM,ap,unless)
-import qualified Data.Text as S
-import           Data.Text.Lazy (Text)
-import qualified Data.Text.Lazy as T
+import           Data.Text(Text)
+import qualified Data.Text as T
 
 
 import GHC.Generics (Generic)
@@ -115,8 +116,8 @@ errorMessage r x = P $ \_ _ _ -> Left (HappyErrorMsg r x)
 customError :: String -> Located Token -> ParseM a
 customError x t = P $ \_ _ _ -> Left (HappyErrorMsg (srcRange t) x)
 
-mkModName :: [T.Text] -> ModName
-mkModName strs = T.toStrict (T.intercalate (T.pack "::") strs)
+mkModName :: [Text] -> ModName
+mkModName = packModName
 
 -- Note that type variables are not resolved at this point: they are tcons.
 mkSchema :: [TParam PName] -> [Prop PName] -> Type PName -> Schema PName
@@ -124,7 +125,7 @@ mkSchema xs ps t = Forall xs ps t Nothing
 
 getName :: Located Token -> PName
 getName l = case thing l of
-              Token (Ident [] x) _ -> mkUnqual (mkIdent (T.toStrict x))
+              Token (Ident [] x) _ -> mkUnqual (mkIdent x)
               _ -> panic "[Parser] getName" ["not an Ident:", show l]
 
 getNum :: Located Token -> Integer
@@ -258,7 +259,7 @@ exprToNumT r expr =
 -- It is used to represent anonymous type applications.
 anonRecord :: Maybe Range -> [Type PName] -> Type PName
 anonRecord ~(Just r) ts = TRecord (map toField ts)
-  where noName    = Located { srcRange = r, thing = mkIdent (S.pack "") }
+  where noName    = Located { srcRange = r, thing = mkIdent (T.pack "") }
         toField t = Named { name = noName, value = t }
 
 exportDecl :: Maybe (Located String) -> ExportType -> Decl PName -> TopDecl PName
@@ -379,16 +380,19 @@ mkDoc ltxt = ltxt { thing = docStr }
          $ dropPrefix
          $ trimFront
          $ T.lines
-         $ T.dropWhileEnd (`elem` "/* \r\n\t")
+         $ T.dropWhileEnd commentChar
          $ thing ltxt
+
+  commentChar :: Char -> Bool
+  commentChar x = x `elem` ("/* \r\n\t" :: String)
 
   trimFront []                     = []
   trimFront (l:ls)
-    | T.all (`elem` "/* \r\n\t") l = ls
-    | otherwise                    = T.dropWhile (`elem` "/* ") l : ls
+    | T.all commentChar l = ls
+    | otherwise           = T.dropWhile commentChar l : ls
 
   dropPrefix []        = []
-  dropPrefix [t]       = [T.dropWhile (`elem` "/* ") t]
+  dropPrefix [t]       = [T.dropWhile commentChar t]
   dropPrefix ts@(l:ls) =
     case T.uncons l of
       Just (c,_) | all (commonPrefix c) ls -> dropPrefix (map (T.drop 1) ts)
@@ -450,9 +454,9 @@ mkProp ty =
     i = getIdent f
 
 zeroIdent, logicIdent, arithIdent, finIdent, cmpIdent, signedCmpIdent :: Ident
-zeroIdent      = mkIdent (S.pack "Zero")
-logicIdent     = mkIdent (S.pack "Logic")
-arithIdent     = mkIdent (S.pack "Arith")
-finIdent       = mkIdent (S.pack "fin")
-cmpIdent       = mkIdent (S.pack "Cmp")
-signedCmpIdent = mkIdent (S.pack "SignedCmp")
+zeroIdent      = mkIdent "Zero"
+logicIdent     = mkIdent "Logic"
+arithIdent     = mkIdent "Arith"
+finIdent       = mkIdent "fin"
+cmpIdent       = mkIdent "Cmp"
+signedCmpIdent = mkIdent "SignedCmp"

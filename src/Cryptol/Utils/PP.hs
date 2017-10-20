@@ -63,10 +63,10 @@ alwaysQualify  = NameDisp $ \ mn _ -> Just (Qualified mn)
 neverQualify :: NameDisp
 neverQualify  = NameDisp $ \ _ _ -> Just UnQualified
 
-fmtModName :: ModName -> NameFormat -> ModName
+fmtModName :: ModName -> NameFormat -> T.Text
 fmtModName _  UnQualified    = T.empty
-fmtModName _  (Qualified mn) = mn
-fmtModName mn NotInScope     = mn
+fmtModName _  (Qualified mn) = modNameToText mn
+fmtModName mn NotInScope     = modNameToText mn
 
 -- | Compose two naming environments, preferring names from the left
 -- environment.
@@ -280,3 +280,7 @@ instance PP T.Text where
 
 instance PP Ident where
   ppPrec _ i = text (T.unpack (identText i))
+
+instance PP ModName where
+  ppPrec _   = text . T.unpack . modNameToText
+

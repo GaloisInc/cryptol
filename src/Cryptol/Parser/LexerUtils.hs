@@ -19,8 +19,8 @@ import Cryptol.Utils.Panic
 
 import           Data.Char(toLower,generalCategory,isAscii,ord,isSpace)
 import qualified Data.Char as Char
-import           Data.Text.Lazy (Text)
-import qualified Data.Text.Lazy as T
+import           Data.Text(Text)
+import qualified Data.Text as T
 import           Data.Word(Word8)
 
 import GHC.Generics (Generic)

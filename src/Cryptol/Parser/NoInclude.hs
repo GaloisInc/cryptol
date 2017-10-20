@@ -18,8 +18,8 @@ import qualified Control.Applicative as A
 import Control.DeepSeq
 import qualified Control.Exception as X
 import Data.Either (partitionEithers)
-import Data.Text.Lazy (Text)
-import qualified Data.Text.Lazy.IO as T
+import Data.Text(Text)
+import qualified Data.Text.IO as T
 import GHC.Generics (Generic)
 import MonadLib
 import System.Directory (makeAbsolute)

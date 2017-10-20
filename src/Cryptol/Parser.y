@@ -27,9 +27,8 @@ module Cryptol.Parser
 
 import           Control.Applicative as A
 import           Data.Maybe(fromMaybe)
-import           Data.Text.Lazy (Text)
-import qualified Data.Text.Lazy as T
-import qualified Data.Text as ST
+import           Data.Text(Text)
+import qualified Data.Text as T
 import           Control.Monad(liftM2,msum)
 
 import Cryptol.Prims.Syntax
@@ -404,7 +403,7 @@ expr10                           :: { Expr PName }
 qop                              :: { LPName }
   : op                              { $1 }
   | QOP                             { let Token (Op (Other ns i)) _ = thing $1
-                                       in mkQual (mkModName ns) (mkInfix (T.toStrict i)) A.<$ $1 }
+                                       in mkQual (mkModName ns) (mkInfix i) A.<$ $1 }
 
 op                               :: { LPName }
   : pat_op                          { $1 }
@@ -423,7 +422,7 @@ pat_op                           :: { LPName }
 
 other_op                         :: { LPName }
   : OP                              { let Token (Op (Other [] str)) _ = thing $1
-                                       in mkUnqual (mkInfix (T.toStrict str)) A.<$ $1 }
+                                       in mkUnqual (mkInfix str) A.<$ $1 }
 
 
 ops                     :: { [LPName] }
@@ -638,7 +637,7 @@ field_types                    :: { [Named (Type PName)] }
 
 ident              :: { Located Ident }
   : IDENT             { let Token (Ident _ str) _ = thing $1
-                         in $1 { thing = mkIdent (T.toStrict str) } }
+                         in $1 { thing = mkIdent str } }
   | 'x'               { Located { srcRange = $1, thing = mkIdent "x" }}
   | 'private'         { Located { srcRange = $1, thing = mkIdent "private" } }
   | 'as'              { Located { srcRange = $1, thing = mkIdent "as" } }
@@ -650,7 +649,7 @@ name               :: { LPName }
 
 
 modName                        :: { Located ModName }
-  : ident                         { fmap identText $1 }
+  : ident                         { fmap (mkModName . (:[]) . identText) $1 }
   | QIDENT                        { let Token (Ident ns i) _ = thing $1
                                      in mkModName (ns ++ [i]) A.<$ $1 }
 
@@ -658,7 +657,7 @@ modName                        :: { Located ModName }
 qname                          :: { Located PName }
   : name                          { $1 }
   | QIDENT                        { let Token (Ident ns i) _ = thing $1
-                                     in mkQual (mkModName ns) (mkIdent (T.toStrict i)) A.<$ $1 }
+                                     in mkQual (mkModName ns) (mkIdent i) A.<$ $1 }
 
 help_name                      :: { Located PName    }
   : qname                         { $1               }
