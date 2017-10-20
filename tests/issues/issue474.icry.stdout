@@ -1,0 +1,2 @@
+Loading module Cryptol
+(\x -> mapped x == 'N') 0x41 = True
