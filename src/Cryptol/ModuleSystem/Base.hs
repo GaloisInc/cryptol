@@ -38,7 +38,9 @@ import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
 import Cryptol.Transform.AddModParams (addModParams)
-import Cryptol.Utils.Ident (preludeName, preludeExtrasName, interactiveName,unpackModName)
+import Cryptol.Utils.Ident (preludeName, preludeExtrasName, interactiveName
+                           , modNameChunks, notParamInstModName
+                           , isParamInstModName )
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
@@ -141,7 +143,7 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
   path' <- io $ canonicalizePath foundPath
   case lookupModule n env of
     -- loadModule will calculate the canonical path again
-    Nothing -> loadingModule n (loadModule foundPath pm)
+    Nothing -> loadingModule n (loadModule foundPath n pm)
     Just lm
      | path' == loaded -> return (lmModule lm)
      | otherwise       -> duplicateModuleName n path' loaded
@@ -149,9 +151,8 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
 
 
 -- | Load a module that arouse a dependnecy
-loadDep :: (ModuleM T.Module -> ModuleM T.Module) ->
-           P.ModName ->
-           ModuleM T.Module
+loadDep :: (ModuleM T.Module -> ModuleM T.Module) -> P.ModName ->
+                                                        ModuleM T.Module
 loadDep what n =
   do mb <- getLoadedMaybe n
      case mb of
@@ -161,21 +162,21 @@ loadDep what n =
             pm   <- parseModule path
             what $
               do -- make sure that this module is the one we expect
-                 unless (n == thing (P.mName pm))
+                 unless (notParamInstModName n == thing (P.mName pm))
                         (moduleNameMismatch n (mName pm))
-                 loadModule path pm
-
+                 loadModule path n pm
 
 
 -- | Load dependencies, typecheck, and add to the eval environment.
-loadModule :: FilePath -> P.Module PName -> ModuleM T.Module
-loadModule path pm = do
+loadModule :: FilePath -> P.ModName -> P.Module PName -> ModuleM T.Module
+loadModule path mn pm = do
+
 
   let pm' = addPrelude pm
   loadDeps pm'
 
   withLogger logPutStrLn ("Loading module " ++ pretty (P.thing (P.mName pm')))
-  tcm <- checkModule path pm'
+  tcm <- optionalInstantiate =<< checkModule path pm'
 
   -- extend the eval env
   unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv tcm)
@@ -183,6 +184,16 @@ loadModule path pm = do
   loadedModule path canonicalPath tcm
 
   return tcm
+  where
+  optionalInstantiate tcm
+    | isParamInstModName mn && T.isParametrizedModule tcm =
+      case addModParams tcm of
+        Right tcm1 -> return tcm1
+        Left xs    -> failedToParameterizeModDefs (T.mName tcm) xs
+    | otherwise = return tcm
+
+
+
 
 
 -- | Rewrite an import declaration to be of the form:
@@ -203,7 +214,7 @@ importIfaces :: [P.Import] -> ModuleM (IfaceDecls,R.NamingEnv)
 importIfaces is = mconcat `fmap` mapM importIface is
 
 moduleFile :: ModName -> String -> FilePath
-moduleFile n = addExtension (joinPath (unpackModName n))
+moduleFile n = addExtension (joinPath (modNameChunks n))
 
 -- | Discover a module.
 findModule :: ModName -> ModuleM FilePath
@@ -272,8 +283,8 @@ loadDeps m =
   do mapM_ loadI (P.mImports m)
      mapM_ loadF (P.mInstance m)
   where
-  loadI i = do md <- loadDep (loadingImport i) (P.iModule (thing i))
-               when (T.isParametrizedModule md) (importParamModule (T.mName md))
+  loadI i = do m1 <- loadDep (loadingImport i) (P.iModule (thing i))
+               when (T.isParametrizedModule m1) $ importParamModule $ T.mName m1
   loadF f = do _ <- loadDep (loadingModInstance f) (thing f)
                return ()
 

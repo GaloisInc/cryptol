@@ -40,7 +40,7 @@ import           Cryptol.TypeCheck.Infer (inferModule, inferBinds, inferDs)
 import           Cryptol.TypeCheck.InferTypes(Error(..),Warning(..),VarType(..), SolverConfig(..))
 import           Cryptol.TypeCheck.Solve(simplifyAllConstraints)
 import           Cryptol.TypeCheck.CheckModuleInstance(checkModuleInstance)
-import           Cryptol.Utils.Ident (packModName,packIdent)
+import           Cryptol.Utils.Ident (exprModName,packIdent)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
 
@@ -81,7 +81,7 @@ tcExpr e0 inp = runInferM inp
                              , show e'
                              , show t
                              ]
-      _ -> do fresh <- liftSupply (mkDeclared (packModName ["<expr>"]) (packIdent "(expression)") Nothing loc)
+      _ -> do fresh <- liftSupply (mkDeclared exprModName (packIdent "(expression)") Nothing loc)
               res   <- inferBinds True False
                 [ P.Bind
                     { P.bName      = P.Located { P.srcRange = loc, P.thing = fresh }

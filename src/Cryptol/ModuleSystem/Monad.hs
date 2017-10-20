@@ -29,7 +29,7 @@ import qualified Cryptol.Parser.NoInclude as NoInc
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
 import           Cryptol.Parser.Position (Range)
-import           Cryptol.Utils.Ident (interactiveName, packModName)
+import           Cryptol.Utils.Ident (interactiveName, noModuleName)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Logger(Logger)
 
@@ -98,6 +98,9 @@ data ModuleError
     -- ^ Two modules loaded from different files have the same module name
   | ImportedParamModule P.ModName
     -- ^ Attempt to import a parametrized module that was not instantiated.
+  | FailedToParameterizeModDefs P.ModName [T.Name]
+    -- ^ Failed to add the module parameters to all definitions in a module.
+  | NotAParameterizedModule P.ModName
     deriving (Show)
 
 instance NFData ModuleError where
@@ -117,6 +120,8 @@ instance NFData ModuleError where
       name `deepseq` path1 `deepseq` path2 `deepseq` ()
     OtherFailure x                       -> x `deepseq` ()
     ImportedParamModule x                -> x `deepseq` ()
+    FailedToParameterizeModDefs x xs     -> x `deepseq` xs `deepseq` ()
+    NotAParameterizedModule x            -> x `deepseq` ()
 
 instance PP ModuleError where
   ppPrec _ e = case e of
@@ -168,10 +173,15 @@ instance PP ModuleError where
     OtherFailure x -> text x
 
     ImportedParamModule p ->
-      text "Import of a non-instantiated parameterized module:" <+> pp p
+      text "[error] Import of a non-instantiated parameterized module:" <+> pp p
 
+    FailedToParameterizeModDefs x xs ->
+      hang (text "[error] Parameterized module" <+> pp x <+>
+            text "has polymorphic parameters:")
+        4 (hsep $ punctuate comma $ map pp xs)
 
-
+    NotAParameterizedModule x ->
+      text "[error] Module" <+> pp x <+> text "does not have parameters."
 
 moduleNotFound :: P.ModName -> [FilePath] -> ModuleM a
 moduleNotFound name paths = ModuleT (raise (ModuleNotFound name paths))
@@ -220,6 +230,12 @@ duplicateModuleName name path1 path2 =
 importParamModule :: P.ModName -> ModuleM a
 importParamModule x = ModuleT (raise (ImportedParamModule x))
 
+failedToParameterizeModDefs :: P.ModName -> [T.Name] -> ModuleM a
+failedToParameterizeModDefs x xs =
+  ModuleT (raise (FailedToParameterizeModDefs x xs))
+
+notAParameterizedModule :: P.ModName -> ModuleM a
+notAParameterizedModule x = ModuleT (raise (NotAParameterizedModule x))
 
 -- Warnings --------------------------------------------------------------------
 
@@ -366,7 +382,7 @@ getImportSource  = ModuleT $ do
   ro <- ask
   case roLoading ro of
     is : _ -> return is
-    _      -> return (FromModule (packModName ["<none>"])) -- panic "ModuleSystem: getImportSource" ["Import stack is empty"]
+    _      -> return (FromModule noModuleName)
 
 getIface :: P.ModName -> ModuleM Iface
 getIface mn = ModuleT $ do

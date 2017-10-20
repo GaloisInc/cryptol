@@ -8,7 +8,36 @@
 
 {-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
 
-module Cryptol.Utils.Ident where
+module Cryptol.Utils.Ident
+  ( -- * Module names
+    ModName
+  , modNameToText
+  , textToModName
+  , modNameChunks
+  , packModName
+  , preludeName
+  , preludeExtrasName
+  , interactiveName
+  , noModuleName
+  , exprModName
+
+  , isParamInstModName
+  , paramInstModName
+  , notParamInstModName
+
+    -- * Identifiers
+  , Ident
+  , packIdent
+  , packInfix
+  , unpackIdent
+  , mkIdent
+  , mkInfix
+  , isInfixIdent
+  , nullIdent
+  , identText
+  , modParamIdent
+
+  ) where
 
 import           Control.DeepSeq (NFData)
 import           Data.Char (isSpace)
@@ -19,7 +48,7 @@ import           GHC.Generics (Generic)
 
 
 -- | Module names are just text.
-newtype ModName = ModName T.Text
+data ModName = ModName T.Text
   deriving (Eq,Ord,Show,Generic)
 
 instance NFData ModName
@@ -30,13 +59,31 @@ modNameToText (ModName x) = x
 textToModName :: T.Text -> ModName
 textToModName = ModName
 
-unpackModName :: ModName -> [String]
-unpackModName  = unfoldr step . modNameToText
+modNameChunks :: ModName -> [String]
+modNameChunks  = unfoldr step . modNameToText . notParamInstModName
   where
   step str
     | T.null str = Nothing
     | otherwise  = case T.breakOn modSep str of
                      (a,b) -> Just (T.unpack a,T.drop (T.length modSep) b)
+
+isParamInstModName :: ModName -> Bool
+isParamInstModName (ModName x) = modInstPref `T.isPrefixOf` x
+
+-- | Convert a parameterized module's name to the name of the module
+-- containing the same definitions but with explicit parameters on each
+-- definition.
+paramInstModName :: ModName -> ModName
+paramInstModName (ModName x)
+  | modInstPref `T.isPrefixOf` x = ModName x
+  | otherwise = ModName (T.append modInstPref x)
+
+
+notParamInstModName :: ModName -> ModName
+notParamInstModName (ModName x)
+  | modInstPref `T.isPrefixOf` x = ModName (T.drop (T.length modInstPref) x)
+  | otherwise = ModName x
+
 
 packModName :: [T.Text] -> ModName
 packModName strs = textToModName (T.intercalate modSep (map trim strs))
@@ -45,7 +92,29 @@ packModName strs = textToModName (T.intercalate modSep (map trim strs))
   trim str = T.dropWhile isSpace (T.dropWhileEnd isSpace str)
 
 modSep :: T.Text
-modSep  = T.pack "::"
+modSep  = "::"
+
+modInstPref :: T.Text
+modInstPref = "`"
+
+
+preludeName :: ModName
+preludeName  = packModName ["Cryptol"]
+
+preludeExtrasName :: ModName
+preludeExtrasName = packModName ["Cryptol", "Extras"]
+
+interactiveName :: ModName
+interactiveName  = packModName ["<interactive>"]
+
+noModuleName :: ModName
+noModuleName = packModName ["<none>"]
+
+exprModName :: ModName
+exprModName = packModName ["<expr>"]
+
+
+--------------------------------------------------------------------------------
 
 -- | Identifiers, along with a flag that indicates whether or not they're infix
 -- operators. The boolean is present just as cached information from the lexer,
@@ -93,13 +162,4 @@ modParamIdent :: Ident -> Ident
 modParamIdent (Ident x t) = Ident x (T.append (T.pack "module parameter ") t)
 
 
--- Frequently Used Names -------------------------------------------------------
 
-preludeName :: ModName
-preludeName  = packModName ["Cryptol"]
-
-preludeExtrasName :: ModName
-preludeExtrasName = packModName ["Cryptol", "Extras"]
-
-interactiveName :: ModName
-interactiveName  = packModName ["<interactive>"]

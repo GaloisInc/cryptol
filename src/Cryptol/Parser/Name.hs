@@ -15,7 +15,6 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
 import           Control.DeepSeq
-import qualified Data.Text as T
 import           GHC.Generics (Generic)
 
 
@@ -51,7 +50,7 @@ getModName _           = Nothing
 getIdent :: PName -> Ident
 getIdent (UnQual n)    = n
 getIdent (Qual _ n)    = n
-getIdent (NewName p i) = Ident False (T.pack ("__" ++ pass ++ show i))
+getIdent (NewName p i) = packIdent ("__" ++ pass ++ show i)
   where
   pass = case p of
            NoPat      -> "p"

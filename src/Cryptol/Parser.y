@@ -37,6 +37,7 @@ import Cryptol.Parser.Position
 import Cryptol.Parser.LexerUtils hiding (mkIdent)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit(PreProc(..), guessPreProc)
+import Cryptol.Utils.Ident(paramInstModName)
 
 import Paths_cryptol
 }
@@ -663,10 +664,15 @@ name               :: { LPName }
   : ident             { fmap mkUnqual $1 }
 
 
-modName                        :: { Located ModName }
+smodName                       :: { Located ModName }
   : ident                         { fmap (mkModName . (:[]) . identText) $1 }
   | QIDENT                        { let Token (Ident ns i) _ = thing $1
                                      in mkModName (ns ++ [i]) A.<$ $1 }
+
+
+modName                        :: { Located ModName }
+  : smodName                      { $1 }
+  | '`' smodName                  { fmap paramInstModName $2 }
 
 
 qname                          :: { Located PName }

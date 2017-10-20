@@ -6,26 +6,31 @@ module Cryptol.Transform.AddModParams (addModParams) where
 import qualified Data.Map as Map
 import           Data.Set ( Set )
 import qualified Data.Set as Set
+import           Data.Either(partitionEithers)
 
+import Cryptol.Utils.Ident(paramInstModName)
 import Cryptol.TypeCheck.AST
 import Cryptol.Parser.Position(thing)
 
-addModParams :: Module -> Maybe Module
+addModParams :: Module -> Either [Name] Module
 addModParams m =
-  do ps <- getParams m
+  case getParams m of
+    Left errs -> Left errs
+    Right ps ->
      let toInst = Set.unions ( Map.keysSet (mTySyns m)
                              : Map.keysSet (mNewtypes m)
                              : map defs (mDecls m)
                              )
          inp = (toInst, ps)
 
-     return m { mTySyns = fmap (fixUp inp) (mTySyns m)
-              , mNewtypes = fmap (fixUp inp) (mNewtypes m)
-              , mDecls = fixUp inp (mDecls m)
-              , mParamTypes = []
-              , mParamConstraints = []
-              , mParamFuns = Map.empty
-              }
+     in Right m { mName = paramInstModName (mName m)
+                , mTySyns = fmap (fixUp inp) (mTySyns m)
+                , mNewtypes = fmap (fixUp inp) (mNewtypes m)
+                , mDecls = fixUp inp (mDecls m)
+                , mParamTypes = []
+                , mParamConstraints = []
+                , mParamFuns = Map.empty
+                }
 
 defs :: DeclGroup -> Set Name
 defs dg =
@@ -46,16 +51,20 @@ data Params = Params
 
 
 -- XXX: do we need to change the flavor of the parameter?
-getParams :: Module -> Maybe Params
-getParams m =
-  do pfs <- mapM checkFunP (Map.toList (mParamFuns m))
-     return Params { pTypes = mParamTypes m
-                   , pTypeConstraints = map thing (mParamConstraints m)
-                   , pFuns = pfs
-                   }
+getParams :: Module -> Either [Name] Params
+getParams m
+  | null errs =
+     Right Params { pTypes = mParamTypes m
+                  , pTypeConstraints = map thing (mParamConstraints m)
+                  , pFuns = oks
+                  }
+  | otherwise = Left errs
   where
-  checkFunP (x,s) = do t <- isMono s
-                       return (x,t)
+  (errs,oks) = partitionEithers (map checkFunP (Map.toList (mParamFuns m)))
+
+  checkFunP (x,s) = case isMono s of
+                      Just t  -> Right (x,t)
+                      Nothing -> Left x
 
 
 --------------------------------------------------------------------------------

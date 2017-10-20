@@ -77,7 +77,7 @@ loadModule path m env = runModuleM env $ do
   unloadModule path
 
   let n = P.thing (P.mName m)
-  m' <- loadingModule n (Base.loadModule path m)
+  m' <- loadingModule n (Base.loadModule path n m)
   setFocusedModule (T.mName m')
   return m'
 
