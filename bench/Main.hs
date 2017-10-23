@@ -10,8 +10,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Main where
 
-import qualified Data.Text.Lazy     as T
-import qualified Data.Text.Lazy.IO  as T
+import qualified Data.Text    as T
+import qualified Data.Text.IO as T
 import           System.FilePath ((</>))
 import qualified System.Directory   as Dir
 
