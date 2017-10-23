@@ -40,7 +40,7 @@ module Cryptol.REPL.Monad (
   , getTypeNames
   , getPropertyNames
   , getModNames
-  , LoadedModule(..), getLoadedMod, setLoadedMod
+  , LoadedModule(..), getLoadedMod, setLoadedMod, clearLoadedMod
   , setSearchPath, prependSearchPath
   , getPrompt
   , shouldContinue
@@ -299,6 +299,12 @@ modifyRW_ f = REPL (\ ref -> modifyIORef ref f)
 -- | Construct the prompt for the current environment.
 getPrompt :: REPL String
 getPrompt  = mkPrompt `fmap` getRW
+
+
+clearLoadedMod :: REPL ()
+clearLoadedMod = do modifyRW_ (\rw -> rw { eLoadedMod = upd <$> eLoadedMod rw })
+                    updateREPLTitle
+  where upd x = x { lName = Nothing }
 
 -- | Set the name of the currently focused file, edited by @:e@ and loaded via
 -- @:r@.

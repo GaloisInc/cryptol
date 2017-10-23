@@ -143,50 +143,49 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
   path' <- io $ canonicalizePath foundPath
   case lookupModule n env of
     -- loadModule will calculate the canonical path again
-    Nothing -> loadingModule n (loadModule foundPath n pm)
+    Nothing -> doLoadModule (FromModule n) foundPath pm
     Just lm
      | path' == loaded -> return (lmModule lm)
      | otherwise       -> duplicateModuleName n path' loaded
      where loaded = lmCanonicalPath lm
 
 
--- | Load a module that arouse a dependnecy
-loadDep :: (ModuleM T.Module -> ModuleM T.Module) -> P.ModName ->
-                                                        ModuleM T.Module
-loadDep what n =
-  do mb <- getLoadedMaybe n
+-- | Load a module, unless it was previously loaded.
+loadModuleFrom :: ImportSource -> ModuleM (FilePath,T.Module)
+loadModuleFrom isrc =
+  do let n = importedModule isrc
+     mb <- getLoadedMaybe n
      case mb of
-       Just m -> return (lmModule m)
+       Just m -> return (lmFilePath m, lmModule m)
        Nothing ->
          do path <- findModule n
-            pm   <- parseModule path
-            what $
-              do -- make sure that this module is the one we expect
-                 unless (notParamInstModName n == thing (P.mName pm))
-                        (moduleNameMismatch n (mName pm))
-                 loadModule path n pm
-
+            pm <- parseModule path
+            m  <- doLoadModule isrc path pm
+            return (path,m)
 
 -- | Load dependencies, typecheck, and add to the eval environment.
-loadModule :: FilePath -> P.ModName -> P.Module PName -> ModuleM T.Module
-loadModule path mn pm = do
+doLoadModule :: ImportSource ->
+              FilePath ->
+              P.Module PName ->
+              ModuleM T.Module
+doLoadModule isrc path pm0 =
+  loading isrc $
+  do let pm = addPrelude pm0
+     loadDeps pm
 
+     withLogger logPutStrLn
+       ("Loading module " ++ pretty (P.thing (P.mName pm)))
+     tcm <- optionalInstantiate =<< checkModule isrc path pm
 
-  let pm' = addPrelude pm
-  loadDeps pm'
+     -- extend the eval env, unless a functor.
+     unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv tcm)
+     canonicalPath <- io (canonicalizePath path)
+     loadedModule path canonicalPath tcm
 
-  withLogger logPutStrLn ("Loading module " ++ pretty (P.thing (P.mName pm')))
-  tcm <- optionalInstantiate =<< checkModule path pm'
-
-  -- extend the eval env
-  unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv tcm)
-  canonicalPath <- io (canonicalizePath path)
-  loadedModule path canonicalPath tcm
-
-  return tcm
+     return tcm
   where
   optionalInstantiate tcm
-    | isParamInstModName mn && T.isParametrizedModule tcm =
+    | isParamInstModName (importedModule isrc) && T.isParametrizedModule tcm =
       case addModParams tcm of
         Right tcm1 -> return tcm1
         Left xs    -> failedToParameterizeModDefs (T.mName tcm) xs
@@ -283,9 +282,9 @@ loadDeps m =
   do mapM_ loadI (P.mImports m)
      mapM_ loadF (P.mInstance m)
   where
-  loadI i = do m1 <- loadDep (loadingImport i) (P.iModule (thing i))
+  loadI i = do (_,m1)  <- loadModuleFrom (FromImport i)
                when (T.isParametrizedModule m1) $ importParamModule $ T.mName m1
-  loadF f = do _ <- loadDep (loadingModInstance f) (thing f)
+  loadF f = do _ <- loadModuleFrom (FromModuleInstance f)
                return ()
 
 
@@ -352,12 +351,12 @@ getPrimMap  =
                   [ "Unable to find the prelude" ]
 
 -- | Load a module, be it a normal module or a functor instantiation.
-checkModule :: FilePath -> P.Module PName -> ModuleM T.Module
-checkModule path m =
+checkModule :: ImportSource -> FilePath -> P.Module PName -> ModuleM T.Module
+checkModule isrc path m =
   case P.mInstance m of
-    Nothing -> checkSingleModule T.tcModule path m
+    Nothing -> checkSingleModule T.tcModule isrc path m
     Just fmName -> do tf <- getLoaded (thing fmName)
-                      checkSingleModule (T.tcModuleInst tf) path m
+                      checkSingleModule (T.tcModuleInst tf) isrc path m
 
 
 -- | Typecheck a single module.  If the module is an instantiation
@@ -365,10 +364,17 @@ checkModule path m =
 -- See 'checkModule'
 checkSingleModule ::
   Act (P.Module Name) T.Module {- ^ how to check -} ->
+  ImportSource                 {- ^ why are we loading this -} ->
   FilePath                     {- path -} ->
-  P.Module PName               {- ^ check this -} ->
+  P.Module PName               {- ^ module to check -} ->
   ModuleM T.Module
-checkSingleModule how path m = do
+checkSingleModule how isrc path m = do
+
+  -- check that the name of the module matches expectations
+  let nm = importedModule isrc
+  unless (notParamInstModName nm == thing (P.mName m))
+         (moduleNameMismatch nm (mName m))
+
   -- remove includes first
   e   <- io (removeIncludesModule path m)
   nim <- case e of

@@ -275,18 +275,12 @@ addLoadedModule path canonicalPath tm lm
     }
 
 -- | Remove a previously loaded module.
-removeLoadedModule :: FilePath -> LoadedModules -> LoadedModules
-removeLoadedModule path lm =
-  case rm lmLoadedModules of
-    Just newLms -> lm { lmLoadedModules = newLms }
-    Nothing ->
-      case rm lmLoadedParamModules of
-        Just newLms -> lm { lmLoadedParamModules = newLms }
-        Nothing     -> lm
-  where
-  rm f = case break ((path ==) . lmFilePath) (f lm) of
-           (as,_:bs) -> Just (as ++ bs)
-           _         -> Nothing
+removeLoadedModule :: (LoadedModule -> Bool) -> LoadedModules -> LoadedModules
+removeLoadedModule rm lm =
+  LoadedModules
+    { lmLoadedModules = filter (not . rm) (lmLoadedModules lm)
+    , lmLoadedParamModules = filter (not . rm) (lmLoadedParamModules lm)
+    }
 
 
 -- Dynamic Environments --------------------------------------------------------

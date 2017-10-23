@@ -16,7 +16,7 @@ module Cryptol.ModuleSystem (
   , ModuleCmd, ModuleRes
   , findModule
   , loadModuleByPath
-  , loadModule
+  , loadModuleByName
   , checkExpr
   , evalExpr
   , checkDecls
@@ -61,25 +61,20 @@ findModule :: P.ModName -> ModuleCmd FilePath
 findModule n env = runModuleM env (Base.findModule n)
 
 -- | Load the module contained in the given file.
-loadModuleByPath :: FilePath -> ModuleCmd T.Module
+loadModuleByPath :: FilePath -> ModuleCmd (FilePath,T.Module)
 loadModuleByPath path (evo,env) = runModuleM (evo,resetModuleEnv env) $ do
-  -- unload the module if it already exists
-  unloadModule path
-
+  unloadModule ((path ==) . lmFilePath)
   m <- Base.loadModuleByPath path
   setFocusedModule (T.mName m)
-  return m
+  return (path,m)
 
 -- | Load the given parsed module.
-loadModule :: FilePath -> P.Module PName -> ModuleCmd T.Module
-loadModule path m env = runModuleM env $ do
-  -- unload the module if it already exists
-  unloadModule path
-
-  let n = P.thing (P.mName m)
-  m' <- loadingModule n (Base.loadModule path n m)
+loadModuleByName :: P.ModName -> ModuleCmd (FilePath,T.Module)
+loadModuleByName n env = runModuleM env $ do
+  unloadModule ((n ==) . lmName)
+  (path,m') <- Base.loadModuleFrom (FromModule n)
   setFocusedModule (T.mName m')
-  return m'
+  return (path,m')
 
 -- Extended Environments -------------------------------------------------------
 

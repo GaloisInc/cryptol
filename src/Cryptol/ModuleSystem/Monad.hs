@@ -422,11 +422,10 @@ setSupply supply = ModuleT $
   do env <- get
      set $! env { meSupply = supply }
 
--- | Remove a module from the set of loaded module, by its path.
-unloadModule :: FilePath -> ModuleM ()
-unloadModule path = ModuleT $ do
+unloadModule :: (LoadedModule -> Bool) -> ModuleM ()
+unloadModule rm = ModuleT $ do
   env <- get
-  set $! env { meLoadedModules = removeLoadedModule path (meLoadedModules env) }
+  set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }
 
 loadedModule :: FilePath -> FilePath -> T.Module -> ModuleM ()
 loadedModule path canonicalPath m = ModuleT $ do

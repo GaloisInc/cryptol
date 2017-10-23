@@ -749,7 +749,7 @@ moduleCmd modString
   | null modString = return ()
   | otherwise      = do
       case parseModName modString of
-        Just m -> loadCmd =<< liftModuleCmd (M.findModule m)
+        Just m  -> loadHelper (M.loadModuleByName m)
         Nothing -> rPutStrLn "Invalid module name."
 
 loadPrelude :: REPL ()
@@ -758,19 +758,18 @@ loadPrelude  = moduleCmd $ show $ pp M.preludeName
 loadCmd :: FilePath -> REPL ()
 loadCmd path
   | null path = return ()
-  | otherwise = do
-      setLoadedMod LoadedModule
-        { lName = Nothing
-        , lPath = path
-        }
+  | otherwise = loadHelper (M.loadModuleByPath path)
 
-      m <- liftModuleCmd (M.loadModuleByPath path)
-      whenDebug (rPutStrLn (dump m))
-      setLoadedMod LoadedModule
+loadHelper :: M.ModuleCmd (FilePath,T.Module) -> REPL ()
+loadHelper how =
+  do clearLoadedMod
+     (path,m) <- liftModuleCmd how
+     whenDebug (rPutStrLn (dump m))
+     setLoadedMod LoadedModule
         { lName = Just (T.mName m)
         , lPath = path
         }
-      setDynEnv mempty
+     setDynEnv mempty
 
 quitCmd :: REPL ()
 quitCmd  = stop
