@@ -717,7 +717,10 @@ reloadCmd :: REPL ()
 reloadCmd  = do
   mb <- getLoadedMod
   case mb of
-    Just m  -> loadCmd (lPath m)
+    Just lm  ->
+      case lName lm of
+        Just m  -> loadHelper (M.loadModuleByName m)
+        Nothing -> loadCmd (lPath lm)
     Nothing -> return ()
 
 
@@ -730,7 +733,7 @@ editCmd path
         Just m -> do
           success <- replEdit (lPath m)
           if success
-             then loadCmd (lPath m)
+             then reloadCmd
              else return ()
 
         Nothing   -> do
@@ -739,10 +742,7 @@ editCmd path
 
   | otherwise = do
       _  <- replEdit path
-      mb <- getLoadedMod
-      case mb of
-        Nothing -> loadCmd path
-        Just _  -> return ()
+      reloadCmd
 
 moduleCmd :: String -> REPL ()
 moduleCmd modString
