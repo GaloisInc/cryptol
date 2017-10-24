@@ -7,6 +7,7 @@ import qualified Data.Map as Map
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.Either(partitionEithers)
+import           Data.List(find)
 
 import Cryptol.TypeCheck.AST
 import Cryptol.Parser.Position(thing)
@@ -147,7 +148,7 @@ nameInst :: Inp -> Name -> Expr
 nameInst (_,ps) x = foldl ETApp withProofs (map (TVar . tpVar) (pTypes ps))
   where
   withProofs = foldl (\e _ -> EProofApp e) withArgs (pTypeConstraints ps)
-  withArgs = foldl EApp (EVar x) (map (EVar . toParamInstName. fst)
+  withArgs = foldl EApp (EVar x) (map (EVar . toParamInstName . fst)
                                       (pFuns ps))
 
 -- | Extra parameters to dd when instantiating a type
@@ -158,8 +159,15 @@ instTyParams (_,ps) = map (TVar . tpVar) (pTypes ps)
 needsInst :: Inp -> Name -> Bool
 needsInst (xs,_) x = Set.member x xs
 
+isVParam :: Inp -> Name -> Bool
+isVParam (_,ps) x = x `elem` map fst (pFuns ps)
 
-
+isTParam :: Inp -> TVar -> Maybe TParam
+isTParam (_,ps) x =
+  case x of
+    TVBound tp -> find thisName (pTypes ps)
+      where thisName y = tpName tp == tpName y
+    _ -> Nothing
 
 
 instance Inst a => Inst [a] where
@@ -168,7 +176,10 @@ instance Inst a => Inst [a] where
 instance Inst Expr where
   inst ps expr =
     case expr of
-     EVar x -> if needsInst ps x then nameInst ps x else EVar x
+     EVar x
+      | needsInst ps x -> nameInst ps x
+      | isVParam ps x -> EVar (asParamName x)
+      | otherwise -> EVar x
 
      EList es t -> EList (inst ps es) (inst ps t)
      ETuple es -> ETuple (inst ps es)
@@ -230,7 +241,8 @@ instance Inst Type where
         newTs = instTyParams ps
         k1 k = foldr (:->) k (map kindOf newTs)
 
-      TVar _ -> ty
+      TVar x | Just x' <- isTParam ps x -> TVar (TVBound x')
+             | otherwise  -> ty
 
       TRec xs -> TRec [ (f,inst ps t) | (f,t) <- xs ]
 
