@@ -3,6 +3,7 @@
 -- Note that this reuses the names from the original parameterized module.
 module Cryptol.Transform.AddModParams (addModParams) where
 
+import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Set ( Set )
 import qualified Data.Set as Set
@@ -27,8 +28,8 @@ addModParams m =
          inp = (toInst, ps)
 
      in Right m { mName = paramInstModName (mName m)
-                , mTySyns = fmap (fixUp inp) (mTySyns m)
-                , mNewtypes = fmap (fixUp inp) (mNewtypes m)
+                , mTySyns = fixMap inp (mTySyns m)
+                , mNewtypes = fixMap inp (mNewtypes m)
                 , mDecls = fixUp inp (mDecls m)
                 , mParamTypes = []
                 , mParamConstraints = []
@@ -44,6 +45,9 @@ defs dg =
 fixUp :: (AddParams a, Inst a) => Inp -> a -> a
 fixUp i = addParams (snd i) . inst i
 
+fixMap :: (AddParams a, Inst a) => Inp -> Map Name a -> Map Name a
+fixMap i m =
+  Map.fromList [ (toParamInstName x, fixUp i a) | (x,a) <- Map.toList m ]
 
 --------------------------------------------------------------------------------
 
