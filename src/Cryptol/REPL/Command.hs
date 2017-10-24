@@ -80,7 +80,7 @@ import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..),ProverStat
 import qualified Cryptol.Symbolic as Symbolic
 
 import qualified Control.Exception as X
-import Control.Monad hiding (mapM, mapM_)
+import Control.Monad hiding (mapM, mapM)
 import qualified Data.ByteString as BS
 import Data.Bits ((.&.))
 import Data.Char (isSpace,isPunctuation,isSymbol)
@@ -876,12 +876,12 @@ helpCmd cmd
   | otherwise =
     case parseHelpName cmd of
       Just qname ->
-        do (_,env,rnEnv,nameEnv) <- getFocusedEnv
+        do (params,env,rnEnv,nameEnv) <- getFocusedEnv
            let vNames = M.lookupValNames  qname rnEnv
                tNames = M.lookupTypeNames qname rnEnv
 
-           mapM_ (showTypeHelp env nameEnv) tNames
-           mapM_ (showValHelp env nameEnv qname) vNames
+           mapM_ (showTypeHelp params env nameEnv) tNames
+           mapM_ (showValHelp params env nameEnv qname) vNames
 
            when (null (vNames ++ tNames)) $
              rPrint $ "Undefined name:" <+> pp qname
@@ -894,15 +894,32 @@ helpCmd cmd
       M.Declared m -> rPrint $runDoc nameEnv ("Name defined in module" <+> pp m)
       M.Parameter  -> rPutStrLn "// No documentation is available."
 
-  showTypeHelp env nameEnv name =
-    case Map.lookup name (M.ifTySyns env) of
-      Nothing ->
-        case Map.lookup name (M.ifNewtypes env) of
-          Nothing -> noInfo nameEnv name
-          Just nt -> doShowTyHelp nameEnv decl (T.ntDoc nt)
-            where
-            decl = pp nt $$ (pp name <+> text ":" <+> pp (T.newtypeConType nt))
-      Just ts -> doShowTyHelp nameEnv (pp ts) (T.tsDoc ts)
+  showTypeHelp params env nameEnv name =
+    fromMaybe (noInfo nameEnv name) $
+    msum [ fromTySyn, fromNewtype, fromTyParam ]
+
+    where
+    fromTySyn =
+      do ts <- Map.lookup name (M.ifTySyns env)
+         return (doShowTyHelp nameEnv (pp ts) (T.tsDoc ts))
+
+    fromNewtype =
+      do nt <- Map.lookup name (M.ifNewtypes env)
+         let decl = pp nt $$ (pp name <+> text ":" <+> pp (T.newtypeConType nt))
+         return $ doShowTyHelp nameEnv decl (T.ntDoc nt)
+
+    fromTyParam =
+      do p <- Map.lookup name (M.ifParamTypes params)
+         let uses c = T.TVBound (T.mtpParam p) `Set.member` T.fvs c
+             ctrs = filter uses (map P.thing (M.ifParamConstraints params))
+             ctrDoc = case ctrs of
+                        [] -> empty
+                        [x] -> pp x
+                        xs  -> parens $ hsep $ punctuate comma $ map pp xs
+             decl = text "parameter" <+> pp name <+> text ":"
+                      <+> pp (T.mtpKind p)
+                   $$ ctrDoc
+         return $ doShowTyHelp nameEnv decl (T.mtpDoc p)
 
   doShowTyHelp nameEnv decl doc =
     do rPutStrLn ""
@@ -911,41 +928,64 @@ helpCmd cmd
          Nothing -> return ()
          Just d  -> rPutStrLn "" >> rPutStrLn d
 
-  showValHelp env nameEnv qname name =
-    case Map.lookup name (M.ifDecls env) of
-      Just M.IfaceDecl { .. } ->
-        do rPutStrLn ""
+  doShowFix fx =
+    case fx of
+      Just f  ->
+        let msg = "Precedence " ++ show (P.fLevel f) ++ ", " ++
+                   (case P.fAssoc f of
+                      P.LeftAssoc   -> "associates to the left."
+                      P.RightAssoc  -> "associates to the right."
+                      P.NonAssoc    -> "does not associate.")
 
-           let property
-                 | P.PragmaProperty `elem` ifDeclPragmas = text "property"
-                 | otherwise                             = empty
-           rPrint $ runDoc nameEnv
-                  $ nest 4
-                  $ property
-                    <+> pp qname
-                    <+> colon
-                    <+> pp (ifDeclSig)
+        in rPutStrLn ('\n' : msg)
 
-           let mbFix = ifDeclFixity `mplus`
-                       (guard ifDeclInfix >> return P.defaultFixity)
-           case mbFix of
-             Just f  ->
-               let msg = "Precedence " ++ show (P.fLevel f) ++ ", " ++
-                          (case P.fAssoc f of
-                             P.LeftAssoc   -> "associates to the left."
-                             P.RightAssoc  -> "associates to the right."
-                             P.NonAssoc    -> "does not associate.")
+      Nothing -> return ()
 
-               in rPutStrLn ('\n' : msg)
-             Nothing -> return ()
+  showValHelp params env nameEnv qname name =
+    fromMaybe (noInfo nameEnv name)
+              (msum [ fromDecl, fromNewtype, fromParameter ])
+    where
+    fromDecl =
+      do M.IfaceDecl { .. } <- Map.lookup name (M.ifDecls env)
+         return $
+           do rPutStrLn ""
 
-           case ifDeclDoc of
-             Just str -> rPutStrLn ('\n' : str)
-             Nothing  -> return ()
+              let property
+                    | P.PragmaProperty `elem` ifDeclPragmas = text "property"
+                    | otherwise                             = empty
+              rPrint $ runDoc nameEnv
+                     $ nest 4
+                     $ property
+                       <+> pp qname
+                       <+> colon
+                       <+> pp (ifDeclSig)
 
-      _ -> case Map.lookup name (M.ifNewtypes env) of
-             Just _ -> return ()
-             Nothing -> noInfo nameEnv name
+              doShowFix $ ifDeclFixity `mplus`
+                          (guard ifDeclInfix >> return P.defaultFixity)
+
+              case ifDeclDoc of
+                Just str -> rPutStrLn ('\n' : str)
+                Nothing  -> return ()
+
+    fromNewtype =
+      do _ <- Map.lookup name (M.ifNewtypes env)
+         return $ return ()
+
+    fromParameter =
+      do p <- Map.lookup name (M.ifParamFuns params)
+         return $
+           do rPutStrLn ""
+              rPrint $ runDoc nameEnv
+                     $ nest 4
+                     $ text "parameter" <+> pp qname
+                                        <+> colon
+                                        <+> pp (T.mvpType p)
+
+              doShowFix (T.mvpFixity p)
+
+              case T.mvpDoc p of
+                Just str -> rPutStrLn ('\n' : str)
+                Nothing  -> return ()
 
 
 
