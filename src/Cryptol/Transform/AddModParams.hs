@@ -11,6 +11,7 @@ import           Data.Either(partitionEithers)
 import Cryptol.Utils.Ident(paramInstModName)
 import Cryptol.TypeCheck.AST
 import Cryptol.Parser.Position(thing)
+import Cryptol.ModuleSystem.Name(toParamInstName)
 
 addModParams :: Module -> Either [Name] Module
 addModParams m =
@@ -40,6 +41,7 @@ defs dg =
 
 fixUp :: (AddParams a, Inst a) => Inp -> a -> a
 fixUp i = addParams (snd i) . inst i
+
 
 --------------------------------------------------------------------------------
 
@@ -103,17 +105,20 @@ instance AddParams Decl where
       DPrim   -> d
       DExpr e -> d { dSignature = addParams ps (dSignature d)
                    , dDefinition = DExpr (addParams ps e)
+                   , dName = toParamInstName (dName d)
                    }
 
 instance AddParams TySyn where
   addParams ps ts = ts { tsParams = pTypes ps ++ tsParams ts
                        , tsConstraints = pTypeConstraints ps ++ tsConstraints ts
-                          -- do we need these here?
+                          --  do we need these here ^ ?
+                       , tsName = toParamInstName (tsName ts)
                        }
 
 instance AddParams Newtype where
   addParams ps nt = nt { ntParams = pTypes ps ++ ntParams nt
                        , ntConstraints = pTypeConstraints ps ++ ntConstraints nt
+                       , ntName = toParamInstName (ntName nt)
                        }
 
 
@@ -132,8 +137,10 @@ type Inp = (Set Name, Params)
 
 nameInst :: Inp -> Name -> Expr
 nameInst (_,ps) x = foldl ETApp withProofs (map (TVar . tpVar) (pTypes ps))
-  where withProofs = foldl (\e _ -> EProofApp e) withArgs (pTypeConstraints ps)
-        withArgs = foldl EApp (EVar x) (map (EVar . fst) (pFuns ps))
+  where
+  withProofs = foldl (\e _ -> EProofApp e) withArgs (pTypeConstraints ps)
+  withArgs = foldl EApp (EVar x) (map (EVar . toParamInstName. fst)
+                                      (pFuns ps))
 
 -- | Extra parameters to dd when instantiating a type
 instTyParams :: Inp -> [Type]

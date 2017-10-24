@@ -33,6 +33,7 @@ module Cryptol.ModuleSystem.Name (
     -- ** Creation
   , mkDeclared
   , mkParameter
+  , toParamInstName
 
     -- ** Unique Supply
   , FreshM(..), nextUniqueM
@@ -195,6 +196,12 @@ asPrim :: Name -> Maybe Ident
 asPrim Name { .. }
   | nInfo == Declared preludeName = Just nIdent
   | otherwise                     = Nothing
+
+toParamInstName :: Name -> Name
+toParamInstName n =
+  case nInfo n of
+    Declared m  -> n { nInfo = Declared (paramInstModName m) }
+    Parameter   -> n
 
 
 -- Name Supply -----------------------------------------------------------------
