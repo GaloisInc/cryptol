@@ -719,8 +719,8 @@ reloadCmd  = do
   case mb of
     Just lm  ->
       case lName lm of
-        Just m  -> loadHelper (M.loadModuleByName m)
-        Nothing -> loadCmd (lPath lm)
+        Just m | M.isParamInstModName m -> loadHelper (M.loadModuleByName m)
+        _ -> loadCmd (lPath lm)
     Nothing -> return ()
 
 
