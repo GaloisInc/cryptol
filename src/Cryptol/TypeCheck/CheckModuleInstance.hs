@@ -48,7 +48,7 @@ checkModuleInstance func inst =
 -- definitions.
 checkTyParams :: Module -> Module -> InferM (Map TParam Type)
 checkTyParams func inst =
-  Map.fromList <$> mapM checkTParamDefined (mParamTypes func)
+  Map.fromList <$> mapM checkTParamDefined (Map.elems (mParamTypes func))
 
   where
   -- Maps to lookup things by identifier (i.e., lexical name)
@@ -56,15 +56,17 @@ checkTyParams func inst =
   identMap f m = Map.fromList [ (f x, ts) | (x,ts) <- Map.toList m ]
   tySyns       = identMap nameIdent (mTySyns inst)
   newTys       = identMap nameIdent (mNewtypes inst)
-  tParams      = Map.fromList [ (tpId x, x) | x <- mParamTypes inst ]
+  tParams      = Map.fromList [ (tpId x, x) | x0 <- Map.elems (mParamTypes inst)
+                                            , let x = mtpParam x0 ]
 
   tpId x       = case tpName x of
                    Just n  -> nameIdent n
                    Nothing -> panic "inferModuleInstance.tpId" ["Missing name"]
 
   -- Find a definition for a given type parameter
-  checkTParamDefined tp =
-    let x = tpId tp
+  checkTParamDefined tp0 =
+    let tp = mtpParam tp0
+        x = tpId tp
     in case Map.lookup x tySyns of
          Just ts -> checkTySynDef tp ts
          Nothing ->
@@ -125,18 +127,22 @@ checkValParams :: Module          {- ^ Parameterized module -} ->
                   InferM (Map Name Expr)
                   -- ^ Definitions for the parameters
 checkValParams func tMap inst =
-  Map.fromList <$> mapM checkParam (Map.toList (mParamFuns func))
+  Map.fromList <$> mapM checkParam (Map.elems (mParamFuns func))
   where
   valMap = Map.fromList (defByParam ++ defByDef)
 
   defByDef = [ (nameIdent (dName d), (dName d, dSignature d))
                           | dg <- mDecls inst, d <- groupDecls dg ]
 
-  defByParam = [ (nameIdent x, (x, s)) | (x,s) <- Map.toList (mParamFuns inst) ]
+  defByParam = [ (nameIdent x, (x, mvpType s)) |
+                                    (x,s) <- Map.toList (mParamFuns inst) ]
 
   su = listSubst [ (TVBound x, t) | (x,t) <- Map.toList tMap ]
 
-  checkParam (x,sP) =
+  checkParam pr =
+    let x = mvpName pr
+        sP = mvpType pr
+    in
     case Map.lookup (nameIdent x) valMap of
       Just (n,sD) -> do e <- makeValParamDef n sD (apSubst su sP)
                         return (x,e)

@@ -63,7 +63,7 @@ instantiateModule func newName tpMap vpMap =
                  , mImports           = mImports func
                  , mTySyns            = renamedTySyns
                  , mNewtypes          = renamedNewtypes
-                 , mParamTypes        = []
+                 , mParamTypes        = Map.empty
                  , mParamConstraints  = []
                  , mParamFuns         = Map.empty
                  , mDecls             = paramDecls ++ renamedDecls
@@ -74,6 +74,7 @@ instantiateModule func newName tpMap vpMap =
       NonRecursive Decl
         { dName        = Map.findWithDefault (error "OOPS") x vpNames
         , dSignature   = apSubst su
+                       $ mvpType
                        $ Map.findWithDefault (error "UUPS") x (mParamFuns func)
         , dDefinition  = DExpr e
         , dPragmas     = []      -- XXX: which if any pragmas?

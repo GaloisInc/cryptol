@@ -21,7 +21,6 @@ module Cryptol.TypeCheck.Kind
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.AST (Named(..))
 import           Cryptol.Parser.Position
-import           Cryptol.ModuleSystem.Name(nameUnique)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad hiding (withTParams)
 import           Cryptol.TypeCheck.SimpType(tRebuild)
@@ -56,14 +55,11 @@ checkSchema withWild (P.Forall xs ps t mb) =
           Nothing -> id
           Just r  -> inRange r
 
-checkParameterType :: P.ParameterType Name -> Maybe String -> InferM TParam
-checkParameterType a mbDoc = -- XXX: Save the doc somewhere.
+checkParameterType :: P.ParameterType Name -> Maybe String -> InferM ModTParam
+checkParameterType a mbDoc =
   do let k = cvtK (P.ptKind a)
          n = thing (P.ptName a)
-     return TParam { tpUnique = nameUnique n -- XXX: ok to reuse?
-                   , tpKind = k
-                   , tpFlav = TPModParam n
-                   }
+     return ModTParam { mtpKind = k, mtpName = n, mtpDoc = mbDoc }
 
 
 -- | Check a type-synonym declaration.
@@ -250,7 +246,7 @@ tySyn scoped x ts k =
                 do mbA <- kLookupParamType x
                    case mbA of
                      Just a ->
-                       do let ty = tpVar a
+                       do let ty = tpVar (mtpParam a)
                           (ts1,k1) <- appTy ts (kindOf ty)
                           case k of
                             Just ks

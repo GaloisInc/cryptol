@@ -60,9 +60,9 @@ data InferInput = InferInput
     -- When typechecking a module these start off empty.
     -- We need them when type-checking an expression at the command
     -- line, for example.
-  , inpParamTypes       :: ![TParam]          -- ^ Type parameters
-  , inpParamConstraints :: !([Located Prop])  -- ^ Constraints on parameters
-  , inpParamFuns        :: !(Map Name Schema) -- ^ Value parameters
+  , inpParamTypes       :: !(Map Name ModTParam)  -- ^ Type parameters
+  , inpParamConstraints :: !([Located Prop])      -- ^ Constraints on parameters
+  , inpParamFuns        :: !(Map Name ModVParam)  -- ^ Value parameters
 
 
   , inpNameSeeds :: NameSeeds         -- ^ Private state of type-checker
@@ -116,8 +116,7 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
                          , iTVars         = []
                          , iTSyns         = fmap mkExternal (inpTSyns info)
                          , iNewtypes      = fmap mkExternal (inpNewtypes info)
-                         , iParamTypes    = Map.fromList $ map mkTyParam
-                                                         $ inpParamTypes info
+                         , iParamTypes    = inpParamTypes info
                          , iParamFuns     = inpParamFuns info
                          , iParamConstraints = inpParamConstraints info
 
@@ -155,12 +154,6 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
                                   [(r,apSubst theSu e) | (r,e) <- errs]
 
   where
-  mkTyParam tp = case tpName tp of
-                   Nothing -> panic "TypeCheck.Monad.mkTyParam"
-                                [ "Module type parametr with no name"
-                                , show tp ]
-                   Just n -> (n, tp)
-
   mkExternal x = (IsExternal, x)
   rw = RW { iErrors     = []
           , iWarnings   = []
@@ -214,13 +207,13 @@ data RO = RO
    -- at the top-level, but then there can't be a newtype with the
    -- same name (this should be caught by the renamer).
 
-  , iParamTypes :: Map Name TParam
+  , iParamTypes :: Map Name ModTParam
     -- ^ Parameter types
 
   , iParamConstraints :: [Located Prop]
     -- ^ Constraints on the type parameters
 
-  , iParamFuns :: Map Name Schema
+  , iParamFuns :: Map Name ModVParam
     -- ^ Parameter functions
 
 
@@ -545,7 +538,7 @@ lookupVar x =
               Nothing ->
                 do mbParamFun <- lookupParamFun x
                    case mbParamFun of
-                     Just pf -> return (ExtVar pf)
+                     Just pf -> return (ExtVar (mvpType pf))
                      Nothing ->
                        do recordError (UndefinedVariable x)
                           a <- newType (text "type of" <+> pp x) KType
@@ -566,11 +559,11 @@ lookupNewtype :: Name -> InferM (Maybe Newtype)
 lookupNewtype x = fmap (fmap snd . Map.lookup x) getNewtypes
 
 -- | Lookup the kind of a parameter type
-lookupParamType :: Name -> InferM (Maybe TParam)
+lookupParamType :: Name -> InferM (Maybe ModTParam)
 lookupParamType x = Map.lookup x <$> getParamTypes
 
 -- | Lookup the schema for a parameter function.
-lookupParamFun :: Name -> InferM (Maybe Schema)
+lookupParamFun :: Name -> InferM (Maybe ModVParam)
 lookupParamFun x = Map.lookup x <$> getParamFuns
 
 -- | Check if we already have a name for this existential type variable and,
@@ -606,11 +599,11 @@ getNewtypes :: InferM (Map Name (DefLoc,Newtype))
 getNewtypes = IM $ asks iNewtypes
 
 -- | Returns the parameter functions declarations
-getParamFuns :: InferM (Map Name Schema)
+getParamFuns :: InferM (Map Name ModVParam)
 getParamFuns = IM $ asks iParamFuns
 
 -- | Returns the abstract function declarations
-getParamTypes :: InferM (Map Name TParam)
+getParamTypes :: InferM (Map Name ModTParam)
 getParamTypes = IM $ asks iParamTypes
 
 getParamConstraints :: InferM [Located Prop]
@@ -624,7 +617,8 @@ getTVars = IM $ asks $ Set.fromList . mapMaybe tpName . iTVars
 getBoundInScope :: InferM (Set TVar)
 getBoundInScope =
   do ro <- IM ask
-     let params = Set.fromList (map tpVar (Map.elems (iParamTypes ro)))
+     let params = Set.fromList (map (tpVar . mtpParam)
+                                    (Map.elems (iParamTypes ro)))
          bound  = Set.fromList (map tpVar (iTVars ro))
      return $! Set.union params bound
 
@@ -684,14 +678,11 @@ withNewtype t (IM m) =
   IM $ mapReader
         (\r -> r { iNewtypes = Map.insert (ntName t) (IsLocal,t)
                                                      (iNewtypes r) }) m
-withParamType :: TParam -> InferM a -> InferM a
+withParamType :: ModTParam -> InferM a -> InferM a
 withParamType a (IM m) =
-  case tpName a of
-    Nothing -> panic "withParamType" ["Param type without a name"]
-    Just n  ->
-      IM $ mapReader
-             (\r -> r { iParamTypes = Map.insert n a (iParamTypes r) })
-             m
+  IM $ mapReader
+        (\r -> r { iParamTypes = Map.insert (mtpName a) a (iParamTypes r) })
+        m
 
 -- | The sub-computation is performed with the given variable in scope.
 withVarType :: Name -> VarType -> InferM a -> InferM a
@@ -705,11 +696,11 @@ withVar :: Name -> Schema -> InferM a -> InferM a
 withVar x s = withVarType x (ExtVar s)
 
 -- | The sub-computation is performed with the given abstract function in scope.
-withParamFuns :: [(Name, Schema)] -> InferM a -> InferM a
+withParamFuns :: [ModVParam] -> InferM a -> InferM a
 withParamFuns xs (IM m) =
   IM $ mapReader (\r -> r { iParamFuns = foldr add (iParamFuns r) xs }) m
   where
-  add (x,s) = Map.insert x s
+  add x = Map.insert (mvpName x) x
 
 -- | Add some assumptions for an entire module
 withParameterConstraints :: [Located Prop] -> InferM a -> InferM a
@@ -836,7 +827,7 @@ kLookupTSyn x = kInInferM $ lookupTSyn x
 kLookupNewtype :: Name -> KindM (Maybe Newtype)
 kLookupNewtype x = kInInferM $ lookupNewtype x
 
-kLookupParamType :: Name -> KindM (Maybe TParam)
+kLookupParamType :: Name -> KindM (Maybe ModTParam)
 kLookupParamType x = kInInferM (lookupParamType x)
 
 kExistTVar :: Name -> Kind -> KindM Type

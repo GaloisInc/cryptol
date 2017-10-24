@@ -177,7 +177,7 @@ proveModuleTopLevel =
      cs <- getParamConstraints
      case cs of
        [] -> return ()
-       _  -> do as <- Map.elems <$> getParamTypes
+       _  -> do as <- (map mtpParam . Map.elems) <$> getParamTypes
                 gs <- getGoals
                 su <- proveImplication Nothing as (map thing cs) gs
                 extendSubst su

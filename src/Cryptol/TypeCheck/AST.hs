@@ -44,6 +44,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import           Data.Map    (Map)
+import qualified Data.Map    as Map
 import qualified Data.IntMap as IntMap
 
 
@@ -56,19 +57,39 @@ data Module = Module { mName        :: !ModName
                        -- ^ This is just the type-level type synonyms
                        -- of a module.
 
-                     , mNewtypes    :: Map Name Newtype
-                     , mParamTypes  :: [ TParam ]
+                     , mNewtypes         :: Map Name Newtype
+                     , mParamTypes       :: Map Name ModTParam
                      , mParamConstraints :: [Located Prop]
-                     , mParamFuns   :: Map Name Schema
-                     , mDecls       :: [DeclGroup]
+                     , mParamFuns        :: Map Name ModVParam
+                     , mDecls            :: [DeclGroup]
                      } deriving (Show, Generic, NFData)
 
+-- | Is this a parameterized module?
 isParametrizedModule :: Module -> Bool
 isParametrizedModule m = not (null (mParamTypes m) &&
                               null (mParamConstraints m) &&
                               null (mParamFuns m))
 
+-- | A type parameter of a module.
+data ModTParam = ModTParam
+  { mtpName  :: Name
+  , mtpKind  :: Kind
+  , mtpDoc   :: Maybe String
+  } deriving (Show,Generic,NFData)
 
+mtpParam :: ModTParam -> TParam
+mtpParam mtp = TParam { tpUnique = nameUnique (mtpName mtp)
+                      , tpKind   = mtpKind mtp
+                      , tpFlav   = TPModParam (mtpName mtp)
+                      }
+
+-- | A value parameter of a module.
+data ModVParam = ModVParam
+  { mvpName   :: Name
+  , mvpType   :: Schema
+  , mvpDoc    :: Maybe String
+  , mvpFixity :: Maybe Fixity
+  } deriving (Show,Generic,NFData)
 
 
 data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
@@ -317,5 +338,6 @@ instance PP (WithNames Module) where
     vcat (map pp mImports) $$
     -- XXX: Print tysyns
     -- XXX: Print abstarct types/functions
-    vcat (map (ppWithNames (addTNames mParamTypes nm)) mDecls)
+    vcat (map (ppWithNames (addTNames mps nm)) mDecls)
+    where mps = map mtpParam (Map.elems mParamTypes)
 

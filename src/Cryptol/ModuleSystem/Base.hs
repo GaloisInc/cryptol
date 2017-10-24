@@ -502,7 +502,7 @@ genInferInput r prims params env = do
     , T.inpPrimNames = prims
     , T.inpParamTypes       = ifParamTypes params
     , T.inpParamConstraints = ifParamConstraints params
-    , T.inpParamFuns        = Map.map ifDeclSig (ifParamFuns params)
+    , T.inpParamFuns        = ifParamFuns params
     }
 
 

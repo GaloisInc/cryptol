@@ -47,14 +47,14 @@ data Iface = Iface
   } deriving (Show, Generic, NFData)
 
 data IfaceParams = IfaceParams
-  { ifParamTypes :: [TParam]     -- ^ Uninterpreted types
+  { ifParamTypes       :: Map.Map Name ModTParam
   , ifParamConstraints :: [Located Prop] -- ^ Constraints on param. types
-  , ifParamFuns  :: Map.Map Name IfaceDecl  -- ^ Uninterpreted value constants
+  , ifParamFuns        :: Map.Map Name ModVParam
   } deriving (Show, Generic, NFData)
 
 noIfaceParams :: IfaceParams
 noIfaceParams = IfaceParams
-  { ifParamTypes = []
+  { ifParamTypes = Map.empty
   , ifParamConstraints = []
   , ifParamFuns = Map.empty
   }
@@ -124,22 +124,10 @@ genIface m = Iface
   , ifParams = IfaceParams
     { ifParamTypes = mParamTypes m
     , ifParamConstraints = mParamConstraints m
-    , ifParamFuns  = valParams
+    , ifParamFuns  = mParamFuns m
     }
   }
   where
-
-  valParams = Map.mapWithKey xxxDecl (mParamFuns m)
-
-  xxxDecl qn s = IfaceDecl
-    { ifDeclName    = qn
-    , ifDeclSig     = s
-    , ifDeclPragmas = []
-    , ifDeclInfix   = False
-    , ifDeclFixity  = Nothing
-    , ifDeclDoc     = Nothing
-    }
-
 
   (tsPub,tsPriv) =
       Map.partitionWithKey (\ qn _ -> qn `isExportedType` mExports m )

@@ -60,7 +60,7 @@ inferModule m =
                      , mImports   = map thing (P.mImports m)
                      , mTySyns    = Map.mapMaybe onlyLocal ts
                      , mNewtypes  = Map.mapMaybe onlyLocal nts
-                     , mParamTypes= Map.elems pTs
+                     , mParamTypes = pTs
                      , mParamConstraints = pCs
                      , mParamFuns = pFuns
                      , mDecls     = ds1
@@ -880,7 +880,11 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
        unless (isEmptySubst su) $
          panic "checkParameterFun" ["Subst not empty??"]
        let n = thing (P.pfName x)
-       return (n,s)
+       return ModVParam { mvpName = n
+                        , mvpType = s
+                        , mvpDoc  = P.pfDoc x
+                        , mvpFixity = P.pfFixity x
+                        }
 
   checkBinds decls (CyclicSCC bs : more) =
      do bs1 <- inferBinds isTopLevel True bs

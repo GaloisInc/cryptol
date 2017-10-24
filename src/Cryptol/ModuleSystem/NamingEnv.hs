@@ -21,7 +21,7 @@ import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
-import qualified Cryptol.TypeCheck.Type as T
+import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
@@ -274,20 +274,20 @@ unqualifiedEnv IfaceDecls { .. } =
 modParamsNamingEnv :: IfaceParams -> NamingEnv
 modParamsNamingEnv IfaceParams { .. } =
   NamingEnv { neExprs = Map.fromList $ map fromFu $ Map.keys ifParamFuns
-            , neTypes = Map.fromList $ mapMaybe fromTy ifParamTypes
-            , neFixity = Map.fromList $ mapMaybe toFix $ Map.toList ifParamFuns
+            , neTypes = Map.fromList $ map fromTy $ Map.elems ifParamTypes
+            , neFixity = Map.fromList $ mapMaybe toFix $ Map.elems ifParamFuns
             }
 
   where
   toPName n = mkUnqual (nameIdent n)
 
-  fromTy tp = do nm <- T.tpName tp
-                 return (toPName nm, [nm])
+  fromTy tp = let nm = T.mtpName tp
+              in (toPName nm, [nm])
 
   fromFu f  = (toPName f, [f])
 
-  toFix (f,x) = do d <- ifDeclFixity x
-                   return (f, d)
+  toFix x = do d <- T.mvpFixity x
+               return (T.mvpName x, d)
 
 
 

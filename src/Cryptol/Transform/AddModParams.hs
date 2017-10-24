@@ -14,7 +14,6 @@ import Cryptol.TypeCheck.AST
 import Cryptol.Parser.Position(thing)
 import Cryptol.ModuleSystem.Name(toParamInstName,asParamName)
 import Cryptol.Utils.Ident(paramInstModName)
-import Cryptol.Utils.Panic(panic)
 
 addModParams :: Module -> Either [Name] Module
 addModParams m =
@@ -31,7 +30,7 @@ addModParams m =
                 , mTySyns = fixMap inp (mTySyns m)
                 , mNewtypes = fixMap inp (mNewtypes m)
                 , mDecls = fixUp inp (mDecls m)
-                , mParamTypes = []
+                , mParamTypes = Map.empty
                 , mParamConstraints = []
                 , mParamFuns = Map.empty
                 }
@@ -61,7 +60,7 @@ data Params = Params
 getParams :: Module -> Either [Name] Params
 getParams m
   | null errs =
-     let ps = Params { pTypes = map rnTP (mParamTypes m)
+     let ps = Params { pTypes = map rnTP (Map.elems (mParamTypes m))
                      , pTypeConstraints = map thing (mParamConstraints m)
                      , pFuns = oks
                      }
@@ -70,14 +69,11 @@ getParams m
   where
   (errs,oks) = partitionEithers (map checkFunP (Map.toList (mParamFuns m)))
 
-  checkFunP (x,s) = case isMono s of
-                      Just t  -> Right (asParamName x,t)
+  checkFunP (x,s) = case isMono (mvpType s) of
+                      Just t  -> Right (asParamName x, t)
                       Nothing -> Left x
 
-  rnTP tp = case tpFlav tp of
-              TPModParam n -> tp { tpFlav = TPOther (Just (asParamName n)) }
-              TPOther {} -> panic "getParams" ["Not a module parameter."
-                                              , show tp ]
+  rnTP tp = mtpParam tp { mtpName = asParamName (mtpName tp) }
 
 
 --------------------------------------------------------------------------------
