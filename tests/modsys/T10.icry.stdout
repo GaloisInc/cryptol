@@ -1,0 +1,6 @@
+Loading module Cryptol
+Loading module T10::Main
+Symbols
+=======
+    f : {T} T -> T
+
