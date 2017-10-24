@@ -8,10 +8,11 @@ import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.Either(partitionEithers)
 
-import Cryptol.Utils.Ident(paramInstModName)
 import Cryptol.TypeCheck.AST
 import Cryptol.Parser.Position(thing)
-import Cryptol.ModuleSystem.Name(toParamInstName)
+import Cryptol.ModuleSystem.Name(toParamInstName,asParamName)
+import Cryptol.Utils.Ident(paramInstModName)
+import Cryptol.Utils.Panic(panic)
 
 addModParams :: Module -> Either [Name] Module
 addModParams m =
@@ -52,21 +53,28 @@ data Params = Params
   }
 
 
--- XXX: do we need to change the flavor of the parameter?
 getParams :: Module -> Either [Name] Params
 getParams m
   | null errs =
-     Right Params { pTypes = mParamTypes m
-                  , pTypeConstraints = map thing (mParamConstraints m)
-                  , pFuns = oks
-                  }
+     let ps = Params { pTypes = map rnTP (mParamTypes m)
+                     , pTypeConstraints = map (addParams ps . thing)
+                                              (mParamConstraints m)
+                            -- Note that there's a funny recursion here.
+                     , pFuns = oks
+                     }
+     in Right ps
   | otherwise = Left errs
   where
   (errs,oks) = partitionEithers (map checkFunP (Map.toList (mParamFuns m)))
 
   checkFunP (x,s) = case isMono s of
-                      Just t  -> Right (x,t)
+                      Just t  -> Right (asParamName x,t)
                       Nothing -> Left x
+
+  rnTP tp = case tpFlav tp of
+              TPModParam n -> tp { tpFlav = TPOther (Just (asParamName n)) }
+              TPOther {} -> panic "getParams" ["Not a module parameter."
+                                              , show tp ]
 
 
 --------------------------------------------------------------------------------
@@ -149,6 +157,8 @@ instTyParams (_,ps) = map (TVar . tpVar) (pTypes ps)
 
 needsInst :: Inp -> Name -> Bool
 needsInst (xs,_) x = Set.member x xs
+
+
 
 
 

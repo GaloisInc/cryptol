@@ -249,8 +249,7 @@ isLoaded mn lm = any ((mn ==) . lmName) (getLoadedModules lm)
 
 -- | Try to find a previously loaded module
 lookupModule :: ModName -> ModuleEnv -> Maybe LoadedModule
-lookupModule mn me = search lmLoadedModules `mplus`
-                     search lmLoadedParamModules
+lookupModule mn me = search lmLoadedModules `mplus` search lmLoadedParamModules
   where
   search how = List.find ((mn ==) . lmName) (how (meLoadedModules me))
 

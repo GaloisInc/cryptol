@@ -27,9 +27,10 @@ import Prelude.Compat
 
 -- Name Displaying -------------------------------------------------------------
 
--- | How to display names, inspired by the GHC `Outputable` module. Getting a
--- value of 'Nothing' from the NameDisp function indicates that the name is not
--- in scope.
+{- | How to display names, inspired by the GHC `Outputable` module.
+Getting a value of 'Nothing' from the NameDisp function indicates
+that the display has no opinion on how this name should be displayed,
+and some other display should be tried out. -}
 data NameDisp = EmptyNameDisp
               | NameDisp (ModName -> Ident -> Maybe NameFormat)
                 deriving (Generic, NFData)

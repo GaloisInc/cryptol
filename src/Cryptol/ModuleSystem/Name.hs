@@ -34,6 +34,7 @@ module Cryptol.ModuleSystem.Name (
   , mkDeclared
   , mkParameter
   , toParamInstName
+  , asParamName
 
     -- ** Unique Supply
   , FreshM(..), nextUniqueM
@@ -202,6 +203,9 @@ toParamInstName n =
   case nInfo n of
     Declared m  -> n { nInfo = Declared (paramInstModName m) }
     Parameter   -> n
+
+asParamName :: Name -> Name
+asParamName n = n { nInfo = Parameter }
 
 
 -- Name Supply -----------------------------------------------------------------
