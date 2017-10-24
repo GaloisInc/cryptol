@@ -25,7 +25,7 @@ addModParams m =
                              : Map.keysSet (mNewtypes m)
                              : map defs (mDecls m)
                              )
-         inp = (toInst, ps)
+         inp = (toInst, ps { pTypeConstraints = inst inp (pTypeConstraints ps) })
 
      in Right m { mName = paramInstModName (mName m)
                 , mTySyns = fixMap inp (mTySyns m)
@@ -62,9 +62,7 @@ getParams :: Module -> Either [Name] Params
 getParams m
   | null errs =
      let ps = Params { pTypes = map rnTP (mParamTypes m)
-                     , pTypeConstraints = map (addParams ps . thing)
-                                              (mParamConstraints m)
-                            -- Note that there's a funny recursion here.
+                     , pTypeConstraints = map thing (mParamConstraints m)
                      , pFuns = oks
                      }
      in Right ps
