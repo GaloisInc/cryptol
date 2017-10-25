@@ -386,6 +386,8 @@ mkDoc ltxt = ltxt { thing = docStr }
   commentChar :: Char -> Bool
   commentChar x = x `elem` ("/* \r\n\t" :: String)
 
+  prefixDroppable x = x `elem` ("* \r\n\t" :: String)
+
   trimFront []                     = []
   trimFront (l:ls)
     | T.all commentChar l = ls
@@ -395,7 +397,8 @@ mkDoc ltxt = ltxt { thing = docStr }
   dropPrefix [t]       = [T.dropWhile commentChar t]
   dropPrefix ts@(l:ls) =
     case T.uncons l of
-      Just (c,_) | all (commonPrefix c) ls -> dropPrefix (map (T.drop 1) ts)
+      Just (c,_) | prefixDroppable c &&
+                   all (commonPrefix c) ls -> dropPrefix (map (T.drop 1) ts)
       _                                    -> ts
 
     where
