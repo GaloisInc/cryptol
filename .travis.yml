@@ -29,6 +29,7 @@ before_install:
     fi
   - if [[ $TRAVIS_OS_NAME == 'osx' ]];
     then
+        brew update;
         brew install ghc cabal-install z3;
         export PATH=$HOME/.cabal/bin:$PATH;
     fi
