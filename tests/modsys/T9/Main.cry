@@ -2,6 +2,6 @@ module T9::Main where
 
 import `T9::A
 
-main = f 0x10
+main = f { x = 0x10 }
 
 

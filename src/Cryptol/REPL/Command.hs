@@ -837,7 +837,8 @@ browseVars isVisible M.IfaceDecls { .. } names = do
   ppBlock name xs = unless (null xs) $
     do rPutStrLn name
        rPutStrLn (replicate (length name) '=')
-       let ppVar M.IfaceDecl { .. } = pp ifDeclName <+> char ':' <+> pp ifDeclSig
+       let ppVar M.IfaceDecl { .. } = hang (pp ifDeclName <+> char ':')
+                                        2 (pp ifDeclSig)
        rPrint (runDoc names (nest 4 (vcat (map ppVar xs))))
        rPutStrLn ""
 

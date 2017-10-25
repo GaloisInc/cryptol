@@ -752,8 +752,12 @@ instance PP Schema where
   ppPrec = ppWithNamesPrec IntMap.empty
 
 instance PP (WithNames Schema) where
-  ppPrec _ (WithNames s ns) = vars <+> props <+> ppWithNames ns1 (sType s)
+  ppPrec _ (WithNames s ns)
+    | null (sVars s) && null (sProps s) = body
+    | otherwise = hang (vars <+> props) 2 body 
     where
+    body = ppWithNames ns1 (sType s)
+
     vars = case sVars s of
       [] -> empty
       vs -> braces $ commaSep $ map (ppWithNames ns1) vs

@@ -12,7 +12,8 @@ import           Data.List(find)
 
 import Cryptol.TypeCheck.AST
 import Cryptol.Parser.Position(thing)
-import Cryptol.ModuleSystem.Name(toParamInstName,asParamName)
+import Cryptol.ModuleSystem.Name(toParamInstName,asParamName,nameIdent
+                                ,paramModRecParam)
 import Cryptol.Utils.Ident(paramInstModName)
 
 addModParams :: Module -> Either [Name] Module
@@ -91,13 +92,14 @@ instance AddParams Schema where
                      }
 
 instance AddParams Type where
-  addParams ps t = foldr tFun t (map snd (pFuns ps))
+  addParams ps t = tFun (paramRecTy ps) t
 
 
 instance AddParams Expr where
   addParams ps e = foldr ETAbs withProps (pTypes ps)
     where withProps = foldr EProofAbs withArgs (pTypeConstraints ps)
-          withArgs  = foldr (uncurry EAbs) e (pFuns ps)
+          withArgs  = EAbs paramModRecParam (paramRecTy ps) e
+
 
 
 instance AddParams DeclGroup where
@@ -142,12 +144,15 @@ class Inst a where
 type Inp = (Set Name, Params)
 
 
+paramRecTy :: Params -> Type
+paramRecTy ps = tRec [ (nameIdent x, t) | (x,t) <- pFuns ps ]
+
 nameInst :: Inp -> Name -> Expr
-nameInst (_,ps) x = foldl ETApp withProofs (map (TVar . tpVar) (pTypes ps))
+nameInst (_,ps) x = EApp withProofs (EVar paramModRecParam)
   where
-  withProofs = foldl (\e _ -> EProofApp e) withArgs (pTypeConstraints ps)
-  withArgs = foldl EApp (EVar x) (map (EVar . toParamInstName . fst)
-                                      (pFuns ps))
+  withProofs = foldl (\e _ -> EProofApp e) withTys (pTypeConstraints ps)
+  withTys    = foldl ETApp (EVar x) (map (TVar . tpVar) (pTypes ps))
+
 
 -- | Extra parameters to dd when instantiating a type
 instTyParams :: Inp -> [Type]
@@ -176,7 +181,9 @@ instance Inst Expr where
     case expr of
      EVar x
       | needsInst ps x -> nameInst ps x
-      | isVParam ps x -> EVar (asParamName x)
+      | isVParam ps x ->
+        let sh = map (nameIdent . fst) (pFuns (snd ps))
+        in ESel (EVar paramModRecParam) (RecordSel (nameIdent x) (Just sh))
       | otherwise -> EVar x
 
      EList es t -> EList (inst ps es) (inst ps t)
