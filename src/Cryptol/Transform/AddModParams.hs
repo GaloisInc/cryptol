@@ -96,9 +96,11 @@ instance AddParams Type where
 
 
 instance AddParams Expr where
-  addParams ps e = foldr ETAbs withProps (pTypes ps)
-    where withProps = foldr EProofAbs withArgs (pTypeConstraints ps)
-          withArgs  = EAbs paramModRecParam (paramRecTy ps) e
+  addParams ps e = foldr ETAbs withProps (pTypes ps ++ as)
+    where (as,rest1) = splitWhile splitTAbs e
+          (bs,rest2) = splitWhile splitProofAbs rest1
+          withProps = foldr EProofAbs withArgs (pTypeConstraints ps ++ bs)
+          withArgs  = EAbs paramModRecParam (paramRecTy ps) rest2
 
 
 
