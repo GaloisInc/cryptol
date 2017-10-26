@@ -416,7 +416,7 @@ data TCLinter o = TCLinter
 exprLinter :: TCLinter (T.Expr, T.Schema)
 exprLinter = TCLinter
   { lintCheck = \(e',s) i ->
-      case TcSanity.tcExpr (T.inpVars i) e' of
+      case TcSanity.tcExpr i e' of
         Left err     -> Left err
         Right (s1,os)
           | TcSanity.same s s1  -> Right os
@@ -426,7 +426,7 @@ exprLinter = TCLinter
 
 declsLinter :: TCLinter [ T.DeclGroup ]
 declsLinter = TCLinter
-  { lintCheck = \ds' i -> case TcSanity.tcDecls (T.inpVars i) ds' of
+  { lintCheck = \ds' i -> case TcSanity.tcDecls i ds' of
                             Left err -> Left err
                             Right os -> Right os
 
@@ -435,7 +435,7 @@ declsLinter = TCLinter
 
 moduleLinter :: P.ModName -> TCLinter T.Module
 moduleLinter m = TCLinter
-  { lintCheck   = \m' i -> case TcSanity.tcModule (T.inpVars i) m' of
+  { lintCheck   = \m' i -> case TcSanity.tcModule i m' of
                             Left err -> Left err
                             Right os -> Right os
   , lintModule  = Just m

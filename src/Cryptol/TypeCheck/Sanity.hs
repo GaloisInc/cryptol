@@ -15,8 +15,10 @@ module Cryptol.TypeCheck.Sanity
   ) where
 
 
+import Cryptol.Parser.Position(thing)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst (apSubst, singleSubst)
+import Cryptol.TypeCheck.Monad(InferInput(..))
 import Cryptol.Utils.Ident
 
 import qualified Data.Set as Set
@@ -29,23 +31,32 @@ import           Data.Map ( Map )
 import qualified Data.Map as Map
 
 
-tcExpr :: Map Name Schema -> Expr -> Either Error (Schema, [ ProofObligation ])
+tcExpr :: InferInput -> Expr -> Either Error (Schema, [ ProofObligation ])
 tcExpr env e = runTcM env (exprSchema e)
 
-tcDecls :: Map Name Schema -> [DeclGroup] -> Either Error [ ProofObligation ]
-tcDecls env ds0 = case runTcM env (go ds0) of
+tcDecls :: InferInput -> [DeclGroup] -> Either Error [ ProofObligation ]
+tcDecls env ds0 = case runTcM env (checkDecls ds0) of
                     Left err     -> Left err
                     Right (_,ps) -> Right ps
-  where
-  go []       = return ()
-  go (d : ds) = do xs <- checkDeclGroup d
-                   withVars xs (go ds)
 
-tcModule :: Map Name Schema -> Module -> Either Error [ ProofObligation ]
-tcModule env m = tcDecls env (mDecls m)
+tcModule :: InferInput -> Module -> Either Error [ ProofObligation ]
+tcModule env m = case runTcM env check of
+                   Left err -> Left err
+                   Right (_,ps) -> Right ps
+  where check = foldr withTVar k1 (map mtpParam (Map.elems (mParamTypes m)))
+        k1    = foldr withAsmp k2 (map thing (mParamConstraints m))
+        k2    = withVars (Map.toList (fmap mvpType (mParamFuns m)))
+              $ checkDecls (mDecls m)
 
 
 --------------------------------------------------------------------------------
+
+checkDecls :: [DeclGroup] -> TcM ()
+checkDecls decls =
+  case decls of
+    [] -> return ()
+    d : ds -> do xs <- checkDeclGroup d
+                 withVars xs (checkDecls ds)
 
 -- | Validate a type, returning its kind.
 checkType :: Type -> TcM Kind
@@ -451,15 +462,19 @@ instance Monad TcM where
                         let TcM m1 = f a
                         m1)
 
-runTcM :: Map Name Schema -> TcM a -> Either Error (a, [ProofObligation])
+runTcM :: InferInput -> TcM a -> Either Error (a, [ProofObligation])
 runTcM env (TcM m) =
   case runM m ro rw of
     (Left err, _) -> Left err
     (Right a, s)  -> Right (a, woProofObligations s)
   where
-  ro = RO { roTVars = Map.empty
-          , roAsmps = []
-          , roVars  = env
+  ro = RO { roTVars = Map.fromList [ (tpUnique x, x)
+                                      | tp <- Map.elems (inpParamTypes env)
+                                      , let x = mtpParam tp ]
+          , roAsmps = map thing (inpParamConstraints env)
+          , roVars  = Map.union
+                        (fmap mvpType (inpParamFuns env))
+                        (inpVars env)
           }
   rw = RW { woProofObligations = [] }
 
