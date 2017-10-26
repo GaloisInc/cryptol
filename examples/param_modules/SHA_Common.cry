@@ -1,0 +1,141 @@
+module SHA_Common where
+
+SHA_2_Common : {L} (2 * w >= width L) => [8][w] -> [L] -> [8 * w]
+SHA_2_Common H0 M =
+  join (SHA_2_Common' H0 [ split x | x <- parse`{num_blocks L} (pad`{L} M) ])
+
+parameter
+
+  /** Word size
+    Specifications are based on word size w, rather than digest size (8 * w) 
+    or block size (m == 16 * w), in order to avoid confusing Cryptol's type 
+    constraint verifier with integer division.
+  */
+
+
+  type w : #
+  type constraint (fin w, w >= 1)
+
+
+
+  /** The number of iterations in the hash computation
+  (i.e. the number of words in K) */
+
+  type j : #
+  type constraint (fin j, j >= 17)
+
+  K : [j][w]
+
+  /* FIPS 180-4 defines lowercase and uppercase
+      (respective to the Greek alphabet) sigma functions for SHA-256 and SHA-512.
+      (4.4)-(4.7) SHA-224, SHA-256 (w==32)
+      (4.10)-(4.13) SHA-384, SHA-512, SHA-512/224, SHA-512/256 (w==64) */
+
+  SIGMA_0 : [w] -> [w]
+  SIGMA_1 : [w] -> [w]
+  sigma_0 : [w] -> [w]
+  sigma_1 : [w] -> [w]
+
+private
+
+  /** block size corresponding to word size for all SHA algorithms in
+      FIPS 180-4 */
+  type block_size = 16 * w
+
+  type num_blocks L     = (L+1+2*w) /^ block_size
+  type padded_size L    = num_blocks L * block_size
+
+
+  /** (4.1) (w==32), (4.2) (w==32), (4.8) (w==64) */
+  Ch : [w] -> [w] -> [w] -> [w]
+  Ch x y z = (x && y) ^ (~x && z)
+
+
+  /** (4.1) (w==32), (4.3) (w==32), (4.9) (w==64) */
+  Maj : [w] -> [w] -> [w] -> [w]
+  Maj x y z = (x && y) ^ (x && z) ^ (y && z)
+
+
+  /**
+    5.1 Padding the Message
+    5.1.1 SHA-1, SHA-224 and SHA-256 (w==32)
+    5.1.2 SHA-384, SHA-512, SHA-512/224 and SHA-512/256 (w==64)
+
+  The constraint ensure that the message size, `L`, fits within a
+  (2 * w)-bit word (consistent w/ Figure 1)
+  */
+  pad : {L} (2 * w >= width L) => [L] -> [padded_size L]
+  pad M = M # 0b1 # zero # (`L : [2*w])
+
+  /**
+    5.2 Parsing the Message
+    5.2.1 SHA-1, SHA-224 and SHA-256 (w==32)
+    5.2.2 SHA-384, SHA-512, SHA-512/224 and SHA-512/256 (w==64)
+  */
+  parse : {m} [m * block_size] -> [m][block_size]
+  parse = split
+
+  /**
+  SHA-256 and SHA-512 (and their respective derivatives) use a similar
+  message schedule that can be expressed in the same way relative to their
+  respective sigma functions.
+
+    6.2.2 SHA-256 Hash Computation (w==32, j=64)
+    6.4.2 SHA-512 Hash Computation (w==64, j=80)
+  */
+  messageSchedule_Common : [16][w] -> [j][w]
+  messageSchedule_Common Mi = take W
+    where
+    W : [inf][_]
+    W = Mi # [ w1 + sigma_0 w2 + w3 + sigma_1 w4
+             | w1 <- W
+             | w2 <- drop`{1} W
+             | w3 <- drop`{9} W
+             | w4 <- drop`{14} W
+             ]
+
+
+  /**
+  Amazon S2N's SHA-256 specification includes a compression routine intended
+  to reflect typical implementations.  This same compression routine applies
+  to SHA-512, modulo respective constants, sigma functions,
+  and message schedules.
+  */
+
+  compress_Common : [8][w] -> [j][w] -> [8][w]
+  compress_Common H W =
+    // XXX: This whole definitions looks like it might be simplifiable.
+    [ (as ! 0) + (H @ 0),
+      (bs ! 0) + (H @ 1),
+      (cs ! 0) + (H @ 2),
+      (ds ! 0) + (H @ 3),
+      (es ! 0) + (H @ 4),
+      (fs ! 0) + (H @ 5),
+      (gs ! 0) + (H @ 6),
+      (hs ! 0) + (H @ 7)
+    ]
+    where
+      T1 = [h + SIGMA_1 e + Ch e f g + k_t + w_t
+                | h <- hs | e <- es | f <- fs | g <- gs | k_t <- K | w_t <- W]
+      T2 = [ SIGMA_0 a + Maj a b c | a <- as | b <- bs | c <- cs]
+      hs = take`{j + 1}([H @ 7] # gs)
+      gs = take`{j + 1}([H @ 6] # fs)
+      fs = take`{j + 1}([H @ 5] # es)
+      es = take`{j + 1}([H @ 4] # [d + t1 | d <- ds | t1 <- T1])
+      ds = take`{j + 1}([H @ 3] # cs)
+      cs = take`{j + 1}([H @ 2] # bs)
+      bs = take`{j + 1}([H @ 1] # as)
+      as = take`{j + 1}([H @ 0] # [t1 + t2 | t1 <- T1 | t2 <- T2])
+
+
+  processBlock_Common : [8][w] -> [16][w] -> [8][w]
+  processBlock_Common H Mi = compress_Common H (messageSchedule_Common Mi)
+
+
+  SHA_2_Common' : {L} (fin L) => [8][w] -> [L][16][w] -> [8][w]
+  SHA_2_Common' H0 blocks = hash ! 0
+    where
+    hash = [H0] # [ processBlock_Common h b | h <- hash | b <- blocks]
+
+
+
