@@ -16,6 +16,31 @@ import Cryptol.ModuleSystem.Name(toParamInstName,asParamName,nameIdent
                                 ,paramModRecParam)
 import Cryptol.Utils.Ident(paramInstModName)
 
+{-
+Note that we have to be careful when doing this transformation on
+polyomorphic values.  In particular,
+
+
+Consider type parameters AS, with constraints CS, and value
+parameters (xs : TS).
+
+    f : {as} PS => t
+    f = f`{as} (<> ..)
+
+    ~~>
+
+    f : {AS ++ as} (CS ++ PS) => { TS } -> t
+    f = /\ (AS ++ as) ->
+        \\ (CS ++ PS) ->
+        \r -> f`{AS ++ as} (<> ...) r
+
+The tricky bit is that we can't just replace `f` with
+a new version of `f` with some arguments, instead ew have
+to modify the whole instantiation of `f` : f`{as} (<>...)
+
+-}
+
+
 addModParams :: Module -> Either [Name] Module
 addModParams m =
   case getParams m of
@@ -137,6 +162,9 @@ instance AddParams Newtype where
 --------------------------------------------------------------------------------
 
 
+
+
+
 -- | Adjust uses of names to account for the new parameters.
 -- Assumes unique names---no capture or shadowing.
 class Inst a where
@@ -149,11 +177,14 @@ type Inp = (Set Name, Params)
 paramRecTy :: Params -> Type
 paramRecTy ps = tRec [ (nameIdent x, t) | (x,t) <- pFuns ps ]
 
-nameInst :: Inp -> Name -> Expr
-nameInst (_,ps) x = EApp withProofs (EVar paramModRecParam)
+nameInst :: Inp -> Name -> [Type] -> Int -> Expr
+nameInst (_,ps) x ts prfs = EApp withProofs (EVar paramModRecParam)
   where
-  withProofs = foldl (\e _ -> EProofApp e) withTys (pTypeConstraints ps)
-  withTys    = foldl ETApp (EVar x) (map (TVar . tpVar) (pTypes ps))
+  withProofs = iterate EProofApp withTys !!
+                                        (length (pTypeConstraints ps) + prfs)
+
+  withTys    = foldl ETApp (EVar (toParamInstName x))
+                           (map (TVar . tpVar) (pTypes ps) ++ ts)
 
 
 -- | Extra parameters to dd when instantiating a type
@@ -182,7 +213,7 @@ instance Inst Expr where
   inst ps expr =
     case expr of
      EVar x
-      | needsInst ps x -> nameInst ps x
+      | needsInst ps x -> nameInst ps x [] 0
       | isVParam ps x ->
         let sh = map (nameIdent . fst) (pFuns (snd ps))
         in ESel (EVar paramModRecParam) (RecordSel (nameIdent x) (Just sh))
@@ -198,14 +229,22 @@ instance Inst Expr where
                                (inst ps e) (inst ps ms)
 
      ETAbs x e -> ETAbs x (inst ps e)
-     ETApp e t -> ETApp (inst ps e) (inst ps t)
+     ETApp e1 t ->
+      case splitExprInst expr of
+         (EVar x, ts, prfs) | needsInst ps x -> nameInst ps x ts prfs
+         _ -> ETApp (inst ps e1) t
 
      EApp e1 e2 -> EApp (inst ps e1) (inst ps e2)
      EAbs x t e -> EAbs x (inst ps t) (inst ps e)
 
      EProofAbs p e -> EProofAbs (inst ps p) (inst ps e)
-     EProofApp e   -> EProofApp (inst ps e)
+     EProofApp e1 ->
+       case splitExprInst expr of
+         (EVar x, ts, prfs) | needsInst ps x -> nameInst ps x ts prfs
+         _ -> EProofApp (inst ps e1)
+
      EWhere e dgs  -> EWhere (inst ps e) (inst ps dgs)
+
 
 instance Inst Match where
   inst ps m =

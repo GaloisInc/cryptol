@@ -1,8 +1,8 @@
 module SHA_Common where
 
-SHA_2_Common : {L} (2 * w >= width L) => [8][w] -> [L] -> [8 * w]
-SHA_2_Common H0 M =
-  join (SHA_2_Common' H0 [ split x | x <- parse`{num_blocks L} (pad`{L} M) ])
+SHA_2_Common : {L} (2 * w >= width L) => [L] -> [8 * w]
+SHA_2_Common M =
+  join (SHA_2_Common' [ split x | x <- parse`{num_blocks L} (pad`{L} M) ])
 
 parameter
 
@@ -24,7 +24,8 @@ parameter
   type j : #
   type constraint (fin j, j >= 17)
 
-  K : [j][w]
+  H0 : [8][w]
+  K  : [j][w]
 
   /* FIPS 180-4 defines lowercase and uppercase
       (respective to the Greek alphabet) sigma functions for SHA-256 and SHA-512.
@@ -132,8 +133,8 @@ private
   processBlock_Common H Mi = compress_Common H (messageSchedule_Common Mi)
 
 
-  SHA_2_Common' : {L} (fin L) => [8][w] -> [L][16][w] -> [8][w]
-  SHA_2_Common' H0 blocks = hash ! 0
+  SHA_2_Common' : {L} (fin L) => [L][16][w] -> [8][w]
+  SHA_2_Common' blocks = hash ! 0
     where
     hash = [H0] # [ processBlock_Common h b | h <- hash | b <- blocks]
 

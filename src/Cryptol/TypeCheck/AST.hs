@@ -286,6 +286,27 @@ splitProofAbs :: Expr -> Maybe (Prop, Expr)
 splitProofAbs (EProofAbs p e) = Just (p,e)
 splitProofAbs _               = Nothing
 
+splitTApp :: Expr -> Maybe (Type,Expr)
+splitTApp (ETApp e t) = Just (t, e)
+splitTApp _           = Nothing
+
+splitProofApp :: Expr -> Maybe ((), Expr)
+splitProofApp (EProofApp e) = Just ((), e)
+splitProofApp _ = Nothing
+
+-- | Deconstruct an expression, typically polymorphic, into
+-- the types and proofs to which it is applied.
+-- Since we don't store the proofs, we just return
+-- the number of proof applications.
+splitExprInst :: Expr -> (Expr, [Type], Int)
+splitExprInst e = (e2, ts, length ps)
+  where
+  (ps,e1) = splitWhile splitProofApp e
+  (ts,e2) = splitWhile splitTApp e1
+
+
+
+
 instance PP Expr where
   ppPrec n t = ppWithNamesPrec IntMap.empty n t
 
