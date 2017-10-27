@@ -742,6 +742,7 @@ editCmd path
 
   | otherwise = do
       _  <- replEdit path
+      setEditPath path
       reloadCmd
 
 moduleCmd :: String -> REPL ()

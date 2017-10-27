@@ -40,7 +40,7 @@ module Cryptol.REPL.Monad (
   , getTypeNames
   , getPropertyNames
   , getModNames
-  , LoadedModule(..), getLoadedMod, setLoadedMod, clearLoadedMod
+  , LoadedModule(..), getLoadedMod, setLoadedMod, clearLoadedMod, setEditPath
   , setSearchPath, prependSearchPath
   , getPrompt
   , shouldContinue
@@ -312,6 +312,9 @@ setLoadedMod :: LoadedModule -> REPL ()
 setLoadedMod n = do
   modifyRW_ (\ rw -> rw { eLoadedMod = Just n })
   updateREPLTitle
+
+setEditPath :: FilePath -> REPL ()
+setEditPath p = setLoadedMod LoadedModule { lName = Nothing, lPath = p }
 
 getLoadedMod :: REPL (Maybe LoadedModule)
 getLoadedMod  = eLoadedMod `fmap` getRW
