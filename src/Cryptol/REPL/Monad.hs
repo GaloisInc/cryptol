@@ -115,10 +115,10 @@ import Prelude.Compat
 
 -- REPL Environment ------------------------------------------------------------
 
--- | The currently focused module.
+-- | This indicates what the user would like to work on.
 data LoadedModule = LoadedModule
-  { lName :: Maybe P.ModName -- ^ Focused module
-  , lPath :: FilePath        -- ^ Focused file
+  { lName :: Maybe P.ModName -- ^ Working on this module.
+  , lPath :: FilePath        -- ^ Working on this file.
   }
 
 -- | REPL RW Environment.
@@ -169,7 +169,9 @@ defaultRW isBatch l = do
 mkPrompt :: RW -> String
 mkPrompt rw
   | eIsBatch rw = ""
-  | otherwise   = maybe "cryptol" pretty (lName =<< eLoadedMod rw) ++ "> "
+  | otherwise   = maybe "cryptol" txt (eLoadedMod rw) ++ "> "
+    -- maybe "cryptol" pretty (lName =<< eLoadedMod rw) ++ "> "
+    where txt l = unlines [ lPath l, maybe "(none)" pretty (lName l) ]
 
 -- REPL Monad ------------------------------------------------------------------
 

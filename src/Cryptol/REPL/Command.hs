@@ -47,6 +47,8 @@ module Cryptol.REPL.Command (
   , moduleCmdResult
   ) where
 
+import Debug.Trace
+
 import Cryptol.REPL.Monad
 import Cryptol.REPL.Trie
 
@@ -1078,7 +1080,13 @@ moduleCmdResult (res,ws0) = do
   mapM_ (rPrint . runDoc names . pp) ws
   case res of
     Right (a,me') -> setModuleEnv me' >> return a
-    Left err      -> raise (ModuleSystemError names err)
+    Left err      ->
+      do e <- case err of
+                M.ErrorInFile file e -> do setEditPath file
+                                           return e
+                _ -> return err
+         raise (ModuleSystemError names e)
+
 
 replCheckExpr :: P.Expr P.PName -> REPL (P.Expr M.Name,T.Expr,T.Schema)
 replCheckExpr e = liftModuleCmd $ M.checkExpr e

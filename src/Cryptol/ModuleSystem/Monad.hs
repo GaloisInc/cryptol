@@ -101,6 +101,12 @@ data ModuleError
   | FailedToParameterizeModDefs P.ModName [T.Name]
     -- ^ Failed to add the module parameters to all definitions in a module.
   | NotAParameterizedModule P.ModName
+
+  | ErrorInFile FilePath ModuleError
+    -- ^ This is just a tag on the error, indicating the file containing it.
+    -- It is convenient when we had to look for the module, and we'd like
+    -- to communicate the location of pthe problematic module to the handler.
+
     deriving (Show)
 
 instance NFData ModuleError where
@@ -122,9 +128,10 @@ instance NFData ModuleError where
     ImportedParamModule x                -> x `deepseq` ()
     FailedToParameterizeModDefs x xs     -> x `deepseq` xs `deepseq` ()
     NotAParameterizedModule x            -> x `deepseq` ()
+    ErrorInFile x y                      -> x `deepseq` y `deepseq` ()
 
 instance PP ModuleError where
-  ppPrec _ e = case e of
+  ppPrec prec e = case e of
 
     ModuleNotFound src path ->
       text "[error]" <+>
@@ -183,6 +190,8 @@ instance PP ModuleError where
     NotAParameterizedModule x ->
       text "[error] Module" <+> pp x <+> text "does not have parameters."
 
+    ErrorInFile _ x -> ppPrec prec x
+
 moduleNotFound :: P.ModName -> [FilePath] -> ModuleM a
 moduleNotFound name paths = ModuleT (raise (ModuleNotFound name paths))
 
@@ -236,6 +245,14 @@ failedToParameterizeModDefs x xs =
 
 notAParameterizedModule :: P.ModName -> ModuleM a
 notAParameterizedModule x = ModuleT (raise (NotAParameterizedModule x))
+
+-- | Run the computation, and if it caused and error, tag the error
+-- with the given file.
+errorInFile :: FilePath -> ModuleM a -> ModuleM a
+errorInFile file (ModuleT m) = ModuleT (m `handle` h)
+  where h e = raise $ case e of
+                        ErrorInFile {} -> e
+                        _              -> ErrorInFile file e
 
 -- Warnings --------------------------------------------------------------------
 

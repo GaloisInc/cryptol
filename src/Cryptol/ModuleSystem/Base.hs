@@ -159,9 +159,10 @@ loadModuleFrom isrc =
        Just m -> return (lmFilePath m, lmModule m)
        Nothing ->
          do path <- findModule n
-            pm <- parseModule path
-            m  <- doLoadModule isrc path pm
-            return (path,m)
+            errorInFile path $
+              do pm <- parseModule path
+                 m  <- doLoadModule isrc path pm
+                 return (path,m)
 
 -- | Load dependencies, typecheck, and add to the eval environment.
 doLoadModule :: ImportSource ->
