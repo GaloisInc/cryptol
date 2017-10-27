@@ -3,7 +3,7 @@ HERE := $(realpath $(dir $(lastword $(MAKEFILE_LIST))))
 UNAME   := $(shell uname -s)
 ARCH    := $(shell uname -m)
 
-TESTS ?= parser issues regression renamer mono-binds
+TESTS ?= modsys parser issues regression renamer mono-binds
 DIFF ?= meld
 
 IGNORE_EXPECTED ?= --ignore-expected

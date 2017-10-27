@@ -80,7 +80,7 @@ import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..),ProverStat
 import qualified Cryptol.Symbolic as Symbolic
 
 import qualified Control.Exception as X
-import Control.Monad hiding (mapM, mapM_)
+import Control.Monad hiding (mapM, mapM)
 import qualified Data.ByteString as BS
 import Data.Bits ((.&.))
 import Data.Char (isSpace,isPunctuation,isSymbol)
@@ -641,6 +641,7 @@ refEvalCmd :: String -> REPL ()
 refEvalCmd str = do
   parseExpr <- replParseExpr str
   (_, expr, _schema) <- replCheckExpr parseExpr
+  validEvalContext expr
   val <- liftModuleCmd (rethrowEvalError . R.evaluate expr)
   rPrint $ R.ppValue val
 
@@ -663,7 +664,7 @@ typeOfCmd str = do
 
   -- XXX need more warnings from the module system
   whenDebug (rPutStrLn (dump def))
-  (_,_,names) <- getFocusedEnv
+  (_,_,_,names) <- getFocusedEnv
   -- type annotation ':' has precedence 2
   rPrint $ runDoc names $ ppPrec 2 expr <+> text ":" <+> pp sig
 
@@ -716,7 +717,10 @@ reloadCmd :: REPL ()
 reloadCmd  = do
   mb <- getLoadedMod
   case mb of
-    Just m  -> loadCmd (lPath m)
+    Just lm  ->
+      case lName lm of
+        Just m | M.isParamInstModName m -> loadHelper (M.loadModuleByName m)
+        _ -> loadCmd (lPath lm)
     Nothing -> return ()
 
 
@@ -729,7 +733,7 @@ editCmd path
         Just m -> do
           success <- replEdit (lPath m)
           if success
-             then loadCmd (lPath m)
+             then reloadCmd
              else return ()
 
         Nothing   -> do
@@ -738,17 +742,15 @@ editCmd path
 
   | otherwise = do
       _  <- replEdit path
-      mb <- getLoadedMod
-      case mb of
-        Nothing -> loadCmd path
-        Just _  -> return ()
+      setEditPath path
+      reloadCmd
 
 moduleCmd :: String -> REPL ()
 moduleCmd modString
   | null modString = return ()
   | otherwise      = do
       case parseModName modString of
-        Just m -> loadCmd =<< liftModuleCmd (M.findModule m)
+        Just m  -> loadHelper (M.loadModuleByName m)
         Nothing -> rPutStrLn "Invalid module name."
 
 loadPrelude :: REPL ()
@@ -757,19 +759,18 @@ loadPrelude  = moduleCmd $ show $ pp M.preludeName
 loadCmd :: FilePath -> REPL ()
 loadCmd path
   | null path = return ()
-  | otherwise = do
-      setLoadedMod LoadedModule
-        { lName = Nothing
-        , lPath = path
-        }
+  | otherwise = loadHelper (M.loadModuleByPath path)
 
-      m <- liftModuleCmd (M.loadModuleByPath path)
-      whenDebug (rPutStrLn (dump m))
-      setLoadedMod LoadedModule
+loadHelper :: M.ModuleCmd (FilePath,T.Module) -> REPL ()
+loadHelper how =
+  do clearLoadedMod
+     (path,m) <- liftModuleCmd how
+     whenDebug (rPutStrLn (dump m))
+     setLoadedMod LoadedModule
         { lName = Just (T.mName m)
         , lPath = path
         }
-      setDynEnv mempty
+     setDynEnv mempty
 
 quitCmd :: REPL ()
 quitCmd  = stop
@@ -777,7 +778,7 @@ quitCmd  = stop
 
 browseCmd :: String -> REPL ()
 browseCmd input = do
-  (iface,names,disp) <- getFocusedEnv
+  (_,iface,names,disp) <- getFocusedEnv
 
   let mnames = map (M.textToModName . T.pack) (words input)
   validModNames <- getModNames
@@ -837,7 +838,8 @@ browseVars isVisible M.IfaceDecls { .. } names = do
   ppBlock name xs = unless (null xs) $
     do rPutStrLn name
        rPutStrLn (replicate (length name) '=')
-       let ppVar M.IfaceDecl { .. } = pp ifDeclName <+> char ':' <+> pp ifDeclSig
+       let ppVar M.IfaceDecl { .. } = hang (pp ifDeclName <+> char ':')
+                                        2 (pp ifDeclSig)
        rPrint (runDoc names (nest 4 (vcat (map ppVar xs))))
        rPutStrLn ""
 
@@ -876,12 +878,12 @@ helpCmd cmd
   | otherwise =
     case parseHelpName cmd of
       Just qname ->
-        do (env,rnEnv,nameEnv) <- getFocusedEnv
+        do (params,env,rnEnv,nameEnv) <- getFocusedEnv
            let vNames = M.lookupValNames  qname rnEnv
                tNames = M.lookupTypeNames qname rnEnv
 
-           mapM_ (showTypeHelp env nameEnv) tNames
-           mapM_ (showValHelp env nameEnv qname) vNames
+           mapM_ (showTypeHelp params env nameEnv) tNames
+           mapM_ (showValHelp params env nameEnv qname) vNames
 
            when (null (vNames ++ tNames)) $
              rPrint $ "Undefined name:" <+> pp qname
@@ -894,15 +896,32 @@ helpCmd cmd
       M.Declared m -> rPrint $runDoc nameEnv ("Name defined in module" <+> pp m)
       M.Parameter  -> rPutStrLn "// No documentation is available."
 
-  showTypeHelp env nameEnv name =
-    case Map.lookup name (M.ifTySyns env) of
-      Nothing ->
-        case Map.lookup name (M.ifNewtypes env) of
-          Nothing -> noInfo nameEnv name
-          Just nt -> doShowTyHelp nameEnv decl (T.ntDoc nt)
-            where
-            decl = pp nt $$ (pp name <+> text ":" <+> pp (T.newtypeConType nt))
-      Just ts -> doShowTyHelp nameEnv (pp ts) (T.tsDoc ts)
+  showTypeHelp params env nameEnv name =
+    fromMaybe (noInfo nameEnv name) $
+    msum [ fromTySyn, fromNewtype, fromTyParam ]
+
+    where
+    fromTySyn =
+      do ts <- Map.lookup name (M.ifTySyns env)
+         return (doShowTyHelp nameEnv (pp ts) (T.tsDoc ts))
+
+    fromNewtype =
+      do nt <- Map.lookup name (M.ifNewtypes env)
+         let decl = pp nt $$ (pp name <+> text ":" <+> pp (T.newtypeConType nt))
+         return $ doShowTyHelp nameEnv decl (T.ntDoc nt)
+
+    fromTyParam =
+      do p <- Map.lookup name (M.ifParamTypes params)
+         let uses c = T.TVBound (T.mtpParam p) `Set.member` T.fvs c
+             ctrs = filter uses (map P.thing (M.ifParamConstraints params))
+             ctrDoc = case ctrs of
+                        [] -> empty
+                        [x] -> pp x
+                        xs  -> parens $ hsep $ punctuate comma $ map pp xs
+             decl = text "parameter" <+> pp name <+> text ":"
+                      <+> pp (T.mtpKind p)
+                   $$ ctrDoc
+         return $ doShowTyHelp nameEnv decl (T.mtpDoc p)
 
   doShowTyHelp nameEnv decl doc =
     do rPutStrLn ""
@@ -911,41 +930,64 @@ helpCmd cmd
          Nothing -> return ()
          Just d  -> rPutStrLn "" >> rPutStrLn d
 
-  showValHelp env nameEnv qname name =
-    case Map.lookup name (M.ifDecls env) of
-      Just M.IfaceDecl { .. } ->
-        do rPutStrLn ""
+  doShowFix fx =
+    case fx of
+      Just f  ->
+        let msg = "Precedence " ++ show (P.fLevel f) ++ ", " ++
+                   (case P.fAssoc f of
+                      P.LeftAssoc   -> "associates to the left."
+                      P.RightAssoc  -> "associates to the right."
+                      P.NonAssoc    -> "does not associate.")
 
-           let property
-                 | P.PragmaProperty `elem` ifDeclPragmas = text "property"
-                 | otherwise                             = empty
-           rPrint $ runDoc nameEnv
-                  $ nest 4
-                  $ property
-                    <+> pp qname
-                    <+> colon
-                    <+> pp (ifDeclSig)
+        in rPutStrLn ('\n' : msg)
 
-           let mbFix = ifDeclFixity `mplus`
-                       (guard ifDeclInfix >> return P.defaultFixity)
-           case mbFix of
-             Just f  ->
-               let msg = "Precedence " ++ show (P.fLevel f) ++ ", " ++
-                          (case P.fAssoc f of
-                             P.LeftAssoc   -> "associates to the left."
-                             P.RightAssoc  -> "associates to the right."
-                             P.NonAssoc    -> "does not associate.")
+      Nothing -> return ()
 
-               in rPutStrLn ('\n' : msg)
-             Nothing -> return ()
+  showValHelp params env nameEnv qname name =
+    fromMaybe (noInfo nameEnv name)
+              (msum [ fromDecl, fromNewtype, fromParameter ])
+    where
+    fromDecl =
+      do M.IfaceDecl { .. } <- Map.lookup name (M.ifDecls env)
+         return $
+           do rPutStrLn ""
 
-           case ifDeclDoc of
-             Just str -> rPutStrLn ('\n' : str)
-             Nothing  -> return ()
+              let property
+                    | P.PragmaProperty `elem` ifDeclPragmas = text "property"
+                    | otherwise                             = empty
+              rPrint $ runDoc nameEnv
+                     $ nest 4
+                     $ property
+                       <+> pp qname
+                       <+> colon
+                       <+> pp (ifDeclSig)
 
-      _ -> case Map.lookup name (M.ifNewtypes env) of
-             Just _ -> return ()
-             Nothing -> noInfo nameEnv name
+              doShowFix $ ifDeclFixity `mplus`
+                          (guard ifDeclInfix >> return P.defaultFixity)
+
+              case ifDeclDoc of
+                Just str -> rPutStrLn ('\n' : str)
+                Nothing  -> return ()
+
+    fromNewtype =
+      do _ <- Map.lookup name (M.ifNewtypes env)
+         return $ return ()
+
+    fromParameter =
+      do p <- Map.lookup name (M.ifParamFuns params)
+         return $
+           do rPutStrLn ""
+              rPrint $ runDoc nameEnv
+                     $ nest 4
+                     $ text "parameter" <+> pp qname
+                                        <+> colon
+                                        <+> pp (T.mvpType p)
+
+              doShowFix (T.mvpFixity p)
+
+              case T.mvpDoc p of
+                Just str -> rPutStrLn ('\n' : str)
+                Nothing  -> return ()
 
 
 
@@ -1032,11 +1074,17 @@ moduleCmdResult (res,ws0) = do
       filterShadowing w = Just w
 
   let ws = mapMaybe filterDefaults . mapMaybe filterShadowing $ ws0
-  (_,_,names) <- getFocusedEnv
+  (_,_,_,names) <- getFocusedEnv
   mapM_ (rPrint . runDoc names . pp) ws
   case res of
     Right (a,me') -> setModuleEnv me' >> return a
-    Left err      -> raise (ModuleSystemError names err)
+    Left err      ->
+      do e <- case err of
+                M.ErrorInFile file e -> do setEditPath file
+                                           return e
+                _ -> return err
+         raise (ModuleSystemError names e)
+
 
 replCheckExpr :: P.Expr P.PName -> REPL (P.Expr M.Name,T.Expr,T.Schema)
 replCheckExpr e = liftModuleCmd $ M.checkExpr e
@@ -1065,7 +1113,7 @@ replSpecExpr e = liftModuleCmd $ S.specialize e
 replEvalExpr :: P.Expr P.PName -> REPL (E.Value, T.Type)
 replEvalExpr expr =
   do (_,def,sig) <- replCheckExpr expr
-
+     validEvalContext def
      me <- getModuleEnv
      let cfg = M.meSolverConfig me
      mbDef <- io $ SMT.withSolver cfg (\s -> defaultReplExpr s def sig)
@@ -1137,6 +1185,7 @@ bindItVariables ty exprs = bindItVariable seqTy seqExpr
 replEvalDecl :: P.Decl P.PName -> REPL ()
 replEvalDecl decl = do
   dgs <- replCheckDecls [decl]
+  validEvalContext dgs
   whenDebug (mapM_ (\dg -> (rPutStrLn (dump dg))) dgs)
   liftModuleCmd (M.evalDecls dgs)
 

@@ -26,9 +26,10 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-data TyDecl = TS (P.TySyn Name) (Maybe String)
-            | PS (P.PropSyn Name) (Maybe String)
-            | NT (P.Newtype Name) (Maybe String)
+data TyDecl = TS (P.TySyn Name) (Maybe String)              -- ^ Type synonym
+            | NT (P.Newtype Name) (Maybe String)            -- ^ Newtype
+            | AT (P.ParameterType Name) (Maybe String)      -- ^ Parameter type
+            | PS (P.PropSyn Name) (Maybe String)            -- ^ Property synonym
 
 setDocString :: Maybe String -> TyDecl -> TyDecl
 setDocString x d =
@@ -36,6 +37,7 @@ setDocString x d =
     TS a _ -> TS a x
     PS a _ -> PS a x
     NT a _ -> NT a x
+    AT a _  -> AT a x
 
 -- | Check for duplicate and recursive type synonyms.
 -- Returns the type-synonyms in dependency order.
@@ -48,6 +50,10 @@ orderTyDecls ts =
      concat `fmap` mapM check ordered
 
   where
+  toMap _ ty@(AT a _) =
+    let x = P.ptName a
+    in ( thing x, x { thing = (ty, []) } )
+
   toMap vs ty@(NT (P.Newtype x as fs) _) =
     ( thing x
     , x { thing = (ty, Set.toList $
@@ -76,6 +82,7 @@ orderTyDecls ts =
   getN (TS (P.TySyn x _ _) _)   = thing x
   getN (PS (P.PropSyn x _ _) _) = thing x
   getN (NT x _)                 = thing (P.nName x)
+  getN (AT x _)                 = thing (P.ptName x)
 
   check (AcyclicSCC x) = return [x]
 
@@ -97,18 +104,27 @@ orderBinds bs = mkScc [ (b, map thing defs, Set.toList uses)
                       ]
 
 class FromDecl d where
-  toBind    :: d -> Maybe (P.Bind Name)
-  toTyDecl  :: d -> Maybe TyDecl
-  isTopDecl :: d -> Bool
+  toBind             :: d -> Maybe (P.Bind Name)
+  toParamFun         :: d -> Maybe (P.ParameterFun Name)
+  toParamConstraints :: d -> [P.Located (P.Prop Name)]
+  toTyDecl           :: d -> Maybe TyDecl
+  isTopDecl          :: d -> Bool
 
 instance FromDecl (P.TopDecl Name) where
   toBind (P.Decl x)         = toBind (P.tlValue x)
   toBind _                  = Nothing
 
-  toTyDecl (P.TDNewtype d)  = Just (NT (P.tlValue d) (thing <$> P.tlDoc d))
-  toTyDecl (P.Decl x)       = setDocString (thing <$> P.tlDoc x)
+  toParamFun (P.DParameterFun d)  = Just d
+  toParamFun _                    = Nothing
+
+  toParamConstraints (P.DParameterConstraint xs) = xs
+  toParamConstraints _                           = []
+
+  toTyDecl (P.DParameterType d) = Just (AT d (P.ptDoc d))
+  toTyDecl (P.TDNewtype d)      = Just (NT (P.tlValue d) (thing <$> P.tlDoc d))
+  toTyDecl (P.Decl x)           = setDocString (thing <$> P.tlDoc x)
                                   <$> toTyDecl (P.tlValue x)
-  toTyDecl _                = Nothing
+  toTyDecl _                    = Nothing
 
   isTopDecl _               = True
 
@@ -116,6 +132,9 @@ instance FromDecl (P.Decl Name) where
   toBind (P.DLocated d _) = toBind d
   toBind (P.DBind b)      = return b
   toBind _                = Nothing
+
+  toParamFun _ = Nothing
+  toParamConstraints _ = []
 
   toTyDecl (P.DLocated d _) = toTyDecl d
   toTyDecl (P.DType x)      = Just (TS x Nothing)

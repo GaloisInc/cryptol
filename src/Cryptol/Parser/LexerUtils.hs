@@ -260,9 +260,10 @@ isExplicit Explicit{} = True
 isExplicit Virtual{}  = False
 
 startsLayout :: TokenT -> Bool
-startsLayout (KW KW_where)   = True
-startsLayout (KW KW_private) = True
-startsLayout _               = False
+startsLayout (KW KW_where)    = True
+startsLayout (KW KW_private)  = True
+startsLayout (KW KW_parameter) = True
+startsLayout _                = False
 
 -- Add separators computed from layout
 layout :: Config -> [Located Token] -> [Located Token]
@@ -386,6 +387,7 @@ data TokenKW  = KW_else
               | KW_infixr
               | KW_infix
               | KW_primitive
+              | KW_parameter
               | KW_constraint
                 deriving (Eq, Show, Generic, NFData)
 

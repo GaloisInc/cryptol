@@ -21,6 +21,7 @@ import Cryptol.Utils.Ident (Ident)
 import Data.Maybe(fromMaybe)
 import qualified Data.Map.Strict as Map
 import GHC.Generics (Generic)
+import GHC.Stack(HasCallStack)
 import Control.DeepSeq
 
 -- | An evaluated type of kind *.
@@ -78,7 +79,7 @@ type TypeEnv = Map.Map TVar (Either Nat' TValue)
 
 
 -- | Evaluation for types (kind * or #).
-evalType :: TypeEnv -> Type -> Either Nat' TValue
+evalType :: HasCallStack => TypeEnv -> Type -> Either Nat' TValue
 evalType env ty =
   case ty of
     TVar tv ->
@@ -108,14 +109,14 @@ evalType env ty =
     num = evalNumType env
 
 -- | Evaluation for value types (kind *).
-evalValType :: TypeEnv -> Type -> TValue
+evalValType :: HasCallStack => TypeEnv -> Type -> TValue
 evalValType env ty =
   case evalType env ty of
     Left _ -> evalPanic "evalValType" ["expected value type, found numeric type"]
     Right t -> t
 
 -- | Evaluation for number types (kind #).
-evalNumType :: TypeEnv -> Type -> Nat'
+evalNumType :: HasCallStack => TypeEnv -> Type -> Nat'
 evalNumType env ty =
   case evalType env ty of
     Left n -> n
@@ -123,7 +124,7 @@ evalNumType env ty =
 
 
 -- | Reduce type functions, raising an exception for undefined values.
-evalTF :: TFun -> [Nat'] -> Nat'
+evalTF :: HasCallStack => TFun -> [Nat'] -> Nat'
 evalTF f vs
   | TCAdd           <- f, [x,y]   <- vs  =      nAdd x y
   | TCSub           <- f, [x,y]   <- vs  = mb $ nSub x y

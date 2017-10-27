@@ -10,19 +10,27 @@
 
 import Cryptol.Parser.Lexer
 import Cryptol.Utils.PP
+import qualified Data.Text    as Text
+import qualified Data.Text.IO as Text
 
 main :: IO ()
-main = interact (wrap . concat . map toHTML . fst . primLexer defaultConfig)
+main =
+  do txt <- Text.getContents
+     putStrLn $ wrap
+              $ concat
+              $ map toHTML
+              $ fst
+              $ primLexer defaultConfig txt
 
 wrap :: String -> String
 wrap txt = "<html><head>" ++ sty ++ "</head><body>" ++ txt ++ "</body>"
 
 toHTML :: Located Token -> String
 toHTML tok = "<span class=\"" ++ cl ++ "\" title=\"" ++ pos ++ "\">"
-          ++ concatMap esc (tokenText (thing tok))
+          ++ concatMap esc (Text.unpack (tokenText (thing tok)))
           ++ "</span>"
   where
-  pos = show (pp (srcRange tok)) ++ " " ++ show (tokenType (thing tok))
+  pos = show (pp (srcRange tok)) ++ " " ++ concatMap esc (show (tokenType (thing tok)))
   cl  = case tokenType (thing tok) of
           Num {}      -> "number"
           Ident {}    -> "identifier"
@@ -42,6 +50,7 @@ toHTML tok = "<span class=\"" ++ cl ++ "\" title=\"" ++ pos ++ "\">"
             '>'   -> "&gt;"
             '&'   -> "&amp;"
             ' '   -> "&nbsp;"
+            '"'   -> "&quot;"
             '\n'  -> "<br>"
             _     -> [c]
 

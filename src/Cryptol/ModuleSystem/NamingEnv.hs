@@ -21,11 +21,12 @@ import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
+import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
 import Data.List (nub)
-import Data.Maybe (catMaybes,fromMaybe)
+import Data.Maybe (catMaybes,fromMaybe,mapMaybe)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import MonadLib (runId,Id)
@@ -268,6 +269,28 @@ unqualifiedEnv IfaceDecls { .. } =
               | d    <- Map.elems ifDecls ]
 
 
+-- | Compute an unqualified naming environment, containing the various module
+-- parameters.
+modParamsNamingEnv :: IfaceParams -> NamingEnv
+modParamsNamingEnv IfaceParams { .. } =
+  NamingEnv { neExprs = Map.fromList $ map fromFu $ Map.keys ifParamFuns
+            , neTypes = Map.fromList $ map fromTy $ Map.elems ifParamTypes
+            , neFixity = Map.fromList $ mapMaybe toFix $ Map.elems ifParamFuns
+            }
+
+  where
+  toPName n = mkUnqual (nameIdent n)
+
+  fromTy tp = let nm = T.mtpName tp
+              in (toPName nm, [nm])
+
+  fromFu f  = (toPName f, [f])
+
+  toFix x = do d <- T.mvpFixity x
+               return (T.mvpName x, d)
+
+
+
 data ImportIface = ImportIface Import Iface
 
 -- | Produce a naming environment from an interface file, that contains a
@@ -306,9 +329,25 @@ instance BindsNames (Module PName) where
 instance BindsNames (InModule (TopDecl PName)) where
   namingEnv (InModule ns td) =
     case td of
-      Decl d      -> namingEnv (InModule ns (tlValue d))
-      TDNewtype d -> namingEnv (InModule ns (tlValue d))
+      Decl d           -> namingEnv (InModule ns (tlValue d))
+      TDNewtype d      -> namingEnv (InModule ns (tlValue d))
+      DParameterType d -> namingEnv (InModule ns d)
+      DParameterConstraint {} -> mempty
+      DParameterFun  d -> namingEnv (InModule ns d)
       Include _   -> mempty
+
+instance BindsNames (InModule (ParameterFun PName)) where
+  namingEnv (InModule ns ParameterFun { .. }) = BuildNamingEnv $
+    do let Located { .. } = pfName
+       ntName <- liftSupply (mkDeclared ns (getIdent thing) pfFixity srcRange)
+       return (singletonE thing ntName)
+
+instance BindsNames (InModule (ParameterType PName)) where
+  namingEnv (InModule ns ParameterType { .. }) = BuildNamingEnv $
+    -- XXX: we don't seem to have a fixity environment at the type level
+    do let Located { .. } = ptName
+       ntName <- liftSupply (mkDeclared ns (getIdent thing) Nothing srcRange)
+       return (singletonT thing ntName)
 
 -- NOTE: we use the same name at the type and expression level, as there's only
 -- ever one name introduced in the declaration. The names are only ever used in

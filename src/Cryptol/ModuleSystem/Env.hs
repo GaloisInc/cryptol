@@ -26,12 +26,12 @@ import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP (NameDisp)
 
-import Control.Monad (guard)
+import Control.Monad (guard,mplus)
 import qualified Control.Exception as X
-import Data.Foldable (fold)
 import Data.Function (on)
 import qualified Data.Map as Map
 import Data.Monoid ((<>))
+import Data.Maybe(fromMaybe)
 import System.Directory (getAppUserDataDirectory, getCurrentDirectory)
 import System.Environment(getExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
@@ -171,18 +171,28 @@ loadedModules = map lmModule . getLoadedModules . meLoadedModules
 --
 -- XXX This could really do with some better error handling, just returning
 -- mempty when one of the imports fails isn't really desirable.
-focusedEnv :: ModuleEnv -> (IfaceDecls,R.NamingEnv,NameDisp)
-focusedEnv me = fold $
+--
+-- XXX: This is not quite right.   For example, it does not take into
+-- account *how* things were imported in a module (e.g., qualified).
+-- It would be simpler to simply store the naming environment that was
+-- actually used when we renamed the module.
+focusedEnv :: ModuleEnv -> (IfaceParams,IfaceDecls,R.NamingEnv,NameDisp)
+focusedEnv me =
+  fromMaybe (noIfaceParams, mempty, mempty, mempty) $
   do fm   <- meFocusedModule me
      lm   <- lookupModule fm me
      deps <- mapM loadImport (T.mImports (lmModule lm))
      let (ifaces,names) = unzip deps
          Iface { .. }   = lmInterface lm
          localDecls     = ifPublic `mappend` ifPrivate
-         localNames     = R.unqualifiedEnv localDecls
+         localNames     = R.unqualifiedEnv localDecls `mappend`
+                                              R.modParamsNamingEnv ifParams
          namingEnv      = localNames `R.shadowing` mconcat names
 
-     return (mconcat (localDecls:ifaces), namingEnv, R.toNameDisp namingEnv)
+     return ( ifParams
+            , mconcat (localDecls:ifaces)
+            , namingEnv
+            , R.toNameDisp namingEnv)
   where
   loadImport imp =
     do lm <- lookupModule (iModule imp) me
@@ -197,35 +207,31 @@ dynamicEnv me = (decls,names,R.toNameDisp names)
   decls = deIfaceDecls (meDynEnv me)
   names = R.unqualifiedEnv decls
 
--- | Retrieve the combined 'IfaceDecls' needed by the the currently focused
--- module.  This includes the declarations of the focused module and all
--- of its imports.  This is the "view from within the module" used
--- for type-checking expressions on the command line.
-qualifiedEnv :: ModuleEnv -> IfaceDecls
-qualifiedEnv me = fold $
-  do focusedName   <- meFocusedModule me
-     focusedModule <- lookupModule focusedName me
-     deps          <- mapM getImportIface (T.mImports (lmModule focusedModule))
-     let Iface { .. } = lmInterface focusedModule
-     return (mconcat (ifPublic : ifPrivate : deps))
-  where
-  getImportIface imp =
-    do lm <- lookupModule (iModule imp) me
-       return (ifPublic (lmInterface lm))
-
 
 -- Loaded Modules --------------------------------------------------------------
 
-newtype LoadedModules = LoadedModules
-  { getLoadedModules :: [LoadedModule]
+data LoadedModules = LoadedModules
+  { lmLoadedModules      :: [LoadedModule]
+    -- ^ Invariants:
+    -- 1) All the dependencies of any module `m` must precede `m` in the list.
+    -- 2) Does not contain any parameterized modules.
+
+  , lmLoadedParamModules :: [LoadedModule]
+    -- ^ Loaded parameterized modules.
+
   } deriving (Show, Generic, NFData)
--- ^ Invariant: All the dependencies of any module `m` must precede `m`
--- in the list.
+
+getLoadedModules :: LoadedModules -> [LoadedModule]
+getLoadedModules x = lmLoadedParamModules x ++ lmLoadedModules x
 
 instance Monoid LoadedModules where
-  mempty        = LoadedModules []
-  mappend l r   = LoadedModules
-                $ List.unionBy ((==) `on` lmName) (getLoadedModules l) (getLoadedModules r)
+  mempty = LoadedModules { lmLoadedModules = []
+                         , lmLoadedParamModules = []
+                         }
+  mappend l r = LoadedModules
+    { lmLoadedModules = List.unionBy ((==) `on` lmName)
+                                      (lmLoadedModules l) (lmLoadedModules r)
+    , lmLoadedParamModules = lmLoadedParamModules l ++ lmLoadedParamModules r }
 
 data LoadedModule = LoadedModule
   { lmName      :: ModName
@@ -243,16 +249,21 @@ isLoaded mn lm = any ((mn ==) . lmName) (getLoadedModules lm)
 
 -- | Try to find a previously loaded module
 lookupModule :: ModName -> ModuleEnv -> Maybe LoadedModule
-lookupModule mn env = List.find ((mn ==) . lmName)
-                                (getLoadedModules (meLoadedModules env))
+lookupModule mn me = search lmLoadedModules `mplus` search lmLoadedParamModules
+  where
+  search how = List.find ((mn ==) . lmName) (how (meLoadedModules me))
+
 
 -- | Add a freshly loaded module.  If it was previously loaded, then
 -- the new version is ignored.
 addLoadedModule ::
   FilePath -> FilePath -> T.Module -> LoadedModules -> LoadedModules
 addLoadedModule path canonicalPath tm lm
-  | isLoaded (T.mName tm) lm = lm
-  | otherwise                = LoadedModules (getLoadedModules lm ++ [loaded])
+  | isLoaded (T.mName tm) lm  = lm
+  | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
+                                                lmLoadedParamModules lm }
+  | otherwise                = lm { lmLoadedModules =
+                                          lmLoadedModules lm ++ [loaded] }
   where
   loaded = LoadedModule
     { lmName      = T.mName tm
@@ -263,15 +274,13 @@ addLoadedModule path canonicalPath tm lm
     }
 
 -- | Remove a previously loaded module.
-removeLoadedModule :: FilePath -> LoadedModules -> LoadedModules
-removeLoadedModule path (LoadedModules ms) = LoadedModules (remove ms)
-  where
+removeLoadedModule :: (LoadedModule -> Bool) -> LoadedModules -> LoadedModules
+removeLoadedModule rm lm =
+  LoadedModules
+    { lmLoadedModules = filter (not . rm) (lmLoadedModules lm)
+    , lmLoadedParamModules = filter (not . rm) (lmLoadedParamModules lm)
+    }
 
-  remove (lm:rest)
-    | lmFilePath lm == path = rest
-    | otherwise             = lm : remove rest
-
-  remove [] = []
 
 -- Dynamic Environments --------------------------------------------------------
 

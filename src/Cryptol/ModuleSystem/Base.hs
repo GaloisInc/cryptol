@@ -19,7 +19,8 @@ import Cryptol.ModuleSystem.Env (DynamicEnv(..), deIfaceDecls)
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
 import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap)
-import Cryptol.ModuleSystem.Env (lookupModule, LoadedModule(..)
+import Cryptol.ModuleSystem.Env (lookupModule
+                                , LoadedModule(..)
                                 , meCoreLint, CoreLint(..))
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Value           as E
@@ -36,7 +37,10 @@ import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
-import Cryptol.Utils.Ident (preludeName, preludeExtrasName, interactiveName,unpackModName)
+import Cryptol.Transform.AddModParams (addModParams)
+import Cryptol.Utils.Ident (preludeName, preludeExtrasName, interactiveName
+                           , modNameChunks, notParamInstModName
+                           , isParamInstModName )
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
@@ -47,9 +51,7 @@ import Cryptol.Transform.MonoValues (rewModule)
 
 import Control.DeepSeq
 import qualified Control.Exception as X
-import Control.Monad (unless)
-import Data.Function (on)
-import Data.List (nubBy)
+import Control.Monad (unless,when)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import           Data.Text(Text)
@@ -141,50 +143,57 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
   path' <- io $ canonicalizePath foundPath
   case lookupModule n env of
     -- loadModule will calculate the canonical path again
-    Nothing -> loadingModule n (loadModule foundPath pm)
+    Nothing -> doLoadModule (FromModule n) foundPath pm
     Just lm
      | path' == loaded -> return (lmModule lm)
      | otherwise       -> duplicateModuleName n path' loaded
      where loaded = lmCanonicalPath lm
 
--- | Load the module specified by an import.
-loadImport :: Located P.Import -> ModuleM ()
-loadImport li = do
 
-  let i = thing li
-      n = P.iModule i
-
-  alreadyLoaded <- isLoaded n
-  unless alreadyLoaded $
-    do path <- findModule n
-       pm   <- parseModule path
-       loadingImport li $ do
-
-         -- make sure that this module is the one we expect
-         unless (n == thing (P.mName pm)) (moduleNameMismatch n (mName pm))
-
-         _ <- loadModule path pm
-         return ()
+-- | Load a module, unless it was previously loaded.
+loadModuleFrom :: ImportSource -> ModuleM (FilePath,T.Module)
+loadModuleFrom isrc =
+  do let n = importedModule isrc
+     mb <- getLoadedMaybe n
+     case mb of
+       Just m -> return (lmFilePath m, lmModule m)
+       Nothing ->
+         do path <- findModule n
+            errorInFile path $
+              do pm <- parseModule path
+                 m  <- doLoadModule isrc path pm
+                 return (path,m)
 
 -- | Load dependencies, typecheck, and add to the eval environment.
-loadModule :: FilePath -> P.Module PName -> ModuleM T.Module
-loadModule path pm = do
+doLoadModule :: ImportSource ->
+              FilePath ->
+              P.Module PName ->
+              ModuleM T.Module
+doLoadModule isrc path pm0 =
+  loading isrc $
+  do let pm = addPrelude pm0
+     loadDeps pm
 
-  let pm' = addPrelude pm
-  loadDeps pm'
+     withLogger logPutStrLn
+       ("Loading module " ++ pretty (P.thing (P.mName pm)))
+     tcm <- optionalInstantiate =<< checkModule isrc path pm
 
-  withLogger logPutStrLn ("Loading module " ++ pretty (P.thing (P.mName pm')))
+     -- extend the eval env, unless a functor.
+     unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv tcm)
+     canonicalPath <- io (canonicalizePath path)
+     loadedModule path canonicalPath tcm
 
-  tcm <- checkModule path pm'
+     return tcm
+  where
+  optionalInstantiate tcm
+    | isParamInstModName (importedModule isrc) && T.isParametrizedModule tcm =
+      case addModParams tcm of
+        Right tcm1 -> return tcm1
+        Left xs    -> failedToParameterizeModDefs (T.mName tcm) xs
+    | otherwise = return tcm
 
-  -- extend the eval env
-  modifyEvalEnv (E.moduleEnv tcm)
 
-  canonicalPath <- io (canonicalizePath path)
 
-  loadedModule path canonicalPath tcm
-
-  return tcm
 
 
 -- | Rewrite an import declaration to be of the form:
@@ -205,7 +214,7 @@ importIfaces :: [P.Import] -> ModuleM (IfaceDecls,R.NamingEnv)
 importIfaces is = mconcat `fmap` mapM importIface is
 
 moduleFile :: ModName -> String -> FilePath
-moduleFile n = addExtension (joinPath (unpackModName n))
+moduleFile n = addExtension (joinPath (modNameChunks n))
 
 -- | Discover a module.
 findModule :: ModName -> ModuleM FilePath
@@ -270,31 +279,34 @@ addPrelude m
 
 -- | Load the dependencies of a module into the environment.
 loadDeps :: P.Module name -> ModuleM ()
-loadDeps m
-  | null needed = return ()
-  | otherwise   = mapM_ load needed
+loadDeps m =
+  do mapM_ loadI (P.mImports m)
+     mapM_ loadF (P.mInstance m)
   where
-  needed  = nubBy ((==) `on` P.iModule . thing) (P.mImports m)
-  load mn = loadImport mn
+  loadI i = do (_,m1)  <- loadModuleFrom (FromImport i)
+               when (T.isParametrizedModule m1) $ importParamModule $ T.mName m1
+  loadF f = do _ <- loadModuleFrom (FromModuleInstance f)
+               return ()
+
 
 
 -- Type Checking ---------------------------------------------------------------
 
 -- | Load the local environment, which consists of the environment for the
 -- currently opened module, shadowed by the dynamic environment.
-getLocalEnv :: ModuleM (IfaceDecls,R.NamingEnv)
+getLocalEnv :: ModuleM (IfaceParams,IfaceDecls,R.NamingEnv)
 getLocalEnv  =
-  do (decls,fNames,_) <- getFocusedEnv
+  do (params,decls,fNames,_) <- getFocusedEnv
      denv             <- getDynEnv
      let dynDecls = deIfaceDecls denv
-     return (dynDecls `mappend` decls, deNames denv `R.shadowing` fNames)
+     return (params,dynDecls `mappend` decls, deNames denv `R.shadowing` fNames)
 
 -- | Typecheck a single expression, yielding a renamed parsed expression,
 -- typechecked core expression, and a type schema.
 checkExpr :: P.Expr PName -> ModuleM (P.Expr Name,T.Expr,T.Schema)
 checkExpr e = do
 
-  (decls,names) <- getLocalEnv
+  (params,decls,names) <- getLocalEnv
 
   -- run NoPat
   npe <- noPat e
@@ -306,7 +318,7 @@ checkExpr e = do
   prims <- getPrimMap
   let act  = TCAction { tcAction = T.tcExpr, tcLinter = exprLinter
                       , tcPrims = prims }
-  (te,s) <- typecheck act re decls
+  (te,s) <- typecheck act re params decls
 
   return (re,te,s)
 
@@ -315,7 +327,7 @@ checkExpr e = do
 -- INVARIANT: This assumes that NoPat has already been run on the declarations.
 checkDecls :: [P.TopDecl PName] -> ModuleM (R.NamingEnv,[T.DeclGroup])
 checkDecls ds = do
-  (decls,names) <- getLocalEnv
+  (params,decls,names) <- getLocalEnv
 
   -- introduce names for the declarations before renaming them
   declsEnv <- liftSupply (R.namingEnv' (map (R.InModule interactiveName) ds))
@@ -325,7 +337,7 @@ checkDecls ds = do
   prims <- getPrimMap
   let act  = TCAction { tcAction = T.tcDecls, tcLinter = declsLinter
                       , tcPrims = prims }
-  ds' <- typecheck act rds decls
+  ds' <- typecheck act rds params decls
   return (declsEnv,ds')
 
 -- | Generate the primitive map. If the prelude is currently being loaded, this
@@ -339,9 +351,31 @@ getPrimMap  =
        Nothing -> panic "Cryptol.ModuleSystem.Base.getPrimMap"
                   [ "Unable to find the prelude" ]
 
--- | Typecheck a module.
-checkModule :: FilePath -> P.Module PName -> ModuleM T.Module
-checkModule path m = do
+-- | Load a module, be it a normal module or a functor instantiation.
+checkModule :: ImportSource -> FilePath -> P.Module PName -> ModuleM T.Module
+checkModule isrc path m =
+  case P.mInstance m of
+    Nothing -> checkSingleModule T.tcModule isrc path m
+    Just fmName -> do tf <- getLoaded (thing fmName)
+                      checkSingleModule (T.tcModuleInst tf) isrc path m
+
+
+-- | Typecheck a single module.  If the module is an instantiation
+-- of a functor, then this just type-checks the instantiating parameters.
+-- See 'checkModule'
+checkSingleModule ::
+  Act (P.Module Name) T.Module {- ^ how to check -} ->
+  ImportSource                 {- ^ why are we loading this -} ->
+  FilePath                     {- path -} ->
+  P.Module PName               {- ^ module to check -} ->
+  ModuleM T.Module
+checkSingleModule how isrc path m = do
+
+  -- check that the name of the module matches expectations
+  let nm = importedModule isrc
+  unless (notParamInstModName nm == thing (P.mName m))
+         (moduleNameMismatch nm (mName m))
+
   -- remove includes first
   e   <- io (removeIncludesModule path m)
   nim <- case e of
@@ -362,10 +396,14 @@ checkModule path m = do
               else getPrimMap
 
   -- typecheck
-  let act = TCAction { tcAction = T.tcModule
+  let act = TCAction { tcAction = how
                      , tcLinter = moduleLinter (P.thing (P.mName m))
                      , tcPrims  = prims }
-  tcm <- typecheck act scm tcEnv
+
+
+  tcm0 <- typecheck act scm noIfaceParams tcEnv
+
+  let tcm = tcm0 -- fromMaybe tcm0 (addModParams tcm0)
 
   liftSupply (`rewModule` tcm)
 
@@ -379,7 +417,7 @@ data TCLinter o = TCLinter
 exprLinter :: TCLinter (T.Expr, T.Schema)
 exprLinter = TCLinter
   { lintCheck = \(e',s) i ->
-      case TcSanity.tcExpr (T.inpVars i) e' of
+      case TcSanity.tcExpr i e' of
         Left err     -> Left err
         Right (s1,os)
           | TcSanity.same s s1  -> Right os
@@ -389,7 +427,7 @@ exprLinter = TCLinter
 
 declsLinter :: TCLinter [ T.DeclGroup ]
 declsLinter = TCLinter
-  { lintCheck = \ds' i -> case TcSanity.tcDecls (T.inpVars i) ds' of
+  { lintCheck = \ds' i -> case TcSanity.tcDecls i ds' of
                             Left err -> Left err
                             Right os -> Right os
 
@@ -398,25 +436,27 @@ declsLinter = TCLinter
 
 moduleLinter :: P.ModName -> TCLinter T.Module
 moduleLinter m = TCLinter
-  { lintCheck   = \m' i -> case TcSanity.tcModule (T.inpVars i) m' of
+  { lintCheck   = \m' i -> case TcSanity.tcModule i m' of
                             Left err -> Left err
                             Right os -> Right os
   , lintModule  = Just m
   }
 
+type Act i o = i -> T.InferInput -> IO (T.InferOutput o)
 
 data TCAction i o = TCAction
-  { tcAction :: i -> T.InferInput -> IO (T.InferOutput o)
+  { tcAction :: Act i o
   , tcLinter :: TCLinter o
   , tcPrims  :: PrimMap
   }
 
 typecheck ::
-  (Show i, Show o, HasLoc i) => TCAction i o -> i -> IfaceDecls -> ModuleM o
-typecheck act i env = do
+  (Show i, Show o, HasLoc i) => TCAction i o -> i ->
+                                  IfaceParams -> IfaceDecls -> ModuleM o
+typecheck act i params env = do
 
   let range = fromMaybe emptyRange (getLoc i)
-  input <- genInferInput range (tcPrims act) env
+  input <- genInferInput range (tcPrims act) params env
   out   <- io (tcAction act i input)
 
   case out of
@@ -440,8 +480,9 @@ typecheck act i env = do
          typeCheckingFailed errs
 
 -- | Generate input for the typechecker.
-genInferInput :: Range -> PrimMap -> IfaceDecls -> ModuleM T.InferInput
-genInferInput r prims env = do
+genInferInput :: Range -> PrimMap ->
+                          IfaceParams -> IfaceDecls -> ModuleM T.InferInput
+genInferInput r prims params env = do
   seeds <- getNameSeeds
   monoBinds <- getMonoBinds
   cfg <- getSolverConfig
@@ -460,7 +501,11 @@ genInferInput r prims env = do
     , T.inpSearchPath = searchPath
     , T.inpSupply    = supply
     , T.inpPrimNames = prims
+    , T.inpParamTypes       = ifParamTypes params
+    , T.inpParamConstraints = ifParamConstraints params
+    , T.inpParamFuns        = ifParamFuns params
     }
+
 
 
 -- Evaluation ------------------------------------------------------------------

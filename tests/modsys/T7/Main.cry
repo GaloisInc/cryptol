@@ -1,0 +1,6 @@
+module T7::Main where
+
+parameter
+  x : [8]
+
+main = x

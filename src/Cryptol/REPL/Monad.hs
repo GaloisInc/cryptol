@@ -40,7 +40,7 @@ module Cryptol.REPL.Monad (
   , getTypeNames
   , getPropertyNames
   , getModNames
-  , LoadedModule(..), getLoadedMod, setLoadedMod
+  , LoadedModule(..), getLoadedMod, setLoadedMod, clearLoadedMod, setEditPath
   , setSearchPath, prependSearchPath
   , getPrompt
   , shouldContinue
@@ -49,6 +49,7 @@ module Cryptol.REPL.Monad (
   , disableLet
   , enableLet
   , getLetEnabled
+  , validEvalContext
   , updateREPLTitle
   , setUpdateREPLTitle
 
@@ -84,6 +85,7 @@ import Cryptol.Parser.NoPat (Error)
 import Cryptol.Parser.Position (emptyRange, Range(from))
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck as T
+import qualified Cryptol.IR.FreeVars as T
 import qualified Cryptol.Utils.Ident as I
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
@@ -91,7 +93,7 @@ import Cryptol.Utils.Logger(Logger, logPutStr, funLogger)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (proverNames, lookupProver, SatNum(..))
 
-import Control.Monad (ap,unless,when)
+import Control.Monad (ap,unless,when,msum)
 import Control.Monad.Base
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
@@ -99,12 +101,13 @@ import Data.Char (isSpace)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef,atomicModifyIORef)
 import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes,mapMaybe)
 import Data.Ord (comparing)
 import Data.Typeable (Typeable)
 import System.Directory (findExecutable)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Text.Read (readMaybe)
 
 import Data.SBV.Dynamic (sbvCheckSolverInstallation)
@@ -114,10 +117,10 @@ import Prelude.Compat
 
 -- REPL Environment ------------------------------------------------------------
 
--- | The currently focused module.
+-- | This indicates what the user would like to work on.
 data LoadedModule = LoadedModule
-  { lName :: Maybe P.ModName -- ^ Focused module
-  , lPath :: FilePath        -- ^ Focused file
+  { lName :: Maybe P.ModName -- ^ Working on this module.
+  , lPath :: FilePath        -- ^ Working on this file.
   }
 
 -- | REPL RW Environment.
@@ -230,6 +233,7 @@ data REPLException
   | ModuleSystemError NameDisp M.ModuleError
   | EvalPolyError T.Schema
   | TypeNotTestable T.Type
+  | EvalInParamModule P.ModName [M.Name]
     deriving (Show,Typeable)
 
 instance X.Exception REPLException
@@ -253,6 +257,8 @@ instance PP REPLException where
                          $$ text "Type:" <+> pp s
     TypeNotTestable t    -> text "The expression is not of a testable type."
                          $$ text "Type:" <+> pp t
+    EvalInParamModule _ xs ->
+      text "Expression depends on a module parameter:" <+> hsep (map pp xs)
 
 -- | Raise an exception.
 raise :: REPLException -> REPL a
@@ -278,6 +284,7 @@ rethrowEvalError m = run `X.catch` rethrow
 
 -- Primitives ------------------------------------------------------------------
 
+
 io :: IO a -> REPL a
 io m = REPL (\ _ -> m)
 
@@ -294,12 +301,21 @@ modifyRW_ f = REPL (\ ref -> modifyIORef ref f)
 getPrompt :: REPL String
 getPrompt  = mkPrompt `fmap` getRW
 
+
+clearLoadedMod :: REPL ()
+clearLoadedMod = do modifyRW_ (\rw -> rw { eLoadedMod = upd <$> eLoadedMod rw })
+                    updateREPLTitle
+  where upd x = x { lName = Nothing }
+
 -- | Set the name of the currently focused file, edited by @:e@ and loaded via
 -- @:r@.
 setLoadedMod :: LoadedModule -> REPL ()
 setLoadedMod n = do
   modifyRW_ (\ rw -> rw { eLoadedMod = Just n })
   updateREPLTitle
+
+setEditPath :: FilePath -> REPL ()
+setEditPath p = setLoadedMod LoadedModule { lName = Nothing, lPath = p }
 
 getLoadedMod :: REPL (Maybe LoadedModule)
 getLoadedMod  = eLoadedMod `fmap` getRW
@@ -345,6 +361,42 @@ enableLet  = modifyRW_ (\ rw -> rw { eLetEnabled = True })
 getLetEnabled :: REPL Bool
 getLetEnabled = fmap eLetEnabled getRW
 
+-- | Is evaluation enabled.  If the currently focused module is
+-- parameterized, then we cannot evalute.
+validEvalContext :: T.FreeVars a => a -> REPL ()
+validEvalContext a =
+  do me <- eModuleEnv <$> getRW
+     case M.meFocusedModule me of
+       Nothing -> return ()
+       Just fm ->
+         case M.lookupModule fm me of
+           Just lm
+             | Set.null tps && Set.null vps -> return ()
+             | Just xs <- check (T.freeVars a) ->
+                              raise $ EvalInParamModule fm xs
+             | otherwise -> return ()
+             where
+             m = M.lmModule lm
+
+             tps = Set.fromList $ map T.mtpParam $ Map.elems $ T.mParamTypes m
+             vps = Map.keysSet (T.mParamFuns m)
+
+             bad ds | not $ null badTP = Just $ mapMaybe T.tpName badTP
+                    | not $ null badVP = Just badVP
+                    | otherwise = Nothing
+               where
+               badTP = Set.toList $ Set.intersection tps (T.tyParams ds)
+               badVP = Set.toList $ Set.intersection vps (T.valDeps ds)
+
+             check ds   = msum (bad ds : map badSub (Set.toList (T.valDeps ds)))
+             badSub x   = maybe Nothing bad (Map.lookup x deps)
+             deps       = T.moduleDeps m
+
+           Nothing ->
+             panic "getEvalEnabled" ["The focused module is not loaded."
+                                    , show fm ]
+
+
 -- | Update the title
 updateREPLTitle :: REPL ()
 updateREPLTitle  = unlessBatch $ do
@@ -383,14 +435,15 @@ rPutStrLn str = rPutStr $ str ++ "\n"
 rPrint :: Show a => a -> REPL ()
 rPrint x = rPutStrLn (show x)
 
-getFocusedEnv :: REPL (M.IfaceDecls,M.NamingEnv,NameDisp)
+getFocusedEnv :: REPL (M.IfaceParams,M.IfaceDecls,M.NamingEnv,NameDisp)
 getFocusedEnv  = do
   me <- getModuleEnv
   -- dyNames is a NameEnv that removes the #Uniq prefix from interactively-bound
   -- variables.
   let (dyDecls,dyNames,dyDisp) = M.dynamicEnv me
-  let (fDecls,fNames,fDisp) = M.focusedEnv me
-  return ( dyDecls `mappend` fDecls
+  let (fParams,fDecls,fNames,fDisp) = M.focusedEnv me
+  return ( fParams
+         , dyDecls `mappend` fDecls
          , dyNames `M.shadowing` fNames
          , dyDisp `mappend` fDisp)
 
@@ -417,35 +470,35 @@ getFocusedEnv  = do
 
 getVars :: REPL (Map.Map M.Name M.IfaceDecl)
 getVars  = do
-  (decls,_,_) <- getFocusedEnv
+  (_,decls,_,_) <- getFocusedEnv
   return (M.ifDecls decls)
 
 getTSyns :: REPL (Map.Map M.Name T.TySyn)
 getTSyns  = do
-  (decls,_,_) <- getFocusedEnv
+  (_,decls,_,_) <- getFocusedEnv
   return (M.ifTySyns decls)
 
 getNewtypes :: REPL (Map.Map M.Name T.Newtype)
 getNewtypes = do
-  (decls,_,_) <- getFocusedEnv
+  (_,decls,_,_) <- getFocusedEnv
   return (M.ifNewtypes decls)
 
 -- | Get visible variable names.
 getExprNames :: REPL [String]
 getExprNames =
-  do (_, fNames, _) <- getFocusedEnv
+  do (_,_, fNames, _) <- getFocusedEnv
      return (map (show . pp) (Map.keys (M.neExprs fNames)))
 
 -- | Get visible type signature names.
 getTypeNames :: REPL [String]
 getTypeNames  =
-  do (_, fNames, _) <- getFocusedEnv
+  do (_,_, fNames, _) <- getFocusedEnv
      return (map (show . pp) (Map.keys (M.neTypes fNames)))
 
 -- | Return a list of property names, sorted by position in the file.
 getPropertyNames :: REPL ([M.Name],NameDisp)
 getPropertyNames =
-  do (decls,_,names) <- getFocusedEnv
+  do (_,decls,_,names) <- getFocusedEnv
      let xs = M.ifDecls decls
          ps = sortBy (comparing (from . M.nameLoc))
             $ [ x | (x,d) <- Map.toList xs, T.PragmaProperty `elem` M.ifDeclPragmas d ]
@@ -455,7 +508,7 @@ getPropertyNames =
 getModNames :: REPL [I.ModName]
 getModNames =
   do me <- getModuleEnv
-     return $ map M.lmName $ M.getLoadedModules $ M.meLoadedModules me
+     return (map T.mName (M.loadedModules me))
 
 getModuleEnv :: REPL M.ModuleEnv
 getModuleEnv  = eModuleEnv `fmap` getRW

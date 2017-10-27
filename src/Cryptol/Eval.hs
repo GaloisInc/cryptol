@@ -134,7 +134,7 @@ evalExpr env expr = case expr of
       val     -> do vdoc <- ppV val
                     panic "[Eval] evalExpr"
                       ["expected a polymorphic value"
-                      , show vdoc, show e, show ty
+                      , show vdoc, show (pp e), show (pp ty)
                       ]
 
   EApp f x -> {-# SCC "evalExpr->EApp" #-} do

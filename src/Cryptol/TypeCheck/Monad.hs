@@ -56,6 +56,15 @@ data InferInput = InferInput
   , inpVars      :: Map Name Schema   -- ^ Variables that are in scope
   , inpTSyns     :: Map Name TySyn    -- ^ Type synonyms that are in scope
   , inpNewtypes  :: Map Name Newtype  -- ^ Newtypes in scope
+
+    -- When typechecking a module these start off empty.
+    -- We need them when type-checking an expression at the command
+    -- line, for example.
+  , inpParamTypes       :: !(Map Name ModTParam)  -- ^ Type parameters
+  , inpParamConstraints :: !([Located Prop])      -- ^ Constraints on parameters
+  , inpParamFuns        :: !(Map Name ModVParam)  -- ^ Value parameters
+
+
   , inpNameSeeds :: NameSeeds         -- ^ Private state of type-checker
   , inpMonoBinds :: Bool              -- ^ Should local bindings without
                                       --   signatures be monomorphized?
@@ -64,9 +73,9 @@ data InferInput = InferInput
   , inpSearchPath :: [FilePath]
     -- ^ Where to look for Cryptol theory file.
 
-  , inpPrimNames :: !PrimMap          -- ^ The mapping from 'Ident' to 'Name',
-                                      -- for names that the typechecker
-                                      -- needs to refer to.
+  , inpPrimNames :: !PrimMap
+    -- ^ This is used when the type-checker needs to refer to a predefined
+    -- identifier (e.g., @demote@).
 
   , inpSupply :: !Supply              -- ^ The supply for fresh name generation
   } deriving Show
@@ -107,6 +116,10 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
                          , iTVars         = []
                          , iTSyns         = fmap mkExternal (inpTSyns info)
                          , iNewtypes      = fmap mkExternal (inpNewtypes info)
+                         , iParamTypes    = inpParamTypes info
+                         , iParamFuns     = inpParamFuns info
+                         , iParamConstraints = inpParamConstraints info
+
                          , iSolvedHasLazy = iSolvedHas finalRW     -- RECURSION
                          , iMonoBinds     = inpMonoBinds info
                          , iSolver        = solver
@@ -193,6 +206,16 @@ data RO = RO
    -- So, either a type-synonym shadows a newtype, or it was declared
    -- at the top-level, but then there can't be a newtype with the
    -- same name (this should be caught by the renamer).
+
+  , iParamTypes :: Map Name ModTParam
+    -- ^ Parameter types
+
+  , iParamConstraints :: [Located Prop]
+    -- ^ Constraints on the type parameters
+
+  , iParamFuns :: Map Name ModVParam
+    -- ^ Parameter functions
+
 
   , iSolvedHasLazy :: Map Int (Expr -> Expr)
     -- ^ NOTE: This field is lazy in an important way!  It is the
@@ -428,11 +451,11 @@ newTVar' src extraBound k =
 
 
 -- | Generate a new free type variable.
-newTParam :: Maybe Name -> Kind -> InferM TParam
+newTParam :: TPFlavor -> Kind -> InferM TParam
 newTParam nm k = newName $ \s -> let x = seedTVar s
                                  in (TParam { tpUnique = x
                                             , tpKind   = k
-                                            , tpName   = nm
+                                            , tpFlav   = nm
                                             }
                                  , s { seedTVar = x + 1 })
 
@@ -512,9 +535,14 @@ lookupVar x =
          do mbNT <- lookupNewtype x
             case mbNT of
               Just nt -> return (ExtVar (newtypeConType nt))
-              Nothing -> do recordError $ UndefinedVariable x
-                            a <- newType (text "type of" <+> pp x) KType
-                            return $ ExtVar $ Forall [] [] a
+              Nothing ->
+                do mbParamFun <- lookupParamFun x
+                   case mbParamFun of
+                     Just pf -> return (ExtVar (mvpType pf))
+                     Nothing ->
+                       do recordError (UndefinedVariable x)
+                          a <- newType (text "type of" <+> pp x) KType
+                          return $ ExtVar $ Forall [] [] a
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
 -- in scope, in which case we must be dealing with a type constant.
@@ -529,6 +557,14 @@ lookupTSyn x = fmap (fmap snd . Map.lookup x) getTSyns
 -- | Lookup the definition of a newtype
 lookupNewtype :: Name -> InferM (Maybe Newtype)
 lookupNewtype x = fmap (fmap snd . Map.lookup x) getNewtypes
+
+-- | Lookup the kind of a parameter type
+lookupParamType :: Name -> InferM (Maybe ModTParam)
+lookupParamType x = Map.lookup x <$> getParamTypes
+
+-- | Lookup the schema for a parameter function.
+lookupParamFun :: Name -> InferM (Maybe ModVParam)
+lookupParamFun x = Map.lookup x <$> getParamFuns
 
 -- | Check if we already have a name for this existential type variable and,
 -- if so, return the definition.  If not, try to create a new definition,
@@ -562,13 +598,29 @@ getTSyns = IM $ asks iTSyns
 getNewtypes :: InferM (Map Name (DefLoc,Newtype))
 getNewtypes = IM $ asks iNewtypes
 
+-- | Returns the parameter functions declarations
+getParamFuns :: InferM (Map Name ModVParam)
+getParamFuns = IM $ asks iParamFuns
+
+-- | Returns the abstract function declarations
+getParamTypes :: InferM (Map Name ModTParam)
+getParamTypes = IM $ asks iParamTypes
+
+getParamConstraints :: InferM [Located Prop]
+getParamConstraints = IM $ asks iParamConstraints
+
 -- | Get the set of bound type variables that are in scope.
 getTVars :: InferM (Set Name)
 getTVars = IM $ asks $ Set.fromList . mapMaybe tpName . iTVars
 
 -- | Return the keys of the bound variables that are in scope.
 getBoundInScope :: InferM (Set TVar)
-getBoundInScope = IM $ asks $ Set.fromList . map tpVar . iTVars
+getBoundInScope =
+  do ro <- IM ask
+     let params = Set.fromList (map (tpVar . mtpParam)
+                                    (Map.elems (iParamTypes ro)))
+         bound  = Set.fromList (map tpVar (iTVars ro))
+     return $! Set.union params bound
 
 -- | Retrieve the value of the `mono-binds` option.
 getMonoBinds :: InferM Bool
@@ -626,6 +678,11 @@ withNewtype t (IM m) =
   IM $ mapReader
         (\r -> r { iNewtypes = Map.insert (ntName t) (IsLocal,t)
                                                      (iNewtypes r) }) m
+withParamType :: ModTParam -> InferM a -> InferM a
+withParamType a (IM m) =
+  IM $ mapReader
+        (\r -> r { iParamTypes = Map.insert (mtpName a) a (iParamTypes r) })
+        m
 
 -- | The sub-computation is performed with the given variable in scope.
 withVarType :: Name -> VarType -> InferM a -> InferM a
@@ -637,6 +694,18 @@ withVarTypes xs m = foldr (uncurry withVarType) m xs
 
 withVar :: Name -> Schema -> InferM a -> InferM a
 withVar x s = withVarType x (ExtVar s)
+
+-- | The sub-computation is performed with the given abstract function in scope.
+withParamFuns :: [ModVParam] -> InferM a -> InferM a
+withParamFuns xs (IM m) =
+  IM $ mapReader (\r -> r { iParamFuns = foldr add (iParamFuns r) xs }) m
+  where
+  add x = Map.insert (mvpName x) x
+
+-- | Add some assumptions for an entire module
+withParameterConstraints :: [Located Prop] -> InferM a -> InferM a
+withParameterConstraints ps (IM m) =
+  IM $ mapReader (\r -> r { iParamConstraints = ps ++ iParamConstraints r }) m
 
 
 -- | The sub-computation is performed with the given variables in scope.
@@ -757,6 +826,9 @@ kLookupTSyn x = kInInferM $ lookupTSyn x
 -- | Lookup the definition of a newtype.
 kLookupNewtype :: Name -> KindM (Maybe Newtype)
 kLookupNewtype x = kInInferM $ lookupNewtype x
+
+kLookupParamType :: Name -> KindM (Maybe ModTParam)
+kLookupParamType x = kInInferM (lookupParamType x)
 
 kExistTVar :: Name -> Kind -> KindM Type
 kExistTVar x k = kInInferM $ existVar x k

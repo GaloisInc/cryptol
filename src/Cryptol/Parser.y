@@ -37,6 +37,7 @@ import Cryptol.Parser.Position
 import Cryptol.Parser.LexerUtils hiding (mkIdent)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit(PreProc(..), guessPreProc)
+import Cryptol.Utils.Ident(paramInstModName)
 
 import Paths_cryptol
 }
@@ -55,6 +56,7 @@ import Paths_cryptol
   'as'        { Located $$ (Token (KW KW_as)        _)}
   'hiding'    { Located $$ (Token (KW KW_hiding)    _)}
   'private'   { Located $$ (Token (KW KW_private)   _)}
+  'parameter' { Located $$ (Token (KW KW_parameter) _)}
   'property'  { Located $$ (Token (KW KW_property)  _)}
   'infix'     { Located $$ (Token (KW KW_infix)     _)}
   'infixl'    { Located $$ (Token (KW KW_infixl)    _)}
@@ -152,16 +154,10 @@ import Paths_cryptol
 
 
 vmodule                    :: { Module PName }
-  : 'module' modName 'where' 'v{' vmod_body 'v}'
-                              { let (is,ts) = $5 in Module $2 is ts }
-
-  | 'v{' vmod_body 'v}'
-    { let { (is,ts) = $2
-            -- XXX make a location from is and ts
-          ; modName = Located { srcRange = emptyRange
-                              , thing    = mkModName ["Main"]
-                              }
-          } in Module modName is ts }
+  : 'module' modName 'where' 'v{' vmod_body 'v}' { mkModule $2 $5 }
+  | 'module' modName '=' modName 'where' 'v{' vmod_body 'v}'
+                                                 { mkModuleInstance $2 $4 $7 }
+  | 'v{' vmod_body 'v}'                          { mkAnonymousModule $2 }
 
 vmod_body                  :: { ([Located Import], [TopDecl PName]) }
   : vimports 'v;' vtop_decls  { (reverse $1, reverse $3) }
@@ -240,6 +236,7 @@ vtop_decl               :: { [TopDecl PName] }
   | mbDoc newtype          { [exportNewtype Public $1 $2]                     }
   | prim_bind              { $1                                               }
   | private_decls          { $1                                               }
+  | parameter_decls        { $1                                               }
 
 top_decl                :: { [TopDecl PName] }
   : decl                   { [Decl (TopLevel {tlExport = Public, tlValue = $1 })] }
@@ -255,6 +252,25 @@ private_decls           :: { [TopDecl PName] }
 prim_bind               :: { [TopDecl PName] }
   : mbDoc 'primitive' name  ':' schema       { mkPrimDecl $1 $3 $5 }
   | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrimDecl $1 $4 $7 }
+
+
+
+parameter_decls                      :: { [TopDecl PName] }
+  :     'parameter' 'v{' par_decls 'v}' { reverse $3 }
+  | doc 'parameter' 'v{' par_decls 'v}' { reverse $4 }
+
+-- Reversed
+par_decls                            :: { [TopDecl PName] }
+  : par_decl                            { [$1] }
+  | par_decls ';'  par_decl             { $3 : $1 }
+  | par_decls 'v;' par_decl             { $3 : $1 }
+
+par_decl                         :: { TopDecl PName }
+  : mbDoc        name ':' schema    { mkParFun $1 $2 $4 }
+  | mbDoc 'type' name ':' kind      { mkParType $1 $3 $5 }
+  | mbDoc 'type' 'constraint' type  {% fmap (DParameterConstraint . distrLoc)
+                                            (mkProp $4) }
+
 
 doc                     :: { Located String }
   : DOC                    { mkDoc (fmap tokenText $1) }
@@ -648,10 +664,15 @@ name               :: { LPName }
   : ident             { fmap mkUnqual $1 }
 
 
-modName                        :: { Located ModName }
+smodName                       :: { Located ModName }
   : ident                         { fmap (mkModName . (:[]) . identText) $1 }
   | QIDENT                        { let Token (Ident ns i) _ = thing $1
                                      in mkModName (ns ++ [i]) A.<$ $1 }
+
+
+modName                        :: { Located ModName }
+  : smodName                      { $1 }
+  | '`' smodName                  { fmap paramInstModName $2 }
 
 
 qname                          :: { Located PName }

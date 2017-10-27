@@ -1,0 +1,4 @@
+module T4::Main = T4::A where
+
+type T = [8]
+x = 2

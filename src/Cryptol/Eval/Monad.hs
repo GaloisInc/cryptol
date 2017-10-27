@@ -181,7 +181,7 @@ io m = Thunk (\_ -> m)
 -- Errors ----------------------------------------------------------------------
 
 -- | Panic from an @Eval@ context.
-evalPanic :: String -> [String] -> a
+evalPanic :: HasCallStack => String -> [String] -> a
 evalPanic cxt = panic ("[Eval] " ++ cxt)
 
 

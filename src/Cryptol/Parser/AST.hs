@@ -15,6 +15,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Parser.AST
   ( -- * Names
     Ident, mkIdent, mkInfix, isInfixIdent, nullIdent, identText
@@ -44,11 +45,11 @@ module Cryptol.Parser.AST
   , BindDef(..), LBindDef
   , Pragma(..)
   , ExportType(..)
-  , ExportSpec(..), exportBind, exportType
-  , isExportedBind, isExportedType
   , TopLevel(..)
   , Import(..), ImportSpec(..)
   , Newtype(..)
+  , ParameterType(..)
+  , ParameterFun(..)
 
     -- * Interactive
   , ReplInput(..)
@@ -77,7 +78,6 @@ import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
-import qualified Data.Set as Set
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
@@ -105,10 +105,14 @@ type LString  = Located String
 newtype Program name = Program [TopDecl name]
                        deriving (Show)
 
-data Module name = Module { mName    :: Located ModName
-                          , mImports :: [Located Import]
-                          , mDecls   :: [TopDecl name]
-                          } deriving (Show, Generic, NFData)
+-- | A parsed module.
+data Module name = Module
+  { mName     :: Located ModName            -- ^ Name of the module
+  , mInstance :: !(Maybe (Located ModName)) -- ^ Functor to instantiate
+                                            -- (if this is a functor instnaces)
+  , mImports  :: [Located Import]           -- ^ Imports for the module
+  , mDecls    :: [TopDecl name]             -- ^ Declartions for the module
+  } deriving (Show, Generic, NFData)
 
 
 modRange :: Module name -> Range
@@ -120,9 +124,14 @@ modRange m = rCombs $ catMaybes
     ]
 
 
-data TopDecl name = Decl (TopLevel (Decl name))
-                  | TDNewtype (TopLevel (Newtype name))
-                  | Include (Located FilePath)
+data TopDecl name =
+    Decl (TopLevel (Decl name))
+  | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
+  | Include (Located FilePath)          -- ^ @include File@
+  | DParameterType (ParameterType name) -- ^ @parameter type T : #@
+  | DParameterConstraint [Located (Prop name)]
+                                        -- ^ @parameter type constraint (fin T)@
+  | DParameterFun  (ParameterFun name)  -- ^ @parameter someVal : [256]@
                     deriving (Show, Generic, NFData)
 
 data Decl name = DSignature [Located name] (Schema name)
@@ -134,6 +143,24 @@ data Decl name = DSignature [Located name] (Schema name)
                | DProp (PropSyn name)
                | DLocated (Decl name) Range
                  deriving (Eq, Show, Generic, NFData, Functor)
+
+
+-- | A type parameter
+data ParameterType name = ParameterType
+  { ptName    :: Located name     -- ^ name of type parameter
+  , ptKind    :: Kind             -- ^ kind of parameter
+  , ptDoc     :: Maybe String     -- ^ optional documentation
+  , ptFixity  :: Maybe Fixity     -- ^ info for infix use
+  } deriving (Eq,Show,Generic,NFData)
+
+-- | A value parameter
+data ParameterFun name = ParameterFun
+  { pfName   :: Located name      -- ^ name of value parameter
+  , pfSchema :: Schema name       -- ^ schema for parameter
+  , pfDoc    :: Maybe String      -- ^ optional documentation
+  , pfFixity :: Maybe Fixity      -- ^ info for infix use
+  } deriving (Eq,Show,Generic,NFData)
+
 
 -- | An import declaration.
 data Import = Import { iModule    :: !ModName
@@ -228,41 +255,13 @@ data ExportType = Public
                 | Private
                   deriving (Eq, Show, Ord, Generic, NFData)
 
+-- | A top-level module declaration.
 data TopLevel a = TopLevel { tlExport :: ExportType
                            , tlDoc    :: Maybe (Located String)
                            , tlValue  :: a
                            }
   deriving (Show, Generic, NFData, Functor, Foldable, Traversable)
 
-data ExportSpec name = ExportSpec { eTypes  :: Set.Set name
-                                  , eBinds  :: Set.Set name
-                                  } deriving (Show, Generic, NFData)
-
-instance Ord name => Monoid (ExportSpec name) where
-  mempty      = ExportSpec { eTypes = mempty, eBinds = mempty }
-  mappend l r = ExportSpec { eTypes = mappend (eTypes l) (eTypes r)
-                           , eBinds  = mappend (eBinds  l) (eBinds  r)
-                           }
-
--- | Add a binding name to the export list, if it should be exported.
-exportBind :: Ord name => TopLevel name -> ExportSpec name
-exportBind n
-  | tlExport n == Public = mempty { eBinds = Set.singleton (tlValue n) }
-  | otherwise            = mempty
-
--- | Check to see if a binding is exported.
-isExportedBind :: Ord name => name -> ExportSpec name -> Bool
-isExportedBind n = Set.member n . eBinds
-
--- | Add a type synonym name to the export list, if it should be exported.
-exportType :: Ord name => TopLevel name -> ExportSpec name
-exportType n
-  | tlExport n == Public = mempty { eTypes = Set.singleton (tlValue n) }
-  | otherwise            = mempty
-
--- | Check to see if a type synonym is exported.
-isExportedType :: Ord name => name -> ExportSpec name -> Bool
-isExportedType n = Set.member n . eTypes
 
 -- | Infromation about the representation of a numeric constant.
 data NumInfo  = BinLit Int                      -- ^ n-digit binary literal
@@ -389,6 +388,7 @@ data Prop n   = CFin (Type n)             -- ^ @ fin x   @
               | CType (Type n)            -- ^ After parsing
                 deriving (Eq, Show, Generic, NFData, Functor)
 
+
 --------------------------------------------------------------------------------
 -- Note: When an explicit location is missing, we could use the sub-components
 -- to try to estimate a location...
@@ -478,6 +478,15 @@ instance HasLoc (TopDecl name) where
     Decl tld    -> getLoc tld
     TDNewtype n -> getLoc n
     Include lfp -> getLoc lfp
+    DParameterType d -> getLoc d
+    DParameterFun d  -> getLoc d
+    DParameterConstraint d -> getLoc d
+
+instance HasLoc (ParameterType name) where
+  getLoc a = getLoc (ptName a)
+
+instance HasLoc (ParameterFun name) where
+  getLoc a = getLoc (pfName a)
 
 instance HasLoc (Module name) where
   getLoc m
@@ -528,6 +537,23 @@ instance (Show name, PPName name) => PP (TopDecl name) where
       Decl    d   -> pp d
       TDNewtype n -> pp n
       Include l   -> text "include" <+> text (show (thing l))
+      DParameterFun d -> pp d
+      DParameterType d -> pp d
+      DParameterConstraint d ->
+        "parameter" <+> "type" <+> "constraint" <+> prop
+        where prop = case map pp d of
+                       [x] -> x
+                       []  -> "()"
+                       xs  -> parens (hsep (punctuate comma xs))
+
+instance (Show name, PPName name) => PP (ParameterType name) where
+  ppPrec _ a = text "parameter" <+> text "type" <+>
+               ppPrefixName (ptName a) <+> text ":" <+> pp (ptKind a)
+
+instance (Show name, PPName name) => PP (ParameterFun name) where
+  ppPrec _ a = text "parameter" <+> ppPrefixName (pfName a) <+> text ":"
+                  <+> pp (pfSchema a)
+
 
 instance (Show name, PPName name) => PP (Decl name) where
   ppPrec n decl =
@@ -876,9 +902,10 @@ instance NoPos (Program name) where
   noPos (Program x) = Program (noPos x)
 
 instance NoPos (Module name) where
-  noPos m = Module { mName    = mName m
-                   , mImports = noPos (mImports m)
-                   , mDecls   = noPos (mDecls m)
+  noPos m = Module { mName      = mName m
+                   , mInstance  = mInstance m
+                   , mImports   = noPos (mImports m)
+                   , mDecls     = noPos (mDecls m)
                    }
 
 instance NoPos (TopDecl name) where
@@ -887,6 +914,15 @@ instance NoPos (TopDecl name) where
       Decl    x   -> Decl     (noPos x)
       TDNewtype n -> TDNewtype(noPos n)
       Include x   -> Include  (noPos x)
+      DParameterFun d  -> DParameterFun (noPos d)
+      DParameterType d -> DParameterType (noPos d)
+      DParameterConstraint d -> DParameterConstraint (noPos d)
+
+instance NoPos (ParameterType name) where
+  noPos a = a
+
+instance NoPos (ParameterFun x) where
+  noPos x = x { pfSchema = noPos (pfSchema x) }
 
 instance NoPos a => NoPos (TopLevel a) where
   noPos tl = tl { tlValue = noPos (tlValue tl) }

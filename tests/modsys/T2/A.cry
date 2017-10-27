@@ -1,0 +1,10 @@
+module T2::A where
+
+parameter
+  type T : #
+
+
+main : [T]
+main = zero
+
+

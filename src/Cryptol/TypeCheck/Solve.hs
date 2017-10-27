@@ -11,12 +11,14 @@
 module Cryptol.TypeCheck.Solve
   ( simplifyAllConstraints
   , proveImplication
+  , proveModuleTopLevel
   , wfType
   , wfTypeFunction
   , improveByDefaultingWithPure
   , defaultReplExpr
   ) where
 
+import           Cryptol.Parser.Position(thing)
 import           Cryptol.TypeCheck.PP(pp)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
@@ -166,13 +168,27 @@ simpHasGoals = go False [] =<< getHasGoals
        changes' `seq` unsolved `seq` go changes' unsolved' todo
 
 
+-- | Try to clean-up any left-over constraints after we've checked everything
+-- in a module.  Typically these are either trivial things, or constraints
+-- on the module's type parameters.
+proveModuleTopLevel :: InferM ()
+proveModuleTopLevel =
+  do simplifyAllConstraints
+     cs <- getParamConstraints
+     case cs of
+       [] -> return ()
+       _  -> do as <- (map mtpParam . Map.elems) <$> getParamTypes
+                gs <- getGoals
+                su <- proveImplication Nothing as (map thing cs) gs
+                extendSubst su
 
 
-proveImplication :: Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
+proveImplication :: Maybe Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
      solver <- getSolver
-     (mbErr,su) <- io (proveImplicationIO solver lnam evars as ps gs)
+     extra <- map thing <$> getParamConstraints
+     (mbErr,su) <- io (proveImplicationIO solver lnam evars as (extra ++ ps) gs)
      case mbErr of
        Right ws -> mapM_ recordWarning ws
        Left err -> recordError err
@@ -180,7 +196,7 @@ proveImplication lnam as ps gs =
 
 
 proveImplicationIO :: Solver
-                   -> Name     -- ^ Checking this function
+                   -> Maybe Name     -- ^ Checking this function
                    -> Set TVar -- ^ These appear in the env., and we should
                                -- not try to default the
                    -> [TParam] -- ^ Type parameters
@@ -216,10 +232,10 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
   err us =  Left $ cleanupError
                  $ UnsolvedDelayedCt
                  $ DelayedCt { dctSource = f
-                              , dctForall = ps
-                              , dctAsmps  = asmps0
-                              , dctGoals  = us
-                              }
+                             , dctForall = ps
+                             , dctAsmps  = asmps0
+                             , dctGoals  = us
+                             }
 
 
   asmps1 = concatMap pSplitAnd asmps0

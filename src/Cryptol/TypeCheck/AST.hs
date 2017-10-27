@@ -28,12 +28,14 @@ module Cryptol.TypeCheck.AST
   , module Cryptol.TypeCheck.Type
   ) where
 
+import Cryptol.Parser.Position(Located)
 import Cryptol.ModuleSystem.Name
+import Cryptol.ModuleSystem.Exports(ExportSpec(..)
+                                   , isExportedBind, isExportedType)
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Import(..), ImportSpec(..), ExportType(..)
-                          , ExportSpec(..), isExportedBind
-                          , isExportedType, Fixity(..))
+                          , Fixity(..))
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,packIdent)
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
@@ -42,19 +44,52 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import           Data.Map    (Map)
+import qualified Data.Map    as Map
 import qualified Data.IntMap as IntMap
 
 
-
-
 -- | A Cryptol module.
-data Module = Module { mName     :: !ModName
-                     , mExports  :: ExportSpec Name
-                     , mImports  :: [Import]
-                     , mTySyns   :: Map Name TySyn
-                     , mNewtypes :: Map Name Newtype
-                     , mDecls    :: [DeclGroup]
+data Module = Module { mName        :: !ModName
+                     , mExports     :: ExportSpec Name
+                     , mImports     :: [Import]
+
+                     , mTySyns      :: Map Name TySyn
+                       -- ^ This is just the type-level type synonyms
+                       -- of a module.
+
+                     , mNewtypes         :: Map Name Newtype
+                     , mParamTypes       :: Map Name ModTParam
+                     , mParamConstraints :: [Located Prop]
+                     , mParamFuns        :: Map Name ModVParam
+                     , mDecls            :: [DeclGroup]
                      } deriving (Show, Generic, NFData)
+
+-- | Is this a parameterized module?
+isParametrizedModule :: Module -> Bool
+isParametrizedModule m = not (null (mParamTypes m) &&
+                              null (mParamConstraints m) &&
+                              null (mParamFuns m))
+
+-- | A type parameter of a module.
+data ModTParam = ModTParam
+  { mtpName  :: Name
+  , mtpKind  :: Kind
+  , mtpDoc   :: Maybe String
+  } deriving (Show,Generic,NFData)
+
+mtpParam :: ModTParam -> TParam
+mtpParam mtp = TParam { tpUnique = nameUnique (mtpName mtp)
+                      , tpKind   = mtpKind mtp
+                      , tpFlav   = TPModParam (mtpName mtp)
+                      }
+
+-- | A value parameter of a module.
+data ModVParam = ModVParam
+  { mvpName   :: Name
+  , mvpType   :: Schema
+  , mvpDoc    :: Maybe String
+  , mvpFixity :: Maybe Fixity
+  } deriving (Show,Generic,NFData)
 
 
 data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
@@ -251,6 +286,27 @@ splitProofAbs :: Expr -> Maybe (Prop, Expr)
 splitProofAbs (EProofAbs p e) = Just (p,e)
 splitProofAbs _               = Nothing
 
+splitTApp :: Expr -> Maybe (Type,Expr)
+splitTApp (ETApp e t) = Just (t, e)
+splitTApp _           = Nothing
+
+splitProofApp :: Expr -> Maybe ((), Expr)
+splitProofApp (EProofApp e) = Just ((), e)
+splitProofApp _ = Nothing
+
+-- | Deconstruct an expression, typically polymorphic, into
+-- the types and proofs to which it is applied.
+-- Since we don't store the proofs, we just return
+-- the number of proof applications.
+splitExprInst :: Expr -> (Expr, [Type], Int)
+splitExprInst e = (e2, ts, length ps)
+  where
+  (ps,e1) = splitWhile splitProofApp e
+  (ts,e2) = splitWhile splitTApp e1
+
+
+
+
 instance PP Expr where
   ppPrec n t = ppWithNamesPrec IntMap.empty n t
 
@@ -302,5 +358,7 @@ instance PP (WithNames Module) where
     -- XXX: Print exports?
     vcat (map pp mImports) $$
     -- XXX: Print tysyns
-    vcat (map (ppWithNames nm) mDecls)
+    -- XXX: Print abstarct types/functions
+    vcat (map (ppWithNames (addTNames mps nm)) mDecls)
+    where mps = map mtpParam (Map.elems mParamTypes)
 

@@ -1,0 +1,5 @@
+module T1::Main where
+
+main = 0x02
+
+

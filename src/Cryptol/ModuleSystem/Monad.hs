@@ -29,7 +29,7 @@ import qualified Cryptol.Parser.NoInclude as NoInc
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
 import           Cryptol.Parser.Position (Range)
-import           Cryptol.Utils.Ident (interactiveName, packModName)
+import           Cryptol.Utils.Ident (interactiveName, noModuleName)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Logger(Logger)
 
@@ -50,6 +50,7 @@ import Prelude.Compat
 data ImportSource
   = FromModule P.ModName
   | FromImport (Located P.Import)
+  | FromModuleInstance (Located P.ModName)
     deriving (Show, Generic, NFData)
 
 instance Eq ImportSource where
@@ -59,11 +60,15 @@ instance PP ImportSource where
   ppPrec _ is = case is of
     FromModule n  -> text "module name" <+> pp n
     FromImport li -> text "import of module" <+> pp (P.iModule (P.thing li))
+    FromModuleInstance l ->
+      text "instantiation of module" <+> pp (P.thing l)
 
 importedModule :: ImportSource -> P.ModName
-importedModule is = case is of
-  FromModule n  -> n
-  FromImport li -> P.iModule (P.thing li)
+importedModule is =
+  case is of
+    FromModule n          -> n
+    FromImport li         -> P.iModule (P.thing li)
+    FromModuleInstance l  -> P.thing l
 
 
 data ModuleError
@@ -91,6 +96,17 @@ data ModuleError
     -- ^ Module loaded by 'import' statement has the wrong module name
   | DuplicateModuleName P.ModName FilePath FilePath
     -- ^ Two modules loaded from different files have the same module name
+  | ImportedParamModule P.ModName
+    -- ^ Attempt to import a parametrized module that was not instantiated.
+  | FailedToParameterizeModDefs P.ModName [T.Name]
+    -- ^ Failed to add the module parameters to all definitions in a module.
+  | NotAParameterizedModule P.ModName
+
+  | ErrorInFile FilePath ModuleError
+    -- ^ This is just a tag on the error, indicating the file containing it.
+    -- It is convenient when we had to look for the module, and we'd like
+    -- to communicate the location of pthe problematic module to the handler.
+
     deriving (Show)
 
 instance NFData ModuleError where
@@ -109,9 +125,13 @@ instance NFData ModuleError where
     DuplicateModuleName name path1 path2 ->
       name `deepseq` path1 `deepseq` path2 `deepseq` ()
     OtherFailure x                       -> x `deepseq` ()
+    ImportedParamModule x                -> x `deepseq` ()
+    FailedToParameterizeModDefs x xs     -> x `deepseq` xs `deepseq` ()
+    NotAParameterizedModule x            -> x `deepseq` ()
+    ErrorInFile x y                      -> x `deepseq` y `deepseq` ()
 
 instance PP ModuleError where
-  ppPrec _ e = case e of
+  ppPrec prec e = case e of
 
     ModuleNotFound src path ->
       text "[error]" <+>
@@ -159,8 +179,18 @@ instance PP ModuleError where
 
     OtherFailure x -> text x
 
+    ImportedParamModule p ->
+      text "[error] Import of a non-instantiated parameterized module:" <+> pp p
 
+    FailedToParameterizeModDefs x xs ->
+      hang (text "[error] Parameterized module" <+> pp x <+>
+            text "has polymorphic parameters:")
+        4 (hsep $ punctuate comma $ map pp xs)
 
+    NotAParameterizedModule x ->
+      text "[error] Module" <+> pp x <+> text "does not have parameters."
+
+    ErrorInFile _ x -> ppPrec prec x
 
 moduleNotFound :: P.ModName -> [FilePath] -> ModuleM a
 moduleNotFound name paths = ModuleT (raise (ModuleNotFound name paths))
@@ -206,6 +236,23 @@ duplicateModuleName :: P.ModName -> FilePath -> FilePath -> ModuleM a
 duplicateModuleName name path1 path2 =
   ModuleT (raise (DuplicateModuleName name path1 path2))
 
+importParamModule :: P.ModName -> ModuleM a
+importParamModule x = ModuleT (raise (ImportedParamModule x))
+
+failedToParameterizeModDefs :: P.ModName -> [T.Name] -> ModuleM a
+failedToParameterizeModDefs x xs =
+  ModuleT (raise (FailedToParameterizeModDefs x xs))
+
+notAParameterizedModule :: P.ModName -> ModuleM a
+notAParameterizedModule x = ModuleT (raise (NotAParameterizedModule x))
+
+-- | Run the computation, and if it caused and error, tag the error
+-- with the given file.
+errorInFile :: FilePath -> ModuleM a -> ModuleM a
+errorInFile file (ModuleT m) = ModuleT (m `handle` h)
+  where h e = raise $ case e of
+                        ErrorInFile {} -> e
+                        _              -> ErrorInFile file e
 
 -- Warnings --------------------------------------------------------------------
 
@@ -314,16 +361,22 @@ modifyModuleEnv f = ModuleT $ do
   env <- get
   set $! f env
 
+getLoadedMaybe :: P.ModName -> ModuleM (Maybe LoadedModule)
+getLoadedMaybe mn = ModuleT $
+  do env <- get
+     return (lookupModule mn env)
+
 isLoaded :: P.ModName -> ModuleM Bool
-isLoaded mn = ModuleT $ do
-  env <- get
-  return (isJust (lookupModule mn env))
+isLoaded mn = isJust <$> getLoadedMaybe mn
 
 loadingImport :: Located P.Import -> ModuleM a -> ModuleM a
 loadingImport  = loading . FromImport
 
 loadingModule :: P.ModName -> ModuleM a -> ModuleM a
 loadingModule  = loading . FromModule
+
+loadingModInstance :: Located P.ModName -> ModuleM a -> ModuleM a
+loadingModInstance = loading . FromModuleInstance
 
 -- | Push an "interactive" context onto the loading stack.  A bit of a hack, as
 -- it uses a faked module name
@@ -346,14 +399,21 @@ getImportSource  = ModuleT $ do
   ro <- ask
   case roLoading ro of
     is : _ -> return is
-    _      -> return (FromModule (packModName ["<none>"])) -- panic "ModuleSystem: getImportSource" ["Import stack is empty"]
+    _      -> return (FromModule noModuleName)
 
 getIface :: P.ModName -> ModuleM Iface
 getIface mn = ModuleT $ do
   env <- get
   case lookupModule mn env of
     Just lm -> return (lmInterface lm)
-    Nothing -> panic "ModuleSystem" ["Interface not available "]
+    Nothing -> panic "ModuleSystem" ["Interface not available", show (pp mn)]
+
+getLoaded :: P.ModName -> ModuleM T.Module
+getLoaded mn = ModuleT $
+  do env <- get
+     case lookupModule mn env of
+       Just lm -> return (lmModule lm)
+       Nothing -> panic "ModuleSystem" ["Module not available", show (pp mn) ]
 
 getNameSeeds :: ModuleM T.NameSeeds
 getNameSeeds  = ModuleT (meNameSeeds `fmap` get)
@@ -379,11 +439,10 @@ setSupply supply = ModuleT $
   do env <- get
      set $! env { meSupply = supply }
 
--- | Remove a module from the set of loaded module, by its path.
-unloadModule :: FilePath -> ModuleM ()
-unloadModule path = ModuleT $ do
+unloadModule :: (LoadedModule -> Bool) -> ModuleM ()
+unloadModule rm = ModuleT $ do
   env <- get
-  set $! env { meLoadedModules = removeLoadedModule path (meLoadedModules env) }
+  set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }
 
 loadedModule :: FilePath -> FilePath -> T.Module -> ModuleM ()
 loadedModule path canonicalPath m = ModuleT $ do
@@ -429,11 +488,8 @@ withPrependedSearchPath fps m = ModuleT $ do
   return x
 
 -- XXX improve error handling here
-getFocusedEnv :: ModuleM (IfaceDecls,NamingEnv,NameDisp)
+getFocusedEnv :: ModuleM (IfaceParams,IfaceDecls,NamingEnv,NameDisp)
 getFocusedEnv  = ModuleT (focusedEnv `fmap` get)
-
-getQualifiedEnv :: ModuleM IfaceDecls
-getQualifiedEnv  = ModuleT (qualifiedEnv `fmap` get)
 
 getDynEnv :: ModuleM DynamicEnv
 getDynEnv  = ModuleT (meDynEnv `fmap` get)

@@ -117,6 +117,7 @@ $white+                   { emit $ White Space }
 "infix"                   { emit $ KW KW_infix  }
 
 "primitive"               { emit $ KW KW_primitive }
+"parameter"               { emit $ KW KW_parameter }
 "constraint"              { emit $ KW KW_constraint }
 
 @num2                     { emitS (numToken 2  . Text.drop 2) }

@@ -25,7 +25,7 @@ import qualified Cryptol.Parser.AST as P
 import           Cryptol.Utils.PP
 import           Cryptol.ModuleSystem.Name (asPrim,nameLoc)
 import           Cryptol.TypeCheck.PP
-import           Cryptol.Utils.Ident (Ident,identText)
+import           Cryptol.Utils.Ident (Ident,identText,ModName)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
 
@@ -92,7 +92,8 @@ data HasGoal = HasGoal
 
 -- | Delayed implication constraints, arising from user-specified type sigs.
 data DelayedCt = DelayedCt
-  { dctSource :: Name   -- ^ Signature that gave rise to this constraint
+  { dctSource :: Maybe Name   -- ^ Signature that gave rise to this constraint
+                              -- Nothing means module top-level
   , dctForall :: [TParam]
   , dctAsmps  :: [Prop]
   , dctGoals  :: [Goal]
@@ -195,6 +196,7 @@ data ConstraintSource
   | CtPartialTypeFun TyFunName -- ^ Use of a partial type function.
   | CtImprovement
   | CtPattern Doc         -- ^ Constraints arising from type-checking patterns
+  | CtModuleInstance ModName -- ^ Instantiating a parametrized module
     deriving (Show, Generic, NFData)
 
 data TyFunName = UserTyFun Name | BuiltInTyFun TFun
@@ -218,6 +220,7 @@ instance TVars ConstraintSource where
       CtPartialTypeFun _ -> src
       CtImprovement    -> src
       CtPattern _      -> src
+      CtModuleInstance _ -> src
 
 instance TVars Warning where
   apSubst su warn =
@@ -232,8 +235,6 @@ instance FVS Warning where
       DefaultingKind {}     -> Set.empty
       DefaultingWildType {} -> Set.empty
       DefaultingTo _ ty     -> fvs ty
-
-
 
 instance TVars Error where
   apSubst su err =
@@ -262,6 +263,7 @@ instance TVars Error where
       CannotMixPositionalAndNamedTypeParams -> err
       AmbiguousType _           -> err
 
+
 instance FVS Error where
   fvs err =
     case err of
@@ -288,6 +290,7 @@ instance FVS Error where
       TooManyPositionalTypeParams -> Set.empty
       CannotMixPositionalAndNamedTypeParams -> Set.empty
       AmbiguousType _           ->  Set.empty
+
 
 instance FVS Goal where
   fvs g = fvs (goal g)
@@ -546,6 +549,7 @@ instance PP ConstraintSource where
       CtPartialTypeFun f -> text "use of partial type function" <+> pp f
       CtImprovement   -> text "examination of collected goals"
       CtPattern desc  -> text "checking a pattern:" <+> desc
+      CtModuleInstance n -> text "module instantiation" <+> pp n
 
 ppUse :: Expr -> Doc
 ppUse expr =
@@ -570,8 +574,10 @@ instance PP (WithNames DelayedCt) where
   ppPrec _ (WithNames d names) =
     sig $$ nest 2 (vars $$ asmps $$ vcat (map (ppWithNames ns1) (dctGoals d)))
     where
-    sig = text "In the definition of" <+> quotes (pp name) <>
-          comma <+> text "at" <+> pp (nameLoc name) <> colon
+    sig = case name of
+            Just n -> text "In the definition of" <+> quotes (pp n) <>
+                          comma <+> text "at" <+> pp (nameLoc n) <> colon
+            Nothing -> text "When checking the module's parameters."
 
     name  = dctSource d
     vars = case dctForall d of

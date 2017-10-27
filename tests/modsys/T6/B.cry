@@ -1,0 +1,7 @@
+module T5::B = T5::A where
+
+parameter
+  x : [8]
+
+y = 10
+

@@ -273,12 +273,37 @@ exportNewtype e d n = TDNewtype TopLevel { tlExport = e
                                          , tlDoc    = d
                                          , tlValue  = n }
 
+mkParFun :: Maybe (Located String) ->
+            Located PName ->
+            Schema PName ->
+            TopDecl PName
+mkParFun mbDoc n s = DParameterFun ParameterFun { pfName = n
+                                                , pfSchema = s
+                                                , pfDoc = thing <$> mbDoc
+                                                , pfFixity = Nothing
+                                                }
+
+mkParType :: Maybe (Located String) ->
+             Located PName ->
+             Located Kind ->
+             TopDecl PName
+mkParType mbDoc n k = DParameterType
+                      ParameterType { ptName    = n
+                                    , ptKind    = thing k
+                                    , ptDoc     = thing <$> mbDoc
+                                    , ptFixity  = Nothing
+                                    }
+
 changeExport :: ExportType -> [TopDecl PName] -> [TopDecl PName]
 changeExport e = map change
   where
   change (Decl d)      = Decl      d { tlExport = e }
   change (TDNewtype n) = TDNewtype n { tlExport = e }
   change td@Include{}  = td
+  change (DParameterType {}) = panic "changeExport" ["private type parameter?"]
+  change (DParameterFun {})  = panic "changeExport" ["private value parameter?"]
+  change (DParameterConstraint {}) =
+    panic "changeExport" ["private type constraint parameter?"]
 
 mkTypeInst :: Named (Type PName) -> TypeInst PName
 mkTypeInst x | nullIdent (thing (name x)) = PosInst (value x)
@@ -408,6 +433,11 @@ mkDoc ltxt = ltxt { thing = docStr }
         Nothing     -> False
 
 
+distrLoc :: Located [a] -> [Located a]
+distrLoc x = [ Located { srcRange = r, thing = a } | a <- thing x ]
+  where r = srcRange x
+
+
 mkProp :: Type PName -> ParseM (Located [Prop PName])
 mkProp ty =
   case ty of
@@ -463,3 +493,33 @@ arithIdent     = mkIdent "Arith"
 finIdent       = mkIdent "fin"
 cmpIdent       = mkIdent "Cmp"
 signedCmpIdent = mkIdent "SignedCmp"
+
+-- | Make an ordinary module
+mkModule :: Located ModName ->
+            ([Located Import], [TopDecl PName]) ->
+            Module PName
+mkModule nm (is,ds) = Module { mName = nm
+                             , mInstance = Nothing
+                             , mImports = is
+                             , mDecls = ds
+                             }
+
+-- | Make an unnamed module---gets the name @Main@.
+mkAnonymousModule :: ([Located Import], [TopDecl PName]) ->
+                     Module PName
+mkAnonymousModule = mkModule Located { srcRange = emptyRange
+                                     , thing    = mkModName [T.pack "Main"]
+                                     }
+
+-- | Make a module which defines a functor instance.
+mkModuleInstance :: Located ModName ->
+                    Located ModName ->
+                    ([Located Import], [TopDecl PName]) ->
+                    Module PName
+mkModuleInstance nm fun (is,ds) =
+  Module { mName     = nm
+         , mInstance = Just fun
+         , mImports  = is
+         , mDecls    = ds
+         }
+

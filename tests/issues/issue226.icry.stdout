@@ -16,8 +16,9 @@ Symbols
     (!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
     (!=) : {a} (Cmp a) => a -> a -> Bit
     (!==) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
-    (#) : {front, back,
-           a} (fin front) => [front]a -> [back]a -> [front + back]a
+    (#) :
+      {front, back, a} (fin front) =>
+        [front]a -> [back]a -> [front + back]a
     (%) : {a} (Arith a) => a -> a -> a
     (%$) : {a} (Arith a) => a -> a -> a
     (&&) : {a} (Logic a) => a -> a -> a
@@ -52,50 +53,58 @@ Symbols
     (^^) : {a} (Arith a) => a -> a -> a
     carry : {n} (fin n) => [n] -> [n] -> Bit
     complement : {a} (Logic a) => a -> a
-    demote : {val, bits} (fin val, fin bits,
-                          bits >= width val) => [bits]
-    drop : {front, back, elem} (fin front) => [front +
-                                               back]elem -> [back]elem
+    demote :
+      {val, bits} (fin val, fin bits, bits >= width val) => [bits]
+    drop :
+      {front, back, elem} (fin front) => [front + back]elem -> [back]elem
     error : {at, len} (fin len) => [len][8] -> at
     foo : {a} a -> a
     fromInteger : {a} (fin a) => Integer -> [a]
-    fromThen : {first, next, bits, len} (fin first, fin next, fin bits,
-                                         bits >= width first, bits >= width next,
-                                         lengthFromThen first next bits == len) => [len][bits]
-    fromThenTo : {first, next, last, bits, len} (fin first, fin next,
-                                                 fin last, fin bits, bits >= width first,
-                                                 bits >= width next, bits >= width last,
-                                                 lengthFromThenTo first next
-                                                                  last == len) => [len][bits]
-    fromTo : {first, last, bits} (fin last, fin bits, last >= first,
-                                  bits >= width last) => [1 + (last - first)][bits]
-    groupBy : {each, parts, elem} (fin each) => [each *
-                                                 parts]elem -> [parts][each]elem
+    fromThen :
+      {first, next, bits, len} (fin first, fin next, fin bits,
+                                bits >= width first, bits >= width next,
+                                lengthFromThen first next bits == len) =>
+        [len][bits]
+    fromThenTo :
+      {first, next, last, bits, len} (fin first, fin next, fin last,
+                                      fin bits, bits >= width first, bits >= width next,
+                                      bits >= width last,
+                                      lengthFromThenTo first next last == len) =>
+        [len][bits]
+    fromTo :
+      {first, last, bits} (fin last, fin bits, last >= first,
+                           bits >= width last) =>
+        [1 + (last - first)][bits]
+    groupBy :
+      {each, parts, elem} (fin each) =>
+        [each * parts]elem -> [parts][each]elem
     infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
     infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
     integer : {val} (fin val) => Integer
-    join : {parts, each, a} (fin each) => [parts][each]a -> [parts *
-                                                             each]a
+    join :
+      {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a
     lg2 : {a} (Arith a) => a -> a
     max : {a} (Cmp a) => a -> a -> a
     min : {a} (Cmp a) => a -> a -> a
     negate : {a} (Arith a) => a -> a
     pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
     pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
-    pmult : {a, b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 +
-                                                            (a + b)]
+    pmult :
+      {a, b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 + (a + b)]
     random : {a} [256] -> a
     reverse : {a, b} (fin a) => [a]b -> [a]b
     sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
     scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
     sext : {n, m} (fin m, m >= n, n >= 1) => [n] -> [m]
-    split : {parts, each, a} (fin each) => [parts *
-                                            each]a -> [parts][each]a
-    splitAt : {front, back, a} (fin front) => [front +
-                                               back]a -> ([front]a, [back]a)
+    split :
+      {parts, each, a} (fin each) => [parts * each]a -> [parts][each]a
+    splitAt :
+      {front, back, a} (fin front) =>
+        [front + back]a -> ([front]a, [back]a)
     tail : {a, b} [1 + a]b -> [a]b
-    take : {front, back, elem} (fin front) => [front +
-                                               back]elem -> [front]elem
+    take :
+      {front, back, elem} (fin front) =>
+        [front + back]elem -> [front]elem
     toInteger : {a} (fin a) => [a] -> Integer
     trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
     traceVal : {n, a} (fin n) => [n][8] -> a -> a
@@ -103,12 +112,14 @@ Symbols
     undefined : {a} a
     update : {a, b, c} (fin c) => [a]b -> [c] -> b -> [a]b
     updateEnd : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b -> [a]b
-    updates : {a, b, c, d} (fin c,
-                            fin d) => [a]b -> [d][c] -> [d]b -> [a]b
-    updatesEnd : {a, b, c, d} (fin a, fin c,
-                               fin d) => [a]b -> [d][c] -> [d]b -> [a]b
-    width : {bits, len, elem} (fin len, fin bits,
-                               bits >= width len) => [len]elem -> [bits]
+    updates :
+      {a, b, c, d} (fin c, fin d) => [a]b -> [d][c] -> [d]b -> [a]b
+    updatesEnd :
+      {a, b, c, d} (fin a, fin c, fin d) =>
+        [a]b -> [d][c] -> [d]b -> [a]b
+    width :
+      {bits, len, elem} (fin len, fin bits, bits >= width len) =>
+        [len]elem -> [bits]
     zero : {a} (Zero a) => a
     zext : {n, m} (fin m, m >= n) => [n] -> [m]
     (||) : {a} (Logic a) => a -> a -> a

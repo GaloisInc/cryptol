@@ -18,16 +18,18 @@ module Cryptol.TypeCheck.Infer where
 import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
-import qualified Cryptol.Parser.Names as P
+import qualified Cryptol.ModuleSystem.Exports as P
 import           Cryptol.TypeCheck.AST hiding (tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Solve
 import           Cryptol.TypeCheck.SimpType(tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
-                                        checkPropSyn,checkNewtype)
+                                        checkPropSyn,checkNewtype,
+                                        checkParameterType,
+                                        checkParameterConstraints)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
-import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@))
+import           Cryptol.TypeCheck.Subst (listSubst,apSubst,(@@),isEmptySubst)
 import           Cryptol.TypeCheck.Solver.InfNat(genLog)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
@@ -42,24 +44,31 @@ import           Data.Maybe(mapMaybe,isJust, fromMaybe)
 import           Data.List(partition,find)
 import           Data.Graph(SCC(..))
 import           Data.Traversable(forM)
-import           Control.Monad(when,zipWithM)
+import           Control.Monad(when,zipWithM,unless)
 
 inferModule :: P.Module Name -> InferM Module
 inferModule m =
   inferDs (P.mDecls m) $ \ds1 ->
-    do simplifyAllConstraints
+    do proveModuleTopLevel
        ts <- getTSyns
        nts <- getNewtypes
-       return Module { mName    = thing (P.mName m)
-                     , mExports = P.modExports m
-                     , mImports = map thing (P.mImports m)
-                     , mTySyns  = Map.mapMaybe onlyLocal ts
-                     , mNewtypes = Map.mapMaybe onlyLocal nts
-                     , mDecls   = ds1
+       pTs <- getParamTypes
+       pCs <- getParamConstraints
+       pFuns <- getParamFuns
+       return Module { mName      = thing (P.mName m)
+                     , mExports   = P.modExports m
+                     , mImports   = map thing (P.mImports m)
+                     , mTySyns    = Map.mapMaybe onlyLocal ts
+                     , mNewtypes  = Map.mapMaybe onlyLocal nts
+                     , mParamTypes = pTs
+                     , mParamConstraints = pCs
+                     , mParamFuns = pFuns
+                     , mDecls     = ds1
                      }
   where
   onlyLocal (IsLocal, x)    = Just x
   onlyLocal (IsExternal, _) = Nothing
+
 
 
 -- | Construct a primitive in the parsed AST.
@@ -632,7 +641,7 @@ guessType exprMap b@(P.Bind { .. }) =
   case bSignature of
 
     Just s ->
-      do s1 <- checkSchema s
+      do s1 <- checkSchema True s
          return ((name, ExtVar (fst s1)), Left (checkSigB b s1))
 
     Nothing
@@ -718,7 +727,7 @@ generalize bs0 gs0 =
           * any ones that survived the defaulting
           * and vars in the inferred types that do not appear anywhere else. -}
      let as   = as0 ++ Set.toList (Set.difference inSigs asmpVs)
-         asPs = [ TParam { tpUnique = x, tpKind = k, tpName = Nothing }
+         asPs = [ TParam { tpUnique = x, tpKind = k, tpFlav = TPOther Nothing }
                                                    | TVFree x k _ _ <- as ]
 
      {- Finally, we replace free variables with bound ones, and fix-up
@@ -798,7 +807,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
 
      asmps1 <- applySubst asmps0
 
-     defSu1 <- proveImplication (thing (P.bName b)) as asmps1 now
+     defSu1 <- proveImplication (Just (thing (P.bName b))) as asmps1 now
      let later = apSubst defSu1 later0
          asmps = apSubst defSu1 asmps1
 
@@ -840,6 +849,10 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
   where
   isTopLevel = isTopDecl (head ds)
 
+  checkTyDecls (AT t mbD : ts) =
+    do t1 <- checkParameterType t mbD
+       withParamType t1 (checkTyDecls ts)
+
   checkTyDecls (TS t mbD : ts) =
     do t1 <- checkTySyn t mbD
        withTySyn t1 (checkTyDecls ts)
@@ -853,8 +866,25 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
        withNewtype t1 (checkTyDecls ts)
 
   -- We checked all type synonyms, now continue with value-level definitions:
-  checkTyDecls [] = checkBinds [] $ orderBinds $ mapMaybe toBind ds
+  checkTyDecls [] =
+    do cs <- checkParameterConstraints (concatMap toParamConstraints ds)
+       withParameterConstraints cs $
+         do xs <- mapM checkParameterFun (mapMaybe toParamFun ds)
+            withParamFuns xs $ checkBinds [] $ orderBinds $ mapMaybe toBind ds
 
+
+  checkParameterFun x =
+    do (s,gs) <- checkSchema False (P.pfSchema x)
+       su <- proveImplication (Just (thing (P.pfName x)))
+                              (sVars s) (sProps s) gs
+       unless (isEmptySubst su) $
+         panic "checkParameterFun" ["Subst not empty??"]
+       let n = thing (P.pfName x)
+       return ModVParam { mvpName = n
+                        , mvpType = s
+                        , mvpDoc  = P.pfDoc x
+                        , mvpFixity = P.pfFixity x
+                        }
 
   checkBinds decls (CyclicSCC bs : more) =
      do bs1 <- inferBinds isTopLevel True bs

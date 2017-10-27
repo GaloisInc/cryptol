@@ -14,6 +14,8 @@ module Cryptol.TypeCheck.Kind
   , checkNewtype
   , checkTySyn
   , checkPropSyn
+  , checkParameterType
+  , checkParameterConstraints
   ) where
 
 import qualified Cryptol.Parser.AST as P
@@ -36,11 +38,11 @@ import           Control.Monad(unless,forM)
 
 
 -- | Check a type signature.
-checkSchema :: P.Schema Name -> InferM (Schema, [Goal])
-checkSchema (P.Forall xs ps t mb) =
+checkSchema :: Bool -> P.Schema Name -> InferM (Schema, [Goal])
+checkSchema withWild (P.Forall xs ps t mb) =
   do ((xs1,(ps1,t1)), gs) <-
         collectGoals $
-        rng $ withTParams True xs $
+        rng $ withTParams withWild schemaParam xs $
         do ps1 <- mapM checkProp ps
            t1  <- doCheckType t (Just KType)
            return (ps1,t1)
@@ -53,12 +55,20 @@ checkSchema (P.Forall xs ps t mb) =
           Nothing -> id
           Just r  -> inRange r
 
+checkParameterType :: P.ParameterType Name -> Maybe String -> InferM ModTParam
+checkParameterType a mbDoc =
+  do let k = cvtK (P.ptKind a)
+         n = thing (P.ptName a)
+     return ModTParam { mtpKind = k, mtpName = n, mtpDoc = mbDoc }
+
+
 -- | Check a type-synonym declaration.
 checkTySyn :: P.TySyn Name -> Maybe String -> InferM TySyn
 checkTySyn (P.TySyn x as t) mbD =
   do ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
-                    $ do r <- withTParams False as (doCheckType t Nothing)
+                    $ do r <- withTParams False tySynParam as
+                                                      (doCheckType t Nothing)
                          simplifyAllConstraints
                          return r
      return TySyn { tsName   = thing x
@@ -73,7 +83,8 @@ checkPropSyn :: P.PropSyn Name -> Maybe String -> InferM TySyn
 checkPropSyn (P.PropSyn x as ps) mbD =
   do ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
-                    $ do r <- withTParams False as (traverse checkProp ps)
+                    $ do r <- withTParams False propSynParam as
+                                                      (traverse checkProp ps)
                          simplifyAllConstraints
                          return r
      return TySyn { tsName   = thing x
@@ -89,7 +100,7 @@ checkNewtype :: P.Newtype Name -> Maybe String -> InferM Newtype
 checkNewtype (P.Newtype x as fs) mbD =
   do ((as1,fs1),gs) <- collectGoals $
        inRange (srcRange x) $
-       do r <- withTParams False as $
+       do r <- withTParams False newtypeParam as $
                forM fs $ \field ->
                  let n = name field
                  in kInRange (srcRange n) $
@@ -109,8 +120,17 @@ checkNewtype (P.Newtype x as fs) mbD =
 
 checkType :: P.Type Name -> Maybe Kind -> InferM Type
 checkType t k =
-  do (_, t1) <- withTParams True [] $ doCheckType t k
+  do (_, t1) <- withTParams True schemaParam {-no params-} [] $ doCheckType t k
      return (tRebuild t1)
+
+checkParameterConstraints :: [Located (P.Prop Name)] -> InferM [Located Prop]
+checkParameterConstraints ps =
+  do (_, cs) <- withTParams False schemaParam {-no params-}[] (mapM checkL ps)
+     return cs
+  where
+  checkL x = do p <- checkProp (thing x)
+                return x { thing = tRebuild p }
+
 
 {- | Check something with type parameters.
 
@@ -141,8 +161,12 @@ There are two reasons for this choice:
      annotation) in the rest.
 -}
 
-withTParams :: Bool -> [P.TParam Name] -> KindM a -> InferM ([TParam], a)
-withTParams allowWildCards xs m =
+withTParams :: Bool              {- ^ Do we allow wild cards -} ->
+              (Name -> TPFlavor) {- ^ What sort of params are these? -} ->
+              [P.TParam Name]    {- ^ The params -} ->
+              KindM a            {- ^ do this using the params -} ->
+              InferM ([TParam], a)
+withTParams allowWildCards flav xs m =
   do (as,a,ctrs) <-
         mdo mapM_ recordError duplicates
             (a, vars,ctrs) <- runKindM allowWildCards (zip' xs ts) m
@@ -159,7 +183,7 @@ withTParams allowWildCards xs m =
                     return KNum
 
   newTP vs tp = do k <- getKind vs tp
-                   n <- newTParam (Just (P.tpName tp)) k
+                   n <- newTParam (flav (P.tpName tp)) k
                    return (n, TVar (tpVar n))
 
 
@@ -169,12 +193,15 @@ withTParams allowWildCards xs m =
   zip' [] _           = []
   zip' (a:as) ~(t:ts) = (P.tpName a, fmap cvtK (P.tpKind a), t) : zip' as ts
 
-  cvtK P.KNum  = KNum
-  cvtK P.KType = KType
-
   duplicates = [ RepeatedTyParams ds
                     | ds@(_ : _ : _) <- groupBy ((==) `on` P.tpName)
                                       $ sortBy (compare `on` P.tpName) xs ]
+
+cvtK :: P.Kind -> Kind
+cvtK P.KNum  = KNum
+cvtK P.KType = KType
+
+
 
 -- | Check an application of a type constant.
 tcon :: TCon            -- ^ Type constant being applied
@@ -185,7 +212,7 @@ tcon tc ts0 k =
   do (ts1,k1) <- appTy ts0 (kindOf tc)
      checkKind (TCon tc ts1) k k1
 
--- | Check a use of a type-synonym, newtype, or scoped-type variable.
+-- | Check a use of a type-synonym, newtype, abs type, or scoped-type variable.
 tySyn :: Bool         -- ^ Should we check for scoped type vars.
       -> Name         -- ^ Name of type sysnonym
       -> [P.Type Name]-- ^ Type synonym parameters
@@ -214,12 +241,30 @@ tySyn scoped x ts k =
                    ts2 <- checkParams (ntParams nt) ts1
                    return (TCon tc ts2)
 
-              -- Maybe it is a scoped type variable?
-              Nothing
-                | scoped -> kExistTVar x $ fromMaybe KNum k
-                | otherwise ->
-                  do kRecordError $ UndefinedTypeSynonym x
-                     kNewType (text "type synonym" <+> pp x) $ fromMaybe KNum k
+              -- Maybe it is a parameter type?
+              Nothing ->
+                do mbA <- kLookupParamType x
+                   case mbA of
+                     Just a ->
+                       do let ty = tpVar (mtpParam a)
+                          (ts1,k1) <- appTy ts (kindOf ty)
+                          case k of
+                            Just ks
+                              | ks /= k1 -> kRecordError $ KindMismatch ks k1
+                            _ -> return ()
+
+                          unless (null ts1)
+                            $ panic "Kind.tySyn" [ "Unexpected parameters" ]
+
+                          return (TVar ty)
+
+                     -- Maybe it is a scoped type variable?
+                     Nothing
+                       | scoped -> kExistTVar x $ fromMaybe KNum k
+                       | otherwise ->
+                          do kRecordError $ UndefinedTypeSynonym x
+                             kNewType (text "type synonym" <+> pp x) $
+                                                            fromMaybe KNum k
   where
   checkParams as ts1
     | paramHave == paramNeed = return ts1

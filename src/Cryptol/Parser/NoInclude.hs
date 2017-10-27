@@ -156,6 +156,9 @@ noIncTopDecl :: TopDecl PName -> NoIncM [TopDecl PName]
 noIncTopDecl td = case td of
   Decl _     -> return [td]
   TDNewtype _-> return [td]
+  DParameterType {} -> return [td]
+  DParameterConstraint {} -> return [td]
+  DParameterFun {} -> return [td]
   Include lf -> resolveInclude lf
 
 -- | Resolve the file referenced by a include into a list of top-level

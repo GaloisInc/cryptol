@@ -33,6 +33,9 @@ module Cryptol.ModuleSystem.Name (
     -- ** Creation
   , mkDeclared
   , mkParameter
+  , toParamInstName
+  , asParamName
+  , paramModRecParam
 
     -- ** Unique Supply
   , FreshM(..), nextUniqueM
@@ -46,7 +49,7 @@ module Cryptol.ModuleSystem.Name (
   ) where
 
 import           Cryptol.Parser.AST( Fixity(..) )
-import           Cryptol.Parser.Position (Range,Located(..))
+import           Cryptol.Parser.Position (Range,Located(..),emptyRange)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
@@ -196,6 +199,15 @@ asPrim Name { .. }
   | nInfo == Declared preludeName = Just nIdent
   | otherwise                     = Nothing
 
+toParamInstName :: Name -> Name
+toParamInstName n =
+  case nInfo n of
+    Declared m  -> n { nInfo = Declared (paramInstModName m) }
+    Parameter   -> n
+
+asParamName :: Name -> Name
+asParamName n = n { nInfo = Parameter }
+
 
 -- Name Supply -----------------------------------------------------------------
 
@@ -272,7 +284,10 @@ data Supply = Supply !Int
 -- plenty of room for names that the compiler needs to know about (wired-in
 -- constants).
 emptySupply :: Supply
-emptySupply  = Supply 0
+emptySupply  = Supply 0x1000
+-- For one such name, see paramModRecParam
+-- XXX: perhaps we should simply not have such things, but that's the way
+-- for now.
 
 nextUnique :: Supply -> (Int,Supply)
 nextUnique (Supply n) = s' `seq` (n,s')
@@ -296,6 +311,13 @@ mkParameter nIdent nLoc s =
       nFixity      = Nothing
    in (Name { nInfo = Parameter, .. }, s')
 
+paramModRecParam :: Name
+paramModRecParam = Name { nInfo = Parameter
+                        , nFixity = Nothing
+                        , nIdent  = packIdent "$modParams"
+                        , nLoc    = emptyRange
+                        , nUnique = 0x01
+                        }
 
 -- Prim Maps -------------------------------------------------------------------
 
