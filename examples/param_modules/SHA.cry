@@ -3,7 +3,7 @@ module SHA where
 import `SHA_Common
 
 sha256 : {n} (64 >= width n) => [n] -> [256]
-sha256 = SHA_2_Common
+sha256 = sha
   { SIGMA_0 = \x -> (x >>> 2) ^ (x >>> 13) ^ (x >>> 22)
   , SIGMA_1 = \x -> (x >>> 6) ^ (x >>> 11) ^ (x >>> 25)
   , sigma_0 = \x -> (x >>> 7) ^ (x >>> 18) ^ (x >> 3)
