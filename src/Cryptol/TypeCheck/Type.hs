@@ -385,6 +385,11 @@ tIsTuple ty = case tNoUser ty of
                 TCon (TC (TCTuple _)) ts -> Just ts
                 _                        -> Nothing
 
+tIsRec :: Type -> Maybe [(Ident, Type)]
+tIsRec ty = case tNoUser ty of
+              TRec fs -> Just fs
+              _       -> Nothing
+
 tIsBinFun :: TFun -> Type -> Maybe (Type,Type)
 tIsBinFun f ty = case tNoUser ty of
                    TCon (TF g) [a,b] | f == g -> Just (a,b)

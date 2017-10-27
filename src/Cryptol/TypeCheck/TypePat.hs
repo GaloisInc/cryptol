@@ -14,6 +14,7 @@ module Cryptol.TypeCheck.TypePat
   , aWord
   , aChar
   , aTuple
+  , aRec
   , (|->|)
 
   , aFin, (|=|), (|/=|), (|>=|)
@@ -29,6 +30,7 @@ module Cryptol.TypeCheck.TypePat
 
 import Control.Applicative((<|>))
 import Control.Monad
+import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.Patterns
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.Solver.InfNat
@@ -147,6 +149,11 @@ aTuple :: Pat Type [Type]
 aTuple = \a -> case tNoUser a of
                  TCon (TC (TCTuple _)) ts -> return ts
                  _                        -> mzero
+
+aRec :: Pat Type [(Ident, Type)]
+aRec = \a -> case tNoUser a of
+               TRec fs -> return fs
+               _       -> mzero
 
 (|->|) :: Pat Type (Type,Type)
 (|->|) = tc TCFun ar2
