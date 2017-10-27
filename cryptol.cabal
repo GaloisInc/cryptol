@@ -152,6 +152,8 @@ library
                        Cryptol.Transform.Specialize,
                        Cryptol.Transform.AddModParams,
 
+                       Cryptol.IR.FreeVars,
+
                        Cryptol.Eval,
                        Cryptol.Eval.Arch,
                        Cryptol.Eval.Env,

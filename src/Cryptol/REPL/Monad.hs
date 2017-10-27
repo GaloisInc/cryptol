@@ -85,6 +85,7 @@ import Cryptol.Parser.NoPat (Error)
 import Cryptol.Parser.Position (emptyRange, Range(from))
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck as T
+import qualified Cryptol.IR.FreeVars as T
 import qualified Cryptol.Utils.Ident as I
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
@@ -92,7 +93,7 @@ import Cryptol.Utils.Logger(Logger, logPutStr, funLogger)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (proverNames, lookupProver, SatNum(..))
 
-import Control.Monad (ap,unless,when)
+import Control.Monad (ap,unless,when,msum)
 import Control.Monad.Base
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
@@ -100,12 +101,13 @@ import Data.Char (isSpace)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef,atomicModifyIORef)
 import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
-import Data.Maybe (catMaybes)
+import Data.Maybe (catMaybes,mapMaybe)
 import Data.Ord (comparing)
 import Data.Typeable (Typeable)
 import System.Directory (findExecutable)
 import qualified Control.Exception as X
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Text.Read (readMaybe)
 
 import Data.SBV.Dynamic (sbvCheckSolverInstallation)
@@ -169,9 +171,7 @@ defaultRW isBatch l = do
 mkPrompt :: RW -> String
 mkPrompt rw
   | eIsBatch rw = ""
-  | otherwise   = maybe "cryptol" txt (eLoadedMod rw) ++ "> "
-    -- maybe "cryptol" pretty (lName =<< eLoadedMod rw) ++ "> "
-    where txt l = unlines [ lPath l, maybe "(none)" pretty (lName l) ]
+  | otherwise   = maybe "cryptol" pretty (lName =<< eLoadedMod rw) ++ "> "
 
 -- REPL Monad ------------------------------------------------------------------
 
@@ -233,7 +233,7 @@ data REPLException
   | ModuleSystemError NameDisp M.ModuleError
   | EvalPolyError T.Schema
   | TypeNotTestable T.Type
-  | EvalInParamModule P.ModName
+  | EvalInParamModule P.ModName [M.Name]
     deriving (Show,Typeable)
 
 instance X.Exception REPLException
@@ -257,9 +257,8 @@ instance PP REPLException where
                          $$ text "Type:" <+> pp s
     TypeNotTestable t    -> text "The expression is not of a testable type."
                          $$ text "Type:" <+> pp t
-    EvalInParamModule m  -> text "The current module," <+> pp m <> comma <+>
-                            text "is parameterized, and does not support" <+>
-                            text "evaluation."
+    EvalInParamModule _ xs ->
+      text "Expression depends on a module parameter:" <+> hsep (map pp xs)
 
 -- | Raise an exception.
 raise :: REPLException -> REPL a
@@ -364,15 +363,35 @@ getLetEnabled = fmap eLetEnabled getRW
 
 -- | Is evaluation enabled.  If the currently focused module is
 -- parameterized, then we cannot evalute.
-validEvalContext :: REPL ()
-validEvalContext =
+validEvalContext :: T.FreeVars a => a -> REPL ()
+validEvalContext a =
   do me <- eModuleEnv <$> getRW
      case M.meFocusedModule me of
        Nothing -> return ()
        Just fm ->
          case M.lookupModule fm me of
-           Just m -> when (T.isParametrizedModule (M.lmModule m))
-                       $ raise $ EvalInParamModule fm
+           Just lm
+             | Set.null tps && Set.null vps -> return ()
+             | Just xs <- check (T.freeVars a) ->
+                              raise $ EvalInParamModule fm xs
+             | otherwise -> return ()
+             where
+             m = M.lmModule lm
+
+             tps = Set.fromList $ map T.mtpParam $ Map.elems $ T.mParamTypes m
+             vps = Map.keysSet (T.mParamFuns m)
+
+             bad ds | not $ null badTP = Just $ mapMaybe T.tpName badTP
+                    | not $ null badVP = Just badVP
+                    | otherwise = Nothing
+               where
+               badTP = Set.toList $ Set.intersection tps (T.tyParams ds)
+               badVP = Set.toList $ Set.intersection vps (T.valDeps ds)
+
+             check ds   = msum (bad ds : map badSub (Set.toList (T.valDeps ds)))
+             badSub x   = maybe Nothing bad (Map.lookup x deps)
+             deps       = T.moduleDeps m
+
            Nothing ->
              panic "getEvalEnabled" ["The focused module is not loaded."
                                     , show fm ]

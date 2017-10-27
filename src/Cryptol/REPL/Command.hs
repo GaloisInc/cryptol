@@ -47,8 +47,6 @@ module Cryptol.REPL.Command (
   , moduleCmdResult
   ) where
 
-import Debug.Trace
-
 import Cryptol.REPL.Monad
 import Cryptol.REPL.Trie
 
@@ -641,9 +639,9 @@ specializeCmd str = do
 
 refEvalCmd :: String -> REPL ()
 refEvalCmd str = do
-  validEvalContext
   parseExpr <- replParseExpr str
   (_, expr, _schema) <- replCheckExpr parseExpr
+  validEvalContext expr
   val <- liftModuleCmd (rethrowEvalError . R.evaluate expr)
   rPrint $ R.ppValue val
 
@@ -1114,9 +1112,8 @@ replSpecExpr e = liftModuleCmd $ S.specialize e
 
 replEvalExpr :: P.Expr P.PName -> REPL (E.Value, T.Type)
 replEvalExpr expr =
-  do validEvalContext
-     (_,def,sig) <- replCheckExpr expr
-
+  do (_,def,sig) <- replCheckExpr expr
+     validEvalContext def
      me <- getModuleEnv
      let cfg = M.meSolverConfig me
      mbDef <- io $ SMT.withSolver cfg (\s -> defaultReplExpr s def sig)
@@ -1187,8 +1184,8 @@ bindItVariables ty exprs = bindItVariable seqTy seqExpr
 
 replEvalDecl :: P.Decl P.PName -> REPL ()
 replEvalDecl decl = do
-  validEvalContext
   dgs <- replCheckDecls [decl]
+  validEvalContext dgs
   whenDebug (mapM_ (\dg -> (rPutStrLn (dump dg))) dgs)
   liftModuleCmd (M.evalDecls dgs)
 
