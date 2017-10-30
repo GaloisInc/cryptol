@@ -23,6 +23,7 @@ import qualified Cryptol.ModuleSystem.Base      as M
 import qualified Cryptol.ModuleSystem.Env       as M
 import qualified Cryptol.ModuleSystem.Monad     as M
 import qualified Cryptol.ModuleSystem.NamingEnv as M
+import           Cryptol.ModuleSystem.Interface (noIfaceParams)
 
 import qualified Cryptol.Parser           as P
 import qualified Cryptol.Parser.AST       as P
@@ -127,7 +128,7 @@ tc cd name path =
                            , M.tcLinter = M.moduleLinter (P.thing (P.mName scm))
                            , M.tcPrims  = prims
                            }
-      M.typecheck act scm tcEnv
+      M.typecheck act scm noIfaceParams tcEnv
 
 ceval :: String -> String -> FilePath -> T.Text -> Benchmark
 ceval cd name path expr =
