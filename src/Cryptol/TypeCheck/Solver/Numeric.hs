@@ -6,6 +6,7 @@ module Cryptol.TypeCheck.Solver.Numeric
 import           Control.Applicative(Alternative(..))
 import           Control.Monad (guard,mzero)
 import           Data.Foldable (asum)
+import           Data.List (sortBy)
 
 import Cryptol.Utils.Patterns
 import Cryptol.TypeCheck.PP
@@ -40,6 +41,7 @@ cryIsEqual ctxt t1 t2 =
     <|> tryEqMulConst t1 t2
     <|> tryEqAddInf ctxt t1 t2
     <|> tryAddConst (=#=) t1 t2
+    <|> tryCancelVar ctxt (=#=) t1 t2
     <|> tryLinearSolution t1 t2
     <|> tryLinearSolution t2 t1
 
@@ -59,6 +61,7 @@ cryIsGeq i t1 t2 =
     <|> (geqByInterval i t1 t2)
     <|> (guard (t1 == t2) >> return (SolvedIf []))
     <|> tryAddConst (>==) t1 t2
+    <|> tryCancelVar i (>==) t1 t2
     <|> tryMinIsGeq t1 t2
     -- XXX: k >= width e
     -- XXX: width e >= k
@@ -149,6 +152,53 @@ tryMinIsGeq t1 t2 =
                       show k1 ++ " can't be greater than " ++ show k2
 
 --------------------------------------------------------------------------------
+
+-- | Cancel finite positive variables from both sides.
+-- @(fin a, a >= 1) =>  a * t1 == a * t2 ~~~> t1 == t2@
+-- @(fin a, a >= 1) =>  a * t1 >= a * t2 ~~~> t1 >= t2@
+tryCancelVar :: Ctxt -> (Type -> Type -> Prop) -> Type -> Type -> Match Solved
+tryCancelVar ctxt p t1 t2 =
+  let lhs = preproc t1
+      rhs = preproc t2
+  in case check [] [] lhs rhs of
+       Nothing -> fail ""
+       Just x  -> return x
+
+
+  where
+  check doneLHS doneRHS lhs@((a,mbA) : moreLHS) rhs@((b, mbB) : moreRHS) =
+    do x <- mbA
+       y <- mbB
+       case compare x y of
+         LT -> check (a : doneLHS) doneRHS moreLHS rhs
+         EQ -> return $ SolvedIf [ p (term (doneLHS ++ map fst moreLHS))
+                                     (term (doneRHS ++ map fst moreRHS)) ]
+         GT -> check doneLHS (b : doneRHS) lhs moreRHS
+  check _ _ _ _ = Nothing
+
+  term xs = case xs of
+              [] -> tNum (1::Int)
+              _  -> foldr1 tMul xs
+
+  preproc t = let fs = splitMul t []
+              in sortBy cmpFact (zip fs (map cancelVar fs))
+
+  splitMul t rest = case matchMaybe (aMul t) of
+                      Just (a,b) -> splitMul a (splitMul b rest)
+                      Nothing    -> t : rest
+
+  cancelVar t = matchMaybe $ do x <- aTVar t
+                                guard (iIsPosFin (tvarInterval ctxt x))
+                                return x
+
+  -- cancellable variables go first, sorted alphabetically
+  cmpFact (_,mbA) (_,mbB) =
+    case (mbA,mbB) of
+      (Just x, Just y)  -> compare x y
+      (Just _, Nothing) -> LT
+      (Nothing, Just _) -> GT
+      _                 -> EQ
+
 
 
 -- min t1 t2 = t1 ~> t1 <= t2

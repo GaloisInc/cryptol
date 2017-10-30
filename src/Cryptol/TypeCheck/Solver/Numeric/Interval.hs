@@ -49,9 +49,12 @@ typeInterval varInfo = go
             iLenFromThenTo (go x) (go y) (go z)
           _ -> iAny
 
-      TVar x -> Map.findWithDefault iAny x varInfo
+      TVar x -> tvarInterval varInfo x
 
       _ -> iAny
+
+tvarInterval :: Map TVar Interval -> TVar -> Interval
+tvarInterval varInfo x = Map.findWithDefault iAny x varInfo
 
 
 data IntervalUpdate = NoChange
@@ -169,15 +172,19 @@ iIsFin i = case iUpper i of
              Just Inf -> False
              _        -> True
 
+-- | Finite positive number. @[1 ..  inf)@.
+iIsPosFin :: Interval -> Bool
+iIsPosFin i = iLower i >= Nat 1 && iIsFin i
+
 
 -- | Returns 'True' when the intervals definitely overlap, and 'False'
 -- otherwise.
-iDisjoint :: Interval -> Interval -> Bool
-iDisjoint
+iOverlap :: Interval -> Interval -> Bool
+iOverlap
   (Interval (Nat l1) (Just (Nat h1)))
   (Interval (Nat l2) (Just (Nat h2))) =
     or [ h1 > l2 && h1 < h2, l1 > l2 && l1 < h2 ]
-iDisjoint _ _ = False
+iOverlap _ _ = False
 
 
 -- | Intersect two intervals, yielding a new one that describes the space where
