@@ -25,6 +25,7 @@ module Cryptol.TypeCheck.Solver.SMT
   , proveImp
   , checkUnsolvable
   , tryGetModel
+  , shrinkModel
   ) where
 
 import           SimpleSMT (SExpr)
@@ -45,8 +46,9 @@ import           System.Directory(doesFileExist)
 import Cryptol.Prelude(cryptolTcContents)
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.InferTypes
+import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.TypeCheck.TypePat hiding ((~>),(~~>))
-import Cryptol.TypeCheck.Subst(Subst, emptySubst, listSubst)
+import Cryptol.TypeCheck.Subst(Subst)
 import Cryptol.Utils.Panic
 import Cryptol.Utils.PP -- ( Doc )
 
@@ -198,7 +200,7 @@ checkUnsolvable sol gs0 =
      pop sol
      return ans
 
-tryGetModel :: Solver -> [TVar] -> [Prop] -> IO (Maybe Subst)
+tryGetModel :: Solver -> [TVar] -> [Prop] -> IO (Maybe [(TVar,Nat')])
 tryGetModel sol as ps =
   do push sol
      tvs <- Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ] as
@@ -207,12 +209,12 @@ tryGetModel sol as ps =
      su <- case sat of
              SMT.Sat ->
                case as of
-                 [] -> return (Just emptySubst)
+                 [] -> return (Just [])
                  _ -> do res <- SMT.getExprs (solver sol) (Map.elems tvs)
                          let parse x = do e <- Map.lookup x tvs
                                           t <- parseNum =<< lookup e res
                                           return (x, t)
-                         return (listSubst <$> mapM parse as)
+                         return (mapM parse as)
              _ -> return Nothing
      pop sol
      return su
@@ -226,9 +228,34 @@ tryGetModel sol as ps =
     , SMT.Atom fin         <- isFin
     , SMT.Atom v           <- val
     , Just n               <- readMaybe v
-    = Just (if fin == "false" then tInf else tNum (n :: Integer))
+    = Just (if fin == "false" then Inf else Nat n)
 
   parseNum _ = Nothing
+
+shrinkModel :: Solver -> [TVar] -> [Prop] -> [(TVar,Nat')] -> IO [(TVar,Nat')]
+shrinkModel sol as ps0 mdl = go [] ps0 mdl
+  where
+  go done ps ((x,Nat k) : more) =
+    do k1 <- shrink1 ps x k
+       go ((x,Nat k1) : done) ((tNum k1 >== TVar x) : ps) more
+
+  go done ps ((x,i) : more) = go ((x,i) : done) ps more
+  go done _ [] = return done
+
+  shrink1 ps x k
+    | k == 0 = return 0
+    | otherwise =
+      do let k1 = div k 2
+             p1 = tNum k1 >== TVar x
+         mb <- tryGetModel sol as (p1 : ps)
+         case mb of
+           Nothing     -> return k
+           Just newMdl ->
+             case lookup x newMdl of
+               Just (Nat k2) -> shrink1 ps x k2
+               _ -> panic "shrink" ["model is missing variable", show x]
+
+
 
 --------------------------------------------------------------------------------
 

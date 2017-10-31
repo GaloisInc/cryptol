@@ -32,7 +32,8 @@ import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import           Cryptol.TypeCheck.SimpType(tMax)
 
 
-import           Cryptol.TypeCheck.Solver.SMT(Solver,proveImp,tryGetModel)
+import           Cryptol.TypeCheck.Solver.SMT(Solver,proveImp,
+                                                  tryGetModel,shrinkModel)
 import           Cryptol.TypeCheck.Solver.Improve(improveProp,improveProps)
 import           Cryptol.TypeCheck.Solver.Numeric.Interval
 import           Cryptol.Utils.PP (text,vcat,(<+>))
@@ -416,9 +417,14 @@ defaultReplExpr sol e s =
   if all (\v -> kindOf v == KNum) (sVars s)
      then do let params = map tpVar (sVars s)
                  props  = sProps s
-             mbSubst <- tryGetModel sol params props
-             return $ do su <- mbSubst
-                         guard (null (concatMap pSplitAnd (apSubst su props)))
+             mb <- tryGetModel sol params props
+             case mb of
+               Nothing -> return Nothing
+               Just mdl0 ->
+                 do mdl <- shrinkModel sol params props mdl0
+                    let su = listSubst [ (x, tNat' n) | (x,n) <- mdl ]
+                    return $
+                      do guard (null (concatMap pSplitAnd (apSubst su props)))
                          tys <- mapM (bindParam su) params
                          return (zip (sVars s) tys, appExpr tys)
      else return Nothing
