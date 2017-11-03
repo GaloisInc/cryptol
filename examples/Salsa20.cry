@@ -178,5 +178,5 @@ Salsa20_expansion(k, n) = z
 Salsa20_encrypt : {a, l} (a >= 1, 2 >= a, l <= 2^^70) => ([16*a][8], [8][8], [l][8]) -> [l][8]
 Salsa20_encrypt(k, v, m) = c
   where
-    salsa = take (join [ Salsa20_expansion(k, v#(split i)) | i <- [0, 1 ... ] ])
+    salsa = take (join [ Salsa20_expansion(k, v#(reverse (split i))) | i <- [0, 1 ... ] ])
     c = m ^ salsa
