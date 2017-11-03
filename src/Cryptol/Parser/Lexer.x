@@ -45,10 +45,10 @@ $unitick        = \x7
 @qual_id      = @qual @id
 @qual_op      = @qual @op
 
-@num2         = "0b" [0-1]+
-@num8         = "0o" [0-7]+
-@num10        = [0-9]+
-@num16        = "0x" [0-9A-Fa-f]+
+@num2         = "0b" (_*[0-1])+
+@num8         = "0o" (_*[0-7])+
+@num10        = [0-9](_*[0-9])*
+@num16        = "0x" (_*[0-9A-Fa-f])+
 
 @strPart      = [^\\\"]+
 @chrPart      = [^\\\']+

@@ -214,8 +214,9 @@ splitQual t =
 
 --------------------------------------------------------------------------------
 numToken :: Integer -> Text -> TokenT
-numToken rad ds = Num (toVal ds) (fromInteger rad) (fromIntegral (T.length ds))
+numToken rad ds = Num (toVal ds') (fromInteger rad) (fromIntegral (T.length ds'))
   where
+  ds' = T.filter (/= '_') ds
   toVal = T.foldl' (\x c -> rad * x + fromDigit c) 0
 
 fromDigit :: Char -> Integer
