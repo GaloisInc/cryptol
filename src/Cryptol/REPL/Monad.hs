@@ -234,6 +234,7 @@ data REPLException
   | EvalPolyError T.Schema
   | TypeNotTestable T.Type
   | EvalInParamModule P.ModName [M.Name]
+  | SBVError String
     deriving (Show,Typeable)
 
 instance X.Exception REPLException
@@ -259,6 +260,7 @@ instance PP REPLException where
                          $$ text "Type:" <+> pp t
     EvalInParamModule _ xs ->
       text "Expression depends on a module parameter:" <+> hsep (map pp xs)
+    SBVError s           -> text "SBV error:" $$ text s
 
 -- | Raise an exception.
 raise :: REPLException -> REPL a
