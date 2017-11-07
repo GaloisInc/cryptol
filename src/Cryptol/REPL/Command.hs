@@ -474,6 +474,12 @@ showProverStats mprover stat = rPutStrLn msg
   msg = "(Total Elapsed Time: " ++ SBV.showTDiff stat ++
         maybe "" (\p -> ", using " ++ show p) mprover ++ ")"
 
+rethrowErrorCall :: REPL a -> REPL a
+rethrowErrorCall m = REPL (\r -> unREPL m r `X.catch` handler)
+  where
+    handler (X.ErrorCallWithLocation s _) = X.throwIO (SBVError s)
+
+
 -- | Console-specific version of 'proveSat'. Prints output to the
 -- console, and binds the @it@ variable to a record whose form depends
 -- on the expression given. See ticket #66 for a discussion of this
@@ -514,7 +520,7 @@ cmdProveSat isSat str = do
             Just path -> io $ writeFile path smtlib
             Nothing -> rPutStr smtlib
     _ -> do
-      (firstProver,result,stats) <- onlineProveSat isSat str mfile
+      (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat isSat str mfile)
       case result of
         Symbolic.EmptyResult         ->
           panic "REPL.Command" [ "got EmptyResult for online prover query" ]

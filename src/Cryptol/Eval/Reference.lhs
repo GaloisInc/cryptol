@@ -521,6 +521,8 @@ Cryptol primitives fall into several groups:
 >   , ("*"          , binary (arithBinary (\x y -> Right (x * y))))
 >   , ("/"          , binary (arithBinary divWrap))
 >   , ("%"          , binary (arithBinary modWrap))
+>   , ("/$"         , binary (signedArithBinary divWrap))
+>   , ("%$"         , binary (signedArithBinary modWrap))
 >   , ("^^"         , binary (arithBinary expWrap))
 >   , ("lg2"        , unary  (arithUnary lg2))
 >   , ("negate"     , unary  (arithUnary negate))
@@ -724,6 +726,15 @@ error if any of the input bits contain an evaluation error.
 > bitsToInteger bs = foldl f 0 bs
 >   where f x b = if b then 2 * x + 1 else 2 * x
 
+> fromSignedVWord :: Value -> Either EvalError Integer
+> fromSignedVWord v = fmap signedBitsToInteger (mapM fromVBit (fromVList v))
+>
+> -- | Convert a list of booleans in signed big-endian format to an integer.
+> signedBitsToInteger :: [Bool] -> Integer
+> signedBitsToInteger [] = evalPanic "signedBitsToInteger" ["Bitvector has zero length"]
+> signedBitsToInteger (b0 : bs) = foldl f (if b0 then -1 else 0) bs
+>   where f x b = if b then 2 * x + 1 else 2 * x
+
 Functions `vWord`, `vWordValue`, and `vWordError` convert from
 integers back to the big-endian bitvector representation. If an
 integer-producing function raises a run-time exception, then the
@@ -808,6 +819,9 @@ all input bits, as indicated by the definition of `fromVWord`. For
 example, `[error "foo", True] * 2` does not evaluate to `[True,
 False]`, but to `[error "foo", error "foo"]`.
 
+Signed arithmetic primitives may be applied to any type that is made
+up of non-empty finite bitvectors.
+
 > arithUnary :: (Integer -> Integer)
 >            -> TValue -> Value -> Value
 > arithUnary op = go
@@ -833,7 +847,16 @@ False]`, but to `[error "foo", error "foo"]`.
 >
 > arithBinary :: (Integer -> Integer -> Either EvalError Integer)
 >             -> TValue -> Value -> Value -> Value
-> arithBinary op = go
+> arithBinary = arithBinaryGeneric fromVWord
+>
+> signedArithBinary :: (Integer -> Integer -> Either EvalError Integer)
+>                   -> TValue -> Value -> Value -> Value
+> signedArithBinary = arithBinaryGeneric fromSignedVWord
+>
+> arithBinaryGeneric :: (Value -> Either EvalError Integer)
+>                    -> (Integer -> Integer -> Either EvalError Integer)
+>                    -> TValue -> Value -> Value -> Value
+> arithBinaryGeneric fromWord op = go
 >   where
 >     go :: TValue -> Value -> Value -> Value
 >     go ty l r =
@@ -850,10 +873,10 @@ False]`, but to `[error "foo", error "foo"]`.
 >                 Right j -> op i j
 >         TVSeq w a
 >           | isTBit a  -> vWord w $
->                          case fromVWord l of
+>                          case fromWord l of
 >                            Left e -> Left e
 >                            Right i ->
->                              case fromVWord r of
+>                              case fromWord r of
 >                                Left e -> Left e
 >                                Right j -> op i j
 >           | otherwise -> VList (zipWith (go a) (fromVList l) (fromVList r))
@@ -865,14 +888,19 @@ False]`, but to `[error "foo", error "foo"]`.
 >           VTuple (zipWith3 go tys (fromVTuple l) (fromVTuple r))
 >         TVRec fs ->
 >           VRecord [ (f, go fty (lookupRecord f l) (lookupRecord f r)) | (f, fty) <- fs ]
->
+
+Signed bitvector division (`/$`) and remainder (`%$`) are defined so
+that division rounds toward zero, and the remainder `x %$ y` has the
+same sign as `x`. Accordingly, they are implemented with Haskell's
+`quot` and `rem` operations.
+
 > divWrap :: Integer -> Integer -> Either EvalError Integer
 > divWrap _ 0 = Left DivideByZero
-> divWrap x y = Right (x `div` y)
+> divWrap x y = Right (x `quot` y)
 >
 > modWrap :: Integer -> Integer -> Either EvalError Integer
 > modWrap _ 0 = Left DivideByZero
-> modWrap x y = Right (x `mod` y)
+> modWrap x y = Right (x `rem` y)
 >
 > expWrap :: Integer -> Integer -> Either EvalError Integer
 > expWrap x y = if y < 0 then Left NegativeExponent else Right (x ^ y)
