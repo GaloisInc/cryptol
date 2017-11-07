@@ -759,7 +759,8 @@ loadPrelude  = moduleCmd $ show $ pp M.preludeName
 loadCmd :: FilePath -> REPL ()
 loadCmd path
   | null path = return ()
-  | otherwise = loadHelper (M.loadModuleByPath path)
+  | otherwise = do setEditPath path
+                   loadHelper (M.loadModuleByPath path)
 
 loadHelper :: M.ModuleCmd (FilePath,T.Module) -> REPL ()
 loadHelper how =
