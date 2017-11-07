@@ -1,6 +1,6 @@
 module SHA where
 
-import `SHA_Common
+import `Common::SHA
 
 sha256 : {n} (64 >= width n) => [n] -> [256]
 sha256 = sha

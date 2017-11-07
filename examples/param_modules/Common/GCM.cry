@@ -1,0 +1,109 @@
+/* Galois Counter Mode in Cryptol
+Copyright (c) 2017, Galois, Inc.
+
+This implementation follows:
+  "The Galois/Counter Mode of Operation (GCM)"
+paper by McGrew and Viega.
+*/
+
+module Common::GCM where
+
+parameter
+  /** Key size */
+  type K : #
+  type constraint (fin K)
+
+  /** Size of initialization vector */
+  type IV : #
+  type constraint (64 >= width IV, IV >= 1)
+
+  /** Size of additional authenticated data */
+  type AAD  : #
+  type constraint (64 >= width AAD)
+
+  /** Size of authentication tag */
+  type T : #
+  type constraint (128 >= T, T >= 64)
+
+  /** Block encryption function */
+  E : [K] -> [128] -> [128]
+
+encrypt :
+  {n} (2^^39 - 256 >= n) =>
+      { key : [K], iv : [IV], aad : [AAD], pt : [n] } -> { ct : [n], tag : [T] }
+encrypt input = { ct = C, tag = T }
+  where (C,T) = enc_dec input.key input.iv input.aad input.pt
+
+decrypt :
+  {n} (2^^39 - 256 >= n) =>
+  { key : [K], iv  : [IV], aad : [AAD], ct  : [n], tag : [T] } ->
+  { valid : Bool, pt : [n] }
+decrypt input = if input.tag == T then { valid = True, pt = P }
+                                  else { valid = False, pt = 0 }
+  where (P,T) = enc_dec input.key input.iv input.aad input.ct
+
+
+
+/**
+The basic functionality between encryption and decryption.
+In the case of decryption, the plain text is only valid if the tags match.
+*/
+enc_dec :
+  {n} ((2^^39 - 256) >= n) => [K] -> [IV] -> [AAD] -> [n] -> ([n], [T])
+enc_dec K IV A P = (C,T)
+  where
+  H  = E K 0
+
+  Y0 = ifWidth`{96} IV (\IV96 -> IV96 # 1)
+                       (GHASH H [] IV)
+
+  Ys = [Y0] # [ y+1 | y <- Ys ]
+
+  Cs = [ p ^ E K y | p <- blockify P | y <- drop`{1} Ys ]
+  C  = unblockify Cs
+
+  T = take (GHASH H A C ^ E K Y0)
+
+
+/** Section 2.3, equation (2) */
+GHASH : {C,A} (64 >= width C, 64 >= width A) => [128] -> [A] -> [C] -> [128]
+GHASH H A C = step (XS ! 0) (wa # wc)
+  where
+  wa = `A : [64]
+  wc = `C : [64]
+
+  XS = [0] # [ step X' B | X' <- XS | B <- blockify A # blockify C ]
+
+  step x b = mult (x ^ b) H
+
+
+
+/** Section 2.5, multiplication in GF(2^^128)
+
+This is simple polynomial multipliation and reduction in Cryptol.
+Somewhat oddly, when thinking of the 128-bits as polynomials,
+the spec treats the most significant bit as the 0 power,
+which is the reason for the `reverse` operations.
+*/
+mult : [128] -> [128] -> [128]
+mult X Y = reverse (pmod (pmult (reverse X) (reverse Y)) irred)
+  where irred = <| 1 + x + x^^2 + x^^7 + x^^128 |>
+
+
+/** Create blocks as described in the spec, first paragraph of Section 2.3.
+Basically we split into 128-bit chunk and pad the last one with 0. */
+blockify : {n} (fin n) => [n] -> [n /^ 128][128]
+blockify msg = split (msg # 0)
+
+/** Join back the blocks, dropping any additional padding. */
+unblockify : {n} (fin n) => [n /^ 128][128] -> [n]
+unblockify ms = take (join ms)
+
+
+ifWidth : {w,n,a} (fin n, fin w) => [n] -> ([w] -> a) -> a -> a
+ifWidth thing yep nope = if `w == (`n : [max (width w) (width n)])
+                            then yep (take (thing # (zero : [inf])))
+                            else nope
+
+
+

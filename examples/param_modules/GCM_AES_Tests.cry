@@ -1,0 +1,327 @@
+module GCM_AES_Tests where
+
+import `Common::GCM as GCM
+import AES as AES
+
+gcmEncrypt = GCM::encrypt { E = AES::encrypt }
+
+property test1 =
+  gcmEncrypt
+    { key = 0x00000000000000000000000000000000
+    , pt  = []
+    , iv  = 0x000000000000000000000000
+    , aad = []
+    }
+  ==
+  { ct  = []
+  , tag = 0x58e2fccefa7e3061367f1d57a4e7455a
+  }
+
+property test2 =
+  gcmEncrypt
+    { key = 0x00000000000000000000000000000000
+    , pt  = 0x00000000000000000000000000000000
+    , iv  = 0x000000000000000000000000
+    , aad = []
+    }
+  ==
+  { ct  = 0x0388dace60b6a392f328c2b971b2fe78
+  , tag = 0xab6e47d42cec13bdf53a67b21257bddf
+  }
+
+
+property test3 =
+  gcmEncrypt
+    { key = 0xfeffe9928665731c6d6a8f9467308308
+    , pt  = 0xd9313225f88406e5a55909c5aff5269a #
+            0x86a7a9531534f7da2e4c303d8a318a72 #
+            0x1c3c0c95956809532fcf0e2449a6b525 #
+            0xb16aedf5aa0de657ba637b391aafd255
+    , iv = 0xcafebabefacedbaddecaf888
+    , aad = []
+    }
+  ==
+  { ct = 0x42831ec2217774244b7221b784d0d49c #
+         0xe3aa212f2c02a4e035c17e2329aca12e #
+         0x21d514b25466931c7d8f6a5aac84aa05 #
+         0x1ba30b396a0aac973d58e091473f5985
+  , tag = 0x4d5c2af327cd64a62cf35abd2ba6fab4
+  }
+
+
+property test4 =
+  gcmEncrypt
+    { key = 0xfeffe9928665731c6d6a8f9467308308
+    , pt  = 0xd9313225f88406e5a55909c5aff5269a #
+            0x86a7a9531534f7da2e4c303d8a318a72 #
+            0x1c3c0c95956809532fcf0e2449a6b525 #
+            0xb16aedf5aa0de657ba637b39
+    , aad = 0xfeedfacedeadbeeffeedfacedeadbeef #
+            0xabaddad2
+    , iv  = 0xcafebabefacedbaddecaf888
+    }
+  ==
+  { ct = 0x42831ec2217774244b7221b784d0d49c #
+         0xe3aa212f2c02a4e035c17e2329aca12e #
+         0x21d514b25466931c7d8f6a5aac84aa05 #
+         0x1ba30b396a0aac973d58e091
+  , tag = 0x5bc94fbc3221a5db94fae95ae7121a47
+  }
+
+property test5 =
+  gcmEncrypt
+    { key = 0xfeffe9928665731c6d6a8f9467308308
+    , pt  = 0xd9313225f88406e5a55909c5aff5269a #
+            0x86a7a9531534f7da2e4c303d8a318a72 #
+            0x1c3c0c95956809532fcf0e2449a6b525 #
+            0xb16aedf5aa0de657ba637b39
+    , aad = 0xfeedfacedeadbeeffeedfacedeadbeef #
+            0xabaddad2
+    , iv  = 0xcafebabefacedbad
+    }
+  ==
+  { ct = 0x61353b4c2806934a777ff51fa22a4755 #
+         0x699b2a714fcdc6f83766e5f97b6c7423 #
+         0x73806900e49f24b22b097544d4896b42 #
+         0x4989b5e1ebac0f07c23f4598
+  , tag = 0x3612d2e79e3b0785561be14aaca2fccb
+  }
+
+property test6 =
+  gcmEncrypt
+    { key = 0xfeffe9928665731c6d6a8f9467308308
+    , pt  = 0xd9313225f88406e5a55909c5aff5269a #
+            0x86a7a9531534f7da2e4c303d8a318a72 #
+            0x1c3c0c95956809532fcf0e2449a6b525 #
+            0xb16aedf5aa0de657ba637b39
+    , aad = 0xfeedfacedeadbeeffeedfacedeadbeef #
+            0xabaddad2
+    , iv  = 0x9313225df88406e555909c5aff5269aa #
+            0x6a7a9538534f7da1e4c303d2a318a728 #
+            0xc3c0c95156809539fcf0e2429a6b5254 #
+            0x16aedbf5a0de6a57a637b39b
+    }
+  ==
+  { ct = 0x8ce24998625615b603a033aca13fb894 #
+         0xbe9112a5c3a211a8ba262a3cca7e2ca7 #
+         0x01e4a9a4fba43c90ccdcb281d48c7c6f #
+         0xd62875d2aca417034c34aee5
+  , tag = 0x619cc5aefffe0bfa462af43c1699d050
+  }
+
+property test7 =
+  gcmEncrypt
+    { key = 0x00000000000000000000000000000000 #
+            0x0000000000000000
+    , pt  = []
+    , aad = []
+    , iv  = 0x000000000000000000000000
+    }
+  ==
+  { ct = []
+  , tag = 0xcd33b28ac773f74ba00ed1f312572435
+  }
+
+property test8 =
+  gcmEncrypt
+    { key = 0x00000000000000000000000000000000 #
+            0x0000000000000000
+    , pt  = 0x00000000000000000000000000000000
+    , iv  = 0x000000000000000000000000
+    , aad = []
+    }
+  ==
+  { ct = 0x98e7247c07f0fe411c267e4384b0f600
+  , tag = 0x2ff58d80033927ab8ef4d4587514f0fb
+  }
+
+property test9 =
+  gcmEncrypt
+    { key = 0xfeffe9928665731c6d6a8f9467308308 #
+            0xfeffe9928665731c
+    , pt  = 0xd9313225f88406e5a55909c5aff5269a #
+            0x86a7a9531534f7da2e4c303d8a318a72 #
+            0x1c3c0c95956809532fcf0e2449a6b525 #
+            0xb16aedf5aa0de657ba637b391aafd255
+    , iv  = 0xcafebabefacedbaddecaf888
+    , aad = []
+    }
+  ==
+  { ct =  0x3980ca0b3c00e841eb06fac4872a2757 #
+          0x859e1ceaa6efd984628593b40ca1e19c #
+          0x7d773d00c144c525ac619d18c84a3f47 #
+          0x18e2448b2fe324d9ccda2710acade256
+  , tag = 0x9924a7c8587336bfb118024db8674a14
+  }
+
+property test10 =
+  gcmEncrypt
+    { key = 0xfeffe9928665731c6d6a8f9467308308 #
+            0xfeffe9928665731c
+    , pt  = 0xd9313225f88406e5a55909c5aff5269a #
+            0x86a7a9531534f7da2e4c303d8a318a72 #
+            0x1c3c0c95956809532fcf0e2449a6b525 #
+            0xb16aedf5aa0de657ba637b39
+    , aad = 0xfeedfacedeadbeeffeedfacedeadbeef #
+            0xabaddad2
+    , iv  = 0xcafebabefacedbaddecaf888
+    }
+  ==
+  { ct  = 0x3980ca0b3c00e841eb06fac4872a2757 #
+          0x859e1ceaa6efd984628593b40ca1e19c #
+          0x7d773d00c144c525ac619d18c84a3f47 #
+          0x18e2448b2fe324d9ccda2710
+  , tag = 0x2519498e80f1478f37ba55bd6d27618c
+  }
+
+property test11 =
+  gcmEncrypt
+    { key = 0xfeffe9928665731c6d6a8f9467308308 #
+            0xfeffe9928665731c
+    , pt  = 0xd9313225f88406e5a55909c5aff5269a #
+            0x86a7a9531534f7da2e4c303d8a318a72 #
+            0x1c3c0c95956809532fcf0e2449a6b525 #
+            0xb16aedf5aa0de657ba637b39
+    , aad = 0xfeedfacedeadbeeffeedfacedeadbeef #
+            0xabaddad2
+    , iv  = 0xcafebabefacedbad
+    }
+  ==
+  { ct  = 0x0f10f599ae14a154ed24b36e25324db8 #
+          0xc566632ef2bbb34f8347280fc4507057 #
+          0xfddc29df9a471f75c66541d4d4dad1c9 #
+          0xe93a19a58e8b473fa0f062f7
+  , tag = 0x65dcc57fcf623a24094fcca40d3533f8
+  }
+
+property test12 =
+  gcmEncrypt
+    { key = 0xfeffe9928665731c6d6a8f9467308308 #
+            0xfeffe9928665731c
+    , pt  = 0xd9313225f88406e5a55909c5aff5269a #
+            0x86a7a9531534f7da2e4c303d8a318a72 #
+            0x1c3c0c95956809532fcf0e2449a6b525 #
+            0xb16aedf5aa0de657ba637b39
+    , aad = 0xfeedfacedeadbeeffeedfacedeadbeef #
+            0xabaddad2
+    , iv  = 0x9313225df88406e555909c5aff5269aa #
+            0x6a7a9538534f7da1e4c303d2a318a728 #
+            0xc3c0c95156809539fcf0e2429a6b5254 #
+            0x16aedbf5a0de6a57a637b39b
+    }
+  ==
+  { ct  = 0xd27e88681ce3243c4830165a8fdcf9ff #
+          0x1de9a1d8e6b447ef6ef7b79828666e45 #
+          0x81e79012af34ddd9e2f037589b292db3 #
+          0xe67c036745fa22e7e9b7373b
+  , tag = 0xdcf566ff291c25bbb8568fc3d376a6d9
+  }
+
+property test13 =
+  gcmEncrypt
+    { key = 0x00000000000000000000000000000000 #
+            0x00000000000000000000000000000000
+    , pt  = []
+    , iv  = 0x000000000000000000000000
+    , aad = []
+    }
+  ==
+  { ct  = []
+  , tag = 0x530f8afbc74536b9a963b4f1c4cb738b
+  }
+
+property test14 =
+  gcmEncrypt
+    { key = 0x00000000000000000000000000000000 #
+            0x00000000000000000000000000000000
+    , pt  = 0x00000000000000000000000000000000
+    , iv  = 0x000000000000000000000000
+    , aad = []
+    }
+  ==
+  { ct  = 0xcea7403d4d606b6e074ec5d3baf39d18
+  , tag = 0xd0d1c8a799996bf0265b98b5d48ab919
+  }
+
+property test15 =
+  gcmEncrypt
+    { key = 0xfeffe9928665731c6d6a8f9467308308 #
+            0xfeffe9928665731c6d6a8f9467308308
+    , pt  = 0xd9313225f88406e5a55909c5aff5269a #
+            0x86a7a9531534f7da2e4c303d8a318a72 #
+            0x1c3c0c95956809532fcf0e2449a6b525 #
+            0xb16aedf5aa0de657ba637b391aafd255
+    , iv = 0xcafebabefacedbaddecaf888
+    , aad = []
+    }
+  ==
+  { ct  = 0x522dc1f099567d07f47f37a32a84427d #
+          0x643a8cdcbfe5c0c97598a2bd2555d1aa #
+          0x8cb08e48590dbb3da7b08b1056828838 #
+          0xc5f61e6393ba7a0abcc9f662898015ad
+  , tag = 0xb094dac5d93471bdec1a502270e3cc6c
+  }
+
+property test16 =
+  gcmEncrypt
+    { key = 0xfeffe9928665731c6d6a8f9467308308 #
+            0xfeffe9928665731c6d6a8f9467308308
+    , pt  = 0xd9313225f88406e5a55909c5aff5269a #
+            0x86a7a9531534f7da2e4c303d8a318a72 #
+            0x1c3c0c95956809532fcf0e2449a6b525 #
+            0xb16aedf5aa0de657ba637b39
+    , aad = 0xfeedfacedeadbeeffeedfacedeadbeef #
+            0xabaddad2
+    , iv = 0xcafebabefacedbaddecaf888
+    }
+  ==
+  { ct  = 0x522dc1f099567d07f47f37a32a84427d #
+          0x643a8cdcbfe5c0c97598a2bd2555d1aa #
+          0x8cb08e48590dbb3da7b08b1056828838 #
+          0xc5f61e6393ba7a0abcc9f662
+  , tag = 0x76fc6ece0f4e1768cddf8853bb2d551b
+  }
+
+property test17 =
+  gcmEncrypt
+    { key = 0xfeffe9928665731c6d6a8f9467308308 #
+            0xfeffe9928665731c6d6a8f9467308308
+    , pt  = 0xd9313225f88406e5a55909c5aff5269a #
+            0x86a7a9531534f7da2e4c303d8a318a72 #
+            0x1c3c0c95956809532fcf0e2449a6b525 #
+            0xb16aedf5aa0de657ba637b39
+    , aad = 0xfeedfacedeadbeeffeedfacedeadbeef #
+            0xabaddad2
+    , iv = 0xcafebabefacedbad
+    }
+  ==
+  { ct  = 0xc3762df1ca787d32ae47c13bf19844cb #
+          0xaf1ae14d0b976afac52ff7d79bba9de0 #
+          0xfeb582d33934a4f0954cc2363bc73f78 #
+          0x62ac430e64abe499f47c9b1f
+  , tag = 0x3a337dbf46a792c45e454913fe2ea8f2
+  }
+
+property test18 =
+  gcmEncrypt
+    { key = 0xfeffe9928665731c6d6a8f9467308308 #
+            0xfeffe9928665731c6d6a8f9467308308
+    , pt  = 0xd9313225f88406e5a55909c5aff5269a #
+            0x86a7a9531534f7da2e4c303d8a318a72 #
+            0x1c3c0c95956809532fcf0e2449a6b525 #
+            0xb16aedf5aa0de657ba637b39
+    , aad = 0xfeedfacedeadbeeffeedfacedeadbeef #
+            0xabaddad2
+    , iv = 0x9313225df88406e555909c5aff5269aa #
+           0x6a7a9538534f7da1e4c303d2a318a728 #
+           0xc3c0c95156809539fcf0e2429a6b5254 #
+           0x16aedbf5a0de6a57a637b39b
+    }
+  ==
+  { ct  = 0x5a8def2f0c9e53f1f75d7853659e2a20 #
+          0xeeb2b22aafde6419a058ab4f6f746bf4 #
+          0x0fc0c3b780f244452da3ebf1c5d82cde #
+          0xa2418997200ef82e44ae7e3f
+  , tag = 0xa44a8266ee1c8eb0c8b5d4cf5ae9f19a
+  }
+

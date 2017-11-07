@@ -1,4 +1,4 @@
-module SHA_Common where
+module Common::SHA where
 
 sha : {L} (2 * w >= width L) => [L] -> [8 * w]
 sha M = join (SHA_2_Common' [ split x | x <- parse`{num_blocks L} (pad`{L} M) ])

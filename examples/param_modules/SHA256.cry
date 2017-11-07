@@ -1,4 +1,4 @@
-module SHA256 = SHA_Common where
+module SHA256 = Common::SHA where
 
 type w = 32
 type j = 64
