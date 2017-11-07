@@ -298,8 +298,9 @@ splitProofApp _ = Nothing
 -- the types and proofs to which it is applied.
 -- Since we don't store the proofs, we just return
 -- the number of proof applications.
+-- The first type is the one closest to the expr.
 splitExprInst :: Expr -> (Expr, [Type], Int)
-splitExprInst e = (e2, ts, length ps)
+splitExprInst e = (e2, reverse ts, length ps)
   where
   (ps,e1) = splitWhile splitProofApp e
   (ts,e2) = splitWhile splitTApp e1
