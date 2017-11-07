@@ -270,6 +270,11 @@ tryEqK ctxt ty lk =
          Just r -> SolvedIf [ b =#= tNat' r ]
   <|>
 
+  -- (lk = t - rk) ~~> t = lk + rk
+  do (t,rk) <- matches ty ((|-|) , __, aNat')
+     return (SolvedIf [ t =#= tNat' (nAdd lk rk) ])
+
+  <|>
   do (rk, b) <- matches ty (aMul, aNat', __)
      return $
        case (lk,rk) of
