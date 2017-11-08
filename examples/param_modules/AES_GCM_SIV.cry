@@ -1,0 +1,105 @@
+/* This module implements that AES-GCM-SIV mode of operations
+as desribed in:
+
+"AES-GCM-SIV: Specification and Analysis"
+by Shay Gueron, Adam Langley, and Yehuda Lindell
+
+See also:
+https://tools.ietf.org/html/draft-irtf-cfrg-gcmsiv-06
+*/
+
+module AES_GCM_SIV where
+
+import AES as AES
+
+parameter
+  /** 0: use AES128, 1: use AES256 */
+  type Mode : #
+  type constraint (1 >= Mode)
+
+  type AAD : #
+  type constraint ( (36 + 8) >= width AAD )
+
+
+type K = 128 + 128 * Mode
+
+
+/** Note the weird byte-swapping business (also in `blockify` and `unblockify`)
+It is not quite clear in what format we want the inputs/outputs, but we
+do the swapping so that inputs/ouputs match the test vectors at
+https://tools.ietf.org/html/draft-irtf-cfrg-gcmsiv-06
+*/
+aes_gcm_siv :
+  {n} ((36 + 8) >= width n) =>
+      { key   : [K]
+      , nonce : [96]
+      , aad   : [AAD]
+      , msg   : [n]
+      } -> [n + 128]
+aes_gcm_siv input = c # byteSwap t
+  where
+  (c,t) = gcm_siv_plus (derive_key k' n') n' input.aad input.msg
+  k'    = byteSwap input.key
+  n'    = byteSwap input.nonce
+
+aes : [K] -> [128] -> [128]
+aes k v = byteSwap (AES::encrypt (byteSwap k) (byteSwap v))
+
+/** See Figure 2 in Section 4 */
+derive_key : [K] -> [96] -> ([128],[K])
+derive_key K N = (mkKey parts1, mkKey parts2)
+  where
+  parts1 # parts2 = [ drop (aes K (N # i)) | i <- take [ 0 ... ]  ]
+
+  mkKey : {n} (fin n) => [n][64] -> [64 * n]
+  mkKey xs = join (reverse xs)
+
+
+/** See Figure 1 in Section 3 */
+gcm_siv_plus :
+  {n} (64 >= width n) => ([128], [K]) -> [96] -> [AAD] -> [n] -> ([n],[128])
+gcm_siv_plus (K1,K2) N AAD MSG = (unblockify Cs,TAG)
+  where
+
+  TAG     = aes K2 (0b0 # drop (T ^ (0 # N)))
+  T       = polyval K1 (A # M # [msg_len # aad_len])
+  A       = blockify AAD
+  M       = blockify MSG
+  aad_len = `AAD : [64]
+  msg_len = `n   : [64]
+
+  lower32 i           = tLower + i : [32]
+  _ # tUpper # tLower = TAG
+
+  Cs  = [ aes K2 (0b1 # tUpper # lower32 i) ^ m | m <- M | i <- [ 0 ... ] ]
+
+
+/** See Section 2.2 */
+polyval : {n} (fin n) => [128] -> [n][128] -> [128]
+polyval H Xs = psums ! 0
+  where psums = [0] # [ dot (s ^ x) H | s <- psums | x <- Xs ]
+
+dot : [128] -> [128] -> [128]
+dot x y = mult x (mult y x_neg_128)
+  where x_neg_128 = <| 1 + x^^114 + x^^121 + x^^124 + x^^127 |>
+        // This is x^(-128)
+
+
+mult : [128] -> [128] -> [128]
+mult x y = pmod (pmult x y) irred
+  where
+  irred = <| 1 + x^^121 + x^^126 + x^^127 + x^^128 |>
+
+// -----------------------------------------------------------------------------
+
+blockify : {n} (fin n) => [n] -> [n /^ 128][128]
+blockify x = [ byteSwap b | b <- split (x # zero) ]
+
+unblockify : {n} (fin n) => [n /^ 128][128] -> [n]
+unblockify xs = take (join [ byteSwap b | b <- xs ])
+
+// The spec uses byte-oriented little-endian representations.
+// This function changes back and forth.
+byteSwap : {n} (fin n) => [8 * n] -> [8 * n]
+byteSwap xs = join (reverse (split`{each=8} xs))
+
