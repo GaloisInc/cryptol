@@ -142,6 +142,7 @@ data PC     = PEqual        -- ^ @_ == _@
             | PArith        -- ^ @Arith _@
             | PCmp          -- ^ @Cmp _@
             | PSignedCmp    -- ^ @SignedCmp _@
+            | PLiteral      -- ^ @Literal _ _@
 
             | PAnd          -- ^ This is useful when simplifying things in place
             | PTrue         -- ^ Ditto
@@ -239,6 +240,7 @@ instance HasKind PC where
       PArith     -> KType :-> KProp
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
+      PLiteral   -> KNum :-> KType :-> KProp
       PAnd       -> KProp :-> KProp :-> KProp
       PTrue      -> KProp
 
@@ -483,6 +485,11 @@ pIsSignedCmp ty = case tNoUser ty of
                     TCon (PC PSignedCmp) [t1] -> Just t1
                     _                         -> Nothing
 
+pIsLiteral :: Prop -> Maybe (Type, Type)
+pIsLiteral ty = case tNoUser ty of
+                  TCon (PC PLiteral) [t1, t2] -> Just (t1, t2)
+                  _                           -> Nothing
+
 pIsTrue :: Prop -> Bool
 pIsTrue ty  = case tNoUser ty of
                 TCon (PC PTrue) _ -> True
@@ -643,6 +650,9 @@ pCmp t = TCon (PC PCmp) [t]
 
 pSignedCmp :: Type -> Prop
 pSignedCmp t = TCon (PC PSignedCmp) [t]
+
+pLiteral :: Type -> Type -> Prop
+pLiteral x y = TCon (PC PLiteral) [x, y]
 
 -- | Make a greater-than-or-equal-to constraint.
 (>==) :: Type -> Type -> Prop
@@ -834,6 +844,7 @@ instance PP (WithNames Type) where
           (PArith, [t1])      -> pp pc <+> go 4 t1
           (PCmp, [t1])        -> pp pc <+> go 4 t1
           (PSignedCmp, [t1])  -> pp pc <+> go 4 t1
+          (PLiteral, [t1,t2]) -> pp pc <+> go 4 t1 <+> go 4 t2
 
           (_, _)              -> pp pc <+> fsep (map (go 4) ts)
 
@@ -905,6 +916,7 @@ instance PP PC where
       PArith     -> text "Arith"
       PCmp       -> text "Cmp"
       PSignedCmp -> text "SignedCmp"
+      PLiteral   -> text "Literal"
       PTrue      -> text "True"
       PAnd       -> text "(&&)"
 

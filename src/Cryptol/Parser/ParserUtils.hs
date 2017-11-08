@@ -482,17 +482,19 @@ mkProp ty =
     | i == finIdent,       [x] <- xs = return [CLocated (CFin x) r]
     | i == cmpIdent,       [x] <- xs = return [CLocated (CCmp x) r]
     | i == signedCmpIdent, [x] <- xs = return [CLocated (CSignedCmp x) r]
+    | i == literalIdent, [x,y] <- xs = return [CLocated (CLiteral x y) r]
     | otherwise                      = return [CLocated (CType (TUser f xs)) r]
     where
     i = getIdent f
 
-zeroIdent, logicIdent, arithIdent, finIdent, cmpIdent, signedCmpIdent :: Ident
+zeroIdent, logicIdent, arithIdent, finIdent, cmpIdent, signedCmpIdent, literalIdent :: Ident
 zeroIdent      = mkIdent "Zero"
 logicIdent     = mkIdent "Logic"
 arithIdent     = mkIdent "Arith"
 finIdent       = mkIdent "fin"
 cmpIdent       = mkIdent "Cmp"
 signedCmpIdent = mkIdent "SignedCmp"
+literalIdent   = mkIdent "Literal"
 
 -- | Make an ordinary module
 mkModule :: Located ModName ->

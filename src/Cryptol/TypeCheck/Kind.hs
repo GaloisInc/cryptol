@@ -377,18 +377,19 @@ checkProp :: P.Prop Name      -- ^ Proposition that need to be checked
           -> KindM Type       -- ^ Checked representation
 checkProp prop =
   case prop of
-    P.CFin t1       -> tcon (PC PFin)           [t1]    (Just KProp)
-    P.CEqual t1 t2  -> tcon (PC PEqual)         [t1,t2] (Just KProp)
-    P.CGeq t1 t2    -> tcon (PC PGeq)           [t1,t2] (Just KProp)
-    P.CZero t1      -> tcon (PC PZero)          [t1]    (Just KProp)
-    P.CLogic t1     -> tcon (PC PLogic)         [t1]    (Just KProp)
-    P.CArith t1     -> tcon (PC PArith)         [t1]    (Just KProp)
-    P.CCmp t1       -> tcon (PC PCmp)           [t1]    (Just KProp)
-    P.CSignedCmp t1 -> tcon (PC PSignedCmp)     [t1]    (Just KProp)
-    P.CUser x []    -> checkTyThing x (Just KProp)
-    P.CUser x ts    -> tySyn False x ts (Just KProp)
-    P.CLocated p r1 -> kInRange r1 (checkProp p)
-    P.CType _       -> panic "checkProp" [ "Unexpected CType", show prop ]
+    P.CFin t1        -> tcon (PC PFin)           [t1]    (Just KProp)
+    P.CEqual t1 t2   -> tcon (PC PEqual)         [t1,t2] (Just KProp)
+    P.CGeq t1 t2     -> tcon (PC PGeq)           [t1,t2] (Just KProp)
+    P.CZero t1       -> tcon (PC PZero)          [t1]    (Just KProp)
+    P.CLogic t1      -> tcon (PC PLogic)         [t1]    (Just KProp)
+    P.CArith t1      -> tcon (PC PArith)         [t1]    (Just KProp)
+    P.CCmp t1        -> tcon (PC PCmp)           [t1]    (Just KProp)
+    P.CSignedCmp t1  -> tcon (PC PSignedCmp)     [t1]    (Just KProp)
+    P.CLiteral t1 t2 -> tcon (PC PLiteral)       [t1,t2] (Just KProp)
+    P.CUser x []     -> checkTyThing x (Just KProp)
+    P.CUser x ts     -> tySyn False x ts (Just KProp)
+    P.CLocated p r1  -> kInRange r1 (checkProp p)
+    P.CType _        -> panic "checkProp" [ "Unexpected CType", show prop ]
 
 
 -- | Check that a type has the expected kind.

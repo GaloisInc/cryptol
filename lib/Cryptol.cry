@@ -8,7 +8,7 @@ module Cryptol where
 /**
  * The value corresponding to a numeric type.
  */
-primitive demote : {val, bits} (fin val, fin bits, bits >= width val) => [bits]
+primitive demote : {val, a} Literal val a => a
 
 /**
  * The integer value corresponding to a numeric type.

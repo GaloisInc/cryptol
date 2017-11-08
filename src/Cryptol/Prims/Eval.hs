@@ -247,13 +247,14 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
 -- | Make a numeric constant.
 ecDemoteV :: BitWord b w i => GenValue b w i
 ecDemoteV = nlam $ \valT ->
-            nlam $ \bitT ->
-            case (valT, bitT) of
-              (Nat v, Nat bs) -> word bs v
+            tlam $ \ty ->
+            case (valT, ty) of
+              (Nat v, TVInteger) -> VInteger (integerLit v)
+              (Nat v, TVSeq bs TVBit) -> word bs v
               _ -> evalPanic "Cryptol.Eval.Prim.evalConst"
                        ["Unexpected Inf in constant."
                        , show valT
-                       , show bitT
+                       , show ty
                        ]
 
 -- | Make an integer constant.

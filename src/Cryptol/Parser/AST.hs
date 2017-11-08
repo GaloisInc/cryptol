@@ -383,6 +383,7 @@ data Prop n   = CFin (Type n)             -- ^ @ fin x   @
               | CArith (Type n)           -- ^ @ Arith a @
               | CCmp (Type n)             -- ^ @ Cmp a @
               | CSignedCmp (Type n)       -- ^ @ SignedCmp a @
+              | CLiteral (Type n) (Type n)-- ^ @ Literal val a @
               | CUser n [Type n]          -- ^ Constraint synonym
               | CLocated (Prop n) Range   -- ^ Location information
               | CType (Type n)            -- ^ After parsing
@@ -866,19 +867,19 @@ instance PPName name => PP (Type name) where
 instance PPName name => PP (Prop name) where
   ppPrec n prop =
     case prop of
-      CFin t       -> text "fin"   <+> ppPrec 4 t
-      CZero t      -> text "Zero"  <+> ppPrec 4 t
-      CLogic t     -> text "Logic" <+> ppPrec 4 t
-      CArith t     -> text "Arith" <+> ppPrec 4 t
-      CCmp t       -> text "Cmp"   <+> ppPrec 4 t
-      CSignedCmp t -> text "SignedCmp" <+> ppPrec 4 t
-      CEqual t1 t2 -> ppPrec 2 t1 <+> text "==" <+> ppPrec 2 t2
-      CGeq t1 t2   -> ppPrec 2 t1 <+> text ">=" <+> ppPrec 2 t2
-      CUser f ts   -> optParens (n > 2)
-                    $ ppPrefixName f <+> fsep (map (ppPrec 4) ts)
-      CLocated c _ -> ppPrec n c
-
-      CType t      -> ppPrec n t
+      CFin t         -> text "fin"   <+> ppPrec 4 t
+      CZero t        -> text "Zero"  <+> ppPrec 4 t
+      CLogic t       -> text "Logic" <+> ppPrec 4 t
+      CArith t       -> text "Arith" <+> ppPrec 4 t
+      CCmp t         -> text "Cmp"   <+> ppPrec 4 t
+      CSignedCmp t   -> text "SignedCmp" <+> ppPrec 4 t
+      CLiteral t1 t2 -> text "Literal" <+> ppPrec 4 t1 <+> ppPrec 4 t2
+      CEqual t1 t2   -> ppPrec 2 t1 <+> text "==" <+> ppPrec 2 t2
+      CGeq t1 t2     -> ppPrec 2 t1 <+> text ">=" <+> ppPrec 2 t2
+      CUser f ts     -> optParens (n > 2)
+                      $ ppPrefixName f <+> fsep (map (ppPrec 4) ts)
+      CLocated c _   -> ppPrec n c
+      CType t        -> ppPrec n t
 
 
 --------------------------------------------------------------------------------
@@ -1049,6 +1050,7 @@ instance NoPos (Prop name) where
       CArith x      -> CArith (noPos x)
       CCmp x        -> CCmp   (noPos x)
       CSignedCmp x  -> CSignedCmp (noPos x)
+      CLiteral x y  -> CLiteral (noPos x) (noPos y)
       CUser x y     -> CUser x (noPos y)
       CLocated c _  -> noPos c
       CType t       -> CType (noPos t)

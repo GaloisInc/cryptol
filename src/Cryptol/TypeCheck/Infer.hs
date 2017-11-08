@@ -82,22 +82,23 @@ desugarLiteral fixDec lit =
   do l <- curRange
      demotePrim <- mkPrim "demote"
      let named (x,y)  = P.NamedInst
-                        P.Named { name = Located l (packIdent x), value = P.TNum y }
+                        P.Named { name = Located l (packIdent x), value = y }
          demote fs    = P.EAppT demotePrim (map named fs)
+         tBits n = P.TSeq (P.TNum n) P.TBit
 
      return $ case lit of
 
        P.ECNum num info ->
-         demote $ [ ("val", num) ] ++ case info of
-           P.BinLit n    -> [ ("bits", 1 * toInteger n) ]
-           P.OctLit n    -> [ ("bits", 3 * toInteger n) ]
-           P.HexLit n    -> [ ("bits", 4 * toInteger n) ]
-           P.CharLit     -> [ ("bits", 8 :: Integer) ]
+         demote $ [ ("val", P.TNum num) ] ++ case info of
+           P.BinLit n    -> [ ("a", tBits (1 * toInteger n)) ]
+           P.OctLit n    -> [ ("a", tBits (3 * toInteger n)) ]
+           P.HexLit n    -> [ ("a", tBits (4 * toInteger n)) ]
+           P.CharLit     -> [ ("a", tBits (8 :: Integer)) ]
            P.DecLit
             | fixDec     -> if num == 0
-                              then [ ("bits", 0)]
+                              then [ ("a", tBits 0)]
                               else case genLog num 2 of
-                                     Just (x,_) -> [ ("bits", x + 1) ]
+                                     Just (x,_) -> [ ("a", tBits (x + 1)) ]
                                      _          -> []
             | otherwise  -> [ ]
            P.PolyLit _n  -> [ ]

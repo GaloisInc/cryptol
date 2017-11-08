@@ -520,13 +520,14 @@ instance Rename TParam where
 instance Rename Prop where
   rename p      = case p of
     CFin t        -> CFin       <$> rename t
-    CEqual l r    -> CEqual     <$> rename l  <*> rename r
-    CGeq l r      -> CGeq       <$> rename l  <*> rename r
+    CEqual l r    -> CEqual     <$> rename l <*> rename r
+    CGeq l r      -> CGeq       <$> rename l <*> rename r
     CZero t       -> CZero      <$> rename t
     CLogic t      -> CLogic     <$> rename t
     CArith t      -> CArith     <$> rename t
     CCmp t        -> CCmp       <$> rename t
     CSignedCmp t  -> CSignedCmp <$> rename t
+    CLiteral l r  -> CLiteral   <$> rename l <*> rename r
     CUser qn ps   -> CUser      <$> renameType qn <*> traverse rename ps
     CLocated p' r -> withLoc r
                    $ CLocated <$> rename p' <*> pure r

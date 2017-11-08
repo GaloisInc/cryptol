@@ -8,7 +8,8 @@ import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.Solver.Numeric.Fin(cryIsFinType)
 import Cryptol.TypeCheck.Solver.Numeric(cryIsEqual, cryIsNotEqual, cryIsGeq)
 import Cryptol.TypeCheck.Solver.Class
-  (solveZeroInst, solveLogicInst, solveArithInst, solveCmpInst, solveSignedCmpInst)
+  ( solveZeroInst, solveLogicInst, solveArithInst, solveCmpInst
+  , solveSignedCmpInst, solveLiteralInst )
 
 import Cryptol.Utils.Debug(ppTrace)
 import Cryptol.TypeCheck.PP
@@ -34,21 +35,22 @@ simplify ctxt p =
 simplifyStep :: Ctxt -> Prop -> Solved
 simplifyStep ctxt prop =
   case tNoUser prop of
-    TCon (PC PTrue)  []       -> SolvedIf []
-    TCon (PC PAnd)   [l,r]    -> SolvedIf [l,r]
+    TCon (PC PTrue)  []        -> SolvedIf []
+    TCon (PC PAnd)   [l,r]     -> SolvedIf [l,r]
 
-    TCon (PC PZero)  [ty]     -> solveZeroInst ty
-    TCon (PC PLogic) [ty]     -> solveLogicInst ty
-    TCon (PC PArith) [ty]     -> solveArithInst ty
-    TCon (PC PCmp)   [ty]     -> solveCmpInst   ty
-    TCon (PC PSignedCmp) [ty] -> solveSignedCmpInst ty
+    TCon (PC PZero)  [ty]      -> solveZeroInst ty
+    TCon (PC PLogic) [ty]      -> solveLogicInst ty
+    TCon (PC PArith) [ty]      -> solveArithInst ty
+    TCon (PC PCmp)   [ty]      -> solveCmpInst   ty
+    TCon (PC PSignedCmp) [ty]  -> solveSignedCmpInst ty
+    TCon (PC PLiteral) [t1,t2] -> solveLiteralInst t1 t2
 
-    TCon (PC PFin)   [ty]     -> cryIsFinType ctxt ty
+    TCon (PC PFin)   [ty]      -> cryIsFinType ctxt ty
 
-    TCon (PC PEqual) [t1,t2]  -> cryIsEqual ctxt t1 t2
-    TCon (PC PNeq)  [t1,t2]   -> cryIsNotEqual ctxt t1 t2
-    TCon (PC PGeq)  [t1,t2]   -> cryIsGeq ctxt t1 t2
+    TCon (PC PEqual) [t1,t2]   -> cryIsEqual ctxt t1 t2
+    TCon (PC PNeq)  [t1,t2]    -> cryIsNotEqual ctxt t1 t2
+    TCon (PC PGeq)  [t1,t2]    -> cryIsGeq ctxt t1 t2
 
-    _                         -> Unsolved
+    _                          -> Unsolved
 
 

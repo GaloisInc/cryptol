@@ -16,6 +16,7 @@ module Cryptol.TypeCheck.Solver.Class
   , solveArithInst
   , solveCmpInst
   , solveSignedCmpInst
+  , solveLiteralInst
   , expandProp
   ) where
 
@@ -192,6 +193,22 @@ solveSignedCmpInst ty = case tNoUser ty of
 
   -- (SignedCmp a, SignedCmp b) => SignedCmp { x:a, y:b }
   TRec fs -> SolvedIf [ pSignedCmp e | (_,e) <- fs ]
+
+  _ -> Unsolved
+
+
+-- | Solve Literal constraints.
+solveLiteralInst :: Type -> Type -> Solved
+solveLiteralInst n ty = case tNoUser ty of
+
+  -- SignedCmp Error -> fails
+  TCon (TError _ e) _ -> Unsolvable e
+
+  -- (fin val) => Literal val Integer
+  TCon (TC TCInteger) [] -> SolvedIf [ pFin n ]
+
+  -- (fin bits, bits => width n) => Literal n [bits]
+  TCon (TC TCSeq) [bits, TCon (TC TCBit) []] -> SolvedIf [ pFin n, pFin bits, bits >== tWidth n ]
 
   _ -> Unsolved
 
