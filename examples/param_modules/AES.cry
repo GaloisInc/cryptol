@@ -2,10 +2,10 @@ module AES where
 
 import `Common::AES
 
-encrypt : {k,f} (k == 128 + f * 64, 2 >= f) => [k] -> [128] -> [128]
-encrypt = aesEncrypt`{Flavor = f} {}
+encrypt : {k,m} (k == 128 + m * 64, 2 >= m) => [k] -> [128] -> [128]
+encrypt = aesEncrypt`{Mode = m}
 
-decrypt : {k,f} (k == 128 + f * 64, 2 >= f) => [k] -> [128] -> [128]
-decrypt = aesDecrypt`{Flavor = f} {}
+decrypt : {k,m} (k == 128 + m * 64, 2 >= m) => [k] -> [128] -> [128]
+decrypt = aesDecrypt`{Mode = m}
 
 
