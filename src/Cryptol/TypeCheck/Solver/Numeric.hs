@@ -5,7 +5,6 @@ module Cryptol.TypeCheck.Solver.Numeric
 
 import           Control.Applicative(Alternative(..))
 import           Control.Monad (guard,mzero)
-import           Data.Foldable (asum)
 import           Data.List (sortBy)
 
 import Cryptol.Utils.Patterns
@@ -310,39 +309,18 @@ tryEqK ctxt ty lk =
   -- 10 = min (2,y)   --> impossible
 
 
--- | K1 * t1 = K2 * t2
+-- | K1 * t1 + K2 * t2 + ... = K3 * t3 + K4 * t4 + ...
 tryEqMulConst :: Type -> Type -> Match Solved
 tryEqMulConst l r =
-  do (l1,l2) <- aMul l
-     (r1,r2) <- aMul r
-
-     asum [ do l1' <- aNat l1
-               r1' <- aNat r1
-               return (build l1' l2 r1' r2)
-
-          , do l2' <- aNat l2
-               r1' <- aNat r1
-               return (build l2' l1 r1' r2)
-
-          , do l1' <- aNat l1
-               r2' <- aNat r2
-               return (build l1' l2 r2' r1)
-
-          , do l2' <- aNat l2
-               r2' <- aNat r2
-               return (build l2' l1 r2' r1)
-
-          ]
-
+  do (lc,ls) <- matchLinear l
+     (rc,rs) <- matchLinear r
+     let d = foldr1 gcd (lc : rc : map fst (ls ++ rs))
+     guard (d > 1)
+     return (SolvedIf [build d lc ls =#= build d rc rs])
   where
-
-  build lk l' rk r' =
-    let d   = gcd lk rk
-        lk' = lk `div` d
-        rk' = rk `div` d
-    in if d == 1
-          then Unsolved
-          else (SolvedIf [ tMul (tNum lk') l' =#= tMul (tNum rk') r' ])
+  build d k ts   = foldr tAdd (cancel d k) (map (buildS d) ts)
+  buildS d (k,t) = tMul (cancel d k) t
+  cancel d x     = tNum (div x d)
 
 
 -- | @(t1 + t2 = Inf, fin t1)  ~~> t2 = Inf@
@@ -429,3 +407,23 @@ matchLinearUnifier = go []
          -- Non-free-variable recursive case
         do guard (noFreeVariables x)
            go (x:xs) y)
+
+
+-- | Is this a sum of products, where the products have constant coefficients?
+matchLinear :: Pat Type (Integer, [(Integer,Type)])
+matchLinear = go (0, [])
+  where
+  go (c,ts) t =
+    do n <- aNat t
+       return (n + c, ts)
+    <|>
+    do (x,y) <- aMul t
+       n     <- aNat x
+       return (c, (n,y) : ts)
+    <|>
+    do (l,r) <- anAdd t
+       (c',ts') <- go (c,ts) l
+       go (c',ts') r
+
+
+
