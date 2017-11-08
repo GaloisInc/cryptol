@@ -9,8 +9,8 @@
 module Common::AES where
 
 parameter
-  type Flavor : #
-  type constraint (2 >= Flavor)
+  type Mode : #
+  type constraint (2 >= Mode)
 
 
 type AESKeySize  = 32 * Nk
@@ -38,7 +38,7 @@ aesDecrypt key ct = stateToMsg (AESFinalInvRound (kFinal, rounds ! 0))
 private
 
   // Number of blocks and Number of rounds
-  type Nk = 4 + 2 * Flavor
+  type Nk = 4 + 2 * Mode
   type Nb = 4
   type Nr = 6 + Nk
 
