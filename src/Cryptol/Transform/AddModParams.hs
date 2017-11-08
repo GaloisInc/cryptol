@@ -117,7 +117,9 @@ instance AddParams Schema where
                      }
 
 instance AddParams Type where
-  addParams ps t = tFun (paramRecTy ps) t
+  addParams ps t
+    | null (pFuns ps) = t
+    | otherwise       = tFun (paramRecTy ps) t
 
 
 instance AddParams Expr where
@@ -125,7 +127,9 @@ instance AddParams Expr where
     where (as,rest1) = splitWhile splitTAbs e
           (bs,rest2) = splitWhile splitProofAbs rest1
           withProps = foldr EProofAbs withArgs (pTypeConstraints ps ++ bs)
-          withArgs  = EAbs paramModRecParam (paramRecTy ps) rest2
+          withArgs
+            | null (pFuns ps) = rest2
+            | otherwise       = EAbs paramModRecParam (paramRecTy ps) rest2
 
 
 
@@ -177,8 +181,11 @@ type Inp = (Set Name, Params)
 paramRecTy :: Params -> Type
 paramRecTy ps = tRec [ (nameIdent x, t) | (x,t) <- pFuns ps ]
 
+
 nameInst :: Inp -> Name -> [Type] -> Int -> Expr
-nameInst (_,ps) x ts prfs = EApp withProofs (EVar paramModRecParam)
+nameInst (_,ps) x ts prfs
+  | null (pFuns ps) = withProofs
+  | otherwise       = EApp withProofs (EVar paramModRecParam)
   where
   withProofs = iterate EProofApp withTys !!
                                         (length (pTypeConstraints ps) + prfs)
