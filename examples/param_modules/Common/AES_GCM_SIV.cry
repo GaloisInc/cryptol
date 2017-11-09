@@ -8,7 +8,7 @@ See also:
 https://tools.ietf.org/html/draft-irtf-cfrg-gcmsiv-06
 */
 
-module AES_GCM_SIV where
+module Common::AES_GCM_SIV where
 
 import AES as AES
 
