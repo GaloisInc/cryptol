@@ -784,7 +784,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
     (TCon (TC TCSeq) [a,(TCon (TC TCBit) [])], VWord _ wval) -> do
       BV w v <- lift (asWordVal =<< wval)
       guard (a == tNum w)
-      return $ ETApp (ETApp (prim "demote") (tNum v)) (tNum w)
+      return $ ETApp (ETApp (prim "demote") (tNum v)) (tWord (tNum w))
     (_, VStream _) -> fail "cannot construct infinite expressions"
     (_, VFun    _) -> fail "cannot convert function values to expressions"
     (_, VPoly   _) -> fail "cannot convert polymorphic values to expressions"

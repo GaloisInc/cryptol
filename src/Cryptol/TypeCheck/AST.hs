@@ -181,7 +181,7 @@ eString :: PrimMap -> String -> Expr
 eString prims str = EList (map (eChar prims) str) tChar
 
 eChar :: PrimMap -> Char -> Expr
-eChar prims c = ETApp (ETApp (ePrim prims (packIdent "demote")) (tNum v)) (tNum w)
+eChar prims c = ETApp (ETApp (ePrim prims (packIdent "demote")) (tNum v)) (tWord (tNum w))
   where v = fromEnum c
         w = 8 :: Int
 
