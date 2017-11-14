@@ -29,6 +29,7 @@ module Cryptol.ModuleSystem.Renamer (
 
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
+import Cryptol.ModuleSystem.Exports
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
@@ -37,6 +38,7 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
 import qualified Data.Foldable as F
+import           Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
 import           Data.String (IsString(..))
@@ -144,6 +146,8 @@ data RenamerWarning
     -- Warn when fixity is used to resolve parses, and the relative
     -- fixity is planned to change.  See https://github.com/GaloisInc/cryptol/issues/241
   | DangerousFixity (Located Name) (Located Name) NameDisp
+
+  | UnusedName Name NameDisp
     deriving (Show, Generic, NFData)
 
 instance PP RenamerWarning where
@@ -168,6 +172,9 @@ instance PP RenamerWarning where
                 , text "Ignore this message if you are confident this expression is parsing correctly; it will be removed"
                 , text "in a future release."
                 ]
+  ppPrec _ (UnusedName x disp) = fixNameDisp disp $
+    hang (text "[warning] at" <+> pp (nameLoc x))
+       4 (text "Unused name:" <+> pp x)
 
 -- Renaming Monad --------------------------------------------------------------
 
@@ -179,9 +186,12 @@ data RO = RO
   }
 
 data RW = RW
-  { rwWarnings :: !(Seq.Seq RenamerWarning)
-  , rwErrors   :: !(Seq.Seq RenamerError)
-  , rwSupply   :: !Supply
+  { rwWarnings      :: !(Seq.Seq RenamerWarning)
+  , rwErrors        :: !(Seq.Seq RenamerError)
+  , rwSupply        :: !Supply
+  , rwNameUseCount  :: !(Map Name Int)
+    -- ^ How many times did we refer to each name.
+    -- Used to generate warnings for unused definitions.
   }
 
 newtype RenameM a = RenameM
@@ -235,6 +245,7 @@ runRenamer s ns env m = (res,F.toList (rwWarnings rw))
                               RW { rwErrors   = Seq.empty
                                  , rwWarnings = Seq.empty
                                  , rwSupply   = s
+                                 , rwNameUseCount = Map.empty
                                  }
 
   res | Seq.null (rwErrors rw) = Right (a,rwSupply rw)
@@ -349,6 +360,18 @@ checkNamingEnv env = (F.toList out, [])
 
   check ns acc = containsOverlap disp ns Seq.>< acc
 
+recordUse :: Name -> RenameM ()
+recordUse x = RenameM $ sets_ $ \rw ->
+  rw { rwNameUseCount = Map.insertWith (+) x 1 (rwNameUseCount rw) }
+
+warnUnused :: ModName -> RenameM ()
+warnUnused m0 =
+  do rw <- RenameM get
+     let keep k n = n == 1 && (case nameInfo k of
+                                 Declared m -> m == m0
+                                 Parameter -> True)
+         singleUse = Map.keys (Map.filterWithKey keep (rwNameUseCount rw))
+     mapM_ (recordW . UnusedName) singleUse
 
 -- Renaming --------------------------------------------------------------------
 
@@ -360,7 +383,11 @@ renameModule m =
   do env    <- liftSupply (namingEnv' m)
      -- NOTE: we explicitly hide shadowing errors here, by using shadowNames'
      decls' <-  shadowNames' CheckOverlap env (traverse rename (mDecls m))
-     return (env,m { mDecls = decls' })
+     let m1 = m { mDecls = decls' }
+         exports = modExports m1
+     mapM_ recordUse (eTypes exports)
+     warnUnused (thing (mName m))
+     return (env,m1)
 
 instance Rename TopDecl where
   rename td     = case td of
@@ -454,9 +481,10 @@ typeExists :: PName -> RenameM (Maybe Name)
 typeExists pn =
   do ro <- RenameM ask
      case Map.lookup pn (neTypes (roNames ro)) of
-       Just [n]  -> return (Just n)
+       Just [n]  -> recordUse n >> return (Just n)
        Just []   -> panic "Renamer" ["Invalid type renaming environment"]
        Just syms -> do n <- located pn
+                       mapM_ recordUse syms
                        record (MultipleSyms n syms)
                        return (Just (head syms))
        Nothing -> return Nothing
