@@ -57,7 +57,8 @@ $unitick        = \x7
 
 <0,comment> {
 \/\*                     { startComment False }
-\/\*\*+                  { startComment True  }
+\/\*\*                   { startComment True  }
+\/\*\*\*+                { startComment False }
 \/\*+\/                  { startEndComment    }
 }
 
