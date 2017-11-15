@@ -45,6 +45,7 @@ import           Control.Monad(mzero,guard)
 import qualified Data.Map as Map
 import           Data.Set ( Set )
 import qualified Data.Set as Set
+import           Data.List(partition)
 
 
 
@@ -414,26 +415,35 @@ improveByDefaultingWithPure as ps =
 defaultReplExpr :: Solver -> Expr -> Schema
              -> IO (Maybe ([(TParam,Type)], Expr))
 defaultReplExpr sol e s =
-  if all (\v -> kindOf v == KNum) (sVars s)
-     then do let params = map tpVar (sVars s)
-                 props  = sProps s
-             mb <- tryGetModel sol params props
-             case mb of
-               Nothing -> return Nothing
-               Just mdl0 ->
-                 do mdl <- shrinkModel sol params props mdl0
-                    let su = listSubst [ (x, tNat' n) | (x,n) <- mdl ]
-                    return $
-                      do guard (null (concatMap pSplitAnd (apSubst su props)))
-                         tys <- mapM (bindParam su) params
-                         return (zip (sVars s) tys, appExpr tys)
-     else return Nothing
+  do let (sizeTs, valTs) = partition isNum (sVars s)
+         params     = map tpVar (sVars s)
+         props      = sProps s
+         numParams  = map tpVar sizeTs
+         numProps   = filter isNumProp (sProps s)
+     mb <- tryGetModel sol numParams numProps
+     case mb of
+       Nothing -> return Nothing
+       Just mdl0 ->
+         do mdl <- shrinkModel sol numParams numProps mdl0
+            let su = listSubst $ [ (x, tInteger) | x <- map tpVar valTs ] ++
+                                 [ (x, tNat' n) | (x,n) <- mdl ]
+            return $
+              do guard (null (concatMap pSplitAnd (apSubst su props)))
+                 tys <- mapM (bindParam su) params
+                 return (zip (sVars s) tys, appExpr tys)
+
   where
   bindParam su tp =
     do let ty  = TVar tp
            ty' = apSubst su ty
        guard (ty /= ty')
        return ty'
+
+  isNum x = kindOf x == KNum
+
+  isNumProp t = case tNoUser t of
+                  TCon _ xs -> all isNum xs
+                  _ -> False
 
   appExpr tys = foldl (\e1 _ -> EProofApp e1) (foldl ETApp e tys) (sProps s)
 
