@@ -233,20 +233,20 @@ instance FreshM RenameM where
 
 runRenamer :: Supply -> ModName -> NamingEnv -> RenameM a
            -> (Either [RenamerError] (a,Supply),[RenamerWarning])
-runRenamer s ns env m = (res,F.toList (rwWarnings rw))
+runRenamer s ns env m = (res, warnUnused ns ro rw ++ F.toList (rwWarnings rw))
   where
-
-  (a,rw) = runM (unRenameM m) RO { roLoc = emptyRange
-                                 , roNames = env
-                                 , roMod = ns
-                                 , roDisp = neverQualifyMod ns
-                                            `mappend` toNameDisp env
-                                 }
+  (a,rw) = runM (unRenameM m) ro
                               RW { rwErrors   = Seq.empty
                                  , rwWarnings = Seq.empty
                                  , rwSupply   = s
                                  , rwNameUseCount = Map.empty
                                  }
+
+  ro = RO { roLoc = emptyRange
+          , roNames = env
+          , roMod = ns
+          , roDisp = neverQualifyMod ns `mappend` toNameDisp env
+          }
 
   res | Seq.null (rwErrors rw) = Right (a,rwSupply rw)
       | otherwise              = Left (F.toList (rwErrors rw))
@@ -364,14 +364,18 @@ recordUse :: Name -> RenameM ()
 recordUse x = RenameM $ sets_ $ \rw ->
   rw { rwNameUseCount = Map.insertWith (+) x 1 (rwNameUseCount rw) }
 
-warnUnused :: ModName -> RenameM ()
-warnUnused m0 =
-  do rw <- RenameM get
-     let keep k n = n == 1 && (case nameInfo k of
-                                 Declared m -> m == m0
-                                 Parameter -> True)
-         singleUse = Map.keys (Map.filterWithKey keep (rwNameUseCount rw))
-     mapM_ (recordW . UnusedName) singleUse
+
+warnUnused :: ModName -> RO -> RW -> [RenamerWarning]
+warnUnused m0 ro rw = map warn
+                    $ Map.keys
+                    $ Map.filterWithKey keep
+                    $ rwNameUseCount rw
+  where
+  warn x   = UnusedName x (roDisp ro)
+  keep k n = n == 1 && isLocal k
+  isLocal nm = case nameInfo nm of
+                 Declared m -> m == m0
+                 Parameter  -> True
 
 -- Renaming --------------------------------------------------------------------
 
@@ -386,7 +390,6 @@ renameModule m =
      let m1 = m { mDecls = decls' }
          exports = modExports m1
      mapM_ recordUse (eTypes exports)
-     warnUnused (thing (mName m))
      return (env,m1)
 
 instance Rename TopDecl where
