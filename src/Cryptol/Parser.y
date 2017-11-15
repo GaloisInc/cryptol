@@ -321,6 +321,7 @@ decl                    :: { Decl PName }
   | 'infixl' NUM ops       {% mkFixity LeftAssoc  $2 (reverse $3) }
   | 'infixr' NUM ops       {% mkFixity RightAssoc $2 (reverse $3) }
   | 'infix'  NUM ops       {% mkFixity NonAssoc   $2 (reverse $3) }
+  | error                  {% expected "a declaration" }
 
 let_decl                :: { Decl PName }
   : 'let' ipat '=' expr          { at ($2,$4) $ DPatBind $2 $4                    }
@@ -389,6 +390,7 @@ expr                             :: { Expr PName }
   | expr 'where' '{' decls '}'      { at ($1,$5) $ EWhere $1 (reverse $4) }
   | expr 'where' 'v{' 'v}'          { at ($1,$2) $ EWhere $1 []           }
   | expr 'where' 'v{' vdecls 'v}'   { at ($1,$4) $ EWhere $1 (reverse $4) }
+  | error                           {% expected "an expression" }
 
 ifBranches                       :: { [(Expr PName, Expr PName)] }
   : ifBranch                        { [$1] }
