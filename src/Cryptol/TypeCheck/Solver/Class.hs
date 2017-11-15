@@ -199,18 +199,22 @@ solveSignedCmpInst ty = case tNoUser ty of
 
 -- | Solve Literal constraints.
 solveLiteralInst :: Type -> Type -> Solved
-solveLiteralInst n ty = case tNoUser ty of
+solveLiteralInst n ty
+  | TCon (TError _ e) _ <- tNoUser n = Unsolvable e
+  | otherwise =
+    case tNoUser ty of
 
-  -- SignedCmp Error -> fails
-  TCon (TError _ e) _ -> Unsolvable e
+      -- Literal n Error -> fails
+      TCon (TError _ e) _ -> Unsolvable e
 
-  -- (fin val) => Literal val Integer
-  TCon (TC TCInteger) [] -> SolvedIf [ pFin n ]
+      -- (fin val) => Literal val Integer
+      TCon (TC TCInteger) [] -> SolvedIf [ pFin n ]
 
-  -- (fin bits, bits => width n) => Literal n [bits]
-  TCon (TC TCSeq) [bits, TCon (TC TCBit) []] -> SolvedIf [ pFin n, pFin bits, bits >== tWidth n ]
+      -- (fin bits, bits => width n) => Literal n [bits]
+      TCon (TC TCSeq) [bits, TCon (TC TCBit) []] ->
+        SolvedIf [ pFin n, pFin bits, bits >== tWidth n ]
 
-  _ -> Unsolved
+      _ -> Unsolved
 
 
 -- | Add propositions that are implied by the given one.
