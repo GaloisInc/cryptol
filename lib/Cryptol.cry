@@ -326,23 +326,30 @@ primitive (>>$) : {n, k} (fin n, n >= 1, fin k) => [n] -> [k] -> [n]
 
 
 
+/**
+ * Concatenates two sequences.  On bitvectors, the most-significant bits
+ * are in the left argument, and the least-significant bits are in the right.
+ */
 primitive (#) : {front, back, a} (fin front) => [front]a -> [back]a
                                              -> [front + back] a
 
-
 /**
- * Split a sequence into a tuple of sequences.
+ * Splits a sequence into a pair of sequences.
+ * 'splitAt z = (x, y)' iff 'x # y = z'.
  */
 primitive splitAt : {front, back, a} (fin front) => [front + back]a
                                                  -> ([front]a, [back]a)
+
 /**
- * Joins sequences.
+ * Concatenates a list of sequences.
+ * 'join' is the inverse function to 'split'.
  */
 primitive join : {parts, each, a} (fin each) => [parts][each]a
                                              -> [parts * each]a
 
 /**
  * Splits a sequence into 'parts' groups with 'each' elements.
+ * 'split' is the inverse function to 'join'.
  */
 primitive split : {parts, each, a} (fin each) => [parts * each]a
                                               -> [parts][each]a
