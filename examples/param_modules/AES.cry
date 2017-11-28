@@ -2,10 +2,24 @@ module AES where
 
 import `Common::AES
 
-encrypt : {k,m} (k == 128 + m * 64, 2 >= m) => [k] -> [128] -> [128]
+type constraint ValidKey k m = (k == 128 + m * 64, 2 >= m)
+
+type ExpandedKey m = KeySchedule m
+
+encrypt : {k,m} ValidKey k m => [k] -> [128] -> [128]
 encrypt = aesEncrypt`{Mode = m}
 
-decrypt : {k,m} (k == 128 + m * 64, 2 >= m) => [k] -> [128] -> [128]
+decrypt : {k,m} ValidKey k m => [k] -> [128] -> [128]
 decrypt = aesDecrypt`{Mode = m}
 
+expandKey : {k,m} ValidKey k m => [k] -> ExpandedKey m
+expandKey = ExpandKey`{Mode = m}
+
+encryptWithSchedule : {k,m} ValidKey k m => ExpandedKey m -> [128] -> [128]
+encryptWithSchedule = aesEncryptWithSchedule`{Mode = m}
+
+decryptWithSchedule : {k,m} ValidKey k m => ExpandedKey m -> [128] -> [128]
+decryptWithSchedule = aesDecryptWithSchedule `{Mode = m}
+
+property test k pt = encrypt k pt == encryptWithSchedule (expandKey k) pt
 

@@ -21,7 +21,8 @@ parameter
   type constraint ( (36 + 8) >= width AAD )
 
 
-type K = 128 + 128 * Mode
+type K  = 128 + 128 * Mode
+type KS = AES::ExpandedKey (2 * Mode)
 
 
 /** Note the weird byte-swapping business (also in `blockify` and `unblockify`)
@@ -42,14 +43,17 @@ aes_gcm_siv input = c # byteSwap t
   k'    = byteSwap input.key
   n'    = byteSwap input.nonce
 
-aes : [K] -> [128] -> [128]
-aes k v = byteSwap (AES::encrypt (byteSwap k) (byteSwap v))
+aes : KS -> [128] -> [128]
+aes ks v = byteSwap (AES::encryptWithSchedule ks (byteSwap v))
+
+expandKey : [K] -> KS
+expandKey k = AES::expandKey (byteSwap k)
 
 /** See Figure 2 in Section 4 */
-derive_key : [K] -> [96] -> ([128],[K])
-derive_key K N = (mkKey parts1, mkKey parts2)
+derive_key : [K] -> [96] -> ([128], KS)
+derive_key K N = (mkKey parts1, expandKey (mkKey parts2))
   where
-  parts1 # parts2 = [ drop (aes K (N # i)) | i <- take [ 0 ... ]  ]
+  parts1 # parts2 = [ drop (aes (expandKey K) (N # i)) | i <- take [ 0 ... ]  ]
 
   mkKey : {n} (fin n) => [n][64] -> [64 * n]
   mkKey xs = join (reverse xs)
@@ -57,7 +61,7 @@ derive_key K N = (mkKey parts1, mkKey parts2)
 
 /** See Figure 1 in Section 3 */
 gcm_siv_plus :
-  {n} (64 >= width n) => ([128], [K]) -> [96] -> [AAD] -> [n] -> ([n],[128])
+  {n} (64 >= width n) => ([128], KS) -> [96] -> [AAD] -> [n] -> ([n],[128])
 gcm_siv_plus (K1,K2) N AAD MSG = (unblockify Cs,TAG)
   where
 
