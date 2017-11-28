@@ -151,6 +151,7 @@ data ParameterType name = ParameterType
   , ptKind    :: Kind             -- ^ kind of parameter
   , ptDoc     :: Maybe String     -- ^ optional documentation
   , ptFixity  :: Maybe Fixity     -- ^ info for infix use
+  , ptNumber  :: !Int             -- ^ number of the parameter
   } deriving (Eq,Show,Generic,NFData)
 
 -- | A value parameter

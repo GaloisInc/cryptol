@@ -40,19 +40,23 @@ parseString :: Config -> ParseM a -> String -> Either ParseError a
 parseString cfg p cs = parse cfg p (T.pack cs)
 
 parse :: Config -> ParseM a -> Text -> Either ParseError a
-parse cfg p cs    = case unP p cfg eofPos (S Nothing toks) of
+parse cfg p cs    = case unP p cfg eofPos S { sPrevTok = Nothing
+                                            , sTokens = toks
+                                            , sNextTyParamNum = 0
+                                            } of
                       Left err    -> Left err
                       Right (a,_) -> Right a
   where (toks,eofPos) = lexer cfg cs
 
 
 {- The parser is parameterized by the pozition of the final token. -}
-data ParseM a   = P { unP :: Config -> Position -> S -> Either ParseError (a,S) }
+newtype ParseM a =
+  P { unP :: Config -> Position -> S -> Either ParseError (a,S) }
 
 
 lexerP :: (Located Token -> ParseM a) -> ParseM a
-lexerP k = P $ \cfg p (S _ ts) ->
-  case ts of
+lexerP k = P $ \cfg p s ->
+  case sTokens s of
     t : _ | Err e <- tokenType it ->
       Left $ HappyErrorMsg (srcRange t) $
          case e of
@@ -67,7 +71,7 @@ lexerP k = P $ \cfg p (S _ ts) ->
                                     T.unpack (tokenText it)
       where it = thing t
 
-    t : more -> unP (k t) cfg p (S (Just t) more)
+    t : more -> unP (k t) cfg p s { sPrevTok = Just t, sTokens = more }
     [] -> Left (HappyOutOfTokens (cfgSource cfg) p)
 
 data ParseError = HappyError FilePath         {- Name of source file -}
@@ -77,7 +81,11 @@ data ParseError = HappyError FilePath         {- Name of source file -}
                 | HappyOutOfTokens FilePath Position
                   deriving (Show, Generic, NFData)
 
-data S = S { sPrevTok :: Maybe (Located Token), sTokens :: [Located Token] }
+data S = S { sPrevTok :: Maybe (Located Token)
+           , sTokens :: [Located Token]
+           , sNextTyParamNum :: !Int
+             -- ^ Keep track of the type parameters as they appear in the input
+           }
 
 ppError :: ParseError -> Doc
 
@@ -135,8 +143,8 @@ instance Monad ParseM where
                             Right (a,s2) -> unP (k a) cfg p s2)
 
 happyError :: ParseM a
-happyError = P $ \cfg _ (S p _) ->
-  case p of
+happyError = P $ \cfg _ s ->
+  case sPrevTok s of
     Just t  -> Left (HappyError (cfgSource cfg) t)
     Nothing ->
       Left (HappyErrorMsg emptyRange "Parse error at the beginning of the file")
@@ -148,7 +156,8 @@ customError :: String -> Located Token -> ParseM a
 customError x t = P $ \_ _ _ -> Left (HappyErrorMsg (srcRange t) x)
 
 expected :: String -> ParseM a
-expected x = P $ \cfg _ (S pt _) -> Left (HappyUnexpected (cfgSource cfg) pt x)
+expected x = P $ \cfg _ s ->
+                    Left (HappyUnexpected (cfgSource cfg) (sPrevTok s) x)
 
 
 
@@ -328,13 +337,17 @@ mkParFun mbDoc n s = DParameterFun ParameterFun { pfName = n
 mkParType :: Maybe (Located String) ->
              Located PName ->
              Located Kind ->
-             TopDecl PName
-mkParType mbDoc n k = DParameterType
-                      ParameterType { ptName    = n
-                                    , ptKind    = thing k
-                                    , ptDoc     = thing <$> mbDoc
-                                    , ptFixity  = Nothing
-                                    }
+             ParseM (TopDecl PName)
+mkParType mbDoc n k =
+  do num <- P $ \_ _ s -> let nu = sNextTyParamNum s
+                          in Right (nu, s { sNextTyParamNum = nu + 1 })
+     return (DParameterType
+             ParameterType { ptName    = n
+                           , ptKind    = thing k
+                           , ptDoc     = thing <$> mbDoc
+                           , ptFixity  = Nothing
+                           , ptNumber  = num
+                           })
 
 changeExport :: ExportType -> [TopDecl PName] -> [TopDecl PName]
 changeExport e = map change

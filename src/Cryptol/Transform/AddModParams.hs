@@ -8,7 +8,8 @@ import qualified Data.Map as Map
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.Either(partitionEithers)
-import           Data.List(find)
+import           Data.List(find,sortBy)
+import           Data.Ord(comparing)
 
 import Cryptol.TypeCheck.AST
 import Cryptol.Parser.Position(thing)
@@ -86,7 +87,10 @@ data Params = Params
 getParams :: Module -> Either [Name] Params
 getParams m
   | null errs =
-     let ps = Params { pTypes = map rnTP (Map.elems (mParamTypes m))
+     let ps = Params { pTypes = map rnTP
+                              $ sortBy (comparing mtpNumber)
+                              $ Map.elems
+                              $ mParamTypes m
                      , pTypeConstraints = map thing (mParamConstraints m)
                      , pFuns = oks
                      }
@@ -100,7 +104,6 @@ getParams m
                       Nothing -> Left x
 
   rnTP tp = mtpParam tp { mtpName = asParamName (mtpName tp) }
-
 
 --------------------------------------------------------------------------------
 

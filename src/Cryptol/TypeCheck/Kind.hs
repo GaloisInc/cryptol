@@ -59,7 +59,8 @@ checkParameterType :: P.ParameterType Name -> Maybe String -> InferM ModTParam
 checkParameterType a mbDoc =
   do let k = cvtK (P.ptKind a)
          n = thing (P.ptName a)
-     return ModTParam { mtpKind = k, mtpName = n, mtpDoc = mbDoc }
+     return ModTParam { mtpKind = k, mtpName = n, mtpDoc = mbDoc
+                      , mtpNumber = P.ptNumber a }
 
 
 -- | Check a type-synonym declaration.
