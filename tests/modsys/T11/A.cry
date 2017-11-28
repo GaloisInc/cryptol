@@ -1,0 +1,12 @@
+module T11::A where
+
+parameter
+  type X : #
+  type Y : #
+
+type T = ([X],[Y])
+
+f : T -> [X]
+f (x,_) = x
+
+
