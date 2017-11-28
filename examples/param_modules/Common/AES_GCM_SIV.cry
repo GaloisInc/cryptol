@@ -72,10 +72,15 @@ gcm_siv_plus (K1,K2) N AAD MSG = (unblockify Cs,TAG)
   aad_len = `AAD : [64]
   msg_len = `n   : [64]
 
-  lower32 i           = tLower + i : [32]
   _ # tUpper # tLower = TAG
 
-  Cs  = [ aes K2 (0b1 # tUpper # lower32 i) ^ m | m <- M | i <- [ 0 ... ] ]
+  Cs = counter_mode K2 (0b1 # tUpper, tLower) M
+
+counter_mode : {n} KS -> ([96],[32]) -> [n][128] -> [n][128]
+counter_mode K2 (tUpper,tLower) M =
+            [ aes K2 (tUpper # lower32 i) ^ m | m <- M | i <- [ 0 ... ] ]
+  where
+  lower32 i = tLower + i
 
 
 /** See Section 2.2 */
