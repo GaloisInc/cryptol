@@ -66,7 +66,7 @@ gcm_siv_plus (K1,K2) N AAD MSG = (unblockify Cs,TAG)
   where
 
   TAG     = aes K2 (0b0 # drop (T ^ (0 # N)))
-  T       = polyval K1 (A # M # [msg_len # aad_len])
+  T       = polyvalFrom K1 (A # M # [msg_len # aad_len]) 0
   A       = blockify AAD
   M       = blockify MSG
   aad_len = `AAD : [64]
@@ -84,9 +84,9 @@ counter_mode K2 (tUpper,tLower) M =
 
 
 /** See Section 2.2 */
-polyval : {n} (fin n) => [128] -> [n][128] -> [128]
-polyval H Xs = psums ! 0
-  where psums = [0] # [ dot (s ^ x) H | s <- psums | x <- Xs ]
+polyvalFrom : {n} (fin n) => [128] -> [n][128] -> [128] -> [128]
+polyvalFrom H Xs start = psums ! 0
+  where psums = [start] # [ dot (s ^ x) H | s <- psums | x <- Xs ]
 
 dot : [128] -> [128] -> [128]
 dot x y = mult x (mult y x_neg_128)
