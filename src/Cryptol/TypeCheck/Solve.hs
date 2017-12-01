@@ -174,13 +174,13 @@ simpHasGoals = go False [] =<< getHasGoals
 -- on the module's type parameters.
 proveModuleTopLevel :: InferM ()
 proveModuleTopLevel =
-  do simplifyAllConstraints
+  do -- io $ putStrLn "Module top level"
+     simplifyAllConstraints
      cs <- getParamConstraints
      case cs of
        [] -> return ()
-       _  -> do as <- (map mtpParam . Map.elems) <$> getParamTypes
-                gs <- getGoals
-                su <- proveImplication Nothing as (map thing cs) gs
+       _  -> do gs <- getGoals
+                su <- proveImplication Nothing [] [] gs
                 extendSubst su
 
 
@@ -188,8 +188,12 @@ proveImplication :: Maybe Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
      solver <- getSolver
-     extra <- map thing <$> getParamConstraints
-     (mbErr,su) <- io (proveImplicationIO solver lnam evars as (extra ++ ps) gs)
+
+     extraAs <- (map mtpParam . Map.elems) <$> getParamTypes
+     extra   <- map thing <$> getParamConstraints
+
+     (mbErr,su) <- io (proveImplicationIO solver lnam evars
+                            (extraAs ++ as) (extra ++ ps) gs)
      case mbErr of
        Right ws -> mapM_ recordWarning ws
        Left err -> recordError err

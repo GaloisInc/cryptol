@@ -46,8 +46,13 @@ import           Data.Graph(SCC(..))
 import           Data.Traversable(forM)
 import           Control.Monad(when,zipWithM,unless)
 
+
+
 inferModule :: P.Module Name -> InferM Module
-inferModule m =
+inferModule m = inferModuleK m return
+
+inferModuleK :: P.Module Name -> (Module -> InferM a) -> InferM a
+inferModuleK m continue =
   inferDs (P.mDecls m) $ \ds1 ->
     do proveModuleTopLevel
        ts <- getTSyns
@@ -55,16 +60,16 @@ inferModule m =
        pTs <- getParamTypes
        pCs <- getParamConstraints
        pFuns <- getParamFuns
-       return Module { mName      = thing (P.mName m)
-                     , mExports   = P.modExports m
-                     , mImports   = map thing (P.mImports m)
-                     , mTySyns    = Map.mapMaybe onlyLocal ts
-                     , mNewtypes  = Map.mapMaybe onlyLocal nts
-                     , mParamTypes = pTs
-                     , mParamConstraints = pCs
-                     , mParamFuns = pFuns
-                     , mDecls     = ds1
-                     }
+       continue Module { mName      = thing (P.mName m)
+                       , mExports   = P.modExports m
+                       , mImports   = map thing (P.mImports m)
+                       , mTySyns    = Map.mapMaybe onlyLocal ts
+                       , mNewtypes  = Map.mapMaybe onlyLocal nts
+                       , mParamTypes = pTs
+                       , mParamConstraints = pCs
+                       , mParamFuns = pFuns
+                       , mDecls     = ds1
+                       }
   where
   onlyLocal (IsLocal, x)    = Just x
   onlyLocal (IsExternal, _) = Nothing

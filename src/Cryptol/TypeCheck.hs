@@ -38,8 +38,9 @@ import           Cryptol.TypeCheck.Monad
                    )
 import           Cryptol.TypeCheck.Infer (inferModule, inferBinds, inferDs)
 import           Cryptol.TypeCheck.InferTypes(Error(..),Warning(..),VarType(..), SolverConfig(..))
-import           Cryptol.TypeCheck.Solve(simplifyAllConstraints)
+import           Cryptol.TypeCheck.Solve(simplifyAllConstraints,proveModuleTopLevel)
 import           Cryptol.TypeCheck.CheckModuleInstance(checkModuleInstance)
+import           Cryptol.TypeCheck.Monad(withParamType,withParameterConstraints)
 import           Cryptol.Utils.Ident (exprModName,packIdent)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
@@ -59,7 +60,10 @@ tcModuleInst :: Module                  {- ^ functor -} ->
 tcModuleInst func m inp = runInferM inp
                         $ do x <- inferModule m
                              y <- checkModuleInstance func x
-                             simplifyAllConstraints
+                             flip (foldr withParamType) (mParamTypes x) $
+                               withParameterConstraints (mParamConstraints x) $
+                               proveModuleTopLevel
+
                              return y
 
 tcExpr :: P.Expr Name -> InferInput -> IO (InferOutput (Expr,Schema))
