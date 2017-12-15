@@ -443,10 +443,12 @@ newTVar src k = newTVar' src Set.empty k
 -- type parameters.
 newTVar' :: Doc -> Set TVar -> Kind -> InferM TVar
 newTVar' src extraBound k =
-  do bound <- getBoundInScope
+  do r <- curRange
+     bound <- getBoundInScope
      let vs = Set.union extraBound bound
+         msg = src <+> text "at" <+> pp r
      newName $ \s -> let x = seedTVar s
-                     in (TVFree x k vs src, s { seedTVar = x + 1 })
+                     in (TVFree x k vs msg, s { seedTVar = x + 1 })
 
 
 

@@ -523,9 +523,7 @@ inferP desc pat =
   case pat of
 
     P.PVar x0 ->
-      do let loc = srcRange x0
-             desc' = desc <+> text "at" <+> pp loc
-         a   <- newType desc' KType
+      do a   <- newType desc KType
          return (thing x0, x0 { thing = a })
 
     P.PTyped p t ->
