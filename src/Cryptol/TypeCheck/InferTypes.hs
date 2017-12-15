@@ -178,7 +178,7 @@ data Error    = ErrorMsg Doc
 
               | CannotMixPositionalAndNamedTypeParams
 
-              | AmbiguousType [Name]
+              | AmbiguousType [Name] [TVar]
 
 
                 deriving (Show, Generic, NFData)
@@ -261,7 +261,9 @@ instance TVars Error where
       UnusableFunction f ps      -> UnusableFunction f (apSubst su ps)
       TooManyPositionalTypeParams -> err
       CannotMixPositionalAndNamedTypeParams -> err
-      AmbiguousType _           -> err
+      AmbiguousType _ _vs       -> err
+          -- XXX: shoudln't be applying to these vars,
+          -- they are ambiguous, after all
 
 
 instance FVS Error where
@@ -289,7 +291,7 @@ instance FVS Error where
       UnusableFunction _ p      -> fvs p
       TooManyPositionalTypeParams -> Set.empty
       CannotMixPositionalAndNamedTypeParams -> Set.empty
-      AmbiguousType _           ->  Set.empty
+      AmbiguousType _ vs        ->  Set.empty
 
 
 instance FVS Goal where
@@ -505,9 +507,13 @@ instance PP (WithNames Error) where
       CannotMixPositionalAndNamedTypeParams ->
         text "Named and positional type applications may not be mixed."
 
-      AmbiguousType xs ->
-        text "The inferred type for" <+> commaSep (map pp xs)
-          <+> text "is ambiguous."
+      AmbiguousType xs vs ->
+        (text "The inferred type for" <+> commaSep (map pp xs)
+          <+> text "is ambiguous.")
+          $$ text "Arising from:"
+          $$ nest 2 (vcat [ text "*" <+> var v | v <- vs ])
+        where var (TVFree _ _ _ d) = d
+              var x = pp x
 
     where
     nested x y = x $$ nest 2 y

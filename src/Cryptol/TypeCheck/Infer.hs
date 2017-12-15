@@ -523,7 +523,9 @@ inferP desc pat =
   case pat of
 
     P.PVar x0 ->
-      do a   <- newType desc KType
+      do let loc = srcRange x0
+             desc' = desc <+> text "at" <+> pp loc
+         a   <- newType desc' KType
          return (thing x0, x0 { thing = a })
 
     P.PTyped p t ->
@@ -711,7 +713,8 @@ generalize bs0 gs0 =
      let (maybeAmbig, ambig) = partition ((KNum ==) . kindOf)
                              $ Set.toList
                              $ Set.difference gen0 inSigs
-     when (not (null ambig)) $ recordError $ AmbiguousType $ map dName bs
+     when (not (null ambig)) $ recordError
+                             $ AmbiguousType (map dName bs) ambig
 
 
      {- See if we might be able to default some of the potentially ambiguous
@@ -825,7 +828,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
             (maybeAmbig,ambig) = partition ((== KNum) . kindOf)
                                            (Set.toList genVs)
         when (not (null ambig)) $ recordError
-                                $ AmbiguousType [ thing (P.bName b) ]
+                                $ AmbiguousType [ thing (P.bName b) ] ambig
 
         -- XXX: Uhm, why are we defaulting that 'later' things here?
         -- Surely this should be done later, when we solve them?
