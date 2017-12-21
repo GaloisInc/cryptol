@@ -61,10 +61,8 @@ instantiateWithPos e (Forall as ps t) ts =
   makeSu _ su [] _        = do recordError TooManyPositionalTypeParams
                                return (reverse su)
 
-  unnamed n q = do r <- curRange
-                   let src = ordinal n <+> text "type parameter"
+  unnamed n q = do let src = ordinal n <+> text "type parameter"
                            $$ text "of" <+> ppUse e
-                           $$ text "at" <+> pp r
                    ty <- newType src (kindOf q)
                    return (tpVar q, ty)
 
@@ -97,21 +95,19 @@ instantiateWithNames e (Forall as ps t) xs =
            -- We just use nameIdent for comparison here, as all parameter names
            -- should have a NameInfo of Parameter.
            lkp name = find (\th -> fst (thing th) == nameIdent name) xs
-           src r = text "type parameter" <+> (case tpName x of
-                                               Just n -> quotes (pp n)
-                                               Nothing -> empty)
+           src = text "type parameter" <+> (case tpName x of
+                                              Just n -> quotes (pp n)
+                                              Nothing -> empty)
                                         $$ text "of" <+> ppUse e
-                                        $$ text "at" <+> pp r
        ty <- case lkp =<< tpName x of
                Just lty
                  | k1 == k   -> return ty
-                 | otherwise -> do let r = srcRange lty
-                                   inRange r $ recordError (KindMismatch k k1)
-                                   newType (src r) k
+                 | otherwise -> inRange (srcRange lty) $
+                                  do recordError (KindMismatch k k1)
+                                     newType src k
                   where ty = snd (thing lty)
                         k1 = kindOf ty
-               Nothing -> do r <- curRange
-                             newType (src r) k
+               Nothing -> newType src k
        return (v,ty)
 
   -- Errors from multiple values for the same parameter.
