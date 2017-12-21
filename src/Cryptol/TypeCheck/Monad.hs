@@ -25,7 +25,7 @@ import           Cryptol.TypeCheck.Unify(mgu, Result(..), UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
-import           Cryptol.Utils.PP(pp, (<+>), Doc, text, quotes)
+import           Cryptol.Utils.PP(pp, ($$), (<+>), Doc, text, quotes)
 import           Cryptol.Utils.Panic(panic)
 
 import qualified Control.Applicative as A
@@ -446,7 +446,7 @@ newTVar' src extraBound k =
   do r <- curRange
      bound <- getBoundInScope
      let vs = Set.union extraBound bound
-         msg = src <+> text "at" <+> pp r
+         msg = src $$ text "at" <+> pp r
      newName $ \s -> let x = seedTVar s
                      in (TVFree x k vs msg, s { seedTVar = x + 1 })
 
