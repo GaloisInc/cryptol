@@ -20,6 +20,7 @@ import Cryptol.ModuleSystem.Name(Name)
 cleanupErrors :: [(Range,Error)] -> [(Range,Error)]
 cleanupErrors = dropErrorsFromSameLoc
               . sortBy (compare `on` (cmpR . fst))    -- order errors
+              . dropSumbsumed
   where
 
   -- pick shortest error from each location.
@@ -35,8 +36,16 @@ cleanupErrors = dropErrorsFromSameLoc
             , to r        -- Finally end position
             )
 
+  dropSumbsumed xs =
+    case xs of
+      (r,e) : rest -> (r,e) :
+                        dropSumbsumed (filter (not .subsumes e . snd) rest)
+      [] -> []
 
-
+-- | Should the first error suppress the next one.
+subsumes :: Error -> Error -> Bool
+subsumes (NotForAll x _) (NotForAll y _) = x == y
+subsumes _ _ = False
 
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingWildType P.Kind
