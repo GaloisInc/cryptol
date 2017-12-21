@@ -200,15 +200,23 @@ generateAssertion opts dir file = testCase file $ do
         Left (X.SomeException {})
           | Just prog <- optDiff opts ->
             do goldFile' <- canonicalizePath goldFile
-               assertFailure (unwords [ prog, goldFile', "\\\n    ", resultOut ])
+               assertFailure $ unlines
+                  [ unwords [ prog, goldFile', "\\\n    ", resultOut ]
+                  , makeGold resultOut goldFile
+                  ]
 
           | otherwise ->
             do goldFile' <- canonicalizePath goldFile
                (_,diffOut,_) <- readProcessWithExitCode "diff" [ goldFile', resultOut ] ""
-               assertFailure diffOut
+               assertFailure $ unlines [ diffOut, makeGold resultOut goldFile ]
 
         Right fail_msg | optIgnoreExpected opts -> return ()
                        | otherwise              -> assertFailure fail_msg
+
+  makeGold out gold =
+    unlines [ "# If output is OK:"
+            , unwords [ "cp", out, "\\\n    ", gold ]
+            ]
 
 -- Test Discovery --------------------------------------------------------------
 
