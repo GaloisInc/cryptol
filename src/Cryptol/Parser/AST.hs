@@ -618,7 +618,8 @@ instance (Show name, PPName name) => PP (Bind name) where
 
           lhsOp = case bParams b of
                     [x,y] -> pp x <+> ppL f <+> pp y
-                    _     -> panic "AST" [ "Malformed infix operator", show b ]
+                    xs -> parens (parens (ppL f) <+> fsep (map (ppPrec 0) xs))
+                    -- _     -> panic "AST" [ "Malformed infix operator", show b ]
 
 
 instance (Show name, PPName name) => PP (BindDef name) where
