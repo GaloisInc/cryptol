@@ -524,7 +524,7 @@ inferP desc pat =
   case pat of
 
     P.PVar x0 ->
-      do a   <- newType desc KType
+      do a   <- inRange (srcRange x0) (newType desc KType)
          return (thing x0, x0 { thing = a })
 
     P.PTyped p t ->
