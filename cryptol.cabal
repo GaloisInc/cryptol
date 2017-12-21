@@ -124,6 +124,7 @@ library
                        Cryptol.TypeCheck.Infer,
                        Cryptol.TypeCheck.CheckModuleInstance,
                        Cryptol.TypeCheck.InferTypes,
+                       Cryptol.TypeCheck.Error,
                        Cryptol.TypeCheck.Kind,
                        Cryptol.TypeCheck.Subst,
                        Cryptol.TypeCheck.Instantiate,

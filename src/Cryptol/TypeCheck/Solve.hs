@@ -22,6 +22,7 @@ import           Cryptol.Parser.Position(thing)
 import           Cryptol.TypeCheck.PP(pp)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
+import           Cryptol.TypeCheck.Error(Error(..),Warning(..))
 import           Cryptol.TypeCheck.Subst
                     (apSubst, singleSubst, isEmptySubst, substToList,
                           emptySubst,Subst,listSubst, (@@), Subst,

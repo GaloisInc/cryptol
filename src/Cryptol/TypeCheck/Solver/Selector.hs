@@ -50,7 +50,8 @@ improveSelector sel outerT =
   cvt _ Nothing   = return False
   cvt f (Just a)  = do ty <- f a
                        newGoals CtExactType =<< unify ty outerT
-                       return True
+                       newT <- applySubst outerT
+                       return (newT /= outerT)
 
 
 {- | Compute the type of a field based on the selector.

@@ -22,6 +22,7 @@ import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.AST (Named(..))
 import           Cryptol.Parser.Position
 import           Cryptol.TypeCheck.AST
+import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Monad hiding (withTParams)
 import           Cryptol.TypeCheck.SimpType(tRebuild)
 import           Cryptol.TypeCheck.Solve (simplifyAllConstraints

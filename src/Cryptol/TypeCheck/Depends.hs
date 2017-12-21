@@ -14,8 +14,8 @@ import           Cryptol.ModuleSystem.Name (Name)
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position(Range, Located(..), thing)
 import           Cryptol.Parser.Names (namesB, namesT, namesC)
-import           Cryptol.TypeCheck.Monad( InferM, recordError, getTVars
-                                        , Error(..))
+import           Cryptol.TypeCheck.Monad( InferM, recordError, getTVars )
+import           Cryptol.TypeCheck.Error(Error(..))
 
 import           Data.List(sortBy, groupBy)
 import           Data.Function(on)

@@ -21,6 +21,7 @@ import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem.Exports as P
 import           Cryptol.TypeCheck.AST hiding (tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Monad
+import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Solve
 import           Cryptol.TypeCheck.SimpType(tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,

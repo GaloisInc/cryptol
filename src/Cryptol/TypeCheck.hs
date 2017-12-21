@@ -28,6 +28,7 @@ import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position(Range,emptyRange)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Depends (FromDecl)
+import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Monad
                    ( runInferM
                    , InferInput(..)
@@ -37,7 +38,7 @@ import           Cryptol.TypeCheck.Monad
                    , lookupVar
                    )
 import           Cryptol.TypeCheck.Infer (inferModule, inferBinds, inferDs)
-import           Cryptol.TypeCheck.InferTypes(Error(..),Warning(..),VarType(..), SolverConfig(..))
+import           Cryptol.TypeCheck.InferTypes(VarType(..), SolverConfig(..))
 import           Cryptol.TypeCheck.Solve(simplifyAllConstraints,proveModuleTopLevel)
 import           Cryptol.TypeCheck.CheckModuleInstance(checkModuleInstance)
 import           Cryptol.TypeCheck.Monad(withParamType,withParameterConstraints)

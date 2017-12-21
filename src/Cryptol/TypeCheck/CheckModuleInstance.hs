@@ -12,6 +12,7 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Monad
 import Cryptol.TypeCheck.Infer
 import Cryptol.TypeCheck.Subst
+import Cryptol.TypeCheck.Error
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 

@@ -12,6 +12,7 @@ import Cryptol.ModuleSystem.Name (nameIdent)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Monad
 import Cryptol.TypeCheck.Subst (listSubst,apSubst)
+import Cryptol.TypeCheck.Error
 import Cryptol.Parser.Position (Located(..))
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
