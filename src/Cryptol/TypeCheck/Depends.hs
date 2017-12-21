@@ -16,6 +16,7 @@ import           Cryptol.Parser.Position(Range, Located(..), thing)
 import           Cryptol.Parser.Names (namesB, namesT, namesC)
 import           Cryptol.TypeCheck.Monad( InferM, recordError, getTVars )
 import           Cryptol.TypeCheck.Error(Error(..))
+import           Cryptol.Utils.Panic(panic)
 
 import           Data.List(sortBy, groupBy)
 import           Data.Function(on)
@@ -160,21 +161,21 @@ mkScc ents = stronglyConnComp $ zipWith mkGr keys ents
 {- | Combine a bunch of definitions into a single map.  Here we check
 that each name is defined only onces. -}
 combineMaps :: [Map Name (Located a)] -> InferM (Map Name (Located a))
-combineMaps ms  =
-   do mapM_ recordError $
-        do m <- ms
-           (x,rs) <- duplicates [ a { thing = x } | (x,a) <- Map.toList m ]
-           return (RepeatedDefinitions x rs)
-      return (Map.unions ms)
+combineMaps ms = if null bad then return (Map.unions ms)
+                             else panic "combineMaps" $ "Multiple definitions"
+                                                      : map show bad
+  where
+  bad = do m <- ms
+           duplicates [ a { thing = x } | (x,a) <- Map.toList m ]
 
 {- | Combine a bunch of definitions into a single map.  Here we check
 that each name is defined only onces. -}
 combine :: [(Name, Located a)] -> InferM (Map Name (Located a))
-combine m =
-  do mapM_ recordError $
-      do (x,rs) <- duplicates [ a { thing = x } | (x,a) <- m ]
-         return (RepeatedDefinitions x rs)
-     return (Map.fromList m)
+combine m = if null bad then return (Map.fromList m)
+                        else panic "combine" $ "Multiple definitions"
+                                             : map show bad
+  where
+  bad = duplicates [ a { thing = x } | (x,a) <- m ]
 
 -- | Identify multiple occurances of something.
 duplicates :: Ord a => [Located a] -> [(a,[Range])]

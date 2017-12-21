@@ -16,6 +16,7 @@ import Cryptol.TypeCheck.Error
 import Cryptol.Parser.Position (Located(..))
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
+import Cryptol.Utils.Panic(panic)
 
 import Data.Function (on)
 import Data.List(sortBy, groupBy, find)
@@ -84,7 +85,9 @@ instantiateWithNames :: Expr -> Schema -> [Located (Ident,Type)]
                      -> InferM (Expr,Type)
 instantiateWithNames e (Forall as ps t) xs =
   do sequence_ repeatedParams
-     sequence_ undefParams
+     unless (null undefParams) $
+        panic "instantiateWithNames" $ "Undefined parameters"
+                                     : map show undefParams
      su' <- mapM paramInst as
      doInst su' e ps t
   where
@@ -116,21 +119,17 @@ instantiateWithNames e (Forall as ps t) xs =
                   $ groupBy ((==) `on` pName)
                   $ sortBy (compare `on` pName) xs
 
-  isRepeated ys@(a : _ : _)  = Just $ recordError
-                                    $ MultipleTypeParamDefs (fst (thing a))
-                                                            (map srcRange ys)
+  isRepeated ys@(a : _ : _)  = panic "instantiateWithNames"
+                                $ "Multiple type param defs"
+                                : show (fst (thing a))
+                                : map show ys
   isRepeated _               = Nothing
 
 
   paramIdents = [ nameIdent n | Just n <- map tpName as ]
 
   -- Errors from parameters that are defined, but do not exist in the schema.
-  undefParams     = do x <- xs
-                       let name = pName x
-                       guard (name `notElem` paramIdents)
-                       return $ inRange (srcRange x)
-                              $ recordError
-                              $ UndefinedTypeParam x { thing = name }
+  undefParams     = [ x | x <- xs, pName x `notElem` paramIdents ]
 
   pName = fst . thing
 

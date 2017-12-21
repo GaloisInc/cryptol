@@ -23,7 +23,7 @@ import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.Unify(mgu, Result(..), UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
-import           Cryptol.TypeCheck.Error(Warning,Error(..))
+import           Cryptol.TypeCheck.Error(Warning,Error(..),cleanupErrors)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import           Cryptol.Utils.PP(pp, ($$), (<+>), Doc, text, quotes)
@@ -35,9 +35,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Map (Map)
 import           Data.Set (Set)
-import           Data.List(find, minimumBy, groupBy, sortBy, foldl')
+import           Data.List(find, foldl')
 import           Data.Maybe(mapMaybe)
-import           Data.Function(on)
 import           MonadLib hiding (mapM)
 
 import           Data.IORef
@@ -145,14 +144,13 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
                                   (iSupply finalRW)
                                   (apSubst defSu result)
            (cts,has) -> return $ InferFailed warns
-                $ dropErrorsFromSameLoc
+                $ cleanupErrors
                 [ ( goalRange g
                   , UnsolvedGoals False [apSubst theSu g]
                   ) | g <- fromGoals cts ++ map hasGoal has
                 ]
        errs -> return $ InferFailed warns
-                      $ dropErrorsFromSameLoc
-                                  [(r,apSubst theSu e) | (r,e) <- errs]
+                      $ cleanupErrors [(r,apSubst theSu e) | (r,e) <- errs]
 
   where
   mkExternal x = (IsExternal, x)
@@ -170,14 +168,6 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
           , iSupply     = inpSupply info
           }
 
-  dropErrorsFromSameLoc = map chooseBestError . groupBy ((==)    `on` fst)
-                                              . sortBy  (cmpRange `on` fst)
-
-  addErrorSize (r,e) = (length (show (pp e)), (r,e))
-  chooseBestError    = snd . minimumBy (compare `on` fst) . map addErrorSize
-
-  -- The actual order does not matter
-  cmpRange (Range x y z) (Range a b c) = compare (x,y,z) (a,b,c)
 
 
 
@@ -542,10 +532,8 @@ lookupVar x =
                 do mbParamFun <- lookupParamFun x
                    case mbParamFun of
                      Just pf -> return (ExtVar (mvpType pf))
-                     Nothing ->
-                       do recordError (UndefinedVariable x)
-                          a <- newType (text "type of" <+> pp x) KType
-                          return $ ExtVar $ Forall [] [] a
+                     Nothing -> panic "lookupVar" [ "Undefined type variable"
+                                                  , show x]
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
 -- in scope, in which case we must be dealing with a type constant.

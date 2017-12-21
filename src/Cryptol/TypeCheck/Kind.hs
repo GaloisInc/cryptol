@@ -168,10 +168,12 @@ withTParams :: Bool              {- ^ Do we allow wild cards -} ->
               [P.TParam Name]    {- ^ The params -} ->
               KindM a            {- ^ do this using the params -} ->
               InferM ([TParam], a)
-withTParams allowWildCards flav xs m =
+withTParams allowWildCards flav xs m
+  | not (null duplicates) = panic "withTParams" $ "Repeated parameters"
+                                                : map show duplicates
+  | otherwise =
   do (as,a,ctrs) <-
-        mdo mapM_ recordError duplicates
-            (a, vars,ctrs) <- runKindM allowWildCards (zip' xs ts) m
+        mdo (a, vars,ctrs) <- runKindM allowWildCards (zip' xs ts) m
             (as, ts)  <- unzip `fmap` mapM (newTP vars) xs
             return (as,a,ctrs)
      mapM_ (uncurry newGoals) ctrs
@@ -195,8 +197,7 @@ withTParams allowWildCards flav xs m =
   zip' [] _           = []
   zip' (a:as) ~(t:ts) = (P.tpName a, fmap cvtK (P.tpKind a), t) : zip' as ts
 
-  duplicates = [ RepeatedTyParams ds
-                    | ds@(_ : _ : _) <- groupBy ((==) `on` P.tpName)
+  duplicates = [ ds | ds@(_ : _ : _) <- groupBy ((==) `on` P.tpName)
                                       $ sortBy (compare `on` P.tpName) xs ]
 
 cvtK :: P.Kind -> Kind
@@ -264,9 +265,8 @@ tySyn scoped x ts k =
                      Nothing
                        | scoped -> kExistTVar x $ fromMaybe KNum k
                        | otherwise ->
-                          do kRecordError $ UndefinedTypeSynonym x
-                             kNewType (text "type synonym" <+> pp x) $
-                                                            fromMaybe KNum k
+                          panic "Kind.tySyn" $ "Undefined type synonym"
+                                             : [ show x ]
   where
   checkParams as ts1
     | paramHave == paramNeed = return ts1

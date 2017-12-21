@@ -6,16 +6,37 @@ import qualified Data.IntMap as IntMap
 import qualified Data.Set as Set
 import Control.DeepSeq(NFData)
 import GHC.Generics(Generic)
-import Data.List((\\))
+import Data.List((\\),sortBy,groupBy,minimumBy)
+import Data.Function(on)
 
 import qualified Cryptol.Parser.AST as P
-import Cryptol.Parser.Position(Range,Located)
+import Cryptol.Parser.Position(Range(..))
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Subst
-import Cryptol.Utils.Ident(Ident)
 import Cryptol.ModuleSystem.Name(Name)
+
+cleanupErrors :: [(Range,Error)] -> [(Range,Error)]
+cleanupErrors = dropErrorsFromSameLoc
+              . sortBy (compare `on` (cmpR . fst))    -- order errors
+  where
+
+  -- pick shortest error from each location.
+  dropErrorsFromSameLoc = map chooseBestError
+                        . groupBy ((==)    `on` fst)
+
+  addErrorSize (r,e) = (length (show (pp e)), (r,e))
+  chooseBestError    = snd . minimumBy (compare `on` fst) . map addErrorSize
+
+
+  cmpR r  = ( source r    -- Frist by file
+            , from r      -- Then starting position
+            , to r        -- Finally end position
+            )
+
+
+
 
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingWildType P.Kind
@@ -39,26 +60,8 @@ data Error    = ErrorMsg Doc
               | TooFewTySynParams Name Int
                 -- ^ Type-synonym, number of missing params
 
-              | RepeatedTyParams [P.TParam Name]
-                -- ^ Type parameters with the same name (in definition)
-
-              | RepeatedDefinitions Name [Range]
-                -- ^ Multiple definitions for the same name
-
               | RecursiveTypeDecls [Name]
                 -- ^ The type synonym declarations are recursive
-
-              | UndefinedTypeSynonym Name
-                -- ^ Use of a type synonym that was not defined
-
-              | UndefinedVariable Name
-                -- ^ Use of a variable that was not defined
-
-              | UndefinedTypeParam (Located Ident)
-                -- ^ Attempt to explicitly instantiate a non-existent param.
-
-              | MultipleTypeParamDefs Ident [Range]
-                -- ^ Multiple definitions for the same type parameter
 
               | TypeMismatch Type Type
                 -- ^ Expected type, inferred type
@@ -123,13 +126,7 @@ instance TVars Error where
       TooManyTypeParams {}      -> err
       TooManyTySynParams {}     -> err
       TooFewTySynParams {}      -> err
-      RepeatedTyParams {}       -> err
-      RepeatedDefinitions {}    -> err
       RecursiveTypeDecls {}     -> err
-      UndefinedTypeSynonym {}   -> err
-      UndefinedVariable {}      -> err
-      UndefinedTypeParam {}     -> err
-      MultipleTypeParamDefs {}  -> err
       TypeMismatch t1 t2        -> TypeMismatch (apSubst su t1) (apSubst su t2)
       RecursiveType t1 t2       -> RecursiveType (apSubst su t1) (apSubst su t2)
       UnsolvedGoals x gs        -> UnsolvedGoals x (apSubst su gs)
@@ -153,13 +150,7 @@ instance FVS Error where
       TooManyTypeParams {}      -> Set.empty
       TooManyTySynParams {}     -> Set.empty
       TooFewTySynParams {}      -> Set.empty
-      RepeatedTyParams {}       -> Set.empty
-      RepeatedDefinitions {}    -> Set.empty
       RecursiveTypeDecls {}     -> Set.empty
-      UndefinedTypeSynonym {}   -> Set.empty
-      UndefinedVariable {}      -> Set.empty
-      UndefinedTypeParam {}     -> Set.empty
-      MultipleTypeParamDefs {}  -> Set.empty
       TypeMismatch t1 t2        -> fvs (t1,t2)
       RecursiveType t1 t2       -> fvs (t1,t2)
       UnsolvedGoals _ gs        -> fvs gs
@@ -229,34 +220,9 @@ instance PP (WithNames Error) where
           (text "Type" <+> nm t <+> text "is missing" <+>
             int few <+> text "parameters.")
 
-      RepeatedTyParams ps ->
-        nested (text "Different type parameters use the same name:")
-          (vmulti [ nm (P.tpName p) <+>
-                    text "defined at" <+> mb (P.tpRange p) | p <- ps ] )
-          where mb Nothing  = text "unknown location"
-                mb (Just x) = pp x
-
-      RepeatedDefinitions x ps ->
-        nested (text "Multiple definitions for the same name:")
-          (vmulti [ nm x <+> text "defined at" <+> pp p | p <- ps ])
-
       RecursiveTypeDecls ts ->
         nested (text "Recursive type declarations:")
                (fsep $ punctuate comma $ map nm ts)
-
-      UndefinedTypeSynonym x ->
-        text "Type synonym" <+> nm x <+> text "is not defined."
-
-      UndefinedVariable x ->
-        text "Variable" <+> nm x <+> text "was not defined."
-
-      UndefinedTypeParam x ->
-        text "Type variable" <+> nm x <+> text "was not defined."
-
-      MultipleTypeParamDefs x ps ->
-        nested (text "Multiple definitions for the same type parameter"
-                                                        <+> nm x <> text ":")
-               (vmulti [ text "defined at" <+> pp p | p <- ps ])
 
 
       TypeMismatch t1 t2 ->
@@ -312,13 +278,6 @@ instance PP (WithNames Error) where
     pl n x     = text (show n) <+> text x <> text "s"
 
     nm x       = text "`" <> pp x <> text "`"
-
-    vmulti          = vcat . multi
-
-    multi []        = []
-    multi [x]       = [x <> text "."]
-    multi [x,y]     = [x <> text ", and", y <> text "." ]
-    multi (x : xs)  = x <> text "," : multi xs
 
     mismatchHint (TRec fs1) (TRec fs2) =
       hint "Missing" missing $$ hint "Unexpected" extra
