@@ -417,9 +417,6 @@ evalSel val sel = case sel of
   tupleSel n v =
     case v of
       VTuple vs       -> vs !! n
-      VSeq w vs       -> VSeq w <$> mapSeqMap (tupleSel n) vs
-      VStream vs      -> VStream <$> mapSeqMap (tupleSel n) vs
-      VFun f          -> return $ VFun (\x -> tupleSel n =<< f x)
       _               -> do vdoc <- ppValue defaultPPOpts v
                             evalPanic "Cryptol.Eval.evalSel"
                               [ "Unexpected value in tuple selection"
@@ -428,9 +425,6 @@ evalSel val sel = case sel of
   recordSel n v =
     case v of
       VRecord {}      -> lookupRecord n v
-      VSeq w vs       -> VSeq w <$> mapSeqMap (recordSel n) vs
-      VStream vs      -> VStream <$> mapSeqMap (recordSel n) vs
-      VFun f          -> return $ VFun (\x -> recordSel n =<< f x)
       _               -> do vdoc <- ppValue defaultPPOpts v
                             evalPanic "Cryptol.Eval.evalSel"
                               [ "Unexpected value in record selection"

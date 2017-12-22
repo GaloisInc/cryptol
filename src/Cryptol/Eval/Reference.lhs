@@ -321,9 +321,7 @@ assigns values to those variables.
 Selectors
 ---------
 
-Apply the the given selector form to the given value. This function
-pushes tuple and record selections pointwise down into sequences and
-functions.
+Apply the the given selector form to the given value.
 
 > evalSel :: Value -> Selector -> Value
 > evalSel val sel =
@@ -335,15 +333,11 @@ functions.
 >     tupleSel n v =
 >       case v of
 >         VTuple vs   -> vs !! n
->         VList vs    -> VList (map (tupleSel n) vs)
->         VFun f      -> VFun (\x -> tupleSel n (f x))
 >         _           -> evalPanic "evalSel"
 >                        ["Unexpected value in tuple selection."]
 >     recordSel n v =
 >       case v of
 >         VRecord _   -> lookupRecord n v
->         VList vs    -> VList (map (recordSel n) vs)
->         VFun f      -> VFun (\x -> recordSel n (f x))
 >         _           -> evalPanic "evalSel"
 >                        ["Unexpected value in record selection."]
 >     listSel n v =
