@@ -148,7 +148,7 @@ exprSchema expr =
          forM_ es $ \e ->
            do t1 <- exprType e
               unless (same t1 t) $
-                reportError $ TypeMismatch (tMono t) (tMono t1)
+                reportError $ TypeMismatch "EList" (tMono t) (tMono t1)
 
          return $ tMono $ tSeq (tNum (length es)) t
 
@@ -237,12 +237,12 @@ exprSchema expr =
     EIf e1 e2 e3 ->
       do ty <- exprType e1
          unless (same tBit ty) $
-           reportError $ TypeMismatch (tMono tBit) (tMono ty)
+           reportError $ TypeMismatch "EIf_condition" (tMono tBit) (tMono ty)
 
          t1 <- exprType e2
          t2 <- exprType e3
          unless (same t1 t2) $
-           reportError $ TypeMismatch (tMono t1) (tMono t2)
+           reportError $ TypeMismatch "EIf_arms" (tMono t1) (tMono t2)
 
          return $ tMono t1
 
@@ -338,7 +338,7 @@ convertible t1 t2
 convertible t1 t2 = go t1 t2
   where
   go ty1 ty2 =
-    let err   = reportError $ TypeMismatch (tMono ty1) (tMono ty2)
+    let err   = reportError $ TypeMismatch "convertible" (tMono ty1) (tMono ty2)
         other = tNoUser ty2
 
         goMany [] []             = return ()
@@ -384,7 +384,7 @@ checkDecl checkSig d =
          when checkSig $ checkSchema s
          s1 <- exprSchema e
          unless (same s s1) $
-           reportError $ TypeMismatch s s1
+           reportError $ TypeMismatch "DExpr" s s1
          return (dName d, s)
 
 checkDeclGroup :: DeclGroup -> TcM [(Name, Schema)]
@@ -409,7 +409,7 @@ checkMatch ma =
          case tNoUser t1 of
            TCon (TC TCSeq) [ l, el ]
              | same elt el -> return ((x, tMono elt), l)
-             | otherwise -> reportError $ TypeMismatch (tMono elt) (tMono el)
+             | otherwise -> reportError $ TypeMismatch "From" (tMono elt) (tMono el)
 
 
            _ -> reportError $ BadMatch t1
@@ -480,7 +480,7 @@ runTcM env (TcM m) =
 
 
 data Error =
-    TypeMismatch Schema Schema    -- ^ expected, actual
+    TypeMismatch String Schema Schema    -- ^ expected, actual
   | ExpectedMono Schema           -- ^ expected a mono type, got this
   | TupleSelectorOutOfRange Int Int
   | MissingField Ident [Ident]

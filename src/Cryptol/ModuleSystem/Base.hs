@@ -421,7 +421,7 @@ exprLinter = TCLinter
         Left err     -> Left err
         Right (s1,os)
           | TcSanity.same s s1  -> Right os
-          | otherwise -> Left (TcSanity.TypeMismatch s s1)
+          | otherwise -> Left (TcSanity.TypeMismatch "exprLinter" s s1)
   , lintModule = Nothing
   }
 
