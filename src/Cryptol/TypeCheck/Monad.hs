@@ -16,7 +16,7 @@ module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
   ) where
 
-import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
+import           Cryptol.ModuleSystem.Name (FreshM(..),Supply,mkParameter)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
@@ -27,6 +27,7 @@ import           Cryptol.TypeCheck.Error(Warning,Error(..),cleanupErrors)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import           Cryptol.Utils.PP(pp, ($$), (<+>), Doc, text, quotes)
+import           Cryptol.Utils.Ident(Ident)
 import           Cryptol.Utils.Panic(panic)
 
 import qualified Control.Applicative as A
@@ -415,6 +416,11 @@ solveHasGoal n e =
 
 --------------------------------------------------------------------------------
 
+-- | Generate a fresh variable name to be used in a local binding.
+newParamName :: Ident -> InferM Name
+newParamName x =
+  do r <- curRange
+     liftSupply (mkParameter x r)
 
 newName :: (NameSeeds -> (a , NameSeeds)) -> InferM a
 newName upd = IM $ sets $ \s -> let (x,seeds) = upd (iNameSeeds s)
