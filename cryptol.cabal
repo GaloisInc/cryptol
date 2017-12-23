@@ -132,6 +132,7 @@ library
                        Cryptol.TypeCheck.Depends,
                        Cryptol.TypeCheck.PP,
                        Cryptol.TypeCheck.Solve,
+                       Cryptol.TypeCheck.Default,
                        Cryptol.TypeCheck.SimpleSolver,
                        Cryptol.TypeCheck.TypeMap,
                        Cryptol.TypeCheck.TypeOf,
