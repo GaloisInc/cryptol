@@ -260,7 +260,7 @@ tMax x y
     | TCon (TF TCAdd) [a,b] <- t'
     , Just n <- tIsNum a = if k <= n
                              then t
-                             else tMax (tNum (k - n)) b
+                             else tAdd (tNum n) (tMax (tNum (k - n)) b)
 
     | TCon (TF TCSub) [a,b] <- t'
     , Just n <- tIsNat' a =
