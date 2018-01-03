@@ -1,0 +1,15 @@
+module AES::State where
+
+import AES::GF28
+
+type State       = [4][Nb]GF28
+type Nb          = 4
+type RoundKey    = State
+
+msgToState : [128] -> State
+msgToState msg = transpose (split (split msg))
+
+stateToMsg : State -> [128]
+stateToMsg st = join (join (transpose st))
+
+

@@ -1,0 +1,21 @@
+module AES::SubBytePlain where
+
+import AES::GF28
+
+// The SubBytes transform and its inverse
+SubByte : GF28 -> GF28
+SubByte b = xformByte (gf28Inverse b)
+
+InvSubByte : GF28 -> GF28
+InvSubByte b = gf28Inverse (xformByte' b)
+
+
+// The affine transform and its inverse
+xformByte : GF28 -> GF28
+xformByte b = gf28Add [b, (b >>> 4), (b >>> 5), (b >>> 6), (b >>> 7), c]
+   where c = 0x63
+
+xformByte' : GF28 -> GF28
+xformByte' b = gf28Add [(b >>> 2), (b >>> 5), (b >>> 7), d] where d = 0x05
+
+
