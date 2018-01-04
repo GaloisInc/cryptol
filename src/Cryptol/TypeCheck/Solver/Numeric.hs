@@ -111,6 +111,7 @@ tryGeqThanK _ t (Nat k) =
      return $ SolvedIf $ if n >= k
                             then []
                             else [ b >== tNum (k - n) ]
+  -- XXX: K1 ^^ n >= K2
 
 
 tryGeqThanSub :: Ctxt -> Type -> Type -> Match Solved
