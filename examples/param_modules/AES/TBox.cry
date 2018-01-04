@@ -1,0 +1,41 @@
+module AES::TBox where
+
+import AES::GF28
+import AES::State
+import AES::SBox
+import AES::Round
+
+
+AESRound    rk st = genRound ShiftRows    tbox    rk st
+// AESInvRound rk st = genRound InvShiftRows tboxInv (InvMixColumns rk) st
+AESInvRound rk st = genRound InvShiftRows tboxInv rk st
+
+
+makeDecKey (a,xs,b) = (b, [ InvMixColumns rk | rk <- reverse xs ], a)
+
+genRound : (State -> State) -> TBox -> RoundKey -> State -> State
+genRound shift boxes rk st =
+  rk ^ transpose [ add [ box @ i | box <- boxes | i <- col ]
+                 | col <- transpose (shift st) ]
+  where add [ a, b, c, d ] = a ^ b ^ c ^ d
+
+
+
+// Computing the TBoxes
+type TBox = [4][256][4]GF28
+
+tbox : TBox
+tbox = mkTBox [ 0x02, 0x01, 0x01, 0x03 ] sbox
+
+tboxInv : TBox
+tboxInv = mkTBox [ 0x0e, 0x09, 0x0d, 0x0b ] sboxInv
+
+mkTBox : [4]GF28 -> SBox -> TBox
+mkTBox seed box = [ [ a >>> i | a <- t0 ] | i <- [ 0 .. ] ]
+  where
+  t0 = [ [ gf28Mult c s | c <- seed ] | s <- box ]
+
+
+
+
+
