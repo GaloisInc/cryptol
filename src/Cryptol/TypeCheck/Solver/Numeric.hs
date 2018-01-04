@@ -303,6 +303,15 @@ tryEqK ctxt ty lk =
              $ TCErrorMessage
              $ show lk ++ " /= " ++ show rk ++ " * anything"
 
+  <|>
+  -- K1 == K2 ^^ t    ~~> t = logBase K2 K1
+  do (rk, b) <- matches ty ((|^|), aNat, __)
+     return $ case lk of
+                Inf | rk > 1 -> SolvedIf [ b =#= tInf ]
+                Nat n | Just (a,True) <- genLog n rk -> SolvedIf [ b =#= tNum a]
+                _ -> Unsolvable $ TCErrorMessage
+                       $ show rk ++ " ^^ anything /= " ++ show lk
+
   -- XXX: Min, Max, etx
   -- 2  = min (10,y)  --> y = 2
   -- 2  = min (2,y)   --> y >= 2
