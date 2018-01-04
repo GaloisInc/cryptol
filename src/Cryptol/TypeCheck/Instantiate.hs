@@ -16,13 +16,11 @@ import Cryptol.TypeCheck.Error
 import Cryptol.Parser.Position (Located(..))
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
-import Cryptol.Utils.Panic(panic)
 
 import Data.Function (on)
 import Data.List(sortBy, groupBy, find)
 import Data.Maybe(mapMaybe,isJust)
 import Data.Either(partitionEithers)
-import MonadLib
 
 
 instantiateWith :: Expr -> Schema -> [Located (Maybe Ident,Type)]
@@ -85,9 +83,7 @@ instantiateWithNames :: Expr -> Schema -> [Located (Ident,Type)]
                      -> InferM (Expr,Type)
 instantiateWithNames e (Forall as ps t) xs =
   do sequence_ repeatedParams
-     unless (null undefParams) $
-        panic "instantiateWithNames" $ "Undefined parameters"
-                                     : map show undefParams
+     mapM_ (recordError . UndefinedTypeParameter . fmap fst) undefParams
      su' <- mapM paramInst as
      doInst su' e ps t
   where
@@ -119,11 +115,9 @@ instantiateWithNames e (Forall as ps t) xs =
                   $ groupBy ((==) `on` pName)
                   $ sortBy (compare `on` pName) xs
 
-  isRepeated ys@(a : _ : _)  = panic "instantiateWithNames"
-                                $ "Multiple type param defs"
-                                : show (fst (thing a))
-                                : map show ys
-  isRepeated _               = Nothing
+  isRepeated ys@(a : _ : _)  =
+    Just $ recordError (RepeatedTypeParameter (fst (thing a)) (map srcRange ys))
+  isRepeated _ = Nothing
 
 
   paramIdents = [ nameIdent n | Just n <- map tpName as ]

@@ -1,4 +1,5 @@
 {-# Language FlexibleInstances, DeriveGeneric, DeriveAnyClass #-}
+{-# Language OverloadedStrings #-}
 module Cryptol.TypeCheck.Error where
 
 
@@ -10,12 +11,13 @@ import Data.List((\\),sortBy,groupBy,minimumBy)
 import Data.Function(on)
 
 import qualified Cryptol.Parser.AST as P
-import Cryptol.Parser.Position(Range(..))
+import Cryptol.Parser.Position(Located(..), Range(..))
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Subst
 import Cryptol.ModuleSystem.Name(Name)
+import Cryptol.Utils.Ident(Ident)
 
 cleanupErrors :: [(Range,Error)] -> [(Range,Error)]
 cleanupErrors = dropErrorsFromSameLoc
@@ -108,6 +110,10 @@ data Error    = ErrorMsg Doc
 
               | CannotMixPositionalAndNamedTypeParams
 
+              | UndefinedTypeParameter (Located Ident)
+
+              | RepeatedTypeParameter Ident [Range]
+
               | AmbiguousType [Name] [TVar]
 
 
@@ -150,6 +156,9 @@ instance TVars Error where
           -- XXX: shoudln't be applying to these vars,
           -- they are ambiguous, after all
 
+      UndefinedTypeParameter {} -> err
+      RepeatedTypeParameter {} -> err
+
 
 instance FVS Error where
   fvs err =
@@ -171,6 +180,8 @@ instance FVS Error where
       TooManyPositionalTypeParams -> Set.empty
       CannotMixPositionalAndNamedTypeParams -> Set.empty
       AmbiguousType _ _vs       ->  Set.empty
+      UndefinedTypeParameter {} -> Set.empty
+      RepeatedTypeParameter {}  -> Set.empty
 
 
 
@@ -279,6 +290,14 @@ instance PP (WithNames Error) where
           $$ nest 2 (vcat [ text "*" <+> var v | v <- vs ])
         where var (TVFree _ _ _ d) = d
               var x = pp x
+
+      UndefinedTypeParameter x ->
+        "Undefined type parameter `" <> pp (thing x) <> "`."
+          $$ "See" <+> pp (srcRange x)
+
+      RepeatedTypeParameter x rs ->
+        "Multiple definitions for type parameter `" <> pp x <> "`:"
+          $$ nest 2 (vcat [ "*" <+> pp r | r <- rs ])
 
     where
     nested x y = x $$ nest 2 y
