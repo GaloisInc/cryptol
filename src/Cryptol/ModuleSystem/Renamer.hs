@@ -41,6 +41,7 @@ import qualified Data.Foldable as F
 import           Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
+import qualified Data.Set as Set
 import           Data.String (IsString(..))
 import           MonadLib hiding (mapM, mapM_)
 
@@ -233,7 +234,7 @@ instance FreshM RenameM where
 
 runRenamer :: Supply -> ModName -> NamingEnv -> RenameM a
            -> (Either [RenamerError] (a,Supply),[RenamerWarning])
-runRenamer s ns env m = (res, warnUnused ns ro rw ++ F.toList (rwWarnings rw))
+runRenamer s ns env m = (res, warnUnused ns env ro rw ++ F.toList (rwWarnings rw))
   where
   (a,rw) = runM (unRenameM m) ro
                               RW { rwErrors   = Seq.empty
@@ -365,16 +366,18 @@ recordUse x = RenameM $ sets_ $ \rw ->
   rw { rwNameUseCount = Map.insertWith (+) x 1 (rwNameUseCount rw) }
 
 
-warnUnused :: ModName -> RO -> RW -> [RenamerWarning]
-warnUnused m0 ro rw = map warn
-                    $ Map.keys
-                    $ Map.filterWithKey keep
-                    $ rwNameUseCount rw
+warnUnused :: ModName -> NamingEnv -> RO -> RW -> [RenamerWarning]
+warnUnused m0 env ro rw =
+  map warn
+  $ Map.keys
+  $ Map.filterWithKey keep
+  $ rwNameUseCount rw
   where
   warn x   = UnusedName x (roDisp ro)
   keep k n = n == 1 && isLocal k
+  oldNames = fst (visibleNames env)
   isLocal nm = case nameInfo nm of
-                 Declared m -> m == m0
+                 Declared m -> m == m0 && nm `Set.notMember` oldNames
                  Parameter  -> True
 
 -- Renaming --------------------------------------------------------------------
