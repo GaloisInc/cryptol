@@ -147,7 +147,7 @@ community, fork the GitHub repository, and add them to the
 `examples/contrib` directory and submit a pull request.
 
 We host a Cryptol mailing list, which
-you can [join here](http://community.galois.com/mailman/listinfo/cryptol-users).
+you can [join here](https://groups.google.com/a/galois.com/forum/#!forum/cryptol-users).
 
 If you run into a bug in Cryptol, if something doesn't make sense in
 the documentation, if you think something could be better, or if you
