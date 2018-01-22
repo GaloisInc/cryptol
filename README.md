@@ -219,3 +219,9 @@ Cryptol has been funded by, and lots of design input was provided by
 the team at the
 [NSA's Trusted Systems Research Group](http://www.nsa.gov/research/ia_research/),
 including Brad Martin, Frank Taylor and Sean Weaver.
+
+Portions of Cryptol are also based upon work supported by the Office
+of Naval Research under Contract No. N68335-17-C-0452. Any opinions,
+findings and conclusions or recommendations expressed in this
+material are those of the author(s) and do not necessarily reflect
+the views of the Office of Naval Research.
