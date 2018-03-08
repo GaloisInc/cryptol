@@ -81,21 +81,23 @@ evalExpr env expr = case expr of
             Nothing
               | len < largeBitSize -> BitsVal $ Seq.fromList $ map (fromVBit <$>) vs
               | otherwise          -> LargeBitsVal len $ IndexSeqMap $ \i -> genericIndex vs i
-    | otherwise -> {-# SCC "evalExpr->EList" #-}
-        return $ VSeq len $ finiteSeqMap vs
+    | otherwise -> {-# SCC "evalExpr->EList" #-} do
+        xs <- mapM (delay Nothing) vs
+        return $ VSeq len $ finiteSeqMap xs
    where
     tyv = evalValType (envTypes env) ty
     vs  = map (evalExpr env) es
     len = genericLength es
 
   ETuple es -> {-# SCC "evalExpr->ETuple" #-} do
-     let xs = map eval es
+     xs <- mapM (delay Nothing . eval) es
      return $ VTuple xs
 
   ERec fields -> {-# SCC "evalExpr->ERec" #-} do
-     let xs = [ (f, eval e)
-              | (f,e) <- fields
-              ]
+     xs <- sequence [ do thk <- delay Nothing (eval e)
+                         return (f, thk)
+                    | (f, e) <- fields
+                    ]
      return $ VRecord xs
 
   ESel e sel -> {-# SCC "evalExpr->ESel" #-} do
