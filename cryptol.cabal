@@ -226,7 +226,7 @@ executable cryptol
 executable cryptol-html
   main-is: CryHtml.hs
   hs-source-dirs: utils
-  build-depends: base, text, cryptol
+  build-depends: base, text, cryptol, blaze-html
   GHC-options: -Wall
 
 -- Note: the Cryptol server needs to be updated to some new APIs.
