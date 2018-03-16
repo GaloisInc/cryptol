@@ -78,11 +78,13 @@ Symbols
     groupBy :
       {each, parts, elem} (fin each) =>
         [each * parts]elem -> [parts][each]elem
+    head : {a, b} [1 + a]b -> b
     infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
     infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
     integer : {val} (fin val) => Integer
     join :
       {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a
+    last : {a, b} (fin a) => [1 + a]b -> b
     lg2 : {a} (Arith a) => a -> a
     max : {a} (Cmp a) => a -> a -> a
     min : {a} (Cmp a) => a -> a -> a

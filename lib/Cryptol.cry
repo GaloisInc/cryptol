@@ -522,6 +522,12 @@ drop ((_ : [front] _) # y) = y
 tail : {a, b} [1 + a]b -> [a]b
 tail xs = drop`{1} xs
 
+head : {a, b} [1 + a]b -> b
+head xs = xs @ 0
+
+last : {a, b} (fin a) => [1 + a]b -> b
+last xs = xs ! 0
+
 width : {bits,len,elem} (fin len, fin bits, bits >= width len) => [len] elem -> [bits]
 width _ = `len
 
