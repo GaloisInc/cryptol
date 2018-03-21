@@ -539,6 +539,7 @@ Cryptol primitives fall into several groups:
 >   , (">="         , binary (cmpOrder (\o -> o /= LT)))
 >   , ("=="         , binary (cmpOrder (\o -> o == EQ)))
 >   , ("!="         , binary (cmpOrder (\o -> o /= EQ)))
+>   , ("<$"         , binary signedLessThan)
 >
 >   -- Sequences:
 >   , ("#"          , VNumPoly $ \_front ->
@@ -586,6 +587,7 @@ Cryptol primitives fall into several groups:
 >   , (">>"         , shiftV shiftRV)
 >   , ("<<<"        , rotateV rotateLV)
 >   , (">>>"        , rotateV rotateRV)
+>   , (">>$"        , signedShiftRV)
 >
 >   -- Indexing:
 >   , ("@"          , indexPrimOne  indexFront)
@@ -949,6 +951,44 @@ bits to the *left* of that position are equal.
 >     Right EQ -> lexList es
 >     Right GT -> Right GT
 
+Signed comparisons may be applied to any type made up of non-empty
+bitvectors. All such types are compared using a lexicographic
+ordering: Lists and tuples are compared left-to-right, and record
+fields are compared in alphabetical order.
+
+> signedLessThan :: TValue -> Value -> Value -> Value
+> signedLessThan ty l r = VBit (fmap (== LT) (lexSignedCompare ty l r))
+>
+> -- | Lexicographic ordering on two signed values.
+> lexSignedCompare :: TValue -> Value -> Value -> Either EvalError Ordering
+> lexSignedCompare ty l r =
+>   case ty of
+>     TVBit ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVInteger ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVSeq _w ety
+>       | isTBit ety ->
+>         case fromSignedVWord l of
+>           Left e -> Left e
+>           Right i ->
+>             case fromSignedVWord r of
+>               Left e -> Left e
+>               Right j -> Right (compare i j)
+>       | otherwise ->
+>         lexList (zipWith (lexSignedCompare ety) (fromVList l) (fromVList r))
+>     TVStream _ ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVFun _ _ ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVTuple etys ->
+>       lexList (zipWith3 lexSignedCompare etys (fromVTuple l) (fromVTuple r))
+>     TVRec fields ->
+>       let tys    = map snd (sortBy (comparing fst) fields)
+>           ls     = map snd (sortBy (comparing fst) (fromVRecord l))
+>           rs     = map snd (sortBy (comparing fst) (fromVRecord r))
+>        in lexList (zipWith3 lexSignedCompare tys ls rs)
+
 
 Sequences
 ---------
@@ -1033,6 +1073,22 @@ amount, but as lazy as possible in the list values.
 > rotateRV 0 vs _ = vs
 > rotateRV w vs i = ys ++ xs
 >   where (xs, ys) = genericSplitAt ((w - i) `mod` w) vs
+>
+> signedShiftRV :: Value
+> signedShiftRV =
+>   VNumPoly $ \a ->
+>   VNumPoly $ \_b ->
+>   VFun $ \v ->
+>   VFun $ \x ->
+>   copyByTValue (tvSeq a TVBit) $
+>   case fromVWord x of
+>     Left e -> logicNullary (Left e) (tvSeq a TVBit)
+>     Right i -> VList $
+>       let vs = fromVList v
+>           z = head vs in
+>       case a of
+>         Nat n -> genericReplicate (min n i) z ++ genericTake (n - min n i) vs
+>         Inf   -> genericReplicate i z ++ vs
 
 
 Indexing
