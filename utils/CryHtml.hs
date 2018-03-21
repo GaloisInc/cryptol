@@ -10,12 +10,10 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-import Control.Monad (forM_)
 import Cryptol.Parser.Lexer
 import Cryptol.Utils.PP
-import qualified Data.Text    as Text
 import qualified Data.Text.IO as Text
-import Text.Blaze.Html (Html, Attribute, AttributeValue, toValue, toHtml, (!))
+import Text.Blaze.Html (Html, AttributeValue, toValue, toHtml, (!))
 import qualified Text.Blaze.Html as H
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
@@ -31,39 +29,6 @@ main =
               $ map toBlaze
               $ fst
               $ primLexer defaultConfig txt
-
-wrap :: String -> String
-wrap txt = "<html><head>" ++ sty ++ "</head><body>" ++ txt ++ "</body>"
-
-toHTML :: Located Token -> String
-toHTML tok = "<span class=\"" ++ cl ++ "\" title=\"" ++ pos ++ "\">"
-          ++ concatMap esc (Text.unpack (tokenText (thing tok)))
-          ++ "</span>"
-  where
-  pos = show (pp (srcRange tok)) ++ " " ++ concatMap esc (show (tokenType (thing tok)))
-  cl  = case tokenType (thing tok) of
-          Num {}      -> "number"
-          Ident {}    -> "identifier"
-          KW {}       -> "keyword"
-          Op {}       -> "operator"
-          Sym {}      -> "symbol"
-          Virt {}     -> "virtual"
-          White Space -> "white"
-          White _     -> "comment"
-          Err {}      -> "error"
-          EOF         -> "eof"
-          StrLit {}   -> "text"
-          ChrLit {}   -> "text"
-
-  esc c = case c of
-            '<'   -> "&lt;"
-            '>'   -> "&gt;"
-            '&'   -> "&amp;"
-            ' '   -> "&nbsp;"
-            '"'   -> "&quot;"
-            '\n'  -> "<br>"
-            _     -> [c]
-
 
 page :: Html -> Html
 page inner = do

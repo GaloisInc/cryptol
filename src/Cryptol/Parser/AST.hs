@@ -76,7 +76,6 @@ import Cryptol.Parser.Position
 import Cryptol.Prims.Syntax (TFun(..))
 import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
-import Cryptol.Utils.Panic (panic)
 
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
