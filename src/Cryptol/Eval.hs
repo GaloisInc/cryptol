@@ -75,12 +75,11 @@ evalExpr env expr = case expr of
     -- NB, even if the list cannot be packed, we must use `VWord`
     -- when the element type is `Bit`.
     | isTBit tyv -> {-# SCC "evalExpr->Elist/bit" #-}
-        return $ VWord len $ return $
+        return $ VWord len $
           case tryFromBits vs of
-            Just w  -> WordVal w
-            Nothing
-              | len < largeBitSize -> BitsVal $ Seq.fromList $ map (fromVBit <$>) vs
-              | otherwise          -> LargeBitsVal len $ IndexSeqMap $ \i -> genericIndex vs i
+            Just w  -> return $ WordVal w
+            Nothing -> do xs <- mapM (delay Nothing) vs
+                          return $ BitsVal $ Seq.fromList $ map (fromVBit <$>) xs
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
         xs <- mapM (delay Nothing) vs
         return $ VSeq len $ finiteSeqMap xs
