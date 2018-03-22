@@ -1,5 +1,5 @@
 > -- |
-> -- Module      :  $Header$
+> -- Module      :  Cryptol.Eval.Reference
 > -- Description :  The reference implementation of the Cryptol evaluation semantics.
 > -- Copyright   :  (c) 2013-2016 Galois, Inc.
 > -- License     :  BSD3

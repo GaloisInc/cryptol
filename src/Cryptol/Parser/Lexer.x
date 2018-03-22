@@ -1,6 +1,6 @@
 {
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Parser.Lexer
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com

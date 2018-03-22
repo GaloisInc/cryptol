@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.ModuleSystem.Name
 -- Copyright   :  (c) 2015-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com

@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Utils.Misc
 -- Copyright   :  (c) 2014-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com

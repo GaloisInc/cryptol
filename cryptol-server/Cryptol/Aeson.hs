@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Aeson
 -- Copyright   :  (c) 2015-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com

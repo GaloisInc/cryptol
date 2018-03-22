@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.TypeCheck.Parseable
 -- Copyright   :  (c) 2013-2017 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com

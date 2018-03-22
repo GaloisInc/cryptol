@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.TypeCheck.TypeOf
 -- Copyright   :  (c) 2014-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
