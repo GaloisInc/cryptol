@@ -3075,6 +3075,30 @@ Here is a more interesting example:
   reader should have?}
 
 %=====================================================================
+\section{Type constraint synonyms}
+
+Sometimes programs have certain combinations of type constraints that
+appear over and over in many places. For convenience, Cryptol allows
+the programmer to declare named sets of type constraints that can be
+used in other function type signatures. Typically a named type
+constraint will have one or more type parameters. The syntax is very
+similar to a type synonym declaration:
+
+\begin{code}
+  type constraint myConstraint a b = (fin a, fin b, b >= width a)
+\end{code}
+
+Wherever a type constraint synonym is used, it is as if its definition
+is expanded in place. So the following two signatures would be
+equivalent:
+
+\begin{code}
+    width : {bits,len,elem} (fin len, fin bits, bits >= width len) =>
+            [len] elem -> [bits]
+    width : {bits,len,elem} (myConstraint len bits) => [len] elem -> [bits]
+\end{code}
+
+%=====================================================================
 \section{Program structure with modules}
 
 When a cryptographic specification gets very large it can make sense
