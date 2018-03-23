@@ -10,6 +10,7 @@
 module OptParser where
 
 import Data.Monoid (Endo(..))
+import Data.Semigroup
 
 import Prelude ()
 import Prelude.Compat
@@ -18,13 +19,16 @@ data OptParser opt
   = OptSuccess (Endo opt)
   | OptFailure [String]
 
-instance Monoid (OptParser opt) where
-  mempty = OptSuccess mempty
-  l `mappend` r = case (l,r) of
+instance Semigroup (OptParser opt) where
+  l <> r = case (l,r) of
     (OptSuccess f,OptSuccess g) -> OptSuccess (f `mappend` g)
     (OptFailure a,OptFailure b) -> OptFailure (a `mappend` b)
     (OptFailure _,_)            -> l
     (_,OptFailure _)            -> r
+
+instance Monoid (OptParser opt) where
+  mempty = OptSuccess mempty
+  mappend = (<>)
 
 runOptParser :: opt -> OptParser opt -> Either [String] opt
 runOptParser def parse = case parse of

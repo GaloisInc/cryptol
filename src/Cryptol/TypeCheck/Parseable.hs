@@ -22,6 +22,7 @@ import Cryptol.Utils.Ident (Ident,unpackIdent)
 import Cryptol.Parser.AST ( Located(..))
 import Cryptol.ModuleSystem.Name
 import Text.PrettyPrint
+import Prelude hiding ((<>))
 
 -- ShowParseable prints out a cryptol program in a way that it's parseable by Coq (and likely other things)
 -- Used mainly for reasoning about the semantics of cryptol programs in Coq (https://github.com/GaloisInc/cryptol-semantics)

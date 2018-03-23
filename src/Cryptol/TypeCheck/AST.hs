@@ -46,6 +46,7 @@ import Control.DeepSeq
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
 import qualified Data.IntMap as IntMap
+import Prelude hiding ((<>))
 
 
 -- | A Cryptol module.

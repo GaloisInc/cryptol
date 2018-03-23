@@ -37,13 +37,14 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Panic (panic)
-import Cryptol.Utils.PP
+import Cryptol.Utils.PP hiding ((<>))
 
 import           Control.Monad
 import qualified Data.Sequence as Seq
 import           Data.List
 import           Data.Maybe
 import qualified Data.Map.Strict as Map
+import           Data.Semigroup
 
 import Prelude ()
 import Prelude.Compat
@@ -457,6 +458,13 @@ data ListEnv b w i = ListEnv
   , leTypes  :: !TypeEnv
   }
 
+instance Semigroup (ListEnv b w i) where
+  l <> r = ListEnv
+    { leVars   = Map.union (leVars  l)  (leVars  r)
+    , leStatic = Map.union (leStatic l) (leStatic r)
+    , leTypes  = Map.union (leTypes l)  (leTypes r)
+    }
+
 instance Monoid (ListEnv b w i) where
   mempty = ListEnv
     { leVars   = Map.empty
@@ -464,11 +472,7 @@ instance Monoid (ListEnv b w i) where
     , leTypes  = Map.empty
     }
 
-  mappend l r = ListEnv
-    { leVars   = Map.union (leVars  l)  (leVars  r)
-    , leStatic = Map.union (leStatic l) (leStatic r)
-    , leTypes  = Map.union (leTypes l)  (leTypes r)
-    }
+  mappend l r = l <> r
 
 toListEnv :: GenEvalEnv b w i -> ListEnv b w i
 toListEnv e =

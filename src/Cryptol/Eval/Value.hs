@@ -46,6 +46,7 @@ import Numeric (showIntAtBase)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
+import Prelude hiding ((<>))
 
 -- Values ----------------------------------------------------------------------
 

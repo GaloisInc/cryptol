@@ -20,6 +20,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Cryptol.Utils.PP
+import Prelude hiding ((<>))
 
 data Located a  = Located { srcRange :: !Range, thing :: !a }
                   deriving (Eq, Show, Generic, NFData)

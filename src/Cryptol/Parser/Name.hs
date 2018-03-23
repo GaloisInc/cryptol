@@ -16,6 +16,7 @@ import Cryptol.Utils.Panic (panic)
 
 import           Control.DeepSeq
 import           GHC.Generics (Generic)
+import Prelude hiding ((<>))
 
 
 -- Names -----------------------------------------------------------------------

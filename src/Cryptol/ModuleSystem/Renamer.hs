@@ -41,6 +41,7 @@ import qualified Data.Foldable as F
 import           Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
+import qualified Data.Semigroup as S
 import qualified Data.Set as Set
 import           Data.String (IsString(..))
 import           MonadLib hiding (mapM, mapM_)
@@ -49,7 +50,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Prelude ()
-import Prelude.Compat
+import Prelude.Compat hiding ((<>))
 
 -- Errors ----------------------------------------------------------------------
 
@@ -198,15 +199,19 @@ data RW = RW
 newtype RenameM a = RenameM
   { unRenameM :: ReaderT RO (StateT RW Lift) a }
 
-instance Monoid a => Monoid (RenameM a) where
+instance S.Semigroup a => S.Semigroup (RenameM a) where
+  {-# INLINE (<>) #-}
+  a <> b =
+    do x <- a
+       y <- b
+       return (x S.<> y)
+
+instance (S.Semigroup a, Monoid a) => Monoid (RenameM a) where
   {-# INLINE mempty #-}
   mempty = return mempty
 
   {-# INLINE mappend #-}
-  mappend a b =
-    do x <- a
-       y <- b
-       return (mappend x y)
+  mappend = (S.<>)
 
 instance Functor RenameM where
   {-# INLINE fmap #-}

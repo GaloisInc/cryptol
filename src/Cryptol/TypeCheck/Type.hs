@@ -22,6 +22,7 @@ import Cryptol.Utils.Ident (Ident)
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.Utils.Panic(panic)
+import Prelude hiding ((<>))
 
 infix  4 =#=, >==
 infixr 5 `tFun`

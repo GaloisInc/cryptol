@@ -9,7 +9,7 @@ import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.Map ( Map )
 import qualified Data.Map as Map
-import           Data.Monoid ((<>))
+import           Data.Semigroup
 
 import Cryptol.TypeCheck.AST
 
@@ -23,13 +23,16 @@ data Deps = Deps { valDeps  :: Set Name
                    -- ^ Undefined type params (e.d. mod params)
                  } deriving Eq
 
+instance Semigroup Deps where
+  d1 <> d2 = mconcat [d1,d2]
+
 instance Monoid Deps where
   mempty = Deps { valDeps   = Set.empty
                 , tyDeps    = Set.empty
                 , tyParams  = Set.empty
                 }
 
-  mappend d1 d2 = mconcat [d1,d2]
+  mappend d1 d2 = d1 <> d2
 
   mconcat ds = Deps { valDeps   = Set.unions (map valDeps ds)
                     , tyDeps    = Set.unions (map tyDeps  ds)

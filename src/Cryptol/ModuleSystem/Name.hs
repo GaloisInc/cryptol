@@ -62,7 +62,7 @@ import           Data.Ord (comparing)
 import           GHC.Generics (Generic)
 import           MonadLib
 import           Prelude ()
-import           Prelude.Compat
+import           Prelude.Compat hiding ((<>))
 
 
 -- Names -----------------------------------------------------------------------

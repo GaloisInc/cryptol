@@ -22,13 +22,14 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import qualified Cryptol.TypeCheck.AST as T
-import Cryptol.Utils.PP
+import Cryptol.Utils.PP hiding ((<>))
 import Cryptol.Utils.Panic (panic)
 
 import Data.List (nub)
 import Data.Maybe (catMaybes,fromMaybe,mapMaybe)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import Data.Semigroup
 import MonadLib (runId,Id)
 
 import GHC.Generics (Generic)
@@ -60,6 +61,12 @@ lookupTypeNames qn ro = Map.findWithDefault [] qn (neTypes ro)
 
 
 
+instance Semigroup NamingEnv where
+  l <> r   =
+    NamingEnv { neExprs  = Map.unionWith merge (neExprs  l) (neExprs  r)
+              , neTypes  = Map.unionWith merge (neTypes  l) (neTypes  r)
+              , neFixity = Map.union           (neFixity l) (neFixity r) }
+
 instance Monoid NamingEnv where
   mempty        =
     NamingEnv { neExprs  = Map.empty
@@ -68,10 +75,7 @@ instance Monoid NamingEnv where
 
   -- NOTE: merging the fixity maps is a special case that just prefers the left
   -- entry, as they're already keyed by a name with a unique
-  mappend l r   =
-    NamingEnv { neExprs  = Map.unionWith merge (neExprs  l) (neExprs  r)
-              , neTypes  = Map.unionWith merge (neTypes  l) (neTypes  r)
-              , neFixity = Map.union           (neFixity l) (neFixity r) }
+  mappend l r   = l <> r
 
   mconcat envs  =
     NamingEnv { neExprs  = Map.unionsWith merge (map neExprs  envs)
@@ -190,13 +194,16 @@ namingEnv' a supply = runId (runSupplyT supply (runBuild (namingEnv a)))
 
 newtype BuildNamingEnv = BuildNamingEnv { runBuild :: SupplyT Id NamingEnv }
 
-instance Monoid BuildNamingEnv where
-  mempty = BuildNamingEnv (pure mempty)
-
-  mappend (BuildNamingEnv a) (BuildNamingEnv b) = BuildNamingEnv $
+instance Semigroup BuildNamingEnv where
+  BuildNamingEnv a <> BuildNamingEnv b = BuildNamingEnv $
     do x <- a
        y <- b
        return (mappend x y)
+
+instance Monoid BuildNamingEnv where
+  mempty = BuildNamingEnv (pure mempty)
+
+  mappend = (<>)
 
   mconcat bs = BuildNamingEnv $
     do ns <- sequence (map runBuild bs)

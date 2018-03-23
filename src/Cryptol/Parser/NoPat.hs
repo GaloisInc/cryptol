@@ -33,7 +33,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Prelude ()
-import Prelude.Compat
+import Prelude.Compat hiding ((<>))
 
 class RemovePatterns t where
   -- | Eliminate all patterns in a program.

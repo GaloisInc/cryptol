@@ -17,13 +17,14 @@ import           Cryptol.Utils.Ident
 import           Control.DeepSeq
 import           Control.Monad (mplus)
 import           Data.Maybe (fromMaybe)
+import qualified Data.Semigroup as S
 import           Data.String (IsString(..))
 import qualified Data.Text as T
 import           GHC.Generics (Generic)
 import qualified Text.PrettyPrint as PJ
 
 import Prelude ()
-import Prelude.Compat
+import Prelude.Compat hiding ((<>))
 
 -- Name Displaying -------------------------------------------------------------
 
@@ -38,14 +39,15 @@ data NameDisp = EmptyNameDisp
 instance Show NameDisp where
   show _ = "<NameDisp>"
 
+instance S.Semigroup NameDisp where
+  NameDisp f    <> NameDisp g    = NameDisp (\m n -> f m n `mplus` g m n)
+  EmptyNameDisp <> EmptyNameDisp = EmptyNameDisp
+  EmptyNameDisp <> x             = x
+  x             <> _             = x
+
 instance Monoid NameDisp where
   mempty = EmptyNameDisp
-
-  mappend (NameDisp f)  (NameDisp g)  = NameDisp (\m n -> f m n `mplus` g m n)
-  mappend EmptyNameDisp EmptyNameDisp = EmptyNameDisp
-  mappend EmptyNameDisp x             = x
-  mappend x             _             = x
-
+  mappend = (S.<>)
 
 data NameFormat = UnQualified
                 | Qualified !ModName
@@ -93,9 +95,12 @@ fixNameDisp disp (Doc f) = Doc (\ _ -> f disp)
 
 newtype Doc = Doc (NameDisp -> PJ.Doc) deriving (Generic, NFData)
 
+instance S.Semigroup Doc where
+  (<>) = liftPJ2 (PJ.<>)
+
 instance Monoid Doc where
   mempty = liftPJ PJ.empty
-  mappend = liftPJ2 (PJ.<>)
+  mappend = (S.<>)
 
 runDoc :: NameDisp -> Doc -> PJ.Doc
 runDoc names (Doc f) = f names

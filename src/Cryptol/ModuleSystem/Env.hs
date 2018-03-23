@@ -30,8 +30,8 @@ import Control.Monad (guard,mplus)
 import qualified Control.Exception as X
 import Data.Function (on)
 import qualified Data.Map as Map
-import Data.Monoid ((<>))
 import Data.Maybe(fromMaybe)
+import Data.Semigroup
 import System.Directory (getAppUserDataDirectory, getCurrentDirectory)
 import System.Environment(getExecutablePath)
 import System.FilePath ((</>), normalise, joinPath, splitPath, takeDirectory)
@@ -224,14 +224,17 @@ data LoadedModules = LoadedModules
 getLoadedModules :: LoadedModules -> [LoadedModule]
 getLoadedModules x = lmLoadedParamModules x ++ lmLoadedModules x
 
+instance Semigroup LoadedModules where
+  l <> r = LoadedModules
+    { lmLoadedModules = List.unionBy ((==) `on` lmName)
+                                      (lmLoadedModules l) (lmLoadedModules r)
+    , lmLoadedParamModules = lmLoadedParamModules l ++ lmLoadedParamModules r }
+
 instance Monoid LoadedModules where
   mempty = LoadedModules { lmLoadedModules = []
                          , lmLoadedParamModules = []
                          }
-  mappend l r = LoadedModules
-    { lmLoadedModules = List.unionBy ((==) `on` lmName)
-                                      (lmLoadedModules l) (lmLoadedModules r)
-    , lmLoadedParamModules = lmLoadedParamModules l ++ lmLoadedParamModules r }
+  mappend l r = l <> r
 
 data LoadedModule = LoadedModule
   { lmName      :: ModName
@@ -295,17 +298,20 @@ data DynamicEnv = DEnv
   , deEnv   :: EvalEnv
   } deriving (Generic, NFData)
 
+instance Semigroup DynamicEnv where
+  de1 <> de2 = DEnv
+    { deNames = deNames de1 <> deNames de2
+    , deDecls = deDecls de1 <> deDecls de2
+    , deEnv   = deEnv   de1 <> deEnv   de2
+    }
+
 instance Monoid DynamicEnv where
   mempty = DEnv
     { deNames = mempty
     , deDecls = mempty
     , deEnv   = mempty
     }
-  mappend de1 de2 = DEnv
-    { deNames = deNames de1 <> deNames de2
-    , deDecls = deDecls de1 <> deDecls de2
-    , deEnv   = deEnv   de1 <> deEnv   de2
-    }
+  mappend de1 de2 = de1 <> de2
 
 -- | Build 'IfaceDecls' that correspond to all of the bindings in the
 -- dynamic environment.

@@ -33,6 +33,7 @@ import qualified Data.Set as Set
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
+import Prelude hiding ((<>))
 
 data SolverConfig = SolverConfig
   { solverPath    :: FilePath   -- ^ The SMT solver to invoke

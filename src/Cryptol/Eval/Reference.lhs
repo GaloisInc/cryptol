@@ -23,6 +23,7 @@
 > import Data.Ord (comparing)
 > import Data.Map (Map)
 > import qualified Data.Map as Map
+> import Data.Semigroup
 > import qualified Data.Text as T (pack)
 >
 > import Cryptol.ModuleSystem.Name (asPrim)
@@ -33,7 +34,7 @@
 > import Cryptol.Prims.Eval (lg2, divModPoly)
 > import Cryptol.Utils.Ident (Ident, mkIdent)
 > import Cryptol.Utils.Panic (panic)
-> import Cryptol.Utils.PP
+> import Cryptol.Utils.PP hiding ((<>))
 >
 > import qualified Cryptol.ModuleSystem as M
 > import qualified Cryptol.ModuleSystem.Env as M (loadedModules)
@@ -250,15 +251,18 @@ and type variables that are in scope at any point.
 >   , envTypes      :: !(Map TVar (Either Nat' TValue))
 >   }
 >
+> instance Semigroup Env where
+>   l <> r = Env
+>     { envVars  = Map.union (envVars  l) (envVars  r)
+>     , envTypes = Map.union (envTypes l) (envTypes r)
+>     }
+>
 > instance Monoid Env where
 >   mempty = Env
 >     { envVars  = Map.empty
 >     , envTypes = Map.empty
 >     }
->   mappend l r = Env
->     { envVars  = Map.union (envVars  l) (envVars  r)
->     , envTypes = Map.union (envTypes l) (envTypes r)
->     }
+>   mappend l r = l <> r
 >
 > -- | Bind a variable in the evaluation environment.
 > bindVar :: (Name, Value) -> Env -> Env

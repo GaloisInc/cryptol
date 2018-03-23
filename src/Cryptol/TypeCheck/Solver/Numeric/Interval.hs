@@ -20,6 +20,7 @@ import Cryptol.Utils.PP hiding (int)
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Maybe (catMaybes)
+import Prelude hiding ((<>))
 
 
 -- | Only meaningful for numeric types
