@@ -813,11 +813,14 @@ browseTSyns :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
 browseTSyns isVisible M.IfaceDecls { .. } names = do
   let tsyns = sortBy (M.cmpNameDisplay names `on` T.tsName)
               [ ts | ts <- Map.elems ifTySyns, isVisible (T.tsName ts) ]
-  unless (null tsyns) $ do
-    rPutStrLn "Type Synonyms"
-    rPutStrLn "============="
-    rPrint (runDoc names (nest 4 (vcat (map pp tsyns))))
-    rPutStrLn ""
+
+      (cts,tss) = partition isCtrait tsyns
+
+  ppBlock names pp "Type Synonyms" tss
+  ppBlock names pp "Constraint Synonyms" cts
+
+  where
+  isCtrait t = T.kindResult (T.kindOf (T.tsDef t)) == T.KProp
 
 browseNewtypes :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
 browseNewtypes isVisible M.IfaceDecls { .. } names = do
@@ -838,16 +841,19 @@ browseVars isVisible M.IfaceDecls { .. } names = do
   let isProp p     = T.PragmaProperty `elem` (M.ifDeclPragmas p)
       (props,syms) = partition isProp vars
 
-  ppBlock "Properties" props
-  ppBlock "Symbols"    syms
 
-  where
-  ppBlock name xs = unless (null xs) $
+  let ppVar M.IfaceDecl { .. } = hang (pp ifDeclName <+> char ':')
+                                   2 (pp ifDeclSig)
+
+  ppBlock names ppVar "Properties" props
+  ppBlock names ppVar "Symbols"    syms
+
+
+ppBlock :: NameDisp -> (a -> Doc) -> String -> [a] -> REPL ()
+ppBlock names ppFun name xs = unless (null xs) $
     do rPutStrLn name
        rPutStrLn (replicate (length name) '=')
-       let ppVar M.IfaceDecl { .. } = hang (pp ifDeclName <+> char ':')
-                                        2 (pp ifDeclSig)
-       rPrint (runDoc names (nest 4 (vcat (map ppVar xs))))
+       rPrint (runDoc names (nest 4 (vcat (map ppFun xs))))
        rPutStrLn ""
 
 
