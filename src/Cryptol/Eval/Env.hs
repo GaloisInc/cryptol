@@ -78,9 +78,9 @@ bindVar n val env = do
 bindVarDirect :: Name
               -> GenValue b w i
               -> GenEvalEnv b w i
-              -> Eval (GenEvalEnv b w i)
+              -> GenEvalEnv b w i
 bindVarDirect n val env = do
-  return $ env{ envVars = Map.insert n (ready val) (envVars env) }
+  env{ envVars = Map.insert n (ready val) (envVars env) }
 
 -- | Lookup a variable in the environment.
 {-# INLINE lookupVar #-}

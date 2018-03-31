@@ -61,15 +61,16 @@ runOneTest evOpts v0 vs0 = run `X.catch` handle
                                ] ++ map show vsdocs
 
 {- | Given a (function) type, compute all possible inputs for it.
-We also return the total number of test (i.e., the length of the outer list. -}
-testableType :: Type -> Maybe (Integer, [[Value]])
+We also return the types of the arguments and
+the total number of test (i.e., the length of the outer list. -}
+testableType :: Type -> Maybe (Integer, [Type], [[Value]])
 testableType ty =
   case tNoUser ty of
     TCon (TC TCFun) [t1,t2] ->
       do sz        <- typeSize t1
-         (tot,vss) <- testableType t2
-         return (sz * tot, [ v : vs | v <- typeValues t1, vs <- vss ])
-    TCon (TC TCBit) [] -> return (1, [[]])
+         (tot,ts,vss) <- testableType t2
+         return (sz * tot, t1:ts, [ v : vs | v <- typeValues t1, vs <- vss ])
+    TCon (TC TCBit) [] -> return (1, [], [[]])
     _ -> Nothing
 
 {- | Given a fully-evaluated type, try to compute the number of values in it.

@@ -395,7 +395,7 @@ evalDecl :: EvalPrims b w i
          -> Eval (GenEvalEnv b w i)
 evalDecl renv env d =
   case dDefinition d of
-    DPrim   -> bindVarDirect (dName d) (evalPrim d) env
+    DPrim   -> return $ bindVarDirect (dName d) (evalPrim d) env
     DExpr e -> bindVar (dName d) (evalExpr renv e) env
 
 
