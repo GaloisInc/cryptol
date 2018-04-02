@@ -247,12 +247,15 @@ isTestCase path = takeExtension path == ".icry"
 data TestFiles = TestFiles (Map.Map FilePath TestFiles) [FilePath]
     deriving (Show)
 
-instance Monoid TestFiles where
-  mempty      = TestFiles Map.empty []
-  mappend (TestFiles lt lf) (TestFiles rt rf) = TestFiles mt mf
+instance Semigroup TestFiles where
+  TestFiles lt lf <> TestFiles rt rf = TestFiles mt mf
     where
     mt = Map.unionWith mappend lt rt
     mf = nub (lf ++ rf)
+
+instance Monoid TestFiles where
+  mempty  = TestFiles Map.empty []
+  mappend = (<>)
 
 nullTests :: TestFiles -> Bool
 nullTests (TestFiles m as) = null as && Map.null m
