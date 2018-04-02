@@ -59,7 +59,6 @@ import qualified Cryptol.ModuleSystem.Env as M
 
 import qualified Cryptol.Eval.Monad as E
 import qualified Cryptol.Eval.Value as E
-import qualified Cryptol.Eval.Env as E
 import qualified Cryptol.Eval.Reference as R
 import Cryptol.Testing.Concrete
 import qualified Cryptol.Testing.Random  as TestR
@@ -1195,32 +1194,16 @@ bindItVariable ty expr = do
 
 
 -- | Extend the dynamic environment with a fresh binding for "it",
--- as defined by the given value.
+-- as defined by the given value.  If we cannot determine the definition
+-- of the value, then we don't bind `it`.
 bindItVariableVal :: T.Type -> E.Value -> REPL ()
-bindItVariableVal ty val = do
-  freshIt <- freshName itIdent
-  let schema = T.Forall { T.sVars  = []
-                        , T.sProps = []
-                        , T.sType  = ty
-                        }
-      decl = T.Decl { T.dName       = freshIt
-                    , T.dSignature  = schema
-                    , T.dDefinition = T.DPrim
-                    , T.dPragmas    = []
-                    , T.dInfix      = False
-                    , T.dFixity     = Nothing
-                    , T.dDoc        = Nothing
-                    }
-  
-  denv <- getDynEnv
-  let nenv' = M.singletonE (P.UnQual itIdent) freshIt
-                           `M.shadowing` M.deNames denv
-      ndecls = T.NonRecursive decl : M.deDecls denv
-      neenv = E.bindVarDirect freshIt val (M.deEnv denv)
-  setDynEnv $ denv { M.deNames = nenv'
-                   , M.deDecls = ndecls
-                   , M.deEnv = neenv
-                   }
+bindItVariableVal ty val =
+  do prims   <- getPrimMap
+     mb      <- rEval (E.toExpr prims ty val)
+     case mb of
+       Nothing   -> return ()
+       Just expr -> bindItVariable ty expr
+
 
 
 
