@@ -6,51 +6,50 @@ Type Synonyms
 =============
     type Bool = Bit
     type Char = [8]
+    type lg2 n = width (max 1 n - 1)
     type String n = [n][8]
     type Word n = [n]
-    type lg2 n = width (max 1 n - 1)
 
 Symbols
 =======
-    (!) : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b
-    (!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
+    (==>) : Bit -> Bit -> Bit
+    (\/) : Bit -> Bit -> Bit
+    (/\) : Bit -> Bit -> Bit
     (!=) : {a} (Cmp a) => a -> a -> Bit
     (!==) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
-    (#) :
-      {front, back, a} (fin front) =>
-        [front]a -> [back]a -> [front + back]a
-    (%) : {a} (Arith a) => a -> a -> a
-    (%$) : {a} (Arith a) => a -> a -> a
-    (&&) : {a} (Logic a) => a -> a -> a
-    (*) : {a} (Arith a) => a -> a -> a
-    (+) : {a} (Arith a) => a -> a -> a
-    (-) : {a} (Arith a) => a -> a -> a
-    (/) : {a} (Arith a) => a -> a -> a
-    (/$) : {a} (Arith a) => a -> a -> a
-    (/\) : Bit -> Bit -> Bit
-    (<) : {a} (Cmp a) => a -> a -> Bit
-    (<$) : {a} (SignedCmp a) => a -> a -> Bit
-    (<<) : {a, b, c} (fin b, Zero c) => [a]c -> [b] -> [a]c
-    (<<<) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
-    (<=) : {a} (Cmp a) => a -> a -> Bit
-    (<=$) : {a} (SignedCmp a) => a -> a -> Bit
     (==) : {a} (Cmp a) => a -> a -> Bit
     (===) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
-    (==>) : Bit -> Bit -> Bit
+    (<) : {a} (Cmp a) => a -> a -> Bit
+    (<$) : {a} (SignedCmp a) => a -> a -> Bit
+    (<=) : {a} (Cmp a) => a -> a -> Bit
+    (<=$) : {a} (SignedCmp a) => a -> a -> Bit
     (>) : {a} (Cmp a) => a -> a -> Bit
     (>$) : {a} (SignedCmp a) => a -> a -> Bit
     (>=) : {a} (Cmp a) => a -> a -> Bit
     (>=$) : {a} (SignedCmp a) => a -> a -> Bit
+    (||) : {a} (Logic a) => a -> a -> a
+    (^) : {a} (Logic a) => a -> a -> a
+    (&&) : {a} (Logic a) => a -> a -> a
+    (#) :
+      {front, back, a} (fin front) =>
+        [front]a -> [back]a -> [front + back]a
+    (<<) : {a, b, c} (fin b, Zero c) => [a]c -> [b] -> [a]c
+    (<<<) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
     (>>) : {a, b, c} (fin b, Zero c) => [a]c -> [b] -> [a]c
     (>>$) : {n, k} (fin n, n >= 1, fin k) => [n] -> [k] -> [n]
     (>>>) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
+    (+) : {a} (Arith a) => a -> a -> a
+    (-) : {a} (Arith a) => a -> a -> a
+    (%) : {a} (Arith a) => a -> a -> a
+    (%$) : {a} (Arith a) => a -> a -> a
+    (*) : {a} (Arith a) => a -> a -> a
+    (/) : {a} (Arith a) => a -> a -> a
+    (/$) : {a} (Arith a) => a -> a -> a
+    (^^) : {a} (Arith a) => a -> a -> a
+    (!) : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b
+    (!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
     (@) : {a, b, c} (fin c) => [a]b -> [c] -> b
     (@@) : {a, b, c, d} (fin d) => [a]b -> [c][d] -> [c]b
-    False : Bit
-    True : Bit
-    (\/) : Bit -> Bit -> Bit
-    (^) : {a} (Logic a) => a -> a -> a
-    (^^) : {a} (Arith a) => a -> a -> a
     carry : {n} (fin n) => [n] -> [n] -> Bit
     complement : {a} (Logic a) => a -> a
     demote :
@@ -58,6 +57,7 @@ Symbols
     drop :
       {front, back, elem} (fin front) => [front + back]elem -> [back]elem
     error : {at, len} (fin len) => [len][8] -> at
+    False : Bit
     foo : {a} a -> a
     fromInteger : {a} (fin a) => Integer -> [a]
     fromThen :
@@ -103,6 +103,7 @@ Symbols
     splitAt :
       {front, back, a} (fin front) =>
         [front + back]a -> ([front]a, [back]a)
+    True : Bit
     tail : {a, b} [1 + a]b -> [a]b
     take :
       {front, back, elem} (fin front) =>
@@ -124,5 +125,4 @@ Symbols
         [len]elem -> [bits]
     zero : {a} (Zero a) => a
     zext : {n, m} (fin m, m >= n) => [n] -> [m]
-    (||) : {a} (Logic a) => a -> a -> a
 
