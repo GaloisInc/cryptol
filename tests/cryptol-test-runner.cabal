@@ -24,7 +24,8 @@ executable cryptol-test-runner
                        directory,
                        HUnit,
                        test-framework,
-                       test-framework-hunit
+                       test-framework-hunit,
+                       semigroups
   GHC-options:         -Wall -O2
   Default-language:    Haskell2010
 

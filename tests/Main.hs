@@ -12,6 +12,7 @@ module Main where
 import Control.Monad (when,foldM)
 import Data.List (isPrefixOf,partition,nub)
 import Data.Monoid (Endo(..))
+import Data.Semigroup(Semigroup(..))
 import System.Console.GetOpt
     (getOpt,usageInfo,ArgOrder(..),OptDescr(..),ArgDescr(..))
 import System.Directory
