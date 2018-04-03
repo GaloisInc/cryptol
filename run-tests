@@ -1,0 +1,21 @@
+#!/bin/bash
+
+TEST_DIR=tests
+ALL_TESTS=("modsys" "parser" "issues" "regression" "renamer" "mono-binds")
+
+TESTS=()
+
+if [ $# == 0 ]; then
+  declare -a TESTS
+  for i in ${!ALL_TESTS[*]}; do
+    TESTS[i]="$TEST_DIR/${ALL_TESTS[i]}"
+  done
+else
+  TESTS=("$@")
+fi
+
+CRY=$(find dist-newstyle -name cryptol -type f)
+
+cabal new-run cryptol-test-runner -- -c $CRY --ignore-expected ${TESTS[*]}
+
+
