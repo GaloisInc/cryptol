@@ -491,17 +491,44 @@ primitive error : {at, len} (fin len) => [len][8] -> at
 /**
  * Performs multiplication of polynomials over GF(2).
  */
-primitive pmult : {a, b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 + a + b]
+pmult : {a, b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 + a + b]
+pmult x y = last zs
+  where
+    zs = [0] # [ (z << 1) ^ (if yi then 0 # x else 0) | yi <- y | z <- zs ]
 
 /**
  * Performs division of polynomials over GF(2).
  */
-primitive pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
+pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
+pdiv x y = [ z ! degree | z <- zs ]
+  where
+    degree : [width b]
+    degree = last (ds : [1 + b]_)
+      where ds = [0/0] # [if yi then i else d | yi <- reverse y | i <- [0..b] | d <- ds ]
+
+    reduce : [b] -> [b]
+    reduce u = if u ! degree then u ^ y else u
+
+    zs : [a][b]
+    zs = [ tail (reduce z # [xi]) | z <- [0] # zs | xi <- x ]
 
 /**
  * Performs modulus of polynomials over GF(2).
  */
-primitive pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
+pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
+pmod x y = if y == 0 then 0/0 else last zs
+  where
+    degree : [width b]
+    degree = last (ds : [2 + b]_)
+      where ds = [0/0] # [if yi then i else d | yi <- reverse y | i <- [0..b] | d <- ds ]
+
+    reduce : [1 + b] -> [1 + b]
+    reduce u = if u ! degree then u ^ y else u
+
+    powers : [inf][1 + b]
+    powers = [reduce 1] # [ reduce (p << 1) | p <- powers ]
+
+    zs = [0] # [ z ^ (if xi then tail p else 0) | xi <- reverse x | p <- powers | z <- zs ]
 
 /**
  * Generates random values from a seed.  When called with a function, currently

@@ -195,35 +195,6 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     tlam $ \c ->
                      lam $ \xs -> transposeV a b c =<< xs)
 
-  , ("pmult"       , {-# SCC "Prelude::pmult" #-}
-    let mul !res !_ !_ 0 = res
-        mul  res bs as n = mul (if even as then res else xor res bs)
-                               (bs `shiftL` 1) (as `shiftR` 1) (n-1)
-     in nlam $ \(finNat' -> a) ->
-        nlam $ \(finNat' -> b) ->
-        wlam $ \(bvVal -> x) -> return $
-        wlam $ \(bvVal -> y) -> return $ word (1 + a + b) (mul 0 x y (1+b)))
-
-  , ("pdiv"        , {-# SCC "Prelude::pdiv" #-}
-                     nlam $ \(fromInteger . finNat' -> a) ->
-                     nlam $ \(fromInteger . finNat' -> b) ->
-                     wlam $ \(bvVal -> x) -> return $
-                     wlam $ \(bvVal -> y) ->
-                       if y == 0
-                        then divideByZero
-                        else return . word (toInteger a) . fst
-                               $ divModPoly x a y b)
-
-  , ("pmod"        , {-# SCC "Prelude::pmod" #-}
-                     nlam $ \(fromInteger . finNat' -> a) ->
-                     nlam $ \(fromInteger . finNat' -> b) ->
-                     wlam $ \(bvVal -> x) -> return $
-                     wlam $ \(bvVal -> y) ->
-                       if y == 0
-                         then divideByZero
-                         else return . word (toInteger b) . snd
-                                $ divModPoly x a y (b+1))
-
   , ("random"      , {-# SCC "Prelude::random" #-}
                      tlam $ \a ->
                      wlam $ \(bvVal -> x) -> return $ randomV a x)
