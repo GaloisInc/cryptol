@@ -374,7 +374,8 @@ primitive (@) : {a, b, c} (fin c) => [a]b -> [c] -> b
  * Bulk index operator.  The first argument is a sequence.  The second argument
  * is a sequence of the zero-based indices of the elements to select.
  */
-primitive (@@) : {a, b, c, d} (fin d) => [a]b -> [c][d] -> [c]b
+(@@) : {a, b, c, d} (fin d) => [a]b -> [c][d] -> [c]b
+xs @@ is = [ xs @ i | i <- is ]
 
 /**
  * Reverse index operator.  The first argument is a finite sequence.  The second
@@ -388,7 +389,8 @@ primitive (!) : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b
  * second argument is a sequence of the zero-based indices of the elements to
  * select, starting from the end of the sequence.
  */
-primitive (!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
+(!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
+xs !! is = [ xs ! i | i <- is ]
 
 /**
  * Update the given sequence with new value at the given index position.

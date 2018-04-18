@@ -134,13 +134,9 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     lam  $ \ r     -> join (ccatV front back elty <$> l <*> r))
 
   , ("@"          , {-# SCC "Prelude::(@)" #-}
-                    indexPrimOne  indexFront_bits indexFront)
-  , ("@@"         , {-# SCC "Prelude::(@@)" #-}
-                    indexPrimMany indexFront_bits indexFront)
+                    indexPrim indexFront_bits indexFront)
   , ("!"          , {-# SCC "Prelude::(!)" #-}
-                    indexPrimOne  indexBack_bits indexBack)
-  , ("!!"         , {-# SCC "Prelude::(!!)" #-}
-                    indexPrimMany indexBack_bits indexBack)
+                    indexPrim indexBack_bits indexBack)
 
   , ("update"     , {-# SCC "Prelude::update" #-}
                     updatePrim updateFront_word updateFront)
@@ -1212,12 +1208,12 @@ rotateRS w _ vs by = IndexSeqMap $ \i ->
 
 -- Sequence Primitives ---------------------------------------------------------
 
--- | Indexing operations that return one element.
-indexPrimOne :: BitWord b w i
-             => (Maybe Integer -> TValue -> SeqMap b w i -> Seq.Seq b -> Eval (GenValue b w i))
-             -> (Maybe Integer -> TValue -> SeqMap b w i -> w -> Eval (GenValue b w i))
-             -> GenValue b w i
-indexPrimOne bits_op word_op =
+-- | Indexing operations.
+indexPrim :: BitWord b w i
+          => (Maybe Integer -> TValue -> SeqMap b w i -> Seq.Seq b -> Eval (GenValue b w i))
+          -> (Maybe Integer -> TValue -> SeqMap b w i -> w -> Eval (GenValue b w i))
+          -> GenValue b w i
+indexPrim bits_op word_op =
   nlam $ \ n  ->
   tlam $ \ a ->
   nlam $ \ _i ->
@@ -1227,13 +1223,13 @@ indexPrimOne bits_op word_op =
                VWord _ w  -> w >>= \w' -> return $ IndexSeqMap (\i -> VBit <$> indexWordValue w' i)
                VSeq _ vs  -> return vs
                VStream vs -> return vs
-               _ -> evalPanic "Expected sequence value" ["indexPrimOne"]
+               _ -> evalPanic "Expected sequence value" ["indexPrim"]
       r >>= \case
          VWord _ w -> w >>= \case
            WordVal w' -> word_op (fromNat n) a vs w'
            BitsVal bs -> bits_op (fromNat n) a vs =<< sequence bs
            LargeBitsVal m xs -> bits_op (fromNat n) a vs . Seq.fromList =<< traverse (fromBit =<<) (enumerateSeqMap m xs)
-         _ -> evalPanic "Expected word value" ["indexPrimOne"]
+         _ -> evalPanic "Expected word value" ["indexPrim"]
 
 indexFront :: Maybe Integer -> TValue -> SeqValMap -> BV -> Eval Value
 indexFront mblen _a vs (bvVal -> ix) =
@@ -1254,32 +1250,6 @@ indexBack mblen _a vs (bvVal -> ix) =
 
 indexBack_bits :: Maybe Integer -> TValue -> SeqValMap -> Seq.Seq Bool -> Eval Value
 indexBack_bits mblen a vs = indexBack mblen a vs . packWord . Fold.toList
-
--- | Indexing operations that return many elements.
-indexPrimMany :: BitWord b w i
-              => (Maybe Integer -> TValue -> SeqMap b w i -> Seq.Seq b -> Eval (GenValue b w i))
-              -> (Maybe Integer -> TValue -> SeqMap b w i -> w -> Eval (GenValue b w i))
-              -> GenValue b w i
-indexPrimMany bits_op word_op =
-  nlam $ \ n  ->
-  tlam $ \ a  ->
-  nlam $ \ m  ->
-  nlam $ \ _i ->
-   lam $ \ l  -> return $
-   lam $ \ r  -> do
-     vs <- (l >>= \case
-               VWord _ w  -> w >>= \w' -> return $ IndexSeqMap (\i -> VBit <$> indexWordValue w' i)
-               VSeq _ vs  -> return vs
-               VStream vs -> return vs
-               _ -> evalPanic "Expected sequence value" ["indexPrimMany"])
-     ixs <- fromSeq "indexPrimMany idx" =<< r
-     mkSeq m a <$> memoMap (IndexSeqMap $ \i -> do
-       lookupSeqMap ixs i >>= \case
-         VWord _ w -> w >>= \case
-            WordVal w' -> word_op (fromNat n) a vs w'
-            BitsVal bs -> bits_op (fromNat n) a vs =<< sequence bs
-            LargeBitsVal o xs -> bits_op (fromNat n) a vs . Seq.fromList =<< traverse (fromBit =<<) (enumerateSeqMap o xs)
-         _ -> evalPanic "Expected word value" ["indexPrimMany"])
 
 
 updateFront

@@ -36,7 +36,7 @@ import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            ccatV, splitAtV, joinV, ecSplitV,
                            reverseV, infFromV, infFromThenV,
                            fromThenV, fromToV, fromThenToV,
-                           transposeV, indexPrimOne, indexPrimMany,
+                           transposeV, indexPrim,
                            ecIntegerV, ecToIntegerV, ecFromIntegerV,
                            ecDemoteV, updatePrim, randomV, liftWord,
                            cmpValue, lg2)
@@ -174,10 +174,8 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("infFrom"     , infFromV)
   , ("infFromThen" , infFromThenV)
 
-  , ("@"           , indexPrimOne  indexFront_bits indexFront)
-  , ("@@"          , indexPrimMany indexFront_bits indexFront)
-  , ("!"           , indexPrimOne  indexBack_bits indexBack)
-  , ("!!"          , indexPrimMany indexBack_bits indexBack)
+  , ("@"           , indexPrim indexFront_bits indexFront)
+  , ("!"           , indexPrim indexBack_bits indexBack)
 
   , ("update"      , updatePrim updateFrontSym_word updateFrontSym)
   , ("updateEnd"   , updatePrim updateBackSym_word updateBackSym)
