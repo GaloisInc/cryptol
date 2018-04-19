@@ -551,9 +551,15 @@ drop ((_ : [front] _) # y) = y
 tail : {a, b} [1 + a]b -> [a]b
 tail xs = drop`{1} xs
 
+/**
+ * Return the left-most element of a sequence.
+ */
 head : {a, b} [1 + a]b -> b
 head xs = xs @ 0
 
+/**
+ * Return the right-most element of a sequence.
+ */
 last : {a, b} (fin a) => [1 + a]b -> b
 last xs = xs ! 0
 
