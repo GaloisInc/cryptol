@@ -9,7 +9,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Cryptol.Testing.Concrete where
 
-import Control.Monad (join)
+import Control.Monad (join, liftM2)
 
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Value
@@ -63,14 +63,14 @@ runOneTest evOpts v0 vs0 = run `X.catch` handle
 {- | Given a (function) type, compute all possible inputs for it.
 We also return the types of the arguments and
 the total number of test (i.e., the length of the outer list. -}
-testableType :: Type -> Maybe (Integer, [Type], [[Value]])
+testableType :: Type -> Maybe (Maybe Integer, [Type], [[Value]])
 testableType ty =
   case tNoUser ty of
     TCon (TC TCFun) [t1,t2] ->
-      do sz        <- typeSize t1
+      do let sz = typeSize t1
          (tot,ts,vss) <- testableType t2
-         return (sz * tot, t1:ts, [ v : vs | v <- typeValues t1, vs <- vss ])
-    TCon (TC TCBit) [] -> return (1, [], [[]])
+         return (liftM2 (*) sz tot, t1:ts, [ v : vs | v <- typeValues t1, vs <- vss ])
+    TCon (TC TCBit) [] -> return (Just 1, [], [[]])
     _ -> Nothing
 
 {- | Given a fully-evaluated type, try to compute the number of values in it.
@@ -144,7 +144,7 @@ data TestSpec m s = TestSpec {
     testFn :: Integer -> s -> m (TestResult, s)
   , testProp :: String -- ^ The property as entered by the user
   , testTotal :: Integer
-  , testPossible :: Integer
+  , testPossible :: Maybe Integer -- ^ Nothing indicates infinity
   , testRptProgress :: Integer -> Integer -> m ()
   , testClrProgress :: m ()
   , testRptFailure :: TestResult -> m ()
@@ -155,7 +155,7 @@ data TestReport = TestReport {
     reportResult :: TestResult
   , reportProp :: String -- ^ The property as entered by the user
   , reportTestsRun :: Integer
-  , reportTestsPossible :: Integer
+  , reportTestsPossible :: Maybe Integer
   }
 
 runTests :: Monad m => TestSpec m s -> s -> m TestReport

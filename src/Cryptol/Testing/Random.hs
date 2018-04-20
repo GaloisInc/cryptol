@@ -70,6 +70,8 @@ randomValue ty =
       case (tc, map (tRebuild' False) ts) of
         (TC TCBit, [])                        -> Just randomBit
 
+        (TC TCInteger, [])                    -> Just randomInteger
+
         (TC TCSeq, [TCon (TC TCInf) [], el])  ->
           do mk <- randomValue el
              return (randomStream mk)
@@ -98,6 +100,12 @@ randomBit :: (BitWord b w i, RandomGen g) => Gen g b w i
 randomBit _ g =
   let (b,g1) = random g
   in (VBit (bitLit b), g1)
+
+-- | Generate a random integer value.
+randomInteger :: (BitWord b w i, RandomGen g) => Gen g b w i
+randomInteger _ g =
+  let (x, g1) = random g
+  in (VInteger (integerLit x), g1)
 
 -- | Generate a random word of the given length (i.e., a value of type @[w]@)
 -- The size parameter is assumed to vary between 1 and 100, and we use

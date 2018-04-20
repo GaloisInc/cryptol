@@ -316,7 +316,7 @@ qcCmd qcMode str =
      (val,ty) <- replEvalExpr expr
      EnvNum testNum  <- getUser "tests"
      case testableType ty of
-       Just (sz,tys,vss) | qcMode == QCExhaust || sz <= toInteger testNum -> do
+       Just (Just sz,tys,vss) | qcMode == QCExhaust || sz <= toInteger testNum -> do
             rPutStrLn "Using exhaustive testing."
             let f _ [] = panic "Cryptol.REPL.Command"
                                     ["Exhaustive testing ran out of test cases"]
@@ -328,7 +328,7 @@ qcCmd qcMode str =
                     testFn = f
                   , testProp = str
                   , testTotal = sz
-                  , testPossible = sz
+                  , testPossible = Just sz
                   , testRptProgress = ppProgress
                   , testClrProgress = delProgress
                   , testRptFailure = ppFailure tys expr
@@ -363,7 +363,9 @@ qcCmd qcMode str =
                 g <- io newTFGen
                 report <- runTests testSpec g
                 when (isPass (reportResult report)) $
-                  rPutStrLn $ coverageString testNum sz
+                  case sz of
+                    Nothing -> return ()
+                    Just n -> rPutStrLn $ coverageString testNum n
                 return [report]
        Nothing -> return []
 
