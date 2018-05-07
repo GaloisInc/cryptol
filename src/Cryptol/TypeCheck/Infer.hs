@@ -574,7 +574,7 @@ inferCArm armNum (m : ms) =
      let src = text "length of" <+> ordinal armNum <+>
                                   text "arm of list comprehension"
      sz <- newType src KNum
-     newGoals CtComprehension [ sz =#= tMul n n' ]
+     newGoals CtComprehension [ pFin n', sz =#= tMul n n' ]
      return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, sz)
 
 -- | @inferBinds isTopLevel isRec binds@ performs inference for a
