@@ -560,7 +560,7 @@ inferCArm :: Int -> [P.Match Name] -> InferM
               , Type                   -- length of sequence
               )
 
-inferCArm _ [] = do n <- newType (text "lenght of empty comprehension") KNum
+inferCArm _ [] = do n <- newType (text "length of empty comprehension") KNum
                                                     -- shouldn't really happen
                     return ([], Map.empty, n)
 inferCArm _ [m] =
@@ -570,7 +570,7 @@ inferCArm _ [m] =
 inferCArm armNum (m : ms) =
   do (m1, x, t, n)  <- inferMatch m
      (ms', ds, n') <- withMonoType (x,t) (inferCArm armNum ms)
-     -- XXX: Well, this is just the lenght of this sub-sequence
+     -- XXX: Well, this is just the length of this sub-sequence
      let src = text "length of" <+> ordinal armNum <+>
                                   text "arm of list comprehension"
      sz <- newType src KNum
