@@ -66,6 +66,9 @@ data Error    = ErrorMsg Doc
                 -- ^ Number of extra parameters, kind of result
                 -- (which should not be of the form @_ -> _@)
 
+              | TyVarWithParams
+                -- ^ A type variable was applied to some arguments.
+
               | TooManyTySynParams Name Int
                 -- ^ Type-synonym, number of extra params
 
@@ -140,6 +143,7 @@ instance TVars Error where
       ErrorMsg _                -> err
       KindMismatch {}           -> err
       TooManyTypeParams {}      -> err
+      TyVarWithParams           -> err
       TooManyTySynParams {}     -> err
       TooFewTySynParams {}      -> err
       RecursiveTypeDecls {}     -> err
@@ -167,6 +171,7 @@ instance FVS Error where
       ErrorMsg {}               -> Set.empty
       KindMismatch {}           -> Set.empty
       TooManyTypeParams {}      -> Set.empty
+      TyVarWithParams           -> Set.empty
       TooManyTySynParams {}     -> Set.empty
       TooFewTySynParams {}      -> Set.empty
       RecursiveTypeDecls {}     -> Set.empty
@@ -230,6 +235,10 @@ instance PP (WithNames Error) where
         nested (text "Malformed type.")
           (text "Kind" <+> quotes (pp k) <+> text "is not a function," $$
            text "but it was applied to" <+> pl extra "parameter" <> text ".")
+
+      TyVarWithParams ->
+        nested (text "Malformed type.")
+               (text "Type variables cannot be applied to parameters.")
 
       TooManyTySynParams t extra ->
         nested (text "Malformed type.")

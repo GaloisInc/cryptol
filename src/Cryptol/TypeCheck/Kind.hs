@@ -218,59 +218,36 @@ tcon tc ts0 k =
   do (ts1,k1) <- appTy ts0 (kindOf tc)
      checkKind (TCon tc ts1) k k1
 
--- | Check a use of a type-synonym, newtype, abs type, or scoped-type variable.
-tySyn :: Bool         -- ^ Should we check for scoped type vars.
-      -> Name         -- ^ Name of type sysnonym
-      -> [P.Type Name]-- ^ Type synonym parameters
-      -> Maybe Kind   -- ^ Expected kind
-      -> KindM Type   -- ^ Resulting type
-tySyn scoped x ts k =
-  do mb <- kLookupTSyn x
-     case mb of
-       Just (tysyn@(TySyn { tsName = f, tsParams = as
-                          , tsConstraints = ps, tsDef = def })) ->
-          do (ts1,k1) <- appTy ts (kindOf tysyn)
-             ts2 <- checkParams as ts1
-             let su = zip as ts2
-             ps1 <- mapM (`kInstantiateT` su) ps
-             kNewGoals (CtPartialTypeFun (UserTyFun f)) ps1
-             t1  <- kInstantiateT def su
-             checkKind (TUser x ts1 t1) k k1
-
-       -- Maybe it is a newtype?
-       Nothing ->
-         do mbN <- kLookupNewtype x
-            case mbN of
-              Just nt ->
-                do let tc = newtypeTyCon nt
-                   (ts1,_) <- appTy ts (kindOf tc)
-                   ts2 <- checkParams (ntParams nt) ts1
-                   return (TCon tc ts2)
-
-              -- Maybe it is a parameter type?
-              Nothing ->
-                do mbA <- kLookupParamType x
-                   case mbA of
-                     Just a ->
-                       do let ty = tpVar (mtpParam a)
-                          (ts1,k1) <- appTy ts (kindOf ty)
-                          case k of
-                            Just ks
-                              | ks /= k1 -> kRecordError $ KindMismatch ks k1
-                            _ -> return ()
-
-                          unless (null ts1)
-                            $ panic "Kind.tySyn" [ "Unexpected parameters" ]
-
-                          return (TVar ty)
-
-                     -- Maybe it is a scoped type variable?
-                     Nothing
-                       | scoped -> kExistTVar x $ fromMaybe KNum k
-                       | otherwise ->
-                          panic "Kind.tySyn" $ "Undefined type synonym"
-                                             : [ show x ]
+-- | Check a type application of a non built-in type or type variable.
+checkTUser ::
+  Name          {- ^ The name that is being applied to some arguments. -} ->
+  [P.Type Name] {- ^ Type synonym parameters -} ->
+  Maybe Kind    {- ^ Expected kind -} ->
+  KindM Type    {- ^ Resulting type -}
+checkTUser x ts k =
+  mcase kLookupTyVar      checkBoundVarUse $
+  mcase kLookupTSyn       checkTySynUse $
+  mcase kLookupNewtype    checkNewTypeUse $
+  mcase kLookupParamType  checkModuleParamUse $
+  checkScopedVarUse -- none of the above, must be a scoped type variable,
+                    -- if the renamer did its job correctly.
   where
+  checkTySynUse tysyn =
+    do (ts1,k1) <- appTy ts (kindOf tysyn)
+       let as  = tsParams tysyn
+       ts2 <- checkParams as ts1
+       let su = zip as ts2
+       ps1 <- mapM (`kInstantiateT` su) (tsConstraints tysyn)
+       kNewGoals (CtPartialTypeFun (UserTyFun (tsName tysyn))) ps1
+       t1  <- kInstantiateT (tsDef tysyn) su
+       checkKind (TUser x ts1 t1) k k1
+
+  checkNewTypeUse nt =
+    do let tc = newtypeTyCon nt
+       (ts1,_) <- appTy ts (kindOf tc)
+       ts2 <- checkParams (ntParams nt) ts1
+       return (TCon tc ts2)
+
   checkParams as ts1
     | paramHave == paramNeed = return ts1
     | paramHave < paramNeed  =
@@ -284,6 +261,45 @@ tySyn scoped x ts k =
     where paramHave = length ts1
           paramNeed = length as
 
+
+
+  checkModuleParamUse a =
+    do let ty = tpVar (mtpParam a)
+       (ts1,k1) <- appTy ts (kindOf ty)
+       case k of
+         Just ks | ks /= k1 -> kRecordError $ KindMismatch ks k1
+         _ -> return ()
+
+       unless (null ts1) $
+         panic "Kind.checkTUser.checkModuleParam" [ "Unexpected parameters" ]
+
+       return (TVar ty)
+
+  checkBoundVarUse v =
+    do unless (null ts) $ kRecordError TyVarWithParams
+       case v of
+         TLocalVar t mbk ->
+            case k of
+              Nothing -> return t
+              Just k1 ->
+                case mbk of
+                  Nothing -> kSetKind x k1 >> return t
+                  Just k2 -> checkKind t k k2
+         TOuterVar t -> checkKind t k (kindOf t)
+
+  checkScopedVarUse =
+    do unless (null ts) (kRecordError TyVarWithParams)
+       kExistTVar x $ fromMaybe KNum k
+
+  mcase :: (Name -> KindM (Maybe a)) ->
+           (a -> KindM Type) ->
+           KindM Type ->
+           KindM Type
+  mcase m f rest =
+    do mb <- m x
+       case mb of
+         Nothing -> rest
+         Just a  -> f a
 
 -- | Check a type-application.
 appTy :: [P.Type Name]        -- ^ Parameters to type function
@@ -344,8 +360,7 @@ doCheckType ty k =
                           checkKind t1 k KType
     P.TLocated t r1 -> kInRange r1 $ doCheckType t k
 
-    P.TUser x []    -> checkTyThing x k
-    P.TUser x ts    -> tySyn False x ts k
+    P.TUser x ts    -> checkTUser x ts k
 
     P.TParens t     -> doCheckType t k
 
@@ -358,25 +373,6 @@ doCheckType ty k =
                    $ doCheckType (value f) (Just KType)
                 return (thing (name f), t)
 
-
-
--- | Check a type-variable or type-synonym.
-checkTyThing :: Name          -- ^ Name of thing that needs checking
-             -> Maybe Kind    -- ^ Expected kind
-             -> KindM Type
-checkTyThing x k =
-  do it <- kLookupTyVar x
-     case it of
-       Just (TLocalVar t mbk) ->
-         case k of
-           Nothing -> return t
-           Just k1 ->
-             case mbk of
-               Nothing -> kSetKind x k1 >> return t
-               Just k2 -> checkKind t k k2
-
-       Just (TOuterVar t) -> checkKind t k (kindOf t)
-       Nothing            -> tySyn True x [] k
 
 
 -- | Validate a parsed proposition.
@@ -392,8 +388,7 @@ checkProp prop =
     P.CArith t1     -> tcon (PC PArith)         [t1]    (Just KProp)
     P.CCmp t1       -> tcon (PC PCmp)           [t1]    (Just KProp)
     P.CSignedCmp t1 -> tcon (PC PSignedCmp)     [t1]    (Just KProp)
-    P.CUser x []    -> checkTyThing x (Just KProp)
-    P.CUser x ts    -> tySyn False x ts (Just KProp)
+    P.CUser x ts    -> checkTUser x ts (Just KProp)
     P.CLocated p r1 -> kInRange r1 (checkProp p)
     P.CType _       -> panic "checkProp" [ "Unexpected CType", show prop ]
 
