@@ -343,7 +343,7 @@ data Named a = Named { name :: Located Ident, value :: a }
 data Schema n = Forall [TParam n] [Prop n] (Type n) (Maybe Range)
   deriving (Eq, Show, Generic, NFData, Functor)
 
-data Kind = KNum | KType
+data Kind = KNum | KType | KFun Kind Kind
   deriving (Eq, Show, Generic, NFData)
 
 data TParam n = TParam { tpName  :: n
@@ -821,11 +821,13 @@ instance PPName name => PP (Schema name) where
 instance PP Kind where
   ppPrec _ KType  = text "*"
   ppPrec _ KNum   = text "#"
+  ppPrec n (KFun k1 k2) = wrap n 1 (ppPrec 1 k1 <+> "->" <+> ppPrec 0 k2)
 
 -- | "Conversational" printing of kinds (e.g., to use in error messages)
 cppKind :: Kind -> Doc
-cppKind KType = text "a value type"
-cppKind KNum  = text "a numeric type"
+cppKind KType     = text "a value type"
+cppKind KNum      = text "a numeric type"
+cppKind (KFun {}) = text "a type-constructor type"
 
 instance PPName name => PP (TParam name) where
   ppPrec n (TParam p Nothing _)   = ppPrec n p

@@ -120,4 +120,9 @@ instance AddLoc (Located a) where
 at :: (HasLoc l, AddLoc t) => l -> t -> t
 at l e = maybe e (addLoc e) (getLoc l)
 
+combLoc :: (a -> b -> c) -> Located a -> Located b -> Located c
+combLoc f l1 l2 = Located { srcRange = rComb (srcRange l1) (srcRange l2)
+                          , thing    = f (thing l1) (thing l2)
+                          }
+
 

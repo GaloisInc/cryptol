@@ -585,6 +585,7 @@ schema_quals                   :: { Located [Prop PName] }
 kind                             :: { Located Kind      }
   : '#'                             { Located $1 KNum   }
   | '*'                             { Located $1 KType  }
+  | kind '->' kind                  { combLoc KFun $1 $3 }
 
 schema_param                   :: { TParam PName }
   : ident                         {% mkTParam $1 Nothing           }

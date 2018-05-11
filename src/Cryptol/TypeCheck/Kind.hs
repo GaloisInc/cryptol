@@ -206,6 +206,7 @@ withTParams allowWildCards flav xs m
 cvtK :: P.Kind -> Kind
 cvtK P.KNum  = KNum
 cvtK P.KType = KType
+cvtK (P.KFun k1 k2) = cvtK k1 :-> cvtK k2
 
 
 
