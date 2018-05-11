@@ -577,7 +577,7 @@ existVar x k =
            [] ->
               do recordError $ ErrorMsg $
                     text "Undefined type" <+> quotes (pp x)
-                 newType (text "undefined existential type varible" <+>
+                 newType (text "undefined existential type variable" <+>
                                                             quotes (pp x)) k
 
            sc : more ->
@@ -739,8 +739,11 @@ inNewScope m =
 newtype KindM a = KM { unKM :: ReaderT KRO (StateT KRW InferM)  a }
 
 data KRO = KRO { lazyTVars  :: Map Name Type -- ^ lazy map, with tyvars.
-               , allowWild  :: Bool           -- ^ are type-wild cards allowed?
+               , allowWild  :: AllowWildCards-- ^ are type-wild cards allowed?
                }
+
+-- | Do we allow wild cards in the given context.
+data AllowWildCards = AllowWildCards | NoWildCards
 
 data KRW = KRW { typeParams :: Map Name Kind -- ^ kinds of (known) vars.
                , kCtrs      :: [(ConstraintSource,[Prop])]
@@ -758,6 +761,9 @@ instance Monad KindM where
   fail x        = KM (fail x)
   KM m >>= k    = KM (m >>= unKM . k)
 
+
+
+
 {- | The arguments to this function are as follows:
 
 (type param. name, kind signature (opt.), a type representing the param)
@@ -768,7 +774,7 @@ in the process of computing.
 
 As a result we return the value of the sub-computation and the computed
 kinds of the type parameters. -}
-runKindM :: Bool                          -- Are type-wild cards allowed?
+runKindM :: AllowWildCards               -- Are type-wild cards allowed?
          -> [(Name, Maybe Kind, Type)]   -- ^ See comment
          -> KindM a -> InferM (a, Map Name Kind, [(ConstraintSource,[Prop])])
 runKindM wildOK vs (KM m) =
@@ -796,7 +802,7 @@ kLookupTyVar x = KM $
                                    return (fmap TOuterVar t)
 
 -- | Are type wild-cards OK in this context?
-kWildOK :: KindM Bool
+kWildOK :: KindM AllowWildCards
 kWildOK = KM $ fmap allowWild ask
 
 -- | Reports an error.

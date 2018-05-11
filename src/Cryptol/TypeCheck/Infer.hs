@@ -647,7 +647,7 @@ guessType exprMap b@(P.Bind { .. }) =
   case bSignature of
 
     Just s ->
-      do s1 <- checkSchema True s
+      do s1 <- checkSchema AllowWildCards s
          return ((name, ExtVar (fst s1)), Left (checkSigB b s1))
 
     Nothing
@@ -881,7 +881,7 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
 
 
   checkParameterFun x =
-    do (s,gs) <- checkSchema False (P.pfSchema x)
+    do (s,gs) <- checkSchema NoWildCards (P.pfSchema x)
        su <- proveImplication (Just (thing (P.pfName x)))
                               (sVars s) (sProps s) gs
        unless (isEmptySubst su) $

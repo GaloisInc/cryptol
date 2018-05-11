@@ -38,8 +38,9 @@ import           Control.Monad(unless,forM)
 
 
 
--- | Check a type signature.
-checkSchema :: Bool -> P.Schema Name -> InferM (Schema, [Goal])
+-- | Check a type signature.  Returns validated schema, and any implicit
+-- constraints that we inferred.
+checkSchema :: AllowWildCards -> P.Schema Name -> InferM (Schema, [Goal])
 checkSchema withWild (P.Forall xs ps t mb) =
   do ((xs1,(ps1,t1)), gs) <-
         collectGoals $
@@ -56,6 +57,8 @@ checkSchema withWild (P.Forall xs ps t mb) =
           Nothing -> id
           Just r  -> inRange r
 
+-- | Check a module parameter declarations.  Nothing much to check,
+-- we just translate from one syntax to another.
 checkParameterType :: P.ParameterType Name -> Maybe String -> InferM ModTParam
 checkParameterType a mbDoc =
   do let k = cvtK (P.ptKind a)
@@ -69,7 +72,7 @@ checkTySyn :: P.TySyn Name -> Maybe String -> InferM TySyn
 checkTySyn (P.TySyn x as t) mbD =
   do ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
-                    $ do r <- withTParams False tySynParam as
+                    $ do r <- withTParams NoWildCards tySynParam as
                                                       (doCheckType t Nothing)
                          simplifyAllConstraints
                          return r
@@ -85,7 +88,7 @@ checkPropSyn :: P.PropSyn Name -> Maybe String -> InferM TySyn
 checkPropSyn (P.PropSyn x as ps) mbD =
   do ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
-                    $ do r <- withTParams False propSynParam as
+                    $ do r <- withTParams NoWildCards propSynParam as
                                                       (traverse checkProp ps)
                          simplifyAllConstraints
                          return r
@@ -102,7 +105,7 @@ checkNewtype :: P.Newtype Name -> Maybe String -> InferM Newtype
 checkNewtype (P.Newtype x as fs) mbD =
   do ((as1,fs1),gs) <- collectGoals $
        inRange (srcRange x) $
-       do r <- withTParams False newtypeParam as $
+       do r <- withTParams NoWildCards newtypeParam as $
                forM fs $ \field ->
                  let n = name field
                  in kInRange (srcRange n) $
@@ -122,12 +125,12 @@ checkNewtype (P.Newtype x as fs) mbD =
 
 checkType :: P.Type Name -> Maybe Kind -> InferM Type
 checkType t k =
-  do (_, t1) <- withTParams True schemaParam {-no params-} [] $ doCheckType t k
+  do (_, t1) <- withTParams AllowWildCards schemaParam [] $ doCheckType t k
      return (tRebuild t1)
 
 checkParameterConstraints :: [Located (P.Prop Name)] -> InferM [Located Prop]
 checkParameterConstraints ps =
-  do (_, cs) <- withTParams False schemaParam {-no params-}[] (mapM checkL ps)
+  do (_, cs) <- withTParams NoWildCards schemaParam [] (mapM checkL ps)
      return cs
   where
   checkL x = do p <- checkProp (thing x)
@@ -163,7 +166,7 @@ There are two reasons for this choice:
      annotation) in the rest.
 -}
 
-withTParams :: Bool              {- ^ Do we allow wild cards -} ->
+withTParams :: AllowWildCards    {- ^ Do we allow wild cards -} ->
               (Name -> TPFlavor) {- ^ What sort of params are these? -} ->
               [P.TParam Name]    {- ^ The params -} ->
               KindM a            {- ^ do this using the params -} ->
@@ -305,8 +308,10 @@ doCheckType :: P.Type Name  -- ^ Type that needs to be checked
 doCheckType ty k =
   case ty of
     P.TWild         ->
-      do ok <- kWildOK
-         unless ok $ kRecordError UnexpectedTypeWildCard
+      do wildOk <- kWildOK
+         case wildOk of
+           AllowWildCards -> return ()
+           NoWildCards    -> kRecordError UnexpectedTypeWildCard
          theKind <- case k of
                       Just k1 -> return k1
                       Nothing -> do kRecordWarning (DefaultingWildType P.KNum)
