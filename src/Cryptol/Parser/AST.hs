@@ -195,16 +195,17 @@ data PropSyn n = PropSyn (Located n) [TParam n] [Prop n]
       by the type checker.  However, they are useful when de-sugaring
       patterns.
 -}
-data Bind name = Bind { bName      :: Located name -- ^ Defined thing
-                      , bParams    :: [Pattern name]-- ^ Parameters
-                      , bDef       :: Located (BindDef name) -- ^ Definition
-                      , bSignature :: Maybe (Schema name) -- ^ Optional type sig
-                      , bInfix     :: Bool         -- ^ Infix operator?
-                      , bFixity    :: Maybe Fixity -- ^ Optional fixity info
-                      , bPragmas   :: [Pragma]     -- ^ Optional pragmas
-                      , bMono      :: Bool         -- ^ Is this a monomorphic binding
-                      , bDoc       :: Maybe String -- ^ Optional doc string
-                      } deriving (Eq, Generic, NFData, Functor, Show)
+data Bind name = Bind
+  { bName      :: Located name            -- ^ Defined thing
+  , bParams    :: [Pattern name]          -- ^ Parameters
+  , bDef       :: Located (BindDef name)  -- ^ Definition
+  , bSignature :: Maybe (Schema name)     -- ^ Optional type sig
+  , bInfix     :: Bool                    -- ^ Infix operator?
+  , bFixity    :: Maybe Fixity            -- ^ Optional fixity info
+  , bPragmas   :: [Pragma]                -- ^ Optional pragmas
+  , bMono      :: Bool                    -- ^ Is this a monomorphic binding
+  , bDoc       :: Maybe String            -- ^ Optional doc string
+  } deriving (Eq, Generic, NFData, Functor, Show)
 
 type LBindDef = Located (BindDef PName)
 
@@ -359,7 +360,16 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TChar Char              -- ^ @'a'@
             | TInf                    -- ^ @inf@
             | TUser n [Type n]        -- ^ A type variable or synonym
-            | TApp TFun [Type n]      -- ^ @2 + x@
+
+            | TApp TFun [Type n]
+              -- ^ @2 + x@
+              -- Note that the parser never produces these; instead it
+              -- prduces a "TUser" valued.  The "TApp" is introduced by
+              -- the renamed when it spots built-in functions.
+              -- XXX: We should just add primitive declarations for the
+              -- built-in type functions, and simplify all this.
+
+
             | TRecord [Named (Type n)]-- ^ @{ x : [8], y : [32] }@
             | TTuple [Type n]         -- ^ @([8], [32])@
             | TWild                   -- ^ @_@, just some type.
