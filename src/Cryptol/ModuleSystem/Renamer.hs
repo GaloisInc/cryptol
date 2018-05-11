@@ -626,7 +626,10 @@ instance Rename Type where
 
       -- built-in types like Bit and inf
       | Just ty <- Map.lookup pn tconNames =
-        rename ty
+        do unless (null ps) (record (MalformedBuiltin ty0 pn))
+           -- this should really be a kind error, but our syntax
+           -- currently has no way to represent the broken type.
+           rename ty
 
     go (TUser qn ps)   = TUser    <$> renameType qn <*> traverse go ps
     go (TApp f xs)     = TApp f   <$> traverse go xs

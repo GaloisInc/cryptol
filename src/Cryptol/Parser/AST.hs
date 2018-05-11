@@ -368,6 +368,10 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TInfix (Type n) (Located n) Fixity (Type n) -- ^ @ ty + ty @
               deriving (Eq, Show, Generic, NFData, Functor)
 
+-- | NOTE: the renamer assumed that these don't have type parameters.
+-- If this changes, we should update it.
+-- XXX: As in the case of TApp, this would all go away if these were
+-- just declared.
 tconNames :: Map.Map PName (Type PName)
 tconNames  = Map.fromList
   [ (mkUnqual (packIdent "Bit"), TBit)
