@@ -638,51 +638,6 @@ Cryptol primitives fall into several groups:
 >                           Left e -> VList (repeat (vWordError bits e))
 >                           Right j -> VList (map (vWordValue bits) [i, j ..]))
 >
->   -- Polynomials:
->   , ("pmult"      , let mul res _  _  0 = res
->                         mul res bs as n = mul (if even as then res else xor res bs)
->                                           (bs `shiftL` 1) (as `shiftR` 1) (n-1)
->                     in vFinPoly $ \a ->
->                        vFinPoly $ \b ->
->                        VFun $ \x ->
->                        VFun $ \y ->
->                        vWord (1 + a + b) $
->                        case fromVWord x of
->                          Left e -> Left e
->                          Right i ->
->                            case fromVWord y of
->                              Left e -> Left e
->                              Right j -> Right (mul 0 i j (1+b)))
->   , ("pdiv"       , vFinPoly $ \a ->
->                     vFinPoly $ \b ->
->                     VFun $ \x ->
->                     VFun $ \y ->
->                     vWord a $
->                     case fromVWord x of
->                       Left e -> Left e
->                       Right i ->
->                         case fromVWord y of
->                           Left e -> Left e
->                           Right j
->                             | j == 0 -> Left DivideByZero
->                             | otherwise ->
->                               Right (fst (divModPoly i (fromInteger a) j (fromInteger b))))
->
->   , ("pmod"       , vFinPoly $ \a ->
->                     vFinPoly $ \b ->
->                     VFun $ \x ->
->                     VFun $ \y ->
->                     vWord b $
->                     case fromVWord x of
->                       Left e -> Left e
->                       Right i ->
->                         case fromVWord y of
->                           Left e -> Left e
->                           Right j
->                             | j == 0 -> Left DivideByZero
->                             | otherwise ->
->                               Right (snd (divModPoly i (fromInteger a) j (fromInteger b + 1))))
->
 >   -- Miscellaneous:
 >   , ("error"      , VPoly $ \a ->
 >                     VNumPoly $ \_ ->
