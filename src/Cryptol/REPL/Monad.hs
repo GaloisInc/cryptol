@@ -597,9 +597,9 @@ setUser name val = case lookupTrieExact name userOptions of
       _ -> rPutStrLn ("Failed to parse number for field, `" ++ name ++ "`")
 
     EnvBool _
-      | any (`isPrefixOf` val) ["enable","on","yes"] ->
+      | any (`isPrefixOf` val) ["enable", "on", "yes", "true"] ->
         writeEnv (EnvBool True)
-      | any (`isPrefixOf` val) ["disable","off","no"] ->
+      | any (`isPrefixOf` val) ["disable", "off", "no", "false"] ->
         writeEnv (EnvBool False)
       | otherwise ->
         rPutStrLn ("Failed to parse boolean for field, `" ++ name ++ "`")
