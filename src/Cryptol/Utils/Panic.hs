@@ -6,53 +6,25 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE Safe #-}
-{-# LANGUAGE DeriveDataTypeable, RecordWildCards, ImplicitParams #-}
-module Cryptol.Utils.Panic (HasCallStack, panic) where
+{-# LANGUAGE Trustworthy, TemplateHaskell #-}
+module Cryptol.Utils.Panic
+  (HasCallStack, CryptolPanic, Cryptol, Panic, panic) where
 
-import Cryptol.Version
+import Panic hiding (panic)
+import qualified Panic as Panic
 
-import Control.Exception as X
-import Data.Typeable(Typeable)
-import Data.Maybe(fromMaybe,listToMaybe)
-import GHC.Stack
+data Cryptol = Cryptol
+
+type CryptolPanic = Panic Cryptol
 
 panic :: HasCallStack => String -> [String] -> a
-panic panicLoc panicMsg =
-  throw CryptolPanic { panicStack = freezeCallStack ?callStack, .. }
+panic = Panic.panic Cryptol
 
-data CryptolPanic = CryptolPanic { panicLoc :: String
-                                 , panicMsg :: [String]
-                                 , panicStack :: CallStack
-                                 } deriving Typeable
+instance PanicComponent Cryptol where
+  panicComponentName _ = "Cryptol"
+  panicComponentIssues _ = "https://github.com/GaloisInc/cryptol/issues"
 
-instance Show CryptolPanic where
-  show p = unlines $
-    [ "You have encountered a bug in Cryptol's implementation."
-    , "*** Please create an issue at https://github.com/galoisinc/cryptol/issues"
-    , ""
-    , "%< --------------------------------------------------- "
-    ] ++ rev ++
-    [ locLab ++ panicLoc p
-    , msgLab ++ fromMaybe "" (listToMaybe msgLines)
-    ]
-    ++ map (tabs ++) (drop 1 msgLines)
-    ++ [ prettyCallStack (panicStack p) ] ++
-    [ "%< --------------------------------------------------- "
-    ]
-    where msgLab    = "  Message:   "
-          revLab    = "  Revision:  "
-          branchLab = "  Branch:    "
-          dirtyLab  = " (non-committed files present during build)"
-          locLab    = "  Location:  "
-          tabs      = map (const ' ') msgLab
-
-          msgLines  = panicMsg p
-
-          rev | null commitHash = []
-              | otherwise   = [ revLab ++ commitHash
-                              , branchLab ++ commitBranch ++ dirtyLab ]
-
-instance Exception CryptolPanic
+  {-# Noinline panicComponentRevision #-}
+  panicComponentRevision = $useGitRevision
 
 

@@ -65,7 +65,8 @@ library
                        tf-random         >= 0.5,
                        transformers-base >= 0.4,
                        mtl               >= 2.2.1,
-                       time >= 1.6.0.1
+                       time >= 1.6.0.1,
+                       panic >= 0.3
 
 
   Build-tools:         alex, happy
