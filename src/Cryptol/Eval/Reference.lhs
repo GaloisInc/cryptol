@@ -29,7 +29,7 @@
 > import Cryptol.ModuleSystem.Name (asPrim)
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 > import Cryptol.TypeCheck.AST
-> import Cryptol.Eval.Monad (EvalError(..))
+> import Cryptol.Eval.Monad (EvalError(..), PPOpts)
 > import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType, tvSeq)
 > import Cryptol.Prims.Eval (lg2, divModPoly)
 > import Cryptol.Utils.Ident (Ident, mkIdent)
@@ -638,51 +638,6 @@ Cryptol primitives fall into several groups:
 >                           Left e -> VList (repeat (vWordError bits e))
 >                           Right j -> VList (map (vWordValue bits) [i, j ..]))
 >
->   -- Polynomials:
->   , ("pmult"      , let mul res _  _  0 = res
->                         mul res bs as n = mul (if even as then res else xor res bs)
->                                           (bs `shiftL` 1) (as `shiftR` 1) (n-1)
->                     in vFinPoly $ \a ->
->                        vFinPoly $ \b ->
->                        VFun $ \x ->
->                        VFun $ \y ->
->                        vWord (1 + a + b) $
->                        case fromVWord x of
->                          Left e -> Left e
->                          Right i ->
->                            case fromVWord y of
->                              Left e -> Left e
->                              Right j -> Right (mul 0 i j (1+b)))
->   , ("pdiv"       , vFinPoly $ \a ->
->                     vFinPoly $ \b ->
->                     VFun $ \x ->
->                     VFun $ \y ->
->                     vWord a $
->                     case fromVWord x of
->                       Left e -> Left e
->                       Right i ->
->                         case fromVWord y of
->                           Left e -> Left e
->                           Right j
->                             | j == 0 -> Left DivideByZero
->                             | otherwise ->
->                               Right (fst (divModPoly i (fromInteger a) j (fromInteger b))))
->
->   , ("pmod"       , vFinPoly $ \a ->
->                     vFinPoly $ \b ->
->                     VFun $ \x ->
->                     VFun $ \y ->
->                     vWord b $
->                     case fromVWord x of
->                       Left e -> Left e
->                       Right i ->
->                         case fromVWord y of
->                           Left e -> Left e
->                           Right j
->                             | j == 0 -> Left DivideByZero
->                             | otherwise ->
->                               Right (snd (divModPoly i (fromInteger a) j (fromInteger b + 1))))
->
 >   -- Miscellaneous:
 >   , ("error"      , VPoly $ \a ->
 >                     VNumPoly $ \_ ->
@@ -1185,15 +1140,15 @@ a bug in Cryptol.
 Pretty Printing
 ---------------
 
-> ppValue :: Value -> Doc
-> ppValue val =
+> ppValue :: PPOpts -> Value -> Doc
+> ppValue opts val =
 >   case val of
 >     VBit b     -> text (either show show b)
 >     VInteger i -> text (either show show i)
->     VList vs   -> brackets (fsep (punctuate comma (map ppValue vs)))
->     VTuple vs  -> parens (sep (punctuate comma (map ppValue vs)))
+>     VList vs   -> brackets (fsep (punctuate comma (map (ppValue opts) vs)))
+>     VTuple vs  -> parens (sep (punctuate comma (map (ppValue opts) vs)))
 >     VRecord fs -> braces (sep (punctuate comma (map ppField fs)))
->       where ppField (f,r) = pp f <+> char '=' <+> ppValue r
+>       where ppField (f,r) = pp f <+> char '=' <+> ppValue opts r
 >     VFun _     -> text "<function>"
 >     VPoly _    -> text "<polymorphic value>"
 >     VNumPoly _ -> text "<polymorphic value>"

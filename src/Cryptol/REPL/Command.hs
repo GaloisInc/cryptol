@@ -658,7 +658,8 @@ refEvalCmd str = do
   (_, expr, _schema) <- replCheckExpr parseExpr
   validEvalContext expr
   val <- liftModuleCmd (rethrowEvalError . R.evaluate expr)
-  rPrint $ R.ppValue val
+  opts <- getPPValOpts
+  rPrint $ R.ppValue opts val
 
 astOfCmd :: String -> REPL ()
 astOfCmd str = do
