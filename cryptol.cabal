@@ -14,7 +14,7 @@ Build-type:          Simple
 Cabal-version:       >= 1.18
 extra-source-files:  bench/data/*.cry
 
-data-files:          *.cry Cryptol/*.cry *.z3
+data-files:          *.cry *.z3
 data-dir:            lib
 
 source-repository head

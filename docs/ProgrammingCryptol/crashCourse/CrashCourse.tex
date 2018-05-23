@@ -3155,7 +3155,6 @@ blocksize = 576
 \begin{verbatim}
 module Hash::SHA3 where
 import Hash::SHA3
-import Cryptol::Extras
 
 hmac : {keySize, msgSize} (fin keySize, fin msgSize) => [keySize] -> [msgSize] -> [512]
 hmac k m = sha3 (ko # sha3 (ki # m))

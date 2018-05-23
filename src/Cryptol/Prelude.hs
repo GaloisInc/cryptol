@@ -15,7 +15,6 @@
 
 module Cryptol.Prelude (
   writePreludeContents,
-  writePreludeExtrasContents,
   cryptolTcContents
   ) where
 
@@ -34,17 +33,6 @@ writePreludeContents = do
   tmpdir <- getTemporaryDirectory
   (path, h) <- openTempFile tmpdir "Cryptol.cry"
   hPutStr h preludeContents
-  hClose h
-  return path
-
-preludeExtrasContents :: String
-preludeExtrasContents = [there|lib/Cryptol/Extras.cry|]
-
-writePreludeExtrasContents :: IO FilePath
-writePreludeExtrasContents = do
-  tmpdir <- getTemporaryDirectory
-  (path, h) <- openTempFile tmpdir "CryptolExtras.cry"
-  hPutStr h preludeExtrasContents
   hClose h
   return path
 

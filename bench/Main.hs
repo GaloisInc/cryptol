@@ -48,7 +48,6 @@ main = do
   defaultMain [
     bgroup "parser" [
         parser "Prelude" "lib/Cryptol.cry"
-      , parser "Extras"  "lib/Cryptol/Extras.cry"
       , parser "PreludeWithExtras" "bench/data/PreludeWithExtras.cry"
       , parser "BigSequence" "bench/data/BigSequence.cry"
       , parser "BigSequenceHex" "bench/data/BigSequenceHex.cry"
@@ -57,7 +56,6 @@ main = do
       ]
    , bgroup "typechecker" [
         tc cd "Prelude" "lib/Cryptol.cry"
-      , tc cd "Extras"  "lib/Cryptol/Extras.cry"
       , tc cd "PreludeWithExtras" "bench/data/PreludeWithExtras.cry"
       , tc cd "BigSequence" "bench/data/BigSequence.cry"
       , tc cd "BigSequenceHex" "bench/data/BigSequenceHex.cry"
