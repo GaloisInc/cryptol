@@ -614,13 +614,13 @@ not : {a} (Logic a) => a -> a
 not a = ~ a
 
 /**
- * Conjunction of all bits in a sequence
+ * Conjunction of all bits in a sequence.
  */
 and : {n} (fin n) => [n]Bit -> Bit
 and xs = ~zero == xs
 
 /**
- * Disjunction of all bits in a sequence
+ * Disjunction of all bits in a sequence.
  */
 or : {n} (fin n) => [n]Bit -> Bit
 or xs = zero != xs
@@ -638,7 +638,7 @@ any : {a,n} (fin n) => (a -> Bit) -> [n]a -> Bit
 any f xs = or (map f xs)
 
 /**
- * Map a function over an array.
+ * Map a function over a sequence.
  */
 map : {a, b, n} (a -> b) -> [n]a -> [n]b
 map f xs = [f x | x <- xs]
@@ -650,7 +650,7 @@ map f xs = [f x | x <- xs]
  */
 foldl : {a, b, n} (fin n) => (a -> b -> a) -> a -> [n]b -> a
 foldl f acc xs = ys ! 0
- where ys = [acc] # [f a x | a <- ys | x <- xs]
+  where ys = [acc] # [f a x | a <- ys | x <- xs]
 
 /**
  * Functional right fold.
@@ -659,29 +659,27 @@ foldl f acc xs = ys ! 0
  */
 foldr : {a,b,n} (fin n) => (a -> b -> b) -> b -> [n]a -> b
 foldr f acc xs = ys ! 0
- where ys = [acc] # [f x a | a <- ys | x <- reverse xs]
+  where ys = [acc] # [f x a | a <- ys | x <- reverse xs]
 
 /**
- * Compute the sum of the words in the array.
+ * Compute the sum of the values in the sequence.
  */
 sum : {a,n} (fin n, Zero a, Arith a) => [n]a -> a
 sum xs = foldl (+) zero xs
 
 /**
- * Scan left is like a fold that emits the intermediate values.
+ * Scan left is like a foldl that also emits the intermediate values.
  */
 scanl : {b, a, n}  (b -> a -> b) -> b -> [n]a -> [n+1]b
 scanl f acc xs = ys
- where
-  ys = [acc] # [f a x | a <- ys | x <- xs]
+  where ys = [acc] # [f a x | a <- ys | x <- xs]
 
 /**
- * Scan right
+ * Scan right is like a foldr that also emits the intermediate values.
  */
 scanr : {a,b,n} (fin n) => (a -> b -> b) -> b -> [n]a -> [n+1]b
 scanr f acc xs = reverse ys
-    where
-     ys = [acc] # [f x a | a <- ys | x <- reverse xs]
+  where ys = [acc] # [f x a | a <- ys | x <- reverse xs]
 
 /**
  * Zero extension
@@ -715,7 +713,6 @@ zip xs ys = [(x,y) | x <- xs | y <- ys]
 
 /**
  * Create a list by applying the function to each pair of elements in the input.
- * lists
  */
 zipWith : {a,b,c,n} (a -> b -> c) -> [n]a -> [n]b -> [n]c
 zipWith f xs ys = [f x y | x <- xs | y <- ys]
@@ -724,13 +721,13 @@ zipWith f xs ys = [f x y | x <- xs | y <- ys]
  * Transform a function into uncurried form.
  */
 uncurry : {a,b,c} (a -> b -> c) -> (a,b) -> c
-uncurry f = \(a,b) -> f a b
+uncurry f = \(a, b) -> f a b
 
 /**
  * Transform a function into curried form.
  */
 curry : {a,b,c} ((a, b) -> c) -> a -> b -> c
-curry f = \a b -> f (a,b)
+curry f = \a b -> f (a, b)
 
 /**
  * Map a function iteratively over a seed value, producing an infinite
