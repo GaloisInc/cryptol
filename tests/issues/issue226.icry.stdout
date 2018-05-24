@@ -50,14 +50,26 @@ Symbols
     (!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
     (@) : {a, b, c} (fin c) => [a]b -> [c] -> b
     (@@) : {a, b, c, d} (fin d) => [a]b -> [c][d] -> [c]b
+    all : {a, n} (fin n) => (a -> Bit) -> [n]a -> Bit
+    and : {n} (fin n) => [n] -> Bit
+    any : {a, n} (fin n) => (a -> Bit) -> [n]a -> Bit
     carry : {n} (fin n) => [n] -> [n] -> Bit
     complement : {a} (Logic a) => a -> a
+    curry : {a, b, c} ((a, b) -> c) -> a -> b -> c
     demote :
       {val, bits} (fin val, fin bits, bits >= width val) => [bits]
     drop :
       {front, back, elem} (fin front) => [front + back]elem -> [back]elem
+    elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
     error : {at, len} (fin len) => [len][8] -> at
+    extend :
+      {total, n} (fin total, fin n, total >= n) => [n] -> [total]
+    extendSigned :
+      {total, n} (fin total, fin n, n >= 1, total >= 1 + n) =>
+        [n] -> [total]
     False : Bit
+    foldl : {a, b, n} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+    foldr : {a, b, n} (fin n) => (a -> b -> b) -> b -> [n]a -> b
     foo : {a} a -> a
     fromInteger : {a} (fin a) => Integer -> [a]
     fromThen :
@@ -82,20 +94,27 @@ Symbols
     infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
     infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
     integer : {val} (fin val) => Integer
+    iterate : {a} (a -> a) -> a -> [inf]a
     join :
       {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a
     last : {a, b} (fin a) => [1 + a]b -> b
     lg2 : {a} (Arith a) => a -> a
+    map : {a, b, n} (a -> b) -> [n]a -> [n]b
     max : {a} (Cmp a) => a -> a -> a
     min : {a} (Cmp a) => a -> a -> a
     negate : {a} (Arith a) => a -> a
+    not : {a} (Logic a) => a -> a
+    or : {n} (fin n) => [n] -> Bit
     pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
     pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
     pmult :
       {a, b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 + (a + b)]
     random : {a} [256] -> a
+    repeat : {n, a} a -> [n]a
     reverse : {a, b} (fin a) => [a]b -> [a]b
     sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+    scanl : {b, a, n} (b -> a -> b) -> b -> [n]a -> [1 + n]b
+    scanr : {a, b, n} (fin n) => (a -> b -> b) -> b -> [n]a -> [1 + n]b
     scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
     sext : {n, m} (fin m, m >= n, n >= 1) => [n] -> [m]
     split :
@@ -103,6 +122,7 @@ Symbols
     splitAt :
       {front, back, a} (fin front) =>
         [front + back]a -> ([front]a, [back]a)
+    sum : {a, n} (fin n, Zero a, Arith a) => [n]a -> a
     True : Bit
     tail : {a, b} [1 + a]b -> [a]b
     take :
@@ -112,6 +132,7 @@ Symbols
     trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
     traceVal : {n, a} (fin n) => [n][8] -> a -> a
     transpose : {a, b, c} [a][b]c -> [b][a]c
+    uncurry : {a, b, c} (a -> b -> c) -> (a, b) -> c
     undefined : {a} a
     update : {a, b, c} (fin c) => [a]b -> [c] -> b -> [a]b
     updateEnd : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b -> [a]b
@@ -125,4 +146,6 @@ Symbols
         [len]elem -> [bits]
     zero : {a} (Zero a) => a
     zext : {n, m} (fin m, m >= n) => [n] -> [m]
+    zip : {a, b, n} [n]a -> [n]b -> [n](a, b)
+    zipWith : {a, b, c, n} (a -> b -> c) -> [n]a -> [n]b -> [n]c
 
