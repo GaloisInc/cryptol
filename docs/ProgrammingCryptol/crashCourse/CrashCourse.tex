@@ -33,13 +33,13 @@ time.
 \section{Basic data types}
 \label{sec:basic-data-types}
 
-Cryptol provides four basic data types: bits, sequences, tuples, and
-records.  Words (i.e., numbers) are a special case of sequences.  Note
-that, aside from bits, all other Cryptol types can be nested as deep
-as you like. That is, we can have records of sequences containing
-tuples made up of other records, etc., giving us a rich
-type-system for precisely describing the shapes of data our programs
-manipulate.
+Cryptol provides five basic data types: bits, sequences, integers,
+tuples, and records. Words (i.e., $n$-bit numbers) are a special case
+of sequences. Note that, aside from bits, all other Cryptol types can
+be nested as deep as you like. That is, we can have records of
+sequences containing tuples made up of other records, etc., giving us
+a rich type-system for precisely describing the shapes of data our
+programs manipulate.
 
 While Cryptol is statically typed, it uses type inference to supply
 unspecified types.  That is, the user does {\em not} have to write the
@@ -182,6 +182,35 @@ the same value, so {\tt a} and {\tt A} both represent 10.
 
 \note{We will revisit the notion of numbers in
   Section~\ref{sec:words2}, after we learn about sequences.}
+
+%=====================================================================
+\sectionWithAnswers{Integers: Unbounded numbers}{sec:integer}
+
+The type \texttt{Integer} represents mathematical integers of
+unlimited size. To write an integer value in Cryptol, use
+\texttt{toInteger} with a word value: For example, \texttt{toInteger
+  0xff} represents the integer 255. To write a negative integer,
+simply negate the result: For example, \texttt{- toInteger 12}
+represents the integer $-12$.
+
+\begin{Exercise}\label{ex:int:1}
+  Compare the results of evaluating the expressions \texttt{0x8 + 0x9}
+  and \texttt{toInteger 0x8 + toInteger 0x9}. Also try evaluating
+  \texttt{toInteger (- 0x9)}. Can you explain the results?
+\end{Exercise}
+\begin{Answer}\ansref{ex:int:1}
+Here are Cryptol's responses:
+\begin{Verbatim}
+  0x1
+  17
+  11
+\end{Verbatim}
+\texttt{0x8 + 0x9} evaluates to \texttt{0x1} because addition on 4-bit
+words wraps around when the sum is 16 or more and it overflows. On the
+other hand, \texttt{Integer} addition never overflows, so the answer
+is 17. The final result is also due to wraparound: \texttt{- 0x5}
+evaluates to \texttt{0xb} or 11, which is $-5 + 16$.
+\end{Answer}
 
 %=====================================================================
 % \section{Tuples: Heterogeneous collections}
