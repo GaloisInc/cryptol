@@ -62,11 +62,6 @@ Symbols
       {front, back, elem} (fin front) => [front + back]elem -> [back]elem
     elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
     error : {at, len} (fin len) => [len][8] -> at
-    extend :
-      {total, n} (fin total, fin n, total >= n) => [n] -> [total]
-    extendSigned :
-      {total, n} (fin total, fin n, n >= 1, total >= 1 + n) =>
-        [n] -> [total]
     False : Bit
     foldl : {a, b, n} (fin n) => (a -> b -> a) -> a -> [n]b -> a
     foldr : {a, b, n} (fin n) => (a -> b -> b) -> b -> [n]a -> b
@@ -103,7 +98,6 @@ Symbols
     max : {a} (Cmp a) => a -> a -> a
     min : {a} (Cmp a) => a -> a -> a
     negate : {a} (Arith a) => a -> a
-    not : {a} (Logic a) => a -> a
     or : {n} (fin n) => [n] -> Bit
     pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
     pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]

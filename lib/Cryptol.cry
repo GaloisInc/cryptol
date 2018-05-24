@@ -608,12 +608,6 @@ traceVal msg x = trace msg x x
 /* Functions previously in Cryptol::Extras */
 
 /**
- * Logical negation
- */
-not : {a} (Logic a) => a -> a
-not a = ~ a
-
-/**
  * Conjunction of all bits in a sequence.
  */
 and : {n} (fin n) => [n]Bit -> Bit
@@ -680,18 +674,6 @@ scanl f acc xs = ys
 scanr : {a,b,n} (fin n) => (a -> b -> b) -> b -> [n]a -> [n+1]b
 scanr f acc xs = reverse ys
   where ys = [acc] # [f x a | a <- ys | x <- reverse xs]
-
-/**
- * Zero extension
- */
-extend : {total,n} (fin total, fin n, total >= n) => [n]Bit -> [total]Bit
-extend n = zero # n
-
-/**
- * Signed extension. `extendSigned 0bwxyz : [8] == 0bwwwwwxyz`.
- */
-extendSigned : {total,n} (fin total, fin n, n >= 1, total >= n+1) => [n]Bit -> [total]Bit
-extendSigned  xs = repeat (xs @ 0) # xs
 
 /**
  * Repeat a value.
