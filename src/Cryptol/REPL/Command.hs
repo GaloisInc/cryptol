@@ -314,7 +314,7 @@ qcCmd qcMode "" =
 qcCmd qcMode str =
   do expr <- replParseExpr str
      (val,ty) <- replEvalExpr expr
-     EnvNum testNum  <- getUser "tests"
+     EnvNum testNum <- getUser "tests"
      case testableType ty of
        Just (Just sz,tys,vss) | qcMode == QCExhaust || sz <= toInteger testNum -> do
             rPutStrLn "Using exhaustive testing."
@@ -341,7 +341,8 @@ qcCmd qcMode str =
             report <- runTests testSpec vss
             return [report]
 
-       Just (sz,tys,_) -> case TestR.testableType ty of
+       Just (sz,tys,_) | qcMode == QCRandom ->
+         case TestR.testableType ty of
               Nothing   -> raise (TypeNotTestable ty)
               Just gens -> do
                 rPutStrLn "Using random testing."
@@ -367,7 +368,7 @@ qcCmd qcMode str =
                     Nothing -> return ()
                     Just n -> rPutStrLn $ coverageString testNum n
                 return [report]
-       Nothing -> return []
+       _ -> raise (TypeNotTestable ty)
 
   where
   testingMsg = "testing..."
