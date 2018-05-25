@@ -101,11 +101,18 @@ randomBit _ g =
   let (b,g1) = random g
   in (VBit (bitLit b), g1)
 
+randomSize :: RandomGen g => Int -> Int -> g -> (Int, g)
+randomSize k n g
+  | p == 1 = (n, g')
+  | otherwise = randomSize k (n + 1) g'
+  where (p, g') = randomR (1, k) g
+
 -- | Generate a random integer value.
 randomInteger :: (BitWord b w i, RandomGen g) => Gen g b w i
 randomInteger _ g =
-  let (x, g1) = random g
-  in (VInteger (integerLit x), g1)
+  let (n, g1) = randomSize 8 1 g
+      (x, g2) = randomR (- 256^n, 256^n) g1
+  in (VInteger (integerLit x), g2)
 
 -- | Generate a random word of the given length (i.e., a value of type @[w]@)
 -- The size parameter is assumed to vary between 1 and 100, and we use
