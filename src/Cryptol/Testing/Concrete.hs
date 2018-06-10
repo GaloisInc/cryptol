@@ -112,28 +112,28 @@ typeValues ty =
                                     | (f,t) <- fs ]
                    ]
     TCon (TC tc) ts ->
-      case (tc, ts) of
-        (TCNum _, _)     -> []
-        (TCInf, _)       -> []
-        (TCBit, _)       -> [ VBit False, VBit True ]
-        (TCInteger, _)   -> []
-        (TCSeq, ts1)     ->
-            case map tNoUser ts1 of
-              [ TCon (TC (TCNum n)) _, TCon (TC TCBit) [] ] ->
-                  [ VWord n (ready (WordVal (BV n x))) | x <- [ 0 .. 2^n - 1 ] ]
+      case tc of
+        TCNum _     -> []
+        TCInf       -> []
+        TCBit       -> [ VBit False, VBit True ]
+        TCInteger   -> []
+        TCSeq       ->
+          case map tNoUser ts of
+            [ TCon (TC (TCNum n)) _, TCon (TC TCBit) [] ] ->
+              [ VWord n (ready (WordVal (BV n x))) | x <- [ 0 .. 2^n - 1 ] ]
 
-              [ TCon (TC (TCNum n)) _, t ] ->
-                  [ VSeq n (finiteSeqMap (map ready xs))
-                  | xs <- sequence $ genericReplicate n
-                                   $ typeValues t ]
-              _ -> []
+            [ TCon (TC (TCNum n)) _, t ] ->
+              [ VSeq n (finiteSeqMap (map ready xs))
+              | xs <- sequence $ genericReplicate n
+                               $ typeValues t ]
+            _ -> []
 
 
-        (TCFun, _)       -> []  -- We don't generate function values.
-        (TCTuple _, els) -> [ VTuple (map ready xs)
-                            | xs <- sequence (map typeValues els)
-                            ]
-        (TCNewtype _, _) -> []
+        TCFun       -> []  -- We don't generate function values.
+        TCTuple _   -> [ VTuple (map ready xs)
+                       | xs <- sequence (map typeValues ts)
+                       ]
+        TCNewtype _ -> []
 
     TCon _ _ -> []
 
