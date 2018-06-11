@@ -250,31 +250,6 @@ ecFromIntegerV =
       _                   -> evalPanic "fromInteger" ["Invalid arguments"]
 
 --------------------------------------------------------------------------------
-divModPoly :: Integer -> Int -> Integer -> Int -> (Integer, Integer)
-divModPoly xs xsLen ys ysLen
-  | ys == 0         = panic "divModPoly"
-                             [ "Uncaught divide-by-zero condition" ]
-  | degree <= xsLen = go 0 initR (xsLen - degree) todoBits
-  | otherwise       = (0, xs) -- xs is already a residue, just return it
-
-  where
-  downIxes n  = [ n - 1, n - 2 .. 0 ]
-
-  degree      = head [ n | n <- downIxes ysLen, testBit ys n ]
-
-  initR       = xs `shiftR` (xsLen - degree)
-  nextR r b   = (r `shiftL` 1) .|. (if b then 1 else 0)
-
-  go !res !r !bitN todo =
-     let x = xor r ys
-         (res',r') | testBit x degree = (res,             r)
-                   | otherwise        = (setBit res bitN, x)
-     in case todo of
-          b : bs -> go res' (nextR r' b) (bitN-1) bs
-          []     -> (res',r')
-
-  todoBits  = map (testBit xs) (downIxes (xsLen - degree))
-
 
 -- | Create a packed word
 modExp :: Integer -- ^ bit size of the resulting word
