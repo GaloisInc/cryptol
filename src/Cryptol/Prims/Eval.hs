@@ -97,13 +97,13 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
                     sshrV)
   , ("&&"         , {-# SCC "Prelude::(&&)" #-}
-                    binary (logicBinary (.&.) (binBV (.&.)) (.&.)))
+                    binary (logicBinary (.&.) (binBV (.&.))))
   , ("||"         , {-# SCC "Prelude::(||)" #-}
-                    binary (logicBinary (.|.) (binBV (.|.)) (.|.)))
+                    binary (logicBinary (.|.) (binBV (.|.))))
   , ("^"          , {-# SCC "Prelude::(^)" #-}
-                    binary (logicBinary xor (binBV xor) xor))
+                    binary (logicBinary xor (binBV xor)))
   , ("complement" , {-# SCC "Prelude::complement" #-}
-                    unary  (logicUnary complement (unaryBV complement) complement))
+                    unary  (logicUnary complement (unaryBV complement)))
   , ("toInteger"  , ecToIntegerV)
   , ("fromInteger", ecFromIntegerV)
   , ("<<"         , {-# SCC "Prelude::(<<)" #-}
@@ -994,9 +994,8 @@ logicBinary :: forall b w i
              . BitWord b w i
             => (b -> b -> b)
             -> (w -> w -> w)
-            -> (i -> i -> i)
             -> Binary b w i
-logicBinary opb opw opi = loop
+logicBinary opb opw = loop
   where
   loop' :: TValue
         -> Eval (GenValue b w i)
@@ -1011,7 +1010,7 @@ logicBinary opb opw opi = loop
 
   loop ty l r = case ty of
     TVBit -> return $ VBit (opb (fromVBit l) (fromVBit r))
-    TVInteger -> return $ VInteger (opi (fromVInteger l) (fromVInteger r))
+    TVInteger -> evalPanic "logicBinary" ["Integer not in class Logic"]
     TVSeq w aty
          -- words
          | isTBit aty
@@ -1064,9 +1063,8 @@ logicUnary :: forall b w i
             . BitWord b w i
            => (b -> b)
            -> (w -> w)
-           -> (i -> i)
            -> Unary b w i
-logicUnary opb opw opi = loop
+logicUnary opb opw = loop
   where
   loop' :: TValue -> Eval (GenValue b w i) -> Eval (GenValue b w i)
   loop' ty val = loop ty =<< val
@@ -1075,7 +1073,7 @@ logicUnary opb opw opi = loop
   loop ty val = case ty of
     TVBit -> return . VBit . opb $ fromVBit val
 
-    TVInteger -> return . VInteger . opi $ fromVInteger val
+    TVInteger -> evalPanic "logicUnary" ["Integer not in class Logic"]
 
     TVSeq w ety
          -- words
