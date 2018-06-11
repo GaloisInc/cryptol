@@ -669,6 +669,12 @@ fromVInteger val = case val of
   VInteger i -> i
   _      -> evalPanic "fromVInteger" ["not an Integer"]
 
+-- | Extract a finite sequence value.
+fromVSeq :: GenValue b w i -> SeqMap b w i
+fromVSeq val = case val of
+  VSeq _ vs -> vs
+  _         -> evalPanic "fromVSeq" ["not a sequence"]
+
 -- | Extract a sequence.
 fromSeq :: forall b w i. BitWord b w i => String -> GenValue b w i -> Eval (SeqMap b w i)
 fromSeq msg val = case val of

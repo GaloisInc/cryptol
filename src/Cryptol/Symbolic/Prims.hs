@@ -495,7 +495,7 @@ cmpBinary :: (SBool -> SBool -> Eval SBool -> Eval SBool)
           -> (SWord -> SWord -> Eval SBool -> Eval SBool)
           -> (SInteger -> SInteger -> Eval SBool -> Eval SBool)
           -> SBool -> Binary SBool SWord SInteger
-cmpBinary fb fw fi b _ty v1 v2 = VBit <$> cmpValue fb fw fi v1 v2 (return b)
+cmpBinary fb fw fi b ty v1 v2 = VBit <$> cmpValue fb fw fi ty v1 v2 (return b)
 
 -- Signed arithmetic -----------------------------------------------------------
 
