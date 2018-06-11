@@ -33,6 +33,7 @@ import Cryptol.ModuleSystem.Exports
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
+import Cryptol.TypeCheck.Type (TCon(..))
 import Cryptol.Utils.Ident (packIdent,packInfix)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
@@ -622,14 +623,12 @@ instance Rename Type where
       | Just (arity,fun) <- Map.lookup pn tfunNames =
         do when (arity /= length ps) (record (MalformedBuiltin ty0 pn))
            ps' <- traverse go ps
-           return (TApp fun ps')
+           return (TApp (TF fun) ps')
 
       -- built-in types like Bit and inf
-      | Just ty <- Map.lookup pn tconNames =
-        do unless (null ps) (record (MalformedBuiltin ty0 pn))
-           -- this should really be a kind error, but our syntax
-           -- currently has no way to represent the broken type.
-           rename ty
+      | Just tc <- Map.lookup pn tconNames =
+        do ps' <- traverse go ps
+           return (TApp (TC tc) ps')
 
     go (TUser qn ps)   = TUser    <$> renameType qn <*> traverse go ps
     go (TApp f xs)     = TApp f   <$> traverse go xs
@@ -698,12 +697,12 @@ mkTInfix t@(TUser o1 [x,y]) op@(o2,f2) z
          FCError -> return (o2 t z)
 
 -- In this case, we know the fixities of both sides.
-mkTInfix t@(TApp o1 [x,y]) op@(o2,f2) z
+mkTInfix t@(TApp (TF o1) [x,y]) op@(o2,f2) z
   | Just (a1,p1) <- Map.lookup o1 tBinOpPrec =
      case compareFixity (Fixity a1 p1) f2 of
        FCLeft  -> return (o2 t z)
        FCRight -> do r <- mkTInfix y op z
-                     return (TApp o1 [x,r])
+                     return (TApp (TF o1) [x,r])
 
        -- As the fixity table is known, and this is a case where the fixity came
        -- from that table, it's a real error if the fixities didn't work out.
@@ -722,7 +721,7 @@ mkTInfix t (op,_) z =
 lookupFixity :: Located PName -> (TOp,Fixity)
 lookupFixity op =
   case lkp of
-    Just (p,f) -> (\x y -> TApp p [x,y], f)
+    Just (p,f) -> (\x y -> TApp (TF p) [x,y], f)
 
     -- unknown type operator, just use default fixity
     -- NOTE: this works for the props defined above, as all other operators

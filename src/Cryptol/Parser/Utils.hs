@@ -18,6 +18,7 @@ module Cryptol.Parser.Utils
 
 import Cryptol.Parser.AST
 import Cryptol.Prims.Syntax
+import Cryptol.TypeCheck.Type (TCon(TF))
 
 
 widthIdent :: Ident
@@ -51,7 +52,7 @@ translateExprToNumT expr =
       TUser f ts    -> return (TUser f (ts ++ [t]))
       _             -> Nothing
 
-  mkFun f = return (TApp f [])
+  mkFun f = return (TApp (TF f) [])
 
   cvtLit (ECNum n CharLit)  = return (TChar $ toEnum $ fromInteger n)
   cvtLit (ECNum n _)        = return (TNum n)

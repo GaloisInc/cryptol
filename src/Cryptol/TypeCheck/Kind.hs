@@ -342,8 +342,8 @@ doCheckType ty k =
     P.TNum n        -> tcon (TC (TCNum n))             [] k
     P.TChar n       -> tcon (TC (TCNum $ fromIntegral $ fromEnum n)) [] k
     P.TInf          -> tcon (TC TCInf)                 [] k
-    P.TApp tf ts    ->
-      do it <- tcon (TF tf) ts k
+    P.TApp tc ts    ->
+      do it <- tcon tc ts k
 
          -- Now check for additional well-formedness
          -- constraints.

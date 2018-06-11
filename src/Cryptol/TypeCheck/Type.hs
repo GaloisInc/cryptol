@@ -890,6 +890,19 @@ instance PP TCon where
   ppPrec _ (TF tc)        = pp tc
   ppPrec _ (TError _ msg) = pp msg
 
+instance PPName TCon where
+  ppNameFixity (TC _) = Nothing
+  ppNameFixity (PC _) = Nothing
+  ppNameFixity (TF tf) = ppNameFixity tf
+
+  ppPrefixName (TC tc) = pp tc
+  ppPrefixName (PC pc) = pp pc
+  ppPrefixName (TF tf) = ppPrefixName tf
+
+  ppInfixName (TC tc) = pp tc
+  ppInfixName (PC pc) = pp pc
+  ppInfixName (TF tf) = ppInfixName tf
+
 instance PP TCErrorMessage where
   ppPrec _ tc = parens (text "error:" <+> text (tcErrorMessage tc))
 

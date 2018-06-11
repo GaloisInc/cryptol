@@ -75,7 +75,7 @@ import Cryptol.Parser.Fixity
 import Cryptol.Parser.Name
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector
-import Cryptol.Prims.Syntax (TFun(..))
+import Cryptol.TypeCheck.Type (TCon(..), TC(..))
 import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
 
@@ -321,11 +321,11 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TInf                    -- ^ @inf@
             | TUser n [Type n]        -- ^ A type variable or synonym
 
-            | TApp TFun [Type n]
+            | TApp TCon [Type n]
               -- ^ @2 + x@
               -- Note that the parser never produces these; instead it
-              -- prduces a "TUser" valued.  The "TApp" is introduced by
-              -- the renamed when it spots built-in functions.
+              -- produces a "TUser" value.  The "TApp" is introduced by
+              -- the renamer when it spots built-in functions.
               -- XXX: We should just add primitive declarations for the
               -- built-in type functions, and simplify all this.
 
@@ -342,11 +342,11 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
 -- If this changes, we should update it.
 -- XXX: As in the case of TApp, this would all go away if these were
 -- just declared.
-tconNames :: Map.Map PName (Type PName)
+tconNames :: Map.Map PName TC
 tconNames  = Map.fromList
-  [ (mkUnqual (packIdent "Bit"), TBit)
-  , (mkUnqual (packIdent "Integer"), TInteger)
-  , (mkUnqual (packIdent "inf"), TInf)
+  [ (mkUnqual (packIdent "Bit"), TCBit)
+  , (mkUnqual (packIdent "Integer"), TCInteger)
+  , (mkUnqual (packIdent "inf"), TCInf)
   ]
 
 data Prop n   = CFin (Type n)             -- ^ @ fin x   @
