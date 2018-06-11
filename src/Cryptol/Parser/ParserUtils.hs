@@ -235,10 +235,8 @@ validDemotedType rng ty =
     TFun {}      -> bad "Function types"
     TSeq {}      -> bad "Sequence types"
     TBit         -> bad "Type bit"
-    TInteger     -> bad "Type integer"
     TNum {}      -> ok
     TChar {}     -> ok
-    TInf         -> bad "Infinity type"
     TWild        -> bad "Wildcard types"
     TUser {}     -> ok
     TApp {}      -> ok
@@ -515,10 +513,8 @@ mkProp ty =
       TFun{}    -> err
       TSeq{}    -> err
       TBit{}    -> err
-      TInteger  -> err
       TNum{}    -> err
       TChar{}   -> err
-      TInf{}    -> err
       TWild     -> err
       TRecord{} -> err
 

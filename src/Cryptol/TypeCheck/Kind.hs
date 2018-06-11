@@ -338,10 +338,8 @@ doCheckType ty k =
     P.TFun t1 t2    -> tcon (TC TCFun)                 [t1,t2] k
     P.TSeq t1 t2    -> tcon (TC TCSeq)                 [t1,t2] k
     P.TBit          -> tcon (TC TCBit)                 [] k
-    P.TInteger      -> tcon (TC TCInteger)             [] k
     P.TNum n        -> tcon (TC (TCNum n))             [] k
     P.TChar n       -> tcon (TC (TCNum $ fromIntegral $ fromEnum n)) [] k
-    P.TInf          -> tcon (TC TCInf)                 [] k
     P.TApp tc ts    ->
       do it <- tcon tc ts k
 

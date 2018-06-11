@@ -612,10 +612,8 @@ instance Rename Type where
     go (TFun a b)    = TFun     <$> go a  <*> go b
     go (TSeq n a)    = TSeq     <$> go n  <*> go a
     go  TBit         = return TBit
-    go  TInteger     = return TInteger
     go (TNum c)      = return (TNum c)
     go (TChar c)     = return (TChar c)
-    go  TInf         = return TInf
 
     go (TUser pn ps)
 
@@ -669,10 +667,8 @@ resolveTypeFixity  = go
          mkTInfix a' op b'
 
     TBit         -> return t
-    TInteger     -> return t
     TNum _       -> return t
     TChar _      -> return t
-    TInf         -> return t
     TWild        -> return t
 
 
@@ -957,10 +953,8 @@ patternEnv  = go
   typeEnv (TSeq a b) = bindTypes [a,b]
 
   typeEnv TBit       = return mempty
-  typeEnv TInteger   = return mempty
   typeEnv TNum{}     = return mempty
   typeEnv TChar{}    = return mempty
-  typeEnv TInf       = return mempty
 
   typeEnv (TUser pn ps) =
     do mb <- typeExists pn
