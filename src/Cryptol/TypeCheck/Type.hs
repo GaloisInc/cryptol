@@ -15,7 +15,7 @@ import qualified Data.Set as Set
 import           Data.List(sortBy)
 import           Data.Ord(comparing)
 
-import Cryptol.Parser.AST ( Selector(..), ppSelector )
+import Cryptol.Parser.Selector
 import Cryptol.ModuleSystem.Name
 import Cryptol.Prims.Syntax
 import Cryptol.Utils.Ident (Ident)

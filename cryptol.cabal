@@ -78,11 +78,13 @@ library
                        Cryptol.Parser,
                        Cryptol.Parser.Lexer,
                        Cryptol.Parser.AST,
+                       Cryptol.Parser.Fixity,
                        Cryptol.Parser.Position,
                        Cryptol.Parser.Names,
                        Cryptol.Parser.Name,
                        Cryptol.Parser.NoPat,
                        Cryptol.Parser.NoInclude,
+                       Cryptol.Parser.Selector,
                        Cryptol.Parser.Utils,
                        Cryptol.Parser.Unlit,
 

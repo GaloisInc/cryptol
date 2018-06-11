@@ -48,7 +48,7 @@ module Cryptol.ModuleSystem.Name (
   , lookupPrimType
   ) where
 
-import           Cryptol.Parser.AST( Fixity(..) )
+import           Cryptol.Parser.Fixity
 import           Cryptol.Parser.Position (Range,Located(..),emptyRange)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic

@@ -71,8 +71,10 @@ module Cryptol.Parser.AST
   , cppKind, ppSelector
   ) where
 
+import Cryptol.Parser.Fixity
 import Cryptol.Parser.Name
 import Cryptol.Parser.Position
+import Cryptol.Parser.Selector
 import Cryptol.Prims.Syntax (TFun(..))
 import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
@@ -213,29 +215,6 @@ data BindDef name = DPrim
                   | DExpr (Expr name)
                     deriving (Eq, Show, Generic, NFData, Functor)
 
-data Fixity   = Fixity { fAssoc :: !Assoc
-                       , fLevel :: !Int
-                       } deriving (Eq, Generic, NFData, Show)
-
-data FixityCmp = FCError
-               | FCLeft
-               | FCRight
-                 deriving (Show,Eq)
-
-compareFixity :: Fixity -> Fixity -> FixityCmp
-compareFixity (Fixity a1 p1) (Fixity a2 p2) =
-  case compare p1 p2 of
-    GT -> FCLeft
-    LT -> FCRight
-    EQ -> case (a1,a2) of
-            (LeftAssoc,LeftAssoc)   -> FCLeft
-            (RightAssoc,RightAssoc) -> FCRight
-            _                       -> FCError
-
--- | The fixity used when none is provided.
-defaultFixity :: Fixity
-defaultFixity  = Fixity LeftAssoc 100
-
 data Pragma   = PragmaNote String
               | PragmaProperty
                 deriving (Eq, Show, Generic, NFData)
@@ -303,25 +282,6 @@ data Expr n   = EVar n                          -- ^ @ x @
 data TypeInst name = NamedInst (Named (Type name))
                    | PosInst (Type name)
                      deriving (Eq, Show, Generic, NFData, Functor)
-
-{- | Selectors are used for projecting from various components.
-Each selector has an option spec to specify the shape of the thing
-that is being selected.  Currently, there is no surface syntax for
-list selectors, but they are used during the desugaring of patterns.
--}
-
-data Selector = TupleSel Int   (Maybe Int)
-                -- ^ Zero-based tuple selection.
-                -- Optionally specifies the shape of the tuple (one-based).
-
-              | RecordSel Ident (Maybe [Ident])
-                -- ^ Record selection.
-                -- Optionally specifies the shape of the record.
-
-              | ListSel Int    (Maybe Int)
-                -- ^ List selection.
-                -- Optionally specifies the length of the list.
-                deriving (Eq, Show, Ord, Generic, NFData)
 
 data Match name = Match (Pattern name) (Expr name)              -- ^ p <- e
                 | MatchLet (Bind name)
@@ -766,30 +726,6 @@ instance (Show name, PPName name) => PP (Expr name) where
      (ieAssoc,iePrec) <- ppNameFixity ieOp
      return Infix { .. }
    isInfix _ = Nothing
-
-instance PP Selector where
-  ppPrec _ sel =
-    case sel of
-      TupleSel x sig    -> int x <+> ppSig tupleSig sig
-      RecordSel x sig  -> pp x  <+> ppSig recordSig sig
-      ListSel x sig    -> int x <+> ppSig listSig sig
-
-    where
-    tupleSig n   = int n
-    recordSig xs = braces $ fsep $ punctuate comma $ map pp xs
-    listSig n    = int n
-
-    ppSig f = maybe empty (\x -> text "/* of" <+> f x <+> text "*/")
-
-
--- | Display the thing selected by the selector, nicely.
-ppSelector :: Selector -> Doc
-ppSelector sel =
-  case sel of
-    TupleSel x _  -> ordinal x <+> text "field"
-    RecordSel x _ -> text "field" <+> pp x
-    ListSel x _   -> ordinal x <+> text "element"
-
 
 
 instance PPName name => PP (Pattern name) where
