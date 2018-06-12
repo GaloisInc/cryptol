@@ -169,6 +169,7 @@ cpo that represents any given schema.
 >       case ty of
 >         TVBit        -> VBit (fromVBit val)
 >         TVInteger    -> VInteger (fromVInteger val)
+>         TVIntMod _   -> VInteger (fromVInteger val)
 >         TVSeq w ety  -> VList (map (go ety) (copyList w (fromVList val)))
 >         TVStream ety -> VList (map (go ety) (copyStream (fromVList val)))
 >         TVTuple etys -> VTuple (zipWith go etys (copyList (genericLength etys) (fromVTuple val)))
@@ -713,6 +714,12 @@ output bitvector will contain the exception in all bit positions.
 > vWord w e = VList [ VBit (fmap (test i) e) | i <- [w-1, w-2 .. 0] ]
 >   where test i x = testBit x (fromInteger i)
 
+Functions returning type `Z n` require normalizing the integer result
+modulo `n`. If `n` is `0` or `inf`, then the result is unchanged.
+
+> modulo :: Nat' -> Integer -> Integer
+> modulo (Nat n) x = if n > 0 then x `mod` n else x
+> modulo Inf x = x
 
 Logic
 -----
@@ -729,6 +736,7 @@ at the same positions.
 >   where
 >     go TVBit          = VBit b
 >     go TVInteger      = VInteger (fmap (\c -> if c then -1 else 0) b)
+>     go (TVIntMod _)   = VInteger (fmap (const 0) b)
 >     go (TVSeq n ety)  = VList (genericReplicate n (go ety))
 >     go (TVStream ety) = VList (repeat (go ety))
 >     go (TVTuple tys)  = VTuple (map go tys)
@@ -743,6 +751,7 @@ at the same positions.
 >       case ty of
 >         TVBit        -> VBit (fmap op (fromVBit val))
 >         TVInteger    -> evalPanic "logicUnary" ["Integer not in class Logic"]
+>         TVIntMod _   -> evalPanic "logicUnary" ["Z not in class Logic"]
 >         TVSeq _w ety -> VList (map (go ety) (fromVList val))
 >         TVStream ety -> VList (map (go ety) (fromVList val))
 >         TVTuple etys -> VTuple (zipWith go etys (fromVTuple val))
@@ -757,6 +766,7 @@ at the same positions.
 >       case ty of
 >         TVBit        -> VBit (liftA2 op (fromVBit l) (fromVBit r))
 >         TVInteger    -> evalPanic "logicBinary" ["Integer not in class Logic"]
+>         TVIntMod _   -> evalPanic "logicBinary" ["Z not in class Logic"]
 >         TVSeq _w ety -> VList (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVStream ety -> VList (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVTuple etys -> VTuple (zipWith3 go etys (fromVTuple l) (fromVTuple r))
@@ -788,6 +798,8 @@ up of non-empty finite bitvectors.
 >           evalPanic "arithUnary" ["Bit not in class Arith"]
 >         TVInteger ->
 >           VInteger (op <$> fromVInteger val)
+>         TVIntMod n' ->
+>           VInteger (modulo n' <$> op <$> fromVInteger val)
 >         TVSeq w a
 >           | isTBit a  -> vWord w (op <$> fromVWord val)
 >           | otherwise -> VList (map (go a) (fromVList val))
@@ -826,6 +838,14 @@ up of non-empty finite bitvectors.
 >               case fromVInteger r of
 >                 Left e -> Left e
 >                 Right j -> op i j
+>         TVIntMod n' ->
+>           VInteger $
+>           case fromVInteger l of
+>             Left e -> Left e
+>             Right i ->
+>               case fromVInteger r of
+>                 Left e -> Left e
+>                 Right j -> modulo n' <$> op i j
 >         TVSeq w a
 >           | isTBit a  -> vWord w $
 >                          case fromWord l of
@@ -887,6 +907,8 @@ bits to the *left* of that position are equal.
 >       compare <$> fromVBit l <*> fromVBit r
 >     TVInteger ->
 >       compare <$> fromVInteger l <*> fromVInteger r
+>     TVIntMod _ ->
+>       compare <$> fromVInteger l <*> fromVInteger r
 >     TVSeq _w ety ->
 >       lexList (zipWith (lexCompare ety) (fromVList l) (fromVList r))
 >     TVStream _ ->
@@ -925,6 +947,8 @@ fields are compared in alphabetical order.
 >     TVBit ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVInteger ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVIntMod _ ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVSeq _w ety
 >       | isTBit ety ->

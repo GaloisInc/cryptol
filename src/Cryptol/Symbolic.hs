@@ -40,6 +40,7 @@ import qualified Cryptol.Eval.Type as Eval
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.Env (GenEvalEnv(..))
 import Cryptol.TypeCheck.AST
+import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
@@ -271,6 +272,7 @@ parseValue FTInteger cws =
   case SBV.genParse SBV.KUnbounded cws of
     Just (x, cws') -> (Eval.VInteger x, cws')
     Nothing        -> panic "Cryptol.Symbolic.parseValue" [ "no integer" ]
+parseValue (FTIntMod _) cws = parseValue FTInteger cws
 parseValue (FTSeq 0 FTBit) cws = (Eval.word 0 0, cws)
 parseValue (FTSeq n FTBit) cws =
   case SBV.genParse (SBV.KBounded False n) cws of
@@ -295,6 +297,7 @@ allDeclGroups = concatMap mDecls . M.loadedModules
 data FinType
     = FTBit
     | FTInteger
+    | FTIntMod Integer
     | FTSeq Int FinType
     | FTTuple [FinType]
     | FTRecord [(Ident, FinType)]
@@ -309,6 +312,9 @@ finType ty =
   case ty of
     Eval.TVBit            -> Just FTBit
     Eval.TVInteger        -> Just FTInteger
+    Eval.TVIntMod n'      -> case n' of
+                               Nat n -> Just (FTIntMod n)
+                               Inf   -> Just FTInteger
     Eval.TVSeq n t        -> FTSeq <$> numType n <*> finType t
     Eval.TVTuple ts       -> FTTuple <$> traverse finType ts
     Eval.TVRec fields     -> FTRecord <$> traverse (traverseSnd finType) fields
@@ -319,6 +325,7 @@ unFinType fty =
   case fty of
     FTBit        -> tBit
     FTInteger    -> tInteger
+    FTIntMod n   -> tIntMod (tNum n)
     FTSeq l ety  -> tSeq (tNum l) (unFinType ety)
     FTTuple ftys -> tTuple (unFinType <$> ftys)
     FTRecord fs  -> tRec (zip fns tys)
@@ -344,6 +351,7 @@ forallFinType ty =
   case ty of
     FTBit         -> VBit <$> forallSBool_
     FTInteger     -> VInteger <$> forallSInteger_
+    FTIntMod _    -> VInteger <$> forallSInteger_
     FTSeq 0 FTBit -> return $ Eval.word 0 0
     FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> (forallBV_ n)
     FTSeq n t     -> do vs <- replicateM n (forallFinType t)
@@ -356,6 +364,7 @@ existsFinType ty =
   case ty of
     FTBit         -> VBit <$> existsSBool_
     FTInteger     -> VInteger <$> existsSInteger_
+    FTIntMod _    -> VInteger <$> existsSInteger_
     FTSeq 0 FTBit -> return $ Eval.word 0 0
     FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> (existsBV_ n)
     FTSeq n t     -> do vs <- replicateM n (existsFinType t)

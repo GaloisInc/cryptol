@@ -81,25 +81,34 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                                 -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
   , ("integer"     , ecIntegerV) -- Converts a numeric type into its corresponding value.
                                  -- { val } (fin val) => Integer
-  , ("+"           , binary (arithBinary (liftBinArith SBV.svPlus) (liftBin SBV.svPlus))) -- {a} (Arith a) => a -> a -> a
-  , ("-"           , binary (arithBinary (liftBinArith SBV.svMinus) (liftBin SBV.svMinus))) -- {a} (Arith a) => a -> a -> a
-  , ("*"           , binary (arithBinary (liftBinArith SBV.svTimes) (liftBin SBV.svTimes))) -- {a} (Arith a) => a -> a -> a
-  , ("/"           , binary (arithBinary (liftBinArith SBV.svQuot) (liftBin SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
-  , ("%"           , binary (arithBinary (liftBinArith SBV.svRem) (liftBin SBV.svRem))) -- {a} (Arith a) => a -> a -> a
-  , ("^^"          , binary (arithBinary sExp (liftBin SBV.svExp))) -- {a} (Arith a) => a -> a -> a
-  , ("lg2"         , unary (arithUnary sLg2 svLg2)) -- {a} (Arith a) => a -> a
-  , ("negate"      , unary (arithUnary (\_ -> ready . SBV.svUNeg) SBV.svUNeg))
-  , ("<"           , binary (cmpBinary cmpLt cmpLt cmpLt SBV.svFalse))
-  , (">"           , binary (cmpBinary cmpGt cmpGt cmpGt SBV.svFalse))
-  , ("<="          , binary (cmpBinary cmpLtEq cmpLtEq cmpLtEq SBV.svTrue))
-  , (">="          , binary (cmpBinary cmpGtEq cmpGtEq cmpGtEq SBV.svTrue))
-  , ("=="          , binary (cmpBinary cmpEq cmpEq cmpEq SBV.svTrue))
-  , ("!="          , binary (cmpBinary cmpNotEq cmpNotEq cmpNotEq SBV.svFalse))
+  , ("+"           , binary (arithBinary (liftBinArith SBV.svPlus) (liftBin SBV.svPlus)
+                             (const (liftBin SBV.svPlus)))) -- {a} (Arith a) => a -> a -> a
+  , ("-"           , binary (arithBinary (liftBinArith SBV.svMinus) (liftBin SBV.svMinus)
+                             (const (liftBin SBV.svMinus)))) -- {a} (Arith a) => a -> a -> a
+  , ("*"           , binary (arithBinary (liftBinArith SBV.svTimes) (liftBin SBV.svTimes)
+                             (const (liftBin SBV.svTimes)))) -- {a} (Arith a) => a -> a -> a
+  , ("/"           , binary (arithBinary (liftBinArith SBV.svQuot) (liftBin SBV.svQuot)
+                             (liftModBin SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
+  , ("%"           , binary (arithBinary (liftBinArith SBV.svRem) (liftBin SBV.svRem)
+                             (liftModBin SBV.svRem))) -- {a} (Arith a) => a -> a -> a
+  , ("^^"          , binary (arithBinary sExp (liftBin SBV.svExp)
+                             (liftModBin SBV.svRem))) -- {a} (Arith a) => a -> a -> a
+  , ("lg2"         , unary (arithUnary sLg2 svLg2 svModLg2)) -- {a} (Arith a) => a -> a
+  , ("negate"      , unary (arithUnary (\_ -> ready . SBV.svUNeg) SBV.svUNeg
+                            (const SBV.svUNeg)))
+  , ("<"           , binary (cmpBinary cmpLt cmpLt cmpLt (cmpMod cmpLt) SBV.svFalse))
+  , (">"           , binary (cmpBinary cmpGt cmpGt cmpGt (cmpMod cmpGt) SBV.svFalse))
+  , ("<="          , binary (cmpBinary cmpLtEq cmpLtEq cmpLtEq (cmpMod cmpLtEq) SBV.svTrue))
+  , (">="          , binary (cmpBinary cmpGtEq cmpGtEq cmpGtEq (cmpMod cmpGtEq) SBV.svTrue))
+  , ("=="          , binary (cmpBinary cmpEq cmpEq cmpEq cmpModEq SBV.svTrue))
+  , ("!="          , binary (cmpBinary cmpNotEq cmpNotEq cmpNotEq cmpModNotEq SBV.svFalse))
   , ("<$"          , let boolFail = evalPanic "<$" ["Attempted signed comparison on bare Bit values"]
                          intFail = evalPanic "<$" ["Attempted signed comparison on Integer values"]
-                      in binary (cmpBinary boolFail cmpSignedLt intFail SBV.svFalse))
-  , ("/$"          , binary (arithBinary (liftBinArith signedQuot) (liftBin SBV.svQuot)))
-  , ("%$"          , binary (arithBinary (liftBinArith signedRem) (liftBin SBV.svRem)))
+                      in binary (cmpBinary boolFail cmpSignedLt intFail (const intFail) SBV.svFalse))
+  , ("/$"          , binary (arithBinary (liftBinArith signedQuot) (liftBin SBV.svQuot)
+                             (liftModBin SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
+  , ("%$"          , binary (arithBinary (liftBinArith signedRem) (liftBin SBV.svRem)
+                             (liftModBin SBV.svRem)))
   , (">>$"         , sshrV)
   , ("&&"          , binary (logicBinary SBV.svAnd SBV.svAnd))
   , ("||"          , binary (logicBinary SBV.svOr SBV.svOr))
@@ -448,6 +457,10 @@ liftBinArith op _ x y = ready $ op x y
 liftBin :: (a -> b -> c) -> a -> b -> Eval c
 liftBin op x y = ready $ op x y
 
+liftModBin :: (SInteger -> SInteger -> a) -> Integer -> SInteger -> SInteger -> Eval a
+liftModBin op modulus x y = ready $ op (SBV.svRem x m) (SBV.svRem y m)
+  where m = integerLit modulus
+
 sExp :: Integer -> SWord -> SWord -> Eval SWord
 sExp _w x y = ready $ go (reverse (unpackWord y)) -- bits in little-endian order
   where go []       = literalSWord (SBV.intSizeOf x) 1
@@ -470,6 +483,10 @@ svLg2 x =
     Just n -> SBV.svInteger SBV.KUnbounded (lg2 n)
     Nothing -> evalPanic "cannot compute lg2 of symbolic unbounded integer" []
 
+svModLg2 :: Integer -> SInteger -> SInteger
+svModLg2 modulus x = svLg2 (SBV.svRem x m)
+  where m = integerLit modulus
+
 -- Cmp -------------------------------------------------------------------------
 
 cmpEq :: SWord -> SWord -> Eval SBool -> Eval SBool
@@ -491,11 +508,27 @@ cmpLtEq, cmpGtEq :: SWord -> SWord -> Eval SBool -> Eval SBool
 cmpLtEq x y k = SBV.svAnd (SBV.svLessEq x y) <$> (cmpNotEq x y k)
 cmpGtEq x y k = SBV.svAnd (SBV.svGreaterEq x y) <$> (cmpNotEq x y k)
 
+cmpMod ::
+  (SInteger -> SInteger -> Eval SBool -> Eval SBool) ->
+  (Integer -> SInteger -> SInteger -> Eval SBool -> Eval SBool)
+cmpMod cmp modulus x y k = cmp (SBV.svRem x m) (SBV.svRem y m) k
+  where m = integerLit modulus
+
+cmpModEq :: Integer -> SInteger -> SInteger -> Eval SBool -> Eval SBool
+cmpModEq m x y k = SBV.svAnd (svDivisible m (SBV.svMinus x y)) <$> k
+
+cmpModNotEq :: Integer -> SInteger -> SInteger -> Eval SBool -> Eval SBool
+cmpModNotEq m x y k = SBV.svOr (SBV.svNot (svDivisible m (SBV.svMinus x y))) <$> k
+
+svDivisible :: Integer -> SInteger -> SBool
+svDivisible m x = SBV.svEqual (SBV.svRem x (integerLit m)) (integerLit 0)
+
 cmpBinary :: (SBool -> SBool -> Eval SBool -> Eval SBool)
           -> (SWord -> SWord -> Eval SBool -> Eval SBool)
           -> (SInteger -> SInteger -> Eval SBool -> Eval SBool)
+          -> (Integer -> SInteger -> SInteger -> Eval SBool -> Eval SBool)
           -> SBool -> Binary SBool SWord SInteger
-cmpBinary fb fw fi b ty v1 v2 = VBit <$> cmpValue fb fw fi ty v1 v2 (return b)
+cmpBinary fb fw fi fz b ty v1 v2 = VBit <$> cmpValue fb fw fi fz ty v1 v2 (return b)
 
 -- Signed arithmetic -----------------------------------------------------------
 

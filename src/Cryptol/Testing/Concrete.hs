@@ -89,6 +89,10 @@ typeSize ty =
         (TCInf, _)       -> Nothing
         (TCBit, _)       -> Just 2
         (TCInteger, _)   -> Nothing
+        (TCIntMod, [sz]) -> case tNoUser sz of
+                              TCon (TC (TCNum n)) _ -> Just n
+                              _                     -> Nothing
+        (TCIntMod, _)    -> Nothing
         (TCSeq, [sz,el]) -> case tNoUser sz of
                               TCon (TC (TCNum n)) _ -> (^ n) <$> typeSize el
                               _                     -> Nothing
@@ -117,6 +121,11 @@ typeValues ty =
         TCInf       -> []
         TCBit       -> [ VBit False, VBit True ]
         TCInteger   -> []
+        TCIntMod    ->
+          case map tNoUser ts of
+            [ TCon (TC (TCNum n)) _ ] | 0 < n ->
+              [ VInteger x | x <- [ 0 .. n - 1 ] ]
+            _ -> []
         TCSeq       ->
           case map tNoUser ts of
             [ TCon (TC (TCNum n)) _, TCon (TC TCBit) [] ] ->

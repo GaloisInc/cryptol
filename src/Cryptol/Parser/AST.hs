@@ -344,6 +344,7 @@ tconNames :: Map.Map PName TC
 tconNames  = Map.fromList
   [ (mkUnqual (packIdent "Bit"), TCBit)
   , (mkUnqual (packIdent "Integer"), TCInteger)
+  , (mkUnqual (packIdent "Z"), TCIntMod)
   , (mkUnqual (packIdent "inf"), TCInf)
   ]
 

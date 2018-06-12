@@ -61,21 +61,26 @@ instance EvalPrims Bool BV Integer where
 primTable :: Map.Map Ident Value
 primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   [ ("+"          , {-# SCC "Prelude::(+)" #-}
-                    binary (arithBinary (liftBinArith (+)) (liftBinInteger (+))))
+                    binary (arithBinary (liftBinArith (+)) (liftBinInteger (+))
+                            (liftBinIntMod (+))))
   , ("-"          , {-# SCC "Prelude::(-)" #-}
-                    binary (arithBinary (liftBinArith (-)) (liftBinInteger (-))))
+                    binary (arithBinary (liftBinArith (-)) (liftBinInteger (-))
+                            (liftBinIntMod (-))))
   , ("*"          , {-# SCC "Prelude::(*)" #-}
-                    binary (arithBinary (liftBinArith (*)) (liftBinInteger (*))))
+                    binary (arithBinary (liftBinArith (*)) (liftBinInteger (*))
+                            (liftBinIntMod (*))))
   , ("/"          , {-# SCC "Prelude::(/)" #-}
-                    binary (arithBinary (liftDivArith div) (liftDivInteger div)))
+                    binary (arithBinary (liftDivArith div) (liftDivInteger div)
+                            (const (liftDivInteger div))))
   , ("%"          , {-# SCC "Prelude::(%)" #-}
-                    binary (arithBinary (liftDivArith mod) (liftDivInteger mod)))
+                    binary (arithBinary (liftDivArith mod) (liftDivInteger mod)
+                            (const (liftDivInteger mod))))
   , ("^^"         , {-# SCC "Prelude::(^^)" #-}
-                    binary (arithBinary modExp integerExp))
+                    binary (arithBinary modExp integerExp intModExp))
   , ("lg2"        , {-# SCC "Prelude::lg2" #-}
-                    unary  (arithUnary (liftUnaryArith lg2) lg2))
+                    unary  (arithUnary (liftUnaryArith lg2) lg2 (const . lg2)))
   , ("negate"     , {-# SCC "Prelude::negate" #-}
-                    unary  (arithUnary (liftUnaryArith negate) negate))
+                    unary  (arithUnary (liftUnaryArith negate) negate (const . negate)))
   , ("<"          , {-# SCC "Prelude::(<)" #-}
                     binary (cmpOrder "<"  (\o -> o == LT           )))
   , (">"          , {-# SCC "Prelude::(>)" #-}
@@ -91,9 +96,11 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("<$"         , {-# SCC "Prelude::(<$)" #-}
                     binary (signedCmpOrder "<$" (\o -> o == LT)))
   , ("/$"         , {-# SCC "Prelude::(/$)" #-}
-                    binary (arithBinary (liftSigned bvSdiv) (liftDivInteger div)))
+                    binary (arithBinary (liftSigned bvSdiv) (liftDivInteger div)
+                            (const (liftDivInteger div))))
   , ("%$"         , {-# SCC "Prelude::(%$)" #-}
-                    binary (arithBinary (liftSigned bvSrem) (liftDivInteger mod)))
+                    binary (arithBinary (liftSigned bvSrem) (liftDivInteger mod)
+                            (const (liftDivInteger mod))))
   , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
                     sshrV)
   , ("&&"         , {-# SCC "Prelude::(&&)" #-}
@@ -268,6 +275,12 @@ modExp bits (BV _ base) (BV _ e)
   where
   modulus = 0 `setBit` fromInteger bits
 
+intModExp :: Integer -> Integer -> Integer -> Eval Integer
+intModExp modulus base e
+  | modulus > 0  = ready $ doubleAndAdd base e modulus
+  | modulus == 0 = integerExp base e
+  | otherwise    = evalPanic "intModExp" [ "negative modulus: " ++ show modulus ]
+
 integerExp :: Integer -> Integer -> Eval Integer
 integerExp x y
   | y < 0     = negativeExponent
@@ -333,6 +346,12 @@ type BinArith w = Integer -> w -> w -> Eval w
 liftBinInteger :: (Integer -> Integer -> Integer) -> Integer -> Integer -> Eval Integer
 liftBinInteger op x y = ready $ op x y
 
+liftBinIntMod ::
+  (Integer -> Integer -> Integer) -> Integer -> Integer -> Integer -> Eval Integer
+liftBinIntMod op m x y
+  | m == 0    = ready $ op x y
+  | otherwise = ready $ (op x y) `mod` m
+
 liftDivInteger :: (Integer -> Integer -> Integer) -> Integer -> Integer -> Eval Integer
 liftDivInteger _  _ 0 = divideByZero
 liftDivInteger op x y = ready $ op x y
@@ -345,8 +364,9 @@ arithBinary :: forall b w i
              . BitWord b w i
             => BinArith w
             -> (i -> i -> Eval i)
+            -> (Integer -> i -> i -> Eval i)
             -> Binary b w i
-arithBinary opw opi = loop
+arithBinary opw opi opz = loop
   where
   loop' :: TValue
         -> Eval (GenValue b w i)
@@ -364,6 +384,13 @@ arithBinary opw opi = loop
 
     TVInteger ->
       VInteger <$> opi (fromVInteger l) (fromVInteger r)
+
+    TVIntMod n' ->
+      case n' of
+        Nat n ->
+          VInteger <$> opz n (fromVInteger l) (fromVInteger r)
+        Inf ->
+          VInteger <$> opi (fromVInteger l) (fromVInteger r)
 
     TVSeq w a
       -- words and finite sequences
@@ -408,8 +435,9 @@ arithUnary :: forall b w i
             . BitWord b w i
            => UnaryArith w
            -> (i -> i)
+           -> (Integer -> i -> i)
            -> Unary b w i
-arithUnary opw opi = loop
+arithUnary opw opi opz = loop
   where
   loop' :: TValue -> Eval (GenValue b w i) -> Eval (GenValue b w i)
   loop' ty x = loop ty =<< x
@@ -422,6 +450,13 @@ arithUnary opw opi = loop
 
     TVInteger ->
       return $ VInteger $ opi (fromVInteger x)
+
+    TVIntMod n' ->
+      case n' of
+        Nat n ->
+          return $ VInteger $ opz n (fromVInteger x)
+        Inf ->
+          return $ VInteger $ opi (fromVInteger x)
 
     TVSeq w a
       -- words and finite sequences
@@ -465,13 +500,17 @@ cmpValue :: BitWord b w i
          => (b -> b -> Eval a -> Eval a)
          -> (w -> w -> Eval a -> Eval a)
          -> (i -> i -> Eval a -> Eval a)
+         -> (Integer -> i -> i -> Eval a -> Eval a)
          -> (TValue -> GenValue b w i -> GenValue b w i -> Eval a -> Eval a)
-cmpValue fb fw fi = cmp
+cmpValue fb fw fi fz = cmp
   where
     cmp ty v1 v2 k =
       case ty of
         TVBit         -> fb (fromVBit v1) (fromVBit v2) k
         TVInteger     -> fi (fromVInteger v1) (fromVInteger v2) k
+        TVIntMod n'   -> case n' of
+                           Nat n -> fz n (fromVInteger v1) (fromVInteger v2) k
+                           Inf   -> fi (fromVInteger v1) (fromVInteger v2) k
         TVSeq n t
           | isTBit t  -> do w1 <- fromVWord "cmpValue" v1
                             w2 <- fromVWord "cmpValue" v2
@@ -498,7 +537,7 @@ cmpValue fb fw fi = cmp
 
 
 lexCompare :: TValue -> Value -> Value -> Eval Ordering
-lexCompare ty a b = cmpValue op opw op ty a b (return EQ)
+lexCompare ty a b = cmpValue op opw op (const op) ty a b (return EQ)
  where
    opw :: BV -> BV -> Eval Ordering -> Eval Ordering
    opw x y k = op (bvVal x) (bvVal y) k
@@ -509,7 +548,7 @@ lexCompare ty a b = cmpValue op opw op ty a b (return EQ)
                      cmp -> return cmp
 
 signedLexCompare :: TValue -> Value -> Value -> Eval Ordering
-signedLexCompare ty a b = cmpValue opb opw opi ty a b (return EQ)
+signedLexCompare ty a b = cmpValue opb opw opi (const opi) ty a b (return EQ)
  where
    opb :: Bool -> Bool -> Eval Ordering -> Eval Ordering
    opb _x _y _k = panic "signedLexCompare"
@@ -625,6 +664,10 @@ zeroV ty = case ty of
 
   -- integers
   TVInteger ->
+    VInteger (integerLit 0)
+
+  -- integers mod n
+  TVIntMod _ ->
     VInteger (integerLit 0)
 
   -- sequences
@@ -987,6 +1030,7 @@ logicBinary opb opw = loop
   loop ty l r = case ty of
     TVBit -> return $ VBit (opb (fromVBit l) (fromVBit r))
     TVInteger -> evalPanic "logicBinary" ["Integer not in class Logic"]
+    TVIntMod _ -> evalPanic "logicBinary" ["Z not in class Logic"]
     TVSeq w aty
          -- words
          | isTBit aty
@@ -1050,6 +1094,7 @@ logicUnary opb opw = loop
     TVBit -> return . VBit . opb $ fromVBit val
 
     TVInteger -> evalPanic "logicUnary" ["Integer not in class Logic"]
+    TVIntMod _ -> evalPanic "logicUnary" ["Z not in class Logic"]
 
     TVSeq w ety
          -- words
@@ -1408,6 +1453,7 @@ errorV ty msg = case ty of
   -- bits
   TVBit -> cryUserError msg
   TVInteger -> cryUserError msg
+  TVIntMod _ -> cryUserError msg
 
   -- sequences
   TVSeq w ety

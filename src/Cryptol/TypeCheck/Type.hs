@@ -153,6 +153,7 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCInf                    -- ^ Inf
             | TCBit                    -- ^ Bit
             | TCInteger                -- ^ Integer
+            | TCIntMod                 -- ^ @Z _@
             | TCSeq                    -- ^ @[_] _@
             | TCFun                    -- ^ @_ -> _@
             | TCTuple Int              -- ^ @(_, _, _)@
@@ -222,6 +223,7 @@ instance HasKind TC where
       TCInf     -> KNum
       TCBit     -> KType
       TCInteger -> KType
+      TCIntMod  -> KNum :-> KType
       TCSeq     -> KNum :-> KType :-> KType
       TCFun     -> KType :-> KType :-> KType
       TCTuple n -> foldr (:->) KType (replicate n KType)
@@ -421,6 +423,11 @@ tIsInteger ty = case tNoUser ty of
                   TCon (TC TCInteger) [] -> True
                   _                      -> False
 
+tIsIntMod :: Type -> Maybe Type
+tIsIntMod ty = case tNoUser ty of
+                 TCon (TC TCIntMod) [n] -> Just n
+                 _                      -> Nothing
+
 tIsTuple :: Type -> Maybe [Type]
 tIsTuple ty = case tNoUser ty of
                 TCon (TC (TCTuple _)) ts -> Just ts
@@ -522,6 +529,9 @@ tBit      = TCon (TC TCBit) []
 
 tInteger :: Type
 tInteger  = TCon (TC TCInteger) []
+
+tIntMod :: Type -> Type
+tIntMod n = TCon (TC TCIntMod) [n]
 
 tWord    :: Type -> Type
 tWord a   = tSeq a tBit
@@ -811,6 +821,7 @@ instance PP (WithNames Type) where
           (TCInf,   [])       -> text "inf"
           (TCBit,   [])       -> text "Bit"
           (TCInteger, [])     -> text "Integer"
+          (TCIntMod, [n])     -> optParens (prec > 3) $ text "Z" <+> go 4 n
 
           (TCSeq,   [t1,TCon (TC TCBit) []]) -> brackets (go 0 t1)
           (TCSeq,   [t1,t2])  -> optParens (prec > 3)
@@ -932,6 +943,7 @@ instance PP TC where
       TCInf     -> text "inf"
       TCBit     -> text "Bit"
       TCInteger -> text "Integer"
+      TCIntMod  -> text "Z"
       TCSeq     -> text "[]"
       TCFun     -> text "(->)"
       TCTuple 0 -> text "()"

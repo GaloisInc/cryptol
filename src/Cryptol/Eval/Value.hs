@@ -283,7 +283,7 @@ data GenValue b w i
   = VRecord ![(Ident, Eval (GenValue b w i))] -- ^ @ { .. } @
   | VTuple ![Eval (GenValue b w i)]           -- ^ @ ( .. ) @
   | VBit !b                                   -- ^ @ Bit    @
-  | VInteger !i                               -- ^ @ Integer @
+  | VInteger !i                               -- ^ @ Integer @ or @ Z n @
   | VSeq !Integer !(SeqMap b w i)             -- ^ @ [n]a   @
                                               --   Invariant: VSeq is never a sequence of bits
   | VWord !Integer !(Eval (WordValue b w i))  -- ^ @ [n]Bit @
@@ -781,6 +781,8 @@ toExpr prims t0 v0 = findOne (go t0 v0)
     (TCon (TC TCBit) [], VBit False) -> return (prim "False")
     (TCon (TC TCInteger) [], VInteger i) ->
       return $ ETApp (prim "integer") (tNum i)
+    (TCon (TC TCIntMod) [_n], VInteger i) ->
+      return $ ETApp (prim "integer") (tNum i) --FIXME
     (TCon (TC TCSeq) [a,b], VSeq 0 _) -> do
       guard (a == tZero)
       return $ EList [] b
