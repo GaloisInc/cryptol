@@ -224,6 +224,7 @@ ecDemoteV = nlam $ \valT ->
             tlam $ \ty ->
             case (valT, ty) of
               (Nat v, TVInteger) -> VInteger (integerLit v)
+              (Nat v, TVIntMod _) -> VInteger (integerLit v)
               (Nat v, TVSeq bs TVBit) -> word bs v
               _ -> evalPanic "Cryptol.Eval.Prim.evalConst"
                        ["Unexpected Inf in constant."

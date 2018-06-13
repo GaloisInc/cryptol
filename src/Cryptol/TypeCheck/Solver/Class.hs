@@ -21,6 +21,7 @@ module Cryptol.TypeCheck.Solver.Class
   ) where
 
 import Cryptol.TypeCheck.Type
+import Cryptol.TypeCheck.SimpType (tAdd)
 import Cryptol.TypeCheck.Solver.Types
 
 -- | Solve class constraints.
@@ -208,8 +209,8 @@ solveSignedCmpInst ty = case tNoUser ty of
 
 -- | Solve Literal constraints.
 solveLiteralInst :: Type -> Type -> Solved
-solveLiteralInst n ty
-  | TCon (TError _ e) _ <- tNoUser n = Unsolvable e
+solveLiteralInst val ty
+  | TCon (TError _ e) _ <- tNoUser val = Unsolvable e
   | otherwise =
     case tNoUser ty of
 
@@ -217,11 +218,15 @@ solveLiteralInst n ty
       TCon (TError _ e) _ -> Unsolvable e
 
       -- (fin val) => Literal val Integer
-      TCon (TC TCInteger) [] -> SolvedIf [ pFin n ]
+      TCon (TC TCInteger) [] -> SolvedIf [ pFin val ]
+
+      -- (fin val, fin m, m >= val + 1) => Literal val (Z m)
+      TCon (TC TCIntMod) [modulus] ->
+        SolvedIf [ pFin val, pFin modulus, modulus >== tAdd val tOne ]
 
       -- (fin bits, bits => width n) => Literal n [bits]
       TCon (TC TCSeq) [bits, TCon (TC TCBit) []] ->
-        SolvedIf [ pFin n, pFin bits, bits >== tWidth n ]
+        SolvedIf [ pFin val, pFin bits, bits >== tWidth val ]
 
       _ -> Unsolved
 
