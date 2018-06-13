@@ -26,7 +26,7 @@ import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Monad hiding (withTParams)
 import           Cryptol.TypeCheck.SimpType(tRebuild)
 import           Cryptol.TypeCheck.Solve (simplifyAllConstraints
-                                         ,wfTypeFunction)
+                                         ,wfTypeFunction,wfTC)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic (panic)
 
@@ -350,6 +350,10 @@ doCheckType ty k =
               case wfTypeFunction f ts' of
                  [] -> return ()
                  ps -> kNewGoals (CtPartialTypeFun (BuiltInTyFun f)) ps
+           TCon (TC f) ts' ->
+              case wfTC f ts' of
+                 [] -> return ()
+                 ps -> kNewGoals (CtPartialTypeFun (BuiltInTC f)) ps
            _ -> return ()
 
          return it

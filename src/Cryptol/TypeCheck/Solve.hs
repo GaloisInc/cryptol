@@ -14,6 +14,7 @@ module Cryptol.TypeCheck.Solve
   , proveModuleTopLevel
   , wfType
   , wfTypeFunction
+  , wfTC
   , improveByDefaultingWithPure
   , defaultReplExpr
   ) where
@@ -59,6 +60,14 @@ wfTypeFunction TCLenFromThen   [a,b,w] =
 wfTypeFunction TCLenFromThenTo [a,b,c] = [ pFin a, pFin b, pFin c, a =/= b ]
 wfTypeFunction _ _                     = []
 
+-- | Add additional constraints that ensure validity of a type
+-- constructor application. Note that the constraints do not use any
+-- partial type functions, so the new constraints are guaranteed to be
+-- well-formed. This assumes that the parameters are well-formed.
+wfTC :: TC -> [Type] -> [Prop]
+wfTC TCIntMod [n] = [ pFin n, n >== tOne ]
+wfTC _ _          = []
+
 -- | Add additional constraints that ensure the validity of a type.
 wfType :: Type -> [Prop]
 wfType t =
@@ -67,6 +76,7 @@ wfType t =
       let ps = concatMap wfType ts
       in case c of
            TF f -> wfTypeFunction f ts ++ ps
+           TC f -> wfTC f ts ++ ps
            _    -> ps
 
     TVar _      -> []

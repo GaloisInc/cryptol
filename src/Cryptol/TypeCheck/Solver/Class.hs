@@ -46,7 +46,7 @@ solveZeroInst ty = case tNoUser ty of
   TCon (TC TCInteger) [] -> SolvedIf []
 
   -- Zero (Z n)
-  TCon (TC TCIntMod) [_] -> SolvedIf []
+  TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
 
   -- Zero a => Zero [n]a
   TCon (TC TCSeq) [_, a] -> SolvedIf [ pZero a ]
@@ -110,7 +110,7 @@ solveArithInst ty = case tNoUser ty of
   TCon (TC TCInteger) [] -> SolvedIf []
 
   -- Arith (Z n)
-  TCon (TC TCIntMod) [_] -> SolvedIf []
+  TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
 
   -- (Arith a, Arith b) => Arith { x1 : a, x2 : b }
   TRec fs -> SolvedIf [ pArith ety | (_,ety) <- fs ]
@@ -146,7 +146,7 @@ solveCmpInst ty = case tNoUser ty of
   TCon (TC TCInteger) [] -> SolvedIf []
 
   -- Cmp (Z n)
-  TCon (TC TCIntMod) [_] -> SolvedIf []
+  TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
 
   -- (fin n, Cmp a) => Cmp [n]a
   TCon (TC TCSeq) [n,a] -> SolvedIf [ pFin n, pCmp a ]
