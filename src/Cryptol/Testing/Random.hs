@@ -113,10 +113,12 @@ randomSize k n g
   | otherwise = randomSize k (n + 1) g'
   where (p, g') = randomR (1, k) g
 
--- | Generate a random integer value.
+-- | Generate a random integer value. The size parameter is assumed to
+-- vary between 1 and 100, and we use it to generate smaller numbers
+-- first.
 randomInteger :: (BitWord b w i, RandomGen g) => Gen g b w i
-randomInteger _ g =
-  let (n, g1) = randomSize 8 1 g
+randomInteger w g =
+  let (n, g1) = if w < 100 then (fromInteger w, g) else randomSize 8 100 g
       (x, g2) = randomR (- 256^n, 256^n) g1
   in (VInteger (integerLit x), g2)
 
