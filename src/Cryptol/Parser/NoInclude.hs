@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Parser.NoInclude
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -31,6 +31,7 @@ import Cryptol.Parser.LexerUtils (Config(..),defaultConfig)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit (guessPreProc)
 import Cryptol.Utils.PP
+import Prelude hiding ((<>))
 
 removeIncludesModule :: FilePath -> Module PName -> IO (Either [IncludeError] (Module PName))
 removeIncludesModule modPath m = runNoIncM modPath (noIncludeModule m)

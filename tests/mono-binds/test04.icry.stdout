@@ -25,8 +25,8 @@ Loading module test04
 [error] at ./test04.cry:3:19--3:21:
   Type mismatch:
     Expected type: ()
-    Inferred type: [?j14]
+    Inferred type: [?l33]
   where
-  ?j14 is type parameter 'bits'
+  ?l33 is type parameter 'bits'
           of literal or demoted expression
           at ./test04.cry:3:19--3:21

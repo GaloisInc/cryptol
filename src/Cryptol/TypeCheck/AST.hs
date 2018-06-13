@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.TypeCheck.AST
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -46,6 +46,7 @@ import Control.DeepSeq
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
 import qualified Data.IntMap as IntMap
+import Prelude hiding ((<>))
 
 
 -- | A Cryptol module.
@@ -72,9 +73,13 @@ isParametrizedModule m = not (null (mParamTypes m) &&
 
 -- | A type parameter of a module.
 data ModTParam = ModTParam
-  { mtpName  :: Name
-  , mtpKind  :: Kind
-  , mtpDoc   :: Maybe String
+  { mtpName   :: Name
+  , mtpKind   :: Kind
+  , mtpNumber :: !Int -- ^ The number of the parameter in the module
+                      -- This is used when we move parameters from the module
+                      -- level to individual declarations
+                      -- (type synonyms in particular)
+  , mtpDoc    :: Maybe String
   } deriving (Show,Generic,NFData)
 
 mtpParam :: ModTParam -> TParam

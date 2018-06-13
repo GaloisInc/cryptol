@@ -1,0 +1,13 @@
+module AES::SBox where
+
+import AES::GF28
+import AES::SubBytePlain
+
+type SBox = [256] GF28
+
+sbox : SBox
+sbox = [ SubByte x | x <- [ 0 .. ] ]
+
+sboxInv : SBox
+sboxInv = [ InvSubByte x | x <- [ 0 .. ] ]
+

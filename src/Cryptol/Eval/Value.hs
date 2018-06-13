@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Eval.Value
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -46,6 +46,7 @@ import Numeric (showIntAtBase)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
+import Prelude hiding ((<>))
 
 -- Values ----------------------------------------------------------------------
 
@@ -282,7 +283,7 @@ data GenValue b w i
   = VRecord ![(Ident, Eval (GenValue b w i))] -- ^ @ { .. } @
   | VTuple ![Eval (GenValue b w i)]           -- ^ @ ( .. ) @
   | VBit !b                                   -- ^ @ Bit    @
-  | VInteger !i                               -- ^ @ Integer @
+  | VInteger !i                               -- ^ @ Integer @ or @ Z n @
   | VSeq !Integer !(SeqMap b w i)             -- ^ @ [n]a   @
                                               --   Invariant: VSeq is never a sequence of bits
   | VWord !Integer !(Eval (WordValue b w i))  -- ^ @ [n]Bit @
@@ -491,7 +492,7 @@ class BitWord b w i | b -> w, w -> i, i -> b where
   --   The first integer argument is the number of bits in the
   --   resulting word.  The second integer argument is the
   --   number of less-significant digits to discard.  Stated another
-  --   way, the operation `extractWord n i w` is equivelant to
+  --   way, the operation `extractWord n i w` is equivalent to
   --   first shifting `w` right by `i` bits, and then truncating to
   --   `n` bits.
   extractWord :: Integer -- ^ Number of bits to take
@@ -668,6 +669,12 @@ fromVInteger val = case val of
   VInteger i -> i
   _      -> evalPanic "fromVInteger" ["not an Integer"]
 
+-- | Extract a finite sequence value.
+fromVSeq :: GenValue b w i -> SeqMap b w i
+fromVSeq val = case val of
+  VSeq _ vs -> vs
+  _         -> evalPanic "fromVSeq" ["not a sequence"]
+
 -- | Extract a sequence.
 fromSeq :: forall b w i. BitWord b w i => String -> GenValue b w i -> Eval (SeqMap b w i)
 fromSeq msg val = case val of
@@ -774,6 +781,8 @@ toExpr prims t0 v0 = findOne (go t0 v0)
     (TCon (TC TCBit) [], VBit False) -> return (prim "False")
     (TCon (TC TCInteger) [], VInteger i) ->
       return $ ETApp (prim "integer") (tNum i)
+    (TCon (TC TCIntMod) [_n], VInteger i) ->
+      return $ ETApp (prim "integer") (tNum i) --FIXME
     (TCon (TC TCSeq) [a,b], VSeq 0 _) -> do
       guard (a == tZero)
       return $ EList [] b

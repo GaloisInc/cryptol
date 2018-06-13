@@ -1,0 +1,48 @@
+module AES::Round where
+
+import AES::GF28
+import AES::State
+import AES::SubByteSBox
+
+/** One round of AES */
+AESRound : RoundKey -> State -> State
+AESRound rk s = rk ^ MixColumns (ShiftRows (SubBytes s))
+
+SubBytes : State -> State
+SubBytes state = [ [ SubByte b | b <- row ] | row <- state ]
+
+ShiftRows : State -> State
+ShiftRows state = [ row <<< i | row <- state | i : [2] <- [0 .. ] ]
+
+MixColumns : State -> State
+MixColumns state = gf28MatrixMult m state
+    where m = [ [2,3,1,1] >>> i | i <- [ 0 .. ] ]
+
+/** The final AES round */
+AESFinalRound : RoundKey -> State -> State
+AESFinalRound rk s = rk ^ ShiftRows (SubBytes s)
+
+
+
+/** One inverse round of AES */
+AESInvRound : RoundKey -> State -> State
+AESInvRound rk s = InvMixColumns (rk ^ InvSubBytes (InvShiftRows s))
+
+InvSubBytes : State -> State
+InvSubBytes state = [ [ InvSubByte b | b <- row ] | row <- state ]
+
+InvShiftRows : State -> State
+InvShiftRows state = [ row >>> shiftAmount | row <- state
+                                           | shiftAmount : [2] <- [0 ..]
+                     ]
+
+InvMixColumns : State -> State
+InvMixColumns state = gf28MatrixMult m state
+    where m = [[0x0e, 0x0b, 0x0d, 0x09] >>> i | i <- [ 0 .. ] ]
+
+/** The final inverted AES round */
+AESFinalInvRound : RoundKey -> State -> State
+AESFinalInvRound rk s = rk ^ InvSubBytes (InvShiftRows s)
+
+
+

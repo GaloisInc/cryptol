@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.TypeCheck.Infer
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -21,6 +21,7 @@ import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem.Exports as P
 import           Cryptol.TypeCheck.AST hiding (tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Monad
+import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Solve
 import           Cryptol.TypeCheck.SimpType(tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
@@ -46,8 +47,13 @@ import           Data.Graph(SCC(..))
 import           Data.Traversable(forM)
 import           Control.Monad(when,zipWithM,unless)
 
+
+
 inferModule :: P.Module Name -> InferM Module
-inferModule m =
+inferModule m = inferModuleK m return
+
+inferModuleK :: P.Module Name -> (Module -> InferM a) -> InferM a
+inferModuleK m continue =
   inferDs (P.mDecls m) $ \ds1 ->
     do proveModuleTopLevel
        ts <- getTSyns
@@ -55,16 +61,16 @@ inferModule m =
        pTs <- getParamTypes
        pCs <- getParamConstraints
        pFuns <- getParamFuns
-       return Module { mName      = thing (P.mName m)
-                     , mExports   = P.modExports m
-                     , mImports   = map thing (P.mImports m)
-                     , mTySyns    = Map.mapMaybe onlyLocal ts
-                     , mNewtypes  = Map.mapMaybe onlyLocal nts
-                     , mParamTypes = pTs
-                     , mParamConstraints = pCs
-                     , mParamFuns = pFuns
-                     , mDecls     = ds1
-                     }
+       continue Module { mName      = thing (P.mName m)
+                       , mExports   = P.modExports m
+                       , mImports   = map thing (P.mImports m)
+                       , mTySyns    = Map.mapMaybe onlyLocal ts
+                       , mNewtypes  = Map.mapMaybe onlyLocal nts
+                       , mParamTypes = pTs
+                       , mParamConstraints = pCs
+                       , mParamFuns = pFuns
+                       , mDecls     = ds1
+                       }
   where
   onlyLocal (IsLocal, x)    = Just x
   onlyLocal (IsExternal, _) = Nothing
@@ -519,7 +525,7 @@ inferP desc pat =
   case pat of
 
     P.PVar x0 ->
-      do a   <- newType desc KType
+      do a   <- inRange (srcRange x0) (newType desc KType)
          return (thing x0, x0 { thing = a })
 
     P.PTyped p t ->
@@ -555,7 +561,7 @@ inferCArm :: Int -> [P.Match Name] -> InferM
               , Type                   -- length of sequence
               )
 
-inferCArm _ [] = do n <- newType (text "lenght of empty comprehension") KNum
+inferCArm _ [] = do n <- newType (text "length of empty comprehension") KNum
                                                     -- shouldn't really happen
                     return ([], Map.empty, n)
 inferCArm _ [m] =
@@ -565,11 +571,11 @@ inferCArm _ [m] =
 inferCArm armNum (m : ms) =
   do (m1, x, t, n)  <- inferMatch m
      (ms', ds, n') <- withMonoType (x,t) (inferCArm armNum ms)
-     -- XXX: Well, this is just the lenght of this sub-sequence
+     -- XXX: Well, this is just the length of this sub-sequence
      let src = text "length of" <+> ordinal armNum <+>
                                   text "arm of list comprehension"
      sz <- newType src KNum
-     newGoals CtComprehension [ sz =#= tMul n n' ]
+     newGoals CtComprehension [ pFin n', sz =#= tMul n n' ]
      return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, sz)
 
 -- | @inferBinds isTopLevel isRec binds@ performs inference for a
@@ -642,7 +648,7 @@ guessType exprMap b@(P.Bind { .. }) =
   case bSignature of
 
     Just s ->
-      do s1 <- checkSchema True s
+      do s1 <- checkSchema AllowWildCards s
          return ((name, ExtVar (fst s1)), Left (checkSigB b s1))
 
     Nothing
@@ -707,7 +713,8 @@ generalize bs0 gs0 =
      let (maybeAmbig, ambig) = partition ((KNum ==) . kindOf)
                              $ Set.toList
                              $ Set.difference gen0 inSigs
-     when (not (null ambig)) $ recordError $ AmbiguousType $ map dName bs
+     when (not (null ambig)) $ recordError
+                             $ AmbiguousType (map dName bs) ambig
 
 
      {- See if we might be able to default some of the potentially ambiguous
@@ -821,7 +828,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
             (maybeAmbig,ambig) = partition ((== KNum) . kindOf)
                                            (Set.toList genVs)
         when (not (null ambig)) $ recordError
-                                $ AmbiguousType [ thing (P.bName b) ]
+                                $ AmbiguousType [ thing (P.bName b) ] ambig
 
         -- XXX: Uhm, why are we defaulting that 'later' things here?
         -- Surely this should be done later, when we solve them?
@@ -875,7 +882,7 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
 
 
   checkParameterFun x =
-    do (s,gs) <- checkSchema False (P.pfSchema x)
+    do (s,gs) <- checkSchema NoWildCards (P.pfSchema x)
        su <- proveImplication (Just (thing (P.pfName x)))
                               (sVars s) (sProps s) gs
        unless (isEmptySubst su) $

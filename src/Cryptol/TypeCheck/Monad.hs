@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.TypeCheck.Monad
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -16,16 +16,18 @@ module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
   ) where
 
-import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
+import           Cryptol.ModuleSystem.Name (FreshM(..),Supply,mkParameter)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.Unify(mgu, Result(..), UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
+import           Cryptol.TypeCheck.Error(Warning,Error(..),cleanupErrors)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
-import           Cryptol.Utils.PP(pp, (<+>), Doc, text, quotes)
+import           Cryptol.Utils.PP(pp, ($$), (<+>), Doc, text, quotes)
+import           Cryptol.Utils.Ident(Ident)
 import           Cryptol.Utils.Panic(panic)
 
 import qualified Control.Applicative as A
@@ -34,9 +36,8 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import           Data.Map (Map)
 import           Data.Set (Set)
-import           Data.List(find, minimumBy, groupBy, sortBy, foldl')
+import           Data.List(find, foldl')
 import           Data.Maybe(mapMaybe)
-import           Data.Function(on)
 import           MonadLib hiding (mapM)
 
 import           Data.IORef
@@ -144,14 +145,13 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
                                   (iSupply finalRW)
                                   (apSubst defSu result)
            (cts,has) -> return $ InferFailed warns
-                $ dropErrorsFromSameLoc
+                $ cleanupErrors
                 [ ( goalRange g
                   , UnsolvedGoals False [apSubst theSu g]
                   ) | g <- fromGoals cts ++ map hasGoal has
                 ]
        errs -> return $ InferFailed warns
-                      $ dropErrorsFromSameLoc
-                                  [(r,apSubst theSu e) | (r,e) <- errs]
+                      $ cleanupErrors [(r,apSubst theSu e) | (r,e) <- errs]
 
   where
   mkExternal x = (IsExternal, x)
@@ -169,14 +169,6 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
           , iSupply     = inpSupply info
           }
 
-  dropErrorsFromSameLoc = map chooseBestError . groupBy ((==)    `on` fst)
-                                              . sortBy  (cmpRange `on` fst)
-
-  addErrorSize (r,e) = (length (show (pp e)), (r,e))
-  chooseBestError    = snd . minimumBy (compare `on` fst) . map addErrorSize
-
-  -- The actual order does not matter
-  cmpRange (Range x y z) (Range a b c) = compare (x,y,z) (a,b,c)
 
 
 
@@ -424,6 +416,11 @@ solveHasGoal n e =
 
 --------------------------------------------------------------------------------
 
+-- | Generate a fresh variable name to be used in a local binding.
+newParamName :: Ident -> InferM Name
+newParamName x =
+  do r <- curRange
+     liftSupply (mkParameter x r)
 
 newName :: (NameSeeds -> (a , NameSeeds)) -> InferM a
 newName upd = IM $ sets $ \s -> let (x,seeds) = upd (iNameSeeds s)
@@ -443,10 +440,12 @@ newTVar src k = newTVar' src Set.empty k
 -- type parameters.
 newTVar' :: Doc -> Set TVar -> Kind -> InferM TVar
 newTVar' src extraBound k =
-  do bound <- getBoundInScope
+  do r <- curRange
+     bound <- getBoundInScope
      let vs = Set.union extraBound bound
+         msg = src $$ text "at" <+> pp r
      newName $ \s -> let x = seedTVar s
-                     in (TVFree x k vs src, s { seedTVar = x + 1 })
+                     in (TVFree x k vs msg, s { seedTVar = x + 1 })
 
 
 
@@ -539,10 +538,8 @@ lookupVar x =
                 do mbParamFun <- lookupParamFun x
                    case mbParamFun of
                      Just pf -> return (ExtVar (mvpType pf))
-                     Nothing ->
-                       do recordError (UndefinedVariable x)
-                          a <- newType (text "type of" <+> pp x) KType
-                          return $ ExtVar $ Forall [] [] a
+                     Nothing -> panic "lookupVar" [ "Undefined type variable"
+                                                  , show x]
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
 -- in scope, in which case we must be dealing with a type constant.
@@ -580,7 +577,7 @@ existVar x k =
            [] ->
               do recordError $ ErrorMsg $
                     text "Undefined type" <+> quotes (pp x)
-                 newType (text "undefined existential type varible" <+>
+                 newType (text "undefined existential type variable" <+>
                                                             quotes (pp x)) k
 
            sc : more ->
@@ -742,8 +739,11 @@ inNewScope m =
 newtype KindM a = KM { unKM :: ReaderT KRO (StateT KRW InferM)  a }
 
 data KRO = KRO { lazyTVars  :: Map Name Type -- ^ lazy map, with tyvars.
-               , allowWild  :: Bool           -- ^ are type-wild cards allowed?
+               , allowWild  :: AllowWildCards-- ^ are type-wild cards allowed?
                }
+
+-- | Do we allow wild cards in the given context.
+data AllowWildCards = AllowWildCards | NoWildCards
 
 data KRW = KRW { typeParams :: Map Name Kind -- ^ kinds of (known) vars.
                , kCtrs      :: [(ConstraintSource,[Prop])]
@@ -761,6 +761,9 @@ instance Monad KindM where
   fail x        = KM (fail x)
   KM m >>= k    = KM (m >>= unKM . k)
 
+
+
+
 {- | The arguments to this function are as follows:
 
 (type param. name, kind signature (opt.), a type representing the param)
@@ -771,7 +774,7 @@ in the process of computing.
 
 As a result we return the value of the sub-computation and the computed
 kinds of the type parameters. -}
-runKindM :: Bool                          -- Are type-wild cards allowed?
+runKindM :: AllowWildCards               -- Are type-wild cards allowed?
          -> [(Name, Maybe Kind, Type)]   -- ^ See comment
          -> KindM a -> InferM (a, Map Name Kind, [(ConstraintSource,[Prop])])
 runKindM wildOK vs (KM m) =
@@ -799,7 +802,7 @@ kLookupTyVar x = KM $
                                    return (fmap TOuterVar t)
 
 -- | Are type wild-cards OK in this context?
-kWildOK :: KindM Bool
+kWildOK :: KindM AllowWildCards
 kWildOK = KM $ fmap allowWild ask
 
 -- | Reports an error.

@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Main
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -12,6 +12,7 @@ module Main where
 import Control.Monad (when,foldM)
 import Data.List (isPrefixOf,partition,nub)
 import Data.Monoid (Endo(..))
+import Data.Semigroup(Semigroup(..))
 import System.Console.GetOpt
     (getOpt,usageInfo,ArgOrder(..),OptDescr(..),ArgDescr(..))
 import System.Directory
@@ -200,15 +201,23 @@ generateAssertion opts dir file = testCase file $ do
         Left (X.SomeException {})
           | Just prog <- optDiff opts ->
             do goldFile' <- canonicalizePath goldFile
-               assertFailure (unwords [ prog, goldFile', "\\\n    ", resultOut ])
+               assertFailure $ unlines
+                  [ unwords [ prog, goldFile', "\\\n    ", resultOut ]
+                  , makeGold resultOut goldFile
+                  ]
 
           | otherwise ->
             do goldFile' <- canonicalizePath goldFile
                (_,diffOut,_) <- readProcessWithExitCode "diff" [ goldFile', resultOut ] ""
-               assertFailure diffOut
+               assertFailure $ unlines [ diffOut, makeGold resultOut goldFile ]
 
         Right fail_msg | optIgnoreExpected opts -> return ()
                        | otherwise              -> assertFailure fail_msg
+
+  makeGold out gold =
+    unlines [ "# If output is OK:"
+            , unwords [ "cp", out, "\\\n    ", gold ]
+            ]
 
 -- Test Discovery --------------------------------------------------------------
 
@@ -239,12 +248,15 @@ isTestCase path = takeExtension path == ".icry"
 data TestFiles = TestFiles (Map.Map FilePath TestFiles) [FilePath]
     deriving (Show)
 
-instance Monoid TestFiles where
-  mempty      = TestFiles Map.empty []
-  mappend (TestFiles lt lf) (TestFiles rt rf) = TestFiles mt mf
+instance Semigroup TestFiles where
+  TestFiles lt lf <> TestFiles rt rf = TestFiles mt mf
     where
     mt = Map.unionWith mappend lt rt
     mf = nub (lf ++ rf)
+
+instance Monoid TestFiles where
+  mempty  = TestFiles Map.empty []
+  mappend = (<>)
 
 nullTests :: TestFiles -> Bool
 nullTests (TestFiles m as) = null as && Map.null m

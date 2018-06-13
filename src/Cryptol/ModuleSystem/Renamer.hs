@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.ModuleSystem.Renamer
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -29,16 +29,21 @@ module Cryptol.ModuleSystem.Renamer (
 
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
+import Cryptol.ModuleSystem.Exports
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
+import Cryptol.TypeCheck.Type (TCon(..))
 import Cryptol.Utils.Ident (packIdent,packInfix)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
 import qualified Data.Foldable as F
+import           Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
+import qualified Data.Semigroup as S
+import qualified Data.Set as Set
 import           Data.String (IsString(..))
 import           MonadLib hiding (mapM, mapM_)
 
@@ -46,7 +51,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Prelude ()
-import Prelude.Compat
+import Prelude.Compat hiding ((<>))
 
 -- Errors ----------------------------------------------------------------------
 
@@ -144,6 +149,8 @@ data RenamerWarning
     -- Warn when fixity is used to resolve parses, and the relative
     -- fixity is planned to change.  See https://github.com/GaloisInc/cryptol/issues/241
   | DangerousFixity (Located Name) (Located Name) NameDisp
+
+  | UnusedName Name NameDisp
     deriving (Show, Generic, NFData)
 
 instance PP RenamerWarning where
@@ -168,6 +175,9 @@ instance PP RenamerWarning where
                 , text "Ignore this message if you are confident this expression is parsing correctly; it will be removed"
                 , text "in a future release."
                 ]
+  ppPrec _ (UnusedName x disp) = fixNameDisp disp $
+    hang (text "[warning] at" <+> pp (nameLoc x))
+       4 (text "Unused name:" <+> pp x)
 
 -- Renaming Monad --------------------------------------------------------------
 
@@ -179,23 +189,30 @@ data RO = RO
   }
 
 data RW = RW
-  { rwWarnings :: !(Seq.Seq RenamerWarning)
-  , rwErrors   :: !(Seq.Seq RenamerError)
-  , rwSupply   :: !Supply
+  { rwWarnings      :: !(Seq.Seq RenamerWarning)
+  , rwErrors        :: !(Seq.Seq RenamerError)
+  , rwSupply        :: !Supply
+  , rwNameUseCount  :: !(Map Name Int)
+    -- ^ How many times did we refer to each name.
+    -- Used to generate warnings for unused definitions.
   }
 
 newtype RenameM a = RenameM
   { unRenameM :: ReaderT RO (StateT RW Lift) a }
 
-instance Monoid a => Monoid (RenameM a) where
+instance S.Semigroup a => S.Semigroup (RenameM a) where
+  {-# INLINE (<>) #-}
+  a <> b =
+    do x <- a
+       y <- b
+       return (x S.<> y)
+
+instance (S.Semigroup a, Monoid a) => Monoid (RenameM a) where
   {-# INLINE mempty #-}
   mempty = return mempty
 
   {-# INLINE mappend #-}
-  mappend a b =
-    do x <- a
-       y <- b
-       return (mappend x y)
+  mappend = (S.<>)
 
 instance Functor RenameM where
   {-# INLINE fmap #-}
@@ -223,19 +240,20 @@ instance FreshM RenameM where
 
 runRenamer :: Supply -> ModName -> NamingEnv -> RenameM a
            -> (Either [RenamerError] (a,Supply),[RenamerWarning])
-runRenamer s ns env m = (res,F.toList (rwWarnings rw))
+runRenamer s ns env m = (res, warnUnused ns env ro rw ++ F.toList (rwWarnings rw))
   where
-
-  (a,rw) = runM (unRenameM m) RO { roLoc = emptyRange
-                                 , roNames = env
-                                 , roMod = ns
-                                 , roDisp = neverQualifyMod ns
-                                            `mappend` toNameDisp env
-                                 }
+  (a,rw) = runM (unRenameM m) ro
                               RW { rwErrors   = Seq.empty
                                  , rwWarnings = Seq.empty
                                  , rwSupply   = s
+                                 , rwNameUseCount = Map.empty
                                  }
+
+  ro = RO { roLoc = emptyRange
+          , roNames = env
+          , roMod = ns
+          , roDisp = neverQualifyMod ns `mappend` toNameDisp env
+          }
 
   res | Seq.null (rwErrors rw) = Right (a,rwSupply rw)
       | otherwise              = Left (F.toList (rwErrors rw))
@@ -349,6 +367,24 @@ checkNamingEnv env = (F.toList out, [])
 
   check ns acc = containsOverlap disp ns Seq.>< acc
 
+recordUse :: Name -> RenameM ()
+recordUse x = RenameM $ sets_ $ \rw ->
+  rw { rwNameUseCount = Map.insertWith (+) x 1 (rwNameUseCount rw) }
+
+
+warnUnused :: ModName -> NamingEnv -> RO -> RW -> [RenamerWarning]
+warnUnused m0 env ro rw =
+  map warn
+  $ Map.keys
+  $ Map.filterWithKey keep
+  $ rwNameUseCount rw
+  where
+  warn x   = UnusedName x (roDisp ro)
+  keep k n = n == 1 && isLocal k
+  oldNames = fst (visibleNames env)
+  isLocal nm = case nameInfo nm of
+                 Declared m -> m == m0 && nm `Set.notMember` oldNames
+                 Parameter  -> True
 
 -- Renaming --------------------------------------------------------------------
 
@@ -360,7 +396,10 @@ renameModule m =
   do env    <- liftSupply (namingEnv' m)
      -- NOTE: we explicitly hide shadowing errors here, by using shadowNames'
      decls' <-  shadowNames' CheckOverlap env (traverse rename (mDecls m))
-     return (env,m { mDecls = decls' })
+     let m1 = m { mDecls = decls' }
+         exports = modExports m1
+     mapM_ recordUse (eTypes exports)
+     return (env,m1)
 
 instance Rename TopDecl where
   rename td     = case td of
@@ -454,9 +493,10 @@ typeExists :: PName -> RenameM (Maybe Name)
 typeExists pn =
   do ro <- RenameM ask
      case Map.lookup pn (neTypes (roNames ro)) of
-       Just [n]  -> return (Just n)
+       Just [n]  -> recordUse n >> return (Just n)
        Just []   -> panic "Renamer" ["Invalid type renaming environment"]
        Just syms -> do n <- located pn
+                       mapM_ recordUse syms
                        record (MultipleSyms n syms)
                        return (Just (head syms))
        Nothing -> return Nothing
@@ -573,10 +613,8 @@ instance Rename Type where
     go (TFun a b)    = TFun     <$> go a  <*> go b
     go (TSeq n a)    = TSeq     <$> go n  <*> go a
     go  TBit         = return TBit
-    go  TInteger     = return TInteger
     go (TNum c)      = return (TNum c)
     go (TChar c)     = return (TChar c)
-    go  TInf         = return TInf
 
     go (TUser pn ps)
 
@@ -584,11 +622,12 @@ instance Rename Type where
       | Just (arity,fun) <- Map.lookup pn tfunNames =
         do when (arity /= length ps) (record (MalformedBuiltin ty0 pn))
            ps' <- traverse go ps
-           return (TApp fun ps')
+           return (TApp (TF fun) ps')
 
       -- built-in types like Bit and inf
-      | Just ty <- Map.lookup pn tconNames =
-        rename ty
+      | Just tc <- Map.lookup pn tconNames =
+        do ps' <- traverse go ps
+           return (TApp (TC tc) ps')
 
     go (TUser qn ps)   = TUser    <$> renameType qn <*> traverse go ps
     go (TApp f xs)     = TApp f   <$> traverse go xs
@@ -629,10 +668,8 @@ resolveTypeFixity  = go
          mkTInfix a' op b'
 
     TBit         -> return t
-    TInteger     -> return t
     TNum _       -> return t
     TChar _      -> return t
-    TInf         -> return t
     TWild        -> return t
 
 
@@ -657,12 +694,12 @@ mkTInfix t@(TUser o1 [x,y]) op@(o2,f2) z
          FCError -> return (o2 t z)
 
 -- In this case, we know the fixities of both sides.
-mkTInfix t@(TApp o1 [x,y]) op@(o2,f2) z
+mkTInfix t@(TApp (TF o1) [x,y]) op@(o2,f2) z
   | Just (a1,p1) <- Map.lookup o1 tBinOpPrec =
      case compareFixity (Fixity a1 p1) f2 of
        FCLeft  -> return (o2 t z)
        FCRight -> do r <- mkTInfix y op z
-                     return (TApp o1 [x,r])
+                     return (TApp (TF o1) [x,r])
 
        -- As the fixity table is known, and this is a case where the fixity came
        -- from that table, it's a real error if the fixities didn't work out.
@@ -681,7 +718,7 @@ mkTInfix t (op,_) z =
 lookupFixity :: Located PName -> (TOp,Fixity)
 lookupFixity op =
   case lkp of
-    Just (p,f) -> (\x y -> TApp p [x,y], f)
+    Just (p,f) -> (\x y -> TApp (TF p) [x,y], f)
 
     -- unknown type operator, just use default fixity
     -- NOTE: this works for the props defined above, as all other operators
@@ -917,10 +954,8 @@ patternEnv  = go
   typeEnv (TSeq a b) = bindTypes [a,b]
 
   typeEnv TBit       = return mempty
-  typeEnv TInteger   = return mempty
   typeEnv TNum{}     = return mempty
   typeEnv TChar{}    = return mempty
-  typeEnv TInf       = return mempty
 
   typeEnv (TUser pn ps) =
     do mb <- typeExists pn

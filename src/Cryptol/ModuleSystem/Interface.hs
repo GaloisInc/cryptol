@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.ModuleSystem.Interface
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -30,6 +30,7 @@ import           Cryptol.Utils.Ident (ModName)
 import           Cryptol.Parser.Position(Located)
 
 import qualified Data.Map as Map
+import           Data.Semigroup
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -65,13 +66,16 @@ data IfaceDecls = IfaceDecls
   , ifDecls    :: Map.Map Name IfaceDecl
   } deriving (Show, Generic, NFData)
 
-instance Monoid IfaceDecls where
-  mempty      = IfaceDecls Map.empty Map.empty Map.empty
-  mappend l r = IfaceDecls
+instance Semigroup IfaceDecls where
+  l <> r = IfaceDecls
     { ifTySyns   = Map.union (ifTySyns l)   (ifTySyns r)
     , ifNewtypes = Map.union (ifNewtypes l) (ifNewtypes r)
     , ifDecls    = Map.union (ifDecls l)    (ifDecls r)
     }
+
+instance Monoid IfaceDecls where
+  mempty      = IfaceDecls Map.empty Map.empty Map.empty
+  mappend l r = l <> r
   mconcat ds  = IfaceDecls
     { ifTySyns   = Map.unions (map ifTySyns   ds)
     , ifNewtypes = Map.unions (map ifNewtypes ds)

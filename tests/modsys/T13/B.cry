@@ -1,0 +1,13 @@
+module T13::B = T13::A where
+
+/*
+parameter
+  type T : #
+  type constraint (2 >= T)
+*/
+
+type T = 1
+
+f x = x
+
+

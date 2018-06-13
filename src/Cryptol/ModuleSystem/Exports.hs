@@ -4,6 +4,7 @@ module Cryptol.ModuleSystem.Exports where
 import Data.Set(Set)
 import qualified Data.Set as Set
 import Data.Foldable(fold)
+import Data.Semigroup
 import Control.DeepSeq(NFData)
 import GHC.Generics (Generic)
 
@@ -31,11 +32,14 @@ data ExportSpec name = ExportSpec { eTypes  :: Set name
 
 instance NFData name => NFData (ExportSpec name)
 
+instance Ord name => Semigroup (ExportSpec name) where
+  l <> r = ExportSpec { eTypes = eTypes l <> eTypes r
+                      , eBinds = eBinds l <> eBinds  r
+                      }
+
 instance Ord name => Monoid (ExportSpec name) where
-  mempty      = ExportSpec { eTypes = mempty, eBinds = mempty }
-  mappend l r = ExportSpec { eTypes = mappend (eTypes l) (eTypes r)
-                           , eBinds  = mappend (eBinds  l) (eBinds  r)
-                           }
+  mempty  = ExportSpec { eTypes = mempty, eBinds = mempty }
+  mappend = (<>)
 
 -- | Add a binding name to the export list, if it should be exported.
 exportBind :: Ord name => TopLevel name -> ExportSpec name

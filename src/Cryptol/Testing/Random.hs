@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Testing.Random
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -70,6 +70,11 @@ randomValue ty =
       case (tc, map (tRebuild' False) ts) of
         (TC TCBit, [])                        -> Just randomBit
 
+        (TC TCInteger, [])                    -> Just randomInteger
+
+        (TC TCIntMod, [TCon (TC (TCNum n)) []]) ->
+          do return (randomIntMod n)
+
         (TC TCSeq, [TCon (TC TCInf) [], el])  ->
           do mk <- randomValue el
              return (randomStream mk)
@@ -98,6 +103,26 @@ randomBit :: (BitWord b w i, RandomGen g) => Gen g b w i
 randomBit _ g =
   let (b,g1) = random g
   in (VBit (bitLit b), g1)
+
+randomSize :: RandomGen g => Int -> Int -> g -> (Int, g)
+randomSize k n g
+  | p == 1 = (n, g')
+  | otherwise = randomSize k (n + 1) g'
+  where (p, g') = randomR (1, k) g
+
+-- | Generate a random integer value. The size parameter is assumed to
+-- vary between 1 and 100, and we use it to generate smaller numbers
+-- first.
+randomInteger :: (BitWord b w i, RandomGen g) => Gen g b w i
+randomInteger w g =
+  let (n, g1) = if w < 100 then (fromInteger w, g) else randomSize 8 100 g
+      (x, g2) = randomR (- 256^n, 256^n) g1
+  in (VInteger (integerLit x), g2)
+
+randomIntMod :: (BitWord b w i, RandomGen g) => Integer -> Gen g b w i
+randomIntMod modulus _ g =
+  let (x, g') = randomR (0, modulus-1) g
+  in (VInteger (integerLit x), g')
 
 -- | Generate a random word of the given length (i.e., a value of type @[w]@)
 -- The size parameter is assumed to vary between 1 and 100, and we use

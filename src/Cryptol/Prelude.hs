@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Prelude
 -- Copyright   :  (c) 2015-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -8,14 +8,13 @@
 --
 -- Compile the prelude into the executable as a last resort
 
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.Prelude (
   writePreludeContents,
-  writePreludeExtrasContents,
   cryptolTcContents
   ) where
 
@@ -34,17 +33,6 @@ writePreludeContents = do
   tmpdir <- getTemporaryDirectory
   (path, h) <- openTempFile tmpdir "Cryptol.cry"
   hPutStr h preludeContents
-  hClose h
-  return path
-
-preludeExtrasContents :: String
-preludeExtrasContents = [there|lib/Cryptol/Extras.cry|]
-
-writePreludeExtrasContents :: IO FilePath
-writePreludeExtrasContents = do
-  tmpdir <- getTemporaryDirectory
-  (path, h) <- openTempFile tmpdir "CryptolExtras.cry"
-  hPutStr h preludeExtrasContents
   hClose h
   return path
 

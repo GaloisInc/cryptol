@@ -1,0 +1,11 @@
+module T13::A where
+
+parameter
+  type T : #
+  type constraint (2 >= T)
+  f : [8] -> [8]
+
+type X = T + 1
+g = f
+
+

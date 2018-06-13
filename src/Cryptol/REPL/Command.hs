@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.REPL.Command
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -66,9 +66,9 @@ import Cryptol.Parser
     (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
     ,parseModName,parseHelpName)
 import qualified Cryptol.TypeCheck.AST as T
+import qualified Cryptol.TypeCheck.Error as T
 import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
-import qualified Cryptol.TypeCheck.InferTypes as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import Cryptol.TypeCheck.PP (dump,ppWithNames)
@@ -314,9 +314,9 @@ qcCmd qcMode "" =
 qcCmd qcMode str =
   do expr <- replParseExpr str
      (val,ty) <- replEvalExpr expr
-     EnvNum testNum  <- getUser "tests"
+     EnvNum testNum <- getUser "tests"
      case testableType ty of
-       Just (sz,vss) | qcMode == QCExhaust || sz <= toInteger testNum -> do
+       Just (Just sz,tys,vss) | qcMode == QCExhaust || sz <= toInteger testNum -> do
             rPutStrLn "Using exhaustive testing."
             let f _ [] = panic "Cryptol.REPL.Command"
                                     ["Exhaustive testing ran out of test cases"]
@@ -328,10 +328,10 @@ qcCmd qcMode str =
                     testFn = f
                   , testProp = str
                   , testTotal = sz
-                  , testPossible = sz
+                  , testPossible = Just sz
                   , testRptProgress = ppProgress
                   , testClrProgress = delProgress
-                  , testRptFailure = ppFailure expr
+                  , testRptFailure = ppFailure tys expr
                   , testRptSuccess = do
                       delTesting
                       prtLn $ "passed " ++ show sz ++ " tests."
@@ -341,7 +341,8 @@ qcCmd qcMode str =
             report <- runTests testSpec vss
             return [report]
 
-       Just (sz,_) -> case TestR.testableType ty of
+       Just (sz,tys,_) | qcMode == QCRandom ->
+         case TestR.testableType ty of
               Nothing   -> raise (TypeNotTestable ty)
               Just gens -> do
                 rPutStrLn "Using random testing."
@@ -354,7 +355,7 @@ qcCmd qcMode str =
                       , testPossible = sz
                       , testRptProgress = ppProgress
                       , testClrProgress = delProgress
-                      , testRptFailure = ppFailure expr
+                      , testRptFailure = ppFailure tys expr
                       , testRptSuccess = do
                           delTesting
                           prtLn $ "passed " ++ show testNum ++ " tests."
@@ -363,9 +364,11 @@ qcCmd qcMode str =
                 g <- io newTFGen
                 report <- runTests testSpec g
                 when (isPass (reportResult report)) $
-                  rPutStrLn $ coverageString testNum sz
+                  case sz of
+                    Nothing -> return ()
+                    Just n -> rPutStrLn $ coverageString testNum n
                 return [report]
-       Nothing -> return []
+       _ -> raise (TypeNotTestable ty)
 
   where
   testingMsg = "testing..."
@@ -404,13 +407,20 @@ qcCmd qcMode str =
   delTesting  = del (length testingMsg)
   delProgress = del totProgressWidth
 
-  ppFailure pexpr failure = do
+  ppFailure tys pexpr failure = do
     delTesting
     opts <- getPPValOpts
     case failure of
       FailFalse vs -> do
         let isSat = False
         printCounterexample isSat pexpr vs
+        case (tys,vs) of
+          ([t],[v]) -> bindItVariableVal t v
+          _ -> let fs = [ M.packIdent ("arg" ++ show (i::Int)) | i <- [ 1 .. ] ]
+                   t = T.TRec (zip fs tys)
+                   v = E.VRecord (zip fs (map return vs))
+               in bindItVariableVal t v
+
       FailError err [] -> do
         prtLn "ERROR"
         rPrint (pp err)
@@ -649,7 +659,8 @@ refEvalCmd str = do
   (_, expr, _schema) <- replCheckExpr parseExpr
   validEvalContext expr
   val <- liftModuleCmd (rethrowEvalError . R.evaluate expr)
-  rPrint $ R.ppValue val
+  opts <- getPPValOpts
+  rPrint $ R.ppValue opts val
 
 astOfCmd :: String -> REPL ()
 astOfCmd str = do
@@ -813,11 +824,14 @@ browseTSyns :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
 browseTSyns isVisible M.IfaceDecls { .. } names = do
   let tsyns = sortBy (M.cmpNameDisplay names `on` T.tsName)
               [ ts | ts <- Map.elems ifTySyns, isVisible (T.tsName ts) ]
-  unless (null tsyns) $ do
-    rPutStrLn "Type Synonyms"
-    rPutStrLn "============="
-    rPrint (runDoc names (nest 4 (vcat (map pp tsyns))))
-    rPutStrLn ""
+
+      (cts,tss) = partition isCtrait tsyns
+
+  ppBlock names pp "Type Synonyms" tss
+  ppBlock names pp "Constraint Synonyms" cts
+
+  where
+  isCtrait t = T.kindResult (T.kindOf (T.tsDef t)) == T.KProp
 
 browseNewtypes :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
 browseNewtypes isVisible M.IfaceDecls { .. } names = do
@@ -838,16 +852,19 @@ browseVars isVisible M.IfaceDecls { .. } names = do
   let isProp p     = T.PragmaProperty `elem` (M.ifDeclPragmas p)
       (props,syms) = partition isProp vars
 
-  ppBlock "Properties" props
-  ppBlock "Symbols"    syms
 
-  where
-  ppBlock name xs = unless (null xs) $
+  let ppVar M.IfaceDecl { .. } = hang (pp ifDeclName <+> char ':')
+                                   2 (pp ifDeclSig)
+
+  ppBlock names ppVar "Properties" props
+  ppBlock names ppVar "Symbols"    syms
+
+
+ppBlock :: NameDisp -> (a -> Doc) -> String -> [a] -> REPL ()
+ppBlock names ppFun name xs = unless (null xs) $
     do rPutStrLn name
        rPutStrLn (replicate (length name) '=')
-       let ppVar M.IfaceDecl { .. } = hang (pp ifDeclName <+> char ':')
-                                        2 (pp ifDeclSig)
-       rPrint (runDoc names (nest 4 (vcat (map ppVar xs))))
+       rPrint (runDoc names (nest 4 (vcat (map ppFun xs))))
        rPutStrLn ""
 
 
@@ -1178,6 +1195,21 @@ bindItVariable ty expr = do
   let nenv' = M.singletonE (P.UnQual itIdent) freshIt
                            `M.shadowing` M.deNames denv
   setDynEnv $ denv { M.deNames = nenv' }
+
+
+-- | Extend the dynamic environment with a fresh binding for "it",
+-- as defined by the given value.  If we cannot determine the definition
+-- of the value, then we don't bind `it`.
+bindItVariableVal :: T.Type -> E.Value -> REPL ()
+bindItVariableVal ty val =
+  do prims   <- getPrimMap
+     mb      <- rEval (E.toExpr prims ty val)
+     case mb of
+       Nothing   -> return ()
+       Just expr -> bindItVariable ty expr
+
+
+
 
 -- | Creates a fresh binding of "it" to a finite sequence of
 -- expressions of the same type, and adds that sequence to the current

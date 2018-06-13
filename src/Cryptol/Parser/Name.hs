@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Parser.Name
 -- Copyright   :  (c) 2015-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -16,6 +16,7 @@ import Cryptol.Utils.Panic (panic)
 
 import           Control.DeepSeq
 import           GHC.Generics (Generic)
+import Prelude hiding ((<>))
 
 
 -- Names -----------------------------------------------------------------------

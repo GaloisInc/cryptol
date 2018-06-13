@@ -8,7 +8,8 @@ import qualified Data.Map as Map
 import           Data.Set ( Set )
 import qualified Data.Set as Set
 import           Data.Either(partitionEithers)
-import           Data.List(find)
+import           Data.List(find,sortBy)
+import           Data.Ord(comparing)
 
 import Cryptol.TypeCheck.AST
 import Cryptol.Parser.Position(thing)
@@ -86,7 +87,10 @@ data Params = Params
 getParams :: Module -> Either [Name] Params
 getParams m
   | null errs =
-     let ps = Params { pTypes = map rnTP (Map.elems (mParamTypes m))
+     let ps = Params { pTypes = map rnTP
+                              $ sortBy (comparing mtpNumber)
+                              $ Map.elems
+                              $ mParamTypes m
                      , pTypeConstraints = map thing (mParamConstraints m)
                      , pFuns = oks
                      }
@@ -100,7 +104,6 @@ getParams m
                       Nothing -> Left x
 
   rnTP tp = mtpParam tp { mtpName = asParamName (mtpName tp) }
-
 
 --------------------------------------------------------------------------------
 
@@ -117,7 +120,9 @@ instance AddParams Schema where
                      }
 
 instance AddParams Type where
-  addParams ps t = tFun (paramRecTy ps) t
+  addParams ps t
+    | null (pFuns ps) = t
+    | otherwise       = tFun (paramRecTy ps) t
 
 
 instance AddParams Expr where
@@ -125,7 +130,9 @@ instance AddParams Expr where
     where (as,rest1) = splitWhile splitTAbs e
           (bs,rest2) = splitWhile splitProofAbs rest1
           withProps = foldr EProofAbs withArgs (pTypeConstraints ps ++ bs)
-          withArgs  = EAbs paramModRecParam (paramRecTy ps) rest2
+          withArgs
+            | null (pFuns ps) = rest2
+            | otherwise       = EAbs paramModRecParam (paramRecTy ps) rest2
 
 
 
@@ -177,8 +184,11 @@ type Inp = (Set Name, Params)
 paramRecTy :: Params -> Type
 paramRecTy ps = tRec [ (nameIdent x, t) | (x,t) <- pFuns ps ]
 
+
 nameInst :: Inp -> Name -> [Type] -> Int -> Expr
-nameInst (_,ps) x ts prfs = EApp withProofs (EVar paramModRecParam)
+nameInst (_,ps) x ts prfs
+  | null (pFuns ps) = withProofs
+  | otherwise       = EApp withProofs (EVar paramModRecParam)
   where
   withProofs = iterate EProofApp withTys !!
                                         (length (pTypeConstraints ps) + prfs)

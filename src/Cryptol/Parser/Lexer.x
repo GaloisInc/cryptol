@@ -1,6 +1,6 @@
 {
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Parser.Lexer
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -41,7 +41,7 @@ $unitick        = \x7
 @id           = @id_first @id_next*
 @op           = ([\!\#\$\%\&\*\+\-\.\/\:\<\=\>\?\@\\\^\|\~] | $unisymbol)+
 
-@qual         = (@id $white* :: $white*)+
+@qual         = (@id ::)+
 @qual_id      = @qual @id
 @qual_op      = @qual @op
 
@@ -57,7 +57,8 @@ $unitick        = \x7
 
 <0,comment> {
 \/\*                     { startComment False }
-\/\*\*+                  { startComment True  }
+\/\*\*                   { startComment True  }
+\/\*\*\*+                { startComment False }
 \/\*+\/                  { startEndComment    }
 }
 

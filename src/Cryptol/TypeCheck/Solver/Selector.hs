@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.TypeCheck.Solver.Selector
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -12,9 +12,10 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Monad( InferM, unify, newGoals, lookupNewtype
                               , newType, applySubst, solveHasGoal
+                              , newParamName
                               )
 import Cryptol.TypeCheck.Subst(listSubst,apSubst)
-import Cryptol.Utils.Ident (Ident)
+import Cryptol.Utils.Ident (Ident, packIdent)
 import Cryptol.Utils.PP(text,pp,ordinal,(<+>))
 import Cryptol.Utils.Panic(panic)
 
@@ -50,7 +51,8 @@ improveSelector sel outerT =
   cvt _ Nothing   = return False
   cvt f (Just a)  = do ty <- f a
                        newGoals CtExactType =<< unify ty outerT
-                       return True
+                       newT <- applySubst outerT
+                       return (newT /= outerT)
 
 
 {- | Compute the type of a field based on the selector.
@@ -124,7 +126,10 @@ tryHasGoal has
          Nothing -> return (imped, False)
          Just innerT ->
            do newGoals CtExactType =<< unify innerT ft
-              solveHasGoal (hasName has) (`ESel` sel)
+              oT <- applySubst outerT
+              iT <- applySubst innerT
+              selFrom <- mkSel sel oT iT
+              solveHasGoal (hasName has) selFrom
               return (True, True)
 
   | otherwise = panic "hasGoalSolved"
@@ -132,7 +137,43 @@ tryHasGoal has
                   , show (hasGoal has)
                   ]
 
+{- | Generator an appropriate selector, once the "Has" constraint
+has been discharged.  The resulting selectors should always work
+on their corresponding types (i.e., tuple selectros only select from tuples).
+This function generates the code for lifting tuple/record selectors to sequences
+and functions.
 
+Assumes types are zonked. -}
+mkSel :: Selector -> Type -> Type -> InferM (Expr -> Expr)
+mkSel s outerT innerT =
+  case tNoUser outerT of
+    TCon (TC TCSeq) [len,el]
+      | TupleSel {} <- s  -> liftSeq len el
+      | RecordSel {} <- s -> liftSeq len el
+
+    TCon (TC TCFun) [t1,t2]
+      | TupleSel {} <- s -> liftFun t1 t2
+      | RecordSel {} <- s -> liftFun t1 t2
+
+    _ -> return (\e -> ESel e s)
+
+  where
+  liftSeq len el =
+    do x <- newParamName (packIdent "x")
+       case tNoUser innerT of
+         TCon _ [_,eli] ->
+           do selFrom <- mkSel s el eli
+              return $ \e -> EComp len eli (selFrom (EVar x))
+                                                        [[ From x len el e ]]
+         _ -> panic "mkSel" [ "Unexpected inner seq type.", show innerT ]
+
+  liftFun t1 t2 =
+    do x <- newParamName (packIdent "x")
+       case tNoUser innerT of
+         TCon _ [_,inT] ->
+           do selFrom <- mkSel s t2 inT
+              return $ \e -> EAbs x t1 (selFrom (EApp e (EVar x)))
+         _ -> panic "mkSel" [ "Unexpected inner fun type", show innerT ]
 
 
 

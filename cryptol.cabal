@@ -14,7 +14,7 @@ Build-type:          Simple
 Cabal-version:       >= 1.18
 extra-source-files:  bench/data/*.cry
 
-data-files:          *.cry Cryptol/*.cry *.z3
+data-files:          *.cry *.z3
 data-dir:            lib
 
 source-repository head
@@ -43,10 +43,9 @@ library
   Default-language:
     Haskell2010
   Build-depends:       base              >= 4.8 && < 5,
-                       base-compat       >= 0.6,
+                       base-compat       >= 0.6 && < 0.10,
                        bytestring        >= 0.10,
                        array             >= 0.4,
-                       async             >= 2.0,
                        containers        >= 0.5,
                        deepseq           >= 1.3,
                        directory         >= 1.2.2.0,
@@ -56,25 +55,18 @@ library
                        heredoc           >= 0.2,
                        monad-control     >= 1.0,
                        monadLib          >= 3.7.2,
-                       old-time          >= 1.1,
-                       presburger        >= 1.3,
                        pretty            >= 1.1,
                        process           >= 1.2,
-                       QuickCheck        >= 2.7,
                        random            >= 1.0.1,
-                       sbv               >= 7.0,
-                       smtLib            >= 1.0.7,
+                       sbv               >= 7.7,
                        simple-smt        >= 0.7.1,
                        strict,
-                       syb               >= 0.4,
                        text              >= 1.1,
-                       template-haskell,
                        tf-random         >= 0.5,
-                       transformers      >= 0.3,
                        transformers-base >= 0.4,
-                       utf8-string       >= 0.3,
                        mtl               >= 2.2.1,
-                       time >= 1.6.0.1
+                       time >= 1.6.0.1,
+                       panic >= 0.3
 
 
   Build-tools:         alex, happy
@@ -86,11 +78,13 @@ library
                        Cryptol.Parser,
                        Cryptol.Parser.Lexer,
                        Cryptol.Parser.AST,
+                       Cryptol.Parser.Fixity,
                        Cryptol.Parser.Position,
                        Cryptol.Parser.Names,
                        Cryptol.Parser.Name,
                        Cryptol.Parser.NoPat,
                        Cryptol.Parser.NoInclude,
+                       Cryptol.Parser.Selector,
                        Cryptol.Parser.Utils,
                        Cryptol.Parser.Unlit,
 
@@ -124,6 +118,7 @@ library
                        Cryptol.TypeCheck.Infer,
                        Cryptol.TypeCheck.CheckModuleInstance,
                        Cryptol.TypeCheck.InferTypes,
+                       Cryptol.TypeCheck.Error,
                        Cryptol.TypeCheck.Kind,
                        Cryptol.TypeCheck.Subst,
                        Cryptol.TypeCheck.Instantiate,
@@ -131,6 +126,7 @@ library
                        Cryptol.TypeCheck.Depends,
                        Cryptol.TypeCheck.PP,
                        Cryptol.TypeCheck.Solve,
+                       Cryptol.TypeCheck.Default,
                        Cryptol.TypeCheck.SimpleSolver,
                        Cryptol.TypeCheck.TypeMap,
                        Cryptol.TypeCheck.TypeOf,
@@ -199,19 +195,12 @@ executable cryptol
   build-depends:       ansi-terminal
                      , base
                      , base-compat
-                     , containers
                      , cryptol
-                     , deepseq
                      , directory
                      , filepath
                      , haskeline
-                     , monadLib
                      , monad-control
-                     , process
-                     , random
-                     , sbv >= 7.0
                      , text
-                     , tf-random
                      , transformers
   GHC-options:         -Wall -O2 -threaded -rtsopts "-with-rtsopts=-N1 -A64m"
   if impl(ghc >= 8.0.1)
@@ -224,7 +213,7 @@ executable cryptol
 executable cryptol-html
   main-is: CryHtml.hs
   hs-source-dirs: utils
-  build-depends: base, text, cryptol
+  build-depends: base, text, cryptol, blaze-html
   GHC-options: -Wall
 
 -- Note: the Cryptol server needs to be updated to some new APIs.
@@ -276,5 +265,5 @@ benchmark cryptol-bench
                      , deepseq
                      , directory
                      , filepath
-                     , sbv >= 7.0
+                     , sbv >= 7.7
                      , text

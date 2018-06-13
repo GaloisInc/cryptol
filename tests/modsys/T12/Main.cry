@@ -1,0 +1,9 @@
+module T12::Main = T12::A where
+
+parameter
+  type T : #
+  type constraint (2 >= T)
+
+f x = x
+
+

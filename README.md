@@ -147,7 +147,7 @@ community, fork the GitHub repository, and add them to the
 `examples/contrib` directory and submit a pull request.
 
 We host a Cryptol mailing list, which
-you can [join here](http://community.galois.com/mailman/listinfo/cryptol-users).
+you can [join here](https://groups.google.com/a/galois.com/forum/#!forum/cryptol-users).
 
 If you run into a bug in Cryptol, if something doesn't make sense in
 the documentation, if you think something could be better, or if you
@@ -219,3 +219,9 @@ Cryptol has been funded by, and lots of design input was provided by
 the team at the
 [NSA's Trusted Systems Research Group](http://www.nsa.gov/research/ia_research/),
 including Brad Martin, Frank Taylor and Sean Weaver.
+
+Portions of Cryptol are also based upon work supported by the Office
+of Naval Research under Contract No. N68335-17-C-0452. Any opinions,
+findings and conclusions or recommendations expressed in this
+material are those of the author(s) and do not necessarily reflect
+the views of the Office of Naval Research.

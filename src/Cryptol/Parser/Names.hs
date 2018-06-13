@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Parser.Names
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -147,10 +147,8 @@ namesT vs = go
       TFun t1 t2    -> Set.union (go t1) (go t2)
       TSeq t1 t2    -> Set.union (go t1) (go t2)
       TBit          -> Set.empty
-      TInteger      -> Set.empty
       TNum _        -> Set.empty
       TChar _       -> Set.empty
-      TInf          -> Set.empty
       TApp _ ts     -> Set.unions (map go ts)
       TTuple ts     -> Set.unions (map go ts)
       TRecord fs    -> Set.unions (map (go . value) fs)
@@ -294,10 +292,8 @@ tnamesT ty =
     TFun t1 t2    -> Set.union (tnamesT t1) (tnamesT t2)
     TSeq t1 t2    -> Set.union (tnamesT t1) (tnamesT t2)
     TBit          -> Set.empty
-    TInteger      -> Set.empty
     TNum _        -> Set.empty
     TChar __      -> Set.empty
-    TInf          -> Set.empty
     TApp _ ts     -> Set.unions (map tnamesT ts)
     TTuple ts     -> Set.unions (map tnamesT ts)
     TRecord fs    -> Set.unions (map (tnamesT . value) fs)

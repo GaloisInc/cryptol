@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Eval
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -37,13 +37,14 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Panic (panic)
-import Cryptol.Utils.PP
+import Cryptol.Utils.PP hiding ((<>))
 
 import           Control.Monad
 import qualified Data.Sequence as Seq
 import           Data.List
 import           Data.Maybe
 import qualified Data.Map.Strict as Map
+import           Data.Semigroup
 
 import Prelude ()
 import Prelude.Compat
@@ -75,27 +76,28 @@ evalExpr env expr = case expr of
     -- NB, even if the list cannot be packed, we must use `VWord`
     -- when the element type is `Bit`.
     | isTBit tyv -> {-# SCC "evalExpr->Elist/bit" #-}
-        return $ VWord len $ return $
+        return $ VWord len $
           case tryFromBits vs of
-            Just w  -> WordVal w
-            Nothing
-              | len < largeBitSize -> BitsVal $ Seq.fromList $ map (fromVBit <$>) vs
-              | otherwise          -> LargeBitsVal len $ IndexSeqMap $ \i -> genericIndex vs i
-    | otherwise -> {-# SCC "evalExpr->EList" #-}
-        return $ VSeq len $ finiteSeqMap vs
+            Just w  -> return $ WordVal w
+            Nothing -> do xs <- mapM (delay Nothing) vs
+                          return $ BitsVal $ Seq.fromList $ map (fromVBit <$>) xs
+    | otherwise -> {-# SCC "evalExpr->EList" #-} do
+        xs <- mapM (delay Nothing) vs
+        return $ VSeq len $ finiteSeqMap xs
    where
     tyv = evalValType (envTypes env) ty
     vs  = map (evalExpr env) es
     len = genericLength es
 
   ETuple es -> {-# SCC "evalExpr->ETuple" #-} do
-     let xs = map eval es
+     xs <- mapM (delay Nothing . eval) es
      return $ VTuple xs
 
   ERec fields -> {-# SCC "evalExpr->ERec" #-} do
-     let xs = [ (f, eval e)
-              | (f,e) <- fields
-              ]
+     xs <- sequence [ do thk <- delay Nothing (eval e)
+                         return (f, thk)
+                    | (f, e) <- fields
+                    ]
      return $ VRecord xs
 
   ESel e sel -> {-# SCC "evalExpr->ESel" #-} do
@@ -327,6 +329,7 @@ etaDelay msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
     case tp of
       TVBit -> x
       TVInteger -> x
+      TVIntMod _ -> x
 
       TVSeq n TVBit ->
           do w <- delayFill (fromWordVal "during eta-expansion" =<< x) (etaWord n x)
@@ -393,7 +396,7 @@ evalDecl :: EvalPrims b w i
          -> Eval (GenEvalEnv b w i)
 evalDecl renv env d =
   case dDefinition d of
-    DPrim   -> bindVarDirect (dName d) (evalPrim d) env
+    DPrim   -> return $ bindVarDirect (dName d) (evalPrim d) env
     DExpr e -> bindVar (dName d) (evalExpr renv e) env
 
 
@@ -417,9 +420,6 @@ evalSel val sel = case sel of
   tupleSel n v =
     case v of
       VTuple vs       -> vs !! n
-      VSeq w vs       -> VSeq w <$> mapSeqMap (tupleSel n) vs
-      VStream vs      -> VStream <$> mapSeqMap (tupleSel n) vs
-      VFun f          -> return $ VFun (\x -> tupleSel n =<< f x)
       _               -> do vdoc <- ppValue defaultPPOpts v
                             evalPanic "Cryptol.Eval.evalSel"
                               [ "Unexpected value in tuple selection"
@@ -428,9 +428,6 @@ evalSel val sel = case sel of
   recordSel n v =
     case v of
       VRecord {}      -> lookupRecord n v
-      VSeq w vs       -> VSeq w <$> mapSeqMap (recordSel n) vs
-      VStream vs      -> VStream <$> mapSeqMap (recordSel n) vs
-      VFun f          -> return $ VFun (\x -> recordSel n =<< f x)
       _               -> do vdoc <- ppValue defaultPPOpts v
                             evalPanic "Cryptol.Eval.evalSel"
                               [ "Unexpected value in record selection"
@@ -462,6 +459,13 @@ data ListEnv b w i = ListEnv
   , leTypes  :: !TypeEnv
   }
 
+instance Semigroup (ListEnv b w i) where
+  l <> r = ListEnv
+    { leVars   = Map.union (leVars  l)  (leVars  r)
+    , leStatic = Map.union (leStatic l) (leStatic r)
+    , leTypes  = Map.union (leTypes l)  (leTypes r)
+    }
+
 instance Monoid (ListEnv b w i) where
   mempty = ListEnv
     { leVars   = Map.empty
@@ -469,11 +473,7 @@ instance Monoid (ListEnv b w i) where
     , leTypes  = Map.empty
     }
 
-  mappend l r = ListEnv
-    { leVars   = Map.union (leVars  l)  (leVars  r)
-    , leStatic = Map.union (leStatic l) (leStatic r)
-    , leTypes  = Map.union (leTypes l)  (leTypes r)
-    }
+  mappend l r = l <> r
 
 toListEnv :: GenEvalEnv b w i -> ListEnv b w i
 toListEnv e =

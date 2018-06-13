@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.ModuleSystem.Name
 -- Copyright   :  (c) 2015-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -48,21 +48,24 @@ module Cryptol.ModuleSystem.Name (
   , lookupPrimType
   ) where
 
-import           Cryptol.Parser.AST( Fixity(..) )
+import           Cryptol.Parser.Fixity
 import           Cryptol.Parser.Position (Range,Located(..),emptyRange)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
+
 
 import           Control.DeepSeq
 import           Control.Monad.Fix (MonadFix(mfix))
 import qualified Data.Map as Map
 import qualified Data.Monoid as M
 import           Data.Ord (comparing)
+import qualified Data.Text as Text
+import           Data.Char(isAlpha,toUpper)
 import           GHC.Generics (Generic)
 import           MonadLib
 import           Prelude ()
-import           Prelude.Compat
+import           Prelude.Compat hiding ((<>))
 
 
 -- Names -----------------------------------------------------------------------
@@ -127,25 +130,41 @@ cmpNameDisplay disp l r =
     (Declared nsl, Declared nsr) ->
       let pfxl = fmtModName nsl (getNameFormat nsl (nameIdent l) disp)
           pfxr = fmtModName nsr (getNameFormat nsr (nameIdent r) disp)
-       in case compare pfxl pfxr of
-            EQ  -> compare (nameIdent l) (nameIdent r)
+       in case cmpText pfxl pfxr of
+            EQ  -> cmpName l r
             cmp -> cmp
 
-    (Parameter,Parameter) ->
-      compare (nameIdent l) (nameIdent r)
+    (Parameter,Parameter) -> cmpName l r
 
     (Declared nsl,Parameter) ->
       let pfxl = fmtModName nsl (getNameFormat nsl (nameIdent l) disp)
-       in case compare pfxl (identText (nameIdent r)) of
+       in case cmpText pfxl (identText (nameIdent r)) of
             EQ  -> GT
             cmp -> cmp
 
     (Parameter,Declared nsr) ->
       let pfxr = fmtModName nsr (getNameFormat nsr (nameIdent r) disp)
-       in case compare (identText (nameIdent l)) pfxr of
+       in case cmpText (identText (nameIdent l)) pfxr of
             EQ  -> LT
             cmp -> cmp
 
+  where
+  cmpName xs ys  = cmpIdent (nameIdent xs) (nameIdent ys)
+  cmpIdent xs ys = cmpText (identText xs) (identText ys)
+
+  -- Note that this assumes that `xs` is `l` and `ys` is `r`
+  cmpText xs ys =
+    case (Text.null xs, Text.null ys) of
+      (True,True)   -> EQ
+      (True,False)  -> LT
+      (False,True)  -> GT
+      (False,False) -> compare (cmp (fx l) xs) (cmp (fx r) ys)
+        where
+        fx a = fLevel <$> nameFixity a
+        cmp a cs = (ordC (Text.index cs 0), a, cs)
+        ordC a | isAlpha a  = fromEnum (toUpper a)
+               | a == '_'   = 1
+               | otherwise  = 0
 
 -- | Figure out how the name should be displayed, by referencing the display
 -- function in the environment. NOTE: this function doesn't take into account

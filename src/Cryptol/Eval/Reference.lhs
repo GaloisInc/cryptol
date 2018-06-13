@@ -1,5 +1,5 @@
 > -- |
-> -- Module      :  $Header$
+> -- Module      :  Cryptol.Eval.Reference
 > -- Description :  The reference implementation of the Cryptol evaluation semantics.
 > -- Copyright   :  (c) 2013-2016 Galois, Inc.
 > -- License     :  BSD3
@@ -23,17 +23,18 @@
 > import Data.Ord (comparing)
 > import Data.Map (Map)
 > import qualified Data.Map as Map
+> import Data.Semigroup
 > import qualified Data.Text as T (pack)
 >
 > import Cryptol.ModuleSystem.Name (asPrim)
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 > import Cryptol.TypeCheck.AST
-> import Cryptol.Eval.Monad (EvalError(..))
+> import Cryptol.Eval.Monad (EvalError(..), PPOpts)
 > import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType, tvSeq)
-> import Cryptol.Prims.Eval (lg2, divModPoly)
+> import Cryptol.Prims.Eval (lg2)
 > import Cryptol.Utils.Ident (Ident, mkIdent)
 > import Cryptol.Utils.Panic (panic)
-> import Cryptol.Utils.PP
+> import Cryptol.Utils.PP hiding ((<>))
 >
 > import qualified Cryptol.ModuleSystem as M
 > import qualified Cryptol.ModuleSystem.Env as M (loadedModules)
@@ -168,6 +169,7 @@ cpo that represents any given schema.
 >       case ty of
 >         TVBit        -> VBit (fromVBit val)
 >         TVInteger    -> VInteger (fromVInteger val)
+>         TVIntMod _   -> VInteger (fromVInteger val)
 >         TVSeq w ety  -> VList (map (go ety) (copyList w (fromVList val)))
 >         TVStream ety -> VList (map (go ety) (copyStream (fromVList val)))
 >         TVTuple etys -> VTuple (zipWith go etys (copyList (genericLength etys) (fromVTuple val)))
@@ -250,15 +252,18 @@ and type variables that are in scope at any point.
 >   , envTypes      :: !(Map TVar (Either Nat' TValue))
 >   }
 >
+> instance Semigroup Env where
+>   l <> r = Env
+>     { envVars  = Map.union (envVars  l) (envVars  r)
+>     , envTypes = Map.union (envTypes l) (envTypes r)
+>     }
+>
 > instance Monoid Env where
 >   mempty = Env
 >     { envVars  = Map.empty
 >     , envTypes = Map.empty
 >     }
->   mappend l r = Env
->     { envVars  = Map.union (envVars  l) (envVars  r)
->     , envTypes = Map.union (envTypes l) (envTypes r)
->     }
+>   mappend l r = l <> r
 >
 > -- | Bind a variable in the evaluation environment.
 > bindVar :: (Name, Value) -> Env -> Env
@@ -321,9 +326,7 @@ assigns values to those variables.
 Selectors
 ---------
 
-Apply the the given selector form to the given value. This function
-pushes tuple and record selections pointwise down into sequences and
-functions.
+Apply the the given selector form to the given value.
 
 > evalSel :: Value -> Selector -> Value
 > evalSel val sel =
@@ -335,15 +338,11 @@ functions.
 >     tupleSel n v =
 >       case v of
 >         VTuple vs   -> vs !! n
->         VList vs    -> VList (map (tupleSel n) vs)
->         VFun f      -> VFun (\x -> tupleSel n (f x))
 >         _           -> evalPanic "evalSel"
 >                        ["Unexpected value in tuple selection."]
 >     recordSel n v =
 >       case v of
 >         VRecord _   -> lookupRecord n v
->         VList vs    -> VList (map (recordSel n) vs)
->         VFun f      -> VFun (\x -> recordSel n (f x))
 >         _           -> evalPanic "evalSel"
 >                        ["Unexpected value in record selection."]
 >     listSel n v =
@@ -548,6 +547,7 @@ Cryptol primitives fall into several groups:
 >   , (">="         , binary (cmpOrder (\o -> o /= LT)))
 >   , ("=="         , binary (cmpOrder (\o -> o == EQ)))
 >   , ("!="         , binary (cmpOrder (\o -> o /= EQ)))
+>   , ("<$"         , binary signedLessThan)
 >
 >   -- Sequences:
 >   , ("#"          , VNumPoly $ \_front ->
@@ -595,6 +595,7 @@ Cryptol primitives fall into several groups:
 >   , (">>"         , shiftV shiftRV)
 >   , ("<<<"        , rotateV rotateLV)
 >   , (">>>"        , rotateV rotateRV)
+>   , (">>$"        , signedShiftRV)
 >
 >   -- Indexing:
 >   , ("@"          , indexPrimOne  indexFront)
@@ -640,51 +641,6 @@ Cryptol primitives fall into several groups:
 >                         case fromVWord next of
 >                           Left e -> VList (repeat (vWordError bits e))
 >                           Right j -> VList (map (vWordValue bits) [i, j ..]))
->
->   -- Polynomials:
->   , ("pmult"      , let mul res _  _  0 = res
->                         mul res bs as n = mul (if even as then res else xor res bs)
->                                           (bs `shiftL` 1) (as `shiftR` 1) (n-1)
->                     in vFinPoly $ \a ->
->                        vFinPoly $ \b ->
->                        VFun $ \x ->
->                        VFun $ \y ->
->                        vWord (1 + a + b) $
->                        case fromVWord x of
->                          Left e -> Left e
->                          Right i ->
->                            case fromVWord y of
->                              Left e -> Left e
->                              Right j -> Right (mul 0 i j (1+b)))
->   , ("pdiv"       , vFinPoly $ \a ->
->                     vFinPoly $ \b ->
->                     VFun $ \x ->
->                     VFun $ \y ->
->                     vWord a $
->                     case fromVWord x of
->                       Left e -> Left e
->                       Right i ->
->                         case fromVWord y of
->                           Left e -> Left e
->                           Right j
->                             | j == 0 -> Left DivideByZero
->                             | otherwise ->
->                               Right (fst (divModPoly i (fromInteger a) j (fromInteger b))))
->
->   , ("pmod"       , vFinPoly $ \a ->
->                     vFinPoly $ \b ->
->                     VFun $ \x ->
->                     VFun $ \y ->
->                     vWord b $
->                     case fromVWord x of
->                       Left e -> Left e
->                       Right i ->
->                         case fromVWord y of
->                           Left e -> Left e
->                           Right j
->                             | j == 0 -> Left DivideByZero
->                             | otherwise ->
->                               Right (snd (divModPoly i (fromInteger a) j (fromInteger b + 1))))
 >
 >   -- Miscellaneous:
 >   , ("error"      , VPoly $ \a ->
@@ -761,7 +717,6 @@ output bitvector will contain the exception in all bit positions.
 > vWord w e = VList [ VBit (fmap (test i) e) | i <- [w-1, w-2 .. 0] ]
 >   where test i x = testBit x (fromInteger i)
 
-
 Logic
 -----
 
@@ -777,6 +732,7 @@ at the same positions.
 >   where
 >     go TVBit          = VBit b
 >     go TVInteger      = VInteger (fmap (\c -> if c then -1 else 0) b)
+>     go (TVIntMod _)   = VInteger (fmap (const 0) b)
 >     go (TVSeq n ety)  = VList (genericReplicate n (go ety))
 >     go (TVStream ety) = VList (repeat (go ety))
 >     go (TVTuple tys)  = VTuple (map go tys)
@@ -791,6 +747,7 @@ at the same positions.
 >       case ty of
 >         TVBit        -> VBit (fmap op (fromVBit val))
 >         TVInteger    -> evalPanic "logicUnary" ["Integer not in class Logic"]
+>         TVIntMod _   -> evalPanic "logicUnary" ["Z not in class Logic"]
 >         TVSeq _w ety -> VList (map (go ety) (fromVList val))
 >         TVStream ety -> VList (map (go ety) (fromVList val))
 >         TVTuple etys -> VTuple (zipWith go etys (fromVTuple val))
@@ -805,6 +762,7 @@ at the same positions.
 >       case ty of
 >         TVBit        -> VBit (liftA2 op (fromVBit l) (fromVBit r))
 >         TVInteger    -> evalPanic "logicBinary" ["Integer not in class Logic"]
+>         TVIntMod _   -> evalPanic "logicBinary" ["Z not in class Logic"]
 >         TVSeq _w ety -> VList (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVStream ety -> VList (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVTuple etys -> VTuple (zipWith3 go etys (fromVTuple l) (fromVTuple r))
@@ -836,6 +794,8 @@ up of non-empty finite bitvectors.
 >           evalPanic "arithUnary" ["Bit not in class Arith"]
 >         TVInteger ->
 >           VInteger (op <$> fromVInteger val)
+>         TVIntMod n ->
+>           VInteger (flip mod n <$> op <$> fromVInteger val)
 >         TVSeq w a
 >           | isTBit a  -> vWord w (op <$> fromVWord val)
 >           | otherwise -> VList (map (go a) (fromVList val))
@@ -874,6 +834,14 @@ up of non-empty finite bitvectors.
 >               case fromVInteger r of
 >                 Left e -> Left e
 >                 Right j -> op i j
+>         TVIntMod n ->
+>           VInteger $
+>           case fromVInteger l of
+>             Left e -> Left e
+>             Right i ->
+>               case fromVInteger r of
+>                 Left e -> Left e
+>                 Right j -> flip mod n <$> op i j
 >         TVSeq w a
 >           | isTBit a  -> vWord w $
 >                          case fromWord l of
@@ -935,6 +903,8 @@ bits to the *left* of that position are equal.
 >       compare <$> fromVBit l <*> fromVBit r
 >     TVInteger ->
 >       compare <$> fromVInteger l <*> fromVInteger r
+>     TVIntMod _ ->
+>       compare <$> fromVInteger l <*> fromVInteger r
 >     TVSeq _w ety ->
 >       lexList (zipWith (lexCompare ety) (fromVList l) (fromVList r))
 >     TVStream _ ->
@@ -957,6 +927,46 @@ bits to the *left* of that position are equal.
 >     Right LT -> Right LT
 >     Right EQ -> lexList es
 >     Right GT -> Right GT
+
+Signed comparisons may be applied to any type made up of non-empty
+bitvectors. All such types are compared using a lexicographic
+ordering: Lists and tuples are compared left-to-right, and record
+fields are compared in alphabetical order.
+
+> signedLessThan :: TValue -> Value -> Value -> Value
+> signedLessThan ty l r = VBit (fmap (== LT) (lexSignedCompare ty l r))
+>
+> -- | Lexicographic ordering on two signed values.
+> lexSignedCompare :: TValue -> Value -> Value -> Either EvalError Ordering
+> lexSignedCompare ty l r =
+>   case ty of
+>     TVBit ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVInteger ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVIntMod _ ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVSeq _w ety
+>       | isTBit ety ->
+>         case fromSignedVWord l of
+>           Left e -> Left e
+>           Right i ->
+>             case fromSignedVWord r of
+>               Left e -> Left e
+>               Right j -> Right (compare i j)
+>       | otherwise ->
+>         lexList (zipWith (lexSignedCompare ety) (fromVList l) (fromVList r))
+>     TVStream _ ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVFun _ _ ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVTuple etys ->
+>       lexList (zipWith3 lexSignedCompare etys (fromVTuple l) (fromVTuple r))
+>     TVRec fields ->
+>       let tys    = map snd (sortBy (comparing fst) fields)
+>           ls     = map snd (sortBy (comparing fst) (fromVRecord l))
+>           rs     = map snd (sortBy (comparing fst) (fromVRecord r))
+>        in lexList (zipWith3 lexSignedCompare tys ls rs)
 
 
 Sequences
@@ -1042,6 +1052,22 @@ amount, but as lazy as possible in the list values.
 > rotateRV 0 vs _ = vs
 > rotateRV w vs i = ys ++ xs
 >   where (xs, ys) = genericSplitAt ((w - i) `mod` w) vs
+>
+> signedShiftRV :: Value
+> signedShiftRV =
+>   VNumPoly $ \a ->
+>   VNumPoly $ \_b ->
+>   VFun $ \v ->
+>   VFun $ \x ->
+>   copyByTValue (tvSeq a TVBit) $
+>   case fromVWord x of
+>     Left e -> logicNullary (Left e) (tvSeq a TVBit)
+>     Right i -> VList $
+>       let vs = fromVList v
+>           z = head vs in
+>       case a of
+>         Nat n -> genericReplicate (min n i) z ++ genericTake (n - min n i) vs
+>         Inf   -> genericReplicate i z ++ vs
 
 
 Indexing
@@ -1134,15 +1160,15 @@ a bug in Cryptol.
 Pretty Printing
 ---------------
 
-> ppValue :: Value -> Doc
-> ppValue val =
+> ppValue :: PPOpts -> Value -> Doc
+> ppValue opts val =
 >   case val of
 >     VBit b     -> text (either show show b)
 >     VInteger i -> text (either show show i)
->     VList vs   -> brackets (fsep (punctuate comma (map ppValue vs)))
->     VTuple vs  -> parens (sep (punctuate comma (map ppValue vs)))
+>     VList vs   -> brackets (fsep (punctuate comma (map (ppValue opts) vs)))
+>     VTuple vs  -> parens (sep (punctuate comma (map (ppValue opts) vs)))
 >     VRecord fs -> braces (sep (punctuate comma (map ppField fs)))
->       where ppField (f,r) = pp f <+> char '=' <+> ppValue r
+>       where ppField (f,r) = pp f <+> char '=' <+> ppValue opts r
 >     VFun _     -> text "<function>"
 >     VPoly _    -> text "<polymorphic value>"
 >     VNumPoly _ -> text "<polymorphic value>"

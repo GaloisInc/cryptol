@@ -7,6 +7,7 @@ dist
 results.xml
 dist-newstyle
 .stack-work
+.ghc.environment.x86_64-darwin-8.2.2
 
 # don't check in generated documentation
 #docs/CryptolPrims.pdf

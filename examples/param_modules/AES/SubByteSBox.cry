@@ -1,0 +1,11 @@
+module AES::SubByteSBox where
+
+import AES::GF28
+import AES::SBox
+
+SubByte : GF28 -> GF28
+SubByte b = sbox @ b
+
+InvSubByte : GF28 -> GF28
+InvSubByte b = sboxInv @ b
+

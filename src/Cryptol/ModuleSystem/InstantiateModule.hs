@@ -43,9 +43,13 @@ instantiateModule func newName tpMap vpMap =
 
        env <- computeEnv func tpMap vpNames
 
-       let renamedExports  = inst env (mExports func)
-           renamedTySyns   = fmap (inst env) (mTySyns func)
-           renamedNewtypes = fmap (inst env) (mNewtypes func)
+       let rnMp :: Inst a => (a -> Name) -> Map Name a -> Map Name a
+           rnMp f m = Map.fromList [ (f x, x) | a <- Map.elems m
+                                              , let x = inst env a ]
+
+           renamedExports  = inst env (mExports func)
+           renamedTySyns   = rnMp tsName (mTySyns func)
+           renamedNewtypes = rnMp ntName (mNewtypes func)
 
            su = listSubst
                   [ (TVBound tp, t) | (tp,t) <- Map.toList (tyParamMap env) ]
@@ -256,7 +260,7 @@ instance Inst (ExportSpec Name) where
           instV x = Map.findWithDefault x x (funNameMap env)
 
 instance Inst TySyn where
-  inst env ts = TySyn { tsName = Map.findWithDefault x x (tyNameMap env)
+  inst env ts = TySyn { tsName = instTyName env x
                       , tsParams = tsParams ts
                       , tsConstraints = inst env (tsConstraints ts)
                       , tsDef = inst env (tsDef ts)
@@ -265,7 +269,7 @@ instance Inst TySyn where
     where x = tsName ts
 
 instance Inst Newtype where
-  inst env nt = Newtype { ntName = Map.findWithDefault x x (tyNameMap env)
+  inst env nt = Newtype { ntName = instTyName env x
                         , ntParams = ntParams nt
                         , ntConstraints = inst env (ntConstraints nt)
                         , ntFields = [ (f,inst env t) | (f,t) <- ntFields nt ]
@@ -273,7 +277,8 @@ instance Inst Newtype where
                         }
     where x = ntName nt
 
-
+instTyName :: Env -> Name -> Name
+instTyName env x = Map.findWithDefault x x (tyNameMap env)
 
 
 

@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.TypeCheck
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -28,6 +28,7 @@ import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position(Range,emptyRange)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Depends (FromDecl)
+import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Monad
                    ( runInferM
                    , InferInput(..)
@@ -37,12 +38,14 @@ import           Cryptol.TypeCheck.Monad
                    , lookupVar
                    )
 import           Cryptol.TypeCheck.Infer (inferModule, inferBinds, inferDs)
-import           Cryptol.TypeCheck.InferTypes(Error(..),Warning(..),VarType(..), SolverConfig(..))
-import           Cryptol.TypeCheck.Solve(simplifyAllConstraints)
+import           Cryptol.TypeCheck.InferTypes(VarType(..), SolverConfig(..))
+import           Cryptol.TypeCheck.Solve(simplifyAllConstraints,proveModuleTopLevel)
 import           Cryptol.TypeCheck.CheckModuleInstance(checkModuleInstance)
+import           Cryptol.TypeCheck.Monad(withParamType,withParameterConstraints)
 import           Cryptol.Utils.Ident (exprModName,packIdent)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
+import           Prelude hiding ((<>))
 
 tcModule :: P.Module Name -> InferInput -> IO (InferOutput Module)
 tcModule m inp = runInferM inp
@@ -59,7 +62,10 @@ tcModuleInst :: Module                  {- ^ functor -} ->
 tcModuleInst func m inp = runInferM inp
                         $ do x <- inferModule m
                              y <- checkModuleInstance func x
-                             simplifyAllConstraints
+                             flip (foldr withParamType) (mParamTypes x) $
+                               withParameterConstraints (mParamConstraints x) $
+                               proveModuleTopLevel
+
                              return y
 
 tcExpr :: P.Expr Name -> InferInput -> IO (InferOutput (Expr,Schema))

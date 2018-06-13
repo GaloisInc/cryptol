@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Parser.ParserUtils
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -23,7 +23,7 @@ import Cryptol.Utils.Ident(packModName)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
-import Data.Maybe(listToMaybe,fromMaybe)
+import Data.Maybe(fromMaybe)
 import Data.Bits(testBit,setBit)
 import Control.Monad(liftM,ap,unless)
 import           Data.Text(Text)
@@ -34,68 +34,99 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Prelude ()
-import Prelude.Compat
+import Prelude.Compat hiding ((<>))
 
 parseString :: Config -> ParseM a -> String -> Either ParseError a
 parseString cfg p cs = parse cfg p (T.pack cs)
 
 parse :: Config -> ParseM a -> Text -> Either ParseError a
-parse cfg p cs    = case unP p cfg eofPos (S toks) of
+parse cfg p cs    = case unP p cfg eofPos S { sPrevTok = Nothing
+                                            , sTokens = toks
+                                            , sNextTyParamNum = 0
+                                            } of
                       Left err    -> Left err
                       Right (a,_) -> Right a
   where (toks,eofPos) = lexer cfg cs
 
 
 {- The parser is parameterized by the pozition of the final token. -}
-data ParseM a   = P { unP :: Config -> Position -> S -> Either ParseError (a,S) }
+newtype ParseM a =
+  P { unP :: Config -> Position -> S -> Either ParseError (a,S) }
 
 
 lexerP :: (Located Token -> ParseM a) -> ParseM a
-lexerP k = P $ \cfg p (S ts) ->
-  case ts of
+lexerP k = P $ \cfg p s ->
+  case sTokens s of
     t : _ | Err e <- tokenType it ->
       Left $ HappyErrorMsg (srcRange t) $
          case e of
            UnterminatedComment -> "unterminated comment"
            UnterminatedString  -> "unterminated string"
            UnterminatedChar    -> "unterminated character"
-           InvalidString       -> "invalid string literal: " ++ T.unpack (tokenText it)
-           InvalidChar         -> "invalid character literal: " ++ T.unpack (tokenText it)
-           LexicalError        -> "unrecognized character: " ++ T.unpack (tokenText it)
+           InvalidString       -> "invalid string literal:" ++
+                                    T.unpack (tokenText it)
+           InvalidChar         -> "invalid character literal:" ++
+                                    T.unpack (tokenText it)
+           LexicalError        -> "unrecognized character:" ++
+                                    T.unpack (tokenText it)
       where it = thing t
 
-    t : more -> unP (k t) cfg p (S more)
-    []       -> Left (HappyError (cfgSource cfg) p Nothing)
+    t : more -> unP (k t) cfg p s { sPrevTok = Just t, sTokens = more }
+    [] -> Left (HappyOutOfTokens (cfgSource cfg) p)
 
-data ParseError = HappyError FilePath Position (Maybe Token)
+data ParseError = HappyError FilePath         {- Name of source file -}
+                             (Located Token)  {- Offending token -}
                 | HappyErrorMsg Range String
+                | HappyUnexpected FilePath (Maybe (Located Token)) String
+                | HappyOutOfTokens FilePath Position
                   deriving (Show, Generic, NFData)
 
-newtype S = S [Located Token]
-
-instance PP ParseError where
-  ppPrec _ (HappyError _ _ tok) = case tok of
-                                  Nothing -> text "end of input"
-                                  Just t  -> pp t
-  ppPrec _ (HappyErrorMsg _ x) = text x
+data S = S { sPrevTok :: Maybe (Located Token)
+           , sTokens :: [Located Token]
+           , sNextTyParamNum :: !Int
+             -- ^ Keep track of the type parameters as they appear in the input
+           }
 
 ppError :: ParseError -> Doc
-ppError (HappyError path pos (Just tok))
-  | Err _ <- tokenType tok = text "Parse error at" <+>
-                              text path <> char ':' <> pp pos <> comma <+>
-                              pp tok
-ppError e@(HappyError path pos _) =
-                               text "Parse error at" <+>
-                               text path <> char ':' <> pp pos <> comma <+>
-                               text "unexpected" <+> pp e
+
+ppError (HappyError path ltok)
+  | Err _ <- tokenType tok =
+    text "Parse error at" <+>
+    text path <> char ':' <> pp pos <> comma <+>
+    pp tok
+
+  | White DocStr <- tokenType tok =
+    "Unexpected documentation (/**) comment at" <+>
+    text path <> char ':' <> pp pos <> colon $$
+    nest 2
+      "Documentation comments need to be followed by something to document."
+
+  | otherwise =
+    text "Parse error at" <+>
+    text path <> char ':' <> pp pos <> comma $$
+    nest 2 (text "unexpected:" <+> pp tok)
+  where
+  pos = from (srcRange ltok)
+  tok = thing ltok
+
+ppError (HappyOutOfTokens path pos) =
+  text "Unexpected end of file at:" <+>
+    text path <> char ':' <> pp pos
+
 ppError (HappyErrorMsg p x)  = text "Parse error at" <+> pp p $$ nest 2 (text x)
 
-instance Monad ParseM where
-  return a  = P (\_ _ s -> Right (a,s))
-  fail s    = panic "[Parser] fail" [s]
-  m >>= k   = P (\cfg p s1 -> case unP m cfg p s1 of
-                            Left e       -> Left e
-                            Right (a,s2) -> unP (k a) cfg p s2)
+ppError (HappyUnexpected path ltok e) =
+  text "Parse error at" <+>
+   text path <> char ':' <> pp pos <> comma $$
+   nest 2 unexp $$
+   nest 2 ("expected:" <+> text e)
+  where
+  (unexp,pos) =
+    case ltok of
+      Nothing -> (empty,start)
+      Just t  -> ( "unexpected:" <+> text (T.unpack (tokenText (thing t)))
+                 , from (srcRange t)
+                 )
 
 instance Functor ParseM where
   fmap = liftM
@@ -104,17 +135,37 @@ instance Applicative ParseM where
   pure  = return
   (<*>) = ap
 
+instance Monad ParseM where
+  return a  = P (\_ _ s -> Right (a,s))
+  fail s    = panic "[Parser] fail" [s]
+  m >>= k   = P (\cfg p s1 -> case unP m cfg p s1 of
+                            Left e       -> Left e
+                            Right (a,s2) -> unP (k a) cfg p s2)
+
 happyError :: ParseM a
-happyError = P $ \cfg p (S ls) ->
-  Left $ case listToMaybe ls of
-           Nothing -> HappyError (cfgSource cfg) p Nothing
-           Just l  -> HappyError (cfgSource cfg) (from (srcRange l)) (Just (thing l))
+happyError = P $ \cfg _ s ->
+  case sPrevTok s of
+    Just t  -> Left (HappyError (cfgSource cfg) t)
+    Nothing ->
+      Left (HappyErrorMsg emptyRange "Parse error at the beginning of the file")
 
 errorMessage :: Range -> String -> ParseM a
 errorMessage r x = P $ \_ _ _ -> Left (HappyErrorMsg r x)
 
 customError :: String -> Located Token -> ParseM a
 customError x t = P $ \_ _ _ -> Left (HappyErrorMsg (srcRange t) x)
+
+expected :: String -> ParseM a
+expected x = P $ \cfg _ s ->
+                    Left (HappyUnexpected (cfgSource cfg) (sPrevTok s) x)
+
+
+
+
+
+
+
+
 
 mkModName :: [Text] -> ModName
 mkModName = packModName
@@ -184,10 +235,8 @@ validDemotedType rng ty =
     TFun {}      -> bad "Function types"
     TSeq {}      -> bad "Sequence types"
     TBit         -> bad "Type bit"
-    TInteger     -> bad "Type integer"
     TNum {}      -> ok
     TChar {}     -> ok
-    TInf         -> bad "Infinity type"
     TWild        -> bad "Wildcard types"
     TUser {}     -> ok
     TApp {}      -> ok
@@ -286,13 +335,17 @@ mkParFun mbDoc n s = DParameterFun ParameterFun { pfName = n
 mkParType :: Maybe (Located String) ->
              Located PName ->
              Located Kind ->
-             TopDecl PName
-mkParType mbDoc n k = DParameterType
-                      ParameterType { ptName    = n
-                                    , ptKind    = thing k
-                                    , ptDoc     = thing <$> mbDoc
-                                    , ptFixity  = Nothing
-                                    }
+             ParseM (TopDecl PName)
+mkParType mbDoc n k =
+  do num <- P $ \_ _ s -> let nu = sNextTyParamNum s
+                          in Right (nu, s { sNextTyParamNum = nu + 1 })
+     return (DParameterType
+             ParameterType { ptName    = n
+                           , ptKind    = thing k
+                           , ptDoc     = thing <$> mbDoc
+                           , ptFixity  = Nothing
+                           , ptNumber  = num
+                           })
 
 changeExport :: ExportType -> [TopDecl PName] -> [TopDecl PName]
 changeExport e = map change
@@ -460,10 +513,8 @@ mkProp ty =
       TFun{}    -> err
       TSeq{}    -> err
       TBit{}    -> err
-      TInteger  -> err
       TNum{}    -> err
       TChar{}   -> err
-      TInf{}    -> err
       TWild     -> err
       TRecord{} -> err
 

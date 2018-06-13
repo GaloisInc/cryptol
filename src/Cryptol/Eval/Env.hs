@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Eval.Env
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -20,10 +20,11 @@ import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat
-import Cryptol.Utils.PP
+import Cryptol.Utils.PP hiding ((<>))
 
 
 import qualified Data.Map.Strict as Map
+import Data.Semigroup
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -38,16 +39,19 @@ data GenEvalEnv b w i = EvalEnv
   , envTypes      :: !TypeEnv
   } deriving (Generic, NFData)
 
+instance Semigroup (GenEvalEnv b w i) where
+  l <> r = EvalEnv
+    { envVars     = Map.union (envVars     l) (envVars     r)
+    , envTypes    = Map.union (envTypes    l) (envTypes    r)
+    }
+
 instance Monoid (GenEvalEnv b w i) where
   mempty = EvalEnv
     { envVars       = Map.empty
     , envTypes      = Map.empty
     }
 
-  mappend l r = EvalEnv
-    { envVars     = Map.union (envVars     l) (envVars     r)
-    , envTypes    = Map.union (envTypes    l) (envTypes    r)
-    }
+  mappend l r = l <> r
 
 ppEnv :: BitWord b w i => PPOpts -> GenEvalEnv b w i -> Eval Doc
 ppEnv opts env = brackets . fsep <$> mapM bind (Map.toList (envVars env))
@@ -74,9 +78,9 @@ bindVar n val env = do
 bindVarDirect :: Name
               -> GenValue b w i
               -> GenEvalEnv b w i
-              -> Eval (GenEvalEnv b w i)
+              -> GenEvalEnv b w i
 bindVarDirect n val env = do
-  return $ env{ envVars = Map.insert n (ready val) (envVars env) }
+  env{ envVars = Map.insert n (ready val) (envVars env) }
 
 -- | Lookup a variable in the environment.
 {-# INLINE lookupVar #-}

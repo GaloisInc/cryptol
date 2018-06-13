@@ -1,0 +1,55 @@
+// Cryptol AES Implementation
+// Copyright (c) 2010-2013, Galois Inc.
+// www.cryptol.net
+// You can freely use this source code for educational purposes.
+
+// This is a fairly close implementation of the FIPS-197 standard:
+//   http://csrc.nist.gov/publications/fips/fips197/fips-197.pdf
+
+module AES::Algorithm where
+
+import AES::State (State, RoundKey, msgToState, stateToMsg)
+import AES::Round (AESFinalRound, AESFinalInvRound)
+
+parameter
+  /** 0: AES128, 1: AES192, 2: AES256 */
+  type Mode : #
+
+  type constraint (2 >= Mode)
+
+  encRound     : RoundKey -> State -> State
+  decRound     : RoundKey -> State -> State
+
+
+/** Number of 32 bit words in the key */
+type Nk = 4 + 2 * Mode
+
+/** Number of rounds */
+type Nr = 6 + Nk
+
+/** Key size in bits */
+type AESKeySize  = 32 * Nk
+
+/** The keys for all the rounds */
+type KeySchedule = (RoundKey, [Nr-1]RoundKey, RoundKey)
+
+/** AES Encryption with an expanded key.
+This is useful if many things will be encrypted with the same key. */
+encrypt : KeySchedule -> [128] -> [128]
+encrypt (kInit,ks,kFinal) pt =
+                            stateToMsg (AESFinalRound kFinal (rounds ! 0))
+  where
+  state0 = kInit ^ msgToState pt
+  rounds = [state0] # [ encRound rk s | rk <- ks | s <- rounds ]
+
+/** AES decryption with an expanded key.
+This is useful if many things will be decrypted with the same key. */
+decrypt : KeySchedule -> [128] -> [128]
+decrypt (kInit, ks, kFinal) ct =
+                          stateToMsg (AESFinalInvRound kFinal (rounds ! 0))
+  where
+  state0 = kInit ^ msgToState ct
+  rounds = [state0] # [ decRound rk s | rk <- ks | s <- rounds ]
+
+
+

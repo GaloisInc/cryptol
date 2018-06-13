@@ -792,6 +792,34 @@ The {\tt :prove} command will find the counterexample almost
 instantaneously, while {\tt :check} will have a hard time!
 \end{Answer}
 
+\paragraph*{Exhaustive testing}
+The \texttt{:exhaust} command is a variant of \texttt{:check} that
+always uses exhaustive testing: It tests the property on every
+possible combination of inputs. The number of tests run by
+\texttt{:check} is limited to the value of \texttt{:set tests}, but
+\texttt{:exhaust} may run a much larger number. If the argument types
+are not sufficiently small, \texttt{:exhaust} may run for longer than
+you are willing to wait!
+
+\begin{Exercise}\label{ex:quick:3}
+  Try the following command to check a conjecture about arithmetic.
+  \begin{Verbatim}
+  :check \(x:[16]) -> (x + 6) / 3 == x / 3 + 2
+  \end{Verbatim}
+  What is the result? Does the response give you much confidence in
+  the property? Now try checking the same predicate using
+  \texttt{:exhaust}. Does the property hold in general?
+\end{Exercise}
+\begin{Answer}\ansref{ex:quick:3}
+  The predicate passes 100 tests, with a test coverage of 0.15\%.
+\begin{Verbatim}
+  Cryptol> :exhaust \(x:[16]) -> (x + 6) / 3 == x / 3 + 2
+  Using exhaustive testing.
+  (\(x : [16]) -> (x + 6) / 3 == x / 3 + 2) 0xfffa = False
+\end{Verbatim}
+  The property does not hold in general.
+\end{Answer}
+
 \paragraph*{Bulk operations} If you use {\tt :check}\indCmdCheck and
 {\tt :prove}\indCmdProve commands without any arguments, Cryptol will
 check and prove all the properties defined in your program. This is a

@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.TypeCheck.Instantiate
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -12,6 +12,7 @@ import Cryptol.ModuleSystem.Name (nameIdent)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Monad
 import Cryptol.TypeCheck.Subst (listSubst,apSubst)
+import Cryptol.TypeCheck.Error
 import Cryptol.Parser.Position (Located(..))
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
@@ -20,7 +21,6 @@ import Data.Function (on)
 import Data.List(sortBy, groupBy, find)
 import Data.Maybe(mapMaybe,isJust)
 import Data.Either(partitionEithers)
-import MonadLib
 
 
 instantiateWith :: Expr -> Schema -> [Located (Maybe Ident,Type)]
@@ -61,10 +61,8 @@ instantiateWithPos e (Forall as ps t) ts =
   makeSu _ su [] _        = do recordError TooManyPositionalTypeParams
                                return (reverse su)
 
-  unnamed n q = do r <- curRange
-                   let src = ordinal n <+> text "type parameter"
+  unnamed n q = do let src = ordinal n <+> text "type parameter"
                            $$ text "of" <+> ppUse e
-                           $$ text "at" <+> pp r
                    ty <- newType src (kindOf q)
                    return (tpVar q, ty)
 
@@ -85,7 +83,7 @@ instantiateWithNames :: Expr -> Schema -> [Located (Ident,Type)]
                      -> InferM (Expr,Type)
 instantiateWithNames e (Forall as ps t) xs =
   do sequence_ repeatedParams
-     sequence_ undefParams
+     mapM_ (recordError . UndefinedTypeParameter . fmap fst) undefParams
      su' <- mapM paramInst as
      doInst su' e ps t
   where
@@ -97,21 +95,19 @@ instantiateWithNames e (Forall as ps t) xs =
            -- We just use nameIdent for comparison here, as all parameter names
            -- should have a NameInfo of Parameter.
            lkp name = find (\th -> fst (thing th) == nameIdent name) xs
-           src r = text "type parameter" <+> (case tpName x of
-                                               Just n -> quotes (pp n)
-                                               Nothing -> empty)
+           src = text "type parameter" <+> (case tpName x of
+                                              Just n -> quotes (pp n)
+                                              Nothing -> empty)
                                         $$ text "of" <+> ppUse e
-                                        $$ text "at" <+> pp r
        ty <- case lkp =<< tpName x of
                Just lty
                  | k1 == k   -> return ty
-                 | otherwise -> do let r = srcRange lty
-                                   inRange r $ recordError (KindMismatch k k1)
-                                   newType (src r) k
+                 | otherwise -> inRange (srcRange lty) $
+                                  do recordError (KindMismatch k k1)
+                                     newType src k
                   where ty = snd (thing lty)
                         k1 = kindOf ty
-               Nothing -> do r <- curRange
-                             newType (src r) k
+               Nothing -> newType src k
        return (v,ty)
 
   -- Errors from multiple values for the same parameter.
@@ -119,21 +115,15 @@ instantiateWithNames e (Forall as ps t) xs =
                   $ groupBy ((==) `on` pName)
                   $ sortBy (compare `on` pName) xs
 
-  isRepeated ys@(a : _ : _)  = Just $ recordError
-                                    $ MultipleTypeParamDefs (fst (thing a))
-                                                            (map srcRange ys)
-  isRepeated _               = Nothing
+  isRepeated ys@(a : _ : _)  =
+    Just $ recordError (RepeatedTypeParameter (fst (thing a)) (map srcRange ys))
+  isRepeated _ = Nothing
 
 
   paramIdents = [ nameIdent n | Just n <- map tpName as ]
 
   -- Errors from parameters that are defined, but do not exist in the schema.
-  undefParams     = do x <- xs
-                       let name = pName x
-                       guard (name `notElem` paramIdents)
-                       return $ inRange (srcRange x)
-                              $ recordError
-                              $ UndefinedTypeParam x { thing = name }
+  undefParams     = [ x | x <- xs, pName x `notElem` paramIdents ]
 
   pName = fst . thing
 

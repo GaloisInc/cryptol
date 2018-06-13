@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Parser.AST
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -71,12 +71,13 @@ module Cryptol.Parser.AST
   , cppKind, ppSelector
   ) where
 
+import Cryptol.Parser.Fixity
 import Cryptol.Parser.Name
 import Cryptol.Parser.Position
-import Cryptol.Prims.Syntax (TFun(..))
+import Cryptol.Parser.Selector
+import Cryptol.TypeCheck.Type (TCon(..), TC(..))
 import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
-import Cryptol.Utils.Panic (panic)
 
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
@@ -88,7 +89,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Prelude ()
-import Prelude.Compat
+import Prelude.Compat hiding ((<>))
 
 -- AST -------------------------------------------------------------------------
 
@@ -151,6 +152,7 @@ data ParameterType name = ParameterType
   , ptKind    :: Kind             -- ^ kind of parameter
   , ptDoc     :: Maybe String     -- ^ optional documentation
   , ptFixity  :: Maybe Fixity     -- ^ info for infix use
+  , ptNumber  :: !Int             -- ^ number of the parameter
   } deriving (Eq,Show,Generic,NFData)
 
 -- | A value parameter
@@ -195,45 +197,23 @@ data PropSyn n = PropSyn (Located n) [TParam n] [Prop n]
       by the type checker.  However, they are useful when de-sugaring
       patterns.
 -}
-data Bind name = Bind { bName      :: Located name -- ^ Defined thing
-                      , bParams    :: [Pattern name]-- ^ Parameters
-                      , bDef       :: Located (BindDef name) -- ^ Definition
-                      , bSignature :: Maybe (Schema name) -- ^ Optional type sig
-                      , bInfix     :: Bool         -- ^ Infix operator?
-                      , bFixity    :: Maybe Fixity -- ^ Optional fixity info
-                      , bPragmas   :: [Pragma]     -- ^ Optional pragmas
-                      , bMono      :: Bool         -- ^ Is this a monomorphic binding
-                      , bDoc       :: Maybe String -- ^ Optional doc string
-                      } deriving (Eq, Generic, NFData, Functor, Show)
+data Bind name = Bind
+  { bName      :: Located name            -- ^ Defined thing
+  , bParams    :: [Pattern name]          -- ^ Parameters
+  , bDef       :: Located (BindDef name)  -- ^ Definition
+  , bSignature :: Maybe (Schema name)     -- ^ Optional type sig
+  , bInfix     :: Bool                    -- ^ Infix operator?
+  , bFixity    :: Maybe Fixity            -- ^ Optional fixity info
+  , bPragmas   :: [Pragma]                -- ^ Optional pragmas
+  , bMono      :: Bool                    -- ^ Is this a monomorphic binding
+  , bDoc       :: Maybe String            -- ^ Optional doc string
+  } deriving (Eq, Generic, NFData, Functor, Show)
 
 type LBindDef = Located (BindDef PName)
 
 data BindDef name = DPrim
                   | DExpr (Expr name)
                     deriving (Eq, Show, Generic, NFData, Functor)
-
-data Fixity   = Fixity { fAssoc :: !Assoc
-                       , fLevel :: !Int
-                       } deriving (Eq, Generic, NFData, Show)
-
-data FixityCmp = FCError
-               | FCLeft
-               | FCRight
-                 deriving (Show,Eq)
-
-compareFixity :: Fixity -> Fixity -> FixityCmp
-compareFixity (Fixity a1 p1) (Fixity a2 p2) =
-  case compare p1 p2 of
-    GT -> FCLeft
-    LT -> FCRight
-    EQ -> case (a1,a2) of
-            (LeftAssoc,LeftAssoc)   -> FCLeft
-            (RightAssoc,RightAssoc) -> FCRight
-            _                       -> FCError
-
--- | The fixity used when none is provided.
-defaultFixity :: Fixity
-defaultFixity  = Fixity LeftAssoc 100
 
 data Pragma   = PragmaNote String
               | PragmaProperty
@@ -303,25 +283,6 @@ data TypeInst name = NamedInst (Named (Type name))
                    | PosInst (Type name)
                      deriving (Eq, Show, Generic, NFData, Functor)
 
-{- | Selectors are used for projecting from various components.
-Each selector has an option spec to specify the shape of the thing
-that is being selected.  Currently, there is no surface syntax for
-list selectors, but they are used during the desugaring of patterns.
--}
-
-data Selector = TupleSel Int   (Maybe Int)
-                -- ^ Zero-based tuple selection.
-                -- Optionally specifies the shape of the tuple (one-based).
-
-              | RecordSel Ident (Maybe [Ident])
-                -- ^ Record selection.
-                -- Optionally specifies the shape of the record.
-
-              | ListSel Int    (Maybe Int)
-                -- ^ List selection.
-                -- Optionally specifies the length of the list.
-                deriving (Eq, Show, Ord, Generic, NFData)
-
 data Match name = Match (Pattern name) (Expr name)              -- ^ p <- e
                 | MatchLet (Bind name)
                   deriving (Eq, Show, Generic, NFData, Functor)
@@ -342,7 +303,7 @@ data Named a = Named { name :: Located Ident, value :: a }
 data Schema n = Forall [TParam n] [Prop n] (Type n) (Maybe Range)
   deriving (Eq, Show, Generic, NFData, Functor)
 
-data Kind = KNum | KType
+data Kind = KNum | KType | KFun Kind Kind
   deriving (Eq, Show, Generic, NFData)
 
 data TParam n = TParam { tpName  :: n
@@ -354,12 +315,19 @@ data TParam n = TParam { tpName  :: n
 data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TSeq (Type n) (Type n)  -- ^ @[8] a@
             | TBit                    -- ^ @Bit@
-            | TInteger                -- ^ @Integer@
             | TNum Integer            -- ^ @10@
             | TChar Char              -- ^ @'a'@
-            | TInf                    -- ^ @inf@
             | TUser n [Type n]        -- ^ A type variable or synonym
-            | TApp TFun [Type n]      -- ^ @2 + x@
+
+            | TApp TCon [Type n]
+              -- ^ @2 + x@
+              -- Note that the parser never produces these; instead it
+              -- produces a "TUser" value.  The "TApp" is introduced by
+              -- the renamer when it spots built-in functions.
+              -- XXX: We should just add primitive declarations for the
+              -- built-in type functions, and simplify all this.
+
+
             | TRecord [Named (Type n)]-- ^ @{ x : [8], y : [32] }@
             | TTuple [Type n]         -- ^ @([8], [32])@
             | TWild                   -- ^ @_@, just some type.
@@ -368,11 +336,16 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TInfix (Type n) (Located n) Fixity (Type n) -- ^ @ ty + ty @
               deriving (Eq, Show, Generic, NFData, Functor)
 
-tconNames :: Map.Map PName (Type PName)
+-- | NOTE: the renamer assumed that these don't have type parameters.
+-- If this changes, we should update it.
+-- XXX: As in the case of TApp, this would all go away if these were
+-- just declared.
+tconNames :: Map.Map PName TC
 tconNames  = Map.fromList
-  [ (mkUnqual (packIdent "Bit"), TBit)
-  , (mkUnqual (packIdent "Integer"), TInteger)
-  , (mkUnqual (packIdent "inf"), TInf)
+  [ (mkUnqual (packIdent "Bit"), TCBit)
+  , (mkUnqual (packIdent "Integer"), TCInteger)
+  , (mkUnqual (packIdent "Z"), TCIntMod)
+  , (mkUnqual (packIdent "inf"), TCInf)
   ]
 
 data Prop n   = CFin (Type n)             -- ^ @ fin x   @
@@ -618,7 +591,8 @@ instance (Show name, PPName name) => PP (Bind name) where
 
           lhsOp = case bParams b of
                     [x,y] -> pp x <+> ppL f <+> pp y
-                    _     -> panic "AST" [ "Malformed infix operator", show b ]
+                    xs -> parens (parens (ppL f) <+> fsep (map (ppPrec 0) xs))
+                    -- _     -> panic "AST" [ "Malformed infix operator", show b ]
 
 
 instance (Show name, PPName name) => PP (BindDef name) where
@@ -753,30 +727,6 @@ instance (Show name, PPName name) => PP (Expr name) where
      return Infix { .. }
    isInfix _ = Nothing
 
-instance PP Selector where
-  ppPrec _ sel =
-    case sel of
-      TupleSel x sig    -> int x <+> ppSig tupleSig sig
-      RecordSel x sig  -> pp x  <+> ppSig recordSig sig
-      ListSel x sig    -> int x <+> ppSig listSig sig
-
-    where
-    tupleSig n   = int n
-    recordSig xs = braces $ fsep $ punctuate comma $ map pp xs
-    listSig n    = int n
-
-    ppSig f = maybe empty (\x -> text "/* of" <+> f x <+> text "*/")
-
-
--- | Display the thing selected by the selector, nicely.
-ppSelector :: Selector -> Doc
-ppSelector sel =
-  case sel of
-    TupleSel x _  -> ordinal x <+> text "field"
-    RecordSel x _ -> text "field" <+> pp x
-    ListSel x _   -> ordinal x <+> text "element"
-
-
 
 instance PPName name => PP (Pattern name) where
   ppPrec n pat =
@@ -807,11 +757,13 @@ instance PPName name => PP (Schema name) where
 instance PP Kind where
   ppPrec _ KType  = text "*"
   ppPrec _ KNum   = text "#"
+  ppPrec n (KFun k1 k2) = wrap n 1 (ppPrec 1 k1 <+> "->" <+> ppPrec 0 k2)
 
 -- | "Conversational" printing of kinds (e.g., to use in error messages)
 cppKind :: Kind -> Doc
-cppKind KType = text "a value type"
-cppKind KNum  = text "a numeric type"
+cppKind KType     = text "a value type"
+cppKind KNum      = text "a numeric type"
+cppKind (KFun {}) = text "a type-constructor type"
 
 instance PPName name => PP (TParam name) where
   ppPrec n (TParam p Nothing _)   = ppPrec n p
@@ -828,8 +780,6 @@ instance PPName name => PP (Type name) where
       TTuple ts      -> parens $ commaSep $ map pp ts
       TRecord fs     -> braces $ commaSep $ map (ppNamed ":") fs
       TBit           -> text "Bit"
-      TInteger       -> text "Integer"
-      TInf           -> text "inf"
       TNum x         -> integer x
       TChar x        -> text (show x)
       TSeq t1 TBit   -> brackets (pp t1)
@@ -1031,8 +981,6 @@ instance NoPos (Type name) where
       TFun x y      -> TFun     (noPos x) (noPos y)
       TSeq x y      -> TSeq     (noPos x) (noPos y)
       TBit          -> TBit
-      TInteger      -> TInteger
-      TInf          -> TInf
       TNum n        -> TNum n
       TChar n       -> TChar n
       TLocated x _  -> noPos x

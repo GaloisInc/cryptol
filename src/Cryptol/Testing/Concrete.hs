@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Testing.Concrete
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -9,7 +9,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Cryptol.Testing.Concrete where
 
-import Control.Monad (join)
+import Control.Monad (join, liftM2)
 
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Value
@@ -61,15 +61,16 @@ runOneTest evOpts v0 vs0 = run `X.catch` handle
                                ] ++ map show vsdocs
 
 {- | Given a (function) type, compute all possible inputs for it.
-We also return the total number of test (i.e., the length of the outer list. -}
-testableType :: Type -> Maybe (Integer, [[Value]])
+We also return the types of the arguments and
+the total number of test (i.e., the length of the outer list. -}
+testableType :: Type -> Maybe (Maybe Integer, [Type], [[Value]])
 testableType ty =
   case tNoUser ty of
     TCon (TC TCFun) [t1,t2] ->
-      do sz        <- typeSize t1
-         (tot,vss) <- testableType t2
-         return (sz * tot, [ v : vs | v <- typeValues t1, vs <- vss ])
-    TCon (TC TCBit) [] -> return (1, [[]])
+      do let sz = typeSize t1
+         (tot,ts,vss) <- testableType t2
+         return (liftM2 (*) sz tot, t1:ts, [ v : vs | v <- typeValues t1, vs <- vss ])
+    TCon (TC TCBit) [] -> return (Just 1, [], [[]])
     _ -> Nothing
 
 {- | Given a fully-evaluated type, try to compute the number of values in it.
@@ -88,6 +89,10 @@ typeSize ty =
         (TCInf, _)       -> Nothing
         (TCBit, _)       -> Just 2
         (TCInteger, _)   -> Nothing
+        (TCIntMod, [sz]) -> case tNoUser sz of
+                              TCon (TC (TCNum n)) _ -> Just n
+                              _                     -> Nothing
+        (TCIntMod, _)    -> Nothing
         (TCSeq, [sz,el]) -> case tNoUser sz of
                               TCon (TC (TCNum n)) _ -> (^ n) <$> typeSize el
                               _                     -> Nothing
@@ -111,28 +116,33 @@ typeValues ty =
                                     | (f,t) <- fs ]
                    ]
     TCon (TC tc) ts ->
-      case (tc, ts) of
-        (TCNum _, _)     -> []
-        (TCInf, _)       -> []
-        (TCBit, _)       -> [ VBit False, VBit True ]
-        (TCInteger, _)   -> []
-        (TCSeq, ts1)     ->
-            case map tNoUser ts1 of
-              [ TCon (TC (TCNum n)) _, TCon (TC TCBit) [] ] ->
-                  [ VWord n (ready (WordVal (BV n x))) | x <- [ 0 .. 2^n - 1 ] ]
+      case tc of
+        TCNum _     -> []
+        TCInf       -> []
+        TCBit       -> [ VBit False, VBit True ]
+        TCInteger   -> []
+        TCIntMod    ->
+          case map tNoUser ts of
+            [ TCon (TC (TCNum n)) _ ] | 0 < n ->
+              [ VInteger x | x <- [ 0 .. n - 1 ] ]
+            _ -> []
+        TCSeq       ->
+          case map tNoUser ts of
+            [ TCon (TC (TCNum n)) _, TCon (TC TCBit) [] ] ->
+              [ VWord n (ready (WordVal (BV n x))) | x <- [ 0 .. 2^n - 1 ] ]
 
-              [ TCon (TC (TCNum n)) _, t ] ->
-                  [ VSeq n (finiteSeqMap (map ready xs))
-                  | xs <- sequence $ genericReplicate n
-                                   $ typeValues t ]
-              _ -> []
+            [ TCon (TC (TCNum n)) _, t ] ->
+              [ VSeq n (finiteSeqMap (map ready xs))
+              | xs <- sequence $ genericReplicate n
+                               $ typeValues t ]
+            _ -> []
 
 
-        (TCFun, _)       -> []  -- We don't generate function values.
-        (TCTuple _, els) -> [ VTuple (map ready xs)
-                            | xs <- sequence (map typeValues els)
-                            ]
-        (TCNewtype _, _) -> []
+        TCFun       -> []  -- We don't generate function values.
+        TCTuple _   -> [ VTuple (map ready xs)
+                       | xs <- sequence (map typeValues ts)
+                       ]
+        TCNewtype _ -> []
 
     TCon _ _ -> []
 
@@ -143,7 +153,7 @@ data TestSpec m s = TestSpec {
     testFn :: Integer -> s -> m (TestResult, s)
   , testProp :: String -- ^ The property as entered by the user
   , testTotal :: Integer
-  , testPossible :: Integer
+  , testPossible :: Maybe Integer -- ^ Nothing indicates infinity
   , testRptProgress :: Integer -> Integer -> m ()
   , testClrProgress :: m ()
   , testRptFailure :: TestResult -> m ()
@@ -154,7 +164,7 @@ data TestReport = TestReport {
     reportResult :: TestResult
   , reportProp :: String -- ^ The property as entered by the user
   , reportTestsRun :: Integer
-  , reportTestsPossible :: Integer
+  , reportTestsPossible :: Maybe Integer
   }
 
 runTests :: Monad m => TestSpec m s -> s -> m TestReport

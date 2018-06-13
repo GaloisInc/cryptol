@@ -1,0 +1,6 @@
+module T13::Main where
+
+import T13::B
+
+h : [X]
+h = zero

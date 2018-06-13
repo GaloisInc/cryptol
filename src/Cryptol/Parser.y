@@ -1,6 +1,6 @@
 {
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Parser
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -267,7 +267,7 @@ par_decls                            :: { [TopDecl PName] }
 
 par_decl                         :: { TopDecl PName }
   : mbDoc        name ':' schema    { mkParFun $1 $2 $4 }
-  | mbDoc 'type' name ':' kind      { mkParType $1 $3 $5 }
+  | mbDoc 'type' name ':' kind      {% mkParType $1 $3 $5 }
   | mbDoc 'type' 'constraint' type  {% fmap (DParameterConstraint . distrLoc)
                                             (mkProp $4) }
 
@@ -321,6 +321,7 @@ decl                    :: { Decl PName }
   | 'infixl' NUM ops       {% mkFixity LeftAssoc  $2 (reverse $3) }
   | 'infixr' NUM ops       {% mkFixity RightAssoc $2 (reverse $3) }
   | 'infix'  NUM ops       {% mkFixity NonAssoc   $2 (reverse $3) }
+  | error                  {% expected "a declaration" }
 
 let_decl                :: { Decl PName }
   : 'let' ipat '=' expr          { at ($2,$4) $ DPatBind $2 $4                    }
@@ -389,6 +390,7 @@ expr                             :: { Expr PName }
   | expr 'where' '{' decls '}'      { at ($1,$5) $ EWhere $1 (reverse $4) }
   | expr 'where' 'v{' 'v}'          { at ($1,$2) $ EWhere $1 []           }
   | expr 'where' 'v{' vdecls 'v}'   { at ($1,$4) $ EWhere $1 (reverse $4) }
+  | error                           {% expected "an expression" }
 
 ifBranches                       :: { [(Expr PName, Expr PName)] }
   : ifBranch                        { [$1] }
@@ -583,6 +585,7 @@ schema_quals                   :: { Located [Prop PName] }
 kind                             :: { Located Kind      }
   : '#'                             { Located $1 KNum   }
   | '*'                             { Located $1 KType  }
+  | kind '->' kind                  { combLoc KFun $1 $3 }
 
 schema_param                   :: { TParam PName }
   : ident                         {% mkTParam $1 Nothing           }

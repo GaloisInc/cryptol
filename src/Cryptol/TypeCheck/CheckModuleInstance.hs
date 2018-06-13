@@ -12,6 +12,7 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Monad
 import Cryptol.TypeCheck.Infer
 import Cryptol.TypeCheck.Subst
+import Cryptol.TypeCheck.Error
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
@@ -36,8 +37,8 @@ checkModuleInstance func inst =
                                 -- the full dependencies, the actual imports
                                 -- might be ambiguous, but that shouldn't
                                 -- matters as names have been already resolved
-                   , mTySyns = Map.union (mTySyns inst) (mTySyns m)
-                   , mNewtypes = Map.union (mNewtypes inst) (mNewtypes m)
+                   , mTySyns         = Map.union (mTySyns inst) (mTySyns m)
+                   , mNewtypes       = Map.union (mNewtypes inst) (mNewtypes m)
                    , mParamTypes       = mParamTypes inst
                    , mParamConstraints = mParamConstraints inst
                    , mParamFuns        = mParamFuns inst

@@ -1,5 +1,5 @@
 -- |
--- Module      :  $Header$
+-- Module      :  Cryptol.Symbolic.Prims
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -20,7 +20,6 @@ module Cryptol.Symbolic.Prims where
 
 import Control.Monad (unless)
 import Data.Bits
-import Data.List (genericTake)
 import qualified Data.Sequence as Seq
 import qualified Data.Foldable as Fold
 
@@ -29,7 +28,7 @@ import Cryptol.Eval.Type  (finNat', TValue(..))
 import Cryptol.Eval.Value (BitWord(..), EvalPrims(..), enumerateSeqMap, SeqMap(..),
                           reverseSeqMap, wlam, nlam, WordValue(..),
                           asWordVal, fromWordVal, enumerateWordValue,
-                          enumerateWordValueRev, updateWordValue,
+                          updateWordValue,
                           updateSeqMap, lookupSeqMap, memoMap )
 import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            arithBinary, Binary, BinArith,
@@ -37,7 +36,7 @@ import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            ccatV, splitAtV, joinV, ecSplitV,
                            reverseV, infFromV, infFromThenV,
                            fromThenV, fromToV, fromThenToV,
-                           transposeV, indexPrimOne, indexPrimMany,
+                           transposeV, indexPrim,
                            ecIntegerV, ecToIntegerV, ecFromIntegerV,
                            ecDemoteV, updatePrim, randomV, liftWord,
                            cmpValue, lg2)
@@ -82,30 +81,39 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                                 -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
   , ("integer"     , ecIntegerV) -- Converts a numeric type into its corresponding value.
                                  -- { val } (fin val) => Integer
-  , ("+"           , binary (arithBinary (liftBinArith SBV.svPlus) (liftBin SBV.svPlus))) -- {a} (Arith a) => a -> a -> a
-  , ("-"           , binary (arithBinary (liftBinArith SBV.svMinus) (liftBin SBV.svMinus))) -- {a} (Arith a) => a -> a -> a
-  , ("*"           , binary (arithBinary (liftBinArith SBV.svTimes) (liftBin SBV.svTimes))) -- {a} (Arith a) => a -> a -> a
-  , ("/"           , binary (arithBinary (liftBinArith SBV.svQuot) (liftBin SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
-  , ("%"           , binary (arithBinary (liftBinArith SBV.svRem) (liftBin SBV.svRem))) -- {a} (Arith a) => a -> a -> a
-  , ("^^"          , binary (arithBinary sExp (liftBin SBV.svExp))) -- {a} (Arith a) => a -> a -> a
-  , ("lg2"         , unary (arithUnary sLg2 svLg2)) -- {a} (Arith a) => a -> a
-  , ("negate"      , unary (arithUnary (\_ -> ready . SBV.svUNeg) SBV.svUNeg))
-  , ("<"           , binary (cmpBinary cmpLt cmpLt cmpLt SBV.svFalse))
-  , (">"           , binary (cmpBinary cmpGt cmpGt cmpGt SBV.svFalse))
-  , ("<="          , binary (cmpBinary cmpLtEq cmpLtEq cmpLtEq SBV.svTrue))
-  , (">="          , binary (cmpBinary cmpGtEq cmpGtEq cmpGtEq SBV.svTrue))
-  , ("=="          , binary (cmpBinary cmpEq cmpEq cmpEq SBV.svTrue))
-  , ("!="          , binary (cmpBinary cmpNotEq cmpNotEq cmpNotEq SBV.svFalse))
+  , ("+"           , binary (arithBinary (liftBinArith SBV.svPlus) (liftBin SBV.svPlus)
+                             (const (liftBin SBV.svPlus)))) -- {a} (Arith a) => a -> a -> a
+  , ("-"           , binary (arithBinary (liftBinArith SBV.svMinus) (liftBin SBV.svMinus)
+                             (const (liftBin SBV.svMinus)))) -- {a} (Arith a) => a -> a -> a
+  , ("*"           , binary (arithBinary (liftBinArith SBV.svTimes) (liftBin SBV.svTimes)
+                             (const (liftBin SBV.svTimes)))) -- {a} (Arith a) => a -> a -> a
+  , ("/"           , binary (arithBinary (liftBinArith SBV.svQuot) (liftBin SBV.svQuot)
+                             (liftModBin SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
+  , ("%"           , binary (arithBinary (liftBinArith SBV.svRem) (liftBin SBV.svRem)
+                             (liftModBin SBV.svRem))) -- {a} (Arith a) => a -> a -> a
+  , ("^^"          , binary (arithBinary sExp (liftBin SBV.svExp)
+                             (liftModBin SBV.svRem))) -- {a} (Arith a) => a -> a -> a
+  , ("lg2"         , unary (arithUnary sLg2 svLg2 svModLg2)) -- {a} (Arith a) => a -> a
+  , ("negate"      , unary (arithUnary (\_ -> ready . SBV.svUNeg) SBV.svUNeg
+                            (const SBV.svUNeg)))
+  , ("<"           , binary (cmpBinary cmpLt cmpLt cmpLt (cmpMod cmpLt) SBV.svFalse))
+  , (">"           , binary (cmpBinary cmpGt cmpGt cmpGt (cmpMod cmpGt) SBV.svFalse))
+  , ("<="          , binary (cmpBinary cmpLtEq cmpLtEq cmpLtEq (cmpMod cmpLtEq) SBV.svTrue))
+  , (">="          , binary (cmpBinary cmpGtEq cmpGtEq cmpGtEq (cmpMod cmpGtEq) SBV.svTrue))
+  , ("=="          , binary (cmpBinary cmpEq cmpEq cmpEq cmpModEq SBV.svTrue))
+  , ("!="          , binary (cmpBinary cmpNotEq cmpNotEq cmpNotEq cmpModNotEq SBV.svFalse))
   , ("<$"          , let boolFail = evalPanic "<$" ["Attempted signed comparison on bare Bit values"]
                          intFail = evalPanic "<$" ["Attempted signed comparison on Integer values"]
-                      in binary (cmpBinary boolFail cmpSignedLt intFail SBV.svFalse))
-  , ("/$"          , binary (arithBinary (liftBinArith signedQuot) (liftBin SBV.svQuot)))
-  , ("%$"          , binary (arithBinary (liftBinArith signedRem) (liftBin SBV.svRem)))
+                      in binary (cmpBinary boolFail cmpSignedLt intFail (const intFail) SBV.svFalse))
+  , ("/$"          , binary (arithBinary (liftBinArith signedQuot) (liftBin SBV.svQuot)
+                             (liftModBin SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
+  , ("%$"          , binary (arithBinary (liftBinArith signedRem) (liftBin SBV.svRem)
+                             (liftModBin SBV.svRem)))
   , (">>$"         , sshrV)
-  , ("&&"          , binary (logicBinary SBV.svAnd SBV.svAnd SBV.svAnd))
-  , ("||"          , binary (logicBinary SBV.svOr SBV.svOr SBV.svOr))
-  , ("^"           , binary (logicBinary SBV.svXOr SBV.svXOr SBV.svXOr))
-  , ("complement"  , unary (logicUnary SBV.svNot SBV.svNot SBV.svNot))
+  , ("&&"          , binary (logicBinary SBV.svAnd SBV.svAnd))
+  , ("||"          , binary (logicBinary SBV.svOr SBV.svOr))
+  , ("^"           , binary (logicBinary SBV.svXOr SBV.svXOr))
+  , ("complement"  , unary (logicUnary SBV.svNot SBV.svNot))
   , ("zero"        , tlam zeroV)
   , ("toInteger"   , ecToIntegerV)
   , ("fromInteger" , ecFromIntegerV)
@@ -175,47 +183,11 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("infFrom"     , infFromV)
   , ("infFromThen" , infFromThenV)
 
-  , ("@"           , indexPrimOne  indexFront_bits indexFront)
-  , ("@@"          , indexPrimMany indexFront_bits indexFront)
-  , ("!"           , indexPrimOne  indexBack_bits indexBack)
-  , ("!!"          , indexPrimMany indexBack_bits indexBack)
+  , ("@"           , indexPrim indexFront_bits indexFront)
+  , ("!"           , indexPrim indexBack_bits indexBack)
 
   , ("update"      , updatePrim updateFrontSym_word updateFrontSym)
   , ("updateEnd"   , updatePrim updateBackSym_word updateBackSym)
-
-
-  , ("pmult"       , -- {a,b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 + a + b]
-      nlam $ \(finNat' -> i) ->
-      nlam $ \(finNat' -> j) ->
-      VFun $ \v1 -> return $
-      VFun $ \v2 -> do
-        let k = 1 + i + j
-            mul _  []     ps = ps
-            mul as (b:bs) ps = mul (SBV.svFalse : as) bs (ites b (as `addPoly` ps) ps)
-        xs <- enumerateWordValue =<< fromWordVal "pmult 1" =<< v1
-        ys <- enumerateWordValue =<< fromWordVal "pmult 2" =<< v2
-        let zs = genericTake k (mul xs ys [] ++ repeat SBV.svFalse)
-        return $ VWord k $ return $ BitsVal $ Seq.fromList $ map ready zs)
-
-  , ("pdiv"        , -- {a,b} (fin a, fin b) => [a] -> [b] -> [a]
-      nlam $ \(finNat' -> i) ->
-      nlam $ \(finNat' -> _j) ->
-      VFun $ \v1 -> return $
-      VFun $ \v2 -> do
-        xs <- enumerateWordValueRev =<< fromWordVal "pdiv 1" =<< v1
-        ys <- enumerateWordValueRev =<< fromWordVal "pdiv 2" =<< v2
-        let zs = genericTake i (fst (mdp xs ys) ++ repeat SBV.svFalse)
-        return $ VWord i $ return $ BitsVal $ Seq.reverse $ Seq.fromList $ map ready zs)
-
-  , ("pmod"        , -- {a,b} (fin a, fin b) => [a] -> [b+1] -> [b]
-      nlam $ \(finNat' -> _i) ->
-      nlam $ \(finNat' -> j) ->
-      VFun $ \v1 -> return $
-      VFun $ \v2 -> do
-        xs <- enumerateWordValueRev =<< fromWordVal "pmod 1" =<< v1
-        ys <- enumerateWordValueRev =<< fromWordVal "pmod 2" =<< v2
-        let zs = genericTake j (snd (mdp xs ys) ++ repeat SBV.svFalse)
-        return $ VWord j $ return $ BitsVal $ Seq.reverse $ Seq.fromList $ map ready zs)
 
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,
@@ -485,6 +457,10 @@ liftBinArith op _ x y = ready $ op x y
 liftBin :: (a -> b -> c) -> a -> b -> Eval c
 liftBin op x y = ready $ op x y
 
+liftModBin :: (SInteger -> SInteger -> a) -> Integer -> SInteger -> SInteger -> Eval a
+liftModBin op modulus x y = ready $ op (SBV.svRem x m) (SBV.svRem y m)
+  where m = integerLit modulus
+
 sExp :: Integer -> SWord -> SWord -> Eval SWord
 sExp _w x y = ready $ go (reverse (unpackWord y)) -- bits in little-endian order
   where go []       = literalSWord (SBV.intSizeOf x) 1
@@ -507,6 +483,10 @@ svLg2 x =
     Just n -> SBV.svInteger SBV.KUnbounded (lg2 n)
     Nothing -> evalPanic "cannot compute lg2 of symbolic unbounded integer" []
 
+svModLg2 :: Integer -> SInteger -> SInteger
+svModLg2 modulus x = svLg2 (SBV.svRem x m)
+  where m = integerLit modulus
+
 -- Cmp -------------------------------------------------------------------------
 
 cmpEq :: SWord -> SWord -> Eval SBool -> Eval SBool
@@ -528,11 +508,27 @@ cmpLtEq, cmpGtEq :: SWord -> SWord -> Eval SBool -> Eval SBool
 cmpLtEq x y k = SBV.svAnd (SBV.svLessEq x y) <$> (cmpNotEq x y k)
 cmpGtEq x y k = SBV.svAnd (SBV.svGreaterEq x y) <$> (cmpNotEq x y k)
 
+cmpMod ::
+  (SInteger -> SInteger -> Eval SBool -> Eval SBool) ->
+  (Integer -> SInteger -> SInteger -> Eval SBool -> Eval SBool)
+cmpMod cmp modulus x y k = cmp (SBV.svRem x m) (SBV.svRem y m) k
+  where m = integerLit modulus
+
+cmpModEq :: Integer -> SInteger -> SInteger -> Eval SBool -> Eval SBool
+cmpModEq m x y k = SBV.svAnd (svDivisible m (SBV.svMinus x y)) <$> k
+
+cmpModNotEq :: Integer -> SInteger -> SInteger -> Eval SBool -> Eval SBool
+cmpModNotEq m x y k = SBV.svOr (SBV.svNot (svDivisible m (SBV.svMinus x y))) <$> k
+
+svDivisible :: Integer -> SInteger -> SBool
+svDivisible m x = SBV.svEqual (SBV.svRem x (integerLit m)) (integerLit 0)
+
 cmpBinary :: (SBool -> SBool -> Eval SBool -> Eval SBool)
           -> (SWord -> SWord -> Eval SBool -> Eval SBool)
           -> (SInteger -> SInteger -> Eval SBool -> Eval SBool)
+          -> (Integer -> SInteger -> SInteger -> Eval SBool -> Eval SBool)
           -> SBool -> Binary SBool SWord SInteger
-cmpBinary fb fw fi b _ty v1 v2 = VBit <$> cmpValue fb fw fi v1 v2 (return b)
+cmpBinary fb fw fi fz b ty v1 v2 = VBit <$> cmpValue fb fw fi fz ty v1 v2 (return b)
 
 -- Signed arithmetic -----------------------------------------------------------
 
@@ -571,61 +567,3 @@ scarry x y = return $ VBit sc
   ysign = SBV.svTestBit y (n-1)
   zsign = SBV.svTestBit z (n-1)
   sc = SBV.svAnd (SBV.svEqual xsign ysign) (SBV.svNotEqual xsign zsign)
-
--- Polynomials -----------------------------------------------------------------
-
--- TODO: Data.SBV.BitVectors.Polynomials should export ites, addPoly,
--- and mdp (the following definitions are copied from that module)
-
--- | Add two polynomials
-addPoly :: [SBool] -> [SBool] -> [SBool]
-addPoly xs    []      = xs
-addPoly []    ys      = ys
-addPoly (x:xs) (y:ys) = SBV.svXOr x y : addPoly xs ys
-
-ites :: SBool -> [SBool] -> [SBool] -> [SBool]
-ites s xs ys
- | Just t <- SBV.svAsBool s
- = if t then xs else ys
- | True
- = go xs ys
- where go [] []         = []
-       go []     (b:bs) = SBV.svIte s SBV.svFalse b : go [] bs
-       go (a:as) []     = SBV.svIte s a SBV.svFalse : go as []
-       go (a:as) (b:bs) = SBV.svIte s a b : go as bs
-
--- conservative over-approximation of the degree
-degree :: [SBool] -> Int
-degree xs = walk (length xs - 1) $ reverse xs
-  where walk n []     = n
-        walk n (b:bs)
-         | Just t <- SBV.svAsBool b
-         = if t then n else walk (n-1) bs
-         | True
-         = n -- over-estimate
-
-mdp :: [SBool] -> [SBool] -> ([SBool], [SBool])
-mdp xs ys = go (length ys - 1) (reverse ys)
-  where degTop  = degree xs
-        go _ []     = error "SBV.Polynomial.mdp: Impossible happened; exhausted ys before hitting 0"
-        go n (b:bs)
-         | n == 0   = (reverse qs, rs)
-         | True     = let (rqs, rrs) = go (n-1) bs
-                      in (ites b (reverse qs) rqs, ites b rs rrs)
-         where degQuot = degTop - n
-               ys' = replicate degQuot SBV.svFalse ++ ys
-               (qs, rs) = divx (degQuot+1) degTop xs ys'
-
--- return the element at index i; if not enough elements, return false
--- N.B. equivalent to '(xs ++ repeat false) !! i', but more efficient
-nth :: [SBool] -> Int -> SBool
-nth []     _ = SBV.svFalse
-nth (x:_)  0 = x
-nth (_:xs) i = nth xs (i-1)
-
-divx :: Int -> Int -> [SBool] -> [SBool] -> ([SBool], [SBool])
-divx n _ xs _ | n <= 0 = ([], xs)
-divx n i xs ys'        = (q:qs, rs)
-  where q        = xs `nth` i
-        xs'      = ites q (xs `addPoly` ys') xs
-        (qs, rs) = divx (n-1) (i-1) xs' (tail ys')

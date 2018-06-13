@@ -1,0 +1,57 @@
+module AES::ExpandKey where
+
+import AES::GF28
+import AES::State
+import AES::SubByteSBox
+
+parameter
+  /** Number of 32 bit words in the key */
+  type Nk : #
+  type constraint (8 >= width Nk, Nk >= 1)
+
+  /** Number of rounds */
+  type Nr : #
+  type constraint (8 >= width Nr, Nr >= 2)
+
+expandKey : [32 * Nk] -> (RoundKey, [Nr-1]RoundKey, RoundKey)
+expandKey key = ( keys @ 0
+                , keys @@ ([1 .. (Nr - 1)] : [_][8])
+                , keys @ (`Nr : [8])
+                )
+  where   seed : [Nk][4][8]
+          seed = split (split key)
+          keys = expandKeyForever seed
+
+
+expandKeyForever : [Nk][4][8] -> [inf]RoundKey
+expandKeyForever seed = [ transpose g | g <- split (keyWS seed) ]
+
+keyWS : [Nk][4][8] -> [inf][4][8]
+keyWS seed    = xs
+     where xs = seed # [ NextWord i prev old
+                       | i    <- [ `Nk ... ]
+                       | prev <- drop`{Nk-1} xs
+                       | old  <- xs
+                       ]
+
+// Key expansion
+Rcon : [8] -> [4]GF28
+Rcon i = [ gf28Pow <| x |> (i-1), 0, 0, 0]
+
+SubWord : [4]GF28 -> [4]GF28
+SubWord bs = [ SubByte b | b <- bs ]
+
+RotWord : [4]GF28 -> [4]GF28
+RotWord [a0, a1, a2, a3] = [a1, a2, a3, a0]
+
+NextWord : [8] ->[4][8] -> [4][8] -> [4][8]
+NextWord i prev old = old ^ mask
+   where mask = if i % nk == 0
+                then SubWord (RotWord(prev)) ^ Rcon (i / `Nk)
+                else if (nk > 6) && (i % nk == 4)
+                     then SubWord prev
+                     else prev
+
+         nk = `Nk : [8]
+
+

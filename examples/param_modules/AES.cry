@@ -1,11 +1,38 @@
 module AES where
 
-import `Common::AES
+import `AES::Algorithm as AES
+import `AES::ExpandKey
+import AES::TBox
 
-encrypt : {k,f} (k == 128 + f * 64, 2 >= f) => [k] -> [128] -> [128]
-encrypt = aesEncrypt`{Flavor = f} {}
+type constraint ValidKey k m = (k == 128 + m * 64, 2 >= m)
 
-decrypt : {k,f} (k == 128 + f * 64, 2 >= f) => [k] -> [128] -> [128]
-decrypt = aesDecrypt`{Flavor = f} {}
+type EncKey m = AES::KeySchedule m
+type DecKey m = AES::KeySchedule m
 
+
+encrypt : {k,m} ValidKey k m => [k] -> [128] -> [128]
+encrypt k = encryptWithSchedule (expandKeyEnc k)
+
+decrypt : {k,m} ValidKey k m => [k] -> [128] -> [128]
+decrypt k = decryptWithSchedule (expandKeyDec k)
+
+
+expandKeyEnc : {k,m} ValidKey k m => [k] -> EncKey m
+expandKeyEnc = expandKey`{Nk = AES::Nk m, Nr = AES::Nr m}
+
+encryptWithSchedule : {k,m} ValidKey k m => EncKey m -> [128] -> [128]
+encryptWithSchedule = AES::encrypt params
+
+
+
+expandKeyDec : {k,m} ValidKey k m => [k] -> EncKey m
+expandKeyDec k = makeDecKey (expandKey`{Nk = AES::Nk m, Nr = AES::Nr m} k)
+
+decryptWithSchedule : {k,m} ValidKey k m => DecKey m -> [128] -> [128]
+decryptWithSchedule = AES::decrypt params
+
+
+params = { encRound = AESRound, decRound = AESInvRound }
+
+property test k pt = decrypt k (encrypt k pt) == pt
 

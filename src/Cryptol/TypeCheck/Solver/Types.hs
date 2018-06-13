@@ -5,6 +5,7 @@ import Data.Map(Map)
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.Numeric.Interval
+import Prelude hiding ((<>))
 
 type Ctxt = Map TVar Interval
 
