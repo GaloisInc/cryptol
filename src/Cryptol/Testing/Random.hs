@@ -72,6 +72,12 @@ randomValue ty =
 
         (TC TCInteger, [])                    -> Just randomInteger
 
+        (TC TCIntMod, [TCon (TC TCInf) []])   -> Just randomInteger
+
+        (TC TCIntMod, [TCon (TC (TCNum n)) []])
+          | 0 < n     -> Just (randomIntMod n)
+          | otherwise -> Just randomInteger
+
         (TC TCSeq, [TCon (TC TCInf) [], el])  ->
           do mk <- randomValue el
              return (randomStream mk)
@@ -113,6 +119,11 @@ randomInteger _ g =
   let (n, g1) = randomSize 8 1 g
       (x, g2) = randomR (- 256^n, 256^n) g1
   in (VInteger (integerLit x), g2)
+
+randomIntMod :: (BitWord b w i, RandomGen g) => Integer -> Gen g b w i
+randomIntMod modulus _ g =
+  let (x, g') = randomR (0, modulus-1) g
+  in (VInteger (integerLit x), g')
 
 -- | Generate a random word of the given length (i.e., a value of type @[w]@)
 -- The size parameter is assumed to vary between 1 and 100, and we use

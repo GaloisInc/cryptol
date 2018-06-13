@@ -90,8 +90,8 @@ typeSize ty =
         (TCBit, _)       -> Just 2
         (TCInteger, _)   -> Nothing
         (TCIntMod, [sz]) -> case tNoUser sz of
-                              TCon (TC (TCNum n)) _ -> Just n
-                              _                     -> Nothing
+                              TCon (TC (TCNum n)) _ | 0 < n -> Just n
+                              _                             -> Nothing
         (TCIntMod, _)    -> Nothing
         (TCSeq, [sz,el]) -> case tNoUser sz of
                               TCon (TC (TCNum n)) _ -> (^ n) <$> typeSize el
