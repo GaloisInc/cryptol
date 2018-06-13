@@ -385,12 +385,8 @@ arithBinary opw opi opz = loop
     TVInteger ->
       VInteger <$> opi (fromVInteger l) (fromVInteger r)
 
-    TVIntMod n' ->
-      case n' of
-        Nat n ->
-          VInteger <$> opz n (fromVInteger l) (fromVInteger r)
-        Inf ->
-          VInteger <$> opi (fromVInteger l) (fromVInteger r)
+    TVIntMod n ->
+      VInteger <$> opz n (fromVInteger l) (fromVInteger r)
 
     TVSeq w a
       -- words and finite sequences
@@ -451,12 +447,8 @@ arithUnary opw opi opz = loop
     TVInteger ->
       return $ VInteger $ opi (fromVInteger x)
 
-    TVIntMod n' ->
-      case n' of
-        Nat n ->
-          return $ VInteger $ opz n (fromVInteger x)
-        Inf ->
-          return $ VInteger $ opi (fromVInteger x)
+    TVIntMod n ->
+      return $ VInteger $ opz n (fromVInteger x)
 
     TVSeq w a
       -- words and finite sequences
@@ -508,9 +500,7 @@ cmpValue fb fw fi fz = cmp
       case ty of
         TVBit         -> fb (fromVBit v1) (fromVBit v2) k
         TVInteger     -> fi (fromVInteger v1) (fromVInteger v2) k
-        TVIntMod n'   -> case n' of
-                           Nat n -> fz n (fromVInteger v1) (fromVInteger v2) k
-                           Inf   -> fi (fromVInteger v1) (fromVInteger v2) k
+        TVIntMod n    -> fz n (fromVInteger v1) (fromVInteger v2) k
         TVSeq n t
           | isTBit t  -> do w1 <- fromVWord "cmpValue" v1
                             w2 <- fromVWord "cmpValue" v2

@@ -714,13 +714,6 @@ output bitvector will contain the exception in all bit positions.
 > vWord w e = VList [ VBit (fmap (test i) e) | i <- [w-1, w-2 .. 0] ]
 >   where test i x = testBit x (fromInteger i)
 
-Functions returning type `Z n` require normalizing the integer result
-modulo `n`. If `n` is `0` or `inf`, then the result is unchanged.
-
-> modulo :: Nat' -> Integer -> Integer
-> modulo (Nat n) x = if n > 0 then x `mod` n else x
-> modulo Inf x = x
-
 Logic
 -----
 
@@ -798,8 +791,8 @@ up of non-empty finite bitvectors.
 >           evalPanic "arithUnary" ["Bit not in class Arith"]
 >         TVInteger ->
 >           VInteger (op <$> fromVInteger val)
->         TVIntMod n' ->
->           VInteger (modulo n' <$> op <$> fromVInteger val)
+>         TVIntMod n ->
+>           VInteger (flip mod n <$> op <$> fromVInteger val)
 >         TVSeq w a
 >           | isTBit a  -> vWord w (op <$> fromVWord val)
 >           | otherwise -> VList (map (go a) (fromVList val))
@@ -838,14 +831,14 @@ up of non-empty finite bitvectors.
 >               case fromVInteger r of
 >                 Left e -> Left e
 >                 Right j -> op i j
->         TVIntMod n' ->
+>         TVIntMod n ->
 >           VInteger $
 >           case fromVInteger l of
 >             Left e -> Left e
 >             Right i ->
 >               case fromVInteger r of
 >                 Left e -> Left e
->                 Right j -> modulo n' <$> op i j
+>                 Right j -> flip mod n <$> op i j
 >         TVSeq w a
 >           | isTBit a  -> vWord w $
 >                          case fromWord l of

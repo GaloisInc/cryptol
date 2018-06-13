@@ -72,11 +72,8 @@ randomValue ty =
 
         (TC TCInteger, [])                    -> Just randomInteger
 
-        (TC TCIntMod, [TCon (TC TCInf) []])   -> Just randomInteger
-
-        (TC TCIntMod, [TCon (TC (TCNum n)) []])
-          | 0 < n     -> Just (randomIntMod n)
-          | otherwise -> Just randomInteger
+        (TC TCIntMod, [TCon (TC (TCNum n)) []]) ->
+          do return (randomIntMod n)
 
         (TC TCSeq, [TCon (TC TCInf) [], el])  ->
           do mk <- randomValue el

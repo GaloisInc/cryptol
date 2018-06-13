@@ -312,9 +312,7 @@ finType ty =
   case ty of
     Eval.TVBit            -> Just FTBit
     Eval.TVInteger        -> Just FTInteger
-    Eval.TVIntMod n'      -> case n' of
-                               Nat n -> Just (FTIntMod n)
-                               Inf   -> Just FTInteger
+    Eval.TVIntMod n       -> Just (FTIntMod n)
     Eval.TVSeq n t        -> FTSeq <$> numType n <*> finType t
     Eval.TVTuple ts       -> FTTuple <$> traverse finType ts
     Eval.TVRec fields     -> FTRecord <$> traverse (traverseSnd finType) fields
