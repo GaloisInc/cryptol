@@ -11,7 +11,7 @@ test03::test = \{a} (fin a, a >= width a) ->
                  /* Not recursive */
                  test03::foo : {b} (b >= width a, fin b) => [b]
                  test03::foo = \{b} (b >= width a, fin b) ->
-                               Cryptol::demote a b <> <> <>
+                               Cryptol::demote a b <> <>
                  
                
 
@@ -26,7 +26,7 @@ test03::test = \{a} (fin a, a >= width a) ->
                where
                  /* Not recursive */
                  test03::foo : [a]
-                 test03::foo = Cryptol::demote a a <> <> <>
+                 test03::foo = Cryptol::demote a a <> <>
                  
                
 

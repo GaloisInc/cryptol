@@ -6,7 +6,7 @@ import Cryptol
 /* Not recursive */
 test04::test : {a, b} (b >= 4, fin b) => a -> ((a, ()), (a, [b]))
 test04::test = \{a, b} (b >= 4, fin b) (a : a) ->
-               (test04::f () (), test04::f [b] (Cryptol::demote 10 b <> <> <>))
+               (test04::f () (), test04::f [b] (Cryptol::demote 10 b <> <>))
                where
                  /* Not recursive */
                  test04::f : {c} c -> (a, c)

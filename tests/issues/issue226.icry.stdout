@@ -56,8 +56,7 @@ Symbols
     carry : {n} (fin n) => [n] -> [n] -> Bit
     complement : {a} (Logic a) => a -> a
     curry : {a, b, c} ((a, b) -> c) -> a -> b -> c
-    demote :
-      {val, bits} (fin val, fin bits, bits >= width val) => [bits]
+    demote : {val, bits} (fin bits, bits >= width val) => [bits]
     drop :
       {front, back, elem} (fin front) => [front + back]elem -> [back]elem
     elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
