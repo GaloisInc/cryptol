@@ -39,6 +39,7 @@ import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            transposeV, indexPrim,
                            ecIntegerV, ecToIntegerV, ecFromIntegerV,
                            ecDemoteV, updatePrim, randomV, liftWord,
+                           ecIntModV,
                            cmpValue, lg2)
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Decl(..))
@@ -81,6 +82,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                                 -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
   , ("integer"     , ecIntegerV) -- Converts a numeric type into its corresponding value.
                                  -- { val } (fin val) => Integer
+  , ("intmod"      , ecIntModV) -- {val, n} (fin val, n >= val + 1) => Z n
   , ("+"           , binary (arithBinary (liftBinArith SBV.svPlus) (liftBin SBV.svPlus)
                              (const (liftBin SBV.svPlus)))) -- {a} (Arith a) => a -> a -> a
   , ("-"           , binary (arithBinary (liftBinArith SBV.svMinus) (liftBin SBV.svMinus)
