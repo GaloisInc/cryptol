@@ -92,7 +92,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("%"           , binary (arithBinary (liftBinArith SBV.svRem) (liftBin SBV.svRem)
                              (liftModBin SBV.svRem))) -- {a} (Arith a) => a -> a -> a
   , ("^^"          , binary (arithBinary sExp (liftBin SBV.svExp)
-                             (liftModBin SBV.svRem))) -- {a} (Arith a) => a -> a -> a
+                             sModExp)) -- {a} (Arith a) => a -> a -> a
   , ("lg2"         , unary (arithUnary sLg2 svLg2 svModLg2)) -- {a} (Arith a) => a -> a
   , ("negate"      , unary (arithUnary (\_ -> ready . SBV.svUNeg) SBV.svUNeg
                             (const SBV.svUNeg)))
@@ -467,6 +467,10 @@ sExp _w x y = ready $ go (reverse (unpackWord y)) -- bits in little-endian order
         go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
             where a = go bs
                   s = SBV.svTimes a a
+
+sModExp :: Integer -> SInteger -> SInteger -> Eval SInteger
+sModExp modulus x y = ready $ SBV.svExp x (SBV.svRem y m)
+  where m = integerLit modulus
 
 -- | Ceiling (log_2 x)
 sLg2 :: Integer -> SWord -> Eval SWord
