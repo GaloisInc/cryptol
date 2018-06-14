@@ -22,7 +22,7 @@ import Cryptol.Utils.Ident (Ident)
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.Utils.Panic(panic)
-import Prelude hiding ((<>))
+import Prelude
 
 infix  4 =#=, >==
 infixr 5 `tFun`
@@ -825,7 +825,7 @@ instance PP (WithNames Type) where
 
           (TCSeq,   [t1,TCon (TC TCBit) []]) -> brackets (go 0 t1)
           (TCSeq,   [t1,t2])  -> optParens (prec > 3)
-                              $ brackets (go 0 t1) <> go 3 t2
+                              $ brackets (go 0 t1) <.> go 3 t2
 
           (TCFun,   [t1,t2])  -> optParens (prec > 1)
                               $ go 2 t1 <+> text "->" <+> go 1 t2
@@ -885,7 +885,7 @@ instance PP (WithNames TVar) where
           _ -> text ("a`" ++ show (tpUnique x))
 
   ppPrec _ (WithNames (TVFree x _ _ _) _) =
-    char '?' <> text (intToName x)
+    char '?' <.> text (intToName x)
 
 instance PP TVar where
   ppPrec = ppWithNamesPrec IntMap.empty

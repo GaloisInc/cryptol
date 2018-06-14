@@ -22,7 +22,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import qualified Cryptol.TypeCheck.AST as T
-import Cryptol.Utils.PP hiding ((<>))
+import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
 
 import Data.List (nub)

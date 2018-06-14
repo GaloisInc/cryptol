@@ -43,7 +43,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Prelude ()
-import Prelude.Compat hiding ((<>))
+import Prelude.Compat
 
 -- Errors ----------------------------------------------------------------------
 
@@ -148,7 +148,7 @@ instance PP ModuleError where
 
     OtherIOError path exn ->
       hang (text "[error]" <+>
-            text "IO error while loading file:" <+> text path <> colon)
+            text "IO error while loading file:" <+> text path <.> colon)
          4 (text (show exn))
 
     ModuleParseError _source err -> Parser.ppError err
@@ -166,7 +166,7 @@ instance PP ModuleError where
     TypeCheckingFailed _src errs -> vcat (map T.ppError errs)
 
     ModuleNameMismatch expected found ->
-      hang (text "[error]" <+> pp (P.srcRange found) <> char ':')
+      hang (text "[error]" <+> pp (P.srcRange found) <.> char ':')
          4 (vcat [ text "File name does not match module name:"
                  , text "Saw:"      <+> pp (P.thing found)
                  , text "Expected:" <+> pp expected

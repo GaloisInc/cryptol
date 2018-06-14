@@ -46,7 +46,6 @@ import Numeric (showIntAtBase)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Prelude hiding ((<>))
 
 -- Values ----------------------------------------------------------------------
 
@@ -398,7 +397,7 @@ ppBV :: PPOpts -> BV -> Doc
 ppBV opts (BV width i)
   | base > 36 = integer i -- not sure how to rule this out
   | asciiMode opts width = text (show (toEnum (fromInteger i) :: Char))
-  | otherwise = prefix <> text value
+  | otherwise = prefix <.> text value
   where
   base = useBase opts
 
@@ -411,11 +410,11 @@ ppBV opts (BV width i)
                    `divMod` bitsPerDigit
 
   prefix = case base of
-    2  -> text "0b" <> padding 1
-    8  -> text "0o" <> padding 3
+    2  -> text "0b" <.> padding 1
+    8  -> text "0o" <.> padding 3
     10 -> empty
-    16 -> text "0x" <> padding 4
-    _  -> text "0"  <> char '<' <> int base <> char '>'
+    16 -> text "0x" <.> padding 4
+    _  -> text "0"  <.> char '<' <.> int base <.> char '>'
 
   value  = showIntAtBase (toInteger base) (digits !!) i ""
   digits = "0123456789abcdefghijklmnopqrstuvwxyz"

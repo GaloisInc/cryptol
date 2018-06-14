@@ -45,7 +45,6 @@ import           Cryptol.TypeCheck.Monad(withParamType,withParameterConstraints)
 import           Cryptol.Utils.Ident (exprModName,packIdent)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
-import           Prelude hiding ((<>))
 
 tcModule :: P.Module Name -> InferInput -> IO (InferOutput Module)
 tcModule m inp = runInferM inp
@@ -119,9 +118,9 @@ tcDecls ds inp = runInferM inp $ inferDs ds $ \dgs -> do
                    return dgs
 
 ppWarning :: (Range,Warning) -> Doc
-ppWarning (r,w) = text "[warning] at" <+> pp r <> colon $$ nest 2 (pp w)
+ppWarning (r,w) = text "[warning] at" <+> pp r <.> colon $$ nest 2 (pp w)
 
 ppError :: (Range,Error) -> Doc
-ppError (r,w) = text "[error] at" <+> pp r <> colon $$ nest 2 (pp w)
+ppError (r,w) = text "[error] at" <+> pp r <.> colon $$ nest 2 (pp w)
 
 

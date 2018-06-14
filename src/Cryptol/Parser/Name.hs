@@ -16,7 +16,6 @@ import Cryptol.Utils.Panic (panic)
 
 import           Control.DeepSeq
 import           GHC.Generics (Generic)
-import Prelude hiding ((<>))
 
 
 -- Names -----------------------------------------------------------------------
@@ -67,18 +66,18 @@ instance PPName PName where
     where
     i   = getIdent n
 
-  ppPrefixName n = optParens (isInfixIdent i) (pfx <> pp i)
+  ppPrefixName n = optParens (isInfixIdent i) (pfx <.> pp i)
     where
     i   = getIdent n
     pfx = case getModName n of
-            Just ns -> pp ns <> text "::"
+            Just ns -> pp ns <.> text "::"
             Nothing -> empty
 
   ppInfixName n
-    | isInfixIdent i = pfx <> pp i
+    | isInfixIdent i = pfx <.> pp i
     | otherwise      = panic "AST" [ "non-symbol infix name:" ++ show n ]
     where
     i   = getIdent n
     pfx = case getModName n of
-            Just ns -> pp ns <> text "::"
+            Just ns -> pp ns <.> text "::"
             Nothing -> empty

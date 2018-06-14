@@ -18,7 +18,6 @@ import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Subst
 import Cryptol.ModuleSystem.Name(Name)
 import Cryptol.Utils.Ident(Ident)
-import Prelude hiding ((<>))
 
 cleanupErrors :: [(Range,Error)] -> [(Range,Error)]
 cleanupErrors = dropErrorsFromSameLoc
@@ -234,7 +233,7 @@ instance PP (WithNames Error) where
       TooManyTypeParams extra k ->
         nested (text "Malformed type.")
           (text "Kind" <+> quotes (pp k) <+> text "is not a function," $$
-           text "but it was applied to" <+> pl extra "parameter" <> text ".")
+           text "but it was applied to" <+> pl extra "parameter" <.> text ".")
 
       TyVarWithParams ->
         nested (text "Malformed type.")
@@ -243,7 +242,7 @@ instance PP (WithNames Error) where
       TooManyTySynParams t extra ->
         nested (text "Malformed type.")
           (text "Type synonym" <+> nm t <+> text "was applied to" <+>
-            pl extra "extra parameter" <> text ".")
+            pl extra "extra parameter" <.> text ".")
 
       TooFewTySynParams t few ->
         nested (text "Malformed type.")
@@ -302,20 +301,20 @@ instance PP (WithNames Error) where
               var x = pp x
 
       UndefinedTypeParameter x ->
-        "Undefined type parameter `" <> pp (thing x) <> "`."
+        "Undefined type parameter `" <.> pp (thing x) <.> "`."
           $$ "See" <+> pp (srcRange x)
 
       RepeatedTypeParameter x rs ->
-        "Multiple definitions for type parameter `" <> pp x <> "`:"
+        "Multiple definitions for type parameter `" <.> pp x <.> "`:"
           $$ nest 2 (vcat [ "*" <+> pp r | r <- rs ])
 
     where
     nested x y = x $$ nest 2 y
 
     pl 1 x     = text "1" <+> text x
-    pl n x     = text (show n) <+> text x <> text "s"
+    pl n x     = text (show n) <+> text x <.> text "s"
 
-    nm x       = text "`" <> pp x <> text "`"
+    nm x       = text "`" <.> pp x <.> text "`"
 
     mismatchHint (TRec fs1) (TRec fs2) =
       hint "Missing" missing $$ hint "Unexpected" extra

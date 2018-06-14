@@ -4,7 +4,7 @@ module Cryptol.ModuleSystem.Exports where
 import Data.Set(Set)
 import qualified Data.Set as Set
 import Data.Foldable(fold)
-import Data.Semigroup
+import Data.Semigroup (Semigroup(..))
 import Control.DeepSeq(NFData)
 import GHC.Generics (Generic)
 

@@ -65,7 +65,7 @@ import           Data.Char(isAlpha,toUpper)
 import           GHC.Generics (Generic)
 import           MonadLib
 import           Prelude ()
-import           Prelude.Compat hiding ((<>))
+import           Prelude.Compat
 
 
 -- Names -----------------------------------------------------------------------
@@ -175,9 +175,9 @@ ppName Name { .. } =
 
     Declared m -> withNameDisp $ \disp ->
       case getNameFormat m nIdent disp of
-        Qualified m' -> pp m' <> text "::" <> pp nIdent
-        UnQualified  ->                       pp nIdent
-        NotInScope   -> pp m  <> text "::" <> pp nIdent
+        Qualified m' -> pp m' <.> text "::" <.> pp nIdent
+        UnQualified  ->                         pp nIdent
+        NotInScope   -> pp m  <.> text "::" <.> pp nIdent
 
     Parameter -> pp nIdent
 

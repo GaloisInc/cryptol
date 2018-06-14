@@ -89,7 +89,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Prelude ()
-import Prelude.Compat hiding ((<>))
+import Prelude.Compat
 
 -- AST -------------------------------------------------------------------------
 
@@ -627,7 +627,7 @@ ppNumLit n info =
   where
   pad base pref w =
     let txt = showIntAtBase base ("0123456789abcdef" !!) n ""
-    in text pref <> text (replicate (w - length txt) '0') <> text txt
+    in text pref <.> text (replicate (w - length txt) '0') <.> text txt
 
   poly w = let (res,deg) = bits Nothing [] 0 n
                z | w == 0 = []
@@ -637,10 +637,10 @@ ppNumLit n info =
 
   polyTerm 0 = text "1"
   polyTerm 1 = text "x"
-  polyTerm p = text "x" <> text "^^" <> int p
+  polyTerm p = text "x" <.> text "^^" <.> int p
 
   polyTerm0 0 = text "0"
-  polyTerm0 p = text "0" <> text "*" <> polyTerm p
+  polyTerm0 p = text "0" <.> text "*" <.> polyTerm p
 
   bits d res p num
     | num == 0  = (res,d)
@@ -681,19 +681,19 @@ instance (Show name, PPName name) => PP (Expr name) where
       ETuple es     -> parens (commaSep (map pp es))
       ERecord fs    -> braces (commaSep (map (ppNamed "=") fs))
       EList es      -> brackets (commaSep (map pp es))
-      EFromTo e1 e2 e3 -> brackets (pp e1 <> step <+> text ".." <+> end)
+      EFromTo e1 e2 e3 -> brackets (pp e1 <.> step <+> text ".." <+> end)
         where step = maybe empty (\e -> comma <+> pp e) e2
               end  = maybe empty pp e3
-      EInfFrom e1 e2 -> brackets (pp e1 <> step <+> text "...")
+      EInfFrom e1 e2 -> brackets (pp e1 <.> step <+> text "...")
         where step = maybe empty (\e -> comma <+> pp e) e2
       EComp e mss   -> brackets (pp e <+> vcat (map arm mss))
         where arm ms = text "|" <+> commaSep (map pp ms)
-      ETypeVal t    -> text "`" <> ppPrec 5 t     -- XXX
-      EAppT e ts    -> ppPrec 4 e <> text "`" <> braces (commaSep (map pp ts))
-      ESel    e l   -> ppPrec 4 e <> text "." <> pp l
+      ETypeVal t    -> text "`" <.> ppPrec 5 t     -- XXX
+      EAppT e ts    -> ppPrec 4 e <.> text "`" <.> braces (commaSep (map pp ts))
+      ESel    e l   -> ppPrec 4 e <.> text "." <.> pp l
 
       -- low prec
-      EFun xs e     -> wrap n 0 ((text "\\" <> hsep (map (ppPrec 3) xs)) <+>
+      EFun xs e     -> wrap n 0 ((text "\\" <.> hsep (map (ppPrec 3) xs)) <+>
                                  text "->" <+> pp e)
 
       EIf e1 e2 e3  -> wrap n 0 $ sep [ text "if"   <+> pp e1
@@ -783,7 +783,7 @@ instance PPName name => PP (Type name) where
       TChar x        -> text (show x)
       TSeq t1 TBit   -> brackets (pp t1)
       TSeq t1 t2     -> optParens (n > 3)
-                      $ brackets (pp t1) <> ppPrec 3 t2
+                      $ brackets (pp t1) <.> ppPrec 3 t2
 
       _ | Just tinf <- isInfix ty ->
               optParens (n > 2)

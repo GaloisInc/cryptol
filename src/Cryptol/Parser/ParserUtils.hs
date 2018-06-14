@@ -34,7 +34,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Prelude ()
-import Prelude.Compat hiding ((<>))
+import Prelude.Compat
 
 parseString :: Config -> ParseM a -> String -> Either ParseError a
 parseString cfg p cs = parse cfg p (T.pack cs)
@@ -92,18 +92,18 @@ ppError :: ParseError -> Doc
 ppError (HappyError path ltok)
   | Err _ <- tokenType tok =
     text "Parse error at" <+>
-    text path <> char ':' <> pp pos <> comma <+>
+    text path <.> char ':' <.> pp pos <.> comma <+>
     pp tok
 
   | White DocStr <- tokenType tok =
     "Unexpected documentation (/**) comment at" <+>
-    text path <> char ':' <> pp pos <> colon $$
+    text path <.> char ':' <.> pp pos <.> colon $$
     nest 2
       "Documentation comments need to be followed by something to document."
 
   | otherwise =
     text "Parse error at" <+>
-    text path <> char ':' <> pp pos <> comma $$
+    text path <.> char ':' <.> pp pos <.> comma $$
     nest 2 (text "unexpected:" <+> pp tok)
   where
   pos = from (srcRange ltok)
@@ -111,13 +111,13 @@ ppError (HappyError path ltok)
 
 ppError (HappyOutOfTokens path pos) =
   text "Unexpected end of file at:" <+>
-    text path <> char ':' <> pp pos
+    text path <.> char ':' <.> pp pos
 
 ppError (HappyErrorMsg p x)  = text "Parse error at" <+> pp p $$ nest 2 (text x)
 
 ppError (HappyUnexpected path ltok e) =
   text "Parse error at" <+>
-   text path <> char ':' <> pp pos <> comma $$
+   text path <.> char ':' <.> pp pos <.> comma $$
    nest 2 unexp $$
    nest 2 ("expected:" <+> text e)
   where

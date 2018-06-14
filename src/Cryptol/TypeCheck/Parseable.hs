@@ -21,8 +21,8 @@ import Cryptol.TypeCheck.AST
 import Cryptol.Utils.Ident (Ident,unpackIdent)
 import Cryptol.Parser.AST ( Located(..))
 import Cryptol.ModuleSystem.Name
-import Text.PrettyPrint
-import Prelude hiding ((<>))
+import Text.PrettyPrint hiding ((<>))
+import qualified Text.PrettyPrint as PP ((<>))
 
 -- ShowParseable prints out a cryptol program in a way that it's parseable by Coq (and likely other things)
 -- Used mainly for reasoning about the semantics of cryptol programs in Coq (https://github.com/GaloisInc/cryptol-semantics)
@@ -48,8 +48,8 @@ instance ShowParseable Expr where
   showParseable (EProofApp e) = showParseable e --"(EProofApp " ++ showParseable e ++ ")"
 
 instance (ShowParseable a, ShowParseable b) => ShowParseable (a,b) where
-  showParseable (x,y) = parens (showParseable x <> comma <> showParseable y)
-  
+  showParseable (x,y) = parens (showParseable x PP.<> comma PP.<> showParseable y)
+
 instance ShowParseable Int where
   showParseable i = int i
 
@@ -100,11 +100,11 @@ instance (ShowParseable a) => ShowParseable (Located a) where
   showParseable l = showParseable (thing l)
 
 instance ShowParseable TParam where
-  showParseable tp = parens (text (show (tpUnique tp)) <> comma <> maybeNameDoc (tpName tp))
+  showParseable tp = parens (text (show (tpUnique tp)) PP.<> comma PP.<> maybeNameDoc (tpName tp))
 
 maybeNameDoc :: Maybe Name -> Doc
 maybeNameDoc Nothing = doubleQuotes empty
 maybeNameDoc (Just n) = showParseable (nameIdent n)
-    
+
 instance ShowParseable Name where
-  showParseable n = parens (text (show (nameUnique n)) <> comma <> showParseable (nameIdent n))
+  showParseable n = parens (text (show (nameUnique n)) PP.<> comma PP.<> showParseable (nameIdent n))

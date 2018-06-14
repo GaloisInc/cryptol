@@ -24,7 +24,7 @@ import           GHC.Generics (Generic)
 import qualified Text.PrettyPrint as PJ
 
 import Prelude ()
-import Prelude.Compat hiding ((<>))
+import Prelude.Compat
 
 -- Name Displaying -------------------------------------------------------------
 
@@ -176,7 +176,7 @@ ppInfix lp isInfix expr =
 
 -- | Display a numeric values as an ordinar (e.g., 2nd)
 ordinal :: (Integral a, Show a, Eq a) => a -> Doc
-ordinal x = text (show x) <> text (ordSuffix x)
+ordinal x = text (show x) <.> text (ordSuffix x)
 
 -- | The suffix to use when displaying a number as an oridinal
 ordSuffix :: (Integral a, Eq a) => a -> String
@@ -207,10 +207,10 @@ liftPJ2 f (Doc a) (Doc b) = Doc (\e -> f (a e) (b e))
 liftSep :: ([PJ.Doc] -> PJ.Doc) -> ([Doc] -> Doc)
 liftSep f ds = Doc (\e -> f [ d e | Doc d <- ds ])
 
-infixl 6 <>, <+>
+infixl 6 <.>, <+>
 
-(<>) :: Doc -> Doc -> Doc
-(<>)  = liftPJ2 (PJ.<>)
+(<.>) :: Doc -> Doc -> Doc
+(<.>)  = liftPJ2 (PJ.<>)
 
 (<+>) :: Doc -> Doc -> Doc
 (<+>)  = liftPJ2 (PJ.<+>)
@@ -257,7 +257,7 @@ punctuate :: Doc -> [Doc] -> [Doc]
 punctuate p = go
   where
   go (d:ds) | null ds   = [d]
-            | otherwise = d <> p : go ds
+            | otherwise = d <.> p : go ds
   go []                 = []
 
 text :: String -> Doc

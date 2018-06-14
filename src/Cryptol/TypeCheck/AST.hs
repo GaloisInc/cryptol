@@ -46,7 +46,6 @@ import Control.DeepSeq
 import           Data.Map    (Map)
 import qualified Data.Map    as Map
 import qualified Data.IntMap as IntMap
-import Prelude hiding ((<>))
 
 
 -- | A Cryptol module.
@@ -204,7 +203,7 @@ instance PP (WithNames Expr) where
       ERec fs       -> braces $ sep $ punctuate comma
                         [ pp f <+> text "=" <+> ppW e | (f,e) <- fs ]
 
-      ESel e sel    -> ppWP 4 e <+> text "." <> pp sel
+      ESel e sel    -> ppWP 4 e <+> text "." <.> pp sel
 
       EIf e1 e2 e3  -> optParens (prec > 0)
                     $ sep [ text "if"   <+> ppW e1
@@ -258,7 +257,7 @@ ppLam :: NameMap -> Int -> [TParam] -> [Prop] -> [(Name,Type)] -> Expr -> Doc
 ppLam nm prec [] [] [] e = ppWithNamesPrec nm prec e
 ppLam nm prec ts ps xs e =
   optParens (prec > 0) $
-  sep [ text "\\" <> tsD <+> psD <+> xsD <+> text "->"
+  sep [ text "\\" <.> tsD <+> psD <+> xsD <+> text "->"
       , ppWithNames ns1 e
       ]
   where

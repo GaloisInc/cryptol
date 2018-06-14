@@ -20,7 +20,6 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Cryptol.Utils.PP
-import Prelude hiding ((<>))
 
 data Located a  = Located { srcRange :: !Range, thing :: !a }
                   deriving (Eq, Show, Generic, NFData)
@@ -67,14 +66,14 @@ instance Functor Located where
 --------------------------------------------------------------------------------
 
 instance PP Position where
-  ppPrec _ p = int (line p) <> colon <> int (col p)
+  ppPrec _ p = int (line p) <.> colon <.> int (col p)
 
 instance PP Range where
-  ppPrec _ r = text (source r) <> char ':'
-            <> pp (from r) <> text "--" <> pp (to r)
+  ppPrec _ r = text (source r) <.> char ':'
+            <.> pp (from r) <.> text "--" <.> pp (to r)
 
 instance PP a => PP (Located a) where
-  ppPrec _ l = parens (text "at" <+> pp (srcRange l) <> comma <+> pp (thing l))
+  ppPrec _ l = parens (text "at" <+> pp (srcRange l) <.> comma <+> pp (thing l))
 
 instance PPName a => PPName (Located a) where
   ppNameFixity  Located { .. } = ppNameFixity thing

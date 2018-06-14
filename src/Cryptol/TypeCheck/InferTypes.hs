@@ -33,7 +33,6 @@ import qualified Data.Set as Set
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-import Prelude hiding ((<>))
 
 data SolverConfig = SolverConfig
   { solverPath    :: FilePath   -- ^ The SMT solver to invoke
@@ -268,8 +267,8 @@ instance PP (WithNames DelayedCt) where
     sig $$ nest 2 (vars $$ asmps $$ vcat (map (ppWithNames ns1) (dctGoals d)))
     where
     sig = case name of
-            Just n -> text "In the definition of" <+> quotes (pp n) <>
-                          comma <+> text "at" <+> pp (nameLoc n) <> colon
+            Just n -> text "In the definition of" <+> quotes (pp n) <.>
+                          comma <+> text "at" <+> pp (nameLoc n) <.> colon
             Nothing -> text "When checking the module's parameters."
 
     name  = dctSource d

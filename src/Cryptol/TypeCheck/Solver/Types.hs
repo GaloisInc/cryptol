@@ -5,7 +5,6 @@ import Data.Map(Map)
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.Numeric.Interval
-import Prelude hiding ((<>))
 
 type Ctxt = Map TVar Interval
 
@@ -37,4 +36,4 @@ instance PP Solved where
     case res of
       SolvedIf ps  -> text "solved" $$ nest 2 (vcat (map pp ps))
       Unsolved     -> text "unsolved"
-      Unsolvable e -> text "unsolvable" <> colon <+> text (tcErrorMessage e)
+      Unsolvable e -> text "unsolvable" <.> colon <+> text (tcErrorMessage e)

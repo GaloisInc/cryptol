@@ -20,7 +20,7 @@ import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat
-import Cryptol.Utils.PP hiding ((<>))
+import Cryptol.Utils.PP
 
 
 import qualified Data.Map.Strict as Map
