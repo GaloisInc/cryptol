@@ -18,7 +18,7 @@ primitive integer : {val} (fin val) => Integer
 /**
  * The integer (mod n) value corresponding to a numeric type.
  */
-primitive intmod : {val, modulus} (fin val, modulus >= val + 1) => Z modulus
+primitive intmod : {val, modulus} (fin modulus, modulus >= val + 1) => Z modulus
 
 infixr  5 ==>
 infixr 10 \/

@@ -89,7 +89,8 @@ Symbols
     infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
     infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
     integer : {val} (fin val) => Integer
-    intmod : {val, modulus} (fin val, modulus >= 1 + val) => Z modulus
+    intmod :
+      {val, modulus} (fin modulus, modulus >= 1 + val) => Z modulus
     iterate : {a} (a -> a) -> a -> [inf]a
     join :
       {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a
