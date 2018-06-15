@@ -33,7 +33,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Prelude ()
-import Prelude.Compat hiding ((<>))
+import Prelude.Compat
 
 class RemovePatterns t where
   -- | Eliminate all patterns in a program.
@@ -509,12 +509,12 @@ instance PP Error where
         $$ nest 2 (vcat (map pp ss))
 
       SignatureNoBind x s ->
-        text "At" <+> pp (srcRange x) <> colon <+>
+        text "At" <+> pp (srcRange x) <.> colon <+>
         text "Type signature without a matching binding:"
          $$ nest 2 (pp s)
 
       PragmaNoBind x s ->
-        text "At" <+> pp (srcRange x) <> colon <+>
+        text "At" <+> pp (srcRange x) <.> colon <+>
         text "Pragma without a matching binding:"
          $$ nest 2 (pp s)
 
@@ -523,7 +523,7 @@ instance PP Error where
         $$ nest 2 (vcat (map pp locs))
 
       FixityNoBind n ->
-        text "At" <+> pp (srcRange n) <> colon <+>
+        text "At" <+> pp (srcRange n) <.> colon <+>
         text "Fixity declaration without a matching binding for:" <+>
          pp (thing n)
 

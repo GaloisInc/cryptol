@@ -6,7 +6,7 @@ import Cryptol
 /* Not recursive */
 test04::test : {a, b} (b >= 4, fin b) => a -> ((a, ()), (a, [b]))
 test04::test = \{a, b} (b >= 4, fin b) (a : a) ->
-               (test04::f () (), test04::f [b] (Cryptol::demote 10 b <> <> <>))
+               (test04::f () (), test04::f [b] (Cryptol::demote 10 b <> <>))
                where
                  /* Not recursive */
                  test04::f : {c} c -> (a, c)
@@ -25,8 +25,8 @@ Loading module test04
 [error] at ./test04.cry:3:19--3:21:
   Type mismatch:
     Expected type: ()
-    Inferred type: [?l33]
+    Inferred type: [?p33]
   where
-  ?l33 is type parameter 'bits'
+  ?p33 is type parameter 'bits'
           of literal or demoted expression
           at ./test04.cry:3:19--3:21

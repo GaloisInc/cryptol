@@ -51,7 +51,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Prelude ()
-import Prelude.Compat hiding ((<>))
+import Prelude.Compat
 
 -- Errors ----------------------------------------------------------------------
 
@@ -114,7 +114,7 @@ instance PP RenamerError where
       hang (text "[error] at" <+> pp (srcRange lqn))
          4 (fsep [ text "Expected a value named", quotes (pp (thing lqn))
                  , text "but found a type instead"
-                 , text "Did you mean `(" <> pp (thing lqn) <> text")?" ])
+                 , text "Did you mean `(" <.> pp (thing lqn) <.> text")?" ])
 
     ExpectedType lqn disp -> fixNameDisp disp $
       hang (text "[error] at" <+> pp (srcRange lqn))
@@ -157,7 +157,7 @@ instance PP RenamerWarning where
   ppPrec _ (SymbolShadowed new originals disp) = fixNameDisp disp $
     hang (text "[warning] at" <+> loc)
        4 $ fsep [ text "This binding for" <+> sym
-                , (text "shadows the existing binding" <> plural) <+> text "from" ]
+                , (text "shadows the existing binding" <.> plural) <+> text "from" ]
         $$ vcat (map ppLocName originals)
 
     where
@@ -169,7 +169,7 @@ instance PP RenamerWarning where
 
   ppPrec _ (DangerousFixity o1 o2 disp) = fixNameDisp disp $
     hang (text "[warning] at" <+> pp (srcRange o1))
-       4 $ fsep [ text "Using fixity to resolve the parsing of operators" <+> pp (thing o1) <+> text "and" <+> pp (thing o2) <> text ";"
+       4 $ fsep [ text "Using fixity to resolve the parsing of operators" <+> pp (thing o1) <+> text "and" <+> pp (thing o2) <.> text ";"
                 , text "the relative fixity of these operators has recently changed!"
                 , text "Use parentheses to disambiguate this parse, or consider replacing (&&) with (/\\), or (||) with (\\/)."
                 , text "Ignore this message if you are confident this expression is parsing correctly; it will be removed"

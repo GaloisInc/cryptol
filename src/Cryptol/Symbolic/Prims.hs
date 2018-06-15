@@ -39,6 +39,7 @@ import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            transposeV, indexPrim,
                            ecIntegerV, ecToIntegerV, ecFromIntegerV,
                            ecDemoteV, updatePrim, randomV, liftWord,
+                           ecIntModV,
                            cmpValue, lg2)
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Decl(..))
@@ -81,6 +82,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                                 -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
   , ("integer"     , ecIntegerV) -- Converts a numeric type into its corresponding value.
                                  -- { val } (fin val) => Integer
+  , ("intmod"      , ecIntModV) -- {val, n} (fin val, n >= val + 1) => Z n
   , ("+"           , binary (arithBinary (liftBinArith SBV.svPlus) (liftBin SBV.svPlus)
                              (const (liftBin SBV.svPlus)))) -- {a} (Arith a) => a -> a -> a
   , ("-"           , binary (arithBinary (liftBinArith SBV.svMinus) (liftBin SBV.svMinus)
@@ -92,7 +94,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("%"           , binary (arithBinary (liftBinArith SBV.svRem) (liftBin SBV.svRem)
                              (liftModBin SBV.svRem))) -- {a} (Arith a) => a -> a -> a
   , ("^^"          , binary (arithBinary sExp (liftBin SBV.svExp)
-                             (liftModBin SBV.svRem))) -- {a} (Arith a) => a -> a -> a
+                             sModExp)) -- {a} (Arith a) => a -> a -> a
   , ("lg2"         , unary (arithUnary sLg2 svLg2 svModLg2)) -- {a} (Arith a) => a -> a
   , ("negate"      , unary (arithUnary (\_ -> ready . SBV.svUNeg) SBV.svUNeg
                             (const SBV.svUNeg)))
@@ -117,6 +119,14 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("zero"        , tlam zeroV)
   , ("toInteger"   , ecToIntegerV)
   , ("fromInteger" , ecFromIntegerV)
+  , ("toZ"        , nlam $ \ _modulus ->
+                    lam  $ \ x -> x)
+  , ("fromZ"      , nlam $ \ modulus ->
+                    lam  $ \ x -> do
+                      val <- x
+                      case (modulus, val) of
+                        (Nat n, VInteger i) -> return $ VInteger (SBV.svRem i (integerLit n))
+                        _                   -> evalPanic "fromZ" ["Invalid arguments"])
   , ("<<"          , logicShift "<<"
                        SBV.svShiftLeft
                        (\sz i shft ->
@@ -467,6 +477,10 @@ sExp _w x y = ready $ go (reverse (unpackWord y)) -- bits in little-endian order
         go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
             where a = go bs
                   s = SBV.svTimes a a
+
+sModExp :: Integer -> SInteger -> SInteger -> Eval SInteger
+sModExp modulus x y = ready $ SBV.svExp x (SBV.svRem y m)
+  where m = integerLit modulus
 
 -- | Ceiling (log_2 x)
 sLg2 :: Integer -> SWord -> Eval SWord

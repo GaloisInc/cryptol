@@ -20,7 +20,6 @@ import Cryptol.Utils.PP hiding (int)
 import           Data.Map ( Map )
 import qualified Data.Map as Map
 import           Data.Maybe (catMaybes)
-import Prelude hiding ((<>))
 
 
 -- | Only meaningful for numeric types
@@ -153,7 +152,7 @@ data Interval = Interval
 ppIntervals :: Map TVar Interval -> Doc
 ppIntervals  = vcat . map ppr . Map.toList
   where
-  ppr (var,i) = pp var <> char ':' <+> ppInterval i
+  ppr (var,i) = pp var <.> char ':' <+> ppInterval i
 
 ppInterval :: Interval -> Doc
 ppInterval x = brackets (hsep [ ppr (iLower x)

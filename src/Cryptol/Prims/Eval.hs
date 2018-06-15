@@ -113,6 +113,16 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     unary  (logicUnary complement (unaryBV complement)))
   , ("toInteger"  , ecToIntegerV)
   , ("fromInteger", ecFromIntegerV)
+  , ("toZ"        , {-# SCC "Prelude::toZ" #-}
+                    nlam $ \ modulus ->
+                    lam  $ \ x -> do
+                      val <- x
+                      case (modulus, val) of
+                        (Nat n, VInteger i) -> return $ VInteger (i `mod` n)
+                        _                   -> evalPanic "toZ" ["Invalid arguments"])
+  , ("fromZ"      , {-# SCC "Prelude::fromZ" #-}
+                    nlam $ \ _modulus ->
+                    lam  $ \ x -> x)
   , ("<<"         , {-# SCC "Prelude::(<<)" #-}
                     logicShift shiftLW shiftLB shiftLS)
   , (">>"         , {-# SCC "Prelude::(>>)" #-}
@@ -132,6 +142,8 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     ecDemoteV)
   , ("integer"    , {-# SCC "Prelude::integer" #-}
                     ecIntegerV)
+  , ("intmod"     , {-# SCC "Prelude::intmod" #-}
+                    ecIntModV)
 
   , ("#"          , {-# SCC "Prelude::(#)" #-}
                     nlam $ \ front ->
@@ -241,6 +253,17 @@ ecIntegerV = nlam $ \valT ->
                         [ "Unexpected Inf in constant."
                         , show valT
                         ]
+
+-- | Make an integer (mod n) constant. We assume that valT < modT.
+ecIntModV :: BitWord b w i => GenValue b w i
+ecIntModV = nlam $ \valT ->
+            nlam $ \_modT ->
+            case valT of
+              Nat v -> VInteger (integerLit v)
+              _ -> evalPanic "Cryptol.Eval.Prim.evalConst"
+                       [ "Unexpected Inf in constant."
+                       , show valT
+                       ]
 
 -- | Convert a word to a non-negative integer.
 ecToIntegerV :: BitWord b w i => GenValue b w i

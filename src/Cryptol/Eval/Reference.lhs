@@ -23,7 +23,7 @@
 > import Data.Ord (comparing)
 > import Data.Map (Map)
 > import qualified Data.Map as Map
-> import Data.Semigroup
+> import Data.Semigroup (Semigroup(..))
 > import qualified Data.Text as T (pack)
 >
 > import Cryptol.ModuleSystem.Name (asPrim)
@@ -34,7 +34,7 @@
 > import Cryptol.Prims.Eval (lg2)
 > import Cryptol.Utils.Ident (Ident, mkIdent)
 > import Cryptol.Utils.Panic (panic)
-> import Cryptol.Utils.PP hiding ((<>))
+> import Cryptol.Utils.PP
 >
 > import qualified Cryptol.ModuleSystem as M
 > import qualified Cryptol.ModuleSystem.Env as M (loadedModules)

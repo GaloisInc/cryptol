@@ -56,8 +56,7 @@ Symbols
     carry : {n} (fin n) => [n] -> [n] -> Bit
     complement : {a} (Logic a) => a -> a
     curry : {a, b, c} ((a, b) -> c) -> a -> b -> c
-    demote :
-      {val, bits} (fin val, fin bits, bits >= width val) => [bits]
+    demote : {val, bits} (fin bits, bits >= width val) => [bits]
     drop :
       {front, back, elem} (fin front) => [front + back]elem -> [back]elem
     elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
@@ -82,6 +81,7 @@ Symbols
       {first, last, bits} (fin last, fin bits, last >= first,
                            bits >= width last) =>
         [1 + (last - first)][bits]
+    fromZ : {n} (fin n, n >= 1) => Z n -> Integer
     groupBy :
       {each, parts, elem} (fin each) =>
         [each * parts]elem -> [parts][each]elem
@@ -89,6 +89,8 @@ Symbols
     infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
     infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
     integer : {val} (fin val) => Integer
+    intmod :
+      {val, modulus} (fin modulus, modulus >= 1 + val) => Z modulus
     iterate : {a} (a -> a) -> a -> [inf]a
     join :
       {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a
@@ -123,6 +125,7 @@ Symbols
       {front, back, elem} (fin front) =>
         [front + back]elem -> [front]elem
     toInteger : {a} (fin a) => [a] -> Integer
+    toZ : {n} (fin n, n >= 1) => Integer -> Z n
     trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
     traceVal : {n, a} (fin n) => [n][8] -> a -> a
     transpose : {a, b, c} [a][b]c -> [b][a]c

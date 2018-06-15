@@ -31,7 +31,6 @@ import Cryptol.Parser.LexerUtils (Config(..),defaultConfig)
 import Cryptol.Parser.ParserUtils
 import Cryptol.Parser.Unlit (guessPreProc)
 import Cryptol.Utils.PP
-import Prelude hiding ((<>))
 
 removeIncludesModule :: FilePath -> Module PName -> IO (Either [IncludeError] (Module PName))
 removeIncludesModule modPath m = runNoIncM modPath (noIncludeModule m)
@@ -45,7 +44,7 @@ data IncludeError
 ppIncludeError :: IncludeError -> Doc
 ppIncludeError ie = case ie of
 
-  IncludeFailed lp -> (char '`' <> text (thing lp) <> char '`')
+  IncludeFailed lp -> (char '`' <.> text (thing lp) <.> char '`')
                   <+> text "included at"
                   <+> pp (srcRange lp)
                   <+> text "was not found"

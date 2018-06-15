@@ -37,7 +37,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Panic (panic)
-import Cryptol.Utils.PP hiding ((<>))
+import Cryptol.Utils.PP
 
 import           Control.Monad
 import qualified Data.Sequence as Seq

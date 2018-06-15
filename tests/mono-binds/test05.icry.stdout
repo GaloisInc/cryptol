@@ -11,16 +11,16 @@ module test05
 import Cryptol
 /* Not recursive */
 test05::foo : [10]
-test05::foo = Cryptol::demote 10 10 <> <> <>
+test05::foo = Cryptol::demote 10 10 <> <>
 
 /* Not recursive */
 test05::test : {a, b, c} (Zero b, c >= 4, fin c) => [a]b -> [c]
 test05::test = \{a, b, c} (Zero b, c >= 4, fin c) (a : [a]b) ->
-               Cryptol::demote 10 c <> <> <>
+               Cryptol::demote 10 c <> <>
                where
                  /* Not recursive */
                  test05::foo : [10]
-                 test05::foo = Cryptol::demote 10 10 <> <> <>
+                 test05::foo = Cryptol::demote 10 10 <> <>
                  
                  /* Not recursive */
                  test05::f : {d} (fin d) => [a + d]b
@@ -57,16 +57,16 @@ module test05
 import Cryptol
 /* Not recursive */
 test05::foo : [10]
-test05::foo = Cryptol::demote 10 10 <> <> <>
+test05::foo = Cryptol::demote 10 10 <> <>
 
 /* Not recursive */
 test05::test : {a, b, c} (Zero b, c >= 4, fin c) => [a]b -> [c]
 test05::test = \{a, b, c} (Zero b, c >= 4, fin c) (a : [a]b) ->
-               Cryptol::demote 10 c <> <> <>
+               Cryptol::demote 10 c <> <>
                where
                  /* Not recursive */
                  test05::foo : [10]
-                 test05::foo = Cryptol::demote 10 10 <> <> <>
+                 test05::foo = Cryptol::demote 10 10 <> <>
                  
                  /* Not recursive */
                  test05::f : [a]b
