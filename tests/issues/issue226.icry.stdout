@@ -81,6 +81,7 @@ Symbols
       {first, last, bits} (fin last, fin bits, last >= first,
                            bits >= width last) =>
         [1 + (last - first)][bits]
+    fromZ : {n} (fin n, n >= 1) => Z n -> Integer
     groupBy :
       {each, parts, elem} (fin each) =>
         [each * parts]elem -> [parts][each]elem
@@ -124,6 +125,7 @@ Symbols
       {front, back, elem} (fin front) =>
         [front + back]elem -> [front]elem
     toInteger : {a} (fin a) => [a] -> Integer
+    toZ : {n} (fin n, n >= 1) => Integer -> Z n
     trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
     traceVal : {n, a} (fin n) => [n][8] -> a -> a
     transpose : {a, b, c} [a][b]c -> [b][a]c
