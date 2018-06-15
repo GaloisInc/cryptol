@@ -113,6 +113,16 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     unary  (logicUnary complement (unaryBV complement)))
   , ("toInteger"  , ecToIntegerV)
   , ("fromInteger", ecFromIntegerV)
+  , ("toZ"        , {-# SCC "Prelude::toZ" #-}
+                    nlam $ \ modulus ->
+                    lam  $ \ x -> do
+                      val <- x
+                      case (modulus, val) of
+                        (Nat n, VInteger i) -> return $ VInteger (i `mod` n)
+                        _                   -> evalPanic "toZ" ["Invalid arguments"])
+  , ("fromZ"      , {-# SCC "Prelude::fromZ" #-}
+                    nlam $ \ _modulus ->
+                    lam  $ \ x -> x)
   , ("<<"         , {-# SCC "Prelude::(<<)" #-}
                     logicShift shiftLW shiftLB shiftLS)
   , (">>"         , {-# SCC "Prelude::(>>)" #-}

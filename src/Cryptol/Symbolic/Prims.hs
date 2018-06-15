@@ -119,6 +119,14 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("zero"        , tlam zeroV)
   , ("toInteger"   , ecToIntegerV)
   , ("fromInteger" , ecFromIntegerV)
+  , ("toZ"        , nlam $ \ _modulus ->
+                    lam  $ \ x -> x)
+  , ("fromZ"      , nlam $ \ modulus ->
+                    lam  $ \ x -> do
+                      val <- x
+                      case (modulus, val) of
+                        (Nat n, VInteger i) -> return $ VInteger (SBV.svRem i (integerLit n))
+                        _                   -> evalPanic "fromZ" ["Invalid arguments"])
   , ("<<"          , logicShift "<<"
                        SBV.svShiftLeft
                        (\sz i shft ->

@@ -298,6 +298,16 @@ primitive toInteger : {a} (fin a) => [a] -> Integer
 primitive fromInteger : {a} (fin a) => Integer -> [a]
 
 /**
+ * Converts an unbounded integer to an integer modulo n.
+ */
+primitive toZ : {n} (fin n, n >= 1) => Integer -> Z n
+
+/**
+ * Converts an integer modulo n to an unbounded integer in the range 0 to n-1.
+ */
+primitive fromZ : {n} (fin n, n >= 1) => Z n -> Integer
+
+/**
  * Left shift.  The first argument is the sequence to shift, the second is the
  * number of positions to shift by.
 */
