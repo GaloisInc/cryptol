@@ -395,7 +395,6 @@ checkProp prop =
     P.CUser x ts     -> checkTUser x ts (Just KProp)
     P.CLocated p r1  -> kInRange r1 (checkProp p)
     P.CType _        -> panic "checkProp" [ "Unexpected CType", show prop ]
-    P.CType _        -> panic "checkProp" [ "Unexpected CType", show prop ]
 
 
 -- | Check that a type has the expected kind.
