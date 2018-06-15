@@ -5,23 +5,23 @@ Loading module Main
   Defaulting type parameter 'bits'
              of finite enumeration
              at <interactive>:1:11--1:19
-  to 4
+  to max 4 (width 10)
 True
 [warning] at <interactive>:1:1--1:43:
   Defaulting type parameter 'bits'
              of finite enumeration
              at <interactive>:1:11--1:20
-  to 4
+  to max 4 (width 10)
 False
 [warning] at <interactive>:1:1--1:48:
   Defaulting type parameter 'bits'
              of finite enumeration
              at <interactive>:1:11--1:25
-  to 7
+  to max 7 (width 10)
 False
 [warning] at <interactive>:1:1--1:47:
   Defaulting type parameter 'bits'
              of finite enumeration
              at <interactive>:1:11--1:24
-  to 7
+  to max 7 (width 10)
 True

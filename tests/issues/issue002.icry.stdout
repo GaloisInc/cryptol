@@ -1,4 +1,4 @@
 Loading module Cryptol
-(5, True).0 : {a} (a >= 3, fin a) => [a]
-((5, True), False).0 : {a} (a >= 3, fin a) => ([a], Bit)
-(((5, True), False).0).0 : {a} (a >= 3, fin a) => [a]
+(5, True).0 : {a} (Literal 5 a) => a
+((5, True), False).0 : {a} (Literal 5 a) => (a, Bit)
+(((5, True), False).0).0 : {a} (Literal 5 a) => a

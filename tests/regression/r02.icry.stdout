@@ -3,7 +3,7 @@ Assuming a = 4
 [0xb, 0xb, 0xb, 0xb, 0xb, 0xb, 0xb, 0xb, 0xb, 0xb]
 [warning] at <interactive>:1:1--1:68:
   Defaulting type parameter 'bits'
-             of literal or demoted expression
-             at <interactive>:1:65--1:67
-  to 4
+             of finite enumeration
+             at <interactive>:1:13--1:24
+  to max 4 (width 11)
 True

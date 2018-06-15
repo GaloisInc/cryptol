@@ -6,12 +6,11 @@ import Cryptol
 /* Not recursive */
 test03::test : {a} (fin a, a >= width a) => [a]
 test03::test = \{a} (fin a, a >= width a) ->
-               test03::foo a <> <>
+               test03::foo [a] <>
                where
                  /* Not recursive */
-                 test03::foo : {b} (b >= width a, fin b) => [b]
-                 test03::foo = \{b} (b >= width a, fin b) ->
-                               Cryptol::demote a b <> <>
+                 test03::foo : {b} (Literal a b) => b
+                 test03::foo = \{b} (Literal a b) -> Cryptol::demote a b <>
                  
                
 
@@ -26,7 +25,7 @@ test03::test = \{a} (fin a, a >= width a) ->
                where
                  /* Not recursive */
                  test03::foo : [a]
-                 test03::foo = Cryptol::demote a a <> <>
+                 test03::foo = Cryptol::demote a [a] <>
                  
                
 
