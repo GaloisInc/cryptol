@@ -1414,16 +1414,13 @@ fromThenToV  =
   nlam $ \ first ->
   nlam $ \ next  ->
   nlam $ \ lst   ->
-  nlam $ \ bits  ->
+  tlam $ \ ty    ->
   nlam $ \ len   ->
-    case (first, next, lst, len, bits) of
-      (_         , _        , _       , _       , Nat bits')
-        | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
-      (Nat first', Nat next', Nat _lst', Nat len', Nat bits') ->
+    let !f = mkLit ty in
+    case (first, next, lst, len) of
+      (Nat first', Nat next', Nat _lst', Nat len') ->
         let diff = next' - first'
-         in VSeq len' $ IndexSeqMap $ \i ->
-               ready $ VWord bits' $ return $
-                 WordVal $ wordLit bits' (first' + i*diff)
+        in VSeq len' $ IndexSeqMap $ \i -> ready $ f (first' + i*diff)
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
 
 

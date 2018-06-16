@@ -485,10 +485,10 @@ primitive fromTo : {first, last, a} (fin last, last >= first, Literal last a) =>
  *
  * '[a,b..c]' is syntactic sugar for 'fromThenTo`{first=a,next=b,last=c}'.
  */
-primitive fromThenTo : {first, next, last, bits, len} (fin first, fin next,
-                        fin last, fin bits, bits >= width first,
-                        bits >= width next, bits >= width last,
-                        lengthFromThenTo first next last == len) => [len][bits]
+primitive fromThenTo : {first, next, last, a, len}
+                       ( fin first, fin next, fin last
+                       , Literal first a, Literal next a, Literal last a
+                       , lengthFromThenTo first next last == len) => [len]a
 
 /**
  * An infinite sequence counting up from the given starting value.
