@@ -229,15 +229,24 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                          return yv)
   ]
 
+-- | Make a numeric literal value at the given type.
+mkLit :: BitWord b w i => TValue -> Integer -> GenValue b w i
+mkLit ty =
+  case ty of
+    TVInteger                    -> VInteger . integerLit
+    TVIntMod _                   -> VInteger . integerLit
+    TVSeq w TVBit
+      | w >= Arch.maxBigIntWidth -> wordTooWide w
+      | otherwise                -> word w
+    _                            -> evalPanic "Cryptol.Eval.Prim.evalConst"
+                                    [ "Invalid type for demote" ]
 
 -- | Make a numeric constant.
 ecDemoteV :: BitWord b w i => GenValue b w i
 ecDemoteV = nlam $ \valT ->
             tlam $ \ty ->
-            case (valT, ty) of
-              (Nat v, TVInteger) -> VInteger (integerLit v)
-              (Nat v, TVIntMod _) -> VInteger (integerLit v)
-              (Nat v, TVSeq bs TVBit) -> word bs v
+            case valT of
+              Nat v -> mkLit ty v
               _ -> evalPanic "Cryptol.Eval.Prim.evalConst"
                        ["Unexpected Inf in constant."
                        , show valT
@@ -1390,15 +1399,12 @@ fromToV :: BitWord b w i
 fromToV  =
   nlam $ \ first ->
   nlam $ \ lst   ->
-  nlam $ \ bits  ->
-    case (first, lst, bits) of
-      (_         , _       , Nat bits')
-        | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
-      (Nat first', Nat lst', Nat bits') ->
+  tlam $ \ ty    ->
+    let !f = mkLit ty in
+    case (first, lst) of
+      (Nat first', Nat lst') ->
         let len = 1 + (lst' - first')
-         in VSeq len $ IndexSeqMap $ \i ->
-               ready $ VWord bits' $ return $
-                 WordVal $ wordLit bits' (first' + i)
+        in VSeq len $ IndexSeqMap $ \i -> ready $ f (first' + i)
       _ -> evalPanic "fromToV" ["invalid arguments"]
 
 -- @[ 0, 1 .. 10 ]@

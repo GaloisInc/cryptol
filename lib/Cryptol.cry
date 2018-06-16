@@ -476,8 +476,8 @@ primitive fromThen : {first, next, bits, len}
  * '[a..b]' is syntactic sugar for 'fromTo`{first=a,last=b}'.
  * '[a..]' is syntactic sugar for 'fromTo`{first=a,last=(2^^bits)-1}'.
  */
-primitive fromTo : {first, last, bits} (fin last, fin bits, last >= first,
-                              bits >= width last) => [1 + (last - first)][bits]
+primitive fromTo : {first, last, a} (fin last, last >= first, Literal last a) =>
+                                    [1 + (last - first)]a
 
 /**
  * A finite arithmetic sequence starting with 'first' and 'next',
