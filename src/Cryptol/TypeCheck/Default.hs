@@ -139,7 +139,7 @@ improveByDefaultingWithPure as ps =
              )
 
 
--- | Try to pick a reasonable instantiation for an expression, with
+-- | Try to pick a reasonable instantiation for an expression with
 -- the given type.  This is useful when we do evaluation at the REPL.
 -- The resulting types should satisfy the constraints of the schema.
 defaultReplExpr :: Solver -> Expr -> Schema
