@@ -682,7 +682,7 @@ generalize [] gs0 =
 
 
 generalize bs0 gs0 =
-  do {- First, we apply the accumulating substituion to the goals
+  do {- First, we apply the accumulating substitution to the goals
         and the inferred types, to ensure that we have the most up
         to date information. -}
      gs <- forM gs0 $ \g -> applySubst g
@@ -703,11 +703,11 @@ generalize bs0 gs0 =
      addGoals later   -- these ones we keep around for to solve later
 
 
-     {- Figure out what might be ambigious.  We count something as
+     {- Figure out what might be ambiguous.  We count something as
         ambiguous if it is to be generalized, but does not appear in
         the any of the inferred types.  Things like that of kind `*`
         are certainly ambiguous because we don't have any fancy type functions
-        on them.  However, things of kind `#` may not actually be mabiguos.
+        on them.  However, things of kind `#` may not actually be ambiguous.
      -}
      let (maybeAmbig, ambig) = partition ((KNum ==) . kindOf)
                              $ Set.toList
@@ -717,13 +717,13 @@ generalize bs0 gs0 =
 
 
      {- See if we might be able to default some of the potentially ambiguous
-        numeric vairables using the constraints that will be part of the
+        numeric variables using the constraints that will be part of the
         newly generalized schema.  Note that we only use the `here0` constrains
         as these should be the only ones that might mention the potentially
         ambiguous variable.
 
         XXX: It is not clear if we should do this, or simply leave the
-        variables as is.  After all, they might not actually be ambiugous...
+        variables as is.  After all, they might not actually be ambiguous...
      -}
      let (as0,here1,defSu,ws) = improveByDefaultingWithPure maybeAmbig here0
      mapM_ recordWarning ws
@@ -739,7 +739,7 @@ generalize bs0 gs0 =
 
      {- Finally, we replace free variables with bound ones, and fix-up
         the definitions as needed to reflect that we are now working
-        with polymorphic things. For example, apply each occurance to the
+        with polymorphic things. For example, apply each occurrence to the
         type parameters. -}
      totSu <- getSubst
      let
@@ -757,7 +757,7 @@ generalize bs0 gs0 =
      return (map genB bs)
 
 
--- | Check a monomrphic binding.
+-- | Check a monomorphic binding.
 checkMonoB :: P.Bind Name -> Type -> InferM Decl
 checkMonoB b t =
   inRangeMb (getLoc b) $
