@@ -18,16 +18,17 @@
 {-# LANGUAGE ViewPatterns #-}
 module Cryptol.TypeCheck.InferTypes where
 
-import           Cryptol.TypeCheck.AST
-import           Cryptol.TypeCheck.Subst
 import           Cryptol.Parser.Position
-import           Cryptol.Utils.PP
 import           Cryptol.ModuleSystem.Name (asPrim,nameLoc)
+import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.PP
+import           Cryptol.TypeCheck.Subst
+import           Cryptol.TypeCheck.TypePat
 import           Cryptol.TypeCheck.SimpType(tMax)
 import           Cryptol.Utils.Ident (ModName, identText)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
+import           Cryptol.Utils.Patterns(matchMaybe)
 
 import           Data.Set ( Set )
 import qualified Data.Set as Set
@@ -57,8 +58,7 @@ data VarType = ExtVar Schema
 
 data Goals = Goals
   { goalSet :: Set Goal
-    -- ^ A bunch of goals, except for @Literal t a@ with @a@ a type variable,
-    -- which should be in @literalGoals@.
+    -- ^ A bunch of goals, not including the ones in 'literalGoals'.
 
   , literalGoals :: Map TVar LitGoal
     -- ^ An entry @(a,t)@ corresponds to @Literal t a@.
@@ -81,18 +81,20 @@ fromGoals gs = foldr toLitGoal (Set.toList (goalSet gs))
   where toLitGoal (a,lg) rest = lg { goal = pLiteral (goal lg) (TVar a) } : rest
 
 insertGoal :: Goal -> Goals -> Goals
-insertGoal g gs =
-  case tNoUser (goal g) of
-    TCon (PC PLiteral) [ tn, tt ] | TVar a <- tNoUser tt ->
-         gs { literalGoals = Map.insertWith jn a newG (literalGoals gs) }
-      where
-      newG = g { goal = tn }
+insertGoal g gs
+  | Just (tn,a) <- matchMaybe
+                 $ do (tn,b) <- aLiteral (goal g)
+                      a      <- aTVar b
+                      return (tn,a)
+    = let newG = g { goal = tn }
+      in gs { literalGoals = Map.insertWith jn a newG (literalGoals gs) }
 
-      jn g1 g2 = g1 { goal = tMax (goal g1) (goal g2) }
-      -- XXX: here we are arbitrarily using the info of the first goal,
-      -- which could lead to a confusing location for a constraint.
+  | otherwise = gs { goalSet = Set.insert g (goalSet gs) }
 
-    _ -> gs { goalSet = Set.insert g (goalSet gs) }
+  where
+  jn g1 g2 = g1 { goal = tMax (goal g1) (goal g2) }
+  -- XXX: here we are arbitrarily using the info of the first goal,
+  -- which could lead to a confusing location for a constraint.
 
 -- | Something that we need to find evidence for.
 data Goal = Goal

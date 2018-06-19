@@ -7,6 +7,8 @@ module Cryptol.TypeCheck.TypePat
   , aCeilDiv, aCeilMod
   , aLenFromThen, aLenFromThenTo
 
+  , aLiteral
+
   , aTVar
   , aFreeTVar
   , aBit
@@ -182,6 +184,9 @@ aAnd = tp PAnd ar2
 
 aTrue :: Pat Prop ()
 aTrue = tp PTrue ar0
+
+aLiteral :: Pat Prop (Type,Type)
+aLiteral = tp PLiteral ar2
 
 --------------------------------------------------------------------------------
 anError :: Kind -> Pat Type TCErrorMessage
