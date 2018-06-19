@@ -24,12 +24,15 @@ import           Cryptol.Parser.Position
 import           Cryptol.Utils.PP
 import           Cryptol.ModuleSystem.Name (asPrim,nameLoc)
 import           Cryptol.TypeCheck.PP
+import           Cryptol.TypeCheck.SimpType(tMax)
 import           Cryptol.Utils.Ident (ModName, identText)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
 
 import           Data.Set ( Set )
 import qualified Data.Set as Set
+import           Data.Map ( Map )
+import qualified Data.Map as Map
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -52,22 +55,44 @@ data VarType = ExtVar Schema
                variable that gets generalized is replaced with an approproate
                instantiations of itslef. -}
 
--- XXX: Temporary, until we figure out, how to apply substitutions
--- with normalization to the type Map
-newtype Goals = Goals (Set Goal) -- Goals (TypeMap Goal)
-                deriving (Show)
+data Goals = Goals
+  { goalSet :: Set Goal
+    -- ^ A bunch of goals, except for @Literal t a@ with @a@ a type variable,
+    -- which should be in @literalGoals@.
+
+  , literalGoals :: Map TVar LitGoal
+    -- ^ An entry @(a,t)@ corresponds to @Literal t a@.
+  } deriving (Show)
+
+-- | This abuses the type 'Goal' a bit. The 'goal' field contains
+-- only the numeric part of the Literal constraint.  For example,
+-- @(a, Goal { goal = t })@ representats the goal for @Literal t a@
+type LitGoal = Goal
 
 emptyGoals :: Goals
-emptyGoals  = Goals Set.empty -- emptyTM
+emptyGoals  = Goals { goalSet = Set.empty, literalGoals = Map.empty }
 
 nullGoals :: Goals -> Bool
-nullGoals (Goals tm) = Set.null tm -- nullTM tm
+nullGoals gs = Set.null (goalSet gs) && Map.null (literalGoals gs)
 
 fromGoals :: Goals -> [Goal]
-fromGoals (Goals tm) = Set.toList tm -- membersTM tm
+fromGoals gs = foldr toLitGoal (Set.toList (goalSet gs))
+             $ Map.toList (literalGoals gs)
+  where toLitGoal (a,lg) rest = lg { goal = pLiteral (goal lg) (TVar a) } : rest
 
 insertGoal :: Goal -> Goals -> Goals
-insertGoal g (Goals tm) = Goals (Set.insert g tm) -- (insertTM (goal g) g tm)
+insertGoal g gs =
+  case tNoUser (goal g) of
+    TCon (PC PLiteral) [ tn, tt ] | TVar a <- tNoUser tt ->
+         gs { literalGoals = Map.insertWith jn a newG (literalGoals gs) }
+      where
+      newG = g { goal = tn }
+
+      jn g1 g2 = g1 { goal = tMax (goal g1) (goal g2) }
+      -- XXX: here we are arbitrarily using the info of the first goal,
+      -- which could lead to a confusing location for a constraint.
+
+    _ -> gs { goalSet = Set.insert g (goalSet gs) }
 
 -- | Something that we need to find evidence for.
 data Goal = Goal
@@ -145,32 +170,16 @@ instance FVS DelayedCt where
                             Set.fromList (map tpVar (dctForall d))
 
 
--- This first applies the substitution to the keys of the goal map, then to the
--- values that remain, as applying the substitution to the keys will only ever
--- reduce the number of values that remain.
 instance TVars Goals where
-  apSubst su (Goals gs) = case anyJust apG (Set.toList gs) of
-                            Nothing -> Goals gs
-                            Just gs1 -> Goals $ Set.fromList
-                                              $ concatMap norm gs1
+  -- XXX: could be more efficient
+  apSubst su gs = case anyJust apG (fromGoals gs) of
+                    Nothing  -> gs
+                    Just gs1 -> foldr insertGoal emptyGoals (concatMap norm gs1)
     where
     norm g = [ g { goal = p } | p <- pSplitAnd (goal g) ]
     apG g  = mk g <$> apSubstMaybe su (goal g)
     mk g p = g { goal = p }
 
-{-
-  apSubst su (Goals gs) = Goals (Set.fromList . mapAp
-
-  apSubst su (Goals goals) =
-    Goals (mapWithKeyTM setGoal (apSubstTypeMapKeys su goals))
-    where
-    -- as the key for the goal map is the same as the goal, and the substitution
-    -- has been applied to the key already, just replace the existing goal with
-    -- the key.
-    setGoal key g = g { goalSource = apSubst su (goalSource g)
-                      , goal       = key
-                      }
--}
 
 instance TVars Goal where
   apSubst su g = Goal { goalSource = apSubst su (goalSource g)
