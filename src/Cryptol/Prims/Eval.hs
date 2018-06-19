@@ -140,10 +140,6 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     scarryV)
   , ("demote"     , {-# SCC "Prelude::demote" #-}
                     ecDemoteV)
-  , ("integer"    , {-# SCC "Prelude::integer" #-}
-                    ecIntegerV)
-  , ("intmod"     , {-# SCC "Prelude::intmod" #-}
-                    ecIntModV)
 
   , ("#"          , {-# SCC "Prelude::(#)" #-}
                     nlam $ \ front ->
@@ -251,27 +247,6 @@ ecDemoteV = nlam $ \valT ->
                        ["Unexpected Inf in constant."
                        , show valT
                        , show ty
-                       ]
-
--- | Make an integer constant.
-ecIntegerV :: BitWord b w i => GenValue b w i
-ecIntegerV = nlam $ \valT ->
-             case valT of
-               Nat v -> VInteger (integerLit v)
-               _ -> evalPanic "Cryptol.Eval.Prim.evalConst"
-                        [ "Unexpected Inf in constant."
-                        , show valT
-                        ]
-
--- | Make an integer (mod n) constant. We assume that valT < modT.
-ecIntModV :: BitWord b w i => GenValue b w i
-ecIntModV = nlam $ \valT ->
-            nlam $ \_modT ->
-            case valT of
-              Nat v -> VInteger (integerLit v)
-              _ -> evalPanic "Cryptol.Eval.Prim.evalConst"
-                       [ "Unexpected Inf in constant."
-                       , show valT
                        ]
 
 -- | Convert a word to a non-negative integer.
