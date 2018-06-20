@@ -508,7 +508,7 @@ extendSubst :: Subst -> InferM ()
 extendSubst su =
   do IM $ sets_ $ \s -> s { iSubst = su @@ iSubst s }
      bound <- getBoundInScope
-     let suBound = Set.filter isTVBound (Set.unions (map (fvs . snd) (substToList su)))
+     let suBound = Set.filter isBoundTV (Set.unions (map (fvs . snd) (substToList su)))
      let escaped = Set.difference suBound bound
      if Set.null escaped then return () else
        panic "Cryptol.TypeCheck.Monad.extendSubst"
@@ -518,8 +518,6 @@ extendSubst su =
                     , "Escaped:       " ++ show (brackets (commaSep (map pp (Set.toList escaped))))
                     ]
   where
-    isTVBound (TVBound {}) = True
-    isTVBound (TVFree {}) = False
     su_binds = substToList su
     ppBinding (v,x) = pp v <+> text ":=" <+> pp x
 
