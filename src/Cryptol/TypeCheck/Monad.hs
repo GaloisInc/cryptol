@@ -561,8 +561,8 @@ lookupVar x =
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
 -- in scope, in which case we must be dealing with a type constant.
-lookupTVar :: Name -> InferM (Maybe Type)
-lookupTVar x = IM $ asks $ fmap (TVar . tpVar) . find this . iTVars
+lookupTVar :: Name -> InferM (Maybe TVar)
+lookupTVar x = IM $ asks $ fmap tpVar . find this . iTVars
   where this tp = tpName tp == Just x
 
 -- | Lookup the definition of a type synonym.
@@ -757,7 +757,7 @@ inNewScope m =
 
 newtype KindM a = KM { unKM :: ReaderT KRO (StateT KRW InferM)  a }
 
-data KRO = KRO { lazyTVars  :: Map Name Type -- ^ lazy map, with tyvars.
+data KRO = KRO { lazyTVars  :: Map Name TVar -- ^ lazy map, with tyvars.
                , allowWild  :: AllowWildCards-- ^ are type-wild cards allowed?
                }
 
@@ -794,7 +794,7 @@ in the process of computing.
 As a result we return the value of the sub-computation and the computed
 kinds of the type parameters. -}
 runKindM :: AllowWildCards               -- Are type-wild cards allowed?
-         -> [(Name, Maybe Kind, Type)]   -- ^ See comment
+         -> [(Name, Maybe Kind, TVar)]   -- ^ See comment
          -> KindM a -> InferM (a, Map Name Kind, [(ConstraintSource,[Prop])])
 runKindM wildOK vs (KM m) =
   do (a,kw) <- runStateT krw (runReaderT kro m)
@@ -807,8 +807,8 @@ runKindM wildOK vs (KM m) =
              }
 
 -- | This is what's returned when we lookup variables during kind checking.
-data LkpTyVar = TLocalVar Type (Maybe Kind) -- ^ Locally bound variable.
-              | TOuterVar Type              -- ^ An outer binding.
+data LkpTyVar = TLocalVar TVar (Maybe Kind) -- ^ Locally bound variable.
+              | TOuterVar TVar              -- ^ An outer binding.
 
 -- | Check if a name refers to a type variable.
 kLookupTyVar :: Name -> KindM (Maybe LkpTyVar)
@@ -838,7 +838,7 @@ kRecordWarning w = kInInferM $ recordWarning w
 kNewType :: Doc -> Kind -> KindM Type
 kNewType src k =
   do tps <- KM $ do vs <- asks lazyTVars
-                    return $ Set.fromList [ tv | TVar tv <- Map.elems vs ]
+                    return $ Set.fromList (Map.elems vs)
      kInInferM $ TVar `fmap` newTVar' src tps k
 
 -- | Lookup the definition of a type synonym.

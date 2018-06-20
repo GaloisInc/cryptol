@@ -191,7 +191,7 @@ withTParams allowWildCards flav xs m
 
   newTP vs tp = do k <- getKind vs tp
                    n <- newTParam (flav (P.tpName tp)) k
-                   return (n, TVar (tpVar n))
+                   return (n, tpVar n)
 
 
   {- Note that we only zip based on the first argument.
@@ -281,12 +281,12 @@ checkTUser x ts k =
        case v of
          TLocalVar t mbk ->
             case k of
-              Nothing -> return t
+              Nothing -> return (TVar t)
               Just k1 ->
                 case mbk of
-                  Nothing -> kSetKind x k1 >> return t
-                  Just k2 -> checkKind t k k2
-         TOuterVar t -> checkKind t k (kindOf t)
+                  Nothing -> kSetKind x k1 >> return (TVar t)
+                  Just k2 -> checkKind (TVar t) k k2
+         TOuterVar t -> checkKind (TVar t) k (kindOf (TVar t))
 
   checkScopedVarUse =
     do unless (null ts) (kRecordError TyVarWithParams)
