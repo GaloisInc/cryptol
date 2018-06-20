@@ -96,8 +96,8 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("^^"          , binary (arithBinary sExp (liftBin SBV.svExp)
                              sModExp)) -- {a} (Arith a) => a -> a -> a
   , ("lg2"         , unary (arithUnary sLg2 svLg2 svModLg2)) -- {a} (Arith a) => a -> a
-  , ("negate"      , unary (arithUnary (\_ -> ready . SBV.svUNeg) SBV.svUNeg
-                            (const SBV.svUNeg)))
+  , ("negate"      , unary (arithUnary (\_ -> ready . SBV.svUNeg) (ready . SBV.svUNeg)
+                            (const (ready . SBV.svUNeg))))
   , ("<"           , binary (cmpBinary cmpLt cmpLt cmpLt (cmpMod cmpLt) SBV.svFalse))
   , (">"           , binary (cmpBinary cmpGt cmpGt cmpGt (cmpMod cmpGt) SBV.svFalse))
   , ("<="          , binary (cmpBinary cmpLtEq cmpLtEq cmpLtEq (cmpMod cmpLtEq) SBV.svTrue))
@@ -491,13 +491,13 @@ sLg2 _w x = ready $ go 0
          | otherwise           = lit (toInteger i)
 
 -- | Ceiling (log_2 x)
-svLg2 :: SInteger -> SInteger
+svLg2 :: SInteger -> Eval SInteger
 svLg2 x =
   case SBV.svAsInteger x of
-    Just n -> SBV.svInteger SBV.KUnbounded (lg2 n)
+    Just n -> ready $ SBV.svInteger SBV.KUnbounded (lg2 n)
     Nothing -> evalPanic "cannot compute lg2 of symbolic unbounded integer" []
 
-svModLg2 :: Integer -> SInteger -> SInteger
+svModLg2 :: Integer -> SInteger -> Eval SInteger
 svModLg2 modulus x = svLg2 (SBV.svRem x m)
   where m = integerLit modulus
 

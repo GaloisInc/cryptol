@@ -523,8 +523,8 @@ Cryptol primitives fall into several groups:
 >   , ("/$"         , binary (signedArithBinary divWrap))
 >   , ("%$"         , binary (signedArithBinary modWrap))
 >   , ("^^"         , binary (arithBinary expWrap))
->   , ("lg2"        , unary  (arithUnary lg2))
->   , ("negate"     , unary  (arithUnary negate))
+>   , ("lg2"        , unary  (arithUnary lg2Wrap))
+>   , ("negate"     , unary  (arithUnary (\x -> Right (- x))))
 >   , ("demote"     , vFinPoly $ \val ->
 >                     vFinPoly $ \bits ->
 >                     vWordValue bits val)
@@ -780,7 +780,7 @@ False]`, but to `[error "foo", error "foo"]`.
 Signed arithmetic primitives may be applied to any type that is made
 up of non-empty finite bitvectors.
 
-> arithUnary :: (Integer -> Integer)
+> arithUnary :: (Integer -> Either EvalError Integer)
 >            -> TValue -> Value -> Value
 > arithUnary op = go
 >   where
@@ -790,11 +790,17 @@ up of non-empty finite bitvectors.
 >         TVBit ->
 >           evalPanic "arithUnary" ["Bit not in class Arith"]
 >         TVInteger ->
->           VInteger (op <$> fromVInteger val)
+>           VInteger $
+>           case fromVInteger val of
+>             Left e -> Left e
+>             Right i -> op i
 >         TVIntMod n ->
->           VInteger (flip mod n <$> op <$> fromVInteger val)
+>           VInteger $
+>           case fromVInteger val of
+>             Left e -> Left e
+>             Right i -> flip mod n <$> op i
 >         TVSeq w a
->           | isTBit a  -> vWord w (op <$> fromVWord val)
+>           | isTBit a  -> vWord w (op =<< fromVWord val)
 >           | otherwise -> VList (map (go a) (fromVList val))
 >         TVStream a ->
 >           VList (map (go a) (fromVList val))
@@ -872,6 +878,9 @@ same sign as `x`. Accordingly, they are implemented with Haskell's
 >
 > expWrap :: Integer -> Integer -> Either EvalError Integer
 > expWrap x y = if y < 0 then Left NegativeExponent else Right (x ^ y)
+>
+> lg2Wrap :: Integer -> Either EvalError Integer
+> lg2Wrap x = if x < 0 then Left LogNegative else Right (lg2 x)
 
 
 Comparison
