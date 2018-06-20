@@ -34,7 +34,7 @@ data UnificationError
   | UniKindMismatch Kind Kind
   | UniTypeLenMismatch Int Int
   | UniRecursive TVar Type
-  | UniNonPolyDepends TVar [TVar]
+  | UniNonPolyDepends TVar [TParam]
   | UniNonPoly TVar Type
 
 instance Applicative Result where
@@ -123,14 +123,22 @@ bindVar v@(TVBound {}) t
   | otherwise     = uniError $ UniKindMismatch k (kindOf t)
   where k = kindOf v
 
+bindVar x@(TVFree _ _ xscope _) (TVar y@(TVFree _ _ yscope _))
+  | xscope `Set.isProperSubsetOf` yscope = return (singleSubst y (TVar x), [])
 
 bindVar x@(TVFree _ k inScope _d) t
   | not (k == kindOf t)     = uniError $ UniKindMismatch k (kindOf t)
   | recTy && k == KType     = uniError $ UniRecursive x t
-  | not (Set.null escaped)  = uniError $ UniNonPolyDepends x$ Set.toList escaped
+  | not (Set.null escaped)  = uniError $ UniNonPolyDepends x $ Set.toList escaped
   | recTy                   = return (emptySubst, [TVar x =#= t])
   | otherwise               = return (singleSubst x t, [])
     where
-    vs      = fvs t
-    escaped = Set.filter isBoundTV vs `Set.difference` Set.map tpVar inScope
-    recTy   = x `Set.member` vs
+    escaped = freeParams t `Set.difference` inScope
+    recTy   = x `Set.member` fvs t
+
+
+freeParams :: FVS t => t -> Set.Set TParam
+freeParams x = Set.unions (map params (Set.toList (fvs x)))
+  where
+    params (TVFree _ _ tps _) = tps
+    params (TVBound tp) = Set.singleton tp
