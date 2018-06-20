@@ -169,7 +169,5 @@ doInst su' e ps t =
   checkInst :: (TParam, Type) -> InferM [Prop]
   checkInst (tp, ty)
     | Set.notMember tp bounds = return []
-    | otherwise =
-      do io $ putStrLn $ unwords ["checkInst: unify", show (pp tp), show (pp ty)]
-         unify (TVar (tpVar tp)) ty
+    | otherwise               = unify (TVar (tpVar tp)) ty
 
