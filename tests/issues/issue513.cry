@@ -1,0 +1,2 @@
+test : {a} [_]
+test = [False] # [ y | i <- zero : [a] | y <- test ]

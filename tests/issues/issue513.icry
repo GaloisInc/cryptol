@@ -1,0 +1,4 @@
+:set debug=on
+:l issue513.cry
+:t test
+test`{8}
