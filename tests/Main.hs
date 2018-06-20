@@ -203,13 +203,13 @@ generateAssertion opts dir file = testCase file $ do
             do goldFile' <- canonicalizePath goldFile
                assertFailure $ unlines
                   [ unwords [ prog, goldFile', "\\\n    ", resultOut ]
-                  , makeGold resultOut goldFile
+                  , makeGold resultOut goldFile'
                   ]
 
           | otherwise ->
             do goldFile' <- canonicalizePath goldFile
                (_,diffOut,_) <- readProcessWithExitCode "diff" [ goldFile', resultOut ] ""
-               assertFailure $ unlines [ diffOut, makeGold resultOut goldFile ]
+               assertFailure $ unlines [ diffOut, makeGold resultOut goldFile' ]
 
         Right fail_msg | optIgnoreExpected opts -> return ()
                        | otherwise              -> assertFailure fail_msg
