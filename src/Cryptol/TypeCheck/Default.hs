@@ -2,16 +2,40 @@ module Cryptol.TypeCheck.Default where
 
 import qualified Data.Set as Set
 import qualified Data.Map as Map
+import Data.Maybe(mapMaybe)
+import Data.List((\\))
 import Control.Monad(guard)
 
 import Cryptol.TypeCheck.Type
-import Cryptol.TypeCheck.SimpType(tMax)
-import Cryptol.TypeCheck.AST(Expr(..))
+import Cryptol.TypeCheck.SimpType(tMax,tWidth)
 import Cryptol.TypeCheck.Error(Warning(..))
 import Cryptol.TypeCheck.Subst(Subst,apSubst,listSubst,substBinds,singleSubst)
-import Cryptol.TypeCheck.InferTypes(Goal,goal)
+import Cryptol.TypeCheck.InferTypes(Goal,goal,Goals(..),goalsFromList)
 import Cryptol.TypeCheck.Solver.SMT(Solver,tryGetModel,shrinkModel)
 import Cryptol.Utils.Panic(panic)
+
+
+--------------------------------------------------------------------------------
+
+-- | We default constraints of the form @Literal t a@ to @a := [width t]@
+defaultLiterals :: [TVar] -> [Goal] -> ([TVar], Subst, [Warning])
+defaultLiterals as gs = let (binds,warns) = unzip (mapMaybe tryDefVar as)
+                        in (as \\ map fst binds, listSubst binds, warns)
+  where
+  gSet = goalsFromList gs
+  tryDefVar a =
+    do gt <- Map.lookup a (literalGoals gSet)
+       d  <- tvInfo a
+       let defT = tWord (tWidth (goal gt))
+           w    = DefaultingTo d defT
+       guard (not (Set.member a (fvs defT)))  -- Currently shouldn't happen
+                                              -- but future proofing.
+       -- XXX: Make sure that `defT` has only variables that `a` is allowed
+       -- to depend on
+       return ((a,defT),w)
+
+
+
 
 
 --------------------------------------------------------------------------------
@@ -139,26 +163,24 @@ improveByDefaultingWithPure as ps =
              )
 
 
--- | Try to pick a reasonable instantiation for an expression with
--- the given type.  This is useful when we do evaluation at the REPL.
--- The resulting types should satisfy the constraints of the schema.
-defaultReplExpr :: Solver -> Expr -> Schema
-             -> IO (Maybe ([(TParam,Type)], Expr))
-defaultReplExpr sol e s =
-  if all (\v -> kindOf v == KNum) (sVars s)
-     then do let params = map tpVar (sVars s)
-                 props  = sProps s
-             mb <- tryGetModel sol params props
-             case mb of
-               Nothing -> return Nothing
-               Just mdl0 ->
-                 do mdl <- shrinkModel sol params props mdl0
-                    let su = listSubst [ (x, tNat' n) | (x,n) <- mdl ]
-                    return $
-                      do guard (null (concatMap pSplitAnd (apSubst su props)))
-                         tys <- mapM (bindParam su) params
-                         return (zip (sVars s) tys, appExpr tys)
-     else return Nothing
+{- | Try to pick a reasonable instantiation for an expression with
+the given type.  This is useful when we do evaluation at the REPL.
+The resulting types should satisfy the constraints of the schema.
+The parameters should be all of numeric kind, and the props should als
+be numeric -}
+defaultReplExpr' :: Solver -> [TParam] -> [Prop] -> IO (Maybe [ (TParam,Type) ])
+defaultReplExpr' sol as props =
+  do let params = map tpVar as
+     mb <- tryGetModel sol params props
+     case mb of
+       Nothing -> return Nothing
+       Just mdl0 ->
+         do mdl <- shrinkModel sol params props mdl0
+            let su = listSubst [ (x, tNat' n) | (x,n) <- mdl ]
+            return $
+              do guard (null (concatMap pSplitAnd (apSubst su props)))
+                 tys <- mapM (bindParam su) params
+                 return (zip as tys)
   where
   bindParam su tp =
     do let ty  = TVar tp
@@ -166,7 +188,6 @@ defaultReplExpr sol e s =
        guard (ty /= ty')
        return ty'
 
-  appExpr tys = foldl (\e1 _ -> EProofApp e1) (foldl ETApp e tys) (sProps s)
 
 
 

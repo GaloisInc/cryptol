@@ -3,7 +3,7 @@ module Cryptol.TypeCheck.SimpType where
 
 import Control.Applicative((<|>))
 import Cryptol.TypeCheck.Type hiding
-  (tSub,tMul,tDiv,tMod,tExp,tMin,tWidth,tCeilDiv,tCeilMod,tLenFromThen,tLenFromThenTo)
+  (tSub,tMul,tDiv,tMod,tExp,tMin,tCeilDiv,tCeilMod,tLenFromThen,tLenFromThenTo)
 import Cryptol.TypeCheck.TypePat
 import Cryptol.TypeCheck.Solver.InfNat
 import Control.Monad(msum,guard)

@@ -2,15 +2,15 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at ./check02.cry:3:24--3:25:
-  Defaulting type parameter 'bits'
+  Defaulting type parameter 'rep'
              of literal or demoted expression
              at ./check02.cry:3:24--3:25
-  to 1
-[warning] at <interactive>:1:9--1:18:
-  Defaulting type parameter 'bits'
-             of finite enumeration
-             at <interactive>:1:9--1:18
+  to [1]
+[warning] at <interactive>:1:1--1:18:
+  Defaulting 4th type parameter
+             of expression (@@)
+             at <interactive>:1:1--1:18
   to 4
-Assuming a = 1
-[0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1, 0x1]
+Assuming a = Integer
+[1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
 True

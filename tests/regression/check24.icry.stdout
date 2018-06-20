@@ -1,9 +1,9 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at ./check24.cry:4:60--4:71:
-  Defaulting type parameter 'bits'
-             of finite enumeration
-             at ./check24.cry:4:60--4:71
+[warning] at ./check24.cry:4:13--4:16:
+  Defaulting 1st type parameter
+             of expression Main::xor
+             at ./check24.cry:4:13--4:16
   to 4
 True

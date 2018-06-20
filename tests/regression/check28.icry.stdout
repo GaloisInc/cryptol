@@ -1,9 +1,8 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at ./check28.cry:2:29--2:31:
-  Defaulting 2nd type parameter
-             of expression Main::xs
-             at ./check28.cry:2:29--2:31
-  to 3
+[warning] at ./check28.cry:2:11--2:42:
+  Defaulting comprehension binding at ./check28.cry:2:23--2:24
+             at ./check28.cry:2:11--2:42
+  to [3]
 True

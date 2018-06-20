@@ -1,9 +1,9 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at ./check16.cry:1:22--1:23:
-  Defaulting type parameter 'bits'
-             of literal or demoted expression
-             at ./check16.cry:1:22--1:23
+[warning] at ./check16.cry:1:11--1:16:
+  Defaulting 1st type parameter
+             of expression width
+             at ./check16.cry:1:11--1:16
   to 4
 True

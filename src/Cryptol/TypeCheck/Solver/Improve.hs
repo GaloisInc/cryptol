@@ -41,8 +41,18 @@ improveProps impSkol ctxt ps0 = loop emptySubst ps0
 -- the substitions should be already applied to the new sub-goals, if any.
 improveProp :: Bool -> Ctxt -> Prop -> Match (Subst,[Prop])
 improveProp impSkol ctxt prop =
-  improveEq impSkol ctxt prop
+  improveEq impSkol ctxt prop <|>
+  improveLit impSkol prop
   -- XXX: others
+
+improveLit :: Bool -> Prop -> Match (Subst, [Prop])
+improveLit impSkol prop =
+  do (_,t) <- aLiteral prop
+     (_,b) <- aSeq t
+     a     <- aTVar b
+     unless impSkol $ guard (isFreeTV a)
+     let su = singleSubst a tBit
+     return (su, [])
 
 
 

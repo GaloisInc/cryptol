@@ -1,9 +1,9 @@
 Loading module Cryptol
-Assuming a = 4
-[0xb, 0xb, 0xb, 0xb, 0xb, 0xb, 0xb, 0xb, 0xb, 0xb]
+Assuming a = Integer
+[11, 11, 11, 11, 11, 11, 11, 11, 11, 11]
 [warning] at <interactive>:1:65--1:67:
-  Defaulting type parameter 'bits'
-             of finite enumeration
-             at <interactive>:1:13--1:24
-  to max 4 (width 11)
+  Defaulting type parameter 'rep'
+             of literal or demoted expression
+             at <interactive>:1:65--1:67
+  to [4]
 True

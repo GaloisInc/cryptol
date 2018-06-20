@@ -69,6 +69,18 @@ data Goals = Goals
 -- @(a, Goal { goal = t })@ representats the goal for @Literal t a@
 type LitGoal = Goal
 
+litGoalToGoal :: (TVar,LitGoal) -> Goal
+litGoalToGoal (a,g) = g { goal = pLiteral (goal g) (TVar a) }
+
+goalToLitGoal :: Goal -> Maybe (TVar,LitGoal)
+goalToLitGoal g =
+  do (tn,a) <- matchMaybe $ do (tn,b) <- aLiteral (goal g)
+                               a      <- aTVar b
+                               return (tn,a)
+     return (a, g { goal = tn })
+
+
+
 emptyGoals :: Goals
 emptyGoals  = Goals { goalSet = Set.empty, literalGoals = Map.empty }
 
@@ -76,19 +88,16 @@ nullGoals :: Goals -> Bool
 nullGoals gs = Set.null (goalSet gs) && Map.null (literalGoals gs)
 
 fromGoals :: Goals -> [Goal]
-fromGoals gs = foldr toLitGoal (Set.toList (goalSet gs))
-             $ Map.toList (literalGoals gs)
-  where toLitGoal (a,lg) rest = lg { goal = pLiteral (goal lg) (TVar a) } : rest
+fromGoals gs = map litGoalToGoal (Map.toList (literalGoals gs)) ++
+               Set.toList (goalSet gs)
+
+goalsFromList :: [Goal] -> Goals
+goalsFromList = foldr insertGoal emptyGoals
 
 insertGoal :: Goal -> Goals -> Goals
 insertGoal g gs
-  | Just (tn,a) <- matchMaybe
-                 $ do (tn,b) <- aLiteral (goal g)
-                      a      <- aTVar b
-                      return (tn,a)
-    = let newG = g { goal = tn }
-      in gs { literalGoals = Map.insertWith jn a newG (literalGoals gs) }
-
+  | Just (a,newG) <- goalToLitGoal g =
+                gs { literalGoals = Map.insertWith jn a newG (literalGoals gs) }
   | otherwise = gs { goalSet = Set.insert g (goalSet gs) }
 
   where
@@ -176,7 +185,7 @@ instance TVars Goals where
   -- XXX: could be more efficient
   apSubst su gs = case anyJust apG (fromGoals gs) of
                     Nothing  -> gs
-                    Just gs1 -> foldr insertGoal emptyGoals (concatMap norm gs1)
+                    Just gs1 -> goalsFromList (concatMap norm gs1)
     where
     norm g = [ g { goal = p } | p <- pSplitAnd (goal g) ]
     apG g  = mk g <$> apSubstMaybe su (goal g)

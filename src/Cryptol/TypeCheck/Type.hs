@@ -121,6 +121,12 @@ data TVar   = TVFree !Int Kind (Set TVar) TVarInfo
             | TVBound {-# UNPACK #-} !TParam
               deriving (Show, Generic, NFData)
 
+tvInfo :: TVar -> Maybe TVarInfo
+tvInfo tv =
+  case tv of
+    TVFree _ _ _ d -> Just d
+    _              -> Nothing
+
 data TVarInfo = TVarInfo { tvarSource :: Range -- ^ Source code that gave rise
                          , tvarDesc   :: Doc   -- ^ Description
                          }
@@ -620,9 +626,6 @@ tExp = tf2 TCExp
 
 tMin :: Type -> Type -> Type
 tMin = tf2 TCMin
-
-tWidth :: Type -> Type
-tWidth = tf1 TCWidth
 
 tCeilDiv :: Type -> Type -> Type
 tCeilDiv = tf2 TCCeilDiv

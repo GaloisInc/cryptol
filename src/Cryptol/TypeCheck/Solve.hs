@@ -15,19 +15,20 @@ module Cryptol.TypeCheck.Solve
   , wfType
   , wfTypeFunction
   , wfTC
-  , improveByDefaultingWithPure
+  , defaultAndSimplify
   , defaultReplExpr
   ) where
 
-import           Cryptol.Parser.Position(thing)
+import           Cryptol.Parser.Position(thing,emptyRange)
 import           Cryptol.TypeCheck.PP -- (pp)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Default
+import           Cryptol.TypeCheck.SimpType(tWidth)
 import           Cryptol.TypeCheck.Error(Error(..),Warning(..))
 import           Cryptol.TypeCheck.Subst
                     (apSubst, isEmptySubst, substToList,
-                          emptySubst,Subst,(@@), Subst)
+                          emptySubst,Subst,(@@), Subst, listSubst)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simplify
 import           Cryptol.TypeCheck.Solver.Types
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
@@ -44,6 +45,8 @@ import           Control.Monad(mzero)
 import qualified Data.Map as Map
 import           Data.Set ( Set )
 import qualified Data.Set as Set
+import           Data.List(partition)
+import           Data.Maybe(listToMaybe)
 
 
 
@@ -149,6 +152,68 @@ quickSolver ctxt gs0 = go emptySubst [] gs0
 
 --------------------------------------------------------------------------------
 
+
+defaultReplExpr :: Solver -> Expr -> Schema ->
+                    IO (Maybe ([(TParam,Type)], Expr))
+
+defaultReplExpr sol expr sch =
+  do mb <- defaultReplExpr' sol numVs numPs
+     case mb of
+       Nothing -> return Nothing
+       Just numBinds -> return $
+         do optss <- mapM tryDefVar otherVs
+            su    <- listToMaybe
+                       [ binds | nonSu <- sequence optss
+                               , let binds = nonSu ++ numBinds
+                               , validate binds ]
+            tys <- sequence [ lookup v su | v <- sVars sch ]
+            return (su, appExpr tys)
+
+  where
+  validate binds =
+    let su = listSubst [ (tpVar x, t) | (x,t) <- binds ]
+    in null (concatMap pSplitAnd (apSubst su (sProps sch)))
+
+  (numVs,otherVs) = partition (kindIs KNum) (sVars sch)
+  (numPs,otherPs) = partition (all (kindIs KNum) . fvs) (sProps sch)
+
+
+  kindIs k x = kindOf x == k
+
+  gSet  = goalsFromList
+           [ Goal { goal = p
+                  , goalRange = emptyRange
+                  , goalSource = CtDefaulting } | p <- otherPs ]
+
+  tryDefVar a =
+    do let a' = TVBound a
+       gt <- Map.lookup a' (literalGoals gSet)
+       let ok p = not (Set.member a' (fvs p))
+       return [ (a,t) | t <- [ tInteger, tBit, tWord (tWidth (goal gt)) ]
+                      , ok t ]
+
+
+  appExpr tys = foldl (\e1 _ -> EProofApp e1)
+                      (foldl ETApp expr tys)
+                      (sProps sch)
+
+
+defaultAndSimplify :: [TVar] -> [Goal] -> ([TVar],[Goal],Subst,[Warning])
+defaultAndSimplify as gs =
+  let (as1, gs1, su1, ws1) = defLit
+      (as2, gs2, su2, ws2) = improveByDefaultingWithPure as1 gs1
+  in (as2,gs2,su2 @@ su1, ws1 ++ ws2)
+  where
+  defLit
+    | isEmptySubst su = nope
+    | otherwise       = case quickSolver Map.empty (apSubst su gs) of
+                          Left _ -> nope -- hm?
+                          Right (su1,gs1) -> (as1,gs1,su1@@su,ws)
+    where (as1,su,ws) = defaultLiterals as gs
+          nope        = (as,gs,emptySubst,[])
+
+
+
 simplifyAllConstraints :: InferM ()
 simplifyAllConstraints =
   do simpHasGoals
@@ -185,7 +250,7 @@ proveModuleTopLevel =
   do simplifyAllConstraints
      gs <- getGoals
      let vs = Set.toList (Set.filter isFreeTV (fvs gs))
-         (_,gs1,su1,ws) = improveByDefaultingWithPure vs gs
+         (_,gs1,su1,ws) = defaultAndSimplify vs gs
      extendSubst su1
      mapM_ recordWarning ws
 
@@ -235,7 +300,7 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
               gs3 ->
                 do let free = Set.toList
                             $ Set.difference (fvs (map goal gs3)) varsInEnv
-                   case improveByDefaultingWithPure free gs3 of
+                   case defaultAndSimplify free gs3 of
                      (_,_,newSu,_)
                         | isEmptySubst newSu ->
                                  return (err gs3, su) -- XXX: Old?

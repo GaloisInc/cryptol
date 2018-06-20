@@ -21,7 +21,7 @@ module Cryptol.TypeCheck.Solver.Class
   ) where
 
 import Cryptol.TypeCheck.Type
-import Cryptol.TypeCheck.SimpType (tAdd)
+import Cryptol.TypeCheck.SimpType (tAdd,tWidth)
 import Cryptol.TypeCheck.Solver.Types
 
 -- | Solve class constraints.

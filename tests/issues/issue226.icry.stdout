@@ -56,7 +56,7 @@ Symbols
     carry : {n} (fin n) => [n] -> [n] -> Bit
     complement : {a} (Logic a) => a -> a
     curry : {a, b, c} ((a, b) -> c) -> a -> b -> c
-    demote : {val, a} (Literal val a) => a
+    demote : {val, rep} (Literal val rep) => rep
     drop :
       {front, back, elem} (fin front) => [front + back]elem -> [back]elem
     elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
@@ -72,15 +72,13 @@ Symbols
                                 lengthFromThen first next bits == len) =>
         [len][bits]
     fromThenTo :
-      {first, next, last, bits, len} (fin first, fin next, fin last,
-                                      fin bits, bits >= width first, bits >= width next,
-                                      bits >= width last,
-                                      lengthFromThenTo first next last == len) =>
-        [len][bits]
+      {first, next, last, a, len} (fin first, fin next, fin last,
+                                   Literal first a, Literal next a, Literal last a,
+                                   lengthFromThenTo first next last == len) =>
+        [len]a
     fromTo :
-      {first, last, bits} (fin last, fin bits, last >= first,
-                           bits >= width last) =>
-        [1 + (last - first)][bits]
+      {first, last, a} (fin last, last >= first, Literal last a) =>
+        [1 + (last - first)]a
     fromZ : {n} (fin n, n >= 1) => Z n -> Integer
     groupBy :
       {each, parts, elem} (fin each) =>
@@ -88,9 +86,6 @@ Symbols
     head : {a, b} [1 + a]b -> b
     infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
     infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
-    integer : {val} (fin val) => Integer
-    intmod :
-      {val, modulus} (fin modulus, modulus >= 1 + val) => Z modulus
     iterate : {a} (a -> a) -> a -> [inf]a
     join :
       {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a

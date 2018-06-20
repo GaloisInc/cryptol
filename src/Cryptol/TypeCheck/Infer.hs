@@ -23,7 +23,7 @@ import           Cryptol.TypeCheck.AST hiding (tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Solve
-import           Cryptol.TypeCheck.SimpType(tSub,tMul,tExp)
+import           Cryptol.TypeCheck.SimpType(tSub,tMul,tExp,tAdd)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                         checkPropSyn,checkNewtype,
                                         checkParameterType,
@@ -45,7 +45,7 @@ import           Data.Maybe(mapMaybe,isJust, fromMaybe)
 import           Data.List(partition,find)
 import           Data.Graph(SCC(..))
 import           Data.Traversable(forM)
-import           Control.Monad(when,zipWithM,unless)
+import           Control.Monad(zipWithM,unless)
 
 
 
@@ -97,15 +97,15 @@ desugarLiteral fixDec lit =
 
        P.ECNum num info ->
          demote $ [ ("val", P.TNum num) ] ++ case info of
-           P.BinLit n    -> [ ("a", tBits (1 * toInteger n)) ]
-           P.OctLit n    -> [ ("a", tBits (3 * toInteger n)) ]
-           P.HexLit n    -> [ ("a", tBits (4 * toInteger n)) ]
-           P.CharLit     -> [ ("a", tBits (8 :: Integer)) ]
+           P.BinLit n    -> [ ("rep", tBits (1 * toInteger n)) ]
+           P.OctLit n    -> [ ("rep", tBits (3 * toInteger n)) ]
+           P.HexLit n    -> [ ("rep", tBits (4 * toInteger n)) ]
+           P.CharLit     -> [ ("rep", tBits (8 :: Integer)) ]
            P.DecLit
             | fixDec     -> if num == 0
-                              then [ ("a", tBits 0)]
+                              then [ ("rep", tBits 0)]
                               else case genLog num 2 of
-                                     Just (x,_) -> [ ("a", tBits (x + 1)) ]
+                                     Just (x,_) -> [ ("rep", tBits (x + 1)) ]
                                      _          -> []
             | otherwise  -> [ ]
            P.PolyLit _n  -> [ ]
@@ -245,13 +245,16 @@ checkE expr tGoal =
       do rng <- curRange
          bit <- newType (text "bit-width of enumeration sequnce") KNum
          fstT <- checkTypeOfKind t1 KNum
-         let totLen = tExp (tNum (2::Int)) bit
-             lstT   = tSub totLen (tNum (1::Int))
+         let nextT = tAdd fstT (tNum (1::Int))
+             lenT  = tSub (tExp (tNum (2::Int)) bit) fstT
 
-         fromToPrim <- mkPrim "fromTo"
-         appTys fromToPrim
+         fromThenPrim <- mkPrim "fromThen"
+         appTys fromThenPrim
            [ Located rng (Just (packIdent x), y)
-           | (x,y) <- [ ("first",fstT), ("last", lstT), ("bits", bit) ]
+           | (x,y) <- [ ("first", fstT)
+                      , ("next", nextT)
+                      , ("len",   lenT)
+                      , ("bits",  bit) ]
            ] tGoal
 
     P.EFromTo t1 mbt2 mbt3 ->
@@ -548,7 +551,8 @@ inferMatch (P.Match p e) =
 
 inferMatch (P.MatchLet b)
   | P.bMono b =
-  do a <- newType (text "`let` binding in comprehension") KType
+  do let rng = srcRange (P.bName b)
+     a <- newType (text "comprehension binding at" <+> pp rng) KType
      b1 <- checkMonoB b a
      return (Let b1, dName b1, Located (srcRange (P.bName b)) a, tNum (1::Int))
 
@@ -705,29 +709,12 @@ generalize bs0 gs0 =
      addGoals later   -- these ones we keep around for to solve later
 
 
-     {- Figure out what might be ambiguous.  We count something as
-        ambiguous if it is to be generalized, but does not appear in
-        the any of the inferred types.  Things like that of kind `*`
-        are certainly ambiguous because we don't have any fancy type functions
-        on them.  However, things of kind `#` may not actually be ambiguous.
-     -}
-     let (maybeAmbig, ambig) = partition ((KNum ==) . kindOf)
-                             $ Set.toList
-                             $ Set.difference gen0 inSigs
-     when (not (null ambig)) $ recordError
-                             $ AmbiguousType (map dName bs) ambig
-
+     let maybeAmbig = Set.toList (Set.difference gen0 inSigs)
 
      {- See if we might be able to default some of the potentially ambiguous
-        numeric variables using the constraints that will be part of the
-        newly generalized schema.  Note that we only use the `here0` constrains
-        as these should be the only ones that might mention the potentially
-        ambiguous variable.
-
-        XXX: It is not clear if we should do this, or simply leave the
-        variables as is.  After all, they might not actually be ambiguous...
-     -}
-     let (as0,here1,defSu,ws) = improveByDefaultingWithPure maybeAmbig here0
+        variables using the constraints that will be part of the newly
+        generalized schema.  -}
+     let (as0,here1,defSu,ws) = defaultAndSimplify maybeAmbig here0
      mapM_ recordWarning ws
      let here = map goal here1
 

@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module issue290
 Loading module issue290bar
-Assuming a = 2
-0x2
+Assuming a = Integer
+2
 0x1
 0x1
