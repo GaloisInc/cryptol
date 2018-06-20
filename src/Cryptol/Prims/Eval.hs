@@ -78,9 +78,9 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("^^"         , {-# SCC "Prelude::(^^)" #-}
                     binary (arithBinary modExp integerExp intModExp))
   , ("lg2"        , {-# SCC "Prelude::lg2" #-}
-                    unary  (arithUnary (liftUnaryArith lg2) lg2 (const . lg2)))
+                    unary  (arithUnary (liftUnaryArith lg2) integerLg2 (const integerLg2)))
   , ("negate"     , {-# SCC "Prelude::negate" #-}
-                    unary  (arithUnary (liftUnaryArith negate) negate (const . negate)))
+                    unary  (arithUnary (liftUnaryArith negate) integerNeg intModNeg))
   , ("<"          , {-# SCC "Prelude::(<)" #-}
                     binary (cmpOrder "<"  (\o -> o == LT           )))
   , (">"          , {-# SCC "Prelude::(>)" #-}
@@ -295,6 +295,17 @@ integerExp x y
   | y < 0     = negativeExponent
   | otherwise = ready $ x ^ y
 
+integerLg2 :: Integer -> Eval Integer
+integerLg2 x
+  | x < 0     = logNegative
+  | otherwise = ready $ lg2 x
+
+integerNeg :: Integer -> Eval Integer
+integerNeg x = ready $ negate x
+
+intModNeg :: Integer -> Integer -> Eval Integer
+intModNeg modulus x = ready $ negate x `mod` modulus
+
 doubleAndAdd :: Integer -- ^ base
              -> Integer -- ^ exponent mask
              -> Integer -- ^ modulus
@@ -439,8 +450,8 @@ liftUnaryArith op w (BV _ x) = ready $ mkBv w $ op x
 arithUnary :: forall b w i
             . BitWord b w i
            => UnaryArith w
-           -> (i -> i)
-           -> (Integer -> i -> i)
+           -> (i -> Eval i)
+           -> (Integer -> i -> Eval i)
            -> Unary b w i
 arithUnary opw opi opz = loop
   where
@@ -454,10 +465,10 @@ arithUnary opw opi opz = loop
       evalPanic "arithUnary" ["Bit not in class Arith"]
 
     TVInteger ->
-      return $ VInteger $ opi (fromVInteger x)
+      VInteger <$> opi (fromVInteger x)
 
     TVIntMod n ->
-      return $ VInteger $ opz n (fromVInteger x)
+      VInteger <$> opz n (fromVInteger x)
 
     TVSeq w a
       -- words and finite sequences
