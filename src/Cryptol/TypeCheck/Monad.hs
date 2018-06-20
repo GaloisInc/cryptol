@@ -23,7 +23,8 @@ import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.Unify(mgu, Result(..), UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
-import           Cryptol.TypeCheck.Error(Warning,Error(..),cleanupErrors)
+import           Cryptol.TypeCheck.Error(Warning(..),Error(..),cleanupErrors)
+import           Cryptol.TypeCheck.PP (brackets, commaSep)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
 import           Cryptol.Utils.PP(pp, ($$), (<+>), Doc, text, quotes)
@@ -309,7 +310,9 @@ recordError e =
 
 recordWarning :: Warning -> InferM ()
 recordWarning w =
-  do r <- curRange
+  do r <- case w of
+            DefaultingTo d _ -> return (tvarSource d)
+            _ -> curRange
      IM $ sets_ $ \s -> s { iWarnings = (r,w) : iWarnings s }
 
 getSolver :: InferM SMT.Solver
@@ -443,7 +446,8 @@ newTVar' src extraBound k =
   do r <- curRange
      bound <- getBoundInScope
      let vs = Set.union extraBound bound
-         msg = src $$ text "at" <+> pp r
+         msg = TVarInfo { tvarDesc = src $$ text "at" <+> pp r
+                        , tvarSource = r }
      newName $ \s -> let x = seedTVar s
                      in (TVFree x k vs msg, s { seedTVar = x + 1 })
 
@@ -501,7 +505,21 @@ getSubst = IM $ fmap iSubst get
 
 -- | Add to the accumulated substitution.
 extendSubst :: Subst -> InferM ()
-extendSubst su = IM $ sets_ $ \s -> s { iSubst = su @@ iSubst s }
+extendSubst su =
+  do IM $ sets_ $ \s -> s { iSubst = su @@ iSubst s }
+     bound <- getBoundInScope
+     let suBound = Set.filter isBoundTV (Set.unions (map (fvs . snd) (substToList su)))
+     let escaped = Set.difference suBound bound
+     if Set.null escaped then return () else
+       panic "Cryptol.TypeCheck.Monad.extendSubst"
+                    [ "Escaped quantified variables:"
+                    , "Substitution:  " ++ show (brackets (commaSep (map ppBinding su_binds)))
+                    , "Vars in scope: " ++ show (brackets (commaSep (map pp (Set.toList bound))))
+                    , "Escaped:       " ++ show (brackets (commaSep (map pp (Set.toList escaped))))
+                    ]
+  where
+    su_binds = substToList su
+    ppBinding (v,x) = pp v <+> text ":=" <+> pp x
 
 
 -- | Variables that are either mentioned in the environment or in
@@ -603,6 +621,7 @@ getParamFuns = IM $ asks iParamFuns
 getParamTypes :: InferM (Map Name ModTParam)
 getParamTypes = IM $ asks iParamTypes
 
+-- | Constraints on the module's parameters.
 getParamConstraints :: InferM [Located Prop]
 getParamConstraints = IM $ asks iParamConstraints
 

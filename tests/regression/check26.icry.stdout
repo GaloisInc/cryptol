@@ -1,72 +1,72 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:11:42--11:45:
   Defaulting 2nd type parameter
              of expression Main::xys
              at ./check26.cry:11:42--11:45
   to 4
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:8:31--8:34:
   Defaulting 2nd type parameter
              of expression Main::xys
              at ./check26.cry:8:31--8:34
   to 3
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:9:23--9:34:
   Defaulting type parameter 'bits'
              of finite enumeration
              at ./check26.cry:9:23--9:34
   to 4
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:9:41--9:51:
   Defaulting type parameter 'bits'
              of finite enumeration
              at ./check26.cry:9:41--9:51
   to 3
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:4:17--4:19:
   Defaulting 1st type parameter
              of expression Main::xy
              at ./check26.cry:4:17--4:19
   to 4
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:4:17--4:19:
   Defaulting 2nd type parameter
              of expression Main::xy
              at ./check26.cry:4:17--4:19
   to 5
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:4:23--4:25:
   Defaulting 2nd type parameter
              of expression Main::xy
              at ./check26.cry:4:23--4:25
   to 5
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:4:37--4:39:
   Defaulting 1st type parameter
              of expression Main::xy
              at ./check26.cry:4:37--4:39
   to 4
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:4:37--4:39:
   Defaulting 2nd type parameter
              of expression Main::xy
              at ./check26.cry:4:37--4:39
   to 5
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:4:43--4:45:
   Defaulting 1st type parameter
              of expression Main::xy
              at ./check26.cry:4:43--4:45
   to 4
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:5:17--5:19:
   Defaulting 2nd type parameter
              of expression Main::xy
              at ./check26.cry:5:17--5:19
   to 5
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:5:23--5:25:
   Defaulting type parameter 'bits'
              of literal or demoted expression
              at ./check26.cry:5:23--5:25
   to 4
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:5:35--5:37:
   Defaulting 1st type parameter
              of expression Main::xy
              at ./check26.cry:5:35--5:37
   to 4
-[warning] at :1:1--13:43:
+[warning] at ./check26.cry:5:41--5:43:
   Defaulting type parameter 'bits'
              of literal or demoted expression
              at ./check26.cry:5:41--5:43

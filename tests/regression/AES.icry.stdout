@@ -1,31 +1,31 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module AES
-[warning] at ./AES.cry:147:1--150:39:
-  Defaulting type parameter 'bits'
-             of finite enumeration
-             at ./AES.cry:147:36--147:51
-  to 4
-[warning] at ./AES.cry:147:1--150:39:
-  Defaulting type parameter 'bits'
-             of literal or demoted expression
-             at ./AES.cry:147:60--147:63
-  to 4
-[warning] at ./AES.cry:124:1--129:31:
-  Defaulting type parameter 'bits'
-             of literal or demoted expression
-             at ./AES.cry:127:32--127:33
-  to 3
-[warning] at ./AES.cry:91:1--93:23:
-  Defaulting type parameter 'bits'
-             of finite enumeration
-             at ./AES.cry:92:61--92:69
-  to 2
-[warning] at ./AES.cry:86:1--88:20:
+[warning] at ./AES.cry:87:58--87:66:
   Defaulting type parameter 'bits'
              of finite enumeration
              at ./AES.cry:87:58--87:66
   to 2
+[warning] at ./AES.cry:92:61--92:69:
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at ./AES.cry:92:61--92:69
+  to 2
+[warning] at ./AES.cry:127:32--127:33:
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at ./AES.cry:127:32--127:33
+  to 3
+[warning] at ./AES.cry:147:36--147:51:
+  Defaulting type parameter 'bits'
+             of finite enumeration
+             at ./AES.cry:147:36--147:51
+  to 4
+[warning] at ./AES.cry:147:60--147:63:
+  Defaulting type parameter 'bits'
+             of literal or demoted expression
+             at ./AES.cry:147:60--147:63
+  to 4
 True
 True
 True

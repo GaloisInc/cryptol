@@ -1,7 +1,7 @@
 Loading module Cryptol
 Assuming a = 4
 [0xb, 0xb, 0xb, 0xb, 0xb, 0xb, 0xb, 0xb, 0xb, 0xb]
-[warning] at <interactive>:1:1--1:68:
+[warning] at <interactive>:1:65--1:67:
   Defaulting type parameter 'bits'
              of finite enumeration
              at <interactive>:1:13--1:24

@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at ./issue268.cry:2:1--2:74:
+[warning] at ./issue268.cry:2:61--2:65:
   Defaulting 2nd type parameter
              of expression drop
              at ./issue268.cry:2:61--2:65

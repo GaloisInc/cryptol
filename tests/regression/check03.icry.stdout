@@ -1,7 +1,7 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at <interactive>:1:1--1:22:
+[warning] at <interactive>:1:11--1:22:
   Defaulting type parameter 'bits'
              of finite enumeration
              at <interactive>:1:11--1:22
@@ -9,7 +9,7 @@ Loading module Main
 [0x00000000, 0x00000001, 0x00000002, 0x00000003, 0x00000004,
  0x00000005, 0x00000006, 0x00000007, 0x00000008, 0x00000009,
  0x0000000a]
-[warning] at <interactive>:1:1--1:23:
+[warning] at <interactive>:1:12--1:23:
   Defaulting type parameter 'bits'
              of finite enumeration
              at <interactive>:1:12--1:23

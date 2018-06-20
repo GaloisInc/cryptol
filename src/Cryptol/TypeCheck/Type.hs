@@ -16,6 +16,7 @@ import           Data.List(sortBy)
 import           Data.Ord(comparing)
 
 import Cryptol.Parser.Selector
+import Cryptol.Parser.Position(Range)
 import Cryptol.ModuleSystem.Name
 import Cryptol.Prims.Syntax
 import Cryptol.Utils.Ident (Ident)
@@ -112,12 +113,17 @@ data Type   = TCon !TCon ![Type]
 
 
 -- | Type variables.
-data TVar   = TVFree !Int Kind (Set TVar) Doc
+data TVar   = TVFree !Int Kind (Set TVar) TVarInfo
               -- ^ Unique, kind, ids of bound type variables that are in scope
-              -- The `Doc` is a description of how this type came to be.
+              -- The last field gives us some infor for nicer warnings/errors.
 
 
             | TVBound {-# UNPACK #-} !TParam
+              deriving (Show, Generic, NFData)
+
+data TVarInfo = TVarInfo { tvarSource :: Range -- ^ Source code that gave rise
+                         , tvarDesc   :: Doc   -- ^ Description
+                         }
               deriving (Show, Generic, NFData)
 
 

@@ -1,12 +1,12 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at :1:1--3:25:
+[warning] at ./check02.cry:3:24--3:25:
   Defaulting type parameter 'bits'
              of literal or demoted expression
              at ./check02.cry:3:24--3:25
   to 1
-[warning] at <interactive>:1:1--1:18:
+[warning] at <interactive>:1:9--1:18:
   Defaulting type parameter 'bits'
              of finite enumeration
              at <interactive>:1:9--1:18
