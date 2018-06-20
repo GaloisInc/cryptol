@@ -441,11 +441,11 @@ newTVar src k = newTVar' src Set.empty k
 
 -- | Generate a new free type variable that depends on these additional
 -- type parameters.
-newTVar' :: Doc -> Set TVar -> Kind -> InferM TVar
+newTVar' :: Doc -> Set TParam -> Kind -> InferM TVar
 newTVar' src extraBound k =
   do r <- curRange
      bound <- getBoundInScope
-     let vs = Set.union extraBound bound
+     let vs = Set.union (Set.map tpVar extraBound) bound
          msg = TVarInfo { tvarDesc = src $$ text "at" <+> pp r
                         , tvarSource = r }
      newName $ \s -> let x = seedTVar s
@@ -561,8 +561,8 @@ lookupVar x =
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
 -- in scope, in which case we must be dealing with a type constant.
-lookupTVar :: Name -> InferM (Maybe TVar)
-lookupTVar x = IM $ asks $ fmap tpVar . find this . iTVars
+lookupTParam :: Name -> InferM (Maybe TParam)
+lookupTParam x = IM $ asks $ find this . iTVars
   where this tp = tpName tp == Just x
 
 -- | Lookup the definition of a type synonym.
@@ -757,8 +757,8 @@ inNewScope m =
 
 newtype KindM a = KM { unKM :: ReaderT KRO (StateT KRW InferM)  a }
 
-data KRO = KRO { lazyTVars  :: Map Name TVar -- ^ lazy map, with tyvars.
-               , allowWild  :: AllowWildCards-- ^ are type-wild cards allowed?
+data KRO = KRO { lazyTParams :: Map Name TParam -- ^ lazy map, with tparams.
+               , allowWild   :: AllowWildCards  -- ^ are type-wild cards allowed?
                }
 
 -- | Do we allow wild cards in the given context.
@@ -785,39 +785,39 @@ instance Monad KindM where
 
 {- | The arguments to this function are as follows:
 
-(type param. name, kind signature (opt.), a type representing the param)
+(type param. name, kind signature (opt.), type parameter)
 
-The type representing the parameter is just a thunk that we should not force.
-The reason is that the type depnds on the kind of parameter, that we are
+The type parameter is just a thunk that we should not force.
+The reason is that the parameter depends on the kind that we are
 in the process of computing.
 
 As a result we return the value of the sub-computation and the computed
 kinds of the type parameters. -}
 runKindM :: AllowWildCards               -- Are type-wild cards allowed?
-         -> [(Name, Maybe Kind, TVar)]   -- ^ See comment
+         -> [(Name, Maybe Kind, TParam)] -- ^ See comment
          -> KindM a -> InferM (a, Map Name Kind, [(ConstraintSource,[Prop])])
 runKindM wildOK vs (KM m) =
   do (a,kw) <- runStateT krw (runReaderT kro m)
      return (a, typeParams kw, kCtrs kw)
   where
-  tys  = Map.fromList [ (x,t) | (x,_,t)      <- vs ]
-  kro  = KRO { allowWild = wildOK, lazyTVars = tys }
+  tps  = Map.fromList [ (x,t) | (x,_,t)      <- vs ]
+  kro  = KRO { allowWild = wildOK, lazyTParams = tps }
   krw  = KRW { typeParams = Map.fromList [ (x,k) | (x,Just k,_) <- vs ]
              , kCtrs = []
              }
 
 -- | This is what's returned when we lookup variables during kind checking.
-data LkpTyVar = TLocalVar TVar (Maybe Kind) -- ^ Locally bound variable.
-              | TOuterVar TVar              -- ^ An outer binding.
+data LkpTyVar = TLocalVar TParam (Maybe Kind) -- ^ Locally bound variable.
+              | TOuterVar TParam              -- ^ An outer binding.
 
 -- | Check if a name refers to a type variable.
 kLookupTyVar :: Name -> KindM (Maybe LkpTyVar)
 kLookupTyVar x = KM $
-  do vs <- lazyTVars `fmap` ask
+  do vs <- lazyTParams `fmap` ask
      ss <- get
      case Map.lookup x vs of
        Just t  -> return $ Just $ TLocalVar t $ Map.lookup x $ typeParams ss
-       Nothing -> lift $ lift $ do t <- lookupTVar x
+       Nothing -> lift $ lift $ do t <- lookupTParam x
                                    return (fmap TOuterVar t)
 
 -- | Are type wild-cards OK in this context?
@@ -837,7 +837,7 @@ kRecordWarning w = kInInferM $ recordWarning w
 -- XXX: Perhaps we can avoid the recursion?
 kNewType :: Doc -> Kind -> KindM Type
 kNewType src k =
-  do tps <- KM $ do vs <- asks lazyTVars
+  do tps <- KM $ do vs <- asks lazyTParams
                     return $ Set.fromList (Map.elems vs)
      kInInferM $ TVar `fmap` newTVar' src tps k
 
