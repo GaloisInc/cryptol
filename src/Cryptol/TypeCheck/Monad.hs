@@ -445,7 +445,7 @@ newTVar' :: Doc -> Set TParam -> Kind -> InferM TVar
 newTVar' src extraBound k =
   do r <- curRange
      bound <- getBoundInScope
-     let vs = Set.union (Set.map tpVar extraBound) bound
+     let vs = Set.union extraBound bound
          msg = TVarInfo { tvarDesc = src $$ text "at" <+> pp r
                         , tvarSource = r }
      newName $ \s -> let x = seedTVar s
@@ -509,7 +509,7 @@ extendSubst su =
   do IM $ sets_ $ \s -> s { iSubst = su @@ iSubst s }
      bound <- getBoundInScope
      let suBound = Set.filter isBoundTV (Set.unions (map (fvs . snd) (substToList su)))
-     let escaped = Set.difference suBound bound
+     let escaped = Set.difference suBound (Set.map tpVar bound)
      if Set.null escaped then return () else
        panic "Cryptol.TypeCheck.Monad.extendSubst"
                     [ "Escaped quantified variables:"
@@ -630,12 +630,11 @@ getTVars :: InferM (Set Name)
 getTVars = IM $ asks $ Set.fromList . mapMaybe tpName . iTVars
 
 -- | Return the keys of the bound variables that are in scope.
-getBoundInScope :: InferM (Set TVar)
+getBoundInScope :: InferM (Set TParam)
 getBoundInScope =
   do ro <- IM ask
-     let params = Set.fromList (map (tpVar . mtpParam)
-                                    (Map.elems (iParamTypes ro)))
-         bound  = Set.fromList (map tpVar (iTVars ro))
+     let params = Set.fromList (map mtpParam (Map.elems (iParamTypes ro)))
+         bound  = Set.fromList (iTVars ro)
      return $! Set.union params bound
 
 -- | Retrieve the value of the `mono-binds` option.
