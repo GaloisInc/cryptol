@@ -20,7 +20,7 @@ module Cryptol.TypeCheck.Solve
   ) where
 
 import           Cryptol.Parser.Position(thing)
-import           Cryptol.TypeCheck.PP(pp)
+import           Cryptol.TypeCheck.PP -- (pp)
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Default
@@ -182,16 +182,21 @@ simpHasGoals = go False [] =<< getHasGoals
 -- on the module's type parameters.
 proveModuleTopLevel :: InferM ()
 proveModuleTopLevel =
-  do -- io $ putStrLn "Module top level"
-     simplifyAllConstraints
+  do simplifyAllConstraints
+     gs <- getGoals
+     let vs = Set.toList (Set.filter isFreeTV (fvs gs))
+         (_,gs1,su1,ws) = improveByDefaultingWithPure vs gs
+     extendSubst su1
+     mapM_ recordWarning ws
+
      cs <- getParamConstraints
      case cs of
-       [] -> return ()
-       _  -> do gs <- getGoals
-                su <- proveImplication Nothing [] [] gs
-                extendSubst su
+       [] -> addGoals gs1
+       _  -> do su2 <- proveImplication Nothing [] [] gs1
+                extendSubst su2
 
-
+-- | Prove an implication, and return any improvements that we computed.
+-- Records errors, if any of the goals couldn't be solved.
 proveImplication :: Maybe Name -> [TParam] -> [Prop] -> [Goal] -> InferM Subst
 proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
@@ -232,7 +237,8 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
                             $ Set.difference (fvs (map goal gs3)) varsInEnv
                    case improveByDefaultingWithPure free gs3 of
                      (_,_,newSu,_)
-                        | isEmptySubst newSu -> return (err gs3, su) -- XXX: Old?
+                        | isEmptySubst newSu ->
+                                 return (err gs3, su) -- XXX: Old?
                      (_,newGs,newSu,ws) ->
                        do let su1 = newSu @@ su
                           (res1,su2) <- proveImplicationIO s f varsInEnv ps

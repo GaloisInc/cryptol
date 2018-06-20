@@ -16,7 +16,7 @@ test04::test = \{a, b} (b >= 4, fin b) (a : a) ->
 
 Loading module Cryptol
 Loading module test04
-[warning] at ./test04.cry:1:1--5:14:
+[warning] at ./test04.cry:3:19--3:21:
   Defaulting type parameter 'bits'
              of literal or demoted expression
              at ./test04.cry:3:19--3:21

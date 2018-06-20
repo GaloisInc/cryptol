@@ -23,7 +23,7 @@ import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.Unify(mgu, Result(..), UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
-import           Cryptol.TypeCheck.Error(Warning,Error(..),cleanupErrors)
+import           Cryptol.TypeCheck.Error(Warning(..),Error(..),cleanupErrors)
 import           Cryptol.TypeCheck.PP (brackets, commaSep)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
@@ -310,7 +310,9 @@ recordError e =
 
 recordWarning :: Warning -> InferM ()
 recordWarning w =
-  do r <- curRange
+  do r <- case w of
+            DefaultingTo d _ -> return (tvarSource d)
+            _ -> curRange
      IM $ sets_ $ \s -> s { iWarnings = (r,w) : iWarnings s }
 
 getSolver :: InferM SMT.Solver
@@ -444,7 +446,8 @@ newTVar' src extraBound k =
   do r <- curRange
      bound <- getBoundInScope
      let vs = Set.union extraBound bound
-         msg = src $$ text "at" <+> pp r
+         msg = TVarInfo { tvarDesc = src $$ text "at" <+> pp r
+                        , tvarSource = r }
      newName $ \s -> let x = seedTVar s
                      in (TVFree x k vs msg, s { seedTVar = x + 1 })
 
@@ -620,6 +623,7 @@ getParamFuns = IM $ asks iParamFuns
 getParamTypes :: InferM (Map Name ModTParam)
 getParamTypes = IM $ asks iParamTypes
 
+-- | Constraints on the module's parameters.
 getParamConstraints :: InferM [Located Prop]
 getParamConstraints = IM $ asks iParamConstraints
 

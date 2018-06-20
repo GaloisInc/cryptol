@@ -51,7 +51,7 @@ subsumes _ _ = False
 
 data Warning  = DefaultingKind (P.TParam Name) P.Kind
               | DefaultingWildType P.Kind
-              | DefaultingTo Doc Type
+              | DefaultingTo TVarInfo Type
                 deriving (Show, Generic, NFData)
 
 -- | Various errors that might happen during type checking/inference
@@ -208,7 +208,7 @@ instance PP (WithNames Warning) where
         text "Assuming _ to have" <+> P.cppKind k
 
       DefaultingTo d ty ->
-        text "Defaulting" <+> d $$ text "to" <+> ppWithNames names ty
+        text "Defaulting" <+> tvarDesc d $$ text "to" <+> ppWithNames names ty
 
 instance PP (WithNames Error) where
   ppPrec _ (WithNames err names) =
@@ -297,7 +297,7 @@ instance PP (WithNames Error) where
           <+> text "is ambiguous.")
           $$ text "Arising from:"
           $$ nest 2 (vcat [ text "*" <+> var v | v <- vs ])
-        where var (TVFree _ _ _ d) = d
+        where var (TVFree _ _ _ d) = tvarDesc d
               var x = pp x
 
       UndefinedTypeParameter x ->

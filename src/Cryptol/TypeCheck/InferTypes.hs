@@ -222,7 +222,7 @@ addTVarsDescs nm t d
   | otherwise   = d $$ text "where" $$ vcat (map desc (Set.toList vs))
   where
   vs                      = Set.filter isFreeTV (fvs t)
-  desc v@(TVFree _ _ _ x) = ppWithNames nm v <+> text "is" <+> x
+  desc v@(TVFree _ _ _ x) = ppWithNames nm v <+> text "is" <+> tvarDesc x
   desc (TVBound {})       = empty
 
 

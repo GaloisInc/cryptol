@@ -50,7 +50,8 @@ import           Control.Monad(when,zipWithM,unless)
 
 
 inferModule :: P.Module Name -> InferM Module
-inferModule m = inferModuleK m return
+inferModule m =
+  do inferModuleK m return
 
 inferModuleK :: P.Module Name -> (Module -> InferM a) -> InferM a
 inferModuleK m continue =
@@ -802,44 +803,27 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
                    return e1
      cs <- applySubst cs0
 
-     let letGo qs c  = Set.null (qs `Set.intersection` fvs (goal c))
+     let findKeep vs keep todo =
+          let stays (_,cvs)    = not $ Set.null $ Set.intersection vs cvs
+              (yes,perhaps)    = partition stays todo
+              (stayPs,newVars) = unzip yes
+          in case stayPs of
+               [] -> (keep,map fst todo)
+               _  -> findKeep (Set.unions (vs:newVars)) (stayPs ++ keep) perhaps
 
-         splitPreds qs n ps =
-           let (l,n1) = partition (letGo qs) ps
-           in if null n1
-                then (l,n)
-                else splitPreds (fvs (map goal n1) `Set.union` qs) (n1 ++ n) l
+     let (stay,leave) = findKeep (Set.fromList (map tpVar as)) []
+                            [ (c, fvs c) | c <- cs ]
 
-         (later0,now) = splitPreds (Set.fromList (map tpVar as)) [] cs
+     addGoals leave
 
      asmps1 <- applySubst asmps0
 
-     defSu1 <- proveImplication (Just (thing (P.bName b))) as asmps1 now
-     let later = apSubst defSu1 later0
-         asmps = apSubst defSu1 asmps1
+     su <- proveImplication (Just (thing (P.bName b))) as asmps1 stay
+     extendSubst su
 
-     -- Now we check for any remaining variables that are not mentioned
-     -- in the environment.  The plan is to try to default these to something
-     -- reasonable.
-     do let laterVs = fvs (map goal later)
-        asmpVs <- varsWithAsmps
-        let genVs   = laterVs `Set.difference` asmpVs
-            (maybeAmbig,ambig) = partition ((== KNum) . kindOf)
-                                           (Set.toList genVs)
-        when (not (null ambig)) $ recordError
-                                $ AmbiguousType [ thing (P.bName b) ] ambig
-
-        -- XXX: Uhm, why are we defaulting that 'later' things here?
-        -- Surely this should be done later, when we solve them?
-        let (_,newGs,defSu2,ws) = improveByDefaultingWithPure maybeAmbig later
-        mapM_ recordWarning ws
-        extendSubst defSu2
-        addGoals newGs
-
-     su <- getSubst
-     let su' = defSu1 @@ su
-         t   = apSubst su' t0
-         e2  = apSubst su' e1
+     let asmps  = apSubst su asmps1
+     t      <- applySubst t0
+     e2     <- applySubst e1
 
      return Decl
         { dName       = thing (P.bName b)
