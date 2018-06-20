@@ -503,23 +503,37 @@ applySubst t =
 getSubst :: InferM Subst
 getSubst = IM $ fmap iSubst get
 
--- | Add to the accumulated substitution.
+-- | Add to the accumulated substitution, checking that the datatype
+-- invariant for `Subst` is maintained.
 extendSubst :: Subst -> InferM ()
 extendSubst su =
-  do IM $ sets_ $ \s -> s { iSubst = su @@ iSubst s }
-     bound <- getBoundInScope
-     let suBound = Set.filter isBoundTV (Set.unions (map (fvs . snd) (substToList su)))
-     let escaped = Set.difference suBound (Set.map tpVar bound)
-     if Set.null escaped then return () else
-       panic "Cryptol.TypeCheck.Monad.extendSubst"
-                    [ "Escaped quantified variables:"
-                    , "Substitution:  " ++ show (brackets (commaSep (map ppBinding su_binds)))
-                    , "Vars in scope: " ++ show (brackets (commaSep (map pp (Set.toList bound))))
-                    , "Escaped:       " ++ show (brackets (commaSep (map pp (Set.toList escaped))))
-                    ]
+  do mapM_ check (substToList su)
+     IM $ sets_ $ \s -> s { iSubst = su @@ iSubst s }
   where
-    su_binds = substToList su
-    ppBinding (v,x) = pp v <+> text ":=" <+> pp x
+    check :: (TVar, Type) -> InferM ()
+    check (v, ty) =
+      case v of
+        TVBound _ ->
+          panic "Cryptol.TypeCheck.Monad.extendSubst"
+            [ "Substitution instantiates bound variable:"
+            , "Variable: " ++ show (pp v)
+            , "Type:     " ++ show (pp ty)
+            ]
+        TVFree _ _ tvs _ ->
+          do let bounds tv =
+                   case tv of
+                     TVBound tp -> Set.singleton tp
+                     TVFree _ _ tps _ -> tps
+             let vars = Set.unions (map bounds (Set.elems (fvs ty)))
+                 -- (Set.filter isBoundTV (fvs ty))
+             let escaped = Set.difference vars tvs
+             if Set.null escaped then return () else
+               panic "Cryptol.TypeCheck.Monad.extendSubst"
+                 [ "Escaped quantified variables:"
+                 , "Substitution:  " ++ show (pp v <+> text ":=" <+> pp ty)
+                 , "Vars in scope: " ++ show (brackets (commaSep (map pp (Set.toList tvs))))
+                 , "Escaped:       " ++ show (brackets (commaSep (map pp (Set.toList escaped))))
+                 ]
 
 
 -- | Variables that are either mentioned in the environment or in
