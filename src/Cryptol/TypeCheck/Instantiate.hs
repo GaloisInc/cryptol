@@ -143,7 +143,7 @@ doInst su' e ps t =
   -- Add type parameters
   addTyParams ts e1 = foldl ETApp e1 ts
 
-  -- Add proof parameters (the proofs are ommited but we mark where they'd go)
+  -- Add proof parameters (the proofs are omitted but we mark where they'd go)
   addProofParams e1 = foldl (\e2 _ -> EProofApp e2) e1 ps
 
 

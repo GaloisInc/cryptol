@@ -81,7 +81,7 @@ listSubst xs
 isEmptySubst :: Subst -> Bool
 isEmptySubst su = Map.null $ suMap su
 
--- Returns the empty set if this is a deaulting substitution
+-- Returns the empty set if this is a defaulting substitution
 substBinds :: Subst -> Set TVar
 substBinds su
   | suDefaulting su = Set.empty
