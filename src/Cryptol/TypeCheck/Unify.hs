@@ -124,7 +124,7 @@ bindVar v@(TVBound {}) t
   where k = kindOf v
 
 bindVar x@(TVFree _ _ xscope _) (TVar y@(TVFree _ _ yscope _))
-  | xscope `Set.isSubsetOf` yscope = return (singleSubst y (TVar x), [])
+  | xscope `Set.isProperSubsetOf` yscope = return (singleSubst y (TVar x), [])
 
 bindVar x@(TVFree _ k inScope _d) t
   | not (k == kindOf t)     = uniError $ UniKindMismatch k (kindOf t)
