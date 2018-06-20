@@ -95,7 +95,7 @@ data Error    = ErrorMsg Doc
                 -- ^ Type wild cards are not allowed in this context
                 -- (e.g., definitions of type synonyms).
 
-              | TypeVariableEscaped Type [TVar]
+              | TypeVariableEscaped Type [TParam]
                 -- ^ Unification variable depends on quantified variables
                 -- that are not in scope.
 
