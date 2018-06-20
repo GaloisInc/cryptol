@@ -176,8 +176,8 @@ withTParams allowWildCards flav xs m
                                                 : map show duplicates
   | otherwise =
   do (as,a,ctrs) <-
-        mdo (a, vars,ctrs) <- runKindM allowWildCards (zip' xs ts) m
-            (as, ts)  <- unzip `fmap` mapM (newTP vars) xs
+        mdo (a, vars,ctrs) <- runKindM allowWildCards (zip' xs as) m
+            as <- mapM (newTP vars) xs
             return (as,a,ctrs)
      mapM_ (uncurry newGoals) ctrs
      return (as,a)
@@ -190,8 +190,7 @@ withTParams allowWildCards flav xs m
                     return KNum
 
   newTP vs tp = do k <- getKind vs tp
-                   n <- newTParam (flav (P.tpName tp)) k
-                   return (n, TVar (tpVar n))
+                   newTParam (flav (P.tpName tp)) k
 
 
   {- Note that we only zip based on the first argument.
@@ -281,12 +280,12 @@ checkTUser x ts k =
        case v of
          TLocalVar t mbk ->
             case k of
-              Nothing -> return t
+              Nothing -> return (TVar (tpVar t))
               Just k1 ->
                 case mbk of
-                  Nothing -> kSetKind x k1 >> return t
-                  Just k2 -> checkKind t k k2
-         TOuterVar t -> checkKind t k (kindOf t)
+                  Nothing -> kSetKind x k1 >> return (TVar (tpVar t))
+                  Just k2 -> checkKind (TVar (tpVar t)) k k2
+         TOuterVar t -> checkKind (TVar (tpVar t)) k (kindOf t)
 
   checkScopedVarUse =
     do unless (null ts) (kRecordError TyVarWithParams)

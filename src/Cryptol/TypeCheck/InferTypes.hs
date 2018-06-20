@@ -53,8 +53,8 @@ data VarType = ExtVar Schema
              | CurSCC {- LAZY -} Expr Type
                {- ^ Part of current SCC.  The expression will replace the
                variable, after we are done with the SCC.  In this way a
-               variable that gets generalized is replaced with an approproate
-               instantiations of itslef. -}
+               variable that gets generalized is replaced with an appropriate
+               instantiation of itself. -}
 
 data Goals = Goals
   { goalSet :: Set Goal

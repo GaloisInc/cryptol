@@ -21,6 +21,7 @@ import Data.Function (on)
 import Data.List(sortBy, groupBy, find)
 import Data.Maybe(mapMaybe,isJust)
 import Data.Either(partitionEithers)
+import qualified Data.Set as Set
 
 
 instantiateWith :: Expr -> Schema -> [Located (Maybe Ident,Type)]
@@ -48,7 +49,7 @@ instantiateWithPos e (Forall as ps t) ts =
   makeSu n su (q : qs) (ty : tys)
     | not (isNamed q) = do r <- unnamed n q
                            makeSu (n+1) (r : su) qs (ty : tys)
-    | k1 == k2        = makeSu (n+1) ((tpVar q, ty) : su) qs tys
+    | k1 == k2        = makeSu (n+1) ((q, ty) : su) qs tys
     | otherwise       = do recordError $ KindMismatch k1 k2
                            r <- unnamed n q
                            makeSu (n+1) (r : su) qs tys
@@ -64,7 +65,7 @@ instantiateWithPos e (Forall as ps t) ts =
   unnamed n q = do let src = ordinal n <+> text "type parameter"
                            $$ text "of" <+> ppUse e
                    ty <- newType src (kindOf q)
-                   return (tpVar q, ty)
+                   return (q, ty)
 
 
 
@@ -88,9 +89,8 @@ instantiateWithNames e (Forall as ps t) xs =
      doInst su' e ps t
   where
   -- Choose the type for type parameter `x`
-  paramInst x     =
-    do let v = tpVar x
-           k = kindOf v
+  paramInst x =
+    do let k = tpKind x
 
            -- We just use nameIdent for comparison here, as all parameter names
            -- should have a NameInfo of Parameter.
@@ -108,7 +108,7 @@ instantiateWithNames e (Forall as ps t) xs =
                   where ty = snd (thing lty)
                         k1 = kindOf ty
                Nothing -> newType src k
-       return (v,ty)
+       return (x, ty)
 
   -- Errors from multiple values for the same parameter.
   repeatedParams  = mapMaybe isRepeated
@@ -129,13 +129,23 @@ instantiateWithNames e (Forall as ps t) xs =
 
 
 
+-- If the instantiation contains an assignment (v := t), and the type
+-- contains a free unification variable ?x that could possibly depend
+-- on v, then we must require that t = v (i.e. su must be an identity
+-- substitution). Otherwise, this causes a problem: If ?x is
+-- eventually instantiated to a type containing v, then the type
+-- substitution will have computed the wrong result.
 
-
-doInst :: [(TVar, Type)] -> Expr -> [Prop] -> Type -> InferM (Expr,Type)
+doInst :: [(TParam, Type)] -> Expr -> [Prop] -> Type -> InferM (Expr,Type)
 doInst su' e ps t =
-  do let su = listSubst su'
+  do let su = listSubst [ (tpVar tp, ty) | (tp, ty) <- su' ]
      newGoals (CtInst e) (map (apSubst su) ps)
      let t1 = apSubst su t
+
+     -- Possibly more goals due to unification
+     ps' <- concat <$> mapM checkInst su'
+     newGoals (CtInst e) ps'
+
      return ( addProofParams
             $ addTyParams (map snd su') e
             , t1)
@@ -143,9 +153,21 @@ doInst su' e ps t =
   -- Add type parameters
   addTyParams ts e1 = foldl ETApp e1 ts
 
-  -- Add proof parameters (the proofs are ommited but we mark where they'd go)
+  -- Add proof parameters (the proofs are omitted but we mark where they'd go)
   addProofParams e1 = foldl (\e2 _ -> EProofApp e2) e1 ps
 
+  -- free unification variables used in the schema
+  frees = Set.unions (map fvs (t : ps))
 
+  -- the bound variables from the scopes of any unification variables in the schema
+  bounds = Set.unions (map scope (Set.toList frees))
+    where
+      scope (TVFree _ _ vs _) = vs
+      scope (TVBound _) = Set.empty
 
+  -- if the tvar is in 'bounds', then make sure it is an identity substitution
+  checkInst :: (TParam, Type) -> InferM [Prop]
+  checkInst (tp, ty)
+    | Set.notMember tp bounds = return []
+    | otherwise               = unify (TVar (tpVar tp)) ty
 

@@ -441,7 +441,7 @@ newTVar src k = newTVar' src Set.empty k
 
 -- | Generate a new free type variable that depends on these additional
 -- type parameters.
-newTVar' :: Doc -> Set TVar -> Kind -> InferM TVar
+newTVar' :: Doc -> Set TParam -> Kind -> InferM TVar
 newTVar' src extraBound k =
   do r <- curRange
      bound <- getBoundInScope
@@ -503,23 +503,37 @@ applySubst t =
 getSubst :: InferM Subst
 getSubst = IM $ fmap iSubst get
 
--- | Add to the accumulated substitution.
+-- | Add to the accumulated substitution, checking that the datatype
+-- invariant for `Subst` is maintained.
 extendSubst :: Subst -> InferM ()
 extendSubst su =
-  do IM $ sets_ $ \s -> s { iSubst = su @@ iSubst s }
-     bound <- getBoundInScope
-     let suBound = Set.filter isBoundTV (Set.unions (map (fvs . snd) (substToList su)))
-     let escaped = Set.difference suBound bound
-     if Set.null escaped then return () else
-       panic "Cryptol.TypeCheck.Monad.extendSubst"
-                    [ "Escaped quantified variables:"
-                    , "Substitution:  " ++ show (brackets (commaSep (map ppBinding su_binds)))
-                    , "Vars in scope: " ++ show (brackets (commaSep (map pp (Set.toList bound))))
-                    , "Escaped:       " ++ show (brackets (commaSep (map pp (Set.toList escaped))))
-                    ]
+  do mapM_ check (substToList su)
+     IM $ sets_ $ \s -> s { iSubst = su @@ iSubst s }
   where
-    su_binds = substToList su
-    ppBinding (v,x) = pp v <+> text ":=" <+> pp x
+    check :: (TVar, Type) -> InferM ()
+    check (v, ty) =
+      case v of
+        TVBound _ ->
+          panic "Cryptol.TypeCheck.Monad.extendSubst"
+            [ "Substitution instantiates bound variable:"
+            , "Variable: " ++ show (pp v)
+            , "Type:     " ++ show (pp ty)
+            ]
+        TVFree _ _ tvs _ ->
+          do let bounds tv =
+                   case tv of
+                     TVBound tp -> Set.singleton tp
+                     TVFree _ _ tps _ -> tps
+             let vars = Set.unions (map bounds (Set.elems (fvs ty)))
+                 -- (Set.filter isBoundTV (fvs ty))
+             let escaped = Set.difference vars tvs
+             if Set.null escaped then return () else
+               panic "Cryptol.TypeCheck.Monad.extendSubst"
+                 [ "Escaped quantified variables:"
+                 , "Substitution:  " ++ show (pp v <+> text ":=" <+> pp ty)
+                 , "Vars in scope: " ++ show (brackets (commaSep (map pp (Set.toList tvs))))
+                 , "Escaped:       " ++ show (brackets (commaSep (map pp (Set.toList escaped))))
+                 ]
 
 
 -- | Variables that are either mentioned in the environment or in
@@ -561,8 +575,8 @@ lookupVar x =
 
 -- | Lookup a type variable.  Return `Nothing` if there is no such variable
 -- in scope, in which case we must be dealing with a type constant.
-lookupTVar :: Name -> InferM (Maybe Type)
-lookupTVar x = IM $ asks $ fmap (TVar . tpVar) . find this . iTVars
+lookupTParam :: Name -> InferM (Maybe TParam)
+lookupTParam x = IM $ asks $ find this . iTVars
   where this tp = tpName tp == Just x
 
 -- | Lookup the definition of a type synonym.
@@ -630,12 +644,11 @@ getTVars :: InferM (Set Name)
 getTVars = IM $ asks $ Set.fromList . mapMaybe tpName . iTVars
 
 -- | Return the keys of the bound variables that are in scope.
-getBoundInScope :: InferM (Set TVar)
+getBoundInScope :: InferM (Set TParam)
 getBoundInScope =
   do ro <- IM ask
-     let params = Set.fromList (map (tpVar . mtpParam)
-                                    (Map.elems (iParamTypes ro)))
-         bound  = Set.fromList (map tpVar (iTVars ro))
+     let params = Set.fromList (map mtpParam (Map.elems (iParamTypes ro)))
+         bound  = Set.fromList (iTVars ro)
      return $! Set.union params bound
 
 -- | Retrieve the value of the `mono-binds` option.
@@ -757,8 +770,8 @@ inNewScope m =
 
 newtype KindM a = KM { unKM :: ReaderT KRO (StateT KRW InferM)  a }
 
-data KRO = KRO { lazyTVars  :: Map Name Type -- ^ lazy map, with tyvars.
-               , allowWild  :: AllowWildCards-- ^ are type-wild cards allowed?
+data KRO = KRO { lazyTParams :: Map Name TParam -- ^ lazy map, with tparams.
+               , allowWild   :: AllowWildCards  -- ^ are type-wild cards allowed?
                }
 
 -- | Do we allow wild cards in the given context.
@@ -785,39 +798,39 @@ instance Monad KindM where
 
 {- | The arguments to this function are as follows:
 
-(type param. name, kind signature (opt.), a type representing the param)
+(type param. name, kind signature (opt.), type parameter)
 
-The type representing the parameter is just a thunk that we should not force.
-The reason is that the type depnds on the kind of parameter, that we are
+The type parameter is just a thunk that we should not force.
+The reason is that the parameter depends on the kind that we are
 in the process of computing.
 
 As a result we return the value of the sub-computation and the computed
 kinds of the type parameters. -}
 runKindM :: AllowWildCards               -- Are type-wild cards allowed?
-         -> [(Name, Maybe Kind, Type)]   -- ^ See comment
+         -> [(Name, Maybe Kind, TParam)] -- ^ See comment
          -> KindM a -> InferM (a, Map Name Kind, [(ConstraintSource,[Prop])])
 runKindM wildOK vs (KM m) =
   do (a,kw) <- runStateT krw (runReaderT kro m)
      return (a, typeParams kw, kCtrs kw)
   where
-  tys  = Map.fromList [ (x,t) | (x,_,t)      <- vs ]
-  kro  = KRO { allowWild = wildOK, lazyTVars = tys }
+  tps  = Map.fromList [ (x,t) | (x,_,t)      <- vs ]
+  kro  = KRO { allowWild = wildOK, lazyTParams = tps }
   krw  = KRW { typeParams = Map.fromList [ (x,k) | (x,Just k,_) <- vs ]
              , kCtrs = []
              }
 
 -- | This is what's returned when we lookup variables during kind checking.
-data LkpTyVar = TLocalVar Type (Maybe Kind) -- ^ Locally bound variable.
-              | TOuterVar Type              -- ^ An outer binding.
+data LkpTyVar = TLocalVar TParam (Maybe Kind) -- ^ Locally bound variable.
+              | TOuterVar TParam              -- ^ An outer binding.
 
 -- | Check if a name refers to a type variable.
 kLookupTyVar :: Name -> KindM (Maybe LkpTyVar)
 kLookupTyVar x = KM $
-  do vs <- lazyTVars `fmap` ask
+  do vs <- lazyTParams `fmap` ask
      ss <- get
      case Map.lookup x vs of
        Just t  -> return $ Just $ TLocalVar t $ Map.lookup x $ typeParams ss
-       Nothing -> lift $ lift $ do t <- lookupTVar x
+       Nothing -> lift $ lift $ do t <- lookupTParam x
                                    return (fmap TOuterVar t)
 
 -- | Are type wild-cards OK in this context?
@@ -837,8 +850,8 @@ kRecordWarning w = kInInferM $ recordWarning w
 -- XXX: Perhaps we can avoid the recursion?
 kNewType :: Doc -> Kind -> KindM Type
 kNewType src k =
-  do tps <- KM $ do vs <- asks lazyTVars
-                    return $ Set.fromList [ tv | TVar tv <- Map.elems vs ]
+  do tps <- KM $ do vs <- asks lazyTParams
+                    return $ Set.fromList (Map.elems vs)
      kInInferM $ TVar `fmap` newTVar' src tps k
 
 -- | Lookup the definition of a type synonym.

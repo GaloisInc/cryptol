@@ -43,6 +43,14 @@ import qualified Cryptol.TypeCheck.SimpleSolver as Simp
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Misc(anyJust)
 
+{- | Type 'Subst' has an invariant on its 'suMap' component: If there
+is a mapping from @TVFree _ _ tps _@ to a type @t@, then @t@ must not
+mention (directly or indirectly) any type parameter that is not in
+@tps@. In particular, if @t@ contains a variable @TVFree _ _ tps2 _@,
+then @tps2@ must be a subset of @tps@. This ensures that applying the
+substitution will not permit any type parameter to escape from its
+scope. -}
+
 data Subst = S { suMap :: !(Map.Map TVar Type)
                , suDefaulting :: !Bool
                }
@@ -81,7 +89,7 @@ listSubst xs
 isEmptySubst :: Subst -> Bool
 isEmptySubst su = Map.null $ suMap su
 
--- Returns the empty set if this is a deaulting substitution
+-- Returns the empty set if this is a defaulting substitution
 substBinds :: Subst -> Set TVar
 substBinds su
   | suDefaulting su = Set.empty
@@ -219,32 +227,12 @@ apSubstTypeMapKeys su = go (\_ x -> x) id
                          }
 
 
-{- | WARNING: This instance assumes that the quantified variables in the
-types in the substitution will not get captured by the quantified variables.
-This is reasonable because there should be no shadowing of quantified
-variables but, just in case, we make a sanity check and panic if somehow
-capture did occur. -}
+{- | This instance does not need to worry about bound variable
+capture, because we rely on the 'Subst' datatype invariant to ensure
+that variable scopes will be properly preserved. -}
 
 instance TVars Schema where
-  apSubst su sch@(Forall xs ps t)
-    | Set.null captured = Forall xs (apSubst su ps) (apSubst su t)
-    | otherwise = panic "Cryptol.TypeCheck.Subst.apSubst (Schema)"
-                    [ "Captured quantified variables:"
-                    , "Substitution: " ++ show (brackets (commaSep (map ppBinding su_binds)))
-                    , "Schema:       " ++ show (pp sch)
-                    , "Variables:    " ++ show (commaSep (map pp (Set.toList captured)))
-                    ]
-    where
-    ppBinding (v,x) = pp v <+> text ":=" <+> pp x
-    captured = Set.fromList (map tpVar xs)
-               `Set.intersection`
-               subVars
-    su_binds = Map.toList $ suMap su
-    used = fvs sch
-    subVars = Set.unions
-                $ map (fvs . applySubstToVar su)
-                $ Set.toList used
-
+  apSubst su (Forall xs ps t) = Forall xs (apSubst su ps) (apSubst su t)
 
 instance TVars Expr where
   apSubst su = go

@@ -132,5 +132,5 @@ bindVar x@(TVFree _ k inScope _d) t
   | otherwise               = return (singleSubst x t, [])
     where
     vs      = fvs t
-    escaped = Set.filter isBoundTV vs `Set.difference` inScope
+    escaped = Set.filter isBoundTV vs `Set.difference` Set.map tpVar inScope
     recTy   = x `Set.member` vs
