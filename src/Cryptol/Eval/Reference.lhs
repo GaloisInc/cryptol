@@ -536,9 +536,9 @@ Cryptol primitives fall into several groups:
 >   , ("toInteger"  , vFinPoly $ \_bits ->
 >                     VFun $ \x ->
 >                     VInteger (fromVWord x))
->   , ("fromInteger", vFinPoly $ \bits ->
+>   , ("fromInteger", VPoly $ \a ->
 >                     VFun $ \x ->
->                     vWord bits (fromVInteger x))
+>                     arithNullary (fromVInteger x) a)
 >
 >   -- Comparison:
 >   , ("<"          , binary (cmpOrder (\o -> o == LT)))
@@ -783,6 +783,30 @@ False]`, but to `[error "foo", error "foo"]`.
 Signed arithmetic primitives may be applied to any type that is made
 up of non-empty finite bitvectors.
 
+> arithNullary :: Either EvalError Integer -> TValue -> Value
+> arithNullary i = go
+>   where
+>     go :: TValue -> Value
+>     go ty =
+>       case ty of
+>         TVBit ->
+>           evalPanic "arithNullary" ["Bit not in class Arith"]
+>         TVInteger ->
+>           VInteger i
+>         TVIntMod n ->
+>           VInteger (flip mod n <$> i)
+>         TVSeq w a
+>           | isTBit a  -> vWord w i
+>           | otherwise -> VList (genericReplicate w (go a))
+>         TVStream a ->
+>           VList (repeat (go a))
+>         TVFun _ ety ->
+>           VFun (const (go ety))
+>         TVTuple tys ->
+>           VTuple (map go tys)
+>         TVRec fs ->
+>           VRecord [ (f, go fty) | (f, fty) <- fs ]
+>
 > arithUnary :: (Integer -> Either EvalError Integer)
 >            -> TValue -> Value -> Value
 > arithUnary op = go

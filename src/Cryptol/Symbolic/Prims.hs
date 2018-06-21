@@ -114,7 +114,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("complement"  , unary (logicUnary SBV.svNot SBV.svNot))
   , ("zero"        , tlam zeroV)
   , ("toInteger"   , ecToIntegerV)
-  , ("fromInteger" , ecFromIntegerV)
+  , ("fromInteger" , ecFromIntegerV (const id))
   , ("toZ"        , nlam $ \ _modulus ->
                     lam  $ \ x -> x)
   , ("fromZ"      , nlam $ \ modulus ->

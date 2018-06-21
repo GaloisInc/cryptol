@@ -285,7 +285,7 @@ primitive toInteger : {a} (fin a) => [a] -> Integer
 /**
  * Converts an unbounded integer to a finite bitvector, reducing modulo 2^^n.
  */
-primitive fromInteger : {a} (fin a) => Integer -> [a]
+primitive fromInteger : {a} (Arith a) => Integer -> a
 
 /**
  * Converts an unbounded integer to an integer modulo n.

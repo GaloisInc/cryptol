@@ -65,7 +65,7 @@ Symbols
     foldl : {a, b, n} (fin n) => (a -> b -> a) -> a -> [n]b -> a
     foldr : {a, b, n} (fin n) => (a -> b -> b) -> b -> [n]a -> b
     foo : {a} a -> a
-    fromInteger : {a} (fin a) => Integer -> [a]
+    fromInteger : {a} (Arith a) => Integer -> a
     fromThen :
       {first, next, bits, len} (fin first, fin next, fin bits,
                                 bits >= width first, bits >= width next,

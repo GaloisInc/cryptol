@@ -112,7 +112,7 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("complement" , {-# SCC "Prelude::complement" #-}
                     unary  (logicUnary complement (unaryBV complement)))
   , ("toInteger"  , ecToIntegerV)
-  , ("fromInteger", ecFromIntegerV)
+  , ("fromInteger", ecFromIntegerV (flip mod))
   , ("toZ"        , {-# SCC "Prelude::toZ" #-}
                     nlam $ \ modulus ->
                     lam  $ \ x -> do
@@ -256,14 +256,13 @@ ecToIntegerV =
   wlam $ \ w -> return $ VInteger (wordToInt w)
 
 -- | Convert an unbounded integer to a packed bitvector.
-ecFromIntegerV :: BitWord b w i => GenValue b w i
-ecFromIntegerV =
-  nlam $ \ a ->
-  lam  $ \ x -> do
-    val <- x
-    case (a, val) of
-      (Nat n, VInteger i) -> return $ VWord n $ ready $ WordVal $ wordFromInt n i
-      _                   -> evalPanic "fromInteger" ["Invalid arguments"]
+ecFromIntegerV :: BitWord b w i => (Integer -> i -> i) -> GenValue b w i
+ecFromIntegerV opz =
+  tlam $ \ a ->
+  lam  $ \ x ->
+  do i <- fromVInteger <$> x
+     return $ arithNullary (flip wordFromInt i) i (flip opz i) a
+
 
 --------------------------------------------------------------------------------
 
@@ -497,8 +496,36 @@ arithUnary opw opi opz = loop
                  ]
          return $ VRecord fs'
 
---    | otherwise = evalPanic "arithUnary" ["Invalid arguments"]
+arithNullary ::
+  forall b w i.
+  BitWord b w i =>
+  (Integer -> w) ->
+  i ->
+  (Integer -> i) ->
+  TValue -> GenValue b w i
+arithNullary opw opi opz = loop
+  where
+    loop :: TValue -> GenValue b w i
+    loop ty =
+      case ty of
+        TVBit -> evalPanic "arithNullary" ["Bit not in class Arith"]
 
+        TVInteger -> VInteger opi
+
+        TVIntMod n -> VInteger (opz n)
+
+        TVSeq w a
+          -- words and finite sequences
+          | isTBit a -> VWord w $ ready $ WordVal $ opw w
+          | otherwise -> VSeq w $ IndexSeqMap $ const $ ready $ loop a
+
+        TVStream a -> VStream $ IndexSeqMap $ const $ ready $ loop a
+
+        TVFun _ b -> lam $ const $ ready $ loop b
+
+        TVTuple tys -> VTuple $ map (ready . loop) tys
+
+        TVRec fs -> VRecord [ (f, ready (loop a)) | (f, a) <- fs ]
 
 lg2 :: Integer -> Integer
 lg2 i = case genLog i 2 of
