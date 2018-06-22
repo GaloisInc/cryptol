@@ -283,14 +283,10 @@ primitive zero : {a} (Zero a) => a
 primitive toInteger : {a} (fin a) => [a] -> Integer
 
 /**
- * Converts an unbounded integer to a finite bitvector, reducing modulo 2^^n.
+ * Converts an unbounded integer to another arithmetic type. When converting
+ * to the bitvector type [n], the value is reduced modulo 2^^n.
  */
 primitive fromInteger : {a} (Arith a) => Integer -> a
-
-/**
- * Converts an unbounded integer to an integer modulo n.
- */
-primitive toZ : {n} (fin n, n >= 1) => Integer -> Z n
 
 /**
  * Converts an integer modulo n to an unbounded integer in the range 0 to n-1.

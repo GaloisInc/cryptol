@@ -3,16 +3,16 @@ Loading module Cryptol
 Loading module Main
 
 [error] at ./T146.cry:1:18--6:10:
-  The type ?r33 is not sufficiently polymorphic.
-    It cannot depend on quantified variables: a`859
+  The type ?q33 is not sufficiently polymorphic.
+    It cannot depend on quantified variables: a`858
   where
-  ?r33 is 1st type parameter
+  ?q33 is 1st type parameter
           of expression Main::ec_v1
           at ./T146.cry:4:19--4:24
 [error] at ./T146.cry:5:19--5:24:
-  The type ?t33 is not sufficiently polymorphic.
-    It cannot depend on quantified variables: a`859
+  The type ?s33 is not sufficiently polymorphic.
+    It cannot depend on quantified variables: a`858
   where
-  ?t33 is 1st type parameter
+  ?s33 is 1st type parameter
           of expression Main::ec_v2
           at ./T146.cry:5:19--5:24
