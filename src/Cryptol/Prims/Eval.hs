@@ -1430,14 +1430,19 @@ fromThenToV  =
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
 
 
-infFromV :: BitWord b w i
-         => GenValue b w i
+infFromV :: BitWord b w i => GenValue b w i
 infFromV =
-     nlam $ \(finNat' -> bits)  ->
-     wlam $ \first ->
-     return $ VStream $ IndexSeqMap $ \i ->
-       ready $ VWord bits $ return $
-         WordVal $ wordPlus first (wordLit bits i)
+  tlam $ \ ty ->
+  lam  $ \ x' ->
+  return $ VStream $ IndexSeqMap $ \i ->
+  do x <- x'
+     add ty x (num (integerLit i) ty)
+  where
+    num i = arithNullary (flip wordFromInt i) i (const i)
+    add = arithBinary
+          (\_ x y -> ready (wordPlus x y))
+          (\x y -> ready (intPlus x y))
+          (\m x y -> ready (intModPlus m x y))
 
 infFromThenV :: BitWord b w i
              => GenValue b w i

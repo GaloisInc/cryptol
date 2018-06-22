@@ -210,6 +210,9 @@ instance BitWord SBool SWord SInteger where
   wordMinus = svMinus
   wordMult  = svTimes
 
+  intPlus = svPlus
+  intModPlus _m = svPlus
+
   wordToInt = svToInteger
   wordFromInt = svFromInteger
 

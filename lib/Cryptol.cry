@@ -480,7 +480,7 @@ primitive fromThenTo : {first, next, last, a, len}
  * An infinite sequence counting up from the given starting value.
  * '[x...]' is syntactic sugar for 'infFrom x'.
  */
-primitive infFrom : {bits} (fin bits) => [bits] -> [inf][bits]
+primitive infFrom : {a} (Arith a) => a -> [inf]a
 
 /**
  * An infinite arithmetic sequence starting with the given two values.

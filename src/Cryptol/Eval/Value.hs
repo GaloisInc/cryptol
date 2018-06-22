@@ -517,6 +517,11 @@ class BitWord b w i | b -> w, w -> i, i -> b where
   -- | Construct an integer value from the given packed word.
   wordToInt :: w -> i
 
+  -- | Addition of unbounded integers.
+  intPlus :: i -> i -> i
+  -- | Addition of integers modulo n, for a concrete positive integer n.
+  intModPlus :: Integer -> i -> i -> i
+
   -- | Construct a packed word of the specified width from an integer value.
   wordFromInt :: Integer -> i -> w
 
@@ -594,6 +599,10 @@ instance BitWord Bool BV Integer where
   wordMult (BV i x) (BV j y)
     | i == j = mkBv i (x*y)
     | otherwise = panic "Attempt to multiply words of different sizes: wordMult" []
+
+  intPlus x y = x + y
+
+  intModPlus m x y = (x + y) `mod` m
 
   wordToInt (BV _ x) = x
   wordFromInt w x = mkBv w x
