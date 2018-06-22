@@ -527,12 +527,7 @@ Cryptol primitives fall into several groups:
 >   , ("negate"     , unary  (arithUnary (\x -> Right (- x))))
 >   , ("demote"     , vFinPoly $ \val ->
 >                     VPoly $ \a ->
->                     case a of
->                       TVInteger        -> VInteger (Right val)
->                       TVSeq bits TVBit -> vWordValue bits val
->                       _                -> evalPanic "demote" ["invalid type"])
->   , ("integer"    , vFinPoly $ \val ->
->                     VInteger (Right val))
+>                     arithNullary (Right val) a)
 >   , ("toInteger"  , vFinPoly $ \_bits ->
 >                     VFun $ \x ->
 >                     VInteger (fromVWord x))
