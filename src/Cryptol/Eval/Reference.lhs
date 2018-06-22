@@ -614,33 +614,28 @@ Cryptol primitives fall into several groups:
 >
 >   , ("fromTo"     , vFinPoly $ \first ->
 >                     vFinPoly $ \lst   ->
->                     vFinPoly $ \bits  ->
->                     VList (map (vWordValue bits) [first .. lst]))
+>                     VPoly    $ \ty  ->
+>                     let f i = arithNullary (Right i) ty
+>                     in VList (map f [first .. lst]))
 >
 >   , ("fromThenTo" , vFinPoly $ \first ->
 >                     vFinPoly $ \next  ->
 >                     vFinPoly $ \_lst  ->
->                     vFinPoly $ \bits  ->
+>                     VPoly    $ \ty    ->
 >                     vFinPoly $ \len   ->
->                     VList (map (vWordValue bits) (genericTake len [first, next ..])))
+>                     let f i = arithNullary (Right i) ty
+>                     in VList (map f (genericTake len [first, next ..])))
 >
->   , ("infFrom"    , vFinPoly $ \bits ->
+>   , ("infFrom"    , VPoly $ \ty ->
 >                     VFun $ \first ->
->                     copyByTValue (TVStream (TVSeq bits TVBit)) $
->                     case fromVWord first of
->                       Left e -> VList (repeat (vWordError bits e))
->                       Right i -> VList (map (vWordValue bits) [i ..]))
+>                     let f i = arithUnary (\x -> Right (x + i)) ty first
+>                     in VList (map f [0 ..]))
 >
->   , ("infFromThen", vFinPoly $ \bits ->
+>   , ("infFromThen", VPoly $ \ty ->
 >                     VFun $ \first ->
 >                     VFun $ \next ->
->                     copyByTValue (TVStream (TVSeq bits TVBit)) $
->                     case fromVWord first of
->                       Left e -> VList (repeat (vWordError bits e))
->                       Right i ->
->                         case fromVWord next of
->                           Left e -> VList (repeat (vWordError bits e))
->                           Right j -> VList (map (vWordValue bits) [i, j ..]))
+>                     let f i = arithBinary (\x y -> Right (x + (y - x) * i)) ty first next
+>                     in VList (map f [0 ..]))
 >
 >   -- Miscellaneous:
 >   , ("error"      , VPoly $ \a ->
@@ -694,10 +689,10 @@ error if any of the input bits contain an evaluation error.
 > signedBitsToInteger (b0 : bs) = foldl f (if b0 then -1 else 0) bs
 >   where f x b = if b then 2 * x + 1 else 2 * x
 
-Functions `vWord`, `vWordValue`, and `vWordError` convert from
-integers back to the big-endian bitvector representation. If an
-integer-producing function raises a run-time exception, then the
-output bitvector will contain the exception in all bit positions.
+Functions `vWord` and `vWordValue` convert from integers back to the
+big-endian bitvector representation. If an integer-producing function
+raises a run-time exception, then the output bitvector will contain
+the exception in all bit positions.
 
 > -- | Convert an integer to big-endian binary value of the specified width.
 > vWordValue :: Integer -> Integer -> Value
@@ -708,10 +703,6 @@ output bitvector will contain the exception in all bit positions.
 > integerToBits w x = go [] w x
 >   where go bs 0 _ = bs
 >         go bs n a = go (odd a : bs) (n - 1) $! (a `div` 2)
->
-> -- | Create a run-time error value of bitvector type.
-> vWordError :: Integer -> EvalError -> Value
-> vWordError w e = VList (genericReplicate w (VBit (Left e)))
 >
 > vWord :: Integer -> Either EvalError Integer -> Value
 > vWord w e = VList [ VBit (fmap (test i) e) | i <- [w-1, w-2 .. 0] ]
