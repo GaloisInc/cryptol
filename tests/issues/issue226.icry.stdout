@@ -85,7 +85,7 @@ Symbols
         [each * parts]elem -> [parts][each]elem
     head : {a, b} [1 + a]b -> b
     infFrom : {a} (Arith a) => a -> [inf]a
-    infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
+    infFromThen : {a} (Arith a) => a -> a -> [inf]a
     iterate : {a} (a -> a) -> a -> [inf]a
     join :
       {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a

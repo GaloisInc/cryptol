@@ -526,6 +526,30 @@ lg2 i = case genLog i 2 of
                     | otherwise -> i' + 1
   Nothing                       -> 0
 
+addV :: BitWord b w i => Binary b w i
+addV = arithBinary opw opi opz
+  where
+    opw _w x y = ready $ wordPlus x y
+    opi x y = ready $ intPlus x y
+    opz m x y = ready $ intModPlus m x y
+
+subV :: BitWord b w i => Binary b w i
+subV = arithBinary opw opi opz
+  where
+    opw _w x y = ready $ wordMinus x y
+    opi x y = ready $ intMinus x y
+    opz m x y = ready $ intModMinus m x y
+
+mulV :: BitWord b w i => Binary b w i
+mulV = arithBinary opw opi opz
+  where
+    opw _w x y = ready $ wordMult x y
+    opi x y = ready $ intMult x y
+    opz m x y = ready $ intModMult m x y
+
+intV :: BitWord b w i => i -> TValue -> GenValue b w i
+intV i = arithNullary (flip wordFromInt i) i (const i)
+
 -- Cmp -------------------------------------------------------------------------
 
 cmpValue :: BitWord b w i
@@ -1436,24 +1460,18 @@ infFromV =
   lam  $ \ x' ->
   return $ VStream $ IndexSeqMap $ \i ->
   do x <- x'
-     add ty x (num (integerLit i) ty)
-  where
-    num i = arithNullary (flip wordFromInt i) i (const i)
-    add = arithBinary
-          (\_ x y -> ready (wordPlus x y))
-          (\x y -> ready (intPlus x y))
-          (\m x y -> ready (intModPlus m x y))
+     addV ty x (intV (integerLit i) ty)
 
-infFromThenV :: BitWord b w i
-             => GenValue b w i
+infFromThenV :: BitWord b w i => GenValue b w i
 infFromThenV =
-     nlam $ \(finNat' -> bits)  ->
-     wlam $ \first -> return $
-     wlam $ \next  -> do
-       let diff = wordMinus next first
-       return $ VStream $ IndexSeqMap $ \i ->
-         ready $ VWord bits $ return $
-           WordVal $ wordPlus first (wordMult diff (wordLit bits i))
+  tlam $ \ ty ->
+  lam $ \ first -> return $
+  lam $ \ next ->
+  do x <- first
+     y <- next
+     d <- subV ty y x
+     return $ VStream $ IndexSeqMap $ \i ->
+       addV ty x =<< mulV ty d (intV (integerLit i) ty)
 
 -- Random Values ---------------------------------------------------------------
 

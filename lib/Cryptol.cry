@@ -486,7 +486,7 @@ primitive infFrom : {a} (Arith a) => a -> [inf]a
  * An infinite arithmetic sequence starting with the given two values.
  * '[x,y...]' is syntactic sugar for 'infFromThen x y'.
  */
-primitive infFromThen : {bits} (fin bits) => [bits] -> [bits] -> [inf][bits]
+primitive infFromThen : {a} (Arith a) => a -> a -> [inf]a
 
 primitive error : {at, len} (fin len) => [len][8] -> at
 
