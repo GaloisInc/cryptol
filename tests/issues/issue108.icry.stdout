@@ -1,10 +1,13 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-Assuming a = 0
+Showing a specific instance of polymorphic result:
+  * Using '0' for type argument 'b' of 'Main::sum'
 0x0
-Assuming a = 2
+Showing a specific instance of polymorphic result:
+  * Using '2' for type argument 'b' of 'Main::sum'
 0x2
-Assuming a = 4
+Showing a specific instance of polymorphic result:
+  * Using '4' for type argument 'b' of 'Main::sum'
 0x7
 0x37

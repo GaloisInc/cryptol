@@ -151,6 +151,7 @@ data ConstraintSource
 data TyFunName = UserTyFun Name | BuiltInTyFun TFun | BuiltInTC TC
                 deriving (Show, Generic, NFData)
 
+
 instance PP TyFunName where
   ppPrec c (UserTyFun x)    = ppPrec c x
   ppPrec c (BuiltInTyFun x) = ppPrec c x
@@ -242,7 +243,7 @@ addTVarsDescs nm t d
   | otherwise   = d $$ text "where" $$ vcat (map desc (Set.toList vs))
   where
   vs                      = Set.filter isFreeTV (fvs t)
-  desc v@(TVFree _ _ _ x) = ppWithNames nm v <+> text "is" <+> tvarDesc x
+  desc v@(TVFree _ _ _ x) = ppWithNames nm v <+> text "is" <+> pp x
   desc (TVBound {})       = empty
 
 

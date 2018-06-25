@@ -81,8 +81,16 @@ inferModuleK m continue =
 -- | Construct a primitive in the parsed AST.
 mkPrim :: String -> InferM (P.Expr Name)
 mkPrim str =
+  do nm <- mkPrim' str
+     return (P.EVar nm)
+
+-- | Construct a primitive in the parsed AST.
+mkPrim' :: String -> InferM Name
+mkPrim' str =
   do prims <- getPrimMap
-     return (P.EVar (lookupPrimDecl (packIdent str) prims))
+     return (lookupPrimDecl (packIdent str) prims)
+
+
 
 desugarLiteral :: Bool -> P.Literal -> InferM (P.Expr Name)
 desugarLiteral fixDec lit =
@@ -123,8 +131,9 @@ appTys expr ts tGoal =
     P.EVar x ->
       do res <- lookupVar x
          (e',t) <- case res of
-           ExtVar s   -> instantiateWith (EVar x) s ts
-           CurSCC e t -> instantiateWith e (Forall [] [] t) ts
+           ExtVar s   -> instantiateWith x (EVar x) s ts
+           CurSCC e t -> do checkNoParams ts
+                            return (e,t)
 
          checkHasType t tGoal
          return e'
@@ -162,12 +171,22 @@ appTys expr ts tGoal =
     P.EParens e       -> appTys e ts tGoal
     P.EInfix a op _ b -> appTys (P.EVar (thing op) `P.EApp` a `P.EApp` b) ts tGoal
 
-  where mono = do e'     <- checkE expr tGoal
-                  (ie,t) <- instantiateWith e' (Forall [] [] tGoal) ts
-                  -- XXX seems weird to need to do this, as t should be the same
-                  -- as tGoal
-                  checkHasType t tGoal
-                  return ie
+  where mono = do e' <- checkE expr tGoal
+                  checkNoParams ts
+                  return e'
+
+checkNoParams :: [Located (Maybe Ident,Type)] -> InferM ()
+checkNoParams ts =
+  case pos of
+    p : _ -> inRange (srcRange p) (recordError TooManyPositionalTypeParams)
+    []    -> mapM_ badNamed named
+  where
+  badNamed l =
+    case fst (thing l) of
+      Just i -> recordError (UndefinedTypeParameter l { thing = i })
+      Nothing -> return ()
+
+  (named,pos) = partition (isJust . fst . thing) ts
 
 
 inferTyParam :: P.TypeInst Name -> InferM (Located (Maybe Ident, Type))
@@ -187,14 +206,6 @@ checkTypeOfKind :: P.Type Name -> Kind -> InferM Type
 checkTypeOfKind ty k = checkType ty (Just k)
 
 
--- | We use this when we want to ensure that the expr has exactly
--- (syntactically) the given type.
-inferE :: Doc -> P.Expr Name -> InferM (Expr, Type)
-inferE desc expr =
-  do t  <- newType desc KType
-     e1 <- checkE expr t
-     return (e1,t)
-
 -- | Infer the type of an expression, and translate it to a fully elaborated
 -- core term.
 checkE :: P.Expr Name -> Type -> InferM Expr
@@ -203,7 +214,7 @@ checkE expr tGoal =
     P.EVar x ->
       do res <- lookupVar x
          (e',t) <- case res of
-                     ExtVar s   -> instantiateWith (EVar x) s []
+                     ExtVar s   -> instantiateWith x (EVar x) s []
                      CurSCC e t -> return (e, t)
 
          checkHasType t tGoal
@@ -223,10 +234,11 @@ checkE expr tGoal =
 
     P.ESel e l ->
       do let src = case l of
-                     RecordSel _ _ -> text "type of record"
-                     TupleSel _ _  -> text "type of tuple"
-                     ListSel _ _   -> text "type of sequence"
-         (e',t) <- inferE src e
+                     RecordSel la _ -> TypeOfRecordField la
+                     TupleSel n _   -> TypeOfTupleField n
+                     ListSel n _    -> TypeOfSeqAt n
+         t <- newType src KType
+         e' <- checkE e t
          f <- newHasGoal l t tGoal
          return (f e')
 
@@ -243,13 +255,14 @@ checkE expr tGoal =
 
     P.EFromTo t1 Nothing Nothing ->
       do rng <- curRange
-         bit <- newType (text "bit-width of enumeration sequnce") KNum
+         fromThenPrim <- mkPrim' "fromThen"
+         let src = TypeParamInstNamed fromThenPrim (packIdent "bits")
+         bit <- newType src KNum
          fstT <- checkTypeOfKind t1 KNum
          let nextT = tAdd fstT (tNum (1::Int))
              lenT  = tSub (tExp (tNum (2::Int)) bit) fstT
 
-         fromThenPrim <- mkPrim "fromThen"
-         appTys fromThenPrim
+         appTys (P.EVar fromThenPrim)
            [ Located rng (Just (packIdent x), y)
            | (x,y) <- [ ("first", fstT)
                       , ("next", nextT)
@@ -314,7 +327,7 @@ checkE expr tGoal =
            checkE (P.EApp fun newArg) tGoal
 
     P.EApp e1 e2 ->
-      do t1  <- newType (text "argument to function") KType
+      do t1  <- newType (TypeOfArg Nothing) KType
          e1' <- checkE e1 (tFun t1 tGoal)
          e2' <- checkE e2 t1
          return (EApp e1' e2')
@@ -340,7 +353,8 @@ checkE expr tGoal =
          prim <- mkPrim "demote"
          checkE (P.EAppT prim
                   [P.NamedInst
-                   P.Named { name = Located l (packIdent "val"), value = t }]) tGoal
+                   P.Named { name = Located l (packIdent "val")
+                           , value = t }]) tGoal
 
     P.EFun ps e -> checkFun (text "anonymous function") ps e tGoal
 
@@ -372,8 +386,8 @@ expectSeq ty =
          return tys
   where
   genTys =
-    do a <- newType (text "size of the sequence") KNum
-       b <- newType (text "type of sequence elements") KType
+    do a <- newType LenOfSeq KNum
+       b <- newType TypeOfSeqElement KType
        return (a,b)
 
 
@@ -398,11 +412,7 @@ expectTuple n ty =
          return tys
 
   where
-  genTys =forM [ 0 .. n - 1 ] $ \ i ->
-              let desc = text "type of"
-                     <+> ordinal i
-                     <+> text "tuple field"
-               in newType desc KType
+  genTys =forM [ 0 .. n - 1 ] $ \ i -> newType (TypeOfTupleField i) KType
 
 expectRec :: [P.Named a] -> Type -> InferM [(Ident,a,Type)]
 expectRec fs ty =
@@ -430,7 +440,7 @@ expectRec fs ty =
   genTys =
     do res <- forM fs $ \ f ->
              do let field = thing (P.name f)
-                t <- newType (text "type of field" <+> quotes (pp field)) KType
+                t <- newType (TypeOfRecordField field) KType
                 return (field, P.value f, t)
 
        let (ls,_,ts) = unzip3 res
@@ -466,7 +476,7 @@ expectFun  = go []
 
         _ ->
           do args <- genArgs arity
-             res  <- newType (text "result of function") KType
+             res  <- newType TypeOfRes KType
              case ty of
                TVar TVFree{} -> do ps <- unify ty (foldr tFun res args)
                                    newGoals CtExactType  ps
@@ -476,8 +486,8 @@ expectFun  = go []
     | otherwise =
       return (reverse tys, ty)
 
-  genArgs arity = forM [ 1 .. arity ] $ \ ix ->
-                      newType (text "argument" <+> ordinal ix) KType
+  genArgs arity = forM [ 1 .. arity ] $
+                    \ ix -> newType (TypeOfArg (Just ix)) KType
 
 
 checkHasType :: Type -> Type -> InferM ()
@@ -506,9 +516,9 @@ checkFun desc ps e tGoal =
 
 {-| The type the is the smallest of all -}
 smallest :: [Type] -> InferM Type
-smallest []   = newType (text "length of list comprehension") KNum
+smallest []   = newType LenOfSeq KNum
 smallest [t]  = return t
-smallest ts   = do a <- newType (text "length of list comprehension") KNum
+smallest ts   = do a <- newType LenOfSeq KNum
                    newGoals CtComprehension [ a =#= foldr1 tMin ts ]
                    return a
 
@@ -529,7 +539,7 @@ inferP desc pat =
   case pat of
 
     P.PVar x0 ->
-      do a   <- inRange (srcRange x0) (newType desc KType)
+      do a   <- inRange (srcRange x0) (newType (DefinitionOf (thing x0)) KType)
          return (thing x0, x0 { thing = a })
 
     P.PTyped p t ->
@@ -545,14 +555,14 @@ inferP desc pat =
 inferMatch :: P.Match Name -> InferM (Match, Name, Located Type, Type)
 inferMatch (P.Match p e) =
   do (x,t) <- inferP (text "a value bound by a generator in a comprehension") p
-     n     <- newType (text "the length of a generator in a comprehension") KNum
+     n     <- newType LenOfCompGen KNum
      e'    <- checkE e (tSeq n (thing t))
      return (From x n (thing t) e', x, t, n)
 
 inferMatch (P.MatchLet b)
   | P.bMono b =
   do let rng = srcRange (P.bName b)
-     a <- newType (text "comprehension binding at" <+> pp rng) KType
+     a <- inRange rng (newType (DefinitionOf (thing (P.bName b))) KType)
      b1 <- checkMonoB b a
      return (Let b1, dName b1, Located (srcRange (P.bName b)) a, tNum (1::Int))
 
@@ -566,22 +576,16 @@ inferCArm :: Int -> [P.Match Name] -> InferM
               , Type                   -- length of sequence
               )
 
-inferCArm _ [] = do n <- newType (text "length of empty comprehension") KNum
-                                                    -- shouldn't really happen
-                    return ([], Map.empty, n)
+inferCArm _ [] = panic "inferCArm" [ "Empty comprahension arm" ]
 inferCArm _ [m] =
   do (m1, x, t, n) <- inferMatch m
      return ([m1], Map.singleton x t, n)
 
 inferCArm armNum (m : ms) =
   do (m1, x, t, n)  <- inferMatch m
-     (ms', ds, n') <- withMonoType (x,t) (inferCArm armNum ms)
-     -- XXX: Well, this is just the length of this sub-sequence
-     let src = text "length of" <+> ordinal armNum <+>
-                                  text "arm of list comprehension"
-     sz <- newType src KNum
-     newGoals CtComprehension [ pFin n', sz =#= tMul n n' ]
-     return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, sz)
+     (ms', ds, n')  <- withMonoType (x,t) (inferCArm armNum ms)
+     newGoals CtComprehension [ pFin n' ]
+     return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, tMul n n')
 
 -- | @inferBinds isTopLevel isRec binds@ performs inference for a
 -- strongly-connected component of 'P.Bind's. If @isTopLevel@ is true,
@@ -658,13 +662,13 @@ guessType exprMap b@(P.Bind { .. }) =
 
     Nothing
       | bMono ->
-         do t <- newType (text "definition of" <+> quotes (pp name)) KType
+         do t <- newType (DefinitionOf name) KType
             let schema = Forall [] [] t
             return ((name, ExtVar schema), Left (checkMonoB b t))
 
       | otherwise ->
 
-        do t <- newType (text "definition of" <+> quotes (pp name)) KType
+        do t <- newType (DefinitionOf name) KType
            let noWay = tcPanic "guessType" [ "Missing expression for:" ,
                                                                 show name ]
                expr  = Map.findWithDefault noWay name exprMap
@@ -723,8 +727,8 @@ generalize bs0 gs0 =
           * any ones that survived the defaulting
           * and vars in the inferred types that do not appear anywhere else. -}
      let as   = as0 ++ Set.toList (Set.difference inSigs asmpVs)
-         asPs = [ TParam { tpUnique = x, tpKind = k, tpFlav = TPOther Nothing }
-                                                   | TVFree x k _ _ <- as ]
+         asPs = [ TParam { tpUnique = x, tpKind = k, tpFlav = TPOther Nothing
+                         , tpInfo = i  } | TVFree x k _ i <- as ]
 
      {- Finally, we replace free variables with bound ones, and fix-up
         the definitions as needed to reflect that we are now working

@@ -2,8 +2,5 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at ./check20.cry:3:31--3:33:
-  Defaulting type parameter 'rep'
-             of literal or demoted expression
-             at ./check20.cry:3:31--3:33
-  to [4]
+  Defaulting type argument 'rep' of 'demote' to [4]
 True

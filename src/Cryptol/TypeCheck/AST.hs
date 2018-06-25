@@ -12,6 +12,7 @@
 {-# LANGUAGE PatternGuards                       #-}
 {-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
 {-# LANGUAGE DeriveAnyClass, DeriveGeneric       #-}
+{-# LANGUAGE OverloadedStrings                   #-}
 module Cryptol.TypeCheck.AST
   ( module Cryptol.TypeCheck.AST
   , Name()
@@ -85,7 +86,11 @@ mtpParam :: ModTParam -> TParam
 mtpParam mtp = TParam { tpUnique = nameUnique (mtpName mtp)
                       , tpKind   = mtpKind mtp
                       , tpFlav   = TPModParam (mtpName mtp)
+                      , tpInfo   = desc
                       }
+  where desc = TVarInfo { tvarDesc   = TVFromModParam (mtpName mtp)
+                        , tvarSource = nameLoc (mtpName mtp)
+                        }
 
 -- | A value parameter of a module.
 data ModVParam = ModVParam

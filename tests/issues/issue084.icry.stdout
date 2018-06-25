@@ -1,5 +1,6 @@
 Loading module Cryptol
-Assuming a = 5
+Showing a specific instance of polymorphic result:
+  * Using '5' for type wildcard (_)
 0x03
 
 logarithm of negative

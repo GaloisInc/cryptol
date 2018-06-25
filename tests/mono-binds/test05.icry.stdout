@@ -49,10 +49,7 @@ Loading module test05
     This binding for foo shadows the existing binding from
     (at ./test05.cry:9:3--9:6, foo)
 [warning] at ./test05.cry:14:11--14:21:
-  Defaulting 1st type parameter
-             of expression (#)
-             at ./test05.cry:14:11--14:21
-  to 0
+  Defaulting type argument 'front' of '(#)' to 0
 module test05
 import Cryptol
 /* Not recursive */

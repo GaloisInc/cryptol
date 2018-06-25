@@ -1,3 +1,4 @@
 Loading module Cryptol
-Assuming a = Integer
+Showing a specific instance of polymorphic result:
+  * Using 'Integer' for type argument 'a' of 'Cryptol::fromTo'
 [2, 4, 6, 8, 10, 12, 14, 16, 18, 20]

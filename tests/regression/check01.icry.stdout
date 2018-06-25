@@ -2,9 +2,6 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at ./check01.cry:2:5--2:27:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at ./check01.cry:2:5--2:27
-  to 5
+  Defaulting type argument 'd' of '(@@)' to 5
 [0x00000007, 0x00000014]
 True

@@ -2,20 +2,11 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at ./check08.cry:9:19--9:54:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at ./check08.cry:9:19--9:54
-  to 3
+  Defaulting type argument 'd' of '(@@)' to 3
 [warning] at ./check08.cry:7:10--7:45:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at ./check08.cry:7:10--7:45
-  to 3
+  Defaulting type argument 'd' of '(@@)' to 3
 [warning] at <interactive>:1:1--1:15:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at <interactive>:1:1--1:15
-  to 3
+  Defaulting type argument 'd' of '(@@)' to 3
 [0x00000001, 0x00000002, 0x00000005, 0x0000000c, 0x0000001b]
 True
 Q.E.D.

@@ -2,20 +2,12 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at ./check04.cry:4:10--4:45:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at ./check04.cry:4:10--4:45
-  to 2
+  Defaulting type argument 'd' of '(@@)' to 2
 [warning] at ./check04.cry:4:43--4:44:
-  Defaulting type parameter 'rep'
-             of literal or demoted expression
-             at ./check04.cry:4:43--4:44
-  to [2]
+  Defaulting type argument 'rep' of 'demote' to [2]
 [warning] at <interactive>:1:1--1:21:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at <interactive>:1:1--1:21
-  to 4
-Assuming a = Integer
+  Defaulting type argument 'd' of '(@@)' to 4
+Showing a specific instance of polymorphic result:
+  * Using 'Integer' for 1st type argument of 'Main::onetwos'
 [1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1]
 True

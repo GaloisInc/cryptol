@@ -6,13 +6,9 @@ Loading module Main
   The type ?q33 is not sufficiently polymorphic.
     It cannot depend on quantified variables: a`858
   where
-  ?q33 is 1st type parameter
-          of expression Main::ec_v1
-          at ./T146.cry:4:19--4:24
+  ?q33 is type argument 'fv' of 'Main::ec_v1' at ./T146.cry:4:19--4:24
 [error] at ./T146.cry:5:19--5:24:
   The type ?s33 is not sufficiently polymorphic.
     It cannot depend on quantified variables: a`858
   where
-  ?s33 is 1st type parameter
-          of expression Main::ec_v2
-          at ./T146.cry:5:19--5:24
+  ?s33 is type argument 'fv' of 'Main::ec_v2' at ./T146.cry:5:19--5:24

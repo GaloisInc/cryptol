@@ -1,7 +1,8 @@
 Loading module Cryptol
 Loading module issue290
 Loading module issue290bar
-Assuming a = Integer
+Showing a specific instance of polymorphic result:
+  * Using 'Integer' for type argument 'rep' of 'Cryptol::demote'
 2
 0x1
 0x1

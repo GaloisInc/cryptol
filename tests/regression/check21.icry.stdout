@@ -2,8 +2,5 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at ./check21.cry:4:21--4:26:
-  Defaulting 1st type parameter
-             of expression width
-             at ./check21.cry:4:21--4:26
-  to 4
+  Defaulting type argument 'bits' of 'width' to 4
 True

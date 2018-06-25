@@ -71,7 +71,7 @@ import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
-import Cryptol.TypeCheck.PP (dump,ppWithNames)
+import Cryptol.TypeCheck.PP (dump)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
@@ -95,7 +95,6 @@ import System.FilePath((</>), isPathSeparator)
 import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import qualified Data.IntMap as IntMap
 import System.IO(hFlush,stdout)
 import System.Random.TF(newTFGen)
 import Numeric (showFFloat)
@@ -1146,8 +1145,7 @@ replEvalExpr expr =
         case mbDef of
           Nothing -> raise (EvalPolyError sig)
           Just (tys,def1) ->
-            do let nms = T.addTNames (T.sVars sig) IntMap.empty
-               mapM_ (warnDefault nms) tys
+            do warnDefaults tys
                let su = T.listSubst [ (T.tpVar a, t) | (a,t) <- tys ]
                return (def1, T.apSubst su (T.sType sig))
 
@@ -1157,8 +1155,16 @@ replEvalExpr expr =
      bindItVariable ty def1
      return (val,ty)
   where
-  warnDefault ns (x,t) =
-        rPrint $ text "Assuming" <+> ppWithNames ns x <+> text "=" <+> pp t
+  warnDefaults ts =
+    case ts of
+      [] -> return ()
+      _  ->
+        do rPutStrLn "Showing a specific instance of polymorphic result:"
+           mapM_ warnDefault ts
+
+  warnDefault (x,t) =
+    rPrint ("  *" <+> nest 2  ("Using" <+> quotes (pp t) <+> "for" <+>
+                                pp (T.tvarDesc (T.tpInfo x))))
 
 itIdent :: M.Ident
 itIdent  = M.packIdent "it"

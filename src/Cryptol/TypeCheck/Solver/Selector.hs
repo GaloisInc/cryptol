@@ -16,7 +16,6 @@ import Cryptol.TypeCheck.Monad( InferM, unify, newGoals, lookupNewtype
                               )
 import Cryptol.TypeCheck.Subst(listSubst,apSubst)
 import Cryptol.Utils.Ident (Ident, packIdent)
-import Cryptol.Utils.PP(text,pp,ordinal,(<+>))
 import Cryptol.Utils.Panic(panic)
 
 import Control.Monad(forM,guard)
@@ -25,19 +24,19 @@ import Control.Monad(forM,guard)
 recordType :: [Ident] -> InferM Type
 recordType labels =
   do fields <- forM labels $ \l ->
-        do t <- newType (text "record field" <+> pp l) KType
+        do t <- newType (TypeOfRecordField l) KType
            return (l,t)
      return (TRec fields)
 
 tupleType :: Int -> InferM Type
 tupleType n =
-  do fields <- mapM (\x -> newType (ordinal x <+> text "tuple field") KType)
+  do fields <- mapM (\x -> newType (TypeOfTupleField x) KType)
                     [ 0 .. (n-1) ]
      return (tTuple fields)
 
 listType :: Int -> InferM Type
 listType n =
-  do elems <- newType (text "sequence element type") KType
+  do elems <- newType TypeOfSeqElement KType
      return (tSeq (tNum n) elems)
 
 

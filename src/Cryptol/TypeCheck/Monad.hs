@@ -11,6 +11,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.TypeCheck.Monad
   ( module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
@@ -27,7 +28,7 @@ import           Cryptol.TypeCheck.Error(Warning(..),Error(..),cleanupErrors)
 import           Cryptol.TypeCheck.PP (brackets, commaSep)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
-import           Cryptol.Utils.PP(pp, ($$), (<+>), Doc, text, quotes)
+import           Cryptol.Utils.PP(pp, (<+>), text, quotes)
 import           Cryptol.Utils.Ident(Ident)
 import           Cryptol.Utils.Panic(panic)
 
@@ -38,7 +39,7 @@ import qualified Data.Set as Set
 import           Data.Map (Map)
 import           Data.Set (Set)
 import           Data.List(find, foldl')
-import           Data.Maybe(mapMaybe)
+import           Data.Maybe(mapMaybe,fromMaybe)
 import           MonadLib hiding (mapM)
 
 import           Data.IORef
@@ -436,35 +437,39 @@ newGoalName = newName $ \s -> let x = seedGoal s
                               in (x, s { seedGoal = x + 1})
 
 -- | Generate a new free type variable.
-newTVar :: Doc -> Kind -> InferM TVar
+newTVar :: TVarSource -> Kind -> InferM TVar
 newTVar src k = newTVar' src Set.empty k
 
 -- | Generate a new free type variable that depends on these additional
 -- type parameters.
-newTVar' :: Doc -> Set TParam -> Kind -> InferM TVar
+newTVar' :: TVarSource -> Set TParam -> Kind -> InferM TVar
 newTVar' src extraBound k =
   do r <- curRange
      bound <- getBoundInScope
      let vs = Set.union extraBound bound
-         msg = TVarInfo { tvarDesc = src $$ text "at" <+> pp r
-                        , tvarSource = r }
+         msg = TVarInfo { tvarDesc = src, tvarSource = r }
      newName $ \s -> let x = seedTVar s
                      in (TVFree x k vs msg, s { seedTVar = x + 1 })
 
 
 
 -- | Generate a new free type variable.
-newTParam :: TPFlavor -> Kind -> InferM TParam
-newTParam nm k = newName $ \s -> let x = seedTVar s
-                                 in (TParam { tpUnique = x
-                                            , tpKind   = k
-                                            , tpFlav   = nm
-                                            }
-                                 , s { seedTVar = x + 1 })
+newTParam :: P.TParam Name -> TPFlavor -> Kind -> InferM TParam
+newTParam nm flav k = newName $ \s ->
+  let x = seedTVar s
+  in (TParam { tpUnique = x
+            , tpKind   = k
+            , tpFlav   = flav
+            , tpInfo   = desc
+            }
+     , s { seedTVar = x + 1 })
+  where desc = TVarInfo { tvarDesc = TVFromSignature (P.tpName nm)
+                        , tvarSource = fromMaybe emptyRange (P.tpRange nm)
+                        }
 
 
 -- | Generate an unknown type.  The doc is a note about what is this type about.
-newType :: Doc -> Kind -> InferM Type
+newType :: TVarSource -> Kind -> InferM Type
 newType src k = TVar `fmap` newTVar src k
 
 
@@ -607,14 +612,12 @@ existVar x k =
        Nothing ->
          case scopes of
            [] ->
-              do recordError $ ErrorMsg $
-                    text "Undefined type" <+> quotes (pp x)
-                 newType (text "undefined existential type variable" <+>
-                                                            quotes (pp x)) k
+              do recordError $ ErrorMsg
+                             $ text "Undefined type" <+> quotes (pp x)
+                 newType TypeErrorPlaceHolder k
 
            sc : more ->
-             do ty <- newType (text "existential type variable"
-                                                        <+> quotes (pp x)) k
+             do ty <- newType TypeErrorPlaceHolder k
                 IM $ sets_ $ \s -> s{ iExistTVars = Map.insert x ty sc : more }
                 return ty
 
@@ -848,7 +851,7 @@ kRecordWarning w = kInInferM $ recordWarning w
 -- NOTE:  We do not simplify these, because we end up with bottom.
 -- See `Kind.hs`
 -- XXX: Perhaps we can avoid the recursion?
-kNewType :: Doc -> Kind -> KindM Type
+kNewType :: TVarSource -> Kind -> KindM Type
 kNewType src k =
   do tps <- KM $ do vs <- asks lazyTParams
                     return $ Set.fromList (Map.elems vs)

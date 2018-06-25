@@ -2,26 +2,14 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at <interactive>:1:11--1:19:
-  Defaulting type parameter 'a'
-             of finite enumeration
-             at <interactive>:1:11--1:19
-  to [4]
+  Defaulting type argument 'a' of 'fromTo' to [4]
 True
 [warning] at <interactive>:1:11--1:20:
-  Defaulting type parameter 'a'
-             of finite enumeration
-             at <interactive>:1:11--1:20
-  to [4]
+  Defaulting type argument 'a' of 'fromTo' to [4]
 False
 [warning] at <interactive>:1:11--1:25:
-  Defaulting type parameter 'a'
-             of finite enumeration
-             at <interactive>:1:11--1:25
-  to [7]
+  Defaulting type argument 'a' of 'fromThenTo' to [7]
 False
 [warning] at <interactive>:1:11--1:24:
-  Defaulting type parameter 'a'
-             of finite enumeration
-             at <interactive>:1:11--1:24
-  to [7]
+  Defaulting type argument 'a' of 'fromThenTo' to [7]
 True

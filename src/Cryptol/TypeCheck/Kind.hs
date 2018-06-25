@@ -27,7 +27,6 @@ import           Cryptol.TypeCheck.Monad hiding (withTParams)
 import           Cryptol.TypeCheck.SimpType(tRebuild)
 import           Cryptol.TypeCheck.Solve (simplifyAllConstraints
                                          ,wfTypeFunction,wfTC)
-import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic (panic)
 
 import qualified Data.Map as Map
@@ -190,7 +189,8 @@ withTParams allowWildCards flav xs m
                     return KNum
 
   newTP vs tp = do k <- getKind vs tp
-                   newTParam (flav (P.tpName tp)) k
+                   let nm = P.tpName tp
+                   newTParam tp (flav nm) k
 
 
   {- Note that we only zip based on the first argument.
@@ -252,7 +252,7 @@ checkTUser x ts k =
     | paramHave == paramNeed = return ts1
     | paramHave < paramNeed  =
                    do kRecordError (TooFewTySynParams x (paramNeed-paramHave))
-                      let src = text "missing prameter of" <+> pp x
+                      let src = TypeErrorPlaceHolder
                       fake <- mapM (kNewType src . kindOf . tpVar)
                                    (drop paramHave as)
                       return (ts1 ++ fake)
@@ -332,7 +332,7 @@ doCheckType ty k =
                       Just k1 -> return k1
                       Nothing -> do kRecordWarning (DefaultingWildType P.KNum)
                                     return KNum
-         kNewType (text "wildcard") theKind
+         kNewType TypeWildCard theKind
 
     P.TFun t1 t2    -> tcon (TC TCFun)                 [t1,t2] k
     P.TSeq t1 t2    -> tcon (TC TCSeq)                 [t1,t2] k
@@ -403,7 +403,7 @@ checkKind :: Type         -- ^ Kind-checked type
           -> KindM Type   -- ^ A type consistent with expectations.
 checkKind _ (Just k1) k2
   | k1 /= k2    = do kRecordError (KindMismatch k1 k2)
-                     kNewType (text "kind error") k1
+                     kNewType TypeErrorPlaceHolder k1
 checkKind t _ _ = return t
 
 

@@ -1,3 +1,4 @@
 Loading module Cryptol
-Assuming a = [6]
+Showing a specific instance of polymorphic result:
+  * Using '[6]' for type argument 'rep' of 'Cryptol::demote'
 0x31

@@ -2,30 +2,15 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module AES
 [warning] at ./AES.cry:86:21--86:40:
-  Defaulting 2nd type parameter
-             of expression (<<<)
-             at ./AES.cry:86:21--86:40
-  to 2
+  Defaulting type argument 'b' of '(<<<)' to 2
 [warning] at ./AES.cry:91:24--91:43:
-  Defaulting 2nd type parameter
-             of expression (>>>)
-             at ./AES.cry:91:24--91:43
-  to 2
+  Defaulting type argument 'b' of '(>>>)' to 2
 [warning] at ./AES.cry:147:28--147:51:
-  Defaulting 4th type parameter
-             of expression (@@)
-             at ./AES.cry:147:28--147:51
-  to 4
+  Defaulting type argument 'd' of '(@@)' to 4
 [warning] at ./AES.cry:147:53--147:63:
-  Defaulting 3rd type parameter
-             of expression (@)
-             at ./AES.cry:147:53--147:63
-  to 4
+  Defaulting type argument 'c' of '(@)' to 4
 [warning] at ./AES.cry:127:32--127:33:
-  Defaulting type parameter 'rep'
-             of literal or demoted expression
-             at ./AES.cry:127:32--127:33
-  to [3]
+  Defaulting type argument 'rep' of 'demote' to [3]
 True
 True
 True

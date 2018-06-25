@@ -2,10 +2,7 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at ./issue268.cry:2:61--2:65:
-  Defaulting 2nd type parameter
-             of expression drop
-             at ./issue268.cry:2:61--2:65
-  to 9
+  Defaulting type argument 'back' of 'drop' to 9
 [(0x00, 0x00), (0x00, 0x00), (0x00, 0x00), (0x00, 0x00),
  (0x00, 0x00), (0x00, 0x00), (0x00, 0x00), (0x00, 0x00),
  (0x00, 0x00), (0x00, 0x00)]

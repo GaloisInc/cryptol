@@ -5,7 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-
+{-# Language OverloadedStrings #-}
 module Cryptol.TypeCheck.Instantiate (instantiateWith) where
 
 import Cryptol.ModuleSystem.Name (nameIdent)
@@ -15,8 +15,9 @@ import Cryptol.TypeCheck.Subst (listSubst,apSubst)
 import Cryptol.TypeCheck.Error
 import Cryptol.Parser.Position (Located(..))
 import Cryptol.Utils.Ident (Ident)
-import Cryptol.Utils.PP
+import Cryptol.Utils.Panic(panic)
 
+import Control.Monad(zipWithM)
 import Data.Function (on)
 import Data.List(sortBy, groupBy, find)
 import Data.Maybe(mapMaybe,isJust)
@@ -24,13 +25,14 @@ import Data.Either(partitionEithers)
 import qualified Data.Set as Set
 
 
-instantiateWith :: Expr -> Schema -> [Located (Maybe Ident,Type)]
+
+instantiateWith :: Name -> Expr -> Schema -> [Located (Maybe Ident,Type)]
                 -> InferM (Expr,Type)
-instantiateWith e s ts
-  | null named      = instantiateWithPos e s positional
-  | null positional = instantiateWithNames e s named
+instantiateWith nm e s ts
+  | null named      = instantiateWithPos nm e s positional
+  | null positional = instantiateWithNames nm e s named
   | otherwise       = do recordError CannotMixPositionalAndNamedTypeParams
-                         instantiateWithNames e s named
+                         instantiateWithNames nm e s named
 
   where
   (named,positional) = partitionEithers (map classify ts)
@@ -39,8 +41,8 @@ instantiateWith e s ts
                  (Nothing,ty) -> Right ty
 
 
-instantiateWithPos :: Expr -> Schema -> [Type] -> InferM (Expr,Type)
-instantiateWithPos e (Forall as ps t) ts =
+instantiateWithPos :: Name -> Expr -> Schema -> [Type] -> InferM (Expr,Type)
+instantiateWithPos nm e (Forall as ps t) ts =
   do su <- makeSu (1::Int) [] as ts
      doInst su e ps t
   where
@@ -50,7 +52,7 @@ instantiateWithPos e (Forall as ps t) ts =
     | not (isNamed q) = do r <- unnamed n q
                            makeSu (n+1) (r : su) qs (ty : tys)
     | k1 == k2        = makeSu (n+1) ((q, ty) : su) qs tys
-    | otherwise       = do recordError $ KindMismatch k1 k2
+    | otherwise       = do recordError (KindMismatch k1 k2)
                            r <- unnamed n q
                            makeSu (n+1) (r : su) qs tys
       where k1 = kindOf q
@@ -62,10 +64,18 @@ instantiateWithPos e (Forall as ps t) ts =
   makeSu _ su [] _        = do recordError TooManyPositionalTypeParams
                                return (reverse su)
 
-  unnamed n q = do let src = ordinal n <+> text "type parameter"
-                           $$ text "of" <+> ppUse e
-                   ty <- newType src (kindOf q)
+  unnamed n q = do ty <- newType src (kindOf q)
                    return (q, ty)
+    where
+    src = case drop (n-1) {- count from 1 -} as of
+            p:_ ->
+              case tpFlav p of
+                TPOther (Just a) -> TypeParamInstNamed nm (nameIdent a)
+                _                -> TypeParamInstPos nm n
+            _ -> panic "instantiateWithPos"
+                    [ "Invalid parameter index", show n, show as ]
+
+
 
 
 
@@ -80,25 +90,24 @@ EProofApp (ETApp e t)
   - There will be one `ETApp t` for each insantiated type parameter;
   - there will be one `EProofApp` for each constraint on the schema;
 -}
-instantiateWithNames :: Expr -> Schema -> [Located (Ident,Type)]
+instantiateWithNames :: Name -> Expr -> Schema -> [Located (Ident,Type)]
                      -> InferM (Expr,Type)
-instantiateWithNames e (Forall as ps t) xs =
+instantiateWithNames nm e (Forall as ps t) xs =
   do sequence_ repeatedParams
      mapM_ (recordError . UndefinedTypeParameter . fmap fst) undefParams
-     su' <- mapM paramInst as
+     su' <- zipWithM paramInst [ 1.. ] as
      doInst su' e ps t
   where
   -- Choose the type for type parameter `x`
-  paramInst x =
+  paramInst n x =
     do let k = tpKind x
 
            -- We just use nameIdent for comparison here, as all parameter names
            -- should have a NameInfo of Parameter.
            lkp name = find (\th -> fst (thing th) == nameIdent name) xs
-           src = text "type parameter" <+> (case tpName x of
-                                              Just n -> quotes (pp n)
-                                              Nothing -> empty)
-                                        $$ text "of" <+> ppUse e
+           src = case tpName x of
+                   Just na -> TypeParamInstNamed nm (nameIdent na)
+                   Nothing -> TypeParamInstPos nm n
        ty <- case lkp =<< tpName x of
                Just lty
                  | k1 == k   -> return ty
@@ -146,9 +155,7 @@ doInst su' e ps t =
      ps' <- concat <$> mapM checkInst su'
      newGoals (CtInst e) ps'
 
-     return ( addProofParams
-            $ addTyParams (map snd su') e
-            , t1)
+     return ( addProofParams (addTyParams (map snd su') e), t1 )
   where
   -- Add type parameters
   addTyParams ts e1 = foldl ETApp e1 ts

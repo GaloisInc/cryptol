@@ -1,6 +1,7 @@
 {-# Language Safe, DeriveGeneric, DeriveAnyClass, RecordWildCards #-}
 {-# Language FlexibleInstances, FlexibleContexts #-}
 {-# Language PatternGuards #-}
+{-# Language OverloadedStrings #-}
 module Cryptol.TypeCheck.Type
   (module Cryptol.TypeCheck.Type, TFun(..)) where
 
@@ -16,7 +17,7 @@ import           Data.List(sortBy)
 import           Data.Ord(comparing)
 
 import Cryptol.Parser.Selector
-import Cryptol.Parser.Position(Range)
+import Cryptol.Parser.Position(Range,emptyRange)
 import Cryptol.ModuleSystem.Name
 import Cryptol.Prims.Syntax
 import Cryptol.Utils.Ident (Ident)
@@ -47,6 +48,8 @@ data TParam = TParam { tpUnique :: !Int       -- ^ Parameter identifier
                      , tpKind   :: Kind       -- ^ Kind of parameter
                      , tpFlav   :: TPFlavor
                         -- ^ What sort of type parameter is this
+                     , tpInfo   :: !TVarInfo
+                       -- ^ A description for better messages.
                      }
               deriving (Generic, NFData, Show)
 
@@ -128,10 +131,27 @@ tvInfo tv =
     _              -> Nothing
 
 data TVarInfo = TVarInfo { tvarSource :: Range -- ^ Source code that gave rise
-                         , tvarDesc   :: Doc   -- ^ Description
+                         , tvarDesc   :: TVarSource -- ^ Description
                          }
               deriving (Show, Generic, NFData)
 
+
+data TVarSource = TVFromModParam Name     -- ^ Name of module parameter
+                | TVFromSignature Name    -- ^ A variable in a signature
+                | TypeWildCard
+                | TypeOfRecordField Ident
+                | TypeOfTupleField Int
+                | TypeOfSeqAt Int
+                | TypeOfSeqElement
+                | LenOfSeq
+                | TypeParamInstNamed {-Fun-}Name {-Param-}Ident
+                | TypeParamInstPos   {-Fun-}Name {-Pos (from 1)-}Int
+                | DefinitionOf Name
+                | LenOfCompGen
+                | TypeOfArg (Maybe Int)
+                | TypeOfRes
+                | TypeErrorPlaceHolder
+                  deriving (Show, Generic, NFData)
 
 -- | The type is supposed to be of kind `KProp`
 type Prop   = Type
@@ -974,5 +994,36 @@ instance PP TC where
 
 instance PP UserTC where
   ppPrec p (UserTC x _) = ppPrec p x
+
+
+instance PP TVarInfo where
+  ppPrec _ tvinfo = pp (tvarDesc tvinfo) <+> loc
+    where
+    loc = if rng == emptyRange then empty else "at" <+> pp rng
+    rng = tvarSource tvinfo
+
+instance PP TVarSource where
+  ppPrec _ tvsrc =
+    case tvsrc of
+      TVFromModParam m    -> "module parameter" <+> pp m
+      TVFromSignature x   -> "type variable" <+> quotes (pp x)
+      TypeWildCard        -> "type wildcard (_)"
+      TypeOfRecordField l -> "type of field" <+> quotes (pp l)
+      TypeOfTupleField n  -> "type of" <+> ordinal n <+> "tuple field"
+      TypeOfSeqAt n       -> "type of" <+> ordinal n <+> "sequence member"
+      TypeOfSeqElement    -> "type of sequence member"
+      LenOfSeq            -> "length of sequnce"
+      TypeParamInstNamed f i -> "type argument" <+> quotes (pp i) <+>
+                                          "of" <+> quotes (pp f)
+      TypeParamInstPos   f i -> ordinal i <+> "type argument of" <+>
+                                                      quotes (pp f)
+      DefinitionOf x      -> "the type of" <+> quotes (pp x)
+      LenOfCompGen        -> "length of comprehension generator"
+      TypeOfArg mb ->
+        case mb of
+          Nothing -> "type of function argument"
+          Just n -> "type of" <+> ordinal n <+> "function argument"
+      TypeOfRes             -> "type of function result"
+      TypeErrorPlaceHolder  -> "type error place-holder"
 
 
