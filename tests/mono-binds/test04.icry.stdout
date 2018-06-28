@@ -17,9 +17,5 @@ test04::test = \{a, b} (Literal 10 b) (a : a) ->
 Loading module Cryptol
 Loading module test04
 
-[error] at ./test04.cry:3:19--3:21:
-  Unsolved constraints:
-    Literal 10 ()
-      arising from
-      use of literal or demoted expression
-      at ./test04.cry:3:19--3:21
+[error] at ./test04.cry:1:1--5:14:
+  Type '()' does not support literals.

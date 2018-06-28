@@ -8,7 +8,7 @@
 --
 -- Solving class constraints.
 
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE PatternGuards, OverloadedStrings #-}
 module Cryptol.TypeCheck.Solver.Class
   ( classStep
   , solveZeroInst
@@ -23,6 +23,7 @@ module Cryptol.TypeCheck.Solver.Class
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.SimpType (tAdd,tWidth)
 import Cryptol.TypeCheck.Solver.Types
+import Cryptol.TypeCheck.PP
 
 -- | Solve class constraints.
 -- If not, then we return 'Nothing'.
@@ -225,10 +226,16 @@ solveLiteralInst val ty
         SolvedIf [ pFin val, pFin modulus, modulus >== tAdd val tOne ]
 
       -- (fin bits, bits => width n) => Literal n [bits]
-      TCon (TC TCSeq) [bits, TCon (TC TCBit) []] ->
-        SolvedIf [ pFin val, pFin bits, bits >== tWidth val ]
+      TCon (TC TCSeq) [bits, elTy]
+        | TCon (TC TCBit) [] <- ety ->
+            SolvedIf [ pFin val, pFin bits, bits >== tWidth val ]
+        | TVar _ <- ety -> Unsolved
+        where ety = tNoUser elTy
 
-      _ -> Unsolved
+      TVar _ -> Unsolved
+
+      _ -> Unsolvable $ TCErrorMessage $ show
+         $ "Type" <+> quotes (pp ty) <+> "does not support literals."
 
 
 -- | Add propositions that are implied by the given one.
