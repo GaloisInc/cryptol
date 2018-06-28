@@ -107,7 +107,7 @@ Symbols
     scanl : {b, a, n} (b -> a -> b) -> b -> [n]a -> [1 + n]b
     scanr : {a, b, n} (fin n) => (a -> b -> b) -> b -> [n]a -> [1 + n]b
     scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
-    sext : {n, m} (fin m, m >= n, n >= 1) => [n] -> [m]
+    sext : {m, n} (fin m, m >= n, n >= 1) => [n] -> [m]
     split :
       {parts, each, a} (fin each) => [parts * each]a -> [parts][each]a
     splitAt :
@@ -136,7 +136,7 @@ Symbols
       {bits, len, elem} (fin len, fin bits, bits >= width len) =>
         [len]elem -> [bits]
     zero : {a} (Zero a) => a
-    zext : {n, m} (fin m, m >= n) => [n] -> [m]
+    zext : {m, n} (fin m, m >= n) => [n] -> [m]
     zip : {a, b, n} [n]a -> [n]b -> [n](a, b)
     zipWith : {a, b, c, n} (a -> b -> c) -> [n]a -> [n]b -> [n]c
 

@@ -222,13 +222,13 @@ sborrow x y = ( x <$ (x-y) ) ^ y@0
 /**
  * Zero extension of a bitvector.
  */
-zext : {n, m} (fin m, m >= n) => [n] -> [m]
+zext : {m, n} (fin m, m >= n) => [n] -> [m]
 zext x = zero # x
 
 /**
  * Sign extension of a bitvector.
  */
-sext : {n, m} (fin m, m >= n, n >= 1) => [n] -> [m]
+sext : {m, n} (fin m, m >= n, n >= 1) => [n] -> [m]
 sext x = newbits # x
   where newbits = if x@0 then ~zero else zero
 
