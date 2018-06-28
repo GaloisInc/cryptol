@@ -179,14 +179,15 @@ instance FVS Error where
       UnsolvedGoals _ gs        -> fvs gs
       UnsolvedDelayedCt g       -> fvs g
       UnexpectedTypeWildCard    -> Set.empty
-      TypeVariableEscaped t _   -> fvs t
-      NotForAll _ t             -> fvs t
+      TypeVariableEscaped t xs  -> fvs t `Set.union`
+                                            Set.fromList (map TVBound xs)
+      NotForAll x t             -> Set.insert x (fvs t)
       UnusableFunction _ p      -> fvs p
       TooManyPositionalTypeParams -> Set.empty
       CannotMixPositionalAndNamedTypeParams -> Set.empty
-      AmbiguousType _ _vs       ->  Set.empty
-      UndefinedTypeParameter {} -> Set.empty
-      RepeatedTypeParameter {}  -> Set.empty
+      AmbiguousType _ _vs                   ->  Set.empty
+      UndefinedTypeParameter {}             -> Set.empty
+      RepeatedTypeParameter {}              -> Set.empty
 
 
 

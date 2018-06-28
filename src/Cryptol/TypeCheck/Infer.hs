@@ -39,7 +39,7 @@ import           Cryptol.Utils.PP
 import qualified Data.Map as Map
 import           Data.Map (Map)
 import qualified Data.Set as Set
-import           Data.List(foldl')
+import           Data.List(foldl',sortBy)
 import           Data.Either(partitionEithers)
 import           Data.Maybe(mapMaybe,isJust, fromMaybe)
 import           Data.List(partition,find)
@@ -236,7 +236,7 @@ checkE expr tGoal =
       do let src = case l of
                      RecordSel la _ -> TypeOfRecordField la
                      TupleSel n _   -> TypeOfTupleField n
-                     ListSel n _    -> TypeOfSeqAt n
+                     ListSel _ _    -> TypeOfSeqElement
          t <- newType src KType
          e' <- checkE e t
          f <- newHasGoal l t tGoal
@@ -727,7 +727,8 @@ generalize bs0 gs0 =
      {- This is the variables we'll be generalizing:
           * any ones that survived the defaulting
           * and vars in the inferred types that do not appear anywhere else. -}
-     let as   = as0 ++ Set.toList (Set.difference inSigs asmpVs)
+     let as   = sortBy numFst
+              $ as0 ++ Set.toList (Set.difference inSigs asmpVs)
          asPs = [ TParam { tpUnique = x, tpKind = k, tpFlav = TPOther Nothing
                          , tpInfo = i  } | TVFree x k _ i <- as ]
 
@@ -750,6 +751,12 @@ generalize bs0 gs0 =
 
      return (map genB bs)
 
+  where
+  numFst x y = case (kindOf x, kindOf y) of
+                 (KNum, KNum) -> EQ
+                 (KNum, _)    -> LT
+                 (_,KNum)     -> GT
+                 _            -> EQ
 
 -- | Check a monomorphic binding.
 checkMonoB :: P.Bind Name -> Type -> InferM Decl

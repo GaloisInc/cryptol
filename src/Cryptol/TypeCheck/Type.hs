@@ -124,11 +124,11 @@ data TVar   = TVFree !Int Kind (Set TParam) TVarInfo
             | TVBound {-# UNPACK #-} !TParam
               deriving (Show, Generic, NFData)
 
-tvInfo :: TVar -> Maybe TVarInfo
+tvInfo :: TVar -> TVarInfo
 tvInfo tv =
   case tv of
-    TVFree _ _ _ d -> Just d
-    _              -> Nothing
+    TVFree _ _ _ d -> d
+    TVBound tp     -> tpInfo tp
 
 data TVarInfo = TVarInfo { tvarSource :: Range -- ^ Source code that gave rise
                          , tvarDesc   :: TVarSource -- ^ Description
@@ -141,7 +141,6 @@ data TVarSource = TVFromModParam Name     -- ^ Name of module parameter
                 | TypeWildCard
                 | TypeOfRecordField Ident
                 | TypeOfTupleField Int
-                | TypeOfSeqAt Int
                 | TypeOfSeqElement
                 | LenOfSeq
                 | TypeParamInstNamed {-Fun-}Name {-Param-}Ident
@@ -784,14 +783,18 @@ instance PP (WithNames TParam) where
 
 addTNames :: [TParam] -> NameMap -> NameMap
 addTNames as ns = foldr (uncurry IntMap.insert) ns
-                $ named ++ zip unnamed avail
+                $ named ++ zip unnamed_nums numNames
+                        ++ zip unnamed_vals valNames
 
-  where avail   = filter (`notElem` used) (nameList [])
+  where avail xs = filter (`notElem` used) (nameList xs)
+        numNames = avail ["n","m","i","j","k"]
+        valNames = avail ["a","b","c","d","e"]
 
-        nm x = (tpUnique x, tpName x)
+        nm x = (tpUnique x, tpName x, tpKind x)
 
-        named   = [ (u,show (pp n)) | (u,Just n)  <- map nm as ]
-        unnamed = [ u               | (u,Nothing) <- map nm as ]
+        named        = [ (u,show (pp n)) | (u,Just n,_)  <- map nm as ]
+        unnamed_nums = [ u               | (u,Nothing,KNum)  <- map nm as ]
+        unnamed_vals = [ u               | (u,Nothing,KType) <- map nm as ]
 
         used    = map snd named ++ IntMap.elems ns
 
@@ -809,7 +812,7 @@ instance PP Schema where
 instance PP (WithNames Schema) where
   ppPrec _ (WithNames s ns)
     | null (sVars s) && null (sProps s) = body
-    | otherwise = hang (vars <+> props) 2 body 
+    | otherwise = hang (vars <+> props) 2 body
     where
     body = ppWithNames ns1 (sType s)
 
@@ -921,11 +924,39 @@ instance PP (WithNames TVar) where
       Just a  -> text a
       Nothing ->
         case tpFlav x of
-          TPModParam n -> ppPrefixName n
-          _ -> text ("a`" ++ show (tpUnique x))
+          TPModParam n     -> ppPrefixName n
+          TPOther (Just n) -> pp n <> "`" <> int (tpUnique x)
+          _  -> pickTVarName (tpKind x) (tvarDesc (tpInfo x)) (tpUnique x)
 
-  ppPrec _ (WithNames (TVFree x _ _ _) _) =
-    char '?' <.> text (intToName x)
+  ppPrec _ (WithNames (TVFree x k _ d) _) =
+    char '?' <.> pickTVarName k (tvarDesc d) x
+
+pickTVarName :: Kind -> TVarSource -> Int -> Doc
+pickTVarName k src uni =
+  text $
+  case src of
+    TVFromModParam n       -> using n
+    TVFromSignature n      -> using n
+    TypeWildCard           -> case k of
+                                KNum -> "n"
+                                _    -> "a"
+    TypeOfRecordField i    -> using i
+    TypeOfTupleField n     -> mk ("tup_" ++ show n)
+    TypeOfSeqElement       -> mk "a"
+    LenOfSeq               -> mk "n"
+    TypeParamInstNamed _ i -> using i
+    TypeParamInstPos f n   -> mk (sh f ++ "_" ++ show n)
+    DefinitionOf x         -> using x
+    LenOfCompGen           -> mk "n"
+    TypeOfArg mb           -> mk (case mb of
+                                    Nothing -> "arg"
+                                    Just n  -> "arg_" ++ show n)
+    TypeOfRes              -> "res"
+    TypeErrorPlaceHolder   -> "err"
+  where
+  sh a      = show (pp a)
+  using a   = mk (sh a)
+  mk a      = a ++ "`" ++ show uni
 
 instance PP TVar where
   ppPrec = ppWithNamesPrec IntMap.empty
@@ -1006,11 +1037,10 @@ instance PP TVarSource where
   ppPrec _ tvsrc =
     case tvsrc of
       TVFromModParam m    -> "module parameter" <+> pp m
-      TVFromSignature x   -> "type variable" <+> quotes (pp x)
+      TVFromSignature x   -> "signature variable" <+> quotes (pp x)
       TypeWildCard        -> "type wildcard (_)"
       TypeOfRecordField l -> "type of field" <+> quotes (pp l)
       TypeOfTupleField n  -> "type of" <+> ordinal n <+> "tuple field"
-      TypeOfSeqAt n       -> "type of" <+> ordinal n <+> "sequence member"
       TypeOfSeqElement    -> "type of sequence member"
       LenOfSeq            -> "length of sequnce"
       TypeParamInstNamed f i -> "type argument" <+> quotes (pp i) <+>

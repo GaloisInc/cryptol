@@ -1,8 +1,8 @@
 Loading module Cryptol
-{a, b} (Logic b) => a == min (1 + a) a
-{a, b} (Logic b) => Logic b
-{a, b} (Logic b) => Logic b
-{a, b} (Logic b) => True
+{n, a} (Logic a) => n == min (1 + n) n
+{n, a} (Logic a) => Logic a
+{n, a} (Logic a) => Logic a
+{n, a} (Logic a) => True
 (s
  where
    s x =
@@ -11,11 +11,11 @@ Loading module Cryptol
           bs = [complement b | b <- [complement x] # bs
                              | _ <- bs]
         )
- ) : {a, b} (Logic b) => b -> [a]b
-{a, b} a == a
+ ) : {n, a} (Logic a) => a -> [n]a
+{n, a} n == n
 (bs
  where
    bs = [b | b <- bs]
- ) : {a, b} [a]b
+ ) : {n, a} [n]a
 1 == 1
 [b | b <- [True]] : [1]

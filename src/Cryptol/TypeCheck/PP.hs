@@ -12,7 +12,7 @@ module Cryptol.TypeCheck.PP
   ( NameMap, WithNames(..)
   , emptyNameMap
   , ppWithNamesPrec, ppWithNames
-  , intToName, nameList
+  , nameList
   , dump
   , module Cryptol.Utils.PP
   ) where
@@ -57,6 +57,4 @@ nameList names = concat $ transpose $ map nameVariants baseNames
   baseNames | null names = map (:[]) [ 'a' .. 'z' ]
             | otherwise  = names
 
-intToName :: Int -> String
-intToName x = nameList [] !! x
 

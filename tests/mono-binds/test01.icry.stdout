@@ -4,13 +4,13 @@ Loading module test01
 module test01
 import Cryptol
 /* Not recursive */
-test01::a : {a, b} (fin a) => [a]b -> [2 * a]b
-test01::a = \{a, b} (fin a) (x : [a]b) ->
-            test01::f a x
+test01::a : {n, a} (fin n) => [n]a -> [2 * n]a
+test01::a = \{n, a} (fin n) (x : [n]a) ->
+            test01::f n x
             where
               /* Not recursive */
-              test01::f : {c} [c]b -> [a + c]b
-              test01::f = \{c} (y : [c]b) -> (Cryptol::#) a c b <> x y
+              test01::f : {m} [m]a -> [n + m]a
+              test01::f = \{m} (y : [m]a) -> (Cryptol::#) n m a <> x y
               
             
 
@@ -19,13 +19,13 @@ Loading module test01
 module test01
 import Cryptol
 /* Not recursive */
-test01::a : {a, b} (fin a) => [a]b -> [2 * a]b
-test01::a = \{a, b} (fin a) (x : [a]b) ->
+test01::a : {n, a} (fin n) => [n]a -> [2 * n]a
+test01::a = \{n, a} (fin n) (x : [n]a) ->
             test01::f x
             where
               /* Not recursive */
-              test01::f : [a]b -> [2 * a]b
-              test01::f = \ (y : [a]b) -> (Cryptol::#) a a b <> x y
+              test01::f : [n]a -> [2 * n]a
+              test01::f = \ (y : [n]a) -> (Cryptol::#) n n a <> x y
               
             
 

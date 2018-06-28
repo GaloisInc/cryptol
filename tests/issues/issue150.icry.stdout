@@ -1,4 +1,4 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-maxSeq' : {a, b} (Cmp a, Literal 0 a) => [b]a -> [1 + b]a
+maxSeq' : {n, a} (Cmp a, Literal 0 a) => [n]a -> [1 + n]a

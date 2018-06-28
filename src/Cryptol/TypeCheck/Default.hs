@@ -25,8 +25,8 @@ defaultLiterals as gs = let (binds,warns) = unzip (mapMaybe tryDefVar as)
   gSet = goalsFromList gs
   tryDefVar a =
     do gt <- Map.lookup a (literalGoals gSet)
-       d  <- tvInfo a
-       let defT = tWord (tWidth (goal gt))
+       let d    = tvInfo a
+           defT = tWord (tWidth (goal gt))
            w    = DefaultingTo d defT
        guard (not (Set.member a (fvs defT)))  -- Currently shouldn't happen
                                               -- but future proofing.

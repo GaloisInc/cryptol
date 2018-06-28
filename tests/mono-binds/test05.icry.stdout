@@ -14,27 +14,27 @@ test05::foo : [10]
 test05::foo = Cryptol::demote 10 [10] <>
 
 /* Not recursive */
-test05::test : {a, b, c} (Zero b, Literal 10 c) => [a]b -> c
-test05::test = \{a, b, c} (Zero b, Literal 10 c) (a : [a]b) ->
-               Cryptol::demote 10 c <>
+test05::test : {n, a, b} (Zero a, Literal 10 b) => [n]a -> b
+test05::test = \{n, a, b} (Zero a, Literal 10 b) (a : [n]a) ->
+               Cryptol::demote 10 b <>
                where
                  /* Not recursive */
                  test05::foo : [10]
                  test05::foo = Cryptol::demote 10 [10] <>
                  
                  /* Not recursive */
-                 test05::f : {d} (fin d) => [a + d]b
-                 test05::f = \{d} (fin d) ->
-                             test05::bar d <>
+                 test05::f : {m} (fin m) => [n + m]a
+                 test05::f = \{m} (fin m) ->
+                             test05::bar m <>
                              where
                                /* Not recursive */
-                               test05::foo : [a]b
+                               test05::foo : [n]a
                                test05::foo = a
                                
                                /* Not recursive */
-                               test05::bar : {e} (fin e) => [e + a]b
-                               test05::bar = \{e} (fin e) ->
-                                             (Cryptol::#) e a b <> (Cryptol::zero ([e]b) <>) test05::foo
+                               test05::bar : {i} (fin i) => [i + n]a
+                               test05::bar = \{i} (fin i) ->
+                                             (Cryptol::#) i n a <> (Cryptol::zero ([i]a) <>) test05::foo
                                
                              
                  
@@ -57,25 +57,25 @@ test05::foo : [10]
 test05::foo = Cryptol::demote 10 [10] <>
 
 /* Not recursive */
-test05::test : {a, b, c} (Zero b, Literal 10 c) => [a]b -> c
-test05::test = \{a, b, c} (Zero b, Literal 10 c) (a : [a]b) ->
-               Cryptol::demote 10 c <>
+test05::test : {n, a, b} (Zero a, Literal 10 b) => [n]a -> b
+test05::test = \{n, a, b} (Zero a, Literal 10 b) (a : [n]a) ->
+               Cryptol::demote 10 b <>
                where
                  /* Not recursive */
                  test05::foo : [10]
                  test05::foo = Cryptol::demote 10 [10] <>
                  
                  /* Not recursive */
-                 test05::f : [a]b
+                 test05::f : [n]a
                  test05::f = test05::bar
                              where
                                /* Not recursive */
-                               test05::foo : [a]b
+                               test05::foo : [n]a
                                test05::foo = a
                                
                                /* Not recursive */
-                               test05::bar : [a]b
-                               test05::bar = (Cryptol::#) 0 a b <> (Cryptol::zero ([0]b) <>) test05::foo
+                               test05::bar : [n]a
+                               test05::bar = (Cryptol::#) 0 n a <> (Cryptol::zero ([0]a) <>) test05::foo
                                
                              
                  
