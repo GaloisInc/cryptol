@@ -16,6 +16,7 @@ module Cryptol.TypeCheck.Solver.SMT
   ( -- * Setup
     Solver
   , withSolver
+  , isNumeric
 
     -- * Debugging
   , debugBlock
@@ -54,6 +55,7 @@ import Cryptol.Utils.PP -- ( Doc )
 
 
 
+
 -- | An SMT solver packed with a logger for debugging.
 data Solver = Solver
   { solver    :: SMT.Solver
@@ -67,7 +69,8 @@ data Solver = Solver
 withSolver :: SolverConfig -> (Solver -> IO a) -> IO a
 withSolver SolverConfig{ .. } =
      bracket
-       (do logger <- if solverVerbose > 0 then SMT.newLogger 0 else return quietLogger
+       (do logger <- if solverVerbose > 0 then SMT.newLogger 0
+                                          else return quietLogger
            let smtDbg = if solverVerbose > 1 then Just logger else Nothing
            solver <- SMT.newSolver solverPath solverArgs smtDbg
            _ <- SMT.setOptionMaybe solver ":global-decls" "false"
@@ -202,6 +205,7 @@ checkUnsolvable sol gs0 =
 
 tryGetModel :: Solver -> [TVar] -> [Prop] -> IO (Maybe [(TVar,Nat')])
 tryGetModel sol as ps =
+  debugBlock sol "TRY GET MODEL" $
   do push sol
      tvs <- Map.fromList <$> zipWithM (declareVar sol) [ 0 .. ] as
      mapM_ (assume sol tvs) ps

@@ -34,7 +34,7 @@ import           Cryptol.TypeCheck.Solver.Types
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 
 
-import           Cryptol.TypeCheck.Solver.SMT(Solver,proveImp)
+import           Cryptol.TypeCheck.Solver.SMT(Solver,proveImp,isNumeric)
 import           Cryptol.TypeCheck.Solver.Improve(improveProp,improveProps)
 import           Cryptol.TypeCheck.Solver.Numeric.Interval
 import           Cryptol.Utils.PP (text,vcat,(<+>))
@@ -175,7 +175,7 @@ defaultReplExpr sol expr sch =
     in null (concatMap pSplitAnd (apSubst su (sProps sch)))
 
   (numVs,otherVs) = partition (kindIs KNum) (sVars sch)
-  (numPs,otherPs) = partition (all (kindIs KNum) . fvs) (sProps sch)
+  (numPs,otherPs) = partition isNumeric (sProps sch)
 
 
   kindIs k x = kindOf x == k
