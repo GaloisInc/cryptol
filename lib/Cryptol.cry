@@ -143,13 +143,13 @@ primitive (!=) : {a} (Cmp a) => a -> a -> Bit
 /**
  * Compare the outputs of two functions for equality.
  */
-(===) : {a,b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
+(===) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
 f === g = \ x -> f x == g x
 
 /**
  * Compare the outputs of two functions for inequality.
  */
-(!==) : {a,b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
+(!==) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
 f !== g = \x -> f x != g x
 
 /**
@@ -280,7 +280,7 @@ primitive zero : {a} (Zero a) => a
 /**
  * Converts a bitvector to a non-negative integer in the range 0 to 2^^n-1.
  */
-primitive toInteger : {a} (fin a) => [a] -> Integer
+primitive toInteger : {bits} (fin bits) => [bits] -> Integer
 
 /**
  * Converts an unbounded integer to another arithmetic type. When converting
@@ -297,25 +297,25 @@ primitive fromZ : {n} (fin n, n >= 1) => Z n -> Integer
  * Left shift.  The first argument is the sequence to shift, the second is the
  * number of positions to shift by.
 */
-primitive (<<) : {a, b, c} (fin b, Zero c) => [a]c -> [b] -> [a]c
+primitive (<<) : {n, ix, a} (fin ix, Zero a) => [n]a -> [ix] -> [n]a
 
 /**
  * Right shift.  The first argument is the sequence to shift, the second is the
  * number of positions to shift by.
  */
-primitive (>>) : {a, b, c} (fin b, Zero c) => [a]c -> [b] -> [a]c
+primitive (>>) : {n, ix, a} (fin ix, Zero a) => [n]a -> [ix] -> [n]a
 
 /**
  * Left rotate.  The first argument is the sequence to rotate, the second is the
  * number of positions to rotate by.
  */
-primitive (<<<) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
+primitive (<<<) : {n, ix, a} (fin n, fin ix) => [n]a -> [ix] -> [n]a
 
 /**
  * Right rotate.  The first argument is the sequence to rotate, the second is
  * the number of positions to rotate by.
  */
-primitive (>>>) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
+primitive (>>>) : {n, ix, a} (fin n, fin ix) => [n]a -> [ix] -> [n]a
 
 /**
  * 2's complement signed (arithmetic) right shift.  The first argument
@@ -323,7 +323,7 @@ primitive (>>>) : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
  * the second argument is the number of positions to shift
  * by (considered as an unsigned value).
  */
-primitive (>>$) : {n, k} (fin n, n >= 1, fin k) => [n] -> [k] -> [n]
+primitive (>>$) : {n, ix} (fin n, n >= 1, fin ix) => [n] -> [ix] -> [n]
 
 
 
@@ -358,24 +358,25 @@ primitive split : {parts, each, a} (fin each) => [parts * each]a
 /**
  * Reverses the elements in a sequence.
  */
-primitive reverse : {a, b} (fin a) => [a]b -> [a]b
+primitive reverse : {n, a} (fin n) => [n]a -> [n]a
 
 /**
- * Transposes an [a][b] matrix into a [b][a] matrix.
+ * Transposes a matrix.
+ * Satisfies the property 'transpose m @ i @ j == m @ j @ i'.
  */
-primitive transpose : {a, b, c} [a][b]c -> [b][a]c
+primitive transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
 
 /**
  * Index operator.  The first argument is a sequence.  The second argument is
  * the zero-based index of the element to select from the sequence.
  */
-primitive (@) : {a, b, c} (fin c) => [a]b -> [c] -> b
+primitive (@) : {n, a, ix} (fin ix) => [n]a -> [ix] -> a
 
 /**
  * Bulk index operator.  The first argument is a sequence.  The second argument
  * is a sequence of the zero-based indices of the elements to select.
  */
-(@@) : {a, b, c, d} (fin d) => [a]b -> [c][d] -> [c]b
+(@@) : {n, k, ix, a} (fin ix) => [n]a -> [k][ix] -> [k]a
 xs @@ is = [ xs @ i | i <- is ]
 
 /**
@@ -383,14 +384,14 @@ xs @@ is = [ xs @ i | i <- is ]
  * argument is the zero-based index of the element to select, starting from the
  * end of the sequence.
  */
-primitive (!) : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b
+primitive (!) : {n, a, ix} (fin n, fin ix) => [n]a -> [ix] -> a
 
 /**
  * Bulk reverse index operator.  The first argument is a finite sequence.  The
  * second argument is a sequence of the zero-based indices of the elements to
  * select, starting from the end of the sequence.
  */
-(!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
+(!!) : {n, k, ix, a} (fin n, fin ix) => [n]a -> [k][ix] -> [k]a
 xs !! is = [ xs ! i | i <- is ]
 
 /**
@@ -400,7 +401,7 @@ xs !! is = [ xs ! i | i <- is ]
  * The third argument is the new element.  The return value is the
  * initial sequence updated so that the indicated index has the given value.
  */
-primitive update : {a, b, c} (fin c) => [a]b -> [c] -> b -> [a]b
+primitive update : {n, a, ix} (fin ix) => [n]a -> [ix] -> a -> [n]a
 
 /**
  * Update the given sequence with new value at the given index position.
@@ -409,7 +410,7 @@ primitive update : {a, b, c} (fin c) => [a]b -> [c] -> b -> [a]b
  * The third argument is the new element.  The return value is the
  * initial sequence updated so that the indicated index has the given value.
  */
-primitive updateEnd : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b -> [a]b
+primitive updateEnd : {n, a, ix} (fin n, fin ix) => [n]a -> [ix] -> a -> [n]a
 
 /**
  * Perform a series of updates to a sequence.  The first argument is
@@ -418,7 +419,7 @@ primitive updateEnd : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b -> [a]b
  * This function applies the 'update' function in sequence with the
  * given update pairs.
  */
-updates : {a,b,c,d} (fin c, fin d) => [a]b -> [d][c] -> [d]b -> [a]b
+updates : {n, k, ix, a} (fin ix, fin k) => [n]a -> [k][ix] -> [k]a -> [n]a
 updates xs0 idxs vals = xss!0
  where
    xss = [ xs0 ] #
@@ -435,7 +436,7 @@ updates xs0 idxs vals = xss!0
  * This function applies the 'updateEnd' function in sequence with the
  * given update pairs.
  */
-updatesEnd : {a,b,c,d} (fin a, fin c, fin d) => [a]b -> [d][c] -> [d]b -> [a]b
+updatesEnd : {n, k, ix, a} (fin n, fin ix, fin k) => [n]a -> [k][ix] -> [k]a -> [n]a
 updatesEnd xs0 idxs vals = xss!0
  where
    xss = [ xs0 ] #
@@ -488,13 +489,13 @@ primitive infFrom : {a} (Arith a) => a -> [inf]a
  */
 primitive infFromThen : {a} (Arith a) => a -> a -> [inf]a
 
-primitive error : {at, len} (fin len) => [len][8] -> at
+primitive error : {a, len} (fin len) => [len][8] -> a
 
 
 /**
  * Performs multiplication of polynomials over GF(2).
  */
-pmult : {a, b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 + a + b]
+pmult : {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + u + v]
 pmult x y = last zs
   where
     zs = [0] # [ (z << 1) ^ (if yi then 0 # x else 0) | yi <- y | z <- zs ]
@@ -502,33 +503,33 @@ pmult x y = last zs
 /**
  * Performs division of polynomials over GF(2).
  */
-pdiv : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
+pdiv : {u, v} (fin u, fin v) => [u] -> [v] -> [u]
 pdiv x y = [ z ! degree | z <- zs ]
   where
-    degree : [width b]
-    degree = last (ds : [1 + b]_)
-      where ds = [0/0] # [if yi then i else d | yi <- reverse y | i <- [0..b] | d <- ds ]
+    degree : [width v]
+    degree = last (ds : [1 + v]_)
+      where ds = [0/0] # [if yi then i else d | yi <- reverse y | i <- [0..v] | d <- ds ]
 
-    reduce : [b] -> [b]
+    reduce : [v] -> [v]
     reduce u = if u ! degree then u ^ y else u
 
-    zs : [a][b]
+    zs : [u][v]
     zs = [ tail (reduce z # [xi]) | z <- [0] # zs | xi <- x ]
 
 /**
  * Performs modulus of polynomials over GF(2).
  */
-pmod : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
+pmod : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
 pmod x y = if y == 0 then 0/0 else last zs
   where
-    degree : [width b]
-    degree = last (ds : [2 + b]_)
-      where ds = [0/0] # [if yi then i else d | yi <- reverse y | i <- [0..b] | d <- ds ]
+    degree : [width v]
+    degree = last (ds : [2 + v]_)
+      where ds = [0/0] # [if yi then i else d | yi <- reverse y | i <- [0..v] | d <- ds ]
 
-    reduce : [1 + b] -> [1 + b]
+    reduce : [1 + v] -> [1 + v]
     reduce u = if u ! degree then u ^ y else u
 
-    powers : [inf][1 + b]
+    powers : [inf][1 + v]
     powers = [reduce 1] # [ reduce (p << 1) | p <- powers ]
 
     zs = [0] # [ z ^ (if xi then tail p else 0) | xi <- reverse x | p <- powers | z <- zs ]
@@ -543,35 +544,34 @@ type String n = [n][8]
 type Word n = [n]
 type Char   = [8]
 
-take : {front,back,elem} (fin front) => [front + back] elem -> [front] elem
+take : {front, back, a} (fin front) => [front + back]a -> [front]a
 take (x # _) = x
 
-drop : {front,back,elem} (fin front) => [front + back] elem -> [back] elem
+drop : {front, back, a} (fin front) => [front + back]a -> [back]a
 drop ((_ : [front] _) # y) = y
 
-tail : {a, b} [1 + a]b -> [a]b
+tail : {n, a} [1 + n]a -> [n]a
 tail xs = drop`{1} xs
 
 /**
  * Return the left-most element of a sequence.
  */
-head : {a, b} [1 + a]b -> b
+head : {n, a} [1 + n]a -> a
 head xs = xs @ 0
 
 /**
  * Return the right-most element of a sequence.
  */
-last : {a, b} (fin a) => [1 + a]b -> b
+last : {n, a} (fin n) => [1 + n]a -> a
 last xs = xs ! 0
 
-width : {bits,len,elem} (fin len, fin bits, bits >= width len) => [len] elem -> [bits]
-width _ = `len
+width : {bits, n, a} (fin n, fin bits, bits >= width n) => [n]a -> [bits]
+width _ = `n
 
 undefined : {a} a
 undefined = error "undefined"
 
-groupBy : {each,parts,elem} (fin each) =>
-  [parts * each] elem -> [parts][each]elem
+groupBy : {each, parts, a} (fin each) => [parts * each]a -> [parts][each]a
 groupBy = split`{parts=parts}
 
 /**
@@ -623,19 +623,19 @@ or xs = zero != xs
 /**
  * Conjunction after applying a predicate to all elements.
  */
-all : {a,n} (fin n) => (a -> Bit) -> [n]a -> Bit
+all : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
 all f xs = and (map f xs)
 
 /**
  * Disjunction after applying a predicate to all elements.
  */
-any : {a,n} (fin n) => (a -> Bit) -> [n]a -> Bit
+any : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
 any f xs = or (map f xs)
 
 /**
  * Map a function over a sequence.
  */
-map : {a, b, n} (a -> b) -> [n]a -> [n]b
+map : {n, a, b} (a -> b) -> [n]a -> [n]b
 map f xs = [f x | x <- xs]
 
 /**
@@ -643,7 +643,7 @@ map f xs = [f x | x <- xs]
  *
  * foldl (+) 0 [1,2,3] = ((0 + 1) + 2) + 3
  */
-foldl : {a, b, n} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
 foldl f acc xs = ys ! 0
   where ys = [acc] # [f a x | a <- ys | x <- xs]
 
@@ -652,27 +652,27 @@ foldl f acc xs = ys ! 0
  *
  * foldr (-) 0 [1,2,3] = 0 - (1 - (2 - 3))
  */
-foldr : {a,b,n} (fin n) => (a -> b -> b) -> b -> [n]a -> b
+foldr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
 foldr f acc xs = ys ! 0
   where ys = [acc] # [f x a | a <- ys | x <- reverse xs]
 
 /**
  * Compute the sum of the values in the sequence.
  */
-sum : {a,n} (fin n, Zero a, Arith a) => [n]a -> a
-sum xs = foldl (+) zero xs
+sum : {n, a} (fin n, Arith a) => [n]a -> a
+sum xs = foldl (+) (fromInteger 0) xs
 
 /**
  * Scan left is like a foldl that also emits the intermediate values.
  */
-scanl : {b, a, n}  (b -> a -> b) -> b -> [n]a -> [n+1]b
+scanl : {n, b, a}  (b -> a -> b) -> b -> [n]a -> [n+1]b
 scanl f acc xs = ys
   where ys = [acc] # [f a x | a <- ys | x <- xs]
 
 /**
  * Scan right is like a foldr that also emits the intermediate values.
  */
-scanr : {a,b,n} (fin n) => (a -> b -> b) -> b -> [n]a -> [n+1]b
+scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [n+1]b
 scanr f acc xs = reverse ys
   where ys = [acc] # [f x a | a <- ys | x <- reverse xs]
 
@@ -685,36 +685,36 @@ repeat x = [ x | _ <- zero : [n] ]
 /**
  * `elem x xs` Returns true if x is equal to a value in xs.
  */
-elem : {n,a} (fin n, Cmp a) => a -> [n]a -> Bit
+elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
 elem a xs = any (\x -> x == a) xs
 
 /**
  * Create a list of tuples from two lists.
  */
-zip : {a,b,n} [n]a -> [n]b -> [n](a,b)
+zip : {n, a, b} [n]a -> [n]b -> [n](a, b)
 zip xs ys = [(x,y) | x <- xs | y <- ys]
 
 /**
  * Create a list by applying the function to each pair of elements in the input.
  */
-zipWith : {a,b,c,n} (a -> b -> c) -> [n]a -> [n]b -> [n]c
+zipWith : {n, a, b, c} (a -> b -> c) -> [n]a -> [n]b -> [n]c
 zipWith f xs ys = [f x y | x <- xs | y <- ys]
 
 /**
  * Transform a function into uncurried form.
  */
-uncurry : {a,b,c} (a -> b -> c) -> (a,b) -> c
+uncurry : {a, b, c} (a -> b -> c) -> (a, b) -> c
 uncurry f = \(a, b) -> f a b
 
 /**
  * Transform a function into curried form.
  */
-curry : {a,b,c} ((a, b) -> c) -> a -> b -> c
+curry : {a, b, c} ((a, b) -> c) -> a -> b -> c
 curry f = \a b -> f (a, b)
 
 /**
  * Map a function iteratively over a seed value, producing an infinite
  * list of successive function applications.
  */
-iterate : { a } (a -> a) -> a -> [inf]a
+iterate : {a} (a -> a) -> a -> [inf]a
 iterate f x = [x] # [ f v | v <- iterate f x ]
