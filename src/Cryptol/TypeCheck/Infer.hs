@@ -719,6 +719,7 @@ generalize bs0 gs0 =
         variables using the constraints that will be part of the newly
         generalized schema.  -}
      let (as0,here1,defSu,ws) = defaultAndSimplify maybeAmbig here0
+     extendSubst defSu
      mapM_ recordWarning ws
      let here = map goal here1
 
