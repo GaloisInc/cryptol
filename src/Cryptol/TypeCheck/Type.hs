@@ -925,7 +925,7 @@ instance PP (WithNames TVar) where
       Nothing ->
         case tpFlav x of
           TPModParam n     -> ppPrefixName n
-          TPOther (Just n) -> pp n <> "`" <> int (tpUnique x)
+          TPOther (Just n) -> pp n <.> "`" <.> int (tpUnique x)
           _  -> pickTVarName (tpKind x) (tvarDesc (tpInfo x)) (tpUnique x)
 
   ppPrec _ (WithNames (TVFree x k _ d) _) =
