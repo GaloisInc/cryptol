@@ -143,6 +143,7 @@ data CommandBody
   | FilenameArg (FilePath -> REPL ())
   | OptionArg   (String   -> REPL ())
   | ShellArg    (String   -> REPL ())
+  | HelpArg     (String   -> REPL ())
   | NoArg       (REPL ())
 
 
@@ -171,7 +172,7 @@ nbCommandList  =
     "check the type of an expression"
   , CommandDescr [ ":b", ":browse" ] (ModNameArg browseCmd)
     "display the current environment"
-  , CommandDescr [ ":?", ":help" ] (ExprArg helpCmd)
+  , CommandDescr [ ":?", ":help" ] (HelpArg helpCmd)
     "display a brief description of a function or a type"
   , CommandDescr [ ":s", ":set" ] (OptionArg setOptionCmd)
     "set an environmental option (:set on its own displays current values)"
@@ -1308,6 +1309,7 @@ parseCommand findCmd line = do
       FilenameArg body -> Just (Command (body =<< expandHome args'))
       OptionArg   body -> Just (Command (body args'))
       ShellArg    body -> Just (Command (body args'))
+      HelpArg     body -> Just (Command (body args'))
       NoArg       body -> Just (Command  body)
       FileExprArg body ->
         case extractFilePath args' of
