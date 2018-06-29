@@ -68,9 +68,11 @@ instance EvalPrims SBool SWord SInteger where
   evalPrim Decl { .. } =
       panic "Eval" [ "Unimplemented primitive", show dName ]
 
-  iteValue b x y
-    | Just b' <- SBV.svAsBool b = if b' then x else y
-    | otherwise = iteSValue b <$> x <*> y
+  iteValue b x1 x2
+    | Just b' <- SBV.svAsBool b = if b' then x1 else x2
+    | otherwise = do v1 <- x1
+                     v2 <- x2
+                     iteSValue b v1 v2
 
 -- See also Cryptol.Prims.Eval.primTable
 primTable :: Map.Map Ident Value
