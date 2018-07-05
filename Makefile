@@ -110,7 +110,7 @@ GIT_INFO_FILES := ${GIT_INFO_FILES} .git/packed-refs
 endif
 
 CRYPTOL_SRC := \
-  $(shell find src cryptol cryptol-server bench \
+  $(shell find src cryptol bench \
             \( -name \*.hs -or -name \*.lhs -or -name \*.x -or -name \*.y \) \
             -and \( -not -name \*\#\* \) -print) \
   $(shell find lib -name \*.cry) \
