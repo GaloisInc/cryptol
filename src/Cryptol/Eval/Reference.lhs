@@ -29,8 +29,9 @@
 > import Cryptol.ModuleSystem.Name (asPrim)
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
 > import Cryptol.TypeCheck.AST
-> import Cryptol.Eval.Monad (EvalError(..), PPOpts)
+> import Cryptol.Eval.Monad (EvalError(..), PPOpts(..))
 > import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType, tvSeq)
+> import Cryptol.Eval.Value (mkBv, ppBV)
 > import Cryptol.Prims.Eval (lg2)
 > import Cryptol.Utils.Ident (Ident, mkIdent)
 > import Cryptol.Utils.Panic (panic)
@@ -1184,7 +1185,17 @@ Pretty Printing
 >   case val of
 >     VBit b     -> text (either show show b)
 >     VInteger i -> text (either show show i)
->     VList _ vs -> brackets (fsep (punctuate comma (map (ppValue opts) vs)))
+>     VList l vs ->
+>       case l of
+>         Inf -> ppList (map (ppValue opts) (take (useInfLength opts) vs) ++ [text "..."])
+>         Nat n ->
+>           -- For lists of defined bits, print the value as a numeral.
+>           case traverse isBit vs of
+>             Just bs -> ppBV opts (mkBv n (bitsToInteger bs))
+>             Nothing -> ppList (map (ppValue opts) vs)
+>       where ppList docs = brackets (fsep (punctuate comma docs))
+>             isBit v = case v of VBit (Right b) -> Just b
+>                                 _              -> Nothing
 >     VTuple vs  -> parens (sep (punctuate comma (map (ppValue opts) vs)))
 >     VRecord fs -> braces (sep (punctuate comma (map ppField fs)))
 >       where ppField (f,r) = pp f <+> char '=' <+> ppValue opts r
