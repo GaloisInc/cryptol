@@ -27,7 +27,7 @@
 > import qualified Data.Text as T (pack)
 >
 > import Cryptol.ModuleSystem.Name (asPrim)
-> import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
+> import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
 > import Cryptol.TypeCheck.AST
 > import Cryptol.Eval.Monad (EvalError(..), PPOpts)
 > import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType, tvSeq)
@@ -117,7 +117,7 @@ terms by providing an evaluator to an appropriate `Value` type.
 > data Value
 >   = VBit (Either EvalError Bool) -- ^ @ Bit    @ booleans
 >   | VInteger (Either EvalError Integer) -- ^ @ Integer @ integers
->   | VList [Value]                -- ^ @ [n]a   @ finite or infinite lists
+>   | VList Nat' [Value]           -- ^ @ [n]a   @ finite or infinite lists
 >   | VTuple [Value]               -- ^ @ ( .. ) @ tuples
 >   | VRecord [(Ident, Value)]     -- ^ @ { .. } @ records
 >   | VFun (Value -> Value)        -- ^ functions
@@ -130,8 +130,8 @@ inside the argument of a `VBit` or `VInteger` constructor. All other
 example, a non-terminating computation at type `(Bit,Bit)` must be
 represented as `VTuple [VBit undefined, VBit undefined]`, and not
 simply as `undefined`. Similarly, an expression like `1/0:[2]` that
-raises a run-time error must be encoded as `VList [VBit (Left e), VBit
-(Left e)]` where `e = DivideByZero`.
+raises a run-time error must be encoded as `VList (Nat 2) [VBit (Left
+e), VBit (Left e)]` where `e = DivideByZero`.
 
 Copy Functions
 --------------
@@ -170,8 +170,8 @@ cpo that represents any given schema.
 >         TVBit        -> VBit (fromVBit val)
 >         TVInteger    -> VInteger (fromVInteger val)
 >         TVIntMod _   -> VInteger (fromVInteger val)
->         TVSeq w ety  -> VList (map (go ety) (copyList w (fromVList val)))
->         TVStream ety -> VList (map (go ety) (copyStream (fromVList val)))
+>         TVSeq w ety  -> VList (Nat w) (map (go ety) (copyList w (fromVList val)))
+>         TVStream ety -> VList Inf (map (go ety) (copyStream (fromVList val)))
 >         TVTuple etys -> VTuple (zipWith go etys (copyList (genericLength etys) (fromVTuple val)))
 >         TVRec fields -> VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- fields ]
 >         TVFun _ bty  -> VFun (\v -> go bty (fromVFun val v))
@@ -198,8 +198,8 @@ Operations on Values
 >
 > -- | Destructor for @VList@.
 > fromVList :: Value -> [Value]
-> fromVList (VList vs) = vs
-> fromVList _          = evalPanic "fromVList" ["Expected a list"]
+> fromVList (VList _ vs) = vs
+> fromVList _            = evalPanic "fromVList" ["Expected a list"]
 >
 > -- | Destructor for @VTuple@.
 > fromVTuple :: Value -> [Value]
@@ -288,7 +288,7 @@ assigns values to those variables.
 > evalExpr env expr =
 >   case expr of
 >
->     EList es _ty  -> VList [ evalExpr env e | e <- es ]
+>     EList es _ty  -> VList (Nat (genericLength es)) [ evalExpr env e | e <- es ]
 >     ETuple es     -> VTuple [ evalExpr env e | e <- es ]
 >     ERec fields   -> VRecord [ (f, evalExpr env e) | (f, e) <- fields ]
 >     ESel e sel    -> evalSel (evalExpr env e) sel
@@ -347,7 +347,7 @@ Apply the the given selector form to the given value.
 >                        ["Unexpected value in record selection."]
 >     listSel n v =
 >       case v of
->         VList vs    -> vs !! n
+>         VList _ vs  -> vs !! n
 >         _           -> evalPanic "evalSel"
 >                        ["Unexpected value in list selection."]
 
@@ -363,7 +363,7 @@ down to the individual bits.
 >   case l of
 >     VBit b     -> VBit (condBit c b (fromVBit r))
 >     VInteger i -> VInteger (condBit c i (fromVInteger r))
->     VList vs   -> VList (zipWith (condValue c) vs (fromVList r))
+>     VList n vs -> VList n (zipWith (condValue c) vs (fromVList r))
 >     VTuple vs  -> VTuple (zipWith (condValue c) vs (fromVTuple r))
 >     VRecord fs -> VRecord [ (f, condValue c v (lookupRecord f r)) | (f, v) <- fs ]
 >     VFun f     -> VFun (\v -> condValue c (f v) (fromVFun r v))
@@ -396,6 +396,12 @@ variable to a different element of the match's list.
 >     From n _l _ty expr ->
 >       [ bindVar (n, v) env | v <- fromVList (evalExpr env expr) ]
 
+> lenMatch :: Env -> Match -> Nat'
+> lenMatch env m =
+>   case m of
+>     Let _          -> Nat 1
+>     From _ len _ _ -> evalNumType (envTypes env) len
+
 The result of of evaluating a branch in an initial environment is a
 list of extended environments, each of which extends the initial
 environment with the same set of new variables. The length of the list
@@ -406,6 +412,11 @@ is equal to the product of the lengths of the lists in the matches.
 > evalBranch env (match : matches) =
 >   [ env'' | env' <- evalMatch env match
 >           , env'' <- evalBranch env' matches ]
+
+> lenBranch :: Env -> [Match] -> Nat'
+> lenBranch _env [] = Nat 1
+> lenBranch env (match : matches) =
+>   nMul (lenMatch env match) (lenBranch env matches)
 
 The head expression of the comprehension can refer to any variable
 bound in any of the parallel branches. So to evaluate the
@@ -418,7 +429,7 @@ list is equal to the minimum length over all parallel branches.
 >          -> Expr        -- ^ Head expression of the comprehension
 >          -> [[Match]]   -- ^ List of parallel comprehension branches
 >          -> Value
-> evalComp env expr branches = VList [ evalExpr e expr | e <- envs ]
+> evalComp env expr branches = VList len [ evalExpr e expr | e <- envs ]
 >   where
 >     -- Generate a new environment for each iteration of each
 >     -- parallel branch.
@@ -430,6 +441,9 @@ list is equal to the minimum length over all parallel branches.
 >     -- truncated to the length of the shortest branch.
 >     envs :: [Env]
 >     envs = foldr1 (zipWith mappend) benvs
+>
+>     len :: Nat'
+>     len = foldr1 nMin (map (lenBranch env) branches)
 
 
 Declarations
@@ -545,45 +559,47 @@ Cryptol primitives fall into several groups:
 >   , ("<$"         , binary signedLessThan)
 >
 >   -- Sequences:
->   , ("#"          , VNumPoly $ \_front ->
->                     VNumPoly $ \_back  ->
+>   , ("#"          , VNumPoly $ \front ->
+>                     VNumPoly $ \back  ->
 >                     VPoly $ \_elty  ->
 >                     VFun $ \l ->
 >                     VFun $ \r ->
->                     VList (fromVList l ++ fromVList r))
+>                     VList (nAdd front back) (fromVList l ++ fromVList r))
 >
->   , ("join"       , VNumPoly $ \_parts ->
+>   , ("join"       , VNumPoly $ \parts ->
 >                     VNumPoly $ \each  ->
 >                     VPoly $ \_a ->
 >                     VFun $ \xss ->
 >                       case each of
 >                         -- special case when the inner sequences are of length 0
->                         Nat 0 -> VList []
->                         _ -> VList (concat (map fromVList (fromVList xss))))
+>                         Nat 0 -> VList (Nat 0) []
+>                         _ -> VList (nMul parts each)
+>                              (concat (map fromVList (fromVList xss))))
 >
 >   , ("split"      , VNumPoly $ \parts ->
 >                     vFinPoly $ \each  ->
 >                     VPoly $ \_a ->
 >                     VFun $ \val ->
->                     VList (splitV parts each (fromVList val)))
+>                     VList parts (splitV parts each (fromVList val)))
 >
 >   , ("splitAt"    , vFinPoly $ \front ->
->                     VNumPoly $ \_back ->
+>                     VNumPoly $ \back ->
 >                     VPoly $ \_a ->
 >                     VFun $ \v ->
 >                     let (xs, ys) = genericSplitAt front (fromVList v)
->                     in VTuple [VList xs, VList ys])
+>                     in VTuple [VList (Nat front) xs, VList back ys])
 >
->   , ("reverse"    , VNumPoly $ \_a ->
->                     VPoly $ \_b ->
+>   , ("reverse"    , VNumPoly $ \n ->
+>                     VPoly $ \_a ->
 >                     VFun $ \v ->
->                     VList (reverse (fromVList v)))
+>                     VList n (reverse (fromVList v)))
 >
->   , ("transpose"  , VNumPoly $ \_a ->
->                     VNumPoly $ \b ->
->                     VPoly $ \_c ->
+>   , ("transpose"  , VNumPoly $ \rows ->
+>                     VNumPoly $ \cols ->
+>                     VPoly $ \_a ->
 >                     VFun $ \v ->
->                     VList (map VList (transposeV b (map fromVList (fromVList v)))))
+>                     VList cols
+>                     (map (VList rows) (transposeV cols (map fromVList (fromVList v)))))
 >
 >   -- Shifting:
 >   , ("<<"         , shiftV shiftLV)
@@ -603,13 +619,14 @@ Cryptol primitives fall into several groups:
 >                     vFinPoly $ \next  ->
 >                     vFinPoly $ \bits  ->
 >                     vFinPoly $ \len   ->
->                     VList (map (vWordValue bits) (genericTake len [first, next ..])))
+>                     VList (Nat len)
+>                     (map (vWordValue bits) (genericTake len [first, next ..])))
 >
 >   , ("fromTo"     , vFinPoly $ \first ->
 >                     vFinPoly $ \lst   ->
 >                     VPoly    $ \ty  ->
 >                     let f i = arithNullary (Right i) ty
->                     in VList (map f [first .. lst]))
+>                     in VList (Nat (1 + lst - first)) (map f [first .. lst]))
 >
 >   , ("fromThenTo" , vFinPoly $ \first ->
 >                     vFinPoly $ \next  ->
@@ -617,18 +634,18 @@ Cryptol primitives fall into several groups:
 >                     VPoly    $ \ty    ->
 >                     vFinPoly $ \len   ->
 >                     let f i = arithNullary (Right i) ty
->                     in VList (map f (genericTake len [first, next ..])))
+>                     in VList (Nat len) (map f (genericTake len [first, next ..])))
 >
 >   , ("infFrom"    , VPoly $ \ty ->
 >                     VFun $ \first ->
 >                     let f i = arithUnary (\x -> Right (x + i)) ty first
->                     in VList (map f [0 ..]))
+>                     in VList Inf (map f [0 ..]))
 >
 >   , ("infFromThen", VPoly $ \ty ->
 >                     VFun $ \first ->
 >                     VFun $ \next ->
 >                     let f i = arithBinary (\x y -> Right (x + (y - x) * i)) ty first next
->                     in VList (map f [0 ..]))
+>                     in VList Inf (map f [0 ..]))
 >
 >   -- Miscellaneous:
 >   , ("error"      , VPoly $ \a ->
@@ -689,7 +706,7 @@ the exception in all bit positions.
 
 > -- | Convert an integer to big-endian binary value of the specified width.
 > vWordValue :: Integer -> Integer -> Value
-> vWordValue w x = VList (map (VBit . Right) (integerToBits w x))
+> vWordValue w x = VList (Nat w) (map (VBit . Right) (integerToBits w x))
 >
 > -- | Convert an integer to a big-endian format of the specified width.
 > integerToBits :: Integer -> Integer -> [Bool]
@@ -698,7 +715,7 @@ the exception in all bit positions.
 >         go bs n a = go (odd a : bs) (n - 1) $! (a `div` 2)
 >
 > vWord :: Integer -> Either EvalError Integer -> Value
-> vWord w e = VList [ VBit (fmap (test i) e) | i <- [w-1, w-2 .. 0] ]
+> vWord w e = VList (Nat w) [ VBit (fmap (test i) e) | i <- [w-1, w-2 .. 0] ]
 >   where test i x = testBit x (fromInteger i)
 
 Logic
@@ -717,8 +734,8 @@ at the same positions.
 >     go TVBit          = VBit b
 >     go TVInteger      = VInteger (fmap (\c -> if c then -1 else 0) b)
 >     go (TVIntMod _)   = VInteger (fmap (const 0) b)
->     go (TVSeq n ety)  = VList (genericReplicate n (go ety))
->     go (TVStream ety) = VList (repeat (go ety))
+>     go (TVSeq n ety)  = VList (Nat n) (genericReplicate n (go ety))
+>     go (TVStream ety) = VList Inf (repeat (go ety))
 >     go (TVTuple tys)  = VTuple (map go tys)
 >     go (TVRec fields) = VRecord [ (f, go fty) | (f, fty) <- fields ]
 >     go (TVFun _ bty)  = VFun (\_ -> go bty)
@@ -732,8 +749,8 @@ at the same positions.
 >         TVBit        -> VBit (fmap op (fromVBit val))
 >         TVInteger    -> evalPanic "logicUnary" ["Integer not in class Logic"]
 >         TVIntMod _   -> evalPanic "logicUnary" ["Z not in class Logic"]
->         TVSeq _w ety -> VList (map (go ety) (fromVList val))
->         TVStream ety -> VList (map (go ety) (fromVList val))
+>         TVSeq w ety  -> VList (Nat w) (map (go ety) (fromVList val))
+>         TVStream ety -> VList Inf (map (go ety) (fromVList val))
 >         TVTuple etys -> VTuple (zipWith go etys (fromVTuple val))
 >         TVRec fields -> VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- fields ]
 >         TVFun _ bty  -> VFun (\v -> go bty (fromVFun val v))
@@ -747,8 +764,8 @@ at the same positions.
 >         TVBit        -> VBit (liftA2 op (fromVBit l) (fromVBit r))
 >         TVInteger    -> evalPanic "logicBinary" ["Integer not in class Logic"]
 >         TVIntMod _   -> evalPanic "logicBinary" ["Z not in class Logic"]
->         TVSeq _w ety -> VList (zipWith (go ety) (fromVList l) (fromVList r))
->         TVStream ety -> VList (zipWith (go ety) (fromVList l) (fromVList r))
+>         TVSeq w ety  -> VList (Nat w) (zipWith (go ety) (fromVList l) (fromVList r))
+>         TVStream ety -> VList Inf (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVTuple etys -> VTuple (zipWith3 go etys (fromVTuple l) (fromVTuple r))
 >         TVRec fields -> VRecord [ (f, go fty (lookupRecord f l) (lookupRecord f r))
 >                                 | (f, fty) <- fields ]
@@ -781,9 +798,9 @@ up of non-empty finite bitvectors.
 >           VInteger (flip mod n <$> i)
 >         TVSeq w a
 >           | isTBit a  -> vWord w i
->           | otherwise -> VList (genericReplicate w (go a))
+>           | otherwise -> VList (Nat w) (genericReplicate w (go a))
 >         TVStream a ->
->           VList (repeat (go a))
+>           VList Inf (repeat (go a))
 >         TVFun _ ety ->
 >           VFun (const (go ety))
 >         TVTuple tys ->
@@ -812,9 +829,9 @@ up of non-empty finite bitvectors.
 >             Right i -> flip mod n <$> op i
 >         TVSeq w a
 >           | isTBit a  -> vWord w (op =<< fromVWord val)
->           | otherwise -> VList (map (go a) (fromVList val))
+>           | otherwise -> VList (Nat w) (map (go a) (fromVList val))
 >         TVStream a ->
->           VList (map (go a) (fromVList val))
+>           VList Inf (map (go a) (fromVList val))
 >         TVFun _ ety ->
 >           VFun (\x -> go ety (fromVFun val x))
 >         TVTuple tys ->
@@ -864,9 +881,9 @@ up of non-empty finite bitvectors.
 >                              case fromWord r of
 >                                Left e -> Left e
 >                                Right j -> op i j
->           | otherwise -> VList (zipWith (go a) (fromVList l) (fromVList r))
+>           | otherwise -> VList (Nat w) (zipWith (go a) (fromVList l) (fromVList r))
 >         TVStream a ->
->           VList (zipWith (go a) (fromVList l) (fromVList r))
+>           VList Inf (zipWith (go a) (fromVList l) (fromVList r))
 >         TVFun _ ety ->
 >           VFun (\x -> go ety (fromVFun l x) (fromVFun r x))
 >         TVTuple tys ->
@@ -994,8 +1011,8 @@ Sequences
 > splitV w k xs =
 >   case w of
 >     Nat 0 -> []
->     Nat n -> VList ys : splitV (Nat (n - 1)) k zs
->     Inf   -> VList ys : splitV Inf k zs
+>     Nat n -> VList (Nat k) ys : splitV (Nat (n - 1)) k zs
+>     Inf   -> VList (Nat k) ys : splitV Inf k zs
 >   where
 >     (ys, zs) = genericSplitAt k xs
 >
@@ -1026,15 +1043,15 @@ amount, but as lazy as possible in the list values.
 
 > shiftV :: (Nat' -> Value -> [Value] -> Integer -> [Value]) -> Value
 > shiftV op =
->   VNumPoly $ \a ->
->   VNumPoly $ \_b ->
->   VPoly $ \c ->
+>   VNumPoly $ \n ->
+>   VNumPoly $ \_ix ->
+>   VPoly $ \a ->
 >   VFun $ \v ->
 >   VFun $ \x ->
->   copyByTValue (tvSeq a c) $
+>   copyByTValue (tvSeq n a) $
 >   case fromVWord x of
->     Left e -> logicNullary (Left e) (tvSeq a c)
->     Right i -> VList (op a (logicNullary (Right False) c) (fromVList v) i)
+>     Left e -> logicNullary (Left e) (tvSeq n a)
+>     Right i -> VList n (op n (logicNullary (Right False) a) (fromVList v) i)
 >
 > shiftLV :: Nat' -> Value -> [Value] -> Integer -> [Value]
 > shiftLV w z vs i =
@@ -1050,15 +1067,15 @@ amount, but as lazy as possible in the list values.
 >
 > rotateV :: (Integer -> [Value] -> Integer -> [Value]) -> Value
 > rotateV op =
->   vFinPoly $ \a ->
->   VNumPoly $ \_b ->
->   VPoly $ \c ->
+>   vFinPoly $ \n ->
+>   VNumPoly $ \_ix ->
+>   VPoly $ \a ->
 >   VFun $ \v ->
 >   VFun $ \x ->
->   copyByTValue (TVSeq a c) $
+>   copyByTValue (TVSeq n a) $
 >   case fromVWord x of
->     Left e -> VList (genericReplicate a (logicNullary (Left e) c))
->     Right i -> VList (op a (fromVList v) i)
+>     Left e -> VList (Nat n) (genericReplicate n (logicNullary (Left e) a))
+>     Right i -> VList (Nat n) (op n (fromVList v) i)
 >
 > rotateLV :: Integer -> [Value] -> Integer -> [Value]
 > rotateLV 0 vs _ = vs
@@ -1072,18 +1089,18 @@ amount, but as lazy as possible in the list values.
 >
 > signedShiftRV :: Value
 > signedShiftRV =
->   VNumPoly $ \a ->
->   VNumPoly $ \_b ->
+>   VNumPoly $ \n ->
+>   VNumPoly $ \_ix ->
 >   VFun $ \v ->
 >   VFun $ \x ->
->   copyByTValue (tvSeq a TVBit) $
+>   copyByTValue (tvSeq n TVBit) $
 >   case fromVWord x of
->     Left e -> logicNullary (Left e) (tvSeq a TVBit)
->     Right i -> VList $
+>     Left e -> logicNullary (Left e) (tvSeq n TVBit)
+>     Right i -> VList n $
 >       let vs = fromVList v
 >           z = head vs in
->       case a of
->         Nat n -> genericReplicate (min n i) z ++ genericTake (n - min n i) vs
+>       case n of
+>         Nat m -> genericReplicate (min m i) z ++ genericTake (m - min m i) vs
 >         Inf   -> genericReplicate i z ++ vs
 
 
@@ -1132,7 +1149,7 @@ length of the list produces a run-time error.
 >   case fromVWord idx of
 >     Left e -> logicNullary (Left e) (tvSeq len eltTy)
 >     Right i
->       | Nat i < len -> VList (op len (fromVList xs) i val)
+>       | Nat i < len -> VList len (op len (fromVList xs) i val)
 >       | otherwise   -> logicNullary (Left (InvalidIndex i)) (tvSeq len eltTy)
 >
 > updateFront :: Nat' -> [Value] -> Integer -> Value -> [Value]
@@ -1167,7 +1184,7 @@ Pretty Printing
 >   case val of
 >     VBit b     -> text (either show show b)
 >     VInteger i -> text (either show show i)
->     VList vs   -> brackets (fsep (punctuate comma (map (ppValue opts) vs)))
+>     VList _ vs -> brackets (fsep (punctuate comma (map (ppValue opts) vs)))
 >     VTuple vs  -> parens (sep (punctuate comma (map (ppValue opts) vs)))
 >     VRecord fs -> braces (sep (punctuate comma (map ppField fs)))
 >       where ppField (f,r) = pp f <+> char '=' <+> ppValue opts r
