@@ -412,7 +412,7 @@ bound in any of the parallel branches. So to evaluate the
 comprehension, we zip and merge together the lists of extended
 environments from each branch. The head expression is then evaluated
 separately in each merged environment. The length of the resulting
-list is equal to the mininum length over all parallel branches.
+list is equal to the minimum length over all parallel branches.
 
 > evalComp :: Env         -- ^ Starting evaluation environment
 >          -> Expr        -- ^ Head expression of the comprehension
