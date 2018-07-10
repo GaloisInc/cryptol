@@ -594,9 +594,7 @@ Cryptol primitives fall into several groups:
 >
 >   -- Indexing:
 >   , ("@"          , indexPrimOne  indexFront)
->   , ("@@"         , indexPrimMany indexFront)
 >   , ("!"          , indexPrimOne  indexBack)
->   , ("!!"         , indexPrimMany indexBack)
 >   , ("update"     , updatePrim updateFront)
 >   , ("updateEnd"  , updatePrim updateBack)
 >
@@ -1108,21 +1106,6 @@ length of the list produces a run-time error.
 >   case fromVWord r of
 >     Left e -> logicNullary (Left e) a
 >     Right i -> op n a (fromVList l) i
->
-> -- | Indexing operations that return many elements.
-> indexPrimMany :: (Nat' -> TValue -> [Value] -> Integer -> Value) -> Value
-> indexPrimMany op =
->   VNumPoly $ \n ->
->   VPoly    $ \a ->
->   VNumPoly $ \_m ->
->   VNumPoly $ \_w ->
->   VFun $ \l ->
->   VFun $ \r ->
->   VList [ copyByTValue a $
->           case fromVWord y of
->              Left e -> logicNullary (Left e) a
->              Right i -> op n a xs i
->         | let xs = fromVList l, y <- fromVList r ]
 >
 > indexFront :: Nat' -> TValue -> [Value] -> Integer -> Value
 > indexFront w a vs ix =
