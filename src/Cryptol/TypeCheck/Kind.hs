@@ -384,6 +384,7 @@ checkProp prop =
   case prop of
     P.CFin t1        -> tcon (PC PFin)           [t1]    (Just KProp)
     P.CEqual t1 t2   -> tcon (PC PEqual)         [t1,t2] (Just KProp)
+    P.CNeq t1 t2     -> tcon (PC PNeq)           [t1,t2] (Just KProp)
     P.CGeq t1 t2     -> tcon (PC PGeq)           [t1,t2] (Just KProp)
     P.CZero t1       -> tcon (PC PZero)          [t1]    (Just KProp)
     P.CLogic t1      -> tcon (PC PLogic)         [t1]    (Just KProp)

@@ -350,6 +350,7 @@ tconNames  = Map.fromList
 
 data Prop n   = CFin (Type n)             -- ^ @ fin x   @
               | CEqual (Type n) (Type n)  -- ^ @ x == 10 @
+              | CNeq (Type n) (Type n)    -- ^ @ x != 10 @
               | CGeq (Type n) (Type n)    -- ^ @ x >= 10 @
               | CZero (Type n)            -- ^ @ Zero a  @
               | CLogic (Type n)           -- ^ @ Logic a @
@@ -825,6 +826,7 @@ instance PPName name => PP (Prop name) where
       CSignedCmp t   -> text "SignedCmp" <+> ppPrec 4 t
       CLiteral t1 t2 -> text "Literal" <+> ppPrec 4 t1 <+> ppPrec 4 t2
       CEqual t1 t2   -> ppPrec 2 t1 <+> text "==" <+> ppPrec 2 t2
+      CNeq t1 t2     -> ppPrec 2 t1 <+> text "!=" <+> ppPrec 2 t2
       CGeq t1 t2     -> ppPrec 2 t1 <+> text ">=" <+> ppPrec 2 t2
       CUser f ts     -> optParens (n > 2)
                       $ ppPrefixName f <+> fsep (map (ppPrec 4) ts)
@@ -991,6 +993,7 @@ instance NoPos (Prop name) where
   noPos prop =
     case prop of
       CEqual  x y   -> CEqual  (noPos x) (noPos y)
+      CNeq x y      -> CNeq (noPos x) (noPos y)
       CGeq x y      -> CGeq (noPos x) (noPos y)
       CFin x        -> CFin (noPos x)
       CZero x       -> CZero  (noPos x)

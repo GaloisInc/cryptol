@@ -879,7 +879,7 @@ instance PP (WithNames Type) where
       TCon (PC pc) ts ->
         case (pc,ts) of
           (PEqual, [t1,t2])   -> go 0 t1 <+> text "==" <+> go 0 t2
-          (PNeq ,  [t1,t2])   -> go 0 t1 <+> text "/=" <+> go 0 t2
+          (PNeq ,  [t1,t2])   -> go 0 t1 <+> text "!=" <+> go 0 t2
           (PGeq,  [t1,t2])    -> go 0 t1 <+> text ">=" <+> go 0 t2
           (PFin,  [t1])       -> text "fin" <+> (go 4 t1)
           (PHas x, [t1,t2])   -> ppSelector x <+> text "of"

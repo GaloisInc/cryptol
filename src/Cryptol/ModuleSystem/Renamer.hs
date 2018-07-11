@@ -561,6 +561,7 @@ instance Rename Prop where
   rename p      = case p of
     CFin t        -> CFin       <$> rename t
     CEqual l r    -> CEqual     <$> rename l <*> rename r
+    CNeq l r      -> CNeq       <$> rename l <*> rename r
     CGeq l r      -> CGeq       <$> rename l <*> rename r
     CZero t       -> CZero      <$> rename t
     CLogic t      -> CLogic     <$> rename t
@@ -587,6 +588,7 @@ translateProp ty = go ty
       | i == packIdent "==" -> CEqual <$> rename l <*> rename r
       | i == packIdent ">=" -> CGeq   <$> rename l <*> rename r
       | i == packIdent "<=" -> CGeq   <$> rename r <*> rename l
+      | i == packIdent "!=" -> CNeq   <$> rename l <*> rename r
       where
       i = getIdent n
 
@@ -676,7 +678,7 @@ resolveTypeFixity  = go
 type TOp = Type PName -> Type PName -> Type PName
 
 infixProps :: [PName]
-infixProps  = map (mkUnqual . packInfix) [ "==", ">=", "<=" ]
+infixProps  = map (mkUnqual . packInfix) [ "==", ">=", "<=", "!=" ]
 
 mkTInfix :: Type PName -> (TOp,Fixity) -> Type PName -> RenameM (Type PName)
 
