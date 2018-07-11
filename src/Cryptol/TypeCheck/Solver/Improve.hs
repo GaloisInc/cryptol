@@ -56,7 +56,7 @@ improveLit impSkol prop =
 
 
 
--- | Improvements from euqality constraints.
+-- | Improvements from equality constraints.
 -- Invariant:
 -- the substitions should be already applied to the new sub-goals, if any.
 improveEq :: Bool -> Ctxt -> Prop -> Match (Subst,[Prop])
