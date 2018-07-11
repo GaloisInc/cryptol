@@ -1,0 +1,5 @@
+f : {n} (fin n, 3 >= width n) => [lengthFromThenTo 1 n 7][3]
+f = [1, n .. 7]
+
+g : {n} (fin n, 3 >= width n) => [_][3]
+g = [1, n .. 7]

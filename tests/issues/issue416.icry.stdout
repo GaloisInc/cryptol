@@ -1,0 +1,26 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at ./issue416.cry:2:1--2:16:
+  Failed to validate user-specified signature.
+    In the definition of 'Main::f', at ./issue416.cry:2:1--2:2:
+      for any type n
+        fin n
+        3 >= width n
+      =>
+      1 != n
+        arising from
+        use of partial type function lengthFromThenTo
+        at ./issue416.cry:1:5--1:61
+[error] at ./issue416.cry:5:1--5:16:
+  Failed to validate user-specified signature.
+    In the definition of 'Main::g', at ./issue416.cry:5:1--5:2:
+      for any type n
+        fin n
+        3 >= width n
+      =>
+      1 != n
+        arising from
+        use of finite enumeration
+        at ./issue416.cry:5:5--5:16

@@ -456,6 +456,7 @@ updatesEnd xs0 idxs vals = xss!0
 primitive fromThen : {first, next, bits, len}
                      ( fin first, fin next, fin bits
                      , bits >= width first, bits >= width next
+                     , first != next
                      , lengthFromThen first next bits == len) => [len][bits]
 
 /**
@@ -475,6 +476,7 @@ primitive fromTo : {first, last, a} (fin last, last >= first, Literal last a) =>
 primitive fromThenTo : {first, next, last, a, len}
                        ( fin first, fin next, fin last
                        , Literal first a, Literal next a, Literal last a
+                       , first != next
                        , lengthFromThenTo first next last == len) => [len]a
 
 /**

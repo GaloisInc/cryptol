@@ -67,12 +67,12 @@ Symbols
     fromInteger : {a} (Arith a) => Integer -> a
     fromThen :
       {first, next, bits, len} (fin first, fin next, fin bits,
-                                bits >= width first, bits >= width next,
+                                bits >= width first, bits >= width next, first != next,
                                 lengthFromThen first next bits == len) =>
         [len][bits]
     fromThenTo :
       {first, next, last, a, len} (fin first, fin next, fin last,
-                                   Literal first a, Literal next a, Literal last a,
+                                   Literal first a, Literal next a, Literal last a, first != next,
                                    lengthFromThenTo first next last == len) =>
         [len]a
     fromTo :
