@@ -232,7 +232,8 @@ capture, because we rely on the 'Subst' datatype invariant to ensure
 that variable scopes will be properly preserved. -}
 
 instance TVars Schema where
-  apSubst su (Forall xs ps t) = Forall xs (apSubst su ps) (apSubst su t)
+  apSubst su (Forall xs ps t) = Forall xs (concatMap pSplitAnd (apSubst su ps))
+                                          (apSubst su t)
 
 instance TVars Expr where
   apSubst su = go
@@ -243,7 +244,13 @@ instance TVars Expr where
         EAbs x t e1   -> EAbs x (apSubst su t) (go e1)
         ETAbs a e     -> ETAbs a (go e)
         ETApp e t     -> ETApp (go e) (apSubst su t)
-        EProofAbs p e -> EProofAbs (apSubst su p) (go e)
+        EProofAbs p e -> EProofAbs hmm (go e)
+          where hmm = case pSplitAnd (apSubst su p) of
+                        [p1] -> p1
+                        _  -> panic "apSubst@EProofAbs"
+                                [ "Predicate split or disappeared after"
+                                , "we applied a substitution." ]
+
         EProofApp e   -> EProofApp (go e)
 
         EVar {}       -> expr

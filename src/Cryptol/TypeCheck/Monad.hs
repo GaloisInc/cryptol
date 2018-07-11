@@ -343,7 +343,8 @@ newGoals src ps = addGoals =<< mapM (newGoal src) ps
 The substitution IS applied to them. -}
 getGoals :: InferM [Goal]
 getGoals =
-  do goals <- applySubst =<< IM (sets $ \s -> (iCts s, s { iCts = emptyGoals }))
+  do goals <- applySubst =<<
+                  IM (sets $ \s -> (iCts s, s { iCts = emptyGoals }))
      return (fromGoals goals)
 
 -- | Add a bunch of goals that need solving.
@@ -503,6 +504,17 @@ applySubst :: TVars t => t -> InferM t
 applySubst t =
   do su <- getSubst
      return (apSubst su t)
+
+applySubstPreds :: [Prop] -> InferM [Prop]
+applySubstPreds ps =
+  do ps1 <- applySubst ps
+     return (concatMap pSplitAnd ps1)
+
+
+applySubstGoals :: [Goal] -> InferM [Goal]
+applySubstGoals gs =
+  do gs1 <- applySubst gs
+     return [ g { goal = p } | g <- gs1, p <- pSplitAnd (goal g) ]
 
 -- | Get the substitution that we have accumulated so far.
 getSubst :: InferM Subst

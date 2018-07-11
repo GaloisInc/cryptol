@@ -695,7 +695,7 @@ generalize bs0 gs0 =
   do {- First, we apply the accumulating substitution to the goals
         and the inferred types, to ensure that we have the most up
         to date information. -}
-     gs <- forM gs0 $ \g -> applySubst g
+     gs <- applySubstGoals gs0
      bs <- forM bs0 $ \b -> do s <- applySubst (dSignature b)
                                return b { dSignature = s }
 
@@ -801,7 +801,7 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
                    addGoals validSchema
                    () <- simplifyAllConstraints  -- XXX: using `asmps` also?
                    return e1
-     cs <- applySubst cs0
+     cs <- applySubstGoals cs0
 
      let findKeep vs keep todo =
           let stays (_,cvs)    = not $ Set.null $ Set.intersection vs cvs
@@ -816,12 +816,12 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
 
      addGoals leave
 
-     asmps1 <- applySubst asmps0
+     asmps1 <- applySubstPreds asmps0
 
      su <- proveImplication (Just (thing (P.bName b))) as asmps1 stay
      extendSubst su
 
-     let asmps  = apSubst su asmps1
+     let asmps  = concatMap pSplitAnd (apSubst su asmps1)
      t      <- applySubst t0
      e2     <- applySubst e1
 
