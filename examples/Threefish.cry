@@ -1,0 +1,208 @@
+module Threefish where
+
+// This implementation is based on Skein version 1.3:
+// http://www.skein-hash.info/sites/default/files/skein1.3.pdf
+
+//////////////////////////////////////////////////////////////////////
+// Section 3.2: Bit and Byte Order
+
+// "To convert from a sequence of bytes to an integer, we use the
+// least-significant-byte-first convention."
+
+ToInt : {n} (fin n) => [n][8] -> [8 * n]
+ToInt bytes = join (reverse bytes)
+
+ToBytes : {n} (fin n) => [8 * n] -> [n][8]
+ToBytes bits = reverse (split`{each = 8} bits)
+
+BytesToWords : {n} (fin n) => [8 * n][8] -> [n][64]
+BytesToWords bytes = [ ToInt bs | bs <- split`{each = 8} bytes ]
+
+WordsToBytes : {n} (fin n) => [n][64] -> [8 * n][8]
+WordsToBytes words = join [ ToBytes w | w <- words ]
+
+//////////////////////////////////////////////////////////////////////
+// Section 3.3: A Full Specification of Threefish
+
+enc256 = encrypt`{Nr=72} R4 pi4
+enc512 = encrypt`{Nr=72} R8 pi8
+enc1024 = encrypt`{Nr=80} R16 pi16
+
+encrypt :
+  {Nr, Nw} (fin Nr, fin Nw, Nw >= 3, Nr % 4 == 0, Nw % 2 == 0) =>
+  [8][Nw/2]Rot ->
+  ([Nw][64] -> [Nw][64]) ->
+  [8 * Nw][8] -> [16][8] -> [8 * Nw][8] -> [8 * Nw][8]
+encrypt R pi key tweak plaintext = WordsToBytes (encrypt'`{Nr=Nr} R pi K T P)
+  where
+    K = BytesToWords key
+    T = BytesToWords tweak
+    P = BytesToWords plaintext
+
+// Encryption in terms of 64-bit words.
+encrypt' :
+  {Nr, Nw} (fin Nr, fin Nw, Nw >= 3, Nr % 4 == 0, Nw % 2 == 0) =>
+  [8][Nw/2]Rot -> ([Nw][64] -> [Nw][64]) ->
+  [Nw][64] -> [2][64] -> [Nw][64] -> [Nw][64]
+encrypt' R pi key tweak plaintext = last v + last ks
+  where
+    ks : [Nr/4 + 1][Nw][64]
+    ks = KeySchedule key tweak
+
+    // Add a subkey from the key schedule once every four rounds.
+    e : [Nr][Nw][64]
+    e = [ vd + kd
+        | vd <- v
+        | subkey <- take`{Nr/4} ks, kd <- [subkey, zero, zero, zero] ]
+
+    // Cycle over the eight lists of rotation amounts for the mixing function.
+    f : [Nr][Nw][64]
+    f = [ mixing Rd ed | Rd <- join (repeat`{inf} R) | ed <- e ]
+
+    // Permute the words every round.
+    v : [Nr+1][Nw][64]
+    v = [plaintext] # [ pi fd | fd <- f ]
+
+// One round of mixing.
+mixing : {w} (fin w) => [w]Rot -> [2 * w][64] -> [2 * w][64]
+mixing Rd e = join [ MIX R x | R <- Rd | x <- split`{each=2} e ]
+
+// Table 3: Values for the word permutation π(i).
+
+pi4 : [4][64] -> [4][64]
+pi4 xs = xs @@ [0, 3, 2, 1:[2]]
+
+pi8 : [8][64] -> [8][64]
+pi8 xs = xs @@ [2, 1, 4, 7, 6, 5, 0, 3:[3]]
+
+pi16 : [16][64] -> [16][64]
+pi16 xs = xs @@ [0, 9, 2, 13, 6, 11, 4, 15, 10, 7, 12, 3, 14, 5, 8, 1:[4]]
+
+//////////////////////////////////////////////////////////////////////
+// Section 3.3.1: MIX Functions
+
+// Rotation amount for a 64-bit word
+type Rot = [6]
+
+MIX : Rot -> [2][64] -> [2][64]
+MIX R [x0, x1] = [y0, y1]
+  where
+    y0 = x0 + x1
+    y1 = (x1 <<< R) ^ y0
+
+// Table 4: Rotation constants
+
+R4 : [8][2]Rot
+R4 =
+  [[14, 16],
+   [52, 57],
+   [23, 40],
+   [ 5, 37],
+   [25, 33],
+   [46, 12],
+   [58, 22],
+   [32, 32]]
+
+R8 : [8][4]Rot
+R8 =
+  [[46, 36, 19, 37],
+   [33, 27, 14, 42],
+   [17, 49, 36, 39],
+   [44,  9, 54, 56],
+   [39, 30, 34, 24],
+   [13, 50, 10, 17],
+   [25, 29, 39, 43],
+   [ 8, 35, 56, 22]]
+
+R16 : [8][8]Rot
+R16 =
+  [[24, 13,  8, 47,  8, 17, 22, 37],
+   [38, 19, 10, 55, 49, 18, 23, 52],
+   [33,  4, 51, 13, 34, 41, 59, 17],
+   [ 5, 20, 48, 41, 47, 28, 16, 25],
+   [41,  9, 37, 31, 12, 47, 44, 30],
+   [16, 34, 56, 51,  4, 53, 42, 41],
+   [31, 44, 47, 46, 19, 42, 44, 25],
+   [ 9, 48, 35, 52, 23, 31, 37, 20]]
+
+
+//////////////////////////////////////////////////////////////////////
+// Section 3.3.2: The Key Schedule
+
+// "The key schedule turns the key and tweak into a sequence of Nr/4+1
+// subkeys, each of which consists of Nw words."
+
+KeySchedule :
+  {Nw, r} (fin Nw, fin r, Nw >= 3) =>
+  [Nw][64] -> [2][64] -> [r][Nw][64]
+KeySchedule k [t0,t1] = take`{r} [ subkey s | s <- [0...] ]
+  where
+    k' = k # [foldl (^) C240 k]
+    t' = [t0, t1, t0 ^ t1]
+
+    subkey : [64] -> [Nw][64]
+    subkey s = take`{Nw} (k' <<< s) + tweak s
+
+    tweak : [64] -> [Nw][64]
+    tweak s = zero # take`{2} (t' <<< s) # [s]
+
+C240 : [64]
+C240 = 0x1BD11BDAA9FC1A22
+
+
+//////////////////////////////////////////////////////////////////////
+// Test Vectors
+
+// https://sites.google.com/site/bartoszmalkowski/threefish
+
+property test256a =
+  enc256 zero zero zero ==
+  split 0x84da2a1f8beaee947066ae3e3103f1ad536db1f4a1192495116b9f3ce6133fd8
+
+property test256b =
+  enc256
+    (split 0x101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f)
+    (split 0x000102030405060708090a0b0c0d0e0f)
+    (split 0xFFFEFDFCFBFAF9F8F7F6F5F4F3F2F1F0EFEEEDECEBEAE9E8E7E6E5E4E3E2E1E0)
+  ==
+  split 0xe0d091ff0eea8fdfc98192e62ed80ad59d865d08588df476657056b5955e97df
+
+property test512a =
+  enc512 zero zero zero ==
+  split 0xb1a2bbc6ef6025bc40eb3822161f36e375d1bb0aee3186fbd19e47c5d479947b #
+  split 0x7bc2f8586e35f0cff7e7f03084b0b7b1f1ab3961a580a3e97eb41ea14a6d7bbe
+
+property test512b =
+  enc512
+    (split 0x101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f #
+     split 0x303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f)
+    (split 0x000102030405060708090a0b0c0d0e0f)
+    (split 0xfffefdfcfbfaf9f8f7f6f5f4f3f2f1f0efeeedecebeae9e8e7e6e5e4e3e2e1e0 #
+     split 0xdfdedddcdbdad9d8d7d6d5d4d3d2d1d0cfcecdcccbcac9c8c7c6c5c4c3c2c1c0)
+  ==
+  split 0xe304439626d45a2cb401cad8d636249a6338330eb06d45dd8b36b90e97254779 #
+  split 0x272a0a8d99463504784420ea18c9a725af11dffea10162348927673d5c1caf3d
+
+property test1024a =
+  enc1024 zero zero zero ==
+  split 0xf05c3d0a3d05b304f785ddc7d1e036015c8aa76e2f217b06c6e1544c0bc1a90d #
+  split 0xf0accb9473c24e0fd54fea68057f43329cb454761d6df5cf7b2e9b3614fbd5a2 #
+  split 0x0b2e4760b40603540d82eabc5482c171c832afbe68406bc39500367a592943fa #
+  split 0x9a5b4a43286ca3c4cf46104b443143d560a4b230488311df4feef7e1dfe8391e
+
+property test1024b =
+  enc1024
+    (split 0x101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f #
+     split 0x303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f #
+     split 0x505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f #
+     split 0x707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f)
+    (split 0x000102030405060708090a0b0c0d0e0f)
+    (split 0xfffefdfcfbfaf9f8f7f6f5f4f3f2f1f0efeeedecebeae9e8e7e6e5e4e3e2e1e0 #
+     split 0xdfdedddcdbdad9d8d7d6d5d4d3d2d1d0cfcecdcccbcac9c8c7c6c5c4c3c2c1c0 #
+     split 0xbfbebdbcbbbab9b8b7b6b5b4b3b2b1b0afaeadacabaaa9a8a7a6a5a4a3a2a1a0 #
+     split 0x9f9e9d9c9b9a999897969594939291908f8e8d8c8b8a89888786858483828180)
+  ==
+  split 0xa6654ddbd73cc3b05dd777105aa849bce49372eaaffc5568d254771bab85531c #
+  split 0x94f780e7ffaae430d5d8af8c70eebbe1760f3b42b737a89cb363490d670314bd #
+  split 0x8aa41ee63c2e1f45fbd477922f8360b388d6125ea6c7af0ad7056d01796e90c8 #
+  split 0x3313f4150a5716b30ed5f569288ae974ce2b4347926fce57de44512177dd7cde
