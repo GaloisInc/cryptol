@@ -233,6 +233,7 @@ cmdArgument ct cursor@(l,_) = case ct of
   FilenameArg _ -> completeFilename cursor
   ShellArg _    -> completeFilename cursor
   OptionArg _   -> completeOption cursor
+  HelpArg     _ -> (completeExpr +++ completeType) cursor
   NoArg       _ -> return (l,[])
   FileExprArg _ -> completeExpr cursor
 
@@ -262,6 +263,15 @@ completeType (l,_) = do
   let n    = reverse (takeIdent l)
       vars = filter (n `isPrefixOf`) ns
   return (l,map (nameComp n) vars)
+
+-- | Complete a name for which we can show REPL help documentation.
+completeHelp :: CompletionFunc REPL
+completeHelp (l, _) = do
+  ns1 <- getExprNames
+  ns2 <- getTypeNames
+  let n    = reverse (takeIdent l)
+      vars = filter (n `isPrefixOf`) (ns1 ++ ns2)
+  return (l, map (nameComp n) vars)
 
 -- | Complete a name from the list of loaded modules.
 completeModName :: CompletionFunc REPL

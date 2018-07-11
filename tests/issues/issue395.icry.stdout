@@ -2,18 +2,18 @@ Loading module Cryptol
 (join (zero : [inf][0])) : [0]
 0x0
 True
-[]
+0x0
 (join (zero : [1000][0])) : [0]
 0x0
 True
-[]
+0x0
 Q.E.D.
 (join (zero : [inf][0][32])) : [0][32]
 []
 True
-[]
+0x0
 (join (zero : [1000][0][32])) : [0][32]
 []
 True
-[]
+0x0
 Q.E.D.

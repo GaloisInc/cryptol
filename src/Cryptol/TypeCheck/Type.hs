@@ -925,7 +925,7 @@ instance PP (WithNames TVar) where
       Nothing ->
         case tpFlav x of
           TPModParam n     -> ppPrefixName n
-          TPOther (Just n) -> pp n <> "`" <> int (tpUnique x)
+          TPOther (Just n) -> pp n <.> "`" <.> int (tpUnique x)
           _  -> pickTVarName (tpKind x) (tvarDesc (tpInfo x)) (tpUnique x)
 
   ppPrec _ (WithNames (TVFree x k _ d) _) =
@@ -1042,7 +1042,7 @@ instance PP TVarSource where
       TypeOfRecordField l -> "type of field" <+> quotes (pp l)
       TypeOfTupleField n  -> "type of" <+> ordinal n <+> "tuple field"
       TypeOfSeqElement    -> "type of sequence member"
-      LenOfSeq            -> "length of sequnce"
+      LenOfSeq            -> "length of sequence"
       TypeParamInstNamed f i -> "type argument" <+> quotes (pp i) <+>
                                           "of" <+> quotes (pp f)
       TypeParamInstPos   f i -> ordinal i <+> "type argument of" <+>
