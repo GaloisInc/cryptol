@@ -298,7 +298,8 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
             case gs2 of
               [] -> return (Right [], su)
               gs3 ->
-                do let free = Set.toList
+                do let free = filter isFreeTV
+                            $ Set.toList
                             $ Set.difference (fvs (map goal gs3)) varsInEnv
                    case defaultAndSimplify free gs3 of
                      (_,_,newSu,_)
