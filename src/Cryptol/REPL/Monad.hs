@@ -747,8 +747,8 @@ userOptions  = mkOptionMap
 checkBase :: Checker
 checkBase val = case val of
   EnvNum n
-    | n >= 2 && n <= 36 -> noWarns Nothing
-    | otherwise         -> noWarns $ Just "base must fall between 2 and 36"
+    | n `elem` [2,8,10,16] -> noWarns Nothing
+    | otherwise            -> noWarns $ Just "base must be 2, 8, 10, or 16"
   _                     -> noWarns $ Just "unable to parse a value for base"
 
 checkInfLength :: Checker

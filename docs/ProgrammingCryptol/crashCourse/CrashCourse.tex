@@ -119,7 +119,7 @@ use the command:\indSettingBase
 \begin{Verbatim}
   :set base=10
 \end{Verbatim}
-The most common values for this setting are 2 (binary), 8 (octal), 10
+The supported values for this setting are 2 (binary), 8 (octal), 10
 (decimal), and 16 (hexadecimal).  Conversely, we can \emph{write}
 numbers in these bases in Cryptol programs too:
 \begin{Verbatim}
@@ -128,15 +128,6 @@ numbers in these bases in Cryptol programs too:
   2014             // decimal
   0x7de            // hexadecimal
 \end{Verbatim}
-
-For printing values in arbitrary bases, Cryptol uses the notation {\tt
-  0<base>digits}, where base is the base value and the digits are the
-numeric value in that particular base.  E.g., the above value is equal
-to \texttt{0<7>5605} and \texttt{0<20>50e}.  One cannot input a value
-in a non-standard base.\footnote{Cryptol does not support the input of
-  numbers in arbitrary bases---the use of non-standard bases (i.e.,
-  beyond base 2, 8, 10, and 16) is vanishingly rare and thus not worth
-  the trouble in complicating the Cryptol parser.}
 
 \note{Decimal numbers pose a problem in a bit-precise language like
   Cryptol.  Numbers represented in a base that is a power of two
@@ -167,17 +158,10 @@ in a non-standard base.\footnote{Cryptol does not support the input of
     base=10}, and other base values. Also try writing numbers directly
   in different bases at the command line, such as {\tt 0o1237}.  Feel
   free to try other bases.  What is the hexadecimal version of the
-  octal number {\tt 0o7756677263570015}?  Observe that {\tt :base=}
-  can be set to anything between 2 and 36. Why does Cryptol stop at
-  36?
+  octal number {\tt 0o7756677263570015}?
 \end{Exercise}
 \begin{Answer}\ansref{ex:setBase}
 {\tt 0xfeedfacef00d}.
-Allowing base 1 would have resulted in unreadable output, and anything
-larger than 36 would have required Cryptol to use unicode for digits
-(and would have limited utility). As usual {\tt a} is 10, {\tt b} is
-11, \ldots z is 36. Remember that upper and lower case letters denote
-the same value, so {\tt a} and {\tt A} both represent 10.
 \end{Answer}
 
 \note{We will revisit the notion of numbers in
