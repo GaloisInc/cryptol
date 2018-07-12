@@ -937,9 +937,9 @@ pickTVarName k src uni =
   case src of
     TVFromModParam n       -> using n
     TVFromSignature n      -> using n
-    TypeWildCard           -> case k of
-                                KNum -> "n"
-                                _    -> "a"
+    TypeWildCard           -> mk $ case k of
+                                     KNum -> "n"
+                                     _    -> "a"
     TypeOfRecordField i    -> using i
     TypeOfTupleField n     -> mk ("tup_" ++ show n)
     TypeOfSeqElement       -> mk "a"
