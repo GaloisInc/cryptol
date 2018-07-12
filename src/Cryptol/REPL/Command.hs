@@ -884,26 +884,30 @@ setOptionCmd str
   describe k = do
     ev <- tryGetUser k
     case ev of
-      Just (EnvString s)   -> rPutStrLn (k ++ " = " ++ s)
-      Just (EnvProg p as)  -> rPutStrLn (k ++ " = " ++ intercalate " " (p:as))
-      Just (EnvNum n)      -> rPutStrLn (k ++ " = " ++ show n)
-      Just (EnvBool True)  -> rPutStrLn (k ++ " = on")
-      Just (EnvBool False) -> rPutStrLn (k ++ " = off")
-      Nothing              -> do rPutStrLn ("Unknown user option: `" ++ k ++ "`")
-                                 when (any isSpace k) $ do
-                                   let (k1, k2) = break isSpace k
-                                   rPutStrLn ("Did you mean: `:set " ++ k1 ++ " =" ++ k2 ++ "`?")
+      Just v  -> rPutStrLn (k ++ " = " ++ showEnvVal v)
+      Nothing -> do rPutStrLn ("Unknown user option: `" ++ k ++ "`")
+                    when (any isSpace k) $ do
+                      let (k1, k2) = break isSpace k
+                      rPutStrLn ("Did you mean: `:set " ++ k1 ++ " =" ++ k2 ++ "`?")
 
+showEnvVal :: EnvVal -> String
+showEnvVal ev =
+  case ev of
+    EnvString s   -> s
+    EnvProg p as  -> intercalate " " (p:as)
+    EnvNum n      -> show n
+    EnvBool True  -> "on"
+    EnvBool False -> "off"
 
 -- XXX at the moment, this can only look at declarations.
 helpCmd :: String -> REPL ()
 helpCmd cmd
   | null cmd  = mapM_ rPutStrLn (genHelp commandList)
-  | ":" `isPrefixOf` cmd =
-    case findCommandExact cmd of
-      []  -> rPutStrLn ("Undefined name: " ++ cmd)
-      [c] -> showCmdHelp c
-      cs  -> runCommand (Ambiguous cmd (concatMap cNames cs)) >> return ()
+  | cmd0 : args <- words cmd, ":" `isPrefixOf` cmd0 =
+    case findCommandExact cmd0 of
+      []  -> void $ runCommand (Unknown cmd0)
+      [c] -> showCmdHelp c args
+      cs  -> void $ runCommand (Ambiguous cmd0 (concatMap cNames cs))
   | otherwise =
     case parseHelpName cmd of
       Just qname ->
@@ -1018,12 +1022,26 @@ helpCmd cmd
                 Just str -> rPutStrLn ('\n' : str)
                 Nothing  -> return ()
 
-
-  showCmdHelp c =
+  showCmdHelp c [arg] | ":set" `elem` cNames c = showOptionHelp arg
+  showCmdHelp c _args =
     do rPutStrLn ("\n    " ++ intercalate ", " (cNames c))
        rPutStrLn ""
        rPutStrLn (cHelp c)
        rPutStrLn ""
+
+  showOptionHelp arg =
+    case lookupTrieExact arg userOptions of
+      [opt] ->
+        do let k = optName opt
+           ev <- tryGetUser k
+           rPutStrLn $ "\n     " ++ k ++ " = " ++ maybe "???" showEnvVal ev
+           rPutStrLn ""
+           rPutStrLn ("Default value: " ++ showEnvVal (optDefault opt))
+           rPutStrLn ""
+           rPutStrLn (optHelp opt)
+           rPutStrLn ""
+      [] -> rPutStrLn ("Unknown setting name `" ++ arg ++ "`")
+      _  -> rPutStrLn ("Ambiguous setting name `" ++ arg ++ "`")
 
 
 runShellCmd :: String -> REPL ()
