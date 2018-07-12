@@ -85,7 +85,7 @@ import qualified Data.ByteString as BS
 import Data.Bits ((.&.))
 import Data.Char (isSpace,isPunctuation,isSymbol)
 import Data.Function (on)
-import Data.List (intercalate,nub,sortBy,partition)
+import Data.List (intercalate, nub, sortBy, partition, isPrefixOf)
 import Data.Maybe (fromMaybe,mapMaybe)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
@@ -899,6 +899,10 @@ setOptionCmd str
 helpCmd :: String -> REPL ()
 helpCmd cmd
   | null cmd  = mapM_ rPutStrLn (genHelp commandList)
+  | ":" `isPrefixOf` cmd =
+    case findCommandExact cmd of
+      [] -> rPutStrLn ("Undefined name: " ++ cmd)
+      cs -> mapM_ showCmdHelp cs
   | otherwise =
     case parseHelpName cmd of
       Just qname ->
@@ -1014,7 +1018,11 @@ helpCmd cmd
                 Nothing  -> return ()
 
 
-
+  showCmdHelp c =
+    do rPutStrLn ("\n    " ++ intercalate ", " (cNames c))
+       rPutStrLn ""
+       rPutStrLn (cHelp c)
+       rPutStrLn ""
 
 
 runShellCmd :: String -> REPL ()

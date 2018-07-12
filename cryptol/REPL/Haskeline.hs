@@ -216,11 +216,7 @@ cmdComp :: String -> CommandDescr -> [Completion]
 cmdComp prefix c = do
   cName <- cNames c
   guard (prefix `isPrefixOf` cName)
-  return $ Completion
-    { replacement = drop (length prefix) cName
-    , display     = cName
-    , isFinished  = True
-    }
+  return $ nameComp prefix cName
 
 -- | Dispatch to a completion function based on the kind of completion the
 -- command is expecting.
@@ -233,7 +229,7 @@ cmdArgument ct cursor@(l,_) = case ct of
   FilenameArg _ -> completeFilename cursor
   ShellArg _    -> completeFilename cursor
   OptionArg _   -> completeOption cursor
-  HelpArg     _ -> (completeExpr +++ completeType) cursor
+  HelpArg     _ -> completeHelp cursor
   NoArg       _ -> return (l,[])
   FileExprArg _ -> completeExpr cursor
 
@@ -269,8 +265,9 @@ completeHelp :: CompletionFunc REPL
 completeHelp (l, _) = do
   ns1 <- getExprNames
   ns2 <- getTypeNames
-  let n    = reverse (takeIdent l)
-      vars = filter (n `isPrefixOf`) (ns1 ++ ns2)
+  let ns3 = concatMap cNames (nub (findCommand ":"))
+  let n    = reverse l
+      vars = filter (n `isPrefixOf`) (ns1 ++ ns2 ++ ns3)
   return (l, map (nameComp n) vars)
 
 -- | Complete a name from the list of loaded modules.
