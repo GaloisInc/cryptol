@@ -901,8 +901,9 @@ helpCmd cmd
   | null cmd  = mapM_ rPutStrLn (genHelp commandList)
   | ":" `isPrefixOf` cmd =
     case findCommandExact cmd of
-      [] -> rPutStrLn ("Undefined name: " ++ cmd)
-      cs -> mapM_ showCmdHelp cs
+      []  -> rPutStrLn ("Undefined name: " ++ cmd)
+      [c] -> showCmdHelp c
+      cs  -> runCommand (Ambiguous cmd (concatMap cNames cs)) >> return ()
   | otherwise =
     case parseHelpName cmd of
       Just qname ->
