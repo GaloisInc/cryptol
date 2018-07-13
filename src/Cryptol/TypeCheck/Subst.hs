@@ -247,9 +247,16 @@ instance TVars Expr where
         EProofAbs p e -> EProofAbs hmm (go e)
           where hmm = case pSplitAnd (apSubst su p) of
                         [p1] -> p1
-                        _  -> panic "apSubst@EProofAbs"
+                        res -> panic "apSubst@EProofAbs"
                                 [ "Predicate split or disappeared after"
-                                , "we applied a substitution." ]
+                                , "we applied a substitution."
+                                , "Predicate:"
+                                , show (pp p)
+                                , "Became:"
+                                , show (map pp res)
+                                , "subst:"
+                                , show (pp su)
+                                ]
 
         EProofApp e   -> EProofApp (go e)
 
