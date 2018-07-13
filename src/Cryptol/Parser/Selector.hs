@@ -59,6 +59,6 @@ instance PP Selector where
 ppSelector :: Selector -> Doc
 ppSelector sel =
   case sel of
-    TupleSel x _  -> ordinal x <+> text "field"
+    TupleSel x _  -> ordinal (x+1) <+> text "field"
     RecordSel x _ -> text "field" <+> pp x
     ListSel x _   -> ordinal x <+> text "element"

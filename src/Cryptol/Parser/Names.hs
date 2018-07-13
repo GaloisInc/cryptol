@@ -167,6 +167,7 @@ namesC vs prop =
   case prop of
     CFin t        -> namesT vs t
     CEqual t1 t2  -> Set.union (namesT vs t1) (namesT vs t2)
+    CNeq   t1 t2  -> Set.union (namesT vs t1) (namesT vs t2)
     CGeq t1 t2    -> Set.union (namesT vs t1) (namesT vs t2)
     CZero t       -> namesT vs t
     CLogic t      -> namesT vs t
@@ -273,6 +274,7 @@ tnamesC prop =
   case prop of
     CFin t         -> tnamesT t
     CEqual t1 t2   -> Set.union (tnamesT t1) (tnamesT t2)
+    CNeq   t1 t2   -> Set.union (tnamesT t1) (tnamesT t2)
     CGeq t1 t2     -> Set.union (tnamesT t1) (tnamesT t2)
     CZero t        -> tnamesT t
     CLogic t       -> tnamesT t

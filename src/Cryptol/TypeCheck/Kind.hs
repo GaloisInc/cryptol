@@ -25,6 +25,7 @@ import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Monad hiding (withTParams)
 import           Cryptol.TypeCheck.SimpType(tRebuild)
+import           Cryptol.TypeCheck.SimpleSolver(simplify)
 import           Cryptol.TypeCheck.Solve (simplifyAllConstraints
                                          ,wfTypeFunction,wfTC)
 import           Cryptol.Utils.Panic (panic)
@@ -47,7 +48,12 @@ checkSchema withWild (P.Forall xs ps t mb) =
         do ps1 <- mapM checkProp ps
            t1  <- doCheckType t (Just KType)
            return (ps1,t1)
-     return ( Forall xs1 (map tRebuild ps1) (tRebuild t1)
+     -- XXX: We probably shouldn't do this, as we are changing what the
+     -- user is doing.  We do it so that things are in a propal normal form,
+     -- but we should probably figure out another time to do this.
+     let newPs = concatMap pSplitAnd $ map (simplify Map.empty)
+                                     $ map tRebuild ps1
+     return ( Forall xs1 newPs (tRebuild t1)
             , [ g { goal = tRebuild (goal g) } | g <- gs ]
             )
 
