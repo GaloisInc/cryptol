@@ -264,8 +264,8 @@ tryEqK ctxt ty lk =
          -- NOTE: (Inf - Inf) shouldn't be possible
          Nothing -> Unsolvable
                       $ TCErrorMessage
-                      $ "Adding " ++ show rk ++ " will always exceed "
-                                  ++ show lk
+                      $ "Adding " ++ showNat' rk ++ " will always exceed "
+                                  ++ showNat' lk
 
          Just r -> SolvedIf [ b =#= tNat' r ]
   <|>
@@ -311,7 +311,7 @@ tryEqK ctxt ty lk =
                 Inf | rk > 1 -> SolvedIf [ b =#= tInf ]
                 Nat n | Just (a,True) <- genLog n rk -> SolvedIf [ b =#= tNum a]
                 _ -> Unsolvable $ TCErrorMessage
-                       $ show rk ++ " ^^ anything /= " ++ show lk
+                       $ show rk ++ " ^^ anything /= " ++ showNat' lk
 
   -- XXX: Min, Max, etx
   -- 2  = min (10,y)  --> y = 2
@@ -437,3 +437,6 @@ matchLinear = go (0, [])
 
 
 
+showNat' :: Nat' -> String
+showNat' Inf = "inf"
+showNat' (Nat n) = show n
