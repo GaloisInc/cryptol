@@ -35,11 +35,11 @@ time.
 
 Cryptol provides five basic data types: bits, sequences, integers,
 tuples, and records. Words (i.e., $n$-bit numbers) are a special case
-of sequences. Note that, aside from bits, all other Cryptol types can
-be nested as deep as you like. That is, we can have records of
-sequences containing tuples made up of other records, etc., giving us
-a rich type-system for precisely describing the shapes of data our
-programs manipulate.
+of sequences. Note that, aside from bits and integers, all other
+Cryptol types can be nested as deep as you like. That is, we can have
+records of sequences containing tuples made up of other records, etc.,
+giving us a rich type-system for precisely describing the shapes of
+data our programs manipulate.
 
 While Cryptol is statically typed, it uses type inference to supply
 unspecified types.  That is, the user does {\em not} have to write the
@@ -73,7 +73,7 @@ that act on bit values.
   True
   false
   False : Bit
-  if True && False then 3 else 4
+  if True && False then 0x3 else 0x4
   False || True
   (True && False) ^ True
   ~False
@@ -87,7 +87,7 @@ Here is the response from Cryptol, in order:
 \begin{small}
 \begin{Verbatim}
   True
-  [error] at <interactive>:1:1--1:8: Variable `false` was not defined.
+  [error] at <interactive>:1:1--1:6 Value not in scope: false
   False
   0x4
   True
@@ -107,15 +107,18 @@ Here is the response from Cryptol, in order:
 %=====================================================================
 \sectionWithAnswers{Words: Numbers}{sec:words}
 
-A word is simply a numeric value, corresponding to the usual notion of
-numbers.\indTheWordType To match our observation of how cryptographers
-use numbers, Cryptol only supports non-negative ($\geq 0$) integer
-values (i.e., no floating point or negative numbers).\indFloatingPoint
-However, numbers can be arbitrarily large: There is no predefined
-maximum that we are limited to.\indArbitraryPrecision By default,
-Cryptol prints numbers in base 16. You might find it useful to set the
-output base to be 10 while working on the following example. To do so,
-use the command:\indSettingBase
+A word is simply a numeric value with some number of bits,
+corresponding to the usual notion of binary numbers.\indTheWordType To
+match our observation of how cryptographers use binary numbers,
+Cryptol only supports non-negative ($\geq 0$) word values (i.e., no
+floating point or negative numbers).\indFloatingPoint However, words
+can be arbitrarily large: There is no predefined maximum number of
+bits that we are limited to.\indArbitraryPrecision The type of $n$-bit
+words is written \texttt{[n]}; e.g. \texttt{[8]} is the 8-bit word type.
+
+By default, Cryptol prints words in base 16. You might find it useful
+to set the output base to be 10 while working on the following
+example. To do so, use the command:\indSettingBase
 \begin{Verbatim}
   :set base=10
 \end{Verbatim}
@@ -129,18 +132,28 @@ numbers in these bases in Cryptol programs too:
   0x7de            // hexadecimal
 \end{Verbatim}
 
-\note{Decimal numbers pose a problem in a bit-precise language like
-  Cryptol.  Numbers represented in a base that is a power of two
-  unambiguously specify the number of bits required to store each
-  digit.  For example {\tt 0b101} takes three bits to store. A
-  hexadecimal digit takes 4 bits to store, so {\tt 0xabc} needs 12
-  bits.  On the other hand, in decimal, the number of bits is
-  ambiguous.  A decimal digit could require anywhere from 1 to 4 bits
-  to represent.  When given a choice, Cryptol assumes the
-  \emph{smallest} number of bits required to represent a decimal
-  number. This is why Cryptol often prints messages like {\tt Assuming
-    a = 3}; the value emitted is the number of bits necessary to
-  faithfully represent the decimal value on the corresponding line.}
+Decimal numbers pose a problem in a bit-precise language like Cryptol.
+Numbers represented in a base that is a power of two unambiguously
+specify the number of bits required to store each digit. For example
+\texttt{0b101} takes three bits to store, so its type is \texttt{[3]}.
+A hexadecimal digit takes 4 bits to store, so \texttt{0xabc} needs 12
+bits, and its type is \texttt{[12]}. On the other hand, a decimal
+digit could require anywhere from 1 to 4 bits to represent, so the
+number of digits does not determine the type. Decimal numbers may
+assume any of a variety of types in Cryptol; that is, they are
+\emph{polymorphic}.\indPolymorphism For example, \texttt{19} could
+have the unbounded type \texttt{Integer} (see~\autoref{sec:integer}),
+type \texttt{[8]}, type \texttt{[5]}, or any other word type with at
+least 5 bits.
+
+\paragraph*{Defaulting and explicit types}\indDefaulting
+Polymorphic values in a Cryptol program are subject to
+\emph{defaulting}, meaning that Cryptol will choose specific types to
+represent them. Cryptol usually prints a message whenever defaulting
+occurs, showing which type was chosen. For numbers, Cryptol usually
+chooses either \texttt{Integer} or the word type with the
+\emph{smallest} number of bits required to represent them. Users can
+override this by giving an explicit type signature.\indSignature
 
 \todo[inline]{2.1: Make decision about
   \href{https://www.galois.com/cryptol/ticket/217}{ticket \#217} for
@@ -153,6 +166,22 @@ numbers in these bases in Cryptol programs too:
 %% keep track of how many bits they need, so the current behavior was
 %% deemed a good compromise.
 
+\begin{Exercise}\label{ex:decimalType}
+  Try writing some decimal numbers at different types, like
+  \texttt{12:[4]} and \texttt{50:[8]}. How does Cryptol respond if
+  you write \texttt{19:[4]}, and why? What is the largest decimal
+  number you can write at type \texttt{[8]}? What is the smallest
+  allowable bit size for \texttt{32}? What is the smallest allowable
+  bit size for \texttt{0}?
+\end{Exercise}
+\begin{Answer}\ansref{ex:decimalType}
+  Cryptol prints the error ``\texttt{Unsolvable constraint: 4 >= 5}'',
+  because \texttt{19} requires at least 5 bits to represent.
+  \texttt{255:[8]} is the largest value of type \texttt{[8]}.
+  \texttt{[6]} is the smallest type for \texttt{32}. \texttt{[0]} is
+  the smallest type for \texttt{0}.
+\end{Answer}
+
 \begin{Exercise}\label{ex:setBase}
   Experiment with different output bases by issuing {\tt :set
     base=10}, and other base values. Also try writing numbers directly
@@ -164,18 +193,21 @@ numbers in these bases in Cryptol programs too:
 {\tt 0xfeedfacef00d}.
 \end{Answer}
 
-\note{We will revisit the notion of numbers in
-  Section~\ref{sec:words2}, after we learn about sequences.}
+\note{We will revisit the notion of words in \autoref{sec:words2},
+  after we learn about sequences.}
 
 %=====================================================================
 \sectionWithAnswers{Integers: Unbounded numbers}{sec:integer}
 
 The type \texttt{Integer} represents mathematical integers of
-unlimited size. To write an integer value in Cryptol, use
-\texttt{toInteger} with a word value: For example, \texttt{toInteger
-  0xff} represents the integer 255. To write a negative integer,
-simply negate the result: For example, \texttt{- toInteger 12}
-represents the integer $-12$.
+unlimited size. To write an integer value in Cryptol, simply write the
+number in decimal, optionally annotated with \texttt{:Integer} to
+disambiguate the type. Numbers written in base 2, 8, or 16 are always
+$n$-bit words, and never have type \texttt{Integer}. However, they can
+be converted to unbounded integers using \texttt{toInteger}. For
+example, \texttt{toInteger 0xff} represents the integer 255. To write
+a negative integer, simply negate the result: For example,
+\texttt{-12} and \texttt{- toInteger 0xc} represent the integer $-12$.
 
 \begin{Exercise}\label{ex:int:1}
   Compare the results of evaluating the expressions \texttt{0x8 + 0x9}
@@ -201,27 +233,21 @@ evaluates to \texttt{0xb} or 11, which is $-5 + 16$.
 % \label{sec:tuple}
 \sectionWithAnswers{Tuples: Heterogeneous collections}{sec:tuple}
 
-A tuple is a simple collection of arbitrary ordered values of
-arbitrary types, written in parentheses.\indTheTupleType A tuple is at
-least a pair; it has at least two elements,\footnote{Tuples with zero
-  and one element are part of the underlying mathematics of Cryptol's
-  tuple theory but are not supported in its concrete syntax because
-  doing so unnecessarily complicates the parser and program
-  comprehension.} and can be arbitrarily nested with other types.
-Elements are comma separated.
+A tuple is a simple ordered collection of arbitrary values with
+arbitrary types.\indTheTupleType Tuples are written with parentheses
+surrounding two or more comma-separated elements. Cryptol also
+supports a special zero-element tuple, written
+\texttt{()}.\footnote{There is no syntax for tuples with exactly one
+  element. Writing parentheses around a single value does not make a
+  tuple; it denotes the same value with the same type.}
 
-Two tuples are equal in the standard fashion: if they have the same
-arity, their types are pairwise comparable
-(see~\autoref{sec:type-classes}), and their values are pairwise
-identical.  Note that their types need not be pairwise identical; for
-example, consider the expression \texttt{('A', 0) == (65, 0)}.  The
-type of the LHS is \texttt{{a} (fin a) => ([8], [a])} while the RHS is
-\texttt{{a, b} (a >= 7, fin a, fin b) => ([a], [b])}.
-
-\todo[inline]{2.1: Decide upon the status of
-  \href{https://www.galois.com/cryptol/ticket/248}{ticket \#248} wrt
-  tuple semantics.  Fundamentally, why do we not support zero and one
-  element tuples?}
+Tuple types have syntax similar to tuple values. They are written with
+parentheses around two or more comma-separated types. Values of a
+tuple type are tuples of the same length, where the value in each
+position has the corresponding type. For example, type \texttt{([8],
+  Bit)} comprises pairs whose first element is an 8-bit word, and whose
+second element is a bit. The empty tuple \texttt{()} is the only value
+of type \texttt{()}.
 
 \begin{Exercise}\label{ex:tup:1}
 Try out the following tuples:
@@ -246,23 +272,22 @@ Here are Cryptol's responses:
   object-level and type-level expressions, but also differing
   semantics at the object level in different contexts.}
 
-\paragraph*{Projecting values from tuples} Use a {\tt .} followed by
-$n$ to project the $n+1$-th component of a tuple.  Nested projection is
-not supported at this time.
+\paragraph*{Projecting values from tuples} Use a \texttt{.} followed by
+$n$ to project the $n+1$-th component of a tuple. Nested projections
+are also supported. Note that projections cannot be used with the
+empty tuple, as it has no components to project.
 
 \begin{Exercise}\label{ex:tup:2}
 Try out the following examples:
 \begin{Verbatim}
   (1, 2+4).0
   (1, 2+4).1
-  ((1, 2), False, (3-1, (4, True))).2
+  ((1, 2), False, (3-1, (4, True))).2.1
 \end{Verbatim}
-\todo[inline]{Include a more interesting nested example here once
-  \href{https://www.galois.com/cryptol/ticket/220}{ticket \#220} is
-  fixed. As in, extract the value True, using ".2.2.2".}  Write a
-projection to extract the value {\tt False} from the expression:
+Write a nested projection to extract the value \texttt{True} from the
+expression:
 \begin{Verbatim}
-  ((1, 2), (2, (4, True), 6), False)
+  ((1, 2), (2, 6, (True, 4)), False)
 \end{Verbatim}
 \end{Exercise}
 \begin{Answer}\ansref{ex:tup:2}
@@ -272,18 +297,18 @@ Here are Cryptol's responses:
   1
   Cryptol> (1, 2+4).1
   6
-  Cryptol> ((1, 2), False, (3-1, (4, True))).2
-  (2, (4, True))
+  Cryptol> ((1, 2), False, (3-1, (4, True))).2.1
+  (4, True)
 \end{Verbatim}
 The required expression would be:
 \begin{Verbatim}
-  ((1, 2), (2, (4, True), 6), False).2
+  ((1, 2), (2, 6, (True, 4)), False).1.2.0
 \end{Verbatim}
 \end{Answer}
 
 \begin{tip}
-  While projections can come in handy, we rarely see them used in
-  Cryptol programs. As we shall see later, Cryptol's powerful
+  While tuple projections can come in handy, we rarely see them used
+  in Cryptol programs. As we shall see later, Cryptol's powerful
   pattern-matching mechanism provides a much nicer and usable
   alternative for extracting parts of tuples and other composite data
   values.
@@ -300,6 +325,8 @@ traditional languages.  A sequence contains elements of any
 \emph{single} type, even sequences themselves, arbitrarily nested.  We
 simply write a sequence by enclosing it within square brackets with
 comma-separated elements.\indTheSequenceType
+
+\todo[inline]{Mention sequence types, syntax}
 
 \begin{Exercise}\label{ex:seq:1}
 Try out the following sequences:
@@ -318,28 +345,28 @@ $3\times3$ matrix.
 
 \begin{Exercise}\label{ex:seq:2}
   Type in the following expressions to Cryptol and observe the
-  type-errors:
+  type errors:
 \begin{Verbatim}
   [True, [True]]
   [[1, 2, 3], [4, 5]]
 \end{Verbatim}
 \end{Exercise}
 \begin{Answer}\ansref{ex:seq:2}
-In each case we get a type-error:
+In each case we get a type error:
 \begin{Verbatim}
-  Cryptol> [1, True]
-  [error] at <interactive>:1:1--1:10:
+  Cryptol> [True, [True]]
+  [error] at <interactive>:1:8--1:14:
     Type mismatch:
-      Expected type: [?a]
-      Inferred type: Bit
+      Expected type: Bit
+      Inferred type: [1]
   Cryptol> [[1, 2, 3], [4, 5]]
-  [error] at <interactive>:1:1--1:20:
+  [error] at <interactive>:1:13--1:19:
     Type mismatch:
-      Expected type: [3][?a]
-      Inferred type: [2][?b]
+      Expected type: 3
+      Inferred type: 2
 \end{Verbatim}
-In the first case, we are trying to put a bit ({\tt True}) and a
-singleton sequence containing a bit ({\tt [True]}) in the same
+In the first case, we are trying to put a bit (\texttt{True}) and a
+singleton sequence containing a bit (\texttt{[True]}) in the same
 sequence, which have different types. In the second case, we are
 trying to put two sequences of different lengths into a sequence,
 which again breaks the homogeneity requirement.
@@ -397,13 +424,13 @@ summation, product, maximum, or minimum), though such comprehensions
 can certainly be defined using Cryptol comprehensions.
 
 \begin{Exercise}\label{ex:seq:4}
-  The components of a Cryptol sequence comprehension are
-  an expression of one or more variables (which defines each element of
-  the sequence), followed by one or more {\em arms}, each preceded by
-  a vertical bar, which define how the variables' values are generated.
-  A comprehension with a single arm is called a {\em cartesian
-  comprehension}. We can have one or more components in a cartesian
-  comprehension.  Experiment with the following
+  The components of a Cryptol sequence comprehension are an expression
+  of one or more variables (which defines each element of the
+  sequence), followed by one or more \emph{branches}, each preceded by
+  a vertical bar, which define how the variables' values are
+  generated. A comprehension with a single branch is called a
+  \emph{cartesian comprehension}. We can have one or more components
+  in a cartesian comprehension. Experiment with the following
   expressions:\indComp\indCartesian
 \begin{Verbatim}
    [ (x, y) | x <- [1 .. 3], y <- [4, 5] ]
@@ -413,12 +440,6 @@ can certainly be defined using Cryptol comprehensions.
 What is the number of elements in the resulting sequence, with respect
 to the sizes of components?
 
-\note{Recall that, when you type the expressions above, you will get
-  messages from Cryptol such as {\tt Assuming a = 2}.  This is Cryptol
-  letting you know it has decided to use 2 bits to represent, for
-  example, the value \texttt{3} in \texttt{[1 ..\ 3]}. This information may
-  not seem to matter now but it can be very helpful later
-  on.}
 \end{Exercise}
 \begin{Answer}\ansref{ex:seq:4}
 Here are the responses from Cryptol:
@@ -435,9 +456,9 @@ $2\times 3 = 6$ elements.
 \end{Answer}
 
 \begin{Exercise}\label{ex:seq:5}\indParallel\indComp
-  A comprehension with multiple arms is called a {\em parallel
-    comprehension}.  We can have any number of parallel arms. The
-  contents of each arm will be {\em zipped} to obtain the results.
+  A comprehension with multiple branchess is called a \emph{parallel
+    comprehension}. We can have any number of parallel branches. The
+  contents of each branch will be \emph{zipped} to obtain the results.
   Experiment with the following expressions:
 \begin{Verbatim}
    [ (x, y) | x <- [1 .. 3] | y <- [4, 5] ]
@@ -463,7 +484,7 @@ $\min(2,3) = 2$ elements.
 
 \begin{tip}
   One can mix parallel and cartesian comprehensions, where each
-  parallel arm can contain multiple cartesian
+  parallel branch can contain multiple cartesian
   generators.\indComp\indCartesian\indParallel
 \end{tip}
 
@@ -494,14 +515,14 @@ generator). The pattern looks like this:
   entry contains the value {\tt (i, j)}.
 \end{Exercise}
 \begin{Answer}\ansref{ex:seq:6}
-  Here is one way of writing such an expression, layed out in multiple
+  Here is one way of writing such an expression, laid out in multiple
   lines to show the structure:
 \begin{Verbatim}
   [ [ (i, j) | j <- [1 .. 3] ]
      | i <- [1 .. 3]
   ]
   produces:
-  [[(1, 1), (1, 2), (1, 3)], 
+  [[(1, 1), (1, 2), (1, 3)],
    [(2, 1), (2, 2), (2, 3)],
    [(3, 1), (3, 2), (3, 3)]]
 \end{Verbatim}
@@ -521,16 +542,17 @@ makes sense to you.
 \subsection{Appending and indexing}
 \label{sec:appending-indexing}
 
-For sequences, the two basic operations are appending\indAppend ({\tt
-  \#}) and selecting\indIndex elements out ({\tt @}, {\tt @@}, {\tt
-  !}, and {\tt !!}).  The forward selection operator (\texttt{@}) starts
-counting from the beginning, while the backward selection
-operator\indRIndex ({\tt !}) starts from the end.  Indexing always
-starts at zero: that is, {\tt xs @ 0} is the first element of {\tt xs},
-while \texttt{xs !\ 0} is the last.  The permutation\indIndexs
-versions\indRIndexs ({\tt @@} and {\tt !!}, respectively) allow us to
-concisely select multiple elements: they allow us to extract elements
-in any order (which makes them very useful for permuting sequences).
+For sequences, the two basic operations are appending\indAppend
+(\texttt{\#}) and selecting\indIndex elements out (\texttt{@},
+\texttt{@@}, \texttt{!}, and \texttt{!!}). The forward selection
+operator (\texttt{@}) starts counting from the beginning, while the
+backward selection operator\indRIndex (\texttt{!}) starts from the
+end. Indexing always starts at zero: that is, \texttt{xs @ 0} is the
+first element of \texttt{xs}, while \texttt{xs !\ 0} is the last. The
+permutation\indIndexs versions\indRIndexs (\texttt{@@} and
+\texttt{!!}, respectively) allow us to concisely select multiple
+elements: they allow us to extract elements in any order (which makes
+them very useful for permuting sequences).
 
 \todo[inline]{Cite other languages that express permutations like this?}
 
@@ -606,7 +628,7 @@ Using a comprehension, we can express the same idea using:
 \begin{Verbatim}
   [ [0 .. 10] @ i | i <- [0, 2 .. 10] ]
 \end{Verbatim}
-Strictly speaking, permutation operations are indeed redundant. 
+Strictly speaking, permutation operations are indeed redundant.
 However, they lead to more concise and easier-to-read expressions.
 \end{Answer}
 
@@ -614,11 +636,11 @@ However, they lead to more concise and easier-to-read expressions.
 \subsection{Finite and infinite sequences}\indFiniteSeq\indInfSeq
 \label{sec:finite-infin-sequ}
 
-So far we have only seen finite sequences.  An infinite sequence is one
+So far we have only seen finite sequences. An infinite sequence is one
 that has an infinite number of elements, corresponding to
-streams.\indStream  Cryptol supports infinite sequences, where the
-elements are accessed {\em on-demand}.  This implies that Cryptol will
-{\em not} go into an infinite loop just because you have created an
+streams.\indStream Cryptol supports infinite sequences, where the
+elements are accessed \emph{on demand}. This implies that Cryptol will
+\emph{not} go into an infinite loop just because you have created an
 infinite sequence: it will lazily construct the sequence and make its
 elements available as demanded by the program.
 
@@ -657,26 +679,22 @@ Try the following infinite enumerations:
 \begin{Answer}\ansref{ex:seq:10}
 Here is a simple test case:
 \begin{Verbatim}
-  Cryptol> ([1 ...]:[inf][32])!3
+  Cryptol> [1:[32] ...] ! 3
 
-[error] at <interactive>:1:1--1:21:
-  Unsolved constraint:
-    fin inf
-      arising from
-      use of expression (!)
-      at <interactive>:1:19--1:20
+  [error] at <interactive>:1:1--1:17:
+    Expected a finite type, but found `inf`.
 \end{Verbatim}
-The error message is telling us that we {\em cannot} apply the reverse
+The error message is telling us that we \emph{cannot} apply the reverse
 index operator ({\tt !}) on an infinite sequence (\texttt{inf}).  This
 is a natural consequence of the fact that one can never reach the end
 of an infinite sequence to count backwards.  It is important to
-emphasize that this is a {\em type-error}, i.e., the user gets this
+emphasize that this is a \emph{type error}, i.e., the user gets this
 message at compile time; instead of Cryptol going into an infinite
 loop to reach the end of an infinite sequence.
 \end{Answer}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-\subsection{Manipulating sequences} 
+\subsection{Manipulating sequences}
 \label{sec:manip-sequ}
 
 Sequences are at the heart of Cryptol, and there are a number of
@@ -722,8 +740,27 @@ Here are Cryptol's responses:
   Cryptol> transpose [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
   [[1, 4, 7], [2, 5, 8], [3, 6, 9]]
 \end{Verbatim}
-\todo[inline]{Add discussion about join[1,1] and transpose [1,2].}
-\todo[inline]{Why is isn't join in the prelude?!}
+And for the fun bonus problems:
+\begin{Verbatim}
+  Cryptol> join [1,1]
+  Showing a specific instance of polymorphic result:
+    * Using '1' for type argument 'each' of 'Cryptol::join'
+  3
+  Cryptol> transpose [1,2]
+  Showing a specific instance of polymorphic result:
+    * Using '2' for type argument 'cols' of 'Cryptol::transpose'
+  [1, 2]
+\end{Verbatim}
+The argument to \texttt{join} must be a sequence of sequences, so each
+\texttt{1} must have a bitvector type. Cryptol defaults to the
+smallest possible type, \texttt{[1]}. So \texttt{join [1,1]} becomes
+\texttt{join [[True], [True]]}, which equals \texttt{[True, True]}, or
+\texttt{3}.
+
+With \texttt{transpose}, Cryptol similarly chooses the smallest
+possible bitvector type \texttt{[2]} for the sequence elements. Then
+\texttt{[1,2]} becomes \texttt{[[False, True], [True, False]]}, which
+transposes to the same value.
 \end{Answer}
 
 \begin{Exercise}\label{ex:seq:12}
@@ -789,34 +826,34 @@ the result:\indSignature
 \begin{Verbatim}
   Cryptol> split [1..12]
   Cannot evaluate polymorphic value.
-  Type: {a, b, c} (fin b, fin c, b * a == 12, c >= 4) => [a][b][c]
+  Type: {n, m, a} (n * m == 12, Literal 12 a, fin m) => [n][m]a
   Cryptol> :t split [1..12]
-  split [1 .. 12] : {a, b, c} (fin b, fin c, b * a == 12,
-                               c >= 4) => [a][b][c]
+  split [1 .. 12] : {n, m, a} (n * m == 12, Literal 12 a, fin m) =>
+                      [n][m]a
 \end{Verbatim}
 %% cryptol 1 said: : {a b c} (fin c,c >= 4,a*b == 12) => [a][b][c]
 
 A complex type signature like this one first defines a set of type
-variables \verb|{a, b, c}|, a set of constraints on those variables
-\verb|(fin b, fin c, b * a == 12, c >= 4)|, a \texttt{=>} and finally
-the shape description. In this case, Cryptol's \texttt{[a][b][c]} is
-telling us that the result will be a sequence of \texttt{a} things,
-each of which is a sequence of \texttt{b} things, each of which is a
-word of size \texttt{c}. The type constraints tell us that \texttt{c}
-is at least 4, because the maximum element of the sequence is 12, and
-it takes at least 4 bits to represent the value 12. The other constraints
-are that \texttt{b * a == 12}, which means we should completely cover
-the entire input, and that the lengths \texttt{a} and \texttt{c} need
-to be finite. As you can see, \texttt{split} is a very powerful
-function. The flexibility afforded by \texttt{split} comes in very
-handy in Cryptol. We shall see one example of its usage later in
-Section~\ref{sec:scytale}.
+variables \verb|{n, m, a}|, a set of constraints on those variables
+\verb|(n * m == 12, Literal 12 a, fin m)|, a \texttt{=>} and finally
+the shape description. In this case, Cryptol's \texttt{[n][m]a} is
+telling us that the result will be a sequence of \texttt{n} things,
+each of which is a sequence of \texttt{m} things, each of which is a
+value of type \texttt{a}. The \texttt{Literal} constraint tells us
+that \texttt{a} is a type that can represent numbers (at least) up to
+12. The other constraints are that \texttt{n * m == 12}, which means
+we should completely cover the entire input, and that the length
+\texttt{m} needs to be finite. As you can see, \texttt{split} is a
+very powerful function. The flexibility afforded by \texttt{split}
+comes in very handy in Cryptol. We shall see one example of its usage
+later in \autoref{sec:scytale}.
 
 \begin{Exercise}\label{ex:split:0}
   With a sequence of length 12, as in the above example, there are
-  precisely 6 ways of splitting it: 1--12, 2--6, 3--4, 4--3, 6--2, and
-  12--1. We have seen the first three splits above. Write the
-  expressions corresponding to the latter three.\indSplit
+  precisely 6 ways of splitting it: 1 $\times$ 12, 2 $\times$ 6, 3
+  $\times$ 4, 4 $\times$ 3, 6 $\times$ 2, and 12 $\times$ 1. We have
+  seen the first three splits above. Write the expressions
+  corresponding to the latter three.\indSplit
 \end{Exercise}
 \begin{Answer}\ansref{ex:split:0}
 Here they are:\indSplit
@@ -838,14 +875,13 @@ Here they are:\indSplit
 Cryptol will issue a type error:\indSplit
 \begin{Verbatim}
   Cryptol> split [1..12] : [5][2][8]
-  Unsolved constraint:
-    1 + (12 - 1) == 5 * 2
-      arising from
-      matching types
-      at <interactive>:1:1--1:16
+  [error] at <interactive>:1:7--1:14:
+    Type mismatch:
+      Expected type: 10
+      Inferred type: 12
 \end{Verbatim}
 Cryptol is telling us that we have requested 10 elements in the final
-result (5*2), but the input has 12.
+result (5 $\times$ 2), but the input has 12.
 \end{Answer}
 
 \begin{Exercise}\label{ex:split:2}
@@ -855,8 +891,8 @@ result (5*2), but the input has 12.
     comprehensions.}  \indComp
 \end{Exercise}
 \begin{Answer}\ansref{ex:split:2}
-  We can split\indSplit 120 elements first into 3--40, splitting each
-  of the the elements ({\tt level1} below) into 4--10. A nested
+  We can split\indSplit 120 elements first into 3 $\times$ 40, splitting each
+  of the the elements ({\tt level1} below) into 4 $\times$ 10. A nested
   comprehension fits the bill:\indComp
 \begin{Verbatim}
   [ split level1 : [4][10][8]
@@ -866,6 +902,7 @@ result (5*2), but the input has 12.
 (Note again that you can enter the above in the command line all in
 one line, or by putting the line continuation character {\tt
   $\backslash$} at the end of the first two lines.)\indLineCont
+\todo[inline]{You don't need nested comprehensions: \texttt{split (split [1..120]) :\ [3][4][10][8]} also works.}
 \end{Answer}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -916,14 +953,15 @@ Here are Cryptol's responses:
 %=====================================================================
 % \section{Words revisited}
 % \label{sec:words2}
-\sectionWithAnswers{Words revisited}{sec:words2}
+\sectionWithAnswers{Words as sequences}{sec:words2}
 
-In Section~\ref{sec:words} we have introduced numbers as a distinct
-value type in Cryptol. In fact, a number in Cryptol is nothing but a
-finite sequence of bits, so words are not a separate type. For
-instance, the literal expression {\tt 42} is precisely the same as the
-bit-sequence corresponding to {\tt [True, False, True, False, True,
-  False]}.\indTheWordType
+In \autoref{sec:words} we have introduced numbers as a distinct value
+type in Cryptol. In fact, a number in Cryptol is nothing but a finite
+sequence of bits, so words are not a separate type. For instance, the
+literal expression \texttt{42:[6]} is precisely the same as the
+bit-sequence \texttt{[True, False, True, False, True,
+    False]}.\indTheWordType The type \texttt{[6]} is really just an
+abbreviation for \texttt{[6]Bit}.
 
 \begin{Exercise}\label{ex:words:0}
   Explain why {\tt 42} is the same as {\tt [True, False, True, False,
@@ -944,12 +982,12 @@ $$1\times2^5 + 0\times2^4 + 1\times2^3 + 0\times2^2 + 1\times2^1 + 0\times2^0 = 
   Try out the following words: \lhint{It might help to use {\tt :set
       base=2} to see the bit patterns.}\indSettingBase
 \begin{Verbatim}
-  12
+  12:[4]
   12 # [False]
   [False, False] # 12
   [True, False] # 12
   12 # [False, True]
-  32
+  32:[6]
   12 # 32
   [True, False, True, False, True, False] == 42
 \end{Verbatim}
@@ -969,52 +1007,10 @@ $$1\times2^5 + 0\times2^4 + 1\times2^3 + 0\times2^2 + 1\times2^1 + 0\times2^0 = 
 \end{Verbatim}
 \end{Answer}
 
-\begin{Exercise}\label{ex:words:2}
-  What is the type of {\tt 0}?  Use the {\tt :t} command to find this
-  out.  (Type {\tt :t 0} at the prompt.\indSettingType) Are there any
-  other elements of this type? What are the elements of the type {\tt
-    [2]}?
-\end{Exercise}
-\begin{Answer}\ansref{ex:words:2}
-{\tt 0} has the type {\tt \Verb+{a} [a]+}.
-Incidentally, {\tt 0} is the only value that inhabits this type. The
-type {\tt [2]} is precisely inhabited by the elements {\tt 0, 1, 2,}
-and {\tt 3}.
-\todo[inline]{Reflect upon the fact that zero has no length component.}
-\end{Answer}
-
-\paragraph*{Defaulting and explicit types}\indDefaulting Top level
-polymorphic constants in a Cryptol program are subject to
-{\em defaulting}, meaning that Cryptol will use the fewest number of
-bits necessary to represent them. Users can override this by giving an
-explicit type signature.\indSignature
-
-\begin{Exercise}\label{ex:words:3}
-  \todo[inline]{\href{https://www.galois.com/cryptol/ticket/83}{Ticket \#83}
-    must be addressed before we can include the text: ``For this
-    exercise, first issue {\tt :set +t} command...''.}  Try the
-  following expressions:
-\begin{Verbatim}
-  :t 42
-  :t 42 : [9]
-  :t 42 : [3]
-\end{Verbatim}
-Can you jam more bits in a word than is potentially possible in
-Cryptol?  Compare this behavior to a typical C expression: {\tt (char)
-  9999}.
-\end{Exercise}
-\begin{Answer}\ansref{ex:words:3}
-  The number 42 needs at least 6 bits to represent; hence the last
-  expression fails. Note how type-inference helps, as users can give
-  type annotations only when they need to be more specific.  Unlike
-  the C example, Cryptol will statically make sure that there will not
-  be any overflow.
-\end{Answer}
-
 \begin{Exercise}\label{ex:words:4}
 Since words are sequences, the sequence functions from
-Exercise~\ref{sec:sequences}--\ref{ex:seq:11} apply to words as well. Try out
-the following examples and explain the outputs you
+Exercise~\ref{sec:sequences}--\ref{ex:seq:11} apply to words as well.
+Try out the following examples and explain the outputs you
 observe:\indTake\indDrop\indSplit\indGroup
 \begin{Verbatim}
   take`{3} 0xFF
@@ -1172,15 +1168,13 @@ operations on them; including arithmetic:
 \sectionWithAnswers{Records: Named collections}{sec:records}
 
 In Cryptol, records are simply collections of named fields. In this
-sense, they are very similar to tuples (Section~\ref{sec:tuple}),
-which can be thought of records without field names.\footnote{In fact,
-  the fields of a tuple {\it can} be accessed via the dot-notation,
-  with their names being their 0-indexed position in the tuple. So
-  {\tt (1,2).1 == 2}.} Like a tuple, the fields of a record can be of
-any type.  We construct records by listing the fields inside
-curly braces, separated by commas.  We project fields out of a record
-with the usual dot-notation.  Note that the order of fields in a
-record is immaterial.\indTheRecordType\indTheTupleType
+sense, they are very similar to tuples (\autoref{sec:tuple}), which
+can be thought of records without field names. Like a tuple, the
+fields of a record can be of any type. We construct records by listing
+the fields inside curly braces, separated by commas. We project fields
+out of a record with the usual dot-notation, similar to tuple
+projections. Note that the order of fields in a record is
+immaterial.\indTheRecordType\indTheTupleType
 
 Record equality is defined in the standard fashion.  Two records are
 equal if they have the same number of fields, if their field names are
@@ -1224,12 +1218,6 @@ Here are Cryptol's responses:
 \end{Verbatim}
 \end{small}
 \end{Answer}
-
-\note{In larger Cryptol programs, records provide quite powerful
-  abstraction mechanisms.  In particular, record fields can contain
-  polymorphic fields themselves, extracted and used at different types
-  in the same expression. However, we will not need that level of
-  functionality in our current study.}
 
 %=====================================================================
 % \section{\texorpdfstring{The {\tt zero}}{The zero}}
@@ -1312,6 +1300,8 @@ resulting word size.  While this is very handy for most applications of
 Cryptol, it requires some care if overflow has to be treated
 explicitly.\indOverflow\indUnderflow\indPlus\indMinus\indTimes\indDiv\indMod\indLg\indMin\indMax\indExponentiate
 
+\todo[inline]{XXXX Fixme change most/all of the following exercises. They don't make sense now that numerals are more polymorphic.}
+
 \begin{Exercise}\label{ex:arith:1}
 What is the value of {\tt 1+1}? Surprised?
 \end{Exercise}
@@ -1334,7 +1324,7 @@ What is the value of {\tt 1+(1:[8])}? Why?
 What is the value of \texttt{3 - 5}? How about \texttt{(3 - 5) :\ [8]}?
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:3}
-  Recall from Section~\ref{sec:words} that there are no negative
+  Recall from \autoref{sec:words} that there are no negative
   numbers in Cryptol. The values \texttt{3} and \texttt{5} can be
   represented in 3 bits, so Cryptol uses 3 bits to represent the
   result, so the arithmetic is done modulo $2^3=8$. Hence, the result
@@ -1361,8 +1351,6 @@ Try out the following expressions:\indEq\indNeq
 In the last expression, remember that unary minus will\indUnaryMinus
 be done in a modular fashion. What is the modulus used for this
 operation?
-\todo[inline]{Rethink the semantics of type derivation/checking of conditional
-  expressions, per \href{https://www.galois.com/cryptol/ticket/274}{ticket \#274}.}
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:4}
   The division/modulus by zero will give the expected error
@@ -1458,7 +1446,7 @@ Try out the following expressions:
 
 \paragraph*{Enumerations, revisited} In
 Exercise~\ref{sec:sequences}--\ref{ex:seq:9}, we wrote the infinite
-enumeration\indEnum\indInfSeq starting at {\tt 1} using an explicit
+enumeration{\indEnum\indInfSeq}starting at {\tt 1} using an explicit
 type as follows:
 \begin{Verbatim}
   [(1:[32]) ...]
@@ -1482,6 +1470,8 @@ simply, by using a smaller bit size for the constant {\tt 1}:
 We still get an infinite sequence, but the numbers will repeat
 themselves eventually. Note that this is a direct consequence of
 Cryptol's modular arithmetic.\indModular
+
+\todo[inline]{FIXME the next examples don't make sense any more.}
 
 There is one more case to look at. What happens if we completely leave
 out the signature?
@@ -1510,6 +1500,7 @@ represent {\tt k}.  \note{If the user evaluates the value of {\tt
   subtle behavior was introduced to allow the sequence of all zeros to
   be written \texttt{[0 ...]}.}
 
+\todo[inline]{This exercise has a broken reference, because ex:words:2 was removed.}
 \begin{Exercise}\label{ex:arith:9}
   Remember from Exercise~\ref{sec:words2}--\ref{ex:words:2} that the
   constant {\tt 0} requires 0 bits to represent. Based on this, what
@@ -1595,7 +1586,7 @@ depending on the needs of your application. When we want to be
 explicit about the type of a value, we say {\tt 5:[8]}. If we do not
 specify a size, Cryptol's type inference engine will pick the
 appropriate value depending on the context.\indTypeInference
-Recall from Section~\ref{sec:words2} that a word is, in fact, a
+Recall from \autoref{sec:words2} that a word is, in fact, a
 sequence of bits.  Hence, an equivalent (but verbose) way to write the
 type {\tt [17]} is {\tt [17]Bit}, which we would say in English as
 ``a sequence of length 17, whose elements are Bits.''
@@ -1712,24 +1703,25 @@ ML~\cite{ML,Has98}.\indPolymorphism\indOverloading
 Here is the type of {\tt tail} in Cryptol:
 \begin{Verbatim}
   Cryptol> :t tail
-  tail : {a, b} [a+1]b -> [a]b
+  tail : {n, a} [n+1]a -> [n]a
 \end{Verbatim}
 This is quite a different type from what we have seen so far. In
 particular, it is a polymorphic type, one that can work over multiple
 concrete instantiations of it. Here's how we read this type in
 Cryptol:
 \begin{quote} \texttt{tail} is a polymorphic function, parameterized over
-  {\tt a} and {\tt b}. The input is a sequence that contains {\tt a+1}
-  elements.  The elements can be of an arbitrary type {\tt b}; there
-  is no restriction on their structure. The result is a sequence that
-  contains {\tt a} elements, where the elements themselves has the
-  same type as those of the input.  \end{quote} In the case for {\tt
-  tail}, the parameter {\tt a} is a size-parameter (since it describes
-the size of a sequence), while {\tt b} is a shape-parameter, since it
-describes the shape of elements.  The important thing to remember is
-that each use of {\tt tail} must instantiate the parameters {\tt a}
-and {\tt b} appropriately. Let's see how the instantiations work for
-our running examples:
+  \texttt{n} and \texttt{a}. The input is a sequence that contains
+  \texttt{n+1} elements. The elements can be of an arbitrary type
+  \texttt{a}; there is no restriction on their structure. The result
+  is a sequence that contains \texttt{n} elements, where the elements
+  themselves have the same type as those of the input.
+\end{quote}
+In the case for \texttt{tail}, the parameter \texttt{n} is a size-parameter
+(since it describes the size of a sequence), while \texttt{a} is a
+shape-parameter, since it describes the shape of elements. The
+important thing to remember is that each use of \texttt{tail} must
+instantiate the parameters \texttt{n} and \texttt{a} appropriately. Let's
+see how the instantiations work for our running examples:
 
 \todo[inline]{Talk about the scope of the type system's expressiveness and its
   limitations. Perhaps call it a ``size-polymorphic type system'' here
@@ -1739,11 +1731,11 @@ our running examples:
 \begin{center}
 %\begin{adjustbox}{width={\textwidth},keepaspectratio}
 \begin{tabular}[h]{c||c|c|l}
-{\tt [a+1]b -> [a]b}                 & {\tt a}   & {\tt b}          & Notes \\ \hline\hline
-{\tt [5][8] -> [4][8]}               &    4      & {\tt [8]}        & {\tt a+1 = 5} $\Rightarrow$ {\tt a = 4}  \\\hline
-{\tt [10][32] -> [9][32]}            &    9      & {\tt [32]}       & {\tt a+1 = 10} $ \Rightarrow$ {\tt a = 9} \\\hline
-{\tt [3](Bit, [8]) -> [2](Bit, [8])} &    2      & {\tt (Bit, [8])} & The type {\tt b} is now a tuple	           \\\hline
-{\tt [inf][16] -> [inf][16]}         & {\tt inf} & {\tt [16]}       & {\tt a+1 = inf} $\Rightarrow$ {\tt a = inf}
+{\tt [n+1]a -> [n]a}                 & {\tt n}   & {\tt a}          & Notes \\ \hline\hline
+{\tt [5][8] -> [4][8]}               &    4      & {\tt [8]}        & {\tt n+1 = 5} $\Rightarrow$ {\tt n = 4}  \\\hline
+{\tt [10][32] -> [9][32]}            &    9      & {\tt [32]}       & {\tt n+1 = 10} $ \Rightarrow$ {\tt n = 9} \\\hline
+{\tt [3](Bit, [8]) -> [2](Bit, [8])} &    2      & {\tt (Bit, [8])} & The type {\tt a} is now a tuple	           \\\hline
+{\tt [inf][16] -> [inf][16]}         & {\tt inf} & {\tt [16]}       & {\tt n+1 = inf} $\Rightarrow$ {\tt n = inf}
 \end{tabular}
 %\end{adjustbox}
 \end{center}
@@ -1756,20 +1748,24 @@ happens if we apply {\tt tail} to an argument where an appropriate
 instantiation can not be found:
 \begin{Verbatim}
   Cryptol> tail True
-    [error] at <interactive>:1:1--1:10:
-      Type mismatch:
-        Expected type: Bit
-        Inferred type: [1 + ?a]?b
+  [error] at <interactive>:1:6--1:10:
+    Type mismatch:
+      Expected type: [1 + ?n`859]?a`860
+      Inferred type: Bit
+    where
+    ?n`859 is type argument 'n' of 'tail' at <interactive>:1:1--1:5
+    ?a`860 is type argument 'a' of 'tail' at <interactive>:1:1--1:5
 \end{Verbatim}
-Cryptol is telling us that it cannot match the types {\tt Bit} and the
-sequence {\tt [a+1]b}, causing a type error statically at compile
-time. (The funny notation of {\tt ?a} and {\tt ?b} are due to how type
-instantiations proceed under the hood. While they look funny at first,
-you soon get used to the notation.)
+Cryptol is telling us that it cannot match the types \texttt{Bit} and
+the sequence \texttt{[n+1]a}, causing a type error statically at
+compile time. (The funny notation of \texttt{?n`859} and
+\texttt{?a`860} are due to how type instantiations proceed under the
+hood. While they look funny at first, you soon get used to the
+notation.)
 
 We should emphasize that Cryptol polymorphism\indPolymorphism
 uniformly applies to user-defined functions as well, as we shall see
-in Section~\ref{sec:funcs}.
+in \autoref{sec:funcs}.
 
 \begin{Exercise}\label{ex:poly:groupBy}\indGroup
   Use the {\tt :t} command to find the type of {\tt groupBy}. For each
@@ -1788,31 +1784,31 @@ Is there any way to make the last example work by giving a type signature?
 Here is the type of {\tt groupBy}:
 \begin{Verbatim}
   Cryptol> :t groupBy
-  groupBy : {each, parts, elem}
-            (fin each) => [parts * each]elem
-                       -> [parts][each]elem
+  groupBy : {each, parts, a} (fin each) =>
+              [each * parts]a -> [parts][each]a
 \end{Verbatim}
 At every use case of {\tt groupBy} we must instantiate the parameters
-{\tt each}, {\tt parts}, and {\tt elem}; so that the resulting
-instantiation will match the use case.  In the first example, we can
-simply take: {\tt each = 3}, {\tt parts = 3}, and {\tt elem = [4]}. In
-the second, we can take {\tt each=3}, {\tt parts=4}, and {\tt
-  elem=[4]}. The third expression does not type-check. Cryptol tells
-us:
+{\tt each}, {\tt parts}, and {\tt a}; so that the resulting
+instantiation will match the use case. In the first example, we can
+simply take: {\tt each = 3}, {\tt parts = 3}, and \texttt{a = [4]}. In
+the second, we can take {\tt each=3}, {\tt parts=4}, and
+\texttt{a=[4]}. The third expression does not type-check. Cryptol
+tells us:
 \begin{Verbatim}
   Cryptol> groupBy`{3} [1..10] : [3][2][8]
-  Type mismatch:
-    Expected type: 2
-    Inferred type: 3
+  [error] at <interactive>:1:1--1:8:
+    Type mismatch:
+      Expected type: 2
+      Inferred type: 3
 \end{Verbatim}
 In this case, we are telling Cryptol that {\tt each = 3}, {\tt parts =
-  2}, and {\tt elem = [8]} by providing the explicit type
+  2}, and \texttt{a = [8]} by providing the explicit type
 signature.\indSignature Using this information, Cryptol must ensure
 that the instantiation will match the polymorphic type. To do so,
 Cryptol divides {\tt 10} (the size of the second argument) by {\tt 3}
 (the value of {\tt each}) to obtain {\tt 3}, and finds out that it
-does not match what we told it to use for {\tt parts}, i.e., {\tt
-  2}. It is not hard to see that there is no instantiation to make this
+does not match what we told it to use for {\tt parts}, i.e., {\tt 2}.
+It is not hard to see that there is no instantiation to make this
 work, since {\tt 10} is not divisible by {\tt 3}.
 \end{Answer}
 
@@ -1829,8 +1825,7 @@ sizes.\indPredicates To illustrate the notion, consider the type of
 the Cryptol primitive {\tt take}\indTake:
 \begin{Verbatim}
   Cryptol> :t take
-  take : {front, back, elem} (fin front) => [front + back]elem
-                                            -> [front]elem
+  take : {front, back, a} (fin front) => [front + back]a -> [front]a
 \end{Verbatim}
 
 The type of {\tt take} says that it is parameterized over {\tt front}
@@ -1841,10 +1836,8 @@ The impact of this predicate shows up when we try to take more than
 what is available:
 \begin{Verbatim}
   Cryptol> take`{10} [1..5]
-  [error] at <interactive>:1:1--1:17:
-    Unsolved constraint:
-      0 == 5 + ?a
-        arising from matching types at <interactive>:1:1--1:17
+  [error] at <interactive>:1:11--1:17:
+    Adding 10 will always exceed 5
 \end{Verbatim}
 Cryptol is telling us that it is unable to satisfy this instantiation
 (since {\tt front} is 10 and the sequence has 5
@@ -1871,6 +1864,7 @@ programs later on.
 \begin{verbatim}
   {k} (2 <= k, k <= 4) => [k*64]
 \end{verbatim}
+\todo[inline]{FIXME: The following example type signature is rejected by Cryptol, as subtraction is undefined when it underflows.}
 Here is another way, more direct but somewhat less satisfying:
 \begin{verbatim}
   {k} ((k - 128) * (k - 192) * (k - 256) == 0) => [k]
@@ -1953,7 +1947,7 @@ these algorithms.
 %% behavior is enabled by default, since otherwise interactions with
 %% the interpreter would be very painful. This is true especially in
 %% the case of nested expressions in Cryptol programs, as we shall see
-%% in Section~\ref{sec:pitfall:defaulting}.
+%% in \autoref{sec:pitfall:defaulting}.
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 \subsection{Why typed?}
@@ -2003,11 +1997,11 @@ So far, we used Cryptol as a calculator: we typed in expressions and
 it gave us answers. This is great for experimenting, and exploring
 Cryptol itself. The next fundamental Cryptol idiom is the notion of a
 function. You have already used built-in functions {\tt +}, {\tt
-  take}, etc.\indPlus\indLg Of course, users can define their own
+  take}, etc.{\indPlus\indLg}Of course, users can define their own
 functions as well. The recommended method is to define them in a file
 and load it, as in the next exercises.
 
-\note{Reviewing the contents of Section~\ref{sec:technicalities} might
+\note{Reviewing the contents of \autoref{sec:technicalities} might
   help at this point. Especially the commands that will let you load
   files ({\tt :l} and {\tt :r}) in Cryptol.\indCmdLoad\indCmdReload}
 
@@ -2269,7 +2263,7 @@ sequence {\tt xs} yield {\tt True} for the function {\tt f}.
 \end{Verbatim}
 (The {\tt where} clause introduces a local definition that is in scope
 in the current expression. We have seen the details in
-Section~\ref{sec:funcs}.\indWhere) What is the value of {\tt all f []}
+\autoref{sec:funcs}.\indWhere) What is the value of {\tt all f []}
 for an arbitrary function {\tt f}? Is this reasonable?
 \end{Exercise}
 \begin{Answer}\ansref{ex:zero:1}
