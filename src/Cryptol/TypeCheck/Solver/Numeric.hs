@@ -290,7 +290,7 @@ tryEqK ctxt ty lk =
          -- Inf * t = K ~~~> ERR      (K /= 0)
          (Nat k, Inf) -> Unsolvable
                        $ TCErrorMessage
-                       $ show k ++ " /= inf * anything"
+                       $ show k ++ " != inf * anything"
 
          (Nat lk', Nat rk')
            -- 0 * t = K2 ~~> K2 = 0
@@ -302,7 +302,7 @@ tryEqK ctxt ty lk =
            | otherwise ->
                Unsolvable
              $ TCErrorMessage
-             $ show lk ++ " /= " ++ show rk ++ " * anything"
+             $ showNat' lk ++ " != " ++ showNat' rk ++ " * anything"
 
   <|>
   -- K1 == K2 ^^ t    ~~> t = logBase K2 K1
@@ -311,7 +311,7 @@ tryEqK ctxt ty lk =
                 Inf | rk > 1 -> SolvedIf [ b =#= tInf ]
                 Nat n | Just (a,True) <- genLog n rk -> SolvedIf [ b =#= tNum a]
                 _ -> Unsolvable $ TCErrorMessage
-                       $ show rk ++ " ^^ anything /= " ++ showNat' lk
+                       $ show rk ++ " ^^ anything != " ++ showNat' lk
 
   -- XXX: Min, Max, etx
   -- 2  = min (10,y)  --> y = 2
