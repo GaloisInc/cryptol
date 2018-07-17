@@ -18,6 +18,7 @@ module Cryptol.Symbolic where
 
 import Control.Monad.IO.Class
 import Control.Monad (replicateM, when, zipWithM, foldM)
+import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
 import Data.List (intercalate, genericLength)
 import Data.IORef(IORef)
 import qualified Control.Exception as X
@@ -182,6 +183,9 @@ satProve ProverCommand {..} =
         SatQuery sn -> case sn of
           SomeSat 1 -> runProvers SBV.satWithAny satSMTResults
           _         -> runProver SBV.allSatWith allSatSMTResults
+  let addAsm = case pcQueryType of
+        ProveQuery -> \x y -> SBV.svOr (SBV.svNot x) y
+        SatQuery _ -> \x y -> SBV.svAnd x y
   case predArgTypes pcSchema of
     Left msg -> return (Nothing, ProverError msg)
     Right ts -> do when pcVerbose $ lPutStrLn "Simulating..."
@@ -189,10 +193,10 @@ satProve ProverCommand {..} =
                                     Eval.evalExpr env pcExpr
                    prims <- M.getPrimMap
                    runRes <- runFn $ do
-                               args <- mapM tyFn ts
+                               (args, asms) <- runWriterT (mapM tyFn ts)
                                b <- doEval (fromVBit <$>
                                       foldM fromVFun v (map Eval.ready args))
-                               return b
+                               return (foldr addAsm b asms)
                    let (firstProver, results') = runRes
                        results = maybe results' (\n -> take n results') mSatNum
                    esatexprs <- case results of
@@ -235,6 +239,7 @@ satProveOffline ProverCommand {..} =
           SatQuery _ -> True
     let extDgs = allDeclGroups modEnv ++ pcExtraDecls
     let tyFn = if isSat then existsFinType else forallFinType
+    let addAsm = if isSat then SBV.svAnd else \x y -> SBV.svOr (SBV.svNot x) y
     case predArgTypes pcSchema of
       Left msg -> return (Right (Left msg, modEnv), [])
       Right ts ->
@@ -243,9 +248,10 @@ satProveOffline ProverCommand {..} =
                    do env <- Eval.evalDecls extDgs mempty
                       Eval.evalExpr env pcExpr
            smtlib <- SBV.generateSMTBenchmark isSat $ do
-             args <- mapM tyFn ts
-             liftIO $ Eval.runEval evOpts
+             (args, asms) <- runWriterT (mapM tyFn ts)
+             b <- liftIO $ Eval.runEval evOpts
                         (fromVBit <$> foldM fromVFun v (map Eval.ready args))
+             return (foldr addAsm b asms)
            return (Right (Right smtlib, modEnv), [])
 
 protectStack :: (String -> M.ModuleCmd a)
@@ -343,27 +349,35 @@ predArgTypes schema@(Forall ts ps ty)
     go (Eval.TVFun ty1 ty2)   = (:) <$> finType ty1 <*> go ty2
     go _                      = Nothing
 
-forallFinType :: FinType -> SBV.Symbolic Value
+inBoundsIntMod :: Integer -> SInteger -> SBool
+inBoundsIntMod n x =
+  SBV.svAnd (SBV.svLessEq (Eval.integerLit 0) x) (SBV.svLessThan x (Eval.integerLit n))
+
+forallFinType :: FinType -> WriterT [SBool] SBV.Symbolic Value
 forallFinType ty =
   case ty of
-    FTBit         -> VBit <$> forallSBool_
-    FTInteger     -> VInteger <$> forallSInteger_
-    FTIntMod _    -> VInteger <$> forallSInteger_
+    FTBit         -> VBit <$> lift forallSBool_
+    FTInteger     -> VInteger <$> lift forallSInteger_
+    FTIntMod n    -> do x <- lift forallSInteger_
+                        tell [inBoundsIntMod n x]
+                        return (VInteger x)
     FTSeq 0 FTBit -> return $ Eval.word 0 0
-    FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> (forallBV_ n)
+    FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> lift (forallBV_ n)
     FTSeq n t     -> do vs <- replicateM n (forallFinType t)
                         return $ VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
     FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . forallFinType) ts
     FTRecord fs   -> VRecord <$> mapM (traverseSnd (fmap Eval.ready . forallFinType)) fs
 
-existsFinType :: FinType -> SBV.Symbolic Value
+existsFinType :: FinType -> WriterT [SBool] SBV.Symbolic Value
 existsFinType ty =
   case ty of
-    FTBit         -> VBit <$> existsSBool_
-    FTInteger     -> VInteger <$> existsSInteger_
-    FTIntMod _    -> VInteger <$> existsSInteger_
+    FTBit         -> VBit <$> lift existsSBool_
+    FTInteger     -> VInteger <$> lift existsSInteger_
+    FTIntMod n    -> do x <- lift existsSInteger_
+                        tell [inBoundsIntMod n x]
+                        return (VInteger x)
     FTSeq 0 FTBit -> return $ Eval.word 0 0
-    FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> (existsBV_ n)
+    FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> lift (existsBV_ n)
     FTSeq n t     -> do vs <- replicateM n (existsFinType t)
                         return $ VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
     FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . existsFinType) ts
