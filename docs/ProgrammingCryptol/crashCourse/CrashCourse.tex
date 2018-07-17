@@ -906,7 +906,7 @@ one line, or by putting the line continuation character {\tt
 \end{Answer}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-\subsection{Shifts and rotates} 
+\subsection{Shifts and rotates}
 \label{sec:shifts-rotates}
 
 Common operations on sequences include shifting and rotating them.
@@ -1069,9 +1069,9 @@ We will show the evaluation steps for {\tt groupBy} here, and urge the
 reader to do the same for {\tt split}:
 \begin{Verbatim}
   groupBy`{3} (12:[12])
-    = groupBy`{3} [False, False, False, False, False, False, 
+    = groupBy`{3} [False, False, False, False, False, False,
                    False, False, True, True, False, False]
-    = [[False, False, False], [False, False, False] 
+    = [[False, False, False], [False, False, False]
        [False, False, True], [True, False, False]]
     = [0, 0, 1, 4]
 \end{Verbatim}
@@ -1144,7 +1144,7 @@ following examples illustrate:
   "ABC"
   Cryptol> :set ascii=off
   Cryptol> ['A' .. 'Z']
-  [65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 
+  [65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79,
        80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90]
   Cryptol> :set ascii=on
   Cryptol> ['A' .. 'Z']
@@ -2495,7 +2495,7 @@ than {\tt xs} does.
 when we are interested in the final value of the accumulating values,
 as in the definition of {\tt maxSeq}.\indRIndex\indWhileLoop When used
 in this fashion, the execution is reminiscent of a simple while loop
-that you might be familiar from other languages, such as C:
+that you might be familiar with from other languages, such as C:
 \begin{Verbatim}[commandchars=\\\{\}, codes={\catcode`$=3\catcode`^=7\catcode`_=8}]
   -- C-like Pseudo-code!
   y = i;                 // running value, start with i
@@ -2623,7 +2623,7 @@ idea for most of their computations.
 \todo[inline]{Again, show the recursion-based version of \texttt{fibs}
   and its limitations.}
 
-\begin{Exercise}\label{ex:recfun:5} 
+\begin{Exercise}\label{ex:recfun:5}
   Define the sequence of Fibonacci numbers {\tt fibs}, so that {\tt
     fibs @ n} is the $n^{\mbox{th}}$ Fibonacci
   number~\cite{wiki:fibonacci}.\glosFibonacci You can assume 32 bits
@@ -2711,7 +2711,7 @@ The Cryptol code corresponding to this stream equation is:
 \begin{Answer}\ansref{ex:streamEq}
 \begin{code}
   xs input = as where
-     as = [0x89, 0xAB, 0xCD, 0xEF] # new 
+     as = [0x89, 0xAB, 0xCD, 0xEF] # new
      new = [ a ^ b ^ c | a <- as
                        | b <- drop`{2} as
                        | c <- input ]
@@ -2764,12 +2764,14 @@ of a point as follows:
   xCoord p = p.x
 \end{code}
 
-Note that type synonyms, while maintained within the type and value
-context shown via the \texttt{:browse} command, are
-\emph{value-based}, not \emph{name-based}.  When viewed from the
-types-as-sets interpretation, two types in Cryptol are synonymous if
-their values happen to be equal.
-\todo[inline]{The above paragraph is very confusing!}
+Type synonyms look like distinct types when they are printed in the
+output of the \texttt{:t} and \texttt{:browse} commands. However,
+declaring a type synonym does not actually introduce a new
+\emph{type}; it merely introduces a new name for an existing type.
+When Cryptol's type checker compares types, it expands all type
+synonyms first. So as far as Cryptol is concerned, \texttt{Word8} and
+\texttt{[8]} are the \emph{same} type. Cryptol preserves type synonyms
+in displayed types as a convenience to the user.
 
 For example, consider the following declarations:
 %% not "code" to avoid conflicting with previous Word8
@@ -2781,17 +2783,19 @@ For example, consider the following declarations:
   type WordPair  = (Word8, Word8')
   type WordPair' = (Word8', Word8)
 
-  foo: Word8 -> Bit
+  foo : Word8 -> Bit
   foo x = True
 
-  bar: Word8' -> Bit
+  bar : Word8' -> Bit
   bar x = foo x
 \end{Verbatim}
-Within this type context, while six \emph{names} are declared, only
-\emph{two} types are declared (\texttt{[8]} and the pair \texttt{([8],
-[8])}.  Likewise, the function types of \texttt{foo} and \texttt{bar}
-are identical, thus \texttt{bar} can call \texttt{foo}.
-\todo[inline]{Also very confusing! What does it mean that two types are declared?}
+Within this type context, six different type \emph{names} are
+declared, but there are not six distinct \emph{types}. The first four
+(\texttt{Word8}, \texttt{Word8'}, \texttt{B}, and \texttt{A}) are all
+interchangeable abbreviations for \texttt{[8]}. The last two are
+synonymous and interchangeable with the pair type \texttt{([8], [8])}.
+Likewise, the function types of \texttt{foo} and \texttt{bar} are
+identical, thus \texttt{bar} can call \texttt{foo}.
 
 \begin{Exercise}\label{ex:tsyn:1}
   Define a type synonym for 3-dimensional points and write a function
@@ -2842,27 +2846,32 @@ types.  As an example, consider the type of the function {\tt ==}:
     (==) : {a} (Cmp a) => a -> a -> Bit
 \end{Verbatim}
 
-This operator type is interpreted ``equality is an operator that takes
-two objects of any single type that can be compared and returns a
-Bit.''
+This type signature may be read as, ``equality is an operator that
+takes two objects of any single type that can be compared and returns
+a Bit.''
 
 Cryptol defines a collection of basic type classes: \texttt{Logic},
-\texttt{Zero}, \texttt{Cmp}, \texttt{SignedCmp}, and \texttt{Arith}.
-These appear in the type signature of operators and functions that
-require them. If a function you define calls, for example, {\tt +}, on
-two arguments both of type {\tt a}, the type constraints for {\tt a}
-will include {\tt (Arith a)}.
+\texttt{Zero}, \texttt{Cmp}, \texttt{SignedCmp}, \texttt{Arith}, and
+\texttt{Literal}. These appear in the type signature of operators and
+functions that require them. If a function you define calls, for
+example, \texttt{+}, on two arguments both of type \texttt{a}, the
+type constraints for \texttt{a} will include \texttt{(Arith a)}.
 
+\begin{itemize}
+\item
 The \texttt{Logic} typeclass includes the binary logical operators
 \texttt{\&\&}, \texttt{||}, and \verb+^+, as well as the unary
-operator \verb+~+.
+operator \verb+~+. Cryptol types made of bits (but not those
+containing unbounded integers) are instances of class \texttt{Logic}.
 
+\item
 The \texttt{Zero} typeclass includes the special constant
 \texttt{zero}. The shifting operators \texttt{<<} and \texttt{>>} are
 also in class \texttt{Zero}, because they can shift in zero values.
 All of the built-in types of Cryptol are instances of class
 \texttt{Zero}.
 
+\item
 The \texttt{Cmp} typeclass includes the binary relation operators
 \texttt{<}, \texttt{>}, \texttt{<=}, \texttt{>=}, \texttt{==}, and
 \texttt{!=}, as well as the binary functions \texttt{min} and
@@ -2872,6 +2881,7 @@ and cannot be compared with \texttt{==}, but Cryptol does provide a
 special pointwise comparison operator for functions, \texttt{(===) :
   \{a b\} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit}.
 
+\item
 The \texttt{SignedCmp} typeclass includes the binary relation
 operators \texttt{<\$}, \texttt{>\$}, \texttt{<=\$}, and
 \texttt{>=\$}. These are like \texttt{<}, \texttt{>}, \texttt{<=}, and
@@ -2879,9 +2889,16 @@ operators \texttt{<\$}, \texttt{>\$}, \texttt{<=\$}, and
 2's complement numbers, whereas the \texttt{Cmp} operations use the
 \emph{unsigned} ordering.
 
+\item
 The \texttt{Arith} typeclass includes the binary operators \texttt{+},
 \texttt{-}, \texttt{*}, \texttt{/}, \verb+%+, and \verb+^^+, as well
-as the unary operators \texttt{lg2} and \texttt{-}.
+as the unary operators \texttt{lg2} and \texttt{-}, and the function
+\texttt{fromInteger}. Infinite sequence enumerations \texttt{[x ...]}
+and \texttt{[x, y ...]} are also defined for class \texttt{Arith}.
+
+\item
+The \texttt{Literal} typeclass includes numeric literals.
+\end{itemize}
 
 \begin{Exercise}\label{ex:tvar:1}
   Without including an explicit type declaration, define a function
@@ -2916,10 +2933,11 @@ Cryptol, there are two kinds of parameters you can pass: {\it value
   variables} and {\it type variables}.
 
 Consider the \texttt{groupBy} function that we previously examined in
-\autoref{ex:poly:groupBy}.  Recall that \texttt{groupBy}'s type is:
+Exercise \autoref{ex:poly:groupBy}. Recall that \texttt{groupBy}'s
+type is:
 \begin{verbatim}
-    groupBy : {each, parts, elem} (fin each) =>
-              [parts * each]elem -> [parts][each]elem
+    groupBy : {each, parts, a} (fin each) =>
+              [parts * each]a -> [parts][each]a
 \end{verbatim}
 When applying \texttt{groupBy}, one typically specifies a concrete
 value for the formal parameter \texttt{parts}:
@@ -2933,7 +2951,7 @@ sequence as the first (and only) {\it value argument}, \texttt{elem}.
 
 A \emph{value variable} is the kind of variable you are used to from
 normal programming languages.  These kinds of variable represent a
-normal run-time value.  
+normal run-time value.
 
 A \emph{type variable}, on the other hand, allows you to express
 interesting (arithmetic) constraints on \emph{types}. These variables
@@ -2954,13 +2972,13 @@ Cryptol permits type variables to be passed either by name (as in {\tt
 For functions you define, the position is the order in which the type
 variables are declared in your function's type signature. If you are
 not sure what that is, you can always use the {\tt :t} command to find
-out the position of type variables. 
+out the position of type variables.
 
 For example:
 \begin{Verbatim}
     Cryptol> :t groupBy
-    groupBy : {each, parts, elem} 
-              (fin each) => [parts * each]elem 
+    groupBy : {each, parts, elem}
+              (fin each) => [parts * each]elem
                          -> [parts][each]elem
 \end{Verbatim}
 tells us that that {\tt parts} is in the second position of {\tt
@@ -3205,7 +3223,7 @@ that point of view in the remainder of this document to walk you
 through a number of different examples (both small and large),
 employing the concepts we have seen thus far.
 
-%%% Local Variables: 
+%%% Local Variables:
 %%% mode: latex
 %%% TeX-master: "../main/Cryptol.tex"
-%%% End: 
+%%% End:
