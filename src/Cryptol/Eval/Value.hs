@@ -805,9 +805,9 @@ toExpr prims t0 v0 = findOne (go t0 v0)
     (TCon (TC TCBit) [], VBit True ) -> return (prim "True")
     (TCon (TC TCBit) [], VBit False) -> return (prim "False")
     (TCon (TC TCInteger) [], VInteger i) ->
-      return $ ETApp (prim "integer") (tNum i)
+      return $ ETApp (ETApp (prim "demote") (tNum i)) ty
     (TCon (TC TCIntMod) [_n], VInteger i) ->
-      return $ ETApp (prim "integer") (tNum i) --FIXME
+      return $ ETApp (ETApp (prim "demote") (tNum i)) ty
     (TCon (TC TCSeq) [a,b], VSeq 0 _) -> do
       guard (a == tZero)
       return $ EList [] b
@@ -818,7 +818,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
     (TCon (TC TCSeq) [a,(TCon (TC TCBit) [])], VWord _ wval) -> do
       BV w v <- lift (asWordVal =<< wval)
       guard (a == tNum w)
-      return $ ETApp (ETApp (prim "demote") (tNum v)) (tWord (tNum w))
+      return $ ETApp (ETApp (prim "demote") (tNum v)) ty
     (_, VStream _) -> fail "cannot construct infinite expressions"
     (_, VFun    _) -> fail "cannot convert function values to expressions"
     (_, VPoly   _) -> fail "cannot convert polymorphic values to expressions"
