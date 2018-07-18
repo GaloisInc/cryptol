@@ -22,7 +22,7 @@ import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
 import           Cryptol.TypeCheck.Subst
-import           Cryptol.TypeCheck.Unify(mgu, Result(..), UnificationError(..))
+import           Cryptol.TypeCheck.Unify(mgu, runResult, UnificationError(..))
 import           Cryptol.TypeCheck.InferTypes
 import           Cryptol.TypeCheck.Error(Warning(..),Error(..),cleanupErrors)
 import           Cryptol.TypeCheck.PP (brackets, commaSep)
@@ -483,21 +483,21 @@ unify :: Type -> Type -> InferM [Prop]
 unify t1 t2 =
   do t1' <- applySubst t1
      t2' <- applySubst t2
-     case mgu t1' t2' of
-       OK (su1,ps) -> extendSubst su1 >> return ps
-       Error err   ->
-         do case err of
-              UniTypeLenMismatch _ _ -> recordError (TypeMismatch t1' t2')
-              UniTypeMismatch s1 s2 -> recordError (TypeMismatch s1 s2)
-              UniKindMismatch k1 k2 -> recordError (KindMismatch k1 k2)
-              UniRecursive x t -> recordError (RecursiveType (TVar x) t)
-              UniNonPolyDepends x vs -> recordError
-                                          (TypeVariableEscaped (TVar x) vs)
-              UniNonPoly x t -> recordError (NotForAll x t)
-            return []
-
-
-
+     let ((su1, ps), errs) = runResult (mgu t1' t2')
+     extendSubst su1
+     let toError :: UnificationError -> Error
+         toError err =
+           case err of
+             UniTypeLenMismatch _ _ -> TypeMismatch t1' t2'
+             UniTypeMismatch s1 s2  -> TypeMismatch s1 s2
+             UniKindMismatch k1 k2  -> KindMismatch k1 k2
+             UniRecursive x t       -> RecursiveType (TVar x) t
+             UniNonPolyDepends x vs -> TypeVariableEscaped (TVar x) vs
+             UniNonPoly x t         -> NotForAll x t
+     case errs of
+       [] -> return ps
+       _  -> do mapM_ (recordError . toError) errs
+                return []
 
 -- | Apply the accumulated substitution to something with free type variables.
 applySubst :: TVars t => t -> InferM t

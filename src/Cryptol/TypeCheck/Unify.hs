@@ -13,8 +13,8 @@ module Cryptol.TypeCheck.Unify where
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst
-import Cryptol.Utils.Panic (panic)
 
+import Control.Monad.Writer (Writer, writer, runWriter)
 import Data.Ord(comparing)
 import Data.List(sortBy)
 import qualified Data.Set as Set
@@ -26,8 +26,10 @@ import Prelude.Compat
 -- on bound variables.
 type MGU = (Subst,[Prop])
 
-data Result a = OK a | Error UnificationError
-                deriving (Functor)
+type Result a = Writer [UnificationError] a
+
+runResult :: Result a -> (a, [UnificationError])
+runResult = runWriter
 
 data UnificationError
   = UniTypeMismatch Type Type
@@ -37,23 +39,8 @@ data UnificationError
   | UniNonPolyDepends TVar [TParam]
   | UniNonPoly TVar Type
 
-instance Applicative Result where
-  pure = OK
-
-  OK f     <*> OK x    = OK (f x)
-  OK _     <*> Error e = Error e
-  Error e  <*> _       = Error e
-
-instance Monad Result where
-  return a      = OK a
-
-  OK a >>= k    = k a
-  Error x >>= _ = Error x
-
-  fail x        = panic "Cryptol.TypeCheck.Unify.fail" [x]
-
-uniError :: UnificationError -> Result a
-uniError e = Error e
+uniError :: UnificationError -> Result MGU
+uniError e = writer (emptyMGU, [e])
 
 
 emptyMGU :: MGU
