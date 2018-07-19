@@ -69,7 +69,7 @@ cryIsGeq i t1 t2 =
   -- XXX: max t 10 >= 2 --> True
   -- XXX: max t 2 >= 10 --> a >= 10
 
--- | Try to solve something by evalutaion.
+-- | Try to solve something by evaluation.
 pBin :: PC -> (Nat' -> Nat' -> Bool) -> Type -> Type -> Match Solved
 pBin tf p t1 t2 =
       Unsolvable <$> anError KNum t1
