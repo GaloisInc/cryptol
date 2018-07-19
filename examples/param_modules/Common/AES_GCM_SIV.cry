@@ -22,7 +22,7 @@ parameter
 
 
 type K  = 128 + 128 * Mode
-type KS = AES::ExpandedKey (2 * Mode)
+type KS = AES::EncKey (2 * Mode)
 
 
 /** Note the weird byte-swapping business (also in `blockify` and `unblockify`)
@@ -47,7 +47,7 @@ aes : KS -> [128] -> [128]
 aes ks v = byteSwap (AES::encryptWithSchedule ks (byteSwap v))
 
 expandKey : [K] -> KS
-expandKey k = AES::expandKey (byteSwap k)
+expandKey k = AES::expandKeyEnc (byteSwap k)
 
 /** See Figure 2 in Section 4 */
 derive_key : [K] -> [96] -> ([128], KS)
