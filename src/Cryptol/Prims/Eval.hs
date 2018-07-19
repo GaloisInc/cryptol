@@ -898,7 +898,7 @@ splitAtV front back a val =
   --   The first integer argument is the number of bits in the
   --   resulting word.  The second integer argument is the
   --   number of less-significant digits to discard.  Stated another
-  --   way, the operation `extractWordVal n i w` is equivelant to
+  --   way, the operation `extractWordVal n i w` is equivalent to
   --   first shifting `w` right by `i` bits, and then truncating to
   --   `n` bits.
 extractWordVal :: BitWord b w i
