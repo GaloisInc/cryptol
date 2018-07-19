@@ -43,6 +43,14 @@
   )))
 )
 
+(define-fun cryNeq ((x InfNat) (y InfNat)) MaybeBool
+  (ite (or (isErr x) (isErr y)) cryErrProp (cryBool
+  (ite (isFin x)
+     (ite (isFin y) (not (= (value x) (value y))) true)
+     (isFin y)
+  )))
+)
+
 (define-fun cryFin ((x InfNat)) MaybeBool
   (ite (isErr x) cryErrProp (cryBool
   (isFin x)))
