@@ -281,7 +281,7 @@ proveImplication lnam as ps gs =
 proveImplicationIO :: Solver
                    -> Maybe Name     -- ^ Checking this function
                    -> Set TVar -- ^ These appear in the env., and we should
-                               -- not try to default the
+                               -- not try to default them
                    -> [TParam] -- ^ Type parameters
                    -> [Prop]   -- ^ Assumed constraint
                    -> [Goal]   -- ^ Collected constraints
