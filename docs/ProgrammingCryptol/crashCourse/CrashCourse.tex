@@ -1767,49 +1767,50 @@ We should emphasize that Cryptol polymorphism\indPolymorphism
 uniformly applies to user-defined functions as well, as we shall see
 in \autoref{sec:funcs}.
 
-\begin{Exercise}\label{ex:poly:groupBy}\indGroup
-  Use the {\tt :t} command to find the type of {\tt groupBy}. For each
-  use case below, find out what the instantiations of its type
+\begin{Exercise}\label{ex:poly:split}\indGroup
+  Use the \texttt{:t} command to find the type of \texttt{split}. For
+  each use case below, find out what the instantiations of its type
   variables are, and justify why the instantiation works. Can you find
   an instantiation in all these cases?
 \begin{Verbatim}
-  groupBy`{3} [1..9]
-  groupBy`{3} [1..12]
-  groupBy`{3} [1..10] : [3][2][8]
-  groupBy`{3} [1..10]
+  split`{3} [1..9]
+  split`{3} [1..12]
+  split`{3} [1..10] : [3][2][8]
+  split`{3} [1..10]
 \end{Verbatim}
 Is there any way to make the last example work by giving a type signature?
 \end{Exercise}
-\begin{Answer}\ansref{ex:poly:groupBy}\indGroup
-Here is the type of {\tt groupBy}:
+\begin{Answer}\ansref{ex:poly:split}\indGroup
+Here is the type of \texttt{split}:
 \begin{Verbatim}
-  Cryptol> :t groupBy
-  groupBy : {each, parts, a} (fin each) =>
-              [each * parts]a -> [parts][each]a
+  Cryptol> :t split
+  split : {parts, each, a} (fin each) =>
+            [parts * each]a -> [parts][each]a
 \end{Verbatim}
-At every use case of {\tt groupBy} we must instantiate the parameters
-{\tt each}, {\tt parts}, and {\tt a}; so that the resulting
+At every use case of \texttt{split} we must instantiate the parameters
+\texttt{parts}, \texttt{each}, and \texttt{a}, so that the resulting
 instantiation will match the use case. In the first example, we can
-simply take: {\tt each = 3}, {\tt parts = 3}, and \texttt{a = [4]}. In
-the second, we can take {\tt each=3}, {\tt parts=4}, and
+simply take: \texttt{parts = 3}, \texttt{each = 3}, and \texttt{a = [4]}. In
+the second, we can take \texttt{parts=3}, \texttt{each=4}, and
 \texttt{a=[4]}. The third expression does not type-check. Cryptol
 tells us:
 \begin{Verbatim}
-  Cryptol> groupBy`{3} [1..10] : [3][2][8]
-  [error] at <interactive>:1:1--1:8:
+  Cryptol> split`{3} [1..10] : [3][2][8]
+  [error] at <interactive>:1:11--1:18:
     Type mismatch:
-      Expected type: 2
-      Inferred type: 3
+      Expected type: 6
+      Inferred type: 10
 \end{Verbatim}
-In this case, we are telling Cryptol that {\tt each = 3}, {\tt parts =
-  2}, and \texttt{a = [8]} by providing the explicit type
+In this case, we are telling Cryptol that \texttt{parts = 3},
+\texttt{each = 2}, and \texttt{a = [8]} by providing the explicit type
 signature.\indSignature Using this information, Cryptol must ensure
-that the instantiation will match the polymorphic type. To do so,
-Cryptol divides {\tt 10} (the size of the second argument) by {\tt 3}
-(the value of {\tt each}) to obtain {\tt 3}, and finds out that it
-does not match what we told it to use for {\tt parts}, i.e., {\tt 2}.
-It is not hard to see that there is no instantiation to make this
-work, since {\tt 10} is not divisible by {\tt 3}.
+that the argument matches the instantiation of the the polymorphic
+type. The argument to \texttt{split} must have type \texttt{[parts *
+    each]a}; instantiating the type variables, this is \texttt{[3 *
+    2][8]}, or \texttt{[6][8]}. However, the given argument has length
+\texttt{10}, which is not equal to \texttt{6}. It is not hard to see
+that there is no instantiation to make this work, since \texttt{10} is
+not divisible by \texttt{3}.
 \end{Answer}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -2926,31 +2927,31 @@ yields the inferred type:
   variables, their scope and limitations, where they can be left
   abstract and when and where they must be concretized, etc.}
 
-Its powerful type system is one of the key features of Cryptol.  We
-have encountered many aspects of types already.  You may have noticed,
-in functions such as {\tt groupBy}, that when you call a function in
-Cryptol, there are two kinds of parameters you can pass: {\it value
-  variables} and {\it type variables}.
+Its powerful type system is one of the key features of Cryptol. We
+have encountered many aspects of types already. You may have noticed,
+in functions such as \texttt{split}, that when you call a function in
+Cryptol, there are two kinds of parameters you can pass: \textit{value
+  variables} and \textit{type variables}.
 
-Consider the \texttt{groupBy} function that we previously examined in
-Exercise \autoref{ex:poly:groupBy}. Recall that \texttt{groupBy}'s
+Consider the \texttt{split} function that we previously examined in
+Exercise \autoref{ex:poly:split}. Recall that \texttt{split}'s
 type is:
 \begin{verbatim}
-    groupBy : {each, parts, a} (fin each) =>
+    split : {parts, each, a} (fin each) =>
               [parts * each]a -> [parts][each]a
 \end{verbatim}
-When applying \texttt{groupBy}, one typically specifies a concrete
+When applying \texttt{split}, one typically specifies a concrete
 value for the formal parameter \texttt{parts}:
 \begin{Verbatim}
-    Cryptol> groupBy`{parts=3}[1..12]
+    Cryptol> split`{parts=3} [1..12]
     [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12]]
 \end{Verbatim}
-In this example, the term {\tt\Verb|`{parts=3}|} passes 3 to the {\tt
-  parts} type variable argument, and the {\tt [1..12]} is passing a
-sequence as the first (and only) {\it value argument}, \texttt{elem}.
+In this example, the term {\tt\Verb|`{parts=3}|} passes \texttt{3} to
+the \texttt{parts} type variable argument, and the \texttt{[1..12]} is
+passing a sequence as the first (and only) \textit{value argument}.
 
 A \emph{value variable} is the kind of variable you are used to from
-normal programming languages.  These kinds of variable represent a
+normal programming languages.  This kind of variable represents a
 normal run-time value.
 
 A \emph{type variable}, on the other hand, allows you to express
@@ -3024,9 +3025,8 @@ be used.  To do this, use the backtick character {\tt \Verb|`|}.
 The definition of the built-in {\tt width} function is a good example
 of the use of backtick:
 \begin{Verbatim}
-    width : {bits,len,elem} (fin len, fin bits, bits >= width len) =>
-            [len] elem -> [bits]
-    width _ = `len
+    width : {bits, n, a} (fin n, fin bits, bits >= width n) => [n]a -> [bits]
+    width _ = `n
 \end{Verbatim}
 
 \begin{tip}
