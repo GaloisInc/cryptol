@@ -37,6 +37,8 @@ cryIsEqual ctxt t1 t2 =
     <|> ( guard (t1 == t2) >> return (SolvedIf []))
     <|> tryEqMin t1 t2
     <|> tryEqMin t2 t1
+    <|> tryEqMins t1 t2
+    <|> tryEqMins t2 t1
     <|> tryEqMulConst t1 t2
     <|> tryEqAddInf ctxt t1 t2
     <|> tryAddConst (=#=) t1 t2
@@ -208,6 +210,40 @@ tryEqMin x y =
      let check m1 m2 = do guard (m1 == y)
                           return $ SolvedIf [ m2 >== m1 ]
      check a b <|> check b a
+
+
+-- t1 == min (K + t1) t2 ~~> t1 == t2, if K >= 1
+-- (also if (K + t1) is one term in a multi-way min)
+tryEqMins :: Type -> Type -> Match Solved
+tryEqMins x y =
+  do (a, b) <- aMin y
+     let ys = splitMin a ++ splitMin b
+     let ys' = filter (not . isGt) ys
+     return $ case ys' of
+       [] -> Unsolvable
+             $ TCErrorMessage
+             $ "Unsolvable constraint: " ++
+               show (pp (x =#= y))
+       _ | length ys' < length ys -> SolvedIf [x =#= foldr1 Simp.tMin ys']
+         | otherwise              -> Unsolved
+  where
+    splitMin :: Type -> [Type]
+    splitMin ty =
+      case matchMaybe (aMin ty) of
+        Just (t1, t2) -> splitMin t1 ++ splitMin t2
+        Nothing       -> [ty]
+
+    isGt :: Type -> Bool
+    isGt t =
+      case matchMaybe (asAddK t) of
+        Just (k, t') -> k > 0 && t' == x
+        Nothing      -> False
+
+    asAddK :: Type -> Match (Integer, Type)
+    asAddK t =
+      do (t1, t2) <- anAdd t
+         k <- aNat t1
+         return (k, t2)
 
 
 tryEqVar :: Type -> TVar -> Match Solved
