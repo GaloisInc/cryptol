@@ -1049,18 +1049,19 @@ wordValLogicOp :: BitWord b w i
                -> (w -> w -> w)
                -> WordValue b w i
                -> WordValue b w i
-               -> WordValue b w i
-wordValLogicOp _ wop (WordVal w1) (WordVal w2) = WordVal (wop w1 w2)
+               -> Eval (WordValue b w i)
+wordValLogicOp _ wop (WordVal w1) (WordVal w2) = return $ WordVal (wop w1 w2)
 wordValLogicOp bop _ (BitsVal xs) (BitsVal ys) =
-  BitsVal $ Seq.zipWith (\x y -> bop <$> x <*> y) xs ys
+  ready $ BitsVal $ Seq.zipWith (\x y -> bop <$> x <*> y) xs ys
 wordValLogicOp bop _ (WordVal w1) (BitsVal ys) =
-  BitsVal $ Seq.zipWith (\x y -> bop <$> x <*> y) (Seq.fromList $ map ready $ unpackWord w1) ys
+  ready $ BitsVal $ Seq.zipWith (\x y -> bop <$> x <*> y) (Seq.fromList $ map ready $ unpackWord w1) ys
 wordValLogicOp bop _ (BitsVal xs) (WordVal w2) =
-  BitsVal $ Seq.zipWith (\x y -> bop <$> x <*> y) xs (Seq.fromList $ map ready $ unpackWord w2)
-wordValLogicOp bop _ w1 w2 = LargeBitsVal (wordValueSize w1) zs
-     where zs = IndexSeqMap $ \i -> VBit <$> (bop <$> (fromBit =<< lookupSeqMap xs i) <*> (fromBit =<< lookupSeqMap ys i))
+  ready $ BitsVal $ Seq.zipWith (\x y -> bop <$> x <*> y) xs (Seq.fromList $ map ready $ unpackWord w2)
+wordValLogicOp bop _ w1 w2 = LargeBitsVal (wordValueSize w1) <$> zs
+     where zs = memoMap $ IndexSeqMap $ \i -> op <$> (lookupSeqMap xs i) <*> (lookupSeqMap ys i)
            xs = asBitsMap w1
            ys = asBitsMap w2
+           op x y = VBit (bop (fromVBit x) (fromVBit y))
 
 -- | Merge two values given a binop.  This is used for and, or and xor.
 logicBinary :: forall b w i
@@ -1088,7 +1089,7 @@ logicBinary opb opw = loop
     TVSeq w aty
          -- words
          | isTBit aty
-              -> do v <- delay Nothing
+              -> do v <- delay Nothing $ join
                             (wordValLogicOp opb opw <$>
                                     fromWordVal "logicBinary l" l <*>
                                     fromWordVal "logicBinary r" r)
