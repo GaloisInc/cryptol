@@ -29,11 +29,11 @@ module Karatsuba where
 kmult : {limb,n} (fin n, fin limb, limb >= 6, n >= 1) => [n] -> [n] -> [2*n]
 
 kmult x y =
- if `n >= (demote`{limb, max (width limb) (width n)}) then
+ if `n >= (`limb : [max (width limb) (width n)]) then
    take (splitmult`{limb} (make_atleast`{limb} x) (make_atleast`{limb} y))
  else
    (zero#x)*(zero#y)
-   
+
 
 // Force a bitvector to be at least `n` bits long.  As used above, this operation
 // should always be a no-op, but teaches the typechecker a necessary inequality
