@@ -19,7 +19,7 @@ parameter
   tweak_cipher : K -> Tweak -> [n] -> [n]
 
   // Cost for using the tweak
-  Cost : Integer
+  Cost : Int
 
   Enc : K -> Tweak -> Node -> Node
   Dec : K -> Tweak -> Node -> Node
@@ -33,7 +33,7 @@ type WorkBlock  = [p*n]
 
 type State      = [p*n]  // The state for `p` blocks
 
-type Tweak      = { nonce : Nonce, state : A, z : Integer }
+type Tweak      = { nonce : Nonce, state : A, z : Int }
 type Nonce      = [n]
 
 /*
@@ -51,7 +51,7 @@ property
        where { message = c, state = y } = Enc t x m
 */
 
-type Integer = [64]
+type Int = [64]
 
 encrypt :
   {m} fin m => K -> Nonce -> A -> [m * (p * n)] -> [m * (p * n) + tagAmount]
@@ -75,6 +75,6 @@ encrypt key nonce state inputMsg = encMsg # tag
   chunks : [m] [p * n]
   chunks = split inputMsg
 
-  tweak : Integer -> Tweak
+  tweak : Int -> Tweak
   tweak v = { nonce = nonce, state = state, z = v }
 
