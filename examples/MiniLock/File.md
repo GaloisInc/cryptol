@@ -209,9 +209,9 @@ fileinfo inside a decryptInfo field as such:
 
   mkChunks :  {bytes} ( fin bytes )
            => [bytes][8] -> ([FullChunks bytes]Chunk, [Rem bytes][8])
-  mkChunks pt = (cs,last)
+  mkChunks pt = (cs,lst)
     where cs   = split (take `{front = FullChunks bytes * ChunkSize, back = Rem bytes} pt)
-          last = drop `{FullChunks bytes * ChunkSize} pt
+          lst = drop `{FullChunks bytes * ChunkSize} pt
 ```
 
 The above code used some custom utility functions, which appear below.

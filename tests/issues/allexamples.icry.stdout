@@ -20,17 +20,11 @@ Loading module Cipher
 Loading module Cryptol
 Loading module Cipher
 Loading module DES
-[warning] at ./DES.cry:25:9--25:13
-    This binding for last shadows the existing binding from
-    (at /var/folders/hf/g8kjlj3x4cz05819qsk684_c0000gp/T/Cryptol79669-5.cry:568:1--568:5, last)
 Loading module Cryptol
 Loading module Cipher
 Loading module DES
 Loading module Test
 Loading module DEStest
-[warning] at ./DES.cry:25:9--25:13
-    This binding for last shadows the existing binding from
-    (at /var/folders/hf/g8kjlj3x4cz05819qsk684_c0000gp/T/Cryptol79669-6.cry:568:1--568:5, last)
 Loading module Cryptol
 Loading module Main
 Loading module Cryptol
@@ -62,9 +56,6 @@ Loading module Cryptol
 Loading module Cipher
 Loading module DES
 Loading module TripleDES
-[warning] at ./DES.cry:25:9--25:13
-    This binding for last shadows the existing binding from
-    (at /var/folders/hf/g8kjlj3x4cz05819qsk684_c0000gp/T/Cryptol79669-17.cry:568:1--568:5, last)
 Loading module Cryptol
 Loading module Main
 Loading module Cryptol
@@ -237,9 +228,6 @@ Loading module SCrypt
 Loading module Base58
 Loading module Keys
 Loading module File
-[warning] at ../File.md:214:11--214:15
-    This binding for last shadows the existing binding from
-    (at /var/folders/hf/g8kjlj3x4cz05819qsk684_c0000gp/T/Cryptol79669-68.cry:568:1--568:5, last)
 Loading module Cryptol
 Loading module bv
 Loading module mod_arith
