@@ -1,0 +1,8 @@
+gt_words : {a} (fin a) => [a][32] -> [a][32] -> Bit
+gt_words l0 l1 = ss!0
+  where
+    ss = [ False ] # [ s \/ (i > j) | i <- l0 | j <- l1 | s <- ss ]
+
+gt_words' l0 l1 = ss!0
+  where
+    ss = [ False ] # [ s \/ (i > j) | i <- l0 | j <- l1 | s <- ss ]
