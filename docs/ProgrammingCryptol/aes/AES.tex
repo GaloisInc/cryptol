@@ -578,7 +578,7 @@ We have:
 
   What Cryptol allows us to do is to write the algorithms using both
   styles, and then formally show that they are indeed equivalent, as
-  you did in Exercise~\ref{ex:sbox} above.  This mode of
+  you did in \exerciseref{ex:sbox} above.  This mode of
   high-assurance development makes sure that we have not made any
   cut-and-paste errors when we wrote down the numbers in our {\tt
     sbox} table. Equivalently, our proof also establishes that the
@@ -817,7 +817,7 @@ array {\tt Rcon} used during key expansion. For each {\tt i}, {\tt
   Rcon[i]} contains 4 words, the last three being 0~\cite[section
 5.2]{aes}.  The first element is given by $x^{i-1}$, where
 exponentiation is done using the {\tt gf28Pow} function you have
-defined in Exercise~\ref{aes:subbytes}-\ref{ex:gfmi:0}. In Cryptol,
+defined in \exerciseref{ex:gfmi:0}. In Cryptol,
 it is easiest to define {\tt Rcon} as a function:
 \begin{code}
   Rcon : [8] -> [4]GF28
@@ -859,7 +859,7 @@ to get the indexing right.
   We need to write a conditional property
   (\autoref{sec:condproof})\indThmCond. Below, we use the function
   {\tt elem} you have defined in
-  Exercise~\ref{sec:recandrec}-\ref{ex:recfun:4:1}:\indElem
+  \exerciseref{ex:recfun:4:1}:\indElem
 \begin{code}
   property RconCorrect x = if elem(x, [1..10])
                            then Rcon x == Rcon' x
@@ -893,7 +893,7 @@ We have:
 % \end{Verbatim}
 % The premise of {\tt Rcon'} is that it must be called with numbers in
 % the range 1--10. So, all its uses are actually safe, as we shall
-% explore in Exercise~\ref{aes:keyexpansion}~\ref{ex:rconsafety}.
+% explore in \exerciseref{ex:rconsafety}.
 % \end{Answer}
 
 \paragraph*{The {\ttfamily{\textbf SubWord}} function} The AES\indAES
@@ -1043,7 +1043,7 @@ Appendix~A.1 of the reference specification for AES.\indAES
 \todo[inline]{A theorem for safety follows that we can re-introduce
   after \ticket{210} is closed.}
 % \begin{Exercise}\label{ex:rconsafety}
-%   Let us revisit Exercise~\ref{aes:keyexpansion}~\ref{ex:aeskerc:2},
+%   Let us revisit \exerciseref{ex:aeskerc:2},
 %   where we have seen that {\tt Rcon'} is not safe. However, the
 %   promise was that it would only be called with numbers ranging
 %   1--10, thus all its uses would be fine. Verify this claim by
@@ -1259,7 +1259,7 @@ Cryptol:
 \begin{Exercise}\label{ex:invsb:1}
   Write and prove a Cryptol property stating that {\tt xformByte'} is
   the inverse of the function {\tt xformByte} that you have defined in
-  Exercise~\ref{aes:subbytes}~\ref{ex:aessbytes:0}.
+  \exerciseref{ex:aessbytes:0}.
 \end{Exercise}
 \begin{Answer}\ansref{ex:invsb:1}
 \begin{code}
@@ -1275,7 +1275,7 @@ We have:
 \unparagraph We can now define the inverse S-box
 transform,\indAESInvSbox using the multiplicative inverse function
 {\tt gf28Inverse} you have defined in
-Exercise~\ref{aes:subbytes}~\ref{ex:gfmi:01}:
+\exerciseref{ex:gfmi:01}:
 \begin{code}
   InvSubByte : GF28 -> GF28
   InvSubByte b = gf28Inverse (xformByte' b)

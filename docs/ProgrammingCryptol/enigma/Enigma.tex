@@ -112,7 +112,7 @@ notch:\footnote{The type definition for {\tt Char} was given in
   type Rotor = [26](Char, Bit)
 \end{code}
 The function {\tt mkRotor} will create a rotor for us from a given permutation of the letters and the notch
-locations:\footnote{The function {\tt elem} was defined in Exercise~\ref{sec:recandrec}-\ref{ex:recfun:4:1}.\indElem}
+locations:\footnote{The function {\tt elem} was defined in \exerciseref{ex:recfun:4:1}.\indElem}
 \begin{code}
   mkRotor : {n} (fin n) => (Permutation, String n) -> Rotor
   mkRotor (perm, notchLocations) = [ (p, elem (p, notchLocations))
@@ -227,7 +227,7 @@ time, again using pattern matching.  Finally, to determine {\tt
 signal was received. Otherwise, we leave the {\tt rotor} unchanged.
 
 \begin{Exercise}\label{ex:enigma:3}
-  Redo Exercise~\ref{ex:enigma:2}, this time using Cryptol and the
+  Redo \exerciseref{ex:enigma:2}, this time using Cryptol and the
   {\tt scramble} function.
 \end{Exercise}
 \begin{Answer}\ansref{ex:enigma:3}
@@ -452,7 +452,7 @@ such that it returns {\tt True} if a given reflector is good (i.e.,
 symmetric and non-self mapping) and {\tt False} otherwise. Check that
 our definition of {\tt reflector} above is a good one. \lhint{Use the
   {\tt all} function you have defined in
-  Exercise~\ref{sec:zero}-\ref{ex:zero:1}.}
+  \exerciseref{ex:zero:1}.}
 \end{Exercise}
 \begin{Answer}\ansref{ex:enigma:6}
 %% if this is {code} we have two all's
@@ -496,7 +496,7 @@ Before proceeding, we will define the following two helper functions:
   substBwd (perm, c) = invSubst (perm, c)
 \end{code}
 (You have defined the {\tt invSubst} function in
-Exercise~\ref{section:subst}-\ref{ex:subst:1}.) The {\tt substFwd}
+\exerciseref{ex:subst:1}.) The {\tt substFwd}
 function simply returns the character that the given permutation,
 whether from the plugboard, a rotor, or the reflector. Conversely,
 {\tt substBwd} returns the character that the given permutation maps
@@ -510,7 +510,7 @@ the permutation.
 \begin{Answer}\ansref{ex:enigma:7}
   We can define the following helper function, using the function {\tt
     all} you have defined in
-  Exercise~\ref{sec:zero}-\ref{ex:zero:1}:\indAll
+  \exerciseref{ex:zero:1}:\indAll
 \begin{code}
   checkPermutation : Permutation -> Bit
   checkPermutation perm = all check  ['A' .. 'Z']

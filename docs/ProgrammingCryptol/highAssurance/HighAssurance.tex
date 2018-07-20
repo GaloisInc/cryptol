@@ -453,7 +453,7 @@ too:\indLamExp
 
 \begin{Exercise}\label{ex:prove:1}
   Prove the property {\tt revRev} you wrote in
-  Exercise~\ref{sec:writingproperties}-\ref{ex:thm:0}. Try different
+  \exerciseref{ex:thm:0}. Try different
   monomorphic instantiations.
 \end{Exercise}
 \begin{Answer}\ansref{ex:prove:1}
@@ -481,26 +481,26 @@ examples are given below:
 
 \begin{Exercise}\label{ex:prove:2}
   Prove the property {\tt appAssoc} you wrote in
-  Exercise~\ref{sec:writingproperties}-\ref{ex:thm:1}, at several
+  \exerciseref{ex:thm:1}, at several
   different monomorphic instances.
 \end{Exercise}
 
 \begin{Exercise}\label{ex:prove:3}
   Prove the property {\tt revApp} you wrote in
-  Exercise~\ref{sec:writingproperties}-\ref{ex:thm:2}, at several
+  \exerciseref{ex:thm:2}, at several
   different monomorphic instances.
 \end{Exercise}
 
 \begin{Exercise}\label{ex:prove:4}
   Prove the property {\tt lshMul} you wrote in
-  Exercise~\ref{sec:writingproperties}-\ref{ex:thm:3}, at several
+  \exerciseref{ex:thm:3}, at several
   different monomorphic instances.
 \end{Exercise}
 
 \begin{Exercise}\label{ex:prove:5}
   Use the {\tt :prove} command to prove and demonstrate
   counterexamples for the property {\tt widthPoly} defined in
-  Exercise~\ref{sec:writingproperties}-\ref{ex:polythm:2}, using
+  \exerciseref{ex:polythm:2}, using
   appropriate monomorphic instances.
 \end{Exercise}
 \begin{Answer}\ansref{ex:prove:5}
@@ -523,7 +523,7 @@ We have:
 
 It is often the case that we are interested in a property that only
 holds under certain conditions.  For instance, in
-Exercise~\ref{sec:arithmetic}-\ref{ex:arith:5:1} we have explored the
+\exerciseref{ex:arith:5:1} we have explored the
 relationship between Cryptol's division, multiplication, and modulus
 operators, where we asserted the following
 property:\indMod\indDiv\indTimes
@@ -601,9 +601,9 @@ Write a function:
 \end{code}
 that returns {\tt True} exactly when the input only consists of the
 letters {\tt 'A'} through {\tt 'Z'}. \lhint{Use the functions {\tt
-    all} defined in Exercise~\ref{sec:zero}-\ref{ex:zero:1},\indAll
+    all} defined in \exerciseref{ex:zero:1},\indAll
   and {\tt elem} defined in
-  Exercise~\ref{sec:recandrec}-\ref{ex:recfun:4:1}.\indElem}
+  \exerciseref{ex:recfun:4:1}.\indElem}
 \end{Exercise}
 
 \begin{Answer}\ansref{ex:cond:2}
@@ -721,7 +721,7 @@ randomly generated test cases.
 \begin{Exercise}\label{ex:quick:0}
   Use the {\tt :check} command to test the property {\tt
     caesarCorrect} you have defined in
-  Exercise~\ref{sec:condproof}-\ref{ex:cond:2}, for messages of length
+  \exerciseref{ex:cond:2}, for messages of length
   10.  Use the command {\tt :set tests=1000}\indQCCount to change the
   number of test cases to 1,000.  Observe the test coverage statistics
   reported by Cryptol. How is the total number of cases computed?
@@ -875,7 +875,7 @@ Note the use of the \lamex to\indLamExp indicate the new
 constraint. (Of course, we could have defined another function {\tt
   isSqrtOf9ButNot3} for the same effect, but the \lamex is really
 handy in this case.) We have used the function {\tt elem} you have
-defined in Exercise~\ref{sec:recandrec}-\ref{ex:recfun:4:1}\indElem to
+defined in \exerciseref{ex:recfun:4:1}\indElem to
 express the constraint {\tt x} must not be 3. In response, Cryptol
 told us that {\tt 125} is another solution. Indeed $125 * 125 =
 9\imod{2^7}$, as you can verify separately.  We can search for more:

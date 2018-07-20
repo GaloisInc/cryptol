@@ -1009,7 +1009,7 @@ $$1\times2^5 + 0\times2^4 + 1\times2^3 + 0\times2^2 + 1\times2^1 + 0\times2^0 = 
 
 \begin{Exercise}\label{ex:words:4}
 Since words are sequences, the sequence functions from
-Exercise~\ref{sec:sequences}--\ref{ex:seq:11} apply to words as well.
+\exerciseref{ex:seq:11} apply to words as well.
 Try out the following examples and explain the outputs you
 observe:\indTake\indDrop\indSplit\indGroup
 \begin{Verbatim}
@@ -1049,7 +1049,7 @@ Follow similar lines of reasoning to justify the results for the
 remaining expressions.
 \end{Answer}
 \begin{Exercise}\label{ex:words:5}
-  Try Exercise~\ref{ex:words:4}, this time with the constant {\tt
+  Try \exerciseref{ex:words:4}, this time with the constant {\tt
     12:[12]}. Do any of the results change? Why?
 \end{Exercise}
 \begin{Answer}\ansref{ex:words:5}
@@ -1445,7 +1445,7 @@ Try out the following expressions:
 \end{Exercise}
 
 \paragraph*{Enumerations, revisited} In
-Exercise~\ref{sec:sequences}--\ref{ex:seq:9}, we wrote the infinite
+\exerciseref{ex:seq:9}, we wrote the infinite
 enumeration{\indEnum\indInfSeq}starting at {\tt 1} using an explicit
 type as follows:
 \begin{Verbatim}
@@ -1502,7 +1502,7 @@ represent {\tt k}.  \note{If the user evaluates the value of {\tt
 
 \todo[inline]{This exercise has a broken reference, because ex:words:2 was removed.}
 \begin{Exercise}\label{ex:arith:9}
-  Remember from Exercise~\ref{sec:words2}--\ref{ex:words:2} that the
+  Remember from \exerciseref{ex:words:2} that the
   constant {\tt 0} requires 0 bits to represent. Based on this, what
   is the value of the enumeration {\tt [0..]}? What about {\tt
     [0...]}? Surprised?
@@ -2043,7 +2043,7 @@ argument of the wrong size: 912 is too big to fit into 8 bits.
   simply juxtaposition in Cryptol. However, you can write the
   parentheses if you want to, and you must use parentheses if you want
   to pass a negative argument, e.g. \texttt{increment(-2)} (recall
-  Exercise~\autoref{ex:arith:5}).}\indFunApp
+  \exerciseref{ex:arith:5}).}\indFunApp
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 \subsection{Definitions in the interpreter with \texttt{let}}
@@ -2439,7 +2439,7 @@ the input.
 
 \paragraph*{Running results} It is very instructive to look at the
 results returned by {\tt maxSeq'} that you have just defined in
-Exercise~\ref{ex:recfun:3}:
+\exerciseref{ex:recfun:3}:
 \begin{Verbatim}
   Cryptol> maxSeq' []
   [0]
@@ -2459,7 +2459,7 @@ down ({\tt [10, 9 .. 1]}), we find that the running maximum never
 changes after the first. The mixed input in the last call clearly
 demonstrates how the execution proceeds, the running maximum changing
 depending on the next element of {\tt xs} and the running maximum so
-far. In the {\tt maxSeq} function of Exercise~\ref{ex:recfun:2}, we
+far. In the {\tt maxSeq} function of \exerciseref{ex:recfun:2}, we
 simply project out the last element of this sequence, obtaining the
 maximum of all elements in the given sequence.
 

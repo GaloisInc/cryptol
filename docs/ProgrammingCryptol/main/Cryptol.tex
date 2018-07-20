@@ -83,10 +83,14 @@
 \newcommand{\commentout}[1]{}
 \DefineVerbatimEnvironment{code}{Verbatim}{}
 \renewcommand{\ExerciseHeaderTitle}{\ExerciseTitle}
+\renewcommand{\theExercise}{\thechapter.\arabic{Exercise}}
+%\renewcommand{\theExercise}{\thesection--\arabic{Exercise}}
 \renewcommand{\ExerciseHeader}{\textbf{\hspace*{-\parindent}\ExerciseName\ \theExercise.\ }}
 \renewcommand{\AnswerHeader}{\textbf{\hspace*{-\parindent}\ExerciseName\ \theExercise.\ }}
-% \renewcounter{Exercise}[section]
+%\renewcounter{Exercise}[section]
+\renewcounter{Exercise}[chapter]
 \newcommand{\unparagraph}{\paragraph{$\,\,\,$\hspace*{-\parindent}}}
+\newcommand{\exerciseref}[1]{\hyperref[#1]{exercise~\ref*{#1}}}
 
 % various little text sections:
 \newtheorem*{hint}{Hint}
