@@ -233,7 +233,7 @@ sext x = newbits # x
   where newbits = if x@0 then ~zero else zero
 
 /**
- * Short-cutting boolean conjuction function.
+ * Short-cutting boolean conjunction function.
  * If the first argument is False, the second argument
  * is not evaluated.
  */
@@ -241,7 +241,7 @@ sext x = newbits # x
 x /\ y = if x then y else False
 
 /**
- * Short-cutting boolean disjuction function.
+ * Short-cutting boolean disjunction function.
  * If the first argument is True, the second argument
  * is not evaluated.
  */
