@@ -1,4 +1,4 @@
-\chapter{Cryptol primitive functions}
+\chapter{Cryptol prelude functions}
 
 \commentout{
 \begin{code}
@@ -6,72 +6,89 @@ primsPlaceHolder=1;
 \end{code}
 }
 
-\paragraph*{Bitwise operations}
+\paragraph*{Bitwise and logical operations}
 \begin{Verbatim}
-    &&, ||, ^ : {a} (Logic a) => a -> a -> a
-    ~         : {a} (Logic a) => a -> a
+    True, False : Bit
+    &&, ||, ^   : {a} (Logic a) => a -> a -> a
+    ~           : {a} (Logic a) => a -> a
+    ==>, /\, \/ : Bit -> Bit -> Bit
 \end{Verbatim}
 \paragraph*{Comparisons}
 \begin{Verbatim}
-    ==, !=        : {a} (Cmp a) => a -> a -> Bit
-    <, >, <=, >=  : {a} (Cmp a) => a -> a -> Bit
-    <$            : {a} (SignedCmp a) => a -> a -> Bit
+    ==, !=           : {a} (Cmp a) => a -> a -> Bit
+    <, >, <=, >=     : {a} (Cmp a) => a -> a -> Bit
+    <$, >$, <=$, >=$ : {a} (SignedCmp a) => a -> a -> Bit
+    min, max         : {a} (Cmp a) => a -> a -> a
+    ===, !==         : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
 \end{Verbatim}
 \paragraph*{Arithmetic}
 \begin{Verbatim}
-    +, -, *, /, %, ** : {a} (Arith a) => a -> a -> a
-    lg2               : {a} (Arith a) => a -> a
+    +, -, *, /, %, ^^ : {a} (Arith a) => a -> a -> a
+    negate, lg2       : {a} (Arith a) => a -> a
+    fromInteger       : {a} (Arith a) => Integer -> a
 \end{Verbatim}
-%    negate            : {a b} (a >= 1) => [a]b -> [a]b
 \paragraph*{Polynomial arithmetic}
 \begin{Verbatim}
-    pdiv  : {a, b} (fin a, fin b) => [a] -> [b] -> [a]
-    pmod  : {a, b} (fin a, fin b) => [a] -> [1 + b] -> [b]
-    pmult : {a, b} (fin a, fin b) => [1 + a] -> [1 + b] -> [1 + a + b]
+    pdiv  : {u, v} (fin u, fin v) => [u] -> [v] -> [u]
+    pmod  : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
+    pmult : {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + u + v]
 \end{Verbatim}
 \paragraph*{Sequences}
 \begin{Verbatim}
-    take  : {front, back, elem} (fin front)
-         => [front + back]elem -> [front]elem
-    drop  : {front, back, elem} (fin front)
-         => [front + back]elem -> [front]elem
-    tail  : {a, b} [a+1]b -> [a]b
-    #     : {front, back, a} (fin front)
-         => [front]a -> [back]a -> [front + back]a
-    join  : {parts, each, a} (fin each)
-         => [parts][each]a -> [parts * each]a
-    split : {parts, each, a} (fin a)
-         => [parts * each]a -> [parts][each]a
-
-    groupBy : {each, parts, elem} (fin each)
-           => [parts * each]elem -> [parts][each]elem
-    reverse : {a, b} (fin a) => [a]b -> [a]b
-    @       : {a, b, c} (fin c) => [a]b -> [c] -> b
-    !       : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b
-    @@      : {a, b, c, d} (fin d) => [a]b -> [c][d] -> [c]b
-    !!      : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
-    update     : {a, b, c} (fin c) => [a]b -> [c] -> b -> [a]b
-    updateEnd  : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b -> [a]b
-    updates    : {a,b,c,d} (fin c, fin d) => [a]b -> [d]([c], b) -> [a]b
-    updatesEnd : {a,b,c,d} (fin a, fin c, fin d) => [a]b -> [d]([c], b) -> [a]b
-    width   : {bits,len,elem} (fin len, fin bits, bits >= width len)
-           => [len] elem -> [bits]
+    take      : {front, back, a} (fin front) => [front + back]a -> [front]a
+    drop      : {front, back, a} (fin front) => [front + back]a -> [back]a
+    #         : {front, back, a} (fin front) => [front]a -> [back]a -> [front + back]a
+    join      : {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a
+    split     : {parts, each, a} (fin each) => [parts * each]a -> [parts][each]a
+    groupBy   : {each, parts, a} (fin each) => [parts * each]a -> [parts][each]a
+    transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
+    reverse   : {n, a} (fin n) => [n]a -> [n]a
+    head      : {n, a} [1 + n]a -> a
+    tail      : {n, a} [1 + n]a -> [n]a
+    last      : {n, a} (fin n) => [1 + n]a -> a
+\end{Verbatim}
+\paragraph*{Indexing, updates}
+\begin{Verbatim}
+    @       : {n, a, ix} (fin ix) => [n]a -> [ix] -> a
+    !       : {n, a, ix} (fin n, fin ix) => [n]a -> [ix] -> a
+    @@      : {n, k, ix, a} (fin ix) => [n]a -> [k][ix] -> [k]a
+    !!      : {n, k, ix, a} (fin n, fin ix) => [n]a -> [k][ix] -> [k]a
+    update     : {n, a, ix} (fin ix) => [n]a -> [ix] -> a -> [n]a
+    updateEnd  : {n, a, ix} (fin n, fin ix) => [n]a -> [ix] -> a -> [n]a
+    updates    : {n, k, ix, a} (fin ix, fin k) => [n]a -> [k][ix] -> [k]a -> [n]a
+    updatesEnd : {n, k, ix, a} (fin n, fin ix, fin k) => [n]a -> [k][ix] -> [k]a -> [n]a
 \end{Verbatim}
 \paragraph*{Shifting, rotating}
 \begin{Verbatim}
-    >>, <<   : {a, b, c} (fin b, Zero c) => [a]c -> [b] -> [a]c
-    >>>, <<< : {a, b, c} (fin a, fin b) => [a]c -> [b] -> [a]c
+    >>>, <<< : {n, ix, a} (fin n, fin ix) => [n]a -> [ix] -> [n]a
+    >>, <<   : {n, ix, a} (fin ix, Zero a) => [n]a -> [ix] -> [n]a
+    >>$      : {n, ix} (fin n, n >= 1, fin ix) => [n] -> [ix] -> [n]
+\end{Verbatim}
+\paragraph*{Functional programming}
+\begin{Verbatim}
+    iterate  : {a} (a -> a) -> a -> [inf]a
+    repeat   : {n, a} a -> [n]a
+    map      : {n, a, b} (a -> b) -> [n]a -> [n]b
+    zip      : {n, a, b} [n]a -> [n]b -> [n](a, b)
+    zipWith  : {n, a, b, c} (a -> b -> c) -> [n]a -> [n]b -> [n]c
+    foldl    : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
+    foldr    : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
+    scanl    : {n, b, a} (b -> a -> b) -> b -> [n]a -> [1 + n]b
+    scanr    : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [1 + n]b
+    sum      : {n, a} (fin n, Arith a) => [n]a -> a
+    and, or  : {n} (fin n) => [n] -> Bit
+    all, any : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
+    curry    : {a, b, c} ((a, b) -> c) -> a -> b -> c
+    uncurry  : {a, b, c} (a -> b -> c) -> (a, b) -> c
 \end{Verbatim}
 \paragraph*{Miscellaneous}
 \begin{Verbatim}
-    zero      : {a} (Zero a) => a
-    transpose : {a, b, c} [a][b]c -> [b][a]c
-    min, max  : {a} (Cmp a) => a -> a -> a
+    width   : {bits, n, a} (fin n, fin bits, bits >= width n) => [n]a -> [bits]
+    zero    : {a} (Zero a) => a
 \end{Verbatim}
-%   parity    : {a} (fin a) => [a] -> Bit
 \paragraph*{Representing exceptions}
 \begin{Verbatim}
-    error     : {a, b} [a][8] -> b
+    error     : {a, len} (fin len) => [len][8] -> a
     undefined : {a} a
     trace     : {n, a, b} [n][8] -> a -> b -> b
     traceVal  : {n, a} [n][8] -> a -> a
@@ -95,6 +112,39 @@ primsPlaceHolder=1;
 %\begin{Verbatim}
 %    format
 %\end{Verbatim}
+
+%    (%$) : {a} (Arith a) => a -> a -> a
+%    (/$) : {a} (Arith a) => a -> a -> a
+%    demote : {val, rep} (Literal val rep) => rep
+%    elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
+%    fromThen :
+%      {first, next, bits, len} (fin first, fin next, fin bits,
+%                                bits >= width first, bits >= width next, first != next,
+%                                lengthFromThen first next bits == len) =>
+%        [len][bits]
+%    fromThenTo :
+%      {first, next, last, a, len} (fin first, fin next, fin last,
+%                                   Literal first a, Literal next a, Literal last a, first != next,
+%                                   lengthFromThenTo first next last == len) =>
+%        [len]a
+%    fromTo :
+%      {first, last, a} (fin last, last >= first, Literal last a) =>
+%        [1 + (last - first)]a
+%    fromZ : {n} (fin n, n >= 1) => Z n -> Integer
+%    infFrom : {a} (Arith a) => a -> [inf]a
+%    infFromThen : {a} (Arith a) => a -> a -> [inf]a
+%    splitAt :
+%      {front, back, a} (fin front) =>
+%        [front + back]a -> ([front]a, [back]a)
+%    toInteger : {bits} (fin bits) => [bits] -> Integer
+%    trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
+%    traceVal : {n, a} (fin n) => [n][8] -> a -> a
+%    undefined : {a} a
+%    zext : {m, n} (fin m, m >= n) => [n] -> [m]
+%    sext : {m, n} (fin m, m >= n, n >= 1) => [n] -> [m]
+%    carry : {n} (fin n) => [n] -> [n] -> Bit
+%    scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+%    sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
 
 %%% Local Variables: 
 %%% mode: latex
