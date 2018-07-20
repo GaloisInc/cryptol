@@ -49,13 +49,13 @@ declaration:\indProperty
   sqDiffsCorrect : ([8], [8]) -> Bit
   property sqDiffsCorrect (x, y) = sqDiff1 (x, y) == sqDiff2 (x, y)
 \end{code}
-The above declaration reads as follows: {\tt sqDiffsCorrect} is a
-property stating that for all {\tt x} and {\tt y}, the expression {\tt
-  sqDiff1 (x, y) == sqDiff2(x, y)} evaluates to {\tt
-  True}. Furthermore, the type signature restricts the type of the
-property to apply to only 8-bit values. As usual, the type signature
-is optional.\indSignature If not given, Cryptol will infer one for
-you.
+The above declaration reads as follows: \texttt{sqDiffsCorrect} is a
+property stating that for all \texttt{x} and \texttt{y}, the
+expression \texttt{sqDiff1 (x, y) == sqDiff2 (x, y)} evaluates to
+\texttt{True}. Furthermore, the type signature restricts the type of
+the property to apply to only 8-bit values. As usual, the type
+signature is optional.\indSignature If not given, Cryptol will infer
+one for you.
 
 \note{It is important to emphasize that the mathematical equality
   above and the Cryptol property are \emph{not} stating precisely the
@@ -182,7 +182,7 @@ trivial example:
 If we ask Cryptol the type of {\tt multShift}, we get:
 \begin{Verbatim}
   Cryptol> :t multShift
-  multShift : {a} (fin a, a >= 2) => [a] -> Bit
+  multShift : {n} (n >= 2, fin n) => [n] -> Bit
 \end{Verbatim}
 That is, it is a property about all words of size at least two. The
 question is whether this property does indeed hold? In the particular
@@ -207,16 +207,17 @@ a different value: a property we might expect to hold
 intuitively. Here is the type of {\tt flipNeverIdentity}:
 \begin{Verbatim}
   Cryptol> :t flipNeverIdentity
-  flip : {a} (fin a) => a -> Bit
+  flipNeverIdentity : {a} (Cmp a, Logic a) => a -> Bit
 \end{Verbatim}
-So, the only requirement on {\tt flipNeverIdentity} is that it
-receives some finite type.\indFin Let us try some examples:
+So, the only requirement on \texttt{flipNeverIdentity} is that it
+receives some type that supports comparisons and logical operations.
+Let us try some examples:
 \begin{Verbatim}
   Cryptol> flipNeverIdentity True
   True
   Cryptol> flipNeverIdentity 3
   True
-  Cryptol> flipNeverIdentity [1 2]
+  Cryptol> flipNeverIdentity [1, 2]
   True
 \end{Verbatim}
 However:
@@ -224,7 +225,7 @@ However:
   Cryptol> flipNeverIdentity (0 : [0])
   False
 \end{Verbatim}
-That is, when given a {\tt 0}-bit wide value, the complement will in
+That is, when given a 0-bit word, the complement will in
 fact do nothing and return its argument unchanged! Therefore, the
 property {\tt flipNeverIdentity} is not valid, since it holds at
 certain monomorphic types, but not at all types.\indMonomorphism
@@ -343,17 +344,7 @@ user the proof is complete.\indQED\indProve
       prover=cvc4}.} Note that the {\tt :prove} command is a
   push-button tool: once the proof starts there is no user
   involvement. Of course, the external tool used may not be able to
-  complete all the proofs in a feasible amount of time, naturally.
-
-  \todo[inline]{Is this going to be a SAW-only capability, or Cryptol
-    as well?  Ensure that a ticket exists for forward-porting this
-    functionality.}
-
-  % While it is out of the scope of this book, let us also mention that
-  % Cryptol can also translate properties to Isabelle/HOL\indIsabelleHOL
-  % for semi-automated theorem proving purposes~\cite{Isabelle-book},
-  % where more complicated properties can be tackled with the human
-  % guidance if necessary.
+  complete all the proofs in a reasonable amount of time.
 }
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -413,11 +404,11 @@ demonstrate this with the \texttt{multShift} property from
 \autoref{sec:polythm}:
 \begin{Verbatim}
   Cryptol> :prove multShift
-    Not a monomorphic type:
-    {a} (a >= 2, fin a) => [a] -> Bit
+  Not a monomorphic type:
+  {n} (n >= 2, fin n) => [n] -> Bit
 \end{Verbatim}
 Cryptol is telling us that it cannot prove a polymorphic property
-directly. We can, however, give a type annotation to monomorphise
+directly. We can, however, give a type annotation to specialize
 it,\indTypeAnnotation and then prove it at a desired instance:
 \begin{Verbatim}
   Cryptol> :prove multShift : [16] -> Bit
@@ -446,13 +437,13 @@ too:\indLamExp
   Cryptol:
 \begin{Verbatim}
   Cryptol> :prove revRev
-  Not a valid predicate type:
-  {a, b} (fin a, Cmp b) => [a]b -> Bit
+  Not a monomorphic type:
+  {n, a} (Cmp a, fin n) => [n]a -> Bit
 \end{Verbatim}
 Cryptol is telling us that the property has a polymorphic type, and
 hence cannot be proven. We can easily prove instances of it, by either
 creating new properties with fixed type signatures\indSignature, or by
-monomorphising it via type annotations\indTypeAnnotation. Several
+specializing it via type annotations\indTypeAnnotation. Several
 examples are given below:
 \begin{Verbatim}
   Cryptol> :prove revRev : [10][8] -> Bit
@@ -562,16 +553,6 @@ We have:
 \end{Verbatim}
 \end{Answer}
 
-%% TODO: Pedagogy here without exceptions
-%% \note{It is tempting to write a function:}
-%% \begin{code}
-%%  implies (a, b) = if a then b else True
-%%\end{code}
-%%to simplify writing conditional properties.
-%% However, this approach is flawed as it fails to account correctly for
-%% exceptions. We shall revisit this topic in detail in
-%% sections~\ref{sec:pitfall:evorder} and~\ref{sec:pitfall:thmexceptions}.
-
 \paragraph*{Recognizing messages} Our work on classic ciphers
 (\autoref{chapter:classic}) and the enigma
 (\autoref{chapter:enigma}) involved working with messages that
@@ -612,7 +593,7 @@ write it inline.
   \autoref{sec:caesar}.\indCaesarscipher Write a property, named
   {\tt caesarCorrect}, stating that {\tt caesar} and {\tt dCaesar} are
   inverses of each other for all {\tt d} (shift amount) and {\tt msg}
-  (message)'s. Is your property valid? What extra condition do you
+  (message). Is your property valid? What extra condition do you
   need to assert on {\tt msg} for your property to hold? Prove the
   property for all messages of length 10.
 \end{Exercise}
@@ -622,10 +603,11 @@ write it inline.
   property caesarCorrectBOGUS (d,msg) =
            dCaesar(d, caesar(d, msg)) == msg
 \end{code}
-However, this property is not correct for all {\tt msg}'s, since
-Caesar's cipher only works for messages containing the letters {\tt
-  'A'} \ldots {\tt 'Z'}, not arbitrary 8-bit values as the above
-property suggests. We can see this easily by providing a bad input:
+However, this property is not correct for all \texttt{msg}, since
+Caesar's cipher only works for messages containing the letters
+\texttt{'A'} \ldots \texttt{'Z'}, not arbitrary 8-bit values as the
+above property suggests. We can see this easily by providing a bad
+input:
 \begin{Verbatim}
   Cryptol> caesar (3, "1")
   invalid sequence index: 240
@@ -677,7 +659,7 @@ proofs using push-button tools.\footnote{While some of the solvers
   that Cryptol uses are capable of \emph{emitting} proofs, such
   functionality is not exposed as a Cryptol feature.}  The underlying
 technique used by Cryptol (SAT-\glosSAT and SMT-based\glosSMT
-equivalence checking) is complete\indProofCompleteness, i.e., it will
+equivalence checking) is complete\indProofCompleteness; i.e., it will
 always either prove the property or find a
 counterexample.\indCounterExample In the worst case, however, the
 proof process might take infeasible amounts of resources, potentially
@@ -718,13 +700,13 @@ randomly generated test cases.
 \begin{Verbatim}
   Cryptol> :check (caesarCorrect : ([8], String 10) -> Bit)
   Using random testing.
-  passed 100 tests.
-  Coverage: 0.00% (100 of 2^^88 values)
+  Passed 100 tests.
+  Expected test coverage: 0.00% (100 of 2^^88 values)
   Cryptol> :set tests=1000
   Cryptol> :check (caesarCorrect : ([8], String 10) -> Bit)
   Using random testing.
-  passed 1000 tests.
-  Coverage: 0.00% (1000 of 2^^88 values)
+  Passed 1000 tests.
+  Expected test coverage: 0.00% (1000 of 2^^88 values)
 \end{Verbatim}
 In each case, Cryptol tells us that it checked a minuscule portion of
 all possible test cases: A good reminder of what {\tt :check} is
@@ -749,17 +731,17 @@ the size of the message.
 \begin{Verbatim}
   Cryptol> :check True
   Using exhaustive testing.
-  passed 1 tests.
-  QED
+  Passed 1 tests.
+  Q.E.D.
   Cryptol> :check False
   Using exhaustive testing.
-  FAILED for the following inputs:
+  False = False0%
   Cryptol> :check \x -> x == (x:[8])
   Using exhaustive testing.
-  passed 256 tests.
-  QED
+  Passed 256 tests.
+  Q.E.D.
 \end{Verbatim}
-Note that when Cryptol is able to exhaust all possible inputs, it returns QED, since the property is effectively proven.
+Note that when Cryptol is able to exhaust all possible inputs, it returns \texttt{Q.E.D.}, since the property is effectively proven.
 \end{Answer}
 
 \begin{Exercise}\label{ex:quick:2}
@@ -833,16 +815,16 @@ i.e., it will be satisfied.\indSat
 
 One way to think about satisfiability checking is \emph{intelligently}
 searching for a solution. Here is a simple example. Let us assume we
-would like to compute the modular square-root of 9 as an 8-bit
+would like to compute the modular square root of 9 as an 8-bit
 value. The obvious solution is {\tt 3}, of course, but we are
 wondering if there are other solutions to the equation $x^2 \equiv 9
 \imod{2^8}$. To get started, let us first define a function that will
-return {\tt True} if its argument is a square-root of 9:
+return {\tt True} if its argument is a square root of 9:
 \begin{code}
   isSqrtOf9 : [8] -> Bit
   isSqrtOf9 x = x*x == 9
 \end{code}
-Any square-root of 9 will make the function {\tt isSqrtOf9} return
+Any square root of 9 will make the function {\tt isSqrtOf9} return
 {\tt True}, i.e., it will \emph{satisfy} it.  Thus, we can use
 Cryptol's satisfiability checker to find those values of {\tt x}
 automatically:
@@ -892,7 +874,7 @@ will try to find \emph{up to} 4 solutions. We can also set it to {\tt
   isSqrtOf9 253 = True
 \end{Verbatim}
 So, we can rest assured that there are exactly four 8-bit square roots
-of 9; namely 3, 131, 125, and 253. (Note that Cryptol can return the
+of 9: namely 3, 131, 125, and 253. (Note that Cryptol can return the
 satisfying solutions in any order depending on the backend-solver and
 other configurations. What is guaranteed is that you will get
 precisely the same set of solutions at the end.)
@@ -914,12 +896,13 @@ allowing the user to focus on the specification of the problem.
 
 \begin{Exercise}\label{ex:sat:0}
   Fermat's last theorem states that there are no integer solutions to
-  the equation $a^n + b^n = c^n$ when $a, b, c > 0,$ and $n > 2$. We
-  cannot code Fermat's theorem in Cryptol since we do not have
-  arbitrary integers, but we can code the modular version of it where
-  the exponentiation and addition is done modulo a fixed
-  bit-size. Write a function {\tt modFermat} with the following
-  signature:
+  the equation $a^n + b^n = c^n$ when $a, b, c > 0,$ and $n > 2$.
+  While we can code Fermat's theorem in Cryptol using the
+  \texttt{Integer} type, the SMT solver backends used by Cryptol do
+  not support symbolic exponentiation on unbounded integers. However,
+  we can make more progress with the modular version of it where
+  the exponentiation and addition are done modulo a fixed bit-size.
+  Write a function {\tt modFermat} with the following signature:
 \begin{code}
   type Quad a = ([a], [a], [a], [a])
   modFermat : {s} (fin s, s >= 2) => Quad s -> Bit
@@ -956,7 +939,7 @@ We can try different instantiations as follows:
   modFermat : Quad(4) -> Bit (4, 4, 4, 8) = True
 \end{Verbatim}
 The modular form of Fermat's last theorem does not hold for any of the
-instances up to and including 12-bits wide, when I stopped
+instances up to and including 12 bits wide, when I stopped
 experimenting myself. It is unlikely that it will hold for any
 particular bit-size, although the above demonstration is not a proof.
 (We would need to consult a mathematician for the general result!)
