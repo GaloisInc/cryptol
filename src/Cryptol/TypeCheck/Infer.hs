@@ -116,7 +116,7 @@ desugarLiteral fixDec lit =
                                      Just (x,_) -> [ ("rep", tBits (x + 1)) ]
                                      _          -> []
             | otherwise  -> [ ]
-           P.PolyLit _n  -> [ ]
+           P.PolyLit _n  -> [ ("rep", P.TSeq P.TWild P.TBit) ]
 
        P.ECString s ->
           P.ETyped (P.EList [ P.ELit (P.ECNum (fromIntegral (fromEnum c))

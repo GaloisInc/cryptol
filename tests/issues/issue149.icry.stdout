@@ -1,4 +1,4 @@
 Loading module Cryptol
 Showing a specific instance of polymorphic result:
-  * Using '[6]' for type argument 'rep' of 'Cryptol::demote'
+  * Using '6' for type wildcard (_)
 0x31
