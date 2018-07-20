@@ -74,7 +74,7 @@ instance, if the shift is 2, {\tt A} becomes {\tt C}, {\tt B} becomes
 {\tt D}, and so on. Once we run out of letters, we circle back to {\tt
   A}; so {\tt Y} becomes {\tt A}, and {\tt Z} becomes {\tt B}.  Coding
 Caesar's cipher in Cryptol is quite straightforward (recall from
-Section~\ref{sec:tsyn} that a {\tt String n} is simply a sequence of n
+\autoref{sec:tsyn} that a {\tt String n} is simply a sequence of n
 8-bit words.):\indTSString
 \begin{code}
   caesar : {n} ([8], String n) -> String n
@@ -574,7 +574,7 @@ And similarly for other examples:
 One question is what happens if you search for a non-existing
 character.  In this case you can just return {\tt 0}, a non-valid
 ASCII character, which can be interpreted as {\em not found}.
-\hint{Use a fold (see Pg.~\pageref{par:fold}).}\indFold
+\hint{Use a fold (see page~\pageref{par:fold}).}\indFold
 \end{Exercise}
 \begin{Answer}\ansref{ex:subst:1}
 \begin{code}

@@ -76,7 +76,7 @@
 
     \newcommand{\sectionWithAnswers}[2]{%
         \section{#1}\label{#2}%
-            \AnswerBoxSectionMark{Section \arabic{chapter}.\arabic{section} #1 (p.\pageref{#2})}%
+            \AnswerBoxSectionMark{Section \arabic{chapter}.\arabic{section} #1 (p.~\pageref{#2})}%
             \AnswerBoxExecute{\addcontentsline{toc}{section}{\texorpdfstring{\parbox{2.3em}{\arabic{chapter}.\arabic{section}\ }}{(\arabic{chapter}.\arabic{section})\ }#1}}%
     }
 
@@ -223,7 +223,7 @@ include "../aes/AES.tex";
 %\section{Assumed equality}
 %\section{Uninterpreted functions}
 %\section{Proving AES correct}\label{sec:proveaes}
-%In Section~\ref{sec:aescorrectattempt}, we wrote down the below Cryptol theorem stating that our AES\indAES encryption/decryption functions work correctly:
+%In \autoref{sec:aescorrectattempt}, we wrote down the below Cryptol theorem stating that our AES\indAES encryption/decryption functions work correctly:
 %\begin{Verbatim}
 %  theorem AESCorrect: {msg key}. aesDecrypt (aesEncrypt (msg, key), key) == msg;
 %\end{Verbatim}

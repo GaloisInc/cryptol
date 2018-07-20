@@ -38,7 +38,7 @@ interchangeable scramblers, and a fixed reflector.
 \sectionWithAnswers{The plugboard}{sec:enigma:plugboard}
 
 Enigma essentially implements a polyalphabetic substitution cipher
-(Section~\ref{section:subst})\indPolyAlphSubst, consisting of a number
+(\autoref{section:subst})\indPolyAlphSubst, consisting of a number
 of rotating units that jumble up the alphabet.  The first component is
 the so called plugboard ({\em steckerbrett} in
 German)\indEnigmaPlugboard. In the original Enigma, the plugboard
@@ -283,7 +283,7 @@ signature:
 That is, we receive {\tt n} rotors and the character to be encrypted,
 and return the updated rotors (accounting for their rotations) and the
 final character.  The implementation is an instance of the
-fold\indFold pattern (Section~\ref{sec:recandrec}), using the {\tt
+fold\indFold pattern (\autoref{sec:recandrec}), using the {\tt
   scramble} function we have just defined:
 \begin{code}
   joinRotors (rotors, inputChar) = (rotors', outputChar)
@@ -563,7 +563,7 @@ signal is passing the second time through the rotors. (In a sense, the
 rotations happen after the signal completes its full loop, getting to
 the reflector and back.)  Consequently, it is much easer to code as
 well (compare this code to {\tt joinRotors}, defined in
-Section~\ref{sec:enigma:notches}):
+\autoref{sec:enigma:notches}):
 
 \begin{code}
   backSignal : {n} (fin n) => ([n]Rotor, Char) -> Char
@@ -576,7 +576,7 @@ Section~\ref{sec:enigma:notches}):
 \end{code}
 Note that we explicitly reverse the rotors in the definition of {\tt
   cs}.\indReverse (The definition of {\tt cs} is another typical
-example of a fold. See Pg.~\pageref{par:fold}.)\indFold
+example of a fold. See page~\pageref{par:fold}.)\indFold
 
 Given all this machinery, coding the entire Enigma loop is fairly
 straightforward:

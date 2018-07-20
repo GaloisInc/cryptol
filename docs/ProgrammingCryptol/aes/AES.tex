@@ -64,7 +64,7 @@ community of cryptographers.
 The AES algorithm always takes 128 bits of input, and always produces
 128 bits of output, regardless of the key size.  The key-size can be
 one of 128 (AES128), 192 (AES192), or 256 (AES256).  Following the
-standard, we define the following three parameters~\cite[Section
+standard, we define the following three parameters~\cite[section
 2.2]{aes}:
 \begin{itemize}
 \item {\tt Nb}: Number of columns, always set to 4 by the standard.
@@ -185,7 +185,7 @@ Define a function
   gf28Add : {n} (fin n) => [n]GF28 -> GF28
 \end{code}
 that adds all the elements given.
-\lhint{Use a fold, see Pg.~\pageref{par:fold}.}\indFold
+\lhint{Use a fold, see page~\pageref{par:fold}.}\indFold
 \end{Exercise}
 \begin{Answer}\ansref{ex:gf:add0}
 \begin{code}
@@ -336,7 +336,7 @@ But {\tt aesMultAssociative} takes much longer! We show the results of
 %%   [Coverage: 5.96e-3%. (1000/16777216)]
 Note that the coverage is pretty small (on the order of $0.006\%$)
 in this case. Proving associativity of multiplication algorithms using
-SAT/SMT based technologies is a notoriously hard task~\cite[Section
+SAT/SMT based technologies is a notoriously hard task~\cite[section
 6.3.1]{DecisionProcedures2008}. If you have the time, you can let
 Cryptol run long enough to complete the {\tt :prove
   gf28MultAssociative} command, however.
@@ -352,7 +352,7 @@ Cryptol run long enough to complete the {\tt :prove
 
 Recall that the state in AES\indAES is a $4\times4$ matrix of
 bytes. As part of its operation, AES\indAES performs the so called
-{\tt SubBytes} transformation\indAESSbox~\cite[Section 5.1.1]{aes},
+{\tt SubBytes} transformation\indAESSbox~\cite[section 5.1.1]{aes},
 substituting each byte in the state with another element. Given an $x
 \in \mbox{GF}(2^8)$,\indGF the substitution for $x$ is computed as
 follows:
@@ -505,7 +505,7 @@ can make a table containing the precomputed values for all possible
 256 inputs, and simply perform a table look-up instead of computing
 these values each time we need it.  In fact, Figure~7 on page 16 of
 the AES\indAES standard lists these precomputed values for
-us~\cite[Section 5.1.1]{aes}. We capture this table below in Cryptol:
+us~\cite[section 5.1.1]{aes}. We capture this table below in Cryptol:
 \todo[inline]{We should consistently use either ``look-up'' or ``lookup''.}
 
 \vspace{0.25cm}
@@ -582,7 +582,7 @@ We have:
   high-assurance development makes sure that we have not made any
   cut-and-paste errors when we wrote down the numbers in our {\tt
     sbox} table. Equivalently, our proof also establishes that the
-  official specification~\cite[Section 5.1.1]{aes} got its own table
+  official specification~\cite[section 5.1.1]{aes} got its own table
   correct!}
 
 \todo[inline]{Revisit a commented-out exercise here after \ticket{210}
@@ -611,7 +611,7 @@ We have:
   mind.}
 
 The second transformation AES\indAES utilizes is the {\tt
-  ShiftRows}\indAESShiftRows operation~\cite[Section 5.1.2]{aes}. This
+  ShiftRows}\indAESShiftRows operation~\cite[section 5.1.2]{aes}. This
 operation treats the {\tt State} as a $4\times4$ matrix, and rotates
 the last three row to the left by the amounts 1, 2, and 3;
 respectively.  Implementing {\tt ShiftRows} in Cryptol is trivial,
@@ -657,7 +657,7 @@ Of course, any multiple of 4 would have the same effect.
 \sectionWithAnswers{The {\ttfamily{\textbf MixColumns}} transformation}{sec:aesmixcolumns}
 
 The third major transformation AES\indAES performs is the {\tt
-  MixColumns}\indAESMixColumns operation~\cite[Section 5.1.3]{aes}.
+  MixColumns}\indAESMixColumns operation~\cite[section 5.1.3]{aes}.
 In this transformation, the {\tt State} is viewed as a $4\times4$
 matrix, and each successive column of it is replaced by the result of
 multiplying it by the matrix:
@@ -778,7 +778,7 @@ which multiplies the given matrices in GF($2^8$)\indGF.
 
 \unparagraph Now that we have the matrix multiplication machinery
 built, we can code {\tt MixColumns} fairly easily. Following the
-description in the AES\indAES standard~\cite[Section 5.3.1]{aes}, all
+description in the AES\indAES standard~\cite[section 5.3.1]{aes}, all
 we have to do is to multiply the matrix we have seen at the beginning
 of this section with the state:
 
@@ -806,7 +806,7 @@ row-based ordering.
   between the various ticked and unticked versions of functions and
   their composition.}
 
-Recall from Section~\ref{sec:aesparams} that AES takes 128, 192, or
+Recall from \autoref{sec:aesparams} that AES takes 128, 192, or
 256-bit keys. The key is not used as-is, however. Instead, AES\indAES
 expands the key into a number of round keys, called the {\em key
   schedule}. Construction of the key schedule relies on a number of
@@ -814,7 +814,7 @@ auxiliary definitions, as we shall see shortly.
 
 \paragraph*{Round constants} The AES\indAES standard refers to the constant
 array {\tt Rcon} used during key expansion. For each {\tt i}, {\tt
-  Rcon[i]} contains 4 words, the last three being 0~\cite[Section
+  Rcon[i]} contains 4 words, the last three being 0~\cite[section
 5.2]{aes}.  The first element is given by $x^{i-1}$, where
 exponentiation is done using the {\tt gf28Pow} function you have
 defined in Exercise~\ref{aes:subbytes}-\ref{ex:gfmi:0}. In Cryptol,
@@ -857,7 +857,7 @@ to get the indexing right.
 \end{Exercise}
 \begin{Answer}\ansref{ex:aeskerc:1}
   We need to write a conditional property
-  (Section~\ref{sec:condproof})\indThmCond. Below, we use the function
+  (\autoref{sec:condproof})\indThmCond. Below, we use the function
   {\tt elem} you have defined in
   Exercise~\ref{sec:recandrec}-\ref{ex:recfun:4:1}:\indElem
 \begin{code}
@@ -897,20 +897,20 @@ We have:
 % \end{Answer}
 
 \paragraph*{The {\ttfamily{\textbf SubWord}} function} The AES\indAES
-specification refers to a function named {\tt SubWord}~\cite[Section
+specification refers to a function named {\tt SubWord}~\cite[section
 5.2]{aes}, that takes a 32-bit word and applies the {\tt SubByte}
-transformation from Section~\ref{aes:subbytes}. This function is
+transformation from \autoref{aes:subbytes}. This function is
 trivial to code in Cryptol:
 \begin{code}
   SubWord : [4]GF28 -> [4]GF28
   SubWord bs = [ SubByte' b | b <- bs ]
 \end{code}
 Note that we have used the table-lookup version ({\tt SubByte'},
-Pg~\pageref{aes:subbytetl}) above.
+page~\pageref{aes:subbytetl}) above.
 
 \paragraph*{The {\ttfamily{\textbf RotWord}} function} The last
 function we need for key expansion is named {\tt RotWord} by the
-AES\indAES standard~\cite[Section 5.2]{aes}. This function merely
+AES\indAES standard~\cite[section 5.2]{aes}. This function merely
 rotates a given word cyclically to the left:
 \begin{code}
   RotWord : [4]GF28 -> [4]GF28
@@ -933,7 +933,7 @@ viewed the same way as the {\tt State}:\todo[inline]{\emph{Viewed} or
   type RoundKey = State
 \end{code}
 The expanded key schedule contains {\tt Nr}+1 round-keys.  (Recall
-from Section~\ref{sec:aesparams} that {\tt Nr} is the number of
+from \autoref{sec:aesparams} that {\tt Nr} is the number of
 rounds.)  It also helps to separate out the first and the last keys,
 as they are used in a slightly different fashion.  Based on this
 discussion, we use the following Cryptol type to capture the
@@ -946,7 +946,7 @@ The key schedule is computed by seeding it with the initial key and
 computing the successive elements from the previous entries.  In
 particular, the $i$th element of the expanded key is determined as
 follows, copied verbatim from the AES\indAES
-specification~\cite[Figure 11; Section 5.2]{aes}:
+specification~\cite[figure 11; section 5.2]{aes}:
 \begin{Verbatim}
    temp = w[i-1]
    if (i mod Nk = 0)
@@ -1080,7 +1080,7 @@ Appendix~A.1 of the reference specification for AES.\indAES
 \label{sec:ttfam-addr-transf}
 
 {\tt AddRoundKey} is the simplest of all the transformations in
-AES~\cite[Section 5.1.4]{aes}.\indAES It merely amounts to the
+AES~\cite[section 5.1.4]{aes}.\indAES It merely amounts to the
 exclusive-or of the state and the current round key:\indXOr
 \begin{code}
   AddRoundKey : (RoundKey, State) -> State
@@ -1099,10 +1099,10 @@ encryption.
 
 \paragraph*{AES rounds} As mentioned before, AES performs encryption in
 rounds. Each round consists of performing {\tt SubBytes}
-(Section~\ref{aes:subbytes}), {\tt ShiftRows}
-(Section~\ref{aes:shiftrows}), and {\tt MixColumns}
-(Section~\ref{sec:aesmixcolumns}). Before finishing up, each round
-also adds the current round key to the state~\cite[Section
+(\autoref{aes:subbytes}), {\tt ShiftRows}
+(\autoref{aes:shiftrows}), and {\tt MixColumns}
+(\autoref{sec:aesmixcolumns}). Before finishing up, each round
+also adds the current round key to the state~\cite[section
 5.1]{aes}. The Cryptol code for the rounds is fairly trivial:
 \begin{code}
   AESRound : (RoundKey, State) -> State
@@ -1159,7 +1159,7 @@ We have:
 given key and calls the round functions. The starting state (\texttt{state0}
 below) is constructed by adding the first round key to the
 input. We then run all the middle rounds using a simple comprehension,
-and finish up by applying the last round~\cite[Figure 5, Section
+and finish up by applying the last round~\cite[figure 5, section
 5.1]{aes}:\indRIndex
 \begin{code}
   aesEncrypt : ([128], [AESKeySize]) -> [128]
@@ -1208,7 +1208,7 @@ aesEncrypt(0x00112233445566778899aabbccddeeff, 0x000102030405060708090a0b0c0d0e0
 
 \paragraph*{Other key sizes} Our development of AES has been key-size
 agnostic, relying on the definition of the parameter \texttt{Nk}.  (See
-Section~\ref{sec:aesparams}.)  To obtain AES192, all we need is to set
+\autoref{sec:aesparams}.)  To obtain AES192, all we need is to set
 \texttt{Nk} to be 6, no additional code change is needed.  Similarly, we
 merely need to set \texttt{Nk} to be 8 for AES256.
 
@@ -1224,7 +1224,7 @@ merely need to set \texttt{Nk} to be 8 for AES256.
 \sectionWithAnswers{Decryption}{sec:aesdecryption}
 
 AES decryption is fairly similar to encryption, except it uses inverse
-transformations~\cite[Figure 12, Section 5.3]{aes}. Armed with all the
+transformations~\cite[figure 12, section 5.3]{aes}. Armed with all the
 machinery we have built so far, the inverse transformations are
 relatively easy to define.
 
@@ -1233,7 +1233,7 @@ relatively easy to define.
 \label{sec:ttfam-invs-transf}
 
 The {\tt InvSubBytes} transformation reverses the {\tt SubBytes}
-transformation of Section~\ref{aes:subbytes}. As with {\tt SubBytes},
+transformation of \autoref{aes:subbytes}. As with {\tt SubBytes},
 we have a choice to either do a table lookup implementation, or follow
 the mathematical description.  We will do the former in these examples;
 you are welcome to do the latter on your own and prove the equivalence
@@ -1302,8 +1302,8 @@ We have:
 \end{Answer}
 
 \begin{Exercise}\label{ex:invsb:3}
-  The AES specification provides an inverse S-box table~\cite[Figure
-  14, Section 5.3.2]{aes}. Write a Cryptol function {\tt InvSubBytes'}
+  The AES specification provides an inverse S-box table~\cite[figure
+  14, section 5.3.2]{aes}. Write a Cryptol function {\tt InvSubBytes'}
   using the table lookup technique. Make sure your implementation is
   correct (i.e., equivalent to {\tt InvSubBytes}) by writing and
   proving a corresponding property.
@@ -1314,7 +1314,7 @@ We have:
 
 The {\tt InvShiftRows} transformation\indAESInvShiftRows simply
 reverses the {\tt ShiftRows}\indAESShiftRows transformation from
-Section~\ref{aes:shiftrows}:
+\autoref{aes:shiftrows}:
 
 \begin{code}
   InvShiftRows : State -> State
@@ -1342,7 +1342,7 @@ We have:
 \subsection{The {\ttfamily{\textbf InvMixColumns}} transformation}
 \label{sec:ttfam-invm-transf}
 
-Recall from Section~\ref{sec:aesmixcolumns} that {\tt
+Recall from \autoref{sec:aesmixcolumns} that {\tt
   MixColumns}\indAESMixColumns amounts to matrix multiplication in
 GF($2^8$).\indGF The inverse transform turns out to be the same,
 except with a different matrix:\indAESInvMixColumns
@@ -1383,7 +1383,7 @@ take much longer. Below we show the {\tt :check} results instead:
 \label{sec:inverse-cipher}
 
 We now also have all the ingredients to encode AES decryption.
-Following Figure~12 (Section 5.3) of the AES\indAES
+Following figure~12 (section 5.3) of the AES\indAES
 standard~\cite{aes}: {\small
 \begin{code}
   AESInvRound : (RoundKey, State) -> State
@@ -1441,7 +1441,7 @@ aesDecrypt(0x8ea2b7ca516745bfeafc49904b496089, 0x000102030405060708090a0b0c0d0e0
 
 \paragraph*{Other key sizes} Similar to encryption, all we need to
 obtain AES192 decryption is to set {\tt Nk} to be 6 in
-Section~\ref{sec:aesparams}. Setting {\tt Nk} to 8 will
+section~\ref{sec:aesparams}. Setting {\tt Nk} to 8 will
 correspondingly give us AES256.
 
 \paragraph*{The code} You can see all the Cryptol code for AES in
@@ -1504,7 +1504,7 @@ cryptographic algorithm programming.
   capabilities?}
 %% Furthermore, Cryptol has some further proof tools in its arsenal
 %% that will actually let us complete this proof in a reasonable
-%% amount of time, as we shall see in Section~\ref{sec:proveaes}.
+%% amount of time, as we shall see in \autoref{sec:proveaes}.
 \commentout{
 \begin{code}
   sanityCheck = (aesEncrypt (0x3243f6a8885a308d313198a2e0370734, 0x2b7e151628aed2a6abf7158809cf4f3c) 

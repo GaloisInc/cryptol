@@ -143,7 +143,7 @@ What do you see?\indCmdInfo
 It is important to distinguish between \emph{stating} a property and
 actually \emph{proving} it. So far, our focus is purely on
 specification. We will focus on actual proofs in
-Section~\ref{sec:establishcorrectness}.
+\autoref{sec:establishcorrectness}.
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 \subsection{Property--function correspondence}\indThmFuncCorr
@@ -334,7 +334,7 @@ etc.) did not violate the stated properties.
 \label{sec:formal-proofs}
 
 Recall our very first property, {\tt sqDiffsCorrect}, from
-Section~\ref{sec:writingproperties}. We will now use Cryptol to
+\autoref{sec:writingproperties}. We will now use Cryptol to
 actually prove it automatically.  To prove {\tt sqDiffsCorrect}, use
 the command {\tt :prove}:\indCmdProve
 \begin{Verbatim}
@@ -395,7 +395,7 @@ at. These counterexamples are extremely valuable for debugging
 purposes.\indCounterExample
 
 If you try to prove an invalid property that encodes a test vector
-(Section~\ref{sec:thmvec}), then you will get a mere indication that
+(\autoref{sec:thmvec}), then you will get a mere indication that
 you have a contradiction, since there are no universally quantified
 variables to instantiate to show you a
 counterexample.\indContradiction  If the expression evaluates to {\tt
@@ -425,7 +425,7 @@ they may hold for certain monomorphic instances while not for others.
 In this cases, we must tell Cryptol what particular monomorphic
 instance of the property we would like it to prove.  Let us
 demonstrate this with the \texttt{multShift} property from
-Section~\ref{sec:polythm}:
+\autoref{sec:polythm}:
 \begin{Verbatim}
   Cryptol> :prove multShift
     Not a monomorphic type:
@@ -444,7 +444,7 @@ function to the {\tt :prove} command:\indCmdProve\indWhere
   Cryptol> :prove dbl where dbl x = (x:[8]) * 2 == x+x
   Q.E.D.
 \end{Verbatim}
-Of course, a \lamex (Section~\ref{sec:lamex}) would work just as well
+Of course, a \lamex (\autoref{sec:lamex}) would work just as well
 too:\indLamExp
 \begin{Verbatim}
   Cryptol> :prove \x -> (x:[8]) * 2 == x+x
@@ -584,12 +584,12 @@ We have:
 %%\end{code}
 %%to simplify writing conditional properties.
 %% However, this approach is flawed as it fails to account correctly for
-%% exceptions. We shall revisit this topic in detail in 
-%% Sections~\ref{sec:pitfall:evorder} and~\ref{sec:pitfall:thmexceptions}.
+%% exceptions. We shall revisit this topic in detail in
+%% sections~\ref{sec:pitfall:evorder} and~\ref{sec:pitfall:thmexceptions}.
 
 \paragraph*{Recognizing messages} Our work on classic ciphers
-(Chapter~\ref{chapter:classic}) and the enigma
-(Chapter~\ref{chapter:enigma}) involved working with messages that
+(\autoref{chapter:classic}) and the enigma
+(\autoref{chapter:enigma}) involved working with messages that
 contained the letters {\tt 'A'} .. {\tt 'Z'} only. When writing
 properties about these ciphers it will be handy to have a recognizer
 for such messages, as we explore in the next exercise.
@@ -624,7 +624,7 @@ write it inline.
 
 \begin{Exercise}\label{ex:cond:3}
   Recall the pair of functions {\tt caesar} and {\tt dCaesar} from
-  Section~\ref{sec:caesar}.\indCaesarscipher Write a property, named
+  \autoref{sec:caesar}.\indCaesarscipher Write a property, named
   {\tt caesarCorrect}, stating that {\tt caesar} and {\tt dCaesar} are
   inverses of each other for all {\tt d} (shift amount) and {\tt msg}
   (message)'s. Is your property valid? What extra condition do you
@@ -663,8 +663,8 @@ We have:
 
 \begin{Exercise}\label{ex:cond:4}
   Write and prove a property for the {\tt modelEnigma} machine
-  (Page~\pageref{def:modelEnigma}), relating the {\tt enigma} and {\tt
-    dEnigma} functions from Section~\ref{enigma:encdec}.
+  (page~\pageref{def:modelEnigma}), relating the {\tt enigma} and {\tt
+    dEnigma} functions from \autoref{enigma:encdec}.
 \end{Exercise}
 \begin{Answer}\ansref{ex:cond:4}
 \begin{code}
@@ -925,7 +925,7 @@ allowing the user to focus on the specification of the problem.
 \todo[inline]{Re-add chapter on verification, or two chapters on
   \texttt{:sat} and \texttt{:prove}.} 
 % (We will see several larger applications of the satisfiability
-% checker in Chapter~\ref{chap:usingsat}.)
+% checker in \autoref{chap:usingsat}.)
 
 \begin{Exercise}\label{ex:sat:0}
   Fermat's last theorem states that there are no integer solutions to
@@ -1020,7 +1020,7 @@ instance as you increase the bit-size.
 %%\begin{itemize}
 %% \item Division ({\tt /}) and modulus ({\tt \%}) by 0, both modular
 %%   and polynomial versions (See
-%%   Section~\ref{sec:polynomials})\indDiv\indMod\indDivPoly\indModPoly
+%%   \autoref{sec:polynomials})\indDiv\indMod\indDivPoly\indModPoly
 %% \item Index-out-of-bounds errors for {\tt @}, {\tt @@}, {\tt !} and
 %%   {\tt !!},\indIndex\indIndexs\indRIndex\indRIndexs
 %%  \item Calling {\tt lg2} on {\tt 0},\indLg
@@ -1158,7 +1158,7 @@ instance as you increase the bit-size.
 %% While it is important to understand what Cryptol is telling us, the
 %% user can safely ignore these alerts most of the time, especially
 %% when one is focusing only at the Cryptol level. (We will revisit
-%% this topic in Section~\ref{sec:pitfall:thmexceptions}.)
+%% this topic in \autoref{sec:pitfall:thmexceptions}.)
 %%
 %%\begin{Exercise}\label{ex:safe:3}
 %%  Rewrite {\tt choose} so that {\tt :safe} will not issue any
