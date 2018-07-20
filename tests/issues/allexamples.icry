@@ -52,7 +52,7 @@
 :l param_modules/GCM_AES_Tests.cry
 :l param_modules/SHA.cry
 :l param_modules/SHA256.cry
-:cd Minilock/prim
+:cd MiniLock/prim
 :l Base58.cry
 :l Base64.cry
 :l Blake2s.cry
