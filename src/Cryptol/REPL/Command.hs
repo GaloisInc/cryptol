@@ -334,7 +334,7 @@ qcCmd qcMode str =
                   , testRptFailure = ppFailure tys expr
                   , testRptSuccess = do
                       delTesting
-                      prtLn $ "passed " ++ show sz ++ " tests."
+                      prtLn $ "Passed " ++ show sz ++ " tests."
                       rPutStrLn "Q.E.D."
                   }
             prt testingMsg
@@ -358,7 +358,7 @@ qcCmd qcMode str =
                       , testRptFailure = ppFailure tys expr
                       , testRptSuccess = do
                           delTesting
-                          prtLn $ "passed " ++ show testNum ++ " tests."
+                          prtLn $ "Passed " ++ show testNum ++ " tests."
                       }
                 prt testingMsg
                 g <- io newTFGen
@@ -371,7 +371,7 @@ qcCmd qcMode str =
        _ -> raise (TypeNotTestable ty)
 
   where
-  testingMsg = "testing..."
+  testingMsg = "Testing... "
 
   coverageString testNum sz =
                   let (percent, expectedUnique) = expectedCoverage testNum sz

@@ -1,7 +1,7 @@
 Loading module Cryptol
 Using random testing.
-testing...passed 100 tests.
+Testing... Passed 100 tests.
 Expected test coverage: 32.39% (83 of 256 values)
 Using exhaustive testing.
-testing...passed 256 tests.
+Testing... Passed 256 tests.
 Q.E.D.
