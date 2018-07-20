@@ -63,9 +63,9 @@ considered good practice.\indSignature
 
 \paragraph*{Polymorphism}
 Cryptol functions can be polymorphic, which means they can operate on
-many different types.  Be aware that the type which Cryptol infers might
+many different types.  Be aware that the type that Cryptol infers might
 be too polymorphic, so it is good practice to write your signatures,
-or at least check what Cryptol inferred is what you had in
+or at least check that what Cryptol inferred is what you had in
 mind.\indPolymorphism\indSignature
 
 \paragraph*{Module system}
@@ -100,7 +100,7 @@ You can feed \LaTeX~files to Cryptol (i.e., files with extension
 \texttt{.tex}).  Cryptol will look for \verb|\begin{code}| and
 \verb|\end{code}| marks to extract Cryptol code.  Everything else
 will be comments as far as Cryptol is concerned.  In fact, the book
-you are reading is a Literate Cryptol program.\indLiterateProgramming
+you are reading is a literate Cryptol program.\indLiterateProgramming
 
 \todo[inline]{Discuss Cryptol support for literate Markdown. Use ticks to
   delimit code blocks in Markdown layout.  Talk with Trevor.}
@@ -203,8 +203,8 @@ We want to write: ``You set your favorite editor by :set
   editor=/path/to/editor.''}
 
 \paragraph*{Running shell commands}
-You can run Unix shell commands from within Cryptol like this: {\tt :!
-  cat test.cry}.\indCmdShell
+You can run Unix shell commands from within Cryptol like this:
+\texttt{:!~cat test.cry}.\indCmdShell
 
 \paragraph*{Changing working directory}
 You can change the current working directory of Cryptol like this:
@@ -240,8 +240,8 @@ The \texttt{:sat} command uses an external SAT solver to attempt to
 find a satisfying assignment to a property.  See~\autoref{sec:sat} for
 more detailed information.
 
-\paragraph*{Type specialization}
-Discuss \texttt{:debug\_specialize}.  \todo[inline]{Dylan?}
+% \paragraph*{Type specialization}
+% Discuss \texttt{:debug\_specialize}.  \todo[inline]{Dylan?}
 
 %=====================================================================
 %\section{Using Cryptol: The Big Picture}

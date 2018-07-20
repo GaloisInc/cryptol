@@ -40,7 +40,7 @@ interchangeable scramblers, and a fixed reflector.
 Enigma essentially implements a polyalphabetic substitution cipher
 (\autoref{section:subst})\indPolyAlphSubst, consisting of a number
 of rotating units that jumble up the alphabet.  The first component is
-the so called plugboard ({\em steckerbrett} in
+the so called plugboard (\textit{Steckerbrett} in
 German)\indEnigmaPlugboard. In the original Enigma, the plugboard
 provided a means of interchanging 6 pairs of letters. For instance,
 the plugboard could be set-up so that pressing the {\tt B} key would
@@ -116,7 +116,7 @@ locations:\footnote{The function {\tt elem} was defined in \exerciseref{ex:recfu
 \begin{code}
   mkRotor : {n} (fin n) => (Permutation, String n) -> Rotor
   mkRotor (perm, notchLocations) = [ (p, elem (p, notchLocations))
-                                    | p <- perm
+                                   | p <- perm
                                    ]
 \end{code}
 \todo[inline]{A diagram here would be really useful, especially one
@@ -568,10 +568,10 @@ well (compare this code to {\tt joinRotors}, defined in
 \begin{code}
   backSignal : {n} (fin n) => ([n]Rotor, Char) -> Char
   backSignal (rotors, inputChar) = cs ! 0
-    where 
+    where
       cs = [inputChar] # [  substBwd ([ p | (p, _) <- r ], c)
-                          | r <- reverse rotors
-                          | c <- cs
+                         | r <- reverse rotors
+                         | c <- cs
                          ]
 \end{code}
 Note that we explicitly reverse the rotors in the definition of {\tt

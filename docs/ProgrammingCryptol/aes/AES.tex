@@ -411,15 +411,15 @@ Write a function
   gf28Inverse : GF28 -> GF28
 \end{code}
 to compute the multiplicative inverse of a given element by raising it
-to the power $254$. Note that {\tt gf28Inverse} must map $0$ to
-$0$. Do you have to do anything special to make sure this happens?
+to the power \texttt{254}. Note that {\tt gf28Inverse} must map \texttt{0} to
+\texttt{0}. Do you have to do anything special to make sure this happens?
 \end{Exercise}
 \begin{Answer}\ansref{ex:gfmi:01}
 \begin{code}
   gf28Inverse x = gf28Pow (x, 254)
 \end{code}
-We do not have to do anything special about $0$, since our {\tt
-  gf28Inverse} function yields $0$ in that case:
+We do not have to do anything special about \texttt{0}, since our
+\texttt{gf28Inverse} function yields \texttt{0} in that case:
 \begin{Verbatim}
   Cryptol> gf28Inverse 0
   0x00
@@ -429,10 +429,10 @@ We do not have to do anything special about $0$, since our {\tt
 \begin{Exercise}\label{ex:gfmi:1}
   Write and prove a property {\tt gf28InverseCorrect}, ensuring that
   {\tt gf28Inverse x} does indeed return the multiplicative inverse of
-  {\tt x}.  Do you have to do anything special when {\tt x} is $0$?
+  {\tt x}.  Do you have to do anything special when {\tt x} is \texttt{0}?
 \end{Exercise}
 \begin{Answer}\ansref{ex:gfmi:1}
-  Since $0$ does not have a multiplicative inverse, we have to write a
+  Since \texttt{0} does not have a multiplicative inverse, we have to write a
   conditional property:
 \begin{code}
   property gf28InverseCorrect x =
@@ -726,7 +726,7 @@ We have:
   Q.E.D.
   AES> :check DPDist : [10]GF28 -> [10]GF28 -> [10]GF28 -> Bit
   Using random testing.
-  passed 1000 tests.
+  Passed 1000 tests.
 \end{Verbatim}
 \todo[inline]{Revisit after \ticket{207} is addressed.}
   % \verb+[Coverage: 0.00%. (1000/17668470647783843295832975007429185158274838968756189 ...58121606201292619776)]+
