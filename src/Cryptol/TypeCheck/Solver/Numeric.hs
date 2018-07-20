@@ -219,13 +219,10 @@ tryEqMins x y =
   do (a, b) <- aMin y
      let ys = splitMin a ++ splitMin b
      let ys' = filter (not . isGt) ys
-     return $ case ys' of
-       [] -> Unsolvable
-             $ TCErrorMessage
-             $ "Unsolvable constraint: " ++
-               show (pp (x =#= y))
-       _ | length ys' < length ys -> SolvedIf [x =#= foldr1 Simp.tMin ys']
-         | otherwise              -> Unsolved
+     let y' = if null ys' then tInf else foldr1 Simp.tMin ys'
+     return $ if length ys' < length ys
+              then SolvedIf [x =#= y']
+              else Unsolved
   where
     splitMin :: Type -> [Type]
     splitMin ty =
