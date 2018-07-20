@@ -793,7 +793,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
   prim n = ePrim prims (mkIdent (T.pack n))
 
   go :: Type -> Value -> ChoiceT Eval Expr
-  go ty val = case (ty, val) of
+  go ty val = case (tNoUser ty, val) of
     (TRec tfs, VRecord vfs) -> do
       let fns = map fst vfs
       guard (map fst tfs == fns)
