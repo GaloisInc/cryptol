@@ -57,21 +57,6 @@ property to apply to only 8-bit values. As usual, the type signature
 is optional.\indSignature If not given, Cryptol will infer one for
 you.
 
-\begin{Exercise}\label{ex:thm:intro}
-  Put the above property in a file and load it into Cryptol. Then
-  issue the command:
-\begin{Verbatim}
-  Cryptol> :t sqDiffsCorrect
-\end{Verbatim}
-What do you see?\indCmdInfo
-\end{Exercise}
-\begin{Answer}\ansref{ex:thm:intro}
-  Cryptol will print the property location, name, and the type. The
-  command {\tt :i} stands for {\tt info}. It provides data about the
-  properties, type-synonyms, etc. available at the top-level of your
-  program.\indCmdInfo
-\end{Answer}
-
 \note{It is important to emphasize that the mathematical equality
   above and the Cryptol property are \emph{not} stating precisely the
   same property.  Remember that all Cryptol arithmetic is
