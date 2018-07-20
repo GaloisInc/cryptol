@@ -46,12 +46,19 @@ unspecified types.  That is, the user does {\em not} have to write the
 types of all expressions; they will be automatically inferred by the
 type-inference engine.  Of course, in certain contexts the user might
 choose to supply a type explicitly.  The notation is simple: we simply
-put the expression, followed by {\tt :} and the type. For instance:
+put the expression, followed by {\tt :} and the type. For instance,
 \begin{Verbatim}
    12 : [8]
 \end{Verbatim}
 means the value {\tt 12} has type {\tt [8]}, i.e., it is an 8-bit
-word. We shall see other examples of this in the following discussion.
+word. We can also supply partial types. For example,
+\begin{Verbatim}
+   12 : [_]
+\end{Verbatim}
+means that \texttt{12} has a word type with an unspecified number of
+bits. Cryptol will infer the unspecified part of the type in this
+case. We shall see many other examples of typed expressions in the
+following discussion.
 
 %=====================================================================
 \sectionWithAnswers{Bits: Booleans}{sec:bits}
@@ -532,7 +539,7 @@ particular the expression is:
      [ (i, j) | j <- [1 .. 3] ]
 \end{Verbatim}
 You can enter the whole expression in Cryptol all in one line, or
-recall that you can put {\tt $\backslash$} at line ends to continue to
+recall that you can put \texttt{\textbackslash} at line ends to continue to
 the next line.\indLineCont If you are writing such an expression in a
 program file, then you can lay it out as shown above or however most
 makes sense to you.
@@ -900,9 +907,11 @@ result (5 $\times$ 2), but the input has 12.
   ]
 \end{Verbatim}
 (Note again that you can enter the above in the command line all in
-one line, or by putting the line continuation character {\tt
-  $\backslash$} at the end of the first two lines.)\indLineCont
-\todo[inline]{You don't need nested comprehensions: \texttt{split (split [1..120]) :\ [3][4][10][8]} also works.}
+one line, or by putting the line continuation character
+\texttt{\textbackslash} at the end of the first two
+lines.)\indLineCont \todo[inline]{You don't need nested
+  comprehensions: \texttt{split (split [1..120]) :\ [3][4][10][8]}
+  also works.}
 \end{Answer}
 
 %~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -1300,10 +1309,8 @@ resulting word size.  While this is very handy for most applications of
 Cryptol, it requires some care if overflow has to be treated
 explicitly.\indOverflow\indUnderflow\indPlus\indMinus\indTimes\indDiv\indMod\indLg\indMin\indMax\indExponentiate
 
-\todo[inline]{XXXX Fixme change most/all of the following exercises. They don't make sense now that numerals are more polymorphic.}
-
 \begin{Exercise}\label{ex:arith:1}
-What is the value of {\tt 1+1}? Surprised?
+What is the value of \texttt{1 + 1 :~[\textunderscore]}? Surprised?
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:1}
   Since {\tt 1} requires only 1 bit to represent, the result also has
@@ -1312,7 +1319,7 @@ What is the value of {\tt 1+1}? Surprised?
 \end{Answer}
 
 \begin{Exercise}\label{ex:arith:2}
-What is the value of {\tt 1+(1:[8])}? Why?
+What is the value of \texttt{1 + 1 :~[8]}? Why?
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:2}
   Now we have 8 bits to work with, so the result is {\tt 2}. Since we
@@ -1321,7 +1328,7 @@ What is the value of {\tt 1+(1:[8])}? Why?
 \end{Answer}
 
 \begin{Exercise}\label{ex:arith:3}
-What is the value of \texttt{3 - 5}? How about \texttt{(3 - 5) :\ [8]}?
+What is the value of \texttt{3 - 5 :~[\textunderscore]}? How about \texttt{3 - 5 :~[8]}?
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:3}
   Recall from \autoref{sec:words} that there are no negative
@@ -1346,19 +1353,25 @@ Try out the following expressions:\indEq\indNeq
   2 % 0
   3 + (if 3 == 2+1 then 12 else 2/0)
   3 + (if 3 != 2+1 then 12 else 2/0)
-  lg2 (-25)
+  lg2 (-25) : Integer
+  lg2 (-25) : [_]
 \end{Verbatim}
 In the last expression, remember that unary minus will\indUnaryMinus
 be done in a modular fashion. What is the modulus used for this
 operation?
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:4}
-  The division/modulus by zero will give the expected error
-  messages. In the last expression, the number $25$ fits in $5$ bits,
-  so the modulus is $2^5 = 32$. The unary-minus yields {\tt 7}, hence
-  the result is {\tt 3}. Note that {\tt lg2} is the \emph{floor log
-    base 2} function. The {\tt width} function is the \emph{ceiling
-    log base 2} function.\indLg\indEq\indNeq
+  The first, second, and fourth examples give a ``division by 0''
+  error message. In the third example, the division by zero occurs
+  only in an unreachable branch, so the result is not an error. The
+  logarithm at type \texttt{Integer} gives a ``logarithm of negative''
+  error.
+
+  In the last expression, the number \texttt{25} fits in 5 bits, so
+  the modulus is $2^5 = 32$. The unary minus yields \texttt{7}, hence
+  the result is \texttt{3}. Note that \texttt{lg2} is the \emph{floor
+    log base 2} function. The \texttt{width} function is the
+  \emph{ceiling log base 2} function.\indLg\indEq\indNeq
 \end{Answer}
 
 \begin{Exercise}\label{ex:arith:5:1}
@@ -1387,8 +1400,9 @@ whenever $y \neq 0$.
 \end{Answer}
 
 \begin{Exercise}\label{ex:arith:5}
-  What is the value of {\tt min 5 (-2)}?  Why?  Why are the
-  parentheses necessary?\indMin\indModular\indUnaryMinus
+  What is the value of \texttt{min (5:[\textunderscore]) (-2)}? Why?
+  Why are the parentheses around \texttt{-2}
+  necessary?\indMin\indModular\indUnaryMinus
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:5}
   The bit-width in this case is 3 (to accommodate for the number 5),
@@ -1459,7 +1473,7 @@ However, while the output suggests that the numbers are increasing all
 the time, that is just an illusion! Since the elements of this
 sequence are 32-bit words, eventually they will wrap over, and go back
 to 0. (In fact, this will happen precisely at the element $2^{32}-1$,
-starting the count at $0$ as usual.) We can observe this much more
+starting the count at 0 as usual.) We can observe this much more
 simply, by using a smaller bit size for the constant {\tt 1}:
 \begin{Verbatim}
   Cryptol> [(1:[2])...]
@@ -1474,9 +1488,9 @@ Cryptol's modular arithmetic.\indModular
 \todo[inline]{FIXME the next examples don't make sense any more.}
 
 There is one more case to look at. What happens if we completely leave
-out the signature?
+out the bit-width?
 \begin{Verbatim}
-  Cryptol> [1 ...]
+  Cryptol> [1:[_] ...]
   [1, 0, 1, 0, 1, ...]
 \end{Verbatim}
 In this case, Cryptol figured out that the number {\tt 1} requires
@@ -1491,34 +1505,24 @@ will be treated as if the user has written:
   [k, (k+1) ...]
 \end{Verbatim}
 and type inference will assign the smallest bit-size possible to
-represent {\tt k}.  \note{If the user evaluates the value of {\tt
-    k+1}, then the result may be different. For example, {\tt [1, 1+1
-    ...]} results in the {\tt [1, 0, 1 ...]} behavior, but {\tt [1, 2
-    ...]} adds another bit, resulting in {\tt [1, 2, 3, 0, 1, 2, 3
-    ...]}. If Cryptol evaluates the value of {\tt k+1}, the answer is
-  modulo {\tt k}, so another bit is not added. For the curious, this
-  subtle behavior was introduced to allow the sequence of all zeros to
-  be written \texttt{[0 ...]}.}
+represent {\tt k}.
 
-\todo[inline]{This exercise has a broken reference, because ex:words:2 was removed.}
 \begin{Exercise}\label{ex:arith:9}
-  Remember from \exerciseref{ex:words:2} that the
-  constant {\tt 0} requires 0 bits to represent. Based on this, what
-  is the value of the enumeration {\tt [0..]}? What about {\tt
-    [0...]}? Surprised?
+  Remember from \exerciseref{ex:decimalType} that the word \texttt{0}
+  requires 0 bits to represent. Based on this, what is the value of
+  the enumeration \texttt{[0:[\textunderscore], 1...]}? How about
+  \texttt{[0:[\textunderscore]...]}? Surprised?
 \end{Exercise}
 \begin{Answer}\ansref{ex:arith:9}
 Here are Cryptol's responses:\indModular\indEnum\indInfSeq
 \begin{Verbatim}
-  [0]
+  [0, 1, 0, 1, 0, ...]
   [0, 0, 0, 0, 0, ...]
 \end{Verbatim}
-as opposed to \texttt{[0, 1, 0, 1, 0, ...]}, as one might
-expect.\footnote{This is one of the subtle changes from Cryptol 1. The
-  previous behavior can be achieved by dropping the first element from
-  \texttt{[1 ...]}.}  This behavior follows from the specification that
-the width of the elements of the sequence are derived from the width of
-the elements in the seed, which in this case is 0.
+The first example gets an element type of \texttt{[1]}, because of the
+explicit use of the numeral \texttt{1}, while the second example's
+element type is \texttt{[0]}. This is one case where \texttt{[k...]}
+is subtly different from \texttt{[k, k+1...]}.
 \end{Answer}
 
 \begin{Exercise}\label{ex:arith:10}
@@ -1703,7 +1707,7 @@ ML~\cite{ML,Has98}.\indPolymorphism\indOverloading
 Here is the type of {\tt tail} in Cryptol:
 \begin{Verbatim}
   Cryptol> :t tail
-  tail : {n, a} [n+1]a -> [n]a
+  tail : {n, a} [1 + n]a -> [n]a
 \end{Verbatim}
 This is quite a different type from what we have seen so far. In
 particular, it is a polymorphic type, one that can work over multiple
@@ -1711,7 +1715,7 @@ concrete instantiations of it. Here's how we read this type in
 Cryptol:
 \begin{quote} \texttt{tail} is a polymorphic function, parameterized over
   \texttt{n} and \texttt{a}. The input is a sequence that contains
-  \texttt{n+1} elements. The elements can be of an arbitrary type
+  \texttt{1 + n} elements. The elements can be of an arbitrary type
   \texttt{a}; there is no restriction on their structure. The result
   is a sequence that contains \texttt{n} elements, where the elements
   themselves have the same type as those of the input.
@@ -1732,10 +1736,10 @@ see how the instantiations work for our running examples:
 %\begin{adjustbox}{width={\textwidth},keepaspectratio}
 \begin{tabular}[h]{c||c|c|l}
 {\tt [n+1]a -> [n]a}                 & {\tt n}   & {\tt a}          & Notes \\ \hline\hline
-{\tt [5][8] -> [4][8]}               &    4      & {\tt [8]}        & {\tt n+1 = 5} $\Rightarrow$ {\tt n = 4}  \\\hline
-{\tt [10][32] -> [9][32]}            &    9      & {\tt [32]}       & {\tt n+1 = 10} $ \Rightarrow$ {\tt n = 9} \\\hline
+{\tt [5][8] -> [4][8]}               &    4      & {\tt [8]}        & {\tt 1+n = 5} $\Rightarrow$ {\tt n = 4}  \\\hline
+{\tt [10][32] -> [9][32]}            &    9      & {\tt [32]}       & {\tt 1+n = 10} $ \Rightarrow$ {\tt n = 9} \\\hline
 {\tt [3](Bit, [8]) -> [2](Bit, [8])} &    2      & {\tt (Bit, [8])} & The type {\tt a} is now a tuple	           \\\hline
-{\tt [inf][16] -> [inf][16]}         & {\tt inf} & {\tt [16]}       & {\tt n+1 = inf} $\Rightarrow$ {\tt n = inf}
+{\tt [inf][16] -> [inf][16]}         & {\tt inf} & {\tt [16]}       & {\tt 1+n = inf} $\Rightarrow$ {\tt n = inf}
 \end{tabular}
 %\end{adjustbox}
 \end{center}
@@ -1757,7 +1761,7 @@ instantiation can not be found:
     ?a`860 is type argument 'a' of 'tail' at <interactive>:1:1--1:5
 \end{Verbatim}
 Cryptol is telling us that it cannot match the types \texttt{Bit} and
-the sequence \texttt{[n+1]a}, causing a type error statically at
+the sequence \texttt{[1+n]a}, causing a type error statically at
 compile time. (The funny notation of \texttt{?n`859} and
 \texttt{?a`860} are due to how type instantiations proceed under the
 hood. While they look funny at first, you soon get used to the
@@ -2768,8 +2772,8 @@ of a point as follows:
 Type synonyms look like distinct types when they are printed in the
 output of the \texttt{:t} and \texttt{:browse} commands. However,
 declaring a type synonym does not actually introduce a new
-\emph{type}; it merely introduces a new name for an existing type.
-When Cryptol's type checker compares types, it expands all type
+\emph{type}; it merely introduces a new \emph{name} for an existing
+type. When Cryptol's type checker compares types, it expands all type
 synonyms first. So as far as Cryptol is concerned, \texttt{Word8} and
 \texttt{[8]} are the \emph{same} type. Cryptol preserves type synonyms
 in displayed types as a convenience to the user.
@@ -2796,7 +2800,7 @@ declared, but there are not six distinct \emph{types}. The first four
 interchangeable abbreviations for \texttt{[8]}. The last two are
 synonymous and interchangeable with the pair type \texttt{([8], [8])}.
 Likewise, the function types of \texttt{foo} and \texttt{bar} are
-identical, thus \texttt{bar} can call \texttt{foo}.
+identical; thus \texttt{bar} can call \texttt{foo}.
 
 \begin{Exercise}\label{ex:tsyn:1}
   Define a type synonym for 3-dimensional points and write a function
