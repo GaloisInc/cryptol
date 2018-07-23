@@ -155,7 +155,7 @@ apSubstMaybe su ty =
 applySubstToVar :: Subst -> TVar -> Maybe Type
 applySubstToVar su x =
   case Map.lookup x (suMap su) of
-    Just t  -> Just t
+    Just t  -> Just (if suDefaulting su then apSubst su t else t)
     Nothing
       | suDefaulting su -> Just $! defaultFreeVar x
       | otherwise       -> Nothing
