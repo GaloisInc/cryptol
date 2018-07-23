@@ -56,6 +56,12 @@ getIdent (NewName p i) = packIdent ("__" ++ pass ++ show i)
            NoPat      -> "p"
            MonoValues -> "mv"
 
+isGeneratedName :: PName -> Bool
+isGeneratedName x =
+  case x of
+    NewName {} -> True
+    _          -> False
+
 instance PP PName where
   ppPrec _ = ppPrefixName
 

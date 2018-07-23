@@ -191,6 +191,11 @@ data InModule a = InModule !ModName a
 namingEnv' :: BindsNames a => a -> Supply -> (NamingEnv,Supply)
 namingEnv' a supply = runId (runSupplyT supply (runBuild (namingEnv a)))
 
+newTop :: FreshM m => ModName -> PName -> Maybe Fixity -> Range -> m Name
+newTop ns thing fx rng = liftSupply (mkDeclared ns (getIdent thing) fx rng)
+
+newLocal :: FreshM m => PName -> Range -> m Name
+newLocal thing rng = liftSupply (mkParameter (getIdent thing) rng)
 
 newtype BuildNamingEnv = BuildNamingEnv { runBuild :: SupplyT Id NamingEnv }
 
@@ -311,7 +316,7 @@ instance BindsNames ImportIface where
 instance BindsNames (InModule (Bind PName)) where
   namingEnv (InModule ns b) = BuildNamingEnv $
     do let Located { .. } = bName b
-       n <- liftSupply (mkDeclared ns (getIdent thing) (bFixity b) srcRange)
+       n <- newTop ns thing (bFixity b) srcRange
 
        let fixity = case bFixity b of
              Just f  -> mempty { neFixity = Map.singleton n f }
@@ -323,7 +328,7 @@ instance BindsNames (InModule (Bind PName)) where
 instance BindsNames (TParam PName) where
   namingEnv TParam { .. } = BuildNamingEnv $
     do let range = fromMaybe emptyRange tpRange
-       n <- liftSupply (mkParameter (getIdent tpName) range)
+       n <- newLocal tpName range
        return (singletonT tpName n)
 
 -- | The naming environment for a single module.  This is the mapping from
@@ -346,14 +351,14 @@ instance BindsNames (InModule (TopDecl PName)) where
 instance BindsNames (InModule (ParameterFun PName)) where
   namingEnv (InModule ns ParameterFun { .. }) = BuildNamingEnv $
     do let Located { .. } = pfName
-       ntName <- liftSupply (mkDeclared ns (getIdent thing) pfFixity srcRange)
+       ntName <- newTop ns thing pfFixity srcRange
        return (singletonE thing ntName)
 
 instance BindsNames (InModule (ParameterType PName)) where
   namingEnv (InModule ns ParameterType { .. }) = BuildNamingEnv $
     -- XXX: we don't seem to have a fixity environment at the type level
     do let Located { .. } = ptName
-       ntName <- liftSupply (mkDeclared ns (getIdent thing) Nothing srcRange)
+       ntName <- newTop ns thing Nothing srcRange
        return (singletonT thing ntName)
 
 -- NOTE: we use the same name at the type and expression level, as there's only
@@ -362,7 +367,7 @@ instance BindsNames (InModule (ParameterType PName)) where
 instance BindsNames (InModule (Newtype PName)) where
   namingEnv (InModule ns Newtype { .. }) = BuildNamingEnv $
     do let Located { .. } = nName
-       ntName <- liftSupply (mkDeclared ns (getIdent thing) Nothing srcRange)
+       ntName <- newTop ns thing Nothing srcRange
        return (singletonT thing ntName `mappend` singletonE thing ntName)
 
 -- | The naming environment for a single declaration.
@@ -382,8 +387,7 @@ instance BindsNames (InModule (Decl PName)) where
 
     where
 
-    mkName ln fx =
-      liftSupply (mkDeclared pfx (getIdent (thing ln)) fx (srcRange ln))
+    mkName ln fx = newTop pfx (thing ln) fx (srcRange ln)
 
     qualBind ln = BuildNamingEnv $
       do n <- mkName ln Nothing
