@@ -3,7 +3,7 @@ module Cryptol.TypeCheck.Default where
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.Maybe(mapMaybe)
-import Data.List((\\))
+import Data.List((\\),nub)
 import Control.Monad(guard)
 
 import Cryptol.TypeCheck.Type
@@ -96,7 +96,7 @@ improveByDefaultingWithPure as ps =
         names = substBinds su
 
     in ( [ a | a <- as, not (a `Set.member` names) ]
-       , newOthers ++ others ++ apSubst su fins
+       , newOthers ++ others ++ nub (apSubst su fins)
        , su
        , map warn defs
        )
