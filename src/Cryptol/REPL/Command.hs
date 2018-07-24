@@ -800,7 +800,7 @@ browseCmd input = do
   (_,iface,names,disp) <- getFocusedEnv
 
   let mnames = map (M.textToModName . T.pack) (words input)
-  validModNames <- getModNames
+  validModNames <- (:) M.interactiveName <$> getModNames
   let checkModName m =
         unless (m `elem` validModNames) $
         rPutStrLn ("error: " ++ show m ++ " is not a loaded module.")

@@ -17,7 +17,7 @@ import           Cryptol.REPL.Monad
 import           Cryptol.REPL.Trie
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Logger(stdoutLogger)
-import           Cryptol.Utils.Ident(modNameToText)
+import           Cryptol.Utils.Ident(modNameToText, interactiveName)
 
 import qualified Control.Exception as X
 import           Control.Monad (guard, join)
@@ -273,8 +273,9 @@ completeHelp (l, _) = do
 -- | Complete a name from the list of loaded modules.
 completeModName :: CompletionFunc REPL
 completeModName (l, _) = do
-  ns <- map (T.unpack . modNameToText) <$> getModNames
-  let n    = reverse (takeIdent l)
+  ms <- getModNames
+  let ns   = map (T.unpack . modNameToText) (interactiveName : ms)
+      n    = reverse (takeWhile (not . isSpace) l)
       vars = filter (n `isPrefixOf`) ns
   return (l, map (nameComp n) vars)
 
