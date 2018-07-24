@@ -66,7 +66,7 @@ sel p x s = let (a,ts) = splitSimpleP p
 -- | Given a pattern, transform it into a simple pattern and a set of bindings.
 -- Simple patterns may only contain variables and type annotations.
 
--- XXX: We can replace the types in the selcetors with annotations on the bindings.
+-- XXX: We can replace the types in the selectors with annotations on the bindings.
 noPat :: Pattern PName -> NoPatM (Pattern PName, [Bind PName])
 noPat pat =
   case pat of
