@@ -1052,7 +1052,7 @@ wordValLogicOp :: BitWord b w i
                -> Eval (WordValue b w i)
 wordValLogicOp _ wop (WordVal w1) (WordVal w2) = return $ WordVal (wop w1 w2)
 wordValLogicOp bop _ (BitsVal xs) (BitsVal ys) =
-  ready $ BitsVal $ Seq.zipWith (\x y -> bop <$> x <*> y) xs ys
+  BitsVal <$> sequence (Seq.zipWith (\x y -> delay Nothing (bop <$> x <*> y)) xs ys)
 wordValLogicOp bop _ (WordVal w1) (BitsVal ys) =
   ready $ BitsVal $ Seq.zipWith (\x y -> bop <$> x <*> y) (Seq.fromList $ map ready $ unpackWord w1) ys
 wordValLogicOp bop _ (BitsVal xs) (WordVal w2) =

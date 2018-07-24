@@ -55,7 +55,12 @@ expression \texttt{sqDiff1 (x, y) == sqDiff2 (x, y)} evaluates to
 \texttt{True}. Furthermore, the type signature restricts the type of
 the property to apply to only 8-bit values. As usual, the type
 signature is optional.\indSignature If not given, Cryptol will infer
-one for you.
+one for you. Finally, note that the same property can also be
+expressed (more concisely) using the \texttt{===} operator:
+\begin{code}
+  sqDiffsCorrect : ([8], [8]) -> Bit
+  property sqDiffsCorrect = sqDiff1 === sqDiff2
+\end{code}
 
 \note{It is important to emphasize that the mathematical equality
   above and the Cryptol property are \emph{not} stating precisely the
