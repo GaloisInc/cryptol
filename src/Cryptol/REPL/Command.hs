@@ -403,7 +403,8 @@ qcCmd qcMode str =
         pad     = replicate (totProgressWidth - width) ' '
     in prt (pad ++ percent)
 
-  del n       = unlessBatch $ prt (replicate n '\BS')
+  del n       = unlessBatch
+              $ prt (replicate n '\BS' ++ replicate n ' ' ++ replicate n '\BS')
   delTesting  = del (length testingMsg)
   delProgress = del totProgressWidth
 
