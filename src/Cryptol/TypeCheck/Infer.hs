@@ -599,28 +599,58 @@ inferBinds isTopLevel isRec binds =
          binds' | monoBinds && not isTopLevel = sigs ++ monos
                 | otherwise                   = binds
 
+
+
          check exprMap =
         {- Guess type is here, because while we check user supplied signatures
            we may generate additional constraints. For example, `x - y` would
            generate an additional constraint `x >= y`. -}
            do (newEnv,todos) <- unzip `fmap` mapM (guessType exprMap) binds'
-              let extEnv = if isRec then withVarTypes newEnv else id
+              let otherEnv = filter isExt newEnv
 
-              extEnv $
-                do let (sigsAndMonos,noSigGen) = partitionEithers todos
-                   genCs <- sequence noSigGen
-                   done  <- sequence sigsAndMonos
-                   simplifyAllConstraints
-                   return (done, genCs)
+              let (sigsAndMonos,noSigGen) = partitionEithers todos
+
+              let prepGen = collectGoals
+                          $ do bs <- sequence noSigGen
+                               simplifyAllConstraints
+                               return bs
+
+              if isRec
+                then
+                  -- First we check the bindings with no signatures
+                  -- that need to be generalized.
+                  do (bs1,cs) <- withVarTypes newEnv prepGen
+
+                     -- We add these to the environment, so their fvs are
+                     -- not generalized.
+                     genCs <- withVarTypes otherEnv (generalize bs1 cs)
+
+                     -- Then we do all the rest,
+                     -- using the newly inferred poly types.
+                     let newEnv' = map toExt bs1 ++ otherEnv
+                     done <- withVarTypes newEnv' (sequence sigsAndMonos)
+                     return (done,genCs)
+
+                else
+                  do done      <- sequence sigsAndMonos
+                     (bs1, cs) <- prepGen
+                     genCs     <- generalize bs1 cs
+                     return (done,genCs)
 
      rec
-       let exprMap = Map.fromList $ map monoUse genBs
-       ((doneBs, genCandidates), cs) <- collectGoals (check exprMap)
-       genBs <- generalize genCandidates cs
+       let exprMap = Map.fromList (map monoUse genBs)
+       (doneBs, genBs) <- check exprMap
+
+     simplifyAllConstraints
 
      return (doneBs ++ genBs)
 
   where
+  toExt d = (dName d, ExtVar (dSignature d))
+  isExt (_,y) = case y of
+                  ExtVar _ -> True
+                  _        -> False
+
   monoUse d = (x, withQs)
     where
     x  = dName d
@@ -675,8 +705,8 @@ guessType exprMap b@(P.Bind { .. }) =
 
 
 
--- | The inputs should be declarations with monomorphic types
--- (i.e., of the form `Forall [] [] t`).
+{- | The inputs should be declarations with monomorphic types
+(i.e., of the form `Forall [] [] t`). -}
 generalize :: [Decl] -> [Goal] -> InferM [Decl]
 
 {- This may happen because we have monomorphic bindings.
@@ -696,10 +726,12 @@ generalize bs0 gs0 =
                                return b { dSignature = s }
 
      -- Next, we figure out which of the free variables need to be generalized
+     -- Variables apearing in the types of monomorphic bindings should
+     -- not be generalizedr.
      let goalFVS g  = Set.filter isFreeTV $ fvs $ goal g
          inGoals    = Set.unions $ map goalFVS gs
          inSigs     = Set.filter isFreeTV $ fvs $ map dSignature bs
-         candidates = Set.union inGoals inSigs
+         candidates = (Set.union inGoals inSigs)
 
      asmpVs <- varsWithAsmps
 
@@ -707,7 +739,6 @@ generalize bs0 gs0 =
          stays g       = any (`Set.member` gen0) $ Set.toList $ goalFVS g
          (here0,later) = partition stays gs
      addGoals later   -- these ones we keep around for to solve later
-
 
      let maybeAmbig = Set.toList (Set.difference gen0 inSigs)
 
