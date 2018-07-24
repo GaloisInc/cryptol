@@ -746,6 +746,7 @@ generalize bs0 gs0 =
         variables using the constraints that will be part of the newly
         generalized schema.  -}
      let (as0,here1,defSu,ws) = defaultAndSimplify maybeAmbig here0
+
      extendSubst defSu
      mapM_ recordWarning ws
      let here = map goal here1
@@ -765,7 +766,7 @@ generalize bs0 gs0 =
         type parameters. -}
      totSu <- getSubst
      let
-         su     = listSubst (zip as (map (TVar . tpVar) asPs)) @@ defSu @@ totSu
+         su     = listSubst (zip as (map (TVar . tpVar) asPs)) @@ totSu
          qs     = concatMap (pSplitAnd . apSubst su) here
 
          genE e = foldr ETAbs (foldr EProofAbs (apSubst su e) qs) asPs
