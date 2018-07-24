@@ -20,6 +20,7 @@ module Cryptol.ModuleSystem.NamingEnv where
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Name
 import Cryptol.Parser.AST
+import Cryptol.Parser.Name(isGeneratedName)
 import Cryptol.Parser.Position
 import qualified Cryptol.TypeCheck.AST as T
 import Cryptol.Utils.PP
@@ -113,11 +114,11 @@ toNameDisp NamingEnv { .. } = NameDisp display
   names = Map.fromList
      $ [ mkEntry pn mn (nameIdent n) | (pn,ns)     <- Map.toList neExprs
                                      , n           <- ns
-                                     , Declared mn <- [nameInfo n] ]
+                                     , Declared mn _ <- [nameInfo n] ]
 
     ++ [ mkEntry pn mn (nameIdent n) | (pn,ns)     <- Map.toList neTypes
                                      , n           <- ns
-                                     , Declared mn <- [nameInfo n] ]
+                                     , Declared mn _ <- [nameInfo n] ]
 
   mkEntry pn mn i = ((mn,i),fmt)
     where
@@ -192,7 +193,8 @@ namingEnv' :: BindsNames a => a -> Supply -> (NamingEnv,Supply)
 namingEnv' a supply = runId (runSupplyT supply (runBuild (namingEnv a)))
 
 newTop :: FreshM m => ModName -> PName -> Maybe Fixity -> Range -> m Name
-newTop ns thing fx rng = liftSupply (mkDeclared ns (getIdent thing) fx rng)
+newTop ns thing fx rng = liftSupply (mkDeclared ns src (getIdent thing) fx rng)
+  where src = if isGeneratedName thing then SystemName else UserName
 
 newLocal :: FreshM m => PName -> Range -> m Name
 newLocal thing rng = liftSupply (mkParameter (getIdent thing) rng)

@@ -152,6 +152,17 @@ data TVarSource = TVFromModParam Name     -- ^ Name of module parameter
                 | TypeErrorPlaceHolder
                   deriving (Show, Generic, NFData)
 
+-- | Get the names of something that is related to the tvar.
+tvSourceName :: TVarSource -> Maybe Name
+tvSourceName tvs =
+  case tvs of
+    TVFromModParam x -> Just x
+    TVFromSignature x -> Just x
+    TypeParamInstNamed x _ -> Just x
+    TypeParamInstPos x _ -> Just x
+    DefinitionOf x -> Just x
+    _ -> Nothing
+
 -- | The type is supposed to be of kind `KProp`
 type Prop   = Type
 

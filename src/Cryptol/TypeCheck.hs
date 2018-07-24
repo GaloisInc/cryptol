@@ -23,7 +23,8 @@ module Cryptol.TypeCheck
   , ppError
   ) where
 
-import           Cryptol.ModuleSystem.Name (liftSupply,mkDeclared)
+import           Cryptol.ModuleSystem.Name
+                    (liftSupply,mkDeclared,NameSource(..))
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position(Range,emptyRange)
 import           Cryptol.TypeCheck.AST
@@ -86,7 +87,8 @@ tcExpr e0 inp = runInferM inp
                              , show e'
                              , show t
                              ]
-      _ -> do fresh <- liftSupply (mkDeclared exprModName (packIdent "(expression)") Nothing loc)
+      _ -> do fresh <- liftSupply (mkDeclared exprModName SystemName
+                                      (packIdent "(expression)") Nothing loc)
               res   <- inferBinds True False
                 [ P.Bind
                     { P.bName      = P.Located { P.srcRange = loc, P.thing = fresh }

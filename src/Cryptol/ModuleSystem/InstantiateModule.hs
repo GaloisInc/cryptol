@@ -115,13 +115,18 @@ type InstM = ReaderT ModName
 freshenName :: FreshM m => Name -> InstM m Name
 freshenName x =
   do m <- ask
-     liftSupply (mkDeclared m (nameIdent x) (nameFixity x) (nameLoc x))
+     let sys = case nameInfo x of
+                 Declared _ s -> s
+                 _            -> UserName
+     liftSupply (mkDeclared m sys (nameIdent x) (nameFixity x) (nameLoc x))
 
 freshParamName :: FreshM m => Name -> InstM m Name
 freshParamName x =
   do m <- ask
      let newName = modParamIdent (nameIdent x)
-     liftSupply (mkDeclared m newName (nameFixity x) (nameLoc x))
+     liftSupply (mkDeclared m UserName newName (nameFixity x) (nameLoc x))
+
+
 
 
 -- | Compute renaming environment from a module instantiation.

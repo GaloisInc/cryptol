@@ -17,7 +17,9 @@ module Cryptol.TypeCheck.Monad
   , module Cryptol.TypeCheck.InferTypes
   ) where
 
-import           Cryptol.ModuleSystem.Name (FreshM(..),Supply,mkParameter)
+import           Cryptol.ModuleSystem.Name
+                    (FreshM(..),Supply,mkParameter
+                    , nameInfo, NameInfo(..),NameSource(..))
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.TypeCheck.AST
@@ -311,10 +313,18 @@ recordError e =
 
 recordWarning :: Warning -> InferM ()
 recordWarning w =
+  unless ignore $
   do r <- case w of
             DefaultingTo d _ -> return (tvarSource d)
             _ -> curRange
      IM $ sets_ $ \s -> s { iWarnings = (r,w) : iWarnings s }
+  where
+  ignore
+    | DefaultingTo d _ <- w
+    , Just n <- tvSourceName (tvarDesc d)
+    , Declared _ SystemName <- nameInfo n
+      = True
+    | otherwise = False
 
 getSolver :: InferM SMT.Solver
 getSolver =

@@ -806,16 +806,19 @@ browseCmd input = do
         rPutStrLn ("error: " ++ show m ++ " is not a loaded module.")
   mapM_ checkModName mnames
 
+  let f &&& g = \x -> f x && g x
+      isUser x = case M.nameInfo x of
+                   M.Declared _ M.SystemName -> False
+                   _ -> True
+      inSet s x = x `Set.member` s
+
   let (visibleTypes,visibleDecls) = M.visibleNames names
 
-      (visibleType,visibleDecl)
-        | null mnames =
-          ((`Set.member` visibleTypes)
-          ,(`Set.member` visibleDecls))
+      restricted = if null mnames then const True else hasAnyModName mnames
 
-        | otherwise =
-          (\n -> n `Set.member` visibleTypes && hasAnyModName mnames n
-          ,\n -> n `Set.member` visibleDecls && hasAnyModName mnames n)
+      visibleType = isUser &&& restricted &&& inSet visibleTypes
+      visibleDecl = isUser &&& restricted &&& inSet visibleDecls
+
 
   browseTSyns    visibleType iface disp
   browseNewtypes visibleType iface disp
@@ -927,7 +930,8 @@ helpCmd cmd
   where
   noInfo nameEnv name =
     case M.nameInfo name of
-      M.Declared m -> rPrint $runDoc nameEnv ("Name defined in module" <+> pp m)
+      M.Declared m _ ->
+                      rPrint $runDoc nameEnv ("Name defined in module" <+> pp m)
       M.Parameter  -> rPutStrLn "// No documentation is available."
 
   showTypeHelp params env nameEnv name =
@@ -1072,7 +1076,7 @@ handleCtrlC a = do rPutStrLn "Ctrl-C"
 hasAnyModName :: [M.ModName] -> M.Name -> Bool
 hasAnyModName mnames n =
   case M.nameInfo n of
-    M.Declared m -> m `elem` mnames
+    M.Declared m _ -> m `elem` mnames
     M.Parameter  -> False
 
 
@@ -1212,7 +1216,7 @@ replReadFile fp handler =
 -- it to the current dynamic environment
 bindItVariable :: T.Type -> T.Expr -> REPL ()
 bindItVariable ty expr = do
-  freshIt <- freshName itIdent
+  freshIt <- freshName itIdent M.UserName
   let schema = T.Forall { T.sVars  = []
                         , T.sProps = []
                         , T.sType  = ty

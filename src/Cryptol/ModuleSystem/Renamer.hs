@@ -383,7 +383,8 @@ warnUnused m0 env ro rw =
   keep k n = n == 1 && isLocal k
   oldNames = fst (visibleNames env)
   isLocal nm = case nameInfo nm of
-                 Declared m -> m == m0 && nm `Set.notMember` oldNames
+                 Declared m sys -> sys == UserName &&
+                                   m == m0 && nm `Set.notMember` oldNames
                  Parameter  -> True
 
 -- Renaming --------------------------------------------------------------------

@@ -20,6 +20,7 @@
 module Cryptol.ModuleSystem.Name (
     -- * Names
     Name(), NameInfo(..)
+  , NameSource(..)
   , nameUnique
   , nameIdent
   , nameInfo
@@ -70,7 +71,7 @@ import           Prelude.Compat
 
 -- Names -----------------------------------------------------------------------
 -- | Information about the binding site of the name.
-data NameInfo = Declared !ModName
+data NameInfo = Declared !ModName !NameSource
                 -- ^ This name refers to a declaration from this module
               | Parameter
                 -- ^ This name is a parameter (function or type)
@@ -97,6 +98,9 @@ data Name = Name { nUnique :: {-# UNPACK #-} !Int
                  } deriving (Generic, NFData, Show)
 
 
+data NameSource = SystemName | UserName
+                    deriving (Generic, NFData, Show, Eq)
+
 instance Eq Name where
   a == b = compare a b == EQ
   a /= b = compare a b /= EQ
@@ -109,17 +113,17 @@ cmpNameLexical :: Name -> Name -> Ordering
 cmpNameLexical l r =
   case (nameInfo l, nameInfo r) of
 
-    (Declared nsl,Declared nsr) ->
+    (Declared nsl _,Declared nsr _) ->
       case compare nsl nsr of
         EQ  -> comparing nameIdent l r
         cmp -> cmp
 
     (Parameter,Parameter) -> comparing nameIdent l r
 
-    (Declared nsl,Parameter) -> compare (modNameToText nsl)
-                                        (identText (nameIdent r))
-    (Parameter,Declared nsr) -> compare (identText (nameIdent l))
-                                        (modNameToText nsr)
+    (Declared nsl _,Parameter) -> compare (modNameToText nsl)
+                                          (identText (nameIdent r))
+    (Parameter,Declared nsr _) -> compare (identText (nameIdent l))
+                                          (modNameToText nsr)
 
 
 -- | Compare two names by the way they would be displayed.
@@ -127,7 +131,7 @@ cmpNameDisplay :: NameDisp -> Name -> Name -> Ordering
 cmpNameDisplay disp l r =
   case (nameInfo l, nameInfo r) of
 
-    (Declared nsl, Declared nsr) ->
+    (Declared nsl _, Declared nsr _) -> -- XXX: uses system name info?
       let pfxl = fmtModName nsl (getNameFormat nsl (nameIdent l) disp)
           pfxr = fmtModName nsr (getNameFormat nsr (nameIdent r) disp)
        in case cmpText pfxl pfxr of
@@ -136,13 +140,13 @@ cmpNameDisplay disp l r =
 
     (Parameter,Parameter) -> cmpName l r
 
-    (Declared nsl,Parameter) ->
+    (Declared nsl _,Parameter) ->
       let pfxl = fmtModName nsl (getNameFormat nsl (nameIdent l) disp)
        in case cmpText pfxl (identText (nameIdent r)) of
             EQ  -> GT
             cmp -> cmp
 
-    (Parameter,Declared nsr) ->
+    (Parameter,Declared nsr _) ->
       let pfxr = fmtModName nsr (getNameFormat nsr (nameIdent r) disp)
        in case cmpText (identText (nameIdent l)) pfxr of
             EQ  -> LT
@@ -173,7 +177,7 @@ ppName :: Name -> Doc
 ppName Name { .. } =
   case nInfo of
 
-    Declared m -> withNameDisp $ \disp ->
+    Declared m _ -> withNameDisp $ \disp ->
       case getNameFormat m nIdent disp of
         Qualified m' -> pp m' <.> text "::" <.> pp nIdent
         UnQualified  ->                         pp nIdent
@@ -213,15 +217,17 @@ nameLoc  = nLoc
 nameFixity :: Name -> Maybe Fixity
 nameFixity = nFixity
 
+
 asPrim :: Name -> Maybe Ident
-asPrim Name { .. }
-  | nInfo == Declared preludeName = Just nIdent
-  | otherwise                     = Nothing
+asPrim Name { .. } =
+  case nInfo of
+    Declared p _ | p == preludeName -> Just nIdent
+    _ -> Nothing
 
 toParamInstName :: Name -> Name
 toParamInstName n =
   case nInfo n of
-    Declared m  -> n { nInfo = Declared (paramInstModName m) }
+    Declared m s -> n { nInfo = Declared (paramInstModName m) s }
     Parameter   -> n
 
 asParamName :: Name -> Name
@@ -317,10 +323,10 @@ nextUnique (Supply n) = s' `seq` (n,s')
 -- Name Construction -----------------------------------------------------------
 
 -- | Make a new name for a declaration.
-mkDeclared :: ModName -> Ident -> Maybe Fixity -> Range -> Supply -> (Name,Supply)
-mkDeclared m nIdent nFixity nLoc s =
+mkDeclared :: ModName -> NameSource -> Ident -> Maybe Fixity -> Range -> Supply -> (Name,Supply)
+mkDeclared m sys nIdent nFixity nLoc s =
   let (nUnique,s') = nextUnique s
-      nInfo        = Declared m
+      nInfo        = Declared m sys
    in (Name { .. }, s')
 
 -- | Make a new parameter name.
