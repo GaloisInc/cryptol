@@ -40,7 +40,7 @@ import           Cryptol.TypeCheck.Monad
                    )
 import           Cryptol.TypeCheck.Infer (inferModule, inferBinds, inferDs)
 import           Cryptol.TypeCheck.InferTypes(VarType(..), SolverConfig(..))
-import           Cryptol.TypeCheck.Solve(simplifyAllConstraints,proveModuleTopLevel)
+import           Cryptol.TypeCheck.Solve(proveModuleTopLevel)
 import           Cryptol.TypeCheck.CheckModuleInstance(checkModuleInstance)
 import           Cryptol.TypeCheck.Monad(withParamType,withParameterConstraints)
 import           Cryptol.Utils.Ident (exprModName,packIdent)
@@ -48,10 +48,7 @@ import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
 
 tcModule :: P.Module Name -> InferInput -> IO (InferOutput Module)
-tcModule m inp = runInferM inp
-               $ do x <- inferModule m
-                    simplifyAllConstraints
-                    return x
+tcModule m inp = runInferM inp (inferModule m)
 
 -- | Check a module instantiation, assuming that the functor has already
 -- been checked.
@@ -71,7 +68,7 @@ tcModuleInst func m inp = runInferM inp
 tcExpr :: P.Expr Name -> InferInput -> IO (InferOutput (Expr,Schema))
 tcExpr e0 inp = runInferM inp
                 $ do x <- go emptyRange e0
-                     simplifyAllConstraints
+                     proveModuleTopLevel
                      return x
 
   where
@@ -116,7 +113,7 @@ tcExpr e0 inp = runInferM inp
 
 tcDecls :: FromDecl d => [d] -> InferInput -> IO (InferOutput [DeclGroup])
 tcDecls ds inp = runInferM inp $ inferDs ds $ \dgs -> do
-                   simplifyAllConstraints
+                   proveModuleTopLevel
                    return dgs
 
 ppWarning :: (Range,Warning) -> Doc
