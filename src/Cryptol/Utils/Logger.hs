@@ -4,6 +4,7 @@ module Cryptol.Utils.Logger
   ( Logger
 
   , stdoutLogger
+  , stderrLogger
   , handleLogger
   , quietLogger
   , funLogger
@@ -13,7 +14,7 @@ module Cryptol.Utils.Logger
   , logPrint
   ) where
 
-import System.IO(Handle, hPutStr, stdout)
+import System.IO(Handle, hPutStr, stdout, stderr)
 import Control.DeepSeq(NFData(..))
 
 -- | A logger provides simple abstraction for sending messages.
@@ -47,10 +48,10 @@ handleLogger h = Logger (hPutStr h)
 stdoutLogger :: Logger
 stdoutLogger = handleLogger stdout
 
+-- | Log to stderr.
+stderrLogger :: Logger
+stderrLogger = handleLogger stderr
+
 -- | Just use this function for logging.
 funLogger :: (String -> IO ()) -> Logger
 funLogger = Logger
-
-
-
-
