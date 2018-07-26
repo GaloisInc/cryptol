@@ -8,8 +8,8 @@ Loading module Cryptol
    s x =
        (bs
         where
-          bs = [complement b | b <- [complement x] # bs
-                             | _ <- bs]
+          bs = [~b | b <- [~x] # bs
+                   | _ <- bs]
         )
  ) : {n, a} (Logic a) => a -> [n]a
 {n, a} n == n
