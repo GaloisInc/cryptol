@@ -34,7 +34,7 @@ import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import Cryptol.TypeCheck.Type (TCon(..))
-import Cryptol.Utils.Ident (packInfix)
+import Cryptol.Utils.Ident (packInfix,packIdent)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -764,9 +764,11 @@ instance Rename Pattern where
                      $ PLocated <$> rename p'    <*> pure loc
 
 instance Rename Expr where
-  rename e = case e of
+  rename expr = case expr of
     EVar n        -> EVar <$> renameVar n
     ELit l        -> return (ELit l)
+    ENeg e        -> rename (EApp (EVar (mkUnqual (packIdent "negate"))) e)
+    EComplement e -> rename (EApp (EVar (mkUnqual (packIdent "complement"))) e)
     ETuple es     -> ETuple  <$> traverse rename es
     ERecord fs    -> ERecord <$> traverse (rnNamed rename) fs
     ESel e' s     -> ESel    <$> rename e' <*> pure s

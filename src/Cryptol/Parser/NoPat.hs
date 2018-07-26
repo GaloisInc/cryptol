@@ -147,6 +147,8 @@ noPatE expr =
   case expr of
     EVar {}       -> return expr
     ELit {}       -> return expr
+    ENeg e        -> ENeg    <$> noPatE e
+    EComplement e -> EComplement <$> noPatE e
     ETuple es     -> ETuple  <$> mapM noPatE es
     ERecord es    -> ERecord <$> mapM noPatF es
     ESel e s      -> ESel    <$> noPatE e <*> return s

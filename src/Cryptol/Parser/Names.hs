@@ -79,6 +79,8 @@ namesE expr =
   case expr of
     EVar x        -> Set.singleton x
     ELit _        -> Set.empty
+    ENeg e        -> namesE e
+    EComplement e -> namesE e
     ETuple es     -> Set.unions (map namesE es)
     ERecord fs    -> Set.unions (map (namesE . value) fs)
     ESel e _      -> namesE e
@@ -219,6 +221,8 @@ tnamesE expr =
   case expr of
     EVar _        -> Set.empty
     ELit _        -> Set.empty
+    ENeg e        -> tnamesE e
+    EComplement e -> tnamesE e
     ETuple es     -> Set.unions (map tnamesE es)
     ERecord fs    -> Set.unions (map (tnamesE . value) fs)
     ESel e _      -> tnamesE e

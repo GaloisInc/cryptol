@@ -258,6 +258,8 @@ data Literal  = ECNum Integer NumInfo           -- ^ @0x10@  (HexLit 2)
 
 data Expr n   = EVar n                          -- ^ @ x @
               | ELit Literal                    -- ^ @ 0x10 @
+              | ENeg (Expr n)                   -- ^ @ -1 @
+              | EComplement (Expr n)            -- ^ @ ~1 @
               | ETuple [Expr n]                 -- ^ @ (1,2,3) @
               | ERecord [Named (Expr n)]        -- ^ @ { x = 1, y = 2 } @
               | ESel (Expr n) Selector          -- ^ @ e.l @
@@ -668,6 +670,10 @@ instance (Show name, PPName name) => PP (Expr name) where
       -- atoms
       EVar x        -> ppPrefixName x
       ELit x        -> pp x
+
+      ENeg x        -> wrap n 3 (text "-" <> ppPrec 4 x)
+      EComplement x -> wrap n 3 (text "~" <> ppPrec 4 x)
+
       ETuple es     -> parens (commaSep (map pp es))
       ERecord fs    -> braces (commaSep (map (ppNamed "=") fs))
       EList es      -> brackets (commaSep (map pp es))
@@ -915,6 +921,8 @@ instance NoPos (Expr name) where
     case expr of
       EVar x        -> EVar     x
       ELit x        -> ELit     x
+      ENeg x        -> ENeg     (noPos x)
+      EComplement x -> EComplement (noPos x)
       ETuple x      -> ETuple   (noPos x)
       ERecord x     -> ERecord  (noPos x)
       ESel x y      -> ESel     (noPos x) y

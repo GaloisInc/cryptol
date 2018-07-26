@@ -137,6 +137,11 @@ appTys expr ts tGoal =
     P.ELit l -> do e <- desugarLiteral False l
                    appTys e ts tGoal
 
+
+    P.ENeg {} -> panic "appTys" ["[bug] renamer bug", "unexpected ENeg" ]
+    P.EComplement {} ->
+      panic "appTys" ["[bug] renamer bug", "unexpected EComplement" ]
+
     P.EAppT e fs ->
       do ps <- mapM inferTyParam fs
          appTys e (ps ++ ts) tGoal
@@ -215,6 +220,10 @@ checkE expr tGoal =
 
          checkHasType t tGoal
          return e'
+
+    P.ENeg {} -> panic "checkE" ["[bug] renamer bug", "unexpected ENeg" ]
+    P.EComplement {} ->
+      panic "checkE" ["[bug] renamer bug", "unexpected EComplement" ]
 
     P.ELit l -> (`checkE` tGoal) =<< desugarLiteral False l
 

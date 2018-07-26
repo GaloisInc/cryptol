@@ -415,8 +415,8 @@ iexpr                            :: { Expr PName }
 expr10                           :: { Expr PName }
   : aexprs                          { mkEApp $1 }
 
-  | '-' expr10 %prec NEG            { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual "negate"))) $2 }
-  | '~' expr10                      { at ($1,$2) $ EApp (at $1 (EVar (mkUnqual "complement"))) $2 }
+  | '-' expr10 %prec NEG            { at ($1,$2) $ ENeg $2 }
+  | '~' expr10                      { at ($1,$2) $ EComplement $2 }
 
 qop                              :: { LPName }
   : op                              { $1 }
