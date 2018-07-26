@@ -918,11 +918,13 @@ helpCmd cmd
         do (params,env,rnEnv,nameEnv) <- getFocusedEnv
            let vNames = M.lookupValNames  qname rnEnv
                tNames = M.lookupTypeNames qname rnEnv
+               pNames = T.primTyFromPName qname
 
            mapM_ (showTypeHelp params env nameEnv) tNames
            mapM_ (showValHelp params env nameEnv qname) vNames
+           mapM_ (showPrimTyHelp nameEnv) pNames
 
-           when (null (vNames ++ tNames)) $
+           when (null (vNames ++ tNames) && pNames == Nothing) $
              rPrint $ "Undefined name:" <+> pp qname
       Nothing ->
            rPutStrLn ("Unable to parse name: " ++ cmd)
@@ -933,6 +935,16 @@ helpCmd cmd
       M.Declared m _ ->
                       rPrint $runDoc nameEnv ("Name defined in module" <+> pp m)
       M.Parameter  -> rPutStrLn "// No documentation is available."
+
+  showPrimTyHelp nameEnv pt =
+    do rPutStrLn "Primitive type:"
+       let i    = T.primTyIdent pt
+           nm   = pp (T.primTyIdent pt)
+           pnam = if P.isInfixIdent i then parens nm else nm
+           sig  = pnam <+> ":" <+> pp (T.kindOf (T.primTyCon pt))
+       rPrint $ runDoc nameEnv $ nest 4 sig
+       doShowFix (T.primTyFixity pt)
+       rPutStrLn (T.primTyDoc pt)
 
   showTypeHelp params env nameEnv name =
     fromMaybe (noInfo nameEnv name) $
