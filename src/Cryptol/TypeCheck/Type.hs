@@ -3,13 +3,14 @@
 {-# Language PatternGuards #-}
 {-# Language OverloadedStrings #-}
 module Cryptol.TypeCheck.Type
-  (module Cryptol.TypeCheck.Type, TFun(..)) where
+  ( module Cryptol.TypeCheck.Type
+  , module Cryptol.Prims.Syntax
+  ) where
 
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
-import qualified Data.Map as Map
 import qualified Data.IntMap as IntMap
 import           Data.Set (Set)
 import qualified Data.Set as Set
@@ -17,6 +18,7 @@ import           Data.List(sortBy)
 import           Data.Ord(comparing)
 
 import Cryptol.Parser.Selector
+import Cryptol.Parser.Fixity
 import Cryptol.Parser.Position(Range,emptyRange)
 import Cryptol.ModuleSystem.Name
 import Cryptol.Prims.Syntax
@@ -28,16 +30,8 @@ import Prelude
 
 infix  4 =#=, >==
 infixr 5 `tFun`
-infixr 5 :->
 
 
-
--- | Kinds, classify types.
-data Kind   = KType
-            | KNum
-            | KProp
-            | Kind :-> Kind
-              deriving (Eq, Ord, Show, Generic, NFData)
 
 -- | The types of polymorphic values.
 data Schema = Forall { sVars :: [TParam], sProps :: [Prop], sType :: Type }
@@ -167,52 +161,6 @@ tvSourceName tvs =
 type Prop   = Type
 
 
--- | Type constants.
-data TCon   = TC TC | PC PC | TF TFun | TError Kind TCErrorMessage
-              deriving (Show, Eq, Ord, Generic, NFData)
-
-
--- | Predicate symbols.
-data PC     = PEqual        -- ^ @_ == _@
-            | PNeq          -- ^ @_ /= _@
-            | PGeq          -- ^ @_ >= _@
-            | PFin          -- ^ @fin _@
-
-            -- classes
-            | PHas Selector -- ^ @Has sel type field@ does not appear in schemas
-            | PZero         -- ^ @Zero _@
-            | PLogic        -- ^ @Logic _@
-            | PArith        -- ^ @Arith _@
-            | PCmp          -- ^ @Cmp _@
-            | PSignedCmp    -- ^ @SignedCmp _@
-            | PLiteral      -- ^ @Literal _ _@
-
-            | PAnd          -- ^ This is useful when simplifying things in place
-            | PTrue         -- ^ Ditto
-              deriving (Show, Eq, Ord, Generic, NFData)
-
--- | 1-1 constants.
-data TC     = TCNum Integer            -- ^ Numbers
-            | TCInf                    -- ^ Inf
-            | TCBit                    -- ^ Bit
-            | TCInteger                -- ^ Integer
-            | TCIntMod                 -- ^ @Z _@
-            | TCSeq                    -- ^ @[_] _@
-            | TCFun                    -- ^ @_ -> _@
-            | TCTuple Int              -- ^ @(_, _, _)@
-            | TCNewtype UserTC         -- ^ user-defined, @T@
-              deriving (Show, Eq, Ord, Generic, NFData)
-
-
-data UserTC = UserTC Name Kind
-              deriving (Show, Generic, NFData)
-
-
-data TCErrorMessage = TCErrorMessage
-  { tcErrorMessage :: !String
-    -- XXX: Add location?
-  } deriving (Show, Eq, Ord, Generic, NFData)
-
 
 
 
@@ -243,70 +191,9 @@ data Newtype  = Newtype { ntName   :: Name
 --------------------------------------------------------------------------------
 
 
-class HasKind t where
-  kindOf :: t -> Kind
-
 instance HasKind TVar where
   kindOf (TVFree  _ k _ _) = k
   kindOf (TVBound tp) = kindOf tp
-
-instance HasKind TCon where
-  kindOf (TC tc)      = kindOf tc
-  kindOf (PC pc)      = kindOf pc
-  kindOf (TF tf)      = kindOf tf
-  kindOf (TError k _) = k
-
-instance HasKind UserTC where
-  kindOf (UserTC _ k) = k
-
-instance HasKind TC where
-  kindOf tcon =
-    case tcon of
-      TCNum _   -> KNum
-      TCInf     -> KNum
-      TCBit     -> KType
-      TCInteger -> KType
-      TCIntMod  -> KNum :-> KType
-      TCSeq     -> KNum :-> KType :-> KType
-      TCFun     -> KType :-> KType :-> KType
-      TCTuple n -> foldr (:->) KType (replicate n KType)
-      TCNewtype x -> kindOf x
-
-instance HasKind PC where
-  kindOf pc =
-    case pc of
-      PEqual     -> KNum :-> KNum :-> KProp
-      PNeq       -> KNum :-> KNum :-> KProp
-      PGeq       -> KNum :-> KNum :-> KProp
-      PFin       -> KNum :-> KProp
-      PHas _     -> KType :-> KType :-> KProp
-      PZero      -> KType :-> KProp
-      PLogic     -> KType :-> KProp
-      PArith     -> KType :-> KProp
-      PCmp       -> KType :-> KProp
-      PSignedCmp -> KType :-> KProp
-      PLiteral   -> KNum :-> KType :-> KProp
-      PAnd       -> KProp :-> KProp :-> KProp
-      PTrue      -> KProp
-
-instance HasKind TFun where
-  kindOf tfun =
-    case tfun of
-      TCWidth   -> KNum :-> KNum
-
-      TCAdd     -> KNum :-> KNum :-> KNum
-      TCSub     -> KNum :-> KNum :-> KNum
-      TCMul     -> KNum :-> KNum :-> KNum
-      TCDiv     -> KNum :-> KNum :-> KNum
-      TCMod     -> KNum :-> KNum :-> KNum
-      TCExp     -> KNum :-> KNum :-> KNum
-      TCMin     -> KNum :-> KNum :-> KNum
-      TCMax     -> KNum :-> KNum :-> KNum
-      TCCeilDiv -> KNum :-> KNum :-> KNum
-      TCCeilMod -> KNum :-> KNum :-> KNum
-
-      TCLenFromThen   -> KNum :-> KNum :-> KNum :-> KNum
-      TCLenFromThenTo -> KNum :-> KNum :-> KNum :-> KNum
 
 instance HasKind Type where
   kindOf ty =
@@ -390,14 +277,6 @@ newtypeConType nt =
   where
   as = ntParams nt
 
-
-
-
-instance Eq UserTC where
-  UserTC x _ == UserTC y _ = x == y
-
-instance Ord UserTC where
-  compare (UserTC x _) (UserTC y _) = compare x y
 
 instance Eq TVar where
   TVBound x       == TVBound y       = x == y
@@ -915,18 +794,14 @@ instance PP (WithNames Type) where
     isTInfix (WithNames (TCon (TF ieOp) [ieLeft',ieRight']) _) =
       do let ieLeft  = WithNames ieLeft' nmMap
              ieRight = WithNames ieRight' nmMap
-         (ieAssoc,iePrec) <- Map.lookup ieOp tBinOpPrec
+         pt <- primTyFromTF ieOp
+         fi <- primTyFixity pt
+         let ieAssoc = fAssoc fi
+             iePrec  = fLevel fi
          return Infix { .. }
     isTInfix _ = Nothing
 
 
-
-instance PP Kind where
-  ppPrec p k = case k of
-    KType   -> char '*'
-    KNum    -> char '#'
-    KProp   -> text "Prop"
-    l :-> r -> optParens (p >= 1) (sep [ppPrec 1 l, text "->", ppPrec 0 r])
 
 instance PP (WithNames TVar) where
 
@@ -972,71 +847,8 @@ pickTVarName k src uni =
 instance PP TVar where
   ppPrec = ppWithNamesPrec IntMap.empty
 
-
 instance PP Type where
   ppPrec n t = ppWithNamesPrec IntMap.empty n t
-
-
-instance PP TCon where
-  ppPrec _ (TC tc)        = pp tc
-  ppPrec _ (PC tc)        = pp tc
-  ppPrec _ (TF tc)        = pp tc
-  ppPrec _ (TError _ msg) = pp msg
-
-instance PPName TCon where
-  ppNameFixity (TC _) = Nothing
-  ppNameFixity (PC _) = Nothing
-  ppNameFixity (TF tf) = ppNameFixity tf
-  ppNameFixity (TError _ _) = Nothing
-
-  ppPrefixName (TC tc) = pp tc
-  ppPrefixName (PC pc) = pp pc
-  ppPrefixName (TF tf) = ppPrefixName tf
-  ppPrefixName (TError _ msg) = pp msg
-
-  ppInfixName (TC tc) = pp tc
-  ppInfixName (PC pc) = pp pc
-  ppInfixName (TF tf) = ppInfixName tf
-  ppInfixName (TError _ msg) = pp msg
-
-instance PP TCErrorMessage where
-  ppPrec _ tc = parens (text "error:" <+> text (tcErrorMessage tc))
-
-instance PP PC where
-  ppPrec _ x =
-    case x of
-      PEqual     -> text "(==)"
-      PNeq       -> text "(/=)"
-      PGeq       -> text "(>=)"
-      PFin       -> text "fin"
-      PHas sel   -> parens (ppSelector sel)
-      PZero      -> text "Zero"
-      PLogic     -> text "Logic"
-      PArith     -> text "Arith"
-      PCmp       -> text "Cmp"
-      PSignedCmp -> text "SignedCmp"
-      PLiteral   -> text "Literal"
-      PTrue      -> text "True"
-      PAnd       -> text "(&&)"
-
-instance PP TC where
-  ppPrec _ x =
-    case x of
-      TCNum n   -> integer n
-      TCInf     -> text "inf"
-      TCBit     -> text "Bit"
-      TCInteger -> text "Integer"
-      TCIntMod  -> text "Z"
-      TCSeq     -> text "[]"
-      TCFun     -> text "(->)"
-      TCTuple 0 -> text "()"
-      TCTuple 1 -> text "(one tuple?)"
-      TCTuple n -> parens $ hcat $ replicate (n-1) comma
-      TCNewtype u -> pp u
-
-instance PP UserTC where
-  ppPrec p (UserTC x _) = ppPrec p x
-
 
 instance PP TVarInfo where
   ppPrec _ tvinfo = pp (tvarDesc tvinfo) <+> loc

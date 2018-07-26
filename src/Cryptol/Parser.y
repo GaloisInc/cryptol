@@ -31,7 +31,7 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import           Control.Monad(liftM2,msum)
 
-import Cryptol.Prims.Syntax
+import Cryptol.Prims.Syntax(TFun(..))
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import Cryptol.Parser.LexerUtils hiding (mkIdent)

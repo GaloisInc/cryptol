@@ -29,7 +29,7 @@ module Cryptol.Parser.AST
   , Schema(..)
   , TParam(..)
   , Kind(..)
-  , Type(..), tconNames
+  , Type(..)
   , Prop(..)
 
     -- * Declarations
@@ -75,14 +75,13 @@ import Cryptol.Parser.Fixity
 import Cryptol.Parser.Name
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector
-import Cryptol.TypeCheck.Type (TCon(..), TC(..))
+import Cryptol.TypeCheck.Type (TCon(..))
 import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
 
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
-import qualified Data.Map as Map
 import           Numeric(showIntAtBase)
 
 import GHC.Generics (Generic)
@@ -336,17 +335,6 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TInfix (Type n) (Located n) Fixity (Type n) -- ^ @ ty + ty @
               deriving (Eq, Show, Generic, NFData, Functor)
 
--- | NOTE: the renamer assumed that these don't have type parameters.
--- If this changes, we should update it.
--- XXX: As in the case of TApp, this would all go away if these were
--- just declared.
-tconNames :: Map.Map PName TC
-tconNames  = Map.fromList
-  [ (mkUnqual (packIdent "Bit"), TCBit)
-  , (mkUnqual (packIdent "Integer"), TCInteger)
-  , (mkUnqual (packIdent "Z"), TCIntMod)
-  , (mkUnqual (packIdent "inf"), TCInf)
-  ]
 
 data Prop n   = CFin (Type n)             -- ^ @ fin x   @
               | CEqual (Type n) (Type n)  -- ^ @ x == 10 @

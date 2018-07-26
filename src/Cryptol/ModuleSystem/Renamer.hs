@@ -34,7 +34,7 @@ import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import Cryptol.TypeCheck.Type (TCon(..))
-import Cryptol.Utils.Ident (packIdent,packInfix)
+import Cryptol.Utils.Ident (packInfix)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -585,13 +585,13 @@ translateProp ty = go ty
 
     TLocated t' r -> (`CLocated` r) <$> go t'
 
+    TApp (PC x) [l,r]
+      | PEqual <- x -> CEqual <$> rename l <*> rename r
+      | PNeq   <- x -> CNeq   <$> rename l <*> rename r
+      | PGeq   <- x -> CGeq   <$> rename l <*> rename r
+
     TUser n [l,r]
-      | i == packIdent "==" -> CEqual <$> rename l <*> rename r
-      | i == packIdent ">=" -> CGeq   <$> rename l <*> rename r
-      | i == packIdent "<=" -> CGeq   <$> rename r <*> rename l
-      | i == packIdent "!=" -> CNeq   <$> rename l <*> rename r
-      where
-      i = getIdent n
+      | isLeq n -> CGeq <$> rename r <*> rename l
 
     TUser n ts -> CUser <$> renameType n <*> traverse rename ts
 
@@ -603,10 +603,10 @@ translateProp ty = go ty
 
 -- | Check to see if this identifier is a reserved type/type-function.
 isReserved :: PName -> Bool
-isReserved pn = Map.member pn tfunNames || isReservedTyCon pn
+isReserved pn = case primTyFromPName pn of
+                  Just _ -> True
+                  _      -> False
 
-isReservedTyCon :: PName -> Bool
-isReservedTyCon pn = Map.member pn tconNames
 
 -- | Resolve fixity, then rename the resulting type.
 instance Rename Type where
@@ -621,16 +621,9 @@ instance Rename Type where
 
     go (TUser pn ps)
 
-      -- all type functions
-      | Just (arity,fun) <- Map.lookup pn tfunNames =
-        do when (arity /= length ps) (record (MalformedBuiltin ty0 pn))
-           ps' <- traverse go ps
-           return (TApp (TF fun) ps')
-
-      -- built-in types like Bit and inf
-      | Just tc <- Map.lookup pn tconNames =
+      | Just pt <- primTyFromPName pn =
         do ps' <- traverse go ps
-           return (TApp (TC tc) ps')
+           return (TApp (primTyCon pt) ps')
 
     go (TUser qn ps)   = TUser    <$> renameType qn <*> traverse go ps
     go (TApp f xs)     = TApp f   <$> traverse go xs
@@ -678,42 +671,31 @@ resolveTypeFixity  = go
 
 type TOp = Type PName -> Type PName -> Type PName
 
-infixProps :: [PName]
-infixProps  = map (mkUnqual . packInfix) [ "==", ">=", "<=", "!=" ]
-
 mkTInfix :: Type PName -> (TOp,Fixity) -> Type PName -> RenameM (Type PName)
 
--- only if the function is one of props
-mkTInfix t@(TUser o1 [x,y]) op@(o2,f2) z
-  | o1 `elem` infixProps =
-    do let f1 = Fixity NonAssoc 0
-       case compareFixity f1 f2 of
-         FCLeft  -> return (o2 t z)
-         FCRight -> do r <- mkTInfix y op z
-                       return (TUser o1 [x,r])
+mkTInfix t op@(o2,f2) z =
+  case t of
+    TLocated t1 _ -> mkTInfix t1 op z
 
-         -- Just reconstruct with the TUser part being an application. If this was
-         -- a real error, it will be caught during renaming.
-         FCError -> return (o2 t z)
+    TUser op1 [x,y] | isLeq op1 -> doFixity (TUser op1) leqFixity x y
+    TApp tc [x,y]
+      | Just pt <- primTyFromTC tc
+      , Just f1 <- primTyFixity pt -> doFixity (TApp tc) f1 x y
 
--- In this case, we know the fixities of both sides.
-mkTInfix t@(TApp (TF o1) [x,y]) op@(o2,f2) z
-  | Just (a1,p1) <- Map.lookup o1 tBinOpPrec =
-     case compareFixity (Fixity a1 p1) f2 of
-       FCLeft  -> return (o2 t z)
-       FCRight -> do r <- mkTInfix y op z
-                     return (TApp (TF o1) [x,r])
+    _ -> return (o2 t z)
 
-       -- As the fixity table is known, and this is a case where the fixity came
-       -- from that table, it's a real error if the fixities didn't work out.
-       FCError -> panic "Renamer" [ "fixity problem for type operators"
-                                  , show (o2 t z) ]
+  where
+  doFixity mk f1 x y =
+    case compareFixity f1 f2 of
+      FCLeft  -> return (o2 t z)
+      FCRight -> do r <- mkTInfix y op z
+                    return (mk [x,r])
 
-mkTInfix (TLocated t _) op z =
-     mkTInfix t op z
+      -- As the fixity table is known, and this is a case where the fixity came
+      -- from that table, it's a real error if the fixities didn't work out.
+      FCError -> panic "Renamer" [ "fixity problem for type operators"
+                                 , show (o2 t z) ]
 
-mkTInfix t (op,_) z =
-     return (op t z)
 
 
 -- | When possible, rewrite the type operator to a known constructor, otherwise
@@ -721,7 +703,7 @@ mkTInfix t (op,_) z =
 lookupFixity :: Located PName -> (TOp,Fixity)
 lookupFixity op =
   case lkp of
-    Just (p,f) -> (\x y -> TApp (TF p) [x,y], f)
+    Just res -> res
 
     -- unknown type operator, just use default fixity
     -- NOTE: this works for the props defined above, as all other operators
@@ -730,9 +712,22 @@ lookupFixity op =
 
   where
   sym = thing op
-  lkp = do (_,n)           <- Map.lookup (thing op) tfunNames
-           (fAssoc,fLevel) <- Map.lookup n tBinOpPrec
-           return (n,Fixity { .. })
+  lkp = do pt <- primTyFromPName (thing op)
+           fi <- primTyFixity pt
+           return (\x y -> TApp (primTyCon pt) [x,y], fi)
+        `mplus`
+        do guard (isLeq sym)
+           return (\x y -> TUser sym [x,y], leqFixity)
+
+leqFixity :: Fixity
+leqFixity = Fixity NonAssoc 30
+
+leqIdent :: Ident
+leqIdent  = packInfix "<="
+
+isLeq :: PName -> Bool
+isLeq x = getIdent x == leqIdent
+
 
 -- | Rename a binding.
 instance Rename Bind where
