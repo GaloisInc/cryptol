@@ -613,7 +613,7 @@ We have:
 The second transformation AES\indAES utilizes is the {\tt
   ShiftRows}\indAESShiftRows operation~\cite[section 5.1.2]{aes}. This
 operation treats the {\tt State} as a $4\times4$ matrix, and rotates
-the last three row to the left by the amounts 1, 2, and 3;
+the last three row to the left by the amounts 1, 2, and 3,
 respectively.  Implementing {\tt ShiftRows} in Cryptol is trivial,
 using the \verb+<<<+\indRotLeft operator:
 \begin{code}
@@ -740,8 +740,7 @@ property is $2^{3*10*8} = 2^{240}$---a truly ginormous number!
 \begin{Exercise}\label{ex:aesmc:2}
 Write a function
 \begin{code}
-  gf28VectorMult : {n, m, k} (fin n) => ([n]GF28, [m][n]GF28) ->
-                                         [m]GF28
+  gf28VectorMult : {n, m} (fin n) => ([n]GF28, [m][n]GF28) -> [m]GF28
 \end{code}
 computing the dot-product of its first argument with each of the $m$
 rows of the second argument, returning the resulting values as a
@@ -756,8 +755,7 @@ vector of $m$ elements.
 \begin{Exercise}\label{ex:aesmc:3}
 Write a function
 \begin{code}
-  gf28MatrixMult : {n, m, k} (fin m) => ([n][m]GF28, [m][k]GF28) 
-                                      -> [n][k]GF28
+  gf28MatrixMult : {n, m, k} (fin m) => ([n][m]GF28, [m][k]GF28) -> [n][k]GF28
 \end{code}
 which multiplies the given matrices in GF($2^8$)\indGF.
 \end{Exercise}
@@ -987,9 +985,9 @@ infinite regression of elements:\indDrop\indTranspose
   ExpandKeyForever : [Nk][4][8] -> [inf]RoundKey
   ExpandKeyForever seed = [ transpose g | g <- groupBy`{4} keyWS ]
     where keyWS = seed # [ NextWord(i, prev, old)
-                          | i    <- [`Nk ...]
-                          | prev <- drop`{Nk-1} keyWS
-                          | old  <- keyWS
+                         | i    <- [`Nk ...]
+                         | prev <- drop`{Nk-1} keyWS
+                         | old  <- keyWS
                          ]
 \end{code}
 Note how {\tt prev} tracks the previous 32 bits of the expanded key
@@ -1106,8 +1104,7 @@ also adds the current round key to the state~\cite[section
 5.1]{aes}. The Cryptol code for the rounds is fairly trivial:
 \begin{code}
   AESRound : (RoundKey, State) -> State
-  AESRound (rk, s) = AddRoundKey (rk,
-                                  MixColumns (ShiftRows (SubBytes s)))
+  AESRound (rk, s) = AddRoundKey (rk, MixColumns (ShiftRows (SubBytes s)))
 \end{code}
 
 \paragraph*{The final round} The last round of AES is slightly
@@ -1485,12 +1482,10 @@ very quickly.\footnote{Note that, for a general algorithm with this
 assurance by running it through the {\tt :check} command:\indCmdCheck
 
 \begin{Verbatim}
-  Checking case 1000 of 1000 (100.00%) 
-  1000 tests passed OK
+  Using random testing.
+  Passed 100 tests.
+  Expected test coverage: 0.00% (100 of 2^^256 values)
 \end{Verbatim}
-\todo[inline]{The \texttt{:check} output here is out of date.}
-%  [Coverage: 0.00%. (1000/11579208923731619542357098500868790785326998466564
-%                                          ...0564039457584007913129639936)]
 You will notice that even running quick-check will take a while for
 the above theorem, and the total state space for this function means
 that we have not even scratched the surface! That said, being able to
