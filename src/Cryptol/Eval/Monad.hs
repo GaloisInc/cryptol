@@ -189,7 +189,7 @@ evalPanic cxt = panic ("[Eval] " ++ cxt)
 -- | Data type describing errors that can occur during evaluation.
 data EvalError
   = InvalidIndex Integer          -- ^ Out-of-bounds index
-  | TypeCannotBeDemoted Type      -- ^ Non-numeric type passed to demote function
+  | TypeCannotBeDemoted Type      -- ^ Non-numeric type passed to @number@ function
   | DivideByZero                  -- ^ Division or modulus by 0
   | NegativeExponent              -- ^ Exponentiation by negative integer
   | LogNegative                   -- ^ Logarithm of a negative integer

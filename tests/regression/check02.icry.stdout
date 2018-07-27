@@ -2,7 +2,7 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at ./check02.cry:3:24--3:25:
-  Defaulting type argument 'rep' of 'demote' to [1]
+  Defaulting type argument 'rep' of 'number' to [1]
 [warning] at <interactive>:1:1--1:18:
   Defaulting type argument 'ix' of '(@@)' to 4
 Showing a specific instance of polymorphic result:

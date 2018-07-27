@@ -10,7 +10,7 @@ test03::test = \{a} (fin a, a >= width a) ->
                where
                  /* Not recursive */
                  test03::foo : {b} (Literal a b) => b
-                 test03::foo = \{b} (Literal a b) -> Cryptol::demote a b <>
+                 test03::foo = \{b} (Literal a b) -> Cryptol::number a b <>
                  
                
 
@@ -25,7 +25,7 @@ test03::test = \{a} (fin a, a >= width a) ->
                where
                  /* Not recursive */
                  test03::foo : [a]
-                 test03::foo = Cryptol::demote a [a] <>
+                 test03::foo = Cryptol::number a [a] <>
                  
                
 

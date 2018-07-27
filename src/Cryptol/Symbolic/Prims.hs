@@ -38,7 +38,7 @@ import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            fromThenV, fromToV, fromThenToV,
                            transposeV, indexPrim,
                            ecToIntegerV, ecFromIntegerV,
-                           ecDemoteV, updatePrim, randomV, liftWord,
+                           ecNumberV, updatePrim, randomV, liftWord,
                            cmpValue, lg2)
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Decl(..))
@@ -79,8 +79,8 @@ primTable :: Map.Map Ident Value
 primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   [ ("True"        , VBit SBV.svTrue)
   , ("False"       , VBit SBV.svFalse)
-  , ("demote"      , ecDemoteV) -- Converts a numeric type into its corresponding value.
-                                -- { val, bits } (fin val, fin bits, bits >= width val) => [bits]
+  , ("number"      , ecNumberV) -- Converts a numeric type into its corresponding value.
+                                -- { val, rep } (Literal val rep) => rep
   , ("+"           , binary (arithBinary (liftBinArith SBV.svPlus) (liftBin SBV.svPlus)
                              (const (liftBin SBV.svPlus)))) -- {a} (Arith a) => a -> a -> a
   , ("-"           , binary (arithBinary (liftBinArith SBV.svMinus) (liftBin SBV.svMinus)

@@ -267,13 +267,13 @@ ppUse :: Expr -> Doc
 ppUse expr =
   case expr of
     EVar (asPrim -> Just prim)
-      | identText prim == "demote"       -> text "literal or demoted expression"
+      | identText prim == "number"       -> text "literal or demoted expression"
       | identText prim == "infFrom"      -> text "infinite enumeration"
       | identText prim == "infFromThen"  -> text "infinite enumeration (with step)"
       | identText prim == "fromThen"     -> text "finite enumeration"
       | identText prim == "fromTo"       -> text "finite enumeration"
       | identText prim == "fromThenTo"   -> text "finite enumeration"
-    _                          -> text "expression" <+> pp expr
+    _                                    -> text "expression" <+> pp expr
 
 instance PP (WithNames Goal) where
   ppPrec _ (WithNames g names) =

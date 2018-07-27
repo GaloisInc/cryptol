@@ -1,13 +1,13 @@
 Loading module Cryptol
 Showing a specific instance of polymorphic result:
-  * Using 'Integer' for type argument 'rep' of 'Cryptol::demote'
+  * Using 'Integer' for type argument 'rep' of 'Cryptol::number'
 1
 Showing a specific instance of polymorphic result:
-  * Using 'Integer' for type argument 'rep' of 'Cryptol::demote'
+  * Using 'Integer' for type argument 'rep' of 'Cryptol::number'
 [1, 2]
 Showing a specific instance of polymorphic result:
-  * Using 'Integer' for type argument 'rep' of 'Cryptol::demote'
-  * Using 'Integer' for type argument 'rep' of 'Cryptol::demote'
+  * Using 'Integer' for type argument 'rep' of 'Cryptol::number'
+  * Using 'Integer' for type argument 'rep' of 'Cryptol::number'
 {x = 1, y = 2}
 [warning] at <interactive>:1:1--1:22:
   Defaulting the type of '<interactive>::y' to [2]

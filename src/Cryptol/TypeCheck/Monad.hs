@@ -80,7 +80,7 @@ data InferInput = InferInput
 
   , inpPrimNames :: !PrimMap
     -- ^ This is used when the type-checker needs to refer to a predefined
-    -- identifier (e.g., @demote@).
+    -- identifier (e.g., @number@).
 
   , inpSupply :: !Supply              -- ^ The supply for fresh name generation
   } deriving Show

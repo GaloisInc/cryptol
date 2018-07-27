@@ -8,7 +8,7 @@ module Cryptol where
 /**
  * The value corresponding to a numeric type.
  */
-primitive demote : {val, rep} Literal val rep => rep
+primitive number : {val, rep} Literal val rep => rep
 
 infixr  5 ==>
 infixr 10 \/

@@ -11,16 +11,16 @@ module test05
 import Cryptol
 /* Not recursive */
 test05::foo : [10]
-test05::foo = Cryptol::demote 10 [10] <>
+test05::foo = Cryptol::number 10 [10] <>
 
 /* Not recursive */
 test05::test : {n, a, b} (Zero a, Literal 10 b) => [n]a -> b
 test05::test = \{n, a, b} (Zero a, Literal 10 b) (a : [n]a) ->
-               Cryptol::demote 10 b <>
+               Cryptol::number 10 b <>
                where
                  /* Not recursive */
                  test05::foo : [10]
-                 test05::foo = Cryptol::demote 10 [10] <>
+                 test05::foo = Cryptol::number 10 [10] <>
                  
                  /* Not recursive */
                  test05::f : {m} (fin m) => [n + m]a
@@ -54,16 +54,16 @@ module test05
 import Cryptol
 /* Not recursive */
 test05::foo : [10]
-test05::foo = Cryptol::demote 10 [10] <>
+test05::foo = Cryptol::number 10 [10] <>
 
 /* Not recursive */
 test05::test : {n, a, b} (Zero a, Literal 10 b) => [n]a -> b
 test05::test = \{n, a, b} (Zero a, Literal 10 b) (a : [n]a) ->
-               Cryptol::demote 10 b <>
+               Cryptol::number 10 b <>
                where
                  /* Not recursive */
                  test05::foo : [10]
-                 test05::foo = Cryptol::demote 10 [10] <>
+                 test05::foo = Cryptol::number 10 [10] <>
                  
                  /* Not recursive */
                  test05::f : [n]a

@@ -2,5 +2,5 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at ./check20.cry:3:31--3:33:
-  Defaulting type argument 'rep' of 'demote' to [4]
+  Defaulting type argument 'rep' of 'number' to [4]
 True

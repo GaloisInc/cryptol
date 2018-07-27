@@ -501,7 +501,7 @@ Cryptol primitives fall into several groups:
 
 * Logic: `&&`, `||`, `^`, `complement`, `zero`, `True`, `False`
 
-* Arithmetic: `+`, `-`, `*`, `/`, `%`, `^^`, `lg2`, `negate`, `demote`
+* Arithmetic: `+`, `-`, `*`, `/`, `%`, `^^`, `lg2`, `negate`, `number`
 
 * Comparison: `<`, `>`, `<=`, `>=`, `==`, `!=`
 
@@ -540,7 +540,7 @@ Cryptol primitives fall into several groups:
 >   , ("^^"         , binary (arithBinary expWrap))
 >   , ("lg2"        , unary  (arithUnary lg2Wrap))
 >   , ("negate"     , unary  (arithUnary (\x -> Right (- x))))
->   , ("demote"     , vFinPoly $ \val ->
+>   , ("number"     , vFinPoly $ \val ->
 >                     VPoly $ \a ->
 >                     arithNullary (Right val) a)
 >   , ("toInteger"  , vFinPoly $ \_bits ->

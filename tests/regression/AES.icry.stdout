@@ -10,7 +10,7 @@ Loading module AES
 [warning] at ./AES.cry:147:53--147:63:
   Defaulting type argument 'ix' of '(@)' to 4
 [warning] at ./AES.cry:127:32--127:33:
-  Defaulting type argument 'rep' of 'demote' to [3]
+  Defaulting type argument 'rep' of 'number' to [3]
 True
 True
 True

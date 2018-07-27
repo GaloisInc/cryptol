@@ -3,5 +3,5 @@ Showing a specific instance of polymorphic result:
   * Using 'Integer' for type argument 'a' of 'Cryptol::fromThenTo'
 [11, 11, 11, 11, 11, 11, 11, 11, 11, 11]
 [warning] at <interactive>:1:65--1:67:
-  Defaulting type argument 'rep' of 'demote' to [4]
+  Defaulting type argument 'rep' of 'number' to [4]
 True

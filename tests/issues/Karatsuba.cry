@@ -2,7 +2,7 @@ module Karatsuba where
 
 kmult : {limb,n} (fin n, fin limb, limb >= 6, n>=1) => [n] -> [n] -> [2*n]
 kmult x y =
- if `n <= (demote`{limb, [max (width limb) (width n)]}) then
+ if `n <= (`limb : [max (width limb) (width n)]) then
    (zero#x)*(zero#y)
  else
    take (splitmult`{limb} (make_atleast`{limb} x) (make_atleast`{limb} y))

@@ -2,8 +2,8 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at ./check14.cry:5:73--5:74:
-  Defaulting type argument 'rep' of 'demote' to [3]
+  Defaulting type argument 'rep' of 'number' to [3]
 Showing a specific instance of polymorphic result:
-  * Using 'Integer' for type argument 'rep' of 'Cryptol::demote'
+  * Using 'Integer' for type argument 'rep' of 'Cryptol::number'
 [[3, 2, 1, 0], [7, 6, 5, 4]]
 True

@@ -93,7 +93,7 @@ instance (ShowParseable a) => ShowParseable [a] where
                                 text "]"
 
 instance (ShowParseable a) => ShowParseable (Maybe a) where
-  showParseable Nothing = text "(0,\"\")" --empty ident, won't shadow demote
+  showParseable Nothing = text "(0,\"\")" --empty ident, won't shadow number
   showParseable (Just x) = showParseable x
 
 instance (ShowParseable a) => ShowParseable (Located a) where

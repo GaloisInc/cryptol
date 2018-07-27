@@ -91,16 +91,16 @@ mkPrim' str =
 desugarLiteral :: Bool -> P.Literal -> InferM (P.Expr Name)
 desugarLiteral fixDec lit =
   do l <- curRange
-     demotePrim <- mkPrim "demote"
+     numberPrim <- mkPrim "number"
      let named (x,y)  = P.NamedInst
                         P.Named { name = Located l (packIdent x), value = y }
-         demote fs    = P.EAppT demotePrim (map named fs)
+         number fs    = P.EAppT numberPrim (map named fs)
          tBits n = P.TSeq (P.TNum n) P.TBit
 
      return $ case lit of
 
        P.ECNum num info ->
-         demote $ [ ("val", P.TNum num) ] ++ case info of
+         number $ [ ("val", P.TNum num) ] ++ case info of
            P.BinLit n    -> [ ("rep", tBits (1 * toInteger n)) ]
            P.OctLit n    -> [ ("rep", tBits (3 * toInteger n)) ]
            P.HexLit n    -> [ ("rep", tBits (4 * toInteger n)) ]
@@ -355,7 +355,7 @@ checkE expr tGoal =
 
     P.ETypeVal t ->
       do l <- curRange
-         prim <- mkPrim "demote"
+         prim <- mkPrim "number"
          checkE (P.EAppT prim
                   [P.NamedInst
                    P.Named { name = Located l (packIdent "val")

@@ -143,7 +143,7 @@ value parameters.   To work around this we propose the following restriction:
 type arguments*.  So, for example `zero` instantiated with `2` may
 be used as a module parameter, but `0x10 + 0x20` would not.
 Note that literals are a special case of this schema because they
-are just sugar for `demote`.
+are just sugar for `number`.
 
 With this restriction, the rule is that two module instantiations are the
 same if they have the same parameters, where types are compared as usual,
@@ -207,51 +207,3 @@ generates a fresh instance of everything, and one has to import the same module
 if one wants to get the same types.  It is unclear if this kind of named
 instantiation is too heavy-weight for modules that have only a couple of
 simple parameters...
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

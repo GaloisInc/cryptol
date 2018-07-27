@@ -131,8 +131,8 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     carryV)
   , ("scarry"     , {-# SCC "Prelude::scarry" #-}
                     scarryV)
-  , ("demote"     , {-# SCC "Prelude::demote" #-}
-                    ecDemoteV)
+  , ("number"     , {-# SCC "Prelude::number" #-}
+                    ecNumberV)
 
   , ("#"          , {-# SCC "Prelude::(#)" #-}
                     nlam $ \ front ->
@@ -228,11 +228,11 @@ mkLit ty =
       | w >= Arch.maxBigIntWidth -> wordTooWide w
       | otherwise                -> word w
     _                            -> evalPanic "Cryptol.Eval.Prim.evalConst"
-                                    [ "Invalid type for demote" ]
+                                    [ "Invalid type for number" ]
 
 -- | Make a numeric constant.
-ecDemoteV :: BitWord b w i => GenValue b w i
-ecDemoteV = nlam $ \valT ->
+ecNumberV :: BitWord b w i => GenValue b w i
+ecNumberV = nlam $ \valT ->
             tlam $ \ty ->
             case valT of
               Nat v -> mkLit ty v
