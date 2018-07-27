@@ -2034,9 +2034,7 @@ Here are some example uses of {\tt increment}:
   0
   Cryptol> increment 912
     [error] at <interactive>:1:1--1:14:
-      Unsolved constraint:
-        8 >= 10
-          arising from use of expression demote at <interactive>:1:11--1:14
+      Unsolvable constraint: 8 >= 10
 \end{Verbatim}
 Note how type inference rejects application when applied to an
 argument of the wrong size: 912 is too big to fit into 8 bits.
