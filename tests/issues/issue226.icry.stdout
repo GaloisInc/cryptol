@@ -56,6 +56,7 @@ Symbols
     carry : {n} (fin n) => [n] -> [n] -> Bit
     complement : {a} (Logic a) => a -> a
     curry : {a, b, c} ((a, b) -> c) -> a -> b -> c
+    demote : {val, rep} (Literal val rep) => rep
     drop : {front, back, a} (fin front) => [front + back]a -> [back]a
     elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
     error : {a, len} (fin len) => [len][8] -> a

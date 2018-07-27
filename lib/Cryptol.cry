@@ -10,6 +10,12 @@ module Cryptol where
  */
 primitive number : {val, rep} Literal val rep => rep
 
+/**
+ * An alternative name for 'number', present for backward compatibility.
+ */
+demote : {val, rep} Literal val rep => rep
+demote = number`{val}
+
 infixr  5 ==>
 infixr 10 \/
 infixr 15 /\
