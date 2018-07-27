@@ -113,6 +113,37 @@ Operator & Associativity\tabularnewline
 \bottomrule
 \end{longtable}
 
+\hyperdef{}{built-in-type-operators}{\section{Built-in Type-level
+Operators}\label{built-in-type-operators}}
+
+Cryptol includes a variety of operators that allow computations on
+the numeric types used to specify the sizes of sequences.
+
+\begin{longtable}[c]{@{}ll@{}}
+\caption{Type-level operators}\tabularnewline
+\toprule
+Operator & Meaning\tabularnewline
+\midrule
+\endfirsthead
+\toprule
+Operator & Meaning\tabularnewline
+\midrule
+\endhead
+\texttt{+} & Size addition\tabularnewline
+\texttt{-} & Size subtraction\tabularnewline
+\texttt{*} & Size multiplication\tabularnewline
+\texttt{/} & Size division\tabularnewline
+\verb+/^+ & Size ceiling division (\texttt{/} rounded up)\tabularnewline
+\verb+%+ & Size modulus\tabularnewline
+\verb+%^+ & Size ceiling modulus (\verb+%+ rounded up)\tabularnewline
+\verb+^^+ & Size exponentiation\tabularnewline
+\texttt{lg2} & Size logarithm (base-2)\tabularnewline
+\texttt{width} & Size width (\texttt{lg2} rounded up)\tabularnewline
+\texttt{max} & Size maximum\tabularnewline
+\texttt{min} & Size minimum\tabularnewline
+\bottomrule
+\end{longtable}
+
 \section{Numeric Literals}\label{numeric-literals}
 
 Numeric literals may be written in binary, octal, decimal, or
