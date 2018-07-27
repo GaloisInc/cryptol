@@ -671,8 +671,8 @@ instance (Show name, PPName name) => PP (Expr name) where
       EVar x        -> ppPrefixName x
       ELit x        -> pp x
 
-      ENeg x        -> wrap n 3 (text "-" <> ppPrec 4 x)
-      EComplement x -> wrap n 3 (text "~" <> ppPrec 4 x)
+      ENeg x        -> wrap n 3 (text "-" <.> ppPrec 4 x)
+      EComplement x -> wrap n 3 (text "~" <.> ppPrec 4 x)
 
       ETuple es     -> parens (commaSep (map pp es))
       ERecord fs    -> braces (commaSep (map (ppNamed "=") fs))
