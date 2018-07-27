@@ -40,7 +40,7 @@ import           Prelude ()
 import           Prelude.Compat
 
 
--- | One REPL invocation, either form a file or from the terminal.
+-- | One REPL invocation, either from a file or from the terminal.
 crySession :: Maybe FilePath -> Bool -> REPL CommandExitCode
 crySession mbBatch stopOnError =
   do settings <- io (setHistoryFile (replSettings isBatch))
