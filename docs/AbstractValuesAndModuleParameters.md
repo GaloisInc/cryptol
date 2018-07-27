@@ -142,11 +142,11 @@ value parameters.   To work around this we propose the following restriction:
 *parameters may be instantiated only be names, optionally applied to some
 type arguments*.  So, for example `zero` instantiated with `2` may
 be used as a module parameter, but `0x10 + 0x20` would not.
-Note that literals are a special case of this schema becuase they
+Note that literals are a special case of this schema because they
 are just sugar for `demote`.
 
 With this restriction, the rule is that two module instantiations are the
-same if the havey the same parameters, where types are compared as usual,
+same if they have the same parameters, where types are compared as usual,
 and values are compared by name.  Here are some examples:
 
       moudle X where
@@ -202,7 +202,7 @@ to define the instance but are not exported directly.
 
 XXX: Deisgn choice: we may want to insist that this kind of named instantiation
 is the only way to instantiate modules.  If we do that, then the generativity
-issues from the previous section become less important: each named instances
+issues from the previous section become less important: each named instance
 generates a fresh instance of everything, and one has to import the same module
 if one wants to get the same types.  It is unclear if this kind of named
 instantiation is too heavy-weight for modules that have only a couple of

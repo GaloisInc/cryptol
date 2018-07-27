@@ -36,7 +36,7 @@ data Range      = Range { from   :: !Position
 -- | An empty range.
 --
 -- Caution: using this on the LHS of a use of rComb will cause the empty source
--- to propegate.
+-- to propagate.
 emptyRange :: Range
 emptyRange  = Range { from = start, to = start, source = "" }
 
