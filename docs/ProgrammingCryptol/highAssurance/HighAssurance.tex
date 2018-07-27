@@ -840,7 +840,7 @@ automatically:
 Not surprisingly, Cryptol told us that 3 is one such value. We can
 search for other solutions by explicitly disallowing 3:
 \begin{Verbatim}
-  Cryptol> :sat \x -> isSqrtOf9 x && ~(elem (x, [3]))
+  Cryptol> :sat \x -> isSqrtOf9 x && ~(elem x [3])
   \x -> isSqrtOf9 x && ~(elem (x, [3])) 131 = True
 \end{Verbatim}
 Note the use of the \lamex to\indLamExp indicate the new
@@ -852,7 +852,7 @@ express the constraint {\tt x} must not be 3. In response, Cryptol
 told us that {\tt 125} is another solution. Indeed $125 * 125 =
 9\imod{2^7}$, as you can verify separately.  We can search for more:
 \begin{Verbatim}
-  Cryptol> :sat \x -> isSqrtOf9 x && ~(elem (x, [3, 125]))
+  Cryptol> :sat \x -> isSqrtOf9 x && ~(elem x [3, 125])
   \x -> isSqrtOf9 x && ~(elem (x, [3, 131])) 253 = True
 \end{Verbatim}
 Rather than manually adding solutions we have already seen, we can

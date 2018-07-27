@@ -219,7 +219,7 @@ a negative integer, simply negate the result: For example,
 \begin{Exercise}\label{ex:int:1}
   Compare the results of evaluating the expressions \texttt{0x8 + 0x9}
   and \texttt{toInteger 0x8 + toInteger 0x9}. Also try evaluating
-  \texttt{toInteger (- 0x9)}. Can you explain the results?
+  \texttt{toInteger (- 0x5)}. Can you explain the results?
 \end{Exercise}
 \begin{Answer}\ansref{ex:int:1}
 Here are Cryptol's responses:
@@ -1457,6 +1457,15 @@ Try out the following expressions:
   if 3 >= 2 then True else 1 < 12
 \end{Verbatim}
 \end{Exercise}
+\begin{Answer}\ansref{ex:arith:8}
+Here are Cryptol's responses:
+\begin{Verbatim}
+Cryptol> ((2 >= 3) || (3 < 6)) && (4 == 5)
+False
+Cryptol> if 3 >= 2 then True else 1 < 12
+True
+\end{Verbatim}
+\end{Answer}
 
 \paragraph*{Enumerations, revisited} In
 \exerciseref{ex:seq:9}, we wrote the infinite
