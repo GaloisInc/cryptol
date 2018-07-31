@@ -42,7 +42,7 @@ primTyList =
     "The type of unbounded integers."
 
   , tPrefix "Z"               TC TCIntMod
-    "`Z n` is the type of integers, modulo `n`."
+    "'Z n' is the type of integers, modulo 'n'."
 
 
     -- Predicate constructors --------------------------------------------------
@@ -57,10 +57,10 @@ primTyList =
     "Assert that the first numeric type is larger than, or equal to the second."
 
   , tPrefix "fin"              PC PFin
-    "Assert that a numeric type is a proper natural number (not `inf`)."
+    "Assert that a numeric type is a proper natural number (not 'inf')."
 
   , tPrefix "Zero"             PC PZero
-    "Value types that have a notion of `zero`."
+    "Value types that have a notion of 'zero'."
 
   , tPrefix "Logic"            PC PLogic
     "Value types that support logical operations."
@@ -72,10 +72,10 @@ primTyList =
     "Value types that support unsigned comparisons."
 
   , tPrefix "SignedCmp"        PC PSignedCmp
-    "Values types that support signed comparisons."
+    "Value types that support signed comparisons."
 
   , tPrefix "Literal"         PC PLiteral
-    "`Literal n a` asserts that type `a` contains the value `n`."
+    "'Literal n a' asserts that type 'a' contains the number 'n'."
 
 
 
@@ -85,16 +85,16 @@ primTyList =
     "Add numeric types."
 
   , tInfix  "-"                TF TCSub       (l 80)
-    "Subtract numeric types"
+    "Subtract numeric types."
 
   , tInfix  "*"                TF TCMul       (l 90)
-    "Multiply numeric types"
+    "Multiply numeric types."
 
   , tInfix  "/"                TF TCDiv       (l 90)
     "Divide numeric types, rounding down."
 
   , tInfix  "%"                TF TCMod       (l 90)
-    "Reminder of numeric type division."
+    "Remainder of numeric type division."
 
   , tInfix  "^^"               TF TCExp       (r 95)
     "Exponentiate numeric types."
@@ -103,10 +103,10 @@ primTyList =
     "The number of bits required to represent the value of a numeric type."
 
   , tPrefix "min"              TF TCMin
-    "The smallest of two numeric types."
+    "The smaller of two numeric types."
 
   , tPrefix "max"              TF TCMax
-    "The largest of two numeric types."
+    "The larger of two numeric types."
 
   , tInfix  "/^"               TF TCCeilDiv    (l 90)
     "Divide numeric types, rounding up."

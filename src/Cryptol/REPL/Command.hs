@@ -169,58 +169,59 @@ nbCommands  = foldl insert emptyTrie nbCommandList
 nbCommandList :: [CommandDescr]
 nbCommandList  =
   [ CommandDescr [ ":t", ":type" ] (ExprArg typeOfCmd)
-    "check the type of an expression"
+    "Check the type of an expression."
   , CommandDescr [ ":b", ":browse" ] (ModNameArg browseCmd)
-    "display the current environment"
+    "Display environment for all loaded modules, or for a specific module."
   , CommandDescr [ ":?", ":help" ] (HelpArg helpCmd)
-    "display a brief description of a function or a type"
+    "Display a brief description of a function, type, or command."
   , CommandDescr [ ":s", ":set" ] (OptionArg setOptionCmd)
-    "set an environmental option (:set on its own displays current values)"
+    "Set an environmental option (:set on its own displays current values)."
   , CommandDescr [ ":check" ] (ExprArg (void . qcCmd QCRandom))
-    "use random testing to check that the argument always returns true (if no argument, check all properties)"
+    "Use random testing to check that the argument always returns true.\n(If no argument, check all properties.)"
   , CommandDescr [ ":exhaust" ] (ExprArg (void . qcCmd QCExhaust))
-    "use exhaustive testing to prove that the argument always returns true (if no argument, check all properties)"
+    "Use exhaustive testing to prove that the argument always returns\ntrue. (If no argument, check all properties.)"
   , CommandDescr [ ":prove" ] (ExprArg proveCmd)
-    "use an external solver to prove that the argument always returns true (if no argument, check all properties)"
+    "Use an external solver to prove that the argument always returns\ntrue. (If no argument, check all properties.)"
   , CommandDescr [ ":sat" ] (ExprArg satCmd)
-    "use a solver to find a satisfying assignment for which the argument returns true (if no argument, find an assignment for all properties)"
+    "Use a solver to find a satisfying assignment for which the argument\nreturns true. (If no argument, find an assignment for all properties.)"
   , CommandDescr [ ":debug_specialize" ] (ExprArg specializeCmd)
-    "do type specialization on a closed expression"
+    "Do type specialization on a closed expression."
   , CommandDescr [ ":eval" ] (ExprArg refEvalCmd)
-    "evaluate an expression with the reference evaluator"
+    "Evaluate an expression with the reference evaluator."
   , CommandDescr [ ":ast" ] (ExprArg astOfCmd)
-    "print out the pre-typechecked AST of a given term"
+    "Print out the pre-typechecked AST of a given term."
   , CommandDescr [ ":extract-coq" ] (NoArg allTerms)
-    "print out the post-typechecked AST of all currently defined terms, in a Coq parseable format"
+    "Print out the post-typechecked AST of all currently defined terms,\nin a Coq-parseable format."
   ]
 
 commandList :: [CommandDescr]
 commandList  =
   nbCommandList ++
   [ CommandDescr [ ":q", ":quit" ] (NoArg quitCmd)
-    "exit the REPL"
+    "Exit the REPL."
   , CommandDescr [ ":l", ":load" ] (FilenameArg loadCmd)
-    "load a module"
+    "Load a module by filename."
   , CommandDescr [ ":r", ":reload" ] (NoArg reloadCmd)
-    "reload the currently loaded module"
+    "Reload the currently loaded module."
   , CommandDescr [ ":e", ":edit" ] (FilenameArg editCmd)
-    "edit the currently loaded module"
+    "Edit the currently loaded module."
   , CommandDescr [ ":!" ] (ShellArg runShellCmd)
-    "execute a command in the shell"
+    "Execute a command in the shell."
   , CommandDescr [ ":cd" ] (FilenameArg cdCmd)
-    "set the current working directory"
+    "Set the current working directory."
   , CommandDescr [ ":m", ":module" ] (FilenameArg moduleCmd)
-    "load a module"
+    "Load a module by its name."
   , CommandDescr [ ":w", ":writeByteArray" ] (FileExprArg writeFileCmd)
-    "write data of type `fin n => [n][8]` to a file"
+    "Write data of type 'fin n => [n][8]' to a file."
   , CommandDescr [ ":readByteArray" ] (FilenameArg readFileCmd)
-    "read data from a file as type `fin n => [n][8]`, binding the value to variable `it`"
+    "Read data from a file as type 'fin n => [n][8]', binding\nthe value to variable 'it'."
   ]
 
 genHelp :: [CommandDescr] -> [String]
 genHelp cs = map cmdHelp cs
   where
-  cmdHelp cmd  = concat [ "  ", cmdNames cmd, pad (cmdNames cmd), cHelp cmd ]
+  cmdHelp cmd  = concat $ [ "  ", cmdNames cmd, pad (cmdNames cmd),
+                            intercalate ("\n  " ++ pad []) (lines (cHelp cmd)) ]
   cmdNames cmd = intercalate ", " (cNames cmd)
   padding      = 2 + maximum (map (length . cmdNames) cs)
   pad n        = replicate (max 0 (padding - length n)) ' '
@@ -937,14 +938,16 @@ helpCmd cmd
       M.Parameter  -> rPutStrLn "// No documentation is available."
 
   showPrimTyHelp nameEnv pt =
-    do rPutStrLn "Primitive type:"
+    do rPutStrLn ""
        let i    = T.primTyIdent pt
            nm   = pp (T.primTyIdent pt)
            pnam = if P.isInfixIdent i then parens nm else nm
-           sig  = pnam <+> ":" <+> pp (T.kindOf (T.primTyCon pt))
+           sig  = "primitive type" <+> pnam <+> ":" <+> pp (T.kindOf (T.primTyCon pt))
        rPrint $ runDoc nameEnv $ nest 4 sig
        doShowFix (T.primTyFixity pt)
+       rPutStrLn ""
        rPutStrLn (T.primTyDoc pt)
+       rPutStrLn ""
 
   showTypeHelp params env nameEnv name =
     fromMaybe (noInfo nameEnv name) $

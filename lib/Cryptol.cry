@@ -263,17 +263,17 @@ x \/ y = if x then True else y
 a ==> b = if a then b else True
 
 /**
- * Logical `and' over bits. Extends element-wise over sequences, tuples.
+ * Logical 'and' over bits. Extends element-wise over sequences, tuples.
  */
 primitive (&&) : {a} (Logic a) => a -> a -> a
 
 /**
- * Logical `or' over bits. Extends element-wise over sequences, tuples.
+ * Logical 'or' over bits. Extends element-wise over sequences, tuples.
  */
 primitive (||) : {a} (Logic a) => a -> a -> a
 
 /**
- * Logical `exclusive or' over bits. Extends element-wise over sequences, tuples.
+ * Logical 'exclusive or' over bits. Extends element-wise over sequences, tuples.
  */
 primitive (^) : {a} (Logic a) => a -> a -> a
 
@@ -691,7 +691,7 @@ repeat : {n, a} a -> [n]a
 repeat x = [ x | _ <- zero : [n] ]
 
 /**
- * `elem x xs` Returns true if x is equal to a value in xs.
+ * 'elem x xs' returns true if x is equal to a value in xs.
  */
 elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
 elem a xs = any (\x -> x == a) xs

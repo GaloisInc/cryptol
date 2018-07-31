@@ -688,34 +688,34 @@ simpleOpt optName optDefault optCheck optHelp =
 userOptions :: OptionMap
 userOptions  = mkOptionMap
   [ simpleOpt "base" (EnvNum 16) checkBase
-    "the base to display words at"
+    "The base to display words at (2, 8, 10, or 16)."
   , simpleOpt "debug" (EnvBool False) noCheck
-    "enable debugging output"
+    "Enable debugging output."
   , simpleOpt "ascii" (EnvBool False) noCheck
-    "display 7- or 8-bit words using ASCII notation."
+    "Whether to display 7- or 8-bit words using ASCII notation."
   , simpleOpt "infLength" (EnvNum 5) checkInfLength
     "The number of elements to display for infinite sequences."
   , simpleOpt "tests" (EnvNum 100) noCheck
-    "The number of random tests to try."
+    "The number of random tests to try with ':check'."
   , simpleOpt "satNum" (EnvString "1") checkSatNum
     "The maximum number of :sat solutions to display (\"all\" for no limit)."
   , simpleOpt "prover" (EnvString "z3") checkProver $
-    "The external SMT solver for :prove and :sat (" ++ proverListString ++ ")."
+    "The external SMT solver for ':prove' and ':sat'\n(" ++ proverListString ++ ")."
   , simpleOpt "warnDefaulting" (EnvBool True) noCheck
-    "Choose if we should display warnings when defaulting."
+    "Choose whether to display warnings when defaulting."
   , simpleOpt "warnShadowing" (EnvBool True) noCheck
-    "Choose if we should display warnings when shadowing symbols."
+    "Choose whether to display warnings when shadowing symbols."
   , simpleOpt "smtfile" (EnvString "-") noCheck
-    "The file to use for SMT-Lib scripts (for debugging or offline proving)"
+    "The file to use for SMT-Lib scripts (for debugging or offline proving).\nUse \"-\" for stdout."
   , OptionDescr "mono-binds" (EnvBool True) noCheck
-    "Whether or not to generalize bindings in a where-clause" $
+    "Whether or not to generalize bindings in a 'where' clause." $
     \case EnvBool b -> do me <- getModuleEnv
                           setModuleEnv me { M.meMonoBinds = b }
           _         -> return ()
 
   , OptionDescr "tc-solver" (EnvProg "z3" [ "-smt2", "-in" ])
     noCheck  -- TODO: check for the program in the path
-    "The solver that will be used by the type checker" $
+    "The solver that will be used by the type checker." $
     \case EnvProg prog args -> do me <- getModuleEnv
                                   let cfg = M.meSolverConfig me
                                   setModuleEnv me { M.meSolverConfig =
@@ -725,14 +725,14 @@ userOptions  = mkOptionMap
 
   , OptionDescr "tc-debug" (EnvNum 0)
     noCheck
-    "Enable type-checker debugging output" $
+    "Enable type-checker debugging output." $
     \case EnvNum n -> do me <- getModuleEnv
                          let cfg = M.meSolverConfig me
                          setModuleEnv me { M.meSolverConfig = cfg{ T.solverVerbose = fromIntegral n } }
           _        -> return ()
   , OptionDescr "core-lint" (EnvBool False)
     noCheck
-    "Enable sanity checking of type-checker" $
+    "Enable sanity checking of type-checker." $
       let setIt x = do me <- getModuleEnv
                        setModuleEnv me { M.meCoreLint = x }
       in \case EnvBool True  -> setIt M.CoreLint
