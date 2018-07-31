@@ -12,12 +12,13 @@
 
 module REPL.Haskeline where
 
+import           Cryptol.Prims.Syntax (primTyList, primTyIdent)
 import           Cryptol.REPL.Command
 import           Cryptol.REPL.Monad
 import           Cryptol.REPL.Trie
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Logger(stdoutLogger)
-import           Cryptol.Utils.Ident(modNameToText, interactiveName)
+import           Cryptol.Utils.Ident(modNameToText, interactiveName, isInfixIdent)
 
 import qualified Control.Exception as X
 import           Control.Monad (guard, join)
@@ -27,6 +28,7 @@ import           Data.Char (isAlphaNum, isSpace)
 import           Data.Maybe(isJust)
 import           Data.Function (on)
 import           Data.List (isPrefixOf,nub,sortBy,sort)
+import qualified Data.Set as Set
 import qualified Data.Text as T (unpack)
 import           System.IO (stdout)
 import           System.Console.ANSI (setTitle, hSupportsANSI)
@@ -265,10 +267,22 @@ completeHelp :: CompletionFunc REPL
 completeHelp (l, _) = do
   ns1 <- getExprNames
   ns2 <- getTypeNames
-  let ns3 = concatMap cNames (nub (findCommand ":"))
+  let ns3 = primTyNames
+  let ns4 = concatMap cNames (nub (findCommand ":"))
+  let ns = Set.toAscList (Set.fromList (ns1 ++ ns2 ++ ns3)) ++ ns4
   let n    = reverse l
-      vars = filter (n `isPrefixOf`) (ns1 ++ ns2 ++ ns3)
-  return (l, map (nameComp n) vars)
+  case break isSpace n of
+    (":set", _ : n') ->
+      do let n'' = dropWhile isSpace n'
+         let vars = map optName (lookupTrie (dropWhile isSpace n') userOptions)
+         return (l, map (nameComp n'') vars)
+    _                ->
+      do let vars = filter (n `isPrefixOf`) ns
+         return (l, map (nameComp n) vars)
+
+primTyNames :: [String]
+primTyNames = map (showIdent . primTyIdent) primTyList
+  where showIdent i = show (optParens (isInfixIdent i) (pp i))
 
 -- | Complete a name from the list of loaded modules.
 completeModName :: CompletionFunc REPL

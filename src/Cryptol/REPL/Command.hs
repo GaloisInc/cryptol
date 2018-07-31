@@ -1051,7 +1051,7 @@ helpCmd cmd
       [opt] ->
         do let k = optName opt
            ev <- tryGetUser k
-           rPutStrLn $ "\n     " ++ k ++ " = " ++ maybe "???" showEnvVal ev
+           rPutStrLn $ "\n    " ++ k ++ " = " ++ maybe "???" showEnvVal ev
            rPutStrLn ""
            rPutStrLn ("Default value: " ++ showEnvVal (optDefault opt))
            rPutStrLn ""

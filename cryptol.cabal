@@ -195,6 +195,7 @@ executable cryptol
   build-depends:       ansi-terminal
                      , base
                      , base-compat
+                     , containers
                      , cryptol
                      , directory
                      , filepath
