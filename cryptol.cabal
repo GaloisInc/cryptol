@@ -175,10 +175,9 @@ library
                        Paths_cryptol,
                        GitRev
 
-  GHC-options:         -Wall -O2 -fsimpl-tick-factor=140
+  GHC-options:         -Wall -fsimpl-tick-factor=140
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
-  ghc-prof-options:    -fprof-auto
 
   if flag(relocatable)
       cpp-options: -DRELOCATABLE
@@ -203,15 +202,16 @@ executable cryptol
                      , monad-control
                      , text
                      , transformers
-  GHC-options:         -Wall -O2 -threaded -rtsopts "-with-rtsopts=-N1 -A64m"
+  GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m"
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
-  ghc-prof-options:    -auto-all -rtsopts
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread
 
 executable cryptol-html
+  Default-language:
+    Haskell2010
   main-is: CryHtml.hs
   hs-source-dirs: utils
   build-depends: base, text, cryptol, blaze-html
@@ -224,10 +224,9 @@ executable cryptol-html
 --  other-modules:       Cryptol.Aeson
 --  default-language:    Haskell2010
 --  default-extensions:  OverloadedStrings
---  GHC-options:         -Wall -O2 -threaded -rtsopts "-with-rtsopts=-N1 -A64m"
+--  GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m"
 --  if impl(ghc >= 8.0.1)
 --     ghc-options: -Wno-redundant-constraints
---  ghc-prof-options:    -auto-all -rtsopts
 --  if os(linux) && flag(static)
 --      ld-options:      -static -pthread
 --  if flag(server)
@@ -254,10 +253,9 @@ benchmark cryptol-bench
   main-is:             Main.hs
   hs-source-dirs:      bench
   default-language:    Haskell2010
-  GHC-options:         -Wall -O2 -threaded -rtsopts "-with-rtsopts=-N1 -A64m"
+  GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m"
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
-  ghc-prof-options:    -auto-all -rtsopts
   if os(linux) && flag(static)
       ld-options:      -static -pthread
   build-depends:       base
