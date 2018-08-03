@@ -44,7 +44,6 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Sequence as Seq
 import qualified Data.Semigroup as S
 import qualified Data.Set as Set
-import           Data.String (IsString(..))
 import           MonadLib hiding (mapM, mapM_)
 
 import GHC.Generics (Generic)
@@ -252,13 +251,6 @@ record f = RenameM $
   do RO { .. } <- ask
      RW { .. } <- get
      set RW { rwErrors = rwErrors Seq.|> f roDisp, .. }
-
--- | Report a warning.
-recordW :: (NameDisp -> RenamerWarning) -> RenameM ()
-recordW f = RenameM $
-  do RO { .. } <- ask
-     RW { .. } <- get
-     set RW { rwWarnings = rwWarnings Seq.|> f roDisp, .. }
 
 -- | Get the source range for wahtever we are currently renaming.
 curLoc :: RenameM Range
