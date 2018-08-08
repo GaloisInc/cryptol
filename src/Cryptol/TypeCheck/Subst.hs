@@ -121,28 +121,9 @@ apSubstMaybe su ty =
     TCon t ts ->
       do ss <- anyJust (apSubstMaybe su) ts
          case t of
-
-           TF f ->
-             Just $!
-             case (f,ss) of
-               (TCAdd,[t1,t2])               -> Simp.tAdd t1 t2
-               (TCSub,[t1,t2])               -> Simp.tSub t1 t2
-               (TCMul,[t1,t2])               -> Simp.tMul t1 t2
-               (TCDiv,[t1,t2])               -> Simp.tDiv t1 t2
-               (TCMod,[t1,t2])               -> Simp.tMod t1 t2
-               (TCExp,[t1,t2])               -> Simp.tExp t1 t2
-               (TCMin,[t1,t2])               -> Simp.tMin t1 t2
-               (TCMax,[t1,t2])               -> Simp.tMax t1 t2
-               (TCWidth,[t1])                -> Simp.tWidth t1
-               (TCCeilDiv,[t1,t2])           -> Simp.tCeilDiv t1 t2
-               (TCCeilMod,[t1,t2])           -> Simp.tCeilMod t1 t2
-               (TCLenFromThen,[t1,t2,t3])    -> Simp.tLenFromThen t1 t2 t3
-               (TCLenFromThenTo,[t1,t2,t3])  -> Simp.tLenFromThenTo t1 t2 t3
-               _ -> panic "apSubstMaybe" ["Unexpected type function", show t]
-
-           PC _ ->Just $! Simp.simplify Map.empty (TCon t ss)
-
-           _ -> return (TCon t ss)
+           TF _ -> Just $! Simp.tCon t ss
+           PC _ -> Just $! Simp.simplify Map.empty (TCon t ss)
+           _    -> Just (TCon t ss)
 
     TUser f ts t  -> do t1 <- apSubstMaybe su t
                         return (TUser f (map (apSubst su) ts) t1)

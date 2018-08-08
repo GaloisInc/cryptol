@@ -18,30 +18,33 @@ tRebuild' withUser = go
       TUser x xs t
         | withUser  -> TUser x xs (go t)
         | otherwise -> go t
-      TVar _       -> ty
-      TRec xs      -> TRec [ (x,go y) | (x,y) <- xs ]
-      TCon tc ts ->
-        case (tc, map go ts) of
-          (TF f, ts') ->
-            case (f,ts') of
-              (TCAdd,[x,y]) -> tAdd x y
-              (TCSub,[x,y]) -> tSub x y
-              (TCMul,[x,y]) -> tMul x y
-              (TCExp,[x,y]) -> tExp x y
-              (TCDiv,[x,y]) -> tDiv x y
-              (TCMod,[x,y]) -> tMod x y
-              (TCMin,[x,y]) -> tMin x y
-              (TCMax,[x,y]) -> tMax x y
-              (TCWidth,[x]) -> tWidth x
-              (TCCeilDiv,[x,y]) -> tCeilDiv x y
-              (TCCeilMod,[x,y]) -> tCeilMod x y
-              (TCLenFromThen,[x,y,z]) -> tLenFromThen x y z
-              (TCLenFromThenTo,[x,y,z]) -> tLenFromThenTo x y z
-              _ -> TCon tc ts
-          (_,ts') -> TCon tc ts'
+      TVar _        -> ty
+      TRec xs       -> TRec [ (x, go y) | (x, y) <- xs ]
+      TCon tc ts    -> tCon tc (map go ts)
 
 tRebuild :: Type -> Type
 tRebuild = tRebuild' True
+
+tCon :: TCon -> [Type] -> Type
+tCon tc ts =
+  case tc of
+    TF f ->
+      case (f, ts) of
+        (TCAdd, [x, y]) -> tAdd x y
+        (TCSub, [x, y]) -> tSub x y
+        (TCMul, [x, y]) -> tMul x y
+        (TCExp, [x, y]) -> tExp x y
+        (TCDiv, [x, y]) -> tDiv x y
+        (TCMod, [x, y]) -> tMod x y
+        (TCMin, [x, y]) -> tMin x y
+        (TCMax, [x, y]) -> tMax x y
+        (TCWidth, [x]) -> tWidth x
+        (TCCeilDiv, [x, y]) -> tCeilDiv x y
+        (TCCeilMod, [x, y]) -> tCeilMod x y
+        (TCLenFromThen, [x, y, z]) -> tLenFromThen x y z
+        (TCLenFromThenTo, [x, y, z]) -> tLenFromThenTo x y z
+        _ -> TCon tc ts
+    _ -> TCon tc ts
 
 -- Normal: constants to the left
 tAdd :: Type -> Type -> Type
