@@ -51,28 +51,44 @@ then @tps2@ must be a subset of @tps@. This ensures that applying the
 substitution will not permit any type parameter to escape from its
 scope. -}
 
-data Subst = S { suMap :: !(Map.Map TVar Type)
+data Subst = S { suFreeMap :: !(IntMap.IntMap (TVar, Type))
+               , suBoundMap :: !(IntMap.IntMap (TVar, Type))
                , suDefaulting :: !Bool
                }
                   deriving Show
 
 emptySubst :: Subst
-emptySubst = S { suMap = Map.empty, suDefaulting = False }
+emptySubst =
+  S { suFreeMap = IntMap.empty
+    , suBoundMap = IntMap.empty
+    , suDefaulting = False
+    }
 
 singleSubst :: TVar -> Type -> Subst
-singleSubst x t = S { suMap = Map.singleton x t, suDefaulting = False }
+singleSubst v@(TVFree i _ _tps _) t =
+  S { suFreeMap = IntMap.singleton i (v, t)
+    , suBoundMap = IntMap.empty
+    , suDefaulting = False
+    }
+singleSubst v@(TVBound tp) t =
+  S { suFreeMap = IntMap.empty
+    , suBoundMap = IntMap.singleton (tpUnique tp) (v, t)
+    , suDefaulting = False
+    }
 
 (@@) :: Subst -> Subst -> Subst
 s2 @@ s1
-  | Map.null (suMap s2) =
+  | isEmptySubst s2 =
     if suDefaulting s1 || not (suDefaulting s2) then
       s1
     else
       s1{ suDefaulting = True }
 
-s2 @@ s1 = S { suMap = Map.map (apSubst s2) (suMap s1) `Map.union` suMap s2
-             , suDefaulting = suDefaulting s1 || suDefaulting s2
-             }
+s2 @@ s1 =
+  S { suFreeMap = IntMap.map (fmap (apSubst s2)) (suFreeMap s1) `IntMap.union` suFreeMap s2
+    , suBoundMap = IntMap.map (fmap (apSubst s2)) (suBoundMap s1) `IntMap.union` suBoundMap s2
+    , suDefaulting = suDefaulting s1 || suDefaulting s2
+    }
 
 
 defaultingSubst :: Subst -> Subst
@@ -81,31 +97,45 @@ defaultingSubst s = s { suDefaulting = True }
 -- | Makes a substitution out of a list.
 -- WARNING: We do not validate the list in any way, so the caller should
 -- ensure that we end up with a valid (e.g., idempotent) substitution.
-listSubst :: [(TVar,Type)] -> Subst
+listSubst :: [(TVar, Type)] -> Subst
 listSubst xs
   | null xs   = emptySubst
-  | otherwise = S { suMap = Map.fromList xs, suDefaulting = False }
+  | otherwise = S { suFreeMap = IntMap.fromList frees
+                  , suBoundMap = IntMap.fromList bounds
+                  , suDefaulting = False }
+  where
+    (frees, bounds) = partitionEithers (map classify xs)
+    classify x =
+      case fst x of
+        TVFree i _ _ _ -> Left (i, x)
+        TVBound tp -> Right (tpUnique tp, x)
 
 isEmptySubst :: Subst -> Bool
-isEmptySubst su = Map.null $ suMap su
+isEmptySubst su = IntMap.null (suFreeMap su) && IntMap.null (suBoundMap su)
 
 -- Returns the empty set if this is a defaulting substitution
 substBinds :: Subst -> Set TVar
 substBinds su
   | suDefaulting su = Set.empty
-  | otherwise       = Map.keysSet $ suMap su
+  | otherwise       = Set.fromList (map fst (assocsSubst su))
 
-substToList :: Subst -> [(TVar,Type)]
+substToList :: Subst -> [(TVar, Type)]
 substToList s
   | suDefaulting s = panic "substToList" ["Defaulting substitution."]
-  | otherwise = Map.toList (suMap s)
+  | otherwise = assocsSubst s
+
+assocsSubst :: Subst -> [(TVar, Type)]
+assocsSubst s = frees ++ bounds
+  where
+    frees = IntMap.elems (suFreeMap s)
+    bounds = IntMap.elems (suBoundMap s)
 
 instance PP (WithNames Subst) where
   ppPrec _ (WithNames s mp)
     | null els  = text "(empty substitution)"
     | otherwise = text "Substitution:" $$ nest 2 (vcat (map pp1 els))
     where pp1 (x,t) = ppWithNames mp x <+> text "=" <+> ppWithNames mp t
-          els       = Map.toList (suMap s)
+          els       = assocsSubst s
 
 instance PP Subst where
   ppPrec n = ppWithNamesPrec IntMap.empty n
@@ -132,10 +162,16 @@ apSubstMaybe su ty =
                            return (x,t1)
     TVar x -> applySubstToVar su x
 
+lookupSubst :: TVar -> Subst -> Maybe Type
+lookupSubst x su =
+  fmap snd $
+  case x of
+    TVFree i _ _ _ -> IntMap.lookup i (suFreeMap su)
+    TVBound tp -> IntMap.lookup (tpUnique tp) (suBoundMap su)
 
 applySubstToVar :: Subst -> TVar -> Maybe Type
 applySubstToVar su x =
-  case Map.lookup x (suMap su) of
+  case lookupSubst x su of
     Just t  -> Just (if suDefaulting su then apSubst su t else t)
     Nothing
       | suDefaulting su -> Just $! defaultFreeVar x
