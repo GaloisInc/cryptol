@@ -43,13 +43,15 @@ import qualified Cryptol.TypeCheck.SimpleSolver as Simp
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Misc(anyJust)
 
-{- | Type 'Subst' has an invariant on its 'suMap' component: If there
-is a mapping from @TVFree _ _ tps _@ to a type @t@, then @t@ must not
-mention (directly or indirectly) any type parameter that is not in
-@tps@. In particular, if @t@ contains a variable @TVFree _ _ tps2 _@,
-then @tps2@ must be a subset of @tps@. This ensures that applying the
-substitution will not permit any type parameter to escape from its
-scope. -}
+-- | A 'Subst' value represents a substitution that maps each 'TVar'
+-- to a 'Type'.
+--
+-- Invariant: If there is a mapping from @TVFree _ _ tps _@ to a type
+-- @t@, then @t@ must not mention (directly or indirectly) any type
+-- parameter that is not in @tps@. In particular, if @t@ contains a
+-- variable @TVFree _ _ tps2 _@, then @tps2@ must be a subset of
+-- @tps@. This ensures that applying the substitution will not permit
+-- any type parameter to escape from its scope.
 
 data Subst = S { suFreeMap :: !(IntMap.IntMap (TVar, Type))
                , suBoundMap :: !(IntMap.IntMap (TVar, Type))
@@ -90,7 +92,9 @@ s2 @@ s1 =
     , suDefaulting = suDefaulting s1 || suDefaulting s2
     }
 
-
+-- | A defaulting substitution maps all otherwise-unmapped free
+-- variables to a kind-appropriate default type (@Bit@ for value types
+-- and @0@ for numeric types).
 defaultingSubst :: Subst -> Subst
 defaultingSubst s = s { suDefaulting = True }
 
@@ -172,6 +176,8 @@ lookupSubst x su =
 applySubstToVar :: Subst -> TVar -> Maybe Type
 applySubstToVar su x =
   case lookupSubst x su of
+    -- For a defaulting substitution, we must recurse in order to
+    -- replace unmapped free vars with default types.
     Just t  -> Just (if suDefaulting su then apSubst su t else t)
     Nothing
       | suDefaulting su -> Just $! defaultFreeVar x
