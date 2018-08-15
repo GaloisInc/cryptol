@@ -171,7 +171,12 @@ defaultRW isBatch l = do
 mkPrompt :: RW -> String
 mkPrompt rw
   | eIsBatch rw = ""
-  | otherwise   = maybe "cryptol" pretty (lName =<< eLoadedMod rw) ++ "> "
+  | otherwise   = modLab ++ "> "
+  where
+  parMods = M.lmLoadedParamModules (M.meLoadedModules (eModuleEnv rw))
+  modName = maybe "cryptol" pretty (lName =<< eLoadedMod rw)
+  modLab  = if null parMods then modName else modName ++ " (parameterized) "
+
 
 -- REPL Monad ------------------------------------------------------------------
 
