@@ -93,7 +93,7 @@ import Cryptol.Utils.Logger(Logger, logPutStr, funLogger)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (proverNames, lookupProver, SatNum(..))
 
-import Control.Monad (ap,unless,when,msum)
+import Control.Monad (ap,unless,when)
 import Control.Monad.Base
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
@@ -101,7 +101,7 @@ import Data.Char (isSpace)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef,atomicModifyIORef)
 import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
-import Data.Maybe (catMaybes,mapMaybe)
+import Data.Maybe (catMaybes)
 import Data.Ord (comparing)
 import Data.Typeable (Typeable)
 import System.Directory (findExecutable)
@@ -173,9 +173,10 @@ mkPrompt rw
   | eIsBatch rw = ""
   | otherwise   = modLab ++ "> "
   where
-  parMods = M.lmLoadedParamModules (M.meLoadedModules (eModuleEnv rw))
+  modLab | M.hasParamModules (eModuleEnv rw) = modName ++ " (parameterized) "
+         | otherwise                         = modName
+
   modName = maybe "cryptol" pretty (lName =<< eLoadedMod rw)
-  modLab  = if null parMods then modName else modName ++ " (parameterized) "
 
 
 -- REPL Monad ------------------------------------------------------------------
@@ -238,7 +239,7 @@ data REPLException
   | ModuleSystemError NameDisp M.ModuleError
   | EvalPolyError T.Schema
   | TypeNotTestable T.Type
-  | EvalInParamModule P.ModName [M.Name]
+  | EvalInParamModule [M.Name]
   | SBVError String
     deriving (Show,Typeable)
 
@@ -263,8 +264,9 @@ instance PP REPLException where
                          $$ text "Type:" <+> pp s
     TypeNotTestable t    -> text "The expression is not of a testable type."
                          $$ text "Type:" <+> pp t
-    EvalInParamModule _ xs ->
-      text "Expression depends on a module parameter:" <+> hsep (map pp xs)
+    EvalInParamModule xs ->
+      text "Expression depends on definitions from a parameterized module:"
+        $$ nest 2 (vcat (map pp xs))
     SBVError s           -> text "SBV error:" $$ text s
 
 -- | Raise an exception.
@@ -307,7 +309,6 @@ modifyRW_ f = REPL (\ ref -> modifyIORef ref f)
 -- | Construct the prompt for the current environment.
 getPrompt :: REPL String
 getPrompt  = mkPrompt `fmap` getRW
-
 
 clearLoadedMod :: REPL ()
 clearLoadedMod = do modifyRW_ (\rw -> rw { eLoadedMod = upd <$> eLoadedMod rw })
@@ -373,35 +374,19 @@ getLetEnabled = fmap eLetEnabled getRW
 validEvalContext :: T.FreeVars a => a -> REPL ()
 validEvalContext a =
   do me <- eModuleEnv <$> getRW
-     case M.meFocusedModule me of
-       Nothing -> return ()
-       Just fm ->
-         case M.lookupModule fm me of
-           Just lm
-             | Set.null tps && Set.null vps -> return ()
-             | Just xs <- check (T.freeVars a) ->
-                              raise $ EvalInParamModule fm xs
-             | otherwise -> return ()
-             where
-             m = M.lmModule lm
+     let ds      = T.freeVars a
+         badVals = foldr badName Set.empty (T.valDeps ds)
+         bad     = foldr badName badVals (T.tyDeps ds)
 
-             tps = Set.fromList $ map T.mtpParam $ Map.elems $ T.mParamTypes m
-             vps = Map.keysSet (T.mParamFuns m)
+         badName nm bs =
+           case M.nameInfo nm of
+             M.Declared m _
+               | M.isLoadedParamMod m (M.meLoadedModules me) -> Set.insert nm bs
+             _ -> bs
 
-             bad ds | not $ null badTP = Just $ mapMaybe T.tpName badTP
-                    | not $ null badVP = Just badVP
-                    | otherwise = Nothing
-               where
-               badTP = Set.toList $ Set.intersection tps (T.tyParams ds)
-               badVP = Set.toList $ Set.intersection vps (T.valDeps ds)
+     unless (Set.null bad) $
+       raise (EvalInParamModule (Set.toList bad))
 
-             check ds   = msum (bad ds : map badSub (Set.toList (T.valDeps ds)))
-             badSub x   = maybe Nothing bad (Map.lookup x deps)
-             deps       = T.moduleDeps m
-
-           Nothing ->
-             panic "getEvalEnabled" ["The focused module is not loaded."
-                                    , show fm ]
 
 
 -- | Update the title

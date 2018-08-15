@@ -165,6 +165,11 @@ focusModule n me = do
 loadedModules :: ModuleEnv -> [T.Module]
 loadedModules = map lmModule . getLoadedModules . meLoadedModules
 
+-- | Are any parameterized modules loaded?
+hasParamModules :: ModuleEnv -> Bool
+hasParamModules = not . null . lmLoadedParamModules . meLoadedModules
+
+
 -- | Produce an ifaceDecls that represents the focused environment of the module
 -- system, as well as a 'NameDisp' for pretty-printing names according to the
 -- imports.
@@ -249,6 +254,10 @@ data LoadedModule = LoadedModule
 -- | Has this module been loaded already.
 isLoaded :: ModName -> LoadedModules -> Bool
 isLoaded mn lm = any ((mn ==) . lmName) (getLoadedModules lm)
+
+-- | Is this a loaded parameterized module.
+isLoadedParamMod :: ModName -> LoadedModules -> Bool
+isLoadedParamMod mn ln = any ((mn ==) . lmName) (lmLoadedParamModules ln)
 
 -- | Try to find a previously loaded module
 lookupModule :: ModName -> ModuleEnv -> Maybe LoadedModule

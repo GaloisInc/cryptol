@@ -576,6 +576,8 @@ onlineProveSat isSat str mfile = do
   satNum <- getUserSatNum
   parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
+  validEvalContext expr
+  validEvalContext schema
   decls <- fmap M.deDecls getDynEnv
   timing <- io (newIORef 0)
   let cmd = Symbolic.ProverCommand {
@@ -658,8 +660,9 @@ specializeCmd str = do
 refEvalCmd :: String -> REPL ()
 refEvalCmd str = do
   parseExpr <- replParseExpr str
-  (_, expr, _schema) <- replCheckExpr parseExpr
+  (_, expr, schema) <- replCheckExpr parseExpr
   validEvalContext expr
+  validEvalContext schema
   val <- liftModuleCmd (rethrowEvalError . R.evaluate expr)
   opts <- getPPValOpts
   rPrint $ R.ppValue opts val
@@ -1185,6 +1188,7 @@ replEvalExpr :: P.Expr P.PName -> REPL (E.Value, T.Type)
 replEvalExpr expr =
   do (_,def,sig) <- replCheckExpr expr
      validEvalContext def
+     validEvalContext sig
      me <- getModuleEnv
      let cfg = M.meSolverConfig me
      mbDef <- io $ SMT.withSolver cfg (\s -> defaultReplExpr s def sig)
