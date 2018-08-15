@@ -14,6 +14,13 @@ else
   TESTS=("$@")
 fi
 
+CRY_VERSION=$(grep Version: cryptol.cabal | awk '{print $2}')
+
+if [ ${CRY_VERSION}x == "x" ]; then
+  echo Failed to guess version of Cryptol.
+  exit 1
+fi
+
 GHC_VERSION=$(ghc --numeric-version)
 
 if [ ${GHC_VERSION}x == "x" ]; then
@@ -21,7 +28,13 @@ if [ ${GHC_VERSION}x == "x" ]; then
   exit 1
 fi
 
-CRY=$(find dist-newstyle -name cryptol -type f | grep $GHC_VERSION)
+echo Testing Cryptol version ${CRY_VERSION}, built using GHC ${GHC_VERSION}.
+
+
+CRY=$(find dist-newstyle -name cryptol -type f \
+          | grep $GHC_VERSION \
+          | grep $CRY_VERSION)
+
 
 cabal new-run cryptol-test-runner -- -c $CRY --ignore-expected ${TESTS[*]}
 
