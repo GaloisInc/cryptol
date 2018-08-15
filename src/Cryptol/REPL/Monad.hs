@@ -173,10 +173,15 @@ mkPrompt rw
   | eIsBatch rw = ""
   | otherwise   = modLab ++ "> "
   where
-  modLab | M.hasParamModules (eModuleEnv rw) = modName ++ " (parameterized) "
-         | otherwise                         = modName
+  modLab =
+    case lName =<< eLoadedMod rw of
+      Just m
+        | M.isLoadedParamMod m (M.meLoadedModules (eModuleEnv rw)) ->
+              modName ++ " (parameterized) "
+         | otherwise -> modName
+         where modName = pretty m
+      Nothing -> "cryptol"
 
-  modName = maybe "cryptol" pretty (lName =<< eLoadedMod rw)
 
 
 -- REPL Monad ------------------------------------------------------------------
