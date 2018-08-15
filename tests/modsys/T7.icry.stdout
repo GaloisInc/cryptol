@@ -1,4 +1,5 @@
 Loading module Cryptol
 Loading module T7::Main
 
-Expression depends on a module parameter: T7::Main::x
+Expression depends on definitions from a parameterized module:
+  T7::Main::main
