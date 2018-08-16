@@ -162,8 +162,14 @@ focusModule n me = do
 
 -- | Get a list of all the loaded modules. Each module in the
 -- resulting list depends only on other modules that precede it.
+-- Note that this includes parameterized modules.
 loadedModules :: ModuleEnv -> [T.Module]
 loadedModules = map lmModule . getLoadedModules . meLoadedModules
+
+-- | Get a list of all the loaded non-parameterized modules.
+-- These are the modules that can be used for evaluation, proving etc.
+loadedNonParamModules :: ModuleEnv -> [T.Module]
+loadedNonParamModules = map lmModule . lmLoadedModules . meLoadedModules
 
 -- | Are any parameterized modules loaded?
 hasParamModules :: ModuleEnv -> Bool

@@ -297,7 +297,7 @@ parseValue (FTRecord fs) cws = (Eval.VRecord (zip ns (map Eval.ready vs)), cws')
         (vs, cws') = parseValues ts cws
 
 allDeclGroups :: M.ModuleEnv -> [DeclGroup]
-allDeclGroups = concatMap mDecls . M.loadedModules
+allDeclGroups = concatMap mDecls . M.loadedNonParamModules
 
 data FinType
     = FTBit
