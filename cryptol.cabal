@@ -43,7 +43,7 @@ library
   Default-language:
     Haskell2010
   Build-depends:       base              >= 4.8 && < 5,
-                       base-compat       >= 0.6 && < 0.10,
+                       base-compat       >= 0.6 && < 0.11,
                        bytestring        >= 0.10,
                        array             >= 0.4,
                        containers        >= 0.5,

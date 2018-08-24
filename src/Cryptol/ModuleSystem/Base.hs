@@ -67,7 +67,7 @@ import qualified System.IO.Error as IOE
 import qualified Data.Map as Map
 
 import Prelude ()
-import Prelude.Compat
+import Prelude.Compat hiding ( (<>) )
 
 
 -- Renaming --------------------------------------------------------------------
