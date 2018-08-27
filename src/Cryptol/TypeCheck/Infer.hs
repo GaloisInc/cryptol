@@ -13,7 +13,14 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE Safe #-}
-module Cryptol.TypeCheck.Infer(checkSigB,inferModule,inferBinds,inferDs) where
+module Cryptol.TypeCheck.Infer
+  ( checkE
+  , checkSigB
+  , inferModule
+  , inferBinds
+  , inferDs
+  )
+where
 
 import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl)
 import           Cryptol.Parser.Position
