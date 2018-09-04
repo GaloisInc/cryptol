@@ -310,7 +310,7 @@ fixPaths str = go str
     | otherwise
     = str
   subst match = subRegex (mkRegex "\\\\") match "/"
-  matchCryFile = matchRegexAll (mkRegex "\\\\([^[:space:]]*\\.i?cry)")
+  matchCryFile = matchRegexAll (mkRegex "\\\\([^[:space:]]*\\.i?(cry|md))")
 #else
 fixPaths = id
 #endif
