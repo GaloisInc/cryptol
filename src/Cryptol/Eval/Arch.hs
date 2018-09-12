@@ -22,5 +22,9 @@ maxBigIntWidth = 2^(32 :: Integer) - 0x1
 #elif x86_64_HOST_ARCH
 maxBigIntWidth = 2^(37 :: Integer) - 0x100
 #else
-#error unknown max width for gmp on this architecture
+-- Because GHC doesn't seem to define a CPP macro that will portably
+-- tell us the bit width we're compiling for, fall back on a safe choice
+-- for other architectures. If we care about large words on another
+-- architecture, we can add a special case for it.
+maxBigIntWidth = 2^(32 :: Integer) - 0x1
 #endif
