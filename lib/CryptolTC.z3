@@ -170,12 +170,31 @@
 (assert (forall ((x Int)) (or (> (cryWidthUnknown x) 64)
                               (< x 18446744073709551616))))
 
+
+
 (assert (forall ((x Int)) (or (> x (cryWidthUnknown x))
                               (< x 18446744073709551616))))
 
 (assert (forall ((x Int) (y Int))
   (=> (>= x y)
       (>= (cryWidthUnknown x) (cryWidthUnknown y)))))
+
+
+; this helps #548
+(assert (forall ((b Int))
+  (>= (+ 1 (cryWidthUnknown b))
+      (cryWidthUnknown (* 2 b))
+  )
+))
+
+; This helps the axiom above, as it provides the "1 +" step needed
+; to go beyond the table.
+(assert (forall ((x Int))
+  (or (>= 65 (cryWidthUnknown x))
+      (>= x 36893488147419103232)
+  )
+))
+
 
 
 (define-fun cryWidthTable ((x Int)) Int
@@ -312,5 +331,6 @@
        (cryLenFromThenTo x y (cryNat (- (cryExpTable 2 (value z)) 1))))
   )
 )
+
 
 
