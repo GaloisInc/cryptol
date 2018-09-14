@@ -167,11 +167,14 @@
 
 ; Some axioms about cryWidthUnknown
 
-(assert (forall ((x Int)) (> (cryWidthUnknown x) 64)))
+(assert (forall ((x Int)) (or (> (cryWidthUnknown x) 64)
+                              (< x 18446744073709551616))))
+
 (assert (forall ((x Int)) (or (> x (cryWidthUnknown x))
                               (< x 18446744073709551616))))
+
 (assert (forall ((x Int) (y Int))
-  (=> (and (>= x y) (> y 64))
+  (=> (>= x y)
       (>= (cryWidthUnknown x) (cryWidthUnknown y)))))
 
 
