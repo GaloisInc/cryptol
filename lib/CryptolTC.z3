@@ -170,6 +170,9 @@
 (assert (forall ((x Int)) (or (> (cryWidthUnknown x) 64)
                               (< x 18446744073709551616))))
 
+; This helps the #548 property
+(assert (forall ((x Int)) (or (>= 65 (cryWidthUnknown x))
+                              (>= x 36893488147419103232))))
 
 
 (assert (forall ((x Int)) (or (> x (cryWidthUnknown x))
@@ -180,18 +183,11 @@
       (>= (cryWidthUnknown x) (cryWidthUnknown y)))))
 
 
-; this helps #548
-(assert (forall ((b Int))
-  (>= (+ 1 (cryWidthUnknown b))
-      (cryWidthUnknown (* 2 b))
-  )
-))
-
-; This helps the axiom above, as it provides the "1 +" step needed
-; to go beyond the table.
-(assert (forall ((x Int))
-  (or (>= 65 (cryWidthUnknown x))
-      (>= x 36893488147419103232)
+; this helps #548.  It seems to be quite slow, however.
+(assert (forall ((x Int) (y Int))
+  (=>
+    (>  y (cryWidthUnknown x))
+    (>= y (cryWidthUnknown (* 2 x)))
   )
 ))
 
@@ -333,4 +329,10 @@
 )
 
 
+; ---
+; (declare-fun kv0 () InfNat )
+; (assert (cryVar kv0 ) )
+; (assert (not (isFin kv0)))
+; (assert (ite (isFin kv0) (>= (value kv0) 5) true))
+; (check-sat )
 
