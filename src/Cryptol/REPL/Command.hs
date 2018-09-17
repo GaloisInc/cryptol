@@ -801,7 +801,9 @@ quitCmd  = stop
 
 browseCmd :: String -> REPL ()
 browseCmd input = do
-  (_,iface,names,disp) <- getFocusedEnv
+  (_, iface, fNames, disp) <- getFocusedEnv
+  denv <- getDynEnv
+  let names = M.deNames denv `M.shadowing` fNames
 
   let mnames = map (M.textToModName . T.pack) (words input)
   validModNames <- (:) M.interactiveName <$> getModNames
