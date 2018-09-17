@@ -1211,8 +1211,10 @@ replEvalExpr expr =
     case ts of
       [] -> return ()
       _  ->
-        do rPutStrLn "Showing a specific instance of polymorphic result:"
-           mapM_ warnDefault ts
+        do EnvBool warnDefaulting <- getUser "warnDefaulting"
+           when warnDefaulting $
+             do rPutStrLn "Showing a specific instance of polymorphic result:"
+                mapM_ warnDefault ts
 
   warnDefault (x,t) =
     rPrint ("  *" <+> nest 2  ("Using" <+> quotes (pp t) <+> "for" <+>
