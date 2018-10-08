@@ -162,7 +162,7 @@ makeValParamDef :: Name   {- ^ Definition of parameter -} ->
                    InferM Expr {- ^ Expression to use for param definition -}
 
 makeValParamDef x sDef pDef =
-  withVar x sDef $ do DExpr e <- dDefinition <$> checkSigB bnd (pDef,[])
+  withVar x sDef $ do ~(DExpr e) <- dDefinition <$> checkSigB bnd (pDef,[])
                       return e
   where
   bnd = P.Bind { P.bName      = loc x

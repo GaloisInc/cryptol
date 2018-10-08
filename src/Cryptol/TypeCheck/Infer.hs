@@ -928,7 +928,7 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
               bs1
 
   checkBinds decls (AcyclicSCC c : more) =
-    do [b] <- inferBinds isTopLevel False [c]
+    do ~[b] <- inferBinds isTopLevel False [c]
        withVar (dName b) (dSignature b) $
          checkBinds (NonRecursive b : decls) more
 

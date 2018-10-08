@@ -926,7 +926,7 @@ ecSplitV =
   lam  $ \ val ->
     case (parts, each) of
        (Nat p, Nat e) | isTBit a -> do
-          VWord _ val' <- val
+          ~(VWord _ val') <- val
           return $ VSeq p $ IndexSeqMap $ \i -> do
             return $ VWord e (extractWordVal e ((p-i-1)*e) <$> val')
        (Inf, Nat e) | isTBit a -> do

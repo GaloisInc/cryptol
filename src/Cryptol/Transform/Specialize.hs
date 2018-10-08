@@ -126,7 +126,7 @@ withDeclGroups dgs action = do
   -- Then reassemble the DeclGroups.
   let splitDecl :: Decl -> SpecM [Decl]
       splitDecl d = do
-        Just (_, tm) <- Map.lookup (dName d) <$> getSpecCache
+        ~(Just (_, tm)) <- Map.lookup (dName d) <$> getSpecCache
         return (catMaybes $ map (snd . snd) $ toListTM tm)
   let splitDeclGroup :: DeclGroup -> SpecM [DeclGroup]
       splitDeclGroup (Recursive ds) = do

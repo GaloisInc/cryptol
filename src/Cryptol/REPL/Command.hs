@@ -249,9 +249,9 @@ runCommand c = case c of
 -- Get the setting we should use for displaying values.
 getPPValOpts :: REPL E.PPOpts
 getPPValOpts =
-  do EnvNum base      <- getUser "base"
-     EnvBool ascii    <- getUser "ascii"
-     EnvNum infLength <- getUser "infLength"
+  do base      <- getKnownUser "base"
+     ascii     <- getKnownUser "ascii"
+     infLength <- getKnownUser "infLength"
      return E.PPOpts { E.useBase      = base
                      , E.useAscii     = ascii
                      , E.useInfLength = infLength
@@ -315,7 +315,7 @@ qcCmd qcMode "" =
 qcCmd qcMode str =
   do expr <- replParseExpr str
      (val,ty) <- replEvalExpr expr
-     EnvNum testNum <- getUser "tests"
+     testNum <- getKnownUser "tests"
      case testableType ty of
        Just (Just sz,tys,vss) | qcMode == QCExhaust || sz <= toInteger testNum -> do
             rPutStrLn "Using exhaustive testing."
@@ -511,10 +511,10 @@ cmdProveSat isSat "" =
 cmdProveSat isSat str = do
   let cexStr | isSat = "satisfying assignment"
              | otherwise = "counterexample"
-  EnvString proverName <- getUser "prover"
-  EnvString fileName <- getUser "smtfile"
+  proverName <- getKnownUser "prover"
+  fileName   <- getKnownUser "smtfile"
   let mfile = if fileName == "-" then Nothing else Just fileName
-  case proverName of
+  case proverName :: String of
     "offline" -> do
       result <- offlineProveSat isSat str mfile
       case result of
@@ -571,8 +571,8 @@ onlineProveSat :: Bool
                -> String -> Maybe FilePath
                -> REPL (Maybe SBV.Solver,Symbolic.ProverResult,ProverStats)
 onlineProveSat isSat str mfile = do
-  EnvString proverName <- getUser "prover"
-  EnvBool verbose <- getUser "debug"
+  proverName <- getKnownUser "prover"
+  verbose <- getKnownUser "debug"
   satNum <- getUserSatNum
   parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
@@ -596,7 +596,7 @@ onlineProveSat isSat str mfile = do
 
 offlineProveSat :: Bool -> String -> Maybe FilePath -> REPL (Either String String)
 offlineProveSat isSat str mfile = do
-  EnvBool verbose <- getUser "debug"
+  verbose <- getKnownUser "debug"
   parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
@@ -1126,8 +1126,8 @@ liftModuleCmd cmd =
 
 moduleCmdResult :: M.ModuleRes a -> REPL a
 moduleCmdResult (res,ws0) = do
-  EnvBool warnDefaulting <- getUser "warnDefaulting"
-  EnvBool warnShadowing  <- getUser "warnShadowing"
+  warnDefaulting <- getKnownUser "warnDefaulting"
+  warnShadowing  <- getKnownUser "warnShadowing"
   -- XXX: let's generalize this pattern
   let isDefaultWarn (T.DefaultingTo _ _) = True
       isDefaultWarn _ = False
@@ -1213,7 +1213,7 @@ replEvalExpr expr =
     case ts of
       [] -> return ()
       _  ->
-        do EnvBool warnDefaulting <- getUser "warnDefaulting"
+        do warnDefaulting <- getKnownUser "warnDefaulting"
            when warnDefaulting $
              do rPutStrLn "Showing a specific instance of polymorphic result:"
                 mapM_ warnDefault ts

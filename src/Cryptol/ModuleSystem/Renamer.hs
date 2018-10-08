@@ -422,7 +422,7 @@ instance Rename Decl where
     DBind b           -> DBind         <$> rename b
 
     -- XXX we probably shouldn't see these at this point...
-    DPatBind pat e    -> do (pe,[pat']) <- renamePats [pat]
+    DPatBind pat e    -> do (pe,pat') <- renamePat pat
                             shadowNames pe (DPatBind pat' <$> rename e)
 
     DType syn         -> DType         <$> rename syn
@@ -842,8 +842,8 @@ renameArm [] =
 renameMatch :: Match PName -> RenameM (NamingEnv,Match Name)
 
 renameMatch (Match p e) =
-  do (pe,[p']) <- renamePats [p]
-     e'        <- rename e
+  do (pe,p') <- renamePat p
+     e'      <- rename e
      return (pe,Match p' e')
 
 renameMatch (MatchLet b) =
@@ -851,6 +851,15 @@ renameMatch (MatchLet b) =
      be <- liftSupply (namingEnv' (InModule ns b))
      b' <- shadowNames be (rename b)
      return (be,MatchLet b')
+
+-- | Rename patterns, and collect the new environment that they introduce.
+renamePat :: Pattern PName -> RenameM (NamingEnv, Pattern Name)
+renamePat p =
+  do pe <- patternEnv p
+     p' <- shadowNames pe (rename p)
+     return (pe, p')
+
+
 
 -- | Rename patterns, and collect the new environment that they introduce.
 renamePats :: [Pattern PName] -> RenameM (NamingEnv,[Pattern Name])

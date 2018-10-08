@@ -13,6 +13,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Cryptol.REPL.Monad (
     -- * REPL Monad
@@ -56,7 +57,7 @@ module Cryptol.REPL.Monad (
     -- ** Config Options
   , EnvVal(..)
   , OptionDescr(..)
-  , setUser, getUser, tryGetUser
+  , setUser, getUser, getKnownUser, tryGetUser
   , userOptions
   , getUserSatNum
   , getUserShowProverStats
@@ -645,10 +646,38 @@ getUser name = do
     Just ev -> return ev
     Nothing -> panic "[REPL] getUser" ["option `" ++ name ++ "` does not exist"]
 
+getKnownUser :: IsEnvVal a => String -> REPL a
+getKnownUser x = fromEnvVal <$> getUser x
+
+class IsEnvVal a where
+  fromEnvVal :: EnvVal -> a
+
+instance IsEnvVal Bool where
+  fromEnvVal x = case x of
+                   EnvBool b -> b
+                   _         -> badIsEnv "Bool"
+
+instance IsEnvVal Int where
+  fromEnvVal x = case x of
+                   EnvNum b -> b
+                   _         -> badIsEnv "Num"
+
+instance IsEnvVal (String,[String]) where
+  fromEnvVal x = case x of
+                   EnvProg b bs -> (b,bs)
+                   _            -> badIsEnv "Prog"
+
+instance IsEnvVal String where
+  fromEnvVal x = case x of
+                   EnvString b -> b
+                   _           -> badIsEnv "String"
+
+badIsEnv :: String -> a
+badIsEnv x = panic "fromEnvVal" [ "[REPL] Expected a `" ++ x ++ "` value." ]
+
+
 getUserShowProverStats :: REPL Bool
-getUserShowProverStats =
-  do EnvBool yes <- getUser "prover-stats"
-     return yes
+getUserShowProverStats = getKnownUser "prover-stats"
 
 -- Environment Options ---------------------------------------------------------
 
@@ -784,7 +813,7 @@ checkSatNum val = case val of
 
 getUserSatNum :: REPL SatNum
 getUserSatNum = do
-  EnvString s <- getUser "satNum"
+  s <- getKnownUser "satNum"
   case s of
     "all"                     -> return AllSat
     _ | Just n <- readMaybe s -> return (SomeSat n)
@@ -795,7 +824,7 @@ getUserSatNum = do
 
 whenDebug :: REPL () -> REPL ()
 whenDebug m = do
-  EnvBool b <- getUser "debug"
+  b <- getKnownUser "debug"
   when b m
 
 -- Smoke Testing ---------------------------------------------------------------
@@ -825,3 +854,4 @@ z3exists = do
   case mPath of
     Nothing -> return (Just Z3NotFound)
     Just _  -> return Nothing
+
