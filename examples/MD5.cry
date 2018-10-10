@@ -123,7 +123,7 @@ pad msg =
     msg # [True] # zero # htonll sz
     where
       sz : [64]
-      sz = width msg
+      sz = length msg
 
 
 

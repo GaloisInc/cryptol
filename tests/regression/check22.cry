@@ -1,6 +1,6 @@
 irred : [8]
 irred = 0x1b
-xtimes a = (if a ! (width a - 1) then a' ^ irred else a')
+xtimes a = (if a ! (length a - 1) then a' ^ irred else a')
   where a' = a << 1
 
 gtimes : ([8], [8]) -> [8]

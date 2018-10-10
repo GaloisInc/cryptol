@@ -8,7 +8,7 @@ pad : {msgLen, padding, contentLen, chunks}
     ) => [msgLen] -> [chunks * 512]
 pad msg = msg # [True] # (zero:[padding]) # sz  //or: (`msgLen:[64])
       where  sz : [64]
-             sz = (width msg):[64]
+             sz = (length msg):[64]
 
 tmsg : [4]
 tmsg = 13

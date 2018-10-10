@@ -1,7 +1,7 @@
 pad : {n, m, b} (64>=width(n), b==512-((n+65)%512), m==65+n+b) => [n]->[m]
-pad message = (message#[True])#(0:[b])#sz 
-     where 
+pad message = (message#[True])#(0:[b])#sz
+     where
                 sz : [64]
-                sz = width message
+                sz = length message
 
 test = pad

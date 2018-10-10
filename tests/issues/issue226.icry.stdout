@@ -88,6 +88,7 @@ Symbols
     join :
       {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a
     last : {n, a} (fin n) => [1 + n]a -> a
+    length : {n, a, b} (fin n, Literal n b) => [n]a -> b
     lg2 : {a} (Arith a) => a -> a
     map : {n, a, b} (a -> b) -> [n]a -> [n]b
     max : {a} (Cmp a) => a -> a -> a
@@ -129,8 +130,6 @@ Symbols
     updatesEnd :
       {n, k, ix, a} (fin n, fin ix, fin k) =>
         [n]a -> [k][ix] -> [k]a -> [n]a
-    width :
-      {bits, n, a} (fin n, fin bits, bits >= width n) => [n]a -> [bits]
     zero : {a} (Zero a) => a
     zext : {m, n} (fin m, m >= n) => [n] -> [m]
     zip : {n, a, b} [n]a -> [n]b -> [n](a, b)

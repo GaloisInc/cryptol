@@ -9,7 +9,7 @@
 /** Pick some permutation F (here we select one at random) */
 F = (generate_random_permutation 1942611697)
 
-property is_a_permutation a = (unique a) /\ (leq a (width(a)-1))
+property is_a_permutation a = (unique a) /\ (leq a (length(a)-1))
 // Main> is_a_permutation (F:[10][4])
 // True
 

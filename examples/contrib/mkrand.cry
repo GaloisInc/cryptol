@@ -79,7 +79,7 @@ field s = new
  * keep the center column of the second.
  */
 sha30: Seg -> Seg
-sha30 s = take`{0x80} (drop`{0x80} [ r @ ((((width r) / 2)-1):[8]) | r <- field s])
+sha30 s = take`{0x80} (drop`{0x80} [ r @ ((((length r) / 2)-1):[8]) | r <- field s])
 
 
 /*

@@ -1,4 +1,4 @@
-check16 = width x == 8
+check16 = length x == 8
   where
     x : [8]
     x = 0x3f

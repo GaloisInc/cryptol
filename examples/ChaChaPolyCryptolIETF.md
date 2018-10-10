@@ -1168,10 +1168,10 @@ AeadCT = ChaCha20EncryptBytes AeadPt AeadKey AeadNonce 1
 AeadPolyKey = GeneratePolyKeyUsingChaCha AeadKey (AeadC # AeadIV) 0
 
 ADleLen : [8][8]
-ADleLen = groupBy`{8}(littleendian (groupBy`{8}((width AeadAAD):[64])))
+ADleLen = groupBy`{8}(littleendian (groupBy`{8}((length AeadAAD):[64])))
 
 CTleLen : [8][8]
-CTleLen = groupBy`{8}(littleendian (groupBy`{8}((width AeadCT):[64])))
+CTleLen = groupBy`{8}(littleendian (groupBy`{8}((length AeadCT):[64])))
 
 AeadTag = Poly1305 AeadPolyKey (AeadConstruction AeadAAD AeadCT)
 ```

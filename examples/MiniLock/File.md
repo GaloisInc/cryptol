@@ -124,7 +124,7 @@ The minilock file format is a concatenation of the magic, header length field, h
             -> [ctBytes][8]
             -> [8 + 4 + 89 + (DecryptInfoSize + 1) * nrRecip + ctBytes - 1][8]
   mkMiniLock rs senderKeys ephemKeys fileInfo ct =
-      magic # put32le (width header) # header # ct
+      magic # put32le (length header) # header # ct
    where
     header = mkHeader rs senderKeys ephemKeys fileInfo
 ```

@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at ./check21.cry:4:21--4:26:
-  Defaulting type argument 'bits' of 'width' to 4
+[warning] at ./check21.cry:4:16--4:34:
+  Defaulting type argument 'ix' of '(!)' to 4
 True

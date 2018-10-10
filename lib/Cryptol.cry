@@ -573,8 +573,12 @@ head xs = xs @ 0
 last : {n, a} (fin n) => [1 + n]a -> a
 last xs = xs ! 0
 
-width : {bits, n, a} (fin n, fin bits, bits >= width n) => [n]a -> [bits]
-width _ = `n
+/**
+ * Return the length of a sequence.  Note that the result depends only
+ * on the type of the argument, not its value.
+ */
+length : {n, a, b} (fin n, Literal n b) => [n]a -> b
+length _ = `n
 
 undefined : {a} a
 undefined = error "undefined"
