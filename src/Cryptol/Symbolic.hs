@@ -143,7 +143,9 @@ satProve ProverCommand {..} =
   provers <-
     case pcProverName of
       "any" -> M.io SBV.sbvAvailableSolvers
-      _ -> return [(lookupProver pcProverName) { SBV.transcript = pcSmtFile }]
+      _ -> return [(lookupProver pcProverName) { SBV.transcript = pcSmtFile
+                                               , SBV.allSatMaxModelCount = mSatNum
+                                               }]
 
 
   let provers' = [ p { SBV.timing = SaveTiming pcProverStats, SBV.verbose = pcVerbose } | p <- provers ]
@@ -197,8 +199,7 @@ satProve ProverCommand {..} =
                                b <- doEval (fromVBit <$>
                                       foldM fromVFun v (map Eval.ready args))
                                return (foldr addAsm b asms)
-                   let (firstProver, results') = runRes
-                       results = maybe results' (\n -> take n results') mSatNum
+                   let (firstProver, results) = runRes
                    esatexprs <- case results of
                      -- allSat can return more than one as long as
                      -- they're satisfiable
