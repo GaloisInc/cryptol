@@ -878,11 +878,13 @@ will try to find \emph{up to} 4 solutions. We can also set it to {\tt
   isSqrtOf9 125 = True
   isSqrtOf9 253 = True
 \end{Verbatim}
-So, we can rest assured that there are exactly four 8-bit square roots
-of 9: namely 3, 131, 125, and 253. (Note that Cryptol can return the
-satisfying solutions in any order depending on the backend-solver and
-other configurations. What is guaranteed is that you will get
-precisely the same set of solutions at the end.)
+So, we can rest assured that there are exactly four 8-bit square
+roots of 9: namely 3, 131, 125, and 253. (Note that Cryptol can
+return the satisfying solutions in any order depending on the
+backend-solver and other configurations. What is guaranteed is that
+you will get precisely the same set of solutions at the end. Also be
+aware that, especially when using the \texttt{Integer} type, the
+number of solutions may be very large or even infinite.)
 
 The whole point of the satisfiability checker is to be able to quickly
 search for particular values that are solutions to potentially
