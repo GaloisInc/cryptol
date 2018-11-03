@@ -86,7 +86,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("-"           , binary (arithBinary (liftBinArith SBV.svMinus) (liftBin SBV.svMinus)
                              (const (liftBin SBV.svMinus)))) -- {a} (Arith a) => a -> a -> a
   , ("*"           , binary (arithBinary (liftBinArith SBV.svTimes) (liftBin SBV.svTimes)
-                             (const (liftBin SBV.svTimes)))) -- {a} (Arith a) => a -> a -> a
+                             sModMult)) -- {a} (Arith a) => a -> a -> a
   , ("/"           , binary (arithBinary (liftBinArith SBV.svQuot) (liftBin SBV.svQuot)
                              (liftModBin SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
   , ("%"           , binary (arithBinary (liftBinArith SBV.svRem) (liftBin SBV.svRem)
@@ -473,6 +473,12 @@ sExp _w x y = ready $ go (reverse (unpackWord y)) -- bits in little-endian order
         go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
             where a = go bs
                   s = SBV.svTimes a a
+
+sModMult :: Integer -> SInteger -> SInteger -> Eval SInteger
+sModMult modulus x y =
+  case (SBV.svAsInteger x, SBV.svAsInteger y) of
+    (Just i, Just j) -> ready $ integerLit ((i * j) `mod` modulus)
+    _                -> ready $ SBV.svTimes x y
 
 sModExp :: Integer -> SInteger -> SInteger -> Eval SInteger
 sModExp modulus x y = ready $ SBV.svExp x (SBV.svRem y m)
