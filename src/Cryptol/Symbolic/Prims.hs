@@ -82,9 +82,9 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("number"      , ecNumberV) -- Converts a numeric type into its corresponding value.
                                 -- { val, rep } (Literal val rep) => rep
   , ("+"           , binary (arithBinary (liftBinArith SBV.svPlus) (liftBin SBV.svPlus)
-                             (const (liftBin SBV.svPlus)))) -- {a} (Arith a) => a -> a -> a
+                             sModAdd)) -- {a} (Arith a) => a -> a -> a
   , ("-"           , binary (arithBinary (liftBinArith SBV.svMinus) (liftBin SBV.svMinus)
-                             (const (liftBin SBV.svMinus)))) -- {a} (Arith a) => a -> a -> a
+                             sModSub)) -- {a} (Arith a) => a -> a -> a
   , ("*"           , binary (arithBinary (liftBinArith SBV.svTimes) (liftBin SBV.svTimes)
                              sModMult)) -- {a} (Arith a) => a -> a -> a
   , ("/"           , binary (arithBinary (liftBinArith SBV.svQuot) (liftBin SBV.svQuot)
@@ -473,6 +473,18 @@ sExp _w x y = ready $ go (reverse (unpackWord y)) -- bits in little-endian order
         go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
             where a = go bs
                   s = SBV.svTimes a a
+
+sModAdd :: Integer -> SInteger -> SInteger -> Eval SInteger
+sModAdd modulus x y =
+  case (SBV.svAsInteger x, SBV.svAsInteger y) of
+    (Just i, Just j) -> ready $ integerLit ((i + j) `mod` modulus)
+    _                -> ready $ SBV.svPlus x y
+
+sModSub :: Integer -> SInteger -> SInteger -> Eval SInteger
+sModSub modulus x y =
+  case (SBV.svAsInteger x, SBV.svAsInteger y) of
+    (Just i, Just j) -> ready $ integerLit ((i - j) `mod` modulus)
+    _                -> ready $ SBV.svMinus x y
 
 sModMult :: Integer -> SInteger -> SInteger -> Eval SInteger
 sModMult modulus x y =
