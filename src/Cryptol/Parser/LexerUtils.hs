@@ -279,9 +279,12 @@ layout cfg ts0 = loop False implicitScope [] ts0
   loop :: Bool -> Bool -> [Block] -> [Located Token] -> [Located Token]
   loop afterDoc startBlock stack (t : ts)
     | startsLayout ty    = toks ++ loop False True                             stack'  ts
+
+    -- We don't do layout within these delimeters
     | Sym ParenL   <- ty = toks ++ loop False False (Explicit (Sym ParenR)   : stack') ts
     | Sym CurlyL   <- ty = toks ++ loop False False (Explicit (Sym CurlyR)   : stack') ts
     | Sym BracketL <- ty = toks ++ loop False False (Explicit (Sym BracketR) : stack') ts
+
     | EOF          <- ty = toks
     | White DocStr <- ty = toks ++ loop True  False                            stack'  ts
     | otherwise          = toks ++ loop False False                            stack'  ts
