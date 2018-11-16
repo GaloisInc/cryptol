@@ -232,6 +232,16 @@ checkE expr tGoal =
     P.EComplement {} ->
       panic "checkE" ["[bug] renamer bug", "unexpected EComplement" ]
 
+    P.ELit l@(P.ECNum _ P.DecLit) ->
+      do e <- desugarLiteral False l
+         -- NOTE: When 'l' is a decimal literal, 'desugarLiteral' does
+         -- not generate an instantiation for the 'rep' type argument
+         -- of the 'number' primitive. Therefore we explicitly
+         -- instantiate 'rep' to 'tGoal' in this case to avoid
+         -- generating an unnecessary unification variable.
+         loc <- curRange
+         appTys e [Located loc (Just (packIdent "rep"), tGoal)] tGoal
+
     P.ELit l -> (`checkE` tGoal) =<< desugarLiteral False l
 
     P.ETuple es ->
