@@ -138,7 +138,7 @@ checkValParams func tMap inst =
   defByParam = [ (nameIdent x, (x, mvpType s)) |
                                     (x,s) <- Map.toList (mParamFuns inst) ]
 
-  su = listSubst [ (TVBound x, t) | (x,t) <- Map.toList tMap ]
+  su = listParamSubst (Map.toList tMap)
 
   checkParam pr =
     let x = mvpName pr

@@ -1200,7 +1200,7 @@ replEvalExpr expr =
           Nothing -> raise (EvalPolyError sig)
           Just (tys,def1) ->
             do warnDefaults tys
-               let su = T.listSubst [ (T.tpVar a, t) | (a,t) <- tys ]
+               let su = T.listParamSubst tys
                return (def1, T.apSubst su (T.sType sig))
 
      val <- liftModuleCmd (rethrowEvalError . M.evalExpr def1)

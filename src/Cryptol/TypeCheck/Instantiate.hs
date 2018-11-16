@@ -11,7 +11,7 @@ module Cryptol.TypeCheck.Instantiate (instantiateWith) where
 import Cryptol.ModuleSystem.Name (nameIdent)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Monad
-import Cryptol.TypeCheck.Subst (listSubst,apSubst)
+import Cryptol.TypeCheck.Subst (listParamSubst, apSubst)
 import Cryptol.TypeCheck.Error
 import Cryptol.Parser.Position (Located(..))
 import Cryptol.Utils.Ident (Ident)
@@ -147,7 +147,7 @@ instantiateWithNames nm e (Forall as ps t) xs =
 
 doInst :: [(TParam, Type)] -> Expr -> [Prop] -> Type -> InferM (Expr,Type)
 doInst su' e ps t =
-  do let su = listSubst [ (tpVar tp, ty) | (tp, ty) <- su' ]
+  do let su = listParamSubst su'
      newGoals (CtInst e) (map (apSubst su) ps)
      let t1 = apSubst su t
 

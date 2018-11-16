@@ -894,9 +894,9 @@ kExistTVar :: Name -> Kind -> KindM Type
 kExistTVar x k = kInInferM $ existVar x k
 
 -- | Replace the given bound variables with concrete types.
-kInstantiateT :: Type -> [(TParam,Type)] -> KindM Type
+kInstantiateT :: Type -> [(TParam, Type)] -> KindM Type
 kInstantiateT t as = return (apSubst su t)
-  where su = listSubst [ (tpVar x, t1) | (x,t1) <- as ]
+  where su = listParamSubst as
 
 {- | Record the kind for a local type variable.
 This assumes that we already checked that there was no other valid

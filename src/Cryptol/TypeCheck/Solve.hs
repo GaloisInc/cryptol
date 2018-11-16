@@ -28,7 +28,7 @@ import           Cryptol.TypeCheck.SimpType(tWidth)
 import           Cryptol.TypeCheck.Error(Error(..),Warning(..))
 import           Cryptol.TypeCheck.Subst
                     (apSubst, isEmptySubst, substToList,
-                          emptySubst,Subst,(@@), Subst, listSubst)
+                          emptySubst,Subst,(@@), Subst, listParamSubst)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simplify
 import           Cryptol.TypeCheck.Solver.Types
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
@@ -171,7 +171,7 @@ defaultReplExpr sol expr sch =
 
   where
   validate binds =
-    let su = listSubst [ (tpVar x, t) | (x,t) <- binds ]
+    let su = listParamSubst binds
     in null (concatMap pSplitAnd (apSubst su (sProps sch)))
 
   (numVs,otherVs) = partition (kindIs KNum) (sVars sch)

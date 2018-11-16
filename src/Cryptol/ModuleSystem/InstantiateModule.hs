@@ -14,7 +14,7 @@ import Cryptol.Parser.Position(Located(..))
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Exports(ExportSpec(..))
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Subst(listSubst, apSubst)
+import Cryptol.TypeCheck.Subst(listParamSubst, apSubst)
 import Cryptol.Utils.Ident(ModName,modParamIdent)
 
 {-
@@ -51,8 +51,7 @@ instantiateModule func newName tpMap vpMap =
            renamedTySyns   = rnMp tsName (mTySyns func)
            renamedNewtypes = rnMp ntName (mNewtypes func)
 
-           su = listSubst
-                  [ (TVBound tp, t) | (tp,t) <- Map.toList (tyParamMap env) ]
+           su = listParamSubst (Map.toList (tyParamMap env))
 
            goals = map (fmap (apSubst su)) (mParamConstraints func)
            -- Constraints to discharge about the type instances

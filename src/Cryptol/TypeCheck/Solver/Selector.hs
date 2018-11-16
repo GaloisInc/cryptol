@@ -14,7 +14,7 @@ import Cryptol.TypeCheck.Monad( InferM, unify, newGoals, lookupNewtype
                               , newType, applySubst, solveHasGoal
                               , newParamName
                               )
-import Cryptol.TypeCheck.Subst(listSubst,apSubst)
+import Cryptol.TypeCheck.Subst (listParamSubst, apSubst)
 import Cryptol.Utils.Ident (Ident, packIdent)
 import Cryptol.Utils.Panic(panic)
 
@@ -75,7 +75,7 @@ solveSelector sel outerT =
                  case lookup l (ntFields nt) of
                    Nothing -> return Nothing
                    Just t  ->
-                     do let su = listSubst (zip (map tpVar (ntParams nt)) ts)
+                     do let su = listParamSubst (zip (ntParams nt) ts)
                         newGoals (CtPartialTypeFun $ UserTyFun x)
                           $ apSubst su $ ntConstraints nt
                         return $ Just $ apSubst su t

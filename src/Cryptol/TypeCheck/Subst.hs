@@ -18,6 +18,7 @@ module Cryptol.TypeCheck.Subst
   , (@@)
   , defaultingSubst
   , listSubst
+  , listParamSubst
   , isEmptySubst
   , FVS(..)
   , apSubstMaybe
@@ -113,6 +114,18 @@ listSubst xs
       case fst x of
         TVFree i _ _ _ -> Left (i, x)
         TVBound tp -> Right (tpUnique tp, x)
+
+-- | Makes a substitution out of a list.
+-- WARNING: We do not validate the list in any way, so the caller should
+-- ensure that we end up with a valid (e.g., idempotent) substitution.
+listParamSubst :: [(TParam, Type)] -> Subst
+listParamSubst xs
+  | null xs   = emptySubst
+  | otherwise = S { suFreeMap = IntMap.empty
+                  , suBoundMap = IntMap.fromList bounds
+                  , suDefaulting = False }
+  where
+    bounds = [ (tpUnique tp, (TVBound tp, t)) | (tp, t) <- xs ]
 
 isEmptySubst :: Subst -> Bool
 isEmptySubst su = IntMap.null (suFreeMap su) && IntMap.null (suBoundMap su)

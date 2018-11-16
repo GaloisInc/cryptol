@@ -320,7 +320,7 @@ instantiateSchema ts n (Forall params props ty)
   | length params /= length ts = fail "instantiateSchema: wrong number of type arguments"
   | length props /= n          = fail "instantiateSchema: wrong number of prop arguments"
   | otherwise                  = return $ Forall [] [] (apSubst sub ty)
-  where sub = listSubst [ (tpVar p, t) | (p, t) <- zip params ts ]
+  where sub = listParamSubst (zip params ts)
 
 -- | Reduce `length ts` outermost type abstractions and `n` proof abstractions.
 instantiateExpr :: [Type] -> Int -> Expr -> SpecM Expr
