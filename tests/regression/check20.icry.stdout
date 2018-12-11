@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at ./check20.cry:3:31--3:33:
-  Defaulting type argument 'rep' of 'number' to [4]
+[warning] at ./check20.cry:3:25--3:35:
+  Defaulting type of sequence member to [4]
 True

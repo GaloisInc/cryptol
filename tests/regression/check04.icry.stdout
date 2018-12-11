@@ -3,8 +3,8 @@ Loading module Cryptol
 Loading module Main
 [warning] at ./check04.cry:4:10--4:45:
   Defaulting type argument 'ix' of '(@@)' to 2
-[warning] at ./check04.cry:4:43--4:44:
-  Defaulting type argument 'rep' of 'number' to [2]
+[warning] at ./check04.cry:4:33--4:45:
+  Defaulting type of sequence member to [2]
 [warning] at <interactive>:1:1--1:21:
   Defaulting type argument 'ix' of '(@@)' to 4
 Showing a specific instance of polymorphic result:

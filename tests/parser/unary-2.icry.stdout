@@ -1,9 +1,9 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at ./unary-2.cry:3:22--3:23:
-  Defaulting type argument 'rep' of 'number' to [2]
-[warning] at ./unary-2.cry:2:22--2:23:
-  Defaulting type argument 'rep' of 'number' to [2]
+[warning] at ./unary-2.cry:3:11--3:14:
+  Defaulting type argument 'a' of 'min' to [2]
+[warning] at ./unary-2.cry:2:11--2:14:
+  Defaulting type argument 'a' of 'min' to [2]
 True
 True

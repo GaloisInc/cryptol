@@ -9,14 +9,14 @@ Loading module Main
   Defaulting type argument 'a' of 'fromTo' to [4]
 [warning] at ./check26.cry:8:31--8:34:
   Defaulting 2nd type argument of 'Main::xys' to [3]
-[warning] at ./check26.cry:5:41--5:43:
-  Defaulting type argument 'rep' of 'number' to [5]
+[warning] at ./check26.cry:5:35--5:37:
+  Defaulting 2nd type argument of 'Main::xy' to [5]
 [warning] at ./check26.cry:5:35--5:37:
   Defaulting 1st type argument of 'Main::xy' to [4]
-[warning] at ./check26.cry:5:23--5:25:
-  Defaulting type argument 'rep' of 'number' to [4]
 [warning] at ./check26.cry:5:17--5:19:
   Defaulting 2nd type argument of 'Main::xy' to [5]
+[warning] at ./check26.cry:5:17--5:19:
+  Defaulting 1st type argument of 'Main::xy' to [4]
 [warning] at ./check26.cry:4:43--4:45:
   Defaulting 1st type argument of 'Main::xy' to [4]
 [warning] at ./check26.cry:4:37--4:39:

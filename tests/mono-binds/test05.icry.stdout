@@ -14,27 +14,27 @@ test05::foo : [10]
 test05::foo = Cryptol::number 10 [10] <>
 
 /* Not recursive */
-test05::test : {n, a, b} (Zero a, Literal 10 b) => [n]a -> b
-test05::test = \{n, a, b} (Zero a, Literal 10 b) (a : [n]a) ->
-               Cryptol::number 10 b <>
+test05::test : {n, a, b} (Zero b, Literal 10 a) => [n]b -> a
+test05::test = \{n, a, b} (Zero b, Literal 10 a) (a : [n]b) ->
+               Cryptol::number 10 a <>
                where
                  /* Not recursive */
                  test05::foo : [10]
                  test05::foo = Cryptol::number 10 [10] <>
                  
                  /* Not recursive */
-                 test05::f : {m} (fin m) => [n + m]a
+                 test05::f : {m} (fin m) => [n + m]b
                  test05::f = \{m} (fin m) ->
                              test05::bar m <>
                              where
                                /* Not recursive */
-                               test05::foo : [n]a
+                               test05::foo : [n]b
                                test05::foo = a
                                
                                /* Not recursive */
-                               test05::bar : {i} (fin i) => [i + n]a
+                               test05::bar : {i} (fin i) => [i + n]b
                                test05::bar = \{i} (fin i) ->
-                                             (Cryptol::#) i n a <> (Cryptol::zero ([i]a) <>) test05::foo
+                                             (Cryptol::#) i n b <> (Cryptol::zero ([i]b) <>) test05::foo
                                
                              
                  
@@ -57,25 +57,25 @@ test05::foo : [10]
 test05::foo = Cryptol::number 10 [10] <>
 
 /* Not recursive */
-test05::test : {n, a, b} (Zero a, Literal 10 b) => [n]a -> b
-test05::test = \{n, a, b} (Zero a, Literal 10 b) (a : [n]a) ->
-               Cryptol::number 10 b <>
+test05::test : {n, a, b} (Zero b, Literal 10 a) => [n]b -> a
+test05::test = \{n, a, b} (Zero b, Literal 10 a) (a : [n]b) ->
+               Cryptol::number 10 a <>
                where
                  /* Not recursive */
                  test05::foo : [10]
                  test05::foo = Cryptol::number 10 [10] <>
                  
                  /* Not recursive */
-                 test05::f : [n]a
+                 test05::f : [n]b
                  test05::f = test05::bar
                              where
                                /* Not recursive */
-                               test05::foo : [n]a
+                               test05::foo : [n]b
                                test05::foo = a
                                
                                /* Not recursive */
-                               test05::bar : [n]a
-                               test05::bar = (Cryptol::#) 0 n a <> (Cryptol::zero ([0]a) <>) test05::foo
+                               test05::bar : [n]b
+                               test05::bar = (Cryptol::#) 0 n b <> (Cryptol::zero ([0]b) <>) test05::foo
                                
                              
                  

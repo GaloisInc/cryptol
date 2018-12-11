@@ -1,9 +1,9 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at ./check14.cry:5:73--5:74:
-  Defaulting type argument 'rep' of 'number' to [3]
+[warning] at ./check14.cry:5:63--5:75:
+  Defaulting type of sequence member to [3]
 Showing a specific instance of polymorphic result:
-  * Using 'Integer' for type argument 'rep' of 'Cryptol::number'
+  * Using 'Integer' for type of sequence member
 [[3, 2, 1, 0], [7, 6, 5, 4]]
 True
