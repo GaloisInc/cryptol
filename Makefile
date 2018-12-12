@@ -255,7 +255,7 @@ test: ${CS_BIN}/cryptol-test-runner
 	echo "Testing on $(UNAME)-$(ARCH)" &&                              \
 	time $(realpath $(CS_BIN)/cryptol-test-runner)                     \
 	  $(TESTS)                                                         \
-	  -c $(call adjust-path,${CURDIR}/${PKG_BIN}/cryptol${EXE_EXT})    \
+	  --exe $(call adjust-path,${CURDIR}/${PKG_BIN}/cryptol${EXE_EXT}) \
 	  -r output                                                        \
 	  -T --hide-successes                                              \
 	  -T --jxml=$(call adjust-path,$(CURDIR)/results.xml)              \

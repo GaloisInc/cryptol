@@ -36,6 +36,6 @@ CRY=$(find dist-newstyle -name cryptol -type f \
           | grep $CRY_VERSION)
 
 
-cabal new-run cryptol-test-runner -- -c $CRY --ignore-expected ${TESTS[*]}
+cabal new-run cryptol-test-runner -- --exe $CRY --ignore-expected ${TESTS[*]}
 
 

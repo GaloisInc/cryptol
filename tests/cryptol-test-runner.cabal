@@ -16,16 +16,7 @@ flag static
 
 executable cryptol-test-runner
   Main-is:             Main.hs
-  build-depends:       base,
-                       base-compat,
-                       containers,
-                       process,
-                       filepath,
-                       directory,
-                       HUnit,
-                       test-framework,
-                       test-framework-hunit,
-                       semigroups
+  build-depends:       base,filepath,test-lib
   GHC-options:         -Wall -O2
   Default-language:    Haskell2010
 
