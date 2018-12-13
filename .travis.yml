@@ -39,7 +39,7 @@ script:
   - cp cabal.GHC84.config cabal.project.freeze
   - cabal update
   - cabal new-build -j
-  - bash run-tests
+  - bash cry test
 
 notifications:
   email: false
