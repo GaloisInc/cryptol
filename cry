@@ -1,0 +1,71 @@
+#!/bin/bash
+
+
+BIN=bin
+
+function setup_external_tools {
+  if [ ! -f "$BIN/test-runner" ]
+  then
+    mkdir -p "$BIN"
+    cabal v2-install --symlink-bindir="$BIN" test-runner
+  fi
+}
+
+function show_usage {
+cat <<EOM
+Usage: $0 COMMAND COMANND_OPTIONS
+Available commands:
+  build     Build Cryptol
+  haddock   Generate Haddock documentation
+  test      Run some tests
+EOM
+}
+
+
+
+
+if [ "$#" == "0" ]
+then
+  show_usage
+  exit 1
+fi
+
+COMMAND=$1
+shift
+
+case $COMMAND in
+  build)
+    echo Building Cryptol
+    cabal v2-build exe:cryptol;;
+
+  haddock)
+    echo Building Haddock documentation
+    cabal v2-haddock;;
+
+
+  test)
+    echo Running tests
+    setup_external_tools
+    if [ "$#" == "0" ]
+      then TESTS=tests
+      else TESTS=$*
+    fi
+    $BIN/test-runner --ext=.icry \
+                     --exe=cabal \
+                     -F v2-run -F -v0 -F exe:cryptol -F -- -F -b \
+                     $TESTS
+    ;;
+
+  help)
+    show_usage
+    exit 0;;
+
+  *)
+    echo Unrecognized command: $COMMAND
+    show_usage
+    exit 1;;
+
+esac
+
+
+
