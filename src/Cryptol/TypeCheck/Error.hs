@@ -103,10 +103,6 @@ data Error    = ErrorMsg Doc
                 -- ^ Quantified type variables (of kind *) need to
                 -- match the given type, so it does not work for all types.
 
-              | UnusableFunction Name [Prop]
-                -- ^ The given constraints causes the signature of the
-                -- function to be not-satisfiable.
-
               | TooManyPositionalTypeParams
                 -- ^ Too many positional type arguments, in an explicit
                 -- type instantiation
@@ -150,7 +146,6 @@ instance TVars Error where
       UnexpectedTypeWildCard    -> err
       TypeVariableEscaped t xs  -> TypeVariableEscaped (apSubst su t) xs
       NotForAll x t             -> NotForAll x (apSubst su t)
-      UnusableFunction f ps      -> UnusableFunction f (apSubst su ps)
       TooManyPositionalTypeParams -> err
       CannotMixPositionalAndNamedTypeParams -> err
 
@@ -176,7 +171,6 @@ instance FVS Error where
       TypeVariableEscaped t xs  -> fvs t `Set.union`
                                             Set.fromList (map TVBound xs)
       NotForAll x t             -> Set.insert x (fvs t)
-      UnusableFunction _ p      -> fvs p
       TooManyPositionalTypeParams -> Set.empty
       CannotMixPositionalAndNamedTypeParams -> Set.empty
       UndefinedTypeParameter {}             -> Set.empty
@@ -193,7 +187,7 @@ instance PP Error where
 
 instance PP (WithNames Warning) where
   ppPrec _ (WithNames warn names) =
-    addTVarsDescs names warn $
+    addTVarsDescsAfter names warn $
     case warn of
       DefaultingKind x k ->
         text "Assuming " <+> pp x <+> text "to have" <+> P.cppKind k
@@ -207,95 +201,122 @@ instance PP (WithNames Warning) where
 
 instance PP (WithNames Error) where
   ppPrec _ (WithNames err names) =
-    addTVarsDescs names err $
     case err of
-      ErrorMsg msg -> msg
+      ErrorMsg msg ->
+        addTVarsDescsAfter names err
+        msg
 
       RecursiveType t1 t2 ->
-        nested (text "Matching would result in an infinite type.")
-          (text "The type: " <+> ppWithNames names t1 $$
-           text "occurs in:" <+> ppWithNames names t2)
+        addTVarsDescsAfter names err $
+        nested "Matching would result in an infinite type."
+          ("The type: " <+> ppWithNames names t1 $$
+           "occurs in:" <+> ppWithNames names t2)
 
       UnexpectedTypeWildCard ->
-        nested (text "Wild card types are not allowed in this context")
-          (text "(e.g., they cannot be used in type synonyms).")
+        addTVarsDescsAfter names err $
+        nested "Wild card types are not allowed in this context"
+          "(e.g., they cannot be used in type synonyms)."
 
       KindMismatch k1 k2 ->
-        nested (text "Incorrect type form.")
-          (text "Expected:" <+> cppKind k1 $$
-           text "Inferred:" <+> cppKind k2)
+        addTVarsDescsAfter names err $
+        nested "Incorrect type form."
+          ("Expected:" <+> cppKind k1 $$
+           "Inferred:" <+> cppKind k2)
 
       TooManyTypeParams extra k ->
-        nested (text "Malformed type.")
-          (text "Kind" <+> quotes (pp k) <+> text "is not a function," $$
-           text "but it was applied to" <+> pl extra "parameter" <.> text ".")
+        addTVarsDescsAfter names err $
+        nested "Malformed type."
+          ("Kind" <+> quotes (pp k) <+> "is not a function," $$
+           "but it was applied to" <+> pl extra "parameter" <.> ".")
 
       TyVarWithParams ->
-        nested (text "Malformed type.")
-               (text "Type variables cannot be applied to parameters.")
+        addTVarsDescsAfter names err $
+        nested "Malformed type."
+               "Type variables cannot be applied to parameters."
 
       TooManyTySynParams t extra ->
-        nested (text "Malformed type.")
-          (text "Type synonym" <+> nm t <+> text "was applied to" <+>
-            pl extra "extra parameter" <.> text ".")
+        addTVarsDescsAfter names err $
+        nested "Malformed type."
+          ("Type synonym" <+> nm t <+> "was applied to" <+>
+            pl extra "extra parameters" <.> text ".")
 
       TooFewTySynParams t few ->
-        nested (text "Malformed type.")
-          (text "Type" <+> nm t <+> text "is missing" <+>
-            int few <+> text "parameters.")
+        addTVarsDescsAfter names err $
+        nested "Malformed type."
+          ("Type" <+> nm t <+> "is missing" <+> int few <+> text "parameters.")
 
       RecursiveTypeDecls ts ->
-        nested (text "Recursive type declarations:")
+        addTVarsDescsAfter names err $
+        nested "Recursive type declarations:"
                (fsep $ punctuate comma $ map nm ts)
 
-
       TypeMismatch t1 t2 ->
-        nested (text "Type mismatch:")
-          (text "Expected type:" <+> ppWithNames names t1 $$
-           text "Inferred type:" <+> ppWithNames names t2 $$
+        addTVarsDescsAfter names err $
+        nested "Type mismatch:"
+          ("Expected type:" <+> ppWithNames names t1 $$
+           "Inferred type:" <+> ppWithNames names t2 $$
            mismatchHint t1 t2)
 
-      UnsolvedGoals imp gs ->
-        nested (word <+> text "constraints:")
-               $ vcat $ map (ppWithNames names) gs
-        where word = if imp then text "Unsolvable" else text "Unsolved"
+      UnsolvedGoals imp gs
+        | imp ->
+          addTVarsDescsAfter names err $
+          nested "Unsolvable constraints:" $
+          bullets (map (ppWithNames names) gs)
 
-      UnsolvedDelayedCt g ->
-        nested (text "Failed to validate user-specified signature.")
-               (ppWithNames names g)
+        | noUni ->
+          addTVarsDescsAfter names err $
+          nested "Unsolved constraints:" $
+          bullets (map (ppWithNames names) gs)
+
+        | otherwise ->
+          addTVarsDescsBefore names err $
+          nested "subject to the following constraints:" $
+          bullets (map (ppWithNames names) gs)
+
+      UnsolvedDelayedCt g
+        | noUni ->
+          addTVarsDescsAfter names err $
+          nested "Failed to validate user-specified signature." $
+          ppWithNames names g
+        | otherwise ->
+          addTVarsDescsBefore names err $
+          nested "while validating user-specified signature" $
+          ppWithNames names g
 
       TypeVariableEscaped t xs ->
-        nested (text "The type" <+> ppWithNames names t <+>
-                text "is not sufficiently polymorphic.")
-               (text "It cannot depend on quantified variables:" <+>
+        addTVarsDescsAfter names err $
+        nested ("The type" <+> ppWithNames names t <+>
+                                        "is not sufficiently polymorphic.")
+               ("It cannot depend on quantified variables:" <+>
                 sep (punctuate comma (map (ppWithNames names) xs)))
 
       NotForAll x t ->
-        nested (text "Inferred type is not sufficiently polymorphic.")
-          (text "Quantified variable:" <+> ppWithNames names x $$
-           text "cannot match type:"   <+> ppWithNames names t)
-
-      UnusableFunction f ps ->
-        nested (text "The constraints in the type signature of"
-                <+> quotes (pp f) <+> text "are unsolvable.")
-               (text "Detected while analyzing constraints:"
-                $$ vcat (map (ppWithNames names) ps))
+        addTVarsDescsAfter names err $
+        nested "Inferred type is not sufficiently polymorphic."
+          ("Quantified variable:" <+> ppWithNames names x $$
+           "cannot match type:"   <+> ppWithNames names t)
 
       TooManyPositionalTypeParams ->
-        text "Too many positional type-parameters in explicit type application"
+        addTVarsDescsAfter names err $
+        "Too many positional type-parameters in explicit type application"
 
       CannotMixPositionalAndNamedTypeParams ->
-        text "Named and positional type applications may not be mixed."
+        addTVarsDescsAfter names err $
+        "Named and positional type applications may not be mixed."
 
       UndefinedTypeParameter x ->
+        addTVarsDescsAfter names err $
         "Undefined type parameter `" <.> pp (thing x) <.> "`."
           $$ "See" <+> pp (srcRange x)
 
       RepeatedTypeParameter x rs ->
+        addTVarsDescsAfter names err $
         "Multiple definitions for type parameter `" <.> pp x <.> "`:"
-          $$ nest 2 (vcat [ "*" <+> pp r | r <- rs ])
+          $$ nest 2 (bullets (map pp rs))
 
     where
+    bullets xs = vcat [ "•" <+> d | d <- xs ]
+
     nested x y = x $$ nest 2 y
 
     pl 1 x     = text "1" <+> text x
@@ -313,4 +334,4 @@ instance PP (WithNames Error) where
         hint s xs  = text s <+> text "fields" <+> commaSep (map pp xs)
     mismatchHint _ _ = mempty
 
-
+    noUni = Set.null (Set.filter isFreeTV (fvs err))

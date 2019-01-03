@@ -237,43 +237,58 @@ cppKind ki =
     KProp -> text "a constraint"
     _     -> pp ki
 
-addTVarsDescs :: FVS t => NameMap -> t -> Doc -> Doc
-addTVarsDescs nm t d
+addTVarsDescsAfter :: FVS t => NameMap -> t -> Doc -> Doc
+addTVarsDescsAfter nm t d
   | Set.null vs = d
   | otherwise   = d $$ text "where" $$ vcat (map desc (Set.toList vs))
   where
-  vs     = fvs t -- Set.filter isFreeTV (fvs t)
+  vs     = fvs t
   desc v = ppWithNames nm v <+> text "is" <+> pp (tvInfo v)
+
+addTVarsDescsBefore :: FVS t => NameMap -> t -> Doc -> Doc
+addTVarsDescsBefore nm t d = frontMsg $$ d $$ backMsg
+  where
+  (vs1,vs2)  = Set.partition isFreeTV (fvs t)
+
+  frontMsg | null vs1  = empty
+           | otherwise = "Failed to infer the following types:"
+                         $$ nest 2 (vcat (map desc1 (Set.toList vs1)))
+  desc1 v    = "•" <+> ppWithNames nm v <.> comma <+> pp (tvInfo v)
+
+  backMsg  | null vs2  = empty
+           | otherwise = "where"
+                         $$ nest 2 (vcat (map desc2 (Set.toList vs2)))
+  desc2 v    = ppWithNames nm v <+> text "is" <+> pp (tvInfo v)
 
 
 
 instance PP ConstraintSource where
   ppPrec _ src =
     case src of
-      CtComprehension -> text "list comprehension"
-      CtSplitPat      -> text "split (#) pattern"
-      CtTypeSig       -> text "type signature"
-      CtInst e        -> text "use of" <+> ppUse e
-      CtSelector      -> text "use of selector"
-      CtExactType     -> text "matching types"
-      CtEnumeration   -> text "list enumeration"
-      CtDefaulting    -> text "defaulting"
-      CtPartialTypeFun f -> text "use of partial type function" <+> pp f
-      CtImprovement   -> text "examination of collected goals"
-      CtPattern desc  -> text "checking a pattern:" <+> desc
-      CtModuleInstance n -> text "module instantiation" <+> pp n
+      CtComprehension -> "list comprehension"
+      CtSplitPat      -> "split (#) pattern"
+      CtTypeSig       -> "type signature"
+      CtInst e        -> "use of" <+> ppUse e
+      CtSelector      -> "use of selector"
+      CtExactType     -> "matching types"
+      CtEnumeration   -> "list enumeration"
+      CtDefaulting    -> "defaulting"
+      CtPartialTypeFun f -> "use of partial type function" <+> pp f
+      CtImprovement   -> "examination of collected goals"
+      CtPattern desc  -> "checking a pattern:" <+> desc
+      CtModuleInstance n -> "module instantiation" <+> pp n
 
 ppUse :: Expr -> Doc
 ppUse expr =
   case expr of
     EVar (asPrim -> Just prim)
-      | identText prim == "number"       -> text "literal or demoted expression"
-      | identText prim == "infFrom"      -> text "infinite enumeration"
-      | identText prim == "infFromThen"  -> text "infinite enumeration (with step)"
-      | identText prim == "fromThen"     -> text "finite enumeration"
-      | identText prim == "fromTo"       -> text "finite enumeration"
-      | identText prim == "fromThenTo"   -> text "finite enumeration"
-    _                                    -> text "expression" <+> pp expr
+      | identText prim == "number"       -> "literal or demoted expression"
+      | identText prim == "infFrom"      -> "infinite enumeration"
+      | identText prim == "infFromThen"  -> "infinite enumeration (with step)"
+      | identText prim == "fromThen"     -> "finite enumeration"
+      | identText prim == "fromTo"       -> "finite enumeration"
+      | identText prim == "fromThenTo"   -> "finite enumeration"
+    _                                    -> "expression" <+> pp expr
 
 instance PP (WithNames Goal) where
   ppPrec _ (WithNames g names) =
@@ -284,24 +299,26 @@ instance PP (WithNames Goal) where
 
 instance PP (WithNames DelayedCt) where
   ppPrec _ (WithNames d names) =
-    sig $$ nest 2 (vars $$ asmps $$ vcat (map ppG (dctGoals d)))
+    sig $$ "we need to show that" $$
+    nest 2 (vcat ( [ vars, asmps, "the following constraints hold:"] ++
+                   bullets (map (ppWithNames ns1) (dctGoals d)) ))
     where
-    ppG g = "•" <+> ppWithNames ns1 g
+    bullets xs = [ "•" <+> x | x <- xs ]
 
     sig = case name of
-            Just n -> text "In the definition of" <+> quotes (pp n) <.>
-                          comma <+> text "at" <+> pp (nameLoc n) <.> colon
-            Nothing -> text "When checking the module's parameters."
+            Just n -> "in the definition of" <+> quotes (pp n) <.>
+                      comma <+> "at" <+> pp (nameLoc n) <.> comma
+            Nothing -> "when checking the module's parameters,"
 
     name  = dctSource d
     vars = case dctForall d of
              [] -> empty
-             xs -> text "for any type" <+>
+             xs -> "for any type" <+>
                       fsep (punctuate comma (map (ppWithNames ns1 ) xs))
     asmps = case dctAsmps d of
               [] -> empty
-              xs -> nest 2 (vcat (map (ppWithNames ns1) xs)) $$
-                    text "need to show that:"
+              xs -> "assuming" $$
+                    nest 2 (vcat (bullets (map (ppWithNames ns1) xs)))
 
     ns1 = addTNames (dctForall d) names
 
