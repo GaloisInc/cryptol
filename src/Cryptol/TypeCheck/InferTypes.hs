@@ -284,8 +284,10 @@ instance PP (WithNames Goal) where
 
 instance PP (WithNames DelayedCt) where
   ppPrec _ (WithNames d names) =
-    sig $$ nest 2 (vars $$ asmps $$ vcat (map (ppWithNames ns1) (dctGoals d)))
+    sig $$ nest 2 (vars $$ asmps $$ vcat (map ppG (dctGoals d)))
     where
+    ppG g = "•" <+> ppWithNames ns1 g
+
     sig = case name of
             Just n -> text "In the definition of" <+> quotes (pp n) <.>
                           comma <+> text "at" <+> pp (nameLoc n) <.> colon
@@ -298,7 +300,8 @@ instance PP (WithNames DelayedCt) where
                       fsep (punctuate comma (map (ppWithNames ns1 ) xs))
     asmps = case dctAsmps d of
               [] -> empty
-              xs -> nest 2 (vcat (map (ppWithNames ns1) xs)) $$ text "=>"
+              xs -> nest 2 (vcat (map (ppWithNames ns1) xs)) $$
+                    text "need to show that:"
 
     ns1 = addTNames (dctForall d) names
 
