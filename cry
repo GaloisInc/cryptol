@@ -15,6 +15,7 @@ function show_usage {
 cat <<EOM
 Usage: $0 COMMAND COMANND_OPTIONS
 Available commands:
+  run       Run Cryptol
   build     Build Cryptol
   haddock   Generate Haddock documentation
   test      Run some tests
@@ -34,6 +35,9 @@ COMMAND=$1
 shift
 
 case $COMMAND in
+  run)
+    cabal v2-run exe:cryptol $*;;
+
   build)
     echo Building Cryptol
     cabal v2-build exe:cryptol;;
