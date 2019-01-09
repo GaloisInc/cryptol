@@ -40,7 +40,10 @@ case $COMMAND in
 
   build)
     echo Building Cryptol
-    cabal v2-build exe:cryptol;;
+    echo -- Last build $(date) >> src/GitRev.hs
+    cabal v2-build exe:cryptol
+    git checkout src/GitRev.hs
+    ;;
 
   haddock)
     echo Building Haddock documentation
