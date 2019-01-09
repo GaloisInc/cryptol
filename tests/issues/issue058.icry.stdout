@@ -8,10 +8,10 @@ Loading module Main
     we need to show that
       for any type n
       the following constraints hold:
-      • fin n
-          arising from
-          use of literal or demoted expression
-          at ./issue058.cry:4:15--4:16
+        • fin n
+            arising from
+            use of literal or demoted expression
+            at ./issue058.cry:4:15--4:16
 [error] at ./issue058.cry:7:1--7:17:
   Failed to validate user-specified signature.
     in the definition of 'Main::last', at ./issue058.cry:7:1--7:5,
@@ -20,17 +20,17 @@ Loading module Main
       assuming
         • n >= 1
       the following constraints hold:
-      • fin n
-          arising from
-          use of expression (!)
-          at ./issue058.cry:7:11--7:17
+        • fin n
+            arising from
+            use of expression (!)
+            at ./issue058.cry:7:11--7:17
 [error] at ./issue058.cry:10:1--10:17:
   Failed to validate user-specified signature.
     in the definition of 'Main::pad', at ./issue058.cry:10:1--10:4,
     we need to show that
       for any type n
       the following constraints hold:
-      • fin n
-          arising from
-          use of expression (#)
-          at ./issue058.cry:10:9--10:17
+        • fin n
+            arising from
+            use of expression (#)
+            at ./issue058.cry:10:9--10:17

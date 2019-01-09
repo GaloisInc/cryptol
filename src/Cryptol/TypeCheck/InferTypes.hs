@@ -300,8 +300,11 @@ instance PP (WithNames Goal) where
 instance PP (WithNames DelayedCt) where
   ppPrec _ (WithNames d names) =
     sig $$ "we need to show that" $$
-    nest 2 (vcat ( [ vars, asmps, "the following constraints hold:"] ++
-                   bullets (map (ppWithNames ns1) (dctGoals d)) ))
+    nest 2 (vcat [ vars, asmps, "the following constraints hold:"
+                 , nest 2 $ vcat
+                          $ bullets
+                          $ map (ppWithNames ns1)
+                          $ dctGoals d ])
     where
     bullets xs = [ "•" <+> x | x <- xs ]
 

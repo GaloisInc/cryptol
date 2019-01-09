@@ -10,7 +10,7 @@ Loading module Main
     we need to show that
       for any type a
       the following constraints hold:
-      • fin a
-          arising from
-          use of expression take
-          at ./issue323.cry:2:43--2:47
+        • fin a
+            arising from
+            use of expression take
+            at ./issue323.cry:2:43--2:47
