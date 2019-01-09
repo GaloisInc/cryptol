@@ -11,7 +11,7 @@ module REPL.Logo where
 import Cryptol.REPL.Monad
 import Paths_cryptol (version)
 
-import Cryptol.Version (commitShortHash)
+import Cryptol.Version (commitShortHash,commitDirty)
 import Data.Version (showVersion)
 import System.Console.ANSI
 
@@ -30,7 +30,8 @@ logo useColor mk =
   sgr | useColor  = setSGRCode
       | otherwise = const []
   hashText | commitShortHash == "UNKNOWN" = ""
-           | otherwise = " (" ++ commitShortHash ++ ")"
+           | otherwise = " (" ++ commitShortHash ++
+                                 (if commitDirty then ", modified)" else ")")
   versionText = "version " ++ showVersion version ++ hashText
   ver = sgr [SetColor Foreground Dull White]
         ++ replicate (lineLen - 20 - length versionText) ' '
