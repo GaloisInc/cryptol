@@ -328,9 +328,27 @@
 
 
 ; ---
-; (declare-fun kv0 () InfNat )
-; (assert (cryVar kv0 ) )
-; (assert (not (isFin kv0)))
-; (assert (ite (isFin kv0) (>= (value kv0) 5) true))
-; (check-sat )
+
+
+; (declare-fun L () InfNat)
+; (declare-fun w () InfNat)
+; 
+; (assert (cryVar L))
+; (assert (cryVar w))
+; 
+; (assert (cryAssume (cryFin w)))
+; (assert (cryAssume (cryGeq w (cryNat 1))))
+; (assert (cryAssume (cryGeq (cryMul (cryNat 2) w) (cryWidth L))))
+; 
+; (assert (cryProve
+;   (cryGeq
+;     (cryMul
+;       (cryCeilDiv
+;         (cryAdd (cryNat 1) (cryAdd L (cryMul (cryNat 2) w)))
+;         (cryMul (cryNat 16) w))
+;       (cryMul (cryNat 16) w))
+;     (cryAdd (cryNat 1) (cryAdd L (cryMul (cryNat 2) w))))))
+; 
+; (check-sat)
+
 
