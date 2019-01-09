@@ -166,14 +166,14 @@
 (declare-fun cryWidthUnknown (Int) Int)
 
 ; Some axioms about cryWidthUnknown
-(define-fun 2_to_64 () Int 18446744073709551616)
-(define-fun 2_to_65 () Int 36893488147419103232)
+(define-fun k_2_to_64 () Int 18446744073709551616)
+(define-fun k_2_to_65 () Int 36893488147419103232)
 
-(assert (forall ((x Int)) (or (> (cryWidthUnknown x) 64) (< x 2_to_64))))
-(assert (forall ((x Int)) (or (> x (cryWidthUnknown x))  (< x 2_to_64))))
+(assert (forall ((x Int)) (or (> (cryWidthUnknown x) 64) (< x k_2_to_64))))
+(assert (forall ((x Int)) (or (> x (cryWidthUnknown x))  (< x k_2_to_64))))
 
 ; This helps the #548 property
-(assert (forall ((x Int)) (or (>= 65 (cryWidthUnknown x)) (>= x 2_to_65))))
+(assert (forall ((x Int)) (or (>= 65 (cryWidthUnknown x)) (>= x k_2_to_65))))
 
 
 (assert (forall ((x Int) (y Int))
