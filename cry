@@ -40,8 +40,19 @@ case $COMMAND in
 
   build)
     echo Building Cryptol
+
+    # XXX: This is a workaround the fact that currently Cabal
+    # will not rebuild this file, even though it has TH code, that
+    # depends on the environment.  For now, we temporarily modify the
+    # file, then build, then revert it back after build.
+
     echo -- Last build $(date) >> src/GitRev.hs
+
     cabal v2-build exe:cryptol
+
+    # WARNING!!!:  this is here to undo the HACK date stamp, and will
+    # undo any changes to this file, so comment it out if you'd like
+    # to change the file
     git checkout src/GitRev.hs
     ;;
 
