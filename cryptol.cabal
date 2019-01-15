@@ -58,7 +58,7 @@ library
                        pretty            >= 1.1,
                        process           >= 1.2,
                        random            >= 1.0.1,
-                       sbv               >= 7.7,
+                       sbv               >= 8.0,
                        simple-smt        >= 0.7.1,
                        strict,
                        text              >= 1.1,
@@ -264,5 +264,5 @@ benchmark cryptol-bench
                      , deepseq
                      , directory
                      , filepath
-                     , sbv >= 7.7
+                     , sbv >= 8.0
                      , text
