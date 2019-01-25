@@ -7,7 +7,7 @@ function setup_external_tools {
   if [ ! -f "$BIN/test-runner" ]
   then
     mkdir -p "$BIN"
-    cabal v2-install --symlink-bindir="$BIN" test-runner
+    cabal v2-install --symlink-bindir="$BIN" test-lib
   fi
 }
 
