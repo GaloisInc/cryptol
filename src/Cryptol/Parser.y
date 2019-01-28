@@ -451,7 +451,11 @@ aexprs                         :: { [Expr PName] }
   : aexpr                         { [$1]    }
   | aexprs aexpr                  { $2 : $1 }
 
-aexpr                          :: { Expr PName                             }
+aexpr                          :: { Expr PName }
+  : no_sel_aexpr                  { $1 }
+  | sel_expr                      { $1 }
+
+no_sel_aexpr                   :: { Expr PName                             }
   : qname                         { at $1 $ EVar (thing $1)                }
 
   | NUM                           { at $1 $ numLit (tokenType (thing $1))  }
@@ -462,11 +466,10 @@ aexpr                          :: { Expr PName                             }
   | '(' tuple_exprs ')'           { at ($1,$3) $ ETuple (reverse $2)       }
   | '(' ')'                       { at ($1,$2) $ ETuple []                 }
   | '{' '}'                       { at ($1,$2) $ ERecord []                }
-  | '{' field_exprs '}'           { at ($1,$3) $ ERecord (reverse $2)      }
+  | '{' rec_expr '}'              { at ($1,$3) $2                          }
   | '[' ']'                       { at ($1,$2) $ EList []                  }
   | '[' list_expr  ']'            { at ($1,$3) $2                          }
   | '`' tick_ty                   { at ($1,$2) $ ETypeVal $2               }
-  | aexpr '.' selector            { at ($1,$3) $ ESel $1 (thing $3)        }
 
   | '(' qop ')'                   { at ($1,$3) $ EVar $ thing $2           }
 
@@ -475,6 +478,11 @@ aexpr                          :: { Expr PName                             }
 
 
   -- | error                           {%^ customError "expr" }
+
+sel_expr                       :: { Expr PName }
+  : no_sel_aexpr '.' selector     { at ($1,$3) $ ESel $1 (thing $3)        }
+  | sel_expr '.' selector         { at ($1,$3) $ ESel $1 (thing $3)        }
+
 
 poly_terms                     :: { [(Bool, Integer)] }
   : poly_term                     { [$1] }
@@ -494,11 +502,25 @@ tuple_exprs                    :: { [Expr PName] }
   : expr ',' expr                 { [ $3, $1] }
   | tuple_exprs ',' expr          { $3 : $1   }
 
-field_expr             :: { Named (Expr PName) }
-  : ident '=' expr        { Named { name = $1, value = $3 } }
-  | ident apats '=' expr  { Named { name = $1, value = EFun (reverse $2) $4 } }
 
-field_exprs                    :: { [Named (Expr PName)] }
+rec_expr :: { Expr PName }
+  : aexpr '|' field_exprs         { EUpd (Just $1) (reverse $3) }
+  | '_'   '|' field_exprs         { EUpd Nothing   (reverse $3) }
+  | field_exprs                   {% ERecord . reverse <$> mapM ufToNames $1 }
+
+field_expr             :: { UpdField PName }
+  : selector field_how expr     { UpdField $2 [$1] $3 }
+  | sels field_how expr         { UpdField $2 (reverse $1) $3 }
+  | sels apats field_how expr   { UpdField $3 $1 (EFun $2 $4) } -- ???
+
+field_how :: { UpdHow }
+  : '='                          { UpdSet }
+  | '->'                         { UpdFun }
+
+sels :: { [ Located Selector ] }
+  : sel_expr                      { undefined }
+
+field_exprs                    :: { [UpdField PName] }
   : field_expr                    { [$1]    }
   | field_exprs ',' field_expr    { $3 : $1 }
 

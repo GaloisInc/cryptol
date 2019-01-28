@@ -576,3 +576,13 @@ mkModuleInstance nm fun (is,ds) =
          , mDecls    = ds
          }
 
+ufToNamed :: UpdField PName -> ParseM (Named (Expr PName))
+ufToNamed (UpdField h ls e) =
+  case (h,ls) of
+    (UpdSet, [l]) | RecordSel i Nothing <- thing l ->
+      pure Named { name = l { thing = i }, value = e }
+    _ -> errorMessage (srcRange (head ls))
+            "Invalid record field.  Perhaps you meant to update a record?"
+
+
+

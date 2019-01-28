@@ -152,6 +152,7 @@ noPatE expr =
     ETuple es     -> ETuple  <$> mapM noPatE es
     ERecord es    -> ERecord <$> mapM noPatF es
     ESel e s      -> ESel    <$> noPatE e <*> return s
+    EUpd mb fs    -> EUpd    <$> traverse noPatE mb <*> traverse noPatUF fs
     EList es      -> EList   <$> mapM noPatE es
     EFromTo {}    -> return expr
     EInfFrom e e' -> EInfFrom <$> noPatE e <*> traverse noPatE e'
@@ -171,6 +172,9 @@ noPatE expr =
 
   where noPatF x = do e <- noPatE (value x)
                       return x { value = e }
+
+noPatUF :: UpdField PName -> NoPatM (UpdField PName)
+noPatUF (UpdField h ls e) = UpdField h ls <$> noPatE e
 
 noPatFun :: [Pattern PName] -> Expr PName -> NoPatM ([Pattern PName], Expr PName)
 noPatFun ps e =

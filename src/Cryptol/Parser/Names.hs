@@ -84,6 +84,8 @@ namesE expr =
     ETuple es     -> Set.unions (map namesE es)
     ERecord fs    -> Set.unions (map (namesE . value) fs)
     ESel e _      -> namesE e
+    EUpd mb fs    -> let e = maybe Set.empty namesE mb
+                     in Set.unions (e : map namesUF fs)
     EList es      -> Set.unions (map namesE es)
     EFromTo _ _ _ -> Set.empty
     EInfFrom e e' -> Set.union (namesE e) (maybe Set.empty namesE e')
@@ -102,6 +104,9 @@ namesE expr =
 
     EParens e     -> namesE e
     EInfix a o _ b-> Set.insert (thing o) (Set.union (namesE a) (namesE b))
+
+namesUF :: Ord name => UpdField name -> Set name
+namesUF (UpdField _ _ e) = namesE e
 
 -- | The names defined by a group of patterns.
 namesPs :: [Pattern name] -> [Located name]
@@ -226,6 +231,8 @@ tnamesE expr =
     ETuple es     -> Set.unions (map tnamesE es)
     ERecord fs    -> Set.unions (map (tnamesE . value) fs)
     ESel e _      -> tnamesE e
+    EUpd mb fs    -> let e = maybe Set.empty tnamesE mb
+                     in Set.unions (e : map tnamesUF fs)
     EList es      -> Set.unions (map tnamesE es)
     EFromTo a b c -> Set.union (tnamesT a)
                      (Set.union (maybe Set.empty tnamesT b) (maybe Set.empty tnamesT c))
@@ -243,6 +250,9 @@ tnamesE expr =
 
     EParens e     -> tnamesE e
     EInfix a _ _ b-> Set.union (tnamesE a) (tnamesE b)
+
+tnamesUF :: Ord name => UpdField name -> Set name
+tnamesUF (UpdField _ _ e) = tnamesE e
 
 tnamesTI :: Ord name => TypeInst name -> Set name
 tnamesTI (NamedInst f)  = tnamesT (value f)

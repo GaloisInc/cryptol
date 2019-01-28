@@ -61,6 +61,8 @@ module Cryptol.Parser.AST
   , Pattern(..)
   , Selector(..)
   , TypeInst(..)
+  , UpdField(..)
+  , UpdHow(..)
 
     -- * Positions
   , Located(..)
@@ -263,6 +265,7 @@ data Expr n   = EVar n                          -- ^ @ x @
               | ETuple [Expr n]                 -- ^ @ (1,2,3) @
               | ERecord [Named (Expr n)]        -- ^ @ { x = 1, y = 2 } @
               | ESel (Expr n) Selector          -- ^ @ e.l @
+              | EUpd (Maybe (Expr n)) [ UpdField n ]  -- ^ @ { r | x = e } @
               | EList [Expr n]                  -- ^ @ [1,2,3] @
               | EFromTo (Type n) (Maybe (Type n)) (Maybe (Type n)) -- ^ @[1, 5 ..  117 ] @
               | EInfFrom (Expr n) (Maybe (Expr n))-- ^ @ [1, 3 ...] @
@@ -279,6 +282,13 @@ data Expr n   = EVar n                          -- ^ @ x @
               | EParens (Expr n)                -- ^ @ (e)   @ (Removed by Fixity)
               | EInfix (Expr n) (Located n) Fixity (Expr n)-- ^ @ a + b @ (Removed by Fixity)
                 deriving (Eq, Show, Generic, NFData, Functor)
+
+data UpdField n = UpdField UpdHow [Located Selector] (Expr n)
+                                                -- ^ non-empty list @ x.y = e@
+                deriving (Eq, Show, Generic, NFData, Functor)
+
+data UpdHow     = UpdSet | UpdFun
+                deriving (Eq, Show, Generic, NFData)
 
 data TypeInst name = NamedInst (Named (Type name))
                    | PosInst (Type name)
@@ -684,6 +694,9 @@ instance (Show name, PPName name) => PP (Expr name) where
         where step = maybe empty (\e -> comma <+> pp e) e2
       EComp e mss   -> brackets (pp e <+> vcat (map arm mss))
         where arm ms = text "|" <+> commaSep (map pp ms)
+      EUpd mb fs    -> braces (hd <+> "|" <+> commaSep (map pp fs))
+        where hd = maybe "_" pp mb
+
       ETypeVal t    -> text "`" <.> ppPrec 5 t     -- XXX
       EAppT e ts    -> ppPrec 4 e <.> text "`" <.> braces (commaSep (map pp ts))
       ESel    e l   -> ppPrec 4 e <.> text "." <.> pp l
@@ -722,6 +735,14 @@ instance (Show name, PPName name) => PP (Expr name) where
      return Infix { .. }
    isInfix _ = Nothing
 
+instance (Show name, PPName name) => PP (UpdField name) where
+  ppPrec _ (UpdField h xs e) = ls <+> pp h <+> pp e
+    where ls = hcat (intersperse "." (map pp xs))
+
+instance PP UpdHow where
+  ppPrec _ h = case h of
+                 UpdSet -> "="
+                 UpdFun -> "->"
 
 instance PPName name => PP (Pattern name) where
   ppPrec n pat =
@@ -926,6 +947,7 @@ instance NoPos (Expr name) where
       ETuple x      -> ETuple   (noPos x)
       ERecord x     -> ERecord  (noPos x)
       ESel x y      -> ESel     (noPos x) y
+      EUpd x y      -> EUpd     (noPos x) (noPos y)
       EList x       -> EList    (noPos x)
       EFromTo x y z -> EFromTo  (noPos x) (noPos y) (noPos z)
       EInfFrom x y  -> EInfFrom (noPos x) (noPos y)
@@ -941,6 +963,9 @@ instance NoPos (Expr name) where
 
       EParens e     -> EParens (noPos e)
       EInfix x y f z-> EInfix (noPos x) y f (noPos z)
+
+instance NoPos (UpdField name) where
+  noPos (UpdField h xs e) = UpdField h xs (noPos e)
 
 instance NoPos (TypeInst name) where
   noPos (PosInst ts)   = PosInst (noPos ts)

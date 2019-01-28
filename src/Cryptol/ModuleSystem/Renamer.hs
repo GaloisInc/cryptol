@@ -743,6 +743,9 @@ instance Rename Pattern where
     PLocated p' loc -> withLoc loc
                      $ PLocated <$> rename p'    <*> pure loc
 
+instance Rename UpdField where
+  rename (UpdField h ls e) = UpdField h ls <$> rename e
+
 instance Rename Expr where
   rename expr = case expr of
     EVar n        -> EVar <$> renameVar n
@@ -752,6 +755,7 @@ instance Rename Expr where
     ETuple es     -> ETuple  <$> traverse rename es
     ERecord fs    -> ERecord <$> traverse (rnNamed rename) fs
     ESel e' s     -> ESel    <$> rename e' <*> pure s
+    EUpd mb fs    -> EUpd    <$> traverse rename mb <*> traverse rename fs
     EList es      -> EList   <$> traverse rename es
     EFromTo s n e'-> EFromTo <$> rename s
                              <*> traverse rename n
@@ -782,6 +786,8 @@ instance Rename Expr where
                         x' <- rename x
                         z' <- rename z
                         mkEInfix x' op z'
+
+
 
 
 mkEInfix :: Expr Name             -- ^ May contain infix expressions
