@@ -25,6 +25,7 @@ module Cryptol.Eval (
   , emptyEnv
   , evalExpr
   , evalDecls
+  , evalSel
   , EvalError(..)
   , forceValue
   ) where
