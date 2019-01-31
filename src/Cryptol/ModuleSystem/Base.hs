@@ -185,10 +185,12 @@ doLoadModule isrc path pm0 =
      return tcm
   where
   optionalInstantiate tcm
-    | isParamInstModName (importedModule isrc) && T.isParametrizedModule tcm =
-      case addModParams tcm of
-        Right tcm1 -> return tcm1
-        Left xs    -> failedToParameterizeModDefs (T.mName tcm) xs
+    | isParamInstModName (importedModule isrc) =
+      if T.isParametrizedModule tcm then
+        case addModParams tcm of
+          Right tcm1 -> return tcm1
+          Left xs    -> failedToParameterizeModDefs (T.mName tcm) xs
+      else notAParameterizedModule (T.mName tcm)
     | otherwise = return tcm
 
 
