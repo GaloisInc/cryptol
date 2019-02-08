@@ -100,6 +100,7 @@ namesE expr =
     EFun ps e     -> boundNames (namesPs ps) (namesE e)
     ELocated e _  -> namesE e
 
+    ESplit e      -> namesE e
     EParens e     -> namesE e
     EInfix a o _ b-> Set.insert (thing o) (Set.union (namesE a) (namesE b))
 
@@ -241,6 +242,7 @@ tnamesE expr =
     EFun ps e     -> Set.union (Set.unions (map tnamesP ps)) (tnamesE e)
     ELocated e _  -> tnamesE e
 
+    ESplit e      -> tnamesE e
     EParens e     -> tnamesE e
     EInfix a _ _ b-> Set.union (tnamesE a) (tnamesE b)
 

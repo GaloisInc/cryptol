@@ -145,10 +145,6 @@ appTys expr ts tGoal =
                    appTys e ts tGoal
 
 
-    P.ENeg {} -> panic "appTys" ["[bug] renamer bug", "unexpected ENeg" ]
-    P.EComplement {} ->
-      panic "appTys" ["[bug] renamer bug", "unexpected EComplement" ]
-
     P.EAppT e fs ->
       do ps <- mapM inferTyParam fs
          appTys e (ps ++ ts) tGoal
@@ -163,6 +159,9 @@ appTys expr ts tGoal =
     P.ELocated e r ->
       inRange r (appTys e ts tGoal)
 
+    P.ENeg        {} -> mono
+    P.EComplement {} -> mono
+
     P.ETuple    {} -> mono
     P.ERecord   {} -> mono
     P.ESel      {} -> mono
@@ -175,6 +174,7 @@ appTys expr ts tGoal =
     P.ETyped    {} -> mono
     P.ETypeVal  {} -> mono
     P.EFun      {} -> mono
+    P.ESplit    {} -> mono
 
     P.EParens e       -> appTys e ts tGoal
     P.EInfix a op _ b -> appTys (P.EVar (thing op) `P.EApp` a `P.EApp` b) ts tGoal
@@ -228,9 +228,13 @@ checkE expr tGoal =
          checkHasType t tGoal
          return e'
 
-    P.ENeg {} -> panic "checkE" ["[bug] renamer bug", "unexpected ENeg" ]
-    P.EComplement {} ->
-      panic "checkE" ["[bug] renamer bug", "unexpected EComplement" ]
+    P.ENeg e ->
+      do prim <- mkPrim "negate"
+         checkE (P.EApp prim e) tGoal
+
+    P.EComplement e ->
+      do prim <- mkPrim "complement"
+         checkE (P.EApp prim e) tGoal
 
     P.ELit l@(P.ECNum _ P.DecLit) ->
       do e <- desugarLiteral False l
@@ -381,6 +385,10 @@ checkE expr tGoal =
     P.EFun ps e -> checkFun (text "anonymous function") ps e tGoal
 
     P.ELocated e r  -> inRange r (checkE e tGoal)
+
+    P.ESplit e ->
+      do prim <- mkPrim "splitAt"
+         checkE (P.EApp prim e) tGoal
 
     P.EInfix a op _ b -> checkE (P.EVar (thing op) `P.EApp` a `P.EApp` b) tGoal
 
