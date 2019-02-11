@@ -238,6 +238,7 @@ svToInteger w =
 
 -- TODO: implement this properly in SBV using "int2bv"
 svFromInteger :: Integer -> SInteger -> SWord
+svFromInteger 0 _ = literalSWord 0 0
 svFromInteger n i =
   case svAsInteger i of
     Nothing -> svFromIntegral (KBounded False (fromInteger n)) i
