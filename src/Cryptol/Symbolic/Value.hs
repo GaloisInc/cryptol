@@ -34,6 +34,7 @@ import Data.Bits (bit, complement)
 import Data.List (foldl')
 import qualified Data.Sequence as Seq
 
+import Data.SBV (symbolicEnv)
 import Data.SBV.Dynamic
 
 --import Cryptol.Eval.Monad
@@ -48,7 +49,6 @@ import Cryptol.Eval.Value  ( GenValue(..), BitWord(..), lam, tlam, toStream,
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
-import Control.Monad.Reader (ask)
 import Control.Monad.Trans  (liftIO)
 
 -- SBool and SWord -------------------------------------------------------------
@@ -65,22 +65,22 @@ literalSWord :: Int -> Integer -> SWord
 literalSWord w i = svInteger (KBounded False w) i
 
 forallBV_ :: Int -> Symbolic SWord
-forallBV_ w = ask >>= liftIO . svMkSymVar (Just ALL) (KBounded False w) Nothing
+forallBV_ w = symbolicEnv >>= liftIO . svMkSymVar (Just ALL) (KBounded False w) Nothing
 
 existsBV_ :: Int -> Symbolic SWord
-existsBV_ w = ask >>= liftIO . svMkSymVar (Just EX) (KBounded False w) Nothing
+existsBV_ w = symbolicEnv >>= liftIO . svMkSymVar (Just EX) (KBounded False w) Nothing
 
 forallSBool_ :: Symbolic SBool
-forallSBool_ = ask >>= liftIO . svMkSymVar (Just ALL) KBool Nothing
+forallSBool_ = symbolicEnv >>= liftIO . svMkSymVar (Just ALL) KBool Nothing
 
 existsSBool_ :: Symbolic SBool
-existsSBool_ = ask >>= liftIO . svMkSymVar (Just EX) KBool Nothing
+existsSBool_ = symbolicEnv >>= liftIO . svMkSymVar (Just EX) KBool Nothing
 
 forallSInteger_ :: Symbolic SBool
-forallSInteger_ = ask >>= liftIO . svMkSymVar (Just ALL) KUnbounded Nothing
+forallSInteger_ = symbolicEnv >>= liftIO . svMkSymVar (Just ALL) KUnbounded Nothing
 
 existsSInteger_ :: Symbolic SBool
-existsSInteger_ = ask >>= liftIO . svMkSymVar (Just EX) KUnbounded Nothing
+existsSInteger_ = symbolicEnv >>= liftIO . svMkSymVar (Just EX) KUnbounded Nothing
 
 -- Values ----------------------------------------------------------------------
 
@@ -238,6 +238,7 @@ svToInteger w =
 
 -- TODO: implement this properly in SBV using "int2bv"
 svFromInteger :: Integer -> SInteger -> SWord
+svFromInteger 0 _ = literalSWord 0 0
 svFromInteger n i =
   case svAsInteger i of
     Nothing -> svFromIntegral (KBounded False (fromInteger n)) i

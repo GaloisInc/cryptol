@@ -120,8 +120,7 @@ noPat pat =
          x <- newName
          tmp <- newName
          r <- getRange
-         let prim = EVar (mkUnqual (mkIdent "splitAt"))
-             bTmp = simpleBind (Located r tmp) (EApp prim (EVar x))
+         let bTmp = simpleBind (Located r tmp) (ESplit (EVar x))
              b1   = sel a1 tmp (TupleSel 0 (Just 2))
              b2   = sel a2 tmp (TupleSel 1 (Just 2))
          return (pVar r x, bTmp : b1 : b2 : ds1 ++ ds2)
@@ -167,6 +166,7 @@ noPatE expr =
                         return (EFun ps1 e1)
     ELocated e r1 -> ELocated <$> inRange r1 (noPatE e) <*> return r1
 
+    ESplit e      -> ESplit  <$> noPatE e
     EParens e     -> EParens <$> noPatE e
     EInfix x y f z-> EInfix  <$> noPatE x <*> pure y <*> pure f <*> noPatE z
 

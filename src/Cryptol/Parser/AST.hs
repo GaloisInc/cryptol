@@ -279,6 +279,7 @@ data Expr n   = EVar n                          -- ^ @ x @
               | EFun [Pattern n] (Expr n)       -- ^ @ \\x y -> x @
               | ELocated (Expr n) Range         -- ^ position annotation
 
+              | ESplit (Expr n)                 -- ^ @ splitAt x @ (Introduced by NoPat)
               | EParens (Expr n)                -- ^ @ (e)   @ (Removed by Fixity)
               | EInfix (Expr n) (Located n) Fixity (Expr n)-- ^ @ a + b @ (Removed by Fixity)
                 deriving (Eq, Show, Generic, NFData, Functor)
@@ -726,6 +727,8 @@ instance (Show name, PPName name) => PP (Expr name) where
 
       ELocated e _  -> ppPrec n e
 
+      ESplit e      -> wrap n 3 (text "splitAt" <+> ppPrec 4 e)
+
       EParens e -> parens (pp e)
 
       EInfix e1 op _ e2 -> wrap n 0 (pp e1 <+> ppInfixName (thing op) <+> pp e2)
@@ -961,6 +964,7 @@ instance NoPos (Expr name) where
       EFun x y      -> EFun     (noPos x) (noPos y)
       ELocated x _  -> noPos x
 
+      ESplit x      -> ESplit (noPos x)
       EParens e     -> EParens (noPos e)
       EInfix x y f z-> EInfix (noPos x) y f (noPos z)
 

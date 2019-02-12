@@ -208,8 +208,8 @@ satProve ProverCommand {..} =
                        return $ AllSatResult tevss
                        where
                          mkTevs result = do
-                           let Right (_, cws) = SBV.getModelAssignment result
-                               (vs, _) = parseValues ts cws
+                           let Right (_, cvs) = SBV.getModelAssignment result
+                               (vs, _) = parseValues ts cvs
                                sattys = unFinType <$> ts
                            satexprs <-
                              doEval (zipWithM (Eval.toExpr prims) sattys vs)
@@ -265,37 +265,37 @@ protectStack mkErr cmd modEnv =
         msg = "Symbolic evaluation failed to terminate."
         handler () = mkErr msg modEnv
 
-parseValues :: [FinType] -> [SBV.CW] -> ([Eval.Value], [SBV.CW])
-parseValues [] cws = ([], cws)
-parseValues (t : ts) cws = (v : vs, cws'')
-  where (v, cws') = parseValue t cws
-        (vs, cws'') = parseValues ts cws'
+parseValues :: [FinType] -> [SBV.CV] -> ([Eval.Value], [SBV.CV])
+parseValues [] cvs = ([], cvs)
+parseValues (t : ts) cvs = (v : vs, cvs'')
+  where (v, cvs') = parseValue t cvs
+        (vs, cvs'') = parseValues ts cvs'
 
-parseValue :: FinType -> [SBV.CW] -> (Eval.Value, [SBV.CW])
+parseValue :: FinType -> [SBV.CV] -> (Eval.Value, [SBV.CV])
 parseValue FTBit [] = panic "Cryptol.Symbolic.parseValue" [ "empty FTBit" ]
-parseValue FTBit (cw : cws) = (Eval.VBit (SBV.cwToBool cw), cws)
-parseValue FTInteger cws =
-  case SBV.genParse SBV.KUnbounded cws of
-    Just (x, cws') -> (Eval.VInteger x, cws')
+parseValue FTBit (cv : cvs) = (Eval.VBit (SBV.cvToBool cv), cvs)
+parseValue FTInteger cvs =
+  case SBV.genParse SBV.KUnbounded cvs of
+    Just (x, cvs') -> (Eval.VInteger x, cvs')
     Nothing        -> panic "Cryptol.Symbolic.parseValue" [ "no integer" ]
-parseValue (FTIntMod _) cws = parseValue FTInteger cws
-parseValue (FTSeq 0 FTBit) cws = (Eval.word 0 0, cws)
-parseValue (FTSeq n FTBit) cws =
-  case SBV.genParse (SBV.KBounded False n) cws of
-    Just (x, cws') -> (Eval.word (toInteger n) x, cws')
+parseValue (FTIntMod _) cvs = parseValue FTInteger cvs
+parseValue (FTSeq 0 FTBit) cvs = (Eval.word 0 0, cvs)
+parseValue (FTSeq n FTBit) cvs =
+  case SBV.genParse (SBV.KBounded False n) cvs of
+    Just (x, cvs') -> (Eval.word (toInteger n) x, cvs')
     Nothing        -> (VWord (genericLength vs) $ return $ Eval.WordVal $
-                         Eval.packWord (map fromVBit vs), cws')
-      where (vs, cws') = parseValues (replicate n FTBit) cws
-parseValue (FTSeq n t) cws =
+                         Eval.packWord (map fromVBit vs), cvs')
+      where (vs, cvs') = parseValues (replicate n FTBit) cvs
+parseValue (FTSeq n t) cvs =
                       (Eval.VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
-                      , cws'
+                      , cvs'
                       )
-  where (vs, cws') = parseValues (replicate n t) cws
-parseValue (FTTuple ts) cws = (Eval.VTuple (map Eval.ready vs), cws')
-  where (vs, cws') = parseValues ts cws
-parseValue (FTRecord fs) cws = (Eval.VRecord (zip ns (map Eval.ready vs)), cws')
+  where (vs, cvs') = parseValues (replicate n t) cvs
+parseValue (FTTuple ts) cvs = (Eval.VTuple (map Eval.ready vs), cvs')
+  where (vs, cvs') = parseValues ts cvs
+parseValue (FTRecord fs) cvs = (Eval.VRecord (zip ns (map Eval.ready vs)), cvs')
   where (ns, ts) = unzip fs
-        (vs, cws') = parseValues ts cws
+        (vs, cvs') = parseValues ts cvs
 
 allDeclGroups :: M.ModuleEnv -> [DeclGroup]
 allDeclGroups = concatMap mDecls . M.loadedNonParamModules
