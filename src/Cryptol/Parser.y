@@ -506,7 +506,8 @@ tuple_exprs                    :: { [Expr PName] }
 rec_expr :: { Expr PName }
   : aexpr '|' field_exprs         { EUpd (Just $1) (reverse $3) }
   | '_'   '|' field_exprs         { EUpd Nothing   (reverse $3) }
-  | field_exprs                   {% ERecord . reverse <$> mapM ufToNames $1 }
+  | field_exprs                   {% do { xs <- mapM ufToNamed $1;
+                                          pure (ERecord (reverse xs)) } }
 
 field_expr             :: { UpdField PName }
   : selector field_how expr     { UpdField $2 [$1] $3 }

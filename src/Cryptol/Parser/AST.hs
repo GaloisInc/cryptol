@@ -288,7 +288,7 @@ data UpdField n = UpdField UpdHow [Located Selector] (Expr n)
                                                 -- ^ non-empty list @ x.y = e@
                 deriving (Eq, Show, Generic, NFData, Functor)
 
-data UpdHow     = UpdSet | UpdFun
+data UpdHow     = UpdSet | UpdFun   -- ^ Are we setting or updating a field.
                 deriving (Eq, Show, Generic, NFData)
 
 data TypeInst name = NamedInst (Named (Type name))
