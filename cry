@@ -19,6 +19,7 @@ Available commands:
   build     Build Cryptol
   haddock   Generate Haddock documentation
   test      Run some tests
+  exe-path  Print the location of the local executable
 EOM
 }
 
@@ -76,6 +77,10 @@ case $COMMAND in
 
   help)
     show_usage
+    exit 0;;
+
+  exe-path)
+    cabal v2-run exe:cryptol --verbose -- -c ':q' | grep :q | awk '{ print $1 }'
     exit 0;;
 
   *)
