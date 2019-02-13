@@ -22,7 +22,7 @@ module Cryptol.TypeCheck.Infer
   )
 where
 
-import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl)
+import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl,nameLoc)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.ModuleSystem.Exports as P
@@ -164,6 +164,7 @@ appTys expr ts tGoal =
 
     P.ETuple    {} -> mono
     P.ERecord   {} -> mono
+    P.EUpd      {} -> mono
     P.ESel      {} -> mono
     P.EList     {} -> mono
     P.EFromTo   {} -> mono
@@ -258,15 +259,13 @@ checkE expr tGoal =
          es' <- zipWithM checkE es ts
          return (ERec (zip ns es'))
 
+    P.EUpd x fs -> checkRecUpd x fs tGoal
+
     P.ESel e l ->
-      do let src = case l of
-                     RecordSel la _ -> TypeOfRecordField la
-                     TupleSel n _   -> TypeOfTupleField n
-                     ListSel _ _    -> TypeOfSeqElement
-         t <- newType src KType
+      do t <- newType (selSrc l) KType
          e' <- checkE e t
          f <- newHasGoal l t tGoal
-         return (f e')
+         return (hasDoSelect f e')
 
     P.EList [] ->
       do (len,a) <- expectSeq tGoal
@@ -393,6 +392,38 @@ checkE expr tGoal =
     P.EInfix a op _ b -> checkE (P.EVar (thing op) `P.EApp` a `P.EApp` b) tGoal
 
     P.EParens e -> checkE e tGoal
+
+
+selSrc :: P.Selector -> TVarSource
+selSrc l = case l of
+             RecordSel la _ -> TypeOfRecordField la
+             TupleSel n _   -> TypeOfTupleField n
+             ListSel _ _    -> TypeOfSeqElement
+
+checkRecUpd :: Maybe (P.Expr Name) -> [ P.UpdField Name ] -> Type -> InferM Expr
+checkRecUpd mb fs tGoal =
+  case mb of
+
+    -- { _ | fs } ~~>  \r -> { r | fs }
+    Nothing ->
+      do r <- newParamName (packIdent "r")
+         let p  = P.PVar Located { srcRange = nameLoc r, thing = r }
+             fe = P.EFun [p] (P.EUpd (Just (P.EVar r)) fs)
+         checkE fe tGoal
+
+    Just e ->
+      do e1 <- checkE e tGoal
+         undefined "Do the fields"
+
+{-
+  where
+  doUpd e (P.UpdField how sels v) =
+    case sels of
+      [s] -> case how of
+               P.UpdSet ->
+                  do ft <- newType (selSrc s) KType
+                     newHasGoal s tGoal ft
+-}
 
 
 expectSeq :: Type -> InferM (Type,Type)

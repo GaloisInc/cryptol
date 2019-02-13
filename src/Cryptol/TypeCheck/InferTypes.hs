@@ -123,6 +123,14 @@ data HasGoal = HasGoal
   , hasGoal :: Goal
   } deriving Show
 
+
+-- | A solution for a 'HasGoal'
+data HasGoalSln = HasGoalSln
+  { hasDoSelect :: Expr -> Expr
+    -- XXX: add others, e.g., hasDoSet/Upd
+  }
+
+
 -- | Delayed implication constraints, arising from user-specified type sigs.
 data DelayedCt = DelayedCt
   { dctSource :: Maybe Name   -- ^ Signature that gave rise to this constraint

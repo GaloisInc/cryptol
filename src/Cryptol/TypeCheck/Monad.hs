@@ -213,7 +213,7 @@ data RO = RO
     -- ^ Parameter functions
 
 
-  , iSolvedHasLazy :: Map Int (Expr -> Expr)
+  , iSolvedHasLazy :: Map Int HasGoalSln
     -- ^ NOTE: This field is lazy in an important way!  It is the
     -- final version of `iSolvedHas` in `RW`, and the two are tied
     -- together through recursion.  The field is here so that we can
@@ -251,7 +251,7 @@ data RW = RW
     --     3. it is an error if we encounter an existential variable but we
     --        have no current scope.
 
-  , iSolvedHas :: Map Int (Expr -> Expr)
+  , iSolvedHas :: Map Int HasGoalSln
     -- ^ Selector constraints that have been solved (ref. iSolvedSelectorsLazy)
 
   -- Generating names
@@ -403,7 +403,7 @@ which we are selecting (i.e., the record or tuple).  Plese note
 that the resulting expression should not be forced before the
 constraint is solved.
 -}
-newHasGoal :: P.Selector -> Type -> Type -> InferM (Expr -> Expr)
+newHasGoal :: P.Selector -> Type -> Type -> InferM HasGoalSln
 newHasGoal l ty f =
   do goalName <- newGoalName
      g        <- newGoal CtSelector (pHas l ty f)
@@ -412,6 +412,7 @@ newHasGoal l ty f =
      return $ case Map.lookup goalName solns of
                 Just e1 -> e1
                 Nothing -> panic "newHasGoal" ["Unsolved has goal in result"]
+
 
 -- | Add a previously generate has constrained
 addHasGoal :: HasGoal -> InferM ()
@@ -424,7 +425,7 @@ getHasGoals = do gs <- IM $ sets $ \s -> (iHasCts s, s { iHasCts = [] })
                  applySubst gs
 
 -- | Specify the solution (`Expr -> Expr`) for the given constraint (`Int`).
-solveHasGoal :: Int -> (Expr -> Expr) -> InferM ()
+solveHasGoal :: Int -> HasGoalSln -> InferM ()
 solveHasGoal n e =
   IM $ sets_ $ \s -> s { iSolvedHas = Map.insert n e (iSolvedHas s) }
 

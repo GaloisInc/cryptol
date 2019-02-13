@@ -128,7 +128,8 @@ tryHasGoal has
               oT <- applySubst outerT
               iT <- applySubst innerT
               selFrom <- mkSel sel oT iT
-              solveHasGoal (hasName has) selFrom
+              solveHasGoal (hasName has)
+                  HasGoalSln { hasDoSelect = selFrom }
               return (True, True)
 
   | otherwise = panic "hasGoalSolved"
