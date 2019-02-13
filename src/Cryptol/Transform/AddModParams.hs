@@ -233,6 +233,7 @@ instance Inst Expr where
      ETuple es -> ETuple (inst ps es)
      ERec fs   -> ERec [ (f,inst ps e) | (f,e) <- fs ]
      ESel e s  -> ESel (inst ps e) s
+     ESet e s v -> ESet (inst ps e) s (inst ps v)
 
      EIf e1 e2 e3 -> EIf (inst ps e1) (inst ps e2) (inst ps e3)
      EComp t1 t2 e ms -> EComp (inst ps t1) (inst ps t2)

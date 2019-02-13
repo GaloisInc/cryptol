@@ -103,6 +103,7 @@ instance FreeVars Expr where
       ETuple es         -> freeVars es
       ERec fs           -> freeVars (map snd fs)
       ESel e _          -> freeVars e
+      ESet e _ v        -> freeVars [e,v]
       EIf e1 e2 e3      -> freeVars [e1,e2,e3]
       EComp t1 t2 e mss -> freeVars [t1,t2] <> rmVals (defs mss) (freeVars e)
                                             <> mconcat (map fvsArm mss)

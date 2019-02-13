@@ -34,6 +34,9 @@ instance ShowParseable Expr where
   showParseable (ETuple es) = parens (text "ETuple" <+> showParseable es)
   showParseable (ERec ides) = parens (text "ERec" <+> showParseable ides)
   showParseable (ESel e s) = parens (text "ESel" <+> showParseable e <+> showParseable s)
+  showParseable (ESet e s v) = parens (text "ESet" <+>
+                                showParseable e <+> showParseable s
+                                                <+> showParseable v)
   showParseable (EIf c t f) = parens (text "EIf" <+> showParseable c $$ showParseable t $$ showParseable f)
   showParseable (EComp _ _ e mss) = parens (text "EComp" $$ showParseable e $$ showParseable mss)
   showParseable (EVar n) = parens (text "EVar" <+> showParseable n)

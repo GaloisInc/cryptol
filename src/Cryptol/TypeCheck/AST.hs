@@ -105,6 +105,7 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | ETuple [Expr]             -- ^ Tuple value
             | ERec [(Ident,Expr)]       -- ^ Record value
             | ESel Expr Selector        -- ^ Elimination for tuple/record/list
+            | ESet Expr Selector Expr   -- ^ Change the value of a field.
 
             | EIf Expr Expr Expr        -- ^ If-then-else
             | EComp Type Type Expr [[Match]]
@@ -209,6 +210,8 @@ instance PP (WithNames Expr) where
                         [ pp f <+> text "=" <+> ppW e | (f,e) <- fs ]
 
       ESel e sel    -> ppWP 4 e <+> text "." <.> pp sel
+
+      ESet e sel v  -> braces (pp e <+> "|" <+> pp sel <+> "=" <+> pp v)
 
       EIf e1 e2 e3  -> optParens (prec > 0)
                     $ sep [ text "if"   <+> ppW e1

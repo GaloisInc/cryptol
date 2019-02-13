@@ -184,6 +184,7 @@ rewE rews = go
       ERec fs         -> ERec    <$> (forM fs $ \(f,e) -> do e1 <- go e
                                                              return (f,e1))
       ESel e s        -> ESel    <$> go e  <*> return s
+      ESet e s v      -> ESet    <$> go e  <*> return s <*> go v
       EIf e1 e2 e3    -> EIf     <$> go e1 <*> go e2 <*> go e3
 
       EComp len t e mss -> EComp len t <$> go e  <*> mapM (mapM (rewM rews)) mss
