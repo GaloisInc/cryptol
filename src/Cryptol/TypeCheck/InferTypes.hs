@@ -127,7 +127,10 @@ data HasGoal = HasGoal
 -- | A solution for a 'HasGoal'
 data HasGoalSln = HasGoalSln
   { hasDoSelect :: Expr -> Expr
-    -- XXX: add others, e.g., hasDoSet/Upd
+    -- ^ Select a specific field from the input expsression.
+
+  , hasDoSet    :: Expr -> Expr -> Expr
+    -- ^ Set a field of the first expression to the second expression
   }
 
 

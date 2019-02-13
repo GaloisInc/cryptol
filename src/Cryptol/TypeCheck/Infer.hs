@@ -12,6 +12,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Infer
   ( checkE
@@ -415,15 +416,25 @@ checkRecUpd mb fs tGoal =
       do e1 <- checkE e tGoal
          undefined "Do the fields"
 
-{-
   where
-  doUpd e (P.UpdField how sels v) =
+  doUpd e ty (P.UpdField how sels v) =
     case sels of
-      [s] -> case how of
-               P.UpdSet ->
-                  do ft <- newType (selSrc s) KType
-                     newHasGoal s tGoal ft
--}
+      []  -> panic "checkRecUpd/doUpd" [ "Empty list of selectors." ]
+      [ls] ->
+        case how of
+          P.UpdSet ->
+            do ft <- newType (selSrc s) KType
+               v  <- checkE v ft
+               d  <- newHasGoal s ty ft
+               pure (hasDoSet d e v)
+          P.UpdFun -> notYet "-> updates are not yet supported."
+
+        where s = thing ls
+      _ -> notYet "Nested labels are not yet supported."
+
+  notYet :: Doc -> InferM a
+  notYet msg = do recordError (ErrorMsg msg)
+                  pure (panic "Attempt to use an undefined value." [])
 
 
 expectSeq :: Type -> InferM (Type,Type)
