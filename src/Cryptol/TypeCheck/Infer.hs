@@ -427,7 +427,14 @@ checkRecUpd mb fs tGoal =
                v  <- checkE v ft
                d  <- newHasGoal s ty ft
                pure (hasDoSet d e v)
-          P.UpdFun -> notYet "-> updates are not yet supported."
+          P.UpdFun ->
+             do ft <- newType (selSrc s) KType
+                v  <- checkE v (tFun ft ft)
+                d  <- newHasGoal s ty ft
+                undefined {-
+                pure (hasDoSet d e (EApp v (hasDoSelect d e)))
+                    -- XXX: duplicates `e`z
+-}
 
         where s = thing ls
       _ -> notYet "Nested labels are not yet supported."

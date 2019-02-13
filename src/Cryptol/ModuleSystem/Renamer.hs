@@ -34,7 +34,7 @@ import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import Cryptol.TypeCheck.Type (TCon(..))
-import Cryptol.Utils.Ident (packInfix)
+import Cryptol.Utils.Ident (packInfix,packIdent)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -744,7 +744,18 @@ instance Rename Pattern where
                      $ PLocated <$> rename p'    <*> pure loc
 
 instance Rename UpdField where
-  rename (UpdField h ls e) = UpdField h ls <$> rename e
+  rename (UpdField h ls e) = UpdField h ls <$> rnVal
+    where
+    rnVal = case h of
+              UpdSet -> rename e
+              UpdFun -> rename (EFun [PVar p] e)
+                 where p = UnQual . selName <$> last ls
+                       selName s = case s of
+                                     RecordSel i _ -> i
+                                     TupleSel n _  -> packIdent ("_" ++ show n)
+                                     ListSel n _   -> packIdent ("__" ++ show n)
+
+
 
 instance Rename Expr where
   rename expr = case expr of
