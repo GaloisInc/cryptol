@@ -511,7 +511,7 @@ rec_expr :: { Expr PName }
 
 field_expr             :: { UpdField PName }
   : selector field_how expr     { UpdField $2 [$1] $3 }
-  | sels field_how expr         { UpdField $2 (reverse $1) $3 }
+  | sels field_how expr         { UpdField $2 $1 $3 }
   | sels apats field_how expr   { UpdField $3 $1 (EFun $2 $4) } -- ???
 
 field_how :: { UpdHow }
@@ -519,7 +519,7 @@ field_how :: { UpdHow }
   | '->'                         { UpdFun }
 
 sels :: { [ Located Selector ] }
-  : sel_expr                      { undefined }
+  : sel_expr                      {% selExprToSels $1 }
 
 field_exprs                    :: { [UpdField PName] }
   : field_expr                    { [$1]    }

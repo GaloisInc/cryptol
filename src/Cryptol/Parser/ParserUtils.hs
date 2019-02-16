@@ -584,5 +584,23 @@ ufToNamed (UpdField h ls e) =
     _ -> errorMessage (srcRange (head ls))
             "Invalid record field.  Perhaps you meant to update a record?"
 
+selExprToSels :: Expr PName -> ParseM [Located Selector]
+selExprToSels e0 = reverse <$> go noLoc e0
+  where
+  noLoc = panic "selExprToSels" ["Missing location?"]
+  go loc expr =
+    case expr of
+      ELocated e1 r -> go r e1
+      ESel e2 s ->
+        do ls <- go loc e2
+           let rng = loc { from = to (srcRange (head ls)) }
+           pure (Located { thing = s, srcRange = rng } : ls)
+      EVar (UnQual l) ->
+        pure [ Located { thing = RecordSel l Nothing, srcRange = loc } ]
+      ELit (ECNum n _) ->
+        pure [ Located { thing = TupleSel (fromInteger n) Nothing
+                       , srcRange = loc } ]
+      _ -> errorMessage loc "Invalid label in record update."
+
 
 
