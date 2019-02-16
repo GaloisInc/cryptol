@@ -414,7 +414,7 @@ checkRecUpd mb fs tGoal =
 
     Just e ->
       do e1 <- checkE e tGoal
-         undefined "Do the fields"
+         error "XXX: Do the fields"
 
   where
   doUpd e ty (P.UpdField how sels v) =
@@ -431,7 +431,7 @@ checkRecUpd mb fs tGoal =
              do ft <- newType (selSrc s) KType
                 v  <- checkE v (tFun ft ft)
                 d  <- newHasGoal s ty ft
-                undefined {-
+                error "HERE" {-
                 pure (hasDoSet d e (EApp v (hasDoSelect d e)))
                     -- XXX: duplicates `e`z
 -}
