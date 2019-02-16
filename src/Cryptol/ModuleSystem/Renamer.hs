@@ -14,6 +14,7 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.ModuleSystem.Renamer (
     NamingEnv(), shadowing
   , BindsNames(..), InModule(..), namingEnv'
@@ -38,6 +39,7 @@ import Cryptol.Utils.Ident (packInfix,packIdent)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
+import Data.List(intersperse, find)
 import qualified Data.Foldable as F
 import           Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
@@ -86,6 +88,9 @@ data RenamerError
 
   | BoundReservedType PName (Maybe Range) Doc NameDisp
     -- ^ When a builtin type is named in a binder.
+
+  | OverlappingRecordUpdate (Located [Selector]) (Located [Selector]) NameDisp
+    -- ^ When record updates overlap (e.g., @{ r | x = e1, x.y = e2 }@)
     deriving (Show, Generic, NFData)
 
 instance PP RenamerError where
@@ -139,6 +144,12 @@ instance PP RenamerError where
       hang (text "[error]" <+> maybe empty (\r -> text "at" <+> pp r) loc)
          4 (fsep [ text "built-in type", quotes (pp n), text "shadowed in", src ])
 
+    OverlappingRecordUpdate xs ys disp -> fixNameDisp disp $
+      hang "[error] Overlapping record updates:"
+         4 (vcat [ ppLab xs, ppLab ys ])
+      where
+      ppLab as = hcat (intersperse "." (map pp (thing as))) <+>
+                 "at" <+> pp (srcRange as)
 
 -- Warnings --------------------------------------------------------------------
 
@@ -743,18 +754,30 @@ instance Rename Pattern where
     PLocated p' loc -> withLoc loc
                      $ PLocated <$> rename p'    <*> pure loc
 
+-- | Note that after this point the @->@ updates have an explicit funciton
+-- and there are no more nested updates.
 instance Rename UpdField where
-  rename (UpdField h ls e) = UpdField h ls <$> rnVal
-    where
-    rnVal = case h of
-              UpdSet -> rename e
-              UpdFun -> rename (EFun [PVar p] e)
-                 where p = UnQual . selName <$> last ls
-                       selName s = case s of
-                                     RecordSel i _ -> i
-                                     TupleSel n _  -> packIdent ("_" ++ show n)
-                                     ListSel n _   -> packIdent ("__" ++ show n)
-
+  rename (UpdField h ls e) =
+    -- The plan:
+    -- x =  e       ~~~>        x = e
+    -- x -> e       ~~~>        x -> \x -> e
+    -- x.y = e      ~~~>        x -> { _ | y = e }
+    -- x.y -> e     ~~~>        x -> { _ | y -> e }
+    case ls of
+      l : more ->
+       case more of
+         [] -> case h of
+                 UpdSet -> UpdField UpdSet [l] <$> rename e
+                 UpdFun -> UpdField UpdFun [l] <$> rename (EFun [PVar p] e)
+                       where
+                       p = UnQual . selName <$> last ls
+                       selName s =
+                         case s of
+                           RecordSel i _ -> i
+                           TupleSel n _  -> packIdent ("_" ++ show n)
+                           ListSel n _   -> packIdent ("__" ++ show n)
+         _ -> UpdField UpdFun [l] <$> rename (EUpd Nothing [ UpdField h more e])
+      [] -> panic "rename@UpdField" [ "Empty label list." ]
 
 
 instance Rename Expr where
@@ -767,7 +790,8 @@ instance Rename Expr where
     ETuple es     -> ETuple  <$> traverse rename es
     ERecord fs    -> ERecord <$> traverse (rnNamed rename) fs
     ESel e' s     -> ESel    <$> rename e' <*> pure s
-    EUpd mb fs    -> EUpd    <$> traverse rename mb <*> traverse rename fs
+    EUpd mb fs    -> do checkLabels fs
+                        EUpd <$> traverse rename mb <*> traverse rename fs
     EList es      -> EList   <$> traverse rename es
     EFromTo s n e'-> EFromTo <$> rename s
                              <*> traverse rename n
@@ -801,6 +825,31 @@ instance Rename Expr where
                         mkEInfix x' op z'
 
 
+checkLabels :: [UpdField PName] -> RenameM ()
+checkLabels = foldM_ check [] . map labs
+  where
+  labs (UpdField _ ls _) = ls
+
+  check done l =
+    do case find (overlap l) done of
+         Just l' -> record (OverlappingRecordUpdate (reLoc l) (reLoc l'))
+         Nothing -> pure ()
+       pure (l : done)
+
+  overlap xs ys =
+    case (xs,ys) of
+      ([],_)  -> True
+      (_, []) -> True
+      (x : xs', y : ys') -> same x y && overlap xs' ys'
+
+  same x y =
+    case (thing x, thing y) of
+      (TupleSel a _, TupleSel b _)   -> a == b
+      (ListSel  a _, ListSel  b _)   -> a == b
+      (RecordSel a _, RecordSel b _) -> a == b
+      _                              -> False
+
+  reLoc xs = (head xs) { thing = map thing xs }
 
 
 mkEInfix :: Expr Name             -- ^ May contain infix expressions
