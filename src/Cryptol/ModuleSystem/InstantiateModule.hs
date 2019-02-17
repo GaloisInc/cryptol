@@ -185,6 +185,7 @@ instance Inst Expr where
         ETuple es                 -> ETuple (inst env es)
         ERec xs                   -> ERec [ (f,go e) | (f,e) <- xs ]
         ESel e s                  -> ESel (go e) s
+        ESet e x v                -> ESet (go e) x (go v)
         EIf e1 e2 e3              -> EIf (go e1) (go e2) (go e3)
         EComp t1 t2 e mss         -> EComp (inst env t1) (inst env t2)
                                            (go e)

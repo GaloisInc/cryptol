@@ -300,6 +300,7 @@ instance TVars Expr where
 
         ETuple es     -> ETuple (map go es)
         ERec fs       -> ERec [ (f, go e) | (f,e) <- fs ]
+        ESet e x v    -> ESet (go e) x (go v)
         EList es t    -> EList (map go es) (apSubst su t)
         ESel e s      -> ESel (go e) s
         EComp len t e mss -> EComp (apSubst su len) (apSubst su t) (go e) (apSubst su mss)

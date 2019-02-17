@@ -53,7 +53,7 @@ import           Data.Maybe(mapMaybe,isJust, fromMaybe)
 import           Data.List(partition,find)
 import           Data.Graph(SCC(..))
 import           Data.Traversable(forM)
-import           Control.Monad(zipWithM,unless)
+import           Control.Monad(zipWithM,unless,foldM)
 
 
 
@@ -414,34 +414,40 @@ checkRecUpd mb fs tGoal =
 
     Just e ->
       do e1 <- checkE e tGoal
-         error "XXX: Do the fields"
+         foldM doUpd e1 fs
 
   where
-  doUpd e ty (P.UpdField how sels v) =
+  doUpd e (P.UpdField how sels v) =
     case sels of
-      []  -> panic "checkRecUpd/doUpd" [ "Empty list of selectors." ]
-      [ls] ->
+      [l] ->
         case how of
           P.UpdSet ->
             do ft <- newType (selSrc s) KType
-               v  <- checkE v ft
-               d  <- newHasGoal s ty ft
-               pure (hasDoSet d e v)
+               v1 <- checkE v ft
+               d  <- newHasGoal s tGoal ft
+               pure (hasDoSet d e v1)
           P.UpdFun ->
              do ft <- newType (selSrc s) KType
-                v  <- checkE v (tFun ft ft)
-                d  <- newHasGoal s ty ft
-                error "HERE" {-
-                pure (hasDoSet d e (EApp v (hasDoSelect d e)))
-                    -- XXX: duplicates `e`z
--}
+                v1 <- checkE v (tFun ft ft)
+                d  <- newHasGoal s tGoal ft
+                tmp <- newParamName (packIdent "rf")
+                let e' = EVar tmp
+                pure $ hasDoSet d e' (EApp v1 (hasDoSelect d e'))
+                       `EWhere`
+                       [  NonRecursive
+                          Decl { dName        = tmp
+                               , dSignature   = tMono tGoal
+                               , dDefinition  = DExpr e
+                               , dPragmas     = []
+                               , dInfix       = False
+                               , dFixity      = Nothing
+                               , dDoc         = Nothing
+                               } ]
 
-        where s = thing ls
-      _ -> notYet "Nested labels are not yet supported."
-
-  notYet :: Doc -> InferM a
-  notYet msg = do recordError (ErrorMsg msg)
-                  pure (panic "Attempt to use an undefined value." [])
+        where s = thing l
+      _ -> panic "checkRecUpd/doUpd" [ "Expected exactly 1 field label"
+                                     , "Got: " ++ show (length sels)
+                                     ]
 
 
 expectSeq :: Type -> InferM (Type,Type)

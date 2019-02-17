@@ -34,12 +34,13 @@ import Cryptol.ModuleSystem.Exports
 import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
+import Cryptol.Parser.Selector(ppNestedSels,selName)
 import Cryptol.TypeCheck.Type (TCon(..))
-import Cryptol.Utils.Ident (packInfix,packIdent)
+import Cryptol.Utils.Ident (packInfix)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
-import Data.List(intersperse, find)
+import Data.List(find)
 import qualified Data.Foldable as F
 import           Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
@@ -148,8 +149,7 @@ instance PP RenamerError where
       hang "[error] Overlapping record updates:"
          4 (vcat [ ppLab xs, ppLab ys ])
       where
-      ppLab as = hcat (intersperse "." (map pp (thing as))) <+>
-                 "at" <+> pp (srcRange as)
+      ppLab as = ppNestedSels (thing as) <+> "at" <+> pp (srcRange as)
 
 -- Warnings --------------------------------------------------------------------
 
@@ -771,11 +771,6 @@ instance Rename UpdField where
                  UpdFun -> UpdField UpdFun [l] <$> rename (EFun [PVar p] e)
                        where
                        p = UnQual . selName <$> last ls
-                       selName s =
-                         case s of
-                           RecordSel i _ -> i
-                           TupleSel n _  -> packIdent ("_" ++ show n)
-                           ListSel n _   -> packIdent ("__" ++ show n)
          _ -> UpdField UpdFun [l] <$> rename (EUpd Nothing [ UpdField h more e])
       [] -> panic "rename@UpdField" [ "Empty label list." ]
 

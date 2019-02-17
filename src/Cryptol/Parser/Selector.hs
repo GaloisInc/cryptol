@@ -10,16 +10,21 @@
 
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Parser.Selector
   ( Selector(..)
   , ppSelector
+  , ppNestedSels
+  , selName
   ) where
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
+import Data.List(intersperse)
 
 import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
 
-import GHC.Generics (Generic)
-import Control.DeepSeq
 
 {- | Selectors are used for projecting from various components.
 Each selector has an option spec to specify the shape of the thing
@@ -62,3 +67,21 @@ ppSelector sel =
     TupleSel x _  -> ordinal (x+1) <+> text "field"
     RecordSel x _ -> text "field" <+> pp x
     ListSel x _   -> ordinal x <+> text "element"
+
+-- | The name of a selector (e.g., used in update code)
+selName :: Selector -> Ident
+selName s =
+  case s of
+    RecordSel i _ -> i
+    TupleSel n _  -> packIdent ("_" ++ show n)
+    ListSel n _   -> packIdent ("__" ++ show n)
+
+-- | Show a list of selectors as they appear in a nested selector in an updae
+ppNestedSels :: [Selector] -> Doc
+ppNestedSels = hcat . intersperse "." . map ppS
+  where ppS s = case s of
+                  RecordSel i _ -> text (unpackIdent i)
+                  TupleSel n _ -> int n
+                  ListSel n _  -> brackets (int n) -- not in source
+
+

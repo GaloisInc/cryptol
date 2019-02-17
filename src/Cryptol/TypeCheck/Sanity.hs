@@ -160,79 +160,17 @@ exprSchema expr =
                                        return (f,t)
          return $ tMono $ TRec fs1
 
+    ESet e x v -> do ty  <- exprType e
+                     expe <- checkHas ty x
+                     has <- exprType v
+                     unless (same expe has) $
+                        reportError $
+                          TypeMismatch "ESet" (tMono expe) (tMono has)
+                     return (tMono ty)
+
     ESel e sel -> do ty <- exprType e
-                     ty1 <- check ty
+                     ty1 <- checkHas ty sel
                      return (tMono ty1)
-      where
-      check t =
-         case sel of
-
-           TupleSel n mb ->
-              case tNoUser t of
-                TCon (TC (TCTuple sz)) ts ->
-
-                   do case mb of
-                        Just sz1 -> when (sz /= sz1) $
-                                      reportError (UnexpectedTupleShape sz1 sz)
-                        Nothing  -> return ()
-
-                      unless (n < sz) $
-                        reportError (TupleSelectorOutOfRange n sz)
-
-                      return $ ts !! n
-
-                TCon (TC TCSeq) [s,elT] -> do res <- check elT
-                                              return (TCon (TC TCSeq) [s,res])
-
-                TCon (TC TCFun) [a,b]   -> do res <- check b
-                                              return (TCon (TC TCFun) [a,res])
-
-                _ -> reportError $ BadSelector sel t
-
-
-           RecordSel f mb ->
-             case tNoUser t of
-               TRec fs ->
-
-                 do case mb of
-                      Nothing -> return ()
-                      Just fs1 ->
-                        do let ns  = sort (map fst fs)
-                               ns1 = sort fs1
-                           unless (ns == ns1) $
-                             reportError $ UnexpectedRecordShape ns1 ns
-
-                    case lookup f fs of
-                      Nothing -> reportError $ MissingField f $ map fst fs
-                      Just ft -> return ft
-
-               TCon (TC TCSeq) [s,elT] -> do res <- check elT
-                                             return (TCon (TC TCSeq) [s,res])
-
-               TCon (TC TCFun) [a,b]   -> do res <- check b
-                                             return (TCon (TC TCFun) [a,res])
-
-
-               _ -> reportError $ BadSelector sel t
-
-
-           -- XXX: Remove this?
-           ListSel _ mb ->
-             case tNoUser t of
-               TCon (TC TCSeq) [ n, elT ] ->
-
-                 do case mb of
-                      Nothing  -> return ()
-                      Just len ->
-                        case tNoUser n of
-                          TCon (TC (TCNum m)) []
-                            | m == fromIntegral len -> return ()
-                          _ -> reportError $ UnexpectedSequenceShape len n
-
-                    return elT
-
-               _ -> reportError $ BadSelector sel t
-
 
     EIf e1 e2 e3 ->
       do ty <- exprType e1
@@ -324,6 +262,78 @@ exprSchema expr =
           go (d : ds) = do xs <- checkDeclGroup d
                            withVars xs (go ds)
       in go dgs
+
+
+checkHas :: Type -> Selector -> TcM Type
+checkHas t sel =
+  case sel of
+
+    TupleSel n mb ->
+
+      case tNoUser t of
+        TCon (TC (TCTuple sz)) ts ->
+          do case mb of
+               Just sz1 ->
+                 when (sz /= sz1) (reportError (UnexpectedTupleShape sz1 sz))
+               Nothing  -> return ()
+             unless (n < sz) $ reportError (TupleSelectorOutOfRange n sz)
+             return $ ts !! n
+
+        TCon (TC TCSeq) [s,elT] ->
+           do res <- checkHas elT sel
+              return (TCon (TC TCSeq) [s,res])
+
+        TCon (TC TCFun) [a,b] ->
+            do res <- checkHas b sel
+               return (TCon (TC TCFun) [a,res])
+
+        _ -> reportError $ BadSelector sel t
+
+
+    RecordSel f mb ->
+      case tNoUser t of
+        TRec fs ->
+
+          do case mb of
+               Nothing -> return ()
+               Just fs1 ->
+                 do let ns  = sort (map fst fs)
+                        ns1 = sort fs1
+                    unless (ns == ns1) $
+                      reportError $ UnexpectedRecordShape ns1 ns
+
+             case lookup f fs of
+               Nothing -> reportError $ MissingField f $ map fst fs
+               Just ft -> return ft
+
+        TCon (TC TCSeq) [s,elT] -> do res <- checkHas elT sel
+                                      return (TCon (TC TCSeq) [s,res])
+
+        TCon (TC TCFun) [a,b]   -> do res <- checkHas b sel
+                                      return (TCon (TC TCFun) [a,res])
+
+
+        _ -> reportError $ BadSelector sel t
+
+
+    -- XXX: Remove this?
+    ListSel _ mb ->
+      case tNoUser t of
+        TCon (TC TCSeq) [ n, elT ] ->
+
+          do case mb of
+               Nothing  -> return ()
+               Just len ->
+                 case tNoUser n of
+                   TCon (TC (TCNum m)) []
+                     | m == fromIntegral len -> return ()
+                   _ -> reportError $ UnexpectedSequenceShape len n
+
+             return elT
+
+        _ -> reportError $ BadSelector sel t
+
+
 
 
 -- | Check if the one type is convertible to the other.

@@ -33,6 +33,7 @@ fastTypeOf tyenv expr =
     ETuple es     -> tTuple (map (fastTypeOf tyenv) es)
     ERec fields   -> tRec [ (name, fastTypeOf tyenv e) | (name, e) <- fields ]
     ESel e sel    -> typeSelect (fastTypeOf tyenv e) sel
+    ESet e _ _    -> fastTypeOf tyenv e
     EIf _ e _     -> fastTypeOf tyenv e
     EComp len t _ _ -> tSeq len t
     EAbs x t e    -> tFun t (fastTypeOf (Map.insert x (Forall [] [] t) tyenv) e)
@@ -96,6 +97,7 @@ fastSchemaOf tyenv expr =
     EList  {}      -> monomorphic
     ETuple {}      -> monomorphic
     ERec   {}      -> monomorphic
+    ESet   {}      -> monomorphic
     ESel   {}      -> monomorphic
     EIf    {}      -> monomorphic
     EComp  {}      -> monomorphic

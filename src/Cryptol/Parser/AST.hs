@@ -739,8 +739,7 @@ instance (Show name, PPName name) => PP (Expr name) where
    isInfix _ = Nothing
 
 instance (Show name, PPName name) => PP (UpdField name) where
-  ppPrec _ (UpdField h xs e) = ls <+> pp h <+> pp e
-    where ls = hcat (intersperse "." (map pp xs))
+  ppPrec _ (UpdField h xs e) = ppNestedSels (map thing xs) <+> pp h <+> pp e
 
 instance PP UpdHow where
   ppPrec _ h = case h of
