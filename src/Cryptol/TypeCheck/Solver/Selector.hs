@@ -127,15 +127,16 @@ tryHasGoal has
            do newGoals CtExactType =<< unify innerT ft
               oT <- applySubst outerT
               iT <- applySubst innerT
-              selFrom <- mkSel sel oT iT
-              solveHasGoal (hasName has)
-                  HasGoalSln { hasDoSelect = selFrom }
+              sln <- mkSelSln sel oT iT
+              solveHasGoal (hasName has) sln
               return (True, True)
 
   | otherwise = panic "hasGoalSolved"
                   [ "Unexpected selector proposition:"
                   , show (hasGoal has)
                   ]
+
+
 
 {- | Generator an appropriate selector, once the "Has" constraint
 has been discharged.  The resulting selectors should always work
@@ -144,8 +145,8 @@ This function generates the code for lifting tuple/record selectors to sequences
 and functions.
 
 Assumes types are zonked. -}
-mkSel :: Selector -> Type -> Type -> InferM (Expr -> Expr)
-mkSel s outerT innerT =
+mkSelSln :: Selector -> Type -> Type -> InferM HasGoalSln
+mkSelSln s outerT innerT =
   case tNoUser outerT of
     TCon (TC TCSeq) [len,el]
       | TupleSel {} <- s  -> liftSeq len el
@@ -155,25 +156,50 @@ mkSel s outerT innerT =
       | TupleSel {} <- s -> liftFun t1 t2
       | RecordSel {} <- s -> liftFun t1 t2
 
-    _ -> return (\e -> ESel e s)
+    _ -> return HasGoalSln { hasDoSelect = \e -> ESel e s
+                           , hasDoSet    = \e v -> ESet e s v }
 
   where
+  -- Has s a t => Has s ([n]a) ([n]t)
+  -- xs.s             ~~> [ x.s           | x <- xs ]
+  -- { xs | s = ys }  ~~> [ { x | s = y } | x <- xs | y <- ys ]
   liftSeq len el =
-    do x <- newParamName (packIdent "x")
+    do x1 <- newParamName (packIdent "x")
+       x2 <- newParamName (packIdent "x")
+       y2 <- newParamName (packIdent "y")
        case tNoUser innerT of
          TCon _ [_,eli] ->
-           do selFrom <- mkSel s el eli
-              return $ \e -> EComp len eli (selFrom (EVar x))
-                                                        [[ From x len el e ]]
-         _ -> panic "mkSel" [ "Unexpected inner seq type.", show innerT ]
+           do d <- mkSelSln s el eli
+              pure HasGoalSln
+                { hasDoSelect = \e ->
+                    EComp len eli (hasDoSelect d (EVar x1))
+                                  [[ From x1 len el e ]]
+                , hasDoSet = \e v ->
+                    EComp len el  (hasDoSet d (EVar x2) (EVar y2))
+                                  [ [ From x2 len el  e ]
+                                  , [ From y2 len eli v ]
+                                  ]
+                }
 
+
+         _ -> panic "mkSelSln" [ "Unexpected inner seq type.", show innerT ]
+
+  -- Has s b t => Has s (a -> b)
+  -- f.s            ~~> \x -> (f x).s
+  -- { f | s = g }  ~~> \x -> { f x | s = g x }
   liftFun t1 t2 =
-    do x <- newParamName (packIdent "x")
+    do x1 <- newParamName (packIdent "x")
+       x2 <- newParamName (packIdent "x")
        case tNoUser innerT of
          TCon _ [_,inT] ->
-           do selFrom <- mkSel s t2 inT
-              return $ \e -> EAbs x t1 (selFrom (EApp e (EVar x)))
-         _ -> panic "mkSel" [ "Unexpected inner fun type", show innerT ]
+           do d <- mkSelSln s t2 inT
+              pure HasGoalSln
+                { hasDoSelect = \e ->
+                    EAbs x1 t1 (hasDoSelect d (EApp e (EVar x1)))
+                , hasDoSet = \e v ->
+                    EAbs x2 t1 (hasDoSet d (EApp e (EVar x2))
+                                           (EApp v (EVar x2))) }
+         _ -> panic "mkSelSln" [ "Unexpected inner fun type", show innerT ]
 
 
 
