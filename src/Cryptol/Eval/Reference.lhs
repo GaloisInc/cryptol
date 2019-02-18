@@ -293,6 +293,7 @@ assigns values to those variables.
 >     ETuple es     -> VTuple [ evalExpr env e | e <- es ]
 >     ERec fields   -> VRecord [ (f, evalExpr env e) | (f, e) <- fields ]
 >     ESel e sel    -> evalSel (evalExpr env e) sel
+>     ESet e sel v  -> evalSet (evalExpr env e) sel (evalExpr env v)
 >
 >     EIf c t f ->
 >       condValue (fromVBit (evalExpr env c)) (evalExpr env t) (evalExpr env f)
@@ -351,6 +352,37 @@ Apply the the given selector form to the given value.
 >         VList _ vs  -> vs !! n
 >         _           -> evalPanic "evalSel"
 >                        ["Unexpected value in list selection."]
+
+
+Update the given value using the given selector and new value.
+
+> evalSet :: Value -> Selector -> Value -> Value
+> evalSet val sel fval =
+>   case sel of
+>     TupleSel n _  -> updTupleAt n
+>     RecordSel n _ -> updRecAt n
+>     ListSel n _   -> updSeqAt n
+>   where
+>     updTupleAt n =
+>       case val of
+>         VTuple vs | (as,_:bs) <- splitAt n vs ->
+>           VTuple (as ++ fval : bs)
+>         _ -> bad "Invalid tuple upldate."
+>
+>     updRecAt n =
+>       case val of
+>         VRecord vs | (as, (i,_) : bs) <- break ((n==) . fst) vs ->
+>           VRecord (as ++ (i,fval) : bs)
+>         _ -> bad "Invalid record update."
+>
+>     updSeqAt n =
+>       case val of
+>         VList i vs | (as, _ : bs) <- splitAt n vs ->
+>           VList i (as ++ fval : bs)
+>         _ -> bad "Invalid sequence update."
+>
+>     bad msg = evalPanic "evalSet" [msg]
+
 
 
 Conditionals
