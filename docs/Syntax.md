@@ -101,12 +101,11 @@ associativity with lowest precedence operators first, and highest
 precedence last.
 
 Operator                                   Associativity
----------------                            -------------
+-----------------------------------------  -------------
   `==>`                                    right
   `\/`                                     right
   `/\`                                     right
-  `->` (types)                             right
-  `!=` `==`                                not associative
+  `==` `!=` `===` `!==`                    not associative
   `>` `<` `<=` `>=` `<$` `>$` `<=$` `>=$`  not associative
   `||`                                     right
   `^`                                      left
@@ -116,17 +115,41 @@ Operator                                   Associativity
   `+` `-`                                  left
   `*` `/` `%` `/$` `%$`                    left
   `^^`                                     right
-  `!`  `!!`  `@` `@@`                      left
+  `@`  `@@`  `!` `!!`                      left
   (unary) `-` `~`                          right
 
 Table: Operator precedences.
+
+Built-in Type-level Operators
+=============================
+
+Cryptol includes a variety of operators that allow computations on
+the numeric types used to specify the sizes of sequences.
+
+Operator     Meaning
+--------     -------------------------
+  `+`        Size addition
+  `-`        Size subtraction
+  `*`        Size multiplication
+  `/`        Size division
+  `/^`       Size ceiling division (`/` rounded up)
+  `%`        Size modulus
+  `%^`       Size ceiling modulus (`%` rounded up)
+  `^^`       Size exponentiation
+  `lg2`      Size logarithm (base 2)
+  `width`    Size width (`lg2` rounded up)
+  `max`      Size maximum
+  `min`      Size minimum
+
+Table: Type-level operators
+
 
 Numeric Literals
 ================
 
 Numeric literals may be written in binary, octal, decimal, or
-hexadecimal notation. The base of a literal is determined by its
-prefix: `0b` for binary, `0o` for octal, no special prefix for
+hexadecimal notation. The base of a literal is determined by its prefix:
+`0b` for binary, `0o` for octal, no special prefix for
 decimal, and `0x` for hexadecimal.
 
 Examples:
@@ -138,12 +161,11 @@ Examples:
     0xFE                // Hexadecimal literal
     0xfe                // Hexadecimal literal
 
-Numeric literals represent finite bit sequences (i.e., they have type
-`[n]`).  Using binary, octal, and hexadecimal notation results in bit
-sequences of a fixed length, depending on the number of digits in the
-literal.  Decimal literals are overloaded, and so the length of the
-sequence is inferred from context in which the literal is used.
-Examples:
+Numeric literals in binary, octal, or hexadecimal notation result in
+bit sequences of a fixed length (i.e., they have type `[n]` for
+some `n`). The length is determined by the base and the number
+of digits in the literal. Decimal literals are overloaded, and so the
+type is inferred from context in which the literal is used. Examples:
 
     0b1010              // : [4],   1 * number of digits
     0o1234              // : [12],  3 * number of digits
@@ -173,11 +195,11 @@ Operator                                   Associativity       Description
 
 Table: Bit operations.
 
-If Then Else with Multiway
-==========================
+Multi-way Conditionals
+======================
 
-`If then else` has been extended to support multi-way
-conditionals. Examples:
+The `if ... then ... else` construct can be used with
+multiple branches. For example:
 
     x = if y % 2 == 0 then 22 else 33
 
@@ -189,9 +211,9 @@ conditionals. Examples:
 Tuples and Records
 ==================
 
-Tuples and records are used for packaging multiples values together.
-Tuples are enclosed in parenthesis, while records are enclosed in
-braces.  The components of both tuples and records are separated by
+Tuples and records are used for packaging multiple values together.
+Tuples are enclosed in parentheses, while records are enclosed in
+curly braces.  The components of both tuples and records are separated by
 commas.  The components of tuples are expressions, while the
 components of records are a label and a value separated by an equal
 sign.  Examples:
@@ -287,7 +309,7 @@ Operator                       Description
 
 Table: Sequence operations.
 
-There are also lifted point-wise operations.
+There are also lifted pointwise operations.
 
     [p1, p2, p3, p4]          // Sequence pattern
     p1 # p2                   // Split sequence pattern
@@ -312,7 +334,7 @@ Explicit Type Instantiation
 
 If `f` is a polymorphic value with type:
 
-    f : { tyParam }
+    f : { tyParam } tyParam
     f = zero
 
 you can evaluate `f`, passing it a type parameter:
@@ -326,13 +348,13 @@ Demoting Numeric Types to Values
 The value corresponding to a numeric type may be accessed using the
 following notation:
 
-    `{t}
+    `t
 
 Here `t` should be a type expression with numeric kind.  The resulting
 expression is a finite word, which is sufficiently large to accommodate
 the value of the type:
 
-    `{t} : {w >= width t}. [w]
+    `t : {n} (fin n, n >= width t) => [n]
 
 Explicit Type Annotations
 =========================
@@ -418,13 +440,11 @@ Sometimes, we may want to import only some of the definitions
 from a module.  To do so, we use an import declaration with
 an ***import list***.
 
-
-   module M where
+    module M where
 
     f = 0x02
     g = 0x03
     h = 0x04
-
 
     module N where
 
@@ -473,13 +493,13 @@ Another way to avoid name collisions is by using a
     f : [8]
     f = 2
 
-  module N where
+    module N where
 
-  import M as P
-
-  g = P::f
-  // `f` was imported from `M`
-  // but when used it needs to be prefixed by the qualified `P`
+    import M as P
+  
+    g = P::f
+    // `f` was imported from `M`
+    // but when used it needs to be prefixed by the qualified `P`
 
 Qualified imports make it possible to work with definitions
 that happen to have the same name but are defined in different modules.
