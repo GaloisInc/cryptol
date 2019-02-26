@@ -1,8 +1,7 @@
 install:
   # Using '-y' and 'refreshenv' as a workaround to:
   # https://github.com/haskell/cabal/issues/3687
-  - choco install -y ghc --version 8.4.3
-  - choco install -y cabal --version 2.2.0.0
+  - choco install -y ghc --version 8.4.4
   - refreshenv
   # See http://help.appveyor.com/discussions/problems/6312-curl-command-not-found#comment_42195491
   # NB: Do this after refreshenv, otherwise it will be clobbered!
@@ -12,5 +11,5 @@ install:
   - cp z3-4.5.0-x64-win/bin/z3.exe .
 
 build_script:
-  - cabal update
-  - cabal new-build -j
+  - cabal new-update
+  - cabal new-build
