@@ -18,6 +18,7 @@ import Paths_cryptol (getDataDir)
 #endif
 
 import Cryptol.Eval (EvalEnv)
+import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Name (Supply,emptySupply)
 import qualified Cryptol.ModuleSystem.NamingEnv as R
@@ -248,13 +249,14 @@ instance Monoid LoadedModules where
   mappend l r = l <> r
 
 data LoadedModule = LoadedModule
-  { lmName      :: ModName
-  , lmFilePath  :: FilePath
+  { lmName              :: ModName
+  , lmFilePath          :: FilePath
     -- ^ The file path used to load this module (may not be canonical)
-  , lmCanonicalPath :: FilePath
+  , lmCanonicalPath     :: FilePath
     -- ^ The canonical version of the path of this module
-  , lmInterface :: Iface
-  , lmModule    :: T.Module
+  , lmInterface         :: Iface
+  , lmModule            :: T.Module
+  , lmFingerprint       :: Fingerprint
   } deriving (Show, Generic, NFData)
 
 -- | Has this module been loaded already.
@@ -275,8 +277,8 @@ lookupModule mn me = search lmLoadedModules `mplus` search lmLoadedParamModules
 -- | Add a freshly loaded module.  If it was previously loaded, then
 -- the new version is ignored.
 addLoadedModule ::
-  FilePath -> FilePath -> T.Module -> LoadedModules -> LoadedModules
-addLoadedModule path canonicalPath tm lm
+  FilePath -> FilePath -> Fingerprint -> T.Module -> LoadedModules -> LoadedModules
+addLoadedModule path canonicalPath fp tm lm
   | isLoaded (T.mName tm) lm  = lm
   | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
                                                 lmLoadedParamModules lm }
@@ -284,11 +286,12 @@ addLoadedModule path canonicalPath tm lm
                                           lmLoadedModules lm ++ [loaded] }
   where
   loaded = LoadedModule
-    { lmName      = T.mName tm
-    , lmFilePath  = path
-    , lmCanonicalPath = canonicalPath
-    , lmInterface = genIface tm
-    , lmModule    = tm
+    { lmName            = T.mName tm
+    , lmFilePath        = path
+    , lmCanonicalPath   = canonicalPath
+    , lmInterface       = genIface tm
+    , lmModule          = tm
+    , lmFingerprint     = fp
     }
 
 -- | Remove a previously loaded module.

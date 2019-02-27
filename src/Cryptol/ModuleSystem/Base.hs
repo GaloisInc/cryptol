@@ -15,6 +15,7 @@
 module Cryptol.ModuleSystem.Base where
 
 import Cryptol.ModuleSystem.Env (DynamicEnv(..), deIfaceDecls)
+import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
 import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap)
@@ -48,13 +49,12 @@ import Cryptol.Prelude (writePreludeContents)
 
 import Cryptol.Transform.MonoValues (rewModule)
 
-import Control.DeepSeq
 import qualified Control.Exception as X
 import Control.Monad (unless,when)
+import qualified Data.ByteString as B
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
-import           Data.Text(Text)
-import qualified Data.Text.IO as T
+import Data.Text.Encoding (decodeUtf8')
 import System.Directory (doesFileExist, canonicalizePath)
 import System.FilePath ( addExtension
                        , isAbsolute
@@ -105,23 +105,28 @@ noPat a = do
 
 -- Parsing ---------------------------------------------------------------------
 
-parseModule :: FilePath -> ModuleM (P.Module PName)
+parseModule :: FilePath -> ModuleM (Fingerprint, P.Module PName)
 parseModule path = do
 
-  e <- io $ X.try $ do
-    bytes <- T.readFile path
-    return $!! bytes
-  bytes <- case (e :: Either X.IOException Text) of
+  bytesRes <- io (X.try (B.readFile path))
+
+  bytes <- case bytesRes of
     Right bytes -> return bytes
     Left exn | IOE.isDoesNotExistError exn -> cantFindFile path
              | otherwise                   -> otherIOError path exn
+
+  txt <- case decodeUtf8' bytes of
+    Right txt -> return txt
+    Left e    -> badUtf8 path e
 
   let cfg = P.defaultConfig
               { P.cfgSource  = path
               , P.cfgPreProc = P.guessPreProc path
               }
-  case P.parseModule cfg bytes of
-    Right pm -> return pm
+
+  case P.parseModule cfg txt of
+    Right pm -> let fp = fingerprint bytes
+                in fp `seq` return (fp, pm)
     Left err -> moduleParseError path err
 
 
@@ -132,7 +137,7 @@ loadModuleByPath :: FilePath -> ModuleM T.Module
 loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
   let fileName = takeFileName path
   foundPath <- findFile fileName
-  pm <- parseModule foundPath
+  (fp, pm) <- parseModule foundPath
   let n = thing (P.mName pm)
 
   -- Check whether this module name has already been loaded from a different file
@@ -142,7 +147,7 @@ loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
   path' <- io $ canonicalizePath foundPath
   case lookupModule n env of
     -- loadModule will calculate the canonical path again
-    Nothing -> doLoadModule (FromModule n) foundPath pm
+    Nothing -> doLoadModule (FromModule n) foundPath fp pm
     Just lm
      | path' == loaded -> return (lmModule lm)
      | otherwise       -> duplicateModuleName n path' loaded
@@ -159,16 +164,18 @@ loadModuleFrom isrc =
        Nothing ->
          do path <- findModule n
             errorInFile path $
-              do pm <- parseModule path
-                 m  <- doLoadModule isrc path pm
+              do (fp, pm) <- parseModule path
+                 m        <- doLoadModule isrc path fp pm
                  return (path,m)
 
 -- | Load dependencies, typecheck, and add to the eval environment.
-doLoadModule :: ImportSource ->
-              FilePath ->
-              P.Module PName ->
-              ModuleM T.Module
-doLoadModule isrc path pm0 =
+doLoadModule ::
+  ImportSource ->
+  FilePath ->
+  Fingerprint ->
+  P.Module PName ->
+  ModuleM T.Module
+doLoadModule isrc path fp pm0 =
   loading isrc $
   do let pm = addPrelude pm0
      loadDeps pm
@@ -180,7 +187,7 @@ doLoadModule isrc path pm0 =
      -- extend the eval env, unless a functor.
      unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv tcm)
      canonicalPath <- io (canonicalizePath path)
-     loadedModule path canonicalPath tcm
+     loadedModule path canonicalPath fp tcm
 
      return tcm
   where
