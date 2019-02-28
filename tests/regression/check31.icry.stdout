@@ -1,6 +1,5 @@
 Loading module Cryptol
 
-[error] IO error while loading file: ./check31.iso8859.cry:
-    ./check31.iso8859.cry: hGetContents: invalid argument (invalid byte sequence)
+[error] bad utf-8 encoding: ./check31.iso8859.cry
 Loading module Cryptol
 Loading module Fοο
