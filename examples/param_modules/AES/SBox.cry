@@ -6,8 +6,7 @@ import AES::SubBytePlain
 type SBox = [256] GF28
 
 sbox : SBox
-sbox = [ SubByte x | x <- [ 0 .. ] ]
+sbox = [ SubByte x | x <- [0 .. 255] ]
 
 sboxInv : SBox
-sboxInv = [ InvSubByte x | x <- [ 0 .. ] ]
-
+sboxInv = [ InvSubByte x | x <- [0 .. 255] ]

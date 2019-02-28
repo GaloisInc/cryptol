@@ -91,7 +91,7 @@ ppArray = [farmerString, chickenString, cornString, foxString]
 ppBits : [4] -> [4]StringRep
 ppBits s =  [ if b then ppArray!i else noString
             | b <- s
-            | i <- [0 .. ]:[_][4] ]
+            | i <- [0 ...]:[_][4] ]
 
 // takes a sequence of states and derives what moved, and in which direction for each transition
 extractMoves : {a} [a+1]BankState -> [a](DirRep, [4]StringRep)

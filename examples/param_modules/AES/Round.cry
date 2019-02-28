@@ -12,11 +12,11 @@ SubBytes : State -> State
 SubBytes state = [ [ SubByte b | b <- row ] | row <- state ]
 
 ShiftRows : State -> State
-ShiftRows state = [ row <<< i | row <- state | i : [2] <- [0 .. ] ]
+ShiftRows state = [ row <<< i | row <- state | i : [2] <- [0 .. 3] ]
 
 MixColumns : State -> State
 MixColumns state = gf28MatrixMult m state
-    where m = [ [2,3,1,1] >>> i | i <- [ 0 .. ] ]
+    where m = [ [2,3,1,1] >>> i | i <- [0 .. 3] ]
 
 /** The final AES round */
 AESFinalRound : RoundKey -> State -> State
@@ -33,12 +33,12 @@ InvSubBytes state = [ [ InvSubByte b | b <- row ] | row <- state ]
 
 InvShiftRows : State -> State
 InvShiftRows state = [ row >>> shiftAmount | row <- state
-                                           | shiftAmount : [2] <- [0 ..]
+                                           | shiftAmount : [2] <- [0 .. 3]
                      ]
 
 InvMixColumns : State -> State
 InvMixColumns state = gf28MatrixMult m state
-    where m = [[0x0e, 0x0b, 0x0d, 0x09] >>> i | i <- [ 0 .. ] ]
+    where m = [[0x0e, 0x0b, 0x0d, 0x09] >>> i | i <- [0 .. 3] ]
 
 /** The final inverted AES round */
 AESFinalInvRound : RoundKey -> State -> State
