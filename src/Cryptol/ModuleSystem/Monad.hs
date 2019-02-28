@@ -16,6 +16,7 @@ import           Cryptol.Eval (EvalEnv,EvalOpts(..))
 
 import qualified Cryptol.Eval.Monad           as E
 import           Cryptol.ModuleSystem.Env
+import           Cryptol.ModuleSystem.Fingerprint
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
 import           Cryptol.ModuleSystem.Renamer
@@ -37,6 +38,7 @@ import Control.Monad.IO.Class
 import Control.Exception (IOException)
 import Data.Function (on)
 import Data.Maybe (isJust)
+import Data.Text.Encoding.Error (UnicodeException)
 import MonadLib
 
 import GHC.Generics (Generic)
@@ -76,6 +78,8 @@ data ModuleError
     -- ^ Unable to find the module given, tried looking in these paths
   | CantFindFile FilePath
     -- ^ Unable to open a file
+  | BadUtf8 FilePath UnicodeException
+    -- ^ Bad UTF-8 encoding in while decoding this file
   | OtherIOError FilePath IOException
     -- ^ Some other IO error occurred while reading this file
   | ModuleParseError FilePath Parser.ParseError
@@ -113,6 +117,7 @@ instance NFData ModuleError where
   rnf e = case e of
     ModuleNotFound src path              -> src `deepseq` path `deepseq` ()
     CantFindFile path                    -> path `deepseq` ()
+    BadUtf8 path ue                      -> rnf (path, ue)
     OtherIOError path exn                -> path `deepseq` exn `seq` ()
     ModuleParseError source err          -> source `deepseq` err `deepseq` ()
     RecursiveModules mods                -> mods `deepseq` ()
@@ -145,6 +150,10 @@ instance PP ModuleError where
     CantFindFile path ->
       text "[error]" <+>
       text "can't find file:" <+> text path
+
+    BadUtf8 path _ue ->
+      text "[error]" <+>
+      text "bad utf-8 encoding:" <+> text path
 
     OtherIOError path exn ->
       hang (text "[error]" <+>
@@ -197,6 +206,9 @@ moduleNotFound name paths = ModuleT (raise (ModuleNotFound name paths))
 
 cantFindFile :: FilePath -> ModuleM a
 cantFindFile path = ModuleT (raise (CantFindFile path))
+
+badUtf8 :: FilePath -> UnicodeException -> ModuleM a
+badUtf8 path ue = ModuleT (raise (BadUtf8 path ue))
 
 otherIOError :: FilePath -> IOException -> ModuleM a
 otherIOError path exn = ModuleT (raise (OtherIOError path exn))
@@ -444,10 +456,10 @@ unloadModule rm = ModuleT $ do
   env <- get
   set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }
 
-loadedModule :: FilePath -> FilePath -> T.Module -> ModuleM ()
-loadedModule path canonicalPath m = ModuleT $ do
+loadedModule :: FilePath -> FilePath -> Fingerprint -> T.Module -> ModuleM ()
+loadedModule path canonicalPath fp m = ModuleT $ do
   env <- get
-  set $! env { meLoadedModules = addLoadedModule path canonicalPath m (meLoadedModules env) }
+  set $! env { meLoadedModules = addLoadedModule path canonicalPath fp m (meLoadedModules env) }
 
 modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
 modifyEvalEnv f = ModuleT $ do

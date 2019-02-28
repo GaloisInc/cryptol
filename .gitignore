@@ -24,3 +24,7 @@ cryptol-2.*
 /ICryptol/profile_cryptol/security/
 /ICryptol/profile_cryptol/startup/
 /bench*.xml
+
+# ignore test suite output
+/bin
+/output
