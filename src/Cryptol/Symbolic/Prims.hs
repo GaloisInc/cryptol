@@ -35,7 +35,7 @@ import Cryptol.Prims.Eval (binary, unary, arithUnary,
                            logicBinary, logicUnary, zeroV,
                            ccatV, splitAtV, joinV, ecSplitV,
                            reverseV, infFromV, infFromThenV,
-                           fromThenV, fromToV, fromThenToV,
+                           fromToV, fromThenToV,
                            transposeV, indexPrim,
                            ecToIntegerV, ecFromIntegerV,
                            ecNumberV, updatePrim, randomV, liftWord,
@@ -183,7 +183,6 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     tlam $ \c ->
                      lam $ \xs -> transposeV a b c =<< xs)
 
-  , ("fromThen"    , fromThenV)
   , ("fromTo"      , fromToV)
   , ("fromThenTo"  , fromThenToV)
   , ("infFrom"     , infFromV)
