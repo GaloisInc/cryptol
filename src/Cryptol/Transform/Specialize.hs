@@ -310,7 +310,6 @@ freshName n _ =
 --         TCWidth         -> "width"
 --         TCMin           -> "min"
 --         TCMax           -> "max"
---         TCLenFromThen   -> "len_from_then"
 --         TCLenFromThenTo -> "len_from_then_to"
 --     showRecFld (nm,t) = showName nm : showT t
 

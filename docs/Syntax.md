@@ -282,19 +282,17 @@ an infinite stream of bits.
 
     [e1,e2,e3]                        // A sequence with three elements
 
-    [t .. ]                           // Sequence enumerations
-    [t1, t2 .. ]                      // Step by t2 - t1
-    [t1 .. t3 ]
-    [t1, t2 .. t3 ]
+    [t1 .. t3 ]                       // Sequence enumerations
+    [t1, t2 .. t3 ]                   // Step by t2 - t1
     [e1 ... ]                         // Infinite sequence starting at e1
     [e1, e2 ... ]                     // Infinite sequence stepping by e2-e1
 
     [ e | p11 <- e11, p12 <- e12      // Sequence comprehensions
         | p21 <- e21, p22 <- e22 ]
 
-Note: the bounds in finite unbounded (those with ..) sequences are
-type expressions, while the bounds in bounded-finite and infinite
-sequences are value expressions.
+Note: the bounds in finite sequences (those with `..`) are type
+expressions, while the bounds in infinite sequences are value
+expressions.
 
 Operator                       Description
 ---------------------------    -----------

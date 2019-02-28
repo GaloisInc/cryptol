@@ -88,7 +88,6 @@ cryIsFinType varInfo ty =
         (TCWidth, [t1])           -> SolvedIf [ pFin t1 ]
         (TCCeilDiv, [_,_])        -> SolvedIf []
         (TCCeilMod, [_,_])        -> SolvedIf []
-        (TCLenFromThen,[_,_,_])   -> SolvedIf []
         (TCLenFromThenTo,[_,_,_]) -> SolvedIf []
 
         _ -> Unsolved

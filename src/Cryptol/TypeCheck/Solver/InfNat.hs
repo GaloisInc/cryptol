@@ -159,28 +159,6 @@ nWidth Inf      = Inf
 nWidth (Nat n)  = Nat (widthInteger n)
 
 
-{- | @length ([ x, y .. ] : [_][w])@
-We don't check that the second element fits in `w` many bits as the
-second element may not be part of the list.
-For example, the length of @[ 0 .. ] : [_][0]@ is @nLenFromThen 0 1 0@,
-which should evaluate to 1. -}
-
-
-{- XXX: It would appear that the actual notation also requires `y` to fit in...
-It is not clear if that's a good idea.  Consider, for example,
-
-    [ 1, 4 .., 2 ]
-
-Cryptol infers that this list has one element, but it insists that the
-width of the elements be at least 3, to accommodate the 4.
--}
-nLenFromThen :: Nat' -> Nat' -> Nat' -> Maybe Nat'
-nLenFromThen a@(Nat x) b@(Nat y) wi@(Nat w)
-  | wi < nWidth a = Nothing
-  | y > x         = nLenFromThenTo a b (Nat (2^w - 1))
-  | y < x         = nLenFromThenTo a b (Nat 0)
-
-nLenFromThen _ _ _ = Nothing
 
 -- | @length [ x, y .. z ]@
 nLenFromThenTo :: Nat' -> Nat' -> Nat' -> Maybe Nat'
@@ -202,9 +180,6 @@ nLenFromThenTo _ _ _ = Nothing
   nLenFromThenTo x y z == 0
     case 1: x > y  && z > x
     case 2: x <= y && z < x
-
-  nLenFromThen x y w == 0
-    impossible
 -}
 
 {- Note [Sequences of Length 1]
@@ -242,14 +217,6 @@ nLenFromThenTo _ _ _ = Nothing
           (z < y)
 
   case 2 summary: y > z, z >= x
-
-------------------------
-
-  `nLenFromThen x y w == 1`
-    | y > x         = nLenFromThenTo x y (Nat (2^w - 1))
-    | y < x         = nLenFromThenTo x y (Nat 0)
-
-    y >= 2^w, y > x
 
 -}
 

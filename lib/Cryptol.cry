@@ -453,19 +453,6 @@ updatesEnd xs0 idxs vals = xss!0
          ]
 
 /**
- * A finite arithmetic sequence starting with 'first' and 'next',
- * stopping when the values would wrap around modulo '2^^bits'.
- *
- * '[a,b..]' is syntactic sugar for 'fromThen`{first=a,next=b}'.
- * '[a..]' is syntactic sugar for 'fromThen`{first=a,next=a+1}'.
- */
-primitive fromThen : {first, next, bits, len}
-                     ( fin first, fin next, fin bits
-                     , bits >= width first, bits >= width next
-                     , first != next
-                     , lengthFromThen first next bits == len) => [len][bits]
-
-/**
  * A finite sequence counting up from 'first' to 'last'.
  *
  * '[a..b]' is syntactic sugar for 'fromTo`{first=a,last=b}'.

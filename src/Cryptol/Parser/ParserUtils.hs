@@ -284,10 +284,11 @@ unOp f x = at (f,x) $ EApp f x
 binOp :: Expr PName -> Located PName -> Expr PName -> Expr PName
 binOp x f y = at (x,y) $ EInfix x f defaultFixity y
 
-eFromTo :: Range -> Expr PName -> Maybe (Expr PName) -> Maybe (Expr PName) -> ParseM (Expr PName)
+eFromTo :: Range -> Expr PName -> Maybe (Expr PName) -> Expr PName -> ParseM (Expr PName)
 eFromTo r e1 e2 e3 = EFromTo <$> exprToNumT r e1
                              <*> mapM (exprToNumT r) e2
-                             <*> mapM (exprToNumT r) e3
+                             <*> exprToNumT r e3
+
 exprToNumT :: Range -> Expr PName -> ParseM (Type PName)
 exprToNumT r expr =
   case translateExprToNumT expr of

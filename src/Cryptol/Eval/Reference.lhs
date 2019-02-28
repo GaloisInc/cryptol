@@ -543,7 +543,7 @@ Cryptol primitives fall into several groups:
 
 * Indexing: `@`, `@@`, `!`, `!!`, `update`, `updateEnd`
 
-* Enumerations: `fromThen`, `fromTo`, `fromThenTo`, `infFrom`, `infFromThen`
+* Enumerations: `fromTo`, `fromThenTo`, `infFrom`, `infFromThen`
 
 * Polynomials: `pmult`, `pdiv`, `pmod`
 
@@ -648,13 +648,6 @@ Cryptol primitives fall into several groups:
 >   , ("updateEnd"  , updatePrim updateBack)
 >
 >   -- Enumerations:
->   , ("fromThen"   , vFinPoly $ \first ->
->                     vFinPoly $ \next  ->
->                     vFinPoly $ \bits  ->
->                     vFinPoly $ \len   ->
->                     VList (Nat len)
->                     (map (vWordValue bits) (genericTake len [first, next ..])))
->
 >   , ("fromTo"     , vFinPoly $ \first ->
 >                     vFinPoly $ \lst   ->
 >                     VPoly    $ \ty  ->
@@ -732,21 +725,11 @@ error if any of the input bits contain an evaluation error.
 > signedBitsToInteger (b0 : bs) = foldl f (if b0 then -1 else 0) bs
 >   where f x b = if b then 2 * x + 1 else 2 * x
 
-Functions `vWord` and `vWordValue` convert from integers back to the
-big-endian bitvector representation. If an integer-producing function
-raises a run-time exception, then the output bitvector will contain
-the exception in all bit positions.
+Function `vWord` converts an integer back to the big-endian bitvector
+representation. If an integer-producing function raises a run-time
+exception, then the output bitvector will contain the exception in all
+bit positions.
 
-> -- | Convert an integer to big-endian binary value of the specified width.
-> vWordValue :: Integer -> Integer -> Value
-> vWordValue w x = VList (Nat w) (map (VBit . Right) (integerToBits w x))
->
-> -- | Convert an integer to a big-endian format of the specified width.
-> integerToBits :: Integer -> Integer -> [Bool]
-> integerToBits w x = go [] w x
->   where go bs 0 _ = bs
->         go bs n a = go (odd a : bs) (n - 1) $! (a `div` 2)
->
 > vWord :: Integer -> Either EvalError Integer -> Value
 > vWord w e = VList (Nat w) [ VBit (fmap (test i) e) | i <- [w-1, w-2 .. 0] ]
 >   where test i x = testBit x (fromInteger i)

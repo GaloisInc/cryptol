@@ -537,13 +537,11 @@ list_expr                      :: { Expr PName }
      is being parsed.  For this reason, we use `expr` temporarily and
      then convert it to the corresponding type in the AST. -}
 
-  | expr          '..'            {% eFromTo $2 $1 Nothing   Nothing    }
-  | expr          '..' expr       {% eFromTo $2 $1 Nothing   (Just $3)  }
-  | expr ',' expr '..'            {% eFromTo $4 $1 (Just $3) Nothing    }
-  | expr ',' expr '..' expr       {% eFromTo $4 $1 (Just $3) (Just $5)  }
+  | expr          '..' expr       {% eFromTo $2 $1 Nothing   $3 }
+  | expr ',' expr '..' expr       {% eFromTo $4 $1 (Just $3) $5 }
 
-  | expr '...'                    { EInfFrom $1 Nothing                 }
-  | expr ',' expr '...'           { EInfFrom $1 (Just $3)               }
+  | expr '...'                    { EInfFrom $1 Nothing         }
+  | expr ',' expr '...'           { EInfFrom $1 (Just $3)       }
 
 
 list_alts                      :: { [[Match PName]] }
@@ -634,9 +632,8 @@ type                           :: { Type PName                                  
 
 app_type                       :: { Type PName }
   -- : 'lg2'   atype                 { at ($1,$2) $ TApp TCLg2   [$2]    }
-  -- | 'lengthFromThen' atype atype  { at ($1,$3) $ TApp TCLenFromThen [$2,$3] }
   -- | 'lengthFromThenTo' atype atype
-  --                      atype      { at ($1,$4) $ TApp TCLenFromThen [$2,$3,$4] }
+  --                      atype      { at ($1,$4) $ TApp TCLenFromThenTo [$2,$3,$4] }
   -- | 'min'   atype atype           { at ($1,$3) $ TApp TCMin   [$2,$3] }
   -- | 'max'   atype atype           { at ($1,$3) $ TApp TCMax   [$2,$3] }
 

@@ -236,7 +236,7 @@ tnamesE expr =
                      in Set.unions (e : map tnamesUF fs)
     EList es      -> Set.unions (map tnamesE es)
     EFromTo a b c -> Set.union (tnamesT a)
-                     (Set.union (maybe Set.empty tnamesT b) (maybe Set.empty tnamesT c))
+                     (Set.union (maybe Set.empty tnamesT b) (tnamesT c))
     EInfFrom e e' -> Set.union (tnamesE e) (maybe Set.empty tnamesE e')
     EComp e mss   -> Set.union (tnamesE e) (Set.unions (map tnamesM (concat mss)))
     EApp e1 e2    -> Set.union (tnamesE e1) (tnamesE e2)

@@ -260,11 +260,6 @@ primitive (!) : {a, b, c} (fin a, fin c) => [a]b -> [c] -> b
  */
 primitive (!!) : {a, b, c, d} (fin a, fin d) => [a]b -> [c][d] -> [c]b
 
-primitive fromThen : {first, next, bits, len}
-                     ( fin first, fin next, fin bits
-                     , bits >= width first, bits >= width next
-                     , lengthFromThen first next bits == len) => [len][bits]
-
 primitive fromTo : {first, last, bits} (fin last, fin bits, last >= first,
                               bits >= width last) => [1 + (last - first)][bits]
 

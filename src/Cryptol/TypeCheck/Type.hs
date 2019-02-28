@@ -542,13 +542,8 @@ tCeilDiv = tf2 TCCeilDiv
 tCeilMod :: Type -> Type -> Type
 tCeilMod = tf2 TCCeilMod
 
-tLenFromThen :: Type -> Type -> Type -> Type
-tLenFromThen = tf3 TCLenFromThen
-
 tLenFromThenTo :: Type -> Type -> Type -> Type
 tLenFromThenTo = tf3 TCLenFromThenTo
-
-
 
 
 

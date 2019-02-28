@@ -172,8 +172,6 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     lam  $ \ x     ->
                        splitAtV front back a =<< x)
 
-  , ("fromThen"   , {-# SCC "Prelude::fromThen" #-}
-                    fromThenV)
   , ("fromTo"     , {-# SCC "Prelude::fromTo" #-}
                     fromToV)
   , ("fromThenTo" , {-# SCC "Prelude::fromThenTo" #-}
@@ -1405,24 +1403,6 @@ updatePrim updateWord updateSeq =
       VSeq l vs  -> VSeq l  <$> updateSeq len eltTy vs idx' val
       VStream vs -> VStream <$> updateSeq len eltTy vs idx' val
       _ -> evalPanic "Expected sequence value" ["updatePrim"]
-
--- @[ 0, 1 .. ]@
-fromThenV :: BitWord b w i
-          => GenValue b w i
-fromThenV  =
-  nlam $ \ first ->
-  nlam $ \ next  ->
-  nlam $ \ bits  ->
-  nlam $ \ len   ->
-    case (first, next, len, bits) of
-      (_         , _        , _       , Nat bits')
-        | bits' >= Arch.maxBigIntWidth -> wordTooWide bits'
-      (Nat first', Nat next', Nat len', Nat bits') ->
-        let diff = next' - first'
-         in VSeq len' $ IndexSeqMap $ \i ->
-                ready $ VWord bits' $ return $
-                  WordVal $ wordLit bits' (first' + i*diff)
-      _ -> evalPanic "fromThenV" ["invalid arguments"]
 
 -- @[ 0 .. 10 ]@
 fromToV :: BitWord b w i

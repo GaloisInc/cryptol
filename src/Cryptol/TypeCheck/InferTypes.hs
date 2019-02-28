@@ -296,7 +296,6 @@ ppUse expr =
       | identText prim == "number"       -> "literal or demoted expression"
       | identText prim == "infFrom"      -> "infinite enumeration"
       | identText prim == "infFromThen"  -> "infinite enumeration (with step)"
-      | identText prim == "fromThen"     -> "finite enumeration"
       | identText prim == "fromTo"       -> "finite enumeration"
       | identText prim == "fromThenTo"   -> "finite enumeration"
     _                                    -> "expression" <+> pp expr

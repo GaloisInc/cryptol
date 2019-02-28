@@ -31,7 +31,7 @@ tboxInv : TBox
 tboxInv = mkTBox [ 0x0e, 0x09, 0x0d, 0x0b ] sboxInv
 
 mkTBox : [4]GF28 -> SBox -> TBox
-mkTBox seed box = [ [ a >>> i | a <- t0 ] | i <- [ 0 .. ] ]
+mkTBox seed box = [ [ a >>> i | a <- t0 ] | i <- [0 .. 3] ]
   where
   t0 = [ [ gf28Mult c s | c <- seed ] | s <- box ]
 

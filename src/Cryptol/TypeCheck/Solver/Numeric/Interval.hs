@@ -42,8 +42,6 @@ typeInterval varInfo = go
           (TF TCWidth, [x])   -> iWidth (go x)
           (TF TCMin, [x,y])   -> iMin (go x) (go y)
           (TF TCMax, [x,y])   -> iMax (go x) (go y)
-          (TF TCLenFromThen, [x,y,z]) ->
-            iLenFromThen (go x) (go y) (go z)
 
           (TF TCLenFromThenTo, [x,y,z]) ->
             iLenFromThenTo (go x) (go y) (go z)
@@ -343,17 +341,6 @@ iWidth i = Interval { iLower = nWidth (iLower i)
                                  Nothing -> Nothing
                                  Just n  -> Just (nWidth n)
                     }
-
-iLenFromThen :: Interval -> Interval -> Interval -> Interval
-iLenFromThen i j w
-  | Just x <- iIsExact i, Just y <- iIsExact j, Just z <- iIsExact w
-  , Just r <- nLenFromThen x y z = iConst r
-  | otherwise =
-      case iUpper w of
-        Just (Nat n) ->
-                    Interval { iLower = Nat 0, iUpper = Just (Nat (2^n - 1)) }
-        _ -> iAnyFin
-
 
 iLenFromThenTo :: Interval -> Interval -> Interval -> Interval
 iLenFromThenTo i j k

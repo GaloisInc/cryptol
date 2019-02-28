@@ -117,11 +117,6 @@ primsPlaceHolder=1;
 %    (/$) : {a} (Arith a) => a -> a -> a
 %    number : {val, rep} (Literal val rep) => rep
 %    elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
-%    fromThen :
-%      {first, next, bits, len} (fin first, fin next, fin bits,
-%                                bits >= width first, bits >= width next, first != next,
-%                                lengthFromThen first next bits == len) =>
-%        [len][bits]
 %    fromThenTo :
 %      {first, next, last, a, len} (fin first, fin next, fin last,
 %                                   Literal first a, Literal next a, Literal last a, first != next,
