@@ -31,7 +31,7 @@ import           Cryptol.TypeCheck.AST hiding (tSub,tMul,tExp)
 import           Cryptol.TypeCheck.Monad
 import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Solve
-import           Cryptol.TypeCheck.SimpType(tSub,tMul,tExp,tAdd)
+import           Cryptol.TypeCheck.SimpType(tMul)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                         checkPropSyn,checkNewtype,
                                         checkParameterType,
@@ -279,37 +279,13 @@ checkE expr tGoal =
          es' <- mapM (`checkE` a) es
          return (EList es' a)
 
-    P.EFromTo t1 Nothing Nothing ->
-      do rng <- curRange
-         fromThenPrim <- mkPrim' "fromThen"
-         let src = TypeParamInstNamed fromThenPrim (packIdent "bits")
-         bit <- newType src KNum
-         fstT <- checkTypeOfKind t1 KNum
-         let nextT = tAdd fstT (tNum (1::Int))
-             lenT  = tSub (tExp (tNum (2::Int)) bit) fstT
-
-         appTys (P.EVar fromThenPrim)
-           [ Located rng (Just (packIdent x), y)
-           | (x,y) <- [ ("first", fstT)
-                      , ("next", nextT)
-                      , ("len",   lenT)
-                      , ("bits",  bit) ]
-           ] tGoal
-
-    P.EFromTo t1 mbt2 mbt3 ->
+    P.EFromTo t1 mbt2 t3 ->
       do l <- curRange
          let (c,fs) =
-               case (mbt2, mbt3) of
-
-                 (Nothing, Nothing) -> tcPanic "checkE"
-                                        [ "EFromTo _ Nothing Nothing" ]
-                 (Just t2, Nothing) ->
-                    ("fromThen", [ ("next", t2) ])
-
-                 (Nothing, Just t3) ->
+               case mbt2 of
+                 Nothing ->
                     ("fromTo", [ ("last", t3) ])
-
-                 (Just t2, Just t3) ->
+                 Just t2 ->
                     ("fromThenTo", [ ("next",t2), ("last",t3) ])
 
          prim <- mkPrim c

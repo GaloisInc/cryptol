@@ -790,7 +790,7 @@ instance Rename Expr where
     EList es      -> EList   <$> traverse rename es
     EFromTo s n e'-> EFromTo <$> rename s
                              <*> traverse rename n
-                             <*> traverse rename e'
+                             <*> rename e'
     EInfFrom a b  -> EInfFrom<$> rename a  <*> traverse rename b
     EComp e' bs   -> do arms' <- traverse renameArm bs
                         let (envs,bs') = unzip arms'
