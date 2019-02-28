@@ -316,17 +316,6 @@
 )
 
 
-(define-fun cryLenFromThen ((x InfNat) (y InfNat) (z InfNat)) InfNat
-  (ite (or (isErr x) (not (isFin x))
-           (isErr y) (not (isFin y))
-           (isErr z) (not (isFin z))
-           (= (value x) (value y))) cryErr
-  (ite (< (value y) (value x)) (cryLenFromThenTo x y (cryNat 0))
-       (cryLenFromThenTo x y (cryNat (- (cryExpTable 2 (value z)) 1))))
-  )
-)
-
-
 ; ---
 
 

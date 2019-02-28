@@ -114,9 +114,6 @@ primTyList =
   , tInfix  "%^"               TF TCCeilMod    (l 90)
     "How much we need to add to make a proper multiple of the second argument."
 
-  , tPrefix "lengthFromThen"   TF TCLenFromThen
-    "The length of an enumeration."
-
   , tPrefix "lengthFromThenTo" TF TCLenFromThenTo
     "The length of an enumeration."
   ]
@@ -244,9 +241,7 @@ instance HasKind TFun where
       TCCeilDiv -> KNum :-> KNum :-> KNum
       TCCeilMod -> KNum :-> KNum :-> KNum
 
-      TCLenFromThen   -> KNum :-> KNum :-> KNum :-> KNum
       TCLenFromThenTo -> KNum :-> KNum :-> KNum :-> KNum
-
 
 
 
@@ -325,9 +320,6 @@ data TFun
   | TCCeilMod             -- ^ @ : Num -> Num -> Num @
 
   -- Computing the lengths of explicit enumerations
-  | TCLenFromThen         -- ^ @ : Num -> Num -> Num -> Num@
-    -- Example: @[ 1, 5 .. ] :: [lengthFromThen 1 5 b][b]@
-
   | TCLenFromThenTo       -- ^ @ : Num -> Num -> Num -> Num@
     -- Example: @[ 1, 5 .. 9 ] :: [lengthFromThenTo 1 5 9][b]@
 
@@ -449,6 +441,4 @@ instance PP TFun where
       TCMax             -> text "max"
       TCCeilDiv         -> text "/^"
       TCCeilMod         -> text "%^"
-
-      TCLenFromThen     -> text "lengthFromThen"
       TCLenFromThenTo   -> text "lengthFromThenTo"

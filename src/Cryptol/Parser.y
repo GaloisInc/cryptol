@@ -632,9 +632,8 @@ type                           :: { Type PName                                  
 
 app_type                       :: { Type PName }
   -- : 'lg2'   atype                 { at ($1,$2) $ TApp TCLg2   [$2]    }
-  -- | 'lengthFromThen' atype atype  { at ($1,$3) $ TApp TCLenFromThen [$2,$3] }
   -- | 'lengthFromThenTo' atype atype
-  --                      atype      { at ($1,$4) $ TApp TCLenFromThen [$2,$3,$4] }
+  --                      atype      { at ($1,$4) $ TApp TCLenFromThenTo [$2,$3,$4] }
   -- | 'min'   atype atype           { at ($1,$3) $ TApp TCMin   [$2,$3] }
   -- | 'max'   atype atype           { at ($1,$3) $ TApp TCMax   [$2,$3] }
 

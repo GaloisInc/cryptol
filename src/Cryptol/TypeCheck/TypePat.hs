@@ -5,7 +5,7 @@ module Cryptol.TypeCheck.TypePat
   , aMin, aMax
   , aWidth
   , aCeilDiv, aCeilMod
-  , aLenFromThen, aLenFromThenTo
+  , aLenFromThenTo
 
   , aLiteral, aLogic
 
@@ -111,9 +111,6 @@ aCeilDiv = tf TCCeilDiv ar2
 
 aCeilMod :: Pat Type (Type,Type)
 aCeilMod = tf TCCeilMod ar2
-
-aLenFromThen :: Pat Type (Type,Type,Type)
-aLenFromThen = tf TCLenFromThen ar3
 
 aLenFromThenTo :: Pat Type (Type,Type,Type)
 aLenFromThenTo = tf TCLenFromThenTo ar3
