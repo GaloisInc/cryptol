@@ -234,6 +234,10 @@ ordering of record components is not important.  Examples:
     { x = 1, y = 2 } == { x = 1, y = 2 }    // True
     { x = 1, y = 2 } == { y = 2, x = 1 }    // True
 
+
+Accessing Fields
+----------------
+
 The components of a record or a tuple may be accessed in two ways: via
 pattern matching or by using explicit component selectors.  Explicit
 component selectors are written as follows:
@@ -269,6 +273,31 @@ patterns use braces.  Examples:
 
     f p = x + y where
         (x, y) = p
+
+
+Updating Fields
+---------------
+
+The components of a record or a tuple may be updated using the following
+notation:
+
+    // Example values
+    r = { x = 15, y = 20 }      // a record
+    t = (True,True)             // a tuple
+    n = { pt = r, size = 100 }  // nested record
+
+    // Setting fields
+    { r | x = 30 }          == { x = 30, y = 20 }
+    { t | 0 = False }       == (False,True)
+
+    // Update relative to the old value
+    { r | x -> x + 5 }      == { x = 20, y = 20 }
+
+    // Update a nested field
+    { n | pt.x = 10 }       == { pt = { x = 10, y = 20 }, size = 100 }
+    { n | pt.x -> x + 10 }  == { pt = { x = 25, y = 20 }, size = 100 }
+
+
 
 Sequences
 =========
