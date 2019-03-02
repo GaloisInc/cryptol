@@ -273,6 +273,7 @@ setupREPL opts = do
                io $ print $ pp y
              -- ... but make sure the loaded module is set to the file
              -- we tried, instead of the Prelude
+             REPL.setEditPath l
              REPL.setLoadedMod REPL.LoadedModule
                { REPL.lName = Nothing
                , REPL.lPath = l

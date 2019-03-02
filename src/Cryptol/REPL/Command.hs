@@ -86,7 +86,7 @@ import Data.Bits ((.&.))
 import Data.Char (isSpace,isPunctuation,isSymbol)
 import Data.Function (on)
 import Data.List (intercalate, nub, sortBy, partition, isPrefixOf)
-import Data.Maybe (fromMaybe,mapMaybe)
+import Data.Maybe (fromMaybe,mapMaybe,isNothing)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
 import System.Process (shell,createProcess,waitForProcess)
@@ -747,25 +747,22 @@ reloadCmd  = do
 
 
 editCmd :: String -> REPL ()
-editCmd path
-  | null path = do
-      mb <- getLoadedMod
-      case mb of
+editCmd path =
+  do mbE <- getEditPath
+     mbL <- getLoadedMod
+     if not (null path)
+        then do when (isNothing mbL)
+                  $ setLoadedMod LoadedModule { lName = Nothing, lPath = path }
+                doEdit path
+        else case msum [ mbE, lPath <$> mbL ] of
+               Nothing -> rPutStrLn "No filed to edit."
+               Just p  -> doEdit p
+  where
+  doEdit p =
+    do setEditPath p
+       _ <- replEdit p
+       reloadCmd
 
-        Just m -> do
-          success <- replEdit (lPath m)
-          if success
-             then reloadCmd
-             else return ()
-
-        Nothing   -> do
-          rPutStrLn "No files to edit."
-          return ()
-
-  | otherwise = do
-      _  <- replEdit path
-      setEditPath path
-      reloadCmd
 
 moduleCmd :: String -> REPL ()
 moduleCmd modString
@@ -781,7 +778,12 @@ loadPrelude  = moduleCmd $ show $ pp M.preludeName
 loadCmd :: FilePath -> REPL ()
 loadCmd path
   | null path = return ()
+
+  -- when `:load`, the edit and focused paths become the parameter
   | otherwise = do setEditPath path
+                   setLoadedMod LoadedModule { lName = Nothing
+                                             , lPath = path
+                                             }
                    loadHelper (M.loadModuleByPath path)
 
 loadHelper :: M.ModuleCmd (FilePath,T.Module) -> REPL ()
@@ -793,6 +795,8 @@ loadHelper how =
         { lName = Just (T.mName m)
         , lPath = path
         }
+     -- after a successful load, the current module becomes the edit target
+     setEditPath path
      setDynEnv mempty
 
 quitCmd :: REPL ()
@@ -1156,8 +1160,12 @@ moduleCmdResult (res,ws0) = do
     Right (a,me') -> setModuleEnv me' >> return a
     Left err      ->
       do e <- case err of
-                M.ErrorInFile file e -> do setEditPath file
-                                           return e
+                M.ErrorInFile file e ->
+                  -- on error, the file with the error becomes the edit
+                  -- target.  Note, however, that the focused module is not
+                  -- changed.
+                  do setEditPath file
+                     return e
                 _ -> return err
          raise (ModuleSystemError names e)
 

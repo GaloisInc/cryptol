@@ -41,7 +41,8 @@ module Cryptol.REPL.Monad (
   , getTypeNames
   , getPropertyNames
   , getModNames
-  , LoadedModule(..), getLoadedMod, setLoadedMod, clearLoadedMod, setEditPath
+  , LoadedModule(..), getLoadedMod, setLoadedMod, clearLoadedMod
+  , setEditPath, getEditPath
   , setSearchPath, prependSearchPath
   , getPrompt
   , shouldContinue
@@ -128,7 +129,10 @@ data LoadedModule = LoadedModule
 data RW = RW
   { eLoadedMod   :: Maybe LoadedModule
     -- ^ This is the name of the currently "focused" module.
-    -- This is what we edit (:e) or reload (:r)
+    -- This is what we reload (:r)
+
+  , eEditFile :: Maybe FilePath
+    -- ^ This is what we edit (:e)
 
   , eContinue    :: Bool
     -- ^ Should we keep going when we encounter an error, or give up.
@@ -159,6 +163,7 @@ defaultRW isBatch l = do
   env <- M.initialModuleEnv
   return RW
     { eLoadedMod   = Nothing
+    , eEditFile    = Nothing
     , eContinue    = True
     , eIsBatch     = isBatch
     , eModuleEnv   = env
@@ -172,16 +177,35 @@ defaultRW isBatch l = do
 mkPrompt :: RW -> String
 mkPrompt rw
   | eIsBatch rw = ""
-  | otherwise   = modLab ++ "> "
+  | detailedPrompt = withEdit ++ "> "
+  | otherwise      = modLn ++ "> "
   where
-  modLab =
+  detailedPrompt = False
+
+  modLn   =
     case lName =<< eLoadedMod rw of
+      Nothing -> "cryptol"
       Just m
         | M.isLoadedParamMod m (M.meLoadedModules (eModuleEnv rw)) ->
-              modName ++ " (parameterized) "
-         | otherwise -> modName
-         where modName = pretty m
-      Nothing -> "cryptol"
+                 modName ++ "(parameterized)"
+        | otherwise -> modName
+        where modName = pretty m
+
+  withFocus =
+    case eLoadedMod rw of
+      Nothing -> modLn
+      Just m ->
+        case lName m of
+          Nothing -> ":r to reload " ++ lPath m ++ "\n" ++ modLn
+          Just _ -> modLn
+
+  withEdit =
+    case eEditFile rw of
+      Nothing -> withFocus
+      Just e
+        | Just f <- lPath <$> eLoadedMod rw
+        , f == e -> withFocus
+        | otherwise -> ":e to edit " ++ e ++ "\n" ++ withFocus
 
 
 
@@ -321,18 +345,24 @@ clearLoadedMod = do modifyRW_ (\rw -> rw { eLoadedMod = upd <$> eLoadedMod rw })
                     updateREPLTitle
   where upd x = x { lName = Nothing }
 
--- | Set the name of the currently focused file, edited by @:e@ and loaded via
--- @:r@.
+-- | Set the name of the currently focused file, loaded via @:r@.
 setLoadedMod :: LoadedModule -> REPL ()
 setLoadedMod n = do
   modifyRW_ (\ rw -> rw { eLoadedMod = Just n })
   updateREPLTitle
 
-setEditPath :: FilePath -> REPL ()
-setEditPath p = setLoadedMod LoadedModule { lName = Nothing, lPath = p }
-
 getLoadedMod :: REPL (Maybe LoadedModule)
 getLoadedMod  = eLoadedMod `fmap` getRW
+
+
+
+-- | Set the path for the ':e' command.
+-- Note that this does not change the focused module (i.e., what ":r" reloads)
+setEditPath :: FilePath -> REPL ()
+setEditPath p = modifyRW_ $ \rw -> rw { eEditFile = Just p }
+
+getEditPath :: REPL (Maybe FilePath)
+getEditPath = eEditFile <$> getRW
 
 setSearchPath :: [FilePath] -> REPL ()
 setSearchPath path = do
