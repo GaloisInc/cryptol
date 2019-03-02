@@ -26,38 +26,10 @@ Loading module DES
 Loading module Test
 Loading module DEStest
 Loading module Cryptol
-Loading module Main
-Loading module Cryptol
-Loading module SHA256
-Loading module HMAC
-Loading module Cryptol
 Loading module Karatsuba
-Loading module Cryptol
-Loading module Main
-Loading module Cryptol
-Loading module Main
-[warning] at ./SHA1.cry:36:16--36:26 Unused name: contentLen
-Loading module Cryptol
-Loading module SHA256
-Loading module Cryptol
-Loading module AES
-Loading module SIV
-[warning] at ./SIV-rfc5297.md:494:8--494:9 Unused name: k
-[warning] at ./SIV-rfc5297.md:494:7--494:64:
-  Assuming  k to have a numeric type
-Loading module Cryptol
-Loading module Salsa20
 Loading module Cryptol
 Loading module Cipher
 Loading module Test
-Loading module Cryptol
-Loading module Threefish
-Loading module Cryptol
-Loading module Cipher
-Loading module DES
-Loading module TripleDES
-Loading module Cryptol
-Loading module Main
 Loading module Cryptol
 Loading module Main
 Loading module Cryptol
@@ -97,17 +69,7 @@ Loading module MISTY1
 Loading module Cryptol
 Loading module Main
 Loading module Cryptol
-Loading module Main
-Loading module Cryptol
-Loading module Main
-Loading module Cryptol
 Loading module MKRAND
-Loading module Cryptol
-Loading module simon
-Loading module Cryptol
-Loading module Main
-Loading module Cryptol
-Loading module Main
 Loading module Cryptol
 Loading module Main
 Loading module Cryptol
