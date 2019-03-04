@@ -168,20 +168,12 @@ PKG_EXAMPLE_FILES := docs/ProgrammingCryptol/aes/AES.cry \
                      examples/Cipher.cry \
                      examples/DES.cry \
                      examples/DEStest.cry \
-                     examples/FNV-a1.cry \
-                     examples/SHA1.cry \
-                     examples/SIV-rfc5297.md \
-                     examples/Salsa20.cry \
                      examples/Test.cry \
-                     examples/TripleDES.cry \
-                     examples/ZUC.cry \
 
 PKG_EXCONTRIB_FILES := examples/contrib/EvenMansour.cry \
                        examples/contrib/RC4.cry \
                        examples/contrib/README.md \
                        examples/contrib/mkrand.cry \
-                       examples/contrib/simon.cry \
-                       examples/contrib/speck.cry \
 
 PKG_EXFUNSTUFF_FILES := examples/funstuff/Coins.cry \
                         examples/funstuff/FoxChickenCorn.cry \
