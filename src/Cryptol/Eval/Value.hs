@@ -181,10 +181,10 @@ mapSeqMap :: (GenValue b w i -> Eval (GenValue b w i))
 mapSeqMap f x =
   memoMap (IndexSeqMap $ \i -> f =<< lookupSeqMap x i)
 
--- | For efficency reasons, we handle finite sequences of bits as special cases
+-- | For efficiency reasons, we handle finite sequences of bits as special cases
 --   in the evaluator.  In cases where we know it is safe to do so, we prefer to
 --   used a "packed word" representation of bit sequences.  This allows us to rely
---   directly on Integer types (in the concrete evalautor) and SBV's Word types (in
+--   directly on Integer types (in the concrete evaluator) and SBV's Word types (in
 --   the symbolic simulator).
 --
 --   However, if we cannot be sure all the bits of the sequence
