@@ -120,7 +120,7 @@ satSMTResults :: SBV.SatResult -> [SBV.SMTResult]
 satSMTResults (SBV.SatResult r) = [r]
 
 allSatSMTResults :: SBV.AllSatResult -> [SBV.SMTResult]
-allSatSMTResults (SBV.AllSatResult (_, _, rs)) = rs
+allSatSMTResults (SBV.AllSatResult (_, _, _, rs)) = rs
 
 thmSMTResults :: SBV.ThmResult -> [SBV.SMTResult]
 thmSMTResults (SBV.ThmResult r) = [r]
@@ -169,6 +169,7 @@ satProve ProverCommand {..} =
                    , [ SBV.ProofError
                          prover
                          [":sat with option prover=any requires option satNum=1"]
+                         Nothing
                      | prover <- provers ]
                    )
       runProvers fn tag e = do
@@ -228,10 +229,8 @@ satProve ProverCommand {..} =
                      [] -> return $ ThmResult (unFinType <$> ts)
                      -- otherwise something is wrong
                      _ -> return $ ProverError (rshow results)
-                            where rshow | isSat = show .  SBV.AllSatResult . (False,boom,)
+                            where rshow | isSat = show .  SBV.AllSatResult . (False,False,False,)
                                         | otherwise = show . SBV.ThmResult . head
-                                  boom = panic "Cryptol.Symbolic.sat"
-                                           [ "attempted to evaluate bogus boolean for pretty-printing" ]
                    return (firstProver, esatexprs)
 
 satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
