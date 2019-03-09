@@ -574,6 +574,7 @@ onlineProveSat isSat str mfile = do
   proverName <- getKnownUser "prover"
   verbose <- getKnownUser "debug"
   satNum <- getUserSatNum
+  modelValidate <- getUserProverValidate
   parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
   validEvalContext expr
@@ -584,6 +585,7 @@ onlineProveSat isSat str mfile = do
           pcQueryType    = if isSat then SatQuery satNum else ProveQuery
         , pcProverName   = proverName
         , pcVerbose      = verbose
+        , pcValidate     = modelValidate
         , pcProverStats  = timing
         , pcExtraDecls   = decls
         , pcSmtFile      = mfile
@@ -597,6 +599,7 @@ onlineProveSat isSat str mfile = do
 offlineProveSat :: Bool -> String -> Maybe FilePath -> REPL (Either String String)
 offlineProveSat isSat str mfile = do
   verbose <- getKnownUser "debug"
+  modelValidate <- getUserProverValidate
   parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
@@ -605,6 +608,7 @@ offlineProveSat isSat str mfile = do
           pcQueryType    = if isSat then SatQuery (SomeSat 0) else ProveQuery
         , pcProverName   = "offline"
         , pcVerbose      = verbose
+        , pcValidate     = modelValidate
         , pcProverStats  = timing
         , pcExtraDecls   = decls
         , pcSmtFile      = mfile

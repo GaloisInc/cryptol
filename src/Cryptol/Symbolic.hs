@@ -93,6 +93,8 @@ data ProverCommand = ProverCommand {
     -- ^ Which prover to use (one of the strings in 'proverConfigs')
   , pcVerbose :: Bool
     -- ^ Verbosity flag passed to SBV
+  , pcValidate :: Bool
+    -- ^ Model validation flag passed to SBV
   , pcProverStats :: !(IORef ProverStats)
     -- ^ Record timing information here
   , pcExtraDecls :: [DeclGroup]
@@ -148,7 +150,10 @@ satProve ProverCommand {..} =
                                                }]
 
 
-  let provers' = [ p { SBV.timing = SaveTiming pcProverStats, SBV.verbose = pcVerbose } | p <- provers ]
+  let provers' = [ p { SBV.timing = SaveTiming pcProverStats
+                     , SBV.verbose = pcVerbose
+                     , SBV.validateModel = pcValidate
+                     } | p <- provers ]
   let tyFn = if isSat then existsFinType else forallFinType
   let lPutStrLn = M.withLogger logPutStrLn
   let doEval :: MonadIO m => Eval.Eval a -> m a

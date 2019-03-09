@@ -62,6 +62,7 @@ module Cryptol.REPL.Monad (
   , userOptions
   , getUserSatNum
   , getUserShowProverStats
+  , getUserProverValidate
 
     -- ** Configurable Output
   , getPutStr
@@ -709,6 +710,9 @@ badIsEnv x = panic "fromEnvVal" [ "[REPL] Expected a `" ++ x ++ "` value." ]
 getUserShowProverStats :: REPL Bool
 getUserShowProverStats = getKnownUser "prover-stats"
 
+getUserProverValidate :: REPL Bool
+getUserProverValidate = getKnownUser "prover-validate"
+
 -- Environment Options ---------------------------------------------------------
 
 type OptionMap = Trie OptionDescr
@@ -795,6 +799,9 @@ userOptions  = mkOptionMap
 
   , simpleOpt "prover-stats" (EnvBool True) noCheck
     "Enable prover timing statistics."
+
+  , simpleOpt "prover-validate" (EnvBool False) noCheck
+    "Validate :sat examples and :prove counter-examples for correctness."
   ]
 
 
