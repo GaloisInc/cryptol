@@ -20,7 +20,7 @@ import Control.Monad.IO.Class
 import Control.Monad (replicateM, when, zipWithM, foldM)
 import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
 import Data.List (intercalate, genericLength)
-import Data.IORef(IORef,writeIORef)
+import Data.IORef(IORef)
 import qualified Control.Exception as X
 
 import qualified Data.SBV.Dynamic as SBV
@@ -177,9 +177,6 @@ satProve ProverCommand {..} =
           lPutStrLn $ "Trying proof with " ++
                   intercalate ", " (map (show . SBV.name . SBV.solver) provers)
         (firstProver, timeElapsed, res) <- M.io (fn provers' e)
-        -- NOTE: It would appear that the ref does not contain the elaspsed
-        -- time but rahter some sort of small value, so we write it here.
-        liftIO $ writeIORef pcProverStats timeElapsed
         when pcVerbose $
           lPutStrLn $ "Got result from " ++ show firstProver ++
                                             ", time: " ++ showTDiff timeElapsed
