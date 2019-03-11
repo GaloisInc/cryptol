@@ -20,7 +20,7 @@ import Control.Monad.IO.Class
 import Control.Monad (replicateM, when, zipWithM, foldM)
 import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
 import Data.List (intercalate, genericLength)
-import Data.IORef(IORef,writeIORef)
+import Data.IORef(IORef)
 import qualified Control.Exception as X
 
 import qualified Data.SBV.Dynamic as SBV
@@ -93,6 +93,8 @@ data ProverCommand = ProverCommand {
     -- ^ Which prover to use (one of the strings in 'proverConfigs')
   , pcVerbose :: Bool
     -- ^ Verbosity flag passed to SBV
+  , pcValidate :: Bool
+    -- ^ Model validation flag passed to SBV
   , pcProverStats :: !(IORef ProverStats)
     -- ^ Record timing information here
   , pcExtraDecls :: [DeclGroup]
@@ -120,7 +122,7 @@ satSMTResults :: SBV.SatResult -> [SBV.SMTResult]
 satSMTResults (SBV.SatResult r) = [r]
 
 allSatSMTResults :: SBV.AllSatResult -> [SBV.SMTResult]
-allSatSMTResults (SBV.AllSatResult (_, _, rs)) = rs
+allSatSMTResults (SBV.AllSatResult (_, _, _, rs)) = rs
 
 thmSMTResults :: SBV.ThmResult -> [SBV.SMTResult]
 thmSMTResults (SBV.ThmResult r) = [r]
@@ -148,7 +150,10 @@ satProve ProverCommand {..} =
                                                }]
 
 
-  let provers' = [ p { SBV.timing = SaveTiming pcProverStats, SBV.verbose = pcVerbose } | p <- provers ]
+  let provers' = [ p { SBV.timing = SaveTiming pcProverStats
+                     , SBV.verbose = pcVerbose
+                     , SBV.validateModel = pcValidate
+                     } | p <- provers ]
   let tyFn = if isSat then existsFinType else forallFinType
   let lPutStrLn = M.withLogger logPutStrLn
   let doEval :: MonadIO m => Eval.Eval a -> m a
@@ -169,6 +174,7 @@ satProve ProverCommand {..} =
                    , [ SBV.ProofError
                          prover
                          [":sat with option prover=any requires option satNum=1"]
+                         Nothing
                      | prover <- provers ]
                    )
       runProvers fn tag e = do
@@ -176,9 +182,6 @@ satProve ProverCommand {..} =
           lPutStrLn $ "Trying proof with " ++
                   intercalate ", " (map (show . SBV.name . SBV.solver) provers)
         (firstProver, timeElapsed, res) <- M.io (fn provers' e)
-        -- NOTE: It would appear that the ref does not contain the elaspsed
-        -- time but rahter some sort of small value, so we write it here.
-        liftIO $ writeIORef pcProverStats timeElapsed
         when pcVerbose $
           lPutStrLn $ "Got result from " ++ show firstProver ++
                                             ", time: " ++ showTDiff timeElapsed
@@ -228,10 +231,8 @@ satProve ProverCommand {..} =
                      [] -> return $ ThmResult (unFinType <$> ts)
                      -- otherwise something is wrong
                      _ -> return $ ProverError (rshow results)
-                            where rshow | isSat = show .  SBV.AllSatResult . (False,boom,)
+                            where rshow | isSat = show .  SBV.AllSatResult . (False,False,False,)
                                         | otherwise = show . SBV.ThmResult . head
-                                  boom = panic "Cryptol.Symbolic.sat"
-                                           [ "attempted to evaluate bogus boolean for pretty-printing" ]
                    return (firstProver, esatexprs)
 
 satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
