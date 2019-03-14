@@ -1,4 +1,13 @@
 from collections import OrderedDict
+import base64
+
+
+class CryptolCode:
+    pass
+
+class CryptolLiteral(CryptolCode):
+    def __init__(self, code):
+        self._code = code
 
 
 class CryptolArrowKind:
@@ -28,7 +37,40 @@ class Fin(UnaryProp):
         return f"Fin({self.subject!r})"
 
 class CryptolType:
-    pass
+    def from_python(self, val):
+        if hasattr(val, '__to_cryptol__'):
+            return val.__to_cryptol__(self)
+        else:
+            return self.convert(val)
+
+    def convert(self, val):
+        if isinstance(val, bool):
+            return val
+        elif val == ():
+            return {'expression': 'unit'}
+        elif isinstance(val, tuple):
+            return {'expression': 'tuple',
+                    'data': [to_cryptol_arg(x) for x in val]}
+        elif isinstance(val, dict):
+            return {'expression': 'record',
+                    'data': {k : to_cryptol_arg(val[k])
+                             if isinstance(k, str)
+                             else fail_with (TypeError("Record keys must be strings"))
+                             for k in val}}
+        elif isinstance(val, int):
+            return val
+        elif isinstance(val, list):
+            return {'expression': 'sequence',
+                    'data': [to_cryptol_arg(v) for v in val]}
+        elif isinstance(val, CryptolCode):
+            return val.code
+        elif isinstance(val, bytes) or isinstance(val, bytearray):
+            return {'expression': 'bits',
+                    'encoding': 'base64',
+                    'width': 8 * len(val),
+                    'data': base64.b64encode(val).decode('ascii')}
+        else:
+            raise TypeError("Unsupported value: " + str(val))
 
 class Var(CryptolType):
     def __init__(self, name, kind):
@@ -37,6 +79,7 @@ class Var(CryptolType):
 
     def __repr__(self):
         return f"Var({self.name!r}, {self.kind!r})"
+
 
 
 class Function(CryptolType):
@@ -189,3 +232,13 @@ def to_schema(obj):
 def to_prop(obj):
     if obj['prop'] == 'fin':
         return Fin(to_type(obj['subject']))
+
+def argument_types(obj):
+    if isinstance(obj, CryptolTypeSchema):
+        return argument_types(obj.body)
+    elif isinstance(obj, Function):
+        arg1 = obj.domain
+        args = argument_types(obj.range)
+        return [arg1] + args
+    else:
+        return []

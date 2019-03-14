@@ -14,10 +14,7 @@ __all__ = ['types']
 #  >>> f = c.load_file(FILE)
 #  >>> f.result()
 #
-# TODO:
-#  1. State tracking across calls
-#  2. Allow multiple replies to messages for intermediate status updates
-#  3. Implement the rest of the methods
+
 
 
 def extend_hex(string):
@@ -30,12 +27,6 @@ def fail_with(x):
     "Raise an exception. This is valid in expression positions."
     raise x
 
-class CryptolCode:
-    pass
-
-class CryptolLiteral(CryptolCode):
-    def __init__(self, code):
-        self._code = code
 
 import re
 
@@ -44,36 +35,6 @@ m = r"\{\{([a-zA-Z0-9]+)\}\}"
 
 
 
-# TODO Make this more Pythonic by testing for method support rather
-# than instances
-def to_cryptol_arg(val):
-    if isinstance(val, bool):
-        return val
-    elif val == ():
-        return {'expression': 'unit'}
-    elif isinstance(val, tuple):
-        return {'expression': 'tuple',
-                'data': [to_cryptol_arg(x) for x in val]}
-    elif isinstance(val, dict):
-        return {'expression': 'record',
-                'data': {k : to_cryptol_arg(val[k])
-                         if isinstance(k, str)
-                         else fail_with (TypeError("Record keys must be strings"))
-                         for k in val}}
-    elif isinstance(val, int):
-        return val
-    elif isinstance(val, list):
-        return {'expression': 'sequence',
-                'data': [to_cryptol_arg(v) for v in val]}
-    elif isinstance(val, CryptolCode):
-        return val.code
-    elif isinstance(val, bytes) or isinstance(val, bytearray):
-        return {'expression': 'bits',
-                'encoding': 'base64',
-                'width': 8 * len(val),
-                'data': base64.b64encode(val).decode('ascii')}
-    else:
-        raise TypeError("Unsupported value: " + str(val))
 
 def from_cryptol_arg(val):
     if isinstance(val, bool):
@@ -305,7 +266,7 @@ class CryptolConnection(object):
         return self.most_recent_result
 
     def call(self, fun, *args):
-        encoded_args = [to_cryptol_arg(a) for a in args]
+        encoded_args = [types.CryptolType().from_python(a) for a in args]
         self.most_recent_result = CryptolCall(self, fun, encoded_args)
         return self.most_recent_result
 
