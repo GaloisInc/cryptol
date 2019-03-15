@@ -3,11 +3,25 @@ import base64
 
 
 class CryptolCode:
-    pass
+    def __call__(self, other):
+        return CryptolApplication(self, other)
 
 class CryptolLiteral(CryptolCode):
     def __init__(self, code):
         self._code = code
+
+    def __to_cryptol__(self, ty):
+        return self._code
+
+class CryptolApplication(CryptolCode):
+    def __init__(self, rator, *rands):
+        self._rator = rator
+        self._rands = rands
+
+    def __to_cryptol__(self, ty):
+        return {'expression': 'call',
+                'function': to_cryptol(self._rator),
+                'arguments': [to_cryptol(arg) for arg in self._rands]}
 
 
 class CryptolArrowKind:
@@ -36,6 +50,12 @@ class Fin(UnaryProp):
     def __repr__(self):
         return f"Fin({self.subject!r})"
 
+def to_cryptol(val, cryptol_type=None):
+    if cryptol_type is not None:
+        return cryptol_type.from_python(val)
+    else:
+        return CryptolType().from_python(val)
+
 class CryptolType:
     def from_python(self, val):
         if hasattr(val, '__to_cryptol__'):
@@ -50,10 +70,10 @@ class CryptolType:
             return {'expression': 'unit'}
         elif isinstance(val, tuple):
             return {'expression': 'tuple',
-                    'data': [to_cryptol_arg(x) for x in val]}
+                    'data': [to_cryptol(x) for x in val]}
         elif isinstance(val, dict):
             return {'expression': 'record',
-                    'data': {k : to_cryptol_arg(val[k])
+                    'data': {k : to_cryptol(val[k])
                              if isinstance(k, str)
                              else fail_with (TypeError("Record keys must be strings"))
                              for k in val}}
@@ -61,9 +81,7 @@ class CryptolType:
             return val
         elif isinstance(val, list):
             return {'expression': 'sequence',
-                    'data': [to_cryptol_arg(v) for v in val]}
-        elif isinstance(val, CryptolCode):
-            return val.code
+                    'data': [to_cryptol(v) for v in val]}
         elif isinstance(val, bytes) or isinstance(val, bytearray):
             return {'expression': 'bits',
                     'encoding': 'base64',
@@ -96,6 +114,29 @@ class Bitvector(CryptolType):
 
     def __repr__(self):
         return f"Bitvector({self.width!r})"
+
+    def convert(self, val):
+        # XXX figure out what to do when width is not evenly divisible by 8
+        if isinstance(val, int):
+            w = eval_numeric(self.width, None)
+            if w is not None:
+                return self.convert(int.to_bytes(val, int(w / 8), 'big', signed=True))
+            else:
+                raise ValueError(f"Insufficent type information to serialize int as bitvector")
+        elif isinstance(val, bytearray) or isinstance(val, bytes):
+            return {'expression': 'bits',
+                    'encoding': 'base64',
+                    'width': eval_numeric(self.width, 8 * len(val)),
+                    'data': base64.b64encode(val).decode('ascii')}
+        else:
+            raise ValueError(f"Not supported as bitvector: {val!r}")
+
+def eval_numeric(t, default):
+    if isinstance(t, Num):
+        return t.number
+    else:
+        return default
+
 
 class Num(CryptolType):
     def __init__(self, number):
@@ -190,7 +231,7 @@ def to_type(t):
     elif t['type'] == 'bitvector':
         return Bitvector(to_type(t['width']))
     elif t['type'] == 'number':
-        t['value']
+        return Num(t['value'])
     elif t['type'] == 'Bit':
         return Bit()
     elif t['type'] == 'sequence':

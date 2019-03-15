@@ -156,6 +156,16 @@ class CryptolCall(CryptolQuery):
     def process_result(self, res):
         return from_cryptol_arg(res['value'])
 
+class CryptolCheckType(CryptolQuery):
+    def __init__(self, connection, expr):
+        self.method = 'check type'
+        self.params = {'expression': expr}
+        super(CryptolCheckType, self).__init__(connection)
+
+    def process_result(self, res):
+        return res['type schema']
+
+
 class CryptolNames(CryptolQuery):
     def __init__(self, connection):
         self.method = 'visible names'
@@ -270,6 +280,10 @@ class CryptolConnection(object):
         self.most_recent_result = CryptolCall(self, fun, encoded_args)
         return self.most_recent_result
 
+    def check_type(self, code):
+        self.most_recent_result = CryptolCheckType(self, code)
+        return self.most_recent_result
+
     def names(self):
         self.most_recent_result = CryptolNames(self)
         return self.most_recent_result
@@ -287,9 +301,23 @@ class CryptolFunctionHandle:
             self.__doc__ += "\n" + self.docs
 
     def __call__(self, *args):
-        return self.connection.call(self.name, *args).result()
+        current_type = self.schema
+        remaining_args = args
+        arg_types = types.argument_types(current_type)
+        current_expr = self.name
+        found_args = []
+        while len(arg_types) > 0 and len(remaining_args) > 0:
+            found_args.append(arg_types[0].from_python(remaining_args[0]))
+            current_expr = {'expression': 'call', 'function': self.name, 'arguments': found_args}
+            ty = self.connection.check_type(current_expr).result()
+            current_type = types.to_schema(ty)
+            arg_types = types.argument_types(current_type)
+            remaining_args = remaining_args[1:]
+        return from_cryptol_arg(self.connection.evaluate_expression(current_expr).result()['value'])
 
 
+def cry(string):
+    return types.CryptolLiteral(string)
 
 class CryptolContext:
     def __init__(self, connection):
