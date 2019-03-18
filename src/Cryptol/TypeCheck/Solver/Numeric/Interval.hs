@@ -43,6 +43,9 @@ typeInterval varInfo = go
           (TF TCMin, [x,y])   -> iMin (go x) (go y)
           (TF TCMax, [x,y])   -> iMax (go x) (go y)
 
+          (TF TCCeilDiv, [x,y]) -> iCeilDiv (go x) (go y)
+          (TF TCCeilMod, [x,y]) -> iCeilMod (go x) (go y)
+
           (TF TCLenFromThenTo, [x,y,z]) ->
             iLenFromThenTo (go x) (go y) (go z)
           _ -> iAny
@@ -144,7 +147,7 @@ data Interval = Interval
   { iLower :: Nat'          -- ^ lower bound (inclusive)
   , iUpper :: Maybe Nat'    -- ^ upper bound (inclusive)
                             -- If there is no upper bound,
-                            -- than all *natural* numbers.
+                            -- then all *natural* numbers.
   } deriving (Eq,Show)
 
 ppIntervals :: Map TVar Interval -> Doc
@@ -334,6 +337,25 @@ iMod _ j = Interval { iLower = Nat 0, iUpper = upper }
             Just (Nat n) | n > 0 -> Just (Nat (n - 1))
             _                    -> Nothing
 
+
+iCeilDiv :: Interval -> Interval -> Interval
+iCeilDiv i j = Interval { iLower = lower, iUpper = upper }
+  where
+  lower = case iUpper j of
+            Nothing -> Nat 0
+            Just x  -> case nCeilDiv (iLower i) x of
+                         Nothing -> Nat 0   -- malformed division
+                         Just y  -> y
+
+  upper = case iUpper i of
+            Nothing -> Nothing
+            Just x  -> case nCeilDiv x (nMax (iLower i) (Nat 1)) of
+                         Nothing -> Just Inf
+                         Just y  -> Just y
+
+
+iCeilMod :: Interval -> Interval -> Interval
+iCeilMod = iMod -- bounds are the same as for Mod
 
 iWidth :: Interval -> Interval
 iWidth i = Interval { iLower = nWidth (iLower i)
