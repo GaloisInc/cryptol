@@ -1,0 +1,7 @@
+zero : [1 /^ inf]
+zero : [inf /^ 1]
+zero : [1 /^ 0]
+zero : [1 %^ inf]
+zero : [inf %^ 1]
+zero : [1 %^ 0]
+:l issue582.cry

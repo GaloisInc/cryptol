@@ -1,0 +1,5 @@
+foo : {i, j}[i /^ j]
+foo = zero
+
+bar : {i, j}[i %^ j]
+bar = zero
