@@ -1,0 +1,5 @@
+foo : {i, j} (fin i, fin j, j >= 1) => [i /^ j][32]
+foo = take [0...]
+
+bar : {i, j} (fin i, fin j, j >= 1) => [i %^ j][32]
+bar = take [0...]
