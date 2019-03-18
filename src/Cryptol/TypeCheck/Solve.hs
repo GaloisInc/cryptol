@@ -58,6 +58,8 @@ wfTypeFunction :: TFun -> [Type] -> [Prop]
 wfTypeFunction TCSub [a,b]             = [ a >== b, pFin b]
 wfTypeFunction TCDiv [a,b]             = [ b >== tOne, pFin a ]
 wfTypeFunction TCMod [a,b]             = [ b >== tOne, pFin a ]
+wfTypeFunction TCCeilDiv [a,b]         = [ pFin a, pFin b, b >== tOne ]
+wfTypeFunction TCCeilMod [a,b]         = [ pFin a, pFin b, b >== tOne ]
 wfTypeFunction TCLenFromThenTo [a,b,c] = [ pFin a, pFin b, pFin c, a =/= b ]
 wfTypeFunction _ _                     = []
 
