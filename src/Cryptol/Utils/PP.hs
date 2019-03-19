@@ -114,6 +114,9 @@ instance IsString Doc where
 render :: Doc -> String
 render d = PJ.render (runDoc mempty d)
 
+renderOneLine :: Doc -> String
+renderOneLine d = PJ.renderStyle (PJ.style { PJ.mode = PJ.OneLineMode }) (runDoc mempty d)
+
 class PP a where
   ppPrec :: Int -> a -> Doc
 

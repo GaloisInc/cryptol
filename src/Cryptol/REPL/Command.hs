@@ -121,6 +121,7 @@ data Command
 -- | Command builder.
 data CommandDescr = CommandDescr
   { cNames  :: [String]
+  , cArgs   :: [String]
   , cBody   :: CommandBody
   , cHelp   :: String
   }
@@ -168,53 +169,59 @@ nbCommands  = foldl insert emptyTrie nbCommandList
 -- | A subset of commands safe for Notebook execution
 nbCommandList :: [CommandDescr]
 nbCommandList  =
-  [ CommandDescr [ ":t", ":type" ] (ExprArg typeOfCmd)
+  [ CommandDescr [ ":t", ":type" ] ["EXPR"] (ExprArg typeOfCmd)
     "Check the type of an expression."
-  , CommandDescr [ ":b", ":browse" ] (ModNameArg browseCmd)
+  , CommandDescr [ ":b", ":browse" ] ["[ MODULE ]"] (ModNameArg browseCmd)
     "Display environment for all loaded modules, or for a specific module."
-  , CommandDescr [ ":?", ":help" ] (HelpArg helpCmd)
+  , CommandDescr [ ":?", ":help" ] ["[ TOPIC ]"] (HelpArg helpCmd)
     "Display a brief description of a function, type, or command."
-  , CommandDescr [ ":s", ":set" ] (OptionArg setOptionCmd)
+  , CommandDescr [ ":s", ":set" ] ["[ OPTION [ = VALUE ] ]"] (OptionArg setOptionCmd)
     "Set an environmental option (:set on its own displays current values)."
-  , CommandDescr [ ":check" ] (ExprArg (void . qcCmd QCRandom))
+  , CommandDescr [ ":check" ] ["[ EXPR ]"] (ExprArg (void . qcCmd QCRandom))
     "Use random testing to check that the argument always returns true.\n(If no argument, check all properties.)"
-  , CommandDescr [ ":exhaust" ] (ExprArg (void . qcCmd QCExhaust))
+  , CommandDescr [ ":exhaust" ] ["[ EXPR ]"] (ExprArg (void . qcCmd QCExhaust))
     "Use exhaustive testing to prove that the argument always returns\ntrue. (If no argument, check all properties.)"
-  , CommandDescr [ ":prove" ] (ExprArg proveCmd)
+  , CommandDescr [ ":prove" ] ["[ EXPR ]"] (ExprArg proveCmd)
     "Use an external solver to prove that the argument always returns\ntrue. (If no argument, check all properties.)"
-  , CommandDescr [ ":sat" ] (ExprArg satCmd)
+  , CommandDescr [ ":sat" ] ["[ EXPR ]"] (ExprArg satCmd)
     "Use a solver to find a satisfying assignment for which the argument\nreturns true. (If no argument, find an assignment for all properties.)"
-  , CommandDescr [ ":debug_specialize" ] (ExprArg specializeCmd)
+  , CommandDescr [ ":debug_specialize" ] ["EXPR"](ExprArg specializeCmd)
     "Do type specialization on a closed expression."
-  , CommandDescr [ ":eval" ] (ExprArg refEvalCmd)
+  , CommandDescr [ ":eval" ] ["EXPR"] (ExprArg refEvalCmd)
     "Evaluate an expression with the reference evaluator."
-  , CommandDescr [ ":ast" ] (ExprArg astOfCmd)
+  , CommandDescr [ ":ast" ] ["EXPR"] (ExprArg astOfCmd)
     "Print out the pre-typechecked AST of a given term."
-  , CommandDescr [ ":extract-coq" ] (NoArg allTerms)
+  , CommandDescr [ ":extract-coq" ] [] (NoArg allTerms)
     "Print out the post-typechecked AST of all currently defined terms,\nin a Coq-parseable format."
   ]
 
 commandList :: [CommandDescr]
 commandList  =
   nbCommandList ++
-  [ CommandDescr [ ":q", ":quit" ] (NoArg quitCmd)
+  [ CommandDescr [ ":q", ":quit" ] [] (NoArg quitCmd)
     "Exit the REPL."
-  , CommandDescr [ ":l", ":load" ] (FilenameArg loadCmd)
+  , CommandDescr [ ":l", ":load" ] ["FILE"] (FilenameArg loadCmd)
     "Load a module by filename."
-  , CommandDescr [ ":r", ":reload" ] (NoArg reloadCmd)
+  , CommandDescr [ ":r", ":reload" ] [] (NoArg reloadCmd)
     "Reload the currently loaded module."
-  , CommandDescr [ ":e", ":edit" ] (FilenameArg editCmd)
-    "Edit the currently loaded module."
-  , CommandDescr [ ":!" ] (ShellArg runShellCmd)
+  , CommandDescr [ ":e", ":edit" ] ["[ FILE ]"] (FilenameArg editCmd)
+    "Edit FILE or the currently loaded module."
+  , CommandDescr [ ":!" ] ["COMMAND"] (ShellArg runShellCmd)
     "Execute a command in the shell."
-  , CommandDescr [ ":cd" ] (FilenameArg cdCmd)
+  , CommandDescr [ ":cd" ] ["DIR"] (FilenameArg cdCmd)
     "Set the current working directory."
-  , CommandDescr [ ":m", ":module" ] (FilenameArg moduleCmd)
+  , CommandDescr [ ":m", ":module" ] ["[ MODULE ]"] (FilenameArg moduleCmd)
     "Load a module by its name."
-  , CommandDescr [ ":w", ":writeByteArray" ] (FileExprArg writeFileCmd)
+  , CommandDescr [ ":w", ":writeByteArray" ] ["FILE", "EXPR"] (FileExprArg writeFileCmd)
     "Write data of type 'fin n => [n][8]' to a file."
-  , CommandDescr [ ":readByteArray" ] (FilenameArg readFileCmd)
+  , CommandDescr [ ":readByteArray" ] ["FILE"] (FilenameArg readFileCmd)
     "Read data from a file as type 'fin n => [n][8]', binding\nthe value to variable 'it'."
+  , CommandDescr [ ":dumptests" ] ["FILE", "EXPR"] (FileExprArg dumpTestsCmd)
+    (unlines [ "Dump a tab-separated collection of tests for the given"
+             , "expression into a file. The first column in each line is"
+             , "the expected output, and the remainder are the inputs. The"
+             , "number of tests is determined by the \"tests\" option."
+             ])
   ]
 
 genHelp :: [CommandDescr] -> [String]
@@ -295,6 +302,27 @@ printCounterexample isSat pexpr vs =
      let doc = ppPrec 3 pexpr -- function application has precedence 3
      rPrint $ hang doc 2 (sep docs) <+>
        text (if isSat then "= True" else "= False")
+
+dumpTestsCmd :: FilePath -> String -> REPL ()
+dumpTestsCmd outFile str =
+  do expr <- replParseExpr str
+     (val, ty) <- replEvalExpr expr
+     evo <- getEvalOpts
+     ppopts <- getPPValOpts
+     testNum <- getKnownUser "tests" :: REPL Int
+     g <- io newTFGen
+     tests <- io $ TestR.returnTests g evo ty val testNum
+     out <- forM tests $
+            \(args, x) ->
+              do argOut <- mapM (rEval . E.ppValue ppopts) args
+                 resOut <- rEval (E.ppValue ppopts x)
+                 return (renderOneLine resOut ++ "\t" ++ intercalate "\t" (map renderOneLine argOut) ++ "\n")
+     io $ writeFile outFile (concat out) `X.catch` handler
+  where
+    handler :: X.SomeException -> IO ()
+    handler e = putStrLn (X.displayException e)
+
+
 
 data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 
@@ -1057,7 +1085,7 @@ helpCmd cmd
 
   showCmdHelp c [arg] | ":set" `elem` cNames c = showOptionHelp arg
   showCmdHelp c _args =
-    do rPutStrLn ("\n    " ++ intercalate ", " (cNames c))
+    do rPutStrLn ("\n    " ++ intercalate ", " (cNames c) ++ " " ++ intercalate " " (cArgs c))
        rPutStrLn ""
        rPutStrLn (cHelp c)
        rPutStrLn ""

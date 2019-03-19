@@ -11,15 +11,17 @@
 {-# LANGUAGE BangPatterns #-}
 module Cryptol.Testing.Random where
 
-import Cryptol.Eval.Monad     (ready,EvalOpts)
+import Cryptol.Eval.Monad     (ready,runEval,EvalOpts)
 import Cryptol.Eval.Value     (BV(..),Value,GenValue(..),SeqMap(..), WordValue(..), BitWord(..))
 import qualified Cryptol.Testing.Concrete as Conc
 import Cryptol.TypeCheck.AST  (Type(..),TCon(..),TC(..),tNoUser)
 import Cryptol.TypeCheck.SimpType(tRebuild')
 
 import Cryptol.Utils.Ident    (Ident)
+import Cryptol.Utils.Panic    (panic)
+import Cryptol.Utils.PP       (pp)
 
-import Control.Monad          (forM)
+import Control.Monad          (forM,join)
 import Data.List              (unfoldr, genericTake, genericIndex)
 import System.Random          (RandomGen, split, random, randomR)
 import qualified Data.Sequence as Seq
@@ -46,6 +48,58 @@ runOneTest evOpts fun argGens sz g0 = do
       mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
   result <- Conc.runOneTest evOpts fun args
   return (result, g1)
+
+returnOneTest :: RandomGen g
+           => EvalOpts -- ^ How to evaluate things
+           -> Value    -- ^ Function to be used to calculate tests
+           -> [Gen g Bool BV Integer] -- ^ Argument generators
+           -> Integer -- ^ Size
+           -> g -- ^ Initial random state
+           -> IO ([Value], Value, g) -- ^ Arguments, result, and new random state
+returnOneTest evOpts fun argGens sz g0 =
+  do let (args, g1) = foldr mkArg ([], g0) argGens
+         mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
+     result <- runEval evOpts (go fun args)
+     return (args, result, g1)
+   where
+     go (VFun f) (v : vs) = join (go <$> (f (ready v)) <*> pure vs)
+     go (VFun _) [] = panic "Not enough arguments to function while generating tests" []
+     go v@(VBit _) [] = return v
+     go v@(VSeq _ _) [] = return v
+     go v@(VWord _ _) [] = return v
+     go v@(VRecord _) [] = return v
+     go v@(VTuple _) [] = return v
+     go _ _ = panic "Cryptol.Testing.Random" ["Unsupported return value for testing"]
+
+
+-- | Return a collection of random tests.
+returnTests :: RandomGen g
+         => g -- ^ The random generator state
+         -> EvalOpts -- ^ How to evaluate things
+         -> Type -- ^ The type of the function for which tests are to be generated
+         -> Value -- ^ The function itself
+         -> Int -- ^ How many tests?
+         -> IO [([Value], Value)] -- ^ A list of pairs of random arguments and computed outputs
+returnTests g evo ty fun num =
+    case argGens ty of
+      Nothing -> panic "Cryptol.Testing.Random" ["Can't generate test inputs for type", show (pp ty)]
+      Just args ->
+        do go args g 0
+  where
+    go args g0 n
+      | n >= num = return []
+      | otherwise =
+        do let sz = toInteger (div (100 * (1 + n)) num)
+           (inputs, output, g1) <- returnOneTest evo fun args sz g0
+           more <- go args g1 (n + 1)
+           return ((inputs, output) : more)
+
+    argGens t =
+      case tNoUser t of
+        TCon (TC TCFun) [t1, t2] ->
+          (:) <$> randomValue t1 <*> argGens t2
+        _ -> pure []
+
 
 {- | Given a (function) type, compute generators for
 the function's arguments. Currently we do not support polymorphic functions.
