@@ -80,17 +80,20 @@ returnTests :: RandomGen g
          -> Value -- ^ The function itself
          -> Int -- ^ How many tests?
          -> IO [([Value], Value)] -- ^ A list of pairs of random arguments and computed outputs
-returnTests g evo ty fun num
-  | num <= 0 = return []
-  | otherwise =
+returnTests g evo ty fun num =
     case argGens ty of
       Nothing -> panic "Cryptol.Testing.Random" ["Can't generate test inputs for type", show (pp ty)]
       Just args ->
-        do let (sz, g') = randomSize 8 100 g
-           (inputs, output, g'') <- returnOneTest evo fun args (toInteger sz) g'
-           more <- returnTests g'' evo ty fun (num - 1)
-           return ((inputs, output) : more)
+        do go args g 0
   where
+    go args g0 n
+      | n >= num = return []
+      | otherwise =
+        do let sz = toInteger (div (100 * (1 + n)) num)
+           (inputs, output, g1) <- returnOneTest evo fun args sz g0
+           more <- go args g1 (n + 1)
+           return ((inputs, output) : more)
+
     argGens t =
       case tNoUser t of
         TCon (TC TCFun) [t1, t2] ->
