@@ -215,6 +215,12 @@ commandList  =
     "Write data of type 'fin n => [n][8]' to a file."
   , CommandDescr [ ":readByteArray" ] (FilenameArg readFileCmd)
     "Read data from a file as type 'fin n => [n][8]', binding\nthe value to variable 'it'."
+  , CommandDescr [ ":dumptests" ] (FileExprArg dumpTestsCmd)
+    (unlines [ "Dump a tab-separated collection of tests for the given"
+             , "expression into a file. The first column in each line is the expected"
+             , "output, and the remainder are the inputs. The number of"
+             , "tests is determined by the \"tests\" option."
+             ])
   ]
 
 genHelp :: [CommandDescr] -> [String]
@@ -295,6 +301,25 @@ printCounterexample isSat pexpr vs =
      let doc = ppPrec 3 pexpr -- function application has precedence 3
      rPrint $ hang doc 2 (sep docs) <+>
        text (if isSat then "= True" else "= False")
+
+dumpTestsCmd :: FilePath -> String -> REPL ()
+dumpTestsCmd outFile str =
+  do expr <- replParseExpr str
+     (val, ty) <- replEvalExpr expr
+     evo <- getEvalOpts
+     ppopts <- getPPValOpts
+     testNum <- getKnownUser "tests" :: REPL Int
+     g <- io newTFGen
+     tests <- io $ TestR.returnTests g evo ty val testNum
+     out <- forM tests $
+            \(args, x) ->
+              do argOut <- mapM (rEval . E.ppValue ppopts) args
+                 resOut <- rEval (E.ppValue ppopts x)
+                 return (show resOut ++ "\t" ++ intercalate "\t" (map show argOut) ++ "\n")
+     io $ writeFile outFile (concat out)
+
+
+
 
 data QCMode = QCRandom | QCExhaust deriving (Eq, Show)
 
