@@ -218,9 +218,9 @@ commandList  =
     "Read data from a file as type 'fin n => [n][8]', binding\nthe value to variable 'it'."
   , CommandDescr [ ":dumptests" ] ["FILE", "EXPR"] (FileExprArg dumpTestsCmd)
     (unlines [ "Dump a tab-separated collection of tests for the given"
-             , "expression into a file. The first column in each line is the expected"
-             , "output, and the remainder are the inputs. The number of"
-             , "tests is determined by the \"tests\" option."
+             , "expression into a file. The first column in each line is"
+             , "the expected output, and the remainder are the inputs. The"
+             , "number of tests is determined by the \"tests\" option."
              ])
   ]
 
