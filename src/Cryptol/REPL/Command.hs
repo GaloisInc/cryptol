@@ -317,8 +317,10 @@ dumpTestsCmd outFile str =
               do argOut <- mapM (rEval . E.ppValue ppopts) args
                  resOut <- rEval (E.ppValue ppopts x)
                  return (renderOneLine resOut ++ "\t" ++ intercalate "\t" (map renderOneLine argOut) ++ "\n")
-     io $ writeFile outFile (concat out)
-
+     io $ writeFile outFile (concat out) `X.catch` handler
+  where
+    handler :: X.SomeException -> IO ()
+    handler e = putStrLn (X.displayException e)
 
 
 
