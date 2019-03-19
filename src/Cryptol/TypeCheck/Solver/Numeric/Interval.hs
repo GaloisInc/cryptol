@@ -342,7 +342,7 @@ iCeilDiv :: Interval -> Interval -> Interval
 iCeilDiv i j = Interval { iLower = lower, iUpper = upper }
   where
   lower = case iUpper j of
-            Nothing -> Nat 0
+            Nothing -> if iLower i == Nat 0 then Nat 0 else Nat 1
             Just x  -> case nCeilDiv (iLower i) x of
                          Nothing -> Nat 0   -- malformed division
                          Just y  -> y
