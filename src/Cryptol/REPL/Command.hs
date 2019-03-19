@@ -315,7 +315,7 @@ dumpTestsCmd outFile str =
             \(args, x) ->
               do argOut <- mapM (rEval . E.ppValue ppopts) args
                  resOut <- rEval (E.ppValue ppopts x)
-                 return (show resOut ++ "\t" ++ intercalate "\t" (map show argOut) ++ "\n")
+                 return (renderOneLine resOut ++ "\t" ++ intercalate "\t" (map renderOneLine argOut) ++ "\n")
      io $ writeFile outFile (concat out)
 
 
