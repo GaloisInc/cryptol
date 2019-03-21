@@ -1,5 +1,6 @@
 from collections import OrderedDict
 import base64
+import BitVector
 
 
 class CryptolCode:
@@ -87,6 +88,12 @@ class CryptolType:
                     'encoding': 'base64',
                     'width': 8 * len(val),
                     'data': base64.b64encode(val).decode('ascii')}
+        elif isinstance(val, BitVector.BitVector):
+            return {'expression': 'bits',
+                    'encoding': 'base64',
+                    'width': val.length(),
+                    'data': val.pad_from_left(val.length() % 4).get_bitvector_in_hex()}
+
         else:
             raise TypeError("Unsupported value: " + str(val))
 
