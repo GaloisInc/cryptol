@@ -2,6 +2,7 @@ import base64
 import socket
 import json
 import types
+import sys
 
 from . import netstring
 from . import cryptoltypes
@@ -175,6 +176,16 @@ class CryptolNames(CryptolQuery):
     def process_result(self, res):
         return res
 
+class CryptolFocusedModule(CryptolQuery):
+    def __init__(self, connection):
+        self.method = 'focused module'
+        self.params = {}
+        super(CryptolQuery, self).__init__(connection)
+
+    def process_result(self, res):
+        return res
+
+
 # Must be boxed separately to enable sharing of connections
 class IDSource:
     def __init__(self):
@@ -288,6 +299,10 @@ class CryptolConnection(object):
         self.most_recent_result = CryptolNames(self)
         return self.most_recent_result
 
+    def focused_module(self):
+        self.most_recent_result = CryptolFocusedModule(self)
+        return self.most_recent_result
+
 class CryptolFunctionHandle:
     def __init__(self, connection, name, ty, schema, docs=None):
         self.connection = connection.snapshot()
@@ -322,8 +337,29 @@ def cry(string):
 class CryptolModule(types.ModuleType):
     def __init__(self, connection):
         self.connection = connection.snapshot()
+        name = connection.focused_module().result()
+        if name["module"] is None:
+            raise ValueError("Provided connection is not in a module")
+        super(CryptolModule, self).__init__(name["module"])
+
+        for x in self.connection.names().result():
+            if 'documentation' in x:
+                setattr(self, x['name'],
+                        CryptolFunctionHandle(self.connection,
+                                              x['name'],
+                                              x['type string'],
+                                              cryptoltypes.to_schema(x['type']),
+                                              x['documentation']))
+            else:
+                setattr(self, x['name'],
+                        CryptolFunctionHandle(self.connection,
+                                              x['name'],
+                                              x['type string'],
+                                              cryptoltypes.to_schema(x['type'])))
 
 
+def add_cryptol_module(name, connection):
+    sys.modules[name] = CryptolModule(connection)
 
 class CryptolContext:
     def __init__(self, connection):
