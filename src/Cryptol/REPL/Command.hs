@@ -837,7 +837,7 @@ quitCmd  = stop
 
 browseCmd :: String -> REPL ()
 browseCmd input = do
-  (_, iface, fNames, disp) <- getFocusedEnv
+  (params, iface, fNames, disp) <- getFocusedEnv
   denv <- getDynEnv
   let names = M.deNames denv `M.shadowing` fNames
 
@@ -862,9 +862,22 @@ browseCmd input = do
       visibleDecl = isUser &&& restricted &&& inSet visibleDecls
 
 
+  browseMParams              params disp
   browseTSyns    visibleType iface disp
   browseNewtypes visibleType iface disp
   browseVars     visibleDecl iface disp
+
+
+browseMParams :: M.IfaceParams-> NameDisp -> REPL ()
+browseMParams M.IfaceParams { .. } names =
+  do ppBlock names ppParamTy "Type Parameters" (Map.elems ifParamTypes)
+     ppBlock names ppParamFu "Value Parameters" (Map.elems ifParamFuns)
+
+  where
+  ppParamTy T.ModTParam { .. } = hang (pp mtpName <+> ":") 2 (pp mtpKind)
+  ppParamFu T.ModVParam { .. } = hang (pp mvpName <+> ":") 2 (pp mvpType)
+
+
 
 browseTSyns :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
 browseTSyns isVisible M.IfaceDecls { .. } names = do
