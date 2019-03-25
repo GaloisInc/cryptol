@@ -858,24 +858,31 @@ browseCmd input = do
 
       restricted = if null mnames then const True else hasAnyModName mnames
 
-      visibleType = isUser &&& restricted &&& inSet visibleTypes
-      visibleDecl = isUser &&& restricted &&& inSet visibleDecls
+      visibleType  = isUser &&& restricted &&& inSet visibleTypes
+      visibleDecl  = isUser &&& restricted &&& inSet visibleDecls
 
 
-  browseMParams              params disp
-  browseTSyns    visibleType iface disp
-  browseNewtypes visibleType iface disp
-  browseVars     visibleDecl iface disp
+  browseMParams  visibleType visibleDecl params disp
+  browseTSyns    visibleType             iface disp
+  browseNewtypes visibleType             iface disp
+  browseVars     visibleDecl             iface disp
 
 
-browseMParams :: M.IfaceParams-> NameDisp -> REPL ()
-browseMParams M.IfaceParams { .. } names =
-  do ppBlock names ppParamTy "Type Parameters" (Map.elems ifParamTypes)
-     ppBlock names ppParamFu "Value Parameters" (Map.elems ifParamFuns)
+browseMParams :: (M.Name -> Bool) -> (M.Name -> Bool) ->
+                 M.IfaceParams-> NameDisp -> REPL ()
+browseMParams visT visD M.IfaceParams { .. } names =
+  do ppBlock names ppParamTy "Type Parameters"
+                              (sorted visT T.mtpName ifParamTypes)
+     ppBlock names ppParamFu "Value Parameters"
+                              (sorted visD T.mvpName ifParamFuns)
 
   where
-  ppParamTy T.ModTParam { .. } = hang (pp mtpName <+> ":") 2 (pp mtpKind)
+  ppParamTy T.ModTParam { .. } = hang ("type" <+> pp mtpName <+> ":")
+                                                           2 (pp mtpKind)
   ppParamFu T.ModVParam { .. } = hang (pp mvpName <+> ":") 2 (pp mvpType)
+
+  sorted vis nm mp = sortBy (M.cmpNameDisplay names `on` nm)
+               $ filter (vis . nm) $ Map.elems mp
 
 
 
