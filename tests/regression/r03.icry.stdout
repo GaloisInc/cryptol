@@ -1,4 +1,4 @@
 Loading module Cryptol
 Loading module r03
-(nQueens : Solution 5) [0x3, 0x1, 0x4, 0x2, 0x0] = True
-(nQueensProve : Solution 4) [0x2, 0x0, 0x3, 0x1] = False
+True
+False
