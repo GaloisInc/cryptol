@@ -587,7 +587,10 @@ cmdProveSat isSat str = do
                   [(t, e)] -> (t, [e])
                   _        -> collectTes resultRecs
           pexpr <- replParseExpr str
-          forM_ vss (printCounterexample isSat pexpr)
+
+          ~(EnvBool yes) <- getUser "show-examples"
+          when yes $ forM_ vss (printCounterexample isSat pexpr)
+
           case (ty, exprs) of
             (t, [e]) -> bindItVariable t e
             (t, es ) -> bindItVariables t es

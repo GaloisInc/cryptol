@@ -802,6 +802,9 @@ userOptions  = mkOptionMap
 
   , simpleOpt "prover-validate" (EnvBool False) noCheck
     "Validate :sat examples and :prove counter-examples for correctness."
+
+  , simpleOpt "show-examples" (EnvBool True) noCheck
+    "Print the (counter) example after :sat or :prove"
   ]
 
 
