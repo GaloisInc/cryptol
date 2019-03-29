@@ -37,7 +37,7 @@ shift
 
 case $COMMAND in
   run)
-    cabal v2-run exe:cryptol $*;;
+    cabal v2-run exe:cryptol -- $*;;
 
   build)
     echo Building Cryptol
