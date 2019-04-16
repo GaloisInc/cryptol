@@ -5,6 +5,7 @@ ARCH    := $(shell uname -m)
 
 TESTS ?= modsys parser issues regression renamer mono-binds
 DIFF ?= meld
+TIME ?= time
 
 IGNORE_EXPECTED ?= --ignore-expected
 
@@ -245,7 +246,7 @@ ${CS_BIN}/cryptol-test-runner: \
 test: ${CS_BIN}/cryptol-test-runner
 	( cd tests &&                                                      \
 	echo "Testing on $(UNAME)-$(ARCH)" &&                              \
-	time $(realpath $(CS_BIN)/cryptol-test-runner)                     \
+	${TIME} $(realpath $(CS_BIN)/cryptol-test-runner)                     \
 	  $(TESTS)                                                         \
 	  --exe $(call adjust-path,${CURDIR}/${PKG_BIN}/cryptol${EXE_EXT}) \
 	  -r output                                                        \
