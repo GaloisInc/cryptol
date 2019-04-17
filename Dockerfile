@@ -1,7 +1,7 @@
 FROM haskell:8.6 AS build
 RUN apt-get update \
     && apt-get install -y wget libncurses-dev unzip \
-    && wget https://github.com/Z3Prover/z3/releases/download/z3-4.8.4/z3-4.8.4.d6df51951f4c-x64-debian-8.11.zip \
+    && wget https://github.com/Z3Prover/z3/releases/download/z3-4.7.1/z3-4.7.1-x64-debian-8.10.zip \
     && unzip z3*.zip \
     && mv z3-*/bin/z3 /usr/local/bin
 RUN useradd -m cryptol \
@@ -23,16 +23,14 @@ RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
     && mkdir -p rootfs/usr/local \
     && rm -r cryptol-*-Linux-*_unknown/share/doc \
     && mv cryptol-*-Linux-*_unknown/* rootfs/usr/local \
-    && mv /usr/local/bin/z3 rootfs/usr/local/bin/z3
+    && cp /usr/local/bin/z3 rootfs/usr/local/bin/z3
 USER root
 RUN chown -R root:root /cryptol/rootfs
 
-FROM debian:stretch-slim AS build
+FROM debian:stretch-slim
 RUN apt-get update \
-    && apt-get install -y libgmp10 libffi6 wget libncurses5 unzip
+    && apt-get install -y libgmp10 libgomp1 libffi6 wget libncurses5 unzip
 COPY --from=build /cryptol/rootfs /
-RUN useradd -m cryptol \
-    && chown -R cryptol:cryptol /home/cryptol \
-    && rm -r /var/cache/apk/*
+RUN useradd -m cryptol && chown -R cryptol:cryptol /home/cryptol
 USER cryptol
 ENTRYPOINT ["/usr/local/bin/cryptol"]
