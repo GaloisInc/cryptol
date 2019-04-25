@@ -32,6 +32,7 @@ module Cryptol.Eval.Monad
 , wordTooWide
 , cryUserError
 , cryLoopError
+, cryNoPrimError
 , invalidIndex
 ) where
 
@@ -47,7 +48,7 @@ import qualified Control.Exception as X
 import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
 import Cryptol.Utils.Logger(Logger)
-import Cryptol.TypeCheck.AST(Type)
+import Cryptol.TypeCheck.AST(Type,Name)
 
 -- | A computation that returns an already-evaluated value.
 ready :: a -> Eval a
@@ -75,7 +76,9 @@ data Eval a
 data ThunkState a
   = Unforced        -- ^ This thunk has not yet been forced
   | BlackHole       -- ^ This thunk is currently being evaluated
-  | Forced !a       -- ^ This thunk has previously been forced, and has the given value
+  | Forced !(Either EvalError a)
+    -- ^ This thunk has previously been forced,
+    -- and has the given value, or evaluation resulted in an error.
 
 
 -- | Access the evaluation options.
@@ -126,14 +129,19 @@ unDelay :: Eval a -> IORef (ThunkState a) -> IO a -> Eval a
 unDelay retry r x = do
   rval <- io $ readIORef r
   case rval of
-    Forced val -> return val
+    Forced val -> io (toVal val)
     BlackHole  ->
       retry
     Unforced -> io $ do
       writeIORef r BlackHole
-      val <- x
+      val <- X.try x
       writeIORef r (Forced val)
-      return val
+      toVal val
+
+  where
+  toVal mbV = case mbV of
+                Right a -> pure a
+                Left e  -> X.throwIO e
 
 -- | Execute the given evaluation action.
 runEval :: EvalOpts -> Eval a -> IO a
@@ -196,6 +204,7 @@ data EvalError
   | WordTooWide Integer           -- ^ Bitvector too large
   | UserError String              -- ^ Call to the Cryptol @error@ primitive
   | LoopError String              -- ^ Detectable nontermination
+  | NoPrim Name                   -- ^ Primitive with no implementation
     deriving (Typeable,Show)
 
 instance PP EvalError where
@@ -209,6 +218,7 @@ instance PP EvalError where
       text "word too wide for memory:" <+> integer w <+> text "bits"
     UserError x -> text "Run-time error:" <+> text x
     LoopError x -> text "<<loop>>" <+> text x
+    NoPrim x -> text "unimplemented primitive:" <+> pp x
 
 instance X.Exception EvalError
 
@@ -237,6 +247,9 @@ wordTooWide w = X.throw (WordTooWide w)
 -- | For the Cryptol @error@ function.
 cryUserError :: String -> Eval a
 cryUserError msg = io (X.throwIO (UserError msg))
+
+cryNoPrimError :: Name -> Eval a
+cryNoPrimError x = io (X.throwIO (NoPrim x))
 
 -- | For cases where we can detect tight loops.
 cryLoopError :: String -> Eval a
