@@ -352,6 +352,7 @@ changeExport :: ExportType -> [TopDecl PName] -> [TopDecl PName]
 changeExport e = map change
   where
   change (Decl d)      = Decl      d { tlExport = e }
+  change (DPrimType t) = DPrimType t { tlExport = e }
   change (TDNewtype n) = TDNewtype n { tlExport = e }
   change td@Include{}  = td
   change (DParameterType {}) = panic "changeExport" ["private type parameter?"]
@@ -431,7 +432,8 @@ mkIf ifThens theElse = foldr addIfThen theElse ifThens
 -- pass.  This is also the reason we add the doc to the TopLevel constructor,
 -- instead of just place it on the binding directly.  A better solution might be
 -- to just have a different constructor for primitives.
-mkPrimDecl :: Maybe (Located String) -> LPName -> Schema PName -> [TopDecl PName]
+mkPrimDecl ::
+  Maybe (Located String) -> LPName -> Schema PName -> [TopDecl PName]
 mkPrimDecl mbDoc ln sig =
   [ exportDecl mbDoc Public
     $ DBind Bind { bName      = ln
@@ -446,6 +448,19 @@ mkPrimDecl mbDoc ln sig =
                  }
   , exportDecl Nothing Public
     $ DSignature [ln] sig
+  ]
+
+mkPrimTypeDecl ::
+  Maybe (Located String) -> LPName -> Located Kind -> [TopDecl PName]
+mkPrimTypeDecl mbDoc ln lk =
+  [ DPrimType TopLevel
+      { tlExport = Public
+      , tlDoc = mbDoc
+      , tlValue = PrimType { primTName = ln
+                           , primTKind = lk
+                           , primTFixity = Nothing
+                           }
+      }
   ]
 
 -- | Fix-up the documentation strings by removing the comment delimiters on each

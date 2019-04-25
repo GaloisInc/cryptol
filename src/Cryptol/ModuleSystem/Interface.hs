@@ -22,7 +22,6 @@ module Cryptol.ModuleSystem.Interface (
   , genIface
   , ifacePrimMap
   , noIfaceParams
-  , abstractIface
   ) where
 
 import           Cryptol.ModuleSystem.Name
@@ -121,14 +120,14 @@ genIface m = Iface
   , ifPublic      = IfaceDecls
     { ifTySyns    = tsPub
     , ifNewtypes  = ntPub
-    , ifAbstractTypes = Map.empty
+    , ifAbstractTypes = atPub
     , ifDecls     = dPub
     }
 
   , ifPrivate = IfaceDecls
     { ifTySyns    = tsPriv
     , ifNewtypes  = ntPriv
-    , ifAbstractTypes = Map.empty
+    , ifAbstractTypes = atPriv
     , ifDecls     = dPriv
     }
 
@@ -147,6 +146,10 @@ genIface m = Iface
       Map.partitionWithKey (\ qn _ -> qn `isExportedType` mExports m )
                            (mNewtypes m)
 
+  (atPub,atPriv) =
+    Map.partitionWithKey (\qn _ -> qn `isExportedType` mExports m)
+                         (mPrimTypes m)
+
   (dPub,dPriv) =
       Map.partitionWithKey (\ qn _ -> qn `isExportedBind` mExports m)
       $ Map.fromList [ (qn,mkIfaceDecl d) | dg <- mDecls m
@@ -154,22 +157,6 @@ genIface m = Iface
                                           , let qn = dName d
                                           ]
 
-
--- | Generate an interface defining some abstract types and functions.
-abstractIface :: ModName -> [AbstractType] -> [IfaceDecl] -> Iface
-abstractIface m ats ads = Iface
-  { ifModName = m
-  , ifPublic = IfaceDecls
-      { ifTySyns = Map.empty
-      , ifNewtypes = Map.empty
-      , ifAbstractTypes = toMap atName ats
-      , ifDecls = toMap ifDeclName ads
-      }
-  , ifPrivate = mempty
-  , ifParams = noIfaceParams
-  }
-  where
-  toMap f xs = Map.fromList [ (f x, x) | x <- xs ]
 
 -- | Produce a PrimMap from an interface.
 --

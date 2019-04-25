@@ -59,6 +59,7 @@ data Module = Module { mName        :: !ModName
                        -- of a module.
 
                      , mNewtypes         :: Map Name Newtype
+                     , mPrimTypes        :: Map Name AbstractType
                      , mParamTypes       :: Map Name ModTParam
                      , mParamConstraints :: [Located Prop]
                      , mParamFuns        :: Map Name ModVParam

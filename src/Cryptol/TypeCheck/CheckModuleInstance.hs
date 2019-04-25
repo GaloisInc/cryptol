@@ -37,8 +37,9 @@ checkModuleInstance func inst =
                                 -- the full dependencies, the actual imports
                                 -- might be ambiguous, but that shouldn't
                                 -- matters as names have been already resolved
-                   , mTySyns         = Map.union (mTySyns inst) (mTySyns m)
-                   , mNewtypes       = Map.union (mNewtypes inst) (mNewtypes m)
+                   , mTySyns      = Map.union (mTySyns inst) (mTySyns m)
+                   , mNewtypes    = Map.union (mNewtypes inst) (mNewtypes m)
+                   , mPrimTypes   = Map.union (mPrimTypes inst) (mPrimTypes m)
                    , mParamTypes       = mParamTypes inst
                    , mParamConstraints = mParamConstraints inst
                    , mParamFuns        = mParamFuns inst

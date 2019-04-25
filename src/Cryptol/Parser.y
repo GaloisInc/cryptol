@@ -252,6 +252,8 @@ private_decls           :: { [TopDecl PName] }
 prim_bind               :: { [TopDecl PName] }
   : mbDoc 'primitive' name  ':' schema       { mkPrimDecl $1 $3 $5 }
   | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrimDecl $1 $4 $7 }
+  | mbDoc 'primitive' 'type' name  ':' kind      { mkPrimTypeDecl $1 $4 $6 }
+  | mbDoc 'primitive' 'type' '(' op ')' ':' kind { mkPrimTypeDecl $1 $5 $8 }
 
 
 

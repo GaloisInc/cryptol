@@ -396,6 +396,7 @@ renameModule m =
 instance Rename TopDecl where
   rename td     = case td of
     Decl d      -> Decl      <$> traverse rename d
+    DPrimType d -> DPrimType <$> traverse rename d
     TDNewtype n -> TDNewtype <$> traverse rename n
     Include n   -> return (Include n)
     DParameterFun f  -> DParameterFun  <$> rename f
@@ -407,6 +408,11 @@ renameLocated :: Rename f => Located (f PName) -> RenameM (Located (f Name))
 renameLocated x =
   do y <- rename (thing x)
      return x { thing = y }
+
+instance Rename PrimType where
+  rename pt =
+    do x <- rnLocated renameType (primTName pt)
+       pure pt { primTName = x }
 
 instance Rename ParameterType where
   rename a =

@@ -27,10 +27,12 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-data TyDecl = TS (P.TySyn Name) (Maybe String)              -- ^ Type synonym
-            | NT (P.Newtype Name) (Maybe String)            -- ^ Newtype
-            | AT (P.ParameterType Name) (Maybe String)      -- ^ Parameter type
-            | PS (P.PropSyn Name) (Maybe String)            -- ^ Property synonym
+data TyDecl =
+    TS (P.TySyn Name) (Maybe String)          -- ^ Type synonym
+  | NT (P.Newtype Name) (Maybe String)        -- ^ Newtype
+  | AT (P.ParameterType Name) (Maybe String)  -- ^ Parameter type
+  | PS (P.PropSyn Name) (Maybe String)        -- ^ Property synonym
+  | PT (P.PrimType Name) (Maybe String)       -- ^ A primitive/abstract typee
 
 setDocString :: Maybe String -> TyDecl -> TyDecl
 setDocString x d =
@@ -38,7 +40,8 @@ setDocString x d =
     TS a _ -> TS a x
     PS a _ -> PS a x
     NT a _ -> NT a x
-    AT a _  -> AT a x
+    AT a _ -> AT a x
+    PT a _ -> PT a x
 
 -- | Check for duplicate and recursive type synonyms.
 -- Returns the type-synonyms in dependency order.
@@ -51,6 +54,10 @@ orderTyDecls ts =
      concat `fmap` mapM check ordered
 
   where
+  toMap _ ty@(PT p _) =
+    let x = P.primTName p
+    in ( thing x, x { thing = (ty, []) } )
+
   toMap _ ty@(AT a _) =
     let x = P.ptName a
     in ( thing x, x { thing = (ty, []) } )
@@ -84,6 +91,7 @@ orderTyDecls ts =
   getN (PS (P.PropSyn x _ _) _) = thing x
   getN (NT x _)                 = thing (P.nName x)
   getN (AT x _)                 = thing (P.ptName x)
+  getN (PT x _)                 = thing (P.primTName x)
 
   check (AcyclicSCC x) = return [x]
 
@@ -121,6 +129,7 @@ instance FromDecl (P.TopDecl Name) where
   toParamConstraints (P.DParameterConstraint xs) = xs
   toParamConstraints _                           = []
 
+  toTyDecl (P.DPrimType p)      = Just (PT (P.tlValue p) (thing <$> P.tlDoc p))
   toTyDecl (P.DParameterType d) = Just (AT d (P.ptDoc d))
   toTyDecl (P.TDNewtype d)      = Just (NT (P.tlValue d) (thing <$> P.tlDoc d))
   toTyDecl (P.Decl x)           = setDocString (thing <$> P.tlDoc x)

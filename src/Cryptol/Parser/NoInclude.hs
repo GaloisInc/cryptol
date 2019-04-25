@@ -155,6 +155,7 @@ noIncludeProgram (Program tds) =
 noIncTopDecl :: TopDecl PName -> NoIncM [TopDecl PName]
 noIncTopDecl td = case td of
   Decl _     -> return [td]
+  DPrimType {} -> pure [td]
   TDNewtype _-> return [td]
   DParameterType {} -> return [td]
   DParameterConstraint {} -> return [td]

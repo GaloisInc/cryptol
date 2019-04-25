@@ -48,6 +48,7 @@ module Cryptol.Parser.AST
   , TopLevel(..)
   , Import(..), ImportSpec(..)
   , Newtype(..)
+  , PrimType(..)
   , ParameterType(..)
   , ParameterFun(..)
 
@@ -128,6 +129,7 @@ modRange m = rCombs $ catMaybes
 
 data TopDecl name =
     Decl (TopLevel (Decl name))
+  | DPrimType (TopLevel (PrimType name))
   | TDNewtype (TopLevel (Newtype name)) -- ^ @newtype T as = t
   | Include (Located FilePath)          -- ^ @include File@
   | DParameterType (ParameterType name) -- ^ @parameter type T : #@
@@ -224,6 +226,12 @@ data Newtype name = Newtype { nName   :: Located name        -- ^ Type name
                             , nParams :: [TParam name]       -- ^ Type params
                             , nBody   :: [Named (Type name)] -- ^ Constructor
                             } deriving (Eq, Show, Generic, NFData)
+
+-- | A declaration for a type with no implementation.
+data PrimType name = PrimType { primTName :: Located name
+                              , primTKind :: Located Kind
+                              , primTFixity :: Maybe Fixity
+                              } deriving (Show,Generic,NFData)
 
 -- | Input at the REPL, which can either be an expression or a @let@
 -- statement.
@@ -452,11 +460,15 @@ instance HasLoc a => HasLoc (TopLevel a) where
 instance HasLoc (TopDecl name) where
   getLoc td = case td of
     Decl tld    -> getLoc tld
+    DPrimType pt -> getLoc pt
     TDNewtype n -> getLoc n
     Include lfp -> getLoc lfp
     DParameterType d -> getLoc d
     DParameterFun d  -> getLoc d
     DParameterConstraint d -> getLoc d
+
+instance HasLoc (PrimType name) where
+  getLoc pt = Just (rComb (srcRange (primTName pt)) (srcRange (primTKind pt)))
 
 instance HasLoc (ParameterType name) where
   getLoc a = getLoc (ptName a)
@@ -511,6 +523,7 @@ instance (Show name, PPName name) => PP (TopDecl name) where
   ppPrec _ top_decl =
     case top_decl of
       Decl    d   -> pp d
+      DPrimType p -> pp p
       TDNewtype n -> pp n
       Include l   -> text "include" <+> text (show (thing l))
       DParameterFun d -> pp d
@@ -521,6 +534,10 @@ instance (Show name, PPName name) => PP (TopDecl name) where
                        [x] -> x
                        []  -> "()"
                        xs  -> parens (hsep (punctuate comma xs))
+
+instance (Show name, PPName name) => PP (PrimType name) where
+  ppPrec _ pt =
+    "primitive" <+> "type" <+> pp (primTName pt) <+> ":" <+> pp (primTKind pt)
 
 instance (Show name, PPName name) => PP (ParameterType name) where
   ppPrec _ a = text "parameter" <+> text "type" <+>
@@ -881,11 +898,15 @@ instance NoPos (TopDecl name) where
   noPos decl =
     case decl of
       Decl    x   -> Decl     (noPos x)
+      DPrimType t -> DPrimType (noPos t)
       TDNewtype n -> TDNewtype(noPos n)
       Include x   -> Include  (noPos x)
       DParameterFun d  -> DParameterFun (noPos d)
       DParameterType d -> DParameterType (noPos d)
       DParameterConstraint d -> DParameterConstraint (noPos d)
+
+instance NoPos (PrimType name) where
+  noPos x = x
 
 instance NoPos (ParameterType name) where
   noPos a = a

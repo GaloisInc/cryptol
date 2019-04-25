@@ -188,9 +188,10 @@ data Newtype  = Newtype { ntName   :: Name
 
 -- | Information about an abstract type.
 data AbstractType = AbstractType
-  { atName  :: Name
-  , atKind  :: Kind
-  , atDoc   :: Maybe String
+  { atName    :: Name
+  , atKind    :: Kind
+  , atFixitiy :: Maybe Fixity
+  , atDoc     :: Maybe String
   } deriving (Show, Generic, NFData)
 
 

@@ -18,6 +18,7 @@ modExports m = fold (concat [ exportedNames d | d <- mDecls m ])
 
   exportedNames (Decl td) = map exportBind  (names  namesD td)
                          ++ map exportType (names tnamesD td)
+  exportedNames (DPrimType t) = [ exportType (thing . primTName <$> t) ]
   exportedNames (TDNewtype nt) = map exportType (names tnamesNT nt)
   exportedNames (Include {})  = []
   exportedNames (DParameterFun {}) = []

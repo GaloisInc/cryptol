@@ -12,6 +12,7 @@ module Cryptol.TypeCheck.Kind
   ( checkType
   , checkSchema
   , checkNewtype
+  , checkPrimType
   , checkTySyn
   , checkPropSyn
   , checkParameterType
@@ -126,7 +127,13 @@ checkNewtype (P.Newtype x as fs) mbD =
                     , ntDoc = mbD
                     }
 
-
+checkPrimType :: P.PrimType Name -> Maybe String -> InferM AbstractType
+checkPrimType p mbD =
+  pure AbstractType { atName = thing (P.primTName p)
+                    , atKind = cvtK (thing (P.primTKind p))
+                    , atFixitiy = P.primTFixity p
+                    , atDoc = mbD
+                    }
 
 checkType :: P.Type Name -> Maybe Kind -> InferM Type
 checkType t k =

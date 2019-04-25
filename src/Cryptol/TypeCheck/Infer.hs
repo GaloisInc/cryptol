@@ -35,6 +35,7 @@ import           Cryptol.TypeCheck.SimpType(tMul)
 import           Cryptol.TypeCheck.Kind(checkType,checkSchema,checkTySyn,
                                         checkPropSyn,checkNewtype,
                                         checkParameterType,
+                                        checkPrimType,
                                         checkParameterConstraints)
 import           Cryptol.TypeCheck.Instantiate
 import           Cryptol.TypeCheck.Depends
@@ -63,6 +64,7 @@ inferModule m =
     do proveModuleTopLevel
        ts <- getTSyns
        nts <- getNewtypes
+       ats <- getAbstractTypes
        pTs <- getParamTypes
        pCs <- getParamConstraints
        pFuns <- getParamFuns
@@ -71,6 +73,7 @@ inferModule m =
                      , mImports   = map thing (P.mImports m)
                      , mTySyns    = Map.mapMaybe onlyLocal ts
                      , mNewtypes  = Map.mapMaybe onlyLocal nts
+                     , mPrimTypes = Map.mapMaybe onlyLocal ats
                      , mParamTypes = pTs
                      , mParamConstraints = pCs
                      , mParamFuns = pFuns
@@ -948,6 +951,10 @@ inferDs ds continue = checkTyDecls =<< orderTyDecls (mapMaybe toTyDecl ds)
   checkTyDecls (NT t mbD : ts) =
     do t1 <- checkNewtype t mbD
        withNewtype t1 (checkTyDecls ts)
+
+  checkTyDecls (PT p mbD : ts) =
+    do p1 <- checkPrimType p mbD
+       withPrimType p1 (checkTyDecls ts)
 
   -- We checked all type synonyms, now continue with value-level definitions:
   checkTyDecls [] =

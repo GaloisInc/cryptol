@@ -333,6 +333,9 @@ annotTopDs tds =
                Right d2 -> (Decl (d1 { tlValue = d2 }) :) <$> annotTopDs ds
 
         -- XXX: Add fixity once we support type-level fixities
+        DPrimType {} -> (d :) <$> annotTopDs ds
+
+        -- XXX: Add fixity once we support type-level fixities
         DParameterType {} -> (d :) <$> annotTopDs ds
         DParameterConstraint {} -> (d :) <$> annotTopDs ds
         DParameterFun p ->

@@ -345,11 +345,19 @@ instance BindsNames (InModule (TopDecl PName)) where
   namingEnv (InModule ns td) =
     case td of
       Decl d           -> namingEnv (InModule ns (tlValue d))
+      DPrimType d      -> namingEnv (InModule ns (tlValue d))
       TDNewtype d      -> namingEnv (InModule ns (tlValue d))
       DParameterType d -> namingEnv (InModule ns d)
       DParameterConstraint {} -> mempty
       DParameterFun  d -> namingEnv (InModule ns d)
       Include _   -> mempty
+
+instance BindsNames (InModule (PrimType PName)) where
+  namingEnv (InModule ns PrimType { .. }) =
+    BuildNamingEnv $
+      do let Located { .. } = primTName
+         nm <- newTop ns thing primTFixity srcRange
+         pure (singletonT thing nm)
 
 instance BindsNames (InModule (ParameterFun PName)) where
   namingEnv (InModule ns ParameterFun { .. }) = BuildNamingEnv $

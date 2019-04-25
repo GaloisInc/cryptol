@@ -743,6 +743,14 @@ withNewtype t (IM m) =
   IM $ mapReader
         (\r -> r { iNewtypes = Map.insert (ntName t) (IsLocal,t)
                                                      (iNewtypes r) }) m
+
+withPrimType :: AbstractType -> InferM a -> InferM a
+withPrimType t (IM m) =
+  IM $ mapReader
+      (\r -> r { iAbstractTypes = Map.insert (atName t) (IsLocal,t)
+                                                        (iAbstractTypes r) }) m
+
+
 withParamType :: ModTParam -> InferM a -> InferM a
 withParamType a (IM m) =
   IM $ mapReader
