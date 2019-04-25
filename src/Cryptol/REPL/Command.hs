@@ -867,6 +867,7 @@ browseCmd input = do
 
   browseMParams  visibleType visibleDecl params disp
   browseTSyns    visibleType             iface disp
+  browsePrimTys  visibleType             iface disp
   browseNewtypes visibleType             iface disp
   browseVars     visibleDecl             iface disp
 
@@ -888,6 +889,13 @@ browseMParams visT visD M.IfaceParams { .. } names =
                $ filter (vis . nm) $ Map.elems mp
 
 
+browsePrimTys :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
+browsePrimTys isVisible M.IfaceDecls { .. } names =
+  do let pts = sortBy (M.cmpNameDisplay names `on` T.atName)
+               [ ts | ts <- Map.elems ifAbstractTypes, isVisible (T.atName ts) ]
+     ppBlock names ppA "Primitive Types" pts
+  where
+  ppA a = pp (T.atName a) <+> ":" <+> pp (T.atKind a)
 
 browseTSyns :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
 browseTSyns isVisible M.IfaceDecls { .. } names = do
@@ -1001,21 +1009,30 @@ helpCmd cmd
                       rPrint $runDoc nameEnv ("Name defined in module" <+> pp m)
       M.Parameter  -> rPutStrLn "// No documentation is available."
 
-  showPrimTyHelp nameEnv pt =
+  showPrimTyHelp nameEnv pt = showPrimTyHelp' nameEnv
+                                pnam k f (Just (T.primTyDoc pt))
+    where
+    k    = T.kindOf (T.primTyCon pt)
+    f    = T.primTyFixity pt
+    pnam = if P.isInfixIdent i then parens (pp i) else pp i
+    i    = T.primTyIdent pt
+
+  showPrimTyHelp' nameEnv pnam k f mbDoc =
     do rPutStrLn ""
-       let i    = T.primTyIdent pt
-           nm   = pp (T.primTyIdent pt)
-           pnam = if P.isInfixIdent i then parens nm else nm
-           sig  = "primitive type" <+> pnam <+> ":" <+> pp (T.kindOf (T.primTyCon pt))
-       rPrint $ runDoc nameEnv $ nest 4 sig
-       doShowFix (T.primTyFixity pt)
-       rPutStrLn ""
-       rPutStrLn (T.primTyDoc pt)
-       rPutStrLn ""
+       rPrint $ runDoc nameEnv $ nest 4
+              $ "primitive type" <+> pnam <+> ":" <+> pp k
+       doShowFix f
+       case mbDoc of
+         Nothing -> pure ()
+         Just d -> do rPutStrLn ""
+                      rPutStrLn d
+                      rPutStrLn ""
+
+
 
   showTypeHelp params env nameEnv name =
     fromMaybe (noInfo nameEnv name) $
-    msum [ fromTySyn, fromNewtype, fromTyParam ]
+    msum [ fromTySyn, fromPrimType, fromNewtype, fromTyParam ]
 
     where
     fromTySyn =
@@ -1026,6 +1043,13 @@ helpCmd cmd
       do nt <- Map.lookup name (M.ifNewtypes env)
          let decl = pp nt $$ (pp name <+> text ":" <+> pp (T.newtypeConType nt))
          return $ doShowTyHelp nameEnv decl (T.ntDoc nt)
+
+    fromPrimType =
+      do a <- Map.lookup name (M.ifAbstractTypes env)
+         return $ showPrimTyHelp' nameEnv (pp (T.atName a))
+                                          (T.atKind a)
+                                          (T.atFixitiy a)
+                                          (T.atDoc a)
 
     fromTyParam =
       do p <- Map.lookup name (M.ifParamTypes params)
