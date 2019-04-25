@@ -49,11 +49,9 @@ import System.Random.TF.Gen (seedTFGen)
 -- Primitives ------------------------------------------------------------------
 
 instance EvalPrims Bool BV Integer where
-  evalPrim Decl { dName = n, .. }
-    | Just prim <- asPrim n, Just val <- Map.lookup prim primTable = val
-
-  evalPrim Decl { .. } =
-      panic "Eval" [ "Unimplemented primitive", show dName ]
+  evalPrim Decl { dName = n, .. } =
+    do prim <- asPrim n
+       Map.lookup prim primTable
 
   iteValue b t f = if b then t else f
 

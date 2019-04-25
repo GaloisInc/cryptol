@@ -326,6 +326,7 @@ finType ty =
     Eval.TVSeq n t        -> FTSeq <$> numType n <*> finType t
     Eval.TVTuple ts       -> FTTuple <$> traverse finType ts
     Eval.TVRec fields     -> FTRecord <$> traverse (traverseSnd finType) fields
+    Eval.TVAbstract {}    -> Nothing
     _                     -> Nothing
 
 unFinType :: FinType -> Type

@@ -541,8 +541,9 @@ class BitWord b w i | b -> w, w -> i, i -> b where
 -- | This class defines additional operations necessary to define generic evaluation
 --   functions.
 class BitWord b w i => EvalPrims b w i where
-  -- | Eval prim binds primitive declarations to the primitive values that implement them.
-  evalPrim :: Decl -> GenValue b w i
+  -- | Eval prim binds primitive declarations to the primitive values that implement them.  Returns 'Nothing' for abstract primitives (i.e., once that are
+  -- not implemented by this backend).
+  evalPrim :: Decl -> Maybe (GenValue b w i)
 
   -- | if/then/else operation.  Choose either the 'then' value or the 'else' value depending
   --   on the value of the test bit.

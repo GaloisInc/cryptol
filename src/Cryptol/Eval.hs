@@ -405,7 +405,10 @@ evalDecl :: EvalPrims b w i
          -> Eval (GenEvalEnv b w i)
 evalDecl renv env d =
   case dDefinition d of
-    DPrim   -> return $ bindVarDirect (dName d) (evalPrim d) env
+    DPrim   -> case evalPrim d of
+                 Just v  -> pure (bindVarDirect (dName d) v env)
+                 Nothing -> bindVar (dName d) (cryNoPrimError (dName d)) env
+
     DExpr e -> bindVar (dName d) (evalExpr renv e) env
 
 
@@ -626,7 +629,5 @@ evalMatch lenv m = case m of
     where
       f env =
           case dDefinition d of
-            -- Primitives here should never happen, I think...
-            --    perhaps this should be converted to an error.
-            DPrim   -> return $ evalPrim d
+            DPrim   -> evalPanic "evalMatch" ["Unexpected local primitive"]
             DExpr e -> evalExpr env e

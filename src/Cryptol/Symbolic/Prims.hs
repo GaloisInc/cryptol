@@ -45,7 +45,6 @@ import Cryptol.Prims.Eval (binary, unary, arithUnary,
 import Cryptol.Symbolic.Value
 import Cryptol.TypeCheck.AST (Decl(..))
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), widthInteger)
-import Cryptol.Utils.Panic
 import Cryptol.ModuleSystem.Name (asPrim)
 import Cryptol.Utils.Ident (Ident,mkIdent)
 
@@ -64,11 +63,9 @@ traverseSnd f (x, y) = (,) x <$> f y
 -- Primitives ------------------------------------------------------------------
 
 instance EvalPrims SBool SWord SInteger where
-  evalPrim Decl { dName = n, .. }
-    | Just prim <- asPrim n, Just val <- Map.lookup prim primTable = val
-
-  evalPrim Decl { .. } =
-      panic "Eval" [ "Unimplemented primitive", show dName ]
+  evalPrim Decl { dName = n, .. } =
+    do prim <- asPrim n
+       Map.lookup prim primTable
 
   iteValue b x1 x2
     | Just b' <- SBV.svAsBool b = if b' then x1 else x2
