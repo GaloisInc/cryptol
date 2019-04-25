@@ -207,6 +207,7 @@ instance HasKind TC where
       TCFun     -> KType :-> KType :-> KType
       TCTuple n -> foldr (:->) KType (replicate n KType)
       TCNewtype x -> kindOf x
+      TCAbstract x -> kindOf x
 
 instance HasKind PC where
   kindOf pc =
@@ -280,6 +281,7 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCSeq                    -- ^ @[_] _@
             | TCFun                    -- ^ @_ -> _@
             | TCTuple Int              -- ^ @(_, _, _)@
+            | TCAbstract UserTC        -- ^ An abstract type
             | TCNewtype UserTC         -- ^ user-defined, @T@
               deriving (Show, Eq, Ord, Generic, NFData)
 
@@ -393,6 +395,7 @@ instance PP TC where
       TCTuple 1 -> text "(one tuple?)"
       TCTuple n -> parens $ hcat $ replicate (n-1) comma
       TCNewtype u -> pp u
+      TCAbstract u -> pp u
 
 instance PP UserTC where
   ppPrec p (UserTC x _) = ppPrec p x

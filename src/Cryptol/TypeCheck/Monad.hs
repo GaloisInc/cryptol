@@ -61,6 +61,7 @@ data InferInput = InferInput
   , inpVars      :: Map Name Schema   -- ^ Variables that are in scope
   , inpTSyns     :: Map Name TySyn    -- ^ Type synonyms that are in scope
   , inpNewtypes  :: Map Name Newtype  -- ^ Newtypes in scope
+  , inpAbstractTypes :: Map Name AbstractType -- ^ Abstract types in scope
 
     -- When typechecking a module these start off empty.
     -- We need them when type-checking an expression at the command
@@ -121,6 +122,7 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
                          , iTVars         = []
                          , iTSyns         = fmap mkExternal (inpTSyns info)
                          , iNewtypes      = fmap mkExternal (inpNewtypes info)
+                         , iAbstractTypes = mkExternal <$> inpAbstractTypes info
                          , iParamTypes    = inpParamTypes info
                          , iParamFuns     = inpParamFuns info
                          , iParamConstraints = inpParamConstraints info
@@ -202,6 +204,7 @@ data RO = RO
    -- So, either a type-synonym shadows a newtype, or it was declared
    -- at the top-level, but then there can't be a newtype with the
    -- same name (this should be caught by the renamer).
+  , iAbstractTypes :: Map Name (DefLoc, AbstractType)
 
   , iParamTypes :: Map Name ModTParam
     -- ^ Parameter types
@@ -615,6 +618,9 @@ lookupTSyn x = fmap (fmap snd . Map.lookup x) getTSyns
 lookupNewtype :: Name -> InferM (Maybe Newtype)
 lookupNewtype x = fmap (fmap snd . Map.lookup x) getNewtypes
 
+lookupAbstractType :: Name -> InferM (Maybe AbstractType)
+lookupAbstractType x = fmap (fmap snd . Map.lookup x) getAbstractTypes
+
 -- | Lookup the kind of a parameter type
 lookupParamType :: Name -> InferM (Maybe ModTParam)
 lookupParamType x = Map.lookup x <$> getParamTypes
@@ -652,6 +658,10 @@ getTSyns = IM $ asks iTSyns
 -- | Returns the newtype declarations that are in scope.
 getNewtypes :: InferM (Map Name (DefLoc,Newtype))
 getNewtypes = IM $ asks iNewtypes
+
+-- | Returns the abstract type declarations that are in scope.
+getAbstractTypes :: InferM (Map Name (DefLoc,AbstractType))
+getAbstractTypes = IM $ asks iAbstractTypes
 
 -- | Returns the parameter functions declarations
 getParamFuns :: InferM (Map Name ModVParam)
@@ -890,6 +900,9 @@ kLookupNewtype x = kInInferM $ lookupNewtype x
 
 kLookupParamType :: Name -> KindM (Maybe ModTParam)
 kLookupParamType x = kInInferM (lookupParamType x)
+
+kLookupAbstractType :: Name -> KindM (Maybe AbstractType)
+kLookupAbstractType x = kInInferM $ lookupAbstractType x
 
 kExistTVar :: Name -> Kind -> KindM Type
 kExistTVar x k = kInInferM $ existVar x k

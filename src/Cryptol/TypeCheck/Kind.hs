@@ -227,7 +227,7 @@ tcon tc ts0 k =
 -- | Check a type application of a non built-in type or type variable.
 checkTUser ::
   Name          {- ^ The name that is being applied to some arguments. -} ->
-  [P.Type Name] {- ^ Type synonym parameters -} ->
+  [P.Type Name] {- ^ Parameters to the type -} ->
   Maybe Kind    {- ^ Expected kind -} ->
   KindM Type    {- ^ Resulting type -}
 checkTUser x ts k =
@@ -235,6 +235,7 @@ checkTUser x ts k =
   mcase kLookupTSyn       checkTySynUse $
   mcase kLookupNewtype    checkNewTypeUse $
   mcase kLookupParamType  checkModuleParamUse $
+  mcase kLookupAbstractType checkAbstractTypeUse $
   checkScopedVarUse -- none of the above, must be a scoped type variable,
                     -- if the renamer did its job correctly.
   where
@@ -253,6 +254,11 @@ checkTUser x ts k =
        (ts1,_) <- appTy ts (kindOf tc)
        ts2 <- checkParams (ntParams nt) ts1
        return (TCon tc ts2)
+
+  checkAbstractTypeUse absT =
+    do let tc = abstractTypeTC absT
+       (ts1,k1) <- appTy ts (kindOf tc)
+       checkKind (TCon tc ts1) k k1
 
   checkParams as ts1
     | paramHave == paramNeed = return ts1

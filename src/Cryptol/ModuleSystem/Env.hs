@@ -341,6 +341,7 @@ deIfaceDecls DEnv { deDecls = dgs } =
   mconcat [ IfaceDecls
             { ifTySyns   = Map.empty
             , ifNewtypes = Map.empty
+            , ifAbstractTypes = Map.empty
             , ifDecls    = Map.singleton (ifDeclName ifd) ifd
             }
           | decl <- concatMap T.groupDecls dgs

@@ -502,6 +502,7 @@ genInferInput r prims params env = do
     , T.inpVars      = Map.map ifDeclSig (ifDecls env)
     , T.inpTSyns     = ifTySyns env
     , T.inpNewtypes  = ifNewtypes env
+    , T.inpAbstractTypes = ifAbstractTypes env
     , T.inpNameSeeds = seeds
     , T.inpMonoBinds = monoBinds
     , T.inpSolverConfig = cfg

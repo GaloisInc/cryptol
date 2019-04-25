@@ -18,19 +18,19 @@ import qualified Cryptol.Eval.Monad           as E
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Fingerprint
 import           Cryptol.ModuleSystem.Interface
-import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
+import           Cryptol.ModuleSystem.Name (FreshM(..),Supply,mkDeclared,NameSource(..))
 import           Cryptol.ModuleSystem.Renamer
                      (RenamerError(),RenamerWarning(),NamingEnv)
 import qualified Cryptol.Parser     as Parser
 import qualified Cryptol.Parser.AST as P
-import           Cryptol.Parser.Position (Located)
+import           Cryptol.Parser.Position (Located,emptyRange)
 import           Cryptol.Utils.Panic (panic)
 import qualified Cryptol.Parser.NoPat as NoPat
 import qualified Cryptol.Parser.NoInclude as NoInc
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
 import           Cryptol.Parser.Position (Range)
-import           Cryptol.Utils.Ident (interactiveName, noModuleName)
+import           Cryptol.Utils.Ident (interactiveName, noModuleName, packModName)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Logger(Logger)
 
@@ -414,11 +414,26 @@ getImportSource  = ModuleT $ do
     _      -> return (FromModule noModuleName)
 
 getIface :: P.ModName -> ModuleM Iface
-getIface mn = ModuleT $ do
-  env <- get
-  case lookupModule mn env of
-    Just lm -> return (lmInterface lm)
-    Nothing -> panic "ModuleSystem" ["Interface not available", show (pp mn)]
+getIface mn =
+  do env <- ModuleT get
+     case lookupModule mn env of
+       Just lm -> return (lmInterface lm)
+       Nothing -> panic "ModuleSystem" ["Interface not available", show (pp mn)]
+
+testMod :: P.ModName
+testMod = packModName [ "Debug", "Yav" ]
+
+testing :: ModuleM Iface
+testing =
+  do let m = testMod
+     ns <- getSupply
+     let (nm,ns1) = mkDeclared m UserName (P.mkIdent "ZZ") Nothing emptyRange ns
+         at = T.AbstractType { T.atName = nm
+                             , T.atKind = T.KType
+                             , T.atDoc = Just "Testing"
+                                     }
+     setSupply ns1
+     pure $ abstractIface m [at] []
 
 getLoaded :: P.ModName -> ModuleM T.Module
 getLoaded mn = ModuleT $

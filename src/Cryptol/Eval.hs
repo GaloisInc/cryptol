@@ -373,6 +373,8 @@ etaDelay msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
                 | (f,t) <- fs
                 ]
 
+      TVAbstract {} -> x
+
 
 declHole :: Decl
          -> Eval (Name, Schema, Eval (GenValue b w i), Eval (GenValue b w i) -> Eval ())

@@ -176,6 +176,7 @@ cpo that represents any given schema.
 >         TVTuple etys -> VTuple (zipWith go etys (copyList (genericLength etys) (fromVTuple val)))
 >         TVRec fields -> VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- fields ]
 >         TVFun _ bty  -> VFun (\v -> go bty (fromVFun val v))
+>         TVAbstract {} -> val
 >
 > copyStream :: [a] -> [a]
 > copyStream xs = head xs : copyStream (tail xs)
@@ -755,6 +756,8 @@ at the same positions.
 >     go (TVTuple tys)  = VTuple (map go tys)
 >     go (TVRec fields) = VRecord [ (f, go fty) | (f, fty) <- fields ]
 >     go (TVFun _ bty)  = VFun (\_ -> go bty)
+>     go (TVAbstract {}) =
+>        evalPanic "logicUnary" ["Abstract type not in `Logic`"]
 >
 > logicUnary :: (Bool -> Bool) -> TValue -> Value -> Value
 > logicUnary op = go
@@ -770,6 +773,8 @@ at the same positions.
 >         TVTuple etys -> VTuple (zipWith go etys (fromVTuple val))
 >         TVRec fields -> VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- fields ]
 >         TVFun _ bty  -> VFun (\v -> go bty (fromVFun val v))
+>         TVAbstract {} ->
+>           evalPanic "logicUnary" ["Abstract type not in `Logic`"]
 >
 > logicBinary :: (Bool -> Bool -> Bool) -> TValue -> Value -> Value -> Value
 > logicBinary op = go
@@ -786,6 +791,8 @@ at the same positions.
 >         TVRec fields -> VRecord [ (f, go fty (lookupRecord f l) (lookupRecord f r))
 >                                 | (f, fty) <- fields ]
 >         TVFun _ bty  -> VFun (\v -> go bty (fromVFun l v) (fromVFun r v))
+>         TVAbstract {} ->
+>           evalPanic "logicBinary" ["Abstract type not in `Logic`"]
 
 
 Arithmetic
@@ -823,6 +830,8 @@ up of non-empty finite bitvectors.
 >           VTuple (map go tys)
 >         TVRec fs ->
 >           VRecord [ (f, go fty) | (f, fty) <- fs ]
+>         TVAbstract {} ->
+>           evalPanic "arithNullary" ["Absrat type not in `Arith`"]
 >
 > arithUnary :: (Integer -> Either EvalError Integer)
 >            -> TValue -> Value -> Value
@@ -854,6 +863,8 @@ up of non-empty finite bitvectors.
 >           VTuple (zipWith go tys (fromVTuple val))
 >         TVRec fs ->
 >           VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- fs ]
+>         TVAbstract {} ->
+>           evalPanic "arithUnary" ["Absrat type not in `Arith`"]
 >
 > arithBinary :: (Integer -> Integer -> Either EvalError Integer)
 >             -> TValue -> Value -> Value -> Value
@@ -906,6 +917,8 @@ up of non-empty finite bitvectors.
 >           VTuple (zipWith3 go tys (fromVTuple l) (fromVTuple r))
 >         TVRec fs ->
 >           VRecord [ (f, go fty (lookupRecord f l) (lookupRecord f r)) | (f, fty) <- fs ]
+>         TVAbstract {} ->
+>           evalPanic "arithBinary" ["Abstract type not in class `Arith`"]
 
 Signed bitvector division (`/$`) and remainder (`%$`) are defined so
 that division rounds toward zero, and the remainder `x %$ y` has the
@@ -968,6 +981,8 @@ bits to the *left* of that position are equal.
 >           ls     = map snd (sortBy (comparing fst) (fromVRecord l))
 >           rs     = map snd (sortBy (comparing fst) (fromVRecord r))
 >        in lexList (zipWith3 lexCompare tys ls rs)
+>     TVAbstract {} ->
+>       evalPanic "lexCompare" ["Abstract type not in `Cmp`"]
 >
 > lexList :: [Either EvalError Ordering] -> Either EvalError Ordering
 > lexList [] = Right EQ
@@ -1017,6 +1032,8 @@ fields are compared in alphabetical order.
 >           ls     = map snd (sortBy (comparing fst) (fromVRecord l))
 >           rs     = map snd (sortBy (comparing fst) (fromVRecord r))
 >        in lexList (zipWith3 lexSignedCompare tys ls rs)
+>     TVAbstract {} ->
+>       evalPanic "lexSignedCompare" ["Abstract type not in `Cmp`"]
 
 
 Sequences

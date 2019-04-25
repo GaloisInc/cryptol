@@ -337,20 +337,6 @@ allDeclGroups =
     concatMap mDecls
   . M.loadedModules
 
-allLoadedModules :: M.ModuleEnv -> [M.LoadedModule]
-allLoadedModules =
-    M.getLoadedModules
-  . M.meLoadedModules
-
-allPublicNames :: M.ModuleEnv -> [Name]
-allPublicNames =
-    concatMap
-      ( Map.keys
-      . M.ifDecls
-      . M.ifPublic
-      . M.lmInterface
-      )
-  . allLoadedModules
 
 traverseSnd :: Functor f => (b -> f c) -> (a, b) -> f (a, c)
 traverseSnd f (x, y) = (,) x <$> f y

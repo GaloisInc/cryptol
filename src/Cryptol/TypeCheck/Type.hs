@@ -186,6 +186,14 @@ data Newtype  = Newtype { ntName   :: Name
                         } deriving (Show, Generic, NFData)
 
 
+-- | Information about an abstract type.
+data AbstractType = AbstractType
+  { atName  :: Name
+  , atKind  :: Kind
+  , atDoc   :: Maybe String
+  } deriving (Show, Generic, NFData)
+
+
 
 
 --------------------------------------------------------------------------------
@@ -277,6 +285,9 @@ newtypeConType nt =
   where
   as = ntParams nt
 
+
+abstractTypeTC :: AbstractType -> TCon
+abstractTypeTC at = TC $ TCAbstract $ UserTC (atName at) (atKind at)
 
 instance Eq TVar where
   TVBound x       == TVBound y       = x == y
@@ -451,6 +462,9 @@ tNat'    :: Nat' -> Type
 tNat' n'  = case n' of
               Inf   -> tInf
               Nat n -> tNum n
+
+tAbstract :: UserTC -> [Type] -> Type
+tAbstract u ts = TCon (TC (TCAbstract u)) ts
 
 tBit     :: Type
 tBit      = TCon (TC TCBit) []

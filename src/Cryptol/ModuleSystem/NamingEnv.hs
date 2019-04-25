@@ -268,7 +268,7 @@ interpImport imp publicDecls = qualified
 -- the names are qualified.
 unqualifiedEnv :: IfaceDecls -> NamingEnv
 unqualifiedEnv IfaceDecls { .. } =
-  mconcat [ exprs, tySyns, ntTypes, ntExprs
+  mconcat [ exprs, tySyns, ntTypes, absTys, ntExprs
           , mempty { neFixity = Map.fromList fixity } ]
   where
   toPName n = mkUnqual (nameIdent n)
@@ -276,6 +276,7 @@ unqualifiedEnv IfaceDecls { .. } =
   exprs   = mconcat [ singletonE (toPName n) n | n <- Map.keys ifDecls ]
   tySyns  = mconcat [ singletonT (toPName n) n | n <- Map.keys ifTySyns ]
   ntTypes = mconcat [ singletonT (toPName n) n | n <- Map.keys ifNewtypes ]
+  absTys  = mconcat [ singletonT (toPName n) n | n <- Map.keys ifAbstractTypes ]
   ntExprs = mconcat [ singletonE (toPName n) n | n <- Map.keys ifNewtypes ]
 
   fixity =

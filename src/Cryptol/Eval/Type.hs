@@ -27,14 +27,15 @@ import Control.DeepSeq
 -- | An evaluated type of kind *.
 -- These types do not contain type variables, type synonyms, or type functions.
 data TValue
-  = TVBit                    -- ^ @ Bit @
-  | TVInteger                -- ^ @ Integer @
-  | TVIntMod Integer         -- ^ @ Z n @
-  | TVSeq Integer TValue     -- ^ @ [n]a @
-  | TVStream TValue          -- ^ @ [inf]t @
-  | TVTuple [TValue]         -- ^ @ (a, b, c )@
-  | TVRec [(Ident, TValue)]  -- ^ @ { x : a, y : b, z : c } @
-  | TVFun TValue TValue      -- ^ @ a -> b @
+  = TVBit                     -- ^ @ Bit @
+  | TVInteger                 -- ^ @ Integer @
+  | TVIntMod Integer          -- ^ @ Z n @
+  | TVSeq Integer TValue      -- ^ @ [n]a @
+  | TVStream TValue           -- ^ @ [inf]t @
+  | TVTuple [TValue]          -- ^ @ (a, b, c )@
+  | TVRec [(Ident, TValue)]   -- ^ @ { x : a, y : b, z : c } @
+  | TVFun TValue TValue       -- ^ @ a -> b @
+  | TVAbstract UserTC [Either Nat' TValue] -- ^ an abstract type
     deriving (Generic, NFData)
 
 -- | Convert a type value back into a regular type
@@ -49,6 +50,12 @@ tValTy tv =
     TVTuple ts  -> tTuple (map tValTy ts)
     TVRec fs    -> tRec [ (f, tValTy t) | (f, t) <- fs ]
     TVFun t1 t2 -> tFun (tValTy t1) (tValTy t2)
+    TVAbstract u vs -> tAbstract u (map arg vs)
+      where arg x = case x of
+                      Left Inf     -> tInf
+                      Left (Nat n) -> tNum n
+                      Right v      -> tValTy v
+
 
 instance Show TValue where
   showsPrec p v = showsPrec p (tValTy v)
@@ -103,6 +110,15 @@ evalType env ty =
         (TCTuple _, _)  -> Right $ TVTuple (map val ts)
         (TCNum n, [])   -> Left $ Nat n
         (TCInf, [])     -> Left $ Inf
+        (TCAbstract u,vs) ->
+            case kindOf ty of
+              KType -> Right $ TVAbstract u (map (evalType env) vs)
+              k -> evalPanic "evalType"
+                [ "Unsupported"
+                , "*** Abstract type of kind: " ++ show (pp k)
+                , "*** Name: " ++ show (pp u)
+                ]
+
         -- FIXME: What about TCNewtype?
         _ -> evalPanic "evalType" ["not a value type", show ty]
     TCon (TF f) ts      -> Left $ evalTF f (map num ts)

@@ -631,12 +631,6 @@ type                           :: { Type PName                                  
   | app_type                      { $1                                                         }
 
 app_type                       :: { Type PName }
-  -- : 'lg2'   atype                 { at ($1,$2) $ TApp TCLg2   [$2]    }
-  -- | 'lengthFromThenTo' atype atype
-  --                      atype      { at ($1,$4) $ TApp TCLenFromThenTo [$2,$3,$4] }
-  -- | 'min'   atype atype           { at ($1,$3) $ TApp TCMin   [$2,$3] }
-  -- | 'max'   atype atype           { at ($1,$3) $ TApp TCMax   [$2,$3] }
-
   : dimensions atype              { at ($1,$2) $ foldr TSeq $2 (reverse (thing $1)) }
   | qname atypes                  { at ($1,head $2)
                                      $ TUser (thing $1) (reverse $2) }

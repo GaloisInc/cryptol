@@ -432,6 +432,9 @@ arithBinary opw opi opz = loop
                  ]
          return $ VRecord fs'
 
+    TVAbstract {} ->
+      evalPanic "arithBinary" ["Abstract type not in `Arith`"]
+
 type UnaryArith w = Integer -> w -> Eval w
 
 liftUnaryArith :: (Integer -> Integer) -> UnaryArith BV
@@ -487,6 +490,8 @@ arithUnary opw opi opz = loop
                  ]
          return $ VRecord fs'
 
+    TVAbstract {} -> evalPanic "arithUnary" ["Abstract type not in `Arith`"]
+
 arithNullary ::
   forall b w i.
   BitWord b w i =>
@@ -517,6 +522,9 @@ arithNullary opw opi opz = loop
         TVTuple tys -> VTuple $ map (ready . loop) tys
 
         TVRec fs -> VRecord [ (f, ready (loop a)) | (f, a) <- fs ]
+
+        TVAbstract {} ->
+          evalPanic "arithNullary" ["Abstract type not in `Arith`"]
 
 lg2 :: Integer -> Integer
 lg2 i = case genLog i 2 of
@@ -580,6 +588,8 @@ cmpValue fb fw fi fz = cmp
                             cmpValues tys
                               (vals (fromVRecord v1))
                               (vals (fromVRecord v2)) k
+        TVAbstract {} -> evalPanic "cmpValue"
+                          [ "Abstract type not in `Cmp`" ]
 
     cmpValues (t : ts) (x1 : xs1) (x2 : xs2) k =
       do x1' <- x1
@@ -741,6 +751,8 @@ zeroV ty = case ty of
   -- records
   TVRec fields ->
     VRecord [ (f,ready $ zeroV fty) | (f,fty) <- fields ]
+
+  TVAbstract {} -> evalPanic "zeroV" [ "Abstract type not in `Zero`" ]
 
 --  | otherwise = evalPanic "zeroV" ["invalid type for zero"]
 
@@ -1121,6 +1133,9 @@ logicBinary opb opw = loop
                    ]
            return $ VRecord fs
 
+    TVAbstract {} -> evalPanic "logicBinary"
+                        [ "Abstract type not in `Logic`" ]
+
 
 wordValUnaryOp :: BitWord b w i
                => (b -> b)
@@ -1176,6 +1191,8 @@ logicUnary opb opw = loop
                  | (f,fty) <- fields, let a = lookupRecord f val
                  ]
          return $ VRecord fs
+
+    TVAbstract {} -> evalPanic "logicUnary" [ "Abstract type not in `Logic`" ]
 
 
 logicShift :: (Integer -> Integer -> Integer -> Integer)
@@ -1503,3 +1520,5 @@ errorV ty msg = case ty of
   -- records
   TVRec fields ->
     return $ VRecord [ (f,errorV fty msg) | (f,fty) <- fields ]
+
+  TVAbstract {} -> cryUserError msg
