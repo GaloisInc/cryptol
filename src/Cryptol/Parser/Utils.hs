@@ -24,11 +24,15 @@ import Cryptol.TypeCheck.Type (TCon(TF))
 widthIdent :: Ident
 widthIdent  = mkIdent "width"
 
+underIdent :: Ident
+underIdent = mkIdent "_"
+
 translateExprToNumT :: Expr PName -> Maybe (Type PName)
 translateExprToNumT expr =
   case expr of
     ELocated e r -> (`TLocated` r) `fmap` translateExprToNumT e
     EVar n | getIdent n == widthIdent -> mkFun TCWidth
+           | getIdent n == underIdent -> pure TWild
     EVar x       -> return (TUser x [])
     ELit x       -> cvtLit x
     EApp e1 e2   -> do t1 <- translateExprToNumT e1

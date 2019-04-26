@@ -42,6 +42,14 @@ import Cryptol.Utils.Ident(paramInstModName)
 import Paths_cryptol
 }
 
+{- state 196 contains 1 shift/reduce conflicts.
+     `_` idnetifier conflicts with `_` in record update.
+    We have `_` as an identifier for the cases where we parse types as
+    expressions, for example `[ 12 .. _ ]`.
+-}
+
+%expect 1
+
 
 %token
   NUM         { $$@(Located _ (Token (Num   {}) _))}
@@ -463,6 +471,7 @@ no_sel_aexpr                   :: { Expr PName                             }
   | NUM                           { at $1 $ numLit (tokenType (thing $1))  }
   | STRLIT                        { at $1 $ ELit $ ECString $ getStr $1    }
   | CHARLIT                       { at $1 $ ELit $ ECNum (getNum $1) CharLit }
+  | '_'                           { at $1 $ EVar $ mkUnqual $ mkIdent "_" }
 
   | '(' expr ')'                  { at ($1,$3) $ EParens $2                }
   | '(' tuple_exprs ')'           { at ($1,$3) $ ETuple (reverse $2)       }
