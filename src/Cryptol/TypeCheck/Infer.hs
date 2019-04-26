@@ -131,8 +131,9 @@ desugarLiteral fixDec lit =
                    (P.TSeq P.TWild (P.TSeq (P.TNum 8) P.TBit))
 
 
+
 -- | Infer the type of an expression with an explicit instantiation.
-appTys :: P.Expr Name -> [Located (Maybe Ident,Type)] -> Type -> InferM Expr
+appTys :: P.Expr Name -> [TypeArg] -> Type -> InferM Expr
 appTys expr ts tGoal =
   case expr of
     P.EVar x ->
@@ -149,9 +150,7 @@ appTys expr ts tGoal =
                    appTys e ts tGoal
 
 
-    P.EAppT e fs ->
-      do ps <- mapM inferTyParam fs
-         appTys e (ps ++ ts) tGoal
+    P.EAppT e fs -> appTys e (map uncheckedTypeArg fs ++ ts) tGoal
 
     -- Here is an example of why this might be useful:
     -- f ` { x = T } where type T = ...
@@ -188,32 +187,22 @@ appTys expr ts tGoal =
                   checkNoParams ts
                   return e'
 
-checkNoParams :: [Located (Maybe Ident,Type)] -> InferM ()
+checkNoParams :: [TypeArg] -> InferM ()
 checkNoParams ts =
   case pos of
-    p : _ -> inRange (srcRange p) (recordError TooManyPositionalTypeParams)
-    []    -> mapM_ badNamed named
+    p : _ -> do r <- case tyArgType p of
+                       Unchecked t | Just r <- getLoc t -> pure r
+                       _ -> curRange
+                inRange r (recordError TooManyPositionalTypeParams)
+    _ -> mapM_ badNamed named
   where
   badNamed l =
-    case fst (thing l) of
-      Just i -> recordError (UndefinedTypeParameter l { thing = i })
+    case tyArgName l of
+      Just i  -> recordError (UndefinedTypeParameter i)
       Nothing -> return ()
 
-  (named,pos) = partition (isJust . fst . thing) ts
+  (named,pos) = partition (isJust . tyArgName) ts
 
-
-inferTyParam :: P.TypeInst Name -> InferM (Located (Maybe Ident, Type))
-inferTyParam (P.NamedInst param) =
-  do let loc = srcRange (P.name param)
-     t <- inRange loc $ checkType (P.value param) Nothing
-     return $ Located loc (Just (thing (P.name param)), t)
-
-inferTyParam (P.PosInst param) =
-  do t   <- checkType param Nothing
-     rng <- case getLoc param of
-              Nothing -> curRange
-              Just r  -> return r
-     return Located { srcRange = rng, thing = (Nothing, t) }
 
 checkTypeOfKind :: P.Type Name -> Kind -> InferM Type
 checkTypeOfKind ty k = checkType ty (Just k)
@@ -249,7 +238,10 @@ checkE expr tGoal =
          -- instantiate 'rep' to 'tGoal' in this case to avoid
          -- generating an unnecessary unification variable.
          loc <- curRange
-         appTys e [Located loc (Just (packIdent "rep"), tGoal)] tGoal
+         let arg = TypeArg { tyArgName = Just (Located loc (packIdent "rep"))
+                           , tyArgType = Checked tGoal
+                           }
+         appTys e [arg] tGoal
 
     P.ELit l -> (`checkE` tGoal) =<< desugarLiteral False l
 
@@ -317,9 +309,7 @@ checkE expr tGoal =
          e'     <- withMonoTypes ds (checkE e a)
          return (EComp len a e' mss')
 
-    P.EAppT e fs ->
-      do ts <- mapM inferTyParam fs
-         appTys e ts tGoal
+    P.EAppT e fs -> appTys e (map uncheckedTypeArg fs) tGoal
 
     P.EApp fun@(dropLoc -> P.EApp (dropLoc -> P.EVar c) _)
            arg@(dropLoc -> P.ELit l)
