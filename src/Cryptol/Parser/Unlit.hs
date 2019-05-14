@@ -99,12 +99,17 @@ markdown = blanks []
     | otherwise         = fenced op (l : current) ls
 
 
-  isOpenFence l  | "```cryptol" == l'         = Just Code
-                 | "```"        == l'         = Just Code
-                 | "```" `Text.isPrefixOf` l' = Just Comment
-                 | otherwise                  = Nothing
+  isOpenFence l
+    | "```" `Text.isPrefixOf` l' =
+      Just $ case Text.drop 3 l' of
+               l'' | "cryptol" `Text.isPrefixOf` l'' -> Code
+                   | isBlank l''                     -> Code
+                   | otherwise                       -> Comment
+
+    | otherwise = Nothing
     where
     l' = Text.dropWhile isSpace l
+
   isCloseFence l = "```" `Text.isPrefixOf` l
   isBlank l      = Text.all isSpace l
   isCodeLine l   = "\t" `Text.isPrefixOf` l || "    " `Text.isPrefixOf` l
