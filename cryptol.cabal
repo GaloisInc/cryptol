@@ -8,11 +8,12 @@ Author:              Galois, Inc.
 Maintainer:          cryptol@galois.com
 Homepage:            http://www.cryptol.net/
 Bug-reports:         https://github.com/GaloisInc/cryptol/issues
-Copyright:           2013-2018 Galois Inc.
+Copyright:           2013-2019 Galois Inc.
 Category:            Language
 Build-type:          Simple
-Cabal-version:       >= 1.18
+Cabal-version:       1.18
 extra-source-files:  bench/data/*.cry
+                     CHANGES.md
 
 data-files:          *.cry *.z3
 data-dir:            lib
