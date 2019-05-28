@@ -129,7 +129,12 @@ solveArithSeq n ty = case tNoUser ty of
   TCon (TC TCBit) [] -> SolvedIf [ pFin n ]
 
   -- variables are not solvable.
-  TVar {} -> Unsolved
+  TVar {} -> case tNoUser n of
+                {- We are sure that the lenght is not `fin`, so the
+                special case for `Bit` does not apply.
+                Arith ty => Arith [n]ty -}
+                TCon (TC TCInf) [] -> SolvedIf [ pArith ty ]
+                _                  -> Unsolved
 
   -- Arith ty => Arith [n]ty
   _ -> SolvedIf [ pArith ty ]
