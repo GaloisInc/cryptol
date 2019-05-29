@@ -613,6 +613,10 @@ schema_vars                    :: { Located [TParam PName] }
   | '{' schema_params '}'         { Located (rComb $1 $3) (reverse $2) }
 
 schema_quals                   :: { Located [Prop PName] }
+  : schema_quals schema_qual      { at ($1,$2) $ fmap (++ thing $2) $1 }
+  | schema_qual                   { $1 }
+
+schema_qual                    :: { Located [Prop PName] }
   : type '=>'                     {% fmap (\x -> at (x,$2) x) (mkProp $1) }
 
 kind                             :: { Located Kind      }
