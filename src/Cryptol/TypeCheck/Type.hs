@@ -754,6 +754,7 @@ instance PP (WithNames Type) where
       TVar a  -> ppWithNames nmMap a
       TRec fs -> braces $ fsep $ punctuate comma
                     [ pp l <+> text ":" <+> go 0 t | (l,t) <- fs ]
+      TUser c [] _ -> pp c
       TUser c ts _ -> optParens (prec > 3) $ pp c <+> fsep (map (go 4) ts)
       -- TUser _ _ t -> ppPrec prec t -- optParens (prec > 3) $ pp c <+> fsep (map (go 4) ts)
 
