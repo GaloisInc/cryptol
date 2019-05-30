@@ -145,19 +145,13 @@ import Paths_cryptol
 {- If you add additional operators, please update the corresponding
    tables in the pretty printer. -}
 
-%nonassoc '=>'
 %right '->'
-%left     'where'
-%nonassoc 'then' 'else'
-%nonassoc ':'
-%nonassoc '=='
-%nonassoc '<=' '>='
 %right '#'
 %left  '+' '-'
-%left  '*' '/' '%'
+%left  '*'
 %right '^^'
 %right NEG '~'
-%left OP QOP
+%left  OP
 %%
 
 
@@ -390,43 +384,9 @@ repl                    :: { ReplInput PName }
   : expr                   { ExprInput $1 }
   | let_decl               { LetInput $1 }
 
+
 --------------------------------------------------------------------------------
--- if a then b else c : [10]
-
-
-expr                             :: { Expr PName }
-  : cexpr                           { $1 }
-  | expr 'where' '{' '}'            { at ($1,$4) $ EWhere $1 []           }
-  | expr 'where' '{' decls '}'      { at ($1,$5) $ EWhere $1 (reverse $4) }
-  | expr 'where' 'v{' 'v}'          { at ($1,$2) $ EWhere $1 []           }
-  | expr 'where' 'v{' vdecls 'v}'   { at ($1,$4) $ EWhere $1 (reverse $4) }
-  | error                           {% expected "an expression" }
-
-ifBranches                       :: { [(Expr PName, Expr PName)] }
-  : ifBranch                        { [$1] }
-  | ifBranches '|' ifBranch         { $3 : $1 }
-
-ifBranch                         :: { (Expr PName, Expr PName) }
-  : expr 'then' expr                { ($1, $3) }
-
-cexpr                            :: { Expr PName }
-  : sig_expr                        { $1 }
-  | 'if' ifBranches 'else' cexpr    { at ($1,$4) $ mkIf (reverse $2) $4 }
-  | '\\' apats '->' cexpr           { at ($1,$4) $ EFun (reverse $2) $4 }
-
-sig_expr                         :: { Expr PName }
-  : iexpr                           { $1 }
-  | iexpr ':' type                  { at ($1,$3) $ ETyped $1 $3 }
-
-iexpr                            :: { Expr PName }
-  : expr10                          { $1 }
-  | iexpr qop expr10                { binOp $1 $2 $3 }
-
-expr10                           :: { Expr PName }
-  : aexprs                          { mkEApp $1 }
-
-  | '-' expr10 %prec NEG            { at ($1,$2) $ ENeg $2 }
-  | '~' expr10                      { at ($1,$2) $ EComplement $2 }
+-- Operators
 
 qop                              :: { LPName }
   : op                              { $1 }
@@ -452,15 +412,81 @@ other_op                         :: { LPName }
   : OP                              { let Token (Op (Other [] str)) _ = thing $1
                                        in mkUnqual (mkInfix str) A.<$ $1 }
 
-
 ops                     :: { [LPName] }
   : op                     { [$1] }
   | ops ',' op             { $3 : $1 }
 
+
+
+--------------------------------------------------------------------------------
+-- Expressions
+
+
+expr                          :: { Expr PName }
+  : exprNoWhere                  { $1 }
+  | expr 'where' whereClause     { at ($1,$3) (EWhere $1 (thing $3)) }
+
+-- | An expression without a `where` clause
+exprNoWhere                    :: { Expr PName }
+  : simpleExpr qop longRHS        { at ($1,$3) (binOp $1 $2 $3) }
+  | longRHS                       { $1 }
+  | typedExpr                     { $1 }
+
+whereClause                    :: { Located [Decl PName] }
+  : '{' '}'                       { Located (rComb $1 $2) [] }
+  | '{' decls '}'                 { Located (rComb $1 $3) (reverse $2) }
+  | 'v{' 'v}'                     { Located (rComb $1 $2) [] }
+  | 'v{' vdecls 'v}'              { let l2 = fromMaybe $3 (getLoc $2)
+                                    in Located (rComb $1 l2) (reverse $2) }
+
+-- An expression with a type annotation
+typedExpr                      :: { Expr PName }
+  : simpleExpr ':' type           { at ($1,$3) (ETyped $1 $3) }
+
+-- A possibly infix expression (no where, no long application, no type annot)
+simpleExpr                     :: { Expr PName }
+  : simpleExpr qop simpleRHS      { at ($1,$3) (binOp $1 $2 $3) }
+  | simpleRHS                     { $1 }
+
+-- An expression without an obvious end marker
+longExpr                       :: { Expr PName }
+  : 'if' ifBranches 'else' exprNoWhere   { at ($1,$4) $ mkIf (reverse $2) $4 }
+  | '\\' apats '->' exprNoWhere          { at ($1,$4) $ EFun (reverse $2) $4 }
+
+ifBranches                     :: { [(Expr PName, Expr PName)] }
+  : ifBranch                      { [$1] }
+  | ifBranches '|' ifBranch       { $3 : $1 }
+
+ifBranch                       :: { (Expr PName, Expr PName) }
+  : expr 'then' expr              { ($1, $3) }
+
+simpleRHS                      :: { Expr PName }
+  : '-' simpleApp                 { at ($1,$2) (ENeg $2) }
+  | '~' simpleApp                 { at ($1,$2) (EComplement $2) }
+  | simpleApp                     { $1 }
+
+longRHS                        :: { Expr PName }
+  : '-' longApp                   { at ($1,$2) (ENeg $2) }
+  | '~' longApp                   { at ($1,$2) (EComplement $2) }
+  | longApp                       { $1 }
+
+
+-- Prefix application expression, ends with an atom.
+simpleApp                      :: { Expr PName }
+  : aexprs                        { mkEApp $1 }
+
+-- Prefix application expression, may end with a long expression
+longApp                        :: { Expr PName }
+  : simpleApp longExpr            { at ($1,$2) (EApp $1 $2) }
+  | longExpr                      { $1 }
+  | simpleApp                     { $1 }
+
 aexprs                         :: { [Expr PName] }
-  : aexpr                         { [$1]    }
+  : aexpr                         { [$1] }
   | aexprs aexpr                  { $2 : $1 }
 
+
+-- Expression atom (needs no parens)
 aexpr                          :: { Expr PName }
   : no_sel_aexpr                  { $1 }
   | sel_expr                      { $1 }
@@ -486,9 +512,6 @@ no_sel_aexpr                   :: { Expr PName                             }
 
   | '<|'            '|>'          {% mkPoly (rComb $1 $2) [] }
   | '<|' poly_terms '|>'          {% mkPoly (rComb $1 $3) $2 }
-
-
-  -- | error                           {%^ customError "expr" }
 
 sel_expr                       :: { Expr PName }
   : no_sel_aexpr '.' selector     { at ($1,$3) $ ESel $1 (thing $3)        }
@@ -687,7 +710,7 @@ field_types                    :: { [Named (Type PName)] }
 ident              :: { Located Ident }
   : IDENT             { let Token (Ident _ str) _ = thing $1
                          in $1 { thing = mkIdent str } }
-  | 'x'               { Located { srcRange = $1, thing = mkIdent "x" }}
+  | 'x'               { Located { srcRange = $1, thing = mkIdent "x" } }
   | 'private'         { Located { srcRange = $1, thing = mkIdent "private" } }
   | 'as'              { Located { srcRange = $1, thing = mkIdent "as" } }
   | 'hiding'          { Located { srcRange = $1, thing = mkIdent "hiding" } }

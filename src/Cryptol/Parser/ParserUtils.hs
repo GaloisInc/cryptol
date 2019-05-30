@@ -247,6 +247,7 @@ validDemotedType rng ty =
   where bad x = errorMessage rng (x ++ " cannot be demoted.")
         ok    = return $ at rng ty
 
+-- | Input expression are reversed
 mkEApp :: [Expr PName] -> Expr PName
 mkEApp es@(eLast : _) = at (eFirst,eLast) $ foldl EApp f xs
   where
