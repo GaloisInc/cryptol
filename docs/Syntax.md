@@ -59,6 +59,8 @@ Examples:
     name    name1    name'    longer_name
     Name    Name2    Name''   longerName
 
+
+
 Keywords and Built-in Operators
 ===============================
 
@@ -173,6 +175,74 @@ type is inferred from context in which the literal is used. Examples:
 
     10                  // : {a}. (Literal 10 a) => a
                         // a = Integer or [n] where n >= width 10
+
+Expressions
+===========
+
+This section provides an overview of the Cryptol's expression syntax.
+
+**Calling Functions**
+
+    f 2             // call `f` with parameter `2`
+    g x y           // call `g` with two parameters: `x` and `y`
+    h (x,y)         // call `h` with one parameter,  the pair `(x,y)`
+
+
+**Prefix Operators**
+
+    -2              // call unary `-` with parameter `2`
+    - 2             // call unary `-` with parameter `2`
+    f (-2)          // call `f` with one argument: `-2`,  parens are important
+    -f 2            // call unary `-` with parameter `f 2`
+    - f 2           // call unary `-` with parameter `f 2`
+
+
+**Infix Functions**
+
+    2 + 3           // call `+` with two parameters: `2` and `3`
+    2 + 3 * 5       // call `+` with two parameters: `2` and `3 * 5`
+    (+) 2 3         // call `+` with two parameters: `2` and `3`
+    f 2 + g 3       // call `+` with two parameters: `f 2` and `g 3`
+    - 2 + - 3       // call `+` with two parameters: `-2` and `-3`
+    - f 2 + - g 3
+
+**Type Annotations**
+
+    x : Bit         // specify that `x` has type `Bit`
+    f x : Bit       // specify that `f x` has type `Bit`
+    - f x : [8]     // specify that `- f x` has type `[8]`
+    2 + 3 : [8]     // specify that `2 + 3` has type `[8]`
+    \x -> x : [8]   // type annotation is on `x`, not the function
+    if x
+      then y
+      else z : Bit  // the type annotation is on `z`, not the whole `if`
+
+
+**Local Declarations**
+
+Local declarations have the weakest precedence of all expressions.
+
+    2 + x : [T]
+      where
+      type T = 8
+      x      = 2          // `T` and `x` are in scope of `2 + x : `[T]`
+
+    if x then 1 else 2
+      where x = 2         // `x` is in scope in the whole `if`
+
+    \y -> x + y
+      where x = 2         // `y` is not in scope in the defintion of `x`
+
+
+**Block Arguments**
+
+When used as the last argument to a function call,
+`if` and lambda expressions do not need parens:
+
+    f \x -> x       // call `f` with one argument `x -> x`
+    2 + if x
+          then y
+          else z    // call `+` with two arguments: `2` and `if ...`
 
 Bits
 ====
