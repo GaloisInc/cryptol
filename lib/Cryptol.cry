@@ -33,44 +33,50 @@ infixl 100 @, @@, !, !!
 
 /**
  * Add two values.
- *  * For words, addition uses modulo arithmetic.
+ *  * For type [n], addition is modulo 2^^n.
  *  * Structured values are added element-wise.
  */
 primitive (+) : {a} (Arith a) => a -> a -> a
 
 /**
- * For words, subtraction uses modulo arithmetic.
- * Structured values are subtracted element-wise. Defined as:
- * a - b = a + negate b
- * See also: `negate'.
+ * Subtract two values.
+ *  * For type [n], subtraction is modulo 2^^n.
+ *  * Structured values are subtracted element-wise.
+ *  * Satisfies 'a - b = a + negate b'.
+ * See also: 'negate'.
  */
 primitive (-) : {a} (Arith a) => a -> a -> a
 
 /**
- * For words, multiplies two words, modulus 2^^a.
- * Structured values are multiplied element-wise.
+ * Multiply two values.
+ *  * For type [n], multiplication is modulo 2^^n.
+ *  * Structured values are multiplied element-wise.
  */
 primitive (*) : {a} (Arith a) => a -> a -> a
 
 /**
- * For words, divides two words, modulus 2^^a.
- * Structured values are divided element-wise.
+ * Divide two values, rounding down.
+ *  * For type [n], the arguments are treated as unsigned.
+ *  * Structured values are divided element-wise.
+ *  * Division by zero is undefined.
  */
 primitive (/) : {a} (Arith a) => a -> a -> a
 
 /**
- * For words, takes the modulus of two words, modulus 2^^a.
- * Over structured values, operates element-wise.
- * Be careful, as this will often give unexpected results due to interaction of
- * the two moduli.
+ * Compute the remainder from dividing two values.
+ *  * For type [n], the arguments are treated as unsigned.
+ *  * Structured values are combined element-wise.
+ *  * Remainder of division by zero is undefined.
+ *  * Satisfies 'x % y == x - (x / y) * y'.
  */
 primitive (%) : {a} (Arith a) => a -> a -> a
 
 /**
- * For words, takes the exponent of two words, modulus 2^^a.
- * Over structured values, operates element-wise.
- * Be careful, due to its fast-growing nature, exponentiation is prone to
- * interacting poorly with defaulting.
+ * Compute the exponentiation of two values.
+ *  * For type [n], the exponent is treated as unsigned,
+ *    and the result is reduced modulo 2^^n.
+ *  * For type Integer, negative powers are undefined.
+ *  * Structured values are combined element-wise.
  */
 primitive (^^) : {a} (Arith a) => a -> a -> a
 
@@ -96,9 +102,11 @@ primitive True  : Bit
 primitive False : Bit
 
 /**
- * Returns the twos complement of its argument.
+ * Returns the two's complement of its argument.
  * Over structured values, operates element-wise.
- * negate a = ~a + 1
+ * The prefix notation '- x' is syntactic sugar
+ * for 'negate x'.
+ * Satisfies 'negate a = ~a + 1'.
  */
 primitive negate : {a} (Arith a) => a -> a
 
