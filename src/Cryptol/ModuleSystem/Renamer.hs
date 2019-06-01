@@ -815,6 +815,7 @@ instance Rename Expr where
                         -- NOTE: renamePats will generate warnings, so we don't
                         -- need to duplicate them here
                         shadowNames' CheckNone env (EFun ps' <$> rename e')
+    EHole loc e'  -> EHole loc <$> traverse rename e'
     ELocated e' r -> withLoc r
                    $ ELocated <$> rename e' <*> pure r
 

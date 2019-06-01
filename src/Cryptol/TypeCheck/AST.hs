@@ -29,7 +29,7 @@ module Cryptol.TypeCheck.AST
   , module Cryptol.TypeCheck.Type
   ) where
 
-import Cryptol.Parser.Position(Located)
+import Cryptol.Parser.Position(Located, Range)
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Exports(ExportSpec(..)
                                    , isExportedBind, isExportedType)
@@ -122,6 +122,7 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | EApp Expr Expr            -- ^ Function application
             | EAbs Name Type Expr       -- ^ Function value
 
+            | EHole Range Type (Maybe Expr)  -- ^ Hole, with location, type, contents
 
             {- | Proof abstraction.  Because we don't keep proofs around
                  we don't need to name the assumption, but we still need to
@@ -223,6 +224,10 @@ instance PP (WithNames Expr) where
                           in brackets $ ppW e <+> vcat (map arm mss)
 
       EVar x        -> ppPrefixName x
+
+      EHole _ _ e   -> case e of
+                         Nothing -> text "{!" <+> text "!}"
+                         Just e' -> text "{!" <+> pp e' <+> text "!}"
 
       EAbs {}       -> let (xs,e) = splitWhile splitAbs expr
                        in ppLam nm prec [] [] xs e

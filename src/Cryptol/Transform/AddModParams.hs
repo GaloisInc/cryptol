@@ -248,6 +248,8 @@ instance Inst Expr where
      EApp e1 e2 -> EApp (inst ps e1) (inst ps e2)
      EAbs x t e -> EAbs x (inst ps t) (inst ps e)
 
+     EHole loc t e -> EHole loc (inst ps t) (inst ps <$> e)
+
      EProofAbs p e -> EProofAbs (inst ps p) (inst ps e)
      EProofApp e1 ->
        case splitExprInst expr of

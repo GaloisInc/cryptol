@@ -282,6 +282,7 @@ layout cfg ts0 = loop False implicitScope [] ts0
 
     -- We don't do layout within these delimeters
     | Sym ParenL   <- ty = toks ++ loop False False (Explicit (Sym ParenR)   : stack') ts
+    | Sym HoleL    <- ty = toks ++ loop False False (Explicit (Sym HoleR)    : stack') ts
     | Sym CurlyL   <- ty = toks ++ loop False False (Explicit (Sym CurlyR)   : stack') ts
     | Sym BracketL <- ty = toks ++ loop False False (Explicit (Sym BracketR) : stack') ts
 
@@ -416,6 +417,7 @@ data TokenSym = Bar
               | BackTick
               | ParenL   | ParenR
               | BracketL | BracketR
+              | HoleL    | HoleR
               | CurlyL   | CurlyR
               | TriL     | TriR
               | Underscore

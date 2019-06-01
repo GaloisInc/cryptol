@@ -20,6 +20,7 @@ module Cryptol.TypeCheck.Parseable
 import Cryptol.TypeCheck.AST
 import Cryptol.Utils.Ident (Ident,unpackIdent)
 import Cryptol.Parser.AST ( Located(..))
+import Cryptol.Parser.Position (Position(..), Range(..))
 import Cryptol.ModuleSystem.Name
 import Text.PrettyPrint hiding ((<>))
 import qualified Text.PrettyPrint as PP ((<>))
@@ -49,6 +50,16 @@ instance ShowParseable Expr where
   --NOTE: erase all "proofs" for now (change the following two lines to change that)
   showParseable (EProofAbs {-p-}_ e) = showParseable e --"(EProofAbs " ++ show p ++ showParseable e ++ ")"
   showParseable (EProofApp e) = showParseable e --"(EProofApp " ++ showParseable e ++ ")"
+  showParseable (EHole loc ty e) = parens (text "EHole" $$ showParseable loc $$ showParseable ty $$ showParseable e)
+
+instance ShowParseable Range where
+  showParseable r = parens (text "Range" $$
+                            text "{" <+> text "from" <+> text "=" <+> showParseable (from r) <+> text "," $$
+                            text "to" <+> text "=" <+> showParseable (to r) <+> text "," $$
+                            text "source" <+> text "=" <+> (text "\"" <> text (source r) <> text "\"") <+> text "}")
+
+instance ShowParseable Position where
+  showParseable (Position line col) = parens (text "Position" $$ showParseable line <+> showParseable col)
 
 instance (ShowParseable a, ShowParseable b) => ShowParseable (a,b) where
   showParseable (x,y) = parens (showParseable x PP.<> comma PP.<> showParseable y)

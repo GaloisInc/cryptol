@@ -39,7 +39,6 @@ import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Monad as Eval
 import qualified Cryptol.Eval.Type as Eval
 import qualified Cryptol.Eval.Value as Eval
-import           Cryptol.Eval.Env (GenEvalEnv(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
@@ -51,7 +50,7 @@ import Prelude.Compat
 
 import Data.Time (NominalDiffTime)
 
-type EvalEnv = GenEvalEnv SBool SWord
+type EvalEnv = Eval.GenEvalEnv SBool SWord
 
 
 -- External interface ----------------------------------------------------------

@@ -100,6 +100,7 @@ namesE expr =
     ETyped e _    -> namesE e
     ETypeVal _    -> Set.empty
     EFun ps e     -> boundNames (namesPs ps) (namesE e)
+    EHole _ e     -> maybe Set.empty namesE e
     ELocated e _  -> namesE e
 
     ESplit e      -> namesE e
@@ -247,6 +248,7 @@ tnamesE expr =
     ETyped e t    -> Set.union (tnamesE e) (tnamesT t)
     ETypeVal t    -> tnamesT t
     EFun ps e     -> Set.union (Set.unions (map tnamesP ps)) (tnamesE e)
+    EHole _ e     -> maybe Set.empty tnamesE e
     ELocated e _  -> tnamesE e
 
     ESplit e      -> tnamesE e

@@ -144,6 +144,7 @@ data TVarSource = TVFromModParam Name     -- ^ Name of module parameter
                 | TypeOfArg (Maybe Int)
                 | TypeOfRes
                 | TypeErrorPlaceHolder
+                | TypeOfHoleContents
                   deriving (Show, Generic, NFData)
 
 -- | Get the names of something that is related to the tvar.
@@ -850,6 +851,7 @@ pickTVarName k src uni =
                                     Just n  -> "arg_" ++ show n)
     TypeOfRes              -> "res"
     TypeErrorPlaceHolder   -> "err"
+    TypeOfHoleContents     -> mk "h"
   where
   sh a      = show (pp a)
   using a   = mk (sh a)
@@ -889,5 +891,4 @@ instance PP TVarSource where
           Just n -> "type of" <+> ordinal n <+> "function argument"
       TypeOfRes             -> "type of function result"
       TypeErrorPlaceHolder  -> "type error place-holder"
-
-
+      TypeOfHoleContents    -> "type of expression in hole"

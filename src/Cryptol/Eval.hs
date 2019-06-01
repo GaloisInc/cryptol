@@ -31,7 +31,6 @@ module Cryptol.Eval (
   , forceValue
   ) where
 
-import Cryptol.Eval.Env
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
@@ -155,6 +154,9 @@ evalExpr env expr = case expr of
   EAbs n _ty b -> {-# SCC "evalExpr->EAbs" #-}
     return $ VFun (\v -> do env' <- bindVar n v env
                             evalExpr env' b)
+
+  EHole loc ty e -> {-# SCC "evalExpr->EHole" #-}
+    VHole loc ty env <$> traverse (evalExpr env) e
 
   -- XXX these will likely change once there is an evidence value
   EProofAbs _ e -> evalExpr env e

@@ -285,6 +285,7 @@ data Expr n   = EVar n                          -- ^ @ x @
               | ETyped (Expr n) (Type n)        -- ^ @ 1 : [8] @
               | ETypeVal (Type n)               -- ^ @ `(x + 1)@, @x@ is a type
               | EFun [Pattern n] (Expr n)       -- ^ @ \\x y -> x @
+              | EHole Range (Maybe (Expr n))    -- ^ @ {! e !} @, where @e@ is optional, from a particular position
               | ELocated (Expr n) Range         -- ^ position annotation
 
               | ESplit (Expr n)                 -- ^ @ splitAt x @ (Introduced by NoPat)
@@ -714,6 +715,10 @@ instance (Show name, PPName name) => PP (Expr name) where
       EUpd mb fs    -> braces (hd <+> "|" <+> commaSep (map pp fs))
         where hd = maybe "_" pp mb
 
+      EHole _ e      -> case e of
+                          Nothing -> text "{!" <+> text "!}"
+                          Just e' -> text "{!" <+> pp e' <+> text "!}"
+
       ETypeVal t    -> text "`" <.> ppPrec 5 t     -- XXX
       EAppT e ts    -> ppPrec 4 e <.> text "`" <.> braces (commaSep (map pp ts))
       ESel    e l   -> ppPrec 4 e <.> text "." <.> pp l
@@ -981,6 +986,7 @@ instance NoPos (Expr name) where
       ETyped x y    -> ETyped   (noPos x) (noPos y)
       ETypeVal x    -> ETypeVal (noPos x)
       EFun x y      -> EFun     (noPos x) (noPos y)
+      EHole loc e   -> EHole loc (noPos e) -- Preserve hole origin, as that is its ID
       ELocated x _  -> noPos x
 
       ESplit x      -> ESplit (noPos x)

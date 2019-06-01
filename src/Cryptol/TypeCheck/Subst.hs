@@ -305,6 +305,7 @@ instance TVars Expr where
         ESel e s      -> ESel (go e) s
         EComp len t e mss -> EComp (apSubst su len) (apSubst su t) (go e) (apSubst su mss)
         EIf e1 e2 e3  -> EIf (go e1) (go e2) (go e3)
+        EHole loc t e -> EHole loc (apSubst su t) (fmap go e)
 
         EWhere e ds   -> EWhere (go e) (apSubst su ds)
 

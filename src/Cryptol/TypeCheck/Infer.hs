@@ -353,6 +353,14 @@ checkE expr tGoal =
 
     P.EFun ps e -> checkFun (text "anonymous function") ps e tGoal
 
+    P.EHole loc e ->
+      EHole loc tGoal <$>
+      case e of
+        Nothing -> return Nothing
+        Just e' ->
+          do t <- newType TypeOfHoleContents KType
+             Just <$> checkE e' t
+
     P.ELocated e r  -> inRange r (checkE e tGoal)
 
     P.ESplit e ->

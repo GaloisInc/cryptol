@@ -147,6 +147,8 @@ $white+                   { emit $ White Space }
 ")"                       { emit $ Sym ParenR }
 "["                       { emit $ Sym BracketL }
 "]"                       { emit $ Sym BracketR }
+"{!"                      { emit $ Sym HoleL }
+"!}"                      { emit $ Sym HoleR }
 "{"                       { emit $ Sym CurlyL }
 "}"                       { emit $ Sym CurlyR }
 "<|"                      { emit $ Sym TriL }

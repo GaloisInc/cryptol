@@ -95,6 +95,8 @@ import Paths_cryptol
   ','         { Located $$ (Token (Sym Comma   ) _)}
   ';'         { Located $$ (Token (Sym Semi    ) _)}
   '.'         { Located $$ (Token (Sym Dot     ) _)}
+  '{!'        { Located $$ (Token (Sym HoleL   ) _)}
+  '!}'        { Located $$ (Token (Sym HoleR   ) _)}
   '{'         { Located $$ (Token (Sym CurlyL  ) _)}
   '}'         { Located $$ (Token (Sym CurlyR  ) _)}
   '<|'        { Located $$ (Token (Sym TriL    ) _)}
@@ -502,6 +504,8 @@ no_sel_aexpr                   :: { Expr PName                             }
   | '(' expr ')'                  { at ($1,$3) $ EParens $2                }
   | '(' tuple_exprs ')'           { at ($1,$3) $ ETuple (reverse $2)       }
   | '(' ')'                       { at ($1,$2) $ ETuple []                 }
+  | '{!' '!}'                     { at ($1,$2) $ EHole (rComb $1 $2) Nothing }
+  | '{!' expr '!}'                { at ($1,$3) $ EHole (rComb $1 $3) (Just $2) }
   | '{' '}'                       { at ($1,$2) $ ERecord []                }
   | '{' rec_expr '}'              { at ($1,$3) $2                          }
   | '[' ']'                       { at ($1,$2) $ EList []                  }

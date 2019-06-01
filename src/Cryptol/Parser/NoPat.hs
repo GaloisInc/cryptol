@@ -164,6 +164,7 @@ noPatE expr =
     ETypeVal {}   -> return expr
     EFun ps e     -> do (ps1,e1) <- noPatFun ps e
                         return (EFun ps1 e1)
+    EHole loc e   -> EHole loc <$> traverse noPatE e
     ELocated e r1 -> ELocated <$> inRange r1 (noPatE e) <*> return r1
 
     ESplit e      -> ESplit  <$> noPatE e
