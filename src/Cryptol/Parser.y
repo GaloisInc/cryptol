@@ -359,13 +359,9 @@ var                        :: { LPName }
   : name                      { $1 }
   | '(' op ')'                { $2 }
 
-apats                     :: { [Pattern PName] }
+apats                   :: { [Pattern PName] }
   : apat                   { [$1] }
-  | apats1 apat            { $2 : $1 }
-
-apats1                   :: { [Pattern PName]  }
-  : apat                    { [$1]       }
-  | apats1 apat             { $2 : $1    }
+  | apats apat             { $2 : $1 }
 
 decls                   :: { [Decl PName] }
   : decl ';'               { [$1] }
