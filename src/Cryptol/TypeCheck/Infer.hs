@@ -630,7 +630,7 @@ inferCArm :: Int -> [P.Match Name] -> InferM
               , Type                   -- length of sequence
               )
 
-inferCArm _ [] = panic "inferCArm" [ "Empty comprahension arm" ]
+inferCArm _ [] = panic "inferCArm" [ "Empty comprehension arm" ]
 inferCArm _ [m] =
   do (m1, x, t, n) <- inferMatch m
      return ([m1], Map.singleton x t, n)
