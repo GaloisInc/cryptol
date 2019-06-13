@@ -520,7 +520,7 @@ instance PP Error where
       SignatureNoBind x s ->
         text "At" <+> pp (srcRange x) <.> colon <+>
         text "Type signature without a matching binding:"
-         $$ nest 2 (pp s)
+         $$ nest 2 (pp (thing x) <+> colon <+> pp s)
 
       PragmaNoBind x s ->
         text "At" <+> pp (srcRange x) <.> colon <+>
