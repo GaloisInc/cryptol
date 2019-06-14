@@ -642,7 +642,10 @@ inferCArm armNum (m : ms) =
      return (m1 : ms', Map.insertWith (\_ old -> old) x t ds, tMul n n')
 
 -- | @inferBinds isTopLevel isRec binds@ performs inference for a
--- strongly-connected component of 'P.Bind's. If @isTopLevel@ is true,
+-- strongly-connected component of 'P.Bind's.
+-- If any of the members of the recursive group are already marked
+-- as monomorphic, then we don't do generalzation.
+-- If @isTopLevel@ is true,
 -- any bindings without type signatures will be generalized. If it is
 -- false, and the mono-binds flag is enabled, no bindings without type
 -- signatures will be generalized, but bindings with signatures will
@@ -653,11 +656,10 @@ inferBinds isTopLevel isRec binds =
      -- declarations, mark all bindings lacking signatures as monomorphic
      monoBinds <- getMonoBinds
      let (sigs,noSigs) = partition (isJust . P.bSignature) binds
-         monos         = [ b { P.bMono = True } | b <- noSigs ]
-         binds' | monoBinds && not isTopLevel = sigs ++ monos
+         monos         = sigs ++ [ b { P.bMono = True } | b <- noSigs ]
+         binds' | any P.bMono binds           = monos
+                | monoBinds && not isTopLevel = monos
                 | otherwise                   = binds
-
-
 
          check exprMap =
         {- Guess type is here, because while we check user supplied signatures

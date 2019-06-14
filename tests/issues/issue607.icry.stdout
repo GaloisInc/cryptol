@@ -1,0 +1,5 @@
+Loading module Cryptol
+[warning] at <interactive>:1:5--1:18:
+  Defaulting the type of '<interactive>::y' to [1]
+0x0
+0x1
