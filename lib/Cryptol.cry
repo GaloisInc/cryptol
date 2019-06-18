@@ -492,6 +492,14 @@ primitive infFrom : {a} (Arith a) => a -> [inf]a
  */
 primitive infFromThen : {a} (Arith a) => a -> a -> [inf]a
 
+/**
+ * Produce a sequence using a generating function.
+ * Satisfies 'generate f @ i == f i' for all 'i' between '0' and 'n-1'.
+ */
+generate : {n, ix, a}
+  (fin ix, n >= 1, ix >= width (n - 1)) => ([ix] -> a) -> [n]a
+generate f = [ f i | i <- [0 .. n-1] ]
+
 primitive error : {a, len} (fin len) => [len][8] -> a
 
 
