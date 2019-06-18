@@ -164,6 +164,7 @@ appTys expr ts tGoal =
 
     P.ENeg        {} -> mono
     P.EComplement {} -> mono
+    P.EGenerate   {} -> mono
 
     P.ETuple    {} -> mono
     P.ERecord   {} -> mono
@@ -228,6 +229,10 @@ checkE expr tGoal =
 
     P.EComplement e ->
       do prim <- mkPrim "complement"
+         checkE (P.EApp prim e) tGoal
+
+    P.EGenerate e ->
+      do prim <- mkPrim "generate"
          checkE (P.EApp prim e) tGoal
 
     P.ELit l@(P.ECNum _ P.DecLit) ->

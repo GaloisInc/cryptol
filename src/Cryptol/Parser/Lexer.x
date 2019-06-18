@@ -164,6 +164,9 @@ $white+                   { emit $ White Space }
 -- hash is used as a kind, and as a pattern
 "#"                       { emit  (Op   Hash ) }
 
+-- at-sign is used in declaration bindings
+"@"                       { emit  (Op   At   ) }
+
 -- ~ is used for unary complement
 "~"                       { emit  (Op   Complement) }
 

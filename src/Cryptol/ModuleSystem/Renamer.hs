@@ -788,6 +788,8 @@ instance Rename Expr where
     ENeg e        -> ENeg    <$> rename e
     EComplement e -> EComplement
                              <$> rename e
+    EGenerate e   -> EGenerate
+                             <$> rename e
     ETuple es     -> ETuple  <$> traverse rename es
     ERecord fs    -> ERecord <$> traverse (rnNamed rename) fs
     ESel e' s     -> ESel    <$> rename e' <*> pure s

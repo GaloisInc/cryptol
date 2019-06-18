@@ -48,7 +48,7 @@ import Paths_cryptol
     expressions, for example `[ 12 .. _ ]`.
 -}
 
-%expect 1
+-- %expect 1
 
 
 %token
@@ -120,6 +120,7 @@ import Paths_cryptol
   '~'         { Located $$ (Token (Op Complement) _)}
 
   '#'         { Located $$ (Token (Op Hash) _)}
+  '@'         { Located $$ (Token (Op At) _)}
 
   OP          { $$@(Located _ (Token (Op (Other [] _)) _))}
   QOP         { $$@(Located _ (Token (Op  Other{}   )  _))}
@@ -288,17 +289,8 @@ decl                    :: { Decl PName }
   : vars_comma ':' schema  { at (head $1,$3) $ DSignature (reverse $1) $3   }
   | ipat '=' expr          { at ($1,$3) $ DPatBind $1 $3                    }
   | '(' op ')' '=' expr    { at ($1,$5) $ DPatBind (PVar $2) $5             }
-  | var apats '=' expr     { at ($1,$4) $
-                             DBind $ Bind { bName      = $1
-                                          , bParams    = reverse $2
-                                          , bDef       = at $4 (Located emptyRange (DExpr $4))
-                                          , bSignature = Nothing
-                                          , bPragmas   = []
-                                          , bMono      = False
-                                          , bInfix     = False
-                                          , bFixity    = Nothing
-                                          , bDoc       = Nothing
-                                          } }
+  | var apats_indices '=' expr
+                           { at ($1,$4) $ mkIndexedDecl $1 $2 $4 }
 
   | apat pat_op apat '=' expr
                            { at ($1,$5) $
@@ -329,17 +321,7 @@ decl                    :: { Decl PName }
 
 let_decl                :: { Decl PName }
   : 'let' ipat '=' expr          { at ($2,$4) $ DPatBind $2 $4                    }
-  | 'let' name apats '=' expr    { at ($2,$5) $
-                                   DBind $ Bind { bName      = $2
-                                                , bParams    = reverse $3
-                                                , bDef       = at $5 (Located emptyRange (DExpr $5))
-                                                , bSignature = Nothing
-                                                , bPragmas   = []
-                                                , bMono      = False
-                                                , bInfix     = False
-                                                , bFixity    = Nothing
-                                                , bDoc       = Nothing
-                                                } }
+  | 'let' name apats_indices '=' expr    { at ($2,$5) $ mkIndexedDecl $2 $3 $5 }
 
 newtype                 :: { Newtype PName }
   : 'newtype' qname '=' newtype_body
@@ -362,6 +344,18 @@ var                        :: { LPName }
 apats                   :: { [Pattern PName] }
   : apat                   { [$1] }
   | apats apat             { $2 : $1 }
+
+indices                 :: { [Pattern PName] }
+  : '@' indices1           { $2 }
+  | {- empty -}            { [] }
+
+indices1                :: { [Pattern PName] }
+  : apat                   { [$1] }
+  | indices1 '@' apat      { $3 : $1 }
+
+apats_indices           :: { ([Pattern PName], [Pattern PName]) }
+  : apats indices          { ($1, $2) }
+  | '@' indices1           { ([], $2) }
 
 decls                   :: { [Decl PName] }
   : decl ';'               { [$1] }
@@ -392,6 +386,7 @@ qop                              :: { LPName }
 op                               :: { LPName }
   : pat_op                          { $1 }
   | '#'                             { Located $1 $ mkUnqual $ mkInfix "#" }
+  | '@'                             { Located $1 $ mkUnqual $ mkInfix "@" }
 
 pat_op                           :: { LPName }
   : other_op                        { $1 }
