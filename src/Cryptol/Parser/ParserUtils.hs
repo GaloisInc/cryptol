@@ -440,6 +440,12 @@ mkIndexedDecl f (ps, ixs) e =
     rhs :: Expr PName
     rhs = mkGenerate (reverse ixs) e
 
+-- NOTE: The lists of patterns are reversed!
+mkIndexedExpr :: ([Pattern PName], [Pattern PName]) -> Expr PName -> Expr PName
+mkIndexedExpr (ps, ixs) body
+  | null ps = mkGenerate (reverse ixs) body
+  | otherwise = EFun (reverse ps) (mkGenerate (reverse ixs) body)
+
 mkGenerate :: [Pattern PName] -> Expr PName -> Expr PName
 mkGenerate pats body =
   foldr (\pat e -> EGenerate (EFun [pat] e)) body pats

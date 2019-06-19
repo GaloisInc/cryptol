@@ -539,11 +539,9 @@ field_expr             :: { UpdField PName }
   : selector field_how expr     { UpdField $2 [$1] $3 }
   | sels field_how expr         { UpdField $2 $1 $3 }
   | sels apats_indices field_how expr
-                                { UpdField $3 $1 (EFun (reverse (fst $2))
-                                                  (mkGenerate (reverse (snd $2)) $4)) }
+                                { UpdField $3 $1 (mkIndexedExpr $2 $4) }
   | selector apats_indices field_how expr
-                                { UpdField $3 [$1] (EFun (reverse (fst $2))
-                                                    (mkGenerate (reverse (snd $2)) $4)) }
+                                { UpdField $3 [$1] (mkIndexedExpr $2 $4) }
 
 field_how :: { UpdHow }
   : '='                          { UpdSet }
