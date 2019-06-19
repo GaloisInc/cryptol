@@ -258,9 +258,9 @@ Operator                                   Associativity       Description
  `/\`                                      right               Short-cut and
   `!=` `==`                                none                Not equals, equals
   `>` `<` `<=` `>=` `<$` `>$` `<=$` `>=$`  none                Comparisons
-  `||`                                     right               Logical or 
+  `||`                                     right               Logical or
   `^`                                      left                Exclusive-or
-  `&&`                                     right               Logical and 
+  `&&`                                     right               Logical and
   `~`                                      right               Logical negation
 
 Table: Bit operations.
@@ -593,7 +593,7 @@ Another way to avoid name collisions is by using a
     module N where
 
     import M as P
-  
+
     g = P::f
     // `f` was imported from `M`
     // but when used it needs to be prefixed by the qualified `P`
