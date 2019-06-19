@@ -422,6 +422,34 @@ mkProperty f ps e = DBind Bind { bName       = f
                                , bDoc        = Nothing
                                }
 
+-- NOTE: The lists of patterns are reversed!
+mkIndexedDecl ::
+  LPName -> ([Pattern PName], [Pattern PName]) -> Expr PName -> Decl PName
+mkIndexedDecl f (ps, ixs) e =
+  DBind Bind { bName       = f
+             , bParams     = reverse ps
+             , bDef        = at e (Located emptyRange (DExpr rhs))
+             , bSignature  = Nothing
+             , bPragmas    = []
+             , bMono       = False
+             , bInfix      = False
+             , bFixity     = Nothing
+             , bDoc        = Nothing
+             }
+  where
+    rhs :: Expr PName
+    rhs = mkGenerate (reverse ixs) e
+
+-- NOTE: The lists of patterns are reversed!
+mkIndexedExpr :: ([Pattern PName], [Pattern PName]) -> Expr PName -> Expr PName
+mkIndexedExpr (ps, ixs) body
+  | null ps = mkGenerate (reverse ixs) body
+  | otherwise = EFun (reverse ps) (mkGenerate (reverse ixs) body)
+
+mkGenerate :: [Pattern PName] -> Expr PName -> Expr PName
+mkGenerate pats body =
+  foldr (\pat e -> EGenerate (EFun [pat] e)) body pats
+
 mkIf :: [(Expr PName, Expr PName)] -> Expr PName -> Expr PName
 mkIf ifThens theElse = foldr addIfThen theElse ifThens
     where

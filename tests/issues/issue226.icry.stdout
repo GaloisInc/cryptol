@@ -74,6 +74,9 @@ Symbols
       {first, last, a} (fin last, last >= first, Literal last a) =>
         [1 + (last - first)]a
     fromZ : {n} (fin n, n >= 1) => Z n -> Integer
+    generate :
+      {n, ix, a} (fin ix, n >= 1, ix >= width (n - 1)) =>
+        ([ix] -> a) -> [n]a
     groupBy :
       {each, parts, a} (fin each) => [each * parts]a -> [parts][each]a
     head : {n, a} [1 + n]a -> a

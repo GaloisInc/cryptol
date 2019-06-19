@@ -270,6 +270,7 @@ data Expr n   = EVar n                          -- ^ @ x @
               | ELit Literal                    -- ^ @ 0x10 @
               | ENeg (Expr n)                   -- ^ @ -1 @
               | EComplement (Expr n)            -- ^ @ ~1 @
+              | EGenerate (Expr n)              -- ^ @ generate f @
               | ETuple [Expr n]                 -- ^ @ (1,2,3) @
               | ERecord [Named (Expr n)]        -- ^ @ { x = 1, y = 2 } @
               | ESel (Expr n) Selector          -- ^ @ e.l @
@@ -701,6 +702,7 @@ instance (Show name, PPName name) => PP (Expr name) where
 
       ENeg x        -> wrap n 3 (text "-" <.> ppPrec 4 x)
       EComplement x -> wrap n 3 (text "~" <.> ppPrec 4 x)
+      EGenerate x   -> wrap n 3 (text "generate" <+> ppPrec 4 x)
 
       ETuple es     -> parens (commaSep (map pp es))
       ERecord fs    -> braces (commaSep (map (ppNamed "=") fs))
@@ -966,6 +968,7 @@ instance NoPos (Expr name) where
       ELit x        -> ELit     x
       ENeg x        -> ENeg     (noPos x)
       EComplement x -> EComplement (noPos x)
+      EGenerate x   -> EGenerate (noPos x)
       ETuple x      -> ETuple   (noPos x)
       ERecord x     -> ERecord  (noPos x)
       ESel x y      -> ESel     (noPos x) y

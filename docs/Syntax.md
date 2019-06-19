@@ -258,9 +258,9 @@ Operator                                   Associativity       Description
  `/\`                                      right               Short-cut and
   `!=` `==`                                none                Not equals, equals
   `>` `<` `<=` `>=` `<$` `>$` `<=$` `>=$`  none                Comparisons
-  `||`                                     right               Logical or 
+  `||`                                     right               Logical or
   `^`                                      left                Exclusive-or
-  `&&`                                     right               Logical and 
+  `&&`                                     right               Logical and
   `~`                                      right               Logical negation
 
 Table: Bit operations.
@@ -379,15 +379,20 @@ _word_.  We may abbreviate the type `[n] Bit` as `[n]`.  An infinite
 sequence with elements of type `a` has type `[inf] a`, and `[inf]` is
 an infinite stream of bits.
 
-    [e1,e2,e3]                        // A sequence with three elements
+    [e1,e2,e3]                    // A sequence with three elements
 
-    [t1 .. t3 ]                       // Sequence enumerations
-    [t1, t2 .. t3 ]                   // Step by t2 - t1
-    [e1 ... ]                         // Infinite sequence starting at e1
-    [e1, e2 ... ]                     // Infinite sequence stepping by e2-e1
+    [t1 .. t3 ]                   // Sequence enumerations
+    [t1, t2 .. t3 ]               // Step by t2 - t1
+    [e1 ... ]                     // Infinite sequence starting at e1
+    [e1, e2 ... ]                 // Infinite sequence stepping by e2-e1
 
-    [ e | p11 <- e11, p12 <- e12      // Sequence comprehensions
+    [ e | p11 <- e11, p12 <- e12  // Sequence comprehensions
         | p21 <- e21, p22 <- e22 ]
+
+    x = generate (\i -> e)        // Sequence from generating function
+    x @ i = e                     // Sequence with index binding
+    arr @ i @ j = e               // Two-dimensional sequence
+
 
 Note: the bounds in finite sequences (those with `..`) are type
 expressions, while the bounds in infinite sequences are value
@@ -593,7 +598,7 @@ Another way to avoid name collisions is by using a
     module N where
 
     import M as P
-  
+
     g = P::f
     // `f` was imported from `M`
     // but when used it needs to be prefixed by the qualified `P`
