@@ -438,11 +438,11 @@ mkIndexedDecl f (ps, ixs) e =
              }
   where
     rhs :: Expr PName
-    rhs = foldr mkGenerate e (reverse ixs)
+    rhs = mkGenerate (reverse ixs) e
 
-    mkGenerate :: Pattern PName -> Expr PName -> Expr PName
-    mkGenerate pat body = EGenerate (EFun [pat] body)
-
+mkGenerate :: [Pattern PName] -> Expr PName -> Expr PName
+mkGenerate pats body =
+  foldr (\pat e -> EGenerate (EFun [pat] e)) body pats
 
 mkIf :: [(Expr PName, Expr PName)] -> Expr PName -> Expr PName
 mkIf ifThens theElse = foldr addIfThen theElse ifThens
