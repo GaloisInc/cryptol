@@ -48,7 +48,7 @@ import Paths_cryptol
     expressions, for example `[ 12 .. _ ]`.
 -}
 
--- %expect 1
+%expect 1
 
 
 %token
@@ -152,6 +152,7 @@ import Paths_cryptol
 %left  '*'
 %right '^^'
 %right NEG '~'
+%left '@'
 %left  OP
 %%
 
