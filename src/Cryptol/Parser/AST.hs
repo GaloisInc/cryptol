@@ -803,10 +803,10 @@ instance PPName name => PP (TParam name) where
   ppPrec n (TParam p Nothing _)   = ppPrec n p
   ppPrec n (TParam p (Just k) _)  = wrap n 1 (pp p <+> text ":" <+> pp k)
 
--- 4: wrap [_] t
--- 3: wrap application
--- 2: wrap function
--- 1:
+-- 4: atomic type expression
+-- 3: [_]t or application
+-- 2: infix type
+-- 1: function type
 instance PPName name => PP (Type name) where
   ppPrec n ty =
     case ty of
@@ -824,12 +824,12 @@ instance PPName name => PP (Type name) where
               optParens (n > 2)
               $ ppInfix 2 isInfix tinf
 
-      TApp f ts      -> optParens (n > 2)
+      TApp f ts      -> optParens (n > 3)
                       $ pp f <+> fsep (map (ppPrec 4) ts)
 
       TUser f []     -> ppPrefixName f
 
-      TUser f ts     -> optParens (n > 2)
+      TUser f ts     -> optParens (n > 3)
                       $ ppPrefixName f <+> fsep (map (ppPrec 4) ts)
 
       TFun t1 t2     -> optParens (n > 1)
@@ -839,8 +839,8 @@ instance PPName name => PP (Type name) where
 
       TParens t      -> parens (pp t)
 
-      TInfix t1 o _ t2 -> optParens (n > 0)
-                        $ sep [ppPrec 2 t1 <+> ppInfixName o, ppPrec 1 t2]
+      TInfix t1 o _ t2 -> optParens (n > 2)
+                        $ sep [ppPrec 2 t1 <+> ppInfixName o, ppPrec 3 t2]
 
    where
    isInfix (TApp ieOp [ieLeft, ieRight]) = do
