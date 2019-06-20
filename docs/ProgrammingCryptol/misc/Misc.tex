@@ -33,8 +33,8 @@ call {\tt riffle} with a sequence that has an odd number of elements?
 
 \begin{Answer}\ansref{ex:misc:riffle}
 \begin{code}
-  riffle xs = join [| [x y] || x <- fh || y <- sh |]
-    where [fh sh] = split xs;
+  riffle xs = join [ [x, y] | x <- fh | y <- sh ]
+    where [fh, sh] = split xs
 \end{code}
 The Cryptol type-checker will {\em not} allow passing an odd number of
 elements to {\tt riffle}. To see the error message, issue: {\tt riffle
@@ -50,8 +50,8 @@ elements to {\tt riffle}. To see the error message, issue: {\tt riffle
   we will just use 8-bit numbers.
 \begin{code}
    riffle8 : [52][8] -> Bit;
-   theorem riffle8: {deck}. decks @ 8 == deck
-     where decks = [deck] # [| riffle d || d <- decks |];
+   property riffle8 deck = decks @ 8 == deck
+     where decks = [deck] # [ riffle d | d <- decks ]
 \end{code}
 \end{Answer}
 
