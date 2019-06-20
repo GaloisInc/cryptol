@@ -260,10 +260,10 @@ certain monomorphic types, but not at all types.\indMonomorphism
   The previous exercise might lead you to think that it is the 0-bit
   word type ({\tt [0]}) that is at the root of the polymorphic
   validity issue.  This is not true. Consider the following
-  example:\indWidth\indThmPolyvalid
+  example:\indLength\indThmPolyvalid
 \begin{code}
   property widthPoly x = (w == 15) || (w == 531)
-     where w = width x
+     where w = length x
 \end{code}
 What is the type of {\tt widthPoly}? At what instances does it hold?
 Write a property {\tt evenWidth} that holds only at even-width word
@@ -283,9 +283,9 @@ and
   {b} [531]b -> Bit
 \end{Verbatim}
 but at no other. Based on this, we can write {\tt evenWidth} as
-follows:\indWidth
+follows:\indLength
 \begin{code}
-  property evenWidth x = (width x) ! 0 == False
+  property evenWidth x = (length x) ! 0 == False
 \end{code}
 remembering that the 0'th bit of an even number is always {\tt
   False}. We have:

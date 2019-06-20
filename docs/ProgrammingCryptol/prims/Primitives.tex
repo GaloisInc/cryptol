@@ -83,7 +83,7 @@ primsPlaceHolder=1;
 \end{Verbatim}
 \paragraph*{Miscellaneous}
 \begin{Verbatim}
-    width   : {bits, n, a} (fin n, fin bits, bits >= width n) => [n]a -> [bits]
+    length : {n, a, b} (fin n, Literal n b) => [n]a -> b
     zero    : {a} (Zero a) => a
 \end{Verbatim}
 \paragraph*{Representing exceptions}

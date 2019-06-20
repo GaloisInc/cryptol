@@ -1370,8 +1370,7 @@ operation?
   In the last expression, the number \texttt{25} fits in 5 bits, so
   the modulus is $2^5 = 32$. The unary minus yields \texttt{7}, hence
   the result is \texttt{3}. Note that \texttt{lg2} is the \emph{floor
-    log base 2} function. The \texttt{width} function is the
-  \emph{ceiling log base 2} function.\indLg\indEq\indNeq
+    log base 2} function.\indLg\indEq\indNeq
 \end{Answer}
 
 \begin{Exercise}\label{ex:arith:5:1}
@@ -2176,11 +2175,11 @@ The {\tt Cmp a} constraint arises from the types of {\tt min} and {\tt
   given non-empty sequence, except for the last.  How can you make
   sure that {\tt butLast} can never be called with an empty sequence?
   \lhint{You might find the Cryptol primitive functions {\tt reverse}
-    and {\tt width} useful.}\indReverse\indTail\indWidth
+    and {\tt tail} useful.}\indReverse\indTail
 \end{Exercise}
 \begin{Answer}\ansref{ex:fn:3}
   Using {\tt reverse} and {\tt tail}, {\tt butLast} is easy to
-  define:\indReverse\indTail\indWidth
+  define:\indReverse\indTail
 \begin{code}
   butLast : {n, t} (fin n) => [n+1]t -> [n]t
   butLast xs = reverse (tail (reverse xs))
@@ -3033,16 +3032,16 @@ normally show up in function definitions. Sometimes you may want to
 use a type variable in a context where value variables would normally
 be used.  To do this, use the backtick character {\tt \Verb|`|}.
 
-The definition of the built-in {\tt width} function is a good example
+The definition of the built-in \texttt{length} function is a good example
 of the use of backtick:
 \begin{Verbatim}
-    width : {bits, n, a} (fin n, fin bits, bits >= width n) => [n]a -> [bits]
-    width _ = `n
+    length : {n, a, b} (fin n, Literal n b) => [n]a -> b
+    length _ = `n
 \end{Verbatim}
 
 \begin{tip}
   Note there are some subtle things going on in the above definition
-  of \texttt{width}.  First, arithmetic constraints on types are
+  of \texttt{length}.  First, arithmetic constraints on types are
   position-independent; properties of formal parameters early in a
   signature can depend upon those late in a signature.  Second, type
   constraints can refer to not only other functions, but recursively
@@ -3129,9 +3128,8 @@ is expanded in place. So the following two signatures would be
 equivalent:
 
 \begin{code}
-    width : {bits,len,elem} (fin len, fin bits, bits >= width len) =>
-            [len] elem -> [bits]
-    width : {bits,len,elem} (myConstraint len bits) => [len] elem -> [bits]
+    myWidth : {bits,len,elem} (fin len, fin bits, bits >= width len) => [len] elem -> [bits]
+    myWidth : {bits,len,elem} (myConstraint len bits) => [len] elem -> [bits]
 \end{code}
 
 %=====================================================================
@@ -3218,7 +3216,7 @@ and the unqualified names are able to be defined in your own code.
   import utilities as util
   // let's say utililities.cry defines "all", and we want to use
   // it in our refined definition of all:
-  all xs = util::all xs && (width xs) > 0
+  all xs = util::all xs && (length xs) > 0
 \end{verbatim}
 
 %=====================================================================

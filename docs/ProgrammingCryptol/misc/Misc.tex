@@ -21,10 +21,10 @@ reader to pursue.
 \end{code}
 You might find the following Cryptol primitive functions useful:
 \begin{Verbatim}
-   width : {a b c} (c >= width a) => [a]b -> [c]
-   take  : {a b c} (fin a,b >= 0) => (a,[a+b]c) -> [a]c
-   drop  : {a b c} (fin a,a >= 0) => (a,[a+b]c) -> [b]c
-   join  : {a b c} [a][b]c -> [a*b]c
+   length : {n, a, b} (fin n, Literal n b) => [n]a -> b
+   take : {front, back, a} (fin front) => [front + back]a -> [front]a
+   drop : {front, back, a} (fin front) => [front + back]a -> [back]a
+   join : {parts, each, a} (fin each) => [parts][each]a -> [parts * each]
 \end{Verbatim}
 Use the interpreter to pass arguments to these functions to
 familiarize yourself with their operation first. What happens when you
