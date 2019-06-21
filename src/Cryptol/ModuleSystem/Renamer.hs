@@ -78,7 +78,7 @@ data RenamerError
     -- ^ When a type is missing from the naming environment, but one or more
     -- values exist with the same name.
 
-  | FixityError (Located Name) (Located Name) NameDisp
+  | FixityError (Located Name) Fixity (Located Name) Fixity NameDisp
     -- ^ When the fixity of two operators conflict
 
   | InvalidConstraint (Type PName) NameDisp
@@ -126,11 +126,12 @@ instance PP RenamerError where
          4 (fsep [ text "Expected a type named", quotes (pp (thing lqn))
                  , text "but found a value instead" ])
 
-    FixityError o1 o2 disp -> fixNameDisp disp $
-      hang (text "[error]")
-         4 (fsep [ text "The fixities of", pp o1, text "and", pp o2
-                 , text "are not compatible.  "
-                 , text "You may use explicit parenthesis to disambiguate" ])
+    FixityError o1 f1 o2 f2 disp -> fixNameDisp disp $
+      hang (text "[error] at" <+> pp (srcRange o1) <+> text "and" <+> pp (srcRange o2))
+         4 (fsep [ text "The fixities of", pp (thing o1), parens (pp f1)
+                 , text "and", pp (thing o2), parens (pp f2)
+                 , text "are not compatible."
+                 , text "You may use explicit parentheses to disambiguate." ])
 
     InvalidConstraint ty disp -> fixNameDisp disp $
       hang (text "[error]" <+> maybe empty (\r -> text "at" <+> pp r) (getLoc ty))
@@ -867,7 +868,7 @@ mkEInfix e@(EInfix x o1 f1 y) op@(o2,f2) z =
      FCRight -> do r <- mkEInfix y op z
                    return (EInfix x o1 f1 r)
 
-     FCError -> do record (FixityError o1 o2)
+     FCError -> do record (FixityError o1 f1 o2 f2)
                    return (EInfix e o2 f2 z)
 
 mkEInfix (ELocated e' _) op z =

@@ -177,7 +177,7 @@ ppInfix lp isInfix expr =
 
 
 
--- | Display a numeric values as an ordinar (e.g., 2nd)
+-- | Display a numeric value as an ordinal (e.g., 2nd)
 ordinal :: (Integral a, Show a, Eq a) => a -> Doc
 ordinal x = text (show x) <.> text (ordSuffix x)
 
@@ -293,3 +293,7 @@ instance PP Ident where
 instance PP ModName where
   ppPrec _   = text . T.unpack . modNameToText
 
+instance PP Assoc where
+  ppPrec _ LeftAssoc  = text "left-associative"
+  ppPrec _ RightAssoc = text "right-associative"
+  ppPrec _ NonAssoc   = text "non-associative"

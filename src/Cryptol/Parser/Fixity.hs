@@ -17,7 +17,7 @@ module Cryptol.Parser.Fixity
   , compareFixity
   ) where
 
-import Cryptol.Utils.PP (Assoc(..))
+import Cryptol.Utils.PP
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -44,3 +44,7 @@ compareFixity (Fixity a1 p1) (Fixity a2 p2) =
 -- | The fixity used when none is provided.
 defaultFixity :: Fixity
 defaultFixity = Fixity LeftAssoc 100
+
+instance PP Fixity where
+  ppPrec _ (Fixity assoc level) =
+    text "precedence" <+> int level <.> comma <+> pp assoc
