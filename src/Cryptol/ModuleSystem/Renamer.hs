@@ -760,7 +760,7 @@ instance Rename Pattern where
     PLocated p' loc -> withLoc loc
                      $ PLocated <$> rename p'    <*> pure loc
 
--- | Note that after this point the @->@ updates have an explicit funciton
+-- | Note that after this point the @->@ updates have an explicit function
 -- and there are no more nested updates.
 instance Rename UpdField where
   rename (UpdField h ls e) =
