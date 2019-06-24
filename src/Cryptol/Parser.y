@@ -43,7 +43,7 @@ import Paths_cryptol
 }
 
 {- state 196 contains 1 shift/reduce conflicts.
-     `_` idnetifier conflicts with `_` in record update.
+     `_` identifier conflicts with `_` in record update.
     We have `_` as an identifier for the cases where we parse types as
     expressions, for example `[ 12 .. _ ]`.
 -}
