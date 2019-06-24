@@ -128,8 +128,10 @@ instance PP RenamerError where
 
     FixityError o1 f1 o2 f2 disp -> fixNameDisp disp $
       hang (text "[error] at" <+> pp (srcRange o1) <+> text "and" <+> pp (srcRange o2))
-         4 (fsep [ text "The fixities of", pp (thing o1), parens (pp f1)
-                 , text "and", pp (thing o2), parens (pp f2)
+         4 (fsep [ text "The fixities of"
+                 , nest 2 $ vcat
+                   [ "•" <+> pp (thing o1) <+> parens (pp f1)
+                   , "•" <+> pp (thing o2) <+> parens (pp f2) ]
                  , text "are not compatible."
                  , text "You may use explicit parentheses to disambiguate." ])
 
