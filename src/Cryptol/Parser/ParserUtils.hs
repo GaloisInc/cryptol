@@ -548,8 +548,8 @@ mkProp ty =
 
   props r t =
     case t of
-      TInfix{}       -> infixProp t
-      TUser f xs     -> prefixProp r f xs
+      TInfix{}       -> return [CType t]
+      TUser{}        -> return [CType t]
       TTuple ts      -> concat `fmap` mapM (props r) ts
       TParens t'     -> props r  t'
       TLocated t' r' -> props r' t'
@@ -565,32 +565,6 @@ mkProp ty =
 
     where
     err = errorMessage r "Invalid constraint"
-
-  -- we have to delay these until renaming, when we have the fixity table
-  -- present
-  infixProp t = return [CType t]
-
-  -- these can be translated right away
-  prefixProp r f xs
-    | i == zeroIdent,      [x] <- xs = return [CLocated (CZero x) r]
-    | i == logicIdent,     [x] <- xs = return [CLocated (CLogic x) r]
-    | i == arithIdent,     [x] <- xs = return [CLocated (CArith x) r]
-    | i == finIdent,       [x] <- xs = return [CLocated (CFin x) r]
-    | i == cmpIdent,       [x] <- xs = return [CLocated (CCmp x) r]
-    | i == signedCmpIdent, [x] <- xs = return [CLocated (CSignedCmp x) r]
-    | i == literalIdent, [x,y] <- xs = return [CLocated (CLiteral x y) r]
-    | otherwise                      = return [CLocated (CType (TUser f xs)) r]
-    where
-    i = getIdent f
-
-zeroIdent, logicIdent, arithIdent, finIdent, cmpIdent, signedCmpIdent, literalIdent :: Ident
-zeroIdent      = mkIdent "Zero"
-logicIdent     = mkIdent "Logic"
-arithIdent     = mkIdent "Arith"
-finIdent       = mkIdent "fin"
-cmpIdent       = mkIdent "Cmp"
-signedCmpIdent = mkIdent "SignedCmp"
-literalIdent   = mkIdent "Literal"
 
 -- | Make an ordinary module
 mkModule :: Located ModName ->

@@ -35,7 +35,6 @@ import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector(ppNestedSels,selName)
-import Cryptol.TypeCheck.Type (TCon(..))
 import Cryptol.Utils.Ident (packInfix)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
@@ -559,47 +558,7 @@ instance Rename TParam where
        return TParam { tpName = n, .. }
 
 instance Rename Prop where
-  rename p      = case p of
-    CFin t        -> CFin       <$> rename t
-    CEqual l r    -> CEqual     <$> rename l <*> rename r
-    CNeq l r      -> CNeq       <$> rename l <*> rename r
-    CGeq l r      -> CGeq       <$> rename l <*> rename r
-    CZero t       -> CZero      <$> rename t
-    CLogic t      -> CLogic     <$> rename t
-    CArith t      -> CArith     <$> rename t
-    CCmp t        -> CCmp       <$> rename t
-    CSignedCmp t  -> CSignedCmp <$> rename t
-    CLiteral l r  -> CLiteral   <$> rename l <*> rename r
-    CUser qn ps   -> CUser      <$> renameType qn <*> traverse rename ps
-    CLocated p' r -> withLoc r
-                   $ CLocated <$> rename p' <*> pure r
-
-    -- here, we rename the type and then require that it produces something that
-    -- looks like a Prop
-    CType t -> translateProp =<< resolveTypeFixity t
-
-translateProp :: Type PName -> RenameM (Prop Name)
-translateProp ty = go ty
-  where
-  go t = case t of
-
-    TLocated t' r -> (`CLocated` r) <$> go t'
-
-    TApp (PC x) [l,r]
-      | PEqual <- x -> CEqual <$> rename l <*> rename r
-      | PNeq   <- x -> CNeq   <$> rename l <*> rename r
-      | PGeq   <- x -> CGeq   <$> rename l <*> rename r
-
-    TUser n [l,r]
-      | isLeq n -> CGeq <$> rename r <*> rename l
-
-    TUser n ts -> CUser <$> renameType n <*> traverse rename ts
-
-    -- record an error, but continue renaming to gather any other errors
-    _ ->
-      do record (InvalidConstraint ty)
-         CType <$> rename t
-
+  rename (CType t) = CType <$> rename t
 
 -- | Check to see if this identifier is a reserved type/type-function.
 isReserved :: PName -> Bool
@@ -677,19 +636,25 @@ mkTInfix t op@(o2,f2) z =
   case t of
     TLocated t1 _ -> mkTInfix t1 op z
 
-    TUser op1 [x,y] | isLeq op1 -> doFixity (TUser op1) leqFixity x y
+    -- FIXME: This is a hack to implement an infix type constraint synonym:
+    -- type constraint x <= y = (y >= x)
+    -- It should be removed once we can define this in the Cryptol prelude.
+    TUser op1 [x,y] | isLeq op1 -> doFixity mkLeq leqFixity x y
     TApp tc [x,y]
       | Just pt <- primTyFromTC tc
-      , Just f1 <- primTyFixity pt -> doFixity (TApp tc) f1 x y
+      , Just f1 <- primTyFixity pt -> doFixity (mkBin tc) f1 x y
 
     _ -> return (o2 t z)
 
   where
+  mkLeq a b = TApp (PC PGeq) [b, a]
+  mkBin tc a b = TApp tc [a, b]
+
   doFixity mk f1 x y =
     case compareFixity f1 f2 of
       FCLeft  -> return (o2 t z)
       FCRight -> do r <- mkTInfix y op z
-                    return (mk [x,r])
+                    return (mk x r)
 
       -- As the fixity table is known, and this is a case where the fixity came
       -- from that table, it's a real error if the fixities didn't work out.
