@@ -148,12 +148,6 @@ import Paths_cryptol
 
 %right '->'
 %right '#'
-%left  '+' '-'
-%left  '*'
-%right '^^'
-%right NEG '~'
-%left '@'
-%left  OP
 %%
 
 
@@ -657,10 +651,13 @@ tysyn_params                  :: { [TParam PName]  }
   : tysyn_param                  { [$1]      }
   | tysyn_params tysyn_param     { $2 : $1   }
 
-type                           :: { Type PName                                                 }
-  : app_type '->' type            { at ($1,$3) $ TFun $1 $3                                    }
-  | type op app_type              { at ($1,$3) $ TInfix $1 $2 defaultFixity $3 }
-  | app_type                      { $1                                                         }
+type                           :: { Type PName              }
+  : infix_type '->' type          { at ($1,$3) $ TFun $1 $3 }
+  | infix_type                    { $1                      }
+
+infix_type                     :: { Type PName }
+  : infix_type op app_type        { at ($1,$3) $ TInfix $1 $2 defaultFixity $3 }
+  | app_type                      { $1                                         }
 
 app_type                       :: { Type PName }
   : dimensions atype              { at ($1,$2) $ foldr TSeq $2 (reverse (thing $1)) }
