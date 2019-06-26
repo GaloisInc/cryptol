@@ -174,18 +174,6 @@ namesT vs = go
 namesC :: Ord name => Set name -> Prop name -> Set name
 namesC vs prop =
   case prop of
-    CFin t        -> namesT vs t
-    CEqual t1 t2  -> Set.union (namesT vs t1) (namesT vs t2)
-    CNeq   t1 t2  -> Set.union (namesT vs t1) (namesT vs t2)
-    CGeq t1 t2    -> Set.union (namesT vs t1) (namesT vs t2)
-    CZero t       -> namesT vs t
-    CLogic t      -> namesT vs t
-    CArith t      -> namesT vs t
-    CCmp t        -> namesT vs t
-    CSignedCmp t  -> namesT vs t
-    CLiteral t1 t2-> Set.union (namesT vs t1) (namesT vs t2)
-    CUser x ts    -> Set.insert x (Set.unions (map (namesT vs) ts))
-    CLocated p _  -> namesC vs p
     CType t       -> namesT vs t
 
 -- | The type names defined and used by a group of mutually recursive declarations.
@@ -290,18 +278,6 @@ tnamesS (Forall params props ty _) =
 tnamesC :: Ord name => Prop name -> Set name
 tnamesC prop =
   case prop of
-    CFin t         -> tnamesT t
-    CEqual t1 t2   -> Set.union (tnamesT t1) (tnamesT t2)
-    CNeq   t1 t2   -> Set.union (tnamesT t1) (tnamesT t2)
-    CGeq t1 t2     -> Set.union (tnamesT t1) (tnamesT t2)
-    CZero t        -> tnamesT t
-    CLogic t       -> tnamesT t
-    CArith t       -> tnamesT t
-    CCmp t         -> tnamesT t
-    CSignedCmp t   -> tnamesT t
-    CLiteral t1 t2 -> Set.union (tnamesT t1) (tnamesT t2)
-    CUser x ts     -> Set.insert x (Set.unions (map tnamesT ts))
-    CLocated p _   -> tnamesC p
     CType t        -> tnamesT t
 
 -- | Compute the type synonyms/type variables used by a type.

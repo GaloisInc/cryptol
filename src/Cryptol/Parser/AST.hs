@@ -357,21 +357,9 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TInfix (Type n) (Located n) Fixity (Type n) -- ^ @ ty + ty @
               deriving (Eq, Show, Generic, NFData, Functor)
 
-
-data Prop n   = CFin (Type n)             -- ^ @ fin x   @
-              | CEqual (Type n) (Type n)  -- ^ @ x == 10 @
-              | CNeq (Type n) (Type n)    -- ^ @ x != 10 @
-              | CGeq (Type n) (Type n)    -- ^ @ x >= 10 @
-              | CZero (Type n)            -- ^ @ Zero a  @
-              | CLogic (Type n)           -- ^ @ Logic a @
-              | CArith (Type n)           -- ^ @ Arith a @
-              | CCmp (Type n)             -- ^ @ Cmp a @
-              | CSignedCmp (Type n)       -- ^ @ SignedCmp a @
-              | CLiteral (Type n) (Type n)-- ^ @ Literal val a @
-              | CUser n [Type n]          -- ^ Constraint synonym
-              | CLocated (Prop n) Range   -- ^ Location information
-              | CType (Type n)            -- ^ After parsing
-                deriving (Eq, Show, Generic, NFData, Functor)
+-- | A 'Prop' is a 'Type' that represents a type constraint.
+newtype Prop n = CType (Type n)
+  deriving (Eq, Show, Generic, NFData, Functor)
 
 
 --------------------------------------------------------------------------------
@@ -404,16 +392,6 @@ instance AddLoc (Type name) where
   addLoc = TLocated
 
   dropLoc (TLocated e _) = dropLoc e
-  dropLoc e              = e
-
-instance HasLoc (Prop name) where
-  getLoc (CLocated _ r) = Just r
-  getLoc _              = Nothing
-
-instance AddLoc (Prop name) where
-  addLoc = CLocated
-
-  dropLoc (CLocated e _) = dropLoc e
   dropLoc e              = e
 
 instance AddLoc (Pattern name) where
@@ -851,22 +829,7 @@ instance PPName name => PP (Type name) where
    isInfix _ = Nothing
 
 instance PPName name => PP (Prop name) where
-  ppPrec n prop =
-    case prop of
-      CFin t         -> text "fin"   <+> ppPrec 4 t
-      CZero t        -> text "Zero"  <+> ppPrec 4 t
-      CLogic t       -> text "Logic" <+> ppPrec 4 t
-      CArith t       -> text "Arith" <+> ppPrec 4 t
-      CCmp t         -> text "Cmp"   <+> ppPrec 4 t
-      CSignedCmp t   -> text "SignedCmp" <+> ppPrec 4 t
-      CLiteral t1 t2 -> text "Literal" <+> ppPrec 4 t1 <+> ppPrec 4 t2
-      CEqual t1 t2   -> ppPrec 2 t1 <+> text "==" <+> ppPrec 2 t2
-      CNeq t1 t2     -> ppPrec 2 t1 <+> text "!=" <+> ppPrec 2 t2
-      CGeq t1 t2     -> ppPrec 2 t1 <+> text ">=" <+> ppPrec 2 t2
-      CUser f ts     -> optParens (n > 2)
-                      $ ppPrefixName f <+> fsep (map (ppPrec 4) ts)
-      CLocated c _   -> ppPrec n c
-      CType t        -> ppPrec n t
+  ppPrec n (CType t) = ppPrec n t
 
 
 --------------------------------------------------------------------------------
@@ -1037,18 +1000,4 @@ instance NoPos (Type name) where
       TInfix x y f z-> TInfix (noPos x) y f (noPos z)
 
 instance NoPos (Prop name) where
-  noPos prop =
-    case prop of
-      CEqual  x y   -> CEqual  (noPos x) (noPos y)
-      CNeq x y      -> CNeq (noPos x) (noPos y)
-      CGeq x y      -> CGeq (noPos x) (noPos y)
-      CFin x        -> CFin (noPos x)
-      CZero x       -> CZero  (noPos x)
-      CLogic x      -> CLogic (noPos x)
-      CArith x      -> CArith (noPos x)
-      CCmp x        -> CCmp   (noPos x)
-      CSignedCmp x  -> CSignedCmp (noPos x)
-      CLiteral x y  -> CLiteral (noPos x) (noPos y)
-      CUser x y     -> CUser x (noPos y)
-      CLocated c _  -> noPos c
-      CType t       -> CType (noPos t)
+  noPos (CType t) = CType (noPos t)
