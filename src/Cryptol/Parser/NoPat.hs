@@ -245,8 +245,8 @@ noPatDs ds =
      let pragmaMap = Map.fromListWith (++) $ concatMap toPragma ds1
          sigMap    = Map.fromListWith (++) $ concatMap toSig ds1
          fixMap    = Map.fromListWith (++) $ concatMap toFixity ds1
-     (ds2, (pMap,sMap,fMap,_)) <- runStateT (pragmaMap, sigMap, fixMap, Map.empty)
-                                            (annotDs ds1)
+     (ds2, (pMap,sMap,fMap,tMap,_)) <-
+       runStateT (pragmaMap, sigMap, fixMap, fixMap, Map.empty) (annotDs ds1)
 
      forM_ (Map.toList pMap) $ \(n,ps) ->
        forM_ ps $ \p -> recordError $ PragmaNoBind (p { thing = n }) (thing p)
@@ -256,7 +256,9 @@ noPatDs ds =
           forM_ ss $ \s -> recordError $ SignatureNoBind (s { thing = n })
                                                          (thing s)
 
-     forM_ (Map.toList fMap) $ \(n,fs) ->
+     -- Generate an error if a fixity declaration is not used for
+     -- either a value-level or type-level operator.
+     forM_ (Map.toList (Map.intersection fMap tMap)) $ \(n,fs) ->
        forM_ fs $ \f -> recordError $ FixityNoBind f { thing = n }
 
      return ds2
@@ -273,8 +275,8 @@ noPatTopDs tds =
          fixMap    = Map.fromListWith (++) $ concatMap toFixity allDecls
          docMap    = Map.fromListWith (++) $ concatMap toDocs   (decls tds)
 
-     (tds', (pMap,sMap,fMap,_)) <- runStateT (pragmaMap,sigMap,fixMap,docMap)
-                                             (annotTopDs desugared)
+     (tds', (pMap,sMap,fMap,tMap,_)) <-
+       runStateT (pragmaMap,sigMap,fixMap,fixMap,docMap) (annotTopDs desugared)
 
      forM_ (Map.toList pMap) $ \(n,ps) ->
        forM_ ps $ \p -> recordError $ PragmaNoBind (p { thing = n }) (thing p)
@@ -284,7 +286,9 @@ noPatTopDs tds =
           forM_ ss $ \s -> recordError $ SignatureNoBind (s { thing = n })
                                                          (thing s)
 
-     forM_ (Map.toList fMap) $ \(n,fs) ->
+     -- Generate an error if a fixity declaration is not used for
+     -- either a value-level or type-level operator.
+     forM_ (Map.toList (Map.intersection fMap tMap)) $ \(n,fs) ->
        forM_ fs $ \f -> recordError $ FixityNoBind f { thing = n }
 
      return tds'
@@ -311,7 +315,8 @@ noPatModule m =
 
 type AnnotMap = ( Map.Map PName [Located  Pragma       ]
                 , Map.Map PName [Located (Schema PName)]
-                , Map.Map PName [Located  Fixity       ]
+                , Map.Map PName [Located  Fixity       ] -- for expressions
+                , Map.Map PName [Located  Fixity       ] -- for types
                 , Map.Map PName [Located  String       ]
                 )
 
@@ -340,14 +345,14 @@ annotTopDs tds =
         DParameterType {} -> (d :) <$> annotTopDs ds
         DParameterConstraint {} -> (d :) <$> annotTopDs ds
         DParameterFun p ->
-          do (ps,ss,fs,ds') <- get
+          do (ps,ss,fs,ts,ds') <- get
              let rm _ _ = Nothing
                  name = thing (pfName p)
              case Map.updateLookupWithKey rm name fs of
                (Nothing,_)  -> (d :) <$> annotTopDs ds
                (Just f,fs1) ->
                  do mbF <- lift (checkFixs name f)
-                    set (ps,ss,fs1,ds')
+                    set (ps,ss,fs1,ts,ds')
                     let p1 = p { pfFixity = mbF }
                     (DParameterFun p1 :) <$> annotTopDs ds
 
@@ -377,33 +382,53 @@ annotD decl =
     DFixity{}     -> raise ()
     DPragma {}    -> raise ()
     DPatBind {}   -> raise ()
-    DType {}      -> return decl
-    DProp {}      -> return decl
+    DType tysyn   -> DType <$> lift (annotTySyn tysyn)
+    DProp propsyn -> DProp <$> lift (annotPropSyn propsyn)
     DLocated d r  -> (`DLocated` r) <$> annotD d
 
 -- | Add pragma/signature annotations to a binding.
 annotB :: Bind PName -> StateT AnnotMap NoPatM (Bind PName)
 annotB Bind { .. } =
-  do (ps,ss,fs,ds) <- get
+  do (ps,ss,fs,ts,ds) <- get
      let name       = thing bName
          remove _ _ = Nothing
-     case ( Map.updateLookupWithKey remove name ps
-          , Map.updateLookupWithKey remove name ss
-          , Map.updateLookupWithKey remove name fs
-          , Map.updateLookupWithKey remove name ds
-          ) of
-           ( (thisPs, pragmas1), (thisSigs, sigs1), (thisFixes, fixes1), (thisDocs, docs1)) ->
-                do s <- lift $ checkSigs name (jn thisSigs)
-                   f <- lift $ checkFixs name (jn thisFixes)
-                   d <- lift $ checkDocs name (jn thisDocs)
-                   set (pragmas1,sigs1,fixes1,docs1)
-                   return Bind { bSignature = s
-                               , bPragmas = map thing (jn thisPs) ++ bPragmas
-                               , bFixity = f
-                               , bDoc = d
-                               , ..
-                               }
+         (thisPs    , ps') = Map.updateLookupWithKey remove name ps
+         (thisSigs  , ss') = Map.updateLookupWithKey remove name ss
+         (thisFixes , fs') = Map.updateLookupWithKey remove name fs
+         (thisDocs  , ds') = Map.updateLookupWithKey remove name ds
+     s <- lift $ checkSigs name (jn thisSigs)
+     f <- lift $ checkFixs name (jn thisFixes)
+     d <- lift $ checkDocs name (jn thisDocs)
+     set (ps',ss',fs',ts,ds')
+     return Bind { bSignature = s
+                 , bPragmas = map thing (jn thisPs) ++ bPragmas
+                 , bFixity = f
+                 , bDoc = d
+                 , ..
+                 }
   where jn x = concat (maybeToList x)
+
+-- | Add fixity annotations to a type synonym binding.
+annotTySyn :: TySyn PName -> StateT AnnotMap NoPatM (TySyn PName)
+annotTySyn (TySyn ln _ params rhs) =
+  do (ps,ss,fs,ts,ds) <- get
+     let name       = thing ln
+         remove _ _ = Nothing
+         (thisFixes, ts') = Map.updateLookupWithKey remove name ts
+     f <- lift $ checkFixs name (concat (maybeToList thisFixes))
+     set (ps,ss,fs,ts',ds)
+     return (TySyn ln f params rhs)
+
+-- | Add fixity annotations to a constraint synonym binding.
+annotPropSyn :: PropSyn PName -> StateT AnnotMap NoPatM (PropSyn PName)
+annotPropSyn (PropSyn ln _ params rhs) =
+  do (ps,ss,fs,ts,ds) <- get
+     let name       = thing ln
+         remove _ _ = Nothing
+         (thisFixes, ts') = Map.updateLookupWithKey remove name ts
+     f <- lift $ checkFixs name (concat (maybeToList thisFixes))
+     set (ps,ss,fs,ts',ds)
+     return (PropSyn ln f params rhs)
 
 -- | Check for multiple signatures.
 checkSigs :: PName -> [Located (Schema PName)] -> NoPatM (Maybe (Schema PName))
