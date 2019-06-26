@@ -358,7 +358,7 @@ annotTopDs tds =
     [] -> return []
 
 
--- | Add annotations, keeping track of which annotation are not yet used up.
+-- | Add annotations, keeping track of which annotations are not yet used up.
 annotDs :: [Decl PName] -> StateT AnnotMap NoPatM [Decl PName]
 annotDs (d : ds) =
   do ignore <- runExceptionT (annotD d)
@@ -367,7 +367,7 @@ annotDs (d : ds) =
        Right d1  -> (d1 :) <$> annotDs ds
 annotDs [] = return []
 
--- | Add annotations, keeping track of which annotation are not yet used up.
+-- | Add annotations, keeping track of which annotations are not yet used up.
 -- The exception indicates which declarations are no longer needed.
 annotD :: Decl PName -> ExceptionT () (StateT AnnotMap NoPatM) (Decl PName)
 annotD decl =
