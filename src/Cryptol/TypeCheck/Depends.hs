@@ -72,7 +72,7 @@ orderTyDecls ts =
         }
     )
 
-  toMap vs ty@(TS (P.TySyn x as t) _) =
+  toMap vs ty@(TS (P.TySyn x _ as t) _) =
         (thing x
         , x { thing = (ty, Set.toList $
                            Set.difference (namesT vs t)
@@ -80,18 +80,18 @@ orderTyDecls ts =
              }
         )
 
-  toMap vs ty@(PS (P.PropSyn x as ps) _) =
+  toMap vs ty@(PS (P.PropSyn x _ as ps) _) =
         (thing x
         , x { thing = (ty, Set.toList $
                            Set.difference (Set.unions (map (namesC vs) ps))
                                           (Set.fromList (map P.tpName as)))
              }
         )
-  getN (TS (P.TySyn x _ _) _)   = thing x
-  getN (PS (P.PropSyn x _ _) _) = thing x
-  getN (NT x _)                 = thing (P.nName x)
-  getN (AT x _)                 = thing (P.ptName x)
-  getN (PT x _)                 = thing (P.primTName x)
+  getN (TS x _) = thing (P.tsName x)
+  getN (PS x _) = thing (P.psName x)
+  getN (NT x _) = thing (P.nName x)
+  getN (AT x _) = thing (P.ptName x)
+  getN (PT x _) = thing (P.primTName x)
 
   check (AcyclicSCC x) = return [x]
 

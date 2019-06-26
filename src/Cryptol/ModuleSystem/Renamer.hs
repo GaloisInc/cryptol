@@ -993,20 +993,22 @@ instance Rename Match where
     MatchLet b -> shadowNamesNS b (MatchLet <$> rename b)
 
 instance Rename TySyn where
-  rename (TySyn n ps ty) =
+  rename (TySyn n f ps ty) =
     do when (isReserved (thing n))
             (record (BoundReservedType (thing n) (getLoc n) (text "type synonym")))
 
        shadowNames ps $ TySyn <$> rnLocated renameType n
+                              <*> pure f
                               <*> traverse rename ps
                               <*> rename ty
 
 instance Rename PropSyn where
-  rename (PropSyn n ps cs) =
+  rename (PropSyn n f ps cs) =
     do when (isReserved (thing n))
             (record (BoundReservedType (thing n) (getLoc n) (text "constraint synonym")))
 
        shadowNames ps $ PropSyn <$> rnLocated renameType n
+                                <*> pure f
                                 <*> traverse rename ps
                                 <*> traverse rename cs
 

@@ -75,7 +75,7 @@ checkParameterType a mbDoc =
 
 -- | Check a type-synonym declaration.
 checkTySyn :: P.TySyn Name -> Maybe String -> InferM TySyn
-checkTySyn (P.TySyn x as t) mbD =
+checkTySyn (P.TySyn x _ as t) mbD =
   do ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
                     $ do r <- withTParams NoWildCards tySynParam as
@@ -91,7 +91,7 @@ checkTySyn (P.TySyn x as t) mbD =
 
 -- | Check a constraint-synonym declaration.
 checkPropSyn :: P.PropSyn Name -> Maybe String -> InferM TySyn
-checkPropSyn (P.PropSyn x as ps) mbD =
+checkPropSyn (P.PropSyn x _ as ps) mbD =
   do ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
                     $ do r <- withTParams NoWildCards propSynParam as

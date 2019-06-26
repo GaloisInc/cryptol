@@ -377,7 +377,7 @@ mkTySyn ln ps b
     errorMessage (srcRange ln) "`width` is not a valid type synonym name."
 
   | otherwise =
-    return $ DType $ TySyn ln ps b
+    return $ DType $ TySyn ln Nothing ps b
 
 mkPropSyn :: Located PName -> [TParam PName] -> Type PName -> ParseM (Decl PName)
 mkPropSyn ln ps b
@@ -385,7 +385,7 @@ mkPropSyn ln ps b
     errorMessage (srcRange ln) "`width` is not a valid constraint synonym name."
 
   | otherwise =
-    DProp . PropSyn ln ps . thing <$> mkProp b
+    DProp . PropSyn ln Nothing ps . thing <$> mkProp b
 
 polyTerm :: Range -> Integer -> Integer -> ParseM (Bool, Integer)
 polyTerm rng k p

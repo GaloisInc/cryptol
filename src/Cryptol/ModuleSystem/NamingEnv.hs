@@ -369,8 +369,8 @@ instance BindsNames (InModule (Decl PName)) where
 
     DSignature ns _sig      -> foldMap qualBind ns
     DPragma ns _p           -> foldMap qualBind ns
-    DType (TySyn lqn _ _)   -> qualType lqn
-    DProp (PropSyn lqn _ _) -> qualType lqn
+    DType syn               -> qualType (tsName syn)
+    DProp syn               -> qualType (psName syn)
     DLocated d' _           -> namingEnv (InModule pfx d')
     DPatBind _pat _e        -> panic "ModuleSystem" ["Unexpected pattern binding"]
     DFixity{}               -> panic "ModuleSystem" ["Unexpected fixity declaration"]
