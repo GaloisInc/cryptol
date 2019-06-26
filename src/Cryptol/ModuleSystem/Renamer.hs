@@ -848,8 +848,7 @@ mkEInfix e (o,f) z =
 renameOp :: Located PName -> RenameM (Located Name,Fixity)
 renameOp ln = withLoc ln $
   do n  <- renameVar (thing ln)
-     ro <- RenameM ask
-     case Map.lookup n (neFixity (roNames ro)) of
+     case nameFixity n of
        Just fixity -> return (ln { thing = n },fixity)
        Nothing     -> return (ln { thing = n },defaultFixity)
 
