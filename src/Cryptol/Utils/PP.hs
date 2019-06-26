@@ -149,7 +149,7 @@ data Assoc = LeftAssoc | RightAssoc | NonAssoc
 data Infix op thing = Infix
   { ieOp    :: op       -- ^ operator
   , ieLeft  :: thing    -- ^ left argument
-  , ieRight :: thing    -- ^ right argumrnt
+  , ieRight :: thing    -- ^ right argument
   , iePrec  :: Int      -- ^ operator precedence
   , ieAssoc :: Assoc    -- ^ operator associativity
   }
