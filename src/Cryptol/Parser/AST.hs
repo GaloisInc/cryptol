@@ -33,6 +33,8 @@ module Cryptol.Parser.AST
   , Prop(..)
   , tsName
   , psName
+  , tsFixity
+  , psFixity
 
     -- * Declarations
   , Module(..)
@@ -197,6 +199,12 @@ tsName (TySyn lqn _ _ _) = lqn
 
 psName :: PropSyn name -> Located name
 psName (PropSyn lqn _ _ _) = lqn
+
+tsFixity :: TySyn name -> Maybe Fixity
+tsFixity (TySyn _ f _ _) = f
+
+psFixity :: PropSyn name -> Maybe Fixity
+psFixity (PropSyn _ f _ _) = f
 
 {- | Bindings.  Notes:
 
