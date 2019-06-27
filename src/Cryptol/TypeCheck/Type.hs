@@ -731,13 +731,17 @@ instance PP TySyn where
 
 instance PP (WithNames TySyn) where
   ppPrec _ (WithNames ts ns) =
-    text "type" <+> ctr <+> pp (tsName ts) <+>
-      sep (map (ppWithNames ns1) (tsParams ts)) <+> char '='
-                <+> ppWithNames ns1 (tsDef ts)
+    text "type" <+> ctr <+> lhs <+> char '=' <+> ppWithNames ns1 (tsDef ts)
     where ns1 = addTNames (tsParams ts) ns
           ctr = case kindResult (kindOf ts) of
                   KProp -> text "constraint"
                   _     -> empty
+          n = tsName ts
+          lhs = case (nameFixity n, tsParams ts) of
+                  (Just _, [x, y]) ->
+                    ppWithNames ns1 x <+> pp (nameIdent n) <+> ppWithNames ns1 y
+                  (_, ps) ->
+                    pp n <+> sep (map (ppWithNames ns1) ps)
 
 instance PP Newtype where
   ppPrec = ppWithNamesPrec IntMap.empty
