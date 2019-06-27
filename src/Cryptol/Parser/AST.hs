@@ -31,6 +31,10 @@ module Cryptol.Parser.AST
   , Kind(..)
   , Type(..)
   , Prop(..)
+  , tsName
+  , psName
+  , tsFixity
+  , psFixity
 
     -- * Declarations
   , Module(..)
@@ -182,11 +186,25 @@ data ImportSpec = Hiding [Ident]
                 | Only   [Ident]
                   deriving (Eq, Show, Generic, NFData)
 
-data TySyn n  = TySyn (Located n) [TParam n] (Type n)
+-- The 'Maybe Fixity' field is filled in by the NoPat pass.
+data TySyn n = TySyn (Located n) (Maybe Fixity) [TParam n] (Type n)
                 deriving (Eq, Show, Generic, NFData, Functor)
 
-data PropSyn n = PropSyn (Located n) [TParam n] [Prop n]
+-- The 'Maybe Fixity' field is filled in by the NoPat pass.
+data PropSyn n = PropSyn (Located n) (Maybe Fixity) [TParam n] [Prop n]
                  deriving (Eq, Show, Generic, NFData, Functor)
+
+tsName :: TySyn name -> Located name
+tsName (TySyn lqn _ _ _) = lqn
+
+psName :: PropSyn name -> Located name
+psName (PropSyn lqn _ _ _) = lqn
+
+tsFixity :: TySyn name -> Maybe Fixity
+tsFixity (TySyn _ f _ _) = f
+
+psFixity :: PropSyn name -> Maybe Fixity
+psFixity (PropSyn _ f _ _) = f
 
 {- | Bindings.  Notes:
 
@@ -599,11 +617,12 @@ instance (Show name, PPName name) => PP (BindDef name) where
 
 
 instance PPName name => PP (TySyn name) where
-  ppPrec _ (TySyn x xs t) = text "type" <+> ppL x <+> fsep (map (ppPrec 1) xs)
-                                        <+> text "=" <+> pp t
+  ppPrec _ (TySyn x _ xs t) =
+    text "type" <+> ppL x <+> fsep (map (ppPrec 1) xs)
+                <+> text "=" <+> pp t
 
 instance PPName name => PP (PropSyn name) where
-  ppPrec _ (PropSyn x xs ps) =
+  ppPrec _ (PropSyn x _ xs ps) =
     text "constraint" <+> ppL x <+> fsep (map (ppPrec 1) xs)
                       <+> text "=" <+> parens (commaSep (map pp ps))
 
@@ -919,10 +938,10 @@ instance NoPos Pragma where
 
 
 instance NoPos (TySyn name) where
-  noPos (TySyn x y z) = TySyn (noPos x) (noPos y) (noPos z)
+  noPos (TySyn x f y z) = TySyn (noPos x) f (noPos y) (noPos z)
 
 instance NoPos (PropSyn name) where
-  noPos (PropSyn x y z) = PropSyn (noPos x) (noPos y) (noPos z)
+  noPos (PropSyn x f y z) = PropSyn (noPos x) f (noPos y) (noPos z)
 
 instance NoPos (Expr name) where
   noPos expr =

@@ -731,13 +731,17 @@ instance PP TySyn where
 
 instance PP (WithNames TySyn) where
   ppPrec _ (WithNames ts ns) =
-    text "type" <+> ctr <+> pp (tsName ts) <+>
-      sep (map (ppWithNames ns1) (tsParams ts)) <+> char '='
-                <+> ppWithNames ns1 (tsDef ts)
+    text "type" <+> ctr <+> lhs <+> char '=' <+> ppWithNames ns1 (tsDef ts)
     where ns1 = addTNames (tsParams ts) ns
           ctr = case kindResult (kindOf ts) of
                   KProp -> text "constraint"
                   _     -> empty
+          n = tsName ts
+          lhs = case (nameFixity n, tsParams ts) of
+                  (Just _, [x, y]) ->
+                    ppWithNames ns1 x <+> pp (nameIdent n) <+> ppWithNames ns1 y
+                  (_, ps) ->
+                    pp n <+> sep (map (ppWithNames ns1) ps)
 
 instance PP Newtype where
   ppPrec = ppWithNamesPrec IntMap.empty
@@ -754,6 +758,10 @@ instance PP (WithNames Type) where
       TVar a  -> ppWithNames nmMap a
       TRec fs -> braces $ fsep $ punctuate comma
                     [ pp l <+> text ":" <+> go 0 t | (l,t) <- fs ]
+
+      _ | Just tinf <- isTInfix ty0 -> optParens (prec > 2)
+                                     $ ppInfix 2 isTInfix tinf
+
       TUser c [] _ -> pp c
       TUser c ts _ -> optParens (prec > 3) $ pp c <+> fsep (map (go 4) ts)
       -- TUser _ _ t -> ppPrec prec t -- optParens (prec > 3) $ pp c <+> fsep (map (go 4) ts)
@@ -793,22 +801,28 @@ instance PP (WithNames Type) where
 
           (_, _)              -> pp pc <+> fsep (map (go 4) ts)
 
-      _ | Just tinf <- isTInfix ty0 -> optParens (prec > 2)
-                                     $ ppInfix 2 isTInfix tinf
-
       TCon f ts -> optParens (prec > 3)
                 $ pp f <+> fsep (map (go 4) ts)
 
     where
     go p t = ppWithNamesPrec nmMap p t
 
-    isTInfix (WithNames (TCon (TF ieOp) [ieLeft',ieRight']) _) =
+    isTInfix (WithNames (TCon (TF tf) [ieLeft',ieRight']) _) =
       do let ieLeft  = WithNames ieLeft' nmMap
              ieRight = WithNames ieRight' nmMap
-         pt <- primTyFromTF ieOp
+         pt <- primTyFromTF tf
          fi <- primTyFixity pt
          let ieAssoc = fAssoc fi
              iePrec  = fLevel fi
+             ieOp    = primTyIdent pt
+         return Infix { .. }
+    isTInfix (WithNames (TUser n [ieLeft',ieRight'] _) _) =
+      do let ieLeft  = WithNames ieLeft' nmMap
+             ieRight = WithNames ieRight' nmMap
+         fi <- nameFixity n
+         let ieAssoc = fAssoc fi
+             iePrec  = fLevel fi
+             ieOp    = nameIdent n
          return Infix { .. }
     isTInfix _ = Nothing
 

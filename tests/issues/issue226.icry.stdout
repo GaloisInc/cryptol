@@ -10,6 +10,10 @@ Type Synonyms
     type String n = [n][8]
     type Word n = [n]
 
+Constraint Synonyms
+===================
+    type constraint i <= j = j >= i
+
 Symbols
 =======
     (==>) : Bit -> Bit -> Bit

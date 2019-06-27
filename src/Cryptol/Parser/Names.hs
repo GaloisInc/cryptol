@@ -57,12 +57,6 @@ allNamesD decl =
     DProp ps        -> [psName ps]
     DLocated d _    -> allNamesD d
 
-tsName :: TySyn name -> Located name
-tsName (TySyn lqn _ _) = lqn
-
-psName :: PropSyn name -> Located name
-psName (PropSyn lqn _ _) = lqn
-
 -- | The names defined and used by a single binding.
 namesB :: Ord name => Bind name -> ([Located name], Set name)
 namesB b = ([bName b], boundNames (namesPs (bParams b)) (namesDef (thing (bDef b))))
@@ -193,8 +187,10 @@ tnamesD decl =
     DBind b              -> ([], tnamesB b)
     DPatBind _ e         -> ([], tnamesE e)
     DLocated d _         -> tnamesD d
-    DType (TySyn n ps t) -> ([n], Set.difference (tnamesT t) (Set.fromList (map tpName ps)))
-    DProp (PropSyn n ps cs)
+    DType (TySyn n _ ps t)
+                         -> ([n], Set.difference (tnamesT t)
+                                  (Set.fromList (map tpName ps)))
+    DProp (PropSyn n _ ps cs)
                          -> ([n], Set.difference (Set.unions (map tnamesC cs))
                                   (Set.fromList (map tpName ps)))
 
