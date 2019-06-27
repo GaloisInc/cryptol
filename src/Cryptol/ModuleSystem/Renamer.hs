@@ -40,6 +40,7 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
 import Data.List(find)
+import Data.Maybe (fromMaybe)
 import qualified Data.Foldable as F
 import           Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
@@ -617,7 +618,7 @@ resolveTypeFixity  = go
     TParens t'   -> TParens <$> go t'
 
     TInfix a o _ b ->
-      do let op = lookupFixity o
+      do op <- lookupFixity o
          a' <- go a
          b' <- go b
          mkTInfix a' op b'
@@ -640,6 +641,8 @@ mkTInfix t op@(o2,f2) z =
     -- type constraint x <= y = (y >= x)
     -- It should be removed once we can define this in the Cryptol prelude.
     TUser op1 [x,y] | isLeq op1 -> doFixity mkLeq leqFixity x y
+    TInfix x ln f1 y ->
+      doFixity (\a b -> TInfix a ln f1 b) f1 x y
     TApp tc [x,y]
       | Just pt <- primTyFromTC tc
       , Just f1 <- primTyFixity pt -> doFixity (mkBin tc) f1 x y
@@ -665,15 +668,16 @@ mkTInfix t op@(o2,f2) z =
 
 -- | When possible, rewrite the type operator to a known constructor, otherwise
 -- return a 'TOp' that reconstructs the original term, and a default fixity.
-lookupFixity :: Located PName -> (TOp,Fixity)
+lookupFixity :: Located PName -> RenameM (TOp, Fixity)
 lookupFixity op =
   case lkp of
-    Just res -> res
+    Just res -> return res
 
-    -- unknown type operator, just use default fixity
-    -- NOTE: this works for the props defined above, as all other operators
-    -- are defined with a higher precedence.
-    Nothing    -> (\x y -> TUser sym [x,y], Fixity NonAssoc 0)
+    -- Not a primitive type operator; look up fixity in naming environment
+    Nothing ->
+      do n <- renameType sym
+         let fi = fromMaybe defaultFixity (nameFixity n)
+         return (\x y -> TInfix x op fi y, fi)
 
   where
   sym = thing op
