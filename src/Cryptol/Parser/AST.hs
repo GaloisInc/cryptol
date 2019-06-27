@@ -294,7 +294,8 @@ data Expr n   = EVar n                          -- ^ @ x @
               | ESel (Expr n) Selector          -- ^ @ e.l @
               | EUpd (Maybe (Expr n)) [ UpdField n ]  -- ^ @ { r | x = e } @
               | EList [Expr n]                  -- ^ @ [1,2,3] @
-              | EFromTo (Type n) (Maybe (Type n)) (Type n) -- ^ @[1, 5 ..  117 ] @
+              | EFromTo (Type n) (Maybe (Type n)) (Type n) (Maybe (Type n))
+                                                -- ^ @ [1, 5 .. 117 : t] @
               | EInfFrom (Expr n) (Maybe (Expr n))-- ^ @ [1, 3 ...] @
               | EComp (Expr n) [[Match n]]      -- ^ @ [ 1 | x <- xs ] @
               | EApp (Expr n) (Expr n)          -- ^ @ f x @
@@ -704,8 +705,9 @@ instance (Show name, PPName name) => PP (Expr name) where
       ETuple es     -> parens (commaSep (map pp es))
       ERecord fs    -> braces (commaSep (map (ppNamed "=") fs))
       EList es      -> brackets (commaSep (map pp es))
-      EFromTo e1 e2 e3 -> brackets (pp e1 <.> step <+> text ".." <+> pp e3)
+      EFromTo e1 e2 e3 t1 -> brackets (pp e1 <.> step <+> text ".." <+> end)
         where step = maybe empty (\e -> comma <+> pp e) e2
+              end = maybe (pp e3) (\t -> pp e3 <+> colon <+> pp t) t1
       EInfFrom e1 e2 -> brackets (pp e1 <.> step <+> text "...")
         where step = maybe empty (\e -> comma <+> pp e) e2
       EComp e mss   -> brackets (pp e <+> vcat (map arm mss))
@@ -956,7 +958,7 @@ instance NoPos (Expr name) where
       ESel x y        -> ESel     (noPos x) y
       EUpd x y        -> EUpd     (noPos x) (noPos y)
       EList x         -> EList    (noPos x)
-      EFromTo x y z   -> EFromTo  (noPos x) (noPos y) (noPos z)
+      EFromTo x y z t -> EFromTo  (noPos x) (noPos y) (noPos z) (noPos t)
       EInfFrom x y    -> EInfFrom (noPos x) (noPos y)
       EComp x y       -> EComp    (noPos x) (noPos y)
       EApp  x y       -> EApp     (noPos x) (noPos y)

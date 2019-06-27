@@ -279,14 +279,18 @@ checkE expr tGoal =
          es' <- mapM (`checkE` a) es
          return (EList es' a)
 
-    P.EFromTo t1 mbt2 t3 ->
+    P.EFromTo t1 mbt2 t3 mety ->
       do l <- curRange
+         let fs0 =
+               case mety of
+                 Just ety -> [("a", ety)]
+                 Nothing -> []
          let (c,fs) =
                case mbt2 of
                  Nothing ->
-                    ("fromTo", [ ("last", t3) ])
+                    ("fromTo", ("last", t3) : fs0)
                  Just t2 ->
-                    ("fromThenTo", [ ("next",t2), ("last",t3) ])
+                    ("fromThenTo", ("next",t2) : ("last",t3) : fs0)
 
          prim <- mkPrim c
          let e' = P.EAppT prim

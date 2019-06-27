@@ -285,10 +285,27 @@ unOp f x = at (f,x) $ EApp f x
 binOp :: Expr PName -> Located PName -> Expr PName -> Expr PName
 binOp x f y = at (x,y) $ EInfix x f defaultFixity y
 
+-- An element type ascription is allowed to appear on one of the arguments.
 eFromTo :: Range -> Expr PName -> Maybe (Expr PName) -> Expr PName -> ParseM (Expr PName)
-eFromTo r e1 e2 e3 = EFromTo <$> exprToNumT r e1
-                             <*> mapM (exprToNumT r) e2
-                             <*> exprToNumT r e3
+eFromTo r e1 e2 e3 =
+  case (asETyped e1, asETyped =<< e2, asETyped e3) of
+    (Just (e1', t), Nothing, Nothing) -> eFromToType r e1' e2 e3 (Just t)
+    (Nothing, Just (e2', t), Nothing) -> eFromToType r e1 (Just e2') e3 (Just t)
+    (Nothing, Nothing, Just (e3', t)) -> eFromToType r e1 e2 e3' (Just t)
+    (Nothing, Nothing, Nothing) -> eFromToType r e1 e2 e3 Nothing
+    _ -> errorMessage r "A sequence enumeration may have at most one element type annotation."
+  where
+    asETyped (ELocated e _) = asETyped e
+    asETyped (ETyped e t) = Just (e, t)
+    asETyped _ = Nothing
+
+eFromToType ::
+  Range -> Expr PName -> Maybe (Expr PName) -> Expr PName -> Maybe (Type PName) -> ParseM (Expr PName)
+eFromToType r e1 e2 e3 t =
+  EFromTo <$> exprToNumT r e1
+          <*> mapM (exprToNumT r) e2
+          <*> exprToNumT r e3
+          <*> pure t
 
 exprToNumT :: Range -> Expr PName -> ParseM (Type PName)
 exprToNumT r expr =
@@ -298,11 +315,7 @@ exprToNumT r expr =
   where
   bad = errorMessage (fromMaybe r (getLoc expr)) $ unlines
         [ "The boundaries of .. sequences should be valid numeric types."
-        , "The expression `" ++ show (pp expr) ++ "` is not."
-        , ""
-        , "If you were trying to specify the width of the elements,"
-        , "you may add a type annotation outside the sequence. For example:"
-        , "   [ 1 .. 10 ] : [_][16]"
+        , "The expression `" ++ show expr ++ "` is not."
         ]
 
 
