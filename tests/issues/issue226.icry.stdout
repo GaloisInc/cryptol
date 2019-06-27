@@ -12,7 +12,9 @@ Type Synonyms
 
 Constraint Synonyms
 ===================
+    type constraint i < j = j >= 1 + i
     type constraint i <= j = j >= i
+    type constraint i > j = i >= 1 + j
 
 Symbols
 =======
