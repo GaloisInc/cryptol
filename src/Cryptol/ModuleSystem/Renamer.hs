@@ -35,7 +35,6 @@ import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector(ppNestedSels,selName)
-import Cryptol.Utils.Ident (packInfix)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -636,11 +635,6 @@ mkTInfix :: Type PName -> (TOp,Fixity) -> Type PName -> RenameM (Type PName)
 mkTInfix t op@(o2,f2) z =
   case t of
     TLocated t1 _ -> mkTInfix t1 op z
-
-    -- FIXME: This is a hack to implement an infix type constraint synonym:
-    -- type constraint x <= y = (y >= x)
-    -- It should be removed once we can define this in the Cryptol prelude.
-    TUser op1 [x,y] | isLeq op1 -> doFixity mkLeq leqFixity x y
     TInfix x ln f1 y ->
       doFixity (\a b -> TInfix a ln f1 b) f1 x y
     TApp tc [x,y]
@@ -650,7 +644,6 @@ mkTInfix t op@(o2,f2) z =
     _ -> return (o2 t z)
 
   where
-  mkLeq a b = TApp (PC PGeq) [b, a]
   mkBin tc a b = TApp tc [a, b]
 
   doFixity mk f1 x y =
@@ -684,18 +677,6 @@ lookupFixity op =
   lkp = do pt <- primTyFromPName (thing op)
            fi <- primTyFixity pt
            return (\x y -> TApp (primTyCon pt) [x,y], fi)
-        `mplus`
-        do guard (isLeq sym)
-           return (\x y -> TUser sym [x,y], leqFixity)
-
-leqFixity :: Fixity
-leqFixity = Fixity NonAssoc 30
-
-leqIdent :: Ident
-leqIdent  = packInfix "<="
-
-isLeq :: PName -> Bool
-isLeq x = getIdent x == leqIdent
 
 
 -- | Rename a binding.

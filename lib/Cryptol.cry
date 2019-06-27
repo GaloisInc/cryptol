@@ -6,6 +6,11 @@
 module Cryptol where
 
 /**
+ * Assert that the first numeric type is less than or equal to the second.
+ */
+type constraint i <= j = (j >= i)
+
+/**
  * The value corresponding to a numeric type.
  */
 primitive number : {val, rep} Literal val rep => rep
