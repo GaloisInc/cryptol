@@ -946,31 +946,31 @@ instance NoPos (PropSyn name) where
 instance NoPos (Expr name) where
   noPos expr =
     case expr of
-      EVar x        -> EVar     x
-      ELit x        -> ELit     x
-      ENeg x        -> ENeg     (noPos x)
-      EComplement x -> EComplement (noPos x)
-      EGenerate x   -> EGenerate (noPos x)
-      ETuple x      -> ETuple   (noPos x)
-      ERecord x     -> ERecord  (noPos x)
-      ESel x y      -> ESel     (noPos x) y
-      EUpd x y      -> EUpd     (noPos x) (noPos y)
-      EList x       -> EList    (noPos x)
-      EFromTo x y z -> EFromTo  (noPos x) (noPos y) (noPos z)
-      EInfFrom x y  -> EInfFrom (noPos x) (noPos y)
-      EComp x y     -> EComp    (noPos x) (noPos y)
-      EApp  x y     -> EApp     (noPos x) (noPos y)
-      EAppT x y     -> EAppT    (noPos x) (noPos y)
-      EIf   x y z   -> EIf      (noPos x) (noPos y) (noPos z)
-      EWhere x y    -> EWhere   (noPos x) (noPos y)
-      ETyped x y    -> ETyped   (noPos x) (noPos y)
-      ETypeVal x    -> ETypeVal (noPos x)
-      EFun x y      -> EFun     (noPos x) (noPos y)
-      ELocated x _  -> noPos x
+      EVar x          -> EVar     x
+      ELit x          -> ELit     x
+      ENeg x          -> ENeg     (noPos x)
+      EComplement x   -> EComplement (noPos x)
+      EGenerate x     -> EGenerate (noPos x)
+      ETuple x        -> ETuple   (noPos x)
+      ERecord x       -> ERecord  (noPos x)
+      ESel x y        -> ESel     (noPos x) y
+      EUpd x y        -> EUpd     (noPos x) (noPos y)
+      EList x         -> EList    (noPos x)
+      EFromTo x y z   -> EFromTo  (noPos x) (noPos y) (noPos z)
+      EInfFrom x y    -> EInfFrom (noPos x) (noPos y)
+      EComp x y       -> EComp    (noPos x) (noPos y)
+      EApp  x y       -> EApp     (noPos x) (noPos y)
+      EAppT x y       -> EAppT    (noPos x) (noPos y)
+      EIf   x y z     -> EIf      (noPos x) (noPos y) (noPos z)
+      EWhere x y      -> EWhere   (noPos x) (noPos y)
+      ETyped x y      -> ETyped   (noPos x) (noPos y)
+      ETypeVal x      -> ETypeVal (noPos x)
+      EFun x y        -> EFun     (noPos x) (noPos y)
+      ELocated x _    -> noPos x
 
-      ESplit x      -> ESplit (noPos x)
-      EParens e     -> EParens (noPos e)
-      EInfix x y f z-> EInfix (noPos x) y f (noPos z)
+      ESplit x        -> ESplit (noPos x)
+      EParens e       -> EParens (noPos e)
+      EInfix x y f z  -> EInfix (noPos x) y f (noPos z)
 
 instance NoPos (UpdField name) where
   noPos (UpdField h xs e) = UpdField h xs (noPos e)
