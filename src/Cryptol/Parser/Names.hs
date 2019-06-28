@@ -82,7 +82,7 @@ namesE expr =
     EUpd mb fs    -> let e = maybe Set.empty namesE mb
                      in Set.unions (e : map namesUF fs)
     EList es      -> Set.unions (map namesE es)
-    EFromTo _ _ _ -> Set.empty
+    EFromTo{}     -> Set.empty
     EInfFrom e e' -> Set.union (namesE e) (maybe Set.empty namesE e')
     EComp e arms  -> let (dss,uss) = unzip (map namesArm arms)
                      in Set.union (boundNames (concat dss) (namesE e))
@@ -210,34 +210,36 @@ tnamesDef (DExpr e) = tnamesE e
 tnamesE :: Ord name => Expr name -> Set name
 tnamesE expr =
   case expr of
-    EVar _        -> Set.empty
-    ELit _        -> Set.empty
-    ENeg e        -> tnamesE e
-    EComplement e -> tnamesE e
-    EGenerate e   -> tnamesE e
-    ETuple es     -> Set.unions (map tnamesE es)
-    ERecord fs    -> Set.unions (map (tnamesE . value) fs)
-    ESel e _      -> tnamesE e
-    EUpd mb fs    -> let e = maybe Set.empty tnamesE mb
-                     in Set.unions (e : map tnamesUF fs)
-    EList es      -> Set.unions (map tnamesE es)
-    EFromTo a b c -> Set.union (tnamesT a)
-                     (Set.union (maybe Set.empty tnamesT b) (tnamesT c))
-    EInfFrom e e' -> Set.union (tnamesE e) (maybe Set.empty tnamesE e')
-    EComp e mss   -> Set.union (tnamesE e) (Set.unions (map tnamesM (concat mss)))
-    EApp e1 e2    -> Set.union (tnamesE e1) (tnamesE e2)
-    EAppT e fs    -> Set.union (tnamesE e) (Set.unions (map tnamesTI fs))
-    EIf e1 e2 e3  -> Set.union (tnamesE e1) (Set.union (tnamesE e2) (tnamesE e3))
-    EWhere  e ds  -> let (bs,xs) = tnamesDs ds
-                     in Set.union (boundNames bs (tnamesE e)) xs
-    ETyped e t    -> Set.union (tnamesE e) (tnamesT t)
-    ETypeVal t    -> tnamesT t
-    EFun ps e     -> Set.union (Set.unions (map tnamesP ps)) (tnamesE e)
-    ELocated e _  -> tnamesE e
+    EVar _          -> Set.empty
+    ELit _          -> Set.empty
+    ENeg e          -> tnamesE e
+    EComplement e   -> tnamesE e
+    EGenerate e     -> tnamesE e
+    ETuple es       -> Set.unions (map tnamesE es)
+    ERecord fs      -> Set.unions (map (tnamesE . value) fs)
+    ESel e _        -> tnamesE e
+    EUpd mb fs      -> let e = maybe Set.empty tnamesE mb
+                       in Set.unions (e : map tnamesUF fs)
+    EList es        -> Set.unions (map tnamesE es)
+    EFromTo a b c t -> tnamesT a
+                       `Set.union` maybe Set.empty tnamesT b
+                       `Set.union` tnamesT c
+                       `Set.union` maybe Set.empty tnamesT t
+    EInfFrom e e'   -> Set.union (tnamesE e) (maybe Set.empty tnamesE e')
+    EComp e mss     -> Set.union (tnamesE e) (Set.unions (map tnamesM (concat mss)))
+    EApp e1 e2      -> Set.union (tnamesE e1) (tnamesE e2)
+    EAppT e fs      -> Set.union (tnamesE e) (Set.unions (map tnamesTI fs))
+    EIf e1 e2 e3    -> Set.union (tnamesE e1) (Set.union (tnamesE e2) (tnamesE e3))
+    EWhere  e ds    -> let (bs,xs) = tnamesDs ds
+                       in Set.union (boundNames bs (tnamesE e)) xs
+    ETyped e t      -> Set.union (tnamesE e) (tnamesT t)
+    ETypeVal t      -> tnamesT t
+    EFun ps e       -> Set.union (Set.unions (map tnamesP ps)) (tnamesE e)
+    ELocated e _    -> tnamesE e
 
-    ESplit e      -> tnamesE e
-    EParens e     -> tnamesE e
-    EInfix a _ _ b-> Set.union (tnamesE a) (tnamesE b)
+    ESplit e        -> tnamesE e
+    EParens e       -> tnamesE e
+    EInfix a _ _ b  -> Set.union (tnamesE a) (tnamesE b)
 
 tnamesUF :: Ord name => UpdField name -> Set name
 tnamesUF (UpdField _ _ e) = tnamesE e

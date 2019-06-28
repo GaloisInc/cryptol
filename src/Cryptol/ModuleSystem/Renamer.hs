@@ -736,49 +736,50 @@ instance Rename UpdField where
 
 instance Rename Expr where
   rename expr = case expr of
-    EVar n        -> EVar <$> renameVar n
-    ELit l        -> return (ELit l)
-    ENeg e        -> ENeg    <$> rename e
-    EComplement e -> EComplement
-                             <$> rename e
-    EGenerate e   -> EGenerate
-                             <$> rename e
-    ETuple es     -> ETuple  <$> traverse rename es
-    ERecord fs    -> ERecord <$> traverse (rnNamed rename) fs
-    ESel e' s     -> ESel    <$> rename e' <*> pure s
-    EUpd mb fs    -> do checkLabels fs
-                        EUpd <$> traverse rename mb <*> traverse rename fs
-    EList es      -> EList   <$> traverse rename es
-    EFromTo s n e'-> EFromTo <$> rename s
-                             <*> traverse rename n
-                             <*> rename e'
-    EInfFrom a b  -> EInfFrom<$> rename a  <*> traverse rename b
-    EComp e' bs   -> do arms' <- traverse renameArm bs
-                        let (envs,bs') = unzip arms'
-                        -- NOTE: renameArm will generate shadowing warnings; we only
-                        -- need to check for repeated names across multiple arms
-                        shadowNames' CheckOverlap envs (EComp <$> rename e' <*> pure bs')
-    EApp f x      -> EApp    <$> rename f  <*> rename x
-    EAppT f ti    -> EAppT   <$> rename f  <*> traverse rename ti
-    EIf b t f     -> EIf     <$> rename b  <*> rename t  <*> rename f
-    EWhere e' ds  -> do ns <- getNS
-                        shadowNames (map (InModule ns) ds) $
-                          EWhere <$> rename e' <*> traverse rename ds
-    ETyped e' ty  -> ETyped  <$> rename e' <*> rename ty
-    ETypeVal ty   -> ETypeVal<$> rename ty
-    EFun ps e'    -> do (env,ps') <- renamePats ps
-                        -- NOTE: renamePats will generate warnings, so we don't
-                        -- need to duplicate them here
-                        shadowNames' CheckNone env (EFun ps' <$> rename e')
-    ELocated e' r -> withLoc r
-                   $ ELocated <$> rename e' <*> pure r
+    EVar n          -> EVar <$> renameVar n
+    ELit l          -> return (ELit l)
+    ENeg e          -> ENeg    <$> rename e
+    EComplement e   -> EComplement
+                               <$> rename e
+    EGenerate e     -> EGenerate
+                               <$> rename e
+    ETuple es       -> ETuple  <$> traverse rename es
+    ERecord fs      -> ERecord <$> traverse (rnNamed rename) fs
+    ESel e' s       -> ESel    <$> rename e' <*> pure s
+    EUpd mb fs      -> do checkLabels fs
+                          EUpd <$> traverse rename mb <*> traverse rename fs
+    EList es        -> EList   <$> traverse rename es
+    EFromTo s n e t -> EFromTo <$> rename s
+                               <*> traverse rename n
+                               <*> rename e
+                               <*> traverse rename t
+    EInfFrom a b    -> EInfFrom<$> rename a  <*> traverse rename b
+    EComp e' bs     -> do arms' <- traverse renameArm bs
+                          let (envs,bs') = unzip arms'
+                          -- NOTE: renameArm will generate shadowing warnings; we only
+                          -- need to check for repeated names across multiple arms
+                          shadowNames' CheckOverlap envs (EComp <$> rename e' <*> pure bs')
+    EApp f x        -> EApp    <$> rename f  <*> rename x
+    EAppT f ti      -> EAppT   <$> rename f  <*> traverse rename ti
+    EIf b t f       -> EIf     <$> rename b  <*> rename t  <*> rename f
+    EWhere e' ds    -> do ns <- getNS
+                          shadowNames (map (InModule ns) ds) $
+                            EWhere <$> rename e' <*> traverse rename ds
+    ETyped e' ty    -> ETyped  <$> rename e' <*> rename ty
+    ETypeVal ty     -> ETypeVal<$> rename ty
+    EFun ps e'      -> do (env,ps') <- renamePats ps
+                          -- NOTE: renamePats will generate warnings, so we don't
+                          -- need to duplicate them here
+                          shadowNames' CheckNone env (EFun ps' <$> rename e')
+    ELocated e' r   -> withLoc r
+                     $ ELocated <$> rename e' <*> pure r
 
-    ESplit e      -> ESplit  <$> rename e
-    EParens p     -> EParens <$> rename p
-    EInfix x y _ z-> do op <- renameOp y
-                        x' <- rename x
-                        z' <- rename z
-                        mkEInfix x' op z'
+    ESplit e        -> ESplit  <$> rename e
+    EParens p       -> EParens <$> rename p
+    EInfix x y _ z  -> do op <- renameOp y
+                          x' <- rename x
+                          z' <- rename z
+                          mkEInfix x' op z'
 
 
 checkLabels :: [UpdField PName] -> RenameM ()

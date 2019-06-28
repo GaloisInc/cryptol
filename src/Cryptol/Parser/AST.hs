@@ -294,7 +294,8 @@ data Expr n   = EVar n                          -- ^ @ x @
               | ESel (Expr n) Selector          -- ^ @ e.l @
               | EUpd (Maybe (Expr n)) [ UpdField n ]  -- ^ @ { r | x = e } @
               | EList [Expr n]                  -- ^ @ [1,2,3] @
-              | EFromTo (Type n) (Maybe (Type n)) (Type n) -- ^ @[1, 5 ..  117 ] @
+              | EFromTo (Type n) (Maybe (Type n)) (Type n) (Maybe (Type n))
+                                                -- ^ @ [1, 5 .. 117 : t] @
               | EInfFrom (Expr n) (Maybe (Expr n))-- ^ @ [1, 3 ...] @
               | EComp (Expr n) [[Match n]]      -- ^ @ [ 1 | x <- xs ] @
               | EApp (Expr n) (Expr n)          -- ^ @ f x @
@@ -704,8 +705,9 @@ instance (Show name, PPName name) => PP (Expr name) where
       ETuple es     -> parens (commaSep (map pp es))
       ERecord fs    -> braces (commaSep (map (ppNamed "=") fs))
       EList es      -> brackets (commaSep (map pp es))
-      EFromTo e1 e2 e3 -> brackets (pp e1 <.> step <+> text ".." <+> pp e3)
+      EFromTo e1 e2 e3 t1 -> brackets (pp e1 <.> step <+> text ".." <+> end)
         where step = maybe empty (\e -> comma <+> pp e) e2
+              end = maybe (pp e3) (\t -> pp e3 <+> colon <+> pp t) t1
       EInfFrom e1 e2 -> brackets (pp e1 <.> step <+> text "...")
         where step = maybe empty (\e -> comma <+> pp e) e2
       EComp e mss   -> brackets (pp e <+> vcat (map arm mss))
@@ -946,31 +948,31 @@ instance NoPos (PropSyn name) where
 instance NoPos (Expr name) where
   noPos expr =
     case expr of
-      EVar x        -> EVar     x
-      ELit x        -> ELit     x
-      ENeg x        -> ENeg     (noPos x)
-      EComplement x -> EComplement (noPos x)
-      EGenerate x   -> EGenerate (noPos x)
-      ETuple x      -> ETuple   (noPos x)
-      ERecord x     -> ERecord  (noPos x)
-      ESel x y      -> ESel     (noPos x) y
-      EUpd x y      -> EUpd     (noPos x) (noPos y)
-      EList x       -> EList    (noPos x)
-      EFromTo x y z -> EFromTo  (noPos x) (noPos y) (noPos z)
-      EInfFrom x y  -> EInfFrom (noPos x) (noPos y)
-      EComp x y     -> EComp    (noPos x) (noPos y)
-      EApp  x y     -> EApp     (noPos x) (noPos y)
-      EAppT x y     -> EAppT    (noPos x) (noPos y)
-      EIf   x y z   -> EIf      (noPos x) (noPos y) (noPos z)
-      EWhere x y    -> EWhere   (noPos x) (noPos y)
-      ETyped x y    -> ETyped   (noPos x) (noPos y)
-      ETypeVal x    -> ETypeVal (noPos x)
-      EFun x y      -> EFun     (noPos x) (noPos y)
-      ELocated x _  -> noPos x
+      EVar x          -> EVar     x
+      ELit x          -> ELit     x
+      ENeg x          -> ENeg     (noPos x)
+      EComplement x   -> EComplement (noPos x)
+      EGenerate x     -> EGenerate (noPos x)
+      ETuple x        -> ETuple   (noPos x)
+      ERecord x       -> ERecord  (noPos x)
+      ESel x y        -> ESel     (noPos x) y
+      EUpd x y        -> EUpd     (noPos x) (noPos y)
+      EList x         -> EList    (noPos x)
+      EFromTo x y z t -> EFromTo  (noPos x) (noPos y) (noPos z) (noPos t)
+      EInfFrom x y    -> EInfFrom (noPos x) (noPos y)
+      EComp x y       -> EComp    (noPos x) (noPos y)
+      EApp  x y       -> EApp     (noPos x) (noPos y)
+      EAppT x y       -> EAppT    (noPos x) (noPos y)
+      EIf   x y z     -> EIf      (noPos x) (noPos y) (noPos z)
+      EWhere x y      -> EWhere   (noPos x) (noPos y)
+      ETyped x y      -> ETyped   (noPos x) (noPos y)
+      ETypeVal x      -> ETypeVal (noPos x)
+      EFun x y        -> EFun     (noPos x) (noPos y)
+      ELocated x _    -> noPos x
 
-      ESplit x      -> ESplit (noPos x)
-      EParens e     -> EParens (noPos e)
-      EInfix x y f z-> EInfix (noPos x) y f (noPos z)
+      ESplit x        -> ESplit (noPos x)
+      EParens e       -> EParens (noPos e)
+      EInfix x y f z  -> EInfix (noPos x) y f (noPos z)
 
 instance NoPos (UpdField name) where
   noPos (UpdField h xs e) = UpdField h xs (noPos e)
