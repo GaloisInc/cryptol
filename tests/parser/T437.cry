@@ -1,0 +1,19 @@
+mk_buggy_fib_no_init : {a} (fin a, a >= 1) => [a] ->
+  ([1], ([8], [8], [a])) -> ([8], ([8], [8], [a]))
+mk_buggy_fib_no_init magic (_, (fn, fn1, k)) = (fn', (fn1, fn2, k+1))
+  where
+  fn2 = fn + fn1
+  // Change output when state has magic value.
+  fn' = fn + if k == magic then 1 else 0
+
+generate : {n, ix, a} (fin ix, fin n, n >= 1, ix >= width (n - 1)) => ([ix] -> a) -> [n]a
+generate f = [ f i | i <- [0 .. n-1] ]
+
+infixl 1 $
+f $ x = f x
+
+foo : [10][4]
+foo = generate $ \(i:[8]) -> if i == 0 then 1 else foo@(i-1)
+
+bar : [10][4]
+bar = generate \(i:[8]) -> if i == 0 then 1 else foo@(i-1)
