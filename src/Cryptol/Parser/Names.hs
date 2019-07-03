@@ -152,7 +152,6 @@ namesT vs = go
       TBit          -> Set.empty
       TNum _        -> Set.empty
       TChar _       -> Set.empty
-      TApp _ ts     -> Set.unions (map go ts)
       TTuple ts     -> Set.unions (map go ts)
       TRecord fs    -> Set.unions (map (go . value) fs)
       TLocated t _  -> go t
@@ -288,7 +287,6 @@ tnamesT ty =
     TBit          -> Set.empty
     TNum _        -> Set.empty
     TChar __      -> Set.empty
-    TApp _ ts     -> Set.unions (map tnamesT ts)
     TTuple ts     -> Set.unions (map tnamesT ts)
     TRecord fs    -> Set.unions (map (tnamesT . value) fs)
     TLocated t _  -> tnamesT t

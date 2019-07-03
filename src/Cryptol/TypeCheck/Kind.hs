@@ -27,8 +27,8 @@ import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Monad hiding (withTParams)
 import           Cryptol.TypeCheck.SimpType(tRebuild)
 import           Cryptol.TypeCheck.SimpleSolver(simplify)
-import           Cryptol.TypeCheck.Solve (simplifyAllConstraints
-                                         ,wfTypeFunction,wfTC)
+import           Cryptol.TypeCheck.Solve
+                   (simplifyAllConstraints,wfTypeFunction,wfTC)
 import           Cryptol.Utils.Panic (panic)
 
 import qualified Data.Map as Map
@@ -218,6 +218,7 @@ withTParams allowWildCards flav xs m
 cvtK :: P.Kind -> Kind
 cvtK P.KNum  = KNum
 cvtK P.KType = KType
+cvtK P.KProp = KProp
 cvtK (P.KFun k1 k2) = cvtK k1 :-> cvtK k2
 
 
@@ -231,6 +232,7 @@ tcon tc ts0 k =
   do (ts1,k1) <- appTy ts0 (kindOf tc)
      checkKind (TCon tc ts1) k k1
 
+
 -- | Check a type application of a non built-in type or type variable.
 checkTUser ::
   Name          {- ^ The name that is being applied to some arguments. -} ->
@@ -242,6 +244,7 @@ checkTUser x ts k =
   mcase kLookupTSyn       checkTySynUse $
   mcase kLookupNewtype    checkNewTypeUse $
   mcase kLookupParamType  checkModuleParamUse $
+  mcase (pure.builtInType) checkBuiltInType $        -- must be before abstract
   mcase kLookupAbstractType checkAbstractTypeUse $
   checkScopedVarUse -- none of the above, must be a scoped type variable,
                     -- if the renamer did its job correctly.
@@ -261,6 +264,23 @@ checkTUser x ts k =
        (ts1,_) <- appTy ts (kindOf tc)
        ts2 <- checkParams (ntParams nt) ts1
        return (TCon tc ts2)
+
+  checkBuiltInType tc =
+    do (ts1,k1) <- appTy ts (kindOf tc)
+
+       case tc of
+         TF f ->
+            case wfTypeFunction f ts1 of
+               [] -> return ()
+               ps -> kNewGoals (CtPartialTypeFun (BuiltInTyFun f)) ps
+
+         TC f ->
+            case wfTC f ts1 of
+               [] -> return ()
+               ps -> kNewGoals (CtPartialTypeFun (BuiltInTC f)) ps
+         _ -> return ()
+
+       checkKind (TCon tc ts1) k k1
 
   checkAbstractTypeUse absT =
     do let tc = abstractTypeTC absT
@@ -358,23 +378,7 @@ doCheckType ty k =
     P.TBit          -> tcon (TC TCBit)                 [] k
     P.TNum n        -> tcon (TC (TCNum n))             [] k
     P.TChar n       -> tcon (TC (TCNum $ fromIntegral $ fromEnum n)) [] k
-    P.TApp tc ts    ->
-      do it <- tcon tc ts k
 
-         -- Now check for additional well-formedness
-         -- constraints.
-         case it of
-           TCon (TF f) ts' ->
-              case wfTypeFunction f ts' of
-                 [] -> return ()
-                 ps -> kNewGoals (CtPartialTypeFun (BuiltInTyFun f)) ps
-           TCon (TC f) ts' ->
-              case wfTC f ts' of
-                 [] -> return ()
-                 ps -> kNewGoals (CtPartialTypeFun (BuiltInTC f)) ps
-           _ -> return ()
-
-         return it
     P.TTuple ts     -> tcon (TC (TCTuple (length ts))) ts k
 
     P.TRecord fs    -> do t1 <- TRec `fmap` mapM checkF fs

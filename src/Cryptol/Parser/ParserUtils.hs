@@ -239,7 +239,6 @@ validDemotedType rng ty =
     TChar {}     -> ok
     TWild        -> bad "Wildcard types"
     TUser {}     -> ok
-    TApp {}      -> ok
 
     TParens t    -> validDemotedType rng t
     TInfix{}     -> ok
@@ -567,7 +566,6 @@ mkProp ty =
       TParens t'     -> props r  t'
       TLocated t' r' -> props r' t'
 
-      TApp{}    -> err
       TFun{}    -> err
       TSeq{}    -> err
       TBit{}    -> err

@@ -82,7 +82,6 @@ import Cryptol.Parser.Fixity
 import Cryptol.Parser.Name
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector
-import Cryptol.TypeCheck.Type (TCon(..))
 import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
 
@@ -343,7 +342,7 @@ data Named a = Named { name :: Located Ident, value :: a }
 data Schema n = Forall [TParam n] [Prop n] (Type n) (Maybe Range)
   deriving (Eq, Show, Generic, NFData, Functor)
 
-data Kind = KNum | KType | KFun Kind Kind
+data Kind = KProp | KNum | KType | KFun Kind Kind
   deriving (Eq, Show, Generic, NFData)
 
 data TParam n = TParam { tpName  :: n
@@ -358,16 +357,6 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TNum Integer            -- ^ @10@
             | TChar Char              -- ^ @'a'@
             | TUser n [Type n]        -- ^ A type variable or synonym
-
-            | TApp TCon [Type n]
-              -- ^ @2 + x@
-              -- Note that the parser never produces these; instead it
-              -- produces a "TUser" value.  The "TApp" is introduced by
-              -- the renamer when it spots built-in functions.
-              -- XXX: We should just add primitive declarations for the
-              -- built-in type functions, and simplify all this.
-
-
             | TRecord [Named (Type n)]-- ^ @{ x : [8], y : [32] }@
             | TTuple [Type n]         -- ^ @([8], [32])@
             | TWild                   -- ^ @_@, just some type.
@@ -792,12 +781,14 @@ instance PPName name => PP (Schema name) where
 instance PP Kind where
   ppPrec _ KType  = text "*"
   ppPrec _ KNum   = text "#"
+  ppPrec _ KProp  = text "@"
   ppPrec n (KFun k1 k2) = wrap n 1 (ppPrec 1 k1 <+> "->" <+> ppPrec 0 k2)
 
 -- | "Conversational" printing of kinds (e.g., to use in error messages)
 cppKind :: Kind -> Doc
 cppKind KType     = text "a value type"
 cppKind KNum      = text "a numeric type"
+cppKind KProp     = text "a constraint type"
 cppKind (KFun {}) = text "a type-constructor type"
 
 instance PPName name => PP (TParam name) where
@@ -821,13 +812,6 @@ instance PPName name => PP (Type name) where
       TSeq t1 t2     -> optParens (n > 3)
                       $ brackets (pp t1) <.> ppPrec 3 t2
 
-      _ | Just tinf <- isInfix ty ->
-              optParens (n > 2)
-              $ ppInfix 2 isInfix tinf
-
-      TApp f ts      -> optParens (n > 3)
-                      $ pp f <+> fsep (map (ppPrec 4) ts)
-
       TUser f []     -> ppPrefixName f
 
       TUser f ts     -> optParens (n > 3)
@@ -843,11 +827,6 @@ instance PPName name => PP (Type name) where
       TInfix t1 o _ t2 -> optParens (n > 2)
                         $ sep [ppPrec 2 t1 <+> ppInfixName o, ppPrec 3 t2]
 
-   where
-   isInfix (TApp ieOp [ieLeft, ieRight]) = do
-     (ieAssoc,iePrec) <- ppNameFixity ieOp
-     return Infix { .. }
-   isInfix _ = Nothing
 
 instance PPName name => PP (Prop name) where
   ppPrec n (CType t) = ppPrec n t
@@ -1007,7 +986,6 @@ instance NoPos (Type name) where
   noPos ty =
     case ty of
       TWild         -> TWild
-      TApp x y      -> TApp     x         (noPos y)
       TUser x y     -> TUser    x         (noPos y)
       TRecord x     -> TRecord  (noPos x)
       TTuple x      -> TTuple   (noPos x)

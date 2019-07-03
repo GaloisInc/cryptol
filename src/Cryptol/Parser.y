@@ -31,7 +31,6 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import           Control.Monad(liftM2,msum)
 
-import Cryptol.Prims.Syntax(TFun(..))
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import Cryptol.Parser.LexerUtils hiding (mkIdent)
@@ -637,6 +636,7 @@ schema_qual                    :: { Located [Prop PName] }
 kind                             :: { Located Kind      }
   : '#'                             { Located $1 KNum   }
   | '*'                             { Located $1 KType  }
+  | '@'                             { Located $1 KProp  }
   | kind '->' kind                  { combLoc KFun $1 $3 }
 
 schema_param                   :: { TParam PName }

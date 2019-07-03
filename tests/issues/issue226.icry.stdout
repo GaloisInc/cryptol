@@ -16,6 +16,35 @@ Constraint Synonyms
     type constraint i <= j = j >= i
     type constraint i > j = i >= 1 + j
 
+Primitive Types
+===============
+    (!=) : # -> # -> Prop
+    (==) : # -> # -> Prop
+    (>=) : # -> # -> Prop
+    (+) : # -> # -> #
+    (-) : # -> # -> #
+    (%) : # -> # -> #
+    (%^) : # -> # -> #
+    (*) : # -> # -> #
+    (/) : # -> # -> #
+    (/^) : # -> # -> #
+    (^^) : # -> # -> #
+    Arith : * -> Prop
+    Bit : *
+    Cmp : * -> Prop
+    fin : * -> Prop
+    Integer : *
+    inf : #
+    Literal : # -> * -> Prop
+    Logic : * -> Prop
+    lengthFromThenTo : # -> # -> # -> #
+    max : # -> # -> #
+    min : # -> # -> #
+    SignedCmp : * -> Prop
+    width : # -> #
+    Z : # -> *
+    Zero : * -> Prop
+
 Symbols
 =======
     (==>) : Bit -> Bit -> Bit

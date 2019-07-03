@@ -4,7 +4,7 @@
 {-# Language OverloadedStrings #-}
 module Cryptol.TypeCheck.Type
   ( module Cryptol.TypeCheck.Type
-  , module Cryptol.Prims.Syntax
+  , module Cryptol.TypeCheck.TCon
   ) where
 
 
@@ -21,8 +21,8 @@ import Cryptol.Parser.Selector
 import Cryptol.Parser.Fixity
 import Cryptol.Parser.Position(Range,emptyRange)
 import Cryptol.ModuleSystem.Name
-import Cryptol.Prims.Syntax
 import Cryptol.Utils.Ident (Ident)
+import Cryptol.TypeCheck.TCon
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.Utils.Panic(panic)
@@ -514,7 +514,11 @@ tNoUser t = case t of
 
 -- | Make a malformed numeric type.
 tBadNumber :: TCErrorMessage -> Type
-tBadNumber msg = TCon (TError KNum msg) []
+tBadNumber = tError KNum
+
+-- | Make an error value of the given type.
+tError :: Kind -> TCErrorMessage -> Type
+tError k msg = TCon (TError k msg) []
 
 tf1 :: TFun -> Type -> Type
 tf1 f x = TCon (TF f) [x]
@@ -524,14 +528,6 @@ tf2 f x y = TCon (TF f) [x,y]
 
 tf3 :: TFun -> Type -> Type -> Type -> Type
 tf3 f x y z = TCon (TF f) [x,y,z]
-
-{-
-tAdd :: Type -> Type -> Type
-tAdd x y
-  | Just x' <- tIsNum x
-  , Just y' <- tIsNum y = error (show x' ++ " + " ++ show y')
-  | otherwise = tf2 TCAdd x y
--}
 
 tSub :: Type -> Type -> Type
 tSub = tf2 TCSub
@@ -764,7 +760,6 @@ instance PP (WithNames Type) where
 
       TUser c [] _ -> pp c
       TUser c ts _ -> optParens (prec > 3) $ pp c <+> fsep (map (go 4) ts)
-      -- TUser _ _ t -> ppPrec prec t -- optParens (prec > 3) $ pp c <+> fsep (map (go 4) ts)
 
       TCon (TC tc) ts ->
         case (tc,ts) of
@@ -807,15 +802,14 @@ instance PP (WithNames Type) where
     where
     go p t = ppWithNamesPrec nmMap p t
 
-    isTInfix (WithNames (TCon (TF tf) [ieLeft',ieRight']) _) =
+    isTInfix (WithNames (TCon tc [ieLeft',ieRight']) _) =
       do let ieLeft  = WithNames ieLeft' nmMap
              ieRight = WithNames ieRight' nmMap
-         pt <- primTyFromTF tf
-         fi <- primTyFixity pt
+         (ieOp,fi) <- infixPrimTy tc
          let ieAssoc = fAssoc fi
              iePrec  = fLevel fi
-             ieOp    = primTyIdent pt
          return Infix { .. }
+
     isTInfix (WithNames (TUser n [ieLeft',ieRight'] _) _) =
       do let ieLeft  = WithNames ieLeft' nmMap
              ieRight = WithNames ieRight' nmMap
@@ -824,6 +818,7 @@ instance PP (WithNames Type) where
              iePrec  = fLevel fi
              ieOp    = nameIdent n
          return Infix { .. }
+
     isTInfix _ = Nothing
 
 

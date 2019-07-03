@@ -12,13 +12,12 @@
 
 module REPL.Haskeline where
 
-import           Cryptol.Prims.Syntax (primTyList, primTyIdent)
 import           Cryptol.REPL.Command
 import           Cryptol.REPL.Monad
 import           Cryptol.REPL.Trie
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Logger(stdoutLogger)
-import           Cryptol.Utils.Ident(modNameToText, interactiveName, isInfixIdent)
+import           Cryptol.Utils.Ident(modNameToText, interactiveName)
 
 import qualified Control.Exception as X
 import           Control.Monad (guard, join)
@@ -267,9 +266,8 @@ completeHelp :: CompletionFunc REPL
 completeHelp (l, _) = do
   ns1 <- getExprNames
   ns2 <- getTypeNames
-  let ns3 = primTyNames
-  let ns4 = concatMap cNames (nub (findCommand ":"))
-  let ns = Set.toAscList (Set.fromList (ns1 ++ ns2 ++ ns3)) ++ ns4
+  let ns3 = concatMap cNames (nub (findCommand ":"))
+  let ns = Set.toAscList (Set.fromList (ns1 ++ ns2)) ++ ns3
   let n    = reverse l
   case break isSpace n of
     (":set", _ : n') ->
@@ -280,9 +278,6 @@ completeHelp (l, _) = do
       do let vars = filter (n `isPrefixOf`) ns
          return (l, map (nameComp n) vars)
 
-primTyNames :: [String]
-primTyNames = map (showIdent . primTyIdent) primTyList
-  where showIdent i = show (optParens (isInfixIdent i) (pp i))
 
 -- | Complete a name from the list of loaded modules.
 completeModName :: CompletionFunc REPL

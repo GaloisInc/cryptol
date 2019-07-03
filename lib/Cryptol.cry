@@ -27,9 +27,98 @@ infixr 50 &&
 infixr 60 #
 infixl 70 <<, <<<, >>, >>>, >>$
 infixl 80 +, -
-infixl 90 *, /, %, /$, %$
+infixl 90 *, /, %, /$, %$, %^, /^
 infixr 95 ^^
 infixl 100 @, @@, !, !!
+
+// -----------------------------------------------------------------------------
+
+/** A numeric type representing infinity. */
+primitive type inf : #
+
+/** The type of boolean values. */
+primitive type Bit : *
+
+/** The type of unbounded integers. */
+primitive type Integer : *
+
+/** 'Z n' is the type of integers, modulo 'n'. */
+primitive type Z : # -> *
+
+
+
+/** Assert that two numeric types are equal. */
+primitive type (==) : # -> # -> @
+
+/** Assert that two numeric types are different. */
+primitive type (!=) : # -> # -> @
+
+/** Assert that the first numeric type is larger than, or equal to the second.*/
+primitive type (>=) : # -> # -> @
+
+/** Assert that a numeric type is a proper natural number (not 'inf'). */
+primitive type fin : * -> @
+
+/** Value types that have a notion of 'zero'. */
+primitive type Zero : * -> @
+
+/** Value types that support logical operations. */
+primitive type Logic : * -> @
+
+/** Value types that support arithmetic. */
+primitive type Arith : * -> @
+
+/** Value types that support unsigned comparisons. */
+primitive type Cmp : * -> @
+
+/** Value types that support signed comparisons. */
+primitive type SignedCmp : * -> @
+
+/** 'Literal n a' asserts that type 'a' contains the number 'n'. */
+primitive type Literal : # -> * -> @
+
+
+
+/** Add numeric types. */
+primitive type (+) : # -> # -> #
+
+/** Subtract numeric types. */
+primitive type (-) : # -> # -> #
+
+/** Multiply numeric types. */
+primitive type (*) : # -> # -> #
+
+/** Divide numeric types, rounding down. */
+primitive type (/) : # -> # -> #
+
+/** Remainder of numeric type division. */
+primitive type (%) : # -> # -> #
+
+/** Exponentiate numeric types. */
+primitive type (^^) : # -> # -> #
+
+/** The number of bits required to represent the value of a numeric type. */
+primitive type width : # -> #
+
+/** The smaller of two numeric types. */
+primitive type min : # -> # -> #
+
+/** The larger of two numeric types. */
+primitive type max : # -> # -> #
+
+/** Divide numeric types, rounding up. */
+primitive type (/^) : # -> # -> #
+
+/** How much we need to add to make a proper multiple of the second argument. */
+primitive type (%^) : # -> # -> #
+
+/** The length of an enumeration. */
+primitive type lengthFromThenTo : # -> # -> # -> #
+
+
+
+
+// -----------------------------------------------------------------------------
 
 /**
  * Assert that the first numeric type is less than or equal to the second.
