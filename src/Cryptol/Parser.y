@@ -81,6 +81,7 @@ import Paths_cryptol
 
   'primitive' { Located $$ (Token (KW KW_primitive) _)}
   'constraint'{ Located $$ (Token (KW KW_constraint) _)}
+  'Prop'      { Located $$ (Token (KW KW_Prop) _)}
 
   '['         { Located $$ (Token (Sym BracketL) _)}
   ']'         { Located $$ (Token (Sym BracketR) _)}
@@ -633,11 +634,11 @@ schema_quals                   :: { Located [Prop PName] }
 schema_qual                    :: { Located [Prop PName] }
   : type '=>'                     {% fmap (\x -> at (x,$2) x) (mkProp $1) }
 
-kind                             :: { Located Kind      }
-  : '#'                             { Located $1 KNum   }
-  | '*'                             { Located $1 KType  }
-  | '@'                             { Located $1 KProp  }
-  | kind '->' kind                  { combLoc KFun $1 $3 }
+kind                           :: { Located Kind      }
+  : '#'                           { Located $1 KNum   }
+  | '*'                           { Located $1 KType  }
+  | 'Prop'                        { Located $1 KProp  }
+  | kind '->' kind                { combLoc KFun $1 $3 }
 
 schema_param                   :: { TParam PName }
   : ident                         {% mkTParam $1 Nothing           }

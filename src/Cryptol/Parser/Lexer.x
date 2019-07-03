@@ -121,6 +121,8 @@ $white+                   { emit $ White Space }
 "parameter"               { emit $ KW KW_parameter }
 "constraint"              { emit $ KW KW_constraint }
 
+"Prop"                    { emit $ KW KW_Prop }
+
 @num2                     { emitS (numToken 2  . Text.drop 2) }
 @num8                     { emitS (numToken 8  . Text.drop 2) }
 @num10                    { emitS (numToken 10 . Text.drop 0) }

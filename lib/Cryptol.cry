@@ -48,34 +48,34 @@ primitive type Z : # -> *
 
 
 /** Assert that two numeric types are equal. */
-primitive type (==) : # -> # -> @
+primitive type (==) : # -> # -> Prop
 
 /** Assert that two numeric types are different. */
-primitive type (!=) : # -> # -> @
+primitive type (!=) : # -> # -> Prop
 
 /** Assert that the first numeric type is larger than, or equal to the second.*/
-primitive type (>=) : # -> # -> @
+primitive type (>=) : # -> # -> Prop
 
 /** Assert that a numeric type is a proper natural number (not 'inf'). */
-primitive type fin : * -> @
+primitive type fin : * -> Prop
 
 /** Value types that have a notion of 'zero'. */
-primitive type Zero : * -> @
+primitive type Zero : * -> Prop
 
 /** Value types that support logical operations. */
-primitive type Logic : * -> @
+primitive type Logic : * -> Prop
 
 /** Value types that support arithmetic. */
-primitive type Arith : * -> @
+primitive type Arith : * -> Prop
 
 /** Value types that support unsigned comparisons. */
-primitive type Cmp : * -> @
+primitive type Cmp : * -> Prop
 
 /** Value types that support signed comparisons. */
-primitive type SignedCmp : * -> @
+primitive type SignedCmp : * -> Prop
 
 /** 'Literal n a' asserts that type 'a' contains the number 'n'. */
-primitive type Literal : # -> * -> @
+primitive type Literal : # -> * -> Prop
 
 
 
