@@ -76,7 +76,7 @@ solveSelector sel outerT =
                    Nothing -> return Nothing
                    Just t  ->
                      do let su = listParamSubst (zip (ntParams nt) ts)
-                        newGoals (CtPartialTypeFun $ UserTyFun x)
+                        newGoals (CtPartialTypeFun x)
                           $ apSubst su $ ntConstraints nt
                         return $ Just $ apSubst su t
         _ -> return Nothing

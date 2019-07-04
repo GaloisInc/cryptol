@@ -247,6 +247,9 @@ data Newtype name = Newtype { nName   :: Located name        -- ^ Type name
 -- | A declaration for a type with no implementation.
 data PrimType name = PrimType { primTName :: Located name
                               , primTKind :: Located Kind
+                              , primTCts  :: ([TParam name], [Prop name])
+                                -- ^ parameters are in the order used
+                                -- by the type constructor.
                               , primTFixity :: Maybe Fixity
                               } deriving (Show,Generic,NFData)
 

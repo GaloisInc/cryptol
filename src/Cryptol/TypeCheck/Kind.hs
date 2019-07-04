@@ -27,15 +27,15 @@ import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Monad hiding (withTParams)
 import           Cryptol.TypeCheck.SimpType(tRebuild)
 import           Cryptol.TypeCheck.SimpleSolver(simplify)
-import           Cryptol.TypeCheck.Solve
-                   (simplifyAllConstraints,wfTypeFunction,wfTC)
+import           Cryptol.TypeCheck.Solve (simplifyAllConstraints)
+import           Cryptol.TypeCheck.Subst(listSubst,apSubst)
 import           Cryptol.Utils.Panic (panic)
 
 import qualified Data.Map as Map
 import           Data.List(sortBy,groupBy)
 import           Data.Maybe(fromMaybe)
 import           Data.Function(on)
-import           Control.Monad(unless,forM)
+import           Control.Monad(unless,forM,when)
 
 
 
@@ -129,11 +129,15 @@ checkNewtype (P.Newtype x as fs) mbD =
 
 checkPrimType :: P.PrimType Name -> Maybe String -> InferM AbstractType
 checkPrimType p mbD =
-  pure AbstractType { atName = thing (P.primTName p)
-                    , atKind = cvtK (thing (P.primTKind p))
-                    , atFixitiy = P.primTFixity p
-                    , atDoc = mbD
-                    }
+  do let (as,cs) = P.primTCts p
+     (as',cs') <- withTParams NoWildCards (TPOther . Just) as $
+                    mapM checkProp cs
+     pure AbstractType { atName = thing (P.primTName p)
+                       , atKind = cvtK (thing (P.primTKind p))
+                       , atFixitiy = P.primTFixity p
+                       , atCtrs = (as',cs')
+                       , atDoc = mbD
+                       }
 
 checkType :: P.Type Name -> Maybe Kind -> InferM Type
 checkType t k =
@@ -244,7 +248,6 @@ checkTUser x ts k =
   mcase kLookupTSyn       checkTySynUse $
   mcase kLookupNewtype    checkNewTypeUse $
   mcase kLookupParamType  checkModuleParamUse $
-  mcase (pure.builtInType) checkBuiltInType $        -- must be before abstract
   mcase kLookupAbstractType checkAbstractTypeUse $
   checkScopedVarUse -- none of the above, must be a scoped type variable,
                     -- if the renamer did its job correctly.
@@ -255,7 +258,7 @@ checkTUser x ts k =
        ts2 <- checkParams as ts1
        let su = zip as ts2
        ps1 <- mapM (`kInstantiateT` su) (tsConstraints tysyn)
-       kNewGoals (CtPartialTypeFun (UserTyFun (tsName tysyn))) ps1
+       kNewGoals (CtPartialTypeFun (tsName tysyn)) ps1
        t1  <- kInstantiateT (tsDef tysyn) su
        checkKind (TUser x ts1 t1) k k1
 
@@ -265,32 +268,24 @@ checkTUser x ts k =
        ts2 <- checkParams (ntParams nt) ts1
        return (TCon tc ts2)
 
-  checkBuiltInType tc =
-    do (ts1,k1) <- appTy ts (kindOf tc)
-
-       case tc of
-         TF f ->
-            case wfTypeFunction f ts1 of
-               [] -> return ()
-               ps -> kNewGoals (CtPartialTypeFun (BuiltInTyFun f)) ps
-
-         TC f ->
-            case wfTC f ts1 of
-               [] -> return ()
-               ps -> kNewGoals (CtPartialTypeFun (BuiltInTC f)) ps
-         _ -> return ()
-
-       checkKind (TCon tc ts1) k k1
-
   checkAbstractTypeUse absT =
-    do let tc = abstractTypeTC absT
+    do let tc   = abstractTypeTC absT
        (ts1,k1) <- appTy ts (kindOf tc)
+       let (as,ps) = atCtrs absT
+       case ps of
+          [] -> pure ()   -- common case
+          _ -> do let need = length as
+                      have = length ts1
+                  when (need > have) $
+                     kRecordError (TooFewTyParams (atName absT) (need - have))
+                  let su = listSubst (map tpVar as `zip` ts1)
+                  kNewGoals (CtPartialTypeFun (atName absT)) (apSubst su <$> ps)
        checkKind (TCon tc ts1) k k1
 
   checkParams as ts1
     | paramHave == paramNeed = return ts1
     | paramHave < paramNeed  =
-                   do kRecordError (TooFewTySynParams x (paramNeed-paramHave))
+                   do kRecordError (TooFewTyParams x (paramNeed-paramHave))
                       let src = TypeErrorPlaceHolder
                       fake <- mapM (kNewType src . kindOf . tpVar)
                                    (drop paramHave as)
@@ -327,7 +322,9 @@ checkTUser x ts k =
          TOuterVar t -> checkKind (TVar (tpVar t)) k (kindOf t)
 
   checkScopedVarUse =
-    do unless (null ts) (kRecordError TyVarWithParams)
+    do kIO $ putStrLn ("SCOPED VAR: " ++ show x)
+       kIO $ sequence_ [ putStrLn ("  " ++ show t) | t <- ts ]
+       unless (null ts) (kRecordError TyVarWithParams)
        kExistTVar x $ fromMaybe KNum k
 
   mcase :: (Name -> KindM (Maybe a)) ->

@@ -89,7 +89,7 @@ checkTyParams func inst =
        unless (k1 == k2) (recordError (KindMismatch k1 k2))
 
        let nm  = tsName ts
-           src = CtPartialTypeFun (UserTyFun nm)
+           src = CtPartialTypeFun nm
        mapM_ (newGoal src) (tsConstraints ts)
 
        return (tp, TUser nm [] (tsDef ts))
@@ -107,7 +107,7 @@ checkTyParams func inst =
        unless (k1 == k2) (recordError (KindMismatch k1 k2))
 
        let nm = ntName nt
-           src = CtPartialTypeFun (UserTyFun nm)
+           src = CtPartialTypeFun nm
        mapM_ (newGoal src) (ntConstraints nt)
 
        return (tp, TCon (TC (TCNewtype (UserTC nm k2))) [])

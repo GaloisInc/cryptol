@@ -18,6 +18,7 @@ module Cryptol.Prelude (
   cryptolTcContents
   ) where
 
+
 import System.Directory (getTemporaryDirectory)
 import System.IO (hClose, hPutStr, openTempFile)
 import Text.Heredoc (there)

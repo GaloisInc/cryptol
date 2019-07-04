@@ -190,6 +190,7 @@ data Newtype  = Newtype { ntName   :: Name
 data AbstractType = AbstractType
   { atName    :: Name
   , atKind    :: Kind
+  , atCtrs    :: ([TParam], [Prop])
   , atFixitiy :: Maybe Fixity
   , atDoc     :: Maybe String
   } deriving (Show, Generic, NFData)
@@ -288,7 +289,10 @@ newtypeConType nt =
 
 
 abstractTypeTC :: AbstractType -> TCon
-abstractTypeTC at = TC $ TCAbstract $ UserTC (atName at) (atKind at)
+abstractTypeTC at =
+  case builtInType (atName at) of
+    Just tcon -> tcon
+    _         -> TC $ TCAbstract $ UserTC (atName at) (atKind at)
 
 instance Eq TVar where
   TVBound x       == TVBound y       = x == y

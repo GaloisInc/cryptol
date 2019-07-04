@@ -71,8 +71,8 @@ data Error    = ErrorMsg Doc
               | TooManyTySynParams Name Int
                 -- ^ Type-synonym, number of extra params
 
-              | TooFewTySynParams Name Int
-                -- ^ Type-synonym, number of missing params
+              | TooFewTyParams Name Int
+                -- ^ Who is missing params, number of missing params
 
               | RecursiveTypeDecls [Name]
                 -- ^ The type synonym declarations are recursive
@@ -137,7 +137,7 @@ instance TVars Error where
       TooManyTypeParams {}      -> err
       TyVarWithParams           -> err
       TooManyTySynParams {}     -> err
-      TooFewTySynParams {}      -> err
+      TooFewTyParams {}         -> err
       RecursiveTypeDecls {}     -> err
       TypeMismatch t1 t2        -> TypeMismatch (apSubst su t1) (apSubst su t2)
       RecursiveType t1 t2       -> RecursiveType (apSubst su t1) (apSubst su t2)
@@ -161,7 +161,7 @@ instance FVS Error where
       TooManyTypeParams {}      -> Set.empty
       TyVarWithParams           -> Set.empty
       TooManyTySynParams {}     -> Set.empty
-      TooFewTySynParams {}      -> Set.empty
+      TooFewTyParams {}         -> Set.empty
       RecursiveTypeDecls {}     -> Set.empty
       TypeMismatch t1 t2        -> fvs (t1,t2)
       RecursiveType t1 t2       -> fvs (t1,t2)
@@ -240,7 +240,7 @@ instance PP (WithNames Error) where
           ("Type synonym" <+> nm t <+> "was applied to" <+>
             pl extra "extra parameters" <.> text ".")
 
-      TooFewTySynParams t few ->
+      TooFewTyParams t few ->
         addTVarsDescsAfter names err $
         nested "Malformed type."
           ("Type" <+> nm t <+> "is missing" <+> int few <+> text "parameters.")

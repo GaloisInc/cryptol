@@ -43,7 +43,7 @@ primitive type Bit : *
 primitive type Integer : *
 
 /** 'Z n' is the type of integers, modulo 'n'. */
-primitive type Z : # -> *
+primitive type {n : #} (fin n, n >= 1) => Z n : *
 
 
 
@@ -83,16 +83,25 @@ primitive type Literal : # -> * -> Prop
 primitive type (+) : # -> # -> #
 
 /** Subtract numeric types. */
-primitive type (-) : # -> # -> #
+primitive type
+  {m : #, n : # }
+  (fin n, m >= n) =>
+  m - n : #
 
 /** Multiply numeric types. */
 primitive type (*) : # -> # -> #
 
 /** Divide numeric types, rounding down. */
-primitive type (/) : # -> # -> #
+primitive type
+  { m : #, n : # }
+  (fin m, n >= 1) =>
+  m / n : #
 
 /** Remainder of numeric type division. */
-primitive type (%) : # -> # -> #
+primitive type
+  { m : #, n : # }
+  (fin m, n >= 1) =>
+  m % n : #
 
 /** Exponentiate numeric types. */
 primitive type (^^) : # -> # -> #
@@ -107,13 +116,22 @@ primitive type min : # -> # -> #
 primitive type max : # -> # -> #
 
 /** Divide numeric types, rounding up. */
-primitive type (/^) : # -> # -> #
+primitive type
+  { m : #, n : # }
+  (fin m, fin n, n >= 1) =>
+  m /^ n : #
 
 /** How much we need to add to make a proper multiple of the second argument. */
-primitive type (%^) : # -> # -> #
+primitive type
+  { m : #, n : # }
+  (fin m, fin n, n >= 1) =>
+  m %^ n : #
 
 /** The length of an enumeration. */
-primitive type lengthFromThenTo : # -> # -> # -> #
+primitive type
+  { start : #, next : #, last : # }
+  (fin start, fin next, fin last, start != next) =>
+  lengthFromThenTo start next last : #
 
 
 

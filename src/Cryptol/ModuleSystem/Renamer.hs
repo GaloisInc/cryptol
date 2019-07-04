@@ -413,7 +413,9 @@ renameLocated x =
 instance Rename PrimType where
   rename pt =
     do x <- rnLocated renameType (primTName pt)
-       pure pt { primTName = x }
+       let (as,ps) = primTCts pt
+       (_,cts) <- renameQual as ps $ \as' ps' -> pure (as',ps')
+       pure pt { primTCts = cts, primTName = x }
 
 instance Rename ParameterType where
   rename a =
@@ -538,13 +540,20 @@ instance Rename Schema where
 -- into scope.
 renameSchema :: Schema PName -> RenameM (NamingEnv,Schema Name)
 renameSchema (Forall ps p ty loc) =
-  do -- check that the parameters don't shadow any built-in types
-     env <- liftSupply (namingEnv' ps)
-     s'  <- shadowNames env $ Forall <$> traverse rename ps
-                                     <*> traverse rename p
-                                     <*> rename ty
-                                     <*> pure loc
-     return (env,s')
+  renameQual ps p $ \ps' p' ->
+    do ty' <- rename ty
+       pure (Forall ps' p' ty' loc)
+
+-- | Rename a qualified thing.
+renameQual :: [TParam PName] -> [Prop PName] ->
+              ([TParam Name] -> [Prop Name] -> RenameM a) ->
+              RenameM (NamingEnv, a)
+renameQual as ps k =
+  do env <- liftSupply (namingEnv' as)
+     res <- shadowNames env $ do as' <- traverse rename as
+                                 ps' <- traverse rename ps
+                                 k as' ps'
+     pure (env,res)
 
 instance Rename TParam where
   rename TParam { .. } =
