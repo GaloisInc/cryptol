@@ -1,19 +1,19 @@
 Loading module Cryptol
 
 [error] at <interactive>:1:1--1:18:
-  `inf` is not finite.
+  Expected a finite type, but found `inf`.
 
 [error] at <interactive>:1:1--1:18:
-  `inf` is not finite.
+  Expected a finite type, but found `inf`.
 
 [error] at <interactive>:1:1--1:16:
   Unsolvable constraint: 0 >= 1
 
 [error] at <interactive>:1:1--1:18:
-  `inf` is not finite.
+  Expected a finite type, but found `inf`.
 
 [error] at <interactive>:1:1--1:18:
-  `inf` is not finite.
+  Expected a finite type, but found `inf`.
 
 [error] at <interactive>:1:1--1:16:
   Unsolvable constraint: 0 >= 1
@@ -28,15 +28,15 @@ Loading module Main
       the following constraints hold:
         • fin j
             arising from
-            use of partial type function /^
+            use of partial type function (/^)
             at ./issue582.cry:1:7--1:21
         • fin i
             arising from
-            use of partial type function /^
+            use of partial type function (/^)
             at ./issue582.cry:1:7--1:21
         • j >= 1
             arising from
-            use of partial type function /^
+            use of partial type function (/^)
             at ./issue582.cry:1:7--1:21
 [error] at ./issue582.cry:5:1--5:11:
   Failed to validate user-specified signature.
@@ -46,13 +46,13 @@ Loading module Main
       the following constraints hold:
         • fin j
             arising from
-            use of partial type function %^
+            use of partial type function (%^)
             at ./issue582.cry:4:7--4:21
         • fin i
             arising from
-            use of partial type function %^
+            use of partial type function (%^)
             at ./issue582.cry:4:7--4:21
         • j >= 1
             arising from
-            use of partial type function %^
+            use of partial type function (%^)
             at ./issue582.cry:4:7--4:21
