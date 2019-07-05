@@ -826,6 +826,7 @@ withROTempFile name cnt k =
   mkFile path h =
     liftIO $
     do BS8.hPutStrLn h cnt
+       hFlush h
        setPermissions path (setOwnerReadable True emptyPermissions)
 
 
