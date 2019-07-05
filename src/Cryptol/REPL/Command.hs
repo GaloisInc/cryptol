@@ -71,7 +71,7 @@ import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
-import Cryptol.TypeCheck.PP (dump)
+import Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap,backticks)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
@@ -1032,7 +1032,20 @@ helpCmd cmd
                    rPrint $ runDoc nameEnv $ nest 4
                           $ "primitive type" <+> pp (T.atName a)
                                      <+> ":" <+> pp (T.atKind a)
+
+                   let (vs,cs) = T.atCtrs a
+                   unless (null cs) $
+                     do let example = T.TCon (T.abstractTypeTC a)
+                                             (map (T.TVar . T.tpVar) vs)
+                            ns = T.addTNames vs emptyNameMap
+                            rs = [ "•" <+> ppWithNames ns c | c <- cs ]
+                        rPutStrLn ""
+                        rPrint $ runDoc nameEnv $ nest 4 $
+                                    backticks (ppWithNames ns example) <+>
+                                    "requires:" $$ nest 2 (vcat rs)
+
                    doShowFix (T.atFixitiy a)
+
                    case T.atDoc a of
                      Nothing -> pure ()
                      Just d -> do rPutStrLn ""
