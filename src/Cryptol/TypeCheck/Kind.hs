@@ -322,9 +322,7 @@ checkTUser x ts k =
          TOuterVar t -> checkKind (TVar (tpVar t)) k (kindOf t)
 
   checkScopedVarUse =
-    do kIO $ putStrLn ("SCOPED VAR: " ++ show x)
-       kIO $ sequence_ [ putStrLn ("  " ++ show t) | t <- ts ]
-       unless (null ts) (kRecordError TyVarWithParams)
+    do unless (null ts) (kRecordError TyVarWithParams)
        kExistTVar x $ fromMaybe KNum k
 
   mcase :: (Name -> KindM (Maybe a)) ->
