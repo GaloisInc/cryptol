@@ -3,14 +3,14 @@ Loading module Cryptol
 Loading module Main
 
 [error] at ./T146.cry:1:18--6:10:
-  The type ?fv`874 is not sufficiently polymorphic.
-    It cannot depend on quantified variables: fv`858
+  The type ?fv`888 is not sufficiently polymorphic.
+    It cannot depend on quantified variables: fv`872
   where
-  ?fv`874 is type argument 'fv' of 'Main::ec_v1' at ./T146.cry:4:19--4:24
-  fv`858 is signature variable 'fv' at ./T146.cry:11:10--11:12
+  ?fv`888 is type argument 'fv' of 'Main::ec_v1' at ./T146.cry:4:19--4:24
+  fv`872 is signature variable 'fv' at ./T146.cry:11:10--11:12
 [error] at ./T146.cry:5:19--5:24:
-  The type ?fv`876 is not sufficiently polymorphic.
-    It cannot depend on quantified variables: fv`858
+  The type ?fv`890 is not sufficiently polymorphic.
+    It cannot depend on quantified variables: fv`872
   where
-  ?fv`876 is type argument 'fv' of 'Main::ec_v2' at ./T146.cry:5:19--5:24
-  fv`858 is signature variable 'fv' at ./T146.cry:11:10--11:12
+  ?fv`890 is type argument 'fv' of 'Main::ec_v2' at ./T146.cry:5:19--5:24
+  fv`872 is signature variable 'fv' at ./T146.cry:11:10--11:12
