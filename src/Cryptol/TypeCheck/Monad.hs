@@ -643,6 +643,7 @@ existVar x k =
            [] ->
               do recordError $ ErrorMsg
                              $ text "Undefined type" <+> quotes (pp x)
+                                    <+> text (show x)
                  newType TypeErrorPlaceHolder k
 
            sc : more ->
@@ -887,6 +888,9 @@ kRecordError e = kInInferM $ recordError e
 
 kRecordWarning :: Warning -> KindM ()
 kRecordWarning w = kInInferM $ recordWarning w
+
+kIO :: IO a -> KindM a
+kIO m = KM $ lift $ lift $ io m
 
 -- | Generate a fresh unification variable of the given kind.
 -- NOTE:  We do not simplify these, because we end up with bottom.

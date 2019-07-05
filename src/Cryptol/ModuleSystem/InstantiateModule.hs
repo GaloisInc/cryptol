@@ -288,6 +288,8 @@ instance Inst Newtype where
 instance Inst AbstractType where
   inst env a = AbstractType { atName    = instTyName env (atName a)
                             , atKind    = atKind a
+                            , atCtrs    = case atCtrs a of
+                                            (xs,ps) -> (xs, inst env ps)
                             , atFixitiy = atFixitiy a
                             , atDoc     = atDoc a
                             }

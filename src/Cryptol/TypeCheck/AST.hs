@@ -33,7 +33,6 @@ import Cryptol.Parser.Position(Located)
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.Exports(ExportSpec(..)
                                    , isExportedBind, isExportedType)
-import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Import(..), ImportSpec(..), ExportType(..)
                           , Fixity(..))

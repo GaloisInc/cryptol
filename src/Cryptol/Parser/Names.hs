@@ -23,7 +23,7 @@ tnamesNT x = ([ nName x ], ())
 
 -- | The names defined and used by a group of mutually recursive declarations.
 namesDs :: Ord name => [Decl name] -> ([Located name], Set name)
-namesDs ds = (defs, boundNames defs (Set.unions frees))
+namesDs ds = (defs, boundLNames defs (Set.unions frees))
   where
   defs          = concat defss
   (defss,frees) = unzip (map namesD ds)
@@ -59,7 +59,7 @@ allNamesD decl =
 
 -- | The names defined and used by a single binding.
 namesB :: Ord name => Bind name -> ([Located name], Set name)
-namesB b = ([bName b], boundNames (namesPs (bParams b)) (namesDef (thing (bDef b))))
+namesB b = ([bName b], boundLNames (namesPs (bParams b)) (namesDef (thing (bDef b))))
 
 
 namesDef :: Ord name => BindDef name -> Set name
@@ -85,16 +85,16 @@ namesE expr =
     EFromTo{}     -> Set.empty
     EInfFrom e e' -> Set.union (namesE e) (maybe Set.empty namesE e')
     EComp e arms  -> let (dss,uss) = unzip (map namesArm arms)
-                     in Set.union (boundNames (concat dss) (namesE e))
+                     in Set.union (boundLNames (concat dss) (namesE e))
                                   (Set.unions uss)
     EApp e1 e2    -> Set.union (namesE e1) (namesE e2)
     EAppT e _     -> namesE e
     EIf e1 e2 e3  -> Set.union (namesE e1) (Set.union (namesE e2) (namesE e3))
     EWhere  e ds  -> let (bs,xs) = namesDs ds
-                     in Set.union (boundNames bs (namesE e)) xs
+                     in Set.union (boundLNames bs (namesE e)) xs
     ETyped e _    -> namesE e
     ETypeVal _    -> Set.empty
-    EFun ps e     -> boundNames (namesPs ps) (namesE e)
+    EFun ps e     -> boundLNames (namesPs ps) (namesE e)
     ELocated e _  -> namesE e
 
     ESplit e      -> namesE e
@@ -131,48 +131,25 @@ namesArm :: Ord name => [Match name] -> ([Located name], Set name)
 namesArm = foldr combine ([],Set.empty) . map namesM
   where combine (ds1,fs1) (ds2,fs2) =
           ( filter ((`notElem` map thing ds2) . thing) ds1 ++ ds2
-          , Set.union fs1 (boundNames ds1 fs2)
+          , Set.union fs1 (boundLNames ds1 fs2)
           )
 
 -- | Remove some defined variables from a set of free variables.
-boundNames :: Ord name => [Located name] -> Set name -> Set name
-boundNames bs xs = Set.difference xs (Set.fromList (map thing bs))
+boundLNames :: Ord name => [Located name] -> Set name -> Set name
+boundLNames = boundNames . map thing
 
+-- | Remove some defined variables from a set of free variables.
+boundNames :: Ord name => [name] -> Set name -> Set name
+boundNames = boundNamesSet . Set.fromList
 
--- | Given the set of type variables that are in scope,
--- compute the type synonyms used by a type.
-namesT :: Ord name => Set name -> Type name -> Set name
-namesT vs = go
-  where
-  go ty =
-    case ty of
-      TWild         -> Set.empty
-      TFun t1 t2    -> Set.union (go t1) (go t2)
-      TSeq t1 t2    -> Set.union (go t1) (go t2)
-      TBit          -> Set.empty
-      TNum _        -> Set.empty
-      TChar _       -> Set.empty
-      TApp _ ts     -> Set.unions (map go ts)
-      TTuple ts     -> Set.unions (map go ts)
-      TRecord fs    -> Set.unions (map (go . value) fs)
-      TLocated t _  -> go t
-      TUser x [] | x `Set.member` vs
-                    -> Set.empty
-      TUser x ts    -> Set.insert x (Set.unions (map go ts))
+-- | Remove some defined variables from a set of free variables.
+boundNamesSet :: Ord name => Set name -> Set name -> Set name
+boundNamesSet bs xs = Set.difference xs bs
 
-      TParens t     -> namesT vs t
-      TInfix a _ _ b-> Set.union (namesT vs a) (namesT vs b)
-
--- | Given the set of type variables that are in scope,
--- compute the type/constraint synonyms used by a prop.
-namesC :: Ord name => Set name -> Prop name -> Set name
-namesC vs prop =
-  case prop of
-    CType t       -> namesT vs t
 
 -- | The type names defined and used by a group of mutually recursive declarations.
 tnamesDs :: Ord name => [Decl name] -> ([Located name], Set name)
-tnamesDs ds = (defs, boundNames defs (Set.unions frees))
+tnamesDs ds = (defs, boundLNames defs (Set.unions frees))
   where
   defs          = concat defss
   (defss,frees) = unzip (map tnamesD ds)
@@ -231,7 +208,7 @@ tnamesE expr =
     EAppT e fs      -> Set.union (tnamesE e) (Set.unions (map tnamesTI fs))
     EIf e1 e2 e3    -> Set.union (tnamesE e1) (Set.union (tnamesE e2) (tnamesE e3))
     EWhere  e ds    -> let (bs,xs) = tnamesDs ds
-                       in Set.union (boundNames bs (tnamesE e)) xs
+                       in Set.union (boundLNames bs (tnamesE e)) xs
     ETyped e t      -> Set.union (tnamesE e) (tnamesT t)
     ETypeVal t      -> tnamesT t
     EFun ps e       -> Set.union (Set.unions (map tnamesP ps)) (tnamesE e)
@@ -288,10 +265,10 @@ tnamesT ty =
     TBit          -> Set.empty
     TNum _        -> Set.empty
     TChar __      -> Set.empty
-    TApp _ ts     -> Set.unions (map tnamesT ts)
     TTuple ts     -> Set.unions (map tnamesT ts)
     TRecord fs    -> Set.unions (map (tnamesT . value) fs)
     TLocated t _  -> tnamesT t
     TUser x ts    -> Set.insert x (Set.unions (map tnamesT ts))
     TParens t     -> tnamesT t
-    TInfix a _ _ c-> Set.union (tnamesT a) (tnamesT c)
+    TInfix a x _ c-> Set.insert (thing x)
+                                (Set.union (tnamesT a) (tnamesT c))

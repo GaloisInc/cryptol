@@ -10,7 +10,7 @@
 
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Utils.PP where
 
 import           Cryptol.Utils.Ident
@@ -255,6 +255,9 @@ brackets  = liftPJ1 PJ.brackets
 
 quotes :: Doc -> Doc
 quotes  = liftPJ1 PJ.quotes
+
+backticks :: Doc -> Doc
+backticks d = hcat [ "`", d, "`" ]
 
 punctuate :: Doc -> [Doc] -> [Doc]
 punctuate p = go

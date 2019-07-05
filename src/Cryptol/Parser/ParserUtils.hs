@@ -15,6 +15,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Parser.ParserUtils where
 
+import Data.Maybe(fromMaybe)
+import Data.Bits(testBit,setBit)
+import Control.Monad(liftM,ap,unless,guard)
+import           Data.Text(Text)
+import qualified Data.Text as T
+import qualified Data.Map as Map
+
+import GHC.Generics (Generic)
+import Control.DeepSeq
+
+import Prelude ()
+import Prelude.Compat
+
+
 import Cryptol.Parser.AST
 import Cryptol.Parser.Lexer
 import Cryptol.Parser.Position
@@ -23,18 +37,6 @@ import Cryptol.Utils.Ident(packModName)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
 
-import Data.Maybe(fromMaybe)
-import Data.Bits(testBit,setBit)
-import Control.Monad(liftM,ap,unless)
-import           Data.Text(Text)
-import qualified Data.Text as T
-
-
-import GHC.Generics (Generic)
-import Control.DeepSeq
-
-import Prelude ()
-import Prelude.Compat
 
 parseString :: Config -> ParseM a -> String -> Either ParseError a
 parseString cfg p cs = parse cfg p (T.pack cs)
@@ -239,7 +241,6 @@ validDemotedType rng ty =
     TChar {}     -> ok
     TWild        -> bad "Wildcard types"
     TUser {}     -> ok
-    TApp {}      -> ok
 
     TParens t    -> validDemotedType rng t
     TInfix{}     -> ok
@@ -493,17 +494,71 @@ mkPrimDecl mbDoc ln sig =
   ]
 
 mkPrimTypeDecl ::
-  Maybe (Located String) -> LPName -> Located Kind -> [TopDecl PName]
-mkPrimTypeDecl mbDoc ln lk =
-  [ DPrimType TopLevel
-      { tlExport = Public
-      , tlDoc = mbDoc
-      , tlValue = PrimType { primTName = ln
-                           , primTKind = lk
-                           , primTFixity = Nothing
-                           }
-      }
-  ]
+  Maybe (Located String) ->
+  Schema PName ->
+  Located Kind ->
+  ParseM [TopDecl PName]
+mkPrimTypeDecl mbDoc (Forall as qs st ~(Just schema_rng)) finK =
+  case splitT schema_rng st of
+    Just (n,xs) ->
+      do vs <- mapM tpK as
+         unless (distinct (map fst vs)) $
+            errorMessage schema_rng "Repeated parameterms."
+         let kindMap = Map.fromList vs
+             lkp v = case Map.lookup (thing v) kindMap of
+                       Just (k,tp)  -> pure (k,tp)
+                       Nothing ->
+                        errorMessage
+                            (srcRange v)
+                            ("Undefined parameter: " ++ show (pp (thing v)))
+         (as',ins) <- unzip <$> mapM lkp xs
+         unless (length vs == length xs) $
+           errorMessage schema_rng "All parameters should appear in the type."
+
+         let ki = finK { thing = foldr KFun (thing finK) ins }
+
+         pure [ DPrimType TopLevel
+                  { tlExport = Public
+                  , tlDoc    = mbDoc
+                  , tlValue  = PrimType { primTName   = n
+                                        , primTKind   = ki
+                                        , primTCts    = (as',qs)
+                                        , primTFixity = Nothing
+                                        }
+                 }
+              ]
+
+    Nothing -> errorMessage schema_rng "Invalid primitive signature"
+
+  where
+  splitT r ty = case ty of
+                  TLocated t r1 -> splitT r1 t
+                  TUser n ts -> mkT r Located { srcRange = r, thing = n } ts
+                  TInfix t1 n _ t2  -> mkT r n [t1,t2]
+                  _ -> Nothing
+
+  mkT r n ts = do ts1 <- mapM (isVar r) ts
+                  guard (distinct (map thing ts1))
+                  pure (n,ts1)
+
+  isVar r ty = case ty of
+                 TLocated t r1  -> isVar r1 t
+                 TUser n []     -> Just Located { srcRange = r, thing = n }
+                 _              -> Nothing
+
+  -- inefficient, but the lists should be small
+  distinct xs = case xs of
+                  [] -> True
+                  x : ys -> not (x `elem` ys) && distinct ys
+
+  tpK tp = case tpKind tp of
+             Just k  -> pure (tpName tp, (tp,k))
+             Nothing ->
+              case tpRange tp of
+                Just r -> errorMessage r "Parameters need a kind annotation"
+                Nothing -> panic "mkPrimTypeDecl"
+                              [ "Missing range on schema parameter." ]
+
 
 -- | Fix-up the documentation strings by removing the comment delimiters on each
 -- end, and stripping out common prefixes on all the remaining lines.
@@ -567,7 +622,6 @@ mkProp ty =
       TParens t'     -> props r  t'
       TLocated t' r' -> props r' t'
 
-      TApp{}    -> err
       TFun{}    -> err
       TSeq{}    -> err
       TBit{}    -> err

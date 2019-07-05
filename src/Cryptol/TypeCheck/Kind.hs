@@ -27,15 +27,15 @@ import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Monad hiding (withTParams)
 import           Cryptol.TypeCheck.SimpType(tRebuild)
 import           Cryptol.TypeCheck.SimpleSolver(simplify)
-import           Cryptol.TypeCheck.Solve (simplifyAllConstraints
-                                         ,wfTypeFunction,wfTC)
+import           Cryptol.TypeCheck.Solve (simplifyAllConstraints)
+import           Cryptol.TypeCheck.Subst(listSubst,apSubst)
 import           Cryptol.Utils.Panic (panic)
 
 import qualified Data.Map as Map
 import           Data.List(sortBy,groupBy)
 import           Data.Maybe(fromMaybe)
 import           Data.Function(on)
-import           Control.Monad(unless,forM)
+import           Control.Monad(unless,forM,when)
 
 
 
@@ -129,11 +129,15 @@ checkNewtype (P.Newtype x as fs) mbD =
 
 checkPrimType :: P.PrimType Name -> Maybe String -> InferM AbstractType
 checkPrimType p mbD =
-  pure AbstractType { atName = thing (P.primTName p)
-                    , atKind = cvtK (thing (P.primTKind p))
-                    , atFixitiy = P.primTFixity p
-                    , atDoc = mbD
-                    }
+  do let (as,cs) = P.primTCts p
+     (as',cs') <- withTParams NoWildCards (TPOther . Just) as $
+                    mapM checkProp cs
+     pure AbstractType { atName = thing (P.primTName p)
+                       , atKind = cvtK (thing (P.primTKind p))
+                       , atFixitiy = P.primTFixity p
+                       , atCtrs = (as',cs')
+                       , atDoc = mbD
+                       }
 
 checkType :: P.Type Name -> Maybe Kind -> InferM Type
 checkType t k =
@@ -218,6 +222,7 @@ withTParams allowWildCards flav xs m
 cvtK :: P.Kind -> Kind
 cvtK P.KNum  = KNum
 cvtK P.KType = KType
+cvtK P.KProp = KProp
 cvtK (P.KFun k1 k2) = cvtK k1 :-> cvtK k2
 
 
@@ -230,6 +235,7 @@ tcon :: TCon            -- ^ Type constant being applied
 tcon tc ts0 k =
   do (ts1,k1) <- appTy ts0 (kindOf tc)
      checkKind (TCon tc ts1) k k1
+
 
 -- | Check a type application of a non built-in type or type variable.
 checkTUser ::
@@ -252,7 +258,7 @@ checkTUser x ts k =
        ts2 <- checkParams as ts1
        let su = zip as ts2
        ps1 <- mapM (`kInstantiateT` su) (tsConstraints tysyn)
-       kNewGoals (CtPartialTypeFun (UserTyFun (tsName tysyn))) ps1
+       kNewGoals (CtPartialTypeFun (tsName tysyn)) ps1
        t1  <- kInstantiateT (tsDef tysyn) su
        checkKind (TUser x ts1 t1) k k1
 
@@ -263,14 +269,23 @@ checkTUser x ts k =
        return (TCon tc ts2)
 
   checkAbstractTypeUse absT =
-    do let tc = abstractTypeTC absT
+    do let tc   = abstractTypeTC absT
        (ts1,k1) <- appTy ts (kindOf tc)
+       let (as,ps) = atCtrs absT
+       case ps of
+          [] -> pure ()   -- common case
+          _ -> do let need = length as
+                      have = length ts1
+                  when (need > have) $
+                     kRecordError (TooFewTyParams (atName absT) (need - have))
+                  let su = listSubst (map tpVar as `zip` ts1)
+                  kNewGoals (CtPartialTypeFun (atName absT)) (apSubst su <$> ps)
        checkKind (TCon tc ts1) k k1
 
   checkParams as ts1
     | paramHave == paramNeed = return ts1
     | paramHave < paramNeed  =
-                   do kRecordError (TooFewTySynParams x (paramNeed-paramHave))
+                   do kRecordError (TooFewTyParams x (paramNeed-paramHave))
                       let src = TypeErrorPlaceHolder
                       fake <- mapM (kNewType src . kindOf . tpVar)
                                    (drop paramHave as)
@@ -358,23 +373,7 @@ doCheckType ty k =
     P.TBit          -> tcon (TC TCBit)                 [] k
     P.TNum n        -> tcon (TC (TCNum n))             [] k
     P.TChar n       -> tcon (TC (TCNum $ fromIntegral $ fromEnum n)) [] k
-    P.TApp tc ts    ->
-      do it <- tcon tc ts k
 
-         -- Now check for additional well-formedness
-         -- constraints.
-         case it of
-           TCon (TF f) ts' ->
-              case wfTypeFunction f ts' of
-                 [] -> return ()
-                 ps -> kNewGoals (CtPartialTypeFun (BuiltInTyFun f)) ps
-           TCon (TC f) ts' ->
-              case wfTC f ts' of
-                 [] -> return ()
-                 ps -> kNewGoals (CtPartialTypeFun (BuiltInTC f)) ps
-           _ -> return ()
-
-         return it
     P.TTuple ts     -> tcon (TC (TCTuple (length ts))) ts k
 
     P.TRecord fs    -> do t1 <- TRec `fmap` mapM checkF fs

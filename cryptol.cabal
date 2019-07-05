@@ -74,8 +74,7 @@ library
   Build-tools:         alex, happy
   hs-source-dirs:      src
 
-  Exposed-modules:     Cryptol.Prims.Syntax,
-                       Cryptol.Prims.Eval,
+  Exposed-modules:     Cryptol.Prims.Eval,
 
                        Cryptol.Parser,
                        Cryptol.Parser.Lexer,
@@ -113,6 +112,7 @@ library
 
                        Cryptol.TypeCheck,
                        Cryptol.TypeCheck.Type,
+                       Cryptol.TypeCheck.TCon,
                        Cryptol.TypeCheck.TypePat,
                        Cryptol.TypeCheck.SimpType,
                        Cryptol.TypeCheck.AST,

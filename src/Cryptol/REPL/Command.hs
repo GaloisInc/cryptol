@@ -71,7 +71,7 @@ import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
-import Cryptol.TypeCheck.PP (dump)
+import Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap,backticks)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
@@ -85,7 +85,7 @@ import qualified Data.ByteString as BS
 import Data.Bits ((.&.))
 import Data.Char (isSpace,isPunctuation,isSymbol)
 import Data.Function (on)
-import Data.List (intercalate, nub, sortBy, partition, isPrefixOf)
+import Data.List (intercalate, nub, sortBy, partition, isPrefixOf,intersperse)
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
@@ -991,13 +991,14 @@ helpCmd cmd
         do (params,env,rnEnv,nameEnv) <- getFocusedEnv
            let vNames = M.lookupValNames  qname rnEnv
                tNames = M.lookupTypeNames qname rnEnv
-               pNames = T.primTyFromPName qname
 
-           mapM_ (showTypeHelp params env nameEnv) tNames
-           mapM_ (showValHelp params env nameEnv qname) vNames
-           mapM_ (showPrimTyHelp nameEnv) pNames
+           let helps = map (showTypeHelp params env nameEnv) tNames ++
+                       map (showValHelp params env nameEnv qname) vNames
 
-           when (null (vNames ++ tNames) && pNames == Nothing) $
+               separ = rPutStrLn "            ~~~ * ~~~"
+           sequence_ (intersperse separ helps)
+
+           when (null (vNames ++ tNames)) $
              rPrint $ "Undefined name:" <+> pp qname
       Nothing ->
            rPutStrLn ("Unable to parse name: " ++ cmd)
@@ -1008,25 +1009,6 @@ helpCmd cmd
       M.Declared m _ ->
                       rPrint $runDoc nameEnv ("Name defined in module" <+> pp m)
       M.Parameter  -> rPutStrLn "// No documentation is available."
-
-  showPrimTyHelp nameEnv pt = showPrimTyHelp' nameEnv
-                                pnam k f (Just (T.primTyDoc pt))
-    where
-    k    = T.kindOf (T.primTyCon pt)
-    f    = T.primTyFixity pt
-    pnam = if P.isInfixIdent i then parens (pp i) else pp i
-    i    = T.primTyIdent pt
-
-  showPrimTyHelp' nameEnv pnam k f mbDoc =
-    do rPutStrLn ""
-       rPrint $ runDoc nameEnv $ nest 4
-              $ "primitive type" <+> pnam <+> ":" <+> pp k
-       doShowFix f
-       case mbDoc of
-         Nothing -> pure ()
-         Just d -> do rPutStrLn ""
-                      rPutStrLn d
-                      rPutStrLn ""
 
 
 
@@ -1046,10 +1028,28 @@ helpCmd cmd
 
     fromPrimType =
       do a <- Map.lookup name (M.ifAbstractTypes env)
-         return $ showPrimTyHelp' nameEnv (pp (T.atName a))
-                                          (T.atKind a)
-                                          (T.atFixitiy a)
-                                          (T.atDoc a)
+         pure $ do rPutStrLn ""
+                   rPrint $ runDoc nameEnv $ nest 4
+                          $ "primitive type" <+> pp (T.atName a)
+                                     <+> ":" <+> pp (T.atKind a)
+
+                   let (vs,cs) = T.atCtrs a
+                   unless (null cs) $
+                     do let example = T.TCon (T.abstractTypeTC a)
+                                             (map (T.TVar . T.tpVar) vs)
+                            ns = T.addTNames vs emptyNameMap
+                            rs = [ "•" <+> ppWithNames ns c | c <- cs ]
+                        rPutStrLn ""
+                        rPrint $ runDoc nameEnv $ nest 4 $
+                                    backticks (ppWithNames ns example) <+>
+                                    "requires:" $$ nest 2 (vcat rs)
+
+                   doShowFix (T.atFixitiy a)
+
+                   case T.atDoc a of
+                     Nothing -> pure ()
+                     Just d -> do rPutStrLn ""
+                                  rPutStrLn d
 
     fromTyParam =
       do p <- Map.lookup name (M.ifParamTypes params)

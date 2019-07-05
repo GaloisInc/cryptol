@@ -393,6 +393,7 @@ data TokenKW  = KW_else
               | KW_primitive
               | KW_parameter
               | KW_constraint
+              | KW_Prop
                 deriving (Eq, Show, Generic, NFData)
 
 -- | The named operators are a special case for parsing types, and 'Other' is

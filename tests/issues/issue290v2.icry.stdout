@@ -4,9 +4,9 @@ Loading module Main
 
 [error] at ./issue290v2.cry:2:1--2:19:
   Unsolved constraints:
-    • n`855 == 1
+    • n`869 == 1
         arising from
         checking a pattern: type of 1st argument of Main::minMax
         at ./issue290v2.cry:2:8--2:11
   where
-  n`855 is signature variable 'n' at ./issue290v2.cry:1:11--1:12
+  n`869 is signature variable 'n' at ./issue290v2.cry:1:11--1:12

@@ -31,7 +31,6 @@ module Cryptol.ModuleSystem.Renamer (
 import Cryptol.ModuleSystem.Name
 import Cryptol.ModuleSystem.NamingEnv
 import Cryptol.ModuleSystem.Exports
-import Cryptol.Prims.Syntax
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector(ppNestedSels,selName)
@@ -414,7 +413,9 @@ renameLocated x =
 instance Rename PrimType where
   rename pt =
     do x <- rnLocated renameType (primTName pt)
-       pure pt { primTName = x }
+       let (as,ps) = primTCts pt
+       (_,cts) <- renameQual as ps $ \as' ps' -> pure (as',ps')
+       pure pt { primTCts = cts, primTName = x }
 
 instance Rename ParameterType where
   rename a =
@@ -539,18 +540,20 @@ instance Rename Schema where
 -- into scope.
 renameSchema :: Schema PName -> RenameM (NamingEnv,Schema Name)
 renameSchema (Forall ps p ty loc) =
-  do -- check that the parameters don't shadow any built-in types
-     let reserved = filter (isReserved . tpName) ps
-         mkErr tp = BoundReservedType (tpName tp) (tpRange tp) (text "schema")
-     unless (null reserved) (mapM_ (record . mkErr) reserved)
+  renameQual ps p $ \ps' p' ->
+    do ty' <- rename ty
+       pure (Forall ps' p' ty' loc)
 
-     env <- liftSupply (namingEnv' ps)
-     s'  <- shadowNames env $ Forall <$> traverse rename ps
-                                     <*> traverse rename p
-                                     <*> rename ty
-                                     <*> pure loc
-
-     return (env,s')
+-- | Rename a qualified thing.
+renameQual :: [TParam PName] -> [Prop PName] ->
+              ([TParam Name] -> [Prop Name] -> RenameM a) ->
+              RenameM (NamingEnv, a)
+renameQual as ps k =
+  do env <- liftSupply (namingEnv' as)
+     res <- shadowNames env $ do as' <- traverse rename as
+                                 ps' <- traverse rename ps
+                                 k as' ps'
+     pure (env,res)
 
 instance Rename TParam where
   rename TParam { .. } =
@@ -559,12 +562,6 @@ instance Rename TParam where
 
 instance Rename Prop where
   rename (CType t) = CType <$> rename t
-
--- | Check to see if this identifier is a reserved type/type-function.
-isReserved :: PName -> Bool
-isReserved pn = case primTyFromPName pn of
-                  Just _ -> True
-                  _      -> False
 
 
 -- | Resolve fixity, then rename the resulting type.
@@ -578,14 +575,7 @@ instance Rename Type where
     go (TNum c)      = return (TNum c)
     go (TChar c)     = return (TChar c)
 
-    go (TUser pn ps)
-
-      | Just pt <- primTyFromPName pn =
-        do ps' <- traverse go ps
-           return (TApp (primTyCon pt) ps')
-
     go (TUser qn ps)   = TUser    <$> renameType qn <*> traverse go ps
-    go (TApp f xs)     = TApp f   <$> traverse go xs
     go (TRecord fs)    = TRecord  <$> traverse (rnNamed go) fs
     go (TTuple fs)     = TTuple   <$> traverse go fs
     go  TWild          = return TWild
@@ -608,7 +598,6 @@ resolveTypeFixity  = go
     TFun a b     -> TFun     <$> go a  <*> go b
     TSeq n a     -> TSeq     <$> go n  <*> go a
     TUser pn ps  -> TUser pn <$> traverse go ps
-    TApp f xs    -> TApp f   <$> traverse go xs
     TRecord fs   -> TRecord  <$> traverse (traverse go) fs
     TTuple fs    -> TTuple   <$> traverse go fs
 
@@ -637,15 +626,10 @@ mkTInfix t op@(o2,f2) z =
     TLocated t1 _ -> mkTInfix t1 op z
     TInfix x ln f1 y ->
       doFixity (\a b -> TInfix a ln f1 b) f1 x y
-    TApp tc [x,y]
-      | Just pt <- primTyFromTC tc
-      , Just f1 <- primTyFixity pt -> doFixity (mkBin tc) f1 x y
 
     _ -> return (o2 t z)
 
   where
-  mkBin tc a b = TApp tc [a, b]
-
   doFixity mk f1 x y =
     case compareFixity f1 f2 of
       FCLeft  -> return (o2 t z)
@@ -663,20 +647,12 @@ mkTInfix t op@(o2,f2) z =
 -- return a 'TOp' that reconstructs the original term, and a default fixity.
 lookupFixity :: Located PName -> RenameM (TOp, Fixity)
 lookupFixity op =
-  case lkp of
-    Just res -> return res
-
-    -- Not a primitive type operator; look up fixity in naming environment
-    Nothing ->
-      do n <- renameType sym
-         let fi = fromMaybe defaultFixity (nameFixity n)
-         return (\x y -> TInfix x op fi y, fi)
+  do n <- renameType sym
+     let fi = fromMaybe defaultFixity (nameFixity n)
+     return (\x y -> TInfix x op fi y, fi)
 
   where
   sym = thing op
-  lkp = do pt <- primTyFromPName (thing op)
-           fi <- primTyFixity pt
-           return (\x y -> TApp (primTyCon pt) [x,y], fi)
 
 
 -- | Rename a binding.
@@ -938,9 +914,6 @@ patternEnv  = go
          Just _ -> bindTypes ps
 
          Nothing
-           -- Just ignore reserved names, as they'll be resolved when renaming.
-           | isReserved pn ->
-             bindTypes ps
 
            -- The type isn't bound, and has no parameters, so it names a portion
            -- of the type of the pattern.
@@ -957,7 +930,6 @@ patternEnv  = go
                 n   <- liftSupply (mkParameter (getIdent pn) loc)
                 return (singletonT pn n)
 
-  typeEnv (TApp _ ts)       = bindTypes ts
   typeEnv (TRecord fs)      = bindTypes (map value fs)
   typeEnv (TTuple ts)       = bindTypes ts
   typeEnv TWild             = return mempty
@@ -980,23 +952,17 @@ instance Rename Match where
 
 instance Rename TySyn where
   rename (TySyn n f ps ty) =
-    do when (isReserved (thing n))
-            (record (BoundReservedType (thing n) (getLoc n) (text "type synonym")))
-
-       shadowNames ps $ TySyn <$> rnLocated renameType n
-                              <*> pure f
-                              <*> traverse rename ps
-                              <*> rename ty
+    shadowNames ps $ TySyn <$> rnLocated renameType n
+                           <*> pure f
+                           <*> traverse rename ps
+                           <*> rename ty
 
 instance Rename PropSyn where
   rename (PropSyn n f ps cs) =
-    do when (isReserved (thing n))
-            (record (BoundReservedType (thing n) (getLoc n) (text "constraint synonym")))
-
-       shadowNames ps $ PropSyn <$> rnLocated renameType n
-                                <*> pure f
-                                <*> traverse rename ps
-                                <*> traverse rename cs
+    shadowNames ps $ PropSyn <$> rnLocated renameType n
+                             <*> pure f
+                             <*> traverse rename ps
+                             <*> traverse rename cs
 
 
 -- Utilities -------------------------------------------------------------------

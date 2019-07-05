@@ -153,20 +153,13 @@ data ConstraintSource
   | CtExactType
   | CtEnumeration
   | CtDefaulting          -- ^ Just defaulting on the command line
-  | CtPartialTypeFun TyFunName -- ^ Use of a partial type function.
+  | CtPartialTypeFun Name -- ^ Use of a partial type function.
   | CtImprovement
   | CtPattern Doc         -- ^ Constraints arising from type-checking patterns
   | CtModuleInstance ModName -- ^ Instantiating a parametrized module
     deriving (Show, Generic, NFData)
 
-data TyFunName = UserTyFun Name | BuiltInTyFun TFun | BuiltInTC TC
-                deriving (Show, Generic, NFData)
 
-
-instance PP TyFunName where
-  ppPrec c (UserTyFun x)    = ppPrec c x
-  ppPrec c (BuiltInTyFun x) = ppPrec c x
-  ppPrec c (BuiltInTC x)    = ppPrec c x
 
 instance TVars ConstraintSource where
   apSubst su src =

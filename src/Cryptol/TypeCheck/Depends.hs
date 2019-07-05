@@ -13,7 +13,8 @@ module Cryptol.TypeCheck.Depends where
 import           Cryptol.ModuleSystem.Name (Name)
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position(Range, Located(..), thing)
-import           Cryptol.Parser.Names (namesB, namesT, namesC)
+import           Cryptol.Parser.Names (namesB, tnamesT, tnamesC,
+                                      boundNamesSet, boundNames)
 import           Cryptol.TypeCheck.Monad( InferM, recordError, getTVars )
 import           Cryptol.TypeCheck.Error(Error(..))
 import           Cryptol.Utils.Panic(panic)
@@ -33,6 +34,7 @@ data TyDecl =
   | AT (P.ParameterType Name) (Maybe String)  -- ^ Parameter type
   | PS (P.PropSyn Name) (Maybe String)        -- ^ Property synonym
   | PT (P.PrimType Name) (Maybe String)       -- ^ A primitive/abstract typee
+    deriving Show
 
 setDocString :: Maybe String -> TyDecl -> TyDecl
 setDocString x d =
@@ -54,9 +56,19 @@ orderTyDecls ts =
      concat `fmap` mapM check ordered
 
   where
-  toMap _ ty@(PT p _) =
-    let x = P.primTName p
-    in ( thing x, x { thing = (ty, []) } )
+  toMap vs ty@(PT p _) =
+    let x       = P.primTName p
+        (as,cs) = P.primTCts p
+    in  ( thing x
+        , x { thing = (ty, Set.toList $
+                           boundNamesSet vs $
+                           boundNames (map P.tpName as) $
+                           Set.unions $
+                           map tnamesC cs
+                      )
+             }
+        )
+
 
   toMap _ ty@(AT a _) =
     let x = P.ptName a
@@ -65,9 +77,10 @@ orderTyDecls ts =
   toMap vs ty@(NT (P.Newtype x as fs) _) =
     ( thing x
     , x { thing = (ty, Set.toList $
-                       Set.difference
-                         (Set.unions (map (namesT vs . P.value) fs))
-                         (Set.fromList (map P.tpName as))
+                       boundNamesSet vs $
+                       boundNames (map P.tpName as) $
+                       Set.unions $
+                       map (tnamesT . P.value) fs
                   )
         }
     )
@@ -75,16 +88,21 @@ orderTyDecls ts =
   toMap vs ty@(TS (P.TySyn x _ as t) _) =
         (thing x
         , x { thing = (ty, Set.toList $
-                           Set.difference (namesT vs t)
-                                          (Set.fromList (map P.tpName as)))
+                           boundNamesSet vs $
+                           boundNames (map P.tpName as) $
+                           tnamesT t
+                      )
              }
         )
 
   toMap vs ty@(PS (P.PropSyn x _ as ps) _) =
         (thing x
         , x { thing = (ty, Set.toList $
-                           Set.difference (Set.unions (map (namesC vs) ps))
-                                          (Set.fromList (map P.tpName as)))
+                           boundNamesSet vs $
+                           boundNames (map P.tpName as) $
+                           Set.unions $
+                           map tnamesC ps
+                      )
              }
         )
   getN (TS x _) = thing (P.tsName x)

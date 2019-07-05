@@ -31,7 +31,6 @@ import           Data.Text(Text)
 import qualified Data.Text as T
 import           Control.Monad(liftM2,msum)
 
-import Cryptol.Prims.Syntax(TFun(..))
 import Cryptol.Parser.AST
 import Cryptol.Parser.Position
 import Cryptol.Parser.LexerUtils hiding (mkIdent)
@@ -82,6 +81,7 @@ import Paths_cryptol
 
   'primitive' { Located $$ (Token (KW KW_primitive) _)}
   'constraint'{ Located $$ (Token (KW KW_constraint) _)}
+  'Prop'      { Located $$ (Token (KW KW_Prop) _)}
 
   '['         { Located $$ (Token (Sym BracketL) _)}
   ']'         { Located $$ (Token (Sym BracketR) _)}
@@ -250,9 +250,7 @@ private_decls           :: { [TopDecl PName] }
 prim_bind               :: { [TopDecl PName] }
   : mbDoc 'primitive' name  ':' schema       { mkPrimDecl $1 $3 $5 }
   | mbDoc 'primitive' '(' op ')' ':' schema  { mkPrimDecl $1 $4 $7 }
-  | mbDoc 'primitive' 'type' name  ':' kind      { mkPrimTypeDecl $1 $4 $6 }
-  | mbDoc 'primitive' 'type' '(' op ')' ':' kind { mkPrimTypeDecl $1 $5 $8 }
-
+  | mbDoc 'primitive' 'type' schema ':' kind {% mkPrimTypeDecl $1 $4 $6 }
 
 
 parameter_decls                      :: { [TopDecl PName] }
@@ -634,10 +632,11 @@ schema_quals                   :: { Located [Prop PName] }
 schema_qual                    :: { Located [Prop PName] }
   : type '=>'                     {% fmap (\x -> at (x,$2) x) (mkProp $1) }
 
-kind                             :: { Located Kind      }
-  : '#'                             { Located $1 KNum   }
-  | '*'                             { Located $1 KType  }
-  | kind '->' kind                  { combLoc KFun $1 $3 }
+kind                           :: { Located Kind      }
+  : '#'                           { Located $1 KNum   }
+  | '*'                           { Located $1 KType  }
+  | 'Prop'                        { Located $1 KProp  }
+  | kind '->' kind                { combLoc KFun $1 $3 }
 
 schema_param                   :: { TParam PName }
   : ident                         {% mkTParam $1 Nothing           }
@@ -671,6 +670,7 @@ app_type                       :: { Type PName }
 
 atype                          :: { Type PName }
   : qname                         { at $1 $ TUser (thing $1) []        }
+  | '(' qop ')'                   { at $1 $ TUser (thing $2) []        }
   | NUM                           { at $1 $ TNum  (getNum $1)          }
   | CHARLIT                       { at $1 $ TChar (toEnum $ fromInteger
                                                           $ getNum $1) }

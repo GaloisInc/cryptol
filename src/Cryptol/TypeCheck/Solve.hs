@@ -12,9 +12,6 @@ module Cryptol.TypeCheck.Solve
   ( simplifyAllConstraints
   , proveImplication
   , proveModuleTopLevel
-  , wfType
-  , wfTypeFunction
-  , wfTC
   , defaultAndSimplify
   , defaultReplExpr
   ) where
@@ -50,46 +47,6 @@ import           Data.Maybe(listToMaybe)
 
 
 
-{- | Add additional constraints that ensure validity of type function.
-Note that these constraints do not introduce additional malformed types,
-so the well-formedness constraints are guaranteed to be well-formed.
-This assumes that the parameters are well-formed. -}
-wfTypeFunction :: TFun -> [Type] -> [Prop]
-wfTypeFunction TCSub [a,b]             = [ a >== b, pFin b]
-wfTypeFunction TCDiv [a,b]             = [ b >== tOne, pFin a ]
-wfTypeFunction TCMod [a,b]             = [ b >== tOne, pFin a ]
-wfTypeFunction TCCeilDiv [a,b]         = [ pFin a, pFin b, b >== tOne ]
-wfTypeFunction TCCeilMod [a,b]         = [ pFin a, pFin b, b >== tOne ]
-wfTypeFunction TCLenFromThenTo [a,b,c] = [ pFin a, pFin b, pFin c, a =/= b ]
-wfTypeFunction _ _                     = []
-
--- | Add additional constraints that ensure validity of a type
--- constructor application. Note that the constraints do not use any
--- partial type functions, so the new constraints are guaranteed to be
--- well-formed. This assumes that the parameters are well-formed.
-wfTC :: TC -> [Type] -> [Prop]
-wfTC TCIntMod [n] = [ pFin n, n >== tOne ]
-wfTC _ _          = []
-
--- | Add additional constraints that ensure the validity of a type.
-wfType :: Type -> [Prop]
-wfType t =
-  case t of
-    TCon c ts ->
-      let ps = concatMap wfType ts
-      in case c of
-           TF f -> wfTypeFunction f ts ++ ps
-           TC f -> wfTC f ts ++ ps
-           _    -> ps
-
-    TVar _      -> []
-    TUser _ _ s -> wfType s
-    TRec fs     -> concatMap (wfType . snd) fs
-
-
-
-
---------------------------------------------------------------------------------
 
 
 quickSolverIO :: Ctxt -> [Goal] -> IO (Either Goal (Subst,[Goal]))
