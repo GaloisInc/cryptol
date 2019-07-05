@@ -21,7 +21,8 @@ import Cryptol.ModuleSystem.Monad
 import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap)
 import Cryptol.ModuleSystem.Env (lookupModule
                                 , LoadedModule(..)
-                                , meCoreLint, CoreLint(..))
+                                , meCoreLint, CoreLint(..)
+                                , ModulePath(..), modulePathLabel)
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Value           as E
 import           Cryptol.Prims.Eval ()
@@ -45,7 +46,7 @@ import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
 
-import Cryptol.Prelude (writePreludeContents)
+import Cryptol.Prelude (preludeContents)
 
 import Cryptol.Transform.MonoValues (rewModule)
 
@@ -105,23 +106,34 @@ noPat a = do
 
 -- Parsing ---------------------------------------------------------------------
 
-parseModule :: FilePath -> ModuleM (Fingerprint, P.Module PName)
+parseModule :: ModulePath -> ModuleM (Fingerprint, P.Module PName)
 parseModule path = do
 
-  bytesRes <- io (X.try (B.readFile path))
+  bytesRes <- case path of
+                InFile p -> io (X.try (B.readFile p))
+                InMem _ bs -> pure (Right bs)
 
   bytes <- case bytesRes of
     Right bytes -> return bytes
-    Left exn | IOE.isDoesNotExistError exn -> cantFindFile path
-             | otherwise                   -> otherIOError path exn
+    Left exn ->
+      case path of
+        InFile p
+          | IOE.isDoesNotExistError exn -> cantFindFile p
+          | otherwise                   -> otherIOError p exn
+        InMem p _ -> panic "parseModule"
+                       [ "IOError for in-memory contetns???"
+                       , "Label: " ++ show p
+                       , "Exception: " ++ show exn ]
 
   txt <- case decodeUtf8' bytes of
     Right txt -> return txt
     Left e    -> badUtf8 path e
 
   let cfg = P.defaultConfig
-              { P.cfgSource  = path
-              , P.cfgPreProc = P.guessPreProc path
+              { P.cfgSource  = case path of
+                                 InFile p -> p
+                                 InMem l _ -> l
+              , P.cfgPreProc = P.guessPreProc (modulePathLabel path)
               }
 
   case P.parseModule cfg txt of
@@ -137,25 +149,26 @@ loadModuleByPath :: FilePath -> ModuleM T.Module
 loadModuleByPath path = withPrependedSearchPath [ takeDirectory path ] $ do
   let fileName = takeFileName path
   foundPath <- findFile fileName
-  (fp, pm) <- parseModule foundPath
+  (fp, pm) <- parseModule (InFile foundPath)
   let n = thing (P.mName pm)
 
   -- Check whether this module name has already been loaded from a different file
   env <- getModuleEnv
   -- path' is the resolved, absolute path, used only for checking
   -- whether it's already been loaded
-  path' <- io $ canonicalizePath foundPath
+  path' <- io (canonicalizePath foundPath)
+
   case lookupModule n env of
     -- loadModule will calculate the canonical path again
-    Nothing -> doLoadModule (FromModule n) foundPath fp pm
+    Nothing -> doLoadModule (FromModule n) (InFile foundPath) fp pm
     Just lm
      | path' == loaded -> return (lmModule lm)
      | otherwise       -> duplicateModuleName n path' loaded
-     where loaded = lmCanonicalPath lm
+     where loaded = lmModuleId lm
 
 
 -- | Load a module, unless it was previously loaded.
-loadModuleFrom :: ImportSource -> ModuleM (FilePath,T.Module)
+loadModuleFrom :: ImportSource -> ModuleM (ModulePath,T.Module)
 loadModuleFrom isrc =
   do let n = importedModule isrc
      mb <- getLoadedMaybe n
@@ -171,7 +184,7 @@ loadModuleFrom isrc =
 -- | Load dependencies, typecheck, and add to the eval environment.
 doLoadModule ::
   ImportSource ->
-  FilePath ->
+  ModulePath ->
   Fingerprint ->
   P.Module PName ->
   ModuleM T.Module
@@ -186,8 +199,7 @@ doLoadModule isrc path fp pm0 =
 
      -- extend the eval env, unless a functor.
      unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv tcm)
-     canonicalPath <- io (canonicalizePath path)
-     loadedModule path canonicalPath fp tcm
+     loadedModule path fp tcm
 
      return tcm
   where
@@ -224,8 +236,9 @@ importIfaces is = mconcat `fmap` mapM importIface is
 moduleFile :: ModName -> String -> FilePath
 moduleFile n = addExtension (joinPath (modNameChunks n))
 
+
 -- | Discover a module.
-findModule :: ModName -> ModuleM FilePath
+findModule :: ModName -> ModuleM ModulePath
 findModule n = do
   paths <- getSearchPath
   loop (possibleFiles paths)
@@ -234,13 +247,13 @@ findModule n = do
 
     path:rest -> do
       b <- io (doesFileExist path)
-      if b then return path else loop rest
+      if b then return (InFile path) else loop rest
 
     [] -> handleNotFound
 
   handleNotFound =
     case n of
-      m | m == preludeName -> io writePreludeContents
+      m | m == preludeName -> pure (InMem "Cryptol" preludeContents)
       _ -> moduleNotFound n =<< getSearchPath
 
   -- generate all possible search paths
@@ -359,7 +372,7 @@ getPrimMap  =
                   [ "Unable to find the prelude" ]
 
 -- | Load a module, be it a normal module or a functor instantiation.
-checkModule :: ImportSource -> FilePath -> P.Module PName -> ModuleM T.Module
+checkModule :: ImportSource -> ModulePath -> P.Module PName -> ModuleM T.Module
 checkModule isrc path m =
   case P.mInstance m of
     Nothing -> checkSingleModule T.tcModule isrc path m
@@ -373,7 +386,7 @@ checkModule isrc path m =
 checkSingleModule ::
   Act (P.Module Name) T.Module {- ^ how to check -} ->
   ImportSource                 {- ^ why are we loading this -} ->
-  FilePath                     {- path -} ->
+  ModulePath                   {- path -} ->
   P.Module PName               {- ^ module to check -} ->
   ModuleM T.Module
 checkSingleModule how isrc path m = do
@@ -383,8 +396,14 @@ checkSingleModule how isrc path m = do
   unless (notParamInstModName nm == thing (P.mName m))
          (moduleNameMismatch nm (mName m))
 
-  -- remove includes first
-  e   <- io (removeIncludesModule path m)
+  -- remove includes first; we only do this for actual files.
+  -- it is less clear what should happen for in-memory things, and since
+  -- this is a more-or-less obsolete feature, we are just not doing
+  -- ot for now.
+  e   <- case path of
+           InFile p -> io (removeIncludesModule p m)
+           InMem {} -> pure (Right m)
+
   nim <- case e of
            Right nim  -> return nim
            Left ierrs -> noIncludeErrors ierrs

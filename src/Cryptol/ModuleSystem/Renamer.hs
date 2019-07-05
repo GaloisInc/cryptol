@@ -163,9 +163,10 @@ data RenamerWarning
 instance PP RenamerWarning where
   ppPrec _ (SymbolShadowed new originals disp) = fixNameDisp disp $
     hang (text "[warning] at" <+> loc)
-       4 $ fsep [ text "This binding for" <+> sym
-                , (text "shadows the existing binding" <.> plural) <+> text "from" ]
-        $$ vcat (map ppLocName originals)
+       4 $ fsep [ text "This binding for" <+> backticks sym
+                , text "shadows the existing binding" <.> plural <+>
+                  text "at" ]
+        $$ vcat (map (pp . nameLoc) originals)
 
     where
     plural | length originals > 1 = char 's'

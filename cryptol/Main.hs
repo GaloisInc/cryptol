@@ -17,6 +17,7 @@ import Cryptol.REPL.Command (loadCmd,loadPrelude,CommandExitCode(..))
 import Cryptol.REPL.Monad (REPL,updateREPLTitle,setUpdateREPLTitle,
                    io,prependSearchPath,setSearchPath)
 import qualified Cryptol.REPL.Monad as REPL
+import Cryptol.ModuleSystem.Env(ModulePath(..))
 
 import REPL.Haskeline
 import REPL.Logo
@@ -276,6 +277,6 @@ setupREPL opts = do
              REPL.setEditPath l
              REPL.setLoadedMod REPL.LoadedModule
                { REPL.lName = Nothing
-               , REPL.lPath = l
+               , REPL.lPath = InFile l
                }
     _   -> io $ putStrLn "Only one file may be loaded at the command line."

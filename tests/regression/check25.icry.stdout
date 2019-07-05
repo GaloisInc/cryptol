@@ -2,8 +2,8 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module check25
 [warning] at ./check25.cry:6:9--6:11
-    This binding for tz shadows the existing binding from
-    (at ./check25.cry:3:1--3:3, tz)
+    This binding for `tz` shadows the existing binding at
+    ./check25.cry:3:1--3:3
 [warning] at ./check25.cry:8:11--8:19:
   Defaulting 1st type argument of 'check25::tx' to [4]
 [warning] at ./check25.cry:5:6--6:16:

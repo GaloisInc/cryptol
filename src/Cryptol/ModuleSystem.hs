@@ -57,19 +57,19 @@ getPrimMap :: ModuleCmd PrimMap
 getPrimMap me = runModuleM me Base.getPrimMap
 
 -- | Find the file associated with a module name in the module search path.
-findModule :: P.ModName -> ModuleCmd FilePath
+findModule :: P.ModName -> ModuleCmd ModulePath
 findModule n env = runModuleM env (Base.findModule n)
 
 -- | Load the module contained in the given file.
-loadModuleByPath :: FilePath -> ModuleCmd (FilePath,T.Module)
+loadModuleByPath :: FilePath -> ModuleCmd (ModulePath,T.Module)
 loadModuleByPath path (evo,env) = runModuleM (evo,resetModuleEnv env) $ do
-  unloadModule ((path ==) . lmFilePath)
+  unloadModule ((InFile path ==) . lmFilePath)
   m <- Base.loadModuleByPath path
   setFocusedModule (T.mName m)
-  return (path,m)
+  return (InFile path,m)
 
 -- | Load the given parsed module.
-loadModuleByName :: P.ModName -> ModuleCmd (FilePath,T.Module)
+loadModuleByName :: P.ModName -> ModuleCmd (ModulePath,T.Module)
 loadModuleByName n env = runModuleM env $ do
   unloadModule ((n ==) . lmName)
   (path,m') <- Base.loadModuleFrom (FromModule n)

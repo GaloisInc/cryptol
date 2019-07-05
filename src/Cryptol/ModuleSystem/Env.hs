@@ -25,8 +25,9 @@ import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
 import qualified Cryptol.TypeCheck.AST as T
-import Cryptol.Utils.PP (NameDisp)
+import Cryptol.Utils.PP (PP(..),text,parens,NameDisp)
 
+import Data.ByteString(ByteString)
 import Control.Monad (guard,mplus)
 import qualified Control.Exception as X
 import Data.Function (on)
@@ -222,6 +223,36 @@ dynamicEnv me = (decls,names,R.toNameDisp names)
 
 -- Loaded Modules --------------------------------------------------------------
 
+-- | The location of a module
+data ModulePath = InFile FilePath
+                | InMem String ByteString -- ^ Label, content
+    deriving (Show, Generic, NFData)
+
+-- | In-memory things are compared by label.
+instance Eq ModulePath where
+  p1 == p2 =
+    case (p1,p2) of
+      (InFile x, InFile y) -> x == y
+      (InMem a _, InMem b _) -> a == b
+      _ -> False
+
+instance PP ModulePath where
+  ppPrec _ e =
+    case e of
+      InFile p  -> text p
+      InMem l _ -> parens (text l)
+
+
+
+-- | The name of the content---either the file path, or the provided label.
+modulePathLabel :: ModulePath -> String
+modulePathLabel p =
+  case p of
+    InFile path -> path
+    InMem lab _ -> lab
+
+
+
 data LoadedModules = LoadedModules
   { lmLoadedModules      :: [LoadedModule]
     -- ^ Invariants:
@@ -250,10 +281,12 @@ instance Monoid LoadedModules where
 
 data LoadedModule = LoadedModule
   { lmName              :: ModName
-  , lmFilePath          :: FilePath
+  , lmFilePath          :: ModulePath
     -- ^ The file path used to load this module (may not be canonical)
-  , lmCanonicalPath     :: FilePath
-    -- ^ The canonical version of the path of this module
+  , lmModuleId          :: String
+    -- ^ An identifier used to identify the source of the bytes for the module.
+    -- For files we just use the cononical path, for in memory things we
+    -- use their label.
   , lmInterface         :: Iface
   , lmModule            :: T.Module
   , lmFingerprint       :: Fingerprint
@@ -277,8 +310,8 @@ lookupModule mn me = search lmLoadedModules `mplus` search lmLoadedParamModules
 -- | Add a freshly loaded module.  If it was previously loaded, then
 -- the new version is ignored.
 addLoadedModule ::
-  FilePath -> FilePath -> Fingerprint -> T.Module -> LoadedModules -> LoadedModules
-addLoadedModule path canonicalPath fp tm lm
+  ModulePath -> String -> Fingerprint -> T.Module -> LoadedModules -> LoadedModules
+addLoadedModule path ident fp tm lm
   | isLoaded (T.mName tm) lm  = lm
   | T.isParametrizedModule tm = lm { lmLoadedParamModules = loaded :
                                                 lmLoadedParamModules lm }
@@ -288,7 +321,7 @@ addLoadedModule path canonicalPath fp tm lm
   loaded = LoadedModule
     { lmName            = T.mName tm
     , lmFilePath        = path
-    , lmCanonicalPath   = canonicalPath
+    , lmModuleId        = ident
     , lmInterface       = genIface tm
     , lmModule          = tm
     , lmFingerprint     = fp

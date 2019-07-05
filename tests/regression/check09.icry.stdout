@@ -2,17 +2,17 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at ./check09.cry:22:5--22:10
-    This binding for initL shadows the existing binding from
-    (at ./check09.cry:4:1--4:6, initL)
+    This binding for `initL` shadows the existing binding at
+    ./check09.cry:4:1--4:6
 [warning] at ./check09.cry:21:5--21:10
-    This binding for initS shadows the existing binding from
-    (at ./check09.cry:3:1--3:6, initS)
+    This binding for `initS` shadows the existing binding at
+    ./check09.cry:3:1--3:6
 [warning] at ./check09.cry:27:5--27:7
-    This binding for ls shadows the existing binding from
-    (at ./check09.cry:8:1--8:3, ls)
+    This binding for `ls` shadows the existing binding at
+    ./check09.cry:8:1--8:3
 [warning] at ./check09.cry:23:5--23:7
-    This binding for ss shadows the existing binding from
-    (at ./check09.cry:5:1--5:3, ss)
+    This binding for `ss` shadows the existing binding at
+    ./check09.cry:5:1--5:3
 [warning] at ./check09.cry:17:12--17:28:
   Defaulting type argument 'ix' of '(@@)' to 3
 [warning] at ./check09.cry:13:12--13:80:

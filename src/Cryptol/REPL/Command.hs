@@ -81,9 +81,12 @@ import qualified Cryptol.Symbolic as Symbolic
 
 import qualified Control.Exception as X
 import Control.Monad hiding (mapM, mapM)
+import Control.Monad.IO.Class(liftIO)
+import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BS8
 import Data.Bits ((.&.))
-import Data.Char (isSpace,isPunctuation,isSymbol)
+import Data.Char (isSpace,isPunctuation,isSymbol,isAlphaNum,isAscii)
 import Data.Function (on)
 import Data.List (intercalate, nub, sortBy, partition, isPrefixOf,intersperse)
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
@@ -92,10 +95,12 @@ import System.Exit (ExitCode(ExitSuccess))
 import System.Process (shell,createProcess,waitForProcess)
 import qualified System.Process as Process(runCommand)
 import System.FilePath((</>), isPathSeparator)
-import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist)
+import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist
+                       ,getTemporaryDirectory,setPermissions,removeFile
+                       ,emptyPermissions,setOwnerReadable)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import System.IO(hFlush,stdout)
+import System.IO(hFlush,stdout,openTempFile,hClose)
 import System.Random.TF(newTFGen)
 import Numeric (showFFloat)
 import qualified Data.Text as T
@@ -777,7 +782,9 @@ reloadCmd  = do
     Just lm  ->
       case lName lm of
         Just m | M.isParamInstModName m -> loadHelper (M.loadModuleByName m)
-        _ -> loadCmd (lPath lm)
+        _ -> case lPath lm of
+               M.InFile f -> loadCmd f
+               _ -> return ()
     Nothing -> return ()
 
 
@@ -787,16 +794,40 @@ editCmd path =
      mbL <- getLoadedMod
      if not (null path)
         then do when (isNothing mbL)
-                  $ setLoadedMod LoadedModule { lName = Nothing, lPath = path }
+                  $ setLoadedMod LoadedModule { lName = Nothing
+                                              , lPath = M.InFile path }
                 doEdit path
-        else case msum [ mbE, lPath <$> mbL ] of
+        else case msum [ M.InFile <$> mbE, lPath <$> mbL ] of
                Nothing -> rPutStrLn "No filed to edit."
-               Just p  -> doEdit p
+               Just p  ->
+                  case p of
+                    M.InFile f   -> doEdit f
+                    M.InMem l bs -> withROTempFile l bs replEdit >> pure ()
   where
   doEdit p =
     do setEditPath p
        _ <- replEdit p
        reloadCmd
+
+withROTempFile :: String -> ByteString -> (FilePath -> REPL a) -> REPL a
+withROTempFile name cnt k =
+  do (path,h) <- mkTmp
+     do mkFile path h
+        k path
+      `finally` liftIO (do hClose h
+                           removeFile path)
+  where
+  mkTmp =
+    liftIO $
+    do tmp <- getTemporaryDirectory
+       let esc c = if isAscii c && isAlphaNum c then c else '_'
+       openTempFile tmp (map esc name ++ ".cry")
+
+  mkFile path h =
+    liftIO $
+    do BS8.hPutStrLn h cnt
+       setPermissions path (setOwnerReadable True emptyPermissions)
+
 
 
 moduleCmd :: String -> REPL ()
@@ -817,11 +848,11 @@ loadCmd path
   -- when `:load`, the edit and focused paths become the parameter
   | otherwise = do setEditPath path
                    setLoadedMod LoadedModule { lName = Nothing
-                                             , lPath = path
+                                             , lPath = M.InFile path
                                              }
                    loadHelper (M.loadModuleByPath path)
 
-loadHelper :: M.ModuleCmd (FilePath,T.Module) -> REPL ()
+loadHelper :: M.ModuleCmd (M.ModulePath,T.Module) -> REPL ()
 loadHelper how =
   do clearLoadedMod
      (path,m) <- liftModuleCmd how
@@ -831,7 +862,9 @@ loadHelper how =
         , lPath = path
         }
      -- after a successful load, the current module becomes the edit target
-     setEditPath path
+     case path of
+       M.InFile f -> setEditPath f
+       M.InMem {} -> clearEditPath
      setDynEnv mempty
 
 quitCmd :: REPL ()
@@ -1239,7 +1272,7 @@ moduleCmdResult (res,ws0) = do
     Right (a,me') -> setModuleEnv me' >> return a
     Left err      ->
       do e <- case err of
-                M.ErrorInFile file e ->
+                M.ErrorInFile (M.InFile file) e ->
                   -- on error, the file with the error becomes the edit
                   -- target.  Note, however, that the focused module is not
                   -- changed.

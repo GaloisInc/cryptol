@@ -40,12 +40,14 @@ import Data.Function (on)
 import Data.Maybe (isJust)
 import Data.Text.Encoding.Error (UnicodeException)
 import MonadLib
+import System.Directory (canonicalizePath)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Prelude ()
 import Prelude.Compat
+
 
 -- Errors ----------------------------------------------------------------------
 
@@ -78,11 +80,11 @@ data ModuleError
     -- ^ Unable to find the module given, tried looking in these paths
   | CantFindFile FilePath
     -- ^ Unable to open a file
-  | BadUtf8 FilePath UnicodeException
+  | BadUtf8 ModulePath UnicodeException
     -- ^ Bad UTF-8 encoding in while decoding this file
   | OtherIOError FilePath IOException
     -- ^ Some other IO error occurred while reading this file
-  | ModuleParseError FilePath Parser.ParseError
+  | ModuleParseError ModulePath Parser.ParseError
     -- ^ Generated this parse error when parsing the file for module m
   | RecursiveModules [ImportSource]
     -- ^ Recursive module group discovered
@@ -106,7 +108,7 @@ data ModuleError
     -- ^ Failed to add the module parameters to all definitions in a module.
   | NotAParameterizedModule P.ModName
 
-  | ErrorInFile FilePath ModuleError
+  | ErrorInFile ModulePath ModuleError
     -- ^ This is just a tag on the error, indicating the file containing it.
     -- It is convenient when we had to look for the module, and we'd like
     -- to communicate the location of pthe problematic module to the handler.
@@ -153,7 +155,7 @@ instance PP ModuleError where
 
     BadUtf8 path _ue ->
       text "[error]" <+>
-      text "bad utf-8 encoding:" <+> text path
+      text "bad utf-8 encoding:" <+> pp path
 
     OtherIOError path exn ->
       hang (text "[error]" <+>
@@ -207,13 +209,13 @@ moduleNotFound name paths = ModuleT (raise (ModuleNotFound name paths))
 cantFindFile :: FilePath -> ModuleM a
 cantFindFile path = ModuleT (raise (CantFindFile path))
 
-badUtf8 :: FilePath -> UnicodeException -> ModuleM a
+badUtf8 :: ModulePath -> UnicodeException -> ModuleM a
 badUtf8 path ue = ModuleT (raise (BadUtf8 path ue))
 
 otherIOError :: FilePath -> IOException -> ModuleM a
 otherIOError path exn = ModuleT (raise (OtherIOError path exn))
 
-moduleParseError :: FilePath -> Parser.ParseError -> ModuleM a
+moduleParseError :: ModulePath -> Parser.ParseError -> ModuleM a
 moduleParseError path err =
   ModuleT (raise (ModuleParseError path err))
 
@@ -260,7 +262,7 @@ notAParameterizedModule x = ModuleT (raise (NotAParameterizedModule x))
 
 -- | Run the computation, and if it caused and error, tag the error
 -- with the given file.
-errorInFile :: FilePath -> ModuleM a -> ModuleM a
+errorInFile :: ModulePath -> ModuleM a -> ModuleM a
 errorInFile file (ModuleT m) = ModuleT (m `handle` h)
   where h e = raise $ case e of
                         ErrorInFile {} -> e
@@ -456,10 +458,14 @@ unloadModule rm = ModuleT $ do
   env <- get
   set $! env { meLoadedModules = removeLoadedModule rm (meLoadedModules env) }
 
-loadedModule :: FilePath -> FilePath -> Fingerprint -> T.Module -> ModuleM ()
-loadedModule path canonicalPath fp m = ModuleT $ do
+loadedModule :: ModulePath -> Fingerprint -> T.Module -> ModuleM ()
+loadedModule path fp m = ModuleT $ do
   env <- get
-  set $! env { meLoadedModules = addLoadedModule path canonicalPath fp m (meLoadedModules env) }
+  ident <- case path of
+             InFile p  -> unModuleT $ io (canonicalizePath p)
+             InMem l _ -> pure l
+
+  set $! env { meLoadedModules = addLoadedModule path ident fp m (meLoadedModules env) }
 
 modifyEvalEnv :: (EvalEnv -> E.Eval EvalEnv) -> ModuleM ()
 modifyEvalEnv f = ModuleT $ do

@@ -22,6 +22,7 @@ module Cryptol.REPL.Monad (
   , raise
   , stop
   , catch
+  , finally
   , rPutStrLn
   , rPutStr
   , rPrint
@@ -42,7 +43,7 @@ module Cryptol.REPL.Monad (
   , getPropertyNames
   , getModNames
   , LoadedModule(..), getLoadedMod, setLoadedMod, clearLoadedMod
-  , setEditPath, getEditPath
+  , setEditPath, getEditPath, clearEditPath
   , setSearchPath, prependSearchPath
   , getPrompt
   , shouldContinue
@@ -122,8 +123,8 @@ import Prelude.Compat
 
 -- | This indicates what the user would like to work on.
 data LoadedModule = LoadedModule
-  { lName :: Maybe P.ModName -- ^ Working on this module.
-  , lPath :: FilePath        -- ^ Working on this file.
+  { lName :: Maybe P.ModName  -- ^ Working on this module.
+  , lPath :: M.ModulePath     -- ^ Working on this file.
   }
 
 -- | REPL RW Environment.
@@ -185,7 +186,7 @@ mkPrompt rw
 
   modLn   =
     case lName =<< eLoadedMod rw of
-      Nothing -> "cryptol"
+      Nothing -> show (pp I.preludeName)
       Just m
         | M.isLoadedParamMod m (M.meLoadedModules (eModuleEnv rw)) ->
                  modName ++ "(parameterized)"
@@ -196,15 +197,15 @@ mkPrompt rw
     case eLoadedMod rw of
       Nothing -> modLn
       Just m ->
-        case lName m of
-          Nothing -> ":r to reload " ++ lPath m ++ "\n" ++ modLn
-          Just _ -> modLn
+        case (lName m, lPath m) of
+          (Nothing, M.InFile f) -> ":r to reload " ++ show f ++ "\n" ++ modLn
+          _ -> modLn
 
   withEdit =
     case eEditFile rw of
       Nothing -> withFocus
       Just e
-        | Just f <- lPath <$> eLoadedMod rw
+        | Just (M.InFile f) <- lPath <$> eLoadedMod rw
         , f == e -> withFocus
         | otherwise -> ":e to edit " ++ e ++ "\n" ++ withFocus
 
@@ -308,6 +309,9 @@ raise exn = io (X.throwIO exn)
 catch :: REPL a -> (REPLException -> REPL a) -> REPL a
 catch m k = REPL (\ ref -> rethrowEvalError (unREPL m ref) `X.catch` \ e -> unREPL (k e) ref)
 
+finally :: REPL a -> REPL b -> REPL a
+finally m1 m2 = REPL (\ref -> unREPL m1 ref `X.finally` unREPL m2 ref)
+
 
 rethrowEvalError :: IO a -> IO a
 rethrowEvalError m = run `X.catch` rethrow
@@ -364,6 +368,9 @@ setEditPath p = modifyRW_ $ \rw -> rw { eEditFile = Just p }
 
 getEditPath :: REPL (Maybe FilePath)
 getEditPath = eEditFile <$> getRW
+
+clearEditPath :: REPL ()
+clearEditPath = modifyRW_ $ \rw -> rw { eEditFile = Nothing }
 
 setSearchPath :: [FilePath] -> REPL ()
 setSearchPath path = do

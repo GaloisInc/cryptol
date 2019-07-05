@@ -2,11 +2,11 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module test05
 [warning] at ./test05.cry:9:3--9:6
-    This binding for foo shadows the existing binding from
-    (at ./test05.cry:4:1--4:4, foo)
+    This binding for `foo` shadows the existing binding at
+    ./test05.cry:4:1--4:4
 [warning] at ./test05.cry:13:5--13:8
-    This binding for foo shadows the existing binding from
-    (at ./test05.cry:9:3--9:6, foo)
+    This binding for `foo` shadows the existing binding at
+    ./test05.cry:9:3--9:6
 module test05
 import Cryptol
 /* Not recursive */
@@ -43,11 +43,11 @@ test05::test = \{n, a, b} (Zero b, Literal 10 a) (a : [n]b) ->
 Loading module Cryptol
 Loading module test05
 [warning] at ./test05.cry:9:3--9:6
-    This binding for foo shadows the existing binding from
-    (at ./test05.cry:4:1--4:4, foo)
+    This binding for `foo` shadows the existing binding at
+    ./test05.cry:4:1--4:4
 [warning] at ./test05.cry:13:5--13:8
-    This binding for foo shadows the existing binding from
-    (at ./test05.cry:9:3--9:6, foo)
+    This binding for `foo` shadows the existing binding at
+    ./test05.cry:9:3--9:6
 [warning] at ./test05.cry:14:11--14:21:
   Defaulting type argument 'front' of '(#)' to 0
 module test05

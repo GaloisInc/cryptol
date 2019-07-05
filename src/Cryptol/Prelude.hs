@@ -13,28 +13,15 @@
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Cryptol.Prelude (
-  writePreludeContents,
-  cryptolTcContents
-  ) where
+module Cryptol.Prelude (preludeContents,cryptolTcContents) where
 
 
-import System.Directory (getTemporaryDirectory)
-import System.IO (hClose, hPutStr, openTempFile)
+import Data.ByteString(ByteString)
+import qualified Data.ByteString.Char8 as B
 import Text.Heredoc (there)
 
-preludeContents :: String
-preludeContents = [there|lib/Cryptol.cry|]
-
--- | Write the contents of the Prelude to a temporary file so that
--- Cryptol can load the module.
-writePreludeContents :: IO FilePath
-writePreludeContents = do
-  tmpdir <- getTemporaryDirectory
-  (path, h) <- openTempFile tmpdir "Cryptol.cry"
-  hPutStr h preludeContents
-  hClose h
-  return path
+preludeContents :: ByteString
+preludeContents = B.pack [there|lib/Cryptol.cry|]
 
 cryptolTcContents :: String
 cryptolTcContents = [there|lib/CryptolTC.z3|]
