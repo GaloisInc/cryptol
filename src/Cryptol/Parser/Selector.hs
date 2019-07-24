@@ -76,12 +76,10 @@ selName s =
     TupleSel n _  -> packIdent ("_" ++ show n)
     ListSel n _   -> packIdent ("__" ++ show n)
 
--- | Show a list of selectors as they appear in a nested selector in an updae
+-- | Show a list of selectors as they appear in a nested selector in an update.
 ppNestedSels :: [Selector] -> Doc
 ppNestedSels = hcat . intersperse "." . map ppS
   where ppS s = case s of
                   RecordSel i _ -> text (unpackIdent i)
                   TupleSel n _ -> int n
                   ListSel n _  -> brackets (int n) -- not in source
-
-

@@ -256,7 +256,7 @@ exprSchema expr =
            (_,_)      -> reportError (BadProofTyVars as)
 
 
-    -- XXX: Check that defined things are disitnct?
+    -- XXX: Check that defined things are distinct?
     EWhere e dgs ->
       let go []       = exprSchema e
           go (d : ds) = do xs <- checkDeclGroup d
