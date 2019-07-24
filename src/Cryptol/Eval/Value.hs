@@ -629,7 +629,10 @@ instance BitWord Bool BV Integer where
 
 -- | Create a packed word of n bits.
 word :: BitWord b w i => Integer -> Integer -> GenValue b w i
-word n i = VWord n $ ready $ WordVal $ wordLit n i
+word n i
+  | n >= Arch.maxBigIntWidth = wordTooWide n
+  | otherwise                = VWord n $ ready $ WordVal $ wordLit n i
+
 
 lam :: (Eval (GenValue b w i) -> Eval (GenValue b w i)) -> GenValue b w i
 lam  = VFun

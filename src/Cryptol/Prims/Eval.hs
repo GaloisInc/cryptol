@@ -24,7 +24,6 @@ import Control.Monad (join, unless)
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),fromNat,genLog, nMul)
-import qualified Cryptol.Eval.Arch as Arch
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
@@ -220,9 +219,7 @@ mkLit ty =
   case ty of
     TVInteger                    -> VInteger . integerLit
     TVIntMod _                   -> VInteger . integerLit
-    TVSeq w TVBit
-      | w >= Arch.maxBigIntWidth -> wordTooWide w
-      | otherwise                -> word w
+    TVSeq w TVBit                -> word w
     _                            -> evalPanic "Cryptol.Eval.Prim.evalConst"
                                     [ "Invalid type for number" ]
 
