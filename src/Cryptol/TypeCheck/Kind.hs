@@ -372,7 +372,7 @@ doCheckType ty k =
     P.TSeq t1 t2    -> tcon (TC TCSeq)                 [t1,t2] k
     P.TBit          -> tcon (TC TCBit)                 [] k
     P.TNum n        -> tcon (TC (TCNum n))             [] k
-    P.TChar n       -> tcon (TC (TCNum $ fromIntegral $ fromEnum n)) [] k
+    P.TChar n       -> tcon (TC (TCNum $ toInteger $ fromEnum n)) [] k
 
     P.TTuple ts     -> tcon (TC (TCTuple (length ts))) ts k
 

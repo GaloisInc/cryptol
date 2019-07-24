@@ -184,7 +184,7 @@ getName l = case thing l of
 getNum :: Located Token -> Integer
 getNum l = case thing l of
              Token (Num x _ _) _ -> x
-             Token (ChrLit x) _  -> fromIntegral (fromEnum x)
+             Token (ChrLit x) _  -> toInteger (fromEnum x)
              _ -> panic "[Parser] getNum" ["not a number:", show l]
 
 getStr :: Located Token -> String

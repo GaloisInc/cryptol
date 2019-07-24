@@ -326,7 +326,7 @@ checkHas t sel =
                Just len ->
                  case tNoUser n of
                    TCon (TC (TCNum m)) []
-                     | m == fromIntegral len -> return ()
+                     | m == toInteger len -> return ()
                    _ -> reportError $ UnexpectedSequenceShape len n
 
              return elT

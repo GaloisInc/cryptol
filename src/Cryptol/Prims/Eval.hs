@@ -660,7 +660,7 @@ signedBV :: BV -> Integer
 signedBV (BV i x) = signedValue i x
 
 signedValue :: Integer -> Integer -> Integer
-signedValue i x = if testBit x (fromIntegral (i-1)) then x - (1 `shiftL` (fromIntegral i)) else x
+signedValue i x = if testBit x (fromInteger (i-1)) then x - (1 `shiftL` (fromInteger i)) else x
 
 bvSlt :: Integer -> Integer -> Integer -> Eval Value
 bvSlt _sz x y = return . VBit $! (x < y)
@@ -679,7 +679,7 @@ sshrV =
   nlam $ \_k ->
   wlam $ \(BV i x) -> return $
   wlam $ \y ->
-   let signx = testBit x (fromIntegral (i-1))
+   let signx = testBit x (fromInteger (i-1))
        amt   = fromInteger (bvVal y)
        negv  = (((-1) `shiftL` amt) .|. x) `shiftR` amt
        posv  = x `shiftR` amt
@@ -1481,7 +1481,7 @@ randomV ty seed =
     Just gen ->
       -- unpack the seed into four Word64s
       let mask64 = 0xFFFFFFFFFFFFFFFF
-          unpack s = fromIntegral (s .&. mask64) : unpack (s `shiftR` 64)
+          unpack s = fromInteger (s .&. mask64) : unpack (s `shiftR` 64)
           [a, b, c, d] = take 4 (unpack seed)
       in fst $ gen 100 $ seedTFGen (a, b, c, d)
 

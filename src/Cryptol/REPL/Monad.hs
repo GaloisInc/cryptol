@@ -793,7 +793,7 @@ userOptions  = mkOptionMap
     "Enable type-checker debugging output." $
     \case EnvNum n -> do me <- getModuleEnv
                          let cfg = M.meSolverConfig me
-                         setModuleEnv me { M.meSolverConfig = cfg{ T.solverVerbose = fromIntegral n } }
+                         setModuleEnv me { M.meSolverConfig = cfg{ T.solverVerbose = n } }
           _        -> return ()
   , OptionDescr "core-lint" (EnvBool False)
     noCheck

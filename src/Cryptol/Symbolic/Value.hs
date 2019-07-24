@@ -193,7 +193,7 @@ instance BitWord SBool SWord SInteger where
   wordLit n x = svInteger (KBounded False (fromInteger n)) x
   integerLit x = svInteger KUnbounded x
 
-  wordBit x idx = svTestBit x (intSizeOf x - 1 - fromIntegral idx)
+  wordBit x idx = svTestBit x (intSizeOf x - 1 - fromInteger idx)
 
   wordUpdate x idx b = svSymbolicMerge (kindOf x) False b wtrue wfalse
     where

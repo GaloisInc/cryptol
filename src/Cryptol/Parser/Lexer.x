@@ -245,7 +245,7 @@ primLexer cfg cs = run inp Normal
           , alexPos i')
       AlexSkip i' _ -> run i' s
       AlexToken i' l act ->
-        let txt         = Text.take (fromIntegral l) (input i)
+        let txt         = Text.take l (input i)
             (mtok,s')   = act cfg (alexPos i) txt s
             (rest,pos)  = run i' $! s'
         in case mtok of

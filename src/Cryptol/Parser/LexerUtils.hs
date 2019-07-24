@@ -214,15 +214,15 @@ splitQual t =
 
 --------------------------------------------------------------------------------
 numToken :: Integer -> Text -> TokenT
-numToken rad ds = Num (toVal ds') (fromInteger rad) (fromIntegral (T.length ds'))
+numToken rad ds = Num (toVal ds') (fromInteger rad) (T.length ds')
   where
   ds' = T.filter (/= '_') ds
   toVal = T.foldl' (\x c -> rad * x + fromDigit c) 0
 
 fromDigit :: Char -> Integer
 fromDigit x'
-  | 'a' <= x && x <= 'z'  = fromIntegral (10 + fromEnum x - fromEnum 'a')
-  | otherwise             = fromIntegral (fromEnum x - fromEnum '0')
+  | 'a' <= x && x <= 'z'  = toInteger (10 + fromEnum x - fromEnum 'a')
+  | otherwise             = toInteger (fromEnum x - fromEnum '0')
   where x                 = toLower x'
 
 -------------------------------------------------------------------------------

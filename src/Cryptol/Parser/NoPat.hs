@@ -96,7 +96,7 @@ noPat pat =
          x <- newName
          r <- getRange
          let len      = length ps
-             ty       = TSeq (TNum (fromIntegral len)) TWild
+             ty       = TSeq (TNum (toInteger len)) TWild
              getN a n = sel a x (ListSel n (Just len))
          return (pTy r x ty, zipWith getN as [0..] ++ concat dss)
 

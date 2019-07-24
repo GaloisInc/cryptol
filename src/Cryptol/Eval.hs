@@ -461,7 +461,7 @@ evalSetSel e x v =
   case x of
     TupleSel n _  -> setTuple n
     RecordSel n _ -> setRecord n
-    ListSel ix _  -> setList (fromIntegral ix)
+    ListSel ix _  -> setList (toInteger ix)
 
   where
   bad msg =

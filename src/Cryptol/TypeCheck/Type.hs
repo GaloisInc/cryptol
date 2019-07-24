@@ -449,7 +449,7 @@ pIsWidth ty = case tNoUser ty of
 
 
 tNum     :: Integral a => a -> Type
-tNum n    = TCon (TC (TCNum (fromIntegral n))) []
+tNum n    = TCon (TC (TCNum (toInteger n))) []
 
 tZero     :: Type
 tZero     = tNum (0 :: Int)

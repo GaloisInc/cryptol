@@ -425,7 +425,7 @@ qcCmd qcMode str =
   lg2 :: Integer -> Integer
   lg2 x | x >= 2^(1024::Int) = 1024 + lg2 (x `div` 2^(1024::Int))
         | x == 0       = 0
-        | otherwise    = let valNumD = fromIntegral x :: Double
+        | otherwise    = let valNumD = fromInteger x :: Double
                          in round $ logBase 2 valNumD :: Integer
 
   prt msg   = rPutStr msg >> io (hFlush stdout)
