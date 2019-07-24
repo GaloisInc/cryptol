@@ -52,6 +52,7 @@ import Cryptol.Transform.MonoValues (rewModule)
 import qualified Control.Exception as X
 import Control.Monad (unless,when)
 import qualified Data.ByteString as B
+import Data.IORef (newIORef,readIORef)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
@@ -185,7 +186,8 @@ doLoadModule isrc path fp pm0 =
      tcm <- optionalInstantiate =<< checkModule isrc path pm
 
      -- extend the eval env, unless a functor.
-     unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv tcm)
+     holes <- io $ newIORef $ E.emptyHoleInfo
+     unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv holes tcm)
      canonicalPath <- io (canonicalizePath path)
      loadedModule path canonicalPath fp tcm
 
@@ -523,7 +525,10 @@ evalExpr e = do
   env <- getEvalEnv
   denv <- getDynEnv
   evopts <- getEvalOpts
-  io $ E.runEval evopts $ (E.evalExpr (env <> deEnv denv) e)
+  hinfo <- getHoleInfo >>= io . newIORef
+  res <- io $ E.runEval evopts $ (E.evalExpr hinfo (env <> deEnv denv) e)
+  io (readIORef hinfo) >>= setHoleInfo
+  return res
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do
@@ -531,7 +536,9 @@ evalDecls dgs = do
   denv <- getDynEnv
   evOpts <- getEvalOpts
   let env' = env <> deEnv denv
-  deEnv' <- io $ E.runEval evOpts $ E.evalDecls dgs env'
+  hinfo <- getHoleInfo >>= io . newIORef
+  deEnv' <- io $ E.runEval evOpts $ E.evalDecls hinfo dgs env'
+  io (readIORef hinfo) >>= setHoleInfo
   let denv' = denv { deDecls = deDecls denv ++ dgs
                    , deEnv = deEnv'
                    }

@@ -198,6 +198,8 @@ rewE rews = go
       EProofAbs x e   -> EProofAbs x <$> go e
 
       EHole loc t e   -> EHole loc t <$> traverse go e
+      EHoleInst i e   -> EHoleInst i <$> traverse go e
+      EEllipsis       -> return EEllipsis
 
       EWhere e dgs    -> EWhere      <$> go e <*> inLocal
                                                   (mapM (rewDeclGroup rews) dgs)

@@ -26,6 +26,7 @@ import Data.Bits
 import Data.IORef
 import qualified Data.Sequence as Seq
 import qualified Data.Foldable as Fold
+import qualified Data.IntMap as IntMap
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import MonadLib
@@ -35,15 +36,16 @@ import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 
 import Cryptol.ModuleSystem.Name
+
 import Cryptol.Parser.Position (Range)
 
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
+import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Utils.Ident (Ident,mkIdent)
 import Cryptol.Utils.PP
-import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.Panic (panic)
 
-import Data.List(genericLength, genericIndex, genericDrop)
+import Data.List (genericLength, genericIndex, genericDrop)
 import qualified Data.Text as T
 import Numeric (showIntAtBase)
 
@@ -291,9 +293,9 @@ data GenValue b w i
   | VWord !Integer !(Eval (WordValue b w i))  -- ^ @ [n]Bit @
   | VStream !(SeqMap b w i)                   -- ^ @ [inf]a @
   | VFun (Eval (GenValue b w i) -> Eval (GenValue b w i)) -- ^ functions
-  | VHole Range Type !(GenEvalEnv b w i) !(Maybe (GenValue b w i)) -- ^ Holes
   | VPoly (TValue -> Eval (GenValue b w i))   -- ^ polymorphic values (kind *)
   | VNumPoly (Nat' -> Eval (GenValue b w i))  -- ^ polymorphic values (kind #)
+  | VQuote Expr
  deriving (Generic, NFData)
 
 
@@ -316,6 +318,7 @@ forceValue v = case v of
   VFun _      -> return ()
   VPoly _     -> return ()
   VNumPoly _  -> return ()
+  VQuote _    -> return ()
 
 
 instance (Show b, Show w, Show i) => Show (GenValue b w i) where
@@ -330,6 +333,7 @@ instance (Show b, Show w, Show i) => Show (GenValue b w i) where
     VFun _     -> "fun"
     VPoly _    -> "poly"
     VNumPoly _ -> "numpoly"
+    VQuote e   -> show e
 
 type Value = GenValue Bool BV Integer
 
@@ -369,12 +373,10 @@ ppValue opts = loop
                                    $ punctuate comma
                                    ( vals' ++ [text "..."]
                                    )
-    -- TODO hole instances
-    VHole loc t env e  -> do contents <- maybe (pure mempty) loop e
-                             return $ text "{!" <+> contents <+> text "!}"
     VFun _             -> return $ text "<function>"
     VPoly _            -> return $ text "<polymorphic value>"
     VNumPoly _         -> return $ text "<polymorphic value>"
+    VQuote e           -> return $ pp e
 
   ppWordVal :: WordValue b w i -> Eval Doc
   ppWordVal w = ppWord opts <$> asWordVal w
@@ -901,3 +903,41 @@ bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
 {-# INLINE lookupType #-}
 lookupType :: TVar -> GenEvalEnv b w i -> Maybe (Either Nat' TValue)
 lookupType p env = Map.lookup p (envTypes env)
+
+-- Holes -----------------------------------------------------------------------
+
+-- | The information saved about a particular hole instance during evaluation
+data HoleClosure b w i = HoleClosure !Range !Type !(GenEvalEnv b w i)
+
+instance PP (HoleClosure b w i) where
+  ppPrec _ (HoleClosure loc ty env) =
+    hang (pp loc) 2 $
+    vcat [ text "Type: " <+> pp ty
+         , text "Closure: " <+> vcat [pp n <+> text "=" <+> text "TODO" | (n, v) <- Map.toList (envVars env)]
+         ]
+
+instance (NFData b, NFData w, NFData i) => NFData (HoleClosure b w i) where
+  rnf (HoleClosure loc ty env) = rnf loc `seq` rnf ty `seq` rnf env
+
+-- | All the hole instances
+newtype HoleInfo b w i = HoleInfo (IntMap.IntMap (HoleClosure b w i))
+
+instance PP (HoleInfo b w i) where
+  ppPrec _ (HoleInfo hs) =
+    hang (text "Holes:") 2 $
+    vcat [ (pp (HoleID i) <> colon) <+> pp clos
+         | (i, clos) <- IntMap.toList hs
+         ]
+
+emptyHoleInfo :: HoleInfo b w i
+emptyHoleInfo = HoleInfo mempty
+
+instance (NFData b, NFData w, NFData i) => NFData (HoleInfo b w i) where
+  rnf (HoleInfo i) = rnf i
+
+recordHole :: IORef (HoleInfo b w i) -> Range -> Type -> GenEvalEnv b w i -> Eval HoleID
+recordHole holes loc ty env = do
+  HoleInfo seen <- io $ readIORef holes
+  let next = foldl max 0 (IntMap.keys seen) + 1
+  io $ writeIORef holes (HoleInfo (IntMap.insert next (HoleClosure loc ty env) seen))
+  return (HoleID next)

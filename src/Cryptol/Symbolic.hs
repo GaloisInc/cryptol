@@ -20,14 +20,14 @@ import Control.Monad.IO.Class
 import Control.Monad (replicateM, when, zipWithM, foldM)
 import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
 import Data.List (intercalate, genericLength)
-import Data.IORef(IORef)
+import Data.IORef(IORef, newIORef)
 import qualified Control.Exception as X
 
 import qualified Data.SBV.Dynamic as SBV
 import           Data.SBV (Timing(SaveTiming))
 import           Data.SBV.Internals (showTDiff)
 
-import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
+import qualified Cryptol.ModuleSystem as M hiding (getPrimMap, getHoleInfo)
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
@@ -196,8 +196,10 @@ satProve ProverCommand {..} =
   case predArgTypes pcSchema of
     Left msg -> return (Nothing, ProverError msg)
     Right ts -> do when pcVerbose $ lPutStrLn "Simulating..."
-                   v <- doEval $ do env <- Eval.evalDecls extDgs mempty
-                                    Eval.evalExpr env pcExpr
+                   checkComplete pcExpr
+                   hinfo <- liftIO $ newIORef Eval.emptyHoleInfo
+                   v <- doEval $ do env <- Eval.evalDecls hinfo extDgs mempty
+                                    Eval.evalExpr hinfo env pcExpr
                    prims <- M.getPrimMap
                    runRes <- runFn $ do
                                (args, asms) <- runWriterT (mapM tyFn ts)
@@ -248,9 +250,12 @@ satProveOffline ProverCommand {..} =
       Left msg -> return (Right (Left msg, modEnv), [])
       Right ts ->
         do when pcVerbose $ logPutStrLn (Eval.evalLogger evOpts) "Simulating..."
+           checkComplete extDgs
+           checkComplete pcExpr
+           hinfo <- liftIO $ newIORef Eval.emptyHoleInfo
            v <- liftIO $ Eval.runEval evOpts $
-                   do env <- Eval.evalDecls extDgs mempty
-                      Eval.evalExpr env pcExpr
+                   do env <- Eval.evalDecls hinfo extDgs mempty
+                      Eval.evalExpr hinfo env pcExpr
            smtlib <- SBV.generateSMTBenchmark isSat $ do
              (args, asms) <- runWriterT (mapM tyFn ts)
              b <- liftIO $ Eval.runEval evOpts
@@ -267,6 +272,10 @@ protectStack mkErr cmd modEnv =
         isOverflow _               = Nothing
         msg = "Symbolic evaluation failed to terminate."
         handler () = mkErr msg modEnv
+
+checkComplete :: (ContainsHoles e, Monad m) => e -> m ()
+checkComplete e =
+  when (containsHoles e) (fail "Expression contains holes")
 
 parseValues :: [FinType] -> [SBV.CV] -> ([Eval.Value], [SBV.CV])
 parseValues [] cvs = ([], cvs)

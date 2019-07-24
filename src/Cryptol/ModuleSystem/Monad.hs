@@ -15,6 +15,7 @@ module Cryptol.ModuleSystem.Monad where
 import           Cryptol.Eval (EvalEnv,EvalOpts(..))
 
 import qualified Cryptol.Eval.Monad           as E
+import qualified Cryptol.Eval.Value           as EV
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Fingerprint
 import           Cryptol.ModuleSystem.Interface
@@ -482,6 +483,14 @@ setFocusedModule :: P.ModName -> ModuleM ()
 setFocusedModule n = ModuleT $ do
   me <- get
   set $! me { meFocusedModule = Just n }
+
+getHoleInfo :: ModuleM (EV.HoleInfo Bool EV.BV Integer)
+getHoleInfo = ModuleT (meHoleInfo `fmap` get)
+
+setHoleInfo :: (EV.HoleInfo Bool EV.BV Integer) -> ModuleM ()
+setHoleInfo info = ModuleT $ do
+  me <- get
+  set $! me { meHoleInfo = info }
 
 getSearchPath :: ModuleM [FilePath]
 getSearchPath  = ModuleT (meSearchPath `fmap` get)

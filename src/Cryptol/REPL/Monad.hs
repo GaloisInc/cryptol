@@ -45,6 +45,7 @@ module Cryptol.REPL.Monad (
   , setEditPath, getEditPath
   , setSearchPath, prependSearchPath
   , getPrompt
+  , showHoleInfo
   , shouldContinue
   , unlessBatch
   , asBatch
@@ -340,6 +341,11 @@ modifyRW_ f = REPL (\ ref -> modifyIORef ref f)
 -- | Construct the prompt for the current environment.
 getPrompt :: REPL String
 getPrompt  = mkPrompt `fmap` getRW
+
+showHoleInfo :: REPL ()
+showHoleInfo = do
+  hinfo <- M.meHoleInfo . eModuleEnv <$> getRW
+  io (print (pp hinfo))
 
 clearLoadedMod :: REPL ()
 clearLoadedMod = do modifyRW_ (\rw -> rw { eLoadedMod = upd <$> eLoadedMod rw })

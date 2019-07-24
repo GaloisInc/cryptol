@@ -249,6 +249,8 @@ instance Inst Expr where
      EAbs x t e -> EAbs x (inst ps t) (inst ps e)
 
      EHole loc t e -> EHole loc (inst ps t) (inst ps <$> e)
+     EHoleInst i e -> EHoleInst i (inst ps <$> e)
+     EEllipsis     -> EEllipsis
 
      EProofAbs p e -> EProofAbs (inst ps p) (inst ps e)
      EProofApp e1 ->

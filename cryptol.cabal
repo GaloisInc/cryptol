@@ -52,6 +52,7 @@ library
                        deepseq           >= 1.3,
                        directory         >= 1.2.2.0,
                        filepath          >= 1.3,
+                       free              >= 5.1,
                        gitrev            >= 1.0,
                        GraphSCC          >= 1.0.4,
                        heredoc           >= 0.2,

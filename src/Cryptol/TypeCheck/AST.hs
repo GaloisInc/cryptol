@@ -102,6 +102,12 @@ data ModVParam = ModVParam
   } deriving (Show,Generic,NFData)
 
 
+newtype HoleID = HoleID Int
+  deriving (Eq, Ord, Show, NFData, Generic)
+
+instance PP HoleID where
+  ppPrec _ (HoleID i) = text (show i)
+
 data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | ETuple [Expr]             -- ^ Tuple value
             | ERec [(Ident,Expr)]       -- ^ Record value
@@ -123,6 +129,8 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | EAbs Name Type Expr       -- ^ Function value
 
             | EHole Range Type (Maybe Expr)  -- ^ Hole, with location, type, contents
+            | EHoleInst HoleID (Maybe Expr)  -- ^ Hole instance, as a result of evaluation
+            | EEllipsis
 
             {- | Proof abstraction.  Because we don't keep proofs around
                  we don't need to name the assumption, but we still need to
@@ -144,7 +152,6 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | EWhere Expr [DeclGroup]
 
               deriving (Show, Generic, NFData)
-
 
 data Match  = From Name Type Type Expr
                                   -- ^ Type arguments are the length and element
@@ -175,6 +182,47 @@ data DeclDef    = DPrim
                 | DExpr Expr
                   deriving (Show, Generic, NFData)
 
+--------------------------------------------------------------------------------
+
+class ContainsHoles e where
+  containsHoles :: e -> Bool
+
+instance ContainsHoles Expr where
+  containsHoles (EList es _) = containsHoles es
+  containsHoles (ETuple es) = containsHoles es
+  containsHoles (ERec fs) = containsHoles (map snd fs)
+  containsHoles (ESel e _) = containsHoles e
+  containsHoles (ESet e1 _ e2) = containsHoles e1 || containsHoles e2
+  containsHoles (EIf e1 e2 e3) = containsHoles e1 || containsHoles e2 || containsHoles e3
+  containsHoles (EComp _ _ e ms) = containsHoles e || containsHoles ms
+  containsHoles (EVar _) = False
+  containsHoles (ETAbs _ e) = containsHoles e
+  containsHoles (ETApp e _) = containsHoles e
+  containsHoles (EApp fun arg) = containsHoles fun || containsHoles arg
+  containsHoles (EAbs _ _ e) = containsHoles e
+  containsHoles (EHole _ _ _) = True
+  containsHoles (EHoleInst _ _) = True
+  containsHoles EEllipsis = True
+  containsHoles (EProofAbs _ e) = containsHoles e
+  containsHoles (EProofApp e) = containsHoles e
+  containsHoles (EWhere e ds) = containsHoles e || containsHoles ds
+
+instance ContainsHoles e => ContainsHoles [e] where
+  containsHoles es = any containsHoles es
+
+instance ContainsHoles Match where
+  containsHoles (From _ _ _ e) = containsHoles e
+  containsHoles (Let d) = containsHoles d
+
+instance ContainsHoles Decl where
+  containsHoles d = containsHoles (dDefinition d)
+
+instance ContainsHoles DeclDef where
+  containsHoles DPrim = False
+  containsHoles (DExpr e) = containsHoles e
+
+instance ContainsHoles DeclGroup where
+  containsHoles = containsHoles . groupDecls
 
 --------------------------------------------------------------------------------
 
@@ -228,6 +276,13 @@ instance PP (WithNames Expr) where
       EHole _ _ e   -> case e of
                          Nothing -> text "{!" <+> text "!}"
                          Just e' -> text "{!" <+> pp e' <+> text "!}"
+
+      EHoleInst i e -> let begin = text "{" <> pp i <> "!"
+                           end   = text "!" <> pp i <> "}"
+                       in case e of
+                            Just e' -> begin <+> pp e' <+> end
+                            Nothing -> begin <+> end
+      EEllipsis     -> text "..."
 
       EAbs {}       -> let (xs,e) = splitWhile splitAbs expr
                        in ppLam nm prec [] [] xs e

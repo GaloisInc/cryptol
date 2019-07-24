@@ -41,6 +41,8 @@ fastTypeOf tyenv expr =
                         Just (_, t) -> t
                         Nothing     -> panic "Cryptol.TypeCheck.TypeOf.fastTypeOf"
                                          [ "EApp with non-function operator" ]
+    EHole _ t _   -> t
+
     -- Polymorphic fragment
     EVar      {}  -> polymorphic
     ETAbs     {}  -> polymorphic
@@ -48,6 +50,8 @@ fastTypeOf tyenv expr =
     EProofAbs {}  -> polymorphic
     EProofApp {}  -> polymorphic
     EWhere    {}  -> polymorphic
+    EHoleInst {}  -> polymorphic
+    EEllipsis     -> polymorphic
   where
     polymorphic =
       case fastSchemaOf tyenv expr of
@@ -93,6 +97,7 @@ fastSchemaOf tyenv expr =
                         where addDeclGroup (Recursive ds) = flip (foldr addDecl) ds
                               addDeclGroup (NonRecursive d) = addDecl d
                               addDecl d = Map.insert (dName d) (dSignature d)
+
     -- Monomorphic fragment
     EList  {}      -> monomorphic
     ETuple {}      -> monomorphic

@@ -43,12 +43,13 @@ import           Control.Monad.IO.Class
 import           Data.IORef
 import           Data.Typeable (Typeable)
 import qualified Control.Exception as X
+import           Numeric.Natural
 
-
+import Cryptol.Parser.Position (Range)
 import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
-import Cryptol.Utils.Logger(Logger)
-import Cryptol.TypeCheck.AST(Type,Name)
+import Cryptol.Utils.Logger (Logger)
+import Cryptol.TypeCheck.AST (Type,Name)
 
 -- | A computation that returns an already-evaluated value.
 ready :: a -> Eval a
@@ -61,7 +62,7 @@ data PPOpts = PPOpts
   , useInfLength :: Int
   }
 
--- | Some options for evalutaion
+-- | Some options for evaluation
 data EvalOpts = EvalOpts
   { evalLogger :: Logger    -- ^ Where to print stuff (e.g., for @trace@)
   , evalPPOpts :: PPOpts    -- ^ How to pretty print things.
@@ -71,7 +72,7 @@ data EvalOpts = EvalOpts
 -- | The monad for Cryptol evaluation.
 data Eval a
    = Ready !a
-   | Thunk !(EvalOpts -> IO a)
+   | Thunk !(EvalOpts -> EvalStep a)
 
 data ThunkState a
   = Unforced        -- ^ This thunk has not yet been forced
@@ -96,7 +97,7 @@ delay _ (Ready a) = Ready (Ready a)
 delay msg (Thunk x) = Thunk $ \opts -> do
   let msg' = maybe "" ("while evaluating "++) msg
   let retry = cryLoopError msg'
-  r <- newIORef Unforced
+  r <- ioStep $ newIORef Unforced
   return $ unDelay retry r (x opts)
 
 {-# INLINE delayFill #-}
@@ -110,7 +111,7 @@ delayFill :: Eval a        -- ^ Computation to delay
           -> Eval (Eval a)
 delayFill (Ready x) _ = Ready (Ready x)
 delayFill (Thunk x) retry = Thunk $ \opts -> do
-  r <- newIORef Unforced
+  r <- ioStep $ newIORef Unforced
   return $ unDelay retry r (x opts)
 
 -- | Produce a thunk value which can be filled with its associated computation
@@ -125,33 +126,88 @@ blackhole msg = do
   let set = io . writeIORef r
   return (get, set)
 
-unDelay :: Eval a -> IORef (ThunkState a) -> IO a -> Eval a
+unDelay :: Eval a -> IORef (ThunkState a) -> EvalStep a -> Eval a
 unDelay retry r x = do
   rval <- io $ readIORef r
   case rval of
-    Forced val -> io (toVal val)
+    Forced val -> toVal val
     BlackHole  ->
       retry
-    Unforced -> io $ do
-      writeIORef r BlackHole
-      val <- X.try x
-      writeIORef r (Forced val)
+    Unforced -> do
+      io $ writeIORef r BlackHole
+      val <- try x
+      io $ writeIORef r (Forced val)
       toVal val
 
   where
   toVal mbV = case mbV of
                 Right a -> pure a
-                Left e  -> X.throwIO e
+                Left e  -> throwEval e
+
+-- | Steps of evaluation can be interrupted
+data EvalStep a = Later (IO (EvalStep a)) | Now !a
+  deriving Functor
+
+-- | Run forever, if necessary
+runSteps :: EvalStep a -> IO a
+runSteps (Now x) = return x
+runSteps (Later act) = act >>= runSteps
+
+step :: EvalStep a -> EvalStep a
+step x = Later (return x)
+
+cutoff :: Natural -> EvalStep a -> IO (Maybe a)
+cutoff i act
+  | i < 1 = return Nothing
+  | otherwise =
+    case act of
+      Now x -> return (Just x)
+      Later act' -> act' >>= cutoff (i - 1)
+
+ioStep :: IO a -> EvalStep a
+ioStep act = Later (Now <$> act)
+
+throwEval :: X.Exception e => e -> Eval a
+throwEval exn = io (X.throwIO exn)
+
+try :: EvalStep a -> Eval (Either EvalError a)
+try (Later act) =
+  Thunk $ \opts -> Later $ do
+    res <- X.try act
+    case res of
+      Left err -> return (return (Left err))
+      Right v -> return (Right <$> v)
+try (Now v) = return (Right v)
+
+
+instance Applicative EvalStep where
+  pure = Now
+  Later fun <*> x =
+    Later $ fun >>= return . (<*> x)
+  Now fun <*> Later x =
+    Later $ x >>= return . fmap fun
+  Now fun <*> Now x = Now (fun x)
+
+instance Monad EvalStep where
+  return = pure
+  Later x >>= f =
+    Later $ x >>= return . (>>= f)
+  Now v >>= f = f v
 
 -- | Execute the given evaluation action.
 runEval :: EvalOpts -> Eval a -> IO a
 runEval _ (Ready a) = return a
-runEval opts (Thunk x) = x opts
+runEval opts (Thunk x) = runSteps (x opts)
 
 {-# INLINE evalBind #-}
 evalBind :: Eval a -> (a -> Eval b) -> Eval b
-evalBind (Ready a) f  = f a
-evalBind (Thunk x) f  = Thunk $ \opts -> x opts >>= runEval opts . f
+evalBind (Ready a) f = f a
+evalBind (Thunk x) f =
+  Thunk $ \opts -> do
+    res <- x opts
+    case f res of
+      Ready a -> return a
+      Thunk y -> y opts
 
 instance Functor Eval where
   fmap f (Ready x) = Ready (f x)
@@ -179,11 +235,16 @@ instance NFData a => NFData (Eval a) where
   rnf (Thunk _) = ()
 
 instance MonadFix Eval where
-  mfix f = Thunk $ \opts -> mfix (\x -> runEval opts (f x))
+  mfix f = Thunk $ \opts -> Later $
+    mfix $ \x ->
+      let foo = Thunk (\ _ -> x) >>= f
+      in case foo of
+           Thunk m -> return (m opts)
+           Ready x -> return (return x)
 
 -- | Lift an 'IO' computation into the 'Eval' monad.
 io :: IO a -> Eval a
-io m = Thunk (\_ -> m)
+io m = Thunk (\_ -> Later (Now <$> m))
 {-# INLINE io #-}
 
 

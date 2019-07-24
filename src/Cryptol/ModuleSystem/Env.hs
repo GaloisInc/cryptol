@@ -18,6 +18,7 @@ import Paths_cryptol (getDataDir)
 #endif
 
 import Cryptol.Eval (EvalEnv)
+import Cryptol.Eval.Value (BV,HoleInfo,emptyHoleInfo)
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Name (Supply,emptySupply)
@@ -84,7 +85,8 @@ data ModuleEnv = ModuleEnv
 
   , meSupply        :: !Supply
     -- ^ Name source for the renamer
-
+  , meHoleInfo      :: HoleInfo Bool BV Integer
+    -- ^ Information about encountered holes
   } deriving Generic
 
 instance NFData ModuleEnv
@@ -153,6 +155,7 @@ initialModuleEnv = do
                           }
     , meCoreLint      = NoCoreLint
     , meSupply        = emptySupply
+    , meHoleInfo      = emptyHoleInfo
     }
 
 -- | Try to focus a loaded module in the module environment.

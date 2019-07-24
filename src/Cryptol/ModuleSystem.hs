@@ -15,6 +15,7 @@ module Cryptol.ModuleSystem (
   , ModuleError(..), ModuleWarning(..)
   , ModuleCmd, ModuleRes
   , findModule
+  , getHoleInfo
   , loadModuleByPath
   , loadModuleByName
   , checkExpr
@@ -36,7 +37,8 @@ import qualified Cryptol.Eval as E
 import qualified Cryptol.Eval.Value        as E
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
-import           Cryptol.ModuleSystem.Monad
+import           Cryptol.ModuleSystem.Monad hiding (getHoleInfo)
+import qualified Cryptol.ModuleSystem.Monad as MM
 import           Cryptol.ModuleSystem.Name (Name,PrimMap)
 import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.ModuleSystem.Base as Base
@@ -55,6 +57,9 @@ type ModuleRes a = (Either ModuleError (a,ModuleEnv), [ModuleWarning])
 
 getPrimMap :: ModuleCmd PrimMap
 getPrimMap me = runModuleM me Base.getPrimMap
+
+getHoleInfo :: ModuleCmd (E.HoleInfo Bool E.BV Integer)
+getHoleInfo me = runModuleM me MM.getHoleInfo
 
 -- | Find the file associated with a module name in the module search path.
 findModule :: P.ModName -> ModuleCmd FilePath

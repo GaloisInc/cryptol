@@ -42,6 +42,7 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
 import           Control.Monad
+import           Data.IORef
 import qualified Data.Sequence as Seq
 import           Data.List
 import           Data.Maybe
@@ -58,19 +59,21 @@ type EvalEnv = GenEvalEnv Bool BV Integer
 -- | Extend the given evaluation environment with all the declarations
 --   contained in the given module.
 moduleEnv :: EvalPrims b w i
-          => Module           -- ^ Module containing declarations to evaluate
+          => IORef (HoleInfo b w i)
+          -> Module           -- ^ Module containing declarations to evaluate
           -> GenEvalEnv b w i -- ^ Environment to extend
           -> Eval (GenEvalEnv b w i)
-moduleEnv m env = evalDecls (mDecls m) =<< evalNewtypes (mNewtypes m) env
+moduleEnv holes m env = evalDecls holes (mDecls m) =<< evalNewtypes (mNewtypes m) env
 
 -- | Evaluate a Cryptol expression to a value.  This evaluator is parameterized
 --   by the `EvalPrims` class, which defines the behavior of bits and words, in
 --   addition to providing implementations for all the primitives.
 evalExpr :: EvalPrims b w i
-         => GenEvalEnv b w i   -- ^ Evaluation environment
+         => IORef (HoleInfo b w i)     -- ^ Information about hole instances
+         -> GenEvalEnv b w i   -- ^ Evaluation environment
          -> Expr               -- ^ Expression to evaluate
          -> Eval (GenValue b w i)
-evalExpr env expr = case expr of
+evalExpr holes env expr = case expr of
 
   -- Try to detect when the user has directly written a finite sequence of
   -- literal bit values and pack these into a word.
@@ -88,7 +91,7 @@ evalExpr env expr = case expr of
         return $ VSeq len $ finiteSeqMap xs
    where
     tyv = evalValType (envTypes env) ty
-    vs  = map (evalExpr env) es
+    vs  = map (evalExpr holes env) es
     len = genericLength es
 
   ETuple es -> {-# SCC "evalExpr->ETuple" #-} do
@@ -117,7 +120,7 @@ evalExpr env expr = case expr of
   EComp n t h gs -> {-# SCC "evalExpr->EComp" #-} do
       let len  = evalNumType (envTypes env) n
       let elty = evalValType (envTypes env) t
-      evalComp env len elty h gs
+      evalComp holes env len elty h gs
 
   EVar n -> {-# SCC "evalExpr->EVar" #-} do
     case lookupVar n env of
@@ -131,8 +134,8 @@ evalExpr env expr = case expr of
 
   ETAbs tv b -> {-# SCC "evalExpr->ETAbs" #-}
     case tpKind tv of
-      KType -> return $ VPoly    $ \ty -> evalExpr (bindType (tpVar tv) (Right ty) env) b
-      KNum  -> return $ VNumPoly $ \n  -> evalExpr (bindType (tpVar tv) (Left n) env) b
+      KType -> return $ VPoly    $ \ty -> evalExpr holes (bindType (tpVar tv) (Right ty) env) b
+      KNum  -> return $ VNumPoly $ \n  -> evalExpr holes (bindType (tpVar tv) (Left n) env) b
       k     -> panic "[Eval] evalExpr" ["invalid kind on type abstraction", show k]
 
   ETApp e ty -> {-# SCC "evalExpr->ETApp" #-} do
@@ -153,23 +156,26 @@ evalExpr env expr = case expr of
 
   EAbs n _ty b -> {-# SCC "evalExpr->EAbs" #-}
     return $ VFun (\v -> do env' <- bindVar n v env
-                            evalExpr env' b)
+                            evalExpr holes env' b)
 
-  EHole loc ty e -> {-# SCC "evalExpr->EHole" #-}
-    VHole loc ty env <$> traverse (evalExpr env) e
+  EHole loc ty e -> {-# SCC "evalExpr->EHole" #-} do
+    hid <- recordHole holes loc ty env
+    return $ VQuote $ EHoleInst hid e
+  EHoleInst _ _ -> panic "[Eval evalExpr]" ["already-evaluated hole", show expr]
+  EEllipsis -> panic "[Eval evalExpr]" ["can't evaluate ellipsis"]
 
   -- XXX these will likely change once there is an evidence value
-  EProofAbs _ e -> evalExpr env e
-  EProofApp e   -> evalExpr env e
+  EProofAbs _ e -> evalExpr holes env e
+  EProofApp e   -> evalExpr holes env e
 
   EWhere e ds -> {-# SCC "evalExpr->EWhere" #-} do
-     env' <- evalDecls ds env
-     evalExpr env' e
+     env' <- evalDecls holes ds env
+     evalExpr holes env' e
 
   where
 
   {-# INLINE eval #-}
-  eval = evalExpr env
+  eval = evalExpr holes env
   ppV = ppValue defaultPPOpts
 
 
@@ -197,36 +203,38 @@ evalNewtype nt = bindVar (ntName nt) (return (foldr tabs con (ntParams nt)))
 -- | Extend the given evaluation environment with the result of evaluating the
 --   given collection of declaration groups.
 evalDecls :: EvalPrims b w i
-          => [DeclGroup]         -- ^ Declaration groups to evaluate
+          => IORef (HoleInfo b w i)
+          -> [DeclGroup]         -- ^ Declaration groups to evaluate
           -> GenEvalEnv b w i    -- ^ Environment to extend
           -> Eval (GenEvalEnv b w i)
-evalDecls dgs env = foldM evalDeclGroup env dgs
+evalDecls holes dgs env = foldM (evalDeclGroup holes) env dgs
 
 evalDeclGroup :: EvalPrims b w i
-              => GenEvalEnv b w i
+              => IORef (HoleInfo b w i)
+              -> GenEvalEnv b w i
               -> DeclGroup
               -> Eval (GenEvalEnv b w i)
-evalDeclGroup env dg = do
+evalDeclGroup holes env dg = do
   case dg of
     Recursive ds -> do
-      -- declare a "hole" for each declaration
+      -- declare a "place" for each declaration
       -- and extend the evaluation environment
-      holes <- mapM declHole ds
-      let holeEnv = Map.fromList $ [ (nm,h) | (nm,_,h,_) <- holes ]
-      let env' = env `mappend` emptyEnv{ envVars = holeEnv }
+      places <- mapM declPlace ds
+      let placeEnv = Map.fromList $ [ (nm,h) | (nm,_,h,_) <- places ]
+      let env' = env `mappend` emptyEnv{ envVars = placeEnv }
 
       -- evaluate the declaration bodies, building a new evaluation environment
-      env'' <- foldM (evalDecl env') env ds
+      env'' <- foldM (evalDecl holes env') env ds
 
       -- now backfill the holes we declared earlier using the definitions
       -- calculated in the previous step
-      mapM_ (fillHole env'') holes
+      mapM_ (fillPlace env'') places
 
       -- return the map containing the holes
       return env'
 
     NonRecursive d -> do
-      evalDecl env env d
+      evalDecl holes env env d
 
 
 -- | This operation is used to complete the process of setting up recursive declaration
@@ -239,13 +247,13 @@ evalDeclGroup env dg = do
 --   to this is to force an eta-expansion procedure on all recursive definitions.
 --   However, for the so-called 'Value' types we can instead optimistically use the 'delayFill'
 --   operation and only fall back on full eta expansion if the thunk is double-forced.
-fillHole :: BitWord b w i
-         => GenEvalEnv b w i
-         -> (Name, Schema, Eval (GenValue b w i), Eval (GenValue b w i) -> Eval ())
-         -> Eval ()
-fillHole env (nm, sch, _, fill) = do
+fillPlace :: BitWord b w i
+          => GenEvalEnv b w i
+          -> (Name, Schema, Eval (GenValue b w i), Eval (GenValue b w i) -> Eval ())
+          -> Eval ()
+fillPlace env (nm, sch, _, fill) =
   case lookupVar nm env of
-    Nothing -> evalPanic "fillHole" ["Recursive definition not completed", show (ppLocName nm)]
+    Nothing -> evalPanic "fillPlace" ["Recursive definition not completed", show (ppLocName nm)]
     Just x
      | isValueType env sch -> fill =<< delayFill x (etaDelay (show (ppLocName nm)) env sch x)
      | otherwise           -> fill (etaDelay (show (ppLocName nm)) env sch x)
@@ -378,15 +386,15 @@ etaDelay msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVAbstract {} -> x
 
 
-declHole :: Decl
-         -> Eval (Name, Schema, Eval (GenValue b w i), Eval (GenValue b w i) -> Eval ())
-declHole d =
+declPlace :: Decl
+          -> Eval (Name, Schema, Eval (GenValue b w i), Eval (GenValue b w i) -> Eval ())
+declPlace d =
   case dDefinition d of
     DPrim   -> evalPanic "Unexpected primitive declaration in recursive group"
                          [show (ppLocName nm)]
     DExpr _ -> do
-      (hole, fill) <- blackhole msg
-      return (nm, sch, hole, fill)
+      (place, fill) <- blackhole msg
+      return (nm, sch, place, fill)
   where
   nm = dName d
   sch = dSignature d
@@ -401,17 +409,18 @@ declHole d =
 --   definitions.  The 'read only' environment is used to bring recursive
 --   names into scope while we are still defining them.
 evalDecl :: EvalPrims b w i
-         => GenEvalEnv b w i  -- ^ A 'read only' environment for use in declaration bodies
+         => IORef (HoleInfo b w i)    -- ^ The hole instances encountered
+         -> GenEvalEnv b w i  -- ^ A 'read only' environment for use in declaration bodies
          -> GenEvalEnv b w i  -- ^ An evaluation environment to extend with the given declaration
          -> Decl              -- ^ The declaration to evaluate
          -> Eval (GenEvalEnv b w i)
-evalDecl renv env d =
+evalDecl holes renv env d =
   case dDefinition d of
     DPrim   -> case evalPrim d of
                  Just v  -> pure (bindVarDirect (dName d) v env)
                  Nothing -> bindVar (dName d) (cryNoPrimError (dName d)) env
 
-    DExpr e -> bindVar (dName d) (evalExpr renv e) env
+    DExpr e -> bindVar (dName d) (evalExpr holes renv e) env
 
 
 -- Selectors -------------------------------------------------------------------
@@ -560,31 +569,34 @@ bindVarList n vs lenv = lenv { leVars = Map.insert n vs (leVars lenv) }
 
 -- | Evaluate a comprehension.
 evalComp :: EvalPrims b w i
-         => GenEvalEnv b w i -- ^ Starting evaluation environment
+         => IORef (HoleInfo b w i)   -- ^ Information about hole instances
+         -> GenEvalEnv b w i -- ^ Starting evaluation environment
          -> Nat'             -- ^ Length of the comprehension
          -> TValue           -- ^ Type of the comprehension elements
          -> Expr             -- ^ Head expression of the comprehension
          -> [[Match]]        -- ^ List of parallel comprehension branches
          -> Eval (GenValue b w i)
-evalComp env len elty body ms =
-       do lenv <- mconcat <$> mapM (branchEnvs (toListEnv env)) ms
+evalComp holes env len elty body ms =
+       do lenv <- mconcat <$> mapM (branchEnvs holes (toListEnv env)) ms
           mkSeq len elty <$> memoMap (IndexSeqMap $ \i -> do
-              evalExpr (evalListEnv lenv i) body)
+              evalExpr holes (evalListEnv lenv i) body)
 
 -- | Turn a list of matches into the final environments for each iteration of
 -- the branch.
 branchEnvs :: EvalPrims b w i
-           => ListEnv b w i
+           => IORef (HoleInfo b w i)
+           -> ListEnv b w i
            -> [Match]
            -> Eval (ListEnv b w i)
-branchEnvs env matches = foldM evalMatch env matches
+branchEnvs holes env matches = foldM (evalMatch holes) env matches
 
 -- | Turn a match into the list of environments it represents.
 evalMatch :: EvalPrims b w i
-          => ListEnv b w i
+          => IORef (HoleInfo b w i)
+          -> ListEnv b w i
           -> Match
           -> Eval (ListEnv b w i)
-evalMatch lenv m = case m of
+evalMatch holes lenv m = case m of
 
   -- many envs
   From n l _ty expr ->
@@ -592,7 +604,7 @@ evalMatch lenv m = case m of
       -- Select from a sequence of finite length.  This causes us to 'stutter'
       -- through our previous choices `nLen` times.
       Nat nLen -> do
-        vss <- memoMap $ IndexSeqMap $ \i -> evalExpr (evalListEnv lenv i) expr
+        vss <- memoMap $ IndexSeqMap $ \i -> evalExpr holes (evalListEnv lenv i) expr
         let stutter xs = \i -> xs (i `div` nLen)
         let lenv' = lenv { leVars = fmap stutter (leVars lenv) }
         let vs i = do let (q, r) = i `divMod` nLen
@@ -613,7 +625,7 @@ evalMatch lenv m = case m of
                          , leStatic = allvars
                          }
         let env   = EvalEnv allvars (leTypes lenv)
-        xs <- evalExpr env expr
+        xs <- evalExpr holes env expr
         let vs i = case xs of
                      VWord _ w   -> VBit <$> (flip indexWordValue i =<< w)
                      VSeq _ xs'  -> lookupSeqMap xs' i
@@ -632,4 +644,4 @@ evalMatch lenv m = case m of
       f env =
           case dDefinition d of
             DPrim   -> evalPanic "evalMatch" ["Unexpected local primitive"]
-            DExpr e -> evalExpr env e
+            DExpr e -> evalExpr holes env e

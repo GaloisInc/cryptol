@@ -55,7 +55,8 @@ crySession mbBatch stopOnError =
 
   loop :: InputT REPL CommandExitCode
   loop =
-    do ln <- getInputLines =<< MTL.lift getPrompt
+    do MTL.lift showHoleInfo
+       ln <- getInputLines =<< MTL.lift getPrompt
        case ln of
          NoMoreLines -> return CommandOk
          Interrupted
