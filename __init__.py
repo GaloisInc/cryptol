@@ -1,6 +1,7 @@
 import base64
 import socket
 import json
+import os
 import re
 import types
 import subprocess
@@ -207,11 +208,11 @@ class IDSource:
         return self.next_id
 
 class CryptolConnection(object):
-    def __init__(self, command, parent=None):
+    def __init__(self, command, parent=None, cryptol_path=None):
         self.command = command
 
         if parent is None:
-            self.process = CryptolProcess(self.command)
+            self.process = CryptolProcess(self.command, cryptol_path=cryptol_path)
             self.port = self.process.port
 
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -325,7 +326,12 @@ class CryptolConnection(object):
         return self.most_recent_result
 
 class CryptolProcess:
-    def __init__(self, command):
+    def __init__(self, command, cryptol_path=None):
+
+        self.environ = os.environ.copy()
+        if cryptol_path is not None:
+            self.environ["CRYPTOLPATH"] = str(cryptol_path)
+
         self.command = command
         self.proc = None
         self.setup()
@@ -333,14 +339,19 @@ class CryptolProcess:
     def setup(self):
         if self.proc is None or self.proc.poll() is not None:
             # To debug, consider setting stderr to sys.stdout instead (to see server log messages).
-            self.proc = subprocess.Popen(self.command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+            self.proc = subprocess.Popen(
+                self.command,
+                shell=True,
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                env=self.environ,
+                text=True)
             out_line = self.proc.stdout.readline()
 
             match = re.match(r'PORT (\d+)', out_line)
             if match:
                 self.port = int(match.group(1))
             else:
-                raise "Failed to load process, output was " + out_line + " but expected PORT then a port."
+                raise Exception("Failed to load process, output was `" + out_line + "' but expected PORT then a port.")
 
 
 
