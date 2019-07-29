@@ -1,7 +1,9 @@
 import base64
 import socket
 import json
+import re
 import types
+import subprocess
 import sys
 
 from . import netstring
@@ -10,8 +12,8 @@ from . import cryptoltypes
 __all__ = ['cryptoltypes']
 
 # Current status:
-#  It can currently connect to a server over a socket. Try the following:
-#  >>> c = CryptolConnection(PORT)
+#  It can currently launch a server, given a suitable command line as an argument. Try this:
+#  >>> c = CryptolConnection("cabal new-exec cryptol-remote-api -- --dynamic4")
 #  >>> f = c.load_file(FILE)
 #  >>> f.result()
 #
@@ -114,10 +116,19 @@ class CryptolChangeDirectory(CryptolCommand):
         return res
 
 class CryptolLoadModule(CryptolCommand):
-    def __init__(self, connection, filename):
+    def __init__(self, connection, mod_name):
         self.method = 'load module'
-        self.params = {'file': filename}
+        self.params = {'module name': mod_name}
         super(CryptolLoadModule, self).__init__(connection)
+
+    def process_result(self, res):
+        return res
+
+class CryptolLoadFile(CryptolCommand):
+    def __init__(self, connection, filename):
+        self.method = 'load file'
+        self.params = {'file': filename}
+        super(CryptolLoadFile, self).__init__(connection)
 
     def process_result(self, res):
         return res
@@ -196,18 +207,23 @@ class IDSource:
         return self.next_id
 
 class CryptolConnection(object):
-    def __init__(self, port, parent=None):
-        self.port = port
+    def __init__(self, command, parent=None):
+        self.command = command
 
         if parent is None:
+            self.process = CryptolProcess(self.command)
+            self.port = self.process.port
+
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.connect(("127.0.0.1", port))
+            self.sock.connect(("127.0.0.1", self.port))
             self.sock.setblocking(False)
             self.buf = bytearray(b'')
             self.replies = {}
             self.ids = IDSource()
             self.most_recent_result = None
         else:
+            self.process = parent.process
+            self.port = parent.port
             self.sock = parent.sock
             self.buf = parent.buf
             self.replies = parent.replies
@@ -215,7 +231,7 @@ class CryptolConnection(object):
             self.most_recent_result = parent.most_recent_result
 
     def snapshot(self):
-        return CryptolConnection(self.port, parent=self)
+        return CryptolConnection(self.command, parent=self)
 
     def get_id(self):
         return self.ids.get()
@@ -279,8 +295,13 @@ class CryptolConnection(object):
         return self.most_recent_result
 
     def load_file(self, filename):
+        self.most_recent_result = CryptolLoadFile(self, filename)
+        return self.most_recent_result
+
+    def load_module(self, filename):
         self.most_recent_result = CryptolLoadModule(self, filename)
         return self.most_recent_result
+
 
     def evaluate_expression(self, expression):
         self.most_recent_result = CryptolEvalExpr(self, expression)
@@ -302,6 +323,30 @@ class CryptolConnection(object):
     def focused_module(self):
         self.most_recent_result = CryptolFocusedModule(self)
         return self.most_recent_result
+
+class CryptolProcess:
+    def __init__(self, command):
+        self.command = command
+        self.proc = None
+        self.setup()
+
+    def setup(self):
+        if self.proc is None or self.proc.poll() is not None:
+            # To debug, consider setting stderr to sys.stdout instead (to see server log messages).
+            self.proc = subprocess.Popen(self.command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+            out_line = self.proc.stdout.readline()
+
+            match = re.match(r'PORT (\d+)', out_line)
+            if match:
+                self.port = int(match.group(1))
+            else:
+                raise "Failed to load process, output was " + out_line + " but expected PORT then a port."
+
+
+
+    def __del__(self):
+        self.proc.kill()
+
 
 class CryptolFunctionHandle:
     def __init__(self, connection, name, ty, schema, docs=None):
