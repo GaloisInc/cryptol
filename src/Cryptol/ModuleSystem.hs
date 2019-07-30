@@ -33,6 +33,8 @@ module Cryptol.ModuleSystem (
   , IfaceTySyn, IfaceDecl(..)
   ) where
 
+import           Data.IORef
+
 import qualified Cryptol.Eval as E
 import qualified Cryptol.Eval.Value        as E
 import           Cryptol.ModuleSystem.Env
@@ -58,7 +60,7 @@ type ModuleRes a = (Either ModuleError (a,ModuleEnv), [ModuleWarning])
 getPrimMap :: ModuleCmd PrimMap
 getPrimMap me = runModuleM me Base.getPrimMap
 
-getHoleInfo :: ModuleCmd (E.HoleInfo Bool E.BV Integer)
+getHoleInfo :: ModuleCmd (IORef (E.HoleInfo Bool E.BV Integer))
 getHoleInfo me = runModuleM me MM.getHoleInfo
 
 -- | Find the file associated with a module name in the module search path.

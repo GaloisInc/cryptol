@@ -31,6 +31,7 @@ import Cryptol.Utils.PP (NameDisp)
 import Control.Monad (guard,mplus)
 import qualified Control.Exception as X
 import Data.Function (on)
+import Data.IORef
 import qualified Data.Map as Map
 import Data.Maybe(fromMaybe)
 import Data.Semigroup
@@ -85,7 +86,7 @@ data ModuleEnv = ModuleEnv
 
   , meSupply        :: !Supply
     -- ^ Name source for the renamer
-  , meHoleInfo      :: HoleInfo Bool BV Integer
+  , meHoleInfo      :: IORef (HoleInfo Bool BV Integer)
     -- ^ Information about encountered holes
   } deriving Generic
 
@@ -138,6 +139,8 @@ initialModuleEnv = do
 #endif
                    ]
 
+  holeInfo <- newIORef emptyHoleInfo
+
   return ModuleEnv
     { meLoadedModules = mempty
     , meNameSeeds     = T.nameSeeds
@@ -155,7 +158,7 @@ initialModuleEnv = do
                           }
     , meCoreLint      = NoCoreLint
     , meSupply        = emptySupply
-    , meHoleInfo      = emptyHoleInfo
+    , meHoleInfo      = holeInfo
     }
 
 -- | Try to focus a loaded module in the module environment.

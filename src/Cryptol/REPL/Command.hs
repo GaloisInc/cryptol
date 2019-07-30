@@ -1206,7 +1206,7 @@ getPrimMap  = liftModuleCmd M.getPrimMap
 
 showHoleInfo :: REPL ()
 showHoleInfo = do
-  hinfo <- getHoleInfo
+  hinfo <- getHoleInfo >>= io . readIORef
   opts <- getPPValOpts
   evOpts <- getEvalOpts
   out <- io $ E.runEval evOpts $ E.ppHoleInfo opts hinfo

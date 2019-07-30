@@ -52,7 +52,7 @@ import Cryptol.Transform.MonoValues (rewModule)
 import qualified Control.Exception as X
 import Control.Monad (unless,when)
 import qualified Data.ByteString as B
-import Data.IORef (newIORef,readIORef)
+import Data.IORef (newIORef)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
@@ -526,9 +526,8 @@ evalExpr e = do
   env <- getEvalEnv
   denv <- getDynEnv
   evopts <- getEvalOpts
-  hinfo <- getHoleInfo >>= io . newIORef
+  hinfo <- getHoleInfo
   res <- io $ E.runEval evopts $ (E.evalExpr hinfo (env <> deEnv denv) e)
-  io (readIORef hinfo) >>= setHoleInfo
   return res
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
@@ -537,9 +536,8 @@ evalDecls dgs = do
   denv <- getDynEnv
   evOpts <- getEvalOpts
   let env' = env <> deEnv denv
-  hinfo <- getHoleInfo >>= io . newIORef
+  hinfo <- getHoleInfo
   deEnv' <- io $ E.runEval evOpts $ E.evalDecls hinfo dgs env'
-  io (readIORef hinfo) >>= setHoleInfo
   let denv' = denv { deDecls = deDecls denv ++ dgs
                    , deEnv = deEnv'
                    }

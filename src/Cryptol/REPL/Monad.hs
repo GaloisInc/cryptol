@@ -547,7 +547,7 @@ getModuleEnv  = eModuleEnv `fmap` getRW
 setModuleEnv :: M.ModuleEnv -> REPL ()
 setModuleEnv me = modifyRW_ (\rw -> rw { eModuleEnv = me })
 
-getHoleInfo :: REPL (HoleInfo Bool BV Integer)
+getHoleInfo :: REPL (IORef (HoleInfo Bool BV Integer))
 getHoleInfo = M.meHoleInfo  <$> getModuleEnv
 
 getDynEnv :: REPL M.DynamicEnv

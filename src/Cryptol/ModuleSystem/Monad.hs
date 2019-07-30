@@ -38,6 +38,7 @@ import           Cryptol.Utils.Logger(Logger)
 import Control.Monad.IO.Class
 import Control.Exception (IOException)
 import Data.Function (on)
+import Data.IORef
 import Data.Maybe (isJust)
 import Data.Text.Encoding.Error (UnicodeException)
 import MonadLib
@@ -484,13 +485,8 @@ setFocusedModule n = ModuleT $ do
   me <- get
   set $! me { meFocusedModule = Just n }
 
-getHoleInfo :: ModuleM (EV.HoleInfo Bool EV.BV Integer)
+getHoleInfo :: ModuleM (IORef (EV.HoleInfo Bool EV.BV Integer))
 getHoleInfo = ModuleT (meHoleInfo `fmap` get)
-
-setHoleInfo :: (EV.HoleInfo Bool EV.BV Integer) -> ModuleM ()
-setHoleInfo info = ModuleT $ do
-  me <- get
-  set $! me { meHoleInfo = info }
 
 getSearchPath :: ModuleM [FilePath]
 getSearchPath  = ModuleT (meSearchPath `fmap` get)
