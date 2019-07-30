@@ -150,9 +150,10 @@ evalExpr holes env expr = case expr of
 
   EApp f x -> {-# SCC "evalExpr->EApp" #-} do
     eval f >>= \case
-      VFun f' -> f' (eval x)
-      it      -> do itdoc <- ppV it
-                    panic "[Eval] evalExpr" ["not a function", show itdoc ]
+      VFun f'  -> f' (eval x)
+      VQuote s -> return (VQuote (SApp s (eval x)))
+      it       -> do itdoc <- ppV it
+                     panic "[Eval] evalExpr" ["not a function", show itdoc ]
 
   EAbs n _ty b -> {-# SCC "evalExpr->EAbs" #-}
     return $ VFun (\v -> do env' <- bindVar n v env
@@ -160,9 +161,8 @@ evalExpr holes env expr = case expr of
 
   EHole loc ty e -> {-# SCC "evalExpr->EHole" #-} do
     hid <- recordHole holes loc ty env
-    return $ VQuote $ EHoleInst hid e
-  EHoleInst _ _ -> panic "[Eval evalExpr]" ["already-evaluated hole", show expr]
-  EEllipsis -> panic "[Eval evalExpr]" ["can't evaluate ellipsis"]
+    v <- traverse (evalExpr holes env) e
+    return $ VQuote $ SRoot (OHoleInst hid v)
 
   -- XXX these will likely change once there is an evidence value
   EProofAbs _ e -> evalExpr holes env e
@@ -177,6 +177,8 @@ evalExpr holes env expr = case expr of
   {-# INLINE eval #-}
   eval = evalExpr holes env
   ppV = ppValue defaultPPOpts
+
+
 
 
 -- Newtypes --------------------------------------------------------------------
@@ -645,3 +647,4 @@ evalMatch holes lenv m = case m of
           case dDefinition d of
             DPrim   -> evalPanic "evalMatch" ["Unexpected local primitive"]
             DExpr e -> evalExpr holes env e
+

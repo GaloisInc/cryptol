@@ -45,7 +45,7 @@ module Cryptol.REPL.Monad (
   , setEditPath, getEditPath
   , setSearchPath, prependSearchPath
   , getPrompt
-  , showHoleInfo
+  , getHoleInfo
   , shouldContinue
   , unlessBatch
   , asBatch
@@ -79,6 +79,7 @@ module Cryptol.REPL.Monad (
 import Cryptol.REPL.Trie
 
 import Cryptol.Eval (EvalError)
+import Cryptol.Eval.Value (HoleInfo, BV)
 import qualified Cryptol.ModuleSystem as M
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Name as M
@@ -342,11 +343,6 @@ modifyRW_ f = REPL (\ ref -> modifyIORef ref f)
 getPrompt :: REPL String
 getPrompt  = mkPrompt `fmap` getRW
 
-showHoleInfo :: REPL ()
-showHoleInfo = do
-  hinfo <- M.meHoleInfo . eModuleEnv <$> getRW
-  io (print (pp hinfo))
-
 clearLoadedMod :: REPL ()
 clearLoadedMod = do modifyRW_ (\rw -> rw { eLoadedMod = upd <$> eLoadedMod rw })
                     updateREPLTitle
@@ -550,6 +546,9 @@ getModuleEnv  = eModuleEnv `fmap` getRW
 
 setModuleEnv :: M.ModuleEnv -> REPL ()
 setModuleEnv me = modifyRW_ (\rw -> rw { eModuleEnv = me })
+
+getHoleInfo :: REPL (HoleInfo Bool BV Integer)
+getHoleInfo = M.meHoleInfo  <$> getModuleEnv
 
 getDynEnv :: REPL M.DynamicEnv
 getDynEnv  = (M.meDynEnv . eModuleEnv) `fmap` getRW

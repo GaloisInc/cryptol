@@ -71,6 +71,7 @@ import Prelude ()
 import Prelude.Compat hiding ( (<>) )
 
 
+
 -- Renaming --------------------------------------------------------------------
 
 rename :: ModName -> R.NamingEnv -> R.RenameM a -> ModuleM a

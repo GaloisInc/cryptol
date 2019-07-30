@@ -45,6 +45,7 @@ import           Data.Typeable (Typeable)
 import qualified Control.Exception as X
 import           Numeric.Natural
 
+import Cryptol.ModuleSystem.Name (Supply)
 import Cryptol.Parser.Position (Range)
 import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
@@ -240,7 +241,7 @@ instance MonadFix Eval where
       let foo = Thunk (\ _ -> x) >>= f
       in case foo of
            Thunk m -> return (m opts)
-           Ready x -> return (return x)
+           Ready v -> return (return v)
 
 -- | Lift an 'IO' computation into the 'Eval' monad.
 io :: IO a -> Eval a

@@ -51,8 +51,6 @@ instance ShowParseable Expr where
   showParseable (EProofAbs {-p-}_ e) = showParseable e --"(EProofAbs " ++ show p ++ showParseable e ++ ")"
   showParseable (EProofApp e) = showParseable e --"(EProofApp " ++ showParseable e ++ ")"
   showParseable (EHole loc ty e) = parens (text "EHole" $$ showParseable loc $$ showParseable ty $$ showParseable e)
-  showParseable (EHoleInst i e) = parens (text "EHoleInst" $$ showParseable i $$ showParseable e)
-  showParseable EEllipsis = text "EEllipsis"
 
 instance ShowParseable HoleID where
   showParseable (HoleID i) = showParseable i

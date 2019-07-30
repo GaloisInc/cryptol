@@ -50,8 +50,6 @@ fastTypeOf tyenv expr =
     EProofAbs {}  -> polymorphic
     EProofApp {}  -> polymorphic
     EWhere    {}  -> polymorphic
-    EHoleInst {}  -> polymorphic
-    EEllipsis     -> polymorphic
   where
     polymorphic =
       case fastSchemaOf tyenv expr of

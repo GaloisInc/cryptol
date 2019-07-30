@@ -40,6 +40,7 @@ module Cryptol.REPL.Command (
     -- Misc utilities
   , handleCtrlC
   , sanitize
+  , showHoleInfo
 
     -- To support Notebook interface (might need to refactor)
   , replParse
@@ -65,6 +66,7 @@ import qualified Cryptol.Testing.Random  as TestR
 import Cryptol.Parser
     (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
     ,parseModName,parseHelpName)
+import Cryptol.Parser.Position (emptyRange)
 import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.Error as T
 import qualified Cryptol.TypeCheck.Parseable as T
@@ -280,7 +282,8 @@ evalCmd str = do
     P.ExprInput expr -> do
       (val,_ty) <- replEvalExpr expr
       ppOpts <- getPPValOpts
-      valDoc <- rEvalRethrow (E.ppValue ppOpts val)
+      out <- readBack val
+      valDoc <- rEvalRethrow (E.ppOutExpr ppOpts out)
 
       -- This is the point where the value gets forced. We deepseq the
       -- pretty-printed representation of it, rather than the value
@@ -1201,6 +1204,14 @@ interactiveConfig = defaultConfig { cfgSource = "<interactive>" }
 getPrimMap :: REPL M.PrimMap
 getPrimMap  = liftModuleCmd M.getPrimMap
 
+showHoleInfo :: REPL ()
+showHoleInfo = do
+  hinfo <- getHoleInfo
+  opts <- getPPValOpts
+  evOpts <- getEvalOpts
+  out <- io $ E.runEval evOpts $ E.ppHoleInfo opts hinfo
+  rPrint out
+
 liftModuleCmd :: M.ModuleCmd a -> REPL a
 liftModuleCmd cmd =
   do evo <- getEvalOpts
@@ -1387,6 +1398,37 @@ replEdit file = do
     return (exit == ExitSuccess)
 
 type CommandMap = Trie CommandDescr
+
+-- Reading Back
+
+readBack :: E.Value -> REPL (E.OutputExpr Bool E.BV Integer)
+readBack (E.VRecord fs) = E.ORecord <$> (traverse rbField fs)
+  where rbField (x, v) = (\e -> (x, e)) <$> (rEval v >>= readBack)
+readBack (E.VTuple vs) = E.OTuple <$> traverse (\v -> rEval v >>= readBack) vs
+readBack (E.VBit b) = pure $ E.OBit b
+readBack (E.VInteger i) = pure $ E.OInteger i
+readBack (E.VSeq n elts) = do
+  vs <- traverse rEval $ E.enumerateSeqMap n elts
+  exprs <- traverse (readBack) vs
+  return $ E.OSeq exprs
+readBack (E.VWord n wv) =
+  E.OInteger . E.wordToInt <$> rEval (wv >>= E.asWordVal)
+readBack (E.VStream vals) = pure $ E.OStream [] -- TODO
+readBack (E.VFun f) = do
+  x <- fresh "x"
+  body <- rEval (f (pure $ E.VQuote $ E.SRoot $ E.OVar $ x))
+  E.OFun x <$> readBack body
+  where
+    fresh y = M.liftSupply (M.mkParameter (P.mkIdent (T.pack y)) emptyRange)
+readBack (E.VPoly f) = error "TODO VPoly"
+readBack (E.VNumPoly n) = error "TODO VNumPoly"
+readBack (E.VQuote s) = E.OWaiting <$> readBackSpine s
+  where
+    readBackSpine (E.SRoot e) = return (E.SRoot e)
+    readBackSpine (E.SApp s v) =
+      do s' <- readBackSpine s
+         a <- rEvalRethrow v >>= readBack
+         return (E.SApp s' a)
 
 
 -- Command Parsing -------------------------------------------------------------

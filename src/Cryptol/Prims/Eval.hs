@@ -59,22 +59,22 @@ instance EvalPrims Bool BV Integer where
 primTable :: Map.Map Ident Value
 primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   [ ("+"          , {-# SCC "Prelude::(+)" #-}
-                    binary (arithBinary (liftBinArith (+)) (liftBinInteger (+))
+                    binary (arithBinary "+" (liftBinArith (+)) (liftBinInteger (+))
                             (liftBinIntMod (+))))
   , ("-"          , {-# SCC "Prelude::(-)" #-}
-                    binary (arithBinary (liftBinArith (-)) (liftBinInteger (-))
+                    binary (arithBinary "-" (liftBinArith (-)) (liftBinInteger (-))
                             (liftBinIntMod (-))))
   , ("*"          , {-# SCC "Prelude::(*)" #-}
-                    binary (arithBinary (liftBinArith (*)) (liftBinInteger (*))
+                    binary (arithBinary "*" (liftBinArith (*)) (liftBinInteger (*))
                             (liftBinIntMod (*))))
   , ("/"          , {-# SCC "Prelude::(/)" #-}
-                    binary (arithBinary (liftDivArith div) (liftDivInteger div)
+                    binary (arithBinary "/" (liftDivArith div) (liftDivInteger div)
                             (const (liftDivInteger div))))
   , ("%"          , {-# SCC "Prelude::(%)" #-}
-                    binary (arithBinary (liftDivArith mod) (liftDivInteger mod)
+                    binary (arithBinary "%" (liftDivArith mod) (liftDivInteger mod)
                             (const (liftDivInteger mod))))
   , ("^^"         , {-# SCC "Prelude::(^^)" #-}
-                    binary (arithBinary modExp integerExp intModExp))
+                    binary (arithBinary "^^" modExp integerExp intModExp))
   , ("lg2"        , {-# SCC "Prelude::lg2" #-}
                     unary  (arithUnary (liftUnaryArith lg2) integerLg2 (const integerLg2)))
   , ("negate"     , {-# SCC "Prelude::negate" #-}
@@ -94,10 +94,10 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("<$"         , {-# SCC "Prelude::(<$)" #-}
                     binary (signedCmpOrder "<$" (\o -> o == LT)))
   , ("/$"         , {-# SCC "Prelude::(/$)" #-}
-                    binary (arithBinary (liftSigned bvSdiv) (liftDivInteger div)
+                    binary (arithBinary "/$" (liftSigned bvSdiv) (liftDivInteger div)
                             (const (liftDivInteger div))))
   , ("%$"         , {-# SCC "Prelude::(%$)" #-}
-                    binary (arithBinary (liftSigned bvSrem) (liftDivInteger mod)
+                    binary (arithBinary "%$" (liftSigned bvSrem) (liftDivInteger mod)
                             (const (liftDivInteger mod))))
   , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
                     sshrV)
@@ -370,12 +370,24 @@ modWrap x y = return (x `mod` y)
 
 arithBinary :: forall b w i
              . BitWord b w i
-            => BinArith w
+            => String
+            -> BinArith w
             -> (i -> i -> Eval i)
             -> (Integer -> i -> i -> Eval i)
             -> Binary b w i
-arithBinary opw opi opz = loop
+arithBinary opName opw opi opz = perhapsQuote loop
   where
+  perhapsQuote :: (TValue -> GenValue b w i -> GenValue b w i -> Eval (GenValue b w i))
+               -> (TValue -> GenValue b w i -> GenValue b w i -> Eval (GenValue b w i))
+  perhapsQuote wrapped t v1 v2
+    | isQuote v1 || isQuote v2 =
+      return $ VQuote (SApp (SApp (SRoot (OPrim (mkIdent (T.pack opName)))) (return v1)) (return v2))
+    | otherwise = wrapped t v1 v2
+
+  isQuote (VQuote _) = True
+  isQuote _ = False
+
+
   loop' :: TValue
         -> Eval (GenValue b w i)
         -> Eval (GenValue b w i)
@@ -531,21 +543,21 @@ lg2 i = case genLog i 2 of
   Nothing                       -> 0
 
 addV :: BitWord b w i => Binary b w i
-addV = arithBinary opw opi opz
+addV = arithBinary "+" opw opi opz
   where
     opw _w x y = ready $ wordPlus x y
     opi x y = ready $ intPlus x y
     opz m x y = ready $ intModPlus m x y
 
 subV :: BitWord b w i => Binary b w i
-subV = arithBinary opw opi opz
+subV = arithBinary "-" opw opi opz
   where
     opw _w x y = ready $ wordMinus x y
     opi x y = ready $ intMinus x y
     opz m x y = ready $ intModMinus m x y
 
 mulV :: BitWord b w i => Binary b w i
-mulV = arithBinary opw opi opz
+mulV = arithBinary "*" opw opi opz
   where
     opw _w x y = ready $ wordMult x y
     opi x y = ready $ intMult x y

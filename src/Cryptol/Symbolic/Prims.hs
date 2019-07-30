@@ -80,17 +80,17 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("False"       , VBit SBV.svFalse)
   , ("number"      , ecNumberV) -- Converts a numeric type into its corresponding value.
                                 -- { val, rep } (Literal val rep) => rep
-  , ("+"           , binary (arithBinary (liftBinArith SBV.svPlus) (liftBin SBV.svPlus)
+  , ("+"           , binary (arithBinary "+" (liftBinArith SBV.svPlus) (liftBin SBV.svPlus)
                              sModAdd)) -- {a} (Arith a) => a -> a -> a
-  , ("-"           , binary (arithBinary (liftBinArith SBV.svMinus) (liftBin SBV.svMinus)
+  , ("-"           , binary (arithBinary "-" (liftBinArith SBV.svMinus) (liftBin SBV.svMinus)
                              sModSub)) -- {a} (Arith a) => a -> a -> a
-  , ("*"           , binary (arithBinary (liftBinArith SBV.svTimes) (liftBin SBV.svTimes)
+  , ("*"           , binary (arithBinary "*" (liftBinArith SBV.svTimes) (liftBin SBV.svTimes)
                              sModMult)) -- {a} (Arith a) => a -> a -> a
-  , ("/"           , binary (arithBinary (liftBinArith SBV.svQuot) (liftBin SBV.svQuot)
+  , ("/"           , binary (arithBinary "/" (liftBinArith SBV.svQuot) (liftBin SBV.svQuot)
                              (liftModBin SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
-  , ("%"           , binary (arithBinary (liftBinArith SBV.svRem) (liftBin SBV.svRem)
+  , ("%"           , binary (arithBinary "%" (liftBinArith SBV.svRem) (liftBin SBV.svRem)
                              (liftModBin SBV.svRem))) -- {a} (Arith a) => a -> a -> a
-  , ("^^"          , binary (arithBinary sExp (liftBin SBV.svExp)
+  , ("^^"          , binary (arithBinary "^^" sExp (liftBin SBV.svExp)
                              sModExp)) -- {a} (Arith a) => a -> a -> a
   , ("lg2"         , unary (arithUnary sLg2 svLg2 svModLg2)) -- {a} (Arith a) => a -> a
   , ("negate"      , unary (arithUnary (\_ -> ready . SBV.svUNeg) (ready . SBV.svUNeg)
@@ -104,9 +104,9 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("<$"          , let boolFail = evalPanic "<$" ["Attempted signed comparison on bare Bit values"]
                          intFail = evalPanic "<$" ["Attempted signed comparison on Integer values"]
                       in binary (cmpBinary boolFail cmpSignedLt intFail (const intFail) SBV.svFalse))
-  , ("/$"          , binary (arithBinary (liftBinArith signedQuot) (liftBin SBV.svQuot)
+  , ("/$"          , binary (arithBinary "/$" (liftBinArith signedQuot) (liftBin SBV.svQuot)
                              (liftModBin SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
-  , ("%$"          , binary (arithBinary (liftBinArith signedRem) (liftBin SBV.svRem)
+  , ("%$"          , binary (arithBinary "%$" (liftBinArith signedRem) (liftBin SBV.svRem)
                              (liftModBin SBV.svRem)))
   , (">>$"         , sshrV)
   , ("&&"          , binary (logicBinary SBV.svAnd SBV.svAnd))

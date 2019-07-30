@@ -116,8 +116,6 @@ instance FreeVars Expr where
       ETApp e t         -> freeVars e <> freeVars t
       EApp e1 e2        -> freeVars [e1,e2]
       EHole _ _ e       -> maybe mempty freeVars e
-      EHoleInst _ e     -> maybe mempty freeVars e
-      EEllipsis         -> mempty
       EAbs x t e        -> freeVars t <> rmVal x (freeVars e)
       EProofAbs p e     -> freeVars p <> freeVars e
       EProofApp e       -> freeVars e

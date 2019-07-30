@@ -295,9 +295,11 @@ data GenValue b w i
   | VFun (Eval (GenValue b w i) -> Eval (GenValue b w i)) -- ^ functions
   | VPoly (TValue -> Eval (GenValue b w i))   -- ^ polymorphic values (kind *)
   | VNumPoly (Nat' -> Eval (GenValue b w i))  -- ^ polymorphic values (kind #)
-  | VQuote Expr
+  | VQuote (Spine (OutputExpr b w i) (Eval (GenValue b w i)))
  deriving (Generic, NFData)
 
+data Spine a b = SRoot a | SApp (Spine a b) b
+  deriving (Generic, Show, NFData)
 
 -- | Force the evaluation of a word value
 forceWordValue :: WordValue b w i -> Eval ()
@@ -333,7 +335,7 @@ instance (Show b, Show w, Show i) => Show (GenValue b w i) where
     VFun _     -> "fun"
     VPoly _    -> "poly"
     VNumPoly _ -> "numpoly"
-    VQuote e   -> show e
+    VQuote e   -> "residualized"
 
 type Value = GenValue Bool BV Integer
 
@@ -348,6 +350,40 @@ atFst f (x,y) = fmap (,y) $ f x
 
 atSnd :: Functor f => (a -> f b) -> (c, a) -> f (c, b)
 atSnd f (x,y) = fmap (x,) $ f y
+
+ppOutExpr ::
+  (BitWord b w i) =>
+  PPOpts ->
+  OutputExpr b w i ->
+  Eval Doc
+ppOutExpr opts (OVar x) = pure $ pp x
+ppOutExpr opts (OPrim x) = pure $ pp x
+ppOutExpr opts (OWaiting s) = ppOutSpine s
+  where
+    ppOutSpine (SRoot e) = ppOutExpr opts e
+    ppOutSpine (SApp sp arg) = (<+>) <$> ppOutSpine sp <*> ppOutExpr opts arg
+ppOutExpr opts (ORecord _) = pure $ text "out:record"
+ppOutExpr opts (OTuple _) = pure $ text "out:tuple"
+ppOutExpr opts (OBit _) = pure $ text "out:bit"
+ppOutExpr opts (OInteger _) = pure $ text "out:integer"
+ppOutExpr opts (OSeq _) = pure $ text "out:seq"
+ppOutExpr opts (OWord _ _) = pure $ text "out:word"
+ppOutExpr opts (OStream _) = pure $ text "out:stream"
+ppOutExpr opts (OFun x body) =
+  do outBody <- ppOutExpr opts body
+     return $ (text "\\" <> pp x) <+> text "->" <+> outBody
+ppOutExpr opts (OPoly _ _) = pure $ text "out:poly"
+ppOutExpr opts (ONumPoly _ _) = pure $ text "out:numpoly"
+ppOutExpr _  OEllipsis = pure $ text "..."
+ppOutExpr opts (OHoleInst i e) =
+  let begin = text "{" <> pp i <> text "!"
+      end   = text "!" <> pp i <> text "}"
+  in case e of
+       Just e' ->
+         do out <- ppValue opts e'
+            return $ begin <+> out <+> end
+       Nothing -> return $ begin <+> end
+
 
 ppValue :: forall b w i
          . BitWord b w i
@@ -376,7 +412,12 @@ ppValue opts = loop
     VFun _             -> return $ text "<function>"
     VPoly _            -> return $ text "<polymorphic value>"
     VNumPoly _         -> return $ text "<polymorphic value>"
-    VQuote e           -> return $ pp e
+    VQuote s           -> unspine s
+
+  unspine (SRoot e)  = ppOutExpr opts e
+  unspine (SApp s v) = do h <- unspine s
+                          a <- loop =<< v
+                          return (h <+> a)
 
   ppWordVal :: WordValue b w i -> Eval Doc
   ppWordVal w = ppWord opts <$> asWordVal w
@@ -757,8 +798,9 @@ fromWord msg val = bvVal <$> fromVWord msg val
 -- | Extract a function from a value.
 fromVFun :: GenValue b w i -> (Eval (GenValue b w i) -> Eval (GenValue b w i))
 fromVFun val = case val of
-  VFun f -> f
-  _      -> evalPanic "fromVFun" ["not a function"]
+  VFun f   -> f
+  VQuote s -> \v -> return (VQuote (SApp s v))
+  _        -> evalPanic "fromVFun" ["not a function"]
 
 -- | Extract a polymorphic function from a value.
 fromVPoly :: GenValue b w i -> (TValue -> Eval (GenValue b w i))
@@ -906,15 +948,58 @@ lookupType p env = Map.lookup p (envTypes env)
 
 -- Holes -----------------------------------------------------------------------
 
+data OutputExpr b w i
+  = OVar !Name
+  | OPrim !Ident
+  | OWaiting !(Spine (OutputExpr b w i) (OutputExpr b w i))
+  | ORecord ![(Ident, OutputExpr b w i)]
+  | OTuple ![OutputExpr b w i]
+  | OBit !b
+  | OInteger !i
+  | OSeq [OutputExpr b w i]
+  | OWord !Integer !(WordValue b w i)
+  | OStream ![OutputExpr b w i]
+  | OFun !Name !(OutputExpr b w i)
+  | OPoly !Name !(OutputExpr b w i)
+  | ONumPoly !Name !(OutputExpr b w i)
+  | OEllipsis
+  | OHoleInst !HoleID !(Maybe (GenValue b w i))
+  deriving (Generic, NFData)
+
+instance (Show b, Show w, Show i) => Show (OutputExpr b w i) where
+  show (OVar _) = "out:var"
+  show (OPrim _) = "out:prim"
+  show (ORecord _) = "out:record"
+  show (OTuple _) = "out:tuple"
+  show (OBit _) = "out:bit"
+  show (OInteger _) = "out:integer"
+  show (OSeq _) = "out:seq"
+  show (OWord _ _) = "out:word"
+  show (OStream _) = "out:stream"
+  show (OFun _ _) = "out:fun"
+  show (OPoly _ _) = "out:poly"
+  show (ONumPoly _ _) = "out:numpoly"
+  show OEllipsis = "out:ellipsis"
+  show (OHoleInst _ _) = "out:holeinst"
+  show (OWaiting s) = "out:residual"
+
+
+
+
 -- | The information saved about a particular hole instance during evaluation
 data HoleClosure b w i = HoleClosure !Range !Type !(GenEvalEnv b w i)
 
-instance PP (HoleClosure b w i) where
-  ppPrec _ (HoleClosure loc ty env) =
-    hang (pp loc) 2 $
-    vcat [ text "Type: " <+> pp ty
-         , text "Closure: " <+> vcat [pp n <+> text "=" <+> text "TODO" | (n, v) <- Map.toList (envVars env)]
-         ]
+ppHoleClosure :: BitWord b w i => PPOpts -> HoleClosure b w i -> Eval Doc
+ppHoleClosure opts (HoleClosure loc ty env) = do
+    vars <- traverse (\(n, v) -> (pp n <+> text "=" <+>) <$> perhapsVal v) (Map.toList (envVars env))
+    return $
+      hang (pp loc) 2 $
+      vcat [ text "Type: " <+> pp ty
+           , text "Closure: " <+> vcat vars
+           ]
+    where
+      perhapsVal (Ready v) = ppValue opts v
+      perhapsVal (Thunk _) = pure (text "{{thunk}}")
 
 instance (NFData b, NFData w, NFData i) => NFData (HoleClosure b w i) where
   rnf (HoleClosure loc ty env) = rnf loc `seq` rnf ty `seq` rnf env
@@ -922,12 +1007,17 @@ instance (NFData b, NFData w, NFData i) => NFData (HoleClosure b w i) where
 -- | All the hole instances
 newtype HoleInfo b w i = HoleInfo (IntMap.IntMap (HoleClosure b w i))
 
-instance PP (HoleInfo b w i) where
-  ppPrec _ (HoleInfo hs) =
-    hang (text "Holes:") 2 $
-    vcat [ (pp (HoleID i) <> colon) <+> pp clos
-         | (i, clos) <- IntMap.toList hs
-         ]
+instance Show (HoleInfo b w i) where
+  show (HoleInfo seen) = "HoleInfo " ++ show (IntMap.keys seen)
+
+ppHoleInfo :: BitWord b w i => PPOpts -> HoleInfo b w i -> Eval Doc
+ppHoleInfo opts (HoleInfo hs) =
+  (hang (text "Holes:") 2) . vcat <$>
+  traverse ppHole (IntMap.toList hs)
+
+  where
+    ppHole (i, clos) =
+      ((pp (HoleID i) <> colon) <+>) <$> ppHoleClosure opts clos
 
 emptyHoleInfo :: HoleInfo b w i
 emptyHoleInfo = HoleInfo mempty

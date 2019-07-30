@@ -129,8 +129,6 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | EAbs Name Type Expr       -- ^ Function value
 
             | EHole Range Type (Maybe Expr)  -- ^ Hole, with location, type, contents
-            | EHoleInst HoleID (Maybe Expr)  -- ^ Hole instance, as a result of evaluation
-            | EEllipsis
 
             {- | Proof abstraction.  Because we don't keep proofs around
                  we don't need to name the assumption, but we still need to
@@ -201,8 +199,6 @@ instance ContainsHoles Expr where
   containsHoles (EApp fun arg) = containsHoles fun || containsHoles arg
   containsHoles (EAbs _ _ e) = containsHoles e
   containsHoles (EHole _ _ _) = True
-  containsHoles (EHoleInst _ _) = True
-  containsHoles EEllipsis = True
   containsHoles (EProofAbs _ e) = containsHoles e
   containsHoles (EProofApp e) = containsHoles e
   containsHoles (EWhere e ds) = containsHoles e || containsHoles ds
@@ -276,13 +272,6 @@ instance PP (WithNames Expr) where
       EHole _ _ e   -> case e of
                          Nothing -> text "{!" <+> text "!}"
                          Just e' -> text "{!" <+> pp e' <+> text "!}"
-
-      EHoleInst i e -> let begin = text "{" <> pp i <> "!"
-                           end   = text "!" <> pp i <> "}"
-                       in case e of
-                            Just e' -> begin <+> pp e' <+> end
-                            Nothing -> begin <+> end
-      EEllipsis     -> text "..."
 
       EAbs {}       -> let (xs,e) = splitWhile splitAbs expr
                        in ppLam nm prec [] [] xs e
