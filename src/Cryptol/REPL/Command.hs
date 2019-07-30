@@ -1209,7 +1209,8 @@ showHoleInfo = do
   hinfo <- getHoleInfo >>= io . readIORef
   opts <- getPPValOpts
   evOpts <- getEvalOpts
-  out <- io $ E.runEval evOpts $ E.ppHoleInfo opts hinfo
+  replEnv <- M.meEvalEnv <$> getModuleEnv
+  out <- io $ E.runEval evOpts $ E.ppHoleInfo replEnv opts hinfo
   rPrint out
 
 liftModuleCmd :: M.ModuleCmd a -> REPL a

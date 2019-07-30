@@ -989,9 +989,10 @@ instance (Show b, Show w, Show i) => Show (OutputExpr b w i) where
 -- | The information saved about a particular hole instance during evaluation
 data HoleClosure b w i = HoleClosure !Range !Type !(GenEvalEnv b w i)
 
-ppHoleClosure :: BitWord b w i => PPOpts -> HoleClosure b w i -> Eval Doc
-ppHoleClosure opts (HoleClosure loc ty env) = do
-    vars <- traverse (\(n, v) -> (pp n <+> text "=" <+>) <$> perhapsVal v) (Map.toList (envVars env))
+ppHoleClosure :: BitWord b w i => GenEvalEnv b w i -> PPOpts -> HoleClosure b w i -> Eval Doc
+ppHoleClosure omit opts (HoleClosure loc ty env) = do
+    vars <- traverse (\(n, v) -> (pp n <+> text "=" <+>) <$> perhapsVal v)
+              [(n, v) | (n, v) <- Map.toList (envVars env), not $ Map.member n (envVars omit)]
     return $
       hang (pp loc) 2 $
       vcat [ text "Type: " <+> pp ty
@@ -1010,14 +1011,14 @@ newtype HoleInfo b w i = HoleInfo (IntMap.IntMap (HoleClosure b w i))
 instance Show (HoleInfo b w i) where
   show (HoleInfo seen) = "HoleInfo " ++ show (IntMap.keys seen)
 
-ppHoleInfo :: BitWord b w i => PPOpts -> HoleInfo b w i -> Eval Doc
-ppHoleInfo opts (HoleInfo hs) =
+ppHoleInfo :: BitWord b w i => GenEvalEnv b w i -> PPOpts -> HoleInfo b w i -> Eval Doc
+ppHoleInfo omit opts (HoleInfo hs) =
   (hang (text "Holes:") 2) . vcat <$>
   traverse ppHole (IntMap.toList hs)
 
   where
     ppHole (i, clos) =
-      ((pp (HoleID i) <> colon) <+>) <$> ppHoleClosure opts clos
+      ((pp (HoleID i) <> colon) <+>) <$> ppHoleClosure omit opts clos
 
 emptyHoleInfo :: HoleInfo b w i
 emptyHoleInfo = HoleInfo mempty
