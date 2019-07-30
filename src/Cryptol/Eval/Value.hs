@@ -362,10 +362,13 @@ ppOutExpr opts (OWaiting s) = ppOutSpine s
   where
     ppOutSpine (SRoot e) = ppOutExpr opts e
     ppOutSpine (SApp sp arg) = (<+>) <$> ppOutSpine sp <*> ppOutExpr opts arg
-ppOutExpr opts (ORecord _) = pure $ text "out:record"
-ppOutExpr opts (OTuple _) = pure $ text "out:tuple"
-ppOutExpr opts (OBit _) = pure $ text "out:bit"
-ppOutExpr opts (OInteger _) = pure $ text "out:integer"
+ppOutExpr opts (ORecord fs) = braces . hsep . punctuate (text ", ") <$> traverse ppF fs
+  where ppF (x, e) = (pp x <+> text "=" <+>) <$>  ppOutExpr opts e
+ppOutExpr opts (OTuple es) =
+  do contents <- traverse (ppOutExpr opts) es
+     return $ parens $ hsep $ punctuate (text ", ") contents
+ppOutExpr opts (OBit b) = return $ ppBit b
+ppOutExpr opts (OInteger i) = pure $ ppInteger opts i
 ppOutExpr opts (OSeq _) = pure $ text "out:seq"
 ppOutExpr opts (OWord _ _) = pure $ text "out:word"
 ppOutExpr opts (OStream _) = pure $ text "out:stream"

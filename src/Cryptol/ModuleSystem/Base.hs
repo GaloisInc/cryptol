@@ -187,7 +187,7 @@ doLoadModule isrc path fp pm0 =
      tcm <- optionalInstantiate =<< checkModule isrc path pm
 
      -- extend the eval env, unless a functor.
-     holes <- io $ newIORef $ E.emptyHoleInfo
+     holes <- getHoleInfo
      unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv holes tcm)
      canonicalPath <- io (canonicalizePath path)
      loadedModule path canonicalPath fp tcm
