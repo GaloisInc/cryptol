@@ -116,7 +116,7 @@ bumpCounter = do RO { .. } <- IM ask
 
 runInferM :: TVars a => InferInput -> InferM a -> IO (InferOutput a)
 runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
-  do coutner <- newIORef 0
+  do counter <- newIORef 0
      rec ro <- return RO { iRange     = inpRange info
                          , iVars          = Map.map ExtVar (inpVars info)
                          , iTVars         = []
@@ -131,7 +131,7 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
                          , iMonoBinds     = inpMonoBinds info
                          , iSolver        = solver
                          , iPrimNames     = inpPrimNames info
-                         , iSolveCounter  = coutner
+                         , iSolveCounter  = counter
                          }
 
          (result, finalRW) <- runStateT rw
