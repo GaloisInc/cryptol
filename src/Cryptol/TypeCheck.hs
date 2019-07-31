@@ -12,6 +12,7 @@ module Cryptol.TypeCheck
   , tcModuleInst
   , tcExpr
   , tcDecls
+  , HoleType(..)
   , InferInput(..)
   , InferOutput(..)
   , SolverConfig(..)
@@ -32,6 +33,7 @@ import           Cryptol.TypeCheck.Depends (FromDecl)
 import           Cryptol.TypeCheck.Error
 import           Cryptol.TypeCheck.Monad
                    ( runInferM
+                   , HoleType(..)
                    , InferInput(..)
                    , InferOutput(..)
                    , NameSeeds

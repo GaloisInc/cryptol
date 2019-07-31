@@ -1220,7 +1220,7 @@ liftModuleCmd cmd =
      moduleCmdResult =<< io (cmd (evo,env))
 
 moduleCmdResult :: M.ModuleRes a -> REPL a
-moduleCmdResult (res,ws0) = do
+moduleCmdResult (res,ws0,hs) = do
   warnDefaulting <- getKnownUser "warnDefaulting"
   warnShadowing  <- getKnownUser "warnShadowing"
   -- XXX: let's generalize this pattern
@@ -1247,6 +1247,7 @@ moduleCmdResult (res,ws0) = do
   let ws = mapMaybe filterDefaults . mapMaybe filterShadowing $ ws0
   (_,_,_,names) <- getFocusedEnv
   mapM_ (rPrint . runDoc names . pp) ws
+  mapM_ (rPrint . runDoc names . pp) hs
   case res of
     Right (a,me') -> setModuleEnv me' >> return a
     Left err      ->

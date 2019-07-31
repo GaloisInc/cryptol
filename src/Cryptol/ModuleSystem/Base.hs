@@ -52,7 +52,6 @@ import Cryptol.Transform.MonoValues (rewModule)
 import qualified Control.Exception as X
 import Control.Monad (unless,when)
 import qualified Data.ByteString as B
-import Data.IORef (newIORef)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
@@ -471,10 +470,11 @@ typecheck act i params env = do
 
   case out of
 
-    T.InferOK warns seeds supply' o ->
+    T.InferOK warns holes seeds supply' o ->
       do setNameSeeds seeds
          setSupply supply'
          typeCheckWarnings warns
+         holeTypes holes
          menv <- getModuleEnv
          case meCoreLint menv of
            NoCoreLint -> return ()
@@ -485,8 +485,9 @@ typecheck act i params env = do
                            Left err -> panic "Core lint failed:" [show err]
          return o
 
-    T.InferFailed warns errs ->
+    T.InferFailed warns holes errs ->
       do typeCheckWarnings warns
+         holeTypes holes
          typeCheckingFailed errs
 
 -- | Generate input for the typechecker.

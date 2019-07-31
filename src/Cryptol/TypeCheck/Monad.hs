@@ -30,7 +30,7 @@ import           Cryptol.TypeCheck.Error(Warning(..),Error(..),cleanupErrors)
 import           Cryptol.TypeCheck.PP (brackets, commaSep)
 import qualified Cryptol.TypeCheck.SimpleSolver as Simple
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
-import           Cryptol.Utils.PP(pp, (<+>), text, quotes)
+import           Cryptol.Utils.PP(PP(..), hang, pp, (<+>), text, quotes, vcat)
 import           Cryptol.Utils.Ident(Ident)
 import           Cryptol.Utils.Panic(panic)
 
@@ -98,13 +98,29 @@ data NameSeeds = NameSeeds
 nameSeeds :: NameSeeds
 nameSeeds = NameSeeds { seedTVar = 10, seedGoal = 0 }
 
+data HoleType = HoleType
+  { htRange       :: !Range
+  , htType        :: !Type
+  , htContentType :: !(Maybe Type)
+  }
+  deriving Show
+
+instance PP HoleType where
+  ppPrec _ ht =
+    hang (text "Found hole at " <+> pp (htRange ht)) 4 $
+    vcat [ text "Type:" <+> pp (htType ht)
+         , case htContentType ht of
+             Nothing -> text "Hole is empty"
+             Just ct -> text "Contents are " <+> pp ct
+         ]
+
 
 -- | The results of type inference.
 data InferOutput a
-  = InferFailed [(Range,Warning)] [(Range,Error)]
+  = InferFailed [(Range,Warning)] [HoleType] [(Range,Error)]
     -- ^ We found some errors
 
-  | InferOK [(Range,Warning)] NameSeeds Supply a
+  | InferOK [(Range,Warning)] [HoleType] NameSeeds Supply a
     -- ^ Type inference was successful.
 
 
@@ -139,7 +155,11 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
 
      let theSu    = iSubst finalRW
          defSu    = defaultingSubst theSu
-         warns    = [(r,apSubst theSu w) | (r,w) <- iWarnings finalRW ]
+         warns    = [(r, apSubst theSu w) | (r,w) <- iWarnings finalRW ]
+         holeInfo = [ HoleType r (apSubst theSu t) (fmap (apSubst theSu) ct)
+                    | HoleType r t ct <- iHoleTypes finalRW
+                    ]
+
 
      case iErrors finalRW of
        [] ->
@@ -147,22 +167,24 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
            (cts,[])
              | nullGoals cts
                    -> return $ InferOK warns
+                                  holeInfo
                                   (iNameSeeds finalRW)
                                   (iSupply finalRW)
                                   (apSubst defSu result)
-           (cts,has) -> return $ InferFailed warns
+           (cts,has) -> return $ InferFailed warns holeInfo
                 $ cleanupErrors
                 [ ( goalRange g
                   , UnsolvedGoals False [apSubst theSu g]
                   ) | g <- fromGoals cts ++ map hasGoal has
                 ]
-       errs -> return $ InferFailed warns
+       errs -> return $ InferFailed warns holeInfo
                       $ cleanupErrors [(r,apSubst theSu e) | (r,e) <- errs]
 
   where
   mkExternal x = (IsExternal, x)
   rw = RW { iErrors     = []
           , iWarnings   = []
+          , iHoleTypes  = []
           , iSubst      = emptySubst
           , iExistTVars = []
 
@@ -239,6 +261,7 @@ data RO = RO
 data RW = RW
   { iErrors   :: ![(Range,Error)]       -- ^ Collected errors
   , iWarnings :: ![(Range,Warning)]     -- ^ Collected warnings
+  , iHoleTypes :: ![HoleType]           -- ^ Collected holes
   , iSubst    :: !Subst                 -- ^ Accumulated substitution
 
   , iExistTVars  :: [Map Name Type]
@@ -313,6 +336,11 @@ recordError :: Error -> InferM ()
 recordError e =
   do r <- curRange
      IM $ sets_ $ \s -> s { iErrors = (r,e) : iErrors s }
+
+recordHoleType :: Range -> Type -> Maybe Type -> InferM ()
+recordHoleType loc t ct =
+  IM $ sets_ $
+  \s -> s { iHoleTypes = HoleType loc t ct : iHoleTypes s }
 
 recordWarning :: Warning -> InferM ()
 recordWarning w =

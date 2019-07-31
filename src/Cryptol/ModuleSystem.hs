@@ -47,6 +47,7 @@ import qualified Cryptol.ModuleSystem.Base as Base
 import qualified Cryptol.Parser.AST        as P
 import           Cryptol.Parser.Name (PName)
 import           Cryptol.Parser.NoPat (RemovePatterns)
+import qualified Cryptol.TypeCheck as T (HoleType(..))
 import qualified Cryptol.TypeCheck.AST     as T
 import qualified Cryptol.Utils.Ident as M
 
@@ -55,7 +56,7 @@ import qualified Cryptol.Utils.Ident as M
 
 type ModuleCmd a = (E.EvalOpts,ModuleEnv) -> IO (ModuleRes a)
 
-type ModuleRes a = (Either ModuleError (a,ModuleEnv), [ModuleWarning])
+type ModuleRes a = (Either ModuleError (a,ModuleEnv), [ModuleWarning], [T.HoleType])
 
 getPrimMap :: ModuleCmd PrimMap
 getPrimMap me = runModuleM me Base.getPrimMap

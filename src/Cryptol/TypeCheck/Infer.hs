@@ -354,12 +354,16 @@ checkE expr tGoal =
     P.EFun ps e -> checkFun (text "anonymous function") ps e tGoal
 
     P.EHole loc e ->
-      EHole loc tGoal <$>
-      case e of
-        Nothing -> return Nothing
-        Just e' ->
-          do t <- newType TypeOfHoleContents KType
-             Just <$> checkE e' t
+      do contents <-
+           case e of
+             Nothing -> return Nothing
+             Just e' ->
+               do t <- newType TypeOfHoleContents KType
+                  content <- checkE e' t
+                  return $ Just (content, t)
+         recordHoleType loc tGoal (fmap snd contents)
+
+         return $ EHole loc tGoal (fmap fst contents)
 
     P.ELocated e r  -> inRange r (checkE e tGoal)
 

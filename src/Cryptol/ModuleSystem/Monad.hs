@@ -281,7 +281,7 @@ instance PP ModuleWarning where
     RenamerWarnings ws   -> vcat (map pp ws)
 
 warn :: [ModuleWarning] -> ModuleM ()
-warn  = ModuleT . put
+warn ws = ModuleT $ put (WO ws [])
 
 typeCheckWarnings :: [(Range,T.Warning)] -> ModuleM ()
 typeCheckWarnings ws
@@ -293,8 +293,28 @@ renamerWarnings ws
   | null ws   = return ()
   | otherwise = warn [RenamerWarnings ws]
 
+-- Hole Types ------------------------------------------------------------------
+
+holeTypes :: [T.HoleType] -> ModuleM ()
+holeTypes hs
+  | null hs = return ()
+  | otherwise = ModuleT $ put (WO [] hs)
 
 -- Module System Monad ---------------------------------------------------------
+
+data WO = WO { woWarnings :: [ModuleWarning]
+             , woHoles    :: [T.HoleType]
+             }
+
+instance Semigroup WO where
+  (<>) = mappend
+
+instance Monoid WO where
+  mempty = WO [] []
+  mappend w1 w2 =
+    WO { woWarnings = woWarnings w1 `mappend` woWarnings w2
+       , woHoles = woHoles w1 `mappend` woHoles w2
+       }
 
 data RO = RO { roLoading  :: [ImportSource]
              , roEvalOpts :: EvalOpts
@@ -305,7 +325,7 @@ emptyRO ev = RO { roLoading = [], roEvalOpts = ev }
 
 newtype ModuleT m a = ModuleT
   { unModuleT :: ReaderT RO (StateT ModuleEnv
-                    (ExceptionT ModuleError (WriterT [ModuleWarning] m))) a
+                    (ExceptionT ModuleError (WriterT WO m))) a
   }
 
 instance Monad m => Functor (ModuleT m) where
@@ -342,21 +362,25 @@ instance Monad m => FreshM (ModuleT m) where
 instance MonadIO m => MonadIO (ModuleT m) where
   liftIO m = lift $ liftIO m
 
-runModuleT :: Monad m
-           => (EvalOpts,ModuleEnv)
-           -> ModuleT m a
-           -> m (Either ModuleError (a, ModuleEnv), [ModuleWarning])
+runModuleT
+  :: Monad m
+  => (EvalOpts,ModuleEnv)
+  -> ModuleT m a
+  -> m (Either ModuleError (a, ModuleEnv), [ModuleWarning], [T.HoleType])
 runModuleT (ev,env) m =
-    runWriterT
-  $ runExceptionT
-  $ runStateT env
-  $ runReaderT (emptyRO ev)
-  $ unModuleT m
+  do (res, WO warnings holes) <-
+       runWriterT $
+       runExceptionT $
+       runStateT env $
+       runReaderT (emptyRO ev) $
+       unModuleT m
+     return (res, warnings, holes)
 
 type ModuleM = ModuleT IO
 
-runModuleM :: (EvalOpts, ModuleEnv) -> ModuleM a
-           -> IO (Either ModuleError (a,ModuleEnv),[ModuleWarning])
+runModuleM
+  :: (EvalOpts, ModuleEnv) -> ModuleM a
+  -> IO (Either ModuleError (a,ModuleEnv),[ModuleWarning], [T.HoleType])
 runModuleM = runModuleT
 
 

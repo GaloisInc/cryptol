@@ -128,7 +128,7 @@ thmSMTResults (SBV.ThmResult r) = [r]
 
 proverError :: String -> M.ModuleCmd (Maybe SBV.Solver, ProverResult)
 proverError msg (_,modEnv) =
-  return (Right ((Nothing, ProverError msg), modEnv), [])
+  return (Right ((Nothing, ProverError msg), modEnv), [], [])
 
 satProve :: ProverCommand -> M.ModuleCmd (Maybe SBV.Solver, ProverResult)
 satProve ProverCommand {..} =
@@ -238,7 +238,7 @@ satProve ProverCommand {..} =
 
 satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
 satProveOffline ProverCommand {..} =
-  protectStack (\msg (_,modEnv) -> return (Right (Left msg, modEnv), [])) $
+  protectStack (\msg (_,modEnv) -> return (Right (Left msg, modEnv), [], [])) $
   \(evOpts,modEnv) -> do
     let isSat = case pcQueryType of
           ProveQuery -> False
@@ -247,7 +247,7 @@ satProveOffline ProverCommand {..} =
     let tyFn = if isSat then existsFinType else forallFinType
     let addAsm = if isSat then SBV.svAnd else \x y -> SBV.svOr (SBV.svNot x) y
     case predArgTypes pcSchema of
-      Left msg -> return (Right (Left msg, modEnv), [])
+      Left msg -> return (Right (Left msg, modEnv), [], [])
       Right ts ->
         do when pcVerbose $ logPutStrLn (Eval.evalLogger evOpts) "Simulating..."
            checkComplete extDgs
@@ -261,7 +261,7 @@ satProveOffline ProverCommand {..} =
              b <- liftIO $ Eval.runEval evOpts
                         (fromVBit <$> foldM fromVFun v (map Eval.ready args))
              return (foldr addAsm b asms)
-           return (Right (Right smtlib, modEnv), [])
+           return (Right (Right smtlib, modEnv), [], [])
 
 protectStack :: (String -> M.ModuleCmd a)
              -> M.ModuleCmd a
