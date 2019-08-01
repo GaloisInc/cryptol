@@ -1,0 +1,102 @@
+
+This branch of the repository contains an in-progress implementation
+of programming with holes. Because time ran out to finish the
+implementation, this document exists to document the current status
+and the next steps to be taken.
+
+The eventual goal of this branch is to have the following features in
+Cryptol:
+
+1. Holes in expressions. Holes are delimited by {! !}, and may optionally
+   contain further expressions. For instance, {! 0xf0 & {! !} !} is a hole
+   that contains an expression that itself contains holes.
+
+2. The ability to safely run some finite prefix of a computation at
+   the REPL, showing a partial result if the computation does not
+   complete in time.
+
+
+Static Semantics of Holes
+
+Holes have the type {a} a. Note that a hole's type will be
+instantiated via unification to something more specific, as all type
+quantification in Cryptol is prenex. If a hole contains an expression,
+then the inner expression can have its own type, and it can refer to
+variables in the context surrounding the hole. The type checker
+accumulates information about source locations and types of holes, and
+communicates them to the user.
+
+Dynamic Semantics of Holes
+
+The dynamic semantics of holes are inspired by "Live Functional
+Programming with Typed Holes", by Omar, Voysey, Chugh, and Hammer
+(POPL 2019). The value of a hole is a "hole closure", consisting of
+the values assigned to each free variable in scope around the hole.
+This allows users to inspect the different closures that arise from
+the same source hole to gain insight into the pattern of recursion
+that's being used. If a hole contains an expression, then its value
+additionally contains the value of the expression.
+
+Elimination forms that attempt to inspect the values of holes must
+instead construct a residualized expression, in a manner similar to
+TDPE or NbE. This is accomplished by having a value form that
+describes residualized expressions, and placing hole values at its
+root. Then, an NbE-style read-back step transforms values to a
+printable representation as expressions, leaving residualized
+expressions intact.
+
+Because Cryptol supports general recursion, residualization and
+reading back is not entirely safe. There are two sources of potential
+non-termination at the REPL. One is non-productive infinite loops, and
+the other is productive infinite unfoldings. Productive infinite
+unfoldings can arise from programs like the following:
+
+recur x = if x == 0 then x else recur (x >> 1)
+
+If recur is applied to a hole, the result is an infinite stack of
+calls to recur. This can be worked around the same way that Cryptol
+prints infinite streams: by printing a user-configurable prefix, and
+then an ellipsis. Non-productive loops can be interrupted by adapting
+a technique from dependently typed programming: the delay monad.
+
+data Delay a = Now a | Later (Delay a)
+
+Then, every step of computation that could in principle introduce
+nontermination should be guarded by Later (eg by wrapping the
+evaluator in it at the top level). This allows the consumer of the
+operation to decide how long they want to wait, and in particular
+evaluation steps prior to reading back can be counted.
+
+The current status of the branch is:
+
+1. The parser and AST have been suitably extended with holes.
+
+2. The type checker successfully type checks holes and records them to
+   show the user.
+
+3. The evaluator evaluates holes, and residualizes a few elimination
+   forms. Many elimination forms still crash Cryptol when encountering
+   a neutral.
+
+4. Eta-expansion does not yet work on residualized computations or
+   holes. This means that Cryptol will crash under certain
+   circumstances if holes are used at product types.
+
+5. The user interface is present, but rough. Too many variables are
+   shown for hole closures, the list of hole closures accumulates over
+   time, residualized infix operators are shown in prefix notation,
+   and so forth. This needs refinement.
+
+6. The evaluator has been extended with a delay monad, but it is not
+   yet used to prevent loops when reading back.
+
+7. Some parts of Cryptol need pattern match cases added for the new
+   forms.  These throw compiler warnings on new builds.
+
+8. Thorough tests are not ready.
+
+The work here was done by David Christiansen. If you're someone else
+who is looking to finish this up, feel free to ask him for help.
+
+
+
