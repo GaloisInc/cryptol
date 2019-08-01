@@ -123,7 +123,6 @@ data InferOutput a
   | InferOK [(Range,Warning)] [HoleType] NameSeeds Supply a
     -- ^ Type inference was successful.
 
-
     deriving Show
 
 bumpCounter :: InferM ()

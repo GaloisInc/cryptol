@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -1403,23 +1404,34 @@ type CommandMap = Trie CommandDescr
 
 -- Reading Back
 
+rbEval :: E.Eval a -> REPL (Maybe a)
+rbEval act = rEvalRethrow (E.cutoff 100 act)
+
+readBack' :: Maybe E.Value -> REPL (E.OutputExpr Bool E.BV Integer)
+readBack' Nothing = return E.OEllipsis
+readBack' (Just v) = readBack v
+
 readBack :: E.Value -> REPL (E.OutputExpr Bool E.BV Integer)
 readBack (E.VRecord fs) = E.ORecord <$> (traverse rbField fs)
-  where rbField (x, v) = (\e -> (x, e)) <$> (rEval v >>= readBack)
-readBack (E.VTuple vs) = E.OTuple <$> traverse (\v -> rEval v >>= readBack) vs
+  where
+    rbField (x, v) = (\e -> (x, e)) <$> (rbEval v >>= readBack')
+readBack (E.VTuple vs) = E.OTuple <$> traverse (\v -> rbEval v >>= readBack') vs
 readBack (E.VBit b) = pure $ E.OBit b
 readBack (E.VInteger i) = pure $ E.OInteger i
 readBack (E.VSeq n elts) = do
-  vs <- traverse rEval $ E.enumerateSeqMap n elts
-  exprs <- traverse (readBack) vs
+  vs <- traverse rbEval $ E.enumerateSeqMap n elts
+  exprs <- traverse readBack' vs
   return $ E.OSeq exprs
 readBack (E.VWord n wv) =
-  E.OInteger . E.wordToInt <$> rEval (wv >>= E.asWordVal)
+  rbEval (wv >>= E.asWordVal) >>=
+  \case
+    Nothing -> return E.OEllipsis
+    Just w ->  return (E.OInteger (E.wordToInt w))
 readBack (E.VStream vals) = pure $ E.OStream [] -- TODO
 readBack (E.VFun f) = do
   x <- fresh "x"
-  body <- rEval (f (pure $ E.VQuote $ E.SRoot $ E.OVar $ x))
-  E.OFun x <$> readBack body
+  body <- rbEval (f (pure $ E.VQuote $ E.SRoot $ E.OVar $ x))
+  E.OFun x <$> readBack' body
   where
     fresh y = M.liftSupply (M.mkParameter (P.mkIdent (T.pack y)) emptyRange)
 readBack (E.VPoly f) = error "TODO VPoly"
@@ -1429,7 +1441,7 @@ readBack (E.VQuote s) = E.OWaiting <$> readBackSpine s
     readBackSpine (E.SRoot e) = return (E.SRoot e)
     readBackSpine (E.SApp s v) =
       do s' <- readBackSpine s
-         a <- rEvalRethrow v >>= readBack
+         a <- rbEval v >>= readBack'
          return (E.SApp s' a)
 
 

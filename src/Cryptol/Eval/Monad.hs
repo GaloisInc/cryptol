@@ -22,6 +22,9 @@ module Cryptol.Eval.Monad
 , delayFill
 , ready
 , blackhole
+  -- ** Avoiding infinite loops
+, later
+, cutoff
   -- * Error reporting
 , EvalError(..)
 , evalPanic
@@ -157,13 +160,21 @@ runSteps (Later act) = act >>= runSteps
 step :: EvalStep a -> EvalStep a
 step x = Later (return x)
 
-cutoff :: Natural -> EvalStep a -> IO (Maybe a)
-cutoff i act
+later :: Eval a -> Eval a
+later (Ready x) = Ready x
+later (Thunk f) = Thunk $ \opts -> step (f opts)
+
+cutoff :: Natural -> Eval a -> Eval (Maybe a)
+cutoff _ (Ready x) = return (Just x)
+cutoff i (Thunk f) = Thunk $ \opts -> Later $ Now <$> cutoffSteps i (f opts)
+
+cutoffSteps :: Natural -> EvalStep a -> IO (Maybe a)
+cutoffSteps i act
   | i < 1 = return Nothing
   | otherwise =
     case act of
       Now x -> return (Just x)
-      Later act' -> act' >>= cutoff (i - 1)
+      Later act' -> act' >>= cutoffSteps (i - 1)
 
 ioStep :: IO a -> EvalStep a
 ioStep act = Later (Now <$> act)

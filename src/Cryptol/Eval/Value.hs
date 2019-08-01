@@ -298,7 +298,7 @@ data GenValue b w i
   | VQuote (Spine (OutputExpr b w i) (Eval (GenValue b w i)))
  deriving (Generic, NFData)
 
-data Spine a b = SRoot a | SApp (Spine a b) b
+data Spine a b = SRoot a | SApp (Spine a b) b | SIf (Spine a b) b b
   deriving (Generic, Show, NFData)
 
 -- | Force the evaluation of a word value

@@ -114,8 +114,13 @@ evalExpr holes env expr = case expr of
        evalSetSel x sel (eval v)
 
   EIf c t f -> {-# SCC "evalExpr->EIf" #-} do
-     b <- fromVBit <$> eval c
-     iteValue b (eval t) (eval f)
+    cv <- eval c
+    case cv of
+      VQuote ce ->
+        return $ VQuote (SIf ce (eval t) (eval f))
+      other ->
+        let b = fromVBit other
+        in iteValue b (eval t) (eval f)
 
   EComp n t h gs -> {-# SCC "evalExpr->EComp" #-} do
       let len  = evalNumType (envTypes env) n
@@ -315,6 +320,7 @@ etaDelay msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
 
   go tp (Ready x) =
     case x of
+      VQuote _   -> return x
       VBit _     -> return x
       VInteger _ -> return x
       VWord _ _  -> return x

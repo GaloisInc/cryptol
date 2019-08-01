@@ -637,10 +637,18 @@ signedLexCompare ty a b = cmpValue opb opw opi (const opi) ty a b (return EQ)
 
 -- | Process two elements based on their lexicographic ordering.
 cmpOrder :: String -> (Ordering -> Bool) -> Binary Bool BV Integer
+cmpOrder nm _op _ty l@(VQuote _) r =
+  return $ VQuote (SApp (SApp (SRoot (OPrim $ mkIdent (T.pack nm))) (return l)) (return r))
+cmpOrder nm _op _ty l r@(VQuote _) =
+  return $ VQuote (SApp (SApp (SRoot (OPrim $ mkIdent (T.pack nm))) (return l)) (return r))
 cmpOrder _nm op ty l r = VBit . op <$> lexCompare ty l r
 
 -- | Process two elements based on their lexicographic ordering, using signed comparisons
 signedCmpOrder :: String -> (Ordering -> Bool) -> Binary Bool BV Integer
+signedCmpOrder nm _op _ty l@(VQuote _) r =
+  return $ VQuote (SApp (SApp (SRoot (OPrim $ mkIdent (T.pack nm))) (return l)) (return r))
+signedCmpOrder nm _op _ty l r@(VQuote _) =
+  return $ VQuote (SApp (SApp (SRoot (OPrim $ mkIdent (T.pack nm))) (return l)) (return r))
 signedCmpOrder _nm op ty l r = VBit . op <$> signedLexCompare ty l r
 
 
