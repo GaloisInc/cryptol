@@ -118,7 +118,7 @@ instance FreeVars Expr where
       EAbs x t e        -> freeVars t <> rmVal x (freeVars e)
       EProofAbs p e     -> freeVars p <> freeVars e
       EProofApp e       -> freeVars e
-      EWhere e ds       -> freeVars ds <> rmVals (defs ds) (freeVars e)
+      EWhere e ds       -> rmVals (defs ds) (freeVars ds) <> rmVals (defs ds) (freeVars e)
 
 
 instance FreeVars Match where
@@ -178,6 +178,3 @@ instance Defs Match where
   defs m = case m of
              From x _ _ _ -> Set.singleton x
              Let d -> defs d
-
-
-
