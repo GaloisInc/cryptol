@@ -106,11 +106,7 @@ instance FreeVars Expr where
       ESet e _ v        -> freeVars [e,v]
       EIf e1 e2 e3      -> freeVars [e1,e2,e3]
       EComp t1 t2 e mss -> freeVars [t1,t2] <> rmVals (defs mss) (freeVars e)
-                                            <> mconcat (map fvsArm mss)
-        where
-        fvsArm     = foldr mat mempty
-        mat x rest = freeVars x <> rmVals (defs x) rest
-
+                                            <> mconcat (map foldFree mss)
       EVar x            -> mempty { valDeps = Set.singleton x }
       ETAbs a e         -> rmTParam a (freeVars e)
       ETApp e t         -> freeVars e <> freeVars t
@@ -118,8 +114,11 @@ instance FreeVars Expr where
       EAbs x t e        -> freeVars t <> rmVal x (freeVars e)
       EProofAbs p e     -> freeVars p <> freeVars e
       EProofApp e       -> freeVars e
-      EWhere e ds       -> rmVals (defs ds) (freeVars ds) <> rmVals (defs ds) (freeVars e)
-
+      EWhere e ds       -> foldFree ds <> rmVals (defs ds) (freeVars e)
+    where
+      foldFree :: (FreeVars a, Defs a) => [a] -> Deps
+      foldFree = foldr updateFree mempty
+      updateFree x rest = freeVars x <> rmVals (defs x) rest
 
 instance FreeVars Match where
   freeVars m = case m of
