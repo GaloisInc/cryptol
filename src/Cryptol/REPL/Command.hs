@@ -19,6 +19,7 @@ module Cryptol.REPL.Command (
   , findCommand
   , findCommandExact
   , findNbCommand
+  , commandList
 
   , moduleCmd, loadCmd, loadPrelude, setOptionCmd
 
