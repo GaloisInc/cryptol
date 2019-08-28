@@ -1,7 +1,7 @@
 FROM haskell:8.6 AS build
 RUN apt-get update \
     && apt-get install -y wget libncurses-dev unzip \
-    && wget https://github.com/Z3Prover/z3/releases/download/z3-4.7.1/z3-4.7.1-x64-debian-8.10.zip \
+    && wget https://github.com/Z3Prover/z3/releases/download/Z3-4.8.5/z3-4.8.5-x64-debian-8.11.zip \
     && unzip z3*.zip \
     && mv z3-*/bin/z3 /usr/local/bin
 RUN useradd -m cryptol \
