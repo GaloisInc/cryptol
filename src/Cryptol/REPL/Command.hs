@@ -317,7 +317,11 @@ dumpTestsCmd outFile str =
      ppopts <- getPPValOpts
      testNum <- getKnownUser "tests" :: REPL Int
      g <- io newTFGen
-     tests <- io $ TestR.returnTests g evo ty val testNum
+     gens <-
+       case TestR.dumpableType ty of
+         Nothing -> raise (TypeNotTestable ty)
+         Just gens -> return gens
+     tests <- io $ TestR.returnTests g evo gens val testNum
      out <- forM tests $
             \(args, x) ->
               do argOut <- mapM (rEval . E.ppValue ppopts) args
