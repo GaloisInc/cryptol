@@ -25,7 +25,7 @@ source-repository head
 source-repository this
   type:     git
   location: https://github.com/GaloisInc/cryptol.git
-  tag:      release-2.8.0
+  tag:      2.8.0
 
 flag static
   default: False
