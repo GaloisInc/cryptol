@@ -1,3 +1,47 @@
+# 2.8.0 (September 4, 2019)
+
+## New features
+
+* Added support for indexing on the left-hand sides of declarations,
+  record field constructors, and record updaters (issue #577). This
+  builds on a new primitive function called `generate`, where the new
+  syntax `x @ i = e` is sugar for `x = generate (\i -> e)`.
+
+* Added support for element type ascriptions on sequence enumerations.
+  The syntax `[a,b..c:t]` indicates that the elements should be of type
+  `t`.
+
+* Added support for wildcards in sequence enumerations. For example, the
+  syntax `[1 .. _] : [3][8]` yields `[0x01, 0x02, 0x03]`. It can also be
+  used polymorphically. For example, the most general type of `[1 .. _]`
+  is `{n, a} (n >= 1, Literal n a, fin n) => [n]a`
+
+* Changed the syntax of type signatures to allow multiple constraint
+  arrows in type schemas (issue #599). The following are now equivalent:
+
+        f : {a} (fin a, a >= 1) => [a] -> [a]
+
+        f : {a} (fin a) => (a >= 1) => [a] -> [a]
+        
+* Added a mechanism for user-defined type constraint operators, and use
+  this to define the new type constraint synonyms (<) and (>) (issues
+  #400, #618).
+
+* Added support for primitive type declarations. The prelude now uses
+  this mechanism to declare all of the basic types.
+
+* Added support for Haskell-style "block arguments", reducing the need
+  for parentheses in some cases. For example, `generate (\i -> i +1)`
+  can now be written `generate \i -> i + 1`.
+
+* Improved shadowing errors (part of the fix for issue #569).
+
+## Bug fixes
+
+* Closed many issues, including #265, #367, #437, #508, #522, #549,
+  #557, #559, #569, #578, #590, #595, #596, #601, #607, #608, #610,
+  #615, #621, and #636.
+
 # 2.7.0 (April 30, 2019)
 
 ## New features

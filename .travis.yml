@@ -13,9 +13,9 @@ matrix:
     - env: CABALVER="2.4" GHCVER="8.6.3"
       compiler: ": #GHC 8.6.3"
       addons: {apt: {packages: [cabal-install-2.4,ghc-8.6.3], sources: [hvr-ghc]}}
-    - os: osx
-      env: CABALVER="2.4" GHCVER="8.6.3"
-      compiler: ": #GHC 8.6.3"
+#    - os: osx
+#      env: CABALVER="2.4" GHCVER="8.6.3"
+#      compiler: ": #GHC 8.6.3"
 
 before_install:
   - if [[ $TRAVIS_OS_NAME == 'linux' ]];
@@ -38,7 +38,7 @@ before_install:
 script:
   - cp cabal.GHC86.config cabal.project.freeze
   - cabal update
-  - cabal new-build -j
+  - bash cry build
   - bash cry test
 
 notifications:
