@@ -7,7 +7,8 @@ import types
 import subprocess
 import sys
 
-from . import netstring
+from argo import netstring
+from argo.connection import IDSource, ServerProcess, ServerConnection
 from . import cryptoltypes
 
 __all__ = ['cryptoltypes']
@@ -79,11 +80,11 @@ class CryptolInteraction():
         self._raw_response = None
         self.init_state = connection.protocol_state()
         self.params['state'] = self.init_state
-        self.request_id = connection.send_message(self.method, self.params)
+        self.request_id = connection.server_connection.send_message(self.method, self.params)
 
     def raw_result(self):
         if self._raw_response is None:
-            self._raw_response = self.connection.wait_for_reply_to(self.request_id)
+            self._raw_response = self.connection.server_connection.wait_for_reply_to(self.request_id)
         return self._raw_response
 
     def process_result(self, result):
@@ -197,92 +198,20 @@ class CryptolFocusedModule(CryptolQuery):
     def process_result(self, res):
         return res
 
+def connect(command, cryptol_path=None):
+    proc = CryptolProcess(command, cryptol_path=cryptol_path)
+    conn = ServerConnection(proc)
+    return CryptolConnection(conn)
 
-# Must be boxed separately to enable sharing of connections
-class IDSource:
-    def __init__(self):
-        self.next_id = 0
-
-    def get(self):
-        self.next_id += 1
-        return self.next_id
-
-class CryptolConnection(object):
-    def __init__(self, command, parent=None, cryptol_path=None):
-        self.command = command
-
-        if parent is None:
-            self.process = CryptolProcess(self.command, cryptol_path=cryptol_path)
-            self.port = self.process.port
-
-            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.connect(("127.0.0.1", self.port))
-            self.sock.setblocking(False)
-            self.buf = bytearray(b'')
-            self.replies = {}
-            self.ids = IDSource()
-            self.most_recent_result = None
-        else:
-            self.process = parent.process
-            self.port = parent.port
-            self.sock = parent.sock
-            self.buf = parent.buf
-            self.replies = parent.replies
-            self.ids = parent.ids
-            self.most_recent_result = parent.most_recent_result
+class CryptolConnection:
+    def __init__(self, server_connection):
+        self.most_recent_result = None
+        self.server_connection = server_connection
 
     def snapshot(self):
-        return CryptolConnection(self.command, parent=self)
-
-    def get_id(self):
-        return self.ids.get()
-
-    def buffer_replies(self):
-        try:
-            arrived = self.sock.recv(4096)
-            while arrived != b'':
-                self.buf.extend(arrived)
-                arrived = self.sock.recv(4096)
-            return None
-        except BlockingIOError:
-            return None
-
-    def get_one_reply(self):
-        try:
-            (msg, rest) = netstring.decode(self.buf)
-            self.buf = rest
-            return msg
-        except (ValueError, IndexError):
-            return None
-
-    def process_replies(self):
-        self.buffer_replies()
-        r = self.get_one_reply()
-        while r is not None:
-            the_reply = json.loads(r)
-            self.replies[the_reply['id']] = the_reply
-            r = self.get_one_reply()
-
-    def send_message(self, method, params):
-        request_id = self.get_id()
-        msg = {'jsonrpc':'2.0',
-               'method': method,
-               'id': request_id,
-               'params': params}
-        msg_string = json.dumps(msg)
-        msg_bytes = netstring.encode(msg_string)
-        self.sock.send(msg_bytes)
-        return request_id
-
-    def wait_for_reply_to(self, request_id):
-        self.process_replies()
-        while request_id not in self.replies:
-            try:
-                #self.sock.setblocking(True)
-                self.process_replies()
-            finally:
-                self.sock.setblocking(False)
-        return self.replies[request_id]
+        copy = CryptolConnection(self.server_connection)
+        copy.most_recent_result = self.most_recent_result
+        return copy
 
     def protocol_state(self):
         if self.most_recent_result is None:
@@ -325,38 +254,17 @@ class CryptolConnection(object):
         self.most_recent_result = CryptolFocusedModule(self)
         return self.most_recent_result
 
-class CryptolProcess:
+class CryptolProcess(ServerProcess):
     def __init__(self, command, cryptol_path=None):
-
-        self.environ = os.environ.copy()
+        self._environ = os.environ.copy()
         if cryptol_path is not None:
-            self.environ["CRYPTOLPATH"] = str(cryptol_path)
+            self._environ["CRYPTOLPATH"] = str(cryptol_path)
 
-        self.command = command
-        self.proc = None
-        self.setup()
-
-    def setup(self):
-        if self.proc is None or self.proc.poll() is not None:
-            # To debug, consider setting stderr to sys.stdout instead (to see server log messages).
-            self.proc = subprocess.Popen(
-                self.command,
-                shell=True,
-                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                env=self.environ,
-                text=True)
-            out_line = self.proc.stdout.readline()
-
-            match = re.match(r'PORT (\d+)', out_line)
-            if match:
-                self.port = int(match.group(1))
-            else:
-                raise Exception("Failed to load process, output was `" + out_line + "' but expected PORT then a port.")
+        super(CryptolProcess, self).__init__(command)
 
 
-
-    def __del__(self):
-        self.proc.kill()
+    def get_environment(self):
+        return self._environ
 
 
 class CryptolFunctionHandle:
