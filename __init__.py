@@ -2,8 +2,8 @@ import os
 import types
 import sys
 
-from argo import netstring
-from argo.connection import IDSource, ServerProcess, ServerConnection
+import argo.interaction
+from argo.connection import ServerProcess, ServerConnection
 from . import cryptoltypes
 
 __all__ = ['cryptoltypes']
@@ -26,13 +26,6 @@ def extend_hex(string):
 def fail_with(x):
     "Raise an exception. This is valid in expression positions."
     raise x
-
-
-import re
-
-m = r"\{\{([a-zA-Z0-9]+)\}\}"
-
-
 
 
 
@@ -69,23 +62,8 @@ def from_cryptol_arg(val):
 class CryptolException(Exception):
     pass
 
-class CryptolInteraction():
-    def __init__(self, connection):
-        self.connection = connection
-        self._raw_response = None
-        self.init_state = connection.protocol_state()
-        self.params['state'] = self.init_state
-        self.request_id = connection.server_connection.send_message(self.method, self.params)
 
-    def raw_result(self):
-        if self._raw_response is None:
-            self._raw_response = self.connection.server_connection.wait_for_reply_to(self.request_id)
-        return self._raw_response
-
-    def process_result(self, result):
-        raise NotImplementedError('process_result')
-
-class CryptolCommand(CryptolInteraction):
+class CryptolCommand(argo.interaction.Interaction):
 
     def _result_and_state(self):
         res = self.raw_result()
@@ -97,11 +75,15 @@ class CryptolCommand(CryptolInteraction):
         elif 'result' in res:
             return (res['result']['answer'], res['result']['state'])
 
+    def process_result(self, result):
+        raise NotImplementedError('process_result')
+
     def state(self):
         return self._result_and_state()[1]
 
     def result(self):
         return self.process_result(self._result_and_state()[0])
+
 
 class CryptolChangeDirectory(CryptolCommand):
     def __init__(self, connection, new_directory):
@@ -130,7 +112,7 @@ class CryptolLoadFile(CryptolCommand):
     def process_result(self, res):
         return res
 
-class CryptolQuery(CryptolInteraction):
+class CryptolQuery(argo.interaction.Interaction):
     def state(self):
         return self.init_state
 
