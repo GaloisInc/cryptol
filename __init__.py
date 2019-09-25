@@ -1,5 +1,7 @@
 """Cryptol bindings from Python. Use :py:func:`cryptol.connect` to start a new connection."""
 
+from __future__ import annotations
+
 import base64
 import os
 import types

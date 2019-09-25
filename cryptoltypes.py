@@ -1,3 +1,4 @@
+from __future__ import annotations
 from collections import OrderedDict
 import base64
 import BitVector #type: ignore
@@ -29,8 +30,6 @@ class CryptolApplication(CryptolCode):
                 'function': to_cryptol(self._rator),
                 'arguments': [to_cryptol(arg) for arg in self._rands]}
 
-CryptolKind = Union[Literal['Type'], Literal['Num'], Literal['Prop'], CryptolArrowKind]
-
 class CryptolArrowKind:
     def __init__(self, dom : CryptolKind, ran : CryptolKind):
         self.domain = dom
@@ -38,6 +37,8 @@ class CryptolArrowKind:
 
     def __repr__(self) -> str:
         return f"CryptolArrowKind({self.domain!r}, {self.range!r})"
+
+CryptolKind = Union[Literal['Type'], Literal['Num'], Literal['Prop'], CryptolArrowKind]
 
 def to_kind(k : Any) -> CryptolKind:
     if k == "Type": return "Type"
