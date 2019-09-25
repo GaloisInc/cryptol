@@ -1,70 +1,85 @@
 from collections import OrderedDict
 import base64
-import BitVector
+import BitVector #type: ignore
 
+from typing import Any, Dict, Iterable, List, NoReturn, Optional, TypeVar, Union
+
+from typing_extensions import Literal
+
+A = TypeVar('A')
 
 class CryptolCode:
-    def __call__(self, other):
+    def __call__(self, other : CryptolCode) -> CryptolCode:
         return CryptolApplication(self, other)
 
 class CryptolLiteral(CryptolCode):
-    def __init__(self, code):
+    def __init__(self, code : str) -> None:
         self._code = code
 
-    def __to_cryptol__(self, ty):
+    def __to_cryptol__(self, ty : CryptolType) -> Any:
         return self._code
 
 class CryptolApplication(CryptolCode):
-    def __init__(self, rator, *rands):
+    def __init__(self, rator : CryptolCode, *rands : CryptolCode) -> None:
         self._rator = rator
         self._rands = rands
 
-    def __to_cryptol__(self, ty):
+    def __to_cryptol__(self, ty : CryptolType) -> Any:
         return {'expression': 'call',
                 'function': to_cryptol(self._rator),
                 'arguments': [to_cryptol(arg) for arg in self._rands]}
 
+CryptolKind = Union[Literal['Type'], Literal['Num'], Literal['Prop'], CryptolArrowKind]
 
 class CryptolArrowKind:
-    def __init__(self, dom, ran):
+    def __init__(self, dom : CryptolKind, ran : CryptolKind):
         self.domain = dom
         self.range = ran
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"CryptolArrowKind({self.domain!r}, {self.range!r})"
 
-def to_kind(k):
+def to_kind(k : Any) -> CryptolKind:
     if k == "Type": return "Type"
     elif k == "Num": return "Num"
     elif k == "Prop": return "Prop"
     elif k['kind'] == "arrow":
         return CryptolArrowKind(k['from'], k['to'])
+    else:
+        raise ValueError(f'Not a Cryptol kind: {k!r}')
 
 class CryptolProp:
     pass
 
 class UnaryProp(CryptolProp):
-    def __init__(self, subject):
+    def __init__(self, subject : CryptolType) -> None:
         self.subject = subject
 
 class Fin(UnaryProp):
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Fin({self.subject!r})"
 
-def to_cryptol(val, cryptol_type=None):
+def to_cryptol(val : Any, cryptol_type : Optional[CryptolType] = None) -> Any:
     if cryptol_type is not None:
         return cryptol_type.from_python(val)
     else:
         return CryptolType().from_python(val)
 
+def fail_with(exn : Exception) -> NoReturn:
+    raise exn
+
 class CryptolType:
-    def from_python(self, val):
+    def from_python(self, val : Any) -> Any:
         if hasattr(val, '__to_cryptol__'):
-            return val.__to_cryptol__(self)
+            code = val.__to_cryptol__(self)
+            if isinstance(code, CryptolCode):
+                return code
+            else:
+                raise ValueError(f"Expected Cryptol code from __to_cryptol__ on {val!r}, but got {code!r}.")
         else:
             return self.convert(val)
 
-    def convert(self, val):
+    def convert(self, val : Any) -> Any:
         if isinstance(val, bool):
             return val
         elif val == ():
@@ -98,31 +113,31 @@ class CryptolType:
             raise TypeError("Unsupported value: " + str(val))
 
 class Var(CryptolType):
-    def __init__(self, name, kind):
+    def __init__(self, name : str, kind : CryptolKind) -> None:
         self.name = name
         self.kind = kind
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Var({self.name!r}, {self.kind!r})"
 
 
 
 class Function(CryptolType):
-    def __init__(self, dom, ran):
+    def __init__(self, dom : CryptolType, ran : CryptolType) -> None:
         self.domain = dom
         self.range = ran
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Function({self.domain!r}, {self.range!r})"
 
 class Bitvector(CryptolType):
-    def __init__(self, width):
+    def __init__(self, width : CryptolType) -> None:
         self.width = width
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Bitvector({self.width!r})"
 
-    def convert(self, val):
+    def convert(self, val : Any) -> Any:
         # XXX figure out what to do when width is not evenly divisible by 8
         if isinstance(val, int):
             w = eval_numeric(self.width, None)
@@ -138,7 +153,7 @@ class Bitvector(CryptolType):
         else:
             raise ValueError(f"Not supported as bitvector: {val!r}")
 
-def eval_numeric(t, default):
+def eval_numeric(t : Any, default : A) -> Union[int, A]:
     if isinstance(t, Num):
         return t.number
     else:
@@ -146,91 +161,94 @@ def eval_numeric(t, default):
 
 
 class Num(CryptolType):
-    def __init__(self, number):
+    def __init__(self, number : int) -> None:
         self.number = number
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Num({self.number!r})"
 
 class Bit(CryptolType):
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Bit()"
 
 class Sequence(CryptolType):
-    def __init__(self, length, contents):
+    def __init__(self, length : CryptolType, contents : CryptolType) -> None:
         self.length = length
         self.contents = contents
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Sequence({self.length!r}, {self.contents!r})"
 
 class Inf(CryptolType):
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Inf()"
 
 class Integer(CryptolType):
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Integer()"
 
 class Z(CryptolType):
-    def __init__(self, modulus):
+    def __init__(self, modulus : CryptolType) -> None:
         self.modulus = modulus
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Z({self.modulus!r})"
 
 
 class Plus(CryptolType):
-    def __init__(self, left, right):
+    def __init__(self, left : CryptolType, right : CryptolType) -> None:
         self.left = left
         self.right = right
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"({self.left} + {self.right})"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Plus({self.left!r}, {self.right!r})"
 
 class Minus(CryptolType):
-    def __init__(self, left, right):
+    def __init__(self, left : CryptolType, right : CryptolType) -> None:
         self.left = left
         self.right = right
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"({self.left} - {self.right})"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Minus({self.left!r}, {self.right!r})"
 
 class Times(CryptolType):
-    def __init__(self, left, right):
+    def __init__(self, left : CryptolType, right : CryptolType) -> None:
         self.left = left
         self.right = right
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"({self.left} * {self.right})"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Times({self.left!r}, {self.right!r})"
 
 
 class Tuple(CryptolType):
-    def __init__(self, *types):
+    types : Iterable[CryptolType]
+
+    def __init__(self, *types : CryptolType) -> None:
         self.types = types
-    def __repr__(self):
-        return "Tuple(" + ", ".join(map(str, types)) + ")"
+
+    def __repr__(self) -> str:
+        return "Tuple(" + ", ".join(map(str, self.types)) + ")"
 
 class Record(CryptolType):
-    def __init__(self, fields):
+    def __init__(self, fields : Dict[str, CryptolType]) -> None:
         self.fields = fields
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Record({self.fields!r})"
 
-def to_type(t):
+def to_type(t : Any) -> CryptolType:
     if t['type'] == 'variable':
         return Var(t['name'], to_kind(t['kind']))
     elif t['type'] == 'function':
@@ -263,25 +281,30 @@ def to_type(t):
         raise NotImplementedError(f"to_type({t!r})")
 
 class CryptolTypeSchema:
-    def __init__(self, variables, propositions, body):
+    def __init__(self,
+                 variables : OrderedDict[str, CryptolKind],
+                 propositions : List[CryptolProp],
+                 body : CryptolType) -> None:
         self.variables = variables
         self.propositions = propositions
         self.body = body
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"CryptolTypeSchema({self.variables!r}, {self.propositions!r}, {self.body!r})"
 
-def to_schema(obj):
+def to_schema(obj : Any) -> CryptolTypeSchema:
     return CryptolTypeSchema(OrderedDict((v['name'], to_kind(v['kind']))
                                          for v in obj['forall']),
                              [to_prop(p) for p in obj['propositions']],
                              to_type(obj['type']))
 
-def to_prop(obj):
+def to_prop(obj : Any) -> CryptolProp:
     if obj['prop'] == 'fin':
         return Fin(to_type(obj['subject']))
+    else:
+        raise ValueError(f"Can't convert to a Cryptol prop: {obj!r}")
 
-def argument_types(obj):
+def argument_types(obj : Union[CryptolTypeSchema, CryptolType]) -> List[CryptolType]:
     if isinstance(obj, CryptolTypeSchema):
         return argument_types(obj.body)
     elif isinstance(obj, Function):

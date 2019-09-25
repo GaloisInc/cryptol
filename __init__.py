@@ -1,14 +1,22 @@
+"""Cryptol bindings from Python. Use :py:func:`cryptol.connect` to start a new connection."""
+
+import base64
 import os
 import types
 import sys
+from typing import Any, Dict, Iterable, List, Mapping, NoReturn, Optional, Union
+from mypy_extensions import TypedDict
 
 import argo.interaction
+from argo.interaction import HasProtocolState
 from argo.connection import ServerProcess, ServerConnection
 from . import cryptoltypes
 
+
+
 __all__ = ['cryptoltypes']
 
-__doc__ = """Cryptol bindings from Python. Use :py:func:`cryptol.connect` to start a new connection."""
+
 
 # Current status:
 #  It can currently launch a server, given a suitable command line as an argument. Try this:
@@ -19,19 +27,19 @@ __doc__ = """Cryptol bindings from Python. Use :py:func:`cryptol.connect` to sta
 
 
 
-def extend_hex(string):
+def extend_hex(string : str) -> str:
     if len(string) % 2 == 1:
         return '0' + string
     else:
         return string
 
-def fail_with(x):
+def fail_with(x : Exception) -> NoReturn:
     "Raise an exception. This is valid in expression positions."
     raise x
 
 
 
-def from_cryptol_arg(val):
+def from_cryptol_arg(val : Any) -> Any:
     if isinstance(val, bool):
         return val
     elif isinstance(val, int):
@@ -63,80 +71,84 @@ def from_cryptol_arg(val):
 
 
 class CryptolChangeDirectory(argo.interaction.Command):
-    def __init__(self, connection, new_directory):
-        self.method = 'change directory'
-        self.params = {'directory': new_directory}
-        super(CryptolChangeDirectory, self).__init__(connection)
+    def __init__(self, connection : HasProtocolState, new_directory : str) -> None:
+        super(CryptolChangeDirectory, self).__init__(
+            'change directory',
+            {'directory': new_directory},
+            connection
+        )
 
-    def process_result(self, res):
+    def process_result(self, res : Any) -> Any:
         return res
 
 class CryptolLoadModule(argo.interaction.Command):
-    def __init__(self, connection, mod_name):
-        self.method = 'load module'
-        self.params = {'module name': mod_name}
-        super(CryptolLoadModule, self).__init__(connection)
+    def __init__(self, connection : HasProtocolState, mod_name : str) -> None:
+        super(CryptolLoadModule, self).__init__('load module', {'module name': mod_name}, connection)
 
-    def process_result(self, res):
+    def process_result(self, res : Any) -> Any:
         return res
 
 class CryptolLoadFile(argo.interaction.Command):
-    def __init__(self, connection, filename):
-        self.method = 'load file'
-        self.params = {'file': filename}
-        super(CryptolLoadFile, self).__init__(connection)
+    def __init__(self, connection : HasProtocolState, filename : str) -> None:
+        super(CryptolLoadFile, self).__init__('load file', {'file': filename}, connection)
 
-    def process_result(self, res):
+    def process_result(self, res : Any) -> Any:
         return res
 
 
 class CryptolEvalExpr(argo.interaction.Query):
-    def __init__(self, connection, expr):
-        self.method = 'evaluate expression'
-        self.params = {'expression': expr}
-        super(CryptolEvalExpr, self).__init__(connection)
+    def __init__(self, connection : HasProtocolState, expr : Any) -> None:
+        super(CryptolEvalExpr, self).__init__(
+            'evaluate expression',
+            {'expression': expr},
+            connection
+        )
 
-    def process_result(self, res):
+    def process_result(self, res : Any) -> Any:
         return res
 
 class CryptolCall(argo.interaction.Query):
-    def __init__(self, connection, fun, args):
-        self.method = 'call'
-        self.params = {'function': fun, 'arguments': args}
-        super(CryptolCall, self).__init__(connection)
+    def __init__(self, connection : HasProtocolState, fun : str, args : List[Any]) -> None:
+        super(CryptolCall, self).__init__(
+            'call',
+            {'function': fun, 'arguments': args},
+            connection
+        )
 
-    def process_result(self, res):
+    def process_result(self, res : Any) -> Any:
         return from_cryptol_arg(res['value'])
 
 class CryptolCheckType(argo.interaction.Query):
-    def __init__(self, connection, expr):
-        self.method = 'check type'
-        self.params = {'expression': expr}
-        super(CryptolCheckType, self).__init__(connection)
+    def __init__(self, connection : HasProtocolState, expr : Any) -> None:
+        super(CryptolCheckType, self).__init__(
+            'check type',
+            {'expression': expr},
+            connection
+        )
 
-    def process_result(self, res):
+    def process_result(self, res : Any) -> Any:
         return res['type schema']
 
 
 class CryptolNames(argo.interaction.Query):
-    def __init__(self, connection):
-        self.method = 'visible names'
-        self.params = {}
-        super(CryptolNames, self).__init__(connection)
+    def __init__(self, connection : HasProtocolState) -> None:
+        super(CryptolNames, self).__init__('visible names', {}, connection)
 
-    def process_result(self, res):
+    def process_result(self, res : Any) -> Any:
         return res
 
 class CryptolFocusedModule(argo.interaction.Query):
-    def __init__(self, connection):
-        self.method = 'focused module'
-        self.params = {}
-        super(CryptolFocusedModule, self).__init__(connection)
+    def __init__(self, connection : HasProtocolState) -> None:
+        super(CryptolFocusedModule, self).__init__(
+            'focused module',
+            {},
+            connection
+        )
 
-    def process_result(self, res):
+    def process_result(self, res : Any) -> Any:
         return res
 
-def connect(command, cryptol_path=None):
+def connect(command : str, cryptol_path : Optional[str] = None) -> CryptolConnection:
     """Start a new connection to a new Cryptol server process.
 
     :param command: The command to launch the Cryptol server.
@@ -166,11 +178,13 @@ class CryptolConnection:
     explicitly requested. Note that blocking may occur in the case of
     sequential state dependencies between commands.
     """
-    def __init__(self, server_connection):
+    most_recent_result : Optional[argo.interaction.Interaction]
+
+    def __init__(self, server_connection : ServerConnection) -> None:
         self.most_recent_result = None
         self.server_connection = server_connection
 
-    def snapshot(self):
+    def snapshot(self) -> CryptolConnection:
         """Create a lightweight snapshot of this connection. The snapshot
         shares the underlying server process, but can have different
         application state.
@@ -179,31 +193,31 @@ class CryptolConnection:
         copy.most_recent_result = self.most_recent_result
         return copy
 
-    def protocol_state(self):
+    def protocol_state(self) -> Any:
         if self.most_recent_result is None:
             return []
         else:
             return self.most_recent_result.state()
 
     # Protocol messages
-    def change_directory(self, new_directory):
+    def change_directory(self, new_directory : str) -> argo.interaction.Command:
         """Change the working directory of the Cryptol process."""
         self.most_recent_result = CryptolChangeDirectory(self, new_directory)
         return self.most_recent_result
 
-    def load_file(self, filename):
+    def load_file(self, filename : str) -> argo.interaction.Command:
         """Load a filename as a Cryptol module, like ``:load`` at the Cryptol
         REPL.
         """
         self.most_recent_result = CryptolLoadFile(self, filename)
         return self.most_recent_result
 
-    def load_module(self, module_name):
+    def load_module(self, module_name : str) -> argo.interaction.Command:
         """Load a Cryptol module, like ``:module`` at the Cryptol REPL."""
         self.most_recent_result = CryptolLoadModule(self, module_name)
         return self.most_recent_result
 
-    def evaluate_expression(self, expression):
+    def evaluate_expression(self, expression : Any) -> argo.interaction.Query:
         """Evaluate a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing
         for their JSON equivalents.
@@ -211,12 +225,12 @@ class CryptolConnection:
         self.most_recent_result = CryptolEvalExpr(self, expression)
         return self.most_recent_result
 
-    def call(self, fun, *args):
+    def call(self, fun : str, *args : List[Any]) -> argo.interaction.Query:
         encoded_args = [cryptoltypes.CryptolType().from_python(a) for a in args]
         self.most_recent_result = CryptolCall(self, fun, encoded_args)
         return self.most_recent_result
 
-    def check_type(self, code):
+    def check_type(self, code : Any) -> argo.interaction.Query:
         """Check the type of a Cryptol expression, represented according to
         :ref:`cryptol-json-expression`, with Python datatypes standing for
         their JSON equivalents.
@@ -224,18 +238,21 @@ class CryptolConnection:
         self.most_recent_result = CryptolCheckType(self, code)
         return self.most_recent_result
 
-    def names(self):
+    def names(self) -> argo.interaction.Query:
         """Discover the list of names currently in scope in the current context."""
         self.most_recent_result = CryptolNames(self)
         return self.most_recent_result
 
-    def focused_module(self):
+    def focused_module(self) -> argo.interaction.Query:
         """Return the name of the currently-focused module."""
         self.most_recent_result = CryptolFocusedModule(self)
         return self.most_recent_result
 
 class CryptolProcess(ServerProcess):
-    def __init__(self, command, cryptol_path=None):
+    _environ : Optional[Union[Mapping[bytes, Union[bytes, str]],
+                              Mapping[str, Union[bytes, str]]]]
+
+    def __init__(self, command : str, cryptol_path : Optional[str] = None):
         self._environ = os.environ.copy()
         if cryptol_path is not None:
             self._environ["CRYPTOLPATH"] = str(cryptol_path)
@@ -243,12 +260,18 @@ class CryptolProcess(ServerProcess):
         super(CryptolProcess, self).__init__(command)
 
 
-    def get_environment(self):
+    def get_environment(self) -> Optional[Union[Mapping[bytes, Union[bytes, str]],
+                                                Mapping[str, Union[bytes, str]]]]:
         return self._environ
 
 
 class CryptolFunctionHandle:
-    def __init__(self, connection, name, ty, schema, docs=None):
+    def __init__(self,
+                 connection : CryptolConnection,
+                 name : str,
+                 ty : Any,
+                 schema : Any,
+                 docs : Optional[str] = None) -> None:
         self.connection = connection.snapshot()
         self.name = name
         self.ty = ty
@@ -256,13 +279,15 @@ class CryptolFunctionHandle:
         self.docs = docs
 
         self.__doc__ = "Cryptol type: " + ty
-        if self.docs is not None:
+        if self.docs is not None and self.__doc__ is not None:
             self.__doc__ += "\n" + self.docs
 
-    def __call__(self, *args):
+    def __call__(self, *args : List[Any]) -> Any:
         current_type = self.schema
         remaining_args = args
         arg_types = cryptoltypes.argument_types(current_type)
+        Call = TypedDict('Call', {'expression': str, 'function': str, 'arguments': List[Any]})
+        current_expr : Union[str, Call]
         current_expr = self.name
         found_args = []
         while len(arg_types) > 0 and len(remaining_args) > 0:
@@ -275,11 +300,11 @@ class CryptolFunctionHandle:
         return from_cryptol_arg(self.connection.evaluate_expression(current_expr).result()['value'])
 
 
-def cry(string):
+def cry(string : str) -> cryptoltypes.CryptolCode:
     return cryptoltypes.CryptolLiteral(string)
 
 class CryptolModule(types.ModuleType):
-    def __init__(self, connection):
+    def __init__(self, connection : CryptolConnection) -> None:
         self.connection = connection.snapshot()
         name = connection.focused_module().result()
         if name["module"] is None:
@@ -302,7 +327,7 @@ class CryptolModule(types.ModuleType):
                                               cryptoltypes.to_schema(x['type'])))
 
 
-def add_cryptol_module(name, connection):
+def add_cryptol_module(name : str, connection : CryptolConnection) -> None:
     """Given a name for a Python module and a Cryptol connection,
     establish a Python module with the given name in which all the
     Cryptol names are in scope as Python proxy objects.
@@ -310,7 +335,9 @@ def add_cryptol_module(name, connection):
     sys.modules[name] = CryptolModule(connection)
 
 class CryptolContext:
-    def __init__(self, connection):
+    _defined : Dict[str, CryptolFunctionHandle]
+
+    def __init__(self, connection : CryptolConnection) -> None:
         self.connection = connection.snapshot()
         self._defined = {}
         for x in self.connection.names().result():
@@ -328,10 +355,10 @@ class CryptolContext:
                                           x['type string'],
                                           cryptoltypes.to_schema(x['type']))
 
-    def __dir__(self):
+    def __dir__(self) -> Iterable[str]:
         return self._defined.keys()
 
-    def __getattr__(self, name):
+    def __getattr__(self, name : str) -> Any:
         if name in self._defined:
             return self._defined[name]
         else:
