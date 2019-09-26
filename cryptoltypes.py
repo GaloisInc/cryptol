@@ -60,6 +60,27 @@ class Fin(UnaryProp):
     def __repr__(self) -> str:
         return f"Fin({self.subject!r})"
 
+class Cmp(UnaryProp):
+    def __repr__(self) -> str:
+        return f"Cmp({self.subject!r})"
+
+class SignedCmp(UnaryProp):
+    def __repr__(self) -> str:
+        return f"SignedCmp({self.subject!r})"
+
+class Zero(UnaryProp):
+    def __repr__(self) -> str:
+        return f"Zero({self.subject!r})"
+
+class Arith(UnaryProp):
+    def __repr__(self) -> str:
+        return f"Arith({self.subject!r})"
+
+class Logic(UnaryProp):
+    def __repr__(self) -> str:
+        return f"Logic({self.subject!r})"
+
+
 def to_cryptol(val : Any, cryptol_type : Optional[CryptolType] = None) -> Any:
     if cryptol_type is not None:
         return cryptol_type.from_python(val)
@@ -284,7 +305,7 @@ def to_type(t : Any) -> CryptolType:
 class CryptolTypeSchema:
     def __init__(self,
                  variables : OrderedDict[str, CryptolKind],
-                 propositions : List[CryptolProp],
+                 propositions : List[Optional[CryptolProp]], # TODO complete me!
                  body : CryptolType) -> None:
         self.variables = variables
         self.propositions = propositions
@@ -299,11 +320,22 @@ def to_schema(obj : Any) -> CryptolTypeSchema:
                              [to_prop(p) for p in obj['propositions']],
                              to_type(obj['type']))
 
-def to_prop(obj : Any) -> CryptolProp:
+def to_prop(obj : Any) -> Optional[CryptolProp]:
     if obj['prop'] == 'fin':
         return Fin(to_type(obj['subject']))
+    elif obj['prop'] == 'Cmp':
+        return Cmp(to_type(obj['subject']))
+    elif obj['prop'] == 'SignedCmp':
+        return SignedCmp(to_type(obj['subject']))
+    elif obj['prop'] == 'Zero':
+        return Zero(to_type(obj['subject']))
+    elif obj['prop'] == 'Arith':
+        return Arith(to_type(obj['subject']))
+    elif obj['prop'] == 'Logic':
+        return Logic(to_type(obj['subject']))
     else:
-        raise ValueError(f"Can't convert to a Cryptol prop: {obj!r}")
+        return None
+        #raise ValueError(f"Can't convert to a Cryptol prop: {obj!r}")
 
 def argument_types(obj : Union[CryptolTypeSchema, CryptolType]) -> List[CryptolType]:
     if isinstance(obj, CryptolTypeSchema):
