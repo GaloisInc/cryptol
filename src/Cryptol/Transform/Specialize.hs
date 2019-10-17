@@ -21,7 +21,7 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Maybe (catMaybes)
 
-import MonadLib hiding (mapM)
+import MonadLib hiding (mapM, fail)
 
 import Prelude ()
 import Prelude.Compat

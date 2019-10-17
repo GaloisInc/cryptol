@@ -325,6 +325,8 @@ instance Monad m => Monad (ModuleT m) where
 
   {-# INLINE (>>=) #-}
   m >>= f       = ModuleT (unModuleT m >>= unModuleT . f)
+
+instance MonadFail m => MonadFail (ModuleT m) where
   {-# INLINE fail #-}
   fail          = ModuleT . raise . OtherFailure
 

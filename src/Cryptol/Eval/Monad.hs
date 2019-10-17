@@ -38,6 +38,7 @@ module Cryptol.Eval.Monad
 
 import           Control.DeepSeq
 import           Control.Monad
+import qualified Control.Monad.Fail as Fail
 import           Control.Monad.Fix
 import           Control.Monad.IO.Class
 import           Data.IORef
@@ -166,10 +167,12 @@ instance Applicative Eval where
 
 instance Monad Eval where
   return = Ready
-  fail x = Thunk (\_ -> fail x)
   (>>=)  = evalBind
   {-# INLINE return #-}
   {-# INLINE (>>=) #-}
+
+instance Fail.MonadFail Eval where
+  fail x = Thunk (\_ -> fail x)
 
 instance MonadIO Eval where
   liftIO = io

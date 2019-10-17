@@ -139,10 +139,12 @@ instance Applicative ParseM where
 
 instance Monad ParseM where
   return a  = P (\_ _ s -> Right (a,s))
-  fail s    = panic "[Parser] fail" [s]
   m >>= k   = P (\cfg p s1 -> case unP m cfg p s1 of
                             Left e       -> Left e
                             Right (a,s2) -> unP (k a) cfg p s2)
+
+instance MonadFail ParseM where
+  fail s    = panic "[Parser] fail" [s]
 
 happyError :: ParseM a
 happyError = P $ \cfg _ s ->
