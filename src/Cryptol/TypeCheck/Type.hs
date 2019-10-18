@@ -234,7 +234,7 @@ kindResult k         = k
 
 --------------------------------------------------------------------------------
 
--- Syntactic equality, ignoring type synonyms and record order
+-- | Syntactic equality, ignoring type synonyms and record order.
 instance Eq Type where
   TUser _ _ x == y        = x == y
   x == TUser _ _ y        = y == x
