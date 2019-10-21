@@ -105,7 +105,7 @@ infiniteSeqMap xs =
    -- TODO: use an int-trie?
    memoMap (IndexSeqMap $ \i -> genericIndex xs i)
 
--- | Create a finite list of length `n` of the values from [0..n-1] in
+-- | Create a finite list of length @n@ of the values from @[0..n-1]@ in
 --   the given the sequence emap.
 enumerateSeqMap :: (Integral n) => n -> SeqMap b w i -> [Eval (GenValue b w i)]
 enumerateSeqMap n m = [ lookupSeqMap m i | i <- [0 .. (toInteger n)-1] ]
@@ -124,7 +124,7 @@ updateSeqMap :: SeqMap b w i -> Integer -> Eval (GenValue b w i) -> SeqMap b w i
 updateSeqMap (UpdateSeqMap m sm) i x = UpdateSeqMap (Map.insert i x m) sm
 updateSeqMap (IndexSeqMap f) i x = UpdateSeqMap (Map.singleton i x) f
 
--- | Concatenate the first `n` values of the first sequence map onto the
+-- | Concatenate the first @n@ values of the first sequence map onto the
 --   beginning of the second sequence map.
 concatSeqMap :: Integer -> SeqMap b w i -> SeqMap b w i -> SeqMap b w i
 concatSeqMap n x y =
@@ -133,16 +133,16 @@ concatSeqMap n x y =
          then lookupSeqMap x i
          else lookupSeqMap y (i-n)
 
--- | Given a number `n` and a sequence map, return two new sequence maps:
---   the first containing the values from `[0..n-1]` and the next containing
---   the values from `n` onward.
+-- | Given a number @n@ and a sequence map, return two new sequence maps:
+--   the first containing the values from @[0..n-1]@ and the next containing
+--   the values from @n@ onward.
 splitSeqMap :: Integer -> SeqMap b w i -> (SeqMap b w i, SeqMap b w i)
 splitSeqMap n xs = (hd,tl)
   where
   hd = xs
   tl = IndexSeqMap $ \i -> lookupSeqMap xs (i+n)
 
--- | Drop the first @n@ elements of the given @SeqMap@.
+-- | Drop the first @n@ elements of the given 'SeqMap'.
 dropSeqMap :: Integer -> SeqMap b w i -> SeqMap b w i
 dropSeqMap 0 xs = xs
 dropSeqMap n xs = IndexSeqMap $ \i -> lookupSeqMap xs (i+n)
@@ -194,11 +194,11 @@ data WordValue b w i
   = WordVal !w                              -- ^ Packed word representation for bit sequences.
   | BitsVal !(Seq.Seq (Eval b))             -- ^ Sequence of thunks representing bits.
   | LargeBitsVal !Integer !(SeqMap b w i )  -- ^ A large bitvector sequence, represented as a
-                                            --   @SeqMap@ of bits.
+                                            --   'SeqMap' of bits.
  deriving (Generic, NFData)
 
 -- | An arbitrarily-chosen number of elements where we switch from a dense
---   sequence representation of bit-level words to @SeqMap@ representation.
+--   sequence representation of bit-level words to 'SeqMap' representation.
 largeBitSize :: Integer
 largeBitSize = 1 `shiftL` 16
 
@@ -256,7 +256,7 @@ indexWordValue (LargeBitsVal n xs) idx
    | idx < n   = fromBit =<< lookupSeqMap xs idx
    | otherwise = invalidIndex idx
 
--- | Produce a new @WordValue@ from the one given by updating the @i@th bit with the
+-- | Produce a new 'WordValue' from the one given by updating the @i@th bit with the
 --   given bit value.
 updateWordValue :: BitWord b w i => WordValue b w i -> Integer -> Eval b -> Eval (WordValue b w i)
 updateWordValue (WordVal w) idx (Ready b)
@@ -275,9 +275,9 @@ updateWordValue (LargeBitsVal n xs) idx b
 -- | Generic value type, parameterized by bit and word types.
 --
 --   NOTE: we maintain an important invariant regarding sequence types.
---   `VSeq` must never be used for finite sequences of bits.
---   Always use the `VWord` constructor instead!  Infinite sequences of bits
---   are handled by the `VStream` constructor, just as for other types.
+--   'VSeq' must never be used for finite sequences of bits.
+--   Always use the 'VWord' constructor instead!  Infinite sequences of bits
+--   are handled by the 'VStream' constructor, just as for other types.
 data GenValue b w i
   = VRecord ![(Ident, Eval (GenValue b w i))] -- ^ @ { .. } @
   | VTuple ![Eval (GenValue b w i)]           -- ^ @ ( .. ) @
@@ -433,7 +433,7 @@ class BitWord b w i | b -> w, w -> i, i -> b where
   -- | Pretty-print an integer value
   ppInteger :: PPOpts -> i -> Doc
 
-  -- | Attempt to render a word value as an ASCII character.  Return `Nothing`
+  -- | Attempt to render a word value as an ASCII character.  Return 'Nothing'
   --   if the character value is unknown (e.g., for symbolic values).
   wordAsChar :: w -> Maybe Char
 
@@ -491,9 +491,9 @@ class BitWord b w i | b -> w, w -> i, i -> b where
   --   The first integer argument is the number of bits in the
   --   resulting word.  The second integer argument is the
   --   number of less-significant digits to discard.  Stated another
-  --   way, the operation `extractWord n i w` is equivalent to
-  --   first shifting `w` right by `i` bits, and then truncating to
-  --   `n` bits.
+  --   way, the operation @extractWord n i w@ is equivalent to
+  --   first shifting @w@ right by @i@ bits, and then truncating to
+  --   @n@ bits.
   extractWord :: Integer -- ^ Number of bits to take
               -> Integer -- ^ starting bit
               -> w
@@ -641,11 +641,11 @@ lam  = VFun
 wlam :: BitWord b w i => (w -> Eval (GenValue b w i)) -> GenValue b w i
 wlam f = VFun (\x -> x >>= fromVWord "wlam" >>= f)
 
--- | A type lambda that expects a @Type@.
+-- | A type lambda that expects a 'Type'.
 tlam :: (TValue -> GenValue b w i) -> GenValue b w i
 tlam f = VPoly (return . f)
 
--- | A type lambda that expects a @Type@ of kind #.
+-- | A type lambda that expects a 'Type' of kind #.
 nlam :: (Nat' -> GenValue b w i) -> GenValue b w i
 nlam f = VNumPoly (return . f)
 
@@ -736,7 +736,7 @@ vWordLen val = case val of
 
 -- | If the given list of values are all fully-evaluated thunks
 --   containing bits, return a packed word built from the same bits.
---   However, if any value is not a fully-evaluated bit, return `Nothing`.
+--   However, if any value is not a fully-evaluated bit, return 'Nothing'.
 tryFromBits :: BitWord b w i => [Eval (GenValue b w i)] -> Maybe w
 tryFromBits = go id
   where

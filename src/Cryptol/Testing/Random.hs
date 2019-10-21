@@ -30,8 +30,8 @@ type Gen g b w i = Integer -> g -> (GenValue b w i, g)
 
 
 {- | Apply a testable value to some randomly-generated arguments.
-     Returns `Nothing` if the function returned `True`, or
-     `Just counterexample` if it returned `False`.
+     Returns @Nothing@ if the function returned @True@, or
+     @Just counterexample@ if it returned @False@.
 
     Please note that this function assumes that the generators match
     the supplied value, otherwise we'll panic.
@@ -87,7 +87,7 @@ returnTests g evo gens fun num = go gens g 0
            return ((inputs, output) : more)
 
 {- | Given a (function) type, compute generators for the function's
-arguments. This is like @testableType@, but allows the result to be
+arguments. This is like 'testableType', but allows the result to be
 any finite type instead of just @Bit@. -}
 dumpableType :: forall g. RandomGen g => Type -> Maybe [Gen g Bool BV Integer]
 dumpableType ty =

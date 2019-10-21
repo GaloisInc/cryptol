@@ -28,8 +28,8 @@ import Prelude.Compat
 
 -- Specializer Monad -----------------------------------------------------------
 
--- | A Name should have an entry in the SpecCache iff it is
--- specializable. Each Name starts out with an empty TypesMap.
+-- | A 'Name' should have an entry in the 'SpecCache' iff it is
+-- specializable. Each 'Name' starts out with an empty 'TypesMap'.
 type SpecCache = Map Name (Decl, TypesMap (Name, Maybe Decl))
 
 -- | The specializer monad.
@@ -58,7 +58,7 @@ modify f = get >>= (set . f)
 
 -- Specializer -----------------------------------------------------------------
 
--- | Add a `where` clause to the given expression containing
+-- | Add a @where@ clause to the given expression containing
 -- type-specialized versions of all functions called (transitively) by
 -- the body of the expression.
 specialize :: Expr -> M.ModuleCmd Expr
@@ -88,13 +88,13 @@ specializeExpr expr =
       e' <- specializeExpr e
       setSpecCache cache
       return (ETAbs t e')
-    -- We need to make sure that after processing `e`, no specialized
-    -- decls mentioning type variable `t` escape outside the
-    -- `ETAbs`. To avoid this, we reset to an empty SpecCache while we
-    -- run `specializeExpr e`, and restore it afterward: this
+    -- We need to make sure that after processing @e@, no specialized
+    -- decls mentioning type variable @t@ escape outside the
+    -- 'ETAbs'. To avoid this, we reset to an empty 'SpecCache' while we
+    -- run @'specializeExpr' e@, and restore it afterward: this
     -- effectively prevents the specializer from registering any type
-    -- instantiations involving `t` for any decls bound outside the
-    -- scope of `t`.
+    -- instantiations involving @t@ for any decls bound outside the
+    -- scope of @t@.
     ETApp {}      -> specializeConst expr
     EApp e1 e2    -> EApp <$> specializeExpr e1 <*> specializeExpr e2
     EAbs qn t e   -> EAbs qn t <$> specializeExpr e
@@ -144,9 +144,9 @@ withDeclGroups dgs action = do
   modifySpecCache (Map.union savedCache . flip Map.difference newCache)
   return (result, dgs', nameTable)
 
--- | Compute the specialization of `EWhere e dgs`. A decl within `dgs`
+-- | Compute the specialization of @'EWhere' e dgs@. A decl within @dgs@
 -- is replicated once for each monomorphic type instance at which it
--- is used; decls not mentioned in `e` (even monomorphic ones) are
+-- is used; decls not mentioned in @e@ (even monomorphic ones) are
 -- simply dropped.
 specializeEWhere :: Expr -> [DeclGroup] -> SpecM Expr
 specializeEWhere e dgs = do
@@ -224,7 +224,7 @@ destETAbs = go []
 -- Any top-level declarations in the current module can be found in the
 -- ModuleEnv's LoadedModules, and so we can count of freshName to avoid
 -- collisions with them.  Any generated name for a
--- specialized function will be qualified with the current @ModName@, so genned
+-- specialized function will be qualified with the current 'ModName', so genned
 -- names will not collide with local decls either.
 -- freshName :: Name -> [Type] -> SpecM Name
 -- freshName n [] = return n
@@ -322,7 +322,7 @@ instantiateSchema ts n (Forall params props ty)
   | otherwise                  = return $ Forall [] [] (apSubst sub ty)
   where sub = listParamSubst (zip params ts)
 
--- | Reduce `length ts` outermost type abstractions and `n` proof abstractions.
+-- | Reduce @length ts@ outermost type abstractions and @n@ proof abstractions.
 instantiateExpr :: [Type] -> Int -> Expr -> SpecM Expr
 instantiateExpr [] 0 e = return e
 instantiateExpr [] n (EProofAbs _ e) = instantiateExpr [] (n - 1) e

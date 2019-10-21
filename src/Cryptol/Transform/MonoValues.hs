@@ -10,62 +10,62 @@
 -- slow down in some cases.  What's the problem?  Consider the following (common)
 -- patterns:
 --
---     fibs = [0,1] # [ x + y | x <- fibs, y <- drop`{1} fibs ]
+-- >    fibs = [0,1] # [ x + y | x <- fibs, y <- drop`{1} fibs ]
 --
--- The type of `fibs` is:
+-- The type of @fibs@ is:
 --
---     {a} (a >= 1, fin a) => [inf][a]
+-- >    {a} (a >= 1, fin a) => [inf][a]
 --
--- Here `a` is the number of bits to be used in the values computed by `fibs`.
--- When we evaluate `fibs`, `a` becomes a parameter to `fibs`, which works
--- except that now `fibs` is a function, and we don't get any of the memoization
+-- Here @a@ is the number of bits to be used in the values computed by @fibs@.
+-- When we evaluate @fibs@, @a@ becomes a parameter to @fibs@, which works
+-- except that now @fibs@ is a function, and we don't get any of the memoization
 -- we might expect!  What looked like an efficient implementation has all
 -- of a sudden become exponential!
 --
--- Note that this is only a problem for polymorphic values: if `fibs` was
+-- Note that this is only a problem for polymorphic values: if @fibs@ was
 -- already a function, it would not be that surprising that it does not
 -- get cached.
 --
 -- So, to avoid this, we try to spot recursive polymorphic values,
 -- where the recursive occurrences have the exact same type parameters
--- as the definition.  For example, this is the case in `fibs`: each
--- recursive call to `fibs` is instantiated with exactly the same
--- type parameter (i.e., `a`).  The rewrite we do is as follows:
+-- as the definition.  For example, this is the case in @fibs@: each
+-- recursive call to @fibs@ is instantiated with exactly the same
+-- type parameter (i.e., @a@).  The rewrite we do is as follows:
 --
---     fibs : {a} (a >= 1, fin a) => [inf][a]
---     fibs = \{a} (a >= 1, fin a) -> fibs'
---       where fibs' : [inf][a]
---             fibs' = [0,1] # [ x + y | x <- fibs', y <- drop`{1} fibs' ]
+-- >    fibs : {a} (a >= 1, fin a) => [inf][a]
+-- >    fibs = \{a} (a >= 1, fin a) -> fibs'
+-- >      where fibs' : [inf][a]
+-- >            fibs' = [0,1] # [ x + y | x <- fibs', y <- drop`{1} fibs' ]
 --
 -- After the rewrite, the recursion is monomorphic (i.e., we are always using
--- the same type).  As a result, `fibs'` is an ordinary recursive value,
+-- the same type).  As a result, @fibs'@ is an ordinary recursive value,
 -- where we get the benefit of caching.
 --
 -- The rewrite is a bit more complex, when there are multiple mutually
 -- recursive functions.  Here is an example:
 --
---     zig : {a} (a >= 2, fin a) => [inf][a]
---     zig = [1] # zag
---
---     zag : {a} (a >= 2, fin a) => [inf][a]
---     zag = [2] # zig
+-- >    zig : {a} (a >= 2, fin a) => [inf][a]
+-- >    zig = [1] # zag
+-- >
+-- >    zag : {a} (a >= 2, fin a) => [inf][a]
+-- >    zag = [2] # zig
 --
 -- This gets rewritten to:
 --
---     newName : {a} (a >= 2, fin a) => ([inf][a], [inf][a])
---     newName = \{a} (a >= 2, fin a) -> (zig', zag')
---       where
---       zig' : [inf][a]
---       zig' = [1] # zag'
---
---       zag' : [inf][a]
---       zag' = [2] # zig'
---
---     zig : {a} (a >= 2, fin a) => [inf][a]
---     zig = \{a} (a >= 2, fin a) -> (newName a <> <> ).1
---
---     zag : {a} (a >= 2, fin a) => [inf][a]
---     zag = \{a} (a >= 2, fin a) -> (newName a <> <> ).2
+-- >    newName : {a} (a >= 2, fin a) => ([inf][a], [inf][a])
+-- >    newName = \{a} (a >= 2, fin a) -> (zig', zag')
+-- >      where
+-- >      zig' : [inf][a]
+-- >      zig' = [1] # zag'
+-- >
+-- >      zag' : [inf][a]
+-- >      zag' = [2] # zig'
+-- >
+-- >    zig : {a} (a >= 2, fin a) => [inf][a]
+-- >    zig = \{a} (a >= 2, fin a) -> (newName a <> <> ).1
+-- >
+-- >    zag : {a} (a >= 2, fin a) => [inf][a]
+-- >    zag = \{a} (a >= 2, fin a) -> (newName a <> <> ).2
 --
 -- NOTE:  We are assuming that no capture would occur with binders.
 -- For values, this is because we replaces things with freshly chosen variables.
@@ -92,8 +92,8 @@ import MonadLib hiding (mapM)
 import Prelude ()
 import Prelude.Compat
 
-{- (f,t,n) |--> x  means that when we spot instantiations of `f` with `ts` and
-`n` proof argument, we should replace them with `Var x` -}
+{- (f,t,n) |--> x  means that when we spot instantiations of @f@ with @ts@ and
+@n@ proof argument, we should replace them with @Var x@ -}
 newtype RewMap' a = RM (Map Name (TypesMap (Map Int a)))
 type RewMap = RewMap' Name
 

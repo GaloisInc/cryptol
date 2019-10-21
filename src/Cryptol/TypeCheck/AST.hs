@@ -124,13 +124,13 @@ data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
 
             {- | Proof abstraction.  Because we don't keep proofs around
                  we don't need to name the assumption, but we still need to
-                 record the assumption.  The assumption is the `Type` term,
-                 which should be of kind `KProp`.
+                 record the assumption.  The assumption is the 'Type' term,
+                 which should be of kind 'KProp'.
              -}
             | EProofAbs {- x -} Prop Expr
 
-            {- | If `e : p => t`, then `EProofApp e : t`,
-                 as long as we can prove `p`.
+            {- | If @e : p => t@, then @EProofApp e : t@,
+                 as long as we can prove @p@.
 
                  We don't record the actual proofs, as they are not
                  used for anything.  It may be nice to keep them around
@@ -181,7 +181,7 @@ data DeclDef    = DPrim
 ePrim :: PrimMap -> Ident -> Expr
 ePrim pm n = EVar (lookupPrimDecl n pm)
 
--- | Make an expression that is `error` pre-applied to a type and a message.
+-- | Make an expression that is @error@ pre-applied to a type and a message.
 eError :: PrimMap -> Type -> String -> Expr
 eError prims t str =
   EApp (ETApp (ETApp (ePrim prims (packIdent "error")) t)

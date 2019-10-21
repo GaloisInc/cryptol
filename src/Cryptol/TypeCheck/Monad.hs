@@ -192,7 +192,7 @@ data RO = RO
 
   {- NOTE: We assume no shadowing between these two, so it does not matter
   where we look first. Similarly, we assume no shadowing with
-  the existential type variable (in RW).  See `checkTShadowing`. -}
+  the existential type variable (in RW).  See 'checkTShadowing'. -}
 
   , iTVars    :: [TParam]                  -- ^ Type variable that are in scope
   , iTSyns    :: Map Name (DefLoc, TySyn) -- ^ Type synonyms that are in scope
@@ -218,7 +218,7 @@ data RO = RO
 
   , iSolvedHasLazy :: Map Int HasGoalSln
     -- ^ NOTE: This field is lazy in an important way!  It is the
-    -- final version of `iSolvedHas` in `RW`, and the two are tied
+    -- final version of 'iSolvedHas' in 'RW', and the two are tied
     -- together through recursion.  The field is here so that we can
     -- look thing up before they are defined, which is OK because we
     -- don't need to know the results until everything is done.
@@ -263,8 +263,8 @@ data RW = RW
   -- Constraints that need solving
   , iCts      :: !Goals                -- ^ Ordinary constraints
   , iHasCts   :: ![HasGoal]
-    {- ^ Tuple/record projection constraints.  The `Int` is the "name"
-         of the constraint, used so that we can name it solution properly. -}
+    {- ^ Tuple/record projection constraints.  The 'Int' is the "name"
+         of the constraint, used so that we can name its solution properly. -}
 
   , iSupply :: !Supply
   }
@@ -421,13 +421,13 @@ newHasGoal l ty f =
 addHasGoal :: HasGoal -> InferM ()
 addHasGoal g = IM $ sets_ $ \s -> s { iHasCts = g : iHasCts s }
 
--- | Get the `Has` constraints.  Each of this should either be solved,
--- or added back using `addHasGoal`.
+-- | Get the @Has@ constraints.  Each of this should either be solved,
+-- or added back using 'addHasGoal'.
 getHasGoals :: InferM [HasGoal]
 getHasGoals = do gs <- IM $ sets $ \s -> (iHasCts s, s { iHasCts = [] })
                  applySubst gs
 
--- | Specify the solution (`Expr -> Expr`) for the given constraint (`Int`).
+-- | Specify the solution (@Expr -> Expr@) for the given constraint ('Int').
 solveHasGoal :: Int -> HasGoalSln -> InferM ()
 solveHasGoal n e =
   IM $ sets_ $ \s -> s { iSolvedHas = Map.insert n e (iSolvedHas s) }
@@ -535,7 +535,7 @@ getSubst :: InferM Subst
 getSubst = IM $ fmap iSubst get
 
 -- | Add to the accumulated substitution, checking that the datatype
--- invariant for `Subst` is maintained.
+-- invariant for 'Subst' is maintained.
 extendSubst :: Subst -> InferM ()
 extendSubst su =
   do mapM_ check (substToList su)

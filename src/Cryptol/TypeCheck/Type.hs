@@ -99,8 +99,8 @@ data Type   = TCon !TCon ![Type]
               {- ^ This is just a type annotation, for a type that
               was written as a type synonym.  It is useful so that we
               can use it to report nicer errors.
-              Example: `TUser T ts t` is really just the type `t` that
-              was written as `T ts` by the user. -}
+              Example: @TUser T ts t@ is really just the type @t@ that
+              was written as @T ts@ by the user. -}
 
             | TRec ![(Ident,Type)]
               -- ^ Record type
@@ -157,7 +157,7 @@ tvSourceName tvs =
     DefinitionOf x -> Just x
     _ -> Nothing
 
--- | The type is supposed to be of kind `KProp`
+-- | The type is supposed to be of kind 'KProp'.
 type Prop   = Type
 
 
@@ -597,7 +597,7 @@ pLiteral x y = TCon (PC PLiteral) [x, y]
 (>==) :: Type -> Type -> Prop
 x >== y = TCon (PC PGeq) [x,y]
 
--- | A `Has` constraint, used for tuple and record selection.
+-- | A @Has@ constraint, used for tuple and record selection.
 pHas :: Selector -> Type -> Type -> Prop
 pHas l ty fi = TCon (PC (PHas l)) [ty,fi]
 
