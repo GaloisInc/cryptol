@@ -34,6 +34,7 @@ import           Cryptol.Utils.Ident (interactiveName, noModuleName)
 import           Cryptol.Utils.PP
 import           Cryptol.Utils.Logger(Logger)
 
+import qualified Control.Monad.Fail as Fail
 import Control.Monad.IO.Class
 import Control.Exception (IOException)
 import Data.Function (on)
@@ -326,7 +327,7 @@ instance Monad m => Monad (ModuleT m) where
   {-# INLINE (>>=) #-}
   m >>= f       = ModuleT (unModuleT m >>= unModuleT . f)
 
-instance MonadFail m => MonadFail (ModuleT m) where
+instance Fail.MonadFail m => Fail.MonadFail (ModuleT m) where
   {-# INLINE fail #-}
   fail          = ModuleT . raise . OtherFailure
 

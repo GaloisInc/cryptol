@@ -18,6 +18,7 @@ module Cryptol.Parser.ParserUtils where
 import Data.Maybe(fromMaybe)
 import Data.Bits(testBit,setBit)
 import Control.Monad(liftM,ap,unless,guard)
+import qualified Control.Monad.Fail as Fail
 import           Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Map as Map
@@ -143,7 +144,7 @@ instance Monad ParseM where
                             Left e       -> Left e
                             Right (a,s2) -> unP (k a) cfg p s2)
 
-instance MonadFail ParseM where
+instance Fail.MonadFail ParseM where
   fail s    = panic "[Parser] fail" [s]
 
 happyError :: ParseM a
