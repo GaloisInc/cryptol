@@ -18,4 +18,5 @@ install:
 
 build_script:
   - cabal v2-update
-  - cabal v2-build --allow-newer
+  - bash cry build
+  - bash cry test
