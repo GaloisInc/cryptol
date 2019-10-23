@@ -6,7 +6,7 @@ function setup_external_tools {
   if [ ! -f "$BIN/test-runner" ]
   then
     mkdir -p "$BIN"
-    cabal v2-install --allow-newer --installdir="$BIN" test-lib
+    cabal v2-install --installdir="$BIN" test-lib
   fi
 }
 
@@ -34,9 +34,11 @@ fi
 COMMAND=$1
 shift
 
+cabal v2-configure --allow-newer
+
 case $COMMAND in
   run)
-    cabal v2-run --allow-newer exe:cryptol -- $*;;
+    cabal v2-run exe:cryptol -- $*;;
 
   build)
     echo Building Cryptol
@@ -48,7 +50,7 @@ case $COMMAND in
 
     echo -- Last build $(date) >> src/GitRev.hs
 
-    cabal v2-build --allow-newer exe:cryptol
+    cabal v2-build exe:cryptol
 
     # WARNING!!!:  this is here to undo the HACK date stamp, and will
     # undo any changes to this file, so comment it out if you'd like
@@ -79,7 +81,7 @@ case $COMMAND in
     exit 0;;
 
   exe-path)
-    cabal v2-run --allow-newer exe:cryptol --verbose -- -c ':q' | grep :q | awk '{ print $1 }'
+    cabal v2-run exe:cryptol --verbose -- -c ':q' | grep :q | awk '{ print $1 }'
     exit 0;;
 
   *)
