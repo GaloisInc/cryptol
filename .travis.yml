@@ -33,7 +33,7 @@ before_install:
   - env
 
 script:
-  - cp cabal.${GHCSHORTVER}.config cabal.project.freeze
+  - cp cabal.$GHCSHORTVER.config cabal.project.freeze
   - cabal update
   - bash cry build
   - bash cry test
