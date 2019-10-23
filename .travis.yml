@@ -10,13 +10,13 @@ cache:
 
 matrix:
   include:
-    - env: CABALVER="2.4" GHCVER="8.4.4" GHCSHORTVER="84"
+    - env: CABALVER="3.0" GHCVER="8.4.4"
       compiler: ": #GHC 8.4.4"
-      addons: {apt: {packages: [cabal-install-2.4,ghc-8.4.4], sources: [hvr-ghc]}}
-    - env: CABALVER="3.0" GHCVER="8.6.5" GHCSHORTVER="86"
+      addons: {apt: {packages: [cabal-install-3.0,ghc-8.4.4], sources: [hvr-ghc]}}
+    - env: CABALVER="3.0" GHCVER="8.6.5"
       compiler: ": #GHC 8.6.5"
       addons: {apt: {packages: [cabal-install-3.0,ghc-8.6.5], sources: [hvr-ghc]}}
-    - env: CABALVER="3.0" GHCVER="8.8.1" GHCSHORTVER="88"
+    - env: CABALVER="3.0" GHCVER="8.8.1"
       compiler: ": #GHC 8.8.1"
       addons: {apt: {packages: [cabal-install-3.0,ghc-8.8.1], sources: [hvr-ghc]}}
 
@@ -33,7 +33,7 @@ before_install:
   - env
 
 script:
-  - cp cabal.GHC${GHCSHORTVER}.config cabal.project.freeze
+  - cp cabal.GHC-${GHCVER}.config cabal.project.freeze
   - cabal update
   - bash cry build
   - bash cry test
