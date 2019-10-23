@@ -17,6 +17,7 @@ module Cryptol.Parser.NoInclude
 import qualified Control.Applicative as A
 import Control.DeepSeq
 import qualified Control.Exception as X
+import qualified Control.Monad.Fail as Fail
 import Data.Either (partitionEithers)
 import Data.Text(Text)
 import qualified Data.Text.IO as T
@@ -104,6 +105,9 @@ instance A.Applicative NoIncM where
 instance Monad NoIncM where
   return x = M (return x)
   m >>= f  = M (unM m >>= unM . f)
+
+instance Fail.MonadFail NoIncM where
+  fail x = M (fail x)
 
 -- | Raise an 'IncludeFailed' error.
 includeFailed :: Located FilePath -> NoIncM a

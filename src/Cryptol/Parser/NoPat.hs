@@ -32,9 +32,6 @@ import qualified Data.Map as Map
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
-import Prelude ()
-import Prelude.Compat
-
 class RemovePatterns t where
   -- | Eliminate all patterns in a program.
   removePatterns :: t -> (t, [Error])

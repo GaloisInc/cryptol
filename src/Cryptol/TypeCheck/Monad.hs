@@ -52,10 +52,6 @@ import           Data.IORef
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
-import Prelude ()
-import Prelude.Compat
-
-
 -- | Information needed for type inference.
 data InferInput = InferInput
   { inpRange     :: Range             -- ^ Location of program source
@@ -282,7 +278,7 @@ instance Monad InferM where
   IM m >>= f    = IM (m >>= unIM . f)
 
 instance Fail.MonadFail InferM where
-  fail x        = IM (Fail.fail x)
+  fail x        = IM (fail x)
 
 instance MonadFix InferM where
   mfix f        = IM (mfix (unIM . f))
@@ -841,7 +837,7 @@ instance Monad KindM where
   KM m >>= k    = KM (m >>= unKM . k)
 
 instance Fail.MonadFail KindM where
-  fail x        = KM (Fail.fail x)
+  fail x        = KM (fail x)
 
 
 {- | The arguments to this function are as follows:
