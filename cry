@@ -34,7 +34,7 @@ fi
 COMMAND=$1
 shift
 
-cabal v2-configure --allow-newer
+cabal v2-configure --allow-newer -v0
 
 case $COMMAND in
   run)
