@@ -48,7 +48,6 @@ main = do
   defaultMain [
     bgroup "parser" [
         parser "Prelude" "lib/Cryptol.cry"
-      , parser "PreludeWithExtras" "bench/data/PreludeWithExtras.cry"
       , parser "BigSequence" "bench/data/BigSequence.cry"
       , parser "BigSequenceHex" "bench/data/BigSequenceHex.cry"
       , parser "AES" "bench/data/AES.cry"
@@ -56,7 +55,6 @@ main = do
       ]
    , bgroup "typechecker" [
         tc cd "Prelude" "lib/Cryptol.cry"
-      , tc cd "PreludeWithExtras" "bench/data/PreludeWithExtras.cry"
       , tc cd "BigSequence" "bench/data/BigSequence.cry"
       , tc cd "BigSequenceHex" "bench/data/BigSequenceHex.cry"
       , tc cd "AES" "bench/data/AES.cry"
@@ -107,19 +105,23 @@ tc cd name path =
                 }
             Right pm = P.parseModule cfg bytes
         menv <- M.initialModuleEnv
-        (Right ((prims, scm, tcEnv), menv'), _) <- M.runModuleM (evOpts,menv) $ withLib $ do
+        (eres, _) <-  M.runModuleM (evOpts,menv) $ withLib $ do
           -- code from `loadModule` and `checkModule` in
           -- `Cryptol.ModuleSystem.Base`
           let pm' = M.addPrelude pm
           M.loadDeps pm'
-          Right nim <- M.io (P.removeIncludesModule path pm')
+          enim <- M.io (P.removeIncludesModule path pm')
+          nim <- either (error "Failed to remove includes") return enim
           npm <- M.noPat nim
           (tcEnv,declsEnv,scm) <- M.renameModule npm
           prims <- if P.thing (P.mName pm) == I.preludeName
                    then return (M.toPrimMap declsEnv)
                    else M.getPrimMap
           return (prims, scm, tcEnv)
-        return (prims, scm, tcEnv, menv')
+        case eres of
+          Right ((prims, scm, tcEnv), menv') ->
+            return (prims, scm, tcEnv, menv')
+          Left _ -> error $ "Failed to load " ++ name
   in env setup $ \ ~(prims, scm, tcEnv, menv) ->
     bench name $ nfIO $ M.runModuleM (evOpts,menv) $ withLib $ do
       let act = M.TCAction { M.tcAction = T.tcModule
@@ -133,13 +135,15 @@ ceval cd name path expr =
   let withLib = M.withPrependedSearchPath [cd </> "lib"] in
   let setup = do
         menv <- M.initialModuleEnv
-        (Right (texpr, menv'), _) <- M.runModuleM (evOpts,menv) $ withLib $ do
+        (eres, _) <-  M.runModuleM (evOpts,menv) $ withLib $ do
           m <- M.loadModuleByPath path
           M.setFocusedModule (T.mName m)
           let Right pexpr = P.parseExpr expr
           (_, texpr, _) <- M.checkExpr pexpr
           return texpr
-        return (texpr, menv')
+        case eres of
+          Right (texpr, menv') -> return (texpr, menv')
+          Left _ ->  error $ "Failed to load " ++ name
   in env setup $ \ ~(texpr, menv) ->
     bench name $ nfIO $ E.runEval evOpts $ do
       env' <- E.evalDecls (S.allDeclGroups menv) mempty
@@ -152,13 +156,15 @@ seval cd name path expr =
   let withLib = M.withPrependedSearchPath [cd </> "lib"] in
   let setup = do
         menv <- M.initialModuleEnv
-        (Right (texpr, menv'), _) <- M.runModuleM (evOpts,menv) $ withLib $ do
+        (eres, _) <-  M.runModuleM (evOpts,menv) $ withLib $ do
           m <- M.loadModuleByPath path
           M.setFocusedModule (T.mName m)
           let Right pexpr = P.parseExpr expr
           (_, texpr, _) <- M.checkExpr pexpr
           return texpr
-        return (texpr, menv')
+        case eres of
+          Right (texpr, menv') -> return (texpr, menv')
+          Left _ ->  error $ "Failed to load " ++ name
   in env setup $ \ ~(texpr, menv) ->
     bench name $ nfIO $ E.runEval evOpts $ do
       env' <- E.evalDecls (S.allDeclGroups menv) mempty
