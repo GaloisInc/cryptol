@@ -11,10 +11,11 @@ install:
   - refreshenv
   # See http://help.appveyor.com/discussions/problems/6312-curl-command-not-found#comment_42195491
   # NB: Do this after refreshenv, otherwise it will be clobbered!
-  - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%;C:\msys64\usr\bin
+  - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%;C:\msys64\usr\bin;%APPVEYOR_BUILD_FOLDER%\bin
   - curl -o z3.zip -L https://github.com/Z3Prover/z3/releases/download/z3-4.7.1/z3-4.7.1-x64-win.zip
   - 7z x -bd z3.zip
-  - cp z3-4.7.1-x64-win/bin/z3.exe .
+  - mkdir %APPVEYOR_BUILD_FOLDER%\bin
+  - cp z3-4.7.1-x64-win/bin/z3.exe %APPVEYOR_BUILD_FOLDER%\bin
 
 build_script:
   #- cp cabal.GHC-%GHC_VERSION%.config cabal.project.freeze
