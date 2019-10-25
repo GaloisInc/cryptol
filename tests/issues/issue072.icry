@@ -1,13 +1,11 @@
+:set show-examples=false
 :sat \x -> x > 0x4
 :t it
-it
 :set satNum = all
 :sat \x -> x > 0x4
 :t it
-it
 :set satNum = foobar
 :set satNum = 0
 :set satNum = 3
 :sat \x -> x > 0x4
 :t it
-it
