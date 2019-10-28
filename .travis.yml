@@ -34,8 +34,8 @@ before_install:
 
 script:
   - cp cabal.GHC-${GHCVER}.config cabal.project.freeze
-  - cabal v2-configure --allow-newer
   - cabal update
+  - cabal v2-configure --allow-newer
   - bash cry build
   - bash cry test
 
