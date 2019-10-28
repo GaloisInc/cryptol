@@ -61,6 +61,7 @@ import System.FilePath ( addExtension
                        , isAbsolute
                        , joinPath
                        , (</>)
+                       , normalise
                        , takeDirectory
                        , takeFileName
                        )
@@ -276,7 +277,7 @@ findFile path = do
   loop paths = case paths of
     path':rest -> do
       b <- io (doesFileExist path')
-      if b then return path' else loop rest
+      if b then return (normalise path') else loop rest
     [] -> cantFindFile path
   possibleFiles paths = map (</> path) paths
 
