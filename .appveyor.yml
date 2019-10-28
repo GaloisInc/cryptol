@@ -19,6 +19,7 @@ install:
 
 build_script:
   #- cp cabal.GHC-%GHC_VERSION%.config cabal.project.freeze
+  - cabal v2-configure --allow-newer
   - cabal v2-update
   - bash cry build
   - bash cry test
