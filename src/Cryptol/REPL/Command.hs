@@ -86,7 +86,7 @@ import Control.Monad.IO.Class(liftIO)
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BS8
-import Data.Bits ((.&.))
+import Data.Bits (shiftL, (.&.), (.|.))
 import Data.Char (isSpace,isPunctuation,isSymbol,isAlphaNum,isAscii)
 import Data.Function (on)
 import Data.List (intercalate, nub, sortBy, partition, isPrefixOf,intersperse)
@@ -739,12 +739,37 @@ readFileCmd :: FilePath -> REPL ()
 readFileCmd fp = do
   bytes <- replReadFile fp (\err -> rPutStrLn (show err) >> return Nothing)
   case bytes of
-      Nothing -> return ()
-      Just bs ->
-        do pm <- getPrimMap
-           let expr = T.eString pm (map (toEnum . fromIntegral) (BS.unpack bs))
-               ty   = T.tString (BS.length bs)
-           bindItVariable ty expr
+    Nothing -> return ()
+    Just bs ->
+      do pm <- getPrimMap
+         let val = byteStringToInteger bs
+         let len = BS.length bs
+         let split = T.ePrim pm (M.packIdent "split")
+         let number = T.ePrim pm (M.packIdent "number")
+         let f = T.EProofApp (foldl T.ETApp split [T.tNum len, T.tNum (8::Integer), T.tBit])
+         let t = T.tWord (T.tNum (toInteger len * 8))
+         let x = T.EProofApp (T.ETApp (T.ETApp number (T.tNum val)) t)
+         let expr = T.EApp f x
+         bindItVariable (T.tString len) expr
+
+-- | Convert a 'ByteString' (big-endian) of length @n@ to an 'Integer'
+-- with @8*n@ bits. This function uses a balanced binary fold to
+-- achieve /O(n log n)/ total memory allocation and run-time, in
+-- contrast to the /O(n^2)/ that would be required by a naive
+-- left-fold.
+byteStringToInteger :: BS.ByteString -> Integer
+-- byteStringToInteger = BS.foldl' (\a b -> a `shiftL` 8 .|. toInteger b) 0
+byteStringToInteger bs
+  | l == 0 = 0
+  | l == 1 = toInteger (BS.head bs)
+  | otherwise = x1 `shiftL` (l2 * 8) .|. x2
+  where
+    l = BS.length bs
+    l1 = l `div` 2
+    l2 = l - l1
+    (bs1, bs2) = BS.splitAt l1 bs
+    x1 = byteStringToInteger bs1
+    x2 = byteStringToInteger bs2
 
 writeFileCmd :: FilePath -> String -> REPL ()
 writeFileCmd file str = do
