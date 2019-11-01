@@ -1,15 +1,25 @@
+environment:
+  matrix:
+    - GHC_VERSION: 8.4.4
+    - GHC_VERSION: 8.6.5
+    - GHC_VERSION: 8.8.1
+
 install:
   # Using '-y' and 'refreshenv' as a workaround to:
   # https://github.com/haskell/cabal/issues/3687
-  - choco install -y ghc --version 8.4.4
+  - choco install -y ghc --version %GHC_VERSION%
   - refreshenv
   # See http://help.appveyor.com/discussions/problems/6312-curl-command-not-found#comment_42195491
   # NB: Do this after refreshenv, otherwise it will be clobbered!
-  - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%;C:\msys64\usr\bin
-  - curl -o z3.zip -L https://github.com/Z3Prover/z3/releases/download/z3-4.5.0/z3-4.5.0-x64-win.zip
+  - set PATH=C:\Program Files\Git\mingw64\bin;%PATH%;C:\msys64\usr\bin;%APPVEYOR_BUILD_FOLDER%\bin
+  - curl -o z3.zip -L https://github.com/Z3Prover/z3/releases/download/z3-4.7.1/z3-4.7.1-x64-win.zip
   - 7z x -bd z3.zip
-  - cp z3-4.5.0-x64-win/bin/z3.exe .
+  - mkdir %APPVEYOR_BUILD_FOLDER%\bin
+  - cp z3-4.7.1-x64-win/bin/z3.exe %APPVEYOR_BUILD_FOLDER%\bin
 
 build_script:
-  - cabal new-update
-  - cabal new-build
+  #- cp cabal.GHC-%GHC_VERSION%.config cabal.project.freeze
+  - cabal v2-update
+  - cabal v2-configure --allow-newer
+  - bash cry build
+  - bash cry test

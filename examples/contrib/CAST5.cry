@@ -98,7 +98,7 @@ cast5_12 pt (km,kr) = result where
 
 blockEncrypt : {k} (16 >= k, k >= 5) => ([k*8],[64]) -> [64]
 blockEncrypt (k,plaintext) = if wid k > 80 then cast5_16 plaintext key else cast5_12 plaintext key
-    where wid (x:[w]a) = `w
+    where wid (x:[w]_) = `w
           key = expandKey k
 
 f1, f2, f3 : ([32],[32],[5]) -> [32]

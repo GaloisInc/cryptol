@@ -5,6 +5,7 @@ module Cryptol.TypeCheck.Solver.Numeric
 
 import           Control.Applicative(Alternative(..))
 import           Control.Monad (guard,mzero)
+import qualified Control.Monad.Fail as Fail
 import           Data.List (sortBy)
 
 import Cryptol.Utils.Patterns
@@ -163,7 +164,7 @@ tryCancelVar ctxt p t1 t2 =
   let lhs = preproc t1
       rhs = preproc t2
   in case check [] [] lhs rhs of
-       Nothing -> fail ""
+       Nothing -> Fail.fail "tryCancelVar"
        Just x  -> return x
 
 

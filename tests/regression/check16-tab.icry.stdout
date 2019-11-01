@@ -1,6 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at ./check16-tab.cry:1:11--1:17:
+[warning] at check16-tab.cry:1:11--1:17:
   Defaulting type argument 'b' of 'length' to [4]
 True

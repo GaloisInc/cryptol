@@ -17,5 +17,5 @@ test04::test = \{a, b} (Literal 10 b) (a : a) ->
 Loading module Cryptol
 Loading module test04
 
-[error] at ./test04.cry:1:1--5:14:
+[error] at test04.cry:1:1--5:14:
   Type '()' does not support literals.

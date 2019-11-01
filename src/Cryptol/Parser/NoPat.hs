@@ -32,9 +32,6 @@ import qualified Data.Map as Map
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
-import Prelude ()
-import Prelude.Compat
-
 class RemovePatterns t where
   -- | Eliminate all patterns in a program.
   removePatterns :: t -> (t, [Error])
@@ -542,9 +539,7 @@ instance Functor NoPatM where fmap = liftM
 instance Applicative NoPatM where pure = return; (<*>) = ap
 instance Monad NoPatM where
   return x  = M (return x)
-  fail x    = M (fail x)
   M x >>= k = M (x >>= unM . k)
-
 
 -- | Pick a new name, to be used when desugaring patterns.
 newName :: NoPatM PName

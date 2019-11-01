@@ -23,9 +23,6 @@ import Data.Maybe (catMaybes)
 
 import MonadLib hiding (mapM)
 
-import Prelude ()
-import Prelude.Compat
-
 -- Specializer Monad -----------------------------------------------------------
 
 -- | A 'Name' should have an entry in the 'SpecCache' iff it is

@@ -35,6 +35,7 @@ import           Cryptol.Utils.Ident(Ident)
 import           Cryptol.Utils.Panic(panic)
 
 import qualified Control.Applicative as A
+import qualified Control.Monad.Fail as Fail
 import           Control.Monad.Fix(MonadFix(..))
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -50,10 +51,6 @@ import           Data.IORef
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
-
-import Prelude ()
-import Prelude.Compat
-
 
 -- | Information needed for type inference.
 data InferInput = InferInput
@@ -278,8 +275,10 @@ instance A.Applicative InferM where
 
 instance Monad InferM where
   return x      = IM (return x)
-  fail x        = IM (fail x)
   IM m >>= f    = IM (m >>= unIM . f)
+
+instance Fail.MonadFail InferM where
+  fail x        = IM (fail x)
 
 instance MonadFix InferM where
   mfix f        = IM (mfix (unIM . f))
@@ -835,10 +834,10 @@ instance A.Applicative KindM where
 
 instance Monad KindM where
   return x      = KM (return x)
-  fail x        = KM (fail x)
   KM m >>= k    = KM (m >>= unKM . k)
 
-
+instance Fail.MonadFail KindM where
+  fail x        = KM (fail x)
 
 
 {- | The arguments to this function are as follows:

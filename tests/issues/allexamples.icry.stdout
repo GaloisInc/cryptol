@@ -5,16 +5,15 @@ Loading module Cryptol
 Loading module AES
 Loading module Cryptol
 Loading module ChaCha20
-[warning] at ./ChaChaPolyCryptolIETF.md:340:32--340:33
+[warning] at ChaChaPolyCryptolIETF.md:340:32--340:33 Unused name: b
+[warning] at ChaChaPolyCryptolIETF.md:2117:20--2117:21
     Unused name: b
-[warning] at ./ChaChaPolyCryptolIETF.md:2117:20--2117:21
-    Unused name: b
-[warning] at ./ChaChaPolyCryptolIETF.md:1984:5--1984:15
+[warning] at ChaChaPolyCryptolIETF.md:1984:5--1984:15
     This binding for `cypherText` shadows the existing binding at
-    ./ChaChaPolyCryptolIETF.md:1982:24--1982:34
-[warning] at ./ChaChaPolyCryptolIETF.md:2062:20--2062:27
+    ChaChaPolyCryptolIETF.md:1982:24--1982:34
+[warning] at ChaChaPolyCryptolIETF.md:2062:20--2062:27
     This binding for `AeadAAD` shadows the existing binding at
-    ./ChaChaPolyCryptolIETF.md:1149:1--1149:8
+    ChaChaPolyCryptolIETF.md:1149:1--1149:8
 Loading module Cryptol
 Loading module Cipher
 Loading module Cryptol
@@ -61,7 +60,6 @@ Loading module Main
 Loading module Cryptol
 Loading module Cipher
 Loading module CAST5
-[warning] at contrib/CAST5.cry:101:21--101:22 Unused name: a
 Loading module Cryptol
 Loading module Main
 Loading module Cryptol

@@ -1,15 +1,15 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module AES
-[warning] at ./AES.cry:86:21--86:40:
+[warning] at AES.cry:86:21--86:40:
   Defaulting type argument 'ix' of '(<<<)' to 2
-[warning] at ./AES.cry:91:24--91:43:
+[warning] at AES.cry:91:24--91:43:
   Defaulting type argument 'ix' of '(>>>)' to 2
-[warning] at ./AES.cry:147:28--147:51:
+[warning] at AES.cry:147:28--147:51:
   Defaulting type argument 'ix' of '(@@)' to 4
-[warning] at ./AES.cry:147:53--147:63:
+[warning] at AES.cry:147:53--147:63:
   Defaulting type argument 'ix' of '(@)' to 4
-[warning] at ./AES.cry:127:26--127:33:
+[warning] at AES.cry:127:26--127:33:
   Defaulting type argument 'rep' of 'number' to [3]
 True
 True
