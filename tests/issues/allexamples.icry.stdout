@@ -60,7 +60,6 @@ Loading module Main
 Loading module Cryptol
 Loading module Cipher
 Loading module CAST5
-[warning] at contrib/CAST5.cry:101:21--101:22 Unused name: a
 Loading module Cryptol
 Loading module Main
 Loading module Cryptol
