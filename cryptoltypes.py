@@ -1,17 +1,25 @@
 from __future__ import annotations
 from collections import OrderedDict
+from abc import ABCMeta, abstractmethod
 import base64
 import BitVector #type: ignore
 
 from typing import Any, Dict, Iterable, List, NoReturn, Optional, TypeVar, Union
 
-from typing_extensions import Literal
+from typing_extensions import Literal, Protocol
 
 A = TypeVar('A')
 
-class CryptolCode:
-    def __call__(self, other : CryptolCode) -> CryptolCode:
+class CryptolJSON(Protocol):
+    def __to_cryptol__(self, ty : CryptolType) -> Any: ...
+
+class CryptolCode(metaclass=ABCMeta):
+    def __call__(self, other : CryptolJSON) -> CryptolCode:
         return CryptolApplication(self, other)
+
+    @abstractmethod
+    def __to_cryptol__(self, ty : CryptolType) -> Any: ...
+
 
 class CryptolLiteral(CryptolCode):
     def __init__(self, code : str) -> None:
@@ -21,7 +29,7 @@ class CryptolLiteral(CryptolCode):
         return self._code
 
 class CryptolApplication(CryptolCode):
-    def __init__(self, rator : CryptolCode, *rands : CryptolCode) -> None:
+    def __init__(self, rator : CryptolJSON, *rands : CryptolJSON) -> None:
         self._rator = rator
         self._rands = rands
 
@@ -90,14 +98,30 @@ def to_cryptol(val : Any, cryptol_type : Optional[CryptolType] = None) -> Any:
 def fail_with(exn : Exception) -> NoReturn:
     raise exn
 
+def is_plausible_json(val : Any) -> bool:
+    for ty in [bool, int, float, str]:
+        if isinstance(val, ty): return True
+
+    if isinstance(val, dict):
+        return all(isinstance(k, str) and is_plausible_json(val[k]) for k in val)
+
+    if isinstance(val, tuple) or isinstance(val, list):
+        return all(is_plausible_json(elt) for elt in val)
+
+    return False
+
 class CryptolType:
     def from_python(self, val : Any) -> Any:
         if hasattr(val, '__to_cryptol__'):
             code = val.__to_cryptol__(self)
-            if isinstance(code, CryptolCode):
+            if is_plausible_json(code):
                 return code
             else:
-                raise ValueError(f"Expected Cryptol code from __to_cryptol__ on {val!r}, but got {code!r}.")
+                raise ValueError(f"Improbable JSON from __to_cryptol__: {val!r} gave {code!r}")
+            # if isinstance(code, CryptolCode):
+            #     return self.convert(code)
+            # else:
+            #     raise ValueError(f"Expected Cryptol code from __to_cryptol__ on {val!r}, but got {code!r}.")
         else:
             return self.convert(val)
 
@@ -130,7 +154,6 @@ class CryptolType:
                     'encoding': 'base64',
                     'width': val.length(),
                     'data': val.pad_from_left(val.length() % 4).get_bitvector_in_hex()}
-
         else:
             raise TypeError("Unsupported value: " + str(val))
 
