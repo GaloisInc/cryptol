@@ -35,7 +35,8 @@ logo useColor mk =
   versionText = "version " ++ showVersion version ++ hashText
   ver = sgr [SetColor Foreground Dull White]
         ++ replicate (lineLen - 20 - length versionText) ' '
-        ++ versionText
+        ++ versionText ++ "\n"
+        ++ "https://cryptol.net  :? for help"
   ls        = mk ver
   slen      = length ls `div` 3
   (ws,rest) = splitAt slen ls
