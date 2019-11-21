@@ -582,6 +582,9 @@ mkDoc ltxt = ltxt { thing = docStr }
 
   prefixDroppable x = x `elem` ("* \r\n\t" :: String)
 
+  whitespaceChar :: Char -> Bool
+  whitespaceChar x = x `elem` (" \r\n\t" :: String)
+
   trimFront []                     = []
   trimFront (l:ls)
     | T.all commentChar l = ls
@@ -599,7 +602,7 @@ mkDoc ltxt = ltxt { thing = docStr }
     commonPrefix c t =
       case T.uncons t of
         Just (c',_) -> c == c'
-        Nothing     -> False
+        Nothing     -> whitespaceChar c -- end-of-line matches any whitespace
 
 
 distrLoc :: Located [a] -> [Located a]
