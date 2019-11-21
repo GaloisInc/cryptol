@@ -525,9 +525,10 @@ showProverStats mprover stat = rPutStrLn msg
         maybe "" (\p -> ", using " ++ show p) mprover ++ ")"
 
 rethrowErrorCall :: REPL a -> REPL a
-rethrowErrorCall m = REPL (\r -> unREPL m r `X.catch` handler)
+rethrowErrorCall m = REPL (\r -> unREPL m r `X.catch` handler `X.catch` handler')
   where
     handler (X.ErrorCallWithLocation s _) = X.throwIO (SBVError s)
+    handler' e = X.throwIO (SBVException e)
 
 
 -- | Console-specific version of 'proveSat'. Prints output to the

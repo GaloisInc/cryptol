@@ -114,6 +114,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Text.Read (readMaybe)
 
+import Data.SBV (SBVException)
 import Data.SBV.Dynamic (sbvCheckSolverInstallation)
 
 import Prelude ()
@@ -273,6 +274,7 @@ data REPLException
   | TypeNotTestable T.Type
   | EvalInParamModule [M.Name]
   | SBVError String
+  | SBVException SBVException
     deriving (Show,Typeable)
 
 instance X.Exception REPLException
@@ -300,6 +302,7 @@ instance PP REPLException where
       text "Expression depends on definitions from a parameterized module:"
         $$ nest 2 (vcat (map pp xs))
     SBVError s           -> text "SBV error:" $$ text s
+    SBVException e       -> text "SBV exception:" $$ text (show e)
 
 -- | Raise an exception.
 raise :: REPLException -> REPL a
