@@ -1060,7 +1060,7 @@ helpCmd cmd
            let helps = map (showTypeHelp params env nameEnv) tNames ++
                        map (showValHelp params env nameEnv qname) vNames
 
-               separ = rPutStrLn "            ~~~ * ~~~"
+               separ = rPutStrLn "            ---------"
            sequence_ (intersperse separ helps)
 
            when (null (vNames ++ tNames)) $
