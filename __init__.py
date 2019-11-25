@@ -159,9 +159,7 @@ def connect(command : str, cryptol_path : Optional[str] = None) -> CryptolConnec
       the ``CRYPTOLPATH`` environment variable.
 
     """
-    proc = CryptolProcess(command, cryptol_path=cryptol_path)
-    conn = ServerConnection(proc)
-    return CryptolConnection(conn)
+    return CryptolConnection(command, cryptol_path)
 
 class CryptolConnection:
     """Instances of ``CryptolConnection`` represent a particular point of
@@ -182,9 +180,13 @@ class CryptolConnection:
     """
     most_recent_result : Optional[argo.interaction.Interaction]
 
-    def __init__(self, server_connection : ServerConnection) -> None:
+    def __init__(self, command_or_connection : Union[str, ServerConnection], cryptol_path : Optional[str] = None) -> None:
         self.most_recent_result = None
-        self.server_connection = server_connection
+        if isinstance(command_or_connection, str):
+            self.proc = CryptolProcess(command_or_connection, cryptol_path=cryptol_path)
+            self.server_connection = ServerConnection(self.proc)
+        else:
+            self.server_connection = command_or_connection
 
     def snapshot(self) -> CryptolConnection:
         """Create a lightweight snapshot of this connection. The snapshot
