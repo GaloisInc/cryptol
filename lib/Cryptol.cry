@@ -459,8 +459,8 @@ primitive (>>>) : {n, ix, a} (fin n, fin ix) => [n]a -> [ix] -> [n]a
  * the second argument is the number of positions to shift
  * by (considered as an unsigned value).
  */
-primitive (>>$) : {n, ix} (fin n, n >= 1, fin ix) => [n] -> [ix] -> [n]
-
+(>>$) : {n, ix} (fin n, n >= 1, fin ix) => [n] -> [ix] -> [n]
+x >>$ y = if head x then ~ (~ x >> y) else x >> y
 
 
 /**

@@ -98,8 +98,6 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("%$"         , {-# SCC "Prelude::(%$)" #-}
                     binary (arithBinary (liftSigned bvSrem) (liftDivInteger mod)
                             (const (liftDivInteger mod))))
-  , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
-                    sshrV)
   , ("&&"         , {-# SCC "Prelude::(&&)" #-}
                     binary (logicBinary (.&.) (binBV (.&.))))
   , ("||"         , {-# SCC "Prelude::(||)" #-}
@@ -669,18 +667,6 @@ bvSdiv sz x y = return $! mkBv sz (x `quot` y)
 bvSrem :: Integer -> Integer -> Integer -> Eval BV
 bvSrem  _ _ 0 = divideByZero
 bvSrem sz x y = return $! mkBv sz (x `rem` y)
-
-sshrV :: Value
-sshrV =
-  nlam $ \_n ->
-  nlam $ \_k ->
-  wlam $ \(BV i x) -> return $
-  wlam $ \y ->
-   let signx = testBit x (fromInteger (i-1))
-       amt   = fromInteger (bvVal y)
-       negv  = (((-1) `shiftL` amt) .|. x) `shiftR` amt
-       posv  = x `shiftR` amt
-    in return . VWord i . ready . WordVal . mkBv i $! if signx then negv else posv
 
 -- | Signed carry bit.
 scarryV :: Value

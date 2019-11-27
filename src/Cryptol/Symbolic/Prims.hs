@@ -108,7 +108,6 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                              (liftModBin SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
   , ("%$"          , binary (arithBinary (liftBinArith signedRem) (liftBin SBV.svRem)
                              (liftModBin SBV.svRem)))
-  , (">>$"         , sshrV)
   , ("&&"          , binary (logicBinary SBV.svAnd SBV.svAnd))
   , ("||"          , binary (logicBinary SBV.svOr SBV.svOr))
   , ("^"           , binary (logicBinary SBV.svXOr SBV.svXOr))
@@ -591,21 +590,6 @@ signedQuot x y = SBV.svUnsign (SBV.svQuot (SBV.svSign x) (SBV.svSign y))
 
 signedRem :: SWord -> SWord -> SWord
 signedRem x y = SBV.svUnsign (SBV.svRem (SBV.svSign x) (SBV.svSign y))
-
-
-sshrV :: Value
-sshrV =
-  nlam $ \_n ->
-  nlam $ \_k ->
-  wlam $ \x -> return $
-  wlam $ \y ->
-   case SBV.svAsInteger y of
-     Just i ->
-       let z = SBV.svUnsign (SBV.svShr (SBV.svSign x) (fromInteger i))
-        in return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
-     Nothing ->
-       let z = SBV.svUnsign (SBV.svShiftRight (SBV.svSign x) y)
-        in return . VWord (toInteger (SBV.intSizeOf x)) . ready . WordVal $ z
 
 carry :: SWord -> SWord -> Eval Value
 carry x y = return $ VBit c
