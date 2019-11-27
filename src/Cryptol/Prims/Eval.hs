@@ -678,9 +678,8 @@ sshrV =
   wlam $ \y ->
    let signx = testBit x (fromInteger (i-1))
        amt   = fromInteger (bvVal y)
-       negv  = (((-1) `shiftL` amt) .|. x) `shiftR` amt
-       posv  = x `shiftR` amt
-    in return . VWord i . ready . WordVal . mkBv i $! if signx then negv else posv
+       x'    = if signx then x - bit (fromInteger i) else x
+    in return . VWord i . ready . WordVal . mkBv i $! x' `shiftR` amt
 
 -- | Signed carry bit.
 scarryV :: Value
