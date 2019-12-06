@@ -1,0 +1,1 @@
+:prove \x -> (if x then { a = True, b = False } else { b = False, a = True }).a
