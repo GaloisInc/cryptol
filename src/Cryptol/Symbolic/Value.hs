@@ -32,6 +32,7 @@ module Cryptol.Symbolic.Value
 
 import Data.Bits (bit, complement)
 import Data.List (foldl')
+import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 
 import Data.SBV (symbolicEnv)
@@ -143,7 +144,8 @@ mergeInteger f c x y = svSymbolicMerge KUnbounded f c x y
 mergeValue :: Bool -> SBool -> Value -> Value -> Eval Value
 mergeValue f c v1 v2 =
   case (v1, v2) of
-    (VRecord fs1, VRecord fs2) -> pure $ VRecord $ zipWith mergeField fs1 fs2
+    (VRecord fs1, VRecord fs2)  | Map.keys fs1 == Map.keys fs2 ->
+                                  pure $ VRecord $ Map.intersectionWith (mergeValue' f c) fs1 fs2
     (VTuple vs1 , VTuple vs2 ) -> pure $ VTuple $ zipWith (mergeValue' f c) vs1 vs2
     (VBit b1    , VBit b2    ) -> pure $ VBit $ mergeBit f c b1 b2
     (VInteger i1, VInteger i2) -> pure $ VInteger $ mergeInteger f c i1 i2
@@ -154,11 +156,6 @@ mergeValue f c v1 v2 =
     (VPoly f1   , VPoly f2   ) -> pure $ VPoly $ \x -> mergeValue' f c (f1 x) (f2 x)
     (_          , _          ) -> panic "Cryptol.Symbolic.Value"
                                   [ "mergeValue: incompatible values" ]
-  where
-    mergeField (n1, x1) (n2, x2)
-      | n1 == n2  = (n1, mergeValue' f c x1 x2)
-      | otherwise = panic "Cryptol.Symbolic.Value"
-                    [ "mergeValue.mergeField: incompatible values" ]
 
 mergeValue' :: Bool -> SBool -> Eval Value -> Eval Value -> Eval Value
 mergeValue' f c x1 x2 =

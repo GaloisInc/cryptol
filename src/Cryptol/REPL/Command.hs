@@ -458,7 +458,7 @@ qcCmd qcMode str =
           ([t],[v]) -> bindItVariableVal t v
           _ -> let fs = [ M.packIdent ("arg" ++ show (i::Int)) | i <- [ 1 .. ] ]
                    t = T.TRec (zip fs tys)
-                   v = E.VRecord (zip fs (map return vs))
+                   v = E.VRecord (Map.fromList (zip fs (map return vs)))
                in bindItVariableVal t v
 
       FailError err [] -> do

@@ -279,7 +279,7 @@ updateWordValue (LargeBitsVal n xs) idx b
 --   Always use the 'VWord' constructor instead!  Infinite sequences of bits
 --   are handled by the 'VStream' constructor, just as for other types.
 data GenValue b w i
-  = VRecord ![(Ident, Eval (GenValue b w i))] -- ^ @ { .. } @
+  = VRecord !(Map Ident (Eval (GenValue b w i))) -- ^ @ { .. } @
   | VTuple ![Eval (GenValue b w i)]           -- ^ @ ( .. ) @
   | VBit !b                                   -- ^ @ Bit    @
   | VInteger !i                               -- ^ @ Integer @ or @ Z n @
@@ -302,7 +302,7 @@ forceWordValue (LargeBitsVal n xs) = mapM_ (\x -> const () <$> x) (enumerateSeqM
 -- | Force the evaluation of a value
 forceValue :: GenValue b w i -> Eval ()
 forceValue v = case v of
-  VRecord fs  -> mapM_ (\x -> forceValue =<< snd x) fs
+  VRecord fs  -> mapM_ (forceValue =<<) fs
   VTuple xs   -> mapM_ (forceValue =<<) xs
   VSeq n xs   -> mapM_ (forceValue =<<) (enumerateSeqMap n xs)
   VBit _b     -> return ()
@@ -316,7 +316,7 @@ forceValue v = case v of
 
 instance (Show b, Show w, Show i) => Show (GenValue b w i) where
   show v = case v of
-    VRecord fs -> "record:" ++ show (map fst fs)
+    VRecord fs -> "record:" ++ show (Map.keys fs)
     VTuple xs  -> "tuple:" ++ show (length xs)
     VBit b     -> show b
     VInteger i -> show i
@@ -350,8 +350,8 @@ ppValue opts = loop
   where
   loop :: GenValue b w i -> Eval Doc
   loop val = case val of
-    VRecord fs         -> do fs' <- traverse (atSnd (>>=loop)) $ fs
-                             return $ braces (sep (punctuate comma (map ppField fs')))
+    VRecord fs         -> do fs' <- traverse (>>= loop) fs
+                             return $ braces (sep (punctuate comma (map ppField (Map.assocs fs'))))
       where
       ppField (f,r) = pp f <+> char '=' <+> r
     VTuple vals        -> do vals' <- traverse (>>=loop) vals
@@ -773,16 +773,17 @@ fromVTuple val = case val of
   _         -> evalPanic "fromVTuple" ["not a tuple"]
 
 -- | Extract a record from a value.
-fromVRecord :: GenValue b w i -> [(Ident, Eval (GenValue b w i))]
+fromVRecord :: GenValue b w i -> Map Ident (Eval (GenValue b w i))
 fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record"]
 
 -- | Lookup a field in a record.
 lookupRecord :: Ident -> GenValue b w i -> Eval (GenValue b w i)
-lookupRecord f rec = case lookup f (fromVRecord rec) of
-  Just val -> val
-  Nothing  -> evalPanic "lookupRecord" ["malformed record"]
+lookupRecord f val =
+  case Map.lookup f (fromVRecord val) of
+    Just x  -> x
+    Nothing -> evalPanic "lookupRecord" ["malformed record"]
 
 -- Value to Expression conversion ----------------------------------------------
 
@@ -799,9 +800,9 @@ toExpr prims t0 v0 = findOne (go t0 v0)
   go :: Type -> Value -> ChoiceT Eval Expr
   go ty val = case (tNoUser ty, val) of
     (TRec tfs, VRecord vfs) -> do
-      let fns = map fst vfs
+      let fns = Map.keys vfs
       guard (map fst tfs == fns)
-      fes <- zipWithM go (map snd tfs) =<< lift (traverse snd vfs)
+      fes <- zipWithM go (map snd tfs) =<< lift (sequence (Map.elems vfs))
       return $ ERec (zip fns fes)
     (TCon (TC (TCTuple tl)) ts, VTuple tvs) -> do
       guard (tl == (length tvs))

@@ -21,9 +21,11 @@ import Cryptol.TypeCheck.SimpType(tRebuild')
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
 
-import Control.Monad          (forM,join)
+import Control.Monad          (join)
 import Data.List              (unfoldr, genericTake, genericIndex)
 import System.Random          (RandomGen, split, random, randomR)
+import Data.Map (Map)
+import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 
 type Gen g b w i = Integer -> g -> (GenValue b w i, g)
@@ -147,8 +149,7 @@ randomValue ty =
 
     TVar _      -> Nothing
     TUser _ _ t -> randomValue t
-    TRec fs     -> do gs <- forM fs $ \(l,t) -> do g <- randomValue t
-                                                   return (l,g)
+    TRec fs     -> do gs <- traverse randomValue (Map.fromList fs)
                       return (randomRecord gs)
 
 -- | Generate a random bit value.
@@ -211,12 +212,10 @@ randomTuple gens sz = go [] gens
     in seq v (go (ready v : els) more g1)
 
 -- | Generate a random record value.
-randomRecord :: RandomGen g => [(Ident, Gen g b w i)] -> Gen g b w i
-randomRecord gens sz = go [] gens
+randomRecord :: RandomGen g => Map Ident (Gen g b w i) -> Gen g b w i
+randomRecord gens sz g0 =
+  let (g', m) = Map.mapAccum mk g0 gens in (VRecord m, g')
   where
-  go els [] g = (VRecord (reverse els), g)
-  go els ((l,mkElem) : more) g =
-    let (v, g1) = mkElem sz g
-    in seq v (go ((l,ready v) : els) more g1)
-
-
+    mk g gen =
+      let (v, g') = gen sz g
+      in seq v (g', ready v)

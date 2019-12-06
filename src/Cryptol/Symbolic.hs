@@ -20,6 +20,7 @@ import Control.Monad.IO.Class
 import Control.Monad (replicateM, when, zipWithM, foldM)
 import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
 import Data.List (intercalate, genericLength)
+import qualified Data.Map as Map
 import Data.IORef(IORef)
 import qualified Control.Exception as X
 
@@ -297,7 +298,7 @@ parseValue (FTSeq n t) cvs =
   where (vs, cvs') = parseValues (replicate n t) cvs
 parseValue (FTTuple ts) cvs = (Eval.VTuple (map Eval.ready vs), cvs')
   where (vs, cvs') = parseValues ts cvs
-parseValue (FTRecord fs) cvs = (Eval.VRecord (zip ns (map Eval.ready vs)), cvs')
+parseValue (FTRecord fs) cvs = (Eval.VRecord (Map.fromList (zip ns (map Eval.ready vs))), cvs')
   where (ns, ts) = unzip fs
         (vs, cvs') = parseValues ts cvs
 
@@ -372,7 +373,7 @@ forallFinType ty =
     FTSeq n t     -> do vs <- replicateM n (forallFinType t)
                         return $ VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
     FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . forallFinType) ts
-    FTRecord fs   -> VRecord <$> mapM (traverseSnd (fmap Eval.ready . forallFinType)) fs
+    FTRecord fs   -> VRecord <$> mapM (fmap Eval.ready . forallFinType) (Map.fromList fs)
 
 existsFinType :: FinType -> WriterT [SBool] SBV.Symbolic Value
 existsFinType ty =
@@ -387,4 +388,4 @@ existsFinType ty =
     FTSeq n t     -> do vs <- replicateM n (existsFinType t)
                         return $ VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
     FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . existsFinType) ts
-    FTRecord fs   -> VRecord <$> mapM (traverseSnd (fmap Eval.ready . existsFinType)) fs
+    FTRecord fs   -> VRecord <$> mapM (fmap Eval.ready . existsFinType) (Map.fromList fs)

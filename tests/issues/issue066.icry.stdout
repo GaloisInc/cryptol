@@ -6,11 +6,11 @@ Run-time error: no counterexample available
 True
 f 0xc = False
 it : {result : Bit, arg1 : [4]}
-{result = False, arg1 = 0xc}
+{arg1 = 0xc, result = False}
 False
 f 0x3 = True
 it : {result : Bit, arg1 : [4]}
-{result = True, arg1 = 0x3}
+{arg1 = 0x3, result = True}
 True
 Unsatisfiable
 it : {result : Bit, arg1 : [4]}
@@ -18,15 +18,15 @@ it : {result : Bit, arg1 : [4]}
 Run-time error: no satisfying assignment available
 g {x = 0xffffffff, y = 0x00000000} = False
 it : {result : Bit, arg1 : {x : [32], y : [32]}}
-{result = False, arg1 = {x = 0xffffffff, y = 0x00000000}}
+{arg1 = {x = 0xffffffff, y = 0x00000000}, result = False}
 g {x = 0x00000000, y = 0x00000000} = True
 it : {result : Bit, arg1 : {x : [32], y : [32]}}
-{result = True, arg1 = {x = 0x00000000, y = 0x00000000}}
+{arg1 = {x = 0x00000000, y = 0x00000000}, result = True}
 h 0x00 0x00 = False
 it : {result : Bit, arg1 : [8], arg2 : [8]}
-{result = False, arg1 = 0x00, arg2 = 0x00}
+{arg1 = 0x00, arg2 = 0x00, result = False}
 0x00
 0x00
 h 0x00 0x01 = True
 it : {result : Bit, arg1 : [8], arg2 : [8]}
-{result = True, arg1 = 0x00, arg2 = 0x01}
+{arg1 = 0x00, arg2 = 0x01, result = True}

@@ -97,10 +97,7 @@ evalExpr env expr = case expr of
      return $ VTuple xs
 
   ERec fields -> {-# SCC "evalExpr->ERec" #-} do
-     xs <- sequence [ do thk <- delay Nothing (eval e)
-                         return (f, thk)
-                    | (f, e) <- fields
-                    ]
+     xs <- mapM (delay Nothing . eval) (Map.fromList fields)
      return $ VRecord xs
 
   ESel e sel -> {-# SCC "evalExpr->ESel" #-} do
@@ -320,11 +317,7 @@ etaDelay msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
 
       VRecord fs
         | TVRec fts <- tp
-        -> return $ VRecord $
-             let err f = evalPanic "expected record value with field" [show f] in
-             [ (f, go (fromMaybe (err f) (lookup f fts)) y)
-             | (f, y) <- fs
-             ]
+        -> return $ VRecord (Map.intersectionWith go (Map.fromList fts) fs)
 
       VFun f
         | TVFun _t1 t2 <- tp
@@ -368,8 +361,8 @@ etaDelay msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVRec fs ->
           do x' <- delay (Just msg) (fromVRecord <$> x)
              let err f = evalPanic "expected record value with field" [show f]
-             return $ VRecord $
-                [ (f, go t =<< (fromMaybe (err f) . lookup f <$> x'))
+             return $ VRecord $ Map.fromList
+                [ (f, go t =<< (fromMaybe (err f) . Map.lookup f <$> x'))
                 | (f,t) <- fs
                 ]
 
@@ -482,10 +475,9 @@ evalSetSel e x v =
 
   setRecord n =
     case e of
-      VRecord xs ->
-        case break ((n ==) . fst) xs of
-          (as, (i,_) : bs) -> pure (VRecord (as ++ (i,v) : bs))
-          _ -> bad "Missing field in record update."
+      VRecord xs
+        | Map.member n xs -> pure (VRecord (Map.insert n v xs))
+        | otherwise       -> bad "Missing field in record update."
       _ -> bad "Record update on a non-record."
 
   setList n =

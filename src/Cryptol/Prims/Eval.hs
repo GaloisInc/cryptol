@@ -35,9 +35,7 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Logger(logPrint)
 
 import qualified Data.Foldable as Fold
-import Data.List (sortBy)
 import qualified Data.Sequence as Seq
-import Data.Ord (comparing)
 import Data.Bits (Bits(..))
 
 import qualified Data.Map.Strict as Map
@@ -425,7 +423,7 @@ arithBinary opw opi opz = loop
                  [ (f,) <$> delay Nothing (loop' fty (lookupRecord f l) (lookupRecord f r))
                  | (f,fty) <- fs
                  ]
-         return $ VRecord fs'
+         return $ VRecord (Map.fromList fs')
 
     TVAbstract {} ->
       evalPanic "arithBinary" ["Abstract type not in `Arith`"]
@@ -483,7 +481,7 @@ arithUnary opw opi opz = loop
                  [ (f,) <$> delay Nothing (loop' fty (lookupRecord f x))
                  | (f,fty) <- fs
                  ]
-         return $ VRecord fs'
+         return $ VRecord (Map.fromList fs')
 
     TVAbstract {} -> evalPanic "arithUnary" ["Abstract type not in `Arith`"]
 
@@ -516,7 +514,7 @@ arithNullary opw opi opz = loop
 
         TVTuple tys -> VTuple $ map (ready . loop) tys
 
-        TVRec fs -> VRecord [ (f, ready (loop a)) | (f, a) <- fs ]
+        TVRec fs -> VRecord $ Map.fromList [ (f, ready (loop a)) | (f, a) <- fs ]
 
         TVAbstract {} ->
           evalPanic "arithNullary" ["Abstract type not in `Arith`"]
@@ -578,11 +576,10 @@ cmpValue fb fw fi fz = cmp
         TVFun _ _     -> panic "Cryptol.Prims.Value.cmpValue"
                          [ "Functions are not comparable" ]
         TVTuple tys   -> cmpValues tys (fromVTuple v1) (fromVTuple v2) k
-        TVRec fields  -> do let vals = map snd . sortBy (comparing fst)
-                            let tys = vals fields
+        TVRec fields  -> do let tys = Map.elems (Map.fromList fields)
                             cmpValues tys
-                              (vals (fromVRecord v1))
-                              (vals (fromVRecord v2)) k
+                              (Map.elems (fromVRecord v1))
+                              (Map.elems (fromVRecord v2)) k
         TVAbstract {} -> evalPanic "cmpValue"
                           [ "Abstract type not in `Cmp`" ]
 
@@ -744,7 +741,7 @@ zeroV ty = case ty of
 
   -- records
   TVRec fields ->
-    VRecord [ (f,ready $ zeroV fty) | (f,fty) <- fields ]
+    VRecord $ Map.fromList [ (f,ready $ zeroV fty) | (f,fty) <- fields ]
 
   TVAbstract {} -> evalPanic "zeroV" [ "Abstract type not in `Zero`" ]
 
@@ -1125,7 +1122,7 @@ logicBinary opb opw = loop
                    , let a = lookupRecord f l
                          b = lookupRecord f r
                    ]
-           return $ VRecord fs
+           return $ VRecord $ Map.fromList fs
 
     TVAbstract {} -> evalPanic "logicBinary"
                         [ "Abstract type not in `Logic`" ]
@@ -1184,7 +1181,7 @@ logicUnary opb opw = loop
                  [ (f,) <$> delay Nothing (loop' fty a)
                  | (f,fty) <- fields, let a = lookupRecord f val
                  ]
-         return $ VRecord fs
+         return $ VRecord $ Map.fromList fs
 
     TVAbstract {} -> evalPanic "logicUnary" [ "Abstract type not in `Logic`" ]
 
@@ -1513,6 +1510,6 @@ errorV ty msg = case ty of
 
   -- records
   TVRec fields ->
-    return $ VRecord [ (f,errorV fty msg) | (f,fty) <- fields ]
+    return $ VRecord $ fmap (flip errorV msg) $ Map.fromList fields
 
   TVAbstract {} -> cryUserError msg

@@ -18,6 +18,7 @@ import Cryptol.Utils.Panic (panic)
 
 import qualified Control.Exception as X
 import Data.List(genericReplicate)
+import qualified Data.Map as Map
 
 import Prelude ()
 import Prelude.Compat
@@ -112,9 +113,8 @@ typeValues ty =
   case ty of
     TVar _      -> []
     TUser _ _ t -> typeValues t
-    TRec fs     -> [ VRecord xs
-                   | xs <- sequence [ [ (f,ready v) | v <- typeValues t ]
-                                    | (f,t) <- fs ]
+    TRec fs     -> [ VRecord (fmap ready xs)
+                   | xs <- sequence (fmap typeValues (Map.fromList fs))
                    ]
     TCon (TC tc) ts ->
       case tc of
