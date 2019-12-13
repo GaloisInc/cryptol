@@ -38,7 +38,6 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
 import Data.List(find)
-import Data.Maybe (fromMaybe)
 import qualified Data.Foldable as F
 import           Data.Map.Strict ( Map )
 import qualified Data.Map.Strict as Map
@@ -565,95 +564,40 @@ instance Rename Prop where
   rename (CType t) = CType <$> rename t
 
 
--- | Resolve fixity, then rename the resulting type.
 instance Rename Type where
-  rename ty0 = go =<< resolveTypeFixity ty0
-    where
-    go :: Type PName -> RenameM (Type Name)
-    go (TFun a b)    = TFun     <$> go a  <*> go b
-    go (TSeq n a)    = TSeq     <$> go n  <*> go a
-    go  TBit         = return TBit
-    go (TNum c)      = return (TNum c)
-    go (TChar c)     = return (TChar c)
+  rename ty0 =
+    case ty0 of
+      TFun a b       -> TFun <$> rename a <*> rename b
+      TSeq n a       -> TSeq <$> rename n <*> rename a
+      TBit           -> return TBit
+      TNum c         -> return (TNum c)
+      TChar c        -> return (TChar c)
+      TUser qn ps    -> TUser    <$> renameType qn <*> traverse rename ps
+      TRecord fs     -> TRecord  <$> traverse (rnNamed rename) fs
+      TTuple fs      -> TTuple   <$> traverse rename fs
+      TWild          -> return TWild
+      TLocated t' r  -> withLoc r (TLocated <$> rename t' <*> pure r)
+      TParens t'     -> TParens <$> rename t'
+      TInfix a o _ b -> do o' <- renameTypeOp o
+                           a' <- rename a
+                           b' <- rename b
+                           mkTInfix a' o' b'
 
-    go (TUser qn ps)   = TUser    <$> renameType qn <*> traverse go ps
-    go (TRecord fs)    = TRecord  <$> traverse (rnNamed go) fs
-    go (TTuple fs)     = TTuple   <$> traverse go fs
-    go  TWild          = return TWild
-    go (TLocated t' r) = withLoc r (TLocated <$> go t' <*> pure r)
+mkTInfix :: Type Name -> (Located Name, Fixity) -> Type Name -> RenameM (Type Name)
 
-    go (TParens t')    = TParens <$> go t'
+mkTInfix t@(TInfix x o1 f1 y) op@(o2,f2) z =
+  case compareFixity f1 f2 of
+    FCLeft  -> return (TInfix t o2 f2 z)
+    FCRight -> do r <- mkTInfix y op z
+                  return (TInfix x o1 f1 r)
+    FCError -> do record (FixityError o1 f1 o2 f2)
+                  return (TInfix t o2 f2 z)
 
-    -- at this point, the fixity is correct, and we just need to perform
-    -- renaming.
-    go (TInfix a o f b) = TInfix <$> rename a
-                                 <*> rnLocated renameType o
-                                 <*> pure f
-                                 <*> rename b
+mkTInfix (TLocated t' _) op z =
+  mkTInfix t' op z
 
-
-resolveTypeFixity :: Type PName -> RenameM (Type PName)
-resolveTypeFixity  = go
-  where
-  go t = case t of
-    TFun a b     -> TFun     <$> go a  <*> go b
-    TSeq n a     -> TSeq     <$> go n  <*> go a
-    TUser pn ps  -> TUser pn <$> traverse go ps
-    TRecord fs   -> TRecord  <$> traverse (traverse go) fs
-    TTuple fs    -> TTuple   <$> traverse go fs
-
-    TLocated t' r-> withLoc r (TLocated <$> go t' <*> pure r)
-
-    TParens t'   -> TParens <$> go t'
-
-    TInfix a o _ b ->
-      do op <- lookupFixity o
-         a' <- go a
-         b' <- go b
-         mkTInfix a' op b'
-
-    TBit         -> return t
-    TNum _       -> return t
-    TChar _      -> return t
-    TWild        -> return t
-
-
-type TOp = Type PName -> Type PName -> Type PName
-
-mkTInfix :: Type PName -> (TOp,Fixity) -> Type PName -> RenameM (Type PName)
-
-mkTInfix t op@(o2,f2) z =
-  case t of
-    TLocated t1 _ -> mkTInfix t1 op z
-    TInfix x ln f1 y ->
-      doFixity (\a b -> TInfix a ln f1 b) f1 x y
-
-    _ -> return (o2 t z)
-
-  where
-  doFixity mk f1 x y =
-    case compareFixity f1 f2 of
-      FCLeft  -> return (o2 t z)
-      FCRight -> do r <- mkTInfix y op z
-                    return (mk x r)
-
-      -- As the fixity table is known, and this is a case where the fixity came
-      -- from that table, it's a real error if the fixities didn't work out.
-      FCError -> panic "Renamer" [ "fixity problem for type operators"
-                                 , show (o2 t z) ]
-
-
-
--- | When possible, rewrite the type operator to a known constructor, otherwise
--- return a 'TOp' that reconstructs the original term, and a default fixity.
-lookupFixity :: Located PName -> RenameM (TOp, Fixity)
-lookupFixity op =
-  do n <- renameType sym
-     let fi = fromMaybe defaultFixity (nameFixity n)
-     return (\x y -> TInfix x op fi y, fi)
-
-  where
-  sym = thing op
+mkTInfix t (o,f) z =
+  return (TInfix t o f z)
 
 
 -- | Rename a binding.
@@ -808,13 +752,25 @@ mkEInfix e (o,f) z =
      return (EInfix e o f z)
 
 
-renameOp :: Located PName -> RenameM (Located Name,Fixity)
-renameOp ln = withLoc ln $
-  do n  <- renameVar (thing ln)
-     case nameFixity n of
-       Just fixity -> return (ln { thing = n },fixity)
-       Nothing     -> return (ln { thing = n },defaultFixity)
+renameOp :: Located PName -> RenameM (Located Name, Fixity)
+renameOp ln =
+  withLoc ln $
+  do n <- renameVar (thing ln)
+     fixity <- lookupFixity n
+     return (ln { thing = n }, fixity)
 
+renameTypeOp :: Located PName -> RenameM (Located Name, Fixity)
+renameTypeOp ln =
+  withLoc ln $
+  do n <- renameType (thing ln)
+     fixity <- lookupFixity n
+     return (ln { thing = n }, fixity)
+
+lookupFixity :: Name -> RenameM Fixity
+lookupFixity n =
+  case nameFixity n of
+    Just fixity -> return fixity
+    Nothing     -> return defaultFixity -- FIXME: should we raise an error instead?
 
 instance Rename TypeInst where
   rename ti = case ti of

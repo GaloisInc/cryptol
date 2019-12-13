@@ -1,0 +1,16 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+
+[error] at issue614.cry:1:18--1:20 and issue614.cry:1:31--1:33
+    The fixities of
+      • (==) (precedence 20, non-associative)
+      • (==) (precedence 20, non-associative)
+    are not compatible.
+    You may use explicit parentheses to disambiguate.
+[error] at issue614.cry:5:29--5:30 and issue614.cry:5:33--5:35
+    The fixities of
+      • (<) (precedence 30, non-associative)
+      • (<=) (precedence 30, non-associative)
+    are not compatible.
+    You may use explicit parentheses to disambiguate.
