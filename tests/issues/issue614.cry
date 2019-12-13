@@ -1,0 +1,6 @@
+f : {m, n, k} (n == max 2 m k == m + 1) => [m] -> [k][n]
+f x = zero
+
+
+g : {n, k} (fin n, fin k, 0 < n <= k) => [n] -> [k]
+g x = sext x
