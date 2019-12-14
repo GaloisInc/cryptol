@@ -12,6 +12,7 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import qualified Data.IntMap as IntMap
+import           Data.Maybe (fromMaybe)
 import           Data.Set (Set)
 import qualified Data.Set as Set
 import           Data.List(sortBy)
@@ -21,7 +22,7 @@ import Cryptol.Parser.Selector
 import Cryptol.Parser.Fixity
 import Cryptol.Parser.Position(Range,emptyRange)
 import Cryptol.ModuleSystem.Name
-import Cryptol.Utils.Ident (Ident)
+import Cryptol.Utils.Ident (Ident, isInfixIdent)
 import Cryptol.TypeCheck.TCon
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
@@ -814,10 +815,11 @@ instance PP (WithNames Type) where
              iePrec  = fLevel fi
          return Infix { .. }
 
-    isTInfix (WithNames (TUser n [ieLeft',ieRight'] _) _) =
+    isTInfix (WithNames (TUser n [ieLeft',ieRight'] _) _)
+      | isInfixIdent (nameIdent n) =
       do let ieLeft  = WithNames ieLeft' nmMap
              ieRight = WithNames ieRight' nmMap
-         fi <- nameFixity n
+         let fi = fromMaybe defaultFixity (nameFixity n)
          let ieAssoc = fAssoc fi
              iePrec  = fLevel fi
              ieOp    = nameIdent n
