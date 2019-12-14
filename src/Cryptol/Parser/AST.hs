@@ -78,10 +78,10 @@ module Cryptol.Parser.AST
   , cppKind, ppSelector
   ) where
 
-import Cryptol.Parser.Fixity
 import Cryptol.Parser.Name
 import Cryptol.Parser.Position
 import Cryptol.Parser.Selector
+import Cryptol.Utils.Fixity
 import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
 
@@ -743,7 +743,7 @@ instance (Show name, PPName name) => PP (Expr name) where
       EInfix e1 op _ e2 -> wrap n 0 (pp e1 <+> ppInfixName (thing op) <+> pp e2)
    where
    isInfix (EApp (EApp (EVar ieOp) ieLeft) ieRight) = do
-     (ieAssoc,iePrec) <- ppNameFixity ieOp
+     ieFixity <- ppNameFixity ieOp
      return Infix { .. }
    isInfix _ = Nothing
 

@@ -13,6 +13,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Utils.PP where
 
+import           Cryptol.Utils.Fixity
 import           Cryptol.Utils.Ident
 import           Control.DeepSeq
 import           Control.Monad (mplus)
@@ -122,7 +123,7 @@ class PP a where
 
 class PP a => PPName a where
   -- | Fixity information for infix operators
-  ppNameFixity :: a -> Maybe (Assoc, Int)
+  ppNameFixity :: a -> Maybe Fixity
 
   -- | Print a name in prefix: @f a b@ or @(+) a b)@
   ppPrefixName :: a -> Doc
@@ -141,17 +142,12 @@ optParens b body | b         = parens body
                  | otherwise = body
 
 
--- | Information about associativity.
-data Assoc = LeftAssoc | RightAssoc | NonAssoc
-              deriving (Show, Eq, Generic, NFData)
-
 -- | Information about an infix expression of some sort.
 data Infix op thing = Infix
-  { ieOp    :: op       -- ^ operator
-  , ieLeft  :: thing    -- ^ left argument
-  , ieRight :: thing    -- ^ right argument
-  , iePrec  :: Int      -- ^ operator precedence
-  , ieAssoc :: Assoc    -- ^ operator associativity
+  { ieOp     :: op       -- ^ operator
+  , ieLeft   :: thing    -- ^ left argument
+  , ieRight  :: thing    -- ^ right argument
+  , ieFixity :: Fixity   -- ^ operator fixity
   }
 
 commaSep :: [Doc] -> Doc
@@ -166,14 +162,15 @@ ppInfix :: (PP thing, PP op)
         -> Infix op thing -- ^ Pretty print this infix expression
         -> Doc
 ppInfix lp isInfix expr =
-  sep [ ppSub (wrapSub LeftAssoc ) (ieLeft expr) <+> pp (ieOp expr)
-      , ppSub (wrapSub RightAssoc) (ieRight expr) ]
+  sep [ ppSub wrapL (ieLeft expr) <+> pp (ieOp expr)
+      , ppSub wrapR (ieRight expr) ]
   where
-  wrapSub dir p = p < iePrec expr || p == iePrec expr && ieAssoc expr /= dir
+    wrapL f = compareFixity f (ieFixity expr) /= FCLeft
+    wrapR f = compareFixity (ieFixity expr) f /= FCRight
 
-  ppSub w e
-    | Just e1 <- isInfix e = optParens (w (iePrec e1)) (ppInfix lp isInfix e1)
-  ppSub _ e                = ppPrec lp e
+    ppSub w e
+      | Just e1 <- isInfix e = optParens (w (ieFixity e1)) (ppInfix lp isInfix e1)
+    ppSub _ e                = ppPrec lp e
 
 
 
@@ -300,3 +297,7 @@ instance PP Assoc where
   ppPrec _ LeftAssoc  = text "left-associative"
   ppPrec _ RightAssoc = text "right-associative"
   ppPrec _ NonAssoc   = text "non-associative"
+
+instance PP Fixity where
+  ppPrec _ (Fixity assoc level) =
+    text "precedence" <+> int level <.> comma <+> pp assoc

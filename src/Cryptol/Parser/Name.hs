@@ -10,6 +10,7 @@
 
 module Cryptol.Parser.Name where
 
+import Cryptol.Utils.Fixity
 import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic (panic)
@@ -67,7 +68,7 @@ instance PP PName where
 
 instance PPName PName where
   ppNameFixity n
-    | isInfixIdent i = Just (NonAssoc, 0) -- FIXME?
+    | isInfixIdent i = Just (Fixity NonAssoc 0) -- FIXME?
     | otherwise      = Nothing
     where
     i   = getIdent n

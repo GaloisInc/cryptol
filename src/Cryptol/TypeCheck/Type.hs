@@ -19,13 +19,13 @@ import           Data.List(sortBy)
 import           Data.Ord(comparing)
 
 import Cryptol.Parser.Selector
-import Cryptol.Parser.Fixity
 import Cryptol.Parser.Position(Range,emptyRange)
 import Cryptol.ModuleSystem.Name
 import Cryptol.Utils.Ident (Ident, isInfixIdent)
 import Cryptol.TypeCheck.TCon
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
+import Cryptol.Utils.Fixity
 import Cryptol.Utils.Panic(panic)
 import Prelude
 
@@ -810,19 +810,15 @@ instance PP (WithNames Type) where
     isTInfix (WithNames (TCon tc [ieLeft',ieRight']) _) =
       do let ieLeft  = WithNames ieLeft' nmMap
              ieRight = WithNames ieRight' nmMap
-         (ieOp,fi) <- infixPrimTy tc
-         let ieAssoc = fAssoc fi
-             iePrec  = fLevel fi
+         (ieOp, ieFixity) <- infixPrimTy tc
          return Infix { .. }
 
     isTInfix (WithNames (TUser n [ieLeft',ieRight'] _) _)
       | isInfixIdent (nameIdent n) =
-      do let ieLeft  = WithNames ieLeft' nmMap
-             ieRight = WithNames ieRight' nmMap
-         let fi = fromMaybe defaultFixity (nameFixity n)
-         let ieAssoc = fAssoc fi
-             iePrec  = fLevel fi
-             ieOp    = nameIdent n
+      do let ieLeft   = WithNames ieLeft' nmMap
+             ieRight  = WithNames ieRight' nmMap
+             ieFixity = fromMaybe defaultFixity (nameFixity n)
+             ieOp     = nameIdent n
          return Infix { .. }
 
     isTInfix _ = Nothing

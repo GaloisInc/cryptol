@@ -6,8 +6,8 @@ import GHC.Generics (Generic)
 import Control.DeepSeq
 
 import Cryptol.Parser.Selector
-import Cryptol.Parser.Fixity
 import qualified Cryptol.ModuleSystem.Name as M
+import Cryptol.Utils.Fixity
 import Cryptol.Utils.Ident
 import Cryptol.Utils.PP
 
