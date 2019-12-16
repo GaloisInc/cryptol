@@ -29,6 +29,10 @@ before_install:
         chmod +x z3;
         mv z3 $HOME/bin/z3;
         z3 --version;
+        curl https://saw.galois.com/builds/yices/yices_smt2-linux-static > yices-smt2;
+        chmod +x yices-smt2;
+        mv yices-smt2 $HOME/bin/yices-smt2;
+        yices-smt2 --version;
     fi
   - env
 
