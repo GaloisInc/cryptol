@@ -78,7 +78,6 @@ library
                        Cryptol.Parser,
                        Cryptol.Parser.Lexer,
                        Cryptol.Parser.AST,
-                       Cryptol.Parser.Fixity,
                        Cryptol.Parser.Position,
                        Cryptol.Parser.Names,
                        Cryptol.Parser.Name,
@@ -88,6 +87,7 @@ library
                        Cryptol.Parser.Utils,
                        Cryptol.Parser.Unlit,
 
+                       Cryptol.Utils.Fixity,
                        Cryptol.Utils.Ident,
                        Cryptol.Utils.PP,
                        Cryptol.Utils.Panic,

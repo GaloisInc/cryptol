@@ -1,5 +1,5 @@
 -- |
--- Module      :  Cryptol.Parser.Fixity
+-- Module      :  Cryptol.Utils.Fixity
 -- Copyright   :  (c) 2013-2016 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -10,27 +10,36 @@
 
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
-module Cryptol.Parser.Fixity
-  ( Fixity(..)
+module Cryptol.Utils.Fixity
+  ( Assoc(..)
+  , Fixity(..)
   , defaultFixity
   , FixityCmp(..)
   , compareFixity
   ) where
 
-import Cryptol.Utils.PP
-
 import GHC.Generics (Generic)
 import Control.DeepSeq
 
-data Fixity = Fixity { fAssoc :: !Assoc
-                     , fLevel :: !Int
-                     } deriving (Eq, Generic, NFData, Show)
+-- | Information about associativity.
+data Assoc = LeftAssoc | RightAssoc | NonAssoc
+  deriving (Show, Eq, Generic, NFData)
+
+data Fixity = Fixity { fAssoc :: !Assoc, fLevel :: !Int }
+  deriving (Eq, Generic, NFData, Show)
 
 data FixityCmp = FCError
                | FCLeft
                | FCRight
                  deriving (Show, Eq)
 
+-- | Let @op1@ have fixity @f1@ and @op2@ have fixity @f2. Then
+-- @compareFixity f1 f2@ determines how to parse the infix expression
+-- @x op1 y op2 z@.
+--
+-- * @FCLeft@: @(x op1 y) op2 z@
+-- * @FCRight@: @x op1 (y op2 z)@
+-- * @FCError@: no parse
 compareFixity :: Fixity -> Fixity -> FixityCmp
 compareFixity (Fixity a1 p1) (Fixity a2 p2) =
   case compare p1 p2 of
@@ -44,7 +53,3 @@ compareFixity (Fixity a1 p1) (Fixity a2 p2) =
 -- | The fixity used when none is provided.
 defaultFixity :: Fixity
 defaultFixity = Fixity LeftAssoc 100
-
-instance PP Fixity where
-  ppPrec _ (Fixity assoc level) =
-    text "precedence" <+> int level <.> comma <+> pp assoc

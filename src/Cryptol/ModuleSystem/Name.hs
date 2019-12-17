@@ -49,8 +49,8 @@ module Cryptol.ModuleSystem.Name (
   , lookupPrimType
   ) where
 
-import           Cryptol.Parser.Fixity
 import           Cryptol.Parser.Position (Range,Located(..),emptyRange)
+import           Cryptol.Utils.Fixity
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic
 import           Cryptol.Utils.PP
@@ -189,7 +189,7 @@ instance PP Name where
   ppPrec _ = ppPrefixName
 
 instance PPName Name where
-  ppNameFixity n = fmap (\(Fixity a i) -> (a,i)) $ nameFixity n
+  ppNameFixity n = nameFixity n
 
   ppInfixName n @ Name { .. }
     | isInfixIdent nIdent = ppName n
