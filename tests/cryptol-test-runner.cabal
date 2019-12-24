@@ -1,9 +1,9 @@
 Name:                cryptol-test-runner
 Version:             2.0
 Synopsis:            Testing framework for cryptol-2
-License:             AllRightsReserved
+License:             BSD3
 Author:              Galois, Inc.
-Maintainer:          trevor@galois.com
+Maintainer:          cryptol@galois.com
 Copyright:           Galois Inc.
 Category:            Language
 Build-type:          Simple
