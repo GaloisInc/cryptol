@@ -200,7 +200,7 @@ executable cryptol
                      , cryptol
                      , directory
                      , filepath
-                     , haskeline
+                     , haskeline >= 0.7 && <= 0.8
                      , monad-control
                      , text
                      , transformers
