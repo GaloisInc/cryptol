@@ -36,7 +36,7 @@ shift
 
 case $COMMAND in
   run)
-    cabal v2-run exe:cryptol -- $*;;
+    cabal exec cryptol -- $*;;
 
   build)
     echo Building Cryptol
@@ -79,7 +79,7 @@ case $COMMAND in
     exit 0;;
 
   exe-path)
-    cabal v2-run exe:cryptol --verbose -- -c ':q' | grep :q | awk '{ print $1 }'
+    cabal exec which cryptol
     exit 0;;
 
   *)
