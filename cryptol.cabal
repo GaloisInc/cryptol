@@ -56,6 +56,7 @@ library
                        heredoc           >= 0.2,
                        monad-control     >= 1.0,
                        monadLib          >= 3.7.2,
+                       parameterized-utils >= 2.0.2,
                        pretty            >= 1.1,
                        process           >= 1.2,
                        random            >= 1.0.1,
@@ -66,9 +67,9 @@ library
                        tf-random         >= 0.5,
                        transformers-base >= 0.4,
                        mtl               >= 2.2.1,
-                       time >= 1.6.0.1,
-                       panic >= 0.3
-
+                       time              >= 1.6.0.1,
+                       panic             >= 0.3,
+                       what4             >= 0.1
 
   Build-tools:         alex, happy
   hs-source-dirs:      src
@@ -162,6 +163,7 @@ library
                        Cryptol.Eval.SBV,
                        Cryptol.Eval.Type,
                        Cryptol.Eval.Value,
+                       Cryptol.Eval.What4,
 
                        Cryptol.Testing.Random,
 
