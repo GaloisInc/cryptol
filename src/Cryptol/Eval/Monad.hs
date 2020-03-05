@@ -84,15 +84,16 @@ data ThunkState a
 
 -- | Access the evaluation options.
 getEvalOpts :: Eval EvalOpts
-getEvalOpts = Thunk return
+getEvalOpts = Thunk pure
 
 {-# INLINE delay #-}
 -- | Delay the given evaluation computation, returning a thunk
 --   which will run the computation when forced.  Raise a loop
 --   error if the resulting thunk is forced during its own evaluation.
-delay :: Maybe String     -- ^ Optional name to print if a loop is detected
-      -> Eval a           -- ^ Computation to delay
-      -> Eval (Eval a)
+delay ::
+  Maybe String {- ^ Optional name to print if a loop is detected -} ->
+  Eval a     {- ^ Computation to delay -} ->
+  Eval (Eval a)
 delay _ (Ready a) = Ready (Ready a)
 delay msg (Thunk x) = Thunk $ \opts -> do
   let msg' = maybe "" ("while evaluating "++) msg
@@ -106,9 +107,10 @@ delay msg (Thunk x) = Thunk $ \opts -> do
 --   which will run the computation when forced.  Run the 'retry'
 --   computation instead if the resulting thunk is forced during
 --   its own evaluation.
-delayFill :: Eval a        -- ^ Computation to delay
-          -> Eval a        -- ^ Backup computation to run if a tight loop is detected
-          -> Eval (Eval a)
+delayFill ::
+  Eval a {- ^ Computation to delay -} ->
+  Eval a {- ^ Backup computation to run if a tight loop is detected -} ->
+  Eval (Eval a)
 delayFill (Ready x) _ = Ready (Ready x)
 delayFill (Thunk x) retry = Thunk $ \opts -> do
   r <- newIORef Unforced
@@ -118,8 +120,9 @@ delayFill (Thunk x) retry = Thunk $ \opts -> do
 --   after the fact.  A preallocated thunk is returned, along with an operation to
 --   fill the thunk with the associated computation.
 --   This is used to implement recursive declaration groups.
-blackhole :: String -- ^ A name to associate with this thunk.
-          -> Eval (Eval a, Eval a -> Eval ())
+blackhole ::
+  String {- ^ A name to associate with this thunk. -} ->
+  Eval (Eval a, Eval a -> Eval ())
 blackhole msg = do
   r <- io $ newIORef (fail msg)
   let get = join (io $ readIORef r)

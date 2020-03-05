@@ -286,7 +286,7 @@ evalCmd str = do
     P.ExprInput expr -> do
       (val,_ty) <- replEvalExpr expr
       ppOpts <- getPPValOpts
-      valDoc <- rEvalRethrow (E.ppValue ppOpts val)
+      valDoc <- rEvalRethrow (E.ppValue () ppOpts val)
 
       -- This is the point where the value gets forced. We deepseq the
       -- pretty-printed representation of it, rather than the value
@@ -304,7 +304,7 @@ evalCmd str = do
 printCounterexample :: Bool -> P.Expr P.PName -> [E.Value] -> REPL ()
 printCounterexample isSat pexpr vs =
   do ppOpts <- getPPValOpts
-     docs <- mapM (rEval . E.ppValue ppOpts) vs
+     docs <- mapM (rEval . E.ppValue () ppOpts) vs
      let doc = ppPrec 3 pexpr -- function application has precedence 3
      rPrint $ hang doc 2 (sep docs) <+>
        text (if isSat then "= True" else "= False")
@@ -324,8 +324,8 @@ dumpTestsCmd outFile str =
      tests <- io $ TestR.returnTests g evo gens val testNum
      out <- forM tests $
             \(args, x) ->
-              do argOut <- mapM (rEval . E.ppValue ppopts) args
-                 resOut <- rEval (E.ppValue ppopts x)
+              do argOut <- mapM (rEval . E.ppValue () ppopts) args
+                 resOut <- rEval (E.ppValue () ppopts x)
                  return (renderOneLine resOut ++ "\t" ++ intercalate "\t" (map renderOneLine argOut) ++ "\n")
      io $ writeFile outFile (concat out) `X.catch` handler
   where
@@ -466,7 +466,7 @@ qcCmd qcMode str =
         rPrint (pp err)
       FailError err vs -> do
         prtLn "ERROR for the following inputs:"
-        mapM_ (\v -> rPrint =<< (rEval $ E.ppValue opts v)) vs
+        mapM_ (\v -> rPrint =<< (rEval $ E.ppValue () opts v)) vs
         rPrint (pp err)
       Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
 
@@ -790,7 +790,7 @@ writeFileCmd file str = do
                        (T.tIsSeq x)
   serializeValue (E.VSeq n vs) = do
     ws <- rEval
-            (mapM (>>=E.fromVWord "serializeValue") $ E.enumerateSeqMap n vs)
+            (mapM (>>= E.fromVWord () "serializeValue") $ E.enumerateSeqMap n vs)
     return $ BS.pack $ map serializeByte ws
   serializeValue _             =
     panic "Cryptol.REPL.Command.writeFileCmd"

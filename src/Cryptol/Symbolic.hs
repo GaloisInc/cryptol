@@ -52,7 +52,7 @@ import Prelude.Compat
 
 import Data.Time (NominalDiffTime)
 
-type EvalEnv = GenEvalEnv SBool SWord
+type EvalEnv = GenEvalEnv SBV
 
 
 -- External interface ----------------------------------------------------------
@@ -198,8 +198,8 @@ satProve ProverCommand {..} =
   case predArgTypes pcSchema of
     Left msg -> return (Nothing, ProverError msg)
     Right ts -> do when pcVerbose $ lPutStrLn "Simulating..."
-                   v <- doEval $ do env <- Eval.evalDecls extDgs mempty
-                                    Eval.evalExpr env pcExpr
+                   v <- doEval $ do env <- Eval.evalDecls SBV extDgs mempty
+                                    Eval.evalExpr SBV env pcExpr
                    prims <- M.getPrimMap
                    runRes <- runFn $ do
                                (args, asms) <- runWriterT (mapM tyFn ts)
@@ -251,8 +251,8 @@ satProveOffline ProverCommand {..} =
       Right ts ->
         do when pcVerbose $ logPutStrLn (Eval.evalLogger evOpts) "Simulating..."
            v <- liftIO $ Eval.runEval evOpts $
-                   do env <- Eval.evalDecls extDgs mempty
-                      Eval.evalExpr env pcExpr
+                   do env <- Eval.evalDecls SBV extDgs mempty
+                      Eval.evalExpr SBV env pcExpr
            smtlib <- SBV.generateSMTBenchmark isSat $ do
              (args, asms) <- runWriterT (mapM tyFn ts)
              b <- liftIO $ Eval.runEval evOpts
@@ -284,12 +284,12 @@ parseValue FTInteger cvs =
     Just (x, cvs') -> (Eval.VInteger x, cvs')
     Nothing        -> panic "Cryptol.Symbolic.parseValue" [ "no integer" ]
 parseValue (FTIntMod _) cvs = parseValue FTInteger cvs
-parseValue (FTSeq 0 FTBit) cvs = (Eval.word 0 0, cvs)
+parseValue (FTSeq 0 FTBit) cvs = (Eval.word () 0 0, cvs)
 parseValue (FTSeq n FTBit) cvs =
   case SBV.genParse (SBV.KBounded False n) cvs of
-    Just (x, cvs') -> (Eval.word (toInteger n) x, cvs')
+    Just (x, cvs') -> (Eval.word () (toInteger n) x, cvs')
     Nothing        -> (VWord (genericLength vs) $ return $ Eval.WordVal $
-                         Eval.packWord (map fromVBit vs), cvs')
+                         Eval.packWord () (map fromVBit vs), cvs')
       where (vs, cvs') = parseValues (replicate n FTBit) cvs
 parseValue (FTSeq n t) cvs =
                       (Eval.VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
@@ -356,11 +356,11 @@ predArgTypes schema@(Forall ts ps ty)
     go (Eval.TVFun ty1 ty2)   = (:) <$> finType ty1 <*> go ty2
     go _                      = Nothing
 
-inBoundsIntMod :: Integer -> SInteger -> SBool
+inBoundsIntMod :: Integer -> Eval.SInteger SBV -> Eval.SBit SBV
 inBoundsIntMod n x =
-  SBV.svAnd (SBV.svLessEq (Eval.integerLit 0) x) (SBV.svLessThan x (Eval.integerLit n))
+  SBV.svAnd (SBV.svLessEq (Eval.integerLit SBV 0) x) (SBV.svLessThan x (Eval.integerLit SBV n))
 
-forallFinType :: FinType -> WriterT [SBool] SBV.Symbolic Value
+forallFinType :: FinType -> WriterT [Eval.SBit SBV] SBV.Symbolic Value
 forallFinType ty =
   case ty of
     FTBit         -> VBit <$> lift forallSBool_
@@ -368,14 +368,14 @@ forallFinType ty =
     FTIntMod n    -> do x <- lift forallSInteger_
                         tell [inBoundsIntMod n x]
                         return (VInteger x)
-    FTSeq 0 FTBit -> return $ Eval.word 0 0
+    FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
     FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> lift (forallBV_ n)
     FTSeq n t     -> do vs <- replicateM n (forallFinType t)
                         return $ VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
     FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . forallFinType) ts
     FTRecord fs   -> VRecord <$> mapM (fmap Eval.ready . forallFinType) (Map.fromList fs)
 
-existsFinType :: FinType -> WriterT [SBool] SBV.Symbolic Value
+existsFinType :: FinType -> WriterT [Eval.SBit SBV] SBV.Symbolic Value
 existsFinType ty =
   case ty of
     FTBit         -> VBit <$> lift existsSBool_
@@ -383,7 +383,7 @@ existsFinType ty =
     FTIntMod n    -> do x <- lift existsSInteger_
                         tell [inBoundsIntMod n x]
                         return (VInteger x)
-    FTSeq 0 FTBit -> return $ Eval.word 0 0
+    FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
     FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> lift (existsBV_ n)
     FTSeq n t     -> do vs <- replicateM n (existsFinType t)
                         return $ VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)

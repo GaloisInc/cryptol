@@ -53,8 +53,8 @@ runOneTest evOpts v0 vs0 = run `X.catch` handle
     go (VFun _) []       = panic "Not enough arguments while applying function"
                            []
     go (VBit b) []       = return b
-    go v vs              = do vdoc    <- ppValue defaultPPOpts v
-                              vsdocs  <- mapM (ppValue defaultPPOpts) vs
+    go v vs              = do vdoc    <- ppValue () defaultPPOpts v
+                              vsdocs  <- mapM (ppValue () defaultPPOpts) vs
                               panic "Type error while running test" $
                                [ "Function:"
                                , show vdoc

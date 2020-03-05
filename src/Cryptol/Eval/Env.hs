@@ -34,18 +34,18 @@ import Prelude.Compat
 
 -- Evaluation Environment ------------------------------------------------------
 
-data GenEvalEnv b w i = EvalEnv
-  { envVars       :: !(Map.Map Name (Eval (GenValue b w i)))
+data GenEvalEnv sym = EvalEnv
+  { envVars       :: !(Map.Map Name (Eval (GenValue sym)))
   , envTypes      :: !TypeEnv
   } deriving (Generic, NFData)
 
-instance Semigroup (GenEvalEnv b w i) where
+instance Semigroup (GenEvalEnv sym) where
   l <> r = EvalEnv
     { envVars     = Map.union (envVars     l) (envVars     r)
     , envTypes    = Map.union (envTypes    l) (envTypes    r)
     }
 
-instance Monoid (GenEvalEnv b w i) where
+instance Monoid (GenEvalEnv sym) where
   mempty = EvalEnv
     { envVars       = Map.empty
     , envTypes      = Map.empty
@@ -53,21 +53,21 @@ instance Monoid (GenEvalEnv b w i) where
 
   mappend l r = l <> r
 
-ppEnv :: BitWord b w i => PPOpts -> GenEvalEnv b w i -> Eval Doc
-ppEnv opts env = brackets . fsep <$> mapM bind (Map.toList (envVars env))
+ppEnv :: BitWord sym => sym -> PPOpts -> GenEvalEnv sym -> Eval Doc
+ppEnv sym opts env = brackets . fsep <$> mapM bind (Map.toList (envVars env))
   where
-   bind (k,v) = do vdoc <- ppValue opts =<< v
+   bind (k,v) = do vdoc <- ppValue sym opts =<< v
                    return (pp k <+> text "->" <+> vdoc)
 
 -- | Evaluation environment with no bindings
-emptyEnv :: GenEvalEnv b w i
+emptyEnv :: GenEvalEnv sym
 emptyEnv  = mempty
 
 -- | Bind a variable in the evaluation environment.
 bindVar :: Name
-        -> Eval (GenValue b w i)
-        -> GenEvalEnv b w i
-        -> Eval (GenEvalEnv b w i)
+        -> Eval (GenValue sym)
+        -> GenEvalEnv sym
+        -> Eval (GenEvalEnv sym)
 bindVar n val env = do
   let nm = show $ ppLocName n
   val' <- delay (Just nm) val
@@ -76,24 +76,24 @@ bindVar n val env = do
 -- | Bind a variable to a value in the evaluation environment, without
 --   creating a thunk.
 bindVarDirect :: Name
-              -> GenValue b w i
-              -> GenEvalEnv b w i
-              -> GenEvalEnv b w i
+              -> GenValue sym
+              -> GenEvalEnv sym
+              -> GenEvalEnv sym
 bindVarDirect n val env = do
   env{ envVars = Map.insert n (ready val) (envVars env) }
 
 -- | Lookup a variable in the environment.
 {-# INLINE lookupVar #-}
-lookupVar :: Name -> GenEvalEnv b w i -> Maybe (Eval (GenValue b w i))
+lookupVar :: Name -> GenEvalEnv sym -> Maybe (Eval (GenValue sym))
 lookupVar n env = Map.lookup n (envVars env)
 
 -- | Bind a type variable of kind *.
 {-# INLINE bindType #-}
-bindType :: TVar -> Either Nat' TValue -> GenEvalEnv b w i -> GenEvalEnv b w i
+bindType :: TVar -> Either Nat' TValue -> GenEvalEnv sym -> GenEvalEnv sym
 bindType p ty env = env { envTypes = Map.insert p ty (envTypes env) }
 
 -- | Lookup a type variable.
 {-# INLINE lookupType #-}
-lookupType :: TVar -> GenEvalEnv b w i -> Maybe (Either Nat' TValue)
+lookupType :: TVar -> GenEvalEnv sym -> Maybe (Either Nat' TValue)
 lookupType p env = Map.lookup p (envTypes env)
 

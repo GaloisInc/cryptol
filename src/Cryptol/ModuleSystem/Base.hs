@@ -199,7 +199,7 @@ doLoadModule isrc path fp pm0 =
      tcm <- optionalInstantiate =<< checkModule isrc path pm
 
      -- extend the eval env, unless a functor.
-     unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv tcm)
+     unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv () tcm)
      loadedModule path fp tcm
 
      return tcm
@@ -543,7 +543,7 @@ evalExpr e = do
   env <- getEvalEnv
   denv <- getDynEnv
   evopts <- getEvalOpts
-  io $ E.runEval evopts $ (E.evalExpr (env <> deEnv denv) e)
+  io $ E.runEval evopts $ (E.evalExpr () (env <> deEnv denv) e)
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do
@@ -551,7 +551,7 @@ evalDecls dgs = do
   denv <- getDynEnv
   evOpts <- getEvalOpts
   let env' = env <> deEnv denv
-  deEnv' <- io $ E.runEval evOpts $ E.evalDecls dgs env'
+  deEnv' <- io $ E.runEval evOpts $ E.evalDecls () dgs env'
   let denv' = denv { deDecls = deDecls denv ++ dgs
                    , deEnv = deEnv'
                    }

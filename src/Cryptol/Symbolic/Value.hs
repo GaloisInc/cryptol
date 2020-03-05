@@ -10,10 +10,11 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Cryptol.Symbolic.Value
-  ( SBool, SWord, SInteger
+  ( SBV(..)
   , literalSWord
   , fromBitsLE
   , forallBV_, existsBV_
@@ -54,42 +55,40 @@ import Control.Monad.Trans  (liftIO)
 
 -- SBool and SWord -------------------------------------------------------------
 
-type SBool = SVal
-type SWord = SVal
-type SInteger = SVal
+data SBV = SBV
 
-fromBitsLE :: [SBool] -> SWord
+fromBitsLE :: [SBit SBV] -> SWord SBV
 fromBitsLE bs = foldl' f (literalSWord 0 0) bs
   where f w b = svJoin (svToWord1 b) w
 
-literalSWord :: Int -> Integer -> SWord
+literalSWord :: Int -> Integer -> SWord SBV
 literalSWord w i = svInteger (KBounded False w) i
 
-forallBV_ :: Int -> Symbolic SWord
+forallBV_ :: Int -> Symbolic (SWord SBV)
 forallBV_ w = symbolicEnv >>= liftIO . svMkSymVar (Just ALL) (KBounded False w) Nothing
 
-existsBV_ :: Int -> Symbolic SWord
+existsBV_ :: Int -> Symbolic (SWord SBV)
 existsBV_ w = symbolicEnv >>= liftIO . svMkSymVar (Just EX) (KBounded False w) Nothing
 
-forallSBool_ :: Symbolic SBool
+forallSBool_ :: Symbolic (SBit SBV)
 forallSBool_ = symbolicEnv >>= liftIO . svMkSymVar (Just ALL) KBool Nothing
 
-existsSBool_ :: Symbolic SBool
+existsSBool_ :: Symbolic (SBit SBV)
 existsSBool_ = symbolicEnv >>= liftIO . svMkSymVar (Just EX) KBool Nothing
 
-forallSInteger_ :: Symbolic SBool
+forallSInteger_ :: Symbolic (SBit SBV)
 forallSInteger_ = symbolicEnv >>= liftIO . svMkSymVar (Just ALL) KUnbounded Nothing
 
-existsSInteger_ :: Symbolic SBool
+existsSInteger_ :: Symbolic (SBit SBV)
 existsSInteger_ = symbolicEnv >>= liftIO . svMkSymVar (Just EX) KUnbounded Nothing
 
 -- Values ----------------------------------------------------------------------
 
-type Value = GenValue SBool SWord SInteger
+type Value = GenValue SBV
 
 -- Symbolic Conditionals -------------------------------------------------------
 
-iteSValue :: SBool -> Value -> Value -> Eval Value
+iteSValue :: SBit SBV -> Value -> Value -> Eval Value
 iteSValue c x y =
   case svAsBool c of
     Just True  -> return x
@@ -97,51 +96,51 @@ iteSValue c x y =
     Nothing    -> mergeValue True c x y
 
 mergeBit :: Bool
-         -> SBool
-         -> SBool
-         -> SBool
-         -> SBool
+         -> SBit SBV
+         -> SBit SBV
+         -> SBit SBV
+         -> SBit SBV
 mergeBit f c b1 b2 = svSymbolicMerge KBool f c b1 b2
 
 mergeWord :: Bool
-          -> SBool
-          -> WordValue SBool SWord SInteger
-          -> WordValue SBool SWord SInteger
-          -> WordValue SBool SWord SInteger
+          -> SBit SBV
+          -> WordValue SBV
+          -> WordValue SBV
+          -> WordValue SBV
 mergeWord f c (WordVal w1) (WordVal w2) =
     WordVal $ svSymbolicMerge (kindOf w1) f c w1 w2
 mergeWord f c (WordVal w1) (BitsVal ys) =
-    BitsVal $ mergeBits f c (Seq.fromList $ map ready $ unpackWord w1) ys
+    BitsVal $ mergeBits f c (Seq.fromList $ map ready $ unpackSBV w1) ys
 mergeWord f c (BitsVal xs) (WordVal w2) =
-    BitsVal $ mergeBits f c xs (Seq.fromList $ map ready $ unpackWord w2)
+    BitsVal $ mergeBits f c xs (Seq.fromList $ map ready $ unpackSBV w2)
 mergeWord f c (BitsVal xs) (BitsVal ys) =
     BitsVal $ mergeBits f c xs ys
 mergeWord f c w1 w2 =
-    LargeBitsVal (wordValueSize w1) (mergeSeqMap f c (asBitsMap w1) (asBitsMap w2))
+    LargeBitsVal (wordValueSize SBV w1) (mergeSeqMap f c (asBitsMap SBV w1) (asBitsMap SBV w2))
 
 mergeWord' :: Bool
-           -> SBool
-           -> Eval (WordValue SBool SWord SInteger)
-           -> Eval (WordValue SBool SWord SInteger)
-           -> Eval (WordValue SBool SWord SInteger)
+           -> SBit SBV
+           -> Eval (WordValue SBV)
+           -> Eval (WordValue SBV)
+           -> Eval (WordValue SBV)
 mergeWord' f c x y = mergeWord f c <$> x <*> y
 
 mergeBits :: Bool
-          -> SBool
-          -> Seq.Seq (Eval SBool)
-          -> Seq.Seq (Eval SBool)
-          -> Seq.Seq (Eval SBool)
+          -> SBit SBV
+          -> Seq.Seq (Eval (SBit SBV))
+          -> Seq.Seq (Eval (SBit SBV))
+          -> Seq.Seq (Eval (SBit SBV))
 mergeBits f c bs1 bs2 = Seq.zipWith mergeBit' bs1 bs2
  where mergeBit' b1 b2 = mergeBit f c <$> b1 <*> b2
 
 mergeInteger :: Bool
-             -> SBool
-             -> SInteger
-             -> SInteger
-             -> SInteger
+             -> SBit SBV
+             -> SInteger SBV
+             -> SInteger SBV
+             -> SInteger SBV
 mergeInteger f c x y = svSymbolicMerge KUnbounded f c x y
 
-mergeValue :: Bool -> SBool -> Value -> Value -> Eval Value
+mergeValue :: Bool -> SBit SBV -> Value -> Value -> Eval Value
 mergeValue f c v1 v2 =
   case (v1, v2) of
     (VRecord fs1, VRecord fs2)  | Map.keys fs1 == Map.keys fs2 ->
@@ -157,84 +156,95 @@ mergeValue f c v1 v2 =
     (_          , _          ) -> panic "Cryptol.Symbolic.Value"
                                   [ "mergeValue: incompatible values" ]
 
-mergeValue' :: Bool -> SBool -> Eval Value -> Eval Value -> Eval Value
+mergeValue' :: Bool -> SBit SBV -> Eval Value -> Eval Value -> Eval Value
 mergeValue' f c x1 x2 =
   do v1 <- x1
      v2 <- x2
      mergeValue f c v1 v2
 
-mergeSeqMap :: Bool -> SBool -> SeqMap SBool SWord SInteger -> SeqMap SBool SWord SInteger -> SeqMap SBool SWord SInteger
+mergeSeqMap :: Bool -> SBit SBV -> SeqMap SBV -> SeqMap SBV -> SeqMap SBV
 mergeSeqMap f c x y =
   IndexSeqMap $ \i ->
   do xi <- lookupSeqMap x i
      yi <- lookupSeqMap y i
      mergeValue f c xi yi
 
+packSBV :: [SBit SBV] -> SWord SBV
+packSBV bs = fromBitsLE (reverse bs)
+
+unpackSBV :: SWord SBV -> [SBit SBV]
+unpackSBV x = [ svTestBit x i | i <- reverse [0 .. intSizeOf x - 1] ]
+
+
 -- Symbolic Big-endian Words -------------------------------------------------------
 
-instance BitWord SBool SWord SInteger where
-  wordLen v = toInteger (intSizeOf v)
-  wordAsChar v = integerToChar <$> svAsInteger v
+instance BitWord SBV where
+  type SBit SBV = SVal
+  type SWord SBV = SVal
+  type SInteger SBV = SVal
 
-  ppBit v
+  wordLen _ v = toInteger (intSizeOf v)
+  wordAsChar _ v = integerToChar <$> svAsInteger v
+
+  ppBit _ v
      | Just b <- svAsBool v = text $! if b then "True" else "False"
      | otherwise            = text "?"
-  ppWord opts v
-     | Just x <- svAsInteger v = ppBV opts (BV (wordLen v) x)
+  ppWord _ opts v
+     | Just x <- svAsInteger v = ppBV opts (BV (wordLen SBV v) x)
      | otherwise               = text "[?]"
-  ppInteger _opts v
+  ppInteger _ _opts v
      | Just x <- svAsInteger v = integer x
      | otherwise               = text "[?]"
 
-  bitLit b    = svBool b
-  wordLit n x = svInteger (KBounded False (fromInteger n)) x
-  integerLit x = svInteger KUnbounded x
+  bitLit _ b     = svBool b
+  wordLit _ n x  = svInteger (KBounded False (fromInteger n)) x
+  integerLit _ x = svInteger KUnbounded x
 
-  wordBit x idx = svTestBit x (intSizeOf x - 1 - fromInteger idx)
+  wordBit _ x idx = svTestBit x (intSizeOf x - 1 - fromInteger idx)
 
-  wordUpdate x idx b = svSymbolicMerge (kindOf x) False b wtrue wfalse
+  wordUpdate _ x idx b = svSymbolicMerge (kindOf x) False b wtrue wfalse
     where
      i' = intSizeOf x - 1 - fromInteger idx
      wtrue  = x `svOr`  svInteger (kindOf x) (bit i' :: Integer)
      wfalse = x `svAnd` svInteger (kindOf x) (complement (bit i' :: Integer))
 
-  packWord bs = fromBitsLE (reverse bs)
-  unpackWord x = [ svTestBit x i | i <- reverse [0 .. intSizeOf x - 1] ]
+  packWord _ bs  = packSBV bs
+  unpackWord _ x = unpackSBV x
 
-  joinWord x y = svJoin x y
+  joinWord _ x y = svJoin x y
 
-  splitWord _leftW rightW w =
+  splitWord _ _leftW rightW w =
     ( svExtract (intSizeOf w - 1) (fromInteger rightW) w
     , svExtract (fromInteger rightW - 1) 0 w
     )
 
-  extractWord len start w =
+  extractWord _ len start w =
     svExtract (fromInteger start + fromInteger len - 1) (fromInteger start) w
 
-  wordPlus  = svPlus
-  wordMinus = svMinus
-  wordMult  = svTimes
+  wordPlus  _ a b = svPlus a b
+  wordMinus _ a b = svMinus a b
+  wordMult  _ a b = svTimes a b
 
-  intPlus  = svPlus
-  intMinus = svMinus
-  intMult  = svTimes
+  intPlus  _ a b = svPlus a b
+  intMinus _ a b = svMinus a b
+  intMult  _ a b = svTimes a b
 
-  intModPlus  _m = svPlus
-  intModMinus _m = svMinus
-  intModMult  _m = svTimes
+  intModPlus  _ _m a b = svPlus a b
+  intModMinus _ _m a b = svMinus a b
+  intModMult  _ _m a b = svTimes a b
 
-  wordToInt = svToInteger
-  wordFromInt = svFromInteger
+  wordToInt _ x = svToInteger x
+  wordFromInt _ w i = svFromInteger w i
 
 -- TODO: implement this properly in SBV using "bv2int"
-svToInteger :: SWord -> SInteger
+svToInteger :: SWord SBV -> SInteger SBV
 svToInteger w =
   case svAsInteger w of
     Nothing -> svFromIntegral KUnbounded w
     Just x  -> svInteger KUnbounded x
 
 -- TODO: implement this properly in SBV using "int2bv"
-svFromInteger :: Integer -> SInteger -> SWord
+svFromInteger :: Integer -> SInteger SBV -> SWord SBV
 svFromInteger 0 _ = literalSWord 0 0
 svFromInteger n i =
   case svAsInteger i of
