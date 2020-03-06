@@ -28,7 +28,6 @@ import Data.Kind (Type)
 import Data.Bits
 import Data.IORef
 import qualified Data.Sequence as Seq
-import qualified Data.Foldable as Fold
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import MonadLib
@@ -92,6 +91,11 @@ lookupSeqMap (UpdateSeqMap m f) i =
     Nothing -> f i
 
 type SeqValMap = SeqMap ()
+
+-- | An arbitrarily-chosen number of elements where we switch from a dense
+--   sequence representation of bit-level words to 'SeqMap' representation.
+largeBitSize :: Integer
+largeBitSize = 1 `shiftL` 16
 
 -- | Generate a finite sequence map from a list of values
 finiteSeqMap :: [Eval (GenValue sym)] -> SeqMap sym
@@ -195,46 +199,35 @@ mapSeqMap f x =
 --   representation.
 data WordValue sym
   = WordVal !(SWord sym)                      -- ^ Packed word representation for bit sequences.
-  | BitsVal !(Seq.Seq (Eval (SBit sym)))      -- ^ Sequence of thunks representing bits.
   | LargeBitsVal !Integer !(SeqMap sym)       -- ^ A large bitvector sequence, represented as a
                                             --   'SeqMap' of bits.
  deriving (Generic)
 
--- | An arbitrarily-chosen number of elements where we switch from a dense
---   sequence representation of bit-level words to 'SeqMap' representation.
-largeBitSize :: Integer
-largeBitSize = 1 `shiftL` 16
-
 -- | Force a word value into packed word form
 asWordVal :: BitWord sym => sym -> WordValue sym -> Eval (SWord sym)
 asWordVal _   (WordVal w)         = return w
-asWordVal sym (BitsVal bs)        = io . packWord sym =<< sequence (Fold.toList bs)
 asWordVal sym (LargeBitsVal n xs) = io . packWord sym =<< traverse (fromBit =<<) (enumerateSeqMap n xs)
 
 -- | Force a word value into a sequence of bits
 asBitsMap :: BitWord sym => sym -> WordValue sym -> SeqMap sym
 asBitsMap sym (WordVal w)  = IndexSeqMap $ \i -> VBit <$> io (wordBit sym w i)
-asBitsMap _   (BitsVal bs) = IndexSeqMap $ \i -> VBit <$> join (checkedSeqIndex bs i)
 asBitsMap _   (LargeBitsVal _ xs) = xs
 
 -- | Turn a word value into a sequence of bits, forcing each bit.
 --   The sequence is returned in big-endian order.
 enumerateWordValue :: BitWord sym => sym -> WordValue sym -> Eval [SBit sym]
 enumerateWordValue sym (WordVal w) = io (unpackWord sym w)
-enumerateWordValue _ (BitsVal bs)  = sequence (Fold.toList bs)
 enumerateWordValue _ (LargeBitsVal n xs) = traverse (fromBit =<<) (enumerateSeqMap n xs)
 
 -- | Turn a word value into a sequence of bits, forcing each bit.
 --   The sequence is returned in reverse of the usual order, which is little-endian order.
 enumerateWordValueRev :: BitWord sym => sym -> WordValue sym -> Eval [SBit sym]
 enumerateWordValueRev sym (WordVal w)  = reverse <$> io (unpackWord sym w)
-enumerateWordValueRev _   (BitsVal bs) = sequence (Fold.toList $ Seq.reverse bs)
 enumerateWordValueRev _   (LargeBitsVal n xs) = traverse (fromBit =<<) (enumerateSeqMap n (reverseSeqMap n xs))
 
 -- | Compute the size of a word value
 wordValueSize :: BitWord sym => sym -> WordValue sym -> Integer
 wordValueSize sym (WordVal w)  = wordLen sym w
-wordValueSize _ (BitsVal bs) = toInteger $ Seq.length bs
 wordValueSize _ (LargeBitsVal n _) = n
 
 checkedSeqIndex :: Seq.Seq a -> Integer -> Eval a
@@ -254,7 +247,6 @@ indexWordValue :: BitWord sym => sym -> WordValue sym -> Integer -> Eval (SBit s
 indexWordValue sym (WordVal w) idx
    | idx < wordLen sym w = io (wordBit sym w idx)
    | otherwise = invalidIndex idx
-indexWordValue _ (BitsVal bs) idx = join (checkedSeqIndex bs idx)
 indexWordValue _ (LargeBitsVal n xs) idx
    | idx < n   = fromBit =<< lookupSeqMap xs idx
    | otherwise = invalidIndex idx
@@ -265,15 +257,11 @@ updateWordValue :: BitWord sym => sym -> WordValue sym -> Integer -> Eval (SBit 
 updateWordValue sym (WordVal w) idx (Ready b)
    | idx < wordLen sym w = WordVal <$> io (wordUpdate sym w idx b)
    | otherwise = invalidIndex idx
-updateWordValue sym (WordVal w) idx b
-   | idx < wordLen sym w = BitsVal . Seq.update (fromInteger idx) b . Seq.fromList . map ready <$> io (unpackWord sym w)
+updateWordValue sym wv idx b
+   | idx < wordValueSize sym wv =
+        pure $ LargeBitsVal (wordValueSize sym wv) $ updateSeqMap (asBitsMap sym wv) idx (VBit <$> b)
    | otherwise = invalidIndex idx
-updateWordValue _ (BitsVal bs) idx b
-   | idx < toInteger (Seq.length bs) = return $ BitsVal $ Seq.update (fromInteger idx) b bs
-   | otherwise = invalidIndex idx
-updateWordValue _ (LargeBitsVal n xs) idx b
-   | idx < n = return $ LargeBitsVal n $ updateSeqMap xs idx (VBit <$> b)
-   | otherwise = invalidIndex idx
+
 
 -- | Generic value type, parameterized by bit and word types.
 --
@@ -299,7 +287,6 @@ data GenValue sym
 -- | Force the evaluation of a word value
 forceWordValue :: WordValue sym -> Eval ()
 forceWordValue (WordVal _w)  = return ()
-forceWordValue (BitsVal bs) = mapM_ (\b -> const () <$> b) bs
 forceWordValue (LargeBitsVal n xs) = mapM_ (\x -> const () <$> x) (enumerateSeqMap n xs)
 
 -- | Force the evaluation of a value
@@ -768,8 +755,7 @@ toSeq sym len elty vals = case len of
 mkSeq :: Nat' -> TValue -> SeqMap sym -> GenValue sym
 mkSeq len elty vals = case len of
   Nat n
-    | isTBit elty -> VWord n $ return $ BitsVal $ Seq.fromFunction (fromInteger n) $ \i ->
-                        fromVBit <$> lookupSeqMap vals (toInteger i)
+    | isTBit elty -> VWord n $ return $ LargeBitsVal n vals
     | otherwise   -> VSeq n vals
   Inf             -> VStream vals
 

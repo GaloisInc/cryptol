@@ -43,7 +43,6 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
 import           Control.Monad
-import qualified Data.Sequence as Seq
 import           Data.List
 import           Data.Maybe
 import qualified Data.Map.Strict as Map
@@ -87,7 +86,7 @@ evalExpr sym env expr = case expr of
           case tryFromBits sym vs of
             Just w  -> WordVal <$> io w
             Nothing -> do xs <- mapM (delay Nothing) vs
-                          return $ BitsVal $ Seq.fromList $ map (fromVBit <$>) xs
+                          return $ LargeBitsVal len $ finiteSeqMap xs
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
         xs <- mapM (delay Nothing) vs
         return $ VSeq len $ finiteSeqMap xs
@@ -285,9 +284,9 @@ etaWord  ::
   Eval (WordValue sym)
 etaWord sym n val = do
   w <- delay Nothing (fromWordVal "during eta-expansion" =<< val)
-  return $ BitsVal $ Seq.fromFunction (fromInteger n) $ \i ->
-    do w' <- w; indexWordValue sym w' (toInteger i)
-
+  xs <- memoMap $ IndexSeqMap $ \i ->
+          do w' <- w; VBit <$> indexWordValue sym w' (toInteger i)
+  pure $ LargeBitsVal n xs
 
 -- | Given a simulator value and its type, fully eta-expand the value.  This
 --   is a type-directed pass that always produces a canonical value of the
