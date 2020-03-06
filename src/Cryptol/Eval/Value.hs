@@ -93,9 +93,6 @@ lookupSeqMap (UpdateSeqMap m f) i =
 
 type SeqValMap = SeqMap ()
 
-instance NFData (SeqMap sym) where
-  rnf x = seq x ()
-
 -- | Generate a finite sequence map from a list of values
 finiteSeqMap :: [Eval (GenValue sym)] -> SeqMap sym
 finiteSeqMap xs =
@@ -203,9 +200,6 @@ data WordValue sym
                                             --   'SeqMap' of bits.
  deriving (Generic)
 
-deriving instance BitWord sym => NFData (WordValue sym)
-
-
 -- | An arbitrarily-chosen number of elements where we switch from a dense
 --   sequence representation of bit-level words to 'SeqMap' representation.
 largeBitSize :: Integer
@@ -299,7 +293,7 @@ data GenValue sym
   | VFun (Eval (GenValue sym) -> Eval (GenValue sym)) -- ^ functions
   | VPoly (TValue -> Eval (GenValue sym))   -- ^ polymorphic values (kind *)
   | VNumPoly (Nat' -> Eval (GenValue sym))  -- ^ polymorphic values (kind #)
- deriving (Generic, NFData)
+ deriving Generic
 
 
 -- | Force the evaluation of a word value
@@ -434,7 +428,6 @@ ppBV opts (BV width i)
 --   are necessary to define generic evaluator primitives that operate on both concrete
 --   and symbolic values uniformly.
 class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
-      , NFData (SBit sym), NFData (SWord sym), NFData (SInteger sym)
       ) => BitWord sym where
   type SBit sym :: Type
   type SWord sym :: Type

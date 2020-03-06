@@ -27,7 +27,6 @@ import qualified Data.Map.Strict as Map
 import Data.Semigroup
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
 
 import Prelude ()
 import Prelude.Compat
@@ -37,7 +36,7 @@ import Prelude.Compat
 data GenEvalEnv sym = EvalEnv
   { envVars       :: !(Map.Map Name (Eval (GenValue sym)))
   , envTypes      :: !TypeEnv
-  } deriving (Generic, NFData)
+  } deriving Generic
 
 instance Semigroup (GenEvalEnv sym) where
   l <> r = EvalEnv
