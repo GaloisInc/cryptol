@@ -85,7 +85,7 @@ evalExpr sym env expr = case expr of
     | isTBit tyv -> {-# SCC "evalExpr->Elist/bit" #-}
         return $ VWord len $
           case tryFromBits sym vs of
-            Just w  -> WordVal <$> pure w
+            Just w  -> WordVal <$> io w
             Nothing -> do xs <- mapM (delay Nothing) vs
                           return $ BitsVal $ Seq.fromList $ map (fromVBit <$>) xs
     | otherwise -> {-# SCC "evalExpr->EList" #-} do

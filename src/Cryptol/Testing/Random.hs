@@ -12,7 +12,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Cryptol.Testing.Random where
 
-import Cryptol.Eval.Monad     (ready,runEval,EvalOpts)
+import Cryptol.Eval.Monad     (ready,runEval,EvalOpts,io)
 import Cryptol.Eval.Value     (Value,GenValue(..),SeqMap(..), WordValue(..), BitWord(..))
 import qualified Cryptol.Testing.Concrete as Conc
 import Cryptol.TypeCheck.AST  (Type(..), TCon(..), TC(..), tNoUser, tIsFun)
@@ -28,7 +28,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 
-type Gen g x = Integer -> g -> (GenValue x, g)
+type Gen g x = Integer -> g -> (IO (GenValue x), g)
 
 
 {- | Apply a testable value to some randomly-generated arguments.
@@ -48,7 +48,8 @@ runOneTest :: RandomGen g
 runOneTest evOpts fun argGens sz g0 = do
   let (args, g1) = foldr mkArg ([], g0) argGens
       mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
-  result <- Conc.runOneTest evOpts fun args
+  args' <- sequence args
+  result <- Conc.runOneTest evOpts fun args'
   return (result, g1)
 
 returnOneTest :: RandomGen g
@@ -61,8 +62,9 @@ returnOneTest :: RandomGen g
 returnOneTest evOpts fun argGens sz g0 =
   do let (args, g1) = foldr mkArg ([], g0) argGens
          mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
-     result <- runEval evOpts (go fun args)
-     return (args, result, g1)
+     args' <- sequence args
+     result <- runEval evOpts (go fun args')
+     return (args', result, g1)
    where
      go (VFun f) (v : vs) = join (go <$> (f (ready v)) <*> pure vs)
      go (VFun _) [] = panic "Cryptol.Testing.Random" ["Not enough arguments to function while generating tests"]
@@ -156,7 +158,7 @@ randomValue sym ty =
 randomBit :: (BitWord sym, RandomGen g) => sym -> Gen g sym
 randomBit sym _ g =
   let (b,g1) = random g
-  in (VBit (bitLit sym b), g1)
+  in (VBit <$> bitLit sym b, g1)
 
 randomSize :: RandomGen g => Int -> Int -> g -> (Int, g)
 randomSize k n g
@@ -171,12 +173,12 @@ randomInteger :: (BitWord sym, RandomGen g) => sym -> Gen g sym
 randomInteger sym w g =
   let (n, g1) = if w < 100 then (fromInteger w, g) else randomSize 8 100 g
       (i, g2) = randomR (- 256^n, 256^n) g1
-  in (VInteger (integerLit sym i), g2)
+  in (VInteger <$> integerLit sym i, g2)
 
 randomIntMod :: (BitWord sym, RandomGen g) => sym -> Integer -> Gen g sym
 randomIntMod sym modulus _ g =
   let (i, g') = randomR (0, modulus-1) g
-  in (VInteger (integerLit sym i), g')
+  in (VInteger <$> integerLit sym i, g')
 
 -- | Generate a random word of the given length (i.e., a value of type @[w]@)
 -- The size parameter is assumed to vary between 1 and 100, and we use
@@ -184,13 +186,13 @@ randomIntMod sym modulus _ g =
 randomWord :: (BitWord sym, RandomGen g) => sym -> Integer -> Gen g sym
 randomWord sym w _sz g =
    let (val, g1) = randomR (0,2^w-1) g
-   in (VWord w (ready (WordVal (wordLit sym w val))), g1)
+   in (return $ VWord w (WordVal <$> io (wordLit sym w val)), g1)
 
 -- | Generate a random infinite stream value.
 randomStream :: RandomGen g => Gen g sym -> Gen g sym
 randomStream mkElem sz g =
   let (g1,g2) = split g
-  in (VStream $ IndexSeqMap $ genericIndex (map ready (unfoldr (Just . mkElem sz) g1)), g2)
+  in (pure $ VStream $ IndexSeqMap $ genericIndex (map io (unfoldr (Just . mkElem sz) g1)), g2)
 
 {- | Generate a random sequence.  This should be used for sequences
 other than bits.  For sequences of bits use "randomWord". -}
@@ -198,24 +200,24 @@ randomSequence :: RandomGen g => Integer -> Gen g sym -> Gen g sym
 randomSequence w mkElem sz g0 = do
   let (g1,g2) = split g0
   let f g = let (x,g') = mkElem sz g
-             in seq x (Just (ready x, g'))
+             in seq x (Just (io x, g'))
   let xs = Seq.fromList $ genericTake w $ unfoldr f g1
-  seq xs (VSeq w $ IndexSeqMap $ (Seq.index xs . fromInteger), g2)
+  seq xs (pure $ VSeq w $ IndexSeqMap $ (Seq.index xs . fromInteger), g2)
 
 -- | Generate a random tuple value.
 randomTuple :: RandomGen g => [Gen g sym] -> Gen g sym
 randomTuple gens sz = go [] gens
   where
-  go els [] g = (VTuple (reverse els), g)
+  go els [] g = (pure $ VTuple (reverse els), g)
   go els (mkElem : more) g =
     let (v, g1) = mkElem sz g
-    in seq v (go (ready v : els) more g1)
+    in seq v (go (io v : els) more g1)
 
 -- | Generate a random record value.
 randomRecord :: RandomGen g => Map Ident (Gen g sym) -> Gen g sym
 randomRecord gens sz g0 =
-  let (g', m) = Map.mapAccum mk g0 gens in (VRecord m, g')
+  let (g', m) = Map.mapAccum mk g0 gens in (pure $ VRecord m, g')
   where
     mk g gen =
       let (v, g') = gen sz g
-      in seq v (g', ready v)
+      in seq v (g', io v)

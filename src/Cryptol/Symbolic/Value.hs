@@ -196,45 +196,45 @@ instance BitWord SBV where
      | Just x <- svAsInteger v = integer x
      | otherwise               = text "[?]"
 
-  bitLit _ b     = svBool b
-  wordLit _ n x  = svInteger (KBounded False (fromInteger n)) x
-  integerLit _ x = svInteger KUnbounded x
+  bitLit _ b     = pure $! svBool b
+  wordLit _ n x  = pure $! svInteger (KBounded False (fromInteger n)) x
+  integerLit _ x = pure $! svInteger KUnbounded x
 
-  wordBit _ x idx = svTestBit x (intSizeOf x - 1 - fromInteger idx)
+  wordBit _ x idx = pure $! svTestBit x (intSizeOf x - 1 - fromInteger idx)
 
-  wordUpdate _ x idx b = svSymbolicMerge (kindOf x) False b wtrue wfalse
+  wordUpdate _ x idx b = pure $! svSymbolicMerge (kindOf x) False b wtrue wfalse
     where
      i' = intSizeOf x - 1 - fromInteger idx
      wtrue  = x `svOr`  svInteger (kindOf x) (bit i' :: Integer)
      wfalse = x `svAnd` svInteger (kindOf x) (complement (bit i' :: Integer))
 
-  packWord _ bs  = packSBV bs
-  unpackWord _ x = unpackSBV x
+  packWord _ bs  = pure $! packSBV bs
+  unpackWord _ x = pure $! unpackSBV x
 
-  joinWord _ x y = svJoin x y
+  joinWord _ x y = pure $! svJoin x y
 
-  splitWord _ _leftW rightW w =
+  splitWord _ _leftW rightW w = pure
     ( svExtract (intSizeOf w - 1) (fromInteger rightW) w
     , svExtract (fromInteger rightW - 1) 0 w
     )
 
   extractWord _ len start w =
-    svExtract (fromInteger start + fromInteger len - 1) (fromInteger start) w
+    pure $! svExtract (fromInteger start + fromInteger len - 1) (fromInteger start) w
 
-  wordPlus  _ a b = svPlus a b
-  wordMinus _ a b = svMinus a b
-  wordMult  _ a b = svTimes a b
+  wordPlus  _ a b = pure $! svPlus a b
+  wordMinus _ a b = pure $! svMinus a b
+  wordMult  _ a b = pure $! svTimes a b
 
-  intPlus  _ a b = svPlus a b
-  intMinus _ a b = svMinus a b
-  intMult  _ a b = svTimes a b
+  intPlus  _ a b = pure $! svPlus a b
+  intMinus _ a b = pure $! svMinus a b
+  intMult  _ a b = pure $! svTimes a b
 
-  intModPlus  _ _m a b = svPlus a b
-  intModMinus _ _m a b = svMinus a b
-  intModMult  _ _m a b = svTimes a b
+  intModPlus  _ _m a b = pure $! svPlus a b
+  intModMinus _ _m a b = pure $! svMinus a b
+  intModMult  _ _m a b = pure $! svTimes a b
 
-  wordToInt _ x = svToInteger x
-  wordFromInt _ w i = svFromInteger w i
+  wordToInt _ x = pure $! svToInteger x
+  wordFromInt _ w i = pure $! svFromInteger w i
 
 -- TODO: implement this properly in SBV using "bv2int"
 svToInteger :: SWord SBV -> SInteger SBV

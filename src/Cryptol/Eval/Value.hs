@@ -62,8 +62,8 @@ instance Show BV where
 
 -- | Apply an integer function to the values of bitvectors.
 --   This function assumes both bitvectors are the same width.
-binBV :: (Integer -> Integer -> Integer) -> BV -> BV -> BV
-binBV f (BV w x) (BV _ y) = mkBv w (f x y)
+binBV :: Applicative m => (Integer -> Integer -> Integer) -> BV -> BV -> m BV
+binBV f (BV w x) (BV _ y) = pure $ mkBv w (f x y)
 
 -- | Apply an integer function to the values of a bitvector.
 --   This function assumes the function will not require masking.
@@ -214,26 +214,26 @@ largeBitSize = 1 `shiftL` 16
 -- | Force a word value into packed word form
 asWordVal :: BitWord sym => sym -> WordValue sym -> Eval (SWord sym)
 asWordVal _   (WordVal w)         = return w
-asWordVal sym (BitsVal bs)        = packWord sym <$> sequence (Fold.toList bs)
-asWordVal sym (LargeBitsVal n xs) = packWord sym <$> traverse (fromBit =<<) (enumerateSeqMap n xs)
+asWordVal sym (BitsVal bs)        = io . packWord sym =<< sequence (Fold.toList bs)
+asWordVal sym (LargeBitsVal n xs) = io . packWord sym =<< traverse (fromBit =<<) (enumerateSeqMap n xs)
 
 -- | Force a word value into a sequence of bits
 asBitsMap :: BitWord sym => sym -> WordValue sym -> SeqMap sym
-asBitsMap sym (WordVal w)  = IndexSeqMap $ \i -> VBit <$> pure (wordBit sym w i)
+asBitsMap sym (WordVal w)  = IndexSeqMap $ \i -> VBit <$> io (wordBit sym w i)
 asBitsMap _   (BitsVal bs) = IndexSeqMap $ \i -> VBit <$> join (checkedSeqIndex bs i)
 asBitsMap _   (LargeBitsVal _ xs) = xs
 
 -- | Turn a word value into a sequence of bits, forcing each bit.
 --   The sequence is returned in big-endian order.
 enumerateWordValue :: BitWord sym => sym -> WordValue sym -> Eval [SBit sym]
-enumerateWordValue sym (WordVal w)  = pure (unpackWord sym w)
-enumerateWordValue _ (BitsVal bs) = sequence (Fold.toList bs)
+enumerateWordValue sym (WordVal w) = io (unpackWord sym w)
+enumerateWordValue _ (BitsVal bs)  = sequence (Fold.toList bs)
 enumerateWordValue _ (LargeBitsVal n xs) = traverse (fromBit =<<) (enumerateSeqMap n xs)
 
 -- | Turn a word value into a sequence of bits, forcing each bit.
 --   The sequence is returned in reverse of the usual order, which is little-endian order.
 enumerateWordValueRev :: BitWord sym => sym -> WordValue sym -> Eval [SBit sym]
-enumerateWordValueRev sym (WordVal w)  = pure $ reverse (unpackWord sym w)
+enumerateWordValueRev sym (WordVal w)  = reverse <$> io (unpackWord sym w)
 enumerateWordValueRev _   (BitsVal bs) = sequence (Fold.toList $ Seq.reverse bs)
 enumerateWordValueRev _   (LargeBitsVal n xs) = traverse (fromBit =<<) (enumerateSeqMap n (reverseSeqMap n xs))
 
@@ -258,7 +258,7 @@ checkedIndex xs i =
 -- | Select an individual bit from a word value
 indexWordValue :: BitWord sym => sym -> WordValue sym -> Integer -> Eval (SBit sym)
 indexWordValue sym (WordVal w) idx
-   | idx < wordLen sym w = pure (wordBit sym w idx)
+   | idx < wordLen sym w = io (wordBit sym w idx)
    | otherwise = invalidIndex idx
 indexWordValue _ (BitsVal bs) idx = join (checkedSeqIndex bs idx)
 indexWordValue _ (LargeBitsVal n xs) idx
@@ -269,10 +269,10 @@ indexWordValue _ (LargeBitsVal n xs) idx
 --   given bit value.
 updateWordValue :: BitWord sym => sym -> WordValue sym -> Integer -> Eval (SBit sym) -> Eval (WordValue sym)
 updateWordValue sym (WordVal w) idx (Ready b)
-   | idx < wordLen sym w = WordVal <$> pure (wordUpdate sym w idx b)
+   | idx < wordLen sym w = WordVal <$> io (wordUpdate sym w idx b)
    | otherwise = invalidIndex idx
 updateWordValue sym (WordVal w) idx b
-   | idx < wordLen sym w = BitsVal . Seq.update (fromInteger idx) b . Seq.fromList . map ready <$> pure (unpackWord sym w)
+   | idx < wordLen sym w = BitsVal . Seq.update (fromInteger idx) b . Seq.fromList . map ready <$> io (unpackWord sym w)
    | otherwise = invalidIndex idx
 updateWordValue _ (BitsVal bs) idx b
    | idx < toInteger (Seq.length bs) = return $ BitsVal $ Seq.update (fromInteger idx) b bs
@@ -457,20 +457,20 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
   wordLen :: sym -> SWord sym -> Integer
 
   -- | Construct a literal bit value from a boolean.
-  bitLit :: sym -> Bool -> SBit sym
+  bitLit :: sym -> Bool -> IO (SBit sym)
 
   -- | Construct a literal word value given a bit width and a value.
   wordLit ::
     sym ->
     Integer {- ^ Width -} ->
     Integer {- ^ Value -} ->
-    SWord sym
+    IO (SWord sym)
 
   -- | Construct a literal integer value from the given integer.
   integerLit ::
     sym ->
     Integer {- ^ Value -} ->
-    SInteger sym
+    IO (SInteger sym)
 
   -- | Extract the numbered bit from the word.
   --
@@ -480,7 +480,7 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
     sym ->
     SWord sym ->
     Integer {- ^ Bit position to extract -} ->
-    SBit sym
+    IO (SBit sym)
 
   -- | Update the numbered bit in the word.
   --
@@ -491,7 +491,7 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
     SWord sym ->
     Integer {- ^ Bit position to update -} ->
     SBit sym ->
-    SWord sym
+    IO (SWord sym)
 
   -- | Construct a word value from a finite sequence of bits.
   --   NOTE: this assumes that the sequence of bits is big-endian and finite, so the
@@ -499,7 +499,7 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
   packWord ::
     sym ->
     [SBit sym] ->
-    SWord sym
+    IO (SWord sym)
 
   -- | Deconstruct a packed word value in to a finite sequence of bits.
   --   NOTE: this produces a list of bits that represent a big-endian word, so
@@ -507,7 +507,7 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
   unpackWord ::
     sym ->
     SWord sym ->
-    [SBit sym]
+    IO [SBit sym]
 
   -- | Concatenate the two given word values.
   --   NOTE: the first argument represents the more-significant bits
@@ -515,7 +515,7 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
     sym ->
     SWord sym ->
     SWord sym ->
-    SWord sym
+    IO (SWord sym)
 
   -- | Take the most-significant bits, and return
   --   those bits and the remainder.  The first element
@@ -526,7 +526,7 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
     Integer {- ^ left width -} ->
     Integer {- ^ right width -} ->
     SWord sym ->
-    (SWord sym, SWord sym)
+    IO (SWord sym, SWord sym)
 
   -- | Extract a subsequence of bits from a packed word value.
   --   The first integer argument is the number of bits in the
@@ -540,7 +540,7 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
     Integer {- ^ Number of bits to take -} ->
     Integer {- ^ starting bit -} ->
     SWord sym ->
-    SWord sym
+    IO (SWord sym)
 
   -- | 2's complement addition of packed words.  The arguments must have
   --   equal bit width, and the result is of the same width. Overflow is silently
@@ -549,7 +549,7 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
     sym ->
     SWord sym ->
     SWord sym ->
-    SWord sym
+    IO (SWord sym)
 
   -- | 2's complement subtraction of packed words.  The arguments must have
   --   equal bit width, and the result is of the same width. Overflow is silently
@@ -558,7 +558,7 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
     sym ->
     SWord sym ->
     SWord sym ->
-    SWord sym
+    IO (SWord sym)
 
   -- | 2's complement multiplication of packed words.  The arguments must have
   --   equal bit width, and the result is of the same width. The high bits of the
@@ -567,34 +567,34 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
     sym ->
     SWord sym ->
     SWord sym ->
-    SWord sym
+    IO (SWord sym)
 
   -- | Construct an integer value from the given packed word.
   wordToInt ::
     sym ->
     SWord sym ->
-    SInteger sym
+    IO (SInteger sym)
 
   -- | Addition of unbounded integers.
   intPlus ::
     sym ->
     SInteger sym ->
     SInteger sym ->
-    SInteger sym
+    IO (SInteger sym)
 
   -- | Subtraction of unbounded integers.
   intMinus ::
     sym ->
     SInteger sym ->
     SInteger sym ->
-    SInteger sym
+    IO (SInteger sym)
 
   -- | Multiplication of unbounded integers.
   intMult ::
     sym ->
     SInteger sym ->
     SInteger sym ->
-    SInteger sym
+    IO (SInteger sym)
 
   -- | Addition of integers modulo n, for a concrete positive integer n.
   intModPlus ::
@@ -602,7 +602,7 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
     Integer {- ^ modulus -} ->
     SInteger sym ->
     SInteger sym ->
-    SInteger sym
+    IO (SInteger sym)
 
   -- | Subtraction of integers modulo n, for a concrete positive integer n.
   intModMinus ::
@@ -610,7 +610,7 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
     Integer {- ^ modulus -} ->
     SInteger sym ->
     SInteger sym ->
-    SInteger sym
+    IO (SInteger sym)
 
   -- | Multiplication of integers modulo n, for a concrete positive integer n.
   intModMult ::
@@ -618,14 +618,14 @@ class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
     Integer {- ^ modulus -} ->
     SInteger sym ->
     SInteger sym ->
-    SInteger sym
+    IO (SInteger sym)
 
   -- | Construct a packed word of the specified width from an integer value.
   wordFromInt ::
     sym ->
     Integer {- ^ bit-width -} ->
     SInteger sym ->
-    SWord sym
+    IO (SWord sym)
 
 -- | This class defines additional operations necessary to define generic evaluation
 --   functions.
@@ -658,12 +658,12 @@ instance BitWord () where
   type SInteger () = Integer
 
   wordLen _ (BV w _) = w
-  wordAsChar _ (BV _ x) = Just $ integerToChar x
+  wordAsChar _ (BV _ x) = Just $! integerToChar x
 
-  wordBit _ (BV w x) idx = testBit x (fromInteger (w - 1 - idx))
+  wordBit _ (BV w x) idx = pure $! testBit x (fromInteger (w - 1 - idx))
 
-  wordUpdate _ (BV w x) idx True  = BV w (setBit   x (fromInteger (w - 1 - idx)))
-  wordUpdate _ (BV w x) idx False = BV w (clearBit x (fromInteger (w - 1 - idx)))
+  wordUpdate _ (BV w x) idx True  = pure $! BV w (setBit   x (fromInteger (w - 1 - idx)))
+  wordUpdate _ (BV w x) idx False = pure $! BV w (clearBit x (fromInteger (w - 1 - idx)))
 
   ppBit _ b | b         = text "True"
             | otherwise = text "False"
@@ -672,11 +672,11 @@ instance BitWord () where
 
   ppInteger _ _opts i = integer i
 
-  bitLit _ b = b
-  wordLit _ w i = mkBv w i
-  integerLit _ i = i
+  bitLit _ b = pure b
+  wordLit _ w i = pure $! mkBv w i
+  integerLit _ i = pure i
 
-  packWord _ bits = BV (toInteger w) a
+  packWord _ bits = pure $! BV (toInteger w) a
     where
       w = case length bits of
             len | toInteger len >= Arch.maxBigIntWidth -> wordTooWide (toInteger len)
@@ -685,40 +685,40 @@ instance BitWord () where
       setb acc (n,b) | b         = setBit acc n
                      | otherwise = acc
 
-  unpackWord _ (BV w a) = [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
+  unpackWord _ (BV w a) = pure [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
     where
       w' = fromInteger w
 
   joinWord _ (BV i x) (BV j y) =
-    BV (i + j) (shiftL x (fromInteger j) + y)
+    pure $! BV (i + j) (shiftL x (fromInteger j) + y)
 
   splitWord _ leftW rightW (BV _ x) =
-    ( BV leftW (x `shiftR` (fromInteger rightW)), mkBv rightW x )
+    pure ( BV leftW (x `shiftR` (fromInteger rightW)), mkBv rightW x )
 
-  extractWord _ n i (BV _ x) = mkBv n (x `shiftR` (fromInteger i))
+  extractWord _ n i (BV _ x) = pure $! mkBv n (x `shiftR` (fromInteger i))
 
   wordPlus _ (BV i x) (BV j y)
-    | i == j = mkBv i (x+y)
+    | i == j = pure $! mkBv i (x+y)
     | otherwise = panic "Attempt to add words of different sizes: wordPlus" []
 
   wordMinus _ (BV i x) (BV j y)
-    | i == j = mkBv i (x-y)
+    | i == j = pure $! mkBv i (x-y)
     | otherwise = panic "Attempt to subtract words of different sizes: wordMinus" []
 
   wordMult _ (BV i x) (BV j y)
-    | i == j = mkBv i (x*y)
+    | i == j = pure $! mkBv i (x*y)
     | otherwise = panic "Attempt to multiply words of different sizes: wordMult" []
 
-  intPlus  _ x y = x + y
-  intMinus _ x y = x - y
-  intMult  _ x y = x * y
+  intPlus  _ x y = pure $! x + y
+  intMinus _ x y = pure $! x - y
+  intMult  _ x y = pure $! x * y
 
-  intModPlus  _ m x y = (x + y) `mod` m
-  intModMinus _ m x y = (x - y) `mod` m
-  intModMult  _ m x y = (x * y) `mod` m
+  intModPlus  _ m x y = pure $! ((x + y) `mod` m)
+  intModMinus _ m x y = pure $! ((x - y) `mod` m)
+  intModMult  _ m x y = pure $! ((x * y) `mod` m)
 
-  wordToInt _ (BV _ x) = x
-  wordFromInt _ w x = mkBv w x
+  wordToInt _ (BV _ x) = pure x
+  wordFromInt _ w x = pure $! mkBv w x
 
 -- Value Constructors ----------------------------------------------------------
 
@@ -726,7 +726,7 @@ instance BitWord () where
 word :: BitWord sym => sym -> Integer -> Integer -> GenValue sym
 word sym n i
   | n >= Arch.maxBigIntWidth = wordTooWide n
-  | otherwise                = VWord n (WordVal <$> pure (wordLit sym n i))
+  | otherwise                = VWord n (WordVal <$> io (wordLit sym n i))
 
 
 lam :: (Eval (GenValue sym) -> Eval (GenValue sym)) -> GenValue sym
@@ -753,12 +753,12 @@ toFinSeq ::
   BitWord sym =>
   sym -> Integer -> TValue -> [GenValue sym] -> GenValue sym
 toFinSeq sym len elty vs
-   | isTBit elty = VWord len (WordVal <$> pure (packWord sym (map fromVBit vs)))
+   | isTBit elty = VWord len (WordVal <$> io (packWord sym (map fromVBit vs)))
    | otherwise   = VSeq len $ finiteSeqMap (map ready vs)
 
 -- | This is strict!
 boolToWord :: [Bool] -> Value
-boolToWord bs = VWord (genericLength bs) (WordVal <$> pure (packWord () bs))
+boolToWord bs = VWord (genericLength bs) (WordVal <$> io (packWord () bs))
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
@@ -834,7 +834,7 @@ vWordLen val = case val of
 -- | If the given list of values are all fully-evaluated thunks
 --   containing bits, return a packed word built from the same bits.
 --   However, if any value is not a fully-evaluated bit, return 'Nothing'.
-tryFromBits :: BitWord sym => sym -> [Eval (GenValue sym)] -> Maybe (SWord sym)
+tryFromBits :: BitWord sym => sym -> [Eval (GenValue sym)] -> Maybe (IO (SWord sym))
 tryFromBits sym = go id
   where
   go f [] = Just (packWord sym (f []))

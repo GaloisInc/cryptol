@@ -288,8 +288,8 @@ parseValue (FTSeq 0 FTBit) cvs = (Eval.word () 0 0, cvs)
 parseValue (FTSeq n FTBit) cvs =
   case SBV.genParse (SBV.KBounded False n) cvs of
     Just (x, cvs') -> (Eval.word () (toInteger n) x, cvs')
-    Nothing        -> (VWord (genericLength vs) $ return $ Eval.WordVal $
-                         Eval.packWord () (map fromVBit vs), cvs')
+    Nothing        -> (VWord (genericLength vs) (Eval.WordVal <$>
+                         Eval.io (Eval.packWord () (map fromVBit vs))), cvs')
       where (vs, cvs') = parseValues (replicate n FTBit) cvs
 parseValue (FTSeq n t) cvs =
                       (Eval.VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
@@ -358,7 +358,9 @@ predArgTypes schema@(Forall ts ps ty)
 
 inBoundsIntMod :: Integer -> Eval.SInteger SBV -> Eval.SBit SBV
 inBoundsIntMod n x =
-  SBV.svAnd (SBV.svLessEq (Eval.integerLit SBV 0) x) (SBV.svLessThan x (Eval.integerLit SBV n))
+  let z  = SBV.svInteger SBV.KUnbounded 0
+      n' = SBV.svInteger SBV.KUnbounded n
+   in SBV.svAnd (SBV.svLessEq z x) (SBV.svLessThan x n')
 
 forallFinType :: FinType -> WriterT [Eval.SBit SBV] SBV.Symbolic Value
 forallFinType ty =

@@ -24,7 +24,7 @@ import Data.Bits
 import qualified Data.Sequence as Seq
 import qualified Data.Foldable as Fold
 
-import Cryptol.Eval.Monad (Eval(..), ready, invalidIndex, cryUserError)
+import Cryptol.Eval.Monad (Eval(..), ready, invalidIndex, cryUserError, io)
 import Cryptol.Eval.Type  (finNat', TValue(..))
 import Cryptol.Eval.Value (BitWord(..), EvalPrims(..), enumerateSeqMap, SeqMap(..),
                           reverseSeqMap, wlam, nlam, WordValue(..),
@@ -110,18 +110,18 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("%$"          , binary (arithBinary SBV (liftBinArith signedRem) (liftBin SBV.svRem)
                              (liftModBin SBV.svRem)))
   , (">>$"         , sshrV)
-  , ("&&"          , binary (logicBinary SBV SBV.svAnd SBV.svAnd))
-  , ("||"          , binary (logicBinary SBV SBV.svOr SBV.svOr))
-  , ("^"           , binary (logicBinary SBV SBV.svXOr SBV.svXOr))
+  , ("&&"          , binary (logicBinary SBV (\x y -> pure $ SBV.svAnd x y) (\x y -> pure $ SBV.svAnd x y)))
+  , ("||"          , binary (logicBinary SBV (\x y -> pure $ SBV.svOr x y) (\x y -> pure $ SBV.svOr x y)))
+  , ("^"           , binary (logicBinary SBV (\x y -> pure $ SBV.svXOr x y) (\x y -> pure $ SBV.svXOr x y)))
   , ("complement"  , unary (logicUnary SBV.svNot SBV.svNot))
-  , ("zero"        , tlam (zeroV SBV))
+  , ("zero"        , VPoly (zeroV SBV))
   , ("toInteger"   , ecToIntegerV SBV)
   , ("fromInteger" , ecFromIntegerV SBV (const id))
   , ("fromZ"      , nlam $ \ modulus ->
                     lam  $ \ x -> do
                       val <- x
                       case (modulus, val) of
-                        (Nat n, VInteger i) -> return $ VInteger (SBV.svRem i (integerLit SBV n))
+                        (Nat n, VInteger i) -> VInteger . SBV.svRem i <$> io (integerLit SBV n)
                         _                   -> evalPanic "fromZ" ["Invalid arguments"])
   , ("<<"          , logicShift "<<"
                        SBV.svShiftLeft
@@ -199,13 +199,13 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
       tlam $ \at ->
       nlam $ \(finNat' -> _len) ->
       VFun $ \_msg ->
-        return $ zeroV SBV at) -- error/undefined, is arbitrarily translated to 0
+        zeroV SBV at) -- error/undefined, is arbitrarily translated to 0
 
   , ("random"      ,
       tlam $ \a ->
       wlam SBV $ \x ->
          case SBV.svAsInteger x of
-           Just i  -> return $ randomV SBV a i
+           Just i  -> randomV SBV a i
            Nothing -> cryUserError "cannot evaluate 'random' with symbolic inputs")
 
      -- The trace function simply forces its first two
@@ -254,14 +254,14 @@ logicShift nm wop reindex =
                    do idx_bits <- enumerateWordValue SBV idx
                       let op bs shft = return $ Seq.fromFunction (Seq.length bs) $ \i ->
                                              case reindex (Nat w) (toInteger i) shft of
-                                               Nothing -> return $ bitLit SBV False
+                                               Nothing -> io $ bitLit SBV False
                                                Just i' -> Seq.index bs (fromInteger i')
                       BitsVal <$> shifter (mergeBits True) op bs0 idx_bits
                  LargeBitsVal n bs0 ->
                    do idx_bits <- enumerateWordValue SBV idx
                       let op bs shft = memoMap $ IndexSeqMap $ \i ->
                                          case reindex (Nat w) i shft of
-                                           Nothing -> return $ VBit $ bitLit SBV False
+                                           Nothing -> VBit <$> io (bitLit SBV False)
                                            Just i' -> lookupSeqMap bs i'
                       LargeBitsVal n <$> shifter (mergeSeqMap True) op bs0 idx_bits
 
@@ -269,7 +269,7 @@ logicShift nm wop reindex =
              do idx_bits <- enumerateWordValue SBV idx
                 let op vs shft = memoMap $ IndexSeqMap $ \i ->
                                    case reindex (Nat w) i shft of
-                                     Nothing -> return $ zeroV SBV a
+                                     Nothing -> zeroV SBV a
                                      Just i' -> lookupSeqMap vs i'
                 VSeq w <$> shifter (mergeSeqMap True) op vs0 idx_bits
 
@@ -277,7 +277,7 @@ logicShift nm wop reindex =
              do idx_bits <- enumerateWordValue SBV idx
                 let op vs shft = memoMap $ IndexSeqMap $ \i ->
                                    case reindex Inf i shft of
-                                     Nothing -> return $ zeroV SBV a
+                                     Nothing -> zeroV SBV a
                                      Just i' -> lookupSeqMap vs i'
                 VStream <$> shifter (mergeSeqMap True) op vs0 idx_bits
 
@@ -298,7 +298,9 @@ indexFront mblen a xs idx
   = do wvs <- traverse (fromWordVal "indexFront" =<<) (enumerateSeqMap n xs)
        case asWordList wvs of
          Just ws ->
-           return $ VWord wlen $ ready $ WordVal $ SBV.svSelect ws (wordLit SBV wlen 0) idx
+           do z <- io (wordLit SBV wlen 0)
+              ws' <- io (sequence ws)
+              return $ VWord wlen $ ready $ WordVal $ SBV.svSelect ws' z idx
          Nothing -> foldr f def idxs
 
   | otherwise
@@ -307,7 +309,7 @@ indexFront mblen a xs idx
  where
     k = SBV.kindOf idx
     w = SBV.intSizeOf idx
-    def = ready $ zeroV SBV a
+    def = zeroV SBV a
     f n y = iteValue SBV (SBV.svEqual idx (SBV.svInteger k n)) (lookupSeqMap xs n) y
     idxs = case mblen of
       Just n | n < 2^w -> [0 .. n-1]
@@ -334,7 +336,7 @@ indexFront_bits mblen a xs bits0 = go 0 (length bits0) (Fold.toList bits0)
     -- For indices out of range, return 0 arbitrarily
     | Just n <- mblen
     , i >= n
-    = return $ zeroV SBV a
+    = zeroV SBV a
 
     | otherwise
     = lookupSeqMap xs i
@@ -342,7 +344,7 @@ indexFront_bits mblen a xs bits0 = go 0 (length bits0) (Fold.toList bits0)
   go i k (b:bs)
     | Just n <- mblen
     , (i `shiftL` k) >= n
-    = return $ zeroV SBV a
+    = zeroV SBV a
 
     | otherwise
     = iteValue SBV b
@@ -415,8 +417,9 @@ updateFrontSym_word (Nat n) eltTy bv wv val =
          updateWordValue SBV bv j (fromVBit <$> val)
     _ ->
       case bv of
-        WordVal bw -> return $ BitsVal $ Seq.mapWithIndex f bs
-                        where bs = fmap return $ Seq.fromList $ unpackWord SBV bw
+        WordVal bw ->
+          do bs <- Seq.fromList . fmap pure <$> io (unpackWord SBV bw)
+             return $ BitsVal $ Seq.mapWithIndex f bs
         BitsVal bs -> return $ BitsVal $ Seq.mapWithIndex f bs
         LargeBitsVal l vs -> LargeBitsVal l <$> updateFrontSym (Nat n) eltTy vs wv val
   where
@@ -457,8 +460,9 @@ updateBackSym_word (Nat n) eltTy bv wv val = do
          updateWordValue SBV bv (n - 1 - j) (fromVBit <$> val)
     _ ->
       case bv of
-        WordVal bw -> return $ BitsVal $ Seq.mapWithIndex f bs
-                        where bs = fmap return $ Seq.fromList $ unpackWord SBV bw
+        WordVal bw ->
+           do bs <- Seq.fromList . fmap pure <$> io (unpackWord SBV bw)
+              return $ BitsVal $ Seq.mapWithIndex f bs
         BitsVal bs -> return $ BitsVal $ Seq.mapWithIndex f bs
         LargeBitsVal l vs -> LargeBitsVal l <$> updateBackSym (Nat n) eltTy vs wv val
   where
@@ -474,11 +478,11 @@ asBitList = go id
        go _ _ = Nothing
 
 
-asWordList :: [WordValue SBV] -> Maybe [SWord SBV]
+asWordList :: [WordValue SBV] -> Maybe [IO (SWord SBV)]
 asWordList = go id
- where go :: ([SWord SBV] -> [SWord SBV]) -> [WordValue SBV] -> Maybe [SWord SBV]
+ where go :: ([IO (SWord SBV)] -> [IO (SWord SBV)]) -> [WordValue SBV] -> Maybe [IO (SWord SBV)]
        go f [] = Just (f [])
-       go f (WordVal x :vs) = go (f . (x:)) vs
+       go f (WordVal x :vs) = go (f . (pure x:)) vs
        go f (BitsVal bs:vs) =
               case asBitList (Fold.toList bs) of
                   Just xs -> go (f . (packWord SBV xs:)) vs
@@ -492,11 +496,15 @@ liftBin :: (a -> b -> c) -> a -> b -> Eval c
 liftBin op x y = ready $ op x y
 
 liftModBin :: (SInteger SBV -> SInteger SBV -> a) -> Integer -> SInteger SBV -> SInteger SBV -> Eval a
-liftModBin op modulus x y = ready $ op (SBV.svRem x m) (SBV.svRem y m)
-  where m = integerLit SBV modulus
+liftModBin op modulus x y =
+   do m <- io (integerLit SBV modulus)
+      ready $ op (SBV.svRem x m) (SBV.svRem y m)
 
 sExp :: Integer -> SWord SBV -> SWord SBV -> Eval (SWord SBV)
-sExp _w x y = ready $ go (reverse (unpackWord SBV y)) -- bits in little-endian order
+sExp _w x y =
+   do ys <- reverse <$> io (unpackWord SBV y) -- bits in little-endian order
+      ready $ go ys
+
   where go []       = literalSWord (SBV.intSizeOf x) 1
         go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
             where a = go bs
@@ -505,24 +513,25 @@ sExp _w x y = ready $ go (reverse (unpackWord SBV y)) -- bits in little-endian o
 sModAdd :: Integer -> SInteger SBV -> SInteger SBV -> Eval (SInteger SBV)
 sModAdd modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
-    (Just i, Just j) -> ready $ integerLit SBV ((i + j) `mod` modulus)
+    (Just i, Just j) -> io $ integerLit SBV ((i + j) `mod` modulus)
     _                -> ready $ SBV.svPlus x y
 
 sModSub :: Integer -> SInteger SBV -> SInteger SBV -> Eval (SInteger SBV)
 sModSub modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
-    (Just i, Just j) -> ready $ integerLit SBV ((i - j) `mod` modulus)
+    (Just i, Just j) -> io $ integerLit SBV ((i - j) `mod` modulus)
     _                -> ready $ SBV.svMinus x y
 
 sModMult :: Integer -> SInteger SBV -> SInteger SBV -> Eval (SInteger SBV)
 sModMult modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
-    (Just i, Just j) -> ready $ integerLit SBV ((i * j) `mod` modulus)
+    (Just i, Just j) -> io $ integerLit SBV ((i * j) `mod` modulus)
     _                -> ready $ SBV.svTimes x y
 
 sModExp :: Integer -> SInteger SBV -> SInteger SBV -> Eval (SInteger SBV)
-sModExp modulus x y = ready $ SBV.svExp x (SBV.svRem y m)
-  where m = integerLit SBV modulus
+sModExp modulus x y =
+   do m <- io (integerLit SBV modulus)
+      ready $ SBV.svExp x (SBV.svRem y m)
 
 -- | Ceiling (log_2 x)
 sLg2 :: Integer -> SWord SBV -> Eval (SWord SBV)
@@ -540,8 +549,9 @@ svLg2 x =
     Nothing -> evalPanic "cannot compute lg2 of symbolic unbounded integer" []
 
 svModLg2 :: Integer -> SInteger SBV -> Eval (SInteger SBV)
-svModLg2 modulus x = svLg2 (SBV.svRem x m)
-  where m = integerLit SBV modulus
+svModLg2 modulus x =
+   do m <- io (integerLit SBV modulus)
+      svLg2 (SBV.svRem x m)
 
 -- Cmp -------------------------------------------------------------------------
 
@@ -567,17 +577,21 @@ cmpGtEq x y k = SBV.svAnd (SBV.svGreaterEq x y) <$> (cmpNotEq x y k)
 cmpMod ::
   (SInteger SBV -> SInteger SBV -> Eval (SBit SBV) -> Eval (SBit SBV)) ->
   (Integer -> SInteger SBV -> SInteger SBV -> Eval (SBit SBV) -> Eval (SBit SBV))
-cmpMod cmp modulus x y k = cmp (SBV.svRem x m) (SBV.svRem y m) k
-  where m = integerLit SBV modulus
+cmpMod cmp modulus x y k =
+   do m <- io (integerLit SBV modulus)
+      cmp (SBV.svRem x m) (SBV.svRem y m) k
 
 cmpModEq :: Integer -> SInteger SBV -> SInteger SBV -> Eval (SBit SBV) -> Eval (SBit SBV)
-cmpModEq m x y k = SBV.svAnd (svDivisible m (SBV.svMinus x y)) <$> k
+cmpModEq m x y k = SBV.svAnd <$> (svDivisible m (SBV.svMinus x y)) <*> k
 
 cmpModNotEq :: Integer -> SInteger SBV -> SInteger SBV -> Eval (SBit SBV) -> Eval (SBit SBV)
-cmpModNotEq m x y k = SBV.svOr (SBV.svNot (svDivisible m (SBV.svMinus x y))) <$> k
+cmpModNotEq m x y k = SBV.svOr <$> (SBV.svNot <$> (svDivisible m (SBV.svMinus x y))) <*> k
 
-svDivisible :: Integer -> SInteger SBV -> (SBit SBV)
-svDivisible m x = SBV.svEqual (SBV.svRem x (integerLit SBV m)) (integerLit SBV 0)
+svDivisible :: Integer -> SInteger SBV -> Eval (SBit SBV)
+svDivisible m x =
+  do m' <- io (integerLit SBV m)
+     z  <- io (integerLit SBV 0)
+     pure $ SBV.svEqual (SBV.svRem x m') z
 
 cmpBinary :: (SBit SBV -> SBit SBV -> Eval (SBit SBV) -> Eval (SBit SBV))
           -> (SWord SBV -> SWord SBV -> Eval (SBit SBV) -> Eval (SBit SBV))
