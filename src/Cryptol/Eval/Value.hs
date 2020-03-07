@@ -308,8 +308,8 @@ instance BitWord sym => Show (GenValue sym) where
   show v = case v of
     VRecord fs -> "record:" ++ show (Map.keys fs)
     VTuple xs  -> "tuple:" ++ show (length xs)
-    VBit b     -> show b
-    VInteger i -> show i
+    VBit _     -> "bit"
+    VInteger _ -> "integer"
     VSeq n _   -> "seq:" ++ show n
     VWord n _  -> "word:"  ++ show n
     VStream _  -> "stream"
@@ -414,8 +414,7 @@ ppBV opts (BV width i)
 -- | This type class defines a collection of operations on bits and words that
 --   are necessary to define generic evaluator primitives that operate on both concrete
 --   and symbolic values uniformly.
-class ( Show (SBit sym), Show (SWord sym), Show (SInteger sym)
-      ) => BitWord sym where
+class BitWord sym where
   type SBit sym :: Type
   type SWord sym :: Type
   type SInteger sym :: Type
