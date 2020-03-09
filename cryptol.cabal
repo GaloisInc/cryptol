@@ -73,9 +73,7 @@ library
   Build-tools:         alex, happy
   hs-source-dirs:      src
 
-  Exposed-modules:     Cryptol.Prims.Eval,
-
-                       Cryptol.Parser,
+  Exposed-modules:     Cryptol.Parser,
                        Cryptol.Parser.Lexer,
                        Cryptol.Parser.AST,
                        Cryptol.Parser.Position,
@@ -154,6 +152,7 @@ library
 
                        Cryptol.Eval,
                        Cryptol.Eval.Arch,
+                       Cryptol.Eval.Concrete,
                        Cryptol.Eval.Env,
                        Cryptol.Eval.Monad,
                        Cryptol.Eval.Reference,

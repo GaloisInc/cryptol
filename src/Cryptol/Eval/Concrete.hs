@@ -1,6 +1,6 @@
 -- |
--- Module      :  Cryptol.Prims.Eval
--- Copyright   :  (c) 2013-2016 Galois, Inc.
+-- Module      :  Cryptol.Eval.Concrete
+-- Copyright   :  (c) 2013-2020 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
@@ -18,7 +18,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-module Cryptol.Prims.Eval where
+module Cryptol.Eval.Concrete where
 
 import Control.Monad (join, unless)
 

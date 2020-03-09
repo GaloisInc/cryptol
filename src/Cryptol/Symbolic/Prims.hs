@@ -33,7 +33,7 @@ import Cryptol.Eval.Value (BitWord(..), EvalPrims(..), enumerateSeqMap, SeqMap(.
                           wordValueSize, asBitsMap,
                           updateWordValue,
                           updateSeqMap, lookupSeqMap, memoMap )
-import Cryptol.Prims.Eval (binary, unary, arithUnary,
+import Cryptol.Eval.Concrete (binary, unary, arithUnary,
                            arithBinary, Binary, BinArith,
                            logicBinary, logicUnary, zeroV,
                            ccatV, splitAtV, joinV, ecSplitV,
