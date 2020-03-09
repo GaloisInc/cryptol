@@ -154,6 +154,7 @@ library
                        Cryptol.Eval.Arch,
                        Cryptol.Eval.Concrete,
                        Cryptol.Eval.Env,
+                       Cryptol.Eval.Generic,
                        Cryptol.Eval.Monad,
                        Cryptol.Eval.Reference,
                        Cryptol.Eval.Type,

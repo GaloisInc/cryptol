@@ -17,7 +17,7 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Cryptol.Symbolic.Prims where
+module Cryptol.Symbolic.Prims (evalPrim) where
 
 import Control.Monad (unless)
 import Data.Bits
@@ -26,14 +26,14 @@ import qualified Data.Foldable as Fold
 
 import Cryptol.Eval.Monad (Eval(..), ready, invalidIndex, cryUserError, io)
 import Cryptol.Eval.Type  (finNat', TValue(..))
-import Cryptol.Eval.Value (BitWord(..), EvalPrims(..), enumerateSeqMap, SeqMap(..),
+import Cryptol.Eval.Value (BitWord(..), enumerateSeqMap, SeqMap(..),
                           reverseSeqMap, wlam, nlam, WordValue(..),
                           asWordVal, fromWordVal,
                           enumerateWordValue, enumerateWordValueRev,
                           wordValueSize, asBitsMap,
                           updateWordValue,
                           updateSeqMap, lookupSeqMap, memoMap )
-import Cryptol.Eval.Concrete (binary, unary, arithUnary,
+import Cryptol.Eval.Generic (binary, unary, arithUnary,
                            arithBinary, Binary, BinArith,
                            logicBinary, logicUnary, zeroV,
                            ccatV, splitAtV, joinV, ecSplitV,
@@ -44,9 +44,7 @@ import Cryptol.Eval.Concrete (binary, unary, arithUnary,
                            ecNumberV, updatePrim, randomV, liftWord,
                            cmpValue, lg2)
 import Cryptol.Symbolic.Value
-import Cryptol.TypeCheck.AST (Decl(..))
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), widthInteger)
-import Cryptol.ModuleSystem.Name (asPrim)
 import Cryptol.Utils.Ident (Ident,mkIdent)
 
 import qualified Data.SBV         as SBV
@@ -58,21 +56,10 @@ import Prelude ()
 import Prelude.Compat
 import Control.Monad (join)
 
-traverseSnd :: Functor f => (a -> f b) -> (t, a) -> f (t, b)
-traverseSnd f (x, y) = (,) x <$> f y
-
 -- Primitives ------------------------------------------------------------------
 
-instance EvalPrims SBV where
-  evalPrim Decl { dName = n, .. } =
-    do prim <- asPrim n
-       Map.lookup prim primTable
-
-  iteValue _ b x1 x2
-    | Just b' <- SBV.svAsBool b = if b' then x1 else x2
-    | otherwise = do v1 <- x1
-                     v2 <- x2
-                     iteSValue b v1 v2
+evalPrim :: Ident -> Maybe Value
+evalPrim prim = Map.lookup prim primTable
 
 -- See also Cryptol.Prims.Eval.primTable
 primTable :: Map.Map Ident Value
@@ -369,12 +356,14 @@ wordValueEqualsInteger wv i
     bitIs :: Bool -> SBit SBV -> SBit SBV
     bitIs b x = if b then x else SBV.svNot x
 
+{-
 lazyMergeBit :: SBit SBV -> Eval (SBit SBV) -> Eval (SBit SBV) -> Eval (SBit SBV)
 lazyMergeBit c x y =
   case SBV.svAsBool c of
     Just True -> x
     Just False -> y
     Nothing -> mergeBit False c <$> x <*> y
+-}
 
 updateFrontSym
   :: Nat'
@@ -467,12 +456,14 @@ updateBackSym_word (Nat n) eltTy bv wv val = do
     _ -> LargeBitsVal (wordValueSize SBV wv) <$> updateBackSym (Nat n) eltTy (asBitsMap SBV bv) wv val
 
 
+{-
 asBitList :: [Eval (SBit SBV)] -> Maybe [SBit SBV]
 asBitList = go id
  where go :: ([SBit SBV] -> [SBit SBV]) -> [Eval (SBit SBV)] -> Maybe [SBit SBV]
        go f [] = Just (f [])
        go f (Ready b:vs) = go (f . (b:)) vs
        go _ _ = Nothing
+-}
 
 
 asWordList :: [WordValue SBV] -> Maybe [IO (SWord SBV)]

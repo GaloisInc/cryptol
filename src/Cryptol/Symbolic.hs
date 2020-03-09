@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -33,7 +34,7 @@ import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
 
-import Cryptol.Symbolic.Prims
+import Cryptol.Symbolic.Prims ()
 import Cryptol.Symbolic.Value
 
 import qualified Cryptol.Eval as Eval
@@ -41,6 +42,7 @@ import qualified Cryptol.Eval.Monad as Eval
 import qualified Cryptol.Eval.Type as Eval
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.Env (GenEvalEnv(..))
+import qualified Cryptol.Symbolic.Prims as Symbolic
 import Cryptol.TypeCheck.AST
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
@@ -195,6 +197,8 @@ satProve ProverCommand {..} =
   let addAsm = case pcQueryType of
         ProveQuery -> \x y -> SBV.svOr (SBV.svNot x) y
         SatQuery _ -> \x y -> SBV.svAnd x y
+
+  let ?evalPrim = Symbolic.evalPrim
   case predArgTypes pcSchema of
     Left msg -> return (Nothing, ProverError msg)
     Right ts -> do when pcVerbose $ lPutStrLn "Simulating..."
@@ -246,6 +250,7 @@ satProveOffline ProverCommand {..} =
     let extDgs = allDeclGroups modEnv ++ pcExtraDecls
     let tyFn = if isSat then existsFinType else forallFinType
     let addAsm = if isSat then SBV.svAnd else \x y -> SBV.svOr (SBV.svNot x) y
+    let ?evalPrim = Symbolic.evalPrim
     case predArgTypes pcSchema of
       Left msg -> return (Right (Left msg, modEnv), [])
       Right ts ->
@@ -317,6 +322,9 @@ numType :: Integer -> Maybe Int
 numType n
   | 0 <= n && n <= toInteger (maxBound :: Int) = Just (fromInteger n)
   | otherwise = Nothing
+
+traverseSnd :: Functor f => (a -> f b) -> (t, a) -> f (t, b)
+traverseSnd f (x, y) = (,) x <$> f y
 
 finType :: TValue -> Maybe FinType
 finType ty =

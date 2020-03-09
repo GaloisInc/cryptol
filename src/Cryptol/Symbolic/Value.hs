@@ -221,6 +221,13 @@ instance BitWord SBV where
   wordToInt _ x = pure $! svToInteger x
   wordFromInt _ w i = pure $! svFromInteger w i
 
+  iteValue _ b x1 x2
+    | Just b' <- svAsBool b = if b' then x1 else x2
+    | otherwise = do v1 <- x1
+                     v2 <- x2
+                     iteSValue b v1 v2
+
+
 -- TODO: implement this properly in SBV using "bv2int"
 svToInteger :: SWord SBV -> SInteger SBV
 svToInteger w =

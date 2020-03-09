@@ -6,7 +6,9 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DoAndIfThenElse #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ParallelListComp #-}
@@ -35,12 +37,14 @@ import Cryptol.Eval.Env
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
-import Cryptol.Parser.Selector(ppSelector)
 import Cryptol.ModuleSystem.Name
+import Cryptol.Parser.Selector(ppSelector)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
+import Cryptol.Utils.Ident
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
+
 
 import           Control.Monad
 import           Data.List
@@ -52,6 +56,9 @@ import Prelude ()
 import Prelude.Compat
 
 type EvalEnv = GenEvalEnv ()
+
+type EvalPrims sym =
+  ( BitWord sym, ?evalPrim :: Ident -> Maybe (GenValue sym) )
 
 -- Expression Evaluation -------------------------------------------------------
 
@@ -415,9 +422,10 @@ evalDecl ::
   Eval (GenEvalEnv sym)
 evalDecl sym renv env d =
   case dDefinition d of
-    DPrim   -> case evalPrim d of
-                 Just v  -> pure (bindVarDirect (dName d) v env)
-                 Nothing -> bindVar (dName d) (cryNoPrimError (dName d)) env
+    DPrim ->
+      case ?evalPrim =<< asPrim (dName d) of
+        Just v  -> pure (bindVarDirect (dName d) v env)
+        Nothing -> bindVar (dName d) (cryNoPrimError (dName d)) env
 
     DExpr e -> bindVar (dName d) (evalExpr sym renv e) env
 

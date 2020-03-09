@@ -12,6 +12,7 @@
 {-# LANGUAGE DoAndIfThenElse #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE PatternGuards #-}
@@ -606,13 +607,6 @@ class BitWord sym where
     SInteger sym ->
     IO (SWord sym)
 
--- | This class defines additional operations necessary to define generic evaluation
---   functions.
-class BitWord sym => EvalPrims sym where
-  -- | Eval prim binds primitive declarations to the primitive values that implement them.  Returns 'Nothing' for abstract primitives (i.e., once that are
-  -- not implemented by this backend).
-  evalPrim :: Decl -> Maybe (GenValue sym)
-
   -- | if/then/else operation.  Choose either the 'then' value or the 'else' value depending
   --   on the value of the test bit.
   iteValue ::
@@ -621,6 +615,7 @@ class BitWord sym => EvalPrims sym where
     Eval (GenValue sym)  {- ^ 'then' value -} ->
     Eval (GenValue sym)  {- ^ 'else' value -} ->
     Eval (GenValue sym)
+
 
 -- Concrete Big-endian Words ------------------------------------------------------------
 
@@ -698,6 +693,9 @@ instance BitWord () where
 
   wordToInt _ (BV _ x) = pure x
   wordFromInt _ w x = pure $! mkBv w x
+
+  iteValue _ b t f = if b then t else f
+
 
 -- Value Constructors ----------------------------------------------------------
 
