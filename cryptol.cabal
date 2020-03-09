@@ -157,6 +157,7 @@ library
                        Cryptol.Eval.Generic,
                        Cryptol.Eval.Monad,
                        Cryptol.Eval.Reference,
+                       Cryptol.Eval.SBV,
                        Cryptol.Eval.Type,
                        Cryptol.Eval.Value,
 
@@ -164,8 +165,6 @@ library
                        Cryptol.Testing.Random,
 
                        Cryptol.Symbolic,
-                       Cryptol.Symbolic.Prims,
-                       Cryptol.Symbolic.Value,
 
                        Cryptol.REPL.Command,
                        Cryptol.REPL.Monad,

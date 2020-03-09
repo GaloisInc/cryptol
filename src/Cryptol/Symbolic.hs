@@ -34,15 +34,13 @@ import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
 
-import Cryptol.Symbolic.Prims ()
-import Cryptol.Symbolic.Value
-
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Monad as Eval
-import qualified Cryptol.Eval.Type as Eval
+import           Cryptol.Eval.Type (TValue(..), evalType)
+
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.Env (GenEvalEnv(..))
-import qualified Cryptol.Symbolic.Prims as Symbolic
+import           Cryptol.Eval.SBV
 import Cryptol.TypeCheck.AST
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
@@ -198,7 +196,7 @@ satProve ProverCommand {..} =
         ProveQuery -> \x y -> SBV.svOr (SBV.svNot x) y
         SatQuery _ -> \x y -> SBV.svAnd x y
 
-  let ?evalPrim = Symbolic.evalPrim
+  let ?evalPrim = evalPrim
   case predArgTypes pcSchema of
     Left msg -> return (Nothing, ProverError msg)
     Right ts -> do when pcVerbose $ lPutStrLn "Simulating..."
@@ -207,8 +205,8 @@ satProve ProverCommand {..} =
                    prims <- M.getPrimMap
                    runRes <- runFn $ do
                                (args, asms) <- runWriterT (mapM tyFn ts)
-                               b <- doEval (fromVBit <$>
-                                      foldM fromVFun v (map Eval.ready args))
+                               b <- doEval (Eval.fromVBit <$>
+                                      foldM Eval.fromVFun v (map Eval.ready args))
                                return (foldr addAsm b asms)
                    let (firstProver, results) = runRes
                    esatexprs <- case results of
@@ -250,7 +248,7 @@ satProveOffline ProverCommand {..} =
     let extDgs = allDeclGroups modEnv ++ pcExtraDecls
     let tyFn = if isSat then existsFinType else forallFinType
     let addAsm = if isSat then SBV.svAnd else \x y -> SBV.svOr (SBV.svNot x) y
-    let ?evalPrim = Symbolic.evalPrim
+    let ?evalPrim = evalPrim
     case predArgTypes pcSchema of
       Left msg -> return (Right (Left msg, modEnv), [])
       Right ts ->
@@ -261,7 +259,7 @@ satProveOffline ProverCommand {..} =
            smtlib <- SBV.generateSMTBenchmark isSat $ do
              (args, asms) <- runWriterT (mapM tyFn ts)
              b <- liftIO $ Eval.runEval evOpts
-                        (fromVBit <$> foldM fromVFun v (map Eval.ready args))
+                        (Eval.fromVBit <$> foldM Eval.fromVFun v (map Eval.ready args))
              return (foldr addAsm b asms)
            return (Right (Right smtlib, modEnv), [])
 
@@ -293,8 +291,8 @@ parseValue (FTSeq 0 FTBit) cvs = (Eval.word () 0 0, cvs)
 parseValue (FTSeq n FTBit) cvs =
   case SBV.genParse (SBV.KBounded False n) cvs of
     Just (x, cvs') -> (Eval.word () (toInteger n) x, cvs')
-    Nothing        -> (VWord (genericLength vs) (Eval.WordVal <$>
-                         Eval.io (Eval.packWord () (map fromVBit vs))), cvs')
+    Nothing        -> (Eval.VWord (genericLength vs) (Eval.WordVal <$>
+                         Eval.io (Eval.packWord () (map Eval.fromVBit vs))), cvs')
       where (vs, cvs') = parseValues (replicate n FTBit) cvs
 parseValue (FTSeq n t) cvs =
                       (Eval.VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
@@ -329,13 +327,13 @@ traverseSnd f (x, y) = (,) x <$> f y
 finType :: TValue -> Maybe FinType
 finType ty =
   case ty of
-    Eval.TVBit            -> Just FTBit
-    Eval.TVInteger        -> Just FTInteger
-    Eval.TVIntMod n       -> Just (FTIntMod n)
-    Eval.TVSeq n t        -> FTSeq <$> numType n <*> finType t
-    Eval.TVTuple ts       -> FTTuple <$> traverse finType ts
-    Eval.TVRec fields     -> FTRecord <$> traverse (traverseSnd finType) fields
-    Eval.TVAbstract {}    -> Nothing
+    TVBit            -> Just FTBit
+    TVInteger        -> Just FTInteger
+    TVIntMod n       -> Just (FTIntMod n)
+    TVSeq n t        -> FTSeq <$> numType n <*> finType t
+    TVTuple ts       -> FTTuple <$> traverse finType ts
+    TVRec fields     -> FTRecord <$> traverse (traverseSnd finType) fields
+    TVAbstract {}    -> Nothing
     _                     -> Nothing
 
 unFinType :: FinType -> Type
@@ -354,15 +352,15 @@ unFinType fty =
 predArgTypes :: Schema -> Either String [FinType]
 predArgTypes schema@(Forall ts ps ty)
   | null ts && null ps =
-      case go <$> (Eval.evalType mempty ty) of
+      case go <$> (evalType mempty ty) of
         Right (Just fts) -> Right fts
         _ -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
   | otherwise = Left $ "Not a monomorphic type:\n" ++ show (pp schema)
   where
     go :: TValue -> Maybe [FinType]
-    go Eval.TVBit             = Just []
-    go (Eval.TVFun ty1 ty2)   = (:) <$> finType ty1 <*> go ty2
-    go _                      = Nothing
+    go TVBit             = Just []
+    go (TVFun ty1 ty2)   = (:) <$> finType ty1 <*> go ty2
+    go _                 = Nothing
 
 inBoundsIntMod :: Integer -> Eval.SInteger SBV -> Eval.SBit SBV
 inBoundsIntMod n x =
@@ -373,29 +371,29 @@ inBoundsIntMod n x =
 forallFinType :: FinType -> WriterT [Eval.SBit SBV] SBV.Symbolic Value
 forallFinType ty =
   case ty of
-    FTBit         -> VBit <$> lift forallSBool_
-    FTInteger     -> VInteger <$> lift forallSInteger_
+    FTBit         -> Eval.VBit <$> lift forallSBool_
+    FTInteger     -> Eval.VInteger <$> lift forallSInteger_
     FTIntMod n    -> do x <- lift forallSInteger_
                         tell [inBoundsIntMod n x]
-                        return (VInteger x)
+                        return (Eval.VInteger x)
     FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
-    FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> lift (forallBV_ n)
+    FTSeq n FTBit -> Eval.VWord (toInteger n) . return . Eval.WordVal <$> lift (forallBV_ n)
     FTSeq n t     -> do vs <- replicateM n (forallFinType t)
-                        return $ VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
-    FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . forallFinType) ts
-    FTRecord fs   -> VRecord <$> mapM (fmap Eval.ready . forallFinType) (Map.fromList fs)
+                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
+    FTTuple ts    -> Eval.VTuple <$> mapM (fmap Eval.ready . forallFinType) ts
+    FTRecord fs   -> Eval.VRecord <$> mapM (fmap Eval.ready . forallFinType) (Map.fromList fs)
 
 existsFinType :: FinType -> WriterT [Eval.SBit SBV] SBV.Symbolic Value
 existsFinType ty =
   case ty of
-    FTBit         -> VBit <$> lift existsSBool_
-    FTInteger     -> VInteger <$> lift existsSInteger_
+    FTBit         -> Eval.VBit <$> lift existsSBool_
+    FTInteger     -> Eval.VInteger <$> lift existsSInteger_
     FTIntMod n    -> do x <- lift existsSInteger_
                         tell [inBoundsIntMod n x]
-                        return (VInteger x)
+                        return (Eval.VInteger x)
     FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
-    FTSeq n FTBit -> VWord (toInteger n) . return . Eval.WordVal <$> lift (existsBV_ n)
+    FTSeq n FTBit -> Eval.VWord (toInteger n) . return . Eval.WordVal <$> lift (existsBV_ n)
     FTSeq n t     -> do vs <- replicateM n (existsFinType t)
-                        return $ VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
-    FTTuple ts    -> VTuple <$> mapM (fmap Eval.ready . existsFinType) ts
-    FTRecord fs   -> VRecord <$> mapM (fmap Eval.ready . existsFinType) (Map.fromList fs)
+                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
+    FTTuple ts    -> Eval.VTuple <$> mapM (fmap Eval.ready . existsFinType) ts
+    FTRecord fs   -> Eval.VRecord <$> mapM (fmap Eval.ready . existsFinType) (Map.fromList fs)
