@@ -23,12 +23,73 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Cryptol.Eval.Value where
+module Cryptol.Eval.Value
+  ( -- * GenericValue
+    GenValue(..)
+  , forceWordValue
+  , forceValue
+  , BitWord(..)
+  , asciiMode
+    -- ** Value introduction operations
+  , word
+  , lam
+  , wlam
+  , tlam
+  , nlam
+  , toStream
+  , toFinSeq
+  , toSeq
+  , mkSeq
+    -- ** Value eliminators
+  , fromVBit
+  , fromVInteger
+  , fromVSeq
+  , fromSeq
+  , fromBit
+  , fromWordVal
+  , fromVWord
+  , vWordLen
+  , tryFromBits
+  , fromVFun
+  , fromVPoly
+  , fromVNumPoly
+  , fromVTuple
+  , fromVRecord
+  , lookupRecord
+    -- ** Pretty printing
+  , defaultPPOpts
+  , ppValue
+
+    -- * Sequence Maps
+  , SeqMap (..)
+  , lookupSeqMap
+  , finiteSeqMap
+  , infiniteSeqMap
+  , enumerateSeqMap
+  , streamSeqMap
+  , reverseSeqMap
+  , updateSeqMap
+  , dropSeqMap
+  , concatSeqMap
+  , splitSeqMap
+  , memoMap
+  , zipSeqMap
+  , mapSeqMap
+  , largeBitSize
+    -- * WordValue
+  , WordValue(..)
+  , asWordVal
+  , asBitsMap
+  , enumerateWordValue
+  , enumerateWordValueRev
+  , wordValueSize
+  , indexWordValue
+  , updateWordValue
+  ) where
 
 import Data.Kind (Type)
 import Data.Bits
 import Data.IORef
-import qualified Data.Sequence as Seq
 import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import MonadLib
@@ -37,45 +98,15 @@ import qualified Cryptol.Eval.Arch as Arch
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 
-import Cryptol.TypeCheck.AST hiding (Type)
-import qualified Cryptol.TypeCheck.AST as AST
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
-import Cryptol.Utils.Ident (Ident,mkIdent)
+import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.PP
-import Cryptol.Utils.Panic(panic)
 
-import Data.List(genericLength, genericIndex, genericDrop)
-import qualified Data.Text as T
-import Numeric (showIntAtBase)
+import Data.List(genericIndex)
 
 import GHC.Generics (Generic)
-import Control.DeepSeq
 
 -- Values ----------------------------------------------------------------------
-
--- | Concrete bitvector values: width, value
--- Invariant: The value must be within the range 0 .. 2^width-1
-data BV = BV !Integer !Integer deriving (Generic, NFData)
-
-instance Show BV where
-  show = show . bvVal
-
--- | Apply an integer function to the values of bitvectors.
---   This function assumes both bitvectors are the same width.
-binBV :: Applicative m => (Integer -> Integer -> Integer) -> BV -> BV -> m BV
-binBV f (BV w x) (BV _ y) = pure $ mkBv w (f x y)
-
--- | Apply an integer function to the values of a bitvector.
---   This function assumes the function will not require masking.
-unaryBV :: (Integer -> Integer) -> BV -> BV
-unaryBV f (BV w x) = mkBv w $ f x
-
-bvVal :: BV -> Integer
-bvVal (BV _w x) = x
-
--- | Smart constructor for 'BV's that checks for the width limit
-mkBv :: Integer -> Integer -> BV
-mkBv w i = BV w (mask w i)
 
 -- | A sequence map represents a mapping from nonnegative integer indices
 --   to values.  These are used to represent both finite and infinite sequences.
@@ -90,8 +121,6 @@ lookupSeqMap (UpdateSeqMap m f) i =
   case Map.lookup i m of
     Just x  -> x
     Nothing -> f i
-
-type SeqValMap = SeqMap ()
 
 -- | An arbitrarily-chosen number of elements where we switch from a dense
 --   sequence representation of bit-level words to 'SeqMap' representation.
@@ -231,18 +260,6 @@ wordValueSize :: BitWord sym => sym -> WordValue sym -> Integer
 wordValueSize sym (WordVal w)  = wordLen sym w
 wordValueSize _ (LargeBitsVal n _) = n
 
-checkedSeqIndex :: Seq.Seq a -> Integer -> Eval a
-checkedSeqIndex xs i =
-  case Seq.viewl (Seq.drop (fromInteger i) xs) of
-    x Seq.:< _ -> return x
-    Seq.EmptyL -> invalidIndex i
-
-checkedIndex :: [a] -> Integer -> Eval a
-checkedIndex xs i =
-  case genericDrop i xs of
-    (x:_) -> return x
-    _     -> invalidIndex i
-
 -- | Select an individual bit from a word value
 indexWordValue :: BitWord sym => sym -> WordValue sym -> Integer -> Eval (SBit sym)
 indexWordValue sym (WordVal w) idx
@@ -318,19 +335,11 @@ instance BitWord sym => Show (GenValue sym) where
     VPoly _    -> "poly"
     VNumPoly _ -> "numpoly"
 
-type Value = GenValue ()
-
 
 -- Pretty Printing -------------------------------------------------------------
 
 defaultPPOpts :: PPOpts
 defaultPPOpts = PPOpts { useAscii = False, useBase = 10, useInfLength = 5 }
-
-atFst :: Functor f => (a -> f b) -> (a, c) -> f (b, c)
-atFst f (x,y) = fmap (,y) $ f x
-
-atSnd :: Functor f => (a -> f b) -> (c, a) -> f (c, b)
-atSnd f (x,y) = fmap (x,) $ f y
 
 ppValue :: forall sym.
   BitWord sym =>
@@ -380,37 +389,6 @@ ppValue x opts = loop
 
 asciiMode :: PPOpts -> Integer -> Bool
 asciiMode opts width = useAscii opts && (width == 7 || width == 8)
-
-integerToChar :: Integer -> Char
-integerToChar = toEnum . fromInteger
-
-
-ppBV :: PPOpts -> BV -> Doc
-ppBV opts (BV width i)
-  | base > 36 = integer i -- not sure how to rule this out
-  | asciiMode opts width = text (show (toEnum (fromInteger i) :: Char))
-  | otherwise = prefix <.> text value
-  where
-  base = useBase opts
-
-  padding bitsPerDigit = text (replicate padLen '0')
-    where
-    padLen | m > 0     = d + 1
-           | otherwise = d
-
-    (d,m) = (fromInteger width - (length value * bitsPerDigit))
-                   `divMod` bitsPerDigit
-
-  prefix = case base of
-    2  -> text "0b" <.> padding 1
-    8  -> text "0o" <.> padding 3
-    10 -> empty
-    16 -> text "0x" <.> padding 4
-    _  -> text "0"  <.> char '<' <.> int base <.> char '>'
-
-  value  = showIntAtBase (toInteger base) (digits !!) i ""
-  digits = "0123456789abcdefghijklmnopqrstuvwxyz"
-
 
 -- | This type class defines a collection of operations on bits and words that
 --   are necessary to define generic evaluator primitives that operate on both concrete
@@ -617,85 +595,6 @@ class BitWord sym where
     Eval (GenValue sym)
 
 
--- Concrete Big-endian Words ------------------------------------------------------------
-
-mask ::
-  Integer  {- ^ Bit-width -} ->
-  Integer  {- ^ Value -} ->
-  Integer  {- ^ Masked result -}
-mask w i | w >= Arch.maxBigIntWidth = wordTooWide w
-         | otherwise                = i .&. ((1 `shiftL` fromInteger w) - 1)
-
-instance BitWord () where
-  type SBit () = Bool
-  type SWord () = BV
-  type SInteger () = Integer
-
-  wordLen _ (BV w _) = w
-  wordAsChar _ (BV _ x) = Just $! integerToChar x
-
-  wordBit _ (BV w x) idx = pure $! testBit x (fromInteger (w - 1 - idx))
-
-  wordUpdate _ (BV w x) idx True  = pure $! BV w (setBit   x (fromInteger (w - 1 - idx)))
-  wordUpdate _ (BV w x) idx False = pure $! BV w (clearBit x (fromInteger (w - 1 - idx)))
-
-  ppBit _ b | b         = text "True"
-            | otherwise = text "False"
-
-  ppWord _ = ppBV
-
-  ppInteger _ _opts i = integer i
-
-  bitLit _ b = pure b
-  wordLit _ w i = pure $! mkBv w i
-  integerLit _ i = pure i
-
-  packWord _ bits = pure $! BV (toInteger w) a
-    where
-      w = case length bits of
-            len | toInteger len >= Arch.maxBigIntWidth -> wordTooWide (toInteger len)
-                | otherwise                  -> len
-      a = foldl setb 0 (zip [w - 1, w - 2 .. 0] bits)
-      setb acc (n,b) | b         = setBit acc n
-                     | otherwise = acc
-
-  unpackWord _ (BV w a) = pure [ testBit a n | n <- [w' - 1, w' - 2 .. 0] ]
-    where
-      w' = fromInteger w
-
-  joinWord _ (BV i x) (BV j y) =
-    pure $! BV (i + j) (shiftL x (fromInteger j) + y)
-
-  splitWord _ leftW rightW (BV _ x) =
-    pure ( BV leftW (x `shiftR` (fromInteger rightW)), mkBv rightW x )
-
-  extractWord _ n i (BV _ x) = pure $! mkBv n (x `shiftR` (fromInteger i))
-
-  wordPlus _ (BV i x) (BV j y)
-    | i == j = pure $! mkBv i (x+y)
-    | otherwise = panic "Attempt to add words of different sizes: wordPlus" []
-
-  wordMinus _ (BV i x) (BV j y)
-    | i == j = pure $! mkBv i (x-y)
-    | otherwise = panic "Attempt to subtract words of different sizes: wordMinus" []
-
-  wordMult _ (BV i x) (BV j y)
-    | i == j = pure $! mkBv i (x*y)
-    | otherwise = panic "Attempt to multiply words of different sizes: wordMult" []
-
-  intPlus  _ x y = pure $! x + y
-  intMinus _ x y = pure $! x - y
-  intMult  _ x y = pure $! x * y
-
-  intModPlus  _ m x y = pure $! ((x + y) `mod` m)
-  intModMinus _ m x y = pure $! ((x - y) `mod` m)
-  intModMult  _ m x y = pure $! ((x * y) `mod` m)
-
-  wordToInt _ (BV _ x) = pure x
-  wordFromInt _ w x = pure $! mkBv w x
-
-  iteValue _ b t f = if b then t else f
-
 
 -- Value Constructors ----------------------------------------------------------
 
@@ -732,10 +631,6 @@ toFinSeq ::
 toFinSeq sym len elty vs
    | isTBit elty = VWord len (WordVal <$> io (packWord sym (map fromVBit vs)))
    | otherwise   = VSeq len $ finiteSeqMap (map ready vs)
-
--- | This is strict!
-boolToWord :: [Bool] -> Value
-boolToWord bs = VWord (genericLength bs) (WordVal <$> io (packWord () bs))
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
@@ -784,11 +679,6 @@ fromSeq msg val = case val of
   VStream vs  -> return vs
   _           -> evalPanic "fromSeq" ["not a sequence", msg]
 
-fromStr :: Value -> Eval String
-fromStr (VSeq n vals) =
-  traverse (\x -> toEnum . fromInteger <$> (fromWord "fromStr" =<< x)) (enumerateSeqMap n vals)
-fromStr _ = evalPanic "fromStr" ["Not a finite sequence"]
-
 fromBit :: GenValue sym -> Eval (SBit sym)
 fromBit (VBit b) = return b
 fromBit _ = evalPanic "fromBit" ["Not a bit value"]
@@ -816,10 +706,6 @@ tryFromBits sym = go id
   go f [] = Just (packWord sym (f []))
   go f (Ready (VBit b) : vs) = go (f . (b :)) vs
   go _ (_ : _) = Nothing
-
--- | Turn a value into an integer represented by w bits.
-fromWord :: String -> Value -> Eval Integer
-fromWord msg val = bvVal <$> fromVWord () msg val
 
 -- | Extract a function from a value.
 fromVFun :: GenValue sym -> (Eval (GenValue sym) -> Eval (GenValue sym))
@@ -857,52 +743,3 @@ lookupRecord f val =
   case Map.lookup f (fromVRecord val) of
     Just x  -> x
     Nothing -> evalPanic "lookupRecord" ["malformed record"]
-
--- Value to Expression conversion ----------------------------------------------
-
--- | Given an expected type, returns an expression that evaluates to
--- this value, if we can determine it.
---
--- XXX: View patterns would probably clean up this definition a lot.
-toExpr :: PrimMap -> AST.Type -> Value -> Eval (Maybe Expr)
-toExpr prims t0 v0 = findOne (go t0 v0)
-  where
-
-  prim n = ePrim prims (mkIdent (T.pack n))
-
-  go :: AST.Type -> Value -> ChoiceT Eval Expr
-  go ty val = case (tNoUser ty, val) of
-    (TRec tfs, VRecord vfs) -> do
-      let fns = Map.keys vfs
-      guard (map fst tfs == fns)
-      fes <- zipWithM go (map snd tfs) =<< lift (sequence (Map.elems vfs))
-      return $ ERec (zip fns fes)
-    (TCon (TC (TCTuple tl)) ts, VTuple tvs) -> do
-      guard (tl == (length tvs))
-      ETuple `fmap` (zipWithM go ts =<< lift (sequence tvs))
-    (TCon (TC TCBit) [], VBit True ) -> return (prim "True")
-    (TCon (TC TCBit) [], VBit False) -> return (prim "False")
-    (TCon (TC TCInteger) [], VInteger i) ->
-      return $ ETApp (ETApp (prim "number") (tNum i)) ty
-    (TCon (TC TCIntMod) [_n], VInteger i) ->
-      return $ ETApp (ETApp (prim "number") (tNum i)) ty
-    (TCon (TC TCSeq) [a,b], VSeq 0 _) -> do
-      guard (a == tZero)
-      return $ EList [] b
-    (TCon (TC TCSeq) [a,b], VSeq n svs) -> do
-      guard (a == tNum n)
-      ses <- mapM (go b) =<< lift (sequence (enumerateSeqMap n svs))
-      return $ EList ses b
-    (TCon (TC TCSeq) [a,(TCon (TC TCBit) [])], VWord _ wval) -> do
-      BV w v <- lift (asWordVal () =<< wval)
-      guard (a == tNum w)
-      return $ ETApp (ETApp (prim "number") (tNum v)) ty
-    (_, VStream _) -> fail "cannot construct infinite expressions"
-    (_, VFun    _) -> fail "cannot convert function values to expressions"
-    (_, VPoly   _) -> fail "cannot convert polymorphic values to expressions"
-    _ -> do doc <- lift (ppValue () defaultPPOpts val)
-            panic "Cryptol.Eval.Value.toExpr"
-             ["type mismatch:"
-             , pretty ty
-             , render doc
-             ]

@@ -36,7 +36,9 @@ import Data.SBV.Dynamic as SBV
 import Cryptol.Eval.Type (TValue(..), finNat')
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Monad (Eval, ready, io, cryUserError, invalidIndex)
-import Cryptol.Eval.Value hiding ( Value )
+import Cryptol.Eval.Value
+import Cryptol.Eval.Concrete ( integerToChar, ppBV, BV(..) )
+import Cryptol.Testing.Random( randomV )
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), widthInteger)
 import Cryptol.Utils.Ident
 import Cryptol.Utils.Panic (panic)

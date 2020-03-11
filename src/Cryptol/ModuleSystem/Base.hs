@@ -25,7 +25,6 @@ import Cryptol.ModuleSystem.Env (lookupModule
                                 , meCoreLint, CoreLint(..)
                                 , ModulePath(..), modulePathLabel)
 import qualified Cryptol.Eval                 as E
-import qualified Cryptol.Eval.Value           as E
 import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import qualified Cryptol.ModuleSystem.Renamer as R
@@ -540,7 +539,7 @@ genInferInput r prims params env = do
 
 -- Evaluation ------------------------------------------------------------------
 
-evalExpr :: T.Expr -> ModuleM E.Value
+evalExpr :: T.Expr -> ModuleM Concrete.Value
 evalExpr e = do
   env <- getEvalEnv
   denv <- getDynEnv

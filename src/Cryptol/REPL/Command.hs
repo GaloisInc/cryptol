@@ -58,10 +58,11 @@ import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowe
 import qualified Cryptol.Utils.Ident as M
 import qualified Cryptol.ModuleSystem.Env as M
 
+import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Monad as E
 import qualified Cryptol.Eval.Value as E
 import qualified Cryptol.Eval.Reference as R
-import Cryptol.Testing.Concrete
+import Cryptol.Testing.Random
 import qualified Cryptol.Testing.Random  as TestR
 import Cryptol.Parser
     (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
@@ -301,7 +302,7 @@ evalCmd str = do
       -- be generalized if mono-binds is enabled
       replEvalDecl decl
 
-printCounterexample :: Bool -> P.Expr P.PName -> [E.Value] -> REPL ()
+printCounterexample :: Bool -> P.Expr P.PName -> [Concrete.Value] -> REPL ()
 printCounterexample isSat pexpr vs =
   do ppOpts <- getPPValOpts
      docs <- mapM (rEval . E.ppValue () ppOpts) vs
@@ -361,7 +362,7 @@ qcCmd qcMode str =
                                     ["Exhaustive testing ran out of test cases"]
                 f _ (vs : vss1) = do
                   evo <- getEvalOpts
-                  result <- io $ runOneTest evo val vs
+                  result <- io $ evalTest evo val vs
                   return (result, vss1)
                 testSpec = TestSpec {
                     testFn = f
@@ -381,7 +382,7 @@ qcCmd qcMode str =
             return [report]
 
        Just (sz,tys,_) | qcMode == QCRandom ->
-         case TestR.testableType ty of
+         case TestR.testableTypeGenerators ty of
               Nothing   -> raise (TypeNotTestable ty)
               Just gens -> do
                 rPutStrLn "Using random testing."
@@ -795,7 +796,7 @@ writeFileCmd file str = do
   serializeValue _             =
     panic "Cryptol.REPL.Command.writeFileCmd"
       ["Impossible: Non-VSeq value of type [n][8]."]
-  serializeByte (E.BV _ v) = fromIntegral (v .&. 0xFF)
+  serializeByte (Concrete.BV _ v) = fromIntegral (v .&. 0xFF)
 
 
 rEval :: E.Eval a -> REPL a
@@ -1338,7 +1339,7 @@ replCheckDecls ds = do
 replSpecExpr :: T.Expr -> REPL T.Expr
 replSpecExpr e = liftModuleCmd $ S.specialize e
 
-replEvalExpr :: P.Expr P.PName -> REPL (E.Value, T.Type)
+replEvalExpr :: P.Expr P.PName -> REPL (Concrete.Value, T.Type)
 replEvalExpr expr =
   do (_,def,sig) <- replCheckExpr expr
      validEvalContext def
@@ -1414,10 +1415,10 @@ bindItVariable ty expr = do
 -- | Extend the dynamic environment with a fresh binding for "it",
 -- as defined by the given value.  If we cannot determine the definition
 -- of the value, then we don't bind `it`.
-bindItVariableVal :: T.Type -> E.Value -> REPL ()
+bindItVariableVal :: T.Type -> Concrete.Value -> REPL ()
 bindItVariableVal ty val =
   do prims   <- getPrimMap
-     mb      <- rEval (E.toExpr prims ty val)
+     mb      <- rEval (Concrete.toExpr prims ty val)
      case mb of
        Nothing   -> return ()
        Just expr -> bindItVariable ty expr

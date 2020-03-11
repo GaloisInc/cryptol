@@ -7,7 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE Safe #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -27,15 +27,11 @@ import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),fromNat,nMul,genLog)
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
-import Cryptol.Testing.Random (randomValue)
 import Cryptol.Utils.Panic (panic)
 
 import qualified Data.Sequence as Seq
-import Data.Bits (Bits(..))
 
 import qualified Data.Map.Strict as Map
-
-import System.Random.TF.Gen (seedTFGen)
 
 
 lg2 :: Integer -> Integer
@@ -341,18 +337,6 @@ cmpValue sym fb fw fi fz = cmp
          x2' <- x2
          cmp t x1' x2' (cmpValues ts xs1 xs2 k)
     cmpValues _ _ _ k = k
-
-
-lexCompare :: TValue -> Value -> Value -> Eval Ordering
-lexCompare ty a b = cmpValue () op opw op (const op) ty a b (return EQ)
- where
-   opw :: BV -> BV -> Eval Ordering -> Eval Ordering
-   opw x y k = op (bvVal x) (bvVal y) k
-
-   op :: Ord a => a -> a -> Eval Ordering -> Eval Ordering
-   op x y k = case compare x y of
-                     EQ  -> k
-                     cmp -> return cmp
 
 
 
@@ -953,22 +937,6 @@ infFromThenV sym =
      return $ VStream $ IndexSeqMap $ \i -> do
        i' <- io (integerLit sym i)
        addV sym ty x =<< mulV sym ty d =<< intV sym i' ty
-
--- Random Values ---------------------------------------------------------------
-
--- | Produce a random value with the given seed. If we do not support
--- making values of the given type, return zero of that type.
--- TODO: do better than returning zero
-randomV :: BitWord sym => sym -> TValue -> Integer -> Eval (GenValue sym)
-randomV sym ty seed =
-  case randomValue sym (tValTy ty) of
-    Nothing -> zeroV sym ty
-    Just gen ->
-      -- unpack the seed into four Word64s
-      let mask64 = 0xFFFFFFFFFFFFFFFF
-          unpack s = fromInteger (s .&. mask64) : unpack (s `shiftR` 64)
-          [a, b, c, d] = take 4 (unpack seed)
-      in io $ fst $ gen 100 $ seedTFGen (a, b, c, d)
 
 -- Miscellaneous ---------------------------------------------------------------
 

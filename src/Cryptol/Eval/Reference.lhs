@@ -32,7 +32,7 @@
 > import Cryptol.Eval.Generic (lg2)
 > import Cryptol.Eval.Monad (EvalError(..), PPOpts(..))
 > import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType, tvSeq)
-> import Cryptol.Eval.Value (mkBv, ppBV)
+> import Cryptol.Eval.Concrete (mkBv, ppBV)
 > import Cryptol.Utils.Ident (Ident, mkIdent)
 > import Cryptol.Utils.Panic (panic)
 > import Cryptol.Utils.PP

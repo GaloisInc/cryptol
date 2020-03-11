@@ -35,6 +35,7 @@ import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
 
 import qualified Cryptol.Eval as Eval
+import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Monad as Eval
 import           Cryptol.Eval.Type (TValue(..), evalType)
 
@@ -79,7 +80,7 @@ lookupProver s =
     -- should be caught by UI for setting prover user variable
     Nothing  -> panic "Cryptol.Symbolic" [ "invalid prover: " ++ s ]
 
-type SatResult = [(Type, Expr, Eval.Value)]
+type SatResult = [(Type, Expr, Concrete.Value)]
 
 data SatNum = AllSat | SomeSat Int
   deriving (Show)
@@ -221,7 +222,7 @@ satProve ProverCommand {..} =
                                (vs, _) = parseValues ts cvs
                                sattys = unFinType <$> ts
                            satexprs <-
-                             doEval (zipWithM (Eval.toExpr prims) sattys vs)
+                             doEval (zipWithM (Concrete.toExpr prims) sattys vs)
                            case zip3 sattys <$> (sequence satexprs) <*> pure vs of
                              Nothing ->
                                panic "Cryptol.Symbolic.sat"
@@ -273,13 +274,13 @@ protectStack mkErr cmd modEnv =
         msg = "Symbolic evaluation failed to terminate."
         handler () = mkErr msg modEnv
 
-parseValues :: [FinType] -> [SBV.CV] -> ([Eval.Value], [SBV.CV])
+parseValues :: [FinType] -> [SBV.CV] -> ([Concrete.Value], [SBV.CV])
 parseValues [] cvs = ([], cvs)
 parseValues (t : ts) cvs = (v : vs, cvs'')
   where (v, cvs') = parseValue t cvs
         (vs, cvs'') = parseValues ts cvs'
 
-parseValue :: FinType -> [SBV.CV] -> (Eval.Value, [SBV.CV])
+parseValue :: FinType -> [SBV.CV] -> (Concrete.Value, [SBV.CV])
 parseValue FTBit [] = panic "Cryptol.Symbolic.parseValue" [ "empty FTBit" ]
 parseValue FTBit (cv : cvs) = (Eval.VBit (SBV.cvToBool cv), cvs)
 parseValue FTInteger cvs =

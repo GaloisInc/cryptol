@@ -6,26 +6,35 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE Safe #-}
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE PatternGuards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BangPatterns #-}
-module Cryptol.Eval.Concrete (evalPrim) where
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE Safe #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ViewPatterns #-}
+module Cryptol.Eval.Concrete
+  ( module Cryptol.Eval.Concrete.Value
+  , evalPrim
+  , toExpr
+  ) where
 
-import Control.Monad (join, unless)
+import Control.Monad (join, unless,guard,zipWithM)
+import MonadLib( ChoiceT, findOne, lift )
 
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
+import Cryptol.Eval.Concrete.Value
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
+import Cryptol.ModuleSystem.Name
+import Cryptol.Testing.Random (randomV)
+import Cryptol.TypeCheck.AST as AST
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Ident (Ident,mkIdent)
 import Cryptol.Utils.PP
@@ -37,6 +46,57 @@ import Data.Bits (Bits(..))
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as T
+
+
+-- Value to Expression conversion ----------------------------------------------
+
+-- | Given an expected type, returns an expression that evaluates to
+-- this value, if we can determine it.
+--
+-- XXX: View patterns would probably clean up this definition a lot.
+toExpr :: PrimMap -> AST.Type -> Value -> Eval (Maybe AST.Expr)
+toExpr prims t0 v0 = findOne (go t0 v0)
+  where
+
+  prim n = ePrim prims (mkIdent (T.pack n))
+
+  go :: AST.Type -> Value -> ChoiceT Eval Expr
+  go ty val = case (tNoUser ty, val) of
+    (TRec tfs, VRecord vfs) -> do
+      let fns = Map.keys vfs
+      guard (map fst tfs == fns)
+      fes <- zipWithM go (map snd tfs) =<< lift (sequence (Map.elems vfs))
+      return $ ERec (zip fns fes)
+    (TCon (TC (TCTuple tl)) ts, VTuple tvs) -> do
+      guard (tl == (length tvs))
+      ETuple `fmap` (zipWithM go ts =<< lift (sequence tvs))
+    (TCon (TC TCBit) [], VBit True ) -> return (prim "True")
+    (TCon (TC TCBit) [], VBit False) -> return (prim "False")
+    (TCon (TC TCInteger) [], VInteger i) ->
+      return $ ETApp (ETApp (prim "number") (tNum i)) ty
+    (TCon (TC TCIntMod) [_n], VInteger i) ->
+      return $ ETApp (ETApp (prim "number") (tNum i)) ty
+    (TCon (TC TCSeq) [a,b], VSeq 0 _) -> do
+      guard (a == tZero)
+      return $ EList [] b
+    (TCon (TC TCSeq) [a,b], VSeq n svs) -> do
+      guard (a == tNum n)
+      ses <- mapM (go b) =<< lift (sequence (enumerateSeqMap n svs))
+      return $ EList ses b
+    (TCon (TC TCSeq) [a,(TCon (TC TCBit) [])], VWord _ wval) -> do
+      BV w v <- lift (asWordVal () =<< wval)
+      guard (a == tNum w)
+      return $ ETApp (ETApp (prim "number") (tNum v)) ty
+    (_, VStream _) -> fail "cannot construct infinite expressions"
+    (_, VFun    _) -> fail "cannot convert function values to expressions"
+    (_, VPoly   _) -> fail "cannot convert polymorphic values to expressions"
+    _ -> do doc <- lift (ppValue () defaultPPOpts val)
+            panic "Cryptol.Eval.Value.toExpr"
+             ["type mismatch:"
+             , pretty ty
+             , render doc
+             ]
+
 
 -- Primitives ------------------------------------------------------------------
 
@@ -208,7 +268,6 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   ]
 
 
-
 --------------------------------------------------------------------------------
 
 -- | Create a packed word
@@ -269,6 +328,29 @@ doubleAndAdd base0 expMask modulus = go 1 base0 expMask
     modMul x y = (x * y) `mod` modulus
 
 
+-- | This is strict!
+--boolToWord :: [Bool] -> Value
+--boolToWord bs = VWord (genericLength bs) (WordVal <$> io (packWord () bs))
+
+-- | Turn a value into an integer represented by w bits.
+fromWord :: String -> Value -> Eval Integer
+fromWord msg val = bvVal <$> fromVWord () msg val
+
+fromStr :: Value -> Eval String
+fromStr (VSeq n vals) =
+  traverse (\x -> toEnum . fromInteger <$> (fromWord "fromStr" =<< x)) (enumerateSeqMap n vals)
+fromStr _ = evalPanic "fromStr" ["Not a finite sequence"]
+
+lexCompare :: TValue -> Value -> Value -> Eval Ordering
+lexCompare ty a b = cmpValue () op opw op (const op) ty a b (return EQ)
+ where
+   opw :: BV -> BV -> Eval Ordering -> Eval Ordering
+   opw x y k = op (bvVal x) (bvVal y) k
+
+   op :: Ord a => a -> a -> Eval Ordering -> Eval Ordering
+   op x y k = case compare x y of
+                     EQ  -> k
+                     cmp -> return cmp
 
 
 -- Arith -----------------------------------------------------------------------
@@ -398,7 +480,7 @@ carryV =
 logicShift :: (Integer -> Integer -> Integer -> Integer)
               -- ^ The function may assume its arguments are masked.
               -- It is responsible for masking its result if needed.
-           -> (Nat' -> TValue -> SeqValMap -> Integer -> SeqValMap)
+           -> (Nat' -> TValue -> SeqMap () -> Integer -> SeqMap ())
            -> Value
 logicShift opW opS
   = nlam $ \ a ->
@@ -420,7 +502,7 @@ shiftLW w ival by
   | by >= w   = 0
   | otherwise = mask w (shiftL ival (fromInteger by))
 
-shiftLS :: Nat' -> TValue -> SeqValMap -> Integer -> SeqValMap
+shiftLS :: Nat' -> TValue -> SeqMap () -> Integer -> SeqMap ()
 shiftLS w ety vs by = IndexSeqMap $ \i ->
   case w of
     Nat len
@@ -434,7 +516,7 @@ shiftRW w i by
   | by >= w   = 0
   | otherwise = shiftR i (fromInteger by)
 
-shiftRS :: Nat' -> TValue -> SeqValMap -> Integer -> SeqValMap
+shiftRS :: Nat' -> TValue -> SeqMap () -> Integer -> SeqMap ()
 shiftRS w ety vs by = IndexSeqMap $ \i ->
   case w of
     Nat len
@@ -452,7 +534,7 @@ rotateLW 0 i _  = i
 rotateLW w i by = mask w $ (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
 
-rotateLS :: Nat' -> TValue -> SeqValMap -> Integer -> SeqValMap
+rotateLS :: Nat' -> TValue -> SeqMap () -> Integer -> SeqMap ()
 rotateLS w _ vs by = IndexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((by + i) `mod` len)
@@ -464,7 +546,7 @@ rotateRW 0 i _  = i
 rotateRW w i by = mask w $ (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
 
-rotateRS :: Nat' -> TValue -> SeqValMap -> Integer -> SeqValMap
+rotateRS :: Nat' -> TValue -> SeqMap () -> Integer -> SeqMap ()
 rotateRS w _ vs by = IndexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((len - by + i) `mod` len)
@@ -474,16 +556,16 @@ rotateRS w _ vs by = IndexSeqMap $ \i ->
 -- Sequence Primitives ---------------------------------------------------------
 
 
-indexFront :: Maybe Integer -> TValue -> SeqValMap -> BV -> Eval Value
+indexFront :: Maybe Integer -> TValue -> SeqMap () -> BV -> Eval Value
 indexFront mblen _a vs (bvVal -> ix) =
   case mblen of
     Just len | len <= ix -> invalidIndex ix
     _                    -> lookupSeqMap vs ix
 
-indexFront_bits :: Maybe Integer -> TValue -> SeqValMap -> Seq.Seq Bool -> Eval Value
+indexFront_bits :: Maybe Integer -> TValue -> SeqMap () -> Seq.Seq Bool -> Eval Value
 indexFront_bits mblen a vs bs = indexFront mblen a vs =<< io (packWord () (Fold.toList bs))
 
-indexBack :: Maybe Integer -> TValue -> SeqValMap -> BV -> Eval Value
+indexBack :: Maybe Integer -> TValue -> SeqMap () -> BV -> Eval Value
 indexBack mblen _a vs (bvVal -> ix) =
   case mblen of
     Just len | len > ix  -> lookupSeqMap vs (len - ix - 1)
@@ -491,7 +573,7 @@ indexBack mblen _a vs (bvVal -> ix) =
     Nothing              -> evalPanic "indexBack"
                             ["unexpected infinite sequence"]
 
-indexBack_bits :: Maybe Integer -> TValue -> SeqValMap -> Seq.Seq Bool -> Eval Value
+indexBack_bits :: Maybe Integer -> TValue -> SeqMap () -> Seq.Seq Bool -> Eval Value
 indexBack_bits mblen a vs bs = indexBack mblen a vs =<< io (packWord () (Fold.toList bs))
 
 
@@ -553,5 +635,3 @@ updateBack_word (Nat n) _eltTy bs w val = do
   let idx' = n - idx - 1
   return $! Seq.update (fromInteger idx') (fromVBit <$> val) bs
 -}
-
-
