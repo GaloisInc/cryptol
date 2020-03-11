@@ -33,6 +33,7 @@ module Cryptol.Eval (
   , forceValue
   ) where
 
+import Cryptol.Eval.Concrete( Concrete(..) )
 import Cryptol.Eval.Env
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
@@ -55,7 +56,7 @@ import           Data.Semigroup
 import Prelude ()
 import Prelude.Compat
 
-type EvalEnv = GenEvalEnv ()
+type EvalEnv = GenEvalEnv Concrete
 
 type EvalPrims sym =
   ( BitWord sym, ?evalPrim :: Ident -> Maybe (GenValue sym) )

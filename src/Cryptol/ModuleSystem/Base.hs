@@ -25,7 +25,9 @@ import Cryptol.ModuleSystem.Env (lookupModule
                                 , meCoreLint, CoreLint(..)
                                 , ModulePath(..), modulePathLabel)
 import qualified Cryptol.Eval                 as E
+
 import qualified Cryptol.Eval.Concrete as Concrete
+import           Cryptol.Eval.Concrete (Concrete(..))
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.Parser               as P
@@ -200,7 +202,7 @@ doLoadModule isrc path fp pm0 =
 
      -- extend the eval env, unless a functor.
      let ?evalPrim = Concrete.evalPrim
-     unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv () tcm)
+     unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv Concrete tcm)
      loadedModule path fp tcm
 
      return tcm
@@ -545,7 +547,7 @@ evalExpr e = do
   denv <- getDynEnv
   evopts <- getEvalOpts
   let ?evalPrim = Concrete.evalPrim
-  io $ E.runEval evopts $ (E.evalExpr () (env <> deEnv denv) e)
+  io $ E.runEval evopts $ (E.evalExpr Concrete (env <> deEnv denv) e)
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do
@@ -554,7 +556,7 @@ evalDecls dgs = do
   evOpts <- getEvalOpts
   let env' = env <> deEnv denv
   let ?evalPrim = Concrete.evalPrim
-  deEnv' <- io $ E.runEval evOpts $ E.evalDecls () dgs env'
+  deEnv' <- io $ E.runEval evOpts $ E.evalDecls Concrete dgs env'
   let denv' = denv { deDecls = deDecls denv ++ dgs
                    , deEnv = deEnv'
                    }

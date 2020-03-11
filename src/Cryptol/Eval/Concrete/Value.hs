@@ -27,28 +27,21 @@ module Cryptol.Eval.Concrete.Value
   , mask
   , integerToChar
   , Value
+  , Concrete(..)
   ) where
 
---import Control.DeepSeq
-
 import Data.Bits
---import Data.List ( genericLength )
 import Numeric (showIntAtBase)
 
 import qualified Cryptol.Eval.Arch as Arch
---import Cryptol.Eval.Generic
 import Cryptol.Eval.Monad
---import Cryptol.Eval.Type
 import Cryptol.Eval.Value
---import Cryptol.Testing.Concrete (randomV)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
---import qualified Data.Foldable as Fold
---import qualified Data.Map.Strict as Map
+data Concrete = Concrete deriving Show
 
-
-type Value = GenValue ()
+type Value = GenValue Concrete
 
 -- | Concrete bitvector values: width, value
 -- Invariant: The value must be within the range 0 .. 2^width-1
@@ -114,10 +107,10 @@ mask ::
 mask w i | w >= Arch.maxBigIntWidth = wordTooWide w
          | otherwise                = i .&. ((1 `shiftL` fromInteger w) - 1)
 
-instance BitWord () where
-  type SBit () = Bool
-  type SWord () = BV
-  type SInteger () = Integer
+instance BitWord Concrete where
+  type SBit Concrete = Bool
+  type SWord Concrete = BV
+  type SInteger Concrete = Integer
 
   wordLen _ (BV w _) = w
   wordAsChar _ (BV _ x) = Just $! integerToChar x

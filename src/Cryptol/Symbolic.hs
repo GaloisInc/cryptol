@@ -36,6 +36,7 @@ import qualified Cryptol.ModuleSystem.Monad as M
 
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
+import           Cryptol.Eval.Concrete (Concrete(..))
 import qualified Cryptol.Eval.Monad as Eval
 import           Cryptol.Eval.Type (TValue(..), evalType)
 
@@ -288,12 +289,12 @@ parseValue FTInteger cvs =
     Just (x, cvs') -> (Eval.VInteger x, cvs')
     Nothing        -> panic "Cryptol.Symbolic.parseValue" [ "no integer" ]
 parseValue (FTIntMod _) cvs = parseValue FTInteger cvs
-parseValue (FTSeq 0 FTBit) cvs = (Eval.word () 0 0, cvs)
+parseValue (FTSeq 0 FTBit) cvs = (Eval.word Concrete 0 0, cvs)
 parseValue (FTSeq n FTBit) cvs =
   case SBV.genParse (SBV.KBounded False n) cvs of
-    Just (x, cvs') -> (Eval.word () (toInteger n) x, cvs')
+    Just (x, cvs') -> (Eval.word Concrete (toInteger n) x, cvs')
     Nothing        -> (Eval.VWord (genericLength vs) (Eval.WordVal <$>
-                         Eval.io (Eval.packWord () (map Eval.fromVBit vs))), cvs')
+                         Eval.io (Eval.packWord Concrete (map Eval.fromVBit vs))), cvs')
       where (vs, cvs') = parseValues (replicate n FTBit) cvs
 parseValue (FTSeq n t) cvs =
                       (Eval.VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)

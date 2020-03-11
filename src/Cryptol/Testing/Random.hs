@@ -50,7 +50,7 @@ type Gen g x = Integer -> g -> (IO (GenValue x), g)
 runOneTest :: RandomGen g
         => EvalOpts   -- ^ how to evaluate things
         -> Value   -- ^ Function under test
-        -> [Gen g ()] -- ^ Argument generators
+        -> [Gen g Concrete] -- ^ Argument generators
         -> Integer -- ^ Size
         -> g
         -> IO (TestResult, g)
@@ -64,7 +64,7 @@ runOneTest evOpts fun argGens sz g0 = do
 returnOneTest :: RandomGen g
            => EvalOpts -- ^ How to evaluate things
            -> Value    -- ^ Function to be used to calculate tests
-           -> [Gen g ()] -- ^ Argument generators
+           -> [Gen g Concrete] -- ^ Argument generators
            -> Integer -- ^ Size
            -> g -- ^ Initial random state
            -> IO ([Value], Value, g) -- ^ Arguments, result, and new random state
@@ -85,7 +85,7 @@ returnOneTest evOpts fun argGens sz g0 =
 returnTests :: RandomGen g
          => g -- ^ The random generator state
          -> EvalOpts -- ^ How to evaluate things
-         -> [Gen g ()] -- ^ Generators for the function arguments
+         -> [Gen g Concrete] -- ^ Generators for the function arguments
          -> Value -- ^ The function itself
          -> Int -- ^ How many tests?
          -> IO [([Value], Value)] -- ^ A list of pairs of random arguments and computed outputs
@@ -102,25 +102,25 @@ returnTests g evo gens fun num = go gens g 0
 {- | Given a (function) type, compute generators for the function's
 arguments. This is like 'testableTypeGenerators', but allows the result to be
 any finite type instead of just @Bit@. -}
-dumpableType :: forall g. RandomGen g => Type -> Maybe [Gen g ()]
+dumpableType :: forall g. RandomGen g => Type -> Maybe [Gen g Concrete]
 dumpableType ty =
   case tIsFun ty of
     Just (t1, t2) ->
-      do g  <- randomValue () t1
+      do g  <- randomValue Concrete t1
          as <- testableTypeGenerators t2
          return (g : as)
     Nothing ->
-      do (_ :: Gen g ()) <- randomValue () ty
+      do (_ :: Gen g Concrete) <- randomValue Concrete ty
          return []
 
 {- | Given a (function) type, compute generators for
 the function's arguments. Currently we do not support polymorphic functions.
 In principle, we could apply these to random types, and test the results. -}
-testableTypeGenerators :: RandomGen g => Type -> Maybe [Gen g ()]
+testableTypeGenerators :: RandomGen g => Type -> Maybe [Gen g Concrete]
 testableTypeGenerators ty =
   case tNoUser ty of
     TCon (TC TCFun) [t1,t2] ->
-      do g  <- randomValue () t1
+      do g  <- randomValue Concrete t1
          as <- testableTypeGenerators t2
          return (g : as)
     TCon (TC TCBit) [] -> return []
@@ -279,8 +279,8 @@ evalTest evOpts v0 vs0 = run `X.catch` handle
     go (VFun _) []       = panic "Not enough arguments while applying function"
                            []
     go (VBit b) []       = return b
-    go v vs              = do vdoc    <- ppValue () defaultPPOpts v
-                              vsdocs  <- mapM (ppValue () defaultPPOpts) vs
+    go v vs              = do vdoc    <- ppValue Concrete defaultPPOpts v
+                              vsdocs  <- mapM (ppValue Concrete defaultPPOpts) vs
                               panic "Type error while running test" $
                                [ "Function:"
                                , show vdoc

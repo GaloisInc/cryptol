@@ -84,13 +84,13 @@ toExpr prims t0 v0 = findOne (go t0 v0)
       ses <- mapM (go b) =<< lift (sequence (enumerateSeqMap n svs))
       return $ EList ses b
     (TCon (TC TCSeq) [a,(TCon (TC TCBit) [])], VWord _ wval) -> do
-      BV w v <- lift (asWordVal () =<< wval)
+      BV w v <- lift (asWordVal Concrete =<< wval)
       guard (a == tNum w)
       return $ ETApp (ETApp (prim "number") (tNum v)) ty
     (_, VStream _) -> fail "cannot construct infinite expressions"
     (_, VFun    _) -> fail "cannot convert function values to expressions"
     (_, VPoly   _) -> fail "cannot convert polymorphic values to expressions"
-    _ -> do doc <- lift (ppValue () defaultPPOpts val)
+    _ -> do doc <- lift (ppValue Concrete defaultPPOpts val)
             panic "Cryptol.Eval.Value.toExpr"
              ["type mismatch:"
              , pretty ty
@@ -106,27 +106,27 @@ evalPrim prim = Map.lookup prim primTable
 primTable :: Map.Map Ident Value
 primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   [ ("+"          , {-# SCC "Prelude::(+)" #-}
-                    binary (arithBinary () (liftBinArith (+)) (liftBinInteger (+))
+                    binary (arithBinary Concrete (liftBinArith (+)) (liftBinInteger (+))
                             (liftBinIntMod (+))))
   , ("-"          , {-# SCC "Prelude::(-)" #-}
-                    binary (arithBinary () (liftBinArith (-)) (liftBinInteger (-))
+                    binary (arithBinary Concrete (liftBinArith (-)) (liftBinInteger (-))
                             (liftBinIntMod (-))))
   , ("*"          , {-# SCC "Prelude::(*)" #-}
-                    binary (arithBinary () (liftBinArith (*)) (liftBinInteger (*))
+                    binary (arithBinary Concrete (liftBinArith (*)) (liftBinInteger (*))
                             (liftBinIntMod (*))))
   , ("/"          , {-# SCC "Prelude::(/)" #-}
-                    binary (arithBinary () (liftDivArith div) (liftDivInteger div)
+                    binary (arithBinary Concrete (liftDivArith div) (liftDivInteger div)
                             (const (liftDivInteger div))))
   , ("%"          , {-# SCC "Prelude::(%)" #-}
-                    binary (arithBinary () (liftDivArith mod) (liftDivInteger mod)
+                    binary (arithBinary Concrete (liftDivArith mod) (liftDivInteger mod)
                             (const (liftDivInteger mod))))
 
   , ("^^"         , {-# SCC "Prelude::(^^)" #-}
-                    binary (arithBinary () modExp integerExp intModExp))
+                    binary (arithBinary Concrete modExp integerExp intModExp))
   , ("lg2"        , {-# SCC "Prelude::lg2" #-}
-                    unary  (arithUnary () (liftUnaryArith lg2) integerLg2 (const integerLg2)))
+                    unary  (arithUnary Concrete (liftUnaryArith lg2) integerLg2 (const integerLg2)))
   , ("negate"     , {-# SCC "Prelude::negate" #-}
-                    unary  (arithUnary () (liftUnaryArith negate) integerNeg intModNeg))
+                    unary  (arithUnary Concrete (liftUnaryArith negate) integerNeg intModNeg))
 
   , ("<"          , {-# SCC "Prelude::(<)" #-}
                     binary (cmpOrder "<"  (\o -> o == LT           )))
@@ -143,25 +143,25 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("<$"         , {-# SCC "Prelude::(<$)" #-}
                     binary (signedCmpOrder "<$" (\o -> o == LT)))
   , ("/$"         , {-# SCC "Prelude::(/$)" #-}
-                    binary (arithBinary () (liftSigned bvSdiv) (liftDivInteger div)
+                    binary (arithBinary Concrete (liftSigned bvSdiv) (liftDivInteger div)
                             (const (liftDivInteger div))))
 
   , ("%$"         , {-# SCC "Prelude::(%$)" #-}
-                    binary (arithBinary () (liftSigned bvSrem) (liftDivInteger mod)
+                    binary (arithBinary Concrete (liftSigned bvSrem) (liftDivInteger mod)
                             (const (liftDivInteger mod))))
   , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
                     sshrV)
   , ("&&"         , {-# SCC "Prelude::(&&)" #-}
-                    binary (logicBinary () (\x y -> pure $ x .&. y) (binBV (.&.))))
+                    binary (logicBinary Concrete (\x y -> pure $ x .&. y) (binBV (.&.))))
   , ("||"         , {-# SCC "Prelude::(||)" #-}
-                    binary (logicBinary () (\x y -> pure $ x .|. y) (binBV (.|.))))
+                    binary (logicBinary Concrete (\x y -> pure $ x .|. y) (binBV (.|.))))
   , ("^"          , {-# SCC "Prelude::(^)" #-}
-                    binary (logicBinary () (\x y -> pure $ xor x y) (binBV xor)))
+                    binary (logicBinary Concrete (\x y -> pure $ xor x y) (binBV xor)))
   , ("complement" , {-# SCC "Prelude::complement" #-}
                     unary  (logicUnary complement (unaryBV complement)))
 
-  , ("toInteger"  , ecToIntegerV ())
-  , ("fromInteger", ecFromIntegerV () (flip mod))
+  , ("toInteger"  , ecToIntegerV Concrete)
+  , ("fromInteger", ecFromIntegerV Concrete (flip mod))
   , ("fromZ"      , {-# SCC "Prelude::fromZ" #-}
                     nlam $ \ _modulus ->
                     lam  $ \ x -> x)
@@ -182,20 +182,20 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("scarry"     , {-# SCC "Prelude::scarry" #-}
                     scarryV)
   , ("number"     , {-# SCC "Prelude::number" #-}
-                    ecNumberV ())
+                    ecNumberV Concrete)
 
   , ("#"          , {-# SCC "Prelude::(#)" #-}
                     nlam $ \ front ->
                     nlam $ \ back  ->
                     tlam $ \ elty  ->
                     lam  $ \ l     -> return $
-                    lam  $ \ r     -> join (ccatV () front back elty <$> l <*> r))
+                    lam  $ \ r     -> join (ccatV Concrete front back elty <$> l <*> r))
 
 
   , ("@"          , {-# SCC "Prelude::(@)" #-}
-                    indexPrim () indexFront_bits indexFront)
+                    indexPrim Concrete indexFront_bits indexFront)
   , ("!"          , {-# SCC "Prelude::(!)" #-}
-                    indexPrim () indexBack_bits indexBack)
+                    indexPrim Concrete indexBack_bits indexBack)
 
   , ("update"     , {-# SCC "Prelude::update" #-}
                     updatePrim updateFront_word updateFront)
@@ -204,33 +204,33 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     updatePrim updateBack_word updateBack)
 
   , ("zero"       , {-# SCC "Prelude::zero" #-}
-                    VPoly (zeroV ()))
+                    VPoly (zeroV Concrete))
 
   , ("join"       , {-# SCC "Prelude::join" #-}
                     nlam $ \ parts ->
                     nlam $ \ (finNat' -> each)  ->
                     tlam $ \ a     ->
                     lam  $ \ x     ->
-                      joinV () parts each a =<< x)
+                      joinV Concrete parts each a =<< x)
 
   , ("split"      , {-# SCC "Prelude::split" #-}
-                    ecSplitV ())
+                    ecSplitV Concrete)
 
   , ("splitAt"    , {-# SCC "Prelude::splitAt" #-}
                     nlam $ \ front ->
                     nlam $ \ back  ->
                     tlam $ \ a     ->
                     lam  $ \ x     ->
-                       splitAtV () front back a =<< x)
+                       splitAtV Concrete front back a =<< x)
 
   , ("fromTo"     , {-# SCC "Prelude::fromTo" #-}
-                    fromToV ())
+                    fromToV Concrete)
   , ("fromThenTo" , {-# SCC "Prelude::fromThenTo" #-}
-                    fromThenToV ())
+                    fromThenToV Concrete)
   , ("infFrom"    , {-# SCC "Prelude::infFrom" #-}
-                    infFromV ())
+                    infFromV Concrete)
   , ("infFromThen", {-# SCC "Prelude::infFromThen" #-}
-                    infFromThenV ())
+                    infFromThenV Concrete)
 
   , ("error"      , {-# SCC "Prelude::error" #-}
                       tlam $ \a ->
@@ -240,17 +240,17 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("reverse"    , {-# SCC "Prelude::reverse" #-}
                     nlam $ \_a ->
                     tlam $ \_b ->
-                     lam $ \xs -> reverseV () =<< xs)
+                     lam $ \xs -> reverseV Concrete =<< xs)
 
   , ("transpose"  , {-# SCC "Prelude::transpose" #-}
                     nlam $ \a ->
                     nlam $ \b ->
                     tlam $ \c ->
-                     lam $ \xs -> transposeV () a b c =<< xs)
+                     lam $ \xs -> transposeV Concrete a b c =<< xs)
 
   , ("random"      , {-# SCC "Prelude::random" #-}
                      tlam $ \a ->
-                     wlam () $ \(bvVal -> x) -> randomV () a x)
+                     wlam Concrete $ \(bvVal -> x) -> randomV Concrete a x)
   , ("trace"       , {-# SCC "Prelude::trace" #-}
                      nlam $ \_n ->
                      tlam $ \_a ->
@@ -260,7 +260,7 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                       lam $ \y -> do
                          msg <- fromStr =<< s
                          EvalOpts { evalPPOpts, evalLogger } <- getEvalOpts
-                         doc <- ppValue () evalPPOpts =<< x
+                         doc <- ppValue Concrete evalPPOpts =<< x
                          yv <- y
                          io $ logPrint evalLogger
                              $ if null msg then doc else text msg <+> doc
@@ -334,7 +334,7 @@ doubleAndAdd base0 expMask modulus = go 1 base0 expMask
 
 -- | Turn a value into an integer represented by w bits.
 fromWord :: String -> Value -> Eval Integer
-fromWord msg val = bvVal <$> fromVWord () msg val
+fromWord msg val = bvVal <$> fromVWord Concrete msg val
 
 fromStr :: Value -> Eval String
 fromStr (VSeq n vals) =
@@ -342,7 +342,7 @@ fromStr (VSeq n vals) =
 fromStr _ = evalPanic "fromStr" ["Not a finite sequence"]
 
 lexCompare :: TValue -> Value -> Value -> Eval Ordering
-lexCompare ty a b = cmpValue () op opw op (const op) ty a b (return EQ)
+lexCompare ty a b = cmpValue Concrete op opw op (const op) ty a b (return EQ)
  where
    opw :: BV -> BV -> Eval Ordering -> Eval Ordering
    opw x y k = op (bvVal x) (bvVal y) k
@@ -358,7 +358,7 @@ lexCompare ty a b = cmpValue () op opw op (const op) ty a b (return EQ)
 -- | Turn a normal binop on Integers into one that can also deal with a bitsize.
 --   However, if the bitvector size is 0, always return the 0
 --   bitvector.
-liftBinArith :: (Integer -> Integer -> Integer) -> BinArith ()
+liftBinArith :: (Integer -> Integer -> Integer) -> BinArith Concrete
 liftBinArith _  0 _        _        = ready $ mkBv 0 0
 liftBinArith op w (BV _ x) (BV _ y) = ready $ mkBv w $ op x y
 
@@ -366,7 +366,7 @@ liftBinArith op w (BV _ x) (BV _ y) = ready $ mkBv w $ op x y
 --   Generate a thunk that throws a divide by 0 error when forced if the second
 --   argument is 0.  However, if the bitvector size is 0, always return the 0
 --   bitvector.
-liftDivArith :: (Integer -> Integer -> Integer) -> BinArith ()
+liftDivArith :: (Integer -> Integer -> Integer) -> BinArith Concrete
 liftDivArith _  0 _        _        = ready $ mkBv 0 0
 liftDivArith _  _ _        (BV _ 0) = divideByZero
 liftDivArith op w (BV _ x) (BV _ y) = ready $ mkBv w $ op x y
@@ -384,12 +384,12 @@ liftDivInteger :: (Integer -> Integer -> Integer) -> Integer -> Integer -> Eval 
 liftDivInteger _  _ 0 = divideByZero
 liftDivInteger op x y = ready $ op x y
 
-liftUnaryArith :: (Integer -> Integer) -> UnaryArith ()
+liftUnaryArith :: (Integer -> Integer) -> UnaryArith Concrete
 liftUnaryArith op w (BV _ x) = ready $ mkBv w $ op x
 
 
 signedLexCompare :: TValue -> Value -> Value -> Eval Ordering
-signedLexCompare ty a b = cmpValue () opb opw opi (const opi) ty a b (return EQ)
+signedLexCompare ty a b = cmpValue Concrete opb opw opi (const opi) ty a b (return EQ)
  where
    opb :: Bool -> Bool -> Eval Ordering -> Eval Ordering
    opb _x _y _k = panic "signedLexCompare"
@@ -405,18 +405,18 @@ signedLexCompare ty a b = cmpValue () opb opw opi (const opi) ty a b (return EQ)
                     ["Attempted to perform signed comparisons on Integer type"]
 
 -- | Process two elements based on their lexicographic ordering.
-cmpOrder :: String -> (Ordering -> Bool) -> Binary ()
+cmpOrder :: String -> (Ordering -> Bool) -> Binary Concrete
 cmpOrder _nm op ty l r = VBit . op <$> lexCompare ty l r
 
 -- | Process two elements based on their lexicographic ordering, using signed comparisons
-signedCmpOrder :: String -> (Ordering -> Bool) -> Binary ()
+signedCmpOrder :: String -> (Ordering -> Bool) -> Binary Concrete
 signedCmpOrder _nm op ty l r = VBit . op <$> signedLexCompare ty l r
 
 
 
 liftSigned ::
   (Integer -> Integer -> Integer -> Eval BV) ->
-  BinArith ()
+  BinArith Concrete
 liftSigned _  0    = \_ _ -> return $ mkBv 0 0
 liftSigned op size = f
  where
@@ -444,8 +444,8 @@ sshrV :: Value
 sshrV =
   nlam $ \_n ->
   nlam $ \_k ->
-  wlam () $ \(BV i x) -> return $
-  wlam () $ \y ->
+  wlam Concrete $ \(BV i x) -> return $
+  wlam Concrete $ \y ->
    let signx = testBit x (fromInteger (i-1))
        amt   = fromInteger (bvVal y)
        x'    = if signx then x - bit (fromInteger i) else x
@@ -455,8 +455,8 @@ sshrV =
 scarryV :: Value
 scarryV =
   nlam $ \_n ->
-  wlam () $ \(BV i x) -> return $
-  wlam () $ \(BV j y) ->
+  wlam Concrete $ \(BV i x) -> return $
+  wlam Concrete $ \(BV j y) ->
     if i == j
       then let z     = x + y
                xsign = testBit x (fromInteger i - 1)
@@ -470,8 +470,8 @@ scarryV =
 carryV :: Value
 carryV =
   nlam $ \_n ->
-  wlam () $ \(BV i x) -> return $
-  wlam () $ \(BV j y) ->
+  wlam Concrete $ \(BV i x) -> return $
+  wlam Concrete $ \(BV j y) ->
     if i == j
       then return . VBit $! testBit (x + y) (fromInteger i)
       else evalPanic "carryV" ["Attempted to compute with words of different sizes"]
@@ -480,7 +480,7 @@ carryV =
 logicShift :: (Integer -> Integer -> Integer -> Integer)
               -- ^ The function may assume its arguments are masked.
               -- It is responsible for masking its result if needed.
-           -> (Nat' -> TValue -> SeqMap () -> Integer -> SeqMap ())
+           -> (Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete)
            -> Value
 logicShift opW opS
   = nlam $ \ a ->
@@ -488,7 +488,7 @@ logicShift opW opS
     tlam $ \ c ->
      lam  $ \ l -> return $
      lam  $ \ r -> do
-        BV _ i <- fromVWord () "logicShift amount" =<< r
+        BV _ i <- fromVWord Concrete "logicShift amount" =<< r
         l >>= \case
           VWord w wv -> return $ VWord w $ wv >>= \case
                           WordVal (BV _ x) -> return $ WordVal (BV w (opW w x i))
@@ -502,12 +502,12 @@ shiftLW w ival by
   | by >= w   = 0
   | otherwise = mask w (shiftL ival (fromInteger by))
 
-shiftLS :: Nat' -> TValue -> SeqMap () -> Integer -> SeqMap ()
+shiftLS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
 shiftLS w ety vs by = IndexSeqMap $ \i ->
   case w of
     Nat len
       | i+by < len -> lookupSeqMap vs (i+by)
-      | i    < len -> zeroV () ety
+      | i    < len -> zeroV Concrete ety
       | otherwise  -> evalPanic "shiftLS" ["Index out of bounds"]
     Inf            -> lookupSeqMap vs (i+by)
 
@@ -516,16 +516,16 @@ shiftRW w i by
   | by >= w   = 0
   | otherwise = shiftR i (fromInteger by)
 
-shiftRS :: Nat' -> TValue -> SeqMap () -> Integer -> SeqMap ()
+shiftRS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
 shiftRS w ety vs by = IndexSeqMap $ \i ->
   case w of
     Nat len
       | i >= by   -> lookupSeqMap vs (i-by)
-      | i < len   -> zeroV () ety
+      | i < len   -> zeroV Concrete ety
       | otherwise -> evalPanic "shiftLS" ["Index out of bounds"]
     Inf
       | i >= by   -> lookupSeqMap vs (i-by)
-      | otherwise -> zeroV () ety
+      | otherwise -> zeroV Concrete ety
 
 
 -- XXX integer doesn't implement rotateL, as there's no bit bound
@@ -534,7 +534,7 @@ rotateLW 0 i _  = i
 rotateLW w i by = mask w $ (i `shiftL` b) .|. (i `shiftR` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
 
-rotateLS :: Nat' -> TValue -> SeqMap () -> Integer -> SeqMap ()
+rotateLS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
 rotateLS w _ vs by = IndexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((by + i) `mod` len)
@@ -546,7 +546,7 @@ rotateRW 0 i _  = i
 rotateRW w i by = mask w $ (i `shiftR` b) .|. (i `shiftL` (fromInteger w - b))
   where b = fromInteger (by `mod` w)
 
-rotateRS :: Nat' -> TValue -> SeqMap () -> Integer -> SeqMap ()
+rotateRS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
 rotateRS w _ vs by = IndexSeqMap $ \i ->
   case w of
     Nat len -> lookupSeqMap vs ((len - by + i) `mod` len)
@@ -556,16 +556,16 @@ rotateRS w _ vs by = IndexSeqMap $ \i ->
 -- Sequence Primitives ---------------------------------------------------------
 
 
-indexFront :: Maybe Integer -> TValue -> SeqMap () -> BV -> Eval Value
+indexFront :: Maybe Integer -> TValue -> SeqMap Concrete -> BV -> Eval Value
 indexFront mblen _a vs (bvVal -> ix) =
   case mblen of
     Just len | len <= ix -> invalidIndex ix
     _                    -> lookupSeqMap vs ix
 
-indexFront_bits :: Maybe Integer -> TValue -> SeqMap () -> Seq.Seq Bool -> Eval Value
-indexFront_bits mblen a vs bs = indexFront mblen a vs =<< io (packWord () (Fold.toList bs))
+indexFront_bits :: Maybe Integer -> TValue -> SeqMap Concrete -> Seq.Seq Bool -> Eval Value
+indexFront_bits mblen a vs bs = indexFront mblen a vs =<< io (packWord Concrete (Fold.toList bs))
 
-indexBack :: Maybe Integer -> TValue -> SeqMap () -> BV -> Eval Value
+indexBack :: Maybe Integer -> TValue -> SeqMap Concrete -> BV -> Eval Value
 indexBack mblen _a vs (bvVal -> ix) =
   case mblen of
     Just len | len > ix  -> lookupSeqMap vs (len - ix - 1)
@@ -573,19 +573,19 @@ indexBack mblen _a vs (bvVal -> ix) =
     Nothing              -> evalPanic "indexBack"
                             ["unexpected infinite sequence"]
 
-indexBack_bits :: Maybe Integer -> TValue -> SeqMap () -> Seq.Seq Bool -> Eval Value
-indexBack_bits mblen a vs bs = indexBack mblen a vs =<< io (packWord () (Fold.toList bs))
+indexBack_bits :: Maybe Integer -> TValue -> SeqMap Concrete -> Seq.Seq Bool -> Eval Value
+indexBack_bits mblen a vs bs = indexBack mblen a vs =<< io (packWord Concrete (Fold.toList bs))
 
 
 updateFront
   :: Nat'
   -> TValue
-  -> SeqMap ()
-  -> WordValue ()
-  -> Eval (GenValue ())
-  -> Eval (SeqMap ())
+  -> SeqMap Concrete
+  -> WordValue Concrete
+  -> Eval Value
+  -> Eval (SeqMap Concrete)
 updateFront len _eltTy vs w val = do
-  idx <- bvVal <$> asWordVal () w
+  idx <- bvVal <$> asWordVal Concrete w
   case len of
     Inf -> return ()
     Nat n -> unless (idx < n) (invalidIndex idx)
@@ -594,40 +594,40 @@ updateFront len _eltTy vs w val = do
 updateFront_word
  :: Nat'
  -> TValue
- -> WordValue ()
- -> WordValue ()
- -> Eval (GenValue ())
- -> Eval (WordValue ())
+ -> WordValue Concrete
+ -> WordValue Concrete
+ -> Eval Value
+ -> Eval (WordValue Concrete)
 updateFront_word _len _eltTy bs w val = do
-  idx <- bvVal <$> asWordVal () w
-  updateWordValue () bs idx (fromBit =<< val)
+  idx <- bvVal <$> asWordVal Concrete w
+  updateWordValue Concrete bs idx (fromBit =<< val)
 
 updateBack
   :: Nat'
   -> TValue
-  -> SeqMap ()
-  -> WordValue ()
-  -> Eval (GenValue ())
-  -> Eval (SeqMap ())
+  -> SeqMap Concrete
+  -> WordValue Concrete
+  -> Eval Value
+  -> Eval (SeqMap Concrete)
 updateBack Inf _eltTy _vs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
 updateBack (Nat n) _eltTy vs w val = do
-  idx <- bvVal <$> asWordVal () w
+  idx <- bvVal <$> asWordVal Concrete w
   unless (idx < n) (invalidIndex idx)
   return $ updateSeqMap vs (n - idx - 1) val
 
 updateBack_word
  :: Nat'
  -> TValue
- -> WordValue ()
- -> WordValue ()
- -> Eval (GenValue ())
- -> Eval (WordValue ())
+ -> WordValue Concrete
+ -> WordValue Concrete
+ -> Eval Value
+ -> Eval (WordValue Concrete)
 updateBack_word Inf _eltTy _bs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
 updateBack_word (Nat n) _eltTy bs w val = do
-  idx <- bvVal <$> asWordVal () w
-  updateWordValue () bs (n - idx - 1) (fromBit =<< val)
+  idx <- bvVal <$> asWordVal Concrete w
+  updateWordValue Concrete bs (n - idx - 1) (fromBit =<< val)
 
 {-
   idx <- bvVal <$> asWordVal w
