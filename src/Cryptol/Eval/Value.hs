@@ -28,7 +28,7 @@ module Cryptol.Eval.Value
     GenValue(..)
   , forceWordValue
   , forceValue
-  , BitWord(..)
+  , Backend(..)
   , asciiMode
     -- ** Value introduction operations
   , word
@@ -87,7 +87,6 @@ module Cryptol.Eval.Value
   , updateWordValue
   ) where
 
-import Data.Kind (Type)
 import Data.Bits
 import Data.IORef
 import Data.Map.Strict (Map)
@@ -95,6 +94,7 @@ import qualified Data.Map.Strict as Map
 import MonadLib
 
 import qualified Cryptol.Eval.Arch as Arch
+import Cryptol.Eval.Backend
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 
@@ -234,34 +234,34 @@ data WordValue sym
  deriving (Generic)
 
 -- | Force a word value into packed word form
-asWordVal :: BitWord sym => sym -> WordValue sym -> Eval (SWord sym)
+asWordVal :: Backend sym => sym -> WordValue sym -> Eval (SWord sym)
 asWordVal _   (WordVal w)         = return w
 asWordVal sym (LargeBitsVal n xs) = io . packWord sym =<< traverse (fromBit =<<) (enumerateSeqMap n xs)
 
 -- | Force a word value into a sequence of bits
-asBitsMap :: BitWord sym => sym -> WordValue sym -> SeqMap sym
+asBitsMap :: Backend sym => sym -> WordValue sym -> SeqMap sym
 asBitsMap sym (WordVal w)  = IndexSeqMap $ \i -> VBit <$> io (wordBit sym w i)
 asBitsMap _   (LargeBitsVal _ xs) = xs
 
 -- | Turn a word value into a sequence of bits, forcing each bit.
 --   The sequence is returned in big-endian order.
-enumerateWordValue :: BitWord sym => sym -> WordValue sym -> Eval [SBit sym]
+enumerateWordValue :: Backend sym => sym -> WordValue sym -> Eval [SBit sym]
 enumerateWordValue sym (WordVal w) = io (unpackWord sym w)
 enumerateWordValue _ (LargeBitsVal n xs) = traverse (fromBit =<<) (enumerateSeqMap n xs)
 
 -- | Turn a word value into a sequence of bits, forcing each bit.
 --   The sequence is returned in reverse of the usual order, which is little-endian order.
-enumerateWordValueRev :: BitWord sym => sym -> WordValue sym -> Eval [SBit sym]
+enumerateWordValueRev :: Backend sym => sym -> WordValue sym -> Eval [SBit sym]
 enumerateWordValueRev sym (WordVal w)  = reverse <$> io (unpackWord sym w)
 enumerateWordValueRev _   (LargeBitsVal n xs) = traverse (fromBit =<<) (enumerateSeqMap n (reverseSeqMap n xs))
 
 -- | Compute the size of a word value
-wordValueSize :: BitWord sym => sym -> WordValue sym -> Integer
+wordValueSize :: Backend sym => sym -> WordValue sym -> Integer
 wordValueSize sym (WordVal w)  = wordLen sym w
 wordValueSize _ (LargeBitsVal n _) = n
 
 -- | Select an individual bit from a word value
-indexWordValue :: BitWord sym => sym -> WordValue sym -> Integer -> Eval (SBit sym)
+indexWordValue :: Backend sym => sym -> WordValue sym -> Integer -> Eval (SBit sym)
 indexWordValue sym (WordVal w) idx
    | idx < wordLen sym w = io (wordBit sym w idx)
    | otherwise = invalidIndex idx
@@ -271,7 +271,7 @@ indexWordValue _ (LargeBitsVal n xs) idx
 
 -- | Produce a new 'WordValue' from the one given by updating the @i@th bit with the
 --   given bit value.
-updateWordValue :: BitWord sym => sym -> WordValue sym -> Integer -> Eval (SBit sym) -> Eval (WordValue sym)
+updateWordValue :: Backend sym => sym -> WordValue sym -> Integer -> Eval (SBit sym) -> Eval (WordValue sym)
 updateWordValue sym (WordVal w) idx (Ready b)
    | idx < wordLen sym w = WordVal <$> io (wordUpdate sym w idx b)
    | otherwise = invalidIndex idx
@@ -322,7 +322,7 @@ forceValue v = case v of
   VNumPoly _  -> return ()
 
 
-instance BitWord sym => Show (GenValue sym) where
+instance Backend sym => Show (GenValue sym) where
   show v = case v of
     VRecord fs -> "record:" ++ show (Map.keys fs)
     VTuple xs  -> "tuple:" ++ show (length xs)
@@ -338,11 +338,8 @@ instance BitWord sym => Show (GenValue sym) where
 
 -- Pretty Printing -------------------------------------------------------------
 
-defaultPPOpts :: PPOpts
-defaultPPOpts = PPOpts { useAscii = False, useBase = 10, useInfLength = 5 }
-
 ppValue :: forall sym.
-  BitWord sym =>
+  Backend sym =>
   sym ->
   PPOpts ->
   GenValue sym ->
@@ -390,216 +387,11 @@ ppValue x opts = loop
 asciiMode :: PPOpts -> Integer -> Bool
 asciiMode opts width = useAscii opts && (width == 7 || width == 8)
 
--- | This type class defines a collection of operations on bits and words that
---   are necessary to define generic evaluator primitives that operate on both concrete
---   and symbolic values uniformly.
-class BitWord sym where
-  type SBit sym :: Type
-  type SWord sym :: Type
-  type SInteger sym :: Type
-
-  -- | Pretty-print an individual bit
-  ppBit :: sym -> SBit sym -> Doc
-
-  -- | Pretty-print a word value
-  ppWord :: sym -> PPOpts -> SWord sym -> Doc
-
-  -- | Pretty-print an integer value
-  ppInteger :: sym -> PPOpts -> SInteger sym -> Doc
-
-  -- | Attempt to render a word value as an ASCII character.  Return 'Nothing'
-  --   if the character value is unknown (e.g., for symbolic values).
-  wordAsChar :: sym -> SWord sym -> Maybe Char
-
-  -- | The number of bits in a word value.
-  wordLen :: sym -> SWord sym -> Integer
-
-  -- | Construct a literal bit value from a boolean.
-  bitLit :: sym -> Bool -> IO (SBit sym)
-
-  -- | Construct a literal word value given a bit width and a value.
-  wordLit ::
-    sym ->
-    Integer {- ^ Width -} ->
-    Integer {- ^ Value -} ->
-    IO (SWord sym)
-
-  -- | Construct a literal integer value from the given integer.
-  integerLit ::
-    sym ->
-    Integer {- ^ Value -} ->
-    IO (SInteger sym)
-
-  -- | Extract the numbered bit from the word.
-  --
-  --   NOTE: this assumes that the sequence of bits is big-endian and finite, so the
-  --   bit numbered 0 is the most significant bit.
-  wordBit ::
-    sym ->
-    SWord sym ->
-    Integer {- ^ Bit position to extract -} ->
-    IO (SBit sym)
-
-  -- | Update the numbered bit in the word.
-  --
-  --   NOTE: this assumes that the sequence of bits is big-endian and finite, so the
-  --   bit numbered 0 is the most significant bit.
-  wordUpdate ::
-    sym ->
-    SWord sym ->
-    Integer {- ^ Bit position to update -} ->
-    SBit sym ->
-    IO (SWord sym)
-
-  -- | Construct a word value from a finite sequence of bits.
-  --   NOTE: this assumes that the sequence of bits is big-endian and finite, so the
-  --   first element of the list will be the most significant bit.
-  packWord ::
-    sym ->
-    [SBit sym] ->
-    IO (SWord sym)
-
-  -- | Deconstruct a packed word value in to a finite sequence of bits.
-  --   NOTE: this produces a list of bits that represent a big-endian word, so
-  --   the most significant bit is the first element of the list.
-  unpackWord ::
-    sym ->
-    SWord sym ->
-    IO [SBit sym]
-
-  -- | Concatenate the two given word values.
-  --   NOTE: the first argument represents the more-significant bits
-  joinWord ::
-    sym ->
-    SWord sym ->
-    SWord sym ->
-    IO (SWord sym)
-
-  -- | Take the most-significant bits, and return
-  --   those bits and the remainder.  The first element
-  --   of the pair is the most significant bits.
-  --   The two integer sizes must sum to the length of the given word value.
-  splitWord ::
-    sym ->
-    Integer {- ^ left width -} ->
-    Integer {- ^ right width -} ->
-    SWord sym ->
-    IO (SWord sym, SWord sym)
-
-  -- | Extract a subsequence of bits from a packed word value.
-  --   The first integer argument is the number of bits in the
-  --   resulting word.  The second integer argument is the
-  --   number of less-significant digits to discard.  Stated another
-  --   way, the operation @extractWord n i w@ is equivalent to
-  --   first shifting @w@ right by @i@ bits, and then truncating to
-  --   @n@ bits.
-  extractWord ::
-    sym ->
-    Integer {- ^ Number of bits to take -} ->
-    Integer {- ^ starting bit -} ->
-    SWord sym ->
-    IO (SWord sym)
-
-  -- | 2's complement addition of packed words.  The arguments must have
-  --   equal bit width, and the result is of the same width. Overflow is silently
-  --   discarded.
-  wordPlus ::
-    sym ->
-    SWord sym ->
-    SWord sym ->
-    IO (SWord sym)
-
-  -- | 2's complement subtraction of packed words.  The arguments must have
-  --   equal bit width, and the result is of the same width. Overflow is silently
-  --   discarded.
-  wordMinus ::
-    sym ->
-    SWord sym ->
-    SWord sym ->
-    IO (SWord sym)
-
-  -- | 2's complement multiplication of packed words.  The arguments must have
-  --   equal bit width, and the result is of the same width. The high bits of the
-  --   multiplication are silently discarded.
-  wordMult ::
-    sym ->
-    SWord sym ->
-    SWord sym ->
-    IO (SWord sym)
-
-  -- | Construct an integer value from the given packed word.
-  wordToInt ::
-    sym ->
-    SWord sym ->
-    IO (SInteger sym)
-
-  -- | Addition of unbounded integers.
-  intPlus ::
-    sym ->
-    SInteger sym ->
-    SInteger sym ->
-    IO (SInteger sym)
-
-  -- | Subtraction of unbounded integers.
-  intMinus ::
-    sym ->
-    SInteger sym ->
-    SInteger sym ->
-    IO (SInteger sym)
-
-  -- | Multiplication of unbounded integers.
-  intMult ::
-    sym ->
-    SInteger sym ->
-    SInteger sym ->
-    IO (SInteger sym)
-
-  -- | Addition of integers modulo n, for a concrete positive integer n.
-  intModPlus ::
-    sym ->
-    Integer {- ^ modulus -} ->
-    SInteger sym ->
-    SInteger sym ->
-    IO (SInteger sym)
-
-  -- | Subtraction of integers modulo n, for a concrete positive integer n.
-  intModMinus ::
-    sym ->
-    Integer {- ^ modulus -} ->
-    SInteger sym ->
-    SInteger sym ->
-    IO (SInteger sym)
-
-  -- | Multiplication of integers modulo n, for a concrete positive integer n.
-  intModMult ::
-    sym ->
-    Integer {- ^ modulus -} ->
-    SInteger sym ->
-    SInteger sym ->
-    IO (SInteger sym)
-
-  -- | Construct a packed word of the specified width from an integer value.
-  wordFromInt ::
-    sym ->
-    Integer {- ^ bit-width -} ->
-    SInteger sym ->
-    IO (SWord sym)
-
-  -- | if/then/else operation.  Choose either the 'then' value or the 'else' value depending
-  --   on the value of the test bit.
-  iteValue ::
-    sym ->
-    SBit sym {- ^ Test bit -} ->
-    Eval (GenValue sym)  {- ^ 'then' value -} ->
-    Eval (GenValue sym)  {- ^ 'else' value -} ->
-    Eval (GenValue sym)
-
-
 
 -- Value Constructors ----------------------------------------------------------
 
 -- | Create a packed word of n bits.
-word :: BitWord sym => sym -> Integer -> Integer -> GenValue sym
+word :: Backend sym => sym -> Integer -> Integer -> GenValue sym
 word sym n i
   | n >= Arch.maxBigIntWidth = wordTooWide n
   | otherwise                = VWord n (WordVal <$> io (wordLit sym n i))
@@ -609,7 +401,7 @@ lam :: (Eval (GenValue sym) -> Eval (GenValue sym)) -> GenValue sym
 lam  = VFun
 
 -- | Functions that assume word inputs
-wlam :: BitWord sym => sym -> (SWord sym -> Eval (GenValue sym)) -> GenValue sym
+wlam :: Backend sym => sym -> (SWord sym -> Eval (GenValue sym)) -> GenValue sym
 wlam sym f = VFun (\arg -> arg >>= fromVWord sym "wlam" >>= f)
 
 -- | A type lambda that expects a 'Type'.
@@ -626,7 +418,7 @@ toStream vs =
    VStream <$> infiniteSeqMap (map ready vs)
 
 toFinSeq ::
-  BitWord sym =>
+  Backend sym =>
   sym -> Integer -> TValue -> [GenValue sym] -> GenValue sym
 toFinSeq sym len elty vs
    | isTBit elty = VWord len (WordVal <$> io (packWord sym (map fromVBit vs)))
@@ -635,7 +427,7 @@ toFinSeq sym len elty vs
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.
 toSeq ::
-  BitWord sym =>
+  Backend sym =>
   sym -> Nat' -> TValue -> [GenValue sym] -> Eval (GenValue sym)
 toSeq sym len elty vals = case len of
   Nat n -> return $ toFinSeq sym n elty vals
@@ -673,7 +465,7 @@ fromVSeq val = case val of
   _         -> evalPanic "fromVSeq" ["not a sequence"]
 
 -- | Extract a sequence.
-fromSeq :: BitWord sym => String -> GenValue sym -> Eval (SeqMap sym)
+fromSeq :: Backend sym => String -> GenValue sym -> Eval (SeqMap sym)
 fromSeq msg val = case val of
   VSeq _ vs   -> return vs
   VStream vs  -> return vs
@@ -688,11 +480,11 @@ fromWordVal _msg (VWord _ wval) = wval
 fromWordVal msg _ = evalPanic "fromWordVal" ["not a word value", msg]
 
 -- | Extract a packed word.
-fromVWord :: BitWord sym => sym -> String -> GenValue sym -> Eval (SWord sym)
+fromVWord :: Backend sym => sym -> String -> GenValue sym -> Eval (SWord sym)
 fromVWord sym _msg (VWord _ wval) = wval >>= asWordVal sym
 fromVWord _ msg _ = evalPanic "fromVWord" ["not a word", msg]
 
-vWordLen :: BitWord sym => GenValue sym -> Maybe Integer
+vWordLen :: Backend sym => GenValue sym -> Maybe Integer
 vWordLen val = case val of
   VWord n _wv              -> Just n
   _                        -> Nothing
@@ -700,7 +492,7 @@ vWordLen val = case val of
 -- | If the given list of values are all fully-evaluated thunks
 --   containing bits, return a packed word built from the same bits.
 --   However, if any value is not a fully-evaluated bit, return 'Nothing'.
-tryFromBits :: BitWord sym => sym -> [Eval (GenValue sym)] -> Maybe (IO (SWord sym))
+tryFromBits :: Backend sym => sym -> [Eval (GenValue sym)] -> Maybe (IO (SWord sym))
 tryFromBits sym = go id
   where
   go f [] = Just (packWord sym (f []))

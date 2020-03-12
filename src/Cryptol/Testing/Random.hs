@@ -25,10 +25,11 @@ import qualified Data.Sequence as Seq
 import System.Random          (RandomGen, split, random, randomR)
 import System.Random.TF.Gen   (seedTFGen)
 
+import Cryptol.Eval.Backend   (Backend(..))
 import Cryptol.Eval.Concrete.Value
 import Cryptol.Eval.Monad     (ready,runEval,EvalOpts,io,Eval,EvalError(..))
 import Cryptol.Eval.Type      (TValue(..), tValTy)
-import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..), BitWord(..),
+import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
                                ppValue, defaultPPOpts, finiteSeqMap)
 import Cryptol.Eval.Generic   (zeroV)
 import Cryptol.TypeCheck.AST  (Type(..), TCon(..), TC(..), tNoUser, tIsFun)
@@ -129,7 +130,7 @@ testableTypeGenerators ty =
 
 {- | A generator for values of the given type.  This fails if we are
 given a type that lacks a suitable random value generator. -}
-randomValue :: (BitWord sym, RandomGen g) => sym -> Type -> Maybe (Gen g sym)
+randomValue :: (Backend sym, RandomGen g) => sym -> Type -> Maybe (Gen g sym)
 randomValue sym ty =
   case ty of
     TCon tc ts  ->
@@ -164,7 +165,7 @@ randomValue sym ty =
                       return (randomRecord gs)
 
 -- | Generate a random bit value.
-randomBit :: (BitWord sym, RandomGen g) => sym -> Gen g sym
+randomBit :: (Backend sym, RandomGen g) => sym -> Gen g sym
 randomBit sym _ g =
   let (b,g1) = random g
   in (VBit <$> bitLit sym b, g1)
@@ -178,13 +179,13 @@ randomSize k n g
 -- | Generate a random integer value. The size parameter is assumed to
 -- vary between 1 and 100, and we use it to generate smaller numbers
 -- first.
-randomInteger :: (BitWord sym, RandomGen g) => sym -> Gen g sym
+randomInteger :: (Backend sym, RandomGen g) => sym -> Gen g sym
 randomInteger sym w g =
   let (n, g1) = if w < 100 then (fromInteger w, g) else randomSize 8 100 g
       (i, g2) = randomR (- 256^n, 256^n) g1
   in (VInteger <$> integerLit sym i, g2)
 
-randomIntMod :: (BitWord sym, RandomGen g) => sym -> Integer -> Gen g sym
+randomIntMod :: (Backend sym, RandomGen g) => sym -> Integer -> Gen g sym
 randomIntMod sym modulus _ g =
   let (i, g') = randomR (0, modulus-1) g
   in (VInteger <$> integerLit sym i, g')
@@ -192,7 +193,7 @@ randomIntMod sym modulus _ g =
 -- | Generate a random word of the given length (i.e., a value of type @[w]@)
 -- The size parameter is assumed to vary between 1 and 100, and we use
 -- it to generate smaller numbers first.
-randomWord :: (BitWord sym, RandomGen g) => sym -> Integer -> Gen g sym
+randomWord :: (Backend sym, RandomGen g) => sym -> Integer -> Gen g sym
 randomWord sym w _sz g =
    let (val, g1) = randomR (0,2^w-1) g
    in (return $ VWord w (WordVal <$> io (wordLit sym w val)), g1)
@@ -237,7 +238,7 @@ randomRecord gens sz g0 =
 -- | Produce a random value with the given seed. If we do not support
 -- making values of the given type, return zero of that type.
 -- TODO: do better than returning zero
-randomV :: BitWord sym => sym -> TValue -> Integer -> Eval (GenValue sym)
+randomV :: Backend sym => sym -> TValue -> Integer -> Eval (GenValue sym)
 randomV sym ty seed =
   case randomValue sym (tValTy ty) of
     Nothing -> zeroV sym ty

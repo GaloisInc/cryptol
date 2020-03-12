@@ -34,6 +34,7 @@ module Cryptol.Eval (
   ) where
 
 import Cryptol.Eval.Concrete( Concrete(..) )
+import Cryptol.Eval.Generic ( iteValue )
 import Cryptol.Eval.Env
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
@@ -59,7 +60,7 @@ import Prelude.Compat
 type EvalEnv = GenEvalEnv Concrete
 
 type EvalPrims sym =
-  ( BitWord sym, ?evalPrim :: Ident -> Maybe (GenValue sym) )
+  ( Backend sym, ?evalPrim :: Ident -> Maybe (GenValue sym) )
 
 -- Expression Evaluation -------------------------------------------------------
 
@@ -252,7 +253,7 @@ evalDeclGroup sym env dg = do
 --   However, for the so-called 'Value' types we can instead optimistically use the 'delayFill'
 --   operation and only fall back on full eta expansion if the thunk is double-forced.
 fillHole ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   GenEvalEnv sym ->
   (Name, Schema, Eval (GenValue sym), Eval (GenValue sym) -> Eval ()) ->
@@ -285,7 +286,7 @@ isValueType _ _ = False
 
 -- | Eta-expand a word value.  This forces an unpacked word representation.
 etaWord  ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   Integer ->
   Eval (GenValue sym) ->
@@ -303,7 +304,7 @@ etaWord sym n val = do
 --   expressions that should be expected to produce well-defined values in the
 --   denotational semantics will fail to terminate instead.
 etaDelay ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   String ->
   GenEvalEnv sym ->

@@ -152,6 +152,7 @@ library
 
                        Cryptol.Eval,
                        Cryptol.Eval.Arch,
+                       Cryptol.Eval.Backend,
                        Cryptol.Eval.Concrete,
                        Cryptol.Eval.Concrete.Value,
                        Cryptol.Eval.Env,

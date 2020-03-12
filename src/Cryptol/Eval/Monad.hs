@@ -17,6 +17,7 @@ module Cryptol.Eval.Monad
 , EvalOpts(..)
 , getEvalOpts
 , PPOpts(..)
+, defaultPPOpts
 , io
 , delay
 , delayFill
@@ -61,6 +62,9 @@ data PPOpts = PPOpts
   , useBase      :: Int
   , useInfLength :: Int
   }
+
+defaultPPOpts :: PPOpts
+defaultPPOpts = PPOpts { useAscii = False, useBase = 10, useInfLength = 5 }
 
 -- | Some options for evalutaion
 data EvalOpts = EvalOpts

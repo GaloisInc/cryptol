@@ -52,7 +52,7 @@ instance Monoid (GenEvalEnv sym) where
 
   mappend l r = l <> r
 
-ppEnv :: BitWord sym => sym -> PPOpts -> GenEvalEnv sym -> Eval Doc
+ppEnv :: Backend sym => sym -> PPOpts -> GenEvalEnv sym -> Eval Doc
 ppEnv sym opts env = brackets . fsep <$> mapM bind (Map.toList (envVars env))
   where
    bind (k,v) = do vdoc <- ppValue sym opts =<< v

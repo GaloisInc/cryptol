@@ -107,7 +107,7 @@ mask ::
 mask w i | w >= Arch.maxBigIntWidth = wordTooWide w
          | otherwise                = i .&. ((1 `shiftL` fromInteger w) - 1)
 
-instance BitWord Concrete where
+instance Backend Concrete where
   type SBit Concrete = Bool
   type SWord Concrete = BV
   type SInteger Concrete = Integer
@@ -128,6 +128,12 @@ instance BitWord Concrete where
   ppInteger _ _opts i = integer i
 
   bitLit _ b = pure b
+  bitAsLit _ b = Just b
+
+  iteBit _ b x y  = pure $! if b then x else y
+  iteWord _ b x y = pure $! if b then x else y
+  iteInteger _ b x y = pure $! if b then x else y
+
   wordLit _ w i = pure $! mkBv w i
   integerLit _ i = pure i
 
@@ -175,5 +181,5 @@ instance BitWord Concrete where
   wordToInt _ (BV _ x) = pure x
   wordFromInt _ w x = pure $! mkBv w x
 
-  iteValue _ b t f = if b then t else f
+--  iteValue _ b t f = if b then t else f
 

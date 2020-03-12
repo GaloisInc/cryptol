@@ -43,7 +43,7 @@ lg2 i = case genLog i 2 of
 
 
 -- | Make a numeric literal value at the given type.
-mkLit :: BitWord sym => sym -> TValue -> Integer -> Eval (GenValue sym)
+mkLit :: Backend sym => sym -> TValue -> Integer -> Eval (GenValue sym)
 mkLit sym ty i =
   case ty of
     TVInteger                    -> VInteger <$> io (integerLit sym i)
@@ -53,7 +53,7 @@ mkLit sym ty i =
                                     [ "Invalid type for number" ]
 
 -- | Make a numeric constant.
-ecNumberV :: BitWord sym => sym -> GenValue sym
+ecNumberV :: Backend sym => sym -> GenValue sym
 ecNumberV sym =
   nlam $ \valT ->
   VPoly $ \ty ->
@@ -66,13 +66,13 @@ ecNumberV sym =
              ]
 
 -- | Convert a word to a non-negative integer.
-ecToIntegerV :: BitWord sym => sym -> GenValue sym
+ecToIntegerV :: Backend sym => sym -> GenValue sym
 ecToIntegerV sym =
   nlam $ \ _ ->
   wlam sym $ \ w -> VInteger <$> io (wordToInt sym w)
 
 -- | Convert an unbounded integer to a packed bitvector.
-ecFromIntegerV :: BitWord sym => sym -> (Integer -> SInteger sym -> SInteger sym) -> GenValue sym
+ecFromIntegerV :: Backend sym => sym -> (Integer -> SInteger sym -> SInteger sym) -> GenValue sym
 ecFromIntegerV sym opz =
   tlam $ \ a ->
   lam  $ \ v ->
@@ -102,7 +102,7 @@ unary f = tlam $ \ ty ->
 type BinArith sym = Integer -> SWord sym -> SWord sym -> Eval (SWord sym)
 
 arithBinary :: forall sym.
-  BitWord sym =>
+  Backend sym =>
   sym ->
   BinArith sym ->
   (SInteger sym -> SInteger sym -> Eval (SInteger sym)) ->
@@ -171,7 +171,7 @@ type UnaryArith sym = Integer -> SWord sym -> Eval (SWord sym)
 
 
 arithUnary :: forall sym.
-  BitWord sym =>
+  Backend sym =>
   sym ->
   UnaryArith sym ->
   (SInteger sym -> Eval (SInteger sym)) ->
@@ -224,7 +224,7 @@ arithUnary sym opw opi opz = loop
     TVAbstract {} -> evalPanic "arithUnary" ["Abstract type not in `Arith`"]
 
 arithNullary :: forall sym.
-  BitWord sym =>
+  Backend sym =>
   (Integer -> Eval (SWord sym)) ->
   Eval (SInteger sym) ->
   (Integer -> Eval (SInteger sym)) ->
@@ -271,35 +271,35 @@ arithNullary opw opi opz = loop
           evalPanic "arithNullary" ["Abstract type not in `Arith`"]
 
 
-addV :: BitWord sym => sym -> Binary sym
+addV :: Backend sym => sym -> Binary sym
 addV sym = arithBinary sym opw opi opz
   where
     opw _w x y = io $ wordPlus sym x y
     opi x y = io $ intPlus sym x y
     opz m x y = io $ intModPlus sym m x y
 
-subV :: BitWord sym => sym -> Binary sym
+subV :: Backend sym => sym -> Binary sym
 subV sym = arithBinary sym opw opi opz
   where
     opw _w x y = io $ wordMinus sym x y
     opi x y = io $ intMinus sym x y
     opz m x y = io $ intModMinus sym m x y
 
-mulV :: BitWord sym => sym -> Binary sym
+mulV :: Backend sym => sym -> Binary sym
 mulV sym = arithBinary sym opw opi opz
   where
     opw _w x y = io $ wordMult sym x y
     opi x y = io $ intMult sym x y
     opz m x y = io $ intModMult sym m x y
 
-intV :: BitWord sym => sym -> SInteger sym -> TValue -> Eval (GenValue sym)
+intV :: Backend sym => sym -> SInteger sym -> TValue -> Eval (GenValue sym)
 intV sym i = arithNullary (\w -> io (wordFromInt sym w i)) (pure i) (pure . const i)
 
 
 -- Cmp -------------------------------------------------------------------------
 
 cmpValue ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   (SBit sym -> SBit sym -> Eval a -> Eval a) ->
   (SWord sym -> SWord sym -> Eval a -> Eval a) ->
@@ -345,7 +345,7 @@ cmpValue sym fb fw fi fz = cmp
 -- | Lifted operation on finite bitsequences.  Used
 --   for signed comparisons and arithemtic.
 liftWord ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   (SWord sym -> SWord sym -> Eval (GenValue sym)) ->
   GenValue sym
@@ -358,7 +358,7 @@ liftWord sym op =
 -- Logic -----------------------------------------------------------------------
 
 zeroV :: forall sym.
-  BitWord sym =>
+  Backend sym =>
   sym ->
   TValue ->
   Eval (GenValue sym)
@@ -410,7 +410,7 @@ zeroV sym ty = case ty of
 --  | otherwise = evalPanic "zeroV" ["invalid type for zero"]
 
 
-joinWordVal :: BitWord sym => sym -> WordValue sym -> WordValue sym -> Eval (WordValue sym)
+joinWordVal :: Backend sym => sym -> WordValue sym -> WordValue sym -> Eval (WordValue sym)
 joinWordVal sym (WordVal w1) (WordVal w2)
   | wordLen sym w1 + wordLen sym w2 < largeBitSize
   = WordVal <$> io (joinWord sym w1 w2)
@@ -421,7 +421,7 @@ joinWordVal sym w1 w2
 
 
 joinWords :: forall sym.
-  BitWord sym =>
+  Backend sym =>
   sym ->
   Integer ->
   Integer ->
@@ -442,7 +442,7 @@ joinWords sym nParts nEach xs =
 
 
 joinSeq ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   Nat' ->
   Integer ->
@@ -487,7 +487,7 @@ joinSeq _sym parts each _a xs
 
 -- | Join a sequence of sequences into a single sequence.
 joinV ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   Nat' ->
   Integer ->
@@ -498,7 +498,7 @@ joinV sym parts each a val = joinSeq sym parts each a =<< fromSeq "joinV" val
 
 
 splitWordVal ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   Integer ->
   Integer ->
@@ -512,7 +512,7 @@ splitWordVal _ leftWidth rightWidth (LargeBitsVal _n xs) =
    in pure (LargeBitsVal leftWidth lxs, LargeBitsVal rightWidth rxs)
 
 splitAtV ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   Nat' ->
   Nat' ->
@@ -561,7 +561,7 @@ splitAtV sym front back a val =
   --   first shifting `w` right by `i` bits, and then truncating to
   --   `n` bits.
 extractWordVal ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   Integer ->
   Integer ->
@@ -574,7 +574,7 @@ extractWordVal _ len start (LargeBitsVal n xs) =
     in pure $ LargeBitsVal len xs'
 
 -- | Split implementation.
-ecSplitV :: BitWord sym => sym -> GenValue sym
+ecSplitV :: Backend sym => sym -> GenValue sym
 ecSplitV sym =
   nlam $ \ parts ->
   nlam $ \ each  ->
@@ -609,7 +609,7 @@ ecSplitV sym =
 
 
 reverseV :: forall sym.
-  BitWord sym =>
+  Backend sym =>
   sym ->
   GenValue sym ->
   Eval (GenValue sym)
@@ -626,7 +626,7 @@ reverseV _ _ =
 
 
 transposeV ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   Nat' ->
   Nat' ->
@@ -673,7 +673,7 @@ transposeV sym a b c xs
 
 
 ccatV ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   Nat' ->
   Nat' ->
@@ -706,7 +706,7 @@ ccatV _sym front back elty l r = do
          lookupSeqMap rs (i-n))
 
 wordValLogicOp ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   (SBit sym -> SBit sym -> Eval (SBit sym)) ->
   (SWord sym -> SWord sym -> Eval (SWord sym)) ->
@@ -723,7 +723,7 @@ wordValLogicOp sym bop _ w1 w2 = LargeBitsVal (wordValueSize sym w1) <$> zs
 
 -- | Merge two values given a binop.  This is used for and, or and xor.
 logicBinary :: forall sym.
-  BitWord sym =>
+  Backend sym =>
   sym ->
   (SBit sym -> SBit sym -> Eval (SBit sym)) ->
   (SWord sym -> SWord sym -> Eval (SWord sym)) ->
@@ -787,7 +787,7 @@ logicBinary sym opb opw = loop
 
 
 wordValUnaryOp ::
-  BitWord sym =>
+  Backend sym =>
   (SBit sym -> SBit sym) ->
   (SWord sym -> SWord sym) ->
   WordValue sym ->
@@ -797,7 +797,7 @@ wordValUnaryOp bop _ (LargeBitsVal n xs) = LargeBitsVal n <$> mapSeqMap f xs
   where f x = VBit . bop <$> fromBit x
 
 logicUnary :: forall sym.
-  BitWord sym =>
+  Backend sym =>
   (SBit sym -> SBit sym) ->
   (SWord sym -> SWord sym) ->
   Unary sym
@@ -845,7 +845,7 @@ logicUnary opb opw = loop
 
 -- | Indexing operations.
 indexPrim ::
-  BitWord sym =>
+  Backend sym =>
   sym ->
   (Maybe Integer -> TValue -> SeqMap sym -> Seq.Seq (SBit sym) -> Eval (GenValue sym)) ->
   (Maybe Integer -> TValue -> SeqMap sym -> SWord sym -> Eval (GenValue sym)) ->
@@ -869,7 +869,7 @@ indexPrim sym bits_op word_op =
 
 
 updatePrim ::
-  BitWord sym =>
+  Backend sym =>
   (Nat' -> TValue -> WordValue sym -> WordValue sym -> Eval (GenValue sym) -> Eval (WordValue sym)) ->
   (Nat' -> TValue -> SeqMap sym    -> WordValue sym -> Eval (GenValue sym) -> Eval (SeqMap sym)) ->
   GenValue sym
@@ -889,7 +889,7 @@ updatePrim updateWord updateSeq =
       _ -> evalPanic "Expected sequence value" ["updatePrim"]
 
 -- @[ 0 .. 10 ]@
-fromToV :: BitWord sym => sym -> GenValue sym
+fromToV :: Backend sym => sym -> GenValue sym
 fromToV sym =
   nlam $ \ first ->
   nlam $ \ lst   ->
@@ -902,7 +902,7 @@ fromToV sym =
       _ -> evalPanic "fromToV" ["invalid arguments"]
 
 -- @[ 0, 1 .. 10 ]@
-fromThenToV :: BitWord sym => sym -> GenValue sym
+fromThenToV :: Backend sym => sym -> GenValue sym
 fromThenToV sym =
   nlam $ \ first ->
   nlam $ \ next  ->
@@ -917,7 +917,7 @@ fromThenToV sym =
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
 
 
-infFromV :: BitWord sym => sym -> GenValue sym
+infFromV :: Backend sym => sym -> GenValue sym
 infFromV sym =
   tlam $ \ ty ->
   lam  $ \ x ->
@@ -926,7 +926,7 @@ infFromV sym =
      i' <- io (integerLit sym i)
      addV sym ty x' =<< intV sym i' ty
 
-infFromThenV :: BitWord sym => sym -> GenValue sym
+infFromThenV :: Backend sym => sym -> GenValue sym
 infFromThenV sym =
   tlam $ \ ty ->
   lam $ \ first -> return $
@@ -941,7 +941,7 @@ infFromThenV sym =
 -- Miscellaneous ---------------------------------------------------------------
 
 errorV :: forall sym.
-  BitWord sym =>
+  Backend sym =>
   TValue ->
   String ->
   Eval (GenValue sym)
@@ -972,3 +972,85 @@ errorV ty msg = case ty of
     return $ VRecord $ fmap (flip errorV msg) $ Map.fromList fields
 
   TVAbstract {} -> cryUserError msg
+
+
+-- Merge and if/then/else
+
+iteValue :: Backend sym =>
+  sym ->
+  SBit sym ->
+  Eval (GenValue sym) ->
+  Eval (GenValue sym) ->
+  Eval (GenValue sym)
+iteValue sym b x y
+  | Just True  <- bitAsLit sym b = x
+  | Just False <- bitAsLit sym b = y
+  | otherwise = mergeValue' sym b x y
+
+mergeWord :: Backend sym =>
+  sym ->
+  SBit sym ->
+  WordValue sym ->
+  WordValue sym ->
+  Eval (WordValue sym)
+mergeWord sym c (WordVal w1) (WordVal w2) =
+  WordVal <$> io (iteWord sym c w1 w2)
+mergeWord sym c w1 w2 =
+  pure $ LargeBitsVal (wordValueSize sym w1) (mergeSeqMap sym c (asBitsMap sym w1) (asBitsMap sym w2))
+
+mergeWord' :: Backend sym =>
+  sym ->
+  SBit sym ->
+  Eval (WordValue sym) ->
+  Eval (WordValue sym) ->
+  Eval (WordValue sym)
+mergeWord' sym c mx my =
+  do x <- mx
+     y <- my
+     mergeWord sym c x y
+
+mergeValue' :: Backend sym =>
+  sym ->
+  SBit sym ->
+  Eval (GenValue sym) ->
+  Eval (GenValue sym) ->
+  Eval (GenValue sym)
+mergeValue' sym b mx my =
+  do x <- mx
+     y <- my
+     mergeValue sym b x y
+
+
+mergeValue :: Backend sym =>
+  sym ->
+  SBit sym ->
+  GenValue sym ->
+  GenValue sym ->
+  Eval (GenValue sym)
+mergeValue sym c v1 v2 =
+  case (v1, v2) of
+    (VRecord fs1, VRecord fs2)  | Map.keys fs1 == Map.keys fs2 ->
+                                  pure $ VRecord $ Map.intersectionWith (mergeValue' sym c) fs1 fs2
+    (VTuple vs1 , VTuple vs2 ) | length vs1 == length vs2  ->
+                                  pure $ VTuple $ zipWith (mergeValue' sym c) vs1 vs2
+    (VBit b1    , VBit b2    ) -> VBit <$> io (iteBit sym c b1 b2)
+    (VInteger i1, VInteger i2) -> VInteger <$> io (iteInteger sym c i1 i2)
+    (VWord n1 w1, VWord n2 w2 ) | n1 == n2 -> pure $ VWord n1 $ mergeWord' sym c w1 w2
+    (VSeq n1 vs1, VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap (mergeSeqMap sym c vs1 vs2)
+    (VStream vs1, VStream vs2) -> VStream <$> memoMap (mergeSeqMap sym c vs1 vs2)
+    (VFun f1    , VFun f2    ) -> pure $ VFun $ \x -> mergeValue' sym c (f1 x) (f2 x)
+    (VPoly f1   , VPoly f2   ) -> pure $ VPoly $ \x -> mergeValue' sym c (f1 x) (f2 x)
+    (_          , _          ) -> panic "Cryptol.Eval.Generic"
+                                  [ "mergeValue: incompatible values" ]
+
+mergeSeqMap :: Backend sym =>
+  sym ->
+  SBit sym ->
+  SeqMap sym ->
+  SeqMap sym ->
+  SeqMap sym 
+mergeSeqMap sym c x y =
+  IndexSeqMap $ \i ->
+  do xi <- lookupSeqMap x i
+     yi <- lookupSeqMap y i
+     mergeValue sym c xi yi

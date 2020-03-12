@@ -628,10 +628,3 @@ updateBack_word Inf _eltTy _bs _w _val =
 updateBack_word (Nat n) _eltTy bs w val = do
   idx <- bvVal <$> asWordVal Concrete w
   updateWordValue Concrete bs (n - idx - 1) (fromBit =<< val)
-
-{-
-  idx <- bvVal <$> asWordVal w
-  unless (idx < n) (invalidIndex idx)
-  let idx' = n - idx - 1
-  return $! Seq.update (fromInteger idx') (fromVBit <$> val) bs
--}

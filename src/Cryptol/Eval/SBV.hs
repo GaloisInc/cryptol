@@ -23,6 +23,7 @@ module Cryptol.Eval.SBV
   ) where
 
 import           Control.Monad (join, unless)
+import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Bits (bit, complement, shiftL)
 import qualified Data.Foldable as Fold
 import           Data.List (foldl')
@@ -81,73 +82,6 @@ type Value = GenValue SBV
 
 -- Symbolic Conditionals -------------------------------------------------------
 
-iteSValue :: SBit SBV -> Value -> Value -> Eval Value
-iteSValue c x y =
-  case svAsBool c of
-    Just True  -> return x
-    Just False -> return y
-    Nothing    -> mergeValue True c x y
-
-mergeBit :: Bool
-         -> SBit SBV
-         -> SBit SBV
-         -> SBit SBV
-         -> SBit SBV
-mergeBit f c b1 b2 = svSymbolicMerge KBool f c b1 b2
-
-mergeWord :: Bool
-          -> SBit SBV
-          -> WordValue SBV
-          -> WordValue SBV
-          -> WordValue SBV
-mergeWord f c (WordVal w1) (WordVal w2) =
-    WordVal $ svSymbolicMerge (kindOf w1) f c w1 w2
-mergeWord f c w1 w2 =
-    LargeBitsVal (wordValueSize SBV w1) (mergeSeqMap f c (asBitsMap SBV w1) (asBitsMap SBV w2))
-
-mergeWord' :: Bool
-           -> SBit SBV
-           -> Eval (WordValue SBV)
-           -> Eval (WordValue SBV)
-           -> Eval (WordValue SBV)
-mergeWord' f c x y = mergeWord f c <$> x <*> y
-
-mergeInteger :: Bool
-             -> SBit SBV
-             -> SInteger SBV
-             -> SInteger SBV
-             -> SInteger SBV
-mergeInteger f c x y = svSymbolicMerge KUnbounded f c x y
-
-mergeValue :: Bool -> SBit SBV -> Value -> Value -> Eval Value
-mergeValue f c v1 v2 =
-  case (v1, v2) of
-    (VRecord fs1, VRecord fs2)  | Map.keys fs1 == Map.keys fs2 ->
-                                  pure $ VRecord $ Map.intersectionWith (mergeValue' f c) fs1 fs2
-    (VTuple vs1 , VTuple vs2 ) -> pure $ VTuple $ zipWith (mergeValue' f c) vs1 vs2
-    (VBit b1    , VBit b2    ) -> pure $ VBit $ mergeBit f c b1 b2
-    (VInteger i1, VInteger i2) -> pure $ VInteger $ mergeInteger f c i1 i2
-    (VWord n1 w1, VWord n2 w2 ) | n1 == n2 -> pure $ VWord n1 $ mergeWord' f c w1 w2
-    (VSeq n1 vs1, VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap (mergeSeqMap f c vs1 vs2)
-    (VStream vs1, VStream vs2) -> VStream <$> memoMap (mergeSeqMap f c vs1 vs2)
-    (VFun f1    , VFun f2    ) -> pure $ VFun $ \x -> mergeValue' f c (f1 x) (f2 x)
-    (VPoly f1   , VPoly f2   ) -> pure $ VPoly $ \x -> mergeValue' f c (f1 x) (f2 x)
-    (_          , _          ) -> panic "Cryptol.Symbolic.Value"
-                                  [ "mergeValue: incompatible values" ]
-
-mergeValue' :: Bool -> SBit SBV -> Eval Value -> Eval Value -> Eval Value
-mergeValue' f c x1 x2 =
-  do v1 <- x1
-     v2 <- x2
-     mergeValue f c v1 v2
-
-mergeSeqMap :: Bool -> SBit SBV -> SeqMap SBV -> SeqMap SBV -> SeqMap SBV
-mergeSeqMap f c x y =
-  IndexSeqMap $ \i ->
-  do xi <- lookupSeqMap x i
-     yi <- lookupSeqMap y i
-     mergeValue f c xi yi
-
 packSBV :: [SBit SBV] -> SWord SBV
 packSBV bs = fromBitsLE (reverse bs)
 
@@ -157,7 +91,7 @@ unpackSBV x = [ svTestBit x i | i <- reverse [0 .. intSizeOf x - 1] ]
 
 -- Symbolic Big-endian Words -------------------------------------------------------
 
-instance BitWord SBV where
+instance Backend SBV where
   type SBit SBV = SVal
   type SWord SBV = SVal
   type SInteger SBV = SVal
@@ -174,6 +108,8 @@ instance BitWord SBV where
   ppInteger _ _opts v
      | Just x <- svAsInteger v = integer x
      | otherwise               = text "[?]"
+
+  bitAsLit _ b = svAsBool b
 
   bitLit _ b     = pure $! svBool b
   wordLit _ n x  = pure $! svInteger (KBounded False (fromInteger n)) x
@@ -208,18 +144,16 @@ instance BitWord SBV where
   intMinus _ a b = pure $! svMinus a b
   intMult  _ a b = pure $! svTimes a b
 
-  intModPlus  _ _m a b = pure $! svPlus a b
-  intModMinus _ _m a b = pure $! svMinus a b
-  intModMult  _ _m a b = pure $! svTimes a b
+  intModPlus  _ m a b = sModAdd m a b
+  intModMinus _ m a b = sModSub m a b
+  intModMult  _ m a b = sModMult m a b
 
   wordToInt _ x = pure $! svToInteger x
   wordFromInt _ w i = pure $! svFromInteger w i
 
-  iteValue _ b x1 x2
-    | Just b' <- svAsBool b = if b' then x1 else x2
-    | otherwise = do v1 <- x1
-                     v2 <- x2
-                     iteSValue b v1 v2
+  iteBit _ b x y = pure $! svSymbolicMerge KBool True b x y
+  iteWord _ b x y = pure $! svSymbolicMerge (kindOf x) True b x y
+  iteInteger _ b x y = pure $! svSymbolicMerge KUnbounded True b x y
 
 
 -- TODO: implement this properly in SBV using "bv2int"
@@ -430,7 +364,7 @@ logicShift nm wop reindex =
                                          case reindex (Nat w) i shft of
                                            Nothing -> VBit <$> io (bitLit SBV False)
                                            Just i' -> lookupSeqMap bs i'
-                      LargeBitsVal n <$> shifter (mergeSeqMap True) op bs0 idx_bits
+                      LargeBitsVal n <$> shifter (mergeSeqMap SBV) op bs0 idx_bits
 
           VSeq w vs0 ->
              do idx_bits <- enumerateWordValue SBV idx
@@ -438,7 +372,7 @@ logicShift nm wop reindex =
                                    case reindex (Nat w) i shft of
                                      Nothing -> zeroV SBV a
                                      Just i' -> lookupSeqMap vs i'
-                VSeq w <$> shifter (mergeSeqMap True) op vs0 idx_bits
+                VSeq w <$> shifter (mergeSeqMap SBV) op vs0 idx_bits
 
           VStream vs0 ->
              do idx_bits <- enumerateWordValue SBV idx
@@ -446,7 +380,7 @@ logicShift nm wop reindex =
                                    case reindex Inf i shft of
                                      Nothing -> zeroV SBV a
                                      Just i' -> lookupSeqMap vs i'
-                VStream <$> shifter (mergeSeqMap True) op vs0 idx_bits
+                VStream <$> shifter (mergeSeqMap SBV) op vs0 idx_bits
 
           _ -> evalPanic "expected sequence value in shift operation" [nm]
 
@@ -543,14 +477,6 @@ wordValueEqualsInteger wv i
     bitIs :: Bool -> SBit SBV -> SBit SBV
     bitIs b x = if b then x else SBV.svNot x
 
-{-
-lazyMergeBit :: SBit SBV -> Eval (SBit SBV) -> Eval (SBit SBV) -> Eval (SBit SBV)
-lazyMergeBit c x y =
-  case SBV.svAsBool c of
-    Just True -> x
-    Just False -> y
-    Nothing -> mergeBit False c <$> x <*> y
--}
 
 updateFrontSym
   :: Nat'
@@ -643,16 +569,6 @@ updateBackSym_word (Nat n) eltTy bv wv val = do
     _ -> LargeBitsVal (wordValueSize SBV wv) <$> updateBackSym (Nat n) eltTy (asBitsMap SBV bv) wv val
 
 
-{-
-asBitList :: [Eval (SBit SBV)] -> Maybe [SBit SBV]
-asBitList = go id
- where go :: ([SBit SBV] -> [SBit SBV]) -> [Eval (SBit SBV)] -> Maybe [SBit SBV]
-       go f [] = Just (f [])
-       go f (Ready b:vs) = go (f . (b:)) vs
-       go _ _ = Nothing
--}
-
-
 asWordList :: [WordValue SBV] -> Maybe [IO (SWord SBV)]
 asWordList = go id
  where go :: ([IO (SWord SBV)] -> [IO (SWord SBV)]) -> [WordValue SBV] -> Maybe [IO (SWord SBV)]
@@ -681,32 +597,32 @@ sExp _w x y =
             where a = go bs
                   s = SBV.svTimes a a
 
-sModAdd :: Integer -> SInteger SBV -> SInteger SBV -> Eval (SInteger SBV)
+sModAdd :: MonadIO m => Integer -> SInteger SBV -> SInteger SBV -> m (SInteger SBV)
 sModAdd modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
-    (Just i, Just j) -> io $ integerLit SBV ((i + j) `mod` modulus)
-    _                -> ready $ SBV.svPlus x y
+    (Just i, Just j) -> liftIO (integerLit SBV ((i + j) `mod` modulus))
+    _                -> pure $ SBV.svPlus x y
 
-sModSub :: Integer -> SInteger SBV -> SInteger SBV -> Eval (SInteger SBV)
+sModSub :: MonadIO m => Integer -> SInteger SBV -> SInteger SBV -> m (SInteger SBV)
 sModSub modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
-    (Just i, Just j) -> io $ integerLit SBV ((i - j) `mod` modulus)
-    _                -> ready $ SBV.svMinus x y
+    (Just i, Just j) -> liftIO (integerLit SBV ((i - j) `mod` modulus))
+    _                -> pure $ SBV.svMinus x y
 
-sModMult :: Integer -> SInteger SBV -> SInteger SBV -> Eval (SInteger SBV)
+sModMult :: MonadIO m => Integer -> SInteger SBV -> SInteger SBV -> m (SInteger SBV)
 sModMult modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
-    (Just i, Just j) -> io $ integerLit SBV ((i * j) `mod` modulus)
-    _                -> ready $ SBV.svTimes x y
+    (Just i, Just j) -> liftIO (integerLit SBV ((i * j) `mod` modulus))
+    _                -> pure $ SBV.svTimes x y
 
-sModExp :: Integer -> SInteger SBV -> SInteger SBV -> Eval (SInteger SBV)
+sModExp :: MonadIO m => Integer -> SInteger SBV -> SInteger SBV -> m (SInteger SBV)
 sModExp modulus x y =
-   do m <- io (integerLit SBV modulus)
-      ready $ SBV.svExp x (SBV.svRem y m)
+   do m <- liftIO (integerLit SBV modulus)
+      pure $ SBV.svExp x (SBV.svRem y m)
 
 -- | Ceiling (log_2 x)
-sLg2 :: Integer -> SWord SBV -> Eval (SWord SBV)
-sLg2 _w x = ready $ go 0
+sLg2 :: Monad m => Integer -> SWord SBV -> m (SWord SBV)
+sLg2 _w x = pure $ go 0
   where
     lit n = literalSWord (SBV.intSizeOf x) n
     go i | i < SBV.intSizeOf x = SBV.svIte (SBV.svLessEq x (lit (2^i))) (lit (toInteger i)) (go (i + 1))
