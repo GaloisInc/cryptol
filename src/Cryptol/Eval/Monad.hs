@@ -255,16 +255,16 @@ wordTooWide :: Integer -> a
 wordTooWide w = X.throw (WordTooWide w)
 
 -- | For the Cryptol @error@ function.
-cryUserError :: String -> Eval a
-cryUserError msg = io (X.throwIO (UserError msg))
+cryUserError :: MonadIO m => String -> m a
+cryUserError msg = liftIO (X.throwIO (UserError msg))
 
-cryNoPrimError :: Name -> Eval a
-cryNoPrimError x = io (X.throwIO (NoPrim x))
+cryNoPrimError :: MonadIO m => Name -> m a
+cryNoPrimError x = liftIO (X.throwIO (NoPrim x))
 
 -- | For cases where we can detect tight loops.
-cryLoopError :: String -> Eval a
-cryLoopError msg = io (X.throwIO (LoopError msg))
+cryLoopError :: MonadIO m => String -> m a
+cryLoopError msg = liftIO (X.throwIO (LoopError msg))
 
 -- | A sequencing operation has gotten an invalid index.
-invalidIndex :: Integer -> Eval a
-invalidIndex i = io (X.throwIO (InvalidIndex i))
+invalidIndex :: MonadIO m => Integer -> m a
+invalidIndex i = liftIO (X.throwIO (InvalidIndex i))

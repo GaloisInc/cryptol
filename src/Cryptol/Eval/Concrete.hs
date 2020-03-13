@@ -106,14 +106,11 @@ evalPrim prim = Map.lookup prim primTable
 primTable :: Map.Map Ident Value
 primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   [ ("+"          , {-# SCC "Prelude::(+)" #-}
-                    binary (arithBinary Concrete (liftBinArith (+)) (liftBinInteger (+))
-                            (liftBinIntMod (+))))
+                    binary (addV Concrete))
   , ("-"          , {-# SCC "Prelude::(-)" #-}
-                    binary (arithBinary Concrete (liftBinArith (-)) (liftBinInteger (-))
-                            (liftBinIntMod (-))))
+                    binary (subV Concrete))
   , ("*"          , {-# SCC "Prelude::(*)" #-}
-                    binary (arithBinary Concrete (liftBinArith (*)) (liftBinInteger (*))
-                            (liftBinIntMod (*))))
+                    binary (mulV Concrete))
   , ("/"          , {-# SCC "Prelude::(/)" #-}
                     binary (arithBinary Concrete (liftDivArith div) (liftDivInteger div)
                             (const (liftDivInteger div))))
@@ -158,7 +155,7 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("^"          , {-# SCC "Prelude::(^)" #-}
                     binary (logicBinary Concrete (\x y -> pure $ xor x y) (binBV xor)))
   , ("complement" , {-# SCC "Prelude::complement" #-}
-                    unary  (logicUnary complement (unaryBV complement)))
+                    unary  (logicUnary Concrete complement (unaryBV complement)))
 
   , ("toInteger"  , ecToIntegerV Concrete)
   , ("fromInteger", ecFromIntegerV Concrete (flip mod))
@@ -198,10 +195,10 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     indexPrim Concrete indexBack_bits indexBack)
 
   , ("update"     , {-# SCC "Prelude::update" #-}
-                    updatePrim updateFront_word updateFront)
+                    updatePrim Concrete updateFront_word updateFront)
 
   , ("updateEnd"  , {-# SCC "Prelude::updateEnd" #-}
-                    updatePrim updateBack_word updateBack)
+                    updatePrim Concrete updateBack_word updateBack)
 
   , ("zero"       , {-# SCC "Prelude::zero" #-}
                     VPoly (zeroV Concrete))
@@ -358,9 +355,9 @@ lexCompare ty a b = cmpValue Concrete op opw op (const op) ty a b (return EQ)
 -- | Turn a normal binop on Integers into one that can also deal with a bitsize.
 --   However, if the bitvector size is 0, always return the 0
 --   bitvector.
-liftBinArith :: (Integer -> Integer -> Integer) -> BinArith Concrete
-liftBinArith _  0 _        _        = ready $ mkBv 0 0
-liftBinArith op w (BV _ x) (BV _ y) = ready $ mkBv w $ op x y
+--liftBinArith :: (Integer -> Integer -> Integer) -> BinArith Concrete
+--liftBinArith _  0 _        _        = ready $ mkBv 0 0
+--liftBinArith op w (BV _ x) (BV _ y) = ready $ mkBv w $ op x y
 
 -- | Turn a normal binop on Integers into one that can also deal with a bitsize.
 --   Generate a thunk that throws a divide by 0 error when forced if the second
@@ -371,14 +368,8 @@ liftDivArith _  0 _        _        = ready $ mkBv 0 0
 liftDivArith _  _ _        (BV _ 0) = divideByZero
 liftDivArith op w (BV _ x) (BV _ y) = ready $ mkBv w $ op x y
 
-liftBinInteger :: (Integer -> Integer -> Integer) -> Integer -> Integer -> Eval Integer
-liftBinInteger op x y = ready $ op x y
-
-liftBinIntMod ::
-  (Integer -> Integer -> Integer) -> Integer -> Integer -> Integer -> Eval Integer
-liftBinIntMod op m x y
-  | m == 0    = ready $ op x y
-  | otherwise = ready $ (op x y) `mod` m
+--liftBinInteger :: (Integer -> Integer -> Integer) -> Integer -> Integer -> Eval Integer
+--liftBinInteger op x y = ready $ op x y
 
 liftDivInteger :: (Integer -> Integer -> Integer) -> Integer -> Integer -> Eval Integer
 liftDivInteger _  _ 0 = divideByZero
@@ -563,7 +554,7 @@ indexFront mblen _a vs (bvVal -> ix) =
     _                    -> lookupSeqMap vs ix
 
 indexFront_bits :: Maybe Integer -> TValue -> SeqMap Concrete -> Seq.Seq Bool -> Eval Value
-indexFront_bits mblen a vs bs = indexFront mblen a vs =<< io (packWord Concrete (Fold.toList bs))
+indexFront_bits mblen a vs bs = indexFront mblen a vs =<< packWord Concrete (Fold.toList bs)
 
 indexBack :: Maybe Integer -> TValue -> SeqMap Concrete -> BV -> Eval Value
 indexBack mblen _a vs (bvVal -> ix) =
@@ -574,7 +565,7 @@ indexBack mblen _a vs (bvVal -> ix) =
                             ["unexpected infinite sequence"]
 
 indexBack_bits :: Maybe Integer -> TValue -> SeqMap Concrete -> Seq.Seq Bool -> Eval Value
-indexBack_bits mblen a vs bs = indexBack mblen a vs =<< io (packWord Concrete (Fold.toList bs))
+indexBack_bits mblen a vs bs = indexBack mblen a vs =<< packWord Concrete (Fold.toList bs)
 
 
 updateFront

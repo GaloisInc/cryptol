@@ -28,6 +28,7 @@ module Cryptol.Eval.Concrete.Value
   , integerToChar
   , Value
   , Concrete(..)
+  , liftBinIntMod
   ) where
 
 import Data.Bits
@@ -111,6 +112,7 @@ instance Backend Concrete where
   type SBit Concrete = Bool
   type SWord Concrete = BV
   type SInteger Concrete = Integer
+  type SEval Concrete = Eval
 
   wordLen _ (BV w _) = w
   wordAsChar _ (BV _ x) = Just $! integerToChar x
@@ -119,6 +121,18 @@ instance Backend Concrete where
 
   wordUpdate _ (BV w x) idx True  = pure $! BV w (setBit   x (fromInteger (w - 1 - idx)))
   wordUpdate _ (BV w x) idx False = pure $! BV w (clearBit x (fromInteger (w - 1 - idx)))
+
+  isReady _ (Ready _) = True
+  isReady _ _ = False
+
+  mergeEval _sym f c mx my =
+    do x <- mx
+       y <- my
+       f c x y
+
+  sDelay _ = delay
+  sDeclareHole _ = blackhole
+  sDelayFill _ = delayFill
 
   ppBit _ b | b         = text "True"
             | otherwise = text "False"
@@ -174,12 +188,15 @@ instance Backend Concrete where
   intMinus _ x y = pure $! x - y
   intMult  _ x y = pure $! x * y
 
-  intModPlus  _ m x y = pure $! ((x + y) `mod` m)
-  intModMinus _ m x y = pure $! ((x - y) `mod` m)
-  intModMult  _ m x y = pure $! ((x * y) `mod` m)
+  intModPlus  _ = liftBinIntMod (+)
+  intModMinus _ = liftBinIntMod (-)
+  intModMult  _ = liftBinIntMod (*)
 
   wordToInt _ (BV _ x) = pure x
   wordFromInt _ w x = pure $! mkBv w x
 
---  iteValue _ b t f = if b then t else f
-
+liftBinIntMod :: Monad m =>
+  (Integer -> Integer -> Integer) -> Integer -> Integer -> Integer -> m Integer
+liftBinIntMod op m x y
+  | m == 0    = pure $ op x y
+  | otherwise = pure $ (op x y) `mod` m

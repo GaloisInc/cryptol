@@ -12,6 +12,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE Trustworthy #-}
+{-# LANGUAGE TypeFamilies #-}
 module Cryptol.Testing.Random where
 
 import qualified Control.Exception as X
@@ -27,7 +28,7 @@ import System.Random.TF.Gen   (seedTFGen)
 
 import Cryptol.Eval.Backend   (Backend(..))
 import Cryptol.Eval.Concrete.Value
-import Cryptol.Eval.Monad     (ready,runEval,EvalOpts,io,Eval,EvalError(..))
+import Cryptol.Eval.Monad     (ready,runEval,EvalOpts,Eval,EvalError(..))
 import Cryptol.Eval.Type      (TValue(..), tValTy)
 import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
                                ppValue, defaultPPOpts, finiteSeqMap)
@@ -38,7 +39,7 @@ import Cryptol.TypeCheck.SimpType(tRebuild')
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
 
-type Gen g x = Integer -> g -> (IO (GenValue x), g)
+type Gen g x = Integer -> g -> (SEval x (GenValue x), g)
 
 
 {- | Apply a testable value to some randomly-generated arguments.
@@ -58,7 +59,7 @@ runOneTest :: RandomGen g
 runOneTest evOpts fun argGens sz g0 = do
   let (args, g1) = foldr mkArg ([], g0) argGens
       mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
-  args' <- sequence args
+  args' <- runEval evOpts (sequence args)
   result <- evalTest evOpts fun args'
   return (result, g1)
 
@@ -72,7 +73,7 @@ returnOneTest :: RandomGen g
 returnOneTest evOpts fun argGens sz g0 =
   do let (args, g1) = foldr mkArg ([], g0) argGens
          mkArg argGen (as, g) = let (a, g') = argGen sz g in (a:as, g')
-     args' <- sequence args
+     args' <- runEval evOpts (sequence args)
      result <- runEval evOpts (go fun args')
      return (args', result, g1)
    where
@@ -196,41 +197,41 @@ randomIntMod sym modulus _ g =
 randomWord :: (Backend sym, RandomGen g) => sym -> Integer -> Gen g sym
 randomWord sym w _sz g =
    let (val, g1) = randomR (0,2^w-1) g
-   in (return $ VWord w (WordVal <$> io (wordLit sym w val)), g1)
+   in (return $ VWord w (WordVal <$> wordLit sym w val), g1)
 
 -- | Generate a random infinite stream value.
-randomStream :: RandomGen g => Gen g sym -> Gen g sym
+randomStream :: (Backend sym, RandomGen g) => Gen g sym -> Gen g sym
 randomStream mkElem sz g =
   let (g1,g2) = split g
-  in (pure $ VStream $ IndexSeqMap $ genericIndex (map io (unfoldr (Just . mkElem sz) g1)), g2)
+  in (pure $ VStream $ IndexSeqMap $ genericIndex (unfoldr (Just . mkElem sz) g1), g2)
 
 {- | Generate a random sequence.  This should be used for sequences
 other than bits.  For sequences of bits use "randomWord". -}
-randomSequence :: RandomGen g => Integer -> Gen g sym -> Gen g sym
+randomSequence :: (Backend sym, RandomGen g) => Integer -> Gen g sym -> Gen g sym
 randomSequence w mkElem sz g0 = do
   let (g1,g2) = split g0
   let f g = let (x,g') = mkElem sz g
-             in seq x (Just (io x, g'))
+             in seq x (Just (x, g'))
   let xs = Seq.fromList $ genericTake w $ unfoldr f g1
   seq xs (pure $ VSeq w $ IndexSeqMap $ (Seq.index xs . fromInteger), g2)
 
 -- | Generate a random tuple value.
-randomTuple :: RandomGen g => [Gen g sym] -> Gen g sym
+randomTuple :: (Backend sym, RandomGen g) => [Gen g sym] -> Gen g sym
 randomTuple gens sz = go [] gens
   where
   go els [] g = (pure $ VTuple (reverse els), g)
   go els (mkElem : more) g =
     let (v, g1) = mkElem sz g
-    in seq v (go (io v : els) more g1)
+    in seq v (go (v : els) more g1)
 
 -- | Generate a random record value.
-randomRecord :: RandomGen g => Map Ident (Gen g sym) -> Gen g sym
+randomRecord :: (Backend sym, RandomGen g) => Map Ident (Gen g sym) -> Gen g sym
 randomRecord gens sz g0 =
   let (g', m) = Map.mapAccum mk g0 gens in (pure $ VRecord m, g')
   where
     mk g gen =
       let (v, g') = gen sz g
-      in seq v (g', io v)
+      in seq v (g', v)
 
 
 -- Random Values ---------------------------------------------------------------
@@ -238,7 +239,7 @@ randomRecord gens sz g0 =
 -- | Produce a random value with the given seed. If we do not support
 -- making values of the given type, return zero of that type.
 -- TODO: do better than returning zero
-randomV :: Backend sym => sym -> TValue -> Integer -> Eval (GenValue sym)
+randomV :: Backend sym => sym -> TValue -> Integer -> SEval sym (GenValue sym)
 randomV sym ty seed =
   case randomValue sym (tValTy ty) of
     Nothing -> zeroV sym ty
@@ -247,7 +248,7 @@ randomV sym ty seed =
       let mask64 = 0xFFFFFFFFFFFFFFFF
           unpack s = fromInteger (s .&. mask64) : unpack (s `shiftR` 64)
           [a, b, c, d] = take 4 (unpack seed)
-      in io $ fst $ gen 100 $ seedTFGen (a, b, c, d)
+      in fst $ gen 100 $ seedTFGen (a, b, c, d)
 
 
 -- | A test result is either a pass, a failure due to evaluating to

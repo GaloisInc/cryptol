@@ -294,7 +294,7 @@ parseValue (FTSeq n FTBit) cvs =
   case SBV.genParse (SBV.KBounded False n) cvs of
     Just (x, cvs') -> (Eval.word Concrete (toInteger n) x, cvs')
     Nothing        -> (Eval.VWord (genericLength vs) (Eval.WordVal <$>
-                         Eval.io (Eval.packWord Concrete (map Eval.fromVBit vs))), cvs')
+                         (Eval.packWord Concrete (map Eval.fromVBit vs))), cvs')
       where (vs, cvs') = parseValues (replicate n FTBit) cvs
 parseValue (FTSeq n t) cvs =
                       (Eval.VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)

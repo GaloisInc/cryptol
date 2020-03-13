@@ -14,7 +14,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Env where
 
-import Cryptol.Eval.Monad( Eval, delay, ready, PPOpts )
+import Cryptol.Eval.Monad( PPOpts )
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.ModuleSystem.Name
@@ -34,7 +34,7 @@ import Prelude.Compat
 -- Evaluation Environment ------------------------------------------------------
 
 data GenEvalEnv sym = EvalEnv
-  { envVars       :: !(Map.Map Name (Eval (GenValue sym)))
+  { envVars       :: !(Map.Map Name (SEval sym (GenValue sym)))
   , envTypes      :: !TypeEnv
   } deriving Generic
 
@@ -52,7 +52,7 @@ instance Monoid (GenEvalEnv sym) where
 
   mappend l r = l <> r
 
-ppEnv :: Backend sym => sym -> PPOpts -> GenEvalEnv sym -> Eval Doc
+ppEnv :: Backend sym => sym -> PPOpts -> GenEvalEnv sym -> SEval sym Doc
 ppEnv sym opts env = brackets . fsep <$> mapM bind (Map.toList (envVars env))
   where
    bind (k,v) = do vdoc <- ppValue sym opts =<< v
@@ -63,27 +63,32 @@ emptyEnv :: GenEvalEnv sym
 emptyEnv  = mempty
 
 -- | Bind a variable in the evaluation environment.
-bindVar :: Name
-        -> Eval (GenValue sym)
-        -> GenEvalEnv sym
-        -> Eval (GenEvalEnv sym)
-bindVar n val env = do
+bindVar ::
+  Backend sym =>
+  sym ->
+  Name ->
+  SEval sym (GenValue sym) ->
+  GenEvalEnv sym ->
+  SEval sym (GenEvalEnv sym)
+bindVar sym n val env = do
   let nm = show $ ppLocName n
-  val' <- delay (Just nm) val
+  val' <- sDelay sym (Just nm) val
   return $ env{ envVars = Map.insert n val' (envVars env) }
 
 -- | Bind a variable to a value in the evaluation environment, without
 --   creating a thunk.
-bindVarDirect :: Name
-              -> GenValue sym
-              -> GenEvalEnv sym
-              -> GenEvalEnv sym
+bindVarDirect ::
+  Backend sym =>
+  Name ->
+  GenValue sym ->
+  GenEvalEnv sym ->
+  GenEvalEnv sym
 bindVarDirect n val env = do
-  env{ envVars = Map.insert n (ready val) (envVars env) }
+  env{ envVars = Map.insert n (pure val) (envVars env) }
 
 -- | Lookup a variable in the environment.
 {-# INLINE lookupVar #-}
-lookupVar :: Name -> GenEvalEnv sym -> Maybe (Eval (GenValue sym))
+lookupVar :: Name -> GenEvalEnv sym -> Maybe (SEval sym (GenValue sym))
 lookupVar n env = Map.lookup n (envVars env)
 
 -- | Bind a type variable of kind *.
