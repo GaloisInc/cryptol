@@ -17,7 +17,7 @@
 {-# LANGUAGE ViewPatterns #-}
 module Cryptol.Eval.SBV
   ( SBV(..), Value
-{-  , SBVResult(..), SBVEval(..)-}
+  , SBVEval(..), SBVResult(..)
   , evalPrim
   , forallBV_, existsBV_
   , forallSBool_, existsSBool_
@@ -93,7 +93,6 @@ packSBV bs = fromBitsLE (reverse bs)
 unpackSBV :: SWord SBV -> [SBit SBV]
 unpackSBV x = [ svTestBit x i | i <- reverse [0 .. intSizeOf x - 1] ]
 
-{-
 data SBVResult a
   = SBVError !EvalError
   | SBVResult !SVal !a -- safety predicate and result
@@ -139,7 +138,7 @@ instance Monad SBVEval where
 
 instance MonadIO SBVEval where
   liftIO m = SBVEval $ fmap pure (liftIO m)
--}
+
 
 -- Symbolic Big-endian Words -------------------------------------------------------
 
@@ -147,23 +146,9 @@ instance Backend SBV where
   type SBit SBV = SVal
   type SWord SBV = SVal
   type SInteger SBV = SVal
-  type SEval SBV = Eval
 
-  isReady _ (Ready _) = True
-  isReady _ _ = False
+  type SEval SBV = SBVEval
 
-  mergeEval _sym f c mx my =
-    do x <- mx
-       y <- my
-       f c x y
-
-  sDelay _ = delay
-  sDeclareHole _ = blackhole
-  sDelayFill _ = delayFill
-
---  type SEval SBV = SBVEval
-
-{-
   isReady _ (SBVEval (Ready _)) = True
   isReady _ _ = False
 
@@ -177,8 +162,24 @@ instance Backend SBV where
 
   sDeclareHole _ msg = SBVEval $
     do (hole, fill) <- blackhole msg
-       return (pure (SBVEval hole, \m -> SBVEval (fmap pure (fill (sbvEval m)))))
--}
+       pure (pure (SBVEval hole, \m -> SBVEval (fmap pure $ fill (sbvEval m))))
+
+  mergeEval _sym f c mx my = SBVEval $
+    do rx <- sbvEval mx
+       ry <- sbvEval my
+       case (rx, ry) of
+         (SBVError err, SBVError _) ->
+           pure $ SBVError err -- arbitrarily choose left error to report
+         (SBVError _, SBVResult p y) ->
+           pure $ SBVResult (svAnd (svNot c) p) y
+         (SBVResult p x, SBVError _) ->
+           pure $ SBVResult (svAnd c p) x
+         (SBVResult px x, SBVResult py y) ->
+           do zr <- sbvEval (f c x y)
+              case zr of
+                SBVError err -> pure $ SBVError err
+                SBVResult pz z ->
+                  pure $ SBVResult (svAnd (svIte c px py) pz) z
 
   wordLen _ v = toInteger (intSizeOf v)
   wordAsChar _ v = integerToChar <$> svAsInteger v
