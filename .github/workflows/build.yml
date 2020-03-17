@@ -34,9 +34,10 @@ jobs:
 
       - name: Install System Dependencies
         run: |
-          curl "https://saw.galois.com/builds/z3/z3" > z3
-          chmod +x z3
-          mv z3 /usr/local/bin/z3
+          mkdir -p $GITHUB_WORKSPACE/bin
+          curl "https://saw.galois.com/builds/z3/z3" > $GITHUB_WORKSPACE/bin/z3
+          chmod +x $GITHUB_WORKSPACE/bin/z3
+          echo "::add-path::$GITHUB_WORKSPACE/bin"
 
       - name: Install Dependencies
         run: |
