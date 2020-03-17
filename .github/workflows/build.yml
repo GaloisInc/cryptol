@@ -47,7 +47,7 @@ jobs:
           cabal build --only-dependencies exe:cryptol
 
       - name: Build
-        run: cry build
+        run: ./cry build
 
       - name: Test
-        run: cry test
+        run: ./cry test
