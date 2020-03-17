@@ -34,6 +34,7 @@ module Cryptol.Eval (
   , forceValue
   ) where
 
+import Cryptol.Eval.Backend
 import Cryptol.Eval.Concrete( Concrete(..) )
 import Cryptol.Eval.Generic ( iteValue )
 import Cryptol.Eval.Env
@@ -96,10 +97,10 @@ evalExpr sym env expr = case expr of
           case tryFromBits sym vs of
             Just w  -> WordVal <$> w
             Nothing -> do xs <- mapM (sDelay sym Nothing) vs
-                          return $ LargeBitsVal len $ finiteSeqMap xs
+                          return $ LargeBitsVal len $ finiteSeqMap sym xs
     | otherwise -> {-# SCC "evalExpr->EList" #-} do
         xs <- mapM (sDelay sym Nothing) vs
-        return $ VSeq len $ finiteSeqMap xs
+        return $ VSeq len $ finiteSeqMap sym xs
    where
     tyv = evalValType (envTypes env) ty
     vs  = map eval es
@@ -430,7 +431,7 @@ evalDecl sym renv env d =
     DPrim ->
       case ?evalPrim =<< asPrim (dName d) of
         Just v  -> pure (bindVarDirect (dName d) v env)
-        Nothing -> bindVar sym (dName d) (cryNoPrimError (dName d)) env
+        Nothing -> bindVar sym (dName d) (cryNoPrimError sym (dName d)) env
 
     DExpr e -> bindVar sym (dName d) (evalExpr sym renv e) env
 

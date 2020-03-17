@@ -361,7 +361,7 @@ typeValues ty =
               [ VWord n (ready (WordVal (BV n x))) | x <- [ 0 .. 2^n - 1 ] ]
 
             [ TCon (TC (TCNum n)) _, t ] ->
-              [ VSeq n (finiteSeqMap (map ready xs))
+              [ VSeq n (finiteSeqMap Concrete (map ready xs))
               | xs <- sequence $ genericReplicate n
                                $ typeValues t ]
             _ -> []

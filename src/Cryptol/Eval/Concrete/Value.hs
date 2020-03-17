@@ -25,18 +25,24 @@ module Cryptol.Eval.Concrete.Value
   , ppBV
   , mkBv
   , mask
+  , signedBV
+  , signedValue
   , integerToChar
+  , lg2
   , Value
   , Concrete(..)
   , liftBinIntMod
+  , doubleAndAdd
   ) where
 
+import qualified Control.Exception as X
 import Data.Bits
 import Numeric (showIntAtBase)
 
 import qualified Cryptol.Eval.Arch as Arch
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Value
+import Cryptol.TypeCheck.Solver.InfNat (genLog)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
@@ -69,8 +75,20 @@ mkBv :: Integer -> Integer -> BV
 mkBv w i = BV w (mask w i)
 
 
+signedBV :: BV -> Integer
+signedBV (BV i x) = signedValue i x
+
+signedValue :: Integer -> Integer -> Integer
+signedValue i x = if testBit x (fromInteger (i-1)) then x - (1 `shiftL` (fromInteger i)) else x
+
 integerToChar :: Integer -> Char
 integerToChar = toEnum . fromInteger
+
+lg2 :: Integer -> Integer
+lg2 i = case genLog i 2 of
+  Just (i',isExact) | isExact   -> i'
+                    | otherwise -> i' + 1
+  Nothing                       -> 0
 
 
 ppBV :: PPOpts -> BV -> Doc
@@ -114,6 +132,11 @@ instance Backend Concrete where
   type SInteger Concrete = Integer
   type SEval Concrete = Eval
 
+  raiseError _ err = io (X.throwIO err)
+
+  assertSideCondition _ True _ = return ()
+  assertSideCondition _ False err = io (X.throwIO err)
+
   wordLen _ (BV w _) = w
   wordAsChar _ (BV _ x) = Just $! integerToChar x
 
@@ -130,7 +153,6 @@ instance Backend Concrete where
        y <- my
        f c x y
 
-  sDelay _ = delay
   sDeclareHole _ = blackhole
   sDelayFill _ = delayFill
 
@@ -174,23 +196,96 @@ instance Backend Concrete where
 
   wordPlus _ (BV i x) (BV j y)
     | i == j = pure $! mkBv i (x+y)
-    | otherwise = panic "Attempt to add words of different sizes: wordPlus" []
+    | otherwise = panic "Attempt to add words of different sizes: wordPlus" [show i, show j]
+
+  wordNegate _ (BV i x) = pure $! mkBv i (negate x)
 
   wordMinus _ (BV i x) (BV j y)
     | i == j = pure $! mkBv i (x-y)
-    | otherwise = panic "Attempt to subtract words of different sizes: wordMinus" []
+    | otherwise = panic "Attempt to subtract words of different sizes: wordMinus" [show i, show j]
 
   wordMult _ (BV i x) (BV j y)
     | i == j = pure $! mkBv i (x*y)
-    | otherwise = panic "Attempt to multiply words of different sizes: wordMult" []
+    | otherwise = panic "Attempt to multiply words of different sizes: wordMult" [show i, show j]
+
+  wordDiv sym (BV i x) (BV j y)
+    | i == 0 && j == 0 = pure $! mkBv 0 0
+    | i == j =
+        do assertSideCondition sym (y /= 0) DivideByZero
+           pure $! mkBv i (x `div` y)
+    | otherwise = panic "Attempt to divide words of different sizes: wordDiv" [show i, show j]
+
+  wordMod sym (BV i x) (BV j y)
+    | i == 0 && j == 0 = pure $! mkBv 0 0
+    | i == j =
+        do assertSideCondition sym (y /= 0) DivideByZero
+           pure $! mkBv i (x `mod` y)
+    | otherwise = panic "Attempt to mod words of different sizes: wordMod" [show i, show j]
+
+  wordSignedDiv sym (BV i x) (BV j y)
+    | i == 0 && j == 0 = pure $! mkBv 0 0
+    | i == j =
+        do assertSideCondition sym (y /= 0) DivideByZero
+           let sx = signedValue i x
+               sy = signedValue i y
+           pure $! mkBv i (sx `quot` sy)
+    | otherwise = panic "Attempt to divide words of different sizes: wordSignedDiv" [show i, show j]
+
+  wordSignedMod sym (BV i x) (BV j y)
+    | i == 0 && j == 0 = pure $! mkBv 0 0
+    | i == j =
+        do assertSideCondition sym (y /= 0) DivideByZero
+           let sx = signedValue i x
+               sy = signedValue i y
+           pure $! mkBv i (sx `rem` sy)
+    | otherwise = panic "Attempt to mod words of different sizes: wordSignedMod" [show i, show j]
+
+  wordExp _ (BV i x) (BV j y)
+    | i == 0 && j == 0 = pure $! mkBv 0 0
+    | i == j =
+        do let modulus = 0 `setBit` fromInteger i
+           pure . mkBv i $! doubleAndAdd x y modulus
+    | otherwise = panic "Attempt to exp words of different sizes: wordSignedMod" [show i, show j]
+
+  wordLg2 _ (BV i x) = pure $! mkBv i (lg2 x)
 
   intPlus  _ x y = pure $! x + y
   intMinus _ x y = pure $! x - y
+  intNegate _ x  = pure $! negate x
   intMult  _ x y = pure $! x * y
+  intDiv sym x y =
+    do assertSideCondition sym (y /= 0) DivideByZero
+       pure $! x `div` y
+  intMod sym x y =
+    do assertSideCondition sym (y /= 0) DivideByZero
+       pure $! x `mod` y
+  intDivRTZ sym x y =
+    do assertSideCondition sym (y /= 0) DivideByZero
+       pure $! x `quot` y
+  intModRTZ sym x y =
+    do assertSideCondition sym (y /= 0) DivideByZero
+       pure $! x `rem` y
+  intExp sym x y =
+    do assertSideCondition sym (y >= 0) NegativeExponent
+       pure $! x ^ y
+  intLg2 sym x =
+    do assertSideCondition sym (x >= 0) LogNegative
+       pure $! lg2 x
 
   intModPlus  _ = liftBinIntMod (+)
   intModMinus _ = liftBinIntMod (-)
   intModMult  _ = liftBinIntMod (*)
+  intModNegate _ m x = pure $! (negate x) `mod` m
+  intModDiv sym m x y =
+    do assertSideCondition sym (y /= 0) DivideByZero
+       liftBinIntMod div m x y
+  intModMod sym m x y =
+    do assertSideCondition sym (y /= 0) DivideByZero
+       liftBinIntMod mod m x y
+  intModExp sym m x y
+    | m == 0    = intExp sym x y
+    | otherwise = pure $! (doubleAndAdd x y m) `mod` m
+  intModLg2 sym _m x = intLg2 sym x
 
   wordToInt _ (BV _ x) = pure x
   wordFromInt _ w x = pure $! mkBv w x
@@ -200,3 +295,20 @@ liftBinIntMod :: Monad m =>
 liftBinIntMod op m x y
   | m == 0    = pure $ op x y
   | otherwise = pure $ (op x y) `mod` m
+
+doubleAndAdd :: Integer -- ^ base
+             -> Integer -- ^ exponent mask
+             -> Integer -- ^ modulus
+             -> Integer
+doubleAndAdd base0 expMask modulus = go 1 base0 expMask
+  where
+  go acc base k
+    | k > 0     = acc' `seq` base' `seq` go acc' base' (k `shiftR` 1)
+    | otherwise = acc
+    where
+    acc' | k `testBit` 0 = acc `modMul` base
+         | otherwise     = acc
+
+    base' = base `modMul` base
+
+    modMul x y = (x * y) `mod` modulus

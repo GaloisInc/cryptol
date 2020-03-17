@@ -23,7 +23,8 @@ module Cryptol.Eval.Generic where
 import Control.Monad (join)
 
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),fromNat,nMul,genLog)
+import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),fromNat,nMul)
+import Cryptol.Eval.Backend
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
@@ -34,15 +35,8 @@ import qualified Data.Sequence as Seq
 import qualified Data.Map.Strict as Map
 
 
-lg2 :: Integer -> Integer
-lg2 i = case genLog i 2 of
-  Just (i',isExact) | isExact   -> i'
-                    | otherwise -> i' + 1
-  Nothing                       -> 0
-
-
-
 -- | Make a numeric literal value at the given type.
+
 mkLit :: Backend sym => sym -> TValue -> Integer -> SEval sym (GenValue sym)
 mkLit sym ty i =
   case ty of
@@ -292,6 +286,55 @@ mulV sym = arithBinary sym opw opi opz
     opw _w x y = wordMult sym x y
     opi x y = intMult sym x y
     opz m x y = intModMult sym m x y
+
+divV :: Backend sym => sym -> Binary sym
+divV sym = arithBinary sym opw opi opz
+  where
+    opw _w x y = wordDiv sym x y
+    opi x y = intDiv sym x y
+    opz m x y = intModDiv sym m x y
+
+modV :: Backend sym => sym -> Binary sym
+modV sym = arithBinary sym opw opi opz
+  where
+    opw _w x y = wordMod sym x y
+    opi x y = intMod sym x y
+    opz m x y = intModMod sym m x y
+
+sdivV :: Backend sym => sym -> Binary sym
+sdivV sym = arithBinary sym opw opi opz
+  where
+    opw _w x y = wordSignedDiv sym x y
+    opi x y = intDivRTZ sym x y
+    opz m x y = intModDiv sym m x y
+
+smodV :: Backend sym => sym -> Binary sym
+smodV sym = arithBinary sym opw opi opz
+  where
+    opw _w x y = wordSignedMod sym x y
+    opi x y = intModRTZ sym x y
+    opz m x y = intModMod sym m x y
+
+expV :: Backend sym => sym -> Binary sym
+expV sym = arithBinary sym opw opi opz
+  where
+    opw _w x y = wordExp sym x y
+    opi x y = intExp sym x y
+    opz m x y = intModExp sym m x y
+
+negateV :: Backend sym => sym -> Unary sym
+negateV sym = arithUnary sym opw opi opz
+  where
+    opw _w x = wordNegate sym x
+    opi x = intNegate sym x
+    opz m x = intModNegate sym m x
+
+lg2V :: Backend sym => sym -> Unary sym
+lg2V sym = arithUnary sym opw opi opz
+  where
+    opw _w x = wordLg2 sym x
+    opi x = intLg2 sym x
+    opz m x = intModLg2 sym m x
 
 intV :: Backend sym => sym -> SInteger sym -> TValue -> SEval sym (GenValue sym)
 intV sym i = arithNullary sym (\w -> wordFromInt sym w i) (pure i) (pure . const i)
@@ -798,7 +841,7 @@ wordValUnaryOp bop _ (LargeBitsVal n xs) = LargeBitsVal n <$> mapSeqMap f xs
   where f x = VBit . bop <$> fromBit x
 
 logicUnary :: forall sym.
-  sym -> 
+  sym ->
   Backend sym =>
   (SBit sym -> SBit sym) ->
   (SWord sym -> SWord sym) ->
@@ -945,36 +988,37 @@ infFromThenV sym =
 
 errorV :: forall sym.
   Backend sym =>
+  sym ->
   TValue ->
   String ->
   SEval sym (GenValue sym)
-errorV ty msg = case ty of
+errorV sym ty msg = case ty of
   -- bits
-  TVBit -> cryUserError msg
-  TVInteger -> cryUserError msg
-  TVIntMod _ -> cryUserError msg
+  TVBit -> cryUserError sym msg
+  TVInteger -> cryUserError sym msg
+  TVIntMod _ -> cryUserError sym msg
 
   -- sequences
   TVSeq w ety
-     | isTBit ety -> return $ VWord w $ return $ LargeBitsVal w $ IndexSeqMap $ \_ -> cryUserError msg
-     | otherwise  -> return $ VSeq w (IndexSeqMap $ \_ -> errorV ety msg)
+     | isTBit ety -> return $ VWord w $ return $ LargeBitsVal w $ IndexSeqMap $ \_ -> cryUserError sym msg
+     | otherwise  -> return $ VSeq w (IndexSeqMap $ \_ -> errorV sym ety msg)
 
   TVStream ety ->
-    return $ VStream (IndexSeqMap $ \_ -> errorV ety msg)
+    return $ VStream (IndexSeqMap $ \_ -> errorV sym ety msg)
 
   -- functions
   TVFun _ bty ->
-    return $ lam (\ _ -> errorV bty msg)
+    return $ lam (\ _ -> errorV sym bty msg)
 
   -- tuples
   TVTuple tys ->
-    return $ VTuple (map (flip errorV msg) tys)
+    return $ VTuple (map (\t -> errorV sym t msg) tys)
 
   -- records
   TVRec fields ->
-    return $ VRecord $ fmap (flip errorV msg) $ Map.fromList fields
+    return $ VRecord $ fmap (\t -> errorV sym t msg) $ Map.fromList fields
 
-  TVAbstract {} -> cryUserError msg
+  TVAbstract {} -> cryUserError sym msg
 
 
 -- Merge and if/then/else
@@ -1007,7 +1051,7 @@ mergeWord' :: Backend sym =>
   SEval sym (WordValue sym) ->
   SEval sym (WordValue sym) ->
   SEval sym (WordValue sym)
-mergeWord' sym = mergeEval sym (mergeWord sym) 
+mergeWord' sym = mergeEval sym (mergeWord sym)
 
 mergeValue' :: Backend sym =>
   sym ->
@@ -1044,7 +1088,7 @@ mergeSeqMap :: Backend sym =>
   SBit sym ->
   SeqMap sym ->
   SeqMap sym ->
-  SeqMap sym 
+  SeqMap sym
 mergeSeqMap sym c x y =
   IndexSeqMap $ \i ->
   do xi <- lookupSeqMap x i

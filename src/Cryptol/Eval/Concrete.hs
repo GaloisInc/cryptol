@@ -27,6 +27,7 @@ import Control.Monad (join, unless,guard,zipWithM)
 import MonadLib( ChoiceT, findOne, lift )
 
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
+import Cryptol.Eval.Backend
 import Cryptol.Eval.Concrete.Value
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Monad
@@ -112,18 +113,19 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("*"          , {-# SCC "Prelude::(*)" #-}
                     binary (mulV Concrete))
   , ("/"          , {-# SCC "Prelude::(/)" #-}
-                    binary (arithBinary Concrete (liftDivArith div) (liftDivInteger div)
-                            (const (liftDivInteger div))))
+                    binary (divV Concrete))
   , ("%"          , {-# SCC "Prelude::(%)" #-}
-                    binary (arithBinary Concrete (liftDivArith mod) (liftDivInteger mod)
-                            (const (liftDivInteger mod))))
-
+                    binary (modV Concrete))
+  , ("/$"         , {-# SCC "Prelude::(/$)" #-}
+                    binary (sdivV Concrete))
+  , ("%$"         , {-# SCC "Prelude::(%$)" #-}
+                    binary (smodV Concrete))
   , ("^^"         , {-# SCC "Prelude::(^^)" #-}
-                    binary (arithBinary Concrete modExp integerExp intModExp))
-  , ("lg2"        , {-# SCC "Prelude::lg2" #-}
-                    unary  (arithUnary Concrete (liftUnaryArith lg2) integerLg2 (const integerLg2)))
+                    binary (expV Concrete))
   , ("negate"     , {-# SCC "Prelude::negate" #-}
-                    unary  (arithUnary Concrete (liftUnaryArith negate) integerNeg intModNeg))
+                    unary (negateV Concrete))
+  , ("lg2"        , {-# SCC "Prelude::lg2" #-}
+                    unary (lg2V Concrete))
 
   , ("<"          , {-# SCC "Prelude::(<)" #-}
                     binary (cmpOrder "<"  (\o -> o == LT           )))
@@ -137,17 +139,14 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     binary (cmpOrder "==" (\o ->            o == EQ)))
   , ("!="         , {-# SCC "Prelude::(!=)" #-}
                     binary (cmpOrder "!=" (\o ->            o /= EQ)))
+
   , ("<$"         , {-# SCC "Prelude::(<$)" #-}
                     binary (signedCmpOrder "<$" (\o -> o == LT)))
-  , ("/$"         , {-# SCC "Prelude::(/$)" #-}
-                    binary (arithBinary Concrete (liftSigned bvSdiv) (liftDivInteger div)
-                            (const (liftDivInteger div))))
-
-  , ("%$"         , {-# SCC "Prelude::(%$)" #-}
-                    binary (arithBinary Concrete (liftSigned bvSrem) (liftDivInteger mod)
-                            (const (liftDivInteger mod))))
   , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
                     sshrV)
+
+  , ("True"       , VBit True)
+  , ("False"      , VBit False)
   , ("&&"         , {-# SCC "Prelude::(&&)" #-}
                     binary (logicBinary Concrete (\x y -> pure $ x .&. y) (binBV (.&.))))
   , ("||"         , {-# SCC "Prelude::(||)" #-}
@@ -171,8 +170,6 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     logicShift rotateLW rotateLS)
   , (">>>"        , {-# SCC "Prelude::(>>>)" #-}
                     logicShift rotateRW rotateRS)
-  , ("True"       , VBit True)
-  , ("False"      , VBit False)
 
   , ("carry"      , {-# SCC "Prelude::carry" #-}
                     carryV)
@@ -232,7 +229,7 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("error"      , {-# SCC "Prelude::error" #-}
                       tlam $ \a ->
                       nlam $ \_ ->
-                       lam $ \s -> errorV a =<< (fromStr =<< s))
+                       lam $ \s -> errorV Concrete a =<< (fromStr =<< s))
 
   , ("reverse"    , {-# SCC "Prelude::reverse" #-}
                     nlam $ \_a ->
@@ -267,68 +264,6 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
 
 --------------------------------------------------------------------------------
 
--- | Create a packed word
-modExp :: Integer -- ^ bit size of the resulting word
-       -> BV      -- ^ base
-       -> BV      -- ^ exponent
-       -> Eval BV
-modExp bits (BV _ base) (BV _ e)
-  | bits == 0            = ready $ BV bits 0
-  | base < 0 || bits < 0 = evalPanic "modExp"
-                             [ "bad args: "
-                             , "  base = " ++ show base
-                             , "  e    = " ++ show e
-                             , "  bits = " ++ show modulus
-                             ]
-  | otherwise            = ready $ mkBv bits $ doubleAndAdd base e modulus
-  where
-  modulus = 0 `setBit` fromInteger bits
-
-intModExp :: Integer -> Integer -> Integer -> Eval Integer
-intModExp modulus base e
-  | modulus > 0  = ready $ doubleAndAdd base e modulus
-  | modulus == 0 = integerExp base e
-  | otherwise    = evalPanic "intModExp" [ "negative modulus: " ++ show modulus ]
-
-integerExp :: Integer -> Integer -> Eval Integer
-integerExp x y
-  | y < 0     = negativeExponent
-  | otherwise = ready $ x ^ y
-
-integerLg2 :: Integer -> Eval Integer
-integerLg2 x
-  | x < 0     = logNegative
-  | otherwise = ready $ lg2 x
-
-
-integerNeg :: Integer -> Eval Integer
-integerNeg x = ready $ negate x
-
-intModNeg :: Integer -> Integer -> Eval Integer
-intModNeg modulus x = ready $ negate x `mod` modulus
-
-doubleAndAdd :: Integer -- ^ base
-             -> Integer -- ^ exponent mask
-             -> Integer -- ^ modulus
-             -> Integer
-doubleAndAdd base0 expMask modulus = go 1 base0 expMask
-  where
-  go acc base k
-    | k > 0     = acc' `seq` base' `seq` go acc' base' (k `shiftR` 1)
-    | otherwise = acc
-    where
-    acc' | k `testBit` 0 = acc `modMul` base
-         | otherwise     = acc
-
-    base' = base `modMul` base
-
-    modMul x y = (x * y) `mod` modulus
-
-
--- | This is strict!
---boolToWord :: [Bool] -> Value
---boolToWord bs = VWord (genericLength bs) (WordVal <$> io (packWord () bs))
-
 -- | Turn a value into an integer represented by w bits.
 fromWord :: String -> Value -> Eval Integer
 fromWord msg val = bvVal <$> fromVWord Concrete msg val
@@ -350,34 +285,7 @@ lexCompare ty a b = cmpValue Concrete op opw op (const op) ty a b (return EQ)
                      cmp -> return cmp
 
 
--- Arith -----------------------------------------------------------------------
-
--- | Turn a normal binop on Integers into one that can also deal with a bitsize.
---   However, if the bitvector size is 0, always return the 0
---   bitvector.
---liftBinArith :: (Integer -> Integer -> Integer) -> BinArith Concrete
---liftBinArith _  0 _        _        = ready $ mkBv 0 0
---liftBinArith op w (BV _ x) (BV _ y) = ready $ mkBv w $ op x y
-
--- | Turn a normal binop on Integers into one that can also deal with a bitsize.
---   Generate a thunk that throws a divide by 0 error when forced if the second
---   argument is 0.  However, if the bitvector size is 0, always return the 0
---   bitvector.
-liftDivArith :: (Integer -> Integer -> Integer) -> BinArith Concrete
-liftDivArith _  0 _        _        = ready $ mkBv 0 0
-liftDivArith _  _ _        (BV _ 0) = divideByZero
-liftDivArith op w (BV _ x) (BV _ y) = ready $ mkBv w $ op x y
-
---liftBinInteger :: (Integer -> Integer -> Integer) -> Integer -> Integer -> Eval Integer
---liftBinInteger op x y = ready $ op x y
-
-liftDivInteger :: (Integer -> Integer -> Integer) -> Integer -> Integer -> Eval Integer
-liftDivInteger _  _ 0 = divideByZero
-liftDivInteger op x y = ready $ op x y
-
-liftUnaryArith :: (Integer -> Integer) -> UnaryArith Concrete
-liftUnaryArith op w (BV _ x) = ready $ mkBv w $ op x
-
+-- Comparisons -----------------------------------------------------------------------
 
 signedLexCompare :: TValue -> Value -> Value -> Eval Ordering
 signedLexCompare ty a b = cmpValue Concrete opb opw opi (const opi) ty a b (return EQ)
@@ -403,33 +311,6 @@ cmpOrder _nm op ty l r = VBit . op <$> lexCompare ty l r
 signedCmpOrder :: String -> (Ordering -> Bool) -> Binary Concrete
 signedCmpOrder _nm op ty l r = VBit . op <$> signedLexCompare ty l r
 
-
-
-liftSigned ::
-  (Integer -> Integer -> Integer -> Eval BV) ->
-  BinArith Concrete
-liftSigned _  0    = \_ _ -> return $ mkBv 0 0
-liftSigned op size = f
- where
- f (BV i x) (BV j y)
-   | i == j && size == i = op size sx sy
-   | otherwise = evalPanic "liftSigned" ["Attempt to compute with words of different sizes"]
-   where sx = signedValue i x
-         sy = signedValue j y
-
-signedBV :: BV -> Integer
-signedBV (BV i x) = signedValue i x
-
-signedValue :: Integer -> Integer -> Integer
-signedValue i x = if testBit x (fromInteger (i-1)) then x - (1 `shiftL` (fromInteger i)) else x
-
-bvSdiv :: Integer -> Integer -> Integer -> Eval BV
-bvSdiv  _ _ 0 = divideByZero
-bvSdiv sz x y = return $! mkBv sz (x `quot` y)
-
-bvSrem :: Integer -> Integer -> Integer -> Eval BV
-bvSrem  _ _ 0 = divideByZero
-bvSrem sz x y = return $! mkBv sz (x `rem` y)
 
 sshrV :: Value
 sshrV =
@@ -550,7 +431,7 @@ rotateRS w _ vs by = IndexSeqMap $ \i ->
 indexFront :: Maybe Integer -> TValue -> SeqMap Concrete -> BV -> Eval Value
 indexFront mblen _a vs (bvVal -> ix) =
   case mblen of
-    Just len | len <= ix -> invalidIndex ix
+    Just len | len <= ix -> invalidIndex Concrete ix
     _                    -> lookupSeqMap vs ix
 
 indexFront_bits :: Maybe Integer -> TValue -> SeqMap Concrete -> Seq.Seq Bool -> Eval Value
@@ -560,7 +441,7 @@ indexBack :: Maybe Integer -> TValue -> SeqMap Concrete -> BV -> Eval Value
 indexBack mblen _a vs (bvVal -> ix) =
   case mblen of
     Just len | len > ix  -> lookupSeqMap vs (len - ix - 1)
-             | otherwise -> invalidIndex ix
+             | otherwise -> invalidIndex Concrete ix
     Nothing              -> evalPanic "indexBack"
                             ["unexpected infinite sequence"]
 
@@ -579,7 +460,7 @@ updateFront len _eltTy vs w val = do
   idx <- bvVal <$> asWordVal Concrete w
   case len of
     Inf -> return ()
-    Nat n -> unless (idx < n) (invalidIndex idx)
+    Nat n -> unless (idx < n) (invalidIndex Concrete idx)
   return $ updateSeqMap vs idx val
 
 updateFront_word
@@ -604,7 +485,7 @@ updateBack Inf _eltTy _vs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
 updateBack (Nat n) _eltTy vs w val = do
   idx <- bvVal <$> asWordVal Concrete w
-  unless (idx < n) (invalidIndex idx)
+  unless (idx < n) (invalidIndex Concrete idx)
   return $ updateSeqMap vs (n - idx - 1) val
 
 updateBack_word

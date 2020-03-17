@@ -19,22 +19,14 @@ module Cryptol.Eval.Monad
 , PPOpts(..)
 , defaultPPOpts
 , io
-, delay
 , delayFill
 , ready
 , blackhole
   -- * Error reporting
 , EvalError(..)
 , evalPanic
-, typeCannotBeDemoted
-, divideByZero
-, negativeExponent
-, logNegative
 , wordTooWide
-, cryUserError
-, cryLoopError
-, cryNoPrimError
-, invalidIndex
+, typeCannotBeDemoted
 ) where
 
 import           Control.DeepSeq
@@ -90,20 +82,6 @@ data ThunkState a
 getEvalOpts :: Eval EvalOpts
 getEvalOpts = Thunk pure
 
-{-# INLINE delay #-}
--- | Delay the given evaluation computation, returning a thunk
---   which will run the computation when forced.  Raise a loop
---   error if the resulting thunk is forced during its own evaluation.
-delay ::
-  Maybe String {- ^ Optional name to print if a loop is detected -} ->
-  Eval a     {- ^ Computation to delay -} ->
-  Eval (Eval a)
-delay _ (Ready a) = Ready (Ready a)
-delay msg (Thunk x) = Thunk $ \opts -> do
-  let msg' = maybe "" ("while evaluating "++) msg
-  let retry = cryLoopError msg'
-  r <- newIORef Unforced
-  return $ unDelay retry r (x opts)
 
 {-# INLINE delayFill #-}
 
@@ -236,35 +214,8 @@ instance X.Exception EvalError
 typeCannotBeDemoted :: Type -> a
 typeCannotBeDemoted t = X.throw (TypeCannotBeDemoted t)
 
--- | For division by 0.
-divideByZero :: Eval a
-divideByZero = io (X.throwIO DivideByZero)
-
--- | For exponentiation by a negative integer.
-negativeExponent :: Eval a
-negativeExponent = io (X.throwIO NegativeExponent)
-
--- | For logarithm of a negative integer.
-logNegative :: Eval a
-logNegative = io (X.throwIO LogNegative)
-
 -- | For when we know that a word is too wide and will exceed gmp's
 -- limits (though words approaching this size will probably cause the
 -- system to crash anyway due to lack of memory).
 wordTooWide :: Integer -> a
 wordTooWide w = X.throw (WordTooWide w)
-
--- | For the Cryptol @error@ function.
-cryUserError :: MonadIO m => String -> m a
-cryUserError msg = liftIO (X.throwIO (UserError msg))
-
-cryNoPrimError :: MonadIO m => Name -> m a
-cryNoPrimError x = liftIO (X.throwIO (NoPrim x))
-
--- | For cases where we can detect tight loops.
-cryLoopError :: MonadIO m => String -> m a
-cryLoopError msg = liftIO (X.throwIO (LoopError msg))
-
--- | A sequencing operation has gotten an invalid index.
-invalidIndex :: MonadIO m => Integer -> m a
-invalidIndex i = liftIO (X.throwIO (InvalidIndex i))

@@ -2,13 +2,39 @@
 {-# Language TypeFamilies #-}
 module Cryptol.Eval.Backend
   ( Backend(..)
+  , sDelay
+  , invalidIndex
+  , cryUserError
+  , cryNoPrimError
   ) where
 
 import Control.Monad.IO.Class
 import Data.Kind (Type)
 
 import Cryptol.Eval.Monad
+import Cryptol.TypeCheck.AST(Name)
 import Cryptol.Utils.PP
+
+
+invalidIndex :: Backend sym => sym -> Integer -> SEval sym a
+invalidIndex sym = raiseError sym . InvalidIndex
+
+cryUserError :: Backend sym => sym -> String -> SEval sym a
+cryUserError sym = raiseError sym . UserError
+
+cryNoPrimError :: Backend sym => sym -> Name -> SEval sym a
+cryNoPrimError sym = raiseError sym . NoPrim
+
+
+{-# INLINE sDelay #-}
+-- | Delay the given evaluation computation, returning a thunk
+--   which will run the computation when forced.  Raise a loop
+--   error if the resulting thunk is forced during its own evaluation.
+sDelay :: Backend sym => sym -> Maybe String -> SEval sym a -> SEval sym (SEval sym a)
+sDelay sym msg m =
+  let msg'  = maybe "" ("while evaluating "++) msg
+      retry = raiseError sym (LoopError msg')
+   in sDelayFill sym m retry
 
 -- | This type class defines a collection of operations on bits and words that
 --   are necessary to define generic evaluator primitives that operate on both concrete
@@ -21,7 +47,6 @@ class MonadIO (SEval sym) => Backend sym where
 
   isReady :: sym -> SEval sym a -> Bool
 
-  sDelay :: sym -> Maybe String -> SEval sym a -> SEval sym (SEval sym a)
   sDeclareHole :: sym -> String -> SEval sym (SEval sym a, SEval sym a -> SEval sym ())
   sDelayFill :: sym -> SEval sym a -> SEval sym a -> SEval sym (SEval sym a)
 
@@ -29,6 +54,10 @@ class MonadIO (SEval sym) => Backend sym where
      sym ->
      (SBit sym -> a -> a -> SEval sym a) -> 
      SBit sym -> SEval sym a -> SEval sym a -> SEval sym a
+
+  assertSideCondition :: sym -> SBit sym -> EvalError -> SEval sym ()
+
+  raiseError :: sym -> EvalError -> SEval sym a
 
   -- | Pretty-print an individual bit
   ppBit :: sym -> SBit sym -> Doc
@@ -168,6 +197,60 @@ class MonadIO (SEval sym) => Backend sym where
     SWord sym ->
     SEval sym (SWord sym)
 
+  -- | 2's complement unsigned division of packed words.  The arguments must have
+  --   equal bit width, and the result is of the same width.  It is illegal to
+  --   call with a second argument concretely equal to 0.
+  wordDiv ::
+    sym ->
+    SWord sym ->
+    SWord sym ->
+    SEval sym (SWord sym)
+
+  -- | 2's complement unsigned modulus of packed words.  The arguments must have
+  --   equal bit width, and the result is of the same width.  It is illegal to
+  --   call with a second argument concretely equal to 0.
+  wordMod ::
+    sym ->
+    SWord sym ->
+    SWord sym ->
+    SEval sym (SWord sym)
+
+  -- | 2's complement signed division of packed words.  The arguments must have
+  --   equal bit width, and the result is of the same width.  It is illegal to
+  --   call with a second argument concretely equal to 0.
+  wordSignedDiv ::
+    sym ->
+    SWord sym ->
+    SWord sym ->
+    SEval sym (SWord sym)
+
+  -- | 2's complement signed modulus of packed words.  The arguments must have
+  --   equal bit width, and the result is of the same width.  It is illegal to
+  --   call with a second argument concretely equal to 0.
+  wordSignedMod ::
+    sym ->
+    SWord sym ->
+    SWord sym ->
+    SEval sym (SWord sym)
+
+  -- | Exponentiation of bitvectors.
+  wordExp ::
+    sym ->
+    SWord sym ->
+    SWord sym ->
+    SEval sym (SWord sym)
+
+  -- | 2's complement negation of bitvectors
+  wordNegate ::
+    sym ->
+    SWord sym ->
+    SEval sym (SWord sym)
+
+  wordLg2 ::
+    sym ->
+    SWord sym ->
+    SEval sym (SWord sym)
+
   -- | Construct an integer value from the given packed word.
   wordToInt ::
     sym ->
@@ -178,6 +261,12 @@ class MonadIO (SEval sym) => Backend sym where
   intPlus ::
     sym ->
     SInteger sym ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
+  -- | Negation of unbounded integers
+  intNegate ::
+    sym ->
     SInteger sym ->
     SEval sym (SInteger sym)
 
@@ -195,11 +284,66 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SEval sym (SInteger sym)
 
+  -- | Integer division, rounding down. It is illegal to
+  --   call with a second argument concretely equal to 0.
+  --   Same semantics as Haskell's @div@ operation.
+  intDiv ::
+    sym ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
+  -- | Integer modulus, with division rounding down. It is illegal to
+  --   call with a second argument concretely equal to 0.
+  --   Same semantics as Haskell's @mod@ operation.
+  intMod ::
+    sym ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
+  -- | Integer division, rounding toward zero. It is illegal to
+  --   call with a second argument concretely equal to 0.
+  --   Same semantics as Haskell's @quot@ operation.
+  intDivRTZ :: 
+    sym ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
+  -- | Integer modulus, with division rounding toward zero. It is illegal to
+  --   call with a second argument concretely equal to 0.
+  --   Same semantics as Haskell's @rem@ operation.
+  intModRTZ :: 
+    sym ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
+  -- | Integer exponentiation.  The second argument must be non-negative.
+  intExp ::
+    sym ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
+  intLg2 ::
+    sym ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
   -- | Addition of integers modulo n, for a concrete positive integer n.
   intModPlus ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
+  -- | Additive inverse of integers modulo n
+  intModNegate ::
+    sym ->
+    Integer {- ^ modulus -} ->
     SInteger sym ->
     SEval sym (SInteger sym)
 
@@ -216,6 +360,40 @@ class MonadIO (SEval sym) => Backend sym where
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
+  -- | Division of integers modulo n, for a concrete positive integer n.
+  --   NOTE: this is integer division on the initial segement of Z,
+  --   and not the multiplictitive inverse in Z_p.
+  intModDiv ::
+    sym ->
+    Integer {- ^ modulus -} ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
+  -- | Modulus of integers modulo n, for a concrete positive integer n.
+  --   NOTE: this is the modulus corresponding to integer division on the initial
+  --   segement of Z, and not related to multiplictitive inverse in Z_p.
+  intModMod ::
+    sym ->
+    Integer {- ^ modulus -} ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
+  -- | Exponentation of integers modulo n
+  intModExp ::
+    sym ->
+    Integer {- ^ modulus -} ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
+  intModLg2 ::
+    sym ->
+    Integer {- ^ modulus -} ->
     SInteger sym ->
     SEval sym (SInteger sym)
 

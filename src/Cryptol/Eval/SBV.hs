@@ -37,13 +37,12 @@ import Data.SBV (symbolicEnv)
 import Data.SBV.Dynamic as SBV
 
 import Cryptol.Eval.Type (TValue(..), finNat')
+import Cryptol.Eval.Backend
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Monad
-  ( Eval(..), cryUserError, invalidIndex, delay, blackhole, delayFill
-  , EvalError
-  )
+  ( Eval(..), blackhole, delayFill, EvalError(..) )
 import Cryptol.Eval.Value
-import Cryptol.Eval.Concrete ( integerToChar, ppBV, BV(..) )
+import Cryptol.Eval.Concrete ( integerToChar, ppBV, BV(..), lg2 )
 import Cryptol.Testing.Random( randomV )
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), widthInteger)
 import Cryptol.Utils.Ident
@@ -149,12 +148,14 @@ instance Backend SBV where
 
   type SEval SBV = SBVEval
 
+  raiseError _ err = SBVEval (pure (SBVError err))
+
+  assertSideCondition _ cond err
+    | Just False <- svAsBool cond = SBVEval (pure (SBVError err))
+    | otherwise = SBVEval (pure (SBVResult cond ()))
+
   isReady _ (SBVEval (Ready _)) = True
   isReady _ _ = False
-
-  sDelay _ msg m = SBVEval $
-    do m' <- delay msg (sbvEval m)
-       pure (pure (SBVEval m'))
 
   sDelayFill _ m retry = SBVEval $
     do m' <- delayFill (sbvEval m) (sbvEval retry)
@@ -224,14 +225,84 @@ instance Backend SBV where
   wordPlus  _ a b = pure $! svPlus a b
   wordMinus _ a b = pure $! svMinus a b
   wordMult  _ a b = pure $! svTimes a b
+  wordNegate _ a  = pure $! SBV.svUNeg a
+
+  wordDiv sym a b =
+    do let z = svInteger (KBounded False (intSizeOf b)) 0
+       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       pure $! svQuot a b  -- TODO! Fix this: see issue #662
+
+  wordMod sym a b =
+    do let z = svInteger (KBounded False (intSizeOf b)) 0
+       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       pure $! svRem a b   -- TODO! Fix this: see issue #662
+
+  wordSignedDiv sym a b =
+    do let z = svInteger (KBounded False (intSizeOf b)) 0
+       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       pure $! signedQuot a b
+
+  wordSignedMod sym a b =
+    do let z = svInteger (KBounded False (intSizeOf b)) 0
+       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       pure $! signedRem a b
+
+  wordExp _ a b = sExp a b
+  wordLg2 _ a = sLg2 a
 
   intPlus  _ a b = pure $! svPlus a b
   intMinus _ a b = pure $! svMinus a b
   intMult  _ a b = pure $! svTimes a b
+  intNegate _ a  = pure $! SBV.svUNeg a
+  intLg2 _ a = svLg2 a
+
+  intDiv sym a b =
+    do let z = svInteger KUnbounded 0
+       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       pure $! svQuot a b  -- TODO! Fix this: see issue #662
+  intMod sym a b =
+    do let z = svInteger KUnbounded 0
+       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       pure $! svRem a b   -- TODO! Fix this: see issue #662
+
+  intDivRTZ sym a b =
+    do let z = svInteger KUnbounded 0
+       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       pure $! svQuot a b  -- TODO! Fix this: see issue #662
+
+  intModRTZ sym a b =
+    do let z = svInteger KUnbounded 0
+       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
+       pure $! svQuot a b  -- TODO! Fix this: see issue #662
+  intExp sym  a b =
+    do let z = svInteger KUnbounded 0
+       assertSideCondition sym (svLessEq z b) NegativeExponent
+       pure $! SBV.svExp a b
 
   intModPlus  _ m a b = sModAdd m a b
   intModMinus _ m a b = sModSub m a b
   intModMult  _ m a b = sModMult m a b
+  intModNegate _ m a  = sModNegate m a
+  intModExp _ m a b   = sModExp m a b
+
+  intModDiv sym 0 a b = intDiv sym a b
+  intModDiv sym m a b =
+    do let m' = svInteger KUnbounded m
+       let z  = svInteger KUnbounded 0
+       let a' = svRem a m'
+       let b' = svRem b m'
+       assertSideCondition sym (svNot (svEqual b' z)) DivideByZero
+       pure $! svQuot a' b'
+
+  intModMod sym 0 a b = intMod sym a b
+  intModMod sym m a b =
+    do let m' = svInteger KUnbounded m
+       let z  = svInteger KUnbounded 0
+       let a' = svRem a m'
+       let b' = svRem b m'
+       assertSideCondition sym (svNot (svEqual b' z)) DivideByZero
+       pure $! svRem a' b'
+  intModLg2 _ m a = svModLg2 m a
 
   wordToInt _ x = pure $! svToInteger x
   wordFromInt _ w i = pure $! svFromInteger w i
@@ -277,15 +348,14 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("+"           , binary (addV SBV)) -- {a} (Arith a) => a -> a -> a
   , ("-"           , binary (subV SBV)) -- {a} (Arith a) => a -> a -> a
   , ("*"           , binary (mulV SBV)) -- {a} (Arith a) => a -> a -> a
-  , ("/"           , binary (arithBinary SBV (liftBinArith SBV.svQuot) (liftBin SBV.svQuot)
-                             (liftModBin SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
-  , ("%"           , binary (arithBinary SBV (liftBinArith SBV.svRem) (liftBin SBV.svRem)
-                             (liftModBin SBV.svRem))) -- {a} (Arith a) => a -> a -> a
-  , ("^^"          , binary (arithBinary SBV sExp (liftBin SBV.svExp)
-                             sModExp)) -- {a} (Arith a) => a -> a -> a
-  , ("lg2"         , unary (arithUnary SBV sLg2 svLg2 svModLg2)) -- {a} (Arith a) => a -> a
-  , ("negate"      , unary (arithUnary SBV (\_ -> pure . SBV.svUNeg) (pure . SBV.svUNeg)
-                            (const (pure . SBV.svUNeg))))
+  , ("/"           , binary (divV SBV)) -- {a} (Arith a) => a -> a -> a
+  , ("%"           , binary (modV SBV)) -- {a} (Arith a) => a -> a -> a
+  , ("/$"          , binary (sdivV SBV))
+  , ("%$"          , binary (smodV SBV))
+  , ("^^"          , binary (expV SBV))
+  , ("lg2"         , unary (lg2V SBV))
+  , ("negate"      , unary (negateV SBV))
+
   , ("<"           , binary (cmpBinary cmpLt cmpLt cmpLt (cmpMod cmpLt) SBV.svFalse))
   , (">"           , binary (cmpBinary cmpGt cmpGt cmpGt (cmpMod cmpGt) SBV.svFalse))
   , ("<="          , binary (cmpBinary cmpLtEq cmpLtEq cmpLtEq (cmpMod cmpLtEq) SBV.svTrue))
@@ -295,10 +365,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("<$"          , let boolFail = evalPanic "<$" ["Attempted signed comparison on bare Bit values"]
                          intFail = evalPanic "<$" ["Attempted signed comparison on Integer values"]
                       in binary (cmpBinary boolFail cmpSignedLt intFail (const intFail) SBV.svFalse))
-  , ("/$"          , binary (arithBinary SBV (liftBinArith signedQuot) (liftBin SBV.svQuot)
-                             (liftModBin SBV.svQuot))) -- {a} (Arith a) => a -> a -> a
-  , ("%$"          , binary (arithBinary SBV (liftBinArith signedRem) (liftBin SBV.svRem)
-                             (liftModBin SBV.svRem)))
+
   , (">>$"         , sshrV)
   , ("&&"          , binary (logicBinary SBV (\x y -> pure $ SBV.svAnd x y) (\x y -> pure $ SBV.svAnd x y)))
   , ("||"          , binary (logicBinary SBV (\x y -> pure $ SBV.svOr x y) (\x y -> pure $ SBV.svOr x y)))
@@ -396,7 +463,7 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
       wlam SBV $ \x ->
          case SBV.svAsInteger x of
            Just i  -> randomV SBV a i
-           Nothing -> cryUserError "cannot evaluate 'random' with symbolic inputs")
+           Nothing -> cryUserError SBV "cannot evaluate 'random' with symbolic inputs")
 
      -- The trace function simply forces its first two
      -- values before returing the third in the symbolic
@@ -571,7 +638,7 @@ updateFrontSym len _eltTy vs wv val =
     WordVal w | Just j <- SBV.svAsInteger w ->
       do case len of
            Inf -> return ()
-           Nat n -> unless (j < n) (invalidIndex j)
+           Nat n -> unless (j < n) (invalidIndex SBV j)
          return $ updateSeqMap vs j val
     _ ->
       return $ IndexSeqMap $ \i ->
@@ -590,11 +657,11 @@ updateFrontSym_word (Nat n) eltTy bv wv val =
   case wv of
     WordVal idx
       | Just j <- SBV.svAsInteger idx ->
-        do unless (j < n) (invalidIndex j)
+        do unless (j < n) (invalidIndex SBV j)
            updateWordValue SBV bv j (fromVBit <$> val)
 
       | WordVal bw <- bv ->
-        WordVal <$> 
+        WordVal <$>
           do b <- fromVBit <$> val
              let sz = SBV.intSizeOf bw
              let q = SBV.svSymbolicMerge (SBV.kindOf bw) True b bw (literalSWord sz 0)
@@ -616,7 +683,7 @@ updateBackSym Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym
 updateBackSym (Nat n) _eltTy vs wv val =
   case wv of
     WordVal w | Just j <- SBV.svAsInteger w ->
-      do unless (j < n) (invalidIndex j)
+      do unless (j < n) (invalidIndex SBV j)
          return $ updateSeqMap vs (n - 1 - j) val
     _ ->
       return $ IndexSeqMap $ \i ->
@@ -635,7 +702,7 @@ updateBackSym_word (Nat n) eltTy bv wv val = do
   case wv of
     WordVal idx
       | Just j <- SBV.svAsInteger idx ->
-          do unless (j < n) (invalidIndex j)
+          do unless (j < n) (invalidIndex SBV j)
              updateWordValue SBV bv (n - 1 - j) (fromVBit <$> val)
 
       | WordVal bw <- bv ->
@@ -657,19 +724,9 @@ asWordList = go id
        go f (WordVal x :vs) = go (f . (x:)) vs
        go _f (LargeBitsVal _ _ : _) = Nothing
 
-liftBinArith :: (SWord SBV -> SWord SBV -> SWord SBV) -> BinArith SBV
-liftBinArith op _ x y = pure $ op x y
 
-liftBin :: (a -> b -> c) -> a -> b -> SEval SBV c
-liftBin op x y = pure $ op x y
-
-liftModBin :: (SInteger SBV -> SInteger SBV -> a) -> Integer -> SInteger SBV -> SInteger SBV -> SEval SBV a
-liftModBin op modulus x y =
-   do m <- integerLit SBV modulus
-      pure $ op (SBV.svRem x m) (SBV.svRem y m)
-
-sExp :: Integer -> SWord SBV -> SWord SBV -> SEval SBV (SWord SBV)
-sExp _w x y =
+sExp :: SWord SBV -> SWord SBV -> SEval SBV (SWord SBV)
+sExp x y =
    do ys <- reverse <$> unpackWord SBV y -- bits in little-endian order
       pure $ go ys
 
@@ -679,31 +736,42 @@ sExp _w x y =
                   s = SBV.svTimes a a
 
 sModAdd :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SInteger SBV)
+sModAdd 0 x y = intPlus SBV x y
 sModAdd modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
     (Just i, Just j) -> integerLit SBV ((i + j) `mod` modulus)
     _                -> pure $ SBV.svPlus x y
 
 sModSub :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SInteger SBV)
+sModSub 0 x y = intMinus SBV x y
 sModSub modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
     (Just i, Just j) -> integerLit SBV ((i - j) `mod` modulus)
     _                -> pure $ SBV.svMinus x y
 
+sModNegate :: Integer -> SInteger SBV -> SEval SBV (SInteger SBV)
+sModNegate 0 x = intNegate SBV x
+sModNegate modulus x =
+  case SBV.svAsInteger x of
+    Just i -> integerLit SBV ((negate i) `mod` modulus)
+    _      -> pure $ SBV.svUNeg x
+
 sModMult :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SInteger SBV)
+sModMult 0 x y = intMult SBV x y
 sModMult modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
     (Just i, Just j) -> integerLit SBV ((i * j) `mod` modulus)
     _                -> pure $ SBV.svTimes x y
 
 sModExp :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SInteger SBV)
+sModExp 0 x y = intExp SBV x y
 sModExp modulus x y =
    do m <- integerLit SBV modulus
       pure $ SBV.svExp x (SBV.svRem y m)
 
 -- | Ceiling (log_2 x)
-sLg2 :: Integer -> SWord SBV -> SEval SBV (SWord SBV)
-sLg2 _w x = pure $ go 0
+sLg2 :: SWord SBV -> SEval SBV (SWord SBV)
+sLg2 x = pure $ go 0
   where
     lit n = literalSWord (SBV.intSizeOf x) n
     go i | i < SBV.intSizeOf x = SBV.svIte (SBV.svLessEq x (lit (2^i))) (lit (toInteger i)) (go (i + 1))

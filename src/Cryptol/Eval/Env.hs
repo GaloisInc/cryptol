@@ -14,6 +14,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 module Cryptol.Eval.Env where
 
+import Cryptol.Eval.Backend
 import Cryptol.Eval.Monad( PPOpts )
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value

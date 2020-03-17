@@ -129,11 +129,11 @@ largeBitSize :: Integer
 largeBitSize = 1 `shiftL` 16
 
 -- | Generate a finite sequence map from a list of values
-finiteSeqMap :: Backend sym => [SEval sym (GenValue sym)] -> SeqMap sym
-finiteSeqMap xs =
+finiteSeqMap :: Backend sym => sym -> [SEval sym (GenValue sym)] -> SeqMap sym
+finiteSeqMap sym xs =
    UpdateSeqMap
       (Map.fromList (zip [0..] xs))
-      invalidIndex
+      (invalidIndex sym)
 
 -- | Generate an infinite sequence map from a stream of values
 infiniteSeqMap :: Backend sym => [SEval sym (GenValue sym)] -> SEval sym (SeqMap sym)
@@ -267,22 +267,22 @@ wordValueSize _ (LargeBitsVal n _) = n
 indexWordValue :: Backend sym => sym -> WordValue sym -> Integer -> SEval sym (SBit sym)
 indexWordValue sym (WordVal w) idx
    | idx < wordLen sym w = wordBit sym w idx
-   | otherwise = invalidIndex idx
-indexWordValue _ (LargeBitsVal n xs) idx
+   | otherwise = invalidIndex sym idx
+indexWordValue sym (LargeBitsVal n xs) idx
    | idx < n   = fromBit =<< lookupSeqMap xs idx
-   | otherwise = invalidIndex idx
+   | otherwise = invalidIndex sym idx
 
 -- | Produce a new 'WordValue' from the one given by updating the @i@th bit with the
 --   given bit value.
 updateWordValue :: Backend sym => sym -> WordValue sym -> Integer -> SEval sym (SBit sym) -> SEval sym (WordValue sym)
 updateWordValue sym (WordVal w) idx b 
-   | idx >= wordLen sym w = invalidIndex idx
+   | idx >= wordLen sym w = invalidIndex sym idx
    | isReady sym b = WordVal <$> (wordUpdate sym w idx =<< b)
 
 updateWordValue sym wv idx b
    | idx < wordValueSize sym wv =
         pure $ LargeBitsVal (wordValueSize sym wv) $ updateSeqMap (asBitsMap sym wv) idx (VBit <$> b)
-   | otherwise = invalidIndex idx
+   | otherwise = invalidIndex sym idx
 
 
 -- | Generic value type, parameterized by bit and word types.
@@ -426,7 +426,7 @@ toFinSeq ::
   sym -> Integer -> TValue -> [GenValue sym] -> GenValue sym
 toFinSeq sym len elty vs
    | isTBit elty = VWord len (WordVal <$> packWord sym (map fromVBit vs))
-   | otherwise   = VSeq len $ finiteSeqMap (map pure vs)
+   | otherwise   = VSeq len $ finiteSeqMap sym (map pure vs)
 
 -- | Construct either a finite sequence, or a stream.  In the finite case,
 -- record whether or not the elements were bits, to aid pretty-printing.

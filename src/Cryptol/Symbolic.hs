@@ -306,7 +306,7 @@ parseValue (FTSeq n FTBit) cvs =
                          (Eval.packWord Concrete (map Eval.fromVBit vs))), cvs')
       where (vs, cvs') = parseValues (replicate n FTBit) cvs
 parseValue (FTSeq n t) cvs =
-                      (Eval.VSeq (toInteger n) $ Eval.finiteSeqMap (map Eval.ready vs)
+                      (Eval.VSeq (toInteger n) $ Eval.finiteSeqMap Concrete (map Eval.ready vs)
                       , cvs'
                       )
   where (vs, cvs') = parseValues (replicate n t) cvs
@@ -390,7 +390,7 @@ forallFinType ty =
     FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
     FTSeq n FTBit -> Eval.VWord (toInteger n) . return . Eval.WordVal <$> lift (forallBV_ n)
     FTSeq n t     -> do vs <- replicateM n (forallFinType t)
-                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap (map pure vs)
+                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
     FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . forallFinType) ts
     FTRecord fs   -> Eval.VRecord <$> mapM (fmap pure . forallFinType) (Map.fromList fs)
 
@@ -405,6 +405,6 @@ existsFinType ty =
     FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
     FTSeq n FTBit -> Eval.VWord (toInteger n) . return . Eval.WordVal <$> lift (existsBV_ n)
     FTSeq n t     -> do vs <- replicateM n (existsFinType t)
-                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap (map pure vs)
+                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
     FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . existsFinType) ts
     FTRecord fs   -> Eval.VRecord <$> mapM (fmap pure . existsFinType) (Map.fromList fs)
