@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 BIN=bin
 
@@ -46,14 +46,12 @@ case $COMMAND in
     # depends on the environment.  For now, we temporarily modify the
     # file, then build, then revert it back after build.
 
-    echo -- Last build $(date) >> src/GitRev.hs
+    dirty_string="-- Last build $(date)"
+    echo "$dirty_string" >> src/GitRev.hs
 
     cabal v2-build exe:cryptol
 
-    # WARNING!!!:  this is here to undo the HACK date stamp, and will
-    # undo any changes to this file, so comment it out if you'd like
-    # to change the file
-    git checkout src/GitRev.hs
+    sed -i "/^$dirty_string/d" src/GitRev.hs
     ;;
 
   haddock)
