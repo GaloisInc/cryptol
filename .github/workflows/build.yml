@@ -53,6 +53,7 @@ jobs:
             curl -o z3.zip -L "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-win.zip"
             7z x -bd z3.zip
             cp z3-*/bin/z3.exe $GITHUB_WORKSPACE/bin/z3.exe
+            ;;
           *)
             echo "$RUNNER_OS not supported"
             exit 1
