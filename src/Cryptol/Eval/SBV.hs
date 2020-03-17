@@ -441,9 +441,6 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                             Inf -> evalPanic "cannot rotate infinite sequence" []
                             Nat n -> Just ((i+n-shft) `mod` n)))
 
-  , ("carry"      , liftWord SBV carry)
-  , ("scarry"     , liftWord SBV scarry)
-
   , ("#"          , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
      nlam $ \ front ->
      nlam $ \ back  ->
@@ -855,18 +852,3 @@ sshrV =
      Nothing ->
        let z = SBV.svUnsign (SBV.svShiftRight (SBV.svSign x) y)
         in return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z
-
-carry :: SWord SBV -> SWord SBV -> SEval SBV Value
-carry x y = return $ VBit c
- where
-  c = SBV.svLessThan (SBV.svPlus x y) x
-
-scarry :: SWord SBV -> SWord SBV -> SEval SBV Value
-scarry x y = return $ VBit sc
- where
-  n = SBV.intSizeOf x
-  z = SBV.svPlus (SBV.svSign x) (SBV.svSign y)
-  xsign = SBV.svTestBit x (n-1)
-  ysign = SBV.svTestBit y (n-1)
-  zsign = SBV.svTestBit z (n-1)
-  sc = SBV.svAnd (SBV.svEqual xsign ysign) (SBV.svNotEqual xsign zsign)

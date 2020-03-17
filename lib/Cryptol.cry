@@ -340,13 +340,20 @@ primitive (%$) : {a} (Arith a) => a -> a -> a
  * Unsigned carry.  Returns true if the unsigned addition of the given
  * bitvector arguments would result in an unsigned overflow.
  */
-primitive carry : {n} (fin n) => [n] -> [n] -> Bit
+carry : {n} (fin n) => [n] -> [n] -> Bit
+carry x y = (x + y) < x
 
 /**
  * Signed carry.  Returns true if the 2's complement signed addition of the
  * given bitvector arguments would result in a signed overflow.
  */
-primitive scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+scarry : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+scarry x y = (sx == sy) && (sx != sz)
+  where
+    z  = x + y
+    sx = x@0
+    sy = y@0
+    sz = z@0
 
 /**
  * Signed borrow.  Returns true if the 2's complement signed subtraction of the

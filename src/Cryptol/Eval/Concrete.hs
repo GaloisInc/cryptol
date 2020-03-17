@@ -185,11 +185,6 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , (">>>"        , {-# SCC "Prelude::(>>>)" #-}
                     logicShift rotateRW rotateRS)
 
-  , ("carry"      , {-# SCC "Prelude::carry" #-}
-                    carryV)
-  , ("scarry"     , {-# SCC "Prelude::scarry" #-}
-                    scarryV)
-
   , ("#"          , {-# SCC "Prelude::(#)" #-}
                     nlam $ \ front ->
                     nlam $ \ back  ->
@@ -293,31 +288,6 @@ sshrV =
        amt   = fromInteger (bvVal y)
        x'    = if signx then x - bit (fromInteger i) else x
     in return . VWord i . ready . WordVal . mkBv i $! x' `shiftR` amt
-
--- | Signed carry bit.
-scarryV :: Value
-scarryV =
-  nlam $ \_n ->
-  wlam Concrete $ \(BV i x) -> return $
-  wlam Concrete $ \(BV j y) ->
-    if i == j
-      then let z     = x + y
-               xsign = testBit x (fromInteger i - 1)
-               ysign = testBit y (fromInteger i - 1)
-               zsign = testBit z (fromInteger i - 1)
-               sc    = (xsign == ysign) && (xsign /= zsign)
-            in return $ VBit sc
-      else evalPanic "scarryV" ["Attempted to compute with words of different sizes"]
-
--- | Unsigned carry bit.
-carryV :: Value
-carryV =
-  nlam $ \_n ->
-  wlam Concrete $ \(BV i x) -> return $
-  wlam Concrete $ \(BV j y) ->
-    if i == j
-      then return . VBit $! testBit (x + y) (fromInteger i)
-      else evalPanic "carryV" ["Attempted to compute with words of different sizes"]
 
 
 logicShift :: (Integer -> Integer -> Integer -> Integer)
