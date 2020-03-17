@@ -61,20 +61,28 @@ ecNumberV sym =
              , show ty
              ]
 
+-- | Convert an unbounded integer to a value in Arith
+ecFromIntegerV :: Backend sym => sym -> GenValue sym
+ecFromIntegerV sym =
+  tlam $ \ a ->
+  lam  $ \ v ->
+  do i <- fromVInteger <$> v
+     arithNullary sym (\x -> wordFromInt sym x i) (pure i) (\x -> intToIntMod sym x i) a
+
 -- | Convert a word to a non-negative integer.
 ecToIntegerV :: Backend sym => sym -> GenValue sym
 ecToIntegerV sym =
   nlam $ \ _ ->
   wlam sym $ \ w -> VInteger <$> wordToInt sym w
 
--- | Convert an unbounded integer to a packed bitvector.
-ecFromIntegerV :: Backend sym => sym -> (Integer -> SInteger sym -> SInteger sym) -> GenValue sym
-ecFromIntegerV sym opz =
-  tlam $ \ a ->
-  lam  $ \ v ->
-  do i <- fromVInteger <$> v
-     arithNullary sym (\x -> wordFromInt sym x i) (pure i) (\x -> pure (opz x i)) a
-
+-- | Convert a value in Z_n into an integer
+ecFromZ :: Backend sym => sym -> GenValue sym
+ecFromZ sym =
+  nlam $ \modulus ->
+  lam  $ \x -> do
+    case modulus of
+      Nat m -> VInteger <$> (intModToInt sym m . fromVInteger =<< x)
+      _ -> evalPanic "fromZ" ["Invalid modulus"]
 
 -- Operation Lifting -----------------------------------------------------------
 

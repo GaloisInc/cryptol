@@ -105,77 +105,124 @@ evalPrim :: Ident -> Maybe Value
 evalPrim prim = Map.lookup prim primTable
 
 primTable :: Map.Map Ident Value
-primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
+primTable = let sym = Concrete in
+  Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   [ -- Literals
     ("True"       , VBit True)
   , ("False"      , VBit False)
   , ("number"     , {-# SCC "Prelude::number" #-}
-                    ecNumberV Concrete)
+                    ecNumberV sym)
 
     -- Arith
   , ("fromInteger", {-# SCC "Prelude::fromInteger" #-}
-                    ecFromIntegerV Concrete (flip mod))
+                    ecFromIntegerV sym)
   , ("+"          , {-# SCC "Prelude::(+)" #-}
-                    binary (addV Concrete))
+                    binary (addV sym))
   , ("-"          , {-# SCC "Prelude::(-)" #-}
-                    binary (subV Concrete))
+                    binary (subV sym))
   , ("*"          , {-# SCC "Prelude::(*)" #-}
-                    binary (mulV Concrete))
+                    binary (mulV sym))
   , ("/"          , {-# SCC "Prelude::(/)" #-}
-                    binary (divV Concrete))
+                    binary (divV sym))
   , ("%"          , {-# SCC "Prelude::(%)" #-}
-                    binary (modV Concrete))
+                    binary (modV sym))
   , ("/$"         , {-# SCC "Prelude::(/$)" #-}
-                    binary (sdivV Concrete))
+                    binary (sdivV sym))
   , ("%$"         , {-# SCC "Prelude::(%$)" #-}
-                    binary (smodV Concrete))
+                    binary (smodV sym))
   , ("^^"         , {-# SCC "Prelude::(^^)" #-}
-                    binary (expV Concrete))
-  , ("negate"     , {-# SCC "Prelude::negate" #-}
-                    unary (negateV Concrete))
+                    binary (expV sym))
   , ("lg2"        , {-# SCC "Prelude::lg2" #-}
-                    unary (lg2V Concrete))
+                    unary (lg2V sym))
+  , ("negate"     , {-# SCC "Prelude::negate" #-}
+                    unary (negateV sym))
+  , ("infFrom"    , {-# SCC "Prelude::infFrom" #-}
+                    infFromV sym)
+  , ("infFromThen", {-# SCC "Prelude::infFromThen" #-}
+                    infFromThenV sym)
 
     -- Cmp
   , ("<"          , {-# SCC "Prelude::(<)" #-}
-                    binary (lessThanV Concrete))
+                    binary (lessThanV sym))
   , (">"          , {-# SCC "Prelude::(>)" #-}
-                    binary (greaterThanV Concrete))
+                    binary (greaterThanV sym))
   , ("<="         , {-# SCC "Prelude::(<=)" #-}
-                    binary (lessThanEqV Concrete))
+                    binary (lessThanEqV sym))
   , (">="         , {-# SCC "Prelude::(>=)" #-}
-                    binary (greaterThanEqV Concrete))
+                    binary (greaterThanEqV sym))
   , ("=="         , {-# SCC "Prelude::(==)" #-}
-                    binary (eqV Concrete))
+                    binary (eqV sym))
   , ("!="         , {-# SCC "Prelude::(!=)" #-}
-                    binary (distinctV Concrete))
+                    binary (distinctV sym))
 
     -- SignedCmp
   , ("<$"         , {-# SCC "Prelude::(<$)" #-}
-                    binary (signedLessThanV Concrete))
+                    binary (signedLessThanV sym))
 
     -- Logic
   , ("&&"         , {-# SCC "Prelude::(&&)" #-}
-                    binary (andV Concrete))
+                    binary (andV sym))
   , ("||"         , {-# SCC "Prelude::(||)" #-}
-                    binary (orV Concrete))
+                    binary (orV sym))
   , ("^"          , {-# SCC "Prelude::(^)" #-}
-                    binary (xorV Concrete))
+                    binary (xorV sym))
   , ("complement" , {-# SCC "Prelude::complement" #-}
-                    unary  (complementV Concrete))
-
-  , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
-                    sshrV)
+                    unary  (complementV sym))
 
     -- Zero
   , ("zero"       , {-# SCC "Prelude::zero" #-}
-                    VPoly (zeroV Concrete))
+                    VPoly (zeroV sym))
 
-  , ("toInteger"  , ecToIntegerV Concrete)
+    -- Finite enumerations
+  , ("fromTo"     , {-# SCC "Prelude::fromTo" #-}
+                    fromToV sym)
+  , ("fromThenTo" , {-# SCC "Prelude::fromThenTo" #-}
+                    fromThenToV sym)
+
+    -- Conversions to Integer
+  , ("toInteger"  , {-# SCC "Prelude::toInteger" #-}
+                    ecToIntegerV sym)
   , ("fromZ"      , {-# SCC "Prelude::fromZ" #-}
-                    nlam $ \ _modulus ->
-                    lam  $ \ x -> x)
+                    ecFromZ sym)
 
+    -- Sequence manipulations
+  , ("#"          , {-# SCC "Prelude::(#)" #-}
+                    nlam $ \ front ->
+                    nlam $ \ back  ->
+                    tlam $ \ elty  ->
+                    lam  $ \ l     -> return $
+                    lam  $ \ r     -> join (ccatV sym front back elty <$> l <*> r))
+
+
+  , ("join"       , {-# SCC "Prelude::join" #-}
+                    nlam $ \ parts ->
+                    nlam $ \ (finNat' -> each)  ->
+                    tlam $ \ a     ->
+                    lam  $ \ x     ->
+                      joinV sym parts each a =<< x)
+
+  , ("split"      , {-# SCC "Prelude::split" #-}
+                    ecSplitV sym)
+
+  , ("splitAt"    , {-# SCC "Prelude::splitAt" #-}
+                    nlam $ \ front ->
+                    nlam $ \ back  ->
+                    tlam $ \ a     ->
+                    lam  $ \ x     ->
+                       splitAtV sym front back a =<< x)
+
+  , ("reverse"    , {-# SCC "Prelude::reverse" #-}
+                    nlam $ \_a ->
+                    tlam $ \_b ->
+                     lam $ \xs -> reverseV sym =<< xs)
+
+  , ("transpose"  , {-# SCC "Prelude::transpose" #-}
+                    nlam $ \a ->
+                    nlam $ \b ->
+                    tlam $ \c ->
+                     lam $ \xs -> transposeV sym a b c =<< xs)
+
+    -- Shifts and rotates
   , ("<<"         , {-# SCC "Prelude::(<<)" #-}
                     logicShift shiftLW shiftLS)
   , (">>"         , {-# SCC "Prelude::(>>)" #-}
@@ -185,70 +232,31 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , (">>>"        , {-# SCC "Prelude::(>>>)" #-}
                     logicShift rotateRW rotateRS)
 
-  , ("#"          , {-# SCC "Prelude::(#)" #-}
-                    nlam $ \ front ->
-                    nlam $ \ back  ->
-                    tlam $ \ elty  ->
-                    lam  $ \ l     -> return $
-                    lam  $ \ r     -> join (ccatV Concrete front back elty <$> l <*> r))
+  , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
+                    sshrV)
 
-
+    -- Indexing and updates
   , ("@"          , {-# SCC "Prelude::(@)" #-}
-                    indexPrim Concrete indexFront_bits indexFront)
+                    indexPrim sym indexFront_bits indexFront)
   , ("!"          , {-# SCC "Prelude::(!)" #-}
-                    indexPrim Concrete indexBack_bits indexBack)
+                    indexPrim sym indexBack_bits indexBack)
 
   , ("update"     , {-# SCC "Prelude::update" #-}
-                    updatePrim Concrete updateFront_word updateFront)
+                    updatePrim sym updateFront_word updateFront)
 
   , ("updateEnd"  , {-# SCC "Prelude::updateEnd" #-}
-                    updatePrim Concrete updateBack_word updateBack)
+                    updatePrim sym updateBack_word updateBack)
 
-  , ("join"       , {-# SCC "Prelude::join" #-}
-                    nlam $ \ parts ->
-                    nlam $ \ (finNat' -> each)  ->
-                    tlam $ \ a     ->
-                    lam  $ \ x     ->
-                      joinV Concrete parts each a =<< x)
-
-  , ("split"      , {-# SCC "Prelude::split" #-}
-                    ecSplitV Concrete)
-
-  , ("splitAt"    , {-# SCC "Prelude::splitAt" #-}
-                    nlam $ \ front ->
-                    nlam $ \ back  ->
-                    tlam $ \ a     ->
-                    lam  $ \ x     ->
-                       splitAtV Concrete front back a =<< x)
-
-  , ("fromTo"     , {-# SCC "Prelude::fromTo" #-}
-                    fromToV Concrete)
-  , ("fromThenTo" , {-# SCC "Prelude::fromThenTo" #-}
-                    fromThenToV Concrete)
-  , ("infFrom"    , {-# SCC "Prelude::infFrom" #-}
-                    infFromV Concrete)
-  , ("infFromThen", {-# SCC "Prelude::infFromThen" #-}
-                    infFromThenV Concrete)
-
+    -- Misc
   , ("error"      , {-# SCC "Prelude::error" #-}
                       tlam $ \a ->
                       nlam $ \_ ->
-                       lam $ \s -> errorV Concrete a =<< (fromStr =<< s))
-
-  , ("reverse"    , {-# SCC "Prelude::reverse" #-}
-                    nlam $ \_a ->
-                    tlam $ \_b ->
-                     lam $ \xs -> reverseV Concrete =<< xs)
-
-  , ("transpose"  , {-# SCC "Prelude::transpose" #-}
-                    nlam $ \a ->
-                    nlam $ \b ->
-                    tlam $ \c ->
-                     lam $ \xs -> transposeV Concrete a b c =<< xs)
+                       lam $ \s -> errorV sym a =<< (fromStr =<< s))
 
   , ("random"      , {-# SCC "Prelude::random" #-}
                      tlam $ \a ->
-                     wlam Concrete $ \(bvVal -> x) -> randomV Concrete a x)
+                     wlam sym $ \(bvVal -> x) -> randomV sym a x)
+
   , ("trace"       , {-# SCC "Prelude::trace" #-}
                      nlam $ \_n ->
                      tlam $ \_a ->
@@ -258,7 +266,7 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                       lam $ \y -> do
                          msg <- fromStr =<< s
                          EvalOpts { evalPPOpts, evalLogger } <- getEvalOpts
-                         doc <- ppValue Concrete evalPPOpts =<< x
+                         doc <- ppValue sym evalPPOpts =<< x
                          yv <- y
                          io $ logPrint evalLogger
                              $ if null msg then doc else text msg <+> doc

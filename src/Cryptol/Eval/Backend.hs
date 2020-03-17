@@ -143,6 +143,13 @@ class MonadIO (SEval sym) => Backend sym where
     SWord sym ->
     SEval sym [SBit sym]
 
+  -- | Construct a packed word of the specified width from an integer value.
+  wordFromInt ::
+    sym ->
+    Integer {- ^ bit-width -} ->
+    SInteger sym ->
+    SEval sym (SWord sym)
+
   -- | Concatenate the two given word values.
   --   NOTE: the first argument represents the more-significant bits
   joinWord ::
@@ -403,6 +410,21 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SEval sym (SBit sym)
 
+  -- | Turn an integer into a value in Z_n
+  intToIntMod ::
+    sym ->
+    Integer {- ^ modulus -} ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
+  -- | Transform a Z_n value into an integer, ensuring the value is properly
+  --   reduced modulo n
+  intModToInt ::
+    sym ->
+    Integer {- ^ modulus -} ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
+
   -- | Addition of integers modulo n, for a concrete positive integer n.
   intModPlus ::
     sym ->
@@ -489,9 +511,3 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SEval sym (SBit sym)
 
-  -- | Construct a packed word of the specified width from an integer value.
-  wordFromInt ::
-    sym ->
-    Integer {- ^ bit-width -} ->
-    SInteger sym ->
-    SEval sym (SWord sym)

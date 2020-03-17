@@ -315,8 +315,12 @@ instance Backend Concrete where
     do assertSideCondition sym (x >= 0) LogNegative
        pure $! lg2 x
 
+  intToIntMod _ 0 x = pure x
+  intToIntMod _ m x = pure $! x `mod` m
+
   -- NB: requires we maintain the invariant that
   --     Z_n is in reduced form
+  intModToInt _ _m x = pure x
   intModEq _ _m x y = pure $! x == y
   intModLessThan _ _m x y = pure $! x < y
   intModGreaterThan _ _m x y = pure $! x > y

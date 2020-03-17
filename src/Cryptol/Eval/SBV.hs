@@ -302,6 +302,14 @@ instance Backend SBV where
        assertSideCondition sym (svLessEq z b) NegativeExponent
        pure $! SBV.svExp a b
 
+  -- NB, we don't do reduction here
+  intToIntMod _ _m a = pure a
+
+  intModToInt _ 0 a = pure a
+  intModToInt _ m a =
+    do let m' = svInteger KUnbounded m
+       pure $! svRem a m'
+
   intModEq _ m a b = svDivisible m (SBV.svMinus a b)
 
   intModLessThan _ m a b =
@@ -376,46 +384,91 @@ evalPrim prim = Map.lookup prim primTable
 
 -- See also Cryptol.Prims.Eval.primTable
 primTable :: Map.Map Ident Value
-primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
-  [ ("True"        , VBit SBV.svTrue)
+primTable  = let sym = SBV in
+  Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
+  [ -- Literals
+    ("True"        , VBit SBV.svTrue)
   , ("False"       , VBit SBV.svFalse)
-  , ("number"      , ecNumberV SBV) -- Converts a numeric type into its corresponding value.
-                                   -- { val, rep } (Literal val rep) => rep
-  , ("+"           , binary (addV SBV)) -- {a} (Arith a) => a -> a -> a
-  , ("-"           , binary (subV SBV)) -- {a} (Arith a) => a -> a -> a
-  , ("*"           , binary (mulV SBV)) -- {a} (Arith a) => a -> a -> a
-  , ("/"           , binary (divV SBV)) -- {a} (Arith a) => a -> a -> a
-  , ("%"           , binary (modV SBV)) -- {a} (Arith a) => a -> a -> a
-  , ("/$"          , binary (sdivV SBV))
-  , ("%$"          , binary (smodV SBV))
-  , ("^^"          , binary (expV SBV))
-  , ("lg2"         , unary (lg2V SBV))
-  , ("negate"      , unary (negateV SBV))
+  , ("number"      , ecNumberV sym) -- Converts a numeric type into its corresponding value.
+                                    -- { val, rep } (Literal val rep) => rep
 
-  , ("<"           , binary (lessThanV SBV))
-  , (">"           , binary (greaterThanV SBV))
-  , ("<="          , binary (lessThanEqV SBV))
-  , (">="          , binary (greaterThanEqV SBV))
-  , ("=="          , binary (eqV SBV))
-  , ("!="          , binary (distinctV SBV))
-  , ("<$"          , binary (signedLessThanV SBV))
+    -- Arith
+  , ("fromInteger" , ecFromIntegerV sym)
+  , ("+"           , binary (addV sym)) -- {a} (Arith a) => a -> a -> a
+  , ("-"           , binary (subV sym)) -- {a} (Arith a) => a -> a -> a
+  , ("*"           , binary (mulV sym)) -- {a} (Arith a) => a -> a -> a
+  , ("/"           , binary (divV sym)) -- {a} (Arith a) => a -> a -> a
+  , ("%"           , binary (modV sym)) -- {a} (Arith a) => a -> a -> a
+  , ("/$"          , binary (sdivV sym))
+  , ("%$"          , binary (smodV sym))
+  , ("^^"          , binary (expV sym))
+  , ("lg2"         , unary (lg2V sym))
+  , ("negate"      , unary (negateV sym))
+  , ("infFrom"     , infFromV sym)
+  , ("infFromThen" , infFromThenV sym)
 
-  , ("&&"          , binary (andV SBV))
-  , ("||"          , binary (orV SBV))
-  , ("^"           , binary (xorV SBV))
-  , ("complement"  , unary  (complementV SBV))
-  , ("zero"        , VPoly (zeroV SBV))
-  , ("toInteger"   , ecToIntegerV SBV)
-  , ("fromInteger" , ecFromIntegerV SBV (const id))
+    -- Cmp
+  , ("<"           , binary (lessThanV sym))
+  , (">"           , binary (greaterThanV sym))
+  , ("<="          , binary (lessThanEqV sym))
+  , (">="          , binary (greaterThanEqV sym))
+  , ("=="          , binary (eqV sym))
+  , ("!="          , binary (distinctV sym))
 
-  , (">>$"         , sshrV)
+    -- SignedCmp
+  , ("<$"          , binary (signedLessThanV sym))
 
-  , ("fromZ"      , nlam $ \ modulus ->
-                    lam  $ \ x -> do
-                      val <- x
-                      case (modulus, val) of
-                        (Nat n, VInteger i) -> VInteger . SBV.svRem i <$> integerLit SBV n
-                        _                   -> evalPanic "fromZ" ["Invalid arguments"])
+    -- Logic
+  , ("&&"          , binary (andV sym))
+  , ("||"          , binary (orV sym))
+  , ("^"           , binary (xorV sym))
+  , ("complement"  , unary  (complementV sym))
+
+    -- Zero
+  , ("zero"        , VPoly (zeroV sym))
+
+    -- Finite enumerations
+  , ("fromTo"      , fromToV sym)
+  , ("fromThenTo"  , fromThenToV sym)
+
+    -- Conversions to Integer
+  , ("toInteger"   , ecToIntegerV sym)
+  , ("fromZ"       , ecFromZ sym)
+
+    -- Sequence manipulations
+  , ("#"          , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
+     nlam $ \ front ->
+     nlam $ \ back  ->
+     tlam $ \ elty  ->
+     lam  $ \ l     -> return $
+     lam  $ \ r     -> join (ccatV sym front back elty <$> l <*> r))
+
+  , ("join"       ,
+     nlam $ \ parts ->
+     nlam $ \ (finNat' -> each)  ->
+     tlam $ \ a     ->
+     lam  $ \ x     ->
+       joinV sym parts each a =<< x)
+
+  , ("split"       , ecSplitV sym)
+
+  , ("splitAt"    ,
+     nlam $ \ front ->
+     nlam $ \ back  ->
+     tlam $ \ a     ->
+     lam  $ \ x     ->
+       splitAtV sym front back a =<< x)
+
+  , ("reverse"    , nlam $ \_a ->
+                    tlam $ \_b ->
+                     lam $ \xs -> reverseV sym =<< xs)
+
+  , ("transpose"  , nlam $ \a ->
+                    nlam $ \b ->
+                    tlam $ \c ->
+                     lam $ \xs -> transposeV sym a b c =<< xs)
+
+    -- Shifts and rotates
   , ("<<"          , logicShift "<<"
                        SBV.svShiftLeft
                        (\sz i shft ->
@@ -441,62 +494,31 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                             Inf -> evalPanic "cannot rotate infinite sequence" []
                             Nat n -> Just ((i+n-shft) `mod` n)))
 
-  , ("#"          , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
-     nlam $ \ front ->
-     nlam $ \ back  ->
-     tlam $ \ elty  ->
-     lam  $ \ l     -> return $
-     lam  $ \ r     -> join (ccatV SBV front back elty <$> l <*> r))
+  , (">>$"         , sshrV)
 
-  , ("splitAt"    ,
-     nlam $ \ front ->
-     nlam $ \ back  ->
-     tlam $ \ a     ->
-     lam  $ \ x     ->
-       splitAtV SBV front back a =<< x)
 
-  , ("join"       ,
-     nlam $ \ parts ->
-     nlam $ \ (finNat' -> each)  ->
-     tlam $ \ a     ->
-     lam  $ \ x     ->
-       joinV SBV parts each a =<< x)
+    -- Indexing and updates
+  , ("@"           , indexPrim sym indexFront_bits indexFront)
+  , ("!"           , indexPrim sym indexBack_bits indexBack)
 
-  , ("split"       , ecSplitV SBV)
+  , ("update"      , updatePrim sym updateFrontSym_word updateFrontSym)
+  , ("updateEnd"   , updatePrim sym updateBackSym_word updateBackSym)
 
-  , ("reverse"    , nlam $ \_a ->
-                    tlam $ \_b ->
-                     lam $ \xs -> reverseV SBV =<< xs)
-
-  , ("transpose"  , nlam $ \a ->
-                    nlam $ \b ->
-                    tlam $ \c ->
-                     lam $ \xs -> transposeV SBV a b c =<< xs)
-
-  , ("fromTo"      , fromToV SBV)
-  , ("fromThenTo"  , fromThenToV SBV)
-  , ("infFrom"     , infFromV SBV)
-  , ("infFromThen" , infFromThenV SBV)
-
-  , ("@"           , indexPrim SBV indexFront_bits indexFront)
-  , ("!"           , indexPrim SBV indexBack_bits indexBack)
-
-  , ("update"      , updatePrim SBV updateFrontSym_word updateFrontSym)
-  , ("updateEnd"   , updatePrim SBV updateBackSym_word updateBackSym)
+    -- Misc
 
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,
       tlam $ \at ->
       nlam $ \(finNat' -> _len) ->
       VFun $ \_msg ->
-        zeroV SBV at) -- error/undefined, is arbitrarily translated to 0
+        zeroV sym at) -- error/undefined, is arbitrarily translated to 0
 
   , ("random"      ,
       tlam $ \a ->
-      wlam SBV $ \x ->
+      wlam sym $ \x ->
          case SBV.svAsInteger x of
-           Just i  -> randomV SBV a i
-           Nothing -> cryUserError SBV "cannot evaluate 'random' with symbolic inputs")
+           Just i  -> randomV sym a i
+           Nothing -> cryUserError sym "cannot evaluate 'random' with symbolic inputs")
 
      -- The trace function simply forces its first two
      -- values before returing the third in the symbolic
@@ -822,15 +844,11 @@ svModLg2 modulus x =
    do m <- integerLit SBV modulus
       svLg2 (SBV.svRem x m)
 
--- Cmp -------------------------------------------------------------------------
-
 svDivisible :: Integer -> SInteger SBV -> SEval SBV (SBit SBV)
 svDivisible m x =
   do m' <- integerLit SBV m
      z  <- integerLit SBV 0
      pure $ SBV.svEqual (SBV.svRem x m') z
-
--- Signed arithmetic -----------------------------------------------------------
 
 signedQuot :: SWord SBV -> SWord SBV -> SWord SBV
 signedQuot x y = SBV.svUnsign (SBV.svQuot (SBV.svSign x) (SBV.svSign y))
