@@ -4,9 +4,10 @@ jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-18.04, macos-latest, windows-2019]
-        ghc: ["8.4.4", "8.6.5", "8.8.1"]
+        ghc: ["8.6.5"] # ["8.4.4", "8.6.5", "8.8.1"]
         cabal: ["3.0"]
     name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
     steps:
@@ -60,16 +61,15 @@ jobs:
             ;;
           esac
           echo "::add-path::$GITHUB_WORKSPACE/bin"
-
-      - name: Install Dependencies
-        run: |
-          cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
-          cabal update
-          cabal configure --allow-newer --enable-tests -j$(nproc)
-          cabal build --only-dependencies exe:cryptol
-
-      - name: Build
-        run: ./cry build
-
-      - name: Test
-        run: ./cry test
+      # - name: Install Dependencies
+      #   run: |
+      #     cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
+      #     cabal update
+      #     cabal configure --allow-newer --enable-tests -j$(nproc)
+      #     cabal build --only-dependencies exe:cryptol
+      #
+      # - name: Build
+      #   run: ./cry build
+      #
+      # - name: Test
+      #   run: ./cry test
