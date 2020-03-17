@@ -413,7 +413,7 @@ bitGreaterThan :: Backend sym => sym -> SBit sym -> SBit sym -> SEval sym (SBit 
 bitGreaterThan sym x y = bitLessThan sym y x
 
 valEq :: Backend sym => sym -> TValue -> GenValue sym -> GenValue sym -> SEval sym (SBit sym)
-valEq sym ty v1 v2 = cmpValue sym fb fw fi fz ty v1 v2 (bitLit sym True)
+valEq sym ty v1 v2 = cmpValue sym fb fw fi fz ty v1 v2 (pure $ bitLit sym True)
   where
   fb x y k   = eqCombine sym (bitEq sym x y)      k
   fw x y k   = eqCombine sym (wordEq sym x y)     k
@@ -421,8 +421,8 @@ valEq sym ty v1 v2 = cmpValue sym fb fw fi fz ty v1 v2 (bitLit sym True)
   fz m x y k = eqCombine sym (intModEq sym m x y) k
 
 valLt :: Backend sym =>
-  sym -> TValue -> GenValue sym -> GenValue sym -> SEval sym (SBit sym) -> SEval sym (SBit sym)
-valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 final
+  sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
+valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
   where
   fb x y k   = lexCombine sym (bitLessThan sym x y)      (bitEq sym x y)      k
   fw x y k   = lexCombine sym (wordLessThan sym x y)     (wordEq sym x y)     k
@@ -430,8 +430,8 @@ valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 final
   fz m x y k = lexCombine sym (intModLessThan sym m x y) (intModEq sym m x y) k
 
 valGt :: Backend sym =>
-  sym -> TValue -> GenValue sym -> GenValue sym -> SEval sym (SBit sym) -> SEval sym (SBit sym)
-valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 final
+  sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
+valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
   where
   fb x y k   = lexCombine sym (bitGreaterThan sym y x)      (bitEq sym x y)      k
   fw x y k   = lexCombine sym (wordGreaterThan sym x y)     (wordEq sym x y)     k
@@ -475,7 +475,7 @@ greaterThanEqV :: Backend sym => sym -> Binary sym
 greaterThanEqV sym ty v1 v2 = VBit <$> valGt sym ty v1 v2 (bitLit sym True)
 
 signedLessThanV :: Backend sym => sym -> Binary sym
-signedLessThanV sym ty v1 v2 = VBit <$> cmpValue sym fb fw fi fz ty v1 v2 (bitLit sym False)
+signedLessThanV sym ty v1 v2 = VBit <$> cmpValue sym fb fw fi fz ty v1 v2 (pure $ bitLit sym False)
   where
   fb _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on bit type"]
   fw x y k   = lexCombine sym (wordSignedLessThan sym x y) (wordEq sym x y) k
@@ -508,7 +508,7 @@ zeroV sym ty = case ty of
 
   -- bits
   TVBit ->
-    VBit <$> bitLit sym False
+    pure (VBit (bitLit sym False))
 
   -- integers
   TVInteger ->

@@ -76,7 +76,7 @@ class MonadIO (SEval sym) => Backend sym where
   wordLen :: sym -> SWord sym -> Integer
 
   -- | Construct a literal bit value from a boolean.
-  bitLit :: sym -> Bool -> SEval sym (SBit sym)
+  bitLit :: sym -> Bool -> SBit sym
 
   -- | Determine if this symbolic bit is a boolean literal
   bitAsLit :: sym -> SBit sym -> Maybe Bool

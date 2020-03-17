@@ -169,7 +169,7 @@ randomValue sym ty =
 randomBit :: (Backend sym, RandomGen g) => sym -> Gen g sym
 randomBit sym _ g =
   let (b,g1) = random g
-  in (VBit <$> bitLit sym b, g1)
+  in (pure (VBit (bitLit sym b)), g1)
 
 randomSize :: RandomGen g => Int -> Int -> g -> (Int, g)
 randomSize k n g

@@ -108,8 +108,8 @@ primTable :: Map.Map Ident Value
 primTable = let sym = Concrete in
   Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   [ -- Literals
-    ("True"       , VBit True)
-  , ("False"      , VBit False)
+    ("True"       , VBit (bitLit sym True))
+  , ("False"      , VBit (bitLit sym False))
   , ("number"     , {-# SCC "Prelude::number" #-}
                     ecNumberV sym)
 

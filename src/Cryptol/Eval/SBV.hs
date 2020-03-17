@@ -197,7 +197,7 @@ instance Backend SBV where
 
   bitAsLit _ b = svAsBool b
 
-  bitLit _ b     = pure $! svBool b
+  bitLit _ b     = svBool b
   wordLit _ n x  = pure $! svInteger (KBounded False (fromInteger n)) x
   integerLit _ x = pure $! svInteger KUnbounded x
 
@@ -387,8 +387,8 @@ primTable :: Map.Map Ident Value
 primTable  = let sym = SBV in
   Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   [ -- Literals
-    ("True"        , VBit SBV.svTrue)
-  , ("False"       , VBit SBV.svFalse)
+    ("True"        , VBit (bitLit sym True))
+  , ("False"       , VBit (bitLit sym False))
   , ("number"      , ecNumberV sym) -- Converts a numeric type into its corresponding value.
                                     -- { val, rep } (Literal val rep) => rep
 
@@ -566,7 +566,7 @@ logicShift nm wop reindex =
                    do idx_bits <- enumerateWordValue SBV idx
                       let op bs shft = memoMap $ IndexSeqMap $ \i ->
                                          case reindex (Nat w) i shft of
-                                           Nothing -> VBit <$> bitLit SBV False
+                                           Nothing -> pure (VBit (bitLit SBV False))
                                            Just i' -> lookupSeqMap bs i'
                       LargeBitsVal n <$> shifter (mergeSeqMap SBV) op bs0 idx_bits
 

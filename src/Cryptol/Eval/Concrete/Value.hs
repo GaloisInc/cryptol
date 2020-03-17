@@ -163,7 +163,7 @@ instance Backend Concrete where
 
   ppInteger _ _opts i = integer i
 
-  bitLit _ b = pure b
+  bitLit _ b = b
   bitAsLit _ b = Just b
 
   bitEq _  x y = pure $! x == y
