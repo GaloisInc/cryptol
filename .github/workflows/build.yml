@@ -4,6 +4,9 @@ jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
+      # XXX: Remove fail-fast when macos and windows are working
+      # 1. setup-haskell needs to be implemented to work for macos and windows
+      # 2. cry build/test might need modifications
       fail-fast: false
       matrix:
         os: [ubuntu-18.04, macos-latest, windows-2019]
@@ -68,6 +71,8 @@ jobs:
           cabal update
           cabal configure --allow-newer --enable-tests -j$(nproc)
           cabal build --only-dependencies exe:cryptol
+          mkdir -p bin
+          cabal v2-install --installdir=bin test-lib
 
       - name: Build
         run: ./cry build
