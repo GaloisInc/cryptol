@@ -1,0 +1,52 @@
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-18.04] # [ubuntu-18.04, macos-latest, windows-2019]
+        ghc: ["8.4.4", "8.6.5", "8.8.1"]
+        cabal: ["3.0"]
+    name: Cryptol - GHC v${{ matrix.ghc }}
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-haskell@v1
+        with:
+          ghc-version: ${{ matrix.ghc }}
+          cabal-version: ${{ matrix.cabal }}
+
+      - uses: actions/cache@v1
+        name: Cache ~/.cabal/packages
+        with:
+          path: ~/.cabal/packages
+          key: ${{ runner.os }}-${{ matrix.ghc }}-cabal-packages
+      - uses: actions/cache@v1
+        name: Cache ~/.cabal/store
+        with:
+          path: ~/.cabal/store
+          key: ${{ runner.os }}-${{ matrix.ghc }}-cabal-store
+      - uses: actions/cache@v1
+        name: Cache dist-newstyle
+        with:
+          path: dist-newstyle
+          key: ${{ runner.os }}-${{ matrix.ghc }}-dist-newstyle
+
+      - name: Install System Dependencies
+        run: |
+          curl "https://saw.galois.com/builds/z3/z3" > z3
+          chmod +x z3
+          mv z3 /usr/local/bin/z3
+
+      - name: Install Dependencies
+        run: |
+          cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
+          cabal update
+          cabal configure --allow-newer --enable-tests --enable-benchmarks
+          cabal build --only-dependencies all
+
+      - name: Build
+        run: cry build
+
+      - name: Test
+        run: cry test
