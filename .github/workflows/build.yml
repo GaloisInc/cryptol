@@ -43,8 +43,8 @@ jobs:
         run: |
           cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
           cabal update
-          cabal configure --allow-newer --enable-tests --enable-benchmarks
-          cabal build --only-dependencies all
+          cabal configure --allow-newer --enable-tests -j$(nproc)
+          cabal build --only-dependencies exe:cryptol
 
       - name: Build
         run: cry build
