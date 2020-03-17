@@ -201,6 +201,12 @@ instance Backend SBV where
   wordLit _ n x  = pure $! svInteger (KBounded False (fromInteger n)) x
   integerLit _ x = pure $! svInteger KUnbounded x
 
+  bitEq  _ x y = pure $! svEqual x y
+  bitOr  _ x y = pure $! svOr x y
+  bitAnd _ x y = pure $! svAnd x y
+  bitXor _ x y = pure $! svXOr x y
+  bitComplement _ x = pure $! svNot x
+
   wordBit _ x idx = pure $! svTestBit x (intSizeOf x - 1 - fromInteger idx)
 
   wordUpdate _ x idx b = pure $! svSymbolicMerge (kindOf x) False b wtrue wfalse
@@ -212,6 +218,14 @@ instance Backend SBV where
   packWord _ bs  = pure $! packSBV bs
   unpackWord _ x = pure $! unpackSBV x
 
+  wordEq _ x y = pure $! svEqual x y
+  wordLessThan _ x y = pure $! svLessThan x y
+  wordGreaterThan _ x y = pure $! svGreaterThan x y
+
+  wordSignedLessThan _ x y = pure $! svLessThan sx sy
+    where sx = svSign x
+          sy = svSign y
+
   joinWord _ x y = pure $! svJoin x y
 
   splitWord _ _leftW rightW w = pure
@@ -222,10 +236,15 @@ instance Backend SBV where
   extractWord _ len start w =
     pure $! svExtract (fromInteger start + fromInteger len - 1) (fromInteger start) w
 
+  wordAnd _ a b = pure $! svAnd a b
+  wordOr  _ a b = pure $! svOr a b
+  wordXor _ a b = pure $! svXOr a b
+  wordComplement _ a = pure $! svNot a
+
   wordPlus  _ a b = pure $! svPlus a b
   wordMinus _ a b = pure $! svMinus a b
   wordMult  _ a b = pure $! svTimes a b
-  wordNegate _ a  = pure $! SBV.svUNeg a
+  wordNegate _ a  = pure $! svUNeg a
 
   wordDiv sym a b =
     do let z = svInteger (KBounded False (intSizeOf b)) 0
@@ -249,6 +268,10 @@ instance Backend SBV where
 
   wordExp _ a b = sExp a b
   wordLg2 _ a = sLg2 a
+
+  intEq _ a b = pure $! svEqual a b
+  intLessThan _ a b = pure $! svLessThan a b
+  intGreaterThan _ a b = pure $! svGreaterThan a b
 
   intPlus  _ a b = pure $! svPlus a b
   intMinus _ a b = pure $! svMinus a b
@@ -278,6 +301,19 @@ instance Backend SBV where
     do let z = svInteger KUnbounded 0
        assertSideCondition sym (svLessEq z b) NegativeExponent
        pure $! SBV.svExp a b
+
+  intModEq _ m a b = svDivisible m (SBV.svMinus a b)
+
+  intModLessThan _ m a b =
+    do let m' = svInteger KUnbounded m
+       let a' = svRem a m'
+       let b' = svRem b m'
+       pure $! svLessThan a' b'
+  intModGreaterThan _ m a b =
+    do let m' = svInteger KUnbounded m
+       let a' = svRem a m'
+       let b' = svRem b m'
+       pure $! svGreaterThan a' b'
 
   intModPlus  _ m a b = sModAdd m a b
   intModMinus _ m a b = sModSub m a b
@@ -356,24 +392,24 @@ primTable  = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("lg2"         , unary (lg2V SBV))
   , ("negate"      , unary (negateV SBV))
 
-  , ("<"           , binary (cmpBinary cmpLt cmpLt cmpLt (cmpMod cmpLt) SBV.svFalse))
-  , (">"           , binary (cmpBinary cmpGt cmpGt cmpGt (cmpMod cmpGt) SBV.svFalse))
-  , ("<="          , binary (cmpBinary cmpLtEq cmpLtEq cmpLtEq (cmpMod cmpLtEq) SBV.svTrue))
-  , (">="          , binary (cmpBinary cmpGtEq cmpGtEq cmpGtEq (cmpMod cmpGtEq) SBV.svTrue))
-  , ("=="          , binary (cmpBinary cmpEq cmpEq cmpEq cmpModEq SBV.svTrue))
-  , ("!="          , binary (cmpBinary cmpNotEq cmpNotEq cmpNotEq cmpModNotEq SBV.svFalse))
-  , ("<$"          , let boolFail = evalPanic "<$" ["Attempted signed comparison on bare Bit values"]
-                         intFail = evalPanic "<$" ["Attempted signed comparison on Integer values"]
-                      in binary (cmpBinary boolFail cmpSignedLt intFail (const intFail) SBV.svFalse))
+  , ("<"           , binary (lessThanV SBV))
+  , (">"           , binary (greaterThanV SBV))
+  , ("<="          , binary (lessThanEqV SBV))
+  , (">="          , binary (greaterThanEqV SBV))
+  , ("=="          , binary (eqV SBV))
+  , ("!="          , binary (distinctV SBV))
+  , ("<$"          , binary (signedLessThanV SBV))
 
-  , (">>$"         , sshrV)
-  , ("&&"          , binary (logicBinary SBV (\x y -> pure $ SBV.svAnd x y) (\x y -> pure $ SBV.svAnd x y)))
-  , ("||"          , binary (logicBinary SBV (\x y -> pure $ SBV.svOr x y) (\x y -> pure $ SBV.svOr x y)))
-  , ("^"           , binary (logicBinary SBV (\x y -> pure $ SBV.svXOr x y) (\x y -> pure $ SBV.svXOr x y)))
-  , ("complement"  , unary (logicUnary SBV SBV.svNot SBV.svNot))
+  , ("&&"          , binary (andV SBV))
+  , ("||"          , binary (orV SBV))
+  , ("^"           , binary (xorV SBV))
+  , ("complement"  , unary  (complementV SBV))
   , ("zero"        , VPoly (zeroV SBV))
   , ("toInteger"   , ecToIntegerV SBV)
   , ("fromInteger" , ecFromIntegerV SBV (const id))
+
+  , (">>$"         , sshrV)
+
   , ("fromZ"      , nlam $ \ modulus ->
                     lam  $ \ x -> do
                       val <- x
@@ -791,50 +827,11 @@ svModLg2 modulus x =
 
 -- Cmp -------------------------------------------------------------------------
 
-cmpEq :: SWord SBV -> SWord SBV -> SEval SBV (SBit SBV) -> SEval SBV (SBit SBV)
-cmpEq x y k = SBV.svAnd (SBV.svEqual x y) <$> k
-
-cmpNotEq :: SWord SBV -> SWord SBV -> SEval SBV (SBit SBV) -> SEval SBV (SBit SBV)
-cmpNotEq x y k = SBV.svOr (SBV.svNotEqual x y) <$> k
-
-cmpSignedLt :: SWord SBV -> SWord SBV -> SEval SBV (SBit SBV) -> SEval SBV (SBit SBV)
-cmpSignedLt x y k = SBV.svOr (SBV.svLessThan sx sy) <$> (cmpEq sx sy k)
-  where sx = SBV.svSign x
-        sy = SBV.svSign y
-
-cmpLt, cmpGt :: SWord SBV -> SWord SBV -> SEval SBV (SBit SBV) -> SEval SBV (SBit SBV)
-cmpLt x y k = SBV.svOr (SBV.svLessThan x y) <$> (cmpEq x y k)
-cmpGt x y k = SBV.svOr (SBV.svGreaterThan x y) <$> (cmpEq x y k)
-
-cmpLtEq, cmpGtEq :: SWord SBV -> SWord SBV -> SEval SBV (SBit SBV) -> SEval SBV (SBit SBV)
-cmpLtEq x y k = SBV.svAnd (SBV.svLessEq x y) <$> (cmpNotEq x y k)
-cmpGtEq x y k = SBV.svAnd (SBV.svGreaterEq x y) <$> (cmpNotEq x y k)
-
-cmpMod ::
-  (SInteger SBV -> SInteger SBV -> SEval SBV (SBit SBV) -> SEval SBV (SBit SBV)) ->
-  (Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SBit SBV) -> SEval SBV (SBit SBV))
-cmpMod cmp modulus x y k =
-   do m <- integerLit SBV modulus
-      cmp (SBV.svRem x m) (SBV.svRem y m) k
-
-cmpModEq :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SBit SBV) -> SEval SBV (SBit SBV)
-cmpModEq m x y k = SBV.svAnd <$> (svDivisible m (SBV.svMinus x y)) <*> k
-
-cmpModNotEq :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SBit SBV) -> SEval SBV (SBit SBV)
-cmpModNotEq m x y k = SBV.svOr <$> (SBV.svNot <$> (svDivisible m (SBV.svMinus x y))) <*> k
-
 svDivisible :: Integer -> SInteger SBV -> SEval SBV (SBit SBV)
 svDivisible m x =
   do m' <- integerLit SBV m
      z  <- integerLit SBV 0
      pure $ SBV.svEqual (SBV.svRem x m') z
-
-cmpBinary :: (SBit SBV -> SBit SBV -> SEval SBV (SBit SBV) -> SEval SBV (SBit SBV))
-          -> (SWord SBV -> SWord SBV -> SEval SBV (SBit SBV) -> SEval SBV (SBit SBV))
-          -> (SInteger SBV -> SInteger SBV -> SEval SBV (SBit SBV) -> SEval SBV (SBit SBV))
-          -> (Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SBit SBV) -> SEval SBV (SBit SBV))
-          -> SBit SBV -> Binary SBV
-cmpBinary fb fw fi fz b ty v1 v2 = VBit <$> cmpValue SBV fb fw fi fz ty v1 v2 (return b)
 
 -- Signed arithmetic -----------------------------------------------------------
 

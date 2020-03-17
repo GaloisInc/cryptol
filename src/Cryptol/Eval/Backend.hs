@@ -83,6 +83,12 @@ class MonadIO (SEval sym) => Backend sym where
 
   iteBit :: sym -> SBit sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
 
+  bitEq  :: sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
+  bitOr  :: sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
+  bitAnd :: sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
+  bitXor :: sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
+  bitComplement :: sym -> SBit sym -> SEval sym (SBit sym)
+
   -- | Construct a literal word value given a bit width and a value.
   wordLit ::
     sym ->
@@ -170,6 +176,29 @@ class MonadIO (SEval sym) => Backend sym where
     SWord sym ->
     SEval sym (SWord sym)
 
+  wordOr ::
+    sym ->
+    SWord sym ->
+    SWord sym ->
+    SEval sym (SWord sym)
+
+  wordAnd ::
+    sym ->
+    SWord sym ->
+    SWord sym ->
+    SEval sym (SWord sym)
+
+  wordXor ::
+    sym ->
+    SWord sym ->
+    SWord sym ->
+    SEval sym (SWord sym)
+
+  wordComplement ::
+    sym ->
+    SWord sym ->
+    SEval sym (SWord sym)
+
   -- | 2's complement addition of packed words.  The arguments must have
   --   equal bit width, and the result is of the same width. Overflow is silently
   --   discarded.
@@ -250,6 +279,30 @@ class MonadIO (SEval sym) => Backend sym where
     sym ->
     SWord sym ->
     SEval sym (SWord sym)
+
+  wordEq ::
+    sym ->
+    SWord sym ->
+    SWord sym ->
+    SEval sym (SBit sym)
+
+  wordSignedLessThan ::
+    sym ->
+    SWord sym ->
+    SWord sym ->
+    SEval sym (SBit sym)
+
+  wordLessThan ::
+    sym ->
+    SWord sym ->
+    SWord sym ->
+    SEval sym (SBit sym)
+
+  wordGreaterThan ::
+    sym ->
+    SWord sym ->
+    SWord sym ->
+    SEval sym (SBit sym)
 
   -- | Construct an integer value from the given packed word.
   wordToInt ::
@@ -332,6 +385,24 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SEval sym (SInteger sym)
 
+  intEq ::
+    sym ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SBit sym)
+
+  intLessThan ::
+    sym ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SBit sym)
+
+  intGreaterThan ::
+    sym ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SBit sym)
+
   -- | Addition of integers modulo n, for a concrete positive integer n.
   intModPlus ::
     sym ->
@@ -397,10 +468,30 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SEval sym (SInteger sym)
 
+  intModEq ::
+    sym ->
+    Integer {- ^ modulus -} ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SBit sym)
+
+  intModLessThan ::
+    sym ->
+    Integer {- ^ modulus -} ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SBit sym)
+
+  intModGreaterThan ::
+    sym ->
+    Integer {- ^ modulus -} ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SBit sym)
+
   -- | Construct a packed word of the specified width from an integer value.
   wordFromInt ::
     sym ->
     Integer {- ^ bit-width -} ->
     SInteger sym ->
     SEval sym (SWord sym)
-

@@ -106,7 +106,16 @@ evalPrim prim = Map.lookup prim primTable
 
 primTable :: Map.Map Ident Value
 primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
-  [ ("+"          , {-# SCC "Prelude::(+)" #-}
+  [ -- Literals
+    ("True"       , VBit True)
+  , ("False"      , VBit False)
+  , ("number"     , {-# SCC "Prelude::number" #-}
+                    ecNumberV Concrete)
+
+    -- Arith
+  , ("fromInteger", {-# SCC "Prelude::fromInteger" #-}
+                    ecFromIntegerV Concrete (flip mod))
+  , ("+"          , {-# SCC "Prelude::(+)" #-}
                     binary (addV Concrete))
   , ("-"          , {-# SCC "Prelude::(-)" #-}
                     binary (subV Concrete))
@@ -127,37 +136,42 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   , ("lg2"        , {-# SCC "Prelude::lg2" #-}
                     unary (lg2V Concrete))
 
+    -- Cmp
   , ("<"          , {-# SCC "Prelude::(<)" #-}
-                    binary (cmpOrder "<"  (\o -> o == LT           )))
+                    binary (lessThanV Concrete))
   , (">"          , {-# SCC "Prelude::(>)" #-}
-                    binary (cmpOrder ">"  (\o -> o == GT           )))
+                    binary (greaterThanV Concrete))
   , ("<="         , {-# SCC "Prelude::(<=)" #-}
-                    binary (cmpOrder "<=" (\o -> o == LT || o == EQ)))
+                    binary (lessThanEqV Concrete))
   , (">="         , {-# SCC "Prelude::(>=)" #-}
-                    binary (cmpOrder ">=" (\o -> o == GT || o == EQ)))
+                    binary (greaterThanEqV Concrete))
   , ("=="         , {-# SCC "Prelude::(==)" #-}
-                    binary (cmpOrder "==" (\o ->            o == EQ)))
+                    binary (eqV Concrete))
   , ("!="         , {-# SCC "Prelude::(!=)" #-}
-                    binary (cmpOrder "!=" (\o ->            o /= EQ)))
+                    binary (distinctV Concrete))
 
+    -- SignedCmp
   , ("<$"         , {-# SCC "Prelude::(<$)" #-}
-                    binary (signedCmpOrder "<$" (\o -> o == LT)))
+                    binary (signedLessThanV Concrete))
+
+    -- Logic
+  , ("&&"         , {-# SCC "Prelude::(&&)" #-}
+                    binary (andV Concrete))
+  , ("||"         , {-# SCC "Prelude::(||)" #-}
+                    binary (orV Concrete))
+  , ("^"          , {-# SCC "Prelude::(^)" #-}
+                    binary (xorV Concrete))
+  , ("complement" , {-# SCC "Prelude::complement" #-}
+                    unary  (complementV Concrete))
+
   , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
                     sshrV)
 
-  , ("True"       , VBit True)
-  , ("False"      , VBit False)
-  , ("&&"         , {-# SCC "Prelude::(&&)" #-}
-                    binary (logicBinary Concrete (\x y -> pure $ x .&. y) (binBV (.&.))))
-  , ("||"         , {-# SCC "Prelude::(||)" #-}
-                    binary (logicBinary Concrete (\x y -> pure $ x .|. y) (binBV (.|.))))
-  , ("^"          , {-# SCC "Prelude::(^)" #-}
-                    binary (logicBinary Concrete (\x y -> pure $ xor x y) (binBV xor)))
-  , ("complement" , {-# SCC "Prelude::complement" #-}
-                    unary  (logicUnary Concrete complement (unaryBV complement)))
+    -- Zero
+  , ("zero"       , {-# SCC "Prelude::zero" #-}
+                    VPoly (zeroV Concrete))
 
   , ("toInteger"  , ecToIntegerV Concrete)
-  , ("fromInteger", ecFromIntegerV Concrete (flip mod))
   , ("fromZ"      , {-# SCC "Prelude::fromZ" #-}
                     nlam $ \ _modulus ->
                     lam  $ \ x -> x)
@@ -175,8 +189,6 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
                     carryV)
   , ("scarry"     , {-# SCC "Prelude::scarry" #-}
                     scarryV)
-  , ("number"     , {-# SCC "Prelude::number" #-}
-                    ecNumberV Concrete)
 
   , ("#"          , {-# SCC "Prelude::(#)" #-}
                     nlam $ \ front ->
@@ -196,9 +208,6 @@ primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
 
   , ("updateEnd"  , {-# SCC "Prelude::updateEnd" #-}
                     updatePrim Concrete updateBack_word updateBack)
-
-  , ("zero"       , {-# SCC "Prelude::zero" #-}
-                    VPoly (zeroV Concrete))
 
   , ("join"       , {-# SCC "Prelude::join" #-}
                     nlam $ \ parts ->
@@ -272,44 +281,6 @@ fromStr :: Value -> Eval String
 fromStr (VSeq n vals) =
   traverse (\x -> toEnum . fromInteger <$> (fromWord "fromStr" =<< x)) (enumerateSeqMap n vals)
 fromStr _ = evalPanic "fromStr" ["Not a finite sequence"]
-
-lexCompare :: TValue -> Value -> Value -> Eval Ordering
-lexCompare ty a b = cmpValue Concrete op opw op (const op) ty a b (return EQ)
- where
-   opw :: BV -> BV -> Eval Ordering -> Eval Ordering
-   opw x y k = op (bvVal x) (bvVal y) k
-
-   op :: Ord a => a -> a -> Eval Ordering -> Eval Ordering
-   op x y k = case compare x y of
-                     EQ  -> k
-                     cmp -> return cmp
-
-
--- Comparisons -----------------------------------------------------------------------
-
-signedLexCompare :: TValue -> Value -> Value -> Eval Ordering
-signedLexCompare ty a b = cmpValue Concrete opb opw opi (const opi) ty a b (return EQ)
- where
-   opb :: Bool -> Bool -> Eval Ordering -> Eval Ordering
-   opb _x _y _k = panic "signedLexCompare"
-                    ["Attempted to perform signed comparisons on bare Bit type"]
-
-   opw :: BV -> BV -> Eval Ordering -> Eval Ordering
-   opw x y k = case compare (signedBV x) (signedBV y) of
-                     EQ  -> k
-                     cmp -> return cmp
-
-   opi :: Integer -> Integer -> Eval Ordering -> Eval Ordering
-   opi _x _y _k = panic "signedLexCompare"
-                    ["Attempted to perform signed comparisons on Integer type"]
-
--- | Process two elements based on their lexicographic ordering.
-cmpOrder :: String -> (Ordering -> Bool) -> Binary Concrete
-cmpOrder _nm op ty l r = VBit . op <$> lexCompare ty l r
-
--- | Process two elements based on their lexicographic ordering, using signed comparisons
-signedCmpOrder :: String -> (Ordering -> Bool) -> Binary Concrete
-signedCmpOrder _nm op ty l r = VBit . op <$> signedLexCompare ty l r
 
 
 sshrV :: Value
@@ -472,7 +443,7 @@ updateFront_word
  -> Eval (WordValue Concrete)
 updateFront_word _len _eltTy bs w val = do
   idx <- bvVal <$> asWordVal Concrete w
-  updateWordValue Concrete bs idx (fromBit =<< val)
+  updateWordValue Concrete bs idx (fromVBit <$> val)
 
 updateBack
   :: Nat'
@@ -499,4 +470,4 @@ updateBack_word Inf _eltTy _bs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
 updateBack_word (Nat n) _eltTy bs w val = do
   idx <- bvVal <$> asWordVal Concrete w
-  updateWordValue Concrete bs (n - idx - 1) (fromBit =<< val)
+  updateWordValue Concrete bs (n - idx - 1) (fromVBit <$> val)

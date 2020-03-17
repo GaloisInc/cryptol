@@ -41,7 +41,9 @@ mkLit :: Backend sym => sym -> TValue -> Integer -> SEval sym (GenValue sym)
 mkLit sym ty i =
   case ty of
     TVInteger                    -> VInteger <$> integerLit sym i
-    TVIntMod _                   -> VInteger <$> integerLit sym i
+    TVIntMod m
+      | m == 0                   -> VInteger <$> integerLit sym i
+      | otherwise                -> VInteger <$> integerLit sym (i `mod` m)
     TVSeq w TVBit                -> pure $ word sym w i
     _                            -> evalPanic "Cryptol.Eval.Prim.evalConst"
                                     [ "Invalid type for number" ]
@@ -339,6 +341,17 @@ lg2V sym = arithUnary sym opw opi opz
 intV :: Backend sym => sym -> SInteger sym -> TValue -> SEval sym (GenValue sym)
 intV sym i = arithNullary sym (\w -> wordFromInt sym w i) (pure i) (pure . const i)
 
+andV :: Backend sym => sym -> Binary sym
+andV sym = logicBinary sym (bitAnd sym) (wordAnd sym)
+
+orV :: Backend sym => sym -> Binary sym
+orV sym = logicBinary sym (bitOr sym) (wordOr sym)
+
+xorV :: Backend sym => sym -> Binary sym
+xorV sym = logicBinary sym (bitXor sym) (wordXor sym)
+
+complementV :: Backend sym => sym -> Unary sym
+complementV sym = logicUnary sym (bitComplement sym) (wordComplement sym)
 
 -- Cmp -------------------------------------------------------------------------
 
@@ -383,6 +396,83 @@ cmpValue sym fb fw fi fz = cmp
     cmpValues _ _ _ k = k
 
 
+bitLessThan :: Backend sym => sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
+bitLessThan sym x y =
+  do xnot <- bitComplement sym x
+     bitAnd sym xnot y
+
+bitGreaterThan :: Backend sym => sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
+bitGreaterThan sym x y = bitLessThan sym y x
+
+valEq :: Backend sym => sym -> TValue -> GenValue sym -> GenValue sym -> SEval sym (SBit sym)
+valEq sym ty v1 v2 = cmpValue sym fb fw fi fz ty v1 v2 (bitLit sym True)
+  where
+  fb x y k   = eqCombine sym (bitEq sym x y)      k
+  fw x y k   = eqCombine sym (wordEq sym x y)     k
+  fi x y k   = eqCombine sym (intEq sym x y)      k
+  fz m x y k = eqCombine sym (intModEq sym m x y) k
+
+valLt :: Backend sym =>
+  sym -> TValue -> GenValue sym -> GenValue sym -> SEval sym (SBit sym) -> SEval sym (SBit sym)
+valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 final
+  where
+  fb x y k   = lexCombine sym (bitLessThan sym x y)      (bitEq sym x y)      k
+  fw x y k   = lexCombine sym (wordLessThan sym x y)     (wordEq sym x y)     k
+  fi x y k   = lexCombine sym (intLessThan sym x y)      (intEq sym x y)      k
+  fz m x y k = lexCombine sym (intModLessThan sym m x y) (intModEq sym m x y) k
+
+valGt :: Backend sym =>
+  sym -> TValue -> GenValue sym -> GenValue sym -> SEval sym (SBit sym) -> SEval sym (SBit sym)
+valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 final
+  where
+  fb x y k   = lexCombine sym (bitGreaterThan sym y x)      (bitEq sym x y)      k
+  fw x y k   = lexCombine sym (wordGreaterThan sym x y)     (wordEq sym x y)     k
+  fi x y k   = lexCombine sym (intGreaterThan sym x y)      (intEq sym x y)      k
+  fz m x y k = lexCombine sym (intModGreaterThan sym m x y) (intModEq sym m x y) k
+
+eqCombine :: Backend sym =>
+  sym ->
+  SEval sym (SBit sym) ->
+  SEval sym (SBit sym) ->
+  SEval sym (SBit sym)
+eqCombine sym eq k = join (bitAnd sym <$> eq <*> k)
+
+lexCombine :: Backend sym =>
+  sym ->
+  SEval sym (SBit sym) ->
+  SEval sym (SBit sym) ->
+  SEval sym (SBit sym) ->
+  SEval sym (SBit sym)
+lexCombine sym cmp eq k =
+  do c <- cmp
+     e <- eq
+     bitOr sym c =<< bitAnd sym e =<< k
+
+eqV :: Backend sym => sym -> Binary sym
+eqV sym ty v1 v2 = VBit <$> valEq sym ty v1 v2
+
+distinctV :: Backend sym => sym -> Binary sym
+distinctV sym ty v1 v2 = VBit <$> (bitComplement sym =<< valEq sym ty v1 v2)
+
+lessThanV :: Backend sym => sym -> Binary sym
+lessThanV sym ty v1 v2 = VBit <$> valLt sym ty v1 v2 (bitLit sym False)
+
+lessThanEqV :: Backend sym => sym -> Binary sym
+lessThanEqV sym ty v1 v2 = VBit <$> valLt sym ty v1 v2 (bitLit sym True)
+
+greaterThanV :: Backend sym => sym -> Binary sym
+greaterThanV sym ty v1 v2 = VBit <$> valGt sym ty v1 v2 (bitLit sym False)
+
+greaterThanEqV :: Backend sym => sym -> Binary sym
+greaterThanEqV sym ty v1 v2 = VBit <$> valGt sym ty v1 v2 (bitLit sym True)
+
+signedLessThanV :: Backend sym => sym -> Binary sym
+signedLessThanV sym ty v1 v2 = VBit <$> cmpValue sym fb fw fi fz ty v1 v2 (bitLit sym False)
+  where
+  fb _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on bit type"]
+  fw x y k   = lexCombine sym (wordSignedLessThan sym x y) (wordEq sym x y) k
+  fi _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on Integer type"]
+  fz m _ _ _ = panic "signedLessThan" ["Attempted to perform signed comparison on Z_" ++ show m ++ " type"]
 
 -- Signed arithmetic -----------------------------------------------------------
 
@@ -832,19 +922,19 @@ logicBinary sym opb opw = loop
 
 wordValUnaryOp ::
   Backend sym =>
-  (SBit sym -> SBit sym) ->
-  (SWord sym -> SWord sym) ->
+  (SBit sym -> SEval sym (SBit sym)) ->
+  (SWord sym -> SEval sym (SWord sym)) ->
   WordValue sym ->
   SEval sym (WordValue sym)
-wordValUnaryOp _ wop (WordVal w)  = return $ WordVal (wop w)
+wordValUnaryOp _ wop (WordVal w)  = WordVal <$> (wop w)
 wordValUnaryOp bop _ (LargeBitsVal n xs) = LargeBitsVal n <$> mapSeqMap f xs
-  where f x = VBit . bop <$> fromBit x
+  where f x = VBit <$> (bop (fromVBit x))
 
 logicUnary :: forall sym.
   sym ->
   Backend sym =>
-  (SBit sym -> SBit sym) ->
-  (SWord sym -> SWord sym) ->
+  (SBit sym -> SEval sym (SBit sym)) ->
+  (SWord sym -> SEval sym (SWord sym)) ->
   Unary sym
 logicUnary sym opb opw = loop
   where
@@ -853,7 +943,7 @@ logicUnary sym opb opw = loop
 
   loop :: TValue -> GenValue sym -> SEval sym (GenValue sym)
   loop ty val = case ty of
-    TVBit -> return . VBit . opb $ fromVBit val
+    TVBit -> VBit <$> (opb (fromVBit val))
 
     TVInteger -> evalPanic "logicUnary" ["Integer not in class Logic"]
     TVIntMod _ -> evalPanic "logicUnary" ["Z not in class Logic"]
@@ -909,7 +999,7 @@ indexPrim sym bits_op word_op =
       r >>= \case
          VWord _ w -> w >>= \case
            WordVal w' -> word_op (fromNat n) a vs w'
-           LargeBitsVal m xs -> bits_op (fromNat n) a vs . Seq.fromList =<< traverse (fromBit =<<) (enumerateSeqMap m xs)
+           LargeBitsVal m xs -> bits_op (fromNat n) a vs . Seq.fromList =<< traverse (fromVBit <$>) (enumerateSeqMap m xs)
          _ -> evalPanic "Expected word value" ["indexPrim"]
 
 

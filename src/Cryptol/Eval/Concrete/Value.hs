@@ -166,12 +166,21 @@ instance Backend Concrete where
   bitLit _ b = pure b
   bitAsLit _ b = Just b
 
+  bitEq _  x y = pure $! x == y
+  bitOr _  x y = pure $! x .|. y
+  bitAnd _ x y = pure $! x .&. y
+  bitXor _ x y = pure $! x `xor` y
+  bitComplement _ x = pure $! complement x
+
   iteBit _ b x y  = pure $! if b then x else y
   iteWord _ b x y = pure $! if b then x else y
   iteInteger _ b x y = pure $! if b then x else y
 
   wordLit _ w i = pure $! mkBv w i
   integerLit _ i = pure i
+
+  wordToInt _ (BV _ x) = pure x
+  wordFromInt _ w x = pure $! mkBv w x
 
   packWord _ bits = pure $! BV (toInteger w) a
     where
@@ -193,6 +202,36 @@ instance Backend Concrete where
     pure ( BV leftW (x `shiftR` (fromInteger rightW)), mkBv rightW x )
 
   extractWord _ n i (BV _ x) = pure $! mkBv n (x `shiftR` (fromInteger i))
+
+  wordEq _ (BV i x) (BV j y)
+    | i == j = pure $! x == y
+    | otherwise = panic "Attempt to compare words of different sizes: wordEq" [show i, show j]
+
+  wordSignedLessThan _ (BV i x) (BV j y)
+    | i == j = pure $! signedValue i x < signedValue i y
+    | otherwise = panic "Attempt to compare words of different sizes: wordSignedLessThan" [show i, show j]
+
+  wordLessThan _ (BV i x) (BV j y)
+    | i == j = pure $! x < y
+    | otherwise = panic "Attempt to compare words of different sizes: wordLessThan" [show i, show j]
+
+  wordGreaterThan _ (BV i x) (BV j y)
+    | i == j = pure $! x > y
+    | otherwise = panic "Attempt to compare words of different sizes: wordGreaterThan" [show i, show j]
+
+  wordAnd _ (BV i x) (BV j y)
+    | i == j = pure $! mkBv i (x .&. y)
+    | otherwise = panic "Attempt to AND words of different sizes: wordPlus" [show i, show j]
+
+  wordOr _ (BV i x) (BV j y)
+    | i == j = pure $! mkBv i (x .|. y)
+    | otherwise = panic "Attempt to OR words of different sizes: wordPlus" [show i, show j]
+
+  wordXor _ (BV i x) (BV j y)
+    | i == j = pure $! mkBv i (x `xor` y)
+    | otherwise = panic "Attempt to XOR words of different sizes: wordPlus" [show i, show j]
+
+  wordComplement _ (BV i x) = pure $! mkBv i (complement x)
 
   wordPlus _ (BV i x) (BV j y)
     | i == j = pure $! mkBv i (x+y)
@@ -249,6 +288,10 @@ instance Backend Concrete where
 
   wordLg2 _ (BV i x) = pure $! mkBv i (lg2 x)
 
+  intEq _ x y = pure $! x == y
+  intLessThan _ x y = pure $! x < y
+  intGreaterThan _ x y = pure $! x > y
+
   intPlus  _ x y = pure $! x + y
   intMinus _ x y = pure $! x - y
   intNegate _ x  = pure $! negate x
@@ -272,6 +315,12 @@ instance Backend Concrete where
     do assertSideCondition sym (x >= 0) LogNegative
        pure $! lg2 x
 
+  -- NB: requires we maintain the invariant that
+  --     Z_n is in reduced form
+  intModEq _ _m x y = pure $! x == y
+  intModLessThan _ _m x y = pure $! x < y
+  intModGreaterThan _ _m x y = pure $! x > y
+
   intModPlus  _ = liftBinIntMod (+)
   intModMinus _ = liftBinIntMod (-)
   intModMult  _ = liftBinIntMod (*)
@@ -287,8 +336,6 @@ instance Backend Concrete where
     | otherwise = pure $! (doubleAndAdd x y m) `mod` m
   intModLg2 sym _m x = intLg2 sym x
 
-  wordToInt _ (BV _ x) = pure x
-  wordFromInt _ w x = pure $! mkBv w x
 
 liftBinIntMod :: Monad m =>
   (Integer -> Integer -> Integer) -> Integer -> Integer -> Integer -> m Integer

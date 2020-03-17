@@ -45,7 +45,6 @@ module Cryptol.Eval.Value
   , fromVInteger
   , fromVSeq
   , fromSeq
-  , fromBit
   , fromWordVal
   , fromVWord
   , vWordLen
@@ -239,7 +238,7 @@ data WordValue sym
 -- | Force a word value into packed word form
 asWordVal :: Backend sym => sym -> WordValue sym -> SEval sym (SWord sym)
 asWordVal _   (WordVal w)         = return w
-asWordVal sym (LargeBitsVal n xs) = packWord sym =<< traverse (fromBit =<<) (enumerateSeqMap n xs)
+asWordVal sym (LargeBitsVal n xs) = packWord sym =<< traverse (fromVBit <$>) (enumerateSeqMap n xs)
 
 -- | Force a word value into a sequence of bits
 asBitsMap :: Backend sym => sym -> WordValue sym -> SeqMap sym
@@ -250,13 +249,13 @@ asBitsMap _   (LargeBitsVal _ xs) = xs
 --   The sequence is returned in big-endian order.
 enumerateWordValue :: Backend sym => sym -> WordValue sym -> SEval sym [SBit sym]
 enumerateWordValue sym (WordVal w) = unpackWord sym w
-enumerateWordValue _ (LargeBitsVal n xs) = traverse (fromBit =<<) (enumerateSeqMap n xs)
+enumerateWordValue _ (LargeBitsVal n xs) = traverse (fromVBit <$>) (enumerateSeqMap n xs)
 
 -- | Turn a word value into a sequence of bits, forcing each bit.
 --   The sequence is returned in reverse of the usual order, which is little-endian order.
 enumerateWordValueRev :: Backend sym => sym -> WordValue sym -> SEval sym [SBit sym]
 enumerateWordValueRev sym (WordVal w)  = reverse <$> unpackWord sym w
-enumerateWordValueRev _   (LargeBitsVal n xs) = traverse (fromBit =<<) (enumerateSeqMap n (reverseSeqMap n xs))
+enumerateWordValueRev _   (LargeBitsVal n xs) = traverse (fromVBit <$>) (enumerateSeqMap n (reverseSeqMap n xs))
 
 -- | Compute the size of a word value
 wordValueSize :: Backend sym => sym -> WordValue sym -> Integer
@@ -269,7 +268,7 @@ indexWordValue sym (WordVal w) idx
    | idx < wordLen sym w = wordBit sym w idx
    | otherwise = invalidIndex sym idx
 indexWordValue sym (LargeBitsVal n xs) idx
-   | idx < n   = fromBit =<< lookupSeqMap xs idx
+   | idx < n   = fromVBit <$> lookupSeqMap xs idx
    | otherwise = invalidIndex sym idx
 
 -- | Produce a new 'WordValue' from the one given by updating the @i@th bit with the
@@ -475,10 +474,6 @@ fromSeq msg val = case val of
   VStream vs  -> return vs
   _           -> evalPanic "fromSeq" ["not a sequence", msg]
 
-fromBit :: Backend sym => GenValue sym -> SEval sym (SBit sym)
-fromBit (VBit b) = return b
-fromBit _ = evalPanic "fromBit" ["Not a bit value"]
-
 fromWordVal :: Backend sym => String -> GenValue sym -> SEval sym (WordValue sym)
 fromWordVal _msg (VWord _ wval) = wval
 fromWordVal msg _ = evalPanic "fromWordVal" ["not a word value", msg]
@@ -500,7 +495,7 @@ tryFromBits :: Backend sym => sym -> [SEval sym (GenValue sym)] -> Maybe (SEval 
 tryFromBits sym = go id
   where
   go f [] = Just (packWord sym =<< sequence (f []))
-  go f (v : vs) | isReady sym v = go (f . ((fromBit =<< v):)) vs
+  go f (v : vs) | isReady sym v = go (f . ((fromVBit <$> v):)) vs
   go _ (_ : _) = Nothing
 
 -- | Extract a function from a value.
