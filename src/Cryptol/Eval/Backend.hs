@@ -17,7 +17,7 @@ import Cryptol.Utils.PP
 
 
 invalidIndex :: Backend sym => sym -> Integer -> SEval sym a
-invalidIndex sym = raiseError sym . InvalidIndex
+invalidIndex sym = raiseError sym . InvalidIndex . Just
 
 cryUserError :: Backend sym => sym -> String -> SEval sym a
 cryUserError sym = raiseError sym . UserError

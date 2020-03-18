@@ -184,7 +184,7 @@ evalPanic cxt = panic ("[Eval] " ++ cxt)
 
 -- | Data type describing errors that can occur during evaluation.
 data EvalError
-  = InvalidIndex Integer          -- ^ Out-of-bounds index
+  = InvalidIndex (Maybe Integer)  -- ^ Out-of-bounds index
   | TypeCannotBeDemoted Type      -- ^ Non-numeric type passed to @number@ function
   | DivideByZero                  -- ^ Division or modulus by 0
   | NegativeExponent              -- ^ Exponentiation by negative integer
@@ -197,7 +197,8 @@ data EvalError
 
 instance PP EvalError where
   ppPrec _ e = case e of
-    InvalidIndex i -> text "invalid sequence index:" <+> integer i
+    InvalidIndex (Just i) -> text "invalid sequence index:" <+> integer i
+    InvalidIndex Nothing  -> text "invalid sequence index"
     TypeCannotBeDemoted t -> text "type cannot be demoted:" <+> pp t
     DivideByZero -> text "division by 0"
     NegativeExponent -> text "negative exponent"

@@ -20,17 +20,17 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Cryptol.Eval.Generic where
 
-import Control.Monad (join)
+import Control.Monad (join, unless)
+
+import Data.Bits (testBit)
 
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),fromNat,nMul)
+import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul)
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.Utils.Panic (panic)
-
-import qualified Data.Sequence as Seq
 
 import qualified Data.Map.Strict as Map
 
@@ -986,29 +986,87 @@ logicUnary sym opb opw = loop
 
     TVAbstract {} -> evalPanic "logicUnary" [ "Abstract type not in `Logic`" ]
 
+
+bitsValueLessThan ::
+  Backend sym =>
+  sym ->
+  Integer {- ^ bit-width -} ->
+  [SBit sym] {- ^ big-endian list of index bits -} ->
+  Integer {- ^ Upper bound to test against -} ->
+  SEval sym (SBit sym)
+bitsValueLessThan sym _w [] _n = pure $ bitLit sym False
+bitsValueLessThan sym w (b:bs) n
+  | nbit =
+      do notb <- bitComplement sym b
+         bitOr sym notb =<< bitsValueLessThan sym (w-1) bs n
+  | otherwise =
+      do notb <- bitComplement sym b
+         bitAnd sym notb =<< bitsValueLessThan sym (w-1) bs n
+ where
+ nbit = testBit n (fromInteger (w-1))
+
+
+assertIndexInBounds ::
+  Backend sym =>
+  sym ->
+  Nat' {- ^ Sequence size bounds -} ->
+  WordValue sym {- ^ Index value -} ->
+  SEval sym ()
+
+-- Can't index out of bounds for an infinite sequence
+assertIndexInBounds _sym Inf _ =
+  return ()
+
+-- Can't index out of bounds for a sequence that is
+-- longer than the expressible index values
+assertIndexInBounds sym (Nat n) idx
+  | n >= 2^(wordValueSize sym idx)
+  = return ()
+
+-- If the index is concrete, test it directly
+assertIndexInBounds sym (Nat n) (WordVal idx)
+  | Just (_w,i) <- wordAsLit sym idx
+  = unless (i < n) (raiseError sym (InvalidIndex (Just i)))
+
+-- If the index is a packed word, test that it
+-- is less than the concrete value of n, which
+-- fits into w bits because of the above test.
+assertIndexInBounds sym (Nat n) (WordVal idx) =
+  do n' <- wordLit sym (wordLen sym idx) n
+     p <- wordLessThan sym idx n'
+     assertSideCondition sym p (InvalidIndex Nothing)
+
+-- If the index is an unpacked word, force all the bits
+-- and compute the unsigned less-than test directly.
+assertIndexInBounds sym (Nat n) (LargeBitsVal w bits) =
+  do bitsList <- traverse (fromVBit <$>) (enumerateSeqMap w bits)
+     p <- bitsValueLessThan sym w bitsList n
+     assertSideCondition sym p (InvalidIndex Nothing)
+
+
 -- | Indexing operations.
 indexPrim ::
   Backend sym =>
   sym ->
-  (Maybe Integer -> TValue -> SeqMap sym -> Seq.Seq (SBit sym) -> SEval sym (GenValue sym)) ->
-  (Maybe Integer -> TValue -> SeqMap sym -> SWord sym -> SEval sym (GenValue sym)) ->
+  (Nat' -> TValue -> SeqMap sym -> [SBit sym] -> SEval sym (GenValue sym)) ->
+  (Nat' -> TValue -> SeqMap sym -> SWord sym -> SEval sym (GenValue sym)) ->
   GenValue sym
 indexPrim sym bits_op word_op =
-  nlam $ \ n  ->
-  tlam $ \ a ->
-  nlam $ \ _i ->
-   lam $ \ l  -> return $
-   lam $ \ r  -> do
-      vs <- l >>= \case
+  nlam $ \ len  ->
+  tlam $ \ eltTy ->
+  nlam $ \ _ix ->
+   lam $ \ xs  -> return $
+   lam $ \ idx  -> do
+      vs <- xs >>= \case
                VWord _ w  -> w >>= \w' -> return $ IndexSeqMap (\i -> VBit <$> indexWordValue sym w' i)
                VSeq _ vs  -> return vs
                VStream vs -> return vs
                _ -> evalPanic "Expected sequence value" ["indexPrim"]
-      r >>= \case
-         VWord _ w -> w >>= \case
-           WordVal w' -> word_op (fromNat n) a vs w'
-           LargeBitsVal m xs -> bits_op (fromNat n) a vs . Seq.fromList =<< traverse (fromVBit <$>) (enumerateSeqMap m xs)
-         _ -> evalPanic "Expected word value" ["indexPrim"]
+      idx' <- fromWordVal "index" =<< idx
+      assertIndexInBounds sym len idx'
+      case idx' of
+        WordVal w'        -> word_op len eltTy vs w'
+        LargeBitsVal m bs -> bits_op len eltTy vs =<< traverse (fromVBit <$>) (enumerateSeqMap m bs)
 
 
 updatePrim ::
@@ -1025,6 +1083,7 @@ updatePrim sym updateWord updateSeq =
   lam $ \idx -> return $
   lam $ \val -> do
     idx' <- fromWordVal "update" =<< idx
+    assertIndexInBounds sym len idx'
     xs >>= \case
       VWord l w  -> do w' <- sDelay sym Nothing w
                        return $ VWord l (w' >>= \w'' -> updateWord len eltTy w'' idx' val)
@@ -1156,7 +1215,7 @@ mergeWord :: Backend sym =>
 mergeWord sym c (WordVal w1) (WordVal w2) =
   WordVal <$> iteWord sym c w1 w2
 mergeWord sym c w1 w2 =
-  pure $ LargeBitsVal (wordValueSize sym w1) (mergeSeqMap sym c (asBitsMap sym w1) (asBitsMap sym w2))
+  LargeBitsVal (wordValueSize sym w1) <$> memoMap (mergeSeqMap sym c (asBitsMap sym w1) (asBitsMap sym w2))
 
 mergeWord' :: Backend sym =>
   sym ->

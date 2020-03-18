@@ -23,7 +23,7 @@ module Cryptol.Eval.Concrete
   , toExpr
   ) where
 
-import Control.Monad (join, unless,guard,zipWithM)
+import Control.Monad (join,guard,zipWithM)
 import MonadLib( ChoiceT, findOne, lift )
 
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
@@ -41,8 +41,6 @@ import Cryptol.Utils.Ident (Ident,mkIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Logger(logPrint)
 
-import qualified Data.Foldable as Fold
-import qualified Data.Sequence as Seq
 import Data.Bits (Bits(..))
 
 import qualified Data.Map.Strict as Map
@@ -366,74 +364,63 @@ rotateRS w _ vs by = IndexSeqMap $ \i ->
 
 -- Sequence Primitives ---------------------------------------------------------
 
+indexFront :: Nat' -> TValue -> SeqMap Concrete -> BV -> Eval Value
+indexFront _mblen _a vs (bvVal -> ix) = lookupSeqMap vs ix
 
-indexFront :: Maybe Integer -> TValue -> SeqMap Concrete -> BV -> Eval Value
-indexFront mblen _a vs (bvVal -> ix) =
-  case mblen of
-    Just len | len <= ix -> invalidIndex Concrete ix
-    _                    -> lookupSeqMap vs ix
+indexFront_bits :: Nat' -> TValue -> SeqMap Concrete -> [Bool] -> Eval Value
+indexFront_bits mblen a vs bs = indexFront mblen a vs =<< packWord Concrete bs
 
-indexFront_bits :: Maybe Integer -> TValue -> SeqMap Concrete -> Seq.Seq Bool -> Eval Value
-indexFront_bits mblen a vs bs = indexFront mblen a vs =<< packWord Concrete (Fold.toList bs)
-
-indexBack :: Maybe Integer -> TValue -> SeqMap Concrete -> BV -> Eval Value
+indexBack :: Nat' -> TValue -> SeqMap Concrete -> BV -> Eval Value
 indexBack mblen _a vs (bvVal -> ix) =
   case mblen of
-    Just len | len > ix  -> lookupSeqMap vs (len - ix - 1)
-             | otherwise -> invalidIndex Concrete ix
-    Nothing              -> evalPanic "indexBack"
-                            ["unexpected infinite sequence"]
+    Nat len -> lookupSeqMap vs (len - ix - 1)
+    Inf     -> evalPanic "indexBack" ["unexpected infinite sequence"]
 
-indexBack_bits :: Maybe Integer -> TValue -> SeqMap Concrete -> Seq.Seq Bool -> Eval Value
-indexBack_bits mblen a vs bs = indexBack mblen a vs =<< packWord Concrete (Fold.toList bs)
+indexBack_bits :: Nat' -> TValue -> SeqMap Concrete -> [Bool] -> Eval Value
+indexBack_bits mblen a vs bs = indexBack mblen a vs =<< packWord Concrete bs
 
-
-updateFront
-  :: Nat'
-  -> TValue
-  -> SeqMap Concrete
-  -> WordValue Concrete
-  -> Eval Value
-  -> Eval (SeqMap Concrete)
-updateFront len _eltTy vs w val = do
+updateFront ::
+  Nat'               {- ^ length of the sequence -} ->
+  TValue             {- ^ type of values in the sequence -} ->
+  SeqMap Concrete    {- ^ sequence to update -} ->
+  WordValue Concrete {- ^ index -} ->
+  Eval Value         {- ^ new value at index -} ->
+  Eval (SeqMap Concrete)
+updateFront _len _eltTy vs w val = do
   idx <- bvVal <$> asWordVal Concrete w
-  case len of
-    Inf -> return ()
-    Nat n -> unless (idx < n) (invalidIndex Concrete idx)
   return $ updateSeqMap vs idx val
 
-updateFront_word
- :: Nat'
- -> TValue
- -> WordValue Concrete
- -> WordValue Concrete
- -> Eval Value
- -> Eval (WordValue Concrete)
+updateFront_word ::
+  Nat'               {- ^ length of the sequence -} ->
+  TValue             {- ^ type of values in the sequence -} ->
+  WordValue Concrete {- ^ bit sequence to update -} ->
+  WordValue Concrete {- ^ index -} ->
+  Eval Value         {- ^ new value at index -} ->
+  Eval (WordValue Concrete)
 updateFront_word _len _eltTy bs w val = do
   idx <- bvVal <$> asWordVal Concrete w
   updateWordValue Concrete bs idx (fromVBit <$> val)
 
-updateBack
-  :: Nat'
-  -> TValue
-  -> SeqMap Concrete
-  -> WordValue Concrete
-  -> Eval Value
-  -> Eval (SeqMap Concrete)
+updateBack ::
+  Nat'               {- ^ length of the sequence -} ->
+  TValue             {- ^ type of values in the sequence -} ->
+  SeqMap Concrete    {- ^ sequence to update -} ->
+  WordValue Concrete {- ^ index -} ->
+  Eval Value         {- ^ new value at index -} ->
+  Eval (SeqMap Concrete)
 updateBack Inf _eltTy _vs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
 updateBack (Nat n) _eltTy vs w val = do
   idx <- bvVal <$> asWordVal Concrete w
-  unless (idx < n) (invalidIndex Concrete idx)
   return $ updateSeqMap vs (n - idx - 1) val
 
-updateBack_word
- :: Nat'
- -> TValue
- -> WordValue Concrete
- -> WordValue Concrete
- -> Eval Value
- -> Eval (WordValue Concrete)
+updateBack_word ::
+  Nat'               {- ^ length of the sequence -} ->
+  TValue             {- ^ type of values in the sequence -} ->
+  WordValue Concrete {- ^ bit sequence to update -} ->
+  WordValue Concrete {- ^ index -} ->
+  Eval Value         {- ^ new value at index -} ->
+  Eval (WordValue Concrete)
 updateBack_word Inf _eltTy _bs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
 updateBack_word (Nat n) _eltTy bs w val = do

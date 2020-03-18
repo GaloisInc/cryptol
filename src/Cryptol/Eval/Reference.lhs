@@ -1159,14 +1159,14 @@ length of the list produces a run-time error.
 > indexFront :: Nat' -> TValue -> [Value] -> Integer -> Value
 > indexFront w a vs ix =
 >   case w of
->     Nat n | n <= ix -> logicNullary (Left (InvalidIndex ix)) a
+>     Nat n | n <= ix -> logicNullary (Left (InvalidIndex (Just ix))) a
 >     _               -> genericIndex vs ix
 >
 > indexBack :: Nat' -> TValue -> [Value] -> Integer -> Value
 > indexBack w a vs ix =
 >   case w of
 >     Nat n | n > ix    -> genericIndex vs (n - ix - 1)
->           | otherwise -> logicNullary (Left (InvalidIndex ix)) a
+>           | otherwise -> logicNullary (Left (InvalidIndex (Just ix))) a
 >     Inf               -> evalPanic "indexBack" ["unexpected infinite sequence"]
 >
 > updatePrim :: (Nat' -> [Value] -> Integer -> Value -> [Value]) -> Value
@@ -1182,7 +1182,7 @@ length of the list produces a run-time error.
 >     Left e -> logicNullary (Left e) (tvSeq len eltTy)
 >     Right i
 >       | Nat i < len -> VList len (op len (fromVList xs) i val)
->       | otherwise   -> logicNullary (Left (InvalidIndex i)) (tvSeq len eltTy)
+>       | otherwise   -> logicNullary (Left (InvalidIndex (Just i))) (tvSeq len eltTy)
 >
 > updateFront :: Nat' -> [Value] -> Integer -> Value -> [Value]
 > updateFront _ vs i x = updateAt vs i x
