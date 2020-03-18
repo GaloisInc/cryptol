@@ -49,13 +49,19 @@ import Cryptol.Utils.PP
 
 import Control.Monad.Trans  (liftIO)
 
--- SBool and SWord -------------------------------------------------------------
-
 data SBV = SBV
+
+-- Utility operations -------------------------------------------------------------
 
 fromBitsLE :: [SBit SBV] -> SWord SBV
 fromBitsLE bs = foldl' f (literalSWord 0 0) bs
   where f w b = svJoin (svToWord1 b) w
+
+packSBV :: [SBit SBV] -> SWord SBV
+packSBV bs = fromBitsLE (reverse bs)
+
+unpackSBV :: SWord SBV -> [SBit SBV]
+unpackSBV x = [ svTestBit x i | i <- reverse [0 .. intSizeOf x - 1] ]
 
 literalSWord :: Int -> Integer -> SWord SBV
 literalSWord w i = svInteger (KBounded False w) i
@@ -82,13 +88,7 @@ existsSInteger_ = symbolicEnv >>= liftIO . svMkSymVar (Just EX) KUnbounded Nothi
 
 type Value = GenValue SBV
 
--- Symbolic Conditionals -------------------------------------------------------
-
-packSBV :: [SBit SBV] -> SWord SBV
-packSBV bs = fromBitsLE (reverse bs)
-
-unpackSBV :: SWord SBV -> [SBit SBV]
-unpackSBV x = [ svTestBit x i | i <- reverse [0 .. intSizeOf x - 1] ]
+-- SBV Evaluation monad -------------------------------------------------------
 
 data SBVResult a
   = SBVError !EvalError
@@ -111,7 +111,6 @@ instance Monad SBVResult where
     case m x of
       SBVError err   -> SBVError err
       SBVResult pm z -> SBVResult (svAnd px pm) z
-
 
 newtype SBVEval a = SBVEval{ sbvEval :: Eval (SBVResult a) }
   deriving (Functor)
@@ -200,7 +199,7 @@ instance Backend SBV where
       Nothing -> Nothing
 
   bitLit _ b     = svBool b
-  wordLit _ n x  = pure $! svInteger (KBounded False (fromInteger n)) x
+  wordLit _ n x  = pure $! literalSWord (fromInteger n) x
   integerLit _ x = pure $! svInteger KUnbounded x
 
   bitEq  _ x y = pure $! svEqual x y
@@ -249,27 +248,30 @@ instance Backend SBV where
   wordNegate _ a  = pure $! svUNeg a
 
   wordDiv sym a b =
-    do let z = svInteger (KBounded False (intSizeOf b)) 0
+    do let z = literalSWord (intSizeOf b) 0
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
        pure $! svQuot a b  -- TODO! Fix this: see issue #662
 
   wordMod sym a b =
-    do let z = svInteger (KBounded False (intSizeOf b)) 0
+    do let z = literalSWord (intSizeOf b) 0
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
        pure $! svRem a b   -- TODO! Fix this: see issue #662
 
   wordSignedDiv sym a b =
-    do let z = svInteger (KBounded False (intSizeOf b)) 0
+    do let z = literalSWord (intSizeOf b) 0
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
        pure $! signedQuot a b
 
   wordSignedMod sym a b =
-    do let z = svInteger (KBounded False (intSizeOf b)) 0
+    do let z = literalSWord (intSizeOf b) 0
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
        pure $! signedRem a b
 
   wordExp _ a b = sExp a b
   wordLg2 _ a = sLg2 a
+
+  wordToInt _ x = pure $! svToInteger x
+  wordFromInt _ w i = pure $! svFromInteger w i
 
   intEq _ a b = pure $! svEqual a b
   intLessThan _ a b = pure $! svLessThan a b
@@ -305,34 +307,34 @@ instance Backend SBV where
        pure $! SBV.svExp a b
 
   -- NB, we don't do reduction here
-  intToIntMod _ _m a = pure a
+  intToZn _ _m a = pure a
 
-  intModToInt _ 0 a = pure a
-  intModToInt _ m a =
+  znToInt _ 0 a = pure a
+  znToInt _ m a =
     do let m' = svInteger KUnbounded m
        pure $! svRem a m'
 
-  intModEq _ m a b = svDivisible m (SBV.svMinus a b)
+  znEq _ m a b = svDivisible m (SBV.svMinus a b)
 
-  intModLessThan _ m a b =
+  znLessThan _ m a b =
     do let m' = svInteger KUnbounded m
        let a' = svRem a m'
        let b' = svRem b m'
        pure $! svLessThan a' b'
-  intModGreaterThan _ m a b =
+  znGreaterThan _ m a b =
     do let m' = svInteger KUnbounded m
        let a' = svRem a m'
        let b' = svRem b m'
        pure $! svGreaterThan a' b'
 
-  intModPlus  _ m a b = sModAdd m a b
-  intModMinus _ m a b = sModSub m a b
-  intModMult  _ m a b = sModMult m a b
-  intModNegate _ m a  = sModNegate m a
-  intModExp _ m a b   = sModExp m a b
+  znPlus  _ m a b = sModAdd m a b
+  znMinus _ m a b = sModSub m a b
+  znMult  _ m a b = sModMult m a b
+  znNegate _ m a  = sModNegate m a
+  znExp _ m a b   = sModExp m a b
 
-  intModDiv sym 0 a b = intDiv sym a b
-  intModDiv sym m a b =
+  znDiv sym 0 a b = intDiv sym a b
+  znDiv sym m a b =
     do let m' = svInteger KUnbounded m
        let z  = svInteger KUnbounded 0
        let a' = svRem a m'
@@ -340,18 +342,15 @@ instance Backend SBV where
        assertSideCondition sym (svNot (svEqual b' z)) DivideByZero
        pure $! svQuot a' b'
 
-  intModMod sym 0 a b = intMod sym a b
-  intModMod sym m a b =
+  znMod sym 0 a b = intMod sym a b
+  znMod sym m a b =
     do let m' = svInteger KUnbounded m
        let z  = svInteger KUnbounded 0
        let a' = svRem a m'
        let b' = svRem b m'
        assertSideCondition sym (svNot (svEqual b' z)) DivideByZero
        pure $! svRem a' b'
-  intModLg2 _ m a = svModLg2 m a
-
-  wordToInt _ x = pure $! svToInteger x
-  wordFromInt _ w i = pure $! svFromInteger w i
+  znLg2 _ m a = svModLg2 m a
 
   iteBit _ b x y = pure $! svSymbolicMerge KBool True b x y
   iteWord _ b x y = pure $! svSymbolicMerge (kindOf x) True b x y

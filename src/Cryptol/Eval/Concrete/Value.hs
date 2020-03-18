@@ -316,30 +316,30 @@ instance Backend Concrete where
     do assertSideCondition sym (x >= 0) LogNegative
        pure $! lg2 x
 
-  intToIntMod _ 0 x = pure x
-  intToIntMod _ m x = pure $! x `mod` m
+  intToZn _ 0 x = pure x
+  intToZn _ m x = pure $! x `mod` m
 
   -- NB: requires we maintain the invariant that
   --     Z_n is in reduced form
-  intModToInt _ _m x = pure x
-  intModEq _ _m x y = pure $! x == y
-  intModLessThan _ _m x y = pure $! x < y
-  intModGreaterThan _ _m x y = pure $! x > y
+  znToInt _ _m x = pure x
+  znEq _ _m x y = pure $! x == y
+  znLessThan _ _m x y = pure $! x < y
+  znGreaterThan _ _m x y = pure $! x > y
 
-  intModPlus  _ = liftBinIntMod (+)
-  intModMinus _ = liftBinIntMod (-)
-  intModMult  _ = liftBinIntMod (*)
-  intModNegate _ m x = pure $! (negate x) `mod` m
-  intModDiv sym m x y =
+  znPlus  _ = liftBinIntMod (+)
+  znMinus _ = liftBinIntMod (-)
+  znMult  _ = liftBinIntMod (*)
+  znNegate _ m x = pure $! (negate x) `mod` m
+  znDiv sym m x y =
     do assertSideCondition sym (y /= 0) DivideByZero
        liftBinIntMod div m x y
-  intModMod sym m x y =
+  znMod sym m x y =
     do assertSideCondition sym (y /= 0) DivideByZero
        liftBinIntMod mod m x y
-  intModExp sym m x y
+  znExp sym m x y
     | m == 0    = intExp sym x y
     | otherwise = pure $! (doubleAndAdd x y m) `mod` m
-  intModLg2 sym _m x = intLg2 sym x
+  znLg2 sym _m x = intLg2 sym x
 
 
 liftBinIntMod :: Monad m =>

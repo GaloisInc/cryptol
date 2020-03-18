@@ -67,7 +67,7 @@ ecFromIntegerV sym =
   tlam $ \ a ->
   lam  $ \ v ->
   do i <- fromVInteger <$> v
-     arithNullary sym (\x -> wordFromInt sym x i) (pure i) (\x -> intToIntMod sym x i) a
+     arithNullary sym (\x -> wordFromInt sym x i) (pure i) (\x -> intToZn sym x i) a
 
 -- | Convert a word to a non-negative integer.
 ecToIntegerV :: Backend sym => sym -> GenValue sym
@@ -81,7 +81,7 @@ ecFromZ sym =
   nlam $ \modulus ->
   lam  $ \x -> do
     case modulus of
-      Nat m -> VInteger <$> (intModToInt sym m . fromVInteger =<< x)
+      Nat m -> VInteger <$> (znToInt sym m . fromVInteger =<< x)
       _ -> evalPanic "fromZ" ["Invalid modulus"]
 
 -- Operation Lifting -----------------------------------------------------------
@@ -281,70 +281,70 @@ addV sym = arithBinary sym opw opi opz
   where
     opw _w x y = wordPlus sym x y
     opi x y = intPlus sym x y
-    opz m x y = intModPlus sym m x y
+    opz m x y = znPlus sym m x y
 
 subV :: Backend sym => sym -> Binary sym
 subV sym = arithBinary sym opw opi opz
   where
     opw _w x y = wordMinus sym x y
     opi x y = intMinus sym x y
-    opz m x y = intModMinus sym m x y
+    opz m x y = znMinus sym m x y
 
 mulV :: Backend sym => sym -> Binary sym
 mulV sym = arithBinary sym opw opi opz
   where
     opw _w x y = wordMult sym x y
     opi x y = intMult sym x y
-    opz m x y = intModMult sym m x y
+    opz m x y = znMult sym m x y
 
 divV :: Backend sym => sym -> Binary sym
 divV sym = arithBinary sym opw opi opz
   where
     opw _w x y = wordDiv sym x y
     opi x y = intDiv sym x y
-    opz m x y = intModDiv sym m x y
+    opz m x y = znDiv sym m x y
 
 modV :: Backend sym => sym -> Binary sym
 modV sym = arithBinary sym opw opi opz
   where
     opw _w x y = wordMod sym x y
     opi x y = intMod sym x y
-    opz m x y = intModMod sym m x y
+    opz m x y = znMod sym m x y
 
 sdivV :: Backend sym => sym -> Binary sym
 sdivV sym = arithBinary sym opw opi opz
   where
     opw _w x y = wordSignedDiv sym x y
     opi x y = intDivRTZ sym x y
-    opz m x y = intModDiv sym m x y
+    opz m x y = znDiv sym m x y
 
 smodV :: Backend sym => sym -> Binary sym
 smodV sym = arithBinary sym opw opi opz
   where
     opw _w x y = wordSignedMod sym x y
     opi x y = intModRTZ sym x y
-    opz m x y = intModMod sym m x y
+    opz m x y = znMod sym m x y
 
 expV :: Backend sym => sym -> Binary sym
 expV sym = arithBinary sym opw opi opz
   where
     opw _w x y = wordExp sym x y
     opi x y = intExp sym x y
-    opz m x y = intModExp sym m x y
+    opz m x y = znExp sym m x y
 
 negateV :: Backend sym => sym -> Unary sym
 negateV sym = arithUnary sym opw opi opz
   where
     opw _w x = wordNegate sym x
     opi x = intNegate sym x
-    opz m x = intModNegate sym m x
+    opz m x = znNegate sym m x
 
 lg2V :: Backend sym => sym -> Unary sym
 lg2V sym = arithUnary sym opw opi opz
   where
     opw _w x = wordLg2 sym x
     opi x = intLg2 sym x
-    opz m x = intModLg2 sym m x
+    opz m x = znLg2 sym m x
 
 intV :: Backend sym => sym -> SInteger sym -> TValue -> SEval sym (GenValue sym)
 intV sym i = arithNullary sym (\w -> wordFromInt sym w i) (pure i) (pure . const i)
@@ -415,28 +415,28 @@ bitGreaterThan sym x y = bitLessThan sym y x
 valEq :: Backend sym => sym -> TValue -> GenValue sym -> GenValue sym -> SEval sym (SBit sym)
 valEq sym ty v1 v2 = cmpValue sym fb fw fi fz ty v1 v2 (pure $ bitLit sym True)
   where
-  fb x y k   = eqCombine sym (bitEq sym x y)      k
-  fw x y k   = eqCombine sym (wordEq sym x y)     k
-  fi x y k   = eqCombine sym (intEq sym x y)      k
-  fz m x y k = eqCombine sym (intModEq sym m x y) k
+  fb x y k   = eqCombine sym (bitEq sym x y)  k
+  fw x y k   = eqCombine sym (wordEq sym x y) k
+  fi x y k   = eqCombine sym (intEq sym x y)  k
+  fz m x y k = eqCombine sym (znEq sym m x y) k
 
 valLt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
 valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
   where
-  fb x y k   = lexCombine sym (bitLessThan sym x y)      (bitEq sym x y)      k
-  fw x y k   = lexCombine sym (wordLessThan sym x y)     (wordEq sym x y)     k
-  fi x y k   = lexCombine sym (intLessThan sym x y)      (intEq sym x y)      k
-  fz m x y k = lexCombine sym (intModLessThan sym m x y) (intModEq sym m x y) k
+  fb x y k   = lexCombine sym (bitLessThan sym x y)  (bitEq sym x y)  k
+  fw x y k   = lexCombine sym (wordLessThan sym x y) (wordEq sym x y) k
+  fi x y k   = lexCombine sym (intLessThan sym x y)  (intEq sym x y)  k
+  fz m x y k = lexCombine sym (znLessThan sym m x y) (znEq sym m x y) k
 
 valGt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
 valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
   where
-  fb x y k   = lexCombine sym (bitGreaterThan sym y x)      (bitEq sym x y)      k
-  fw x y k   = lexCombine sym (wordGreaterThan sym x y)     (wordEq sym x y)     k
-  fi x y k   = lexCombine sym (intGreaterThan sym x y)      (intEq sym x y)      k
-  fz m x y k = lexCombine sym (intModGreaterThan sym m x y) (intModEq sym m x y) k
+  fb x y k   = lexCombine sym (bitGreaterThan sym y x)  (bitEq sym x y)  k
+  fw x y k   = lexCombine sym (wordGreaterThan sym x y) (wordEq sym x y) k
+  fi x y k   = lexCombine sym (intGreaterThan sym x y)  (intEq sym x y)  k
+  fz m x y k = lexCombine sym (znGreaterThan sym m x y) (znEq sym m x y) k
 
 eqCombine :: Backend sym =>
   sym ->

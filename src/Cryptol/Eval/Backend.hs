@@ -415,7 +415,7 @@ class MonadIO (SEval sym) => Backend sym where
     SEval sym (SBit sym)
 
   -- | Turn an integer into a value in Z_n
-  intToIntMod ::
+  intToZn ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
@@ -423,14 +423,14 @@ class MonadIO (SEval sym) => Backend sym where
 
   -- | Transform a Z_n value into an integer, ensuring the value is properly
   --   reduced modulo n
-  intModToInt ::
+  znToInt ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
     SEval sym (SInteger sym)
 
   -- | Addition of integers modulo n, for a concrete positive integer n.
-  intModPlus ::
+  znPlus ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
@@ -438,14 +438,14 @@ class MonadIO (SEval sym) => Backend sym where
     SEval sym (SInteger sym)
 
   -- | Additive inverse of integers modulo n
-  intModNegate ::
+  znNegate ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
     SEval sym (SInteger sym)
 
   -- | Subtraction of integers modulo n, for a concrete positive integer n.
-  intModMinus ::
+  znMinus ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
@@ -453,7 +453,7 @@ class MonadIO (SEval sym) => Backend sym where
     SEval sym (SInteger sym)
 
   -- | Multiplication of integers modulo n, for a concrete positive integer n.
-  intModMult ::
+  znMult ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
@@ -463,7 +463,7 @@ class MonadIO (SEval sym) => Backend sym where
   -- | Division of integers modulo n, for a concrete positive integer n.
   --   NOTE: this is integer division on the initial segement of Z,
   --   and not the multiplictitive inverse in Z_p.
-  intModDiv ::
+  znDiv ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
@@ -473,7 +473,7 @@ class MonadIO (SEval sym) => Backend sym where
   -- | Modulus of integers modulo n, for a concrete positive integer n.
   --   NOTE: this is the modulus corresponding to integer division on the initial
   --   segement of Z, and not related to multiplictitive inverse in Z_p.
-  intModMod ::
+  znMod ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
@@ -481,34 +481,34 @@ class MonadIO (SEval sym) => Backend sym where
     SEval sym (SInteger sym)
 
   -- | Exponentation of integers modulo n
-  intModExp ::
+  znExp ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
     SInteger sym ->
     SEval sym (SInteger sym)
 
-  intModLg2 ::
+  znLg2 ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
     SEval sym (SInteger sym)
 
-  intModEq ::
+  znEq ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
     SInteger sym ->
     SEval sym (SBit sym)
 
-  intModLessThan ::
+  znLessThan ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
     SInteger sym ->
     SEval sym (SBit sym)
 
-  intModGreaterThan ::
+  znGreaterThan ::
     sym ->
     Integer {- ^ modulus -} ->
     SInteger sym ->
