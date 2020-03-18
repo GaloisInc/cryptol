@@ -81,6 +81,10 @@ class MonadIO (SEval sym) => Backend sym where
   -- | Determine if this symbolic bit is a boolean literal
   bitAsLit :: sym -> SBit sym -> Maybe Bool
 
+  -- | Determine if this symbolci word is a literal.
+  --   If so, return the bit width and value.
+  wordAsLit :: sym -> SWord sym -> Maybe (Integer, Integer)
+
   iteBit :: sym -> SBit sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
 
   bitEq  :: sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)

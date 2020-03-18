@@ -1119,6 +1119,21 @@ errorV sym ty msg = case ty of
   TVAbstract {} -> cryUserError sym msg
 
 
+-- | Expect a word value.  Mask it an 8-bits ASCII value
+--   and return the associated character, if it is concrete.
+--   Otherwise, return a '?' character
+valueToChar :: Backend sym => sym -> GenValue sym -> SEval sym Char
+valueToChar sym (VWord 8 wval) =
+  do w <- asWordVal sym =<< wval
+     case wordAsLit sym w of
+       Just (_i,v) -> pure $! toEnum (fromInteger v)
+       Nothing     -> pure '?'
+valueToChar _ _ = evalPanic "valueToChar" ["Not an 8-bit bitvector"]
+
+valueToString :: Backend sym => sym -> GenValue sym -> SEval sym String
+valueToString sym (VSeq n vals) = traverse (valueToChar sym =<<) (enumerateSeqMap n vals)
+valueToString _ _ = evalPanic "valueToString" ["Not a finite sequence"]
+
 -- Merge and if/then/else
 
 iteValue :: Backend sym =>

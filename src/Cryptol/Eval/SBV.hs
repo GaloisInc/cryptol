@@ -196,6 +196,10 @@ instance Backend SBV where
      | otherwise               = text "[?]"
 
   bitAsLit _ b = svAsBool b
+  wordAsLit _ w =
+    case svAsInteger w of
+      Just x -> Just (toInteger (intSizeOf w), x)
+      Nothing -> Nothing
 
   bitLit _ b     = svBool b
   wordLit _ n x  = pure $! svInteger (KBounded False (fromInteger n)) x
@@ -508,10 +512,9 @@ primTable  = let sym = SBV in
 
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,
-      tlam $ \at ->
-      nlam $ \(finNat' -> _len) ->
-      VFun $ \_msg ->
-        zeroV sym at) -- error/undefined, is arbitrarily translated to 0
+      tlam $ \a ->
+      nlam $ \_ ->
+      VFun $ \s -> errorV sym a =<< (valueToString sym =<< s))
 
   , ("random"      ,
       tlam $ \a ->

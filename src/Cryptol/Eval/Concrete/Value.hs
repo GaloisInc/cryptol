@@ -177,6 +177,7 @@ instance Backend Concrete where
   iteInteger _ b x y = pure $! if b then x else y
 
   wordLit _ w i = pure $! mkBv w i
+  wordAsLit _ (BV w i) = Just (w,i)
   integerLit _ i = pure i
 
   wordToInt _ (BV _ x) = pure x

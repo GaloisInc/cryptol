@@ -251,7 +251,7 @@ primTable = let sym = Concrete in
   , ("error"      , {-# SCC "Prelude::error" #-}
                       tlam $ \a ->
                       nlam $ \_ ->
-                       lam $ \s -> errorV sym a =<< (fromStr =<< s))
+                       lam $ \s -> errorV sym a =<< (valueToString sym =<< s))
 
   , ("random"      , {-# SCC "Prelude::random" #-}
                      tlam $ \a ->
@@ -264,7 +264,7 @@ primTable = let sym = Concrete in
                       lam $ \s -> return $
                       lam $ \x -> return $
                       lam $ \y -> do
-                         msg <- fromStr =<< s
+                         msg <- valueToString sym =<< s
                          EvalOpts { evalPPOpts, evalLogger } <- getEvalOpts
                          doc <- ppValue sym evalPPOpts =<< x
                          yv <- y
@@ -275,16 +275,6 @@ primTable = let sym = Concrete in
 
 
 --------------------------------------------------------------------------------
-
--- | Turn a value into an integer represented by w bits.
-fromWord :: String -> Value -> Eval Integer
-fromWord msg val = bvVal <$> fromVWord Concrete msg val
-
-fromStr :: Value -> Eval String
-fromStr (VSeq n vals) =
-  traverse (\x -> toEnum . fromInteger <$> (fromWord "fromStr" =<< x)) (enumerateSeqMap n vals)
-fromStr _ = evalPanic "fromStr" ["Not a finite sequence"]
-
 
 sshrV :: Value
 sshrV =
