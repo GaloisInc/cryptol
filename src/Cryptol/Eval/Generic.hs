@@ -23,6 +23,7 @@ module Cryptol.Eval.Generic where
 import Control.Monad (join, unless)
 
 import Data.Bits (testBit)
+import Data.Maybe (fromMaybe)
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul)
@@ -1184,9 +1185,7 @@ errorV sym ty msg = case ty of
 valueToChar :: Backend sym => sym -> GenValue sym -> SEval sym Char
 valueToChar sym (VWord 8 wval) =
   do w <- asWordVal sym =<< wval
-     case wordAsLit sym w of
-       Just (_i,v) -> pure $! toEnum (fromInteger v)
-       Nothing     -> pure '?'
+     pure $! fromMaybe '?' (wordAsChar sym w)
 valueToChar _ _ = evalPanic "valueToChar" ["Not an 8-bit bitvector"]
 
 valueToString :: Backend sym => sym -> GenValue sym -> SEval sym String
