@@ -362,22 +362,6 @@ modV sym = arithBinary sym opw opi opz
     opi x y = intMod sym x y
     opz m x y = znMod sym m x y
 
-{-# INLINE sdivV #-}
-sdivV :: Backend sym => sym -> Binary sym
-sdivV sym = arithBinary sym opw opi opz
-  where
-    opw _w x y = wordSignedDiv sym x y
-    opi x y = intDiv sym x y
-    opz m x y = znDiv sym m x y
-
-{-# INLINE smodV #-}
-smodV :: Backend sym => sym -> Binary sym
-smodV sym = arithBinary sym opw opi opz
-  where
-    opw _w x y = wordSignedMod sym x y
-    opi x y = intMod sym x y
-    opz m x y = znMod sym m x y
-
 {-# INLINE expV #-}
 expV :: Backend sym => sym -> Binary sym
 expV sym = arithBinary sym opw opi opz
@@ -418,6 +402,25 @@ xorV sym = logicBinary sym (bitXor sym) (wordXor sym)
 {-# INLINE complementV #-}
 complementV :: Backend sym => sym -> Unary sym
 complementV sym = logicUnary sym (bitComplement sym) (wordComplement sym)
+
+-- Bitvector signed div and modulus
+
+{-# SPECIALIZE sdivV :: Concrete -> GenValue Concrete #-}
+sdivV :: Backend sym => sym -> GenValue sym
+sdivV sym =
+  nlam $ \(finNat' -> w) ->
+  wlam sym $ \x -> return $
+  wlam sym $ \y -> return $
+  VWord w (WordVal <$> wordSignedDiv sym x y)
+
+{-# SPECIALIZE smodV :: Concrete -> GenValue Concrete #-}
+smodV :: Backend sym => sym -> GenValue sym
+smodV sym  =
+  nlam $ \(finNat' -> w) ->
+  wlam sym $ \x -> return $
+  wlam sym $ \y -> return $
+  VWord w (WordVal <$> wordSignedMod sym x y)
+
 
 -- Cmp -------------------------------------------------------------------------
 

@@ -97,10 +97,10 @@ Symbols
     (+) : {a} (Arith a) => a -> a -> a
     (-) : {a} (Arith a) => a -> a -> a
     (%) : {a} (Arith a) => a -> a -> a
-    (%$) : {a} (Arith a) => a -> a -> a
+    (%$) : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
     (*) : {a} (Arith a) => a -> a -> a
     (/) : {a} (Arith a) => a -> a -> a
-    (/$) : {a} (Arith a) => a -> a -> a
+    (/$) : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
     (^^) : {a} (Arith a) => a -> a -> a
     (!) : {n, a, ix} (fin n, fin ix) => [n]a -> [ix] -> a
     (!!) : {n, k, ix, a} (fin n, fin ix) => [n]a -> [k][ix] -> [k]a

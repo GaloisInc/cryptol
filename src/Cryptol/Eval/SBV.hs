@@ -361,8 +361,8 @@ primTable  = let sym = SBV in
   , ("*"           , binary (mulV sym)) -- {a} (Arith a) => a -> a -> a
   , ("/"           , binary (divV sym)) -- {a} (Arith a) => a -> a -> a
   , ("%"           , binary (modV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("/$"          , binary (sdivV sym))
-  , ("%$"          , binary (smodV sym))
+  , ("/$"          , sdivV sym)
+  , ("%$"          , smodV sym)
   , ("^^"          , binary (expV sym))
   , ("lg2"         , unary (lg2V sym))
   , ("negate"      , unary (negateV sym))
