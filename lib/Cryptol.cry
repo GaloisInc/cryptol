@@ -329,12 +329,12 @@ x >=$ y = ~(x <$ y)
 /**
  * 2's complement signed division.  Division rounds toward 0.
  */
-primitive (/$) : {a} (Arith a) => a -> a -> a
+primitive (/$) : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
 
 /**
  * 2's complement signed remainder.  Division rounds toward 0.
  */
-primitive (%$) : {a} (Arith a) => a -> a -> a
+primitive (%$) : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
 
 /**
  * Unsigned carry.  Returns true if the unsigned addition of the given
