@@ -99,7 +99,7 @@ class MonadIO (SEval sym) => Backend sym where
   -- | The number of bits in a word value.
   wordLen :: sym -> SWord sym -> Integer
 
-  -- | Determine if this symbolci word is a literal.
+  -- | Determine if this symbolic word is a literal.
   --   If so, return the bit width and value.
   wordAsLit :: sym -> SWord sym -> Maybe (Integer, Integer)
 
@@ -107,6 +107,8 @@ class MonadIO (SEval sym) => Backend sym where
   --   if the character value is unknown (e.g., for symbolic values).
   wordAsChar :: sym -> SWord sym -> Maybe Char
 
+  -- | Determine if this symbolic integer is a literal
+  integerAsLit :: sym -> SInteger sym -> Maybe Integer
 
   -- ==== Creating literal values ====
 
@@ -461,6 +463,9 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SEval sym (SBit sym)
 
+
+  -- ==== Operations on Z_n ====
+
   -- | Turn an integer into a value in Z_n
   intToZn ::
     sym ->
@@ -507,6 +512,17 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SEval sym (SInteger sym)
 
+  -- | Equality test of integers modulo n
+  znEq ::
+    sym ->
+    Integer {- ^ modulus -} ->
+    SInteger sym ->
+    SInteger sym ->
+    SEval sym (SBit sym)
+
+
+  -- ==== Z_n operations defined via projection to the integers ====
+
   -- | Division of integers modulo n, for a concrete positive integer n.
   --   NOTE: this is integer division on the initial segement of Z,
   --   and not the multiplictitive inverse in Z_p.
@@ -516,6 +532,10 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SInteger sym ->
     SEval sym (SInteger sym)
+  znDiv sym m x y =
+    do x' <- znToInt sym m x
+       y' <- znToInt sym m y
+       intToZn sym m =<< intDiv sym x' y'
 
   -- | Modulus of integers modulo n, for a concrete positive integer n.
   --   NOTE: this is the modulus corresponding to integer division on the initial
@@ -526,6 +546,10 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SInteger sym ->
     SEval sym (SInteger sym)
+  znMod sym m x y =
+    do x' <- znToInt sym m x
+       y' <- znToInt sym m y
+       intToZn sym m =<< intMod sym x' y'
 
   -- | Exponentation of integers modulo n
   znExp ::
@@ -534,6 +558,10 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SInteger sym ->
     SEval sym (SInteger sym)
+  znExp sym m x y =
+    do x' <- znToInt sym m x
+       y' <- znToInt sym m y
+       intToZn sym m =<< intExp sym x' y'
 
   -- | Log base 2 of integers modulo n.
   znLg2 ::
@@ -541,14 +569,9 @@ class MonadIO (SEval sym) => Backend sym where
     Integer {- ^ modulus -} ->
     SInteger sym ->
     SEval sym (SInteger sym)
-
-  -- | Equality test of integers modulo n
-  znEq ::
-    sym ->
-    Integer {- ^ modulus -} ->
-    SInteger sym ->
-    SInteger sym ->
-    SEval sym (SBit sym)
+  znLg2 sym m x =
+    do x' <- znToInt sym m x
+       intToZn sym m =<< intLg2 sym x'
 
   -- | Less-than test of integers modulo n.  Note this test
   --   first computes the reduced integers and compares.
@@ -558,6 +581,10 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SInteger sym ->
     SEval sym (SBit sym)
+  znLessThan sym m x y =
+    do x' <- znToInt sym m x
+       y' <- znToInt sym m y
+       intLessThan sym x' y'
 
   -- | Greater-than test of integers modulo n.  Note this test
   --   first computes the reduced integers and compares.
@@ -567,4 +594,7 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SInteger sym ->
     SEval sym (SBit sym)
-
+  znGreaterThan sym m x y =
+    do x' <- znToInt sym m x
+       y' <- znToInt sym m y
+       intGreaterThan sym x' y'

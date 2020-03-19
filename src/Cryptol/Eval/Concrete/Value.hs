@@ -179,6 +179,7 @@ instance Backend Concrete where
   wordLit _ w i = pure $! mkBv w i
   wordAsLit _ (BV w i) = Just (w,i)
   integerLit _ i = pure i
+  integerAsLit _ = Just
 
   wordToInt _ (BV _ x) = pure x
   wordFromInt _ w x = pure $! mkBv w x
@@ -323,24 +324,15 @@ instance Backend Concrete where
   --     Z_n is in reduced form
   znToInt _ _m x = pure x
   znEq _ _m x y = pure $! x == y
-  znLessThan _ _m x y = pure $! x < y
-  znGreaterThan _ _m x y = pure $! x > y
 
   znPlus  _ = liftBinIntMod (+)
   znMinus _ = liftBinIntMod (-)
   znMult  _ = liftBinIntMod (*)
   znNegate _ m x = pure $! (negate x) `mod` m
-  znDiv sym m x y =
-    do assertSideCondition sym (y /= 0) DivideByZero
-       liftBinIntMod div m x y
-  znMod sym m x y =
-    do assertSideCondition sym (y /= 0) DivideByZero
-       liftBinIntMod mod m x y
+
   znExp sym m x y
     | m == 0    = intExp sym x y
     | otherwise = pure $! (doubleAndAdd x y m) `mod` m
-  znLg2 sym _m x = intLg2 sym x
-
 
 liftBinIntMod :: Monad m =>
   (Integer -> Integer -> Integer) -> Integer -> Integer -> Integer -> m Integer

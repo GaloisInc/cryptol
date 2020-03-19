@@ -192,11 +192,16 @@ instance Backend SBV where
      | Just x <- svAsInteger v = integer x
      | otherwise               = text "[?]"
 
+  iteBit _ b x y = pure $! svSymbolicMerge KBool True b x y
+  iteWord _ b x y = pure $! svSymbolicMerge (kindOf x) True b x y
+  iteInteger _ b x y = pure $! svSymbolicMerge KUnbounded True b x y
+
   bitAsLit _ b = svAsBool b
   wordAsLit _ w =
     case svAsInteger w of
       Just x -> Just (toInteger (intSizeOf w), x)
       Nothing -> Nothing
+  integerAsLit _ v = svAsInteger v
 
   bitLit _ b     = svBool b
   wordLit _ n x  = pure $! literalSWord (fromInteger n) x
@@ -301,6 +306,7 @@ instance Backend SBV where
     do let z = svInteger KUnbounded 0
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
        pure $! svQuot a b  -- TODO! Fix this: see issue #662
+
   intExp sym  a b =
     do let z = svInteger KUnbounded 0
        assertSideCondition sym (svLessEq z b) NegativeExponent
@@ -316,46 +322,10 @@ instance Backend SBV where
 
   znEq _ m a b = svDivisible m (SBV.svMinus a b)
 
-  znLessThan _ m a b =
-    do let m' = svInteger KUnbounded m
-       let a' = svRem a m'
-       let b' = svRem b m'
-       pure $! svLessThan a' b'
-  znGreaterThan _ m a b =
-    do let m' = svInteger KUnbounded m
-       let a' = svRem a m'
-       let b' = svRem b m'
-       pure $! svGreaterThan a' b'
-
   znPlus  _ m a b = sModAdd m a b
   znMinus _ m a b = sModSub m a b
   znMult  _ m a b = sModMult m a b
   znNegate _ m a  = sModNegate m a
-  znExp _ m a b   = sModExp m a b
-
-  znDiv sym 0 a b = intDiv sym a b
-  znDiv sym m a b =
-    do let m' = svInteger KUnbounded m
-       let z  = svInteger KUnbounded 0
-       let a' = svRem a m'
-       let b' = svRem b m'
-       assertSideCondition sym (svNot (svEqual b' z)) DivideByZero
-       pure $! svQuot a' b'
-
-  znMod sym 0 a b = intMod sym a b
-  znMod sym m a b =
-    do let m' = svInteger KUnbounded m
-       let z  = svInteger KUnbounded 0
-       let a' = svRem a m'
-       let b' = svRem b m'
-       assertSideCondition sym (svNot (svEqual b' z)) DivideByZero
-       pure $! svRem a' b'
-  znLg2 _ m a = svModLg2 m a
-
-  iteBit _ b x y = pure $! svSymbolicMerge KBool True b x y
-  iteWord _ b x y = pure $! svSymbolicMerge (kindOf x) True b x y
-  iteInteger _ b x y = pure $! svSymbolicMerge KUnbounded True b x y
-
 
 -- TODO: implement this properly in SBV using "bv2int"
 svToInteger :: SWord SBV -> SInteger SBV
@@ -820,12 +790,6 @@ sModMult modulus x y =
     (Just i, Just j) -> integerLit SBV ((i * j) `mod` modulus)
     _                -> pure $ SBV.svTimes x y
 
-sModExp :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SInteger SBV)
-sModExp 0 x y = intExp SBV x y
-sModExp modulus x y =
-   do m <- integerLit SBV modulus
-      pure $ SBV.svExp x (SBV.svRem y m)
-
 -- | Ceiling (log_2 x)
 sLg2 :: SWord SBV -> SEval SBV (SWord SBV)
 sLg2 x = pure $ go 0
@@ -840,11 +804,6 @@ svLg2 x =
   case SBV.svAsInteger x of
     Just n -> pure $ SBV.svInteger SBV.KUnbounded (lg2 n)
     Nothing -> evalPanic "cannot compute lg2 of symbolic unbounded integer" []
-
-svModLg2 :: Integer -> SInteger SBV -> SEval SBV (SInteger SBV)
-svModLg2 modulus x =
-   do m <- integerLit SBV modulus
-      svLg2 (SBV.svRem x m)
 
 svDivisible :: Integer -> SInteger SBV -> SEval SBV (SBit SBV)
 svDivisible m x =
