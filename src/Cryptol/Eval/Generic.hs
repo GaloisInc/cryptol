@@ -68,7 +68,10 @@ ecFromIntegerV sym =
   tlam $ \ a ->
   lam  $ \ v ->
   do i <- fromVInteger <$> v
-     arithNullary sym (\x -> wordFromInt sym x i) (pure i) (\x -> intToZn sym x i) a
+     intV sym i a
+
+intV :: Backend sym => sym -> SInteger sym -> TValue -> SEval sym (GenValue sym)
+intV sym i = arithNullary sym (\w -> wordFromInt sym w i) (pure i) (\m -> intToZn sym m i)
 
 -- | Convert a word to a non-negative integer.
 ecToIntegerV :: Backend sym => sym -> GenValue sym
@@ -346,9 +349,6 @@ lg2V sym = arithUnary sym opw opi opz
     opw _w x = wordLg2 sym x
     opi x = intLg2 sym x
     opz m x = znLg2 sym m x
-
-intV :: Backend sym => sym -> SInteger sym -> TValue -> SEval sym (GenValue sym)
-intV sym i = arithNullary sym (\w -> wordFromInt sym w i) (pure i) (pure . const i)
 
 andV :: Backend sym => sym -> Binary sym
 andV sym = logicBinary sym (bitAnd sym) (wordAnd sym)
@@ -1125,20 +1125,24 @@ infFromV :: Backend sym => sym -> GenValue sym
 infFromV sym =
   tlam $ \ ty ->
   lam  $ \ x ->
-  return $ VStream $ IndexSeqMap $ \i ->
-  do x' <- x
-     i' <- integerLit sym i
-     addV sym ty x' =<< intV sym i' ty
+  do mx <- sDelay sym Nothing x
+     return $ VStream $ IndexSeqMap $ \i ->
+       do x' <- mx
+          i' <- integerLit sym i
+          addV sym ty x' =<< intV sym i' ty
 
 infFromThenV :: Backend sym => sym -> GenValue sym
 infFromThenV sym =
   tlam $ \ ty ->
   lam $ \ first -> return $
   lam $ \ next ->
-  do x <- first
-     y <- next
-     d <- subV sym ty y x
+  do mxd <- sDelay sym Nothing
+             (do x <- first
+                 y <- next
+                 d <- subV sym ty y x
+                 pure (x,d))
      return $ VStream $ IndexSeqMap $ \i -> do
+       (x,d) <- mxd
        i' <- integerLit sym i
        addV sym ty x =<< mulV sym ty d =<< intV sym i' ty
 
