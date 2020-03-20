@@ -304,12 +304,6 @@ instance Backend Concrete where
   intMod sym x y =
     do assertSideCondition sym (y /= 0) DivideByZero
        pure $! x `mod` y
-  intDivRTZ sym x y =
-    do assertSideCondition sym (y /= 0) DivideByZero
-       pure $! x `quot` y
-  intModRTZ sym x y =
-    do assertSideCondition sym (y /= 0) DivideByZero
-       pure $! x `rem` y
   intExp sym x y =
     do assertSideCondition sym (y >= 0) NegativeExponent
        pure $! x ^ y

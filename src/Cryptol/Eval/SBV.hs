@@ -297,16 +297,6 @@ instance Backend SBV where
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
        pure $! svRem a b   -- TODO! Fix this: see issue #662
 
-  intDivRTZ sym a b =
-    do let z = svInteger KUnbounded 0
-       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
-       pure $! svQuot a b  -- TODO! Fix this: see issue #662
-
-  intModRTZ sym a b =
-    do let z = svInteger KUnbounded 0
-       assertSideCondition sym (svNot (svEqual b z)) DivideByZero
-       pure $! svQuot a b  -- TODO! Fix this: see issue #662
-
   intExp sym  a b =
     do let z = svInteger KUnbounded 0
        assertSideCondition sym (svLessEq z b) NegativeExponent

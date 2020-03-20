@@ -66,7 +66,7 @@ class MonadIO (SEval sym) => Backend sym where
   -- | Merge the two given computations according to the predicate.
   mergeEval ::
      sym ->
-     (SBit sym -> a -> a -> SEval sym a) {- ^ A merge operation on values -} -> 
+     (SBit sym -> a -> a -> SEval sym a) {- ^ A merge operation on values -} ->
      SBit sym {- ^ The condition -} ->
      SEval sym a {- ^ The "then" computation -} ->
      SEval sym a {- ^ The "else" computation -} ->
@@ -406,24 +406,6 @@ class MonadIO (SEval sym) => Backend sym where
   --   call with a second argument concretely equal to 0.
   --   Same semantics as Haskell's @mod@ operation.
   intMod ::
-    sym ->
-    SInteger sym ->
-    SInteger sym ->
-    SEval sym (SInteger sym)
-
-  -- | Integer division, rounding toward zero. It is illegal to
-  --   call with a second argument concretely equal to 0.
-  --   Same semantics as Haskell's @quot@ operation.
-  intDivRTZ :: 
-    sym ->
-    SInteger sym ->
-    SInteger sym ->
-    SEval sym (SInteger sym)
-
-  -- | Integer modulus, with division rounding toward zero. It is illegal to
-  --   call with a second argument concretely equal to 0.
-  --   Same semantics as Haskell's @rem@ operation.
-  intModRTZ :: 
     sym ->
     SInteger sym ->
     SInteger sym ->

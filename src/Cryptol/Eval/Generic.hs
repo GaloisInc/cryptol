@@ -316,14 +316,14 @@ sdivV :: Backend sym => sym -> Binary sym
 sdivV sym = arithBinary sym opw opi opz
   where
     opw _w x y = wordSignedDiv sym x y
-    opi x y = intDivRTZ sym x y
+    opi x y = intDiv sym x y
     opz m x y = znDiv sym m x y
 
 smodV :: Backend sym => sym -> Binary sym
 smodV sym = arithBinary sym opw opi opz
   where
     opw _w x y = wordSignedMod sym x y
-    opi x y = intModRTZ sym x y
+    opi x y = intMod sym x y
     opz m x y = znMod sym m x y
 
 expV :: Backend sym => sym -> Binary sym
