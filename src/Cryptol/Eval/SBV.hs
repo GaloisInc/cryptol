@@ -430,30 +430,21 @@ primTable  = let sym = SBV in
                      lam $ \xs -> transposeV sym a b c =<< xs)
 
     -- Shifts and rotates
-  , ("<<"          , logicShift "<<"
-                       SBV.svShiftLeft
-                       (\sz i shft ->
-                         case sz of
-                           Inf             -> Just (i+shft)
-                           Nat n
-                             | i+shft >= n -> Nothing
-                             | otherwise   -> Just (i+shft)))
-  , (">>"          , logicShift ">>"
-                       SBV.svShiftRight
-                       (\_sz i shft ->
-                          if i-shft < 0 then Nothing else Just (i-shft)))
-  , ("<<<"         , logicShift "<<<"
-                       SBV.svRotateLeft
-                       (\sz i shft ->
-                          case sz of
-                            Inf -> evalPanic "cannot rotate infinite sequence" []
-                            Nat n -> Just ((i+shft) `mod` n)))
-  , (">>>"         , logicShift ">>>"
-                       SBV.svRotateRight
-                       (\sz i shft ->
-                          case sz of
-                            Inf -> evalPanic "cannot rotate infinite sequence" []
-                            Nat n -> Just ((i+n-shft) `mod` n)))
+  , ("<<"          , logicShift sym "<<"
+                       (\x y -> pure (SBV.svShiftLeft x y))
+                       shiftLeftReindex)
+
+  , (">>"          , logicShift sym ">>"
+                       (\x y -> pure (SBV.svShiftRight x y))
+                       shiftRightReindex)
+
+  , ("<<<"         , logicShift sym "<<<"
+                       (\x y -> pure (SBV.svRotateLeft x y))
+                       rotateLeftReindex)
+
+  , (">>>"         , logicShift sym ">>>"
+                       (\x y -> pure (SBV.svRotateRight x y))
+                       rotateRightReindex)
 
   , (">>$"         , sshrV)
 
@@ -476,7 +467,7 @@ primTable  = let sym = SBV in
   , ("random"      ,
       tlam $ \a ->
       wlam sym $ \x ->
-         case SBV.svAsInteger x of
+         case integerAsLit sym x of
            Just i  -> randomV sym a i
            Nothing -> cryUserError sym "cannot evaluate 'random' with symbolic inputs")
 
@@ -494,60 +485,6 @@ primTable  = let sym = SBV in
          _ <- x
          y)
   ]
-
-
--- | Barrel-shifter algorithm. Takes a list of bits in big-endian order.
-shifter :: Monad m => (SBit SBV -> a -> a -> a) -> (a -> Integer -> m a) -> a -> [SBit SBV] -> m a
-shifter mux op = go
-  where
-    go x [] = return x
-    go x (b : bs) = do
-      x' <- op x (2 ^ length bs)
-      go (mux b x' x) bs
-
-logicShift ::
-  String ->
-  (SWord SBV -> SWord SBV -> SWord SBV) ->
-  (Nat' -> Integer -> Integer -> Maybe Integer) ->
-  Value
-logicShift nm wop reindex =
-      nlam $ \_m ->
-      nlam $ \_n ->
-      tlam $ \a ->
-      VFun $ \xs -> return $
-      VFun $ \y -> do
-        idx <- fromWordVal "logicShift" =<< y
-
-        xs >>= \case
-          VWord w x ->
-             return $ VWord w $ do
-               x >>= \case
-                 WordVal x' -> WordVal . wop x' <$> asWordVal SBV idx
-                 LargeBitsVal n bs0 ->
-                   do idx_bits <- enumerateWordValue SBV idx
-                      let op bs shft = memoMap $ IndexSeqMap $ \i ->
-                                         case reindex (Nat w) i shft of
-                                           Nothing -> pure (VBit (bitLit SBV False))
-                                           Just i' -> lookupSeqMap bs i'
-                      LargeBitsVal n <$> shifter (mergeSeqMap SBV) op bs0 idx_bits
-
-          VSeq w vs0 ->
-             do idx_bits <- enumerateWordValue SBV idx
-                let op vs shft = memoMap $ IndexSeqMap $ \i ->
-                                   case reindex (Nat w) i shft of
-                                     Nothing -> zeroV SBV a
-                                     Just i' -> lookupSeqMap vs i'
-                VSeq w <$> shifter (mergeSeqMap SBV) op vs0 idx_bits
-
-          VStream vs0 ->
-             do idx_bits <- enumerateWordValue SBV idx
-                let op vs shft = memoMap $ IndexSeqMap $ \i ->
-                                   case reindex Inf i shft of
-                                     Nothing -> zeroV SBV a
-                                     Just i' -> lookupSeqMap vs i'
-                VStream <$> shifter (mergeSeqMap SBV) op vs0 idx_bits
-
-          _ -> evalPanic "expected sequence value in shift operation" [nm]
 
 
 indexFront ::

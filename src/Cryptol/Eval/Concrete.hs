@@ -29,7 +29,7 @@ import MonadLib( ChoiceT, findOne, lift )
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Concrete.Value
-import Cryptol.Eval.Generic
+import Cryptol.Eval.Generic hiding (logicShift)
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value

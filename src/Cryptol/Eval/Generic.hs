@@ -1,5 +1,5 @@
 -- |
--- Module      :  Cryptol.Eval.Concrete
+-- Module      :  Cryptol.Eval.Generic
 -- Copyright   :  (c) 2013-2020 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -384,17 +384,19 @@ cmpValue sym fb fw fi fz = cmp
                             w2 <- fromVWord sym "cmpValue" v2
                             fw w1 w2 k
           | otherwise -> cmpValues (repeat t)
-                         (enumerateSeqMap n (fromVSeq v1))
-                         (enumerateSeqMap n (fromVSeq v2)) k
+                           (enumerateSeqMap n (fromVSeq v1))
+                           (enumerateSeqMap n (fromVSeq v2))
+                           k
         TVStream _    -> panic "Cryptol.Prims.Value.cmpValue"
-                         [ "Infinite streams are not comparable" ]
+                                [ "Infinite streams are not comparable" ]
         TVFun _ _     -> panic "Cryptol.Prims.Value.cmpValue"
-                         [ "Functions are not comparable" ]
+                               [ "Functions are not comparable" ]
         TVTuple tys   -> cmpValues tys (fromVTuple v1) (fromVTuple v2) k
         TVRec fields  -> do let tys = Map.elems (Map.fromList fields)
                             cmpValues tys
                               (Map.elems (fromVRecord v1))
-                              (Map.elems (fromVRecord v2)) k
+                              (Map.elems (fromVRecord v2))
+                              k
         TVAbstract {} -> evalPanic "cmpValue"
                           [ "Abstract type not in `Cmp`" ]
 
@@ -1146,6 +1148,109 @@ infFromThenV sym =
        i' <- integerLit sym i
        addV sym ty x =<< mulV sym ty d =<< intV sym i' ty
 
+-- Shifting ---------------------------------------------------
+
+barrelShifter :: Backend sym =>
+  sym ->
+  (SeqMap sym -> Integer -> SEval sym (SeqMap sym))
+     {- ^ concrete shifting operation -} ->
+  SeqMap sym  {- ^ initial value -} ->
+  [SBit sym]  {- ^ bits of shift amount, in bit-endian order -} ->
+  SEval sym (SeqMap sym)
+barrelShifter sym shift_op = go
+  where
+  go x [] = return x
+
+  go x (b:bs)
+    | Just True <- bitAsLit sym b
+    = do x_shft <- shift_op x (2 ^ length bs)
+         go x_shft bs
+
+    | Just False <- bitAsLit sym b
+    = do go x bs
+
+    | otherwise
+    = do x_shft <- shift_op x (2 ^ length bs)
+         x' <- memoMap (mergeSeqMap sym b x_shft x)
+         go x' bs
+
+shiftLeftReindex :: Nat' -> Integer -> Integer -> Maybe Integer
+shiftLeftReindex sz i shft =
+   case sz of
+     Nat n | i+shft >= n -> Nothing
+     _                   -> Just (i+shft)
+
+shiftRightReindex :: Nat' -> Integer -> Integer -> Maybe Integer
+shiftRightReindex _sz i shft =
+   if i-shft < 0 then Nothing else Just (i-shft)
+
+rotateLeftReindex :: Nat' -> Integer -> Integer -> Maybe Integer
+rotateLeftReindex sz i shft =
+   case sz of
+     Inf -> evalPanic "cannot rotate infinite sequence" []
+     Nat n -> Just ((i+shft) `mod` n)
+
+rotateRightReindex :: Nat' -> Integer -> Integer -> Maybe Integer
+rotateRightReindex sz i shft =
+   case sz of
+     Inf -> evalPanic "cannot rotate infinite sequence" []
+     Nat n -> Just ((i+n-shft) `mod` n)
+
+-- | Generic implementation of shifting.
+--   Uses the provided word-level operation to perform the shift, when
+--   possible.  Otherwise falls back on a barrel shifter that uses
+--   the provided reindexing operation to implement the concrete
+--   shifting operations.  The reindex operation is given the size
+--   of the sequence, the requested index value for the new output sequence,
+--   and the amount to shift.  The return value is an index into the original
+--   sequence if in bounds, and Nothing otherwise.
+logicShift :: Backend sym =>
+  sym ->
+  String ->
+  (SWord sym -> SWord sym -> SEval sym (SWord sym))
+     {- ^ word shift operation -} ->
+  (Nat' -> Integer -> Integer -> Maybe Integer)
+     {- ^ reindexing operation (sequence size, starting index, shift amount -} ->
+  GenValue sym
+logicShift sym nm wop reindex =
+      nlam $ \_m ->
+      nlam $ \_n ->
+      tlam $ \a ->
+      VFun $ \xs -> return $
+      VFun $ \y -> do
+        idx <- fromWordVal "logicShift" =<< y
+
+        xs >>= \case
+          VWord w x ->
+             return $ VWord w $ do
+               x >>= \case
+                 WordVal x' -> WordVal <$> (wop x' =<< asWordVal sym idx)
+                 LargeBitsVal n bs0 ->
+                   do idx_bits <- enumerateWordValue sym idx
+                      let op bs shft = memoMap $ IndexSeqMap $ \i ->
+                                         case reindex (Nat w) i shft of
+                                           Nothing -> pure (VBit (bitLit sym False))
+                                           Just i' -> lookupSeqMap bs i'
+                      LargeBitsVal n <$> barrelShifter sym op bs0 idx_bits
+
+          VSeq w vs0 ->
+             do idx_bits <- enumerateWordValue sym idx
+                let op vs shft = memoMap $ IndexSeqMap $ \i ->
+                                   case reindex (Nat w) i shft of
+                                     Nothing -> zeroV sym a
+                                     Just i' -> lookupSeqMap vs i'
+                VSeq w <$> barrelShifter sym op vs0 idx_bits
+
+          VStream vs0 ->
+             do idx_bits <- enumerateWordValue sym idx
+                let op vs shft = memoMap $ IndexSeqMap $ \i ->
+                                   case reindex Inf i shft of
+                                     Nothing -> zeroV sym a
+                                     Just i' -> lookupSeqMap vs i'
+                VStream <$> barrelShifter sym op vs0 idx_bits
+
+          _ -> evalPanic "expected sequence value in shift operation" [nm]
+
 -- Miscellaneous ---------------------------------------------------------------
 
 errorV :: forall sym.
@@ -1266,6 +1371,4 @@ mergeSeqMap :: Backend sym =>
   SeqMap sym
 mergeSeqMap sym c x y =
   IndexSeqMap $ \i ->
-  do xi <- lookupSeqMap x i
-     yi <- lookupSeqMap y i
-     mergeValue sym c xi yi
+    iteValue sym c (lookupSeqMap x i) (lookupSeqMap y i)
