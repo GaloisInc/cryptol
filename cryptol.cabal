@@ -166,6 +166,7 @@ library
                        Cryptol.Testing.Random,
 
                        Cryptol.Symbolic,
+                       Cryptol.Symbolic.SBV,
 
                        Cryptol.REPL.Command,
                        Cryptol.REPL.Monad,

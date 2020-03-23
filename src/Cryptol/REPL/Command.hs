@@ -79,8 +79,8 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Transform.Specialize as S
-import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..),ProverStats)
-import qualified Cryptol.Symbolic as Symbolic
+import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..),ProverStats,ProverResult(..))
+import qualified Cryptol.Symbolic.SBV as SBV
 
 import qualified Control.Exception as X
 import Control.Monad hiding (mapM, mapM)
@@ -114,7 +114,6 @@ import GHC.Float (log1p, expm1)
 import Prelude ()
 import Prelude.Compat
 
-import qualified Data.SBV           as SBV (Solver)
 import qualified Data.SBV.Internals as SBV (showTDiff)
 
 -- Commands --------------------------------------------------------------------
@@ -519,7 +518,7 @@ satCmd, proveCmd :: String -> REPL ()
 satCmd = cmdProveSat True
 proveCmd = cmdProveSat False
 
-showProverStats :: Maybe SBV.Solver -> ProverStats -> REPL ()
+showProverStats :: Maybe String -> ProverStats -> REPL ()
 showProverStats mprover stat = rPutStrLn msg
   where
 
@@ -575,14 +574,14 @@ cmdProveSat isSat str = do
     _ -> do
       (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat isSat str mfile)
       case result of
-        Symbolic.EmptyResult         ->
+        EmptyResult         ->
           panic "REPL.Command" [ "got EmptyResult for online prover query" ]
-        Symbolic.ProverError msg     -> rPutStrLn msg
-        Symbolic.ThmResult ts        -> do
+        ProverError msg     -> rPutStrLn msg
+        ThmResult ts        -> do
           rPutStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
           (t, e) <- mkSolverResult cexStr (not isSat) (Left ts)
           bindItVariable t e
-        Symbolic.AllSatResult tevss -> do
+        AllSatResult tevss -> do
           let tess = map (map $ \(t,e,_) -> (t,e)) tevss
               vss  = map (map $ \(_,_,v) -> v)     tevss
           resultRecs <- mapM (mkSolverResult cexStr isSat . Right) tess
@@ -613,7 +612,7 @@ cmdProveSat isSat str = do
 
 onlineProveSat :: Bool
                -> String -> Maybe FilePath
-               -> REPL (Maybe SBV.Solver,Symbolic.ProverResult,ProverStats)
+               -> REPL (Maybe String,ProverResult,ProverStats)
 onlineProveSat isSat str mfile = do
   proverName <- getKnownUser "prover"
   verbose <- getKnownUser "debug"
@@ -625,7 +624,7 @@ onlineProveSat isSat str mfile = do
   validEvalContext schema
   decls <- fmap M.deDecls getDynEnv
   timing <- io (newIORef 0)
-  let cmd = Symbolic.ProverCommand {
+  let cmd = ProverCommand {
           pcQueryType    = if isSat then SatQuery satNum else ProveQuery
         , pcProverName   = proverName
         , pcVerbose      = verbose
@@ -636,7 +635,7 @@ onlineProveSat isSat str mfile = do
         , pcExpr         = expr
         , pcSchema       = schema
         }
-  (firstProver, res) <- liftModuleCmd $ Symbolic.satProve cmd
+  (firstProver, res) <- liftModuleCmd $ SBV.satProve cmd
   stas <- io (readIORef timing)
   return (firstProver,res,stas)
 
@@ -648,7 +647,7 @@ offlineProveSat isSat str mfile = do
   (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
   timing <- io (newIORef 0)
-  let cmd = Symbolic.ProverCommand {
+  let cmd = ProverCommand {
           pcQueryType    = if isSat then SatQuery (SomeSat 0) else ProveQuery
         , pcProverName   = "offline"
         , pcVerbose      = verbose
@@ -659,7 +658,7 @@ offlineProveSat isSat str mfile = do
         , pcExpr         = expr
         , pcSchema       = schema
         }
-  liftModuleCmd $ Symbolic.satProveOffline cmd
+  liftModuleCmd $ SBV.satProveOffline cmd
 
 rIdent :: M.Ident
 rIdent  = M.packIdent "result"

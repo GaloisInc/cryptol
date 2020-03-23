@@ -184,7 +184,7 @@ dropSeqMap n xs = IndexSeqMap $ \i -> lookupSeqMap xs (i+n)
 
 -- | Given a sequence map, return a new sequence map that is memoized using
 --   a finite map memo table.
-memoMap :: Backend sym => SeqMap sym -> SEval sym (SeqMap sym)
+memoMap :: (MonadIO m, Backend sym) => SeqMap sym -> m (SeqMap sym)
 memoMap x = do
   cache <- liftIO $ newIORef $ Map.empty
   return $ IndexSeqMap (memo cache)
