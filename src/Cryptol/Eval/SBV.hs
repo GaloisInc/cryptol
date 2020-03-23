@@ -619,11 +619,13 @@ updateFrontSym_word (Nat n) eltTy bv wv val =
       | WordVal bw <- bv ->
         WordVal <$>
           do b <- fromVBit <$> val
-             let sz = SBV.intSizeOf bw
-             let q = SBV.svSymbolicMerge (SBV.kindOf bw) True b bw (literalSWord sz 0)
-             let msk = SBV.svShiftRight (literalSWord sz (bit (sz-1))) idx
-             let bw' = SBV.svXOr bw (SBV.svAnd q msk)
-             return $! bw'
+             let sz   = SBV.intSizeOf bw
+             let z    = literalSWord sz 0
+             let znot = SBV.svNot z
+             let q    = SBV.svSymbolicMerge (SBV.kindOf bw) True b znot z
+             let msk  = SBV.svShiftRight (literalSWord sz (bit (sz-1))) idx
+             let bw'  = SBV.svAnd bw (SBV.svNot msk)
+             return $! SBV.svXOr bw' (SBV.svAnd q msk)
 
     _ -> LargeBitsVal (wordValueSize SBV wv) <$> updateFrontSym (Nat n) eltTy (asBitsMap SBV bv) wv val
 
@@ -662,11 +664,13 @@ updateBackSym_word (Nat n) eltTy bv wv val = do
       | WordVal bw <- bv ->
         WordVal <$>
           do b <- fromVBit <$> val
-             let sz = SBV.intSizeOf bw
-             let q = SBV.svSymbolicMerge (SBV.kindOf bw) True b bw (literalSWord sz 0)
-             let msk = SBV.svShiftLeft (literalSWord sz (bit 1)) idx
-             let bw' = SBV.svXOr bw (SBV.svAnd q msk)
-             return $! bw'
+             let sz   = SBV.intSizeOf bw
+             let z    = literalSWord sz 0
+             let znot = SBV.svNot z
+             let q    = SBV.svSymbolicMerge (SBV.kindOf bw) True b znot z
+             let msk  = SBV.svShiftLeft (literalSWord sz 1) idx
+             let bw'  = SBV.svAnd bw (SBV.svNot msk)
+             return $! SBV.svXOr bw' (SBV.svAnd q msk)
 
     _ -> LargeBitsVal (wordValueSize SBV wv) <$> updateBackSym (Nat n) eltTy (asBitsMap SBV bv) wv val
 
