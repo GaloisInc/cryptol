@@ -72,7 +72,7 @@ import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
-import Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap,backticks)
+import Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
@@ -89,7 +89,8 @@ import qualified Data.ByteString.Char8 as BS8
 import Data.Bits (shiftL, (.&.), (.|.))
 import Data.Char (isSpace,isPunctuation,isSymbol,isAlphaNum,isAscii)
 import Data.Function (on)
-import Data.List (intercalate, nub, sortBy, partition, isPrefixOf,intersperse)
+import Data.List (intercalate, nub, sortBy, groupBy,
+                                        partition, isPrefixOf,intersperse)
 import Data.Maybe (fromMaybe,mapMaybe,isNothing)
 import System.Environment (lookupEnv)
 import System.Exit (ExitCode(ExitSuccess))
@@ -99,6 +100,7 @@ import System.FilePath((</>), isPathSeparator)
 import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist
                        ,getTemporaryDirectory,setPermissions,removeFile
                        ,emptyPermissions,setOwnerReadable)
+import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import System.IO(hFlush,stdout,openTempFile,hClose)
@@ -732,9 +734,9 @@ typeOfCmd str = do
 
   -- XXX need more warnings from the module system
   whenDebug (rPutStrLn (dump def))
-  (_,_,_,names) <- getFocusedEnv
+  fDisp <- M.mctxNameDisp <$> getFocusedEnv
   -- type annotation ':' has precedence 2
-  rPrint $ runDoc names $ ppPrec 2 expr <+> text ":" <+> pp sig
+  rPrint $ runDoc fDisp $ ppPrec 2 expr <+> text ":" <+> pp sig
 
 readFileCmd :: FilePath -> REPL ()
 readFileCmd fp = do
@@ -905,16 +907,22 @@ quitCmd  = stop
 
 browseCmd :: String -> REPL ()
 browseCmd input = do
-  (params, iface, fNames, disp) <- getFocusedEnv
-  denv <- getDynEnv
-  let names = M.deNames denv `M.shadowing` fNames
-
   let mnames = map (M.textToModName . T.pack) (words input)
   validModNames <- (:) M.interactiveName <$> getModNames
   let checkModName m =
         unless (m `elem` validModNames) $
         rPutStrLn ("error: " ++ show m ++ " is not a loaded module.")
   mapM_ checkModName mnames
+
+  fe <- getFocusedEnv
+
+  let params = M.mctxParams fe
+      iface  = M.mctxDecls fe
+      names  = M.mctxNames fe
+      disp   = M.mctxNameDisp fe
+      provV  = M.mctxValueProvenance fe
+      provT  = M.mctxTypeProvenace fe
+
 
   let f &&& g = \x -> f x && g x
       isUser x = case M.nameInfo x of
@@ -929,16 +937,15 @@ browseCmd input = do
       visibleType  = isUser &&& restricted &&& inSet visibleTypes
       visibleDecl  = isUser &&& restricted &&& inSet visibleDecls
 
-
   browseMParams  visibleType visibleDecl params disp
-  browseTSyns    visibleType             iface disp
-  browsePrimTys  visibleType             iface disp
-  browseNewtypes visibleType             iface disp
-  browseVars     visibleDecl             iface disp
+  browseTSyns    visibleType provT       iface disp
+  browsePrimTys  visibleType provT       iface disp
+  browseNewtypes visibleType provT       iface disp
+  browseVars     visibleDecl provV       iface disp
 
 
 browseMParams :: (M.Name -> Bool) -> (M.Name -> Bool) ->
-                 M.IfaceParams-> NameDisp -> REPL ()
+                 M.IfaceParams -> NameDisp -> REPL ()
 browseMParams visT visD M.IfaceParams { .. } names =
   do ppBlock names ppParamTy "Type Parameters"
                               (sorted visT T.mtpName ifParamTypes)
@@ -953,53 +960,150 @@ browseMParams visT visD M.IfaceParams { .. } names =
   sorted vis nm mp = sortBy (M.cmpNameDisplay names `on` nm)
                $ filter (vis . nm) $ Map.elems mp
 
+type Prov = Map M.Name M.DeclProvenance
 
-browsePrimTys :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
-browsePrimTys isVisible M.IfaceDecls { .. } names =
-  do let pts = sortBy (M.cmpNameDisplay names `on` T.atName)
-               [ ts | ts <- Map.elems ifAbstractTypes, isVisible (T.atName ts) ]
-     ppBlock names ppA "Primitive Types" pts
+browsePrimTys :: (M.Name -> Bool) -> Prov -> M.IfaceDecls -> NameDisp -> REPL ()
+browsePrimTys isVisible prov M.IfaceDecls { .. } names =
+  ppSection (Map.elems ifAbstractTypes)
+    Section { secName = "Primitive Types"
+            , secEntryName = T.atName
+            , secProvenance = prov
+            , secDisp = names
+            , secPP = ppA
+            , secVisible = isVisible
+            }
   where
   ppA a = pp (T.atName a) <+> ":" <+> pp (T.atKind a)
 
-browseTSyns :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
-browseTSyns isVisible M.IfaceDecls { .. } names = do
-  let tsyns = sortBy (M.cmpNameDisplay names `on` T.tsName)
-              [ ts | ts <- Map.elems ifTySyns, isVisible (T.tsName ts) ]
 
-      (cts,tss) = partition isCtrait tsyns
-
-  ppBlock names pp "Type Synonyms" tss
-  ppBlock names pp "Constraint Synonyms" cts
-
+browseTSyns :: (M.Name -> Bool) -> Prov -> M.IfaceDecls -> NameDisp -> REPL ()
+browseTSyns isVisible prov M.IfaceDecls { .. } names =
+  do ppSection tss
+       Section { secName = "Type Synonyms"
+               , secEntryName = T.tsName
+               , secProvenance = prov
+               , secDisp = names
+               , secVisible = isVisible
+               , secPP = pp
+               }
+     ppSection cts
+       Section { secName = "Constraint Synonyms"
+               , secEntryName = T.tsName
+               , secProvenance = prov
+               , secDisp = names
+               , secVisible = isVisible
+               , secPP = pp
+               }
   where
+  (cts,tss) = partition isCtrait (Map.elems ifTySyns)
   isCtrait t = T.kindResult (T.kindOf (T.tsDef t)) == T.KProp
 
-browseNewtypes :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
-browseNewtypes isVisible M.IfaceDecls { .. } names = do
-  let nts = sortBy (M.cmpNameDisplay names `on` T.ntName)
-            [ nt | nt <- Map.elems ifNewtypes, isVisible (T.ntName nt) ]
-  unless (null nts) $ do
-    rPutStrLn "Newtypes"
-    rPutStrLn "========"
-    rPrint (runDoc names (nest 4 (vcat (map T.ppNewtypeShort nts))))
-    rPutStrLn ""
+browseNewtypes ::
+  (M.Name -> Bool) -> Prov -> M.IfaceDecls -> NameDisp -> REPL ()
+browseNewtypes isVisible prov M.IfaceDecls { .. } names =
+  ppSection (Map.elems ifNewtypes)
+    Section { secName = "Newtypes"
+            , secEntryName = T.ntName
+            , secVisible = isVisible
+            , secProvenance = prov
+            , secDisp = names
+            , secPP = T.ppNewtypeShort
+            }
 
-browseVars :: (M.Name -> Bool) -> M.IfaceDecls -> NameDisp -> REPL ()
-browseVars isVisible M.IfaceDecls { .. } names = do
-  let vars = sortBy (M.cmpNameDisplay names `on` M.ifDeclName)
-             [ d | d <- Map.elems ifDecls, isVisible (M.ifDeclName d) ]
+browseVars :: (M.Name -> Bool) -> Prov -> M.IfaceDecls -> NameDisp -> REPL ()
+browseVars isVisible prov M.IfaceDecls { .. } names =
+  do ppSection props Section { secName = "Properties"
+                             , secEntryName = M.ifDeclName
+                             , secVisible = isVisible
+                             , secProvenance = prov
+                             , secDisp = names
+                             , secPP = ppVar
+                             }
+     ppSection syms  Section { secName = "Symbols"
+                             , secEntryName = M.ifDeclName
+                             , secVisible = isVisible
+                             , secProvenance = prov
+                             , secDisp = names
+                             , secPP = ppVar
+                             }
+
+  where
+  isProp p     = T.PragmaProperty `elem` (M.ifDeclPragmas p)
+  (props,syms) = partition isProp (Map.elems ifDecls)
+
+  ppVar M.IfaceDecl { .. } = hang (pp ifDeclName <+> char ':') 2 (pp ifDeclSig)
 
 
-  let isProp p     = T.PragmaProperty `elem` (M.ifDeclPragmas p)
-      (props,syms) = partition isProp vars
 
+data Section a = Section
+  { secName       :: String
+  , secEntryName  :: a -> M.Name
+  , secVisible    :: M.Name -> Bool
+  , secProvenance :: Map M.Name M.DeclProvenance
+  , secDisp       :: NameDisp
+  , secPP         :: a -> Doc
+  }
 
-  let ppVar M.IfaceDecl { .. } = hang (pp ifDeclName <+> char ':')
-                                   2 (pp ifDeclSig)
+ppSection :: [a] -> Section a -> REPL ()
+ppSection things s
+  | null grouped = pure ()
+  | otherwise =
+    do let heading = secName s
+       rPutStrLn heading
+       rPutStrLn (map (const '=') heading)
+       rPutStrLn ""
+       mapM_ ppSub grouped
 
-  ppBlock names ppVar "Properties" props
-  ppBlock names ppVar "Symbols"    syms
+  where
+  ppSub (p,ts) =
+    do let heading = provHeading p
+       rPutStrLn ("  " ++ heading)
+       rPutStrLn ("  " ++ map (const '-') heading)
+       rPutStrLn ""
+       rPutStrLn $ show $ runDoc (secDisp s) $ nest 4 $ vcat $ map (secPP s) ts
+       rPutStrLn ""
+
+  grouped = map rearrange $
+            groupBy sameProv $
+            sortBy cmpThings
+            [ (n,p,t) | t <- things,
+                        let n = secEntryName s t,
+                        secVisible s n,
+                        let p = case Map.lookup n (secProvenance s) of
+                                  Just i -> i
+                                  Nothing -> panic "ppSection"
+                                               [ "Name with no provenance"
+                                               , show n ]
+           ]
+
+  rearrange xs = (p, [ a | (_,_,a) <- xs ])
+    where (_,p,_) : _ = xs
+
+  cmpThings (n1, p1, _) (n2, p2, _) =
+    case cmpProv p1 p2 of
+      EQ -> M.cmpNameDisplay (secDisp s) n1 n2
+      r  -> r
+
+  sameProv (_,p1,_) (_,p2,_) = provOrd p1 == provOrd p2
+
+  provOrd p =
+    case p of
+      M.NameIsParameter      -> Left 1 :: Either Int P.ModName
+      M.NameIsDynamicDecl    -> Left 2
+      M.NameIsLocalPublic    -> Left 3
+      M.NameIsLocalPrivate   -> Left 4
+      M.NameIsImportedFrom x -> Right x
+
+  cmpProv p1 p2 = compare (provOrd p1) (provOrd p2)
+
+  provHeading p =
+    case p of
+      M.NameIsParameter      -> "Parameters"
+      M.NameIsDynamicDecl    -> "REPL"
+      M.NameIsLocalPublic    -> "Public"
+      M.NameIsLocalPrivate   -> "Private"
+      M.NameIsImportedFrom m -> "From " ++ show (pp m)
+
 
 
 ppBlock :: NameDisp -> (a -> Doc) -> String -> [a] -> REPL ()
@@ -1008,7 +1112,6 @@ ppBlock names ppFun name xs = unless (null xs) $
        rPutStrLn (replicate (length name) '=')
        rPrint (runDoc names (nest 4 (vcat (map ppFun xs))))
        rPutStrLn ""
-
 
 
 setOptionCmd :: String -> REPL ()
@@ -1053,12 +1156,17 @@ helpCmd cmd
   | otherwise =
     case parseHelpName cmd of
       Just qname ->
-        do (params,env,rnEnv,nameEnv) <- getFocusedEnv
-           let vNames = M.lookupValNames  qname rnEnv
+        do fe <- getFocusedEnv
+           let params = M.mctxParams fe
+               env    = M.mctxDecls  fe
+               rnEnv  = M.mctxNames  fe
+               disp   = M.mctxNameDisp fe
+
+               vNames = M.lookupValNames  qname rnEnv
                tNames = M.lookupTypeNames qname rnEnv
 
-           let helps = map (showTypeHelp params env nameEnv) tNames ++
-                       map (showValHelp params env nameEnv qname) vNames
+           let helps = map (showTypeHelp params env disp) tNames ++
+                       map (showValHelp params env disp qname) vNames
 
                separ = rPutStrLn "            ---------"
            sequence_ (intersperse separ helps)
@@ -1298,7 +1406,7 @@ moduleCmdResult (res,ws0) = do
       filterShadowing w = Just w
 
   let ws = mapMaybe filterDefaults . mapMaybe filterShadowing $ ws0
-  (_,_,_,names) <- getFocusedEnv
+  names <- M.mctxNameDisp <$> getFocusedEnv
   mapM_ (rPrint . runDoc names . pp) ws
   case res of
     Right (a,me') -> setModuleEnv me' >> return a
