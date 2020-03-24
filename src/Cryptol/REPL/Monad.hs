@@ -95,7 +95,8 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(Logger, logPutStr, funLogger)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (SatNum(..))
-import qualified Cryptol.Symbolic.SBV as SBV (proverNames, checkProverInstallation)
+--import qualified Cryptol.Symbolic.SBV as SBV (proverNames, checkProverInstallation)
+import qualified Cryptol.Symbolic.What4 as W4 (proverNames, checkProverInstallation)
 
 import Control.Monad (ap,unless,when)
 import Control.Monad.Base
@@ -793,11 +794,11 @@ checkInfLength val = case val of
 checkProver :: Checker
 checkProver val = case val of
   EnvString s
-    | s `notElem` SBV.proverNames ->
+    | s `notElem` W4.proverNames ->
       noWarns $ Just $ "Prover must be " ++ proverListString
     | s `elem` ["offline", "any"] -> noWarns Nothing
     | otherwise ->
-      do available <- SBV.checkProverInstallation s
+      do available <- W4.checkProverInstallation s
          let ws = if available
                      then []
                      else ["Warning: " ++ s ++ " installation not found"]
@@ -806,7 +807,7 @@ checkProver val = case val of
   _ -> noWarns $ Just "unable to parse a value for prover"
 
 proverListString :: String
-proverListString = concatMap (++ ", ") (init SBV.proverNames) ++ "or " ++ last SBV.proverNames
+proverListString = concatMap (++ ", ") (init W4.proverNames) ++ "or " ++ last W4.proverNames
 
 checkSatNum :: Checker
 checkSatNum val = case val of

@@ -19,6 +19,7 @@ module Cryptol.Eval.What4
   ( What4(..)
   , W4Result(..)
   , W4Eval(..)
+  , Value
   , evalPrim
   ) where
 
