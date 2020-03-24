@@ -169,6 +169,7 @@ library
 
                        Cryptol.Symbolic,
                        Cryptol.Symbolic.SBV,
+                       Cryptol.Symbolic.What4,
 
                        Cryptol.REPL.Command,
                        Cryptol.REPL.Monad,

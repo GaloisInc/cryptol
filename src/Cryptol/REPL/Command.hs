@@ -80,7 +80,8 @@ import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Transform.Specialize as S
 import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..),ProverStats,ProverResult(..))
-import qualified Cryptol.Symbolic.SBV as SBV
+--import qualified Cryptol.Symbolic.SBV as SBV
+import qualified Cryptol.Symbolic.What4 as W4
 
 import qualified Control.Exception as X
 import Control.Monad hiding (mapM, mapM)
@@ -637,7 +638,7 @@ onlineProveSat isSat str mfile = do
         , pcExpr         = expr
         , pcSchema       = schema
         }
-  (firstProver, res) <- liftModuleCmd $ SBV.satProve cmd
+  (firstProver, res) <- liftModuleCmd $ W4.satProve cmd
   stas <- io (readIORef timing)
   return (firstProver,res,stas)
 
@@ -660,7 +661,7 @@ offlineProveSat isSat str mfile = do
         , pcExpr         = expr
         , pcSchema       = schema
         }
-  liftModuleCmd $ SBV.satProveOffline cmd
+  liftModuleCmd $ W4.satProveOffline cmd
 
 rIdent :: M.Ident
 rIdent  = M.packIdent "result"
