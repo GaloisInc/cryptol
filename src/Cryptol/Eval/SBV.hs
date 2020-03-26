@@ -24,7 +24,7 @@ module Cryptol.Eval.SBV
   , forallSInteger_, existsSInteger_
   ) where
 
-import           Control.Monad (join)
+import           Control.Monad (join, unless)
 import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Bits (bit, complement, shiftL)
 import           Data.List (foldl')
@@ -255,12 +255,12 @@ instance Backend SBV where
   wordDiv sym a b =
     do let z = literalSWord (intSizeOf b) 0
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
-       pure $! svQuot a b  -- TODO! Fix this: see issue #662
+       pure $! svQuot a b
 
   wordMod sym a b =
     do let z = literalSWord (intSizeOf b) 0
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
-       pure $! svRem a b   -- TODO! Fix this: see issue #662
+       pure $! svRem a b
 
   wordSignedDiv sym a b =
     do let z = literalSWord (intSizeOf b) 0
@@ -297,10 +297,12 @@ instance Backend SBV where
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
        pure $! svRem a b   -- TODO! Fix this: see issue #662
 
-  intExp sym  a b =
-    do let z = svInteger KUnbounded 0
-       assertSideCondition sym (svLessEq z b) NegativeExponent
-       pure $! SBV.svExp a b
+  intExp sym a b
+    | Just e <- svAsInteger b =
+       do unless (0 <= e) (raiseError sym NegativeExponent)
+          pure $! SBV.svExp a b
+    | otherwise =
+       raiseError sym (UnsupportedSymbolicOp "integer exponentation")
 
   -- NB, we don't do reduction here
   intToZn _ _m a = pure a
@@ -310,6 +312,7 @@ instance Backend SBV where
     do let m' = svInteger KUnbounded m
        pure $! svRem a m'
 
+  znEq _ 0 a b = pure $! svEqual a b
   znEq _ m a b = svDivisible m (SBV.svMinus a b)
 
   znPlus  _ m a b = sModAdd m a b
@@ -343,7 +346,7 @@ evalPanic cxt = panic ("[Symbolic]" ++ cxt)
 evalPrim :: Ident -> Maybe Value
 evalPrim prim = Map.lookup prim primTable
 
--- See also Cryptol.Prims.Eval.primTable
+-- See also Cryptol.Eval.Concrete.primTable
 primTable :: Map.Map Ident Value
 primTable  = let sym = SBV in
   Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
@@ -734,7 +737,7 @@ svLg2 :: SInteger SBV -> SEval SBV (SInteger SBV)
 svLg2 x =
   case SBV.svAsInteger x of
     Just n -> pure $ SBV.svInteger SBV.KUnbounded (lg2 n)
-    Nothing -> evalPanic "cannot compute lg2 of symbolic unbounded integer" []
+    Nothing -> raiseError SBV (UnsupportedSymbolicOp "integer lg2")
 
 svDivisible :: Integer -> SInteger SBV -> SEval SBV (SBit SBV)
 svDivisible m x =

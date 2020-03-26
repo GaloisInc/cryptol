@@ -193,6 +193,7 @@ data EvalError
   | UserError String              -- ^ Call to the Cryptol @error@ primitive
   | LoopError String              -- ^ Detectable nontermination
   | NoPrim Name                   -- ^ Primitive with no implementation
+  | UnsupportedSymbolicOp String  -- ^ Operation cannot be supported in the symbolic simulator
     deriving (Typeable,Show)
 
 instance PP EvalError where
@@ -208,6 +209,7 @@ instance PP EvalError where
     UserError x -> text "Run-time error:" <+> text x
     LoopError x -> text "<<loop>>" <+> text x
     NoPrim x -> text "unimplemented primitive:" <+> pp x
+    UnsupportedSymbolicOp nm -> text "operation can not be supported on symbolic values:" <+> text nm
 
 instance X.Exception EvalError
 

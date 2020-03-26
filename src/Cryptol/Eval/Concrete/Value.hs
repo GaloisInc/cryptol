@@ -322,6 +322,7 @@ instance Backend Concrete where
   znPlus  _ = liftBinIntMod (+)
   znMinus _ = liftBinIntMod (-)
   znMult  _ = liftBinIntMod (*)
+  znNegate _ 0 x = pure $! (negate x)
   znNegate _ m x = pure $! (negate x) `mod` m
 
   znExp sym m x y

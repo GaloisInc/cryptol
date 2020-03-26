@@ -418,27 +418,27 @@ bitGreaterThan sym x y = bitLessThan sym y x
 valEq :: Backend sym => sym -> TValue -> GenValue sym -> GenValue sym -> SEval sym (SBit sym)
 valEq sym ty v1 v2 = cmpValue sym fb fw fi fz ty v1 v2 (pure $ bitLit sym True)
   where
-  fb x y k   = eqCombine sym (bitEq sym x y)  k
+  fb x y k   = eqCombine sym (bitEq  sym x y) k
   fw x y k   = eqCombine sym (wordEq sym x y) k
-  fi x y k   = eqCombine sym (intEq sym x y)  k
+  fi x y k   = eqCombine sym (intEq  sym x y) k
   fz m x y k = eqCombine sym (znEq sym m x y) k
 
 valLt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
 valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
   where
-  fb x y k   = lexCombine sym (bitLessThan sym x y)  (bitEq sym x y)  k
+  fb x y k   = lexCombine sym (bitLessThan  sym x y) (bitEq  sym x y) k
   fw x y k   = lexCombine sym (wordLessThan sym x y) (wordEq sym x y) k
-  fi x y k   = lexCombine sym (intLessThan sym x y)  (intEq sym x y)  k
+  fi x y k   = lexCombine sym (intLessThan  sym x y) (intEq  sym x y) k
   fz m x y k = lexCombine sym (znLessThan sym m x y) (znEq sym m x y) k
 
 valGt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
 valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
   where
-  fb x y k   = lexCombine sym (bitGreaterThan sym y x)  (bitEq sym x y)  k
+  fb x y k   = lexCombine sym (bitGreaterThan  sym x y) (bitEq  sym x y) k
   fw x y k   = lexCombine sym (wordGreaterThan sym x y) (wordEq sym x y) k
-  fi x y k   = lexCombine sym (intGreaterThan sym x y)  (intEq sym x y)  k
+  fi x y k   = lexCombine sym (intGreaterThan  sym x y) (intEq  sym x y) k
   fz m x y k = lexCombine sym (znGreaterThan sym m x y) (znEq sym m x y) k
 
 eqCombine :: Backend sym =>
