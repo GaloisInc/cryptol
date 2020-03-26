@@ -13,8 +13,8 @@ CABAL_BUILD_FLAGS   ?= -j
 CABAL_INSTALL_FLAGS ?= $(CABAL_BUILD_FLAGS)
 
 CABAL         := cabal
-CABAL_BUILD   := $(CABAL) build $(CABAL_BUILD_FLAGS)
-CABAL_INSTALL := $(CABAL) install $(CABAL_INSTALL_FLAGS)
+CABAL_BUILD   := $(CABAL) v1-build $(CABAL_BUILD_FLAGS)
+CABAL_INSTALL := $(CABAL) v1-install $(CABAL_INSTALL_FLAGS)
 CS            := $(HERE)/.cabal-sandbox
 CS_BIN        := $(CS)/bin
 
@@ -91,7 +91,7 @@ msi: ${PKG}.msi
 # TODO: piece this apart a bit more; if right now if something fails
 # during initial setup, you have to invoke this target again manually
 ${CS}:
-	$(CABAL) sandbox init
+	$(CABAL) v1-sandbox init
 
 ${CS_BIN}/alex: | ${CS}
 	$(CABAL_INSTALL) alex
@@ -148,7 +148,7 @@ endif
 
 dist/setup-config: cryptol.cabal Makefile | ${CS_BIN}/alex ${CS_BIN}/happy
 	$(CABAL_INSTALL) --only-dependencies ${SERVER_FLAG}
-	$(CABAL) configure ${PREFIX_ARG} --datasubdir=cryptol \
+	$(CABAL) v1-configure ${PREFIX_ARG} --datasubdir=cryptol \
           ${CONFIGURE_ARGS}
 
 ${CRYPTOL_EXE}: $(CRYPTOL_SRC) dist/setup-config
@@ -187,7 +187,7 @@ ${PKG}: ${CRYPTOL_EXE} \
         docs/*.md docs/*.pdf LICENSE LICENSE.rtf \
         ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES} ${PKG_EXFUNSTUFF_FILES} \
         ${PKG_MINILOCK_FILES}
-	$(CABAL) copy ${DESTDIR_ARG}
+	$(CABAL) v1-copy ${DESTDIR_ARG}
 	mkdir -p ${PKG_CRY}
 	mkdir -p ${PKG_DOC}
 	mkdir -p ${PKG_EXAMPLES}
@@ -263,11 +263,11 @@ test: ${CS_BIN}/cryptol-test-runner
 .PHONY: bench
 bench: cryptol.cabal Makefile | ${CS_BIN}/alex ${CS_BIN}/happy
 	$(CABAL_INSTALL) --only-dependencies --enable-benchmarks
-	$(CABAL) configure --enable-benchmarks
-	$(CABAL) bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench-parser.xml) --benchmark-option='parser/'
-	$(CABAL) bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench-typechecker.xml) --benchmark-option='typechecker/'
-	$(CABAL) bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench-conc_eval.xml) --benchmark-option='conc_eval/'
-	$(CABAL) bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench-sym_eval.xml) --benchmark-option='sym_eval/'
+	$(CABAL) v1-configure --enable-benchmarks
+	$(CABAL) v1-bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench-parser.xml) --benchmark-option='parser/'
+	$(CABAL) v1-bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench-typechecker.xml) --benchmark-option='typechecker/'
+	$(CABAL) v1-bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench-conc_eval.xml) --benchmark-option='conc_eval/'
+	$(CABAL) v1-bench --benchmark-option=--junit --benchmark-option=$(call adjust-path,$(CURDIR)/bench-sym_eval.xml) --benchmark-option='sym_eval/'
 	rm -rf dist/setup-config
 
 .PHONY: clean
@@ -281,7 +281,7 @@ clean:
 
 .PHONY: squeaky
 squeaky: clean
-	-$(CABAL) sandbox delete
+	-$(CABAL) v1-sandbox delete
 	(cd docs; make clean)
 	rm -rf dist
 	rm -rf tests/dist
