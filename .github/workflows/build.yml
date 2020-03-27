@@ -15,7 +15,8 @@ jobs:
     name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-haskell@v1
+        # https://github.com/actions/setup-haskell/pull/12
+      - uses: haskell-CI/setup@master
         with:
           ghc-version: ${{ matrix.ghc }}
           cabal-version: ${{ matrix.cabal }}
@@ -46,17 +47,24 @@ jobs:
             unzip z3.zip
             cp z3-*/bin/z3 $GITHUB_WORKSPACE/bin/z3
             chmod +x $GITHUB_WORKSPACE/bin/z3
+
+            sudo apt-get update -y && sudo apt-get install -y texlive pandoc
             ;;
           macOS)
             curl -o z3.zip -L "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-osx-10.14.6.zip"
             unzip z3.zip
             cp z3-*/bin/z3 $GITHUB_WORKSPACE/bin/z3
             chmod +x $GITHUB_WORKSPACE/bin/z3
+
+            brew install pandoc librsvg & brew cask install basictex
+            wait
             ;;
           Windows)
             curl -o z3.zip -L "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-win.zip"
             7z x -bd z3.zip
             cp z3-*/bin/z3.exe $GITHUB_WORKSPACE/bin/z3.exe
+
+            choco install -r -y rsvg-convert pandoc miktex
             ;;
           *)
             echo "$RUNNER_OS not supported"
@@ -65,17 +73,26 @@ jobs:
           esac
           echo "::add-path::$GITHUB_WORKSPACE/bin"
 
+      - name: Check path
+        shell: bash
+        run: |
+          z3 --version
+          pandoc --version
+          tlmgr --version
+
       - name: Install Dependencies
         run: |
           cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
-          cabal update
-          cabal configure --allow-newer --enable-tests -j$(nproc)
-          cabal build --only-dependencies exe:cryptol
-          mkdir -p bin
-          cabal v2-install --installdir=bin test-lib
+          cabal v1-update
+          cabal v1-configure --allow-newer --enable-tests -j$(nproc)
+      # cabal build --only-dependencies exe:cryptol
+      # mkdir -p bin
+      # cabal v2-install --installdir=bin test-lib
 
       - name: Build
-        run: ./cry build
+        shell: bash
+        run: make dist
 
       - name: Test
-        run: ./cry test
+        shell: bash
+        run: make test
