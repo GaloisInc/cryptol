@@ -87,8 +87,8 @@ jobs:
             repo="$($GITHUB_WORKSPACE/bin/miktexsetup --list-repositories | head -n1)"
             echo "repo is $repo"
             mkdir _texmf
-            $GITHUB_WORKSPACE/bin/miktexsetup --local-package-repository=_texmf --remote-package-repository="$repo" --package-set=basic --quiet download
-            $GITHUB_WORKSPACE/bin/miktexsetup --package-set=basic --local-package-repository=_texmf --quiet --modify-path install
+            $GITHUB_WORKSPACE/bin/miktexsetup --use-registry=no --local-package-repository=_texmf --remote-package-repository="$repo" --package-set=basic --verbose download
+            $GITHUB_WORKSPACE/bin/miktexsetup --use-registry=no --portable=$GITHUB_WORKSPACE/bin --package-set=basic --local-package-repository=_texmf --verbose --modify-path install
             ;;
           *)
             echo "$RUNNER_OS not supported"
