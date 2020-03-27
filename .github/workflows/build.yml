@@ -36,6 +36,11 @@ jobs:
         with:
           path: dist-newstyle
           key: ${{ runner.os }}-${{ matrix.ghc }}-dist-newstyle
+      - uses: actions/cache@v1
+        name: Cache sandbox
+        with:
+          path: .cabal-sandbox
+          key: ${{ runner.os }}-${{ matrix.ghc }}-sandbox
 
       - name: Install System Dependencies
         shell: bash
@@ -56,8 +61,8 @@ jobs:
             cp z3-*/bin/z3 $GITHUB_WORKSPACE/bin/z3
             chmod +x $GITHUB_WORKSPACE/bin/z3
 
-            brew install pandoc librsvg & brew cask install basictex
-            wait
+            brew cask install basictex
+            brew install pandoc librsvg
             ;;
           Windows)
             curl -o z3.zip -L "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-win.zip"
