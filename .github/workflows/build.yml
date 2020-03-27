@@ -82,10 +82,10 @@ jobs:
             curl -o miktexsetup-x64.zip -sL "https://miktex.org/download/win/miktexsetup-x64.zip"
             7z x -bd miktexsetup-x64.zip
             ls
-            cp mikt*/miktexsetup.exe $GITHUB_WORKSPACE/bin/miktexsetup.exe
+            cp miktexsetup.exe $GITHUB_WORKSPACE/bin/miktexsetup.exe
             echo "::add-path::$GITHUB_WORKSPACE/bin"
             ls $GITHUB_WORKSPACE/bin
-            xhich miktexsetup || true
+            which miktexsetup || true
             miktexsetup --package-set=basic --quiet --modify-path install
             ;;
           *)
