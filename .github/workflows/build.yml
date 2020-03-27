@@ -84,10 +84,8 @@ jobs:
             ls
             cp miktexsetup.exe $GITHUB_WORKSPACE/bin/miktexsetup.exe
 
-            $GITHUB_WORKSPACE/bin/miktexsetup --list-repositories
-
-            repos="$($GITHUB_WORKSPACE/bin/miktexsetup --list-repositories)"
-            $GITHUB_WORKSPACE/bin/miktexsetup.exe --package-set=basic --quiet --modify-path install || true
+            repo="$($GITHUB_WORKSPACE/bin/miktexsetup --list-repositories | head -n1)"
+            $GITHUB_WORKSPACE/bin/miktexsetup.exe --package-set=basic --remote-package-repository="$repo" --quiet --modify-path install
             ;;
           *)
             echo "$RUNNER_OS not supported"
