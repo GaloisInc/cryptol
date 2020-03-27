@@ -9,9 +9,13 @@ jobs:
       # 2. cry build/test might need modifications
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-2019]
-        ghc: ["8.4.4", "8.6.5", "8.8.1"]
+        os: [windows-2019]
+        ghc: ["8.4.4"]
         cabal: ["3.0.0.0"]
+      # matrix:
+      #   os: [ubuntu-latest, macos-latest, windows-2019]
+      #   ghc: ["8.4.4", "8.6.5", "8.8.1"]
+      #   cabal: ["3.0.0.0"]
     name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -77,7 +81,9 @@ jobs:
             # MikTeX and LaTeX do not provide versioned download URLs, which break things like chocolatey
             curl -o miktexsetup-x64.zip -sL "https://miktex.org/download/win/miktexsetup-x64.zip"
             7z x -bd miktexsetup-x64.zip
-            ./miktexsetup.exe --package-set=basic --quiet --modify-path install
+            mv miktexsetup.exe $GITHUB_WORKSPACE/bin/miktexsetup.exe
+            echo "::add-path::$GITHUB_WORKSPACE/bin"
+            miktexsetup --package-set=basic --quiet --modify-path install
             ;;
           *)
             echo "$RUNNER_OS not supported"
