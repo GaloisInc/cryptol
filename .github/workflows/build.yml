@@ -65,8 +65,6 @@ jobs:
             brew cask install basictex
             brew install pandoc librsvg
 
-            echo "Some sanity checks now..."
-            ls -al /Library/TeX/texbin
             echo "::add-path::/Library/TeX/texbin"
             ;;
           Windows)
