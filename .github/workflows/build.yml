@@ -20,31 +20,31 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         # https://github.com/actions/setup-haskell/pull/12
-      - uses: haskell-CI/setup@master
-        with:
-          ghc-version: ${{ matrix.ghc }}
-          cabal-version: ${{ matrix.cabal }}
+      # - uses: haskell-CI/setup@master
+      #   with:
+      #     ghc-version: ${{ matrix.ghc }}
+      #     cabal-version: ${{ matrix.cabal }}
 
-      - uses: actions/cache@v1
-        name: Cache ~/.cabal/packages
-        with:
-          path: ~/.cabal/packages
-          key: ${{ runner.os }}-${{ matrix.ghc }}-cabal-packages
-      - uses: actions/cache@v1
-        name: Cache ~/.cabal/store
-        with:
-          path: ~/.cabal/store
-          key: ${{ runner.os }}-${{ matrix.ghc }}-cabal-store
-      - uses: actions/cache@v1
-        name: Cache dist-newstyle
-        with:
-          path: dist-newstyle
-          key: ${{ runner.os }}-${{ matrix.ghc }}-dist-newstyle
-      - uses: actions/cache@v1
-        name: Cache sandbox
-        with:
-          path: .cabal-sandbox
-          key: ${{ runner.os }}-${{ matrix.ghc }}-sandbox
+      # - uses: actions/cache@v1
+      #   name: Cache ~/.cabal/packages
+      #   with:
+      #     path: ~/.cabal/packages
+      #     key: ${{ runner.os }}-${{ matrix.ghc }}-cabal-packages
+      # - uses: actions/cache@v1
+      #   name: Cache ~/.cabal/store
+      #   with:
+      #     path: ~/.cabal/store
+      #     key: ${{ runner.os }}-${{ matrix.ghc }}-cabal-store
+      # - uses: actions/cache@v1
+      #   name: Cache dist-newstyle
+      #   with:
+      #     path: dist-newstyle
+      #     key: ${{ runner.os }}-${{ matrix.ghc }}-dist-newstyle
+      # - uses: actions/cache@v1
+      #   name: Cache sandbox
+      #   with:
+      #     path: .cabal-sandbox
+      #     key: ${{ runner.os }}-${{ matrix.ghc }}-sandbox
 
       - name: Install System Dependencies
         shell: bash
@@ -81,8 +81,10 @@ jobs:
             # MikTeX and LaTeX do not provide versioned download URLs, which break things like chocolatey
             curl -o miktexsetup-x64.zip -sL "https://miktex.org/download/win/miktexsetup-x64.zip"
             7z x -bd miktexsetup-x64.zip
-            mv miktexsetup.exe $GITHUB_WORKSPACE/bin/miktexsetup.exe
+            cp mikt*/miktexsetup.exe $GITHUB_WORKSPACE/bin/miktexsetup.exe
             echo "::add-path::$GITHUB_WORKSPACE/bin"
+            ls $GITHUB_WORKSPACE/bin
+            xhich miktexsetup || true
             miktexsetup --package-set=basic --quiet --modify-path install
             ;;
           *)
