@@ -106,7 +106,10 @@ jobs:
 
       - name: Build
         shell: bash
-        run: make dist
+        run: |
+          # Works around a TODO in the makefile in case make dist doesn't run fully the first time.
+          cabal v1-sandbox init
+          make dist
 
       - name: Test
         shell: bash
