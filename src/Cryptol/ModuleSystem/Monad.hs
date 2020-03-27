@@ -19,8 +19,7 @@ import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Fingerprint
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Name (FreshM(..),Supply)
-import           Cryptol.ModuleSystem.Renamer
-                     (RenamerError(),RenamerWarning(),NamingEnv)
+import           Cryptol.ModuleSystem.Renamer (RenamerError(),RenamerWarning())
 import qualified Cryptol.Parser     as Parser
 import qualified Cryptol.Parser.AST as P
 import           Cryptol.Parser.Position (Located)
@@ -508,8 +507,7 @@ withPrependedSearchPath fps m = ModuleT $ do
   set $! env { meSearchPath = fps0 }
   return x
 
--- XXX improve error handling here
-getFocusedEnv :: ModuleM (IfaceParams,IfaceDecls,NamingEnv,NameDisp)
+getFocusedEnv :: ModuleM ModContext
 getFocusedEnv  = ModuleT (focusedEnv `fmap` get)
 
 getDynEnv :: ModuleM DynamicEnv

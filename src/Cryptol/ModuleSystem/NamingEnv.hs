@@ -42,8 +42,8 @@ import Prelude.Compat
 
 -- Naming Environment ----------------------------------------------------------
 
--- XXX The fixity environment should be removed, and Name should include fixity
--- information.
+-- | The 'NamingEnv' is used by the renamer to determine what
+-- identifiers refer to.
 data NamingEnv = NamingEnv { neExprs :: !(Map.Map PName [Name])
                              -- ^ Expr renaming environment
                            , neTypes :: !(Map.Map PName [Name])
@@ -105,19 +105,18 @@ toNameDisp NamingEnv { .. } = NameDisp display
   -- only format declared names, as parameters don't need any special
   -- formatting.
   names = Map.fromList
-     $ [ mkEntry pn mn (nameIdent n) | (pn,ns)     <- Map.toList neExprs
-                                     , n           <- ns
-                                     , Declared mn _ <- [nameInfo n] ]
+     $ [ mkEntry (mn, nameIdent n) pn | (pn,ns)       <- Map.toList neExprs
+                                      , n             <- ns
+                                      , Declared mn _ <- [nameInfo n] ]
 
-    ++ [ mkEntry pn mn (nameIdent n) | (pn,ns)     <- Map.toList neTypes
-                                     , n           <- ns
-                                     , Declared mn _ <- [nameInfo n] ]
+    ++ [ mkEntry (mn, nameIdent n) pn | (pn,ns)       <- Map.toList neTypes
+                                      , n             <- ns
+                                      , Declared mn _ <- [nameInfo n] ]
 
-  mkEntry pn mn i = ((mn,i),fmt)
-    where
-    fmt = case getModName pn of
-            Just ns -> Qualified ns
-            Nothing -> UnQualified
+  mkEntry key pn = (key,fmt)
+    where fmt = case getModName pn of
+                  Just ns -> Qualified ns
+                  Nothing -> UnQualified
 
 
 -- | Produce sets of visible names for types and declarations.
@@ -137,7 +136,7 @@ qualify :: ModName -> NamingEnv -> NamingEnv
 qualify pfx NamingEnv { .. } =
   NamingEnv { neExprs = Map.mapKeys toQual neExprs
             , neTypes = Map.mapKeys toQual neTypes
-            , .. }
+            }
 
   where
   -- XXX we don't currently qualify fresh names
@@ -149,7 +148,7 @@ filterNames :: (PName -> Bool) -> NamingEnv -> NamingEnv
 filterNames p NamingEnv { .. } =
   NamingEnv { neExprs = Map.filterWithKey check neExprs
             , neTypes = Map.filterWithKey check neTypes
-            , .. }
+            }
   where
   check :: PName -> a -> Bool
   check n _ = p n
@@ -233,7 +232,9 @@ instance BindsNames (Schema PName) where
 
 -- | Interpret an import in the context of an interface, to produce a name
 -- environment for the renamer, and a 'NameDisp' for pretty-printing.
-interpImport :: Import -> IfaceDecls -> NamingEnv
+interpImport :: Import     {- ^ The import declarations -} ->
+                IfaceDecls {- ^ Declarations of imported module -} ->
+                NamingEnv
 interpImport imp publicDecls = qualified
   where
 

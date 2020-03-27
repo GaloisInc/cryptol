@@ -36,7 +36,6 @@ module Cryptol.REPL.Monad (
   , getModuleEnv, setModuleEnv
   , getDynEnv, setDynEnv
   , uniqify, freshName
-  , getTSyns, getNewtypes, getVars
   , whenDebug
   , getExprNames
   , getTypeNames
@@ -474,75 +473,33 @@ rPutStrLn str = rPutStr $ str ++ "\n"
 rPrint :: Show a => a -> REPL ()
 rPrint x = rPutStrLn (show x)
 
-getFocusedEnv :: REPL (M.IfaceParams,M.IfaceDecls,M.NamingEnv,NameDisp)
-getFocusedEnv  = do
-  me <- getModuleEnv
-  -- dyNames is a NameEnv that removes the #Uniq prefix from interactively-bound
-  -- variables.
-  let (dyDecls,dyNames,dyDisp) = M.dynamicEnv me
-  let (fParams,fDecls,fNames,fDisp) = M.focusedEnv me
-  return ( fParams
-         , dyDecls `mappend` fDecls
-         , dyNames `M.shadowing` fNames
-         , dyDisp `mappend` fDisp)
-
-  -- -- the subtle part here is removing the #Uniq prefix from
-  -- -- interactively-bound variables, and also excluding any that are
-  -- -- shadowed and thus can no longer be referenced
-  -- let (fDecls,fNames,fDisp) = M.focusedEnv me
-  --     edecls = M.ifDecls dyDecls
-  --     -- is this QName something the user might actually type?
-  --     isShadowed (qn@(P.QName (Just (P.unModName -> ['#':_])) name), _) =
-  --         case Map.lookup localName neExprs of
-  --           Nothing -> False
-  --           Just uniqueNames -> isNamed uniqueNames
-  --       where localName = P.QName Nothing name
-  --             isNamed us = any (== qn) (map M.qname us)
-  --             neExprs = M.neExprs (M.deNames (M.meDynEnv me))
-  --     isShadowed _ = False
-  --     unqual ((P.QName _ name), ifds) = (P.QName Nothing name, ifds)
-  --     edecls' = Map.fromList
-  --             . map unqual
-  --             . filter isShadowed
-  --             $ Map.toList edecls
-  -- return (decls `mappend` mempty { M.ifDecls = edecls' }, names `mappend` dyNames)
-
-getVars :: REPL (Map.Map M.Name M.IfaceDecl)
-getVars  = do
-  (_,decls,_,_) <- getFocusedEnv
-  return (M.ifDecls decls)
-
-getTSyns :: REPL (Map.Map M.Name T.TySyn)
-getTSyns  = do
-  (_,decls,_,_) <- getFocusedEnv
-  return (M.ifTySyns decls)
-
-getNewtypes :: REPL (Map.Map M.Name T.Newtype)
-getNewtypes = do
-  (_,decls,_,_) <- getFocusedEnv
-  return (M.ifNewtypes decls)
+getFocusedEnv :: REPL M.ModContext
+getFocusedEnv  = M.focusedEnv <$> getModuleEnv
 
 -- | Get visible variable names.
+-- This is used for command line completition.
 getExprNames :: REPL [String]
 getExprNames =
-  do (_,_, fNames, _) <- getFocusedEnv
+  do fNames <- M.mctxNames <$> getFocusedEnv
      return (map (show . pp) (Map.keys (M.neExprs fNames)))
 
 -- | Get visible type signature names.
+-- This is used for command line completition.
 getTypeNames :: REPL [String]
 getTypeNames  =
-  do (_,_, fNames, _) <- getFocusedEnv
+  do fNames <- M.mctxNames <$> getFocusedEnv
      return (map (show . pp) (Map.keys (M.neTypes fNames)))
 
 -- | Return a list of property names, sorted by position in the file.
 getPropertyNames :: REPL ([M.Name],NameDisp)
 getPropertyNames =
-  do (_,decls,_,names) <- getFocusedEnv
-     let xs = M.ifDecls decls
+  do fe <- getFocusedEnv
+     let xs = M.ifDecls (M.mctxDecls fe)
          ps = sortBy (comparing (from . M.nameLoc))
-            $ [ x | (x,d) <- Map.toList xs, T.PragmaProperty `elem` M.ifDeclPragmas d ]
+              [ x | (x,d) <- Map.toList xs,
+                    T.PragmaProperty `elem` M.ifDeclPragmas d ]
 
-     return (ps, names)
+     return (ps, M.mctxNameDisp fe)
 
 getModNames :: REPL [I.ModName]
 getModNames =

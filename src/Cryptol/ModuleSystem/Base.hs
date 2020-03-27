@@ -14,7 +14,7 @@
 
 module Cryptol.ModuleSystem.Base where
 
-import Cryptol.ModuleSystem.Env (DynamicEnv(..), deIfaceDecls)
+import Cryptol.ModuleSystem.Env (DynamicEnv(..))
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
 import Cryptol.ModuleSystem.Monad
@@ -22,6 +22,7 @@ import Cryptol.ModuleSystem.Name (Name,liftSupply,PrimMap)
 import Cryptol.ModuleSystem.Env (lookupModule
                                 , LoadedModule(..)
                                 , meCoreLint, CoreLint(..)
+                                , ModContext(..)
                                 , ModulePath(..), modulePathLabel)
 import qualified Cryptol.Eval                 as E
 import qualified Cryptol.Eval.Value           as E
@@ -313,21 +314,15 @@ loadDeps m =
 
 -- Type Checking ---------------------------------------------------------------
 
--- | Load the local environment, which consists of the environment for the
--- currently opened module, shadowed by the dynamic environment.
-getLocalEnv :: ModuleM (IfaceParams,IfaceDecls,R.NamingEnv)
-getLocalEnv  =
-  do (params,decls,fNames,_) <- getFocusedEnv
-     denv             <- getDynEnv
-     let dynDecls = deIfaceDecls denv
-     return (params,dynDecls `mappend` decls, deNames denv `R.shadowing` fNames)
-
 -- | Typecheck a single expression, yielding a renamed parsed expression,
 -- typechecked core expression, and a type schema.
 checkExpr :: P.Expr PName -> ModuleM (P.Expr Name,T.Expr,T.Schema)
 checkExpr e = do
 
-  (params,decls,names) <- getLocalEnv
+  fe <- getFocusedEnv
+  let params = mctxParams fe
+      decls  = mctxDecls fe
+      names  = mctxNames fe
 
   -- run NoPat
   npe <- noPat e
@@ -348,7 +343,10 @@ checkExpr e = do
 -- INVARIANT: This assumes that NoPat has already been run on the declarations.
 checkDecls :: [P.TopDecl PName] -> ModuleM (R.NamingEnv,[T.DeclGroup])
 checkDecls ds = do
-  (params,decls,names) <- getLocalEnv
+  fe <- getFocusedEnv
+  let params = mctxParams fe
+      decls  = mctxDecls  fe
+      names  = mctxNames  fe
 
   -- introduce names for the declarations before renaming them
   declsEnv <- liftSupply (R.namingEnv' (map (R.InModule interactiveName) ds))

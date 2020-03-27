@@ -20,7 +20,7 @@ import Paths_cryptol (getDataDir)
 import Cryptol.Eval (EvalEnv)
 import Cryptol.ModuleSystem.Fingerprint
 import Cryptol.ModuleSystem.Interface
-import Cryptol.ModuleSystem.Name (Supply,emptySupply)
+import Cryptol.ModuleSystem.Name (Name,Supply,emptySupply)
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import Cryptol.Parser.AST
 import qualified Cryptol.TypeCheck as T
@@ -31,8 +31,8 @@ import Data.ByteString(ByteString)
 import Control.Monad (guard,mplus)
 import qualified Control.Exception as X
 import Data.Function (on)
+import Data.Map (Map)
 import qualified Data.Map as Map
-import Data.Maybe(fromMaybe)
 import Data.Semigroup
 import System.Directory (getAppUserDataDirectory, getCurrentDirectory)
 import System.Environment(getExecutablePath)
@@ -44,6 +44,9 @@ import Control.DeepSeq
 
 import Prelude ()
 import Prelude.Compat
+
+import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.PP(pp)
 
 -- Module Environment ----------------------------------------------------------
 
@@ -178,47 +181,95 @@ hasParamModules :: ModuleEnv -> Bool
 hasParamModules = not . null . lmLoadedParamModules . meLoadedModules
 
 
--- | Produce an ifaceDecls that represents the focused environment of the module
--- system, as well as a 'NameDisp' for pretty-printing names according to the
--- imports.
---
--- XXX This could really do with some better error handling, just returning
--- mempty when one of the imports fails isn't really desirable.
---
--- XXX: This is not quite right.   For example, it does not take into
--- account *how* things were imported in a module (e.g., qualified).
--- It would be simpler to simply store the naming environment that was
--- actually used when we renamed the module.
-focusedEnv :: ModuleEnv -> (IfaceParams,IfaceDecls,R.NamingEnv,NameDisp)
+
+-- | Contains enough information to browse what's in scope,
+-- or type check new expressions.
+data ModContext = ModContext
+  { mctxParams          :: IfaceParams
+  , mctxDecls           :: IfaceDecls
+  , mctxNames           :: R.NamingEnv
+  , mctxNameDisp        :: NameDisp
+  , mctxTypeProvenace   :: Map Name DeclProvenance
+  , mctxValueProvenance :: Map Name DeclProvenance
+  }
+
+-- | Specifies how a declared name came to be in scope.
+data DeclProvenance =
+    NameIsImportedFrom ModName
+  | NameIsLocalPublic
+  | NameIsLocalPrivate
+  | NameIsParameter
+  | NameIsDynamicDecl
+    deriving (Eq,Ord)
+
+
+-- | Given the state of the environment, compute information about what's
+-- in scope on the REPL.  This includes what's in the focused module, plus any
+-- additional definitions from the REPL (e.g., let bound names, and @it@).
+focusedEnv :: ModuleEnv -> ModContext
 focusedEnv me =
-  fromMaybe (noIfaceParams, mempty, mempty, mempty) $
-  do fm   <- meFocusedModule me
-     lm   <- lookupModule fm me
-     deps <- mapM loadImport (T.mImports (lmModule lm))
-     let (ifaces,names) = unzip deps
-         Iface { .. }   = lmInterface lm
-         localDecls     = ifPublic `mappend` ifPrivate
-         localNames     = R.unqualifiedEnv localDecls `mappend`
-                                              R.modParamsNamingEnv ifParams
-         namingEnv      = localNames `R.shadowing` mconcat names
+  ModContext
+    { mctxParams   = parameters
+    , mctxDecls    = mconcat (dynDecls : localDecls : importedDecls)
+    , mctxNames    = namingEnv
+    , mctxNameDisp = R.toNameDisp namingEnv
+    , mctxTypeProvenace = fst provenance
+    , mctxValueProvenance = snd provenance
+    }
 
-     return ( ifParams
-            , mconcat (localDecls:ifaces)
-            , namingEnv
-            , R.toNameDisp namingEnv)
   where
+  (importedNames,importedDecls,importedProvs) = unzip3 (map loadImport imports)
+  localDecls    = publicDecls `mappend` privateDecls
+  localNames    = R.unqualifiedEnv localDecls `mappend`
+                                                R.modParamsNamingEnv parameters
+  dynDecls      = deIfaceDecls (meDynEnv me)
+  dynNames      = deNames (meDynEnv me)
+
+  namingEnv     = dynNames   `R.shadowing`
+                   localNames `R.shadowing`
+                   mconcat importedNames
+
+  provenance    = shadowProvs
+                $ declsProv NameIsDynamicDecl dynDecls
+                : declsProv NameIsLocalPublic publicDecls
+                : declsProv NameIsLocalPrivate privateDecls
+                : paramProv parameters
+                : importedProvs
+
+  (imports, parameters, publicDecls, privateDecls) =
+    case meFocusedModule me of
+      Nothing -> (mempty, noIfaceParams, mempty, mempty)
+      Just fm ->
+        case lookupModule fm me of
+          Just lm ->
+            let Iface { .. } = lmInterface lm
+            in (T.mImports (lmModule lm), ifParams, ifPublic, ifPrivate)
+          Nothing -> panic "focusedEnv" ["Focused module is not loaded."]
+
   loadImport imp =
-    do lm <- lookupModule (iModule imp) me
-       let decls = ifPublic (lmInterface lm)
-       return (decls,R.interpImport imp decls)
+    case lookupModule (iModule imp) me of
+      Just lm ->
+        let decls = ifPublic (lmInterface lm)
+        in ( R.interpImport imp decls
+           , decls
+           , declsProv (NameIsImportedFrom (iModule imp)) decls
+           )
+      Nothing -> panic "focusedEnv"
+                   [ "Missing imported module: " ++ show (pp (iModule imp)) ]
 
--- | The unqualified declarations and name environment for the dynamic
--- environment.
-dynamicEnv :: ModuleEnv -> (IfaceDecls,R.NamingEnv,NameDisp)
-dynamicEnv me = (decls,names,R.toNameDisp names)
-  where
-  decls = deIfaceDecls (meDynEnv me)
-  names = R.unqualifiedEnv decls
+
+  -- earlier ones shadow
+  shadowProvs ps = let (tss,vss) = unzip ps
+                   in (Map.unions tss, Map.unions vss)
+
+  paramProv IfaceParams { .. } = (doMap ifParamTypes, doMap ifParamFuns)
+    where doMap mp = const NameIsParameter <$> mp
+
+  declsProv prov IfaceDecls { .. } =
+    ( Map.unions [ doMap ifTySyns, doMap ifNewtypes, doMap ifAbstractTypes ]
+    , doMap ifDecls
+    )
+    where doMap mp = const prov <$> mp
 
 
 -- Loaded Modules --------------------------------------------------------------
@@ -281,14 +332,23 @@ instance Monoid LoadedModules where
 
 data LoadedModule = LoadedModule
   { lmName              :: ModName
+    -- ^ The name of this module.  Should match what's in 'lmModule'
+
   , lmFilePath          :: ModulePath
     -- ^ The file path used to load this module (may not be canonical)
+
   , lmModuleId          :: String
     -- ^ An identifier used to identify the source of the bytes for the module.
     -- For files we just use the cononical path, for in memory things we
     -- use their label.
+
   , lmInterface         :: Iface
+    -- ^ The module's interface. This is for convenient.  At the moment
+    -- we have the whole module in 'lmModule', so this could be computer.
+
   , lmModule            :: T.Module
+    -- ^ The actual type-checked module
+
   , lmFingerprint       :: Fingerprint
   } deriving (Show, Generic, NFData)
 
@@ -328,6 +388,8 @@ addLoadedModule path ident fp tm lm
     }
 
 -- | Remove a previously loaded module.
+-- Note that this removes exactly the modules specified by the predicate.
+-- One should be carfule to preserve the invariant on 'LoadedModules'.
 removeLoadedModule :: (LoadedModule -> Bool) -> LoadedModules -> LoadedModules
 removeLoadedModule rm lm =
   LoadedModules
@@ -340,9 +402,8 @@ removeLoadedModule rm lm =
 
 -- | Extra information we need to carry around to dynamically extend
 -- an environment outside the context of a single module. Particularly
--- useful when dealing with interactive declarations as in @:let@ or
+-- useful when dealing with interactive declarations as in @let@ or
 -- @it@.
-
 data DynamicEnv = DEnv
   { deNames :: R.NamingEnv
   , deDecls :: [T.DeclGroup]
