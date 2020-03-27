@@ -72,10 +72,10 @@ jobs:
             echo "::add-path::/Library/TeX/texbin"
             ;;
           Windows)
-            # curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-win.zip"
-            # 7z x -bd z3.zip
-            # cp z3-*/bin/z3.exe $GITHUB_WORKSPACE/bin/z3.exe
-            #
+            curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-win.zip"
+            7z x -bd z3.zip
+            cp z3-*/bin/z3.exe $GITHUB_WORKSPACE/bin/z3.exe
+
             # choco install --no-progress -r -y rsvg-convert pandoc
 
             # MikTeX and LaTeX do not provide versioned download URLs, which break things like chocolatey
@@ -83,10 +83,19 @@ jobs:
             7z x -bd miktexsetup-x64.zip
             ls
             cp miktexsetup.exe $GITHUB_WORKSPACE/bin/miktexsetup.exe
-            echo "::add-path::$GITHUB_WORKSPACE/bin"
-            ls $GITHUB_WORKSPACE/bin
-            which miktexsetup || true
-            miktexsetup --package-set=basic --quiet --modify-path install
+
+            echo "try with exe"
+            $GITHUB_WORKSPACE/bin/miktexsetup.exe --package-set=basic --quiet --modify-path install || true
+            echo "try without exe"
+            $GITHUB_WORKSPACE/bin/miktexsetup --package-set=basic --quiet --modify-path install || true
+
+            echo "try again but append to path hacky like"
+            export PATH=$GITHUB_WORKSPACE/bin:$PATH
+            echo "now try again..."
+            echo "try with exe"
+            miktexsetup.exe --package-set=basic --quiet --modify-path install || true
+            echo "try without exe"
+            miktexsetup --package-set=basic --quiet --modify-path install || true
             ;;
           *)
             echo "$RUNNER_OS not supported"
