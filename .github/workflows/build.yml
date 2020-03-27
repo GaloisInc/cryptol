@@ -9,9 +9,9 @@ jobs:
       # 2. cry build/test might need modifications
       fail-fast: false
       matrix:
-        os: [ubuntu-18.04, macos-latest, windows-2019]
+        os: [ubuntu-latest, macos-latest, windows-2019]
         ghc: ["8.4.4", "8.6.5", "8.8.1"]
-        cabal: ["3.0"]
+        cabal: ["3.0.0.0"]
     name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -80,14 +80,14 @@ jobs:
           pandoc --version
           tlmgr --version
 
-      - name: Install Dependencies
-        run: |
-          cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
-          cabal v1-update
-          cabal v1-configure --allow-newer --enable-tests
-      # cabal build --only-dependencies exe:cryptol
-      # mkdir -p bin
-      # cabal v2-install --installdir=bin test-lib
+      # - name: Install Dependencies
+      #   run: |
+      #     cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
+      #     cabal update
+      #     cabal configure --allow-newer --enable-tests
+      #     cabal build --only-dependencies exe:cryptol
+      #     mkdir -p bin
+      #     cabal install --installdir=bin test-lib
 
       - name: Build
         shell: bash
