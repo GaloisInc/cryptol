@@ -48,7 +48,7 @@ jobs:
           mkdir -p $GITHUB_WORKSPACE/bin
           case "$RUNNER_OS" in
           Linux)
-            curl -o z3.zip -L "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-ubuntu-16.04.zip"
+            curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-ubuntu-16.04.zip"
             unzip z3.zip
             cp z3-*/bin/z3 $GITHUB_WORKSPACE/bin/z3
             chmod +x $GITHUB_WORKSPACE/bin/z3
@@ -56,20 +56,25 @@ jobs:
             sudo apt-get update -y && sudo apt-get install -y texlive pandoc
             ;;
           macOS)
-            curl -o z3.zip -L "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-osx-10.14.6.zip"
+            curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-osx-10.14.6.zip"
             unzip z3.zip
             cp z3-*/bin/z3 $GITHUB_WORKSPACE/bin/z3
             chmod +x $GITHUB_WORKSPACE/bin/z3
 
+            brew update-reset && brew update
             brew cask install basictex
             brew install pandoc librsvg
+
+            echo "Some sanity checks now..."
+            ls -al /usr/local/texlive
+            ls -al /usr/local/bin
             ;;
           Windows)
-            curl -o z3.zip -L "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-win.zip"
+            curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-win.zip"
             7z x -bd z3.zip
             cp z3-*/bin/z3.exe $GITHUB_WORKSPACE/bin/z3.exe
 
-            choco install -r -y rsvg-convert pandoc miktex
+            choco install --no-progress -r -y rsvg-convert pandoc miktex
             ;;
           *)
             echo "$RUNNER_OS not supported"
