@@ -66,15 +66,20 @@ jobs:
             brew install pandoc librsvg
 
             echo "Some sanity checks now..."
-            ls -al /usr/local/texlive
-            ls -al /usr/local/bin
+            ls -al /Library/TeX/texbin
+            echo "::add-path::/Library/TeX/texbin"
             ;;
           Windows)
             curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-win.zip"
             7z x -bd z3.zip
             cp z3-*/bin/z3.exe $GITHUB_WORKSPACE/bin/z3.exe
 
-            choco install --no-progress -r -y rsvg-convert pandoc miktex
+            choco install --no-progress -r -y rsvg-convert pandoc
+
+            # MikTeX and LaTeX do not provide versioned download URLs, which break things like chocolatey
+            curl -o miktexsetup-x64.zip -sL "https://miktex.org/download/win/miktexsetup-x64.zip"
+            7z x -bd miktexsetup-x64.zip
+            miktexsetup.exe --package-set=basic --quiet --modify-path install
             ;;
           *)
             echo "$RUNNER_OS not supported"
