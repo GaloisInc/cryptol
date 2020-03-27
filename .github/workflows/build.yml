@@ -78,7 +78,7 @@ jobs:
         run: |
           z3 --version
           pandoc --version
-          tlmgr --version
+          pdflatex --version
 
       # - name: Install Dependencies
       #   run: |
