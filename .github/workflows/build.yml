@@ -77,9 +77,7 @@ jobs:
             # MikTeX and LaTeX do not provide versioned download URLs, which break things like chocolatey
             curl -o miktexsetup-x64.zip -sL "https://miktex.org/download/win/miktexsetup-x64.zip"
             7z x -bd miktexsetup-x64.zip
-            ls
-            mv miktex*.exe miktexsetup.exe
-            miktexsetup.exe --package-set=basic --quiet --modify-path install
+            ./miktexsetup.exe --package-set=basic --quiet --modify-path install
             ;;
           *)
             echo "$RUNNER_OS not supported"
