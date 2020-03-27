@@ -84,10 +84,8 @@ jobs:
             ls
             cp miktexsetup.exe $GITHUB_WORKSPACE/bin/miktexsetup.exe
 
-            repo="$($GITHUB_WORKSPACE/bin/miktexsetup --list-repositories | head -n1)"
-            echo "repo is $repo"
             mkdir _texmf
-            $GITHUB_WORKSPACE/bin/miktexsetup --use-registry=no --local-package-repository=_texmf --remote-package-repository="$repo" --package-set=basic --verbose download
+            $GITHUB_WORKSPACE/bin/miktexsetup --use-registry=no --local-package-repository=_texmf --package-set=basic --verbose download
             $GITHUB_WORKSPACE/bin/miktexsetup --use-registry=no --portable=$GITHUB_WORKSPACE/bin --package-set=basic --local-package-repository=_texmf --verbose --modify-path install
             ;;
           *)
