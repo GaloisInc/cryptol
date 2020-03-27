@@ -84,18 +84,10 @@ jobs:
             ls
             cp miktexsetup.exe $GITHUB_WORKSPACE/bin/miktexsetup.exe
 
-            echo "try with exe"
-            $GITHUB_WORKSPACE/bin/miktexsetup.exe --package-set=basic --quiet --modify-path install || true
-            echo "try without exe"
-            $GITHUB_WORKSPACE/bin/miktexsetup --package-set=basic --quiet --modify-path install || true
+            $GITHUB_WORKSPACE/bin/miktexsetup --list-repositories
 
-            echo "try again but append to path hacky like"
-            export PATH=$GITHUB_WORKSPACE/bin:$PATH
-            echo "now try again..."
-            echo "try with exe"
-            miktexsetup.exe --package-set=basic --quiet --modify-path install || true
-            echo "try without exe"
-            miktexsetup --package-set=basic --quiet --modify-path install || true
+            repos="$($GITHUB_WORKSPACE/bin/miktexsetup --list-repositories)"
+            $GITHUB_WORKSPACE/bin/miktexsetup.exe --package-set=basic --quiet --modify-path install || true
             ;;
           *)
             echo "$RUNNER_OS not supported"
