@@ -45,7 +45,8 @@ primitive type Integer : *
 /** 'Z n' is the type of integers, modulo 'n'. */
 primitive type {n : #} (fin n, n >= 1) => Z n : *
 
-
+/** `Rational` is the type of rational numbers. */
+primitive type Rational : *
 
 /** Assert that two numeric types are equal. */
 primitive type (==) : # -> # -> Prop
@@ -77,7 +78,8 @@ primitive type SignedCmp : * -> Prop
 /** 'Literal n a' asserts that type 'a' contains the number 'n'. */
 primitive type Literal : # -> * -> Prop
 
-
+/** 'Field a' asserts that type 'a' is a field (or approximately a field). */
+primitive type Field : * -> Prop
 
 /** Add numeric types. */
 primitive type (+) : # -> # -> #
@@ -210,6 +212,40 @@ primitive (^^) : {a} (Arith a) => a -> a -> a
  */
 primitive lg2 : {a} (Arith a) => a -> a
 
+/**
+ * Reciprocal
+ *
+ * Compute the multiplicative inverse of an element of a field.
+ * The reciprocal of zero is undefined
+ */
+primitive recip : {a} (Field a) => a -> a
+
+/**
+ * Field division
+ *
+ * The division operation in a field.
+ * x /. y == x * (recip y)
+ */
+primitive (/.) : {a} (Field a) => a -> a -> a
+
+/**
+ * Compute the ratio of two integers as a rational.
+ * ratio x y = (fromInteger x /. fromInteger y) : Rational
+ */
+primitive ratio : Integer -> Integer -> Rational
+
+/**
+ * Compute the largest integer less than or equal
+ * to the given rational.
+ */
+primitive floor : Rational -> Integer
+
+/**
+ * Compute the smallest integer greater than or
+ * equal to the given rational.
+ */
+ceiling : Rational -> Integer
+ceiling x = negate (floor (negate x))
 
 type Bool = Bit
 
@@ -228,7 +264,7 @@ primitive False : Bit
  * Over structured values, operates element-wise.
  * The prefix notation '- x' is syntactic sugar
  * for 'negate x'.
- * Satisfies 'negate a = ~a + 1'.
+ * Satisfies 'negate a = ~a + 1' for bitvectors.
  */
 primitive negate : {a} (Arith a) => a -> a
 

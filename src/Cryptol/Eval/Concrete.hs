@@ -75,6 +75,10 @@ toExpr prims t0 v0 = findOne (go t0 v0)
       return $ ETApp (ETApp (prim "number") (tNum i)) ty
     (TCon (TC TCIntMod) [_n], VInteger i) ->
       return $ ETApp (ETApp (prim "number") (tNum i)) ty
+    (TCon (TC TCRational) [], VRational (SRational n d)) ->
+      do let n' = ETApp (ETApp (prim "number") (tNum n)) (TCon (TC TCInteger) [])
+             d' = ETApp (ETApp (prim "number") (tNum d)) (TCon (TC TCInteger) [])
+         return $ EApp (EApp (prim "ratio") n') d'
     (TCon (TC TCSeq) [a,b], VSeq 0 _) -> do
       guard (a == tZero)
       return $ EList [] b
@@ -90,7 +94,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
     (_, VFun    _) -> fail "cannot convert function values to expressions"
     (_, VPoly   _) -> fail "cannot convert polymorphic values to expressions"
     _ -> do doc <- lift (ppValue Concrete defaultPPOpts val)
-            panic "Cryptol.Eval.Value.toExpr"
+            panic "Cryptol.Eval.Concrete.toExpr"
              ["type mismatch:"
              , pretty ty
              , render doc
@@ -110,6 +114,10 @@ primTable = let sym = Concrete in
   , ("False"      , VBit (bitLit sym False))
   , ("number"     , {-# SCC "Prelude::number" #-}
                     ecNumberV sym)
+  , ("ratio"      , {-# SCC "Prelude::ratio" #-}
+                    ratioV sym)
+  , ("floor"      , {-# SCC "Prelude::floor" #-}
+                    floorV sym)
 
     -- Arith
   , ("fromInteger", {-# SCC "Prelude::fromInteger" #-}
@@ -138,6 +146,12 @@ primTable = let sym = Concrete in
                     infFromV sym)
   , ("infFromThen", {-# SCC "Prelude::infFromThen" #-}
                     infFromThenV sym)
+
+    -- Field
+  , ("recip"      , {-# SCC "Prelude::recip" #-}
+                    unary (recipV sym))
+  , ("/."         , {-# SCC "Prelude::(/.)" #-}
+                    binary (fieldDivideV sym))
 
     -- Cmp
   , ("<"          , {-# SCC "Prelude::(<)" #-}

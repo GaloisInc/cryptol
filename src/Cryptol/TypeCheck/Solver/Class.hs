@@ -10,10 +10,10 @@
 
 {-# LANGUAGE PatternGuards, OverloadedStrings #-}
 module Cryptol.TypeCheck.Solver.Class
-  ( classStep
-  , solveZeroInst
+  ( solveZeroInst
   , solveLogicInst
   , solveArithInst
+  , solveFieldInst
   , solveCmpInst
   , solveSignedCmpInst
   , solveLiteralInst
@@ -25,15 +25,6 @@ import Cryptol.TypeCheck.SimpType (tAdd,tWidth)
 import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.PP
 
--- | Solve class constraints.
--- If not, then we return 'Nothing'.
--- If solved, then we return 'Just' a list of sub-goals.
-classStep :: Prop -> Solved
-classStep p = case tNoUser p of
-  TCon (PC PLogic) [ty] -> solveLogicInst (tNoUser ty)
-  TCon (PC PArith) [ty] -> solveArithInst (tNoUser ty)
-  TCon (PC PCmp) [ty]   -> solveCmpInst   (tNoUser ty)
-  _                     -> Unsolved
 
 -- | Solve a Zero constraint by instance, if possible.
 solveZeroInst :: Type -> Solved
@@ -50,6 +41,9 @@ solveZeroInst ty = case tNoUser ty of
 
   -- Zero (Z n)
   TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
+
+  -- Zero Rational
+  TCon (TC TCRational) [] -> SolvedIf []
 
   -- Zero a => Zero [n]a
   TCon (TC TCSeq) [_, a] -> SolvedIf [ pZero a ]
@@ -115,10 +109,22 @@ solveArithInst ty = case tNoUser ty of
   -- Arith (Z n)
   TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
 
+  -- Arith Rational
+  TCon (TC TCRational) [] -> SolvedIf []
+
   -- (Arith a, Arith b) => Arith { x1 : a, x2 : b }
   TRec fs -> SolvedIf [ pArith ety | (_,ety) <- fs ]
 
   _ -> Unsolved
+
+-- | Solve a Field constraint by instance, if possible.
+solveFieldInst :: Type -> Solved
+solveFieldInst ty = case tNoUser ty of
+  -- Field Rational
+  TCon (TC TCRational) [] -> SolvedIf []
+
+  _ -> Unsolved
+
 
 -- | Solve an Arith constraint for a sequence.  The type passed here is the
 -- element type of the sequence.
@@ -152,6 +158,9 @@ solveCmpInst ty = case tNoUser ty of
 
   -- Cmp Integer
   TCon (TC TCInteger) [] -> SolvedIf []
+
+  -- Cmp Rational
+  TCon (TC TCRational) [] -> SolvedIf []
 
   -- Cmp (Z n)
   TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
@@ -225,6 +234,9 @@ solveLiteralInst val ty
 
       -- (fin val) => Literal val Integer
       TCon (TC TCInteger) [] -> SolvedIf [ pFin val ]
+
+      -- (fin val) => Literal val Rational
+      TCon (TC TCRational) [] -> SolvedIf [ pFin val ]
 
       -- (fin val, fin m, m >= val + 1) => Literal val (Z m)
       TCon (TC TCIntMod) [modulus] ->

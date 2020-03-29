@@ -52,6 +52,7 @@ builtInType nm =
       "inf"               ~> TC TCInf
     , "Bit"               ~> TC TCBit
     , "Integer"           ~> TC TCInteger
+    , "Rational"          ~> TC TCRational
     , "Z"                 ~> TC TCIntMod
 
       -- Predicate contstructors
@@ -62,6 +63,7 @@ builtInType nm =
     , "Zero"              ~> PC PZero
     , "Logic"             ~> PC PLogic
     , "Arith"             ~> PC PArith
+    , "Field"             ~> PC PField
     , "Cmp"               ~> PC PCmp
     , "SignedCmp"         ~> PC PSignedCmp
     , "Literal"           ~> PC PLiteral
@@ -114,6 +116,7 @@ instance HasKind TC where
       TCInf     -> KNum
       TCBit     -> KType
       TCInteger -> KType
+      TCRational -> KType
       TCIntMod  -> KNum :-> KType
       TCSeq     -> KNum :-> KType :-> KType
       TCFun     -> KType :-> KType :-> KType
@@ -132,6 +135,7 @@ instance HasKind PC where
       PZero      -> KType :-> KProp
       PLogic     -> KType :-> KProp
       PArith     -> KType :-> KProp
+      PField     -> KType :-> KProp
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
       PLiteral   -> KNum :-> KType :-> KProp
@@ -175,6 +179,7 @@ data PC     = PEqual        -- ^ @_ == _@
             | PZero         -- ^ @Zero _@
             | PLogic        -- ^ @Logic _@
             | PArith        -- ^ @Arith _@
+            | PField        -- ^ @Field _@
             | PCmp          -- ^ @Cmp _@
             | PSignedCmp    -- ^ @SignedCmp _@
             | PLiteral      -- ^ @Literal _ _@
@@ -190,6 +195,7 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCBit                    -- ^ Bit
             | TCInteger                -- ^ Integer
             | TCIntMod                 -- ^ @Z _@
+            | TCRational               -- ^ @Rational@
             | TCSeq                    -- ^ @[_] _@
             | TCFun                    -- ^ @_ -> _@
             | TCTuple Int              -- ^ @(_, _, _)@
@@ -272,6 +278,7 @@ instance PP PC where
       PZero      -> text "Zero"
       PLogic     -> text "Logic"
       PArith     -> text "Arith"
+      PField     -> text "Field"
       PCmp       -> text "Cmp"
       PSignedCmp -> text "SignedCmp"
       PLiteral   -> text "Literal"
@@ -286,6 +293,7 @@ instance PP TC where
       TCBit     -> text "Bit"
       TCInteger -> text "Integer"
       TCIntMod  -> text "Z"
+      TCRational -> text "Rational"
       TCSeq     -> text "[]"
       TCFun     -> text "(->)"
       TCTuple 0 -> text "()"

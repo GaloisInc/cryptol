@@ -478,6 +478,9 @@ tBit      = TCon (TC TCBit) []
 tInteger :: Type
 tInteger  = TCon (TC TCInteger) []
 
+tRational :: Type
+tRational  = TCon (TC TCRational) []
+
 tIntMod :: Type -> Type
 tIntMod n = TCon (TC TCIntMod) [n]
 
@@ -584,6 +587,9 @@ pLogic t = TCon (PC PLogic) [t]
 
 pArith :: Type -> Prop
 pArith t = TCon (PC PArith) [t]
+
+pField :: Type -> Prop
+pField t = TCon (PC PField) [t]
 
 pCmp :: Type -> Prop
 pCmp t = TCon (PC PCmp) [t]
@@ -772,6 +778,8 @@ instance PP (WithNames Type) where
           (TCInf,   [])       -> text "inf"
           (TCBit,   [])       -> text "Bit"
           (TCInteger, [])     -> text "Integer"
+          (TCRational, [])    -> text "Rational"
+
           (TCIntMod, [n])     -> optParens (prec > 3) $ text "Z" <+> go 4 n
 
           (TCSeq,   [t1,TCon (TC TCBit) []]) -> brackets (go 0 t1)
@@ -795,6 +803,7 @@ instance PP (WithNames Type) where
                                <+> go 0 t1 <+> text "is" <+> go 0 t2
 
           (PArith, [t1])      -> pp pc <+> go 4 t1
+          (PField, [t1])      -> pp pc <+> go 4 t1
           (PCmp, [t1])        -> pp pc <+> go 4 t1
           (PSignedCmp, [t1])  -> pp pc <+> go 4 t1
           (PLiteral, [t1,t2]) -> pp pc <+> go 4 t1 <+> go 4 t2

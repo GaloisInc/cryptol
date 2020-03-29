@@ -103,6 +103,7 @@ data FinType
     = FTBit
     | FTInteger
     | FTIntMod Integer
+    | FTRational
     | FTSeq Int FinType
     | FTTuple [FinType]
     | FTRecord [(Ident, FinType)]
@@ -121,6 +122,7 @@ finType ty =
     TVBit            -> Just FTBit
     TVInteger        -> Just FTInteger
     TVIntMod n       -> Just (FTIntMod n)
+    TVRational       -> Just FTRational
     TVSeq n t        -> FTSeq <$> numType n <*> finType t
     TVTuple ts       -> FTTuple <$> traverse finType ts
     TVRec fields     -> FTRecord <$> traverse (traverseSnd finType) fields
@@ -133,6 +135,7 @@ unFinType fty =
     FTBit        -> tBit
     FTInteger    -> tInteger
     FTIntMod n   -> tIntMod (tNum n)
+    FTRational   -> tRational
     FTSeq l ety  -> tSeq (tNum l) (unFinType ety)
     FTTuple ftys -> tTuple (unFinType <$> ftys)
     FTRecord fs  -> tRec (zip fns tys)

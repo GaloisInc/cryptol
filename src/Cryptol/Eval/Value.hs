@@ -43,6 +43,7 @@ module Cryptol.Eval.Value
     -- ** Value eliminators
   , fromVBit
   , fromVInteger
+  , fromVRational
   , fromVSeq
   , fromSeq
   , fromWordVal
@@ -295,6 +296,7 @@ data GenValue sym
   | VTuple ![SEval sym (GenValue sym)]              -- ^ @ ( .. ) @
   | VBit !(SBit sym)                           -- ^ @ Bit    @
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
+  | VRational !(SRational sym)                 -- ^ @ Rational @
   | VSeq !Integer !(SeqMap sym)                -- ^ @ [n]a   @
                                                --   Invariant: VSeq is never a sequence of bits
   | VWord !Integer !(SEval sym (WordValue sym))  -- ^ @ [n]Bit @
@@ -318,6 +320,7 @@ forceValue v = case v of
   VSeq n xs   -> mapM_ (forceValue =<<) (enumerateSeqMap n xs)
   VBit b      -> seq b (return ())
   VInteger i  -> seq i (return ())
+  VRational q -> seq q (return ())
   VWord _ wv  -> forceWordValue =<< wv
   VStream _   -> return ()
   VFun _      -> return ()
@@ -331,6 +334,7 @@ instance Backend sym => Show (GenValue sym) where
     VTuple xs  -> "tuple:" ++ show (length xs)
     VBit _     -> "bit"
     VInteger _ -> "integer"
+    VRational _ -> "rational"
     VSeq n _   -> "seq:" ++ show n
     VWord n _  -> "word:"  ++ show n
     VStream _  -> "stream"
@@ -359,6 +363,7 @@ ppValue x opts = loop
                              return $ parens (sep (punctuate comma vals'))
     VBit b             -> return $ ppBit x b
     VInteger i         -> return $ ppInteger x opts i
+    VRational q        -> return $ ppRational x opts q
     VSeq sz vals       -> ppWordSeq sz vals
     VWord _ wv         -> ppWordVal =<< wv
     VStream vals       -> do vals' <- traverse (>>=loop) $ enumerateSeqMap (useInfLength opts) vals
@@ -460,6 +465,12 @@ fromVInteger :: GenValue sym -> SInteger sym
 fromVInteger val = case val of
   VInteger i -> i
   _      -> evalPanic "fromVInteger" ["not an Integer"]
+
+-- | Extract a rational value.
+fromVRational :: GenValue sym -> SRational sym
+fromVRational val = case val of
+  VRational q -> q
+  _      -> evalPanic "fromVRational" ["not a Rational"]
 
 -- | Extract a finite sequence value.
 fromVSeq :: GenValue sym -> SeqMap sym

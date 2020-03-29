@@ -28,6 +28,7 @@ import Control.Monad.IO.Class
 import Control.Monad (replicateM, when, zipWithM, foldM)
 import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
 import Data.List (intercalate, genericLength)
+import Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import qualified Control.Exception as X
 
@@ -40,6 +41,7 @@ import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
 import qualified Cryptol.ModuleSystem.Monad as M
 
+import qualified Cryptol.Eval.Backend as Eval
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
@@ -259,6 +261,11 @@ parseValue FTInteger cvs =
     Just (x, cvs') -> (Eval.VInteger x, cvs')
     Nothing        -> panic "Cryptol.Symbolic.parseValue" [ "no integer" ]
 parseValue (FTIntMod _) cvs = parseValue FTInteger cvs
+parseValue FTRational cvs =
+  fromMaybe (panic "Cryptol.Symbolic.parseValue" ["no rational"]) $
+  do (n,cvs')  <- SBV.genParse SBV.KUnbounded cvs
+     (d,cvs'') <- SBV.genParse SBV.KUnbounded cvs'
+     return (Eval.VRational (Eval.SRational n d), cvs'')
 parseValue (FTSeq 0 FTBit) cvs = (Eval.word Concrete 0 0, cvs)
 parseValue (FTSeq n FTBit) cvs =
   case SBV.genParse (SBV.KBounded False n) cvs of
@@ -288,6 +295,12 @@ forallFinType ty =
   case ty of
     FTBit         -> Eval.VBit <$> lift forallSBool_
     FTInteger     -> Eval.VInteger <$> lift forallSInteger_
+    FTRational    ->
+      do n <- lift forallSInteger_
+         d <- lift forallSInteger_
+         let z = SBV.svInteger SBV.KUnbounded 0
+         tell [SBV.svLessThan z d]
+         return (Eval.VRational (Eval.SRational n d))
     FTIntMod n    -> do x <- lift forallSInteger_
                         tell [inBoundsIntMod n x]
                         return (Eval.VInteger x)
@@ -303,6 +316,12 @@ existsFinType ty =
   case ty of
     FTBit         -> Eval.VBit <$> lift existsSBool_
     FTInteger     -> Eval.VInteger <$> lift existsSInteger_
+    FTRational    ->
+      do n <- lift existsSInteger_
+         d <- lift existsSInteger_
+         let z = SBV.svInteger SBV.KUnbounded 0
+         tell [SBV.svLessThan z d]
+         return (Eval.VRational (Eval.SRational n d))
     FTIntMod n    -> do x <- lift existsSInteger_
                         tell [inBoundsIntMod n x]
                         return (Eval.VInteger x)

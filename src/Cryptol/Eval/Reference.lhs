@@ -65,6 +65,7 @@ are as follows:
 |:----------------- |:-------------- |:--------------------------- |
 | `Bit`             | booleans       | `TVBit`                     |
 | `Integer`         | integers       | `TVInteger`                 |
+| `Rational`        | rationals      | `TVRational`                |
 | `[n]a`            | finite lists   | `TVSeq n a`                 |
 | `[inf]a`          | infinite lists | `TVStream a`                |
 | `(a, b, c)`       | tuples         | `TVTuple [a,b,c]`           |
@@ -117,6 +118,7 @@ terms by providing an evaluator to an appropriate `Value` type.
 > data Value
 >   = VBit (Either EvalError Bool) -- ^ @ Bit    @ booleans
 >   | VInteger (Either EvalError Integer) -- ^ @ Integer @ integers
+>   | VRational (Either EvalError Rational) -- ^ @ Rational @ rationals
 >   | VList Nat' [Value]           -- ^ @ [n]a   @ finite or infinite lists
 >   | VTuple [Value]               -- ^ @ ( .. ) @ tuples
 >   | VRecord [(Ident, Value)]     -- ^ @ { .. } @ records
@@ -125,8 +127,8 @@ terms by providing an evaluator to an appropriate `Value` type.
 >   | VNumPoly (Nat' -> Value)     -- ^ polymorphic values (kind #)
 
 Invariant: Undefinedness and run-time exceptions are only allowed
-inside the argument of a `VBit` or `VInteger` constructor. All other
-`Value` and list constructors should evaluate without error. For
+inside the argument of a `VBit`, `VInteger` or `VRational` constructor.
+All other `Value` and list constructors should evaluate without error. For
 example, a non-terminating computation at type `(Bit,Bit)` must be
 represented as `VTuple [VBit undefined, VBit undefined]`, and not
 simply as `undefined`. Similarly, an expression like `1/0:[2]` that
@@ -170,6 +172,7 @@ cpo that represents any given schema.
 >         TVBit        -> VBit (fromVBit val)
 >         TVInteger    -> VInteger (fromVInteger val)
 >         TVIntMod _   -> VInteger (fromVInteger val)
+>         TVRational   -> VRational (fromVRational val)
 >         TVSeq w ety  -> VList (Nat w) (map (go ety) (copyList w (fromVList val)))
 >         TVStream ety -> VList Inf (map (go ety) (copyStream (fromVList val)))
 >         TVTuple etys -> VTuple (zipWith go etys (copyList (genericLength etys) (fromVTuple val)))
@@ -196,6 +199,11 @@ Operations on Values
 > fromVInteger :: Value -> Either EvalError Integer
 > fromVInteger (VInteger i) = i
 > fromVInteger _            = evalPanic "fromVInteger" ["Expected an integer"]
+>
+> -- | Destructor for @VRational@.
+> fromVRational :: Value -> Either EvalError Rational
+> fromVRational (VRational i) = i
+> fromVRational _            = evalPanic "fromVRational" ["Expected a rational"]
 >
 > -- | Destructor for @VList@.
 > fromVList :: Value -> [Value]
@@ -396,6 +404,7 @@ down to the individual bits.
 >   case l of
 >     VBit b     -> VBit (condBit c b (fromVBit r))
 >     VInteger i -> VInteger (condBit c i (fromVInteger r))
+>     VRational x -> VRational (condBit c x (fromVRational r))
 >     VList n vs -> VList n (zipWith (condValue c) vs (fromVList r))
 >     VTuple vs  -> VTuple (zipWith (condValue c) vs (fromVTuple r))
 >     VRecord fs -> VRecord [ (f, condValue c v (lookupRecord f r)) | (f, v) <- fs ]
@@ -749,6 +758,7 @@ at the same positions.
 >   where
 >     go TVBit          = VBit b
 >     go TVInteger      = VInteger (fmap (\c -> if c then -1 else 0) b)
+>     go TVRational     = VRational (fmap (\c -> if c then -1 else 0) b)
 >     go (TVIntMod _)   = VInteger (fmap (const 0) b)
 >     go (TVSeq n ety)  = VList (Nat n) (genericReplicate n (go ety))
 >     go (TVStream ety) = VList Inf (repeat (go ety))
@@ -767,6 +777,7 @@ at the same positions.
 >         TVBit        -> VBit (fmap op (fromVBit val))
 >         TVInteger    -> evalPanic "logicUnary" ["Integer not in class Logic"]
 >         TVIntMod _   -> evalPanic "logicUnary" ["Z not in class Logic"]
+>         TVRational   -> evalPanic "logicUnary" ["Rational not in class Logic"]
 >         TVSeq w ety  -> VList (Nat w) (map (go ety) (fromVList val))
 >         TVStream ety -> VList Inf (map (go ety) (fromVList val))
 >         TVTuple etys -> VTuple (zipWith go etys (fromVTuple val))
@@ -784,6 +795,7 @@ at the same positions.
 >         TVBit        -> VBit (liftA2 op (fromVBit l) (fromVBit r))
 >         TVInteger    -> evalPanic "logicBinary" ["Integer not in class Logic"]
 >         TVIntMod _   -> evalPanic "logicBinary" ["Z not in class Logic"]
+>         TVRational   -> evalPanic "logicUnary" ["Rational not in class Logic"]
 >         TVSeq w ety  -> VList (Nat w) (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVStream ety -> VList Inf (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVTuple etys -> VTuple (zipWith3 go etys (fromVTuple l) (fromVTuple r))
@@ -818,6 +830,8 @@ up of non-empty finite bitvectors.
 >           VInteger i
 >         TVIntMod n ->
 >           VInteger (flip mod n <$> i)
+>         TVRational ->
+>           VRational (fmap fromInteger i)
 >         TVSeq w a
 >           | isTBit a  -> vWord w i
 >           | otherwise -> VList (Nat w) (genericReplicate w (go a))
