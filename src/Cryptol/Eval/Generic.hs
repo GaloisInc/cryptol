@@ -51,6 +51,7 @@ mkLit sym ty i =
       | m == 0                   -> evalPanic "mkLit" ["0 modulus not allowed"]
       | otherwise                -> VInteger <$> integerLit sym (i `mod` m)
     TVSeq w TVBit                -> pure $ word sym w i
+    TVRational                   -> VRational <$> (intToRational sym =<< integerLit sym i)
     _                            -> evalPanic "Cryptol.Eval.Prim.evalConst"
                                     [ "Invalid type for number" ]
 
@@ -74,7 +75,7 @@ ecNumberV sym =
 {-# SPECIALIZE intV :: Concrete -> Integer -> TValue -> Eval (GenValue Concrete)
   #-}
 intV :: Backend sym => sym -> SInteger sym -> TValue -> SEval sym (GenValue sym)
-intV sym i = ringNullary sym (\w -> wordFromInt sym w i) (pure i) (\m -> intToZn sym m i)
+intV sym i = ringNullary sym (\w -> wordFromInt sym w i) (pure i) (\m -> intToZn sym m i) (intToRational sym i)
 
 -- Operation Lifting -----------------------------------------------------------
 
@@ -104,6 +105,7 @@ type BinWord sym = Integer -> SWord sym -> SWord sym -> SEval sym (SWord sym)
 {-# SPECIALIZE ringBinary :: Concrete -> BinWord Concrete ->
       (SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
       (Integer -> SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
+      (SRational Concrete -> SRational Concrete -> SEval Concrete (SRational Concrete)) ->
       Binary Concrete
   #-}
 
@@ -113,8 +115,9 @@ ringBinary :: forall sym.
   BinWord sym ->
   (SInteger sym -> SInteger sym -> SEval sym (SInteger sym)) ->
   (Integer -> SInteger sym -> SInteger sym -> SEval sym (SInteger sym)) ->
+  (SRational sym -> SRational sym -> SEval sym (SRational sym)) ->
   Binary sym
-ringBinary sym opw opi opz = loop
+ringBinary sym opw opi opz opq = loop
   where
   loop' :: TValue
         -> SEval sym (GenValue sym)
@@ -135,6 +138,9 @@ ringBinary sym opw opi opz = loop
 
     TVIntMod n ->
       VInteger <$> opz n (fromVInteger l) (fromVInteger r)
+
+    TVRational ->
+      VRational <$> opq (fromVRational l) (fromVRational r)
 
     TVSeq w a
       -- words and finite sequences
@@ -181,6 +187,7 @@ type UnaryWord sym = Integer -> SWord sym -> SEval sym (SWord sym)
   UnaryWord Concrete ->
   (SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
   (Integer -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
+  (SRational Concrete -> SEval Concrete (SRational Concrete)) ->
   Unary Concrete
   #-}
 ringUnary :: forall sym.
@@ -189,8 +196,9 @@ ringUnary :: forall sym.
   UnaryWord sym ->
   (SInteger sym -> SEval sym (SInteger sym)) ->
   (Integer -> SInteger sym -> SEval sym (SInteger sym)) ->
+  (SRational sym -> SEval sym (SRational sym)) ->
   Unary sym
-ringUnary sym opw opi opz = loop
+ringUnary sym opw opi opz opq = loop
   where
   loop' :: TValue -> SEval sym (GenValue sym) -> SEval sym (GenValue sym)
   loop' ty v = loop ty =<< v
@@ -206,6 +214,9 @@ ringUnary sym opw opi opz = loop
 
     TVIntMod n ->
       VInteger <$> opz n (fromVInteger v)
+
+    TVRational ->
+      VRational <$> opq (fromVRational v)
 
     TVSeq w a
       -- words and finite sequences
@@ -241,6 +252,7 @@ ringUnary sym opw opi opz = loop
   (Integer -> SEval Concrete (SWord Concrete)) ->
   SEval Concrete (SInteger Concrete) ->
   (Integer -> SEval Concrete (SInteger Concrete)) ->
+  SEval Concrete (SRational Concrete) ->
   TValue ->
   SEval Concrete (GenValue Concrete)
   #-}
@@ -251,9 +263,10 @@ ringNullary :: forall sym.
   (Integer -> SEval sym (SWord sym)) ->
   SEval sym (SInteger sym) ->
   (Integer -> SEval sym (SInteger sym)) ->
+  SEval sym (SRational sym) ->
   TValue ->
   SEval sym (GenValue sym)
-ringNullary sym opw opi opz = loop
+ringNullary sym opw opi opz opq = loop
   where
     loop :: TValue -> SEval sym (GenValue sym)
     loop ty =
@@ -263,6 +276,8 @@ ringNullary sym opw opi opz = loop
         TVInteger -> VInteger <$> opi
 
         TVIntMod n -> VInteger <$> opz n
+
+        TVRational -> VRational <$> opq
 
         TVSeq w a
           -- words and finite sequences
@@ -338,35 +353,39 @@ fromIntegerV sym =
 
 {-# INLINE addV #-}
 addV :: Backend sym => sym -> Binary sym
-addV sym = ringBinary sym opw opi opz
+addV sym = ringBinary sym opw opi opz opq
   where
     opw _w x y = wordPlus sym x y
     opi x y = intPlus sym x y
     opz m x y = znPlus sym m x y
+    opq x y = rationalAdd sym x y
 
 {-# INLINE subV #-}
 subV :: Backend sym => sym -> Binary sym
-subV sym = ringBinary sym opw opi opz
+subV sym = ringBinary sym opw opi opz opq
   where
     opw _w x y = wordMinus sym x y
     opi x y = intMinus sym x y
     opz m x y = znMinus sym m x y
+    opq x y = rationalSub sym x y
 
 {-# INLINE negateV #-}
 negateV :: Backend sym => sym -> Unary sym
-negateV sym = ringUnary sym opw opi opz
+negateV sym = ringUnary sym opw opi opz opq
   where
     opw _w x = wordNegate sym x
     opi x = intNegate sym x
     opz m x = znNegate sym m x
+    opq x = rationalNegate sym x
 
 {-# INLINE mulV #-}
 mulV :: Backend sym => sym -> Binary sym
-mulV sym = ringBinary sym opw opi opz
+mulV sym = ringBinary sym opw opi opz opq
   where
     opw _w x y = wordMult sym x y
     opi x y = intMult sym x y
     opz m x y = znMult sym m x y
+    opq x y = rationalMul sym x y
 
 --------------------------------------------------
 -- Integral
@@ -387,8 +406,7 @@ modV sym = integralBinary sym opw opi opz
     opi x y = intMod sym x y
     opz m x y = znMod sym m x y
 
-{-# SPECIALIZE toIntegerV :: Concrete -> GenValue Concrete
-  #-}
+{-# SPECIALIZE toIntegerV :: Concrete -> GenValue Concrete #-}
 -- | Convert a word to a non-negative integer.
 toIntegerV :: Backend sym => sym -> GenValue sym
 toIntegerV sym =
@@ -401,6 +419,37 @@ toIntegerV sym =
         VInteger <$> (znToInt sym m . fromVInteger =<< v)
       TVInteger -> v
       _ -> evalPanic "toInteger" [show a ++ " not in class `Integral`"]
+
+{-# SPECIALIZE recipV :: Concrete -> GenValue Concrete #-}
+recipV :: Backend sym => sym -> GenValue sym
+recipV sym =
+  tlam $ \a ->
+  lam $ \x ->
+    case a of
+      TVRational -> VRational <$> (rationalRecip sym . fromVRational =<< x)
+      _ -> evalPanic "recip"  [show a ++ "is not a Field"]
+
+{-# SPECIALIZE fieldDivideV :: Concrete -> GenValue Concrete #-}
+fieldDivideV :: Backend sym => sym -> GenValue sym
+fieldDivideV sym =
+  tlam $ \a ->
+  lam $ \x -> return $
+  lam $ \y ->
+    case a of
+      TVRational ->
+        do x' <- fromVRational <$> x
+           y' <- fromVRational <$> y
+           VRational <$> rationalDivide sym x' y'
+      _ -> evalPanic "recip"  [show a ++ "is not a Field"]
+
+{-# SPECIALIZE ratioV :: Concrete -> GenValue Concrete #-}
+ratioV :: Backend sym => sym -> GenValue sym
+ratioV sym =
+  lam $ \x -> return $
+  lam $ \y ->
+    do x' <- fromVInteger <$> x
+       y' <- fromVInteger <$> y
+       VRational <$> ratio sym x' y'
 
 --------------------------------------------------------------
 -- Logic
@@ -454,6 +503,7 @@ smodV sym  =
   (SWord Concrete -> SWord Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (SInteger Concrete -> SInteger Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (Integer -> SInteger Concrete -> SInteger Concrete -> SEval Concrete a -> SEval Concrete a) ->
+  (SRational Concrete -> SRational Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (TValue -> GenValue Concrete -> GenValue Concrete -> SEval Concrete a -> SEval Concrete a)
   #-}
 
@@ -464,14 +514,16 @@ cmpValue ::
   (SWord sym -> SWord sym -> SEval sym a -> SEval sym a) ->
   (SInteger sym -> SInteger sym -> SEval sym a -> SEval sym a) ->
   (Integer -> SInteger sym -> SInteger sym -> SEval sym a -> SEval sym a) ->
+  (SRational sym -> SRational sym -> SEval sym a -> SEval sym a) ->
   (TValue -> GenValue sym -> GenValue sym -> SEval sym a -> SEval sym a)
-cmpValue sym fb fw fi fz = cmp
+cmpValue sym fb fw fi fz fq = cmp
   where
     cmp ty v1 v2 k =
       case ty of
         TVBit         -> fb (fromVBit v1) (fromVBit v2) k
         TVInteger     -> fi (fromVInteger v1) (fromVInteger v2) k
         TVIntMod n    -> fz n (fromVInteger v1) (fromVInteger v2) k
+        TVRational    -> fq (fromVRational v1) (fromVRational v2) k
         TVSeq n t
           | isTBit t  -> do w1 <- fromVWord sym "cmpValue" v1
                             w2 <- fromVWord sym "cmpValue" v2
@@ -512,32 +564,35 @@ bitGreaterThan sym x y = bitLessThan sym y x
 
 {-# INLINE valEq #-}
 valEq :: Backend sym => sym -> TValue -> GenValue sym -> GenValue sym -> SEval sym (SBit sym)
-valEq sym ty v1 v2 = cmpValue sym fb fw fi fz ty v1 v2 (pure $ bitLit sym True)
+valEq sym ty v1 v2 = cmpValue sym fb fw fi fz fq ty v1 v2 (pure $ bitLit sym True)
   where
   fb x y k   = eqCombine sym (bitEq  sym x y) k
   fw x y k   = eqCombine sym (wordEq sym x y) k
   fi x y k   = eqCombine sym (intEq  sym x y) k
   fz m x y k = eqCombine sym (znEq sym m x y) k
+  fq x y k   = eqCombine sym (rationalEq sym x y) k
 
 {-# INLINE valLt #-}
 valLt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
-valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
+valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz fq ty v1 v2 (pure final)
   where
   fb x y k   = lexCombine sym (bitLessThan  sym x y) (bitEq  sym x y) k
   fw x y k   = lexCombine sym (wordLessThan sym x y) (wordEq sym x y) k
   fi x y k   = lexCombine sym (intLessThan  sym x y) (intEq  sym x y) k
   fz m x y k = lexCombine sym (znLessThan sym m x y) (znEq sym m x y) k
+  fq x y k   = lexCombine sym (rationalLessThan sym x y) (rationalEq sym x y) k
 
 {-# INLINE valGt #-}
 valGt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
-valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
+valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz fq ty v1 v2 (pure final)
   where
   fb x y k   = lexCombine sym (bitGreaterThan  sym x y) (bitEq  sym x y) k
   fw x y k   = lexCombine sym (wordGreaterThan sym x y) (wordEq sym x y) k
   fi x y k   = lexCombine sym (intGreaterThan  sym x y) (intEq  sym x y) k
   fz m x y k = lexCombine sym (znGreaterThan sym m x y) (znEq sym m x y) k
+  fq x y k   = lexCombine sym (rationalGreaterThan sym x y) (rationalEq sym x y) k
 
 {-# INLINE eqCombine #-}
 eqCombine :: Backend sym =>
@@ -585,12 +640,13 @@ greaterThanEqV sym ty v1 v2 = VBit <$> valGt sym ty v1 v2 (bitLit sym True)
 
 {-# INLINE signedLessThanV #-}
 signedLessThanV :: Backend sym => sym -> Binary sym
-signedLessThanV sym ty v1 v2 = VBit <$> cmpValue sym fb fw fi fz ty v1 v2 (pure $ bitLit sym False)
+signedLessThanV sym ty v1 v2 = VBit <$> cmpValue sym fb fw fi fz fq ty v1 v2 (pure $ bitLit sym False)
   where
   fb _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on bit type"]
   fw x y k   = lexCombine sym (wordSignedLessThan sym x y) (wordEq sym x y) k
   fi _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on Integer type"]
   fz m _ _ _ = panic "signedLessThan" ["Attempted to perform signed comparison on Z_" ++ show m ++ " type"]
+  fq _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on Rational type"]
 
 
 
@@ -617,6 +673,9 @@ zeroV sym ty = case ty of
   -- integers mod n
   TVIntMod _ ->
     VInteger <$> integerLit sym 0
+
+  TVRational ->
+    VRational <$> (intToRational sym =<< integerLit sym 0)
 
   -- sequences
   TVSeq w ety
@@ -1020,6 +1079,7 @@ logicBinary sym opb opw = loop
     TVBit -> VBit <$> (opb (fromVBit l) (fromVBit r))
     TVInteger -> evalPanic "logicBinary" ["Integer not in class Logic"]
     TVIntMod _ -> evalPanic "logicBinary" ["Z not in class Logic"]
+    TVRational -> evalPanic "logicBinary" ["Rational not in class Logic"]
     TVSeq w aty
          -- words
          | isTBit aty
@@ -1095,6 +1155,7 @@ logicUnary sym opb opw = loop
 
     TVInteger -> evalPanic "logicUnary" ["Integer not in class Logic"]
     TVIntMod _ -> evalPanic "logicUnary" ["Z not in class Logic"]
+    TVRational -> evalPanic "logicBinary" ["Rational not in class Logic"]
 
     TVSeq w ety
          -- words
@@ -1501,6 +1562,7 @@ errorV sym ty msg = case ty of
   TVBit -> cryUserError sym msg
   TVInteger -> cryUserError sym msg
   TVIntMod _ -> cryUserError sym msg
+  TVRational -> cryUserError sym msg
 
   -- sequences
   TVSeq w ety
@@ -1594,18 +1656,19 @@ mergeValue :: Backend sym =>
   SEval sym (GenValue sym)
 mergeValue sym c v1 v2 =
   case (v1, v2) of
-    (VRecord fs1, VRecord fs2)  | Map.keys fs1 == Map.keys fs2 ->
+    (VRecord fs1 , VRecord fs2 )  | Map.keys fs1 == Map.keys fs2 ->
                                   pure $ VRecord $ Map.intersectionWith (mergeValue' sym c) fs1 fs2
-    (VTuple vs1 , VTuple vs2 ) | length vs1 == length vs2  ->
+    (VTuple vs1  , VTuple vs2  ) | length vs1 == length vs2  ->
                                   pure $ VTuple $ zipWith (mergeValue' sym c) vs1 vs2
-    (VBit b1    , VBit b2    ) -> VBit <$> iteBit sym c b1 b2
-    (VInteger i1, VInteger i2) -> VInteger <$> iteInteger sym c i1 i2
-    (VWord n1 w1, VWord n2 w2 ) | n1 == n2 -> pure $ VWord n1 $ mergeWord' sym c w1 w2
-    (VSeq n1 vs1, VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap (mergeSeqMap sym c vs1 vs2)
-    (VStream vs1, VStream vs2) -> VStream <$> memoMap (mergeSeqMap sym c vs1 vs2)
-    (VFun f1    , VFun f2    ) -> pure $ VFun $ \x -> mergeValue' sym c (f1 x) (f2 x)
-    (VPoly f1   , VPoly f2   ) -> pure $ VPoly $ \x -> mergeValue' sym c (f1 x) (f2 x)
-    (_          , _          ) -> panic "Cryptol.Eval.Generic"
+    (VBit b1     , VBit b2     ) -> VBit <$> iteBit sym c b1 b2
+    (VInteger i1 , VInteger i2 ) -> VInteger <$> iteInteger sym c i1 i2
+    (VRational q1, VRational q2) -> VRational <$> iteRational sym c q1 q2
+    (VWord n1 w1 , VWord n2 w2 ) | n1 == n2 -> pure $ VWord n1 $ mergeWord' sym c w1 w2
+    (VSeq n1 vs1 , VSeq n2 vs2 ) | n1 == n2 -> VSeq n1 <$> memoMap (mergeSeqMap sym c vs1 vs2)
+    (VStream vs1 , VStream vs2 ) -> VStream <$> memoMap (mergeSeqMap sym c vs1 vs2)
+    (VFun f1     , VFun f2     ) -> pure $ VFun $ \x -> mergeValue' sym c (f1 x) (f2 x)
+    (VPoly f1    , VPoly f2    ) -> pure $ VPoly $ \x -> mergeValue' sym c (f1 x) (f2 x)
+    (_           , _           ) -> panic "Cryptol.Eval.Generic"
                                   [ "mergeValue: incompatible values" ]
 
 {-# INLINE mergeSeqMap #-}

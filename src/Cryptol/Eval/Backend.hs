@@ -6,6 +6,23 @@ module Cryptol.Eval.Backend
   , invalidIndex
   , cryUserError
   , cryNoPrimError
+
+    -- * Rationals
+  , SRational(..)
+  , intToRational
+  , ratio
+  , rationalAdd
+  , rationalSub
+  , rationalNegate
+  , rationalMul
+  , rationalRecip
+  , rationalDivide
+  , rationalFloor
+  , rationalEq
+  , rationalLessThan
+  , rationalGreaterThan
+  , iteRational
+  , ppRational
   ) where
 
 import Control.Monad.IO.Class
@@ -35,6 +52,101 @@ sDelay sym msg m =
   let msg'  = maybe "" ("while evaluating "++) msg
       retry = raiseError sym (LoopError msg')
    in sDelayFill sym m retry
+
+
+-- | Representation of rational numbers.
+--     Invariant: denominator is not 0
+data SRational sym =
+  SRational
+  { sNum :: SInteger sym
+  , sDenom :: SInteger sym
+  }
+
+intToRational :: Backend sym => sym -> SInteger sym -> SEval sym (SRational sym)
+intToRational sym x = SRational x <$> (integerLit sym 1)
+
+ratio :: Backend sym => sym -> SInteger sym -> SInteger sym -> SEval sym (SRational sym)
+ratio sym n d =
+  do pz  <- bitComplement sym =<< intEq sym d =<< integerLit sym 0
+     assertSideCondition sym pz DivideByZero
+     pure (SRational n d)
+
+rationalRecip :: Backend sym => sym -> SRational sym -> SEval sym (SRational sym)
+rationalRecip sym (SRational a b) = ratio sym b a
+
+rationalDivide :: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
+rationalDivide sym x y = rationalMul sym x =<< rationalRecip sym y
+
+rationalFloor :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
+ -- NB, relies on integer division being round-to-negative-inf division
+rationalFloor sym (SRational n d) = intDiv sym n d
+
+rationalAdd :: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
+rationalAdd sym (SRational a b) (SRational c d) =
+  do ad <- intMult sym a d
+     bc <- intMult sym b c
+     bd <- intMult sym b d
+     ad_bc <- intPlus sym ad bc
+     pure (SRational ad_bc bd)
+
+rationalSub :: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
+rationalSub sym (SRational a b) (SRational c d) =
+  do ad <- intMult sym a d
+     bc <- intMult sym b c
+     bd <- intMult sym b d
+     ad_bc <- intMinus sym ad bc
+     pure (SRational ad_bc bd)
+
+rationalNegate :: Backend sym => sym -> SRational sym -> SEval sym (SRational sym)
+rationalNegate sym (SRational a b) =
+  do aneg <- intNegate sym a
+     pure (SRational aneg b)
+
+rationalMul :: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
+rationalMul sym (SRational a b) (SRational c d) =
+  do ac <- intMult sym a c
+     bd <- intMult sym b d
+     pure (SRational ac bd)
+
+rationalEq :: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SBit sym)
+rationalEq sym (SRational a b) (SRational c d) =
+  do ad <- intMult sym a d
+     bc <- intMult sym b c
+     intEq sym ad bc
+
+normalizeSign :: Backend sym => sym -> SRational sym -> SEval sym (SRational sym)
+normalizeSign sym (SRational a b) =
+  do p <- intLessThan sym b =<< integerLit sym 0
+     case bitAsLit sym p of
+       Just False -> pure (SRational a b)
+       Just True  ->
+         do aneg <- intNegate sym a
+            bneg <- intNegate sym b
+            pure (SRational aneg bneg)
+       Nothing ->
+         do aneg <- intNegate sym a
+            bneg <- intNegate sym b
+            a' <- iteInteger sym p aneg a
+            b' <- iteInteger sym p bneg b
+            pure (SRational a' b')
+
+rationalLessThan:: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SBit sym)
+rationalLessThan sym x y =
+  do SRational a b <- normalizeSign sym x
+     SRational c d <- normalizeSign sym y
+     ad <- intMult sym a d
+     bc <- intMult sym b c
+     intLessThan sym ad bc
+
+rationalGreaterThan:: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SBit sym)
+rationalGreaterThan sym = flip (rationalLessThan sym)
+
+iteRational :: Backend sym => sym -> SBit sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
+iteRational sym p (SRational a b) (SRational c d) =
+  SRational <$> iteInteger sym p a c <*> iteInteger sym p b d
+
+ppRational :: Backend sym => sym -> PPOpts -> SRational sym -> Doc
+ppRational sym opts (SRational n d) = text "(ratio" <+> ppInteger sym opts n <+> (ppInteger sym opts d <> text ")")
 
 -- | This type class defines a collection of operations on bits, words and integers that
 --   are necessary to define generic evaluator primitives that operate on both concrete
@@ -89,7 +201,6 @@ class MonadIO (SEval sym) => Backend sym where
 
   -- | Pretty-print an integer value
   ppInteger :: sym -> PPOpts -> SInteger sym -> Doc
-
 
   -- ==== Identifying literal values ====
 

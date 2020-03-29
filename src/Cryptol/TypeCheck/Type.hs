@@ -501,6 +501,9 @@ tBit      = TCon (TC TCBit) []
 tInteger :: Type
 tInteger  = TCon (TC TCInteger) []
 
+tRational :: Type
+tRational  = TCon (TC TCRational) []
+
 tIntMod :: Type -> Type
 tIntMod n = TCon (TC TCIntMod) [n]
 
@@ -804,6 +807,8 @@ instance PP (WithNames Type) where
           (TCInf,   [])       -> text "inf"
           (TCBit,   [])       -> text "Bit"
           (TCInteger, [])     -> text "Integer"
+          (TCRational, [])    -> text "Rational"
+
           (TCIntMod, [n])     -> optParens (prec > 3) $ text "Z" <+> go 4 n
 
           (TCSeq,   [t1,TCon (TC TCBit) []]) -> brackets (go 0 t1)

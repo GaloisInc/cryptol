@@ -345,6 +345,7 @@ primTable  = let sym = SBV in
   , ("False"       , VBit (bitLit sym False))
   , ("number"      , ecNumberV sym) -- Converts a numeric type into its corresponding value.
                                     -- { val, rep } (Literal val rep) => rep
+  , ("ratio"       , ratioV sym)
 
     -- Zero
   , ("zero"        , VPoly (zeroV sym))
@@ -374,6 +375,10 @@ primTable  = let sym = SBV in
   , ("%$"          , smodV sym)
   , ("lg2"         , lg2V sym)
   , (">>$"         , sshrV)
+
+    -- Field
+  , ("recip"       , recipV sym)
+  , ("/."          , fieldDivideV sym)
 
     -- Cmp
   , ("<"           , binary (lessThanV sym))

@@ -45,7 +45,8 @@ primitive type Integer : *
 /** 'Z n' is the type of integers, modulo 'n'. */
 primitive type {n : #} (fin n, n >= 1) => Z n : *
 
-
+/** `Rational` is the type of rational numbers. */
+primitive type Rational : *
 
 /** Assert that two numeric types are equal. */
 primitive type (==) : # -> # -> Prop
@@ -94,7 +95,6 @@ primitive type SignedCmp : * -> Prop
 
 /** 'Literal n a' asserts that type 'a' contains the number 'n'. */
 primitive type Literal : # -> * -> Prop
-
 
 /** Add numeric types. */
 primitive type (+) : # -> # -> #
@@ -276,6 +276,12 @@ a ^^ e = foldl squareAndMult (fromInteger 1) e
  *  We set `lg2 0 = 0`
  */
 primitive lg2 : {n} (fin n) => [n] -> [n]
+
+/**
+ * Compute the ratio of two integers as a rational.
+ * ratio x y = (fromInteger x /. fromInteger y) : Rational
+ */
+primitive ratio : Integer -> Integer -> Rational
 
 
 type Bool = Bit

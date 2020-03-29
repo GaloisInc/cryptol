@@ -44,9 +44,11 @@ solveZeroInst ty = case tNoUser ty of
   -- Zero (Z n)
   TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
 
-  -- Zero Rational
   -- Zero Real
   -- Zero Float
+
+  -- Zero Rational
+  TCon (TC TCRational) [] -> SolvedIf []
 
   -- Zero a => Zero [n]a
   TCon (TC TCSeq) [_, a] -> SolvedIf [ pZero a ]
@@ -112,10 +114,14 @@ solveRingInst ty = case tNoUser ty of
   -- Ring (Z n)
   TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
 
-  -- (Ring a, Ring b) => Arith { x1 : a, x2 : b }
+  -- Ring Rational
+  TCon (TC TCRational) [] -> SolvedIf []
+
+  -- (Ring a, Ring b) => Ring { x1 : a, x2 : b }
   TRec fs -> SolvedIf [ pRing ety | (_,ety) <- fs ]
 
   _ -> Unsolved
+
 
 -- | Solve a Ring constraint for a sequence.  The type passed here is the
 -- element type of the sequence.
@@ -176,12 +182,15 @@ solveFieldInst ty = case tNoUser ty of
   TCon (TError _ e) _ -> Unsolvable e
 
   -- Field Rational
+  TCon (TC TCRational) [] -> SolvedIf []
+
   -- Field Real
   -- Field Float
   -- Field (Z n)
 --  TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne, pPrime n ]
 
   _ -> Unsolved
+
 
 -- | Solve a Round constraint by instance, if possible.
 solveRoundInst :: Type -> Solved
@@ -191,6 +200,8 @@ solveRoundInst ty = case tNoUser ty of
   TCon (TError _ e) _ -> Unsolvable e
 
   -- Round Rational
+  TCon (TC TCRational) [] -> SolvedIf []
+
   -- Round Real
   -- Round Float
 
@@ -210,6 +221,9 @@ solveCmpInst ty = case tNoUser ty of
 
   -- Cmp Integer
   TCon (TC TCInteger) [] -> SolvedIf []
+
+  -- Cmp Rational
+  TCon (TC TCRational) [] -> SolvedIf []
 
   -- Cmp (Z n)
   TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
@@ -283,6 +297,9 @@ solveLiteralInst val ty
 
       -- (fin val) => Literal val Integer
       TCon (TC TCInteger) [] -> SolvedIf [ pFin val ]
+
+      -- (fin val) => Literal val Rational
+      TCon (TC TCRational) [] -> SolvedIf [ pFin val ]
 
       -- (fin val, fin m, m >= val + 1) => Literal val (Z m)
       TCon (TC TCIntMod) [modulus] ->

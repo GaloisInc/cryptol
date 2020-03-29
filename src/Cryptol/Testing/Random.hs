@@ -26,7 +26,7 @@ import qualified Data.Sequence as Seq
 import System.Random          (RandomGen, split, random, randomR)
 import System.Random.TF.Gen   (seedTFGen)
 
-import Cryptol.Eval.Backend   (Backend(..))
+import Cryptol.Eval.Backend   (Backend(..), SRational(..))
 import Cryptol.Eval.Concrete.Value
 import Cryptol.Eval.Monad     (ready,runEval,EvalOpts,Eval,EvalError(..))
 import Cryptol.Eval.Type      (TValue(..), tValTy)
@@ -144,6 +144,8 @@ randomValue sym ty =
 
         (TC TCInteger, [])                    -> Just (randomInteger sym)
 
+        (TC TCRational, [])                   -> Just (randomRational sym)
+
         (TC TCIntMod, [TCon (TC (TCNum n)) []]) ->
           do return (randomIntMod sym n)
 
@@ -202,6 +204,18 @@ randomIntMod :: (Backend sym, RandomGen g) => sym -> Integer -> Gen g sym
 randomIntMod sym modulus _ g =
   let (i, g') = randomR (0, modulus-1) g
   in (VInteger <$> integerLit sym i, g')
+
+{-# INLINE randomRational #-}
+
+randomRational :: (Backend sym, RandomGen g) => sym -> Gen g sym
+randomRational sym w g =
+  let (sz, g1) = if w < 100 then (fromInteger w, g) else randomSize 8 100 g
+      (n, g2) = randomR (- 256^sz, 256^sz) g1
+      (d, g3) = randomR ( 1, 256^sz) g2
+   in (do n' <- integerLit sym n
+          d' <- integerLit sym d
+          pure (VRational (SRational n' d'))
+       , g3)
 
 {-# INLINE randomWord #-}
 
@@ -344,6 +358,7 @@ typeSize ty =
         (TCInf, _)       -> Nothing
         (TCBit, _)       -> Just 2
         (TCInteger, _)   -> Nothing
+        (TCRational, _)  -> Nothing
         (TCIntMod, [sz]) -> case tNoUser sz of
                               TCon (TC (TCNum n)) _ -> Just n
                               _                     -> Nothing
@@ -376,6 +391,7 @@ typeValues ty =
         TCInf       -> []
         TCBit       -> [ VBit False, VBit True ]
         TCInteger   -> []
+        TCRational  -> []
         TCIntMod    ->
           case map tNoUser ts of
             [ TCon (TC (TCNum n)) _ ] | 0 < n ->
