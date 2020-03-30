@@ -77,8 +77,8 @@ jobs:
       - name: Install Dependencies
         shell: bash
         run: |
-          cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
-          cabal configure --allow-newer --enable-tests -j2
+          if [[ $RUNNER_OS != "Windows" ]]; then cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze; fi
+          cabal configure --allow-newer -j2
           cabal build --only-dependencies exe:cryptol
           mkdir -p bin
           cabal install --install-method copy --installdir bin test-lib
