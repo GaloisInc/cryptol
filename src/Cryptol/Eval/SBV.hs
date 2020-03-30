@@ -320,14 +320,12 @@ instance Backend SBV where
   znMult  _ m a b = sModMult m a b
   znNegate _ m a  = sModNegate m a
 
--- TODO: implement this properly in SBV using "bv2int"
 svToInteger :: SWord SBV -> SInteger SBV
 svToInteger w =
   case svAsInteger w of
     Nothing -> svFromIntegral KUnbounded w
     Just x  -> svInteger KUnbounded x
 
--- TODO: implement this properly in SBV using "int2bv"
 svFromInteger :: Integer -> SInteger SBV -> SWord SBV
 svFromInteger 0 _ = literalSWord 0 0
 svFromInteger n i =

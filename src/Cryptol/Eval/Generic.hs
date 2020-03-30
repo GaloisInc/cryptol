@@ -1288,7 +1288,7 @@ errorV sym ty msg = case ty of
   TVAbstract {} -> cryUserError sym msg
 
 
--- | Expect a word value.  Mask it an 8-bits ASCII value
+-- | Expect a word value.  Mask it to an 8-bits ASCII value
 --   and return the associated character, if it is concrete.
 --   Otherwise, return a '?' character
 valueToChar :: Backend sym => sym -> GenValue sym -> SEval sym Char

@@ -507,7 +507,7 @@ class MonadIO (SEval sym) => Backend sym where
 
   -- | Division of integers modulo n, for a concrete positive integer n.
   --   NOTE: this is integer division on the initial segement of Z,
-  --   and not the multiplictitive inverse in Z_p.
+  --   and not the multiplicative inverse in Z_p.
   znDiv ::
     sym ->
     Integer {- ^ modulus -} ->
@@ -521,7 +521,7 @@ class MonadIO (SEval sym) => Backend sym where
 
   -- | Modulus of integers modulo n, for a concrete positive integer n.
   --   NOTE: this is the modulus corresponding to integer division on the initial
-  --   segement of Z, and not related to multiplictitive inverse in Z_p.
+  --   segement of Z, and not related to multiplicative inverse in Z_p.
   znMod ::
     sym ->
     Integer {- ^ modulus -} ->
