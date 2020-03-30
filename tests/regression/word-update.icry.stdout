@@ -1,0 +1,23 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+property wordUpdate Using random testing.
+Testing... Passed 10000 tests.
+Expected test coverage: 0.03% (9999 of 2^^25 values)
+property wordUpdate2 Using random testing.
+Testing... Passed 10000 tests.
+Expected test coverage: 0.03% (9999 of 2^^25 values)
+property wordUpdateEnd Using random testing.
+Testing... Passed 10000 tests.
+Expected test coverage: 0.03% (9999 of 2^^25 values)
+property wordUpdateEnd2 Using random testing.
+Testing... Passed 10000 tests.
+Expected test coverage: 0.03% (9999 of 2^^25 values)
+:prove wordUpdate
+	Q.E.D.
+:prove wordUpdate2
+	Q.E.D.
+:prove wordUpdateEnd
+	Q.E.D.
+:prove wordUpdateEnd2
+	Q.E.D.
