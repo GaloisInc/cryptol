@@ -307,12 +307,12 @@ instance Backend SBV where
   -- NB, we don't do reduction here
   intToZn _ _m a = pure a
 
-  znToInt _ 0 a = evalPanic "znToInt" ["0 modulus not allowed"]
+  znToInt _ 0 _ = evalPanic "znToInt" ["0 modulus not allowed"]
   znToInt _ m a =
     do let m' = svInteger KUnbounded m
        pure $! svRem a m'
 
-  znEq _ 0 a b = evalPanic "znEq" ["0 modulus not allowed"]
+  znEq _ 0 _ _ = evalPanic "znEq" ["0 modulus not allowed"]
   znEq _ m a b = svDivisible m (SBV.svMinus a b)
 
   znPlus  _ m a b = sModAdd m a b
@@ -695,28 +695,28 @@ sExp x y =
                   s = SBV.svTimes a a
 
 sModAdd :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SInteger SBV)
-sModAdd 0 x y = evalPanic "sModAdd" ["0 modulus not allowed"]
+sModAdd 0 _ _ = evalPanic "sModAdd" ["0 modulus not allowed"]
 sModAdd modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
     (Just i, Just j) -> integerLit SBV ((i + j) `mod` modulus)
     _                -> pure $ SBV.svPlus x y
 
 sModSub :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SInteger SBV)
-sModSub 0 x y = evalPanic "sModSub" ["0 modulus not allowed"]
+sModSub 0 _ _ = evalPanic "sModSub" ["0 modulus not allowed"]
 sModSub modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
     (Just i, Just j) -> integerLit SBV ((i - j) `mod` modulus)
     _                -> pure $ SBV.svMinus x y
 
 sModNegate :: Integer -> SInteger SBV -> SEval SBV (SInteger SBV)
-sModNegate 0 x = evalPanic "sModNegate" ["0 modulus not allowed"]
+sModNegate 0 _ = evalPanic "sModNegate" ["0 modulus not allowed"]
 sModNegate modulus x =
   case SBV.svAsInteger x of
     Just i -> integerLit SBV ((negate i) `mod` modulus)
     _      -> pure $ SBV.svUNeg x
 
 sModMult :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SInteger SBV)
-sModMult 0 x y = evalPanic "sModMult" ["0 modulus not allowed"]
+sModMult 0 _ _ = evalPanic "sModMult" ["0 modulus not allowed"]
 sModMult modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
     (Just i, Just j) -> integerLit SBV ((i * j) `mod` modulus)

@@ -129,6 +129,10 @@ testableTypeGenerators ty =
     _ -> Nothing
 
 
+{-# SPECIALIZE randomValue ::
+  RandomGen g => Concrete -> Type -> Maybe (Gen g Concrete)
+  #-}
+
 {- | A generator for values of the given type.  This fails if we are
 given a type that lacks a suitable random value generator. -}
 randomValue :: (Backend sym, RandomGen g) => sym -> Type -> Maybe (Gen g sym)
@@ -165,17 +169,23 @@ randomValue sym ty =
     TRec fs     -> do gs <- traverse (randomValue sym) (Map.fromList fs)
                       return (randomRecord gs)
 
+{-# INLINE randomBit #-}
+
 -- | Generate a random bit value.
 randomBit :: (Backend sym, RandomGen g) => sym -> Gen g sym
 randomBit sym _ g =
   let (b,g1) = random g
   in (pure (VBit (bitLit sym b)), g1)
 
+{-# INLINE randomSize #-}
+
 randomSize :: RandomGen g => Int -> Int -> g -> (Int, g)
 randomSize k n g
   | p == 1 = (n, g')
   | otherwise = randomSize k (n + 1) g'
   where (p, g') = randomR (1, k) g
+
+{-# INLINE randomInteger #-}
 
 -- | Generate a random integer value. The size parameter is assumed to
 -- vary between 1 and 100, and we use it to generate smaller numbers
@@ -186,10 +196,14 @@ randomInteger sym w g =
       (i, g2) = randomR (- 256^n, 256^n) g1
   in (VInteger <$> integerLit sym i, g2)
 
+{-# INLINE randomIntMod #-}
+
 randomIntMod :: (Backend sym, RandomGen g) => sym -> Integer -> Gen g sym
 randomIntMod sym modulus _ g =
   let (i, g') = randomR (0, modulus-1) g
   in (VInteger <$> integerLit sym i, g')
+
+{-# INLINE randomWord #-}
 
 -- | Generate a random word of the given length (i.e., a value of type @[w]@)
 -- The size parameter is assumed to vary between 1 and 100, and we use
@@ -199,11 +213,15 @@ randomWord sym w _sz g =
    let (val, g1) = randomR (0,2^w-1) g
    in (return $ VWord w (WordVal <$> wordLit sym w val), g1)
 
+{-# INLINE randomStream #-}
+
 -- | Generate a random infinite stream value.
 randomStream :: (Backend sym, RandomGen g) => Gen g sym -> Gen g sym
 randomStream mkElem sz g =
   let (g1,g2) = split g
   in (pure $ VStream $ IndexSeqMap $ genericIndex (unfoldr (Just . mkElem sz) g1), g2)
+
+{-# INLINE randomSequence #-}
 
 {- | Generate a random sequence.  This should be used for sequences
 other than bits.  For sequences of bits use "randomWord". -}
@@ -215,6 +233,8 @@ randomSequence w mkElem sz g0 = do
   let xs = Seq.fromList $ genericTake w $ unfoldr f g1
   seq xs (pure $ VSeq w $ IndexSeqMap $ (Seq.index xs . fromInteger), g2)
 
+{-# INLINE randomTuple #-}
+
 -- | Generate a random tuple value.
 randomTuple :: (Backend sym, RandomGen g) => [Gen g sym] -> Gen g sym
 randomTuple gens sz = go [] gens
@@ -223,6 +243,8 @@ randomTuple gens sz = go [] gens
   go els (mkElem : more) g =
     let (v, g1) = mkElem sz g
     in seq v (go (v : els) more g1)
+
+{-# INLINE randomRecord #-}
 
 -- | Generate a random record value.
 randomRecord :: (Backend sym, RandomGen g) => Map Ident (Gen g sym) -> Gen g sym
@@ -235,6 +257,10 @@ randomRecord gens sz g0 =
 
 
 -- Random Values ---------------------------------------------------------------
+
+{-# SPECIALIZE randomV ::
+  Concrete -> TValue -> Integer -> SEval Concrete (GenValue Concrete)
+  #-}
 
 -- | Produce a random value with the given seed. If we do not support
 -- making values of the given type, return zero of that type.

@@ -64,7 +64,18 @@ type EvalEnv = GenEvalEnv Concrete
 type EvalPrims sym =
   ( Backend sym, ?evalPrim :: Ident -> Maybe (GenValue sym) )
 
+type ConcPrims =
+  ?evalPrim :: Ident -> Maybe (GenValue Concrete)
+
 -- Expression Evaluation -------------------------------------------------------
+
+{-# SPECIALIZE moduleEnv ::
+  ConcPrims =>
+  Concrete ->
+  Module ->
+  GenEvalEnv Concrete ->
+  SEval Concrete (GenEvalEnv Concrete)
+  #-}
 
 -- | Extend the given evaluation environment with all the declarations
 --   contained in the given module.
@@ -75,6 +86,14 @@ moduleEnv ::
   GenEvalEnv sym {- ^ Environment to extend -} ->
   SEval sym (GenEvalEnv sym)
 moduleEnv sym m env = evalDecls sym (mDecls m) =<< evalNewtypes sym (mNewtypes m) env
+
+{-# SPECIALIZE evalExpr ::
+  ConcPrims =>
+  Concrete ->
+  GenEvalEnv Concrete ->
+  Expr ->
+  SEval Concrete (GenValue Concrete)
+  #-}
 
 -- | Evaluate a Cryptol expression to a value.  This evaluator is parameterized
 --   by the `EvalPrims` class, which defines the behavior of bits and words, in
@@ -184,6 +203,14 @@ evalExpr sym env expr = case expr of
 
 -- Newtypes --------------------------------------------------------------------
 
+{-# SPECIALIZE evalNewtypes ::
+  ConcPrims =>
+  Concrete ->
+  Map.Map Name Newtype ->
+  GenEvalEnv Concrete ->
+  SEval Concrete (GenEvalEnv Concrete)
+  #-}
+
 evalNewtypes ::
   EvalPrims sym =>
   sym ->
@@ -203,9 +230,18 @@ evalNewtype sym nt = bindVar sym (ntName nt) (return (foldr tabs con (ntParams n
   where
   tabs _tp body = tlam (\ _ -> body)
   con           = VFun id
+{-# INLINE evalNewtype #-}
 
 
 -- Declarations ----------------------------------------------------------------
+
+{-# SPECIALIZE evalDecls ::
+  ConcPrims =>
+  Concrete ->
+  [DeclGroup] ->
+  GenEvalEnv Concrete ->
+  SEval Concrete (GenEvalEnv Concrete)
+  #-}
 
 -- | Extend the given evaluation environment with the result of evaluating the
 --   given collection of declaration groups.
@@ -216,6 +252,14 @@ evalDecls ::
   GenEvalEnv sym  {- ^ Environment to extend -} ->
   SEval sym (GenEvalEnv sym)
 evalDecls x dgs env = foldM (evalDeclGroup x) env dgs
+
+{-# SPECIALIZE evalDeclGroup ::
+  ConcPrims =>
+  Concrete ->
+  GenEvalEnv Concrete ->
+  DeclGroup ->
+  SEval Concrete (GenEvalEnv Concrete)
+  #-}
 
 evalDeclGroup ::
   EvalPrims sym =>
@@ -246,6 +290,14 @@ evalDeclGroup sym env dg = do
       evalDecl sym env env d
 
 
+
+{-# SPECIALIZE fillHole ::
+  Concrete ->
+  GenEvalEnv Concrete ->
+  (Name, Schema, SEval Concrete (GenValue Concrete), SEval Concrete (GenValue Concrete) -> SEval Concrete ()) ->
+  SEval Concrete ()
+  #-}
+
 -- | This operation is used to complete the process of setting up recursive declaration
 --   groups.  It 'backfills' previously-allocated thunk values with the actual evaluation
 --   procedure for the body of recursive definitions.
@@ -256,6 +308,7 @@ evalDeclGroup sym env dg = do
 --   to this is to force an eta-expansion procedure on all recursive definitions.
 --   However, for the so-called 'Value' types we can instead optimistically use the 'delayFill'
 --   operation and only fall back on full eta expansion if the thunk is double-forced.
+
 fillHole ::
   Backend sym =>
   sym ->
@@ -288,6 +341,13 @@ isValueType env Forall{ sVars = [], sProps = [], sType = t0 }
 isValueType _ _ = False
 
 
+{-# SPECIALIZE etaWord  ::
+  Concrete ->
+  Integer ->
+  SEval Concrete (GenValue Concrete) ->
+  SEval Concrete (WordValue Concrete)
+  #-}
+
 -- | Eta-expand a word value.  This forces an unpacked word representation.
 etaWord  ::
   Backend sym =>
@@ -300,6 +360,15 @@ etaWord sym n val = do
   xs <- memoMap $ IndexSeqMap $ \i ->
           do w' <- w; VBit <$> indexWordValue sym w' (toInteger i)
   pure $ LargeBitsVal n xs
+
+{-# SPECIALIZE etaDelay ::
+  Concrete ->
+  String ->
+  GenEvalEnv Concrete ->
+  Schema ->
+  SEval Concrete (GenValue Concrete) ->
+  SEval Concrete (GenValue Concrete)
+  #-}
 
 -- | Given a simulator value and its type, fully eta-expand the value.  This
 --   is a type-directed pass that always produces a canonical value of the
@@ -396,6 +465,13 @@ etaDelay sym msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVAbstract {} -> v
 
 
+{-# SPECIALIZE declHole ::
+  Concrete ->
+  Decl ->
+  SEval Concrete
+    (Name, Schema, SEval Concrete (GenValue Concrete), SEval Concrete (GenValue Concrete) -> SEval Concrete ())
+  #-}
+
 declHole ::
   Backend sym =>
   sym -> Decl -> SEval sym (Name, Schema, SEval sym (GenValue sym), SEval sym (GenValue sym) -> SEval sym ())
@@ -438,6 +514,14 @@ evalDecl sym renv env d =
 
 -- Selectors -------------------------------------------------------------------
 
+{-# SPECIALIZE evalSel ::
+  ConcPrims =>
+  Concrete ->
+  GenValue Concrete ->
+  Selector ->
+  SEval Concrete (GenValue Concrete)
+  #-}
+
 -- | Apply the the given "selector" form to the given value.  This function pushes
 --   tuple and record selections pointwise down into other value constructs
 --   (e.g., streams and functions).
@@ -479,7 +563,11 @@ evalSel sym val sel = case sel of
                             evalPanic "Cryptol.Eval.evalSel"
                               [ "Unexpected value in list selection"
                               , show vdoc ]
-
+{-# SPECIALIZE evalSetSel ::
+  ConcPrims =>
+  Concrete ->
+  GenValue Concrete -> Selector -> SEval Concrete (GenValue Concrete) -> SEval Concrete (GenValue Concrete)
+  #-}
 evalSetSel :: forall sym.
   EvalPrims sym =>
   sym ->
@@ -563,6 +651,7 @@ toListEnv e =
   , leStatic = envVars e
   , leTypes  = envTypes e
   }
+{-# INLINE toListEnv #-}
 
 -- | Evaluate a list environment at a position.
 --   This choses a particular value for the varying
@@ -573,6 +662,8 @@ evalListEnv (ListEnv vm st tm) i =
      in EvalEnv{ envVars = Map.union v st
                , envTypes = tm
                }
+{-# INLINE evalListEnv #-}
+
 
 bindVarList ::
   Name ->
@@ -580,9 +671,20 @@ bindVarList ::
   ListEnv sym ->
   ListEnv sym
 bindVarList n vs lenv = lenv { leVars = Map.insert n vs (leVars lenv) }
+{-# INLINE bindVarList #-}
 
 -- List Comprehensions ---------------------------------------------------------
 
+{-# SPECIALIZE evalComp ::
+  ConcPrims =>
+  Concrete ->
+  GenEvalEnv Concrete ->
+  Nat'           ->
+  TValue         ->
+  Expr           ->
+  [[Match]]      ->
+  SEval Concrete (GenValue Concrete)
+  #-}
 -- | Evaluate a comprehension.
 evalComp ::
   EvalPrims sym =>
@@ -598,6 +700,13 @@ evalComp sym env len elty body ms =
           mkSeq len elty <$> memoMap (IndexSeqMap $ \i -> do
               evalExpr sym (evalListEnv lenv i) body)
 
+{-# SPECIALIZE branchEnvs ::
+  ConcPrims =>
+  Concrete ->
+  ListEnv Concrete ->
+  [Match] ->
+  SEval Concrete (ListEnv Concrete)
+  #-}
 -- | Turn a list of matches into the final environments for each iteration of
 -- the branch.
 branchEnvs ::
@@ -607,6 +716,14 @@ branchEnvs ::
   [Match] ->
   SEval sym (ListEnv sym)
 branchEnvs sym env matches = foldM (evalMatch sym) env matches
+
+{-# SPECIALIZE evalMatch ::
+  ConcPrims =>
+  Concrete ->
+  ListEnv Concrete ->
+  Match ->
+  SEval Concrete (ListEnv Concrete)
+  #-}
 
 -- | Turn a match into the list of environments it represents.
 evalMatch ::

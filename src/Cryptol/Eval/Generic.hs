@@ -28,6 +28,7 @@ import Data.Maybe (fromMaybe)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul)
 import Cryptol.Eval.Backend
+import Cryptol.Eval.Concrete.Value (Concrete(..))
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
@@ -37,6 +38,9 @@ import qualified Data.Map.Strict as Map
 
 
 -- | Make a numeric literal value at the given type.
+
+{-# SPECIALIZE mkLit :: Concrete -> TValue -> Integer -> Eval (GenValue Concrete)
+  #-}
 
 mkLit :: Backend sym => sym -> TValue -> Integer -> SEval sym (GenValue sym)
 mkLit sym ty i =
@@ -48,6 +52,9 @@ mkLit sym ty i =
     TVSeq w TVBit                -> pure $ word sym w i
     _                            -> evalPanic "Cryptol.Eval.Prim.evalConst"
                                     [ "Invalid type for number" ]
+
+{-# SPECIALIZE ecNumberV :: Concrete -> GenValue Concrete
+  #-}
 
 -- | Make a numeric constant.
 ecNumberV :: Backend sym => sym -> GenValue sym
@@ -62,6 +69,9 @@ ecNumberV sym =
              , show ty
              ]
 
+{-# SPECIALIZE ecFromIntegerV :: Concrete -> GenValue Concrete
+  #-}
+
 -- | Convert an unbounded integer to a value in Arith
 ecFromIntegerV :: Backend sym => sym -> GenValue sym
 ecFromIntegerV sym =
@@ -70,15 +80,21 @@ ecFromIntegerV sym =
   do i <- fromVInteger <$> v
      intV sym i a
 
+{-# SPECIALIZE intV :: Concrete -> Integer -> TValue -> Eval (GenValue Concrete)
+  #-}
 intV :: Backend sym => sym -> SInteger sym -> TValue -> SEval sym (GenValue sym)
 intV sym i = arithNullary sym (\w -> wordFromInt sym w i) (pure i) (\m -> intToZn sym m i)
 
+{-# SPECIALIZE ecToIntegerV :: Concrete -> GenValue Concrete
+  #-}
 -- | Convert a word to a non-negative integer.
 ecToIntegerV :: Backend sym => sym -> GenValue sym
 ecToIntegerV sym =
   nlam $ \ _ ->
   wlam sym $ \ w -> VInteger <$> wordToInt sym w
 
+{-# SPECIALIZE ecFromZ :: Concrete -> GenValue Concrete
+  #-}
 -- | Convert a value in Z_n into an integer
 ecFromZ :: Backend sym => sym -> GenValue sym
 ecFromZ sym =
@@ -93,6 +109,8 @@ ecFromZ sym =
 
 type Binary sym = TValue -> GenValue sym -> GenValue sym -> SEval sym (GenValue sym)
 
+{-# SPECIALIZE binary :: Binary Concrete -> GenValue Concrete
+  #-}
 binary :: Backend sym => Binary sym -> GenValue sym
 binary f = tlam $ \ ty ->
             lam $ \ a  -> return $
@@ -102,12 +120,20 @@ binary f = tlam $ \ ty ->
 
 type Unary sym = TValue -> GenValue sym -> SEval sym (GenValue sym)
 
+{-# SPECIALIZE unary :: Unary Concrete -> GenValue Concrete
+  #-}
 unary :: Backend sym => Unary sym -> GenValue sym
 unary f = tlam $ \ ty ->
            lam $ \ a  -> f ty =<< a
 
 
 type BinArith sym = Integer -> SWord sym -> SWord sym -> SEval sym (SWord sym)
+
+{-# SPECIALIZE arithBinary :: Concrete -> BinArith Concrete ->
+      (SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
+      (Integer -> SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
+      Binary Concrete
+  #-}
 
 arithBinary :: forall sym.
   Backend sym =>
@@ -178,6 +204,13 @@ arithBinary sym opw opi opz = loop
 type UnaryArith sym = Integer -> SWord sym -> SEval sym (SWord sym)
 
 
+{-# SPECIALIZE arithUnary ::
+  Concrete ->
+  UnaryArith Concrete ->
+  (SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
+  (Integer -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
+  Unary Concrete
+  #-}
 arithUnary :: forall sym.
   Backend sym =>
   sym ->
@@ -231,6 +264,15 @@ arithUnary sym opw opi opz = loop
 
     TVAbstract {} -> evalPanic "arithUnary" ["Abstract type not in `Arith`"]
 
+{-# SPECIALIZE arithNullary ::
+  Concrete ->
+  (Integer -> SEval Concrete (SWord Concrete)) ->
+  SEval Concrete (SInteger Concrete) ->
+  (Integer -> SEval Concrete (SInteger Concrete)) ->
+  TValue ->
+  SEval Concrete (GenValue Concrete)
+  #-}
+
 arithNullary :: forall sym.
   Backend sym =>
   sym ->
@@ -280,6 +322,7 @@ arithNullary sym opw opi opz = loop
           evalPanic "arithNullary" ["Abstract type not in `Arith`"]
 
 
+{-# INLINE addV #-}
 addV :: Backend sym => sym -> Binary sym
 addV sym = arithBinary sym opw opi opz
   where
@@ -287,6 +330,7 @@ addV sym = arithBinary sym opw opi opz
     opi x y = intPlus sym x y
     opz m x y = znPlus sym m x y
 
+{-# INLINE subV #-}
 subV :: Backend sym => sym -> Binary sym
 subV sym = arithBinary sym opw opi opz
   where
@@ -294,6 +338,7 @@ subV sym = arithBinary sym opw opi opz
     opi x y = intMinus sym x y
     opz m x y = znMinus sym m x y
 
+{-# INLINE mulV #-}
 mulV :: Backend sym => sym -> Binary sym
 mulV sym = arithBinary sym opw opi opz
   where
@@ -301,6 +346,7 @@ mulV sym = arithBinary sym opw opi opz
     opi x y = intMult sym x y
     opz m x y = znMult sym m x y
 
+{-# INLINE divV #-}
 divV :: Backend sym => sym -> Binary sym
 divV sym = arithBinary sym opw opi opz
   where
@@ -308,6 +354,7 @@ divV sym = arithBinary sym opw opi opz
     opi x y = intDiv sym x y
     opz m x y = znDiv sym m x y
 
+{-# INLINE modV #-}
 modV :: Backend sym => sym -> Binary sym
 modV sym = arithBinary sym opw opi opz
   where
@@ -315,6 +362,7 @@ modV sym = arithBinary sym opw opi opz
     opi x y = intMod sym x y
     opz m x y = znMod sym m x y
 
+{-# INLINE sdivV #-}
 sdivV :: Backend sym => sym -> Binary sym
 sdivV sym = arithBinary sym opw opi opz
   where
@@ -322,6 +370,7 @@ sdivV sym = arithBinary sym opw opi opz
     opi x y = intDiv sym x y
     opz m x y = znDiv sym m x y
 
+{-# INLINE smodV #-}
 smodV :: Backend sym => sym -> Binary sym
 smodV sym = arithBinary sym opw opi opz
   where
@@ -329,6 +378,7 @@ smodV sym = arithBinary sym opw opi opz
     opi x y = intMod sym x y
     opz m x y = znMod sym m x y
 
+{-# INLINE expV #-}
 expV :: Backend sym => sym -> Binary sym
 expV sym = arithBinary sym opw opi opz
   where
@@ -336,6 +386,8 @@ expV sym = arithBinary sym opw opi opz
     opi x y = intExp sym x y
     opz m x y = znExp sym m x y
 
+
+{-# INLINE negateV #-}
 negateV :: Backend sym => sym -> Unary sym
 negateV sym = arithUnary sym opw opi opz
   where
@@ -343,6 +395,7 @@ negateV sym = arithUnary sym opw opi opz
     opi x = intNegate sym x
     opz m x = znNegate sym m x
 
+{-# INLINE lg2V #-}
 lg2V :: Backend sym => sym -> Unary sym
 lg2V sym = arithUnary sym opw opi opz
   where
@@ -350,19 +403,32 @@ lg2V sym = arithUnary sym opw opi opz
     opi x = intLg2 sym x
     opz m x = znLg2 sym m x
 
+{-# INLINE andV #-}
 andV :: Backend sym => sym -> Binary sym
 andV sym = logicBinary sym (bitAnd sym) (wordAnd sym)
 
+{-# INLINE orV #-}
 orV :: Backend sym => sym -> Binary sym
 orV sym = logicBinary sym (bitOr sym) (wordOr sym)
 
+{-# INLINE xorV #-}
 xorV :: Backend sym => sym -> Binary sym
 xorV sym = logicBinary sym (bitXor sym) (wordXor sym)
 
+{-# INLINE complementV #-}
 complementV :: Backend sym => sym -> Unary sym
 complementV sym = logicUnary sym (bitComplement sym) (wordComplement sym)
 
 -- Cmp -------------------------------------------------------------------------
+
+{-# SPECIALIZE cmpValue ::
+  Concrete ->
+  (SBit Concrete -> SBit Concrete -> SEval Concrete a -> SEval Concrete a) ->
+  (SWord Concrete -> SWord Concrete -> SEval Concrete a -> SEval Concrete a) ->
+  (SInteger Concrete -> SInteger Concrete -> SEval Concrete a -> SEval Concrete a) ->
+  (Integer -> SInteger Concrete -> SInteger Concrete -> SEval Concrete a -> SEval Concrete a) ->
+  (TValue -> GenValue Concrete -> GenValue Concrete -> SEval Concrete a -> SEval Concrete a)
+  #-}
 
 cmpValue ::
   Backend sym =>
@@ -407,14 +473,17 @@ cmpValue sym fb fw fi fz = cmp
     cmpValues _ _ _ k = k
 
 
+{-# INLINE bitLessThan #-}
 bitLessThan :: Backend sym => sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
 bitLessThan sym x y =
   do xnot <- bitComplement sym x
      bitAnd sym xnot y
 
+{-# INLINE bitGreaterThan #-}
 bitGreaterThan :: Backend sym => sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
 bitGreaterThan sym x y = bitLessThan sym y x
 
+{-# INLINE valEq #-}
 valEq :: Backend sym => sym -> TValue -> GenValue sym -> GenValue sym -> SEval sym (SBit sym)
 valEq sym ty v1 v2 = cmpValue sym fb fw fi fz ty v1 v2 (pure $ bitLit sym True)
   where
@@ -423,6 +492,7 @@ valEq sym ty v1 v2 = cmpValue sym fb fw fi fz ty v1 v2 (pure $ bitLit sym True)
   fi x y k   = eqCombine sym (intEq  sym x y) k
   fz m x y k = eqCombine sym (znEq sym m x y) k
 
+{-# INLINE valLt #-}
 valLt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
 valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
@@ -432,6 +502,7 @@ valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
   fi x y k   = lexCombine sym (intLessThan  sym x y) (intEq  sym x y) k
   fz m x y k = lexCombine sym (znLessThan sym m x y) (znEq sym m x y) k
 
+{-# INLINE valGt #-}
 valGt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
 valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
@@ -441,6 +512,7 @@ valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
   fi x y k   = lexCombine sym (intGreaterThan  sym x y) (intEq  sym x y) k
   fz m x y k = lexCombine sym (znGreaterThan sym m x y) (znEq sym m x y) k
 
+{-# INLINE eqCombine #-}
 eqCombine :: Backend sym =>
   sym ->
   SEval sym (SBit sym) ->
@@ -448,6 +520,7 @@ eqCombine :: Backend sym =>
   SEval sym (SBit sym)
 eqCombine sym eq k = join (bitAnd sym <$> eq <*> k)
 
+{-# INLINE lexCombine #-}
 lexCombine :: Backend sym =>
   sym ->
   SEval sym (SBit sym) ->
@@ -459,24 +532,31 @@ lexCombine sym cmp eq k =
      e <- eq
      bitOr sym c =<< bitAnd sym e =<< k
 
+{-# INLINE eqV #-}
 eqV :: Backend sym => sym -> Binary sym
 eqV sym ty v1 v2 = VBit <$> valEq sym ty v1 v2
 
+{-# INLINE distinctV #-}
 distinctV :: Backend sym => sym -> Binary sym
 distinctV sym ty v1 v2 = VBit <$> (bitComplement sym =<< valEq sym ty v1 v2)
 
+{-# INLINE lessThanV #-}
 lessThanV :: Backend sym => sym -> Binary sym
 lessThanV sym ty v1 v2 = VBit <$> valLt sym ty v1 v2 (bitLit sym False)
 
+{-# INLINE lessThanEqV #-}
 lessThanEqV :: Backend sym => sym -> Binary sym
 lessThanEqV sym ty v1 v2 = VBit <$> valLt sym ty v1 v2 (bitLit sym True)
 
+{-# INLINE greaterThanV #-}
 greaterThanV :: Backend sym => sym -> Binary sym
 greaterThanV sym ty v1 v2 = VBit <$> valGt sym ty v1 v2 (bitLit sym False)
 
+{-# INLINE greaterThanEqV #-}
 greaterThanEqV :: Backend sym => sym -> Binary sym
 greaterThanEqV sym ty v1 v2 = VBit <$> valGt sym ty v1 v2 (bitLit sym True)
 
+{-# INLINE signedLessThanV #-}
 signedLessThanV :: Backend sym => sym -> Binary sym
 signedLessThanV sym ty v1 v2 = VBit <$> cmpValue sym fb fw fi fz ty v1 v2 (pure $ bitLit sym False)
   where
@@ -486,6 +566,8 @@ signedLessThanV sym ty v1 v2 = VBit <$> cmpValue sym fb fw fi fz ty v1 v2 (pure 
   fz m _ _ _ = panic "signedLessThan" ["Attempted to perform signed comparison on Z_" ++ show m ++ " type"]
 
 -- Signed arithmetic -----------------------------------------------------------
+
+{-# INLINE liftWord #-}
 
 -- | Lifted operation on finite bitsequences.  Used
 --   for signed comparisons and arithemtic.
@@ -502,6 +584,11 @@ liftWord sym op =
 
 -- Logic -----------------------------------------------------------------------
 
+{-# SPECIALIZE zeroV ::
+  Concrete ->
+  TValue ->
+  SEval Concrete (GenValue Concrete)
+  #-}
 zeroV :: forall sym.
   Backend sym =>
   sym ->
@@ -554,7 +641,7 @@ zeroV sym ty = case ty of
 
 --  | otherwise = evalPanic "zeroV" ["invalid type for zero"]
 
-
+{-# INLINE joinWordVal #-}
 joinWordVal :: Backend sym => sym -> WordValue sym -> WordValue sym -> SEval sym (WordValue sym)
 joinWordVal sym (WordVal w1) (WordVal w2)
   | wordLen sym w1 + wordLen sym w2 < largeBitSize
@@ -565,6 +652,13 @@ joinWordVal sym w1 w2
        n2 = wordValueSize sym w2
 
 
+{-# SPECIALIZE joinWords ::
+  Concrete ->
+  Integer ->
+  Integer ->
+  SeqMap Concrete ->
+  SEval Concrete (GenValue Concrete)
+  #-}
 joinWords :: forall sym.
   Backend sym =>
   sym ->
@@ -585,7 +679,14 @@ joinWords sym nParts nEach xs =
         loop (join (joinWordVal sym <$> wv <*> w')) ws
       _ -> evalPanic "joinWords: expected word value" []
 
-
+{-# SPECIALIZE joinSeq ::
+  Concrete ->
+  Nat' ->
+  Integer ->
+  TValue ->
+  SeqMap Concrete ->
+  SEval Concrete (GenValue Concrete)
+  #-}
 joinSeq ::
   Backend sym =>
   sym ->
@@ -630,6 +731,8 @@ joinSeq _sym parts each _a xs
            Nat n  -> VSeq n
 
 
+{-# INLINE joinV #-}
+
 -- | Join a sequence of sequences into a single sequence.
 joinV ::
   Backend sym =>
@@ -641,6 +744,8 @@ joinV ::
   SEval sym (GenValue sym)
 joinV sym parts each a val = joinSeq sym parts each a =<< fromSeq "joinV" val
 
+
+{-# INLINE splitWordVal #-}
 
 splitWordVal ::
   Backend sym =>
@@ -656,6 +761,7 @@ splitWordVal _ leftWidth rightWidth (LargeBitsVal _n xs) =
   let (lxs, rxs) = splitSeqMap leftWidth xs
    in pure (LargeBitsVal leftWidth lxs, LargeBitsVal rightWidth rxs)
 
+{-# INLINE splitAtV #-}
 splitAtV ::
   Backend sym =>
   sym ->
@@ -698,13 +804,15 @@ splitAtV sym front back a val =
     _     -> evalPanic "splitAtV" ["invalid `front` len"]
 
 
-  -- | Extract a subsequence of bits from a @WordValue@.
-  --   The first integer argument is the number of bits in the
-  --   resulting word.  The second integer argument is the
-  --   number of less-significant digits to discard.  Stated another
-  --   way, the operation `extractWordVal n i w` is equivalent to
-  --   first shifting `w` right by `i` bits, and then truncating to
-  --   `n` bits.
+{-# INLINE extractWordVal #-}
+
+-- | Extract a subsequence of bits from a @WordValue@.
+--   The first integer argument is the number of bits in the
+--   resulting word.  The second integer argument is the
+--   number of less-significant digits to discard.  Stated another
+--   way, the operation `extractWordVal n i w` is equivalent to
+--   first shifting `w` right by `i` bits, and then truncating to
+--   `n` bits.
 extractWordVal ::
   Backend sym =>
   sym ->
@@ -717,6 +825,8 @@ extractWordVal sym len start (WordVal w) =
 extractWordVal _ len start (LargeBitsVal n xs) =
    let xs' = dropSeqMap (n - start - len) xs
     in pure $ LargeBitsVal len xs'
+
+{-# INLINE ecSplitV #-}
 
 -- | Split implementation.
 ecSplitV :: Backend sym => sym -> GenValue sym
@@ -752,6 +862,7 @@ ecSplitV sym =
               lookupSeqMap xs (e * i + j)
        _              -> evalPanic "splitV" ["invalid type arguments to split"]
 
+{-# INLINE reverseV #-}
 
 reverseV :: forall sym.
   Backend sym =>
@@ -768,7 +879,7 @@ reverseV sym (VWord n x) = return (VWord n (revword <$> x))
 reverseV _ _ =
   evalPanic "reverseV" ["Not a finite sequence"]
 
-
+{-# INLINE transposeV #-}
 
 transposeV ::
   Backend sym =>
@@ -815,7 +926,7 @@ transposeV sym a b c xs
           Inf    -> VStream
 
 
-
+{-# INLINE ccatV #-}
 
 ccatV ::
   Backend sym =>
@@ -850,6 +961,8 @@ ccatV sym front back elty l r = do
          rs <- r''
          lookupSeqMap rs (i-n))
 
+{-# INLINE wordValLogicOp #-}
+
 wordValLogicOp ::
   Backend sym =>
   sym ->
@@ -865,6 +978,13 @@ wordValLogicOp sym bop _ w1 w2 = LargeBitsVal (wordValueSize sym w1) <$> zs
            xs = asBitsMap sym w1
            ys = asBitsMap sym w2
            op x y = VBit <$> (bop (fromVBit x) (fromVBit y))
+
+{-# SPECIALIZE logicBinary ::
+  Concrete ->
+  (SBit Concrete -> SBit Concrete -> SEval Concrete (SBit Concrete)) ->
+  (SWord Concrete -> SWord Concrete -> SEval Concrete (SWord Concrete)) ->
+  Binary Concrete
+  #-}
 
 -- | Merge two values given a binop.  This is used for and, or and xor.
 logicBinary :: forall sym.
@@ -930,7 +1050,7 @@ logicBinary sym opb opw = loop
     TVAbstract {} -> evalPanic "logicBinary"
                         [ "Abstract type not in `Logic`" ]
 
-
+{-# INLINE wordValUnaryOp #-}
 wordValUnaryOp ::
   Backend sym =>
   (SBit sym -> SEval sym (SBit sym)) ->
@@ -941,9 +1061,16 @@ wordValUnaryOp _ wop (WordVal w)  = WordVal <$> (wop w)
 wordValUnaryOp bop _ (LargeBitsVal n xs) = LargeBitsVal n <$> mapSeqMap f xs
   where f x = VBit <$> (bop (fromVBit x))
 
+{-# SPECIALIZE logicUnary ::
+  Concrete ->
+  (SBit Concrete -> SEval Concrete (SBit Concrete)) ->
+  (SWord Concrete -> SEval Concrete (SWord Concrete)) ->
+  Unary Concrete
+  #-}
+
 logicUnary :: forall sym.
-  sym ->
   Backend sym =>
+  sym ->
   (SBit sym -> SEval sym (SBit sym)) ->
   (SWord sym -> SEval sym (SWord sym)) ->
   Unary sym
@@ -990,6 +1117,13 @@ logicUnary sym opb opw = loop
     TVAbstract {} -> evalPanic "logicUnary" [ "Abstract type not in `Logic`" ]
 
 
+{-# SPECIALIZE bitsValueLessThan ::
+  Concrete ->
+  Integer ->
+  [SBit Concrete] ->
+  Integer ->
+  SEval Concrete (SBit Concrete)
+  #-}
 bitsValueLessThan ::
   Backend sym =>
   sym ->
@@ -1009,6 +1143,7 @@ bitsValueLessThan sym w (b:bs) n
  nbit = testBit n (fromInteger (w-1))
 
 
+{-# INLINE assertIndexInBounds #-}
 assertIndexInBounds ::
   Backend sym =>
   sym ->
@@ -1048,6 +1183,9 @@ assertIndexInBounds sym (Nat n) (LargeBitsVal w bits) =
 
 
 -- | Indexing operations.
+
+{-# INLINE indexPrim #-}
+
 indexPrim ::
   Backend sym =>
   sym ->
@@ -1071,6 +1209,7 @@ indexPrim sym bits_op word_op =
         WordVal w'        -> word_op len eltTy vs w'
         LargeBitsVal m bs -> bits_op len eltTy vs =<< traverse (fromVBit <$>) (enumerateSeqMap m bs)
 
+{-# INLINE updatePrim #-}
 
 updatePrim ::
   Backend sym =>
@@ -1094,6 +1233,8 @@ updatePrim sym updateWord updateSeq =
       VStream vs -> VStream <$> updateSeq len eltTy vs idx' val
       _ -> evalPanic "Expected sequence value" ["updatePrim"]
 
+{-# INLINE fromToV #-}
+
 -- @[ 0 .. 10 ]@
 fromToV :: Backend sym => sym -> GenValue sym
 fromToV sym =
@@ -1106,6 +1247,8 @@ fromToV sym =
         let len = 1 + (lst' - first')
         in VSeq len $ IndexSeqMap $ \i -> f (first' + i)
       _ -> evalPanic "fromToV" ["invalid arguments"]
+
+{-# INLINE fromThenToV #-}
 
 -- @[ 0, 1 .. 10 ]@
 fromThenToV :: Backend sym => sym -> GenValue sym
@@ -1122,6 +1265,7 @@ fromThenToV sym =
         in VSeq len' $ IndexSeqMap $ \i -> f (first' + i*diff)
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
 
+{-# INLINE infFromV #-}
 
 infFromV :: Backend sym => sym -> GenValue sym
 infFromV sym =
@@ -1132,6 +1276,8 @@ infFromV sym =
        do x' <- mx
           i' <- integerLit sym i
           addV sym ty x' =<< intV sym i' ty
+
+{-# INLINE infFromThenV #-}
 
 infFromThenV :: Backend sym => sym -> GenValue sym
 infFromThenV sym =
@@ -1174,22 +1320,26 @@ barrelShifter sym shift_op = go
          x' <- memoMap (mergeSeqMap sym b x_shft x)
          go x' bs
 
+{-# INLINE shiftLeftReindex #-}
 shiftLeftReindex :: Nat' -> Integer -> Integer -> Maybe Integer
 shiftLeftReindex sz i shft =
    case sz of
      Nat n | i+shft >= n -> Nothing
      _                   -> Just (i+shft)
 
+{-# INLINE shiftRightReindex #-}
 shiftRightReindex :: Nat' -> Integer -> Integer -> Maybe Integer
 shiftRightReindex _sz i shft =
    if i-shft < 0 then Nothing else Just (i-shft)
 
+{-# INLINE rotateLeftReindex #-}
 rotateLeftReindex :: Nat' -> Integer -> Integer -> Maybe Integer
 rotateLeftReindex sz i shft =
    case sz of
      Inf -> evalPanic "cannot rotate infinite sequence" []
      Nat n -> Just ((i+shft) `mod` n)
 
+{-# INLINE rotateRightReindex #-}
 rotateRightReindex :: Nat' -> Integer -> Integer -> Maybe Integer
 rotateRightReindex sz i shft =
    case sz of
@@ -1253,6 +1403,12 @@ logicShift sym nm wop reindex =
 
 -- Miscellaneous ---------------------------------------------------------------
 
+{-# SPECIALIZE errorV ::
+  Concrete ->
+  TValue ->
+  String ->
+  SEval Concrete (GenValue Concrete)
+  #-}
 errorV :: forall sym.
   Backend sym =>
   sym ->
@@ -1288,6 +1444,8 @@ errorV sym ty msg = case ty of
   TVAbstract {} -> cryUserError sym msg
 
 
+{-# INLINE valueToChar #-}
+
 -- | Expect a word value.  Mask it to an 8-bits ASCII value
 --   and return the associated character, if it is concrete.
 --   Otherwise, return a '?' character
@@ -1297,12 +1455,15 @@ valueToChar sym (VWord 8 wval) =
      pure $! fromMaybe '?' (wordAsChar sym w)
 valueToChar _ _ = evalPanic "valueToChar" ["Not an 8-bit bitvector"]
 
+{-# INLINE valueToString #-}
+
 valueToString :: Backend sym => sym -> GenValue sym -> SEval sym String
 valueToString sym (VSeq n vals) = traverse (valueToChar sym =<<) (enumerateSeqMap n vals)
 valueToString _ _ = evalPanic "valueToString" ["Not a finite sequence"]
 
 -- Merge and if/then/else
 
+{-# INLINE iteValue #-}
 iteValue :: Backend sym =>
   sym ->
   SBit sym ->
@@ -1314,6 +1475,7 @@ iteValue sym b x y
   | Just False <- bitAsLit sym b = y
   | otherwise = mergeValue' sym b x y
 
+{-# INLINE mergeWord #-}
 mergeWord :: Backend sym =>
   sym ->
   SBit sym ->
@@ -1325,6 +1487,7 @@ mergeWord sym c (WordVal w1) (WordVal w2) =
 mergeWord sym c w1 w2 =
   LargeBitsVal (wordValueSize sym w1) <$> memoMap (mergeSeqMap sym c (asBitsMap sym w1) (asBitsMap sym w2))
 
+{-# INLINE mergeWord' #-}
 mergeWord' :: Backend sym =>
   sym ->
   SBit sym ->
@@ -1333,6 +1496,7 @@ mergeWord' :: Backend sym =>
   SEval sym (WordValue sym)
 mergeWord' sym = mergeEval sym (mergeWord sym)
 
+{-# INLINE mergeValue' #-}
 mergeValue' :: Backend sym =>
   sym ->
   SBit sym ->
@@ -1363,6 +1527,7 @@ mergeValue sym c v1 v2 =
     (_          , _          ) -> panic "Cryptol.Eval.Generic"
                                   [ "mergeValue: incompatible values" ]
 
+{-# INLINE mergeSeqMap #-}
 mergeSeqMap :: Backend sym =>
   sym ->
   SBit sym ->
