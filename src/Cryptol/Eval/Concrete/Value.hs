@@ -311,7 +311,7 @@ instance Backend Concrete where
     do assertSideCondition sym (x >= 0) LogNegative
        pure $! lg2 x
 
-  intToZn _ 0 x = pure x
+  intToZn _ 0 x = evalPanic "intToZn" ["0 modulus not allowed"]
   intToZn _ m x = pure $! x `mod` m
 
   -- NB: requires we maintain the invariant that
@@ -322,17 +322,17 @@ instance Backend Concrete where
   znPlus  _ = liftBinIntMod (+)
   znMinus _ = liftBinIntMod (-)
   znMult  _ = liftBinIntMod (*)
-  znNegate _ 0 x = pure $! (negate x)
+  znNegate _ 0 x = evalPanic "znNegate" ["0 modulus not allowed"]
   znNegate _ m x = pure $! (negate x) `mod` m
 
   znExp sym m x y
-    | m == 0    = intExp sym x y
+    | m == 0    = evalPanic "znExp" ["0 modulus not allowed"]
     | otherwise = pure $! (doubleAndAdd x y m) `mod` m
 
 liftBinIntMod :: Monad m =>
   (Integer -> Integer -> Integer) -> Integer -> Integer -> Integer -> m Integer
 liftBinIntMod op m x y
-  | m == 0    = pure $ op x y
+  | m == 0    = evalPanic "znArithmetic" ["0 modulus not allowed"]
   | otherwise = pure $ (op x y) `mod` m
 
 doubleAndAdd :: Integer -- ^ base

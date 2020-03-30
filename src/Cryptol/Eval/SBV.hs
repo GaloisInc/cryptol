@@ -307,12 +307,12 @@ instance Backend SBV where
   -- NB, we don't do reduction here
   intToZn _ _m a = pure a
 
-  znToInt _ 0 a = pure a
+  znToInt _ 0 a = evalPanic "znToInt" ["0 modulus not allowed"]
   znToInt _ m a =
     do let m' = svInteger KUnbounded m
        pure $! svRem a m'
 
-  znEq _ 0 a b = pure $! svEqual a b
+  znEq _ 0 a b = evalPanic "znEq" ["0 modulus not allowed"]
   znEq _ m a b = svDivisible m (SBV.svMinus a b)
 
   znPlus  _ m a b = sModAdd m a b
@@ -695,28 +695,28 @@ sExp x y =
                   s = SBV.svTimes a a
 
 sModAdd :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SInteger SBV)
-sModAdd 0 x y = intPlus SBV x y
+sModAdd 0 x y = evalPanic "sModAdd" ["0 modulus not allowed"]
 sModAdd modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
     (Just i, Just j) -> integerLit SBV ((i + j) `mod` modulus)
     _                -> pure $ SBV.svPlus x y
 
 sModSub :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SInteger SBV)
-sModSub 0 x y = intMinus SBV x y
+sModSub 0 x y = evalPanic "sModSub" ["0 modulus not allowed"]
 sModSub modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
     (Just i, Just j) -> integerLit SBV ((i - j) `mod` modulus)
     _                -> pure $ SBV.svMinus x y
 
 sModNegate :: Integer -> SInteger SBV -> SEval SBV (SInteger SBV)
-sModNegate 0 x = intNegate SBV x
+sModNegate 0 x = evalPanic "sModNegate" ["0 modulus not allowed"]
 sModNegate modulus x =
   case SBV.svAsInteger x of
     Just i -> integerLit SBV ((negate i) `mod` modulus)
     _      -> pure $ SBV.svUNeg x
 
 sModMult :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SInteger SBV)
-sModMult 0 x y = intMult SBV x y
+sModMult 0 x y = evalPanic "sModMult" ["0 modulus not allowed"]
 sModMult modulus x y =
   case (SBV.svAsInteger x, SBV.svAsInteger y) of
     (Just i, Just j) -> integerLit SBV ((i * j) `mod` modulus)

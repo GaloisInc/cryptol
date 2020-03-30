@@ -43,7 +43,7 @@ mkLit sym ty i =
   case ty of
     TVInteger                    -> VInteger <$> integerLit sym i
     TVIntMod m
-      | m == 0                   -> VInteger <$> integerLit sym i
+      | m == 0                   -> evalPanic "mkLit" ["0 modulus not allowed"]
       | otherwise                -> VInteger <$> integerLit sym (i `mod` m)
     TVSeq w TVBit                -> pure $ word sym w i
     _                            -> evalPanic "Cryptol.Eval.Prim.evalConst"
