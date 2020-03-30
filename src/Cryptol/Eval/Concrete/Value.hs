@@ -60,20 +60,22 @@ instance Show BV where
 -- | Apply an integer function to the values of bitvectors.
 --   This function assumes both bitvectors are the same width.
 binBV :: Applicative m => (Integer -> Integer -> Integer) -> BV -> BV -> m BV
-binBV f (BV w x) (BV _ y) = pure $ mkBv w (f x y)
+binBV f (BV w x) (BV _ y) = pure $! mkBv w (f x y)
+{-# INLINE binBV #-}
 
 -- | Apply an integer function to the values of a bitvector.
 --   This function assumes the function will not require masking.
 unaryBV :: (Integer -> Integer) -> BV -> BV
-unaryBV f (BV w x) = mkBv w $ f x
+unaryBV f (BV w x) = mkBv w $! f x
+{-# INLINE unaryBV #-}
 
 bvVal :: BV -> Integer
 bvVal (BV _w x) = x
+{-# INLINE bvVal #-}
 
 -- | Smart constructor for 'BV's that checks for the width limit
 mkBv :: Integer -> Integer -> BV
 mkBv w i = BV w (mask w i)
-
 
 signedBV :: BV -> Integer
 signedBV (BV i x) = signedValue i x
@@ -124,7 +126,7 @@ mask ::
   Integer  {- ^ Value -} ->
   Integer  {- ^ Masked result -}
 mask w i | w >= Arch.maxBigIntWidth = wordTooWide w
-         | otherwise                = i .&. ((1 `shiftL` fromInteger w) - 1)
+         | otherwise                = i .&. (bit (fromInteger w) - 1)
 
 instance Backend Concrete where
   type SBit Concrete = Bool
@@ -311,7 +313,7 @@ instance Backend Concrete where
     do assertSideCondition sym (x >= 0) LogNegative
        pure $! lg2 x
 
-  intToZn _ 0 x = evalPanic "intToZn" ["0 modulus not allowed"]
+  intToZn _ 0 _ = evalPanic "intToZn" ["0 modulus not allowed"]
   intToZn _ m x = pure $! x `mod` m
 
   -- NB: requires we maintain the invariant that
@@ -322,13 +324,14 @@ instance Backend Concrete where
   znPlus  _ = liftBinIntMod (+)
   znMinus _ = liftBinIntMod (-)
   znMult  _ = liftBinIntMod (*)
-  znNegate _ 0 x = evalPanic "znNegate" ["0 modulus not allowed"]
+  znNegate _ 0 _ = evalPanic "znNegate" ["0 modulus not allowed"]
   znNegate _ m x = pure $! (negate x) `mod` m
 
-  znExp sym m x y
+  znExp _sym m x y
     | m == 0    = evalPanic "znExp" ["0 modulus not allowed"]
     | otherwise = pure $! (doubleAndAdd x y m) `mod` m
 
+{-# INLINE liftBinIntMod #-}
 liftBinIntMod :: Monad m =>
   (Integer -> Integer -> Integer) -> Integer -> Integer -> Integer -> m Integer
 liftBinIntMod op m x y
