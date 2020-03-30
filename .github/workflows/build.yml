@@ -4,18 +4,11 @@ jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
-      # XXX: Remove fail-fast when macos and windows are working
-      # 1. setup-haskell needs to be implemented to work for macos and windows
-      # 2. cry build/test might need modifications
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-2019]
-        ghc: ["8.4.4"]
+        ghc: ["8.4.4", "8.6.5", "8.8.1"]
         cabal: ["3.0.0.0"]
-      # matrix:
-      #   os: [ubuntu-latest, macos-latest, windows-2019]
-      #   ghc: ["8.4.4", "8.6.5", "8.8.1"]
-      #   cabal: ["3.0.0.0"]
     name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
@@ -29,17 +22,20 @@ jobs:
         name: Cache ~/.cabal/packages
         with:
           path: ~/.cabal/packages
-          key: ${{ runner.os }}-${{ matrix.ghc }}-cabal-packages
+          key: ${{ runner.os }}-${{ matrix.ghc }}-packages-${{ hashFiles('**/cabal.GHC-*') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.ghc }}-packages-
       - uses: actions/cache@v1
         name: Cache ~/.cabal/store
         with:
           path: ~/.cabal/store
-          key: ${{ runner.os }}-${{ matrix.ghc }}-cabal-store
+          key: ${{ runner.os }}-${{ matrix.ghc }}-store-${{ hashFiles('**/cabal.GHC-*') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.ghc }}-store-
       - uses: actions/cache@v1
         name: Cache dist-newstyle
         with:
           path: dist-newstyle
-          key: ${{ runner.os }}-${{ matrix.ghc }}-dist-newstyle
+          key: ${{ runner.os }}-${{ matrix.ghc }}-dist-newstyle-${{ hashFiles('**/cabal.GHC-*') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.ghc }}-dist-newstyle-
 
       - name: Install System Dependencies
         shell: bash
