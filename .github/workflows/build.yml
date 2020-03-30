@@ -89,4 +89,4 @@ jobs:
 
       - name: Test
         shell: bash
-        run: cry test
+        run: ./cry test
