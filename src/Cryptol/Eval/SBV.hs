@@ -291,11 +291,13 @@ instance Backend SBV where
   intDiv sym a b =
     do let z = svInteger KUnbounded 0
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
-       pure $! svQuot a b  -- TODO! Fix this: see issue #662
+       let p = svLessThan z b
+       pure $! svSymbolicMerge KUnbounded True p (svQuot a b) (svQuot (svUNeg a) (svUNeg b))
   intMod sym a b =
     do let z = svInteger KUnbounded 0
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
-       pure $! svRem a b   -- TODO! Fix this: see issue #662
+       let p = svLessThan z b
+       pure $! svSymbolicMerge KUnbounded True p (svRem a b) (svUNeg (svRem (svUNeg a) (svUNeg b)))
 
   intExp sym a b
     | Just e <- svAsInteger b =
