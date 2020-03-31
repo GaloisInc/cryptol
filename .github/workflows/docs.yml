@@ -10,12 +10,17 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # container:
+    #   image: pandoc/latex:latest
+    #   volumes:
+    #     -
     steps:
       - uses: actions/checkout@v2
       - uses: docker://pandoc/latex:latest
-      - run: cd docs && make
+        with:
+          args: "cd docs && make"
+      # - run: cd docs && make
       - uses: actions/upload-artifact@v1
         with:
           name: docs
           path: docs
-
