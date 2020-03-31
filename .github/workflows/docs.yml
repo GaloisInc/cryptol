@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: docker://pandoc/latex:latest
         with:
-          args: "cd docs && make"
+          args: "sh -c 'cd docs && make'"
       # - run: cd docs && make
       - uses: actions/upload-artifact@v1
         with:
