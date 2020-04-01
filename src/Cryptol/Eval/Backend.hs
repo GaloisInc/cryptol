@@ -27,6 +27,7 @@ module Cryptol.Eval.Backend
 
 import Control.Monad.IO.Class
 import Data.Kind (Type)
+import Data.Ratio ( (%), numerator, denominator )
 
 import Cryptol.Eval.Monad
 import Cryptol.TypeCheck.AST(Name)
@@ -146,7 +147,14 @@ iteRational sym p (SRational a b) (SRational c d) =
   SRational <$> iteInteger sym p a c <*> iteInteger sym p b d
 
 ppRational :: Backend sym => sym -> PPOpts -> SRational sym -> Doc
-ppRational sym opts (SRational n d) = text "(ratio" <+> ppInteger sym opts n <+> (ppInteger sym opts d <> text ")")
+ppRational sym opts (SRational n d)
+  | Just ni <- integerAsLit sym n
+  , Just di <- integerAsLit sym d
+  = let q = ni % di in
+      text "(ratio" <+> integer (numerator q) <+> (integer (denominator q) <> text ")")
+
+  | otherwise
+  = text "(ratio" <+> ppInteger sym opts n <+> (ppInteger sym opts d <> text ")")
 
 -- | This type class defines a collection of operations on bits, words and integers that
 --   are necessary to define generic evaluator primitives that operate on both concrete
