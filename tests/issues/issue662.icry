@@ -1,0 +1,7 @@
+:l issue662.cry
+
+:set tests=1000
+:check
+
+:set prover=z3
+:prove
