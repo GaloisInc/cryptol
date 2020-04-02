@@ -33,7 +33,7 @@ module Cryptol.ModuleSystem (
   ) where
 
 import qualified Cryptol.Eval as E
-import qualified Cryptol.Eval.Value        as E
+import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.ModuleSystem.Env
 import           Cryptol.ModuleSystem.Interface
 import           Cryptol.ModuleSystem.Monad
@@ -88,7 +88,7 @@ checkExpr :: P.Expr PName -> ModuleCmd (P.Expr Name,T.Expr,T.Schema)
 checkExpr e env = runModuleM env (interactive (Base.checkExpr e))
 
 -- | Evaluate an expression.
-evalExpr :: T.Expr -> ModuleCmd E.Value
+evalExpr :: T.Expr -> ModuleCmd Concrete.Value
 evalExpr e env = runModuleM env (interactive (Base.evalExpr e))
 
 -- | Typecheck top-level declarations.

@@ -91,8 +91,6 @@ data ModuleEnv = ModuleEnv
 
   } deriving Generic
 
-instance NFData ModuleEnv
-
 -- | Should we run the linter?
 data CoreLint = NoCoreLint        -- ^ Don't run core lint
               | CoreLint          -- ^ Run core lint
@@ -408,7 +406,7 @@ data DynamicEnv = DEnv
   { deNames :: R.NamingEnv
   , deDecls :: [T.DeclGroup]
   , deEnv   :: EvalEnv
-  } deriving (Generic, NFData)
+  } deriving Generic
 
 instance Semigroup DynamicEnv where
   de1 <> de2 = DEnv

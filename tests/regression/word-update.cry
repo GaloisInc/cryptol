@@ -1,0 +1,25 @@
+
+
+property wordUpdate (x:[16]) (y:[8]) (b:Bit) =
+  y < 16 ==> update x y b == if b then x || msk else x && ~msk
+
+ where
+ msk = 0b1000000000000000 >> y
+
+property wordUpdate2 (x:[16]) (y:[8]) (b:Bit) =
+  y < 16 ==> update x y b == x'
+
+ where
+ x' = [ if i == y then b else x@i | i <- [0 .. 15] ]
+
+property wordUpdateEnd (x:[16]) (y:[8]) (b:Bit) =
+  y < 16 ==> updateEnd x y b == if b then x || msk else x && ~msk
+
+ where
+ msk = 0b0000000000000001 << y
+
+property wordUpdateEnd2 (x:[16]) (y:[8]) (b:Bit) =
+  y < 16 ==> updateEnd x y b == x'
+
+ where
+ x' = [ if i == y then b else x!i | i <- reverse [0 .. 15] ]

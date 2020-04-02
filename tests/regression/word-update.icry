@@ -1,0 +1,4 @@
+:l word-update.cry
+:set tests=10000
+:check
+:prove

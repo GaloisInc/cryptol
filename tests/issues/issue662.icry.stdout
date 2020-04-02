@@ -1,0 +1,15 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+property divRoundsDown Using random testing.
+Testing... Passed 1000 tests.
+property divEuclidean Using random testing.
+Testing... Passed 1000 tests.
+property modAbs Using random testing.
+Testing... Passed 1000 tests.
+:prove divRoundsDown
+	Q.E.D.
+:prove divEuclidean
+	Q.E.D.
+:prove modAbs
+	Q.E.D.

@@ -17,23 +17,16 @@ module Cryptol.Eval.Monad
 , EvalOpts(..)
 , getEvalOpts
 , PPOpts(..)
+, defaultPPOpts
 , io
-, delay
 , delayFill
 , ready
 , blackhole
   -- * Error reporting
 , EvalError(..)
 , evalPanic
-, typeCannotBeDemoted
-, divideByZero
-, negativeExponent
-, logNegative
 , wordTooWide
-, cryUserError
-, cryLoopError
-, cryNoPrimError
-, invalidIndex
+, typeCannotBeDemoted
 ) where
 
 import           Control.DeepSeq
@@ -62,6 +55,9 @@ data PPOpts = PPOpts
   , useInfLength :: Int
   }
 
+defaultPPOpts :: PPOpts
+defaultPPOpts = PPOpts { useAscii = False, useBase = 10, useInfLength = 5 }
+
 -- | Some options for evalutaion
 data EvalOpts = EvalOpts
   { evalLogger :: Logger    -- ^ Where to print stuff (e.g., for @trace@)
@@ -84,21 +80,8 @@ data ThunkState a
 
 -- | Access the evaluation options.
 getEvalOpts :: Eval EvalOpts
-getEvalOpts = Thunk return
+getEvalOpts = Thunk pure
 
-{-# INLINE delay #-}
--- | Delay the given evaluation computation, returning a thunk
---   which will run the computation when forced.  Raise a loop
---   error if the resulting thunk is forced during its own evaluation.
-delay :: Maybe String     -- ^ Optional name to print if a loop is detected
-      -> Eval a           -- ^ Computation to delay
-      -> Eval (Eval a)
-delay _ (Ready a) = Ready (Ready a)
-delay msg (Thunk x) = Thunk $ \opts -> do
-  let msg' = maybe "" ("while evaluating "++) msg
-  let retry = cryLoopError msg'
-  r <- newIORef Unforced
-  return $ unDelay retry r (x opts)
 
 {-# INLINE delayFill #-}
 
@@ -106,9 +89,10 @@ delay msg (Thunk x) = Thunk $ \opts -> do
 --   which will run the computation when forced.  Run the 'retry'
 --   computation instead if the resulting thunk is forced during
 --   its own evaluation.
-delayFill :: Eval a        -- ^ Computation to delay
-          -> Eval a        -- ^ Backup computation to run if a tight loop is detected
-          -> Eval (Eval a)
+delayFill ::
+  Eval a {- ^ Computation to delay -} ->
+  Eval a {- ^ Backup computation to run if a tight loop is detected -} ->
+  Eval (Eval a)
 delayFill (Ready x) _ = Ready (Ready x)
 delayFill (Thunk x) retry = Thunk $ \opts -> do
   r <- newIORef Unforced
@@ -118,8 +102,9 @@ delayFill (Thunk x) retry = Thunk $ \opts -> do
 --   after the fact.  A preallocated thunk is returned, along with an operation to
 --   fill the thunk with the associated computation.
 --   This is used to implement recursive declaration groups.
-blackhole :: String -- ^ A name to associate with this thunk.
-          -> Eval (Eval a, Eval a -> Eval ())
+blackhole ::
+  String {- ^ A name to associate with this thunk. -} ->
+  Eval (Eval a, Eval a -> Eval ())
 blackhole msg = do
   r <- io $ newIORef (fail msg)
   let get = join (io $ readIORef r)
@@ -199,7 +184,7 @@ evalPanic cxt = panic ("[Eval] " ++ cxt)
 
 -- | Data type describing errors that can occur during evaluation.
 data EvalError
-  = InvalidIndex Integer          -- ^ Out-of-bounds index
+  = InvalidIndex (Maybe Integer)  -- ^ Out-of-bounds index
   | TypeCannotBeDemoted Type      -- ^ Non-numeric type passed to @number@ function
   | DivideByZero                  -- ^ Division or modulus by 0
   | NegativeExponent              -- ^ Exponentiation by negative integer
@@ -208,11 +193,13 @@ data EvalError
   | UserError String              -- ^ Call to the Cryptol @error@ primitive
   | LoopError String              -- ^ Detectable nontermination
   | NoPrim Name                   -- ^ Primitive with no implementation
+  | UnsupportedSymbolicOp String  -- ^ Operation cannot be supported in the symbolic simulator
     deriving (Typeable,Show)
 
 instance PP EvalError where
   ppPrec _ e = case e of
-    InvalidIndex i -> text "invalid sequence index:" <+> integer i
+    InvalidIndex (Just i) -> text "invalid sequence index:" <+> integer i
+    InvalidIndex Nothing  -> text "invalid sequence index"
     TypeCannotBeDemoted t -> text "type cannot be demoted:" <+> pp t
     DivideByZero -> text "division by 0"
     NegativeExponent -> text "negative exponent"
@@ -222,6 +209,7 @@ instance PP EvalError where
     UserError x -> text "Run-time error:" <+> text x
     LoopError x -> text "<<loop>>" <+> text x
     NoPrim x -> text "unimplemented primitive:" <+> pp x
+    UnsupportedSymbolicOp nm -> text "operation can not be supported on symbolic values:" <+> text nm
 
 instance X.Exception EvalError
 
@@ -229,35 +217,8 @@ instance X.Exception EvalError
 typeCannotBeDemoted :: Type -> a
 typeCannotBeDemoted t = X.throw (TypeCannotBeDemoted t)
 
--- | For division by 0.
-divideByZero :: Eval a
-divideByZero = io (X.throwIO DivideByZero)
-
--- | For exponentiation by a negative integer.
-negativeExponent :: Eval a
-negativeExponent = io (X.throwIO NegativeExponent)
-
--- | For logarithm of a negative integer.
-logNegative :: Eval a
-logNegative = io (X.throwIO LogNegative)
-
 -- | For when we know that a word is too wide and will exceed gmp's
 -- limits (though words approaching this size will probably cause the
 -- system to crash anyway due to lack of memory).
 wordTooWide :: Integer -> a
 wordTooWide w = X.throw (WordTooWide w)
-
--- | For the Cryptol @error@ function.
-cryUserError :: String -> Eval a
-cryUserError msg = io (X.throwIO (UserError msg))
-
-cryNoPrimError :: Name -> Eval a
-cryNoPrimError x = io (X.throwIO (NoPrim x))
-
--- | For cases where we can detect tight loops.
-cryLoopError :: String -> Eval a
-cryLoopError msg = io (X.throwIO (LoopError msg))
-
--- | A sequencing operation has gotten an invalid index.
-invalidIndex :: Integer -> Eval a
-invalidIndex i = io (X.throwIO (InvalidIndex i))

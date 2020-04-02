@@ -9,8 +9,9 @@
 -- This is the main driver---it provides entry points for the
 -- various passes.
 
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ImplicitParams #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module Cryptol.ModuleSystem.Base where
 
@@ -25,8 +26,9 @@ import Cryptol.ModuleSystem.Env (lookupModule
                                 , ModContext(..)
                                 , ModulePath(..), modulePathLabel)
 import qualified Cryptol.Eval                 as E
-import qualified Cryptol.Eval.Value           as E
-import           Cryptol.Prims.Eval ()
+
+import qualified Cryptol.Eval.Concrete as Concrete
+import           Cryptol.Eval.Concrete (Concrete(..))
 import qualified Cryptol.ModuleSystem.NamingEnv as R
 import qualified Cryptol.ModuleSystem.Renamer as R
 import qualified Cryptol.Parser               as P
@@ -200,7 +202,8 @@ doLoadModule isrc path fp pm0 =
      tcm <- optionalInstantiate =<< checkModule isrc path pm
 
      -- extend the eval env, unless a functor.
-     unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv tcm)
+     let ?evalPrim = Concrete.evalPrim
+     unless (T.isParametrizedModule tcm) $ modifyEvalEnv (E.moduleEnv Concrete tcm)
      loadedModule path fp tcm
 
      return tcm
@@ -536,12 +539,13 @@ genInferInput r prims params env = do
 
 -- Evaluation ------------------------------------------------------------------
 
-evalExpr :: T.Expr -> ModuleM E.Value
+evalExpr :: T.Expr -> ModuleM Concrete.Value
 evalExpr e = do
   env <- getEvalEnv
   denv <- getDynEnv
   evopts <- getEvalOpts
-  io $ E.runEval evopts $ (E.evalExpr (env <> deEnv denv) e)
+  let ?evalPrim = Concrete.evalPrim
+  io $ E.runEval evopts $ (E.evalExpr Concrete (env <> deEnv denv) e)
 
 evalDecls :: [T.DeclGroup] -> ModuleM ()
 evalDecls dgs = do
@@ -549,7 +553,8 @@ evalDecls dgs = do
   denv <- getDynEnv
   evOpts <- getEvalOpts
   let env' = env <> deEnv denv
-  deEnv' <- io $ E.runEval evOpts $ E.evalDecls dgs env'
+  let ?evalPrim = Concrete.evalPrim
+  deEnv' <- io $ E.runEval evOpts $ E.evalDecls Concrete dgs env'
   let denv' = denv { deDecls = deDecls denv ++ dgs
                    , deEnv = deEnv'
                    }

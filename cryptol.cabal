@@ -73,9 +73,7 @@ library
   Build-tools:         alex, happy
   hs-source-dirs:      src
 
-  Exposed-modules:     Cryptol.Prims.Eval,
-
-                       Cryptol.Parser,
+  Exposed-modules:     Cryptol.Parser,
                        Cryptol.Parser.Lexer,
                        Cryptol.Parser.AST,
                        Cryptol.Parser.Position,
@@ -154,18 +152,21 @@ library
 
                        Cryptol.Eval,
                        Cryptol.Eval.Arch,
+                       Cryptol.Eval.Backend,
+                       Cryptol.Eval.Concrete,
+                       Cryptol.Eval.Concrete.Value,
                        Cryptol.Eval.Env,
+                       Cryptol.Eval.Generic,
                        Cryptol.Eval.Monad,
                        Cryptol.Eval.Reference,
+                       Cryptol.Eval.SBV,
                        Cryptol.Eval.Type,
                        Cryptol.Eval.Value,
 
-                       Cryptol.Testing.Concrete,
                        Cryptol.Testing.Random,
 
                        Cryptol.Symbolic,
-                       Cryptol.Symbolic.Prims,
-                       Cryptol.Symbolic.Value,
+                       Cryptol.Symbolic.SBV,
 
                        Cryptol.REPL.Command,
                        Cryptol.REPL.Monad,
@@ -177,9 +178,11 @@ library
                        Paths_cryptol,
                        GitRev
 
-  GHC-options:         -Wall -fsimpl-tick-factor=140
+  GHC-options:         -Wall -fsimpl-tick-factor=140 -O2
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
+
+  ghc-prof-options: -O2 -fprof-auto-top
 
   if flag(relocatable)
       cpp-options: -DRELOCATABLE
@@ -204,9 +207,11 @@ executable cryptol
                      , monad-control
                      , text
                      , transformers
-  GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m"
+  GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m" -O2
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
+
+  ghc-prof-options: -O2 -fprof-auto-top
 
   if os(linux) && flag(static)
       ld-options:      -static -pthread
@@ -255,7 +260,7 @@ benchmark cryptol-bench
   main-is:             Main.hs
   hs-source-dirs:      bench
   default-language:    Haskell2010
-  GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m"
+  GHC-options:         -Wall -threaded -rtsopts "-with-rtsopts=-N1 -A64m" -O2
   if impl(ghc >= 8.0.1)
      ghc-options: -Wno-redundant-constraints
   if os(linux) && flag(static)

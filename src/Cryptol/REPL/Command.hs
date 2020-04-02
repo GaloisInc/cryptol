@@ -58,10 +58,12 @@ import qualified Cryptol.ModuleSystem.Renamer as M (RenamerWarning(SymbolShadowe
 import qualified Cryptol.Utils.Ident as M
 import qualified Cryptol.ModuleSystem.Env as M
 
+import           Cryptol.Eval.Concrete( Concrete(..) )
+import qualified Cryptol.Eval.Concrete as Concrete
 import qualified Cryptol.Eval.Monad as E
 import qualified Cryptol.Eval.Value as E
 import qualified Cryptol.Eval.Reference as R
-import Cryptol.Testing.Concrete
+import Cryptol.Testing.Random
 import qualified Cryptol.Testing.Random  as TestR
 import Cryptol.Parser
     (parseExprWith,parseReplWith,ParseError(),Config(..),defaultConfig
@@ -77,8 +79,8 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Transform.Specialize as S
-import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..),ProverStats)
-import qualified Cryptol.Symbolic as Symbolic
+import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..),ProverStats,ProverResult(..))
+import qualified Cryptol.Symbolic.SBV as SBV
 
 import qualified Control.Exception as X
 import Control.Monad hiding (mapM, mapM)
@@ -114,7 +116,6 @@ import GHC.Float (log1p, expm1)
 import Prelude ()
 import Prelude.Compat
 
-import qualified Data.SBV           as SBV (Solver)
 import qualified Data.SBV.Internals as SBV (showTDiff)
 
 -- Commands --------------------------------------------------------------------
@@ -288,7 +289,7 @@ evalCmd str = do
     P.ExprInput expr -> do
       (val,_ty) <- replEvalExpr expr
       ppOpts <- getPPValOpts
-      valDoc <- rEvalRethrow (E.ppValue ppOpts val)
+      valDoc <- rEvalRethrow (E.ppValue Concrete ppOpts val)
 
       -- This is the point where the value gets forced. We deepseq the
       -- pretty-printed representation of it, rather than the value
@@ -303,10 +304,10 @@ evalCmd str = do
       -- be generalized if mono-binds is enabled
       replEvalDecl decl
 
-printCounterexample :: Bool -> P.Expr P.PName -> [E.Value] -> REPL ()
+printCounterexample :: Bool -> P.Expr P.PName -> [Concrete.Value] -> REPL ()
 printCounterexample isSat pexpr vs =
   do ppOpts <- getPPValOpts
-     docs <- mapM (rEval . E.ppValue ppOpts) vs
+     docs <- mapM (rEval . E.ppValue Concrete ppOpts) vs
      let doc = ppPrec 3 pexpr -- function application has precedence 3
      rPrint $ hang doc 2 (sep docs) <+>
        text (if isSat then "= True" else "= False")
@@ -326,8 +327,8 @@ dumpTestsCmd outFile str =
      tests <- io $ TestR.returnTests g evo gens val testNum
      out <- forM tests $
             \(args, x) ->
-              do argOut <- mapM (rEval . E.ppValue ppopts) args
-                 resOut <- rEval (E.ppValue ppopts x)
+              do argOut <- mapM (rEval . E.ppValue Concrete ppopts) args
+                 resOut <- rEval (E.ppValue Concrete ppopts x)
                  return (renderOneLine resOut ++ "\t" ++ intercalate "\t" (map renderOneLine argOut) ++ "\n")
      io $ writeFile outFile (concat out) `X.catch` handler
   where
@@ -363,7 +364,7 @@ qcCmd qcMode str =
                                     ["Exhaustive testing ran out of test cases"]
                 f _ (vs : vss1) = do
                   evo <- getEvalOpts
-                  result <- io $ runOneTest evo val vs
+                  result <- io $ evalTest evo val vs
                   return (result, vss1)
                 testSpec = TestSpec {
                     testFn = f
@@ -383,7 +384,7 @@ qcCmd qcMode str =
             return [report]
 
        Just (sz,tys,_) | qcMode == QCRandom ->
-         case TestR.testableType ty of
+         case TestR.testableTypeGenerators ty of
               Nothing   -> raise (TypeNotTestable ty)
               Just gens -> do
                 rPutStrLn "Using random testing."
@@ -468,7 +469,7 @@ qcCmd qcMode str =
         rPrint (pp err)
       FailError err vs -> do
         prtLn "ERROR for the following inputs:"
-        mapM_ (\v -> rPrint =<< (rEval $ E.ppValue opts v)) vs
+        mapM_ (\v -> rPrint =<< (rEval $ E.ppValue Concrete opts v)) vs
         rPrint (pp err)
       Pass -> panic "Cryptol.REPL.Command" ["unexpected Test.Pass"]
 
@@ -519,7 +520,7 @@ satCmd, proveCmd :: String -> REPL ()
 satCmd = cmdProveSat True
 proveCmd = cmdProveSat False
 
-showProverStats :: Maybe SBV.Solver -> ProverStats -> REPL ()
+showProverStats :: Maybe String -> ProverStats -> REPL ()
 showProverStats mprover stat = rPutStrLn msg
   where
 
@@ -575,14 +576,14 @@ cmdProveSat isSat str = do
     _ -> do
       (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat isSat str mfile)
       case result of
-        Symbolic.EmptyResult         ->
+        EmptyResult         ->
           panic "REPL.Command" [ "got EmptyResult for online prover query" ]
-        Symbolic.ProverError msg     -> rPutStrLn msg
-        Symbolic.ThmResult ts        -> do
+        ProverError msg     -> rPutStrLn msg
+        ThmResult ts        -> do
           rPutStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
           (t, e) <- mkSolverResult cexStr (not isSat) (Left ts)
           bindItVariable t e
-        Symbolic.AllSatResult tevss -> do
+        AllSatResult tevss -> do
           let tess = map (map $ \(t,e,_) -> (t,e)) tevss
               vss  = map (map $ \(_,_,v) -> v)     tevss
           resultRecs <- mapM (mkSolverResult cexStr isSat . Right) tess
@@ -613,7 +614,7 @@ cmdProveSat isSat str = do
 
 onlineProveSat :: Bool
                -> String -> Maybe FilePath
-               -> REPL (Maybe SBV.Solver,Symbolic.ProverResult,ProverStats)
+               -> REPL (Maybe String,ProverResult,ProverStats)
 onlineProveSat isSat str mfile = do
   proverName <- getKnownUser "prover"
   verbose <- getKnownUser "debug"
@@ -625,7 +626,7 @@ onlineProveSat isSat str mfile = do
   validEvalContext schema
   decls <- fmap M.deDecls getDynEnv
   timing <- io (newIORef 0)
-  let cmd = Symbolic.ProverCommand {
+  let cmd = ProverCommand {
           pcQueryType    = if isSat then SatQuery satNum else ProveQuery
         , pcProverName   = proverName
         , pcVerbose      = verbose
@@ -636,7 +637,7 @@ onlineProveSat isSat str mfile = do
         , pcExpr         = expr
         , pcSchema       = schema
         }
-  (firstProver, res) <- liftModuleCmd $ Symbolic.satProve cmd
+  (firstProver, res) <- liftModuleCmd $ SBV.satProve cmd
   stas <- io (readIORef timing)
   return (firstProver,res,stas)
 
@@ -648,7 +649,7 @@ offlineProveSat isSat str mfile = do
   (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
   timing <- io (newIORef 0)
-  let cmd = Symbolic.ProverCommand {
+  let cmd = ProverCommand {
           pcQueryType    = if isSat then SatQuery (SomeSat 0) else ProveQuery
         , pcProverName   = "offline"
         , pcVerbose      = verbose
@@ -659,7 +660,7 @@ offlineProveSat isSat str mfile = do
         , pcExpr         = expr
         , pcSchema       = schema
         }
-  liftModuleCmd $ Symbolic.satProveOffline cmd
+  liftModuleCmd $ SBV.satProveOffline cmd
 
 rIdent :: M.Ident
 rIdent  = M.packIdent "result"
@@ -792,12 +793,12 @@ writeFileCmd file str = do
                        (T.tIsSeq x)
   serializeValue (E.VSeq n vs) = do
     ws <- rEval
-            (mapM (>>=E.fromVWord "serializeValue") $ E.enumerateSeqMap n vs)
+            (mapM (>>= E.fromVWord Concrete "serializeValue") $ E.enumerateSeqMap n vs)
     return $ BS.pack $ map serializeByte ws
   serializeValue _             =
     panic "Cryptol.REPL.Command.writeFileCmd"
       ["Impossible: Non-VSeq value of type [n][8]."]
-  serializeByte (E.BV _ v) = fromIntegral (v .&. 0xFF)
+  serializeByte (Concrete.BV _ v) = fromIntegral (v .&. 0xFF)
 
 
 rEval :: E.Eval a -> REPL a
@@ -1446,7 +1447,7 @@ replCheckDecls ds = do
 replSpecExpr :: T.Expr -> REPL T.Expr
 replSpecExpr e = liftModuleCmd $ S.specialize e
 
-replEvalExpr :: P.Expr P.PName -> REPL (E.Value, T.Type)
+replEvalExpr :: P.Expr P.PName -> REPL (Concrete.Value, T.Type)
 replEvalExpr expr =
   do (_,def,sig) <- replCheckExpr expr
      validEvalContext def
@@ -1522,10 +1523,10 @@ bindItVariable ty expr = do
 -- | Extend the dynamic environment with a fresh binding for "it",
 -- as defined by the given value.  If we cannot determine the definition
 -- of the value, then we don't bind `it`.
-bindItVariableVal :: T.Type -> E.Value -> REPL ()
+bindItVariableVal :: T.Type -> Concrete.Value -> REPL ()
 bindItVariableVal ty val =
   do prims   <- getPrimMap
-     mb      <- rEval (E.toExpr prims ty val)
+     mb      <- rEval (Concrete.toExpr prims ty val)
      case mb of
        Nothing   -> return ()
        Just expr -> bindItVariable ty expr
