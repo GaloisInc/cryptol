@@ -305,22 +305,71 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
     | Just i <- W4.asInteger x = liftIO $ W4.intLit sym (lg2 i)
     | otherwise = liftIO (X.throw (UnsupportedSymbolicOp "integer lg2"))
 
-  intToZn _ _m x = pure x
+  -- NB, we don't do reduction here on symbolic values
+  intToZn (What4 sym) m x
+    | Just xi <- W4.asInteger x
+    = liftIO $ W4.intLit sym (xi `mod` m)
 
-  znToInt _           0 x = pure x
+    | otherwise
+    = pure x
+
+  znToInt _ 0 _ = evalPanic "znToInt" ["0 modulus not allowed"]
   znToInt (What4 sym) m x = liftIO (W4.intMod sym x =<< W4.intLit sym m)
 
-  znEq (What4 sym) 0 x y =
-    liftIO (W4.intEq sym x y)
+  znEq _ 0 _ _ = evalPanic "znEq" ["0 modulus not allowed"]
   znEq (What4 sym) m x y = liftIO $
      do diff <- W4.intSub sym x y
         W4.intDivisible sym diff (fromInteger m)
 
-  znPlus (What4 sym) _mod x y  = liftIO $ W4.intAdd sym x y
-  znMinus (What4 sym) _mod x y = liftIO $ W4.intSub sym x y
-  znMult (What4 sym) _mod x y  = liftIO $ W4.intMul sym x y
-  znNegate (What4 sym) _mod x  = liftIO $ W4.intNeg sym x
+  znPlus   (What4 sym) m x y = liftIO $ sModAdd sym m x y
+  znMinus  (What4 sym) m x y = liftIO $ sModSub sym m x y
+  znMult   (What4 sym) m x y = liftIO $ sModMult sym m x y
+  znNegate (What4 sym) m x   = liftIO $ sModNegate sym m x
 
+
+sModAdd :: W4.IsExprBuilder sym =>
+  sym -> Integer -> W4.SymInteger sym -> W4.SymInteger sym -> IO (W4.SymInteger sym)
+sModAdd _sym 0 _ _ = evalPanic "sModAdd" ["0 modulus not allowed"]
+sModAdd sym m x y
+  | Just xi <- W4.asInteger x
+  , Just yi <- W4.asInteger y
+  = W4.intLit sym ((xi+yi) `mod` m)
+
+  | otherwise
+  = W4.intAdd sym x y
+
+sModSub :: W4.IsExprBuilder sym =>
+  sym -> Integer -> W4.SymInteger sym -> W4.SymInteger sym -> IO (W4.SymInteger sym)
+sModSub _sym 0 _ _ = evalPanic "sModSub" ["0 modulus not allowed"]
+sModSub sym m x y
+  | Just xi <- W4.asInteger x
+  , Just yi <- W4.asInteger y
+  = W4.intLit sym ((xi-yi) `mod` m)
+
+  | otherwise
+  = W4.intSub sym x y
+
+
+sModMult :: W4.IsExprBuilder sym =>
+  sym -> Integer -> W4.SymInteger sym -> W4.SymInteger sym -> IO (W4.SymInteger sym)
+sModMult _sym 0 _ _ = evalPanic "sModMult" ["0 modulus not allowed"]
+sModMult sym m x y
+  | Just xi <- W4.asInteger x
+  , Just yi <- W4.asInteger y
+  = W4.intLit sym ((xi*yi) `mod` m)
+
+  | otherwise
+  = W4.intMul sym x y
+
+sModNegate :: W4.IsExprBuilder sym =>
+  sym -> Integer -> W4.SymInteger sym -> IO (W4.SymInteger sym)
+sModNegate _sym 0 _ = evalPanic "sModMult" ["0 modulus not allowed"]
+sModNegate sym m x
+  | Just xi <- W4.asInteger x
+  = W4.intLit sym ((negate xi) `mod` m)
+
+  | otherwise
+  = W4.intNeg sym x
 
 
 -- | Square-and-multiply according to the concrete integer
