@@ -13,6 +13,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ViewPatterns #-}
 
@@ -24,13 +25,13 @@ module Cryptol.Symbolic.What4
  ) where
 
 import Control.Monad.IO.Class
-import Control.Monad (replicateM, when, zipWithM, foldM)
-import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
-import Data.List (intercalate, genericLength)
+import Control.Monad (when, foldM)
+--import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
+--import Data.List (intercalate, genericLength)
 import qualified Data.Map as Map
-import Data.IORef(IORef)
+--import Data.IORef(IORef)
 import qualified Control.Exception as X
-import Data.Maybe (fromMaybe)
+--import Data.Maybe (fromMaybe)
 
 import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
@@ -39,17 +40,16 @@ import qualified Cryptol.ModuleSystem.Monad as M
 
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
-import           Cryptol.Eval.Concrete (Concrete(..))
-import qualified Cryptol.Eval.Monad as Eval
-import           Cryptol.Eval.Type (TValue(..), evalType)
+--import           Cryptol.Eval.Concrete (Concrete(..))
+--import qualified Cryptol.Eval.Monad as Eval
+--import           Cryptol.Eval.Type (TValue(..), evalType)
 
 import qualified Cryptol.Eval.Value as Eval
-import           Cryptol.Eval.Env (GenEvalEnv(..))
 import           Cryptol.Eval.What4
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Ident (Ident)
-import           Cryptol.Utils.PP
+--import           Cryptol.Utils.PP
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Logger(logPutStrLn)
 
@@ -60,7 +60,8 @@ import qualified What4.Expr.GroundEval as W4
 import qualified What4.SatResult as W4
 import qualified What4.SWord as SW
 import           What4.Solver
-import qualified What4.Solver.Z3 as Z3
+import qualified What4.Solver.Adapter as W4
+--import qualified What4.Solver.Z3 as Z3
 --import qualified What4.Solver.Yices as Yices
 --import qualified What4.Solver.CVC4 as CVC4
 
@@ -70,9 +71,7 @@ import           Data.Parameterized.Nonce
 import Prelude ()
 import Prelude.Compat
 
-import Data.Time (NominalDiffTime)
-
-type EvalEnv sym = GenEvalEnv (What4 sym)
+--import Data.Time (NominalDiffTime)
 
 doEval :: MonadIO m => Eval.EvalOpts -> Eval.Eval a -> m a
 doEval evo m = liftIO $ Eval.runEval evo m
@@ -102,17 +101,16 @@ proverConfigs =
 proverNames :: [String]
 proverNames = map fst proverConfigs
 
-lookupProver :: String -> SolverAdapter st
+lookupProver :: String -> IO (SolverAdapter st)
 lookupProver s =
   case lookup s proverConfigs of
-    Just cfg -> cfg
-    -- should be caught by UI for setting prover user variable
-    Nothing  -> panic "Cryptol.Symbolic.What4" [ "invalid prover: " ++ s ]
-
+   Just cfg -> pure cfg
+   Nothing  -> fail ("Invalid prover: " ++ s)
 
 checkProverInstallation :: String -> IO Bool
 checkProverInstallation s =
-  fail "TODO! What4 check solver installation"
+  do putStrLn "TODO! What4 check solver installation"
+     return True
 
 proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
 proverError msg (_,modEnv) =
@@ -136,10 +134,13 @@ satProve ProverCommand {..} =
     primMap <- M.getPrimMap
 
     sym <- M.io (W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator)
-    M.io (W4.extendConfig Z3.z3Options (W4.getConfiguration sym))
---    M.io (W4.extendConfig CV4.cvc4Options (W4.getConfiguration sym))
---    M.io (W4.extendConfig Yices.yicesOptions (W4.getConfiguration sym))
 
+    logData <-
+      flip M.withLogger () $ \lg () ->
+          pure $ defaultLogData
+            { logCallbackVerbose = \i msg -> when (i > 2) (logPutStrLn lg msg)
+            , logReason = "solver query"
+            }
 
     let ?evalPrim = evalPrim sym
     case predArgTypes pcSchema of
@@ -155,28 +156,140 @@ satProve ProverCommand {..} =
                       v <- Eval.evalExpr (What4 sym) env pcExpr
                       Eval.fromVBit <$> foldM Eval.fromVFun v (map (pure . varToSymValue sym) args)
 
-            query <- case pcQueryType of
-                       ProveQuery -> liftIO (W4.notPred sym =<< W4.andPred sym safety b)
-                       SatQuery (SomeSat 1) -> liftIO (W4.andPred sym safety b)
-                       SatQuery n -> fail ("TODO! support multisat: " ++ show n)
+            liftIO $ case pcQueryType of
+              ProveQuery ->
+                do q <- W4.notPred sym =<< W4.andPred sym safety b
+                   singleQuery sym evo primMap pcProverName logData ts args q
 
-            logData <-
-                 flip M.withLogger () $ \lg () ->
-                     pure $ defaultLogData
-                       { logCallbackVerbose = \i msg -> when (i > 2) (logPutStrLn lg msg)
-                       , logReason = "solver query"
-                       }
+              SatQuery num ->
+                do q <- W4.andPred sym safety b
+                   multiSATQuery sym evo primMap pcProverName logData ts args q num
 
-            pres <- liftIO $ Z3.runZ3InOverride sym logData [query] $ \res ->
-                case res of
-                  W4.Unknown -> return (ProverError "Solver returned UNKNOWN")
-                  W4.Unsat _ -> return (ThmResult (map unFinType ts))
-                  W4.Sat (evalFn,_) ->
-                    do model <- computeModel evo primMap evalFn ts args
-                       return (AllSatResult [ model ])
 
-            return (Just "Z3", pres)
+decSatNum :: SatNum -> SatNum
+decSatNum (SomeSat n) | n > 0 = SomeSat (n-1)
+decSatNum n = n
 
+
+multiSATQuery ::
+  sym ~ W4.ExprBuilder t CryptolState fm =>
+  sym ->
+  Eval.EvalOpts ->
+  PrimMap ->
+  String ->
+  W4.LogData ->
+  [FinType] ->
+  [VarShape sym] ->
+  W4.Pred sym ->
+  SatNum ->
+  IO (Maybe String, ProverResult)
+multiSATQuery sym evo primMap solverName logData ts args query (SomeSat n) | n <= 1 =
+  singleQuery sym evo primMap solverName logData ts args query
+
+multiSATQuery sym evo primMap solverName logData ts args query satNum0 =
+  do adpt <- lookupProver solverName
+     W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
+     pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
+         case res of
+           W4.Unknown -> return (Left (ProverError "Solver returned UNKNOWN"))
+           W4.Unsat _ -> return (Left (ThmResult (map unFinType ts)))
+           W4.Sat (evalFn,_) ->
+             do model <- computeModel evo primMap evalFn ts args
+                blockingPred <- computeBlockingPred sym evalFn args
+                return (Right (model, blockingPred))
+
+     case pres of
+       Left res -> pure (Just (solver_adapter_name adpt), res)
+       Right (mdl,block) ->
+         do mdls <- (mdl:) <$> computeMoreModels adpt [block,query] (decSatNum satNum0)
+            return (Just (solver_adapter_name adpt), AllSatResult mdls)
+
+  where
+
+  computeMoreModels _adpt _qs (SomeSat n) | n <= 0 = return [] -- should never happen...
+  computeMoreModels adpt qs (SomeSat n) | n <= 1 = -- final model
+    W4.solver_adapter_check_sat adpt sym logData qs $ \res ->
+         case res of
+           W4.Unknown -> return []
+           W4.Unsat _ -> return []
+           W4.Sat (evalFn,_) ->
+             do model <- computeModel evo primMap evalFn ts args
+                return [model]
+
+  computeMoreModels adpt qs satNum =
+    do pres <- W4.solver_adapter_check_sat adpt sym logData qs $ \res ->
+         case res of
+           W4.Unknown -> return Nothing
+           W4.Unsat _ -> return Nothing
+           W4.Sat (evalFn,_) ->
+             do model <- computeModel evo primMap evalFn ts args
+                blockingPred <- computeBlockingPred sym evalFn args
+                return (Just (model, blockingPred))
+
+       case pres of
+         Nothing -> return []
+         Just (mdl, block) ->
+           (mdl:) <$> computeMoreModels adpt (block:qs) (decSatNum satNum)
+
+singleQuery ::
+  sym ~ W4.ExprBuilder t CryptolState fm =>
+  sym ->
+  Eval.EvalOpts ->
+  PrimMap ->
+  String ->
+  W4.LogData ->
+  [FinType] ->
+  [VarShape sym] ->
+  W4.Pred sym ->
+  IO (Maybe String, ProverResult)
+singleQuery sym evo primMap "all" logData ts args query =
+  do fail "TODO portfolio solver!"
+
+singleQuery sym evo primMap solverName logData ts args query =
+  do adpt <- lookupProver solverName
+     W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
+     pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
+         case res of
+           W4.Unknown -> return (ProverError "Solver returned UNKNOWN")
+           W4.Unsat _ -> return (ThmResult (map unFinType ts))
+           W4.Sat (evalFn,_) ->
+             do model <- computeModel evo primMap evalFn ts args
+                return (AllSatResult [ model ])
+
+     return (Just (W4.solver_adapter_name adpt), pres)
+
+
+computeBlockingPred ::
+  sym ~ W4.ExprBuilder t CryptolState fm =>
+  sym ->
+  W4.GroundEvalFn t ->
+  [VarShape sym] ->
+  IO (W4.Pred sym)
+computeBlockingPred sym evalFn vs =
+  do ps <- mapM (varBlockingPred sym evalFn) vs
+     foldM (W4.orPred sym) (W4.falsePred sym) ps
+
+varBlockingPred ::
+  sym ~ W4.ExprBuilder t CryptolState fm =>
+  sym ->
+  W4.GroundEvalFn t ->
+  VarShape sym ->
+  IO (W4.Pred sym)
+varBlockingPred sym evalFn v =
+  case v of
+    VarBit b ->
+      do blit <- W4.groundEval evalFn b
+         W4.notPred sym =<< W4.eqPred sym b (W4.backendPred sym blit)
+    VarInteger i ->
+      do ilit <- W4.groundEval evalFn i
+         W4.notPred sym =<< W4.intEq sym i =<< W4.intLit sym ilit
+    VarWord SW.ZBV -> return (W4.falsePred sym)
+    VarWord (SW.DBV w) ->
+      do wlit <- W4.groundEval evalFn w
+         W4.notPred sym =<< W4.bvEq sym w =<< W4.bvLit sym (W4.bvWidth w) wlit
+    VarFinSeq _n vs -> computeBlockingPred sym evalFn vs
+    VarTuple vs     -> computeBlockingPred sym evalFn vs
+    VarRecord fs    -> computeBlockingPred sym evalFn (map snd (Map.toList fs))
 
 computeModel ::
   Eval.EvalOpts ->
@@ -357,7 +470,7 @@ varToConcreteValue evalFn v =
 satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
 satProveOffline ProverCommand {..} =
   protectStack (\msg (_,modEnv) -> return (Right (Left msg, modEnv), [])) $
-  \(evOpts,modEnv) -> do
+  \(_evOpts,_modEnv) -> do
     fail "TODO! satProveOffline"
 {-
     let isSat = case pcQueryType of
@@ -391,77 +504,3 @@ protectStack mkErr cmd modEnv =
         isOverflow _               = Nothing
         msg = "Symbolic evaluation failed to terminate."
         handler () = mkErr msg modEnv
-
-{-
-parseValues :: [FinType] -> [SBV.CV] -> ([Concrete.Value], [SBV.CV])
-parseValues [] cvs = ([], cvs)
-parseValues (t : ts) cvs = (v : vs, cvs'')
-  where (v, cvs') = parseValue t cvs
-        (vs, cvs'') = parseValues ts cvs'
-
-parseValue :: FinType -> [SBV.CV] -> (Concrete.Value, [SBV.CV])
-parseValue FTBit [] = panic "Cryptol.Symbolic.parseValue" [ "empty FTBit" ]
-parseValue FTBit (cv : cvs) = (Eval.VBit (SBV.cvToBool cv), cvs)
-parseValue FTInteger cvs =
-  case SBV.genParse SBV.KUnbounded cvs of
-    Just (x, cvs') -> (Eval.VInteger x, cvs')
-    Nothing        -> panic "Cryptol.Symbolic.parseValue" [ "no integer" ]
-parseValue (FTIntMod _) cvs = parseValue FTInteger cvs
-parseValue (FTSeq 0 FTBit) cvs = (Eval.word Concrete 0 0, cvs)
-parseValue (FTSeq n FTBit) cvs =
-  case SBV.genParse (SBV.KBounded False n) cvs of
-    Just (x, cvs') -> (Eval.word Concrete (toInteger n) x, cvs')
-    Nothing        -> (Eval.VWord (genericLength vs) (Eval.WordVal <$>
-                         (Eval.packWord Concrete (map Eval.fromVBit vs))), cvs')
-      where (vs, cvs') = parseValues (replicate n FTBit) cvs
-parseValue (FTSeq n t) cvs =
-                      (Eval.VSeq (toInteger n) $ Eval.finiteSeqMap Concrete (map Eval.ready vs)
-                      , cvs'
-                      )
-  where (vs, cvs') = parseValues (replicate n t) cvs
-parseValue (FTTuple ts) cvs = (Eval.VTuple (map Eval.ready vs), cvs')
-  where (vs, cvs') = parseValues ts cvs
-parseValue (FTRecord fs) cvs = (Eval.VRecord (Map.fromList (zip ns (map Eval.ready vs))), cvs')
-  where (ns, ts) = unzip fs
-        (vs, cvs') = parseValues ts cvs
-
-allDeclGroups :: M.ModuleEnv -> [DeclGroup]
-allDeclGroups = concatMap mDecls . M.loadedNonParamModules
-
-
-inBoundsIntMod :: Integer -> Eval.SInteger SBV -> Eval.SBit SBV
-inBoundsIntMod n x =
-  let z  = SBV.svInteger SBV.KUnbounded 0
-      n' = SBV.svInteger SBV.KUnbounded n
-   in SBV.svAnd (SBV.svLessEq z x) (SBV.svLessThan x n')
-
-forallFinType :: FinType -> WriterT [Eval.SBit SBV] SBV.Symbolic Value
-forallFinType ty =
-  case ty of
-    FTBit         -> Eval.VBit <$> lift forallSBool_
-    FTInteger     -> Eval.VInteger <$> lift forallSInteger_
-    FTIntMod n    -> do x <- lift forallSInteger_
-                        tell [inBoundsIntMod n x]
-                        return (Eval.VInteger x)
-    FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
-    FTSeq n FTBit -> Eval.VWord (toInteger n) . return . Eval.WordVal <$> lift (forallBV_ n)
-    FTSeq n t     -> do vs <- replicateM n (forallFinType t)
-                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
-    FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . forallFinType) ts
-    FTRecord fs   -> Eval.VRecord <$> mapM (fmap pure . forallFinType) (Map.fromList fs)
-
-existsFinType :: FinType -> WriterT [Eval.SBit SBV] SBV.Symbolic Value
-existsFinType ty =
-  case ty of
-    FTBit         -> Eval.VBit <$> lift existsSBool_
-    FTInteger     -> Eval.VInteger <$> lift existsSInteger_
-    FTIntMod n    -> do x <- lift existsSInteger_
-                        tell [inBoundsIntMod n x]
-                        return (Eval.VInteger x)
-    FTSeq 0 FTBit -> return $ Eval.word SBV 0 0
-    FTSeq n FTBit -> Eval.VWord (toInteger n) . return . Eval.WordVal <$> lift (existsBV_ n)
-    FTSeq n t     -> do vs <- replicateM n (existsFinType t)
-                        return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
-    FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . existsFinType) ts
-    FTRecord fs   -> Eval.VRecord <$> mapM (fmap pure . existsFinType) (Map.fromList fs)
--}
