@@ -95,8 +95,8 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(Logger, logPutStr, funLogger)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (SatNum(..))
---import qualified Cryptol.Symbolic.SBV as SBV (proverNames, checkProverInstallation)
-import qualified Cryptol.Symbolic.What4 as W4 (proverNames, checkProverInstallation)
+import qualified Cryptol.Symbolic.SBV as SBV (proverNames, checkProverInstallation)
+import qualified Cryptol.Symbolic.What4 as W4 (proverNames)
 
 import Control.Monad (ap,unless,when)
 import Control.Monad.Base
@@ -794,20 +794,27 @@ checkInfLength val = case val of
 checkProver :: Checker
 checkProver val = case val of
   EnvString s
-    | s `notElem` W4.proverNames ->
-      noWarns $ Just $ "Prover must be " ++ proverListString
-    | s `elem` ["offline", "any"] -> noWarns Nothing
-    | otherwise ->
-      do available <- W4.checkProverInstallation s
+    | s `elem` ["offline", "any", "w4-offline"] -> noWarns Nothing
+    | s `elem` W4.proverNames ->
+      do -- TODO! Implement solver installation testing for What4
+         return (Nothing, [])
+    | s `elem` SBV.proverNames ->
+      do available <- SBV.checkProverInstallation s
          let ws = if available
                      then []
                      else ["Warning: " ++ s ++ " installation not found"]
          return (Nothing, ws)
 
+    | otherwise ->
+      noWarns $ Just $ "Prover must be " ++ proverListString
+
   _ -> noWarns $ Just "unable to parse a value for prover"
 
+allProvers :: [String]
+allProvers = SBV.proverNames ++ W4.proverNames
+
 proverListString :: String
-proverListString = concatMap (++ ", ") (init W4.proverNames) ++ "or " ++ last W4.proverNames
+proverListString = concatMap (++ ", ") (init allProvers) ++ "or " ++ last allProvers
 
 checkSatNum :: Checker
 checkSatNum val = case val of
@@ -861,4 +868,3 @@ z3exists = do
   case mPath of
     Nothing -> return (Just Z3NotFound)
     Just _  -> return Nothing
-

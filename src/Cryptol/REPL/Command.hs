@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -80,7 +81,7 @@ import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Transform.Specialize as S
 import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..),ProverStats,ProverResult(..))
---import qualified Cryptol.Symbolic.SBV as SBV
+import qualified Cryptol.Symbolic.SBV as SBV
 import qualified Cryptol.Symbolic.What4 as W4
 
 import qualified Control.Exception as X
@@ -106,7 +107,9 @@ import System.Directory(getHomeDirectory,setCurrentDirectory,doesDirectoryExist
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
-import System.IO(hFlush,stdout,openTempFile,hClose)
+import System.IO
+         (Handle,hFlush,stdout,openTempFile,hClose,openFile
+         ,IOMode(..),hGetContents,hSeek,SeekMode(..))
 import System.Random.TF(newTFGen)
 import Numeric (showFFloat)
 import qualified Data.Text as T
@@ -486,7 +489,7 @@ qcCmd qcMode str =
 -- may be generated multiple times.  If the test vectors were chosen
 -- randomly without replacement, the proportion would instead be @k/n@.
 --
--- We compute raising to the @k@ power in the log domain to improve 
+-- We compute raising to the @k@ power in the log domain to improve
 -- numerical precision. The equivalant comptutation is:
 --   @-expm1( k * log1p (-1/n) )@
 --
@@ -557,67 +560,53 @@ cmdProveSat isSat str = do
   proverName <- getKnownUser "prover"
   fileName   <- getKnownUser "smtfile"
   let mfile = if fileName == "-" then Nothing else Just fileName
-  case proverName :: String of
-    "offline" -> do
-      result <- offlineProveSat isSat str mfile
-      case result of
-        Left msg -> rPutStrLn msg
-        Right smtlib -> do
-          let filename = fromMaybe "standard output" mfile
-          let satWord | isSat = "satisfiability"
-                      | otherwise = "validity"
-          rPutStrLn $
-              "Writing to SMT-Lib file " ++ filename ++ "..."
-          rPutStrLn $
-            "To determine the " ++ satWord ++
-            " of the expression, use an external SMT solver."
-          case mfile of
-            Just path -> io $ writeFile path smtlib
-            Nothing -> rPutStr smtlib
-    _ -> do
-      (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat isSat str mfile)
-      case result of
-        EmptyResult         ->
-          panic "REPL.Command" [ "got EmptyResult for online prover query" ]
-        ProverError msg     -> rPutStrLn msg
-        ThmResult ts        -> do
-          rPutStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
-          (t, e) <- mkSolverResult cexStr (not isSat) (Left ts)
-          bindItVariable t e
-        AllSatResult tevss -> do
-          let tess = map (map $ \(t,e,_) -> (t,e)) tevss
-              vss  = map (map $ \(_,_,v) -> v)     tevss
-          resultRecs <- mapM (mkSolverResult cexStr isSat . Right) tess
-          let collectTes tes = (t, es)
-                where
-                  (ts, es) = unzip tes
-                  t = case nub ts of
-                        [t'] -> t'
-                        _ -> panic "REPL.Command.onlineProveSat"
-                               [ "satisfying assignments with different types" ]
-              (ty, exprs) =
-                case resultRecs of
-                  [] -> panic "REPL.Command.onlineProveSat"
-                          [ "no satisfying assignments after mkSolverResult" ]
-                  [(t, e)] -> (t, [e])
-                  _        -> collectTes resultRecs
-          pexpr <- replParseExpr str
 
-          ~(EnvBool yes) <- getUser "show-examples"
-          when yes $ forM_ vss (printCounterexample isSat pexpr)
+  if proverName `elem` ["offline","w4-offline"] then
+     offlineProveSat proverName isSat str mfile
+  else
+     do (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat proverName isSat str mfile)
+        case result of
+          EmptyResult         ->
+            panic "REPL.Command" [ "got EmptyResult for online prover query" ]
+          ProverError msg     -> rPutStrLn msg
+          ThmResult ts        -> do
+            rPutStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
+            (t, e) <- mkSolverResult cexStr (not isSat) (Left ts)
+            bindItVariable t e
+          AllSatResult tevss -> do
+            let tess = map (map $ \(t,e,_) -> (t,e)) tevss
+                vss  = map (map $ \(_,_,v) -> v)     tevss
+            resultRecs <- mapM (mkSolverResult cexStr isSat . Right) tess
+            let collectTes tes = (t, es)
+                  where
+                    (ts, es) = unzip tes
+                    t = case nub ts of
+                          [t'] -> t'
+                          _ -> panic "REPL.Command.onlineProveSat"
+                                 [ "satisfying assignments with different types" ]
+                (ty, exprs) =
+                  case resultRecs of
+                    [] -> panic "REPL.Command.onlineProveSat"
+                            [ "no satisfying assignments after mkSolverResult" ]
+                    [(t, e)] -> (t, [e])
+                    _        -> collectTes resultRecs
+            pexpr <- replParseExpr str
 
-          case (ty, exprs) of
-            (t, [e]) -> bindItVariable t e
-            (t, es ) -> bindItVariables t es
+            ~(EnvBool yes) <- getUser "show-examples"
+            when yes $ forM_ vss (printCounterexample isSat pexpr)
 
-      seeStats <- getUserShowProverStats
-      when seeStats (showProverStats firstProver stats)
+            case (ty, exprs) of
+              (t, [e]) -> bindItVariable t e
+              (t, es ) -> bindItVariables t es
 
-onlineProveSat :: Bool
+        seeStats <- getUserShowProverStats
+        when seeStats (showProverStats firstProver stats)
+
+onlineProveSat :: String
+               -> Bool
                -> String -> Maybe FilePath
                -> REPL (Maybe String,ProverResult,ProverStats)
-onlineProveSat isSat str mfile = do
-  proverName <- getKnownUser "prover"
+onlineProveSat proverName isSat str mfile = do
   verbose <- getKnownUser "debug"
   satNum <- getUserSatNum
   modelValidate <- getUserProverValidate
@@ -638,12 +627,16 @@ onlineProveSat isSat str mfile = do
         , pcExpr         = expr
         , pcSchema       = schema
         }
-  (firstProver, res) <- liftModuleCmd $ W4.satProve cmd
+  (firstProver, res) <-
+     if | proverName `elem` W4.proverNames  -> liftModuleCmd $ W4.satProve cmd
+        | proverName `elem` SBV.proverNames -> liftModuleCmd $ SBV.satProve cmd
+        | otherwise -> panic "onlineProveSat" ["unexpected prover name", proverName]
+
   stas <- io (readIORef timing)
   return (firstProver,res,stas)
 
-offlineProveSat :: Bool -> String -> Maybe FilePath -> REPL (Either String String)
-offlineProveSat isSat str mfile = do
+offlineProveSat :: String -> Bool -> String -> Maybe FilePath -> REPL ()
+offlineProveSat proverName isSat str mfile = do
   verbose <- getKnownUser "debug"
   modelValidate <- getUserProverValidate
   parseExpr <- replParseExpr str
@@ -652,7 +645,7 @@ offlineProveSat isSat str mfile = do
   timing <- io (newIORef 0)
   let cmd = ProverCommand {
           pcQueryType    = if isSat then SatQuery (SomeSat 0) else ProveQuery
-        , pcProverName   = "offline"
+        , pcProverName   = proverName
         , pcVerbose      = verbose
         , pcValidate     = modelValidate
         , pcProverStats  = timing
@@ -661,7 +654,47 @@ offlineProveSat isSat str mfile = do
         , pcExpr         = expr
         , pcSchema       = schema
         }
-  liftModuleCmd $ W4.satProveOffline cmd
+
+  put <- getPutStr
+  let putLn x = put (x ++ "\n")
+  let displayMsg =
+        do let filename = fromMaybe "standard output" mfile
+           let satWord | isSat = "satisfiability"
+                       | otherwise = "validity"
+           putLn $
+               "Writing to SMT-Lib file " ++ filename ++ "..."
+           putLn $
+             "To determine the " ++ satWord ++
+             " of the expression, use an external SMT solver."
+
+  case proverName of
+    "offline" ->
+      do result <- liftModuleCmd $ SBV.satProveOffline cmd
+         case result of
+           Left msg -> rPutStrLn msg
+           Right smtlib -> do
+             io $ displayMsg
+             case mfile of
+               Just path -> io $ writeFile path smtlib
+               Nothing -> rPutStr smtlib
+
+    "w4-offline" ->
+      do result <- liftModuleCmd $ W4.satProveOffline cmd $ \f ->
+                     do displayMsg
+                        case mfile of
+                          Just path ->
+                            X.bracket (openFile path WriteMode) hClose f
+                          Nothing ->
+                            withRWTempFile "smtOutput.tmp" $ \h ->
+                              do f h
+                                 hSeek h AbsoluteSeek 0
+                                 hGetContents h >>= put
+
+         case result of
+           Just msg -> rPutStrLn msg
+           Nothing -> return ()
+
+    _ -> panic "offlineProveSat" ["unexpected offline solver name", proverName]
 
 rIdent :: M.Ident
 rIdent  = M.packIdent "result"
@@ -843,6 +876,15 @@ editCmd path =
     do setEditPath p
        _ <- replEdit p
        reloadCmd
+
+withRWTempFile :: String -> (Handle -> IO a) -> IO a
+withRWTempFile name k =
+  X.bracket
+    (do tmp <- getTemporaryDirectory
+        let esc c = if isAscii c && isAlphaNum c then c else '_'
+        openTempFile tmp (map esc name))
+    (\(nm,h) -> hClose h >> removeFile nm)
+    (k . snd)
 
 withROTempFile :: String -> ByteString -> (FilePath -> REPL a) -> REPL a
 withROTempFile name cnt k =

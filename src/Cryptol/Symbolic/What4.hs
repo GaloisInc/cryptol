@@ -19,19 +19,18 @@
 
 module Cryptol.Symbolic.What4
  ( proverNames
- , checkProverInstallation
+-- , checkProverInstallation
  , satProve
  , satProveOffline
  ) where
 
 import Control.Monad.IO.Class
 import Control.Monad (when, foldM)
---import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
---import Data.List (intercalate, genericLength)
 import qualified Data.Map as Map
---import Data.IORef(IORef)
 import qualified Control.Exception as X
---import Data.Maybe (fromMaybe)
+import System.IO (Handle)
+import Data.Time
+import Data.IORef
 
 import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
@@ -40,17 +39,12 @@ import qualified Cryptol.ModuleSystem.Monad as M
 
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
---import           Cryptol.Eval.Concrete (Concrete(..))
---import qualified Cryptol.Eval.Monad as Eval
---import           Cryptol.Eval.Type (TValue(..), evalType)
 
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.What4
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Ident (Ident)
---import           Cryptol.Utils.PP
-import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Logger(logPutStrLn)
 
 import qualified What4.Config as W4
@@ -61,9 +55,6 @@ import qualified What4.SatResult as W4
 import qualified What4.SWord as SW
 import           What4.Solver
 import qualified What4.Solver.Adapter as W4
---import qualified What4.Solver.Z3 as Z3
---import qualified What4.Solver.Yices as Yices
---import qualified What4.Solver.CVC4 as CVC4
 
 import           Data.Parameterized.Nonce
 
@@ -86,14 +77,14 @@ doW4Eval sym evo m =
 
 proverConfigs :: [(String, SolverAdapter st)]
 proverConfigs =
-  [ ("cvc4"     , cvc4Adapter )
-  , ("yices"    , yicesAdapter )
-  , ("z3"       , z3Adapter )
-  , ("boolector", boolectorAdapter )
+  [ ("w4-cvc4"     , cvc4Adapter )
+  , ("w4-yices"    , yicesAdapter )
+  , ("w4-z3"       , z3Adapter )
+  , ("w4-boolector", boolectorAdapter )
+  , ("w4-offline"  , z3Adapter )
 {-
   , ("mathsat"  , SBV.mathSAT  )
   , ("abc"      , SBV.abc      )
-  , ("offline"  , SBV.defaultSMTCfg )
   , ("any"      , SBV.defaultSMTCfg )
 -}
   ]
@@ -107,10 +98,10 @@ lookupProver s =
    Just cfg -> pure cfg
    Nothing  -> fail ("Invalid prover: " ++ s)
 
-checkProverInstallation :: String -> IO Bool
-checkProverInstallation s =
-  do putStrLn "TODO! What4 check solver installation"
-     return True
+--checkProverInstallation :: String -> IO Bool
+--checkProverInstallation _s =
+--  do putStrLn "TODO! What4 check solver installation"
+--     return True
 
 proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
 proverError msg (_,modEnv) =
@@ -142,21 +133,22 @@ satProve ProverCommand {..} =
             , logReason = "solver query"
             }
 
+    start <- liftIO $ getCurrentTime
+
     let ?evalPrim = evalPrim sym
     case predArgTypes pcSchema of
       Left msg -> return (Nothing, ProverError msg)
       Right ts ->
-         do when pcVerbose $ lPutStrLn "Simulating..."
-
-            args <- liftIO $ mapM (freshVariable sym) ts
+         when pcVerbose (lPutStrLn "Simulating...") >> liftIO (
+         do args <- mapM (freshVariable sym) ts
 
             (safety,b) <-
-               liftIO $ doW4Eval sym evo $
+               doW4Eval sym evo $
                    do env <- Eval.evalDecls (What4 sym) extDgs mempty
                       v <- Eval.evalExpr (What4 sym) env pcExpr
                       Eval.fromVBit <$> foldM Eval.fromVFun v (map (pure . varToSymValue sym) args)
 
-            liftIO $ case pcQueryType of
+            result <- case pcQueryType of
               ProveQuery ->
                 do q <- W4.notPred sym =<< W4.andPred sym safety b
                    singleQuery sym evo primMap pcProverName logData ts args q
@@ -165,6 +157,44 @@ satProve ProverCommand {..} =
                 do q <- W4.andPred sym safety b
                    multiSATQuery sym evo primMap pcProverName logData ts args q num
 
+            end <- getCurrentTime
+            writeIORef pcProverStats (diffUTCTime end start)
+            return result)
+
+satProveOffline :: ProverCommand -> ((Handle -> IO ()) -> IO ()) -> M.ModuleCmd (Maybe String)
+satProveOffline ProverCommand {..} outputContinuation =
+  protectStack (\msg (_,modEnv) -> return (Right (Just msg, modEnv), [])) $
+  \(evo,modEnv) -> do
+  M.runModuleM (evo,modEnv) $ do
+    let extDgs = allDeclGroups modEnv ++ pcExtraDecls
+    let lPutStrLn = M.withLogger logPutStrLn
+
+    sym <- M.io (W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator)
+
+    let ?evalPrim = evalPrim sym
+    case predArgTypes pcSchema of
+      Left msg -> return (Just msg)
+      Right ts ->
+         do when pcVerbose $ lPutStrLn "Simulating..."
+            liftIO $ do
+              args <- mapM (freshVariable sym) ts
+
+              (safety,b) <-
+                 doW4Eval sym evo $
+                     do env <- Eval.evalDecls (What4 sym) extDgs mempty
+                        v <- Eval.evalExpr (What4 sym) env pcExpr
+                        Eval.fromVBit <$> foldM Eval.fromVFun v (map (pure . varToSymValue sym) args)
+
+              q <- case pcQueryType of
+                ProveQuery ->
+                  W4.notPred sym =<< W4.andPred sym safety b
+                SatQuery _ ->
+                  W4.andPred sym safety b
+
+              let adpt = z3Adapter
+              W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
+              outputContinuation (\hdl -> solver_adapter_write_smt2 adpt sym hdl [q])
+              return Nothing
 
 decSatNum :: SatNum -> SatNum
 decSatNum (SomeSat n) | n > 0 = SomeSat (n-1)
@@ -242,8 +272,9 @@ singleQuery ::
   [VarShape sym] ->
   W4.Pred sym ->
   IO (Maybe String, ProverResult)
-singleQuery sym evo primMap "all" logData ts args query =
-  do fail "TODO portfolio solver!"
+
+--singleQuery _sym _evo _primMap "all" _logData _ts _args _query =
+--  do fail "TODO portfolio solver!"
 
 singleQuery sym evo primMap solverName logData ts args query =
   do adpt <- lookupProver solverName
@@ -365,135 +396,6 @@ varToConcreteValue evalFn v =
 
 
 
-{-
-  let (isSat, mSatNum) = case pcQueryType of
-        ProveQuery -> (False, Nothing)
-        SatQuery sn -> case sn of
-          SomeSat n -> (True, Just n)
-          AllSat    -> (True, Nothing)
-
-  provers <-
-    case pcProverName of
-      "any" -> M.io SBV.sbvAvailableSolvers
-      _ -> return [(lookupProver pcProverName) { SBV.transcript = pcSmtFile
-                                               , SBV.allSatMaxModelCount = mSatNum
-                                               }]
-
-
-  let provers' = [ p { SBV.timing = SaveTiming pcProverStats
-                     , SBV.verbose = pcVerbose
-                     , SBV.validateModel = pcValidate
-                     } | p <- provers ]
-  let tyFn = if isSat then existsFinType else forallFinType
-
-  let runProver fn tag e = do
-        case provers of
-          [prover] -> do
-            when pcVerbose $
-              lPutStrLn $ "Trying proof with " ++
-                                        show (SBV.name (SBV.solver prover))
-            res <- M.io (fn prover e)
-            when pcVerbose $
-              lPutStrLn $ "Got result from " ++
-                                        show (SBV.name (SBV.solver prover))
-            return (Just (SBV.name (SBV.solver prover)), tag res)
-          _ ->
-            return ( Nothing
-                   , [ SBV.ProofError
-                         prover
-                         [":sat with option prover=any requires option satNum=1"]
-                         Nothing
-                     | prover <- provers ]
-                   )
-      runProvers fn tag e = do
-        when pcVerbose $
-          lPutStrLn $ "Trying proof with " ++
-                  intercalate ", " (map (show . SBV.name . SBV.solver) provers)
-        (firstProver, timeElapsed, res) <- M.io (fn provers' e)
-        when pcVerbose $
-          lPutStrLn $ "Got result from " ++ show firstProver ++
-                                            ", time: " ++ showTDiff timeElapsed
-        return (Just firstProver, tag res)
-  let runFn = case pcQueryType of
-        ProveQuery -> runProvers SBV.proveWithAny thmSMTResults
-        SatQuery sn -> case sn of
-          SomeSat 1 -> runProvers SBV.satWithAny satSMTResults
-          _         -> runProver SBV.allSatWith allSatSMTResults
-  let addAsm = case pcQueryType of
-        ProveQuery -> \x y -> SBV.svOr (SBV.svNot x) y
-        SatQuery _ -> \x y -> SBV.svAnd x y
-
- let ?evalPrim = evalPrim
-  case predArgTypes pcSchema of
-    Left msg -> return (Nothing, ProverError msg)
-    Right ts -> do when pcVerbose $ lPutStrLn "Simulating..."
-                   (_,v) <- doSBVEval evo $
-                              do env <- Eval.evalDecls SBV extDgs mempty
-                                 Eval.evalExpr SBV env pcExpr
-                   prims <- M.getPrimMap
-                   runRes <- runFn $ do
-                               (args, asms) <- runWriterT (mapM tyFn ts)
-                               (_,b) <- doSBVEval evo (Eval.fromVBit <$>
-                                          foldM Eval.fromVFun v (map pure args))
-                               return (foldr addAsm b asms)
-                   let (firstProver, results) = runRes
-                   esatexprs <- case results of
-                     -- allSat can return more than one as long as
-                     -- they're satisfiable
-                     (SBV.Satisfiable {} : _) -> do
-                       tevss <- mapM mkTevs results
-                       return $ AllSatResult tevss
-                       where
-                         mkTevs result = do
-                           let Right (_, cvs) = SBV.getModelAssignment result
-                               (vs, _) = parseValues ts cvs
-                               sattys = unFinType <$> ts
-                           satexprs <-
-                             doEval evo (zipWithM (Concrete.toExpr prims) sattys vs)
-                           case zip3 sattys <$> (sequence satexprs) <*> pure vs of
-                             Nothing ->
-                               panic "Cryptol.Symbolic.sat"
-                                 [ "unable to make assignment into expression" ]
-                             Just tevs -> return $ tevs
-                     -- prove returns only one
-                     [SBV.Unsatisfiable {}] ->
-                       return $ ThmResult (unFinType <$> ts)
-                     -- unsat returns empty
-                     [] -> return $ ThmResult (unFinType <$> ts)
-                     -- otherwise something is wrong
-                     _ -> return $ ProverError (rshow results)
-                            where rshow | isSat = show .  SBV.AllSatResult . (False,False,False,)
-                                        | otherwise = show . SBV.ThmResult . head
-                   return (firstProver, esatexprs)
--}
-
-satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
-satProveOffline ProverCommand {..} =
-  protectStack (\msg (_,modEnv) -> return (Right (Left msg, modEnv), [])) $
-  \(_evOpts,_modEnv) -> do
-    fail "TODO! satProveOffline"
-{-
-    let isSat = case pcQueryType of
-          ProveQuery -> False
-          SatQuery _ -> True
-    let extDgs = allDeclGroups modEnv ++ pcExtraDecls
-    let tyFn = if isSat then existsFinType else forallFinType
-    let addAsm = if isSat then SBV.svAnd else \x y -> SBV.svOr (SBV.svNot x) y
-    let ?evalPrim = evalPrim
-    case predArgTypes pcSchema of
-      Left msg -> return (Right (Left msg, modEnv), [])
-      Right ts ->
-        do when pcVerbose $ logPutStrLn (Eval.evalLogger evOpts) "Simulating..."
-           (_,v) <- doSBVEval evOpts $
-                      do env <- Eval.evalDecls SBV extDgs mempty
-                         Eval.evalExpr SBV env pcExpr
-           smtlib <- SBV.generateSMTBenchmark isSat $ do
-             (args, asms) <- runWriterT (mapM tyFn ts)
-             (_,b) <- doSBVEval evOpts
-                          (Eval.fromVBit <$> foldM Eval.fromVFun v (map pure args))
-             return (foldr addAsm b asms)
-           return (Right (Right smtlib, modEnv), [])
--}
 
 protectStack :: (String -> M.ModuleCmd a)
              -> M.ModuleCmd a
