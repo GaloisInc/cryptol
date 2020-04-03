@@ -75,6 +75,15 @@ proverConfigs =
   , ("abc"      , SBV.abc      )
   , ("offline"  , SBV.defaultSMTCfg )
   , ("any"      , SBV.defaultSMTCfg )
+
+  , ("sbv-cvc4"     , SBV.cvc4     )
+  , ("sbv-yices"    , SBV.yices    )
+  , ("sbv-z3"       , SBV.z3       )
+  , ("sbv-boolector", SBV.boolector)
+  , ("sbv-mathsat"  , SBV.mathSAT  )
+  , ("sbv-abc"      , SBV.abc      )
+  , ("sbv-offline"  , SBV.defaultSMTCfg )
+  , ("sbv-any"      , SBV.defaultSMTCfg )
   ]
 
 proverNames :: [String]
@@ -119,6 +128,7 @@ satProve ProverCommand {..} =
   provers <-
     case pcProverName of
       "any" -> M.io SBV.sbvAvailableSolvers
+      "sbv-any" -> M.io SBV.sbvAvailableSolvers
       _ -> return [(lookupProver pcProverName) { SBV.transcript = pcSmtFile
                                                , SBV.allSatMaxModelCount = mSatNum
                                                }]
