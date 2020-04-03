@@ -1,3 +1,19 @@
+# NEXT 
+
+## New features
+
+* Added support for symbolic simulation via the `What4` library
+  in addition to the previous method based on `SBV`. The What4
+  symbolic simulator is used when selecting solvers with the `w4`
+  prefix, such as `w4-z3`, `w4-cvc4`, `w4-yices`, etc.
+
+* More detailed information about the status of various symbols
+  in the output of the `:browse` command (issue #688).
+
+## Bug fixes
+
+* Closed issues #346, #444, #614, #617, #660, #662, #663, #664, #667, #670
+
 # 2.8.0 (September 4, 2019)
 
 ## New features
