@@ -48,7 +48,6 @@ import qualified Cryptol.Eval.Monad as Eval
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.SBV
 import Cryptol.Symbolic
-import Cryptol.TypeCheck.AST
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.Logger(logPutStrLn)
 
@@ -116,7 +115,7 @@ satProve ProverCommand {..} =
         SatQuery sn -> case sn of
           SomeSat n -> (True, Just n)
           AllSat    -> (True, Nothing)
-  let extDgs = allDeclGroups modEnv ++ pcExtraDecls
+  let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
   provers <-
     case pcProverName of
       "any" -> M.io SBV.sbvAvailableSolvers
@@ -218,7 +217,7 @@ satProveOffline ProverCommand {..} =
     let isSat = case pcQueryType of
           ProveQuery -> False
           SatQuery _ -> True
-    let extDgs = allDeclGroups modEnv ++ pcExtraDecls
+    let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
     let tyFn = if isSat then existsFinType else forallFinType
     let addAsm = if isSat then SBV.svAnd else \x y -> SBV.svOr (SBV.svNot x) y
     let ?evalPrim = evalPrim
@@ -277,9 +276,6 @@ parseValue (FTTuple ts) cvs = (Eval.VTuple (map Eval.ready vs), cvs')
 parseValue (FTRecord fs) cvs = (Eval.VRecord (Map.fromList (zip ns (map Eval.ready vs))), cvs')
   where (ns, ts) = unzip fs
         (vs, cvs') = parseValues ts cvs
-
-allDeclGroups :: M.ModuleEnv -> [DeclGroup]
-allDeclGroups = concatMap mDecls . M.loadedNonParamModules
 
 inBoundsIntMod :: Integer -> Eval.SInteger SBV -> Eval.SBit SBV
 inBoundsIntMod n x =

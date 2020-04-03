@@ -307,7 +307,7 @@ data GenValue sym
 
 -- | Force the evaluation of a word value
 forceWordValue :: Backend sym => WordValue sym -> SEval sym ()
-forceWordValue (WordVal _w)  = return ()
+forceWordValue (WordVal w)  = seq w (return ())
 forceWordValue (LargeBitsVal n xs) = mapM_ (\x -> const () <$> x) (enumerateSeqMap n xs)
 
 -- | Force the evaluation of a value
@@ -316,8 +316,8 @@ forceValue v = case v of
   VRecord fs  -> mapM_ (forceValue =<<) fs
   VTuple xs   -> mapM_ (forceValue =<<) xs
   VSeq n xs   -> mapM_ (forceValue =<<) (enumerateSeqMap n xs)
-  VBit _b     -> return ()
-  VInteger _i -> return ()
+  VBit b      -> seq b (return ())
+  VInteger i  -> seq i (return ())
   VWord _ wv  -> forceWordValue =<< wv
   VStream _   -> return ()
   VFun _      -> return ()

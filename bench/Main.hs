@@ -6,18 +6,21 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Main where
 
+import           Control.DeepSeq ( force )
+import           Control.Monad.IO.Class( liftIO )
 import qualified Data.Text    as T
 import qualified Data.Text.IO as T
 import           System.FilePath ((</>))
 import qualified System.Directory   as Dir
 
 import qualified Cryptol.Eval as E
-import qualified Cryptol.Eval.Monad as E
 import qualified Cryptol.Eval.Value as E
+import qualified Cryptol.Eval.Concrete as C
 
 import qualified Cryptol.ModuleSystem.Base      as M
 import qualified Cryptol.ModuleSystem.Env       as M
@@ -29,8 +32,7 @@ import qualified Cryptol.Parser           as P
 import qualified Cryptol.Parser.AST       as P
 import qualified Cryptol.Parser.NoInclude as P
 
-import qualified Cryptol.Symbolic as S
-import qualified Cryptol.Symbolic.Value as S
+import qualified Cryptol.Eval.SBV as S
 
 import qualified Cryptol.TypeCheck     as T
 import qualified Cryptol.TypeCheck.AST as T
@@ -123,7 +125,7 @@ tc cd name path =
             return (prims, scm, tcEnv, menv')
           Left _ -> error $ "Failed to load " ++ name
   in env setup $ \ ~(prims, scm, tcEnv, menv) ->
-    bench name $ nfIO $ M.runModuleM (evOpts,menv) $ withLib $ do
+    bench name $ whnfIO $ M.runModuleM (evOpts,menv) $ withLib $ do
       let act = M.TCAction { M.tcAction = T.tcModule
                            , M.tcLinter = M.moduleLinter (P.thing (P.mName scm))
                            , M.tcPrims  = prims
@@ -146,8 +148,9 @@ ceval cd name path expr =
           Left _ ->  error $ "Failed to load " ++ name
   in env setup $ \ ~(texpr, menv) ->
     bench name $ nfIO $ E.runEval evOpts $ do
-      env' <- E.evalDecls (S.allDeclGroups menv) mempty
-      (e :: E.Value) <- E.evalExpr env' texpr
+      let ?evalPrim = C.evalPrim
+      env' <- E.evalDecls C.Concrete (M.allDeclGroups menv) mempty
+      (e :: C.Value) <- E.evalExpr C.Concrete env' texpr
       E.forceValue e
 
 
@@ -166,8 +169,9 @@ seval cd name path expr =
           Right (texpr, menv') -> return (texpr, menv')
           Left _ ->  error $ "Failed to load " ++ name
   in env setup $ \ ~(texpr, menv) ->
-    bench name $ nfIO $ E.runEval evOpts $ do
-      env' <- E.evalDecls (S.allDeclGroups menv) mempty
-      (e :: S.Value) <- E.evalExpr env' texpr
-      E.io $ SBV.generateSMTBenchmark False $
-         return (S.fromVBit e)
+    bench name $ whnfIO $ fmap force E.runEval evOpts $ S.sbvEval $ do
+      let ?evalPrim = S.evalPrim
+      env' <- E.evalDecls S.SBV (M.allDeclGroups menv) mempty
+      (e :: S.Value) <- E.evalExpr S.SBV env' texpr
+      liftIO $ SBV.generateSMTBenchmark False $
+         return (E.fromVBit e)

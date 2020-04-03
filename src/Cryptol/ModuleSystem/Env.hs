@@ -91,6 +91,9 @@ data ModuleEnv = ModuleEnv
 
   } deriving Generic
 
+instance NFData ModuleEnv where
+  rnf x = meLoadedModules x `seq` meEvalEnv x `seq` meDynEnv x `seq` ()
+
 -- | Should we run the linter?
 data CoreLint = NoCoreLint        -- ^ Don't run core lint
               | CoreLint          -- ^ Run core lint
@@ -178,7 +181,8 @@ loadedNonParamModules = map lmModule . lmLoadedModules . meLoadedModules
 hasParamModules :: ModuleEnv -> Bool
 hasParamModules = not . null . lmLoadedParamModules . meLoadedModules
 
-
+allDeclGroups :: ModuleEnv -> [T.DeclGroup]
+allDeclGroups = concatMap T.mDecls . loadedNonParamModules
 
 -- | Contains enough information to browse what's in scope,
 -- or type check new expressions.
@@ -394,7 +398,6 @@ removeLoadedModule rm lm =
     { lmLoadedModules = filter (not . rm) (lmLoadedModules lm)
     , lmLoadedParamModules = filter (not . rm) (lmLoadedParamModules lm)
     }
-
 
 -- Dynamic Environments --------------------------------------------------------
 
