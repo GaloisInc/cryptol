@@ -561,7 +561,7 @@ cmdProveSat isSat str = do
   fileName   <- getKnownUser "smtfile"
   let mfile = if fileName == "-" then Nothing else Just fileName
 
-  if proverName `elem` ["offline","w4-offline"] then
+  if proverName `elem` ["offline","sbv-offline","w4-offline"] then
      offlineProveSat proverName isSat str mfile
   else
      do (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat proverName isSat str mfile)
@@ -667,8 +667,8 @@ offlineProveSat proverName isSat str mfile = do
              "To determine the " ++ satWord ++
              " of the expression, use an external SMT solver."
 
-  case proverName of
-    "offline" ->
+  if
+   | proverName == "offline" || proverName == "sbv-offline" ->
       do result <- liftModuleCmd $ SBV.satProveOffline cmd
          case result of
            Left msg -> rPutStrLn msg
@@ -678,7 +678,7 @@ offlineProveSat proverName isSat str mfile = do
                Just path -> io $ writeFile path smtlib
                Nothing -> rPutStr smtlib
 
-    "w4-offline" ->
+   | proverName == "w4-offline" ->
       do result <- liftModuleCmd $ W4.satProveOffline cmd $ \f ->
                      do displayMsg
                         case mfile of
@@ -694,7 +694,7 @@ offlineProveSat proverName isSat str mfile = do
            Just msg -> rPutStrLn msg
            Nothing -> return ()
 
-    _ -> panic "offlineProveSat" ["unexpected offline solver name", proverName]
+    | otherwise -> panic "offlineProveSat" ["unexpected offline solver name", proverName]
 
 rIdent :: M.Ident
 rIdent  = M.packIdent "result"
