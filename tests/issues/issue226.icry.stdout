@@ -44,6 +44,7 @@ Primitive Types
     Arith : * -> Prop
     Bit : *
     Cmp : * -> Prop
+    Field : * -> Prop
     fin : * -> Prop
     Integer : *
     inf : #
@@ -52,6 +53,7 @@ Primitive Types
     lengthFromThenTo : # -> # -> # -> #
     max : # -> # -> #
     min : # -> # -> #
+    Rational : *
     SignedCmp : * -> Prop
     width : # -> #
     Z : # -> *
@@ -68,6 +70,7 @@ Symbols
   From Cryptol
   ------------
 
+    (/.) : {a} (Field a) => a -> a -> a
     (==>) : Bit -> Bit -> Bit
     (\/) : Bit -> Bit -> Bit
     (/\) : Bit -> Bit -> Bit
@@ -110,6 +113,7 @@ Symbols
     and : {n} (fin n) => [n] -> Bit
     any : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
     carry : {n} (fin n) => [n] -> [n] -> Bit
+    ceiling : Rational -> Integer
     complement : {a} (Logic a) => a -> a
     curry : {a, b, c} ((a, b) -> c) -> a -> b -> c
     demote : {val, rep} (Literal val rep) => rep
@@ -117,6 +121,7 @@ Symbols
     elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
     error : {a, len} (fin len) => [len][8] -> a
     False : Bit
+    floor : Rational -> Integer
     foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
     foldr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
     fromInteger : {a} (Arith a) => Integer -> a
@@ -154,6 +159,8 @@ Symbols
     pmult :
       {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + (u + v)]
     random : {a} [256] -> a
+    ratio : Integer -> Integer -> Rational
+    recip : {a} (Field a) => a -> a
     repeat : {n, a} a -> [n]a
     reverse : {n, a} (fin n) => [n]a -> [n]a
     sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
