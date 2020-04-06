@@ -192,8 +192,8 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
   bitXor (What4 sym) x y = liftIO (W4.xorPred sym x y)
   bitComplement (What4 sym) x = liftIO (W4.notPred sym x)
 
-  wordBit (What4 sym) bv idx = liftIO (SW.bvAt sym bv idx)
-  wordUpdate (What4 sym) bv idx b = liftIO (SW.bvSet sym bv idx b)
+  wordBit (What4 sym) bv idx = liftIO (SW.bvAtBE sym bv idx)
+  wordUpdate (What4 sym) bv idx b = liftIO (SW.bvSetBE sym bv idx b)
 
   packWord sym bs =
     do z <- wordLit sym (genericLength bs) 0
@@ -201,19 +201,19 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
        foldM f z (zip [0..] bs)
 
   unpackWord (What4 sym) bv = liftIO $
-    mapM (SW.bvAt sym bv) [0 .. SW.bvWidth bv-1]
+    mapM (SW.bvAtBE sym bv) [0 .. SW.bvWidth bv-1]
 
   joinWord (What4 sym) x y = liftIO $ SW.bvJoin sym x y
 
   splitWord _sym 0 _ bv = pure (SW.ZBV, bv)
   splitWord _sym _ 0 bv = pure (bv, SW.ZBV)
   splitWord (What4 sym) lw rw bv = liftIO $
-    do l <- SW.bvSlice sym 0 lw bv
-       r <- SW.bvSlice sym lw rw bv
+    do l <- SW.bvSliceBE sym 0 lw bv
+       r <- SW.bvSliceBE sym lw rw bv
        return (l, r)
 
   extractWord (What4 sym) bits idx bv =
-    liftIO $ SW.bvSlice sym idx bits bv
+    liftIO $ SW.bvSliceBE sym idx bits bv
 
   wordEq                (What4 sym) x y = liftIO (SW.bvEq sym x y)
   wordLessThan          (What4 sym) x y = liftIO (SW.bvult sym x y)
