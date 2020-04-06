@@ -794,7 +794,7 @@ checkInfLength val = case val of
 checkProver :: Checker
 checkProver val = case val of
   EnvString s
-    | s `elem` ["offline", "any", "w4-offline"] -> noWarns Nothing
+    | s `elem` ["offline", "any", "sbv-offline", "sbv-any", "w4-offline"] -> noWarns Nothing
     | s `elem` W4.proverNames ->
       do -- TODO! Implement solver installation testing for What4
          return (Nothing, [])
