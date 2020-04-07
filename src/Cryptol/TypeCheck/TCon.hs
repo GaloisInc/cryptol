@@ -64,6 +64,7 @@ builtInType nm =
     , "Arith"             ~> PC PArith
     , "Cmp"               ~> PC PCmp
     , "SignedCmp"         ~> PC PSignedCmp
+    , "Index"             ~> PC PIndex
     , "Literal"           ~> PC PLiteral
 
     -- Type functions
@@ -134,6 +135,7 @@ instance HasKind PC where
       PArith     -> KType :-> KProp
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
+      PIndex     -> KType :-> KProp
       PLiteral   -> KNum :-> KType :-> KProp
       PAnd       -> KProp :-> KProp :-> KProp
       PTrue      -> KProp
@@ -177,6 +179,7 @@ data PC     = PEqual        -- ^ @_ == _@
             | PArith        -- ^ @Arith _@
             | PCmp          -- ^ @Cmp _@
             | PSignedCmp    -- ^ @SignedCmp _@
+            | PIndex        -- ^ @Index _@
             | PLiteral      -- ^ @Literal _ _@
 
             | PAnd          -- ^ This is useful when simplifying things in place
@@ -274,6 +277,7 @@ instance PP PC where
       PArith     -> text "Arith"
       PCmp       -> text "Cmp"
       PSignedCmp -> text "SignedCmp"
+      PIndex     -> text "Index"
       PLiteral   -> text "Literal"
       PTrue      -> text "True"
       PAnd       -> text "(&&)"

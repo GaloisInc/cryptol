@@ -431,6 +431,11 @@ pIsSignedCmp ty = case tNoUser ty of
                     TCon (PC PSignedCmp) [t1] -> Just t1
                     _                         -> Nothing
 
+pIsIndex :: Prop -> Maybe Type
+pIsIndex ty = case tNoUser ty of
+                TCon (PC PIndex) [t1] -> Just t1
+                _                     -> Nothing
+
 pIsLiteral :: Prop -> Maybe (Type, Type)
 pIsLiteral ty = case tNoUser ty of
                   TCon (PC PLiteral) [t1, t2] -> Just (t1, t2)
@@ -590,6 +595,9 @@ pCmp t = TCon (PC PCmp) [t]
 
 pSignedCmp :: Type -> Prop
 pSignedCmp t = TCon (PC PSignedCmp) [t]
+
+pIndex :: Type -> Prop
+pIndex t = TCon (PC PIndex) [t]
 
 pLiteral :: Type -> Type -> Prop
 pLiteral x y = TCon (PC PLiteral) [x, y]

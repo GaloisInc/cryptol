@@ -74,6 +74,9 @@ primitive type Cmp : * -> Prop
 /** Value types that support signed comparisons. */
 primitive type SignedCmp : * -> Prop
 
+/** Value types that can be used as indexes for list operations. */
+primitive type Index : * -> Prop
+
 /** 'Literal n a' asserts that type 'a' contains the number 'n'. */
 primitive type Literal : # -> * -> Prop
 
