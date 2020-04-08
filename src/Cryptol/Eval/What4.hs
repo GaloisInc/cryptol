@@ -36,6 +36,7 @@ import qualified Data.Text as T
 
 import qualified What4.Interface as W4
 import qualified What4.SWord as SW
+import qualified What4.Utils.AbstractDomains as W4
 
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Concrete.Value( BV(..), ppBV, lg2 )
@@ -521,8 +522,8 @@ primTable w4sym = let sym = What4 w4sym in
   , (">>$"         , sshrV w4sym)
 
     -- Indexing and updates
-  , ("@"           , indexPrim sym (indexFront_bits w4sym) (indexFront w4sym))
-  , ("!"           , indexPrim sym (indexBack_bits w4sym) (indexBack w4sym))
+  , ("@"           , indexPrim sym (indexFront_int w4sym) (indexFront_bits w4sym) (indexFront_word w4sym))
+  , ("!"           , indexPrim sym (indexBack_int w4sym) (indexBack_bits w4sym) (indexBack_word w4sym))
 
   , ("update"      , updatePrim sym (updateFrontSym_word w4sym) (updateFrontSym w4sym))
   , ("updateEnd"   , updatePrim sym (updateBackSym_word w4sym)  (updateBackSym w4sym))
@@ -573,7 +574,59 @@ lazyIte f c mx my
          y <- my
          f c x y
 
-indexFront ::
+indexFront_int ::
+  W4.IsExprBuilder sym =>
+  sym ->
+  Nat' ->
+  TValue ->
+  SeqMap (What4 sym) ->
+  SInteger (What4 sym) ->
+  SEval (What4 sym) (Value sym)
+indexFront_int sym mblen _a xs idx
+  | Just i <- W4.asInteger idx
+  = lookupSeqMap xs i
+
+  | Just hi <- maxIdx
+  = foldr f def [minIdx .. hi]
+
+  | otherwise
+  = raiseError (What4 sym) (UnsupportedSymbolicOp "unbounded integer indexing")
+
+ where
+    def = raiseError (What4 sym) (InvalidIndex Nothing)
+
+    f n y =
+       do p <- liftIO (W4.intEq sym idx =<< W4.intLit sym n)
+          iteValue (What4 sym) p (lookupSeqMap xs n) y
+
+    minIdx =
+      case W4.rangeLowBound (W4.integerBounds idx) of
+        W4.Inclusive l -> max l 0
+        _ -> 0
+
+    -- maximum possible in-bounds index given any abstract
+    -- domain information about the index value and the length
+    -- of the sequence. If the sequences is infinite and the
+    -- integer is unbounded, there isn't much we can do.
+    maxIdx =
+      case (mblen, W4.rangeHiBound (W4.integerBounds idx)) of
+        (Nat n, W4.Inclusive h) -> Just (min (toInteger n) h)
+        (Nat n, _)              -> Just (toInteger n)
+        (_, W4.Inclusive h)     -> Just h
+        _                       -> Nothing
+
+indexBack_int ::
+  W4.IsExprBuilder sym =>
+  sym ->
+  Nat' ->
+  TValue ->
+  SeqMap (What4 sym) ->
+  SInteger (What4 sym) ->
+  SEval (What4 sym) (Value sym)
+indexBack_int sym (Nat n) a xs idx = indexFront_int sym (Nat n) a (reverseSeqMap n xs) idx
+indexBack_int _ Inf _ _ _ = evalPanic "Expected finite sequence" ["indexBack_int"]
+
+indexFront_word ::
   W4.IsExprBuilder sym =>
   sym ->
   Nat' ->
@@ -581,7 +634,7 @@ indexFront ::
   SeqMap (What4 sym) ->
   SWord (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexFront sym mblen _a xs idx
+indexFront_word sym mblen _a xs idx
   | Just i <- SW.bvAsUnsignedInteger idx
   = lookupSeqMap xs i
 
@@ -611,7 +664,7 @@ indexFront sym mblen _a xs idx
         Just (lo, hi) -> [lo .. min hi maxIdx]
         _ -> [0 .. maxIdx]
 
-indexBack ::
+indexBack_word ::
   W4.IsExprBuilder sym =>
   sym ->
   Nat' ->
@@ -619,8 +672,8 @@ indexBack ::
   SeqMap (What4 sym) ->
   SWord (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexBack sym (Nat n) a xs idx = indexFront sym (Nat n) a (reverseSeqMap n xs) idx
-indexBack _ Inf _ _ _ = evalPanic "Expected finite sequence" ["indexBack"]
+indexBack_word sym (Nat n) a xs idx = indexFront_word sym (Nat n) a (reverseSeqMap n xs) idx
+indexBack_word _ Inf _ _ _ = evalPanic "Expected finite sequence" ["indexBack_word"]
 
 indexFront_bits :: forall sym.
   W4.IsExprBuilder sym =>

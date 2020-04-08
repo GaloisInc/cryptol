@@ -46,6 +46,7 @@ module Cryptol.Eval.Value
   , fromVSeq
   , fromSeq
   , fromWordVal
+  , asIndex
   , fromVWord
   , vWordLen
   , tryFromBits
@@ -477,6 +478,13 @@ fromSeq msg val = case val of
 fromWordVal :: Backend sym => String -> GenValue sym -> SEval sym (WordValue sym)
 fromWordVal _msg (VWord _ wval) = wval
 fromWordVal msg _ = evalPanic "fromWordVal" ["not a word value", msg]
+
+asIndex :: Backend sym =>
+  sym -> String -> TValue -> GenValue sym -> SEval sym (Either (SInteger sym) (WordValue sym))
+asIndex _sym _msg TVInteger (VInteger i) = pure (Left i)
+asIndex  sym _msg (TVIntMod m) (VInteger i) = Left <$> znToInt sym m i
+asIndex _sym _msg _ (VWord _ wval) = Right <$> wval
+asIndex _sym  msg _ _ = evalPanic "asIndex" ["not an index value", msg]
 
 -- | Extract a packed word.
 fromVWord :: Backend sym => sym -> String -> GenValue sym -> SEval sym (SWord sym)

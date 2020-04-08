@@ -237,9 +237,9 @@ primTable = let sym = Concrete in
 
     -- Indexing and updates
   , ("@"          , {-# SCC "Prelude::(@)" #-}
-                    indexPrim sym indexFront_bits indexFront)
+                    indexPrim sym indexFront_int indexFront_bits indexFront)
   , ("!"          , {-# SCC "Prelude::(!)" #-}
-                    indexPrim sym indexBack_bits indexBack)
+                    indexPrim sym indexBack_int indexBack_bits indexBack)
 
   , ("update"     , {-# SCC "Prelude::update" #-}
                     updatePrim sym updateFront_word updateFront)
@@ -372,14 +372,20 @@ indexFront _mblen _a vs (bvVal -> ix) = lookupSeqMap vs ix
 indexFront_bits :: Nat' -> TValue -> SeqMap Concrete -> [Bool] -> Eval Value
 indexFront_bits mblen a vs bs = indexFront mblen a vs =<< packWord Concrete bs
 
+indexFront_int :: Nat' -> TValue -> SeqMap Concrete -> Integer -> Eval Value
+indexFront_int _mblen _a vs ix = lookupSeqMap vs ix
+
 indexBack :: Nat' -> TValue -> SeqMap Concrete -> BV -> Eval Value
-indexBack mblen _a vs (bvVal -> ix) =
-  case mblen of
-    Nat len -> lookupSeqMap vs (len - ix - 1)
-    Inf     -> evalPanic "indexBack" ["unexpected infinite sequence"]
+indexBack mblen a vs (bvVal -> ix) = indexBack_int mblen a vs ix
 
 indexBack_bits :: Nat' -> TValue -> SeqMap Concrete -> [Bool] -> Eval Value
 indexBack_bits mblen a vs bs = indexBack mblen a vs =<< packWord Concrete bs
+
+indexBack_int :: Nat' -> TValue -> SeqMap Concrete -> Integer -> Eval Value
+indexBack_int mblen _a vs ix =
+  case mblen of
+    Nat len -> lookupSeqMap vs (len - ix - 1)
+    Inf     -> evalPanic "indexBack" ["unexpected infinite sequence"]
 
 updateFront ::
   Nat'               {- ^ length of the sequence -} ->
