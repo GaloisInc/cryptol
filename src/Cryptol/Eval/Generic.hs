@@ -1148,7 +1148,7 @@ assertIndexInBounds ::
   Backend sym =>
   sym ->
   Nat' {- ^ Sequence size bounds -} ->
-  WordValue sym {- ^ Index value -} ->
+  Either (SInteger sym) (WordValue sym) {- ^ Index value -} ->
   SEval sym ()
 
 -- Can't index out of bounds for an infinite sequence
@@ -1157,26 +1157,39 @@ assertIndexInBounds _sym Inf _ =
 
 -- Can't index out of bounds for a sequence that is
 -- longer than the expressible index values
-assertIndexInBounds sym (Nat n) idx
+assertIndexInBounds sym (Nat n) (Right idx)
   | n >= 2^(wordValueSize sym idx)
   = return ()
 
 -- If the index is concrete, test it directly
-assertIndexInBounds sym (Nat n) (WordVal idx)
+assertIndexInBounds sym (Nat n) (Left idx)
+  | Just i <- integerAsLit sym idx
+  = unless (i < n) (raiseError sym (InvalidIndex (Just i)))
+
+-- If the index is concrete, test it directly
+assertIndexInBounds sym (Nat n) (Right (WordVal idx))
   | Just (_w,i) <- wordAsLit sym idx
   = unless (i < n) (raiseError sym (InvalidIndex (Just i)))
+
+-- If the index is an integer, test that it
+-- is less than the concrete value of n, which
+-- fits into w bits because of the above test.
+assertIndexInBounds sym (Nat n) (Left idx) =
+  do n' <- integerLit sym n
+     p <- intLessThan sym idx n'
+     assertSideCondition sym p (InvalidIndex Nothing)
 
 -- If the index is a packed word, test that it
 -- is less than the concrete value of n, which
 -- fits into w bits because of the above test.
-assertIndexInBounds sym (Nat n) (WordVal idx) =
+assertIndexInBounds sym (Nat n) (Right (WordVal idx)) =
   do n' <- wordLit sym (wordLen sym idx) n
      p <- wordLessThan sym idx n'
      assertSideCondition sym p (InvalidIndex Nothing)
 
 -- If the index is an unpacked word, force all the bits
 -- and compute the unsigned less-than test directly.
-assertIndexInBounds sym (Nat n) (LargeBitsVal w bits) =
+assertIndexInBounds sym (Nat n) (Right (LargeBitsVal w bits)) =
   do bitsList <- traverse (fromVBit <$>) (enumerateSeqMap w bits)
      p <- bitsValueLessThan sym w bitsList n
      assertSideCondition sym p (InvalidIndex Nothing)
@@ -1189,13 +1202,14 @@ assertIndexInBounds sym (Nat n) (LargeBitsVal w bits) =
 indexPrim ::
   Backend sym =>
   sym ->
+  (Nat' -> TValue -> SeqMap sym -> SInteger sym -> SEval sym (GenValue sym)) ->
   (Nat' -> TValue -> SeqMap sym -> [SBit sym] -> SEval sym (GenValue sym)) ->
   (Nat' -> TValue -> SeqMap sym -> SWord sym -> SEval sym (GenValue sym)) ->
   GenValue sym
-indexPrim sym bits_op word_op =
+indexPrim sym int_op bits_op word_op =
   nlam $ \ len  ->
   tlam $ \ eltTy ->
-  nlam $ \ _ix ->
+  tlam $ \ _ix ->
    lam $ \ xs  -> return $
    lam $ \ idx  -> do
       vs <- xs >>= \case
@@ -1203,11 +1217,12 @@ indexPrim sym bits_op word_op =
                VSeq _ vs  -> return vs
                VStream vs -> return vs
                _ -> evalPanic "Expected sequence value" ["indexPrim"]
-      idx' <- fromWordVal "index" =<< idx
+      idx' <- asIndex "index" =<< idx
       assertIndexInBounds sym len idx'
       case idx' of
-        WordVal w'        -> word_op len eltTy vs w'
-        LargeBitsVal m bs -> bits_op len eltTy vs =<< traverse (fromVBit <$>) (enumerateSeqMap m bs)
+        Left i                    -> int_op len eltTy vs i
+        Right (WordVal w')        -> word_op len eltTy vs w'
+        Right (LargeBitsVal m bs) -> bits_op len eltTy vs =<< traverse (fromVBit <$>) (enumerateSeqMap m bs)
 
 {-# INLINE updatePrim #-}
 
@@ -1225,7 +1240,7 @@ updatePrim sym updateWord updateSeq =
   lam $ \idx -> return $
   lam $ \val -> do
     idx' <- fromWordVal "update" =<< idx
-    assertIndexInBounds sym len idx'
+    assertIndexInBounds sym len (Right idx')
     xs >>= \case
       VWord l w  -> do w' <- sDelay sym Nothing w
                        return $ VWord l (w' >>= \w'' -> updateWord len eltTy w'' idx' val)

@@ -516,13 +516,13 @@ primitive transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
  * Index operator.  The first argument is a sequence.  The second argument is
  * the zero-based index of the element to select from the sequence.
  */
-primitive (@) : {n, a, ix} (fin ix) => [n]a -> [ix] -> a
+primitive (@) : {n, a, ix} (Index ix) => [n]a -> ix -> a
 
 /**
  * Bulk index operator.  The first argument is a sequence.  The second argument
  * is a sequence of the zero-based indices of the elements to select.
  */
-(@@) : {n, k, ix, a} (fin ix) => [n]a -> [k][ix] -> [k]a
+(@@) : {n, k, ix, a} (Index ix) => [n]a -> [k]ix -> [k]a
 xs @@ is = [ xs @ i | i <- is ]
 
 /**
@@ -530,14 +530,14 @@ xs @@ is = [ xs @ i | i <- is ]
  * argument is the zero-based index of the element to select, starting from the
  * end of the sequence.
  */
-primitive (!) : {n, a, ix} (fin n, fin ix) => [n]a -> [ix] -> a
+primitive (!) : {n, a, ix} (fin n, Index ix) => [n]a -> ix -> a
 
 /**
  * Bulk reverse index operator.  The first argument is a finite sequence.  The
  * second argument is a sequence of the zero-based indices of the elements to
  * select, starting from the end of the sequence.
  */
-(!!) : {n, k, ix, a} (fin n, fin ix) => [n]a -> [k][ix] -> [k]a
+(!!) : {n, k, ix, a} (fin n, Index ix) => [n]a -> [k]ix -> [k]a
 xs !! is = [ xs ! i | i <- is ]
 
 /**

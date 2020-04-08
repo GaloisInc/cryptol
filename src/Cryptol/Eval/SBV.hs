@@ -453,8 +453,8 @@ primTable  = let sym = SBV in
 
 
     -- Indexing and updates
-  , ("@"           , indexPrim sym indexFront_bits indexFront)
-  , ("!"           , indexPrim sym indexBack_bits indexBack)
+  , ("@"           , indexPrim sym indexFront indexFront_bits indexFront)
+  , ("!"           , indexPrim sym indexBack indexBack_bits indexBack)
 
   , ("update"      , updatePrim sym updateFrontSym_word updateFrontSym)
   , ("updateEnd"   , updatePrim sym updateBackSym_word updateBackSym)
@@ -494,7 +494,7 @@ indexFront ::
   Nat' ->
   TValue ->
   SeqMap SBV ->
-  SWord SBV ->
+  SVal ->
   SEval SBV Value
 indexFront mblen a xs idx
   | Just i <- SBV.svAsInteger idx
@@ -507,20 +507,25 @@ indexFront mblen a xs idx
          Just ws ->
            do z <- wordLit SBV wlen 0
               return $ VWord wlen $ pure $ WordVal $ SBV.svSelect ws z idx
-         Nothing -> foldr f def idxs
+         Nothing -> folded
 
   | otherwise
-  = foldr f def idxs
+  = folded
 
  where
     k = SBV.kindOf idx
-    w = SBV.intSizeOf idx
     def = zeroV SBV a
     f n y = iteValue SBV (SBV.svEqual idx (SBV.svInteger k n)) (lookupSeqMap xs n) y
-    idxs = case mblen of
-      Nat n | n < 2^w -> [0 .. n-1]
-      _ -> [0 .. 2^w - 1]
-
+    folded =
+      case k of
+        KBounded _ w ->
+          case mblen of
+            Nat n | n < 2^w -> foldr f def [0 .. n-1]
+            _ -> foldr f def [0 .. 2^w - 1]
+        _ ->
+          case mblen of
+            Nat n -> foldr f def [0 .. n-1]
+            Inf -> raiseError SBV (UnsupportedSymbolicOp "unbounded integer indexing")
 
 indexBack ::
   Nat' ->
