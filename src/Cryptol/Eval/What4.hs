@@ -515,10 +515,10 @@ primTable w4sym = let sym = What4 w4sym in
                      lam $ \xs -> transposeV sym a b c =<< xs)
 
     -- Shifts and rotates
-  , ("<<"          , logicShift sym "<<"  (w4bvShl w4sym) shiftLeftReindex)
-  , (">>"          , logicShift sym ">>"  (w4bvLshr w4sym) shiftRightReindex)
-  , ("<<<"         , logicShift sym "<<<" (w4bvRol w4sym) rotateLeftReindex)
-  , (">>>"         , logicShift sym ">>>" (w4bvRor w4sym) rotateRightReindex)
+  , ("<<"          , logicShift sym "<<"  shiftShrink  (w4bvShl w4sym) shiftLeftReindex)
+  , (">>"          , logicShift sym ">>"  shiftShrink  (w4bvLshr w4sym) shiftRightReindex)
+  , ("<<<"         , logicShift sym "<<<" rotateShrink (w4bvRol w4sym) rotateLeftReindex)
+  , (">>>"         , logicShift sym ">>>" rotateShrink (w4bvRor w4sym) rotateRightReindex)
   , (">>$"         , sshrV w4sym)
 
     -- Indexing and updates
@@ -580,14 +580,15 @@ indexFront_int ::
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
+  TValue ->
   SInteger (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexFront_int sym mblen _a xs idx
+indexFront_int sym mblen _a xs ix idx
   | Just i <- W4.asInteger idx
   = lookupSeqMap xs i
 
-  | Just hi <- maxIdx
-  = foldr f def [minIdx .. hi]
+  | (lo, Just hi) <- bounds
+  = foldr f def [lo .. hi]
 
   | otherwise
   = raiseError (What4 sym) (UnsupportedSymbolicOp "unbounded integer indexing")
@@ -599,21 +600,26 @@ indexFront_int sym mblen _a xs idx
        do p <- liftIO (W4.intEq sym idx =<< W4.intLit sym n)
           iteValue (What4 sym) p (lookupSeqMap xs n) y
 
-    minIdx =
-      case W4.rangeLowBound (W4.integerBounds idx) of
+    bounds =
+      (case W4.rangeLowBound (W4.integerBounds idx) of
         W4.Inclusive l -> max l 0
         _ -> 0
+      , case (maxIdx, W4.rangeHiBound (W4.integerBounds idx)) of
+          (Just n, W4.Inclusive h) -> Just (min n h)
+          (Just n, _)              -> Just n
+          _                        -> Nothing
+      )
 
-    -- maximum possible in-bounds index given any abstract
-    -- domain information about the index value and the length
+    -- Maximum possible in-bounds index given `Z m`
+    -- type information and the length
     -- of the sequence. If the sequences is infinite and the
     -- integer is unbounded, there isn't much we can do.
     maxIdx =
-      case (mblen, W4.rangeHiBound (W4.integerBounds idx)) of
-        (Nat n, W4.Inclusive h) -> Just (min (toInteger n) h)
-        (Nat n, _)              -> Just (toInteger n)
-        (_, W4.Inclusive h)     -> Just h
-        _                       -> Nothing
+      case (mblen, ix) of
+        (Nat n, TVIntMod m)  -> Just (min (toInteger n) (toInteger m))
+        (Nat n, _)           -> Just n
+        (_    , TVIntMod m)  -> Just m
+        _                    -> Nothing
 
 indexBack_int ::
   W4.IsExprBuilder sym =>
@@ -621,10 +627,11 @@ indexBack_int ::
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
+  TValue ->
   SInteger (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexBack_int sym (Nat n) a xs idx = indexFront_int sym (Nat n) a (reverseSeqMap n xs) idx
-indexBack_int _ Inf _ _ _ = evalPanic "Expected finite sequence" ["indexBack_int"]
+indexBack_int sym (Nat n) a xs ix idx = indexFront_int sym (Nat n) a (reverseSeqMap n xs) ix idx
+indexBack_int _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_int"]
 
 indexFront_word ::
   W4.IsExprBuilder sym =>
@@ -632,9 +639,10 @@ indexFront_word ::
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
+  TValue ->
   SWord (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexFront_word sym mblen _a xs idx
+indexFront_word sym mblen _a xs _ix idx
   | Just i <- SW.bvAsUnsignedInteger idx
   = lookupSeqMap xs i
 
@@ -670,10 +678,11 @@ indexBack_word ::
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
+  TValue ->
   SWord (What4 sym) ->
   SEval (What4 sym) (Value sym)
-indexBack_word sym (Nat n) a xs idx = indexFront_word sym (Nat n) a (reverseSeqMap n xs) idx
-indexBack_word _ Inf _ _ _ = evalPanic "Expected finite sequence" ["indexBack_word"]
+indexBack_word sym (Nat n) a xs ix idx = indexFront_word sym (Nat n) a (reverseSeqMap n xs) ix idx
+indexBack_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_word"]
 
 indexFront_bits :: forall sym.
   W4.IsExprBuilder sym =>
@@ -681,9 +690,10 @@ indexFront_bits :: forall sym.
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
+  TValue ->
   [SBit (What4 sym)] ->
   SEval (What4 sym) (Value sym)
-indexFront_bits sym mblen _a xs bits0 = go 0 (length bits0) bits0
+indexFront_bits sym mblen _a xs _ix bits0 = go 0 (length bits0) bits0
  where
   go :: Integer -> Int -> [W4.Pred sym] -> W4Eval sym (Value sym)
   go i _k []
@@ -713,10 +723,11 @@ indexBack_bits ::
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
+  TValue ->
   [SBit (What4 sym)] ->
   SEval (What4 sym) (Value sym)
-indexBack_bits sym (Nat n) a xs idx = indexFront_bits sym (Nat n) a (reverseSeqMap n xs) idx
-indexBack_bits _ Inf _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
+indexBack_bits sym (Nat n) a xs ix idx = indexFront_bits sym (Nat n) a (reverseSeqMap n xs) ix idx
+indexBack_bits _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
 
 
 -- | Compare a symbolic word value with a concrete integer.
@@ -858,7 +869,6 @@ sshrV sym =
   wlam (What4 sym) $ \x -> return $
   wlam (What4 sym) $ \y ->
     return (VWord (SW.bvWidth x) (WordVal <$> w4bvAshr sym x y))
-
 
 w4bvShl  :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
 w4bvShl sym x y = liftIO $ SW.bvShl sym x y

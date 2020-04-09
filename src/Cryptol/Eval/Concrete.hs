@@ -295,11 +295,14 @@ logicShift :: (Integer -> Integer -> Integer -> Integer)
            -> Value
 logicShift opW opS
   = nlam $ \ a ->
-    nlam $ \ _ ->
+    tlam $ \ _ix ->
     tlam $ \ c ->
      lam  $ \ l -> return $
      lam  $ \ r -> do
-        BV _ i <- fromVWord Concrete "logicShift amount" =<< r
+        i <- r >>= \case
+          VInteger i -> pure i
+          VWord _ wval -> bvVal <$> (asWordVal Concrete =<< wval)
+          _ -> evalPanic "logicShift" ["not an index"]
         l >>= \case
           VWord w wv -> return $ VWord w $ wv >>= \case
                           WordVal (BV _ x) -> return $ WordVal (BV w (opW w x i))
@@ -366,25 +369,25 @@ rotateRS w _ vs by = IndexSeqMap $ \i ->
 
 -- Sequence Primitives ---------------------------------------------------------
 
-indexFront :: Nat' -> TValue -> SeqMap Concrete -> BV -> Eval Value
-indexFront _mblen _a vs (bvVal -> ix) = lookupSeqMap vs ix
+indexFront :: Nat' -> TValue -> SeqMap Concrete -> TValue -> BV -> Eval Value
+indexFront _mblen _a vs _ix (bvVal -> ix) = lookupSeqMap vs ix
 
-indexFront_bits :: Nat' -> TValue -> SeqMap Concrete -> [Bool] -> Eval Value
-indexFront_bits mblen a vs bs = indexFront mblen a vs =<< packWord Concrete bs
+indexFront_bits :: Nat' -> TValue -> SeqMap Concrete -> TValue -> [Bool] -> Eval Value
+indexFront_bits mblen a vs ix bs = indexFront mblen a vs ix =<< packWord Concrete bs
 
-indexFront_int :: Nat' -> TValue -> SeqMap Concrete -> Integer -> Eval Value
-indexFront_int _mblen _a vs ix = lookupSeqMap vs ix
+indexFront_int :: Nat' -> TValue -> SeqMap Concrete -> TValue -> Integer -> Eval Value
+indexFront_int _mblen _a vs _ix idx = lookupSeqMap vs idx
 
-indexBack :: Nat' -> TValue -> SeqMap Concrete -> BV -> Eval Value
-indexBack mblen a vs (bvVal -> ix) = indexBack_int mblen a vs ix
+indexBack :: Nat' -> TValue -> SeqMap Concrete -> TValue -> BV -> Eval Value
+indexBack mblen a vs ix (bvVal -> idx) = indexBack_int mblen a vs ix idx
 
-indexBack_bits :: Nat' -> TValue -> SeqMap Concrete -> [Bool] -> Eval Value
-indexBack_bits mblen a vs bs = indexBack mblen a vs =<< packWord Concrete bs
+indexBack_bits :: Nat' -> TValue -> SeqMap Concrete -> TValue -> [Bool] -> Eval Value
+indexBack_bits mblen a vs ix bs = indexBack mblen a vs ix =<< packWord Concrete bs
 
-indexBack_int :: Nat' -> TValue -> SeqMap Concrete -> Integer -> Eval Value
-indexBack_int mblen _a vs ix =
+indexBack_int :: Nat' -> TValue -> SeqMap Concrete -> TValue -> Integer -> Eval Value
+indexBack_int mblen _a vs _ix idx =
   case mblen of
-    Nat len -> lookupSeqMap vs (len - ix - 1)
+    Nat len -> lookupSeqMap vs (len - idx - 1)
     Inf     -> evalPanic "indexBack" ["unexpected infinite sequence"]
 
 updateFront ::

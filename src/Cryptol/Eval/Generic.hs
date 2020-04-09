@@ -22,11 +22,11 @@ module Cryptol.Eval.Generic where
 
 import Control.Monad (join, unless)
 
-import Data.Bits (testBit)
+import Data.Bits (testBit,shiftR)
 import Data.Maybe (fromMaybe)
 
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul)
+import Cryptol.TypeCheck.Solver.InfNat (Nat'(..),nMul,widthInteger)
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Concrete.Value (Concrete(..))
 import Cryptol.Eval.Monad
@@ -1172,8 +1172,7 @@ assertIndexInBounds sym (Nat n) (Right (WordVal idx))
   = unless (i < n) (raiseError sym (InvalidIndex (Just i)))
 
 -- If the index is an integer, test that it
--- is less than the concrete value of n, which
--- fits into w bits because of the above test.
+-- is less than the concrete value of n.
 assertIndexInBounds sym (Nat n) (Left idx) =
   do n' <- integerLit sym n
      p <- intLessThan sym idx n'
@@ -1202,9 +1201,9 @@ assertIndexInBounds sym (Nat n) (Right (LargeBitsVal w bits)) =
 indexPrim ::
   Backend sym =>
   sym ->
-  (Nat' -> TValue -> SeqMap sym -> SInteger sym -> SEval sym (GenValue sym)) ->
-  (Nat' -> TValue -> SeqMap sym -> [SBit sym] -> SEval sym (GenValue sym)) ->
-  (Nat' -> TValue -> SeqMap sym -> SWord sym -> SEval sym (GenValue sym)) ->
+  (Nat' -> TValue -> SeqMap sym -> TValue -> SInteger sym -> SEval sym (GenValue sym)) ->
+  (Nat' -> TValue -> SeqMap sym -> TValue -> [SBit sym] -> SEval sym (GenValue sym)) ->
+  (Nat' -> TValue -> SeqMap sym -> TValue -> SWord sym -> SEval sym (GenValue sym)) ->
   GenValue sym
 indexPrim sym int_op bits_op word_op =
   nlam $ \ len  ->
@@ -1220,9 +1219,9 @@ indexPrim sym int_op bits_op word_op =
       idx' <- asIndex sym "index" ix =<< idx
       assertIndexInBounds sym len idx'
       case idx' of
-        Left i                    -> int_op len eltTy vs i
-        Right (WordVal w')        -> word_op len eltTy vs w'
-        Right (LargeBitsVal m bs) -> bits_op len eltTy vs =<< traverse (fromVBit <$>) (enumerateSeqMap m bs)
+        Left i                    -> int_op len eltTy vs ix i
+        Right (WordVal w')        -> word_op len eltTy vs ix w'
+        Right (LargeBitsVal m bs) -> bits_op len eltTy vs ix =<< traverse (fromVBit <$>) (enumerateSeqMap m bs)
 
 {-# INLINE updatePrim #-}
 
@@ -1316,7 +1315,7 @@ barrelShifter :: Backend sym =>
   (SeqMap sym -> Integer -> SEval sym (SeqMap sym))
      {- ^ concrete shifting operation -} ->
   SeqMap sym  {- ^ initial value -} ->
-  [SBit sym]  {- ^ bits of shift amount, in bit-endian order -} ->
+  [SBit sym]  {- ^ bits of shift amount, in big-endian order -} ->
   SEval sym (SeqMap sym)
 barrelShifter sym shift_op = go
   where
@@ -1361,6 +1360,37 @@ rotateRightReindex sz i shft =
      Inf -> evalPanic "cannot rotate infinite sequence" []
      Nat n -> Just ((i+n-shft) `mod` n)
 
+-- | Compute the list of bits in an integer in big-endian order.
+--   Fails if neither the sequence length nor the type value
+--   provide an upper bound for the integer.
+enumerateIntBits :: Backend sym =>
+  sym ->
+  Nat' ->
+  TValue ->
+  SInteger sym ->
+  SEval sym [SBit sym]
+enumerateIntBits sym (Nat n) (TVIntMod m) idx = enumerateIntBits' sym (min n m) idx
+enumerateIntBits sym Inf (TVIntMod m) idx = enumerateIntBits' sym m idx
+enumerateIntBits sym (Nat n) _ idx = enumerateIntBits' sym n idx
+enumerateIntBits sym Inf _ _ = raiseError sym (UnsupportedSymbolicOp "unbounded integer shifting")
+
+-- | Compute the list of bits in an integer in big-endian order.
+--   The integer argument is a concrete upper bound for
+--   the symbolic integer.
+enumerateIntBits' :: Backend sym =>
+  sym ->
+  Integer ->
+  SInteger sym ->
+  SEval sym [SBit sym]
+enumerateIntBits' sym n idx = loop (widthInteger n)
+  where
+  loop 0 = pure []
+  loop w =
+    do x <- intDiv sym idx =<< integerLit sym w
+       y <- intMod sym x =<< integerLit sym 2
+       z <- intEq sym y =<< integerLit sym 1
+       (z:) <$> loop (w `shiftR` 1)
+
 -- | Generic implementation of shifting.
 --   Uses the provided word-level operation to perform the shift, when
 --   possible.  Otherwise falls back on a barrel shifter that uses
@@ -1372,49 +1402,83 @@ rotateRightReindex sz i shft =
 logicShift :: Backend sym =>
   sym ->
   String ->
+  (sym -> Nat' -> TValue -> SInteger sym -> SEval sym (SInteger sym))
+     {- ^ operation for range reduction on integers -} ->
   (SWord sym -> SWord sym -> SEval sym (SWord sym))
      {- ^ word shift operation -} ->
   (Nat' -> Integer -> Integer -> Maybe Integer)
      {- ^ reindexing operation (sequence size, starting index, shift amount -} ->
   GenValue sym
-logicShift sym nm wop reindex =
-      nlam $ \_m ->
-      nlam $ \_n ->
-      tlam $ \a ->
-      VFun $ \xs -> return $
-      VFun $ \y -> do
-        idx <- fromWordVal "logicShift" =<< y
+logicShift sym nm shrinkRange wop reindex =
+  nlam $ \m ->
+  tlam $ \ix ->
+  tlam $ \a ->
+  VFun $ \xs -> return $
+  VFun $ \y ->
+    do let shiftOp vs shft =
+              memoMap $ IndexSeqMap $ \i ->
+                case reindex m i shft of
+                  Nothing -> zeroV sym a
+                  Just i' -> lookupSeqMap vs i'
+       xs' <- xs
+       y' <- asIndex sym "shift" ix =<< y
+       case y' of
+         Left int_idx ->
+            do idx <- shrinkRange sym m ix int_idx
+               case xs' of
+                 VWord w x ->
+                    return $ VWord w $ do
+                      x >>= \case
+                        WordVal x' -> WordVal <$> (wop x' =<< wordFromInt sym w idx)
+                        LargeBitsVal n bs0 ->
+                          do idx_bits <- enumerateIntBits sym m ix idx
+                             LargeBitsVal n <$> barrelShifter sym shiftOp bs0 idx_bits
 
-        xs >>= \case
-          VWord w x ->
-             return $ VWord w $ do
-               x >>= \case
-                 WordVal x' -> WordVal <$> (wop x' =<< asWordVal sym idx)
-                 LargeBitsVal n bs0 ->
-                   do idx_bits <- enumerateWordValue sym idx
-                      let op bs shft = memoMap $ IndexSeqMap $ \i ->
-                                         case reindex (Nat w) i shft of
-                                           Nothing -> pure (VBit (bitLit sym False))
-                                           Just i' -> lookupSeqMap bs i'
-                      LargeBitsVal n <$> barrelShifter sym op bs0 idx_bits
+                 VSeq w vs0 ->
+                    do idx_bits <- enumerateIntBits sym m ix idx
+                       VSeq w <$> barrelShifter sym shiftOp vs0 idx_bits
 
-          VSeq w vs0 ->
-             do idx_bits <- enumerateWordValue sym idx
-                let op vs shft = memoMap $ IndexSeqMap $ \i ->
-                                   case reindex (Nat w) i shft of
-                                     Nothing -> zeroV sym a
-                                     Just i' -> lookupSeqMap vs i'
-                VSeq w <$> barrelShifter sym op vs0 idx_bits
+                 VStream vs0 ->
+                    do idx_bits <- enumerateIntBits sym m ix idx
+                       VStream <$> barrelShifter sym shiftOp vs0 idx_bits
 
-          VStream vs0 ->
-             do idx_bits <- enumerateWordValue sym idx
-                let op vs shft = memoMap $ IndexSeqMap $ \i ->
-                                   case reindex Inf i shft of
-                                     Nothing -> zeroV sym a
-                                     Just i' -> lookupSeqMap vs i'
-                VStream <$> barrelShifter sym op vs0 idx_bits
+                 _ -> evalPanic "expected sequence value in shift operation" [nm]
 
-          _ -> evalPanic "expected sequence value in shift operation" [nm]
+         Right idx -> case xs' of
+           VWord w x ->
+              return $ VWord w $ do
+                x >>= \case
+                  WordVal x' -> WordVal <$> (wop x' =<< asWordVal sym idx)
+                  LargeBitsVal n bs0 ->
+                    do idx_bits <- enumerateWordValue sym idx
+                       LargeBitsVal n <$> barrelShifter sym shiftOp bs0 idx_bits
+
+           VSeq w vs0 ->
+              do idx_bits <- enumerateWordValue sym idx
+                 VSeq w <$> barrelShifter sym shiftOp vs0 idx_bits
+
+           VStream vs0 ->
+              do idx_bits <- enumerateWordValue sym idx
+                 VStream <$> barrelShifter sym shiftOp vs0 idx_bits
+
+           _ -> evalPanic "expected sequence value in shift operation" [nm]
+
+
+shiftShrink :: Backend sym => sym -> Nat' -> TValue -> SInteger sym -> SEval sym (SInteger sym)
+shiftShrink _sym Inf _ x = return x
+shiftShrink _sym (Nat w) (TVIntMod m) x | m <= w = return x
+shiftShrink sym (Nat w) _ x =
+  do w' <- integerLit sym w
+     p  <- intLessThan sym w' x
+     iteInteger sym p w' x
+
+rotateShrink :: Backend sym => sym -> Nat' -> TValue -> SInteger sym -> SEval sym (SInteger sym)
+rotateShrink _sym Inf _ _ = panic "rotateShrink" ["expected finite sequence in rotate"]
+rotateShrink _sym (Nat w) (TVIntMod m) x | m <= w = return x
+rotateShrink sym (Nat 0) _ _ = integerLit sym 0
+rotateShrink sym (Nat w) _ x =
+  do w' <- integerLit sym w
+     intMod sym x w'
 
 -- Miscellaneous ---------------------------------------------------------------
 

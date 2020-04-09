@@ -432,18 +432,22 @@ primTable  = let sym = SBV in
 
     -- Shifts and rotates
   , ("<<"          , logicShift sym "<<"
+                       shiftShrink
                        (\x y -> pure (SBV.svShiftLeft x y))
                        shiftLeftReindex)
 
   , (">>"          , logicShift sym ">>"
+                       shiftShrink
                        (\x y -> pure (SBV.svShiftRight x y))
                        shiftRightReindex)
 
   , ("<<<"         , logicShift sym "<<<"
+                       rotateShrink
                        (\x y -> pure (SBV.svRotateLeft x y))
                        rotateLeftReindex)
 
   , (">>>"         , logicShift sym ">>>"
+                       rotateShrink
                        (\x y -> pure (SBV.svRotateRight x y))
                        rotateRightReindex)
 
@@ -492,9 +496,10 @@ indexFront ::
   Nat' ->
   TValue ->
   SeqMap SBV ->
+  TValue ->
   SVal ->
   SEval SBV Value
-indexFront mblen a xs idx
+indexFront mblen a xs _ix idx
   | Just i <- SBV.svAsInteger idx
   = lookupSeqMap xs i
 
@@ -529,18 +534,20 @@ indexBack ::
   Nat' ->
   TValue ->
   SeqMap SBV ->
+  TValue ->
   SWord SBV ->
   SEval SBV Value
-indexBack (Nat n) a xs idx = indexFront (Nat n) a (reverseSeqMap n xs) idx
-indexBack Inf _ _ _ = evalPanic "Expected finite sequence" ["indexBack"]
+indexBack (Nat n) a xs ix idx = indexFront (Nat n) a (reverseSeqMap n xs) ix idx
+indexBack Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack"]
 
 indexFront_bits ::
   Nat' ->
   TValue ->
   SeqMap SBV ->
+  TValue ->
   [SBit SBV] ->
   SEval SBV Value
-indexFront_bits mblen _a xs bits0 = go 0 (length bits0) bits0
+indexFront_bits mblen _a xs _ix bits0 = go 0 (length bits0) bits0
  where
   go :: Integer -> Int -> [SBit SBV] -> SEval SBV Value
   go i _k []
@@ -569,10 +576,11 @@ indexBack_bits ::
   Nat' ->
   TValue ->
   SeqMap SBV ->
+  TValue ->
   [SBit SBV] ->
   SEval SBV Value
-indexBack_bits (Nat n) a xs idx = indexFront_bits (Nat n) a (reverseSeqMap n xs) idx
-indexBack_bits Inf _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
+indexBack_bits (Nat n) a xs ix idx = indexFront_bits (Nat n) a (reverseSeqMap n xs) ix idx
+indexBack_bits Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
 
 
 -- | Compare a symbolic word value with a concrete integer.
