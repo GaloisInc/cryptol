@@ -6,7 +6,7 @@ import           Control.Monad(unless)
 
 import Cryptol.Parser.Position(Located(..))
 import qualified Cryptol.Parser.AST as P
-import Cryptol.ModuleSystem.Name(Name,nameIdent,nameLoc)
+import Cryptol.ModuleSystem.Name (nameIdent, nameLoc)
 import Cryptol.ModuleSystem.InstantiateModule(instantiateModule)
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Monad

@@ -15,7 +15,6 @@ module Cryptol.ModuleSystem.Fingerprint
 import Control.DeepSeq          (NFData (rnf))
 import Crypto.Hash.SHA1         (hash)
 import Data.ByteString          (ByteString)
-import System.IO.Error          (IOError)
 import Control.Exception        (try)
 import qualified Data.ByteString as B
 

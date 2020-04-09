@@ -28,7 +28,6 @@ import           Cryptol.TypeCheck.SimpType(tMax)
 import           Cryptol.Utils.Ident (ModName, identText)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
-import           Cryptol.Utils.Patterns(matchMaybe)
 
 import           Data.Set ( Set )
 import qualified Data.Set as Set

@@ -34,7 +34,6 @@ import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 import           Cryptol.TypeCheck.Solver.SMT(Solver,proveImp,isNumeric)
 import           Cryptol.TypeCheck.Solver.Improve(improveProp,improveProps)
 import           Cryptol.TypeCheck.Solver.Numeric.Interval
-import           Cryptol.Utils.PP (text,vcat,(<+>))
 import           Cryptol.Utils.Patterns(matchMaybe)
 
 import           Control.Applicative ((<|>))

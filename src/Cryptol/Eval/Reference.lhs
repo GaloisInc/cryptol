@@ -23,7 +23,6 @@
 > import Data.Ord (comparing)
 > import Data.Map (Map)
 > import qualified Data.Map as Map
-> import Data.Semigroup (Semigroup(..))
 > import qualified Data.Text as T (pack)
 >
 > import Cryptol.ModuleSystem.Name (asPrim)

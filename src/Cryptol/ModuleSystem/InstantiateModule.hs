@@ -12,7 +12,6 @@ import           MonadLib(ReaderT,runReaderT,ask)
 
 import Cryptol.Parser.Position(Located(..))
 import Cryptol.ModuleSystem.Name
-import Cryptol.ModuleSystem.Exports(ExportSpec(..))
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst(listParamSubst, apSubst)
 import Cryptol.Utils.Ident(ModName,modParamIdent)
