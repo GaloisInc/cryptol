@@ -1,8 +1,8 @@
 name: Docs
 on:
   push:
-  # branches: ["release/*", "docs/*"]
-  # paths: [docs, "**.md"]
+    branches: ["release/*", "docs/*"]
+    paths: [docs, "**.md"]
   pull_request:
     paths: [docs, "**.md"]
 
