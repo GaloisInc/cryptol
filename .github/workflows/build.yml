@@ -1,9 +1,9 @@
 name: Cryptol
 on:
   push:
-    paths-ignore: ["**.md"]
+    paths-ignore: ["**.md", ".github/workflows/docs.yml"]
   pull_request:
-    paths-ignore: ["**.md"]
+    paths-ignore: ["**.md", ".github/workflows/docs.yml"]
 
 jobs:
   build:
