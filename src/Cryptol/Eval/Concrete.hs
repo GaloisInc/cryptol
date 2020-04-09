@@ -293,11 +293,14 @@ logicShift :: (Integer -> Integer -> Integer -> Integer)
            -> Value
 logicShift opW opS
   = nlam $ \ a ->
-    nlam $ \ _ ->
+    tlam $ \ _ ->
     tlam $ \ c ->
      lam  $ \ l -> return $
      lam  $ \ r -> do
-        BV _ i <- fromVWord Concrete "logicShift amount" =<< r
+        i <- r >>= \case
+          VInteger i -> pure i
+          VWord _ wval -> bvVal <$> (asWordVal Concrete =<< wval)
+          _ -> evalPanic "logicShift" ["not an index"]
         l >>= \case
           VWord w wv -> return $ VWord w $ wv >>= \case
                           WordVal (BV _ x) -> return $ WordVal (BV w (opW w x i))
