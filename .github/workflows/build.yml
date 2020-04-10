@@ -9,7 +9,6 @@ jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-2019]
         ghc: ["8.4.4", "8.6.5", "8.8.1"]
@@ -19,28 +18,23 @@ jobs:
       - uses: actions/checkout@v2
         # https://github.com/actions/setup-haskell/pull/12
       - uses: haskell-CI/setup@master
+        id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc }}
           cabal-version: ${{ matrix.cabal }}
 
       - uses: actions/cache@v1
-        name: Cache ~/.cabal/packages
-        with:
-          path: ~/.cabal/packages
-          key: ${{ runner.os }}-${{ matrix.ghc }}-packages-${{ hashFiles('**/cabal.GHC-*') }}
-          restore-keys: ${{ runner.os }}-${{ matrix.ghc }}-packages-
-      - uses: actions/cache@v1
         name: Cache ~/.cabal/store
         with:
+          # TODO: replace path: ~/.cabal/store with ${{ steps.setup-haskell.outputs.store }} when implemented
           path: ~/.cabal/store
-          key: ${{ runner.os }}-${{ matrix.ghc }}-store-${{ hashFiles('**/cabal.GHC-*') }}
-          restore-keys: ${{ runner.os }}-${{ matrix.ghc }}-store-
-      - uses: actions/cache@v1
-        name: Cache dist-newstyle
-        with:
-          path: dist-newstyle
-          key: ${{ runner.os }}-${{ matrix.ghc }}-dist-newstyle-${{ hashFiles('**/cabal.GHC-*') }}
-          restore-keys: ${{ runner.os }}-${{ matrix.ghc }}-dist-newstyle-
+          # https://github.com/actions/cache/issues/109 "Enable always writing cache to support hermetic build systems"
+          # https://github.com/actions/cache/issues/109#issuecomment-558771281
+          # https://github.com/actions/cache/issues/239#issuecomment-606950711 Investigate this workaround if cache starts filling up
+          key: ${{ runner.os }}-store-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
+            ${{ runner.os }}-${{ matrix.ghc }}-
 
       - name: Install System Dependencies
         shell: bash
