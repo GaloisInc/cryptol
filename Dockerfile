@@ -29,7 +29,8 @@ RUN chown -R root:root /cryptol/rootfs
 
 FROM debian:stretch-slim
 RUN apt-get update \
-    && apt-get install -y libgmp10 libgomp1 libffi6 wget libncurses5 unzip
+    && apt-get install -y libgmp10 libgomp1 libffi6 wget libncurses5 unzip \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 COPY --from=build /cryptol/rootfs /
 RUN useradd -m cryptol && chown -R cryptol:cryptol /home/cryptol
 USER cryptol
