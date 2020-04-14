@@ -31,10 +31,10 @@ jobs:
           # https://github.com/actions/cache/issues/109 "Enable always writing cache to support hermetic build systems"
           # https://github.com/actions/cache/issues/109#issuecomment-558771281
           # https://github.com/actions/cache/issues/239#issuecomment-606950711 Investigate this workaround if cache starts filling up
-          key: ${{ runner.os }}-store-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
+          key: store-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
-            ${{ runner.os }}-${{ matrix.ghc }}-
+            store-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
+            store-${{ runner.os }}-${{ matrix.ghc }}-
 
       - name: Install System Dependencies
         shell: bash
