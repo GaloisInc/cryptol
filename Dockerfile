@@ -15,9 +15,9 @@ ARG DIFF="diff"
 ARG IGNORE_EXPECTED="--ignore-expected"
 ARG CABAL_BUILD_FLAGS="-j"
 ARG CABAL_INSTALL_FLAGS="${CABAL_BUILD_FLAGS}"
-RUN make tarball
+RUN ./cry build
 ARG TIME=""
-RUN make test
+RUN ./cry test
 RUN mkdir -p rootfs/"${CRYPTOLPATH}" \
     && cp -r lib/* rootfs/"${CRYPTOLPATH}" \
     && mkdir -p rootfs/usr/local \

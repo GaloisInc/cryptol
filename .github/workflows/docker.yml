@@ -1,0 +1,31 @@
+name: Cryptol Dockerfile
+on:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+    name: Cryptol Docker
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: get changed files
+        id: files
+        run: echo "::set-output name=files::$(git diff-tree --no-commit-id --name-only -r ${{ github.event.before }} ${{ github.sha }})"
+
+      - name: Get Version
+        if: ${{ steps.files.outputs.files }}
+        run: echo ::set-env name=CRYPTOL_VERSION::"$(cat cryptol.cabal | grep 'Version:' | awk '{print $2}')"
+
+      - name: Publish to Registry
+        if: ${{ steps.files.outputs.files }}
+        uses: elgohr/Publish-Docker-Github-Action@master
+        with:
+          name: galoisinc/cryptol
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          tags: "latest,${{ env.CRYPTOL_VERSION }}"
