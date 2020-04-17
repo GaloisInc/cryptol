@@ -12,6 +12,8 @@
 > module Cryptol.Eval.Reference
 >   ( Value(..)
 >   , evaluate
+>   , evalExpr
+>   , evalDeclGroup
 >   , ppValue
 >   ) where
 >
