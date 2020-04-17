@@ -46,6 +46,7 @@ import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Ident (Ident)
 import           Cryptol.Utils.Logger(logPutStrLn)
+import           Cryptol.Utils.Panic (panic)
 
 import qualified What4.Config as W4
 import qualified What4.Interface as W4
@@ -96,7 +97,7 @@ lookupProver :: String -> IO (SolverAdapter st)
 lookupProver s =
   case lookup s proverConfigs of
    Just cfg -> pure cfg
-   Nothing  -> fail ("Invalid prover: " ++ s)
+   Nothing  -> panic "lookupProver" ["unknown solver name: " ++ s]
 
 --checkProverInstallation :: String -> IO Bool
 --checkProverInstallation _s =
@@ -334,11 +335,11 @@ computeModel evo primMap evalFn (t:ts) (v:vs) =
   do v' <- varToConcreteValue evalFn v
      let t' = unFinType t
      e <- doEval evo (Concrete.toExpr primMap t' v') >>= \case
-             Nothing -> fail "panic! computeModel expr"
+             Nothing -> panic "computeModel" ["could not compute counterexample expression"]
              Just e  -> pure e
      zs <- computeModel evo primMap evalFn ts vs
      return ((t',e,v'):zs)
-computeModel _ _ _ _ _ = fail "panic! computeModel mismatch"
+computeModel _ _ _ _ _ = panic "computeModel" ["type/value list mismatch"]
 
 
 data VarShape sym
@@ -354,7 +355,7 @@ freshVariable sym ty =
   case ty of
     FTBit         -> VarBit      <$> W4.freshConstant sym W4.emptySymbol W4.BaseBoolRepr
     FTInteger     -> VarInteger  <$> W4.freshConstant sym W4.emptySymbol W4.BaseIntegerRepr
-    FTIntMod 0    -> VarInteger  <$> W4.freshConstant sym W4.emptySymbol W4.BaseIntegerRepr
+    FTIntMod 0    -> panic "freshVariable" ["0 modulus not allowed"]
     FTIntMod n    -> VarInteger  <$> W4.freshBoundedInt sym W4.emptySymbol (Just 0) (Just (n-1))
     FTSeq n FTBit -> VarWord     <$> SW.freshBV sym W4.emptySymbol (toInteger n)
     FTSeq n t     -> VarFinSeq n <$> sequence (replicate n (freshVariable sym t))
