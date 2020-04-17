@@ -10,8 +10,8 @@ Status](https://travis-ci.org/GaloisInc/cryptol.svg?branch=master)](https://trav
 
 # What is Cryptol?
 
-The Cryptol specification language was designed by Galois for the
-NSA's Trusted Systems Research Group as a public standard for
+The Cryptol specification language was designed by Galois for the NSA's
+Laboratory for Advanced Cybersecurity Research as a public standard for
 specifying cryptographic algorithms. A Cryptol reference specification
 can serve as the formal documentation for a cryptographic module.
 Unlike current specification mechanisms, Cryptol is fully executable,
@@ -207,18 +207,18 @@ and by cryptographers to
 ## Acknowledgements
 
 Cryptol has been under development for over a decade with many people
-contributing to its design and implementation. Those people include
-(but are not limited to) Iavor Diatchki, Aaron Tomb, Adam Wick, Brian
-Huffman, Dylan McNamee, Joe Kiniry, John Launchbury, Matt Sottile,
-Adam Foltzer, Joe Hendrix, Trevor Elliott, Lee Pike, Mark Tullsen,
-Levent Erkök, David Lazar, Joel Stanley, Jeff Lewis, Andy Gill, Edward
-Yang, Ledah Casburn, Jim Teisher, Sigbjørn Finne, Mark Shields, Philip
-Weaver, Magnus Carlsson, Fergus Henderson, Joe Hurd, Thomas Nordin,
-John Matthews and Sally Browning. In addition, much of the work on
-Cryptol has been funded by, and lots of design input was provided by
-the team at the
-[NSA's Trusted Systems Research Group](http://www.nsa.gov/research/ia_research/),
-including Brad Martin, Frank Taylor and Sean Weaver.
+contributing to its design and implementation. Those people include (but
+are not limited to) Iavor Diatchki, Aaron Tomb, Adam Wick, Brian
+Huffman, Dylan McNamee, Joe Kiniry, John Launchbury, Matt Sottile, Adam
+Foltzer, Joe Hendrix, Trevor Elliott, Lee Pike, Mark Tullsen, Levent
+Erkök, David Lazar, Joel Stanley, Jeff Lewis, Andy Gill, Edward Yang,
+Ledah Casburn, Jim Teisher, Sigbjørn Finne, Mark Shields, Philip Weaver,
+Magnus Carlsson, Fergus Henderson, Joe Hurd, Thomas Nordin, John
+Matthews and Sally Browning. In addition, much of the work on Cryptol
+has been funded by, and lots of design input was provided by the team at
+the [NSA's Laboratory for Advanced Cybersecurity
+Research](https://www.nsa.gov/what-we-do/research/cybersecurity-research/),
+including Brad Martin, Frank Taylor, and Sean Weaver.
 
 Portions of Cryptol are also based upon work supported by the Office
 of Naval Research under Contract No. N68335-17-C-0452. Any opinions,
