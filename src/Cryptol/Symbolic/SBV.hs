@@ -274,7 +274,7 @@ parseValue (FTSeq n t) cvs =
 parseValue (FTTuple ts) cvs = (Eval.VTuple (map Eval.ready vs), cvs')
   where (vs, cvs') = parseValues ts cvs
 parseValue (FTRecord fs) cvs = (Eval.VRecord (Map.fromList (zip ns (map Eval.ready vs))), cvs')
-  where (ns, ts) = unzip fs
+  where (ns, ts)   = unzip (Map.toList fs)
         (vs, cvs') = parseValues ts cvs
 
 inBoundsIntMod :: Integer -> Eval.SInteger SBV -> Eval.SBit SBV
@@ -296,7 +296,7 @@ forallFinType ty =
     FTSeq n t     -> do vs <- replicateM n (forallFinType t)
                         return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
     FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . forallFinType) ts
-    FTRecord fs   -> Eval.VRecord <$> mapM (fmap pure . forallFinType) (Map.fromList fs)
+    FTRecord fs   -> Eval.VRecord <$> mapM (fmap pure . forallFinType) fs
 
 existsFinType :: FinType -> WriterT [Eval.SBit SBV] SBV.Symbolic Value
 existsFinType ty =
@@ -311,4 +311,4 @@ existsFinType ty =
     FTSeq n t     -> do vs <- replicateM n (existsFinType t)
                         return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
     FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . existsFinType) ts
-    FTRecord fs   -> Eval.VRecord <$> mapM (fmap pure . existsFinType) (Map.fromList fs)
+    FTRecord fs   -> Eval.VRecord <$> mapM (fmap pure . existsFinType) fs
