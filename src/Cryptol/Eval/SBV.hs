@@ -47,8 +47,6 @@ import Cryptol.Utils.Ident
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
 
-import Control.Monad.Trans  (liftIO)
-
 data SBV = SBV
 
 -- Utility operations -------------------------------------------------------------
