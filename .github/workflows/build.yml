@@ -137,6 +137,8 @@ jobs:
         with:
           name: docs
           path: dist/share/doc/cryptol
+
+      - name: Bundle together
         shell: bash
         run: |
           cp docs/ProgrammingCryptol/aes/AES.cry \
@@ -162,13 +164,10 @@ jobs:
 
           cp -r examples/Minilock /dist/examples/
 
-      - shell: bash
-        uses: actions/download-artifact@v1
+      - uses: actions/upload-artifact@v1
         with:
           name: ${{ matrix.os }}-${{ matrix.ghc }}-release
-          path: dist/share/doc/cryptol
-        run: |
-          ls dist
+          path: dist
       #     ${PKG}: ${CRYPTOL_EXE} \
       #     docs/*.md docs/*.pdf LICENSE LICENSE.rtf \
       #     ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES} ${PKG_EXFUNSTUFF_FILES} \
