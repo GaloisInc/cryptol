@@ -1,22 +1,20 @@
 name: Cryptol
 on:
   push:
-    paths-ignore: ["**.md", ".github/workflows/docs.yml"]
   pull_request:
-    paths-ignore: ["**.md", ".github/workflows/docs.yml"]
 
 jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-2019]
+        os: [ubuntu-latest, macos-latest, windows-latest]
         ghc: ["8.4.4", "8.6.5", "8.8.1"]
         cabal: ["3.0.0.0"]
     name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
-        # https://github.com/actions/setup-haskell/pull/12
+      # https://github.com/actions/setup-haskell/pull/12
       - uses: haskell-CI/setup@master
         id: setup-haskell
         with:
@@ -80,8 +78,112 @@ jobs:
 
       - name: Build
         shell: bash
-        run: cabal build exe:cryptol
+        run: cabal build exe:cryptol exe:cryptol-html
 
       - name: Test
         shell: bash
         run: ./cry test
+
+      - name: Copy binaries to dist
+        shell: bash
+        run: |
+          mkdir -p dist
+          cabal install --install-method copy --installdir dist cryptol
+          cabal install --install-method copy --installdir dist cryptol-html
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v1
+        with:
+          path: dist
+          name: ${{ matrix.ghc }}-${{ matrix.cabal }}-${{ matrix.os }}-bins
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: docker://pandoc/latex:latest
+        with:
+          args: >-
+            sh -c
+            "
+            apk add make &&
+            tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo &&
+            cd docs &&
+            make
+            "
+      - uses: actions/upload-artifact@v1
+        with:
+          name: docs
+          path: docs
+
+  bundle:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        ghc: ["8.4.4", "8.6.5", "8.8.1"]
+        cabal: ["3.0.0.0"]
+    needs: [docs, jobs]
+    steps:
+      # https://github.com/actions/download-artifact/issues/3
+      - name: Download bins
+        uses: actions/download-artifact@v1
+        with:
+          name: ${{ matrix.ghc }}-${{ matrix.cabal }}-${{ matrix.os }}-bins
+          path: dist/bin
+
+      - name: Download docs
+        uses: actions/download-artifact@v1
+        with:
+          name: docs
+          path: dist/share/doc/cryptol
+        shell: bash
+        run: |
+          cp docs/ProgrammingCryptol/aes/AES.cry \
+          docs/ProgrammingCryptol/enigma/Enigma.cry \
+          examples/ChaChaPolyCryptolIETF.md \
+          examples/Cipher.cry \
+          examples/DES.cry \
+          examples/DEStest.cry \
+          examples/Test.cry \
+          dist/examples/
+
+          cp examples/contrib/EvenMansour.cry \
+          examples/contrib/RC4.cry \
+          examples/contrib/README.md \
+          examples/contrib/mkrand.cry \
+          dist/examples/contrib/
+
+          cp examples/funstuff/Coins.cry \
+          examples/funstuff/FoxChickenCorn.cry \
+          examples/funstuff/NQueens.cry \
+          examples/funstuff/marble.cry \
+          dist/examples/funstuff/
+
+          cp -r examples/Minilock /dist/examples/
+
+      - shell: bash
+        uses: actions/download-artifact@v1
+        with:
+          name: ${{ matrix.os }}-${{ matrix.ghc }}-release
+          path: dist/share/doc/cryptol
+        run: |
+          ls dist
+      #     ${PKG}: ${CRYPTOL_EXE} \
+      #     docs/*.md docs/*.pdf LICENSE LICENSE.rtf \
+      #     ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES} ${PKG_EXFUNSTUFF_FILES} \
+      #     ${PKG_MINILOCK_FILES}
+      #     $(CABAL) copy ${DESTDIR_ARG}
+      #     mkdir -p ${PKG_CRY}
+      #     mkdir -p ${PKG_DOC}
+      #     mkdir -p ${PKG_EXAMPLES}
+      #     mkdir -p ${PKG_EXCONTRIB}
+      #     cp docs/*.md ${PKG_DOC}
+      #     cp docs/*.pdf ${PKG_DOC}
+      #     for EXAMPLE in ${PKG_EXAMPLE_FILES}; do \
+      #     cp $$EXAMPLE ${PKG_EXAMPLES}; done
+      #     for EXAMPLE in ${PKG_EXCONTRIB_FILES}; do \
+      #     cp $$EXAMPLE ${PKG_EXCONTRIB}; done
+      #     for EXAMPLE in ${PKG_EXFUNSTUFF_FILES}; do \
+      #     cp $$EXAMPLE ${PKG_EXFUNSTUFF}; done
+      #     cp -r examples/MiniLock ${PKG_EXAMPLES}
