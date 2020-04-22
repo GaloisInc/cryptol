@@ -864,4 +864,5 @@ curry f = \a b -> f (a, b)
  * list of successive function applications.
  */
 iterate : {a} (a -> a) -> a -> [inf]a
-iterate f x = [x] # [ f v | v <- iterate f x ]
+iterate f x = xs
+  where xs = [x] # [ f v | v <- xs ]
