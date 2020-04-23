@@ -137,6 +137,8 @@ jobs:
       - name: Bundle together
         shell: bash
         run: |
+          mkdir -p dist/examples
+
           cp docs/ProgrammingCryptol/aes/AES.cry \
           docs/ProgrammingCryptol/enigma/Enigma.cry \
           examples/ChaChaPolyCryptolIETF.md \
