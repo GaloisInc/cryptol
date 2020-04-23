@@ -34,33 +34,19 @@ jobs:
             store-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
             store-${{ runner.os }}-${{ matrix.ghc }}-
 
+      - uses: actions/cache@v1
+        name: Cache dist-newstyle
+        with:
+          path: dist-newstyle
+          key: dist-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
+          restore-keys: |
+            dist-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
+            dist-${{ runner.os }}-${{ matrix.ghc }}-
+
       - name: Install System Dependencies
         shell: bash
         run: |
-          mkdir -p $GITHUB_WORKSPACE/bin
-          case "$RUNNER_OS" in
-          Linux)
-            curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-ubuntu-16.04.zip"
-            unzip z3.zip
-            cp z3-*/bin/z3 $GITHUB_WORKSPACE/bin/z3
-            chmod +x $GITHUB_WORKSPACE/bin/z3
-            ;;
-          macOS)
-            curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-osx-10.14.6.zip"
-            unzip z3.zip
-            cp z3-*/bin/z3 $GITHUB_WORKSPACE/bin/z3
-            chmod +x $GITHUB_WORKSPACE/bin/z3
-            ;;
-          Windows)
-            curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-4.8.7/z3-4.8.7-x64-win.zip"
-            7z x -bd z3.zip
-            cp z3-*/bin/z3.exe $GITHUB_WORKSPACE/bin/z3.exe
-            ;;
-          *)
-            echo "$RUNNER_OS not supported"
-            exit 1
-            ;;
-          esac
+          ./cry install z3
           echo "::add-path::$GITHUB_WORKSPACE/bin"
 
       - name: Check path
@@ -144,7 +130,7 @@ jobs:
           mkdir -p dist/share/doc/cryptol
 
           cp docs/*md docs/*pdf dist/share/doc/cryptol
-          cp -R examples/MiniLock /dist/examples
+          cp -R examples/MiniLock dist/examples
 
           cp docs/ProgrammingCryptol/aes/AES.cry \
           docs/ProgrammingCryptol/enigma/Enigma.cry \
