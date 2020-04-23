@@ -47,7 +47,7 @@ jobs:
         shell: bash
         run: |
           ./cry install z3
-          echo "::add-path::$GITHUB_WORKSPACE/bin"
+          echo "::add-path::$PWD/bin"
 
       - name: Check path
         shell: bash
