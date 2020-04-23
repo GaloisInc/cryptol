@@ -15,17 +15,16 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       # https://github.com/actions/setup-haskell/pull/12
-      - uses: haskell-CI/setup@master
+      - uses: haskell-CI/setup@implement-fallback-install
         id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc }}
           cabal-version: ${{ matrix.cabal }}
 
       - uses: actions/cache@v1
-        name: Cache ~/.cabal/store
+        name: Cache cabal store
         with:
-          # TODO: replace path: ~/.cabal/store with ${{ steps.setup-haskell.outputs.store }} when implemented
-          path: ~/.cabal/store
+          path: ${{ steps.setup-haskell.outputs.cabal-store }}
           # https://github.com/actions/cache/issues/109 "Enable always writing cache to support hermetic build systems"
           # https://github.com/actions/cache/issues/109#issuecomment-558771281
           # https://github.com/actions/cache/issues/239#issuecomment-606950711 Investigate this workaround if cache starts filling up
