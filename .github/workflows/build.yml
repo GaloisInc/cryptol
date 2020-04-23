@@ -160,7 +160,7 @@ jobs:
           examples/funstuff/marble.cry \
           dist/examples/funstuff/
 
-          cp -r examples/Minilock /dist/examples/
+          cp -R examples/Minilock /dist/examples/
 
       - uses: actions/upload-artifact@v1
         with:
