@@ -24,7 +24,13 @@ module Cryptol.Eval.Concrete
   ) where
 
 import Control.Monad (join,guard,zipWithM)
+import Data.List(sortBy)
+import Data.Ord(comparing)
+import Data.Bits (Bits(..))
 import MonadLib( ChoiceT, findOne, lift )
+
+import qualified Data.Map.Strict as Map
+import qualified Data.Text as T
 
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Eval.Backend
@@ -41,10 +47,6 @@ import Cryptol.Utils.Ident (Ident,mkIdent)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Logger(logPrint)
 
-import Data.Bits (Bits(..))
-
-import qualified Data.Map.Strict as Map
-import qualified Data.Text as T
 
 
 -- Value to Expression conversion ----------------------------------------------
@@ -61,7 +63,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
 
   go :: AST.Type -> Value -> ChoiceT Eval Expr
   go ty val = case (tNoUser ty, val) of
-    (TRec tfs, VRecord vfs) -> do
+    (TRec (sortBy (comparing fst) -> tfs), VRecord vfs) -> do
       let fns = Map.keys vfs
       guard (map fst tfs == fns)
       fes <- zipWithM go (map snd tfs) =<< lift (sequence (Map.elems vfs))

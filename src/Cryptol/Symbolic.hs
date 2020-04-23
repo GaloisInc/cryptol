@@ -41,7 +41,7 @@ import           Cryptol.Utils.PP
 
 import Prelude ()
 import Prelude.Compat
-
+import qualified Data.Map as Map
 import Data.Time (NominalDiffTime)
 
 type SatResult = [(Type, Expr, Concrete.Value)]
@@ -105,7 +105,7 @@ data FinType
     | FTIntMod Integer
     | FTSeq Int FinType
     | FTTuple [FinType]
-    | FTRecord [(Ident, FinType)]
+    | FTRecord (Map.Map Ident FinType)
 
 numType :: Integer -> Maybe Int
 numType n
@@ -123,7 +123,7 @@ finType ty =
     TVIntMod n       -> Just (FTIntMod n)
     TVSeq n t        -> FTSeq <$> numType n <*> finType t
     TVTuple ts       -> FTTuple <$> traverse finType ts
-    TVRec fields     -> FTRecord <$> traverse (traverseSnd finType) fields
+    TVRec fields     -> FTRecord . Map.fromList <$> traverse (traverseSnd finType) fields
     TVAbstract {}    -> Nothing
     _                     -> Nothing
 
@@ -135,7 +135,4 @@ unFinType fty =
     FTIntMod n   -> tIntMod (tNum n)
     FTSeq l ety  -> tSeq (tNum l) (unFinType ety)
     FTTuple ftys -> tTuple (unFinType <$> ftys)
-    FTRecord fs  -> tRec (zip fns tys)
-      where
-        fns = fst <$> fs
-        tys = unFinType . snd <$> fs
+    FTRecord fs  -> tRec (Map.toList (fmap unFinType fs))
