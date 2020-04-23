@@ -20,7 +20,7 @@ function download_z3() {
     macOS | darwin*) file="x64-osx-10.14.6.zip" ;;
     Windows | msys | cygwin | win32) file="x64-win.zip" ;;
   esac
-  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$version/z3-$file"
+  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$version/z3-$version-$file"
 
   if [[ "$os" =~ Windows|msys|cygwin|win32 ]]; then
     7z x -bd z3.zip
