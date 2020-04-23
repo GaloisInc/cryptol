@@ -2,31 +2,50 @@
 
 BIN=bin
 
-function setup_external_tools {
-  if [ ! -f "$BIN/test-runner" ]
-  then
+function setup_external_tools() {
+  if [ ! -f "$BIN/test-runner" ]; then
     mkdir -p "$BIN"
-    cabal v2-install --installdir="$BIN" test-lib
+    cabal v2-install --install-method=copy --installdir="$BIN" test-lib
   fi
 }
 
-function show_usage {
-cat <<EOM
+function download_z3() {
+  [[ -x "$BIN/z3" || -x "$BIN/z3.exe" ]] && return
+  version="${1:-"4.8.7"}"
+
+  mkdir -p "$BIN"
+  os="${RUNNER_OS:-${OSTYPE:-Linux}}"
+  case "$os" in
+    Linux | linux-gnu) file="x64-ubuntu-16.04.zip" ;;
+    macOS | darwin*) file="x64-osx-10.14.6.zip" ;;
+    Windows | msys | cygwin | win32) file="x64-win.zip" ;;
+  esac
+  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$version/z3-$file"
+
+  if [[ "$os" =~ Windows|msys|cygwin|win32 ]]; then
+    7z x -bd z3.zip
+    cp z3-*/bin/z3.exe $BIN/z3.exe
+  else
+    unzip z3.zip
+    cp z3-*/bin/z3 $BIN/z3
+    chmod +x $BIN/z3
+  fi
+}
+
+function show_usage() {
+  cat << EOM
 Usage: $0 COMMAND COMANND_OPTIONS
 Available commands:
-  run       Run Cryptol
-  build     Build Cryptol
-  haddock   Generate Haddock documentation
-  test      Run some tests
-  exe-path  Print the location of the local executable
+  run                     Run Cryptol
+  build                   Build Cryptol
+  haddock                 Generate Haddock documentation
+  install z3|test-runner  Install program to $BIN
+  test                    Run some tests
+  exe-path                Print the location of the local executable
 EOM
 }
 
-
-
-
-if [ "$#" == "0" ]
-then
+if [ "$#" == "0" ]; then
   show_usage
   exit 1
 fi
@@ -35,8 +54,7 @@ COMMAND=$1
 shift
 
 case $COMMAND in
-  run)
-    cabal exec cryptol -- $*;;
+  run) cabal exec cryptol -- $* ;;
 
   build)
     echo Building Cryptol
@@ -56,36 +74,44 @@ case $COMMAND in
 
   haddock)
     echo Building Haddock documentation
-    cabal v2-haddock;;
+    cabal v2-haddock
+    ;;
 
+  install)
+    case "$1" in
+      z3 | Z3) download_z3 "4.8.7" ;;
+      test-runner) setup_external_tools ;;
+    esac
+    ;;
 
   test)
     echo Running tests
     setup_external_tools
-    if [ "$#" == "0" ]
-      then TESTS=tests
-      else TESTS=$*
+    if [ "$#" == "0" ]; then
+      TESTS=tests
+    else
+      TESTS=$*
     fi
     $BIN/test-runner --ext=.icry \
-                     --exe=cabal \
-                     -F v2-run -F -v0 -F exe:cryptol -F -- -F -b \
-                     $TESTS
+      --exe=cabal \
+      -F v2-run -F -v0 -F exe:cryptol -F -- -F -b \
+      $TESTS
     ;;
 
   help)
     show_usage
-    exit 0;;
+    exit 0
+    ;;
 
   exe-path)
     cabal exec which cryptol
-    exit 0;;
+    exit 0
+    ;;
 
   *)
-    echo Unrecognized command: $COMMAND
+    echo "Unrecognized command: $COMMAND"
     show_usage
-    exit 1;;
+    exit 1
+    ;;
 
 esac
-
-
-
