@@ -144,7 +144,7 @@ jobs:
           mkdir -p dist/share/doc/cryptol
 
           cp docs/*md docs/*pdf dist/share/doc/cryptol
-          cp -R examples/Minilock /dist/examples
+          cp -R examples/MiniLock /dist/examples
 
           cp docs/ProgrammingCryptol/aes/AES.cry \
           docs/ProgrammingCryptol/enigma/Enigma.cry \
