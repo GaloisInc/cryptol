@@ -128,11 +128,14 @@ jobs:
           name: ${{ matrix.ghc }}-${{ matrix.cabal }}-${{ matrix.os }}-bins
           path: dist/bin
 
+      - shell: bash
+        run: rm -rf docs
+
       - name: Download docs
         uses: actions/download-artifact@v1
         with:
           name: docs
-          path: dist/share/doc/cryptol
+          path: docs
 
       - name: Bundle together
         shell: bash
