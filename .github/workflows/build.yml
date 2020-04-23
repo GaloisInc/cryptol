@@ -85,11 +85,7 @@ jobs:
         run: ./cry test
 
       - name: Copy binaries to dist
-        shell: bash
-        run: |
-          mkdir -p dist
-          cabal install --install-method copy --installdir dist exe:cryptol
-          cabal install --install-method copy --installdir dist exe:cryptol-html
+        run: cabal install --install-method copy --installdir dist exe:cryptol
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v1
