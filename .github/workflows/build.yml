@@ -4,143 +4,175 @@ on:
   pull_request:
 
 jobs:
-  build:
+  test:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        ghc: ["8.4.4", "8.6.5", "8.8.1"]
-        cabal: ["3.0.0.0"]
     name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
-      # https://github.com/actions/setup-haskell/pull/12
-      - uses: haskell-CI/setup@master
-        id: setup-haskell
-        with:
-          ghc-version: ${{ matrix.ghc }}
-          cabal-version: ${{ matrix.cabal }}
-
-      - uses: actions/cache@v1
-        name: Cache cabal store
-        with:
-          path: ${{ steps.setup-haskell.outputs.cabal-store }}
-          # https://github.com/actions/cache/issues/109 "Enable always writing cache to support hermetic build systems"
-          # https://github.com/actions/cache/issues/109#issuecomment-558771281
-          # https://github.com/actions/cache/issues/239#issuecomment-606950711 Investigate this workaround if cache starts filling up
-          key: store-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
-          restore-keys: |
-            store-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
-            store-${{ runner.os }}-${{ matrix.ghc }}-
-
-      - uses: actions/cache@v1
-        name: Cache dist-newstyle
-        with:
-          path: dist-newstyle
-          key: dist-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
-          restore-keys: |
-            dist-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
-            dist-${{ runner.os }}-${{ matrix.ghc }}-
-
-      - name: Install System Dependencies
-        shell: bash
+      - shell: bash
+        env:
+          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: |
-          ./cry install z3
-          echo "::add-path::$PWD/bin"
-
-      - name: Install Dependencies
-        shell: bash
-        run: |
-          if [[ $RUNNER_OS != "Windows" ]]; then cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze; fi
-          cabal v2-configure --allow-newer -j2
-          cabal v2-build --only-dependencies exe:cryptol
-          ./cry install test-runner
-
-      - name: Build
-        shell: bash
-        run: cabal v2-build exe:cryptol exe:cryptol-html
-
-      - name: Copy binaries to dist and test them
-        shell: bash
-        run: ./cry test-dist
-
-      - uses: actions/upload-artifact@v1
-        with:
-          path: dist
-          name: ${{ matrix.ghc }}-${{ matrix.cabal }}-${{ matrix.os }}-bins
-
-  docs:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: docker://pandoc/latex:latest
-        with:
-          args: >-
-            sh -c
-            "
-            apk add make &&
-            tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo &&
-            cd docs &&
-            make
-            "
-      - uses: actions/upload-artifact@v1
-        with:
-          path: docs
-          name: docs
-
-  bundle:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-        ghc: ["8.4.4", "8.6.5", "8.8.1"]
-        cabal: ["3.0.0.0"]
-    needs: [docs, build]
-    steps:
-      - uses: actions/checkout@v2
-
-      # https://github.com/actions/download-artifact/issues/3
-      - uses: actions/download-artifact@v1
-        with:
-          path: dist/bin
-          name: ${{ matrix.ghc }}-${{ matrix.cabal }}-${{ matrix.os }}-bins
-
-      - uses: actions/download-artifact@v1
-        with:
-          path: docs
-          name: docs
-
-      - name: Bundle together
-        shell: bash
-        run: |
-          mkdir -p dist/share/doc/cryptol/examples/contrib
-          mkdir -p dist/share/doc/cryptol/examples/funstuff
-
-          cp docs/*md docs/*pdf dist/share/doc/cryptol
-          cp -R examples/MiniLock dist/share/doc/cryptol/examples
-
-          cp docs/ProgrammingCryptol/aes/AES.cry \
-          docs/ProgrammingCryptol/enigma/Enigma.cry \
-          examples/ChaChaPolyCryptolIETF.md \
-          examples/Cipher.cry \
-          examples/DES.cry \
-          examples/DEStest.cry \
-          examples/Test.cry \
-          dist/share/doc/cryptol/examples/
-
-          cp examples/contrib/EvenMansour.cry \
-          examples/contrib/RC4.cry \
-          examples/contrib/README.md \
-          examples/contrib/mkrand.cry \
-          dist/share/doc/cryptol/examples/contrib/
-
-          cp examples/funstuff/Coins.cry \
-          examples/funstuff/FoxChickenCorn.cry \
-          examples/funstuff/NQueens.cry \
-          examples/funstuff/marble.cry \
-          dist/share/doc/cryptol/examples/funstuff/
-
-      - uses: actions/upload-artifact@v1
-        with:
-          name: ${{ matrix.os }}-${{ matrix.ghc }}-release
-          path: dist
+          mkdir dist
+          echo "stuff" > dist/file1
+          echo "other stuff" > dist/file2
+          zip -r dist.zip dist
+          gpg --import "$SIGNING_KEY"
+          gpg --batch --yes --detach-sign -o dist.zip.sig --passphrase-file=<(echo "$SIGNING_PASSPHRASE")
+          ls
+          cat dist.zip.sig
+  # build:
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     matrix:
+  #       os: [ubuntu-latest, macos-latest, windows-latest]
+  #       ghc: ["8.4.4", "8.6.5", "8.8.1"]
+  #       cabal: ["3.0.0.0"]
+  #   name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     # https://github.com/actions/setup-haskell/pull/12
+  #     - uses: haskell-CI/setup@master
+  #       id: setup-haskell
+  #       with:
+  #         ghc-version: ${{ matrix.ghc }}
+  #         cabal-version: ${{ matrix.cabal }}
+  #
+  #     - uses: actions/cache@v1
+  #       name: Cache cabal store
+  #       with:
+  #         path: ${{ steps.setup-haskell.outputs.cabal-store }}
+  #         # https://github.com/actions/cache/issues/109 "Enable always writing cache to support hermetic build systems"
+  #         # https://github.com/actions/cache/issues/109#issuecomment-558771281
+  #         # https://github.com/actions/cache/issues/239#issuecomment-606950711 Investigate this workaround if cache starts filling up
+  #         key: store-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
+  #         restore-keys: |
+  #           store-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
+  #           store-${{ runner.os }}-${{ matrix.ghc }}-
+  #
+  #     - uses: actions/cache@v1
+  #       name: Cache dist-newstyle
+  #       with:
+  #         path: dist-newstyle
+  #         key: dist-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
+  #         restore-keys: |
+  #           dist-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
+  #           dist-${{ runner.os }}-${{ matrix.ghc }}-
+  #
+  #     - name: Install System Dependencies
+  #       shell: bash
+  #       run: |
+  #         ./cry install z3
+  #         echo "::add-path::$PWD/bin"
+  #
+  #     - name: Install Dependencies
+  #       shell: bash
+  #       run: |
+  #         if [[ $RUNNER_OS != "Windows" ]]; then cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze; fi
+  #         cabal v2-configure --allow-newer -j2
+  #         cabal v2-build --only-dependencies exe:cryptol
+  #         ./cry install test-runner
+  #
+  #     - name: Build
+  #       shell: bash
+  #       run: cabal v2-build exe:cryptol exe:cryptol-html
+  #
+  #     - name: Copy binaries to dist and test them
+  #       shell: bash
+  #       run: ./cry test-dist
+  #
+  #     - uses: actions/upload-artifact@v1
+  #       with:
+  #         path: dist
+  #         name: ${{ matrix.ghc }}-${{ matrix.cabal }}-${{ matrix.os }}-bins
+  #
+  # docs:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - uses: docker://pandoc/latex:latest
+  #       with:
+  #         args: >-
+  #           sh -c
+  #           "
+  #           apk add make &&
+  #           tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo &&
+  #           cd docs &&
+  #           make
+  #           "
+  #     - uses: actions/upload-artifact@v1
+  #       with:
+  #         path: docs
+  #         name: docs
+  #
+  # bundle:
+  #   runs-on: ${{ matrix.os }}
+  #   strategy:
+  #     matrix:
+  #       os: [ubuntu-latest, macos-latest, windows-latest]
+  #       ghc: ["8.4.4", "8.6.5", "8.8.1"]
+  #       cabal: ["3.0.0.0"]
+  #   needs: [docs, build]
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #
+  #     # https://github.com/actions/download-artifact/issues/3
+  #     - uses: actions/download-artifact@v1
+  #       with:
+  #         path: dist/bin
+  #         name: ${{ matrix.ghc }}-${{ matrix.cabal }}-${{ matrix.os }}-bins
+  #
+  #     - uses: actions/download-artifact@v1
+  #       with:
+  #         path: docs
+  #         name: docs
+  #
+  #     - name: Bundle together
+  #       shell: bash
+  #       run: |
+  #         mkdir -p dist/share/doc/cryptol/examples/contrib
+  #         mkdir -p dist/share/doc/cryptol/examples/funstuff
+  #
+  #         cp docs/*md docs/*pdf dist/share/doc/cryptol
+  #         cp -R examples/MiniLock dist/share/doc/cryptol/examples
+  #
+  #         cp docs/ProgrammingCryptol/aes/AES.cry \
+  #         docs/ProgrammingCryptol/enigma/Enigma.cry \
+  #         examples/ChaChaPolyCryptolIETF.md \
+  #         examples/Cipher.cry \
+  #         examples/DES.cry \
+  #         examples/DEStest.cry \
+  #         examples/Test.cry \
+  #         dist/share/doc/cryptol/examples/
+  #
+  #         cp examples/contrib/EvenMansour.cry \
+  #         examples/contrib/RC4.cry \
+  #         examples/contrib/README.md \
+  #         examples/contrib/mkrand.cry \
+  #         dist/share/doc/cryptol/examples/contrib/
+  #
+  #         cp examples/funstuff/Coins.cry \
+  #         examples/funstuff/FoxChickenCorn.cry \
+  #         examples/funstuff/NQueens.cry \
+  #         examples/funstuff/marble.cry \
+  #         dist/share/doc/cryptol/examples/funstuff/
+  #
+  #     - id: cryptol
+  #       shell: bash
+  #       run: echo "::set-output name=version::$(./dist/cryptol -v | grep Cryptol | cut -d' ' -f2)"
+  #
+  #     - name: Zip up dist
+  #       shell: bash
+  #       env:
+  #         SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
+  #       run: |
+  #         zip -r dist.zip dist
+  #         gpg --detach-sign -o dist.zip.sig --passphrase-file=<(echo "$SIGNING_PASSPHRASE")
+  #
+  #     - uses: actions/upload-artifact@v1
+  #       with:
+  #         name: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64
+  #         path: dist.zip
