@@ -3,15 +3,13 @@
 BIN=bin
 
 function setup_external_tools() {
-  if [ ! -f "$BIN/test-runner" ]; then
-    mkdir -p "$BIN"
-    cabal v2-install --install-method=copy --installdir="$BIN" test-lib
-  fi
+  [[ -x "$BIN/test-runner" ]] && return
+  cabal v2-install --install-method=copy --installdir="$BIN" test-lib
 }
 
 function setup_dist_bins() {
-  [[ -x ./dist/cryptol && -x ./dist/cryptol-html ]] && return
-  cabal install --install-method=copy --installdir=dist exe:cryptol
+  [[ -x dist/cryptol && -x dist/cryptol-html ]] && return
+  cabal v2-install --install-method=copy --installdir=dist exe:cryptol
   strip dist/cryptol*
 }
 
@@ -61,7 +59,7 @@ COMMAND=$1
 shift
 
 case $COMMAND in
-  run) cabal exec cryptol -- $* ;;
+  run) cabal v2-exec cryptol -- $* ;;
 
   build)
     echo Building Cryptol
@@ -123,7 +121,7 @@ case $COMMAND in
     ;;
 
   exe-path)
-    cabal exec which cryptol
+    cabal v2-exec which cryptol
     exit 0
     ;;
 

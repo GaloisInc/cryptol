@@ -56,14 +56,13 @@ jobs:
         shell: bash
         run: |
           if [[ $RUNNER_OS != "Windows" ]]; then cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze; fi
-          cabal configure --allow-newer -j2
-          cabal build --only-dependencies exe:cryptol
-          mkdir -p bin
-          cabal install --install-method copy --installdir bin test-lib
+          cabal v2-configure --allow-newer -j2
+          cabal v2-build --only-dependencies exe:cryptol
+          ./cry install test-runner
 
       - name: Build
         shell: bash
-        run: cabal build exe:cryptol exe:cryptol-html
+        run: cabal v2-build exe:cryptol exe:cryptol-html
 
       - name: Copy binaries to dist and test them
         shell: bash
