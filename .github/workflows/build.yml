@@ -122,13 +122,11 @@ jobs:
       - name: Bundle together
         shell: bash
         run: |
-          mkdir -p dist/examples
-          mkdir -p dist/examples/contrib
-          mkdir -p dist/examples/funstuff
-          mkdir -p dist/share/doc/cryptol
+          mkdir -p dist/share/doc/cryptol/examples/contrib
+          mkdir -p dist/share/doc/cryptol/examples/funstuff
 
           cp docs/*md docs/*pdf dist/share/doc/cryptol
-          cp -R examples/MiniLock dist/examples
+          cp -R examples/MiniLock dist/share/doc/cryptol/examples
 
           cp docs/ProgrammingCryptol/aes/AES.cry \
           docs/ProgrammingCryptol/enigma/Enigma.cry \
@@ -137,19 +135,19 @@ jobs:
           examples/DES.cry \
           examples/DEStest.cry \
           examples/Test.cry \
-          dist/examples/
+          dist/share/doc/cryptol/examples/
 
           cp examples/contrib/EvenMansour.cry \
           examples/contrib/RC4.cry \
           examples/contrib/README.md \
           examples/contrib/mkrand.cry \
-          dist/examples/contrib/
+          dist/share/doc/cryptol/examples/contrib/
 
           cp examples/funstuff/Coins.cry \
           examples/funstuff/FoxChickenCorn.cry \
           examples/funstuff/NQueens.cry \
           examples/funstuff/marble.cry \
-          dist/examples/funstuff/
+          dist/share/doc/cryptol/examples/funstuff/
 
       - uses: actions/upload-artifact@v1
         with:
