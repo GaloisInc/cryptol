@@ -73,8 +73,7 @@ jobs:
       - name: Copy binaries to dist
         run: cabal install --install-method copy --installdir dist exe:cryptol
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v1
+      - uses: actions/upload-artifact@v1
         with:
           path: dist
           name: ${{ matrix.ghc }}-${{ matrix.cabal }}-${{ matrix.os }}-bins
@@ -95,8 +94,8 @@ jobs:
             "
       - uses: actions/upload-artifact@v1
         with:
-          name: docs
           path: docs
+          name: docs
 
   bundle:
     runs-on: ${{ matrix.os }}
@@ -107,21 +106,18 @@ jobs:
         cabal: ["3.0.0.0"]
     needs: [docs, build]
     steps:
+      - uses: actions/checkout@v2
+
       # https://github.com/actions/download-artifact/issues/3
-      - name: Download bins
-        uses: actions/download-artifact@v1
+      - uses: actions/download-artifact@v1
         with:
-          name: ${{ matrix.ghc }}-${{ matrix.cabal }}-${{ matrix.os }}-bins
           path: dist/bin
+          name: ${{ matrix.ghc }}-${{ matrix.cabal }}-${{ matrix.os }}-bins
 
-      - shell: bash
-        run: rm -rf docs
-
-      - name: Download docs
-        uses: actions/download-artifact@v1
+      - uses: actions/download-artifact@v1
         with:
-          name: docs
           path: docs
+          name: docs
 
       - name: Bundle together
         shell: bash
