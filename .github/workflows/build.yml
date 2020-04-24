@@ -14,8 +14,8 @@ jobs:
     steps:
       - shell: bash
         env:
-          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
-          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE_TMP }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY_TMP }}
         run: |
           mkdir dist
           echo "stuff" > dist/file1
@@ -34,6 +34,7 @@ jobs:
 
           echo "running fingerprint cmd thing"
           fingerprint="$(gpg --list-keys | grep galois -a1 | head -n1 | awk '{$1=$1};1')"
+          keyid="$(gpg --list-secret-keys --keyid-format LONG | grep galois -a2 | head -n1 | cut -d'/' -f2 | cut -d' ' -f1 )"
           echo "$fingerprint:6" | gpg --import-ownertrust
 
           echo "signing"
