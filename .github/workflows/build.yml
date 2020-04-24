@@ -28,7 +28,7 @@ jobs:
           gpg --batch --import <(echo "$SIGNING_KEY")
           fingerprint="$(gpg --list-keys | grep galois -a1 | head -n1 | awk '{$1=$1};1')"
           echo "$fingerprint:6" | gpg --import-ownertrust
-          gpg --batch --pinentry-mode loopback --detach-sign -o dist.zip.sig --passphrase-file <(echo "$SIGNING_PASSPHRASE") dist.zip
+          gpg --batch --pinentry-mode loopback --default-key "$fingerprint" --detach-sign -o dist.zip.sig --passphrase-file <(echo "$SIGNING_PASSPHRASE") dist.zip
           ls
           cat dist.zip.sig
   # build:
