@@ -25,9 +25,14 @@ jobs:
           else
             zip -r dist.zip dist
           fi
+          echo "importing key"
           gpg --batch --import <(echo -e "$SIGNING_KEY")
-          echo "imported key thing"
+          echo "listing secret keys"
           gpg --list-secret-keys
+          echo "listing keys"
+          gpg --list-keys
+          echo "smart card status?"
+          gpg --card-status
   # fingerprint="$(gpg --list-secret-keys | grep galois -a1 | head -n1 | awk '{$1=$1};1')"
   # echo "ran fingerprint cmd thing"
   # echo "$fingerprint:6" | gpg --import-ownertrust
