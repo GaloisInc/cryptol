@@ -25,6 +25,8 @@ jobs:
           else
             zip -r dist.zip dist
           fi
+          gpgconf --kill gpg-agent
+          gpg-agent
           gpg --batch --import <(echo "$SIGNING_KEY")
           fingerprint="$(gpg --list-keys | grep galois -a1 | head -n1 | awk '{$1=$1};1')"
           echo "$fingerprint:6" | gpg --import-ownertrust
