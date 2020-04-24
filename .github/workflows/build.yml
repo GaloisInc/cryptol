@@ -28,15 +28,16 @@ jobs:
           gpg --batch --import <(echo -e "$SIGNING_KEY")
           echo "imported key thing"
           gpg --list-secret-keys
-          fingerprint="$(gpg --list-secret-keys | grep galois -a1 | head -n1 | awk '{$1=$1};1')"
-          echo "ran fingerprint cmd thing"
-          echo "$fingerprint:6" | gpg --import-ownertrust
-          echo "listing keys"
-          gpg --list-secret-keys
-          echo "running gpg batch"
-          gpg --yes --no-tty --batch --pinentry-mode loopback --default-key "$fingerprint" --detach-sign -o dist.zip.sig --passphrase-file <(echo "$SIGNING_PASSPHRASE") dist.zip
-          ls
-          cat dist.zip.sig
+  # fingerprint="$(gpg --list-secret-keys | grep galois -a1 | head -n1 | awk '{$1=$1};1')"
+  # echo "ran fingerprint cmd thing"
+  # echo "$fingerprint:6" | gpg --import-ownertrust
+  # echo "listing keys"
+  # gpg --list-secret-keys
+  # echo "running gpg batch"
+  # gpg --yes --no-tty --batch --pinentry-mode loopback --default-key "$fingerprint" --detach-sign -o dist.zip.sig --passphrase-file <(echo "$SIGNING_PASSPHRASE") dist.zip
+  # ls
+  # cat dist.zip.sig
+  #
   # build:
   #   runs-on: ${{ matrix.os }}
   #   strategy:
