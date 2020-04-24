@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       # https://github.com/actions/setup-haskell/pull/12
-      - uses: haskell-CI/setup@implement-fallback-install
+      - uses: haskell-CI/setup@master
         id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc }}
@@ -47,10 +47,6 @@ jobs:
         run: |
           ./cry install z3
           echo "::add-path::$PWD/bin"
-
-      - name: Check path
-        shell: bash
-        run: z3 --version
 
       - name: Install Dependencies
         shell: bash
