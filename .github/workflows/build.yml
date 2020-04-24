@@ -16,7 +16,6 @@ jobs:
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-          # echo "$SIGNING_PASSPHRASE" | gpg --batch --yes --detach-sign -o dist.zip.sig --passphrase-fd 0 dist.zip
         run: |
           mkdir dist
           echo "stuff" > dist/file1
@@ -26,7 +25,8 @@ jobs:
           else
             zip -r dist.zip dist
           fi
-          echo "$SIGNING_KEY:6" | gpg --import-ownertrust
+          gpg --batch --import <(echo "$SIGNING_KEY")
+          gpg --batch --pinentry-mode loopback --detach-sign -o dist.zip.sig --passphrase-file <(echo "$SIGNING_PASSPHRASE") dist.zip
           ls
           cat dist.zip.sig
   # build:
