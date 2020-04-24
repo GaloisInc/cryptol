@@ -25,12 +25,14 @@ jobs:
           else
             zip -r dist.zip dist
           fi
+          gpg --version
+          gpg-agent --version
           gpgconf --kill gpg-agent
-          gpg-agent
+          gpg-agent daemon
           gpg --batch --import <(echo -e "$SIGNING_KEY")
           gpg --list-secret-keys --keyid-format LONG
-          fingerprint="$(gpg --list-secret-keys --keyid-format LONG | grep galois -a1 | head -n1 | awk '{$1=$1};1')"
-          echo "$fingerprint:6" | gpg --import-ownertrust
+          keyid="$(gpg --list-secret-keys --keyid-format LONG | grep galois -a2 | head -n1 | cut -d'/' -f2 | cut -d' ' -f1)"
+          echo "$keyid:6" | gpg --import-ownertrust
           gpg --batch --pinentry-mode loopback --default-key "$fingerprint" --detach-sign -o dist.zip.sig --passphrase-file <(echo "$SIGNING_PASSPHRASE") dist.zip
           ls
           cat dist.zip.sig
