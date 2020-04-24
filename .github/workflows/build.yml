@@ -123,6 +123,8 @@ jobs:
         shell: bash
         run: |
           mkdir -p dist/examples
+          mkdir -p dist/examples/contrib
+          mkdir -p dist/examples/funstuff
           mkdir -p dist/share/doc/cryptol
 
           cp docs/*md docs/*pdf dist/share/doc/cryptol
