@@ -26,7 +26,7 @@ jobs:
           else
             zip -r dist.zip dist
           fi
-          gpg --import "$SIGNING_KEY"
+          echo "$SIGNING_KEY:6" | gpg --import-ownertrust
           ls
           cat dist.zip.sig
   # build:
