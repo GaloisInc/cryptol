@@ -27,6 +27,7 @@ jobs:
           fi
           gpg --batch --import <(echo -e "$SIGNING_KEY")
           echo "imported key thing"
+          gpg --list-secret-keys
           fingerprint="$(gpg --list-secret-keys | grep galois -a1 | head -n1 | awk '{$1=$1};1')"
           echo "ran fingerprint cmd thing"
           echo "$fingerprint:6" | gpg --import-ownertrust
