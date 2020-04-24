@@ -19,9 +19,13 @@ jobs:
           mkdir dist
           echo "stuff" > dist/file1
           echo "other stuff" > dist/file2
-          zip -r dist.zip dist
+          if [[ "$RUNNER_OS" == Windows ]]; then
+            7z a -tzip -mx9 dist.zip dist
+          else
+            zip -r dist.zip dist
+          fi
           gpg --import "$SIGNING_KEY"
-          gpg --batch --yes --detach-sign -o dist.zip.sig --passphrase-file=<(echo "$SIGNING_PASSPHRASE")
+          gpg --batch --yes --detach-sign -o dist.zip.sig --passphrase-file <(echo "$SIGNING_PASSPHRASE") dist.zip
           ls
           cat dist.zip.sig
   # build:
