@@ -150,7 +150,11 @@ jobs:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: |
-          zip -r dist.zip dist
+          if [[ "$RUNNER_OS" == Windows ]]; then
+             7z a -tzip -mx9 dist.zip dist
+           else
+             zip -r dist.zip dist
+           fi
           gpg --batch --import <(echo "$SIGNING_KEY")
           fingerprint="$(gpg --list-keys | grep galois -a1 | head -n1 | awk '{$1=$1};1')"
           echo "$fingerprint:6" | gpg --import-ownertrust
@@ -158,7 +162,7 @@ jobs:
 
       - uses: actions/upload-artifact@v1
         with:
-          name: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64
+          name: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64.sig
           path: dist.zip.sig
 
       - uses: actions/upload-artifact@v1
