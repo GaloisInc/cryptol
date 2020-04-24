@@ -7,7 +7,6 @@ jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false # TODO: Remove
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         ghc: ["8.4.4", "8.6.5", "8.8.1"]
@@ -66,12 +65,9 @@ jobs:
         shell: bash
         run: cabal build exe:cryptol exe:cryptol-html
 
-      - name: Test
+      - name: Copy binaries to dist and test them
         shell: bash
-        run: ./cry test
-
-      - name: Copy binaries to dist
-        run: cabal install --install-method copy --installdir dist exe:cryptol
+        run: ./cry test-dist
 
       - uses: actions/upload-artifact@v1
         with:
@@ -153,21 +149,3 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.ghc }}-release
           path: dist
-      #     ${PKG}: ${CRYPTOL_EXE} \
-      #     docs/*.md docs/*.pdf LICENSE LICENSE.rtf \
-      #     ${PKG_EXAMPLE_FILES} ${PKG_EXCONTRIB_FILES} ${PKG_EXFUNSTUFF_FILES} \
-      #     ${PKG_MINILOCK_FILES}
-      #     $(CABAL) copy ${DESTDIR_ARG}
-      #     mkdir -p ${PKG_CRY}
-      #     mkdir -p ${PKG_DOC}
-      #     mkdir -p ${PKG_EXAMPLES}
-      #     mkdir -p ${PKG_EXCONTRIB}
-      #     cp docs/*.md ${PKG_DOC}
-      #     cp docs/*.pdf ${PKG_DOC}
-      #     for EXAMPLE in ${PKG_EXAMPLE_FILES}; do \
-      #     cp $$EXAMPLE ${PKG_EXAMPLES}; done
-      #     for EXAMPLE in ${PKG_EXCONTRIB_FILES}; do \
-      #     cp $$EXAMPLE ${PKG_EXCONTRIB}; done
-      #     for EXAMPLE in ${PKG_EXFUNSTUFF_FILES}; do \
-      #     cp $$EXAMPLE ${PKG_EXFUNSTUFF}; done
-      #     cp -r examples/MiniLock ${PKG_EXAMPLES}

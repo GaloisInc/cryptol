@@ -9,6 +9,12 @@ function setup_external_tools() {
   fi
 }
 
+function setup_dist_bins() {
+  [[ -x ./dist/cryptol && -x ./dist/cryptol-html ]] && return
+  cabal install --install-method=copy --installdir=dist exe:cryptol
+  strip dist/cryptol*
+}
+
 function download_z3() {
   [[ -x "$BIN/z3" || -x "$BIN/z3.exe" ]] && return
   version="${1:-"4.8.7"}"
@@ -41,6 +47,7 @@ Available commands:
   haddock                 Generate Haddock documentation
   install z3|test-runner  Install program to $BIN
   test                    Run some tests
+  test-dist               Run some tests using the stripped binaries
   exe-path                Print the location of the local executable
 EOM
 }
@@ -82,6 +89,18 @@ case $COMMAND in
       z3 | Z3) download_z3 "4.8.7" ;;
       test-runner) setup_external_tools ;;
     esac
+    ;;
+
+  test-dist)
+    echo Running tests
+    setup_external_tools
+    setup_dist_bins
+    if [ "$#" == "0" ]; then
+      TESTS=tests
+    else
+      TESTS=$*
+    fi
+    $BIN/test-runner --ext=.icry -F -b --exe=dist/cryptol $TESTS
     ;;
 
   test)
