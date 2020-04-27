@@ -26,7 +26,6 @@ jobs:
         with:
           path: ${{ steps.setup-haskell.outputs.cabal-store }}
           # https://github.com/actions/cache/issues/109 "Enable always writing cache to support hermetic build systems"
-          # https://github.com/actions/cache/issues/109#issuecomment-558771281
           # https://github.com/actions/cache/issues/239#issuecomment-606950711 Investigate this workaround if cache starts filling up
           key: store-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-${{ github.sha }}
           restore-keys: |
@@ -113,32 +112,14 @@ jobs:
       - name: Bundle together
         shell: bash
         run: |
-          mkdir -p dist/share/doc/cryptol/examples/contrib
-          mkdir -p dist/share/doc/cryptol/examples/funstuff
+          mkdir -p dist/share/doc/cryptol
+          cp -R examples/ dist/share/doc/cryptol/examples/
+          cp docs/*md docs/*pdf dist/share/doc/cryptol/
 
-          cp docs/*md docs/*pdf dist/share/doc/cryptol
-          cp -R examples/MiniLock dist/share/doc/cryptol/examples
-
+          # Copy the two interesting examples over
           cp docs/ProgrammingCryptol/aes/AES.cry \
-          docs/ProgrammingCryptol/enigma/Enigma.cry \
-          examples/ChaChaPolyCryptolIETF.md \
-          examples/Cipher.cry \
-          examples/DES.cry \
-          examples/DEStest.cry \
-          examples/Test.cry \
-          dist/share/doc/cryptol/examples/
-
-          cp examples/contrib/EvenMansour.cry \
-          examples/contrib/RC4.cry \
-          examples/contrib/README.md \
-          examples/contrib/mkrand.cry \
-          dist/share/doc/cryptol/examples/contrib/
-
-          cp examples/funstuff/Coins.cry \
-          examples/funstuff/FoxChickenCorn.cry \
-          examples/funstuff/NQueens.cry \
-          examples/funstuff/marble.cry \
-          dist/share/doc/cryptol/examples/funstuff/
+            docs/ProgrammingCryptol/enigma/Enigma.cry \
+            dist/share/doc/cryptol/examples/
 
       - id: cryptol
         shell: bash
@@ -150,11 +131,7 @@ jobs:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: |
-          if [[ "$RUNNER_OS" == Windows ]]; then
-             7z a -tzip -mx9 dist.zip dist
-           else
-             zip -r dist.zip dist
-           fi
+          if [[ "$RUNNER_OS" == Windows ]]; then 7z a -tzip -mx9 dist.zip dist; else zip -r dist.zip dist; fi
           gpg --batch --import <(echo "$SIGNING_KEY")
           fingerprint="$(gpg --list-keys | grep galois -a1 | head -n1 | awk '{$1=$1};1')"
           echo "$fingerprint:6" | gpg --import-ownertrust
