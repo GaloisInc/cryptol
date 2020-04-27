@@ -31,6 +31,7 @@ jobs:
           restore-keys: |
             store-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
             store-${{ runner.os }}-${{ matrix.ghc }}-
+            store-${{ runner.os }}-
 
       - uses: actions/cache@v1
         name: Cache dist-newstyle
