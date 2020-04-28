@@ -34,6 +34,7 @@ function download_z3() {
     cp z3-*/bin/z3 $BIN/z3
     chmod +x $BIN/z3
   fi
+  rm z3.zip
 }
 
 function download_cvc4() {
@@ -59,8 +60,9 @@ function download_cvc4() {
       return
       ;;
   esac
-  curl -o "$BIN/cvc4$ext" -sL "https://github.com/CVC4/CVC4/releases/download/1.7/cvc4-$version-$file"
-  [[ ! "$os" =~ Windows|msys|cygwin|win32 ]] && chmod +x "$BIN/cvc4"
+  curl -o cvc4 -sL "https://github.com/CVC4/CVC4/releases/download/1.7/cvc4-$version-$file"
+  [[ ! "$os" =~ Windows|msys|cygwin|win32 ]] && chmod +x cvc4
+  mv cvc4 "$BIN/cvc4$ext"
 }
 
 function show_usage() {
