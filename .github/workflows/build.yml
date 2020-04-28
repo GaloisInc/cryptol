@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       # https://github.com/actions/setup-haskell/pull/12
-      - uses: haskell-CI/setup@master
+      - uses: actions/setup-haskell@master
         id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc }}
@@ -62,8 +62,8 @@ jobs:
       - name: Install Dependencies
         shell: bash
         run: |
-          if [[ $RUNNER_OS != "Windows" ]]; then cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze; fi
-          cabal v2-configure --allow-newer -j2
+          cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
+          cabal v2-configure -j
           cabal v2-build --only-dependencies exe:cryptol
           ./cry install test-runner
 
