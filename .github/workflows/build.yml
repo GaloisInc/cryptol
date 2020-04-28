@@ -45,6 +45,7 @@ jobs:
             store-${{ runner.os }}-
 
       - uses: actions/cache@v1
+        if: ${{ ! always() }}
         name: Cache dist-newstyle
         with:
           path: dist-newstyle
