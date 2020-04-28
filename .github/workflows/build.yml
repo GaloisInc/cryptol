@@ -26,6 +26,8 @@ jobs:
     name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
+        with:
+          submodules: true
       # https://github.com/actions/setup-haskell/pull/12
       - uses: actions/setup-haskell@master
         id: setup-haskell
@@ -46,7 +48,6 @@ jobs:
             store-${{ runner.os }}-
 
       - uses: actions/cache@v1
-        if: ${{ ! always() }}
         name: Cache dist-newstyle
         with:
           path: dist-newstyle
