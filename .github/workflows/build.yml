@@ -20,7 +20,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        ghc: ["8.4.4", "8.6.5", "8.8.1"]
+        ghc: ["8.4.4", "8.6.5", "8.8.3"]
         cabal: ["3.0.0.0"]
     name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
     steps:
