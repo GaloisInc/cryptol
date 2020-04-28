@@ -57,6 +57,7 @@ jobs:
         shell: bash
         run: |
           ./cry install z3
+          ./cry install cvc4
           echo "::add-path::$PWD/bin"
 
       - name: Install Dependencies
