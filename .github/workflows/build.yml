@@ -62,6 +62,7 @@ jobs:
         run: |
           ./cry install z3
           ./cry install cvc4
+          ./cry install yices
           echo "::add-path::$PWD/bin"
 
       - name: Install Dependencies

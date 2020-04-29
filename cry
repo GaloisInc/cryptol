@@ -65,6 +65,36 @@ function download_cvc4() {
   mv cvc4 "$BIN/cvc4$ext"
 }
 
+function download_yices() {
+  [[ -x "$BIN/yices" || -x "$BIN/yices.exe" || "$(command -v yices)" ]] && return
+  version="${1:-"2.6.2"}"
+
+  mkdir -p "$BIN"
+  os="${RUNNER_OS:-${OSTYPE:-Linux}}"
+  ext=".tar.gz"
+  case "$os" in
+    Linux | linux-gnu) file="pc-linux-gnu-static-gmp.tar.gz" ;;
+    macOS | darwin*) file="apple-darwin18.7.0-static-gmp.tar.gz" ;;
+    Windows | msys | cygwin | win32)
+      file="pc-mingw32-static-gmp.zip"
+      ext=".zip"
+      ;;
+  esac
+  curl -o "yices$ext" -sL "https://yices.csl.sri.com/releases/$version/yices-$version-x86_64-$file"
+
+  if [[ "$os" =~ Windows|msys|cygwin|win32 ]]; then
+    7z x -bd "yices$ext"
+    mv "yices-$version"/*.exe "$BIN"
+  else
+    tar -xzf "yices$ext"
+    pushd "yices-$version" || exit
+    # sudo ./install-yices
+    ./install-yices ../bin
+    popd || exit
+  fi
+  rm -rf "yices$ext" "yices-$version"
+}
+
 function show_usage() {
   cat << EOM
 Usage: $0 COMMAND COMANND_OPTIONS
@@ -115,6 +145,7 @@ case $COMMAND in
     case "$1" in
       z3 | Z3) download_z3 "4.8.7" ;;
       cvc4 | CVC4) download_cvc4 "1.7" ;;
+      yices | yices2 | YICES | YICES2) download_yices "2.6.2" ;;
       test-runner) setup_external_tools ;;
     esac
     ;;
