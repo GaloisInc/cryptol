@@ -2,7 +2,7 @@
 
 BIN=bin
 
-function is_exe() { [[ -x "$1/$2" ]] || [[ -x "$1/$2.exe" ]] || which "$2"; }
+function is_exe() { [[ -x "$1/$2" ]] || [[ -x "$1/$2.exe" ]] || which "$2" > /dev/null 2>&1; }
 
 function setup_external_tools() {
   is_exe "$BIN" "test-runner" && return
