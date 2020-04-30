@@ -4,14 +4,21 @@ BIN=bin
 
 function is_exe() { [[ -x "$1/$2" ]] || [[ -x "$1/$2.exe" ]] || which "$2" > /dev/null 2>&1; }
 
+function extract_exe() {
+  exe="$(find ./dist-newstyle -name "$1" -type f -executable)"
+  name="$(basename "$exe")"
+  echo "Copying $name to $2"
+  cp -f "$exe" "$2/$name"
+}
+
 function setup_external_tools() {
   is_exe "$BIN" "test-runner" && return
   cabal v2-install --install-method=copy --installdir="$BIN" test-lib
 }
 
 function setup_dist_bins() {
-  is_exe "dist" "cryptol" && is_exe "dist" "cryptol-html" && return
-  cabal v2-install --install-method=copy --installdir=dist exe:cryptol
+  is_exe "dist" "cryptol" && return
+  extract_exe "cryptol" "dist"
   strip dist/cryptol*
 }
 

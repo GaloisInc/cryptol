@@ -75,7 +75,7 @@ jobs:
 
       - name: Build
         shell: bash
-        run: cabal v2-build exe:cryptol exe:cryptol-html
+        run: cabal v2-build exe:cryptol
 
       - name: Copy binaries to dist and test them
         shell: bash
