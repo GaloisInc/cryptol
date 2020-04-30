@@ -68,12 +68,12 @@ jobs:
           cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
           if [[ "${{ matrix.ghc }}" == "8.8.3" && "$RUNNER_OS" == 'Windows' ]]; then JOBS=1; else JOBS=2; fi
           cabal v2-configure -j$JOBS --minimize-conflict-set
-          cabal v2-build --only-dependencies exe:cryptol
+          cabal v2-build --only-dependencies exe:cryptol exe:cryptol-html
           ./cry install test-runner
 
       - name: Build
         shell: bash
-        run: cabal v2-build exe:cryptol
+        run: cabal v2-build exe:cryptol exe:cryptol-html
 
       - name: Copy binaries to dist and test them
         shell: bash

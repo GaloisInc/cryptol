@@ -18,8 +18,9 @@ function setup_external_tools() {
 }
 
 function setup_dist_bins() {
-  is_exe "dist" "cryptol" && return
+  is_exe "dist" "cryptol" && is_exe "dist" "cryptol-html" && return
   extract_exe "cryptol" "dist"
+  extract_exe "cryptol-html" "dist"
   strip dist/cryptol*
 }
 
