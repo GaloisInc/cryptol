@@ -2,19 +2,21 @@
 
 BIN=bin
 
+function is_exe() { [[ -x "$1/$2" ]] || [[ -x "$1/$2.exe" ]] || which "$2"; }
+
 function setup_external_tools() {
-  [[ -x "$BIN/test-runner" ]] && return
+  is_exe "$BIN" "test-runner" && return
   cabal v2-install --install-method=copy --installdir="$BIN" test-lib
 }
 
 function setup_dist_bins() {
-  [[ -x dist/cryptol && -x dist/cryptol-html ]] && return
+  is_exe "dist" "cryptol" && is_exe "dist" "cryptol-html" && return
   cabal v2-install --install-method=copy --installdir=dist exe:cryptol
   strip dist/cryptol*
 }
 
 function download_z3() {
-  [[ -x "$BIN/z3" || -x "$BIN/z3.exe" || "$(command -v z3)" ]] && return
+  is_exe "$BIN" "z3" && return
   version="${1:-"4.8.7"}"
 
   mkdir -p "$BIN"
@@ -38,7 +40,7 @@ function download_z3() {
 }
 
 function download_cvc4() {
-  [[ -x "$BIN/cvc4" || -x "$BIN/cvc4.exe" || "$(command -v cvc4)" ]] && return
+  is_exe "$BIN" "cvc4" && return
   version="${1:-"1.7"}"
 
   mkdir -p "$BIN"
@@ -66,7 +68,7 @@ function download_cvc4() {
 }
 
 function download_yices() {
-  [[ -x "$BIN/yices" || -x "$BIN/yices.exe" || "$(command -v yices)" ]] && return
+  is_exe "$BIN" "yices" && return
   version="${1:-"2.6.2"}"
 
   mkdir -p "$BIN"
