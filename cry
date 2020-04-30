@@ -8,6 +8,7 @@ function extract_exe() {
   exe="$(find ./dist-newstyle -name "$1" -type f -executable)"
   name="$(basename "$exe")"
   echo "Copying $name to $2"
+  mkdir -p "$2"
   cp -f "$exe" "$2/$name"
 }
 
