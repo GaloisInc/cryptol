@@ -22,7 +22,8 @@ jobs:
       matrix:
         # os: [ubuntu-latest, macos-latest, windows-latest]
         os: [windows-latest]
-        ghc: ["8.4.4", "8.6.5", "8.8.3"]
+        # ghc: ["8.4.4", "8.6.5", "8.8.3"]
+        ghc: ["8.8.3"]
         cabal: ["3.0.0.0"]
     name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
     steps:
@@ -67,9 +68,9 @@ jobs:
 
       - name: Install Dependencies
         shell: bash
+        # cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
         run: |
-          cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
-          cabal v2-configure -j2 --minimize-conflict-set
+          cabal v2-configure -j2 --minimize-conflict-set --allow-newer
           cabal v2-build --only-dependencies exe:cryptol
           ./cry install test-runner
 
