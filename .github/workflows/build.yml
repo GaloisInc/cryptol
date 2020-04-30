@@ -68,15 +68,8 @@ jobs:
       - name: Install Dependencies
         shell: bash
         run: |
-          if [[ $RUNNER_OS == 'Windows' ]]; then
-            cabal v2-configure -j --allow-newer --minimize-conflict-set
-            cabal v2-freeze
-            echo "OUTPUTTING FREEZE RESULT"
-            cat cabal.project.freeze
-          else
-            cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
-            cabal v2-configure -j
-          fi
+          cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
+          cabal v2-configure -j2 --minimize-conflict-set
           cabal v2-build --only-dependencies exe:cryptol
           ./cry install test-runner
 
