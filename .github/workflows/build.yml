@@ -59,7 +59,7 @@ jobs:
           YICES_VERSION: "2.6.2"
 
       - shell: bash
-        run: ./github/ci.sh install_deps
+        run: .github/ci.sh install_deps
 
       - shell: bash
         run: cabal v2-build exe:cryptol exe:cryptol-html
