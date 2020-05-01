@@ -3,6 +3,7 @@
 BIN=bin
 EXT=""
 [[ "$RUNNER_OS" == 'Windows' ]] && EXT=".exe"
+mkdir -p "$BIN"
 
 function is_exe() { [[ -x "$1/$2$EXT" ]] || which "$2" > /dev/null 2>&1; }
 
@@ -28,15 +29,13 @@ function setup_dist_bins() {
 
 function install_z3() {
   is_exe "$BIN" "z3" && return
-  version="$1"
-  mkdir -p "$BIN"
 
   case "$RUNNER_OS" in
     Linux) file="ubuntu-16.04.zip" ;;
     macOS) file="osx-10.14.6.zip" ;;
     Windows) file="win.zip" ;;
   esac
-  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$version/z3-$version-x64-$file"
+  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$Z3_VERSION/z3-$Z3_VERSION-x64-$file"
 
   if [[ "$RUNNER_OS" == 'Windows' ]]; then 7z x -bd z3.zip else unzip z3.zip; fi
   cp z3-*/bin/z3$EXT $BIN/z3$EXT
@@ -46,8 +45,8 @@ function install_z3() {
 
 function install_cvc4() {
   is_exe "$BIN" "cvc4" && return
-  version="${1#4.}" # 4.y.z -> y.z
-  mkdir -p "$BIN"
+  version="${CVC4_VERSION#4.}" # 4.y.z -> y.z
+
   case "$RUNNER_OS" in
     Linux) file="x86_64-linux-opt" ;;
     Windows) file="win64-opt.exe" ;;
@@ -60,26 +59,24 @@ function install_cvc4() {
 
 function install_yices() {
   is_exe "$BIN" "yices" && return
-  version="$1"
-  mkdir -p "$BIN"
   ext=".tar.gz"
   case "$RUNNER_OS" in
     Linux) file="pc-linux-gnu-static-gmp.tar.gz" ;;
     macOS) file="apple-darwin18.7.0-static-gmp.tar.gz" ;;
     Windows) file="pc-mingw32-static-gmp.zip" && ext=".zip" ;;
   esac
-  curl -o "yices$ext" -sL "https://yices.csl.sri.com/releases/$version/yices-$version-x86_64-$file"
+  curl -o "yices$ext" -sL "https://yices.csl.sri.com/releases/$YICES_VERSION/yices-$YICES_VERSION-x86_64-$file"
 
   if [[ "$RUNNER_OS" == "Windows" ]]; then
     7z x -bd "yices$ext"
-    mv "yices-$version"/*.exe "$BIN"
+    mv "yices-$YICES_VERSION"/*.exe "$BIN"
   else
     tar -xzf "yices$ext"
-    pushd "yices-$version" || exit
+    pushd "yices-$YICES_VERSION" || exit
     sudo ./install-yices
     popd || exit
   fi
-  rm -rf "yices$ext" "yices-$version"
+  rm -rf "yices$ext" "yices-$YICES_VERSION"
 }
 
 install_deps() {
