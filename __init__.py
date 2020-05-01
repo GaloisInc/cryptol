@@ -22,7 +22,7 @@ __all__ = ['cryptoltypes']
 
 # Current status:
 #  It can currently launch a server, given a suitable command line as an argument. Try this:
-#  >>> c = CryptolConnection("cabal new-exec cryptol-remote-api -- --dynamic4")
+#  >>> c = CryptolConnection("cabal -v0 run cryptol-remote-api")
 #  >>> f = c.load_file(FILE)
 #  >>> f.result()
 #
