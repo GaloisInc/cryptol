@@ -69,9 +69,9 @@ install_yices() {
   esac
   curl -o "yices$ext" -sL "https://yices.csl.sri.com/releases/$YICES_VERSION/yices-$YICES_VERSION-x86_64-$file"
 
-  if [[ "$RUNNER_OS" == "Windows" ]]; then
+  if $IS_WIN; then
     7z x -bd "yices$ext"
-    mv "yices-$YICES_VERSION"/*.exe "$BIN"
+    mv "yices-$YICES_VERSION"/bin/*.exe "$BIN"
   else
     tar -xzf "yices$ext"
     pushd "yices-$YICES_VERSION" || exit
