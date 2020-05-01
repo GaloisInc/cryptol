@@ -56,7 +56,7 @@ jobs:
         env:
           Z3_VERSION: "4.8.7"
           CVC4_VERSION: "4.1.7"
-          YICES_VERSOIN: "2.6.2"
+          YICES_VERSION: "2.6.2"
 
       - shell: bash
         run: ./github/ci.sh install_deps
