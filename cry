@@ -2,108 +2,9 @@
 
 BIN=bin
 
-function is_exe() { [[ -x "$1/$2" ]] || [[ -x "$1/$2.exe" ]] || which "$2" > /dev/null 2>&1; }
-
-function extract_exe() {
-  exe="$(find ./dist-newstyle \( -name "$1" -o -name "$1.exe" \) -type f -executable)"
-  name="$(basename "$exe")"
-  echo "Copying $name to $2"
-  mkdir -p "$2"
-  cp -f "$exe" "$2/$name"
-}
-
 function setup_external_tools() {
-  is_exe "$BIN" "test-runner" && return
+  [[ -x "$BIN/test-runner" || -x "$BIN/test-runner.exe" ]] && return
   cabal v2-install --install-method=copy --installdir="$BIN" test-lib
-}
-
-function setup_dist_bins() {
-  is_exe "dist" "cryptol" && is_exe "dist" "cryptol-html" && return
-  extract_exe "cryptol" "dist"
-  extract_exe "cryptol-html" "dist"
-  strip dist/cryptol*
-}
-
-function download_z3() {
-  is_exe "$BIN" "z3" && return
-  version="${1:-"4.8.7"}"
-
-  mkdir -p "$BIN"
-  os="${RUNNER_OS:-${OSTYPE:-Linux}}"
-  case "$os" in
-    Linux | linux-gnu) file="x64-ubuntu-16.04.zip" ;;
-    macOS | darwin*) file="x64-osx-10.14.6.zip" ;;
-    Windows | msys | cygwin | win32) file="x64-win.zip" ;;
-  esac
-  curl -o z3.zip -sL "https://github.com/Z3Prover/z3/releases/download/z3-$version/z3-$version-$file"
-
-  if [[ "$os" =~ Windows|msys|cygwin|win32 ]]; then
-    7z x -bd z3.zip
-    cp z3-*/bin/z3.exe $BIN/z3.exe
-  else
-    unzip z3.zip
-    cp z3-*/bin/z3 $BIN/z3
-    chmod +x $BIN/z3
-  fi
-  rm z3.zip
-}
-
-function download_cvc4() {
-  is_exe "$BIN" "cvc4" && return
-  version="${1:-"1.7"}"
-
-  mkdir -p "$BIN"
-  os="${RUNNER_OS:-${OSTYPE:-Linux}}"
-  ext=""
-  case "$os" in
-    Linux | linux-gnu) file="x86_64-linux-opt" ;;
-    Windows | msys | cygwin | win32)
-      file="win64-opt.exe"
-      ext=".exe"
-      ;;
-    macOS | darwin*)
-      if ! command -v brew; then
-        echo "Error: Only homebrew installer is supported for automatic macOS downloads"
-        exit 1
-      fi
-      brew tap cvc4/cvc4
-      brew install cvc4/cvc4/cvc4
-      return
-      ;;
-  esac
-  curl -o cvc4 -sL "https://github.com/CVC4/CVC4/releases/download/1.7/cvc4-$version-$file"
-  [[ ! "$os" =~ Windows|msys|cygwin|win32 ]] && chmod +x cvc4
-  mv cvc4 "$BIN/cvc4$ext"
-}
-
-function download_yices() {
-  is_exe "$BIN" "yices" && return
-  version="${1:-"2.6.2"}"
-
-  mkdir -p "$BIN"
-  os="${RUNNER_OS:-${OSTYPE:-Linux}}"
-  ext=".tar.gz"
-  case "$os" in
-    Linux | linux-gnu) file="pc-linux-gnu-static-gmp.tar.gz" ;;
-    macOS | darwin*) file="apple-darwin18.7.0-static-gmp.tar.gz" ;;
-    Windows | msys | cygwin | win32)
-      file="pc-mingw32-static-gmp.zip"
-      ext=".zip"
-      ;;
-  esac
-  curl -o "yices$ext" -sL "https://yices.csl.sri.com/releases/$version/yices-$version-x86_64-$file"
-
-  if [[ "$os" =~ Windows|msys|cygwin|win32 ]]; then
-    7z x -bd "yices$ext"
-    mv "yices-$version"/*.exe "$BIN"
-  else
-    tar -xzf "yices$ext"
-    pushd "yices-$version" || exit
-    # sudo ./install-yices
-    ./install-yices ../bin
-    popd || exit
-  fi
-  rm -rf "yices$ext" "yices-$version"
 }
 
 function show_usage() {
@@ -113,9 +14,7 @@ Available commands:
   run                          Run Cryptol
   build                        Build Cryptol
   haddock                      Generate Haddock documentation
-  install z3|cvc4|test-runner  Install program to $BIN if needed
   test                         Run some tests
-  test-dist                    Run some tests using the stripped binaries
   exe-path                     Print the location of the local executable
 EOM
 }
@@ -147,60 +46,21 @@ case $COMMAND in
     sed -i "/^$dirty_string/d" src/GitRev.hs
     ;;
 
-  haddock)
-    echo Building Haddock documentation
-    cabal v2-haddock
-    ;;
-
-  install)
-    case "$1" in
-      z3 | Z3) download_z3 "4.8.7" ;;
-      cvc4 | CVC4) download_cvc4 "1.7" ;;
-      yices | yices2 | YICES | YICES2) download_yices "2.6.2" ;;
-      test-runner) setup_external_tools ;;
-    esac
-    ;;
-
-  test-dist)
-    echo Running tests
-    setup_external_tools
-    setup_dist_bins
-    if [ "$#" == "0" ]; then
-      TESTS=tests
-    else
-      TESTS=$*
-    fi
-    $BIN/test-runner --ext=.icry -F -b --exe=dist/cryptol $TESTS
-    ;;
+  haddock) echo Building Haddock documentation && cabal v2-haddock ;;
 
   test)
     echo Running tests
     setup_external_tools
-    if [ "$#" == "0" ]; then
-      TESTS=tests
-    else
-      TESTS=$*
-    fi
+    if [ "$#" == "0" ]; then TESTS=tests; else TESTS=$*; fi
     $BIN/test-runner --ext=.icry \
       --exe=cabal \
       -F v2-run -F -v0 -F exe:cryptol -F -- -F -b \
       $TESTS
     ;;
 
-  help)
-    show_usage
-    exit 0
-    ;;
+  help) show_usage && exit 0 ;;
 
-  exe-path)
-    cabal v2-exec which cryptol
-    exit 0
-    ;;
+  exe-path) cabal v2-exec which cryptol ;;
 
-  *)
-    echo "Unrecognized command: $COMMAND"
-    show_usage
-    exit 1
-    ;;
-
+  *) echo "Unrecognized command: $COMMAND" && show_usage && exit 1 ;;
 esac

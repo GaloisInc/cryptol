@@ -1,7 +1,5 @@
 name: Cryptol
-on:
-  push:
-  pull_request:
+on: [push, pull_request]
 
 jobs:
   changed:
@@ -27,7 +25,6 @@ jobs:
       - uses: actions/checkout@v2
         with:
           submodules: true
-      # https://github.com/actions/setup-haskell/pull/12
       - uses: actions/setup-haskell@master
         id: setup-haskell
         with:
@@ -54,30 +51,21 @@ jobs:
             dist-${{ runner.os }}-${{ matrix.ghc }}-${{ hashFiles('**/cabal.GHC-*') }}-
             dist-${{ runner.os }}-${{ matrix.ghc }}-
 
-      - name: Install System Dependencies
-        shell: bash
-        run: |
-          ./cry install z3
-          ./cry install cvc4
-          ./cry install yices
-          echo "::add-path::$PWD/bin"
+      - shell: bash
+        run: .github/ci.sh install_system_deps
+        env:
+          Z3_VERSION: "4.8.7"
+          CVC4_VERSION: "4.1.7"
+          YICES_VERSOIN: "2.6.2"
 
-      - name: Install Dependencies
-        shell: bash
-        run: |
-          cp cabal.GHC-${{ matrix.ghc }}.config cabal.project.freeze
-          if [[ "${{ matrix.ghc }}" == "8.8.3" && "$RUNNER_OS" == 'Windows' ]]; then JOBS=1; else JOBS=2; fi
-          cabal v2-configure -j$JOBS --minimize-conflict-set
-          cabal v2-build --only-dependencies exe:cryptol exe:cryptol-html
-          ./cry install test-runner
+      - shell: bash
+        run: ./github/ci.sh install_deps
 
-      - name: Build
-        shell: bash
+      - shell: bash
         run: cabal v2-build exe:cryptol exe:cryptol-html
 
-      - name: Copy binaries to dist and test them
-        shell: bash
-        run: ./cry test-dist
+      - shell: bash
+        run: .github/ci.sh test_dist
 
       - uses: actions/upload-artifact@v1
         with:
@@ -116,7 +104,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      # https://github.com/actions/download-artifact/issues/3
       - uses: actions/download-artifact@v1
         with:
           path: dist/bin
@@ -127,33 +114,18 @@ jobs:
           path: docs
           name: docs
 
-      - name: Bundle together
-        shell: bash
-        run: |
-          mkdir -p dist/share/doc/cryptol
-          cp -R examples/ dist/share/doc/cryptol/examples/
-          cp docs/*md docs/*pdf dist/share/doc/cryptol/
-
-          # Copy the two interesting examples over
-          cp docs/ProgrammingCryptol/aes/AES.cry \
-            docs/ProgrammingCryptol/enigma/Enigma.cry \
-            dist/share/doc/cryptol/examples/
+      - shell: bash
+        run: .github/ci.sh bundle_files
 
       - id: cryptol
         shell: bash
         run: echo "::set-output name=version::$(./dist/cryptol -v | grep Cryptol | cut -d' ' -f2)"
 
-      - name: Zip up dist
-        shell: bash
+      - shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-        run: |
-          if [[ "$RUNNER_OS" == Windows ]]; then 7z a -tzip -mx9 dist.zip dist; else zip -r dist.zip dist; fi
-          gpg --batch --import <(echo "$SIGNING_KEY")
-          fingerprint="$(gpg --list-keys | grep galois -a1 | head -n1 | awk '{$1=$1};1')"
-          echo "$fingerprint:6" | gpg --import-ownertrust
-          gpg --yes --no-tty --batch --pinentry-mode loopback --default-key "$fingerprint" --detach-sign -o dist.zip.sig --passphrase-file <(echo "$SIGNING_PASSPHRASE") dist.zip
+        run: .github/ci.sh zip_dist
 
       - uses: actions/upload-artifact@v1
         with:
