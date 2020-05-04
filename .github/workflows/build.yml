@@ -121,7 +121,7 @@ jobs:
         shell: bash
         run: echo "::set-output name=version::$(./dist/cryptol -v | grep Cryptol | cut -d' ' -f2)"
 
-      - if: matrix.os == Windows
+      - if: matrix.os == windows-latest
         env:
           VERSION: "${{ steps.cryptol.outputs.version }}"
         run: |
