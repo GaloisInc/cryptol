@@ -385,6 +385,24 @@ f p = x + y where
     (x, y) = p
 \end{verbatim}
 
+Selectors are also lifted through sequence and function types,
+point-wise, so that the following equations should hold:
+
+\begin{verbatim}
+xs.l == [ x.l | x <- xs ]     // sequences
+f.l  == \x -> (f x).l         // functions
+\end{verbatim}
+
+Thus, if we have a sequence of tuples, \texttt{xs}, then we can quickly
+obtain a sequence with only the tuples' first components by writing
+\texttt{xs.0}.
+
+Similarly, if we have a function, \texttt{f}, that computes a tuple of
+results, then we can write \texttt{f.0} to get a function that computes
+only the first entry in the tuple.
+
+This behavior is quite handy when examining complex data at the REPL.
+
 \hypertarget{updating-fields}{%
 \subsection{Updating Fields}\label{updating-fields}}
 

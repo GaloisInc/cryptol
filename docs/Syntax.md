@@ -344,6 +344,23 @@ patterns use braces.  Examples:
     f p = x + y where
         (x, y) = p
 
+Selectors are also lifted through sequence and function types, point-wise,
+so that the following equations should hold:
+
+    xs.l == [ x.l | x <- xs ]     // sequences
+    f.l  == \x -> (f x).l         // functions
+
+Thus, if we have a sequence of tuples, `xs`, then we can quickly obtain a
+sequence with only the tuples' first components by writing `xs.0`.
+
+Similarly, if we have a function, `f`, that computes a tuple of results,
+then we can write `f.0` to get a function that computes only the first
+entry in the tuple.
+
+This behavior is quite handy when examining complex data at the REPL.
+
+
+
 
 Updating Fields
 ---------------
