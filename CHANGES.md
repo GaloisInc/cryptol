@@ -2,6 +2,8 @@
 
 ## New features
 
+* Document the nehavior of lifted selectors
+
 * Added support for symbolic simulation via the `What4` library
   in addition to the previous method based on `SBV`. The What4
   symbolic simulator is used when selecting solvers with the `w4`
@@ -12,7 +14,8 @@
 
 ## Bug fixes
 
-* Closed issues #346, #444, #614, #617, #660, #662, #663, #664, #667, #670
+* Closed issues #346, #444, #614, #617, #660, #662, #663, #664, #667, #670,
+  #711
 
 # 2.8.0 (September 4, 2019)
 
