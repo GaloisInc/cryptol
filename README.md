@@ -10,7 +10,7 @@ Status](https://travis-ci.org/GaloisInc/cryptol.svg?branch=master)](https://trav
 
 # What is Cryptol?
 
-The Cryptol specification language was designed by Galois for the NSA's
+The Cryptol specification language was designed by Galois for the NSA
 Laboratory for Advanced Cybersecurity Research as a public standard for
 specifying cryptographic algorithms. A Cryptol reference specification
 can serve as the formal documentation for a cryptographic module.
@@ -216,7 +216,7 @@ Ledah Casburn, Jim Teisher, Sigbjørn Finne, Mark Shields, Philip Weaver,
 Magnus Carlsson, Fergus Henderson, Joe Hurd, Thomas Nordin, John
 Matthews and Sally Browning. In addition, much of the work on Cryptol
 has been funded by, and lots of design input was provided by the team at
-the [NSA's Laboratory for Advanced Cybersecurity
+the [NSA Laboratory for Advanced Cybersecurity
 Research](https://www.nsa.gov/what-we-do/research/cybersecurity-research/),
 including Brad Martin, Frank Taylor, and Sean Weaver.
 
