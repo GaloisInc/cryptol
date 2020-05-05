@@ -292,7 +292,15 @@ newtypeConType nt =
 abstractTypeTC :: AbstractType -> TCon
 abstractTypeTC at =
   case builtInType (atName at) of
-    Just tcon -> tcon
+    Just tcon
+      | kindOf tcon == atKind at -> tcon
+      | otherwise ->
+        panic "abstractTypeTC"
+          [ "Mismatch between built-in and declared type."
+          , "Name: " ++ pretty (atName at)
+          , "Declared: " ++ pretty (atKind at)
+          , "Built-in: " ++ pretty (kindOf tcon)
+          ]
     _         -> TC $ TCAbstract $ UserTC (atName at) (atKind at)
 
 instance Eq TVar where

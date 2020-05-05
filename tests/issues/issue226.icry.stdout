@@ -44,7 +44,7 @@ Primitive Types
     Arith : * -> Prop
     Bit : *
     Cmp : * -> Prop
-    fin : * -> Prop
+    fin : # -> Prop
     Integer : *
     inf : #
     Literal : # -> * -> Prop

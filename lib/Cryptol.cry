@@ -57,7 +57,7 @@ primitive type (!=) : # -> # -> Prop
 primitive type (>=) : # -> # -> Prop
 
 /** Assert that a numeric type is a proper natural number (not 'inf'). */
-primitive type fin : * -> Prop
+primitive type fin : # -> Prop
 
 /** Value types that have a notion of 'zero'. */
 primitive type Zero : * -> Prop
