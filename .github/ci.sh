@@ -126,7 +126,7 @@ zip_dist() {
 }
 
 output_cryptol_version() {
-  echo "::set-output name=version::$(./dist/cryptol$EXT -v | grep Cryptol | cut -d' ' -f2)"
+  echo "::set-output name=version::$(./dist/bin/cryptol$EXT -v | grep Cryptol | cut -d' ' -f2)"
 }
 
 COMMAND="$1"
