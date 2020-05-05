@@ -484,7 +484,7 @@ no_sel_aexpr                   :: { Expr PName                             }
 
   | NUM                           { at $1 $ numLit (tokenType (thing $1))  }
   | STRLIT                        { at $1 $ ELit $ ECString $ getStr $1    }
-  | CHARLIT                       { at $1 $ ELit $ ECNum (getNum $1) CharLit }
+  | CHARLIT                       { at $1 $ ELit $ ECChar $ getChr $1      }
   | '_'                           { at $1 $ EVar $ mkUnqual $ mkIdent "_" }
 
   | '(' expr ')'                  { at ($1,$3) $ EParens $2                }
