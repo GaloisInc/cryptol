@@ -121,7 +121,7 @@ jobs:
 
       - id: cryptol
         shell: bash
-        run: echo "::set-output name=version::$(./dist/cryptol -v | grep Cryptol | cut -d' ' -f2)"
+        run: .github/ci.sh output_cryptol_version
 
       - if: runner.os == 'Windows'
         env:

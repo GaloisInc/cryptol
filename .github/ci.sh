@@ -125,6 +125,10 @@ zip_dist() {
   gpg --yes --no-tty --batch --pinentry-mode loopback --default-key "$fingerprint" --detach-sign -o dist.zip.sig --passphrase-file <(echo "$SIGNING_PASSPHRASE") dist.zip
 }
 
+output_cryptol_version() {
+  echo "::set-output name=version::$(./dist/cryptol$EXT -v | grep Cryptol | cut -d' ' -f2)"
+}
+
 COMMAND="$1"
 shift
 
