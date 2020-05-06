@@ -85,6 +85,7 @@ install_yices() {
 install_deps() {
   ghc_ver="$(ghc --numeric-version)"
   cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
+  # Limit jobs on windows due to: https://gitlab.haskell.org/ghc/ghc/issues/17926
   if [[ "$ghc_ver" == "8.8.3" && "$RUNNER_OS" == 'Windows' ]]; then JOBS=1; else JOBS=2; fi
   cabal v2-configure -j$JOBS --minimize-conflict-set
   cabal v2-build --only-dependencies exe:cryptol exe:cryptol-html
@@ -128,10 +129,6 @@ zip_dist() {
   echo "$fingerprint:6" | gpg --import-ownertrust
   gpg --yes --no-tty --batch --pinentry-mode loopback --default-key "$fingerprint" --detach-sign -o "$name".zip.sig --passphrase-file <(echo "$SIGNING_PASSPHRASE") "$name".zip
   [[ -f "$name".zip.sig ]] && [[ -f "$name".zip ]]
-}
-
-output_cryptol_version() {
-  echo "::set-output name=version::$(./dist/bin/cryptol$EXT -v | grep Cryptol | cut -d' ' -f2)"
 }
 
 COMMAND="$1"

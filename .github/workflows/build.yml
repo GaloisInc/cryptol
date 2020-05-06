@@ -2,16 +2,19 @@ name: Cryptol
 on: [push, pull_request]
 
 jobs:
-  changed:
+  outputs:
     runs-on: ubuntu-latest
     outputs:
       changed: ${{ steps.get-changed.outputs.changed-files }}
+      cryptol-version: ${{ steps.cryptol-version.outputs.cryptol-version }}
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
       - id: get-changed
         run: echo "::set-output name=changed-files::$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | xargs)"
+      - id: cryptol-version
+        run: echo "::set-output name=cryptol-version::$(grep Version cryptol.cabal | awk '{print $2}')"
 
   build:
     runs-on: ${{ matrix.os }}
@@ -75,8 +78,8 @@ jobs:
 
   docs:
     runs-on: ubuntu-latest
-    needs: [changed]
-    if: "startsWith(github.ref, 'refs/tags/v') || contains(needs.changed.outputs.changed, 'docs/')"
+    needs: [outputs]
+    if: "startsWith(github.ref, 'refs/tags/v') || contains(needs.outputs.outputs.changed, 'docs/')"
     steps:
       - uses: actions/checkout@v2
       - uses: docker://pandoc/latex:latest
@@ -118,13 +121,9 @@ jobs:
       - shell: bash
         run: .github/ci.sh bundle_files
 
-      - id: cryptol
-        shell: bash
-        run: .github/ci.sh output_cryptol_version
-
       - if: runner.os == 'Windows'
         env:
-          VERSION: ${{ steps.cryptol.outputs.version }}
+          VERSION: ${{ needs.outputs.outputs.cryptol-version }}
         run: |
           & "$env:WIX\bin\heat.exe" dir "$pwd" -o allfiles.wxs -nologo -var var.pkg -ag -wixvar -cg ALLFILES -srd -dr INSTALLDIR -sfrag
           & "$env:WIX\bin\candle.exe" -ext WixUIExtension -ext WixUtilExtension -dversion="$env:VERSION" -dpkg="$pwd" win32\cryptol.wxs
@@ -136,15 +135,15 @@ jobs:
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-          VERSION: ${{ steps.cryptol.outputs.version }}
+          VERSION: ${{ needs.outputs.outputs.cryptol-version }}
         run: .github/ci.sh zip_dist
 
       - uses: actions/upload-artifact@v1
         with:
-          name: cryptol-${{ steps.cryptol.outputs.version }}-${{ runner.os }}-x86_64.zip.sig
-          path: cryptol-${{ steps.cryptol.outputs.version }}-${{ runner.os }}-x86_64.zip.sig
+          name: cryptol-${{ needs.outputs.outputs.cryptol-version }}-${{ runner.os }}-x86_64.zip.sig
+          path: cryptol-${{ needs.outputs.outputs.cryptol-version }}-${{ runner.os }}-x86_64.zip.sig
 
       - uses: actions/upload-artifact@v1
         with:
-          name: cryptol-${{ steps.cryptol.outputs.version }}-${{ runner.os }}-x86_64.zip
-          path: cryptol-${{ steps.cryptol.outputs.version }}-${{ runner.os }}-x86_64.zip
+          name: cryptol-${{ needs.outputs.outputs.cryptol-version }}-${{ runner.os }}-x86_64.zip
+          path: cryptol-${{ needs.outputs.outputs.cryptol-version }}-${{ runner.os }}-x86_64.zip
