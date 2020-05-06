@@ -137,17 +137,14 @@ jobs:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           VERSION: ${{ steps.cryptol.outputs.version }}
-        run: |
-          .github/ci.sh zip_dist
-          ls -a
-          ls -a dist
+        run: .github/ci.sh zip_dist
 
       - uses: actions/upload-artifact@v1
         with:
-          name: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64.zip.sig
-          path: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64.zip.sig
+          name: cryptol-${{ steps.cryptol.outputs.version }}-${{ runner.os }}-x86_64.zip.sig
+          path: cryptol-${{ steps.cryptol.outputs.version }}-${{ runner.os }}-x86_64.zip.sig
 
       - uses: actions/upload-artifact@v1
         with:
-          name: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64.zip
-          path: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64.zip
+          name: cryptol-${{ steps.cryptol.outputs.version }}-${{ runner.os }}-x86_64.zip
+          path: cryptol-${{ steps.cryptol.outputs.version }}-${{ runner.os }}-x86_64.zip
