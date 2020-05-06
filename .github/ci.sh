@@ -129,7 +129,7 @@ sign() {
 
 zip_dist() {
   : "${VERSION?VERSION is required as an environment variable}"
-  name="${RELEASE_NAME:-cryptol-$VERSION-$RUNNER_OS-x86_64}"
+  name="cryptol-$VERSION-$RUNNER_OS-x86_64"
   mv dist "$name"
   if [[ "$RUNNER_OS" == Windows ]]; then 7z a -tzip -mx9 "$name".zip "$name"; else zip -r "$name".zip "$name"; fi
   sign "$name".zip

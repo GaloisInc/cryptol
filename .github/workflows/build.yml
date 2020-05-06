@@ -127,13 +127,15 @@ jobs:
 
       - if: runner.os == 'Windows'
         shell: bash
+        env:
+          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
         run: .github/ci.sh sign cryptol.msi
 
       - shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-          RELEASE_NAME: cryptol-${{ env.VERSION }}-${{ runner.os }}-x86_64
         run: .github/ci.sh zip_dist
 
       - uses: actions/upload-artifact@v1
