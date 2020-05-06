@@ -70,7 +70,7 @@ jobs:
       - shell: bash
         run: .github/ci.sh test_dist
 
-      - if: matrix.ghc == '8.8.3'
+      - if: "startsWith(github.ref, 'refs/tags/v') && matrix.ghc == '8.8.3'"
         uses: actions/upload-artifact@v1
         with:
           path: dist
