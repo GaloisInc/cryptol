@@ -15,7 +15,7 @@ jobs:
           fetch-depth: 0
       - id: get-changed
         run: |
-          changed_since="$(git log --since '9 minutes')"
+          changed_since="$(git log --since '23 hours 59 minutes')"
           files="${changed_since:+"$(git diff-tree --no-commit-id --name-only -r '${{ github.sha }}' | xargs)"}"
           echo "::set-output name=changed-files::$files"
       - id: cryptol-version
