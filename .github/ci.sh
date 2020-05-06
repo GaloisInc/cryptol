@@ -121,11 +121,13 @@ bundle_files() {
 zip_dist() {
   : "${VERSION?VERSION is required as an environment variable}"
   name="cryptol-$VERSION-$RUNNER_OS-x86_64"
-  if [[ "$RUNNER_OS" == Windows ]]; then 7z a -tzip -mx9 "$name".zip dist; else zip -r "$name".zip dist; fi
+  mv dist "$name"
+  if [[ "$RUNNER_OS" == Windows ]]; then 7z a -tzip -mx9 "$name".zip "$name"; else zip -r "$name".zip "$name"; fi
   gpg --batch --import <(echo "$SIGNING_KEY")
   fingerprint="$(gpg --list-keys | grep galois -a1 | head -n1 | awk '{$1=$1};1')"
   echo "$fingerprint:6" | gpg --import-ownertrust
   gpg --yes --no-tty --batch --pinentry-mode loopback --default-key "$fingerprint" --detach-sign -o "$name".zip.sig --passphrase-file <(echo "$SIGNING_PASSPHRASE") "$name".zip
+  [[ -f "$name".zip.sig ]] && [[ -f "$name".zip ]]
 }
 
 output_cryptol_version() {
