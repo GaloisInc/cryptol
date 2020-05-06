@@ -105,7 +105,6 @@ jobs:
         ghc: ["8.8.3"]
     needs: [docs, build]
     env:
-      RELEASE_NAME: cryptol-${{ needs.outputs.outputs.cryptol-version }}-${{ runner.os }}-x86_64
       VERSION: ${{ needs.outputs.outputs.cryptol-version }}
     steps:
       - uses: actions/checkout@v2
@@ -134,24 +133,25 @@ jobs:
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          RELEASE_NAME: cryptol-${{ env.VERSION }}-${{ runner.os }}-x86_64
         run: .github/ci.sh zip_dist
 
       - uses: actions/upload-artifact@v1
         with:
-          name: ${{ env.RELEASE_NAME }}.zip.sig
-          path: ${{ env.RELEASE_NAME }}.zip.sig
+          name: cryptol-${{ env.VERSION }}-${{ runner.os }}-x86_64.zip.sig
+          path: cryptol-${{ env.VERSION }}-${{ runner.os }}-x86_64.zip.sig
 
       - uses: actions/upload-artifact@v1
         with:
-          name: ${{ env.RELEASE_NAME }}.zip
-          path: ${{ env.RELEASE_NAME }}.zip
+          name: cryptol-${{ env.VERSION }}-${{ runner.os }}-x86_64.zip
+          path: cryptol-${{ env.VERSION }}-${{ runner.os }}-x86_64.zip
 
       - uses: actions/upload-artifact@v1
         with:
-          name: ${{ env.RELEASE_NAME }}.msi.sig
+          name: cryptol-${{ env.VERSION }}-${{ runner.os }}-x86_64.msi.sig
           path: cryptol.msi.sig
 
       - uses: actions/upload-artifact@v1
         with:
-          name: ${{ env.RELEASE_NAME }}.msi
+          name: cryptol-${{ env.VERSION }}-${{ runner.os }}-x86_64.msi
           path: cryptol.msi
