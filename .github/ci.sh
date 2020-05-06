@@ -136,6 +136,11 @@ zip_dist() {
   [[ -f "$name".zip.sig ]] && [[ -f "$name".zip ]]
 }
 
+set_outputs() {
+  echo "::set-output name=changed-files::$(git diff-tree --no-commit-id --name-only -r "$1" | xargs)"
+  echo "::set-output name=cryptol-version::$(grep Version cryptol.cabal | awk '{print $2}')"
+}
+
 COMMAND="$1"
 shift
 

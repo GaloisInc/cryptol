@@ -5,16 +5,14 @@ jobs:
   outputs:
     runs-on: ubuntu-latest
     outputs:
-      changed: ${{ steps.get-changed.outputs.changed-files }}
-      cryptol-version: ${{ steps.cryptol-version.outputs.cryptol-version }}
+      changed: ${{ steps.outputs.outputs.changed-files }}
+      cryptol-version: ${{ steps.outputs.outputs.cryptol-version }}
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - id: get-changed
-        run: echo "::set-output name=changed-files::$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | xargs)"
-      - id: cryptol-version
-        run: echo "::set-output name=cryptol-version::$(grep Version cryptol.cabal | awk '{print $2}')"
+      - id: outputs
+        run: .github/ci.sh set_outputs ${{ github.sha }}
 
   build:
     runs-on: ${{ matrix.os }}
