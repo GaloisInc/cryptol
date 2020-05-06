@@ -142,7 +142,7 @@ jobs:
       - uses: actions/upload-artifact@v1
         with:
           name: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64.sig
-          path: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64.zip.sig
+          path: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64.sig
 
       - uses: actions/upload-artifact@v1
         with:
