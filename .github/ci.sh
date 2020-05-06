@@ -115,6 +115,7 @@ bundle_files() {
 
   # Copy the two interesting examples over
   cp docs/ProgrammingCryptol/{aes/AES,enigma/Enigma}.cry $doc/examples/
+  $IS_WIN || chmod +x dist/bin/*
 }
 
 zip_dist() {
