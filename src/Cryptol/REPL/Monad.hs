@@ -100,6 +100,7 @@ import qualified Cryptol.Symbolic.What4 as W4 (proverNames)
 
 import Control.Monad (ap,unless,when)
 import Control.Monad.Base
+import qualified Control.Monad.Catch as Ex
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
 import Data.Char (isSpace)
@@ -258,6 +259,25 @@ instance M.FreshM REPL where
   liftSupply f = modifyRW $ \ RW { .. } ->
     let (a,s') = f (M.meSupply eModuleEnv)
      in (RW { eModuleEnv = eModuleEnv { M.meSupply = s' }, .. },a)
+
+instance Ex.MonadThrow REPL where
+  throwM e = liftIO $ X.throwIO e
+
+instance Ex.MonadCatch REPL where
+  catch op handler = control $ \runInBase -> Ex.catch (runInBase op) (runInBase . handler)
+
+instance Ex.MonadMask REPL where
+  mask op = REPL $ \ref -> Ex.mask $ \u -> unREPL (op (q u)) ref
+    where q u (REPL b) = REPL (\ref -> u (b ref))
+
+  uninterruptibleMask op = REPL $ \ref ->
+    Ex.uninterruptibleMask $ \u -> unREPL (op (q u)) ref
+    where q u (REPL b) = REPL (\ref -> u (b ref))
+
+  generalBracket acq rls op = control $ \runInBase ->
+    Ex.generalBracket (runInBase acq)
+    (\saved -> \e -> runInBase (restoreM saved >>= \a -> rls a e))
+    (\saved -> runInBase (restoreM saved >>= op))
 
 -- Exceptions ------------------------------------------------------------------
 
