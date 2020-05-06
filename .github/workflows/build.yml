@@ -125,26 +125,27 @@ jobs:
 
       - if: runner.os == 'Windows'
         env:
-          VERSION: "${{ steps.cryptol.outputs.version }}"
+          VERSION: ${{ steps.cryptol.outputs.version }}
         run: |
           & "$env:WIX\bin\heat.exe" dir "$pwd" -o allfiles.wxs -nologo -var var.pkg -ag -wixvar -cg ALLFILES -srd -dr INSTALLDIR -sfrag
           & "$env:WIX\bin\candle.exe" -ext WixUIExtension -ext WixUtilExtension -dversion="$env:VERSION" -dpkg="$pwd" win32\cryptol.wxs
           & "$env:WIX\bin\candle.exe" -ext WixUIExtension -ext WixUtilExtension -dversion="$env:VERSION" -dpkg="$pwd" allfiles.wxs
           & "$env:WIX\bin\light.exe" -ext WixUIExtension -ext WixUtilExtension -sval -o cryptol.msi cryptol.wixobj allfiles.wixobj
-          Move-Item -Path .\cryptol.msi -Destination .\dist
+          Move-Item -Path .\cryptol.msi -Destination .\dist\bin
 
       - shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          VERSION: ${{ steps.cryptol.outputs.version }}
         run: .github/ci.sh zip_dist
 
       - uses: actions/upload-artifact@v1
         with:
           name: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64.sig
-          path: dist.zip.sig
+          path: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64.zip.sig
 
       - uses: actions/upload-artifact@v1
         with:
           name: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64
-          path: dist.zip
+          path: cryptol-${{ steps.cryptol.outputs.version }}-${{ matrix.os }}-x86_64.zip
