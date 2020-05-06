@@ -58,6 +58,7 @@ import qualified What4.SWord as SW
 import           What4.Solver
 import qualified What4.Solver.Adapter as W4
 
+import qualified Data.BitVector.Sized as BV
 import           Data.Parameterized.Nonce
 
 
@@ -398,7 +399,7 @@ varToConcreteValue evalFn v =
        pure (Eval.VWord 0 (pure (Eval.WordVal (Concrete.mkBv 0 0))))
     VarWord (SW.DBV x) ->
        do let w = W4.intValue (W4.bvWidth x)
-          Eval.VWord w . pure . Eval.WordVal . Concrete.mkBv w <$> W4.groundEval evalFn x
+          Eval.VWord w . pure . Eval.WordVal . Concrete.mkBv w . BV.asUnsigned <$> W4.groundEval evalFn x
     VarFinSeq n vs ->
        do vs' <- mapM (varToConcreteValue evalFn) vs
           pure (Eval.VSeq (toInteger n) (Eval.finiteSeqMap Concrete.Concrete (map pure vs')))

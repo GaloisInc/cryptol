@@ -28,6 +28,7 @@ import qualified Control.Exception as X
 import           Control.Monad (foldM, join)
 import           Control.Monad.IO.Class
 import           Data.Bits (bit, shiftR, shiftL, testBit)
+import qualified Data.BitVector.Sized as BV
 import           Data.List
 import qualified Data.Map as Map
 import           Data.Parameterized.NatRepr
@@ -157,7 +158,7 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
     | Just (Some w) <- someNat intw
     = case isPosNat w of
         Nothing -> pure $ SW.ZBV
-        Just LeqProof -> SW.DBV <$> liftIO (W4.bvLit sym w i)
+        Just LeqProof -> SW.DBV <$> liftIO (W4.bvLit sym w (BV.mkBV w i))
     | otherwise = panic "what4: wordLit" ["invalid bit width:", show intw ]
 
   wordAsLit _ v
