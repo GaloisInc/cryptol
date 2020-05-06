@@ -70,7 +70,8 @@ jobs:
       - shell: bash
         run: .github/ci.sh test_dist
 
-      - if: "startsWith(github.ref, 'refs/tags/v') && matrix.ghc == '8.8.3'"
+      # - if: "startsWith(github.ref, 'refs/tags/v') && matrix.ghc == '8.8.3'"
+      - if: "matrix.ghc == '8.8.3'"
         uses: actions/upload-artifact@v1
         with:
           path: dist
@@ -79,7 +80,7 @@ jobs:
   docs:
     runs-on: ubuntu-latest
     needs: [outputs]
-    if: "startsWith(github.ref, 'refs/tags/v') || contains(needs.outputs.outputs.changed, 'docs/')"
+    # if: "startsWith(github.ref, 'refs/tags/v') || contains(needs.outputs.outputs.changed, 'docs/')"
     steps:
       - uses: actions/checkout@v2
       - uses: docker://pandoc/latex:latest
@@ -99,12 +100,15 @@ jobs:
 
   bundle:
     runs-on: ${{ matrix.os }}
-    if: startsWith(github.ref, 'refs/tags/v')
+    # if: startsWith(github.ref, 'refs/tags/v')
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         ghc: ["8.8.3"]
     needs: [docs, build]
+    env:
+      RELEASE_NAME: cryptol-${{ needs.outputs.outputs.cryptol-version }}-${{ runner.os }}-x86_64
+      VERSION: ${{ needs.outputs.outputs.cryptol-version }}
     steps:
       - uses: actions/checkout@v2
 
@@ -122,28 +126,34 @@ jobs:
         run: .github/ci.sh bundle_files
 
       - if: runner.os == 'Windows'
-        env:
-          VERSION: ${{ needs.outputs.outputs.cryptol-version }}
-        run: |
-          & "$env:WIX\bin\heat.exe" dir "$pwd" -o allfiles.wxs -nologo -var var.pkg -ag -wixvar -cg ALLFILES -srd -dr INSTALLDIR -sfrag
-          & "$env:WIX\bin\candle.exe" -ext WixUIExtension -ext WixUtilExtension -dversion="$env:VERSION" -dpkg="$pwd" win32\cryptol.wxs
-          & "$env:WIX\bin\candle.exe" -ext WixUIExtension -ext WixUtilExtension -dversion="$env:VERSION" -dpkg="$pwd" allfiles.wxs
-          & "$env:WIX\bin\light.exe" -ext WixUIExtension -ext WixUtilExtension -sval -o cryptol.msi cryptol.wixobj allfiles.wixobj
-          Move-Item -Path .\cryptol.msi -Destination .\dist\bin
+        run: .github/wix.ps1
+
+      - if: runner.os == 'Windows'
+        shell: bash
+        run: .github/ci.sh sign cryptol.msi
 
       - shell: bash
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-          VERSION: ${{ needs.outputs.outputs.cryptol-version }}
         run: .github/ci.sh zip_dist
 
       - uses: actions/upload-artifact@v1
         with:
-          name: cryptol-${{ needs.outputs.outputs.cryptol-version }}-${{ runner.os }}-x86_64.zip.sig
-          path: cryptol-${{ needs.outputs.outputs.cryptol-version }}-${{ runner.os }}-x86_64.zip.sig
+          name: ${{ env.RELEASE_NAME }}.zip.sig
+          path: ${{ env.RELEASE_NAME }}.zip.sig
 
       - uses: actions/upload-artifact@v1
         with:
-          name: cryptol-${{ needs.outputs.outputs.cryptol-version }}-${{ runner.os }}-x86_64.zip
-          path: cryptol-${{ needs.outputs.outputs.cryptol-version }}-${{ runner.os }}-x86_64.zip
+          name: ${{ env.RELEASE_NAME }}.zip
+          path: ${{ env.RELEASE_NAME }}.zip
+
+      - uses: actions/upload-artifact@v1
+        with:
+          name: ${{ env.RELEASE_NAME }}.msi.sig
+          path: cryptol.msi.sig
+
+      - uses: actions/upload-artifact@v1
+        with:
+          name: ${{ env.RELEASE_NAME }}.msi
+          path: cryptol.msi

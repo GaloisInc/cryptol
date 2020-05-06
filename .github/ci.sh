@@ -15,6 +15,7 @@ extract_exe() {
   echo "Copying $name to $2"
   mkdir -p "$2"
   cp -f "$exe" "$2/$name"
+  $IS_WIN || chmod +x "$2/$name"
 }
 
 setup_external_tools() {
@@ -119,15 +120,19 @@ bundle_files() {
   $IS_WIN || chmod +x dist/bin/*
 }
 
-zip_dist() {
-  : "${VERSION?VERSION is required as an environment variable}"
-  name="cryptol-$VERSION-$RUNNER_OS-x86_64"
-  mv dist "$name"
-  if [[ "$RUNNER_OS" == Windows ]]; then 7z a -tzip -mx9 "$name".zip "$name"; else zip -r "$name".zip "$name"; fi
+sign() {
   gpg --batch --import <(echo "$SIGNING_KEY")
   fingerprint="$(gpg --list-keys | grep galois -a1 | head -n1 | awk '{$1=$1};1')"
   echo "$fingerprint:6" | gpg --import-ownertrust
-  gpg --yes --no-tty --batch --pinentry-mode loopback --default-key "$fingerprint" --detach-sign -o "$name".zip.sig --passphrase-file <(echo "$SIGNING_PASSPHRASE") "$name".zip
+  gpg --yes --no-tty --batch --pinentry-mode loopback --default-key "$fingerprint" --detach-sign -o "$1".sig --passphrase-file <(echo "$SIGNING_PASSPHRASE") "$1"
+}
+
+zip_dist() {
+  : "${VERSION?VERSION is required as an environment variable}"
+  name="${RELEASE_NAME:-cryptol-$VERSION-$RUNNER_OS-x86_64}"
+  mv dist "$name"
+  if [[ "$RUNNER_OS" == Windows ]]; then 7z a -tzip -mx9 "$name".zip "$name"; else zip -r "$name".zip "$name"; fi
+  sign "$name".zip
   [[ -f "$name".zip.sig ]] && [[ -f "$name".zip ]]
 }
 
