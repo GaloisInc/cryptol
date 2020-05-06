@@ -137,7 +137,10 @@ jobs:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
           VERSION: ${{ steps.cryptol.outputs.version }}
-        run: .github/ci.sh zip_dist
+        run: |
+          .github/ci.sh zip_dist
+          ls -a
+          ls -a dist
 
       - uses: actions/upload-artifact@v1
         with:
