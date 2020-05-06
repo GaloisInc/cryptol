@@ -147,11 +147,13 @@ jobs:
           path: cryptol-${{ env.VERSION }}-${{ runner.os }}-x86_64.zip
 
       - uses: actions/upload-artifact@v1
+        if: runner.os == 'Windows'
         with:
           name: cryptol-${{ env.VERSION }}-${{ runner.os }}-x86_64.msi.sig
           path: cryptol.msi.sig
 
       - uses: actions/upload-artifact@v1
+        if: runner.os == 'Windows'
         with:
           name: cryptol-${{ env.VERSION }}-${{ runner.os }}-x86_64.msi
           path: cryptol.msi
