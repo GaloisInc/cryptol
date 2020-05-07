@@ -48,12 +48,13 @@ jobs:
           VERSION: ${{ needs.outputs.outputs.cryptol-version }}
         run: .github/wix.ps1
 
-      - uses: actions/upload-artifact@v1
+      - uses: actions/upload-artifact@v2
         with:
           path: dist
           name: ${{ matrix.os }}-bins
 
-      - uses: actions/upload-artifact@v1
+      - uses: actions/upload-artifact@v2
+        if: runner.os == 'Windows'
         with:
           path: cryptol.msi
           name: cryptol.msi
