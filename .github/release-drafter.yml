@@ -18,10 +18,6 @@ categories:
       - "solver"
 change-template: "- $TITLE @$AUTHOR (PR #$NUMBER)"
 
-# for testing
-branches:
-  - implement-github-actions
-
 replacers:
   - search: '/Z3 (\d+)\.(\d+)\.(\d+)/ig'
     replace: "[Z3 $1.$2.$3](https://github.com/Z3Prover/z3/releases/tag/z3-$1.$2.$3)"
