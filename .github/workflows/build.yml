@@ -1,5 +1,8 @@
 name: Cryptol
-on: [push, pull_request]
+on:
+  push:
+    branches: [master]
+  pull_request:
 
 jobs:
   outputs:
@@ -214,4 +217,3 @@ jobs:
           asset_path: ./cryptol-${{ needs.outputs.outputs.cryptol-version }}-${{ runner.os }}-x86_64.msi.sig
           asset_name: cryptol-${{ needs.outputs.outputs.cryptol-version }}-${{ runner.os }}-x86_64.msi.sig
           asset_content_type: application/pgp-signature
-
