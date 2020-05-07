@@ -51,7 +51,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           path: dist
-          name: ${{ matrix.os }}-bins
+          name: ${{ runner.os }}-bins
 
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
