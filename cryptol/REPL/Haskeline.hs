@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PatternGuards #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -22,6 +23,9 @@ import           Cryptol.Utils.Ident(modNameToText, interactiveName)
 import qualified Control.Exception as X
 import           Control.Monad (guard, join)
 import qualified Control.Monad.Trans.Class as MTL
+#if !MIN_VERSION_base(4,13,0)
+import           Control.Monad.Trans.Control
+#endif
 import           Data.Char (isAlphaNum, isSpace)
 import           Data.Function (on)
 import           Data.List (isPrefixOf,nub,sortBy,sort)
@@ -155,6 +159,14 @@ data Cryptolrc =
   | CryrcDisabled
   | CryrcFiles [FilePath]
   deriving (Show)
+
+-- Utilities -------------------------------------------------------------------
+
+#if !MIN_VERSION_base(4,13,0)
+instance MonadException REPL where
+  controlIO f = join $ liftBaseWith $ \f' ->
+    f $ RunIO $ \m -> restoreM <$> (f' m)
+#endif
 
 -- Titles ----------------------------------------------------------------------
 
