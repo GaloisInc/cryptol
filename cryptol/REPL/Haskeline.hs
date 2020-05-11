@@ -23,7 +23,7 @@ import           Cryptol.Utils.Ident(modNameToText, interactiveName)
 import qualified Control.Exception as X
 import           Control.Monad (guard, join)
 import qualified Control.Monad.Trans.Class as MTL
-#if !MIN_VERSION_base(4,14,0)
+#if !MIN_VERSION_haskeline(0,8,0)
 import           Control.Monad.Trans.Control
 #endif
 import           Data.Char (isAlphaNum, isSpace)
@@ -162,7 +162,7 @@ data Cryptolrc =
 
 -- Utilities -------------------------------------------------------------------
 
-#if !MIN_VERSION_base(4,14,0)
+#if !MIN_VERSION_haskeline(0,8,0)
 instance MonadException REPL where
   controlIO f = join $ liftBaseWith $ \f' ->
     f $ RunIO $ \m -> restoreM <$> (f' m)
