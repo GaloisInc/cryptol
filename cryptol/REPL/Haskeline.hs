@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE PatternGuards #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
@@ -22,20 +23,22 @@ import           Cryptol.Utils.Ident(modNameToText, interactiveName)
 import qualified Control.Exception as X
 import           Control.Monad (guard, join)
 import qualified Control.Monad.Trans.Class as MTL
+#if !MIN_VERSION_haskeline(0,8,0)
 import           Control.Monad.Trans.Control
+#endif
 import           Data.Char (isAlphaNum, isSpace)
-import           Data.Maybe(isJust)
 import           Data.Function (on)
 import           Data.List (isPrefixOf,nub,sortBy,sort)
+import           Data.Maybe(isJust)
 import qualified Data.Set as Set
 import qualified Data.Text as T (unpack)
-import           System.IO (stdout)
 import           System.Console.ANSI (setTitle, hSupportsANSI)
 import           System.Console.Haskeline
 import           System.Directory ( doesFileExist
                                   , getHomeDirectory
                                   , getCurrentDirectory)
 import           System.FilePath ((</>))
+import           System.IO (stdout)
 
 import           Prelude ()
 import           Prelude.Compat
@@ -128,7 +131,7 @@ setHistoryFile :: Settings REPL -> IO (Settings REPL)
 setHistoryFile ss =
   do dir <- getHomeDirectory
      return ss { historyFile = Just (dir </> ".cryptol_history") }
-   `X.catch` \(SomeException {}) -> return ss
+   `X.catch` \(X.SomeException {}) -> return ss
 
 -- | Haskeline settings for the REPL.
 replSettings :: Bool -> Settings REPL
@@ -159,9 +162,11 @@ data Cryptolrc =
 
 -- Utilities -------------------------------------------------------------------
 
+#if !MIN_VERSION_haskeline(0,8,0)
 instance MonadException REPL where
   controlIO f = join $ liftBaseWith $ \f' ->
     f $ RunIO $ \m -> restoreM <$> (f' m)
+#endif
 
 -- Titles ----------------------------------------------------------------------
 
