@@ -68,35 +68,32 @@ primitive type Logic : * -> Prop
 /** Value types that support ring addition and multiplication. */
 primitive type Ring : * -> Prop
 
-/** Value types that support integer division and modulus
-    operations. */
-primitive type DivMod : * -> Prop
-
-/** Value types that correspond to a continguous
-    segment of the integers. */
+/** Value types that correspond to a segment of the
+  * integers. These types support integer division and
+  * modulus, indexing into sequences, and enumeration.
+  */
 primitive type Integral : * -> Prop
 
-/** Value types that can be used as indexes for sequence operations. */
-primitive type Index : * -> Prop
-
 /** Value types that correspond to a field; that is, a
-    ring also posessing multiplicative inverses for
-    non-zero elements.
-
-    Floating-point values are only approximately a field,
-    but nonetheless inhabit this class.
+  * ring also posessing multiplicative inverses for
+  * non-zero elements.
+  *
+  * Floating-point values are only approximately a field,
+  * but nonetheless inhabit this class.
   */
 primitive type Field : * -> Prop
 
-/** Value types that support unsigned comparisons. */
-primitive type Cmp : * -> Prop
+/** Value types that can be rounded to integer values. */
+primitive type Round : * -> Prop
 
 /** Value types that support signed comparisons. */
 primitive type SignedCmp : * -> Prop
 
+/** Value types that support equality and ordering comparisons. */
+primitive type Cmp : * -> Prop
+
 /** 'Literal n a' asserts that type 'a' contains the number 'n'. */
 primitive type Literal : # -> * -> Prop
-
 
 
 /** Add numeric types. */
@@ -201,7 +198,7 @@ primitive (*) : {a} (Ring a) => a -> a -> a
  *  * For type [n], the arguments are treated as unsigned.
  *  * Division by zero is undefined.
  */
-primitive (/) : {a} (DivMod a) => a -> a -> a
+primitive (/) : {a} (Integral a) => a -> a -> a
 
 /**
  * Compute the remainder from dividing two values.
@@ -209,7 +206,7 @@ primitive (/) : {a} (DivMod a) => a -> a -> a
  *  * Remainder of division by zero is undefined.
  *  * Satisfies 'x % y == x - (x / y) * y'.
  */
-primitive (%) : {a} (DivMod a) => a -> a -> a
+primitive (%) : {a} (Integral a) => a -> a -> a
 
 /**
   * Reciprocal
@@ -228,6 +225,40 @@ primitive recip : {a} (Field a) => a -> a
  * Field division by 0 is undefined.
  */
 primitive (/.) : {a} (Field a) => a -> a -> a
+
+/**
+ * Ceiling function.
+ *
+ * Given 'x', compute the smallest integer 'i'
+ * such that 'x <= i'.
+ */
+primitive ceiling : {a} (Round a) -> a -> Integer
+
+/**
+ * Floor function.
+ *
+ * Given 'x', compute the largest integer 'i'
+ * such that 'i <= x'.
+ */
+primitive floor : {a} (Round a) -> a -> Integer
+
+/**
+ * Truncate the value toward 0.
+ *
+ * Given 'x' compute the nearest integer between
+ * 'x' and 0.  For nonnegative 'x', this is floor,
+ * and for negative 'x' this is ceiling.
+ */
+primitive trunc : {a} (Round a) => a -> Integer
+
+/**
+ * Round to the nearest integer.
+ *
+ * Ties are broken away from 0.  For nonnegative 'x'
+ * this is 'floor (x + 0.5)'.  For negative 'x' this
+ * is 'ceiling (x - 0.5)'.
+ */
+primitive round : {a} (Round a) => a -> Integer
 
 
 /**
@@ -338,6 +369,13 @@ min x y = if x < y then x else y
 max : {a} (Cmp a) => a -> a -> a
 max x y = if x > y then x else y
 
+/**
+ * Compute the absolute value of a value from an ordered ring.
+ * Bitvector values are considered unsigned, so this is
+ * the identity function on [n].
+ */
+abs : {a} (Cmp a, Ring a) => a -> a
+abs x = if x < fromInteger 0 then negate x else x
 
 /**
  * 2's complement signed less-than.
@@ -457,8 +495,9 @@ primitive (^) : {a} (Logic a) => a -> a -> a
 primitive zero : {a} (Zero a) => a
 
 /**
- * Converts an unbounded integer to another arithmetic type. When converting
- * to the bitvector type [n], the value is reduced modulo 2^^n.
+ * Converts an unbounded integer to a value in a Ring. When converting
+ * to the bitvector type [n], the value is reduced modulo 2^^n. Likewise,
+ * when converting to Z n, the value is reduced modulo n.
  */
 primitive fromInteger : {a} (Ring a) => Integer -> a
 
@@ -466,6 +505,7 @@ primitive fromInteger : {a} (Ring a) => Integer -> a
  * Converts a value of an integral type to an integer.
  */
 primitive toInteger : {n} (Integral a) => a -> Integer
+
 
 /**
  * Converts an integer modulo n to an unbounded integer in the range 0 to n-1.
@@ -477,25 +517,25 @@ fromZ = toInteger
  * Left shift.  The first argument is the sequence to shift, the second is the
  * number of positions to shift by.
 */
-primitive (<<) : {n, ix, a} (Index ix, Zero a) => [n]a -> ix -> [n]a
+primitive (<<) : {n, ix, a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
 
 /**
  * Right shift.  The first argument is the sequence to shift, the second is the
  * number of positions to shift by.
  */
-primitive (>>) : {n, ix, a} (Index ix, Zero a) => [n]a -> ix -> [n]a
+primitive (>>) : {n, ix, a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
 
 /**
  * Left rotate.  The first argument is the sequence to rotate, the second is the
  * number of positions to rotate by.
  */
-primitive (<<<) : {n, ix, a} (fin n, Index ix) => [n]a -> ix -> [n]a
+primitive (<<<) : {n, ix, a} (fin n, Integral ix) => [n]a -> ix -> [n]a
 
 /**
  * Right rotate.  The first argument is the sequence to rotate, the second is
  * the number of positions to rotate by.
  */
-primitive (>>>) : {n, ix, a} (fin n, Index ix) => [n]a -> ix -> [n]a
+primitive (>>>) : {n, ix, a} (fin n, Integral ix) => [n]a -> ix -> [n]a
 
 /**
  * 2's complement signed (arithmetic) right shift.  The first argument
@@ -503,8 +543,7 @@ primitive (>>>) : {n, ix, a} (fin n, Index ix) => [n]a -> ix -> [n]a
  * the second argument is the number of positions to shift
  * by (considered as an unsigned value).
  */
-primitive (>>$) : {n, ix} (fin n, n >= 1, fin ix) => [n] -> [ix] -> [n]
-
+primitive (>>$) : {n, ix} (fin n, n >= 1, Integral ix) => [n] -> ix -> [n]
 
 
 /**
@@ -550,13 +589,13 @@ primitive transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
  * Index operator.  The first argument is a sequence.  The second argument is
  * the zero-based index of the element to select from the sequence.
  */
-primitive (@) : {n, a, ix} (Index ix) => [n]a -> ix -> a
+primitive (@) : {n, a, ix} (Integral ix) => [n]a -> ix -> a
 
 /**
  * Bulk index operator.  The first argument is a sequence.  The second argument
  * is a sequence of the zero-based indices of the elements to select.
  */
-(@@) : {n, k, ix, a} (Index ix) => [n]a -> [k]ix -> [k]a
+(@@) : {n, k, ix, a} (Integral ix) => [n]a -> [k]ix -> [k]a
 xs @@ is = [ xs @ i | i <- is ]
 
 /**
@@ -564,14 +603,14 @@ xs @@ is = [ xs @ i | i <- is ]
  * argument is the zero-based index of the element to select, starting from the
  * end of the sequence.
  */
-primitive (!) : {n, a, ix} (fin n, Index ix) => [n]a -> ix -> a
+primitive (!) : {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a
 
 /**
  * Bulk reverse index operator.  The first argument is a finite sequence.  The
  * second argument is a sequence of the zero-based indices of the elements to
  * select, starting from the end of the sequence.
  */
-(!!) : {n, k, ix, a} (fin n, Index ix) => [n]a -> [k]ix -> [k]a
+(!!) : {n, k, ix, a} (fin n, Integral ix) => [n]a -> [k]ix -> [k]a
 xs !! is = [ xs ! i | i <- is ]
 
 /**
@@ -581,7 +620,7 @@ xs !! is = [ xs ! i | i <- is ]
  * The third argument is the new element.  The return value is the
  * initial sequence updated so that the indicated index has the given value.
  */
-primitive update : {n, a, ix} (Index ix) => [n]a -> ix -> a -> [n]a
+primitive update : {n, a, ix} (Integral ix) => [n]a -> ix -> a -> [n]a
 
 /**
  * Update the given sequence with new value at the given index position.
@@ -590,7 +629,7 @@ primitive update : {n, a, ix} (Index ix) => [n]a -> ix -> a -> [n]a
  * The third argument is the new element.  The return value is the
  * initial sequence updated so that the indicated index has the given value.
  */
-primitive updateEnd : {n, a, ix} (fin n, Index ix) => [n]a -> ix -> a -> [n]a
+primitive updateEnd : {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a -> [n]a
 
 /**
  * Perform a series of updates to a sequence.  The first argument is
@@ -599,7 +638,7 @@ primitive updateEnd : {n, a, ix} (fin n, Index ix) => [n]a -> ix -> a -> [n]a
  * This function applies the 'update' function in sequence with the
  * given update pairs.
  */
-updates : {n, k, ix, a} (Index ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
+updates : {n, k, ix, a} (Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
 updates xs0 idxs vals = xss!0
  where
    xss = [ xs0 ] #
@@ -616,7 +655,7 @@ updates xs0 idxs vals = xss!0
  * This function applies the 'updateEnd' function in sequence with the
  * given update pairs.
  */
-updatesEnd : {n, k, ix, a} (fin n, Index ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
+updatesEnd : {n, k, ix, a} (fin n, Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
 updatesEnd xs0 idxs vals = xss!0
  where
    xss = [ xs0 ] #
@@ -665,9 +704,9 @@ primitive infFromThen : {a} (Integral a) => a -> a -> [inf]a
  * Declarations of the form 'x @ i = e' are syntactic sugar for
  * 'x = generate (\i -> e)'.
  */
-generate : {n, ix, a}
-  (fin ix, n >= 1, ix >= width (n - 1)) => ([ix] -> a) -> [n]a
+generate : {n, a} (n >= 1) => (Integer -> a) -> [n]a
 generate f = [ f i | i <- [0 .. n-1] ]
+
 
 primitive error : {a, len} (fin len) => [len][8] -> a
 
