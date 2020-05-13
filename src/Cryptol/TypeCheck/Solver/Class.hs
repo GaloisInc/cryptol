@@ -10,10 +10,12 @@
 
 {-# LANGUAGE PatternGuards, OverloadedStrings #-}
 module Cryptol.TypeCheck.Solver.Class
-  ( classStep
-  , solveZeroInst
+  ( solveZeroInst
   , solveLogicInst
-  , solveArithInst
+  , solveRingInst
+  , solveFieldInst
+  , solveIntegralInst
+  , solveRoundInst
   , solveCmpInst
   , solveSignedCmpInst
   , solveLiteralInst
@@ -25,15 +27,6 @@ import Cryptol.TypeCheck.SimpType (tAdd,tWidth)
 import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.PP
 
--- | Solve class constraints.
--- If not, then we return 'Nothing'.
--- If solved, then we return 'Just' a list of sub-goals.
-classStep :: Prop -> Solved
-classStep p = case tNoUser p of
-  TCon (PC PLogic) [ty] -> solveLogicInst (tNoUser ty)
-  TCon (PC PArith) [ty] -> solveArithInst (tNoUser ty)
-  TCon (PC PCmp) [ty]   -> solveCmpInst   (tNoUser ty)
-  _                     -> Unsolved
 
 -- | Solve a Zero constraint by instance, if possible.
 solveZeroInst :: Type -> Solved
@@ -50,6 +43,10 @@ solveZeroInst ty = case tNoUser ty of
 
   -- Zero (Z n)
   TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
+
+  -- Zero Rational
+  -- Zero Real
+  -- Zero Float
 
   -- Zero a => Zero [n]a
   TCon (TC TCSeq) [_, a] -> SolvedIf [ pZero a ]
@@ -89,43 +86,43 @@ solveLogicInst ty = case tNoUser ty of
 
   _ -> Unsolved
 
--- | Solve an Arith constraint by instance, if possible.
-solveArithInst :: Type -> Solved
-solveArithInst ty = case tNoUser ty of
+-- | Solve a Ring constraint by instance, if possible.
+solveRingInst :: Type -> Solved
+solveRingInst ty = case tNoUser ty of
 
-  -- Arith Error -> fails
+  -- Ring Error -> fails
   TCon (TError _ e) _ -> Unsolvable e
 
-  -- Arith [n]e
-  TCon (TC TCSeq) [n, e] -> solveArithSeq n e
+  -- Ring [n]e
+  TCon (TC TCSeq) [n, e] -> solveRingSeq n e
 
-  -- Arith b => Arith (a -> b)
-  TCon (TC TCFun) [_,b] -> SolvedIf [ pArith b ]
+  -- Ring b => Ring (a -> b)
+  TCon (TC TCFun) [_,b] -> SolvedIf [ pRing b ]
 
-  -- (Arith a, Arith b) => Arith (a,b)
-  TCon (TC (TCTuple _)) es -> SolvedIf [ pArith e | e <- es ]
+  -- (Ring a, Ring b) => Arith (a,b)
+  TCon (TC (TCTuple _)) es -> SolvedIf [ pRing e | e <- es ]
 
-  -- Arith Bit fails
+  -- Ring Bit fails
   TCon (TC TCBit) [] ->
     Unsolvable $ TCErrorMessage "Arithmetic cannot be done on individual bits."
 
-  -- Arith Integer
+  -- Ring Integer
   TCon (TC TCInteger) [] -> SolvedIf []
 
-  -- Arith (Z n)
+  -- Ring (Z n)
   TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
 
-  -- (Arith a, Arith b) => Arith { x1 : a, x2 : b }
-  TRec fs -> SolvedIf [ pArith ety | (_,ety) <- fs ]
+  -- (Ring a, Ring b) => Arith { x1 : a, x2 : b }
+  TRec fs -> SolvedIf [ pRing ety | (_,ety) <- fs ]
 
   _ -> Unsolved
 
--- | Solve an Arith constraint for a sequence.  The type passed here is the
+-- | Solve a Ring constraint for a sequence.  The type passed here is the
 -- element type of the sequence.
-solveArithSeq :: Type -> Type -> Solved
-solveArithSeq n ty = case tNoUser ty of
+solveRingSeq :: Type -> Type -> Solved
+solveRingSeq n ty = case tNoUser ty of
 
-  -- fin n => Arith [n]Bit
+  -- fin n => Ring [n]Bit
   TCon (TC TCBit) [] -> SolvedIf [ pFin n ]
 
   -- variables are not solvable.
@@ -133,11 +130,67 @@ solveArithSeq n ty = case tNoUser ty of
                 {- We are sure that the lenght is not `fin`, so the
                 special case for `Bit` does not apply.
                 Arith ty => Arith [n]ty -}
-                TCon (TC TCInf) [] -> SolvedIf [ pArith ty ]
+                TCon (TC TCInf) [] -> SolvedIf [ pRing ty ]
                 _                  -> Unsolved
 
-  -- Arith ty => Arith [n]ty
-  _ -> SolvedIf [ pArith ty ]
+  -- Ring ty => Ring [n]ty
+  _ -> SolvedIf [ pRing ty ]
+
+
+-- | Solve an Integral constraint by instance, if possible.
+solveIntegralInst :: Type -> Solved
+solveIntegralInst ty = case tNoUser ty of
+
+  -- Integral Error -> fails
+  TCon (TError _ e) _ -> Unsolvable e
+
+  -- Integral Bit fails
+  TCon (TC TCBit) [] ->
+    Unsolvable $ TCErrorMessage "Arithmetic cannot be done on individual bits."
+
+  -- fin n => Integral [n]
+  TCon (TC TCSeq) [n, TCon (TC TCBit) []] -> SolvedIf [ pFin n ]
+
+  -- Integral Integer
+  TCon (TC TCInteger) [] -> SolvedIf []
+
+  -- Integral (Z n)
+  TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
+
+  TVar _ -> Unsolved
+
+  _ -> Unsolvable $ TCErrorMessage $ show
+          $ "Type" <+> quotes (pp ty) <+> "is not an intergral type."
+
+
+-- | Solve a Field constraint by instance, if possible.
+solveFieldInst :: Type -> Solved
+solveFieldInst ty = case tNoUser ty of
+
+  -- Field Error -> fails
+  TCon (TError _ e) _ -> Unsolvable e
+
+  -- Field Rational
+  -- Field Real
+  -- Field Float
+  -- Field (Z n)
+--  TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne, pPrime n ]
+
+  _ -> Unsolved
+
+-- | Solve a Round constraint by instance, if possible.
+solveRoundInst :: Type -> Solved
+solveRoundInst ty = case tNoUser ty of
+
+  -- Round Error -> fails
+  TCon (TError _ e) _ -> Unsolvable e
+
+  -- Round Rational
+  -- Round Real
+  -- Round Float
+
+  _ -> Unsolved
+
 
 
 -- | Solve Cmp constraints.
@@ -247,42 +300,90 @@ solveLiteralInst val ty
 -- The result contains the orignal proposition, and maybe some more.
 expandProp :: Prop -> [Prop]
 expandProp prop =
-  prop :
-  case tNoUser prop of
+  prop : subclasses ++ substructure
 
-    TCon (PC pc) [ty] ->
-      case (pc, tNoUser ty) of
+  where
+  subclasses =
+    case tNoUser prop of
+      TCon (PC pc) [ty] ->
+        case pc of
+          -- Ring a => Zero a
+          PRing     -> expandProp (pZero ty)
 
-        -- Arith [n]Bit => fin n
-        -- (Arith [n]a, a/=Bit) => Arith a
-        (PArith, TCon (TC TCSeq) [n,a])
-          | TCon (TC TCBit) _ <- ty1  -> [pFin n]
-          | TCon _ _          <- ty1  -> expandProp (pArith ty1)
-          | TRec {}           <- ty1  -> expandProp (pArith ty1)
-          where
-          ty1 = tNoUser a
+          -- Logic a => Zero a
+          PLogic    -> expandProp (pZero ty)
 
-        -- Arith (a -> b) => Arith b
-        (PArith, TCon (TC TCFun) [_,b]) -> expandProp (pArith b)
+          -- Integral a => Ring a
+          PIntegral -> expandProp (pRing ty)
 
-        -- Arith (a,b) => (Arith a, Arith b)
-        (PArith, TCon (TC (TCTuple _)) ts) -> concatMap (expandProp . pArith) ts
+          -- Field a => Ring a
+          PField    -> expandProp (pRing ty)
 
-        -- Arith { x1 : a, x2 : b } => (Arith a, Arith b)
-        (PArith, TRec fs) -> concatMap (expandProp . pArith. snd) fs
+          -- Round a => (Cmp a, Field a)
+          PRound    -> expandProp (pCmp ty) ++ expandProp (pField ty)
+          _ -> []
+      _ -> []
 
-        -- Cmp [n]a => (fin n, Cmp a)
-        (PCmp, TCon (TC TCSeq) [n,a]) -> pFin n : expandProp (pCmp a)
+  substructure =
+    case tNoUser prop of
 
-        -- Cmp (a,b) => (Cmp a, Cmp b)
-        (PCmp, TCon (TC (TCTuple _)) ts) -> concatMap (expandProp . pCmp) ts
+      TCon (PC pc) [ty] ->
+        case (pc, tNoUser ty) of
 
-        -- Cmp { x:a, y:b } => (Cmp a, Cmp b)
-        (PCmp, TRec fs) -> concatMap (expandProp . pCmp . snd) fs
+          -- Logic [n]a => Logic a
+          (PLogic, TCon (TC TCSeq) [_n,a]) -> expandProp (pLogic a)
 
-        _ -> []
+          -- Logic (a -> b) => Logic b
+          (PLogic, TCon (TC TCFun) [_a,b]) -> expandProp (pLogic b)
 
-    _ -> []
+          -- Logic (a,b) => (Logic a, Logic b)
+          (PLogic, TCon (TC (TCTuple _)) ts) -> concatMap (expandProp . pLogic) ts
 
+          -- Logic { x1 : a, x2 : b } => (Logic a, Logic b)
+          (PLogic, TRec fs) -> concatMap (expandProp . pLogic . snd) fs
 
+          -- Ring [n]Bit => fin n
+          -- (Ring [n]a, a/=Bit) => Ring a
+          (PRing, TCon (TC TCSeq) [n,a])
+            | TCon (TC TCBit) _ <- ty1  -> [pFin n]
+            | TCon _ _          <- ty1  -> expandProp (pRing ty1)
+            | TRec {}           <- ty1  -> expandProp (pRing ty1)
+            where
+            ty1 = tNoUser a
 
+          -- Ring (a -> b) => Ring b
+          (PRing, TCon (TC TCFun) [_,b]) -> expandProp (pRing b)
+
+          -- Ring (a,b) => (Ring a, Ring b)
+          (PRing, TCon (TC (TCTuple _)) ts) -> concatMap (expandProp . pRing) ts
+
+          -- Ring { x1 : a, x2 : b } => (Ring a, Ring b)
+          (PRing, TRec fs) -> concatMap (expandProp . pRing. snd) fs
+
+          -- Cmp [n]a => (fin n, Cmp a)
+          (PCmp, TCon (TC TCSeq) [n,a]) -> pFin n : expandProp (pCmp a)
+
+          -- Cmp (a,b) => (Cmp a, Cmp b)
+          (PCmp, TCon (TC (TCTuple _)) ts) -> concatMap (expandProp . pCmp) ts
+
+          -- Cmp { x:a, y:b } => (Cmp a, Cmp b)
+          (PCmp, TRec fs) -> concatMap (expandProp . pCmp . snd) fs
+
+          -- SignedCmp [n]Bit => (fin n, n >= 1)
+          -- (SignedCmp [n]a, a /= Bit) => SignedCmp a
+          (PSignedCmp, TCon (TC TCSeq) [n,a])
+            | TCon (TC TCBit) _ <- ty1 -> [pFin n, n >== tOne]
+            | TCon _ _          <- ty1 -> expandProp (pSignedCmp ty1)
+            | TRec {}           <- ty1 -> expandProp (pSignedCmp ty1)
+            where
+            ty1 = tNoUser a
+
+          -- SignedCmp (a,b) => (SignedCmp a, SignedCmp b)
+          (PSignedCmp, TCon (TC (TCTuple _)) ts) -> concatMap (expandProp . pSignedCmp) ts
+
+          -- Cmp { x:a, y:b } => (Cmp a, Cmp b)
+          (PSignedCmp, TRec fs) -> concatMap (expandProp . pSignedCmp . snd) fs
+
+          _ -> []
+
+      _ -> []

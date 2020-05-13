@@ -61,7 +61,10 @@ builtInType nm =
     , "fin"               ~> PC PFin
     , "Zero"              ~> PC PZero
     , "Logic"             ~> PC PLogic
-    , "Arith"             ~> PC PArith
+    , "Ring"              ~> PC PRing
+    , "Integral"          ~> PC PIntegral
+    , "Field"             ~> PC PField
+    , "Round"             ~> PC PRound
     , "Cmp"               ~> PC PCmp
     , "SignedCmp"         ~> PC PSignedCmp
     , "Literal"           ~> PC PLiteral
@@ -131,7 +134,10 @@ instance HasKind PC where
       PHas _     -> KType :-> KType :-> KProp
       PZero      -> KType :-> KProp
       PLogic     -> KType :-> KProp
-      PArith     -> KType :-> KProp
+      PRing      -> KType :-> KProp
+      PIntegral  -> KType :-> KProp
+      PField     -> KType :-> KProp
+      PRound     -> KType :-> KProp
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
       PLiteral   -> KNum :-> KType :-> KProp
@@ -174,7 +180,10 @@ data PC     = PEqual        -- ^ @_ == _@
             | PHas Selector -- ^ @Has sel type field@ does not appear in schemas
             | PZero         -- ^ @Zero _@
             | PLogic        -- ^ @Logic _@
-            | PArith        -- ^ @Arith _@
+            | PRing         -- ^ @Ring _@
+            | PIntegral     -- ^ @Integral _@
+            | PField        -- ^ @Field _@
+            | PRound        -- ^ @Round _@
             | PCmp          -- ^ @Cmp _@
             | PSignedCmp    -- ^ @SignedCmp _@
             | PLiteral      -- ^ @Literal _ _@
@@ -271,7 +280,10 @@ instance PP PC where
       PHas sel   -> parens (ppSelector sel)
       PZero      -> text "Zero"
       PLogic     -> text "Logic"
-      PArith     -> text "Arith"
+      PRing      -> text "Ring"
+      PIntegral  -> text "Integral"
+      PField     -> text "Field"
+      PRound     -> text "Round"
       PCmp       -> text "Cmp"
       PSignedCmp -> text "SignedCmp"
       PLiteral   -> text "Literal"
