@@ -232,7 +232,7 @@ primitive (/.) : {a} (Field a) => a -> a -> a
  * Given 'x', compute the smallest integer 'i'
  * such that 'x <= i'.
  */
-primitive ceiling : {a} (Round a) -> a -> Integer
+primitive ceiling : {a} (Round a) => a -> Integer
 
 /**
  * Floor function.
@@ -240,7 +240,7 @@ primitive ceiling : {a} (Round a) -> a -> Integer
  * Given 'x', compute the largest integer 'i'
  * such that 'i <= x'.
  */
-primitive floor : {a} (Round a) -> a -> Integer
+primitive floor : {a} (Round a) => a -> Integer
 
 /**
  * Truncate the value toward 0.
@@ -504,8 +504,7 @@ primitive fromInteger : {a} (Ring a) => Integer -> a
 /**
  * Converts a value of an integral type to an integer.
  */
-primitive toInteger : {n} (Integral a) => a -> Integer
-
+primitive toInteger : {a} (Integral a) => a -> Integer
 
 /**
  * Converts an integer modulo n to an unbounded integer in the range 0 to n-1.
@@ -704,7 +703,7 @@ primitive infFromThen : {a} (Integral a) => a -> a -> [inf]a
  * Declarations of the form 'x @ i = e' are syntactic sugar for
  * 'x = generate (\i -> e)'.
  */
-generate : {n, a} (n >= 1) => (Integer -> a) -> [n]a
+generate : {n, a} (fin n, n >= 1) => (Integer -> a) -> [n]a
 generate f = [ f i | i <- [0 .. n-1] ]
 
 
