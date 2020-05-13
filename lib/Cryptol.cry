@@ -86,6 +86,9 @@ primitive type Field : * -> Prop
 /** Value types that can be rounded to integer values. */
 primitive type Round : * -> Prop
 
+/** Value types that support signed comparisons. */
+primitive type SignedCmp : * -> Prop
+
 /** Value types that support equality and ordering comparisons. */
 primitive type Cmp : * -> Prop
 
@@ -377,24 +380,24 @@ abs x = if x < fromInteger 0 then negate x else x
 /**
  * 2's complement signed less-than.
  */
-primitive (<$) : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+primitive (<$) : {a} (SignedCmp a) => a -> a -> Bit
 
 /**
  * 2's complement signed greater-than.
  */
-(>$) : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+(>$) : {a} (SignedCmp a) => a -> a -> Bit
 x >$ y = y <$ x
 
 /**
  * 2's complement signed less-than-or-equal.
  */
-(<=$) : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+(<=$) : {a} (SignedCmp a) => a -> a -> Bit
 x <=$ y = ~(y <$ x)
 
 /**
  * 2's complement signed greater-than-or-equal.
  */
-(>=$) : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+(>=$) : {a} (SignedCmp a) => a -> a -> Bit
 x >=$ y = ~(x <$ y)
 
 /**
