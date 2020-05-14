@@ -24,7 +24,7 @@ module Cryptol.Eval.SBV
   , forallSInteger_, existsSInteger_
   ) where
 
-import           Control.Monad (join, unless)
+import           Control.Monad (join)
 import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Bits (bit, complement, shiftL)
 import           Data.List (foldl')
@@ -346,19 +346,34 @@ primTable  = let sym = SBV in
   , ("number"      , ecNumberV sym) -- Converts a numeric type into its corresponding value.
                                     -- { val, rep } (Literal val rep) => rep
 
-    -- Arith
-  , ("fromInteger" , ecFromIntegerV sym)
-  , ("+"           , binary (addV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("-"           , binary (subV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("*"           , binary (mulV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("/"           , binary (divV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("%"           , binary (modV sym)) -- {a} (Arith a) => a -> a -> a
+    -- Zero
+  , ("zero"        , VPoly (zeroV sym))
+
+    -- Logic
+  , ("&&"          , binary (andV sym))
+  , ("||"          , binary (orV sym))
+  , ("^"           , binary (xorV sym))
+  , ("complement"  , unary  (complementV sym))
+
+    -- Ring
+  , ("fromInteger" , fromIntegerV sym)
+  , ("+"           , binary (addV sym))
+  , ("-"           , binary (subV sym))
+  , ("negate"      , unary (negateV sym))
+  , ("*"           , binary (mulV sym))
+
+    -- Integral
+  , ("toInteger"   , toIntegerV sym)
+  , ("/"           , binary (divV sym))
+  , ("%"           , binary (modV sym))
+  , ("infFrom"     , infFromV sym)
+  , ("infFromThen" , infFromThenV sym)
+
+    -- Word operations
   , ("/$"          , sdivV sym)
   , ("%$"          , smodV sym)
   , ("lg2"         , lg2V sym)
-  , ("negate"      , unary (negateV sym))
-  , ("infFrom"     , infFromV sym)
-  , ("infFromThen" , infFromThenV sym)
+  , (">>$"         , sshrV)
 
     -- Cmp
   , ("<"           , binary (lessThanV sym))
@@ -371,22 +386,9 @@ primTable  = let sym = SBV in
     -- SignedCmp
   , ("<$"          , binary (signedLessThanV sym))
 
-    -- Logic
-  , ("&&"          , binary (andV sym))
-  , ("||"          , binary (orV sym))
-  , ("^"           , binary (xorV sym))
-  , ("complement"  , unary  (complementV sym))
-
-    -- Zero
-  , ("zero"        , VPoly (zeroV sym))
-
     -- Finite enumerations
   , ("fromTo"      , fromToV sym)
   , ("fromThenTo"  , fromThenToV sym)
-
-    -- Conversions to Integer
-  , ("toInteger"   , ecToIntegerV sym)
-  , ("fromZ"       , ecFromZ sym)
 
     -- Sequence manipulations
   , ("#"          , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
@@ -441,9 +443,6 @@ primTable  = let sym = SBV in
                        rotateShrink
                        (\x y -> pure (SBV.svRotateRight x y))
                        rotateRightReindex)
-
-  , (">>$"         , sshrV)
-
 
     -- Indexing and updates
   , ("@"           , indexPrim sym indexFront indexFront_bits indexFront)

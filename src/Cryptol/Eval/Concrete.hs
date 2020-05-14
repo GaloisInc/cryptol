@@ -113,31 +113,53 @@ primTable = let sym = Concrete in
   , ("number"     , {-# SCC "Prelude::number" #-}
                     ecNumberV sym)
 
-    -- Arith
+    -- Zero
+  , ("zero"       , {-# SCC "Prelude::zero" #-}
+                    VPoly (zeroV sym))
+
+    -- Logic
+  , ("&&"         , {-# SCC "Prelude::(&&)" #-}
+                    binary (andV sym))
+  , ("||"         , {-# SCC "Prelude::(||)" #-}
+                    binary (orV sym))
+  , ("^"          , {-# SCC "Prelude::(^)" #-}
+                    binary (xorV sym))
+  , ("complement" , {-# SCC "Prelude::complement" #-}
+                    unary  (complementV sym))
+
+    -- Ring
   , ("fromInteger", {-# SCC "Prelude::fromInteger" #-}
-                    ecFromIntegerV sym)
+                    fromIntegerV sym)
   , ("+"          , {-# SCC "Prelude::(+)" #-}
                     binary (addV sym))
   , ("-"          , {-# SCC "Prelude::(-)" #-}
                     binary (subV sym))
   , ("*"          , {-# SCC "Prelude::(*)" #-}
                     binary (mulV sym))
+  , ("negate"     , {-# SCC "Prelude::negate" #-}
+                    unary (negateV sym))
+
+    -- Integral
+  , ("toInteger"  , {-# SCC "Prelude::toInteger" #-}
+                    toIntegerV sym)
   , ("/"          , {-# SCC "Prelude::(/)" #-}
                     binary (divV sym))
   , ("%"          , {-# SCC "Prelude::(%)" #-}
                     binary (modV sym))
+  , ("infFrom"    , {-# SCC "Prelude::infFrom" #-}
+                    infFromV sym)
+  , ("infFromThen", {-# SCC "Prelude::infFromThen" #-}
+                    infFromThenV sym)
+
+    -- Bitvector specific operations
   , ("/$"         , {-# SCC "Prelude::(/$)" #-}
                     sdivV sym)
   , ("%$"         , {-# SCC "Prelude::(%$)" #-}
                     smodV sym)
   , ("lg2"        , {-# SCC "Prelude::lg2" #-}
                     lg2V sym)
-  , ("negate"     , {-# SCC "Prelude::negate" #-}
-                    unary (negateV sym))
-  , ("infFrom"    , {-# SCC "Prelude::infFrom" #-}
-                    infFromV sym)
-  , ("infFromThen", {-# SCC "Prelude::infFromThen" #-}
-                    infFromThenV sym)
+  , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
+                    sshrV)
 
     -- Cmp
   , ("<"          , {-# SCC "Prelude::(<)" #-}
@@ -157,31 +179,11 @@ primTable = let sym = Concrete in
   , ("<$"         , {-# SCC "Prelude::(<$)" #-}
                     binary (signedLessThanV sym))
 
-    -- Logic
-  , ("&&"         , {-# SCC "Prelude::(&&)" #-}
-                    binary (andV sym))
-  , ("||"         , {-# SCC "Prelude::(||)" #-}
-                    binary (orV sym))
-  , ("^"          , {-# SCC "Prelude::(^)" #-}
-                    binary (xorV sym))
-  , ("complement" , {-# SCC "Prelude::complement" #-}
-                    unary  (complementV sym))
-
-    -- Zero
-  , ("zero"       , {-# SCC "Prelude::zero" #-}
-                    VPoly (zeroV sym))
-
     -- Finite enumerations
   , ("fromTo"     , {-# SCC "Prelude::fromTo" #-}
                     fromToV sym)
   , ("fromThenTo" , {-# SCC "Prelude::fromThenTo" #-}
                     fromThenToV sym)
-
-    -- Conversions to Integer
-  , ("toInteger"  , {-# SCC "Prelude::toInteger" #-}
-                    ecToIntegerV sym)
-  , ("fromZ"      , {-# SCC "Prelude::fromZ" #-}
-                    ecFromZ sym)
 
     -- Sequence manipulations
   , ("#"          , {-# SCC "Prelude::(#)" #-}
@@ -229,9 +231,6 @@ primTable = let sym = Concrete in
                     logicShift rotateLW rotateLS)
   , (">>>"        , {-# SCC "Prelude::(>>>)" #-}
                     logicShift rotateRW rotateRS)
-
-  , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
-                    sshrV)
 
     -- Indexing and updates
   , ("@"          , {-# SCC "Prelude::(@)" #-}

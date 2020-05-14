@@ -404,20 +404,34 @@ primTable w4sym = let sym = What4 w4sym in
   , ("False"       , VBit (bitLit sym False))
   , ("number"      , ecNumberV sym) -- Converts a numeric type into its corresponding value.
                                     -- { val, rep } (Literal val rep) => rep
+    -- Zero
+  , ("zero"        , VPoly (zeroV sym))
 
-    -- Arith
-  , ("fromInteger" , ecFromIntegerV sym)
+    -- Logic
+  , ("&&"          , binary (andV sym))
+  , ("||"          , binary (orV sym))
+  , ("^"           , binary (xorV sym))
+  , ("complement"  , unary  (complementV sym))
+
+    -- Ring
+  , ("fromInteger" , fromIntegerV sym)
   , ("+"           , binary (addV sym))
   , ("-"           , binary (subV sym))
+  , ("negate"      , unary (negateV sym))
   , ("*"           , binary (mulV sym))
+
+    -- Integral
+  , ("toInteger"   , toIntegerV sym)
   , ("/"           , binary (divV sym))
   , ("%"           , binary (modV sym))
+  , ("infFrom"     , infFromV sym)
+  , ("infFromThen" , infFromThenV sym)
+
+    -- Word operations
   , ("/$"          , sdivV sym)
   , ("%$"          , smodV sym)
   , ("lg2"         , lg2V sym)
-  , ("negate"      , unary (negateV sym))
-  , ("infFrom"     , infFromV sym)
-  , ("infFromThen" , infFromThenV sym)
+  , (">>$"         , sshrV w4sym)
 
     -- Cmp
   , ("<"           , binary (lessThanV sym))
@@ -430,22 +444,9 @@ primTable w4sym = let sym = What4 w4sym in
     -- SignedCmp
   , ("<$"          , binary (signedLessThanV sym))
 
-    -- Logic
-  , ("&&"          , binary (andV sym))
-  , ("||"          , binary (orV sym))
-  , ("^"           , binary (xorV sym))
-  , ("complement"  , unary  (complementV sym))
-
-    -- Zero
-  , ("zero"        , VPoly (zeroV sym))
-
     -- Finite enumerations
   , ("fromTo"      , fromToV sym)
   , ("fromThenTo"  , fromThenToV sym)
-
-    -- Conversions to Integer
-  , ("toInteger"   , ecToIntegerV sym)
-  , ("fromZ"       , ecFromZ sym)
 
     -- Sequence manipulations
   , ("#"          , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
@@ -485,7 +486,6 @@ primTable w4sym = let sym = What4 w4sym in
   , (">>"          , logicShift sym ">>"  shiftShrink  (w4bvLshr w4sym) shiftRightReindex)
   , ("<<<"         , logicShift sym "<<<" rotateShrink (w4bvRol w4sym) rotateLeftReindex)
   , (">>>"         , logicShift sym ">>>" rotateShrink (w4bvRor w4sym) rotateRightReindex)
-  , (">>$"         , sshrV w4sym)
 
     -- Indexing and updates
   , ("@"           , indexPrim sym (indexFront_int w4sym) (indexFront_bits w4sym) (indexFront_word w4sym))

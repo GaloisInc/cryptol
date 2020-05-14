@@ -70,40 +70,11 @@ ecNumberV sym =
              , show ty
              ]
 
-{-# SPECIALIZE ecFromIntegerV :: Concrete -> GenValue Concrete
-  #-}
-
--- | Convert an unbounded integer to a value in Arith
-ecFromIntegerV :: Backend sym => sym -> GenValue sym
-ecFromIntegerV sym =
-  tlam $ \ a ->
-  lam  $ \ v ->
-  do i <- fromVInteger <$> v
-     intV sym i a
 
 {-# SPECIALIZE intV :: Concrete -> Integer -> TValue -> Eval (GenValue Concrete)
   #-}
 intV :: Backend sym => sym -> SInteger sym -> TValue -> SEval sym (GenValue sym)
-intV sym i = arithNullary sym (\w -> wordFromInt sym w i) (pure i) (\m -> intToZn sym m i)
-
-{-# SPECIALIZE ecToIntegerV :: Concrete -> GenValue Concrete
-  #-}
--- | Convert a word to a non-negative integer.
-ecToIntegerV :: Backend sym => sym -> GenValue sym
-ecToIntegerV sym =
-  nlam $ \ _ ->
-  wlam sym $ \ w -> VInteger <$> wordToInt sym w
-
-{-# SPECIALIZE ecFromZ :: Concrete -> GenValue Concrete
-  #-}
--- | Convert a value in Z_n into an integer
-ecFromZ :: Backend sym => sym -> GenValue sym
-ecFromZ sym =
-  nlam $ \modulus ->
-  lam  $ \x -> do
-    case modulus of
-      Nat m -> VInteger <$> (znToInt sym m . fromVInteger =<< x)
-      _ -> evalPanic "fromZ" ["Invalid modulus"]
+intV sym i = ringNullary sym (\w -> wordFromInt sym w i) (pure i) (\m -> intToZn sym m i)
 
 -- Operation Lifting -----------------------------------------------------------
 
@@ -128,22 +99,22 @@ unary f = tlam $ \ ty ->
            lam $ \ a  -> f ty =<< a
 
 
-type BinArith sym = Integer -> SWord sym -> SWord sym -> SEval sym (SWord sym)
+type BinWord sym = Integer -> SWord sym -> SWord sym -> SEval sym (SWord sym)
 
-{-# SPECIALIZE arithBinary :: Concrete -> BinArith Concrete ->
+{-# SPECIALIZE ringBinary :: Concrete -> BinWord Concrete ->
       (SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
       (Integer -> SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
       Binary Concrete
   #-}
 
-arithBinary :: forall sym.
+ringBinary :: forall sym.
   Backend sym =>
   sym ->
-  BinArith sym ->
+  BinWord sym ->
   (SInteger sym -> SInteger sym -> SEval sym (SInteger sym)) ->
   (Integer -> SInteger sym -> SInteger sym -> SEval sym (SInteger sym)) ->
   Binary sym
-arithBinary sym opw opi opz = loop
+ringBinary sym opw opi opz = loop
   where
   loop' :: TValue
         -> SEval sym (GenValue sym)
@@ -157,7 +128,7 @@ arithBinary sym opw opi opz = loop
        -> SEval sym (GenValue sym)
   loop ty l r = case ty of
     TVBit ->
-      evalPanic "arithBinary" ["Bit not in class Arith"]
+      evalPanic "ringBinary" ["Bit not in class Ring"]
 
     TVInteger ->
       VInteger <$> opi (fromVInteger l) (fromVInteger r)
@@ -168,18 +139,18 @@ arithBinary sym opw opi opz = loop
     TVSeq w a
       -- words and finite sequences
       | isTBit a -> do
-                  lw <- fromVWord sym "arithLeft" l
-                  rw <- fromVWord sym "arithRight" r
+                  lw <- fromVWord sym "ringLeft" l
+                  rw <- fromVWord sym "ringRight" r
                   return $ VWord w (WordVal <$> opw w lw rw)
       | otherwise -> VSeq w <$> (join (zipSeqMap (loop a) <$>
-                                      (fromSeq "arithBinary left" l) <*>
-                                      (fromSeq "arithBinary right" r)))
+                                      (fromSeq "ringBinary left" l) <*>
+                                      (fromSeq "ringBinary right" r)))
 
     TVStream a ->
       -- streams
       VStream <$> (join (zipSeqMap (loop a) <$>
-                             (fromSeq "arithBinary left" l) <*>
-                             (fromSeq "arithBinary right" r)))
+                             (fromSeq "ringBinary left" l) <*>
+                             (fromSeq "ringBinary right" r)))
 
     -- functions
     TVFun _ ety ->
@@ -200,26 +171,26 @@ arithBinary sym opw opi opz = loop
          return $ VRecord (Map.fromList fs')
 
     TVAbstract {} ->
-      evalPanic "arithBinary" ["Abstract type not in `Arith`"]
+      evalPanic "ringBinary" ["Abstract type not in `Ring`"]
 
-type UnaryArith sym = Integer -> SWord sym -> SEval sym (SWord sym)
+type UnaryWord sym = Integer -> SWord sym -> SEval sym (SWord sym)
 
 
-{-# SPECIALIZE arithUnary ::
+{-# SPECIALIZE ringUnary ::
   Concrete ->
-  UnaryArith Concrete ->
+  UnaryWord Concrete ->
   (SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
   (Integer -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
   Unary Concrete
   #-}
-arithUnary :: forall sym.
+ringUnary :: forall sym.
   Backend sym =>
   sym ->
-  UnaryArith sym ->
+  UnaryWord sym ->
   (SInteger sym -> SEval sym (SInteger sym)) ->
   (Integer -> SInteger sym -> SEval sym (SInteger sym)) ->
   Unary sym
-arithUnary sym opw opi opz = loop
+ringUnary sym opw opi opz = loop
   where
   loop' :: TValue -> SEval sym (GenValue sym) -> SEval sym (GenValue sym)
   loop' ty v = loop ty =<< v
@@ -228,7 +199,7 @@ arithUnary sym opw opi opz = loop
   loop ty v = case ty of
 
     TVBit ->
-      evalPanic "arithUnary" ["Bit not in class Arith"]
+      evalPanic "ringUnary" ["Bit not in class Ring"]
 
     TVInteger ->
       VInteger <$> opi (fromVInteger v)
@@ -239,12 +210,12 @@ arithUnary sym opw opi opz = loop
     TVSeq w a
       -- words and finite sequences
       | isTBit a -> do
-              wx <- fromVWord sym "arithUnary" v
+              wx <- fromVWord sym "ringUnary" v
               return $ VWord w (WordVal <$> opw w wx)
-      | otherwise -> VSeq w <$> (mapSeqMap (loop a) =<< fromSeq "arithUnary" v)
+      | otherwise -> VSeq w <$> (mapSeqMap (loop a) =<< fromSeq "ringUnary" v)
 
     TVStream a ->
-      VStream <$> (mapSeqMap (loop a) =<< fromSeq "arithUnary" v)
+      VStream <$> (mapSeqMap (loop a) =<< fromSeq "ringUnary" v)
 
     -- functions
     TVFun _ ety ->
@@ -263,9 +234,9 @@ arithUnary sym opw opi opz = loop
                  ]
          return $ VRecord (Map.fromList fs')
 
-    TVAbstract {} -> evalPanic "arithUnary" ["Abstract type not in `Arith`"]
+    TVAbstract {} -> evalPanic "ringUnary" ["Abstract type not in `Ring`"]
 
-{-# SPECIALIZE arithNullary ::
+{-# SPECIALIZE ringNullary ::
   Concrete ->
   (Integer -> SEval Concrete (SWord Concrete)) ->
   SEval Concrete (SInteger Concrete) ->
@@ -274,7 +245,7 @@ arithUnary sym opw opi opz = loop
   SEval Concrete (GenValue Concrete)
   #-}
 
-arithNullary :: forall sym.
+ringNullary :: forall sym.
   Backend sym =>
   sym ->
   (Integer -> SEval sym (SWord sym)) ->
@@ -282,12 +253,12 @@ arithNullary :: forall sym.
   (Integer -> SEval sym (SInteger sym)) ->
   TValue ->
   SEval sym (GenValue sym)
-arithNullary sym opw opi opz = loop
+ringNullary sym opw opi opz = loop
   where
     loop :: TValue -> SEval sym (GenValue sym)
     loop ty =
       case ty of
-        TVBit -> evalPanic "arithNullary" ["Bit not in class Arith"]
+        TVBit -> evalPanic "ringNullary" ["Bit not in class Ring"]
 
         TVInteger -> VInteger <$> opi
 
@@ -320,12 +291,54 @@ arithNullary sym opw opi opz = loop
                 pure $ VRecord $ Map.fromList xs
 
         TVAbstract {} ->
-          evalPanic "arithNullary" ["Abstract type not in `Arith`"]
+          evalPanic "ringNullary" ["Abstract type not in `Ring`"]
 
+{-# SPECIALIZE integralBinary :: Concrete -> BinWord Concrete ->
+      (SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
+      (Integer -> SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
+      Binary Concrete
+  #-}
+
+integralBinary :: forall sym.
+  Backend sym =>
+  sym ->
+  BinWord sym ->
+  (SInteger sym -> SInteger sym -> SEval sym (SInteger sym)) ->
+  (Integer -> SInteger sym -> SInteger sym -> SEval sym (SInteger sym)) ->
+  Binary sym
+integralBinary sym opw opi opz ty l r = case ty of
+    TVInteger ->
+      VInteger <$> opi (fromVInteger l) (fromVInteger r)
+
+    TVIntMod n ->
+      VInteger <$> opz n (fromVInteger l) (fromVInteger r)
+
+    -- bitvectors
+    TVSeq w a
+      | isTBit a ->
+          do wl <- fromVWord sym "integralBinary left" l
+             wr <- fromVWord sym "integralBinary right" r
+             return $ VWord w (WordVal <$> opw w wl wr)
+
+    _ -> evalPanic "integralBinary" [show ty ++ " not int class `Integral`"]
+
+
+---------------------------------------------------------------------------
+-- Ring
+
+{-# SPECIALIZE fromIntegerV :: Concrete -> GenValue Concrete
+  #-}
+-- | Convert an unbounded integer to a value in Ring
+fromIntegerV :: Backend sym => sym -> GenValue sym
+fromIntegerV sym =
+  tlam $ \ a ->
+  lam  $ \ v ->
+  do i <- fromVInteger <$> v
+     intV sym i a
 
 {-# INLINE addV #-}
 addV :: Backend sym => sym -> Binary sym
-addV sym = arithBinary sym opw opi opz
+addV sym = ringBinary sym opw opi opz
   where
     opw _w x y = wordPlus sym x y
     opi x y = intPlus sym x y
@@ -333,23 +346,34 @@ addV sym = arithBinary sym opw opi opz
 
 {-# INLINE subV #-}
 subV :: Backend sym => sym -> Binary sym
-subV sym = arithBinary sym opw opi opz
+subV sym = ringBinary sym opw opi opz
   where
     opw _w x y = wordMinus sym x y
     opi x y = intMinus sym x y
     opz m x y = znMinus sym m x y
 
+{-# INLINE negateV #-}
+negateV :: Backend sym => sym -> Unary sym
+negateV sym = ringUnary sym opw opi opz
+  where
+    opw _w x = wordNegate sym x
+    opi x = intNegate sym x
+    opz m x = znNegate sym m x
+
 {-# INLINE mulV #-}
 mulV :: Backend sym => sym -> Binary sym
-mulV sym = arithBinary sym opw opi opz
+mulV sym = ringBinary sym opw opi opz
   where
     opw _w x y = wordMult sym x y
     opi x y = intMult sym x y
     opz m x y = znMult sym m x y
 
+--------------------------------------------------
+-- Integral
+
 {-# INLINE divV #-}
 divV :: Backend sym => sym -> Binary sym
-divV sym = arithBinary sym opw opi opz
+divV sym = integralBinary sym opw opi opz
   where
     opw _w x y = wordDiv sym x y
     opi x y = intDiv sym x y
@@ -357,21 +381,29 @@ divV sym = arithBinary sym opw opi opz
 
 {-# INLINE modV #-}
 modV :: Backend sym => sym -> Binary sym
-modV sym = arithBinary sym opw opi opz
+modV sym = integralBinary sym opw opi opz
   where
     opw _w x y = wordMod sym x y
     opi x y = intMod sym x y
     opz m x y = znMod sym m x y
 
+{-# SPECIALIZE toIntegerV :: Concrete -> GenValue Concrete
+  #-}
+-- | Convert a word to a non-negative integer.
+toIntegerV :: Backend sym => sym -> GenValue sym
+toIntegerV sym =
+  tlam $ \a ->
+  lam $ \v ->
+    case a of
+      TVSeq _w el | isTBit el ->
+        VInteger <$> (wordToInt sym =<< (fromVWord sym "toInteger" =<< v))
+      TVIntMod m ->
+        VInteger <$> (znToInt sym m . fromVInteger =<< v)
+      TVInteger -> v
+      _ -> evalPanic "toInteger" [show a ++ " not in class `Integral`"]
 
-{-# INLINE negateV #-}
-negateV :: Backend sym => sym -> Unary sym
-negateV sym = arithUnary sym opw opi opz
-  where
-    opw _w x = wordNegate sym x
-    opi x = intNegate sym x
-    opz m x = znNegate sym m x
-
+--------------------------------------------------------------
+-- Logic
 
 {-# INLINE andV #-}
 andV :: Backend sym => sym -> Binary sym
@@ -390,7 +422,6 @@ complementV :: Backend sym => sym -> Unary sym
 complementV sym = logicUnary sym (bitComplement sym) (wordComplement sym)
 
 -- Bitvector signed div and modulus
-
 
 {-# INLINE lg2V #-}
 lg2V :: Backend sym => sym -> GenValue sym
@@ -414,7 +445,6 @@ smodV sym  =
   wlam sym $ \x -> return $
   wlam sym $ \y -> return $
   VWord w (WordVal <$> wordSignedMod sym x y)
-
 
 -- Cmp -------------------------------------------------------------------------
 
@@ -562,24 +592,7 @@ signedLessThanV sym ty v1 v2 = VBit <$> cmpValue sym fb fw fi fz ty v1 v2 (pure 
   fi _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on Integer type"]
   fz m _ _ _ = panic "signedLessThan" ["Attempted to perform signed comparison on Z_" ++ show m ++ " type"]
 
--- Signed arithmetic -----------------------------------------------------------
 
-{-# INLINE liftWord #-}
-
--- | Lifted operation on finite bitsequences.  Used
---   for signed comparisons and arithemtic.
-liftWord ::
-  Backend sym =>
-  sym ->
-  (SWord sym -> SWord sym -> SEval sym (GenValue sym)) ->
-  GenValue sym
-liftWord sym op =
-  nlam $ \_n ->
-  wlam sym $ \w1 -> return $
-  wlam sym $ \w2 -> op w1 w2
-
-
--- Logic -----------------------------------------------------------------------
 
 {-# SPECIALIZE zeroV ::
   Concrete ->
@@ -1276,7 +1289,6 @@ fromThenToV sym =
       _ -> evalPanic "fromThenToV" ["invalid arguments"]
 
 {-# INLINE infFromV #-}
-
 infFromV :: Backend sym => sym -> GenValue sym
 infFromV sym =
   tlam $ \ ty ->
@@ -1288,7 +1300,6 @@ infFromV sym =
           addV sym ty x' =<< intV sym i' ty
 
 {-# INLINE infFromThenV #-}
-
 infFromThenV :: Backend sym => sym -> GenValue sym
 infFromThenV sym =
   tlam $ \ ty ->
