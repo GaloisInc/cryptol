@@ -148,14 +148,19 @@ solveIntegralInst ty = case tNoUser ty of
   TCon (TC TCBit) [] ->
     Unsolvable $ TCErrorMessage "Arithmetic cannot be done on individual bits."
 
-  -- fin n => Integral [n]
-  TCon (TC TCSeq) [n, TCon (TC TCBit) []] -> SolvedIf [ pFin n ]
-
   -- Integral Integer
   TCon (TC TCInteger) [] -> SolvedIf []
 
   -- Integral (Z n)
   TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
+
+  -- fin n => Integral [n]
+  TCon (TC TCSeq) [n, elTy] ->
+    case tNoUser elTy of
+      TCon (TC TCBit) [] -> SolvedIf [ pFin n ]
+      TVar _ -> Unsolved
+      _ -> Unsolvable $ TCErrorMessage $ show
+          $ "Type" <+> quotes (pp ty) <+> "is not an intergral type."
 
   TVar _ -> Unsolved
 
