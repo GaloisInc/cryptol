@@ -86,11 +86,11 @@ primitive type Field : * -> Prop
 /** Value types that can be rounded to integer values. */
 primitive type Round : * -> Prop
 
-/** Value types that support signed comparisons. */
-primitive type SignedCmp : * -> Prop
-
 /** Value types that support equality and ordering comparisons. */
 primitive type Cmp : * -> Prop
+
+/** Value types that support signed comparisons. */
+primitive type SignedCmp : * -> Prop
 
 /** 'Literal n a' asserts that type 'a' contains the number 'n'. */
 primitive type Literal : # -> * -> Prop
