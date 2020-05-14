@@ -22,7 +22,7 @@ module Cryptol.Eval.Generic where
 
 import Control.Monad (join, unless)
 
-import Data.Bits (testBit,shiftR)
+import Data.Bits (testBit)
 import Data.Maybe (fromMaybe)
 
 import Cryptol.TypeCheck.AST
@@ -37,11 +37,12 @@ import Cryptol.Utils.Panic (panic)
 import qualified Data.Map.Strict as Map
 
 
--- | Make a numeric literal value at the given type.
+
 
 {-# SPECIALIZE mkLit :: Concrete -> TValue -> Integer -> Eval (GenValue Concrete)
   #-}
 
+-- | Make a numeric literal value at the given type.
 mkLit :: Backend sym => sym -> TValue -> Integer -> SEval sym (GenValue sym)
 mkLit sym ty i =
   case ty of
@@ -1193,7 +1194,6 @@ assertIndexInBounds sym (Nat n) (Right (LargeBitsVal w bits)) =
 -- | Indexing operations.
 
 {-# INLINE indexPrim #-}
-
 indexPrim ::
   Backend sym =>
   sym ->
@@ -1378,14 +1378,9 @@ enumerateIntBits' :: Backend sym =>
   Integer ->
   SInteger sym ->
   SEval sym [SBit sym]
-enumerateIntBits' sym n idx = loop (widthInteger n)
-  where
-  loop 0 = pure []
-  loop w =
-    do x <- intDiv sym idx =<< integerLit sym w
-       y <- intMod sym x =<< integerLit sym 2
-       z <- intEq sym y =<< integerLit sym 1
-       (z:) <$> loop (w `shiftR` 1)
+enumerateIntBits' sym n idx =
+  do w <- wordFromInt sym (widthInteger n) idx
+     unpackWord sym w
 
 -- | Generic implementation of shifting.
 --   Uses the provided word-level operation to perform the shift, when
