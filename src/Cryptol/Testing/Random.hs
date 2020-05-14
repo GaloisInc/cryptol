@@ -348,6 +348,7 @@ typeSize ty =
                               TCon (TC (TCNum n)) _ -> Just n
                               _                     -> Nothing
         (TCIntMod, _)    -> Nothing
+        (TCArray, _)    -> Nothing
         (TCSeq, [sz,el]) -> case tNoUser sz of
                               TCon (TC (TCNum n)) _ -> (^ n) <$> typeSize el
                               _                     -> Nothing
@@ -381,6 +382,7 @@ typeValues ty =
             [ TCon (TC (TCNum n)) _ ] | 0 < n ->
               [ VInteger x | x <- [ 0 .. n - 1 ] ]
             _ -> []
+        TCArray     -> []
         TCSeq       ->
           case map tNoUser ts of
             [ TCon (TC (TCNum n)) _, TCon (TC TCBit) [] ] ->

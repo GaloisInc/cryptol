@@ -53,6 +53,7 @@ builtInType nm =
     , "Bit"               ~> TC TCBit
     , "Integer"           ~> TC TCInteger
     , "Z"                 ~> TC TCIntMod
+    , "Array"             ~> TC TCArray
 
       -- Predicate contstructors
     , "=="                ~> PC PEqual
@@ -115,6 +116,7 @@ instance HasKind TC where
       TCBit     -> KType
       TCInteger -> KType
       TCIntMod  -> KNum :-> KType
+      TCArray   -> KType :-> KType :-> KType
       TCSeq     -> KNum :-> KType :-> KType
       TCFun     -> KType :-> KType :-> KType
       TCTuple n -> foldr (:->) KType (replicate n KType)
@@ -190,6 +192,7 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCBit                    -- ^ Bit
             | TCInteger                -- ^ Integer
             | TCIntMod                 -- ^ @Z _@
+            | TCArray                  -- ^ @Array _ _@
             | TCSeq                    -- ^ @[_] _@
             | TCFun                    -- ^ @_ -> _@
             | TCTuple Int              -- ^ @(_, _, _)@
@@ -286,6 +289,7 @@ instance PP TC where
       TCBit     -> text "Bit"
       TCInteger -> text "Integer"
       TCIntMod  -> text "Z"
+      TCArray   -> text "Array"
       TCSeq     -> text "[]"
       TCFun     -> text "(->)"
       TCTuple 0 -> text "()"

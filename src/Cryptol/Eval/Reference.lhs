@@ -66,6 +66,7 @@ are as follows:
 |:----------------- |:-------------- |:--------------------------- |
 | `Bit`             | booleans       | `TVBit`                     |
 | `Integer`         | integers       | `TVInteger`                 |
+| `Array`           | arrays         | `TVArray`                   |
 | `[n]a`            | finite lists   | `TVSeq n a`                 |
 | `[inf]a`          | infinite lists | `TVStream a`                |
 | `(a, b, c)`       | tuples         | `TVTuple [a,b,c]`           |
@@ -171,6 +172,7 @@ cpo that represents any given schema.
 >         TVBit        -> VBit (fromVBit val)
 >         TVInteger    -> VInteger (fromVInteger val)
 >         TVIntMod _   -> VInteger (fromVInteger val)
+>         TVArray{} -> val
 >         TVSeq w ety  -> VList (Nat w) (map (go ety) (copyList w (fromVList val)))
 >         TVStream ety -> VList Inf (map (go ety) (copyStream (fromVList val)))
 >         TVTuple etys -> VTuple (zipWith go etys (copyList (genericLength etys) (fromVTuple val)))
@@ -751,6 +753,7 @@ at the same positions.
 >     go TVBit          = VBit b
 >     go TVInteger      = VInteger (fmap (\c -> if c then -1 else 0) b)
 >     go (TVIntMod _)   = VInteger (fmap (const 0) b)
+>     go (TVArray{})    = evalPanic "logicNullary" ["Array not in class Logic"]
 >     go (TVSeq n ety)  = VList (Nat n) (genericReplicate n (go ety))
 >     go (TVStream ety) = VList Inf (repeat (go ety))
 >     go (TVTuple tys)  = VTuple (map go tys)
@@ -768,6 +771,7 @@ at the same positions.
 >         TVBit        -> VBit (fmap op (fromVBit val))
 >         TVInteger    -> evalPanic "logicUnary" ["Integer not in class Logic"]
 >         TVIntMod _   -> evalPanic "logicUnary" ["Z not in class Logic"]
+>         TVArray{}    -> evalPanic "logicUnary" ["Array not in class Logic"]
 >         TVSeq w ety  -> VList (Nat w) (map (go ety) (fromVList val))
 >         TVStream ety -> VList Inf (map (go ety) (fromVList val))
 >         TVTuple etys -> VTuple (zipWith go etys (fromVTuple val))
@@ -785,6 +789,7 @@ at the same positions.
 >         TVBit        -> VBit (liftA2 op (fromVBit l) (fromVBit r))
 >         TVInteger    -> evalPanic "logicBinary" ["Integer not in class Logic"]
 >         TVIntMod _   -> evalPanic "logicBinary" ["Z not in class Logic"]
+>         TVArray{}    -> evalPanic "logicBinary" ["Array not in class Logic"]
 >         TVSeq w ety  -> VList (Nat w) (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVStream ety -> VList Inf (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVTuple etys -> VTuple (zipWith3 go etys (fromVTuple l) (fromVTuple r))
@@ -819,6 +824,8 @@ up of non-empty finite bitvectors.
 >           VInteger i
 >         TVIntMod n ->
 >           VInteger (flip mod n <$> i)
+>         TVArray{} ->
+>           evalPanic "arithNullary" ["Array not in class Arith"]
 >         TVSeq w a
 >           | isTBit a  -> vWord w i
 >           | otherwise -> VList (Nat w) (genericReplicate w (go a))
@@ -852,6 +859,8 @@ up of non-empty finite bitvectors.
 >           case fromVInteger val of
 >             Left e -> Left e
 >             Right i -> flip mod n <$> op i
+>         TVArray{} ->
+>           evalPanic "arithUnary" ["Array not in class Arith"]
 >         TVSeq w a
 >           | isTBit a  -> vWord w (op =<< fromVWord val)
 >           | otherwise -> VList (Nat w) (map (go a) (fromVList val))
@@ -900,6 +909,8 @@ up of non-empty finite bitvectors.
 >               case fromVInteger r of
 >                 Left e -> Left e
 >                 Right j -> flip mod n <$> op i j
+>         TVArray{} ->
+>           evalPanic "arithBinary" ["Array not in class Arith"]
 >         TVSeq w a
 >           | isTBit a  -> vWord w $
 >                          case fromWord l of
@@ -968,6 +979,8 @@ bits to the *left* of that position are equal.
 >       compare <$> fromVInteger l <*> fromVInteger r
 >     TVIntMod _ ->
 >       compare <$> fromVInteger l <*> fromVInteger r
+>     TVArray{} ->
+>       evalPanic "lexCompare" ["invalid type"]
 >     TVSeq _w ety ->
 >       lexList (zipWith (lexCompare ety) (fromVList l) (fromVList r))
 >     TVStream _ ->
@@ -1010,6 +1023,8 @@ fields are compared in alphabetical order.
 >     TVInteger ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVIntMod _ ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVArray{} ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVSeq _w ety
 >       | isTBit ety ->
