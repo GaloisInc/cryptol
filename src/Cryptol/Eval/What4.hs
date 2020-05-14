@@ -230,7 +230,6 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
   wordMinus (What4 sym) x y = liftIO (SW.bvSub sym x y)
   wordMult  (What4 sym) x y = liftIO (SW.bvMul sym x y)
   wordNegate (What4 sym) x  = liftIO (SW.bvNeg sym x)
-  wordExp (What4 sym) x y   = sExp sym x y
   wordLg2 (What4 sym) x     = sLg2 sym x
 
   wordDiv (What4 sym) x y =
@@ -297,10 +296,6 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
   intEq (What4 sym) x y = liftIO $ W4.intEq sym x y
   intLessThan (What4 sym) x y = liftIO $ W4.intLt sym x y
   intGreaterThan (What4 sym) x y = liftIO $ W4.intLt sym y x
-
-  intExp (What4 sym) x y
-    | Just i <- W4.asInteger y = intExpConcrete sym x i
-    | otherwise = liftIO (X.throw (UnsupportedSymbolicOp "integer exponentation"))
 
   intLg2 (What4 sym) x
     | Just i <- W4.asInteger x = liftIO $ W4.intLit sym (lg2 i)
@@ -373,34 +368,6 @@ sModNegate sym m x
   = W4.intNeg sym x
 
 
--- | Square-and-multiply according to the concrete integer
-intExpConcrete :: W4.IsExprBuilder sym =>
-  sym -> W4.SymInteger sym -> Integer -> SEval (What4 sym) (W4.SymInteger sym)
-intExpConcrete sym x = liftIO . go
-  where
-  go 0 = W4.intLit sym 1
-  go i =
-    do a  <- go (i `shiftR` 1)
-       a2 <- W4.intMul sym a a
-       if testBit i 0 then
-         W4.intMul sym x a2
-       else
-         return a2
-
--- | Bit-blast the exponent and square-and-multiply
-sExp :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> SEval (What4 sym) (SW.SWord sym)
-sExp sym x y = liftIO . go =<< (reverse <$> unpackWord (What4 sym) y) -- bits in little-endian order
-  where
-
-  go []
-    -- Base case, return 1
-    = SW.bvLit sym (SW.bvWidth x) 1
-
-  go (b:bs)
-    = do a <- go bs
-         a2 <- SW.bvMul sym a a
-         lazyIte (SW.bvIte sym) b (SW.bvMul sym x a2) (pure a2)
-
 -- | Try successive powers of 2 to find the first that dominates the input.
 --   We could perhaps reduce to using CLZ instead...
 sLg2 :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SEval (What4 sym) (SW.SWord sym)
@@ -447,7 +414,6 @@ primTable w4sym = let sym = What4 w4sym in
   , ("%"           , binary (modV sym)) -- {a} (Arith a) => a -> a -> a
   , ("/$"          , binary (sdivV sym))
   , ("%$"          , binary (smodV sym))
-  , ("^^"          , binary (expV sym))
   , ("lg2"         , unary (lg2V sym))
   , ("negate"      , unary (negateV sym))
   , ("infFrom"     , infFromV sym)

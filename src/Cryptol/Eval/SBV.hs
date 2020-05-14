@@ -270,7 +270,6 @@ instance Backend SBV where
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
        pure $! signedRem a b
 
-  wordExp _ a b = sExp a b
   wordLg2 _ a = sLg2 a
 
   wordToInt _ x = pure $! svToInteger x
@@ -296,13 +295,6 @@ instance Backend SBV where
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
        let p = svLessThan z b
        pure $! svSymbolicMerge KUnbounded True p (svRem a b) (svUNeg (svRem (svUNeg a) (svUNeg b)))
-
-  intExp sym a b
-    | Just e <- svAsInteger b =
-       do unless (0 <= e) (raiseError sym NegativeExponent)
-          pure $! SBV.svExp a b
-    | otherwise =
-       raiseError sym (UnsupportedSymbolicOp "integer exponentation")
 
   -- NB, we don't do reduction here
   intToZn _ _m a = pure a
@@ -363,7 +355,6 @@ primTable  = let sym = SBV in
   , ("%"           , binary (modV sym)) -- {a} (Arith a) => a -> a -> a
   , ("/$"          , sdivV sym)
   , ("%$"          , smodV sym)
-  , ("^^"          , binary (expV sym))
   , ("lg2"         , unary (lg2V sym))
   , ("negate"      , unary (negateV sym))
   , ("infFrom"     , infFromV sym)
@@ -696,16 +687,6 @@ asWordList = go id
        go f (WordVal x :vs) = go (f . (x:)) vs
        go _f (LargeBitsVal _ _ : _) = Nothing
 
-
-sExp :: SWord SBV -> SWord SBV -> SEval SBV (SWord SBV)
-sExp x y =
-   do ys <- reverse <$> unpackWord SBV y -- bits in little-endian order
-      pure $ go ys
-
-  where go []       = literalSWord (SBV.intSizeOf x) 1
-        go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
-            where a = go bs
-                  s = SBV.svTimes a a
 
 sModAdd :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SInteger SBV)
 sModAdd 0 _ _ = evalPanic "sModAdd" ["0 modulus not allowed"]

@@ -260,12 +260,14 @@ primitive trunc : {a} (Round a) => a -> Integer
  */
 primitive round : {a} (Round a) => a -> Integer
 
-
 /**
  * Compute the exponentiation of a value in a ring.
  * The exponent is treated as an unsigned bitvector value.
  */
-primitive (^^) : {a, n} (Ring a, fin n) => a -> [n] -> a
+(^^) : {a, n} (Ring a, fin n) => a -> [n] -> a
+a ^^ e = foldl squareAndMult (fromInteger 1) e
+ where
+ squareAndMult x b = if b then a*x*x else x*x
 
 /**
  * Log base two.

@@ -311,13 +311,6 @@ class MonadIO (SEval sym) => Backend sym where
     SWord sym ->
     SEval sym (SWord sym)
 
-  -- | Exponentiation of bitvectors.
-  wordExp ::
-    sym ->
-    SWord sym ->
-    SWord sym ->
-    SEval sym (SWord sym)
-
   -- | 2's complement negation of bitvectors
   wordNegate ::
     sym ->
@@ -406,13 +399,6 @@ class MonadIO (SEval sym) => Backend sym where
   --   call with a second argument concretely equal to 0.
   --   Same semantics as Haskell's @mod@ operation.
   intMod ::
-    sym ->
-    SInteger sym ->
-    SInteger sym ->
-    SEval sym (SInteger sym)
-
-  -- | Integer exponentiation.  The second argument must be non-negative.
-  intExp ::
     sym ->
     SInteger sym ->
     SInteger sym ->
@@ -532,18 +518,6 @@ class MonadIO (SEval sym) => Backend sym where
     do x' <- znToInt sym m x
        y' <- znToInt sym m y
        intToZn sym m =<< intMod sym x' y'
-
-  -- | Exponentation of integers modulo n
-  znExp ::
-    sym ->
-    Integer {- ^ modulus -} ->
-    SInteger sym ->
-    SInteger sym ->
-    SEval sym (SInteger sym)
-  znExp sym m x y =
-    do x' <- znToInt sym m x
-       y' <- znToInt sym m y
-       intToZn sym m =<< intExp sym x' y'
 
   -- | Log base 2 of integers modulo n.
   znLg2 ::

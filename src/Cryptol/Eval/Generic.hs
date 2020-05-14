@@ -362,14 +362,6 @@ modV sym = arithBinary sym opw opi opz
     opi x y = intMod sym x y
     opz m x y = znMod sym m x y
 
-{-# INLINE expV #-}
-expV :: Backend sym => sym -> Binary sym
-expV sym = arithBinary sym opw opi opz
-  where
-    opw _w x y = wordExp sym x y
-    opi x y = intExp sym x y
-    opz m x y = znExp sym m x y
-
 
 {-# INLINE negateV #-}
 negateV :: Backend sym => sym -> Unary sym

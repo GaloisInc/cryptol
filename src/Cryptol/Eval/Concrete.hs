@@ -130,8 +130,6 @@ primTable = let sym = Concrete in
                     sdivV sym)
   , ("%$"         , {-# SCC "Prelude::(%$)" #-}
                     smodV sym)
-  , ("^^"         , {-# SCC "Prelude::(^^)" #-}
-                    binary (expV sym))
   , ("lg2"        , {-# SCC "Prelude::lg2" #-}
                     unary (lg2V sym))
   , ("negate"     , {-# SCC "Prelude::negate" #-}
