@@ -276,14 +276,15 @@ primTable = let sym = Concrete in
 sshrV :: Value
 sshrV =
   nlam $ \_n ->
-  nlam $ \_k ->
+  tlam $ \ix ->
   wlam Concrete $ \(BV i x) -> return $
-  wlam Concrete $ \y ->
-   let signx = testBit x (fromInteger (i-1))
-       amt   = fromInteger (bvVal y)
-       x'    = if signx then x - bit (fromInteger i) else x
-    in return . VWord i . ready . WordVal . mkBv i $! x' `shiftR` amt
-
+  lam $ \y ->
+   do idx <- y >>= asIndex Concrete ">>$" ix >>= \case
+                 Left idx -> pure idx
+                 Right wv -> bvVal <$> asWordVal Concrete wv
+      let amt   = fromInteger (min i idx)
+      let x'    = signedValue i x
+      return . VWord i . pure . WordVal . mkBv i $! x' `shiftR` amt
 
 logicShift :: (Integer -> Integer -> Integer -> Integer)
               -- ^ The function may assume its arguments are masked.

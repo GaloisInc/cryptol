@@ -830,11 +830,19 @@ updateBackSym_word sym (Nat n) eltTy bv wv val =
 
 sshrV :: W4.IsExprBuilder sym => sym -> Value sym
 sshrV sym =
-  nlam $ \_n ->
-  nlam $ \_k ->
+  nlam $ \(Nat n) ->
+  tlam $ \ix ->
   wlam (What4 sym) $ \x -> return $
-  wlam (What4 sym) $ \y ->
-    return (VWord (SW.bvWidth x) (WordVal <$> w4bvAshr sym x y))
+  lam $ \y ->
+    y >>= asIndex (What4 sym) ">>$" ix >>= \case
+       Left i ->
+         do i' <- shiftShrink (What4 sym) (Nat n) ix i
+            amt <- wordFromInt (What4 sym) n i'
+            return (VWord (SW.bvWidth x) (WordVal <$> w4bvAshr sym x amt))
+       Right wv ->
+         do amt <- asWordVal (What4 sym) wv
+            return (VWord (SW.bvWidth x) (WordVal <$> w4bvAshr sym x amt))
+
 
 w4bvShl  :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
 w4bvShl sym x y = liftIO $ SW.bvShl sym x y

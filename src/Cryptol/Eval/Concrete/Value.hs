@@ -80,7 +80,7 @@ signedBV :: BV -> Integer
 signedBV (BV i x) = signedValue i x
 
 signedValue :: Integer -> Integer -> Integer
-signedValue i x = if testBit x (fromInteger (i-1)) then x - (1 `shiftL` (fromInteger i)) else x
+signedValue i x = if testBit x (fromInteger (i-1)) then x - (bit (fromInteger i)) else x
 
 integerToChar :: Integer -> Char
 integerToChar = toEnum . fromInteger

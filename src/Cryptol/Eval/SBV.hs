@@ -742,17 +742,19 @@ signedQuot x y = SBV.svUnsign (SBV.svQuot (SBV.svSign x) (SBV.svSign y))
 signedRem :: SWord SBV -> SWord SBV -> SWord SBV
 signedRem x y = SBV.svUnsign (SBV.svRem (SBV.svSign x) (SBV.svSign y))
 
-
 sshrV :: Value
 sshrV =
-  nlam $ \_n ->
-  nlam $ \_k ->
+  nlam $ \n ->
+  tlam $ \ix ->
   wlam SBV $ \x -> return $
-  wlam SBV $ \y ->
-   case SBV.svAsInteger y of
-     Just i ->
-       let z = SBV.svUnsign (SBV.svShr (SBV.svSign x) (fromInteger i))
-        in return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z
-     Nothing ->
-       let z = SBV.svUnsign (SBV.svShiftRight (SBV.svSign x) y)
-        in return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z
+  lam $ \y ->
+   do idx <- y >>= asIndex SBV ">>$" ix >>= \case
+               Left i -> shiftShrink SBV n ix i
+               Right wv -> asWordVal SBV wv
+      case SBV.svAsInteger idx of
+        Just i ->
+          let z = SBV.svUnsign (SBV.svShr (SBV.svSign x) (fromInteger i))
+           in return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z
+        Nothing ->
+          let z = SBV.svUnsign (SBV.svShiftRight (SBV.svSign x) idx)
+           in return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z
