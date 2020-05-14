@@ -355,7 +355,7 @@ primTable  = let sym = SBV in
   , ("%"           , binary (modV sym)) -- {a} (Arith a) => a -> a -> a
   , ("/$"          , sdivV sym)
   , ("%$"          , smodV sym)
-  , ("lg2"         , unary (lg2V sym))
+  , ("lg2"         , lg2V sym)
   , ("negate"      , unary (negateV sym))
   , ("infFrom"     , infFromV sym)
   , ("infFromThen" , infFromThenV sym)

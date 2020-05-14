@@ -371,13 +371,6 @@ negateV sym = arithUnary sym opw opi opz
     opi x = intNegate sym x
     opz m x = znNegate sym m x
 
-{-# INLINE lg2V #-}
-lg2V :: Backend sym => sym -> Unary sym
-lg2V sym = arithUnary sym opw opi opz
-  where
-    opw _w x = wordLg2 sym x
-    opi x = intLg2 sym x
-    opz m x = znLg2 sym m x
 
 {-# INLINE andV #-}
 andV :: Backend sym => sym -> Binary sym
@@ -396,6 +389,14 @@ complementV :: Backend sym => sym -> Unary sym
 complementV sym = logicUnary sym (bitComplement sym) (wordComplement sym)
 
 -- Bitvector signed div and modulus
+
+
+{-# INLINE lg2V #-}
+lg2V :: Backend sym => sym -> GenValue sym
+lg2V sym =
+  nlam $ \(finNat' -> w) ->
+  wlam sym $ \x -> return $
+  VWord w (WordVal <$> wordLg2 sym x)
 
 {-# SPECIALIZE sdivV :: Concrete -> GenValue Concrete #-}
 sdivV :: Backend sym => sym -> GenValue sym
