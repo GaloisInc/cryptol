@@ -1,0 +1,60 @@
+name: Cryptol Nightly Builds
+on:
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  outputs:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.get-changed.outputs.changed-files }}
+      cryptol-version: ${{ steps.cryptol-version.outputs.cryptol-version }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - id: get-changed
+        run: |
+          changed_since="$(git log --since '23 hours 59 minutes')"
+          files="${changed_since:+"$(git diff-tree --no-commit-id --name-only -r '${{ github.sha }}' | xargs)"}"
+          echo "::set-output name=changed-files::$files"
+      - id: cryptol-version
+        run: echo "::set-output name=cryptol-version::$(grep Version cryptol.cabal | awk '{print $2}')"
+
+  build:
+    needs: [outputs]
+    if: ${{ needs.outputs.outputs.changed }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - uses: actions/setup-haskell@v1.1
+        with:
+          ghc-version: "8.8"
+
+      - shell: bash
+        run: cabal v2-build exe:cryptol exe:cryptol-html
+
+      - shell: bash
+        run: .github/ci.sh setup_dist_bins
+
+      - if: runner.os == 'Windows'
+        env:
+          VERSION: ${{ needs.outputs.outputs.cryptol-version }}
+        run: .github/wix.ps1
+
+      - uses: actions/upload-artifact@v2
+        with:
+          path: dist
+          name: ${{ runner.os }}-bins
+
+      - uses: actions/upload-artifact@v2
+        if: runner.os == 'Windows'
+        with:
+          path: cryptol.msi
+          name: cryptol.msi
