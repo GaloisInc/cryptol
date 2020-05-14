@@ -594,10 +594,17 @@ updateFrontSym ::
   Nat' ->
   TValue ->
   SeqMap SBV ->
-  WordValue SBV ->
+  Either (SInteger SBV) (WordValue SBV) ->
   SEval SBV (GenValue SBV) ->
   SEval SBV (SeqMap SBV)
-updateFrontSym _len _eltTy vs wv val =
+updateFrontSym _len _eltTy vs (Left idx) val =
+  case SBV.svAsInteger idx of
+    Just i -> return $ updateSeqMap vs i val
+    Nothing -> return $ IndexSeqMap $ \i ->
+      do b <- intEq SBV idx =<< integerLit SBV i
+         iteValue SBV b val (lookupSeqMap vs i)
+
+updateFrontSym _len _eltTy vs (Right wv) val =
   case wv of
     WordVal w | Just j <- SBV.svAsInteger w ->
       return $ updateSeqMap vs j val
@@ -610,11 +617,19 @@ updateFrontSym_word ::
   Nat' ->
   TValue ->
   WordValue SBV ->
-  WordValue SBV ->
+  Either (SInteger SBV) (WordValue SBV) ->
   SEval SBV (GenValue SBV) ->
   SEval SBV (WordValue SBV)
 updateFrontSym_word Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateFrontSym_bits"]
-updateFrontSym_word (Nat n) eltTy bv wv val =
+
+updateFrontSym_word (Nat _) eltTy (LargeBitsVal n bv) idx val =
+  LargeBitsVal n <$> updateFrontSym (Nat n) eltTy bv idx val
+
+updateFrontSym_word (Nat n) eltTy (WordVal bv) (Left idx) val =
+  do idx' <- wordFromInt SBV n idx
+     updateFrontSym_word (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
+
+updateFrontSym_word (Nat n) eltTy bv (Right wv) val =
   case wv of
     WordVal idx
       | Just j <- SBV.svAsInteger idx ->
@@ -631,18 +646,26 @@ updateFrontSym_word (Nat n) eltTy bv wv val =
              let bw'  = SBV.svAnd bw (SBV.svNot msk)
              return $! SBV.svXOr bw' (SBV.svAnd q msk)
 
-    _ -> LargeBitsVal (wordValueSize SBV wv) <$> updateFrontSym (Nat n) eltTy (asBitsMap SBV bv) wv val
+    _ -> LargeBitsVal n <$> updateFrontSym (Nat n) eltTy (asBitsMap SBV bv) (Right wv) val
 
 
 updateBackSym ::
   Nat' ->
   TValue ->
   SeqMap SBV ->
-  WordValue SBV ->
+  Either (SInteger SBV) (WordValue SBV) ->
   SEval SBV (GenValue SBV) ->
   SEval SBV (SeqMap SBV)
 updateBackSym Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym"]
-updateBackSym (Nat n) _eltTy vs wv val =
+
+updateBackSym (Nat n) _eltTy vs (Left idx) val =
+  case SBV.svAsInteger idx of
+    Just i -> return $ updateSeqMap vs (n - 1 - i) val
+    Nothing -> return $ IndexSeqMap $ \i ->
+      do b <- intEq SBV idx =<< integerLit SBV (n - 1 - i)
+         iteValue SBV b val (lookupSeqMap vs i)
+
+updateBackSym (Nat n) _eltTy vs (Right wv) val =
   case wv of
     WordVal w | Just j <- SBV.svAsInteger w ->
       return $ updateSeqMap vs (n - 1 - j) val
@@ -655,11 +678,19 @@ updateBackSym_word ::
   Nat' ->
   TValue ->
   WordValue SBV ->
-  WordValue SBV ->
+  Either (SInteger SBV) (WordValue SBV) ->
   SEval SBV (GenValue SBV) ->
   SEval SBV (WordValue SBV)
 updateBackSym_word Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym_bits"]
-updateBackSym_word (Nat n) eltTy bv wv val = do
+
+updateBackSym_word (Nat _) eltTy (LargeBitsVal n bv) idx val =
+  LargeBitsVal n <$> updateBackSym (Nat n) eltTy bv idx val
+
+updateBackSym_word (Nat n) eltTy (WordVal bv) (Left idx) val =
+  do idx' <- wordFromInt SBV n idx
+     updateBackSym_word (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
+
+updateBackSym_word (Nat n) eltTy bv (Right wv) val = do
   case wv of
     WordVal idx
       | Just j <- SBV.svAsInteger idx ->
@@ -676,7 +707,7 @@ updateBackSym_word (Nat n) eltTy bv wv val = do
              let bw'  = SBV.svAnd bw (SBV.svNot msk)
              return $! SBV.svXOr bw' (SBV.svAnd q msk)
 
-    _ -> LargeBitsVal (wordValueSize SBV wv) <$> updateBackSym (Nat n) eltTy (asBitsMap SBV bv) wv val
+    _ -> LargeBitsVal n <$> updateBackSym (Nat n) eltTy (asBitsMap SBV bv) (Right wv) val
 
 
 asWordList :: [WordValue SBV] -> Maybe [SWord SBV]

@@ -1237,18 +1237,18 @@ indexPrim sym int_op bits_op word_op =
 updatePrim ::
   Backend sym =>
   sym ->
-  (Nat' -> TValue -> WordValue sym -> WordValue sym -> SEval sym (GenValue sym) -> SEval sym (WordValue sym)) ->
-  (Nat' -> TValue -> SeqMap sym    -> WordValue sym -> SEval sym (GenValue sym) -> SEval sym (SeqMap sym)) ->
+  (Nat' -> TValue -> WordValue sym -> Either (SInteger sym) (WordValue sym) -> SEval sym (GenValue sym) -> SEval sym (WordValue sym)) ->
+  (Nat' -> TValue -> SeqMap sym    -> Either (SInteger sym) (WordValue sym) -> SEval sym (GenValue sym) -> SEval sym (SeqMap sym)) ->
   GenValue sym
 updatePrim sym updateWord updateSeq =
   nlam $ \len ->
   tlam $ \eltTy ->
-  nlam $ \_idxLen ->
+  tlam $ \ix ->
   lam $ \xs  -> return $
   lam $ \idx -> return $
   lam $ \val -> do
-    idx' <- fromWordVal "update" =<< idx
-    assertIndexInBounds sym len (Right idx')
+    idx' <- asIndex sym "update" ix =<< idx
+    assertIndexInBounds sym len idx'
     xs >>= \case
       VWord l w  -> do w' <- sDelay sym Nothing w
                        return $ VWord l (w' >>= \w'' -> updateWord len eltTy w'' idx' val)

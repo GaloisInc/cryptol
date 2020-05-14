@@ -392,10 +392,13 @@ updateFront ::
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
   SeqMap Concrete    {- ^ sequence to update -} ->
-  WordValue Concrete {- ^ index -} ->
+  Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
   Eval (SeqMap Concrete)
-updateFront _len _eltTy vs w val = do
+updateFront _len _eltTy vs (Left idx) val = do
+  return $ updateSeqMap vs idx val
+
+updateFront _len _eltTy vs (Right w) val = do
   idx <- bvVal <$> asWordVal Concrete w
   return $ updateSeqMap vs idx val
 
@@ -403,10 +406,13 @@ updateFront_word ::
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
   WordValue Concrete {- ^ bit sequence to update -} ->
-  WordValue Concrete {- ^ index -} ->
+  Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
   Eval (WordValue Concrete)
-updateFront_word _len _eltTy bs w val = do
+updateFront_word _len _eltTy bs (Left idx) val = do
+  updateWordValue Concrete bs idx (fromVBit <$> val)
+
+updateFront_word _len _eltTy bs (Right w) val = do
   idx <- bvVal <$> asWordVal Concrete w
   updateWordValue Concrete bs idx (fromVBit <$> val)
 
@@ -414,12 +420,14 @@ updateBack ::
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
   SeqMap Concrete    {- ^ sequence to update -} ->
-  WordValue Concrete {- ^ index -} ->
+  Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
   Eval (SeqMap Concrete)
 updateBack Inf _eltTy _vs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
-updateBack (Nat n) _eltTy vs w val = do
+updateBack (Nat n) _eltTy vs (Left idx) val = do
+  return $ updateSeqMap vs (n - idx - 1) val
+updateBack (Nat n) _eltTy vs (Right w) val = do
   idx <- bvVal <$> asWordVal Concrete w
   return $ updateSeqMap vs (n - idx - 1) val
 
@@ -427,11 +435,13 @@ updateBack_word ::
   Nat'               {- ^ length of the sequence -} ->
   TValue             {- ^ type of values in the sequence -} ->
   WordValue Concrete {- ^ bit sequence to update -} ->
-  WordValue Concrete {- ^ index -} ->
+  Either Integer (WordValue Concrete) {- ^ index -} ->
   Eval Value         {- ^ new value at index -} ->
   Eval (WordValue Concrete)
 updateBack_word Inf _eltTy _bs _w _val =
   evalPanic "Unexpected infinite sequence in updateEnd" []
-updateBack_word (Nat n) _eltTy bs w val = do
+updateBack_word (Nat n) _eltTy bs (Left idx) val = do
+  updateWordValue Concrete bs (n - idx - 1) (fromVBit <$> val)
+updateBack_word (Nat n) _eltTy bs (Right w) val = do
   idx <- bvVal <$> asWordVal Concrete w
   updateWordValue Concrete bs (n - idx - 1) (fromVBit <$> val)

@@ -726,10 +726,17 @@ updateFrontSym ::
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
-  WordValue (What4 sym) ->
+  Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
   SEval (What4 sym) (Value sym) ->
   SEval (What4 sym) (SeqMap (What4 sym))
-updateFrontSym sym _len _eltTy vs wv val =
+updateFrontSym sym _len _eltTy vs (Left idx) val =
+  case W4.asInteger idx of
+    Just i -> return $ updateSeqMap vs i val
+    Nothing -> return $ IndexSeqMap $ \i ->
+      do b <- intEq (What4 sym) idx =<< integerLit (What4 sym) i
+         iteValue (What4 sym) b val (lookupSeqMap vs i)
+
+updateFrontSym sym _len _eltTy vs (Right wv) val =
   case wv of
     WordVal w | Just j <- SW.bvAsUnsignedInteger w ->
       return $ updateSeqMap vs j val
@@ -744,11 +751,19 @@ updateBackSym ::
   Nat' ->
   TValue ->
   SeqMap (What4 sym) ->
-  WordValue (What4 sym) ->
+  Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
   SEval (What4 sym) (Value sym) ->
   SEval (What4 sym) (SeqMap (What4 sym))
 updateBackSym _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym"]
-updateBackSym sym (Nat n) _eltTy vs wv val =
+
+updateBackSym sym (Nat n) _eltTy vs (Left idx) val =
+  case W4.asInteger idx of
+    Just i -> return $ updateSeqMap vs (n - 1 - i) val
+    Nothing -> return $ IndexSeqMap $ \i ->
+      do b <- intEq (What4 sym) idx =<< integerLit (What4 sym) (n - 1 - i)
+         iteValue (What4 sym) b val (lookupSeqMap vs i)
+
+updateBackSym sym (Nat n) _eltTy vs (Right wv) val =
   case wv of
     WordVal w | Just j <- SW.bvAsUnsignedInteger w ->
       return $ updateSeqMap vs (n - 1 - j) val
@@ -764,11 +779,19 @@ updateFrontSym_word ::
   Nat' ->
   TValue ->
   WordValue (What4 sym) ->
-  WordValue (What4 sym) ->
+  Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
   SEval (What4 sym) (GenValue (What4 sym)) ->
   SEval (What4 sym) (WordValue (What4 sym))
 updateFrontSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateFrontSym_word"]
-updateFrontSym_word sym (Nat n) eltTy bv wv val =
+
+updateFrontSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
+  LargeBitsVal n <$> updateFrontSym sym (Nat n) eltTy bv idx val
+
+updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
+  do idx' <- wordFromInt (What4 sym) n idx
+     updateFrontSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
+
+updateFrontSym_word sym (Nat n) eltTy bv (Right wv) val =
   case wv of
     WordVal idx
       | Just j <- SW.bvAsUnsignedInteger idx ->
@@ -790,7 +813,7 @@ updateFrontSym_word sym (Nat n) eltTy bv wv val =
                       SW.bvXor sym bw' =<< SW.bvAnd sym q msk
 
     _ -> LargeBitsVal (wordValueSize (What4 sym) wv) <$>
-           updateFrontSym sym (Nat n) eltTy (asBitsMap (What4 sym) bv) wv val
+           updateFrontSym sym (Nat n) eltTy (asBitsMap (What4 sym) bv) (Right wv) val
 
 
 updateBackSym_word ::
@@ -799,11 +822,19 @@ updateBackSym_word ::
   Nat' ->
   TValue ->
   WordValue (What4 sym) ->
-  WordValue (What4 sym) ->
+  Either (SInteger (What4 sym)) (WordValue (What4 sym)) ->
   SEval (What4 sym) (GenValue (What4 sym)) ->
   SEval (What4 sym) (WordValue (What4 sym))
 updateBackSym_word _ Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym_word"]
-updateBackSym_word sym (Nat n) eltTy bv wv val =
+
+updateBackSym_word sym (Nat _) eltTy (LargeBitsVal n bv) idx val =
+  LargeBitsVal n <$> updateBackSym sym (Nat n) eltTy bv idx val
+
+updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Left idx) val =
+  do idx' <- wordFromInt (What4 sym) n idx
+     updateBackSym_word sym (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
+
+updateBackSym_word sym (Nat n) eltTy bv (Right wv) val =
   case wv of
     WordVal idx
       | Just j <- SW.bvAsUnsignedInteger idx ->
@@ -825,7 +856,7 @@ updateBackSym_word sym (Nat n) eltTy bv wv val =
                       SW.bvXor sym bw' =<< SW.bvAnd sym q msk
 
     _ -> LargeBitsVal (wordValueSize (What4 sym) wv) <$>
-           updateBackSym sym (Nat n) eltTy (asBitsMap (What4 sym) bv) wv val
+           updateBackSym sym (Nat n) eltTy (asBitsMap (What4 sym) bv) (Right wv) val
 
 
 sshrV :: W4.IsExprBuilder sym => sym -> Value sym
