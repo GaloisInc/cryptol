@@ -407,13 +407,13 @@ primTable w4sym = let sym = What4 w4sym in
 
     -- Arith
   , ("fromInteger" , ecFromIntegerV sym)
-  , ("+"           , binary (addV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("-"           , binary (subV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("*"           , binary (mulV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("/"           , binary (divV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("%"           , binary (modV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("/$"          , binary (sdivV sym))
-  , ("%$"          , binary (smodV sym))
+  , ("+"           , binary (addV sym))
+  , ("-"           , binary (subV sym))
+  , ("*"           , binary (mulV sym))
+  , ("/"           , binary (divV sym))
+  , ("%"           , binary (modV sym))
+  , ("/$"          , sdivV sym)
+  , ("%$"          , smodV sym)
   , ("lg2"         , lg2V sym)
   , ("negate"      , unary (negateV sym))
   , ("infFrom"     , infFromV sym)
