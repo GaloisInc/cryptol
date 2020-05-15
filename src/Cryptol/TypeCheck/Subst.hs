@@ -15,6 +15,7 @@ module Cryptol.TypeCheck.Subst
   ( Subst
   , emptySubst
   , singleSubst
+  , singleTParamSubst
   , (@@)
   , defaultingSubst
   , listSubst
@@ -85,6 +86,9 @@ singleSubst v@(TVBound tp) t =
     , suBoundMap = IntMap.singleton (tpUnique tp) (v, t)
     , suDefaulting = False
     }
+
+singleTParamSubst :: TParam -> Type -> Subst
+singleTParamSubst tp t = singleSubst (TVBound tp) t
 
 (@@) :: Subst -> Subst -> Subst
 s2 @@ s1
