@@ -429,15 +429,21 @@ primTable w4sym = let sym = What4 w4sym in
   , ("infFrom"     , infFromV sym)
   , ("infFromThen" , infFromThenV sym)
 
+    -- Field
+  , ("recip"       , recipV sym)
+  , ("/."          , fieldDivideV sym)
+
+    -- Round
+  , ("floor"       , unary (floorV sym))
+  , ("ceiling"     , unary (ceilingV sym))
+  , ("trunc"       , unary (truncV sym))
+  , ("round"       , unary (roundV sym))
+
     -- Word operations
   , ("/$"          , sdivV sym)
   , ("%$"          , smodV sym)
   , ("lg2"         , lg2V sym)
   , (">>$"         , sshrV w4sym)
-
-    -- Field
-  , ("recip"       , recipV sym)
-  , ("/."          , fieldDivideV sym)
 
     -- Cmp
   , ("<"           , binary (lessThanV sym))

@@ -157,6 +157,22 @@ primTable = let sym = Concrete in
   , ("infFromThen", {-# SCC "Prelude::infFromThen" #-}
                     infFromThenV sym)
 
+    -- Field
+  , ("recip"      , {-# SCC "Prelude::recip" #-}
+                    recipV sym)
+  , ("/."         , {-# SCC "Prelude::(/.)" #-}
+                    fieldDivideV sym)
+
+    -- Round
+  , ("floor"      , {-# SCC "Prelude::floor" #-}
+                    unary (floorV sym))
+  , ("ceiling"    , {-# SCC "Prelude::ceiling" #-}
+                    unary (ceilingV sym))
+  , ("trunc"      , {-# SCC "Prelude::trunc" #-}
+                    unary (truncV sym))
+  , ("round"      , {-# SCC "Prelude::round" #-}
+                    unary (roundV sym))
+
     -- Bitvector specific operations
   , ("/$"         , {-# SCC "Prelude::(/$)" #-}
                     sdivV sym)
@@ -166,11 +182,6 @@ primTable = let sym = Concrete in
                     lg2V sym)
   , (">>$"        , {-# SCC "Prelude::(>>$)" #-}
                     sshrV)
-    -- Field
-  , ("recip"      , {-# SCC "Prelude::recip" #-}
-                    recipV sym)
-  , ("/."         , {-# SCC "Prelude::(/.)" #-}
-                    fieldDivideV sym)
 
     -- Cmp
   , ("<"          , {-# SCC "Prelude::(<)" #-}

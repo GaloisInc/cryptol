@@ -18,6 +18,9 @@ module Cryptol.Eval.Backend
   , rationalRecip
   , rationalDivide
   , rationalFloor
+  , rationalCeiling
+  , rationalTrunc
+  , rationalRound
   , rationalEq
   , rationalLessThan
   , rationalGreaterThan
@@ -81,6 +84,24 @@ rationalDivide sym x y = rationalMul sym x =<< rationalRecip sym y
 rationalFloor :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
  -- NB, relies on integer division being round-to-negative-inf division
 rationalFloor sym (SRational n d) = intDiv sym n d
+
+rationalCeiling :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
+rationalCeiling sym r = intNegate sym =<< rationalFloor sym =<< rationalNegate sym r
+
+rationalTrunc :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
+rationalTrunc sym r =
+  do p <- rationalLessThan sym r =<< intToRational sym =<< integerLit sym 0
+     cr <- rationalCeiling sym r
+     fr <- rationalFloor sym r
+     iteInteger sym p cr fr
+
+rationalRound :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
+rationalRound sym r =
+  do p <- rationalLessThan sym r =<< intToRational sym =<< integerLit sym 0
+     half <- SRational <$> integerLit sym 1 <*> integerLit sym 2
+     cr <- rationalCeiling sym =<< rationalSub sym r half
+     fr <- rationalFloor sym =<< rationalAdd sym r half
+     iteInteger sym p cr fr
 
 rationalAdd :: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
 rationalAdd sym (SRational a b) (SRational c d) =

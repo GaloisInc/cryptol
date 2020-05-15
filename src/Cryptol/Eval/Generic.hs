@@ -77,6 +77,16 @@ ecNumberV sym =
 intV :: Backend sym => sym -> SInteger sym -> TValue -> SEval sym (GenValue sym)
 intV sym i = ringNullary sym (\w -> wordFromInt sym w i) (pure i) (\m -> intToZn sym m i) (intToRational sym i)
 
+
+{-# SPECIALIZE ratioV :: Concrete -> GenValue Concrete #-}
+ratioV :: Backend sym => sym -> GenValue sym
+ratioV sym =
+  lam $ \x -> return $
+  lam $ \y ->
+    do x' <- fromVInteger <$> x
+       y' <- fromVInteger <$> y
+       VRational <$> ratio sym x' y'
+
 -- Operation Lifting -----------------------------------------------------------
 
 
@@ -420,6 +430,9 @@ toIntegerV sym =
       TVInteger -> v
       _ -> evalPanic "toInteger" [show a ++ " not in class `Integral`"]
 
+-----------------------------------------------------------------------------
+-- Field
+
 {-# SPECIALIZE recipV :: Concrete -> GenValue Concrete #-}
 recipV :: Backend sym => sym -> GenValue sym
 recipV sym =
@@ -442,14 +455,44 @@ fieldDivideV sym =
            VRational <$> rationalDivide sym x' y'
       _ -> evalPanic "recip"  [show a ++ "is not a Field"]
 
-{-# SPECIALIZE ratioV :: Concrete -> GenValue Concrete #-}
-ratioV :: Backend sym => sym -> GenValue sym
-ratioV sym =
-  lam $ \x -> return $
-  lam $ \y ->
-    do x' <- fromVInteger <$> x
-       y' <- fromVInteger <$> y
-       VRational <$> ratio sym x' y'
+--------------------------------------------------------------
+-- Round
+
+{-# SPECIALIZE roundOp ::
+  Concrete ->
+  String ->
+  (SRational Concrete -> SEval Concrete (SInteger Concrete)) ->
+  Unary Concrete #-}
+
+roundOp :: Backend sym => sym -> String -> (SRational sym -> SEval sym (SInteger sym)) -> Unary sym
+roundOp _sym nm qop ty v =
+  case ty of
+    TVRational -> VInteger <$> (qop (fromVRational v))
+    _ -> evalPanic nm [show ty ++ " is not a Field"]
+
+{-# INLINE floorV #-}
+floorV :: Backend sym => sym -> Unary sym
+floorV sym = roundOp sym "floor" opq
+  where
+  opq = rationalFloor sym
+
+{-# INLINE ceilingV #-}
+ceilingV :: Backend sym => sym -> Unary sym
+ceilingV sym = roundOp sym "ceiling" opq
+  where
+  opq = rationalCeiling sym
+
+{-# INLINE truncV #-}
+truncV :: Backend sym => sym -> Unary sym
+truncV sym = roundOp sym "trunc" opq
+  where
+  opq = rationalTrunc sym
+
+{-# INLINE roundV #-}
+roundV :: Backend sym => sym -> Unary sym
+roundV sym = roundOp sym "round" opq
+  where
+  opq = rationalRound sym
 
 --------------------------------------------------------------
 -- Logic
