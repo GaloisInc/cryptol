@@ -1,8 +1,51 @@
-# NEXT 
+# NEXT
+
+## Language changes
+
+* Removed the `Arith` class. Replaced it instead with more specialized
+  numeric classes: `Ring`, `Integral`, `Field`, and `Round`.  `Ring`
+  is the closest analogue to the old `Arith` class; it contains the
+  `fromInteger`, `(+)`, `(*)`, `(-)` and `negate` methods.  `Ring`
+  contains all the base arithmetic types in Cryptol, and lifts
+  pointwise over tuples, sequences and functions, just as `Arith` did.
+
+  The new `Integral` class now contains the integer division and
+  modulus methods (`(/)` and `(%)`), and the sequence indexing,
+  sequence update and shifting operations are generalized over
+  `Integral`.  The `toInteger` operation is also generalized over this
+  class.  `Integral` contains the bitvector types, `Integer` and `Z n`.
+
+  The new `Field` class contains types representing mathematical
+  fields (or types that are approximately fields). For now, it is
+  inhabited only by the new `Rational` type, but will eventually
+  contain `Real` and floating-point types. It has the operation
+  `recip` for reciprocal and `(/.)` for field division (not to be
+  confused for `(/)`, which is Eucledian integral division).
+
+  There is also a new `Round` class for types that can sensibly be
+  rounded to integers.  This class has the methods `floor`, `ceiling`,
+  `trunc` and `round` for performing different kinds of
+  integer rounding.
+
+  Finally the `(^^)`, `lg2`, `(/$)` and `(%$)` methods of Arith have
+  had their types specialized.  `lg2` is now only an operation on
+  bitvectors, and the exponent of `(^^)` is specialized to be a
+  bitvector.  Likewise, `(/$)` and `(%$)` are now operations
+  only on bitvectors.
+
+* Added a base `Rational` type.  It is implemented as a pair of
+  integers, quotiented in the usual way.  As such, it reduces to the
+  theory of integers and requires no new solver support (beyond
+  nonlinear integer arithmetic).  `Rational` inhabits the new
+  `Field` and `Round` classes.  Rational values can be
+  constructed using the `ratio` function, or via `fromInteger`.
+
+* The `generate` function (and thus `x @ i= e` definitions) has had
+  its type specialized so the index type is always `Integer`.
 
 ## New features
 
-* Document the nehavior of lifted selectors
+* Document the behavior of lifted selectors.
 
 * Added support for symbolic simulation via the `What4` library
   in addition to the previous method based on `SBV`. The What4
@@ -41,7 +84,7 @@
         f : {a} (fin a, a >= 1) => [a] -> [a]
 
         f : {a} (fin a) => (a >= 1) => [a] -> [a]
-        
+
 * Added a mechanism for user-defined type constraint operators, and use
   this to define the new type constraint synonyms (<) and (>) (issues
   #400, #618).
