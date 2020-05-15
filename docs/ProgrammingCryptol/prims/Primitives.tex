@@ -23,9 +23,26 @@ primsPlaceHolder=1;
 \end{Verbatim}
 \paragraph*{Arithmetic}
 \begin{Verbatim}
-    +, -, *, /, %, ^^ : {a} (Arith a) => a -> a -> a
-    negate, lg2       : {a} (Arith a) => a -> a
-    fromInteger       : {a} (Arith a) => Integer -> a
+    +, -, *           : {a} (Ring a) => a -> a -> a
+    negate            : {a} (Ring a) => a -> a
+    fromInteger       : {a} (Ring a) => Integer -> a
+    ^^                : {a} (Ring a, fin n) => a -> [n] -> a
+    abs               : {a} (Cmp a, Ring a) => a -> a
+    /, %              : {a} (Integral a) => a -> a -> a
+    toInteger         : {a} (Integral a) => a -> Integer
+    lg2               : {n} (fin n) => [n] -> [n]
+    /$, %$            : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
+    carry             : {n} (fin n) => [n] -> [n] -> Bit
+    scarry, sborrow   : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
+    zext              : {m, n} (fin m, m >= n) => [n] -> [m]
+    sext              : {m, n} (fin m, m >= n, n >= 1) => [n] -> [m]
+    ratio             : Integer -> Integer -> Rational
+    /.                : {a} (Field a) => a -> a -> a
+    recip             : {a} (Field a) => a -> a
+    floor             : {a} (Round a) => a -> Integer
+    ceiling           : {a} (Round a) => a -> Integer
+    trunc             : {a} (Round a) => a -> Integer
+    round             : {a} (Round a) => a -> Integer
 \end{Verbatim}
 \paragraph*{Polynomial arithmetic}
 \begin{Verbatim}
@@ -49,20 +66,20 @@ primsPlaceHolder=1;
 \end{Verbatim}
 \paragraph*{Indexing, updates}
 \begin{Verbatim}
-    @       : {n, a, ix} (fin ix) => [n]a -> [ix] -> a
-    !       : {n, a, ix} (fin n, fin ix) => [n]a -> [ix] -> a
-    @@      : {n, k, ix, a} (fin ix) => [n]a -> [k][ix] -> [k]a
-    !!      : {n, k, ix, a} (fin n, fin ix) => [n]a -> [k][ix] -> [k]a
+    @       : {n, a, ix} (Integral ix) => [n]a -> ix -> a
+    !       : {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a
+    @@      : {n, k, ix, a} (Integral ix) => [n]a -> [k]ix -> [k]a
+    !!      : {n, k, ix, a} (fin n, Integral ix) => [n]a -> [k]ix -> [k]a
     update     : {n, a, ix} (fin ix) => [n]a -> [ix] -> a -> [n]a
-    updateEnd  : {n, a, ix} (fin n, fin ix) => [n]a -> [ix] -> a -> [n]a
-    updates    : {n, k, ix, a} (fin ix, fin k) => [n]a -> [k][ix] -> [k]a -> [n]a
-    updatesEnd : {n, k, ix, a} (fin n, fin ix, fin k) => [n]a -> [k][ix] -> [k]a -> [n]a
+    updateEnd  : {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a -> [n]a
+    updates    : {n, k, ix, a} (Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
+    updatesEnd : {n, k, ix, a} (fin n, Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
 \end{Verbatim}
 \paragraph*{Shifting, rotating}
 \begin{Verbatim}
-    >>>, <<< : {n, ix, a} (fin n, fin ix) => [n]a -> [ix] -> [n]a
-    >>, <<   : {n, ix, a} (fin ix, Zero a) => [n]a -> [ix] -> [n]a
-    >>$      : {n, ix} (fin n, n >= 1, fin ix) => [n] -> [ix] -> [n]
+    >>>, <<< : {n, ix, a} (fin n, Integral ix) => [n]a -> ix -> [n]a
+    >>, <<   : {n, ix, a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
+    >>$      : {n, ix} (fin n, n >= 1, Integral ix) => [n] -> ix -> [n]
 \end{Verbatim}
 \paragraph*{Functional programming}
 \begin{Verbatim}

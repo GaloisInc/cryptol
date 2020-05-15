@@ -33,17 +33,18 @@ time.
 \section{Basic data types}
 \label{sec:basic-data-types}
 
-Cryptol provides five basic data types: bits, sequences, integers,
-tuples, and records. Words (i.e., $n$-bit numbers) are a special case
-of sequences. Note that, aside from bits and integers, all other
+Cryptol provides seven basic data types: bits, sequences, integers,
+integers-modulo-n, rationals, tuples, and records.
+Words (i.e., $n$-bit numbers) are a special case
+of sequences. Note that, aside from the base types (like bits and integers),
 Cryptol types can be nested as deep as you like. That is, we can have
 records of sequences containing tuples made up of other records, etc.,
 giving us a rich type-system for precisely describing the shapes of
 data our programs manipulate.
 
 While Cryptol is statically typed, it uses type inference to supply
-unspecified types.  That is, the user does {\em not} have to write the
-types of all expressions; they will be automatically inferred by the
+unspecified types.  That is, the user usually does {\em not} have to
+write the types of all expressions; they will be automatically inferred by the
 type-inference engine.  Of course, in certain contexts the user might
 choose to supply a type explicitly.  The notation is simple: we simply
 put the expression, followed by {\tt :} and the type. For instance,
@@ -117,8 +118,8 @@ Here is the response from Cryptol, in order:
 A word is simply a numeric value with some number of bits,
 corresponding to the usual notion of binary numbers.\indTheWordType To
 match our observation of how cryptographers use binary numbers,
-Cryptol only supports non-negative ($\geq 0$) word values (i.e., no
-floating point or negative numbers).\indFloatingPoint However, words
+Cryptol defaults to interpreting words as non-negative ($\geq 0$)
+values (i.e., no negative numbers). However, words
 can be arbitrarily large: There is no predefined maximum number of
 bits that we are limited to.\indArbitraryPrecision The type of $n$-bit
 words is written \texttt{[n]}; e.g. \texttt{[8]} is the 8-bit word type.
@@ -206,15 +207,16 @@ override this by giving an explicit type signature.\indSignature
 %=====================================================================
 \sectionWithAnswers{Integers: Unbounded numbers}{sec:integer}
 
-The type \texttt{Integer} represents mathematical integers of
-unlimited size. To write an integer value in Cryptol, simply write the
-number in decimal, optionally annotated with \texttt{:Integer} to
-disambiguate the type. Numbers written in base 2, 8, or 16 are always
-$n$-bit words, and never have type \texttt{Integer}. However, they can
-be converted to unbounded integers using \texttt{toInteger}. For
-example, \texttt{toInteger 0xff} represents the integer 255. To write
-a negative integer, simply negate the result: For example,
-\texttt{-12} and \texttt{- toInteger 0xc} represent the integer $-12$.
+The type \texttt{Integer}\indTheIntegerType represents mathematical
+integers of unlimited size. To write an integer value in Cryptol,
+simply write the number in decimal, optionally annotated with
+\texttt{:Integer} to disambiguate the type. Numbers written in base 2,
+8, or 16 are always $n$-bit words, and never have type
+\texttt{Integer}. However, they can be converted to unbounded integers
+using \texttt{toInteger}. For example, \texttt{toInteger 0xff}
+represents the integer 255. To write a negative integer, simply negate
+the result: For example, \texttt{-12} and \texttt{- toInteger 0xc}
+represent the integer $-12$.
 
 \begin{Exercise}\label{ex:int:1}
   Compare the results of evaluating the expressions \texttt{0x8 + 0x9}
@@ -234,6 +236,56 @@ other hand, \texttt{Integer} addition never overflows, so the answer
 is 17. The final result is also due to wraparound: \texttt{- 0x5}
 evaluates to \texttt{0xb} or 11, which is $-5 + 16$.
 \end{Answer}
+
+In addition to the unbounded \texttt{Integer} type, there are also a
+collection of bounded integer types: \texttt{Z n} for each finite
+positive \texttt{n}.  \texttt{Z n} represents the ring of integers modulo \texttt{n}.
+Just like with fixed-width bitvector values, arithmetic in
+\texttt{Z n} will ``wrap around'' (i.e., be reduced modulo \texttt{n})
+when values get too large.
+\begin{Exercise}\label{ex:int:2}
+  Compare the results of evaluating \texttt{ (5 : Z 7) + (6 : Z 7) }
+  with \texttt{ toInteger (5 : Z 7) + toInteger (6 : Z 7) }.
+  What is the result of \texttt{ -3 : Z 7 }?
+  Were the results what you expected?
+\end{Exercise}  
+\begin{Answer}\ansref{ex:int:2}
+Here are Cryptol's responses:
+\begin{Verbatim}
+  4
+  11
+  4
+\end{Verbatim}
+\end{Answer}
+
+%=====================================================================
+\section{Rationals}
+\label{sec:rational}
+
+The type \texttt{Rational}\indTheRationalType represents the rational number subset
+of the real line: that is, those numbers that can be represented
+a ratio of integers. You can explicitly create rational values using
+the \texttt{ratio} function, which accepts the numerator and denominator
+as integer values, or you can create a rational value from an
+integer using the \texttt{fromInteger} function.  Rational values can
+also be created directly from literals the same way as for
+\texttt{Integer}.
+
+For example, all of the following expression create the same
+value representing one half:
+\begin{Verbatim}
+  ratio 1 2
+  ratio 2 4
+  (1 /. 2) : Rational
+  (recip 2) : Rational
+  (fromInteger (-1) /. fromInteger (-2)) : Rational
+\end{Verbatim}
+
+Note, the division operation on \texttt{Rational} is
+written \texttt{/.}, and should not be confused with
+\texttt{/}, which is the division operation on for words
+and integers.
+
 
 %=====================================================================
 % \section{Tuples: Heterogeneous collections}
@@ -463,7 +515,7 @@ $2\times 3 = 6$ elements.
 \end{Answer}
 
 \begin{Exercise}\label{ex:seq:5}\indParallel\indComp
-  A comprehension with multiple branchess is called a \emph{parallel
+  A comprehension with multiple branches is called a \emph{parallel
     comprehension}. We can have any number of parallel branches. The
   contents of each branch will be \emph{zipped} to obtain the results.
   Experiment with the following expressions:
@@ -1235,14 +1287,19 @@ Here are Cryptol's responses:
 
 Before proceeding further, we have to take a detour and talk briefly
 about one of the most useful values in Cryptol: {\tt zero}.\indZero
-The value {\tt zero} inhabits every type in Cryptol, and stands for
-the value that consists of all {\tt False}\indFalse bits. The
-following examples should illustrate the idea:
+The value {\tt zero} inhabits every type in Cryptol.
+The following examples should illustrate the idea:
 \begin{Verbatim}
   Cryptol> zero : Bit
   False
   Cryptol> zero : [8]
   0
+  Cryptol> zero : Integer
+  0
+  Cryptol> zero : Z 19
+  0
+  Cryptol> zero : Rational
+  (ratio 0 1)
   Cryptol> zero : ([8], Bit)
   (0, False)
   Cryptol> zero : [8][3]
@@ -1301,8 +1358,10 @@ Cryptol supports the usual binary arithmetic operators {\tt +}, {\tt
 division), {\tt \%} (integer modulus), along with \emph{ceiling}
 base-2 logarithm {\tt lg2} and binary {\tt min} and {\tt max}.
 
-The important thing to remember is that all arithmetic in Cryptol is
-modular,\indModular with respect to the underlying word size.  As a
+It is important thing to remember is that all arithmetic in Cryptol is
+carried out according to the type of the values being computed;
+for word types in particular, arithmetic is modular,\indModular
+with respect to the underlying word size.  As a
 consequence, there is no such thing as an overflow/underflow in
 Cryptol, as the result will be always guaranteed to fit in the
 resulting word size.  While this is very handy for most applications of
@@ -1353,7 +1412,6 @@ Try out the following expressions:\indEq\indNeq
   2 % 0
   3 + (if 3 == 2+1 then 12 else 2/0)
   3 + (if 3 != 2+1 then 12 else 2/0)
-  lg2 (-25) : Integer
   lg2 (-25) : [_]
 \end{Verbatim}
 In the last expression, remember that unary minus will\indUnaryMinus
@@ -1363,9 +1421,7 @@ operation?
 \begin{Answer}\ansref{ex:arith:4}
   The first, second, and fourth examples give a ``division by 0''
   error message. In the third example, the division by zero occurs
-  only in an unreachable branch, so the result is not an error. The
-  logarithm at type \texttt{Integer} gives a ``logarithm of negative''
-  error.
+  only in an unreachable branch, so the result is not an error.
 
   In the last expression, the number \texttt{25} fits in 5 bits, so
   the modulus is $2^5 = 32$. The unary minus yields \texttt{7}, hence
@@ -1374,7 +1430,7 @@ operation?
 \end{Answer}
 
 \begin{Exercise}\label{ex:arith:5:1}
-Division truncates down. Try out the following expressions:\indDiv\indMod
+Integral division truncates down. Try out the following expressions:\indDiv\indMod
 \begin{Verbatim}
   (6 / 3, 6 % 3)
   (7 / 3, 7 % 3)
@@ -1602,6 +1658,18 @@ Recall from \autoref{sec:words2} that a word is, in fact, a
 sequence of bits.  Hence, an equivalent (but verbose) way to write the
 type {\tt [17]} is {\tt [17]Bit}, which we would say in English as
 ``a sequence of length 17, whose elements are Bits.''
+
+\paragraph*{Integers}\indTheIntegerType The type \texttt{Integer}
+represents the unbounded mathematical integers. Arithmetic on this
+type will not overflow.
+
+\paragraph*{Modular integers} The type \texttt{Z n} represents
+the subset of the integers from 0 to \texttt{n} (not including \texttt{n}).
+Arithmetic on these types is done modulo \texttt{n}.
+
+\paragraph*{Rationals}\indTheRationalType The type \texttt{Rational} represents
+the subset of the real line that can be represented as a ratio of integers.
+As with the integers, arithmetic on this type does not overflow.
 
 \paragraph*{Tuples}\indTheTupleType A tuple is a heterogeneous
 collection of arbitrary number of
@@ -2862,11 +2930,12 @@ takes two objects of any single type that can be compared and returns
 a Bit.''
 
 Cryptol defines a collection of basic type classes: \texttt{Logic},
-\texttt{Zero}, \texttt{Cmp}, \texttt{SignedCmp}, \texttt{Arith}, and
+\texttt{Zero}, \texttt{Cmp}, \texttt{SignedCmp}, \texttt{Ring},
+\texttt{Integral}, \texttt{Field}, \texttt{Round}, and
 \texttt{Literal}. These appear in the type signature of operators and
 functions that require them. If a function you define calls, for
 example, \texttt{+}, on two arguments both of type \texttt{a}, the
-type constraints for \texttt{a} will include \texttt{(Arith a)}.
+type constraints for \texttt{a} will include \texttt{(Ring a)}.
 
 \begin{itemize}
 \item
@@ -2898,14 +2967,38 @@ operators \texttt{<\$}, \texttt{>\$}, \texttt{<=\$}, and
 \texttt{>=\$}. These are like \texttt{<}, \texttt{>}, \texttt{<=}, and
 \texttt{>=}, except that they interpret bitvectors as \emph{signed}
 2's complement numbers, whereas the \texttt{Cmp} operations use the
-\emph{unsigned} ordering.
+\emph{unsigned} ordering. \texttt{SignedCmp} does not contain the
+other atomic numeric types in Cryptol, just bitvectors.
 
 \item
-The \texttt{Arith} typeclass includes the binary operators \texttt{+},
-\texttt{-}, \texttt{*}, \texttt{/}, \verb+%+, and \verb+^^+, as well
-as the unary operators \texttt{lg2} and \texttt{-}, and the function
-\texttt{fromInteger}. Infinite sequence enumerations \texttt{[x ...]}
-and \texttt{[x, y ...]} are also defined for class \texttt{Arith}.
+The \texttt{Ring} typeclass includes the binary operators \texttt{+},
+\texttt{-}, \texttt{*}, and the unary operators \texttt{negate}
+and \texttt{fromInteger}.  All the numeric types in Cryptol
+are members of \texttt{Ring}.
+
+\item
+The \texttt{Integral} typeclass represents values that are ``like
+integers''.  It inclues the integral division and modulus operators
+\texttt{/} and \texttt{\%}, and the \texttt{toInteger} casting function.
+The sequence indexing, update and shifting operations
+take index arguments that can be of any \texttt{Integral} type.
+Infinite sequence enumerations \texttt{[x ...]}
+and \texttt{[x, y ...]} are also defined for class \texttt{Integral}.
+Bitvectors, integers, and moduluar integers are members of \texttt{Integral}.
+
+\item
+The \texttt{Field} typeclass represents values that, in addition to
+being a \texttt{Ring} posess a multiplictive inverses.
+It includes the field division operation \texttt{/.} and the
+\texttt{recip} operation for computing the reciprocol of a value.
+Currently, only type \texttt{Rational} is a member of this class.
+
+\item
+ The \texttt{Round} typeclass contains types that can be
+ rounded to integers.  It includes \texttt{floor}, \texttt{ceiling},
+ \texttt{trunc} and \texttt{round} operations, which are all different
+ ways of rounding values to integers.
+Currently, only type \texttt{Rational} is a member of this class.
 
 \item
 The \texttt{Literal} typeclass includes numeric literals.
@@ -2915,17 +3008,17 @@ The \texttt{Literal} typeclass includes numeric literals.
   Without including an explicit type declaration, define a function
   that Cryptol infers has the following type:
 \begin{Verbatim}
-  cmpArith : {a,b} (Cmp a, Arith b) => a -> a -> b -> b
+  cmpRing : {a,b} (Cmp a, Ring b) => a -> a -> b -> b
 \end{Verbatim}
 \end{Exercise}
 \begin{Answer}\ansref{ex:tvar:1}
 This code:
 \begin{code}
-  cmpArith x y z = if x == y then z else z+z
+  cmpRing x y z = if x == y then z else z+z
 \end{code}
 yields the inferred type:
 \begin{Verbatim}
-  cmpArith : {a, b} (Arith b, Cmp a) => a -> a -> b -> b
+  cmpRing : {a, b} (Cmp a, Ring b) => a -> a -> b -> b
 \end{Verbatim}
 \end{Answer}
 
