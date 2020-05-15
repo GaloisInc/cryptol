@@ -1,5 +1,4 @@
-![Build
-Status](https://github.com/GaloisInc/cryptol/workflows/Cryptol/badge.svg)
+![Build Status](https://github.com/GaloisInc/cryptol/workflows/Cryptol/badge.svg)
 
 # Cryptol, version 2
 
@@ -37,8 +36,7 @@ as an `.msi` installer package which places a shortcut to the Cryptol
 interpreter in the Start menu.
 
 On Mac OS X, Cryptol is also available via
-[Homebrew](http://brew.sh/). Simply run `brew update && brew install
-cryptol` to get the latest stable version.
+[Homebrew](http://brew.sh/). Simply run `brew update && brew install cryptol` to get the latest stable version.
 
 ## Getting Z3
 
@@ -59,8 +57,7 @@ is on your PATH.
 ### Note for 64-bit Linux Users
 
 On some 64-bit Linux configurations, 32-bit binaries do not work. This
-can lead to unhelpful error messages like `z3: no such file or
-directory`, even when `z3` is clearly present. To fix this, either
+can lead to unhelpful error messages like `z3: no such file or directory`, even when `z3` is clearly present. To fix this, either
 install 32-bit compatibility packages for your distribution, or
 download the `x64` version of Z3.
 
@@ -107,8 +104,7 @@ This will build Cryptol in place. From there, there are additional targets:
   [TeX Live](https://www.tug.org/texlive/))
 - `make tarball`: build a tarball with a relocatable Cryptol binary and documentation
 - `make dist`: build a platform-specific distribution. On all
-  platforms except Windows, this is currently equivalent to `make
-  tarball`. On Windows, this will build an `.msi` package using
+  platforms except Windows, this is currently equivalent to `make tarball`. On Windows, this will build an `.msi` package using
   [WiX Toolset 3.8](http://wixtoolset.org/), which must be installed
   separately.
 
@@ -129,9 +125,9 @@ copied into a directory that the `cryptol` executable can find. If you
 install in other ways, you will have to do more manual configuration.
 There are two options:
 
-* Copy the contents of the `lib` directory into `$HOME/.cryptol`.
+- Copy the contents of the `lib` directory into `$HOME/.cryptol`.
 
-* Set the `CRYPTOLPATH` environment variable to name some other
+- Set the `CRYPTOLPATH` environment variable to name some other
   directory that contains those files.
 
 # Contributing
@@ -199,10 +195,10 @@ We hope that Cryptol is useful as a tool for educators and students,
 commercial and open source authors of cryptographic implementations,
 and by cryptographers to
 
- * specify cryptographic algorithms
- * check or prove properties of algorithms
- * generate test vectors for testing implementations
- * experiment with new algorithms
+- specify cryptographic algorithms
+- check or prove properties of algorithms
+- generate test vectors for testing implementations
+- experiment with new algorithms
 
 ## Acknowledgements
 
