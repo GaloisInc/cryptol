@@ -53,6 +53,13 @@ import Cryptol.Utils.Misc(anyJust)
 -- variable @TVFree _ _ tps2 _@, then @tps2@ must be a subset of
 -- @tps@. This ensures that applying the substitution will not permit
 -- any type parameter to escape from its scope.
+--
+-- Invariant: The substitution must be idempotent, in that applying a
+-- substitution to any 'Type' in the map should leave that 'Type'
+-- unchanged. In other words, 'Type' values in the range of a 'Subst'
+-- should not mention any 'TVar' in the domain of the 'Subst'. In
+-- particular, this implies that a substitution must not contain any
+-- recursive variable mappings.
 
 data Subst = S { suFreeMap :: !(IntMap.IntMap (TVar, Type))
                , suBoundMap :: !(IntMap.IntMap (TVar, Type))
