@@ -8,6 +8,8 @@ results.xml
 dist-newstyle
 .stack-work
 .ghc.environment.*
+cabal.project.freeze
+cabal.project.local*
 
 # don't check in generated documentation
 #docs/CryptolPrims.pdf

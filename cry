@@ -1,32 +1,25 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 BIN=bin
 
-function setup_external_tools {
-  if [ ! -f "$BIN/test-runner" ]
-  then
-    mkdir -p "$BIN"
-    cabal v2-install --installdir="$BIN" test-lib
-  fi
+function setup_external_tools() {
+  [[ -x "$BIN/test-runner" || -x "$BIN/test-runner.exe" ]] && return
+  cabal v2-install --install-method=copy --installdir="$BIN" test-lib
 }
 
-function show_usage {
-cat <<EOM
+function show_usage() {
+  cat << EOM
 Usage: $0 COMMAND COMANND_OPTIONS
 Available commands:
-  run       Run Cryptol
-  build     Build Cryptol
-  haddock   Generate Haddock documentation
-  test      Run some tests
-  exe-path  Print the location of the local executable
+  run                          Run Cryptol
+  build                        Build Cryptol
+  haddock                      Generate Haddock documentation
+  test                         Run some tests
+  exe-path                     Print the location of the local executable
 EOM
 }
 
-
-
-
-if [ "$#" == "0" ]
-then
+if [ "$#" == "0" ]; then
   show_usage
   exit 1
 fi
@@ -35,8 +28,7 @@ COMMAND=$1
 shift
 
 case $COMMAND in
-  run)
-    cabal exec cryptol -- $*;;
+  run) cabal v2-exec cryptol -- $* ;;
 
   build)
     echo Building Cryptol
@@ -46,48 +38,29 @@ case $COMMAND in
     # depends on the environment.  For now, we temporarily modify the
     # file, then build, then revert it back after build.
 
-    echo -- Last build $(date) >> src/GitRev.hs
+    dirty_string="-- Last build $(date)"
+    echo "$dirty_string" >> src/GitRev.hs
 
     cabal v2-build exe:cryptol
 
-    # WARNING!!!:  this is here to undo the HACK date stamp, and will
-    # undo any changes to this file, so comment it out if you'd like
-    # to change the file
-    git checkout src/GitRev.hs
+    sed -i "/^$dirty_string/d" src/GitRev.hs
     ;;
 
-  haddock)
-    echo Building Haddock documentation
-    cabal v2-haddock;;
-
+  haddock) echo Building Haddock documentation && cabal v2-haddock ;;
 
   test)
     echo Running tests
     setup_external_tools
-    if [ "$#" == "0" ]
-      then TESTS=tests
-      else TESTS=$*
-    fi
+    if [ "$#" == "0" ]; then TESTS=tests; else TESTS=$*; fi
     $BIN/test-runner --ext=.icry \
-                     --exe=cabal \
-                     -F v2-run -F -v0 -F exe:cryptol -F -- -F -b \
-                     $TESTS
+      --exe=cabal \
+      -F v2-run -F -v0 -F exe:cryptol -F -- -F -b \
+      $TESTS
     ;;
 
-  help)
-    show_usage
-    exit 0;;
+  help) show_usage && exit 0 ;;
 
-  exe-path)
-    cabal exec which cryptol
-    exit 0;;
+  exe-path) cabal v2-exec which cryptol ;;
 
-  *)
-    echo Unrecognized command: $COMMAND
-    show_usage
-    exit 1;;
-
+  *) echo "Unrecognized command: $COMMAND" && show_usage && exit 1 ;;
 esac
-
-
-

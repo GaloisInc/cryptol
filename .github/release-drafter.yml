@@ -1,0 +1,32 @@
+name-template: "v$NEXT_PATCH_VERSION"
+tag-template: "v$NEXT_PATCH_VERSION"
+categories:
+  - title: "New Features"
+    labels:
+      - "feature"
+      - "enhancement"
+  - title: "Breaking Changes"
+    labels:
+      - "breaking"
+  - title: "Bug Fixes"
+    labels:
+      - "fix"
+      - "bugfix"
+      - "bug"
+  - title: "Solver Versions"
+    labels:
+      - "solver"
+change-template: "- $TITLE @$AUTHOR (PR #$NUMBER)"
+
+replacers:
+  - search: '/Z3 (\d+)\.(\d+)\.(\d+)/ig'
+    replace: "[Z3 $1.$2.$3](https://github.com/Z3Prover/z3/releases/tag/z3-$1.$2.$3)"
+  - search: '/yices (\d+)\.(\d+)\.(\d+)/ig'
+    replace: "[Yices $1.$2.$3](https://yices.csl.sri.com/release-notes.html)"
+  - search: '/cvc(4?) (\d+)\.(\d+)\.(\d+)/ig'
+    replace: "[CVC4 $3.$4](https://github.com/CVC4/CVC4/releases/tag/$3.$4)"
+
+template: |
+  ## Cryptol $NEXT_PATCH_VERSION
+
+  $CHANGES

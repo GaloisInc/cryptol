@@ -1,5 +1,5 @@
-[![Build
-Status](https://travis-ci.org/GaloisInc/cryptol.svg?branch=master)](https://travis-ci.org/GaloisInc/cryptol)
+![Build
+Status](https://github.com/GaloisInc/cryptol/workflows/Cryptol/badge.svg)
 
 # Cryptol, version 2
 

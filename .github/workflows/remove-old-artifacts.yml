@@ -1,0 +1,18 @@
+# https://github.com/actions/upload-artifact/issues/5
+
+name: Remove old artifacts
+on:
+  schedule:
+    - cron: "0 1 * * *"
+
+jobs:
+  remove-old-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Remove old artifacts
+        uses: c-hive/gha-remove-artifacts@v1
+        with:
+          age: "1 week"
+          skip-tags: true
