@@ -41,17 +41,21 @@ Primitive Types
     (/) : # -> # -> #
     (/^) : # -> # -> #
     (^^) : # -> # -> #
-    Arith : * -> Prop
     Bit : *
     Cmp : * -> Prop
+    Field : * -> Prop
     fin : # -> Prop
     Integer : *
+    Integral : * -> Prop
     inf : #
     Literal : # -> * -> Prop
     Logic : * -> Prop
     lengthFromThenTo : # -> # -> # -> #
     max : # -> # -> #
     min : # -> # -> #
+    Rational : *
+    Ring : * -> Prop
+    Round : * -> Prop
     SignedCmp : * -> Prop
     width : # -> #
     Z : # -> *
@@ -68,6 +72,7 @@ Symbols
   From Cryptol
   ------------
 
+    (/.) : {a} (Field a) => a -> a -> a
     (==>) : Bit -> Bit -> Bit
     (\/) : Bit -> Bit -> Bit
     (/\) : Bit -> Bit -> Bit
@@ -89,27 +94,29 @@ Symbols
     (#) :
       {front, back, a} (fin front) =>
         [front]a -> [back]a -> [front + back]a
-    (<<) : {n, ix, a} (fin ix, Zero a) => [n]a -> [ix] -> [n]a
-    (<<<) : {n, ix, a} (fin n, fin ix) => [n]a -> [ix] -> [n]a
-    (>>) : {n, ix, a} (fin ix, Zero a) => [n]a -> [ix] -> [n]a
-    (>>$) : {n, ix} (fin n, n >= 1, fin ix) => [n] -> [ix] -> [n]
-    (>>>) : {n, ix, a} (fin n, fin ix) => [n]a -> [ix] -> [n]a
-    (+) : {a} (Arith a) => a -> a -> a
-    (-) : {a} (Arith a) => a -> a -> a
-    (%) : {a} (Arith a) => a -> a -> a
+    (<<) : {n, ix, a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
+    (<<<) : {n, ix, a} (fin n, Integral ix) => [n]a -> ix -> [n]a
+    (>>) : {n, ix, a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
+    (>>$) : {n, ix} (fin n, n >= 1, Integral ix) => [n] -> ix -> [n]
+    (>>>) : {n, ix, a} (fin n, Integral ix) => [n]a -> ix -> [n]a
+    (+) : {a} (Ring a) => a -> a -> a
+    (-) : {a} (Ring a) => a -> a -> a
+    (%) : {a} (Integral a) => a -> a -> a
     (%$) : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
-    (*) : {a} (Arith a) => a -> a -> a
-    (/) : {a} (Arith a) => a -> a -> a
+    (*) : {a} (Ring a) => a -> a -> a
+    (/) : {a} (Integral a) => a -> a -> a
     (/$) : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
-    (^^) : {a} (Arith a) => a -> a -> a
-    (!) : {n, a, ix} (fin n, fin ix) => [n]a -> [ix] -> a
-    (!!) : {n, k, ix, a} (fin n, fin ix) => [n]a -> [k][ix] -> [k]a
-    (@) : {n, a, ix} (fin ix) => [n]a -> [ix] -> a
-    (@@) : {n, k, ix, a} (fin ix) => [n]a -> [k][ix] -> [k]a
+    (^^) : {a, n} (Ring a, fin n) => a -> [n] -> a
+    (!) : {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a
+    (!!) : {n, k, ix, a} (fin n, Integral ix) => [n]a -> [k]ix -> [k]a
+    (@) : {n, a, ix} (Integral ix) => [n]a -> ix -> a
+    (@@) : {n, k, ix, a} (Integral ix) => [n]a -> [k]ix -> [k]a
+    abs : {a} (Cmp a, Ring a) => a -> a
     all : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
     and : {n} (fin n) => [n] -> Bit
     any : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
     carry : {n} (fin n) => [n] -> [n] -> Bit
+    ceiling : {a} (Round a) => a -> Integer
     complement : {a} (Logic a) => a -> a
     curry : {a, b, c} ((a, b) -> c) -> a -> b -> c
     demote : {val, rep} (Literal val rep) => rep
@@ -117,9 +124,10 @@ Symbols
     elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
     error : {a, len} (fin len) => [len][8] -> a
     False : Bit
+    floor : {a} (Round a) => a -> Integer
     foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
     foldr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
-    fromInteger : {a} (Arith a) => Integer -> a
+    fromInteger : {a} (Ring a) => Integer -> a
     fromThenTo :
       {first, next, last, a, len} (fin first, fin next, fin last,
                                    Literal first a, Literal next a, Literal last a, first != next,
@@ -129,24 +137,22 @@ Symbols
       {first, last, a} (fin last, last >= first, Literal last a) =>
         [1 + (last - first)]a
     fromZ : {n} (fin n, n >= 1) => Z n -> Integer
-    generate :
-      {n, ix, a} (fin ix, n >= 1, ix >= width (n - 1)) =>
-        ([ix] -> a) -> [n]a
+    generate : {n, a} (fin n, n >= 1) => (Integer -> a) -> [n]a
     groupBy :
       {each, parts, a} (fin each) => [each * parts]a -> [parts][each]a
     head : {n, a} [1 + n]a -> a
-    infFrom : {a} (Arith a) => a -> [inf]a
-    infFromThen : {a} (Arith a) => a -> a -> [inf]a
+    infFrom : {a} (Integral a) => a -> [inf]a
+    infFromThen : {a} (Integral a) => a -> a -> [inf]a
     iterate : {a} (a -> a) -> a -> [inf]a
     join :
       {parts, each, a} (fin each) => [parts][each]a -> [parts * each]a
     last : {n, a} (fin n) => [1 + n]a -> a
     length : {n, a, b} (fin n, Literal n b) => [n]a -> b
-    lg2 : {a} (Arith a) => a -> a
+    lg2 : {n} (fin n) => [n] -> [n]
     map : {n, a, b} (a -> b) -> [n]a -> [n]b
     max : {a} (Cmp a) => a -> a -> a
     min : {a} (Cmp a) => a -> a -> a
-    negate : {a} (Arith a) => a -> a
+    negate : {a} (Ring a) => a -> a
     number : {val, rep} (Literal val rep) => rep
     or : {n} (fin n) => [n] -> Bit
     pdiv : {u, v} (fin u, fin v) => [u] -> [v] -> [u]
@@ -154,8 +160,11 @@ Symbols
     pmult :
       {u, v} (fin u, fin v) => [1 + u] -> [1 + v] -> [1 + (u + v)]
     random : {a} [256] -> a
+    ratio : Integer -> Integer -> Rational
+    recip : {a} (Field a) => a -> a
     repeat : {n, a} a -> [n]a
     reverse : {n, a} (fin n) => [n]a -> [n]a
+    round : {a} (Round a) => a -> Integer
     sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
     scanl : {n, b, a} (b -> a -> b) -> b -> [n]a -> [1 + n]b
     scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [1 + n]b
@@ -166,23 +175,25 @@ Symbols
     splitAt :
       {front, back, a} (fin front) =>
         [front + back]a -> ([front]a, [back]a)
-    sum : {n, a} (fin n, Arith a) => [n]a -> a
+    sum : {n, a} (fin n, Ring a) => [n]a -> a
     True : Bit
     tail : {n, a} [1 + n]a -> [n]a
     take : {front, back, a} (fin front) => [front + back]a -> [front]a
-    toInteger : {bits} (fin bits) => [bits] -> Integer
+    toInteger : {a} (Integral a) => a -> Integer
     trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
     traceVal : {n, a} (fin n) => [n][8] -> a -> a
     transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
+    trunc : {a} (Round a) => a -> Integer
     uncurry : {a, b, c} (a -> b -> c) -> (a, b) -> c
     undefined : {a} a
-    update : {n, a, ix} (fin ix) => [n]a -> [ix] -> a -> [n]a
-    updateEnd : {n, a, ix} (fin n, fin ix) => [n]a -> [ix] -> a -> [n]a
+    update : {n, a, ix} (Integral ix) => [n]a -> ix -> a -> [n]a
+    updateEnd :
+      {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a -> [n]a
     updates :
-      {n, k, ix, a} (fin ix, fin k) => [n]a -> [k][ix] -> [k]a -> [n]a
+      {n, k, ix, a} (Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
     updatesEnd :
-      {n, k, ix, a} (fin n, fin ix, fin k) =>
-        [n]a -> [k][ix] -> [k]a -> [n]a
+      {n, k, ix, a} (fin n, Integral ix, fin k) =>
+        [n]a -> [k]ix -> [k]a -> [n]a
     zero : {a} (Zero a) => a
     zext : {m, n} (fin m, m >= n) => [n] -> [m]
     zip : {n, a, b} [n]a -> [n]b -> [n](a, b)
