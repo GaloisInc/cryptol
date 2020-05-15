@@ -51,7 +51,7 @@ improveLit impSkol prop =
      (_,b) <- aSeq t
      a     <- aTVar b
      unless impSkol $ guard (isFreeTV a)
-     let su = singleSubst a tBit
+     let su = uncheckedSingleSubst a tBit
      return (su, [])
 
 
@@ -66,13 +66,15 @@ improveEq impSkol fins prop =
   where
   rewrite this other =
     do x <- aTVar this
-       guard (considerVar x && x `Set.notMember` fvs other)
-       return (singleSubst x other, [])
+       guard (considerVar x)
+       case singleSubst x other of
+         Left _ -> mzero
+         Right su -> return (su, [])
     <|>
     do (v,s) <- isSum this
-       guard (v `Set.notMember` fvs other)
-       return (singleSubst v (Mk.tSub other s), [ other >== s ])
-
+       case singleSubst v (Mk.tSub other s) of
+         Left _ -> mzero
+         Right su -> return (su, [ other >== s ])
 
   isSum t = do (v,s) <- matches t (anAdd, aTVar, __)
                valid v s

@@ -14,8 +14,10 @@
 module Cryptol.TypeCheck.Subst
   ( Subst
   , emptySubst
+  , SubstError(..)
   , singleSubst
   , singleTParamSubst
+  , uncheckedSingleSubst
   , (@@)
   , defaultingSubst
   , listSubst
@@ -75,20 +77,38 @@ emptySubst =
     , suDefaulting = False
     }
 
-singleSubst :: TVar -> Type -> Subst
-singleSubst v@(TVFree i _ _tps _) t =
+-- | Reasons to reject a single-variable substitution.
+data SubstError
+  = SubstRecursive
+  -- ^ 'TVar' maps to a type containing the same variable.
+  | SubstEscaped [TParam]
+  -- ^ 'TVar' maps to a type containing one or more out-of-scope bound variables.
+
+singleSubst :: TVar -> Type -> Either SubstError Subst
+singleSubst x t
+  | x `Set.member` fvs t   = Left SubstRecursive
+  | not (Set.null escaped) = Left (SubstEscaped (Set.toList escaped))
+  | otherwise              = Right (uncheckedSingleSubst x t)
+  where
+    escaped =
+      case x of
+        TVBound _ -> Set.empty
+        TVFree _ _ scope _ -> freeParams t `Set.difference` scope
+
+uncheckedSingleSubst :: TVar -> Type -> Subst
+uncheckedSingleSubst v@(TVFree i _ _tps _) t =
   S { suFreeMap = IntMap.singleton i (v, t)
     , suBoundMap = IntMap.empty
     , suDefaulting = False
     }
-singleSubst v@(TVBound tp) t =
+uncheckedSingleSubst v@(TVBound tp) t =
   S { suFreeMap = IntMap.empty
     , suBoundMap = IntMap.singleton (tpUnique tp) (v, t)
     , suDefaulting = False
     }
 
 singleTParamSubst :: TParam -> Type -> Subst
-singleTParamSubst tp t = singleSubst (TVBound tp) t
+singleTParamSubst tp t = uncheckedSingleSubst (TVBound tp) t
 
 (@@) :: Subst -> Subst -> Subst
 s2 @@ s1
@@ -338,4 +358,3 @@ instance TVars DeclDef where
 
 instance TVars Module where
   apSubst su m = m { mDecls = apSubst su (mDecls m) }
-

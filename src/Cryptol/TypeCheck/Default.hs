@@ -9,7 +9,7 @@ import Control.Monad(guard)
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.SimpType(tMax,tWidth)
 import Cryptol.TypeCheck.Error(Warning(..))
-import Cryptol.TypeCheck.Subst(Subst,apSubst,listSubst,substBinds,singleSubst)
+import Cryptol.TypeCheck.Subst(Subst,apSubst,listSubst,substBinds,uncheckedSingleSubst)
 import Cryptol.TypeCheck.InferTypes(Goal,goal,Goals(..),goalsFromList)
 import Cryptol.TypeCheck.Solver.SMT(Solver,tryGetModel,shrinkModel)
 import Cryptol.Utils.Panic(panic)
@@ -152,7 +152,7 @@ improveByDefaultingWithPure as ps =
           let ty  = case ts of
                       [] -> tNum (0::Int)
                       _  -> foldr1 tMax ts
-              su1 = singleSubst x ty
+              su1 = uncheckedSingleSubst x ty
           in ( (x,ty) : [ (y,apSubst su1 t) | (y,t) <- yes ]
              , no         -- We know that `x` does not appear here
              , otherFree  -- We know that `x` did not appear here either

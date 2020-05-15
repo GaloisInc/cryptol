@@ -111,14 +111,17 @@ bindVar v@(TVBound {}) t
   where k = kindOf v
 
 bindVar x@(TVFree _ _ xscope _) (TVar y@(TVFree _ _ yscope _))
-  | xscope `Set.isProperSubsetOf` yscope = return (singleSubst y (TVar x), [])
+  | xscope `Set.isProperSubsetOf` yscope =
+    return (uncheckedSingleSubst y (TVar x), [])
 
-bindVar x@(TVFree _ k inScope _d) t
+bindVar x@(TVFree _ k _scope _d) t
   | not (k == kindOf t)     = uniError $ UniKindMismatch k (kindOf t)
-  | recTy && k == KType     = uniError $ UniRecursive x t
-  | not (Set.null escaped)  = uniError $ UniNonPolyDepends x $ Set.toList escaped
-  | recTy                   = return (emptySubst, [TVar x =#= t])
-  | otherwise               = return (singleSubst x t, [])
-    where
-    escaped = freeParams t `Set.difference` inScope
-    recTy   = x `Set.member` fvs t
+  | otherwise               =
+    case singleSubst x t of
+      Left SubstRecursive
+        | k == KType -> uniError $ UniRecursive x t
+        | otherwise  -> return (emptySubst, [TVar x =#= t])
+      Left (SubstEscaped tps) ->
+        uniError $ UniNonPolyDepends x tps
+      Right su ->
+        return (su, [])
