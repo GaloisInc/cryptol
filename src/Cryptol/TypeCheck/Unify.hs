@@ -122,10 +122,3 @@ bindVar x@(TVFree _ k inScope _d) t
     where
     escaped = freeParams t `Set.difference` inScope
     recTy   = x `Set.member` fvs t
-
-
-freeParams :: FVS t => t -> Set.Set TParam
-freeParams x = Set.unions (map params (Set.toList (fvs x)))
-  where
-    params (TVFree _ _ tps _) = tps
-    params (TVBound tp) = Set.singleton tp
