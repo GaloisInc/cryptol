@@ -404,6 +404,11 @@ pIsFin ty = case tNoUser ty of
               TCon (PC PFin) [t1] -> Just t1
               _                   -> Nothing
 
+pIsPrime :: Prop -> Maybe Type
+pIsPrime ty = case tNoUser ty of
+                TCon (PC PPrime) [t1] -> Just t1
+                _                     -> Nothing
+
 pIsGeq :: Prop -> Maybe (Type,Type)
 pIsGeq ty = case tNoUser ty of
               TCon (PC PGeq) [t1,t2] -> Just (t1,t2)
@@ -668,6 +673,12 @@ pFin ty =
     TCon (TC TCInf)     _ -> pError (TCErrorMessage "`inf` is not finite.")
     _                     -> TCon (PC PFin) [ty]
 
+pPrime :: Type -> Prop
+pPrime ty =
+  case tNoUser ty of
+    TCon (TC TCInf) _ -> pError (TCErrorMessage "`inf` is not prime.")
+    _ -> TCon (PC PPrime) [ty]
+
 -- | Make a malformed property.
 pError :: TCErrorMessage -> Prop
 pError msg = TCon (TError KProp msg) []
@@ -828,6 +839,7 @@ instance PP (WithNames Type) where
           (PNeq ,  [t1,t2])   -> go 0 t1 <+> text "!=" <+> go 0 t2
           (PGeq,  [t1,t2])    -> go 0 t1 <+> text ">=" <+> go 0 t2
           (PFin,  [t1])       -> text "fin" <+> (go 4 t1)
+          (PPrime,  [t1])     -> text "prime" <+> (go 4 t1)
           (PHas x, [t1,t2])   -> ppSelector x <+> text "of"
                                <+> go 0 t1 <+> text "is" <+> go 0 t2
 

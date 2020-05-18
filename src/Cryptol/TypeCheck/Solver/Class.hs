@@ -329,6 +329,8 @@ expandProp prop =
     case tNoUser prop of
       TCon (PC pc) [ty] ->
         case pc of
+          PPrime    -> [pFin ty, ty >== tTwo]
+
           -- Ring a => Zero a
           PRing     -> expandProp (pZero ty)
 

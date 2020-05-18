@@ -60,6 +60,9 @@ primitive type (>=) : # -> # -> Prop
 /** Assert that a numeric type is a proper natural number (not 'inf'). */
 primitive type fin : # -> Prop
 
+/** Assert that a numeric type is a prime number. */
+primitive type prime : # -> Prop
+
 /** Value types that have a notion of 'zero'. */
 primitive type Zero : * -> Prop
 
@@ -95,6 +98,7 @@ primitive type SignedCmp : * -> Prop
 
 /** 'Literal n a' asserts that type 'a' contains the number 'n'. */
 primitive type Literal : # -> * -> Prop
+
 
 /** Add numeric types. */
 primitive type (+) : # -> # -> #

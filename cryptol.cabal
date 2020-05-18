@@ -45,6 +45,7 @@ library
   Build-depends:       base              >= 4.8 && < 5,
                        base-compat       >= 0.6 && < 0.12,
                        bytestring        >= 0.10,
+                       arithmoi          >= 0.11 && < 0.12,
                        array             >= 0.4,
                        containers        >= 0.5,
                        cryptohash-sha1   >= 0.11 && < 0.12,
