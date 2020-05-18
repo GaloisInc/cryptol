@@ -86,9 +86,12 @@ data SubstError
   -- ^ 'TVar' maps to a type containing the same variable.
   | SubstEscaped [TParam]
   -- ^ 'TVar' maps to a type containing one or more out-of-scope bound variables.
+  | SubstKindMismatch Kind Kind
+  -- ^ 'TVar' maps to a type with a different kind.
 
 singleSubst :: TVar -> Type -> Either SubstError Subst
 singleSubst x t
+  | kindOf x /= kindOf t   = Left (SubstKindMismatch (kindOf x) (kindOf t))
   | x `Set.member` fvs t   = Left SubstRecursive
   | not (Set.null escaped) = Left (SubstEscaped (Set.toList escaped))
   | otherwise              = Right (uncheckedSingleSubst x t)
