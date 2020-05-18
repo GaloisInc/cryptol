@@ -16,6 +16,7 @@ module Cryptol.Utils.Ident
   , modNameChunks
   , packModName
   , preludeName
+  , floatName
   , interactiveName
   , noModuleName
   , exprModName
@@ -99,6 +100,10 @@ modInstPref = "`"
 
 preludeName :: ModName
 preludeName  = packModName ["Cryptol"]
+
+floatName :: ModName
+floatName = packModName ["Float"]
+
 
 interactiveName :: ModName
 interactiveName  = packModName ["<interactive>"]

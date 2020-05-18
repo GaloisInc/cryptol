@@ -1,0 +1,26 @@
+module Float where
+
+type constraint ValidFloat e p = (fin e, fin p, e >= 1, p >= 1)
+
+/** IEEE-754 floating point numbers. */
+primitive type { exponent : #, precision : #}
+  ValidFloat exponent precision => Float exponent precision : *
+
+/** An abbreviation for common 16-bit floating point numbers. */
+type Float16  = Float 5 11
+
+/** An abbreviation for common 32-bit floating point numbers. */
+type Float32  = Float 8 24
+
+/** An abbreviation for common 64-bit floating point numbers. */
+type Float64  = Float 11 53
+
+/** An abbreviation for common 128-bit floating point numbers. */
+type Float128 = Float 15 113
+
+/** An abbreviation for common 256-bit floating point numbers. */
+type Float256 = Float 19 237
+
+
+
+

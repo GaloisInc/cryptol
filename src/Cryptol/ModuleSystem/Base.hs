@@ -42,14 +42,14 @@ import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
 import Cryptol.Transform.AddModParams (addModParams)
-import Cryptol.Utils.Ident (preludeName, interactiveName
+import Cryptol.Utils.Ident (preludeName, floatName, interactiveName
                            , modNameChunks, notParamInstModName
                            , isParamInstModName )
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
 
-import Cryptol.Prelude (preludeContents)
+import Cryptol.Prelude (preludeContents, floatContents)
 
 import Cryptol.Transform.MonoValues (rewModule)
 
@@ -259,6 +259,7 @@ findModule n = do
   handleNotFound =
     case n of
       m | m == preludeName -> pure (InMem "Cryptol" preludeContents)
+        | m == floatName   -> pure (InMem "Float" floatContents)
       _ -> moduleNotFound n =<< getSearchPath
 
   -- generate all possible search paths
