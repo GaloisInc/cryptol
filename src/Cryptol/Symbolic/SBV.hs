@@ -181,15 +181,14 @@ satProve ProverCommand {..} =
   case predArgTypes pcSchema of
     Left msg -> return (Nothing, ProverError msg)
     Right ts -> do when pcVerbose $ lPutStrLn "Simulating..."
-                   (_,v) <- doSBVEval evo $
-                              do env <- Eval.evalDecls SBV extDgs mempty
-                                 Eval.evalExpr SBV env pcExpr
                    prims <- M.getPrimMap
                    runRes <- runFn $ do
                                (args, asms) <- runWriterT (mapM tyFn ts)
-                               (_,b) <- doSBVEval evo (Eval.fromVBit <$>
-                                          foldM Eval.fromVFun v (map pure args))
-                               return (foldr addAsm b asms)
+                               (safety,b) <- doSBVEval evo $
+                                   do env <- Eval.evalDecls SBV extDgs mempty
+                                      v <- Eval.evalExpr SBV env pcExpr
+                                      Eval.fromVBit <$> foldM Eval.fromVFun v (map pure args)
+                               return (foldr addAsm (SBV.svAnd safety b) asms)
                    let (firstProver, results) = runRes
                    esatexprs <- case results of
                      -- allSat can return more than one as long as
@@ -235,14 +234,13 @@ satProveOffline ProverCommand {..} =
       Left msg -> return (Right (Left msg, modEnv), [])
       Right ts ->
         do when pcVerbose $ logPutStrLn (Eval.evalLogger evOpts) "Simulating..."
-           (_,v) <- doSBVEval evOpts $
-                      do env <- Eval.evalDecls SBV extDgs mempty
-                         Eval.evalExpr SBV env pcExpr
            smtlib <- SBV.generateSMTBenchmark isSat $ do
              (args, asms) <- runWriterT (mapM tyFn ts)
-             (_,b) <- doSBVEval evOpts
-                          (Eval.fromVBit <$> foldM Eval.fromVFun v (map pure args))
-             return (foldr addAsm b asms)
+             (safety,b) <- doSBVEval evOpts $
+                             do env <- Eval.evalDecls SBV extDgs mempty
+                                v <- Eval.evalExpr SBV env pcExpr
+                                (Eval.fromVBit <$> foldM Eval.fromVFun v (map pure args))
+             return (foldr addAsm (SBV.svAnd safety b) asms)
            return (Right (Right smtlib, modEnv), [])
 
 protectStack :: (String -> M.ModuleCmd a)
