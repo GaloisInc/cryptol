@@ -4,3 +4,6 @@
 [submodule "dependencies/what4"]
 	path = dependencies/what4
 	url = https://github.com/GaloisInc/what4.git
+[submodule "dependencies/libBF-hs"]
+	path = dependencies/libBF-hs
+	url = git@github.com:GaloisInc/libBF-hs.git
