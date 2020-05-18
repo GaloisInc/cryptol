@@ -299,7 +299,7 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
 
   intExp (What4 sym) x y
     | Just i <- W4.asInteger y = intExpConcrete sym x i
-    | otherwise = liftIO (X.throw (UnsupportedSymbolicOp "integer exponentation"))
+    | otherwise = liftIO (X.throw (UnsupportedSymbolicOp "integer exponentiation"))
 
   intLg2 (What4 sym) x
     | Just i <- W4.asInteger x = liftIO $ W4.intLit sym (lg2 i)

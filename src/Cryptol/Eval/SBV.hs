@@ -303,7 +303,7 @@ instance Backend SBV where
        do unless (0 <= e) (raiseError sym NegativeExponent)
           pure $! SBV.svExp a b
     | otherwise =
-       liftIO (X.throw (UnsupportedSymbolicOp "integer exponentation"))
+       liftIO (X.throw (UnsupportedSymbolicOp "integer exponentiation"))
 
   -- NB, we don't do reduction here
   intToZn _ _m a = pure a
