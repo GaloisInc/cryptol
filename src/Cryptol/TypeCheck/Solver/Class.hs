@@ -570,5 +570,3 @@ solveLiteralInst val ty
 
       _ -> Unsolvable $ TCErrorMessage $ show
          $ "Type" <+> quotes (pp ty) <+> "does not support integer literals."
-
-

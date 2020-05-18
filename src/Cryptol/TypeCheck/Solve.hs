@@ -360,10 +360,12 @@ cleanupError err =
 
 buildSolverCtxt :: [Prop] -> Ctxt
 buildSolverCtxt ps0 =
-  SolverCtxt
-  { intervals = assumptionIntervals mempty ps0
-  , saturatedAsmps = saturateProps mempty ps0
-  }
+  let ps = saturateProps mempty ps0
+      ivals = assumptionIntervals mempty (Set.toList ps)
+   in SolverCtxt
+      { intervals = ivals
+      , saturatedAsmps = ps
+      }
 
  where
  saturateProps gs [] = gs

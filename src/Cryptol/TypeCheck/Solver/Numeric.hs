@@ -1,12 +1,16 @@
-{-# LANGUAGE Safe, PatternGuards, MultiWayIf #-}
+{-# LANGUAGE PatternGuards, MultiWayIf, TypeOperators #-}
 module Cryptol.TypeCheck.Solver.Numeric
-  ( cryIsEqual, cryIsNotEqual, cryIsGeq
+  ( cryIsEqual, cryIsNotEqual, cryIsGeq, cryIsPrime
+  , primeTable, certifiedPrimeTable
   ) where
 
 import           Control.Applicative(Alternative(..))
 import           Control.Monad (guard,mzero)
 import qualified Control.Monad.Fail as Fail
 import           Data.List (sortBy)
+import           Data.MemoTrie
+
+import qualified Math.NumberTheory.Primes.Testing as Prime
 
 import Cryptol.Utils.Patterns
 import Cryptol.TypeCheck.PP
@@ -71,6 +75,32 @@ cryIsGeq i t1 t2 =
 
   -- XXX: max t 10 >= 2 --> True
   -- XXX: max t 2 >= 10 --> a >= 10
+
+
+{-# NOINLINE primeTable #-}
+primeTable :: Integer :->: Bool
+primeTable = trie Prime.isPrime
+
+{-# NOINLINE certifiedPrimeTable #-}
+certifiedPrimeTable :: Integer :->: Bool
+certifiedPrimeTable = trie Prime.isCertifiedPrime
+
+cryIsPrime :: Ctxt -> Type -> Solved
+cryIsPrime _varInfo ty =
+  case tNoUser ty of
+
+    TCon (TC tc) []
+      | TCNum n <- tc ->
+          if untrie primeTable n then
+            SolvedIf []
+          else
+            Unsolvable $ TCErrorMessage (show n ++ " is not a prime number")
+
+      | TCInf <- tc ->
+        Unsolvable $ TCErrorMessage "`inf` is not a prime number"
+
+    _ -> Unsolved
+
 
 -- | Try to solve something by evaluation.
 pBin :: PC -> (Nat' -> Nat' -> Bool) -> Type -> Type -> Match Solved

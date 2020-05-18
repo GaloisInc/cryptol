@@ -309,6 +309,10 @@ type SType  = Type
 -- | Compute the set of all @Prop@s that are implied by the
 --   given prop via superclass constraints.
 superclassSet :: Prop -> Set Prop
+
+superclassSet (TCon (PC PPrime) [n]) =
+  Set.fromList [ pFin n, n >== tTwo ]
+
 superclassSet (TCon (PC p0) [t]) = go p0
   where
   super p = Set.insert (TCon (PC p) [t]) (go p)
@@ -468,6 +472,11 @@ pIsFin :: Prop -> Maybe Type
 pIsFin ty = case tNoUser ty of
               TCon (PC PFin) [t1] -> Just t1
               _                   -> Nothing
+
+pIsPrime :: Prop -> Maybe Type
+pIsPrime ty = case tNoUser ty of
+                TCon (PC PPrime) [t1] -> Just t1
+                _                     -> Nothing
 
 pIsGeq :: Prop -> Maybe (Type,Type)
 pIsGeq ty = case tNoUser ty of
@@ -760,6 +769,15 @@ pFin ty =
 pValidFloat :: Type -> Type -> Type
 pValidFloat e p = TCon (PC PValidFloat) [e,p]
 
+pPrime :: Type -> Prop
+pPrime ty =
+  case tNoUser ty of
+    TCon (TC TCInf) _ -> pError (TCErrorMessage "`inf` is not prime.")
+    _ -> TCon (PC PPrime) [ty]
+
+-- | Make a malformed property.
+pError :: TCErrorMessage -> Prop
+pError msg = TCon (TError KProp msg) []
 
 --------------------------------------------------------------------------------
 
@@ -940,6 +958,7 @@ instance PP (WithNames Type) where
           (PNeq ,  [t1,t2])   -> go 0 t1 <+> text "!=" <+> go 0 t2
           (PGeq,  [t1,t2])    -> go 0 t1 <+> text ">=" <+> go 0 t2
           (PFin,  [t1])       -> optParens (prec > 3) $ text "fin" <+> (go 4 t1)
+          (PPrime,  [t1])     -> optParens (prec > 3) $ text "prime" <+> (go 4 t1)
           (PHas x, [t1,t2])   -> ppSelector x <+> text "of"
                                <+> go 0 t1 <+> text "is" <+> go 0 t2
           (PAnd, [t1,t2])     -> parens (commaSep (map (go 0) (t1 : pSplitAnd t2)))
