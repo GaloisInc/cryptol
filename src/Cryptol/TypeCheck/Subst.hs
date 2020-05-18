@@ -14,7 +14,10 @@
 module Cryptol.TypeCheck.Subst
   ( Subst
   , emptySubst
+  , SubstError(..)
   , singleSubst
+  , singleTParamSubst
+  , uncheckedSingleSubst
   , (@@)
   , defaultingSubst
   , listSubst
@@ -47,12 +50,22 @@ import Cryptol.Utils.Misc(anyJust)
 -- | A 'Subst' value represents a substitution that maps each 'TVar'
 -- to a 'Type'.
 --
--- Invariant: If there is a mapping from @TVFree _ _ tps _@ to a type
--- @t@, then @t@ must not mention (directly or indirectly) any type
--- parameter that is not in @tps@. In particular, if @t@ contains a
--- variable @TVFree _ _ tps2 _@, then @tps2@ must be a subset of
+-- Invariant 1: If there is a mapping from @TVFree _ _ tps _@ to a
+-- type @t@, then @t@ must not mention (directly or indirectly) any
+-- type parameter that is not in @tps@. In particular, if @t@ contains
+-- a variable @TVFree _ _ tps2 _@, then @tps2@ must be a subset of
 -- @tps@. This ensures that applying the substitution will not permit
 -- any type parameter to escape from its scope.
+--
+-- Invariant 2: The substitution must be idempotent, in that applying
+-- a substitution to any 'Type' in the map should leave that 'Type'
+-- unchanged. In other words, 'Type' values in the range of a 'Subst'
+-- should not mention any 'TVar' in the domain of the 'Subst'. In
+-- particular, this implies that a substitution must not contain any
+-- recursive variable mappings.
+--
+-- Invariant 3: The substitution must be kind correct: Each 'TVar' in
+-- the substitution must map to a 'Type' of the same kind.
 
 data Subst = S { suFreeMap :: !(IntMap.IntMap (TVar, Type))
                , suBoundMap :: !(IntMap.IntMap (TVar, Type))
@@ -67,17 +80,41 @@ emptySubst =
     , suDefaulting = False
     }
 
-singleSubst :: TVar -> Type -> Subst
-singleSubst v@(TVFree i _ _tps _) t =
+-- | Reasons to reject a single-variable substitution.
+data SubstError
+  = SubstRecursive
+  -- ^ 'TVar' maps to a type containing the same variable.
+  | SubstEscaped [TParam]
+  -- ^ 'TVar' maps to a type containing one or more out-of-scope bound variables.
+  | SubstKindMismatch Kind Kind
+  -- ^ 'TVar' maps to a type with a different kind.
+
+singleSubst :: TVar -> Type -> Either SubstError Subst
+singleSubst x t
+  | kindOf x /= kindOf t   = Left (SubstKindMismatch (kindOf x) (kindOf t))
+  | x `Set.member` fvs t   = Left SubstRecursive
+  | not (Set.null escaped) = Left (SubstEscaped (Set.toList escaped))
+  | otherwise              = Right (uncheckedSingleSubst x t)
+  where
+    escaped =
+      case x of
+        TVBound _ -> Set.empty
+        TVFree _ _ scope _ -> freeParams t `Set.difference` scope
+
+uncheckedSingleSubst :: TVar -> Type -> Subst
+uncheckedSingleSubst v@(TVFree i _ _tps _) t =
   S { suFreeMap = IntMap.singleton i (v, t)
     , suBoundMap = IntMap.empty
     , suDefaulting = False
     }
-singleSubst v@(TVBound tp) t =
+uncheckedSingleSubst v@(TVBound tp) t =
   S { suFreeMap = IntMap.empty
     , suBoundMap = IntMap.singleton (tpUnique tp) (v, t)
     , suDefaulting = False
     }
+
+singleTParamSubst :: TParam -> Type -> Subst
+singleTParamSubst tp t = uncheckedSingleSubst (TVBound tp) t
 
 (@@) :: Subst -> Subst -> Subst
 s2 @@ s1
@@ -327,4 +364,3 @@ instance TVars DeclDef where
 
 instance TVars Module where
   apSubst su m = m { mDecls = apSubst su (mDecls m) }
-

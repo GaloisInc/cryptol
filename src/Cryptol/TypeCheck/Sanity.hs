@@ -17,7 +17,7 @@ module Cryptol.TypeCheck.Sanity
 
 import Cryptol.Parser.Position(thing)
 import Cryptol.TypeCheck.AST
-import Cryptol.TypeCheck.Subst (apSubst, singleSubst)
+import Cryptol.TypeCheck.Subst (apSubst, singleTParamSubst)
 import Cryptol.TypeCheck.Monad(InferInput(..))
 import Cryptol.Utils.Ident
 
@@ -221,7 +221,7 @@ exprSchema expr =
                 let k' = kindOf a
                 unless (k == k') $ reportError $ KindMismatch k' k
 
-                let su = singleSubst (tpVar a) t
+                let su = singleTParamSubst a t
                 return $ Forall as (apSubst su ps) (apSubst su t1)
 
            Forall [] _ _ -> reportError BadInstantiation

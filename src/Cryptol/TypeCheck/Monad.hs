@@ -550,13 +550,7 @@ extendSubst su =
             , "Type:     " ++ show (pp ty)
             ]
         TVFree _ _ tvs _ ->
-          do let bounds tv =
-                   case tv of
-                     TVBound tp -> Set.singleton tp
-                     TVFree _ _ tps _ -> tps
-             let vars = Set.unions (map bounds (Set.elems (fvs ty)))
-                 -- (Set.filter isBoundTV (fvs ty))
-             let escaped = Set.difference vars tvs
+          do let escaped = Set.difference (freeParams ty) tvs
              if Set.null escaped then return () else
                panic "Cryptol.TypeCheck.Monad.extendSubst"
                  [ "Escaped quantified variables:"

@@ -324,7 +324,7 @@ instantiateExpr :: [Type] -> Int -> Expr -> SpecM Expr
 instantiateExpr [] 0 e = return e
 instantiateExpr [] n (EProofAbs _ e) = instantiateExpr [] (n - 1) e
 instantiateExpr (t : ts) n (ETAbs param e) =
-  instantiateExpr ts n (apSubst (singleSubst (tpVar param) t) e)
+  instantiateExpr ts n (apSubst (singleTParamSubst param t) e)
 instantiateExpr _ _ _ = fail "instantiateExpr: wrong number of type/proof arguments"
 
 

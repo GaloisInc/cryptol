@@ -650,6 +650,12 @@ pError msg = TCon (TError KProp msg) []
 noFreeVariables :: FVS t => t -> Bool
 noFreeVariables = all (not . isFreeTV) . Set.toList . fvs
 
+freeParams :: FVS t => t -> Set TParam
+freeParams x = Set.unions (map params (Set.toList (fvs x)))
+  where
+    params (TVFree _ _ tps _) = tps
+    params (TVBound tp) = Set.singleton tp
+
 class FVS t where
   fvs :: t -> Set TVar
 
