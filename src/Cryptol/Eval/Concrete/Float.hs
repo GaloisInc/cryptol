@@ -14,8 +14,10 @@ import Cryptol.Utils.Ident(Ident, floatPrimIdent)
 floatPrims :: Map Ident Value
 floatPrims = Map.fromList [ (floatPrimIdent i,v) | (i,v) <- table ]
   where
+  (~>) = (,)
   table =
-    [ ("fpNaN", nlam \_ -> nlam \_ -> VFloat bfNaN)
+    [ "fpNaN"     ~> nlam \_ -> nlam \_ -> VFloat bfNaN
+    , "fpPosInf"  ~> nlam \_ -> nlam \_ -> VFloat bfPosInf
     ]
 
 

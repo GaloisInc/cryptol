@@ -22,7 +22,7 @@ import           Data.Parameterized.Some
 
 import qualified What4.Interface as W4
 import qualified What4.SWord as SW
-import qualified Cryptol.Eval.What4.SFloat as SF
+import qualified Cryptol.Eval.What4.SFloat as FP
 
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Concrete.Value( BV(..), ppBV, lg2 )
@@ -87,7 +87,7 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
   type SBit (What4 sym)     = W4.Pred sym
   type SWord (What4 sym)    = SW.SWord sym
   type SInteger (What4 sym) = W4.SymInteger sym
-  type SFloat (What4 sym)   = SF.SFloat sym
+  type SFloat (What4 sym)   = FP.SFloat sym
   type SEval (What4 sym)    = W4Eval sym
 
   raiseError _ err = W4Eval (\_ -> pure (W4Error err))
@@ -313,6 +313,8 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
   znMinus  (What4 sym) m x y = liftIO $ sModSub sym m x y
   znMult   (What4 sym) m x y = liftIO $ sModMult sym m x y
   znNegate (What4 sym) m x   = liftIO $ sModNegate sym m x
+
+  floatLit (What4 sym) e p r = liftIO $ FP.fpFromRational sym e p r
 
 
 sModAdd :: W4.IsExprBuilder sym =>

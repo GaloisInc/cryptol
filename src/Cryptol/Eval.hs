@@ -425,6 +425,7 @@ etaDelay sym msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
     case tp of
       TVBit -> v
       TVInteger -> v
+      TVFloat {} -> v
       TVIntMod _ -> v
 
       TVSeq n TVBit ->

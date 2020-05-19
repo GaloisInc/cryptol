@@ -132,6 +132,14 @@ class MonadIO (SEval sym) => Backend sym where
     Integer {- ^ Value -} ->
     SEval sym (SInteger sym)
 
+  -- | Construct a floating point value from the given rational.
+  floatLit ::
+    sym ->
+    Integer  {- ^ exponent bits -} ->
+    Integer  {- ^ precision bits -} ->
+    Rational {- ^ The rational -} ->
+    SEval sym (SFloat sym)
+
   -- ==== If/then/else operations ====
   iteBit :: sym -> SBit sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
   iteWord :: sym -> SBit sym -> SWord sym -> SWord sym -> SEval sym (SWord sym)

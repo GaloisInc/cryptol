@@ -486,6 +486,9 @@ tBit      = TCon (TC TCBit) []
 tInteger :: Type
 tInteger  = TCon (TC TCInteger) []
 
+tFloat   :: Type -> Type -> Type
+tFloat e p = TCon (TC TCFloat) [ e, p ]
+
 tIntMod :: Type -> Type
 tIntMod n = TCon (TC TCIntMod) [n]
 

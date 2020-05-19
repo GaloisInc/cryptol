@@ -29,6 +29,7 @@ import Control.DeepSeq
 data TValue
   = TVBit                     -- ^ @ Bit @
   | TVInteger                 -- ^ @ Integer @
+  | TVFloat Integer Integer   -- ^ @ Float e p @
   | TVIntMod Integer          -- ^ @ Z n @
   | TVSeq Integer TValue      -- ^ @ [n]a @
   | TVStream TValue           -- ^ @ [inf]t @
@@ -44,6 +45,7 @@ tValTy tv =
   case tv of
     TVBit       -> tBit
     TVInteger   -> tInteger
+    TVFloat e p -> tFloat (tNum e) (tNum p)
     TVIntMod n  -> tIntMod (tNum n)
     TVSeq n t   -> tSeq (tNum n) (tValTy t)
     TVStream t  -> tSeq tInf (tValTy t)
@@ -102,9 +104,8 @@ evalType env ty =
       case (c, ts) of
         (TCBit, [])     -> Right $ TVBit
         (TCInteger, []) -> Right $ TVInteger
-        (TCIntMod, [n]) -> case num n of
-                             Inf   -> evalPanic "evalType" ["invalid type Z inf"]
-                             Nat m -> Right $ TVIntMod m
+        (TCFloat, [e,p])-> Right $ TVFloat (inum e) (inum p)
+        (TCIntMod, [n]) -> Right $ TVIntMod $ inum n
         (TCSeq, [n, t]) -> Right $ tvSeq (num n) (val t)
         (TCFun, [a, b]) -> Right $ TVFun (val a) (val b)
         (TCTuple _, _)  -> Right $ TVTuple (map val ts)
@@ -128,6 +129,10 @@ evalType env ty =
   where
     val = evalValType env
     num = evalNumType env
+    inum x = case num x of
+               Nat i -> i
+               Inf   -> evalPanic "evalType"
+                                  ["Expecting a finite size, but got `inf`"]
 
 -- | Evaluation for value types (kind *).
 evalValType :: HasCallStack => TypeEnv -> Type -> TValue

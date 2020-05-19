@@ -1,6 +1,6 @@
 module Float where
 
-type constraint ValidFloat e p = (fin e, fin p, e >= 1, p >= 1)
+type constraint ValidFloat e p = (fin e, fin p, e >= 2, p >= 2)
 
 /** IEEE-754 floating point numbers. */
 primitive type { exponent : #, precision : #}
@@ -22,12 +22,51 @@ type Float128 = Float 15 113
 type Float256 = Float 19 237
 
 
+
+/* ----------------------------------------------------------------------
+ * Rounding modes (this should be an enumeration type, when we add these)
+  ---------------------------------------------------------------------- */
+
+type RoundingMode = [3]
+
+/** Round toward nearest, ties go to even. */
+roundNearestEven, rne : RoundingMode
+roundNearestEven = 0
+rne              = roundNearestEven
+
+/** Round toward nearest, ties away from zero. */
+roundNearestAway, rna : RoundingMode
+roundNearestAway  = 1
+rna               = roundNearestAway
+
+/** Round toward positive infinity. */
+roundPositive, rtp : RoundingMode
+roundPositive     = 2
+rtp               = roundPositive
+
+/** Round toward negative infinity. */
+roundNegative, rtn : RoundingMode
+roundNegative     = 3
+rtn               = roundNegative
+
+/** Round toward zero. */
+roundZero, rtz : RoundingMode
+roundZero         = 4
+rtz               = roundZero
+
+
+
+
+
 /** Not a number. */
 primitive
   fpNaN : {e,p} ValidFloat e p => Float e p
 
+/** Positive infinity. */
+primitive
+  fpPosInf : {e,p} ValidFloat e p => Float e p
 
-
+// positive Zero is in the `Zero` class
 
 
 

@@ -608,6 +608,10 @@ zeroV sym ty = case ty of
   TVIntMod _ ->
     VInteger <$> integerLit sym 0
 
+  -- floating point
+  TVFloat e p ->
+    VFloat <$> floatLit sym e p 0
+
   -- sequences
   TVSeq w ety
       | isTBit ety -> pure $ word sym w 0

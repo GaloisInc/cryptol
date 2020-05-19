@@ -25,7 +25,7 @@ import Cryptol.Eval.Generic
 import Cryptol.Eval.Type (finNat')
 import Cryptol.Eval.Value
 import Cryptol.Eval.What4.Value
-import Cryptol.Eval.What4.FloatPrims(floatPrims)
+import Cryptol.Eval.What4.Float(floatPrims)
 import Cryptol.Testing.Random( randomV )
 import Cryptol.Utils.Ident
 

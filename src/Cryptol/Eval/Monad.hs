@@ -9,6 +9,7 @@
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.Eval.Monad
 ( -- * Evaluation monad
@@ -193,6 +194,10 @@ data EvalError
   | UserError String              -- ^ Call to the Cryptol @error@ primitive
   | LoopError String              -- ^ Detectable nontermination
   | NoPrim Name                   -- ^ Primitive with no implementation
+  | BadFPParams Integer Integer Integer
+                                  -- ^ Bad floating point parameter
+                                  -- (exponent,precision,round mode)
+
   | UnsupportedSymbolicOp String  -- ^ Operation cannot be supported in the symbolic simulator
     deriving (Typeable,Show)
 
@@ -208,6 +213,12 @@ instance PP EvalError where
       text "word too wide for memory:" <+> integer w <+> text "bits"
     UserError x -> text "Run-time error:" <+> text x
     LoopError x -> text "<<loop>>" <+> text x
+    BadFPParams ex p r ->
+      text "unsupported floating point parameters:" $$
+      nest 2 (vcat [ "exponent:" <+> integer ex
+                   , "precision:" <+> integer p
+                   , "rounding-mode:" <+> integer r
+                   ])
     NoPrim x -> text "unimplemented primitive:" <+> pp x
     UnsupportedSymbolicOp nm -> text "operation can not be supported on symbolic values:" <+> text nm
 

@@ -42,11 +42,18 @@ builtInType nm =
   case M.nameInfo nm of
     M.Declared m _
       | m == preludeName -> Map.lookup (M.nameIdent nm) builtInTypes
+      | m == floatName   -> Map.lookup (M.nameIdent nm) builtInFloat
     _ -> Nothing
 
   where
   x ~> y = (packIdent x, y)
 
+  -- Built-in types from Float.cry
+  builtInFloat = Map.fromList
+    [ "Float"             ~> TC TCFloat
+    ]
+
+  -- Built-in types from Cryptol.cry
   builtInTypes = Map.fromList
     [ -- Types
       "inf"               ~> TC TCInf
@@ -114,6 +121,7 @@ instance HasKind TC where
       TCInf     -> KNum
       TCBit     -> KType
       TCInteger -> KType
+      TCFloat   -> KNum :-> KNum :-> KType
       TCIntMod  -> KNum :-> KType
       TCSeq     -> KNum :-> KType :-> KType
       TCFun     -> KType :-> KType :-> KType
@@ -189,6 +197,7 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCInf                    -- ^ Inf
             | TCBit                    -- ^ Bit
             | TCInteger                -- ^ Integer
+            | TCFloat                  -- ^ Float
             | TCIntMod                 -- ^ @Z _@
             | TCSeq                    -- ^ @[_] _@
             | TCFun                    -- ^ @_ -> _@
@@ -286,6 +295,7 @@ instance PP TC where
       TCBit     -> text "Bit"
       TCInteger -> text "Integer"
       TCIntMod  -> text "Z"
+      TCFloat   -> text "Float"
       TCSeq     -> text "[]"
       TCFun     -> text "(->)"
       TCTuple 0 -> text "()"

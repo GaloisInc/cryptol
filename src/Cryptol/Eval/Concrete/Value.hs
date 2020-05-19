@@ -38,9 +38,11 @@ module Cryptol.Eval.Concrete.Value
 import qualified Control.Exception as X
 import Data.Bits
 import Numeric (showIntAtBase)
-import LibBF(BigFloat,bfToString,showFree)
+import qualified LibBF as FP
+import Data.Ratio(denominator,numerator)
 
 import qualified Cryptol.Eval.Arch as Arch
+import qualified Cryptol.Eval.Concrete.FloatHelpers as FP
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Value
 import Cryptol.TypeCheck.Solver.InfNat (genLog)
@@ -133,7 +135,7 @@ instance Backend Concrete where
   type SBit Concrete = Bool
   type SWord Concrete = BV
   type SInteger Concrete = Integer
-  type SFloat Concrete = BigFloat
+  type SFloat Concrete = FP.BigFloat
   type SEval Concrete = Eval
 
   raiseError _ err = io (X.throwIO err)
@@ -167,7 +169,7 @@ instance Backend Concrete where
 
   ppInteger _ _opts i = integer i
 
-  ppFloat _ _opts = text . bfToString 16 (showFree Nothing)
+  ppFloat _ _opts = text . FP.bfToString 16 (FP.showFree Nothing)
 
   bitLit _ b = b
   bitAsLit _ b = Just b
@@ -334,6 +336,16 @@ instance Backend Concrete where
   znExp _sym m x y
     | m == 0    = evalPanic "znExp" ["0 modulus not allowed"]
     | otherwise = pure $! (doubleAndAdd x y m) `mod` m
+
+  floatLit sym e p r =
+    do opts <- FP.floatOpts sym e p 0 -- round to nearest even
+       let num = FP.bfFromInteger (numerator r)
+           (x,_status)
+              | denominator r == 1 = FP.bfRoundFloat opts num
+              | otherwise = FP.bfDiv opts num
+                                          (FP.bfFromInteger (denominator r))
+       pure x
+
 
 {-# INLINE liftBinIntMod #-}
 liftBinIntMod :: Monad m =>

@@ -158,6 +158,7 @@ library
                        Cryptol.Eval.Backend,
                        Cryptol.Eval.Concrete,
                        Cryptol.Eval.Concrete.Float,
+                       Cryptol.Eval.Concrete.FloatHelpers,
                        Cryptol.Eval.Concrete.Value,
                        Cryptol.Eval.Env,
                        Cryptol.Eval.Generic,
@@ -168,7 +169,7 @@ library
                        Cryptol.Eval.Value,
                        Cryptol.Eval.What4,
                        Cryptol.Eval.What4.Value,
-                       Cryptol.Eval.What4.FloatPrims,
+                       Cryptol.Eval.What4.Float,
                        Cryptol.Eval.What4.SFloat,
 
                        Cryptol.Testing.Random,
