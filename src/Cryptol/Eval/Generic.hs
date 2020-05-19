@@ -49,6 +49,7 @@ mkLit sym ty i =
     TVIntMod m
       | m == 0                   -> evalPanic "mkLit" ["0 modulus not allowed"]
       | otherwise                -> VInteger <$> integerLit sym (i `mod` m)
+    TVFloat e p                  -> VFloat <$> floatLit sym e p (fromInteger i)
     TVSeq w TVBit                -> pure $ word sym w i
     _                            -> evalPanic "Cryptol.Eval.Prim.evalConst"
                                     [ "Invalid type for number" ]

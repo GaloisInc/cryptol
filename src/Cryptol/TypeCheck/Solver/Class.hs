@@ -10,30 +10,52 @@
 
 {-# LANGUAGE PatternGuards, OverloadedStrings #-}
 module Cryptol.TypeCheck.Solver.Class
-  ( classStep
-  , solveZeroInst
+  ( solveZeroInst
   , solveLogicInst
   , solveArithInst
   , solveCmpInst
   , solveSignedCmpInst
   , solveLiteralInst
+  , solveValidFloat
   , expandProp
   ) where
+
+import qualified LibBF as FP
 
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.SimpType (tAdd,tWidth)
 import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.PP
 
--- | Solve class constraints.
--- If not, then we return 'Nothing'.
--- If solved, then we return 'Just' a list of sub-goals.
-classStep :: Prop -> Solved
-classStep p = case tNoUser p of
-  TCon (PC PLogic) [ty] -> solveLogicInst (tNoUser ty)
-  TCon (PC PArith) [ty] -> solveArithInst (tNoUser ty)
-  TCon (PC PCmp) [ty]   -> solveCmpInst   (tNoUser ty)
-  _                     -> Unsolved
+
+{- | This places constraints on the floating point numbers that
+we can work with.  This is a bit of an odd check, as it is really
+a limitiation of the backend, and not the language itself.
+
+On the other hand, it helps us give sane results if one accidentally
+types a polymorphic float at the REPL.  Hopefully, most users will
+stick to particular FP sizes, so this should be quite transparent.
+-}
+solveValidFloat :: Type -> Type -> Solved
+solveValidFloat e p
+  | Just _ <- knownSupportedFloat e p = SolvedIf []
+  | otherwise = Unsolved
+
+knownSupportedFloat :: Type -> Type -> Maybe FP.BFOpts
+knownSupportedFloat et pt
+  | Just e <- tIsNum et, Just p <- tIsNum pt
+  , minExp <= e && e <= maxExp && minPrec <= p && p <= maxPrec =
+    Just (FP.expBits (fromInteger e) <> FP.precBits (fromInteger p))
+  | otherwise = Nothing
+  where
+  minExp  = max 2 (toInteger FP.expBitsMin)
+  maxExp  = toInteger FP.expBitsMax
+
+  minPrec = max 2 (toInteger FP.precBitsMin)
+  maxPrec = toInteger FP.precBitsMax
+
+
+
 
 -- | Solve a Zero constraint by instance, if possible.
 solveZeroInst :: Type -> Solved
@@ -50,6 +72,9 @@ solveZeroInst ty = case tNoUser ty of
 
   -- Zero (Z n)
   TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
+
+  -- ValieVloat e p => Zero (Float e p)
+  TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
 
   -- Zero a => Zero [n]a
   TCon (TC TCSeq) [_, a] -> SolvedIf [ pZero a ]
@@ -229,6 +254,16 @@ solveLiteralInst val ty
       -- (fin val, fin m, m >= val + 1) => Literal val (Z m)
       TCon (TC TCIntMod) [modulus] ->
         SolvedIf [ pFin val, pFin modulus, modulus >== tAdd val tOne ]
+
+      -- Literal f (Float e p)  is solved as long as the number fits
+      TCon (TC TCFloat) [ et, pt ] ->
+        case (tIsNum val, knownSupportedFloat et pt) of
+          (Just n, Just opts) ->
+            case FP.bfRoundFloat opts (FP.bfFromInteger n) of
+              (_,FP.Ok) -> SolvedIf []
+              _ -> Unsolvable $ TCErrorMessage $ show $
+                   integer n <+> "cannot be represented in" <+> pp ty
+          _ -> Unsolved
 
       -- (fin bits, bits => width n) => Literal n [bits]
       TCon (TC TCSeq) [bits, elTy]

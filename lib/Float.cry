@@ -1,6 +1,6 @@
 module Float where
 
-type constraint ValidFloat e p = (fin e, fin p, e >= 2, p >= 2)
+primitive type ValidFloat : # -> # -> Prop
 
 /** IEEE-754 floating point numbers. */
 primitive type { exponent : #, precision : #}

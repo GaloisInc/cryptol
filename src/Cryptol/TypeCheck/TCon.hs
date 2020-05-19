@@ -51,6 +51,7 @@ builtInType nm =
   -- Built-in types from Float.cry
   builtInFloat = Map.fromList
     [ "Float"             ~> TC TCFloat
+    , "ValidFloat"        ~> PC PValidFloat
     ]
 
   -- Built-in types from Cryptol.cry
@@ -143,6 +144,7 @@ instance HasKind PC where
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
       PLiteral   -> KNum :-> KType :-> KProp
+      PValidFloat -> KNum :-> KNum :-> KProp
       PAnd       -> KProp :-> KProp :-> KProp
       PTrue      -> KProp
 
@@ -186,6 +188,9 @@ data PC     = PEqual        -- ^ @_ == _@
             | PCmp          -- ^ @Cmp _@
             | PSignedCmp    -- ^ @SignedCmp _@
             | PLiteral      -- ^ @Literal _ _@
+
+            | PValidFloat   -- ^ @ValidFloat _ _@ constraints on supported
+                            -- floating point representaitons
 
             | PAnd          -- ^ This is useful when simplifying things in place
             | PTrue         -- ^ Ditto
@@ -284,6 +289,7 @@ instance PP PC where
       PCmp       -> text "Cmp"
       PSignedCmp -> text "SignedCmp"
       PLiteral   -> text "Literal"
+      PValidFloat -> text "ValidFloat"
       PTrue      -> text "True"
       PAnd       -> text "(&&)"
 

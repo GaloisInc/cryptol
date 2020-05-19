@@ -644,6 +644,9 @@ pFin ty =
     TCon (TC TCInf)     _ -> pError (TCErrorMessage "`inf` is not finite.")
     _                     -> TCon (PC PFin) [ty]
 
+pValidFloat :: Type -> Type -> Type
+pValidFloat e p = TCon (PC PValidFloat) [e,p]
+
 -- | Make a malformed property.
 pError :: TCErrorMessage -> Prop
 pError msg = TCon (TError KProp msg) []
