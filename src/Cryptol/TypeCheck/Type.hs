@@ -807,6 +807,7 @@ instance PP (WithNames Type) where
           (PFin,  [t1])       -> optParens (prec > 3) $ text "fin" <+> (go 4 t1)
           (PHas x, [t1,t2])   -> ppSelector x <+> text "of"
                                <+> go 0 t1 <+> text "is" <+> go 0 t2
+          (PAnd, [t1,t2])     -> parens (commaSep (map (go 0) (t1 : pSplitAnd t2)))
 
           (_, _)              -> optParens (prec > 3) $ pp pc <+> fsep (map (go 4) ts)
 
