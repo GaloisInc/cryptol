@@ -221,7 +221,9 @@ nameFixity = nFixity
 asPrim :: Name -> Maybe Ident
 asPrim Name { .. } =
   case nInfo of
-    Declared p _ | p == preludeName -> Just nIdent
+    Declared p _
+      | p == preludeName -> Just nIdent
+      | p == floatName   -> Just (floatPrimIdent (identText nIdent))
     _ -> Nothing
 
 toParamInstName :: Name -> Name

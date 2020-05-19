@@ -295,6 +295,7 @@ data GenValue sym
   | VTuple ![SEval sym (GenValue sym)]              -- ^ @ ( .. ) @
   | VBit !(SBit sym)                           -- ^ @ Bit    @
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
+  | VFloat !(SFloat sym)
   | VSeq !Integer !(SeqMap sym)                -- ^ @ [n]a   @
                                                --   Invariant: VSeq is never a sequence of bits
   | VWord !Integer !(SEval sym (WordValue sym))  -- ^ @ [n]Bit @
@@ -318,6 +319,7 @@ forceValue v = case v of
   VSeq n xs   -> mapM_ (forceValue =<<) (enumerateSeqMap n xs)
   VBit b      -> seq b (return ())
   VInteger i  -> seq i (return ())
+  VFloat f    -> seq f (return ())
   VWord _ wv  -> forceWordValue =<< wv
   VStream _   -> return ()
   VFun _      -> return ()
@@ -331,6 +333,7 @@ instance Backend sym => Show (GenValue sym) where
     VTuple xs  -> "tuple:" ++ show (length xs)
     VBit _     -> "bit"
     VInteger _ -> "integer"
+    VFloat _   -> "float"
     VSeq n _   -> "seq:" ++ show n
     VWord n _  -> "word:"  ++ show n
     VStream _  -> "stream"
@@ -359,6 +362,7 @@ ppValue x opts = loop
                              return $ parens (sep (punctuate comma vals'))
     VBit b             -> return $ ppBit x b
     VInteger i         -> return $ ppInteger x opts i
+    VFloat i           -> return $ ppFloat x opts i
     VSeq sz vals       -> ppWordSeq sz vals
     VWord _ wv         -> ppWordVal =<< wv
     VStream vals       -> do vals' <- traverse (>>=loop) $ enumerateSeqMap (useInfLength opts) vals

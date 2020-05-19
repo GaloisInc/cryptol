@@ -34,6 +34,7 @@ import qualified Data.Text as T
 
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Eval.Backend
+import Cryptol.Eval.Concrete.Float(floatPrims)
 import Cryptol.Eval.Concrete.Value
 import Cryptol.Eval.Generic hiding (logicShift)
 import Cryptol.Eval.Monad
@@ -106,6 +107,7 @@ evalPrim prim = Map.lookup prim primTable
 
 primTable :: Map.Map Ident Value
 primTable = let sym = Concrete in
+  Map.union floatPrims $
   Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   [ -- Literals
     ("True"       , VBit (bitLit sym True))

@@ -36,6 +36,7 @@ module Cryptol.Utils.Ident
   , nullIdent
   , identText
   , modParamIdent
+  , floatPrimIdent
 
   ) where
 
@@ -162,5 +163,6 @@ identText (Ident _ t) = t
 modParamIdent :: Ident -> Ident
 modParamIdent (Ident x t) = Ident x (T.append (T.pack "module parameter ") t)
 
-
+floatPrimIdent :: T.Text -> Ident
+floatPrimIdent t = mkIdent ("Float::" <> t)
 

@@ -38,6 +38,7 @@ module Cryptol.Eval.Concrete.Value
 import qualified Control.Exception as X
 import Data.Bits
 import Numeric (showIntAtBase)
+import LibBF(BigFloat,bfToString,showFree)
 
 import qualified Cryptol.Eval.Arch as Arch
 import Cryptol.Eval.Monad
@@ -132,6 +133,7 @@ instance Backend Concrete where
   type SBit Concrete = Bool
   type SWord Concrete = BV
   type SInteger Concrete = Integer
+  type SFloat Concrete = BigFloat
   type SEval Concrete = Eval
 
   raiseError _ err = io (X.throwIO err)
@@ -164,6 +166,8 @@ instance Backend Concrete where
   ppWord _ = ppBV
 
   ppInteger _ _opts i = integer i
+
+  ppFloat _ _opts = text . bfToString 16 (showFree Nothing)
 
   bitLit _ b = b
   bitAsLit _ b = Just b
@@ -354,3 +358,6 @@ doubleAndAdd base0 expMask modulus = go 1 base0 expMask
     base' = base `modMul` base
 
     modMul x y = (x * y) `mod` modulus
+
+
+

@@ -55,6 +55,7 @@ library
                        gitrev            >= 1.0,
                        GraphSCC          >= 1.0.4,
                        heredoc           >= 0.2,
+                       libBF,
                        monad-control     >= 1.0,
                        monadLib          >= 3.7.2,
                        parameterized-utils >= 2.0.2,
@@ -156,6 +157,7 @@ library
                        Cryptol.Eval.Arch,
                        Cryptol.Eval.Backend,
                        Cryptol.Eval.Concrete,
+                       Cryptol.Eval.Concrete.Float,
                        Cryptol.Eval.Concrete.Value,
                        Cryptol.Eval.Env,
                        Cryptol.Eval.Generic,
@@ -165,6 +167,9 @@ library
                        Cryptol.Eval.Type,
                        Cryptol.Eval.Value,
                        Cryptol.Eval.What4,
+                       Cryptol.Eval.What4.Value,
+                       Cryptol.Eval.What4.FloatPrims,
+                       Cryptol.Eval.What4.SFloat,
 
                        Cryptol.Testing.Random,
 

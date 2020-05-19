@@ -43,6 +43,7 @@ class MonadIO (SEval sym) => Backend sym where
   type SBit sym :: Type
   type SWord sym :: Type
   type SInteger sym :: Type
+  type SFloat sym :: Type
   type SEval sym :: Type -> Type
 
   -- ==== Evaluation monad operations ====
@@ -89,6 +90,9 @@ class MonadIO (SEval sym) => Backend sym where
 
   -- | Pretty-print an integer value
   ppInteger :: sym -> PPOpts -> SInteger sym -> Doc
+
+  -- | Pretty-print a floating-point value
+  ppFloat :: sym -> PPOpts -> SFloat sym -> Doc
 
 
   -- ==== Identifying literal values ====

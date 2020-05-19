@@ -22,5 +22,13 @@ type Float128 = Float 15 113
 type Float256 = Float 19 237
 
 
+/** Not a number. */
+primitive
+  fpNaN : {e,p} ValidFloat e p => Float e p
+
+
+
+
+
 
 
