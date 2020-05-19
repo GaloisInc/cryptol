@@ -20,7 +20,7 @@
   inhabited only by the new `Rational` type, but will eventually
   contain `Real` and floating-point types. It has the operation
   `recip` for reciprocal and `(/.)` for field division (not to be
-  confused for `(/)`, which is Eucledian integral division).
+  confused for `(/)`, which is Euclidean integral division).
 
   There is also a new `Round` class for types that can sensibly be
   rounded to integers.  This class has the methods `floor`, `ceiling`,
