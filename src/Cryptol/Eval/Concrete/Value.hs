@@ -12,7 +12,6 @@
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE Safe #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -36,6 +35,7 @@ module Cryptol.Eval.Concrete.Value
 
 import qualified Control.Exception as X
 import Data.Bits
+import Data.Euclidean (gcdExt)
 import Numeric (showIntAtBase)
 
 import qualified Cryptol.Eval.Arch as Arch
@@ -309,6 +309,17 @@ instance Backend Concrete where
   --     Z_n is in reduced form
   znToInt _ _m x = pure x
   znEq _ _m x y = pure $! x == y
+
+  -- NB: under the precondition that `m` is prime,
+  -- the following panic condition should never happen
+  znRecip _ m x
+    | g == 1 = pure (s `mod` m)
+    | otherwise = evalPanic "znRecip"
+                   ["illegal modulus: " ++ show m
+                   ,"  gcd("++show m++", " ++ show x++") = " ++ show g
+                   ]
+   where
+   (g,s) = gcdExt x m
 
   znPlus  _ = liftBinIntMod (+)
   znMinus _ = liftBinIntMod (-)

@@ -628,6 +628,13 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SEval sym (SBit sym)
 
+  -- | Multiplicitive inverse in (Z n).
+  --   PRECONDITION: the modulus is a prime
+  znRecip ::
+    sym ->
+    Integer {- ^ modulus -} ->
+    SInteger sym ->
+    SEval sym (SInteger sym)
 
   -- ==== Z_n operations defined via projection to the integers ====
 

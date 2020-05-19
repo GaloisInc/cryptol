@@ -7,7 +7,6 @@
 -- Portability :  portable
 
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE Safe #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -440,6 +439,7 @@ recipV sym =
   lam $ \x ->
     case a of
       TVRational -> VRational <$> (rationalRecip sym . fromVRational =<< x)
+      TVIntMod m -> VInteger <$> (znRecip sym m . fromVInteger =<< x)
       _ -> evalPanic "recip"  [show a ++ "is not a Field"]
 
 {-# SPECIALIZE fieldDivideV :: Concrete -> GenValue Concrete #-}
@@ -453,6 +453,12 @@ fieldDivideV sym =
         do x' <- fromVRational <$> x
            y' <- fromVRational <$> y
            VRational <$> rationalDivide sym x' y'
+      TVIntMod m ->
+        do x' <- fromVInteger <$> x
+           y' <- fromVInteger <$> y
+           yinv <- znRecip sym m y'
+           VInteger <$> znMult sym m x' yinv
+
       _ -> evalPanic "recip"  [show a ++ "is not a Field"]
 
 --------------------------------------------------------------
