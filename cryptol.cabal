@@ -67,6 +67,7 @@ library
                        process           >= 1.2,
                        random            >= 1.0.1,
                        sbv               >= 8.6 && < 8.8,
+                       semirings         >= 0.5 && < 0.6,
                        simple-smt        >= 0.7.1,
                        stm               >= 2.4,
                        strict,

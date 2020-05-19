@@ -57,7 +57,7 @@ floatPrims sym@(What4 w4sym _) =
 
 -- | A helper for definitng floating point constants.
 fpConst ::
-  W4.IsExprBuilder sym =>
+  W4.IsSymExprBuilder sym =>
   (Integer -> Integer -> IO (W4.SFloat sym)) ->
   Value sym
 fpConst mk =

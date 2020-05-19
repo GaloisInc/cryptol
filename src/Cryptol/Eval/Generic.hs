@@ -9,7 +9,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE Safe #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -546,7 +545,7 @@ recipV sym =
            r   <- fpRndMode sym
            xv  <- fromVFloat <$> x
            VFloat <$> fpDiv sym r one xv
-
+      TVIntMod m -> VInteger <$> (znRecip sym m . fromVInteger =<< x)
       _ -> evalPanic "recip"  [show a ++ "is not a Field"]
 
 {-# SPECIALIZE fieldDivideV :: Concrete -> GenValue Concrete #-}
@@ -565,6 +564,12 @@ fieldDivideV sym =
            yv <- fromVFloat <$> y
            r  <- fpRndMode sym
            VFloat <$> fpDiv sym r xv yv
+      TVIntMod m ->
+        do x' <- fromVInteger <$> x
+           y' <- fromVInteger <$> y
+           yinv <- znRecip sym m y'
+           VInteger <$> znMult sym m x' yinv
+
       _ -> evalPanic "recip"  [show a ++ "is not a Field"]
 
 --------------------------------------------------------------
