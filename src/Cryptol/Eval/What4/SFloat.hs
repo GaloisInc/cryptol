@@ -1,11 +1,29 @@
 {-# Language DataKinds #-}
 {-# Language FlexibleContexts #-}
 {-# Language GADTs #-}
+{-# Language RankNTypes #-}
 {-# Language TypeApplications #-}
 {-# Language TypeOperators #-}
 -- | Working with floats of dynamic sizes.
 -- This should probably be moved to What4 one day.
-module Cryptol.Eval.What4.SFloat where
+module Cryptol.Eval.What4.SFloat
+  ( -- * Interface
+    SFloat(..)
+  , fpNaN
+  , fpPosInf
+  , fpFromRational
+  , fpNeg
+
+  , SFloatBinArith
+  , fpAdd
+  , fpSub
+  , fpMul
+  , fpDiv
+
+  -- * Exceptions
+  , UnsupportedFloat(..)
+  , FPTypeError(..)
+  ) where
 
 import Control.Exception
 
@@ -17,7 +35,7 @@ import What4.Interface
 
 -- | Symbolic floating point numbers.
 data SFloat sym where
-  SFloat :: SymExpr sym (BaseFloatType fpp) -> SFloat sym
+  SFloat :: IsExpr (SymExpr sym) => SymFloat sym fpp -> SFloat sym
 
 
 
@@ -28,6 +46,7 @@ data SFloat sym where
 data UnsupportedFloat =
   UnsupportedFloat { fpWho :: String, exponentBits, precisionBits :: Integer }
   deriving Show
+
 
 -- | Throw 'UnsupportedFloat' exception
 unsupported ::
@@ -42,7 +61,23 @@ unsupported l e p =
 
 instance Exception UnsupportedFloat
 
+-- | This exceptoin is throws if the types don't match.
+data FPTypeError =
+  FPTypeError { fpExpected :: Some FloatPrecisionRepr
+              , fpActual   :: Some FloatPrecisionRepr
+              }
+    deriving Show
 
+instance Exception FPTypeError
+
+fpTypeError :: FloatPrecisionRepr t1 -> FloatPrecisionRepr t2 -> IO a
+fpTypeError expect actual =
+  throwIO FPTypeError { fpExpected = Some expect
+                      , fpActual   = Some actual
+                      }
+
+
+--------------------------------------------------------------------------------
 -- | Construct the 'FloatPrecisionRepr' with the given parameters.
 fpRepr ::
   Integer {- ^ exponent -} ->
@@ -55,12 +90,19 @@ fpRepr iE iP =
      LeqProof  <- testLeq (knownNat @2) p
      pure (Some (FloatingPointPrecisionRepr e p))
 
+getFPRepr ::
+  IsExpr (SymExpr sym) => sym -> SymFloat sym fpp -> FloatPrecisionRepr fpp
+getFPRepr _ e =
+  case exprType e of
+    BaseFloatRepr r -> r
+
+
 -- | Not a number
 fpNaN ::
   IsExprBuilder sym =>
   sym ->
-  Integer {- exponent -} ->
-  Integer {- precision -} ->
+  Integer {- ^ exponent -} ->
+  Integer {- ^ precision -} ->
   IO (SFloat sym)
 fpNaN sym e p
   | Just (Some fpp) <- fpRepr e p = SFloat <$> floatNaN sym fpp
@@ -71,8 +113,8 @@ fpNaN sym e p
 fpPosInf ::
   IsExprBuilder sym =>
   sym ->
-  Integer {- exponent -} ->
-  Integer {- precision -} ->
+  Integer {- ^ exponent -} ->
+  Integer {- ^ precision -} ->
   IO (SFloat sym)
 fpPosInf sym e p
   | Just (Some fpp) <- fpRepr e p = SFloat <$> floatPInf sym fpp
@@ -81,12 +123,49 @@ fpPosInf sym e p
 fpFromRational ::
   IsExprBuilder sym =>
   sym ->
-  Integer {- exponent -} ->
-  Integer {- precision -} ->
+  Integer {- ^ exponent -} ->
+  Integer {- ^ precision -} ->
   Rational ->
   IO (SFloat sym)
 fpFromRational sym e p r
   | Just (Some fpp) <- fpRepr e p = SFloat <$> floatLit sym fpp r
   | otherwise = unsupported "fpFromRational" e p
+
+fpNeg :: IsExprBuilder sym => sym -> SFloat sym -> IO (SFloat sym)
+fpNeg sym (SFloat fl) = SFloat <$> floatNeg sym fl
+
+fpBinArith ::
+  IsExprBuilder sym =>
+  (forall t.
+      sym ->
+      RoundingMode ->
+      SymFloat sym t ->
+      SymFloat sym t ->
+      IO (SymFloat sym t)
+  ) ->
+  sym -> RoundingMode -> SFloat sym -> SFloat sym -> IO (SFloat sym)
+fpBinArith fun sym r (SFloat x) (SFloat y)
+  | Just Refl <- testEquality t1 t2 = SFloat <$> fun sym r x y
+  | otherwise = fpTypeError t1 t2
+    where t1 = getFPRepr sym x
+          t2 = getFPRepr sym y
+
+type SFloatBinArith sym =
+  sym -> RoundingMode -> SFloat sym -> SFloat sym -> IO (SFloat sym)
+
+fpAdd :: IsExprBuilder sym => SFloatBinArith sym
+fpAdd = fpBinArith floatAdd
+
+fpSub :: IsExprBuilder sym => SFloatBinArith sym
+fpSub = fpBinArith floatSub
+
+fpMul :: IsExprBuilder sym => SFloatBinArith sym
+fpMul = fpBinArith floatMul
+
+fpDiv :: IsExprBuilder sym => SFloatBinArith sym
+fpDiv = fpBinArith floatDiv
+
+
+
 
 

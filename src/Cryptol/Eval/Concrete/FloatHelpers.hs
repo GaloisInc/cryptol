@@ -17,14 +17,18 @@ floatOpts ::
   SEval sym BFOpts
 floatOpts sym e p r =
   case ok of
-    Just opts -> pure opts
-    Nothing   -> raiseError sym (BadFPParams e p r)
+    Just opts -> case floatRound r of
+                   Just m  -> pure (rnd m <> opts)
+                   Nothing -> raiseError sym (BadRoundingMode r)
+    Nothing   -> panic "floatOpts" [ "Invalid Float size"
+                                   , "exponent: " ++ show e
+                                   , "precision: " ++ show p
+                                   ]
   where
   ok =
     do eb <- rng expBits expBitsMin expBitsMax e
        pb <- rng precBits precBitsMin precBitsMax p
-       rn <- floatRound r
-       pure (eb <> pb <> rnd rn)
+       pure (eb <> pb)
 
   rng f a b x = if toInteger a <= x && x <= toInteger b
                   then Just (f (fromInteger x))
@@ -42,7 +46,7 @@ floatRound n =
 
 
 checkStatus :: Backend sym => sym -> (BigFloat,Status) -> SEval sym BigFloat
-checkStatus sym (r,s) =
+checkStatus _sym (r,s) =
   case s of
     MemError  -> panic "checkStatus" [ "libBF: Memory error" ]
     -- InvalidOp -> panic "checkStatus" [ "libBF: Invalid op" ]

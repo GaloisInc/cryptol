@@ -34,6 +34,7 @@ module Cryptol.Eval.Value
   , word
   , lam
   , wlam
+  , flam
   , tlam
   , nlam
   , toStream
@@ -411,6 +412,13 @@ lam  = VFun
 wlam :: Backend sym => sym -> (SWord sym -> SEval sym (GenValue sym)) -> GenValue sym
 wlam sym f = VFun (\arg -> arg >>= fromVWord sym "wlam" >>= f)
 
+-- | Functions that assume floating point inputs
+flam :: Backend sym =>
+        (SFloat sym -> SEval sym (GenValue sym)) -> GenValue sym
+flam f = VFun (\arg -> arg >>= f . fromVFloat)
+
+
+
 -- | A type lambda that expects a 'Type'.
 tlam :: Backend sym => (TValue -> GenValue sym) -> GenValue sym
 tlam f = VPoly (return . f)
@@ -531,6 +539,12 @@ fromVRecord :: GenValue sym -> Map Ident (SEval sym (GenValue sym))
 fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record"]
+
+fromVFloat :: GenValue sym -> SFloat sym
+fromVFloat val =
+  case val of
+    VFloat x -> x
+    _        -> evalPanic "fromVFloat" ["not a Float"]
 
 -- | Lookup a field in a record.
 lookupRecord :: Ident -> GenValue sym -> SEval sym (GenValue sym)

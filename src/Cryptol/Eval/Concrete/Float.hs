@@ -35,14 +35,6 @@ ilam f = nlam \n ->
     Nat i -> f i
     Inf   -> panic "ilam" [ "Unexpected `inf`" ]
 
-flam :: (BigFloat -> SEval Concrete Value) -> Value
-flam f = lam \th ->
-  do v <- th
-     case v of
-       VFloat a -> f a
-       _        -> panic "flam" [ "Expected a Float argument" ]
-
-
 binArith ::
   Concrete ->
   (BFOpts -> BigFloat -> BigFloat -> (BigFloat, Status)) ->
