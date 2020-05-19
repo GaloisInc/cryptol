@@ -169,7 +169,8 @@ instance Backend Concrete where
 
   ppInteger _ _opts i = integer i
 
-  ppFloat _ _opts = text . FP.bfToString 16 (FP.showFree Nothing)
+  ppFloat _ _opts = text . FP.bfToString 16
+                              (FP.addPrefix <> FP.showFree Nothing)
 
   bitLit _ b = b
   bitAsLit _ b = Just b
@@ -340,11 +341,11 @@ instance Backend Concrete where
   floatLit sym e p r =
     do opts <- FP.floatOpts sym e p 0 -- round to nearest even
        let num = FP.bfFromInteger (numerator r)
-           (x,_status)
+           res
               | denominator r == 1 = FP.bfRoundFloat opts num
               | otherwise = FP.bfDiv opts num
                                           (FP.bfFromInteger (denominator r))
-       pure x
+       FP.checkStatus sym res
 
 
 {-# INLINE liftBinIntMod #-}

@@ -1,9 +1,11 @@
 module Cryptol.Eval.Concrete.FloatHelpers where
 
+import LibBF
+
+import Cryptol.Utils.Panic(panic)
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Monad(EvalError(..))
 
-import LibBF
 
 
 floatOpts ::
@@ -39,5 +41,10 @@ floatRound n =
     _ -> Nothing
 
 
-
+checkStatus :: Backend sym => sym -> (BigFloat,Status) -> SEval sym BigFloat
+checkStatus sym (r,s) =
+  case s of
+    MemError  -> panic "checkStatus" [ "libBF: Memory error" ]
+    -- InvalidOp -> panic "checkStatus" [ "libBF: Invalid op" ]
+    _ -> pure r
 

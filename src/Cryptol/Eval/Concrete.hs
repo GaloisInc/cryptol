@@ -107,7 +107,7 @@ evalPrim prim = Map.lookup prim primTable
 
 primTable :: Map.Map Ident Value
 primTable = let sym = Concrete in
-  Map.union floatPrims $
+  Map.union (floatPrims sym) $
   Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
   [ -- Literals
     ("True"       , VBit (bitLit sym True))

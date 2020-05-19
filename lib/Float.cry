@@ -25,7 +25,7 @@ type Float256 = Float 19 237
 
 /* ----------------------------------------------------------------------
  * Rounding modes (this should be an enumeration type, when we add these)
-  ---------------------------------------------------------------------- */
+ *---------------------------------------------------------------------- */
 
 type RoundingMode = [3]
 
@@ -56,7 +56,9 @@ rtz               = roundZero
 
 
 
-
+/* ----------------------------------------------------------------------
+ * Constants
+ * ---------------------------------------------------------------------- */
 
 /** Not a number. */
 primitive
@@ -66,7 +68,46 @@ primitive
 primitive
   fpPosInf : {e,p} ValidFloat e p => Float e p
 
-// positive Zero is in the `Zero` class
+fpNegInf : {e,p} ValidFloat e p => Float e p
+fpNegInf = fpNeg fpPosInf
+
+fpPosZero : {e,p} ValidFloat e p => Float e p
+fpPosZero = zero
+
+fpNegZero : {e,p} ValidFloat e p => Float e p
+fpNegZero = fpNeg fpPosZero
+
+
+
+/* ----------------------------------------------------------------------
+ * Arithmetic
+ * ---------------------------------------------------------------------- */
+
+
+/** Negate a floating point number */
+primitive
+  fpNeg : {e,p} ValidFloat e p =>
+    Float e p -> Float e p
+
+/** Add floating point numbers using the given rounding mode. */
+primitive
+  fpAdd : {e,p} ValidFloat e p =>
+    RoundingMode -> Float e p -> Float e p -> Float e p
+
+/** Subtract floating point numbers using the given rounding mode. */
+primitive
+  fpSub : {e,p} ValidFloat e p =>
+    RoundingMode -> Float e p -> Float e p -> Float e p
+
+/** Multiply floating point numbers using the given rounding mode. */
+primitive
+  fpMul : {e,p} ValidFloat e p =>
+    RoundingMode -> Float e p -> Float e p -> Float e p
+
+/** Divide floating point numbers using the given rounding mode. */
+primitive
+  fpDiv : {e,p} ValidFloat e p =>
+    RoundingMode -> Float e p -> Float e p -> Float e p
 
 
 
