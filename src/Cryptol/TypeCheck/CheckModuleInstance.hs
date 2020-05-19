@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 module Cryptol.TypeCheck.CheckModuleInstance (checkModuleInstance) where
 
 import           Data.Map ( Map )
@@ -22,7 +23,9 @@ checkModuleInstance :: Module {- ^ type-checked functor -} ->
                        Module {- ^ type-checked instance -} ->
                        InferM Module -- ^ Instantiated module
 checkModuleInstance func inst =
-  do tMap <- checkTyParams func inst
+  do cp <- certifyPrimes
+     let ?certifyPrimes = cp
+     tMap <- checkTyParams func inst
      vMap <- checkValParams func tMap inst
      (ctrs, m) <- instantiateModule func (mName inst) tMap vMap
      let toG p = Goal { goal = thing p
@@ -129,7 +132,9 @@ checkValParams :: Module          {- ^ Parameterized module -} ->
                   InferM (Map Name Expr)
                   -- ^ Definitions for the parameters
 checkValParams func tMap inst =
-  Map.fromList <$> mapM checkParam (Map.elems (mParamFuns func))
+  do cp <- certifyPrimes 
+     let ?certifyPrimes = cp
+     Map.fromList <$> mapM checkParam (Map.elems (mParamFuns func))
   where
   valMap = Map.fromList (defByParam ++ defByDef)
 

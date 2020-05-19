@@ -5,6 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
+{-# Language ImplicitParams #-}
 {-# Language OverloadedStrings #-}
 module Cryptol.TypeCheck.Instantiate
   ( instantiateWith
@@ -174,7 +175,9 @@ instantiateWithNames nm e (Forall as ps t) xs =
 
 doInst :: [(TParam, Type)] -> Expr -> [Prop] -> Type -> InferM (Expr,Type)
 doInst su' e ps t =
-  do let su = listParamSubst su'
+  do cp <- certifyPrimes
+     let ?certifyPrimes = cp
+     let su = listParamSubst su'
      newGoals (CtInst e) (map (apSubst su) ps)
      let t1 = apSubst su t
 

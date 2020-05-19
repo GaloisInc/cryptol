@@ -1,4 +1,5 @@
 -- | Look for opportunity to solve goals by instantiating variables.
+{-# LANGUAGE ImplicitParams #-}
 module Cryptol.TypeCheck.Solver.Improve where
 
 import qualified Data.Set as Set
@@ -19,7 +20,7 @@ import Cryptol.TypeCheck.Subst
 -- | Improvements from a bunch of propositions.
 -- Invariant:
 -- the substitions should be already applied to the new sub-goals, if any.
-improveProps :: Bool -> Ctxt -> [Prop] -> Match (Subst,[Prop])
+improveProps :: (?certifyPrimes :: Bool) => Bool -> Ctxt -> [Prop] -> Match (Subst,[Prop])
 improveProps impSkol ctxt ps0 = loop emptySubst ps0
   where
   loop su props = case go emptySubst [] props of

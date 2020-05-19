@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE ImplicitParams #-}
 module Cryptol.Transform.Specialize
 where
 
@@ -316,7 +317,10 @@ instantiateSchema :: [Type] -> Int -> Schema -> SpecM Schema
 instantiateSchema ts n (Forall params props ty)
   | length params /= length ts = fail "instantiateSchema: wrong number of type arguments"
   | length props /= n          = fail "instantiateSchema: wrong number of prop arguments"
-  | otherwise                  = return $ Forall [] [] (apSubst sub ty)
+  | otherwise                  =
+       do cp <- liftSpecT M.getCertifyPrimes
+          let ?certifyPrimes = cp
+          return $ Forall [] [] (apSubst sub ty)
   where sub = listParamSubst (zip params ts)
 
 -- | Reduce @length ts@ outermost type abstractions and @n@ proof abstractions.
@@ -324,7 +328,9 @@ instantiateExpr :: [Type] -> Int -> Expr -> SpecM Expr
 instantiateExpr [] 0 e = return e
 instantiateExpr [] n (EProofAbs _ e) = instantiateExpr [] (n - 1) e
 instantiateExpr (t : ts) n (ETAbs param e) =
-  instantiateExpr ts n (apSubst (singleSubst (tpVar param) t) e)
+  do cp <- liftSpecT M.getCertifyPrimes
+     let ?certifyPrimes = cp
+     instantiateExpr ts n (apSubst (singleSubst (tpVar param) t) e)
 instantiateExpr _ _ _ = fail "instantiateExpr: wrong number of type/proof arguments"
 
 

@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe                                #-}
+{-# LANGUAGE ImplicitParams                      #-}
 {-# LANGUAGE ViewPatterns                        #-}
 {-# LANGUAGE PatternGuards                       #-}
 module Cryptol.TypeCheck.TypeOf
@@ -25,7 +26,7 @@ import qualified Data.Map as Map
 -- | Given a typing environment and an expression, compute the type of
 -- the expression as quickly as possible, assuming that the expression
 -- is well formed with correct type annotations.
-fastTypeOf :: Map Name Schema -> Expr -> Type
+fastTypeOf :: (?certifyPrimes :: Bool) => Map Name Schema -> Expr -> Type
 fastTypeOf tyenv expr =
   case expr of
     -- Monomorphic fragment
@@ -55,7 +56,7 @@ fastTypeOf tyenv expr =
         _ -> panic "Cryptol.TypeCheck.TypeOf.fastTypeOf"
                [ "unexpected polymorphic type" ]
 
-fastSchemaOf :: Map Name Schema -> Expr -> Schema
+fastSchemaOf :: (?certifyPrimes :: Bool) => Map Name Schema -> Expr -> Schema
 fastSchemaOf tyenv expr =
   case expr of
     -- Polymorphic fragment
@@ -109,7 +110,7 @@ fastSchemaOf tyenv expr =
 -- | Apply a substitution to a type *without* simplifying
 -- constraints like @Arith [n]a@ to @Arith a@. (This is in contrast to
 -- 'apSubst', which performs simplifications wherever possible.)
-plainSubst :: Subst -> Type -> Type
+plainSubst ::  (?certifyPrimes :: Bool) => Subst -> Type -> Type
 plainSubst s ty =
   case ty of
     TCon tc ts   -> TCon tc (map (plainSubst s) ts)

@@ -74,8 +74,6 @@ data ModuleEnv = ModuleEnv
     -- ^ Are we assuming that local bindings are monomorphic.
     -- XXX: We should probably remove this flag, and set it to 'True'.
 
-
-
   , meFocusedModule :: Maybe ModName
     -- ^ The "current" module.  Used to decide how to print names, for example.
 
@@ -89,6 +87,7 @@ data ModuleEnv = ModuleEnv
   , meSupply        :: !Supply
     -- ^ Name source for the renamer
 
+  , meCertifyPrimes :: !Bool
   } deriving Generic
 
 instance NFData ModuleEnv where
@@ -158,6 +157,7 @@ initialModuleEnv = do
                           }
     , meCoreLint      = NoCoreLint
     , meSupply        = emptySupply
+    , meCertifyPrimes = False
     }
 
 -- | Try to focus a loaded module in the module environment.

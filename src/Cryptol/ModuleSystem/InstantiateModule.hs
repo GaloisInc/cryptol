@@ -1,4 +1,4 @@
-{-# Language FlexibleInstances, PatternGuards #-}
+{-# Language FlexibleInstances, ImplicitParams, PatternGuards #-}
 -- | Assumes that local names do not shadow top level names.
 module Cryptol.ModuleSystem.InstantiateModule
   ( instantiateModule
@@ -27,7 +27,7 @@ especially when working with dictionaries.
 -- | Convert a module instantiation into a partial module.
 -- The resulting module is incomplete because it is missing the definitions
 -- from the instantiation.
-instantiateModule :: FreshM m =>
+instantiateModule :: (?certifyPrimes :: Bool, FreshM m) =>
                      Module           {- ^ Parametrized module -} ->
                      ModName          {- ^ Name of the new module -} ->
                      Map TParam Type  {- ^ Type params -} ->

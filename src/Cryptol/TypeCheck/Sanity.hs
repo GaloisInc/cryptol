@@ -5,6 +5,8 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
+
+{-# LANGUAGE ImplicitParams #-}
 module Cryptol.TypeCheck.Sanity
   ( tcExpr
   , tcDecls
@@ -140,7 +142,9 @@ exprType expr =
 
 -- | Check that the expression is well-formed, and compute its schema.
 exprSchema :: Expr -> TcM Schema
-exprSchema expr =
+exprSchema expr = do
+  cp <- TcM (asks roCertifyPrimes)
+  let ?certifyPrimes = cp
   case expr of
 
     EList es t ->
@@ -448,6 +452,7 @@ data RO = RO
   { roTVars   :: Map Int TParam
   , roAsmps   :: [Prop]
   , roVars    :: Map Name Schema
+  , roCertifyPrimes :: Bool
   }
 
 type ProofObligation = Schema -- but the type is of kind Prop
@@ -484,6 +489,7 @@ runTcM env (TcM m) =
           , roVars  = Map.union
                         (fmap mvpType (inpParamFuns env))
                         (inpVars env)
+          , roCertifyPrimes = inpCertifyPrimes env
           }
   rw = RW { woProofObligations = [] }
 

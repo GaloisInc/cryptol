@@ -6,7 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
-{-# LANGUAGE PatternGuards, BangPatterns, RecordWildCards #-}
+{-# LANGUAGE ImplicitParams, PatternGuards, BangPatterns, RecordWildCards #-}
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Solve
   ( simplifyAllConstraints
@@ -48,7 +48,7 @@ import           Data.Maybe(listToMaybe)
 
 
 
-quickSolverIO :: Ctxt -> [Goal] -> IO (Either Goal (Subst,[Goal]))
+quickSolverIO :: (?certifyPrimes::Bool) => Ctxt -> [Goal] -> IO (Either Goal (Subst,[Goal]))
 quickSolverIO _ [] = return (Right (emptySubst, []))
 quickSolverIO ctxt gs =
   case quickSolver ctxt gs of
@@ -73,7 +73,8 @@ quickSolverIO ctxt gs =
                 , d
                 ])) -- -}
 
-quickSolver :: Ctxt   -- ^ Facts we can know
+quickSolver :: (?certifyPrimes::Bool)
+            => Ctxt   -- ^ Facts we can know
             -> [Goal] -- ^ Need to solve these
             -> Either Goal (Subst,[Goal])
             -- ^ Left: contradicting goals,
@@ -109,8 +110,10 @@ quickSolver ctxt gs0 = go emptySubst [] gs0
 --------------------------------------------------------------------------------
 
 
-defaultReplExpr :: Solver -> Expr -> Schema ->
-                    IO (Maybe ([(TParam,Type)], Expr))
+defaultReplExpr ::
+  (?certifyPrimes :: Bool) =>
+  Solver -> Expr -> Schema ->
+  IO (Maybe ([(TParam,Type)], Expr))
 
 defaultReplExpr sol expr sch =
   do mb <- defaultReplExpr' sol numVs numPs
@@ -154,7 +157,7 @@ defaultReplExpr sol expr sch =
                       (sProps sch)
 
 
-defaultAndSimplify :: [TVar] -> [Goal] -> ([TVar],[Goal],Subst,[Warning])
+defaultAndSimplify :: (?certifyPrimes::Bool) => [TVar] -> [Goal] -> ([TVar],[Goal],Subst,[Warning])
 defaultAndSimplify as gs =
   let (as1, gs1, su1, ws1) = defLit
       (as2, gs2, su2, ws2) = improveByDefaultingWithPure as1 gs1
@@ -174,14 +177,16 @@ simplifyAllConstraints :: InferM ()
 simplifyAllConstraints =
   do simpHasGoals
      gs <- getGoals
-     case gs of
-       [] -> return ()
-       _ ->
-        case quickSolver Map.empty gs of
-          Left badG      -> recordError (UnsolvedGoals True [badG])
-          Right (su,gs1) ->
-            do extendSubst su
-               addGoals gs1
+     cp <- certifyPrimes
+     let ?certifyPrimes = cp in
+       case gs of
+         [] -> return ()
+         _ ->
+          case quickSolver Map.empty gs of
+            Left badG      -> recordError (UnsolvedGoals True [badG])
+            Right (su,gs1) ->
+              do extendSubst su
+                 addGoals gs1
 
 -- | Simplify @Has@ constraints as much as possible.
 simpHasGoals :: InferM ()
@@ -204,7 +209,10 @@ simpHasGoals = go False [] =<< getHasGoals
 proveModuleTopLevel :: InferM ()
 proveModuleTopLevel =
   do simplifyAllConstraints
+     cp <- certifyPrimes
+     let ?certifyPrimes = cp
      gs <- getGoals
+
      let vs = Set.toList (Set.filter isFreeTV (fvs gs))
          (_,gs1,su1,ws) = defaultAndSimplify vs gs
      extendSubst su1
@@ -223,6 +231,9 @@ proveImplication lnam as ps gs =
   do evars <- varsWithAsmps
      solver <- getSolver
 
+     cp <- certifyPrimes
+     let ?certifyPrimes = cp
+
      extraAs <- (map mtpParam . Map.elems) <$> getParamTypes
      extra   <- map thing <$> getParamConstraints
 
@@ -234,7 +245,8 @@ proveImplication lnam as ps gs =
      return su
 
 
-proveImplicationIO :: Solver
+proveImplicationIO :: (?certifyPrimes :: Bool)
+                   => Solver
                    -> Maybe Name     -- ^ Checking this function
                    -> Set TVar -- ^ These appear in the env., and we should
                                -- not try to default them

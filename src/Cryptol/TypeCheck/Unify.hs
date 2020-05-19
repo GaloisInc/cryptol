@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE Safe #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE PatternGuards, ViewPatterns #-}
 {-# LANGUAGE DeriveFunctor #-}
 module Cryptol.TypeCheck.Unify where
@@ -46,7 +47,7 @@ uniError e = writer (emptyMGU, [e])
 emptyMGU :: MGU
 emptyMGU = (emptySubst, [])
 
-mgu :: Type -> Type -> Result MGU
+mgu :: (?certifyPrimes :: Bool) => Type -> Type -> Result MGU
 
 mgu (TUser c1 ts1 _) (TUser c2 ts2 _)
   | c1 == c2 && ts1 == ts2  = return emptyMGU
@@ -87,7 +88,7 @@ mgu t1 t2
   k2 = kindOf t2
 
 
-mguMany :: [Type] -> [Type] -> Result MGU
+mguMany ::  (?certifyPrimes :: Bool) => [Type] -> [Type] -> Result MGU
 mguMany [] [] = return emptyMGU
 mguMany (t1 : ts1) (t2 : ts2) =
   do (su1,ps1) <- mgu t1 t2

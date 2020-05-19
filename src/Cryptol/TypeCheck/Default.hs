@@ -1,3 +1,4 @@
+{-# LANGUAGE ImplicitParams #-}
 module Cryptol.TypeCheck.Default where
 
 import qualified Data.Set as Set
@@ -66,9 +67,9 @@ defaultLiterals as gs = let (binds,warns) = unzip (mapMaybe tryDefVar as)
 
 
 
-
-
-improveByDefaultingWithPure :: [TVar] -> [Goal] ->
+improveByDefaultingWithPure ::
+    (?certifyPrimes :: Bool) =>
+    [TVar] -> [Goal] ->
     ( [TVar]    -- non-defaulted
     , [Goal]    -- new constraints
     , Subst     -- improvements from defaulting
@@ -168,7 +169,7 @@ the given type.  This is useful when we do evaluation at the REPL.
 The resulting types should satisfy the constraints of the schema.
 The parameters should be all of numeric kind, and the props should als
 be numeric -}
-defaultReplExpr' :: Solver -> [TParam] -> [Prop] -> IO (Maybe [ (TParam,Type) ])
+defaultReplExpr' ::  (?certifyPrimes :: Bool) => Solver -> [TParam] -> [Prop] -> IO (Maybe [ (TParam,Type) ])
 defaultReplExpr' sol as props =
   do let params = map tpVar as
      mb <- tryGetModel sol params props

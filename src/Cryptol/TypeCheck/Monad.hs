@@ -8,6 +8,7 @@
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE PatternGuards #-}
@@ -81,6 +82,11 @@ data InferInput = InferInput
     -- identifier (e.g., @number@).
 
   , inpSupply :: !Supply              -- ^ The supply for fresh name generation
+
+  , inpCertifyPrimes :: Bool
+    -- ^ When this flag is set to true, use a cetifying primality test.
+    --   Certifying tests are usually significantly slower than probablistic
+    --   tests.
   } deriving Show
 
 
@@ -129,10 +135,13 @@ runInferM info (IM m) = SMT.withSolver (inpSolverConfig info) $ \solver ->
                          , iSolver        = solver
                          , iPrimNames     = inpPrimNames info
                          , iSolveCounter  = coutner
+                         , iCertifyPrimes = inpCertifyPrimes info
                          }
 
          (result, finalRW) <- runStateT rw
                             $ runReaderT ro m  -- RECURSION
+
+     let ?certifyPrimes = inpCertifyPrimes info
 
      let theSu    = iSubst finalRW
          defSu    = defaultingSubst theSu
@@ -225,6 +234,11 @@ data RO = RO
     -- in where-blocks will never be generalized. Bindings with type
     -- signatures, and all bindings at top level are unaffected.
 
+  , iCertifyPrimes :: Bool
+    -- ^ When this flag is set to true, use a cetifying primality test.
+    --   Certifying tests are usually significantly slower than probablistic
+    --   tests.
+
   , iSolver :: SMT.Solver
 
   , iPrimNames :: !PrimMap
@@ -307,6 +321,10 @@ inRangeMb (Just r) m = inRange r m
 curRange :: InferM Range
 curRange = IM $ asks iRange
 
+-- | Should we use a certifying primality test?
+certifyPrimes :: InferM Bool
+certifyPrimes = IM $ asks iCertifyPrimes
+
 -- | Report an error.
 recordError :: Error -> InferM ()
 recordError e =
@@ -387,11 +405,13 @@ collectGoals m =
 
 simpGoal :: Goal -> InferM [Goal]
 simpGoal g =
-  case Simple.simplify Map.empty (goal g) of
-    p | Just e <- tIsError p ->
-        do recordError $ ErrorMsg $ text $ tcErrorMessage e
-           return []
-      | ps <- pSplitAnd p -> return [ g { goal = pr } | pr <- ps ]
+  do cp <- certifyPrimes
+     let ?certifyPrimes = cp
+     case Simple.simplify Map.empty (goal g) of
+       p | Just e <- tIsError p ->
+           do recordError $ ErrorMsg $ text $ tcErrorMessage e
+              return []
+         | ps <- pSplitAnd p -> return [ g { goal = pr } | pr <- ps ]
 
 simpGoals :: [Goal] -> InferM [Goal]
 simpGoals gs = concat <$> mapM simpGoal gs
@@ -496,6 +516,8 @@ unify :: Type -> Type -> InferM [Prop]
 unify t1 t2 =
   do t1' <- applySubst t1
      t2' <- applySubst t2
+     cp <- certifyPrimes
+     let ?certifyPrimes = cp
      let ((su1, ps), errs) = runResult (mgu t1' t2')
      extendSubst su1
      let toError :: UnificationError -> Error
@@ -515,7 +537,9 @@ unify t1 t2 =
 -- | Apply the accumulated substitution to something with free type variables.
 applySubst :: TVars t => t -> InferM t
 applySubst t =
-  do su <- getSubst
+  do cp <- certifyPrimes
+     let ?certifyPrimes = cp
+     su <- getSubst
      return (apSubst su t)
 
 applySubstPreds :: [Prop] -> InferM [Prop]
@@ -537,7 +561,9 @@ getSubst = IM $ fmap iSubst get
 -- invariant for 'Subst' is maintained.
 extendSubst :: Subst -> InferM ()
 extendSubst su =
-  do mapM_ check (substToList su)
+  do cp <- certifyPrimes
+     let ?certifyPrimes = cp
+     mapM_ check (substToList su)
      IM $ sets_ $ \s -> s { iSubst = su @@ iSubst s }
   where
     check :: (TVar, Type) -> InferM ()
@@ -919,7 +945,7 @@ kExistTVar :: Name -> Kind -> KindM Type
 kExistTVar x k = kInInferM $ existVar x k
 
 -- | Replace the given bound variables with concrete types.
-kInstantiateT :: Type -> [(TParam, Type)] -> KindM Type
+kInstantiateT :: (?certifyPrimes :: Bool) => Type -> [(TParam, Type)] -> KindM Type
 kInstantiateT t as = return (apSubst su t)
   where su = listParamSubst as
 

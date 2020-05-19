@@ -793,6 +793,12 @@ userOptions  = mkOptionMap
 
   , simpleOpt "show-examples" (EnvBool True) noCheck
     "Print the (counter) example after :sat or :prove"
+
+  , OptionDescr "certify-primes" (EnvBool False) noCheck
+    "If true, use a certifying algorithm for primality tests" $
+    \case EnvBool b -> do me <- getModuleEnv
+                          setModuleEnv me{ M.meCertifyPrimes = b }
+          _ -> return ()
   ]
 
 

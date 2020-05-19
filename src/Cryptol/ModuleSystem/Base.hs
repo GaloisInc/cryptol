@@ -516,6 +516,7 @@ genInferInput r prims params env = do
   cfg <- getSolverConfig
   supply <- getSupply
   searchPath <- getSearchPath
+  cp <- getCertifyPrimes
 
   -- TODO: include the environment needed by the module
   return T.InferInput
@@ -533,9 +534,8 @@ genInferInput r prims params env = do
     , T.inpParamTypes       = ifParamTypes params
     , T.inpParamConstraints = ifParamConstraints params
     , T.inpParamFuns        = ifParamFuns params
+    , T.inpCertifyPrimes    = cp
     }
-
-
 
 -- Evaluation ------------------------------------------------------------------
 

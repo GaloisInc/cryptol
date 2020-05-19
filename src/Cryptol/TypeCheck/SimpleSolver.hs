@@ -1,4 +1,4 @@
-{-# LANGUAGE PatternGuards, Trustworthy #-}
+{-# LANGUAGE ImplicitParams, PatternGuards, Trustworthy #-}
 module Cryptol.TypeCheck.SimpleSolver ( simplify , simplifyStep) where
 
 import Cryptol.TypeCheck.Type hiding
@@ -15,7 +15,7 @@ import Cryptol.Utils.Debug(ppTrace)
 import Cryptol.TypeCheck.PP
 
 
-simplify :: Ctxt -> Prop -> Prop
+simplify :: (?certifyPrimes :: Bool) => Ctxt -> Prop -> Prop
 simplify ctxt p =
   case simplifyStep ctxt p of
     Unsolvable e -> pError e
@@ -33,7 +33,7 @@ simplify ctxt p =
     | otherwise = x
 
 
-simplifyStep :: Ctxt -> Prop -> Solved
+simplifyStep :: (?certifyPrimes :: Bool) => Ctxt -> Prop -> Solved
 simplifyStep ctxt prop =
   case tNoUser prop of
     TCon (PC PTrue)  []        -> SolvedIf []

@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE RecursiveDo #-}
 {-# LANGUAGE Safe #-}
 module Cryptol.TypeCheck.Kind
@@ -43,12 +44,15 @@ import           Control.Monad(unless,forM,when)
 -- constraints that we inferred.
 checkSchema :: AllowWildCards -> P.Schema Name -> InferM (Schema, [Goal])
 checkSchema withWild (P.Forall xs ps t mb) =
-  do ((xs1,(ps1,t1)), gs) <-
+  do cp <- certifyPrimes
+     let ?certifyPrimes = cp
+     ((xs1,(ps1,t1)), gs) <-
         collectGoals $
         rng $ withTParams withWild schemaParam xs $
         do ps1 <- mapM checkProp ps
            t1  <- doCheckType t (Just KType)
            return (ps1,t1)
+
      -- XXX: We probably shouldn't do this, as we are changing what the
      -- user is doing.  We do it so that things are in a propal normal form,
      -- but we should probably figure out another time to do this.
@@ -76,7 +80,9 @@ checkParameterType a mbDoc =
 -- | Check a type-synonym declaration.
 checkTySyn :: P.TySyn Name -> Maybe String -> InferM TySyn
 checkTySyn (P.TySyn x _ as t) mbD =
-  do ((as1,t1),gs) <- collectGoals
+  do cp <- certifyPrimes
+     let ?certifyPrimes = cp
+     ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
                     $ do r <- withTParams NoWildCards tySynParam as
                                                       (doCheckType t Nothing)
@@ -92,7 +98,9 @@ checkTySyn (P.TySyn x _ as t) mbD =
 -- | Check a constraint-synonym declaration.
 checkPropSyn :: P.PropSyn Name -> Maybe String -> InferM TySyn
 checkPropSyn (P.PropSyn x _ as ps) mbD =
-  do ((as1,t1),gs) <- collectGoals
+  do cp <- certifyPrimes
+     let ?certifyPrimes = cp
+     ((as1,t1),gs) <- collectGoals
                     $ inRange (srcRange x)
                     $ do r <- withTParams NoWildCards propSynParam as
                                                       (traverse checkProp ps)
@@ -109,7 +117,9 @@ checkPropSyn (P.PropSyn x _ as ps) mbD =
 -- XXX: Do something with constraints.
 checkNewtype :: P.Newtype Name -> Maybe String -> InferM Newtype
 checkNewtype (P.Newtype x as fs) mbD =
-  do ((as1,fs1),gs) <- collectGoals $
+  do cp <- certifyPrimes
+     let ?certifyPrimes = cp
+     ((as1,fs1),gs) <- collectGoals $
        inRange (srcRange x) $
        do r <- withTParams NoWildCards newtypeParam as $
                forM fs $ \field ->
@@ -129,7 +139,9 @@ checkNewtype (P.Newtype x as fs) mbD =
 
 checkPrimType :: P.PrimType Name -> Maybe String -> InferM AbstractType
 checkPrimType p mbD =
-  do let (as,cs) = P.primTCts p
+  do cp <- certifyPrimes
+     let ?certifyPrimes = cp
+     let (as,cs) = P.primTCts p
      (as',cs') <- withTParams NoWildCards (TPOther . Just) as $
                     mapM checkProp cs
      pure AbstractType { atName = thing (P.primTName p)
@@ -141,12 +153,16 @@ checkPrimType p mbD =
 
 checkType :: P.Type Name -> Maybe Kind -> InferM Type
 checkType t k =
-  do (_, t1) <- withTParams AllowWildCards schemaParam [] $ doCheckType t k
+  do cp <- certifyPrimes
+     let ?certifyPrimes = cp
+     (_, t1) <- withTParams AllowWildCards schemaParam [] $ doCheckType t k
      return (tRebuild t1)
 
 checkParameterConstraints :: [Located (P.Prop Name)] -> InferM [Located Prop]
 checkParameterConstraints ps =
-  do (_, cs) <- withTParams NoWildCards schemaParam [] (mapM checkL ps)
+  do cp <- certifyPrimes
+     let ?certifyPrimes = cp
+     (_, cs) <- withTParams NoWildCards schemaParam [] (mapM checkL ps)
      return cs
   where
   checkL x = do p <- checkProp (thing x)
@@ -228,7 +244,8 @@ cvtK (P.KFun k1 k2) = cvtK k1 :-> cvtK k2
 
 
 -- | Check an application of a type constant.
-tcon :: TCon            -- ^ Type constant being applied
+tcon :: (?certifyPrimes :: Bool) =>
+        TCon            -- ^ Type constant being applied
      -> [P.Type Name]   -- ^ Type parameters
      -> Maybe Kind      -- ^ Expected kind
      -> KindM Type      -- ^ Resulting type
@@ -239,6 +256,7 @@ tcon tc ts0 k =
 
 -- | Check a type application of a non built-in type or type variable.
 checkTUser ::
+  (?certifyPrimes :: Bool) =>
   Name          {- ^ The name that is being applied to some arguments. -} ->
   [P.Type Name] {- ^ Parameters to the type -} ->
   Maybe Kind    {- ^ Expected kind -} ->
@@ -336,7 +354,8 @@ checkTUser x ts k =
          Just a  -> f a
 
 -- | Check a type-application.
-appTy :: [P.Type Name]        -- ^ Parameters to type function
+appTy :: (?certifyPrimes :: Bool) =>
+         [P.Type Name]        -- ^ Parameters to type function
       -> Kind                 -- ^ Kind of type function
       -> KindM ([Type], Kind) -- ^ Validated parameters, resulting kind
 appTy [] k1 = return ([],k1)
@@ -352,7 +371,8 @@ appTy ts k1 =
 
 
 -- | Validate a parsed type.
-doCheckType :: P.Type Name  -- ^ Type that needs to be checked
+doCheckType :: (?certifyPrimes :: Bool) =>
+             P.Type Name  -- ^ Type that needs to be checked
           -> Maybe Kind     -- ^ Expected kind (if any)
           -> KindM Type     -- ^ Checked type
 doCheckType ty k =
@@ -394,7 +414,8 @@ doCheckType ty k =
 
 
 -- | Validate a parsed proposition.
-checkProp :: P.Prop Name      -- ^ Proposition that need to be checked
+checkProp :: (?certifyPrimes :: Bool) =>
+             P.Prop Name      -- ^ Proposition that need to be checked
           -> KindM Type       -- ^ Checked representation
 checkProp (P.CType t) = doCheckType t (Just KProp)
 

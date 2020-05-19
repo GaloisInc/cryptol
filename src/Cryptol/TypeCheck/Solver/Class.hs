@@ -186,8 +186,9 @@ solveFieldInst ty = case tNoUser ty of
 
   -- Field Real
   -- Field Float
+
   -- Field (Z n)
---  TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne, pPrime n ]
+  TCon (TC TCIntMod) [n] -> SolvedIf [ pPrime n ]
 
   _ -> Unsolved
 

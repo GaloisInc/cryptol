@@ -8,6 +8,7 @@
 --
 -- Assumes that the `NoPat` pass has been run.
 
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -811,6 +812,9 @@ generalize bs0 gs0 =
 
      let maybeAmbig = Set.toList (Set.difference gen0 inSigs)
 
+     cp <- certifyPrimes
+     let ?certifyPrimes = cp
+
      {- See if we might be able to default some of the potentially ambiguous
         variables using the constraints that will be part of the newly
         generalized schema.  -}
@@ -893,7 +897,9 @@ checkSigB b (Forall as asmps0 t0, validSchema) = case thing (P.bDef b) of
  P.DExpr e0 ->
   inRangeMb (getLoc b) $
   withTParams as $
-  do (e1,cs0) <- collectGoals $
+  do cp <- certifyPrimes
+     let ?certifyPrimes = cp
+     (e1,cs0) <- collectGoals $
                 do e1 <- checkFun (pp (thing (P.bName b))) (P.bParams b) e0 t0
                    addGoals validSchema
                    () <- simplifyAllConstraints  -- XXX: using `asmps` also?

@@ -5,14 +5,14 @@
 -- Maintainer  :  cryptol@galois.com
 -- Stability   :  provisional
 -- Portability :  portable
-{-# LANGUAGE PatternGuards, Safe #-}
+{-# LANGUAGE ImplicitParams, PatternGuards, Safe #-}
 module Cryptol.TypeCheck.Solver.Selector (tryHasGoal) where
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Monad( InferM, unify, newGoals, lookupNewtype
                               , newType, applySubst, solveHasGoal
-                              , newParamName
+                              , newParamName, certifyPrimes
                               )
 import Cryptol.TypeCheck.Subst (listParamSubst, apSubst)
 import Cryptol.Utils.Ident (Ident, packIdent)
@@ -59,7 +59,9 @@ The given type should be "zonked" (i.e., substitution was applied to it),
 and (outermost) type synonyms have been expanded.
 -}
 solveSelector :: Selector -> Type -> InferM (Maybe Type)
-solveSelector sel outerT =
+solveSelector sel outerT = do
+  cp <- certifyPrimes
+  let ?certifyPrimes = cp
   case (sel, outerT) of
 
     (RecordSel l _, ty) ->

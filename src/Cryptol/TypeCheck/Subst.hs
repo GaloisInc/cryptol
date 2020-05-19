@@ -6,6 +6,7 @@
 -- Stability   :  provisional
 -- Portability :  portable
 
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -79,7 +80,7 @@ singleSubst v@(TVBound tp) t =
     , suDefaulting = False
     }
 
-(@@) :: Subst -> Subst -> Subst
+(@@) :: (?certifyPrimes::Bool) => Subst -> Subst -> Subst
 s2 @@ s1
   | isEmptySubst s2 =
     if suDefaulting s1 || not (suDefaulting s2) then
@@ -162,7 +163,7 @@ instance PP Subst where
 
 
 -- | Apply a substitution.  Returns `Nothing` if nothing changed.
-apSubstMaybe :: Subst -> Type -> Maybe Type
+apSubstMaybe :: (?certifyPrimes::Bool) => Subst -> Type -> Maybe Type
 apSubstMaybe su ty =
   case ty of
     TCon t ts ->
@@ -186,7 +187,7 @@ lookupSubst x su =
     TVFree i _ _ _ -> IntMap.lookup i (suFreeMap su)
     TVBound tp -> IntMap.lookup (tpUnique tp) (suBoundMap su)
 
-applySubstToVar :: Subst -> TVar -> Maybe Type
+applySubstToVar :: (?certifyPrimes::Bool) => Subst -> TVar -> Maybe Type
 applySubstToVar su x =
   case lookupSubst x su of
     -- For a defaulting substitution, we must recurse in order to
@@ -197,7 +198,7 @@ applySubstToVar su x =
       | otherwise       -> Nothing
 
 class TVars t where
-  apSubst :: Subst -> t -> t      -- ^ replaces free vars
+  apSubst :: (?certifyPrimes::Bool) => Subst -> t -> t      -- ^ replaces free vars
 
 instance TVars t => TVars (Maybe t) where
   apSubst s       = fmap (apSubst s)
@@ -231,7 +232,7 @@ instance TVars a => TVars (TypeMap a) where
 
 
 -- | Apply the substitution to the keys of a type map.
-apSubstTypeMapKeys :: Subst -> TypeMap a -> TypeMap a
+apSubstTypeMapKeys :: (?certifyPrimes :: Bool) => Subst -> TypeMap a -> TypeMap a
 apSubstTypeMapKeys su = go (\_ x -> x) id
   where
 

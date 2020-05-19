@@ -494,6 +494,9 @@ setFocusedModule n = ModuleT $ do
 getSearchPath :: ModuleM [FilePath]
 getSearchPath  = ModuleT (meSearchPath `fmap` get)
 
+getCertifyPrimes :: ModuleM Bool
+getCertifyPrimes = ModuleT (meCertifyPrimes `fmap` get)
+
 -- | Run a 'ModuleM' action in a context with a prepended search
 -- path. Useful for temporarily looking in other places while
 -- resolving imports, for example.

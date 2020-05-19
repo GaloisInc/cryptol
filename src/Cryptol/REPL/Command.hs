@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
@@ -1496,6 +1497,7 @@ replEvalExpr expr =
      validEvalContext def
      validEvalContext sig
      me <- getModuleEnv
+     let ?certifyPrimes = M.meCertifyPrimes me
      let cfg = M.meSolverConfig me
      mbDef <- io $ SMT.withSolver cfg (\s -> defaultReplExpr s def sig)
 
