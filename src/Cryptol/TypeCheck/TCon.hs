@@ -42,6 +42,7 @@ builtInType nm =
   case M.nameInfo nm of
     M.Declared m _
       | m == preludeName -> Map.lookup (M.nameIdent nm) builtInTypes
+      | m == arrayName   -> Map.lookup (M.nameIdent nm) builtInArray
     _ -> Nothing
 
   where
@@ -53,7 +54,6 @@ builtInType nm =
     , "Bit"               ~> TC TCBit
     , "Integer"           ~> TC TCInteger
     , "Z"                 ~> TC TCIntMod
-    , "Array"             ~> TC TCArray
 
       -- Predicate contstructors
     , "=="                ~> PC PEqual
@@ -80,6 +80,11 @@ builtInType nm =
     , "/^"               ~> TF TCCeilDiv
     , "%^"               ~> TF TCCeilMod
     , "lengthFromThenTo" ~> TF TCLenFromThenTo
+    ]
+
+  -- Built-in types from Array.cry
+  builtInArray = Map.fromList
+    [ "Array" ~> TC TCArray
     ]
 
 
