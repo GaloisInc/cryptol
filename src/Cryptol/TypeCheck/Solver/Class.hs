@@ -41,6 +41,8 @@ solveValidFloat e p
   | Just _ <- knownSupportedFloat e p = SolvedIf []
   | otherwise = Unsolved
 
+-- | Check that the type parameters correspond to a float that
+-- we support, and if so make the precision settings for the BigFloat library.
 knownSupportedFloat :: Type -> Type -> Maybe FP.BFOpts
 knownSupportedFloat et pt
   | Just e <- tIsNum et, Just p <- tIsNum pt
@@ -180,6 +182,9 @@ solveCmpInst ty = case tNoUser ty of
 
   -- Cmp (Z n)
   TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
+
+  -- ValidFloat e p => Cmp (Float e p)
+  TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
 
   -- (fin n, Cmp a) => Cmp [n]a
   TCon (TC TCSeq) [n,a] -> SolvedIf [ pFin n, pCmp a ]

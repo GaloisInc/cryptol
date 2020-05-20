@@ -133,7 +133,7 @@ class MonadIO (SEval sym) => Backend sym where
     SEval sym (SInteger sym)
 
   -- | Construct a floating point value from the given rational.
-  floatLit ::
+  fpLit ::
     sym ->
     Integer  {- ^ exponent bits -} ->
     Integer  {- ^ precision bits -} ->
@@ -592,3 +592,12 @@ class MonadIO (SEval sym) => Backend sym where
     do x' <- znToInt sym m x
        y' <- znToInt sym m y
        intGreaterThan sym x' y'
+
+  -- == Float Operations ==
+  fpEq          :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
+  fpLessThan    :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
+  fpGreaterThan :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
+
+
+
+

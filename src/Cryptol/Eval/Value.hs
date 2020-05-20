@@ -44,6 +44,7 @@ module Cryptol.Eval.Value
     -- ** Value eliminators
   , fromVBit
   , fromVInteger
+  , fromVFloat
   , fromVSeq
   , fromSeq
   , fromWordVal

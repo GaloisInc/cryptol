@@ -32,6 +32,8 @@ import System.IO (Handle)
 import Data.Time
 import Data.IORef
 
+import LibBF(bfFromInteger)
+
 import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
@@ -42,6 +44,7 @@ import qualified Cryptol.Eval.Concrete as Concrete
 
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.What4
+import qualified Cryptol.Eval.What4.SFloat as W4
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Ident (Ident)
@@ -319,6 +322,14 @@ varBlockingPred sym evalFn v =
     VarWord (SW.DBV w) ->
       do wlit <- W4.groundEval evalFn w
          W4.notPred sym =<< W4.bvEq sym w =<< W4.bvLit sym (W4.bvWidth w) wlit
+
+    VarFloat (W4.SFloat f) ->
+      do flit <- W4.groundEval evalFn f
+         -- XXX: eventually `flit` should be an actula bigfloat
+         let constF = W4.floatLit sym (sym `W4.fpReprOf` f) (fromInteger flit)
+         -- NOTE: we are using logical equality here
+         W4.notPred sym =<< W4.floatEq sym f =<< constF
+
     VarFinSeq _n vs -> computeBlockingPred sym evalFn vs
     VarTuple vs     -> computeBlockingPred sym evalFn vs
     VarRecord fs    -> computeBlockingPred sym evalFn (map snd (Map.toList fs))
@@ -345,6 +356,7 @@ computeModel _ _ _ _ _ = panic "computeModel" ["type/value list mismatch"]
 data VarShape sym
   = VarBit (W4.Pred sym)
   | VarInteger (W4.SymInteger sym)
+  | VarFloat (W4.SFloat sym)
   | VarWord (SW.SWord sym)
   | VarFinSeq Int [VarShape sym]
   | VarTuple [VarShape sym]
@@ -357,6 +369,7 @@ freshVariable sym ty =
     FTInteger     -> VarInteger  <$> W4.freshConstant sym W4.emptySymbol W4.BaseIntegerRepr
     FTIntMod 0    -> panic "freshVariable" ["0 modulus not allowed"]
     FTIntMod n    -> VarInteger  <$> W4.freshBoundedInt sym W4.emptySymbol (Just 0) (Just (n-1))
+    FTFloat e p   -> VarFloat    <$> W4.fpFresh sym e p
     FTSeq n FTBit -> VarWord     <$> SW.freshBV sym W4.emptySymbol (toInteger n)
     FTSeq n t     -> VarFinSeq n <$> sequence (replicate n (freshVariable sym t))
     FTTuple ts    -> VarTuple    <$> mapM (freshVariable sym) ts
@@ -368,6 +381,7 @@ varToSymValue sym var =
     VarBit b     -> Eval.VBit b
     VarInteger i -> Eval.VInteger i
     VarWord w    -> Eval.VWord (SW.bvWidth w) (return (Eval.WordVal w))
+    VarFloat f   -> Eval.VFloat f
     VarFinSeq n vs -> Eval.VSeq (toInteger n) (Eval.finiteSeqMap (What4 sym) (map (pure . varToSymValue sym) vs))
     VarTuple vs  -> Eval.VTuple (map (pure . varToSymValue sym) vs)
     VarRecord fs -> Eval.VRecord (fmap (pure . varToSymValue sym) fs)
@@ -385,6 +399,10 @@ varToConcreteValue evalFn v =
     VarWord (SW.DBV x) ->
        do let w = W4.intValue (W4.bvWidth x)
           Eval.VWord w . pure . Eval.WordVal . Concrete.mkBv w <$> W4.groundEval evalFn x
+    VarFloat (W4.SFloat f) ->
+      Eval.VFloat . bfFromInteger <$> W4.groundEval evalFn f
+    -- XXX: the `bfFromInteger` should eventually go away
+
     VarFinSeq n vs ->
        do vs' <- mapM (varToConcreteValue evalFn) vs
           pure (Eval.VSeq (toInteger n) (Eval.finiteSeqMap Concrete.Concrete (map pure vs')))

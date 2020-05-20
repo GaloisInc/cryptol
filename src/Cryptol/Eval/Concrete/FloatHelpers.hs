@@ -1,10 +1,12 @@
 module Cryptol.Eval.Concrete.FloatHelpers where
 
+import Data.Ratio
 import LibBF
 
+import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Eval.Backend
-import Cryptol.Eval.Monad(EvalError(..))
+import Cryptol.Eval.Monad(EvalError(..),PPOpts)
 
 
 
@@ -51,4 +53,24 @@ checkStatus _sym (r,s) =
     MemError  -> panic "checkStatus" [ "libBF: Memory error" ]
     -- InvalidOp -> panic "checkStatus" [ "libBF: Invalid op" ]
     _ -> pure r
+
+
+
+-- | Pretty print a float
+fpPP :: PPOpts -> BigFloat -> Doc
+fpPP _opts = text . bfToString 16 (addPrefix <> showFree Nothing)
+
+
+-- | Make a literal
+fpLit ::
+  Backend sym => sym -> Integer -> Integer -> Rational -> SEval sym BigFloat
+fpLit sym e p r =
+  do opts <- floatOpts sym e p 0 -- round to nearest even
+     let num = bfFromInteger (numerator r)
+         res
+           | denominator r == 1 = bfRoundFloat opts num
+           | otherwise = bfDiv opts num (bfFromInteger (denominator r))
+     checkStatus sym res
+
+
 

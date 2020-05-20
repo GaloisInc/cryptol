@@ -49,7 +49,7 @@ mkLit sym ty i =
     TVIntMod m
       | m == 0                   -> evalPanic "mkLit" ["0 modulus not allowed"]
       | otherwise                -> VInteger <$> integerLit sym (i `mod` m)
-    TVFloat e p                  -> VFloat <$> floatLit sym e p (fromInteger i)
+    TVFloat e p                  -> VFloat <$> fpLit sym e p (fromInteger i)
     TVSeq w TVBit                -> pure $ word sym w i
     _                            -> evalPanic "Cryptol.Eval.Prim.evalConst"
                                     [ "Invalid type for number" ]
@@ -428,6 +428,7 @@ complementV sym = logicUnary sym (bitComplement sym) (wordComplement sym)
   (SWord Concrete -> SWord Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (SInteger Concrete -> SInteger Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (Integer -> SInteger Concrete -> SInteger Concrete -> SEval Concrete a -> SEval Concrete a) ->
+  (SFloat Concrete -> SFloat Concrete -> SEval Concrete a -> SEval Concrete a) ->
   (TValue -> GenValue Concrete -> GenValue Concrete -> SEval Concrete a -> SEval Concrete a)
   #-}
 
@@ -438,13 +439,15 @@ cmpValue ::
   (SWord sym -> SWord sym -> SEval sym a -> SEval sym a) ->
   (SInteger sym -> SInteger sym -> SEval sym a -> SEval sym a) ->
   (Integer -> SInteger sym -> SInteger sym -> SEval sym a -> SEval sym a) ->
+  (SFloat sym -> SFloat sym -> SEval sym a -> SEval sym a) ->
   (TValue -> GenValue sym -> GenValue sym -> SEval sym a -> SEval sym a)
-cmpValue sym fb fw fi fz = cmp
+cmpValue sym fb fw fi fz ff = cmp
   where
     cmp ty v1 v2 k =
       case ty of
         TVBit         -> fb (fromVBit v1) (fromVBit v2) k
         TVInteger     -> fi (fromVInteger v1) (fromVInteger v2) k
+        TVFloat _ _   -> ff (fromVFloat v1) (fromVFloat v2) k
         TVIntMod n    -> fz n (fromVInteger v1) (fromVInteger v2) k
         TVSeq n t
           | isTBit t  -> do w1 <- fromVWord sym "cmpValue" v1
@@ -486,32 +489,36 @@ bitGreaterThan sym x y = bitLessThan sym y x
 
 {-# INLINE valEq #-}
 valEq :: Backend sym => sym -> TValue -> GenValue sym -> GenValue sym -> SEval sym (SBit sym)
-valEq sym ty v1 v2 = cmpValue sym fb fw fi fz ty v1 v2 (pure $ bitLit sym True)
+valEq sym ty v1 v2 = cmpValue sym fb fw fi fz ff
+                                      ty v1 v2 (pure $ bitLit sym True)
   where
   fb x y k   = eqCombine sym (bitEq  sym x y) k
   fw x y k   = eqCombine sym (wordEq sym x y) k
   fi x y k   = eqCombine sym (intEq  sym x y) k
   fz m x y k = eqCombine sym (znEq sym m x y) k
+  ff x y k   = eqCombine sym (fpEq sym x y) k
 
 {-# INLINE valLt #-}
 valLt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
-valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
+valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz ff ty v1 v2 (pure final)
   where
   fb x y k   = lexCombine sym (bitLessThan  sym x y) (bitEq  sym x y) k
   fw x y k   = lexCombine sym (wordLessThan sym x y) (wordEq sym x y) k
   fi x y k   = lexCombine sym (intLessThan  sym x y) (intEq  sym x y) k
   fz m x y k = lexCombine sym (znLessThan sym m x y) (znEq sym m x y) k
+  ff x y k   = lexCombine sym (fpLessThan   sym x y) (fpEq   sym x y) k
 
 {-# INLINE valGt #-}
 valGt :: Backend sym =>
   sym -> TValue -> GenValue sym -> GenValue sym -> SBit sym -> SEval sym (SBit sym)
-valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz ty v1 v2 (pure final)
+valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz ff ty v1 v2 (pure final)
   where
   fb x y k   = lexCombine sym (bitGreaterThan  sym x y) (bitEq  sym x y) k
   fw x y k   = lexCombine sym (wordGreaterThan sym x y) (wordEq sym x y) k
   fi x y k   = lexCombine sym (intGreaterThan  sym x y) (intEq  sym x y) k
   fz m x y k = lexCombine sym (znGreaterThan sym m x y) (znEq sym m x y) k
+  ff x y k   = lexCombine sym (fpGreaterThan   sym x y) (fpEq   sym x y) k
 
 {-# INLINE eqCombine #-}
 eqCombine :: Backend sym =>
@@ -559,12 +566,13 @@ greaterThanEqV sym ty v1 v2 = VBit <$> valGt sym ty v1 v2 (bitLit sym True)
 
 {-# INLINE signedLessThanV #-}
 signedLessThanV :: Backend sym => sym -> Binary sym
-signedLessThanV sym ty v1 v2 = VBit <$> cmpValue sym fb fw fi fz ty v1 v2 (pure $ bitLit sym False)
+signedLessThanV sym ty v1 v2 = VBit <$> cmpValue sym fb fw fi fz ff ty v1 v2 (pure $ bitLit sym False)
   where
   fb _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on bit type"]
   fw x y k   = lexCombine sym (wordSignedLessThan sym x y) (wordEq sym x y) k
   fi _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on Integer type"]
   fz m _ _ _ = panic "signedLessThan" ["Attempted to perform signed comparison on Z_" ++ show m ++ " type"]
+  ff _ _ _   = panic "signedLessThan" ["Attempted to perform signed comparison on Float"]
 
 -- Signed arithmetic -----------------------------------------------------------
 
@@ -611,7 +619,7 @@ zeroV sym ty = case ty of
 
   -- floating point
   TVFloat e p ->
-    VFloat <$> floatLit sym e p 0
+    VFloat <$> fpLit sym e p 0
 
   -- sequences
   TVSeq w ety

@@ -78,6 +78,8 @@ toExpr prims t0 v0 = findOne (go t0 v0)
       return $ ETApp (ETApp (prim "number") (tNum i)) ty
     (TCon (TC TCIntMod) [_n], VInteger i) ->
       return $ ETApp (ETApp (prim "number") (tNum i)) ty
+    (TCon (TC TCFloat) [_,_], VFloat i) ->
+      fail "XXX: can't represent float expressions at the moment" -- XXX
     (TCon (TC TCSeq) [a,b], VSeq 0 _) -> do
       guard (a == tZero)
       return $ EList [] b

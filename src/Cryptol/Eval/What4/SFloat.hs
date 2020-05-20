@@ -9,12 +9,23 @@
 module Cryptol.Eval.What4.SFloat
   ( -- * Interface
     SFloat(..)
+  , fpReprOf
+
+    -- * Constants
+  , fpFresh
   , fpNaN
   , fpPosInf
   , fpFromRational
-  , fpNeg
 
+    -- * Relations
+  , SFloatRel
+  , fpEqIEEE
+  , fpLtIEEE
+  , fpGtIEEE
+
+    -- * Arithmetic
   , SFloatBinArith
+  , fpNeg
   , fpAdd
   , fpSub
   , fpMul
@@ -90,12 +101,23 @@ fpRepr iE iP =
      LeqProof  <- testLeq (knownNat @2) p
      pure (Some (FloatingPointPrecisionRepr e p))
 
-getFPRepr ::
+fpReprOf ::
   IsExpr (SymExpr sym) => sym -> SymFloat sym fpp -> FloatPrecisionRepr fpp
-getFPRepr _ e =
+fpReprOf _ e =
   case exprType e of
     BaseFloatRepr r -> r
 
+
+fpFresh ::
+  IsSymExprBuilder sym =>
+  sym ->
+  Integer ->
+  Integer ->
+  IO (SFloat sym)
+fpFresh sym e p
+  | Just (Some fpp) <- fpRepr e p =
+    SFloat <$> freshConstant sym emptySymbol (BaseFloatRepr fpp)
+  | otherwise = unsupported "fpFresh" e p
 
 -- | Not a number
 fpNaN ::
@@ -134,6 +156,24 @@ fpFromRational sym e p r
 fpNeg :: IsExprBuilder sym => sym -> SFloat sym -> IO (SFloat sym)
 fpNeg sym (SFloat fl) = SFloat <$> floatNeg sym fl
 
+
+fpRel ::
+  IsExprBuilder sym =>
+  (forall t.
+    sym ->
+    SymFloat sym t ->
+    SymFloat sym t ->
+    IO (Pred sym)
+  ) ->
+  sym -> SFloat sym -> SFloat sym -> IO (Pred sym)
+fpRel fun sym (SFloat x) (SFloat y) =
+  let t1 = sym `fpReprOf` x
+      t2 = sym `fpReprOf` y
+  in
+  case testEquality t1 t2 of
+    Just Refl -> fun sym x y
+    _         -> fpTypeError t1 t2
+
 fpBinArith ::
   IsExprBuilder sym =>
   (forall t.
@@ -144,11 +184,13 @@ fpBinArith ::
       IO (SymFloat sym t)
   ) ->
   sym -> RoundingMode -> SFloat sym -> SFloat sym -> IO (SFloat sym)
-fpBinArith fun sym r (SFloat x) (SFloat y)
-  | Just Refl <- testEquality t1 t2 = SFloat <$> fun sym r x y
-  | otherwise = fpTypeError t1 t2
-    where t1 = getFPRepr sym x
-          t2 = getFPRepr sym y
+fpBinArith fun sym r (SFloat x) (SFloat y) =
+  let t1 = sym `fpReprOf` x
+      t2 = sym `fpReprOf` y
+  in
+  case testEquality t1 t2 of
+    Just Refl -> SFloat <$> fun sym r x y
+    _         -> fpTypeError t1 t2
 
 type SFloatBinArith sym =
   sym -> RoundingMode -> SFloat sym -> SFloat sym -> IO (SFloat sym)
@@ -165,6 +207,18 @@ fpMul = fpBinArith floatMul
 fpDiv :: IsExprBuilder sym => SFloatBinArith sym
 fpDiv = fpBinArith floatDiv
 
+
+type SFloatRel sym =
+  sym -> SFloat sym -> SFloat sym -> IO (Pred sym)
+
+fpEqIEEE :: IsExprBuilder sym => SFloatRel sym
+fpEqIEEE = fpRel floatFpEq
+
+fpLtIEEE :: IsExprBuilder sym => SFloatRel sym
+fpLtIEEE = fpRel floatLt
+
+fpGtIEEE :: IsExprBuilder sym => SFloatRel sym
+fpGtIEEE = fpRel floatGt
 
 
 
