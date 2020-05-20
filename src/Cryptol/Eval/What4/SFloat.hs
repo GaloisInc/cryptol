@@ -16,6 +16,7 @@ module Cryptol.Eval.What4.SFloat
   , fpNaN
   , fpPosInf
   , fpFromRational
+  , fpFromBinary
 
     -- * Relations
   , SFloatRel
@@ -42,6 +43,8 @@ import Data.Parameterized.Some
 import Data.Parameterized.NatRepr
 
 import What4.BaseTypes
+import What4.Panic(panic)
+import What4.SWord
 import What4.Interface
 
 -- | Symbolic floating point numbers.
@@ -62,8 +65,8 @@ data UnsupportedFloat =
 -- | Throw 'UnsupportedFloat' exception
 unsupported ::
   String  {- ^ Label -} ->
-  Integer {- ^ Exponent -} ->
-  Integer {- ^ Precision -} ->
+  Integer {- ^ Exponent width -} ->
+  Integer {- ^ Precision width -} ->
   IO a
 unsupported l e p =
   throwIO UnsupportedFloat { fpWho         = l
@@ -74,25 +77,28 @@ instance Exception UnsupportedFloat
 
 -- | This exceptoin is throws if the types don't match.
 data FPTypeError =
-  FPTypeError { fpExpected :: Some FloatPrecisionRepr
-              , fpActual   :: Some FloatPrecisionRepr
+  FPTypeError { fpExpected :: Some BaseTypeRepr
+              , fpActual   :: Some BaseTypeRepr
               }
     deriving Show
 
 instance Exception FPTypeError
 
-fpTypeError :: FloatPrecisionRepr t1 -> FloatPrecisionRepr t2 -> IO a
-fpTypeError expect actual =
+fpTypeMismatch :: BaseTypeRepr t1 -> BaseTypeRepr t2 -> IO a
+fpTypeMismatch expect actual =
   throwIO FPTypeError { fpExpected = Some expect
                       , fpActual   = Some actual
                       }
+fpTypeError :: FloatPrecisionRepr t1 -> FloatPrecisionRepr t2 -> IO a
+fpTypeError t1 t2 =
+  fpTypeMismatch (BaseFloatRepr t1) (BaseFloatRepr t2)
 
 
 --------------------------------------------------------------------------------
 -- | Construct the 'FloatPrecisionRepr' with the given parameters.
 fpRepr ::
-  Integer {- ^ exponent -} ->
-  Integer {- ^ precision -} ->
+  Integer {- ^ Exponent width -} ->
+  Integer {- ^ Precision width -} ->
   Maybe (Some FloatPrecisionRepr)
 fpRepr iE iP =
   do Some e    <- someNat iE
@@ -108,6 +114,10 @@ fpReprOf _ e =
     BaseFloatRepr r -> r
 
 
+--------------------------------------------------------------------------------
+-- Constants
+
+-- | A fresh variable of the given type.
 fpFresh ::
   IsSymExprBuilder sym =>
   sym ->
@@ -123,8 +133,8 @@ fpFresh sym e p
 fpNaN ::
   IsExprBuilder sym =>
   sym ->
-  Integer {- ^ exponent -} ->
-  Integer {- ^ precision -} ->
+  Integer {- ^ Exponent width -} ->
+  Integer {- ^ Precision width -} ->
   IO (SFloat sym)
 fpNaN sym e p
   | Just (Some fpp) <- fpRepr e p = SFloat <$> floatNaN sym fpp
@@ -135,44 +145,55 @@ fpNaN sym e p
 fpPosInf ::
   IsExprBuilder sym =>
   sym ->
-  Integer {- ^ exponent -} ->
-  Integer {- ^ precision -} ->
+  Integer {- ^ Exponent width -} ->
+  Integer {- ^ Precision width -} ->
   IO (SFloat sym)
 fpPosInf sym e p
   | Just (Some fpp) <- fpRepr e p = SFloat <$> floatPInf sym fpp
   | otherwise = unsupported "fpPosInf" e p
 
+-- | A floating point number corresponding to the given rations.
+-- (XXX: should we check that this number fits, is What4 taking care of that?)
 fpFromRational ::
   IsExprBuilder sym =>
   sym ->
-  Integer {- ^ exponent -} ->
-  Integer {- ^ precision -} ->
+  Integer {- ^ Exponent width -} ->
+  Integer {- ^ Precision width -} ->
   Rational ->
   IO (SFloat sym)
 fpFromRational sym e p r
   | Just (Some fpp) <- fpRepr e p = SFloat <$> floatLit sym fpp r
   | otherwise = unsupported "fpFromRational" e p
 
+
+-- | Make a floating point number with the given bit representation.
+fpFromBinary ::
+  IsExprBuilder sym =>
+  sym ->
+  Integer {- ^ Exponent width -} ->
+  Integer {- ^ Precision width -} ->
+  SWord sym ->
+  IO (SFloat sym)
+fpFromBinary sym e p swe
+  | DBV sw <- swe
+  , Just (Some fpp) <- fpRepr e p
+  , FloatingPointPrecisionRepr ew pw <- fpp
+  , let expectW = addNat ew pw
+  , actual@(BaseBVRepr actualW)  <- exprType sw =
+    case testEquality expectW actualW of
+      Just Refl -> SFloat <$> floatFromBinary sym fpp sw
+      Nothing -- we want to report type correct type errors! :-)
+        | Just LeqProof <- testLeq (knownNat @1) expectW ->
+                fpTypeMismatch (BaseBVRepr expectW) actual
+        | otherwise -> panic "fpFromBits" [ "1 >= 2" ]
+  | otherwise = unsupported "fpFromBits" e p
+
+
+--------------------------------------------------------------------------------
+-- Arithmetic
+
 fpNeg :: IsExprBuilder sym => sym -> SFloat sym -> IO (SFloat sym)
 fpNeg sym (SFloat fl) = SFloat <$> floatNeg sym fl
-
-
-fpRel ::
-  IsExprBuilder sym =>
-  (forall t.
-    sym ->
-    SymFloat sym t ->
-    SymFloat sym t ->
-    IO (Pred sym)
-  ) ->
-  sym -> SFloat sym -> SFloat sym -> IO (Pred sym)
-fpRel fun sym (SFloat x) (SFloat y) =
-  let t1 = sym `fpReprOf` x
-      t2 = sym `fpReprOf` y
-  in
-  case testEquality t1 t2 of
-    Just Refl -> fun sym x y
-    _         -> fpTypeError t1 t2
 
 fpBinArith ::
   IsExprBuilder sym =>
@@ -206,6 +227,30 @@ fpMul = fpBinArith floatMul
 
 fpDiv :: IsExprBuilder sym => SFloatBinArith sym
 fpDiv = fpBinArith floatDiv
+
+
+
+
+--------------------------------------------------------------------------------
+
+fpRel ::
+  IsExprBuilder sym =>
+  (forall t.
+    sym ->
+    SymFloat sym t ->
+    SymFloat sym t ->
+    IO (Pred sym)
+  ) ->
+  sym -> SFloat sym -> SFloat sym -> IO (Pred sym)
+fpRel fun sym (SFloat x) (SFloat y) =
+  let t1 = sym `fpReprOf` x
+      t2 = sym `fpReprOf` y
+  in
+  case testEquality t1 t2 of
+    Just Refl -> fun sym x y
+    _         -> fpTypeError t1 t2
+
+
 
 
 type SFloatRel sym =

@@ -77,6 +77,12 @@ fpPosZero = zero
 fpNegZero : {e,p} ValidFloat e p => Float e p
 fpNegZero = fpNeg fpPosZero
 
+/** A floating point number using the exact bit pattern,
+in IEEE interchange format. */
+primitive
+  fpFromBits : {e,p} ValidFloat e p => [e + p] -> Float e p
+
+
 
 
 /* ----------------------------------------------------------------------

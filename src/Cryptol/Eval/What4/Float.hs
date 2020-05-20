@@ -24,14 +24,16 @@ floatPrims sym4@(What4 sym) =
   (~>) = (,)
 
   table =
-    [ "fpNaN"     ~> fpConst (fpNaN sym)
-    , "fpPosInf"  ~> fpConst (fpPosInf sym)
-    , "fpNeg"     ~> nlam \_ -> nlam \_ -> flam \x ->
-                     VFloat <$> liftIO (fpNeg sym x)
-    , "fpAdd"     ~> fpArtih2 sym4 fpAdd
-    , "fpSub"     ~> fpArtih2 sym4 fpSub
-    , "fpMul"     ~> fpArtih2 sym4 fpMul
-    , "fpDiv"     ~> fpArtih2 sym4 fpDiv
+    [ "fpNaN"       ~> fpConst (fpNaN sym)
+    , "fpPosInf"    ~> fpConst (fpPosInf sym)
+    , "fpFromBits"  ~> ilam \e -> ilam \p -> wlam sym4 \w ->
+                       VFloat <$> liftIO (fpFromBinary sym e p w)
+    , "fpNeg"       ~> ilam \_ -> ilam \_ -> flam \x ->
+                       VFloat <$> liftIO (fpNeg sym x)
+    , "fpAdd"       ~> fpArtih2 sym4 fpAdd
+    , "fpSub"       ~> fpArtih2 sym4 fpSub
+    , "fpMul"       ~> fpArtih2 sym4 fpMul
+    , "fpDiv"       ~> fpArtih2 sym4 fpDiv
     ]
 
 
@@ -42,7 +44,7 @@ fpConst ::
   (Integer -> Integer -> IO (SFloat sym)) ->
   Value sym
 fpConst mk =
-     nlam \ ~(Nat e) ->
+     ilam \ e ->
  VNumPoly \ ~(Nat p) ->
  VFloat <$> liftIO (mk e p)
 
@@ -72,7 +74,7 @@ fpArtih2 ::
   (SFloatBinArith sym) ->
   Value sym
 fpArtih2 sym4@(What4 sym) fun =
-  nlam \_ -> nlam \_ -> rm_lam sym4 \r ->
+  ilam \_ -> ilam \_ -> rm_lam sym4 \r ->
   pure $ flam \x ->
   pure $ flam \y -> VFloat <$> liftIO (fun sym r x y)
 

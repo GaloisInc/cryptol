@@ -37,6 +37,7 @@ module Cryptol.Eval.Value
   , flam
   , tlam
   , nlam
+  , ilam
   , toStream
   , toFinSeq
   , toSeq
@@ -102,6 +103,7 @@ import Cryptol.Eval.Type
 
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident (Ident)
+import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.PP
 
 import Data.List(genericIndex)
@@ -427,6 +429,12 @@ tlam f = VPoly (return . f)
 -- | A type lambda that expects a 'Type' of kind #.
 nlam :: Backend sym => (Nat' -> GenValue sym) -> GenValue sym
 nlam f = VNumPoly (return . f)
+
+-- | A type lambda that expects a funite numeric type.
+ilam :: Backend sym => (Integer -> GenValue sym) -> GenValue sym
+ilam f = nlam (\n -> case n of
+                       Nat i -> f i
+                       Inf   -> panic "ilam" [ "Unexpected `inf`" ])
 
 -- | Generate a stream.
 toStream :: Backend sym => [GenValue sym] -> SEval sym (GenValue sym)
