@@ -31,6 +31,8 @@ import Data.List (intercalate, genericLength)
 import qualified Data.Map as Map
 import qualified Control.Exception as X
 
+import LibBF(bfNaN)
+
 import qualified Data.SBV.Dynamic as SBV
 import           Data.SBV (Timing(SaveTiming))
 import           Data.SBV.Internals (showTDiff)
@@ -286,6 +288,7 @@ parseValue (FTTuple ts) cvs = (Eval.VTuple (map Eval.ready vs), cvs')
 parseValue (FTRecord fs) cvs = (Eval.VRecord (Map.fromList (zip ns (map Eval.ready vs))), cvs')
   where (ns, ts)   = unzip (Map.toList fs)
         (vs, cvs') = parseValues ts cvs
+parseValue (FTFloat {}) _ = (Eval.VFloat bfNaN,[])  -- XXX: NOT IMPLEMENTED
 
 inBoundsIntMod :: Integer -> Eval.SInteger SBV -> Eval.SBit SBV
 inBoundsIntMod n x =
@@ -298,6 +301,7 @@ forallFinType ty =
   case ty of
     FTBit         -> Eval.VBit <$> lift forallSBool_
     FTInteger     -> Eval.VInteger <$> lift forallSInteger_
+    FTFloat {}    -> pure (Eval.VFloat ()) -- XXX: NOT IMPLEMENTED
     FTIntMod n    -> do x <- lift forallSInteger_
                         tell [inBoundsIntMod n x]
                         return (Eval.VInteger x)
@@ -313,6 +317,7 @@ existsFinType ty =
   case ty of
     FTBit         -> Eval.VBit <$> lift existsSBool_
     FTInteger     -> Eval.VInteger <$> lift existsSInteger_
+    FTFloat {}    -> pure $ Eval.VFloat () -- XXX: NOT IMPLEMENTED
     FTIntMod n    -> do x <- lift existsSInteger_
                         tell [inBoundsIntMod n x]
                         return (Eval.VInteger x)

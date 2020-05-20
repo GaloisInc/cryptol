@@ -49,7 +49,7 @@ import Cryptol.Utils.PP
 
 data SBV = SBV
 
--- Utility operations -------------------------------------------------------------
+-- Utility operations ----------------------------------------------------------
 
 fromBitsLE :: [SBit SBV] -> SWord SBV
 fromBitsLE bs = foldl' f (literalSWord 0 0) bs
@@ -140,7 +140,7 @@ instance Backend SBV where
   type SBit SBV = SVal
   type SWord SBV = SVal
   type SInteger SBV = SVal
-
+  type SFloat SBV = ()        -- XXX: not implemented
   type SEval SBV = SBVEval
 
   raiseError _ err = SBVEval (pure (SBVError err))
@@ -319,6 +319,16 @@ instance Backend SBV where
   znMinus _ m a b = sModSub m a b
   znMult  _ m a b = sModMult m a b
   znNegate _ m a  = sModNegate m a
+
+  ppFloat _ _ _         = text "[?]"
+  fpLit sym _ _ _       = raiseError sym (UnsupportedSymbolicOp "fpLit")
+  fpEq sym _ _          = raiseError sym (UnsupportedSymbolicOp "fpEq")
+  fpLessThan sym _ _    = raiseError sym (UnsupportedSymbolicOp "fpLessThan")
+  fpGreaterThan sym _ _ = raiseError sym (UnsupportedSymbolicOp "fpGreaterThan")
+
+
+
+
 
 svToInteger :: SWord SBV -> SInteger SBV
 svToInteger w =
