@@ -10,6 +10,7 @@ module Cryptol.Eval.What4.SFloat
   ( -- * Interface
     SFloat(..)
   , fpReprOf
+  , fpSize
 
     -- * Constants
   , fpFresh
@@ -112,6 +113,11 @@ fpReprOf ::
 fpReprOf _ e =
   case exprType e of
     BaseFloatRepr r -> r
+
+fpSize :: SFloat sym -> (Integer,Integer)
+fpSize (SFloat f) =
+  case exprType f of
+    BaseFloatRepr (FloatingPointPrecisionRepr e p) -> (intValue e, intValue p)
 
 
 --------------------------------------------------------------------------------

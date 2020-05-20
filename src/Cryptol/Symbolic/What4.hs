@@ -32,8 +32,6 @@ import System.IO (Handle)
 import Data.Time
 import Data.IORef
 
-import LibBF(bfFromInteger)
-
 import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
 import qualified Cryptol.ModuleSystem.Base as M
@@ -41,6 +39,7 @@ import qualified Cryptol.ModuleSystem.Monad as M
 
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
+import qualified Cryptol.Eval.Concrete.Float as Concrete
 
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.What4
@@ -323,12 +322,16 @@ varBlockingPred sym evalFn v =
       do wlit <- W4.groundEval evalFn w
          W4.notPred sym =<< W4.bvEq sym w =<< W4.bvLit sym (W4.bvWidth w) wlit
 
-    VarFloat (W4.SFloat f) ->
-      do flit <- W4.groundEval evalFn f
-         -- XXX: eventually `flit` should be an actula bigfloat
-         let constF = W4.floatLit sym (sym `W4.fpReprOf` f) (fromInteger flit)
-         -- NOTE: we are using logical equality here
-         W4.notPred sym =<< W4.floatEq sym f =<< constF
+    VarFloat (W4.SFloat f)
+      | fr@(W4.FloatingPointPrecisionRepr e p) <- sym `W4.fpReprOf` f
+      , let wid = W4.addNat e p
+      , Just W4.LeqProof <- W4.isPosNat wid ->
+        do bits <- W4.groundEval evalFn f
+           bv   <- W4.bvLit sym wid bits
+           constF <- W4.floatFromBinary sym fr bv
+           -- NOTE: we are using logical equality here
+           W4.notPred sym =<< W4.floatEq sym f constF
+      | otherwise -> panic "varBlockingPred" [ "1 >= 2 ???" ]
 
     VarFinSeq _n vs -> computeBlockingPred sym evalFn vs
     VarTuple vs     -> computeBlockingPred sym evalFn vs
@@ -399,9 +402,10 @@ varToConcreteValue evalFn v =
     VarWord (SW.DBV x) ->
        do let w = W4.intValue (W4.bvWidth x)
           Eval.VWord w . pure . Eval.WordVal . Concrete.mkBv w <$> W4.groundEval evalFn x
-    VarFloat (W4.SFloat f) ->
-      Eval.VFloat . bfFromInteger <$> W4.groundEval evalFn f
-    -- XXX: the `bfFromInteger` should eventually go away
+    VarFloat fv@(W4.SFloat f) ->
+      do let (e,p) = W4.fpSize fv
+         bits <- W4.groundEval evalFn f
+         pure $ Eval.VFloat $ Concrete.floatFromBits e p bits
 
     VarFinSeq n vs ->
        do vs' <- mapM (varToConcreteValue evalFn) vs
@@ -412,6 +416,7 @@ varToConcreteValue evalFn v =
     VarRecord fs ->
        do fs' <- traverse (varToConcreteValue evalFn) fs
           pure (Eval.VRecord (fmap pure fs'))
+
 
 
 
