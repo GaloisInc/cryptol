@@ -156,6 +156,7 @@ arithBinary sym opw opi opz = loop
        -> GenValue sym
        -> SEval sym (GenValue sym)
   loop ty l r = case ty of
+
     TVBit ->
       evalPanic "arithBinary" ["Bit not in class Arith"]
 
@@ -1433,6 +1434,7 @@ errorV sym ty msg = case ty of
   TVBit -> cryUserError sym msg
   TVInteger -> cryUserError sym msg
   TVIntMod _ -> cryUserError sym msg
+  TVFloat {} -> cryUserError sym msg
 
   -- sequences
   TVSeq w ety
