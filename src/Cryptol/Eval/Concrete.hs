@@ -25,9 +25,10 @@ module Cryptol.Eval.Concrete
   ) where
 
 import Control.Monad (join,guard,zipWithM)
+import Data.Bits (Bits(..))
 import Data.List(sortBy)
 import Data.Ord(comparing)
-import Data.Bits (Bits(..))
+import Data.Ratio(numerator,denominator)
 import MonadLib( ChoiceT, findOne, lift )
 import qualified LibBF as FP
 
@@ -114,8 +115,11 @@ floatToExpr prims eT pT f =
         (FP.Pos, FP.Inf)    -> mkP "fpPosInf"
         (FP.Neg, FP.Inf)    -> mkP "fpNegInf"
         (_, FP.Num m e) ->
-            EProofApp $ ePrim prims (prelPrim "undefined") `ETApp` tFloat eT pT
-            -- XXX
+            let r = toRational m * (2 ^^ e)
+            in EProofApp $ ePrim prims (prelPrim "fraction")
+                          `ETApp` tNum (numerator r)
+                          `ETApp` tNum (denominator r)
+                          `ETApp` tFloat eT pT
   where
   mkP n = EProofApp $ ePrim prims (floatPrim n) `ETApp` eT `ETApp` pT
 
