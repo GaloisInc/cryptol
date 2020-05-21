@@ -80,7 +80,7 @@ toExpr prims t0 v0 = findOne (go t0 v0)
       return $ ETApp (ETApp (prim "number") (tNum i)) ty
     (TCon (TC TCIntMod) [_n], VInteger i) ->
       return $ ETApp (ETApp (prim "number") (tNum i)) ty
-    (TCon (TC TCFloat) [_,_], VFloat i) -> pure (floatToExpr prims ty i)
+    (TCon (TC TCFloat) [eT,pT], VFloat i) -> pure (floatToExpr prims eT pT i)
 
     (TCon (TC TCSeq) [a,b], VSeq 0 _) -> do
       guard (a == tZero)
@@ -103,19 +103,21 @@ toExpr prims t0 v0 = findOne (go t0 v0)
              , render doc
              ]
 
-floatToExpr :: PrimMap -> AST.Type -> FP.BigFloat -> AST.Expr
-floatToExpr prims ty f =
+floatToExpr :: PrimMap -> AST.Type -> AST.Type -> FP.BigFloat -> AST.Expr
+floatToExpr prims eT pT f =
   case FP.bfToRep f of
     FP.BFNaN -> mkP "fpNaN"
     FP.BFRep sign num ->
       case (sign,num) of
-        (FP.Pos, FP.Zero)   -> error "+0"
-        (FP.Neg, FP.Zero)   -> error "-0"
+        (FP.Pos, FP.Zero)   -> mkP "fpPosZero"
+        (FP.Neg, FP.Zero)   -> mkP "fpNegZero"
         (FP.Pos, FP.Inf)    -> mkP "fpPosInf"
-        (FP.Neg, FP.Inf)    -> error "-inf"
-        (_, FP.Num m e)     -> error ("float: " ++ show (m,e))
+        (FP.Neg, FP.Inf)    -> mkP "fpNegInf"
+        (_, FP.Num m e) ->
+            EProofApp $ ePrim prims (prelPrim "undefined") `ETApp` tFloat eT pT
+            -- XXX
   where
-  mkP n = ePrim prims (floatPrim n)
+  mkP n = EProofApp $ ePrim prims (floatPrim n) `ETApp` eT `ETApp` pT
 
 -- Primitives ------------------------------------------------------------------
 
