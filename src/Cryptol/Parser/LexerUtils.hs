@@ -225,6 +225,40 @@ fromDigit x'
   | otherwise             = toInteger (fromEnum x - fromEnum '0')
   where x                 = toLower x'
 
+
+-- XXX: For now we just keep the number as a rational.
+-- It might be better to keep the exponent representation,
+-- to avoid making huge numbers, and using up all the memory though...
+fnumToken :: Int -> Text -> TokenT
+fnumToken rad ds = Frac ((wholenNum + fracNum) * (eBase ^^ expNum)) rad
+  where
+  radI           = fromIntegral rad :: Integer
+  radR           = fromIntegral rad :: Rational
+
+  (whole,rest)   = T.break (== '.') ds
+  digits         = T.filter (/= '_')
+  expSym e       = if rad == 10 then toLower e == 'e' else toLower e == 'p'
+  (frac,mbExp)   = T.break expSym (T.drop 1 rest)
+
+
+  wholenNum      = fromInteger
+                 $ T.foldl' (\x c -> radI * x + fromDigit c) 0
+                 $ digits whole
+
+  fracNum        = T.foldl' (\x c -> (x + fromInteger (fromDigit c)) / radR) 0
+                 $ T.reverse $ digits frac
+
+  expNum         = case T.uncons mbExp of
+                     Nothing -> 0 :: Integer
+                     Just (_,es) ->
+                       case T.uncons es of
+                         Just ('+', more) -> read $ T.unpack more
+                         _                -> read $ T.unpack es
+
+  eBase          = if rad == 10 then 10 else 2 :: Rational
+
+
+
 -------------------------------------------------------------------------------
 
 data AlexInput            = Inp { alexPos           :: !Position
@@ -431,6 +465,7 @@ data TokenErr = UnterminatedComment
                 deriving (Eq, Show, Generic, NFData)
 
 data TokenT   = Num !Integer !Int !Int   -- ^ value, base, number of digits
+              | Frac !Rational !Int      -- ^ value, base.
               | ChrLit  !Char         -- ^ character literal
               | Ident ![T.Text] !T.Text -- ^ (qualified) identifier
               | StrLit !String         -- ^ string literal

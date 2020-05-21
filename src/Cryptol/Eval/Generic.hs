@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -69,6 +70,18 @@ ecNumberV sym =
              , show valT
              , show ty
              ]
+
+ecFractionV :: Backend sym => sym -> GenValue sym
+ecFractionV sym =
+  ilam  \n ->
+  ilam  \d ->
+  VPoly \ty ->
+    case ty of
+      TVFloat e p -> VFloat <$> fpLit sym e p (fromInteger n / fromInteger d)
+      _ -> evalPanic "ecFractionV"
+            [ "Unexpected `FLiteral` type: " ++ show ty ]
+
+
 
 {-# SPECIALIZE ecFromIntegerV :: Concrete -> GenValue Concrete
   #-}

@@ -56,6 +56,7 @@ import           Data.Either(partitionEithers)
 import           Data.Maybe(mapMaybe,isJust, fromMaybe)
 import           Data.List(partition,find)
 import           Data.Graph(SCC(..))
+import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
 import           Control.Monad(zipWithM,unless,foldM)
 
@@ -106,6 +107,7 @@ desugarLiteral :: Bool -> P.Literal -> InferM (P.Expr Name)
 desugarLiteral fixDec lit =
   do l <- curRange
      numberPrim <- mkPrim "number"
+     fracPrim   <- mkPrim "fraction"
      let named (x,y)  = P.NamedInst
                         P.Named { name = Located l (packIdent x), value = y }
          number fs    = P.EAppT numberPrim (map named fs)
@@ -127,6 +129,10 @@ desugarLiteral fixDec lit =
                                      _          -> []
             | otherwise  -> [ ]
            P.PolyLit _n  -> [ ("rep", P.TSeq P.TWild P.TBit) ]
+
+       P.ECFrac fr _ ->
+         let arg f = P.PosInst (P.TNum (f fr))
+         in P.EAppT fracPrim [ arg numerator, arg denominator ]
 
        P.ECString s ->
           P.ETyped (P.EList [ P.ELit (P.ECNum (toInteger (fromEnum c))

@@ -44,6 +44,7 @@ primTable w4sym = let sym = What4 w4sym in
   , ("False"       , VBit (bitLit sym False))
   , ("number"      , ecNumberV sym) -- Converts a numeric type into its corresponding value.
                                     -- { val, rep } (Literal val rep) => rep
+  , ("fraction"    , ecFractionV sym)
 
     -- Arith
   , ("fromInteger" , ecFromIntegerV sym)

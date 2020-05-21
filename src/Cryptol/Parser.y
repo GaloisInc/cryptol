@@ -52,6 +52,7 @@ import Paths_cryptol
 
 %token
   NUM         { $$@(Located _ (Token (Num   {}) _))}
+  FRAC        { $$@(Located _ (Token (Frac  {}) _))}
   STRLIT      { $$@(Located _ (Token (StrLit {}) _))}
   CHARLIT     { $$@(Located _ (Token (ChrLit {}) _))}
 
@@ -483,6 +484,7 @@ no_sel_aexpr                   :: { Expr PName                             }
   : qname                         { at $1 $ EVar (thing $1)                }
 
   | NUM                           { at $1 $ numLit (tokenType (thing $1))  }
+  | FRAC                          { at $1 $ fracLit (tokenType (thing $1)) }
   | STRLIT                        { at $1 $ ELit $ ECString $ getStr $1    }
   | CHARLIT                       { at $1 $ ELit $ ECNum (getNum $1) CharLit }
   | '_'                           { at $1 $ EVar $ mkUnqual $ mkIdent "_" }

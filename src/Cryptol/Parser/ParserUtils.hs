@@ -204,6 +204,15 @@ numLit (Num x base digs)
 
 numLit x = panic "[Parser] numLit" ["invalid numeric literal", show x]
 
+fracLit :: TokenT -> Expr PName
+fracLit tok =
+  case tok of
+    Frac x base
+      | base == 10  -> ELit $ ECFrac x DecFrac
+      | base == 16  -> ELit $ ECFrac x HexFrac
+    _ -> panic "[Parser] fracLit" [ "Invalid fraction", show tok ]
+
+
 intVal :: Located Token -> ParseM Integer
 intVal tok =
   case tokenType (thing tok) of

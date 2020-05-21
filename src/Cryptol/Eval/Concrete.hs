@@ -134,6 +134,7 @@ primTable = let sym = Concrete in
   , ("False"      , VBit (bitLit sym False))
   , ("number"     , {-# SCC "Prelude::number" #-}
                     ecNumberV sym)
+  , ("fraction"   , ecFractionV sym)
 
     -- Arith
   , ("fromInteger", {-# SCC "Prelude::fromInteger" #-}

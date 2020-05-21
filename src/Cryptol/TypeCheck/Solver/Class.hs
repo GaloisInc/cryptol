@@ -16,6 +16,7 @@ module Cryptol.TypeCheck.Solver.Class
   , solveCmpInst
   , solveSignedCmpInst
   , solveLiteralInst
+  , solveFLiteralInst
   , solveValidFloat
   , expandProp
   ) where
@@ -241,6 +242,41 @@ solveSignedCmpInst ty = case tNoUser ty of
   TRec fs -> SolvedIf [ pSignedCmp e | (_,e) <- fs ]
 
   _ -> Unsolved
+
+
+
+-- | Solving fractional literal constraints.
+solveFLiteralInst :: Type -> Type -> Type -> Solved
+solveFLiteralInst numT denT ty
+  | TCon (TError _ e) _ <- tNoUser numT = Unsolvable e
+  | TCon (TError _ e) _ <- tNoUser denT = Unsolvable e
+  | tIsInf numT || tIsInf denT =
+    Unsolvable $ TCErrorMessage $ "Fractions may not use `inf`"
+  | Just 0 <- tIsNum denT =
+    Unsolvable $ TCErrorMessage
+               $ "Fractions may not have 0 as the denominator."
+
+  | otherwise =
+    case tNoUser ty of
+      TVar {} -> Unsolved
+
+      TCon (TError _ e) _ -> Unsolvable e
+
+      TCon (TC TCFloat) [e,p]
+        | Just n    <- tIsNum numT
+        , Just d    <- tIsNum denT
+        , Just opts <- knownSupportedFloat e p ->
+          case FP.bfDiv opts (FP.bfFromInteger n) (FP.bfFromInteger d) of
+            (_, FP.Ok) -> SolvedIf []
+            _ -> Unsolvable $ TCErrorMessage $ show $
+                 integer n <.> "/" <.> integer d <+>
+                 "cannot be represented in" <+> pp ty
+
+        | otherwise -> Unsolved
+
+      _ -> Unsolvable $ TCErrorMessage $ show
+         $ "Type" <+> quotes (pp ty) <+> "does not support fractional literals."
+
 
 
 -- | Solve Literal constraints.

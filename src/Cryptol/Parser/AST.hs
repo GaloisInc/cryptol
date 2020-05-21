@@ -61,7 +61,7 @@ module Cryptol.Parser.AST
 
     -- * Expressions
   , Expr(..)
-  , Literal(..), NumInfo(..)
+  , Literal(..), NumInfo(..), FracInfo(..)
   , Match(..)
   , Pattern(..)
   , Selector(..)
@@ -88,7 +88,8 @@ import Cryptol.Utils.PP
 import           Data.List(intersperse)
 import           Data.Bits(shiftR)
 import           Data.Maybe (catMaybes)
-import           Numeric(showIntAtBase)
+import           Data.Ratio(numerator,denominator)
+import           Numeric(showIntAtBase,showFloat,showHFloat)
 
 import GHC.Generics (Generic)
 import Control.DeepSeq
@@ -281,8 +282,14 @@ data NumInfo  = BinLit Int                      -- ^ n-digit binary literal
               | PolyLit Int                     -- ^ polynomial literal
                 deriving (Eq, Show, Generic, NFData)
 
+-- | Information about fractional literals.
+data FracInfo = DecFrac
+              | HexFrac
+                deriving (Eq,Show,Generic,NFData)
+
 -- | Literals.
 data Literal  = ECNum Integer NumInfo           -- ^ @0x10@  (HexLit 2)
+              | ECFrac Rational FracInfo        -- ^ @1.2e3@
               | ECString String                 -- ^ @\"hello\"@
                 deriving (Eq, Show, Generic, NFData)
 
@@ -623,7 +630,20 @@ instance PP Literal where
   ppPrec _ lit =
     case lit of
       ECNum n i     -> ppNumLit n i
+      ECFrac n i    -> ppFracLit n i
       ECString s    -> text (show s)
+
+ppFracLit :: Rational -> FracInfo -> Doc
+ppFracLit x i
+  | toRational dbl == x =
+    case i of
+      DecFrac -> text (showFloat dbl "")
+      HexFrac -> text (showHFloat dbl "")
+  | otherwise =
+    "fraction`" <.> braces
+                      (commaSep (map integer [ numerator x, denominator x ]))
+  where
+  dbl = fromRational x :: Double
 
 
 ppNumLit :: Integer -> NumInfo -> Doc

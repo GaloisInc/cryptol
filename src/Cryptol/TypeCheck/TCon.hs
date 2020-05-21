@@ -73,6 +73,7 @@ builtInType nm =
     , "Cmp"               ~> PC PCmp
     , "SignedCmp"         ~> PC PSignedCmp
     , "Literal"           ~> PC PLiteral
+    , "FLiteral"          ~> PC PFLiteral
 
     -- Type functions
     , "+"                ~> TF TCAdd
@@ -144,6 +145,7 @@ instance HasKind PC where
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
       PLiteral   -> KNum :-> KType :-> KProp
+      PFLiteral  -> KNum :-> KNum :-> KType :-> KProp
       PValidFloat -> KNum :-> KNum :-> KProp
       PAnd       -> KProp :-> KProp :-> KProp
       PTrue      -> KProp
@@ -188,6 +190,7 @@ data PC     = PEqual        -- ^ @_ == _@
             | PCmp          -- ^ @Cmp _@
             | PSignedCmp    -- ^ @SignedCmp _@
             | PLiteral      -- ^ @Literal _ _@
+            | PFLiteral     -- ^ @FLiteral _ _ _@
 
             | PValidFloat   -- ^ @ValidFloat _ _@ constraints on supported
                             -- floating point representaitons
@@ -289,6 +292,7 @@ instance PP PC where
       PCmp       -> text "Cmp"
       PSignedCmp -> text "SignedCmp"
       PLiteral   -> text "Literal"
+      PFLiteral  -> text "FLiteral"
       PValidFloat -> text "ValidFloat"
       PTrue      -> text "True"
       PAnd       -> text "(&&)"

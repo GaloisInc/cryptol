@@ -77,6 +77,15 @@ primitive type SignedCmp : * -> Prop
 /** 'Literal n a' asserts that type 'a' contains the number 'n'. */
 primitive type Literal : # -> * -> Prop
 
+/** 'FLiteral n d a' asserts that the type `a' contains the fraciton `n/d`. */
+primitive type FLiteral : # -> # -> * -> Prop
+
+/** A fractional literal corresponding to `m/n` */
+primitive
+  fraction : { m, n, a } FLiteral m n a => a
+
+
+
 
 
 /** Add numeric types. */
