@@ -23,6 +23,9 @@ module Cryptol.TypeCheck.Infer
   )
 where
 
+import qualified Data.Text as Text
+
+
 import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl,nameLoc)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
@@ -85,17 +88,17 @@ inferModule m =
 
 
 
--- | Construct a primitive in the parsed AST.
+-- | Construct a Prelude primitive in the parsed AST.
 mkPrim :: String -> InferM (P.Expr Name)
 mkPrim str =
   do nm <- mkPrim' str
      return (P.EVar nm)
 
--- | Construct a primitive in the parsed AST.
+-- | Construct a Prelude primitive in the parsed AST.
 mkPrim' :: String -> InferM Name
 mkPrim' str =
   do prims <- getPrimMap
-     return (lookupPrimDecl (packIdent str) prims)
+     return (lookupPrimDecl (prelPrim (Text.pack str)) prims)
 
 
 
@@ -323,7 +326,7 @@ checkE expr tGoal =
     P.EApp fun@(dropLoc -> P.EApp (dropLoc -> P.EVar c) _)
            arg@(dropLoc -> P.ELit l)
       | Just n <- asPrim c
-      , n `elem` map packIdent [ "<<", ">>", "<<<", ">>>" , "@", "!" ] ->
+      , n `elem` map prelPrim [ "<<", ">>", "<<<", ">>>" , "@", "!" ] ->
         do newArg <- do l1 <- desugarLiteral True l
                         return $ case arg of
                                    P.ELocated _ pos -> P.ELocated l1 pos

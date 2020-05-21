@@ -27,6 +27,7 @@ module Cryptol.ModuleSystem.Interface (
 import           Cryptol.ModuleSystem.Name
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Ident (ModName)
+import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Parser.Position(Located)
 
 import qualified Data.Map as Map
@@ -177,6 +178,13 @@ ifaceDeclsPrimMap IfaceDecls { .. } =
           , primTypes = Map.fromList (newtypes ++ types)
           }
   where
-  exprs    = [ (nameIdent n, n) | n <- Map.keys ifDecls    ]
-  newtypes = [ (nameIdent n, n) | n <- Map.keys ifNewtypes ]
-  types    = [ (nameIdent n, n) | n <- Map.keys ifTySyns   ]
+  entry n = case asPrim n of
+              Just pid -> (pid,n)
+              Nothing ->
+                panic "ifaceDeclsPrimMap"
+                          [ "Top level name not declared in a module?"
+                          , show n ]
+
+  exprs    = map entry (Map.keys ifDecls)
+  newtypes = map entry (Map.keys ifNewtypes)
+  types    = map entry (Map.keys ifTySyns)

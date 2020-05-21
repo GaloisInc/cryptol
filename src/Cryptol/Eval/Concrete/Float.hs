@@ -9,17 +9,17 @@ import Data.Int(Int64)
 import qualified Data.Map as Map
 import LibBF
 
-import Cryptol.Utils.Ident(Ident, floatPrimIdent)
+import Cryptol.Utils.Ident(PrimIdent, floatPrim)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Eval.Value
 import Cryptol.Eval.Concrete.FloatHelpers
 import Cryptol.Eval.Concrete.Value
 
-floatPrims :: Concrete -> Map Ident Value
-floatPrims sym = Map.fromList [ (floatPrimIdent i,v) | (i,v) <- table ]
+floatPrims :: Concrete -> Map PrimIdent Value
+floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
   where
   (~>) = (,)
-  table =
+  nonInfixTable =
     [ "fpNaN"     ~> ilam \_ -> ilam \_ -> VFloat bfNaN
     , "fpPosInf"  ~> ilam \_ -> ilam \_ -> VFloat bfPosInf
     , "fpNeg"     ~> ilam \_ -> ilam \_ -> flam \x -> pure $ VFloat $ bfNeg x

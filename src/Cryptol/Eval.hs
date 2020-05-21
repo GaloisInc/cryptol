@@ -62,10 +62,10 @@ import Prelude.Compat
 type EvalEnv = GenEvalEnv Concrete
 
 type EvalPrims sym =
-  ( Backend sym, ?evalPrim :: Ident -> Maybe (GenValue sym) )
+  ( Backend sym, ?evalPrim :: PrimIdent -> Maybe (GenValue sym) )
 
 type ConcPrims =
-  ?evalPrim :: Ident -> Maybe (GenValue Concrete)
+  ?evalPrim :: PrimIdent -> Maybe (GenValue Concrete)
 
 -- Expression Evaluation -------------------------------------------------------
 

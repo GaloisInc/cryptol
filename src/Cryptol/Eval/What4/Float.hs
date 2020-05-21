@@ -14,16 +14,16 @@ import Cryptol.Eval.Monad(EvalError(..))
 import Cryptol.Eval.Value hiding (SFloat)
 import Cryptol.Eval.What4.Value
 import Cryptol.Eval.What4.SFloat
-import Cryptol.Utils.Ident(Ident, floatPrimIdent)
+import Cryptol.Utils.Ident(PrimIdent, floatPrim)
 
 -- | Table of floating point primitives
-floatPrims :: W4.IsExprBuilder sym => What4 sym -> Map Ident (Value sym)
+floatPrims :: W4.IsExprBuilder sym => What4 sym -> Map PrimIdent (Value sym)
 floatPrims sym4@(What4 sym) =
-  Map.fromList [ (floatPrimIdent i,v) | (i,v) <- table ]
+  Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
   where
   (~>) = (,)
 
-  table =
+  nonInfixTable =
     [ "fpNaN"       ~> fpConst (fpNaN sym)
     , "fpPosInf"    ~> fpConst (fpPosInf sym)
     , "fpFromBits"  ~> ilam \e -> ilam \p -> wlam sym4 \w ->

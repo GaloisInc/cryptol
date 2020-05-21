@@ -369,8 +369,15 @@ checkDecls ds = do
 getPrimMap :: ModuleM PrimMap
 getPrimMap  =
   do env <- getModuleEnv
+     let mkPrims = ifacePrimMap . lmInterface
+         mp `alsoPrimFrom` m =
+           case lookupModule m env of
+             Nothing -> mp
+             Just lm -> mkPrims lm <> mp
+
      case lookupModule preludeName env of
-       Just lm -> return (ifacePrimMap (lmInterface lm))
+       Just prel -> return $ mkPrims prel
+                            `alsoPrimFrom` floatName
        Nothing -> panic "Cryptol.ModuleSystem.Base.getPrimMap"
                   [ "Unable to find the prelude" ]
 

@@ -36,7 +36,11 @@ module Cryptol.Utils.Ident
   , nullIdent
   , identText
   , modParamIdent
-  , floatPrimIdent
+
+    -- * Identifiers for primitived
+  , PrimIdent(..)
+  , prelPrim
+  , floatPrim
 
   ) where
 
@@ -163,6 +167,24 @@ identText (Ident _ t) = t
 modParamIdent :: Ident -> Ident
 modParamIdent (Ident x t) = Ident x (T.append (T.pack "module parameter ") t)
 
-floatPrimIdent :: T.Text -> Ident
-floatPrimIdent t = mkIdent ("Float::" <> t)
 
+--------------------------------------------------------------------------------
+
+{- | A way to identify primitives: we used to use just 'Ident', but this
+isn't good anymore as now we have primitives in multiple modules.
+This is used as a key when we need to lookup details about a speicif
+primitive.  Also, this is intended to mostly be used internally, so
+we don't store the fixity flag of the `Ident` -}
+data PrimIdent = PrimIdent ModName T.Text
+  deriving (Eq,Ord,Show,Generic)
+
+-- | A shortcut to make (non-infix) primitives in the prelude.
+prelPrim :: T.Text -> PrimIdent
+prelPrim = PrimIdent preludeName
+
+floatPrim :: T.Text -> PrimIdent
+floatPrim = PrimIdent floatName
+
+
+
+instance NFData PrimIdent

@@ -5,6 +5,7 @@
 -- Maintainer  :  cryptol@galois.com
 
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Cryptol.Eval.What4
   ( What4(..)
   , W4Result(..)
@@ -16,7 +17,6 @@ module Cryptol.Eval.What4
 
 import           Control.Monad (join)
 import qualified Data.Map as Map
-import qualified Data.Text as T
 
 import qualified What4.Interface as W4
 
@@ -30,14 +30,15 @@ import Cryptol.Testing.Random( randomV )
 import Cryptol.Utils.Ident
 
 
-evalPrim :: W4.IsExprBuilder sym => sym -> Ident -> Maybe (Value sym)
+evalPrim :: W4.IsExprBuilder sym => sym -> PrimIdent -> Maybe (Value sym)
 evalPrim sym prim = Map.lookup prim (primTable sym)
 
 -- See also Cryptol.Prims.Eval.primTable
-primTable :: W4.IsExprBuilder sym => sym -> Map.Map Ident (Value sym)
+primTable :: W4.IsExprBuilder sym => sym -> Map.Map PrimIdent (Value sym)
 primTable w4sym = let sym = What4 w4sym in
   Map.union (floatPrims sym) $
-  Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
+  Map.fromList $ map (\(n, v) -> (prelPrim n, v))
+
   [ -- Literals
     ("True"        , VBit (bitLit sym True))
   , ("False"       , VBit (bitLit sym False))

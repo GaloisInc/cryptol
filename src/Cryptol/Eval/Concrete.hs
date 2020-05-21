@@ -9,6 +9,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -28,9 +29,9 @@ import Data.List(sortBy)
 import Data.Ord(comparing)
 import Data.Bits (Bits(..))
 import MonadLib( ChoiceT, findOne, lift )
+import qualified LibBF as FP
 
 import qualified Data.Map.Strict as Map
-import qualified Data.Text as T
 
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Eval.Backend
@@ -44,7 +45,7 @@ import Cryptol.ModuleSystem.Name
 import Cryptol.Testing.Random (randomV)
 import Cryptol.TypeCheck.AST as AST
 import Cryptol.Utils.Panic (panic)
-import Cryptol.Utils.Ident (Ident,mkIdent)
+import Cryptol.Utils.Ident (PrimIdent,prelPrim,floatPrim)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Logger(logPrint)
 
@@ -60,7 +61,8 @@ toExpr :: PrimMap -> AST.Type -> Value -> Eval (Maybe AST.Expr)
 toExpr prims t0 v0 = findOne (go t0 v0)
   where
 
-  prim n = ePrim prims (mkIdent (T.pack n))
+  prim n = ePrim prims (prelPrim n)
+
 
   go :: AST.Type -> Value -> ChoiceT Eval Expr
   go ty val = case (tNoUser ty, val) of
@@ -78,8 +80,8 @@ toExpr prims t0 v0 = findOne (go t0 v0)
       return $ ETApp (ETApp (prim "number") (tNum i)) ty
     (TCon (TC TCIntMod) [_n], VInteger i) ->
       return $ ETApp (ETApp (prim "number") (tNum i)) ty
-    (TCon (TC TCFloat) [_,_], VFloat i) ->
-      fail "XXX: can't represent float expressions at the moment" -- XXX
+    (TCon (TC TCFloat) [_,_], VFloat i) -> pure (floatToExpr prims ty i)
+
     (TCon (TC TCSeq) [a,b], VSeq 0 _) -> do
       guard (a == tZero)
       return $ EList [] b
@@ -101,16 +103,30 @@ toExpr prims t0 v0 = findOne (go t0 v0)
              , render doc
              ]
 
+floatToExpr :: PrimMap -> AST.Type -> FP.BigFloat -> AST.Expr
+floatToExpr prims ty f =
+  case FP.bfToRep f of
+    FP.BFNaN -> mkP "fpNaN"
+    FP.BFRep sign num ->
+      case (sign,num) of
+        (FP.Pos, FP.Zero)   -> error "+0"
+        (FP.Neg, FP.Zero)   -> error "-0"
+        (FP.Pos, FP.Inf)    -> mkP "fpPosInf"
+        (FP.Neg, FP.Inf)    -> error "-inf"
+        (_, FP.Num m e)     -> error ("float: " ++ show (m,e))
+  where
+  mkP n = ePrim prims (floatPrim n)
 
 -- Primitives ------------------------------------------------------------------
 
-evalPrim :: Ident -> Maybe Value
+evalPrim :: PrimIdent -> Maybe Value
 evalPrim prim = Map.lookup prim primTable
 
-primTable :: Map.Map Ident Value
+primTable :: Map.Map PrimIdent Value
 primTable = let sym = Concrete in
   Map.union (floatPrims sym) $
-  Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
+  Map.fromList $ map (\(n, v) -> (prelPrim n, v))
+
   [ -- Literals
     ("True"       , VBit (bitLit sym True))
   , ("False"      , VBit (bitLit sym False))

@@ -351,13 +351,14 @@ evalPanic cxt = panic ("[Symbolic]" ++ cxt)
 
 -- Primitives ------------------------------------------------------------------
 
-evalPrim :: Ident -> Maybe Value
+evalPrim :: PrimIdent -> Maybe Value
 evalPrim prim = Map.lookup prim primTable
 
 -- See also Cryptol.Eval.Concrete.primTable
-primTable :: Map.Map Ident Value
+primTable :: Map.Map PrimIdent Value
 primTable  = let sym = SBV in
-  Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
+  Map.fromList $ map (\(n, v) -> (prelPrim (T.pack n), v))
+
   [ -- Literals
     ("True"        , VBit (bitLit sym True))
   , ("False"       , VBit (bitLit sym False))
