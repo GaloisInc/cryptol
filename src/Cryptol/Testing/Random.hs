@@ -17,6 +17,7 @@ module Cryptol.Testing.Random where
 
 import qualified Control.Exception as X
 import Control.Monad          (join, liftM2)
+import Data.Ratio             ((%))
 import Data.Bits              ( (.&.), shiftR )
 import Data.List              (unfoldr, genericTake, genericIndex, genericReplicate)
 import Data.Map (Map)
@@ -33,7 +34,8 @@ import Cryptol.Eval.Type      (TValue(..), tValTy)
 import Cryptol.Eval.Value     (GenValue(..),SeqMap(..), WordValue(..),
                                ppValue, defaultPPOpts, finiteSeqMap)
 import Cryptol.Eval.Generic   (zeroV)
-import Cryptol.TypeCheck.AST  (Type(..), TCon(..), TC(..), tNoUser, tIsFun)
+import Cryptol.TypeCheck.AST  (Type(..), TCon(..), TC(..), tNoUser, tIsFun
+                              , tIsNum )
 import Cryptol.TypeCheck.SimpType(tRebuild')
 
 import Cryptol.Utils.Ident    (Ident)
@@ -147,6 +149,9 @@ randomValue sym ty =
         (TC TCIntMod, [TCon (TC (TCNum n)) []]) ->
           do return (randomIntMod sym n)
 
+        (TC TCFloat, [e',p']) | Just e <- tIsNum e', Just p <- tIsNum p' ->
+          return (randomFloat sym e p)
+
         (TC TCSeq, [TCon (TC TCInf) [], el])  ->
           do mk <- randomValue sym el
              return (randomStream mk)
@@ -255,6 +260,26 @@ randomRecord gens sz g0 =
       let (v, g') = gen sz g
       in seq v (g', v)
 
+randomFloat ::
+  (Backend sym, RandomGen g) =>
+  sym ->
+  Integer {- ^ Exponent width -} ->
+  Integer {- ^ Precision width -} ->
+  Gen g sym
+randomFloat sym e p w g =
+  ( VFloat <$> fpLit sym e p (nu % de)
+  , g3
+  )
+  where
+  -- XXX: we never generat NaN
+  -- XXX: Not sure that we need such big integers, we should probably
+  -- use `e` and `p` as a guide.
+  (n,  g1) = if w < 100 then (fromInteger w, g) else randomSize 8 100 g
+  (nu, g2) = randomR (- 256^n, 256^n) g1
+  (de, g3) = randomR (1, 256^n) g2
+
+
+
 
 -- Random Values ---------------------------------------------------------------
 
@@ -348,6 +373,7 @@ typeSize ty =
                               TCon (TC (TCNum n)) _ -> Just n
                               _                     -> Nothing
         (TCIntMod, _)    -> Nothing
+        (TCFloat {}, _)  -> Nothing
         (TCSeq, [sz,el]) -> case tNoUser sz of
                               TCon (TC (TCNum n)) _ -> (^ n) <$> typeSize el
                               _                     -> Nothing
@@ -381,6 +407,7 @@ typeValues ty =
             [ TCon (TC (TCNum n)) _ ] | 0 < n ->
               [ VInteger x | x <- [ 0 .. n - 1 ] ]
             _ -> []
+        TCFloat {}  -> []
         TCSeq       ->
           case map tNoUser ts of
             [ TCon (TC (TCNum n)) _, TCon (TC TCBit) [] ] ->
