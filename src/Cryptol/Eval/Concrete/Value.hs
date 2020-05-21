@@ -33,6 +33,7 @@ module Cryptol.Eval.Concrete.Value
   , Concrete(..)
   , liftBinIntMod
   , doubleAndAdd
+  , fpBinArith
   ) where
 
 import qualified Control.Exception as X
@@ -341,6 +342,10 @@ instance Backend Concrete where
   fpLessThan _sym x y    = pure (x < y)
   fpGreaterThan _sym x y = pure (x < y)
 
+  fpPlus  = fpBinArith FP.bfAdd
+  fpMinus = fpBinArith FP.bfSub
+  fpMult  = fpBinArith FP.bfMul
+  fpDiv   = fpBinArith FP.bfDiv
 
 
 {-# INLINE liftBinIntMod #-}
@@ -367,5 +372,19 @@ doubleAndAdd base0 expMask modulus = go 1 base0 expMask
 
     modMul x y = (x * y) `mod` modulus
 
+
+{-# INLINE fpBinArith #-}
+fpBinArith ::
+  (FP.BFOpts -> FP.BigFloat -> FP.BigFloat -> (FP.BigFloat, FP.Status)) ->
+  Concrete ->
+  Integer         {- ^ Exponent width -}  ->
+  Integer         {- ^ Percision width -} ->
+  SWord Concrete  {- ^ Rouding mode -} ->
+  SFloat Concrete ->
+  SFloat Concrete ->
+  SEval Concrete (SFloat Concrete)
+fpBinArith fun = \sym e p r x y ->
+  do opts <- FP.fpOpts sym e p (bvVal r)
+     FP.fpCheckStatus sym (fun opts x y)
 
 

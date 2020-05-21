@@ -319,6 +319,11 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
   fpLessThan    (What4 sym) x y = liftIO $ FP.fpLtIEEE sym x y
   fpGreaterThan (What4 sym) x y = liftIO $ FP.fpGtIEEE sym x y
 
+  fpPlus  = fpBinArith FP.fpAdd
+  fpMinus = fpBinArith FP.fpSub
+  fpMult  = fpBinArith FP.fpMul
+  fpDiv   = fpBinArith FP.fpDiv
+
 
 sModAdd :: W4.IsExprBuilder sym =>
   sym -> Integer -> W4.SymInteger sym -> W4.SymInteger sym -> IO (W4.SymInteger sym)
@@ -678,3 +683,36 @@ w4bvRol sym x y = liftIO $ SW.bvRol sym x y
 
 w4bvRor  :: W4.IsExprBuilder sym => sym -> SW.SWord sym -> SW.SWord sym -> W4Eval sym (SW.SWord sym)
 w4bvRor sym x y = liftIO $ SW.bvRor sym x y
+
+
+
+fpRoundingMode ::
+  W4.IsExprBuilder sym =>
+  What4 sym -> SWord (What4 sym) -> SEval (What4 sym) W4.RoundingMode
+fpRoundingMode sym v =
+  case wordAsLit sym v of
+    Just (_w,i) ->
+      case i of
+        0 -> pure W4.RNE
+        1 -> pure W4.RNA
+        2 -> pure W4.RTP
+        3 -> pure W4.RTN
+        4 -> pure W4.RTZ
+        x -> raiseError sym (BadRoundingMode x)
+    _ -> liftIO $ X.throwIO $ UnsupportedSymbolicOp "rounding mode."
+
+fpBinArith ::
+  W4.IsExprBuilder sym =>
+  FP.SFloatBinArith sym ->
+  What4 sym ->
+  Integer ->
+  Integer ->
+  SWord (What4 sym) ->
+  SFloat (What4 sym) ->
+  SFloat (What4 sym) ->
+  SEval (What4 sym) (SFloat (What4 sym))
+fpBinArith fun = \sym@(What4 s) _ _ r x y ->
+  do m <- fpRoundingMode sym r
+     liftIO (fun s m x y)
+
+

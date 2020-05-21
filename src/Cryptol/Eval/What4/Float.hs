@@ -7,13 +7,12 @@ import Data.Map(Map)
 import qualified Data.Map as Map
 import qualified What4.Interface as W4
 import Control.Monad.IO.Class
-import Control.Exception(throwIO)
 
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
-import Cryptol.Eval.Monad(EvalError(..))
-import Cryptol.Eval.Value hiding (SFloat)
+import Cryptol.Eval.Value
+import Cryptol.Eval.Generic
 import Cryptol.Eval.What4.Value
-import Cryptol.Eval.What4.SFloat
+import qualified Cryptol.Eval.What4.SFloat as W4
 import Cryptol.Utils.Ident(PrimIdent, floatPrim)
 
 -- | Table of floating point primitives
@@ -24,16 +23,16 @@ floatPrims sym4@(What4 sym) =
   (~>) = (,)
 
   nonInfixTable =
-    [ "fpNaN"       ~> fpConst (fpNaN sym)
-    , "fpPosInf"    ~> fpConst (fpPosInf sym)
+    [ "fpNaN"       ~> fpConst (W4.fpNaN sym)
+    , "fpPosInf"    ~> fpConst (W4.fpPosInf sym)
     , "fpFromBits"  ~> ilam \e -> ilam \p -> wlam sym4 \w ->
-                       VFloat <$> liftIO (fpFromBinary sym e p w)
+                       VFloat <$> liftIO (W4.fpFromBinary sym e p w)
     , "fpNeg"       ~> ilam \_ -> ilam \_ -> flam \x ->
-                       VFloat <$> liftIO (fpNeg sym x)
-    , "fpAdd"       ~> fpArtih2 sym4 fpAdd
-    , "fpSub"       ~> fpArtih2 sym4 fpSub
-    , "fpMul"       ~> fpArtih2 sym4 fpMul
-    , "fpDiv"       ~> fpArtih2 sym4 fpDiv
+                       VFloat <$> liftIO (W4.fpNeg sym x)
+    , "fpAdd"       ~> fpBinArithV sym4 fpPlus
+    , "fpSub"       ~> fpBinArithV sym4 fpMinus
+    , "fpMul"       ~> fpBinArithV sym4 fpMult
+    , "fpDiv"       ~> fpBinArithV sym4 fpDiv
     ]
 
 
@@ -41,42 +40,11 @@ floatPrims sym4@(What4 sym) =
 -- | A helper for definitng floating point constants.
 fpConst ::
   W4.IsExprBuilder sym =>
-  (Integer -> Integer -> IO (SFloat sym)) ->
+  (Integer -> Integer -> IO (W4.SFloat sym)) ->
   Value sym
 fpConst mk =
      ilam \ e ->
  VNumPoly \ ~(Nat p) ->
  VFloat <$> liftIO (mk e p)
-
--- | A function that takes a rounding mode as a parameter
-rm_lam ::
-  W4.IsExprBuilder sym =>
-  What4 sym ->
-  (W4.RoundingMode -> W4Eval sym (Value sym)) ->
-  Value sym
-rm_lam sym f = wlam sym \v ->
-  case wordAsLit sym v of
-    Just (_w,i) ->
-      case i of
-        0 -> f W4.RNE
-        1 -> f W4.RNA
-        2 -> f W4.RTP
-        3 -> f W4.RTN
-        4 -> f W4.RTZ
-        x -> raiseError sym (BadRoundingMode x)
-    _ -> liftIO $ throwIO $ UnsupportedSymbolicOp "rounding mode."
-
-
--- | Binary arithmetic with a rounding mode.
-fpArtih2 ::
-  W4.IsExprBuilder sym =>
-  What4 sym ->
-  (SFloatBinArith sym) ->
-  Value sym
-fpArtih2 sym4@(What4 sym) fun =
-  ilam \_ -> ilam \_ -> rm_lam sym4 \r ->
-  pure $ flam \x ->
-  pure $ flam \y -> VFloat <$> liftIO (fun sym r x y)
-
 
 

@@ -1037,6 +1037,7 @@ logicBinary sym opb opw = loop
     TVBit -> VBit <$> (opb (fromVBit l) (fromVBit r))
     TVInteger -> evalPanic "logicBinary" ["Integer not in class Logic"]
     TVIntMod _ -> evalPanic "logicBinary" ["Z not in class Logic"]
+    TVFloat {}  -> evalPanic "logicBinary" ["Float not in class Logic"]
     TVSeq w aty
          -- words
          | isTBit aty
@@ -1112,6 +1113,7 @@ logicUnary sym opb opw = loop
 
     TVInteger -> evalPanic "logicUnary" ["Integer not in class Logic"]
     TVIntMod _ -> evalPanic "logicUnary" ["Z not in class Logic"]
+    TVFloat {} -> evalPanic "logicUnary" ["Float not in class Logic"]
 
     TVSeq w ety
          -- words
@@ -1565,3 +1567,23 @@ mergeSeqMap :: Backend sym =>
 mergeSeqMap sym c x y =
   IndexSeqMap $ \i ->
     iteValue sym c (lookupSeqMap x i) (lookupSeqMap y i)
+
+
+
+
+--------------------------------------------------------------------------------
+-- Floating Point Operations
+
+-- | Make a Cryptol value for a binary arithmetic function.
+fpBinArithV :: Backend sym => sym -> FPArith2 sym -> GenValue sym
+fpBinArithV sym fun =
+  ilam \e ->
+  ilam \p ->
+  wlam sym \r ->
+  pure $ flam \x ->
+  pure $ flam \y ->
+  VFloat <$> fun sym e p r x y
+
+
+
+

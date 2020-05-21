@@ -6,6 +6,7 @@ module Cryptol.Eval.Backend
   , invalidIndex
   , cryUserError
   , cryNoPrimError
+  , FPArith2
   ) where
 
 import Control.Monad.IO.Class
@@ -597,6 +598,18 @@ class MonadIO (SEval sym) => Backend sym where
   fpEq          :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
   fpLessThan    :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
   fpGreaterThan :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
+
+  fpPlus, fpMinus, fpMult, fpDiv :: FPArith2 sym
+
+type FPArith2 sym =
+  sym ->
+  Integer ->
+  Integer ->
+  SWord sym ->
+  SFloat sym ->
+  SFloat sym ->
+  SEval sym (SFloat sym)
+
 
 
 

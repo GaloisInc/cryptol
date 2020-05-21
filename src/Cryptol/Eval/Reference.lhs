@@ -125,6 +125,7 @@ terms by providing an evaluator to an appropriate `Value` type.
 >   | VPoly (TValue -> Value)      -- ^ polymorphic values (kind *)
 >   | VNumPoly (Nat' -> Value)     -- ^ polymorphic values (kind #)
 
+
 Invariant: Undefinedness and run-time exceptions are only allowed
 inside the argument of a `VBit` or `VInteger` constructor. All other
 `Value` and list constructors should evaluate without error. For
@@ -768,6 +769,7 @@ at the same positions.
 >         TVBit        -> VBit (fmap op (fromVBit val))
 >         TVInteger    -> evalPanic "logicUnary" ["Integer not in class Logic"]
 >         TVIntMod _   -> evalPanic "logicUnary" ["Z not in class Logic"]
+>         TVFloat {}   -> evalPanic "logicUnary" ["Float not in class Logic"]
 >         TVSeq w ety  -> VList (Nat w) (map (go ety) (fromVList val))
 >         TVStream ety -> VList Inf (map (go ety) (fromVList val))
 >         TVTuple etys -> VTuple (zipWith go etys (fromVTuple val))
@@ -785,6 +787,7 @@ at the same positions.
 >         TVBit        -> VBit (liftA2 op (fromVBit l) (fromVBit r))
 >         TVInteger    -> evalPanic "logicBinary" ["Integer not in class Logic"]
 >         TVIntMod _   -> evalPanic "logicBinary" ["Z not in class Logic"]
+>         TVFloat {}   -> evalPanic "logicBinary" ["Float not in class Logic"]
 >         TVSeq w ety  -> VList (Nat w) (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVStream ety -> VList Inf (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVTuple etys -> VTuple (zipWith3 go etys (fromVTuple l) (fromVTuple r))
@@ -1010,6 +1013,8 @@ fields are compared in alphabetical order.
 >     TVInteger ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVIntMod _ ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVFloat {} ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVSeq _w ety
 >       | isTBit ety ->
