@@ -270,10 +270,12 @@ solveFLiteralInst numT denT ty
         , Just d    <- tIsNum denT
         , Just opts <- knownSupportedFloat e p ->
           case FP.bfDiv opts (FP.bfFromInteger n) (FP.bfFromInteger d) of
-            (_, FP.Ok) -> SolvedIf []
+            (_,FP.Ok) -> SolvedIf []
+            -- NOTE: this does not allow for subnormal numbers
+
             _ -> Unsolvable $ TCErrorMessage $ show $
-                 integer n <.> "/" <.> integer d <+>
-                 "cannot be represented in" <+> pp ty
+                    integer n <.> "/" <.> integer d <+>
+                    "cannot be represented in" <+> pp ty
 
         | otherwise -> Unsolved
 
