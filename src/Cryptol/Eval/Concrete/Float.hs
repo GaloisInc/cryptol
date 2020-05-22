@@ -22,7 +22,6 @@ floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
   nonInfixTable =
     [ "fpNaN"     ~> ilam \_ -> ilam \_ -> VFloat bfNaN
     , "fpPosInf"  ~> ilam \_ -> ilam \_ -> VFloat bfPosInf
-    , "fpNeg"     ~> ilam \_ -> ilam \_ -> flam \x -> pure $ VFloat $ bfNeg x
     , "fpFromBits" ~> ilam \e -> ilam \p -> wlam sym \bv ->
                         pure $ VFloat $ floatFromBits e p $ bvVal bv
 

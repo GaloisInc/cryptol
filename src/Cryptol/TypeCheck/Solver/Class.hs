@@ -143,6 +143,9 @@ solveArithInst ty = case tNoUser ty of
   -- Arith (Z n)
   TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
 
+  -- Arith (Float e p)
+  TCon (TC TCFloat) [ e, p ] -> SolvedIf [ pValidFloat e p ]
+
   -- (Arith a, Arith b) => Arith { x1 : a, x2 : b }
   TRec fs -> SolvedIf [ pArith ety | (_,ety) <- fs ]
 

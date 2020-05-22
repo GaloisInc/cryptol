@@ -329,6 +329,9 @@ instance Backend SBV where
   fpMinus sym _ _ _ _ _ = raiseError sym (UnsupportedSymbolicOp "fpMinus")
   fpMult sym _ _ _ _ _  = raiseError sym (UnsupportedSymbolicOp "fpMult")
   fpDiv sym _ _ _ _ _   = raiseError sym (UnsupportedSymbolicOp "fpDiv")
+  fpNeg sym _           = raiseError sym (UnsupportedSymbolicOp "fpNeg")
+  fpFromInteger sym _ _ _ _
+                        = raiseError sym (UnsupportedSymbolicOp "fpFromInteger")
 
 
 

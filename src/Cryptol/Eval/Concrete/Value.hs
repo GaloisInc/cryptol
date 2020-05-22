@@ -337,15 +337,21 @@ instance Backend Concrete where
     | m == 0    = evalPanic "znExp" ["0 modulus not allowed"]
     | otherwise = pure $! (doubleAndAdd x y m) `mod` m
 
+
+  ------------------------------------------------------------------------
+  -- Floating Point
   fpLit                  = FP.fpLit
   fpEq _sym x y          = pure (x == y)
   fpLessThan _sym x y    = pure (x < y)
   fpGreaterThan _sym x y = pure (x < y)
-
   fpPlus  = fpBinArith FP.bfAdd
   fpMinus = fpBinArith FP.bfSub
   fpMult  = fpBinArith FP.bfMul
   fpDiv   = fpBinArith FP.bfDiv
+  fpNeg _ x = pure (FP.bfNeg x)
+  fpFromInteger sym e p r x =
+    do opts <- FP.fpOpts sym e p (bvVal r)
+       FP.fpCheckStatus sym (FP.bfRoundInt opts (FP.bfFromInteger x))
 
 
 {-# INLINE liftBinIntMod #-}

@@ -97,7 +97,11 @@ ecFromIntegerV sym =
 {-# SPECIALIZE intV :: Concrete -> Integer -> TValue -> Eval (GenValue Concrete)
   #-}
 intV :: Backend sym => sym -> SInteger sym -> TValue -> SEval sym (GenValue sym)
-intV sym i = arithNullary sym (\w -> wordFromInt sym w i) (pure i) (\m -> intToZn sym m i)
+intV sym i = arithNullary sym
+              (\w -> wordFromInt sym w i)
+              (pure i)
+              (\m -> intToZn sym m i)
+              (\e p -> fpRndMode sym >>= \r -> fpFromInteger sym e p r i)
 
 {-# SPECIALIZE ecToIntegerV :: Concrete -> GenValue Concrete
   #-}
@@ -146,6 +150,7 @@ type BinArith sym = Integer -> SWord sym -> SWord sym -> SEval sym (SWord sym)
 {-# SPECIALIZE arithBinary :: Concrete -> BinArith Concrete ->
       (SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
       (Integer -> SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
+      (Integer -> Integer -> SFloat Concrete -> SFloat Concrete -> SEval Concrete (SFloat Concrete)) ->
       Binary Concrete
   #-}
 
@@ -155,8 +160,9 @@ arithBinary :: forall sym.
   BinArith sym ->
   (SInteger sym -> SInteger sym -> SEval sym (SInteger sym)) ->
   (Integer -> SInteger sym -> SInteger sym -> SEval sym (SInteger sym)) ->
+  (Integer -> Integer -> SFloat sym -> SFloat sym -> SEval sym (SFloat sym)) ->
   Binary sym
-arithBinary sym opw opi opz = loop
+arithBinary sym opw opi opz opfp = loop
   where
   loop' :: TValue
         -> SEval sym (GenValue sym)
@@ -178,6 +184,9 @@ arithBinary sym opw opi opz = loop
 
     TVIntMod n ->
       VInteger <$> opz n (fromVInteger l) (fromVInteger r)
+
+    TVFloat e p ->
+      VFloat <$> opfp e p (fromVFloat l) (fromVFloat r)
 
     TVSeq w a
       -- words and finite sequences
@@ -224,6 +233,7 @@ type UnaryArith sym = Integer -> SWord sym -> SEval sym (SWord sym)
   UnaryArith Concrete ->
   (SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
   (Integer -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
+  (Integer -> Integer -> SFloat Concrete -> SEval Concrete (SFloat Concrete)) ->
   Unary Concrete
   #-}
 arithUnary :: forall sym.
@@ -232,8 +242,9 @@ arithUnary :: forall sym.
   UnaryArith sym ->
   (SInteger sym -> SEval sym (SInteger sym)) ->
   (Integer -> SInteger sym -> SEval sym (SInteger sym)) ->
+  (Integer -> Integer -> SFloat sym -> SEval sym (SFloat sym)) ->
   Unary sym
-arithUnary sym opw opi opz = loop
+arithUnary sym opw opi opz opfp = loop
   where
   loop' :: TValue -> SEval sym (GenValue sym) -> SEval sym (GenValue sym)
   loop' ty v = loop ty =<< v
@@ -249,6 +260,9 @@ arithUnary sym opw opi opz = loop
 
     TVIntMod n ->
       VInteger <$> opz n (fromVInteger v)
+
+    TVFloat e p ->
+      VFloat <$> opfp e p (fromVFloat v)
 
     TVSeq w a
       -- words and finite sequences
@@ -284,6 +298,7 @@ arithUnary sym opw opi opz = loop
   (Integer -> SEval Concrete (SWord Concrete)) ->
   SEval Concrete (SInteger Concrete) ->
   (Integer -> SEval Concrete (SInteger Concrete)) ->
+  (Integer -> Integer -> SEval Concrete (SFloat Concrete)) ->
   TValue ->
   SEval Concrete (GenValue Concrete)
   #-}
@@ -294,9 +309,10 @@ arithNullary :: forall sym.
   (Integer -> SEval sym (SWord sym)) ->
   SEval sym (SInteger sym) ->
   (Integer -> SEval sym (SInteger sym)) ->
+  (Integer -> Integer -> SEval sym (SFloat sym)) ->
   TValue ->
   SEval sym (GenValue sym)
-arithNullary sym opw opi opz = loop
+arithNullary sym opw opi opz opfp = loop
   where
     loop :: TValue -> SEval sym (GenValue sym)
     loop ty =
@@ -306,6 +322,8 @@ arithNullary sym opw opi opz = loop
         TVInteger -> VInteger <$> opi
 
         TVIntMod n -> VInteger <$> opz n
+
+        TVFloat e p -> VFloat <$> opfp e p
 
         TVSeq w a
           -- words and finite sequences
@@ -339,84 +357,94 @@ arithNullary sym opw opi opz = loop
 
 {-# INLINE addV #-}
 addV :: Backend sym => sym -> Binary sym
-addV sym = arithBinary sym opw opi opz
+addV sym = arithBinary sym opw opi opz opfp
   where
     opw _w x y = wordPlus sym x y
     opi x y = intPlus sym x y
     opz m x y = znPlus sym m x y
+    opfp e p x y = fpRndMode sym >>= \r -> fpPlus sym e p r x y
 
 {-# INLINE subV #-}
 subV :: Backend sym => sym -> Binary sym
-subV sym = arithBinary sym opw opi opz
+subV sym = arithBinary sym opw opi opz opfp
   where
     opw _w x y = wordMinus sym x y
     opi x y = intMinus sym x y
     opz m x y = znMinus sym m x y
+    opfp e p x y = fpRndMode sym >>= \r -> fpMinus sym e p r x y
 
 {-# INLINE mulV #-}
 mulV :: Backend sym => sym -> Binary sym
-mulV sym = arithBinary sym opw opi opz
+mulV sym = arithBinary sym opw opi opz opfp
   where
     opw _w x y = wordMult sym x y
     opi x y = intMult sym x y
     opz m x y = znMult sym m x y
+    opfp e p x y = fpRndMode sym >>= \r -> fpMult sym e p r x y
 
 {-# INLINE divV #-}
 divV :: Backend sym => sym -> Binary sym
-divV sym = arithBinary sym opw opi opz
+divV sym = arithBinary sym opw opi opz opfp
   where
     opw _w x y = wordDiv sym x y
     opi x y = intDiv sym x y
     opz m x y = znDiv sym m x y
+    opfp e p x y = fpRndMode sym >>= \r -> fpDiv sym e p r x y
 
 {-# INLINE modV #-}
 modV :: Backend sym => sym -> Binary sym
-modV sym = arithBinary sym opw opi opz
+modV sym = arithBinary sym opw opi opz opfp
   where
     opw _w x y = wordMod sym x y
     opi x y = intMod sym x y
     opz m x y = znMod sym m x y
+    opfp _ _ _ _ = cryUserError sym "Float: `mod` not implemented"
 
 {-# INLINE sdivV #-}
 sdivV :: Backend sym => sym -> Binary sym
-sdivV sym = arithBinary sym opw opi opz
+sdivV sym = arithBinary sym opw opi opz opfp
   where
     opw _w x y = wordSignedDiv sym x y
     opi x y = intDiv sym x y
     opz m x y = znDiv sym m x y
+    opfp e p x y = fpRndMode sym >>= \r -> fpDiv sym e p r x y
 
 {-# INLINE smodV #-}
 smodV :: Backend sym => sym -> Binary sym
-smodV sym = arithBinary sym opw opi opz
+smodV sym = arithBinary sym opw opi opz opfp
   where
     opw _w x y = wordSignedMod sym x y
     opi x y = intMod sym x y
     opz m x y = znMod sym m x y
+    opfp _ _ _ _ = cryUserError sym "Float: `mod` not implemented"
 
 {-# INLINE expV #-}
 expV :: Backend sym => sym -> Binary sym
-expV sym = arithBinary sym opw opi opz
+expV sym = arithBinary sym opw opi opz opfp
   where
     opw _w x y = wordExp sym x y
     opi x y = intExp sym x y
     opz m x y = znExp sym m x y
+    opfp _ _ _ _ = cryUserError sym "Float: `exp` not implemented"
 
 
 {-# INLINE negateV #-}
 negateV :: Backend sym => sym -> Unary sym
-negateV sym = arithUnary sym opw opi opz
+negateV sym = arithUnary sym opw opi opz opfp
   where
     opw _w x = wordNegate sym x
     opi x = intNegate sym x
     opz m x = znNegate sym m x
+    opfp _ _ x = fpNeg sym x
 
 {-# INLINE lg2V #-}
 lg2V :: Backend sym => sym -> Unary sym
-lg2V sym = arithUnary sym opw opi opz
+lg2V sym = arithUnary sym opw opi opz opfp
   where
     opw _w x = wordLg2 sym x
     opi x = intLg2 sym x
     opz m x = znLg2 sym m x
+    opfp _ _ _ = cryUserError sym "Float: `lg2` not implemented"
 
 {-# INLINE andV #-}
 andV :: Backend sym => sym -> Binary sym
@@ -1583,6 +1611,10 @@ fpBinArithV sym fun =
   pure $ flam \x ->
   pure $ flam \y ->
   VFloat <$> fun sym e p r x y
+
+-- | Rounding mode used in FP operations that do not specify it explicitly.
+fpRndMode :: Backend sym => sym -> SEval sym (SWord sym)
+fpRndMode sym = wordLit sym 3 0 {- RNE -}
 
 
 

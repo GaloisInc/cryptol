@@ -314,6 +314,8 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
   znMult   (What4 sym) m x y = liftIO $ sModMult sym m x y
   znNegate (What4 sym) m x   = liftIO $ sModNegate sym m x
 
+  --------------------------------------------------------------
+
   fpLit (What4 sym) e p r = liftIO $ FP.fpFromRational sym e p r
   fpEq          (What4 sym) x y = liftIO $ FP.fpEqIEEE sym x y
   fpLessThan    (What4 sym) x y = liftIO $ FP.fpLtIEEE sym x y
@@ -323,6 +325,11 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
   fpMinus = fpBinArith FP.fpSub
   fpMult  = fpBinArith FP.fpMul
   fpDiv   = fpBinArith FP.fpDiv
+
+  fpNeg (What4 sym) x = liftIO $ FP.fpNeg sym x
+  fpFromInteger sym _ _ _ _ =
+    raiseError sym (UnsupportedSymbolicOp "fromInteger")
+    -- hmm, this should work somehow?
 
 
 sModAdd :: W4.IsExprBuilder sym =>

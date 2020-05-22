@@ -27,8 +27,6 @@ floatPrims sym4@(What4 sym) =
     , "fpPosInf"    ~> fpConst (W4.fpPosInf sym)
     , "fpFromBits"  ~> ilam \e -> ilam \p -> wlam sym4 \w ->
                        VFloat <$> liftIO (W4.fpFromBinary sym e p w)
-    , "fpNeg"       ~> ilam \_ -> ilam \_ -> flam \x ->
-                       VFloat <$> liftIO (W4.fpNeg sym x)
     , "fpAdd"       ~> fpBinArithV sym4 fpPlus
     , "fpSub"       ~> fpBinArithV sym4 fpMinus
     , "fpMul"       ~> fpBinArithV sym4 fpMult

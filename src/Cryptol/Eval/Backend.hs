@@ -600,6 +600,14 @@ class MonadIO (SEval sym) => Backend sym where
   fpGreaterThan :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
 
   fpPlus, fpMinus, fpMult, fpDiv :: FPArith2 sym
+  fpNeg :: sym -> SFloat sym -> SEval sym (SFloat sym)
+  fpFromInteger ::
+    sym ->
+    Integer         {- exp width -} ->
+    Integer         {- prec width -} ->
+    SWord sym       {- ^ rounding mode -} ->
+    SInteger sym    {- ^ the integeer to use -} ->
+    SEval sym (SFloat sym)
 
 type FPArith2 sym =
   sym ->

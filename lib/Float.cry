@@ -69,13 +69,13 @@ primitive
   fpPosInf : {e,p} ValidFloat e p => Float e p
 
 fpNegInf : {e,p} ValidFloat e p => Float e p
-fpNegInf = fpNeg fpPosInf
+fpNegInf = - fpPosInf
 
 fpPosZero : {e,p} ValidFloat e p => Float e p
 fpPosZero = zero
 
 fpNegZero : {e,p} ValidFloat e p => Float e p
-fpNegZero = fpNeg fpPosZero
+fpNegZero = - fpPosZero
 
 /** A floating point number using the exact bit pattern,
 in IEEE interchange format: [ sign | biased_exponent | precision ] */
@@ -89,11 +89,6 @@ primitive
  * Arithmetic
  * ---------------------------------------------------------------------- */
 
-
-/** Negate a floating point number */
-primitive
-  fpNeg : {e,p} ValidFloat e p =>
-    Float e p -> Float e p
 
 /** Add floating point numbers using the given rounding mode. */
 primitive
