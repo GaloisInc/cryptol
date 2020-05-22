@@ -10,6 +10,7 @@ import Cryptol.Eval.Monad(EvalError(..),PPOpts)
 
 
 
+-- | Make LibBF options for the given precision and rounding mode.
 fpOpts ::
   Backend sym =>
   sym           {- ^ backend -} ->
@@ -36,6 +37,8 @@ fpOpts sym e p r =
                   then Just (f (fromInteger x))
                   else Nothing
 
+-- | Mapping from the rounding modes defined in the `Float.cry` to
+-- the rounding modes of `LibBF`.
 fpRound :: Integer -> Maybe RoundMode
 fpRound n =
   case n of
@@ -47,6 +50,7 @@ fpRound n =
     _ -> Nothing
 
 
+-- | Check that we didn't get an unexpected status.
 fpCheckStatus :: Backend sym => sym -> (BigFloat,Status) -> SEval sym BigFloat
 fpCheckStatus _sym (r,s) =
   case s of
@@ -55,6 +59,7 @@ fpCheckStatus _sym (r,s) =
 
 
 -- | Pretty print a float
+-- XXX: we can have some more settings here.
 fpPP :: PPOpts -> BigFloat -> Doc
 fpPP _opts = text . bfToString 16 (addPrefix <> showFree Nothing)
 
@@ -72,7 +77,7 @@ fpLit sym e p r =
      let num = bfFromInteger (numerator r)
          res
            | denominator r == 1 = bfRoundFloat opts num
-           | otherwise = bfDiv opts num (bfFromInteger (denominator r))
+           | otherwise          = bfDiv opts num (bfFromInteger (denominator r))
      fpCheckStatus sym res
 
 

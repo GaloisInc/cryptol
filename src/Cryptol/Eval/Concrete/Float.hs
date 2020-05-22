@@ -20,16 +20,18 @@ floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
   where
   (~>) = (,)
   nonInfixTable =
-    [ "fpNaN"     ~> ilam \_ -> ilam \_ -> VFloat bfNaN
-    , "fpPosInf"  ~> ilam \_ -> ilam \_ -> VFloat bfPosInf
-    , "fpFromBits" ~> ilam \e -> ilam \p -> wlam sym \bv ->
-                        pure $ VFloat $ floatFromBits e p $ bvVal bv
+    [ "fpNaN"       ~> ilam \_ -> ilam \_ -> VFloat bfNaN
+    , "fpPosInf"    ~> ilam \_ -> ilam \_ -> VFloat bfPosInf
+    , "fpFromBits"  ~> ilam \e -> ilam \p -> wlam sym \bv ->
+                       pure $ VFloat $ floatFromBits e p $ bvVal bv
+    , "=.="         ~> ilam \_ -> ilam \_ -> flam \x -> pure $ flam \y ->
+                       pure $ VBit $ bitLit sym (bfCompare x y == EQ)
 
       -- From Backend class
-    , "fpAdd"     ~> fpBinArithV sym fpPlus
-    , "fpSub"     ~> fpBinArithV sym fpMinus
-    , "fpMul"     ~> fpBinArithV sym fpMult
-    , "fpDiv"     ~> fpBinArithV sym fpDiv
+    , "fpAdd"      ~> fpBinArithV sym fpPlus
+    , "fpSub"      ~> fpBinArithV sym fpMinus
+    , "fpMul"      ~> fpBinArithV sym fpMult
+    , "fpDiv"      ~> fpBinArithV sym fpDiv
     ]
 
 
@@ -64,7 +66,7 @@ floatFromBits e p bits
   isNeg      = testBit bits (e' + p')
 
   mant       = pMask .&. bits                              :: Integer
-  mantVal    = if expoBiased == 0 
+  mantVal    = if expoBiased == 0
                  then mant
                  else mant `setBit` p'                     :: Integer
   -- accounts for the implicit 1 bit
@@ -73,8 +75,36 @@ floatFromBits e p bits
   bias       = eMask `shiftR` 1                            :: Int64
   expoVal    = expoBiased - bias - fromIntegral p'         :: Int64
 
+  -- expoVal    = expoBiased - bias - fromIntegral p'         :: Int64
+  -- expoBiased = expoVal + bias + fromIntegral p'
 
+{-
+-- | Turn a float into raw bits.
+-- @NaN@ is represented as a positive "quiet" @NaN@
+-- (this matches @What4@).
+floatToBits :: Integer -> Integer -> BigFloat -> Integer
+floatToBits e p bf =  (field 1  isNeg      `shiftL` (e' + p'))
+                  .|. (field e' expBiased  `shiftL` e')
+                  .|. (field p' mant       `whiftL` 0)
+  where
+  e' = fromInteger e     :: Int
+  p' = fromInteger p - 1 :: Int
 
+  field n v = v .&. ((1 `shiftL` n) - 1)
 
+  (isNeg, expBiased, mant) =
+    case bfToRep bf of
+      BFNaN     -> (0,  -1, 1 `shiftL` (p' - 1))
+      BFRep s num -> (sign, be, ma)
+        where
+        sign = case s of
+                Neg -> 1
+                Pos -> 0
 
+        (be,ma) =
+          case num
+            Zero    -> (0,0)
+            Num i e ->
+            Inf     -> (-1,0)
 
+-}

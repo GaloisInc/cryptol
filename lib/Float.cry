@@ -84,6 +84,25 @@ primitive
 
 
 
+/* ----------------------------------------------------------------------
+ * Predicates
+ * ----------------------------------------------------------------------
+ */
+
+// Operations in `Cmp` use IEEE reasoning.
+
+/** Check if two floating point numbers are representationally the same.
+In particular, the following hold:
+    *    NaN       =.= NaN
+    * ~ (pfNegZero =.= fpPosZero)
+*/
+primitive
+  (=.=) : {e,p} ValidFloat e p => Float e p -> Float e p -> Bool
+
+infix 20 =.=
+
+
+
 
 /* ----------------------------------------------------------------------
  * Arithmetic

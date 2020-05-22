@@ -21,6 +21,7 @@ module Cryptol.Eval.What4.SFloat
 
     -- * Relations
   , SFloatRel
+  , fpEq
   , fpEqIEEE
   , fpLtIEEE
   , fpGtIEEE
@@ -261,6 +262,9 @@ fpRel fun sym (SFloat x) (SFloat y) =
 
 type SFloatRel sym =
   sym -> SFloat sym -> SFloat sym -> IO (Pred sym)
+
+fpEq :: IsExprBuilder sym => SFloatRel sym
+fpEq = fpRel floatEq
 
 fpEqIEEE :: IsExprBuilder sym => SFloatRel sym
 fpEqIEEE = fpRel floatFpEq
