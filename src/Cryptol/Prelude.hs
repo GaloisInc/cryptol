@@ -25,5 +25,3 @@ preludeContents = B.pack [there|lib/Cryptol.cry|]
 
 cryptolTcContents :: String
 cryptolTcContents = [there|lib/CryptolTC.z3|]
-
-

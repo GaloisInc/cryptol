@@ -11,7 +11,7 @@ Type Synonyms
     type Bool = Bit
     type Char = [8]
     type lg2 n = width (max 1 n - 1)
-    type String n = [n][8]
+    type String n = [n]Char
     type Word n = [n]
 
 Constraint Synonyms
@@ -122,7 +122,7 @@ Symbols
     demote : {val, rep} (Literal val rep) => rep
     drop : {front, back, a} (fin front) => [front + back]a -> [back]a
     elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
-    error : {a, len} (fin len) => [len][8] -> a
+    error : {a, len} (fin len) => String len -> a
     False : Bit
     floor : {a} (Round a) => a -> Integer
     foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
