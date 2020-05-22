@@ -574,6 +574,7 @@ cmdProveSat isSat str = do
             (t, e) <- mkSolverResult cexStr (not isSat) (Left ts)
             bindItVariable t e
           AllSatResult tevss -> do
+            rPutStrLn (if isSat then "Satisfiable" else "Counterexample")
             let tess = map (map $ \(t,e,_) -> (t,e)) tevss
                 vss  = map (map $ \(_,_,v) -> v)     tevss
             resultRecs <- mapM (mkSolverResult cexStr isSat . Right) tess
