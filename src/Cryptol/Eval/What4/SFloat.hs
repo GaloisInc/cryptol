@@ -17,7 +17,10 @@ module Cryptol.Eval.What4.SFloat
   , fpNaN
   , fpPosInf
   , fpFromRational
+
+    -- * Interchange formats
   , fpFromBinary
+  , fpToBinary
 
     -- * Relations
   , SFloatRel
@@ -160,7 +163,6 @@ fpPosInf sym e p
   | otherwise = unsupported "fpPosInf" e p
 
 -- | A floating point number corresponding to the given rations.
--- (XXX: should we check that this number fits, is What4 taking care of that?)
 fpFromRational ::
   IsExprBuilder sym =>
   sym ->
@@ -194,6 +196,13 @@ fpFromBinary sym e p swe
                 fpTypeMismatch (BaseBVRepr expectW) actual
         | otherwise -> panic "fpFromBits" [ "1 >= 2" ]
   | otherwise = unsupported "fpFromBits" e p
+
+fpToBinary :: IsExprBuilder sym => sym -> SFloat sym -> IO (SWord sym)
+fpToBinary sym (SFloat f)
+  | FloatingPointPrecisionRepr e p <- fpReprOf sym f
+  , Just LeqProof <- testLeq (knownNat @1) (addNat e p)
+    = DBV <$> floatToBinary sym f
+  | otherwise = panic "fpToBinary" [ "we messed up the types" ]
 
 
 --------------------------------------------------------------------------------

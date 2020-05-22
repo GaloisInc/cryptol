@@ -77,10 +77,29 @@ fpPosZero = zero
 fpNegZero : {e,p} ValidFloat e p => Float e p
 fpNegZero = - fpPosZero
 
+
+// Binary representations
+
 /** A floating point number using the exact bit pattern,
-in IEEE interchange format: [ sign | biased_exponent | precision ] */
+in IEEE interchange format with layout:
+
+  (sign : [1]) # (biased_exponent : [e]) # (significand : [p-1])
+*/
 primitive
   fpFromBits : {e,p} ValidFloat e p => [e + p] -> Float e p
+
+/** Export a floating point number in IEEE interchange format with layout:
+
+  (sign : [1]) # (biased_exponent : [e]) # (significand : [p-1])
+
+NaN is represented as:
+  * positive:           sign        == 0
+  * quiet with no info: significand == 0b1 # 0
+*/
+primitive
+  fpToBits : {e,p} ValidFloat e p => Float e p -> [e + p]
+
+
 
 
 

@@ -1,10 +1,11 @@
 {-# Language BlockArguments #-}
 {-# Language OverloadedStrings #-}
+{-# Language BangPatterns #-}
 -- | Concrete evaluations for floating point primitives.
 module Cryptol.Eval.Concrete.Float where
 
 import Data.Map(Map)
-import Data.Bits(testBit,setBit,shiftL,shiftR,(.&.))
+import Data.Bits(testBit,setBit,shiftL,shiftR,(.&.),(.|.))
 import Data.Int(Int64)
 import qualified Data.Map as Map
 import LibBF
@@ -15,6 +16,7 @@ import Cryptol.Eval.Value
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Concrete.Value
 
+
 floatPrims :: Concrete -> Map PrimIdent Value
 floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
   where
@@ -24,6 +26,8 @@ floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
     , "fpPosInf"    ~> ilam \_ -> ilam \_ -> VFloat bfPosInf
     , "fpFromBits"  ~> ilam \e -> ilam \p -> wlam sym \bv ->
                        pure $ VFloat $ floatFromBits e p $ bvVal bv
+    , "fpToBits"    ~> ilam \e -> ilam \p -> flam \x ->
+                       pure $ word sym (e + p) (floatToBits e p x)
     , "=.="         ~> ilam \_ -> ilam \_ -> flam \x -> pure $ flam \y ->
                        pure $ VBit $ bitLit sym (bfCompare x y == EQ)
 
@@ -43,7 +47,6 @@ floatFromBits ::
   BigFloat
 
 floatFromBits e p bits
-
   | expoBiased == 0 && mant == 0 =            -- zero
     if isNeg then bfNegZero else bfPosZero
 
@@ -75,26 +78,24 @@ floatFromBits e p bits
   bias       = eMask `shiftR` 1                            :: Int64
   expoVal    = expoBiased - bias - fromIntegral p'         :: Int64
 
-  -- expoVal    = expoBiased - bias - fromIntegral p'         :: Int64
-  -- expoBiased = expoVal + bias + fromIntegral p'
 
-{-
 -- | Turn a float into raw bits.
 -- @NaN@ is represented as a positive "quiet" @NaN@
--- (this matches @What4@).
+-- (most significant bit in the significand is set, the rest of it is 0)
 floatToBits :: Integer -> Integer -> BigFloat -> Integer
-floatToBits e p bf =  (field 1  isNeg      `shiftL` (e' + p'))
-                  .|. (field e' expBiased  `shiftL` e')
-                  .|. (field p' mant       `whiftL` 0)
+floatToBits e p bf =  (isNeg      `shiftL` (e' + p'))
+                  .|. (expBiased  `shiftL` p')
+                  .|. (mant       `shiftL` 0)
   where
   e' = fromInteger e     :: Int
   p' = fromInteger p - 1 :: Int
 
-  field n v = v .&. ((1 `shiftL` n) - 1)
+  eMask = (1 `shiftL` e') - 1   :: Integer
+  pMask = (1 `shiftL` p') - 1   :: Integer
 
   (isNeg, expBiased, mant) =
     case bfToRep bf of
-      BFNaN     -> (0,  -1, 1 `shiftL` (p' - 1))
+      BFNaN       -> (0,  eMask, 1 `shiftL` (p' - 1))
       BFRep s num -> (sign, be, ma)
         where
         sign = case s of
@@ -102,9 +103,15 @@ floatToBits e p bf =  (field 1  isNeg      `shiftL` (e' + p'))
                 Pos -> 0
 
         (be,ma) =
-          case num
-            Zero    -> (0,0)
-            Num i e ->
-            Inf     -> (-1,0)
+          case num of
+            Zero     -> (0,0)
+            Num i ev ->
+              let m    = msb 0 i - 1
+                  bias = eMask `shiftR` 1
+              in ( toInteger ev + toInteger m + bias
+                 , (i `shiftL` (p' - m)) .&. pMask
+                 )
+            Inf     -> (eMask,0)
 
--}
+  msb !n j = if j == 0 then n else msb (n+1) (j `shiftR` 1)
+
