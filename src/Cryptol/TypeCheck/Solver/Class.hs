@@ -157,9 +157,6 @@ solveIntegralInst ty = case tNoUser ty of
   -- Integral Integer
   TCon (TC TCInteger) [] -> SolvedIf []
 
-  -- Integral (Z n)
-  TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
-
   -- fin n => Integral [n]
   TCon (TC TCSeq) [n, elTy] ->
     case tNoUser elTy of

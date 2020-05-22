@@ -20,6 +20,8 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Cryptol.Eval.Generic where
 
+import qualified Control.Exception as X
+import Control.Monad.IO.Class (MonadIO(..))
 import Control.Monad (join, unless)
 
 import Data.Bits (testBit)
@@ -86,6 +88,12 @@ ratioV sym =
     do x' <- fromVInteger <$> x
        y' <- fromVInteger <$> y
        VRational <$> ratio sym x' y'
+
+{-# SPECIALIZE fromZV :: Concrete -> GenValue Concrete #-}
+fromZV :: Backend sym => sym -> GenValue sym
+fromZV sym =
+  nlam $ \(finNat' -> n) ->
+  lam $ \v -> VInteger <$> (znToInt sym n . fromVInteger =<< v)
 
 -- Operation Lifting -----------------------------------------------------------
 
@@ -320,7 +328,6 @@ ringNullary sym opw opi opz opq = loop
 
 {-# SPECIALIZE integralBinary :: Concrete -> BinWord Concrete ->
       (SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
-      (Integer -> SInteger Concrete -> SInteger Concrete -> SEval Concrete (SInteger Concrete)) ->
       Binary Concrete
   #-}
 
@@ -329,14 +336,10 @@ integralBinary :: forall sym.
   sym ->
   BinWord sym ->
   (SInteger sym -> SInteger sym -> SEval sym (SInteger sym)) ->
-  (Integer -> SInteger sym -> SInteger sym -> SEval sym (SInteger sym)) ->
   Binary sym
-integralBinary sym opw opi opz ty l r = case ty of
+integralBinary sym opw opi ty l r = case ty of
     TVInteger ->
       VInteger <$> opi (fromVInteger l) (fromVInteger r)
-
-    TVIntMod n ->
-      VInteger <$> opz n (fromVInteger l) (fromVInteger r)
 
     -- bitvectors
     TVSeq w a
@@ -402,19 +405,17 @@ mulV sym = ringBinary sym opw opi opz opq
 
 {-# INLINE divV #-}
 divV :: Backend sym => sym -> Binary sym
-divV sym = integralBinary sym opw opi opz
+divV sym = integralBinary sym opw opi
   where
     opw _w x y = wordDiv sym x y
     opi x y = intDiv sym x y
-    opz m x y = znDiv sym m x y
 
 {-# INLINE modV #-}
 modV :: Backend sym => sym -> Binary sym
-modV sym = integralBinary sym opw opi opz
+modV sym = integralBinary sym opw opi
   where
     opw _w x y = wordMod sym x y
     opi x y = intMod sym x y
-    opz m x y = znMod sym m x y
 
 {-# SPECIALIZE toIntegerV :: Concrete -> GenValue Concrete #-}
 -- | Convert a word to a non-negative integer.
@@ -425,8 +426,6 @@ toIntegerV sym =
     case a of
       TVSeq _w el | isTBit el ->
         VInteger <$> (wordToInt sym =<< (fromVWord sym "toInteger" =<< v))
-      TVIntMod m ->
-        VInteger <$> (znToInt sym m . fromVInteger =<< v)
       TVInteger -> v
       _ -> evalPanic "toInteger" [show a ++ " not in class `Integral`"]
 
@@ -1480,10 +1479,8 @@ enumerateIntBits :: Backend sym =>
   TValue ->
   SInteger sym ->
   SEval sym [SBit sym]
-enumerateIntBits sym (Nat n) (TVIntMod m) idx = enumerateIntBits' sym (min n m) idx
-enumerateIntBits sym Inf (TVIntMod m) idx = enumerateIntBits' sym m idx
 enumerateIntBits sym (Nat n) _ idx = enumerateIntBits' sym n idx
-enumerateIntBits sym Inf _ _ = raiseError sym (UnsupportedSymbolicOp "unbounded integer shifting")
+enumerateIntBits _sym Inf _ _ = liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer shifting"))
 
 -- | Compute the list of bits in an integer in big-endian order.
 --   The integer argument is a concrete upper bound for
@@ -1572,7 +1569,6 @@ logicShift sym nm shrinkRange wop reindex =
 
 shiftShrink :: Backend sym => sym -> Nat' -> TValue -> SInteger sym -> SEval sym (SInteger sym)
 shiftShrink _sym Inf _ x = return x
-shiftShrink _sym (Nat w) (TVIntMod m) x | m <= w = return x
 shiftShrink sym (Nat w) _ x =
   do w' <- integerLit sym w
      p  <- intLessThan sym w' x
@@ -1580,7 +1576,6 @@ shiftShrink sym (Nat w) _ x =
 
 rotateShrink :: Backend sym => sym -> Nat' -> TValue -> SInteger sym -> SEval sym (SInteger sym)
 rotateShrink _sym Inf _ _ = panic "rotateShrink" ["expected finite sequence in rotate"]
-rotateShrink _sym (Nat w) (TVIntMod m) x | m <= w = return x
 rotateShrink sym (Nat 0) _ _ = integerLit sym 0
 rotateShrink sym (Nat w) _ x =
   do w' <- integerLit sym w

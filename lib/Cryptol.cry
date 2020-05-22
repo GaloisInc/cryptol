@@ -608,8 +608,7 @@ primitive ratio : Integer -> Integer -> Rational
 /**
  * Converts an integer modulo n to an unbounded integer in the range 0 to n-1.
  */
-fromZ : {n} (fin n, n >= 1) => Z n -> Integer
-fromZ = toInteger
+primitive fromZ : {n} (fin n, n >= 1) => Z n -> Integer
 
 
 // Sequence operations -------------------------------------------------------

@@ -493,7 +493,6 @@ fromWordVal msg _ = evalPanic "fromWordVal" ["not a word value", msg]
 asIndex :: Backend sym =>
   sym -> String -> TValue -> GenValue sym -> SEval sym (Either (SInteger sym) (WordValue sym))
 asIndex _sym _msg TVInteger (VInteger i) = pure (Left i)
-asIndex  sym _msg (TVIntMod m) (VInteger i) = Left <$> znToInt sym m i
 asIndex _sym _msg _ (VWord _ wval) = Right <$> wval
 asIndex _sym  msg _ _ = evalPanic "asIndex" ["not an index value", msg]
 

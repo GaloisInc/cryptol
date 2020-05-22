@@ -464,6 +464,8 @@ primTable  = let sym = SBV in
 
     -- Misc
 
+  , ("fromZ"       , fromZV sym)
+
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,
       tlam $ \a ->

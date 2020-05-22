@@ -508,6 +508,8 @@ primTable w4sym = let sym = What4 w4sym in
 
     -- Misc
 
+  , ("fromZ"       , fromZV sym)
+
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,
       tlam $ \a ->
