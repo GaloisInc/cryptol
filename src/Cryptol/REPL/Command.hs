@@ -272,9 +272,19 @@ getPPValOpts =
   do base      <- getKnownUser "base"
      ascii     <- getKnownUser "ascii"
      infLength <- getKnownUser "infLength"
+
+     fpBase    <- getKnownUser "fp-base"
+     fpFmtTxt  <- getKnownUser "fp-format"
+     let fpFmt = case parsePPFloatFormat fpFmtTxt of
+                   Just f  -> f
+                   Nothing -> panic "getPPValOpts"
+                                      [ "Failed to parse fp-format" ]
+
      return E.PPOpts { E.useBase      = base
                      , E.useAscii     = ascii
                      , E.useInfLength = infLength
+                     , E.useFPBase    = fpBase
+                     , E.useFPFormat  = fpFmt
                      }
 
 getEvalOpts :: REPL E.EvalOpts

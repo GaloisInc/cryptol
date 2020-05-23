@@ -37,6 +37,7 @@ import qualified Data.Map.Strict as Map
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..))
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Concrete.Float(floatPrims)
+import Cryptol.Eval.Concrete.FloatHelpers(bfValue)
 import Cryptol.Eval.Concrete.Value
 import Cryptol.Eval.Generic hiding (logicShift)
 import Cryptol.Eval.Monad
@@ -81,7 +82,8 @@ toExpr prims t0 v0 = findOne (go t0 v0)
       return $ ETApp (ETApp (prim "number") (tNum i)) ty
     (TCon (TC TCIntMod) [_n], VInteger i) ->
       return $ ETApp (ETApp (prim "number") (tNum i)) ty
-    (TCon (TC TCFloat) [eT,pT], VFloat i) -> pure (floatToExpr prims eT pT i)
+    (TCon (TC TCFloat) [eT,pT], VFloat i) ->
+      pure (floatToExpr prims eT pT (bfValue i))
 
     (TCon (TC TCSeq) [a,b], VSeq 0 _) -> do
       guard (a == tZero)

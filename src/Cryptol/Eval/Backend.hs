@@ -611,8 +611,6 @@ class MonadIO (SEval sym) => Backend sym where
 
 type FPArith2 sym =
   sym ->
-  Integer ->
-  Integer ->
   SWord sym ->
   SFloat sym ->
   SFloat sym ->

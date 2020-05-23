@@ -15,6 +15,7 @@ import Cryptol.Utils.Panic(panic)
 import Cryptol.Eval.Value
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Concrete.Value
+import Cryptol.Eval.Concrete.FloatHelpers
 
 
 floatPrims :: Concrete -> Map PrimIdent Value
@@ -22,14 +23,25 @@ floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
   where
   (~>) = (,)
   nonInfixTable =
-    [ "fpNaN"       ~> ilam \_ -> ilam \_ -> VFloat bfNaN
-    , "fpPosInf"    ~> ilam \_ -> ilam \_ -> VFloat bfPosInf
+    [ "fpNaN"       ~> ilam \e -> ilam \p ->
+                        VFloat BF { bfValue = bfNaN
+                                  , bfExpWidth = e, bfPrecWidth = p }
+
+    , "fpPosInf"    ~> ilam \e -> ilam \p ->
+                       VFloat BF { bfValue = bfPosInf
+                                 , bfExpWidth = e, bfPrecWidth = p }
+
     , "fpFromBits"  ~> ilam \e -> ilam \p -> wlam sym \bv ->
                        pure $ VFloat $ floatFromBits e p $ bvVal bv
+
     , "fpToBits"    ~> ilam \e -> ilam \p -> flam \x ->
-                       pure $ word sym (e + p) (floatToBits e p x)
+                       pure $ word sym (e + p)
+                            $ floatToBits e p
+                            $ bfValue x
     , "=.="         ~> ilam \_ -> ilam \_ -> flam \x -> pure $ flam \y ->
-                       pure $ VBit $ bitLit sym (bfCompare x y == EQ)
+                       pure $ VBit
+                            $ bitLit sym
+                            $ bfCompare (bfValue x) (bfValue y) == EQ
 
       -- From Backend class
     , "fpAdd"      ~> fpBinArithV sym fpPlus
@@ -39,14 +51,24 @@ floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
     ]
 
 
+floatFromBits :: 
+  Integer {- ^ Exponent width -} ->
+  Integer {- ^ Precision widht -} ->
+  Integer {- ^ Raw bits -} ->
+  BF
+floatFromBits e p bv = BF { bfValue = floatFromBits' e p bv
+                          , bfExpWidth = e, bfPrecWidth = p }
+
+
+
 -- | Make a float using "raw" bits.
-floatFromBits ::
+floatFromBits' ::
   Integer {- ^ Exponent width -} ->
   Integer {- ^ Precision widht -} ->
   Integer {- ^ Raw bits -} ->
   BigFloat
 
-floatFromBits e p bits
+floatFromBits' e p bits
   | expoBiased == 0 && mant == 0 =            -- zero
     if isNeg then bfNegZero else bfPosZero
 

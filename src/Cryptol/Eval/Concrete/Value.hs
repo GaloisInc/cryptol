@@ -135,7 +135,7 @@ instance Backend Concrete where
   type SBit Concrete = Bool
   type SWord Concrete = BV
   type SInteger Concrete = Integer
-  type SFloat Concrete = FP.BigFloat
+  type SFloat Concrete = FP.BF
   type SEval Concrete = Eval
 
   raiseError _ err = io (X.throwIO err)
@@ -341,17 +341,18 @@ instance Backend Concrete where
   ------------------------------------------------------------------------
   -- Floating Point
   fpLit                  = FP.fpLit
-  fpEq _sym x y          = pure (x == y)
-  fpLessThan _sym x y    = pure (x < y)
-  fpGreaterThan _sym x y = pure (x < y)
+  fpEq _sym x y          = pure (FP.bfValue x == FP.bfValue y)
+  fpLessThan _sym x y    = pure (FP.bfValue x <  FP.bfValue y)
+  fpGreaterThan _sym x y = pure (FP.bfValue x <  FP.bfValue y)
   fpPlus  = fpBinArith FP.bfAdd
   fpMinus = fpBinArith FP.bfSub
   fpMult  = fpBinArith FP.bfMul
   fpDiv   = fpBinArith FP.bfDiv
-  fpNeg _ x = pure (FP.bfNeg x)
+  fpNeg _ x = pure x { FP.bfValue = FP.bfNeg (FP.bfValue x) }
   fpFromInteger sym e p r x =
     do opts <- FP.fpOpts sym e p (bvVal r)
-       FP.fpCheckStatus sym (FP.bfRoundInt opts (FP.bfFromInteger x))
+       v <- FP.fpCheckStatus sym (FP.bfRoundInt opts (FP.bfFromInteger x))
+       pure FP.BF { FP.bfExpWidth = e, FP.bfPrecWidth = p, FP.bfValue = v }
 
 
 {-# INLINE liftBinIntMod #-}
@@ -383,14 +384,13 @@ doubleAndAdd base0 expMask modulus = go 1 base0 expMask
 fpBinArith ::
   (FP.BFOpts -> FP.BigFloat -> FP.BigFloat -> (FP.BigFloat, FP.Status)) ->
   Concrete ->
-  Integer         {- ^ Exponent width -}  ->
-  Integer         {- ^ Percision width -} ->
   SWord Concrete  {- ^ Rouding mode -} ->
   SFloat Concrete ->
   SFloat Concrete ->
   SEval Concrete (SFloat Concrete)
-fpBinArith fun = \sym e p r x y ->
-  do opts <- FP.fpOpts sym e p (bvVal r)
-     FP.fpCheckStatus sym (fun opts x y)
+fpBinArith fun = \sym r x y ->
+  do opts <- FP.fpOpts sym (FP.bfExpWidth x) (FP.bfPrecWidth x) (bvVal r)
+     v <- FP.fpCheckStatus sym (fun opts (FP.bfValue x) (FP.bfValue y))
+     pure x { FP.bfValue = v }
 
 

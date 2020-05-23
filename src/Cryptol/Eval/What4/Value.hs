@@ -712,13 +712,11 @@ fpBinArith ::
   W4.IsExprBuilder sym =>
   FP.SFloatBinArith sym ->
   What4 sym ->
-  Integer ->
-  Integer ->
   SWord (What4 sym) ->
   SFloat (What4 sym) ->
   SFloat (What4 sym) ->
   SEval (What4 sym) (SFloat (What4 sym))
-fpBinArith fun = \sym@(What4 s) _ _ r x y ->
+fpBinArith fun = \sym@(What4 s) r x y ->
   do m <- fpRoundingMode sym r
      liftIO (fun s m x y)
 

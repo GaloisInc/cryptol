@@ -45,6 +45,7 @@ import qualified Cryptol.ModuleSystem.Monad as M
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
+import qualified Cryptol.Eval.Concrete.FloatHelpers as Concrete
 import qualified Cryptol.Eval.Monad as Eval
 
 import qualified Cryptol.Eval.Value as Eval
@@ -288,7 +289,14 @@ parseValue (FTTuple ts) cvs = (Eval.VTuple (map Eval.ready vs), cvs')
 parseValue (FTRecord fs) cvs = (Eval.VRecord (Map.fromList (zip ns (map Eval.ready vs))), cvs')
   where (ns, ts)   = unzip (Map.toList fs)
         (vs, cvs') = parseValues ts cvs
-parseValue (FTFloat {}) _ = (Eval.VFloat bfNaN,[])  -- XXX: NOT IMPLEMENTED
+parseValue (FTFloat e p) _ =
+   (Eval.VFloat Concrete.BF { Concrete.bfValue = bfNaN
+                            , Concrete.bfExpWidth = e
+                            , Concrete.bfPrecWidth = p
+                            }
+  , []
+  )
+  -- XXX: NOT IMPLEMENTED
 
 inBoundsIntMod :: Integer -> Eval.SInteger SBV -> Eval.SBit SBV
 inBoundsIntMod n x =

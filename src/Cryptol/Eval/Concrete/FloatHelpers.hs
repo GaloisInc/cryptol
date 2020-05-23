@@ -6,8 +6,16 @@ import LibBF
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Eval.Backend
-import Cryptol.Eval.Monad(EvalError(..),PPOpts)
+import Cryptol.Eval.Monad( EvalError(..)
+                         , PPOpts(..), PPFloatFormat(..), PPFloatExp(..)
+                         )
 
+
+data BF = BF
+  { bfExpWidth  :: Integer
+  , bfPrecWidth :: Integer
+  , bfValue     :: BigFloat
+  }
 
 
 -- | Make LibBF options for the given precision and rounding mode.
@@ -59,9 +67,22 @@ fpCheckStatus _sym (r,s) =
 
 
 -- | Pretty print a float
--- XXX: we can have some more settings here.
-fpPP :: PPOpts -> BigFloat -> Doc
-fpPP _opts = text . bfToString 16 (addPrefix <> showFree Nothing)
+fpPP :: PPOpts -> BF -> Doc
+fpPP opts num = text $ bfToString base fmt $ bfValue num
+  where
+  base  = useFPBase opts
+
+  withExp :: PPFloatExp -> ShowFmt -> ShowFmt
+  withExp e f = case e of
+                  AutoExponent -> f
+                  ForceExponent -> f <> forceExp
+
+  fmt = addPrefix <> showRnd NearEven <>
+        case useFPFormat opts of
+          FloatFree e -> withExp e $ showFreeMin
+                                    $ Just $ fromInteger $ bfPrecWidth num
+          FloatFixed n e -> withExp e $ showFixed $ fromIntegral n
+          FloatFrac n    -> showFrac $ fromIntegral n
 
 
 -- | Make a literal
@@ -71,14 +92,15 @@ fpLit ::
   Integer     {- ^ Exponent width -} ->
   Integer     {- ^ Precision width -} ->
   Rational ->
-  SEval sym BigFloat
+  SEval sym BF
 fpLit sym e p r =
   do opts <- fpOpts sym e p 0 -- round to nearest even
      let num = bfFromInteger (numerator r)
          res
            | denominator r == 1 = bfRoundFloat opts num
            | otherwise          = bfDiv opts num (bfFromInteger (denominator r))
-     fpCheckStatus sym res
+     v <- fpCheckStatus sym res
+     pure BF { bfExpWidth = e, bfPrecWidth = p, bfValue = v }
 
 
 
