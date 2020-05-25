@@ -71,9 +71,11 @@ primitive
 fpNegInf : {e,p} ValidFloat e p => Float e p
 fpNegInf = - fpPosInf
 
+/** Positive zero. */
 fpPosZero : {e,p} ValidFloat e p => Float e p
 fpPosZero = zero
 
+/** Negative zero. */
 fpNegZero : {e,p} ValidFloat e p => Float e p
 fpNegZero = - fpPosZero
 
