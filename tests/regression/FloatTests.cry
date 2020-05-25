@@ -1,0 +1,27 @@
+module FloatTests where
+
+import Float
+
+section : {n} fin n => [n][8] -> [78][8]
+section x = "-- " # take`{min 60 n} x # repeat '-'
+
+type Small  = Float 3 2
+type Medium = Float64
+type Large  = Float 60 5000
+
+property roundTrip x  = fpFromBits (fpToBits x) =.= x
+property roundTrip2 x = fpToBits num == x \/ num =.= fpNaN
+                          where num = fpFromBits x : Medium
+property eqRefl1 x    = x =.= x
+property eqRefl2 x    = x == x \/ x =.= fpNaN
+property eqProp x y   = ~(x == y) \/
+                         (x =.= y \/ x =.= fpNaN
+                                  \/ y =.= fpNaN
+                                  \/ (x =.=  0 /\ y =.= -0)
+                                  \/ (x =.= -0 /\ y =.=  0)
+                         )
+property leqRefl x    = x <= x \/ x =.= fpNaN
+
+
+
+
