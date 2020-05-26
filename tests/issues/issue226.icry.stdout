@@ -106,7 +106,7 @@ Symbols
     (*) : {a} (Ring a) => a -> a -> a
     (/) : {a} (Integral a) => a -> a -> a
     (/$) : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
-    (^^) : {a, n} (Ring a, fin n) => a -> [n] -> a
+    (^^) : {a, e} (Ring a, Integral e) => a -> e -> a
     (!) : {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a
     (!!) : {n, k, ix, a} (fin n, Integral ix) => [n]a -> [k]ix -> [k]a
     (@) : {n, a, ix} (Integral ix) => [n]a -> ix -> a
@@ -134,7 +134,8 @@ Symbols
                                    lengthFromThenTo first next last == len) =>
         [len]a
     fromTo :
-      {first, last, a} (fin last, last >= first, Literal last a) =>
+      {first, last, a} (fin last, last >= first, Literal first a,
+                        Literal last a) =>
         [1 + (last - first)]a
     fromZ : {n} (fin n, n >= 1) => Z n -> Integer
     generate : {n, a} (fin n, n >= 1) => (Integer -> a) -> [n]a

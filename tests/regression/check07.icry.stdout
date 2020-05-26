@@ -1,8 +1,8 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at check07.cry:9:17--9:38:
-  Defaulting type argument 'n' of '(^^)' to 6
+[warning] at check07.cry:9:46--9:57:
+  Defaulting type argument 'a' of 'fromTo' to [6]
 [warning] at check07.cry:7:43--7:54:
   Defaulting type argument 'a' of 'fromTo' to [6]
 [warning] at check07.cry:13:11--13:22:
