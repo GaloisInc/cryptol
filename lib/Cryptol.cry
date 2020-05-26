@@ -292,6 +292,12 @@ primitive (%) : {a} (Integral a) => a -> a -> a
 primitive toInteger : {a} (Integral a) => a -> Integer
 
 /**
+ * Compute the exponentiation of a value in a ring.
+ * The exponent is treated as an unsigned bitvector value.
+ */
+primitive (^^) : {a, e} (Ring a, Integral e) => a -> e -> a
+
+/**
  * An infinite sequence counting up from the given starting value.
  * '[x...]' is syntactic sugar for 'infFrom x'.
  */
@@ -576,15 +582,6 @@ sext x = newbits # x
  * by (considered as an unsigned value).
  */
 primitive (>>$) : {n, ix} (fin n, n >= 1, Integral ix) => [n] -> ix -> [n]
-
-/**
- * Compute the exponentiation of a value in a ring.
- * The exponent is treated as an unsigned bitvector value.
- */
-(^^) : {a, n} (Ring a, fin n) => a -> [n] -> a
-a ^^ e = foldl squareAndMult (fromInteger 1) e
- where
- squareAndMult x b = if b then a*x*x else x*x
 
 /**
  * Log base two.

@@ -410,6 +410,58 @@ divV sym = integralBinary sym opw opi
     opw _w x y = wordDiv sym x y
     opi x y = intDiv sym x y
 
+{-# SPECIALIZE expV :: Concrete -> GenValue Concrete #-}
+expV :: Backend sym => sym -> GenValue sym
+expV sym =
+  tlam $ \aty ->
+  tlam $ \ety ->
+   lam $ \am -> return $
+   lam $ \em ->
+     do a <- am
+        e <- em
+        case ety of
+          TVInteger ->
+            let ei = fromVInteger e in
+            case integerAsLit sym ei of
+              Just n
+                | n == 0 ->
+                   do onei <- integerLit sym 1
+                      intV sym onei aty
+
+                | n > 0 ->
+                    do ebits <- enumerateIntBits' sym n ei
+                       computeExponent sym aty a ebits
+
+                | otherwise -> raiseError sym NegativeExponent
+
+              Nothing -> liftIO (X.throw (UnsupportedSymbolicOp "integer exponentiation"))
+
+          TVSeq _w el | isTBit el ->
+            do ebits <- enumerateWordValue sym =<< fromWordVal "(^^)" e
+               computeExponent sym aty a ebits
+
+          _ -> evalPanic "expV" [show ety ++ " not int class `Integral`"]
+
+
+{-# SPECIALIZE computeExponent ::
+      Concrete -> TValue -> GenValue Concrete -> [SBit Concrete] -> SEval Concrete (GenValue Concrete)
+  #-}
+computeExponent :: Backend sym =>
+  sym -> TValue -> GenValue sym -> [SBit sym] -> SEval sym (GenValue sym)
+computeExponent sym aty a bs0 =
+  do onei <- integerLit sym 1
+     one <- intV sym onei aty
+     loop one bs0
+
+ where
+ loop acc [] = return acc
+ loop acc (b:bs) =
+   do sq <- mulV sym aty acc acc
+      acc' <- iteValue sym b
+                (mulV sym aty a sq)
+                (pure sq)
+      loop acc' bs
+
 {-# INLINE modV #-}
 modV :: Backend sym => sym -> Binary sym
 modV sym = integralBinary sym opw opi

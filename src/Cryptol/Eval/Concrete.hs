@@ -152,6 +152,8 @@ primTable = let sym = Concrete in
                     binary (divV sym))
   , ("%"          , {-# SCC "Prelude::(%)" #-}
                     binary (modV sym))
+  , ("^^"         , {-# SCC "Prelude::(^^)" #-}
+                    expV sym)
   , ("infFrom"    , {-# SCC "Prelude::infFrom" #-}
                     infFromV sym)
   , ("infFromThen", {-# SCC "Prelude::infFromThen" #-}

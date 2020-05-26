@@ -366,6 +366,7 @@ primTable  = let sym = SBV in
   , ("toInteger"   , toIntegerV sym)
   , ("/"           , binary (divV sym))
   , ("%"           , binary (modV sym))
+  , ("^^"          , expV sym)
   , ("infFrom"     , infFromV sym)
   , ("infFromThen" , infFromThenV sym)
 

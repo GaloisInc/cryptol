@@ -422,6 +422,7 @@ primTable w4sym = let sym = What4 w4sym in
   , ("toInteger"   , toIntegerV sym)
   , ("/"           , binary (divV sym))
   , ("%"           , binary (modV sym))
+  , ("^^"          , expV sym)
   , ("infFrom"     , infFromV sym)
   , ("infFromThen" , infFromThenV sym)
 
