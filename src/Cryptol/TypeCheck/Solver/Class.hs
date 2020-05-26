@@ -270,12 +270,8 @@ solveFLiteralInst numT denT ty
         , Just d    <- tIsNum denT
         , Just opts <- knownSupportedFloat e p ->
           case FP.bfDiv opts (FP.bfFromInteger n) (FP.bfFromInteger d) of
-            (_,FP.Ok) -> SolvedIf []
-            -- NOTE: this does not allow for subnormal numbers
-
-            _ -> Unsolvable $ TCErrorMessage $ show $
-                    integer n <.> "/" <.> integer d <+>
-                    "cannot be represented in" <+> pp ty
+            (_, _status) -> SolvedIf []
+                -- XXX: we should issue a warning if the status is not just OK
 
         | otherwise -> Unsolved
 
@@ -307,6 +303,9 @@ solveLiteralInst val ty
           (Just n, Just opts) ->
             case FP.bfRoundFloat opts (FP.bfFromInteger n) of
               (_,FP.Ok) -> SolvedIf []
+              -- XXX: Allowing inexact numbers here seeme less compelling
+              -- than the case for fractions.
+
               _ -> Unsolvable $ TCErrorMessage $ show $
                    integer n <+> "cannot be represented in" <+> pp ty
           _ -> Unsolved

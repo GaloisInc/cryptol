@@ -26,9 +26,7 @@ Specifies the format to use when showing floating point numbers:
 0o12.2
 10.25
 0.4
-
-[error] at <interactive>:1:1--1:14:
-  2/5 cannot be represented in FloatTests::Small
+0.4
 0xa.4
 0x0.6
 0x1.234p4
@@ -72,9 +70,7 @@ IEEE-754 floating point numbers.
 
 [error] at <interactive>:1:1--1:2:
   5 cannot be represented in FloatTests::Small
-
-[error] at <interactive>:1:1--1:21:
-  6/5 cannot be represented in FloatTests::Medium
+0x1.3p0
 "-- NaN------------------------------------------------------------------------"
 
     fpNaN : {e, p} (ValidFloat e p) => Float e p
