@@ -41,7 +41,7 @@ import qualified What4.Utils.AbstractDomains as W4
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Concrete.Value( BV(..), ppBV )
 import Cryptol.Eval.Generic
-import Cryptol.Eval.Monad (Eval(..), EvalError(..), io, delayFill, blackhole)
+import Cryptol.Eval.Monad (Eval(..), EvalError(..), Unsupported(..), io, delayFill, blackhole)
 import Cryptol.Eval.Type (TValue(..), finNat')
 import Cryptol.Eval.Value
 import Cryptol.Testing.Random( randomV )
@@ -568,7 +568,7 @@ indexFront_int sym mblen _a xs ix idx
   = foldr f def [lo .. hi]
 
   | otherwise
-  = raiseError (What4 sym) (UnsupportedSymbolicOp "unbounded integer indexing")
+  = liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer indexing"))
 
  where
     def = raiseError (What4 sym) (InvalidIndex Nothing)

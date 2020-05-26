@@ -24,6 +24,7 @@ module Cryptol.Eval.SBV
   , forallSInteger_, existsSInteger_
   ) where
 
+import qualified Control.Exception as X
 import           Control.Monad (join)
 import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Bits (bit, complement, shiftL)
@@ -38,9 +39,9 @@ import Cryptol.Eval.Type (TValue(..), finNat')
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Monad
-  ( Eval(..), blackhole, delayFill, EvalError(..) )
+  ( Eval(..), blackhole, delayFill, EvalError(..), Unsupported(..) )
 import Cryptol.Eval.Value
-import Cryptol.Eval.Concrete ( integerToChar, ppBV, BV(..), lg2 )
+import Cryptol.Eval.Concrete ( integerToChar, ppBV, BV(..) )
 import Cryptol.Testing.Random( randomV )
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), widthInteger)
 import Cryptol.Utils.Ident
@@ -531,7 +532,7 @@ indexFront mblen a xs _ix idx
         _ ->
           case mblen of
             Nat n -> foldr f def [0 .. n-1]
-            Inf -> raiseError SBV (UnsupportedSymbolicOp "unbounded integer indexing")
+            Inf -> liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer indexing"))
 
 indexBack ::
   Nat' ->

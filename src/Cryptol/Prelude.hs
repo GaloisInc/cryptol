@@ -15,7 +15,6 @@
 
 module Cryptol.Prelude (preludeContents,cryptolTcContents) where
 
-
 import Data.ByteString(ByteString)
 import qualified Data.ByteString.Char8 as B
 import Text.Heredoc (there)
@@ -25,4 +24,3 @@ preludeContents = B.pack [there|lib/Cryptol.cry|]
 
 cryptolTcContents :: String
 cryptolTcContents = [there|lib/CryptolTC.z3|]
-
