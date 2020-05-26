@@ -160,7 +160,8 @@ length _ = `n
  *
  * '[a..b]' is syntactic sugar for 'fromTo`{first=a,last=b}'.
  */
-primitive fromTo : {first, last, a} (fin last, last >= first, Literal last a) =>
+primitive fromTo : {first, last, a} (fin last, last >= first,
+                                    Literal first a, Literal last a) =>
                                     [1 + (last - first)]a
 
 /**
