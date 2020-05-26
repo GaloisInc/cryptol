@@ -265,20 +265,12 @@ solveFLiteralInst numT denT ty
 
       TCon (TError _ e) _ -> Unsolvable e
 
-      TCon (TC TCFloat) [e,p]
-        | Just n    <- tIsNum numT
-        , Just d    <- tIsNum denT
-        , Just opts <- knownSupportedFloat e p ->
-          case FP.bfDiv opts (FP.bfFromInteger n) (FP.bfFromInteger d) of
-            (_, _status) -> SolvedIf []
-                -- XXX: we should issue a warning if the status is not just OK
-
-        | otherwise -> Unsolved
+      TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
+      -- NOTE: we could do some validatin here and say something if the
+      -- lietral can't be repsented exactly.
 
       _ -> Unsolvable $ TCErrorMessage $ show
          $ "Type" <+> quotes (pp ty) <+> "does not support fractional literals."
-
-
 
 -- | Solve Literal constraints.
 solveLiteralInst :: Type -> Type -> Solved
@@ -297,19 +289,6 @@ solveLiteralInst val ty
       TCon (TC TCIntMod) [modulus] ->
         SolvedIf [ pFin val, pFin modulus, modulus >== tAdd val tOne ]
 
-      -- Literal f (Float e p)  is solved as long as the number fits
-      TCon (TC TCFloat) [ et, pt ] ->
-        case (tIsNum val, knownSupportedFloat et pt) of
-          (Just n, Just opts) ->
-            case FP.bfRoundFloat opts (FP.bfFromInteger n) of
-              (_,FP.Ok) -> SolvedIf []
-              -- XXX: Allowing inexact numbers here seeme less compelling
-              -- than the case for fractions.
-
-              _ -> Unsolvable $ TCErrorMessage $ show $
-                   integer n <+> "cannot be represented in" <+> pp ty
-          _ -> Unsolved
-
       -- (fin bits, bits => width n) => Literal n [bits]
       TCon (TC TCSeq) [bits, elTy]
         | TCon (TC TCBit) [] <- ety ->
@@ -320,7 +299,7 @@ solveLiteralInst val ty
       TVar _ -> Unsolved
 
       _ -> Unsolvable $ TCErrorMessage $ show
-         $ "Type" <+> quotes (pp ty) <+> "does not support literals."
+         $ "Type" <+> quotes (pp ty) <+> "does not support integer literals."
 
 
 -- | Add propositions that are implied by the given one.
