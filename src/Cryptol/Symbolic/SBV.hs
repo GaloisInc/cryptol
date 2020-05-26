@@ -219,12 +219,22 @@ prepareQuery ::
   IO (Either String ([FinType], SBV.Symbolic SBV.SVal))
 prepareQuery evo modEnv ProverCommand{..} =
   do let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
+
+     -- The `tyFn` creates variables that are treated as 'forall'
+     -- or 'exists' bound, depending on the sort of query we are doing.
      let tyFn = case pcQueryType of
            SatQuery _ -> existsFinType
            ProveQuery -> forallFinType
+
+     -- The `addAsm` function is used to combine assumptions that
+     -- arise from the types of symbolic variables (e.g. Z n values
+     -- are assumed to be integers in the range `0 <= x < n`) with
+     -- the main content of the query.  We use conjunction or implication
+     -- depending on the type of query.
      let addAsm = case pcQueryType of
            ProveQuery -> \x y -> SBV.svOr (SBV.svNot x) y
            SatQuery _ -> \x y -> SBV.svAnd x y
+
      let ?evalPrim = evalPrim
      case predArgTypes pcSchema of
        Left msg -> return (Left msg)
