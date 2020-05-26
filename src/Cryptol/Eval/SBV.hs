@@ -283,7 +283,6 @@ instance Backend SBV where
   intMinus _ a b = pure $! svMinus a b
   intMult  _ a b = pure $! svTimes a b
   intNegate _ a  = pure $! SBV.svUNeg a
-  intLg2 _ a = svLg2 a
 
   intDiv sym a b =
     do let z = svInteger KUnbounded 0
@@ -766,13 +765,6 @@ sLg2 x = pure $ go 0
     lit n = literalSWord (SBV.intSizeOf x) n
     go i | i < SBV.intSizeOf x = SBV.svIte (SBV.svLessEq x (lit (2^i))) (lit (toInteger i)) (go (i + 1))
          | otherwise           = lit (toInteger i)
-
--- | Ceiling (log_2 x)
-svLg2 :: SInteger SBV -> SEval SBV (SInteger SBV)
-svLg2 x =
-  case SBV.svAsInteger x of
-    Just n -> pure $ SBV.svInteger SBV.KUnbounded (lg2 n)
-    Nothing -> raiseError SBV (UnsupportedSymbolicOp "integer lg2")
 
 svDivisible :: Integer -> SInteger SBV -> SEval SBV (SBit SBV)
 svDivisible m x =

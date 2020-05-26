@@ -39,7 +39,7 @@ import qualified What4.SWord as SW
 import qualified What4.Utils.AbstractDomains as W4
 
 import Cryptol.Eval.Backend
-import Cryptol.Eval.Concrete.Value( BV(..), ppBV, lg2 )
+import Cryptol.Eval.Concrete.Value( BV(..), ppBV )
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Monad (Eval(..), EvalError(..), io, delayFill, blackhole)
 import Cryptol.Eval.Type (TValue(..), finNat')
@@ -296,10 +296,6 @@ instance W4.IsExprBuilder sym => Backend (What4 sym) where
   intEq (What4 sym) x y = liftIO $ W4.intEq sym x y
   intLessThan (What4 sym) x y = liftIO $ W4.intLt sym x y
   intGreaterThan (What4 sym) x y = liftIO $ W4.intLt sym y x
-
-  intLg2 (What4 sym) x
-    | Just i <- W4.asInteger x = liftIO $ W4.intLit sym (lg2 i)
-    | otherwise = liftIO (X.throw (UnsupportedSymbolicOp "integer lg2"))
 
   -- NB, we don't do reduction here on symbolic values
   intToZn (What4 sym) m x

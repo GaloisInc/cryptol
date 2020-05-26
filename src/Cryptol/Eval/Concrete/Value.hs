@@ -298,9 +298,6 @@ instance Backend Concrete where
   intMod sym x y =
     do assertSideCondition sym (y /= 0) DivideByZero
        pure $! x `mod` y
-  intLg2 sym x =
-    do assertSideCondition sym (x >= 0) LogNegative
-       pure $! lg2 x
 
   intToZn _ 0 _ = evalPanic "intToZn" ["0 modulus not allowed"]
   intToZn _ m x = pure $! x `mod` m

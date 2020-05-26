@@ -544,12 +544,6 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SEval sym (SInteger sym)
 
-  -- | Rounded-up log-2 of the input
-  intLg2 ::
-    sym ->
-    SInteger sym ->
-    SEval sym (SInteger sym)
-
   -- | Equality comparison on integers
   intEq ::
     sym ->
