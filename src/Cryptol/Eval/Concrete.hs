@@ -269,7 +269,7 @@ primTable = let sym = Concrete in
                     updatePrim sym updateBack_word updateBack)
 
     -- Misc
-  , ("fromZ"      , {-# SCC "Prelice::fromZ" #-}
+  , ("fromZ"      , {-# SCC "Prelude::fromZ" #-}
                     fromZV sym)
 
   , ("error"      , {-# SCC "Prelude::error" #-}
