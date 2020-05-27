@@ -7,15 +7,18 @@ section "Float Formatting"
 
 :set fp-base=2
 10.25 : Medium
+
 :set fp-base=8
 10.25 : Medium
+
 :set fp-base=10
-10.25 : Medium
-1/3   : Small
-0.4   : Small
+10.25   : Medium
+1.0/3.0 : Small
+0.4     : Small
+
 :set fp-base=16
-10.25 : Medium
-1/3   : Small
+10.25     : Medium
+1.0/3.0   : Small
 
 :set fp-base=16
 :set fp-format=free+exp
@@ -38,7 +41,7 @@ zero : Large
 
 section "Literals"
 :set fp-base=10
-1           : Medium
+1.0         : Medium
 1.25        : Medium
 1.25e2      : Medium
 :set fp-base=16
@@ -46,8 +49,11 @@ section "Literals"
 0xFF.FFp3   : Medium
 0xFF.FFp-4  : Medium
 0xFF.FFe3   : Medium     // This is NOT AN EXPONENT
-5           : Small
+5.0         : Small      // Not checked
+0x5.0       : Small      // Checked
 1.2         : Medium
+0x0.2       : Small      // Subnormal
+fpFromBits 1 : Small     // Subnormal
 
 section "NaN"
 :help fpNaN
@@ -63,51 +69,52 @@ leqRefl     (fpNaN : Medium)
 section "Arithmetic"
 
 :set fp-base=10
-1 + 1    : Medium
-1 - 1    : Medium
-3 * 2    : Medium
-3 / 2    : Medium
+1.0 + 1.0    : Medium
+1.0 - 1.0    : Medium
+3.0 * 2.0    : Medium
+3.0 / 2.0    : Medium
 
-1  / 0   : Medium
--1 / 0   : Medium
--0 / 0   : Medium
-1  / -0  : Medium
--1 / -0  : Medium
--0 / -0  : Medium
+1.0  / 0.0   : Medium
+-1.0 / 0.0   : Medium
+-0.0 / 0.0   : Medium
+1.0  / -0.0  : Medium
+-1.0 / -0.0  : Medium
+-0.0 / -0.0  : Medium
 
-2 + 3    : Small
-2 + 8    : Small
+2.0 + 3.0    : Small
+2.0 + 8.0    : Small
 
-fpAdd rne 2 3         : Small
-fpAdd rne 2 8         : Small
-fpAdd rne (-2) (-3)   : Small
-fpAdd rne (-2) (-8)   : Small
-fpAdd rna 2 3         : Small
-fpAdd rna 2 8         : Small
-fpAdd rna (-2) (-3)   : Small
-fpAdd rna (-2) (-8)   : Small
-fpAdd rtp 2 3         : Small
-fpAdd rtp 2 8         : Small
-fpAdd rtp (-2) (-3)   : Small
-fpAdd rtp (-2) (-8)   : Small
-fpAdd rtn 2 3         : Small
-fpAdd rtn 2 8         : Small
-fpAdd rtn (-2) (-3)   : Small
-fpAdd rtn (-2) (-8)   : Small
-fpAdd rtz 2 3         : Small
-fpAdd rtz 2 8         : Small
-fpAdd rtz (-2) (-3)   : Small
-fpAdd rtz (-2) (-8)   : Small
+fpAdd rne 2.0 3.0         : Small
+fpAdd rne 2.0 8.0         : Small
+fpAdd rne (-2.0) (-3.0)   : Small
+fpAdd rne (-2.0) (-8.0)   : Small
+fpAdd rna 2.0 3.0         : Small
+fpAdd rna 2.0 8.0         : Small
+fpAdd rna (-2.0) (-3.0)   : Small
+fpAdd rna (-2.0) (-8.0)   : Small
+fpAdd rtp 2.0 3.0         : Small
+fpAdd rtp 2.0 8.0         : Small
+fpAdd rtp (-2.0) (-3.0)   : Small
+fpAdd rtp (-2.0) (-8.0)   : Small
+fpAdd rtn 2.0 3.0         : Small
+fpAdd rtn 2.0 8.0         : Small
+fpAdd rtn (-2.0) (-3.0)   : Small
+fpAdd rtn (-2.0) (-8.0)   : Small
+fpAdd rtz 2.0 3.0         : Small
+fpAdd rtz 2.0 8.0         : Small
+fpAdd rtz (-2.0) (-3.0)   : Small
+fpAdd rtz (-2.0) (-8.0)   : Small
 
 
 section "Proofs"
 :set prover=w4-z3
-:prove \(x : Medium) -> x == 0 \/ x =.= fpNaN     // False
-:prove \(x : Medium) -> x == x                    // False
+:prove \(x : Medium) -> x == 0.0 \/ x =.= fpNaN     // False
+:prove \(x : Medium) -> x == x                      // False
 :prove \(x : Medium) -> eqRefl1 x
 :prove \(x : Medium) -> eqRefl2 x
 :prove \(x : Medium) -> roundTrip x
-:prove roundTrip2
+:prove roundTrip2`{3,2}
+:prove roundTrip2`{11,53}
 :prove \(x : Medium) -> leqRefl x
 :prove \(x : Medium) y -> eqProp x y
 
@@ -115,7 +122,8 @@ section "Random Testing"
 :check \(x : Medium) -> eqRefl1 x
 :check \(x : Medium) -> eqRefl2 x
 :check \(x : Medium) -> roundTrip x
-:check roundTrip2
+:prove roundTrip2`{3,2}
+:prove roundTrip2`{11,53}
 :check \(x : Medium) -> leqRefl x
 :check \(x : Medium) y -> eqProp x y
 

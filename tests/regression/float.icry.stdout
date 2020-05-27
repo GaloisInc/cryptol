@@ -67,10 +67,13 @@ IEEE-754 floating point numbers.
 0x8.0p8
 0x1.0p4
 0x1.0p8
+0x4.0p0
 
-[error] at <interactive>:1:1--1:2:
-  5 cannot be represented in FloatTests::Small
+[error] at <interactive>:1:1--1:20:
+  5/1 cannot be represented in FloatTests::Small
 0x1.3p0
+0x2.0p-4
+0x2.0p-4
 "-- NaN------------------------------------------------------------------------"
 
     fpNaN : {e, p} (ValidFloat e p) => Float e p
@@ -118,8 +121,9 @@ NaN
 -4.0e0
 -8.0e0
 "-- Proofs---------------------------------------------------------------------"
-(\(x : Medium) -> x == 0 \/ x =.= fpNaN) 2.2e-308 = False
+(\(x : Medium) -> x == 0.0 \/ x =.= fpNaN) 2.2e-308 = False
 (\(x : Medium) -> x == x) NaN = False
+Q.E.D.
 Q.E.D.
 Q.E.D.
 Q.E.D.
@@ -133,9 +137,8 @@ Using random testing.
 Testing... Passed 100 tests.
 Using random testing.
 Testing... Passed 100 tests.
-Using random testing.
-Testing... Passed 100 tests.
-Expected test coverage: 0.00% (100 of 2^^64 values)
+Q.E.D.
+Q.E.D.
 Using random testing.
 Testing... Passed 100 tests.
 Using random testing.

@@ -10,15 +10,17 @@ type Medium = Float64
 type Large  = Float 60 5000
 
 property roundTrip x  = fpFromBits (fpToBits x) =.= x
+
+roundTrip2 : {e : #, p : #} (fin e, fin p, ValidFloat e p) => [e + p] -> Bool
 property roundTrip2 x = fpToBits num == x \/ num =.= fpNaN
-                          where num = fpFromBits x : Medium
+                          where num = fpFromBits x : Float e p
 property eqRefl1 x    = x =.= x
 property eqRefl2 x    = x == x \/ x =.= fpNaN
 property eqProp x y   = ~(x == y) \/
                          (x =.= y \/ x =.= fpNaN
                                   \/ y =.= fpNaN
-                                  \/ (x =.=  0 /\ y =.= -0)
-                                  \/ (x =.= -0 /\ y =.=  0)
+                                  \/ (x =.=  0.0 /\ y =.= -0.0)
+                                  \/ (x =.= -0.0 /\ y =.=  0.0)
                          )
 property leqRefl x    = x <= x \/ x =.= fpNaN
 

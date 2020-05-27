@@ -18,6 +18,7 @@ import Cryptol.Eval.Concrete.Value
 import Cryptol.Eval.Concrete.FloatHelpers
 
 
+
 floatPrims :: Concrete -> Map PrimIdent Value
 floatPrims sym = Map.fromList [ (floatPrim i,v) | (i,v) <- nonInfixTable ]
   where
@@ -77,12 +78,19 @@ floatFromBits' e p bits
 
   | expoBiased == eMask = bfNaN               -- NaN
 
-  | otherwise =                               -- A "normal" float
-     case bfMul2Exp infPrec (bfFromInteger mantVal) expoVal of
-       (num,Ok) -> if isNeg then bfNeg num else num
-       (_,s) -> panic "floatFromBits" [ "Unexpected status: " ++ show s ]
+  | expoBiased == 0 =                         -- Subnormal
+    case bfMul2Exp opts (bfFromInteger mant) (expoVal + 1) of
+      (num,Ok) -> if isNeg then bfNeg num else num
+      (_,s)    -> panic "floatFromBits" [ "Unexpected status: " ++ show s ]
+
+  | otherwise =                               -- Normal
+    case bfMul2Exp opts (bfFromInteger mantVal) expoVal of
+      (num,Ok) -> if isNeg then bfNeg num else num
+      (_,s)    -> panic "floatFromBits" [ "Unexpected status: " ++ show s ]
 
   where
+  opts       = expBits e' <> precBits (p' + 1) <> allowSubnormal
+
   e'         = fromInteger e                               :: Int
   p'         = fromInteger p - 1                           :: Int
   eMask      = (1 `shiftL` e') - 1                         :: Int64
@@ -91,9 +99,7 @@ floatFromBits' e p bits
   isNeg      = testBit bits (e' + p')
 
   mant       = pMask .&. bits                              :: Integer
-  mantVal    = if expoBiased == 0
-                 then mant
-                 else mant `setBit` p'                     :: Integer
+  mantVal    = mant `setBit` p'                            :: Integer
   -- accounts for the implicit 1 bit
 
   expoBiased = eMask .&. fromInteger (bits `shiftR` p')    :: Int64
@@ -127,13 +133,15 @@ floatToBits e p bf =  (isNeg      `shiftL` (e' + p'))
         (be,ma) =
           case num of
             Zero     -> (0,0)
-            Num i ev ->
-              let m    = msb 0 i - 1
-                  bias = eMask `shiftR` 1
-              in ( toInteger ev + toInteger m + bias
-                 , (i `shiftL` (p' - m)) .&. pMask
-                 )
-            Inf     -> (eMask,0)
+            Num i ev
+              | ex == 0   -> (0, i `shiftL` (p' - m  -1))
+              | otherwise -> (ex, (i `shiftL` (p' - m)) .&. pMask)
+              where
+              m    = msb 0 i - 1
+              bias = eMask `shiftR` 1
+              ex   = toInteger ev + bias + toInteger m
+
+            Inf -> (eMask,0)
 
   msb !n j = if j == 0 then n else msb (n+1) (j `shiftR` 1)
 

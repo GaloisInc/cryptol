@@ -48,7 +48,8 @@ knownSupportedFloat :: Type -> Type -> Maybe FP.BFOpts
 knownSupportedFloat et pt
   | Just e <- tIsNum et, Just p <- tIsNum pt
   , minExp <= e && e <= maxExp && minPrec <= p && p <= maxPrec =
-    Just (FP.expBits (fromInteger e) <> FP.precBits (fromInteger p))
+    Just (FP.expBits (fromInteger e) <> FP.precBits (fromInteger p)
+                                     <> FP.allowSubnormal)
   | otherwise = Nothing
   where
   minExp  = max 2 (toInteger FP.expBitsMin)

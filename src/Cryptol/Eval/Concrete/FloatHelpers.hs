@@ -39,7 +39,7 @@ fpOpts sym e p r =
   ok =
     do eb <- rng expBits expBitsMin expBitsMax e
        pb <- rng precBits precBitsMin precBitsMax p
-       pure (eb <> pb)
+       pure (eb <> pb <> allowSubnormal)
 
   rng f a b x = if toInteger a <= x && x <= toInteger b
                   then Just (f (fromInteger x))
