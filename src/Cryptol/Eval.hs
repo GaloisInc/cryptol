@@ -31,6 +31,7 @@ module Cryptol.Eval (
   , evalSel
   , evalSetSel
   , EvalError(..)
+  , Unsupported(..)
   , forceValue
   ) where
 
