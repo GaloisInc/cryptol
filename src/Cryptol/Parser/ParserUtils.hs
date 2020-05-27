@@ -190,6 +190,11 @@ getNum l = case thing l of
              Token (ChrLit x) _  -> toInteger (fromEnum x)
              _ -> panic "[Parser] getNum" ["not a number:", show l]
 
+getChr :: Located Token -> Char
+getChr l = case thing l of
+             Token (ChrLit x) _  -> x
+             _ -> panic "[Parser] getChr" ["not a char:", show l]
+
 getStr :: Located Token -> String
 getStr l = case thing l of
              Token (StrLit x) _ -> x

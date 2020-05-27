@@ -213,11 +213,11 @@ splitQual t =
 
 
 --------------------------------------------------------------------------------
-numToken :: Integer -> Text -> TokenT
-numToken rad ds = Num (toVal ds') (fromInteger rad) (T.length ds')
+numToken :: Int {- ^ base -} -> Text -> TokenT
+numToken rad ds = Num (toVal ds') rad (T.length ds')
   where
   ds' = T.filter (/= '_') ds
-  toVal = T.foldl' (\x c -> rad * x + fromDigit c) 0
+  toVal = T.foldl' (\x c -> toInteger rad * x + fromDigit c) 0
 
 fromDigit :: Char -> Integer
 fromDigit x'

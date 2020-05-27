@@ -115,7 +115,6 @@ desugarLiteral fixDec lit =
            P.BinLit n    -> [ ("rep", tBits (1 * toInteger n)) ]
            P.OctLit n    -> [ ("rep", tBits (3 * toInteger n)) ]
            P.HexLit n    -> [ ("rep", tBits (4 * toInteger n)) ]
-           P.CharLit     -> [ ("rep", tBits (8 :: Integer)) ]
            P.DecLit
             | fixDec     -> if num == 0
                               then [ ("rep", tBits 0)]
@@ -125,9 +124,12 @@ desugarLiteral fixDec lit =
             | otherwise  -> [ ]
            P.PolyLit _n  -> [ ("rep", P.TSeq P.TWild P.TBit) ]
 
+       P.ECChar c ->
+         number [ ("val", P.TNum (toInteger (fromEnum c)))
+                , ("rep", tBits (8 :: Integer)) ]
+
        P.ECString s ->
-          P.ETyped (P.EList [ P.ELit (P.ECNum (toInteger (fromEnum c))
-                            P.CharLit) | c <- s ])
+          P.ETyped (P.EList [ P.ELit (P.ECChar c) | c <- s ])
                    (P.TSeq P.TWild (P.TSeq (P.TNum 8) P.TBit))
 
 
