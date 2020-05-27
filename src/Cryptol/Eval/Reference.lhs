@@ -632,11 +632,11 @@ by corresponding typeclasses
 >   , ("/$"         , vFinPoly $ \n ->
 >                     VFun $ \l ->
 >                     VFun $ \r ->
->                     vWord n $ appOp2 divWrap (fromVWord l) (fromVWord r))
+>                     vWord n $ appOp2 divWrap (fromSignedVWord l) (fromSignedVWord r))
 >   , ("%$"         , vFinPoly $ \n ->
 >                     VFun $ \l ->
 >                     VFun $ \r ->
->                     vWord n $ appOp2 modWrap (fromVWord l) (fromVWord r))
+>                     vWord n $ appOp2 modWrap (fromSignedVWord l) (fromSignedVWord r))
 >   , (">>$"        , signedShiftRV)
 >   , ("lg2"        , vFinPoly $ \n ->
 >                     VFun $ \v ->
@@ -1299,20 +1299,17 @@ amount, but as lazy as possible in the list values.
 >
 > signedShiftRV :: Value
 > signedShiftRV =
->   VNumPoly $ \n ->
+>   VNumPoly $ \(Nat n) ->
 >   VPoly $ \ix ->
 >   VFun $ \v ->
 >   VFun $ \x ->
->   copyByTValue (tvSeq n TVBit) $
+>   copyByTValue (tvSeq (Nat n) TVBit) $
 >   case cryToInteger ix x of
->     Left e -> cryError e (tvSeq n TVBit)
->     Right i -> VList n $
+>     Left e -> cryError e (tvSeq (Nat n) TVBit)
+>     Right i -> VList (Nat n) $
 >       let vs = fromVList v
 >           z = head vs in
->       case n of
->         Nat m -> genericReplicate (min m i) z ++ genericTake (m - min m i) vs
->         Inf   -> genericReplicate i z ++ vs
-
+>       genericReplicate (min n i) z ++ genericTake (n - min n i) vs
 
 Indexing
 --------
