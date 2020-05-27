@@ -451,9 +451,14 @@ computeExponent :: Backend sym =>
 computeExponent sym aty a bs0 =
   do onei <- integerLit sym 1
      one <- intV sym onei aty
-     loop one bs0
+     loop one (dropLeadingZeros bs0)
 
  where
+ dropLeadingZeros [] = []
+ dropLeadingZeros (b:bs)
+   | Just False <- bitAsLit sym b = dropLeadingZeros bs
+   | otherwise = (b:bs)
+
  loop acc [] = return acc
  loop acc (b:bs) =
    do sq <- mulV sym aty acc acc
