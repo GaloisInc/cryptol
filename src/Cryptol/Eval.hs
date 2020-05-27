@@ -359,7 +359,7 @@ etaWord  ::
 etaWord sym n val = do
   w <- sDelay sym Nothing (fromWordVal "during eta-expansion" =<< val)
   xs <- memoMap $ IndexSeqMap $ \i ->
-          do w' <- w; VBit <$> indexWordValue sym w' (toInteger i)
+          do w' <- w; VBit <$> indexWordValue sym w' i
   pure $ LargeBitsVal n xs
 
 {-# SPECIALIZE etaDelay ::

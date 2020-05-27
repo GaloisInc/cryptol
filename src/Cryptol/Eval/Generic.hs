@@ -871,7 +871,7 @@ joinSeq sym (Nat parts) each TVBit xs
   = do let zs = IndexSeqMap $ \i ->
                   do let (q,r) = divMod i each
                      ys <- fromWordVal "join seq" =<< lookupSeqMap xs q
-                     VBit <$> indexWordValue sym ys (fromInteger r)
+                     VBit <$> indexWordValue sym ys r
        return $ VWord (parts * each) $ pure $ LargeBitsVal (parts * each) zs
 
 -- infinite sequence of words
@@ -879,7 +879,7 @@ joinSeq sym Inf each TVBit xs
   = return $ VStream $ IndexSeqMap $ \i ->
       do let (q,r) = divMod i each
          ys <- fromWordVal "join seq" =<< lookupSeqMap xs q
-         VBit <$> indexWordValue sym ys (fromInteger r)
+         VBit <$> indexWordValue sym ys r
 
 -- finite or infinite sequence of non-words
 joinSeq _sym parts each _a xs
