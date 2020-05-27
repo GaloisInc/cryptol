@@ -2,14 +2,10 @@
 
 :check
 
-:! echo "CVC4 proves most of these"
 :set prover=cvc4
 :prove
 
 :set prover=z3
-:! echo "prove Qdense"
-:prove Qdense
-:! echo "prove QordTrans"
-:prove QordTrans
 
-:! echo "have not found a prover that can prove QordCompatible :-("
+:prove Qdense
+:prove QordTrans

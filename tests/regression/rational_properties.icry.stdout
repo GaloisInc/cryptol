@@ -49,7 +49,6 @@ property ceilingCorrect1 Using random testing.
 Testing... Passed 100 tests.
 property ceilingCorrect2 Using random testing.
 Testing... Passed 100 tests.
-CVC4 proves most of these
 :prove QaddUnit
 	Q.E.D.
 :prove QaddComm
@@ -101,8 +100,5 @@ CVC4 proves most of these
 	Q.E.D.
 :prove ceilingCorrect2
 	Q.E.D.
-prove Qdense
 Q.E.D.
-prove QordTrans
 Q.E.D.
-have not found a prover that can prove QordCompatible :-(
