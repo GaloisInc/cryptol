@@ -110,22 +110,21 @@ bindVar v@(TVBound {}) t
   | otherwise     = uniError $ UniKindMismatch k (kindOf t)
   where k = kindOf v
 
-bindVar x@(TVFree _ _ xscope _) (TVar y@(TVFree _ _ yscope _))
-  | xscope `Set.isProperSubsetOf` yscope = return (singleSubst y (TVar x), [])
+bindVar x@(TVFree _ xk xscope _) (tNoUser -> TVar y@(TVFree _ yk yscope _))
+  | xscope `Set.isProperSubsetOf` yscope, xk == yk =
+    return (uncheckedSingleSubst y (TVar x), [])
+    -- In this case, we can add the reverse binding y ~> x to the
+    -- substitution, but the instantiation x ~> y would be forbidden
+    -- because it would allow y to escape from its scope.
 
-bindVar x@(TVFree _ k inScope _d) t
-  | not (k == kindOf t)     = uniError $ UniKindMismatch k (kindOf t)
-  | recTy && k == KType     = uniError $ UniRecursive x t
-  | not (Set.null escaped)  = uniError $ UniNonPolyDepends x $ Set.toList escaped
-  | recTy                   = return (emptySubst, [TVar x =#= t])
-  | otherwise               = return (singleSubst x t, [])
-    where
-    escaped = freeParams t `Set.difference` inScope
-    recTy   = x `Set.member` fvs t
-
-
-freeParams :: FVS t => t -> Set.Set TParam
-freeParams x = Set.unions (map params (Set.toList (fvs x)))
-  where
-    params (TVFree _ _ tps _) = tps
-    params (TVBound tp) = Set.singleton tp
+bindVar x t =
+  case singleSubst x t of
+    Left SubstRecursive
+      | kindOf x == KType -> uniError $ UniRecursive x t
+      | otherwise -> return (emptySubst, [TVar x =#= t])
+    Left (SubstEscaped tps) ->
+      uniError $ UniNonPolyDepends x tps
+    Left (SubstKindMismatch k1 k2) ->
+      uniError $ UniKindMismatch k1 k2
+    Right su ->
+      return (su, [])

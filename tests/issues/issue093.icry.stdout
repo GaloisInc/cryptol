@@ -19,12 +19,16 @@ Testing... f0 = False
 :prove t2
 	Q.E.D.
 :prove f0
-	f0 = False
+	Counterexample
+f0 = False
 :sat t0
-	t0 = True
+	Satisfiable
+t0 = True
 :sat t1
-	t1 0x00000000 = True
+	Satisfiable
+t1 0x00000000 = True
 :sat t2
-	t2 0xfffffffe 0xffffffff = True
+	Satisfiable
+t2 0xfffffffe 0xffffffff = True
 :sat f0
 	Unsatisfiable
