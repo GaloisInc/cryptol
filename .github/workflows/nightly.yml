@@ -38,7 +38,7 @@ jobs:
           ghc-version: "8.8"
 
       - shell: bash
-        run: cabal v2-build exe:cryptol exe:cryptol-html
+        run: cabal -j1 v2-build exe:cryptol exe:cryptol-html
 
       - shell: bash
         run: .github/ci.sh setup_dist_bins
