@@ -130,9 +130,12 @@ desugarLiteral fixDec lit =
             | otherwise  -> [ ]
            P.PolyLit _n  -> [ ("rep", P.TSeq P.TWild P.TBit) ]
 
-       P.ECFrac fr _ ->
+       P.ECFrac fr info ->
          let arg f = P.PosInst (P.TNum (f fr))
-         in P.EAppT fracPrim [ arg numerator, arg denominator ]
+             rnd   = P.PosInst (P.TNum (case info of
+                                          P.DecFrac -> 0
+                                          P.HexFrac -> 1))
+         in P.EAppT fracPrim [ arg numerator, arg denominator, rnd ]
 
        P.ECString s ->
           P.ETyped (P.EList [ P.ELit (P.ECNum (toInteger (fromEnum c))

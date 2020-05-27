@@ -247,13 +247,12 @@ solveSignedCmpInst ty = case tNoUser ty of
   _ -> Unsolved
 
 
-
 -- | Solving fractional literal constraints.
-solveFLiteralInst :: Type -> Type -> Type -> Solved
-solveFLiteralInst numT denT ty
+solveFLiteralInst :: Type -> Type -> Type -> Type -> Solved
+solveFLiteralInst numT denT rndT ty
   | TCon (TError _ e) _ <- tNoUser numT = Unsolvable e
   | TCon (TError _ e) _ <- tNoUser denT = Unsolvable e
-  | tIsInf numT || tIsInf denT =
+  | tIsInf numT || tIsInf denT || tIsInf rndT =
     Unsolvable $ TCErrorMessage $ "Fractions may not use `inf`"
   | Just 0 <- tIsNum denT =
     Unsolvable $ TCErrorMessage
@@ -265,9 +264,19 @@ solveFLiteralInst numT denT ty
 
       TCon (TError _ e) _ -> Unsolvable e
 
-      TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
-      -- NOTE: we could do some validatin here and say something if the
-      -- lietral can't be repsented exactly.
+      TCon (TC TCFloat) [e,p]
+        | Just 0    <- tIsNum rndT -> SolvedIf [ pValidFloat e p ]
+        | Just _    <- tIsNum rndT
+        , Just opts <- knownSupportedFloat e p
+        , Just n    <- tIsNum numT
+        , Just d    <- tIsNum denT
+         -> case FP.bfDiv opts (FP.bfFromInteger n) (FP.bfFromInteger d) of
+              (_, FP.Ok) -> SolvedIf []
+              _ -> Unsolvable $ TCErrorMessage
+                              $ show n ++ "/" ++ show d ++ " cannot be " ++
+                                "represented in " ++ show (pp ty)
+
+        | otherwise -> Unsolved
 
       _ -> Unsolvable $ TCErrorMessage $ show
          $ "Type" <+> quotes (pp ty) <+> "does not support fractional literals."

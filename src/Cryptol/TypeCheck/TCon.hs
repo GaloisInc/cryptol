@@ -145,7 +145,7 @@ instance HasKind PC where
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
       PLiteral   -> KNum :-> KType :-> KProp
-      PFLiteral  -> KNum :-> KNum :-> KType :-> KProp
+      PFLiteral  -> KNum :-> KNum :-> KNum :-> KType :-> KProp
       PValidFloat -> KNum :-> KNum :-> KProp
       PAnd       -> KProp :-> KProp :-> KProp
       PTrue      -> KProp

@@ -121,6 +121,7 @@ floatToExpr prims eT pT f =
             in EProofApp $ ePrim prims (prelPrim "fraction")
                           `ETApp` tNum (numerator r)
                           `ETApp` tNum (denominator r)
+                          `ETApp` tNum (0 :: Int)
                           `ETApp` tFloat eT pT
   where
   mkP n = EProofApp $ ePrim prims (floatPrim n) `ETApp` eT `ETApp` pT

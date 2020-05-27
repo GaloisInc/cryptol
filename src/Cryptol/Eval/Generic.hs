@@ -75,6 +75,7 @@ ecFractionV :: Backend sym => sym -> GenValue sym
 ecFractionV sym =
   ilam  \n ->
   ilam  \d ->
+  ilam  \_r ->
   VPoly \ty ->
     case ty of
       TVFloat e p -> VFloat <$> fpLit sym e p (fromInteger n / fromInteger d)
