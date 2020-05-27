@@ -20,6 +20,7 @@ Comparisons and Ordering
     instance (Cmp a, Cmp b) => Cmp (a, b)
     instance (Cmp a, Cmp b) => Cmp { x : a, y : b }
     instance                   Cmp Integer
+    instance (fin n, n>=1)  => Cmp (Z n)
     instance                   Cmp Rational
 
 Signed Comparisons
@@ -37,6 +38,13 @@ Signed Comparisons
             // (for [n]a, where a is other than Bit)
     instance (SignedCmp a, SignedCmp b) => SignedCmp (a, b)
     instance (SignedCmp a, SignedCmp b) => SignedCmp { x : a, y : b }
+
+Zero
+----
+
+    zero       : {a} (Zero a) => a
+
+Every base and structured type in Cryptol is a member of class `Zero`.
 
 
 Arithmetic
@@ -58,7 +66,8 @@ Arithmetic
     trunc   : {a} (Round a) => a -> Integer
     round   : {a} (Round a) => a -> Integer
 
-    (^^)    : {a, n} (Ring a, fin n) => a -> [n] -> a
+    (^^)    : {a, e} (Ring a, Integral e) => a -> e -> a
+
     (/$)    : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
     (%$)    : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
     lg2     : {n} (fin n) => [n] -> [n]
@@ -80,7 +89,6 @@ the top two instances do not actually overlap.
 
     instance                  Integral Integer 
     instance (fin n)       => Integral ([n]Bit)
-    instance (fin n, n>=1) => Integral (Z n)
 
     instance Field Rational
 
@@ -92,7 +100,6 @@ Boolean
     False      : Bit
     True       : Bit
 
-    zero       : {a} (Zero a) => a
     (&&)       : {a} (Logic a) => a -> a -> a
     (||)       : {a} (Logic a) => a -> a -> a
     (^)        : {a} (Logic a) => a -> a -> a
@@ -108,6 +115,8 @@ Boolean
     instance (Logic a, Logic b) => Logic (a, b)
     instance (Logic a, Logic b) => Logic { x : a, y : b }
     // No instance for `Logic Integer`.
+    // No instance for `Logic (Z n)`.
+    // No instance for `Logic Rational`.
 
 Sequences
 ---------

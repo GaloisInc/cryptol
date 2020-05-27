@@ -63,7 +63,7 @@ The value types of Cryptol, along with their Haskell representations,
 are as follows:
 
 | Cryptol type      | Description       | `TValue` representation     |
-|:----------------- |:-------------- ---|:--------------------------- |
+|:------------------|:------------------|:----------------------------|
 | `Bit`             | booleans          | `TVBit`                     |
 | `Integer`         | integers          | `TVInteger`                 |
 | `Z n`             | integers modulo n | `TVIntMod n`                |
@@ -856,7 +856,7 @@ For functions, `zero` returns the constant function that returns
 Literals
 --------
 
-Given a literal integer, construct a value of a type that can represent that literal
+Given a literal integer, construct a value of a type that can represent that literal.
 
 > literal :: Integer -> TValue -> Value
 > literal i = go

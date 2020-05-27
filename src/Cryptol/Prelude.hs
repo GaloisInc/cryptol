@@ -19,6 +19,7 @@ import Data.ByteString(ByteString)
 import qualified Data.ByteString.Char8 as B
 import Text.Heredoc (there)
 
+
 preludeContents :: ByteString
 preludeContents = B.pack [there|lib/Cryptol.cry|]
 

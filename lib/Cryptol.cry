@@ -29,10 +29,31 @@ primitive type Bit : *
 /** The type of unbounded integers. */
 primitive type Integer : *
 
-/** 'Z n' is the type of integers, modulo 'n'. */
+/** 'Z n' is the type of integers, modulo 'n'.
+  *
+  * The values of `Z n` may be thought of as equivalance
+  * classes of integers according to the equivalence
+  * `x ~ y` iff `n` divides `x - y`.  `Z n` naturally
+  * forms a ring, but does not support integral division
+  * or indexing.
+  *
+  * However, you may use the `fromZ` operation
+  * to project values in `Z n` into the integers if such operations
+  * are required.  This will compute the reduced representative
+  * of the equivalance class. In other words, `fromZ` computes
+  * the (unique) integer value `i`  where `0 <= i < n` and
+  * `i` is in the given equivalance class.
+  */
 primitive type {n : #} (fin n, n >= 1) => Z n : *
 
-/** `Rational` is the type of rational numbers. */
+/** `Rational` is the type of rational numbers.
+  * Rational numbers form a Field (and thus a Ring).
+  *
+  * The `ratio` operation may be used to directly create
+  * rational values from as a ratio of integers, or
+  * the `fromInteger` method and the field operations
+  * can be used.
+  */
 primitive type Rational : *
 
 type Bool = Bit
@@ -293,7 +314,10 @@ primitive toInteger : {a} (Integral a) => a -> Integer
 
 /**
  * Compute the exponentiation of a value in a ring.
- * The exponent is treated as an unsigned bitvector value.
+ *  * For type [n], the exponent is treated as unsigned.
+ *  * It is an error to raise a value to a negative integer exponent.
+ *  * Satisfies: `x ^^ 0 == fromInteger 1`
+ *  * Satisfies: `x ^^ e == x * x ^^ (e-1)` when `e > 0`.
  */
 primitive (^^) : {a, e} (Ring a, Integral e) => a -> e -> a
 

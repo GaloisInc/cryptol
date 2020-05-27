@@ -13,7 +13,7 @@
   modulus methods (`(/)` and `(%)`), and the sequence indexing,
   sequence update and shifting operations are generalized over
   `Integral`.  The `toInteger` operation is also generalized over this
-  class.  `Integral` contains the bitvector types, `Integer` and `Z n`.
+  class.  `Integral` contains the bitvector types and `Integer`.
 
   The new `Field` class contains types representing mathematical
   fields (or types that are approximately fields). For now, it is
@@ -25,13 +25,15 @@
   There is also a new `Round` class for types that can sensibly be
   rounded to integers.  This class has the methods `floor`, `ceiling`,
   `trunc` and `round` for performing different kinds of
-  integer rounding.
+  integer rounding.  Currently `Rational` is the only meber of `Round`.
 
-  Finally the `(^^)`, `lg2`, `(/$)` and `(%$)` methods of Arith have
-  had their types specialized.  `lg2` is now only an operation on
-  bitvectors, and the exponent of `(^^)` is specialized to be a
-  bitvector.  Likewise, `(/$)` and `(%$)` are now operations
-  only on bitvectors.
+  The type of `(^^)` is modified to be
+  `{a, e} (Ring a, Integral e) => a -> e -> a`. This makes it clear
+  that the semantics are iterated multiplication, which makes sense
+  in any ring.
+
+  Finally, the `lg2`, `(/$)` and `(%$)` methods of Arith have
+  had their types specialized so operate only on bitvectors.
 
 * Added a base `Rational` type.  It is implemented as a pair of
   integers, quotiented in the usual way.  As such, it reduces to the
