@@ -62,16 +62,17 @@ of type `TValue`.
 The value types of Cryptol, along with their Haskell representations,
 are as follows:
 
-| Cryptol type      | Description    | `TValue` representation     |
-|:----------------- |:-------------- |:--------------------------- |
-| `Bit`             | booleans       | `TVBit`                     |
-| `Integer`         | integers       | `TVInteger`                 |
-| `Rational`        | rationals      | `TVRational`                |
-| `[n]a`            | finite lists   | `TVSeq n a`                 |
-| `[inf]a`          | infinite lists | `TVStream a`                |
-| `(a, b, c)`       | tuples         | `TVTuple [a,b,c]`           |
-| `{x:a, y:b, z:c}` | records        | `TVRec [(x,a),(y,b),(z,c)]` |
-| `a -> b`          | functions      | `TVFun a b`                 |
+| Cryptol type      | Description       | `TValue` representation     |
+|:----------------- |:-------------- ---|:--------------------------- |
+| `Bit`             | booleans          | `TVBit`                     |
+| `Integer`         | integers          | `TVInteger`                 |
+| `Z n`             | integers modulo n | `TVIntMod n`                |
+| `Rational`        | rationals         | `TVRational`                |
+| `[n]a`            | finite lists      | `TVSeq n a`                 |
+| `[inf]a`          | infinite lists    | `TVStream a`                |
+| `(a, b, c)`       | tuples            | `TVTuple [a,b,c]`           |
+| `{x:a, y:b, z:c}` | records           | `TVRec [(x,a),(y,b),(z,c)]` |
+| `a -> b`          | functions         | `TVFun a b`                 |
 
 We model each Cryptol value type `t` as a complete partial order (cpo)
 *M*(`t`). To each Cryptol expression `e : t` we assign a meaning
@@ -79,9 +80,10 @@ We model each Cryptol value type `t` as a complete partial order (cpo)
 type `t` are modeled as least fixed points in *M*(`t`). In other words,
 this is a domain-theoretic denotational semantics.
 
-Evaluating a Cryptol expression of type `Bit` may result in:
+Evaluating a Cryptol expression of base type (one of: `Bit`, `Integer`,
+`Z n`, or `Rational`) may result in:
 
-- a defined value `True` or `False`
+- a defined value (e.g., `True` or `False`)
 
 - a run-time error, or
 
@@ -118,7 +120,7 @@ terms by providing an evaluator to an appropriate `Value` type.
 > -- | Value type for the reference evaluator.
 > data Value
 >   = VBit (Either EvalError Bool) -- ^ @ Bit    @ booleans
->   | VInteger (Either EvalError Integer) -- ^ @ Integer @ integers
+>   | VInteger (Either EvalError Integer) -- ^ @ Integer @  or @Z n@ integers
 >   | VRational (Either EvalError Rational) -- ^ @ Rational @ rationals
 >   | VList Nat' [Value]           -- ^ @ [n]a   @ finite or infinite lists
 >   | VTuple [Value]               -- ^ @ ( .. ) @ tuples
@@ -204,7 +206,7 @@ Operations on Values
 > -- | Destructor for @VRational@.
 > fromVRational :: Value -> Either EvalError Rational
 > fromVRational (VRational i) = i
-> fromVRational _            = evalPanic "fromVRational" ["Expected a rational"]
+> fromVRational _             = evalPanic "fromVRational" ["Expected a rational"]
 >
 > -- | Destructor for @VList@.
 > fromVList :: Value -> [Value]
@@ -539,11 +541,20 @@ To evaluate a primitive, we look up its implementation by name in a table.
 >   | Just i <- asPrim n, Just v <- Map.lookup i primTable = v
 >   | otherwise = evalPanic "evalPrim" ["Unimplemented primitive", show n]
 
-Cryptol primitives fall into several groups:
+Cryptol primitives fall into several groups, mostly delenieated
+by corresponding typeclasses
 
-* Logic: `&&`, `||`, `^`, `complement`, `zero`, `True`, `False`
+* Literals: `True`, `False`, `number`, `ratio`
 
-* Arithmetic: `+`, `-`, `*`, `/`, `%`, `^^`, `lg2`, `negate`, `number`
+* Zero: zero
+
+* Logic: `&&`, `||`, `^`, `complement`
+
+* Ring: `+`, `-`, `*`, `negate`, `fromInteger`
+
+* Integral: `/`, `%`, `^^`, `toInteger`
+
+* Bitvector: `/$` `%$`, `lg2`, `<=$`
 
 * Comparison: `<`, `>`, `<=`, `>=`, `==`, `!=`
 
@@ -562,37 +573,53 @@ Cryptol primitives fall into several groups:
 > primTable :: Map Ident Value
 > primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
 >
->   -- Logic (bitwise):
->   [ ("&&"         , binary (logicBinary (&&)))
+>   -- Literals
+>   [ ("True"       , VBit (Right True))
+>   , ("False"      , VBit (Right False))
+>   , ("number"     , vFinPoly $ \val ->
+>                     VPoly $ \a ->
+>                     literal val a)
+>   -- Zero
+>   , ("zero"       , VPoly zero)
+>
+>   -- Logic (bitwise)
+>   , ("&&"         , binary (logicBinary (&&)))
 >   , ("||"         , binary (logicBinary (||)))
 >   , ("^"          , binary (logicBinary (/=)))
 >   , ("complement" , unary  (logicUnary not))
->   , ("zero"       , VPoly (logicNullary (Right False)))
->   , ("True"       , VBit (Right True))
->   , ("False"      , VBit (Right False))
 >
->   -- Arithmetic:
->   , ("+"          , binary (arithBinary (\x y -> Right (x + y))))
->   , ("-"          , binary (arithBinary (\x y -> Right (x - y))))
->   , ("*"          , binary (arithBinary (\x y -> Right (x * y))))
->   , ("/"          , binary (arithBinary divWrap))
->   , ("%"          , binary (arithBinary modWrap))
->   , ("/$"         , binary (signedArithBinary divWrap))
->   , ("%$"         , binary (signedArithBinary modWrap))
->   , ("^^"         , binary (arithBinary expWrap))
->   , ("lg2"        , unary  (arithUnary lg2Wrap))
->   , ("negate"     , unary  (arithUnary (\x -> Right (- x))))
->   , ("number"     , vFinPoly $ \val ->
->                     VPoly $ \a ->
->                     arithNullary (Right val) a)
->   , ("toInteger"  , vFinPoly $ \_bits ->
->                     VFun $ \x ->
->                     VInteger (fromVWord x))
+>   -- Ring
+>   , ("+"          , binary (ringBinary (\x y -> Right (x + y)) (\x y -> Right (x + y))) )
+>   , ("-"          , binary (ringBinary (\x y -> Right (x - y)) (\x y -> Right (x - y))) )
+>   , ("*"          , binary (ringBinary (\x y -> Right (x * y)) (\x y -> Right (x * y))) )
+>   , ("negate"     , unary  (ringUnary (\x -> Right (- x)) (\x -> Right (- x))))
 >   , ("fromInteger", VPoly $ \a ->
 >                     VFun $ \x ->
->                     arithNullary (fromVInteger x) a)
+>                     ringNullary (fromVInteger x) (fromInteger <$> fromVInteger x) a)
 >
->   -- Comparison:
+>   -- Integral
+>   , ("toInteger"  , VPoly $ \a ->
+>                     VFun $ \x ->
+>                     VInteger $ cryToInteger a x)
+>   , ("/"          , binary (integralBinary divWrap))
+>   , ("%"          , binary (integralBinary modWrap))
+>   , ("^^"         , VPoly $ \aty ->
+>                     VPoly $ \ety ->
+>                     VFun $ \a ->
+>                     VFun $ \e ->
+>                     ringExp aty a (cryToInteger ety e))
+>
+>   -- Field
+>   , ("/."         , binary (fieldBinary ratDiv))
+>   , ("recip"      , unary (fieldUnary ratRecip))
+>
+>   -- Round
+>   , ("floor"      , unary (roundUnary floor))
+>   , ("ceiling"    , unary (roundUnary ceiling))
+>   , ("trunc"      , unary (roundUnary truncate))
+>   , ("round"      , unary (roundUnary roundRat))
+>
+>   -- Comparison
 >   , ("<"          , binary (cmpOrder (\o -> o == LT)))
 >   , (">"          , binary (cmpOrder (\o -> o == GT)))
 >   , ("<="         , binary (cmpOrder (\o -> o /= GT)))
@@ -601,7 +628,30 @@ Cryptol primitives fall into several groups:
 >   , ("!="         , binary (cmpOrder (\o -> o /= EQ)))
 >   , ("<$"         , binary signedLessThan)
 >
->   -- Sequences:
+>   -- Bitvector
+>   , ("/$"         , vFinPoly $ \n ->
+>                     VFun $ \l ->
+>                     VFun $ \r ->
+>                     vWord n $ appOp2 divWrap (fromVWord l) (fromVWord r))
+>   , ("%$"         , vFinPoly $ \n ->
+>                     VFun $ \l ->
+>                     VFun $ \r ->
+>                     vWord n $ appOp2 modWrap (fromVWord l) (fromVWord r))
+>   , (">>$"        , signedShiftRV)
+>   , ("lg2"        , vFinPoly $ \n ->
+>                     VFun $ \v ->
+>                     vWord n $ appOp1 lg2Wrap (fromVWord v))
+>   -- Rational
+>   , ("ratio"      , VFun $ \l ->
+>                     VFun $ \r ->
+>                     VRational (appOp2 ratioOp (fromVInteger l) (fromVInteger r)))
+>
+>   -- Z n
+>   , ("fromZ"      , vFinPoly $ \n ->
+>                     VFun $ \x ->
+>                     VInteger (flip mod n <$> fromVInteger x))
+>
+>   -- Sequences
 >   , ("#"          , VNumPoly $ \front ->
 >                     VNumPoly $ \back  ->
 >                     VPoly $ \_elty  ->
@@ -649,7 +699,6 @@ Cryptol primitives fall into several groups:
 >   , (">>"         , shiftV shiftRV)
 >   , ("<<<"        , rotateV rotateLV)
 >   , (">>>"        , rotateV rotateRV)
->   , (">>$"        , signedShiftRV)
 >
 >   -- Indexing:
 >   , ("@"          , indexPrimOne  indexFront)
@@ -657,11 +706,11 @@ Cryptol primitives fall into several groups:
 >   , ("update"     , updatePrim updateFront)
 >   , ("updateEnd"  , updatePrim updateBack)
 >
->   -- Enumerations:
+>   -- Enumerations
 >   , ("fromTo"     , vFinPoly $ \first ->
 >                     vFinPoly $ \lst   ->
 >                     VPoly    $ \ty  ->
->                     let f i = arithNullary (Right i) ty
+>                     let f i = literal i ty
 >                     in VList (Nat (1 + lst - first)) (map f [first .. lst]))
 >
 >   , ("fromThenTo" , vFinPoly $ \first ->
@@ -669,29 +718,36 @@ Cryptol primitives fall into several groups:
 >                     vFinPoly $ \_lst  ->
 >                     VPoly    $ \ty    ->
 >                     vFinPoly $ \len   ->
->                     let f i = arithNullary (Right i) ty
+>                     let f i = literal i ty
 >                     in VList (Nat len) (map f (genericTake len [first, next ..])))
 >
 >   , ("infFrom"    , VPoly $ \ty ->
 >                     VFun $ \first ->
->                     let f i = arithUnary (\x -> Right (x + i)) ty first
->                     in VList Inf (map f [0 ..]))
+>                     case cryToInteger ty first of
+>                       Left e -> cryError e (TVStream ty)
+>                       Right x -> VList Inf (map f [0 ..])
+>                          where f i = literal (x + i) ty)
 >
 >   , ("infFromThen", VPoly $ \ty ->
 >                     VFun $ \first ->
 >                     VFun $ \next ->
->                     let f i = arithBinary (\x y -> Right (x + (y - x) * i)) ty first next
->                     in VList Inf (map f [0 ..]))
+>                     case cryToInteger ty first of
+>                       Left e -> cryError e (TVStream ty)
+>                       Right x ->
+>                         case cryToInteger ty next of
+>                           Left e -> cryError e (TVStream ty)
+>                           Right y -> VList Inf (map f [0 ..])
+>                             where f i = literal (x + diff * i) ty
+>                                   diff = y - x)
 >
 >   -- Miscellaneous:
 >   , ("error"      , VPoly $ \a ->
 >                     VNumPoly $ \_ ->
->                     VFun $ \_s -> logicNullary (Left (UserError "error")) a)
+>                     VFun $ \_s -> cryError (UserError "error") a)
 >                     -- TODO: obtain error string from argument s
 >
 >   , ("random"     , VPoly $ \a ->
->                     VFun $ \_seed ->
->                     logicNullary (Left (UserError "random: unimplemented")) a)
+>                     VFun $ \_seed -> cryError (UserError "random: unimplemented") a)
 >
 >   , ("trace"      , VNumPoly $ \_n ->
 >                     VPoly $ \_a ->
@@ -706,7 +762,15 @@ Cryptol primitives fall into several groups:
 >
 > binary :: (TValue -> Value -> Value -> Value) -> Value
 > binary f = VPoly $ \ty -> VFun $ \x -> VFun $ \y -> f ty x y
-
+>
+> appOp1 :: (a -> Either EvalError b) -> Either EvalError a -> Either EvalError b
+> appOp1 _f (Left e) = Left e
+> appOp1 f (Right x) = f x
+>
+> appOp2 :: (a -> b -> Either EvalError c) -> Either EvalError a -> Either EvalError b -> Either EvalError c
+> appOp2 _f (Left e) _y = Left e
+> appOp2 _f _x (Left e) = Left e
+> appOp2 f (Right x) (Right y) = f x y
 
 Word operations
 ---------------
@@ -744,6 +808,69 @@ bit positions.
 > vWord w e = VList (Nat w) [ VBit (fmap (test i) e) | i <- [w-1, w-2 .. 0] ]
 >   where test i x = testBit x (fromInteger i)
 
+
+Errors
+------
+
+The domain semantics indicate that errors can only exist at the base
+types.  This function constructs an error representation at any type
+where the given error is "pushed down" into the leaf types.
+
+> cryError :: EvalError -> TValue -> Value
+> cryError e TVBit          = VBit (Left e)
+> cryError e TVInteger      = VInteger (Left e)
+> cryError e TVIntMod{}     = VInteger (Left e)
+> cryError e TVRational     = VRational (Left e)
+> cryError e (TVSeq n ety)  = VList (Nat n) (genericReplicate n (cryError e ety))
+> cryError e (TVStream ety) = VList Inf (repeat (cryError e ety))
+> cryError e (TVTuple tys)  = VTuple (map (cryError e) tys)
+> cryError e (TVRec fields) = VRecord [ (f, cryError e fty) | (f, fty) <- fields ]
+> cryError e (TVFun _ bty)  = VFun (\_ -> cryError e bty)
+> cryError _ (TVAbstract{}) = evalPanic "error" ["Abstract type encountered in `error`"]
+
+
+Zero
+----
+
+The `Zero` class has a single method `zero` which computes
+a zero value for all the built-in types for Cryptol.
+For bits, bitvectors and the base numeric types, this
+returns the obvious 0 representation.  For sequences, records,
+and tuples, the zero method operates pointwise the underlying types.
+For functions, `zero` returns the constant function that returns
+`zero` in the codomain.
+
+> zero :: TValue -> Value
+> zero TVBit          = VBit (Right False)
+> zero TVInteger      = VInteger (Right 0)
+> zero TVIntMod{}     = VInteger (Right 0)
+> zero TVRational     = VRational (Right 0)
+> zero (TVSeq n ety)  = VList (Nat n) (genericReplicate n (zero ety))
+> zero (TVStream ety) = VList Inf (repeat (zero ety))
+> zero (TVTuple tys)  = VTuple (map zero tys)
+> zero (TVRec fields) = VRecord [ (f, zero fty) | (f, fty) <- fields ]
+> zero (TVFun _ bty)  = VFun (\_ -> zero bty)
+> zero (TVAbstract{}) = evalPanic "zero" ["Abstract type not in `Zero`"]
+
+
+Literals
+--------
+
+Given a literal integer, construct a value of a type that can represent that literal
+
+> literal :: Integer -> TValue -> Value
+> literal i = go
+>   where
+>    go TVInteger = VInteger (Right i)
+>    go TVRational = VRational (Right (fromInteger i))
+>    go (TVIntMod n)
+>         | i < n = VInteger (Right i)
+>         | otherwise = evalPanic "literal" ["Literal out of range for type Z " ++ show n]
+>    go (TVSeq w a)
+>         | isTBit a = vWord w (Right i)
+>    go ty = evalPanic "literal" [show ty ++ " cannot represent literals"]
+
+
 Logic
 -----
 
@@ -754,21 +881,6 @@ does not evaluate to `True`, but yields a run-time exception. On other
 types, run-time exceptions on input bits only affect the output bits
 at the same positions.
 
-> logicNullary :: Either EvalError Bool -> TValue -> Value
-> logicNullary b = go
->   where
->     go TVBit          = VBit b
->     go TVInteger      = VInteger (fmap (\c -> if c then -1 else 0) b)
->     go TVRational     = VRational (fmap (\c -> if c then -1 else 0) b)
->     go (TVIntMod _)   = VInteger (fmap (const 0) b)
->     go (TVSeq n ety)  = VList (Nat n) (genericReplicate n (go ety))
->     go (TVStream ety) = VList Inf (repeat (go ety))
->     go (TVTuple tys)  = VTuple (map go tys)
->     go (TVRec fields) = VRecord [ (f, go fty) | (f, fty) <- fields ]
->     go (TVFun _ bty)  = VFun (\_ -> go bty)
->     go (TVAbstract {}) =
->        evalPanic "logicUnary" ["Abstract type not in `Logic`"]
->
 > logicUnary :: (Bool -> Bool) -> TValue -> Value -> Value
 > logicUnary op = go
 >   where
@@ -776,17 +888,16 @@ at the same positions.
 >     go ty val =
 >       case ty of
 >         TVBit        -> VBit (fmap op (fromVBit val))
->         TVInteger    -> evalPanic "logicUnary" ["Integer not in class Logic"]
->         TVIntMod _   -> evalPanic "logicUnary" ["Z not in class Logic"]
->         TVRational   -> evalPanic "logicUnary" ["Rational not in class Logic"]
 >         TVSeq w ety  -> VList (Nat w) (map (go ety) (fromVList val))
 >         TVStream ety -> VList Inf (map (go ety) (fromVList val))
 >         TVTuple etys -> VTuple (zipWith go etys (fromVTuple val))
 >         TVRec fields -> VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- fields ]
 >         TVFun _ bty  -> VFun (\v -> go bty (fromVFun val v))
->         TVAbstract {} ->
->           evalPanic "logicUnary" ["Abstract type not in `Logic`"]
->
+>         TVInteger    -> evalPanic "logicUnary" ["Integer not in class Logic"]
+>         TVIntMod _   -> evalPanic "logicUnary" ["Z not in class Logic"]
+>         TVRational   -> evalPanic "logicUnary" ["Rational not in class Logic"]
+>         TVAbstract{} -> evalPanic "logicUnary" ["Abstract type not in `Logic`"]
+
 > logicBinary :: (Bool -> Bool -> Bool) -> TValue -> Value -> Value -> Value
 > logicBinary op = go
 >   where
@@ -794,33 +905,33 @@ at the same positions.
 >     go ty l r =
 >       case ty of
 >         TVBit        -> VBit (liftA2 op (fromVBit l) (fromVBit r))
->         TVInteger    -> evalPanic "logicBinary" ["Integer not in class Logic"]
->         TVIntMod _   -> evalPanic "logicBinary" ["Z not in class Logic"]
->         TVRational   -> evalPanic "logicUnary" ["Rational not in class Logic"]
 >         TVSeq w ety  -> VList (Nat w) (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVStream ety -> VList Inf (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVTuple etys -> VTuple (zipWith3 go etys (fromVTuple l) (fromVTuple r))
 >         TVRec fields -> VRecord [ (f, go fty (lookupRecord f l) (lookupRecord f r))
 >                                 | (f, fty) <- fields ]
 >         TVFun _ bty  -> VFun (\v -> go bty (fromVFun l v) (fromVFun r v))
->         TVAbstract {} ->
->           evalPanic "logicBinary" ["Abstract type not in `Logic`"]
+>         TVInteger    -> evalPanic "logicBinary" ["Integer not in class Logic"]
+>         TVIntMod _   -> evalPanic "logicBinary" ["Z not in class Logic"]
+>         TVRational   -> evalPanic "logicBinary" ["Rational not in class Logic"]
+>         TVAbstract{} -> evalPanic "logicBinary" ["Abstract type not in `Logic`"]
 
 
-Arithmetic
-----------
+Ring Arithmetic
+---------------
 
-Arithmetic primitives may be applied to any type that is made up of
-finite bitvectors. On type `[n]`, arithmetic operators are strict in
+Ring primitives may be applied to any type that is made up of
+finite bitvectors or one of the numeric base types.
+On type `[n]`, arithmetic operators are strict in
 all input bits, as indicated by the definition of `fromVWord`. For
 example, `[error "foo", True] * 2` does not evaluate to `[True,
 False]`, but to `[error "foo", error "foo"]`.
 
-Signed arithmetic primitives may be applied to any type that is made
-up of non-empty finite bitvectors.
-
-> arithNullary :: Either EvalError Integer -> TValue -> Value
-> arithNullary i = go
+> ringNullary ::
+>    Either EvalError Integer ->
+>    Either EvalError Rational ->
+>    TValue -> Value
+> ringNullary i q = go
 >   where
 >     go :: TValue -> Value
 >     go ty =
@@ -832,7 +943,7 @@ up of non-empty finite bitvectors.
 >         TVIntMod n ->
 >           VInteger (flip mod n <$> i)
 >         TVRational ->
->           VRational (fmap fromInteger i)
+>           VRational q
 >         TVSeq w a
 >           | isTBit a  -> vWord w i
 >           | otherwise -> VList (Nat w) (genericReplicate w (go a))
@@ -845,11 +956,13 @@ up of non-empty finite bitvectors.
 >         TVRec fs ->
 >           VRecord [ (f, go fty) | (f, fty) <- fs ]
 >         TVAbstract {} ->
->           evalPanic "arithNullary" ["Absrat type not in `Arith`"]
->
-> arithUnary :: (Integer -> Either EvalError Integer)
->            -> TValue -> Value -> Value
-> arithUnary op = go
+>           evalPanic "arithNullary" ["Abstract type not in `Arith`"]
+
+> ringUnary ::
+>   (Integer -> Either EvalError Integer) ->
+>   (Rational -> Either EvalError Rational) ->
+>   TValue -> Value -> Value
+> ringUnary iop qop = go
 >   where
 >     go :: TValue -> Value -> Value
 >     go ty val =
@@ -857,17 +970,13 @@ up of non-empty finite bitvectors.
 >         TVBit ->
 >           evalPanic "arithUnary" ["Bit not in class Arith"]
 >         TVInteger ->
->           VInteger $
->           case fromVInteger val of
->             Left e -> Left e
->             Right i -> op i
+>           VInteger $ appOp1 iop (fromVInteger val)
 >         TVIntMod n ->
->           VInteger $
->           case fromVInteger val of
->             Left e -> Left e
->             Right i -> flip mod n <$> op i
+>           VInteger $ appOp1 (\i -> flip mod n <$> iop i) (fromVInteger val)
+>         TVRational ->
+>           VRational $ appOp1 qop (fromVRational val)
 >         TVSeq w a
->           | isTBit a  -> vWord w (op =<< fromVWord val)
+>           | isTBit a  -> vWord w (iop =<< fromVWord val)
 >           | otherwise -> VList (Nat w) (map (go a) (fromVList val))
 >         TVStream a ->
 >           VList Inf (map (go a) (fromVList val))
@@ -878,20 +987,13 @@ up of non-empty finite bitvectors.
 >         TVRec fs ->
 >           VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- fs ]
 >         TVAbstract {} ->
->           evalPanic "arithUnary" ["Absrat type not in `Arith`"]
->
-> arithBinary :: (Integer -> Integer -> Either EvalError Integer)
->             -> TValue -> Value -> Value -> Value
-> arithBinary = arithBinaryGeneric fromVWord
->
-> signedArithBinary :: (Integer -> Integer -> Either EvalError Integer)
->                   -> TValue -> Value -> Value -> Value
-> signedArithBinary = arithBinaryGeneric fromSignedVWord
->
-> arithBinaryGeneric :: (Value -> Either EvalError Integer)
->                    -> (Integer -> Integer -> Either EvalError Integer)
->                    -> TValue -> Value -> Value -> Value
-> arithBinaryGeneric fromWord op = go
+>           evalPanic "arithUnary" ["Abstract type not in `Arith`"]
+
+> ringBinary ::
+>   (Integer -> Integer -> Either EvalError Integer) ->
+>   (Rational -> Rational -> Either EvalError Rational) ->
+>   TValue -> Value -> Value -> Value
+> ringBinary iop qop = go
 >   where
 >     go :: TValue -> Value -> Value -> Value
 >     go ty l r =
@@ -899,29 +1001,13 @@ up of non-empty finite bitvectors.
 >         TVBit ->
 >           evalPanic "arithBinary" ["Bit not in class Arith"]
 >         TVInteger ->
->           VInteger $
->           case fromVInteger l of
->             Left e -> Left e
->             Right i ->
->               case fromVInteger r of
->                 Left e -> Left e
->                 Right j -> op i j
+>           VInteger $ appOp2 iop (fromVInteger l) (fromVInteger r)
 >         TVIntMod n ->
->           VInteger $
->           case fromVInteger l of
->             Left e -> Left e
->             Right i ->
->               case fromVInteger r of
->                 Left e -> Left e
->                 Right j -> flip mod n <$> op i j
+>           VInteger $ appOp2 (\i j -> flip mod n <$> iop i j) (fromVInteger l) (fromVInteger r)
+>         TVRational ->
+>           VRational $ appOp2 qop (fromVRational l) (fromVRational r)
 >         TVSeq w a
->           | isTBit a  -> vWord w $
->                          case fromWord l of
->                            Left e -> Left e
->                            Right i ->
->                              case fromWord r of
->                                Left e -> Left e
->                                Right j -> op i j
+>           | isTBit a  -> vWord w $ appOp2 iop (fromVWord l) (fromVWord r)
 >           | otherwise -> VList (Nat w) (zipWith (go a) (fromVList l) (fromVList r))
 >         TVStream a ->
 >           VList Inf (zipWith (go a) (fromVList l) (fromVList r))
@@ -933,6 +1019,34 @@ up of non-empty finite bitvectors.
 >           VRecord [ (f, go fty (lookupRecord f l) (lookupRecord f r)) | (f, fty) <- fs ]
 >         TVAbstract {} ->
 >           evalPanic "arithBinary" ["Abstract type not in class `Arith`"]
+
+
+Integral
+---------
+
+> cryToInteger :: TValue -> Value -> Either EvalError Integer
+> cryToInteger ty v = case ty of
+>   TVInteger -> fromVInteger v
+>   TVSeq _ a | isTBit a -> fromVWord v
+>   _ -> evalPanic "toInteger" [show ty ++ " is not an integral type"]
+>
+> integralBinary ::
+>     (Integer -> Integer -> Either EvalError Integer) ->
+>     TValue -> Value -> Value -> Value
+> integralBinary op ty x y = case ty of
+>   TVInteger ->
+>       VInteger $ appOp2 op (fromVInteger x) (fromVInteger y)
+>   TVSeq w a | isTBit a ->
+>       vWord w $ appOp2 op (fromVWord x) (fromVWord y)
+>
+>   _ -> evalPanic "integralBinary" [show ty ++ " is not an integral type"]
+>
+> ringExp :: TValue -> Value -> Either EvalError Integer -> Value
+> ringExp a _ (Left e)  = cryError e a
+> ringExp a v (Right i) = foldl mul (literal 1 a) (genericReplicate i v)
+>   where
+>     mul = ringBinary (\x y -> Right (x * y)) (\x y -> Right (x * y)) a
+
 
 Signed bitvector division (`/$`) and remainder (`%$`) are defined so
 that division rounds toward zero, and the remainder `x %$ y` has the
@@ -947,11 +1061,62 @@ same sign as `x`. Accordingly, they are implemented with Haskell's
 > modWrap _ 0 = Left DivideByZero
 > modWrap x y = Right (x `rem` y)
 >
-> expWrap :: Integer -> Integer -> Either EvalError Integer
-> expWrap x y = if y < 0 then Left NegativeExponent else Right (x ^ y)
->
 > lg2Wrap :: Integer -> Either EvalError Integer
 > lg2Wrap x = if x < 0 then Left LogNegative else Right (lg2 x)
+
+
+Field
+-----
+
+Types that represent fields are have, in addition to the ring operations
+a recipricol operator and a field division operator (not to be
+confused with integral division).
+
+> fieldUnary :: (Rational -> Either EvalError Rational) -> TValue -> Value -> Value
+> fieldUnary qop ty v = case ty of
+>   TVRational -> VRational $ appOp1 qop (fromVRational v)
+>   _ -> evalPanic "fieldUnary" [show ty ++ " is not a Field type"]
+>
+> fieldBinary ::
+>    (Rational -> Rational -> Either EvalError Rational) ->
+>    TValue -> Value -> Value -> Value
+> fieldBinary qop ty l r = case ty of
+>   TVRational -> VRational $ appOp2 qop (fromVRational l) (fromVRational r)
+>   _ -> evalPanic "fieldBinary" [show ty ++ " is not a Field type"]
+>
+> ratDiv :: Rational -> Rational -> Either EvalError Rational
+> ratDiv _ 0 = Left DivideByZero
+> ratDiv x y = Right (x / y)
+>
+> ratRecip :: Rational -> Either EvalError Rational
+> ratRecip 0 = Left DivideByZero
+> ratRecip x = Right (recip x)
+
+
+Round
+-----
+
+> roundUnary :: (Rational -> Integer) -> TValue -> Value -> Value
+> roundUnary op ty v = case ty of
+>   TVRational -> VInteger (op <$> fromVRational v)
+>   _ -> evalPanic "roundUnary" [show ty ++ " is not a Round type"]
+>
+
+Haskell's definition of "round" is slightly different, as it does
+"round to even" on ties.
+
+> roundRat :: Rational -> Integer
+> roundRat x
+>   | x >= 0    = floor (x + 0.5)
+>   | otherwise = ceiling (x - 0.5)
+
+
+Rational
+----------
+
+> ratioOp :: Integer -> Integer -> Either EvalError Rational
+> ratioOp _ 0 = Left DivideByZero
+> ratioOp x y = Right (fromInteger x / fromInteger y)
 
 
 Comparison
@@ -982,6 +1147,8 @@ bits to the *left* of that position are equal.
 >       compare <$> fromVInteger l <*> fromVInteger r
 >     TVIntMod _ ->
 >       compare <$> fromVInteger l <*> fromVInteger r
+>     TVRational ->
+>       compare <$> fromVRational l <*> fromVRational r
 >     TVSeq _w ety ->
 >       lexList (zipWith (lexCompare ety) (fromVList l) (fromVList r))
 >     TVStream _ ->
@@ -1025,14 +1192,10 @@ fields are compared in alphabetical order.
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVIntMod _ ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVRational ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVSeq _w ety
->       | isTBit ety ->
->         case fromSignedVWord l of
->           Left e -> Left e
->           Right i ->
->             case fromSignedVWord r of
->               Left e -> Left e
->               Right j -> Right (compare i j)
+>       | isTBit ety -> compare <$> fromSignedVWord l <*> fromSignedVWord r
 >       | otherwise ->
 >         lexList (zipWith (lexSignedCompare ety) (fromVList l) (fromVList r))
 >     TVStream _ ->
@@ -1091,14 +1254,14 @@ amount, but as lazy as possible in the list values.
 > shiftV :: (Nat' -> Value -> [Value] -> Integer -> [Value]) -> Value
 > shiftV op =
 >   VNumPoly $ \n ->
->   VNumPoly $ \_ix ->
+>   VPoly $ \ix ->
 >   VPoly $ \a ->
 >   VFun $ \v ->
 >   VFun $ \x ->
 >   copyByTValue (tvSeq n a) $
->   case fromVWord x of
->     Left e -> logicNullary (Left e) (tvSeq n a)
->     Right i -> VList n (op n (logicNullary (Right False) a) (fromVList v) i)
+>   case cryToInteger ix x of
+>     Left e  -> cryError e (tvSeq n a)
+>     Right i -> VList n (op n (zero a) (fromVList v) i)
 >
 > shiftLV :: Nat' -> Value -> [Value] -> Integer -> [Value]
 > shiftLV w z vs i =
@@ -1115,13 +1278,13 @@ amount, but as lazy as possible in the list values.
 > rotateV :: (Integer -> [Value] -> Integer -> [Value]) -> Value
 > rotateV op =
 >   vFinPoly $ \n ->
->   VNumPoly $ \_ix ->
+>   VPoly $ \ix ->
 >   VPoly $ \a ->
 >   VFun $ \v ->
 >   VFun $ \x ->
 >   copyByTValue (TVSeq n a) $
->   case fromVWord x of
->     Left e -> VList (Nat n) (genericReplicate n (logicNullary (Left e) a))
+>   case cryToInteger ix x of
+>     Left e  -> cryError e (tvSeq (Nat n) a)
 >     Right i -> VList (Nat n) (op n (fromVList v) i)
 >
 > rotateLV :: Integer -> [Value] -> Integer -> [Value]
@@ -1137,12 +1300,12 @@ amount, but as lazy as possible in the list values.
 > signedShiftRV :: Value
 > signedShiftRV =
 >   VNumPoly $ \n ->
->   VNumPoly $ \_ix ->
+>   VPoly $ \ix ->
 >   VFun $ \v ->
 >   VFun $ \x ->
 >   copyByTValue (tvSeq n TVBit) $
->   case fromVWord x of
->     Left e -> logicNullary (Left e) (tvSeq n TVBit)
+>   case cryToInteger ix x of
+>     Left e -> cryError e (tvSeq n TVBit)
 >     Right i -> VList n $
 >       let vs = fromVList v
 >           z = head vs in
@@ -1163,41 +1326,41 @@ length of the list produces a run-time error.
 > indexPrimOne op =
 >   VNumPoly $ \n ->
 >   VPoly $ \a ->
->   VNumPoly $ \_w ->
+>   VPoly $ \ix ->
 >   VFun $ \l ->
 >   VFun $ \r ->
 >   copyByTValue a $
->   case fromVWord r of
->     Left e -> logicNullary (Left e) a
+>   case cryToInteger ix r of
+>     Left e -> cryError e a
 >     Right i -> op n a (fromVList l) i
 >
 > indexFront :: Nat' -> TValue -> [Value] -> Integer -> Value
 > indexFront w a vs ix =
 >   case w of
->     Nat n | n <= ix -> logicNullary (Left (InvalidIndex (Just ix))) a
+>     Nat n | n <= ix -> cryError (InvalidIndex (Just ix)) a
 >     _               -> genericIndex vs ix
 >
 > indexBack :: Nat' -> TValue -> [Value] -> Integer -> Value
 > indexBack w a vs ix =
 >   case w of
 >     Nat n | n > ix    -> genericIndex vs (n - ix - 1)
->           | otherwise -> logicNullary (Left (InvalidIndex (Just ix))) a
+>           | otherwise -> cryError (InvalidIndex (Just ix)) a
 >     Inf               -> evalPanic "indexBack" ["unexpected infinite sequence"]
 >
 > updatePrim :: (Nat' -> [Value] -> Integer -> Value -> [Value]) -> Value
 > updatePrim op =
 >   VNumPoly $ \len ->
 >   VPoly $ \eltTy ->
->   VNumPoly $ \_idxLen ->
+>   VPoly $ \ix ->
 >   VFun $ \xs ->
 >   VFun $ \idx ->
 >   VFun $ \val ->
 >   copyByTValue (tvSeq len eltTy) $
->   case fromVWord idx of
->     Left e -> logicNullary (Left e) (tvSeq len eltTy)
+>   case cryToInteger ix idx of
+>     Left e -> cryError e (tvSeq len eltTy)
 >     Right i
 >       | Nat i < len -> VList len (op len (fromVList xs) i val)
->       | otherwise   -> logicNullary (Left (InvalidIndex (Just i))) (tvSeq len eltTy)
+>       | otherwise   -> cryError (InvalidIndex (Just i)) (tvSeq len eltTy)
 >
 > updateFront :: Nat' -> [Value] -> Integer -> Value -> [Value]
 > updateFront _ vs i x = updateAt vs i x
@@ -1231,6 +1394,7 @@ Pretty Printing
 >   case val of
 >     VBit b     -> text (either show show b)
 >     VInteger i -> text (either show show i)
+>     VRational q -> text (either show show q)
 >     VList l vs ->
 >       case l of
 >         Inf -> ppList (map (ppValue opts) (take (useInfLength opts) vs) ++ [text "..."])
