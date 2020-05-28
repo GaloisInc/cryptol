@@ -138,6 +138,14 @@ propInterval varInts prop = catMaybes
 
        return (x, Interval { iLower = Nat 0, iUpper = ub })
 
+    , do (e,_) <- pIsValidFloat prop
+         x <- tIsVar e
+         pure (x, iAnyFin)
+
+    , do (_,p) <- pIsValidFloat prop
+         x <- tIsVar p
+         pure (x, iAnyFin)
+
   ]
 
 

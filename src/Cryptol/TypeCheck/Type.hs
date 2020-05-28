@@ -454,6 +454,11 @@ pIsWidth ty = case tNoUser ty of
                 TCon (TF TCWidth) [t1] -> Just t1
                 _                      -> Nothing
 
+pIsValidFloat :: Prop -> Maybe (Type,Type)
+pIsValidFloat ty = case tNoUser ty of
+                     TCon (PC PValidFloat) [a,b] -> Just (a,b)
+                     _                           -> Nothing
+
 --------------------------------------------------------------------------------
 
 
