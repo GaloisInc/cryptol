@@ -289,12 +289,12 @@ parseValue (FTTuple ts) cvs = (Eval.VTuple (map Eval.ready vs), cvs')
 parseValue (FTRecord fs) cvs = (Eval.VRecord (Map.fromList (zip ns (map Eval.ready vs))), cvs')
   where (ns, ts)   = unzip (Map.toList fs)
         (vs, cvs') = parseValues ts cvs
-parseValue (FTFloat e p) _ =
+parseValue (FTFloat e p) cvs =
    (Eval.VFloat Concrete.BF { Concrete.bfValue = bfNaN
                             , Concrete.bfExpWidth = e
                             , Concrete.bfPrecWidth = p
                             }
-  , []
+  , cvs
   )
   -- XXX: NOT IMPLEMENTED
 
