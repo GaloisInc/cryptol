@@ -78,7 +78,7 @@ primitive type SignedCmp : * -> Prop
 primitive type Literal : # -> * -> Prop
 
 /** 'FLiteral n d r a' asserts that the type `a' contains the
-fraciton `n/d`.  The flag `r` indicates if we should round (`r >= 1`)
+fraction `n/d`.  The flag `r` indicates if we should round (`r >= 1`)
 or report an error if the number can't be represented exactly. */
 primitive type FLiteral : # -> # -> # -> * -> Prop
 
