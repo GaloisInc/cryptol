@@ -68,7 +68,7 @@ fastSchemaOf tyenv expr =
     ETApp e t      -> case fastSchemaOf tyenv e of
                         Forall (tparam : tparams) props ty
                           -> Forall tparams (map (plainSubst s) props) (plainSubst s ty)
-                          where s = singleSubst (tpVar tparam) t
+                          where s = singleTParamSubst tparam t
                         _ -> panic "Cryptol.TypeCheck.TypeOf.fastSchemaOf"
                                [ "ETApp body with no type parameters" ]
                         -- When calling 'fastSchemaOf' on a

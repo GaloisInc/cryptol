@@ -1,6 +1,9 @@
 Loading module Cryptol
+Satisfiable
 it : {result : Bit, arg1 : [4]}
+Satisfiable
 it : [11]{result : Bit, arg1 : [4]}
 must be an integer > 0 or "all"
 must be an integer > 0 or "all"
+Satisfiable
 it : [3]{result : Bit, arg1 : [4]}

@@ -653,6 +653,12 @@ pError msg = TCon (TError KProp msg) []
 noFreeVariables :: FVS t => t -> Bool
 noFreeVariables = all (not . isFreeTV) . Set.toList . fvs
 
+freeParams :: FVS t => t -> Set TParam
+freeParams x = Set.unions (map params (Set.toList (fvs x)))
+  where
+    params (TVFree _ _ tps _) = tps
+    params (TVBound tp) = Set.singleton tp
+
 class FVS t where
   fvs :: t -> Set TVar
 
@@ -801,16 +807,12 @@ instance PP (WithNames Type) where
           (PEqual, [t1,t2])   -> go 0 t1 <+> text "==" <+> go 0 t2
           (PNeq ,  [t1,t2])   -> go 0 t1 <+> text "!=" <+> go 0 t2
           (PGeq,  [t1,t2])    -> go 0 t1 <+> text ">=" <+> go 0 t2
-          (PFin,  [t1])       -> text "fin" <+> (go 4 t1)
+          (PFin,  [t1])       -> optParens (prec > 3) $ text "fin" <+> (go 4 t1)
           (PHas x, [t1,t2])   -> ppSelector x <+> text "of"
                                <+> go 0 t1 <+> text "is" <+> go 0 t2
+          (PAnd, [t1,t2])     -> parens (commaSep (map (go 0) (t1 : pSplitAnd t2)))
 
-          (PArith, [t1])      -> pp pc <+> go 4 t1
-          (PCmp, [t1])        -> pp pc <+> go 4 t1
-          (PSignedCmp, [t1])  -> pp pc <+> go 4 t1
-          (PLiteral, [t1,t2]) -> pp pc <+> go 4 t1 <+> go 4 t2
-
-          (_, _)              -> pp pc <+> fsep (map (go 4) ts)
+          (_, _)              -> optParens (prec > 3) $ pp pc <+> fsep (map (go 4) ts)
 
       TCon f ts -> optParens (prec > 3)
                 $ pp f <+> fsep (map (go 4) ts)

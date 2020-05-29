@@ -1,0 +1,14 @@
+:set show-examples = no
+:set prover-stats=no
+
+:set prover=z3
+
+:prove \(n:Integer, p : Bit) -> p ==> (x != x where x = 2 ^^ n)
+:sat \(a:[8], b:[8]) -> a == ~zero /\ a@b == False
+:prove \(a:[8], b:[8]) -> a == zero ==> a@b == False
+
+:set prover=w4-z3
+
+:prove \(n:Integer, p : Bit) -> p ==> (x != x where x = 2 ^^ n)
+:sat \(a:[8], b:[8]) -> a == ~zero /\ a@b == False
+:prove \(a:[8], b:[8]) -> a == zero ==> a@b == False

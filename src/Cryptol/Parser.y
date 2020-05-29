@@ -484,7 +484,7 @@ no_sel_aexpr                   :: { Expr PName                             }
 
   | NUM                           { at $1 $ numLit (tokenType (thing $1))  }
   | STRLIT                        { at $1 $ ELit $ ECString $ getStr $1    }
-  | CHARLIT                       { at $1 $ ELit $ ECNum (getNum $1) CharLit }
+  | CHARLIT                       { at $1 $ ELit $ ECChar $ getChr $1      }
   | '_'                           { at $1 $ EVar $ mkUnqual $ mkIdent "_" }
 
   | '(' expr ')'                  { at ($1,$3) $ EParens $2                }
@@ -672,8 +672,7 @@ atype                          :: { Type PName }
   : qname                         { at $1 $ TUser (thing $1) []        }
   | '(' qop ')'                   { at $1 $ TUser (thing $2) []        }
   | NUM                           { at $1 $ TNum  (getNum $1)          }
-  | CHARLIT                       { at $1 $ TChar (toEnum $ fromInteger
-                                                          $ getNum $1) }
+  | CHARLIT                       { at $1 $ TChar (getChr $1)          }
   | '[' type ']'                  { at ($1,$3) $ TSeq $2 TBit          }
   | '(' type ')'                  { at ($1,$3) $ TParens $2            }
   | '(' ')'                       { at ($1,$2) $ TTuple []             }

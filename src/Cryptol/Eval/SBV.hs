@@ -24,6 +24,7 @@ module Cryptol.Eval.SBV
   , forallSInteger_, existsSInteger_
   ) where
 
+import qualified Control.Exception as X
 import           Control.Monad (join, unless)
 import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Bits (bit, complement, shiftL)
@@ -302,7 +303,7 @@ instance Backend SBV where
        do unless (0 <= e) (raiseError sym NegativeExponent)
           pure $! SBV.svExp a b
     | otherwise =
-       raiseError sym (UnsupportedSymbolicOp "integer exponentation")
+       liftIO (X.throw (UnsupportedSymbolicOp "integer exponentiation"))
 
   -- NB, we don't do reduction here
   intToZn _ _m a = pure a
@@ -735,7 +736,7 @@ svLg2 :: SInteger SBV -> SEval SBV (SInteger SBV)
 svLg2 x =
   case SBV.svAsInteger x of
     Just n -> pure $ SBV.svInteger SBV.KUnbounded (lg2 n)
-    Nothing -> raiseError SBV (UnsupportedSymbolicOp "integer lg2")
+    Nothing -> liftIO (X.throw (UnsupportedSymbolicOp "integer lg2"))
 
 svDivisible :: Integer -> SInteger SBV -> SEval SBV (SBit SBV)
 svDivisible m x =

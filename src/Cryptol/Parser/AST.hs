@@ -277,12 +277,12 @@ data NumInfo  = BinLit Int                      -- ^ n-digit binary literal
               | OctLit Int                      -- ^ n-digit octal  literal
               | DecLit                          -- ^ overloaded decimal literal
               | HexLit Int                      -- ^ n-digit hex literal
-              | CharLit                         -- ^ character literal
               | PolyLit Int                     -- ^ polynomial literal
                 deriving (Eq, Show, Generic, NFData)
 
 -- | Literals.
 data Literal  = ECNum Integer NumInfo           -- ^ @0x10@  (HexLit 2)
+              | ECChar Char                     -- ^ @'a'@
               | ECString String                 -- ^ @\"hello\"@
                 deriving (Eq, Show, Generic, NFData)
 
@@ -623,6 +623,7 @@ instance PP Literal where
   ppPrec _ lit =
     case lit of
       ECNum n i     -> ppNumLit n i
+      ECChar c      -> text (show c)
       ECString s    -> text (show s)
 
 
@@ -630,7 +631,6 @@ ppNumLit :: Integer -> NumInfo -> Doc
 ppNumLit n info =
   case info of
     DecLit    -> integer n
-    CharLit   -> text (show (toEnum (fromInteger n) :: Char))
     BinLit w  -> pad 2  "0b" w
     OctLit w  -> pad 8  "0o" w
     HexLit w  -> pad 16 "0x" w

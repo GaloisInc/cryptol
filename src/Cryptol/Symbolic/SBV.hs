@@ -34,6 +34,7 @@ import qualified Control.Exception as X
 import qualified Data.SBV.Dynamic as SBV
 import           Data.SBV (Timing(SaveTiming))
 import           Data.SBV.Internals (showTDiff)
+import           Data.Time (NominalDiffTime)
 
 import qualified Cryptol.ModuleSystem as M hiding (getPrimMap)
 import qualified Cryptol.ModuleSystem.Env as M
@@ -86,6 +87,7 @@ proverConfigs =
   , ("sbv-any"      , SBV.defaultSMTCfg )
   ]
 
+-- | The names of all the solvers supported by SBV
 proverNames :: [String]
 proverNames = map fst proverConfigs
 
@@ -102,6 +104,8 @@ satSMTResults (SBV.SatResult r) = [r]
 allSatSMTResults :: SBV.AllSatResult -> [SBV.SMTResult]
 allSatSMTResults (SBV.AllSatResult (_, _, _, rs)) = rs
 
+-- | Check if the named solver can be found and invoked
+--   in the current solver environment.
 checkProverInstallation :: String -> IO Bool
 checkProverInstallation s =
   do let prover = lookupProver s
@@ -114,136 +118,226 @@ proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
 proverError msg (_,modEnv) =
   return (Right ((Nothing, ProverError msg), modEnv), [])
 
+
+runSingleProver ::
+  ProverCommand ->
+  [SBV.SMTConfig] ->
+  (SBV.SMTConfig -> SBV.Symbolic SBV.SVal -> IO res) ->
+  (res -> [SBV.SMTResult]) ->
+  SBV.Symbolic SBV.SVal ->
+  M.ModuleT IO (Maybe String, [SBV.SMTResult])
+runSingleProver ProverCommand{..} provers callSolver processResult e = do
+  let lPutStrLn = M.withLogger logPutStrLn
+
+  case provers of
+    [prover] -> do
+      when pcVerbose $
+        lPutStrLn $ "Trying proof with " ++
+                                  show (SBV.name (SBV.solver prover))
+      res <- M.io (callSolver prover e)
+      when pcVerbose $
+        lPutStrLn $ "Got result from " ++
+                                  show (SBV.name (SBV.solver prover))
+      return (Just (show (SBV.name (SBV.solver prover))), processResult res)
+    _ ->
+      return ( Nothing
+             , [ SBV.ProofError
+                   prover
+                   [":sat with option prover=any requires option satNum=1"]
+                   Nothing
+               | prover <- provers ]
+             )
+
+runMultiProvers ::
+  ProverCommand ->
+  [SBV.SMTConfig] ->
+  ([SBV.SMTConfig] -> SBV.Symbolic SBV.SVal -> IO (SBV.Solver, NominalDiffTime, res)) ->
+  (res -> [SBV.SMTResult]) ->
+  SBV.Symbolic SBV.SVal ->
+  M.ModuleT IO (Maybe String, [SBV.SMTResult])
+runMultiProvers ProverCommand{..} provers callSolvers processResult e = do
+  let lPutStrLn = M.withLogger logPutStrLn
+
+  when pcVerbose $
+    lPutStrLn $ "Trying proof with " ++
+            intercalate ", " (map (show . SBV.name . SBV.solver) provers)
+  (firstProver, timeElapsed, res) <- M.io (callSolvers provers e)
+  when pcVerbose $
+    lPutStrLn $ "Got result from " ++ show firstProver ++
+                                      ", time: " ++ showTDiff timeElapsed
+  return (Just (show firstProver), processResult res)
+
+-- | Select the appropriate solver or solvers from the given prover command,
+--   and invoke those solvers on the given symbolic value.
+runProver :: ProverCommand -> SBV.Symbolic SBV.SVal -> M.ModuleT IO (Maybe String, [SBV.SMTResult])
+runProver pc@ProverCommand{..} x =
+  do let mSatNum = case pcQueryType of
+                     SatQuery (SomeSat n) -> Just n
+                     SatQuery AllSat -> Nothing
+                     ProveQuery -> Nothing
+
+     provers <-
+       case pcProverName of
+         "any" -> M.io SBV.sbvAvailableSolvers
+         "sbv-any" -> M.io SBV.sbvAvailableSolvers
+         _ -> return [(lookupProver pcProverName)
+                        { SBV.transcript = pcSmtFile
+                        , SBV.allSatMaxModelCount = mSatNum
+                        }]
+
+     let provers' = [ p { SBV.timing = SaveTiming pcProverStats
+                        , SBV.verbose = pcVerbose
+                        , SBV.validateModel = pcValidate
+                        }
+                    | p <- provers
+                    ]
+
+     case pcQueryType of
+        ProveQuery -> runMultiProvers pc provers' SBV.proveWithAny thmSMTResults x
+        SatQuery sn -> case sn of
+          SomeSat 1 -> runMultiProvers pc provers' SBV.satWithAny satSMTResults x
+          _         -> runSingleProver pc provers' SBV.allSatWith allSatSMTResults x
+
+
+-- | Prepare a symbolic query by symbolically simulating the expression found in
+--   the @ProverQuery@.  The result will either be an error or a list of the types
+--   of the symbolic inputs and the symbolic value to supply to the solver.
+--
+--   Note that the difference between sat and prove queries is reflected later
+--   in `runProver` where we call different SBV methods depending on the mode,
+--   so we do _not_ negate the goal here.  Moreover, assumptions are added
+--   using conjunction for sat queries and implication for prove queries.
+--
+--   For safety properties, we want to add them as an additional goal
+--   when we do prove queries, and an additional assumption when we do
+--   sat queries.  In both cases, the safety property is combined with
+--   the main goal via a conjunction.
+prepareQuery ::
+  Eval.EvalOpts ->
+  M.ModuleEnv ->
+  ProverCommand ->
+  IO (Either String ([FinType], SBV.Symbolic SBV.SVal))
+prepareQuery evo modEnv ProverCommand{..} =
+  do let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
+
+     -- The `tyFn` creates variables that are treated as 'forall'
+     -- or 'exists' bound, depending on the sort of query we are doing.
+     let tyFn = case pcQueryType of
+           SatQuery _ -> existsFinType
+           ProveQuery -> forallFinType
+
+     -- The `addAsm` function is used to combine assumptions that
+     -- arise from the types of symbolic variables (e.g. Z n values
+     -- are assumed to be integers in the range `0 <= x < n`) with
+     -- the main content of the query.  We use conjunction or implication
+     -- depending on the type of query.
+     let addAsm = case pcQueryType of
+           ProveQuery -> \x y -> SBV.svOr (SBV.svNot x) y
+           SatQuery _ -> \x y -> SBV.svAnd x y
+
+     let ?evalPrim = evalPrim
+     case predArgTypes pcSchema of
+       Left msg -> return (Left msg)
+       Right ts ->
+         do when pcVerbose $ logPutStrLn (Eval.evalLogger evo) "Simulating..."
+            pure $ Right $ (ts,
+              do -- Compute the symbolic inputs, and any domain constraints needed
+                 -- according to their types.
+                 (args, asms) <- runWriterT (mapM tyFn ts)
+                 -- Run the main symbolic computation.  First we populate the
+                 -- evaluation environment, then we compute the value, finally
+                 -- we apply it to the symbolic inputs.
+                 (safety,b) <- doSBVEval evo $
+                     do env <- Eval.evalDecls SBV extDgs mempty
+                        v <- Eval.evalExpr SBV env pcExpr
+                        Eval.fromVBit <$> foldM Eval.fromVFun v (map pure args)
+                 return (foldr addAsm (SBV.svAnd safety b) asms))
+
+
+-- | Turn the SMT results from SBV into a @ProverResult@ that is ready for the Cryptol REPL.
+--   There may be more than one result if we made a multi-sat query.
+processResults ::
+  Eval.EvalOpts ->
+  ProverCommand ->
+  [FinType] {- ^ Types of the symbolic inputs -} ->
+  [SBV.SMTResult] {- ^ Results from the solver -} ->
+  M.ModuleT IO ProverResult
+processResults evo ProverCommand{..} ts results =
+ do let isSat = case pcQueryType of
+          ProveQuery -> False
+          SatQuery _ -> True
+
+    prims <- M.getPrimMap
+
+    case results of
+       -- allSat can return more than one as long as
+       -- they're satisfiable
+       (SBV.Satisfiable {} : _) -> do
+         tevss <- mapM mkTevs results
+         return $ AllSatResult tevss
+         where
+           mkTevs result = do
+             let Right (_, cvs) = SBV.getModelAssignment result
+                 (vs, _) = parseValues ts cvs
+                 sattys = unFinType <$> ts
+             satexprs <-
+               doEval evo (zipWithM (Concrete.toExpr prims) sattys vs)
+             case zip3 sattys <$> (sequence satexprs) <*> pure vs of
+               Nothing ->
+                 panic "Cryptol.Symbolic.sat"
+                   [ "unable to make assignment into expression" ]
+               Just tevs -> return $ tevs
+
+       -- prove returns only one
+       [SBV.Unsatisfiable {}] ->
+         return $ ThmResult (unFinType <$> ts)
+
+       -- unsat returns empty
+       [] -> return $ ThmResult (unFinType <$> ts)
+
+       -- otherwise something is wrong
+       _ -> return $ ProverError (rshow results)
+              where rshow | isSat = show .  SBV.AllSatResult . (False,False,False,)
+                          | otherwise = show . SBV.ThmResult . head
+
+-- | Execute a symbolic ':prove' or ':sat' command.
+--
+--   This command returns a pair: the first element is the name of the
+--   solver that completes the given query (if any) along with the result
+--   of executing the query.
 satProve :: ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
-satProve ProverCommand {..} =
+satProve pc@ProverCommand {..} =
   protectStack proverError $ \(evo,modEnv) ->
 
   M.runModuleM (evo,modEnv) $ do
-  let (isSat, mSatNum) = case pcQueryType of
-        ProveQuery -> (False, Nothing)
-        SatQuery sn -> case sn of
-          SomeSat n -> (True, Just n)
-          AllSat    -> (True, Nothing)
-  let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
-  provers <-
-    case pcProverName of
-      "any" -> M.io SBV.sbvAvailableSolvers
-      "sbv-any" -> M.io SBV.sbvAvailableSolvers
-      _ -> return [(lookupProver pcProverName) { SBV.transcript = pcSmtFile
-                                               , SBV.allSatMaxModelCount = mSatNum
-                                               }]
 
-
-  let provers' = [ p { SBV.timing = SaveTiming pcProverStats
-                     , SBV.verbose = pcVerbose
-                     , SBV.validateModel = pcValidate
-                     } | p <- provers ]
-  let tyFn = if isSat then existsFinType else forallFinType
-  let lPutStrLn = M.withLogger logPutStrLn
-  let runProver fn tag e = do
-        case provers of
-          [prover] -> do
-            when pcVerbose $
-              lPutStrLn $ "Trying proof with " ++
-                                        show (SBV.name (SBV.solver prover))
-            res <- M.io (fn prover e)
-            when pcVerbose $
-              lPutStrLn $ "Got result from " ++
-                                        show (SBV.name (SBV.solver prover))
-            return (Just (show (SBV.name (SBV.solver prover))), tag res)
-          _ ->
-            return ( Nothing
-                   , [ SBV.ProofError
-                         prover
-                         [":sat with option prover=any requires option satNum=1"]
-                         Nothing
-                     | prover <- provers ]
-                   )
-      runProvers fn tag e = do
-        when pcVerbose $
-          lPutStrLn $ "Trying proof with " ++
-                  intercalate ", " (map (show . SBV.name . SBV.solver) provers)
-        (firstProver, timeElapsed, res) <- M.io (fn provers' e)
-        when pcVerbose $
-          lPutStrLn $ "Got result from " ++ show firstProver ++
-                                            ", time: " ++ showTDiff timeElapsed
-        return (Just (show firstProver), tag res)
-  let runFn = case pcQueryType of
-        ProveQuery -> runProvers SBV.proveWithAny thmSMTResults
-        SatQuery sn -> case sn of
-          SomeSat 1 -> runProvers SBV.satWithAny satSMTResults
-          _         -> runProver SBV.allSatWith allSatSMTResults
-  let addAsm = case pcQueryType of
-        ProveQuery -> \x y -> SBV.svOr (SBV.svNot x) y
-        SatQuery _ -> \x y -> SBV.svAnd x y
-
-  let ?evalPrim = evalPrim
-  case predArgTypes pcSchema of
+  M.io (prepareQuery evo modEnv pc) >>= \case
     Left msg -> return (Nothing, ProverError msg)
-    Right ts -> do when pcVerbose $ lPutStrLn "Simulating..."
-                   (_,v) <- doSBVEval evo $
-                              do env <- Eval.evalDecls SBV extDgs mempty
-                                 Eval.evalExpr SBV env pcExpr
-                   prims <- M.getPrimMap
-                   runRes <- runFn $ do
-                               (args, asms) <- runWriterT (mapM tyFn ts)
-                               (_,b) <- doSBVEval evo (Eval.fromVBit <$>
-                                          foldM Eval.fromVFun v (map pure args))
-                               return (foldr addAsm b asms)
-                   let (firstProver, results) = runRes
-                   esatexprs <- case results of
-                     -- allSat can return more than one as long as
-                     -- they're satisfiable
-                     (SBV.Satisfiable {} : _) -> do
-                       tevss <- mapM mkTevs results
-                       return $ AllSatResult tevss
-                       where
-                         mkTevs result = do
-                           let Right (_, cvs) = SBV.getModelAssignment result
-                               (vs, _) = parseValues ts cvs
-                               sattys = unFinType <$> ts
-                           satexprs <-
-                             doEval evo (zipWithM (Concrete.toExpr prims) sattys vs)
-                           case zip3 sattys <$> (sequence satexprs) <*> pure vs of
-                             Nothing ->
-                               panic "Cryptol.Symbolic.sat"
-                                 [ "unable to make assignment into expression" ]
-                             Just tevs -> return $ tevs
-                     -- prove returns only one
-                     [SBV.Unsatisfiable {}] ->
-                       return $ ThmResult (unFinType <$> ts)
-                     -- unsat returns empty
-                     [] -> return $ ThmResult (unFinType <$> ts)
-                     -- otherwise something is wrong
-                     _ -> return $ ProverError (rshow results)
-                            where rshow | isSat = show .  SBV.AllSatResult . (False,False,False,)
-                                        | otherwise = show . SBV.ThmResult . head
-                   return (firstProver, esatexprs)
+    Right (ts, q) ->
+      do (firstProver, results) <- runProver pc q
+         esatexprs <- processResults evo pc ts results
+         return (firstProver, esatexprs)
 
+-- | Execute a symbolic ':prove' or ':sat' command when the prover is
+--   set to offline.  This only prepares the SMT input file for the
+--   solver and does not actually invoke the solver.
+--
+--   This method returns either an error message or the text of
+--   the SMT input file corresponding to the given prover command.
 satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
-satProveOffline ProverCommand {..} =
+satProveOffline pc@ProverCommand {..} =
   protectStack (\msg (_,modEnv) -> return (Right (Left msg, modEnv), [])) $
   \(evOpts,modEnv) -> do
     let isSat = case pcQueryType of
           ProveQuery -> False
           SatQuery _ -> True
-    let extDgs = M.allDeclGroups modEnv ++ pcExtraDecls
-    let tyFn = if isSat then existsFinType else forallFinType
-    let addAsm = if isSat then SBV.svAnd else \x y -> SBV.svOr (SBV.svNot x) y
-    let ?evalPrim = evalPrim
-    case predArgTypes pcSchema of
+
+    prepareQuery evOpts modEnv pc >>= \case
       Left msg -> return (Right (Left msg, modEnv), [])
-      Right ts ->
-        do when pcVerbose $ logPutStrLn (Eval.evalLogger evOpts) "Simulating..."
-           (_,v) <- doSBVEval evOpts $
-                      do env <- Eval.evalDecls SBV extDgs mempty
-                         Eval.evalExpr SBV env pcExpr
-           smtlib <- SBV.generateSMTBenchmark isSat $ do
-             (args, asms) <- runWriterT (mapM tyFn ts)
-             (_,b) <- doSBVEval evOpts
-                          (Eval.fromVBit <$> foldM Eval.fromVFun v (map pure args))
-             return (foldr addAsm b asms)
+      Right (_ts, q) ->
+        do smtlib <- SBV.generateSMTBenchmark isSat q
            return (Right (Right smtlib, modEnv), [])
+
 
 protectStack :: (String -> M.ModuleCmd a)
              -> M.ModuleCmd a
@@ -255,12 +349,18 @@ protectStack mkErr cmd modEnv =
         msg = "Symbolic evaluation failed to terminate."
         handler () = mkErr msg modEnv
 
+-- | Given concrete values from the solver and a collection of finite types,
+--   reconstruct Cryptol concrete values, and return any unused solver
+--   values.
 parseValues :: [FinType] -> [SBV.CV] -> ([Concrete.Value], [SBV.CV])
 parseValues [] cvs = ([], cvs)
 parseValues (t : ts) cvs = (v : vs, cvs'')
   where (v, cvs') = parseValue t cvs
         (vs, cvs'') = parseValues ts cvs'
 
+-- | Parse a single value of a finite type by consuming some number of
+--   solver values.  The parsed Cryptol values is returned along with
+--   any solver values not consumed.
 parseValue :: FinType -> [SBV.CV] -> (Concrete.Value, [SBV.CV])
 parseValue FTBit [] = panic "Cryptol.Symbolic.parseValue" [ "empty FTBit" ]
 parseValue FTBit (cv : cvs) = (Eval.VBit (SBV.cvToBool cv), cvs)
