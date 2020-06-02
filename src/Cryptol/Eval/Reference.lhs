@@ -172,7 +172,7 @@ cpo that represents any given schema.
 >         TVBit        -> VBit (fromVBit val)
 >         TVInteger    -> VInteger (fromVInteger val)
 >         TVIntMod _   -> VInteger (fromVInteger val)
->         TVArray{} -> val
+>         TVArray{}    -> evalPanic "copyByTValue" ["Unsupported Array type"]
 >         TVSeq w ety  -> VList (Nat w) (map (go ety) (copyList w (fromVList val)))
 >         TVStream ety -> VList Inf (map (go ety) (copyStream (fromVList val)))
 >         TVTuple etys -> VTuple (zipWith go etys (copyList (genericLength etys) (fromVTuple val)))

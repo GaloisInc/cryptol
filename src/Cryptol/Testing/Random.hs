@@ -348,7 +348,7 @@ typeSize ty =
                               TCon (TC (TCNum n)) _ -> Just n
                               _                     -> Nothing
         (TCIntMod, _)    -> Nothing
-        (TCArray, _)    -> Nothing
+        (TCArray, _)     -> Nothing
         (TCSeq, [sz,el]) -> case tNoUser sz of
                               TCon (TC (TCNum n)) _ -> (^ n) <$> typeSize el
                               _                     -> Nothing
