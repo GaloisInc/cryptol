@@ -164,6 +164,9 @@ arithBinary sym opw opi opz = loop
     TVIntMod n ->
       VInteger <$> opz n (fromVInteger l) (fromVInteger r)
 
+    TVArray{} ->
+      evalPanic "arithBinary" ["Array not in class Arith"]
+
     TVSeq w a
       -- words and finite sequences
       | isTBit a -> do
@@ -235,6 +238,9 @@ arithUnary sym opw opi opz = loop
     TVIntMod n ->
       VInteger <$> opz n (fromVInteger v)
 
+    TVArray{} ->
+      evalPanic "arithUnary" ["Array not in class Arith"]
+
     TVSeq w a
       -- words and finite sequences
       | isTBit a -> do
@@ -291,6 +297,8 @@ arithNullary sym opw opi opz = loop
         TVInteger -> VInteger <$> opi
 
         TVIntMod n -> VInteger <$> opz n
+
+        TVArray{} -> evalPanic "arithNullary" ["Array not in class Arith"]
 
         TVSeq w a
           -- words and finite sequences
@@ -445,6 +453,8 @@ cmpValue sym fb fw fi fz = cmp
         TVBit         -> fb (fromVBit v1) (fromVBit v2) k
         TVInteger     -> fi (fromVInteger v1) (fromVInteger v2) k
         TVIntMod n    -> fz n (fromVInteger v1) (fromVInteger v2) k
+        TVArray{}     -> panic "Cryptol.Prims.Value.cmpValue"
+                               [ "Arrays are not comparable" ]
         TVSeq n t
           | isTBit t  -> do w1 <- fromVWord sym "cmpValue" v1
                             w2 <- fromVWord sym "cmpValue" v2
@@ -607,6 +617,8 @@ zeroV sym ty = case ty of
   -- integers mod n
   TVIntMod _ ->
     VInteger <$> integerLit sym 0
+
+  TVArray{} -> evalPanic "zeroV" ["Array not in class Zero"]
 
   -- sequences
   TVSeq w ety
@@ -1010,6 +1022,7 @@ logicBinary sym opb opw = loop
     TVBit -> VBit <$> (opb (fromVBit l) (fromVBit r))
     TVInteger -> evalPanic "logicBinary" ["Integer not in class Logic"]
     TVIntMod _ -> evalPanic "logicBinary" ["Z not in class Logic"]
+    TVArray{} -> evalPanic "logicBinary" ["Array not in class Logic"]
     TVSeq w aty
          -- words
          | isTBit aty
@@ -1085,6 +1098,7 @@ logicUnary sym opb opw = loop
 
     TVInteger -> evalPanic "logicUnary" ["Integer not in class Logic"]
     TVIntMod _ -> evalPanic "logicUnary" ["Z not in class Logic"]
+    TVArray{} -> evalPanic "logicUnary" ["Array not in class Logic"]
 
     TVSeq w ety
          -- words
@@ -1420,6 +1434,7 @@ errorV sym ty msg = case ty of
   TVBit -> cryUserError sym msg
   TVInteger -> cryUserError sym msg
   TVIntMod _ -> cryUserError sym msg
+  TVArray{} -> cryUserError sym msg
 
   -- sequences
   TVSeq w ety

@@ -30,6 +30,7 @@ data TValue
   = TVBit                     -- ^ @ Bit @
   | TVInteger                 -- ^ @ Integer @
   | TVIntMod Integer          -- ^ @ Z n @
+  | TVArray TValue TValue     -- ^ @ Array a b @
   | TVSeq Integer TValue      -- ^ @ [n]a @
   | TVStream TValue           -- ^ @ [inf]t @
   | TVTuple [TValue]          -- ^ @ (a, b, c )@
@@ -45,6 +46,7 @@ tValTy tv =
     TVBit       -> tBit
     TVInteger   -> tInteger
     TVIntMod n  -> tIntMod (tNum n)
+    TVArray a b -> tArray (tValTy a) (tValTy b)
     TVSeq n t   -> tSeq (tNum n) (tValTy t)
     TVStream t  -> tSeq tInf (tValTy t)
     TVTuple ts  -> tTuple (map tValTy ts)
@@ -105,6 +107,7 @@ evalType env ty =
         (TCIntMod, [n]) -> case num n of
                              Inf   -> evalPanic "evalType" ["invalid type Z inf"]
                              Nat m -> Right $ TVIntMod m
+        (TCArray, [a, b]) -> Right $ TVArray (val a) (val b)
         (TCSeq, [n, t]) -> Right $ tvSeq (num n) (val t)
         (TCFun, [a, b]) -> Right $ TVFun (val a) (val b)
         (TCTuple _, _)  -> Right $ TVTuple (map val ts)

@@ -489,6 +489,9 @@ tInteger  = TCon (TC TCInteger) []
 tIntMod :: Type -> Type
 tIntMod n = TCon (TC TCIntMod) [n]
 
+tArray :: Type -> Type -> Type
+tArray a b = TCon (TC TCArray) [a, b]
+
 tWord    :: Type -> Type
 tWord a   = tSeq a tBit
 
