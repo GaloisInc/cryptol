@@ -1580,63 +1580,102 @@ logicShift :: Backend sym =>
   (sym -> Nat' -> TValue -> SInteger sym -> SEval sym (SInteger sym))
      {- ^ operation for range reduction on integers -} ->
   (SWord sym -> SWord sym -> SEval sym (SWord sym))
-     {- ^ word shift operation -} ->
+     {- ^ word shift operation for positive indices -} ->
+  (SWord sym -> SWord sym -> SEval sym (SWord sym))
+     {- ^ word shift operation for negative indices -} ->
   (Nat' -> Integer -> Integer -> Maybe Integer)
-     {- ^ reindexing operation (sequence size, starting index, shift amount -} ->
+     {- ^ reindexing operation for positive indices (sequence size, starting index, shift amount -} ->
+  (Nat' -> Integer -> Integer -> Maybe Integer)
+     {- ^ reindexing operation for negative indices (sequence size, starting index, shift amount -} ->
   GenValue sym
-logicShift sym nm shrinkRange wop reindex =
+logicShift sym nm shrinkRange wopPos wopNeg reindexPos reindexNeg =
   nlam $ \m ->
   tlam $ \ix ->
   tlam $ \a ->
   VFun $ \xs -> return $
   VFun $ \y ->
-    do let shiftOp vs shft =
+    do xs' <- xs
+       y' <- asIndex sym "shift" ix =<< y
+       case y' of
+         Left int_idx ->
+           do pneg <- intLessThan sym int_idx =<< integerLit sym 0
+              iteValue sym pneg
+                (intShifter sym nm wopNeg reindexNeg m ix a xs' =<< shrinkRange sym m ix =<< intNegate sym int_idx)
+                (intShifter sym nm wopPos reindexPos m ix a xs' =<< shrinkRange sym m ix int_idx)
+         Right idx ->
+           wordShifter sym nm wopPos reindexPos m a xs' idx
+
+intShifter :: Backend sym =>
+   sym ->
+   String ->
+   (SWord sym -> SWord sym -> SEval sym (SWord sym)) ->
+   (Nat' -> Integer -> Integer -> Maybe Integer) ->
+   Nat' ->
+   TValue ->
+   TValue ->
+   GenValue sym ->
+   SInteger sym ->
+   SEval sym (GenValue sym)
+intShifter sym nm wop reindex m ix a xs idx =
+   do let shiftOp vs shft =
               memoMap $ IndexSeqMap $ \i ->
                 case reindex m i shft of
                   Nothing -> zeroV sym a
                   Just i' -> lookupSeqMap vs i'
-       xs' <- xs
-       y' <- asIndex sym "shift" ix =<< y
-       case y' of
-         Left int_idx ->
-            do idx <- shrinkRange sym m ix int_idx
-               case xs' of
-                 VWord w x ->
-                    return $ VWord w $ do
-                      x >>= \case
-                        WordVal x' -> WordVal <$> (wop x' =<< wordFromInt sym w idx)
-                        LargeBitsVal n bs0 ->
-                          do idx_bits <- enumerateIntBits sym m ix idx
-                             LargeBitsVal n <$> barrelShifter sym shiftOp bs0 idx_bits
+      case xs of
+        VWord w x ->
+           return $ VWord w $ do
+             x >>= \case
+               WordVal x' -> WordVal <$> (wop x' =<< wordFromInt sym w idx)
+               LargeBitsVal n bs0 ->
+                 do idx_bits <- enumerateIntBits sym m ix idx
+                    LargeBitsVal n <$> barrelShifter sym shiftOp bs0 idx_bits
 
-                 VSeq w vs0 ->
-                    do idx_bits <- enumerateIntBits sym m ix idx
-                       VSeq w <$> barrelShifter sym shiftOp vs0 idx_bits
+        VSeq w vs0 ->
+           do idx_bits <- enumerateIntBits sym m ix idx
+              VSeq w <$> barrelShifter sym shiftOp vs0 idx_bits
 
-                 VStream vs0 ->
-                    do idx_bits <- enumerateIntBits sym m ix idx
-                       VStream <$> barrelShifter sym shiftOp vs0 idx_bits
+        VStream vs0 ->
+           do idx_bits <- enumerateIntBits sym m ix idx
+              VStream <$> barrelShifter sym shiftOp vs0 idx_bits
 
-                 _ -> evalPanic "expected sequence value in shift operation" [nm]
+        _ -> evalPanic "expected sequence value in shift operation" [nm]
 
-         Right idx -> case xs' of
-           VWord w x ->
-              return $ VWord w $ do
-                x >>= \case
-                  WordVal x' -> WordVal <$> (wop x' =<< asWordVal sym idx)
-                  LargeBitsVal n bs0 ->
-                    do idx_bits <- enumerateWordValue sym idx
-                       LargeBitsVal n <$> barrelShifter sym shiftOp bs0 idx_bits
 
-           VSeq w vs0 ->
-              do idx_bits <- enumerateWordValue sym idx
-                 VSeq w <$> barrelShifter sym shiftOp vs0 idx_bits
+wordShifter :: Backend sym =>
+   sym ->
+   String ->
+   (SWord sym -> SWord sym -> SEval sym (SWord sym)) ->
+   (Nat' -> Integer -> Integer -> Maybe Integer) ->
+   Nat' ->
+   TValue ->
+   GenValue sym ->
+   WordValue sym ->
+   SEval sym (GenValue sym)
+wordShifter sym nm wop reindex m a xs idx =
+  let shiftOp vs shft =
+          memoMap $ IndexSeqMap $ \i ->
+            case reindex m i shft of
+              Nothing -> zeroV sym a
+              Just i' -> lookupSeqMap vs i'
+   in case xs of
+        VWord w x ->
+           return $ VWord w $ do
+             x >>= \case
+               WordVal x' -> WordVal <$> (wop x' =<< asWordVal sym idx)
+               LargeBitsVal n bs0 ->
+                 do idx_bits <- enumerateWordValue sym idx
+                    LargeBitsVal n <$> barrelShifter sym shiftOp bs0 idx_bits
 
-           VStream vs0 ->
-              do idx_bits <- enumerateWordValue sym idx
-                 VStream <$> barrelShifter sym shiftOp vs0 idx_bits
+        VSeq w vs0 ->
+           do idx_bits <- enumerateWordValue sym idx
+              VSeq w <$> barrelShifter sym shiftOp vs0 idx_bits
 
-           _ -> evalPanic "expected sequence value in shift operation" [nm]
+        VStream vs0 ->
+           do idx_bits <- enumerateWordValue sym idx
+              VStream <$> barrelShifter sym shiftOp vs0 idx_bits
+
+        _ -> evalPanic "expected sequence value in shift operation" [nm]
 
 
 shiftShrink :: Backend sym => sym -> Nat' -> TValue -> SInteger sym -> SEval sym (SInteger sym)

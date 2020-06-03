@@ -491,10 +491,18 @@ primTable w4sym = let sym = What4 w4sym in
                      lam $ \xs -> transposeV sym a b c =<< xs)
 
     -- Shifts and rotates
-  , ("<<"          , logicShift sym "<<"  shiftShrink  (w4bvShl w4sym) shiftLeftReindex)
-  , (">>"          , logicShift sym ">>"  shiftShrink  (w4bvLshr w4sym) shiftRightReindex)
-  , ("<<<"         , logicShift sym "<<<" rotateShrink (w4bvRol w4sym) rotateLeftReindex)
-  , (">>>"         , logicShift sym ">>>" rotateShrink (w4bvRor w4sym) rotateRightReindex)
+  , ("<<"          , logicShift sym "<<"  shiftShrink
+                        (w4bvShl w4sym) (w4bvLshr w4sym)
+                        shiftLeftReindex shiftRightReindex)
+  , (">>"          , logicShift sym ">>"  shiftShrink
+                        (w4bvLshr w4sym) (w4bvShl w4sym)
+                        shiftRightReindex shiftLeftReindex)
+  , ("<<<"         , logicShift sym "<<<" rotateShrink
+                        (w4bvRol w4sym) (w4bvRor w4sym)
+                        rotateLeftReindex rotateRightReindex)
+  , (">>>"         , logicShift sym ">>>" rotateShrink
+                        (w4bvRor w4sym) (w4bvRol w4sym)
+                        rotateRightReindex rotateLeftReindex)
 
     -- Indexing and updates
   , ("@"           , indexPrim sym (indexFront_int w4sym) (indexFront_bits w4sym) (indexFront_word w4sym))
@@ -878,9 +886,15 @@ sshrV sym =
   lam $ \y ->
     y >>= asIndex (What4 sym) ">>$" ix >>= \case
        Left i ->
-         do i' <- shiftShrink (What4 sym) (Nat n) ix i
-            amt <- wordFromInt (What4 sym) n i'
-            return (VWord (SW.bvWidth x) (WordVal <$> w4bvAshr sym x amt))
+         do pneg <- intLessThan (What4 sym) i =<< integerLit (What4 sym) 0
+            zneg <- do i' <- shiftShrink (What4 sym) (Nat n) ix =<< intNegate (What4 sym) i
+                       amt <- wordFromInt (What4 sym) n i'
+                       w4bvShl sym x amt
+            zpos <- do i' <- shiftShrink (What4 sym) (Nat n) ix i
+                       amt <- wordFromInt (What4 sym) n i'
+                       w4bvAshr sym x amt
+            return (VWord (SW.bvWidth x) (WordVal <$> iteWord (What4 sym) pneg zneg zpos))
+
        Right wv ->
          do amt <- asWordVal (What4 sym) wv
             return (VWord (SW.bvWidth x) (WordVal <$> w4bvAshr sym x amt))

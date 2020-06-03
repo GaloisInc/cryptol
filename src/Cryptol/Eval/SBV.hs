@@ -438,23 +438,27 @@ primTable  = let sym = SBV in
     -- Shifts and rotates
   , ("<<"          , logicShift sym "<<"
                        shiftShrink
-                       (\x y -> pure (SBV.svShiftLeft x y))
-                       shiftLeftReindex)
+                       (\x y -> pure (shl x y))
+                       (\x y -> pure (lshr x y))
+                       shiftLeftReindex shiftRightReindex)
 
   , (">>"          , logicShift sym ">>"
                        shiftShrink
-                       (\x y -> pure (SBV.svShiftRight x y))
-                       shiftRightReindex)
+                       (\x y -> pure (lshr x y))
+                       (\x y -> pure (shl x y))
+                       shiftRightReindex shiftLeftReindex)
 
   , ("<<<"         , logicShift sym "<<<"
                        rotateShrink
                        (\x y -> pure (SBV.svRotateLeft x y))
-                       rotateLeftReindex)
+                       (\x y -> pure (SBV.svRotateRight x y))
+                       rotateLeftReindex rotateRightReindex)
 
   , (">>>"         , logicShift sym ">>>"
                        rotateShrink
                        (\x y -> pure (SBV.svRotateRight x y))
-                       rotateRightReindex)
+                       (\x y -> pure (SBV.svRotateLeft x y))
+                       rotateRightReindex rotateLeftReindex)
 
     -- Indexing and updates
   , ("@"           , indexPrim sym indexFront indexFront_bits indexFront)
@@ -780,19 +784,39 @@ signedQuot x y = SBV.svUnsign (SBV.svQuot (SBV.svSign x) (SBV.svSign y))
 signedRem :: SWord SBV -> SWord SBV -> SWord SBV
 signedRem x y = SBV.svUnsign (SBV.svRem (SBV.svSign x) (SBV.svSign y))
 
+ashr :: SVal -> SVal -> SVal
+ashr x idx =
+  case SBV.svAsInteger idx of
+    Just i  -> SBV.svUnsign (SBV.svShr (SBV.svSign x) (fromInteger i))
+    Nothing -> SBV.svUnsign (SBV.svShiftRight (SBV.svSign x) idx)
+
+lshr :: SVal -> SVal -> SVal
+lshr x idx =
+  case SBV.svAsInteger idx of
+    Just i -> SBV.svShr x (fromInteger i)
+    Nothing -> SBV.svShiftRight x idx
+
+shl :: SVal -> SVal -> SVal
+shl x idx =
+  case SBV.svAsInteger idx of
+    Just i  -> SBV.svShl x (fromInteger i)
+    Nothing -> SBV.svShiftLeft x idx
+
 sshrV :: Value
 sshrV =
-  nlam $ \n ->
+  nlam $ \_n ->
   tlam $ \ix ->
   wlam SBV $ \x -> return $
   lam $ \y ->
-   do idx <- y >>= asIndex SBV ">>$" ix >>= \case
-               Left i -> shiftShrink SBV n ix i
-               Right wv -> asWordVal SBV wv
-      case SBV.svAsInteger idx of
-        Just i ->
-          let z = SBV.svUnsign (SBV.svShr (SBV.svSign x) (fromInteger i))
-           in return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z
-        Nothing ->
-          let z = SBV.svUnsign (SBV.svShiftRight (SBV.svSign x) idx)
-           in return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z
+   y >>= asIndex SBV ">>$" ix >>= \case
+     Left idx ->
+       do let pneg = svLessThan idx (svInteger KUnbounded 0)
+          let z = svSymbolicMerge (kindOf x) True
+                    pneg
+                    (shl x (SBV.svUNeg idx))
+                    (ashr x idx)
+          return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z
+
+     Right wv ->
+       do z <- ashr x <$> asWordVal SBV wv
+          return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z

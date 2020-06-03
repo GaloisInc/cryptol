@@ -309,9 +309,11 @@ sshrV =
    do idx <- y >>= asIndex Concrete ">>$" ix >>= \case
                  Left idx -> pure idx
                  Right wv -> bvVal <$> asWordVal Concrete wv
-      let amt   = fromInteger (min i idx)
-      let x'    = signedValue i x
-      return . VWord i . pure . WordVal . mkBv i $! x' `shiftR` amt
+      let z | idx >= 0  = shiftRW (signedValue i x) i idx
+            | otherwise = shiftLW x i idx
+
+      return $ VWord i $ pure $ WordVal $ mkBv i z
+
 
 logicShift :: (Integer -> Integer -> Integer -> Integer)
               -- ^ The function may assume its arguments are masked.
@@ -338,10 +340,23 @@ logicShift opW opS
 -- Left shift for words.
 shiftLW :: Integer -> Integer -> Integer -> Integer
 shiftLW w ival by
+  | by <  0   = shiftRW w ival (negate by)
   | by >= w   = 0
+  | by > toInteger (maxBound :: Int) = panic "shiftLW" ["Shift amount too large", show by]
   | otherwise = mask w (shiftL ival (fromInteger by))
 
+shiftRW :: Integer -> Integer -> Integer -> Integer
+shiftRW w i by
+  | by <  0   = shiftLW w i (negate by)
+  | by >= w   = 0
+  | by > toInteger (maxBound :: Int) = panic "shiftRW" ["Shift amount too large", show by]
+  | otherwise = shiftR i (fromInteger by)
+
+
 shiftLS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+shiftLS w ety vs by
+  | by < 0 = shiftRS w ety vs (negate by)
+
 shiftLS w ety vs by = IndexSeqMap $ \i ->
   case w of
     Nat len
@@ -350,12 +365,10 @@ shiftLS w ety vs by = IndexSeqMap $ \i ->
       | otherwise  -> evalPanic "shiftLS" ["Index out of bounds"]
     Inf            -> lookupSeqMap vs (i+by)
 
-shiftRW :: Integer -> Integer -> Integer -> Integer
-shiftRW w i by
-  | by >= w   = 0
-  | otherwise = shiftR i (fromInteger by)
-
 shiftRS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
+shiftRS w ety vs by
+  | by < 0 = shiftLS w ety vs (negate by)
+
 shiftRS w ety vs by = IndexSeqMap $ \i ->
   case w of
     Nat len
