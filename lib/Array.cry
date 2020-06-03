@@ -3,8 +3,6 @@
  * Distributed under the terms of the BSD3 license (see LICENSE file)
  */
 
-/** The type and operations of the theory of arrays. */
-
 module Array where
 
 primitive type Array : * -> * -> *
