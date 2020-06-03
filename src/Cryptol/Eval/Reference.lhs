@@ -68,6 +68,7 @@ are as follows:
 | `Integer`         | integers          | `TVInteger`                 |
 | `Z n`             | integers modulo n | `TVIntMod n`                |
 | `Rational`        | rationals         | `TVRational`                |
+| `Array`           | arrays            | `TVArray`                   |
 | `[n]a`            | finite lists      | `TVSeq n a`                 |
 | `[inf]a`          | infinite lists    | `TVStream a`                |
 | `(a, b, c)`       | tuples            | `TVTuple [a,b,c]`           |
@@ -176,6 +177,7 @@ cpo that represents any given schema.
 >         TVInteger    -> VInteger (fromVInteger val)
 >         TVIntMod _   -> VInteger (fromVInteger val)
 >         TVRational   -> VRational (fromVRational val)
+>         TVArray{}    -> evalPanic "copyByTValue" ["Unsupported Array type"]
 >         TVSeq w ety  -> VList (Nat w) (map (go ety) (copyList w (fromVList val)))
 >         TVStream ety -> VList Inf (map (go ety) (copyStream (fromVList val)))
 >         TVTuple etys -> VTuple (zipWith go etys (copyList (genericLength etys) (fromVTuple val)))
@@ -895,6 +897,7 @@ at the same positions.
 >         TVFun _ bty  -> VFun (\v -> go bty (fromVFun val v))
 >         TVInteger    -> evalPanic "logicUnary" ["Integer not in class Logic"]
 >         TVIntMod _   -> evalPanic "logicUnary" ["Z not in class Logic"]
+>         TVArray{}    -> evalPanic "logicUnary" ["Array not in class Logic"]
 >         TVRational   -> evalPanic "logicUnary" ["Rational not in class Logic"]
 >         TVAbstract{} -> evalPanic "logicUnary" ["Abstract type not in `Logic`"]
 
@@ -913,6 +916,7 @@ at the same positions.
 >         TVFun _ bty  -> VFun (\v -> go bty (fromVFun l v) (fromVFun r v))
 >         TVInteger    -> evalPanic "logicBinary" ["Integer not in class Logic"]
 >         TVIntMod _   -> evalPanic "logicBinary" ["Z not in class Logic"]
+>         TVArray{}    -> evalPanic "logicBinary" ["Array not in class Logic"]
 >         TVRational   -> evalPanic "logicBinary" ["Rational not in class Logic"]
 >         TVAbstract{} -> evalPanic "logicBinary" ["Abstract type not in `Logic`"]
 
@@ -944,6 +948,8 @@ False]`, but to `[error "foo", error "foo"]`.
 >           VInteger (flip mod n <$> i)
 >         TVRational ->
 >           VRational q
+>         TVArray{} ->
+>           evalPanic "arithNullary" ["Array not in class Arith"]
 >         TVSeq w a
 >           | isTBit a  -> vWord w i
 >           | otherwise -> VList (Nat w) (genericReplicate w (go a))
@@ -971,6 +977,8 @@ False]`, but to `[error "foo", error "foo"]`.
 >           evalPanic "arithUnary" ["Bit not in class Arith"]
 >         TVInteger ->
 >           VInteger $ appOp1 iop (fromVInteger val)
+>         TVArray{} ->
+>           evalPanic "arithUnary" ["Array not in class Arith"]
 >         TVIntMod n ->
 >           VInteger $ appOp1 (\i -> flip mod n <$> iop i) (fromVInteger val)
 >         TVRational ->
@@ -1006,6 +1014,8 @@ False]`, but to `[error "foo", error "foo"]`.
 >           VInteger $ appOp2 (\i j -> flip mod n <$> iop i j) (fromVInteger l) (fromVInteger r)
 >         TVRational ->
 >           VRational $ appOp2 qop (fromVRational l) (fromVRational r)
+>         TVArray{} ->
+>           evalPanic "arithBinary" ["Array not in class Arith"]
 >         TVSeq w a
 >           | isTBit a  -> vWord w $ appOp2 iop (fromVWord l) (fromVWord r)
 >           | otherwise -> VList (Nat w) (zipWith (go a) (fromVList l) (fromVList r))
@@ -1149,6 +1159,8 @@ bits to the *left* of that position are equal.
 >       compare <$> fromVInteger l <*> fromVInteger r
 >     TVRational ->
 >       compare <$> fromVRational l <*> fromVRational r
+>     TVArray{} ->
+>       evalPanic "lexCompare" ["invalid type"]
 >     TVSeq _w ety ->
 >       lexList (zipWith (lexCompare ety) (fromVList l) (fromVList r))
 >     TVStream _ ->
@@ -1193,6 +1205,8 @@ fields are compared in alphabetical order.
 >     TVIntMod _ ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVRational ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVArray{} ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVSeq _w ety
 >       | isTBit ety -> compare <$> fromSignedVWord l <*> fromSignedVWord r

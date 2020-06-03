@@ -1,0 +1,20 @@
+Loading module Cryptol
+Loading module Array
+Primitive Types
+===============
+
+  Public
+  ------
+
+    Array : * -> * -> *
+
+Symbols
+=======
+
+  Public
+  ------
+
+    arrayConstant : {a, b} b -> Array a b
+    arrayLookup : {a, b} Array a b -> a -> b
+    arrayUpdate : {a, b} Array a b -> a -> b -> Array a b
+
