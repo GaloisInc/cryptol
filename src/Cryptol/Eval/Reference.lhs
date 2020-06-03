@@ -823,6 +823,7 @@ where the given error is "pushed down" into the leaf types.
 > cryError e TVInteger      = VInteger (Left e)
 > cryError e TVIntMod{}     = VInteger (Left e)
 > cryError e TVRational     = VRational (Left e)
+> cryError _ TVArray{}      = evalPanic "error" ["Array type not supported in `error`"]
 > cryError e (TVSeq n ety)  = VList (Nat n) (genericReplicate n (cryError e ety))
 > cryError e (TVStream ety) = VList Inf (repeat (cryError e ety))
 > cryError e (TVTuple tys)  = VTuple (map (cryError e) tys)
@@ -847,6 +848,7 @@ For functions, `zero` returns the constant function that returns
 > zero TVInteger      = VInteger (Right 0)
 > zero TVIntMod{}     = VInteger (Right 0)
 > zero TVRational     = VRational (Right 0)
+> zero TVArray{}      = evalPanic "zero" ["Array type not in `Zero`"]
 > zero (TVSeq n ety)  = VList (Nat n) (genericReplicate n (zero ety))
 > zero (TVStream ety) = VList Inf (repeat (zero ety))
 > zero (TVTuple tys)  = VTuple (map zero tys)
@@ -941,7 +943,7 @@ False]`, but to `[error "foo", error "foo"]`.
 >     go ty =
 >       case ty of
 >         TVBit ->
->           evalPanic "arithNullary" ["Bit not in class Arith"]
+>           evalPanic "arithNullary" ["Bit not in class Ring"]
 >         TVInteger ->
 >           VInteger i
 >         TVIntMod n ->
@@ -949,7 +951,7 @@ False]`, but to `[error "foo", error "foo"]`.
 >         TVRational ->
 >           VRational q
 >         TVArray{} ->
->           evalPanic "arithNullary" ["Array not in class Arith"]
+>           evalPanic "arithNullary" ["Array not in class Ring"]
 >         TVSeq w a
 >           | isTBit a  -> vWord w i
 >           | otherwise -> VList (Nat w) (genericReplicate w (go a))
@@ -962,7 +964,7 @@ False]`, but to `[error "foo", error "foo"]`.
 >         TVRec fs ->
 >           VRecord [ (f, go fty) | (f, fty) <- fs ]
 >         TVAbstract {} ->
->           evalPanic "arithNullary" ["Abstract type not in `Arith`"]
+>           evalPanic "arithNullary" ["Abstract type not in `Ring`"]
 
 > ringUnary ::
 >   (Integer -> Either EvalError Integer) ->
@@ -974,11 +976,11 @@ False]`, but to `[error "foo", error "foo"]`.
 >     go ty val =
 >       case ty of
 >         TVBit ->
->           evalPanic "arithUnary" ["Bit not in class Arith"]
+>           evalPanic "arithUnary" ["Bit not in class Ring"]
 >         TVInteger ->
 >           VInteger $ appOp1 iop (fromVInteger val)
 >         TVArray{} ->
->           evalPanic "arithUnary" ["Array not in class Arith"]
+>           evalPanic "arithUnary" ["Array not in class Ring"]
 >         TVIntMod n ->
 >           VInteger $ appOp1 (\i -> flip mod n <$> iop i) (fromVInteger val)
 >         TVRational ->
@@ -995,7 +997,7 @@ False]`, but to `[error "foo", error "foo"]`.
 >         TVRec fs ->
 >           VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- fs ]
 >         TVAbstract {} ->
->           evalPanic "arithUnary" ["Abstract type not in `Arith`"]
+>           evalPanic "arithUnary" ["Abstract type not in `Ring`"]
 
 > ringBinary ::
 >   (Integer -> Integer -> Either EvalError Integer) ->
@@ -1007,7 +1009,7 @@ False]`, but to `[error "foo", error "foo"]`.
 >     go ty l r =
 >       case ty of
 >         TVBit ->
->           evalPanic "arithBinary" ["Bit not in class Arith"]
+>           evalPanic "arithBinary" ["Bit not in class Ring"]
 >         TVInteger ->
 >           VInteger $ appOp2 iop (fromVInteger l) (fromVInteger r)
 >         TVIntMod n ->
@@ -1015,7 +1017,7 @@ False]`, but to `[error "foo", error "foo"]`.
 >         TVRational ->
 >           VRational $ appOp2 qop (fromVRational l) (fromVRational r)
 >         TVArray{} ->
->           evalPanic "arithBinary" ["Array not in class Arith"]
+>           evalPanic "arithBinary" ["Array not in class Ring"]
 >         TVSeq w a
 >           | isTBit a  -> vWord w $ appOp2 iop (fromVWord l) (fromVWord r)
 >           | otherwise -> VList (Nat w) (zipWith (go a) (fromVList l) (fromVList r))
@@ -1028,7 +1030,7 @@ False]`, but to `[error "foo", error "foo"]`.
 >         TVRec fs ->
 >           VRecord [ (f, go fty (lookupRecord f l) (lookupRecord f r)) | (f, fty) <- fs ]
 >         TVAbstract {} ->
->           evalPanic "arithBinary" ["Abstract type not in class `Arith`"]
+>           evalPanic "arithBinary" ["Abstract type not in class `Ring`"]
 
 
 Integral
