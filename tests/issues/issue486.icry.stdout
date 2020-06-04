@@ -1,4 +1,10 @@
 Loading module Cryptol
+[warning] at <interactive>:1:17--1:28:
+  Defaulting type argument 'e' of '(^^)' to [0]
 Q.E.D.
+[warning] at <interactive>:1:17--1:28:
+  Defaulting type argument 'e' of '(^^)' to [1]
 Q.E.D.
+[warning] at <interactive>:1:17--1:44:
+  Defaulting type argument 'e' of '(^^)' to [3]
 Q.E.D.

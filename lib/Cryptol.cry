@@ -5,17 +5,6 @@
 
 module Cryptol where
 
-/**
- * The value corresponding to a numeric type.
- */
-primitive number : {val, rep} Literal val rep => rep
-
-/**
- * An alternative name for 'number', present for backward compatibility.
- */
-demote : {val, rep} Literal val rep => rep
-demote = number`{val}
-
 infixr  5 ==>
 infixr 10 \/
 infixr 15 /\
@@ -31,10 +20,8 @@ infixl 90 *, /, %, /$, %$, %^, /^
 infixr 95 ^^
 infixl 100 @, @@, !, !!
 
-// -----------------------------------------------------------------------------
 
-/** A numeric type representing infinity. */
-primitive type inf : #
+// Base types -----------------------------------------------------------------------
 
 /** The type of boolean values. */
 primitive type Bit : *
@@ -42,10 +29,42 @@ primitive type Bit : *
 /** The type of unbounded integers. */
 primitive type Integer : *
 
-/** 'Z n' is the type of integers, modulo 'n'. */
+/** 'Z n' is the type of integers, modulo 'n'.
+  *
+  * The values of `Z n` may be thought of as equivalance
+  * classes of integers according to the equivalence
+  * `x ~ y` iff `n` divides `x - y`.  `Z n` naturally
+  * forms a ring, but does not support integral division
+  * or indexing.
+  *
+  * However, you may use the `fromZ` operation
+  * to project values in `Z n` into the integers if such operations
+  * are required.  This will compute the reduced representative
+  * of the equivalance class. In other words, `fromZ` computes
+  * the (unique) integer value `i`  where `0 <= i < n` and
+  * `i` is in the given equivalance class.
+  */
 primitive type {n : #} (fin n, n >= 1) => Z n : *
 
+/** `Rational` is the type of rational numbers.
+  * Rational numbers form a Field (and thus a Ring).
+  *
+  * The `ratio` operation may be used to directly create
+  * rational values from as a ratio of integers, or
+  * the `fromInteger` method and the field operations
+  * can be used.
+  */
+primitive type Rational : *
 
+type Bool = Bit
+type Word n = [n]
+type Char = [8]
+type String n = [n]Char
+
+// Numeric operators and constraints ----------------------------------------------
+
+/** A numeric type representing infinity. */
+primitive type inf : #
 
 /** Assert that two numeric types are equal. */
 primitive type (==) : # -> # -> Prop
@@ -59,37 +78,17 @@ primitive type (>=) : # -> # -> Prop
 /** Assert that a numeric type is a proper natural number (not 'inf'). */
 primitive type fin : # -> Prop
 
-/** Value types that have a notion of 'zero'. */
-primitive type Zero : * -> Prop
-
-/** Value types that support logical operations. */
-primitive type Logic : * -> Prop
-
-/** Value types that support arithmetic. */
-primitive type Arith : * -> Prop
-
-/** Value types that support unsigned comparisons. */
-primitive type Cmp : * -> Prop
-
-/** Value types that support signed comparisons. */
-primitive type SignedCmp : * -> Prop
-
-/** 'Literal n a' asserts that type 'a' contains the number 'n'. */
-primitive type Literal : # -> * -> Prop
-
-
-
 /** Add numeric types. */
 primitive type (+) : # -> # -> #
+
+/** Multiply numeric types. */
+primitive type (*) : # -> # -> #
 
 /** Subtract numeric types. */
 primitive type
   {m : #, n : # }
   (fin n, m >= n) =>
   m - n : #
-
-/** Multiply numeric types. */
-primitive type (*) : # -> # -> #
 
 /** Divide numeric types, rounding down. */
 primitive type
@@ -108,6 +107,11 @@ primitive type (^^) : # -> # -> #
 
 /** The number of bits required to represent the value of a numeric type. */
 primitive type width : # -> #
+
+/**
+ * Define the base 2 logarithm function in terms of width
+ */
+type lg2 n = width (max n 1 - 1)
 
 /** The smaller of two numeric types. */
 primitive type min : # -> # -> #
@@ -133,11 +137,6 @@ primitive type
   (fin start, fin next, fin last, start != next) =>
   lengthFromThenTo start next last : #
 
-
-
-
-// -----------------------------------------------------------------------------
-
 /**
  * Assert that the first numeric type is less than or equal to the second.
  */
@@ -153,12 +152,109 @@ type constraint i > j = i >= j + 1
  */
 type constraint i < j = j >= i + 1
 
+
+// The Literal class ----------------------------------------------------
+
+/** 'Literal n a' asserts that type 'a' contains the number 'n'. */
+primitive type Literal : # -> * -> Prop
+
+/**
+ * The value corresponding to a numeric type.
+ */
+primitive number : {val, rep} Literal val rep => rep
+
+/**
+ * An alternative name for 'number', present for backward compatibility.
+ */
+demote : {val, rep} Literal val rep => rep
+demote = number`{val}
+
+/**
+ * Return the length of a sequence.  Note that the result depends only
+ * on the type of the argument, not its value.
+ */
+length : {n, a, b} (fin n, Literal n b) => [n]a -> b
+length _ = `n
+
+/**
+ * A finite sequence counting up from 'first' to 'last'.
+ *
+ * '[a..b]' is syntactic sugar for 'fromTo`{first=a,last=b}'.
+ */
+primitive fromTo : {first, last, a} (fin last, last >= first,
+                                    Literal first a, Literal last a) =>
+                                    [1 + (last - first)]a
+
+/**
+ * A finite arithmetic sequence starting with 'first' and 'next',
+ * stopping when the values reach or would skip over 'last'.
+ *
+ * '[a,b..c]' is syntactic sugar for 'fromThenTo`{first=a,next=b,last=c}'.
+ */
+primitive fromThenTo : {first, next, last, a, len}
+                       ( fin first, fin next, fin last
+                       , Literal first a, Literal next a, Literal last a
+                       , first != next
+                       , lengthFromThenTo first next last == len) => [len]a
+
+
+// The Zero class -------------------------------------------------------
+
+/** Value types that have a notion of 'zero'. */
+primitive type Zero : * -> Prop
+
+/**
+ * Gives an arbitrary shaped value whose bits are all False.
+ * ~zero likewise gives an arbitrary shaped value whose bits are all True.
+ */
+primitive zero : {a} (Zero a) => a
+
+
+// The Logic class ------------------------------------------------------
+
+/** Value types that support logical operations. */
+primitive type Logic : * -> Prop
+
+/**
+ * Logical 'and' over bits. Extends element-wise over sequences, tuples.
+ */
+primitive (&&) : {a} (Logic a) => a -> a -> a
+
+/**
+ * Logical 'or' over bits. Extends element-wise over sequences, tuples.
+ */
+primitive (||) : {a} (Logic a) => a -> a -> a
+
+/**
+ * Logical 'exclusive or' over bits. Extends element-wise over sequences, tuples.
+ */
+primitive (^) : {a} (Logic a) => a -> a -> a
+
+/**
+ * Bitwise complement. The prefix notation '~ x'
+ * is syntactic sugar for 'complement x'.
+ */
+primitive complement : {a} (Logic a) => a -> a
+
+
+// The Ring class -------------------------------------------------------
+
+/** Value types that support ring addition and multiplication. */
+primitive type Ring : * -> Prop
+
+/**
+ * Converts an unbounded integer to a value in a Ring. When converting
+ * to the bitvector type [n], the value is reduced modulo 2^^n. Likewise,
+ * when converting to Z n, the value is reduced modulo n.
+ */
+primitive fromInteger : {a} (Ring a) => Integer -> a
+
 /**
  * Add two values.
  *  * For type [n], addition is modulo 2^^n.
  *  * Structured values are added element-wise.
  */
-primitive (+) : {a} (Arith a) => a -> a -> a
+primitive (+) : {a} (Ring a) => a -> a -> a
 
 /**
  * Subtract two values.
@@ -167,76 +263,151 @@ primitive (+) : {a} (Arith a) => a -> a -> a
  *  * Satisfies 'a - b = a + negate b'.
  * See also: 'negate'.
  */
-primitive (-) : {a} (Arith a) => a -> a -> a
+primitive (-) : {a} (Ring a) => a -> a -> a
 
 /**
  * Multiply two values.
  *  * For type [n], multiplication is modulo 2^^n.
  *  * Structured values are multiplied element-wise.
  */
-primitive (*) : {a} (Arith a) => a -> a -> a
+primitive (*) : {a} (Ring a) => a -> a -> a
 
 /**
- * Divide two values, rounding down.
+ * Returns the additive inverse of its argument.
+ * Over structured values, operates element-wise.
+ * The prefix notation '- x' is syntactic sugar
+ * for 'negate x'.
+ *
+ * Satisfies 'a + negate a = 0'.
+ * Satisfies 'negate a = ~a + 1' for bitvector values.
+ */
+primitive negate : {a} (Ring a) => a -> a
+
+
+// The Integral class -------------------------------------------------
+
+/** Value types that correspond to a segment of the
+  * integers. These types support integer division and
+  * modulus, indexing into sequences, and enumeration.
+  */
+primitive type Integral : * -> Prop
+
+/**
+ * Divide two values, rounding down (toward negative infinity).
  *  * For type [n], the arguments are treated as unsigned.
- *  * Structured values are divided element-wise.
  *  * Division by zero is undefined.
  */
-primitive (/) : {a} (Arith a) => a -> a -> a
+primitive (/) : {a} (Integral a) => a -> a -> a
 
 /**
  * Compute the remainder from dividing two values.
  *  * For type [n], the arguments are treated as unsigned.
- *  * Structured values are combined element-wise.
  *  * Remainder of division by zero is undefined.
  *  * Satisfies 'x % y == x - (x / y) * y'.
  */
-primitive (%) : {a} (Arith a) => a -> a -> a
+primitive (%) : {a} (Integral a) => a -> a -> a
 
 /**
- * Compute the exponentiation of two values.
- *  * For type [n], the exponent is treated as unsigned,
- *    and the result is reduced modulo 2^^n.
- *  * For type Integer, negative powers are undefined.
- *  * Structured values are combined element-wise.
+ * Converts a value of an integral type to an integer.
  */
-primitive (^^) : {a} (Arith a) => a -> a -> a
+primitive toInteger : {a} (Integral a) => a -> Integer
 
 /**
- * Log base two.
+ * Compute the exponentiation of a value in a ring.
+ *  * For type [n], the exponent is treated as unsigned.
+ *  * It is an error to raise a value to a negative integer exponent.
+ *  * Satisfies: `x ^^ 0 == fromInteger 1`
+ *  * Satisfies: `x ^^ e == x * x ^^ (e-1)` when `e > 0`.
+ */
+primitive (^^) : {a, e} (Ring a, Integral e) => a -> e -> a
+
+/**
+ * An infinite sequence counting up from the given starting value.
+ * '[x...]' is syntactic sugar for 'infFrom x'.
+ */
+primitive infFrom : {a} (Integral a) => a -> [inf]a
+
+/**
+ * An infinite arithmetic sequence starting with the given two values.
+ * '[x,y...]' is syntactic sugar for 'infFromThen x y'.
+ */
+primitive infFromThen : {a} (Integral a) => a -> a -> [inf]a
+
+
+// The Field class -------------------------------------------------
+
+/** Value types that correspond to a field; that is, a
+  * ring also posessing multiplicative inverses for
+  * non-zero elements.
+  *
+  * Floating-point values are only approximately a field,
+  * but nonetheless inhabit this class.
+  */
+primitive type Field : * -> Prop
+
+/**
+  * Reciprocal
+  *
+  * Compute the multiplicative inverse of an element of a field.
+  * The reciprocal of zero is undefined.
+  */
+primitive recip : {a} (Field a) => a -> a
+
+/**
+ * Field division
  *
- * For words, computes the ceiling of log, base 2, of a number.
- * Over structured values, operates element-wise.
+ * The division operation in a field.
+ * Satisfies 'x /. y == x * (recip y)'
+ *
+ * Field division by 0 is undefined.
  */
-primitive lg2 : {a} (Arith a) => a -> a
+primitive (/.) : {a} (Field a) => a -> a -> a
 
 
-type Bool = Bit
+// The Round class -------------------------------------------------
+
+/** Value types that can be rounded to integer values. */
+primitive type Round : * -> Prop
 
 /**
- * The constant True. Corresponds to the bit value 1.
+ * Ceiling function.
+ *
+ * Given 'x', compute the smallest integer 'i'
+ * such that 'x <= i'.
  */
-primitive True  : Bit
+primitive ceiling : {a} (Round a) => a -> Integer
 
 /**
- * The constant False. Corresponds to the bit value 0.
+ * Floor function.
+ *
+ * Given 'x', compute the largest integer 'i'
+ * such that 'i <= x'.
  */
-primitive False : Bit
+primitive floor : {a} (Round a) => a -> Integer
 
 /**
- * Returns the two's complement of its argument.
- * Over structured values, operates element-wise.
- * The prefix notation '- x' is syntactic sugar
- * for 'negate x'.
- * Satisfies 'negate a = ~a + 1'.
+ * Truncate the value toward 0.
+ *
+ * Given 'x' compute the nearest integer between
+ * 'x' and 0.  For nonnegative 'x', this is floor,
+ * and for negative 'x' this is ceiling.
  */
-primitive negate : {a} (Arith a) => a -> a
+primitive trunc : {a} (Round a) => a -> Integer
 
 /**
- * Bitwise complement. The prefix notation '~ x'
- * is syntactic sugar for 'complement x'.
+ * Round to the nearest integer.
+ *
+ * Ties are broken away from 0.  For nonnegative 'x'
+ * this is 'floor (x + 0.5)'.  For negative 'x' this
+ * is 'ceiling (x - 0.5)'.
  */
-primitive complement : {a} (Logic a) => a -> a
+primitive round : {a} (Round a) => a -> Integer
+
+
+// The Cmp class ---------------------------------------------------
+
+/** Value types that support equality and ordering comparisons. */
+primitive type Cmp : * -> Prop
 
 /**
  * Less-than. Only works on comparable arguments.
@@ -302,6 +473,19 @@ min x y = if x < y then x else y
 max : {a} (Cmp a) => a -> a -> a
 max x y = if x > y then x else y
 
+/**
+ * Compute the absolute value of a value from an ordered ring.
+ * Bitvector values are considered unsigned, so this is
+ * the identity function on [n].
+ */
+abs : {a} (Cmp a, Ring a) => a -> a
+abs x = if x < fromInteger 0 then negate x else x
+
+
+// The SignedCmp class ----------------------------------------------
+
+/** Value types that support signed comparisons. */
+primitive type SignedCmp : * -> Prop
 
 /**
  * 2's complement signed less-than.
@@ -326,15 +510,55 @@ x <=$ y = ~(y <$ x)
 (>=$) : {a} (SignedCmp a) => a -> a -> Bit
 x >=$ y = ~(x <$ y)
 
+
+// Bit specific operations ----------------------------------------
+
+/**
+ * The constant True. Corresponds to the bit value 1.
+ */
+primitive True  : Bit
+
+/**
+ * The constant False. Corresponds to the bit value 0.
+ */
+primitive False : Bit
+
+/**
+ * Short-cutting boolean conjunction function.
+ * If the first argument is False, the second argument
+ * is not evaluated.
+ */
+(/\) : Bit -> Bit -> Bit
+x /\ y = if x then y else False
+
+/**
+ * Short-cutting boolean disjunction function.
+ * If the first argument is True, the second argument
+ * is not evaluated.
+ */
+(\/) : Bit -> Bit -> Bit
+x \/ y = if x then True else y
+
+/**
+ * Short-cutting logical implication.
+ * If the first argument is False, the second argument is
+ * not evaluated.
+ */
+(==>) : Bit -> Bit -> Bit
+a ==> b = if a then b else True
+
+
+// Bitvector specific operations ----------------------------------
+
 /**
  * 2's complement signed division.  Division rounds toward 0.
  */
-primitive (/$) : {a} (Arith a) => a -> a -> a
+primitive (/$) : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
 
 /**
  * 2's complement signed remainder.  Division rounds toward 0.
  */
-primitive (%$) : {a} (Arith a) => a -> a -> a
+primitive (%$) : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
 
 /**
  * Unsigned carry.  Returns true if the unsigned addition of the given
@@ -376,99 +600,40 @@ sext x = newbits # x
   where newbits = if x@0 then ~zero else zero
 
 /**
- * Short-cutting boolean conjunction function.
- * If the first argument is False, the second argument
- * is not evaluated.
+ * 2's complement signed (arithmetic) right shift.  The first argument
+ * is the sequence to shift (considered as a signed value),
+ * the second argument is the number of positions to shift
+ * by (considered as an unsigned value).
  */
-(/\) : Bit -> Bit -> Bit
-x /\ y = if x then y else False
+primitive (>>$) : {n, ix} (fin n, n >= 1, Integral ix) => [n] -> ix -> [n]
 
 /**
- * Short-cutting boolean disjunction function.
- * If the first argument is True, the second argument
- * is not evaluated.
+ * Log base two.
+ *
+ * For words, computes the ceiling of log, base 2, of a number.
+ *  We set `lg2 0 = 0`
  */
-(\/) : Bit -> Bit -> Bit
-x \/ y = if x then True else y
+primitive lg2 : {n} (fin n) => [n] -> [n]
+
+
+// Rational specific operations ----------------------------------------------
 
 /**
- * Short-cutting logical implication.
- * If the first argument is False, the second argument is
- * not evaluated.
+ * Compute the ratio of two integers as a rational.
+ * ratio x y = (fromInteger x /. fromInteger y) : Rational
  */
-(==>) : Bit -> Bit -> Bit
-a ==> b = if a then b else True
+primitive ratio : Integer -> Integer -> Rational
 
-/**
- * Logical 'and' over bits. Extends element-wise over sequences, tuples.
- */
-primitive (&&) : {a} (Logic a) => a -> a -> a
 
-/**
- * Logical 'or' over bits. Extends element-wise over sequences, tuples.
- */
-primitive (||) : {a} (Logic a) => a -> a -> a
-
-/**
- * Logical 'exclusive or' over bits. Extends element-wise over sequences, tuples.
- */
-primitive (^) : {a} (Logic a) => a -> a -> a
-
-/**
- * Gives an arbitrary shaped value whose bits are all False.
- * ~zero likewise gives an arbitrary shaped value whose bits are all True.
- */
-primitive zero : {a} (Zero a) => a
-
-/**
- * Converts a bitvector to a non-negative integer in the range 0 to 2^^n-1.
- */
-primitive toInteger : {bits} (fin bits) => [bits] -> Integer
-
-/**
- * Converts an unbounded integer to another arithmetic type. When converting
- * to the bitvector type [n], the value is reduced modulo 2^^n.
- */
-primitive fromInteger : {a} (Arith a) => Integer -> a
+// Zn specific operations ----------------------------------------------------
 
 /**
  * Converts an integer modulo n to an unbounded integer in the range 0 to n-1.
  */
 primitive fromZ : {n} (fin n, n >= 1) => Z n -> Integer
 
-/**
- * Left shift.  The first argument is the sequence to shift, the second is the
- * number of positions to shift by.
-*/
-primitive (<<) : {n, ix, a} (fin ix, Zero a) => [n]a -> [ix] -> [n]a
 
-/**
- * Right shift.  The first argument is the sequence to shift, the second is the
- * number of positions to shift by.
- */
-primitive (>>) : {n, ix, a} (fin ix, Zero a) => [n]a -> [ix] -> [n]a
-
-/**
- * Left rotate.  The first argument is the sequence to rotate, the second is the
- * number of positions to rotate by.
- */
-primitive (<<<) : {n, ix, a} (fin n, fin ix) => [n]a -> [ix] -> [n]a
-
-/**
- * Right rotate.  The first argument is the sequence to rotate, the second is
- * the number of positions to rotate by.
- */
-primitive (>>>) : {n, ix, a} (fin n, fin ix) => [n]a -> [ix] -> [n]a
-
-/**
- * 2's complement signed (arithmetic) right shift.  The first argument
- * is the sequence to shift (considered as a signed value),
- * the second argument is the number of positions to shift
- * by (considered as an unsigned value).
- */
-primitive (>>$) : {n, ix} (fin n, n >= 1, fin ix) => [n] -> [ix] -> [n]
-
-
+// Sequence operations -------------------------------------------------------
 
 /**
  * Concatenates two sequences.  On bitvectors, the most-significant bits
@@ -509,17 +674,66 @@ primitive reverse : {n, a} (fin n) => [n]a -> [n]a
  */
 primitive transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
 
+
+take : {front, back, a} (fin front) => [front + back]a -> [front]a
+take (x # _) = x
+
+drop : {front, back, a} (fin front) => [front + back]a -> [back]a
+drop ((_ : [front] _) # y) = y
+
+tail : {n, a} [1 + n]a -> [n]a
+tail xs = drop`{1} xs
+
+/**
+ * Return the left-most element of a sequence.
+ */
+head : {n, a} [1 + n]a -> a
+head xs = xs @ 0
+
+/**
+ * Return the right-most element of a sequence.
+ */
+last : {n, a} (fin n) => [1 + n]a -> a
+last xs = xs ! 0
+
+groupBy : {each, parts, a} (fin each) => [parts * each]a -> [parts][each]a
+groupBy = split`{parts=parts}
+
+/**
+ * Left shift.  The first argument is the sequence to shift, the second is the
+ * number of positions to shift by.
+*/
+primitive (<<) : {n, ix, a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
+
+/**
+ * Right shift.  The first argument is the sequence to shift, the second is the
+ * number of positions to shift by.
+ */
+primitive (>>) : {n, ix, a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
+
+/**
+ * Left rotate.  The first argument is the sequence to rotate, the second is the
+ * number of positions to rotate by.
+ */
+primitive (<<<) : {n, ix, a} (fin n, Integral ix) => [n]a -> ix -> [n]a
+
+/**
+ * Right rotate.  The first argument is the sequence to rotate, the second is
+ * the number of positions to rotate by.
+ */
+primitive (>>>) : {n, ix, a} (fin n, Integral ix) => [n]a -> ix -> [n]a
+
 /**
  * Index operator.  The first argument is a sequence.  The second argument is
  * the zero-based index of the element to select from the sequence.
  */
-primitive (@) : {n, a, ix} (fin ix) => [n]a -> [ix] -> a
+primitive (@) : {n, a, ix} (Integral ix) => [n]a -> ix -> a
 
 /**
  * Bulk index operator.  The first argument is a sequence.  The second argument
  * is a sequence of the zero-based indices of the elements to select.
  */
-(@@) : {n, k, ix, a} (fin ix) => [n]a -> [k][ix] -> [k]a
+(@@) : {n, k, ix, a} (Integral ix) => [n]a -> [k]ix -> [k]a
 xs @@ is = [ xs @ i | i <- is ]
 
 /**
@@ -527,14 +741,14 @@ xs @@ is = [ xs @ i | i <- is ]
  * argument is the zero-based index of the element to select, starting from the
  * end of the sequence.
  */
-primitive (!) : {n, a, ix} (fin n, fin ix) => [n]a -> [ix] -> a
+primitive (!) : {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a
 
 /**
  * Bulk reverse index operator.  The first argument is a finite sequence.  The
  * second argument is a sequence of the zero-based indices of the elements to
  * select, starting from the end of the sequence.
  */
-(!!) : {n, k, ix, a} (fin n, fin ix) => [n]a -> [k][ix] -> [k]a
+(!!) : {n, k, ix, a} (fin n, Integral ix) => [n]a -> [k]ix -> [k]a
 xs !! is = [ xs ! i | i <- is ]
 
 /**
@@ -544,7 +758,7 @@ xs !! is = [ xs ! i | i <- is ]
  * The third argument is the new element.  The return value is the
  * initial sequence updated so that the indicated index has the given value.
  */
-primitive update : {n, a, ix} (fin ix) => [n]a -> [ix] -> a -> [n]a
+primitive update : {n, a, ix} (Integral ix) => [n]a -> ix -> a -> [n]a
 
 /**
  * Update the given sequence with new value at the given index position.
@@ -553,7 +767,7 @@ primitive update : {n, a, ix} (fin ix) => [n]a -> [ix] -> a -> [n]a
  * The third argument is the new element.  The return value is the
  * initial sequence updated so that the indicated index has the given value.
  */
-primitive updateEnd : {n, a, ix} (fin n, fin ix) => [n]a -> [ix] -> a -> [n]a
+primitive updateEnd : {n, a, ix} (fin n, Integral ix) => [n]a -> ix -> a -> [n]a
 
 /**
  * Perform a series of updates to a sequence.  The first argument is
@@ -562,7 +776,7 @@ primitive updateEnd : {n, a, ix} (fin n, fin ix) => [n]a -> [ix] -> a -> [n]a
  * This function applies the 'update' function in sequence with the
  * given update pairs.
  */
-updates : {n, k, ix, a} (fin ix, fin k) => [n]a -> [k][ix] -> [k]a -> [n]a
+updates : {n, k, ix, a} (Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
 updates xs0 idxs vals = xss!0
  where
    xss = [ xs0 ] #
@@ -579,7 +793,7 @@ updates xs0 idxs vals = xss!0
  * This function applies the 'updateEnd' function in sequence with the
  * given update pairs.
  */
-updatesEnd : {n, k, ix, a} (fin n, fin ix, fin k) => [n]a -> [k][ix] -> [k]a -> [n]a
+updatesEnd : {n, k, ix, a} (fin n, Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
 updatesEnd xs0 idxs vals = xss!0
  where
    xss = [ xs0 ] #
@@ -590,50 +804,17 @@ updatesEnd xs0 idxs vals = xss!0
          ]
 
 /**
- * A finite sequence counting up from 'first' to 'last'.
- *
- * '[a..b]' is syntactic sugar for 'fromTo`{first=a,last=b}'.
- */
-primitive fromTo : {first, last, a} (fin last, last >= first, Literal last a) =>
-                                    [1 + (last - first)]a
-
-/**
- * A finite arithmetic sequence starting with 'first' and 'next',
- * stopping when the values reach or would skip over 'last'.
- *
- * '[a,b..c]' is syntactic sugar for 'fromThenTo`{first=a,next=b,last=c}'.
- */
-primitive fromThenTo : {first, next, last, a, len}
-                       ( fin first, fin next, fin last
-                       , Literal first a, Literal next a, Literal last a
-                       , first != next
-                       , lengthFromThenTo first next last == len) => [len]a
-
-/**
- * An infinite sequence counting up from the given starting value.
- * '[x...]' is syntactic sugar for 'infFrom x'.
- */
-primitive infFrom : {a} (Arith a) => a -> [inf]a
-
-/**
- * An infinite arithmetic sequence starting with the given two values.
- * '[x,y...]' is syntactic sugar for 'infFromThen x y'.
- */
-primitive infFromThen : {a} (Arith a) => a -> a -> [inf]a
-
-/**
  * Produce a sequence using a generating function.
  * Satisfies 'generate f @ i == f i' for all 'i' between '0' and 'n-1'.
  *
  * Declarations of the form 'x @ i = e' are syntactic sugar for
  * 'x = generate (\i -> e)'.
  */
-generate : {n, ix, a}
-  (fin ix, n >= 1, ix >= width (n - 1)) => ([ix] -> a) -> [n]a
+generate : {n, a} (fin n, n >= 1) => (Integer -> a) -> [n]a
 generate f = [ f i | i <- [0 .. n-1] ]
 
-primitive error : {a, len} (fin len) => [len][8] -> a
 
+// GF_2^n polynomial computations -------------------------------------------
 
 /**
  * Performs multiplication of polynomials over GF(2).
@@ -677,54 +858,19 @@ pmod x y = if y == 0 then 0/0 else last zs
 
     zs = [0] # [ z ^ (if xi then tail p else 0) | xi <- reverse x | p <- powers | z <- zs ]
 
+
+// Utility operations -----------------------------------------------------------------
+
+primitive error : {a, len} (fin len) => String len -> a
+
+undefined : {a} a
+undefined = error "undefined"
+
 /**
  * Generates random values from a seed.  When called with a function, currently
  * generates a function that always returns zero.
  */
 primitive random : {a} [256] -> a
-
-type String n = [n][8]
-type Word n = [n]
-type Char   = [8]
-
-take : {front, back, a} (fin front) => [front + back]a -> [front]a
-take (x # _) = x
-
-drop : {front, back, a} (fin front) => [front + back]a -> [back]a
-drop ((_ : [front] _) # y) = y
-
-tail : {n, a} [1 + n]a -> [n]a
-tail xs = drop`{1} xs
-
-/**
- * Return the left-most element of a sequence.
- */
-head : {n, a} [1 + n]a -> a
-head xs = xs @ 0
-
-/**
- * Return the right-most element of a sequence.
- */
-last : {n, a} (fin n) => [1 + n]a -> a
-last xs = xs ! 0
-
-/**
- * Return the length of a sequence.  Note that the result depends only
- * on the type of the argument, not its value.
- */
-length : {n, a, b} (fin n, Literal n b) => [n]a -> b
-length _ = `n
-
-undefined : {a} a
-undefined = error "undefined"
-
-groupBy : {each, parts, a} (fin each) => [parts * each]a -> [parts][each]a
-groupBy = split`{parts=parts}
-
-/**
- * Define the base 2 logarithm function in terms of width
- */
-type lg2 n = width (max n 1 - 1)
 
 /**
  * Debugging function for tracing.  The first argument is a string,
@@ -752,6 +898,7 @@ primitive trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
  */
 traceVal : {n, a} (fin n) => [n][8] -> a -> a
 traceVal msg x = trace msg x x
+
 
 /* Functions previously in Cryptol::Extras */
 
@@ -806,7 +953,7 @@ foldr f acc xs = ys ! 0
 /**
  * Compute the sum of the values in the sequence.
  */
-sum : {n, a} (fin n, Arith a) => [n]a -> a
+sum : {n, a} (fin n, Ring a) => [n]a -> a
 sum xs = foldl (+) (fromInteger 0) xs
 
 /**

@@ -25,7 +25,7 @@ module Cryptol.Eval.SBV
   ) where
 
 import qualified Control.Exception as X
-import           Control.Monad (join, unless)
+import           Control.Monad (join)
 import           Control.Monad.IO.Class (MonadIO(..))
 import           Data.Bits (bit, complement, shiftL)
 import           Data.List (foldl')
@@ -39,9 +39,9 @@ import Cryptol.Eval.Type (TValue(..), finNat')
 import Cryptol.Eval.Backend
 import Cryptol.Eval.Generic
 import Cryptol.Eval.Monad
-  ( Eval(..), blackhole, delayFill, EvalError(..) )
+  ( Eval(..), blackhole, delayFill, EvalError(..), Unsupported(..) )
 import Cryptol.Eval.Value
-import Cryptol.Eval.Concrete ( integerToChar, ppBV, BV(..), lg2 )
+import Cryptol.Eval.Concrete ( integerToChar, ppBV, BV(..) )
 import Cryptol.Testing.Random( randomV )
 import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), widthInteger)
 import Cryptol.Utils.Ident
@@ -271,7 +271,6 @@ instance Backend SBV where
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
        pure $! signedRem a b
 
-  wordExp _ a b = sExp a b
   wordLg2 _ a = sLg2 a
 
   wordToInt _ x = pure $! svToInteger x
@@ -285,7 +284,6 @@ instance Backend SBV where
   intMinus _ a b = pure $! svMinus a b
   intMult  _ a b = pure $! svTimes a b
   intNegate _ a  = pure $! SBV.svUNeg a
-  intLg2 _ a = svLg2 a
 
   intDiv sym a b =
     do let z = svInteger KUnbounded 0
@@ -297,13 +295,6 @@ instance Backend SBV where
        assertSideCondition sym (svNot (svEqual b z)) DivideByZero
        let p = svLessThan z b
        pure $! svSymbolicMerge KUnbounded True p (svRem a b) (svUNeg (svRem (svUNeg a) (svUNeg b)))
-
-  intExp sym a b
-    | Just e <- svAsInteger b =
-       do unless (0 <= e) (raiseError sym NegativeExponent)
-          pure $! SBV.svExp a b
-    | otherwise =
-       liftIO (X.throw (UnsupportedSymbolicOp "integer exponentiation"))
 
   -- NB, we don't do reduction here
   intToZn _ _m a = pure a
@@ -354,21 +345,47 @@ primTable  = let sym = SBV in
   , ("False"       , VBit (bitLit sym False))
   , ("number"      , ecNumberV sym) -- Converts a numeric type into its corresponding value.
                                     -- { val, rep } (Literal val rep) => rep
+  , ("ratio"       , ratioV sym)
 
-    -- Arith
-  , ("fromInteger" , ecFromIntegerV sym)
-  , ("+"           , binary (addV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("-"           , binary (subV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("*"           , binary (mulV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("/"           , binary (divV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("%"           , binary (modV sym)) -- {a} (Arith a) => a -> a -> a
-  , ("/$"          , binary (sdivV sym))
-  , ("%$"          , binary (smodV sym))
-  , ("^^"          , binary (expV sym))
-  , ("lg2"         , unary (lg2V sym))
+    -- Zero
+  , ("zero"        , VPoly (zeroV sym))
+
+    -- Logic
+  , ("&&"          , binary (andV sym))
+  , ("||"          , binary (orV sym))
+  , ("^"           , binary (xorV sym))
+  , ("complement"  , unary  (complementV sym))
+
+    -- Ring
+  , ("fromInteger" , fromIntegerV sym)
+  , ("+"           , binary (addV sym))
+  , ("-"           , binary (subV sym))
   , ("negate"      , unary (negateV sym))
+  , ("*"           , binary (mulV sym))
+
+    -- Integral
+  , ("toInteger"   , toIntegerV sym)
+  , ("/"           , binary (divV sym))
+  , ("%"           , binary (modV sym))
+  , ("^^"          , expV sym)
   , ("infFrom"     , infFromV sym)
   , ("infFromThen" , infFromThenV sym)
+
+    -- Field
+  , ("recip"       , recipV sym)
+  , ("/."          , fieldDivideV sym)
+
+    -- Round
+  , ("floor"       , unary (floorV sym))
+  , ("ceiling"     , unary (ceilingV sym))
+  , ("trunc"       , unary (truncV sym))
+  , ("round"       , unary (roundV sym))
+
+    -- Word operations
+  , ("/$"          , sdivV sym)
+  , ("%$"          , smodV sym)
+  , ("lg2"         , lg2V sym)
+  , (">>$"         , sshrV)
 
     -- Cmp
   , ("<"           , binary (lessThanV sym))
@@ -381,22 +398,9 @@ primTable  = let sym = SBV in
     -- SignedCmp
   , ("<$"          , binary (signedLessThanV sym))
 
-    -- Logic
-  , ("&&"          , binary (andV sym))
-  , ("||"          , binary (orV sym))
-  , ("^"           , binary (xorV sym))
-  , ("complement"  , unary  (complementV sym))
-
-    -- Zero
-  , ("zero"        , VPoly (zeroV sym))
-
     -- Finite enumerations
   , ("fromTo"      , fromToV sym)
   , ("fromThenTo"  , fromThenToV sym)
-
-    -- Conversions to Integer
-  , ("toInteger"   , ecToIntegerV sym)
-  , ("fromZ"       , ecFromZ sym)
 
     -- Sequence manipulations
   , ("#"          , -- {a,b,d} (fin a) => [a] d -> [b] d -> [a + b] d
@@ -433,32 +437,39 @@ primTable  = let sym = SBV in
 
     -- Shifts and rotates
   , ("<<"          , logicShift sym "<<"
-                       (\x y -> pure (SBV.svShiftLeft x y))
-                       shiftLeftReindex)
+                       shiftShrink
+                       (\x y -> pure (shl x y))
+                       (\x y -> pure (lshr x y))
+                       shiftLeftReindex shiftRightReindex)
 
   , (">>"          , logicShift sym ">>"
-                       (\x y -> pure (SBV.svShiftRight x y))
-                       shiftRightReindex)
+                       shiftShrink
+                       (\x y -> pure (lshr x y))
+                       (\x y -> pure (shl x y))
+                       shiftRightReindex shiftLeftReindex)
 
   , ("<<<"         , logicShift sym "<<<"
+                       rotateShrink
                        (\x y -> pure (SBV.svRotateLeft x y))
-                       rotateLeftReindex)
+                       (\x y -> pure (SBV.svRotateRight x y))
+                       rotateLeftReindex rotateRightReindex)
 
   , (">>>"         , logicShift sym ">>>"
+                       rotateShrink
                        (\x y -> pure (SBV.svRotateRight x y))
-                       rotateRightReindex)
-
-  , (">>$"         , sshrV)
-
+                       (\x y -> pure (SBV.svRotateLeft x y))
+                       rotateRightReindex rotateLeftReindex)
 
     -- Indexing and updates
-  , ("@"           , indexPrim sym indexFront_bits indexFront)
-  , ("!"           , indexPrim sym indexBack_bits indexBack)
+  , ("@"           , indexPrim sym indexFront indexFront_bits indexFront)
+  , ("!"           , indexPrim sym indexBack indexBack_bits indexBack)
 
   , ("update"      , updatePrim sym updateFrontSym_word updateFrontSym)
   , ("updateEnd"   , updatePrim sym updateBackSym_word updateBackSym)
 
     -- Misc
+
+  , ("fromZ"       , fromZV sym)
 
     -- {at,len} (fin len) => [len][8] -> at
   , ("error"       ,
@@ -493,9 +504,10 @@ indexFront ::
   Nat' ->
   TValue ->
   SeqMap SBV ->
-  SWord SBV ->
+  TValue ->
+  SVal ->
   SEval SBV Value
-indexFront mblen a xs idx
+indexFront mblen a xs _ix idx
   | Just i <- SBV.svAsInteger idx
   = lookupSeqMap xs i
 
@@ -506,37 +518,44 @@ indexFront mblen a xs idx
          Just ws ->
            do z <- wordLit SBV wlen 0
               return $ VWord wlen $ pure $ WordVal $ SBV.svSelect ws z idx
-         Nothing -> foldr f def idxs
+         Nothing -> folded
 
   | otherwise
-  = foldr f def idxs
+  = folded
 
  where
     k = SBV.kindOf idx
-    w = SBV.intSizeOf idx
     def = zeroV SBV a
     f n y = iteValue SBV (SBV.svEqual idx (SBV.svInteger k n)) (lookupSeqMap xs n) y
-    idxs = case mblen of
-      Nat n | n < 2^w -> [0 .. n-1]
-      _ -> [0 .. 2^w - 1]
-
+    folded =
+      case k of
+        KBounded _ w ->
+          case mblen of
+            Nat n | n < 2^w -> foldr f def [0 .. n-1]
+            _ -> foldr f def [0 .. 2^w - 1]
+        _ ->
+          case mblen of
+            Nat n -> foldr f def [0 .. n-1]
+            Inf -> liftIO (X.throw (UnsupportedSymbolicOp "unbounded integer indexing"))
 
 indexBack ::
   Nat' ->
   TValue ->
   SeqMap SBV ->
+  TValue ->
   SWord SBV ->
   SEval SBV Value
-indexBack (Nat n) a xs idx = indexFront (Nat n) a (reverseSeqMap n xs) idx
-indexBack Inf _ _ _ = evalPanic "Expected finite sequence" ["indexBack"]
+indexBack (Nat n) a xs ix idx = indexFront (Nat n) a (reverseSeqMap n xs) ix idx
+indexBack Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack"]
 
 indexFront_bits ::
   Nat' ->
   TValue ->
   SeqMap SBV ->
+  TValue ->
   [SBit SBV] ->
   SEval SBV Value
-indexFront_bits mblen _a xs bits0 = go 0 (length bits0) bits0
+indexFront_bits mblen _a xs _ix bits0 = go 0 (length bits0) bits0
  where
   go :: Integer -> Int -> [SBit SBV] -> SEval SBV Value
   go i _k []
@@ -565,10 +584,11 @@ indexBack_bits ::
   Nat' ->
   TValue ->
   SeqMap SBV ->
+  TValue ->
   [SBit SBV] ->
   SEval SBV Value
-indexBack_bits (Nat n) a xs idx = indexFront_bits (Nat n) a (reverseSeqMap n xs) idx
-indexBack_bits Inf _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
+indexBack_bits (Nat n) a xs ix idx = indexFront_bits (Nat n) a (reverseSeqMap n xs) ix idx
+indexBack_bits Inf _ _ _ _ = evalPanic "Expected finite sequence" ["indexBack_bits"]
 
 
 -- | Compare a symbolic word value with a concrete integer.
@@ -592,10 +612,17 @@ updateFrontSym ::
   Nat' ->
   TValue ->
   SeqMap SBV ->
-  WordValue SBV ->
+  Either (SInteger SBV) (WordValue SBV) ->
   SEval SBV (GenValue SBV) ->
   SEval SBV (SeqMap SBV)
-updateFrontSym _len _eltTy vs wv val =
+updateFrontSym _len _eltTy vs (Left idx) val =
+  case SBV.svAsInteger idx of
+    Just i -> return $ updateSeqMap vs i val
+    Nothing -> return $ IndexSeqMap $ \i ->
+      do b <- intEq SBV idx =<< integerLit SBV i
+         iteValue SBV b val (lookupSeqMap vs i)
+
+updateFrontSym _len _eltTy vs (Right wv) val =
   case wv of
     WordVal w | Just j <- SBV.svAsInteger w ->
       return $ updateSeqMap vs j val
@@ -608,11 +635,19 @@ updateFrontSym_word ::
   Nat' ->
   TValue ->
   WordValue SBV ->
-  WordValue SBV ->
+  Either (SInteger SBV) (WordValue SBV) ->
   SEval SBV (GenValue SBV) ->
   SEval SBV (WordValue SBV)
 updateFrontSym_word Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateFrontSym_bits"]
-updateFrontSym_word (Nat n) eltTy bv wv val =
+
+updateFrontSym_word (Nat _) eltTy (LargeBitsVal n bv) idx val =
+  LargeBitsVal n <$> updateFrontSym (Nat n) eltTy bv idx val
+
+updateFrontSym_word (Nat n) eltTy (WordVal bv) (Left idx) val =
+  do idx' <- wordFromInt SBV n idx
+     updateFrontSym_word (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
+
+updateFrontSym_word (Nat n) eltTy bv (Right wv) val =
   case wv of
     WordVal idx
       | Just j <- SBV.svAsInteger idx ->
@@ -629,18 +664,26 @@ updateFrontSym_word (Nat n) eltTy bv wv val =
              let bw'  = SBV.svAnd bw (SBV.svNot msk)
              return $! SBV.svXOr bw' (SBV.svAnd q msk)
 
-    _ -> LargeBitsVal (wordValueSize SBV wv) <$> updateFrontSym (Nat n) eltTy (asBitsMap SBV bv) wv val
+    _ -> LargeBitsVal n <$> updateFrontSym (Nat n) eltTy (asBitsMap SBV bv) (Right wv) val
 
 
 updateBackSym ::
   Nat' ->
   TValue ->
   SeqMap SBV ->
-  WordValue SBV ->
+  Either (SInteger SBV) (WordValue SBV) ->
   SEval SBV (GenValue SBV) ->
   SEval SBV (SeqMap SBV)
 updateBackSym Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym"]
-updateBackSym (Nat n) _eltTy vs wv val =
+
+updateBackSym (Nat n) _eltTy vs (Left idx) val =
+  case SBV.svAsInteger idx of
+    Just i -> return $ updateSeqMap vs (n - 1 - i) val
+    Nothing -> return $ IndexSeqMap $ \i ->
+      do b <- intEq SBV idx =<< integerLit SBV (n - 1 - i)
+         iteValue SBV b val (lookupSeqMap vs i)
+
+updateBackSym (Nat n) _eltTy vs (Right wv) val =
   case wv of
     WordVal w | Just j <- SBV.svAsInteger w ->
       return $ updateSeqMap vs (n - 1 - j) val
@@ -653,11 +696,19 @@ updateBackSym_word ::
   Nat' ->
   TValue ->
   WordValue SBV ->
-  WordValue SBV ->
+  Either (SInteger SBV) (WordValue SBV) ->
   SEval SBV (GenValue SBV) ->
   SEval SBV (WordValue SBV)
 updateBackSym_word Inf _ _ _ _ = evalPanic "Expected finite sequence" ["updateBackSym_bits"]
-updateBackSym_word (Nat n) eltTy bv wv val = do
+
+updateBackSym_word (Nat _) eltTy (LargeBitsVal n bv) idx val =
+  LargeBitsVal n <$> updateBackSym (Nat n) eltTy bv idx val
+
+updateBackSym_word (Nat n) eltTy (WordVal bv) (Left idx) val =
+  do idx' <- wordFromInt SBV n idx
+     updateBackSym_word (Nat n) eltTy (WordVal bv) (Right (WordVal idx')) val
+
+updateBackSym_word (Nat n) eltTy bv (Right wv) val = do
   case wv of
     WordVal idx
       | Just j <- SBV.svAsInteger idx ->
@@ -674,7 +725,7 @@ updateBackSym_word (Nat n) eltTy bv wv val = do
              let bw'  = SBV.svAnd bw (SBV.svNot msk)
              return $! SBV.svXOr bw' (SBV.svAnd q msk)
 
-    _ -> LargeBitsVal (wordValueSize SBV wv) <$> updateBackSym (Nat n) eltTy (asBitsMap SBV bv) wv val
+    _ -> LargeBitsVal n <$> updateBackSym (Nat n) eltTy (asBitsMap SBV bv) (Right wv) val
 
 
 asWordList :: [WordValue SBV] -> Maybe [SWord SBV]
@@ -684,16 +735,6 @@ asWordList = go id
        go f (WordVal x :vs) = go (f . (x:)) vs
        go _f (LargeBitsVal _ _ : _) = Nothing
 
-
-sExp :: SWord SBV -> SWord SBV -> SEval SBV (SWord SBV)
-sExp x y =
-   do ys <- reverse <$> unpackWord SBV y -- bits in little-endian order
-      pure $ go ys
-
-  where go []       = literalSWord (SBV.intSizeOf x) 1
-        go (b : bs) = SBV.svIte b (SBV.svTimes x s) s
-            where a = go bs
-                  s = SBV.svTimes a a
 
 sModAdd :: Integer -> SInteger SBV -> SInteger SBV -> SEval SBV (SInteger SBV)
 sModAdd 0 _ _ = evalPanic "sModAdd" ["0 modulus not allowed"]
@@ -731,13 +772,6 @@ sLg2 x = pure $ go 0
     go i | i < SBV.intSizeOf x = SBV.svIte (SBV.svLessEq x (lit (2^i))) (lit (toInteger i)) (go (i + 1))
          | otherwise           = lit (toInteger i)
 
--- | Ceiling (log_2 x)
-svLg2 :: SInteger SBV -> SEval SBV (SInteger SBV)
-svLg2 x =
-  case SBV.svAsInteger x of
-    Just n -> pure $ SBV.svInteger SBV.KUnbounded (lg2 n)
-    Nothing -> liftIO (X.throw (UnsupportedSymbolicOp "integer lg2"))
-
 svDivisible :: Integer -> SInteger SBV -> SEval SBV (SBit SBV)
 svDivisible m x =
   do m' <- integerLit SBV m
@@ -750,17 +784,39 @@ signedQuot x y = SBV.svUnsign (SBV.svQuot (SBV.svSign x) (SBV.svSign y))
 signedRem :: SWord SBV -> SWord SBV -> SWord SBV
 signedRem x y = SBV.svUnsign (SBV.svRem (SBV.svSign x) (SBV.svSign y))
 
+ashr :: SVal -> SVal -> SVal
+ashr x idx =
+  case SBV.svAsInteger idx of
+    Just i  -> SBV.svUnsign (SBV.svShr (SBV.svSign x) (fromInteger i))
+    Nothing -> SBV.svUnsign (SBV.svShiftRight (SBV.svSign x) idx)
+
+lshr :: SVal -> SVal -> SVal
+lshr x idx =
+  case SBV.svAsInteger idx of
+    Just i -> SBV.svShr x (fromInteger i)
+    Nothing -> SBV.svShiftRight x idx
+
+shl :: SVal -> SVal -> SVal
+shl x idx =
+  case SBV.svAsInteger idx of
+    Just i  -> SBV.svShl x (fromInteger i)
+    Nothing -> SBV.svShiftLeft x idx
 
 sshrV :: Value
 sshrV =
-  nlam $ \_n ->
-  nlam $ \_k ->
+  nlam $ \n ->
+  tlam $ \ix ->
   wlam SBV $ \x -> return $
-  wlam SBV $ \y ->
-   case SBV.svAsInteger y of
-     Just i ->
-       let z = SBV.svUnsign (SBV.svShr (SBV.svSign x) (fromInteger i))
-        in return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z
-     Nothing ->
-       let z = SBV.svUnsign (SBV.svShiftRight (SBV.svSign x) y)
-        in return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z
+  lam $ \y ->
+   y >>= asIndex SBV ">>$" ix >>= \case
+     Left idx ->
+       do let w = toInteger (SBV.intSizeOf x)
+          let pneg = svLessThan idx (svInteger KUnbounded 0)
+          zneg <- shl x  . svFromInteger w <$> shiftShrink SBV n ix (SBV.svUNeg idx)
+          zpos <- ashr x . svFromInteger w <$> shiftShrink SBV n ix idx
+          let z = svSymbolicMerge (kindOf x) True pneg zneg zpos
+          return . VWord w . pure . WordVal $ z
+
+     Right wv ->
+       do z <- ashr x <$> asWordVal SBV wv
+          return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z

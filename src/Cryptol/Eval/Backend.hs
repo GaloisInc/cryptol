@@ -6,10 +6,31 @@ module Cryptol.Eval.Backend
   , invalidIndex
   , cryUserError
   , cryNoPrimError
+
+    -- * Rationals
+  , SRational(..)
+  , intToRational
+  , ratio
+  , rationalAdd
+  , rationalSub
+  , rationalNegate
+  , rationalMul
+  , rationalRecip
+  , rationalDivide
+  , rationalFloor
+  , rationalCeiling
+  , rationalTrunc
+  , rationalRound
+  , rationalEq
+  , rationalLessThan
+  , rationalGreaterThan
+  , iteRational
+  , ppRational
   ) where
 
 import Control.Monad.IO.Class
 import Data.Kind (Type)
+import Data.Ratio ( (%), numerator, denominator )
 
 import Cryptol.Eval.Monad
 import Cryptol.TypeCheck.AST(Name)
@@ -35,6 +56,126 @@ sDelay sym msg m =
   let msg'  = maybe "" ("while evaluating "++) msg
       retry = raiseError sym (LoopError msg')
    in sDelayFill sym m retry
+
+
+-- | Representation of rational numbers.
+--     Invariant: denominator is not 0
+data SRational sym =
+  SRational
+  { sNum :: SInteger sym
+  , sDenom :: SInteger sym
+  }
+
+intToRational :: Backend sym => sym -> SInteger sym -> SEval sym (SRational sym)
+intToRational sym x = SRational x <$> (integerLit sym 1)
+
+ratio :: Backend sym => sym -> SInteger sym -> SInteger sym -> SEval sym (SRational sym)
+ratio sym n d =
+  do pz  <- bitComplement sym =<< intEq sym d =<< integerLit sym 0
+     assertSideCondition sym pz DivideByZero
+     pure (SRational n d)
+
+rationalRecip :: Backend sym => sym -> SRational sym -> SEval sym (SRational sym)
+rationalRecip sym (SRational a b) = ratio sym b a
+
+rationalDivide :: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
+rationalDivide sym x y = rationalMul sym x =<< rationalRecip sym y
+
+rationalFloor :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
+ -- NB, relies on integer division being round-to-negative-inf division
+rationalFloor sym (SRational n d) = intDiv sym n d
+
+rationalCeiling :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
+rationalCeiling sym r = intNegate sym =<< rationalFloor sym =<< rationalNegate sym r
+
+rationalTrunc :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
+rationalTrunc sym r =
+  do p <- rationalLessThan sym r =<< intToRational sym =<< integerLit sym 0
+     cr <- rationalCeiling sym r
+     fr <- rationalFloor sym r
+     iteInteger sym p cr fr
+
+rationalRound :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
+rationalRound sym r =
+  do p <- rationalLessThan sym r =<< intToRational sym =<< integerLit sym 0
+     half <- SRational <$> integerLit sym 1 <*> integerLit sym 2
+     cr <- rationalCeiling sym =<< rationalSub sym r half
+     fr <- rationalFloor sym =<< rationalAdd sym r half
+     iteInteger sym p cr fr
+
+rationalAdd :: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
+rationalAdd sym (SRational a b) (SRational c d) =
+  do ad <- intMult sym a d
+     bc <- intMult sym b c
+     bd <- intMult sym b d
+     ad_bc <- intPlus sym ad bc
+     pure (SRational ad_bc bd)
+
+rationalSub :: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
+rationalSub sym (SRational a b) (SRational c d) =
+  do ad <- intMult sym a d
+     bc <- intMult sym b c
+     bd <- intMult sym b d
+     ad_bc <- intMinus sym ad bc
+     pure (SRational ad_bc bd)
+
+rationalNegate :: Backend sym => sym -> SRational sym -> SEval sym (SRational sym)
+rationalNegate sym (SRational a b) =
+  do aneg <- intNegate sym a
+     pure (SRational aneg b)
+
+rationalMul :: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
+rationalMul sym (SRational a b) (SRational c d) =
+  do ac <- intMult sym a c
+     bd <- intMult sym b d
+     pure (SRational ac bd)
+
+rationalEq :: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SBit sym)
+rationalEq sym (SRational a b) (SRational c d) =
+  do ad <- intMult sym a d
+     bc <- intMult sym b c
+     intEq sym ad bc
+
+normalizeSign :: Backend sym => sym -> SRational sym -> SEval sym (SRational sym)
+normalizeSign sym (SRational a b) =
+  do p <- intLessThan sym b =<< integerLit sym 0
+     case bitAsLit sym p of
+       Just False -> pure (SRational a b)
+       Just True  ->
+         do aneg <- intNegate sym a
+            bneg <- intNegate sym b
+            pure (SRational aneg bneg)
+       Nothing ->
+         do aneg <- intNegate sym a
+            bneg <- intNegate sym b
+            a' <- iteInteger sym p aneg a
+            b' <- iteInteger sym p bneg b
+            pure (SRational a' b')
+
+rationalLessThan:: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SBit sym)
+rationalLessThan sym x y =
+  do SRational a b <- normalizeSign sym x
+     SRational c d <- normalizeSign sym y
+     ad <- intMult sym a d
+     bc <- intMult sym b c
+     intLessThan sym ad bc
+
+rationalGreaterThan:: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SBit sym)
+rationalGreaterThan sym = flip (rationalLessThan sym)
+
+iteRational :: Backend sym => sym -> SBit sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
+iteRational sym p (SRational a b) (SRational c d) =
+  SRational <$> iteInteger sym p a c <*> iteInteger sym p b d
+
+ppRational :: Backend sym => sym -> PPOpts -> SRational sym -> Doc
+ppRational sym opts (SRational n d)
+  | Just ni <- integerAsLit sym n
+  , Just di <- integerAsLit sym d
+  = let q = ni % di in
+      text "(ratio" <+> integer (numerator q) <+> (integer (denominator q) <> text ")")
+
+  | otherwise
+  = text "(ratio" <+> ppInteger sym opts n <+> (ppInteger sym opts d <> text ")")
 
 -- | This type class defines a collection of operations on bits, words and integers that
 --   are necessary to define generic evaluator primitives that operate on both concrete
@@ -89,7 +230,6 @@ class MonadIO (SEval sym) => Backend sym where
 
   -- | Pretty-print an integer value
   ppInteger :: sym -> PPOpts -> SInteger sym -> Doc
-
 
   -- ==== Identifying literal values ====
 
@@ -311,13 +451,6 @@ class MonadIO (SEval sym) => Backend sym where
     SWord sym ->
     SEval sym (SWord sym)
 
-  -- | Exponentiation of bitvectors.
-  wordExp ::
-    sym ->
-    SWord sym ->
-    SWord sym ->
-    SEval sym (SWord sym)
-
   -- | 2's complement negation of bitvectors
   wordNegate ::
     sym ->
@@ -411,19 +544,6 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SEval sym (SInteger sym)
 
-  -- | Integer exponentiation.  The second argument must be non-negative.
-  intExp ::
-    sym ->
-    SInteger sym ->
-    SInteger sym ->
-    SEval sym (SInteger sym)
-
-  -- | Rounded-up log-2 of the input
-  intLg2 ::
-    sym ->
-    SInteger sym ->
-    SEval sym (SInteger sym)
-
   -- | Equality comparison on integers
   intEq ::
     sym ->
@@ -504,56 +624,6 @@ class MonadIO (SEval sym) => Backend sym where
 
 
   -- ==== Z_n operations defined via projection to the integers ====
-
-  -- | Division of integers modulo n, for a concrete positive integer n.
-  --   NOTE: this is integer division on the initial segement of Z,
-  --   and not the multiplicative inverse in Z_p.
-  znDiv ::
-    sym ->
-    Integer {- ^ modulus -} ->
-    SInteger sym ->
-    SInteger sym ->
-    SEval sym (SInteger sym)
-  znDiv sym m x y =
-    do x' <- znToInt sym m x
-       y' <- znToInt sym m y
-       intToZn sym m =<< intDiv sym x' y'
-
-  -- | Modulus of integers modulo n, for a concrete positive integer n.
-  --   NOTE: this is the modulus corresponding to integer division on the initial
-  --   segement of Z, and not related to multiplicative inverse in Z_p.
-  znMod ::
-    sym ->
-    Integer {- ^ modulus -} ->
-    SInteger sym ->
-    SInteger sym ->
-    SEval sym (SInteger sym)
-  znMod sym m x y =
-    do x' <- znToInt sym m x
-       y' <- znToInt sym m y
-       intToZn sym m =<< intMod sym x' y'
-
-  -- | Exponentation of integers modulo n
-  znExp ::
-    sym ->
-    Integer {- ^ modulus -} ->
-    SInteger sym ->
-    SInteger sym ->
-    SEval sym (SInteger sym)
-  znExp sym m x y =
-    do x' <- znToInt sym m x
-       y' <- znToInt sym m y
-       intToZn sym m =<< intExp sym x' y'
-
-  -- | Log base 2 of integers modulo n.
-  znLg2 ::
-    sym ->
-    Integer {- ^ modulus -} ->
-    SInteger sym ->
-    SEval sym (SInteger sym)
-  znLg2 sym m x =
-    do x' <- znToInt sym m x
-       intToZn sym m =<< intLg2 sym x'
 
   -- | Less-than test of integers modulo n.  Note this test
   --   first computes the reduced integers and compares.

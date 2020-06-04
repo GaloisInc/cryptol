@@ -1,0 +1,37 @@
+negLeftShift : {n, a} (fin n, Zero a, Cmp a) => [n]a -> Integer -> Bit
+negLeftShift xs i = xs << i == xs >> (negate i)
+
+negRightShift : {n, a} (fin n, Zero a, Cmp a) => [n]a -> Integer -> Bit
+negRightShift xs i = xs >> i == xs << (negate i)
+
+negLeftRotate : {n, a} (fin n, Cmp a) => [n]a -> Integer -> Bit
+negLeftRotate xs i = xs <<< i == xs >>> (negate i)
+
+negRightRotate : {n, a} (fin n, Cmp a) => [n]a -> Integer -> Bit
+negRightRotate xs i = xs >>> i == xs <<< (negate i)
+
+negSshr : {n} (fin n, n >= 1) => [n] -> Integer -> Bit
+negSshr xs i = i < 0 ==> xs >>$ i == xs << (negate i)
+
+property nls1 = negLeftShift`{8, Bit}
+property nls2 = negLeftShift`{32, Bit}
+property nls3 = negLeftShift`{8, Integer}
+property nls4 = negLeftShift`{8, [32]}
+
+property nrs1 = negRightShift`{8, Bit}
+property nrs2 = negRightShift`{32, Bit}
+property nrs3 = negRightShift`{8, Integer}
+property nrs4 = negRightShift`{8, [32]}
+
+property nlr1 = negLeftRotate`{8, Bit}
+property nlr2 = negLeftRotate`{32, Bit}
+property nlr3 = negLeftRotate`{8, Integer}
+property nlr4 = negLeftRotate`{8, [32]}
+
+property nrr1 = negRightRotate`{8, Bit}
+property nrr2 = negRightRotate`{32, Bit}
+property nrr3 = negRightRotate`{8, Integer}
+property nrr4 = negRightRotate`{8, [32]}
+
+property nsshr1 = negSshr`{8}
+property nsshr2 = negSshr`{32}

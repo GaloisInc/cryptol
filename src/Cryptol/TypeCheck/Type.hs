@@ -424,10 +424,25 @@ pIsLogic ty = case tNoUser ty of
                 TCon (PC PLogic) [t1] -> Just t1
                 _                     -> Nothing
 
-pIsArith :: Prop -> Maybe Type
-pIsArith ty = case tNoUser ty of
-                TCon (PC PArith) [t1] -> Just t1
+pIsRing :: Prop -> Maybe Type
+pIsRing ty = case tNoUser ty of
+                TCon (PC PRing) [t1] -> Just t1
+                _                    -> Nothing
+
+pIsField :: Prop -> Maybe Type
+pIsField ty = case tNoUser ty of
+                TCon (PC PField) [t1] -> Just t1
                 _                     -> Nothing
+
+pIsIntegral :: Prop -> Maybe Type
+pIsIntegral ty = case tNoUser ty of
+                   TCon (PC PIntegral) [t1] -> Just t1
+                   _                        -> Nothing
+
+pIsRound :: Prop -> Maybe Type
+pIsRound ty = case tNoUser ty of
+                     TCon (PC PRound) [t1] -> Just t1
+                     _                     -> Nothing
 
 pIsCmp :: Prop -> Maybe Type
 pIsCmp ty = case tNoUser ty of
@@ -485,6 +500,9 @@ tBit      = TCon (TC TCBit) []
 
 tInteger :: Type
 tInteger  = TCon (TC TCInteger) []
+
+tRational :: Type
+tRational  = TCon (TC TCRational) []
 
 tIntMod :: Type -> Type
 tIntMod n = TCon (TC TCIntMod) [n]
@@ -593,8 +611,17 @@ pZero t = TCon (PC PZero) [t]
 pLogic :: Type -> Prop
 pLogic t = TCon (PC PLogic) [t]
 
-pArith :: Type -> Prop
-pArith t = TCon (PC PArith) [t]
+pRing :: Type -> Prop
+pRing t = TCon (PC PRing) [t]
+
+pIntegral :: Type -> Prop
+pIntegral t = TCon (PC PIntegral) [t]
+
+pField :: Type -> Prop
+pField t = TCon (PC PField) [t]
+
+pRound :: Type -> Prop
+pRound t = TCon (PC PRound) [t]
 
 pCmp :: Type -> Prop
 pCmp t = TCon (PC PCmp) [t]
@@ -789,6 +816,8 @@ instance PP (WithNames Type) where
           (TCInf,   [])       -> text "inf"
           (TCBit,   [])       -> text "Bit"
           (TCInteger, [])     -> text "Integer"
+          (TCRational, [])    -> text "Rational"
+
           (TCIntMod, [n])     -> optParens (prec > 3) $ text "Z" <+> go 4 n
 
           (TCSeq,   [t1,TCon (TC TCBit) []]) -> brackets (go 0 t1)
@@ -811,6 +840,15 @@ instance PP (WithNames Type) where
           (PHas x, [t1,t2])   -> ppSelector x <+> text "of"
                                <+> go 0 t1 <+> text "is" <+> go 0 t2
           (PAnd, [t1,t2])     -> parens (commaSep (map (go 0) (t1 : pSplitAnd t2)))
+
+          (PRing, [t1])       -> pp pc <+> go 4 t1
+          (PField, [t1])      -> pp pc <+> go 4 t1
+          (PIntegral, [t1])   -> pp pc <+> go 4 t1
+          (PRound, [t1])      -> pp pc <+> go 4 t1
+
+          (PCmp, [t1])        -> pp pc <+> go 4 t1
+          (PSignedCmp, [t1])  -> pp pc <+> go 4 t1
+          (PLiteral, [t1,t2]) -> pp pc <+> go 4 t1 <+> go 4 t2
 
           (_, _)              -> optParens (prec > 3) $ pp pc <+> fsep (map (go 4) ts)
 

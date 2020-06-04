@@ -20,8 +20,6 @@ module Cryptol.TypeCheck.TypePat
   , (|->|)
 
   , aFin, (|=|), (|/=|), (|>=|)
-  , aCmp, aArith
-
   , aAnd
   , aTrue
 
@@ -169,12 +167,6 @@ aFin = tp PFin ar1
 
 (|>=|) :: Pat Prop (Type,Type)
 (|>=|) = tp PGeq ar2
-
-aCmp :: Pat Prop Type
-aCmp = tp PCmp ar1
-
-aArith :: Pat Prop Type
-aArith = tp PArith ar1
 
 aAnd :: Pat Prop (Prop,Prop)
 aAnd = tp PAnd ar2

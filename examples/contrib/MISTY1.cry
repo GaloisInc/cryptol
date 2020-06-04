@@ -227,7 +227,7 @@ extend : {total, n} (fin total, fin n, total >= n) => [n] -> [total]
 extend n = zero # n
 
 isEven : {a} (fin a) => [a] -> Bool
-isEven n = ~(n ! zero)
+isEven n = ~(n ! 0)
 
 //
 // Examples

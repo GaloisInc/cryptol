@@ -1,0 +1,104 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+property QaddUnit Using random testing.
+Testing... Passed 100 tests.
+property QaddComm Using random testing.
+Testing... Passed 100 tests.
+property QaddAssoc Using random testing.
+Testing... Passed 100 tests.
+property Qneg Using random testing.
+Testing... Passed 100 tests.
+property QmulUnit Using random testing.
+Testing... Passed 100 tests.
+property QmulComm Using random testing.
+Testing... Passed 100 tests.
+property QmulAssoc Using random testing.
+Testing... Passed 100 tests.
+property Qdistrib Using random testing.
+Testing... Passed 100 tests.
+property Qrecip Using random testing.
+Testing... Passed 100 tests.
+property QdivisionEquiv Using random testing.
+Testing... Passed 100 tests.
+property QordEquiv1 Using random testing.
+Testing... Passed 100 tests.
+property QordEquiv2 Using random testing.
+Testing... Passed 100 tests.
+property QordTrans Using random testing.
+Testing... Passed 100 tests.
+property QordIrreflexive Using random testing.
+Testing... Passed 100 tests.
+property QordExclusive Using random testing.
+Testing... Passed 100 tests.
+property Qtrichotomy Using random testing.
+Testing... Passed 100 tests.
+property QordCompatible Using random testing.
+Testing... Passed 100 tests.
+property QordPositive Using random testing.
+Testing... Passed 100 tests.
+property Qdense Using random testing.
+Testing... Passed 100 tests.
+property intDivDown Using random testing.
+Testing... Passed 100 tests.
+property floorCorrect1 Using random testing.
+Testing... Passed 100 tests.
+property floorCorrect2 Using random testing.
+Testing... Passed 100 tests.
+property ceilingCorrect1 Using random testing.
+Testing... Passed 100 tests.
+property ceilingCorrect2 Using random testing.
+Testing... Passed 100 tests.
+:prove QaddUnit
+	Q.E.D.
+:prove QaddComm
+	Q.E.D.
+:prove QaddAssoc
+	Q.E.D.
+:prove Qneg
+	Q.E.D.
+:prove QmulUnit
+	Q.E.D.
+:prove QmulComm
+	Q.E.D.
+:prove QmulAssoc
+	Q.E.D.
+:prove Qdistrib
+	Q.E.D.
+:prove Qrecip
+	Q.E.D.
+:prove QdivisionEquiv
+	Q.E.D.
+:prove QordEquiv1
+	Q.E.D.
+:prove QordEquiv2
+	Q.E.D.
+:prove QordTrans
+	Unknown.
+  Reason: incomplete
+:prove QordIrreflexive
+	Q.E.D.
+:prove QordExclusive
+	Q.E.D.
+:prove Qtrichotomy
+	Q.E.D.
+:prove QordCompatible
+	Unknown.
+  Reason: incomplete
+:prove QordPositive
+	Q.E.D.
+:prove Qdense
+	Unknown.
+  Reason: incomplete
+:prove intDivDown
+	Q.E.D.
+:prove floorCorrect1
+	Q.E.D.
+:prove floorCorrect2
+	Q.E.D.
+:prove ceilingCorrect1
+	Q.E.D.
+:prove ceilingCorrect2
+	Q.E.D.
+Q.E.D.
+Q.E.D.

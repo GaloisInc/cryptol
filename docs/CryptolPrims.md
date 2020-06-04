@@ -20,6 +20,8 @@ Comparisons and Ordering
     instance (Cmp a, Cmp b) => Cmp (a, b)
     instance (Cmp a, Cmp b) => Cmp { x : a, y : b }
     instance                   Cmp Integer
+    instance (fin n, n>=1)  => Cmp (Z n)
+    instance                   Cmp Rational
 
 Signed Comparisons
 ---------------------
@@ -37,33 +39,60 @@ Signed Comparisons
     instance (SignedCmp a, SignedCmp b) => SignedCmp (a, b)
     instance (SignedCmp a, SignedCmp b) => SignedCmp { x : a, y : b }
 
+Zero
+----
+
+    zero       : {a} (Zero a) => a
+
+Every base and structured type in Cryptol is a member of class `Zero`.
+
 
 Arithmetic
 ----------
 
-    (+)    : {a} (Arith a) => a -> a -> a
-    (-)    : {a} (Arith a) => a -> a -> a
-    (*)    : {a} (Arith a) => a -> a -> a
-    (/)    : {a} (Arith a) => a -> a -> a
-    (%)    : {a} (Arith a) => a -> a -> a
-    (^^)   : {a} (Arith a) => a -> a -> a
-    (/$)   : {a} (Arith a) => a -> a -> a
-    (%$)   : {a} (Arith a) => a -> a -> a
-    lg2    : {a} (Arith a) => a -> a
-    negate : {a} (Arith a) => a -> a
+    (+)     : {a} (Ring a) => a -> a -> a
+    (-)     : {a} (Ring a) => a -> a -> a
+    (*)     : {a} (Ring a) => a -> a -> a
+    negate  : {a} (Ring a) => a -> a
+
+    (/)     : {a} (Integral a) => a -> a -> a
+    (%)     : {a} (Integral a) => a -> a -> a
+
+    (/.)    : {a} (Field a) => a -> a -> a
+    recip   : {a} (Field a) => a -> a
+
+    floor   : {a} (Round a) => a -> Integer
+    ceiling : {a} (Round a) => a -> Integer
+    trunc   : {a} (Round a) => a -> Integer
+    round   : {a} (Round a) => a -> Integer
+
+    (^^)    : {a, e} (Ring a, Integral e) => a -> e -> a
+
+    (/$)    : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
+    (%$)    : {n} (fin n, n >= 1) => [n] -> [n] -> [n]
+    lg2     : {n} (fin n) => [n] -> [n]
 
 The prefix notation `- x` is syntactic sugar for `negate x`.
 
     // No instance for `Bit`.
-    instance (fin n)            => Arith ([n]Bit)
-    instance (Arith a)          => Arith ([n]a)
-    instance (Arith b)          => Arith (a -> b)
-    instance (Arith a, Arith b) => Arith (a, b)
-    instance (Arith a, Arith b) => Arith { x : a, y : b }
-    instance                       Arith Integer
+    instance (fin n)          => Ring ([n]Bit)
+    instance (Ring a)         => Ring ([n]a)
+    instance (Ring b)         => Ring (a -> b)
+    instance (Ring a, Ring b) => Ring (a, b)
+    instance (Ring a, Ring b) => Ring { x : a, y : b }
+    instance                     Ring Integer
+    instance (fin n, n>=1)    => Ring (Z n)
+    instance                     Ring Rational
 
-Note that because there is no instance for `Arith Bit`
+Note that because there is no instance for `Ring Bit`
 the top two instances do not actually overlap.
+
+    instance                  Integral Integer 
+    instance (fin n)       => Integral ([n]Bit)
+
+    instance Field Rational
+
+    instance Round Rational
 
 Boolean
 -------
@@ -71,7 +100,6 @@ Boolean
     False      : Bit
     True       : Bit
 
-    zero       : {a} (Zero a) => a
     (&&)       : {a} (Logic a) => a -> a -> a
     (||)       : {a} (Logic a) => a -> a -> a
     (^)        : {a} (Logic a) => a -> a -> a
@@ -87,6 +115,8 @@ Boolean
     instance (Logic a, Logic b) => Logic (a, b)
     instance (Logic a, Logic b) => Logic { x : a, y : b }
     // No instance for `Logic Integer`.
+    // No instance for `Logic (Z n)`.
+    // No instance for `Logic Rational`.
 
 Sequences
 ---------
@@ -100,14 +130,14 @@ Sequences
     reverse   : {n,a} (fin n) => [n]a -> [n]a
     transpose : {n,m,a} [n][m]a -> [m][n]a
 
-    (@)        : {n,a,m}              [n]a -> [m]    -> a
-    (@@)       : {n,a,m,i}            [n]a -> [m][i] -> [m]a
-    (!)        : {n,a,m}   (fin n) => [n]a -> [m]    -> a
-    (!!)       : {n,a,m,i} (fin n) => [n]a -> [m][i] -> [m]a
-    update     : {n,a,m} (fin m) => [n]a -> [m] -> a -> [n]a
-    updateEnd  : {n,a,m} (fin n, fin m) => [n]a -> [m] -> a -> [n]a
-    updates    : {n,a,m,d} (fin m, fin d) => [n]a -> [d][m] -> [d]a -> [n]a
-    updatesEnd : {n,a,m,d} (fin n, fin m, fin d) => [n]a -> [d][m] -> [d]a -> [n]a
+    (@)        : {n,a,ix}   (Integral ix) =>  [n]a -> ix    -> a
+    (@@)       : {n,k,ix,a} (Integral ix) =>  [n]a -> [k]ix -> [k]a
+    (!)        : {n,a,ix}   (fin n, Integral ix) => [n]a -> ix    -> a
+    (!!)       : {n,k,ix,a} (fin n, Integral ix) => [n]a -> [k]ix -> [k]a
+    update     : {n,a,ix}   (Integral ix)        => [n]a -> ix -> a -> [n]a
+    updateEnd  : {n,a,ix}   (fin n, Integral ix) => [n]a -> ix -> a -> [n]a
+    updates    : {n,k,ix,a} (Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
+    updatesEnd : {n,k,ix,d} (fin n, Integral ix, fin k) => [n]a -> [k]ix -> [k]a -> [n]a
 
     take       : {front,back,elem} (fin front) => [front + back]elem -> [front]elem
     drop       : {front,back,elem} (fin front) => [front + back]elem -> [back]elem
@@ -123,13 +153,13 @@ in a different order.
 Shift And Rotate
 ----------------
 
-    (<<)   : {n,a,m} (fin n, Zero a) => [n]a -> [m] -> [n]a
-    (>>)   : {n,a,m} (fin n, Zero a) => [n]a -> [m] -> [n]a
-    (<<<)  : {n,a,m} (fin n) => [n]a -> [m] -> [n]a
-    (>>>)  : {n,a,m} (fin n) => [n]a -> [m] -> [n]a
+    (<<)   : {n,ix,a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
+    (>>)   : {n,ix,a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
+    (<<<)  : {n,ix,a} (fin n, Integral ix)  => [n]a -> ix -> [n]a
+    (>>>)  : {n,ix,a} (fin n, Integral ix)  => [n]a -> ix -> [n]a
 
     // Arithmetic shift only for bitvectors
-    (>>$)  : {n, k} (fin n, n >= 1, fin k) => [n] -> [k] -> [n]
+    (>>$)  : {n,ix} (fin n, n >= 1, Integral ix) => [n] -> ix -> [n]
 
 Random Values
 -------------

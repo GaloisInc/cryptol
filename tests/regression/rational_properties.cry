@@ -1,0 +1,92 @@
+// == Q is a commutative ring ==
+
+property QaddUnit (x : Rational) =
+  x + 0 == x
+
+property QaddComm (x:Rational) (y:Rational) =
+  x + y == y + x
+
+property QaddAssoc (x:Rational) (y:Rational) (z:Rational) =
+  x + (y + z) == (x + y) + z
+
+property Qneg (x: Rational) = x + negate x == 0
+
+property QmulUnit (x : Rational) =
+  x * 1 == x
+
+property QmulComm (x:Rational) (y:Rational) =
+  x * y == y * x
+
+property QmulAssoc (x:Rational) (y:Rational) (z:Rational) =
+  x * (y * z) == (x * y) * z
+
+// Distributivity in Q
+property Qdistrib (x:Rational) (y:Rational) (z:Rational) =
+  x * (y + z) == x*y + x*z
+
+// == Q is a field ==
+
+property Qrecip (x: Rational) = x == 0 \/ x * recip x == 1
+
+property QdivisionEquiv (x : Rational) (y : Rational) =
+  y == 0 \/ x /. y == x * (recip y)
+
+// == Q is a total order ==
+
+property QordEquiv1 (x : Rational) (y : Rational) =
+  (x <= y) == ~(y < x)
+
+property QordEquiv2 (x : Rational) (y : Rational) =
+  (x <= y) == (x == y \/ x < y)
+
+property QordTrans (x : Rational) (y : Rational) (z : Rational) =
+  x < y ==> y < z ==> x < z
+
+property QordIrreflexive (x : Rational) =
+  ~(x < x)
+
+property QordExclusive (x : Rational) (y:Rational) =
+  ~(x < y) || ~(y < x) 
+
+property Qtrichotomy (x : Rational) (y : Rational) =
+  x < y \/ x == y \/ x > y
+
+
+//  == Q is an ordered field
+
+property QordCompatible (x : Rational) (y : Rational) (z:Rational) =
+  x < y ==> x+z < y+z
+
+property QordPositive (x : Rational) (y : Rational) =
+  0 < x ==> 0 < y ==> 0 < x*y
+
+// == Q is a dense total order ==
+property Qdense (x : Rational) (y : Rational) = x < y ==> x < mid /\ mid < y
+  where
+  mid = (x + y) /. 2
+
+
+// == Integer division rounds down ==
+property intDivDown (x : Integer) (y:Integer) =
+  y == 0 \/ fromInteger (x / y) <= ratio x y
+
+
+// == correctness of floor and ceiling
+
+// floor(x) is an integer below x
+property floorCorrect1 (x:Rational) =
+  fromInteger (floor x) <= x
+
+// floor(x) is the largest integer below x
+property floorCorrect2 (x:Rational) (y:Integer) =
+  fromInteger y <= x ==>
+  y <= floor x
+  
+// ceiling(x) is an integer above x
+property ceilingCorrect1 (x:Rational) =
+  fromInteger (ceiling x) >= x
+
+// ceiling(x) is the smallest integer above x
+property ceilingCorrect2 (x:Rational) (y:Integer) =
+  fromInteger y >= x ==>
+  y >= ceiling x

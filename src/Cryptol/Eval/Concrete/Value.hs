@@ -32,7 +32,6 @@ module Cryptol.Eval.Concrete.Value
   , Value
   , Concrete(..)
   , liftBinIntMod
-  , doubleAndAdd
   ) where
 
 import qualified Control.Exception as X
@@ -81,7 +80,7 @@ signedBV :: BV -> Integer
 signedBV (BV i x) = signedValue i x
 
 signedValue :: Integer -> Integer -> Integer
-signedValue i x = if testBit x (fromInteger (i-1)) then x - (1 `shiftL` (fromInteger i)) else x
+signedValue i x = if testBit x (fromInteger (i-1)) then x - (bit (fromInteger i)) else x
 
 integerToChar :: Integer -> Char
 integerToChar = toEnum . fromInteger
@@ -283,13 +282,6 @@ instance Backend Concrete where
            pure $! mkBv i (sx `rem` sy)
     | otherwise = panic "Attempt to mod words of different sizes: wordSignedMod" [show i, show j]
 
-  wordExp _ (BV i x) (BV j y)
-    | i == 0 && j == 0 = pure $! mkBv 0 0
-    | i == j =
-        do let modulus = 0 `setBit` fromInteger i
-           pure . mkBv i $! doubleAndAdd x y modulus
-    | otherwise = panic "Attempt to exp words of different sizes: wordSignedMod" [show i, show j]
-
   wordLg2 _ (BV i x) = pure $! mkBv i (lg2 x)
 
   intEq _ x y = pure $! x == y
@@ -306,12 +298,6 @@ instance Backend Concrete where
   intMod sym x y =
     do assertSideCondition sym (y /= 0) DivideByZero
        pure $! x `mod` y
-  intExp sym x y =
-    do assertSideCondition sym (y >= 0) NegativeExponent
-       pure $! x ^ y
-  intLg2 sym x =
-    do assertSideCondition sym (x >= 0) LogNegative
-       pure $! lg2 x
 
   intToZn _ 0 _ = evalPanic "intToZn" ["0 modulus not allowed"]
   intToZn _ m x = pure $! x `mod` m
@@ -327,30 +313,9 @@ instance Backend Concrete where
   znNegate _ 0 _ = evalPanic "znNegate" ["0 modulus not allowed"]
   znNegate _ m x = pure $! (negate x) `mod` m
 
-  znExp _sym m x y
-    | m == 0    = evalPanic "znExp" ["0 modulus not allowed"]
-    | otherwise = pure $! (doubleAndAdd x y m) `mod` m
-
 {-# INLINE liftBinIntMod #-}
 liftBinIntMod :: Monad m =>
   (Integer -> Integer -> Integer) -> Integer -> Integer -> Integer -> m Integer
 liftBinIntMod op m x y
   | m == 0    = evalPanic "znArithmetic" ["0 modulus not allowed"]
   | otherwise = pure $ (op x y) `mod` m
-
-doubleAndAdd :: Integer -- ^ base
-             -> Integer -- ^ exponent mask
-             -> Integer -- ^ modulus
-             -> Integer
-doubleAndAdd base0 expMask modulus = go 1 base0 expMask
-  where
-  go acc base k
-    | k > 0     = acc' `seq` base' `seq` go acc' base' (k `shiftR` 1)
-    | otherwise = acc
-    where
-    acc' | k `testBit` 0 = acc `modMul` base
-         | otherwise     = acc
-
-    base' = base `modMul` base
-
-    modMul x y = (x * y) `mod` modulus

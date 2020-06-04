@@ -1,0 +1,11 @@
+:l rational_properties.cry
+
+:check
+
+:set prover=cvc4
+:prove
+
+:set prover=z3
+
+:prove Qdense
+:prove QordTrans

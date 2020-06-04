@@ -31,6 +31,7 @@ module Cryptol.Eval (
   , evalSel
   , evalSetSel
   , EvalError(..)
+  , Unsupported(..)
   , forceValue
   ) where
 
@@ -426,6 +427,7 @@ etaDelay sym msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVBit -> v
       TVInteger -> v
       TVIntMod _ -> v
+      TVRational -> v
       TVArray{} -> v
 
       TVSeq n TVBit ->

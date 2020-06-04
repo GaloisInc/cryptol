@@ -40,6 +40,7 @@ import qualified Cryptol.ModuleSystem.Monad as M
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
 
+import qualified Cryptol.Eval.Backend as Eval
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.What4
 import           Cryptol.Symbolic
@@ -315,6 +316,12 @@ varBlockingPred sym evalFn v =
     VarInteger i ->
       do ilit <- W4.groundEval evalFn i
          W4.notPred sym =<< W4.intEq sym i =<< W4.intLit sym ilit
+    VarRational n d ->
+      do n' <- W4.intLit sym =<< W4.groundEval evalFn n
+         d' <- W4.intLit sym =<< W4.groundEval evalFn d
+         x <- W4.intMul sym n d'
+         y <- W4.intMul sym n' d
+         W4.notPred sym =<< W4.intEq sym x y
     VarWord SW.ZBV -> return (W4.falsePred sym)
     VarWord (SW.DBV w) ->
       do wlit <- W4.groundEval evalFn w
@@ -345,6 +352,7 @@ computeModel _ _ _ _ _ = panic "computeModel" ["type/value list mismatch"]
 data VarShape sym
   = VarBit (W4.Pred sym)
   | VarInteger (W4.SymInteger sym)
+  | VarRational (W4.SymInteger sym) (W4.SymInteger sym)
   | VarWord (SW.SWord sym)
   | VarFinSeq Int [VarShape sym]
   | VarTuple [VarShape sym]
@@ -355,6 +363,9 @@ freshVariable sym ty =
   case ty of
     FTBit         -> VarBit      <$> W4.freshConstant sym W4.emptySymbol W4.BaseBoolRepr
     FTInteger     -> VarInteger  <$> W4.freshConstant sym W4.emptySymbol W4.BaseIntegerRepr
+    FTRational    -> VarRational
+                        <$> W4.freshConstant sym W4.emptySymbol W4.BaseIntegerRepr
+                        <*> W4.freshBoundedInt sym W4.emptySymbol (Just 1) Nothing
     FTIntMod 0    -> panic "freshVariable" ["0 modulus not allowed"]
     FTIntMod n    -> VarInteger  <$> W4.freshBoundedInt sym W4.emptySymbol (Just 0) (Just (n-1))
     FTSeq n FTBit -> VarWord     <$> SW.freshBV sym W4.emptySymbol (toInteger n)
@@ -367,6 +378,7 @@ varToSymValue sym var =
   case var of
     VarBit b     -> Eval.VBit b
     VarInteger i -> Eval.VInteger i
+    VarRational n d -> Eval.VRational (Eval.SRational n d)
     VarWord w    -> Eval.VWord (SW.bvWidth w) (return (Eval.WordVal w))
     VarFinSeq n vs -> Eval.VSeq (toInteger n) (Eval.finiteSeqMap (What4 sym) (map (pure . varToSymValue sym) vs))
     VarTuple vs  -> Eval.VTuple (map (pure . varToSymValue sym) vs)
@@ -380,6 +392,8 @@ varToConcreteValue evalFn v =
   case v of
     VarBit b     -> Eval.VBit <$> W4.groundEval evalFn b
     VarInteger i -> Eval.VInteger <$> W4.groundEval evalFn i
+    VarRational n d ->
+       Eval.VRational <$> (Eval.SRational <$> W4.groundEval evalFn n <*> W4.groundEval evalFn d)
     VarWord SW.ZBV     ->
        pure (Eval.VWord 0 (pure (Eval.WordVal (Concrete.mkBv 0 0))))
     VarWord (SW.DBV x) ->
