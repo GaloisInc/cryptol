@@ -304,16 +304,12 @@ sshrV :: Value
 sshrV =
   nlam $ \_n ->
   tlam $ \ix ->
-  wlam Concrete $ \(BV i x) -> return $
+  wlam Concrete $ \(BV w x) -> return $
   lam $ \y ->
    do idx <- y >>= asIndex Concrete ">>$" ix >>= \case
                  Left idx -> pure idx
                  Right wv -> bvVal <$> asWordVal Concrete wv
-      let z | idx >= 0  = shiftRW (signedValue i x) i idx
-            | otherwise = shiftLW x i idx
-
-      return $ VWord i $ pure $ WordVal $ mkBv i z
-
+      return $ VWord w $ pure $ WordVal $ mkBv w $ signedShiftRW w x idx
 
 logicShift :: (Integer -> Integer -> Integer -> Integer)
               -- ^ The function may assume its arguments are masked.
@@ -345,13 +341,24 @@ shiftLW w ival by
   | by > toInteger (maxBound :: Int) = panic "shiftLW" ["Shift amount too large", show by]
   | otherwise = mask w (shiftL ival (fromInteger by))
 
+-- Right shift for words
 shiftRW :: Integer -> Integer -> Integer -> Integer
-shiftRW w i by
-  | by <  0   = shiftLW w i (negate by)
+shiftRW w ival by
+  | by <  0   = shiftLW w ival (negate by)
   | by >= w   = 0
   | by > toInteger (maxBound :: Int) = panic "shiftRW" ["Shift amount too large", show by]
-  | otherwise = shiftR i (fromInteger by)
+  | otherwise = shiftR ival (fromInteger by)
 
+-- signed right shift for words
+signedShiftRW :: Integer -> Integer -> Integer -> Integer
+signedShiftRW w ival by
+  | by < 0    = shiftLW w ival (negate by)
+  | otherwise =
+     let by' = min w by in
+     if by' > toInteger (maxBound :: Int) then
+       panic "signedShiftRW" ["Shift amount too large", show by]
+     else
+       shiftR (signedValue w ival) (fromInteger by')
 
 shiftLS :: Nat' -> TValue -> SeqMap Concrete -> Integer -> SeqMap Concrete
 shiftLS w ety vs by

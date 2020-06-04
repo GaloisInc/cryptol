@@ -33,6 +33,10 @@ property nrr3 Using random testing.
 Testing... Passed 1000 tests.
 property nrr4 Using random testing.
 Testing... Passed 1000 tests.
+property nsshr1 Using random testing.
+Testing... Passed 1000 tests.
+property nsshr2 Using random testing.
+Testing... Passed 1000 tests.
 :prove nls1
 	Q.E.D.
 :prove nls2
@@ -64,4 +68,8 @@ Testing... Passed 1000 tests.
 :prove nrr3
 	Q.E.D.
 :prove nrr4
+	Q.E.D.
+:prove nsshr1
+	Q.E.D.
+:prove nsshr2
 	Q.E.D.

@@ -804,18 +804,18 @@ shl x idx =
 
 sshrV :: Value
 sshrV =
-  nlam $ \_n ->
+  nlam $ \n ->
   tlam $ \ix ->
   wlam SBV $ \x -> return $
   lam $ \y ->
    y >>= asIndex SBV ">>$" ix >>= \case
      Left idx ->
-       do let pneg = svLessThan idx (svInteger KUnbounded 0)
-          let z = svSymbolicMerge (kindOf x) True
-                    pneg
-                    (shl x (SBV.svUNeg idx))
-                    (ashr x idx)
-          return . VWord (toInteger (SBV.intSizeOf x)) . pure . WordVal $ z
+       do let w = toInteger (SBV.intSizeOf x)
+          let pneg = svLessThan idx (svInteger KUnbounded 0)
+          zneg <- shl x  . svFromInteger w <$> shiftShrink SBV n ix (SBV.svUNeg idx)
+          zpos <- ashr x . svFromInteger w <$> shiftShrink SBV n ix idx
+          let z = svSymbolicMerge (kindOf x) True pneg zneg zpos
+          return . VWord w . pure . WordVal $ z
 
      Right wv ->
        do z <- ashr x <$> asWordVal SBV wv
