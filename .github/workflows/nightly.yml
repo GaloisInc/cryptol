@@ -23,8 +23,27 @@ jobs:
           d="$(date -I)"
           echo "::set-output name=cryptol-name::cryptol-$ver-$d"
 
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: docker://pandoc/latex:latest
+        with:
+          args: >-
+            sh -c
+            "
+            apk add make &&
+            tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo &&
+            cd docs &&
+            make
+            "
+      - uses: actions/upload-artifact@v2
+        with:
+          path: docs
+          name: docs
+
   build:
-    needs: [outputs]
+    needs: [outputs, docs]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -34,18 +53,14 @@ jobs:
         with:
           submodules: true
 
-      - uses: docker://pandoc/latex:latest
-        with:
-          args: >-
-            sh -c "
-            apk add make &&
-            tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo &&
-            cd docs &&
-            make"
-
       - uses: actions/setup-haskell@v1.1
         with:
           ghc-version: "8.8"
+
+      - uses: actions/download-artifact@v2
+        with:
+          path: docs
+          name: docs
 
       - shell: bash
         # path stuff is a temporary workaround until setup-haskell is fixed.
