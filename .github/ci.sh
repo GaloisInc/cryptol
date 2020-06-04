@@ -83,14 +83,13 @@ install_yices() {
   rm -rf "yices$ext" "yices-$YICES_VERSION"
 }
 
-install_deps() {
+build() {
   ghc_ver="$(ghc --numeric-version)"
   cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
   # Limit jobs on windows due to: https://gitlab.haskell.org/ghc/ghc/issues/17926
   if [[ "$ghc_ver" == "8.8.3" && "$RUNNER_OS" == 'Windows' ]]; then JOBS=1; else JOBS=2; fi
   cabal v2-configure -j$JOBS --minimize-conflict-set
-  cabal v2-build --only-dependencies exe:cryptol exe:cryptol-html
-  setup_external_tools
+  cabal v2-build "$@" exe:cryptol exe:cryptol-html
 }
 
 install_system_deps() {

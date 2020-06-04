@@ -39,7 +39,7 @@ jobs:
           ghc-version: "8.8"
 
       - shell: bash
-        run: cabal -j1 v2-build exe:cryptol exe:cryptol-html
+        run: .github/ci.sh build
 
       - uses: docker://pandoc/latex:latest
         with:
