@@ -34,6 +34,15 @@ jobs:
         with:
           submodules: true
 
+      - uses: docker://pandoc/latex:latest
+        with:
+          args: >-
+            sh -c "
+            apk add make &&
+            tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo &&
+            cd docs &&
+            make"
+
       - uses: actions/setup-haskell@v1.1
         with:
           ghc-version: "8.8"
@@ -44,15 +53,6 @@ jobs:
           export PATH=~/.ghcup/ghc/8.8.3/bin:$PATH
           echo "::set-env name=PATH::$PATH"
           .github/ci.sh build
-
-      - uses: docker://pandoc/latex:latest
-        with:
-          args: >-
-            sh -c "
-            apk add make &&
-            tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo &&
-            cd docs &&
-            make"
 
       - shell: bash
         run: .github/ci.sh setup_dist_bins
