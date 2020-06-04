@@ -1,0 +1,4 @@
+:l negshift.cry
+:set tests=1000
+:check
+:prove
