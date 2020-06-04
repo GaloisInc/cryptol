@@ -1,5 +1,8 @@
 name: Cryptol Nightly Builds
 on:
+  push:
+    branches:
+      - "actions/*"
   schedule:
     - cron: "0 0 * * *"
 
@@ -7,23 +10,21 @@ jobs:
   outputs:
     runs-on: ubuntu-latest
     outputs:
-      changed: ${{ steps.get-changed.outputs.changed-files }}
-      cryptol-version: ${{ steps.cryptol-version.outputs.cryptol-version }}
+      cryptol-version: ${{ steps.cryptol.outputs.cryptol-version }}
+      cryptol-name: ${{ steps.cryptol.outputs.cryptol-name }}
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
-      - id: get-changed
+      - id: cryptol
         run: |
-          changed_since="$(git log --since '23 hours 59 minutes')"
-          files="${changed_since:+"$(git diff-tree --no-commit-id --name-only -r '${{ github.sha }}' | xargs)"}"
-          echo "::set-output name=changed-files::$files"
-      - id: cryptol-version
-        run: echo "::set-output name=cryptol-version::$(grep Version cryptol.cabal | awk '{print $2}')"
+          ver="$(grep Version cryptol.cabal | awk '{print $2}')"
+          echo "::set-output name=cryptol-version::$ver"
+          d="$(date -I)"
+          echo "::set-output name=cryptol-name::cryptol-$ver-$d"
 
   build:
     needs: [outputs]
-    if: ${{ needs.outputs.outputs.changed }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -40,6 +41,15 @@ jobs:
       - shell: bash
         run: cabal -j1 v2-build exe:cryptol exe:cryptol-html
 
+      - uses: docker://pandoc/latex:latest
+        with:
+          args: >-
+            sh -c "
+            apk add make &&
+            tlmgr install subfigure lastpage preprint adjustbox nag collectbox sectsty todonotes palatino mathpazo &&
+            cd docs &&
+            make"
+
       - shell: bash
         run: .github/ci.sh setup_dist_bins
 
@@ -51,7 +61,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           path: dist
-          name: ${{ runner.os }}-bins
+          name: ${{ needs.outputs.outputs.cryptol-name }}-${{ runner.os }}
 
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
