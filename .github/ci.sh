@@ -53,8 +53,7 @@ install_cvc4() {
   case "$RUNNER_OS" in
     Linux) file="x86_64-linux-opt" ;;
     Windows) file="win64-opt.exe" ;;
-    # macOS) brew tap cvc4/cvc4 && brew install cvc4/cvc4/cvc4 && return ;;
-    macOS) return ;; # the brew tap takes 15 minutes to install
+    macOS) brew tap cvc4/cvc4 && brew install cvc4/cvc4/cvc4 && return ;;
   esac
   curl -o cvc4$EXT -sL "https://github.com/CVC4/CVC4/releases/download/1.7/cvc4-$version-$file"
   $IS_WIN || chmod +x cvc4$EXT
@@ -99,8 +98,7 @@ install_system_deps() {
   wait
   export PATH=$PWD/$BIN:$PATH
   echo "::add-path::$PWD/$BIN"
-  # is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
-  is_exe "$BIN" z3 && is_exe "$BIN" yices
+  is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
 }
 
 test_dist() {
