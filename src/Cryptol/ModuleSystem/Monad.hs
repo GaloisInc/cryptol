@@ -36,6 +36,7 @@ import           Cryptol.Utils.Logger(Logger)
 import qualified Control.Monad.Fail as Fail
 import Control.Monad.IO.Class
 import Control.Exception (IOException)
+import Data.ByteString (ByteString)
 import Data.Function (on)
 import Data.Maybe (isJust)
 import Data.Text.Encoding.Error (UnicodeException)
@@ -296,16 +297,21 @@ renamerWarnings ws
 
 -- Module System Monad ---------------------------------------------------------
 
-data RO = RO { roLoading  :: [ImportSource]
-             , roEvalOpts :: EvalOpts
-             }
+data RO m =
+  RO { roLoading    :: [ImportSource]
+     , roEvalOpts   :: EvalOpts
+     , roFileReader :: FilePath -> m ByteString
+     }
 
-emptyRO :: EvalOpts -> RO
-emptyRO ev = RO { roLoading = [], roEvalOpts = ev }
+emptyRO :: EvalOpts -> (FilePath -> m ByteString) -> RO m
+emptyRO ev fileReader =
+  RO { roLoading = [], roEvalOpts = ev, roFileReader = fileReader }
 
 newtype ModuleT m a = ModuleT
-  { unModuleT :: ReaderT RO (StateT ModuleEnv
-                    (ExceptionT ModuleError (WriterT [ModuleWarning] m))) a
+  { unModuleT :: ReaderT (RO m)
+                   (StateT ModuleEnv
+                     (ExceptionT ModuleError
+                       (WriterT [ModuleWarning] m))) a
   }
 
 instance Monad m => Functor (ModuleT m) where
@@ -345,26 +351,35 @@ instance MonadIO m => MonadIO (ModuleT m) where
   liftIO m = lift $ liftIO m
 
 runModuleT :: Monad m
-           => (EvalOpts,ModuleEnv)
+           => (EvalOpts, FilePath -> m ByteString, ModuleEnv)
            -> ModuleT m a
            -> m (Either ModuleError (a, ModuleEnv), [ModuleWarning])
-runModuleT (ev,env) m =
+runModuleT (ev, byteReader, env) m =
     runWriterT
   $ runExceptionT
   $ runStateT env
-  $ runReaderT (emptyRO ev)
+  $ runReaderT (emptyRO ev byteReader)
   $ unModuleT m
 
 type ModuleM = ModuleT IO
 
-runModuleM :: (EvalOpts, ModuleEnv) -> ModuleM a
+runModuleM :: (EvalOpts, FilePath -> IO ByteString, ModuleEnv) -> ModuleM a
            -> IO (Either ModuleError (a,ModuleEnv),[ModuleWarning])
 runModuleM = runModuleT
 
 
-
 io :: BaseM m IO => IO a -> ModuleT m a
 io m = ModuleT (inBase m)
+
+getByteReader :: Monad m => ModuleT m (FilePath -> m ByteString)
+getByteReader = ModuleT $ do
+  RO { roFileReader = readFileBytes } <- ask
+  return readFileBytes
+
+readBytes :: Monad m => FilePath -> ModuleT m ByteString
+readBytes fn = do
+  fileReader <- getByteReader
+  ModuleT $ lift $ lift $ lift $ lift $ fileReader fn
 
 getModuleEnv :: Monad m => ModuleT m ModuleEnv
 getModuleEnv = ModuleT get

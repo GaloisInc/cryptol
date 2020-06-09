@@ -46,10 +46,11 @@ import           Cryptol.Parser.NoPat (RemovePatterns)
 import qualified Cryptol.TypeCheck.AST     as T
 import qualified Cryptol.Utils.Ident as M
 
+import Data.ByteString (ByteString)
 
 -- Public Interface ------------------------------------------------------------
 
-type ModuleCmd a = (E.EvalOpts,ModuleEnv) -> IO (ModuleRes a)
+type ModuleCmd a = (E.EvalOpts, FilePath -> IO ByteString, ModuleEnv) -> IO (ModuleRes a)
 
 type ModuleRes a = (Either ModuleError (a,ModuleEnv), [ModuleWarning])
 
@@ -62,19 +63,21 @@ findModule n env = runModuleM env (Base.findModule n)
 
 -- | Load the module contained in the given file.
 loadModuleByPath :: FilePath -> ModuleCmd (ModulePath,T.Module)
-loadModuleByPath path (evo,env) = runModuleM (evo,resetModuleEnv env) $ do
-  unloadModule ((InFile path ==) . lmFilePath)
-  m <- Base.loadModuleByPath path
-  setFocusedModule (T.mName m)
-  return (InFile path,m)
+loadModuleByPath path (evo, byteReader, env) =
+  runModuleM (evo, byteReader, resetModuleEnv env) $ do
+    unloadModule ((InFile path ==) . lmFilePath)
+    m <- Base.loadModuleByPath path
+    setFocusedModule (T.mName m)
+    return (InFile path,m)
 
 -- | Load the given parsed module.
 loadModuleByName :: P.ModName -> ModuleCmd (ModulePath,T.Module)
-loadModuleByName n (evo,env) = runModuleM (evo,resetModuleEnv env) $ do
-  unloadModule ((n ==) . lmName)
-  (path,m') <- Base.loadModuleFrom (FromModule n)
-  setFocusedModule (T.mName m')
-  return (path,m')
+loadModuleByName n (evo, byteReader, env) =
+  runModuleM (evo, byteReader, resetModuleEnv env) $ do
+    unloadModule ((n ==) . lmName)
+    (path,m') <- Base.loadModuleFrom (FromModule n)
+    setFocusedModule (T.mName m')
+    return (path,m')
 
 -- Extended Environments -------------------------------------------------------
 

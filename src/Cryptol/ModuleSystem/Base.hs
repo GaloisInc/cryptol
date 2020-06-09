@@ -55,7 +55,6 @@ import Cryptol.Transform.MonoValues (rewModule)
 
 import qualified Control.Exception as X
 import Control.Monad (unless,when)
-import qualified Data.ByteString as B
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text.Encoding (decodeUtf8')
@@ -112,9 +111,10 @@ noPat a = do
 
 parseModule :: ModulePath -> ModuleM (Fingerprint, P.Module PName)
 parseModule path = do
+  getBytes <- getByteReader
 
   bytesRes <- case path of
-                InFile p -> io (X.try (B.readFile p))
+                InFile p -> io (X.try (getBytes p))
                 InMem _ bs -> pure (Right bs)
 
   bytes <- case bytesRes of
@@ -412,7 +412,9 @@ checkSingleModule how isrc path m = do
   -- this is a more-or-less obsolete feature, we are just not doing
   -- ot for now.
   e   <- case path of
-           InFile p -> io (removeIncludesModule p m)
+           InFile p -> do
+             r <- getByteReader
+             io (removeIncludesModule r p m)
            InMem {} -> pure (Right m)
 
   nim <- case e of

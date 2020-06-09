@@ -194,7 +194,7 @@ setupProver nm =
 
 
 proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
-proverError msg (_,modEnv) =
+proverError msg (_, _, modEnv) =
   return (Right ((Nothing, ProverError msg), modEnv), [])
 
 
@@ -285,8 +285,8 @@ satProve ::
   M.ModuleCmd (Maybe String, ProverResult)
 
 satProve solverCfg hashConsing ProverCommand {..} =
-  protectStack proverError \(evo, modEnv) ->
-  M.runModuleM (evo,modEnv)
+  protectStack proverError \(evo, byteReader, modEnv) ->
+  M.runModuleM (evo, byteReader, modEnv)
   do sym     <- liftIO makeSym
      logData <- M.withLogger doLog ()
      start   <- liftIO getCurrentTime
@@ -343,8 +343,8 @@ satProveOffline (W4Portfolio (p:|_)) hashConsing cmd outputContinuation =
   satProveOffline (W4ProverConfig p) hashConsing cmd outputContinuation
 
 satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..} outputContinuation =
-  protectStack onError \(evo,modEnv) ->
-  M.runModuleM (evo,modEnv)
+  protectStack onError \(evo,byteReader,modEnv) ->
+  M.runModuleM (evo,byteReader,modEnv)
    do sym <- liftIO makeSym
       ok  <- prepareQuery sym ProverCommand { .. }
       liftIO
@@ -363,7 +363,7 @@ satProveOffline (W4ProverConfig (AnAdapter adpt)) hashConsing ProverCommand {..}
        when hashConsing  (W4.startCaching sym)
        pure sym
 
-  onError msg (_,modEnv) = pure (Right (Just msg, modEnv), [])
+  onError msg (_,_,modEnv) = pure (Right (Just msg, modEnv), [])
 
 
 decSatNum :: SatNum -> SatNum
