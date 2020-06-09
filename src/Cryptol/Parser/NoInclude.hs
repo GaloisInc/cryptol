@@ -18,9 +18,12 @@ import qualified Control.Applicative as A
 import Control.DeepSeq
 import qualified Control.Exception as X
 import qualified Control.Monad.Fail as Fail
+
+import qualified Data.ByteString as B
 import Data.Either (partitionEithers)
 import Data.Text(Text)
-import qualified Data.Text.IO as T
+import qualified Data.Text.Encoding as T (decodeUtf8')
+import Data.Text.Encoding.Error (UnicodeException)
 import GHC.Generics (Generic)
 import MonadLib
 import System.Directory (makeAbsolute)
@@ -38,6 +41,7 @@ removeIncludesModule modPath m = runNoIncM modPath (noIncludeModule m)
 
 data IncludeError
   = IncludeFailed (Located FilePath)
+  | IncludeDecodeFailed (Located FilePath) UnicodeException
   | IncludeParseError ParseError
   | IncludeCycle [Located FilePath]
     deriving (Show, Generic, NFData)
@@ -49,6 +53,13 @@ ppIncludeError ie = case ie of
                   <+> text "included at"
                   <+> pp (srcRange lp)
                   <+> text "was not found"
+
+  IncludeDecodeFailed lp err -> (char '`' <.> text (thing lp) <.> char '`')
+                            <+> text "included at"
+                            <+> pp (srcRange lp)
+                            <+> text "contains invalid UTF-8."
+                            <+> text "Details:"
+                            $$  nest 2 (vcat (map text (lines (X.displayException err))))
 
   IncludeParseError pe -> ppError pe
 
@@ -181,9 +192,12 @@ resolveInclude lf = pushPath lf $ do
 -- | Read a file referenced by an include.
 readInclude :: Located FilePath -> NoIncM Text
 readInclude path = do
-  file   <- fromIncPath (thing path)
-  source <- T.readFile file `failsWith` handler
-  return source
+  file        <- fromIncPath (thing path)
+  sourceBytes <- B.readFile file `failsWith` handler
+  sourceText  <- X.evaluate (T.decodeUtf8' sourceBytes) `failsWith` handler
+  case sourceText of
+    Left encodingErr -> M (raise [IncludeDecodeFailed path encodingErr])
+    Right txt -> return txt
   where
   handler :: X.IOException -> NoIncM a
   handler _ = includeFailed path
