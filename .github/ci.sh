@@ -25,9 +25,9 @@ setup_external_tools() {
 
 setup_dist_bins() {
   is_exe "dist" "cryptol" && is_exe "dist" "cryptol-html" && return
-  extract_exe "cryptol" "dist"
-  extract_exe "cryptol-html" "dist"
-  strip dist/cryptol*
+  extract_exe "cryptol" "dist/bin"
+  extract_exe "cryptol-html" "dist/bin"
+  strip dist/bin/cryptol*
 }
 
 install_z3() {
