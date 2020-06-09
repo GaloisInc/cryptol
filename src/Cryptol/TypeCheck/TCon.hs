@@ -42,7 +42,6 @@ builtInType nm =
   case M.nameInfo nm of
     M.Declared m _
       | m == preludeName -> Map.lookup (M.nameIdent nm) builtInTypes
-      | m == arrayName   -> Map.lookup (M.nameIdent nm) builtInArray
     _ -> Nothing
 
   where
@@ -86,11 +85,6 @@ builtInType nm =
     , "lengthFromThenTo" ~> TF TCLenFromThenTo
     ]
 
-  -- Built-in types from Array.cry
-  builtInArray = Map.fromList
-    [ "Array" ~> TC TCArray
-    ]
-
 
 
 
@@ -126,7 +120,6 @@ instance HasKind TC where
       TCInteger -> KType
       TCRational -> KType
       TCIntMod  -> KNum :-> KType
-      TCArray   -> KType :-> KType :-> KType
       TCSeq     -> KNum :-> KType :-> KType
       TCFun     -> KType :-> KType :-> KType
       TCTuple n -> foldr (:->) KType (replicate n KType)
@@ -209,7 +202,6 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCInteger                -- ^ Integer
             | TCIntMod                 -- ^ @Z _@
             | TCRational               -- ^ @Rational@
-            | TCArray                  -- ^ @Array _ _@
             | TCSeq                    -- ^ @[_] _@
             | TCFun                    -- ^ @_ -> _@
             | TCTuple Int              -- ^ @(_, _, _)@
@@ -310,7 +302,6 @@ instance PP TC where
       TCInteger -> text "Integer"
       TCIntMod  -> text "Z"
       TCRational -> text "Rational"
-      TCArray   -> text "Array"
       TCSeq     -> text "[]"
       TCFun     -> text "(->)"
       TCTuple 0 -> text "()"

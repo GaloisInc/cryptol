@@ -13,7 +13,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 -- for the instances of RunM and BaseM
 {-# LANGUAGE UndecidableInstances #-}
@@ -222,10 +221,7 @@ nameFixity = nFixity
 asPrim :: Name -> Maybe Ident
 asPrim Name { .. } =
   case nInfo of
-    Declared p _
-      | p == preludeName -> Just nIdent
-      | p == arrayName ->
-        Just $ mkIdent $ modNameToText p <> "::" <> identText nIdent
+    Declared p _ | p == preludeName -> Just nIdent
     _ -> Nothing
 
 toParamInstName :: Name -> Name

@@ -428,7 +428,6 @@ etaDelay sym msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVInteger -> v
       TVIntMod _ -> v
       TVRational -> v
-      TVArray{} -> v
 
       TVSeq n TVBit ->
           do w <- sDelayFill sym (fromWordVal "during eta-expansion" =<< v) (etaWord sym n v)
