@@ -29,7 +29,8 @@ jobs:
         with:
           submodules: true
 
-      - uses: actions/setup-haskell@v1.1
+      # - uses: actions/setup-haskell@v1.1
+      - uses: haskell-CI/setup@master
         id: setup-haskell
         with:
           ghc-version: ${{ matrix.ghc }}

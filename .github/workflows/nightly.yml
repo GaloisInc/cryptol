@@ -54,6 +54,7 @@ jobs:
           submodules: true
 
       - uses: actions/setup-haskell@v1.1
+      - uses: haskell-CI/setup@master
         with:
           ghc-version: "8.8"
 
@@ -63,11 +64,7 @@ jobs:
           name: docs
 
       - shell: bash
-        # path stuff is a temporary workaround until setup-haskell is fixed.
-        run: |
-          export PATH=~/.ghcup/ghc/8.8.3/bin:$PATH
-          echo "::set-env name=PATH::$PATH"
-          .github/ci.sh build
+        run: .github/ci.sh build
 
       - shell: bash
         run: .github/ci.sh setup_dist_bins
