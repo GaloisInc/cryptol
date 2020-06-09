@@ -67,18 +67,35 @@ jobs:
       - shell: bash
         run: .github/ci.sh setup_dist_bins
 
+      - shell: bash
+        run: .github/ci.sh bundle_files
+
       - if: runner.os == 'Windows'
         env:
           VERSION: ${{ needs.outputs.outputs.cryptol-version }}
         run: .github/wix.ps1
 
+      - if: runner.os == 'Windows'
+        shell: bash
+        env:
+          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: .github/ci.sh sign cryptol.msi
+
+      - shell: bash
+        env:
+          SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          name: ${{ needs.outputs.outputs.cryptol-name }}
+        run: .github/ci.sh zip_dist
+
       - uses: actions/upload-artifact@v2
         with:
-          path: dist
-          name: ${{ needs.outputs.outputs.cryptol-name }}-${{ runner.os }}
+          name: ${{ needs.outputs.outputs.cryptol-name }}
+          path: "${{ needs.outputs.outputs.cryptol-name }}.zip*"
 
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
         with:
-          path: cryptol.msi
-          name: cryptol.msi
+          name: ${{ needs.outputs.outputs.cryptol-name }}
+          path: "cryptol.msi*"

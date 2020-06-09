@@ -86,7 +86,7 @@ build() {
   ghc_ver="$(ghc --numeric-version)"
   cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
   # Limit jobs on windows due to: https://gitlab.haskell.org/ghc/ghc/issues/17926
-  if [[ "$ghc_ver" == "8.8.3" && "$RUNNER_OS" == 'Windows' ]]; then JOBS=1; else JOBS=2; fi
+  if [[ "$ghc_ver" == "8.8.3" && $IS_WIN ]]; then JOBS=1; else JOBS=2; fi
   cabal v2-configure -j$JOBS --minimize-conflict-set
   cabal v2-build "$@" exe:cryptol exe:cryptol-html
 }
@@ -126,9 +126,9 @@ sign() {
 
 zip_dist() {
   : "${VERSION?VERSION is required as an environment variable}"
-  name="cryptol-$VERSION-$RUNNER_OS-x86_64"
+  name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
   mv dist "$name"
-  if [[ "$RUNNER_OS" == Windows ]]; then 7z a -tzip -mx9 "$name".zip "$name"; else zip -r "$name".zip "$name"; fi
+  if $IS_WIN; then 7z a -tzip -mx9 "$name".zip "$name"; else zip -r "$name".zip "$name"; fi
   sign "$name".zip
   [[ -f "$name".zip.sig ]] && [[ -f "$name".zip ]]
 }
