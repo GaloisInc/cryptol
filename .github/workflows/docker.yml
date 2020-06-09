@@ -13,10 +13,8 @@ jobs:
           fetch-depth: 0
       - id: outputs
         run: |
-          changed_since="$(git log --since '23 hours 59 minutes')"
-          files="${changed_since:+"$(git diff-tree --no-commit-id --name-only -r '${{ github.sha }}' | xargs)"}"
-          echo "::set-output name=files::$files"
-          echo "::set-output name=version::$(grep Version cryptol.cabal | awk '{print $2}')"
+          .github/ci.sh set_files '${{ github.sha }}' '23 hours 59 minutes'
+          .github/ci.sh set_version
 
       - name: Publish to Registry
         if: ${{ steps.outputs.outputs.files }}

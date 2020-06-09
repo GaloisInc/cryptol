@@ -11,17 +11,15 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       cryptol-version: ${{ steps.cryptol.outputs.cryptol-version }}
-      cryptol-name: ${{ steps.cryptol.outputs.cryptol-name }}
+      cryptol-name: ${{ steps.cryptol.outputs.name }}
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
       - id: cryptol
         run: |
-          ver="$(grep Version cryptol.cabal | awk '{print $2}')"
-          echo "::set-output name=cryptol-version::$ver"
-          d="$(date -I)"
-          echo "::set-output name=cryptol-name::cryptol-$ver-$d"
+          .github/ci.sh set_version
+          .github/ci.sh output name cryptol-$(.github/ci.sh ver)-$(date -I)
 
   docs:
     runs-on: ubuntu-latest
@@ -53,7 +51,7 @@ jobs:
         with:
           submodules: true
 
-      - uses: actions/setup-haskell@v1.1
+      # - uses: actions/setup-haskell@v1.1
       - uses: haskell-CI/setup@master
         with:
           ghc-version: "8.8"

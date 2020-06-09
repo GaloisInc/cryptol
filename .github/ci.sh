@@ -133,9 +133,14 @@ zip_dist() {
   [[ -f "$name".zip.sig ]] && [[ -f "$name".zip ]]
 }
 
-set_outputs() {
-  echo "::set-output name=changed-files::$(git diff-tree --no-commit-id --name-only -r "$1" | xargs)"
-  echo "::set-output name=cryptol-version::$(grep Version cryptol.cabal | awk '{print $2}')"
+output() { echo "::set-output name=$1::$2"; }
+ver() { grep Version cryptol.cabal | awk '{print $2}'; }
+set_version() { output cryptol-version "$(ver)"; }
+set_files() { output changed-files "$(files_since "$1" "$2")"; }
+files_since() {
+  changed_since="$(git log -1 --before="@{$2}")"
+  files="${changed_since:+"$(git diff-tree --no-commit-id --name-only -r "$1" | xargs)"}"
+  echo "$files"
 }
 
 COMMAND="$1"
