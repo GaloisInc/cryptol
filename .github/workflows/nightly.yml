@@ -43,6 +43,8 @@ jobs:
   build:
     needs: [outputs, docs]
     runs-on: ${{ matrix.os }}
+    env:
+      VERSION: ${{ needs.outputs.outputs.cryptol-version }}
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
@@ -71,8 +73,6 @@ jobs:
         run: .github/ci.sh bundle_files
 
       - if: runner.os == 'Windows'
-        env:
-          VERSION: ${{ needs.outputs.outputs.cryptol-version }}
         run: .github/wix.ps1
 
       - if: runner.os == 'Windows'
