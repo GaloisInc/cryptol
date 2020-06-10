@@ -24,7 +24,7 @@ setup_external_tools() {
 }
 
 setup_dist_bins() {
-  is_exe "dist" "cryptol" && is_exe "dist" "cryptol-html" && return
+  is_exe "dist/bin" "cryptol" && is_exe "dist/bin" "cryptol-html" && return
   extract_exe "cryptol" "dist/bin"
   extract_exe "cryptol-html" "dist/bin"
   strip dist/bin/cryptol*
@@ -103,7 +103,8 @@ install_system_deps() {
 
 test_dist() {
   setup_dist_bins
-  $BIN/test-runner --ext=.icry -F -b --exe=dist/cryptol tests
+  setup_external_tools
+  $BIN/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol tests
 }
 
 bundle_files() {
