@@ -44,6 +44,7 @@ Primitive Types
     Bit : *
     Cmp : * -> Prop
     Eq : * -> Prop
+    FLiteral : # -> # -> # -> * -> Prop
     Field : * -> Prop
     fin : # -> Prop
     Integer : *
@@ -129,6 +130,7 @@ Symbols
     floor : {a} (Round a) => a -> Integer
     foldl : {n, a, b} (fin n) => (a -> b -> a) -> a -> [n]b -> a
     foldr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> b
+    fraction : {m, n, r, a} (FLiteral m n r a) => a
     fromInteger : {a} (Ring a) => Integer -> a
     fromThenTo :
       {first, next, last, a, len} (fin first, fin next, fin last,

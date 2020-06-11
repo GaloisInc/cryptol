@@ -1,4 +1,4 @@
--- |
+-- |fpToInteger r e p f
 -- Module      :  Cryptol.Eval.Concrete.Value
 -- Copyright   :  (c) 2013-2020 Galois, Inc.
 -- License     :  BSD3
@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE PatternGuards #-}
@@ -32,13 +33,16 @@ module Cryptol.Eval.Concrete.Value
   , Value
   , Concrete(..)
   , liftBinIntMod
+  , fpBinArith
   ) where
 
 import qualified Control.Exception as X
 import Data.Bits
 import Numeric (showIntAtBase)
+import qualified LibBF as FP
 
 import qualified Cryptol.Eval.Arch as Arch
+import qualified Cryptol.Eval.Concrete.FloatHelpers as FP
 import Cryptol.Eval.Monad
 import Cryptol.Eval.Value
 import Cryptol.TypeCheck.Solver.InfNat (genLog)
@@ -131,6 +135,7 @@ instance Backend Concrete where
   type SBit Concrete = Bool
   type SWord Concrete = BV
   type SInteger Concrete = Integer
+  type SFloat Concrete = FP.BF
   type SEval Concrete = Eval
 
   raiseError _ err = io (X.throwIO err)
@@ -163,6 +168,8 @@ instance Backend Concrete where
   ppWord _ = ppBV
 
   ppInteger _ _opts i = integer i
+
+  ppFloat _ = FP.fpPP
 
   bitLit _ b = b
   bitAsLit _ b = Just b
@@ -313,9 +320,63 @@ instance Backend Concrete where
   znNegate _ 0 _ = evalPanic "znNegate" ["0 modulus not allowed"]
   znNegate _ m x = pure $! (negate x) `mod` m
 
+  ------------------------------------------------------------------------
+  -- Floating Point
+  fpLit                  = FP.fpLit
+  fpEq _sym x y          = pure (FP.bfValue x == FP.bfValue y)
+  fpLessThan _sym x y    = pure (FP.bfValue x <  FP.bfValue y)
+  fpGreaterThan _sym x y = pure (FP.bfValue x >  FP.bfValue y)
+  fpPlus  = fpBinArith FP.bfAdd
+  fpMinus = fpBinArith FP.bfSub
+  fpMult  = fpBinArith FP.bfMul
+  fpDiv   = fpBinArith FP.bfDiv
+  fpNeg _ x = pure x { FP.bfValue = FP.bfNeg (FP.bfValue x) }
+  fpFromInteger sym e p r x =
+    do opts <- FP.fpOpts sym e p (bvVal r)
+       v <- FP.fpCheckStatus sym (FP.bfRoundInt opts (FP.bfFromInteger x))
+       pure FP.BF { FP.bfExpWidth = e, FP.bfPrecWidth = p, FP.bfValue = v }
+  fpToInteger = fpCvtToInteger
+
+
 {-# INLINE liftBinIntMod #-}
 liftBinIntMod :: Monad m =>
   (Integer -> Integer -> Integer) -> Integer -> Integer -> Integer -> m Integer
 liftBinIntMod op m x y
   | m == 0    = evalPanic "znArithmetic" ["0 modulus not allowed"]
   | otherwise = pure $ (op x y) `mod` m
+
+
+
+{-# INLINE fpBinArith #-}
+fpBinArith ::
+  (FP.BFOpts -> FP.BigFloat -> FP.BigFloat -> (FP.BigFloat, FP.Status)) ->
+  Concrete ->
+  SWord Concrete  {- ^ Rouding mode -} ->
+  SFloat Concrete ->
+  SFloat Concrete ->
+  SEval Concrete (SFloat Concrete)
+fpBinArith fun = \sym r x y ->
+  do opts <- FP.fpOpts sym (FP.bfExpWidth x) (FP.bfPrecWidth x) (bvVal r)
+     v <- FP.fpCheckStatus sym (fun opts (FP.bfValue x) (FP.bfValue y))
+     pure x { FP.bfValue = v }
+
+fpCvtToInteger ::
+  Concrete ->
+  String ->
+  SWord Concrete {- ^ Rounding mode -} ->
+  SFloat Concrete ->
+  SEval Concrete (SInteger Concrete)
+fpCvtToInteger sym fun (bvVal -> rnd) (FP.bfValue -> flt) =
+  case FP.fpRound rnd of
+    Nothing -> raiseError sym (BadRoundingMode rnd)
+    Just mode ->
+      case FP.fpToI mode flt of
+        Just i -> pure i
+        Nothing -> raiseError sym (BadValue fun)
+
+
+
+
+
+
+

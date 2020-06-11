@@ -15,6 +15,7 @@
 
 module Cryptol.Prelude
   ( preludeContents
+  , floatContents
   , arrayContents
   , cryptolTcContents
   ) where
@@ -26,6 +27,9 @@ import Text.Heredoc (there)
 
 preludeContents :: ByteString
 preludeContents = B.pack [there|lib/Cryptol.cry|]
+
+floatContents :: ByteString
+floatContents = B.pack [there|lib/Float.cry|]
 
 arrayContents :: ByteString
 arrayContents = B.pack [there|lib/Array.cry|]

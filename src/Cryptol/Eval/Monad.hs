@@ -9,6 +9,7 @@
 {-# LANGUAGE Safe #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Cryptol.Eval.Monad
 ( -- * Evaluation monad
@@ -17,6 +18,8 @@ module Cryptol.Eval.Monad
 , EvalOpts(..)
 , getEvalOpts
 , PPOpts(..)
+, PPFloatFormat(..)
+, PPFloatExp(..)
 , defaultPPOpts
 , io
 , delayFill
@@ -54,10 +57,25 @@ data PPOpts = PPOpts
   { useAscii     :: Bool
   , useBase      :: Int
   , useInfLength :: Int
+  , useFPBase    :: Int
+  , useFPFormat  :: PPFloatFormat
   }
 
+data PPFloatFormat =
+    FloatFixed Int PPFloatExp -- ^ Use this many significant digis
+  | FloatFrac Int             -- ^ Show this many digits after floating point
+  | FloatFree PPFloatExp      -- ^ Use the correct number of digits
+
+data PPFloatExp = ForceExponent -- ^ Always show an exponent
+                | AutoExponent  -- ^ Only show exponent when needed
+
+
 defaultPPOpts :: PPOpts
-defaultPPOpts = PPOpts { useAscii = False, useBase = 10, useInfLength = 5 }
+defaultPPOpts = PPOpts { useAscii = False, useBase = 10, useInfLength = 5
+                       , useFPBase = 16
+                       , useFPFormat = FloatFree AutoExponent
+                       }
+
 
 -- | Some options for evalutaion
 data EvalOpts = EvalOpts
@@ -194,6 +212,8 @@ data EvalError
   | UserError String              -- ^ Call to the Cryptol @error@ primitive
   | LoopError String              -- ^ Detectable nontermination
   | NoPrim Name                   -- ^ Primitive with no implementation
+  | BadRoundingMode Integer       -- ^ Invalid rounding mode
+  | BadValue String               -- ^ Value outside the domain of a partial function.
     deriving (Typeable,Show)
 
 instance PP EvalError where
@@ -208,6 +228,8 @@ instance PP EvalError where
       text "word too wide for memory:" <+> integer w <+> text "bits"
     UserError x -> text "Run-time error:" <+> text x
     LoopError x -> text "<<loop>>" <+> text x
+    BadRoundingMode r -> "invalid rounding mode" <+> integer r
+    BadValue x -> "invalid input for" <+> backticks (text x)
     NoPrim x -> text "unimplemented primitive:" <+> pp x
 
 instance X.Exception EvalError

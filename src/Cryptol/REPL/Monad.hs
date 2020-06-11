@@ -63,6 +63,7 @@ module Cryptol.REPL.Monad (
   , getUserSatNum
   , getUserShowProverStats
   , getUserProverValidate
+  , parsePPFloatFormat
 
     -- ** Configurable Output
   , getPutStr
@@ -97,6 +98,7 @@ import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (SatNum(..))
 import qualified Cryptol.Symbolic.SBV as SBV (proverNames, checkProverInstallation)
 import qualified Cryptol.Symbolic.What4 as W4 (proverNames)
+import Cryptol.Eval.Monad(PPFloatFormat(..),PPFloatExp(..))
 
 import Control.Monad (ap,unless,when)
 import Control.Monad.Base
@@ -797,9 +799,45 @@ userOptions  = mkOptionMap
   , simpleOpt "show-examples" (EnvBool True) noCheck
     "Print the (counter) example after :sat or :prove"
 
+  , simpleOpt "fp-base" (EnvNum 16) checkBase
+    "The base to display floating point numbers at (2, 8, 10, or 16)."
+
+  , simpleOpt "fp-format" (EnvString "free") checkPPFloatFormat
+    $ unlines
+    [ "Specifies the format to use when showing floating point numbers:"
+    , "  * free      show using as many digits as needed"
+    , "  * free+exp  like `free` but always show exponent"
+    , "  * .NUM      show NUM (>=1) digits after floating point"
+    , "  * NUM       show using NUM (>=1) significant digits"
+    , "  * NUM+exp   like NUM but always show exponent"
+    ]
+
   , simpleOpt "ignore-safety" (EnvBool False) noCheck
     "Ignore safety predicates when performing :sat or :prove checks"
   ]
+
+
+parsePPFloatFormat :: String -> Maybe PPFloatFormat
+parsePPFloatFormat s =
+  case s of
+    "free"     -> Just $ FloatFree AutoExponent
+    "free+exp" -> Just $ FloatFree ForceExponent
+    '.' : xs   -> FloatFrac <$> readMaybe xs
+    _ | (as,res) <- break (== '+') s
+      , Just n   <- readMaybe as
+      , Just e   <- case res of
+                      "+exp" -> Just ForceExponent
+                      ""     -> Just AutoExponent
+                      _      -> Nothing
+        -> Just (FloatFixed n e)
+    _  -> Nothing
+
+checkPPFloatFormat :: Checker
+checkPPFloatFormat val =
+  case val of
+    EnvString s | Just _ <- parsePPFloatFormat s -> noWarns Nothing
+    _ -> noWarns $ Just "Failed to parse `fp-format`"
+
 
 
 -- | Check the value to the `base` option.

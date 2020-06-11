@@ -18,4 +18,4 @@ Loading module Cryptol
 Loading module test04
 
 [error] at test04.cry:1:1--5:14:
-  Type '()' does not support literals.
+  Type '()' does not support integer literals.

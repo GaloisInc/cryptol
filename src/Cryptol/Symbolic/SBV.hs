@@ -32,6 +32,8 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import qualified Control.Exception as X
 
+import LibBF(bfNaN)
+
 import qualified Data.SBV as SBV (sObserve)
 import qualified Data.SBV.Internals as SBV (SBV(..))
 import qualified Data.SBV.Dynamic as SBV
@@ -48,6 +50,7 @@ import qualified Cryptol.Eval.Backend as Eval
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
+import qualified Cryptol.Eval.Concrete.FloatHelpers as Concrete
 import qualified Cryptol.Eval.Monad as Eval
 
 import qualified Cryptol.Eval.Value as Eval
@@ -429,6 +432,14 @@ parseValue (FTTuple ts) cvs = (Eval.VTuple (map Eval.ready vs), cvs')
 parseValue (FTRecord fs) cvs = (Eval.VRecord (Map.fromList (zip ns (map Eval.ready vs))), cvs')
   where (ns, ts)   = unzip (Map.toList fs)
         (vs, cvs') = parseValues ts cvs
+parseValue (FTFloat e p) cvs =
+   (Eval.VFloat Concrete.BF { Concrete.bfValue = bfNaN
+                            , Concrete.bfExpWidth = e
+                            , Concrete.bfPrecWidth = p
+                            }
+  , cvs
+  )
+  -- XXX: NOT IMPLEMENTED
 
 inBoundsIntMod :: Integer -> Eval.SInteger SBV -> Eval.SBit SBV
 inBoundsIntMod n x =
@@ -447,6 +458,7 @@ forallFinType ty =
          let z = SBV.svInteger SBV.KUnbounded 0
          tell [SBV.svLessThan z d]
          return (Eval.VRational (Eval.SRational n d))
+    FTFloat {}    -> pure (Eval.VFloat ()) -- XXX: NOT IMPLEMENTED
     FTIntMod n    -> do x <- lift forallSInteger_
                         tell [inBoundsIntMod n x]
                         return (Eval.VInteger x)
@@ -468,6 +480,7 @@ existsFinType ty =
          let z = SBV.svInteger SBV.KUnbounded 0
          tell [SBV.svLessThan z d]
          return (Eval.VRational (Eval.SRational n d))
+    FTFloat {}    -> pure $ Eval.VFloat () -- XXX: NOT IMPLEMENTED
     FTIntMod n    -> do x <- lift existsSInteger_
                         tell [inBoundsIntMod n x]
                         return (Eval.VInteger x)

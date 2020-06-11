@@ -48,7 +48,10 @@ $unitick        = \x7
 @num2         = "0b" (_*[0-1])+
 @num8         = "0o" (_*[0-7])+
 @num10        = [0-9](_*[0-9])*
-@num16        = "0x" (_*[0-9A-Fa-f])+
+@digits16     = (_*[0-9A-Fa-f])+
+@num16        = "0x" @digits16
+@fnum10       = @num10 "." @num10     ([eE] [\+\-]? @num10)?
+@fnum16       = @num16 "." @digits16  ([pP] [\+\-]? @num10)?
 
 @strPart      = [^\\\"]+
 @chrPart      = [^\\\']+
@@ -127,6 +130,10 @@ $white+                   { emit $ White Space }
 @num8                     { emitS (numToken 8  . Text.drop 2) }
 @num10                    { emitS (numToken 10 . Text.drop 0) }
 @num16                    { emitS (numToken 16 . Text.drop 2) }
+@fnum10                   { emitS (fnumToken 10 . Text.drop 0) }
+@fnum16                   { emitS (fnumToken 16 . Text.drop 2) }
+
+
 
 "_"                       { emit $ Sym Underscore }
 @id                       { mkIdent }

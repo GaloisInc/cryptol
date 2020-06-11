@@ -141,7 +141,7 @@ instance Backend SBV where
   type SBit SBV = SVal
   type SWord SBV = SVal
   type SInteger SBV = SVal
-
+  type SFloat SBV = ()        -- XXX: not implemented
   type SEval SBV = SBVEval
 
   raiseError _ err = SBVEval (pure (SBVError err))
@@ -312,6 +312,23 @@ instance Backend SBV where
   znMult  _ m a b = sModMult m a b
   znNegate _ m a  = sModNegate m a
 
+  ppFloat _ _ _           = text "[?]"
+  fpLit _ _ _ _           = unsupported "fpLit"
+  fpEq _ _ _              = unsupported "fpEq"
+  fpLessThan _ _ _        = unsupported "fpLessThan"
+  fpGreaterThan _ _ _     = unsupported "fpGreaterThan"
+  fpPlus _ _ _ _          = unsupported "fpPlus"
+  fpMinus _ _ _ _         = unsupported "fpMinus"
+  fpMult _  _ _ _         = unsupported "fpMult"
+  fpDiv _ _ _ _           = unsupported "fpDiv"
+  fpNeg _ _               = unsupported "fpNeg"
+  fpFromInteger _ _ _ _ _ = unsupported "fpFromInteger"
+  fpToInteger _ _ _ _     = unsupported "fpToInteger"
+
+unsupported :: String -> SEval SBV a
+unsupported x = liftIO (X.throw (UnsupportedSymbolicOp x))
+
+
 svToInteger :: SWord SBV -> SInteger SBV
 svToInteger w =
   case svAsInteger w of
@@ -333,18 +350,20 @@ evalPanic cxt = panic ("[Symbolic]" ++ cxt)
 
 -- Primitives ------------------------------------------------------------------
 
-evalPrim :: Ident -> Maybe Value
+evalPrim :: PrimIdent -> Maybe Value
 evalPrim prim = Map.lookup prim primTable
 
 -- See also Cryptol.Eval.Concrete.primTable
-primTable :: Map.Map Ident Value
+primTable :: Map.Map PrimIdent Value
 primTable  = let sym = SBV in
-  Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
+  Map.fromList $ map (\(n, v) -> (prelPrim (T.pack n), v))
+
   [ -- Literals
     ("True"        , VBit (bitLit sym True))
   , ("False"       , VBit (bitLit sym False))
   , ("number"      , ecNumberV sym) -- Converts a numeric type into its corresponding value.
                                     -- { val, rep } (Literal val rep) => rep
+  , ("fraction"     , ecFractionV sym)
   , ("ratio"       , ratioV sym)
 
     -- Zero

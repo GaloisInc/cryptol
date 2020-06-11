@@ -13,7 +13,6 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 -- for the instances of RunM and BaseM
 {-# LANGUAGE UndecidableInstances #-}
@@ -219,14 +218,11 @@ nameFixity :: Name -> Maybe Fixity
 nameFixity = nFixity
 
 
-asPrim :: Name -> Maybe Ident
+asPrim :: Name -> Maybe PrimIdent
 asPrim Name { .. } =
   case nInfo of
-    Declared p _
-      | p == preludeName -> Just nIdent
-      | p == arrayName ->
-        Just $ mkIdent $ modNameToText p <> "::" <> identText nIdent
-    _ -> Nothing
+    Declared p _ -> Just $ PrimIdent p $ identText nIdent
+    _            -> Nothing
 
 toParamInstName :: Name -> Name
 toParamInstName n =
@@ -351,11 +347,16 @@ paramModRecParam = Name { nInfo = Parameter
 -- Prim Maps -------------------------------------------------------------------
 
 -- | A mapping from an identifier defined in some module to its real name.
-data PrimMap = PrimMap { primDecls :: Map.Map Ident Name
-                       , primTypes :: Map.Map Ident Name
+data PrimMap = PrimMap { primDecls :: Map.Map PrimIdent Name
+                       , primTypes :: Map.Map PrimIdent Name
                        } deriving (Show, Generic, NFData)
 
-lookupPrimDecl, lookupPrimType :: Ident -> PrimMap -> Name
+instance Semigroup PrimMap where
+  x <> y = PrimMap { primDecls = Map.union (primDecls x) (primDecls y)
+                   , primTypes = Map.union (primTypes x) (primTypes y)
+                   }
+
+lookupPrimDecl, lookupPrimType :: PrimIdent -> PrimMap -> Name
 
 -- | It's assumed that we're looking things up that we know already exist, so
 -- this will panic if it doesn't find the name.

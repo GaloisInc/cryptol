@@ -1,6 +1,7 @@
 packages:
     cryptol.cabal
     tests
+    dependencies/libBF-hs
 
 optional-packages:
     dependencies/what4/what4

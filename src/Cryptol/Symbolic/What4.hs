@@ -39,10 +39,12 @@ import qualified Cryptol.ModuleSystem.Monad as M
 
 import qualified Cryptol.Eval as Eval
 import qualified Cryptol.Eval.Concrete as Concrete
+import qualified Cryptol.Eval.Concrete.Float as Concrete
 
 import qualified Cryptol.Eval.Backend as Eval
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.What4
+import qualified Cryptol.Eval.What4.SFloat as W4
 import           Cryptol.Symbolic
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Ident (Ident)
@@ -358,6 +360,18 @@ varBlockingPred sym evalFn v =
     VarWord (SW.DBV w) ->
       do wlit <- W4.groundEval evalFn w
          W4.notPred sym =<< W4.bvEq sym w =<< W4.bvLit sym (W4.bvWidth w) wlit
+
+    VarFloat (W4.SFloat f)
+      | fr@(W4.FloatingPointPrecisionRepr e p) <- sym `W4.fpReprOf` f
+      , let wid = W4.addNat e p
+      , Just W4.LeqProof <- W4.isPosNat wid ->
+        do bits <- W4.groundEval evalFn f
+           bv   <- W4.bvLit sym wid bits
+           constF <- W4.floatFromBinary sym fr bv
+           -- NOTE: we are using logical equality here
+           W4.notPred sym =<< W4.floatEq sym f constF
+      | otherwise -> panic "varBlockingPred" [ "1 >= 2 ???" ]
+
     VarFinSeq _n vs -> computeBlockingPred sym evalFn vs
     VarTuple vs     -> computeBlockingPred sym evalFn vs
     VarRecord fs    -> computeBlockingPred sym evalFn (map snd (Map.toList fs))
@@ -385,6 +399,7 @@ data VarShape sym
   = VarBit (W4.Pred sym)
   | VarInteger (W4.SymInteger sym)
   | VarRational (W4.SymInteger sym) (W4.SymInteger sym)
+  | VarFloat (W4.SFloat sym)
   | VarWord (SW.SWord sym)
   | VarFinSeq Int [VarShape sym]
   | VarTuple [VarShape sym]
@@ -400,6 +415,7 @@ freshVariable sym ty =
                         <*> W4.freshBoundedInt sym W4.emptySymbol (Just 1) Nothing
     FTIntMod 0    -> panic "freshVariable" ["0 modulus not allowed"]
     FTIntMod n    -> VarInteger  <$> W4.freshBoundedInt sym W4.emptySymbol (Just 0) (Just (n-1))
+    FTFloat e p   -> VarFloat    <$> W4.fpFresh sym e p
     FTSeq n FTBit -> VarWord     <$> SW.freshBV sym W4.emptySymbol (toInteger n)
     FTSeq n t     -> VarFinSeq n <$> sequence (replicate n (freshVariable sym t))
     FTTuple ts    -> VarTuple    <$> mapM (freshVariable sym) ts
@@ -412,6 +428,7 @@ varToSymValue sym var =
     VarInteger i -> Eval.VInteger i
     VarRational n d -> Eval.VRational (Eval.SRational n d)
     VarWord w    -> Eval.VWord (SW.bvWidth w) (return (Eval.WordVal w))
+    VarFloat f   -> Eval.VFloat f
     VarFinSeq n vs -> Eval.VSeq (toInteger n) (Eval.finiteSeqMap (What4 sym) (map (pure . varToSymValue sym) vs))
     VarTuple vs  -> Eval.VTuple (map (pure . varToSymValue sym) vs)
     VarRecord fs -> Eval.VRecord (fmap (pure . varToSymValue sym) fs)
@@ -431,6 +448,11 @@ varToConcreteValue evalFn v =
     VarWord (SW.DBV x) ->
        do let w = W4.intValue (W4.bvWidth x)
           Eval.VWord w . pure . Eval.WordVal . Concrete.mkBv w . BV.asUnsigned <$> W4.groundEval evalFn x
+    VarFloat fv@(W4.SFloat f) ->
+      do let (e,p) = W4.fpSize fv
+         bits <- W4.groundEval evalFn f
+         pure $ Eval.VFloat $ Concrete.floatFromBits e p $ BV.asUnsigned bits
+
     VarFinSeq n vs ->
        do vs' <- mapM (varToConcreteValue evalFn) vs
           pure (Eval.VSeq (toInteger n) (Eval.finiteSeqMap Concrete.Concrete (map pure vs')))

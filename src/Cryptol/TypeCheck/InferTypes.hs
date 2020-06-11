@@ -18,6 +18,8 @@
 {-# LANGUAGE ViewPatterns #-}
 module Cryptol.TypeCheck.InferTypes where
 
+import           Control.Monad(guard)
+
 import           Cryptol.Parser.Position
 import           Cryptol.ModuleSystem.Name (asPrim,nameLoc)
 import           Cryptol.TypeCheck.AST
@@ -25,7 +27,7 @@ import           Cryptol.TypeCheck.PP
 import           Cryptol.TypeCheck.Subst
 import           Cryptol.TypeCheck.TypePat
 import           Cryptol.TypeCheck.SimpType(tMax)
-import           Cryptol.Utils.Ident (ModName, identText)
+import           Cryptol.Utils.Ident (ModName, PrimIdent(..), preludeName)
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.Misc(anyJust)
 
@@ -302,13 +304,17 @@ instance PP ConstraintSource where
 ppUse :: Expr -> Doc
 ppUse expr =
   case expr of
-    EVar (asPrim -> Just prim)
-      | identText prim == "number"       -> "literal or demoted expression"
-      | identText prim == "infFrom"      -> "infinite enumeration"
-      | identText prim == "infFromThen"  -> "infinite enumeration (with step)"
-      | identText prim == "fromTo"       -> "finite enumeration"
-      | identText prim == "fromThenTo"   -> "finite enumeration"
+    EVar (isPrelPrim -> Just prim)
+      | prim == "number"       -> "literal or demoted expression"
+      | prim == "infFrom"      -> "infinite enumeration"
+      | prim == "infFromThen"  -> "infinite enumeration (with step)"
+      | prim == "fromTo"       -> "finite enumeration"
+      | prim == "fromThenTo"   -> "finite enumeration"
     _                                    -> "expression" <+> pp expr
+  where
+  isPrelPrim x = do PrimIdent p i <- asPrim x
+                    guard (p == preludeName)
+                    pure i
 
 instance PP (WithNames Goal) where
   ppPrec _ (WithNames g names) =

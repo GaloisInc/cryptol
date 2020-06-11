@@ -52,6 +52,7 @@ cl :: TokenT -> AttributeValue
 cl tok =
   case tok of
         Num {}      -> "number"
+        Frac {}     -> "number"
         Ident {}    -> "identifier"
         KW {}       -> "keyword"
         Op {}       -> "operator"

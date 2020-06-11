@@ -36,7 +36,7 @@ import Cryptol.ModuleSystem.Exports(ExportSpec(..)
 import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Import(..), ImportSpec(..), ExportType(..)
                           , Fixity(..))
-import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,packIdent)
+import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
 
@@ -176,22 +176,21 @@ data DeclDef    = DPrim
 
 --------------------------------------------------------------------------------
 
--- | Construct a primitive, given a map to the unique names of the Cryptol
--- module.
-ePrim :: PrimMap -> Ident -> Expr
+-- | Construct a primitive, given a map to the unique primitive name.
+ePrim :: PrimMap -> PrimIdent -> Expr
 ePrim pm n = EVar (lookupPrimDecl n pm)
 
 -- | Make an expression that is @error@ pre-applied to a type and a message.
 eError :: PrimMap -> Type -> String -> Expr
 eError prims t str =
-  EApp (ETApp (ETApp (ePrim prims (packIdent "error")) t)
+  EApp (ETApp (ETApp (ePrim prims (prelPrim "error")) t)
               (tNum (length str))) (eString prims str)
 
 eString :: PrimMap -> String -> Expr
 eString prims str = EList (map (eChar prims) str) tChar
 
 eChar :: PrimMap -> Char -> Expr
-eChar prims c = ETApp (ETApp (ePrim prims (packIdent "number")) (tNum v)) (tWord (tNum w))
+eChar prims c = ETApp (ETApp (ePrim prims (prelPrim "number")) (tNum v)) (tWord (tNum w))
   where v = fromEnum c
         w = 8 :: Int
 

@@ -63,10 +63,10 @@ import Prelude.Compat
 type EvalEnv = GenEvalEnv Concrete
 
 type EvalPrims sym =
-  ( Backend sym, ?evalPrim :: Ident -> Maybe (GenValue sym) )
+  ( Backend sym, ?evalPrim :: PrimIdent -> Maybe (GenValue sym) )
 
 type ConcPrims =
-  ?evalPrim :: Ident -> Maybe (GenValue Concrete)
+  ?evalPrim :: PrimIdent -> Maybe (GenValue Concrete)
 
 -- Expression Evaluation -------------------------------------------------------
 
@@ -426,6 +426,7 @@ etaDelay sym msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
     case tp of
       TVBit -> v
       TVInteger -> v
+      TVFloat {} -> v
       TVIntMod _ -> v
       TVRational -> v
       TVArray{} -> v

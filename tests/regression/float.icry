@@ -1,0 +1,134 @@
+:module FloatTests
+:set ascii=on
+
+section "Float Formatting"
+:help :set fp-base
+:help :set fp-format
+
+:set fp-base=2
+10.25 : Medium
+
+:set fp-base=8
+10.25 : Medium
+
+:set fp-base=10
+10.25       : Medium
+1.0 /. 3.0  : Small
+0.4         : Small
+
+:set fp-base=16
+10.25       : Medium
+1.0 /.  3.0 : Small
+
+:set fp-base=16
+:set fp-format=free+exp
+0x12.34 : Medium
+:set fp-format=.1
+0x12.34 : Medium
+:set fp-format=2
+0x12.34 : Medium
+:set fp-format=2+exp
+0x12.34 : Medium
+
+
+section "Float Type"
+:help Float
+zero : Float 0 0            // Too small
+zero : Float 80 1000        // Too large
+zero : Small
+zero : Medium
+zero : Large
+
+section "Literals"
+:set fp-base=10
+1.0         : Medium
+1.25        : Medium
+1.25e2      : Medium
+:set fp-base=16
+0x1.25      : Medium
+0xFF.FFp3   : Medium
+0xFF.FFp-4  : Medium
+0xFF.FFe3   : Medium     // This is NOT AN EXPONENT
+5.0         : Small      // Not checked
+0x5.0       : Small      // Checked
+1.2         : Medium
+0x0.2       : Small      // Subnormal
+fpFromBits 1 : Small     // Subnormal
+
+section "NaN"
+:help fpNaN
+fpNaN : Medium
+:set base=2
+fpToBits    (fpNaN : Small)
+fpToBits    (fpNaN : Medium)
+roundTrip   (fpNaN : Large)
+eqRefl1     (fpNaN : Medium)
+eqRefl2     (fpNaN : Medium)
+leqRefl     (fpNaN : Medium)
+
+section "Arithmetic"
+
+:set fp-base=10
+1.0 + 1.0    : Medium
+1.0 - 1.0    : Medium
+3.0 * 2.0    : Medium
+3.0 /. 2.0   : Medium
+
+1.0  /. 0.0  : Medium
+-1.0 /. 0.0  : Medium
+-0.0 /. 0.0  : Medium
+1.0  /. -0.0 : Medium
+-1.0 /. -0.0 : Medium
+-0.0 /. -0.0 : Medium
+
+2.0 + 3.0    : Small
+2.0 + 8.0    : Small
+
+fpAdd rne 2.0 3.0         : Small
+fpAdd rne 2.0 8.0         : Small
+fpAdd rne (-2.0) (-3.0)   : Small
+fpAdd rne (-2.0) (-8.0)   : Small
+fpAdd rna 2.0 3.0         : Small
+fpAdd rna 2.0 8.0         : Small
+fpAdd rna (-2.0) (-3.0)   : Small
+fpAdd rna (-2.0) (-8.0)   : Small
+fpAdd rtp 2.0 3.0         : Small
+fpAdd rtp 2.0 8.0         : Small
+fpAdd rtp (-2.0) (-3.0)   : Small
+fpAdd rtp (-2.0) (-8.0)   : Small
+fpAdd rtn 2.0 3.0         : Small
+fpAdd rtn 2.0 8.0         : Small
+fpAdd rtn (-2.0) (-3.0)   : Small
+fpAdd rtn (-2.0) (-8.0)   : Small
+fpAdd rtz 2.0 3.0         : Small
+fpAdd rtz 2.0 8.0         : Small
+fpAdd rtz (-2.0) (-3.0)   : Small
+fpAdd rtz (-2.0) (-8.0)   : Small
+
+
+section "Proofs"
+:set prover=w4-z3
+:set show-examples = off
+:prove \(x : Medium) -> x == 0.0 \/ x =.= fpNaN     // False
+:set show-examples = on
+:prove \(x : Medium) -> x == x                      // False
+:prove \(x : Medium) -> eqRefl1 x
+:prove \(x : Medium) -> eqRefl2 x
+:prove \(x : Medium) -> roundTrip x
+:prove roundTrip2`{3,2}
+:prove roundTrip2`{11,53}
+:prove \(x : Medium) -> leqRefl x
+:prove \(x : Medium) y -> eqProp x y
+
+section "Random Testing"
+:check \(x : Medium) -> eqRefl1 x
+:check \(x : Medium) -> eqRefl2 x
+:check \(x : Medium) -> roundTrip x
+:prove roundTrip2`{3,2}
+:prove roundTrip2`{11,53}
+:check \(x : Medium) -> leqRefl x
+:check \(x : Medium) y -> eqProp x y
+
+
+
+

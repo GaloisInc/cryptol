@@ -495,6 +495,11 @@ pIsWidth ty = case tNoUser ty of
                 TCon (TF TCWidth) [t1] -> Just t1
                 _                      -> Nothing
 
+pIsValidFloat :: Prop -> Maybe (Type,Type)
+pIsValidFloat ty = case tNoUser ty of
+                     TCon (PC PValidFloat) [a,b] -> Just (a,b)
+                     _                           -> Nothing
+
 --------------------------------------------------------------------------------
 
 
@@ -529,6 +534,9 @@ tInteger  = TCon (TC TCInteger) []
 
 tRational :: Type
 tRational  = TCon (TC TCRational) []
+
+tFloat   :: Type -> Type -> Type
+tFloat e p = TCon (TC TCFloat) [ e, p ]
 
 tIntMod :: Type -> Type
 tIntMod n = TCon (TC TCIntMod) [n]
@@ -700,6 +708,9 @@ pFin ty =
     TCon (TC TCInf)     _ -> pError (TCErrorMessage "`inf` is not finite.")
     _                     -> TCon (PC PFin) [ty]
 
+pValidFloat :: Type -> Type -> Type
+pValidFloat e p = TCon (PC PValidFloat) [e,p]
+
 -- | Make a malformed property.
 pError :: TCErrorMessage -> Prop
 pError msg = TCon (TError KProp msg) []
@@ -858,7 +869,7 @@ instance PP (WithNames Type) where
 
           (TCTuple _, fs)     -> parens $ fsep $ punctuate comma $ map (go 0) fs
 
-          (_, _)              -> pp tc <+> fsep (map (go 4) ts)
+          (_, _)              -> pp tc <+> fsep (map (go 5) ts)
 
       TCon (PC pc) ts ->
         case (pc,ts) of

@@ -55,4 +55,5 @@ translateExprToNumT expr =
 
   cvtLit (ECNum n _)        = return (TNum n)
   cvtLit (ECChar c)         = return (TChar c)
+  cvtLit (ECFrac {})        = Nothing
   cvtLit (ECString _)       = Nothing

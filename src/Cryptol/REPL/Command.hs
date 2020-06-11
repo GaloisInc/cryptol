@@ -277,9 +277,19 @@ getPPValOpts =
   do base      <- getKnownUser "base"
      ascii     <- getKnownUser "ascii"
      infLength <- getKnownUser "infLength"
+
+     fpBase    <- getKnownUser "fp-base"
+     fpFmtTxt  <- getKnownUser "fp-format"
+     let fpFmt = case parsePPFloatFormat fpFmtTxt of
+                   Just f  -> f
+                   Nothing -> panic "getPPValOpts"
+                                      [ "Failed to parse fp-format" ]
+
      return E.PPOpts { E.useBase      = base
                      , E.useAscii     = ascii
                      , E.useInfLength = infLength
+                     , E.useFPBase    = fpBase
+                     , E.useFPFormat  = fpFmt
                      }
 
 getEvalOpts :: REPL E.EvalOpts
@@ -788,8 +798,8 @@ mkSolverResult thing result earg =
                   Left ts   -> mkArgs (map addError ts)
                   Right tes -> mkArgs tes
 
-         eTrue  = T.ePrim prims (M.packIdent "True")
-         eFalse = T.ePrim prims (M.packIdent "False")
+         eTrue  = T.ePrim prims (M.prelPrim "True")
+         eFalse = T.ePrim prims (M.prelPrim "False")
          resultE = if result then eTrue else eFalse
 
          rty = T.TRec $ [(rIdent, T.tBit )] ++ map fst argF
@@ -857,8 +867,8 @@ readFileCmd fp = do
       do pm <- getPrimMap
          let val = byteStringToInteger bs
          let len = BS.length bs
-         let split = T.ePrim pm (M.packIdent "split")
-         let number = T.ePrim pm (M.packIdent "number")
+         let split = T.ePrim pm (M.prelPrim "split")
+         let number = T.ePrim pm (M.prelPrim "number")
          let f = T.EProofApp (foldl T.ETApp split [T.tNum len, T.tNum (8::Integer), T.tBit])
          let t = T.tWord (T.tNum (toInteger len * 8))
          let x = T.EProofApp (T.ETApp (T.ETApp number (T.tNum val)) t)
