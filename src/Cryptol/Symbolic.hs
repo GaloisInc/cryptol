@@ -120,6 +120,7 @@ data FinType
     | FTInteger
     | FTIntMod Integer
     | FTRational
+    | FTFloat Integer Integer
     | FTSeq Int FinType
     | FTTuple [FinType]
     | FTRecord (Map.Map Ident FinType)
@@ -139,6 +140,7 @@ finType ty =
     TVInteger        -> Just FTInteger
     TVIntMod n       -> Just (FTIntMod n)
     TVRational       -> Just FTRational
+    TVFloat e p      -> Just (FTFloat e p)
     TVSeq n t        -> FTSeq <$> numType n <*> finType t
     TVTuple ts       -> FTTuple <$> traverse finType ts
     TVRec fields     -> FTRecord . Map.fromList <$> traverse (traverseSnd finType) fields
@@ -152,6 +154,7 @@ unFinType fty =
     FTInteger    -> tInteger
     FTIntMod n   -> tIntMod (tNum n)
     FTRational   -> tRational
+    FTFloat e p  -> tFloat (tNum e) (tNum p)
     FTSeq l ety  -> tSeq (tNum l) (unFinType ety)
     FTTuple ftys -> tTuple (unFinType <$> ftys)
     FTRecord fs  -> tRec (Map.toList (fmap unFinType fs))

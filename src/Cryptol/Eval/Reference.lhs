@@ -8,6 +8,7 @@
 > -- Portability :  portable
 >
 > {-# LANGUAGE PatternGuards #-}
+> {-# LANGUAGE BlockArguments #-}
 >
 > module Cryptol.Eval.Reference
 >   ( Value(..)
@@ -19,6 +20,7 @@
 >
 > import Control.Applicative (liftA2)
 > import Data.Bits
+> import Data.Ratio((%))
 > import Data.List
 >   (genericDrop, genericIndex, genericLength, genericReplicate, genericSplitAt,
 >    genericTake, sortBy)
@@ -26,6 +28,8 @@
 > import Data.Map (Map)
 > import qualified Data.Map as Map
 > import qualified Data.Text as T (pack)
+> import LibBF (BigFloat)
+> import qualified LibBF as FP
 >
 > import Cryptol.ModuleSystem.Name (asPrim)
 > import Cryptol.TypeCheck.Solver.InfNat (Nat'(..), nAdd, nMin, nMul)
@@ -33,7 +37,9 @@
 > import Cryptol.Eval.Monad (EvalError(..), PPOpts(..))
 > import Cryptol.Eval.Type (TValue(..), isTBit, evalValType, evalNumType, tvSeq)
 > import Cryptol.Eval.Concrete (mkBv, ppBV, lg2)
-> import Cryptol.Utils.Ident (Ident, mkIdent)
+> import Cryptol.Eval.Concrete.FloatHelpers(fpPP,fpToI,BF(..),fpRound)
+> import Cryptol.Eval.Concrete.Float(floatFromBits,floatToBits)
+> import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim)
 > import Cryptol.Utils.Panic (panic)
 > import Cryptol.Utils.PP
 >
@@ -68,6 +74,7 @@ are as follows:
 | `Integer`         | integers          | `TVInteger`                 |
 | `Z n`             | integers modulo n | `TVIntMod n`                |
 | `Rational`        | rationals         | `TVRational`                |
+| `Float e p`       | floating point    | `TVFloat`                   |
 | `Array`           | arrays            | `TVArray`                   |
 | `[n]a`            | finite lists      | `TVSeq n a`                 |
 | `[inf]a`          | infinite lists    | `TVStream a`                |
@@ -123,6 +130,7 @@ terms by providing an evaluator to an appropriate `Value` type.
 >   = VBit (Either EvalError Bool) -- ^ @ Bit    @ booleans
 >   | VInteger (Either EvalError Integer) -- ^ @ Integer @  or @Z n@ integers
 >   | VRational (Either EvalError Rational) -- ^ @ Rational @ rationals
+>   | VFloat (Either EvalError BF) -- ^ Floating point numbers
 >   | VList Nat' [Value]           -- ^ @ [n]a   @ finite or infinite lists
 >   | VTuple [Value]               -- ^ @ ( .. ) @ tuples
 >   | VRecord [(Ident, Value)]     -- ^ @ { .. } @ records
@@ -177,6 +185,7 @@ cpo that represents any given schema.
 >         TVInteger    -> VInteger (fromVInteger val)
 >         TVIntMod _   -> VInteger (fromVInteger val)
 >         TVRational   -> VRational (fromVRational val)
+>         TVFloat _ _  -> VFloat (fromVFloat' val)
 >         TVArray{}    -> evalPanic "copyByTValue" ["Unsupported Array type"]
 >         TVSeq w ety  -> VList (Nat w) (map (go ety) (copyList w (fromVList val)))
 >         TVStream ety -> VList Inf (map (go ety) (copyStream (fromVList val)))
@@ -209,6 +218,19 @@ Operations on Values
 > fromVRational :: Value -> Either EvalError Rational
 > fromVRational (VRational i) = i
 > fromVRational _             = evalPanic "fromVRational" ["Expected a rational"]
+>
+> fromVFloat :: Value -> Either EvalError BigFloat
+> fromVFloat = fmap bfValue . fromVFloat'
+
+> fromVFloat' :: Value -> Either EvalError BF
+> fromVFloat' v =
+>   case v of
+>     VFloat f -> f
+>     _ -> evalPanic "fromVFloat" [ "Expected a floating point value." ]
+
+
+
+
 >
 > -- | Destructor for @VList@.
 > fromVList :: Value -> [Value]
@@ -410,6 +432,7 @@ down to the individual bits.
 >     VBit b     -> VBit (condBit c b (fromVBit r))
 >     VInteger i -> VInteger (condBit c i (fromVInteger r))
 >     VRational x -> VRational (condBit c x (fromVRational r))
+>     VFloat x    -> VFloat (condBit c x (fromVFloat' r))
 >     VList n vs -> VList n (zipWith (condValue c) vs (fromVList r))
 >     VTuple vs  -> VTuple (zipWith (condValue c) vs (fromVTuple r))
 >     VRecord fs -> VRecord [ (f, condValue c v (lookupRecord f r)) | (f, v) <- fs ]
@@ -572,8 +595,14 @@ by corresponding typeclasses
 
 * Miscellaneous: `error`, `random`, `trace`
 
-> primTable :: Map Ident Value
-> primTable = Map.fromList $ map (\(n, v) -> (mkIdent (T.pack n), v))
+> primTable :: Map PrimIdent Value
+> primTable = Map.unions
+>               [ cryptolPrimTable
+>               , floatPrimTable
+>               ]
+
+> cryptolPrimTable :: Map PrimIdent Value
+> cryptolPrimTable = Map.fromList $ map (\(n, v) -> (prelPrim (T.pack n), v))
 >
 >   -- Literals
 >   [ ("True"       , VBit (Right True))
@@ -581,6 +610,10 @@ by corresponding typeclasses
 >   , ("number"     , vFinPoly $ \val ->
 >                     VPoly $ \a ->
 >                     literal val a)
+>   , ("fraction"   , vFinPoly \top ->
+>                     vFinPoly \bot ->
+>                     vFinPoly \rnd ->
+>                     VPoly    \a   -> fraction top bot rnd a)
 >   -- Zero
 >   , ("zero"       , VPoly zero)
 >
@@ -591,13 +624,26 @@ by corresponding typeclasses
 >   , ("complement" , unary  (logicUnary not))
 >
 >   -- Ring
->   , ("+"          , binary (ringBinary (\x y -> Right (x + y)) (\x y -> Right (x + y))) )
->   , ("-"          , binary (ringBinary (\x y -> Right (x - y)) (\x y -> Right (x - y))) )
->   , ("*"          , binary (ringBinary (\x y -> Right (x * y)) (\x y -> Right (x * y))) )
->   , ("negate"     , unary  (ringUnary (\x -> Right (- x)) (\x -> Right (- x))))
+>   , ("+"          , binary (ringBinary
+>                              (\x y -> Right (x + y))
+>                              (\x y -> Right (x + y))
+>                              (fpBin FP.bfAdd fpImplicitRound)
+>                            ))
+>   , ("-"          , binary (ringBinary
+>                               (\x y -> Right (x - y))
+>                               (\x y -> Right (x - y))
+>                               (fpBin FP.bfSub fpImplicitRound)
+>                             ))
+>   , ("*"          , binary ringMul)
+>   , ("negate"     , unary  (ringUnary (\x -> Right (- x))
+>                                       (\x -> Right (- x))
+>                                       (\_ _ x -> Right (FP.bfNeg x))))
 >   , ("fromInteger", VPoly $ \a ->
 >                     VFun $ \x ->
->                     ringNullary (fromVInteger x) (fromInteger <$> fromVInteger x) a)
+>                     ringNullary (fromVInteger x)
+>                                 (fromInteger <$> fromVInteger x)
+>                                 (\e p -> fpFromInteger e p <$> fromVInteger x)
+>                                  a)
 >
 >   -- Integral
 >   , ("toInteger"  , VPoly $ \a ->
@@ -612,15 +658,28 @@ by corresponding typeclasses
 >                     ringExp aty a (cryToInteger ety e))
 >
 >   -- Field
->   , ("/."         , binary (fieldBinary ratDiv))
->   , ("recip"      , unary (fieldUnary ratRecip))
+>   , ("/."         , binary (fieldBinary ratDiv
+>                                         (fpBin FP.bfDiv fpImplicitRound)
+>                             ))
+
+>   , ("recip"      , unary (fieldUnary ratRecip fpRecip))
 >
 >   -- Round
->   , ("floor"      , unary (roundUnary floor))
->   , ("ceiling"    , unary (roundUnary ceiling))
->   , ("trunc"      , unary (roundUnary truncate))
->   , ("roundAway"  , unary (roundUnary roundAwayRat))
->   , ("roundToEven", unary (roundUnary round))
+>   , ("floor"      , unary (roundUnary floor
+>                                       (fpToInteger "floor" FP.ToNegInf)
+>                           ))
+>   , ("ceiling"    , unary (roundUnary ceiling
+>                                       (fpToInteger "ceiling" FP.ToPosInf)
+>                           ))
+>   , ("trunc"      , unary (roundUnary truncate
+>                                       (fpToInteger "trunc" FP.ToZero)
+>                           ))
+>   , ("roundAway",   unary (roundUnary roundAwayRat
+>                                       (fpToInteger "roundAway" FP.Away)
+>                           ))
+>   , ("roundToEven", unary (roundUnary round
+>                                       (fpToInteger "roundToEven" FP.NearEven)
+>                           ))
 >
 >   -- Comparison
 >   , ("<"          , binary (cmpOrder (\o -> o == LT)))
@@ -760,6 +819,8 @@ by corresponding typeclasses
 >                     VFun $ \y -> y)
 >   ]
 >
+
+>
 > unary :: (TValue -> Value -> Value) -> Value
 > unary f = VPoly $ \ty -> VFun $ \x -> f ty x
 >
@@ -824,6 +885,7 @@ where the given error is "pushed down" into the leaf types.
 > cryError e TVInteger      = VInteger (Left e)
 > cryError e TVIntMod{}     = VInteger (Left e)
 > cryError e TVRational     = VRational (Left e)
+> cryError e TVFloat{}      = VFloat (Left e)
 > cryError _ TVArray{}      = evalPanic "error" ["Array type not supported in `error`"]
 > cryError e (TVSeq n ety)  = VList (Nat n) (genericReplicate n (cryError e ety))
 > cryError e (TVStream ety) = VList Inf (repeat (cryError e ety))
@@ -849,6 +911,7 @@ For functions, `zero` returns the constant function that returns
 > zero TVInteger      = VInteger (Right 0)
 > zero TVIntMod{}     = VInteger (Right 0)
 > zero TVRational     = VRational (Right 0)
+> zero (TVFloat e p)  = VFloat (Right (fpToBF e p FP.bfPosZero))
 > zero TVArray{}      = evalPanic "zero" ["Array type not in `Zero`"]
 > zero (TVSeq n ety)  = VList (Nat n) (genericReplicate n (zero ety))
 > zero (TVStream ety) = VList Inf (repeat (zero ety))
@@ -874,6 +937,22 @@ Given a literal integer, construct a value of a type that can represent that lit
 >    go (TVSeq w a)
 >         | isTBit a = vWord w (Right i)
 >    go ty = evalPanic "literal" [show ty ++ " cannot represent literals"]
+
+
+Given a fraction, construct a value of a type that can represent that literal.
+The rounding flag determines the behavior if the literal cannot be represented
+exactly: 0 means report and error, other numbers round to the nearest
+representable value.
+
+> fraction :: Integer -> Integer -> Integer -> TValue -> Value
+> fraction top btm _rnd ty =
+>   case ty of
+>     TVRational -> VRational (Right (top % btm))
+>     TVFloat e p -> VFloat $ Right $ fpToBF e p  $ fpCheckStatus val
+>       where val  = FP.bfDiv opts (FP.bfFromInteger top) (FP.bfFromInteger btm)
+>             opts = fpOpts e p fpImplicitRound
+>     _ -> evalPanic "fraction" [show ty ++ " cannot represent " ++
+>                                 show top ++ "/" ++ show btm]
 
 
 Logic
@@ -902,6 +981,7 @@ at the same positions.
 >         TVIntMod _   -> evalPanic "logicUnary" ["Z not in class Logic"]
 >         TVArray{}    -> evalPanic "logicUnary" ["Array not in class Logic"]
 >         TVRational   -> evalPanic "logicUnary" ["Rational not in class Logic"]
+>         TVFloat{}    -> evalPanic "logicUnary" ["Float not in class Logic"]
 >         TVAbstract{} -> evalPanic "logicUnary" ["Abstract type not in `Logic`"]
 
 > logicBinary :: (Bool -> Bool -> Bool) -> TValue -> Value -> Value -> Value
@@ -921,6 +1001,7 @@ at the same positions.
 >         TVIntMod _   -> evalPanic "logicBinary" ["Z not in class Logic"]
 >         TVArray{}    -> evalPanic "logicBinary" ["Array not in class Logic"]
 >         TVRational   -> evalPanic "logicBinary" ["Rational not in class Logic"]
+>         TVFloat{}    -> evalPanic "logicBinary" ["Float not in class Logic"]
 >         TVAbstract{} -> evalPanic "logicBinary" ["Abstract type not in `Logic`"]
 
 
@@ -937,8 +1018,9 @@ False]`, but to `[error "foo", error "foo"]`.
 > ringNullary ::
 >    Either EvalError Integer ->
 >    Either EvalError Rational ->
+>    (Integer -> Integer -> Either EvalError BigFloat) ->
 >    TValue -> Value
-> ringNullary i q = go
+> ringNullary i q fl = go
 >   where
 >     go :: TValue -> Value
 >     go ty =
@@ -951,6 +1033,8 @@ False]`, but to `[error "foo", error "foo"]`.
 >           VInteger (flip mod n <$> i)
 >         TVRational ->
 >           VRational q
+>         TVFloat e p ->
+>           VFloat (fpToBF e p <$> fl e p)
 >         TVArray{} ->
 >           evalPanic "arithNullary" ["Array not in class Ring"]
 >         TVSeq w a
@@ -970,8 +1054,9 @@ False]`, but to `[error "foo", error "foo"]`.
 > ringUnary ::
 >   (Integer -> Either EvalError Integer) ->
 >   (Rational -> Either EvalError Rational) ->
+>   (Integer -> Integer -> BigFloat -> Either EvalError BigFloat) ->
 >   TValue -> Value -> Value
-> ringUnary iop qop = go
+> ringUnary iop qop flop = go
 >   where
 >     go :: TValue -> Value -> Value
 >     go ty val =
@@ -986,6 +1071,8 @@ False]`, but to `[error "foo", error "foo"]`.
 >           VInteger $ appOp1 (\i -> flip mod n <$> iop i) (fromVInteger val)
 >         TVRational ->
 >           VRational $ appOp1 qop (fromVRational val)
+>         TVFloat e p ->
+>           VFloat (fpToBF e p <$> appOp1 (flop e p) (fromVFloat val))
 >         TVSeq w a
 >           | isTBit a  -> vWord w (iop =<< fromVWord val)
 >           | otherwise -> VList (Nat w) (map (go a) (fromVList val))
@@ -1003,8 +1090,9 @@ False]`, but to `[error "foo", error "foo"]`.
 > ringBinary ::
 >   (Integer -> Integer -> Either EvalError Integer) ->
 >   (Rational -> Rational -> Either EvalError Rational) ->
+>   (Integer -> Integer -> BigFloat -> BigFloat -> Either EvalError BigFloat) ->
 >   TValue -> Value -> Value -> Value
-> ringBinary iop qop = go
+> ringBinary iop qop flop = go
 >   where
 >     go :: TValue -> Value -> Value -> Value
 >     go ty l r =
@@ -1017,6 +1105,8 @@ False]`, but to `[error "foo", error "foo"]`.
 >           VInteger $ appOp2 (\i j -> flip mod n <$> iop i j) (fromVInteger l) (fromVInteger r)
 >         TVRational ->
 >           VRational $ appOp2 qop (fromVRational l) (fromVRational r)
+>         TVFloat e p ->
+>           VFloat $ fpToBF e p <$> appOp2 (flop e p) (fromVFloat l) (fromVFloat r)
 >         TVArray{} ->
 >           evalPanic "arithBinary" ["Array not in class Ring"]
 >         TVSeq w a
@@ -1056,9 +1146,12 @@ Integral
 >
 > ringExp :: TValue -> Value -> Either EvalError Integer -> Value
 > ringExp a _ (Left e)  = cryError e a
-> ringExp a v (Right i) = foldl mul (literal 1 a) (genericReplicate i v)
->   where
->     mul = ringBinary (\x y -> Right (x * y)) (\x y -> Right (x * y)) a
+> ringExp a v (Right i) = foldl (ringMul a) (literal 1 a) (genericReplicate i v)
+>
+> ringMul :: TValue -> Value -> Value -> Value
+> ringMul = ringBinary (\x y -> Right (x * y))
+>                      (\x y -> Right (x * y))
+>                      (fpBin FP.bfMul fpImplicitRound)
 
 
 Signed bitvector division (`/$`) and remainder (`%$`) are defined so
@@ -1085,16 +1178,22 @@ Types that represent fields are have, in addition to the ring operations
 a recipricol operator and a field division operator (not to be
 confused with integral division).
 
-> fieldUnary :: (Rational -> Either EvalError Rational) -> TValue -> Value -> Value
-> fieldUnary qop ty v = case ty of
->   TVRational -> VRational $ appOp1 qop (fromVRational v)
+> fieldUnary :: (Rational -> Either EvalError Rational) ->
+>               (Integer -> Integer -> BigFloat -> Either EvalError BigFloat) ->
+>               TValue -> Value -> Value
+> fieldUnary qop flop ty v = case ty of
+>   TVRational  -> VRational $ appOp1 qop (fromVRational v)
+>   TVFloat e p -> VFloat $ fpToBF e p <$> appOp1 (flop e p) (fromVFloat v)
 >   _ -> evalPanic "fieldUnary" [show ty ++ " is not a Field type"]
 >
 > fieldBinary ::
 >    (Rational -> Rational -> Either EvalError Rational) ->
+>    (Integer -> Integer -> BigFloat -> BigFloat -> Either EvalError BigFloat) ->
 >    TValue -> Value -> Value -> Value
-> fieldBinary qop ty l r = case ty of
+> fieldBinary qop flop ty l r = case ty of
 >   TVRational -> VRational $ appOp2 qop (fromVRational l) (fromVRational r)
+>   TVFloat e p -> VFloat $ fpToBF e p <$> appOp2 (flop e p)
+>                                                 (fromVFloat l) (fromVFloat r)
 >   _ -> evalPanic "fieldBinary" [show ty ++ " is not a Field type"]
 >
 > ratDiv :: Rational -> Rational -> Either EvalError Rational
@@ -1109,9 +1208,12 @@ confused with integral division).
 Round
 -----
 
-> roundUnary :: (Rational -> Integer) -> TValue -> Value -> Value
-> roundUnary op ty v = case ty of
+> roundUnary :: (Rational -> Integer) ->
+>               (Integer -> Integer -> BigFloat -> Either EvalError Integer) ->
+>               TValue -> Value -> Value
+> roundUnary op flop ty v = case ty of
 >   TVRational -> VInteger (op <$> fromVRational v)
+>   TVFloat e p -> VInteger (flop e p =<< fromVFloat v)
 >   _ -> evalPanic "roundUnary" [show ty ++ " is not a Round type"]
 >
 
@@ -1162,6 +1264,8 @@ bits to the *left* of that position are equal.
 >       compare <$> fromVInteger l <*> fromVInteger r
 >     TVRational ->
 >       compare <$> fromVRational l <*> fromVRational r
+>     TVFloat{} ->
+>       compare <$> fromVFloat l <*> fromVFloat r
 >     TVArray{} ->
 >       evalPanic "lexCompare" ["invalid type"]
 >     TVSeq _w ety ->
@@ -1208,6 +1312,8 @@ fields are compared in alphabetical order.
 >     TVIntMod _ ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVRational ->
+>       evalPanic "lexSignedCompare" ["invalid type"]
+>     TVFloat{} ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
 >     TVArray{} ->
 >       evalPanic "lexSignedCompare" ["invalid type"]
@@ -1389,6 +1495,113 @@ length of the list produces a run-time error.
 > updateAt (x : xs) i y = x : updateAt xs (i - 1) y
 
 
+Floating Point Numbers
+----------------------
+
+Whenever we do operations that do not have an explicit rounding mode,
+we round towards the closest number, with ties resolved to the even one.
+
+> fpImplicitRound :: FP.RoundMode
+> fpImplicitRound = FP.NearEven
+
+The function `fpOpts` deifnes an object specifying the precision and rounding
+mode to be used during a floating point computation.  We assume that its
+aruments are known to be within the limits imposed by the concrete
+library used to perform the computation.
+
+> fpOpts :: Integer -> Integer -> FP.RoundMode -> FP.BFOpts
+> fpOpts e p r = FP.expBits (fromInteger e)  <>
+>                FP.precBits (fromInteger p) <>
+>                FP.rnd r
+
+Most floating point computations produce a result and some additional
+information about what happened while computing.  The function
+`fpCheckStatus` examines this status and reports erorrs in unusual situations.
+
+> fpCheckStatus :: (FP.BigFloat, FP.Status) -> FP.BigFloat
+> fpCheckStatus (r,s) =
+>   case s of
+>     FP.MemError -> panic "fpCheckStatus" [ "Out of memory" ]
+>     _           -> r
+
+We annotate floating point values with their precision.  This is only used
+when pretty printing values.
+
+> fpToBF :: Integer -> Integer -> BigFloat -> BF
+> fpToBF e p x = BF { bfValue = x, bfExpWidth = e, bfPrecWidth = p }
+
+
+The following two functions convert between floaitng point numbers
+and integers.
+
+> fpFromInteger :: Integer -> Integer -> Integer -> BigFloat
+> fpFromInteger e p = fpCheckStatus . FP.bfRoundFloat opts . FP.bfFromInteger
+>   where opts = fpOpts e p fpImplicitRound
+
+> fpToInteger ::
+>   String -> FP.RoundMode ->
+>   Integer -> Integer ->
+>   BigFloat -> Either EvalError Integer
+> fpToInteger fun r _ _ f =
+>   case fpToI r f of
+>     Nothing -> Left (BadValue fun)
+>     Just i  -> Right i
+
+
+This just captures a common pattern for binary floating point primitives.
+
+> fpBin :: (FP.BFOpts -> BigFloat -> BigFloat -> (BigFloat,FP.Status)) ->
+>          FP.RoundMode -> Integer -> Integer ->
+>          BigFloat -> BigFloat -> Either EvalError BigFloat
+> fpBin f r e p x y = Right (fpCheckStatus (f (fpOpts e p r) x y))
+
+
+Computes the reciprocal of a floating point number via division.
+This assumes that 1 can be represented exactly, which should be
+true for all supported precisions.
+
+> fpRecip :: Integer -> Integer -> BigFloat -> Either EvalError BigFloat
+> fpRecip e p x = Right (fpCheckStatus (FP.bfDiv opts (FP.bfFromInteger 1) x))
+>   where opts = fpOpts e p fpImplicitRound
+
+
+> floatPrimTable :: Map PrimIdent Value
+> floatPrimTable = Map.fromList $ map (\(n, v) -> (floatPrim (T.pack n), v))
+>    [ "fpNaN"       ~> vFinPoly \e -> vFinPoly \p ->
+>                       VFloat $ Right $ fpToBF e p FP.bfNaN
+>
+>    , "fpPosInf"    ~> vFinPoly \e -> vFinPoly \p ->
+>                       VFloat $ Right $ fpToBF e p FP.bfPosInf
+>
+>    , "fpFromBits"  ~> vFinPoly \e -> vFinPoly \p -> VFun \bvv ->
+>                       VFloat (floatFromBits e p <$> fromVWord bvv)
+>
+>    , "fpToBits"    ~> vFinPoly \e -> vFinPoly \p -> VFun \fpv ->
+>                       vWord (e + p) (floatToBits e p <$> fromVFloat fpv)
+>
+>    , "=.="         ~> vFinPoly \_ -> vFinPoly \_ -> VFun \xv -> VFun \yv ->
+>                       VBit do x <- fromVFloat xv
+>                               y <- fromVFloat yv
+>                               pure (FP.bfCompare x y == EQ)
+>
+>    , "fpAdd"      ~> fpArith FP.bfAdd
+>    , "fpSub"      ~> fpArith FP.bfSub
+>    , "fpMul"      ~> fpArith FP.bfMul
+>    , "fpDiv"      ~> fpArith FP.bfDiv
+>    ]
+>   where
+>   (~>) = (,)
+>   fpArith f = vFinPoly \e -> vFinPoly \p ->
+>               VFun \vr -> VFun \xv -> VFun \yv ->
+>               VFloat do r <- fromVWord vr
+>                         rnd <- case fpRound r of
+>                                  Just r' -> pure r'
+>                                  Nothing -> Left (BadRoundingMode r)
+>                         x <- fromVFloat xv
+>                         y <- fromVFloat yv
+>                         fpToBF e p <$> fpBin f rnd e p x y
+
+
 Error Handling
 --------------
 
@@ -1409,6 +1622,7 @@ Pretty Printing
 >     VBit b     -> text (either show show b)
 >     VInteger i -> text (either show show i)
 >     VRational q -> text (either show show q)
+>     VFloat fl -> text (either show (show . fpPP opts) fl)
 >     VList l vs ->
 >       case l of
 >         Inf -> ppList (map (ppValue opts) (take (useInfLength opts) vs) ++ [text "..."])

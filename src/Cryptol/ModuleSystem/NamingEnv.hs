@@ -87,14 +87,19 @@ merge :: [Name] -> [Name] -> [Name]
 merge xs ys | xs == ys  = xs
             | otherwise = nub (xs ++ ys)
 
--- | Generate a mapping from 'Ident' to 'Name' for a given naming environment.
+-- | Generate a mapping from 'PrimIdent' to 'Name' for a
+-- given naming environment.
 toPrimMap :: NamingEnv -> PrimMap
 toPrimMap NamingEnv { .. } = PrimMap { .. }
   where
-  primDecls = Map.fromList [ (nameIdent n,n) | ns <- Map.elems neExprs
-                                             , n  <- ns ]
-  primTypes = Map.fromList [ (nameIdent n,n) | ns <- Map.elems neTypes
-                                             , n  <- ns ]
+  entry n = case asPrim n of
+              Just p  -> (p,n)
+              Nothing -> panic "toPrimMap" [ "Not a declared name?"
+                                           , show n
+                                           ]
+
+  primDecls = Map.fromList [ entry n | ns <- Map.elems neExprs, n  <- ns ]
+  primTypes = Map.fromList [ entry n | ns <- Map.elems neTypes, n  <- ns ]
 
 -- | Generate a display format based on a naming environment.
 toNameDisp :: NamingEnv -> NameDisp

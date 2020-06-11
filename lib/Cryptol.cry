@@ -197,6 +197,22 @@ primitive fromThenTo : {first, next, last, a, len}
                        , first != next
                        , lengthFromThenTo first next last == len) => [len]a
 
+// Fractional Literals ---------------------
+
+/** 'FLiteral n d r a' asserts that the type `a' contains the
+fraction `n/d`.  The flag `r` indicates if we should round (`r >= 1`)
+or report an error if the number can't be represented exactly. */
+primitive type FLiteral : # -> # -> # -> * -> Prop
+
+/** A fractional literal corresponding to `m/n` */
+primitive
+  fraction : { m, n, r, a } FLiteral m n r a => a
+
+
+
+
+
+
 
 // The Zero class -------------------------------------------------------
 

@@ -1,0 +1,146 @@
+Loading module Cryptol
+Loading module Float
+Loading module FloatTests
+"-- Float Formatting-----------------------------------------------------------"
+
+    fp-base = 16
+
+Default value: 16
+
+The base to display floating point numbers at (2, 8, 10, or 16).
+
+
+    fp-format = free
+
+Default value: free
+
+Specifies the format to use when showing floating point numbers:
+  * free      show using as many digits as needed
+  * free+exp  like `free` but always show exponent
+  * .NUM      show NUM (>=1) digits after floating point
+  * NUM       show using NUM (>=1) significant digits
+  * NUM+exp   like NUM but always show exponent
+
+
+0b1010.01
+0o12.2
+10.25
+0.4
+0.4
+0xa.4
+0x0.6
+0x1.234p4
+0x12.3
+0x12
+0x1.2p4
+"-- Float Type-----------------------------------------------------------------"
+
+    primitive type Float : # -> # -> *
+
+    `Float exponent precision` requires:
+      • ValidFloat exponent precision
+
+IEEE-754 floating point numbers.
+
+
+[error] at <interactive>:1:1--1:17:
+  Unsolved constraints:
+    • ValidFloat 0 0
+        arising from
+        use of partial type function Float
+        at <interactive>:1:1--1:17
+
+[error] at <interactive>:1:1--1:21:
+  Unsolved constraints:
+    • ValidFloat 80 1000
+        arising from
+        use of partial type function Float
+        at <interactive>:1:1--1:21
+0x0.0p0
+0x0.0p0
+0x0.0p0
+"-- Literals-------------------------------------------------------------------"
+1.0e0
+1.2e0
+1.2e2
+0x1.2p0
+0x8.0p8
+0x1.0p4
+0x1.0p8
+0x4.0p0
+
+[error] at <interactive>:1:1--1:20:
+  5/1 cannot be represented in FloatTests::Small
+0x1.3p0
+0x2.0p-4
+0x2.0p-4
+"-- NaN------------------------------------------------------------------------"
+
+    fpNaN : {e, p} (ValidFloat e p) => Float e p
+
+Not a number.
+
+NaN
+0b01111
+0b0111111111111000000000000000000000000000000000000000000000000000
+True
+True
+True
+True
+"-- Arithmetic-----------------------------------------------------------------"
+2.0e0
+0.0e0
+6.0e0
+1.5e0
+Inf
+-Inf
+NaN
+-Inf
+Inf
+NaN
+4.0e0
+8.0e0
+4.0e0
+8.0e0
+-4.0e0
+-8.0e0
+6.0e0
+1.2e1
+-6.0e0
+-1.2e1
+6.0e0
+1.2e1
+-4.0e0
+-8.0e0
+4.0e0
+8.0e0
+-6.0e0
+-1.2e1
+4.0e0
+8.0e0
+-4.0e0
+-8.0e0
+"-- Proofs---------------------------------------------------------------------"
+Counterexample
+Counterexample
+(\(x : Medium) -> x == x) NaN = False
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+Q.E.D.
+"-- Random Testing-------------------------------------------------------------"
+Using random testing.
+Testing... Passed 100 tests.
+Using random testing.
+Testing... Passed 100 tests.
+Using random testing.
+Testing... Passed 100 tests.
+Q.E.D.
+Q.E.D.
+Using random testing.
+Testing... Passed 100 tests.
+Using random testing.
+Testing... Passed 100 tests.

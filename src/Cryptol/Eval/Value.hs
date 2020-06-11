@@ -34,8 +34,10 @@ module Cryptol.Eval.Value
   , word
   , lam
   , wlam
+  , flam
   , tlam
   , nlam
+  , ilam
   , toStream
   , toFinSeq
   , toSeq
@@ -44,6 +46,7 @@ module Cryptol.Eval.Value
   , fromVBit
   , fromVInteger
   , fromVRational
+  , fromVFloat
   , fromVSeq
   , fromSeq
   , fromWordVal
@@ -102,6 +105,7 @@ import Cryptol.Eval.Type
 
 import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident (Ident)
+import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.PP
 
 import Data.List(genericIndex)
@@ -298,6 +302,7 @@ data GenValue sym
   | VBit !(SBit sym)                           -- ^ @ Bit    @
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
   | VRational !(SRational sym)                 -- ^ @ Rational @
+  | VFloat !(SFloat sym)
   | VSeq !Integer !(SeqMap sym)                -- ^ @ [n]a   @
                                                --   Invariant: VSeq is never a sequence of bits
   | VWord !Integer !(SEval sym (WordValue sym))  -- ^ @ [n]Bit @
@@ -322,6 +327,7 @@ forceValue v = case v of
   VBit b      -> seq b (return ())
   VInteger i  -> seq i (return ())
   VRational q -> seq q (return ())
+  VFloat f    -> seq f (return ())
   VWord _ wv  -> forceWordValue =<< wv
   VStream _   -> return ()
   VFun _      -> return ()
@@ -336,6 +342,7 @@ instance Backend sym => Show (GenValue sym) where
     VBit _     -> "bit"
     VInteger _ -> "integer"
     VRational _ -> "rational"
+    VFloat _   -> "float"
     VSeq n _   -> "seq:" ++ show n
     VWord n _  -> "word:"  ++ show n
     VStream _  -> "stream"
@@ -365,6 +372,7 @@ ppValue x opts = loop
     VBit b             -> return $ ppBit x b
     VInteger i         -> return $ ppInteger x opts i
     VRational q        -> return $ ppRational x opts q
+    VFloat i           -> return $ ppFloat x opts i
     VSeq sz vals       -> ppWordSeq sz vals
     VWord _ wv         -> ppWordVal =<< wv
     VStream vals       -> do vals' <- traverse (>>=loop) $ enumerateSeqMap (useInfLength opts) vals
@@ -413,6 +421,13 @@ lam  = VFun
 wlam :: Backend sym => sym -> (SWord sym -> SEval sym (GenValue sym)) -> GenValue sym
 wlam sym f = VFun (\arg -> arg >>= fromVWord sym "wlam" >>= f)
 
+-- | Functions that assume floating point inputs
+flam :: Backend sym =>
+        (SFloat sym -> SEval sym (GenValue sym)) -> GenValue sym
+flam f = VFun (\arg -> arg >>= f . fromVFloat)
+
+
+
 -- | A type lambda that expects a 'Type'.
 tlam :: Backend sym => (TValue -> GenValue sym) -> GenValue sym
 tlam f = VPoly (return . f)
@@ -420,6 +435,12 @@ tlam f = VPoly (return . f)
 -- | A type lambda that expects a 'Type' of kind #.
 nlam :: Backend sym => (Nat' -> GenValue sym) -> GenValue sym
 nlam f = VNumPoly (return . f)
+
+-- | A type lambda that expects a funite numeric type.
+ilam :: Backend sym => (Integer -> GenValue sym) -> GenValue sym
+ilam f = nlam (\n -> case n of
+                       Nat i -> f i
+                       Inf   -> panic "ilam" [ "Unexpected `inf`" ])
 
 -- | Generate a stream.
 toStream :: Backend sym => [GenValue sym] -> SEval sym (GenValue sym)
@@ -545,6 +566,12 @@ fromVRecord :: GenValue sym -> Map Ident (SEval sym (GenValue sym))
 fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record"]
+
+fromVFloat :: GenValue sym -> SFloat sym
+fromVFloat val =
+  case val of
+    VFloat x -> x
+    _        -> evalPanic "fromVFloat" ["not a Float"]
 
 -- | Lookup a field in a record.
 lookupRecord :: Ident -> GenValue sym -> SEval sym (GenValue sym)

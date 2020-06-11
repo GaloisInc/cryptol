@@ -29,6 +29,7 @@ import Control.DeepSeq
 data TValue
   = TVBit                     -- ^ @ Bit @
   | TVInteger                 -- ^ @ Integer @
+  | TVFloat Integer Integer   -- ^ @ Float e p @
   | TVIntMod Integer          -- ^ @ Z n @
   | TVRational                -- ^ @Rational@
   | TVArray TValue TValue     -- ^ @ Array a b @
@@ -46,6 +47,7 @@ tValTy tv =
   case tv of
     TVBit       -> tBit
     TVInteger   -> tInteger
+    TVFloat e p -> tFloat (tNum e) (tNum p)
     TVIntMod n  -> tIntMod (tNum n)
     TVRational  -> tRational
     TVArray a b -> tArray (tValTy a) (tValTy b)
@@ -107,6 +109,7 @@ evalType env ty =
         (TCBit, [])     -> Right $ TVBit
         (TCInteger, []) -> Right $ TVInteger
         (TCRational, []) -> Right $ TVRational
+        (TCFloat, [e,p])-> Right $ TVFloat (inum e) (inum p)
         (TCIntMod, [n]) -> case num n of
                              Inf   -> evalPanic "evalType" ["invalid type Z inf"]
                              Nat m -> Right $ TVIntMod m
@@ -134,6 +137,10 @@ evalType env ty =
   where
     val = evalValType env
     num = evalNumType env
+    inum x = case num x of
+               Nat i -> i
+               Inf   -> evalPanic "evalType"
+                                  ["Expecting a finite size, but got `inf`"]
 
 -- | Evaluation for value types (kind *).
 evalValType :: HasCallStack => TypeEnv -> Type -> TValue

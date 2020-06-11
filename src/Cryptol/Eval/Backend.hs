@@ -6,6 +6,7 @@ module Cryptol.Eval.Backend
   , invalidIndex
   , cryUserError
   , cryNoPrimError
+  , FPArith2
 
     -- * Rationals
   , SRational(..)
@@ -213,6 +214,7 @@ class MonadIO (SEval sym) => Backend sym where
   type SBit sym :: Type
   type SWord sym :: Type
   type SInteger sym :: Type
+  type SFloat sym :: Type
   type SEval sym :: Type -> Type
 
   -- ==== Evaluation monad operations ====
@@ -260,6 +262,10 @@ class MonadIO (SEval sym) => Backend sym where
   -- | Pretty-print an integer value
   ppInteger :: sym -> PPOpts -> SInteger sym -> Doc
 
+  -- | Pretty-print a floating-point value
+  ppFloat :: sym -> PPOpts -> SFloat sym -> Doc
+
+
   -- ==== Identifying literal values ====
 
   -- | Determine if this symbolic bit is a boolean literal
@@ -296,6 +302,14 @@ class MonadIO (SEval sym) => Backend sym where
     sym ->
     Integer {- ^ Value -} ->
     SEval sym (SInteger sym)
+
+  -- | Construct a floating point value from the given rational.
+  fpLit ::
+    sym ->
+    Integer  {- ^ exponent bits -} ->
+    Integer  {- ^ precision bits -} ->
+    Rational {- ^ The rational -} ->
+    SEval sym (SFloat sym)
 
   -- ==== If/then/else operations ====
   iteBit :: sym -> SBit sym -> SBit sym -> SBit sym -> SEval sym (SBit sym)
@@ -650,3 +664,37 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SInteger sym ->
     SEval sym (SBit sym)
+
+  -- == Float Operations ==
+  fpEq          :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
+  fpLessThan    :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
+  fpGreaterThan :: sym -> SFloat sym -> SFloat sym -> SEval sym (SBit sym)
+
+  fpPlus, fpMinus, fpMult, fpDiv :: FPArith2 sym
+  fpNeg :: sym -> SFloat sym -> SEval sym (SFloat sym)
+
+  fpToInteger ::
+    sym ->
+    String {- ^ Name of the function for error reporting -} ->
+    SWord sym {-^ Rounding mode -} ->
+    SFloat sym -> SEval sym (SInteger sym)
+
+  fpFromInteger ::
+    sym ->
+    Integer         {- exp width -} ->
+    Integer         {- prec width -} ->
+    SWord sym       {- ^ rounding mode -} ->
+    SInteger sym    {- ^ the integeer to use -} ->
+    SEval sym (SFloat sym)
+
+type FPArith2 sym =
+  sym ->
+  SWord sym ->
+  SFloat sym ->
+  SFloat sym ->
+  SEval sym (SFloat sym)
+
+
+
+
+

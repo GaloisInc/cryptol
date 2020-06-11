@@ -23,6 +23,9 @@ module Cryptol.TypeCheck.Infer
   )
 where
 
+import qualified Data.Text as Text
+
+
 import           Cryptol.ModuleSystem.Name (asPrim,lookupPrimDecl,nameLoc)
 import           Cryptol.Parser.Position
 import qualified Cryptol.Parser.AST as P
@@ -53,6 +56,7 @@ import           Data.Either(partitionEithers)
 import           Data.Maybe(mapMaybe,isJust, fromMaybe)
 import           Data.List(partition,find)
 import           Data.Graph(SCC(..))
+import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
 import           Control.Monad(zipWithM,unless,foldM)
 
@@ -85,17 +89,17 @@ inferModule m =
 
 
 
--- | Construct a primitive in the parsed AST.
+-- | Construct a Prelude primitive in the parsed AST.
 mkPrim :: String -> InferM (P.Expr Name)
 mkPrim str =
   do nm <- mkPrim' str
      return (P.EVar nm)
 
--- | Construct a primitive in the parsed AST.
+-- | Construct a Prelude primitive in the parsed AST.
 mkPrim' :: String -> InferM Name
 mkPrim' str =
   do prims <- getPrimMap
-     return (lookupPrimDecl (packIdent str) prims)
+     return (lookupPrimDecl (prelPrim (Text.pack str)) prims)
 
 
 
@@ -103,6 +107,7 @@ desugarLiteral :: Bool -> P.Literal -> InferM (P.Expr Name)
 desugarLiteral fixDec lit =
   do l <- curRange
      numberPrim <- mkPrim "number"
+     fracPrim   <- mkPrim "fraction"
      let named (x,y)  = P.NamedInst
                         P.Named { name = Located l (packIdent x), value = y }
          number fs    = P.EAppT numberPrim (map named fs)
@@ -123,6 +128,13 @@ desugarLiteral fixDec lit =
                                      _          -> []
             | otherwise  -> [ ]
            P.PolyLit _n  -> [ ("rep", P.TSeq P.TWild P.TBit) ]
+
+       P.ECFrac fr info ->
+         let arg f = P.PosInst (P.TNum (f fr))
+             rnd   = P.PosInst (P.TNum (case info of
+                                          P.DecFrac -> 0
+                                          P.HexFrac -> 1))
+         in P.EAppT fracPrim [ arg numerator, arg denominator, rnd ]
 
        P.ECChar c ->
          number [ ("val", P.TNum (toInteger (fromEnum c)))
@@ -325,7 +337,7 @@ checkE expr tGoal =
     P.EApp fun@(dropLoc -> P.EApp (dropLoc -> P.EVar c) _)
            arg@(dropLoc -> P.ELit l)
       | Just n <- asPrim c
-      , n `elem` map packIdent [ "<<", ">>", "<<<", ">>>" , "@", "!" ] ->
+      , n `elem` map prelPrim [ "<<", ">>", "<<<", ">>>" , "@", "!" ] ->
         do newArg <- do l1 <- desugarLiteral True l
                         return $ case arg of
                                    P.ELocated _ pos -> P.ELocated l1 pos

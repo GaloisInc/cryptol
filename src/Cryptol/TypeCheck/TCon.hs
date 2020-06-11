@@ -42,12 +42,20 @@ builtInType nm =
   case M.nameInfo nm of
     M.Declared m _
       | m == preludeName -> Map.lookup (M.nameIdent nm) builtInTypes
+      | m == floatName   -> Map.lookup (M.nameIdent nm) builtInFloat
       | m == arrayName   -> Map.lookup (M.nameIdent nm) builtInArray
     _ -> Nothing
 
   where
   x ~> y = (packIdent x, y)
 
+  -- Built-in types from Float.cry
+  builtInFloat = Map.fromList
+    [ "Float"             ~> TC TCFloat
+    , "ValidFloat"        ~> PC PValidFloat
+    ]
+
+  -- Built-in types from Cryptol.cry
   builtInTypes = Map.fromList
     [ -- Types
       "inf"               ~> TC TCInf
@@ -71,6 +79,7 @@ builtInType nm =
     , "Cmp"               ~> PC PCmp
     , "SignedCmp"         ~> PC PSignedCmp
     , "Literal"           ~> PC PLiteral
+    , "FLiteral"          ~> PC PFLiteral
 
     -- Type functions
     , "+"                ~> TF TCAdd
@@ -126,6 +135,7 @@ instance HasKind TC where
       TCBit     -> KType
       TCInteger -> KType
       TCRational -> KType
+      TCFloat   -> KNum :-> KNum :-> KType
       TCIntMod  -> KNum :-> KType
       TCArray   -> KType :-> KType :-> KType
       TCSeq     -> KNum :-> KType :-> KType
@@ -152,6 +162,8 @@ instance HasKind PC where
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
       PLiteral   -> KNum :-> KType :-> KProp
+      PFLiteral  -> KNum :-> KNum :-> KNum :-> KType :-> KProp
+      PValidFloat -> KNum :-> KNum :-> KProp
       PAnd       -> KProp :-> KProp :-> KProp
       PTrue      -> KProp
 
@@ -199,6 +211,10 @@ data PC     = PEqual        -- ^ @_ == _@
             | PCmp          -- ^ @Cmp _@
             | PSignedCmp    -- ^ @SignedCmp _@
             | PLiteral      -- ^ @Literal _ _@
+            | PFLiteral     -- ^ @FLiteral _ _ _@
+
+            | PValidFloat   -- ^ @ValidFloat _ _@ constraints on supported
+                            -- floating point representaitons
 
             | PAnd          -- ^ This is useful when simplifying things in place
             | PTrue         -- ^ Ditto
@@ -210,6 +226,7 @@ data TC     = TCNum Integer            -- ^ Numbers
             | TCInf                    -- ^ Inf
             | TCBit                    -- ^ Bit
             | TCInteger                -- ^ Integer
+            | TCFloat                  -- ^ Float
             | TCIntMod                 -- ^ @Z _@
             | TCRational               -- ^ @Rational@
             | TCArray                  -- ^ @Array _ _@
@@ -302,6 +319,8 @@ instance PP PC where
       PCmp       -> text "Cmp"
       PSignedCmp -> text "SignedCmp"
       PLiteral   -> text "Literal"
+      PFLiteral  -> text "FLiteral"
+      PValidFloat -> text "ValidFloat"
       PTrue      -> text "True"
       PAnd       -> text "(&&)"
 
@@ -315,6 +334,7 @@ instance PP TC where
       TCIntMod  -> text "Z"
       TCRational -> text "Rational"
       TCArray   -> text "Array"
+      TCFloat   -> text "Float"
       TCSeq     -> text "[]"
       TCFun     -> text "(->)"
       TCTuple 0 -> text "()"

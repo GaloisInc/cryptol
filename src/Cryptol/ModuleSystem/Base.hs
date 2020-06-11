@@ -42,14 +42,14 @@ import qualified Cryptol.TypeCheck.AST as T
 import qualified Cryptol.TypeCheck.PP as T
 import qualified Cryptol.TypeCheck.Sanity as TcSanity
 import Cryptol.Transform.AddModParams (addModParams)
-import Cryptol.Utils.Ident (preludeName, arrayName, interactiveName
+import Cryptol.Utils.Ident (preludeName, floatName, arrayName, interactiveName
                            , modNameChunks, notParamInstModName
                            , isParamInstModName )
 import Cryptol.Utils.PP (pretty)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(logPutStrLn, logPrint)
 
-import Cryptol.Prelude (preludeContents, arrayContents)
+import Cryptol.Prelude (preludeContents, floatContents, arrayContents)
 
 import Cryptol.Transform.MonoValues (rewModule)
 
@@ -259,6 +259,7 @@ findModule n = do
   handleNotFound =
     case n of
       m | m == preludeName -> pure (InMem "Cryptol" preludeContents)
+        | m == floatName   -> pure (InMem "Float" floatContents)
         | m == arrayName -> pure (InMem "Array" arrayContents)
       _ -> moduleNotFound n =<< getSearchPath
 
@@ -369,8 +370,15 @@ checkDecls ds = do
 getPrimMap :: ModuleM PrimMap
 getPrimMap  =
   do env <- getModuleEnv
+     let mkPrims = ifacePrimMap . lmInterface
+         mp `alsoPrimFrom` m =
+           case lookupModule m env of
+             Nothing -> mp
+             Just lm -> mkPrims lm <> mp
+
      case lookupModule preludeName env of
-       Just lm -> return (ifacePrimMap (lmInterface lm))
+       Just prel -> return $ mkPrims prel
+                            `alsoPrimFrom` floatName
        Nothing -> panic "Cryptol.ModuleSystem.Base.getPrimMap"
                   [ "Unable to find the prelude" ]
 
