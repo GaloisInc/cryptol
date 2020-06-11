@@ -111,7 +111,17 @@ proverError msg (_,modEnv) =
   return (Right ((Nothing, ProverError msg), modEnv), [])
 
 
+data CryptolWhat4
 data CryptolState t = CryptolState
+
+type instance W4.ExprNonceBrand CryptolWhat4 = GlobalNonceGenerator
+type instance W4.ExprLoc CryptolWhat4 = ()
+
+type CryptolSym = W4.ExprBuilder CryptolWhat4 CryptolState
+
+newCryptolSym :: IO CryptolSym
+newCryptolSym =
+  W4.newExprBuilder CryptolState globalNonceGenerator ()
 
 
 -- TODO? move this?
@@ -127,7 +137,7 @@ satProve ProverCommand {..} =
     let lPutStrLn = M.withLogger logPutStrLn
     primMap <- M.getPrimMap
 
-    sym <- M.io (W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator)
+    sym <- M.io newCryptolSym
 
     logData <-
       flip M.withLogger () $ \lg () ->
@@ -172,7 +182,7 @@ satProveOffline ProverCommand {..} outputContinuation =
     let extDgs = allDeclGroups modEnv ++ pcExtraDecls
     let lPutStrLn = M.withLogger logPutStrLn
 
-    sym <- M.io (W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator)
+    sym <- M.io newCryptolSym
 
     let ?evalPrim = evalPrim sym
     case predArgTypes pcSchema of
@@ -205,7 +215,7 @@ decSatNum n = n
 
 
 multiSATQuery ::
-  sym ~ W4.ExprBuilder t CryptolState fm =>
+  sym ~ CryptolSym =>
   sym ->
   Eval.EvalOpts ->
   PrimMap ->
@@ -265,7 +275,7 @@ multiSATQuery sym evo primMap solverName logData ts args query satNum0 =
            (mdl:) <$> computeMoreModels adpt (block:qs) (decSatNum satNum)
 
 singleQuery ::
-  sym ~ W4.ExprBuilder t CryptolState fm =>
+  sym ~ CryptolSym =>
   sym ->
   Eval.EvalOpts ->
   PrimMap ->
@@ -294,9 +304,9 @@ singleQuery sym evo primMap solverName logData ts args query =
 
 
 computeBlockingPred ::
-  sym ~ W4.ExprBuilder t CryptolState fm =>
+  sym ~ CryptolSym =>
   sym ->
-  W4.GroundEvalFn t ->
+  W4.GroundEvalFn CryptolWhat4 ->
   [VarShape sym] ->
   IO (W4.Pred sym)
 computeBlockingPred sym evalFn vs =
@@ -304,9 +314,9 @@ computeBlockingPred sym evalFn vs =
      foldM (W4.orPred sym) (W4.falsePred sym) ps
 
 varBlockingPred ::
-  sym ~ W4.ExprBuilder t CryptolState fm =>
+  sym ~ CryptolSym =>
   sym ->
-  W4.GroundEvalFn t ->
+  W4.GroundEvalFn CryptolWhat4 ->
   VarShape sym ->
   IO (W4.Pred sym)
 varBlockingPred sym evalFn v =
@@ -334,9 +344,9 @@ varBlockingPred sym evalFn v =
 computeModel ::
   Eval.EvalOpts ->
   PrimMap ->
-  W4.GroundEvalFn t ->
+  W4.GroundEvalFn CryptolWhat4 ->
   [FinType] ->
-  [VarShape (W4.ExprBuilder t CryptolState fm)] ->
+  [VarShape CryptolSym] ->
   IO [(Type, Expr, Concrete.Value)]
 computeModel _ _ _ [] [] = return []
 computeModel evo primMap evalFn (t:ts) (v:vs) =
@@ -386,8 +396,8 @@ varToSymValue sym var =
     VarRecord fs -> Eval.VRecord (fmap (pure . varToSymValue sym) fs)
 
 varToConcreteValue ::
-  W4.GroundEvalFn t ->
-  VarShape (W4.ExprBuilder t CryptolState fm) ->
+  W4.GroundEvalFn CryptolWhat4 ->
+  VarShape CryptolSym ->
   IO Concrete.Value
 varToConcreteValue evalFn v =
   case v of
