@@ -1,0 +1,28 @@
+cradle:
+  cabal:
+    - path: "src"
+      component: "lib:cryptol"
+
+    - path: "cryptol/Main.hs"
+      component: "cryptol:exe:cryptol"
+
+    - path: "cryptol/OptParser.hs"
+      component: "cryptol:exe:cryptol"
+
+    - path: "cryptol/REPL.Haskeline.hs"
+      component: "cryptol:exe:cryptol"
+
+    - path: "cryptol/REPL.Logo.hs"
+      component: "cryptol:exe:cryptol"
+
+    - path: "cryptol/Paths_cryptol.hs"
+      component: "cryptol:exe:cryptol"
+
+    - path: "utils/CryHtml.hs"
+      component: "cryptol:exe:cryptol-html"
+
+    - path: "bench/Main.hs"
+      component: "cryptol:bench:cryptol-bench"
+
+    - path: "tests/./Main.hs"
+      component: "cryptol-test-runner:exe:cryptol-test-runner"
