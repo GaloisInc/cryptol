@@ -135,9 +135,9 @@ zip_dist() {
   : "${VERSION?VERSION is required as an environment variable}"
   name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
   mv dist "$name"
-  if $IS_WIN; then 7z a -tzip -mx9 "$name".zip "$name"; else zip -r "$name".zip "$name"; fi
-  sign "$name".zip
-  [[ -f "$name".zip.sig ]] && [[ -f "$name".zip ]]
+  tar -czf "$name".tar.gz "$name"
+  sign "$name".tar.gz
+  [[ -f "$name".tar.gz.sig ]] && [[ -f "$name".tar.gz ]]
 }
 
 output() { echo "::set-output name=$1::$2"; }

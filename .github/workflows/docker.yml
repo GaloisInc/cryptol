@@ -1,5 +1,8 @@
 name: Cryptol Dockerfile
 on:
+  push:
+    branches:
+      - "actions/*"
   schedule:
     - cron: "0 0 * * *"
 
@@ -12,12 +15,9 @@ jobs:
         with:
           fetch-depth: 0
       - id: outputs
-        run: |
-          .github/ci.sh set_files '${{ github.sha }}' '23 hours 59 minutes'
-          .github/ci.sh set_version
+        run: .github/ci.sh output version cryptol-$(.github/ci.sh ver)-$(date -I)
 
       - name: Publish to Registry
-        if: ${{ steps.outputs.outputs.files }}
         uses: elgohr/Publish-Docker-Github-Action@master
         with:
           name: galoisinc/cryptol

@@ -91,7 +91,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         with:
           name: ${{ needs.outputs.outputs.cryptol-name }}-${{ runner.os }}
-          path: "${{ needs.outputs.outputs.cryptol-name }}.zip*"
+          path: "${{ needs.outputs.outputs.cryptol-name }}.tar.gz*"
 
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
