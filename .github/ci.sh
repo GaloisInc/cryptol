@@ -86,7 +86,7 @@ build() {
   ghc_ver="$(ghc --numeric-version)"
   cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
   # Limit jobs on windows due to: https://gitlab.haskell.org/ghc/ghc/issues/17926
-  if [[ "$ghc_ver" == "8.8.3" && $IS_WIN ]]; then JOBS=1; else JOBS=2; fi
+  if [[ "$ghc_ver" =~ 8.8.3|8.10.1 && $IS_WIN ]]; then JOBS=1; else JOBS=2; fi
   cabal v2-configure -j$JOBS --minimize-conflict-set
   for _ in {1..3}; do # retry due to flakiness with windows builds
     cabal v2-build "$@" exe:cryptol exe:cryptol-html && break

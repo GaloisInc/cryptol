@@ -14,8 +14,6 @@ jobs:
       cryptol-name: ${{ steps.cryptol.outputs.name }}
     steps:
       - uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
       - id: cryptol
         run: |
           .github/ci.sh set_version
@@ -55,7 +53,7 @@ jobs:
 
       - uses: actions/setup-haskell@v1
         with:
-          ghc-version: "8.8"
+          ghc-version: "8.10"
 
       - uses: actions/download-artifact@v2
         with:
