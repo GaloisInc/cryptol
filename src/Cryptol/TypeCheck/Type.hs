@@ -280,6 +280,27 @@ tpVar p = TVBound p
 type SType  = Type
 
 
+--------------------------------------------------------------------
+-- Superclass
+
+-- | Compute the set of all @Prop@s that are implied by the
+--   given prop via superclass constraints.
+superclassSet :: Prop -> Set Prop
+superclassSet (TCon (PC p0) [t]) = go p0
+  where
+  super p = Set.insert (TCon (PC p) [t]) (go p)
+
+  go PRing     = super PZero
+  go PLogic    = super PZero
+  go PField    = super PRing
+  go PIntegral = super PRing
+  go PRound    = super PField <> super PCmp
+--  go PCmp = super PEq
+--  go PSignedCmp = super PEq
+  go _ = mempty
+
+superclassSet _ = mempty
+
 
 newtypeConType :: Newtype -> Schema
 newtypeConType nt =
@@ -951,5 +972,3 @@ instance PP TVarSource where
           Just n -> "type of" <+> ordinal n <+> "function argument"
       TypeOfRes             -> "type of function result"
       TypeErrorPlaceHolder  -> "type error place-holder"
-
-

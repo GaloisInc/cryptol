@@ -52,7 +52,7 @@ checkSchema withWild (P.Forall xs ps t mb) =
      -- XXX: We probably shouldn't do this, as we are changing what the
      -- user is doing.  We do it so that things are in a propal normal form,
      -- but we should probably figure out another time to do this.
-     let newPs = concatMap pSplitAnd $ map (simplify Map.empty)
+     let newPs = concatMap pSplitAnd $ map (simplify mempty)
                                      $ map tRebuild ps1
      return ( Forall xs1 newPs (tRebuild t1)
             , [ g { goal = tRebuild (goal g) } | g <- gs ]

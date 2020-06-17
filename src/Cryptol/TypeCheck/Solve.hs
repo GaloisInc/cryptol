@@ -30,7 +30,6 @@ import qualified Cryptol.TypeCheck.SimpleSolver as Simplify
 import           Cryptol.TypeCheck.Solver.Types
 import           Cryptol.TypeCheck.Solver.Selector(tryHasGoal)
 
-
 import           Cryptol.TypeCheck.Solver.SMT(Solver,proveImp,isNumeric)
 import           Cryptol.TypeCheck.Solver.Improve(improveProp,improveProps)
 import           Cryptol.TypeCheck.Solver.Numeric.Interval
@@ -86,6 +85,9 @@ quickSolver ctxt gs0 = go emptySubst [] gs0
     case matchMaybe (findImprovement unsolved) of
       Nothing            -> Right (su,unsolved)
       Just (newSu, subs) -> go (newSu @@ su) [] (subs ++ apSubst newSu unsolved)
+
+  go su unsolved (g : gs)
+    | Set.member (goal g) (saturatedAsmps ctxt) = go su unsolved gs
 
   go su unsolved (g : gs) =
     case Simplify.simplifyStep ctxt (goal g) of
@@ -162,7 +164,7 @@ defaultAndSimplify as gs =
   where
   defLit
     | isEmptySubst su = nope
-    | otherwise       = case quickSolver Map.empty (apSubst su gs) of
+    | otherwise       = case quickSolver mempty (apSubst su gs) of
                           Left _ -> nope -- hm?
                           Right (su1,gs1) -> (as1,gs1,su1@@su,ws)
     where (as1,su,ws) = defaultLiterals as gs
@@ -177,7 +179,7 @@ simplifyAllConstraints =
      case gs of
        [] -> return ()
        _ ->
-        case quickSolver Map.empty gs of
+        case quickSolver mempty gs of
           Left badG      -> recordError (UnsolvedGoals True [badG])
           Right (su,gs1) ->
             do extendSubst su
@@ -244,7 +246,7 @@ proveImplicationIO :: Solver
                    -> IO (Either Error [Warning], Subst)
 proveImplicationIO _   _     _         _  [] [] = return (Right [], emptySubst)
 proveImplicationIO s f varsInEnv ps asmps0 gs0 =
-  do let ctxt = assumptionIntervals Map.empty asmps
+  do let ctxt = buildSolverCtxt asmps
      res <- quickSolverIO ctxt gs
      case res of
        Left bad -> return (Left (UnsolvedGoals True [bad]), emptySubst)
@@ -283,7 +285,7 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
   (asmps,gs) =
      let gs1 = [ g { goal = p } | g <- gs0, p <- pSplitAnd (goal g)
                                 , notElem p asmps1 ]
-     in case matchMaybe (improveProps True Map.empty asmps1) of
+     in case matchMaybe (improveProps True mempty asmps1) of
           Nothing -> (asmps1,gs1)
           Just (newSu,newAsmps) ->
              ( [ TVar x =#= t | (x,t) <- substToList newSu ]
@@ -307,9 +309,23 @@ cleanupError err =
 
 
 
-assumptionIntervals :: Ctxt -> [Prop] -> Ctxt
-assumptionIntervals as ps =
-  case computePropIntervals as ps of
-    NoChange -> as
-    InvalidInterval {} -> as -- XXX: say something
-    NewIntervals bs -> Map.union bs as
+buildSolverCtxt :: [Prop] -> Ctxt
+buildSolverCtxt ps0 =
+  SolverCtxt
+  { intervals = assumptionIntervals mempty ps0
+  , saturatedAsmps = saturateProps mempty ps0
+  }
+
+ where
+ saturateProps gs [] = gs
+ saturateProps gs (p:ps)
+   | Set.member p gs = saturateProps gs ps
+   | otherwise       = saturateProps gs' ps
+       where
+       gs' = Set.singleton p <> superclassSet p <> gs
+
+ assumptionIntervals as ps =
+   case computePropIntervals as ps of
+     NoChange -> as
+     InvalidInterval {} -> as -- XXX: say something
+     NewIntervals bs -> Map.union bs as

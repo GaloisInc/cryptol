@@ -59,6 +59,9 @@ data Goals = Goals
   { goalSet :: Set Goal
     -- ^ A bunch of goals, not including the ones in 'literalGoals'.
 
+  , saturatedPropSet :: Set Prop
+    -- ^ The set of nonliteral goals, saturated by all superclass implications
+
   , literalGoals :: Map TVar LitGoal
     -- ^ An entry @(a,t)@ corresponds to @Literal t a@.
   } deriving (Show)
@@ -81,7 +84,7 @@ goalToLitGoal g =
 
 
 emptyGoals :: Goals
-emptyGoals  = Goals { goalSet = Set.empty, literalGoals = Map.empty }
+emptyGoals  = Goals { goalSet = Set.empty, saturatedPropSet = Set.empty, literalGoals = Map.empty }
 
 nullGoals :: Goals -> Bool
 nullGoals gs = Set.null (goalSet gs) && Map.null (literalGoals gs)
@@ -94,15 +97,30 @@ goalsFromList :: [Goal] -> Goals
 goalsFromList = foldr insertGoal emptyGoals
 
 insertGoal :: Goal -> Goals -> Goals
-insertGoal g gs
+insertGoal g gls
   | Just (a,newG) <- goalToLitGoal g =
-                gs { literalGoals = Map.insertWith jn a newG (literalGoals gs) }
-  | otherwise = gs { goalSet = Set.insert g (goalSet gs) }
+       -- XXX: here we are arbitrarily using the info of the first goal,
+       -- which could lead to a confusing location for a constraint.
+       let jn g1 g2 = g1 { goal = tMax (goal g1) (goal g2) } in
+       gls { literalGoals = Map.insertWith jn a newG (literalGoals gls) }
 
-  where
-  jn g1 g2 = g1 { goal = tMax (goal g1) (goal g2) }
-  -- XXX: here we are arbitrarily using the info of the first goal,
-  -- which could lead to a confusing location for a constraint.
+  -- If the goal is already implied by some other goal, skip it
+  | Set.member (goal g) (saturatedPropSet gls) = gls
+
+  -- Otherwise, it is not already implied, add it and saturate
+  | otherwise =
+       gls { goalSet = gs', saturatedPropSet = sps'  }
+
+       where
+       ips  = superclassSet (goal g)
+       igs  = Set.map (\p -> g{ goal = p}) ips
+
+       -- remove all the goals that are implied by ips
+       gs'  = Set.insert g (Set.difference (goalSet gls) igs)
+
+       -- add the goal and all its implied toals to the saturated set
+       sps' = Set.insert (goal g) (Set.union (saturatedPropSet gls) ips)
+
 
 -- | Something that we need to find evidence for.
 data Goal = Goal
@@ -326,6 +344,3 @@ instance PP (WithNames DelayedCt) where
                     nest 2 (vcat (bullets (map (ppWithNames ns1) xs)))
 
     ns1 = addTNames (dctForall d) names
-
-
-
