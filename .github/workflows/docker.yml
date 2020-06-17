@@ -12,8 +12,6 @@ jobs:
     name: Cryptol Docker
     steps:
       - uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
       - id: outputs
         run: .github/ci.sh output version cryptol-$(.github/ci.sh ver)-$(date -I)
 
