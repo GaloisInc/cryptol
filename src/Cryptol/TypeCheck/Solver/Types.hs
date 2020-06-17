@@ -1,12 +1,24 @@
 module Cryptol.TypeCheck.Solver.Types where
 
 import Data.Map(Map)
+import Data.Set(Set)
 
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.Numeric.Interval
 
-type Ctxt = Map TVar Interval
+data Ctxt =
+  SolverCtxt
+  { intervals :: Map TVar Interval
+  , saturatedAsmps :: Set Prop
+  }
+
+instance Semigroup Ctxt where
+  SolverCtxt is1 as1 <> SolverCtxt is2 as2 = SolverCtxt (is1 <> is2) (as1 <> as2)
+
+instance Monoid Ctxt where
+  mempty = SolverCtxt mempty mempty
+
 
 data Solved = SolvedIf [Prop]           -- ^ Solved, assuming the sub-goals.
             | Unsolved                  -- ^ We could not solve the goal.

@@ -137,8 +137,8 @@ tryGeqThanVar _ctxt ty x =
 -- | Try to prove GEQ by considering the known intervals for the given types.
 geqByInterval :: Ctxt -> Type -> Type -> Match Solved
 geqByInterval ctxt x y =
-  let ix = typeInterval ctxt x
-      iy = typeInterval ctxt y
+  let ix = typeInterval (intervals ctxt) x
+      iy = typeInterval (intervals ctxt) y
   in case (iLower ix, iUpper iy) of
        (l,Just n) | l >= n -> return (SolvedIf [])
        _                   -> mzero
@@ -191,7 +191,7 @@ tryCancelVar ctxt p t1 t2 =
                       Nothing    -> t : rest
 
   cancelVar t = matchMaybe $ do x <- aTVar t
-                                guard (iIsPosFin (tvarInterval ctxt x))
+                                guard (iIsPosFin (tvarInterval (intervals ctxt) x))
                                 return x
 
   -- cancellable variables go first, sorted alphabetically
@@ -286,7 +286,7 @@ tryEqK ctxt ty lk =
   -- (t1 + t2 = inf, fin t1) ~~~> t2 = inf
   do guard (lk == Inf)
      (a,b) <- anAdd ty
-     let check x y = do guard (iIsFin (typeInterval ctxt x))
+     let check x y = do guard (iIsFin (typeInterval (intervals ctxt) x))
                         return $ SolvedIf [ y =#= tInf ]
      check a b <|> check b a
   <|>
@@ -377,8 +377,8 @@ tryEqAddInf ctxt l r = check l r <|> check r l
     do (x1,x2) <- anAdd x
        aInf y
 
-       let x1Fin = iIsFin (typeInterval ctxt x1)
-       let x2Fin = iIsFin (typeInterval ctxt x2)
+       let x1Fin = iIsFin (typeInterval (intervals ctxt) x1)
+       let x2Fin = iIsFin (typeInterval (intervals ctxt) x2)
 
        return $!
          if | x1Fin ->

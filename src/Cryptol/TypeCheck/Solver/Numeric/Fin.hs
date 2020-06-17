@@ -11,7 +11,6 @@
 {-# LANGUAGE PatternGuards #-}
 module Cryptol.TypeCheck.Solver.Numeric.Fin where
 
-import Data.Map (Map)
 import qualified Data.Map as Map
 
 import Cryptol.TypeCheck.Type
@@ -20,14 +19,15 @@ import Cryptol.TypeCheck.Solver.Numeric.Interval
 import Cryptol.TypeCheck.Solver.InfNat
 
 
-cryIsFin :: Map TVar Interval -> Prop -> Solved
-cryIsFin varInfo p =
+cryIsFin :: Ctxt -> Prop -> Solved
+cryIsFin ctxt p =
   case pIsFin p of
-    Just ty -> cryIsFinType varInfo ty
+    Just ty -> cryIsFinType ctxt ty
     Nothing -> Unsolved
 
-cryIsFinType :: Map TVar Interval -> Type -> Solved
-cryIsFinType varInfo ty =
+cryIsFinType :: Ctxt -> Type -> Solved
+cryIsFinType ctxt ty =
+  let varInfo = intervals ctxt in
   case tNoUser ty of
 
     TVar x | Just i <- Map.lookup x varInfo

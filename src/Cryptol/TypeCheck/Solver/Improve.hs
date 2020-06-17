@@ -81,7 +81,7 @@ improveEq impSkol fins prop =
         <|> do (s,v) <- matches t (anAdd, __, aTVar)
                valid v s
 
-  valid v s = do let i = typeInterval fins s
+  valid v s = do let i = typeInterval (intervals fins) s
                  guard (considerVar v && v `Set.notMember` fvs s && iIsFin i)
                  return (v,s)
 

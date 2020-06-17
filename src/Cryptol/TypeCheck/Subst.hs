@@ -206,7 +206,7 @@ apSubstMaybe su ty =
       do ss <- anyJust (apSubstMaybe su) ts
          case t of
            TF _ -> Just $! Simp.tCon t ss
-           PC _ -> Just $! Simp.simplify Map.empty (TCon t ss)
+           PC _ -> Just $! Simp.simplify mempty (TCon t ss)
            _    -> Just (TCon t ss)
 
     TUser f ts t  -> do t1 <- apSubstMaybe su t

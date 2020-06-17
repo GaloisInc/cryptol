@@ -387,7 +387,7 @@ collectGoals m =
 
 simpGoal :: Goal -> InferM [Goal]
 simpGoal g =
-  case Simple.simplify Map.empty (goal g) of
+  case Simple.simplify mempty (goal g) of
     p | Just e <- tIsError p ->
         do recordError $ ErrorMsg $ text $ tcErrorMessage e
            return []
