@@ -290,13 +290,13 @@ superclassSet (TCon (PC p0) [t]) = go p0
   where
   super p = Set.insert (TCon (PC p) [t]) (go p)
 
-  go PRing     = super PZero
-  go PLogic    = super PZero
-  go PField    = super PRing
-  go PIntegral = super PRing
-  go PRound    = super PField <> super PCmp
---  go PCmp = super PEq
---  go PSignedCmp = super PEq
+  go PRing      = super PZero
+  go PLogic     = super PZero
+  go PField     = super PRing
+  go PIntegral  = super PRing
+  go PRound     = super PField <> super PCmp
+  go PCmp       = super PEq
+  go PSignedCmp = super PEq
   go _ = mempty
 
 superclassSet _ = mempty
@@ -430,10 +430,10 @@ pIsGeq ty = case tNoUser ty of
               TCon (PC PGeq) [t1,t2] -> Just (t1,t2)
               _                      -> Nothing
 
-pIsEq :: Prop -> Maybe (Type,Type)
-pIsEq ty = case tNoUser ty of
-             TCon (PC PEqual) [t1,t2] -> Just (t1,t2)
-             _                        -> Nothing
+pIsEqual :: Prop -> Maybe (Type,Type)
+pIsEqual ty = case tNoUser ty of
+                TCon (PC PEqual) [t1,t2] -> Just (t1,t2)
+                _                        -> Nothing
 
 pIsZero :: Prop -> Maybe Type
 pIsZero ty = case tNoUser ty of
@@ -464,6 +464,11 @@ pIsRound :: Prop -> Maybe Type
 pIsRound ty = case tNoUser ty of
                      TCon (PC PRound) [t1] -> Just t1
                      _                     -> Nothing
+
+pIsEq :: Prop -> Maybe Type
+pIsEq ty = case tNoUser ty of
+             TCon (PC PEq) [t1] -> Just t1
+             _                  -> Nothing
 
 pIsCmp :: Prop -> Maybe Type
 pIsCmp ty = case tNoUser ty of
@@ -643,6 +648,9 @@ pField t = TCon (PC PField) [t]
 
 pRound :: Type -> Prop
 pRound t = TCon (PC PRound) [t]
+
+pEq :: Type -> Prop
+pEq t = TCon (PC PEq) [t]
 
 pCmp :: Type -> Prop
 pCmp t = TCon (PC PCmp) [t]

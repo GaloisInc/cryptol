@@ -67,6 +67,7 @@ builtInType nm =
     , "Integral"          ~> PC PIntegral
     , "Field"             ~> PC PField
     , "Round"             ~> PC PRound
+    , "Eq"                ~> PC PEq
     , "Cmp"               ~> PC PCmp
     , "SignedCmp"         ~> PC PSignedCmp
     , "Literal"           ~> PC PLiteral
@@ -147,6 +148,7 @@ instance HasKind PC where
       PIntegral  -> KType :-> KProp
       PField     -> KType :-> KProp
       PRound     -> KType :-> KProp
+      PEq        -> KType :-> KProp
       PCmp       -> KType :-> KProp
       PSignedCmp -> KType :-> KProp
       PLiteral   -> KNum :-> KType :-> KProp
@@ -193,6 +195,7 @@ data PC     = PEqual        -- ^ @_ == _@
             | PIntegral     -- ^ @Integral _@
             | PField        -- ^ @Field _@
             | PRound        -- ^ @Round _@
+            | PEq           -- ^ @Eq _@
             | PCmp          -- ^ @Cmp _@
             | PSignedCmp    -- ^ @SignedCmp _@
             | PLiteral      -- ^ @Literal _ _@
@@ -295,6 +298,7 @@ instance PP PC where
       PIntegral  -> text "Integral"
       PField     -> text "Field"
       PRound     -> text "Round"
+      PEq        -> text "Eq"
       PCmp       -> text "Cmp"
       PSignedCmp -> text "SignedCmp"
       PLiteral   -> text "Literal"
@@ -337,5 +341,3 @@ instance PP TFun where
       TCCeilDiv         -> text "/^"
       TCCeilMod         -> text "%^"
       TCLenFromThenTo   -> text "lengthFromThenTo"
-
-

@@ -404,6 +404,34 @@ primitive trunc : {a} (Round a) => a -> Integer
 primitive round : {a} (Round a) => a -> Integer
 
 
+// The Eq class ----------------------------------------------------
+
+/** Value types that support equality comparisons. */
+primitive type Eq : * -> Prop
+
+/**
+ * Compares any two values of the same type for equality.
+ */
+primitive (==) : {a} (Eq a) => a -> a -> Bit
+
+/**
+ * Compares any two values of the same type for inequality.
+ */
+primitive (!=) : {a} (Eq a) => a -> a -> Bit
+
+/**
+ * Compare the outputs of two functions for equality.
+ */
+(===) : {a, b} (Eq b) => (a -> b) -> (a -> b) -> (a -> Bit)
+f === g = \ x -> f x == g x
+
+/**
+ * Compare the outputs of two functions for inequality.
+ */
+(!==) : {a, b} (Eq b) => (a -> b) -> (a -> b) -> (a -> Bit)
+f !== g = \x -> f x != g x
+
+
 // The Cmp class ---------------------------------------------------
 
 /** Value types that support equality and ordering comparisons. */
@@ -436,28 +464,6 @@ primitive (<=) : {a} (Cmp a) => a -> a -> Bit
  * Bitvectors are compared using unsigned arithmetic.
  */
 primitive (>=) : {a} (Cmp a) => a -> a -> Bit
-
-/**
- * Compares any two values of the same type for equality.
- */
-primitive (==) : {a} (Cmp a) => a -> a -> Bit
-
-/**
- * Compares any two values of the same type for inequality.
- */
-primitive (!=) : {a} (Cmp a) => a -> a -> Bit
-
-/**
- * Compare the outputs of two functions for equality.
- */
-(===) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
-f === g = \ x -> f x == g x
-
-/**
- * Compare the outputs of two functions for inequality.
- */
-(!==) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> (a -> Bit)
-f !== g = \x -> f x != g x
 
 /**
  * Returns the smaller of two comparable arguments.

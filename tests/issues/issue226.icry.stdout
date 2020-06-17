@@ -43,6 +43,7 @@ Primitive Types
     (^^) : # -> # -> #
     Bit : *
     Cmp : * -> Prop
+    Eq : * -> Prop
     Field : * -> Prop
     fin : # -> Prop
     Integer : *
@@ -76,10 +77,10 @@ Symbols
     (==>) : Bit -> Bit -> Bit
     (\/) : Bit -> Bit -> Bit
     (/\) : Bit -> Bit -> Bit
-    (!=) : {a} (Cmp a) => a -> a -> Bit
-    (!==) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
-    (==) : {a} (Cmp a) => a -> a -> Bit
-    (===) : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
+    (!=) : {a} (Eq a) => a -> a -> Bit
+    (!==) : {a, b} (Eq b) => (a -> b) -> (a -> b) -> a -> Bit
+    (==) : {a} (Eq a) => a -> a -> Bit
+    (===) : {a, b} (Eq b) => (a -> b) -> (a -> b) -> a -> Bit
     (<) : {a} (Cmp a) => a -> a -> Bit
     (<$) : {a} (SignedCmp a) => a -> a -> Bit
     (<=) : {a} (Cmp a) => a -> a -> Bit
