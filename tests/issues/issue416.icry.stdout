@@ -13,8 +13,8 @@ Loading module Main
       the following constraints hold:
         • 1 != n
             arising from
-            use of partial type function lengthFromThenTo
-            at issue416.cry:1:5--1:61
+            use of finite enumeration
+            at issue416.cry:2:5--2:16
 [error] at issue416.cry:5:1--5:16:
   Failed to validate user-specified signature.
     in the definition of 'Main::g', at issue416.cry:5:1--5:2,
