@@ -1,7 +1,7 @@
 name: Cryptol
 on:
   push:
-    branches: [master, "actions/**"]
+    branches: [master]
     tags: ["v**"]
   pull_request:
 
@@ -175,6 +175,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: release-drafter/release-drafter@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   upload-artifacts-to-release:
     if: >-
