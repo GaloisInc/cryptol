@@ -1,0 +1,8 @@
+:l superclass.cry
+
+:t (fromInteger 42 + zero)
+:t (trunc (recip (fromInteger 5)))
+:t (\x -> x < fromInteger (floor (recip x)))
+:t (\x -> x == zero /. x)
+:t (zero == ~zero)
+:t (\x -> toInteger (x + zero))
