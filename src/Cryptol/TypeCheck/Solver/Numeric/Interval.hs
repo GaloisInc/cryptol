@@ -108,11 +108,11 @@ propInterval varInts prop = catMaybes
        x  <- tIsVar ty
        return (x,iAnyFin)
 
-  , do (l,r) <- pIsEq prop
+  , do (l,r) <- pIsEqual prop
        x     <- tIsVar l
        return (x,typeInterval varInts r)
 
-  , do (l,r) <- pIsEq prop
+  , do (l,r) <- pIsEqual prop
        x     <- tIsVar r
        return (x,typeInterval varInts l)
 

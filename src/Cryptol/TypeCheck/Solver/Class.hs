@@ -16,10 +16,10 @@ module Cryptol.TypeCheck.Solver.Class
   , solveFieldInst
   , solveIntegralInst
   , solveRoundInst
+  , solveEqInst
   , solveCmpInst
   , solveSignedCmpInst
   , solveLiteralInst
-  , expandProp
   ) where
 
 import Cryptol.TypeCheck.Type
@@ -206,6 +206,41 @@ solveRoundInst ty = case tNoUser ty of
 
 
 
+-- | Solve Eq constraints.
+solveEqInst :: Type -> Solved
+solveEqInst ty = case tNoUser ty of
+
+  -- Eq Error -> fails
+  TCon (TError _ e) _ -> Unsolvable e
+
+  -- eq Bit
+  TCon (TC TCBit) [] -> SolvedIf []
+
+  -- Eq Integer
+  TCon (TC TCInteger) [] -> SolvedIf []
+
+  -- Eq Rational
+  TCon (TC TCRational) [] -> SolvedIf []
+
+  -- Eq (Z n)
+  TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
+
+  -- (fin n, Eq a) => Eq [n]a
+  TCon (TC TCSeq) [n,a] -> SolvedIf [ pFin n, pEq a ]
+
+  -- (Eq a, Eq b) => Eq (a,b)
+  TCon (TC (TCTuple _)) es -> SolvedIf (map pEq es)
+
+  -- Eq (a -> b) fails
+  TCon (TC TCFun) [_,_] ->
+    Unsolvable $ TCErrorMessage "Comparisons may not be performed on functions."
+
+  -- (Eq a, Eq b) => Eq { x:a, y:b }
+  TRec fs -> SolvedIf [ pEq e | (_,e) <- fs ]
+
+  _ -> Unsolved
+
+
 -- | Solve Cmp constraints.
 solveCmpInst :: Type -> Solved
 solveCmpInst ty = case tNoUser ty of
@@ -314,95 +349,3 @@ solveLiteralInst val ty
       _ -> Unsolvable $ TCErrorMessage $ show
          $ "Type" <+> quotes (pp ty) <+> "does not support literals."
 
-
--- | Add propositions that are implied by the given one.
--- The result contains the orignal proposition, and maybe some more.
-expandProp :: Prop -> [Prop]
-expandProp prop =
-  prop : subclasses ++ substructure
-
-  where
-  subclasses =
-    case tNoUser prop of
-      TCon (PC pc) [ty] ->
-        case pc of
-          -- Ring a => Zero a
-          PRing     -> expandProp (pZero ty)
-
-          -- Logic a => Zero a
-          PLogic    -> expandProp (pZero ty)
-
-          -- Integral a => Ring a
-          PIntegral -> expandProp (pRing ty)
-
-          -- Field a => Ring a
-          PField    -> expandProp (pRing ty)
-
-          -- Round a => (Cmp a, Field a)
-          PRound    -> expandProp (pCmp ty) ++ expandProp (pField ty)
-          _ -> []
-      _ -> []
-
-  substructure =
-    case tNoUser prop of
-
-      TCon (PC pc) [ty] ->
-        case (pc, tNoUser ty) of
-
-          -- Logic [n]a => Logic a
-          (PLogic, TCon (TC TCSeq) [_n,a]) -> expandProp (pLogic a)
-
-          -- Logic (a -> b) => Logic b
-          (PLogic, TCon (TC TCFun) [_a,b]) -> expandProp (pLogic b)
-
-          -- Logic (a,b) => (Logic a, Logic b)
-          (PLogic, TCon (TC (TCTuple _)) ts) -> concatMap (expandProp . pLogic) ts
-
-          -- Logic { x1 : a, x2 : b } => (Logic a, Logic b)
-          (PLogic, TRec fs) -> concatMap (expandProp . pLogic . snd) fs
-
-          -- Ring [n]Bit => fin n
-          -- (Ring [n]a, a/=Bit) => Ring a
-          (PRing, TCon (TC TCSeq) [n,a])
-            | TCon (TC TCBit) _ <- ty1  -> [pFin n]
-            | TCon _ _          <- ty1  -> expandProp (pRing ty1)
-            | TRec {}           <- ty1  -> expandProp (pRing ty1)
-            where
-            ty1 = tNoUser a
-
-          -- Ring (a -> b) => Ring b
-          (PRing, TCon (TC TCFun) [_,b]) -> expandProp (pRing b)
-
-          -- Ring (a,b) => (Ring a, Ring b)
-          (PRing, TCon (TC (TCTuple _)) ts) -> concatMap (expandProp . pRing) ts
-
-          -- Ring { x1 : a, x2 : b } => (Ring a, Ring b)
-          (PRing, TRec fs) -> concatMap (expandProp . pRing. snd) fs
-
-          -- Cmp [n]a => (fin n, Cmp a)
-          (PCmp, TCon (TC TCSeq) [n,a]) -> pFin n : expandProp (pCmp a)
-
-          -- Cmp (a,b) => (Cmp a, Cmp b)
-          (PCmp, TCon (TC (TCTuple _)) ts) -> concatMap (expandProp . pCmp) ts
-
-          -- Cmp { x:a, y:b } => (Cmp a, Cmp b)
-          (PCmp, TRec fs) -> concatMap (expandProp . pCmp . snd) fs
-
-          -- SignedCmp [n]Bit => (fin n, n >= 1)
-          -- (SignedCmp [n]a, a /= Bit) => SignedCmp a
-          (PSignedCmp, TCon (TC TCSeq) [n,a])
-            | TCon (TC TCBit) _ <- ty1 -> [pFin n, n >== tOne]
-            | TCon _ _          <- ty1 -> expandProp (pSignedCmp ty1)
-            | TRec {}           <- ty1 -> expandProp (pSignedCmp ty1)
-            where
-            ty1 = tNoUser a
-
-          -- SignedCmp (a,b) => (SignedCmp a, SignedCmp b)
-          (PSignedCmp, TCon (TC (TCTuple _)) ts) -> concatMap (expandProp . pSignedCmp) ts
-
-          -- Cmp { x:a, y:b } => (Cmp a, Cmp b)
-          (PSignedCmp, TRec fs) -> concatMap (expandProp . pSignedCmp . snd) fs
-
-          _ -> []
-
-      _ -> []
