@@ -1,0 +1,29 @@
+//zeroRing : {a} (Ring a) => a
+zeroRing = zero
+
+zeroLogic : {a} (Logic a) => a
+zeroLogic = zero
+
+zeroIntegral : {a} (Integral a) => a
+zeroIntegral = zero
+
+zeroField : {a} (Field a) => a
+zeroField = zero
+
+zeroRound : {a} (Round a) => a
+zeroRound = zero
+
+fromIntIntegral : {a} (Integral a) => a
+fromIntIntegral = fromInteger 42
+
+fromIntField : {a} (Field a) => a
+fromIntField = fromInteger 42
+
+fromIntRound : {a} (Round a) => a
+fromIntRound = fromInteger 42
+
+recipRound : {a} (Round a) => a -> Integer
+recipRound x = trunc (recip x)
+
+compareRound : {a} (Round a) => a -> a -> Bit
+compareRound x y = x < y

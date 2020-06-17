@@ -1,0 +1,10 @@
+Loading module Cryptol
+Loading module Cryptol
+Loading module Main
+(fromInteger 42 + zero) : {a} (Ring a) => a
+(trunc (recip (fromInteger 5))) : {a} (Round a) => Integer
+(\x -> x < fromInteger (floor (recip x))) : {a} (Round a) =>
+                                              a -> Bit
+(\x -> x == zero /. x) : {a} (Cmp a, Field a) => a -> Bit
+(zero == ~zero) : {a} (Cmp a, Logic a) => Bit
+(\x -> toInteger (x + zero)) : {a} (Integral a) => a -> Integer
