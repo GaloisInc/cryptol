@@ -621,32 +621,3 @@ class MonadIO (SEval sym) => Backend sym where
     SInteger sym ->
     SInteger sym ->
     SEval sym (SBit sym)
-
-
-  -- ==== Z_n operations defined via projection to the integers ====
-
-  -- | Less-than test of integers modulo n.  Note this test
-  --   first computes the reduced integers and compares.
-  znLessThan ::
-    sym ->
-    Integer {- ^ modulus -} ->
-    SInteger sym ->
-    SInteger sym ->
-    SEval sym (SBit sym)
-  znLessThan sym m x y =
-    do x' <- znToInt sym m x
-       y' <- znToInt sym m y
-       intLessThan sym x' y'
-
-  -- | Greater-than test of integers modulo n.  Note this test
-  --   first computes the reduced integers and compares.
-  znGreaterThan ::
-    sym ->
-    Integer {- ^ modulus -} ->
-    SInteger sym ->
-    SInteger sym ->
-    SEval sym (SBit sym)
-  znGreaterThan sym m x y =
-    do x' <- znToInt sym m x
-       y' <- znToInt sym m y
-       intGreaterThan sym x' y'

@@ -689,7 +689,7 @@ valLt sym ty v1 v2 final = cmpValue sym fb fw fi fz fq ty v1 v2 (pure final)
   fb x y k   = lexCombine sym (bitLessThan  sym x y) (bitEq  sym x y) k
   fw x y k   = lexCombine sym (wordLessThan sym x y) (wordEq sym x y) k
   fi x y k   = lexCombine sym (intLessThan  sym x y) (intEq  sym x y) k
-  fz m x y k = lexCombine sym (znLessThan sym m x y) (znEq sym m x y) k
+  fz _ _ _ _ = panic "valLt" ["Z_n is not in `Cmp`"]
   fq x y k   = lexCombine sym (rationalLessThan sym x y) (rationalEq sym x y) k
 
 {-# INLINE valGt #-}
@@ -700,7 +700,7 @@ valGt sym ty v1 v2 final = cmpValue sym fb fw fi fz fq ty v1 v2 (pure final)
   fb x y k   = lexCombine sym (bitGreaterThan  sym x y) (bitEq  sym x y) k
   fw x y k   = lexCombine sym (wordGreaterThan sym x y) (wordEq sym x y) k
   fi x y k   = lexCombine sym (intGreaterThan  sym x y) (intEq  sym x y) k
-  fz m x y k = lexCombine sym (znGreaterThan sym m x y) (znEq sym m x y) k
+  fz _ _ _ _ = panic "valGt" ["Z_n is not in `Cmp`"]
   fq x y k   = lexCombine sym (rationalGreaterThan sym x y) (rationalEq sym x y) k
 
 {-# INLINE eqCombine #-}

@@ -257,8 +257,9 @@ solveCmpInst ty = case tNoUser ty of
   -- Cmp Rational
   TCon (TC TCRational) [] -> SolvedIf []
 
-  -- Cmp (Z n)
-  TCon (TC TCIntMod) [n] -> SolvedIf [ pFin n, n >== tOne ]
+  -- Cmp (Z n) fails
+  TCon (TC TCIntMod) [_] ->
+    Unsolvable $ TCErrorMessage "Values of Z_n type cannot be compared for order"
 
   -- (fin n, Cmp a) => Cmp [n]a
   TCon (TC TCSeq) [n,a] -> SolvedIf [ pFin n, pCmp a ]
