@@ -116,8 +116,6 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         ghc: ["8.10.1"]
     needs: [outputs, docs, build]
-    env:
-      NAME: ${{ needs.outputs.outputs.name }}-${{ runner.os }}-x86_64
     steps:
       - uses: actions/checkout@v2
 
@@ -152,13 +150,13 @@ jobs:
 
       - uses: actions/upload-artifact@v2
         with:
-          name: ${{ env.NAME }}
-          path: "${{ env.NAME }}.tar.gz*"
+          name: ${{ needs.outputs.outputs.name }}-${{ runner.os }}-x86_64
+          path: "${{ needs.outputs.outputs.name }}-${{ runner.os }}-x86_64.tar.gz*"
 
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
         with:
-          name: ${{ env.NAME }}.msi
+          name: ${{ needs.outputs.outputs.name }}-${{ runner.os }}-x86_64.msi
           path: "cryptol.msi*"
 
   release:
