@@ -1,0 +1,9 @@
+:set prover-stats = no
+
+:safe (\x -> assert x "asdf" "asdf")
+:safe (\(x:[4]) -> [0..14]@x == x)
+:safe (\y -> (10:Integer) / y)
+
+:safe (\x -> if x then "OK!!" else assert (~x) "not OK!" "asdf")
+:safe (\(x:[4]) -> [0..15]@x == x)
+:safe (\y -> if y == 0 then 42 else (10:Integer) / y)
