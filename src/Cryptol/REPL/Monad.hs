@@ -796,6 +796,9 @@ userOptions  = mkOptionMap
 
   , simpleOpt "show-examples" (EnvBool True) noCheck
     "Print the (counter) example after :sat or :prove"
+
+  , simpleOpt "ignore-safety" (EnvBool False) noCheck
+    "Ignore safety predicates when performing :sat or :prove checks"
   ]
 
 

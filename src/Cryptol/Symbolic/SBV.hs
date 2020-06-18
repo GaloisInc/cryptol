@@ -256,11 +256,14 @@ prepareQuery evo modEnv ProverCommand{..} =
                         v <- Eval.evalExpr SBV env pcExpr
                         Eval.fromVBit <$> foldM Eval.fromVFun v (map pure args)
 
+                 -- Ignore the safety condition if the flag is set
+                 let safety' = if pcIgnoreSafety then SBV.svTrue else safety
+
                  -- "observe" the value of the safety predicate.  This makes its value
                  -- avaliable in the resulting model.
-                 SBV.sObserve "safety" (SBV.SBV safety :: SBV.SBV Bool)
+                 SBV.sObserve "safety" (SBV.SBV safety' :: SBV.SBV Bool)
 
-                 return (foldr addAsm (SBV.svAnd safety b) asms))
+                 return (foldr addAsm (SBV.svAnd safety' b) asms))
 
 
 -- | Turn the SMT results from SBV into a @ProverResult@ that is ready for the Cryptol REPL.
