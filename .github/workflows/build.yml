@@ -122,6 +122,8 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
         ghc: ["8.10.1"]
     needs: [outputs, docs, build]
+    env:
+      VERSION: ${{ needs.outputs.outputs.cryptol-version }}
     steps:
       - uses: actions/checkout@v2
 
@@ -152,7 +154,6 @@ jobs:
         env:
           SIGNING_PASSPHRASE: ${{ secrets.SIGNING_PASSPHRASE }}
           SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
-          VERSION: ${{ needs.outputs.outputs.cryptol-version }}
         run: .github/ci.sh zip_dist
 
       - uses: actions/upload-artifact@v2
