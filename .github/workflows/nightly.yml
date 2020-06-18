@@ -39,6 +39,8 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    # until the username/password are filled out
+    continue-on-error: true
     needs: [outputs]
     steps:
       - name: Publish to Registry
