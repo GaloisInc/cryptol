@@ -645,6 +645,7 @@ onlineProveSat proverName isSat str mfile = do
   validEvalContext schema
   decls <- fmap M.deDecls getDynEnv
   timing <- io (newIORef 0)
+  ~(EnvBool ignoreSafety) <- getUser "ignore-safety"
   let cmd = ProverCommand {
           pcQueryType    = if isSat then SatQuery satNum else ProveQuery
         , pcProverName   = proverName
@@ -655,6 +656,7 @@ onlineProveSat proverName isSat str mfile = do
         , pcSmtFile      = mfile
         , pcExpr         = expr
         , pcSchema       = schema
+        , pcIgnoreSafety = ignoreSafety
         }
   (firstProver, res) <-
      if | proverName `elem` W4.proverNames  -> liftModuleCmd $ W4.satProve cmd
@@ -672,6 +674,7 @@ offlineProveSat proverName isSat str mfile = do
   (_, expr, schema) <- replCheckExpr parseExpr
   decls <- fmap M.deDecls getDynEnv
   timing <- io (newIORef 0)
+  ~(EnvBool ignoreSafety) <- getUser "ignore-safety"
   let cmd = ProverCommand {
           pcQueryType    = if isSat then SatQuery (SomeSat 0) else ProveQuery
         , pcProverName   = proverName
@@ -682,6 +685,7 @@ offlineProveSat proverName isSat str mfile = do
         , pcSmtFile      = mfile
         , pcExpr         = expr
         , pcSchema       = schema
+        , pcIgnoreSafety = ignoreSafety
         }
 
   put <- getPutStr

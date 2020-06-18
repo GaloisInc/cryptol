@@ -151,13 +151,16 @@ satProve ProverCommand {..} =
                       v <- Eval.evalExpr (What4 sym) env pcExpr
                       Eval.fromVBit <$> foldM Eval.fromVFun v (map (pure . varToSymValue sym) args)
 
+            -- Ignore the safety condition if the flag is set
+            let safety' = if pcIgnoreSafety then W4.truePred sym else safety
+
             result <- case pcQueryType of
               ProveQuery ->
-                do q <- W4.notPred sym =<< W4.andPred sym safety b
-                   singleQuery sym evo primMap pcProverName logData ts args (Just safety) q
+                do q <- W4.notPred sym =<< W4.andPred sym safety' b
+                   singleQuery sym evo primMap pcProverName logData ts args (Just safety') q
 
               SatQuery num ->
-                do q <- W4.andPred sym safety b
+                do q <- W4.andPred sym safety' b
                    multiSATQuery sym evo primMap pcProverName logData ts args q num
 
             end <- getCurrentTime
@@ -188,11 +191,14 @@ satProveOffline ProverCommand {..} outputContinuation =
                         v <- Eval.evalExpr (What4 sym) env pcExpr
                         Eval.fromVBit <$> foldM Eval.fromVFun v (map (pure . varToSymValue sym) args)
 
+              -- Ignore the safety condition if the flag is set
+              let safety' = if pcIgnoreSafety then W4.truePred sym else safety
+
               q <- case pcQueryType of
                 ProveQuery ->
-                  W4.notPred sym =<< W4.andPred sym safety b
+                  W4.notPred sym =<< W4.andPred sym safety' b
                 SatQuery _ ->
-                  W4.andPred sym safety b
+                  W4.andPred sym safety' b
 
               let adpt = z3Adapter
               W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)

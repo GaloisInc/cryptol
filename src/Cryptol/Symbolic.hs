@@ -73,6 +73,8 @@ data ProverCommand = ProverCommand {
     -- ^ The typechecked expression to evaluate
   , pcSchema :: Schema
     -- ^ The 'Schema' of @pcExpr@
+  , pcIgnoreSafety :: Bool
+    -- ^ Should we ignore safety predicates?
   }
 
 type ProverStats = NominalDiffTime
