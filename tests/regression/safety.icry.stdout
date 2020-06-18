@@ -1,0 +1,10 @@
+Loading module Cryptol
+Counterexample
+(\x -> assert x "asdf" "asdf") False ~> ERROR
+Counterexample
+(\(x : [4]) -> [0 .. 14] @ x == x) 0xf ~> ERROR
+Counterexample
+(\y -> (10 : Integer) / y) 0 ~> ERROR
+Safe
+Safe
+Safe
