@@ -873,6 +873,14 @@ undefined : {a} a
 undefined = error "undefined"
 
 /**
+ * Assert that the given condition holds, and raise an error
+ * with the given message if it does not.
+ */
+assert : {a, len} (fin len) => Bit -> String len -> a -> a
+assert pred msg x = if pred then x else error msg
+
+
+/**
  * Generates random values from a seed.  When called with a function, currently
  * generates a function that always returns zero.
  */
