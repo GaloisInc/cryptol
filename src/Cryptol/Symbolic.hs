@@ -50,7 +50,7 @@ type SatResult = [(Type, Expr, Concrete.Value)]
 data SatNum = AllSat | SomeSat Int
   deriving (Show)
 
-data QueryType = SatQuery SatNum | ProveQuery
+data QueryType = SatQuery SatNum | ProveQuery | SafetyQuery
   deriving (Show)
 
 data ProverCommand = ProverCommand {
@@ -95,18 +95,25 @@ data ProverResult = AllSatResult [SatResult] -- LAZY
 
 
 
-predArgTypes :: Schema -> Either String [FinType]
-predArgTypes schema@(Forall ts ps ty)
+predArgTypes :: QueryType -> Schema -> Either String [FinType]
+predArgTypes qtype schema@(Forall ts ps ty)
   | null ts && null ps =
       case go <$> (evalType mempty ty) of
         Right (Just fts) -> Right fts
-        _ -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
+        _ | SafetyQuery <- qtype -> Left $ "Expected finite result type:\n" ++ show (pp schema)
+          | otherwise -> Left $ "Not a valid predicate type:\n" ++ show (pp schema)
   | otherwise = Left $ "Not a monomorphic type:\n" ++ show (pp schema)
   where
     go :: TValue -> Maybe [FinType]
     go TVBit             = Just []
     go (TVFun ty1 ty2)   = (:) <$> finType ty1 <*> go ty2
-    go _                 = Nothing
+    go tv
+      | Just _ <- finType tv
+      , SafetyQuery <- qtype
+      = Just []
+
+      | otherwise
+      = Nothing
 
 data FinType
     = FTBit

@@ -139,7 +139,7 @@ satProve ProverCommand {..} =
     start <- liftIO $ getCurrentTime
 
     let ?evalPrim = evalPrim sym
-    case predArgTypes pcSchema of
+    case predArgTypes pcQueryType pcSchema of
       Left msg -> return (Nothing, ProverError msg)
       Right ts ->
          when pcVerbose (lPutStrLn "Simulating...") >> liftIO (
@@ -149,7 +149,13 @@ satProve ProverCommand {..} =
                doW4Eval sym evo $
                    do env <- Eval.evalDecls (What4 sym) extDgs mempty
                       v <- Eval.evalExpr (What4 sym) env pcExpr
-                      Eval.fromVBit <$> foldM Eval.fromVFun v (map (pure . varToSymValue sym) args)
+                      appliedVal <- foldM Eval.fromVFun v (map (pure . varToSymValue sym) args)
+                      case pcQueryType of
+                        SafetyQuery ->
+                          do Eval.forceValue appliedVal
+                             pure (W4.truePred sym)
+
+                        _ -> pure (Eval.fromVBit appliedVal)
 
             -- Ignore the safety condition if the flag is set
             let safety' = if pcIgnoreSafety then W4.truePred sym else safety
@@ -159,9 +165,14 @@ satProve ProverCommand {..} =
                 do q <- W4.notPred sym =<< W4.andPred sym safety' b
                    singleQuery sym evo primMap pcProverName logData ts args (Just safety') q
 
+              SafetyQuery ->
+                do q <- W4.notPred sym safety
+                   singleQuery sym evo primMap pcProverName logData ts args (Just safety) q
+
               SatQuery num ->
                 do q <- W4.andPred sym safety' b
                    multiSATQuery sym evo primMap pcProverName logData ts args q num
+
 
             end <- getCurrentTime
             writeIORef pcProverStats (diffUTCTime end start)
@@ -178,7 +189,7 @@ satProveOffline ProverCommand {..} outputContinuation =
     sym <- M.io (W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator)
 
     let ?evalPrim = evalPrim sym
-    case predArgTypes pcSchema of
+    case predArgTypes pcQueryType pcSchema of
       Left msg -> return (Just msg)
       Right ts ->
          do when pcVerbose $ lPutStrLn "Simulating..."
@@ -189,7 +200,13 @@ satProveOffline ProverCommand {..} outputContinuation =
                  doW4Eval sym evo $
                      do env <- Eval.evalDecls (What4 sym) extDgs mempty
                         v <- Eval.evalExpr (What4 sym) env pcExpr
-                        Eval.fromVBit <$> foldM Eval.fromVFun v (map (pure . varToSymValue sym) args)
+                        appliedVal <- foldM Eval.fromVFun v (map (pure . varToSymValue sym) args)
+                        case pcQueryType of
+                          SafetyQuery ->
+                            do Eval.forceValue appliedVal
+                               pure (W4.truePred sym)
+
+                          _ -> pure (Eval.fromVBit appliedVal)
 
               -- Ignore the safety condition if the flag is set
               let safety' = if pcIgnoreSafety then W4.truePred sym else safety
@@ -199,6 +216,8 @@ satProveOffline ProverCommand {..} outputContinuation =
                   W4.notPred sym =<< W4.andPred sym safety' b
                 SatQuery _ ->
                   W4.andPred sym safety' b
+                SafetyQuery ->
+                  W4.notPred sym safety
 
               let adpt = z3Adapter
               W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)

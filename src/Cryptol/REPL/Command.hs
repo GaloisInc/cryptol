@@ -81,7 +81,7 @@ import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Transform.Specialize as S
 import Cryptol.Symbolic
-  ( ProverCommand(..), QueryType(..), SatNum(..)
+  ( ProverCommand(..), QueryType(..)
   , ProverStats,ProverResult(..),CounterExampleType(..)
   )
 import qualified Cryptol.Symbolic.SBV as SBV
@@ -201,6 +201,8 @@ nbCommandList  =
     "Use an external solver to prove that the argument always returns\ntrue. (If no argument, check all properties.)"
   , CommandDescr [ ":sat" ] ["[ EXPR ]"] (ExprArg satCmd)
     "Use a solver to find a satisfying assignment for which the argument\nreturns true. (If no argument, find an assignment for all properties.)"
+  , CommandDescr [ ":safe" ] ["[ EXPR ]"] (ExprArg safeCmd)
+    "Use an external solver to prove that an expression is safe\n(does not encounter run-time errors) for all inputs."
   , CommandDescr [ ":debug_specialize" ] ["EXPR"](ExprArg specializeCmd)
     "Do type specialization on a closed expression."
   , CommandDescr [ ":eval" ] ["EXPR"] (ExprArg refEvalCmd)
@@ -318,7 +320,7 @@ printCounterexample cexTy pexpr vs =
      let doc = ppPrec 3 pexpr -- function application has precedence 3
      rPrint $ hang doc 2 (sep docs) <+>
        case cexTy of
-         SafetyViolation -> text "= <<error>>"
+         SafetyViolation -> text "~> ERROR"
          PredicateFalsified -> text "= False"
 
 printSatisfyingModel :: P.Expr P.PName -> [Concrete.Value] -> REPL ()
@@ -549,6 +551,44 @@ rethrowErrorCall m = REPL (\r -> unREPL m r `X.catch` handler `X.catch` handler'
     handler (X.ErrorCallWithLocation s _) = X.throwIO (SBVError s)
     handler' e = X.throwIO (SBVException e)
 
+-- | Attempts to prove the given term is safe for all inputs
+safeCmd :: String -> REPL ()
+safeCmd str = do
+  proverName <- getKnownUser "prover"
+  fileName   <- getKnownUser "smtfile"
+  let mfile = if fileName == "-" then Nothing else Just fileName
+
+  if proverName `elem` ["offline","sbv-offline","w4-offline"] then
+    offlineProveSat proverName SafetyQuery str mfile
+  else
+     do (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat proverName SafetyQuery str mfile)
+        case result of
+          EmptyResult         ->
+            panic "REPL.Command" [ "got EmptyResult for online prover query" ]
+
+          ProverError msg -> rPutStrLn msg
+
+          ThmResult _ts -> rPutStrLn "Safe"
+
+          CounterExample cexType tevs -> do
+            rPutStrLn "Counterexample"
+            let tes = map ( \(t,e,_) -> (t,e)) tevs
+                vs  = map ( \(_,_,v) -> v)     tevs
+
+            (t,e) <- mkSolverResult "counterexample" False (Right tes)
+            pexpr <- replParseExpr str
+
+            ~(EnvBool yes) <- getUser "show-examples"
+            when yes $ printCounterexample cexType pexpr vs
+
+            bindItVariable t e
+
+          AllSatResult _ -> do
+            panic "REPL.Command" ["Unexpected AllSAtResult for ':safe' call"]
+
+        seeStats <- getUserShowProverStats
+        when seeStats (showProverStats firstProver stats)
+
 
 -- | Console-specific version of 'proveSat'. Prints output to the
 -- console, and binds the @it@ variable to a record whose form depends
@@ -569,14 +609,15 @@ cmdProveSat isSat "" =
 cmdProveSat isSat str = do
   let cexStr | isSat = "satisfying assignment"
              | otherwise = "counterexample"
+  qtype <- if isSat then SatQuery <$> getUserSatNum else pure ProveQuery
   proverName <- getKnownUser "prover"
   fileName   <- getKnownUser "smtfile"
   let mfile = if fileName == "-" then Nothing else Just fileName
 
   if proverName `elem` ["offline","sbv-offline","w4-offline"] then
-     offlineProveSat proverName isSat str mfile
+     offlineProveSat proverName qtype str mfile
   else
-     do (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat proverName isSat str mfile)
+     do (firstProver,result,stats) <- rethrowErrorCall (onlineProveSat proverName qtype str mfile)
         case result of
           EmptyResult         ->
             panic "REPL.Command" [ "got EmptyResult for online prover query" ]
@@ -632,12 +673,11 @@ cmdProveSat isSat str = do
         when seeStats (showProverStats firstProver stats)
 
 onlineProveSat :: String
-               -> Bool
+               -> QueryType
                -> String -> Maybe FilePath
                -> REPL (Maybe String,ProverResult,ProverStats)
-onlineProveSat proverName isSat str mfile = do
+onlineProveSat proverName qtype str mfile = do
   verbose <- getKnownUser "debug"
-  satNum <- getUserSatNum
   modelValidate <- getUserProverValidate
   parseExpr <- replParseExpr str
   (_, expr, schema) <- replCheckExpr parseExpr
@@ -647,7 +687,7 @@ onlineProveSat proverName isSat str mfile = do
   timing <- io (newIORef 0)
   ~(EnvBool ignoreSafety) <- getUser "ignore-safety"
   let cmd = ProverCommand {
-          pcQueryType    = if isSat then SatQuery satNum else ProveQuery
+          pcQueryType    = qtype
         , pcProverName   = proverName
         , pcVerbose      = verbose
         , pcValidate     = modelValidate
@@ -666,8 +706,8 @@ onlineProveSat proverName isSat str mfile = do
   stas <- io (readIORef timing)
   return (firstProver,res,stas)
 
-offlineProveSat :: String -> Bool -> String -> Maybe FilePath -> REPL ()
-offlineProveSat proverName isSat str mfile = do
+offlineProveSat :: String -> QueryType -> String -> Maybe FilePath -> REPL ()
+offlineProveSat proverName qtype str mfile = do
   verbose <- getKnownUser "debug"
   modelValidate <- getUserProverValidate
   parseExpr <- replParseExpr str
@@ -676,7 +716,7 @@ offlineProveSat proverName isSat str mfile = do
   timing <- io (newIORef 0)
   ~(EnvBool ignoreSafety) <- getUser "ignore-safety"
   let cmd = ProverCommand {
-          pcQueryType    = if isSat then SatQuery (SomeSat 0) else ProveQuery
+          pcQueryType    = qtype
         , pcProverName   = proverName
         , pcVerbose      = verbose
         , pcValidate     = modelValidate
@@ -692,8 +732,10 @@ offlineProveSat proverName isSat str mfile = do
   let putLn x = put (x ++ "\n")
   let displayMsg =
         do let filename = fromMaybe "standard output" mfile
-           let satWord | isSat = "satisfiability"
-                       | otherwise = "validity"
+           let satWord = case qtype of
+                           SatQuery _  -> "satisfiability"
+                           ProveQuery  -> "validity"
+                           SafetyQuery -> "safety"
            putLn $
                "Writing to SMT-Lib file " ++ filename ++ "..."
            putLn $
