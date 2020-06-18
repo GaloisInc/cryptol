@@ -22,6 +22,7 @@ module Cryptol.Symbolic
  , SatNum(..)
  , ProverResult(..)
  , ProverStats
+ , CounterExampleType(..)
    -- * FinType
  , FinType(..)
  , finType
@@ -76,11 +77,17 @@ data ProverCommand = ProverCommand {
 
 type ProverStats = NominalDiffTime
 
+-- | A @:prove@ command can fail either because some
+--   input causes the predicate to violate a safety assertion,
+--   or because the predicate returns false for some input.
+data CounterExampleType = SafetyViolation | PredicateFalsified
+
 -- | A prover result is either an error message, an empty result (eg
 -- for the offline prover), a counterexample or a lazy list of
 -- satisfying assignments.
 data ProverResult = AllSatResult [SatResult] -- LAZY
                   | ThmResult    [Type]
+                  | CounterExample CounterExampleType SatResult
                   | EmptyResult
                   | ProverError  String
 

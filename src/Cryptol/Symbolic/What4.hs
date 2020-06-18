@@ -154,7 +154,7 @@ satProve ProverCommand {..} =
             result <- case pcQueryType of
               ProveQuery ->
                 do q <- W4.notPred sym =<< W4.andPred sym safety b
-                   singleQuery sym evo primMap pcProverName logData ts args q
+                   singleQuery sym evo primMap pcProverName logData ts args (Just safety) q
 
               SatQuery num ->
                 do q <- W4.andPred sym safety b
@@ -217,7 +217,7 @@ multiSATQuery ::
   SatNum ->
   IO (Maybe String, ProverResult)
 multiSATQuery sym evo primMap solverName logData ts args query (SomeSat n) | n <= 1 =
-  singleQuery sym evo primMap solverName logData ts args query
+  singleQuery sym evo primMap solverName logData ts args Nothing query
 
 multiSATQuery sym evo primMap solverName logData ts args query satNum0 =
   do adpt <- lookupProver solverName
@@ -273,13 +273,14 @@ singleQuery ::
   W4.LogData ->
   [FinType] ->
   [VarShape sym] ->
+  Maybe (W4.Pred sym) {- ^ optional safety predicate.  Nothing = SAT query -} ->
   W4.Pred sym ->
   IO (Maybe String, ProverResult)
 
 --singleQuery _sym _evo _primMap "all" _logData _ts _args _query =
 --  do fail "TODO portfolio solver!"
 
-singleQuery sym evo primMap solverName logData ts args query =
+singleQuery sym evo primMap solverName logData ts args msafe query =
   do adpt <- lookupProver solverName
      W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
      pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
@@ -288,7 +289,12 @@ singleQuery sym evo primMap solverName logData ts args query =
            W4.Unsat _ -> return (ThmResult (map unFinType ts))
            W4.Sat (evalFn,_) ->
              do model <- computeModel evo primMap evalFn ts args
-                return (AllSatResult [ model ])
+                case msafe of
+                  Just s ->
+                    do s' <- W4.groundEval evalFn s
+                       let cexType = if s' then PredicateFalsified else SafetyViolation
+                       return (CounterExample cexType model)
+                  Nothing -> return (AllSatResult [ model ])
 
      return (Just (W4.solver_adapter_name adpt), pres)
 

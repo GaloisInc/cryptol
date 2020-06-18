@@ -32,3 +32,4 @@ arrayContents = B.pack [there|lib/Array.cry|]
 
 cryptolTcContents :: String
 cryptolTcContents = [there|lib/CryptolTC.z3|]
+

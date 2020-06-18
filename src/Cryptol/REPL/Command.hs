@@ -80,7 +80,10 @@ import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Transform.Specialize as S
-import Cryptol.Symbolic (ProverCommand(..), QueryType(..), SatNum(..),ProverStats,ProverResult(..))
+import Cryptol.Symbolic
+  ( ProverCommand(..), QueryType(..), SatNum(..)
+  , ProverStats,ProverResult(..),CounterExampleType(..)
+  )
 import qualified Cryptol.Symbolic.SBV as SBV
 import qualified Cryptol.Symbolic.What4 as W4
 
@@ -308,13 +311,23 @@ evalCmd str = do
       -- be generalized if mono-binds is enabled
       replEvalDecl decl
 
-printCounterexample :: Bool -> P.Expr P.PName -> [Concrete.Value] -> REPL ()
-printCounterexample isSat pexpr vs =
+printCounterexample :: CounterExampleType -> P.Expr P.PName -> [Concrete.Value] -> REPL ()
+printCounterexample cexTy pexpr vs =
   do ppOpts <- getPPValOpts
      docs <- mapM (rEval . E.ppValue Concrete ppOpts) vs
      let doc = ppPrec 3 pexpr -- function application has precedence 3
      rPrint $ hang doc 2 (sep docs) <+>
-       text (if isSat then "= True" else "= False")
+       case cexTy of
+         SafetyViolation -> text "= <<error>>"
+         PredicateFalsified -> text "= False"
+
+printSatisfyingModel :: P.Expr P.PName -> [Concrete.Value] -> REPL ()
+printSatisfyingModel pexpr vs =
+  do ppOpts <- getPPValOpts
+     docs <- mapM (rEval . E.ppValue Concrete ppOpts) vs
+     let doc = ppPrec 3 pexpr -- function application has precedence 3
+     rPrint $ hang doc 2 (sep docs) <+> text ("= True")
+
 
 dumpTestsCmd :: FilePath -> String -> REPL ()
 dumpTestsCmd outFile str =
@@ -459,8 +472,7 @@ qcCmd qcMode str =
     opts <- getPPValOpts
     case failure of
       FailFalse vs -> do
-        let isSat = False
-        printCounterexample isSat pexpr vs
+        printCounterexample PredicateFalsified pexpr vs
         case (tys,vs) of
           ([t],[v]) -> bindItVariableVal t v
           _ -> let fs = [ M.packIdent ("arg" ++ show (i::Int)) | i <- [ 1 .. ] ]
@@ -568,13 +580,29 @@ cmdProveSat isSat str = do
         case result of
           EmptyResult         ->
             panic "REPL.Command" [ "got EmptyResult for online prover query" ]
+
           ProverError msg     -> rPutStrLn msg
+
           ThmResult ts        -> do
             rPutStrLn (if isSat then "Unsatisfiable" else "Q.E.D.")
             (t, e) <- mkSolverResult cexStr (not isSat) (Left ts)
             bindItVariable t e
+
+          CounterExample cexType tevs -> do
+            rPutStrLn "Counterexample"
+            let tes = map ( \(t,e,_) -> (t,e)) tevs
+                vs  = map ( \(_,_,v) -> v)     tevs
+
+            (t,e) <- mkSolverResult cexStr isSat (Right tes)
+            pexpr <- replParseExpr str
+
+            ~(EnvBool yes) <- getUser "show-examples"
+            when yes $ printCounterexample cexType pexpr vs
+
+            bindItVariable t e
+
           AllSatResult tevss -> do
-            rPutStrLn (if isSat then "Satisfiable" else "Counterexample")
+            rPutStrLn "Satisfiable"
             let tess = map (map $ \(t,e,_) -> (t,e)) tevss
                 vss  = map (map $ \(_,_,v) -> v)     tevss
             resultRecs <- mapM (mkSolverResult cexStr isSat . Right) tess
@@ -594,7 +622,7 @@ cmdProveSat isSat str = do
             pexpr <- replParseExpr str
 
             ~(EnvBool yes) <- getUser "show-examples"
-            when yes $ forM_ vss (printCounterexample isSat pexpr)
+            when yes $ forM_ vss (printSatisfyingModel pexpr)
 
             case (ty, exprs) of
               (t, [e]) -> bindItVariable t e
