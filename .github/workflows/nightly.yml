@@ -98,6 +98,7 @@ jobs:
         run: .github/ci.sh zip_dist
 
       - uses: actions/upload-artifact@v2
+        if: runner.os != 'Windows'
         with:
           name: ${{ needs.outputs.outputs.cryptol-name }}-${{ runner.os }}
           path: "${{ needs.outputs.outputs.cryptol-name }}.tar.gz*"

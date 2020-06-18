@@ -157,6 +157,7 @@ jobs:
         run: .github/ci.sh zip_dist
 
       - uses: actions/upload-artifact@v2
+        if: runner.os != 'Windows'
         with:
           name: ${{ needs.outputs.outputs.name }}-${{ runner.os }}-x86_64
           path: "${{ needs.outputs.outputs.name }}-${{ runner.os }}-x86_64.tar.gz*"
@@ -164,7 +165,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         if: runner.os == 'Windows'
         with:
-          name: ${{ needs.outputs.outputs.name }}-${{ runner.os }}-x86_64.msi
+          name: ${{ needs.outputs.outputs.name }}-${{ runner.os }}-x86_64
           path: "cryptol.msi*"
 
   release:
@@ -184,13 +185,15 @@ jobs:
     needs: [outputs, bundle, release]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
           path: artifacts
       - run: ls -alR
       - run: |
           assets=()
-          for a in ./artifacts/*; do assets+=("-a" "$a"); done
+          find . \( -name 'cryptol*.tar.gz*' -o -name '*.msi*' \) -type f -print0 |
+            while IFS= read -r -d '' a; do assets+=("-a" "$a"); done
           tag="${GITHUB_REF##*/}"
           hub release edit -d "${assets[@]}" -m "" "$tag"
         env:
