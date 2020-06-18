@@ -179,6 +179,7 @@ runProver pc@ProverCommand{..} x =
                      SatQuery (SomeSat n) -> Just n
                      SatQuery AllSat -> Nothing
                      ProveQuery -> Nothing
+                     SafetyQuery -> Nothing
 
      provers <-
        case pcProverName of
@@ -197,7 +198,8 @@ runProver pc@ProverCommand{..} x =
                     ]
 
      case pcQueryType of
-        ProveQuery -> runMultiProvers pc provers' SBV.proveWithAny thmSMTResults x
+        ProveQuery  -> runMultiProvers pc provers' SBV.proveWithAny thmSMTResults x
+        SafetyQuery -> runMultiProvers pc provers' SBV.proveWithAny thmSMTResults x
         SatQuery sn -> case sn of
           SomeSat 1 -> runMultiProvers pc provers' SBV.satWithAny satSMTResults x
           _         -> runSingleProver pc provers' SBV.allSatWith allSatSMTResults x
@@ -229,6 +231,7 @@ prepareQuery evo modEnv ProverCommand{..} =
      let tyFn = case pcQueryType of
            SatQuery _ -> existsFinType
            ProveQuery -> forallFinType
+           SafetyQuery -> forallFinType
 
      -- The `addAsm` function is used to combine assumptions that
      -- arise from the types of symbolic variables (e.g. Z n values
@@ -236,11 +239,12 @@ prepareQuery evo modEnv ProverCommand{..} =
      -- the main content of the query.  We use conjunction or implication
      -- depending on the type of query.
      let addAsm = case pcQueryType of
-           ProveQuery -> \x y -> SBV.svOr (SBV.svNot x) y
+           ProveQuery  -> \x y -> SBV.svOr (SBV.svNot x) y
+           SafetyQuery -> \x y -> SBV.svOr (SBV.svNot x) y
            SatQuery _ -> \x y -> SBV.svAnd x y
 
      let ?evalPrim = evalPrim
-     case predArgTypes pcSchema of
+     case predArgTypes pcQueryType pcSchema of
        Left msg -> return (Left msg)
        Right ts ->
          do when pcVerbose $ logPutStrLn (Eval.evalLogger evo) "Simulating..."
@@ -254,10 +258,19 @@ prepareQuery evo modEnv ProverCommand{..} =
                  (safety,b) <- doSBVEval evo $
                      do env <- Eval.evalDecls SBV extDgs mempty
                         v <- Eval.evalExpr SBV env pcExpr
-                        Eval.fromVBit <$> foldM Eval.fromVFun v (map pure args)
+                        appliedVal <- foldM Eval.fromVFun v (map pure args)
+                        case pcQueryType of
+                          SafetyQuery ->
+                            do Eval.forceValue appliedVal
+                               pure SBV.svTrue
+                          _ -> pure (Eval.fromVBit appliedVal)
 
-                 -- Ignore the safety condition if the flag is set
-                 let safety' = if pcIgnoreSafety then SBV.svTrue else safety
+                 -- Ignore the safety condition if the flag is set and we are not
+                 -- doing a safety query
+                 let safety' = case pcQueryType of
+                                 SafetyQuery -> safety
+                                 _ | pcIgnoreSafety -> SBV.svTrue
+                                   | otherwise -> safety
 
                  -- "observe" the value of the safety predicate.  This makes its value
                  -- avaliable in the resulting model.
@@ -277,6 +290,7 @@ processResults ::
 processResults evo ProverCommand{..} ts results =
  do let isSat = case pcQueryType of
           ProveQuery -> False
+          SafetyQuery -> False
           SatQuery _ -> True
 
     prims <- M.getPrimMap
@@ -353,6 +367,7 @@ satProveOffline pc@ProverCommand {..} =
   \(evOpts,modEnv) -> do
     let isSat = case pcQueryType of
           ProveQuery -> False
+          SafetyQuery -> False
           SatQuery _ -> True
 
     prepareQuery evOpts modEnv pc >>= \case
