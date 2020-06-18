@@ -2,6 +2,7 @@ name: Cryptol
 on:
   push:
     branches: [master]
+    # The release upload logic assumes tag == v$(.github/ci.sh ver)
     tags: ["v**"]
   pull_request:
 
@@ -169,12 +170,15 @@ jobs:
           path: "cryptol.msi*"
 
   release:
+    needs: [outputs]
     if: >-
       startsWith(github.ref, 'refs/tags/v')
         || (github.event_name == 'pull_request' && startsWith(github.head_ref, 'actions/'))
     runs-on: ubuntu-latest
     steps:
       - uses: release-drafter/release-drafter@v5
+        with:
+          version: ${{ needs.outputs.outputs.cryptol-version }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -192,9 +196,10 @@ jobs:
       - run: ls -alR
       - run: |
           assets=()
-          find . \( -name 'cryptol*.tar.gz*' -o -name '*.msi*' \) -type f -print0 |
+          find ./artifacts \( -name 'cryptol*.tar.gz*' -o -name '*.msi*' \) -type f -print0 |
             while IFS= read -r -d '' a; do assets+=("-a" "$a"); done
-          tag="${GITHUB_REF##*/}"
+          tag="v${VERSION}"
           hub release edit -d "${assets[@]}" -m "" "$tag"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.outputs.outputs.cryptol-version }}
