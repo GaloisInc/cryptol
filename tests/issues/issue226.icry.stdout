@@ -116,6 +116,7 @@ Symbols
     all : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
     and : {n} (fin n) => [n] -> Bit
     any : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
+    assert : {a, len} (fin len) => Bit -> String len -> a -> a
     carry : {n} (fin n) => [n] -> [n] -> Bit
     ceiling : {a} (Round a) => a -> Integer
     complement : {a} (Logic a) => a -> a
