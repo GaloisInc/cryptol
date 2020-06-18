@@ -32,6 +32,8 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Map as Map
 import qualified Control.Exception as X
 
+import qualified Data.SBV as SBV (sObserve)
+import qualified Data.SBV.Internals as SBV (SBV(..))
 import qualified Data.SBV.Dynamic as SBV
 import           Data.SBV (Timing(SaveTiming))
 import           Data.SBV.Internals (showTDiff)
@@ -253,6 +255,11 @@ prepareQuery evo modEnv ProverCommand{..} =
                      do env <- Eval.evalDecls SBV extDgs mempty
                         v <- Eval.evalExpr SBV env pcExpr
                         Eval.fromVBit <$> foldM Eval.fromVFun v (map pure args)
+
+                 -- "observe" the value of the safety predicate.  This makes its value
+                 -- avaliable in the resulting model.
+                 SBV.sObserve "safety" (SBV.SBV safety :: SBV.SBV Bool)
+
                  return (foldr addAsm (SBV.svAnd safety b) asms))
 
 
@@ -274,21 +281,15 @@ processResults evo ProverCommand{..} ts results =
     case results of
        -- allSat can return more than one as long as
        -- they're satisfiable
-       (SBV.Satisfiable {} : _) -> do
-         tevss <- mapM mkTevs results
+       (SBV.Satisfiable {} : _) | isSat -> do
+         tevss <- map snd <$> mapM (mkTevs prims) results
          return $ AllSatResult tevss
-         where
-           mkTevs result = do
-             let Right (_, cvs) = SBV.getModelAssignment result
-                 (vs, _) = parseValues ts cvs
-                 sattys = unFinType <$> ts
-             satexprs <-
-               doEval evo (zipWithM (Concrete.toExpr prims) sattys vs)
-             case zip3 sattys <$> (sequence satexprs) <*> pure vs of
-               Nothing ->
-                 panic "Cryptol.Symbolic.sat"
-                   [ "unable to make assignment into expression" ]
-               Just tevs -> return $ tevs
+
+       -- prove should only have one counterexample
+       [r@SBV.Satisfiable{}] -> do
+         (safety, res) <- mkTevs prims r
+         let cexType = if safety then PredicateFalsified else SafetyViolation
+         return $ CounterExample cexType res
 
        -- prove returns only one
        [SBV.Unsatisfiable {}] ->
@@ -301,6 +302,23 @@ processResults evo ProverCommand{..} ts results =
        _ -> return $ ProverError (rshow results)
               where rshow | isSat = show .  SBV.AllSatResult . (False,False,False,)
                           | otherwise = show . SBV.ThmResult . head
+
+  where
+  mkTevs prims result = do
+    -- It's a bit fragile, but the value of the safety predicate seems
+    -- to always be the first value in the model assignment list.
+    let Right (_, (safetyCV : cvs)) = SBV.getModelAssignment result
+        safety = SBV.cvToBool safetyCV
+        (vs, _) = parseValues ts cvs
+        sattys = unFinType <$> ts
+    satexprs <-
+      doEval evo (zipWithM (Concrete.toExpr prims) sattys vs)
+    case zip3 sattys <$> (sequence satexprs) <*> pure vs of
+      Nothing ->
+        panic "Cryptol.Symbolic.sat"
+          [ "unable to make assignment into expression" ]
+      Just tevs -> return $ (safety, tevs)
+
 
 -- | Execute a symbolic ':prove' or ':sat' command.
 --
