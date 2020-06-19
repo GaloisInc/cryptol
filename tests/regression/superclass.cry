@@ -1,4 +1,4 @@
-//zeroRing : {a} (Ring a) => a
+zeroRing : {a} (Ring a) => a
 zeroRing = zero
 
 zeroLogic : {a} (Logic a) => a
