@@ -2,11 +2,11 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at check08.cry:9:25--9:33:
-  Defaulting type argument 'a' of 'fromTo' to [3]
+  Defaulting type argument 'a' of 'fromTo' to Integer
 [warning] at check08.cry:7:16--7:24:
-  Defaulting type argument 'a' of 'fromTo' to [3]
+  Defaulting type argument 'a' of 'fromTo' to Integer
 [warning] at <interactive>:1:7--1:15:
-  Defaulting type argument 'a' of 'fromTo' to [3]
+  Defaulting type argument 'a' of 'fromTo' to Integer
 [0x00000001, 0x00000002, 0x00000005, 0x0000000c, 0x0000001b]
 True
 Q.E.D.

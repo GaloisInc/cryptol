@@ -2,5 +2,5 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at check28.cry:2:23--2:24:
-  Defaulting the type of 'Main::y' to [3]
+  Defaulting the type of 'Main::y' to Integer
 True

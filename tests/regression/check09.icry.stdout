@@ -14,16 +14,16 @@ Loading module Main
     This binding for `ss` shadows the existing binding at
     check09.cry:5:1--5:3
 [warning] at check09.cry:17:18--17:28:
-  Defaulting type argument 'a' of 'fromTo' to [3]
+  Defaulting type argument 'a' of 'fromTo' to Integer
 [warning] at check09.cry:14:18--14:26:
-  Defaulting type argument 'a' of 'fromTo' to [2]
+  Defaulting type argument 'a' of 'fromTo' to Integer
 [warning] at check09.cry:13:18--13:26:
-  Defaulting type argument 'a' of 'fromTo' to [2]
+  Defaulting type argument 'a' of 'fromTo' to Integer
 [warning] at <interactive>:1:7--1:15:
-  Defaulting type argument 'a' of 'fromTo' to [2]
+  Defaulting type argument 'a' of 'fromTo' to Integer
 [0x00000008, 0x00004080, 0x00068c00, 0x00a22800]
 [warning] at <interactive>:1:7--1:15:
-  Defaulting type argument 'a' of 'fromTo' to [2]
+  Defaulting type argument 'a' of 'fromTo' to Integer
 [0x00000800, 0x00005080, 0x00072d00, 0x00b08200]
 [0x00000008, 0x131b638b, 0x4fdd24a2, 0xb9094711, 0xa9cc106f,
  0x52c445fb, 0xec66ea8b]

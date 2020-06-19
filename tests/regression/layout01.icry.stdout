@@ -10,12 +10,12 @@ Showing a specific instance of polymorphic result:
   * Using 'Integer' for the type of '<interactive>::y'
 {x = 1, y = 2}
 [warning] at <interactive>:1:1--1:22:
-  Defaulting the type of '<interactive>::y' to [2]
+  Defaulting the type of '<interactive>::y' to Integer
 Showing a specific instance of polymorphic result:
   * Using 'Integer' for the type of '<interactive>::x'
 1
 [warning] at <interactive>:1:1--1:46:
-  Defaulting the type of '<interactive>::y' to [5]
+  Defaulting the type of '<interactive>::y' to Integer
 Showing a specific instance of polymorphic result:
   * Using 'Integer' for the type of '<interactive>::x'
 10

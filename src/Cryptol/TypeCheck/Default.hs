@@ -4,7 +4,7 @@ import qualified Data.Set as Set
 import qualified Data.Map as Map
 import Data.Maybe(mapMaybe)
 import Data.List((\\),nub)
-import Control.Monad(guard)
+import Control.Monad(guard,mzero)
 
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.SimpType(tMax,tWidth)
@@ -17,25 +17,28 @@ import Cryptol.Utils.Panic(panic)
 
 --------------------------------------------------------------------------------
 
--- | We default constraints of the form @Literal t a@ to @a := [width t]@
+-- | We default constraints of the form @Literal t a@ to @a := Integer@
 defaultLiterals :: [TVar] -> [Goal] -> ([TVar], Subst, [Warning])
 defaultLiterals as gs = let (binds,warns) = unzip (mapMaybe tryDefVar as)
                         in (as \\ map fst binds, listSubst binds, warns)
   where
   gSet = goalsFromList gs
+  allProps = saturatedPropSet gSet
   tryDefVar a =
-    do gt <- Map.lookup a (literalGoals gSet)
+    do _gt <- Map.lookup a (literalGoals gSet)
+       defT <- if Set.member (pLogic (TVar a)) allProps then
+                  mzero
+               else if Set.member (pField (TVar a)) allProps then
+                  pure tRational
+               else
+                  pure tInteger
        let d    = tvInfo a
-           defT = tWord (tWidth (goal gt))
            w    = DefaultingTo d defT
        guard (not (Set.member a (fvs defT)))  -- Currently shouldn't happen
                                               -- but future proofing.
        -- XXX: Make sure that `defT` has only variables that `a` is allowed
        -- to depend on
        return ((a,defT),w)
-
-
-
 
 
 --------------------------------------------------------------------------------

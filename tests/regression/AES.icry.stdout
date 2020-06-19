@@ -2,15 +2,15 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module AES
 [warning] at AES.cry:147:60--147:63:
-  Defaulting type argument 'rep' of 'number' to [4]
+  Defaulting type argument 'rep' of 'number' to Integer
 [warning] at AES.cry:147:36--147:51:
-  Defaulting type argument 'a' of 'fromTo' to [4]
+  Defaulting type argument 'a' of 'fromTo' to Integer
 [warning] at AES.cry:127:26--127:33:
-  Defaulting type argument 'rep' of 'number' to [3]
+  Defaulting type argument 'rep' of 'number' to Integer
 [warning] at AES.cry:92:61--92:69:
-  Defaulting type argument 'a' of 'fromTo' to [2]
+  Defaulting type argument 'a' of 'fromTo' to Integer
 [warning] at AES.cry:87:58--87:66:
-  Defaulting type argument 'a' of 'fromTo' to [2]
+  Defaulting type argument 'a' of 'fromTo' to Integer
 True
 True
 True

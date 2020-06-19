@@ -2,6 +2,6 @@ Loading module Cryptol
 Loading module Cryptol
 Loading module Main
 [warning] at check01.cry:2:20--2:27:
-  Defaulting type of sequence member to [5]
+  Defaulting type of sequence member to Integer
 [0x00000007, 0x00000014]
 True
