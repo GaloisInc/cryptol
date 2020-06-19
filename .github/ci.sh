@@ -24,10 +24,10 @@ setup_external_tools() {
 }
 
 setup_dist_bins() {
-  is_exe "dist" "cryptol" && is_exe "dist" "cryptol-html" && return
-  extract_exe "cryptol" "dist"
-  extract_exe "cryptol-html" "dist"
-  strip dist/cryptol*
+  is_exe "dist/bin" "cryptol" && is_exe "dist/bin" "cryptol-html" && return
+  extract_exe "cryptol" "dist/bin"
+  extract_exe "cryptol-html" "dist/bin"
+  strip dist/bin/cryptol*
 }
 
 install_z3() {
@@ -53,8 +53,7 @@ install_cvc4() {
   case "$RUNNER_OS" in
     Linux) file="x86_64-linux-opt" ;;
     Windows) file="win64-opt.exe" ;;
-    # macOS) brew tap cvc4/cvc4 && brew install cvc4/cvc4/cvc4 && return ;;
-    macOS) return ;; # the brew tap takes 15 minutes to install
+    macOS) brew tap cvc4/cvc4 && brew install cvc4/cvc4/cvc4 && return ;;
   esac
   curl -o cvc4$EXT -sL "https://github.com/CVC4/CVC4/releases/download/1.7/cvc4-$version-$file"
   $IS_WIN || chmod +x cvc4$EXT
@@ -83,14 +82,15 @@ install_yices() {
   rm -rf "yices$ext" "yices-$YICES_VERSION"
 }
 
-install_deps() {
+build() {
   ghc_ver="$(ghc --numeric-version)"
   cp cabal.GHC-"$ghc_ver".config cabal.project.freeze
   # Limit jobs on windows due to: https://gitlab.haskell.org/ghc/ghc/issues/17926
-  if [[ "$ghc_ver" == "8.8.3" && "$RUNNER_OS" == 'Windows' ]]; then JOBS=1; else JOBS=2; fi
+  if [[ "$ghc_ver" =~ 8.8.3|8.10.1 && $IS_WIN ]]; then JOBS=1; else JOBS=2; fi
   cabal v2-configure -j$JOBS --minimize-conflict-set
-  cabal v2-build --only-dependencies exe:cryptol exe:cryptol-html
-  setup_external_tools
+  for _ in {1..3}; do # retry due to flakiness with windows builds
+    cabal v2-build "$@" exe:cryptol exe:cryptol-html && break
+  done
 }
 
 install_system_deps() {
@@ -100,13 +100,17 @@ install_system_deps() {
   wait
   export PATH=$PWD/$BIN:$PATH
   echo "::add-path::$PWD/$BIN"
-  # is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
-  is_exe "$BIN" z3 && is_exe "$BIN" yices
+  is_exe "$BIN" z3 && is_exe "$BIN" cvc4 && is_exe "$BIN" yices
 }
 
 test_dist() {
   setup_dist_bins
-  $BIN/test-runner --ext=.icry -F -b --exe=dist/cryptol tests
+  setup_external_tools
+  if $IS_WIN; then
+    echo "Warning: janky hacky workaround to #764"
+    sed -i 's!/!\\!g' tests/modsys/T14.icry.stdout
+  fi
+  $BIN/test-runner --ext=.icry -F -b --exe=dist/bin/cryptol tests
 }
 
 bundle_files() {
@@ -129,16 +133,21 @@ sign() {
 
 zip_dist() {
   : "${VERSION?VERSION is required as an environment variable}"
-  name="cryptol-$VERSION-$RUNNER_OS-x86_64"
+  name="${name:-"cryptol-$VERSION-$RUNNER_OS-x86_64"}"
   mv dist "$name"
-  if [[ "$RUNNER_OS" == Windows ]]; then 7z a -tzip -mx9 "$name".zip "$name"; else zip -r "$name".zip "$name"; fi
-  sign "$name".zip
-  [[ -f "$name".zip.sig ]] && [[ -f "$name".zip ]]
+  tar -czf "$name".tar.gz "$name"
+  sign "$name".tar.gz
+  [[ -f "$name".tar.gz.sig ]] && [[ -f "$name".tar.gz ]]
 }
 
-set_outputs() {
-  echo "::set-output name=changed-files::$(git diff-tree --no-commit-id --name-only -r "$1" | xargs)"
-  echo "::set-output name=cryptol-version::$(grep Version cryptol.cabal | awk '{print $2}')"
+output() { echo "::set-output name=$1::$2"; }
+ver() { grep Version cryptol.cabal | awk '{print $2}'; }
+set_version() { output cryptol-version "$(ver)"; }
+set_files() { output changed-files "$(files_since "$1" "$2")"; }
+files_since() {
+  changed_since="$(git log -1 --before="@{$2}")"
+  files="${changed_since:+"$(git diff-tree --no-commit-id --name-only -r "$1" | xargs)"}"
+  echo "$files"
 }
 
 COMMAND="$1"
