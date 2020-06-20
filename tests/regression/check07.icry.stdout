@@ -1,22 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at check07.cry:9:46--9:57:
-  Defaulting type argument 'a' of 'fromTo' to Integer
-[warning] at check07.cry:7:43--7:54:
-  Defaulting type argument 'a' of 'fromTo' to Integer
-[warning] at check07.cry:11:39--11:51:
-  Defaulting type argument 'a' of 'fromTo' to Integer
-[warning] at check07.cry:5:37--5:49:
-  Defaulting type argument 'a' of 'fromTo' to Integer
-[warning] at check07.cry:4:37--4:48:
-  Defaulting type argument 'a' of 'fromTo' to Integer
-[warning] at check07.cry:3:37--3:65:
-  Defaulting type argument 'a' of 'fromTo' to Integer
-[warning] at check07.cry:2:37--2:49:
-  Defaulting type argument 'a' of 'fromTo' to Integer
-[warning] at check07.cry:1:37--1:48:
-  Defaulting type argument 'a' of 'fromTo' to Integer
 [0b00010010001101000101011001111000,
  0b00100100011010001010110011110000,
  0b01001000110100010101100111100000,

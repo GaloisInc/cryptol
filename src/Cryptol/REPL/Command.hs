@@ -1609,8 +1609,8 @@ replEvalExpr expr =
     case ts of
       [] -> return ()
       _  ->
-        do warnDefaulting <- getKnownUser "warnDefaulting"
-           when warnDefaulting $
+        -- do warnDefaulting <- getKnownUser "warnDefaulting"
+        --   when warnDefaulting $
              do rPutStrLn "Showing a specific instance of polymorphic result:"
                 mapM_ warnDefault ts
 

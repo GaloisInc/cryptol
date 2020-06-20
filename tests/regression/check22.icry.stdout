@@ -1,6 +1,4 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at check22.cry:3:21--3:27:
-  Defaulting type argument 'b' of 'length' to Integer
 True

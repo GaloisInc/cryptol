@@ -1,10 +1,6 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-[warning] at check02.cry:3:10--3:25:
-  Defaulting 1st type argument of 'Main::ones' to Integer
-[warning] at <interactive>:1:9--1:18:
-  Defaulting type argument 'a' of 'fromTo' to Integer
 Showing a specific instance of polymorphic result:
   * Using 'Integer' for 1st type argument of 'Main::ones'
 [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]

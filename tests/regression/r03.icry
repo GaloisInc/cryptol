@@ -1,4 +1,3 @@
-:set warnDefaulting=off
 :m r03
 :set show-examples=off
 :sat nQueens:Solution 5

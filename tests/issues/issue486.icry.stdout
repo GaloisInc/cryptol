@@ -1,10 +1,4 @@
 Loading module Cryptol
-[warning] at <interactive>:1:17--1:28:
-  Defaulting type argument 'e' of '(^^)' to Integer
 Q.E.D.
-[warning] at <interactive>:1:17--1:28:
-  Defaulting type argument 'e' of '(^^)' to Integer
 Q.E.D.
-[warning] at <interactive>:1:17--1:44:
-  Defaulting type argument 'e' of '(^^)' to Integer
 Q.E.D.

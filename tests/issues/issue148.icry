@@ -1,3 +1,2 @@
-:set warnDefaulting = off
 :l issue148.cry
 :sat (\(e:[64]) -> (e@@[8..24]) != zero)
