@@ -5,8 +5,6 @@ Loading module Main
   Defaulting type argument 'a' of 'fromTo' to Integer
 [warning] at check07.cry:7:43--7:54:
   Defaulting type argument 'a' of 'fromTo' to Integer
-[warning] at check07.cry:13:11--13:22:
-  Defaulting type argument 'n' of '(<<)' to 1
 [warning] at check07.cry:11:39--11:51:
   Defaulting type argument 'a' of 'fromTo' to Integer
 [warning] at check07.cry:5:37--5:49:
@@ -169,5 +167,9 @@ Loading module Main
  0b00000000000000000000000000000000]
 True
 True
+Showing a specific instance of polymorphic result:
+  * Using '1' for type argument 'n' of '(Cryptol::<<)'
 True
+Showing a specific instance of polymorphic result:
+  * Using '1' for 1st type argument of 'Main::check7c'
 True

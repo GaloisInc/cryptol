@@ -1,5 +1,8 @@
 xs : [10]([8],[8])
-xs = take `{10} zs where zs = [(0,0)] # [ (0, z) | (z,_) <- drop `{1} zs]
+xs = take `{10} zs
+  where
+  zs : [inf]([8],[8])
+  zs = [(0,0)] # [ (0, z) | (z,_) <- drop `{1} zs]
 
 vs : [10]([8],[8])
 vs = take `{10} zs where zs = [ (0, z) | (z,_) <- zs]

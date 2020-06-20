@@ -156,10 +156,7 @@ defaultReplExpr sol expr sch =
 
 
 defaultAndSimplify :: [TVar] -> [Goal] -> ([TVar],[Goal],Subst,[Warning])
-defaultAndSimplify as gs =
-  let (as1, gs1, su1, ws1) = defLit
-      (as2, gs2, su2, ws2) = improveByDefaultingWithPure as1 gs1
-  in (as2,gs2,su2 @@ su1, ws1 ++ ws2)
+defaultAndSimplify as gs = defLit
   where
   defLit
     | isEmptySubst su = nope
@@ -319,9 +316,12 @@ buildSolverCtxt ps0 =
  saturateProps gs [] = gs
  saturateProps gs (p:ps)
    | Set.member p gs = saturateProps gs ps
-   | otherwise       = saturateProps gs' ps
-       where
-       gs' = Set.singleton p <> superclassSet p <> gs
+   | Just (n,_) <- pIsLiteral p =
+       let gs' = Set.fromList [p, pFin n] <> gs
+        in saturateProps gs' ps
+   | otherwise =
+        let gs' = Set.singleton p <> superclassSet p <> gs
+         in saturateProps gs' ps
 
  assumptionIntervals as ps =
    case computePropIntervals as ps of

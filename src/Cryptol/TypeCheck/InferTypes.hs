@@ -104,7 +104,9 @@ insertGoal g gls
        -- XXX: here we are arbitrarily using the info of the first goal,
        -- which could lead to a confusing location for a constraint.
        let jn g1 g2 = g1 { goal = tMax (goal g1) (goal g2) } in
-       gls { literalGoals = Map.insertWith jn a newG (literalGoals gls) }
+       gls { literalGoals = Map.insertWith jn a newG (literalGoals gls)
+           , saturatedPropSet = Set.insert (pFin (TVar a)) (saturatedPropSet gls)
+           }
 
   -- If the goal is already implied by some other goal, skip it
   | Set.member (goal g) (saturatedPropSet gls) = gls
