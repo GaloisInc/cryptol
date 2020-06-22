@@ -322,7 +322,7 @@ instance PP (WithNames Error) where
 
       AmbiguousSize x t ->
         addTVarsDescsAfter names err $
-        "Ambiguous size type:" <+> pp (tvarDesc x)
+        "Ambiguous numeric type:" <+> pp (tvarDesc x)
           $$ "Must be at least:" <+> ppWithNames names t
 
     where
