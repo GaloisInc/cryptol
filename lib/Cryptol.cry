@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016 Galois, Inc.
+ * Copyright (c) 2013-2020 Galois, Inc.
  * Distributed under the terms of the BSD3 license (see LICENSE file)
  */
 
@@ -30,30 +30,30 @@ primitive type Bit : *
 primitive type Integer : *
 
 /** 'Z n' is the type of integers, modulo 'n'.
-  *
-  * The values of `Z n` may be thought of as equivalance
-  * classes of integers according to the equivalence
-  * `x ~ y` iff `n` divides `x - y`.  `Z n` naturally
-  * forms a ring, but does not support integral division
-  * or indexing.
-  *
-  * However, you may use the `fromZ` operation
-  * to project values in `Z n` into the integers if such operations
-  * are required.  This will compute the reduced representative
-  * of the equivalance class. In other words, `fromZ` computes
-  * the (unique) integer value `i`  where `0 <= i < n` and
-  * `i` is in the given equivalance class.
-  */
+ *
+ * The values of 'Z n' may be thought of as equivalance
+ * classes of integers according to the equivalence
+ * 'x ~ y' iff 'n' divides 'x - y'.  'Z n' naturally
+ * forms a ring, but does not support integral division
+ * or indexing.
+ *
+ * However, you may use the 'fromZ' operation
+ * to project values in 'Z n' into the integers if such operations
+ * are required.  This will compute the reduced representative
+ * of the equivalance class. In other words, 'fromZ' computes
+ * the (unique) integer value 'i'  where '0 <= i < n' and
+ * 'i' is in the given equivalance class.
+ */
 primitive type {n : #} (fin n, n >= 1) => Z n : *
 
-/** `Rational` is the type of rational numbers.
-  * Rational numbers form a Field (and thus a Ring).
-  *
-  * The `ratio` operation may be used to directly create
-  * rational values from as a ratio of integers, or
-  * the `fromInteger` method and the field operations
-  * can be used.
-  */
+/** 'Rational' is the type of rational numbers.
+ * Rational numbers form a Field (and thus a Ring).
+ *
+ * The 'ratio' operation may be used to directly create
+ * rational values from as a ratio of integers, or
+ * the 'fromInteger' method and the field operations
+ * can be used.
+ */
 primitive type Rational : *
 
 type Bool = Bit
@@ -255,13 +255,19 @@ primitive complement : {a} (Logic a) => a -> a
 
 // The Ring class -------------------------------------------------------
 
-/** Value types that support ring addition and multiplication. */
+/** Value types that support ring addition and multiplication.
+ *
+ * Floating-point values are only approximately a ring, but
+ * nonetheless inhabit this class.
+ */
 primitive type Ring : * -> Prop
 
 /**
  * Converts an unbounded integer to a value in a Ring. When converting
  * to the bitvector type [n], the value is reduced modulo 2^^n. Likewise,
- * when converting to Z n, the value is reduced modulo n.
+ * when converting to Z n, the value is reduced modulo n.  When converting
+ * to a floating-point value, the value is rounded to the nearest
+ * representable value.
  */
 primitive fromInteger : {a} (Ring a) => Integer -> a
 
@@ -303,9 +309,9 @@ primitive negate : {a} (Ring a) => a -> a
 // The Integral class -------------------------------------------------
 
 /** Value types that correspond to a segment of the
-  * integers. These types support integer division and
-  * modulus, indexing into sequences, and enumeration.
-  */
+ * integers. These types support integer division and
+ * modulus, indexing into sequences, and enumeration.
+ */
 primitive type Integral : * -> Prop
 
 /**
@@ -332,8 +338,8 @@ primitive toInteger : {a} (Integral a) => a -> Integer
  * Compute the exponentiation of a value in a ring.
  *  * For type [n], the exponent is treated as unsigned.
  *  * It is an error to raise a value to a negative integer exponent.
- *  * Satisfies: `x ^^ 0 == fromInteger 1`
- *  * Satisfies: `x ^^ e == x * x ^^ (e-1)` when `e > 0`.
+ *  * Satisfies: 'x ^^ 0 == fromInteger 1'
+ *  * Satisfies: 'x ^^ e == x * x ^^ (e-1)' when 'e > 0'.
  */
 primitive (^^) : {a, e} (Ring a, Integral e) => a -> e -> a
 
@@ -353,20 +359,20 @@ primitive infFromThen : {a} (Integral a) => a -> a -> [inf]a
 // The Field class -------------------------------------------------
 
 /** Value types that correspond to a field; that is, a
-  * ring also posessing multiplicative inverses for
-  * non-zero elements.
-  *
-  * Floating-point values are only approximately a field,
-  * but nonetheless inhabit this class.
-  */
+ * ring also posessing multiplicative inverses for
+ * non-zero elements.
+ *
+ * Floating-point values are only approximately a field,
+ * but nonetheless inhabit this class.
+ */
 primitive type Field : * -> Prop
 
 /**
-  * Reciprocal
-  *
-  * Compute the multiplicative inverse of an element of a field.
-  * The reciprocal of zero is undefined.
-  */
+ * Reciprocal
+ *
+ * Compute the multiplicative inverse of an element of a field.
+ * The reciprocal of 0 is undefined.
+ */
 primitive recip : {a} (Field a) => a -> a
 
 /**
@@ -640,7 +646,7 @@ primitive (>>$) : {n, ix} (fin n, n >= 1, Integral ix) => [n] -> ix -> [n]
  * Log base two.
  *
  * For words, computes the ceiling of log, base 2, of a number.
- *  We set `lg2 0 = 0`
+ *  We set 'lg2 0 = 0'
  */
 primitive lg2 : {n} (fin n) => [n] -> [n]
 
@@ -649,7 +655,9 @@ primitive lg2 : {n} (fin n) => [n] -> [n]
 
 /**
  * Compute the ratio of two integers as a rational.
- * ratio x y = (fromInteger x /. fromInteger y) : Rational
+ * Ratio is undefined if the denominator is 0.
+ *
+ * 'ratio x y = (fromInteger x /. fromInteger y) : Rational'
  */
 primitive ratio : Integer -> Integer -> Rational
 
@@ -704,17 +712,26 @@ primitive reverse : {n, a} (fin n) => [n]a -> [n]a
 primitive transpose : {rows, cols, a} [rows][cols]a -> [cols][rows]a
 
 
+/**
+ * Select the first (left-most) 'front' elements of a sequence.
+ */
 take : {front, back, a} (fin front) => [front + back]a -> [front]a
 take (x # _) = x
 
+/**
+ * Select all the elements after (to the right of) the 'front' elements of a sequence.
+ */
 drop : {front, back, a} (fin front) => [front + back]a -> [back]a
 drop ((_ : [front] _) # y) = y
 
+/**
+ * Drop the first (left-most) element of a sequence.
+ */
 tail : {n, a} [1 + n]a -> [n]a
 tail xs = drop`{1} xs
 
 /**
- * Return the left-most element of a sequence.
+ * Return the first (left-most) element of a sequence.
  */
 head : {n, a} [1 + n]a -> a
 head xs = xs @ 0
@@ -725,13 +742,18 @@ head xs = xs @ 0
 last : {n, a} (fin n) => [1 + n]a -> a
 last xs = xs ! 0
 
+/**
+ * Same as 'split', but with a different type argument order.
+ * Take a sequence of elements and break it into 'parts' sequences
+ * of 'each' elements.
+ */
 groupBy : {each, parts, a} (fin each) => [parts * each]a -> [parts][each]a
 groupBy = split`{parts=parts}
 
 /**
  * Left shift.  The first argument is the sequence to shift, the second is the
  * number of positions to shift by.
-*/
+ */
 primitive (<<) : {n, ix, a} (Integral ix, Zero a) => [n]a -> ix -> [n]a
 
 /**
@@ -890,18 +912,26 @@ pmod x y = if y == 0 then 0/0 else last zs
 
 // Utility operations -----------------------------------------------------------------
 
-primitive error : {a, len} (fin len) => String len -> a
+/**
+ * Raise a run-time error with the given message.
+ * This function can be called at any type.
+ */
+primitive error : {a, n} (fin n) => String n -> a
 
+/**
+ * Raise a run-time error with a generic message.
+ * This function can be called at any type.
+ */
 undefined : {a} a
 undefined = error "undefined"
 
 /**
  * Assert that the given condition holds, and raise an error
- * with the given message if it does not.
+ * with the given message if it does not.  If the condition
+ * holds, return the third argument unchanged.
  */
-assert : {a, len} (fin len) => Bit -> String len -> a -> a
+assert : {a, n} (fin n) => Bit -> String n -> a -> a
 assert pred msg x = if pred then x else error msg
-
 
 /**
  * Generates random values from a seed.  When called with a function, currently
@@ -920,7 +950,7 @@ primitive random : {a} [256] -> a
  * which are unspecified.  Thus, the output produced by this
  * operation may be difficult to predict.
  */
-primitive trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
+primitive trace : {n, a, b} (fin n) => String n -> a -> b -> b
 
 /**
  * Debugging function for tracing values.  The first argument is a string,
@@ -933,7 +963,7 @@ primitive trace : {n, a, b} (fin n) => [n][8] -> a -> b -> b
  * which are unspecified.  Thus, the output produced by this
  * operation may be difficult to predict.
  */
-traceVal : {n, a} (fin n) => [n][8] -> a -> a
+traceVal : {n, a} (fin n) => String n -> a -> a
 traceVal msg x = trace msg x x
 
 
