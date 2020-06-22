@@ -50,5 +50,5 @@ Loading module test05
     test05.cry:9:3--9:6
 
 [error] at test05.cry:14:11--14:21:
-  Ambiguous size type: type argument 'front' of '(#)'
+  Ambiguous numeric type: type argument 'front' of '(#)'
   Must be at least: 0
