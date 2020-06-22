@@ -310,7 +310,9 @@ curRange = IM $ asks iRange
 -- | Report an error.
 recordError :: Error -> InferM ()
 recordError e =
-  do r <- curRange
+  do r <- case e of
+            AmbiguousSize d _ -> return (tvarSource d)
+            _ -> curRange
      IM $ sets_ $ \s -> s { iErrors = (r,e) : iErrors s }
 
 recordWarning :: Warning -> InferM ()

@@ -1,7 +1,7 @@
 f : {n} (fin n) => [n] -> [n]
 f x = g x
   where
-    m1 = zero # x
+    m1 = x
 
     g : {k} (fin k) => [k] -> [k]
     g m0 = m0 ^ m1

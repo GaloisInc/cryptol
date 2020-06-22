@@ -7,9 +7,9 @@ import Data.List((\\),nub)
 import Control.Monad(guard,mzero)
 
 import Cryptol.TypeCheck.Type
-import Cryptol.TypeCheck.SimpType(tMax,tWidth)
-import Cryptol.TypeCheck.Error(Warning(..))
-import Cryptol.TypeCheck.Subst(Subst,apSubst,listSubst,substBinds,uncheckedSingleSubst)
+import Cryptol.TypeCheck.SimpType(tMax)
+import Cryptol.TypeCheck.Error(Warning(..), Error(..))
+import Cryptol.TypeCheck.Subst(Subst,apSubst,listSubst,substBinds,uncheckedSingleSubst,emptySubst)
 import Cryptol.TypeCheck.InferTypes(Goal,goal,Goals(..),goalsFromList)
 import Cryptol.TypeCheck.Solver.SMT(Solver,tryGetModel,shrinkModel)
 import Cryptol.Utils.Panic(panic)
@@ -75,7 +75,7 @@ improveByDefaultingWithPure :: [TVar] -> [Goal] ->
     ( [TVar]    -- non-defaulted
     , [Goal]    -- new constraints
     , Subst     -- improvements from defaulting
-    , [Warning] -- warnings about defaulting
+    , [Error]   -- width defaulting errors
     )
 improveByDefaultingWithPure as ps =
   classify (Map.fromList [ (a,([],Set.empty)) | a <- as ]) [] [] ps
@@ -88,10 +88,11 @@ improveByDefaultingWithPure as ps =
   classify leqs fins others [] =
     let -- First, we use the `leqs` to choose some definitions.
         (defs, newOthers)  = select [] [] (fvs others) (Map.toList leqs)
-        su                 = listSubst defs
+        --su                 = listSubst defs
+        su = emptySubst
         warn (x,t) =
           case x of
-            TVFree _ _ _ d -> DefaultingTo d t
+            TVFree _ _ _ d -> AmbiguousSize d t
             TVBound {} -> panic "Crypto.TypeCheck.Infer"
                  [ "tryDefault attempted to default a quantified variable."
                  ]

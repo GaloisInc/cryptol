@@ -1,5 +1,5 @@
 Loading module Cryptol
 Loading module Cryptol
 Loading module Main
-gt_words' : {n, m, a} (fin (min (1 + n) (1 + m)), Cmp a) =>
+gt_words' : {n, m, a} (Cmp a, fin (min (1 + n) (1 + m))) =>
               [n]a -> [m]a -> Bit

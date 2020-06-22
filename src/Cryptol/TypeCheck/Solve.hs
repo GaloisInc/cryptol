@@ -155,8 +155,12 @@ defaultReplExpr sol expr sch =
                       (sProps sch)
 
 
-defaultAndSimplify :: [TVar] -> [Goal] -> ([TVar],[Goal],Subst,[Warning])
-defaultAndSimplify as gs = defLit
+defaultAndSimplify :: [TVar] -> [Goal] -> ([TVar],[Goal],Subst,[Warning],[Error])
+defaultAndSimplify as gs =
+  let (as1, gs1, su1, ws) = defLit
+      (as2, gs2, su2, errs) = improveByDefaultingWithPure as1 gs1
+  in (as2,gs2,su2 @@ su1, ws, errs)
+
   where
   defLit
     | isEmptySubst su = nope
@@ -204,9 +208,10 @@ proveModuleTopLevel =
   do simplifyAllConstraints
      gs <- getGoals
      let vs = Set.toList (Set.filter isFreeTV (fvs gs))
-         (_,gs1,su1,ws) = defaultAndSimplify vs gs
+         (_,gs1,su1,ws,errs) = defaultAndSimplify vs gs
      extendSubst su1
      mapM_ recordWarning ws
+     mapM_ recordError errs
 
      cs <- getParamConstraints
      case cs of
@@ -227,8 +232,8 @@ proveImplication lnam as ps gs =
      (mbErr,su) <- io (proveImplicationIO solver lnam evars
                             (extraAs ++ as) (extra ++ ps) gs)
      case mbErr of
-       Right ws -> mapM_ recordWarning ws
-       Left err -> recordError err
+       Right ws  -> mapM_ recordWarning ws
+       Left errs -> mapM_ recordError errs
      return su
 
 
@@ -239,13 +244,13 @@ proveImplicationIO :: Solver
                    -> [TParam] -- ^ Type parameters
                    -> [Prop]   -- ^ Assumed constraint
                    -> [Goal]   -- ^ Collected constraints
-                   -> IO (Either Error [Warning], Subst)
+                   -> IO (Either [Error] [Warning], Subst)
 proveImplicationIO _   _     _         _  [] [] = return (Right [], emptySubst)
 proveImplicationIO s f varsInEnv ps asmps0 gs0 =
   do let ctxt = buildSolverCtxt asmps
      res <- quickSolverIO ctxt gs
      case res of
-       Left (msg,bad) -> return (Left (UnsolvedGoals (Just msg) [bad]), emptySubst)
+       Left (msg,bad) -> return (Left [UnsolvedGoals (Just msg) [bad]], emptySubst)
        Right (su,[]) -> return (Right [], su)
        Right (su,gs1) ->
          do gs2 <- proveImp s asmps gs1
@@ -256,25 +261,27 @@ proveImplicationIO s f varsInEnv ps asmps0 gs0 =
                             $ Set.toList
                             $ Set.difference (fvs (map goal gs3)) varsInEnv
                    case defaultAndSimplify free gs3 of
-                     (_,_,newSu,_)
+                     (_,_,newSu,_,errs)
                         | isEmptySubst newSu ->
-                                 return (err gs3, su) -- XXX: Old?
-                     (_,newGs,newSu,ws) ->
+                                 return (Left (err gs3:errs), su) -- XXX: Old?
+                     (_,newGs,newSu,ws,errs) ->
                        do let su1 = newSu @@ su
                           (res1,su2) <- proveImplicationIO s f varsInEnv ps
                                                  (apSubst su1 asmps0) newGs
                           let su3 = su2 @@ su1
                           case res1 of
-                            Left bad -> return (Left bad, su3)
-                            Right ws1 -> return (Right (ws++ws1),su3)
+                            Left bad -> return (Left (bad ++ errs), su3)
+                            Right ws1
+                              | null errs -> return (Right (ws++ws1),su3)
+                              | otherwise -> return (Left errs, su3)
   where
-  err us =  Left $ cleanupError
-                 $ UnsolvedDelayedCt
-                 $ DelayedCt { dctSource = f
-                             , dctForall = ps
-                             , dctAsmps  = asmps0
-                             , dctGoals  = us
-                             }
+  err us = cleanupError
+           $ UnsolvedDelayedCt
+           $ DelayedCt { dctSource = f
+                       , dctForall = ps
+                       , dctAsmps  = asmps0
+                       , dctGoals  = us
+                       }
 
 
   asmps1 = concatMap pSplitAnd asmps0

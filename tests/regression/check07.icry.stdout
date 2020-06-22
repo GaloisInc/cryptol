@@ -151,9 +151,5 @@ Loading module Main
  0b00000000000000000000000000000000]
 True
 True
-Showing a specific instance of polymorphic result:
-  * Using '1' for type argument 'n' of '(Cryptol::<<)'
 True
-Showing a specific instance of polymorphic result:
-  * Using '1' for 1st type argument of 'Main::check7c'
 True

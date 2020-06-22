@@ -821,10 +821,11 @@ generalize bs0 gs0 =
      {- See if we might be able to default some of the potentially ambiguous
         variables using the constraints that will be part of the newly
         generalized schema.  -}
-     let (as0,here1,defSu,ws) = defaultAndSimplify maybeAmbig here0
+     let (as0,here1,defSu,ws,errs) = defaultAndSimplify maybeAmbig here0
 
      extendSubst defSu
      mapM_ recordWarning ws
+     mapM_ recordError errs
      let here = map goal here1
 
 

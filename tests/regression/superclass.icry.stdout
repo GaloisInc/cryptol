@@ -5,6 +5,6 @@ Loading module Main
 (trunc (recip (fromInteger 5))) : {a} (Round a) => Integer
 (\x -> x < fromInteger (floor (recip x))) : {a} (Round a) =>
                                               a -> Bit
-(\x -> x == zero /. x) : {a} (Field a, Eq a) => a -> Bit
-(zero == ~zero) : {a} (Logic a, Eq a) => Bit
+(\x -> x == zero /. x) : {a} (Eq a, Field a) => a -> Bit
+(zero == ~zero) : {a} (Eq a, Logic a) => Bit
 (\x -> toInteger (x + zero)) : {a} (Integral a) => a -> Integer

@@ -14,8 +14,8 @@ test05::foo : [10]
 test05::foo = Cryptol::number 10 [10] <>
 
 /* Not recursive */
-test05::test : {n, a, b} (Literal 10 a, Zero b) => [n]b -> a
-test05::test = \{n, a, b} (Literal 10 a, Zero b) (a : [n]b) ->
+test05::test : {n, a, b} (Zero b, Literal 10 a) => [n]b -> a
+test05::test = \{n, a, b} (Zero b, Literal 10 a) (a : [n]b) ->
                Cryptol::number 10 a <>
                where
                  /* Not recursive */
@@ -48,37 +48,7 @@ Loading module test05
 [warning] at test05.cry:13:5--13:8
     This binding for `foo` shadows the existing binding at
     test05.cry:9:3--9:6
-module test05
-import Cryptol
-/* Not recursive */
-test05::foo : [10]
-test05::foo = Cryptol::number 10 [10] <>
 
-/* Not recursive */
-test05::test : {n, m, a, b} (Literal 10 a, fin n, Zero b) =>
-                 [m]b -> a
-test05::test = \{n, m, a, b} (Literal 10 a,
-                              fin n,
-                              Zero b) (a : [m]b) ->
-               Cryptol::number 10 a <>
-               where
-                 /* Not recursive */
-                 test05::foo : [10]
-                 test05::foo = Cryptol::number 10 [10] <>
-                 
-                 /* Not recursive */
-                 test05::f : [n + m]b
-                 test05::f = test05::bar
-                             where
-                               /* Not recursive */
-                               test05::foo : [m]b
-                               test05::foo = a
-                               
-                               /* Not recursive */
-                               test05::bar : [n + m]b
-                               test05::bar = (Cryptol::#) n m b <> (Cryptol::zero ([n]b) <>) test05::foo
-                               
-                             
-                 
-               
-
+[error] at test05.cry:14:11--14:21:
+  Ambiguous size type: type argument 'front' of '(#)'
+  Must be at least: 0
