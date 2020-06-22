@@ -4,5 +4,6 @@ Showing a specific instance of polymorphic result:
 0x03
 
 [error] at <interactive>:1:1--1:4:
-  Ambiguous size type: type argument 'n' of 'lg2'
-  Must be at least: 5
+  Type mismatch:
+    Expected type: Integer
+    Inferred type: [5]

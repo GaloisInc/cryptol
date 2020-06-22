@@ -9,7 +9,7 @@ import Control.Monad(guard,mzero)
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.SimpType(tMax)
 import Cryptol.TypeCheck.Error(Warning(..), Error(..))
-import Cryptol.TypeCheck.Subst(Subst,apSubst,listSubst,substBinds,uncheckedSingleSubst,emptySubst)
+import Cryptol.TypeCheck.Subst(Subst,apSubst,listSubst,substBinds,uncheckedSingleSubst)
 import Cryptol.TypeCheck.InferTypes(Goal,goal,Goals(..),goalsFromList)
 import Cryptol.TypeCheck.Solver.SMT(Solver,tryGetModel,shrinkModel)
 import Cryptol.Utils.Panic(panic)
@@ -88,8 +88,7 @@ improveByDefaultingWithPure as ps =
   classify leqs fins others [] =
     let -- First, we use the `leqs` to choose some definitions.
         (defs, newOthers)  = select [] [] (fvs others) (Map.toList leqs)
-        --su                 = listSubst defs
-        su = emptySubst
+        su                 = listSubst defs
         warn (x,t) =
           case x of
             TVFree _ _ _ d -> AmbiguousSize d t
