@@ -29,7 +29,8 @@ primitive type Bit : *
 /** The type of unbounded integers. */
 primitive type Integer : *
 
-/** 'Z n' is the type of integers, modulo 'n'.
+/**
+ * 'Z n' is the type of integers, modulo 'n'.
  *
  * The values of 'Z n' may be thought of as equivalance
  * classes of integers according to the equivalence
@@ -46,7 +47,8 @@ primitive type Integer : *
  */
 primitive type {n : #} (fin n, n >= 1) => Z n : *
 
-/** 'Rational' is the type of rational numbers.
+/**
+ * 'Rational' is the type of rational numbers.
  * Rational numbers form a Field (and thus a Ring).
  *
  * The 'ratio' operation may be used to directly create
@@ -1046,7 +1048,7 @@ repeat x = [ x | _ <- zero : [n] ]
 /**
  * 'elem x xs' returns true if x is equal to a value in xs.
  */
-elem : {n, a} (fin n, Cmp a) => a -> [n]a -> Bit
+elem : {n, a} (fin n, Eq a) => a -> [n]a -> Bit
 elem a xs = any (\x -> x == a) xs
 
 /**
