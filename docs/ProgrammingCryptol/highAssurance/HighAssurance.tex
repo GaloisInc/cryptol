@@ -213,7 +213,7 @@ a different value: a property we might expect to hold
 intuitively. Here is the type of {\tt flipNeverIdentity}:
 \begin{Verbatim}
   Cryptol> :t flipNeverIdentity
-  flipNeverIdentity : {a} (Cmp a, Logic a) => a -> Bit
+  flipNeverIdentity : {a} (Eq a, Logic a) => a -> Bit
 \end{Verbatim}
 So, the only requirement on \texttt{flipNeverIdentity} is that it
 receives some type that supports comparisons and logical operations.

@@ -130,7 +130,7 @@ type of an infix operator (e.g., {\tt +}, {\tt ==}, etc.)  you will need
 to surround the operator with {\tt ()}, like this:
 \begin{Verbatim}
   Cryptol> :t (+)
-  (+) : {a} (Arith a) => a -> a -> a
+  (+) : {a} (Ring a) => a -> a -> a
 \end{Verbatim}
 
 \paragraph*{Browsing definitions}
@@ -158,14 +158,15 @@ have defined, along with their types.
     \hline
      \textbf{Option}     & \textbf{Default value} & \textbf{Meaning}  \\
     \hline
-     \texttt{ascii}           & \texttt{off}   & print sequences of bytes as a string  \\
+     \texttt{ascii}           & \texttt{off}   & print sequences of bytes as a string \\
      \texttt{base}            & \texttt{16}    & numeric base for printing words  \\
-     \texttt{debug}           & \texttt{off}   & whether to print verbose debugging information \\
+     \texttt{ignore-safety}   & \texttt{off}   & ignore safety predicates when performing \texttt{:sat} or \texttt{:prove} checks \\
      \texttt{infLength}       & \texttt{5}     & number of elements to show from an infinite sequence \\
      \texttt{prover}          & \texttt{z3}    & which SMT solver to use for \texttt{:prove}  \\
      \texttt{satNum}          & \texttt{1}     & maximum number of solutions to show for \texttt{:sat} \\
+     \texttt{show-examples}   & \texttt{on}    & whether to print counterexamples and models \\
+     \texttt{smtfile}         & \texttt{-}     & file to write SMT problems when \texttt{prover = offline} \\
      \texttt{tests}           & \texttt{100}   & number of tests to run for \texttt{:check} \\
-     \texttt{warnDefaulting}  & \texttt{on}    & \todo[inline]{talk to Iavor} \\
     \hline
   \end{tabular*}
   \label{tab:set_options}
@@ -173,8 +174,9 @@ have defined, along with their types.
 \paragraph*{Environment options}
 A variety of environment options are set through the use of the
 \texttt{:set} command.  These options may change over time and some
-options may be available only on specific platforms.  The current
-options are summarized in~\autoref{tab:set_options}.
+options may be available only on specific platforms.  The most useful
+configuration options are summarized in~\autoref{tab:set_options}.
+Help information about all flags can found by typing {\tt :help :set flag}.
 
 \todo[inline]{Ensure index references exist for all commands.}
 
@@ -220,7 +222,7 @@ At the Cryptol prompt you can load a module by name with the {\tt
   :module} command.\indCmdLoadModule
 
 \paragraph*{}
-The next three commands all operate on \emph{properties}.  All take
+The next commands all operate on \emph{properties}.  All take
 either one or zero arguments.  If one argument is provided, then that
 property is the focus of the command; otherwise all properties in the
 current context are checked.  All three commands are covered in detail
@@ -231,15 +233,29 @@ The \texttt{:check} command performs random value testing on a
 property to increase one's confidence that the property is valid.
 See~\autoref{sec:quickcheck} for more detailed information.
 
+\paragraph*{Checking a property through exhaustive testing}
+The \texttt{:exhaust} command enumerates all the possible input values
+of a property to test that it is correct for every possible value.
+This is infeasible except for properties with quite small input
+domains!
+
 \paragraph*{Verifying a property through automated theorem proving}
 The \texttt{:prove} command uses an external SMT solver to attempt to
 automatically formally prove that a given property is valid.
 See~\autoref{sec:formal-proofs} for more detailed information.
 
 \paragraph*{Finding a satisfying assignment for a property}
-The \texttt{:sat} command uses an external SAT solver to attempt to
+The \texttt{:sat} command uses an external SMT solver to attempt to
 find a satisfying assignment to a property.  See~\autoref{sec:sat} for
 more detailed information.
+
+\paragraph*{Proving that a property is safe}
+The \texttt{:safe} command uses an external SMT solver to attempt to
+prove that the given term is safe for all inputs, which means it cannot
+encounter a run-time error.  Unlike the other commands in this section,
+\texttt{:safe} \emph{must} be given an argument and can be called on
+values that compute types other than \texttt{Bit}.  Most types, except
+infinite streams and functions, are allowed in the result type.
 
 % \paragraph*{Type specialization}
 % Discuss \texttt{:debug\_specialize}.  \todo[inline]{Dylan?}

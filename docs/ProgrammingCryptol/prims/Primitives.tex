@@ -15,11 +15,11 @@ primsPlaceHolder=1;
 \end{Verbatim}
 \paragraph*{Comparisons}
 \begin{Verbatim}
-    ==, !=           : {a} (Cmp a) => a -> a -> Bit
+    ==, !=           : {a} (Eq a) => a -> a -> Bit
     <, >, <=, >=     : {a} (Cmp a) => a -> a -> Bit
     <$, >$, <=$, >=$ : {a} (SignedCmp a) => a -> a -> Bit
     min, max         : {a} (Cmp a) => a -> a -> a
-    ===, !==         : {a, b} (Cmp b) => (a -> b) -> (a -> b) -> a -> Bit
+    ===, !==         : {a, b} (Eq b) => (a -> b) -> (a -> b) -> a -> Bit
 \end{Verbatim}
 \paragraph*{Arithmetic}
 \begin{Verbatim}
@@ -42,9 +42,10 @@ primsPlaceHolder=1;
     floor             : {a} (Round a) => a -> Integer
     ceiling           : {a} (Round a) => a -> Integer
     trunc             : {a} (Round a) => a -> Integer
-    round             : {a} (Round a) => a -> Integer
+    roundAway         : {a} (Round a) => a -> Integer
+    roundToEven       : {a} (Round a) => a -> Integer
 \end{Verbatim}
-\paragraph*{Polynomial arithmetic}
+\paragraph*{GF(2) polynomial arithmetic}
 \begin{Verbatim}
     pdiv  : {u, v} (fin u, fin v) => [u] -> [v] -> [u]
     pmod  : {u, v} (fin u, fin v) => [u] -> [1 + v] -> [v]
@@ -97,6 +98,7 @@ primsPlaceHolder=1;
     all, any : {n, a} (fin n) => (a -> Bit) -> [n]a -> Bit
     curry    : {a, b, c} ((a, b) -> c) -> a -> b -> c
     uncurry  : {a, b, c} (a -> b -> c) -> (a, b) -> c
+    elem     : {n, a} (fin n, Eq a) => a -> [n]a -> Bit
 \end{Verbatim}
 \paragraph*{Miscellaneous}
 \begin{Verbatim}
@@ -105,8 +107,9 @@ primsPlaceHolder=1;
 \end{Verbatim}
 \paragraph*{Representing exceptions}
 \begin{Verbatim}
-    error     : {a, len} (fin len) => [len][8] -> a
     undefined : {a} a
+    error     : {a, n} (fin n) => String n -> a
+    assert    : {a, n} (fin n) => Bit -> String n -> a -> a
     trace     : {n, a, b} [n][8] -> a -> b -> b
     traceVal  : {n, a} [n][8] -> a -> a
 \end{Verbatim}
