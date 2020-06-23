@@ -435,7 +435,8 @@ primTable w4sym = let sym = What4 w4sym in
   , ("floor"       , unary (floorV sym))
   , ("ceiling"     , unary (ceilingV sym))
   , ("trunc"       , unary (truncV sym))
-  , ("round"       , unary (roundV sym))
+  , ("roundAway"   , unary (roundAwayV sym))
+  , ("roundToEven" , unary (roundToEvenV sym))
 
     -- Word operations
   , ("/$"          , sdivV sym)

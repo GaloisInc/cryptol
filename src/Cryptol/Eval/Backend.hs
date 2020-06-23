@@ -20,7 +20,8 @@ module Cryptol.Eval.Backend
   , rationalFloor
   , rationalCeiling
   , rationalTrunc
-  , rationalRound
+  , rationalRoundAway
+  , rationalRoundToEven
   , rationalEq
   , rationalLessThan
   , rationalGreaterThan
@@ -95,13 +96,41 @@ rationalTrunc sym r =
      fr <- rationalFloor sym r
      iteInteger sym p cr fr
 
-rationalRound :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
-rationalRound sym r =
+rationalRoundAway :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
+rationalRoundAway sym r =
   do p <- rationalLessThan sym r =<< intToRational sym =<< integerLit sym 0
      half <- SRational <$> integerLit sym 1 <*> integerLit sym 2
      cr <- rationalCeiling sym =<< rationalSub sym r half
      fr <- rationalFloor sym =<< rationalAdd sym r half
      iteInteger sym p cr fr
+
+rationalRoundToEven :: Backend sym => sym -> SRational sym -> SEval sym (SInteger sym)
+rationalRoundToEven sym r =
+  do lo <- rationalFloor sym r
+     hi <- intPlus sym lo =<< integerLit sym 1
+     -- NB: `diff` will be nonnegative because `lo <= r`
+     diff <- rationalSub sym r =<< intToRational sym lo
+     half <- SRational <$> integerLit sym 1 <*> integerLit sym 2
+
+     ite (rationalLessThan sym diff half) (pure lo) $
+       ite (rationalGreaterThan sym diff half) (pure hi) $
+         ite (isEven lo) (pure lo) (pure hi)
+
+ where
+ isEven x =
+   do parity <- intMod sym x =<< integerLit sym 2
+      intEq sym parity =<< integerLit sym 0
+
+ ite x t e =
+   do x' <- x
+      case bitAsLit sym x' of
+        Just True -> t
+        Just False -> e
+        Nothing ->
+          do t' <- t
+             e' <- e
+             iteInteger sym x' t' e'
+
 
 rationalAdd :: Backend sym => sym -> SRational sym -> SRational sym -> SEval sym (SRational sym)
 rationalAdd sym (SRational a b) (SRational c d) =

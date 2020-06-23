@@ -395,13 +395,20 @@ primitive floor : {a} (Round a) => a -> Integer
 primitive trunc : {a} (Round a) => a -> Integer
 
 /**
- * Round to the nearest integer.
+ * Round to the nearest integer, ties away from 0.
  *
  * Ties are broken away from 0.  For nonnegative 'x'
  * this is 'floor (x + 0.5)'.  For negative 'x' this
  * is 'ceiling (x - 0.5)'.
  */
-primitive round : {a} (Round a) => a -> Integer
+primitive roundAway : {a} (Round a) => a -> Integer
+
+/**
+ * Round to the nearest integer, ties to even.
+ *
+ * Ties are broken to the nearest even integer.
+ */
+primitive roundToEven : {a} (Round a) => a -> Integer
 
 
 // The Eq class ----------------------------------------------------

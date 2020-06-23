@@ -619,7 +619,8 @@ by corresponding typeclasses
 >   , ("floor"      , unary (roundUnary floor))
 >   , ("ceiling"    , unary (roundUnary ceiling))
 >   , ("trunc"      , unary (roundUnary truncate))
->   , ("round"      , unary (roundUnary roundRat))
+>   , ("roundAway"  , unary (roundUnary roundAwayRat))
+>   , ("roundToEven", unary (roundUnary round))
 >
 >   -- Comparison
 >   , ("<"          , binary (cmpOrder (\o -> o == LT)))
@@ -1117,8 +1118,8 @@ Round
 Haskell's definition of "round" is slightly different, as it does
 "round to even" on ties.
 
-> roundRat :: Rational -> Integer
-> roundRat x
+> roundAwayRat :: Rational -> Integer
+> roundAwayRat x
 >   | x >= 0    = floor (x + 0.5)
 >   | otherwise = ceiling (x - 0.5)
 

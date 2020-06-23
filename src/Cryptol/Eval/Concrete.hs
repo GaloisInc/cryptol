@@ -172,8 +172,10 @@ primTable = let sym = Concrete in
                     unary (ceilingV sym))
   , ("trunc"      , {-# SCC "Prelude::trunc" #-}
                     unary (truncV sym))
-  , ("round"      , {-# SCC "Prelude::round" #-}
-                    unary (roundV sym))
+  , ("roundAway"  , {-# SCC "Prelude::roundAway" #-}
+                    unary (roundAwayV sym))
+  , ("roundToEven", {-# SCC "Prelude::roundToEven" #-}
+                    unary (roundToEvenV sym))
 
     -- Bitvector specific operations
   , ("/$"         , {-# SCC "Prelude::(/$)" #-}

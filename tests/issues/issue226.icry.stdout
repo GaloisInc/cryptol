@@ -167,7 +167,8 @@ Symbols
     recip : {a} (Field a) => a -> a
     repeat : {n, a} a -> [n]a
     reverse : {n, a} (fin n) => [n]a -> [n]a
-    round : {a} (Round a) => a -> Integer
+    roundAway : {a} (Round a) => a -> Integer
+    roundToEven : {a} (Round a) => a -> Integer
     sborrow : {n} (fin n, n >= 1) => [n] -> [n] -> Bit
     scanl : {n, b, a} (b -> a -> b) -> b -> [n]a -> [1 + n]b
     scanr : {n, a, b} (fin n) => (a -> b -> b) -> b -> [n]a -> [1 + n]b

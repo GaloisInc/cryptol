@@ -552,11 +552,17 @@ truncV sym = roundOp sym "trunc" opq
   where
   opq = rationalTrunc sym
 
-{-# INLINE roundV #-}
-roundV :: Backend sym => sym -> Unary sym
-roundV sym = roundOp sym "round" opq
+{-# INLINE roundAwayV #-}
+roundAwayV :: Backend sym => sym -> Unary sym
+roundAwayV sym = roundOp sym "roundAway" opq
   where
-  opq = rationalRound sym
+  opq = rationalRoundAway sym
+
+{-# INLINE roundToEvenV #-}
+roundToEvenV :: Backend sym => sym -> Unary sym
+roundToEvenV sym = roundOp sym "roundToEven" opq
+  where
+  opq = rationalRoundToEven sym
 
 --------------------------------------------------------------
 -- Logic
