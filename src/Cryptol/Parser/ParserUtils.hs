@@ -416,14 +416,20 @@ polyTerm rng k p
   | otherwise       = errorMessage rng "Invalid polynomial coefficient"
 
 mkPoly :: Range -> [ (Bool,Integer) ] -> ParseM (Expr PName)
-mkPoly rng terms = mk 0 (map fromInteger bits)
+mkPoly rng terms
+  | w <= toInteger (maxBound :: Int) = mk 0 (map fromInteger bits)
+  | otherwise = errorMessage rng ("Polynomial literal too large: " ++ show w)
+
   where
   w    = case terms of
            [] -> 0
-           _  -> 1 + maximum (map (fromInteger . snd) terms)
+           _  -> 1 + maximum (map snd terms)
+
   bits = [ n | (True,n) <- terms ]
 
-  mk res []         = return $ ELit $ ECNum res (PolyLit w)
+  mk :: Integer -> [Int] -> ParseM (Expr PName)
+  mk res [] = return $ ELit $ ECNum res (PolyLit (fromInteger w :: Int))
+
   mk res (n : ns)
     | testBit res n = errorMessage rng
                        ("Polynomial contains multiple terms with exponent "
@@ -695,8 +701,8 @@ selExprToSels e0 = reverse <$> go noLoc e0
       EVar (UnQual l) ->
         pure [ Located { thing = RecordSel l Nothing, srcRange = loc } ]
       ELit (ECNum n _) ->
-        pure [ Located { thing = TupleSel (fromInteger n) Nothing
-                       , srcRange = loc } ]
+        do ts <- mkTupleSel loc n
+           pure [ ts ]
       _ -> errorMessage loc "Invalid label in record update."
 
 
