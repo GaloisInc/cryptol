@@ -31,6 +31,16 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         ghc: ["8.4.4", "8.6.5", "8.8.3", "8.10.1"]
+        exclude:
+          # The process-1.6.8 library contains a memory leak on windows,
+          # causing RAM constrained builds to sometimes fail.
+          # Technically, windows+GHC 8.10.1 should also likely be excluded, but
+          # we use GHC 8.10.1 for releases currently.
+          #
+          # https://gitlab.haskell.org/ghc/ghc/-/issues/17926
+          # TODO: remove when 8.8.4 and 8.10.2 are released
+          - os: windows-latest
+            ghc: 8.8.3
     name: Cryptol - GHC v${{ matrix.ghc }} - ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v2
