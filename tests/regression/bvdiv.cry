@@ -1,0 +1,70 @@
+// unsigned division properties
+
+bvdiv_euc : {n} (fin n) => [n] -> [n] -> Bit
+bvdiv_euc x y = y != 0 ==> (x/y)*y + x%y == x
+
+bvdiv_char : {n} (fin n) => [n] -> [n] -> Bit
+bvdiv_char x y = y != 0 ==> floor r == toInteger (x / y)
+  where
+    r = ratio (toInteger x) (toInteger y)
+
+bvdiv_mod : {n} (fin n) => [n] -> [n] -> Bit
+bvdiv_mod x y = y != 0 ==> (0 <= m /\ m < y)
+  where
+    m = x%y
+
+
+// some utility definitions
+
+sabs : {n} (fin n, n>=1) => [n] -> [n]
+sabs x = if x <=$ 0 then negate x else x
+
+toSignedInteger : {n} (fin n, n >=1 ) => [n] -> Integer
+toSignedInteger x = if x <=$ 0 then negate (toInteger (negate x)) else toInteger x
+
+minint : {n} (fin n, n >= 1) => [n]
+minint = 0b1 # zero
+
+maxint : {n} (fin n, n >= 1) => [n]
+maxint = ~minint
+
+
+// signed division properties
+
+bvsdiv_euc : {n} (fin n, n>=1) => [n] -> [n] -> Bit
+bvsdiv_euc x y = y != 0 ==> (x/$y)*y + x%$y == x
+
+bvsdiv_char : {n} (fin n, n>=1) => [n] -> [n] -> Bit
+bvsdiv_char x y = y != 0 ==> overflow \/ trunc r == toSignedInteger (x /$ y)
+  where
+    overflow = x == minint /\ y == (-1)
+    r = ratio (toSignedInteger x) (toSignedInteger y)
+
+bvsdiv_mod : {n} (fin n, n>=1) => [n] -> [n] -> Bit
+bvsdiv_mod x y = y != 0 ==> (0 <= m /\ m < sabs y)
+  where
+    m = sabs (x%$y)
+
+bvsdiv_mod_sign : {n} (fin n, n>=1) => [n] -> [n] -> Bit
+bvsdiv_mod_sign x y =
+  y != 0 ==>
+    if x >=$ 0 then x%$y >=$ 0 else x%$y <=$ 0
+
+bvsdiv_doc_properties : {n} (fin n, n>=1) => [n] -> [n] -> Bit
+bvsdiv_doc_properties x y =
+  y != 0 ==>
+    (x %$ y == x - (x /$ y) * y) /\
+    (x >=$ 0 ==> x%$y >=$ 0) /\
+    (x <=$ 0 ==> x%$y <=$ 0)
+
+// property instances to check
+
+property d1 = bvdiv_euc`{8}
+property c1 = bvdiv_char`{8}
+property m1 = bvdiv_mod`{8}
+
+property d2 = bvsdiv_euc`{8}
+property c2 = bvsdiv_char`{8}
+property m2 = bvsdiv_mod`{8}
+property m3 = bvsdiv_mod_sign`{8}
+property sdiv = bvsdiv_doc_properties`{8}
