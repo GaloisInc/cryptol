@@ -43,8 +43,9 @@ logo useColor mk =
   (vs,ds)   = splitAt slen rest
   lineLen   = length (head ls)
 
-displayLogo :: Bool -> REPL ()
-displayLogo useColor = unlessBatch (io (mapM_ putStrLn (logo useColor logo2)))
+displayLogo :: Bool -> Bool -> REPL ()
+displayLogo useColor useUnicode =
+  unlessBatch (io (mapM_ putStrLn (logo useColor (if useUnicode then logo2 else logo1))))
 
 logo1 :: String -> [String]
 logo1 ver =
