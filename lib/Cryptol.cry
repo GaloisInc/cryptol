@@ -257,7 +257,8 @@ primitive complement : {a} (Logic a) => a -> a
 
 // The Ring class -------------------------------------------------------
 
-/** Value types that support ring addition and multiplication.
+/**
+ * Value types that support ring addition and multiplication.
  *
  * Floating-point values are only approximately a ring, but
  * nonetheless inhabit this class.
@@ -310,7 +311,8 @@ primitive negate : {a} (Ring a) => a -> a
 
 // The Integral class -------------------------------------------------
 
-/** Value types that correspond to a segment of the
+/**
+ * Value types that correspond to a segment of the
  * integers. These types support integer division and
  * modulus, indexing into sequences, and enumeration.
  */
@@ -360,8 +362,9 @@ primitive infFromThen : {a} (Integral a) => a -> a -> [inf]a
 
 // The Field class -------------------------------------------------
 
-/** Value types that correspond to a field; that is, a
- * ring also posessing multiplicative inverses for
+/**
+ * Value types that correspond to a field; that is,
+ * a ring also posessing multiplicative inverses for
  * non-zero elements.
  *
  * Floating-point values are only approximately a field,
