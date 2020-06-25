@@ -55,6 +55,7 @@ data Options = Options
   , optCryptolrc       :: Cryptolrc
   , optCryptolPathOnly :: Bool
   , optStopOnError     :: Bool
+  , optNoUnicodeLogo   :: Bool
   } deriving (Show)
 
 defaultOptions :: Options
@@ -68,6 +69,7 @@ defaultOptions  = Options
   , optCryptolrc       = CryrcDefault
   , optCryptolPathOnly = False
   , optStopOnError     = False
+  , optNoUnicodeLogo   = False
   }
 
 options :: [OptDescr (OptParser Options)]
@@ -94,6 +96,9 @@ options  =
 
   , Option "h" ["help"] (NoArg setHelp)
     "display this message"
+
+  , Option "" ["no-unicode-logo"] (NoArg setNoUnicodeLogo)
+    "Don't use unicode characters in the REPL logo"
 
   , Option ""  ["ignore-cryptolrc"] (NoArg setCryrcDisabled)
     "disable reading of .cryptolrc files"
@@ -129,6 +134,10 @@ setColorMode "auto"   = modify $ \ opts -> opts { optColorMode = AutoColor }
 setColorMode "none"   = modify $ \ opts -> opts { optColorMode = NoColor }
 setColorMode "always" = modify $ \ opts -> opts { optColorMode = AlwaysColor }
 setColorMode x        = OptFailure ["invalid color mode: " ++ x ++ "\n"]
+
+-- | Disable unicde characters in the REPL logo
+setNoUnicodeLogo :: OptParser Options
+setNoUnicodeLogo = modify $ \opts -> opts { optNoUnicodeLogo = True }
 
 -- | Signal that version should be displayed.
 setVersion :: OptParser Options
@@ -257,7 +266,9 @@ setupREPL opts = do
     AlwaysColor -> return True
     NoColor     -> return False
     AutoColor   -> canDisplayColor
-  displayLogo color
+
+  let useUnicode = not (optNoUnicodeLogo opts)
+  displayLogo color useUnicode
 
   setUpdateREPLTitle (shouldSetREPLTitle >>= \b -> when b setREPLTitle)
   updateREPLTitle
