@@ -18,6 +18,7 @@ import Cryptol.TypeCheck.InferTypes
 import Cryptol.TypeCheck.Subst
 import Cryptol.ModuleSystem.Name(Name)
 import Cryptol.Utils.Ident(Ident)
+import Cryptol.Utils.RecordMap
 
 cleanupErrors :: [(Range,Error)] -> [(Range,Error)]
 cleanupErrors = dropErrorsFromSameLoc
@@ -327,8 +328,8 @@ instance PP (WithNames Error) where
     mismatchHint (TRec fs1) (TRec fs2) =
       hint "Missing" missing $$ hint "Unexpected" extra
       where
-        missing = map fst fs1 \\ map fst fs2
-        extra   = map fst fs2 \\ map fst fs1
+        missing = displayOrder fs1 \\ displayOrder fs2
+        extra   = displayOrder fs2 \\ displayOrder fs1
         hint _ []  = mempty
         hint s [x] = text s <+> text "field" <+> pp x
         hint s xs  = text s <+> text "fields" <+> commaSep (map pp xs)

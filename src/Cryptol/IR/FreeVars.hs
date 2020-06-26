@@ -11,6 +11,7 @@ import           Data.Map ( Map )
 import qualified Data.Map as Map
 
 import Cryptol.TypeCheck.AST
+import Cryptol.Utils.RecordMap
 
 data Deps = Deps { valDeps  :: Set Name
                    -- ^ Undefined value names
@@ -100,7 +101,7 @@ instance FreeVars Expr where
     case expr of
       EList es t        -> freeVars es <> freeVars t
       ETuple es         -> freeVars es
-      ERec fs           -> freeVars (map snd fs)
+      ERec fs           -> freeVars (map snd (canonicalFields fs))
       ESel e _          -> freeVars e
       ESet e _ v        -> freeVars [e,v]
       EIf e1 e2 e3      -> freeVars [e1,e2,e3]
@@ -137,7 +138,7 @@ instance FreeVars Type where
       TVar tv -> freeVars tv
 
       TUser _ _ t -> freeVars t
-      TRec fs     -> freeVars (map snd fs)
+      TRec fs     -> freeVars (map snd (canonicalFields fs))
 
 
 instance FreeVars TVar where

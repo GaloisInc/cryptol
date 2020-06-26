@@ -37,9 +37,7 @@ import Cryptol.Eval.Monad
 import Cryptol.Eval.Type
 import Cryptol.Eval.Value
 import Cryptol.Utils.Panic (panic)
-
-import qualified Data.Map.Strict as Map
-
+import Cryptol.Utils.RecordMap
 
 
 
@@ -220,11 +218,10 @@ ringBinary sym opw opi opz opq opfp = loop
 
     -- records
     TVRec fs ->
-      do fs' <- sequence
-                 [ (f,) <$> sDelay sym Nothing (loop' fty (lookupRecord f l) (lookupRecord f r))
-                 | (f,fty) <- fs
-                 ]
-         return $ VRecord (Map.fromList fs')
+      do VRecord <$>
+            traverseRecordMap
+              (\f fty -> sDelay sym Nothing (loop' fty (lookupRecord f l) (lookupRecord f r)))
+              fs
 
     TVAbstract {} ->
       evalPanic "ringBinary" ["Abstract type not in `Ring`"]
@@ -297,11 +294,10 @@ ringUnary sym opw opi opz opq opfp = loop
 
     -- records
     TVRec fs ->
-      do fs' <- sequence
-                 [ (f,) <$> sDelay sym Nothing (loop' fty (lookupRecord f v))
-                 | (f,fty) <- fs
-                 ]
-         return $ VRecord (Map.fromList fs')
+      VRecord <$>
+        traverseRecordMap
+          (\f fty -> sDelay sym Nothing (loop' fty (lookupRecord f v)))
+          fs
 
     TVAbstract {} -> evalPanic "ringUnary" ["Abstract type not in `Ring`"]
 
@@ -363,11 +359,8 @@ ringNullary sym opw opi opz opq opfp = loop
                 pure $ VTuple xs
 
         TVRec fs ->
-             do xs <- sequence [ do v <- sDelay sym Nothing (loop a)
-                                    return (f, v)
-                               | (f,a) <- fs
-                               ]
-                pure $ VRecord $ Map.fromList xs
+             do xs <- traverse (sDelay sym Nothing . loop) fs
+                pure $ VRecord xs
 
         TVAbstract {} ->
           evalPanic "ringNullary" ["Abstract type not in `Ring`"]
@@ -721,11 +714,11 @@ cmpValue sym fb fw fi fz fq ff = cmp
         TVFun _ _     -> panic "Cryptol.Prims.Value.cmpValue"
                                [ "Functions are not comparable" ]
         TVTuple tys   -> cmpValues tys (fromVTuple v1) (fromVTuple v2) k
-        TVRec fields  -> do let tys = Map.elems (Map.fromList fields)
-                            cmpValues tys
-                              (Map.elems (fromVRecord v1))
-                              (Map.elems (fromVRecord v2))
-                              k
+        TVRec fields  -> cmpValues
+                            (map snd (canonicalFields fields))
+                            (map snd (canonicalFields (fromVRecord v1)))
+                            (map snd (canonicalFields (fromVRecord v2)))
+                            k
         TVAbstract {} -> evalPanic "cmpValue"
                           [ "Abstract type not in `Cmp`" ]
 
@@ -894,11 +887,8 @@ zeroV sym ty = case ty of
 
   -- records
   TVRec fields ->
-      do xs <- sequence [ do z <- sDelay sym Nothing (zeroV sym fty)
-                             pure (f, z)
-                        | (f,fty) <- fields
-                        ]
-         pure $ VRecord (Map.fromList xs)
+      do xs <- traverse (sDelay sym Nothing . zeroV sym) fields
+         pure $ VRecord xs
 
   TVAbstract {} -> evalPanic "zeroV" [ "Abstract type not in `Zero`" ]
 
@@ -1306,13 +1296,10 @@ logicBinary sym opb opw = loop
         return $ lam $ \ a -> loop' bty (fromVFun l a) (fromVFun r a)
 
     TVRec fields ->
-        do fs <- sequence
-                   [ (f,) <$> sDelay sym Nothing (loop' fty a b)
-                   | (f,fty) <- fields
-                   , let a = lookupRecord f l
-                         b = lookupRecord f r
-                   ]
-           return $ VRecord $ Map.fromList fs
+      VRecord <$>
+        traverseRecordMap
+          (\f fty -> sDelay sym Nothing (loop' fty (lookupRecord f l) (lookupRecord f r)))
+          fields
 
     TVAbstract {} -> evalPanic "logicBinary"
                         [ "Abstract type not in `Logic`" ]
@@ -1378,11 +1365,10 @@ logicUnary sym opb opw = loop
       return $ lam $ \ a -> loop' bty (fromVFun val a)
 
     TVRec fields ->
-      do fs <- sequence
-                 [ (f,) <$> sDelay sym Nothing (loop' fty a)
-                 | (f,fty) <- fields, let a = lookupRecord f val
-                 ]
-         return $ VRecord $ Map.fromList fs
+      VRecord <$>
+        traverseRecordMap
+          (\f fty -> sDelay sym Nothing (loop' fty (lookupRecord f val)))
+          fields
 
     TVAbstract {} -> evalPanic "logicUnary" [ "Abstract type not in `Logic`" ]
 
@@ -1818,7 +1804,7 @@ errorV sym ty msg = case ty of
 
   -- records
   TVRec fields ->
-    return $ VRecord $ fmap (\t -> errorV sym t msg) $ Map.fromList fields
+    return $ VRecord $ fmap (\t -> errorV sym t msg) $ fields
 
   TVAbstract {} -> cryUserError sym msg
 
@@ -1892,8 +1878,11 @@ mergeValue :: Backend sym =>
   SEval sym (GenValue sym)
 mergeValue sym c v1 v2 =
   case (v1, v2) of
-    (VRecord fs1 , VRecord fs2 )  | Map.keys fs1 == Map.keys fs2 ->
-                                  pure $ VRecord $ Map.intersectionWith (mergeValue' sym c) fs1 fs2
+    (VRecord fs1 , VRecord fs2 ) ->
+      do let res = zipRecords (\_lbl -> mergeValue' sym c) fs1 fs2
+         case res of
+           Left f -> panic "Cryptol.Eval.Generic" [ "mergeValue: incompatible record values", show f ]
+           Right r -> pure (VRecord r)
     (VTuple vs1  , VTuple vs2  ) | length vs1 == length vs2  ->
                                   pure $ VTuple $ zipWith (mergeValue' sym c) vs1 vs2
     (VBit b1     , VBit b2     ) -> VBit <$> iteBit sym c b1 b2

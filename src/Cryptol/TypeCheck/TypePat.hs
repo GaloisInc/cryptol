@@ -32,6 +32,7 @@ import Control.Applicative((<|>))
 import Control.Monad
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.Patterns
+import Cryptol.Utils.RecordMap
 import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.Solver.InfNat
 
@@ -147,7 +148,7 @@ aTuple = \a -> case tNoUser a of
                  TCon (TC (TCTuple _)) ts -> return ts
                  _                        -> mzero
 
-aRec :: Pat Type [(Ident, Type)]
+aRec :: Pat Type (RecordMap Ident Type)
 aRec = \a -> case tNoUser a of
                TRec fs -> return fs
                _       -> mzero

@@ -38,11 +38,11 @@ import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Eval.Type (TValue(..), evalType)
 import           Cryptol.Utils.Ident (Ident)
+import           Cryptol.Utils.RecordMap
 import           Cryptol.Utils.PP
 
 import Prelude ()
 import Prelude.Compat
-import qualified Data.Map as Map
 import Data.Time (NominalDiffTime)
 
 type SatResult = [(Type, Expr, Concrete.Value)]
@@ -123,15 +123,12 @@ data FinType
     | FTFloat Integer Integer
     | FTSeq Int FinType
     | FTTuple [FinType]
-    | FTRecord (Map.Map Ident FinType)
+    | FTRecord (RecordMap Ident FinType)
 
 numType :: Integer -> Maybe Int
 numType n
   | 0 <= n && n <= toInteger (maxBound :: Int) = Just (fromInteger n)
   | otherwise = Nothing
-
-traverseSnd :: Functor f => (a -> f b) -> (t, a) -> f (t, b)
-traverseSnd f (x, y) = (,) x <$> f y
 
 finType :: TValue -> Maybe FinType
 finType ty =
@@ -143,7 +140,7 @@ finType ty =
     TVFloat e p      -> Just (FTFloat e p)
     TVSeq n t        -> FTSeq <$> numType n <*> finType t
     TVTuple ts       -> FTTuple <$> traverse finType ts
-    TVRec fields     -> FTRecord . Map.fromList <$> traverse (traverseSnd finType) fields
+    TVRec fields     -> FTRecord <$> traverse finType fields
     TVAbstract {}    -> Nothing
     _                     -> Nothing
 
@@ -157,4 +154,4 @@ unFinType fty =
     FTFloat e p  -> tFloat (tNum e) (tNum p)
     FTSeq l ety  -> tSeq (tNum l) (unFinType ety)
     FTTuple ftys -> tTuple (unFinType <$> ftys)
-    FTRecord fs  -> tRec (Map.toList (fmap unFinType fs))
+    FTRecord fs  -> tRec (unFinType <$> fs)

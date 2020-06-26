@@ -184,7 +184,7 @@ instance Inst Expr where
 
         EList xs t                -> EList (inst env xs) (inst env t)
         ETuple es                 -> ETuple (inst env es)
-        ERec xs                   -> ERec [ (f,go e) | (f,e) <- xs ]
+        ERec xs                   -> ERec (fmap go xs)
         ESel e s                  -> ESel (go e) s
         ESet e x v                -> ESet (go e) x (go v)
         EIf e1 e2 e3              -> EIf (go e1) (go e2) (go e3)
@@ -240,7 +240,7 @@ instance Inst Type where
           _ -> ty
       TUser x ts t  -> TUser y (inst env ts) (inst env t)
         where y = Map.findWithDefault x x (tyNameMap env)
-      TRec fs       -> TRec [ (f, inst env t) | (f,t) <- fs ]
+      TRec fs       -> TRec (fmap (inst env) fs)
 
 instance Inst TCon where
   inst env tc =

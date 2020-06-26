@@ -107,6 +107,7 @@ import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident (Ident)
 import Cryptol.Utils.Panic(panic)
 import Cryptol.Utils.PP
+import Cryptol.Utils.RecordMap
 
 import Data.List(genericIndex)
 
@@ -297,7 +298,7 @@ updateWordValue sym wv idx b
 --   Always use the 'VWord' constructor instead!  Infinite sequences of bits
 --   are handled by the 'VStream' constructor, just as for other types.
 data GenValue sym
-  = VRecord !(Map Ident (SEval sym (GenValue sym))) -- ^ @ { .. } @
+  = VRecord !(RecordMap Ident (SEval sym (GenValue sym))) -- ^ @ { .. } @
   | VTuple ![SEval sym (GenValue sym)]              -- ^ @ ( .. ) @
   | VBit !(SBit sym)                           -- ^ @ Bit    @
   | VInteger !(SInteger sym)                   -- ^ @ Integer @ or @ Z n @
@@ -337,7 +338,7 @@ forceValue v = case v of
 
 instance Backend sym => Show (GenValue sym) where
   show v = case v of
-    VRecord fs -> "record:" ++ show (Map.keys fs)
+    VRecord fs -> "record:" ++ show (displayOrder fs)
     VTuple xs  -> "tuple:" ++ show (length xs)
     VBit _     -> "bit"
     VInteger _ -> "integer"
@@ -364,7 +365,7 @@ ppValue x opts = loop
   loop :: GenValue sym -> SEval sym Doc
   loop val = case val of
     VRecord fs         -> do fs' <- traverse (>>= loop) fs
-                             return $ braces (sep (punctuate comma (map ppField (Map.assocs fs'))))
+                             return $ braces (sep (punctuate comma (map ppField (displayFields fs'))))
       where
       ppField (f,r) = pp f <+> char '=' <+> r
     VTuple vals        -> do vals' <- traverse (>>=loop) vals
@@ -562,7 +563,7 @@ fromVTuple val = case val of
   _         -> evalPanic "fromVTuple" ["not a tuple"]
 
 -- | Extract a record from a value.
-fromVRecord :: GenValue sym -> Map Ident (SEval sym (GenValue sym))
+fromVRecord :: GenValue sym -> RecordMap Ident (SEval sym (GenValue sym))
 fromVRecord val = case val of
   VRecord fs -> fs
   _          -> evalPanic "fromVRecord" ["not a record"]
@@ -576,6 +577,6 @@ fromVFloat val =
 -- | Lookup a field in a record.
 lookupRecord :: Ident -> GenValue sym -> SEval sym (GenValue sym)
 lookupRecord f val =
-  case Map.lookup f (fromVRecord val) of
+  case lookupField f (fromVRecord val) of
     Just x  -> x
     Nothing -> evalPanic "lookupRecord" ["malformed record"]

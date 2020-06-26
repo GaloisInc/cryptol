@@ -18,6 +18,7 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst
 import Cryptol.Utils.Panic
 import Cryptol.Utils.PP
+import Cryptol.Utils.RecordMap
 
 import           Data.Map    (Map)
 import qualified Data.Map as Map
@@ -31,7 +32,7 @@ fastTypeOf tyenv expr =
     -- Monomorphic fragment
     EList es t    -> tSeq (tNum (length es)) t
     ETuple es     -> tTuple (map (fastTypeOf tyenv) es)
-    ERec fields   -> tRec [ (name, fastTypeOf tyenv e) | (name, e) <- fields ]
+    ERec fields   -> tRec (fmap (fastTypeOf tyenv) fields)
     ESel e sel    -> typeSelect (fastTypeOf tyenv e) sel
     ESet e _ _    -> fastTypeOf tyenv e
     EIf _ e _     -> fastTypeOf tyenv e
@@ -114,7 +115,7 @@ plainSubst s ty =
   case ty of
     TCon tc ts   -> TCon tc (map (plainSubst s) ts)
     TUser f ts t -> TUser f (map (plainSubst s) ts) (plainSubst s t)
-    TRec fs      -> TRec [ (x, plainSubst s t) | (x, t) <- fs ]
+    TRec fs      -> TRec (fmap (plainSubst s) fs)
     TVar x       -> apSubst s (TVar x)
 
 -- | Yields the return type of the selector on the given argument type.
@@ -123,7 +124,7 @@ typeSelect (TUser _ _ ty) sel = typeSelect ty sel
 typeSelect (tIsTuple -> Just ts) (TupleSel i _)
   | i < length ts = ts !! i
 typeSelect (TRec fields) (RecordSel n _)
-  | Just ty <- lookup n fields = ty
+  | Just ty <- lookupField n fields = ty
 typeSelect (tIsSeq -> Just (_, a)) ListSel{} = a
 typeSelect (tIsSeq -> Just (n, a)) sel@TupleSel{} = tSeq n (typeSelect a sel)
 typeSelect (tIsSeq -> Just (n, a)) sel@RecordSel{} = tSeq n (typeSelect a sel)

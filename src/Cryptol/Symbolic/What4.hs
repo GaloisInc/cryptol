@@ -26,7 +26,6 @@ module Cryptol.Symbolic.What4
 
 import Control.Monad.IO.Class
 import Control.Monad (when, foldM)
-import qualified Data.Map as Map
 import qualified Control.Exception as X
 import System.IO (Handle)
 import Data.Time
@@ -50,6 +49,7 @@ import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Ident (Ident)
 import           Cryptol.Utils.Logger(logPutStrLn)
 import           Cryptol.Utils.Panic (panic)
+import           Cryptol.Utils.RecordMap
 
 import qualified What4.Config as W4
 import qualified What4.Interface as W4
@@ -374,7 +374,7 @@ varBlockingPred sym evalFn v =
 
     VarFinSeq _n vs -> computeBlockingPred sym evalFn vs
     VarTuple vs     -> computeBlockingPred sym evalFn vs
-    VarRecord fs    -> computeBlockingPred sym evalFn (map snd (Map.toList fs))
+    VarRecord fs    -> computeBlockingPred sym evalFn (map snd (canonicalFields fs))
 
 computeModel ::
   Eval.EvalOpts ->
@@ -403,7 +403,7 @@ data VarShape sym
   | VarWord (SW.SWord sym)
   | VarFinSeq Int [VarShape sym]
   | VarTuple [VarShape sym]
-  | VarRecord (Map.Map Ident (VarShape sym))
+  | VarRecord (RecordMap Ident (VarShape sym))
 
 freshVariable :: W4.IsSymExprBuilder sym => sym -> FinType -> IO (VarShape sym)
 freshVariable sym ty =
@@ -419,7 +419,7 @@ freshVariable sym ty =
     FTSeq n FTBit -> VarWord     <$> SW.freshBV sym W4.emptySymbol (toInteger n)
     FTSeq n t     -> VarFinSeq n <$> sequence (replicate n (freshVariable sym t))
     FTTuple ts    -> VarTuple    <$> mapM (freshVariable sym) ts
-    FTRecord fs   -> VarRecord   <$> mapM (freshVariable sym) fs
+    FTRecord fs   -> VarRecord   <$> traverse (freshVariable sym) fs
 
 varToSymValue :: W4.IsExprBuilder sym => sym -> VarShape sym -> Value sym
 varToSymValue sym var =

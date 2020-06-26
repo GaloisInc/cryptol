@@ -21,14 +21,13 @@ module Cryptol.TypeCheck.TypeMap
 
 import           Cryptol.TypeCheck.AST
 import           Cryptol.Utils.Ident
+import           Cryptol.Utils.RecordMap
 
 import qualified Data.Map as Map
 import           Data.Map (Map)
 import           Data.Maybe(fromMaybe,maybeToList)
 import           Control.Monad((<=<))
-import           Data.List(sortBy)
 import           Data.Maybe (isNothing)
-import           Data.Ord(comparing)
 
 class TrieMap m k | m -> k where
   emptyTM  :: m a
@@ -131,7 +130,7 @@ instance TrieMap TypeMap Type where
       TUser _ _ t -> lookupTM t
       TVar x      -> lookupTM x . tvar
       TCon c ts   -> lookupTM ts <=< lookupTM c . tcon
-      TRec fs     -> let (xs,ts) = unzip $ sortBy (comparing fst) fs
+      TRec fs     -> let (xs,ts) = unzip $ canonicalFields fs
                      in lookupTM ts <=< lookupTM xs . trec
 
   alterTM ty f m =
@@ -139,15 +138,16 @@ instance TrieMap TypeMap Type where
       TUser _ _ t -> alterTM t f m
       TVar x      -> m { tvar = alterTM x f (tvar m) }
       TCon c ts   -> m { tcon = alterTM c (updSub ts f) (tcon m) }
-      TRec fs     -> let (xs,ts) = unzip $ sortBy (comparing fst) fs
+      TRec fs     -> let (xs,ts) = unzip $ canonicalFields fs
                      in m { trec = alterTM xs (updSub ts f) (trec m) }
 
   toListTM m =
     [ (TVar x,           v) | (x,v)   <- toListTM (tvar m) ] ++
     [ (TCon c ts,        v) | (c,m1)  <- toListTM (tcon m)
                             , (ts,v)  <- toListTM m1 ] ++
-    [ (TRec (zip fs ts), v) | (fs,m1) <- toListTM (trec m)
-                            , (ts,v)  <- toListTM m1 ]
+    [ (TRec (recordFromFields (zip fs ts)), v)
+          | (fs,m1) <- toListTM (trec m)
+          , (ts,v)  <- toListTM m1 ]
 
   unionTM f m1 m2 = TM { tvar = unionTM f (tvar m1) (tvar m2)
                        , tcon = unionTM (unionTM f) (tcon m1) (tcon m2)
@@ -159,7 +159,7 @@ instance TrieMap TypeMap Type where
        , tcon = mapWithKeyTM (\c  l -> mapMaybeWithKeyTM
                              (\ts a -> f (TCon c ts) a) l) (tcon m)
        , trec = mapWithKeyTM (\fs l -> mapMaybeWithKeyTM
-                             (\ts a -> f (TRec (zip fs ts)) a) l) (trec m)
+                             (\ts a -> f (TRec (recordFromFields (zip fs ts))) a) l) (trec m)
        }
 
 

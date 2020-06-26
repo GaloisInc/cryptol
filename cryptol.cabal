@@ -91,6 +91,7 @@ library
 
                        Cryptol.Utils.Fixity,
                        Cryptol.Utils.Ident,
+                       Cryptol.Utils.RecordMap,
                        Cryptol.Utils.PP,
                        Cryptol.Utils.Panic,
                        Cryptol.Utils.Debug,

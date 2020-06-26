@@ -20,8 +20,6 @@ import Control.Monad          (join, liftM2)
 import Data.Ratio             ((%))
 import Data.Bits              ( (.&.), shiftR )
 import Data.List              (unfoldr, genericTake, genericIndex, genericReplicate)
-import Data.Map (Map)
-import qualified Data.Map as Map
 import qualified Data.Sequence as Seq
 
 import System.Random          (RandomGen, split, random, randomR)
@@ -40,6 +38,7 @@ import Cryptol.TypeCheck.SimpType(tRebuild')
 
 import Cryptol.Utils.Ident    (Ident)
 import Cryptol.Utils.Panic    (panic)
+import Cryptol.Utils.RecordMap
 
 type Gen g x = Integer -> g -> (SEval x (GenValue x), g)
 
@@ -173,7 +172,7 @@ randomValue sym ty =
 
     TVar _      -> Nothing
     TUser _ _ t -> randomValue sym t
-    TRec fs     -> do gs <- traverse (randomValue sym) (Map.fromList fs)
+    TRec fs     -> do gs <- traverse (randomValue sym) fs
                       return (randomRecord gs)
 
 {-# INLINE randomBit #-}
@@ -266,9 +265,9 @@ randomTuple gens sz = go [] gens
 {-# INLINE randomRecord #-}
 
 -- | Generate a random record value.
-randomRecord :: (Backend sym, RandomGen g) => Map Ident (Gen g sym) -> Gen g sym
+randomRecord :: (Backend sym, RandomGen g) => RecordMap Ident (Gen g sym) -> Gen g sym
 randomRecord gens sz g0 =
-  let (g', m) = Map.mapAccum mk g0 gens in (pure $ VRecord m, g')
+  let (g', m) = recordMapAccum mk g0 gens in (pure $ VRecord m, g')
   where
     mk g gen =
       let (v, g') = gen sz g
@@ -376,7 +375,7 @@ typeSize ty =
   case ty of
     TVar _      -> Nothing
     TUser _ _ t -> typeSize t
-    TRec fs     -> product <$> mapM (typeSize . snd) fs
+    TRec fs     -> product <$> traverse typeSize fs
     TCon (TC tc) ts ->
       case (tc, ts) of
         (TCNum _, _)     -> Nothing
@@ -410,7 +409,7 @@ typeValues ty =
     TVar _      -> []
     TUser _ _ t -> typeValues t
     TRec fs     -> [ VRecord (fmap ready xs)
-                   | xs <- sequence (fmap typeValues (Map.fromList fs))
+                   | xs <- traverse typeValues fs
                    ]
     TCon (TC tc) ts ->
       case tc of

@@ -37,6 +37,7 @@ import Cryptol.Parser.Utils (translateExprToNumT,widthIdent)
 import Cryptol.Utils.Ident(packModName)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic
+import Cryptol.Utils.RecordMap
 
 
 parseString :: Config -> ParseM a -> String -> Either ParseError a
@@ -250,6 +251,7 @@ validDemotedType rng ty =
   case ty of
     TLocated t r -> validDemotedType r t
     TRecord {}   -> bad "Record types"
+    TTyApp {}    -> bad "Explicit type application"
     TTuple {}    -> bad "Tuple types"
     TFun {}      -> bad "Function types"
     TSeq {}      -> bad "Sequence types"
@@ -265,6 +267,18 @@ validDemotedType rng ty =
   where bad x = errorMessage rng (x ++ " cannot be demoted.")
         ok    = return $ at rng ty
 
+-- | Input fields are reversed!
+mkRecord :: AddLoc b => Range -> (RecordMap Ident (Range, a) -> b) -> [Named a] -> ParseM b
+mkRecord rng f xs =
+   case res of
+     Left (nm,(nmRng,_)) -> errorMessage nmRng ("Record has repeated field: " ++ show (pp nm))
+     Right r -> pure $ at rng (f r)
+
+  where
+  res = recordFromFieldsErr ys
+  ys = map (\ (Named (Located r nm) x) -> (nm,(r,x))) (reverse xs)
+
+
 -- | Input expression are reversed
 mkEApp :: [Expr PName] -> Expr PName
 mkEApp es@(eLast : _) = at (eFirst,eLast) $ foldl EApp f xs
@@ -272,7 +286,7 @@ mkEApp es@(eLast : _) = at (eFirst,eLast) $ foldl EApp f xs
   eFirst : rest = reverse es
   f : xs        = cvtTypeParams eFirst rest
 
-  {- Type applications are parsed as `ETypeVal (TRecord fs)` expressions.
+  {- Type applications are parsed as `ETypeVal (TTyApp fs)` expressions.
      Here we associate them with their corresponding functions,
      converting them into `EAppT` constructs.  For example:
 
@@ -289,8 +303,8 @@ mkEApp es@(eLast : _) = at (eFirst,eLast) $ foldl EApp f xs
   toTypeParam e =
     case dropLoc e of
       ETypeVal t -> case dropLoc t of
-                      TRecord fs -> Just (map mkTypeInst fs)
-                      _          -> Nothing
+                      TTyApp fs -> Just (map mkTypeInst fs)
+                      _         -> Nothing
       _          ->  Nothing
 
 mkEApp es        = panic "[Parser] mkEApp" ["Unexpected:", show es]
@@ -339,8 +353,8 @@ exprToNumT r expr =
 
 -- | WARNING: This is a bit of a hack.
 -- It is used to represent anonymous type applications.
-anonRecord :: Maybe Range -> [Type PName] -> Type PName
-anonRecord ~(Just r) ts = TRecord (map toField ts)
+anonTyApp :: Maybe Range -> [Type PName] -> Type PName
+anonTyApp ~(Just r) ts = TTyApp (map toField ts)
   where noName    = Located { srcRange = r, thing = mkIdent (T.pack "") }
         toField t = Named { name = noName, value = t }
 
@@ -526,7 +540,7 @@ mkPrimTypeDecl mbDoc (Forall as qs st ~(Just schema_rng)) finK =
     Just (n,xs) ->
       do vs <- mapM tpK as
          unless (distinct (map fst vs)) $
-            errorMessage schema_rng "Repeated parameterms."
+            errorMessage schema_rng "Repeated parameters."
          let kindMap = Map.fromList vs
              lkp v = case Map.lookup (thing v) kindMap of
                        Just (k,tp)  -> pure (k,tp)
@@ -655,6 +669,7 @@ mkProp ty =
       TChar{}   -> err
       TWild     -> err
       TRecord{} -> err
+      TTyApp{}  -> err
 
     where
     err = errorMessage r "Invalid constraint"

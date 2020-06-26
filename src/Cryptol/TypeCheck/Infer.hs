@@ -47,6 +47,7 @@ import           Cryptol.TypeCheck.Solver.InfNat(genLog)
 import           Cryptol.Utils.Ident
 import           Cryptol.Utils.Panic(panic)
 import           Cryptol.Utils.PP
+import           Cryptol.Utils.RecordMap
 
 import qualified Data.Map as Map
 import           Data.Map (Map)
@@ -54,7 +55,7 @@ import qualified Data.Set as Set
 import           Data.List(foldl',sortBy)
 import           Data.Either(partitionEithers)
 import           Data.Maybe(mapMaybe,isJust, fromMaybe)
-import           Data.List(partition,find)
+import           Data.List(partition)
 import           Data.Graph(SCC(..))
 import           Data.Ratio(numerator,denominator)
 import           Data.Traversable(forM)
@@ -270,9 +271,9 @@ checkE expr tGoal =
          return (ETuple es')
 
     P.ERecord fs ->
-      do (ns,es,ts) <- unzip3 `fmap` expectRec fs tGoal
-         es' <- zipWithM checkE es ts
-         return (ERec (zip ns es'))
+      do es  <- expectRec fs tGoal
+         es' <- traverse (uncurry checkE) es
+         return (ERec es')
 
     P.EUpd x fs -> checkRecUpd x fs tGoal
 
@@ -491,37 +492,29 @@ expectTuple n ty =
   where
   genTys =forM [ 0 .. n - 1 ] $ \ i -> newType (TypeOfTupleField i) KType
 
-expectRec :: [P.Named a] -> Type -> InferM [(Ident,a,Type)]
+
+expectRec :: RecordMap Ident (Range, a) -> Type -> InferM (RecordMap Ident (a, Type))
 expectRec fs ty =
   case ty of
 
     TUser _ _ ty' ->
          expectRec fs ty'
 
-    TRec ls | Just tys <- mapM checkField ls ->
-         return tys
+    TRec ls
+      | Right r <- zipRecords (\_ (_rng,v) t -> (v,t)) fs ls -> pure r
 
     _ ->
-      do (tys,res) <- genTys
+      do res <- traverseRecordMap
+                  (\nm (_rng,v) ->
+                       do t <- newType (TypeOfRecordField nm) KType
+                          return (v, t))
+                  fs
+         let tys = fmap snd res
          case ty of
            TVar TVFree{} -> do ps <- unify ty (TRec tys)
                                newGoals CtExactType ps
            _ -> recordError (TypeMismatch ty (TRec tys))
          return res
-
-  where
-  checkField (n,t) =
-    do f <- find (\f -> thing (P.name f) == n) fs
-       return (thing (P.name f), P.value f, t)
-
-  genTys =
-    do res <- forM fs $ \ f ->
-             do let field = thing (P.name f)
-                t <- newType (TypeOfRecordField field) KType
-                return (field, P.value f, t)
-
-       let (ls,_,ts) = unzip3 res
-       return (zip ls ts, res)
 
 
 expectFin :: Int -> Type -> InferM ()

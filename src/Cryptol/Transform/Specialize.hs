@@ -72,7 +72,7 @@ specializeExpr expr =
   case expr of
     EList es t    -> EList <$> traverse specializeExpr es <*> pure t
     ETuple es     -> ETuple <$> traverse specializeExpr es
-    ERec fs       -> ERec <$> traverse (traverseSnd specializeExpr) fs
+    ERec fs       -> ERec <$> traverse specializeExpr fs
     ESel e s      -> ESel <$> specializeExpr e <*> pure s
     ESet e s v    -> ESet <$> specializeExpr e <*> pure s <*> specializeExpr v
     EIf e1 e2 e3  -> EIf <$> specializeExpr e1 <*> specializeExpr e2 <*> specializeExpr e3
