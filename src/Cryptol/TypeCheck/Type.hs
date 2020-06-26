@@ -15,8 +15,6 @@ import qualified Data.IntMap as IntMap
 import           Data.Maybe (fromMaybe)
 import           Data.Set (Set)
 import qualified Data.Set as Set
-import           Data.List(sortBy)
-import           Data.Ord(comparing)
 
 import Cryptol.Parser.Selector
 import Cryptol.Parser.Position(Range,emptyRange)
@@ -27,6 +25,7 @@ import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.Utils.Fixity
 import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.RecordMap
 import Prelude
 
 infix  4 =#=, >==
@@ -103,7 +102,7 @@ data Type   = TCon !TCon ![Type]
               Example: @TUser T ts t@ is really just the type @t@ that
               was written as @T ts@ by the user. -}
 
-            | TRec ![(Ident,Type)]
+            | TRec !(RecordMap Ident Type)
               -- ^ Record type
 
               deriving (Show, Generic, NFData)
@@ -242,9 +241,7 @@ instance Eq Type where
 
   TCon x xs == TCon y ys  = x == y && xs == ys
   TVar x    == TVar y     = x == y
-
-  TRec xs   == TRec ys    = norm xs == norm ys
-    where norm = sortBy (comparing fst)
+  TRec xs   == TRec ys    = xs == ys
 
   _         == _          = False
 
@@ -262,9 +259,7 @@ instance Ord Type where
       (TCon {}, _)            -> LT
       (_,TCon {})             -> GT
 
-      (TRec xs, TRec ys)      -> compare (norm xs) (norm ys)
-        where norm = sortBy (comparing fst)
-
+      (TRec xs, TRec ys)      -> compare xs ys
 
 
 instance Eq TParam where
@@ -305,7 +300,7 @@ superclassSet _ = mempty
 newtypeConType :: Newtype -> Schema
 newtypeConType nt =
   Forall as (ntConstraints nt)
-    $ TRec (ntFields nt) `tFun` TCon (newtypeTyCon nt) (map (TVar . tpVar) as)
+    $ TRec (recordFromFields (ntFields nt)) `tFun` TCon (newtypeTyCon nt) (map (TVar . tpVar) as)
   where
   as = ntParams nt
 
@@ -402,7 +397,7 @@ tIsTuple ty = case tNoUser ty of
                 TCon (TC (TCTuple _)) ts -> Just ts
                 _                        -> Nothing
 
-tIsRec :: Type -> Maybe [(Ident, Type)]
+tIsRec :: Type -> Maybe (RecordMap Ident Type)
 tIsRec ty = case tNoUser ty of
               TRec fs -> Just fs
               _       -> Nothing
@@ -556,7 +551,7 @@ tChar = tWord (tNum (8 :: Int))
 tString :: Int -> Type
 tString len = tSeq (tNum len) tChar
 
-tRec     :: [(Ident,Type)] -> Type
+tRec     :: RecordMap Ident Type -> Type
 tRec      = TRec
 
 tTuple   :: [Type] -> Type
@@ -737,7 +732,7 @@ instance FVS Type where
         TCon _ ts   -> fvs ts
         TVar x      -> Set.singleton x
         TUser _ _ t -> go t
-        TRec fs     -> fvs (map snd fs)
+        TRec fs     -> fvs (map snd (canonicalFields fs))
 
 instance FVS a => FVS (Maybe a) where
   fvs Nothing  = Set.empty
@@ -842,7 +837,7 @@ instance PP (WithNames Type) where
     case ty of
       TVar a  -> ppWithNames nmMap a
       TRec fs -> braces $ fsep $ punctuate comma
-                    [ pp l <+> text ":" <+> go 0 t | (l,t) <- fs ]
+                    [ pp l <+> text ":" <+> go 0 t | (l,t) <- displayFields fs ]
 
       _ | Just tinf <- isTInfix ty0 -> optParens (prec > 2)
                                      $ ppInfix 2 isTInfix tinf

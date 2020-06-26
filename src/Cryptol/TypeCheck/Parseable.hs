@@ -19,6 +19,7 @@ module Cryptol.TypeCheck.Parseable
 
 import Cryptol.TypeCheck.AST
 import Cryptol.Utils.Ident (Ident,unpackIdent)
+import Cryptol.Utils.RecordMap (canonicalFields)
 import Cryptol.Parser.AST ( Located(..))
 import Cryptol.ModuleSystem.Name
 import Text.PrettyPrint hiding ((<>))
@@ -32,7 +33,7 @@ class ShowParseable t where
 instance ShowParseable Expr where
   showParseable (EList es _) = parens (text "EList" <+> showParseable es)
   showParseable (ETuple es) = parens (text "ETuple" <+> showParseable es)
-  showParseable (ERec ides) = parens (text "ERec" <+> showParseable ides)
+  showParseable (ERec ides) = parens (text "ERec" <+> showParseable (canonicalFields ides))
   showParseable (ESel e s) = parens (text "ESel" <+> showParseable e <+> showParseable s)
   showParseable (ESet e s v) = parens (text "ESet" <+>
                                 showParseable e <+> showParseable s
@@ -61,7 +62,7 @@ instance ShowParseable Ident where
 
 instance ShowParseable Type where
   showParseable (TUser n lt t) = parens (text "TUser" <+> showParseable n <+> showParseable lt <+> showParseable t)
-  showParseable (TRec lidt) = parens (text "TRec" <+> showParseable lidt)
+  showParseable (TRec lidt) = parens (text "TRec" <+> showParseable (canonicalFields lidt))
   showParseable t = parens $ text $ show t
 
 instance ShowParseable Selector where

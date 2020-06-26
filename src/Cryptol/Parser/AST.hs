@@ -83,6 +83,7 @@ import Cryptol.Parser.Position
 import Cryptol.Parser.Selector
 import Cryptol.Utils.Fixity
 import Cryptol.Utils.Ident
+import Cryptol.Utils.RecordMap
 import Cryptol.Utils.PP
 
 import           Data.List(intersperse)
@@ -108,6 +109,8 @@ type LIdent    = Located Ident
 -- | A string with location information.
 type LString  = Located String
 
+-- | A record with located ident fields
+type Rec e = RecordMap Ident (Range, e)
 
 newtype Program name = Program [TopDecl name]
                        deriving (Show)
@@ -299,7 +302,7 @@ data Expr n   = EVar n                          -- ^ @ x @
               | EComplement (Expr n)            -- ^ @ ~1 @
               | EGenerate (Expr n)              -- ^ @ generate f @
               | ETuple [Expr n]                 -- ^ @ (1,2,3) @
-              | ERecord [Named (Expr n)]        -- ^ @ { x = 1, y = 2 } @
+              | ERecord (Rec (Expr n))          -- ^ @ { x = 1, y = 2 } @
               | ESel (Expr n) Selector          -- ^ @ e.l @
               | EUpd (Maybe (Expr n)) [ UpdField n ]  -- ^ @ { r | x = e } @
               | EList [Expr n]                  -- ^ @ [1,2,3] @
@@ -339,7 +342,7 @@ data Match name = Match (Pattern name) (Expr name)              -- ^ p <- e
 data Pattern n = PVar (Located n)              -- ^ @ x @
                | PWild                         -- ^ @ _ @
                | PTuple [Pattern n]            -- ^ @ (x,y,z) @
-               | PRecord [ Named (Pattern n) ] -- ^ @ { x = (a,b,c), y = z } @
+               | PRecord (Rec (Pattern n))     -- ^ @ { x = (a,b,c), y = z } @
                | PList [ Pattern n ]           -- ^ @ [ x, y, z ] @
                | PTyped (Pattern n) (Type n)   -- ^ @ x : [8] @
                | PSplit (Pattern n) (Pattern n)-- ^ @ (x # y) @
@@ -367,7 +370,8 @@ data Type n = TFun (Type n) (Type n)  -- ^ @[8] -> [8]@
             | TNum Integer            -- ^ @10@
             | TChar Char              -- ^ @'a'@
             | TUser n [Type n]        -- ^ A type variable or synonym
-            | TRecord [Named (Type n)]-- ^ @{ x : [8], y : [32] }@
+            | TTyApp [Named (Type n)] -- ^ @`{ x = [8], y = Integer }@
+            | TRecord (Rec (Type n))  -- ^ @{ x : [8], y : [32] }@
             | TTuple [Type n]         -- ^ @([8], [32])@
             | TWild                   -- ^ @_@, just some type.
             | TLocated (Type n) Range -- ^ Location information
@@ -507,6 +511,8 @@ ppL = pp . thing
 ppNamed :: PP a => String -> Named a -> Doc
 ppNamed s x = ppL (name x) <+> text s <+> pp (value x)
 
+ppNamed' :: PP a => String -> (Ident, (Range, a)) -> Doc
+ppNamed' s (i,(_,v)) = pp i <+> text s <+> pp v
 
 instance (Show name, PPName name) => PP (Module name) where
   ppPrec _ m = text "module" <+> ppL (mName m) <+> text "where"
@@ -715,7 +721,7 @@ instance (Show name, PPName name) => PP (Expr name) where
       EGenerate x   -> wrap n 3 (text "generate" <+> ppPrec 4 x)
 
       ETuple es     -> parens (commaSep (map pp es))
-      ERecord fs    -> braces (commaSep (map (ppNamed "=") fs))
+      ERecord fs    -> braces (commaSep (map (ppNamed' "=") (displayFields fs)))
       EList es      -> brackets (commaSep (map pp es))
       EFromTo e1 e2 e3 t1 -> brackets (pp e1 <.> step <+> text ".." <+> end)
         where step = maybe empty (\e -> comma <+> pp e) e2
@@ -781,7 +787,7 @@ instance PPName name => PP (Pattern name) where
       PVar x        -> pp (thing x)
       PWild         -> char '_'
       PTuple ps     -> parens   (commaSep (map pp ps))
-      PRecord fs    -> braces   (commaSep (map (ppNamed "=") fs))
+      PRecord fs    -> braces   (commaSep (map (ppNamed' "=") (displayFields fs)))
       PList ps      -> brackets (commaSep (map pp ps))
       PTyped p t    -> wrap n 0 (ppPrec 1 p  <+> text ":" <+> pp t)
       PSplit p1 p2  -> wrap n 1 (ppPrec 1 p1 <+> text "#" <+> ppPrec 1 p2)
@@ -827,7 +833,8 @@ instance PPName name => PP (Type name) where
     case ty of
       TWild          -> text "_"
       TTuple ts      -> parens $ commaSep $ map pp ts
-      TRecord fs     -> braces $ commaSep $ map (ppNamed ":") fs
+      TTyApp fs      -> braces $ commaSep $ map (ppNamed " = ") fs
+      TRecord fs     -> braces $ commaSep $ map (ppNamed' ":") (displayFields fs)
       TBit           -> text "Bit"
       TNum x         -> integer x
       TChar x        -> text (show x)
@@ -869,8 +876,13 @@ instance NoPos (Located t) where
 instance NoPos t => NoPos (Named t) where
   noPos t = Named { name = noPos (name t), value = noPos (value t) }
 
+instance NoPos Range where
+  noPos _ = Range { from = Position 0 0, to = Position 0 0, source = "" }
+
 instance NoPos t => NoPos [t]       where noPos = fmap noPos
 instance NoPos t => NoPos (Maybe t) where noPos = fmap noPos
+instance (NoPos a, NoPos b) => NoPos (a,b) where
+  noPos (a,b) = (noPos a, noPos b)
 
 instance NoPos (Program name) where
   noPos (Program x) = Program (noPos x)
@@ -956,7 +968,7 @@ instance NoPos (Expr name) where
       EComplement x   -> EComplement (noPos x)
       EGenerate x     -> EGenerate (noPos x)
       ETuple x        -> ETuple   (noPos x)
-      ERecord x       -> ERecord  (noPos x)
+      ERecord x       -> ERecord  (fmap noPos x)
       ESel x y        -> ESel     (noPos x) y
       EUpd x y        -> EUpd     (noPos x) (noPos y)
       EList x         -> EList    (noPos x)
@@ -993,7 +1005,7 @@ instance NoPos (Pattern name) where
       PVar x       -> PVar    (noPos x)
       PWild        -> PWild
       PTuple x     -> PTuple  (noPos x)
-      PRecord x    -> PRecord (noPos x)
+      PRecord x    -> PRecord (fmap noPos x)
       PList x      -> PList   (noPos x)
       PTyped x y   -> PTyped  (noPos x) (noPos y)
       PSplit x y   -> PSplit  (noPos x) (noPos y)
@@ -1010,7 +1022,8 @@ instance NoPos (Type name) where
     case ty of
       TWild         -> TWild
       TUser x y     -> TUser    x         (noPos y)
-      TRecord x     -> TRecord  (noPos x)
+      TTyApp x      -> TTyApp   (noPos x)
+      TRecord x     -> TRecord  (fmap noPos x)
       TTuple x      -> TTuple   (noPos x)
       TFun x y      -> TFun     (noPos x) (noPos y)
       TSeq x y      -> TSeq     (noPos x) (noPos y)

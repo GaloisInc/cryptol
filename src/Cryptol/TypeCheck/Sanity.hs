@@ -20,10 +20,10 @@ import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst (apSubst, singleTParamSubst)
 import Cryptol.TypeCheck.Monad(InferInput(..))
 import Cryptol.Utils.Ident
+import Cryptol.Utils.RecordMap
 
+import Data.List (sort)
 import qualified Data.Set as Set
-import Data.List (sort, sortBy)
-import Data.Function (on)
 import MonadLib
 import qualified Control.Applicative as A
 
@@ -71,7 +71,7 @@ checkType ty =
     TVar tv -> lookupTVar tv
 
     TRec fs ->
-      do forM_ fs $ \(_,t) ->
+      do forM_ (canonicalFields fs) $ \(_,t) ->
            do k <- checkType t
               unless (k == KType) $ reportError $ KindMismatch KType k
          return KType
@@ -156,8 +156,7 @@ exprSchema expr =
       fmap (tMono . tTuple) (mapM exprType es)
 
     ERec fs ->
-      do fs1 <- forM fs $ \(f,e) -> do t <- exprType e
-                                       return (f,t)
+      do fs1 <- traverse exprType fs
          return $ tMono $ TRec fs1
 
     ESet e x v -> do ty  <- exprType e
@@ -297,13 +296,13 @@ checkHas t sel =
           do case mb of
                Nothing -> return ()
                Just fs1 ->
-                 do let ns  = sort (map fst fs)
+                 do let ns  = map fst $ canonicalFields fs
                         ns1 = sort fs1
                     unless (ns == ns1) $
                       reportError $ UnexpectedRecordShape ns1 ns
 
-             case lookup f fs of
-               Nothing -> reportError $ MissingField f $ map fst fs
+             case lookupField f fs of
+               Nothing -> reportError $ MissingField f $ displayOrder fs
                Just ft -> return ft
 
         TCon (TC TCSeq) [s,elT] -> do res <- checkHas elT sel
@@ -370,9 +369,8 @@ convertible t1 t2 = go t1 t2
          TRec fs ->
            case other of
              TRec gs ->
-               do let order = sortBy (compare `on` fst)
-                      fs1   = order fs
-                      gs1   = order gs
+               do let fs1   = canonicalFields fs
+                      gs1   = canonicalFields gs
                   unless (map fst fs1 == map fst gs1) err
                   goMany (map snd fs1) (map snd gs1)
              _ -> err

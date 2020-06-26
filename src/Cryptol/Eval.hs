@@ -49,9 +49,10 @@ import Cryptol.TypeCheck.Solver.InfNat(Nat'(..))
 import Cryptol.Utils.Ident
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
-
+import Cryptol.Utils.RecordMap
 
 import           Control.Monad
+import           Data.Functor.Identity
 import           Data.List
 import           Data.Maybe
 import qualified Data.Map.Strict as Map
@@ -131,7 +132,7 @@ evalExpr sym env expr = case expr of
      return $ VTuple xs
 
   ERec fields -> {-# SCC "evalExpr->ERec" #-} do
-     xs <- mapM (sDelay sym Nothing . eval) (Map.fromList fields)
+     xs <- traverse (sDelay sym Nothing . eval) fields
      return $ VRecord xs
 
   ESel e sel -> {-# SCC "evalExpr->ESel" #-} do
@@ -336,7 +337,7 @@ isValueType env Forall{ sVars = [], sProps = [], sType = t0 }
   go TVBit = True
   go (TVSeq _ x)  = go x
   go (TVTuple xs) = and (map go xs)
-  go (TVRec xs)   = and (map (go . snd) xs)
+  go (TVRec xs)   = and (fmap go xs)
   go _            = False
 
 isValueType _ _ = False
@@ -414,7 +415,11 @@ etaDelay sym msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
 
       VRecord fs
         | TVRec fts <- tp
-        -> return $ VRecord (Map.intersectionWith go (Map.fromList fts) fs)
+        -> do let res = zipRecords (\_ v t -> go t v) fs fts
+              case res of
+                Left (Left f)  -> evalPanic "type mismatch during eta-expansion" ["missing field " ++ show f]
+                Left (Right f) -> evalPanic "type mismatch during eta-expansion" ["unexpected field " ++ show f]
+                Right fs' -> return (VRecord fs')
 
       VFun f
         | TVFun _t1 t2 <- tp
@@ -461,10 +466,9 @@ etaDelay sym msg env0 Forall{ sVars = vs0, sType = tp0 } = goTpVars env0 vs0
       TVRec fs ->
           do v' <- sDelay sym (Just msg) (fromVRecord <$> v)
              let err f = evalPanic "expected record value with field" [show f]
-             return $ VRecord $ Map.fromList
-                [ (f, go t =<< (fromMaybe (err f) . Map.lookup f <$> v'))
-                | (f,t) <- fs
-                ]
+             let eta f t = Identity (go t =<< (fromMaybe (err f) . lookupField f <$> v'))
+             let fs' = runIdentity (traverseRecordMap eta fs)
+             return $ VRecord fs'
 
       TVAbstract {} -> v
 
@@ -601,9 +605,10 @@ evalSetSel sym e sel v =
 
   setRecord n =
     case e of
-      VRecord xs
-        | Map.member n xs -> pure (VRecord (Map.insert n v xs))
-        | otherwise       -> bad "Missing field in record update."
+      VRecord xs ->
+        case adjustField n (\_ -> v) xs of
+          Just xs' -> pure (VRecord xs')
+          Nothing -> bad "Missing field in record update."
       _ -> bad "Record update on a non-record."
 
   setList n =

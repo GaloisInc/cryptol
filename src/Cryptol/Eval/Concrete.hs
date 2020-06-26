@@ -24,9 +24,7 @@ module Cryptol.Eval.Concrete
   , toExpr
   ) where
 
-import Control.Monad (join,guard,zipWithM)
-import Data.List(sortBy)
-import Data.Ord(comparing)
+import Control.Monad (join,guard,zipWithM,mzero)
 import Data.Bits (Bits(..))
 import Data.Ratio(numerator,denominator)
 import MonadLib( ChoiceT, findOne, lift )
@@ -50,7 +48,7 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Ident (PrimIdent,prelPrim,floatPrim)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Logger(logPrint)
-
+import Cryptol.Utils.RecordMap
 
 
 -- Value to Expression conversion ----------------------------------------------
@@ -68,11 +66,12 @@ toExpr prims t0 v0 = findOne (go t0 v0)
 
   go :: AST.Type -> Value -> ChoiceT Eval Expr
   go ty val = case (tNoUser ty, val) of
-    (TRec (sortBy (comparing fst) -> tfs), VRecord vfs) -> do
-      let fns = Map.keys vfs
-      guard (map fst tfs == fns)
-      fes <- zipWithM go (map snd tfs) =<< lift (sequence (Map.elems vfs))
-      return $ ERec (zip fns fes)
+    (TRec tfs, VRecord vfs) -> do
+      -- NB, vfs first argument to keep their display order
+      res <- zipRecordsM (\_lbl v t -> go t =<< lift v) vfs tfs
+      case res of
+        Left _ -> mzero -- different fields
+        Right efs -> pure (ERec efs)
     (TCon (TC (TCTuple tl)) ts, VTuple tvs) -> do
       guard (tl == (length tvs))
       ETuple `fmap` (zipWithM go ts =<< lift (sequence tvs))

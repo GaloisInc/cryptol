@@ -18,7 +18,6 @@ module Cryptol.Parser.Utils
 
 import Cryptol.Parser.AST
 
-
 widthIdent :: Ident
 widthIdent  = mkIdent "width"
 

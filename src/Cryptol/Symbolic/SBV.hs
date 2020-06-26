@@ -29,7 +29,6 @@ import Control.Monad (replicateM, when, zipWithM, foldM)
 import Control.Monad.Writer (WriterT, runWriterT, tell, lift)
 import Data.List (intercalate, genericLength)
 import Data.Maybe (fromMaybe)
-import qualified Data.Map as Map
 import qualified Control.Exception as X
 
 import LibBF(bfNaN)
@@ -52,12 +51,12 @@ import qualified Cryptol.Eval.Concrete as Concrete
 import           Cryptol.Eval.Concrete (Concrete(..))
 import qualified Cryptol.Eval.Concrete.FloatHelpers as Concrete
 import qualified Cryptol.Eval.Monad as Eval
-
 import qualified Cryptol.Eval.Value as Eval
 import           Cryptol.Eval.SBV
-import Cryptol.Symbolic
-import Cryptol.Utils.Panic(panic)
-import Cryptol.Utils.Logger(logPutStrLn)
+import           Cryptol.Symbolic
+import           Cryptol.Utils.Panic(panic)
+import           Cryptol.Utils.Logger(logPutStrLn)
+import           Cryptol.Utils.RecordMap
 
 import Prelude ()
 import Prelude.Compat
@@ -429,17 +428,20 @@ parseValue (FTSeq n t) cvs =
   where (vs, cvs') = parseValues (replicate n t) cvs
 parseValue (FTTuple ts) cvs = (Eval.VTuple (map Eval.ready vs), cvs')
   where (vs, cvs') = parseValues ts cvs
-parseValue (FTRecord fs) cvs = (Eval.VRecord (Map.fromList (zip ns (map Eval.ready vs))), cvs')
-  where (ns, ts)   = unzip (Map.toList fs)
+parseValue (FTRecord r) cvs = (Eval.VRecord r', cvs')
+  where (ns, ts)   = unzip $ canonicalFields r
         (vs, cvs') = parseValues ts cvs
+        fs         = zip ns (map Eval.ready vs)
+        r'         = recordFromFieldsWithDisplay (displayOrder r) fs
+
 parseValue (FTFloat e p) cvs =
    (Eval.VFloat Concrete.BF { Concrete.bfValue = bfNaN
                             , Concrete.bfExpWidth = e
                             , Concrete.bfPrecWidth = p
                             }
-  , cvs
-  )
-  -- XXX: NOT IMPLEMENTED
+   , cvs
+   )
+   -- XXX: NOT IMPLEMENTED
 
 inBoundsIntMod :: Integer -> Eval.SInteger SBV -> Eval.SBit SBV
 inBoundsIntMod n x =
@@ -467,7 +469,7 @@ forallFinType ty =
     FTSeq n t     -> do vs <- replicateM n (forallFinType t)
                         return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
     FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . forallFinType) ts
-    FTRecord fs   -> Eval.VRecord <$> mapM (fmap pure . forallFinType) fs
+    FTRecord fs   -> Eval.VRecord <$> traverse (fmap pure . forallFinType) fs
 
 existsFinType :: FinType -> WriterT [Eval.SBit SBV] SBV.Symbolic Value
 existsFinType ty =
@@ -489,4 +491,4 @@ existsFinType ty =
     FTSeq n t     -> do vs <- replicateM n (existsFinType t)
                         return $ Eval.VSeq (toInteger n) $ Eval.finiteSeqMap SBV (map pure vs)
     FTTuple ts    -> Eval.VTuple <$> mapM (fmap pure . existsFinType) ts
-    FTRecord fs   -> Eval.VRecord <$> mapM (fmap pure . existsFinType) fs
+    FTRecord fs   -> Eval.VRecord <$> traverse (fmap pure . existsFinType) fs

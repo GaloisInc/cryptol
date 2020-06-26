@@ -24,6 +24,7 @@ import Cryptol.Parser.Position(Range(..),emptyRange,start,at)
 import Cryptol.Parser.Names (namesP)
 import Cryptol.Utils.PP
 import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.RecordMap
 
 import           MonadLib hiding (mapM)
 import           Data.Maybe(maybeToList)
@@ -98,11 +99,11 @@ noPat pat =
          return (pTy r x ty, zipWith getN as [0..] ++ concat dss)
 
     PRecord fs ->
-      do (as,dss) <- unzip `fmap` mapM (noPat . value) fs
+      do (as,dss) <- unzip `fmap` mapM (noPat . snd . snd) (canonicalFields fs)
          x <- newName
          r <- getRange
-         let shape    = map (thing . name) fs
-             ty       = TRecord (map (fmap (\_ -> TWild)) fs)
+         let shape    = map fst (canonicalFields fs)
+             ty       = TRecord (fmap (\(rng,_) -> (rng,TWild)) fs)
              getN a n = sel a x (RecordSel n (Just shape))
          return (pTy r x ty, zipWith getN as shape ++ concat dss)
 
@@ -147,7 +148,7 @@ noPatE expr =
     EComplement e -> EComplement <$> noPatE e
     EGenerate e   -> EGenerate <$> noPatE e
     ETuple es     -> ETuple  <$> mapM noPatE es
-    ERecord es    -> ERecord <$> mapM noPatF es
+    ERecord es    -> ERecord <$> traverse (traverse noPatE) es
     ESel e s      -> ESel    <$> noPatE e <*> return s
     EUpd mb fs    -> EUpd    <$> traverse noPatE mb <*> traverse noPatUF fs
     EList es      -> EList   <$> mapM noPatE es
@@ -168,8 +169,6 @@ noPatE expr =
     EParens e     -> EParens <$> noPatE e
     EInfix x y f z-> EInfix  <$> noPatE x <*> pure y <*> pure f <*> noPatE z
 
-  where noPatF x = do e <- noPatE (value x)
-                      return x { value = e }
 
 noPatUF :: UpdField PName -> NoPatM (UpdField PName)
 noPatUF (UpdField h ls e) = UpdField h ls <$> noPatE e

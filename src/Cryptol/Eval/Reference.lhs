@@ -42,6 +42,7 @@
 > import Cryptol.Utils.Ident (Ident,PrimIdent, prelPrim, floatPrim)
 > import Cryptol.Utils.Panic (panic)
 > import Cryptol.Utils.PP
+> import Cryptol.Utils.RecordMap
 >
 > import qualified Cryptol.ModuleSystem as M
 > import qualified Cryptol.ModuleSystem.Env as M (loadedModules)
@@ -190,7 +191,7 @@ cpo that represents any given schema.
 >         TVSeq w ety  -> VList (Nat w) (map (go ety) (copyList w (fromVList val)))
 >         TVStream ety -> VList Inf (map (go ety) (copyStream (fromVList val)))
 >         TVTuple etys -> VTuple (zipWith go etys (copyList (genericLength etys) (fromVTuple val)))
->         TVRec fields -> VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- fields ]
+>         TVRec fields -> VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- canonicalFields fields ]
 >         TVFun _ bty  -> VFun (\v -> go bty (fromVFun val v))
 >         TVAbstract {} -> val
 >
@@ -326,7 +327,7 @@ assigns values to those variables.
 >
 >     EList es _ty  -> VList (Nat (genericLength es)) [ evalExpr env e | e <- es ]
 >     ETuple es     -> VTuple [ evalExpr env e | e <- es ]
->     ERec fields   -> VRecord [ (f, evalExpr env e) | (f, e) <- fields ]
+>     ERec fields   -> VRecord [ (f, evalExpr env e) | (f, e) <- canonicalFields fields ]
 >     ESel e sel    -> evalSel (evalExpr env e) sel
 >     ESet e sel v  -> evalSet (evalExpr env e) sel (evalExpr env v)
 >
@@ -890,7 +891,7 @@ where the given error is "pushed down" into the leaf types.
 > cryError e (TVSeq n ety)  = VList (Nat n) (genericReplicate n (cryError e ety))
 > cryError e (TVStream ety) = VList Inf (repeat (cryError e ety))
 > cryError e (TVTuple tys)  = VTuple (map (cryError e) tys)
-> cryError e (TVRec fields) = VRecord [ (f, cryError e fty) | (f, fty) <- fields ]
+> cryError e (TVRec fields) = VRecord [ (f, cryError e fty) | (f, fty) <- canonicalFields fields ]
 > cryError e (TVFun _ bty)  = VFun (\_ -> cryError e bty)
 > cryError _ (TVAbstract{}) = evalPanic "error" ["Abstract type encountered in `error`"]
 
@@ -916,7 +917,7 @@ For functions, `zero` returns the constant function that returns
 > zero (TVSeq n ety)  = VList (Nat n) (genericReplicate n (zero ety))
 > zero (TVStream ety) = VList Inf (repeat (zero ety))
 > zero (TVTuple tys)  = VTuple (map zero tys)
-> zero (TVRec fields) = VRecord [ (f, zero fty) | (f, fty) <- fields ]
+> zero (TVRec fields) = VRecord [ (f, zero fty) | (f, fty) <- canonicalFields fields ]
 > zero (TVFun _ bty)  = VFun (\_ -> zero bty)
 > zero (TVAbstract{}) = evalPanic "zero" ["Abstract type not in `Zero`"]
 
@@ -975,7 +976,7 @@ at the same positions.
 >         TVSeq w ety  -> VList (Nat w) (map (go ety) (fromVList val))
 >         TVStream ety -> VList Inf (map (go ety) (fromVList val))
 >         TVTuple etys -> VTuple (zipWith go etys (fromVTuple val))
->         TVRec fields -> VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- fields ]
+>         TVRec fields -> VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- canonicalFields fields ]
 >         TVFun _ bty  -> VFun (\v -> go bty (fromVFun val v))
 >         TVInteger    -> evalPanic "logicUnary" ["Integer not in class Logic"]
 >         TVIntMod _   -> evalPanic "logicUnary" ["Z not in class Logic"]
@@ -995,7 +996,7 @@ at the same positions.
 >         TVStream ety -> VList Inf (zipWith (go ety) (fromVList l) (fromVList r))
 >         TVTuple etys -> VTuple (zipWith3 go etys (fromVTuple l) (fromVTuple r))
 >         TVRec fields -> VRecord [ (f, go fty (lookupRecord f l) (lookupRecord f r))
->                                 | (f, fty) <- fields ]
+>                                 | (f, fty) <- canonicalFields fields ]
 >         TVFun _ bty  -> VFun (\v -> go bty (fromVFun l v) (fromVFun r v))
 >         TVInteger    -> evalPanic "logicBinary" ["Integer not in class Logic"]
 >         TVIntMod _   -> evalPanic "logicBinary" ["Z not in class Logic"]
@@ -1047,7 +1048,7 @@ False]`, but to `[error "foo", error "foo"]`.
 >         TVTuple tys ->
 >           VTuple (map go tys)
 >         TVRec fs ->
->           VRecord [ (f, go fty) | (f, fty) <- fs ]
+>           VRecord [ (f, go fty) | (f, fty) <- canonicalFields fs ]
 >         TVAbstract {} ->
 >           evalPanic "arithNullary" ["Abstract type not in `Ring`"]
 
@@ -1083,7 +1084,7 @@ False]`, but to `[error "foo", error "foo"]`.
 >         TVTuple tys ->
 >           VTuple (zipWith go tys (fromVTuple val))
 >         TVRec fs ->
->           VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- fs ]
+>           VRecord [ (f, go fty (lookupRecord f val)) | (f, fty) <- canonicalFields fs ]
 >         TVAbstract {} ->
 >           evalPanic "arithUnary" ["Abstract type not in `Ring`"]
 
@@ -1119,7 +1120,7 @@ False]`, but to `[error "foo", error "foo"]`.
 >         TVTuple tys ->
 >           VTuple (zipWith3 go tys (fromVTuple l) (fromVTuple r))
 >         TVRec fs ->
->           VRecord [ (f, go fty (lookupRecord f l) (lookupRecord f r)) | (f, fty) <- fs ]
+>           VRecord [ (f, go fty (lookupRecord f l) (lookupRecord f r)) | (f, fty) <- canonicalFields fs ]
 >         TVAbstract {} ->
 >           evalPanic "arithBinary" ["Abstract type not in class `Ring`"]
 
@@ -1277,7 +1278,7 @@ bits to the *left* of that position are equal.
 >     TVTuple etys ->
 >       lexList (zipWith3 lexCompare etys (fromVTuple l) (fromVTuple r))
 >     TVRec fields ->
->       let tys    = map snd (sortBy (comparing fst) fields)
+>       let tys    = map snd (canonicalFields fields)
 >           ls     = map snd (sortBy (comparing fst) (fromVRecord l))
 >           rs     = map snd (sortBy (comparing fst) (fromVRecord r))
 >        in lexList (zipWith3 lexCompare tys ls rs)
@@ -1328,7 +1329,7 @@ fields are compared in alphabetical order.
 >     TVTuple etys ->
 >       lexList (zipWith3 lexSignedCompare etys (fromVTuple l) (fromVTuple r))
 >     TVRec fields ->
->       let tys    = map snd (sortBy (comparing fst) fields)
+>       let tys    = map snd (canonicalFields fields)
 >           ls     = map snd (sortBy (comparing fst) (fromVRecord l))
 >           rs     = map snd (sortBy (comparing fst) (fromVRecord r))
 >        in lexList (zipWith3 lexSignedCompare tys ls rs)

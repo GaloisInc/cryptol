@@ -7,12 +7,12 @@ True
 Counterexample
 f 0xc = False
 it : {result : Bit, arg1 : [4]}
-{arg1 = 0xc, result = False}
+{result = False, arg1 = 0xc}
 False
 Satisfiable
 f 0x3 = True
 it : {result : Bit, arg1 : [4]}
-{arg1 = 0x3, result = True}
+{result = True, arg1 = 0x3}
 True
 Unsatisfiable
 it : {result : Bit, arg1 : [4]}
@@ -21,18 +21,18 @@ Run-time error: no satisfying assignment available
 Counterexample
 g {x = 0xffffffff, y = 0x00000000} = False
 it : {result : Bit, arg1 : {x : [32], y : [32]}}
-{arg1 = {x = 0xffffffff, y = 0x00000000}, result = False}
+{result = False, arg1 = {x = 0xffffffff, y = 0x00000000}}
 Satisfiable
 g {x = 0x00000000, y = 0x00000000} = True
 it : {result : Bit, arg1 : {x : [32], y : [32]}}
-{arg1 = {x = 0x00000000, y = 0x00000000}, result = True}
+{result = True, arg1 = {x = 0x00000000, y = 0x00000000}}
 Counterexample
 h 0x00 0x00 = False
 it : {result : Bit, arg1 : [8], arg2 : [8]}
-{arg1 = 0x00, arg2 = 0x00, result = False}
+{result = False, arg1 = 0x00, arg2 = 0x00}
 0x00
 0x00
 Satisfiable
 h 0x00 0x01 = True
 it : {result : Bit, arg1 : [8], arg2 : [8]}
-{arg1 = 0x00, arg2 = 0x01, result = True}
+{result = True, arg1 = 0x00, arg2 = 0x01}

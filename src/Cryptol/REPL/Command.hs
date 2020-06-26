@@ -75,9 +75,10 @@ import qualified Cryptol.TypeCheck.Parseable as T
 import qualified Cryptol.TypeCheck.Subst as T
 import           Cryptol.TypeCheck.Solve(defaultReplExpr)
 import qualified Cryptol.TypeCheck.Solver.SMT as SMT
-import Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap)
-import Cryptol.Utils.PP
-import Cryptol.Utils.Panic(panic)
+import           Cryptol.TypeCheck.PP (dump,ppWithNames,emptyNameMap)
+import           Cryptol.Utils.PP
+import           Cryptol.Utils.Panic(panic)
+import           Cryptol.Utils.RecordMap
 import qualified Cryptol.Parser.AST as P
 import qualified Cryptol.Transform.Specialize as S
 import Cryptol.Symbolic
@@ -488,8 +489,8 @@ qcCmd qcMode str =
         case (tys,vs) of
           ([t],[v]) -> bindItVariableVal t v
           _ -> let fs = [ M.packIdent ("arg" ++ show (i::Int)) | i <- [ 1 .. ] ]
-                   t = T.TRec (zip fs tys)
-                   v = E.VRecord (Map.fromList (zip fs (map return vs)))
+                   t = T.TRec (recordFromFields (zip fs tys))
+                   v = E.VRecord (recordFromFields (zip fs (map return vs)))
                in bindItVariableVal t v
 
       FailError err [] -> do
@@ -802,8 +803,8 @@ mkSolverResult thing result earg =
          eFalse = T.ePrim prims (M.prelPrim "False")
          resultE = if result then eTrue else eFalse
 
-         rty = T.TRec $ [(rIdent, T.tBit )] ++ map fst argF
-         re  = T.ERec $ [(rIdent, resultE)] ++ map snd argF
+         rty = T.TRec (recordFromFields $ [(rIdent, T.tBit )] ++ map fst argF)
+         re  = T.ERec (recordFromFields $ [(rIdent, resultE)] ++ map snd argF)
 
      return (rty, re)
   where

@@ -211,9 +211,7 @@ apSubstMaybe su ty =
 
     TUser f ts t  -> do t1 <- apSubstMaybe su t
                         return (TUser f (map (apSubst su) ts) t1)
-    TRec fs       -> TRec `fmap` anyJust fld fs
-      where fld (x,t) = do t1 <- apSubstMaybe su t
-                           return (x,t1)
+    TRec fs       -> TRec `fmap` (anyJust (apSubstMaybe su) fs)
     TVar x -> applySubstToVar su x
 
 lookupSubst :: TVar -> Subst -> Maybe Type
@@ -336,7 +334,7 @@ instance TVars Expr where
         EVar {}       -> expr
 
         ETuple es     -> ETuple (map go es)
-        ERec fs       -> ERec [ (f, go e) | (f,e) <- fs ]
+        ERec fs       -> ERec (fmap go fs)
         ESet e x v    -> ESet (go e) x (go v)
         EList es t    -> EList (map go es) (apSubst su t)
         ESel e s      -> ESel (go e) s

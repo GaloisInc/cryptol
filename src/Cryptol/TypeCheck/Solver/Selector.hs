@@ -17,6 +17,7 @@ import Cryptol.TypeCheck.Monad( InferM, unify, newGoals, lookupNewtype
 import Cryptol.TypeCheck.Subst (listParamSubst, apSubst)
 import Cryptol.Utils.Ident (Ident, packIdent)
 import Cryptol.Utils.Panic(panic)
+import Cryptol.Utils.RecordMap
 
 import Control.Monad(forM,guard)
 
@@ -26,7 +27,7 @@ recordType labels =
   do fields <- forM labels $ \l ->
         do t <- newType (TypeOfRecordField l) KType
            return (l,t)
-     return (TRec fields)
+     return (TRec (recordFromFields fields))
 
 tupleType :: Int -> InferM Type
 tupleType n =
@@ -64,7 +65,7 @@ solveSelector sel outerT =
 
     (RecordSel l _, ty) ->
       case ty of
-        TRec fs  -> return (lookup l fs)
+        TRec fs  -> return (lookupField l fs)
         TCon (TC TCSeq) [len,el] -> liftSeq len el
         TCon (TC TCFun) [t1,t2]  -> liftFun t1 t2
         TCon (TC (TCNewtype (UserTC x _))) ts ->

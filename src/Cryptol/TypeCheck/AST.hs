@@ -37,6 +37,7 @@ import Cryptol.Parser.AST ( Selector(..),Pragma(..)
                           , Import(..), ImportSpec(..), ExportType(..)
                           , Fixity(..))
 import Cryptol.Utils.Ident (Ident,isInfixIdent,ModName,PrimIdent,prelPrim)
+import Cryptol.Utils.RecordMap
 import Cryptol.TypeCheck.PP
 import Cryptol.TypeCheck.Type
 
@@ -103,7 +104,7 @@ data ModVParam = ModVParam
 
 data Expr   = EList [Expr] Type         -- ^ List value (with type of elements)
             | ETuple [Expr]             -- ^ Tuple value
-            | ERec [(Ident,Expr)]       -- ^ Record value
+            | ERec (RecordMap Ident Expr) -- ^ Record value
             | ESel Expr Selector        -- ^ Elimination for tuple/record/list
             | ESet Expr Selector Expr   -- ^ Change the value of a field.
 
@@ -206,7 +207,7 @@ instance PP (WithNames Expr) where
       ETuple es     -> parens $ sep $ punctuate comma $ map ppW es
 
       ERec fs       -> braces $ sep $ punctuate comma
-                        [ pp f <+> text "=" <+> ppW e | (f,e) <- fs ]
+                        [ pp f <+> text "=" <+> ppW e | (f,e) <- displayFields fs ]
 
       ESel e sel    -> ppWP 4 e <+> text "." <.> pp sel
 

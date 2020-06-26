@@ -181,8 +181,7 @@ rewE rews = go
 
       EList es t      -> EList   <$> mapM go es <*> return t
       ETuple es       -> ETuple  <$> mapM go es
-      ERec fs         -> ERec    <$> (forM fs $ \(f,e) -> do e1 <- go e
-                                                             return (f,e1))
+      ERec fs         -> ERec    <$> traverse go fs
       ESel e s        -> ESel    <$> go e  <*> return s
       ESet e s v      -> ESet    <$> go e  <*> return s <*> go v
       EIf e1 e2 e3    -> EIf     <$> go e1 <*> go e2 <*> go e3

@@ -13,10 +13,9 @@ module Cryptol.TypeCheck.Unify where
 
 import Cryptol.TypeCheck.AST
 import Cryptol.TypeCheck.Subst
+import Cryptol.Utils.RecordMap
 
 import Control.Monad.Writer (Writer, writer, runWriter)
-import Data.Ord(comparing)
-import Data.List(sortBy)
 import qualified Data.Set as Set
 
 import Prelude ()
@@ -75,9 +74,8 @@ mgu t1 t2
 mgu (TRec fs1) (TRec fs2)
   | ns1 == ns2 = mguMany ts1 ts2
   where
-  (ns1,ts1)  = sortFields fs1
-  (ns2,ts2)  = sortFields fs2
-  sortFields = unzip . sortBy (comparing fst)
+  (ns1,ts1)  = unzip (canonicalFields fs1)
+  (ns2,ts2)  = unzip (canonicalFields fs2)
 
 mgu t1 t2
   | not (k1 == k2)  = uniError $ UniKindMismatch k1 k2

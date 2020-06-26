@@ -30,7 +30,7 @@ import Cryptol.TypeCheck.Type
 import Cryptol.TypeCheck.SimpType (tAdd,tWidth)
 import Cryptol.TypeCheck.Solver.Types
 import Cryptol.TypeCheck.PP
-
+import Cryptol.Utils.RecordMap
 
 {- | This places constraints on the floating point numbers that
 we can work with.  This is a bit of an odd check, as it is really
@@ -98,7 +98,7 @@ solveZeroInst ty = case tNoUser ty of
   TCon (TC (TCTuple _)) es -> SolvedIf [ pZero e | e <- es ]
 
   -- (Zero a, Zero b) => Zero { x1 : a, x2 : b }
-  TRec fs -> SolvedIf [ pZero ety | (_,ety) <- fs ]
+  TRec fs -> SolvedIf [ pZero ety | (_,ety) <- canonicalFields fs ]
 
   _ -> Unsolved
 
@@ -122,7 +122,7 @@ solveLogicInst ty = case tNoUser ty of
   TCon (TC (TCTuple _)) es -> SolvedIf [ pLogic e | e <- es ]
 
   -- (Logic a, Logic b) => Logic { x1 : a, x2 : b }
-  TRec fs -> SolvedIf [ pLogic ety | (_,ety) <- fs ]
+  TRec fs -> SolvedIf [ pLogic ety | (_,ety) <- canonicalFields fs ]
 
   _ -> Unsolved
 
@@ -159,7 +159,7 @@ solveRingInst ty = case tNoUser ty of
   TCon (TC TCFloat) [e,p] -> SolvedIf [ pValidFloat e p ]
 
   -- (Ring a, Ring b) => Ring { x1 : a, x2 : b }
-  TRec fs -> SolvedIf [ pRing ety | (_,ety) <- fs ]
+  TRec fs -> SolvedIf [ pRing ety | (_,ety) <- canonicalFields fs ]
 
   _ -> Unsolved
 
@@ -284,7 +284,7 @@ solveEqInst ty = case tNoUser ty of
     Unsolvable $ TCErrorMessage "Comparisons may not be performed on functions."
 
   -- (Eq a, Eq b) => Eq { x:a, y:b }
-  TRec fs -> SolvedIf [ pEq e | (_,e) <- fs ]
+  TRec fs -> SolvedIf [ pEq e | (_,e) <- canonicalFields fs ]
 
   _ -> Unsolved
 
@@ -323,7 +323,7 @@ solveCmpInst ty = case tNoUser ty of
     Unsolvable $ TCErrorMessage "Comparisons may not be performed on functions."
 
   -- (Cmp a, Cmp b) => Cmp { x:a, y:b }
-  TRec fs -> SolvedIf [ pCmp e | (_,e) <- fs ]
+  TRec fs -> SolvedIf [ pCmp e | (_,e) <- canonicalFields fs ]
 
   _ -> Unsolved
 
@@ -364,7 +364,7 @@ solveSignedCmpInst ty = case tNoUser ty of
     Unsolvable $ TCErrorMessage "Signed comparisons may not be performed on functions."
 
   -- (SignedCmp a, SignedCmp b) => SignedCmp { x:a, y:b }
-  TRec fs -> SolvedIf [ pSignedCmp e | (_,e) <- fs ]
+  TRec fs -> SolvedIf [ pSignedCmp e | (_,e) <- canonicalFields fs ]
 
   _ -> Unsolved
 

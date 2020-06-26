@@ -30,6 +30,7 @@ import           Cryptol.TypeCheck.SimpleSolver(simplify)
 import           Cryptol.TypeCheck.Solve (simplifyAllConstraints)
 import           Cryptol.TypeCheck.Subst(listSubst,apSubst)
 import           Cryptol.Utils.Panic (panic)
+import           Cryptol.Utils.RecordMap
 
 import qualified Data.Map as Map
 import           Data.List(sortBy,groupBy)
@@ -376,7 +377,7 @@ doCheckType ty k =
 
     P.TTuple ts     -> tcon (TC (TCTuple (length ts))) ts k
 
-    P.TRecord fs    -> do t1 <- TRec `fmap` mapM checkF fs
+    P.TRecord fs    -> do t1 <- TRec <$> traverseRecordMap checkF fs
                           checkKind t1 k KType
     P.TLocated t r1 -> kInRange r1 $ doCheckType t k
 
@@ -386,12 +387,11 @@ doCheckType ty k =
 
     P.TInfix t x _ u-> doCheckType (P.TUser (thing x) [t, u]) k
 
+    P.TTyApp _fs    -> panic "doCheckType"
+                         ["TTyApp found when kind checking, but it should have been eliminated already"]
+
   where
-  checkF f = do t <- kInRange (srcRange (name f))
-                   $ doCheckType (value f) (Just KType)
-                return (thing (name f), t)
-
-
+  checkF _nm (rng,v) = kInRange rng $ doCheckType v (Just KType)
 
 -- | Validate a parsed proposition.
 checkProp :: P.Prop Name      -- ^ Proposition that need to be checked

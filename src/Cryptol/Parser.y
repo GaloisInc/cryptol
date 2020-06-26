@@ -492,8 +492,10 @@ no_sel_aexpr                   :: { Expr PName                             }
   | '(' expr ')'                  { at ($1,$3) $ EParens $2                }
   | '(' tuple_exprs ')'           { at ($1,$3) $ ETuple (reverse $2)       }
   | '(' ')'                       { at ($1,$2) $ ETuple []                 }
-  | '{' '}'                       { at ($1,$2) $ ERecord []                }
-  | '{' rec_expr '}'              { at ($1,$3) $2                          }
+  | '{' '}'                       {% mkRecord (rComb $1 $2) ERecord []     }
+  | '{' rec_expr '}'              {% case $2 of {
+                                       Left upd -> pure $ at ($1,$3) upd;
+                                       Right fs -> mkRecord (rComb $1 $3) ERecord fs; }}
   | '[' ']'                       { at ($1,$2) $ EList []                  }
   | '[' list_expr  ']'            { at ($1,$3) $2                          }
   | '`' tick_ty                   { at ($1,$2) $ ETypeVal $2               }
@@ -527,11 +529,10 @@ tuple_exprs                    :: { [Expr PName] }
   | tuple_exprs ',' expr          { $3 : $1   }
 
 
-rec_expr :: { Expr PName }
-  : aexpr '|' field_exprs         { EUpd (Just $1) (reverse $3) }
-  | '_'   '|' field_exprs         { EUpd Nothing   (reverse $3) }
-  | field_exprs                   {% do { xs <- mapM ufToNamed $1;
-                                          pure (ERecord (reverse xs)) } }
+rec_expr :: { Either (Expr PName) [Named (Expr PName)] }
+  : aexpr '|' field_exprs         {  Left (EUpd (Just $1) (reverse $3)) }
+  | '_'   '|' field_exprs         {  Left (EUpd Nothing   (reverse $3)) }
+  | field_exprs                   {% Right `fmap` mapM ufToNamed $1 }
 
 field_expr             :: { UpdField PName }
   : selector field_how expr     { UpdField $2 [$1] $3 }
@@ -600,8 +601,8 @@ apat                           :: { Pattern PName }
   | '[' ']'                       { at ($1,$2) $ PList []             }
   | '[' pat ']'                   { at ($1,$3) $ PList [$2]           }
   | '[' tuple_pats ']'            { at ($1,$3) $ PList (reverse $2)   }
-  | '{' '}'                       { at ($1,$2) $ PRecord []           }
-  | '{' field_pats '}'            { at ($1,$3) $ PRecord (reverse $2) }
+  | '{' '}'                       {% mkRecord (rComb $1 $2) PRecord [] }
+  | '{' field_pats '}'            {% mkRecord (rComb $1 $3) PRecord $2 }
 
 tuple_pats                     :: { [Pattern PName] }
   : pat ',' pat                   { [$3, $1] }
@@ -679,8 +680,8 @@ atype                          :: { Type PName }
   | '(' type ')'                  { at ($1,$3) $ TParens $2            }
   | '(' ')'                       { at ($1,$2) $ TTuple []             }
   | '(' tuple_types ')'           { at ($1,$3) $ TTuple  (reverse $2)  }
-  | '{' '}'                       { at ($1,$2) $ TRecord []            }
-  | '{' field_types '}'           { at ($1,$3) $ TRecord (reverse $2)  }
+  | '{' '}'                       {% mkRecord (rComb $1 $2) TRecord [] }
+  | '{' field_types '}'           {% mkRecord (rComb $1 $3) TRecord $2 }
   | '_'                           { at $1 TWild                        }
 
 atypes                         :: { [ Type PName ] }
@@ -738,16 +739,15 @@ help_name                      :: { Located PName    }
   | '(' qop ')'                   { $2               }
 
 {- The types that can come after a back-tick: either a type demotion,
-or an explicit type application.  Explicit type applications are converted
-to records, which cannot be demoted. -}
+or an explicit type application. -}
 tick_ty                        :: { Type PName }
   : qname                         { at $1 $ TUser (thing $1) []      }
   | NUM                           { at $1 $ TNum  (getNum $1)          }
   | '(' type ')'                  {% validDemotedType (rComb $1 $3) $2 }
-  | '{' '}'                       { at ($1,$2) (TRecord [])            }
-  | '{' field_ty_vals '}'         { at ($1,$3) (TRecord (reverse $2))  }
-  | '{' type '}'                  { anonRecord (getLoc ($1,$3)) [$2]   }
-  | '{' tuple_types '}'           { anonRecord (getLoc ($1,$3)) (reverse $2) }
+  | '{' '}'                       { at ($1,$2) (TTyApp [])             }
+  | '{' field_ty_vals '}'         { at ($1,$3) (TTyApp (reverse $2))   }
+  | '{' type '}'                  { anonTyApp (getLoc ($1,$3)) [$2]    }
+  | '{' tuple_types '}'           { anonTyApp (getLoc ($1,$3)) (reverse $2) }
 
 -- This for explicit type applications (e.g., f ` { front = 3 })
 field_ty_val                   :: { Named (Type PName)              }

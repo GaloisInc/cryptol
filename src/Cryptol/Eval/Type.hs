@@ -17,6 +17,7 @@ import Cryptol.TypeCheck.PP(pp)
 import Cryptol.TypeCheck.Solver.InfNat
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Ident (Ident)
+import Cryptol.Utils.RecordMap
 
 import Data.Maybe(fromMaybe)
 import qualified Data.Map.Strict as Map
@@ -36,7 +37,7 @@ data TValue
   | TVSeq Integer TValue      -- ^ @ [n]a @
   | TVStream TValue           -- ^ @ [inf]t @
   | TVTuple [TValue]          -- ^ @ (a, b, c )@
-  | TVRec [(Ident, TValue)]   -- ^ @ { x : a, y : b, z : c } @
+  | TVRec (RecordMap Ident TValue) -- ^ @ { x : a, y : b, z : c } @
   | TVFun TValue TValue       -- ^ @ a -> b @
   | TVAbstract UserTC [Either Nat' TValue] -- ^ an abstract type
     deriving (Generic, NFData)
@@ -54,7 +55,7 @@ tValTy tv =
     TVSeq n t   -> tSeq (tNum n) (tValTy t)
     TVStream t  -> tSeq tInf (tValTy t)
     TVTuple ts  -> tTuple (map tValTy ts)
-    TVRec fs    -> tRec [ (f, tValTy t) | (f, t) <- fs ]
+    TVRec fs    -> tRec (fmap tValTy fs)
     TVFun t1 t2 -> tFun (tValTy t1) (tValTy t2)
     TVAbstract u vs -> tAbstract u (map arg vs)
       where arg x = case x of
@@ -103,7 +104,7 @@ evalType env ty =
         Nothing -> evalPanic "evalType" ["type variable not bound", show tv]
 
     TUser _ _ ty'  -> evalType env ty'
-    TRec fields    -> Right $ TVRec [ (f, val t) | (f, t) <- fields ]
+    TRec fields    -> Right $ TVRec (fmap val fields)
     TCon (TC c) ts ->
       case (c, ts) of
         (TCBit, [])     -> Right $ TVBit

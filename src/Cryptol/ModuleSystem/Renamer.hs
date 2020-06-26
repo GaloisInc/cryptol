@@ -36,6 +36,7 @@ import Cryptol.Parser.Position
 import Cryptol.Parser.Selector(ppNestedSels,selName)
 import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.PP
+import Cryptol.Utils.RecordMap
 
 import Data.List(find)
 import qualified Data.Foldable as F
@@ -573,7 +574,8 @@ instance Rename Type where
       TNum c         -> return (TNum c)
       TChar c        -> return (TChar c)
       TUser qn ps    -> TUser    <$> renameType qn <*> traverse rename ps
-      TRecord fs     -> TRecord  <$> traverse (rnNamed rename) fs
+      TTyApp fs      -> TTyApp   <$> traverse (traverse rename) fs
+      TRecord fs     -> TRecord  <$> traverse (traverse rename) fs
       TTuple fs      -> TTuple   <$> traverse rename fs
       TWild          -> return TWild
       TLocated t' r  -> withLoc r (TLocated <$> rename t' <*> pure r)
@@ -627,7 +629,7 @@ instance Rename Pattern where
     PVar lv         -> PVar <$> rnLocated renameVar lv
     PWild           -> pure PWild
     PTuple ps       -> PTuple   <$> traverse rename ps
-    PRecord nps     -> PRecord  <$> traverse (rnNamed rename) nps
+    PRecord nps     -> PRecord  <$> traverse (traverse rename) nps
     PList elems     -> PList    <$> traverse rename elems
     PTyped p' t     -> PTyped   <$> rename p'    <*> rename t
     PSplit l r      -> PSplit   <$> rename l     <*> rename r
@@ -665,7 +667,7 @@ instance Rename Expr where
     EGenerate e     -> EGenerate
                                <$> rename e
     ETuple es       -> ETuple  <$> traverse rename es
-    ERecord fs      -> ERecord <$> traverse (rnNamed rename) fs
+    ERecord fs      -> ERecord <$> traverse (traverse rename) fs
     ESel e' s       -> ESel    <$> rename e' <*> pure s
     EUpd mb fs      -> do checkLabels fs
                           EUpd <$> traverse rename mb <*> traverse rename fs
@@ -842,7 +844,7 @@ patternEnv  = go
 
   go PWild            = return mempty
   go (PTuple ps)      = bindVars ps
-  go (PRecord fs)     = bindVars (map value fs)
+  go (PRecord fs)     = bindVars (fmap (snd . snd) (canonicalFields fs))
   go (PList ps)       = foldMap go ps
   go (PTyped p ty)    = go p `mappend` typeEnv ty
   go (PSplit a b)     = go a `mappend` go b
@@ -887,7 +889,8 @@ patternEnv  = go
                 n   <- liftSupply (mkParameter (getIdent pn) loc)
                 return (singletonT pn n)
 
-  typeEnv (TRecord fs)      = bindTypes (map value fs)
+  typeEnv (TRecord fs)      = bindTypes (map (snd.snd) (canonicalFields fs))
+  typeEnv (TTyApp fs)       = bindTypes (map value fs)
   typeEnv (TTuple ts)       = bindTypes ts
   typeEnv TWild             = return mempty
   typeEnv (TLocated ty loc) = withLoc loc (typeEnv ty)

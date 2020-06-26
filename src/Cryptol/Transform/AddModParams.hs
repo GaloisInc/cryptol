@@ -16,6 +16,7 @@ import Cryptol.Parser.Position(thing)
 import Cryptol.ModuleSystem.Name(toParamInstName,asParamName,nameIdent
                                 ,paramModRecParam)
 import Cryptol.Utils.Ident(paramInstModName)
+import Cryptol.Utils.RecordMap(recordFromFields)
 
 {-
 Note that we have to be careful when doing this transformation on
@@ -182,7 +183,7 @@ type Inp = (Set Name, Params)
 
 
 paramRecTy :: Params -> Type
-paramRecTy ps = tRec [ (nameIdent x, t) | (x,t) <- pFuns ps ]
+paramRecTy ps = tRec (recordFromFields [ (nameIdent x, t) | (x,t) <- pFuns ps ])
 
 
 nameInst :: Inp -> Name -> [Type] -> Int -> Expr
@@ -231,7 +232,7 @@ instance Inst Expr where
 
      EList es t -> EList (inst ps es) (inst ps t)
      ETuple es -> ETuple (inst ps es)
-     ERec fs   -> ERec [ (f,inst ps e) | (f,e) <- fs ]
+     ERec fs   -> ERec (fmap (inst ps) fs)
      ESel e s  -> ESel (inst ps e) s
      ESet e s v -> ESet (inst ps e) s (inst ps v)
 
@@ -301,7 +302,7 @@ instance Inst Type where
       TVar x | Just x' <- isTParam ps x -> TVar (TVBound x')
              | otherwise  -> ty
 
-      TRec xs -> TRec [ (f,inst ps t) | (f,t) <- xs ]
+      TRec xs -> TRec (fmap (inst ps) xs)
 
 instance Inst TySyn where
   inst ps ts = ts { tsConstraints = inst ps (tsConstraints ts)
