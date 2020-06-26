@@ -4,8 +4,11 @@ BOOK = Cryptol.pdf
 .PHONY: all
 all: markdown book
 
+# Use sed to remove backslashes before generating PDF so Pandoc does not
+# render them.  They are necessary for Github markdown, but not Pandoc
+# markdown.
 Version2Table.pdf: Version2Table.md
-	pandoc -f markdown+tex_math_dollars -V geometry:"margin=0.25in" $^ -o $@
+	sed "s/\\\\//g" $^ | pandoc -f markdown+tex_math_dollars -V geometry:"margin=0.25in" -o $@
 
 Semantics.pdf: ../src/Cryptol/Eval/Reference.lhs
 	pandoc -f markdown+lhs -V geometry:"margin=1.25in" $^ --toc -o $@

@@ -176,6 +176,15 @@ type is inferred from context in which the literal is used. Examples:
     10                  // : {a}. (Literal 10 a) => a
                         // a = Integer or [n] where n >= width 10
 
+Numeric literals may also be written as polynomials by writing a polynomial
+expression in terms of `x` between an opening `<|` and a closing `|>`.  Numeric
+literals in polynomial notation result in bit sequences of length one more than
+the degree of the polynomial.  Examples:
+
+    <| x^^6 + x^^4 + x^^2 + x^^1 + 1 |>  // : [7], equal to 0b1010111
+    <| x^^4 + x^^3 + x |>                // : [5], equal to 0b11010
+
+
 Expressions
 ===========
 
