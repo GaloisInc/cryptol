@@ -1,5 +1,5 @@
 -- |
--- Module      :  Cryptol.Utils.PP
+-- Module      :  Cryptol.Utils.RecordMap
 -- Copyright   :  (c) 2020 Galois, Inc.
 -- License     :  BSD3
 -- Maintainer  :  cryptol@galois.com
@@ -43,7 +43,7 @@ import qualified Data.Map.Merge.Strict as Map
 import Cryptol.Utils.Panic
 
 -- | An "order insensitive" datastructure.
---   The fields can be accesed either according
+--   The fields can be accessed either according
 --   to a "canonical" order, or based on a
 --   "display" order, which matches the order
 --   in which the fields were originally specified.
