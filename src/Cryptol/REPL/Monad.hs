@@ -64,6 +64,7 @@ module Cryptol.REPL.Monad (
   , getUserShowProverStats
   , getUserProverValidate
   , parsePPFloatFormat
+  , getProverConfig
 
     -- ** Configurable Output
   , getPutStr
@@ -96,9 +97,9 @@ import Cryptol.Utils.Panic (panic)
 import Cryptol.Utils.Logger(Logger, logPutStr, funLogger)
 import qualified Cryptol.Parser.AST as P
 import Cryptol.Symbolic (SatNum(..))
-import qualified Cryptol.Symbolic.SBV as SBV (proverNames, checkProverInstallation)
-import qualified Cryptol.Symbolic.What4 as W4 (proverNames)
 import Cryptol.Eval.Monad(PPFloatFormat(..),PPFloatExp(..))
+import qualified Cryptol.Symbolic.SBV as SBV (proverNames, setupProver, defaultProver, SBVProverConfig)
+import qualified Cryptol.Symbolic.What4 as W4 (proverNames, setupProver, W4ProverConfig)
 
 import Control.Monad (ap,unless,when)
 import Control.Monad.Base
@@ -161,6 +162,8 @@ data RW = RW
   , eUpdateTitle :: REPL ()
     -- ^ Execute this every time we load a module.
     -- This is used to change the title of terminal when loading a module.
+
+  , eProverConfig :: Either SBV.SBVProverConfig W4.W4ProverConfig
   }
 
 -- | Initial, empty environment.
@@ -177,6 +180,7 @@ defaultRW isBatch l = do
     , eLogger      = l
     , eLetEnabled  = True
     , eUpdateTitle = return ()
+    , eProverConfig = Left SBV.defaultProver
     }
 
 -- | Build up the prompt for the REPL.
@@ -410,6 +414,9 @@ prependSearchPath path = do
   me <- getModuleEnv
   setModuleEnv $ me { M.meSearchPath = path ++ M.meSearchPath me }
 
+getProverConfig :: REPL (Either SBV.SBVProverConfig W4.W4ProverConfig)
+getProverConfig = eProverConfig <$> getRW
+
 shouldContinue :: REPL Bool
 shouldContinue  = eContinue `fmap` getRW
 
@@ -625,7 +632,7 @@ setUser name val = case lookupTrieExact name userOptions of
       | otherwise ->
         rPutStrLn ("Failed to parse boolean for field, `" ++ name ++ "`")
     where
-    doCheck v = do (r,ws) <- io (optCheck opt v)
+    doCheck v = do (r,ws) <- optCheck opt v
                    case r of
                      Just err -> rPutStrLn err
                      Nothing  -> do mapM_ rPutStrLn ws
@@ -716,12 +723,12 @@ mkOptionMap  = foldl insert emptyTrie
   insert m d = insertTrie (optName d) d m
 
 -- | Returns maybe an error, and some warnings
-type Checker = EnvVal -> IO (Maybe String, [String])
+type Checker = EnvVal -> REPL (Maybe String, [String])
 
 noCheck :: Checker
 noCheck _ = return (Nothing, [])
 
-noWarns :: Maybe String -> IO (Maybe String, [String])
+noWarns :: Maybe String -> REPL (Maybe String, [String])
 noWarns mb = return (mb, [])
 
 data OptionDescr = OptionDescr
@@ -858,16 +865,18 @@ checkInfLength val = case val of
 checkProver :: Checker
 checkProver val = case val of
   EnvString s
-    | s `elem` ["offline", "any", "sbv-offline", "sbv-any", "w4-offline"] -> noWarns Nothing
     | s `elem` W4.proverNames ->
-      do -- TODO! Implement solver installation testing for What4
-         return (Nothing, [])
+      io (W4.setupProver s) >>= \case
+        Left msg -> noWarns (Just msg)
+        Right (ws, cfg) ->
+          do modifyRW_ (\rw -> rw{ eProverConfig = Right cfg })
+             return (Nothing, ws)
     | s `elem` SBV.proverNames ->
-      do available <- SBV.checkProverInstallation s
-         let ws = if available
-                     then []
-                     else ["Warning: " ++ s ++ " installation not found"]
-         return (Nothing, ws)
+      io (SBV.setupProver s) >>= \case
+        Left msg -> noWarns (Just msg)
+        Right (ws, cfg) ->
+          do modifyRW_ (\rw -> rw{ eProverConfig = Left cfg })
+             return (Nothing, ws)
 
     | otherwise ->
       noWarns $ Just $ "Prover must be " ++ proverListString

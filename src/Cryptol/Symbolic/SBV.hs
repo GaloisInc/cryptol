@@ -17,8 +17,10 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Cryptol.Symbolic.SBV
- ( proverNames
- , checkProverInstallation
+ ( SBVProverConfig
+ , defaultProver
+ , proverNames
+ , setupProver
  , satProve
  , satProveOffline
  ) where
@@ -93,29 +95,39 @@ proverConfigs =
   , ("sbv-any"      , SBV.defaultSMTCfg )
   ]
 
+data SBVProverConfig
+  = SBVPortfolio [SBV.SMTConfig]
+  | SBVProverConfig SBV.SMTConfig
+
+defaultProver :: SBVProverConfig
+defaultProver = SBVProverConfig SBV.z3
+
 -- | The names of all the solvers supported by SBV
 proverNames :: [String]
 proverNames = map fst proverConfigs
 
-lookupProver :: String -> SBV.SMTConfig
-lookupProver s =
-  case lookup s proverConfigs of
-    Just cfg -> cfg
-    -- should be caught by UI for setting prover user variable
-    Nothing  -> panic "Cryptol.Symbolic.SBV" [ "invalid prover: " ++ s ]
+setupProver :: String -> IO (Either String ([String], SBVProverConfig))
+setupProver nm
+  | nm `elem` ["any","sbv-any"] =
+    do ps <- SBV.sbvAvailableSolvers
+       case ps of
+         [] -> pure (Left "SBV could not find any provers")
+         _ ->  let msg = "SBV found the following solvers: " ++ show (map (SBV.name . SBV.solver) ps) in
+               pure (Right ([msg], SBVPortfolio ps))
+
+  | otherwise =
+    case lookup nm proverConfigs of
+      Just cfg ->
+        do ok <- SBV.sbvCheckSolverInstallation cfg
+           let msg = if ok then [] else ["Warning: " ++ nm ++ " installation not found"]
+           pure (Right (msg, SBVProverConfig cfg))
+      Nothing -> pure (Left ("unknown solver name: " ++ nm))
 
 satSMTResults :: SBV.SatResult -> [SBV.SMTResult]
 satSMTResults (SBV.SatResult r) = [r]
 
 allSatSMTResults :: SBV.AllSatResult -> [SBV.SMTResult]
 allSatSMTResults (SBV.AllSatResult (_, _, _, rs)) = rs
-
--- | Check if the named solver can be found and invoked
---   in the current solver environment.
-checkProverInstallation :: String -> IO Bool
-checkProverInstallation s =
-  do let prover = lookupProver s
-     SBV.sbvCheckSolverInstallation prover
 
 thmSMTResults :: SBV.ThmResult -> [SBV.SMTResult]
 thmSMTResults (SBV.ThmResult r) = [r]
@@ -175,22 +187,22 @@ runMultiProvers ProverCommand{..} provers callSolvers processResult e = do
 
 -- | Select the appropriate solver or solvers from the given prover command,
 --   and invoke those solvers on the given symbolic value.
-runProver :: ProverCommand -> SBV.Symbolic SBV.SVal -> M.ModuleT IO (Maybe String, [SBV.SMTResult])
-runProver pc@ProverCommand{..} x =
+runProver :: SBVProverConfig -> ProverCommand -> SBV.Symbolic SBV.SVal -> M.ModuleT IO (Maybe String, [SBV.SMTResult])
+runProver proverConfig pc@ProverCommand{..} x =
   do let mSatNum = case pcQueryType of
                      SatQuery (SomeSat n) -> Just n
                      SatQuery AllSat -> Nothing
                      ProveQuery -> Nothing
                      SafetyQuery -> Nothing
 
-     provers <-
-       case pcProverName of
-         "any" -> M.io SBV.sbvAvailableSolvers
-         "sbv-any" -> M.io SBV.sbvAvailableSolvers
-         _ -> return [(lookupProver pcProverName)
-                        { SBV.transcript = pcSmtFile
-                        , SBV.allSatMaxModelCount = mSatNum
-                        }]
+     let provers =
+           case proverConfig of
+             SBVPortfolio ps -> ps
+             SBVProverConfig p ->
+                [ p{ SBV.transcript = pcSmtFile
+                   , SBV.allSatMaxModelCount = mSatNum
+                   }
+                ]
 
      let provers' = [ p { SBV.timing = SaveTiming pcProverStats
                         , SBV.verbose = pcVerbose
@@ -198,6 +210,7 @@ runProver pc@ProverCommand{..} x =
                         }
                     | p <- provers
                     ]
+
 
      case pcQueryType of
         ProveQuery  -> runMultiProvers pc provers' SBV.proveWithAny thmSMTResults x
@@ -344,8 +357,8 @@ processResults evo ProverCommand{..} ts results =
 --   This command returns a pair: the first element is the name of the
 --   solver that completes the given query (if any) along with the result
 --   of executing the query.
-satProve :: ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
-satProve pc@ProverCommand {..} =
+satProve :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
+satProve proverCfg pc@ProverCommand {..} =
   protectStack proverError $ \(evo,modEnv) ->
 
   M.runModuleM (evo,modEnv) $ do
@@ -353,7 +366,7 @@ satProve pc@ProverCommand {..} =
   M.io (prepareQuery evo modEnv pc) >>= \case
     Left msg -> return (Nothing, ProverError msg)
     Right (ts, q) ->
-      do (firstProver, results) <- runProver pc q
+      do (firstProver, results) <- runProver proverCfg pc q
          esatexprs <- processResults evo pc ts results
          return (firstProver, esatexprs)
 
@@ -363,8 +376,8 @@ satProve pc@ProverCommand {..} =
 --
 --   This method returns either an error message or the text of
 --   the SMT input file corresponding to the given prover command.
-satProveOffline :: ProverCommand -> M.ModuleCmd (Either String String)
-satProveOffline pc@ProverCommand {..} =
+satProveOffline :: SBVProverConfig -> ProverCommand -> M.ModuleCmd (Either String String)
+satProveOffline _proverCfg pc@ProverCommand {..} =
   protectStack (\msg (_,modEnv) -> return (Right (Left msg, modEnv), [])) $
   \(evOpts,modEnv) -> do
     let isSat = case pcQueryType of
