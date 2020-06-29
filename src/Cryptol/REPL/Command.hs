@@ -7,6 +7,7 @@
 -- Portability :  portable
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
@@ -709,10 +710,9 @@ onlineProveSat proverName qtype str mfile = do
         , pcSchema       = schema
         , pcIgnoreSafety = ignoreSafety
         }
-  (firstProver, res) <-
-     if | proverName `elem` W4.proverNames  -> liftModuleCmd $ W4.satProve cmd
-        | proverName `elem` SBV.proverNames -> liftModuleCmd $ SBV.satProve cmd
-        | otherwise -> panic "onlineProveSat" ["unexpected prover name", proverName]
+  (firstProver, res) <- getProverConfig >>= \case
+       Left sbvCfg -> liftModuleCmd $ SBV.satProve sbvCfg cmd
+       Right w4Cfg -> liftModuleCmd $ W4.satProve w4Cfg cmd
 
   stas <- io (readIORef timing)
   return (firstProver,res,stas)
@@ -753,9 +753,9 @@ offlineProveSat proverName qtype str mfile = do
              "To determine the " ++ satWord ++
              " of the expression, use an external SMT solver."
 
-  if
-   | proverName == "offline" || proverName == "sbv-offline" ->
-      do result <- liftModuleCmd $ SBV.satProveOffline cmd
+  getProverConfig >>= \case
+    Left sbvCfg ->
+      do result <- liftModuleCmd $ SBV.satProveOffline sbvCfg cmd
          case result of
            Left msg -> rPutStrLn msg
            Right smtlib -> do
@@ -764,8 +764,8 @@ offlineProveSat proverName qtype str mfile = do
                Just path -> io $ writeFile path smtlib
                Nothing -> rPutStr smtlib
 
-   | proverName == "w4-offline" ->
-      do result <- liftModuleCmd $ W4.satProveOffline cmd $ \f ->
+    Right w4Cfg ->
+      do result <- liftModuleCmd $ W4.satProveOffline w4Cfg cmd $ \f ->
                      do displayMsg
                         case mfile of
                           Just path ->
@@ -780,7 +780,6 @@ offlineProveSat proverName qtype str mfile = do
            Just msg -> rPutStrLn msg
            Nothing -> return ()
 
-    | otherwise -> panic "offlineProveSat" ["unexpected offline solver name", proverName]
 
 rIdent :: M.Ident
 rIdent  = M.packIdent "result"

@@ -10,6 +10,7 @@
 {-# LANGUAGE ImplicitParams #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PatternGuards #-}
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections #-}
@@ -18,8 +19,10 @@
 {-# LANGUAGE ViewPatterns #-}
 
 module Cryptol.Symbolic.What4
- ( proverNames
--- , checkProverInstallation
+ ( W4ProverConfig
+ , defaultProver
+ , proverNames
+ , setupProver
  , satProve
  , satProveOffline
  ) where
@@ -80,13 +83,13 @@ doW4Eval sym evo m =
 
 -- External interface ----------------------------------------------------------
 
-proverConfigs :: [(String, SolverAdapter st)]
+proverConfigs :: [(String, W4ProverConfig)]
 proverConfigs =
-  [ ("w4-cvc4"     , cvc4Adapter )
-  , ("w4-yices"    , yicesAdapter )
-  , ("w4-z3"       , z3Adapter )
-  , ("w4-boolector", boolectorAdapter )
-  , ("w4-offline"  , z3Adapter )
+  [ ("w4-cvc4"     , W4ProverConfig cvc4Adapter )
+  , ("w4-yices"    , W4ProverConfig yicesAdapter )
+  , ("w4-z3"       , W4ProverConfig z3Adapter )
+  , ("w4-boolector", W4ProverConfig boolectorAdapter )
+  , ("w4-offline"  , W4ProverConfig z3Adapter )
 {-
   , ("mathsat"  , SBV.mathSAT  )
   , ("abc"      , SBV.abc      )
@@ -94,19 +97,22 @@ proverConfigs =
 -}
   ]
 
+data W4ProverConfig =
+  W4ProverConfig
+    (forall st. SolverAdapter st)
+
+
+defaultProver :: W4ProverConfig
+defaultProver = W4ProverConfig z3Adapter
+
 proverNames :: [String]
 proverNames = map fst proverConfigs
 
-lookupProver :: String -> IO (SolverAdapter st)
-lookupProver s =
-  case lookup s proverConfigs of
-   Just cfg -> pure cfg
-   Nothing  -> panic "lookupProver" ["unknown solver name: " ++ s]
-
---checkProverInstallation :: String -> IO Bool
---checkProverInstallation _s =
---  do putStrLn "TODO! What4 check solver installation"
---     return True
+setupProver :: String -> IO (Either String ([String], W4ProverConfig))
+setupProver nm =
+  case lookup nm proverConfigs of
+    Just cfg -> pure (Right ([], cfg))
+    Nothing -> pure (Left ("unknown solver name: " ++ nm))
 
 proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
 proverError msg (_,modEnv) =
@@ -120,8 +126,8 @@ data CryptolState t = CryptolState
 allDeclGroups :: M.ModuleEnv -> [DeclGroup]
 allDeclGroups = concatMap mDecls . M.loadedNonParamModules
 
-satProve :: ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
-satProve ProverCommand {..} =
+satProve :: W4ProverConfig -> ProverCommand -> M.ModuleCmd (Maybe String, ProverResult)
+satProve solverCfg ProverCommand {..} =
   protectStack proverError $ \(evo, modEnv) ->
 
   M.runModuleM (evo,modEnv) $ do
@@ -165,23 +171,23 @@ satProve ProverCommand {..} =
             result <- case pcQueryType of
               ProveQuery ->
                 do q <- W4.notPred sym =<< W4.andPred sym safety' b
-                   singleQuery sym evo primMap pcProverName logData ts args (Just safety') q
+                   singleQuery sym solverCfg evo primMap logData ts args (Just safety') q
 
               SafetyQuery ->
                 do q <- W4.notPred sym safety
-                   singleQuery sym evo primMap pcProverName logData ts args (Just safety) q
+                   singleQuery sym solverCfg evo primMap logData ts args (Just safety) q
 
               SatQuery num ->
                 do q <- W4.andPred sym safety' b
-                   multiSATQuery sym evo primMap pcProverName logData ts args q num
+                   multiSATQuery sym solverCfg evo primMap logData ts args q num
 
 
             end <- getCurrentTime
             writeIORef pcProverStats (diffUTCTime end start)
             return result)
 
-satProveOffline :: ProverCommand -> ((Handle -> IO ()) -> IO ()) -> M.ModuleCmd (Maybe String)
-satProveOffline ProverCommand {..} outputContinuation =
+satProveOffline :: W4ProverConfig -> ProverCommand -> ((Handle -> IO ()) -> IO ()) -> M.ModuleCmd (Maybe String)
+satProveOffline (W4ProverConfig adpt) ProverCommand {..} outputContinuation =
   protectStack (\msg (_,modEnv) -> return (Right (Just msg, modEnv), [])) $
   \(evo,modEnv) -> do
   M.runModuleM (evo,modEnv) $ do
@@ -221,7 +227,6 @@ satProveOffline ProverCommand {..} outputContinuation =
                 SafetyQuery ->
                   W4.notPred sym safety
 
-              let adpt = z3Adapter
               W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
               outputContinuation (\hdl -> solver_adapter_write_smt2 adpt sym hdl [q])
               return Nothing
@@ -234,21 +239,20 @@ decSatNum n = n
 multiSATQuery ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
   sym ->
+  W4ProverConfig ->
   Eval.EvalOpts ->
   PrimMap ->
-  String ->
   W4.LogData ->
   [FinType] ->
   [VarShape sym] ->
   W4.Pred sym ->
   SatNum ->
   IO (Maybe String, ProverResult)
-multiSATQuery sym evo primMap solverName logData ts args query (SomeSat n) | n <= 1 =
-  singleQuery sym evo primMap solverName logData ts args Nothing query
+multiSATQuery sym solverCfg evo primMap logData ts args query (SomeSat n) | n <= 1 =
+  singleQuery sym solverCfg evo primMap logData ts args Nothing query
 
-multiSATQuery sym evo primMap solverName logData ts args query satNum0 =
-  do adpt <- lookupProver solverName
-     W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
+multiSATQuery sym (W4ProverConfig adpt) evo primMap logData ts args query satNum0 =
+  do W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
      pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
          case res of
            W4.Unknown -> return (Left (ProverError "Solver returned UNKNOWN"))
@@ -261,13 +265,13 @@ multiSATQuery sym evo primMap solverName logData ts args query satNum0 =
      case pres of
        Left res -> pure (Just (solver_adapter_name adpt), res)
        Right (mdl,block) ->
-         do mdls <- (mdl:) <$> computeMoreModels adpt [block,query] (decSatNum satNum0)
+         do mdls <- (mdl:) <$> computeMoreModels [block,query] (decSatNum satNum0)
             return (Just (solver_adapter_name adpt), AllSatResult mdls)
 
   where
 
-  computeMoreModels _adpt _qs (SomeSat n) | n <= 0 = return [] -- should never happen...
-  computeMoreModels adpt qs (SomeSat n) | n <= 1 = -- final model
+  computeMoreModels _qs (SomeSat n) | n <= 0 = return [] -- should never happen...
+  computeMoreModels qs (SomeSat n) | n <= 1 = -- final model
     W4.solver_adapter_check_sat adpt sym logData qs $ \res ->
          case res of
            W4.Unknown -> return []
@@ -276,7 +280,7 @@ multiSATQuery sym evo primMap solverName logData ts args query satNum0 =
              do model <- computeModel evo primMap evalFn ts args
                 return [model]
 
-  computeMoreModels adpt qs satNum =
+  computeMoreModels qs satNum =
     do pres <- W4.solver_adapter_check_sat adpt sym logData qs $ \res ->
          case res of
            W4.Unknown -> return Nothing
@@ -289,14 +293,14 @@ multiSATQuery sym evo primMap solverName logData ts args query satNum0 =
        case pres of
          Nothing -> return []
          Just (mdl, block) ->
-           (mdl:) <$> computeMoreModels adpt (block:qs) (decSatNum satNum)
+           (mdl:) <$> computeMoreModels (block:qs) (decSatNum satNum)
 
 singleQuery ::
   sym ~ W4.ExprBuilder t CryptolState fm =>
   sym ->
+  W4ProverConfig ->
   Eval.EvalOpts ->
   PrimMap ->
-  String ->
   W4.LogData ->
   [FinType] ->
   [VarShape sym] ->
@@ -307,9 +311,8 @@ singleQuery ::
 --singleQuery _sym _evo _primMap "all" _logData _ts _args _query =
 --  do fail "TODO portfolio solver!"
 
-singleQuery sym evo primMap solverName logData ts args msafe query =
-  do adpt <- lookupProver solverName
-     W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
+singleQuery sym (W4ProverConfig adpt) evo primMap logData ts args msafe query =
+  do W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
      pres <- W4.solver_adapter_check_sat adpt sym logData [query] $ \res ->
          case res of
            W4.Unknown -> return (ProverError "Solver returned UNKNOWN")
