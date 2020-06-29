@@ -106,7 +106,7 @@ import Control.Monad.Base
 import qualified Control.Monad.Catch as Ex
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
-import Data.Char (isSpace)
+import Data.Char (isSpace, toLower)
 import Data.IORef
     (IORef,newIORef,readIORef,modifyIORef,atomicModifyIORef)
 import Data.List (intercalate, isPrefixOf, unfoldr, sortBy)
@@ -864,7 +864,7 @@ checkInfLength val = case val of
 
 checkProver :: Checker
 checkProver val = case val of
-  EnvString s
+  EnvString (map toLower -> s)
     | s `elem` W4.proverNames ->
       io (W4.setupProver s) >>= \case
         Left msg -> noWarns (Just msg)
