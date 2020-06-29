@@ -111,7 +111,15 @@ proverNames = map fst proverConfigs
 setupProver :: String -> IO (Either String ([String], W4ProverConfig))
 setupProver nm =
   case lookup nm proverConfigs of
-    Just cfg -> pure (Right ([], cfg))
+    Just cfg@(W4ProverConfig adpt) ->
+      do sym <- W4.newExprBuilder W4.FloatIEEERepr CryptolState globalNonceGenerator
+         W4.extendConfig (W4.solver_adapter_config_options adpt) (W4.getConfiguration sym)
+         st <- W4.smokeTest sym adpt
+         let ws = case st of
+                    Nothing -> []
+                    Just ex -> [ "Warning: solver interaction failed with " ++ nm, "    " ++ show ex ]
+         pure (Right (ws, cfg))
+
     Nothing -> pure (Left ("unknown solver name: " ++ nm))
 
 proverError :: String -> M.ModuleCmd (Maybe String, ProverResult)
