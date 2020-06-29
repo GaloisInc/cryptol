@@ -1,0 +1,5 @@
+let z = { a = 0x08,  a = "asdf" }
+
+let g (x: { b : [8], b : String 4 }) = x.b
+
+let h { c = v, c = u } = zero#v == u

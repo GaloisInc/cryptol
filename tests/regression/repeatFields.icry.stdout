@@ -1,0 +1,10 @@
+Loading module Cryptol
+
+Parse error at <interactive>:1:22--1:23
+  Record has repeated field: a
+
+Parse error at <interactive>:1:22--1:23
+  Record has repeated field: b
+
+Parse error at <interactive>:1:16--1:17
+  Record has repeated field: c
