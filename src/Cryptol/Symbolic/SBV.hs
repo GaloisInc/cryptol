@@ -115,13 +115,26 @@ setupProver nm
          _ ->  let msg = "SBV found the following solvers: " ++ show (map (SBV.name . SBV.solver) ps) in
                pure (Right ([msg], SBVPortfolio ps))
 
+    -- special case, we search for two different yices binaries
+  | nm `elem` ["yices","sbv-yices"] = tryCfgs SBV.yices ["yices-smt2", "yices_smt2"]
+
   | otherwise =
     case lookup nm proverConfigs of
-      Just cfg ->
-        do ok <- SBV.sbvCheckSolverInstallation cfg
-           let msg = if ok then [] else ["Warning: " ++ nm ++ " installation not found"]
-           pure (Right (msg, SBVProverConfig cfg))
-      Nothing -> pure (Left ("unknown solver name: " ++ nm))
+      Just cfg -> tryCfgs cfg []
+      Nothing  -> pure (Left ("unknown solver name: " ++ nm))
+
+  where
+  tryCfgs cfg (e:es) =
+    do let cfg' = cfg{ SBV.solver = (SBV.solver cfg){ SBV.executable = e } }
+       ok <- SBV.sbvCheckSolverInstallation cfg'
+       if ok then pure (Right ([], SBVProverConfig cfg')) else tryCfgs cfg es
+
+  tryCfgs cfg [] =
+    do ok <- SBV.sbvCheckSolverInstallation cfg
+       pure (Right (ws ok, SBVProverConfig cfg))
+
+  ws ok = if ok then [] else notFound
+  notFound = ["Warning: " ++ nm ++ " installation not found"]
 
 satSMTResults :: SBV.SatResult -> [SBV.SMTResult]
 satSMTResults (SBV.SatResult r) = [r]
