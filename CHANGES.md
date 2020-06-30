@@ -24,7 +24,7 @@
 
   There is also a new `Round` class for types that can sensibly be
   rounded to integers.  This class has the methods `floor`, `ceiling`,
-  `trunc`, `rountToEven`  and `roundAray` for performing different
+  `trunc`, `roundToEven`  and `roundAway` for performing different
   kinds of integer rounding.  Currently `Rational` is the only member
   of `Round`.
 
@@ -50,7 +50,7 @@
 * The `generate` function (and thus `x @ i= e` definitions) has had
   its type specialized so the index type is always `Integer`.
 
-* The new typeclasses are arragned into a class heirarchy, and the
+* The new typeclasses are arranged into a class hierarchy, and the
   typechecker will use that information to infer superclass instances
   from subclasses.
 
@@ -75,8 +75,7 @@
 * The `:prove` and `:sat` commands now incorporate safety predicates
   by default. In a `:sat` call, models will only be found that do not
   cause run-time errors. For `:prove` calls, the safety conditions are
-  added as additional proof goals.  For `:sat` calls, models will only
-  be found that do not cause run-time errors. The prior behavior
+  added as additional proof goals.  The prior behavior
   (which ignored safety conditions) can be restored using
   `:set ignore-safety = on`.
 
